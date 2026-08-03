@@ -148,37 +148,25 @@ pub fn scripted_run(
         return Outcome::env(text);
     }
 
-    let mut worst = codes::OK;
-    let mut first_workflow: Option<String> = None;
-    // ONE founding source resolves to ONE scaffold set — the example
-    // lane (verbatim lesson) or a recipe (template set); the report and
-    // proof ladder below are shared, byte-identical between them.
-    let scaffolded = match (example, recipe) {
-        (Some(slug), _) => Some(recipes::scaffold_example(dir, slug, force)),
-        (None, Some(name)) => {
-            let Some(r) = recipes::recipe(name) else {
-                // clap's value_parser guards this door; a direct lib call
-                // with an unknown name still gets the honest refusal.
-                return Outcome {
-                    text: format!(
-                        "unknown recipe `{name}` — the register: {}",
-                        RECIPE_NAMES.join(" · ")
-                    ),
-                    code: codes::FILE,
-                };
-            };
-            Some(recipes::scaffold(dir, r, None, force))
-        }
-        (None, None) => None,
-    };
-    if let Some(scaffolded) = scaffolded {
-        match scaffold_report(dir, &scaffolded, audit, &mut text) {
-            Ok((first, w)) => {
-                first_workflow = first;
-                worst = worst.max(w);
-            }
+    let (first_workflow, worst) =
+        match found_from_source(dir, force, recipe, example, audit, &mut text) {
+            Ok(pair) => pair,
             Err(out) => return out,
-        }
+        };
+
+    // `starter`'s workflow step IS the three-question conversation, so its
+    // template set is empty by design (`recipes::RECIPES`) and a scripted
+    // run scaffolds none. Measured 2026-08-03: `--recipe starter -y` then
+    // lands byte-identical to `--recipe minimal`, output included — a flag
+    // that silently becomes another flag. The wiring did land; say which
+    // half a pipe cannot deliver, and where the twin lives.
+    if recipe == Some("starter") && first_workflow.is_none() {
+        let _ = writeln!(
+            text,
+            "· starter's workflow step is a conversation — a script cannot answer it. \
+             The wiring landed; run bare `nika init` on a terminal for the questions, \
+             or `nika new \"<your job in plain words>\" <file>.nika.yaml` for the twin."
+        );
     }
 
     for line in wire_receipts(dir, wires, wire) {
@@ -197,6 +185,43 @@ pub fn scripted_run(
         text: format!("{text}\n{next}"),
         code: worst,
     }
+}
+
+/// Resolve the ONE founding source into a scaffold set, speak its
+/// report, and hand back the first workflow + the worst audit code.
+///
+/// The example lane (a verbatim lesson) and a recipe (a template set)
+/// are two doors to the same ladder — the report and proof below are
+/// byte-identical between them. Neither door taken (plain `--yes`) is
+/// the historical shape: briefs only, nothing scaffolded.
+///
+/// `Err` carries the honest refusal an unknown recipe earns on a direct
+/// lib call — clap's `value_parser` guards the CLI door, not this one.
+fn found_from_source(
+    dir: &str,
+    force: bool,
+    recipe: Option<&str>,
+    example: Option<&str>,
+    audit: &Audit<'_>,
+    text: &mut String,
+) -> Result<(Option<String>, u8), Outcome> {
+    let scaffolded = match (example, recipe) {
+        (Some(slug), _) => recipes::scaffold_example(dir, slug, force),
+        (None, Some(name)) => {
+            let Some(r) = recipes::recipe(name) else {
+                return Err(Outcome {
+                    text: format!(
+                        "unknown recipe `{name}` — the register: {}",
+                        RECIPE_NAMES.join(" · ")
+                    ),
+                    code: codes::FILE,
+                });
+            };
+            recipes::scaffold(dir, r, None, force)
+        }
+        (None, None) => return Ok((None, codes::OK)),
+    };
+    scaffold_report(dir, &scaffolded, audit, text)
 }
 
 /// Speak one scaffold set's report bytes into `text` (✔/·/✖ rows —
@@ -649,6 +674,50 @@ mod tests {
         );
         assert!(tmp.join("workflows/04-agent-loop.nika.yaml").exists());
         std::fs::remove_dir_all(&tmp).ok();
+    }
+
+    /// `--recipe starter -y` used to land byte-identical to `--recipe
+    /// minimal`, output included (measured 2026-08-03) — starter's whole
+    /// content is the three-question conversation, which a pipe cannot
+    /// answer. A flag that silently becomes another flag is the one thing
+    /// a scriptable twin must never do, so the run says which half landed.
+    ///
+    /// The control is the point: minimal must NOT carry the note, or the
+    /// assertion above would pass on a message printed unconditionally.
+    #[test]
+    fn scripted_starter_says_which_half_a_pipe_cannot_deliver() {
+        let base = std::env::temp_dir().join(format!("nika-init-starter-{}", std::process::id()));
+        let mut said = Vec::new();
+        for recipe in ["starter", "minimal"] {
+            let tmp = base.join(recipe);
+            std::fs::remove_dir_all(&tmp).ok();
+            std::fs::create_dir_all(&tmp).expect("mkdir");
+            let out = run(
+                tmp.to_str().expect("utf8"),
+                false,
+                true,
+                Some(recipe),
+                None,
+                &[],
+                PLAIN,
+            );
+            assert_eq!(out.code, codes::OK, "{}", out.text);
+            said.push(out.text);
+        }
+        let (starter, minimal) = (&said[0], &said[1]);
+        assert!(
+            starter.contains("a script cannot answer it") && starter.contains("nika new"),
+            "starter names the missing half and the twin: {starter}"
+        );
+        assert!(
+            !minimal.contains("a script cannot answer it"),
+            "the note is starter's alone, not printed to everyone: {minimal}"
+        );
+        assert_ne!(
+            starter, minimal,
+            "two different --recipe values must not render the same bytes"
+        );
+        std::fs::remove_dir_all(&base).ok();
     }
 
     /// `--theme` stamps the DAG skin into a CREATED settings file — and
