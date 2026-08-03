@@ -32,7 +32,7 @@ use super::SchemaError;
 /// HERE (beside [`SpecCode`], below every consumer) because both the
 /// parser side (`skill.rs`) and the check ladder (`nika-check`, which
 /// re-exports it unchanged) stamp findings with it.
-pub const ERROR_DOCS_BASE: &str = "https://nika.sh/errors";
+pub const ERROR_DOCS_BASE: &str = "https://nika.sh/language/errors";
 
 /// The closed error-category enum (spec `05-errors.md` §categories ·
 /// `snake_case` on the wire).

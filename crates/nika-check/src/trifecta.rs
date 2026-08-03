@@ -173,7 +173,7 @@ mod tests {
         assert_eq!(f.code.as_deref(), Some("NIKA-SEC-009"));
         assert_eq!(
             f.docs_url.as_deref(),
-            Some("https://nika.sh/errors/NIKA-SEC-009")
+            Some("https://nika.sh/language/errors/NIKA-SEC-009")
         );
         // The conformance-code surface speaks the same code (one voice).
         let codes: Vec<String> = r

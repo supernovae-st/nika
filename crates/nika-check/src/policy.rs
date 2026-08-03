@@ -518,7 +518,7 @@ mod tests {
         assert_eq!(f.code.as_deref(), Some("NIKA-POLICY-001"));
         assert_eq!(
             f.docs_url.as_deref(),
-            Some("https://nika.sh/errors/NIKA-POLICY-001")
+            Some("https://nika.sh/language/errors/NIKA-POLICY-001")
         );
         // and the conformance-code surface speaks the same code
         let codes: Vec<String> = r
@@ -565,7 +565,7 @@ mod tests {
         assert_eq!(u.code.as_deref(), Some("NIKA-SEC-013"));
         assert_eq!(
             u.docs_url.as_deref(),
-            Some("https://nika.sh/errors/NIKA-SEC-013")
+            Some("https://nika.sh/language/errors/NIKA-SEC-013")
         );
         assert!(
             r.extra_conformance_codes()

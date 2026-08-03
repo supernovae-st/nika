@@ -93,7 +93,7 @@ fn canon_row(code: &str) -> Option<String> {
         .unwrap_or_default();
     Some(format!(
         "{code} · {category} · transient: {transient}\n\n  {failure}\n{lesson}\n{fix}\
-         full docs: https://nika.sh/errors/{code} — {closer}\n",
+         full docs: https://nika.sh/language/errors/{code} — {closer}\n",
         category = row.category,
         transient = row.transient,
         failure = row.failure,
@@ -159,7 +159,7 @@ fn retired_row(code: &str) -> Option<String> {
     };
     Some(format!(
         "{code} · retired — never reused\n\n  {teaching}\n\n\
-         full docs: https://nika.sh/errors/{successor} — the successor \
+         full docs: https://nika.sh/language/errors/{successor} — the successor \
          code carries the live page; a retired code's own page is gone \
          with its registry row.\n"
     ))
@@ -365,7 +365,8 @@ mod tests {
         assert!(out.text.contains("NIKA-VAR-021"));
         assert!(out.text.contains("validation_error"));
         assert!(
-            out.text.contains("https://nika.sh/errors/NIKA-VAR-021"),
+            out.text
+                .contains("https://nika.sh/language/errors/NIKA-VAR-021"),
             "the footer links the code's own page:\n{}",
             out.text
         );

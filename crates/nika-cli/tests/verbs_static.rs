@@ -336,7 +336,7 @@ fn check_json_conformance_carries_severity_and_docs_url() {
     assert_eq!(
         url,
         format!(
-            "https://nika.sh/errors/{}",
+            "https://nika.sh/language/errors/{}",
             c["code"].as_str().expect("code")
         )
     );

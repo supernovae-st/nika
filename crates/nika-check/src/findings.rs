@@ -528,7 +528,7 @@ mod tests {
         assert_eq!(escape.code.as_deref(), Some("NIKA-SEC-004"));
         assert_eq!(
             escape.docs_url.as_deref(),
-            Some("https://nika.sh/errors/NIKA-SEC-004")
+            Some("https://nika.sh/language/errors/NIKA-SEC-004")
         );
         assert_eq!(escape.task.as_deref(), Some("a"));
 
@@ -545,7 +545,7 @@ mod tests {
         assert_eq!(leak.code.as_deref(), Some("NIKA-SEC-006"));
         assert_eq!(
             leak.docs_url.as_deref(),
-            Some("https://nika.sh/errors/NIKA-SEC-006")
+            Some("https://nika.sh/language/errors/NIKA-SEC-006")
         );
         assert!(
             leak.message.contains("secrets.k"),
@@ -560,7 +560,7 @@ mod tests {
         assert_eq!(egress.code.as_deref(), Some("NIKA-SEC-007"));
         assert_eq!(
             egress.docs_url.as_deref(),
-            Some("https://nika.sh/errors/NIKA-SEC-007")
+            Some("https://nika.sh/language/errors/NIKA-SEC-007")
         );
 
         // policy → NIKA-POLICY-001 (spec 10).
@@ -589,7 +589,7 @@ mod tests {
         assert_eq!(tri.code.as_deref(), Some("NIKA-SEC-009"));
         assert_eq!(
             tri.docs_url.as_deref(),
-            Some("https://nika.sh/errors/NIKA-SEC-009")
+            Some("https://nika.sh/language/errors/NIKA-SEC-009")
         );
         assert_eq!(tri.task.as_deref(), Some("b"), "the sink is the witness");
     }
