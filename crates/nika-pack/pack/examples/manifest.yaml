@@ -38,9 +38,9 @@ templates:
   - file: templates/api-upload-and-create.nika.yaml
     sha256_16: 7e27c1b460940bfe
   - file: templates/chain.nika.yaml
-    sha256_16: d754834bf3bcfa1c
+    sha256_16: fd8b0663a6fb7b0c
   - file: templates/docker-report.nika.yaml
-    sha256_16: aa0bdafc1d8c4a68
+    sha256_16: bf9d9951ad0d94d8
   - file: templates/etl-state.nika.yaml
     sha256_16: 2a7b3145104abc43
   - file: templates/fanout.nika.yaml
@@ -48,11 +48,11 @@ templates:
   - file: templates/gate-and-act.nika.yaml
     sha256_16: 3bc291b44971559a
   - file: templates/human-gated-ship.nika.yaml
-    sha256_16: 28f87fb5070ce7ec
+    sha256_16: 268962b44e826574
   - file: templates/media-asset-pack.nika.yaml
-    sha256_16: 7e00bb6ba7124a03
+    sha256_16: a24c0ee6fb0168c2
   - file: templates/website-brief.nika.yaml
-    sha256_16: 7c861d48f78e3333
+    sha256_16: b11946c5c2253ee2
 showcase:
   - file: examples/bookmark-triage.nika.yaml
     workflow: {'id': 'bookmark-triage', 'description': 'URL list → per-page metadata fan-out (dead links survive) → one markdown triage table'}
