@@ -66,6 +66,7 @@
 
 mod blocklist;
 mod egress;
+mod scratch;
 
 pub use egress::{EgressDecision, EgressEvent, EgressObserver};
 

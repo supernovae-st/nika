@@ -572,89 +572,6 @@ pub(crate) fn conflicting_boundary(proxy: &EgressProxy, spec: &EgressAllowlist) 
     proxy.allowlist() != spec.hosts.as_slice()
 }
 
-/// Mint the per-spawn private scratch dir (issue 754 · the seatbelt arm):
-/// a fresh directory under the runner's temp, CANONICALIZED so the
-/// profile's subpath names what the kernel will actually see
-/// (`/var/folders/…` is a symlink into `/private/var/folders/…` on macOS —
-/// an un-folded grant would never match). Removed by the spawn's settle
-/// path.
-///
-/// The creation is EXCLUSIVE (`create_dir`, never `create_dir_all`), and
-/// that is the whole security property. This runs under a temp root every
-/// same-uid process can write, and what it returns is handed straight to
-/// `spec.fs_write` — it becomes an OS-enforced GRANT. Measured 2026-08-03
-/// (adversarial review of this very commit): `create_dir_all` adopts a
-/// pre-planted SYMLINK-to-directory as "already there" — Ok, no error,
-/// because `is_dir()` follows links — and `canonicalize` then hands back
-/// the link's TARGET. A co-resident process planting
-/// `nika-scratch-<pid>-0 -> $HOME` would have had the sandbox grant its
-/// own confined child read+write across the entire home directory,
-/// through the mechanism that exists to CLOSE an ambient-tmp hole (and
-/// `names_system_root` would not have caught it: it refuses the bare
-/// `/Users`, never `/Users/<someone>`). `create_dir` refuses an existing
-/// entry of any kind, so a plant becomes `AlreadyExists` and the mint
-/// moves on instead of inheriting a stranger's path.
-/// Claim ONE path exclusively as a directory we own, then resolve it.
-///
-/// The security property of the scratch, in one place so it can be
-/// tested as one: `create_dir` refuses an existing entry of ANY kind
-/// (`AlreadyExists`) — a plain directory, a file, and crucially a
-/// SYMLINK, which `create_dir_all` would have adopted by following it.
-/// Only after we know the entry is ours does `canonicalize` run, so it
-/// can only ever resolve our own directory's real path (the macOS
-/// `/var/folders` → `/private/var/folders` fold the sandbox profile
-/// needs), never a stranger's target.
-fn claim_dir(dir: &std::path::Path) -> std::io::Result<std::path::PathBuf> {
-    std::fs::create_dir(dir)?;
-    std::fs::canonicalize(dir)
-}
-
-fn mint_scratch_dir() -> Result<std::path::PathBuf, nika_kernel::ShellError> {
-    use std::sync::atomic::{AtomicU64, Ordering};
-    static SCRATCH_SEQ: AtomicU64 = AtomicU64::new(0);
-    // A bounded ladder: each rung is a fresh name, and an occupied one is
-    // never adopted. Sixteen collisions in a row is not a race lost, it is
-    // a temp root someone is farming — refuse rather than reach further.
-    const RUNGS: u32 = 16;
-    let root = std::env::temp_dir();
-    let mut last: Option<(std::path::PathBuf, std::io::Error)> = None;
-    for _ in 0..RUNGS {
-        let seq = SCRATCH_SEQ.fetch_add(1, Ordering::Relaxed);
-        // Nanos widen the name past `pid + seq`, which a co-resident
-        // process predicts exactly. Defense in depth only — the exclusive
-        // create below is what makes a GUESSED name harmless.
-        let nonce = std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map_or(0, |d| d.subsec_nanos());
-        let dir = root.join(format!(
-            "nika-scratch-{}-{seq}-{nonce:08x}",
-            std::process::id()
-        ));
-        match claim_dir(&dir) {
-            Ok(claimed) => return Ok(claimed),
-            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => last = Some((dir, e)),
-            Err(e) => {
-                return Err(nika_kernel::ShellError::Other {
-                    reason: format!(
-                        "could not mint the per-spawn sandbox scratch {}: {e}",
-                        dir.display()
-                    ),
-                });
-            }
-        }
-    }
-    let detail = last.map_or_else(
-        || "no candidate was tried".to_owned(),
-        |(dir, e)| format!("last {} · {e}", dir.display()),
-    );
-    Err(nika_kernel::ShellError::Other {
-        reason: format!(
-            "could not mint a per-spawn sandbox scratch after {RUNGS} attempts ({detail}) — \
-             refusing to adopt an existing path as the sandbox's writable grant"
-        ),
-    })
-}
-
 /// The runner-side wiring of the allowlist arm (kept here so `lib.rs` stays
 /// a lean process-lifecycle surface — this module owns the whole egress
 /// concern, proxy AND confinement hand-off).
@@ -702,7 +619,7 @@ impl crate::TokioShell {
             allowlist.proxy_port = Some(port);
         }
         let scratch = if backend.backend() == "seatbelt" {
-            let dir = mint_scratch_dir()?;
+            let dir = crate::scratch::mint_scratch_dir()?;
             let path = dir.to_string_lossy().into_owned();
             command
                 .env
@@ -1405,76 +1322,6 @@ mod tests {
         }
         fn backend(&self) -> &'static str {
             "seatbelt"
-        }
-    }
-
-    /// THE plant (adversarial review 2026-08-03). The scratch path lives
-    /// under a temp root every same-uid process can write, and what the
-    /// mint returns becomes an OS-enforced `fs_write` GRANT — so a
-    /// pre-planted entry must never be ADOPTED. The first draft used
-    /// `create_dir_all`, which treats a symlink-to-directory as "already
-    /// there" (`is_dir()` follows links) and let `canonicalize` hand back
-    /// the link's TARGET: a plant pointing at `$HOME` would have granted
-    /// the confined child the whole home directory.
-    ///
-    /// Both arms are pinned, because only the pair proves it: the claim
-    /// REFUSES a planted symlink (not "returns something else" — refuses),
-    /// and it still succeeds on a free name. A test that only checked the
-    /// happy path is what let the first draft ship.
-    #[test]
-    fn claiming_refuses_a_planted_symlink_and_takes_a_free_name() {
-        let target = std::env::temp_dir().join(format!("nika-decoy-tgt-{}", std::process::id()));
-        std::fs::create_dir_all(&target).expect("decoy target");
-        let planted = std::env::temp_dir().join(format!("nika-decoy-{}", std::process::id()));
-        let _ = std::fs::remove_file(&planted);
-        let _ = std::fs::remove_dir_all(&planted);
-        std::os::unix::fs::symlink(&target, &planted).expect("plant the symlink");
-
-        // The plant is refused — never resolved to its target.
-        let refused = claim_dir(&planted);
-        assert!(
-            refused
-                .as_ref()
-                .is_err_and(|e| e.kind() == std::io::ErrorKind::AlreadyExists),
-            "a planted symlink must be REFUSED, got {refused:?}"
-        );
-
-        // A plain pre-existing directory is equally not ours to adopt.
-        let occupied = std::env::temp_dir().join(format!("nika-occupied-{}", std::process::id()));
-        std::fs::create_dir_all(&occupied).expect("occupied");
-        assert!(
-            claim_dir(&occupied)
-                .as_ref()
-                .is_err_and(|e| e.kind() == std::io::ErrorKind::AlreadyExists),
-            "an existing directory is not ours either"
-        );
-
-        // …and a free name still works, resolved to a REAL directory.
-        let free = std::env::temp_dir().join(format!("nika-free-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&free);
-        let claimed = claim_dir(&free).expect("a free name claims");
-        assert!(
-            std::fs::symlink_metadata(&claimed)
-                .expect("claimed exists")
-                .is_dir(),
-            "the claim must own a real directory, never a link: {claimed:?}"
-        );
-
-        let _ = std::fs::remove_dir_all(&claimed);
-        let _ = std::fs::remove_file(&planted);
-        let _ = std::fs::remove_dir_all(&occupied);
-        let _ = std::fs::remove_dir_all(&target);
-    }
-
-    /// The mint walks past an occupied rung instead of failing on it.
-    #[test]
-    fn the_mint_survives_an_occupied_rung() {
-        let first = mint_scratch_dir().expect("mints");
-        let second = mint_scratch_dir().expect("mints again");
-        assert_ne!(first, second, "two spawns never share a scratch");
-        for d in [&first, &second] {
-            assert!(std::fs::symlink_metadata(d).expect("exists").is_dir());
-            let _ = std::fs::remove_dir_all(d);
         }
     }
 
