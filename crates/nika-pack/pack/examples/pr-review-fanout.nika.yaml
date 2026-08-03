@@ -110,7 +110,7 @@ tasks:
   files:
     with:
       changed: ${{ tasks.changed.output }}
-    when: ${{ with.changed != null }}  # a refused gate skips the diff → nothing to split
+    when: ${{ with.changed != null && size(with.changed) > 0 }}  # a refused gate skips the diff (null) · an empty diff has nothing to split
     invoke:
       tool: "nika:jq"
       args:
@@ -200,7 +200,7 @@ tasks:
     with:
       merged: ${{ tasks.merged.output }}
       todo_sweep: ${{ tasks.todo_sweep.output }}
-    when: ${{ with.todo_sweep != null }}  # a refused gate skips the sweep → no page to write
+    when: ${{ with.todo_sweep != null && size(with.todo_sweep) > 0 }}  # skipped (null) or an empty sweep · no page to write
     infer:
       max_tokens: 2500                 # a review page · not the whole diff back
       prompt: |
@@ -213,7 +213,7 @@ tasks:
   save:
     with:
       summary: ${{ tasks.summary.output }}
-    when: ${{ with.summary != null }}   # a refused gate skips the summary → no REVIEW.md
+    when: ${{ with.summary != null && size(with.summary) > 0 }}   # skipped (null) or an EMPTY answer · never a 0-byte REVIEW.md
     invoke:
       tool: "nika:write"
       args:

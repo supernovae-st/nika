@@ -116,7 +116,7 @@ tasks:
   notes:
     with:
       history: ${{ tasks.history.output }}
-    when: ${{ with.history != null }}  # a refused gate skips history → nothing to draft
+    when: ${{ with.history != null && size(with.history) > 0 }}  # a refused gate skips history (null) · an empty log has nothing to draft either
     infer:
       max_tokens: 1000
       prompt: |
@@ -147,7 +147,7 @@ tasks:
   copy:
     with:
       existing: ${{ tasks.existing.output }}
-    when: ${{ with.existing != null }}  # a refused gate skips the read → nothing to copy
+    when: ${{ with.existing != null && size(with.existing) > 0 }}  # a refused gate skips the read (null) · an empty file has nothing to copy
     invoke:
       tool: "nika:write"
       args:

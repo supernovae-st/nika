@@ -193,7 +193,7 @@ tasks:
   save:
     with:
       digest: ${{ tasks.digest.output }}
-    when: ${{ with.digest != null }}   # a skipped task reads null downstream · gate on the VALUE
+    when: ${{ with.digest != null && size(with.digest) > 0 }}   # skipped (null) or an EMPTY answer · gate on the VALUE, both ways
     invoke:
       tool: "nika:write"
       args:
