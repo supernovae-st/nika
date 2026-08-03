@@ -74,6 +74,12 @@ tasks:
         prompt: "${{ with.brief_image_prompt }}"
         output_dir: "${{ const.out_dir }}"
         filename_prefix: "asset"    # SLOT: filename stem
+    on_error:
+      # Golden rehearsal · the image tool is an EFFECT, refused under
+      # `nika test` even on `provider: mock` (the plane simulates the
+      # model, not effects). The literal keeps the manifest jq's shape
+      # (`.images`) intact. Delete once a real seat renders.
+      recover: { images: [] }
 
   manifest:
     with:
@@ -99,6 +105,10 @@ tasks:
         # serializes. `nika:jq` above BUILT that value; hand-typing braces
         # around an interpolation emits unquoted fields and breaks the artifact.
         content: "${{ with.manifest }}"
+    on_error:
+      # Golden rehearsal · same NIKA-452 refusal as `render` above. Never
+      # fires on a successful real write. Delete once wired.
+      recover: "REHEARSAL · write refused under nika test — the real run lands the manifest"
 
 outputs:
   manifest: ${{ tasks.manifest.output }}  # SLOT: the callable contract

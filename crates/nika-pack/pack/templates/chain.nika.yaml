@@ -84,6 +84,13 @@ tasks:
       args:
         path: "${{ const.destination }}"   # SLOT: destination · same path as permits.fs.write
         content: "${{ with.think }}"       # ALWAYS pass content · a write without it writes nothing
+    on_error:
+      # Golden rehearsal. Under `nika test` the mock plane simulates the
+      # MODEL, not effects — this write is refused (NIKA-452) so the pin
+      # lane needs this recover to walk its own scaffold. `nika run` never
+      # fires it on success (a recover only runs on failure). Delete this
+      # block once pointed at real data, so a genuine write failure is loud.
+      recover: "REHEARSAL · write refused under nika test — the real run persists to the destination"
 
 outputs:
   result: ${{ tasks.think.output }}  # SLOT: the callable contract

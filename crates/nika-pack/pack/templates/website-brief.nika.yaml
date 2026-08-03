@@ -94,6 +94,12 @@ tasks:
         # the engine serializes. Typing `{ "domain": ${{ … }} }` by hand emits
         # unquoted fields and the artifact stops being JSON.
         content: "${{ with.brief }}"
+    on_error:
+      # Golden rehearsal · `nika test` refuses effects (NIKA-452 · the mock
+      # plane simulates the model, not effects) — this recover lets the pin
+      # lane walk the scaffold. Never fires on a successful real write.
+      # Delete once wired, so a genuine write failure is loud.
+      recover: "REHEARSAL · write refused under nika test — the real run persists the brief"
 
 outputs:
   brief: ${{ tasks.brief.output }}   # SLOT: the callable contract

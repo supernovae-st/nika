@@ -61,11 +61,22 @@ tasks:
     exec:
       command: ["echo", "ok"]        # SLOT: gate 1 (argv form · injection-safe)
       capture: structured
+    on_error:
+      # Golden rehearsal · `nika test` refuses exec (NIKA-SEC-001 · the mock
+      # plane simulates the model, not effects). Catch-all ON PURPOSE — never
+      # `on_codes: [NIKA-SEC-001]`: that code is also a real blocklist stop,
+      # and a narrow forgiveness would swallow a security refusal. The shape
+      # matches `capture: structured` so the gates expression reads it.
+      # Delete once the gate runs a real check.
+      recover: { exit_code: 0, stdout: "REHEARSAL", stderr: "" }
 
   check_b:
     exec:
       command: ["echo", "ok"]        # SLOT: gate 2
       capture: structured
+    on_error:
+      # Same rehearsal armor as check_a · delete once real.
+      recover: { exit_code: 0, stdout: "REHEARSAL", stderr: "" }
 
   gates:
     with:

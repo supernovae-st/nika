@@ -92,6 +92,12 @@ tasks:
       args:
         path: "./docker-health.md"  # SLOT: same path as permits.fs.write
         content: "${{ with.diagnose }}"
+    on_error:
+      # Golden rehearsal · `nika test` refuses effects (NIKA-452) — the pin
+      # lane recovers into this marker (outputs.report pins it · honest and
+      # deterministic). Never fires on a successful real write. Delete once
+      # the report really lands, so a genuine write failure is loud.
+      recover: "REHEARSAL · write refused under nika test — the real run lands ./docker-health.md"
 
 outputs:
   report:
