@@ -202,7 +202,7 @@ fn verb_help(num: u16) -> &'static str {
             "The tool ran but reported an error. Inspect the tool's output content for the failure detail."
         }
         452 => {
-            "Tool dispatch failed (timeout, execution error, or the tool system is unavailable). Check the MCP server or builtin availability."
+            "Tool dispatch failed. Under `nika test` this is BY DESIGN: the mock plane simulates the model, not effects, so the effect tools (`nika:write` · `edit` · `fetch` · `notify` · `image_generate` · `tts_generate` · `chart` · `image_fx`) and anything outside the `nika:` namespace refuse — reach for `nika run` when you want the effect, or let the task rehearse through `on_error: recover` (every shipped skeleton carries that armor). Elsewhere: a timeout, an execution error, or an unavailable tool system — check the MCP server or builtin availability."
         }
         460 => {
             "The agent hit max_turns without completing. Raise max_turns, tighten the prompt toward the nika:done sentinel, or reduce tool round-trips."
@@ -583,6 +583,30 @@ mod tests {
             "`null` `content:`",
             "trace peek",
             "NIKA-BUILTIN-WRITE-002",
+        ] {
+            assert!(help.contains(lesson), "missing `{lesson}` in:\n{help}");
+        }
+    }
+
+    /// The 452 lesson (issue 814 · 2026-08-03): the way a user meets
+    /// this code today is the golden lane — under `nika test` the mock
+    /// plane refuses effects BY DESIGN, and the old text named only the
+    /// MCP/builtin availability, so the reader was sent hunting a
+    /// server that was never the problem. The text now names the test
+    /// plane FIRST, enumerates the refused set, and hands both working
+    /// exits (`nika run` for the effect · `on_error: recover` to
+    /// rehearse) before falling back to the generic causes.
+    #[test]
+    fn invoke_452_explain_names_the_test_plane_and_its_exits() {
+        let help = code_help(NIKA_452);
+        for lesson in [
+            "nika test",
+            "simulates the model, not effects",
+            "nika:write",
+            "nika run",
+            "on_error: recover",
+            // The generic causes survive — they are still true elsewhere.
+            "MCP server or builtin availability",
         ] {
             assert!(help.contains(lesson), "missing `{lesson}` in:\n{help}");
         }
