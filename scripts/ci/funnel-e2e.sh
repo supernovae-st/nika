@@ -118,7 +118,13 @@ fi
 run init 0 -- "$BIN" init
 [ -f AGENTS.md ] || fail "[init] no AGENTS.md"
 run init-again 0 -- "$BIN" init
-for c in $(grep -oE '`nika [a-z-]+' AGENTS.md | awk '{print $2}' | tr -d '`' | sort -u); do
+taught=$(grep -oE '`nika [a-z-]+' AGENTS.md | awk '{print $2}' | tr -d '`' | sort -u)
+# An empty harvest asserts nothing and reads as clean. The scaffold
+# teaches ~20 verbs; if this reaches zero the guide changed shape and
+# this step went blind, which is the failure, not a pass.
+[ "$(printf '%s\n' "$taught" | grep -c .)" -ge 10 ] \
+  || fail "[agents-md] harvested $(printf '%s\n' "$taught" | grep -c .) verbs — the guide changed shape, this check is blind"
+for c in $taught; do
   has_cmd "$c" || fail "[agents-md] teaches 'nika $c' — clap tree lacks it"
 done
 
