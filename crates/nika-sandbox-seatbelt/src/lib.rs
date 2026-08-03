@@ -24,7 +24,10 @@
 //!   its env contract, because a Seatbelt host rule is TLS-blind: the
 //!   profile fences the CHANNEL, the proxy fences the HOSTS.
 //! - **Writes** — allowed ONLY under the declared `fs_write` prefixes plus
-//!   scratch. Everything else (home, the repo, `/etc`) is read-only-or-denied.
+//!   the per-spawn private scratch the runner creates and grants (the child's
+//!   `TMPDIR` — issue 754: the SHARED host tmp trees are no blanket grant
+//!   anymore, they bypassed every declared boundary). Everything else (home,
+//!   the repo, `/etc`, `/private/tmp`) is read-only-or-denied.
 //! - **Reads** — the system paths every binary + the dynamic linker need are
 //!   always allowed (else nothing runs); the declared `fs_read` prefixes are
 //!   added; SENSITIVE user paths (`~/.ssh`, `~/.aws`, arbitrary home files)
@@ -403,9 +406,16 @@ fn sbpl_string(path: &str) -> Result<String, CommandSandboxError> {
 }
 
 /// The fixed deny-default preamble: allow the minimum every program needs to
-/// START (exec/fork, the dynamic linker's system reads, scratch writes), then
-/// `build_profile` appends the declared reach. Network + non-scratch writes +
-/// sensitive reads stay denied by `(deny default)`.
+/// START (exec/fork, the dynamic linker's system reads, the device-file
+/// sinks), then `build_profile` appends the declared reach. Network + writes
+/// + sensitive reads stay denied by `(deny default)`.
+///
+/// The shared host tmp trees (`/private/tmp`, `/private/var/tmp` and
+/// `/private/var/folders`) are NOT here (issue 754): a blanket grant on them
+/// bypassed every declared `permits.fs` boundary — the runner now hands each
+/// confined spawn its OWN per-spawn scratch (the child's `TMPDIR`, granted
+/// via `fs_write` like any other prefix), and an author who genuinely wants
+/// the shared `/tmp` declares it.
 const PROFILE_PREAMBLE: &str = r#"(version 1)
 (deny default)
 (allow process-exec*)
@@ -432,9 +442,6 @@ const PROFILE_PREAMBLE: &str = r#"(version 1)
     (literal "/dev/stderr")
     (literal "/dev/dtracehelper")
     (literal "/dev/tty"))
-(allow file-read* file-write* (subpath "/private/tmp"))
-(allow file-read* file-write* (subpath "/private/var/tmp"))
-(allow file-read* file-write* (subpath "/private/var/folders"))
 "#;
 
 #[cfg(test)]
@@ -757,6 +764,28 @@ mod tests {
         assert_eq!(grant_subpath("**/y").unwrap(), None);
         assert_eq!(grant_subpath("/*").unwrap(), None);
         assert_eq!(grant_subpath("/**").unwrap(), None);
+    }
+
+    /// Issue 754 — the blanket `(allow file-read* file-write* (subpath
+    /// "/private/tmp"))` family bypassed every declared `permits.fs`
+    /// boundary. The empty spec's profile must not name the shared tmp
+    /// trees at all; a DECLARED grant re-admits exactly its own subpath.
+    #[test]
+    fn the_shared_host_tmp_is_no_ambient_grant() {
+        let p = build_profile(&SandboxSpec::new(), None).expect("profile");
+        for tree in ["/private/tmp", "/private/var/tmp", "/private/var/folders"] {
+            assert!(
+                !p.contains(tree),
+                "the empty profile must not grant {tree}:\n{p}"
+            );
+        }
+        let mut spec = SandboxSpec::new();
+        spec.fs_write = vec!["/private/tmp/nika-x/**".to_owned()];
+        let p = build_profile(&spec, None).expect("profile");
+        assert!(
+            p.contains("(subpath \"/private/tmp/nika-x\")"),
+            "a declared tmp subpath is granted exactly:\n{p}"
+        );
     }
 
     #[test]

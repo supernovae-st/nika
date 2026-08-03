@@ -30,8 +30,10 @@ pub struct SandboxSpec {
     /// Readable path prefixes (beyond the always-allowed system paths the
     /// dynamic linker + the program binary need to start).
     pub fs_read: Vec<String>,
-    /// Writable path prefixes (the ONLY paths the child may write · beyond
-    /// the always-allowed scratch like `$TMPDIR`).
+    /// Writable path prefixes (the ONLY paths the child may write). The
+    /// runner adds the per-spawn private scratch it mints (the child's
+    /// `TMPDIR`) as one of these — the SHARED host tmp trees are no
+    /// ambient grant (issue 754: they bypassed every declared boundary).
     pub fs_write: Vec<String>,
     /// The network arm (the tri-state below). [`NetPolicy::Deny`] is the
     /// default under a declared boundary — fail-closed.

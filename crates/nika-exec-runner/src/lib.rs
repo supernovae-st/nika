@@ -219,8 +219,9 @@ impl ShellRunDyn for TokioShell {
 
         // OS confinement (spec 01 §permits · ADR-095 Layer 6) — applied AFTER
         // the blocklist so the floor inspected the REAL command, not the
-        // launcher wrapper.
-        let command = self.apply_sandbox(command)?;
+        // launcher wrapper. `scratch` is the per-spawn private TMPDIR the
+        // seatbelt arm minted (issue 754) — removed when the spawn settles.
+        let (command, scratch) = self.apply_sandbox(command)?;
 
         let start = Instant::now();
         let mut cmd = build_command(&command);
@@ -280,6 +281,13 @@ impl ShellRunDyn for TokioShell {
 
         if let Some(p) = pid {
             self.deregister(p);
+        }
+
+        // The per-spawn scratch dies with the spawn (issue 754 · best-effort:
+        // a leftover under the user temp is the OS reaper's to sweep, never
+        // a correctness problem — the next spawn mints a fresh one).
+        if let Some(dir) = scratch {
+            let _ = std::fs::remove_dir_all(&dir);
         }
 
         outcome_to_result(outcome, pid, start).await

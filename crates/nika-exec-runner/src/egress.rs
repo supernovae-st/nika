@@ -572,6 +572,27 @@ pub(crate) fn conflicting_boundary(proxy: &EgressProxy, spec: &EgressAllowlist) 
     proxy.allowlist() != spec.hosts.as_slice()
 }
 
+/// Mint the per-spawn private scratch dir (issue 754 · the seatbelt arm):
+/// a fresh, uniquely named directory under the runner's temp, CANONICALIZED
+/// so the profile's subpath names what the kernel will actually see
+/// (`/var/folders/…` is a symlink into `/private/var/folders/…` on macOS —
+/// an un-folded grant would never match). Collision-safe by construction
+/// (pid + a process-wide counter); removed by the spawn's settle path.
+fn mint_scratch_dir() -> Result<std::path::PathBuf, nika_kernel::ShellError> {
+    use std::sync::atomic::{AtomicU64, Ordering};
+    static SCRATCH_SEQ: AtomicU64 = AtomicU64::new(0);
+    let seq = SCRATCH_SEQ.fetch_add(1, Ordering::Relaxed);
+    let dir = std::env::temp_dir().join(format!("nika-scratch-{}-{seq}", std::process::id()));
+    let fail = |e: std::io::Error| nika_kernel::ShellError::Other {
+        reason: format!(
+            "could not mint the per-spawn sandbox scratch {}: {e}",
+            dir.display()
+        ),
+    };
+    std::fs::create_dir_all(&dir).map_err(fail)?;
+    std::fs::canonicalize(&dir).map_err(fail)
+}
+
 /// The runner-side wiring of the allowlist arm (kept here so `lib.rs` stays
 /// a lean process-lifecycle surface — this module owns the whole egress
 /// concern, proxy AND confinement hand-off).
@@ -587,13 +608,22 @@ impl crate::TokioShell {
     /// values never outrank the boundary) and the spec handed to the backend
     /// learns the proxy's port (the seatbelt fence scopes outbound loopback
     /// to exactly it).
+    ///
+    /// The seatbelt arm also mints the per-spawn private scratch (issue 754
+    /// · the blanket shared-tmp grant left the profile): a fresh dir under
+    /// the runner's temp becomes the child's `TMPDIR` (the authored `env:`
+    /// map wins if the author set one) and rides `fs_write` like any other
+    /// declared prefix. Returned beside the command so [`crate::TokioShell`]
+    /// removes it when the spawn settles. The landlock jail needs none — it
+    /// already mounts a private tmpfs `/tmp`.
     pub(super) fn apply_sandbox(
         &self,
         mut command: nika_kernel::ShellCommand,
-    ) -> Result<nika_kernel::ShellCommand, nika_kernel::ShellError> {
+    ) -> Result<(nika_kernel::ShellCommand, Option<std::path::PathBuf>), nika_kernel::ShellError>
+    {
         use nika_kernel::{ShellError, process::NetPolicy};
         let Some(mut spec) = command.sandbox.take() else {
-            return Ok(command);
+            return Ok((command, None));
         };
         let Some(backend) = &self.sandbox else {
             return Err(ShellError::Blocked {
@@ -609,9 +639,25 @@ impl crate::TokioShell {
             }
             allowlist.proxy_port = Some(port);
         }
-        backend
+        let scratch = if backend.backend() == "seatbelt" {
+            let dir = mint_scratch_dir()?;
+            let path = dir.to_string_lossy().into_owned();
+            command
+                .env
+                .entry("TMPDIR".to_owned())
+                .or_insert_with(|| path.clone());
+            // Trailing slash on purpose: a directory grant, so the profile
+            // emits a plain subpath (no exact-file sidecars, no parent
+            // listing of the shared temp root).
+            spec.fs_write.push(format!("{path}/"));
+            Some(dir)
+        } else {
+            None
+        };
+        let confined = backend
             .confine(&spec, command)
-            .map_err(|e| crate::map_sandbox_error(&e))
+            .map_err(|e| crate::map_sandbox_error(&e))?;
+        Ok((confined, scratch))
     }
 
     /// Secure the per-run loopback egress proxy for the allowlist arm:
@@ -1179,7 +1225,7 @@ mod tests {
         let mut cmd = ShellCommand::new("echo");
         cmd.args = vec!["x".to_owned()];
         cmd.sandbox = Some(spec);
-        shell.apply_sandbox(cmd).expect("confined")
+        shell.apply_sandbox(cmd).expect("confined").0
     }
 
     #[test]
@@ -1280,5 +1326,69 @@ mod tests {
             shell.egress_proxy.lock().unwrap().is_none(),
             "a refused command starts no proxy"
         );
+    }
+
+    /// A pass-through recorder that CLAIMS the seatbelt name — the scratch
+    /// arm (issue 754) keys on `backend() == "seatbelt"`.
+    #[derive(Debug, Default)]
+    struct SeatbeltishSandbox(CaptureSandbox);
+
+    impl CommandSandbox for SeatbeltishSandbox {
+        fn confine(
+            &self,
+            spec: &SandboxSpec,
+            command: ShellCommand,
+        ) -> Result<ShellCommand, CommandSandboxError> {
+            self.0.confine(spec, command)
+        }
+        fn backend(&self) -> &'static str {
+            "seatbelt"
+        }
+    }
+
+    /// Issue 754 — the shared host tmp left the profile, so the seatbelt
+    /// arm must hand each confined spawn its OWN scratch: minted on disk,
+    /// granted via `fs_write` as a directory prefix, and set as the
+    /// child's `TMPDIR` — unless the AUTHOR set one (authored env wins).
+    #[test]
+    fn the_seatbelt_arm_mints_a_private_scratch_and_the_author_tmpdir_wins() {
+        let backend = Arc::new(SeatbeltishSandbox::default());
+        let shell = crate::TokioShell::with_sandbox(Arc::clone(&backend) as _);
+
+        let mut cmd = ShellCommand::new("echo");
+        cmd.sandbox = Some(SandboxSpec::new());
+        let (out, scratch) = shell.apply_sandbox(cmd).expect("confined");
+        let dir = scratch.expect("the seatbelt arm mints a scratch");
+        assert!(dir.is_dir(), "the scratch exists before the spawn");
+        let tmpdir = out.env.get("TMPDIR").expect("TMPDIR is set").clone();
+        assert_eq!(tmpdir, dir.to_string_lossy());
+        let seen = backend.0.lock().expect("recorder");
+        let (spec_seen, _) = seen.last().expect("one confinement");
+        assert!(
+            spec_seen
+                .fs_write
+                .iter()
+                .any(|g| *g == format!("{tmpdir}/")),
+            "the scratch rides fs_write as a directory grant: {:?}",
+            spec_seen.fs_write
+        );
+        drop(seen);
+        let _ = std::fs::remove_dir_all(&dir);
+
+        // The authored TMPDIR wins — the scratch is still minted and
+        // granted (the child needs SOME writable temp), never clobbering.
+        let mut cmd = ShellCommand::new("echo");
+        cmd.sandbox = Some(SandboxSpec::new());
+        cmd.env
+            .insert("TMPDIR".to_owned(), "/authored/tmp".to_owned());
+        let (out, scratch) = shell.apply_sandbox(cmd).expect("confined");
+        assert_eq!(
+            out.env.get("TMPDIR").map(String::as_str),
+            Some("/authored/tmp"),
+            "the authored env map outranks the minted scratch"
+        );
+        if let Some(dir) = scratch {
+            let _ = std::fs::remove_dir_all(dir);
+        }
     }
 }

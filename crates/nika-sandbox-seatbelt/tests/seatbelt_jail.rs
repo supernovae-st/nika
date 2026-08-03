@@ -122,7 +122,11 @@ fn confined_cannot_write_outside_the_allowlist() {
 }
 
 /// Sanity: the sandbox does NOT break an ordinary command (no false-deny) —
-/// `/usr/bin/true` runs, and reading scratch (`/private/tmp`) is allowed.
+/// `/usr/bin/true` runs. And the issue-754 closure holds: the SHARED host
+/// tmp trees are NOT an ambient grant anymore — an ungranted `/private/tmp`
+/// write is DENIED (it bypassed every declared boundary before), while a
+/// DECLARED `fs_write` grant on a tmp subpath still works (the boundary is
+/// the file, not the tree).
 #[test]
 fn ordinary_command_still_runs_under_the_sandbox() {
     if !SeatbeltSandbox::available() {
@@ -134,19 +138,31 @@ fn ordinary_command_still_runs_under_the_sandbox() {
         "a benign command must still run: {out:?}"
     );
 
-    let scratch = PathBuf::from(format!("/private/tmp/.nika-sbx-ok-{}", std::process::id()));
-    std::fs::write(&scratch, "SCRATCH-OK").expect("write scratch");
-    let out = run(
+    // Issue 754 · the bypass is closed: no grant → no /private/tmp write.
+    let probe = format!("/private/tmp/.nika-sbx-754-{}", std::process::id());
+    let out = run_shell(
         &SandboxSpec::new(),
-        "/bin/cat",
-        &[scratch.to_str().unwrap()],
+        &format!("echo NIKA-754 > {probe} && cat {probe}"),
     );
-    let _ = std::fs::remove_file(&scratch);
+    let leaked = std::path::Path::new(&probe).exists();
+    let _ = std::fs::remove_file(&probe);
     assert!(
-        out.status.success(),
-        "scratch (/private/tmp) is readable: {out:?}"
+        !out.status.success() && !leaked,
+        "an ungranted /private/tmp write must be DENIED (issue 754): {out:?}"
     );
-    assert!(String::from_utf8_lossy(&out.stdout).contains("SCRATCH-OK"));
+
+    // …and a DECLARED tmp grant still writes (the boundary is honest).
+    let granted_dir = format!("/private/tmp/.nika-sbx-754-ok-{}", std::process::id());
+    std::fs::create_dir_all(&granted_dir).expect("mk granted dir");
+    let mut spec = SandboxSpec::new();
+    spec.fs_write = vec![format!("{granted_dir}/**")];
+    let out = run_shell(
+        &spec,
+        &format!("echo GRANTED-OK > {granted_dir}/f && cat {granted_dir}/f"),
+    );
+    let ok = out.status.success() && String::from_utf8_lossy(&out.stdout).contains("GRANTED-OK");
+    let _ = std::fs::remove_dir_all(&granted_dir);
+    assert!(ok, "a declared tmp grant must still write: {out:?}");
 }
 
 /// THE SQLITE DURABILITY PROOF (the 2026-07-29 finding, closed live): a
