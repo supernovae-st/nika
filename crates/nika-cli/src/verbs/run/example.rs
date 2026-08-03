@@ -119,9 +119,18 @@ pub fn example(
     if let Some(tip) = example_tip(slug, &verdict, model_override.is_some(), &model) {
         eprintln!("\n  {tip}");
     }
-    // The showroom hands over the keys: a green Live run earns the ONE
+    // The showroom hands over the keys: a green run earns the ONE
     // adoption line (stderr — stdout contracts untouched).
-    if verdict.code == exit::OK && mode == RenderMode::Live {
+    //
+    // Plain is INCLUDED on purpose. It is the piped/CI default, which is
+    // to say it is what an agent sees when it runs this for someone —
+    // and the kit's whole premise is that an agent runs it for someone.
+    // Gating on Live stripped the only next step exactly where the
+    // reader had no other guidance (measured 2026-08-03, first-run
+    // review: the TTY lane ends on "make it yours", the piped lane ended
+    // on "not a real answer" and nothing else). Quiet stays out: it
+    // promises the compact verdict card and errors, nothing more.
+    if verdict.code == exit::OK && mode != RenderMode::Quiet {
         let clean = slug.strip_suffix(".nika.yaml").unwrap_or(slug);
         eprintln!(
             "\n  {}",

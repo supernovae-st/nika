@@ -799,3 +799,34 @@ fn taught_lines_survive_the_paste_back() {
         out.text
     );
 }
+
+/// The keyless lane is named on the recipes that need a seat, and ONLY
+/// on those (first-run review 2026-08-03: the scaffold taught `nika run`
+/// as its next step, and on a machine with no model wired that is the
+/// first thing the reader tries and the first thing that fails). Both
+/// directions matter — an exec-only recipe offered a `--model` hint
+/// would be teaching noise, which is how a courtesy line stops being
+/// read at all.
+#[test]
+fn the_keyless_lane_is_named_only_where_a_seat_is_needed() {
+    assert!(needs_a_seat(
+        "tasks:\n  ask:\n    infer:\n      prompt: hi\n"
+    ));
+    assert!(needs_a_seat(
+        "tasks:\n  loop:\n    agent:\n      prompt: go\n"
+    ));
+    // Inline forms count too — the head of the line is the signal.
+    assert!(needs_a_seat("    infer: { prompt: \"x\" }\n"));
+
+    // exec/invoke recipes reach no provider.
+    assert!(!needs_a_seat(
+        "tasks:\n  greet:\n    exec:\n      command: [echo, hi]\n"
+    ));
+    assert!(!needs_a_seat(
+        "tasks:\n  read:\n    invoke:\n      tool: \"nika:read\"\n"
+    ));
+    // Prose about infer is not an infer task (the comment lane).
+    assert!(!needs_a_seat(
+        "# infer: this comment mentions the verb\ntasks:\n  t:\n    exec:\n      command: [echo]\n"
+    ));
+}

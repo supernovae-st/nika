@@ -391,13 +391,44 @@ fn write_example(slug: &str, body: &str, dest: Option<&str>, force: bool) -> Out
             };
         }
     };
+    // A scaffold that needs a model seat names the keyless lane BESIDE
+    // the real one — never inside it. On a machine with no model wired,
+    // the bare `nika run` this line teaches is the FIRST thing the
+    // reader tries and the first thing that fails: the run stops at
+    // NIKA-INFER-001 before any wire call (measured 2026-08-03,
+    // first-run review — the tool walked its own reader into a wall it
+    // had just built). The run error does teach the same escape, but a
+    // next step should not need a rescue.
+    let keyless = if needs_a_seat(body) {
+        " · no model wired yet? add `--model mock/echo` to rehearse keyless"
+    } else {
+        ""
+    };
     Outcome {
         text: format!(
-            "{dest} ← example `{clean}` · yours now — `nika check {q}` then `nika run {q}`{ingredients}",
+            "{dest} ← example `{clean}` · yours now — `nika check {q}` then `nika run {q}`{keyless}{ingredients}",
             q = shell_quote(dest)
         ),
         code: codes::OK,
     }
+}
+
+/// Whether the scaffolded body has a task that needs a model seat —
+/// `infer:` or `agent:`, the two verbs that reach a provider.
+///
+/// A SCAN, not a parse, and the honest reason is the dependency graph:
+/// `nika-schema` is a dev-dependency of this crate (the own-corpus
+/// ratchet uses it test-side), and pulling the parser into the scaffold
+/// path to decide one courtesy line is not a trade this line earns.
+/// The scan is narrow — an action key at the head of its line, comments
+/// skipped — and both ways it can be wrong are cheap: a task literally
+/// named `infer` gets an unneeded hint, an unreachable phrasing gets
+/// none. Neither can block or mislead a run.
+fn needs_a_seat(body: &str) -> bool {
+    body.lines().any(|line| {
+        let head = line.trim_start();
+        !head.starts_with('#') && (head.starts_with("infer:") || head.starts_with("agent:"))
+    })
 }
 
 /// The unknown-template finding. The `embedded set:` line is a WIRE
