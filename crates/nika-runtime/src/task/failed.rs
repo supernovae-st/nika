@@ -6,6 +6,32 @@
 
 use crate::record::TaskErrorRecord;
 
+impl crate::task::RunResult {
+    /// An `on_error: recover` repair — the ONE constructor both recover
+    /// paths share: author-supplied value, the WHOLE original error
+    /// riding as `recovered_from` (spec 13 §payload), the failed
+    /// attempts' spend kept (recovery never refunds it), no child, no
+    /// model (nothing inferred the fallback value). Lives here with the
+    /// rest of the failure channel — `task.rs` sits at the LOC wall.
+    pub(crate) fn recovered(
+        value: serde_json::Value,
+        original: TaskErrorRecord,
+        cost_usd: Option<f64>,
+        cost_unpriced: Option<nika_types::cost::UnpricedReason>,
+    ) -> Self {
+        Self::Success {
+            value,
+            tokens: None,
+            recovered_from: Some(original),
+            warning: None,
+            child: None,
+            cost_usd,
+            cost_unpriced,
+            model: None,
+        }
+    }
+}
+
 /// A settled attempt-loop failure — the error + the spend the failed
 /// attempts had already incurred (per-attempt debits happened live;
 /// these fields feed the terminal frame).
