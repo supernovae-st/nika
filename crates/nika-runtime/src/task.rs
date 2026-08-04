@@ -1378,21 +1378,7 @@ fn apply_on_error(task: &RawTask, scope: &Scope<'_>, failed: FailedOutcome) -> R
     }
     match &on_error.value.action {
         OnErrorAction::Recover(value) => match expr::render_json(&value.value, scope) {
-            Ok(recovered) => RunResult::Success {
-                value: recovered,
-                tokens: None,
-                // the ONE producer of the marker (spec 05 §recover) —
-                // the WHOLE original error rides (spec 13 §payload)
-                recovered_from: Some(error),
-                // A recovered value is author-supplied · no model reasoning
-                // — but the FAILED attempts' spend already happened and
-                // stays on the frame (recovery does not refund it).
-                warning: None,
-                child: None, // recovered value ≠ a child run's outputs
-                cost_usd,
-                cost_unpriced,
-                model: None, // author-supplied value · no model ran it
-            },
+            Ok(recovered) => RunResult::recovered(recovered, error, cost_usd, cost_unpriced),
             // A render failure explained ONLY by not-yet-terminal task
             // referents AWAITS them (spec 05 §recover step 3 · a recover
             // ref is not an edge): the settle spine decides the outcome
