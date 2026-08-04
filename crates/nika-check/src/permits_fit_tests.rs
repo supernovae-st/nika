@@ -178,14 +178,39 @@ tasks:
         );
         assert!(e[0].undeclared, "absent block = the AUTH-006 class");
         assert!(!e[0].floor, "not the SSRF floor class");
-        // A shell line is not statically verifiable — check-silent under
-        // absent, the runtime refusal (NIKA-SEC-004) owns it.
+        // Law 1 binds EVERY exec form: a shell string carries the same
+        // Required {exec} — its CONTENT is unknowable at check, but the
+        // AUTHORITY question is decidable (∅ grants nothing, the run is
+        // refused before spawn whatever the line turns out to be), so the
+        // check refuses with the same AUTH-006 class. Law 3's runtime
+        // deferral owns the dynamic VALUE cases, never the category.
+        // (The 2026-08-04 P0 probe: this exact spelling passed GREEN while
+        // the argv twin was refused — the gate blocked the verifiable door
+        // and opened the unverifiable one.)
         let shell =
             "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    exec: { shell: \"rm -rf /\" }\n";
-        assert!(
-            escapes_of(shell).is_empty(),
-            "shell form under absent = runtime concern (NEP-0003 law 3)"
+        let e = escapes_of(shell);
+        assert_eq!(
+            e.len(),
+            1,
+            "shell form under absent = the same zero-authority refusal (NEP-0003 law 1): {e:?}"
         );
+        assert!(e[0].undeclared, "absent block = the AUTH-006 class");
+        assert_eq!(
+            e[0].fix, None,
+            "no program allowlist verifies a shell string — no machine fix"
+        );
+        // …and a COMPUTED argv head is the same cell: WHICH program runs
+        // is dynamic (law 3's runtime re-gate owns the value), but the
+        // category refusal is decidable at check.
+        let computed = "nika: v1\nworkflow:\n  id: w\nconst: { bin: \"git\" }\ntasks:\n  t:\n    exec: { command: [\"${{ const.bin }}\", \"status\"] }\n";
+        let e = escapes_of(computed);
+        assert_eq!(
+            e.len(),
+            1,
+            "computed argv under absent = the category refusal: {e:?}"
+        );
+        assert!(e[0].undeclared, "absent block = the AUTH-006 class");
         // …while a PURE-COMPUTE body (no effects) escapes nothing —
         // the legal zero, and the « declare permits: {} » hint owns it.
         let pure = "nika: v1\nworkflow:\n  id: w\nmodel: mock/echo\ntasks:\n  t:\n    infer: { prompt: \"hi\", max_tokens: 5 }\n";

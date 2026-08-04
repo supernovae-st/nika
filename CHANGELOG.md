@@ -10,6 +10,23 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+### Security
+
+- **A shell-string `exec:` with no `permits:` block passed `nika check`
+  green.** The zero-authority scan (F-O8 · NEP-0003) refused the argv
+  spelling it can read (`command: ["rm", …]` → `NIKA-AUTH-006`) and
+  deferred the shell spelling it cannot (`shell: "rm -rf …"`) to the
+  runtime — the exact inversion of a security gate: the verifiable door
+  refused, the unverifiable one open. Law 1 puts the exec capability in
+  `Required` the moment an exec task sits in the body, whatever the
+  command form; law 3's runtime deferral owns dynamic VALUES, never the
+  category question, and the runtime refused both spellings all along.
+  The shell form and a computed argv head now refuse at check with
+  `NIKA-AUTH-006` — check ≡ run restored. Repair:
+  `nika check --infer-permits` writes the block (the shell form widens
+  `exec` to `true` with a note; rewrite to the array form for a program
+  allowlist).
+
 ## [0.107.2](https://github.com/supernovae-st/nika/compare/v0.107.1..v0.107.2) - 2026-08-02
 
 **The adversarial pass.** 0.107.1 shipped six boundaries; an adversary

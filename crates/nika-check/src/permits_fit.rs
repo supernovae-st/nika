@@ -181,7 +181,7 @@ fn check_action(
     }
     let Some(permits) = permits else { return };
     match action {
-        RawAction::Exec(a) => check_exec(id, &a.command, permits, undeclared, out),
+        RawAction::Exec(a) => check_exec(id, &a.command, permits, out),
         RawAction::Invoke(a) => {
             let Some(tool) = a.tool() else {
                 // A `workflow:` call is not a tool grant — its authority
@@ -389,21 +389,22 @@ fn absent_effect_escape(
 /// An `exec:` task under a `permits:` boundary. A `false`/omitted permit
 /// denies any exec; a program allowlist verifies `argv[0]` of the ARRAY
 /// form only — the shell-string form under an allowlist is an escape by
-/// FORM (runtime parity: dispatch refuses that pairing wholesale).
-fn check_exec(
-    id: &str,
-    command: &RawCommand,
-    permits: &Permits,
-    undeclared: bool,
-    out: &mut Vec<CapabilityEscape>,
-) {
+/// FORM (runtime parity: dispatch refuses that pairing wholesale). Under
+/// the ABSENT block (F-O8 · zero authority) EVERY form escapes: NEP-0003
+/// law 1 puts the exec CAPABILITY in `Required` the moment an exec task
+/// sits in the body, whatever the command form — law 3's runtime deferral
+/// owns the dynamic VALUE cases (which program · which host), never the
+/// category question, which ∅ decides.
+fn check_exec(id: &str, command: &RawCommand, permits: &Permits, out: &mut Vec<CapabilityEscape>) {
     if !permits.allows_exec() {
-        // NEP-0003 law 3 · under an ABSENT block only a statically visible
-        // program is judged here (a shell line or a computed argv defers
-        // to the runtime refusal); a declared denial refuses every form.
-        if undeclared && static_program(command).is_none() {
-            return;
-        }
+        // NEP-0003 law 1 · the category refusal is statically decidable
+        // under the zero boundary (∅ grants nothing — the run is refused
+        // before spawn whatever the command turns out to be), so EVERY
+        // form escapes here: argv literal, computed argv, shell string.
+        // (The 2026-08-04 probe: the shell spelling passed GREEN while
+        // the argv twin was refused — the gate blocked the verifiable
+        // door and opened the unverifiable one. The runtime refused
+        // both; this restores check≡run.)
         out.push(CapabilityEscape {
             task: id.to_owned(),
             category: "exec",
