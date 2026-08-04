@@ -1084,13 +1084,20 @@ mod tests {
     /// seed needs nothing), never adoption. Detection needs an operator
     /// signal: an override, bytes on disk, or an explicit `--ping`.
     fn ladder_probe() -> Probe {
-        let readiness = |configured, locus| ProviderReadiness {
+        let readiness = |configured, locus: ExecutionLocus| ProviderReadiness {
             recognized: true,
             configured,
             reachable: None,
             model_available: None,
             priced: false,
             execution_locus: locus,
+            // Mirrors Profile::access_class on the synthetic machine.
+            access: match locus {
+                ExecutionLocus::Loopback | ExecutionLocus::Lan => {
+                    nika_providers::probe::AccessClass::Local
+                }
+                _ => nika_providers::probe::AccessClass::Api,
+            },
         };
         Probe {
             version: "0.0.0-test".to_owned(),
