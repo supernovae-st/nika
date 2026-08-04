@@ -20,6 +20,14 @@ fn readiness(configured: bool, locus: ExecutionLocus) -> ProviderReadiness {
         model_available: None,
         priced: false,
         execution_locus: locus,
+        // Synthetic rows model cloud providers unless the locus says
+        // loopback — mirrors Profile::access_class.
+        access: match locus {
+            ExecutionLocus::Loopback | ExecutionLocus::Lan => {
+                nika_providers::probe::AccessClass::Local
+            }
+            _ => nika_providers::probe::AccessClass::Api,
+        },
     }
 }
 
@@ -55,8 +63,8 @@ fn provider_row_separates_recognized_from_configured() {
     assert!(
         present
             .detail
-            .contains("recognized · configured (key present)"),
-        "{}",
+            .contains("— api · recognized · configured (key present)"),
+        "the access token leads the ladder (D-2026-08-04-N1): {}",
         present.detail
     );
     assert!(
@@ -69,7 +77,7 @@ fn provider_row_separates_recognized_from_configured() {
     assert!(
         unset
             .detail
-            .contains("recognized · not configured (ANTHROPIC_API_KEY unset)"),
+            .contains("— api · recognized · not configured (ANTHROPIC_API_KEY unset)"),
         "{}",
         unset.detail
     );

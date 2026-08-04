@@ -32,6 +32,7 @@
 extern crate alloc;
 
 // ─── L0 foundational value types (ADR-033) ──────────────────────────
+pub mod access;
 pub mod baggage;
 pub mod blame;
 pub mod budget;

@@ -73,6 +73,36 @@ mod tests {
         );
     }
 
+    /// D-2026-08-04-N1 · the access partition needs NO new facet today:
+    /// probes exclude `mock`, so `api == cloud_key_slots` and
+    /// `local == wired - cloud_key_slots` — the numbers already live
+    /// under the key-vocabulary names, and a second name for the same
+    /// number is the exact A-06 disease this module exists to cure.
+    /// This pin BREAKS the day a keyless non-local class (harness ·
+    /// oauth · P3) joins the probe slice — forcing the facet decision
+    /// then, with real rows on the table.
+    #[test]
+    fn access_partition_is_the_facet_arithmetic_until_p3() {
+        use nika_providers::probe::AccessClass;
+        let registry = ProviderRegistry::without_http(nika_runtime::compose::config_from_env());
+        let probes = nika_providers::probe::collect_provider_probes(&registry);
+        let truth = MachineTruth::from_probes(&probes);
+        let api = probes
+            .iter()
+            .filter(|p| p.readiness.access == AccessClass::Api)
+            .count();
+        let local = probes
+            .iter()
+            .filter(|p| p.readiness.access == AccessClass::Local)
+            .count();
+        assert_eq!(api, truth.cloud_key_slots, "api IS the key-slot facet");
+        assert_eq!(
+            api + local,
+            truth.wired,
+            "the partition covers the wired set"
+        );
+    }
+
     #[test]
     fn registry_facets_hold_their_arithmetic() {
         let registry = ProviderRegistry::without_http(nika_runtime::compose::config_from_env());

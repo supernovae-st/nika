@@ -135,6 +135,17 @@ impl Profile {
         self.id != "deepseek" && self.wire.supports_response_format()
     }
 
+    /// The execution-access class this profile runs over TODAY
+    /// (D-2026-08-04-N1 · `model:` picks the intelligence, access the
+    /// path) — the ONE derivation, shared with the trace emitter via
+    /// [`access_class_for`]. `Harness`/`Oauth` never come from a
+    /// profile; those classes enter with the P3+ adapters, which carry
+    /// their own descriptors.
+    #[must_use]
+    pub fn access_class(&self) -> nika_types::access::AccessClass {
+        access_class_for(self.id)
+    }
+
     /// Resolve a model nickname through the catalog row (`"sonnet"` →
     /// `"claude-sonnet-4-20250514"`). Unknown names pass through verbatim —
     /// the wire model namespace is the provider's, not ours.
@@ -178,6 +189,26 @@ pub const CANONICAL_IDS: [&str; 16] = [
 #[must_use]
 pub fn server_backed_local(provider: &str) -> bool {
     LOCAL.iter().any(|(id, _)| *id == provider)
+}
+
+/// The execution-access class of a provider id (D-2026-08-04-N1) — the
+/// ONE derivation every surface shares (probe rows · the trace
+/// emitter's structured `access` field): `mock` is the test lane, the
+/// 5 seed-keyed local servers are `Local` (override-proof — same key
+/// as the B-5 gate), everything else reaches its vendor over an API
+/// key. A non-canonical id classifies `Api` — post-resolve callers
+/// never hold one, and an api-shaped guess is the honest default for
+/// a keyed endpoint.
+#[must_use]
+pub fn access_class_for(provider: &str) -> nika_types::access::AccessClass {
+    use nika_types::access::AccessClass;
+    if provider == "mock" {
+        AccessClass::Mock
+    } else if server_backed_local(provider) {
+        AccessClass::Local
+    } else {
+        AccessClass::Api
+    }
 }
 
 /// The MODELS-rung law (#320): why a `<provider>/<model>` string cannot
@@ -591,5 +622,74 @@ mod tests {
         // local profiles have no catalog: verbatim passthrough
         let ollama = profiles.iter().find(|p| p.id == "ollama").unwrap();
         assert_eq!(ollama.resolve_model("llama3.2"), "llama3.2");
+    }
+}
+
+#[cfg(test)]
+mod access_tests {
+    use crate::registry::ProviderRegistry;
+    use nika_types::access::{AccessClass, BillingClass};
+
+    #[test]
+    fn every_canonical_profile_partitions_into_local_api_mock() {
+        let reg = ProviderRegistry::without_http(crate::ProvidersConfig::default());
+        let (mut local, mut api, mut mock) = (0u32, 0u32, 0u32);
+        for p in reg.profiles() {
+            match p.access_class() {
+                AccessClass::Local => {
+                    local += 1;
+                    // every Local profile is a keyless server-backed engine
+                    assert!(!p.requires_key, "{} local but requires a key", p.id);
+                }
+                AccessClass::Api => {
+                    api += 1;
+                    assert!(p.requires_key, "{} api but keyless", p.id);
+                }
+                AccessClass::Mock => {
+                    mock += 1;
+                    assert_eq!(p.id, "mock");
+                }
+                other => panic!("unexpected access class {other} for {}", p.id),
+            }
+        }
+        // The canonical partition (5 local servers · 1 mock · the rest api)
+        // — id-swap mutants die on the exact counts.
+        assert_eq!(local, 5);
+        assert_eq!(mock, 1);
+        assert!(api >= 10, "cloud rows collapsed: {api}");
+    }
+
+    #[test]
+    fn named_spot_checks_pin_the_classification() {
+        let reg = ProviderRegistry::without_http(crate::ProvidersConfig::default());
+        let class_of = |id: &str| {
+            reg.profiles()
+                .iter()
+                .find(|p| p.id == id)
+                .unwrap_or_else(|| panic!("{id} missing"))
+                .access_class()
+        };
+        assert_eq!(class_of("ollama"), AccessClass::Local);
+        assert_eq!(class_of("vllm"), AccessClass::Local);
+        assert_eq!(class_of("mistral"), AccessClass::Api);
+        assert_eq!(class_of("openrouter"), AccessClass::Api);
+        assert_eq!(class_of("mock"), AccessClass::Mock);
+    }
+
+    #[test]
+    fn default_billing_rides_the_class_honestly() {
+        let reg = ProviderRegistry::without_http(crate::ProvidersConfig::default());
+        let billing_of = |id: &str| {
+            reg.profiles()
+                .iter()
+                .find(|p| p.id == id)
+                .unwrap_or_else(|| panic!("{id} missing"))
+                .access_class()
+                .default_billing()
+        };
+        // local compute is unpriced-not-free · api keys are metered USD
+        assert_eq!(billing_of("llamacpp"), BillingClass::Local);
+        assert_eq!(billing_of("mock"), BillingClass::Local);
+        assert_eq!(billing_of("groq"), BillingClass::ApiMetered);
     }
 }

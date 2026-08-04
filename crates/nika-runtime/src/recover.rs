@@ -481,16 +481,7 @@ fn resolve_parked(
                 permits: None, // rendering performs no effect (no exec sink)
             };
             match expr::render_json(template, &render_scope) {
-                Ok(value) => RunResult::Success {
-                    value,
-                    tokens: None,
-                    // the WHOLE original error rides (spec 13 §payload)
-                    recovered_from: Some(record),
-                    warning: None,
-                    child: None, // recovered value ≠ a child run's outputs
-                    cost_usd,
-                    cost_unpriced,
-                },
+                Ok(value) => RunResult::recovered(value, record, cost_usd, cost_unpriced),
                 Err(err) => RunResult::Failed {
                     error: runtime_error_record(&err),
                     cost_usd,
