@@ -4,7 +4,7 @@
 # Consumers · the reference engine embeds this pack (nika try ·
 # nika spec) · docs + website render projections of the same files.
 pack_version: 0.1.0-draft
-workflow_count: 39
+workflow_count: 47
 foundation:
   - file: examples/01-hello.nika.yaml
     sha256_16: a3746ebe75be7a2e
@@ -184,3 +184,20 @@ showcase:
     description: ""
     constructs: [local_model, outputs, schema, with]
     sha256_16: 78481a0d50995008
+snippets:
+  - file: examples/snippets/delegate.nika.yaml
+    sha256_16: 5b8290d1a18fe83d
+  - file: examples/snippets/hello-ai.nika.yaml
+    sha256_16: e34d5613367e57d9
+  - file: examples/snippets/hello.nika.yaml
+    sha256_16: e7898d267d45ffc3
+  - file: examples/snippets/not-found.nika.yaml
+    sha256_16: 64f5a8095650434d
+  - file: examples/snippets/run.nika.yaml
+    sha256_16: aca690b21913f6ea
+  - file: examples/snippets/think.nika.yaml
+    sha256_16: 61fdd6fe2d2b9d56
+  - file: examples/snippets/use-a-tool.nika.yaml
+    sha256_16: b14c5f279babc9a1
+  - file: examples/snippets/weekly-radar.nika.yaml
+    sha256_16: 8c7779219b2dd950
