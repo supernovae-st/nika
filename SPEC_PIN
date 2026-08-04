@@ -1,4 +1,4 @@
 # The nika-spec commit this repo's conformance fixtures + CI are proven at.
 # Advanced by .github/workflows/spec-pin-heal.yml (PR-only · the Diamond CI
 # tests leg judges at the new pin). Consumed by diamond-ci.yml. Never HEAD.
-c49fc61d66843ac057983b632e7af84f8e315a47
+e9ca2f4674ce503c8980cbc0fc150b55c60a37d6
