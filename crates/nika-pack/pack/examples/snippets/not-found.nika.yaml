@@ -1,0 +1,25 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# snippet · the website's 404 page — even the dead end parses
+#
+# The file nika.sh renders when a path resolves to nothing. It is a real
+# workflow because the site's law is that every yaml it shows is real:
+# one `nika:log` call. Declaring `permits:` is default-deny: once the
+# block exists, even the log tool is named — the whole reach of this
+# file is one line long.
+#
+# Demonstrates ·
+#   - `invoke:` with `nika:log` · the smallest tool grant there is
+#   - `description:` · the envelope carries its own explanation
+#
+# Run · nika run examples/snippets/not-found.nika.yaml
+nika: v1
+workflow:
+  id: not-found
+  description: "404 · nothing at this path parses"
+permits:
+  tools: ["nika:log"]
+tasks:
+  recover:
+    invoke: { tool: "nika:log", args: { message: "go home ↓" } }

@@ -1,0 +1,33 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# snippet · the install page's first model call — one seat, one sentence
+#
+# The second file a fresh install runs: the same envelope, plus a seat.
+# A local model is unpriced, never free — the machine pays in watts.
+# `permits: {}` is the DECLARED zero (this file may touch nothing), and
+# `max_tokens:` turns the cost report from UNBOUNDED into a worst case.
+#
+# Demonstrates ·
+#   - `model:` · one local seat · no API key, nothing leaves the machine
+#   - `permits: {}` · the declared zero · not the same as leaving it out
+#   - one `infer:` task, bounded by `max_tokens:`
+#
+# Needs · ollama with the model pulled · `ollama pull llama3.2:3b`.
+#   No ollama? `--model mock/echo` rehearses the same file keyless.
+#
+# Run · nika run examples/snippets/hello-ai.nika.yaml
+nika: v1
+workflow:
+  id: hello-ai
+  description: "first model call · one local seat, one bounded sentence"
+model: ollama/llama3.2:3b   # local · zero key · swap for any provider in the catalog
+permits: {}
+tasks:
+  greet:
+    infer:
+      prompt: "Say hello in one sentence."
+      max_tokens: 64
+
+outputs:
+  greeting: ${{ tasks.greet.output }}

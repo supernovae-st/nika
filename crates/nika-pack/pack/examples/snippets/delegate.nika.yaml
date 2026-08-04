@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# snippet · the four-verb teaching set · agent — a loop you do not write
+#
+# `agent:` hands the model a goal and a tool whitelist, and the engine
+# runs the observe-think-act loop. The whitelist is default-deny: every
+# tool the agent may touch is named in `permits.tools`, and the paths
+# `nika:read` may open are named in `permits.fs.read` — the loop is
+# bounded by the same file that asks for it.
+#
+# Demonstrates ·
+#   - `agent:` · the delegating verb · goal + tools, no hand-written loop
+#   - `max_tokens_total:` · the loop's hard budget — an agent without a
+#     ceiling is an open meter
+#   - `permits.tools` + `permits.fs.read` + `permits.net.http` · the
+#     agent's whole reach, declared before the first turn
+#
+# Run · nika run examples/snippets/delegate.nika.yaml
+nika: v1
+workflow:
+  id: delegate
+  description: "the agent verb alone · goal + tool whitelist, loop bounded"
+model: ollama/llama3.2:3b
+permits:
+  tools: ["nika:read", "nika:fetch"]
+  net: { http: ["nika.sh"] }
+  fs:
+    read: ["./docs/*"]
+tasks:
+  audit:
+    agent:
+      prompt: "Find every dead link in ./docs"
+      tools: [ "nika:read", "nika:fetch" ]
+      max_tokens_total: 8192
+
+outputs:
+  report: ${{ tasks.audit.output }}
