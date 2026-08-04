@@ -10,6 +10,17 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+### Changed
+
+- **The anthropic default moves to `claude-sonnet-4-6`.** The catalog sat
+  two generations back (`claude-sonnet-4-20250514`) while the spec's
+  examples and conformance fixtures standardized on the 4.6 id — the
+  docs-spec coherence vector named the contradiction on the public site.
+  Six sites across the anthropic · openrouter (`anthropic/…`) · bedrock
+  (`anthropic.…-v1:0`) entries follow each gateway's naming form. Parser
+  and bench test strings keep the historical id on purpose (they are
+  inputs, not defaults).
+
 ### Security
 
 - **A shell-string `exec:` with no `permits:` block passed `nika check`
