@@ -739,16 +739,19 @@ fn provider_finding(p: &ProviderProbe) -> Finding {
         // schema-native except the instruction-fallback clouds (deepseek —
         // no json_schema in its API), and an operator picking a model for
         // a structured workflow wants that fact on the health surface.
+        // The access token leads the ladder (D-2026-08-04-N1) — one row
+        // format from day one, so the P3 harness/oauth rows slot into
+        // the same grammar instead of debuting a second shape.
         let detail = if p.structured_native {
             format!(
-                "{} — recognized · configured (key present){locus_note}",
-                p.id
+                "{} — {} · recognized · configured (key present){locus_note}",
+                p.id, p.readiness.access
             )
         } else {
             format!(
-                "{} — recognized · configured (key present) · structured output via instruction + local validation \
+                "{} — {} · recognized · configured (key present) · structured output via instruction + local validation \
                  (no native json_schema){locus_note}",
-                p.id
+                p.id, p.readiness.access
             )
         };
         Finding {
@@ -762,8 +765,8 @@ fn provider_finding(p: &ProviderProbe) -> Finding {
             level: Level::Warn,
             label: "provider".to_owned(),
             detail: format!(
-                "{} — recognized · not configured ({} unset){locus_note}",
-                p.id, p.fix_var
+                "{} — {} · recognized · not configured ({} unset){locus_note}",
+                p.id, p.readiness.access, p.fix_var
             ),
             fix: Some(format!("export {}=…", p.fix_var)),
         }
@@ -780,8 +783,9 @@ fn local_locus_finding(p: &ProviderProbe) -> Option<Finding> {
             level: Level::Ok,
             label: "local".to_owned(),
             detail: format!(
-                "{} — configured · endpoint {} ({} — not loopback)",
+                "{} — {} · configured · endpoint {} ({} — not loopback)",
                 p.id,
+                p.readiness.access,
                 redact_userinfo(&p.endpoint),
                 p.readiness.execution_locus.label()
             ),

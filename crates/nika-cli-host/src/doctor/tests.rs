@@ -63,8 +63,8 @@ fn provider_row_separates_recognized_from_configured() {
     assert!(
         present
             .detail
-            .contains("recognized · configured (key present)"),
-        "{}",
+            .contains("— api · recognized · configured (key present)"),
+        "the access token leads the ladder (D-2026-08-04-N1): {}",
         present.detail
     );
     assert!(
@@ -77,7 +77,7 @@ fn provider_row_separates_recognized_from_configured() {
     assert!(
         unset
             .detail
-            .contains("recognized · not configured (ANTHROPIC_API_KEY unset)"),
+            .contains("— api · recognized · not configured (ANTHROPIC_API_KEY unset)"),
         "{}",
         unset.detail
     );
