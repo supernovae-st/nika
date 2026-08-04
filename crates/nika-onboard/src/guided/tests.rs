@@ -789,12 +789,18 @@ fn taught_lines_survive_the_paste_back() {
         );
     }
 
-    // The dest-missing hint re-echoes a spaced intent QUOTED.
-    let out = run("summarize weekly sales from a csv", None, false);
+    // The dest-missing hint re-echoes a spaced intent QUOTED. The probe
+    // must route CONFIDENTLY to a TEMPLATE (a skeleton is what demands a
+    // <dest>; a routed example lands bare): `summarize … csv` stopped
+    // routing when the spec snippets landed (snippets/think competes on
+    // it, and csv now belongs to the csv-chart-report example), so the
+    // probe leans on `docker`, which only the docker-report skeleton
+    // carries.
+    let out = run("report on my running docker containers", None, false);
     assert_eq!(out.code, codes::ENV, "{}", out.text);
     assert!(
         out.text
-            .contains("nika new 'summarize weekly sales from a csv' <dest>.nika.yaml"),
+            .contains("nika new 'report on my running docker containers' <dest>.nika.yaml"),
         "the taught paste-back is ONE shell argument: {}",
         out.text
     );

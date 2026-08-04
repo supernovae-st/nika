@@ -114,7 +114,7 @@ patterns:
 - glob: "crates/nika-pack/pack/**"
   class: pinned-copy
   match_count: 113
-  aggregate_sha256: da301a35fd7fa09225fd68c47c7d6f72b334b0b943af9a50a8872ac42427dc54
+  aggregate_sha256: f96c38f04b38d892c6df179e2f591e976b4668384ddd51e592946a1adaf5065e
   evidence: "crates/nika-pack/src/lib.rs:16 'The snapshot under pack/ is vendored by scripts/sync-pack.sh' — a byte-copy of the spec surface, never edited here"
   derivation:
     tool: "bash scripts/sync-pack.sh <nika-spec checkout> — healed daily by .github/workflows/pack-resync.yml (branch bot/pack-resync · PR-only, the 12-gate CI judges)"
@@ -152,7 +152,7 @@ patterns:
 - glob: "crates/**/src/**"
   class: authored
   match_count: 702
-  aggregate_sha256: 711b166b64b23b71911e6224a668b2c4923aad9d3453d78e46c087090d0f0f40
+  aggregate_sha256: d90d536eaf55a0b5bba194a740d23bee27ba2e22b8563bb03e8ca0defb60f99d
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
