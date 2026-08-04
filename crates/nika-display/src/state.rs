@@ -460,17 +460,27 @@ impl RunView {
         };
         let row = &mut self.rows[idx];
         row.state = state;
+        // D-2026-08-04-N1 · the structured `model` field is the carrier
+        // — recorded fact first, render second.
+        if let Some(m) = str_field(event, "model")
+            && !m.is_empty()
+        {
+            row.model = Some(m.to_owned());
+        }
         if let Some(note) = str_field(event, "note") {
-            // The runtime's inference notes name the model (`infer ·
-            // <model>`) — keep it once seen: the terminal note replaces
-            // `note`, the verdict surface still wants the model.
-            let model = note
-                .strip_prefix("infer · ")
-                .or_else(|| note.strip_prefix("agent · "));
-            if let Some(m) = model
-                && !m.is_empty()
-            {
-                row.model = Some(m.to_owned());
+            // Pre-access traces named the model ONLY inside the note
+            // (`infer · <model>`) — the parse survives as a reader
+            // leniency for those journals, never as the carrier: the
+            // structured field above always wins.
+            if row.model.is_none() {
+                let model = note
+                    .strip_prefix("infer · ")
+                    .or_else(|| note.strip_prefix("agent · "));
+                if let Some(m) = model
+                    && !m.is_empty()
+                {
+                    row.model = Some(m.to_owned());
+                }
             }
             note.clone_into(&mut row.note);
         }
@@ -545,6 +555,55 @@ mod tests {
                 TaskState::Skipped
             ]
         );
+    }
+
+    /// D-2026-08-04-N1 · the structured `model` field outranks the
+    /// note-parse (recorded fact over render); a fieldless frame — a
+    /// pre-access trace — still parses its note (reader leniency).
+    #[test]
+    fn structured_model_field_outranks_the_note_parse() {
+        use nika_types::id::EventId;
+        use nika_types::resource::KeyValue;
+        use nika_types::timestamp::Timestamp;
+
+        let ev = |seq: u128, kind: EventKind| {
+            Event::new(
+                EventId::new(uuid::Uuid::from_u128(seq)),
+                Timestamp::from_unix_ms(u64::try_from(seq).unwrap_or(0)),
+                kind,
+            )
+        };
+        let mut view = RunView::new();
+        // structured carrier present — the field wins over a diverging note
+        view.apply(
+            &ev(1, EventKind::TaskCompleted)
+                .with_field(KeyValue::new("task", Value::String("a".to_owned())))
+                .with_field(KeyValue::new(
+                    "model",
+                    Value::String("ollama/qwen3.5:4b".to_owned()),
+                ))
+                .with_field(KeyValue::new(
+                    "note",
+                    Value::String("infer · stale/render".to_owned()),
+                )),
+        );
+        // pre-access trace — fieldless frame still parses the note
+        view.apply(
+            &ev(2, EventKind::TaskCompleted)
+                .with_field(KeyValue::new("task", Value::String("b".to_owned())))
+                .with_field(KeyValue::new(
+                    "note",
+                    Value::String("infer · mock/echo".to_owned()),
+                )),
+        );
+        let model_of = |id: &str| {
+            view.rows()
+                .iter()
+                .find(|r| r.id == id)
+                .and_then(|r| r.model.clone())
+        };
+        assert_eq!(model_of("a").as_deref(), Some("ollama/qwen3.5:4b"));
+        assert_eq!(model_of("b").as_deref(), Some("mock/echo"));
     }
 
     /// ADR-099 — `workflow_paused` folds to an AWAITING view: the gate
