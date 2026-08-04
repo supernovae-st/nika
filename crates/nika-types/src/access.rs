@@ -129,6 +129,260 @@ impl fmt::Display for BillingClass {
     }
 }
 
+/// WHICH layer of the meet dropped a candidate (A-8) — every refusal
+/// names its layer, so « unavailable » is never a shrug.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
+#[non_exhaustive]
+pub enum RejectionLayer {
+    /// The access path itself lacks the capability (key absent · class
+    /// cannot satisfy the verb contract).
+    Access,
+    /// A hard `policy:` family refused it (`allow.providers` today ·
+    /// `allow.access` when the NEP lands).
+    Policy,
+    /// An explicit pin (`--access` · config · lock) names another path
+    /// — a pin is a pin: unsatisfied means refusal, never substitute.
+    Pin,
+    /// The run-start liveness re-verify found nothing listening (the
+    /// B-5 gate) — the ONLY runtime rejection; run-time never re-selects.
+    Liveness,
+}
+
+impl RejectionLayer {
+    /// The `snake_case` wire form.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Access => "access",
+            Self::Policy => "policy",
+            Self::Pin => "pin",
+            Self::Liveness => "liveness",
+        }
+    }
+}
+
+impl fmt::Display for RejectionLayer {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+/// WHAT failed the meet — the P2 dimensions (the harness-era guarantee
+/// dimensions join additively in P3/P4).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
+#[non_exhaustive]
+pub enum RejectionDimension {
+    /// An explicit pin named a path this candidate is not.
+    PinUnsatisfied,
+    /// The provider prefix is outside a declared `allow.providers`.
+    ProviderNotAllowed,
+    /// The path needs a credential the environment does not carry.
+    NotConfigured,
+    /// The local server answered nothing at run start.
+    NotLive,
+}
+
+impl RejectionDimension {
+    /// The `snake_case` wire form.
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::PinUnsatisfied => "pin_unsatisfied",
+            Self::ProviderNotAllowed => "provider_not_allowed",
+            Self::NotConfigured => "not_configured",
+            Self::NotLive => "not_live",
+        }
+    }
+}
+
+impl fmt::Display for RejectionDimension {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+/// One rejected candidate with its WITNESS — the dimension that failed
+/// AND the layer that dropped it AND the teaching sentence (A-8).
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[non_exhaustive]
+pub struct AccessRejection {
+    /// The candidate's id (a provider id today · an adapter id at P3).
+    pub access: alloc::string::String,
+    /// What failed.
+    pub dimension: RejectionDimension,
+    /// Who dropped it.
+    pub layer: RejectionLayer,
+    /// The one-line teaching witness (e.g. `ANTHROPIC_API_KEY unset`).
+    pub witness: alloc::string::String,
+}
+
+impl AccessRejection {
+    /// Construct (INV-019).
+    #[must_use]
+    pub fn new(
+        access: impl Into<alloc::string::String>,
+        dimension: RejectionDimension,
+        layer: RejectionLayer,
+        witness: impl Into<alloc::string::String>,
+    ) -> Self {
+        Self {
+            access: access.into(),
+            dimension,
+            layer,
+            witness: witness.into(),
+        }
+    }
+
+    /// The rendered witness line — `explain`'s row, one truth:
+    /// `<access> · <dimension> (<layer> layer) · <witness>`.
+    #[must_use]
+    pub fn witness_line(&self) -> alloc::string::String {
+        alloc::format!(
+            "{} · {} ({} layer) · {}",
+            self.access,
+            self.dimension,
+            self.layer,
+            self.witness
+        )
+    }
+}
+
+/// The admission-time access decision (A-9 · A-10) — recorded in
+/// `check --json`, the trace prologue, and the lock when one exists.
+/// Run time may only REFUSE on liveness; it never re-plans.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[non_exhaustive]
+pub struct AccessPlan {
+    /// The requested `provider/name` (the author's explicit choice —
+    /// the resolver NEVER picks a model).
+    pub model: alloc::string::String,
+    /// The provider prefix.
+    pub provider: alloc::string::String,
+    /// The chosen path's class.
+    pub chosen: AccessClass,
+    /// The chosen path's economic lane.
+    pub billing: BillingClass,
+    /// Whether an explicit pin forced the choice.
+    pub pinned: bool,
+    /// Every rejected candidate with its witness.
+    pub rejected: alloc::vec::Vec<AccessRejection>,
+}
+
+impl AccessPlan {
+    /// Construct (INV-019).
+    #[must_use]
+    pub fn new(
+        model: impl Into<alloc::string::String>,
+        provider: impl Into<alloc::string::String>,
+        chosen: AccessClass,
+        billing: BillingClass,
+        pinned: bool,
+        rejected: alloc::vec::Vec<AccessRejection>,
+    ) -> Self {
+        Self {
+            model: model.into(),
+            provider: provider.into(),
+            chosen,
+            billing,
+            pinned,
+            rejected,
+        }
+    }
+}
+
+#[cfg(test)]
+mod plan_tests {
+    use super::*;
+
+    #[test]
+    fn rejection_vocabulary_is_snake_case_and_distinct() {
+        assert_eq!(RejectionLayer::Access.as_str(), "access");
+        assert_eq!(RejectionLayer::Policy.as_str(), "policy");
+        assert_eq!(RejectionLayer::Pin.as_str(), "pin");
+        assert_eq!(RejectionLayer::Liveness.as_str(), "liveness");
+        assert_eq!(
+            RejectionDimension::PinUnsatisfied.as_str(),
+            "pin_unsatisfied"
+        );
+        assert_eq!(
+            RejectionDimension::ProviderNotAllowed.as_str(),
+            "provider_not_allowed"
+        );
+        assert_eq!(RejectionDimension::NotConfigured.as_str(), "not_configured");
+        assert_eq!(RejectionDimension::NotLive.as_str(), "not_live");
+        let layers = [
+            RejectionLayer::Access,
+            RejectionLayer::Policy,
+            RejectionLayer::Pin,
+            RejectionLayer::Liveness,
+        ];
+        for (i, a) in layers.iter().enumerate() {
+            for b in &layers[i + 1..] {
+                assert_ne!(a.as_str(), b.as_str());
+            }
+        }
+    }
+
+    #[test]
+    fn a_rejection_witness_names_dimension_and_layer() {
+        let r = AccessRejection::new(
+            "anthropic",
+            RejectionDimension::NotConfigured,
+            RejectionLayer::Access,
+            "ANTHROPIC_API_KEY unset",
+        );
+        let line = r.witness_line();
+        assert!(line.contains("anthropic"), "{line}");
+        assert!(line.contains("not_configured"), "{line}");
+        assert!(line.contains("access"), "{line}");
+        assert!(line.contains("ANTHROPIC_API_KEY unset"), "{line}");
+    }
+
+    #[test]
+    fn a_plan_records_choice_and_rejections() {
+        let plan = AccessPlan::new(
+            "mistral/mistral-small-latest",
+            "mistral",
+            AccessClass::Api,
+            BillingClass::ApiMetered,
+            false,
+            vec![AccessRejection::new(
+                "ollama",
+                RejectionDimension::NotLive,
+                RejectionLayer::Liveness,
+                "nothing listening on loopback:11434",
+            )],
+        );
+        assert_eq!(plan.model, "mistral/mistral-small-latest");
+        assert_eq!(plan.chosen, AccessClass::Api);
+        assert!(!plan.pinned);
+        assert_eq!(plan.rejected.len(), 1);
+    }
+
+    #[cfg(feature = "serde")]
+    #[test]
+    fn plan_serde_wire_is_snake_case() {
+        let plan = AccessPlan::new(
+            "mock/echo",
+            "mock",
+            AccessClass::Mock,
+            BillingClass::Local,
+            true,
+            Vec::new(),
+        );
+        let json = serde_json::to_string(&plan).expect("serialize");
+        assert!(json.contains("\"chosen\":\"mock\""), "{json}");
+        assert!(json.contains("\"billing\":\"local\""), "{json}");
+        assert!(json.contains("\"pinned\":true"), "{json}");
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -103,6 +103,191 @@ pub unsafe fn nika_types::access::BillingClass::clone_to_uninit(&self, dest: *mu
 impl<T> core::convert::From<T> for nika_types::access::BillingClass
 pub fn nika_types::access::BillingClass::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::access::BillingClass where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub enum nika_types::access::RejectionDimension
+pub nika_types::access::RejectionDimension::NotConfigured
+pub nika_types::access::RejectionDimension::NotLive
+pub nika_types::access::RejectionDimension::PinUnsatisfied
+pub nika_types::access::RejectionDimension::ProviderNotAllowed
+impl nika_types::access::RejectionDimension
+pub const fn nika_types::access::RejectionDimension::as_str(self) -> &'static str
+impl core::clone::Clone for nika_types::access::RejectionDimension
+pub fn nika_types::access::RejectionDimension::clone(&self) -> nika_types::access::RejectionDimension
+impl core::cmp::Eq for nika_types::access::RejectionDimension
+impl core::cmp::PartialEq for nika_types::access::RejectionDimension
+pub fn nika_types::access::RejectionDimension::eq(&self, other: &nika_types::access::RejectionDimension) -> bool
+impl core::fmt::Debug for nika_types::access::RejectionDimension
+pub fn nika_types::access::RejectionDimension::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_types::access::RejectionDimension
+pub fn nika_types::access::RejectionDimension::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_types::access::RejectionDimension
+pub fn nika_types::access::RejectionDimension::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_types::access::RejectionDimension
+impl core::marker::StructuralPartialEq for nika_types::access::RejectionDimension
+impl serde_core::ser::Serialize for nika_types::access::RejectionDimension
+pub fn nika_types::access::RejectionDimension::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_types::access::RejectionDimension
+pub fn nika_types::access::RejectionDimension::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_types::access::RejectionDimension where U: core::convert::From<T>
+pub fn nika_types::access::RejectionDimension::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::access::RejectionDimension where U: core::convert::Into<T>
+pub type nika_types::access::RejectionDimension::Error = core::convert::Infallible
+pub fn nika_types::access::RejectionDimension::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::access::RejectionDimension where U: core::convert::TryFrom<T>
+pub type nika_types::access::RejectionDimension::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::access::RejectionDimension::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::access::RejectionDimension where T: core::clone::Clone
+pub type nika_types::access::RejectionDimension::Owned = T
+pub fn nika_types::access::RejectionDimension::clone_into(&self, target: &mut T)
+pub fn nika_types::access::RejectionDimension::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_types::access::RejectionDimension where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_types::access::RejectionDimension::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_types::access::RejectionDimension where T: 'static + ?core::marker::Sized
+pub fn nika_types::access::RejectionDimension::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::access::RejectionDimension where T: ?core::marker::Sized
+pub fn nika_types::access::RejectionDimension::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::access::RejectionDimension where T: ?core::marker::Sized
+pub fn nika_types::access::RejectionDimension::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::access::RejectionDimension where T: core::clone::Clone
+pub unsafe fn nika_types::access::RejectionDimension::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::access::RejectionDimension
+pub fn nika_types::access::RejectionDimension::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_types::access::RejectionDimension where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub enum nika_types::access::RejectionLayer
+pub nika_types::access::RejectionLayer::Access
+pub nika_types::access::RejectionLayer::Liveness
+pub nika_types::access::RejectionLayer::Pin
+pub nika_types::access::RejectionLayer::Policy
+impl nika_types::access::RejectionLayer
+pub const fn nika_types::access::RejectionLayer::as_str(self) -> &'static str
+impl core::clone::Clone for nika_types::access::RejectionLayer
+pub fn nika_types::access::RejectionLayer::clone(&self) -> nika_types::access::RejectionLayer
+impl core::cmp::Eq for nika_types::access::RejectionLayer
+impl core::cmp::PartialEq for nika_types::access::RejectionLayer
+pub fn nika_types::access::RejectionLayer::eq(&self, other: &nika_types::access::RejectionLayer) -> bool
+impl core::fmt::Debug for nika_types::access::RejectionLayer
+pub fn nika_types::access::RejectionLayer::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_types::access::RejectionLayer
+pub fn nika_types::access::RejectionLayer::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_types::access::RejectionLayer
+pub fn nika_types::access::RejectionLayer::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_types::access::RejectionLayer
+impl core::marker::StructuralPartialEq for nika_types::access::RejectionLayer
+impl serde_core::ser::Serialize for nika_types::access::RejectionLayer
+pub fn nika_types::access::RejectionLayer::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_types::access::RejectionLayer
+pub fn nika_types::access::RejectionLayer::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_types::access::RejectionLayer where U: core::convert::From<T>
+pub fn nika_types::access::RejectionLayer::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::access::RejectionLayer where U: core::convert::Into<T>
+pub type nika_types::access::RejectionLayer::Error = core::convert::Infallible
+pub fn nika_types::access::RejectionLayer::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::access::RejectionLayer where U: core::convert::TryFrom<T>
+pub type nika_types::access::RejectionLayer::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::access::RejectionLayer::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::access::RejectionLayer where T: core::clone::Clone
+pub type nika_types::access::RejectionLayer::Owned = T
+pub fn nika_types::access::RejectionLayer::clone_into(&self, target: &mut T)
+pub fn nika_types::access::RejectionLayer::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_types::access::RejectionLayer where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_types::access::RejectionLayer::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_types::access::RejectionLayer where T: 'static + ?core::marker::Sized
+pub fn nika_types::access::RejectionLayer::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::access::RejectionLayer where T: ?core::marker::Sized
+pub fn nika_types::access::RejectionLayer::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::access::RejectionLayer where T: ?core::marker::Sized
+pub fn nika_types::access::RejectionLayer::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::access::RejectionLayer where T: core::clone::Clone
+pub unsafe fn nika_types::access::RejectionLayer::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::access::RejectionLayer
+pub fn nika_types::access::RejectionLayer::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_types::access::RejectionLayer where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_types::access::AccessPlan
+pub nika_types::access::AccessPlan::billing: nika_types::access::BillingClass
+pub nika_types::access::AccessPlan::chosen: nika_types::access::AccessClass
+pub nika_types::access::AccessPlan::model: alloc::string::String
+pub nika_types::access::AccessPlan::pinned: bool
+pub nika_types::access::AccessPlan::provider: alloc::string::String
+pub nika_types::access::AccessPlan::rejected: alloc::vec::Vec<nika_types::access::AccessRejection>
+impl nika_types::access::AccessPlan
+pub fn nika_types::access::AccessPlan::new(model: impl core::convert::Into<alloc::string::String>, provider: impl core::convert::Into<alloc::string::String>, chosen: nika_types::access::AccessClass, billing: nika_types::access::BillingClass, pinned: bool, rejected: alloc::vec::Vec<nika_types::access::AccessRejection>) -> Self
+impl core::clone::Clone for nika_types::access::AccessPlan
+pub fn nika_types::access::AccessPlan::clone(&self) -> nika_types::access::AccessPlan
+impl core::cmp::Eq for nika_types::access::AccessPlan
+impl core::cmp::PartialEq for nika_types::access::AccessPlan
+pub fn nika_types::access::AccessPlan::eq(&self, other: &nika_types::access::AccessPlan) -> bool
+impl core::fmt::Debug for nika_types::access::AccessPlan
+pub fn nika_types::access::AccessPlan::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_types::access::AccessPlan
+impl serde_core::ser::Serialize for nika_types::access::AccessPlan
+pub fn nika_types::access::AccessPlan::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_types::access::AccessPlan
+pub fn nika_types::access::AccessPlan::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_types::access::AccessPlan where U: core::convert::From<T>
+pub fn nika_types::access::AccessPlan::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::access::AccessPlan where U: core::convert::Into<T>
+pub type nika_types::access::AccessPlan::Error = core::convert::Infallible
+pub fn nika_types::access::AccessPlan::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::access::AccessPlan where U: core::convert::TryFrom<T>
+pub type nika_types::access::AccessPlan::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::access::AccessPlan::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::access::AccessPlan where T: core::clone::Clone
+pub type nika_types::access::AccessPlan::Owned = T
+pub fn nika_types::access::AccessPlan::clone_into(&self, target: &mut T)
+pub fn nika_types::access::AccessPlan::to_owned(&self) -> T
+impl<T> core::any::Any for nika_types::access::AccessPlan where T: 'static + ?core::marker::Sized
+pub fn nika_types::access::AccessPlan::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::access::AccessPlan where T: ?core::marker::Sized
+pub fn nika_types::access::AccessPlan::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::access::AccessPlan where T: ?core::marker::Sized
+pub fn nika_types::access::AccessPlan::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::access::AccessPlan where T: core::clone::Clone
+pub unsafe fn nika_types::access::AccessPlan::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::access::AccessPlan
+pub fn nika_types::access::AccessPlan::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_types::access::AccessPlan where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_types::access::AccessRejection
+pub nika_types::access::AccessRejection::access: alloc::string::String
+pub nika_types::access::AccessRejection::dimension: nika_types::access::RejectionDimension
+pub nika_types::access::AccessRejection::layer: nika_types::access::RejectionLayer
+pub nika_types::access::AccessRejection::witness: alloc::string::String
+impl nika_types::access::AccessRejection
+pub fn nika_types::access::AccessRejection::new(access: impl core::convert::Into<alloc::string::String>, dimension: nika_types::access::RejectionDimension, layer: nika_types::access::RejectionLayer, witness: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_types::access::AccessRejection::witness_line(&self) -> alloc::string::String
+impl core::clone::Clone for nika_types::access::AccessRejection
+pub fn nika_types::access::AccessRejection::clone(&self) -> nika_types::access::AccessRejection
+impl core::cmp::Eq for nika_types::access::AccessRejection
+impl core::cmp::PartialEq for nika_types::access::AccessRejection
+pub fn nika_types::access::AccessRejection::eq(&self, other: &nika_types::access::AccessRejection) -> bool
+impl core::fmt::Debug for nika_types::access::AccessRejection
+pub fn nika_types::access::AccessRejection::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_types::access::AccessRejection
+impl serde_core::ser::Serialize for nika_types::access::AccessRejection
+pub fn nika_types::access::AccessRejection::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_types::access::AccessRejection
+pub fn nika_types::access::AccessRejection::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_types::access::AccessRejection where U: core::convert::From<T>
+pub fn nika_types::access::AccessRejection::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::access::AccessRejection where U: core::convert::Into<T>
+pub type nika_types::access::AccessRejection::Error = core::convert::Infallible
+pub fn nika_types::access::AccessRejection::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::access::AccessRejection where U: core::convert::TryFrom<T>
+pub type nika_types::access::AccessRejection::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::access::AccessRejection::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::access::AccessRejection where T: core::clone::Clone
+pub type nika_types::access::AccessRejection::Owned = T
+pub fn nika_types::access::AccessRejection::clone_into(&self, target: &mut T)
+pub fn nika_types::access::AccessRejection::to_owned(&self) -> T
+impl<T> core::any::Any for nika_types::access::AccessRejection where T: 'static + ?core::marker::Sized
+pub fn nika_types::access::AccessRejection::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::access::AccessRejection where T: ?core::marker::Sized
+pub fn nika_types::access::AccessRejection::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::access::AccessRejection where T: ?core::marker::Sized
+pub fn nika_types::access::AccessRejection::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::access::AccessRejection where T: core::clone::Clone
+pub unsafe fn nika_types::access::AccessRejection::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::access::AccessRejection
+pub fn nika_types::access::AccessRejection::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_types::access::AccessRejection where T: for<'de> serde_core::de::Deserialize<'de>
 pub mod nika_types::baggage
 #[non_exhaustive] pub struct nika_types::baggage::Baggage
 pub nika_types::baggage::Baggage::entries: alloc::vec::Vec<nika_types::baggage::BaggageEntry>
