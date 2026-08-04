@@ -71,6 +71,8 @@ const FAILING: &str = r#"
 nika: v1
 workflow:
   id: smoke-fail
+permits:
+  exec: true
 tasks:
   boom:
     exec: { shell: "exit 7" }
