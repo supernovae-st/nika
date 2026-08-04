@@ -25,7 +25,7 @@ name = "Anthropic Claude"
 aliases = ["claude"]
 env_var = "ANTHROPIC_API_KEY"
 key_prefixes = ["sk-ant-"]
-default_model = "claude-sonnet-4-20250514"
+default_model = "claude-sonnet-4-6"
 cheap_model = "claude-haiku-4-5-20251001"
 requires_key = true
 description = "Claude models (Opus, Sonnet, Haiku)."
@@ -36,7 +36,7 @@ data_policy = { trains = "no", retention = "30", zdr = "yes", source = "https://
 
 [[providers.models]]
 id = "sonnet"
-model = "claude-sonnet-4-20250514"
+model = "claude-sonnet-4-6"
 context_window_tokens = 200000
 max_output_tokens = 8192
 
@@ -235,7 +235,7 @@ name = "OpenRouter"
 aliases = ["or"]
 env_var = "OPENROUTER_API_KEY"
 key_prefixes = ["sk-or-"]
-default_model = "anthropic/claude-sonnet-4-20250514"
+default_model = "anthropic/claude-sonnet-4-6"
 cheap_model = "anthropic/claude-haiku-4-5-20251001"
 requires_key = true
 description = "200+ models via unified gateway."
@@ -246,7 +246,7 @@ data_policy = { trains = "passthrough", retention = "prompts none by default (lo
 
 [[providers.models]]
 id = "default"
-model = "anthropic/claude-sonnet-4-20250514"
+model = "anthropic/claude-sonnet-4-6"
 context_window_tokens = 128000
 max_output_tokens = 4096
 
@@ -407,7 +407,7 @@ id = "bedrock"
 name = "AWS Bedrock"
 aliases = ["aws-bedrock"]
 env_var = "AWS_ACCESS_KEY_ID"
-default_model = "anthropic.claude-sonnet-4-20250514-v1:0"
+default_model = "anthropic.claude-sonnet-4-6-v1:0"
 cheap_model = "anthropic.claude-haiku-4-5-20251001-v1:0"
 requires_key = true
 description = "AWS-managed inference gateway."
@@ -416,7 +416,7 @@ tags = ["enterprise", "function-calling", "prompt-caching", "streaming"]
 
 [[providers.models]]
 id = "default"
-model = "anthropic.claude-sonnet-4-20250514-v1:0"
+model = "anthropic.claude-sonnet-4-6-v1:0"
 context_window_tokens = 128000
 max_output_tokens = 4096
 
