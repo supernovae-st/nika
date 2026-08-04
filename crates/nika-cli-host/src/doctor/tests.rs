@@ -20,6 +20,14 @@ fn readiness(configured: bool, locus: ExecutionLocus) -> ProviderReadiness {
         model_available: None,
         priced: false,
         execution_locus: locus,
+        // Synthetic rows model cloud providers unless the locus says
+        // loopback — mirrors Profile::access_class.
+        access: match locus {
+            ExecutionLocus::Loopback | ExecutionLocus::Lan => {
+                nika_providers::probe::AccessClass::Local
+            }
+            _ => nika_providers::probe::AccessClass::Api,
+        },
     }
 }
 

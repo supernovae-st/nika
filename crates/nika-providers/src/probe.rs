@@ -140,6 +140,10 @@ fn is_lan_host(host: &str) -> bool {
             .any(|tld| name.ends_with(tld))
 }
 
+/// The access-class vocabulary rides with the ladder (probe consumers
+/// read both from here · L0 re-export, strictly downward).
+pub use nika_types::access::AccessClass;
+
 /// Readiness as a LADDER, never a boolean — the P0-5 audit: « modèle
 /// reconnu » was rendered as « prêt ». Every rung is its own fact, so no
 /// surface ever has to conflate them again; the rungs a probe did not
@@ -162,6 +166,10 @@ pub struct ProviderReadiness {
     pub priced: bool,
     /// Where the EFFECTIVE endpoint executes (override-aware · P0-20).
     pub execution_locus: ExecutionLocus,
+    /// HOW this provider is reached (D-2026-08-04-N1) — the profile's
+    /// access class (`local` · `api` · `mock` today; `harness`/`oauth`
+    /// arrive with their P3+ adapters, never from a profile).
+    pub access: nika_types::access::AccessClass,
 }
 
 /// A provider's environment facts — key PRESENCE only, never the value.
@@ -222,6 +230,7 @@ pub fn collect_provider_probes(registry: &ProviderRegistry) -> Vec<ProviderProbe
                         .iter()
                         .any(|r| r.provider.eq_ignore_ascii_case(p.id)),
                     execution_locus: ExecutionLocus::classify(Some(endpoint), p.base_url),
+                    access: p.access_class(),
                 },
                 endpoint: endpoint.to_owned(),
             }
