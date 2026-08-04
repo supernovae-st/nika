@@ -41,6 +41,10 @@ pub enum UnpricedReason {
     /// The provider's response carried no usable usage split — a priced
     /// model whose spend is REAL but unknowable (never guessed).
     ProviderDidNotReportUsage,
+    /// The call rode a subscription lane (harness/oauth access) — spend
+    /// draws quota or extra-usage, not metered USD here. Never « free »,
+    /// never a fake zero (D-2026-08-04-N1 · A-7).
+    SubscriptionQuota,
 }
 
 impl UnpricedReason {
@@ -52,6 +56,7 @@ impl UnpricedReason {
             Self::MockProvider => "mock_provider",
             Self::MissingCatalogPrice => "missing_catalog_price",
             Self::ProviderDidNotReportUsage => "provider_did_not_report_usage",
+            Self::SubscriptionQuota => "subscription_quota",
         }
     }
 }
@@ -260,6 +265,36 @@ impl Default for Cost {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn unpriced_reason_wire_strings_are_snake_case_and_distinct() {
+        assert_eq!(UnpricedReason::LocalModel.as_str(), "local_model");
+        assert_eq!(UnpricedReason::MockProvider.as_str(), "mock_provider");
+        assert_eq!(
+            UnpricedReason::MissingCatalogPrice.as_str(),
+            "missing_catalog_price"
+        );
+        assert_eq!(
+            UnpricedReason::ProviderDidNotReportUsage.as_str(),
+            "provider_did_not_report_usage"
+        );
+        assert_eq!(
+            UnpricedReason::SubscriptionQuota.as_str(),
+            "subscription_quota"
+        );
+        let all = [
+            UnpricedReason::LocalModel,
+            UnpricedReason::MockProvider,
+            UnpricedReason::MissingCatalogPrice,
+            UnpricedReason::ProviderDidNotReportUsage,
+            UnpricedReason::SubscriptionQuota,
+        ];
+        for (i, a) in all.iter().enumerate() {
+            for b in &all[i + 1..] {
+                assert_ne!(a.as_str(), b.as_str());
+            }
+        }
+    }
 
     #[test]
     fn zero_cost() {

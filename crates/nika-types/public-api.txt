@@ -1,4 +1,108 @@
 pub mod nika_types
+pub mod nika_types::access
+#[non_exhaustive] pub enum nika_types::access::AccessClass
+pub nika_types::access::AccessClass::Api
+pub nika_types::access::AccessClass::Harness
+pub nika_types::access::AccessClass::Local
+pub nika_types::access::AccessClass::Mock
+pub nika_types::access::AccessClass::Oauth
+impl nika_types::access::AccessClass
+pub const fn nika_types::access::AccessClass::as_str(self) -> &'static str
+pub const fn nika_types::access::AccessClass::default_billing(self) -> nika_types::access::BillingClass
+impl core::clone::Clone for nika_types::access::AccessClass
+pub fn nika_types::access::AccessClass::clone(&self) -> nika_types::access::AccessClass
+impl core::cmp::Eq for nika_types::access::AccessClass
+impl core::cmp::PartialEq for nika_types::access::AccessClass
+pub fn nika_types::access::AccessClass::eq(&self, other: &nika_types::access::AccessClass) -> bool
+impl core::fmt::Debug for nika_types::access::AccessClass
+pub fn nika_types::access::AccessClass::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_types::access::AccessClass
+pub fn nika_types::access::AccessClass::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_types::access::AccessClass
+pub fn nika_types::access::AccessClass::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_types::access::AccessClass
+impl core::marker::StructuralPartialEq for nika_types::access::AccessClass
+impl serde_core::ser::Serialize for nika_types::access::AccessClass
+pub fn nika_types::access::AccessClass::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_types::access::AccessClass
+pub fn nika_types::access::AccessClass::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_types::access::AccessClass where U: core::convert::From<T>
+pub fn nika_types::access::AccessClass::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::access::AccessClass where U: core::convert::Into<T>
+pub type nika_types::access::AccessClass::Error = core::convert::Infallible
+pub fn nika_types::access::AccessClass::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::access::AccessClass where U: core::convert::TryFrom<T>
+pub type nika_types::access::AccessClass::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::access::AccessClass::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::access::AccessClass where T: core::clone::Clone
+pub type nika_types::access::AccessClass::Owned = T
+pub fn nika_types::access::AccessClass::clone_into(&self, target: &mut T)
+pub fn nika_types::access::AccessClass::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_types::access::AccessClass where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_types::access::AccessClass::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_types::access::AccessClass where T: 'static + ?core::marker::Sized
+pub fn nika_types::access::AccessClass::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::access::AccessClass where T: ?core::marker::Sized
+pub fn nika_types::access::AccessClass::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::access::AccessClass where T: ?core::marker::Sized
+pub fn nika_types::access::AccessClass::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::access::AccessClass where T: core::clone::Clone
+pub unsafe fn nika_types::access::AccessClass::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::access::AccessClass
+pub fn nika_types::access::AccessClass::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_types::access::AccessClass where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub enum nika_types::access::BillingClass
+pub nika_types::access::BillingClass::ApiMetered
+pub nika_types::access::BillingClass::CreditMetered
+pub nika_types::access::BillingClass::ExtraUsage
+pub nika_types::access::BillingClass::IncludedQuota
+pub nika_types::access::BillingClass::Local
+pub nika_types::access::BillingClass::Unknown
+impl nika_types::access::BillingClass
+pub const fn nika_types::access::BillingClass::as_str(self) -> &'static str
+pub const fn nika_types::access::BillingClass::is_usd_metered(self) -> bool
+impl core::clone::Clone for nika_types::access::BillingClass
+pub fn nika_types::access::BillingClass::clone(&self) -> nika_types::access::BillingClass
+impl core::cmp::Eq for nika_types::access::BillingClass
+impl core::cmp::PartialEq for nika_types::access::BillingClass
+pub fn nika_types::access::BillingClass::eq(&self, other: &nika_types::access::BillingClass) -> bool
+impl core::fmt::Debug for nika_types::access::BillingClass
+pub fn nika_types::access::BillingClass::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_types::access::BillingClass
+pub fn nika_types::access::BillingClass::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_types::access::BillingClass
+pub fn nika_types::access::BillingClass::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_types::access::BillingClass
+impl core::marker::StructuralPartialEq for nika_types::access::BillingClass
+impl serde_core::ser::Serialize for nika_types::access::BillingClass
+pub fn nika_types::access::BillingClass::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_types::access::BillingClass
+pub fn nika_types::access::BillingClass::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_types::access::BillingClass where U: core::convert::From<T>
+pub fn nika_types::access::BillingClass::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::access::BillingClass where U: core::convert::Into<T>
+pub type nika_types::access::BillingClass::Error = core::convert::Infallible
+pub fn nika_types::access::BillingClass::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::access::BillingClass where U: core::convert::TryFrom<T>
+pub type nika_types::access::BillingClass::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::access::BillingClass::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::access::BillingClass where T: core::clone::Clone
+pub type nika_types::access::BillingClass::Owned = T
+pub fn nika_types::access::BillingClass::clone_into(&self, target: &mut T)
+pub fn nika_types::access::BillingClass::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_types::access::BillingClass where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_types::access::BillingClass::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_types::access::BillingClass where T: 'static + ?core::marker::Sized
+pub fn nika_types::access::BillingClass::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::access::BillingClass where T: ?core::marker::Sized
+pub fn nika_types::access::BillingClass::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::access::BillingClass where T: ?core::marker::Sized
+pub fn nika_types::access::BillingClass::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::access::BillingClass where T: core::clone::Clone
+pub unsafe fn nika_types::access::BillingClass::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::access::BillingClass
+pub fn nika_types::access::BillingClass::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_types::access::BillingClass where T: for<'de> serde_core::de::Deserialize<'de>
 pub mod nika_types::baggage
 #[non_exhaustive] pub struct nika_types::baggage::Baggage
 pub nika_types::baggage::Baggage::entries: alloc::vec::Vec<nika_types::baggage::BaggageEntry>
@@ -385,6 +489,7 @@ pub nika_types::cost::UnpricedReason::LocalModel
 pub nika_types::cost::UnpricedReason::MissingCatalogPrice
 pub nika_types::cost::UnpricedReason::MockProvider
 pub nika_types::cost::UnpricedReason::ProviderDidNotReportUsage
+pub nika_types::cost::UnpricedReason::SubscriptionQuota
 impl nika_types::cost::UnpricedReason
 pub const fn nika_types::cost::UnpricedReason::as_str(self) -> &'static str
 impl core::clone::Clone for nika_types::cost::UnpricedReason
