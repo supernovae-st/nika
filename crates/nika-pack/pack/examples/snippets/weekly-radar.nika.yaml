@@ -1,0 +1,112 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# snippet · the learn page's destination file — the whole language, once
+#
+# The file /learn builds toward, line by line: a human gate, a parallel
+# fan-out (fetch · exec · read), one bounded synthesis with retry, one
+# write. Every construct the page teaches appears here exactly once.
+#
+# Demonstrates ·
+#   - `nika:prompt` · a human gate that GATES, and BLOCKS — each effect
+#     binds the answer and runs only on true (NEP-0020), and the gate
+#     carries no `default:` (a gate with a default is not a gate ·
+#     NIKA-SEC-009): its one [headless-prompt] hint is the price
+#   - three gated tasks in one parallel wave
+#   - `with:` · value edges into one `infer:` with `retry:`
+#   - `const:` + typed `inputs:` with defaults · the four authorities in use
+#   - `permits:` · fs read/write, one host, one program, four tools
+#
+# Needs · ollama with the model pulled · `ollama pull llama3.2:3b`.
+#   No ollama? `--model mock/echo` rehearses the whole file keyless.
+#
+# Run · nika run examples/snippets/weekly-radar.nika.yaml
+nika: v1
+workflow:
+  id: weekly-radar
+  description: "gate → parallel gather (fetch · git log · notes) → one synthesis → save"
+inputs:
+  topic:
+    type: string
+    default: "local-first AI tooling"
+    description: "Subject to research · --var topic=… overrides"
+  notes_path:
+    type: string
+    default: "examples/fixtures/notes.md"
+    description: "Your own notes file · the permits below grant the default"
+const:
+  output_dir: "./radar"
+
+model: ollama/llama3.2:3b
+
+permits:
+  exec: ["git"]
+  tools: ["nika:fetch", "nika:read", "nika:write", "nika:prompt"]
+  net: { http: ["hnrss.org"] }
+  fs:
+    read: ["examples/fixtures/notes.md"]
+    write: ["./radar/*"]
+
+tasks:
+  approve:
+    invoke:
+      # blocking · no `default:` · a gate with a default is not a gate · the
+      # checker enforces both directions: `default: false` here turns this
+      # file RED with NIKA-SEC-009, because a defaulted prompt dominates
+      # nothing. Blocking costs one [headless-prompt] hint instead · that
+      # hint is the price of a real gate, not a defect to paper over.
+      # Unattended the run pauses (exit 4) · answer and resume with
+      #   nika run <file> --resume <trace> --answer approve=true
+      tool: "nika:prompt"
+      args:
+        mode: confirm
+        message: "Run the weekly radar? It fetches hnrss.org, reads the notes file and writes ./radar/."
+
+  fetch_news:
+    with:
+      go: "${{ tasks.approve.output }}"
+    when: ${{ with.go == true }}
+    invoke:
+      tool: "nika:fetch"
+      args:
+        url: "https://hnrss.org/frontpage"
+
+  repo_log:
+    with:
+      go: "${{ tasks.approve.output }}"
+    when: ${{ with.go == true }}
+    exec:
+      command: ["git", "log", "--since=1 week"]
+
+  read_notes:
+    with:
+      go: "${{ tasks.approve.output }}"
+    when: ${{ with.go == true }}
+    invoke:
+      tool: "nika:read"
+      args:
+        path: "${{ inputs.notes_path }}"
+
+  digest:
+    with:
+      news: ${{ tasks.fetch_news.output }}
+      log: ${{ tasks.repo_log.output }}
+      notes: ${{ tasks.read_notes.output }}
+    retry:
+      max_attempts: 3
+      backoff_ms: 1000
+    infer:
+      prompt: "One weekly radar on ${{ inputs.topic }}, five bullets: ${{ with.news }} ${{ with.log }} ${{ with.notes }}"
+      max_tokens: 1024
+
+  save:
+    with:
+      brief: ${{ tasks.digest.output }}
+    invoke:
+      tool: "nika:write"
+      args:
+        path: "${{ const.output_dir }}/radar.md"
+        content: "${{ with.brief }}"
+
+outputs:
+  brief: ${{ tasks.digest.output }}

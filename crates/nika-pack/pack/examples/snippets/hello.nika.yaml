@@ -1,0 +1,25 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# snippet · the install page's first file — zero setup, zero keys
+#
+# The first file a fresh install runs: one exec, no model, no network.
+# `permits.exec` names the ONE program it may launch — the file is the
+# blast radius from the very first command.
+#
+# Demonstrates ·
+#   - the envelope · `nika: v1` + `workflow.id`
+#   - `permits.exec` · an argv allowlist, no shell anywhere
+#   - one `exec:` task · argv form, never a shell string
+#
+# Run · nika run examples/snippets/hello.nika.yaml
+nika: v1
+workflow:
+  id: hello
+  description: "first file after install · one exec, zero setup, zero keys"
+permits:
+  exec: ["echo"]
+tasks:
+  greet:
+    exec:
+      command: ["echo", "hello", "from", "nika"]

@@ -7,7 +7,7 @@
 #   sealed outcome_class enum) · the 15 ledger sections (canon/EXCEPTIONS.md ·
 #   SSOT-1 §18) stay AUTHORED and are carried verbatim — editing those is legal.
 # regenerate: python3 scripts/ssot-compiler.py --emit-canon
-# body-sha256: 36c2f131f2bfb6e1da92ea0b2b40e0b4750bf0185282fa68db962ab5090e15e3
+# body-sha256: 6426431ef5e372dbe43ab91dd6f7e0a5c66aeff756e2bd873ebbbab000403f94
 #   (digest of every byte below the end-of-header line · detached self-hash per PAA-006)
 # ---- end generated header (SSOT-1 §21-23 · the canon flip · C0)
 # nika canonical registry · the single source of truth for Nika canonical facts

@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# snippet · the four-verb teaching set · infer — the model thinks
+#
+# One verb per file, the smallest honest instance of each. `infer:` is a
+# single bounded model call: a prompt goes in, text comes back. No tools,
+# no effects — `permits: {}` declares that zero out loud, and
+# `max_tokens:` bounds the only spend this file can make.
+#
+# Demonstrates ·
+#   - `infer:` · the thinking verb, alone
+#   - `permits: {}` + `max_tokens:` · the declared zero, the bounded call
+#
+# Run · nika run examples/snippets/think.nika.yaml
+nika: v1
+workflow:
+  id: think
+  description: "the infer verb alone · one bounded model call"
+model: ollama/llama3.2:3b
+permits: {}
+tasks:
+  summarize:
+    infer:
+      prompt: "Three risks in this release, ranked"
+      max_tokens: 256
+
+outputs:
+  summary: ${{ tasks.summarize.output }}

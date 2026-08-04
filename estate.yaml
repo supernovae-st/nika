@@ -18,14 +18,14 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4308
+  classified_files: 4317
   file_rows: 11
   pattern_rows: 22
   by_class:
     authored: 1390
     authored-pin: 2
     generated: 115
-    pinned-copy: 105
+    pinned-copy: 114
     testimonial: 2696
     foreign: 0
   unverified-default: 5
@@ -113,8 +113,8 @@ files:
 patterns:
 - glob: "crates/nika-pack/pack/**"
   class: pinned-copy
-  match_count: 104
-  aggregate_sha256: 817c642cc25f06073c285051c4dbda3d2206519e3dd0ae6efd42f65f9ce7f45c
+  match_count: 113
+  aggregate_sha256: da301a35fd7fa09225fd68c47c7d6f72b334b0b943af9a50a8872ac42427dc54
   evidence: "crates/nika-pack/src/lib.rs:16 'The snapshot under pack/ is vendored by scripts/sync-pack.sh' — a byte-copy of the spec surface, never edited here"
   derivation:
     tool: "bash scripts/sync-pack.sh <nika-spec checkout> — healed daily by .github/workflows/pack-resync.yml (branch bot/pack-resync · PR-only, the 12-gate CI judges)"

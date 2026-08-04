@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# snippet · the four-verb teaching set · exec — the machine runs a program
+#
+# `exec:` launches ONE program in argv form — never a shell, never a
+# string to interpolate into. The `permits.exec` allowlist names it:
+# an exec task under no grant refuses at check (NIKA-AUTH-006).
+#
+# Demonstrates ·
+#   - `exec:` · the running verb, argv form
+#   - `permits.exec` · the program allowlist the verb answers to
+#
+# Run · nika run examples/snippets/run.nika.yaml
+nika: v1
+workflow:
+  id: run
+  description: "the exec verb alone · one program, argv form, allowlisted"
+permits:
+  exec: ["cargo"]
+tasks:
+  build:
+    exec:
+      command: ["cargo", "build", "--release"]

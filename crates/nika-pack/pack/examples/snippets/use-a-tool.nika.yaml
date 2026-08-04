@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# snippet · the four-verb teaching set · invoke — call one tool
+#
+# `invoke:` calls one named tool with typed args. An effecting tool needs
+# BOTH halves granted: the tool itself in `permits.tools`, and the host it
+# reaches in `permits.net.http` — either one missing refuses at check.
+#
+# Demonstrates ·
+#   - `invoke:` · the tool verb · `nika:fetch`
+#   - `permits.tools` + `permits.net.http` · the two-part grant for
+#     reaching anything
+#
+# Run · nika run examples/snippets/use-a-tool.nika.yaml
+nika: v1
+workflow:
+  id: use-a-tool
+  description: "the invoke verb alone · one tool call under the two-part grant"
+permits:
+  tools: ["nika:fetch"]
+  net: { http: ["nika.sh"] }
+tasks:
+  page:
+    invoke:
+      tool: "nika:fetch"
+      args: { url: "https://nika.sh" }
