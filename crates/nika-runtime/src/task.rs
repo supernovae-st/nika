@@ -262,6 +262,12 @@ pub(crate) enum RunResult {
         /// Why (part of) the spend is NOT in `cost_usd` — rides the
         /// terminal frame as `cost_unpriced`.
         cost_unpriced: Option<nika_types::cost::UnpricedReason>,
+        /// The resolved `provider/name` an infer/agent success ran on
+        /// (D-2026-08-04-N1) — rides the terminal frame as structured
+        /// `model` · `provider` · `access` · `billing` fields, retiring
+        /// the note-string parse. `None` on verbs that name no model
+        /// (exec · invoke) and on recovered author-supplied values.
+        model: Option<String>,
     },
     /// `on_error: skip` — skipped with the original error readable
     /// (spec 05 · the one coexist state). The billed-then-skipped spend
@@ -1327,7 +1333,7 @@ fn dispatch_result(
             warning,
             child,
             cost_usd,
-            cost_source: _,
+            cost_source,
             cost_unpriced,
             commit: _,
         }) => RunResult::Success {
@@ -1338,6 +1344,9 @@ fn dispatch_result(
             child,
             cost_usd,
             cost_unpriced,
+            // The by-source key IS the resolved model (`provider/name`)
+            // — the same fact, now a structured frame field too.
+            model: cost_source,
         },
         Err(failed) => apply_on_error(task, scope, failed),
     };
@@ -1382,6 +1391,7 @@ fn apply_on_error(task: &RawTask, scope: &Scope<'_>, failed: FailedOutcome) -> R
                 child: None, // recovered value ≠ a child run's outputs
                 cost_usd,
                 cost_unpriced,
+                model: None, // author-supplied value · no model ran it
             },
             // A render failure explained ONLY by not-yet-terminal task
             // referents AWAITS them (spec 05 §recover step 3 · a recover

@@ -58,6 +58,7 @@ pub(crate) fn emit_completed(
     tokens: Option<i64>,
     cost_usd: Option<f64>,
     cost_unpriced: Option<nika_types::cost::UnpricedReason>,
+    model: Option<&str>,
     warning: Option<&str>,
     child: Option<&crate::child::ChildRunSummary>,
     resume: Option<&resume::ResumeStamp>,
@@ -84,6 +85,21 @@ pub(crate) fn emit_completed(
     // `missing_catalog_price` · `provider_did_not_report_usage`.
     if let Some(reason) = cost_unpriced {
         fields.push(("cost_unpriced", s(reason.as_str())));
+    }
+    // D-2026-08-04-N1 · the access facts — structured provenance for
+    // infer/agent terminals (`model` = the resolved provider/name ·
+    // `provider` = its prefix · `access` = HOW it was reached ·
+    // `billing` = the economic lane). Additive fields; the note keeps
+    // its historical `infer · <model>` form, now a render, not a
+    // carrier — readers of pre-access traces still parse it.
+    if let Some(m) = model {
+        fields.push(("model", s(m)));
+        if let Some((provider, _)) = m.split_once('/') {
+            fields.push(("provider", s(provider)));
+            let access = nika_providers::profile::access_class_for(provider);
+            fields.push(("access", s(access.as_str())));
+            fields.push(("billing", s(access.default_billing().as_str())));
+        }
     }
     // OBS-E · a non-fatal diagnostic rides the success frame as a
     // `warning` field (the reasoning-model blank-answer footgun) · the

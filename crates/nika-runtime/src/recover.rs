@@ -490,6 +490,7 @@ fn resolve_parked(
                     child: None, // recovered value ≠ a child run's outputs
                     cost_usd,
                     cost_unpriced,
+                    model: None, // author-supplied value · no model ran it
                 },
                 Err(err) => RunResult::Failed {
                     error: runtime_error_record(&err),
