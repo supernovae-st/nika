@@ -18,11 +18,11 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4307
+  classified_files: 4308
   file_rows: 11
   pattern_rows: 22
   by_class:
-    authored: 1389
+    authored: 1390
     authored-pin: 2
     generated: 115
     pinned-copy: 105
@@ -67,7 +67,7 @@ files:
   note: "ROADMAP.md:98 carries the same refresh-status.sh AUTO-GENERATED status block — a tool-maintained block inside an authored file"
 - path: "SPEC_PIN"
   class: authored-pin
-  sha256: 9764792d382f8e9fb0565d6d0cbfb5d34a5b312b8f39e2b6e86c6c4e34350049
+  sha256: ae2421e9b4643064a80f068a267c25097720a4a96e647cab7ad3060edd992215
   evidence: "its own header: 'Advanced by .github/workflows/spec-pin-heal.yml (PR-only · the Diamond CI tests leg judges at the new pin). Consumed by diamond-ci.yml. Never HEAD.'"
 - path: "crates/nika-catalog/data/model-pricing.toml"
   class: generated
@@ -114,7 +114,7 @@ patterns:
 - glob: "crates/nika-pack/pack/**"
   class: pinned-copy
   match_count: 104
-  aggregate_sha256: bf93d4b425adf0cff63aa49f1f1e480603609684e392b6daf45718e9728acbe2
+  aggregate_sha256: 817c642cc25f06073c285051c4dbda3d2206519e3dd0ae6efd42f65f9ce7f45c
   evidence: "crates/nika-pack/src/lib.rs:16 'The snapshot under pack/ is vendored by scripts/sync-pack.sh' — a byte-copy of the spec surface, never edited here"
   derivation:
     tool: "bash scripts/sync-pack.sh <nika-spec checkout> — healed daily by .github/workflows/pack-resync.yml (branch bot/pack-resync · PR-only, the 12-gate CI judges)"
@@ -140,7 +140,7 @@ patterns:
 - glob: "crates/*/public-api.txt"
   class: generated
   match_count: 59
-  aggregate_sha256: db84d5b3c31c8c497d5ae9544c8b7e874e57cdf4eac3692d8e74a56ce1a18daf
+  aggregate_sha256: 29c3d3d12a7a0f3eb4f928c2e2fa81bb28c9a6f1c93861c6c8de5ea96caf1c95
   evidence: ".github/workflows/public-api.yml 'diff each covered lib crate' byte-compares each snapshot against cargo public-api output; macOS renders differently, so snapshots regenerate FROM THE UBUNTU ARTIFACT (workflow comment)"
   derivation:
     tool: "cargo public-api -p <crate> --omit auto-trait-impls > crates/<crate>/public-api.txt (DEFAULT features · the CI job shape — all-features drags platform deps into the render · cargo-public-api 0.51.0 pinned · the public-api-actual CI artifact stays the judge)"
@@ -151,13 +151,13 @@ patterns:
     - "cargo-public-api 0.51.0"
 - glob: "crates/**/src/**"
   class: authored
-  match_count: 700
-  aggregate_sha256: 7cfd340eca4d31a258b6aeb8e16c0d933ca0bd9ceb1a762b2ad4176183b5d691
+  match_count: 702
+  aggregate_sha256: 711b166b64b23b71911e6224a668b2c4923aad9d3453d78e46c087090d0f0f40
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
   match_count: 127
-  aggregate_sha256: 15f2afd99b00b8a5ecd9f427dd69896efd2294731fe150c127d4d041883017ee
+  aggregate_sha256: 3508d6d5de5cf890a311a6cef70475fbffb1e066ace0df478f9c50b041d4e01e
   evidence: "crate-owned tests + fixtures under tests/ — written with the crate per gate discipline, no generation markers"
 - glob: "crates/**"
   class: authored
@@ -178,17 +178,17 @@ patterns:
 - glob: "docs/**"
   class: authored
   match_count: 99
-  aggregate_sha256: e95dccc542c111d34237647e984ae24fe496a43c4d4484ab619979540a706be7
+  aggregate_sha256: 75955b865006a0edac7f192b58c6f66ad2ff67e1b91e27220079ff372260ed68
   evidence: "crate-specs · architecture prose · perf notes — no generation markers at file heads"
 - glob: "scripts/**"
   class: authored
   match_count: 135
-  aggregate_sha256: f013e9c361047cd3ced0e83f6adb799264a6a953de3cfebc9d0bbf2148cf8f33
+  aggregate_sha256: 33cced554daf039261560f0af12fc88bc4e599224669fd6a48ea84077e184080
   evidence: "hand-written gates · hooks · hygiene vectors · media lanes; the ratchet baselines (scripts/ci/*-baseline.txt · scripts/hygiene/baselines/) are hand-kept monotonic floors ('Never remove a line by hand')"
 - glob: ".github/workflows/**"
   class: authored
   match_count: 21
-  aggregate_sha256: b67f5f071e200354eabb93c83d584e0d119678478e4e09a129d353c832ea5894
+  aggregate_sha256: 7c0d9142f53f79aba24bd149b49a8cf9c5b3cb9a1bf393eb70efd00c946b23ce
   evidence: "hand-written CI rails, comments narrate design decisions; the heal lanes here rewrite OTHER files (spec-pin-heal.yml → SPEC_PIN · pack-resync.yml → the pack · changelog-cliff.yml → CHANGELOG.md), nothing rewrites the workflows themselves"
 - glob: ".github/**"
   class: authored
@@ -198,12 +198,12 @@ patterns:
 - glob: ".agents/**"
   class: authored
   match_count: 30
-  aggregate_sha256: da9846d95c1be95855b84881fed58d946f1db8e648d9911713389dc7449b5650
+  aggregate_sha256: 5611632adc641e68c39333d4c437fde5bffb16fbf258e9cbc377c6b68fa2ad0e
   evidence: "the agent-plugin pack SOURCE (marketplace.json · plugin manifests · skills · rules · hooks) — authored here, mirrored downstream into supernovae-st/nika-agents (its plugins/ is a byte-pinned copy healed on releases)"
 - glob: ".claude/**"
   class: authored
-  match_count: 16
-  aggregate_sha256: 3651f1e894d147770be843f2cd819029eb52b082cbaf45a215b02b059fa62d1e
+  match_count: 15
+  aggregate_sha256: ab8e0138a624bf57ca4f2cf12b7354d1544153e5019fe59a4ae58e927adcc0ae
   evidence: "harness rules · skills · commands for the Diamond rebuild — hand-written; .claude/CLAUDE.md excepted in files: (carries the refresh-status.sh auto-block)"
 - glob: ".claude-plugin/**"
   class: authored
@@ -218,7 +218,7 @@ patterns:
 - glob: "media/**"
   class: generated
   match_count: 51
-  aggregate_sha256: f7f2531887db65fc649305ab8640ebf79db02474ca40918475be8f809d7c7c8b
+  aggregate_sha256: dbba23dce260ebb805ff11a6415caea474060c1f5a8640eeb5a232abdac45cb8
   evidence: "media/README.md: 'Never edit exports by hand. Edit the motion scene or fixture, then re-render' — gifs/posters/videos/social render from scripts/media/motion/ scenes + tapes; raw/ transcripts are captured from the real binary"
   derivation:
     tool: "scripts/media/render-motion.mjs + render-tape.sh + capture-transcripts.sh (scenes: scripts/media/motion/ · fixtures: scripts/media/fixtures/ · tapes: scripts/media/tapes/)"
