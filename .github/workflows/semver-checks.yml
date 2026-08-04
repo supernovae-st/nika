@@ -28,7 +28,10 @@ jobs:
           toolchain: stable
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
       - name: install cargo-semver-checks
-        run: cargo install --locked cargo-semver-checks
+        # Pin to the repo toolchain (rust-toolchain.toml · 1.91): a bare
+        # install resolves latest (0.50.0 needs rustc 1.93 → rc=101 fleet-
+        # wide 2026-08-04). Re-pin when the toolchain channel advances.
+        run: cargo install --locked cargo-semver-checks --version 0.49.0
       - name: check every covered lib crate
         # The crate list is PROJECTED from the coverage floor (ADR-090: one SSOT,
         # three consumers — this job, public-api.yml, and hygiene vector 38). Reads
