@@ -137,21 +137,13 @@ impl Profile {
 
     /// The execution-access class this profile runs over TODAY
     /// (D-2026-08-04-N1 · `model:` picks the intelligence, access the
-    /// path): the `Mock` wire is the test lane, the 5 seed-keyed local
-    /// servers are `Local` (same override-proof key as [`Self::is_local`]),
-    /// every other canonical row reaches its vendor over an API key.
-    /// `Harness`/`Oauth` never come from a profile — those classes enter
-    /// with the P3+ adapters, which carry their own descriptors.
+    /// path) — the ONE derivation, shared with the trace emitter via
+    /// [`access_class_for`]. `Harness`/`Oauth` never come from a
+    /// profile; those classes enter with the P3+ adapters, which carry
+    /// their own descriptors.
     #[must_use]
     pub fn access_class(&self) -> nika_types::access::AccessClass {
-        use nika_types::access::AccessClass;
-        if matches!(self.wire, WireFormat::Mock) {
-            AccessClass::Mock
-        } else if self.is_local() {
-            AccessClass::Local
-        } else {
-            AccessClass::Api
-        }
+        access_class_for(self.id)
     }
 
     /// Resolve a model nickname through the catalog row (`"sonnet"` →
@@ -197,6 +189,26 @@ pub const CANONICAL_IDS: [&str; 16] = [
 #[must_use]
 pub fn server_backed_local(provider: &str) -> bool {
     LOCAL.iter().any(|(id, _)| *id == provider)
+}
+
+/// The execution-access class of a provider id (D-2026-08-04-N1) — the
+/// ONE derivation every surface shares (probe rows · the trace
+/// emitter's structured `access` field): `mock` is the test lane, the
+/// 5 seed-keyed local servers are `Local` (override-proof — same key
+/// as the B-5 gate), everything else reaches its vendor over an API
+/// key. A non-canonical id classifies `Api` — post-resolve callers
+/// never hold one, and an api-shaped guess is the honest default for
+/// a keyed endpoint.
+#[must_use]
+pub fn access_class_for(provider: &str) -> nika_types::access::AccessClass {
+    use nika_types::access::AccessClass;
+    if provider == "mock" {
+        AccessClass::Mock
+    } else if server_backed_local(provider) {
+        AccessClass::Local
+    } else {
+        AccessClass::Api
+    }
 }
 
 /// The MODELS-rung law (#320): why a `<provider>/<model>` string cannot

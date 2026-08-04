@@ -790,6 +790,7 @@ fn recovered_success_emits_task_recovered_before_completed() {
             child: None,
             cost_usd: None,
             cost_unpriced: None,
+            model: None,
         },
     };
     let mut ok = true;
@@ -847,6 +848,7 @@ fn obs_e_warning_rides_task_completed() {
             child: None,
             cost_usd: Some(0.0125),
             cost_unpriced: None,
+            model: None,
         },
     };
     let mut ok = true;
@@ -910,6 +912,7 @@ fn no_warning_field_on_a_clean_success() {
             child: None,
             cost_usd: None,
             cost_unpriced: None,
+            model: None,
         },
     };
     let mut ok = true;
@@ -944,6 +947,78 @@ fn no_warning_field_on_a_clean_success() {
         !completed.fields.iter().any(|f| f.key == "cost_unpriced"),
         "an exec success is not COST-unpriced — no reason noise on verbs that spend nothing"
     );
+    assert!(
+        !completed
+            .fields
+            .iter()
+            .any(|f| f.key == "model" || f.key == "access"),
+        "a modelless verb carries no access facts — the fields ride ONLY where a model ran"
+    );
+}
+
+/// D-2026-08-04-N1 · the access facts ride the infer terminal as
+/// STRUCTURED fields (`model` · `provider` · `access` · `billing`) —
+/// the display's note-string parse becomes a historical-trace fallback,
+/// never the carrier.
+#[test]
+fn access_facts_ride_the_infer_terminal() {
+    let ran = task::RanTask {
+        decisions: Vec::new(),
+        note: "infer · mock/echo".to_owned(),
+        retries: Vec::new(),
+        agent_events: Vec::new(),
+        evidence: None,
+        duration_ms: 0,
+        result: task::RunResult::Success {
+            value: Value::String("hi".to_owned()),
+            tokens: Some(3),
+            recovered_from: None,
+            warning: None,
+            child: None,
+            cost_usd: None,
+            cost_unpriced: Some(nika_types::cost::UnpricedReason::MockProvider),
+            model: Some("mock/echo".to_owned()),
+        },
+    };
+    let mut ok = true;
+    let mut stamper = DeterministicStamper::new();
+    let mut sink = VecSink::new();
+    settle::settle_ran(
+        "ask",
+        ran,
+        None,
+        &TRUSTED,
+        &[],
+        None,
+        &mut ok,
+        &mut stamper,
+        &mut sink,
+    );
+    let completed = sink
+        .events()
+        .iter()
+        .find(|e| e.kind == EventKind::TaskCompleted)
+        .expect("a TaskCompleted frame");
+    let sfield = |k: &str| {
+        completed
+            .fields
+            .iter()
+            .find(|f| f.key == k)
+            .map(|f| match &f.value {
+                crate::FieldValue::String(v) => v.clone(),
+                other => panic!("{k} is not a string field: {other:?}"),
+            })
+    };
+    assert_eq!(sfield("model").as_deref(), Some("mock/echo"));
+    assert_eq!(sfield("provider").as_deref(), Some("mock"));
+    assert_eq!(sfield("access").as_deref(), Some("mock"));
+    assert_eq!(
+        sfield("billing").as_deref(),
+        Some("local"),
+        "mock compute is the local lane — never presented as free, never metered"
+    );
+    // the note keeps its historical render — now a render, not the carrier
+    assert!(sfield("note").as_deref() == Some("infer · mock/echo"));
 }
 
 /// The WHY channel: an unpriced INFER success carries the reason —
@@ -966,6 +1041,7 @@ fn cost_unpriced_reason_rides_task_completed() {
             child: None,
             cost_usd: None,
             cost_unpriced: Some(nika_types::cost::UnpricedReason::LocalModel),
+            model: Some("ollama/llama3.2".to_owned()),
         },
     };
     let mut ok = true;

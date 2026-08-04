@@ -172,6 +172,7 @@ fn the_book_dedups_a_decided_ticket_and_re_mints_a_stale_one() {
             child: None,
             cost_usd: None,
             cost_unpriced: None,
+            model: None,
         },
     }));
     let att = book
