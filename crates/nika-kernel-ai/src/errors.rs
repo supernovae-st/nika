@@ -13,10 +13,14 @@
 //!   `nika_error::codes::NIKA_1501..1505` · ADR-081 M2.6)
 //! - 1600–1699: Audio (`AudioError` · `audio.rs` · constants in
 //!   `nika_error::codes::NIKA_1601..1605` · FCI-005 audio block)
+//! - 1803–1805: Harness (`HarnessError` · `harness.rs` · constants in
+//!   `nika_error::codes::NIKA_1803..1805` · the access family's
+//!   adapter rows · D-2026-08-04-N1 P3)
 
 use nika_error::prelude::*;
 
 use crate::audio::AudioError;
+use crate::harness::HarnessError;
 use crate::provider::ProviderError;
 use crate::vision::VisionError;
 
@@ -79,6 +83,23 @@ impl NikaErrorCode for ProviderError {
                     ..
                 }
         )
+    }
+}
+
+impl NikaErrorCode for HarnessError {
+    fn nika_code(&self) -> NikaCode {
+        use nika_error::codes;
+        match self {
+            Self::Unavailable { .. } => codes::NIKA_1803,
+            Self::Session { .. } => codes::NIKA_1804,
+            Self::Refused { .. } => codes::NIKA_1805,
+        }
+    }
+
+    /// Mirrors [`HarnessError::is_transient`] — only the session death
+    /// may heal on retry; an absent binary or a refusal never does.
+    fn is_transient(&self) -> bool {
+        HarnessError::is_transient(self)
     }
 }
 

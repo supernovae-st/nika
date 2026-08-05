@@ -30,6 +30,7 @@ pub mod audio;
 pub mod context;
 pub mod errors;
 pub mod genai;
+pub mod harness;
 pub mod memory;
 pub mod provider;
 pub mod tool_defs;

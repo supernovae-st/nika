@@ -122,6 +122,7 @@ pub use nika_kernel::embed_batch_sequential
 pub use nika_kernel::event_sink
 pub use nika_kernel::fs
 pub use nika_kernel::genai
+pub use nika_kernel::harness
 pub use nika_kernel::http
 pub use nika_kernel::id_gen
 pub use nika_kernel::infra
