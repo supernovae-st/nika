@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 12e28fae3953ea269a786f194da970b1b0fcc68415fc384a7ab2dfec675ebe4b # shrinks to candidates = [AccessCandidate { access: "a", class: Local, configured: false, fix_var: None, billing: Local }], pin = None, allow = None
