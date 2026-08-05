@@ -886,6 +886,30 @@ pub const NIKA_1802: NikaCode = NikaCode {
     severity: Severity::Error,
     slug: "access-unknown-token",
 };
+/// NIKA-1803: The harness adapter is unavailable — binary absent or its
+/// version sits outside the pin range (P3 · the probe's word).
+pub const NIKA_1803: NikaCode = NikaCode {
+    num: 1803,
+    category: Category::Access,
+    severity: Severity::Error,
+    slug: "access-harness-unavailable",
+};
+/// NIKA-1804: The harness session died mid-run (process exit · wire
+/// breakdown) — the one TRANSIENT row of the family.
+pub const NIKA_1804: NikaCode = NikaCode {
+    num: 1804,
+    category: Category::Access,
+    severity: Severity::Error,
+    slug: "access-harness-session",
+};
+/// NIKA-1805: The harness itself refused (auth absent on ITS side ·
+/// unsupported capability) — its own words ride verbatim.
+pub const NIKA_1805: NikaCode = NikaCode {
+    num: 1805,
+    category: Category::Access,
+    severity: Severity::Error,
+    slug: "access-harness-refused",
+};
 
 /// All registered codes within nika-error's own ranges + the M2
 /// computer-use L1 ranges (Screen/Ocr/A11y · ADR-081 · the impls live
@@ -913,5 +937,6 @@ pub const ALL: &[NikaCode] = &[
     NIKA_1304, NIKA_1305, NIKA_1401, NIKA_1402, NIKA_1403, NIKA_1404, NIKA_1405, NIKA_1406,
     NIKA_1501, NIKA_1502, NIKA_1503, NIKA_1504, NIKA_1505, NIKA_1601, NIKA_1602, NIKA_1603,
     NIKA_1604, NIKA_1605, NIKA_1700, NIKA_1701, NIKA_1702, NIKA_1703, NIKA_1704, NIKA_1705,
-    NIKA_1706, NIKA_1707, NIKA_1708, NIKA_1709, NIKA_1800, NIKA_1801, NIKA_1802,
+    NIKA_1706, NIKA_1707, NIKA_1708, NIKA_1709, NIKA_1800, NIKA_1801, NIKA_1802, NIKA_1803,
+    NIKA_1804, NIKA_1805,
 ];

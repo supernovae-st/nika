@@ -347,6 +347,15 @@ fn access_code_help(num: u16) -> &'static str {
         1802 => {
             "The `--access` token is neither an access class (local · api · harness · oauth · mock) nor an access id this machine offers. `nika doctor` lists every path with its class and state."
         }
+        1803 => {
+            "The harness adapter is unavailable — its binary is absent or its version sits outside the pin range. `nika doctor` names the adapter's state; install it or move the pin."
+        }
+        1804 => {
+            "The harness session died mid-run (process exit or wire breakdown) — transient: retry, and if it repeats read the adapter's own logs."
+        }
+        1805 => {
+            "The harness refused the request in its own words (its auth may be absent on ITS side, or the capability unsupported). Sign in to the harness itself — nika never holds its credential."
+        }
         _ => {
             "Execution access resolution failed. `model:` picks the intelligence; access picks the path — read the plan's witnesses via `nika explain`, then fix the path the witness names."
         }
