@@ -225,6 +225,99 @@ pub fn resolve_access(
     }
 }
 
+/// A refused `--access` pin, classified for its teaching code — the
+/// engine maps the variants 1:1 onto NIKA-1802/1801/1800; the message
+/// rides here so every consumer speaks one voice (A-8).
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum PinRefusal {
+    /// The token is neither an access class nor an id this machine
+    /// offers (NIKA-1802) — taught before any resolution runs.
+    UnknownToken {
+        /// The teaching line (vocabulary included).
+        message: String,
+    },
+    /// No candidate matches the pin (NIKA-1801) — never a substitute.
+    PinUnsatisfied {
+        /// The teaching line (witnesses included).
+        message: String,
+    },
+    /// The pinned path itself failed admission (NIKA-1800).
+    NoPath {
+        /// The witness lines (`<access> · <dimension> (<layer>) · <fix>`).
+        message: String,
+    },
+}
+
+/// Judge an explicit `--access` pin over statically-known models — the
+/// admission gate's core (D-2026-08-04-N1 · pure · zero I/O). `None` =
+/// the pin is satisfied everywhere (or nothing static to judge). The
+/// mock backend is compiled in and keyless — probes exclude it, this
+/// judgment must not (a pinned `mock/echo` rehearsal runs).
+#[must_use]
+pub fn refuse_pin<'m>(
+    models: impl IntoIterator<Item = &'m str>,
+    probes: &[ProviderProbe],
+    pin: &str,
+) -> Option<PinRefusal> {
+    let class_token = ["local", "api", "harness", "oauth", "mock"].contains(&pin);
+    if !class_token && !probes.iter().any(|p| p.id == pin) {
+        return Some(PinRefusal::UnknownToken {
+            message: format!(
+                "`--access {pin}` names neither an access class (local · api · \
+                 harness · oauth · mock) nor an access id this machine offers — \
+                 `nika doctor` lists every path"
+            ),
+        });
+    }
+    for model in models {
+        let provider = model.split_once('/').map_or(model, |(p, _)| p);
+        let mut candidates = candidates_for(probes, provider);
+        if provider == "mock" && candidates.is_empty() {
+            candidates.push(AccessCandidate::new("mock", AccessClass::Mock, true));
+        }
+        if let Err(refusal) = resolve_access(model, &candidates, None, Some(pin)) {
+            return Some(classify_pin_refusal(model, pin, &refusal));
+        }
+    }
+    None
+}
+
+/// All-`pin_unsatisfied` (or empty) = the pin names nothing usable ·
+/// any other dimension = the pinned path itself failed. Witnesses ride
+/// the message either way (a refusal is never a shrug · A-8).
+fn classify_pin_refusal(model: &str, pin: &str, refusal: &AccessRefusal) -> PinRefusal {
+    let witnesses: Vec<String> = refusal
+        .rejected
+        .iter()
+        .map(AccessRejection::witness_line)
+        .collect();
+    let rendered = if witnesses.is_empty() {
+        String::new()
+    } else {
+        format!(" · {}", witnesses.join(" · "))
+    };
+    let all_pin = refusal
+        .rejected
+        .iter()
+        .all(|r| r.dimension == RejectionDimension::PinUnsatisfied);
+    if all_pin {
+        PinRefusal::PinUnsatisfied {
+            message: format!(
+                "model `{model}` has no access path matching `--access {pin}` — \
+                 a pin is a pin (refusal, never a substitute){rendered}"
+            ),
+        }
+    } else {
+        PinRefusal::NoPath {
+            message: format!(
+                "no access path survives admission for `{model}` under \
+                 `--access {pin}`{rendered}"
+            ),
+        }
+    }
+}
+
 /// Bridge the probe layer to resolver input — the candidates a machine
 /// offers for ONE provider (exactly the profile row today; the P3
 /// access registry adds harness/oauth rows beside it).

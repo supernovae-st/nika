@@ -846,10 +846,9 @@ pub fn production_runtime(
     // and the agent via the per-call RegistryProvider bridge.
     let registry = Arc::new(ProviderRegistry::new(provider_http, config));
     let agent_provider = Arc::new(RegistryProvider::new(Arc::clone(&registry), default_model));
-    // The access-probe rows (D-2026-08-04-N1 · env presence only) ride
-    // into the runtime so the `--access` admission gate judges MACHINE
-    // truth — probed over a no-http registry view of the SAME env
-    // ladder (the doctor gesture: probing never needs a socket).
+    // The access-probe rows (D-2026-08-04-N1) the `--access` admission
+    // gate judges — a no-http registry view of the SAME env ladder
+    // (the doctor gesture: probing never needs a socket).
     let access_probes = nika_providers::probe::collect_provider_probes(
         &ProviderRegistry::without_http(config_from_env()),
     );

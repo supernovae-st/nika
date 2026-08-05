@@ -54,4 +54,6 @@ pub use profile::{
     CANONICAL_IDS, Profile, WireFormat, catalog_warning, resolve_refusal, seed, server_backed_local,
 };
 pub use registry::{NoHttp, ProviderRegistry, ProvidersConfig, ResolvedProvider};
-pub use resolve_access::{AccessCandidate, AccessRefusal, candidates_for, resolve_access};
+pub use resolve_access::{
+    AccessCandidate, AccessRefusal, PinRefusal, candidates_for, refuse_pin, resolve_access,
+};

@@ -442,6 +442,46 @@ pub async fn nika_providers::registry::ResolvedProvider<H>::infer(&self, request
 impl<TraitVariantBlanketType> nika_kernel_ai::provider::ProviderStream for nika_providers::registry::ResolvedProvider<H> where TraitVariantBlanketType: nika_kernel_ai::provider::ProviderStreamDyn
 pub async fn nika_providers::registry::ResolvedProvider<H>::infer_stream(&self, request: nika_kernel_ai::provider::InferRequest) -> core::result::Result<core::pin::Pin<alloc::boxed::Box<(dyn futures_core::stream::Stream<Item = core::result::Result<nika_kernel_ai::provider::InferEvent, nika_kernel_ai::provider::ProviderError>> + core::marker::Send)>>, nika_kernel_ai::provider::ProviderError>
 pub mod nika_providers::resolve_access
+#[non_exhaustive] pub enum nika_providers::resolve_access::PinRefusal
+pub nika_providers::resolve_access::PinRefusal::NoPath
+pub nika_providers::resolve_access::PinRefusal::NoPath::message: alloc::string::String
+pub nika_providers::resolve_access::PinRefusal::PinUnsatisfied
+pub nika_providers::resolve_access::PinRefusal::PinUnsatisfied::message: alloc::string::String
+pub nika_providers::resolve_access::PinRefusal::UnknownToken
+pub nika_providers::resolve_access::PinRefusal::UnknownToken::message: alloc::string::String
+impl core::clone::Clone for nika_providers::resolve_access::PinRefusal
+pub fn nika_providers::resolve_access::PinRefusal::clone(&self) -> nika_providers::resolve_access::PinRefusal
+impl core::cmp::Eq for nika_providers::resolve_access::PinRefusal
+impl core::cmp::PartialEq for nika_providers::resolve_access::PinRefusal
+pub fn nika_providers::resolve_access::PinRefusal::eq(&self, other: &nika_providers::resolve_access::PinRefusal) -> bool
+impl core::fmt::Debug for nika_providers::resolve_access::PinRefusal
+pub fn nika_providers::resolve_access::PinRefusal::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_providers::resolve_access::PinRefusal
+impl<D> owo_colors::OwoColorize for nika_providers::resolve_access::PinRefusal
+impl<T, U> core::convert::Into<U> for nika_providers::resolve_access::PinRefusal where U: core::convert::From<T>
+pub fn nika_providers::resolve_access::PinRefusal::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::resolve_access::PinRefusal where U: core::convert::Into<T>
+pub type nika_providers::resolve_access::PinRefusal::Error = core::convert::Infallible
+pub fn nika_providers::resolve_access::PinRefusal::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::resolve_access::PinRefusal where U: core::convert::TryFrom<T>
+pub type nika_providers::resolve_access::PinRefusal::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::resolve_access::PinRefusal::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers::resolve_access::PinRefusal where T: core::clone::Clone
+pub type nika_providers::resolve_access::PinRefusal::Owned = T
+pub fn nika_providers::resolve_access::PinRefusal::clone_into(&self, target: &mut T)
+pub fn nika_providers::resolve_access::PinRefusal::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers::resolve_access::PinRefusal where T: 'static + ?core::marker::Sized
+pub fn nika_providers::resolve_access::PinRefusal::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::resolve_access::PinRefusal where T: ?core::marker::Sized
+pub fn nika_providers::resolve_access::PinRefusal::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::resolve_access::PinRefusal where T: ?core::marker::Sized
+pub fn nika_providers::resolve_access::PinRefusal::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers::resolve_access::PinRefusal where T: core::clone::Clone
+pub unsafe fn nika_providers::resolve_access::PinRefusal::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers::resolve_access::PinRefusal
+pub fn nika_providers::resolve_access::PinRefusal::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::resolve_access::PinRefusal where T: 'static
+pub fn nika_providers::resolve_access::PinRefusal::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_providers::resolve_access::AccessCandidate
 pub nika_providers::resolve_access::AccessCandidate::access: alloc::string::String
 pub nika_providers::resolve_access::AccessCandidate::billing: nika_types::access::BillingClass
@@ -525,8 +565,49 @@ pub fn nika_providers::resolve_access::AccessRefusal::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::resolve_access::AccessRefusal where T: 'static
 pub fn nika_providers::resolve_access::AccessRefusal::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub fn nika_providers::resolve_access::candidates_for(probes: &[nika_providers::probe::ProviderProbe], provider: &str) -> alloc::vec::Vec<nika_providers::resolve_access::AccessCandidate>
+pub fn nika_providers::resolve_access::refuse_pin<'m>(models: impl core::iter::traits::collect::IntoIterator<Item = &'m str>, probes: &[nika_providers::probe::ProviderProbe], pin: &str) -> core::option::Option<nika_providers::resolve_access::PinRefusal>
 pub fn nika_providers::resolve_access::resolve_access(model: &str, candidates: &[nika_providers::resolve_access::AccessCandidate], allow_providers: core::option::Option<&[alloc::string::String]>, pin: core::option::Option<&str>) -> core::result::Result<nika_types::access::AccessPlan, nika_providers::resolve_access::AccessRefusal>
 pub mod nika_providers::wire
+#[non_exhaustive] pub enum nika_providers::PinRefusal
+pub nika_providers::PinRefusal::NoPath
+pub nika_providers::PinRefusal::NoPath::message: alloc::string::String
+pub nika_providers::PinRefusal::PinUnsatisfied
+pub nika_providers::PinRefusal::PinUnsatisfied::message: alloc::string::String
+pub nika_providers::PinRefusal::UnknownToken
+pub nika_providers::PinRefusal::UnknownToken::message: alloc::string::String
+impl core::clone::Clone for nika_providers::resolve_access::PinRefusal
+pub fn nika_providers::resolve_access::PinRefusal::clone(&self) -> nika_providers::resolve_access::PinRefusal
+impl core::cmp::Eq for nika_providers::resolve_access::PinRefusal
+impl core::cmp::PartialEq for nika_providers::resolve_access::PinRefusal
+pub fn nika_providers::resolve_access::PinRefusal::eq(&self, other: &nika_providers::resolve_access::PinRefusal) -> bool
+impl core::fmt::Debug for nika_providers::resolve_access::PinRefusal
+pub fn nika_providers::resolve_access::PinRefusal::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_providers::resolve_access::PinRefusal
+impl<D> owo_colors::OwoColorize for nika_providers::resolve_access::PinRefusal
+impl<T, U> core::convert::Into<U> for nika_providers::resolve_access::PinRefusal where U: core::convert::From<T>
+pub fn nika_providers::resolve_access::PinRefusal::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::resolve_access::PinRefusal where U: core::convert::Into<T>
+pub type nika_providers::resolve_access::PinRefusal::Error = core::convert::Infallible
+pub fn nika_providers::resolve_access::PinRefusal::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::resolve_access::PinRefusal where U: core::convert::TryFrom<T>
+pub type nika_providers::resolve_access::PinRefusal::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::resolve_access::PinRefusal::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers::resolve_access::PinRefusal where T: core::clone::Clone
+pub type nika_providers::resolve_access::PinRefusal::Owned = T
+pub fn nika_providers::resolve_access::PinRefusal::clone_into(&self, target: &mut T)
+pub fn nika_providers::resolve_access::PinRefusal::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers::resolve_access::PinRefusal where T: 'static + ?core::marker::Sized
+pub fn nika_providers::resolve_access::PinRefusal::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::resolve_access::PinRefusal where T: ?core::marker::Sized
+pub fn nika_providers::resolve_access::PinRefusal::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::resolve_access::PinRefusal where T: ?core::marker::Sized
+pub fn nika_providers::resolve_access::PinRefusal::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers::resolve_access::PinRefusal where T: core::clone::Clone
+pub unsafe fn nika_providers::resolve_access::PinRefusal::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers::resolve_access::PinRefusal
+pub fn nika_providers::resolve_access::PinRefusal::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::resolve_access::PinRefusal where T: 'static
+pub fn nika_providers::resolve_access::PinRefusal::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub enum nika_providers::WireFormat
 pub nika_providers::WireFormat::Anthropic
 pub nika_providers::WireFormat::Gemini
@@ -838,6 +919,7 @@ pub async fn nika_providers::registry::ResolvedProvider<H>::infer_stream(&self, 
 pub const nika_providers::CANONICAL_IDS: [&str; 16]
 pub fn nika_providers::candidates_for(probes: &[nika_providers::probe::ProviderProbe], provider: &str) -> alloc::vec::Vec<nika_providers::resolve_access::AccessCandidate>
 pub fn nika_providers::catalog_warning(model: &str) -> core::option::Option<alloc::string::String>
+pub fn nika_providers::refuse_pin<'m>(models: impl core::iter::traits::collect::IntoIterator<Item = &'m str>, probes: &[nika_providers::probe::ProviderProbe], pin: &str) -> core::option::Option<nika_providers::resolve_access::PinRefusal>
 pub fn nika_providers::resolve_access(model: &str, candidates: &[nika_providers::resolve_access::AccessCandidate], allow_providers: core::option::Option<&[alloc::string::String]>, pin: core::option::Option<&str>) -> core::result::Result<nika_types::access::AccessPlan, nika_providers::resolve_access::AccessRefusal>
 pub fn nika_providers::resolve_refusal(model: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_providers::seed() -> alloc::vec::Vec<nika_providers::profile::Profile>

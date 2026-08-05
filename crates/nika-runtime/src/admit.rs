@@ -35,10 +35,9 @@ use std::collections::BTreeMap;
 
 use nika_check::CheckReport;
 use nika_providers::probe::ProviderProbe;
-use nika_providers::resolve_access::{AccessCandidate, AccessRefusal};
+use nika_providers::resolve_access::PinRefusal;
 use nika_schema::raw::RawWorkflow;
 use nika_schema::types::VarDecl;
-use nika_types::access::{AccessClass, RejectionDimension};
 use serde_json::Value;
 
 use crate::errors::RuntimeError;
@@ -68,9 +67,8 @@ pub(crate) fn gates(
     Ok(())
 }
 
-/// The access gate's inputs, together (D-2026-08-04-N1 · P2): the
-/// operator's `--access` pin and the machine's probe truth — bundled
-/// so [`gates`] stays one readable call.
+/// The access gate's inputs (D-2026-08-04-N1 · P2): the operator's
+/// `--access` pin + the machine's probe truth, bundled for `gates`.
 pub struct AccessGate<'a> {
     /// The `--access` token, verbatim. `None` = gate never fires.
     pub pin: Option<&'a str>,
@@ -254,15 +252,12 @@ pub fn unbounded_breakdown(cost: &nika_check::CostCeiling) -> String {
 }
 
 /// The `--access` pin admission gate (D-2026-08-04-N1 · P2) — fires
-/// ONLY under an explicit pin: without one it returns `None` and
-/// single-access installs keep today's behavior exactly. Judges every
-/// STATICALLY-known model the run would resolve (`--model` replaces
-/// the envelope default — #342's law; a templated `model:` stays the
-/// dispatch layer's to refuse). Three refusals, all BEFORE the
-/// prologue: an unknown token (NIKA-1802 · taught before any
-/// resolution runs), a pin no candidate satisfies (NIKA-1801 · never
-/// a substitute · A-4), a pinned path that itself fails admission
-/// (NIKA-1800 · witnesses attached · A-8).
+/// ONLY under an explicit pin (no pin = today's behavior, exactly).
+/// Judges every STATICALLY-known model the run would resolve (`--model`
+/// replaces the envelope default per #342; a templated `model:` stays
+/// the dispatch layer's). Three pre-prologue refusals: unknown token
+/// NIKA-1802 · pin no candidate satisfies NIKA-1801 (never a
+/// substitute · A-4) · pinned path failing admission NIKA-1800 (A-8).
 #[must_use]
 pub fn access_pin_refusal(
     wf: &RawWorkflow,
@@ -271,16 +266,6 @@ pub fn access_pin_refusal(
     model_override: Option<&str>,
 ) -> Option<RuntimeError> {
     let pin = access.pin?;
-    let class_token = ["local", "api", "harness", "oauth", "mock"].contains(&pin);
-    if !class_token && !access.probes.iter().any(|p| p.id == pin) {
-        return Some(RuntimeError::AccessUnknownToken {
-            message: format!(
-                "`--access {pin}` names neither an access class (local · api · \
-                 harness · oauth · mock) nor an access id this machine offers — \
-                 `nika doctor` lists every path"
-            ),
-        });
-    }
     let models: Vec<String> = match model_override {
         Some(m) => nika_check::check(&nika_check::with_model_override(wf, m))
             .requirements
@@ -295,61 +280,26 @@ pub fn access_pin_refusal(
             .map(|r| r.model.clone())
             .collect(),
     };
-    for model in models {
-        // A templated `model:` is not a static fact — its value arrives
-        // at run time; the dispatch layer owns that refusal (unchanged).
-        if model.contains("${{") {
-            continue;
-        }
-        let provider = model.split_once('/').map_or(model.as_str(), |(p, _)| p);
-        let mut candidates = nika_providers::candidates_for(access.probes, provider);
-        // The mock backend is compiled in and keyless — probes exclude
-        // it, the gate must not (a pinned `mock/echo` rehearsal runs).
-        if provider == "mock" && candidates.is_empty() {
-            candidates.push(AccessCandidate::new("mock", AccessClass::Mock, true));
-        }
-        if let Err(refusal) = nika_providers::resolve_access(&model, &candidates, None, Some(pin)) {
-            return Some(access_refusal_error(&model, pin, &refusal));
-        }
-    }
-    None
-}
-
-/// Classify a resolver refusal under a pin into its code: every
-/// witness `pin_unsatisfied` (or no candidate at all) means the pin
-/// names nothing usable here (NIKA-1801); any other dimension means
-/// the pinned path itself failed admission (NIKA-1800) — witnesses
-/// ride the message either way (a refusal is never a shrug · A-8).
-fn access_refusal_error(model: &str, pin: &str, refusal: &AccessRefusal) -> RuntimeError {
-    let witnesses: Vec<String> = refusal
-        .rejected
+    // A templated `model:` is not a static fact — its value arrives at
+    // run time; the dispatch layer owns that refusal (unchanged).
+    let judged = models
         .iter()
-        .map(nika_types::access::AccessRejection::witness_line)
-        .collect();
-    let rendered = if witnesses.is_empty() {
-        String::new()
-    } else {
-        format!(" · {}", witnesses.join(" · "))
-    };
-    let all_pin = refusal
-        .rejected
-        .iter()
-        .all(|r| r.dimension == RejectionDimension::PinUnsatisfied);
-    if all_pin {
-        RuntimeError::AccessPinUnsatisfied {
-            message: format!(
-                "model `{model}` has no access path matching `--access {pin}` — \
-                 a pin is a pin (refusal, never a substitute){rendered}"
-            ),
-        }
-    } else {
-        RuntimeError::AccessNoPath {
-            message: format!(
-                "no access path survives admission for `{model}` under \
-                 `--access {pin}`{rendered}"
-            ),
-        }
-    }
+        .map(String::as_str)
+        .filter(|m| !m.contains("${{"));
+    Some(
+        match nika_providers::refuse_pin(judged, access.probes, pin)? {
+            PinRefusal::UnknownToken { message } => RuntimeError::AccessUnknownToken { message },
+            PinRefusal::PinUnsatisfied { message } => {
+                RuntimeError::AccessPinUnsatisfied { message }
+            }
+            PinRefusal::NoPath { message } => RuntimeError::AccessNoPath { message },
+            // A future refusal class maps to the total-refusal code
+            // until this arm learns it (conservative, never silent).
+            other => RuntimeError::AccessNoPath {
+                message: format!("{other:?}"),
+            },
+        },
+    )
 }
 
 #[cfg(test)]

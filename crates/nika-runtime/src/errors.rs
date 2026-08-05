@@ -84,13 +84,10 @@ pub enum RuntimeError {
         message: String,
     },
 
-    /// NIKA-1800 · the `--access` pin is satisfiable in vocabulary but
-    /// NO path survives admission under it — the pinned candidate
-    /// itself failed a dimension (key absent · policy), witnesses
-    /// attached (D-2026-08-04-N1 · A-8). The launch-refusal family:
-    /// BEFORE the prologue, zero events, zero spend. Without a pin
-    /// this gate never fires in P2 — single-access installs keep
-    /// today's behavior exactly.
+    /// NIKA-1800 · no path survives admission under the `--access` pin
+    /// — the pinned candidate itself failed a dimension, witnesses
+    /// attached (D-2026-08-04-N1 · A-8). Launch-refusal family: before
+    /// the prologue, zero events, zero spend; never fires without a pin.
     #[error("NIKA-1800 · {message}")]
     #[diagnostic(code(nika::runtime::access_no_path))]
     AccessNoPath {
@@ -99,8 +96,7 @@ pub enum RuntimeError {
     },
 
     /// NIKA-1801 · the `--access` pin names a path this install does
-    /// not offer for the model's provider — a pin is a pin: refusal,
-    /// never a silent substitute (A-4 · D-2026-08-04-N1).
+    /// not offer — a pin is a pin: refusal, never a substitute (A-4).
     #[error("NIKA-1801 · {message}")]
     #[diagnostic(code(nika::runtime::access_pin_unsatisfied))]
     AccessPinUnsatisfied {
@@ -108,10 +104,9 @@ pub enum RuntimeError {
         message: String,
     },
 
-    /// NIKA-1802 · the `--access` token names neither an access class
-    /// (`local` · `api` · `harness` · `oauth` · `mock`) nor an id this
-    /// machine offers — refused before any resolution runs, so a typo
-    /// never reads as an empty-candidate refusal (D-2026-08-04-N1).
+    /// NIKA-1802 · the `--access` token is neither an access class nor
+    /// an id this machine offers — refused before any resolution, so a
+    /// typo never reads as an empty-candidate refusal.
     #[error("NIKA-1802 · {message}")]
     #[diagnostic(code(nika::runtime::access_unknown_token))]
     AccessUnknownToken {
