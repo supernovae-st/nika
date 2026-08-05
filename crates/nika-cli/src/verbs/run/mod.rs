@@ -188,6 +188,7 @@ pub fn run(
     mode: RenderMode,
     dry_run: bool,
     model_override: Option<&str>,
+    access_pin: Option<&str>,
     vars: &[String],
     resume: Option<&ResumeRequest>,
     no_trace_file: bool,
@@ -205,6 +206,7 @@ pub fn run(
         mode,
         dry_run,
         model_override,
+        access_pin,
         vars,
         resume,
         no_trace_file,
@@ -227,6 +229,7 @@ fn run_verdict(
     mode: RenderMode,
     dry_run: bool,
     model_override: Option<&str>,
+    access_pin: Option<&str>,
     vars: &[String],
     resume: Option<&ResumeRequest>,
     no_trace_file: bool,
@@ -288,6 +291,7 @@ fn run_verdict(
         &wf,
         (file, &source),
         model_override,
+        access_pin,
         inputs,
         setup,
         max_cost_usd,
@@ -298,6 +302,8 @@ fn run_verdict(
         Err(code) => return RunVerdict::bare(code),
     };
 
+    announce_access_pin(access_pin, (json, output_json), mode);
+
     // ── Execute + the terminal ask (extracted · the fn-length wall) ──
     execute_and_ask(
         &runtime,
@@ -306,12 +312,32 @@ fn run_verdict(
         resume.is_some_and(|r| r.trace.is_some()),
         vars,
         model_override,
+        access_pin,
         max_cost_usd,
         &skills,
         theme,
         mode,
         (json, output_json, no_trace_file, no_outputs),
     )
+}
+
+/// The access announce (D-2026-08-04-N1 · P2.6): a pinned path is a
+/// behavior the operator chose — said on the human surfaces before the
+/// first frame. Machine lanes stay silent (the trace carries the
+/// refusal side; the chosen-path trace field is P3's, when >1
+/// candidate can exist). Un-pinned single-access runs stay quiet.
+fn announce_access_pin(
+    access_pin: Option<&str>,
+    (json, output_json): (bool, bool),
+    mode: RenderMode,
+) {
+    if let Some(pin) = access_pin
+        && !json
+        && !output_json
+        && mode != RenderMode::Quiet
+    {
+        eprintln!("access: pinned `{pin}` — unsatisfied refuses, never substitutes");
+    }
 }
 
 /// The first leg + the terminal ask (ADR-099 · "interactively it asks").
@@ -330,6 +356,7 @@ fn execute_and_ask(
     resumed: bool,
     vars: &[String],
     model_override: Option<&str>,
+    access_pin: Option<&str>,
     max_cost_usd: Option<f64>,
     skills: &BTreeMap<String, String>,
     theme: Theme,
@@ -382,6 +409,7 @@ fn execute_and_ask(
             &request,
             vars,
             model_override,
+            access_pin,
             max_cost_usd,
             skills,
             theme,
@@ -405,6 +433,7 @@ fn answered_leg(
     request: &ResumeRequest,
     vars: &[String],
     model_override: Option<&str>,
+    access_pin: Option<&str>,
     max_cost_usd: Option<f64>,
     skills: &BTreeMap<String, String>,
     theme: Theme,
@@ -424,6 +453,7 @@ fn answered_leg(
         wf,
         (file, source),
         model_override,
+        access_pin,
         inputs,
         setup,
         max_cost_usd,
@@ -624,6 +654,7 @@ fn composed_runtime(
     wf: &RawWorkflow,
     (file, source): (&str, &str),
     model_override: Option<&str>,
+    access_pin: Option<&str>,
     inputs: inputs::ValidatedInputs,
     setup: ResumeSetup,
     max_cost_usd: Option<f64>,
@@ -688,6 +719,10 @@ fn composed_runtime(
                 // #409 · the override joins the resume identity of every
                 // model-less infer/agent task (the model they RUN on).
                 .with_model_override(model_override.map(ToOwned::to_owned))
+                // D-2026-08-04-N1 · the `--access` pin: judged at the
+                // runtime's admission gate against the composer-collected
+                // probes — unsatisfied refuses BEFORE the prologue.
+                .with_access_pin(access_pin.map(ToOwned::to_owned))
                 // The run's identity: the journal names the definition it
                 // recorded (sha256 of the exact bytes this composer read).
                 .with_source_sha256(sha256_hex(source.as_bytes()));
@@ -1254,7 +1289,16 @@ where
         Err(err) => {
             use nika_error::traits::NikaErrorCode as _;
             let mut stderr = std::io::stderr().lock();
-            if let RuntimeError::MissingRequiredInputs { .. } = err {
+            if matches!(
+                err,
+                // The launch-refusal family the OPERATOR can fix (missing
+                // input · the `--access` gate D-2026-08-04-N1): the error's
+                // own teaching text, never the contract-breach envelope.
+                RuntimeError::MissingRequiredInputs { .. }
+                    | RuntimeError::AccessNoPath { .. }
+                    | RuntimeError::AccessPinUnsatisfied { .. }
+                    | RuntimeError::AccessUnknownToken { .. }
+            ) {
                 let _ = writeln!(stderr, "nika run: {err}");
             } else if let RuntimeError::ReportMismatch { .. } = err {
                 // Audit-before-run (spec §4): the report does not describe

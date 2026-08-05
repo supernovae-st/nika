@@ -846,6 +846,12 @@ pub fn production_runtime(
     // and the agent via the per-call RegistryProvider bridge.
     let registry = Arc::new(ProviderRegistry::new(provider_http, config));
     let agent_provider = Arc::new(RegistryProvider::new(Arc::clone(&registry), default_model));
+    // The access-probe rows (D-2026-08-04-N1) the `--access` admission
+    // gate judges — a no-http registry view of the SAME env ladder
+    // (the doctor gesture: probing never needs a socket).
+    let access_probes = nika_providers::probe::collect_provider_probes(
+        &ProviderRegistry::without_http(config_from_env()),
+    );
 
     Ok(Runtime::new(
         // The exec child environment is COMPOSED at the spawn site (NEP-0005 ·
@@ -866,6 +872,7 @@ pub fn production_runtime(
             .with_sandbox_root(std::env::current_dir().unwrap_or_default())
             .with_sandbox_backend(sandbox_backend),
     )
+    .with_access_probes(access_probes)
     // Resolve `secrets:` from env/file at run start (MINOR-B · the sanctioned
     // store boundary). A miss leaves the secret unbound → NIKA-1702 (fail-
     // closed); the IFC governs where a resolved value may flow.

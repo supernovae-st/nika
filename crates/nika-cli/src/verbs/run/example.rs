@@ -56,6 +56,7 @@ fn stage_room(
 pub fn example(
     slug: &str,
     model_flag: Option<&str>,
+    access_pin: Option<&str>,
     vars: &[String],
     (quiet, no_progress): (bool, bool),
     max_cost_usd: Option<f64>,
@@ -97,6 +98,7 @@ pub fn example(
         mode,
         false,
         model_override,
+        access_pin,
         vars,
         None,
         // No run journal: the example is staged to a TEMP file — `.nika/

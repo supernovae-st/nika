@@ -34,6 +34,8 @@
 use std::collections::BTreeMap;
 
 use nika_check::CheckReport;
+use nika_providers::probe::ProviderProbe;
+use nika_providers::resolve_access::PinRefusal;
 use nika_schema::raw::RawWorkflow;
 use nika_schema::types::VarDecl;
 use serde_json::Value;
@@ -50,12 +52,17 @@ pub(crate) fn gates(
     overrides: &BTreeMap<String, Value>,
     budget: Option<f64>,
     model_override: Option<&str>,
+    access_pin: Option<&str>,
+    probes: &[ProviderProbe],
 ) -> Result<(), RuntimeError> {
     crate::trust::check_report(wf, report)?;
     if let Some(err) = required_inputs_refusal(wf, overrides) {
         return Err(err);
     }
     if let Some(err) = budget_floor_refusal(wf, report, budget, model_override) {
+        return Err(err);
+    }
+    if let Some(err) = access_pin_refusal(wf, report, probes, access_pin, model_override) {
         return Err(err);
     }
     Ok(())
@@ -234,6 +241,54 @@ pub fn unbounded_breakdown(cost: &nika_check::CostCeiling) -> String {
         "{total} task(s) have no static ceiling ({})",
         parts.join(" · ")
     )
+}
+
+/// The `--access` pin admission gate (D-2026-08-04-N1 · P2) — fires
+/// ONLY under an explicit pin (no pin = today's behavior, exactly).
+/// Judges every STATICALLY-known model the run would resolve (`--model`
+/// replaces the envelope default per #342; a templated `model:` stays
+/// the dispatch layer's). Three pre-prologue refusals: unknown token
+/// NIKA-1802 · pin no candidate satisfies NIKA-1801 (never a
+/// substitute · A-4) · pinned path failing admission NIKA-1800 (A-8).
+#[must_use]
+pub fn access_pin_refusal(
+    wf: &RawWorkflow,
+    report: &CheckReport,
+    probes: &[ProviderProbe],
+    access_pin: Option<&str>,
+    model_override: Option<&str>,
+) -> Option<RuntimeError> {
+    let pin = access_pin?;
+    let models: Vec<String> = match model_override {
+        Some(m) => nika_check::check(&nika_check::with_model_override(wf, m))
+            .requirements
+            .models
+            .iter()
+            .map(|r| r.model.clone())
+            .collect(),
+        None => report
+            .requirements
+            .models
+            .iter()
+            .map(|r| r.model.clone())
+            .collect(),
+    };
+    // A templated `model:` is not a static fact — its value arrives at
+    // run time; the dispatch layer owns that refusal (unchanged).
+    let judged = models
+        .iter()
+        .map(String::as_str)
+        .filter(|m| !m.contains("${{"));
+    Some(match nika_providers::refuse_pin(judged, probes, pin)? {
+        PinRefusal::UnknownToken { message } => RuntimeError::AccessUnknownToken { message },
+        PinRefusal::PinUnsatisfied { message } => RuntimeError::AccessPinUnsatisfied { message },
+        PinRefusal::NoPath { message } => RuntimeError::AccessNoPath { message },
+        // A future refusal class maps to the total-refusal code
+        // until this arm learns it (conservative, never silent).
+        other => RuntimeError::AccessNoPath {
+            message: format!("{other:?}"),
+        },
+    })
 }
 
 #[cfg(test)]
@@ -572,8 +627,16 @@ mod tests {
              a:\n    infer: { prompt: hi, max_tokens: 1000000, model: \"anthropic/claude-sonnet-5\" }\n",
         );
         let report = nika_check::check(&wf);
-        let err = gates(&wf, &report, &BTreeMap::new(), Some(0.000_001), None)
-            .expect_err("both gates could fire — the input gate speaks first");
+        let err = gates(
+            &wf,
+            &report,
+            &BTreeMap::new(),
+            Some(0.000_001),
+            None,
+            None,
+            &[],
+        )
+        .expect_err("both gates could fire — the input gate speaks first");
         assert!(
             matches!(err, RuntimeError::MissingRequiredInputs { .. }),
             "the input gate precedes: {err:?}"
@@ -581,12 +644,175 @@ mod tests {
         // With the input satisfied, the budget floor is the word.
         let mut overrides = BTreeMap::new();
         overrides.insert("needed".to_owned(), Value::String("x".to_owned()));
-        let err = gates(&wf, &report, &overrides, Some(0.000_001), None)
+        let err = gates(&wf, &report, &overrides, Some(0.000_001), None, None, &[])
             .expect_err("the budget gate fires once inputs are satisfied");
         assert!(
             matches!(err, RuntimeError::BudgetFloor { .. }),
             "the budget gate then owns the refusal: {err:?}"
         );
+    }
+
+    /// A hermetic probe row — hand-built, zero env reads (the gate must
+    /// be judgeable without ambient state · instrument law).
+    fn access_probe(
+        id: &str,
+        requires_key: bool,
+        key_present: bool,
+        access: nika_types::access::AccessClass,
+    ) -> ProviderProbe {
+        use nika_providers::probe::{ExecutionLocus, ProviderReadiness};
+        ProviderProbe {
+            id: id.to_owned(),
+            requires_key,
+            key_present,
+            fix_var: format!("{}_API_KEY", id.to_uppercase()),
+            structured_native: false,
+            readiness: ProviderReadiness {
+                recognized: true,
+                configured: !requires_key || key_present,
+                reachable: None,
+                model_available: None,
+                priced: true,
+                execution_locus: ExecutionLocus::classify(None, "https://api.example.com"),
+                access,
+            },
+            endpoint: "https://api.example.com".to_owned(),
+        }
+    }
+
+    fn mistral_wf() -> (RawWorkflow, CheckReport) {
+        let wf = parse(
+            "nika: v1\nworkflow:\n  id: t\ntasks:\n  s:\n    infer: { prompt: \"x\", model: \"mistral/mistral-small-latest\" }\n",
+        );
+        let report = nika_check::check(&wf);
+        (wf, report)
+    }
+
+    #[test]
+    fn no_pin_never_gates_access() {
+        let (wf, report) = mistral_wf();
+        // Even a machine with ZERO configured paths admits without a
+        // pin — P2 changes nothing for single-access installs.
+        let (pin, probes) = (
+            None,
+            &[access_probe(
+                "mistral",
+                true,
+                false,
+                nika_types::access::AccessClass::Api,
+            )],
+        );
+        assert!(access_pin_refusal(&wf, &report, probes, pin, None).is_none());
+    }
+
+    #[test]
+    fn an_unknown_access_token_teaches_before_resolution() {
+        let (wf, report) = mistral_wf();
+        let (pin, probes) = (Some("locale"), &[]);
+        let err = access_pin_refusal(&wf, &report, probes, pin, None).expect("typo refused");
+        assert!(
+            matches!(err, RuntimeError::AccessUnknownToken { .. }),
+            "{err:?}"
+        );
+        assert!(err.to_string().contains("locale"), "{err}");
+        assert!(err.to_string().contains("NIKA-1802"), "{err}");
+    }
+
+    #[test]
+    fn a_class_pin_no_candidate_matches_refuses_1801() {
+        let (wf, report) = mistral_wf();
+        let (pin, probes) = (
+            Some("harness"),
+            &[access_probe(
+                "mistral",
+                true,
+                true,
+                nika_types::access::AccessClass::Api,
+            )],
+        );
+        let err = access_pin_refusal(&wf, &report, probes, pin, None).expect("pin unsatisfied");
+        assert!(
+            matches!(err, RuntimeError::AccessPinUnsatisfied { .. }),
+            "{err:?}"
+        );
+        assert!(err.to_string().contains("never a substitute"), "{err}");
+    }
+
+    #[test]
+    fn a_pinned_path_failing_admission_refuses_1800_with_the_fix_var() {
+        let (wf, report) = mistral_wf();
+        let (pin, probes) = (
+            Some("api"),
+            &[access_probe(
+                "mistral",
+                true,
+                false,
+                nika_types::access::AccessClass::Api,
+            )],
+        );
+        let err = access_pin_refusal(&wf, &report, probes, pin, None).expect("path inadmissible");
+        assert!(matches!(err, RuntimeError::AccessNoPath { .. }), "{err:?}");
+        assert!(err.to_string().contains("MISTRAL_API_KEY unset"), "{err}");
+    }
+
+    #[test]
+    fn a_satisfied_pin_admits() {
+        let wf = parse(
+            "nika: v1\nworkflow:\n  id: t\ntasks:\n  s:\n    infer: { prompt: \"x\", model: \"ollama/llama3.2\" }\n",
+        );
+        let report = nika_check::check(&wf);
+        let (pin, probes) = (
+            Some("local"),
+            &[access_probe(
+                "ollama",
+                false,
+                false,
+                nika_types::access::AccessClass::Local,
+            )],
+        );
+        assert!(access_pin_refusal(&wf, &report, probes, pin, None).is_none());
+    }
+
+    #[test]
+    fn a_mock_pin_keeps_the_rehearsal_runnable() {
+        let wf = parse(
+            "nika: v1\nworkflow:\n  id: t\ntasks:\n  s:\n    infer: { prompt: \"x\", model: \"mock/echo\" }\n",
+        );
+        let report = nika_check::check(&wf);
+        // Probes exclude the mock backend by design — the gate must
+        // synthesize its keyless candidate, or the rehearsal dies.
+        let (pin, probes) = (Some("mock"), &[]);
+        assert!(access_pin_refusal(&wf, &report, probes, pin, None).is_none());
+    }
+
+    #[test]
+    fn the_model_override_is_what_the_pin_judges() {
+        // The ENVELOPE model is mistral (api) — the override sends the
+        // run to ollama (local): a `local` pin must judge the OVERRIDE
+        // (#342's law), so it admits. A per-task `model:` would keep
+        // winning over the override — hence the envelope-form fixture.
+        let wf = parse(
+            "nika: v1\nworkflow:\n  id: t\nmodel: mistral/mistral-small-latest\ntasks:\n  s:\n    infer: { prompt: \"x\" }\n",
+        );
+        let report = nika_check::check(&wf);
+        let (pin, probes) = (
+            Some("local"),
+            &[
+                access_probe("mistral", true, true, nika_types::access::AccessClass::Api),
+                access_probe(
+                    "ollama",
+                    false,
+                    false,
+                    nika_types::access::AccessClass::Local,
+                ),
+            ],
+        );
+        assert!(
+            access_pin_refusal(&wf, &report, probes, pin, Some("ollama/llama3.2")).is_none(),
+            "the override's provider satisfies the pin"
+        );
+        // And WITHOUT the override the same pin refuses (mistral is api).
+        assert!(access_pin_refusal(&wf, &report, probes, pin, None).is_some());
     }
 
     fn breakdown_of(yaml: &str) -> String {

@@ -92,6 +92,7 @@ fn model_override_runs_a_local_model_workflow_offline() {
         RenderMode::Plain,
         false,
         Some("mock/echo"),
+        None, // no --access pin
         &[],
         None,
         true, // tests never write .nika/traces (cwd hygiene)
@@ -127,6 +128,7 @@ fn model_override_replaces_the_resolved_model() {
         RenderMode::Plain,
         false,
         Some("mock/echo"),
+        None, // no --access pin
         &[],
         None,
         true, // tests never write .nika/traces (cwd hygiene)
@@ -169,6 +171,7 @@ fn answer_without_resume_preseeds_the_gate() {
         RenderMode::Plain,
         false,
         None,
+        None, // no --access pin
         &[],
         Some(&req),
         true, // tests never write .nika/traces (cwd hygiene)
@@ -208,6 +211,7 @@ fn answer_without_resume_still_refuses_an_unknown_task() {
         RenderMode::Plain,
         false,
         None,
+        None, // no --access pin
         &[],
         Some(&req),
         true,
@@ -240,6 +244,7 @@ fn run_with_vars(name: &str, vars: &[String]) -> u8 {
         RenderMode::Plain,
         false,
         None,
+        None, // no --access pin
         vars,
         None,
         true, // tests never write .nika/traces (cwd hygiene)
@@ -450,6 +455,7 @@ fn require_signature_refuses_unsigned_before_execution() {
         RenderMode::Plain,
         false,
         None,
+        None, // no --access pin
         &[],
         None,
         true, // tests never write .nika/traces (cwd hygiene)
@@ -477,6 +483,7 @@ fn require_signature_refuses_unsigned_before_execution() {
         RenderMode::Plain,
         true, // --dry-run: plan only, zero effects
         None,
+        None, // no --access pin
         &[],
         None,
         true,

@@ -44,6 +44,7 @@ mod parity_tests;
 pub mod probe;
 pub mod profile;
 pub mod registry;
+pub mod resolve_access;
 mod sse;
 #[cfg(test)]
 mod test_support;
@@ -53,3 +54,7 @@ pub use profile::{
     CANONICAL_IDS, Profile, WireFormat, catalog_warning, resolve_refusal, seed, server_backed_local,
 };
 pub use registry::{NoHttp, ProviderRegistry, ProvidersConfig, ResolvedProvider};
+pub use resolve_access::{
+    AccessCandidate, AccessRefusal, PinRefusal, candidates_for, provider_of, refuse_pin,
+    resolve_access,
+};

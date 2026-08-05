@@ -84,6 +84,36 @@ pub enum RuntimeError {
         message: String,
     },
 
+    /// NIKA-1800 · no path survives admission under the `--access` pin
+    /// — the pinned candidate itself failed a dimension, witnesses
+    /// attached (D-2026-08-04-N1 · A-8). Launch-refusal family: before
+    /// the prologue, zero events, zero spend; never fires without a pin.
+    #[error("NIKA-1800 · {message}")]
+    #[diagnostic(code(nika::runtime::access_no_path))]
+    AccessNoPath {
+        /// The witness lines (`<access> · <dimension> (<layer>) · <fix>`).
+        message: String,
+    },
+
+    /// NIKA-1801 · the `--access` pin names a path this install does
+    /// not offer — a pin is a pin: refusal, never a substitute (A-4).
+    #[error("NIKA-1801 · {message}")]
+    #[diagnostic(code(nika::runtime::access_pin_unsatisfied))]
+    AccessPinUnsatisfied {
+        /// Which model the pin cannot serve, and what it CAN use.
+        message: String,
+    },
+
+    /// NIKA-1802 · the `--access` token is neither an access class nor
+    /// an id this machine offers — refused before any resolution, so a
+    /// typo never reads as an empty-candidate refusal.
+    #[error("NIKA-1802 · {message}")]
+    #[diagnostic(code(nika::runtime::access_unknown_token))]
+    AccessUnknownToken {
+        /// The rejected token and the vocabulary that exists here.
+        message: String,
+    },
+
     /// A `${{ }}` reference did not resolve (unknown task id / var key ·
     /// out-of-range index · missing map key · the silent-literal guard).
     /// Wire code `NIKA-VAR-001` (`variable_error`, the unresolved-reference
@@ -306,6 +336,9 @@ impl NikaErrorCode for RuntimeError {
             Self::WaveOutOfBounds { .. } => codes::NIKA_1701,
             Self::MissingRequiredInputs { .. } => codes::NIKA_1708,
             Self::BudgetFloor { .. } => codes::NIKA_1709,
+            Self::AccessNoPath { .. } => codes::NIKA_1800,
+            Self::AccessPinUnsatisfied { .. } => codes::NIKA_1801,
+            Self::AccessUnknownToken { .. } => codes::NIKA_1802,
             Self::UnresolvedTemplate { .. } => codes::NIKA_1702,
             // CelEval + OutputBinding are spec-plane evaluation classes ·
             // at the engine-internal layer they share the "expression

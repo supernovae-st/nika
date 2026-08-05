@@ -23,6 +23,11 @@ pub(crate) struct TryArgs {
     /// (`<provider>/<name>` — the example's own `model:` via `self`).
     #[arg(long, value_name = "PROVIDER/NAME")]
     model: Option<String>,
+    /// Pin the ACCESS path for the rehearsal (a class — `local` · `api`
+    /// · `harness` · `oauth` · `mock` — or an access id `nika doctor`
+    /// lists). Unsatisfied refuses with a witness, never substitutes.
+    #[arg(long, value_name = "PATH")]
+    access: Option<String>,
     /// Set a workflow `inputs:` value (repeatable).
     #[arg(long, value_name = "KEY=VALUE")]
     var: Vec<String>,
@@ -57,6 +62,7 @@ pub(crate) fn rehearse(args: &TryArgs, plain_theme: Theme) -> u8 {
     verbs::run::example(
         slug,
         args.model.as_deref(),
+        args.access.as_deref(),
         &args.var,
         (args.quiet, args.no_progress),
         args.max_cost_usd,

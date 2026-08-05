@@ -856,6 +856,37 @@ pub const NIKA_1709: NikaCode = NikaCode {
     slug: "runtime-budget-floor",
 };
 
+/// NIKA-1800: No access path survives admission for the requested
+/// model (D-2026-08-04-N1) — every enumerated candidate was rejected,
+/// each with its witness (dimension + layer + teaching line · A-8).
+/// The TOTAL refusal form of the resolver; the single-candidate
+/// dimensions keep their own codes below.
+pub const NIKA_1800: NikaCode = NikaCode {
+    num: 1800,
+    category: Category::Access,
+    severity: Severity::Error,
+    slug: "access-no-path",
+};
+/// NIKA-1801: An explicit `--access` pin is unsatisfied — the pinned
+/// path is absent or inadmissible here. A pin is a pin: refusal,
+/// never a silent substitute (A-4).
+pub const NIKA_1801: NikaCode = NikaCode {
+    num: 1801,
+    category: Category::Access,
+    severity: Severity::Error,
+    slug: "access-pin-unsatisfied",
+};
+/// NIKA-1802: The `--access` token names neither an access class
+/// (`local` · `api` · `harness` · `oauth` · `mock`) nor an access id
+/// this machine offers — refused before any resolution runs, so a
+/// typo can never read as an empty-candidate refusal.
+pub const NIKA_1802: NikaCode = NikaCode {
+    num: 1802,
+    category: Category::Access,
+    severity: Severity::Error,
+    slug: "access-unknown-token",
+};
+
 /// All registered codes within nika-error's own ranges + the M2
 /// computer-use L1 ranges (Screen/Ocr/A11y · ADR-081 · the impls live
 /// in their L1 crates, the CONSTANTS are registry-owned here so
@@ -882,5 +913,5 @@ pub const ALL: &[NikaCode] = &[
     NIKA_1304, NIKA_1305, NIKA_1401, NIKA_1402, NIKA_1403, NIKA_1404, NIKA_1405, NIKA_1406,
     NIKA_1501, NIKA_1502, NIKA_1503, NIKA_1504, NIKA_1505, NIKA_1601, NIKA_1602, NIKA_1603,
     NIKA_1604, NIKA_1605, NIKA_1700, NIKA_1701, NIKA_1702, NIKA_1703, NIKA_1704, NIKA_1705,
-    NIKA_1706, NIKA_1707, NIKA_1708, NIKA_1709,
+    NIKA_1706, NIKA_1707, NIKA_1708, NIKA_1709, NIKA_1800, NIKA_1801, NIKA_1802,
 ];

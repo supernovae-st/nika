@@ -425,6 +425,7 @@ fn render_human(
     story_section(&mut s, doc, report);
     cost_section(&mut s, report);
     touches_section(&mut s, doc, report, permits_declared);
+    access_section(&mut s, report);
     risks_section(&mut s, path, report);
     if let Some(fc) = forecast {
         super::forecast::render::forecast_section(&mut s, fc);
@@ -616,6 +617,39 @@ fn cost_section(s: &mut String, report: &CheckReport) {
             s,
             "  local models: your compute · tokens unpriced — not « free »"
         );
+    }
+}
+
+/// HOW this machine reaches each model (D-2026-08-04-N1 · P2.5) — the
+/// admission-time access decision with its witnesses: the same
+/// [`crate::verbs::check::models_rung::access_decisions`] rows
+/// `check --json` carries as `access_plan`. Machine truth (key
+/// presence), so the narration names THIS install's paths.
+fn access_section(s: &mut String, report: &CheckReport) {
+    let decisions = crate::verbs::check::models_rung::access_decisions(report);
+    if decisions.is_empty() {
+        return;
+    }
+    let _ = writeln!(s, "\naccess (this machine)");
+    for (model, decision) in decisions {
+        match decision {
+            Ok(plan) => {
+                let _ = writeln!(
+                    s,
+                    "  {model} → {} ({} · {})",
+                    plan.access, plan.chosen, plan.billing
+                );
+                for r in &plan.rejected {
+                    let _ = writeln!(s, "    ✗ {}", r.witness_line());
+                }
+            }
+            Err(refusal) => {
+                let _ = writeln!(s, "  {model} → no access path on this machine");
+                for r in &refusal.rejected {
+                    let _ = writeln!(s, "    ✗ {}", r.witness_line());
+                }
+            }
+        }
     }
 }
 

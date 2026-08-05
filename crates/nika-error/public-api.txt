@@ -21,6 +21,8 @@ pub mod nika_error::codes
 #[non_exhaustive] pub enum nika_error::codes::Category
 pub nika_error::codes::Category::A11y
 pub nika_error::codes::Category::A11y
+pub nika_error::codes::Category::Access
+pub nika_error::codes::Category::Access
 pub nika_error::codes::Category::Audio
 pub nika_error::codes::Category::Audio
 pub nika_error::codes::Category::Auth
@@ -473,6 +475,12 @@ pub const nika_error::codes::NIKA_1708: nika_error::codes::NikaCode
 pub const nika_error::codes::NIKA_1708: nika_error::codes::NikaCode
 pub const nika_error::codes::NIKA_1709: nika_error::codes::NikaCode
 pub const nika_error::codes::NIKA_1709: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1800: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1800: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1801: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1801: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1802: nika_error::codes::NikaCode
+pub const nika_error::codes::NIKA_1802: nika_error::codes::NikaCode
 pub const nika_error::codes::NIKA_234: nika_error::codes::NikaCode
 pub const nika_error::codes::NIKA_234: nika_error::codes::NikaCode
 pub const nika_error::codes::NIKA_430: nika_error::codes::NikaCode
@@ -641,6 +649,7 @@ pub use nika_error::prelude::<<nika_types::prelude::*>>
 pub mod nika_error::prelude::codes
 #[non_exhaustive] pub enum nika_error::prelude::codes::Category
 pub nika_error::prelude::codes::Category::A11y
+pub nika_error::prelude::codes::Category::Access
 pub nika_error::prelude::codes::Category::Audio
 pub nika_error::prelude::codes::Category::Auth
 pub nika_error::prelude::codes::Category::Binding
@@ -867,6 +876,9 @@ pub const nika_error::prelude::codes::NIKA_1706: nika_error::codes::NikaCode
 pub const nika_error::prelude::codes::NIKA_1707: nika_error::codes::NikaCode
 pub const nika_error::prelude::codes::NIKA_1708: nika_error::codes::NikaCode
 pub const nika_error::prelude::codes::NIKA_1709: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_1800: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_1801: nika_error::codes::NikaCode
+pub const nika_error::prelude::codes::NIKA_1802: nika_error::codes::NikaCode
 pub const nika_error::prelude::codes::NIKA_234: nika_error::codes::NikaCode
 pub const nika_error::prelude::codes::NIKA_430: nika_error::codes::NikaCode
 pub const nika_error::prelude::codes::NIKA_431: nika_error::codes::NikaCode
@@ -905,6 +917,7 @@ pub fn nika_error::prelude::codes::namespace_help(code: &str, docs: &str) -> cor
 pub fn nika_error::prelude::codes::spec_contract_help(code: &str) -> core::option::Option<&'static str>
 #[non_exhaustive] pub enum nika_error::prelude::Category
 pub nika_error::prelude::Category::A11y
+pub nika_error::prelude::Category::Access
 pub nika_error::prelude::Category::Audio
 pub nika_error::prelude::Category::Auth
 pub nika_error::prelude::Category::Binding
@@ -1181,6 +1194,7 @@ pub fn nika_error::core_error::CoreError::nika_code(&self) -> nika_error::codes:
 pub fn nika_error::core_error::CoreError::spec_code(&self) -> alloc::string::String
 #[non_exhaustive] pub enum nika_error::Category
 pub nika_error::Category::A11y
+pub nika_error::Category::Access
 pub nika_error::Category::Audio
 pub nika_error::Category::Auth
 pub nika_error::Category::Binding

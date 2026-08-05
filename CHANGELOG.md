@@ -10,6 +10,33 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+### Added
+
+- **Execution access · step 2 — the deterministic resolver, the pin,
+  the narration** (D-2026-08-04-N1 · steps P2.1–P2.8). `model:` picks
+  the intelligence; **access** picks the path. The admission-time
+  resolver is a pure function with a strict sovereign order (`local <
+  mock < harness < oauth < api`, codepoint tie-break) — enumeration
+  order can never change the outcome (property-tested), and every drop
+  carries its witness (dimension · layer · teaching line). `--access
+  <path>` on `run` and `try` pins the path: judged at the launch gates
+  before the prologue (zero events · zero spend); unsatisfied refuses
+  with `NIKA-1800/1801/1802`, never substitutes. Without a pin the RUN
+  path is byte-unchanged — the gate never fires; the audit surfaces do
+  grow (additive, the `models_catalog_warnings` precedent):
+  `check --json` gains the advisory `access_plan` rows, `explain`
+  gains the « access (this machine) » section, the run header
+  announces an explicit pin, and `AccessPlan` records the chosen
+  path's id. Run-start liveness stays the only runtime act: a dead
+  pinned path refuses, never falls back.
+
+### Fixed
+
+- **Every catalog-miss advisory printed twice.** A duplicated block in
+  the models rung pushed each `models_catalog_warnings` row two times;
+  one block remains, with a test that proved red against the doubled
+  version first.
+
 ### Changed
 
 - **The anthropic default moves to `claude-sonnet-4-6`.** The catalog sat

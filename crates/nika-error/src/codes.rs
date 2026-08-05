@@ -61,7 +61,8 @@ impl<'de> serde::Deserialize<'de> for NikaCode {
 /// Shield 380-429 (reserved · crate not yet admitted), Verb 430-479,
 /// Runtime 480-529, Memory 600-649, `WasmPlugin` 700-749,
 /// Sandbox 750-799, Observability 800-819, Screen 1000-1099,
-/// Ocr 1100-1199, A11y 1200-1299 (M2 computer-use L1 ranges per ADR-081).
+/// Ocr 1100-1199, A11y 1200-1299 (M2 computer-use L1 ranges per ADR-081),
+/// Access 1800-1849 (execution access · D-2026-08-04-N1).
 /// `Binding` is a reserved category variant with no allocated range yet
 /// (its original 330-379 slot was reassigned to Provider on 2026-05-11).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -102,6 +103,10 @@ pub enum Category {
     Vision,
     /// Audio inference (NIKA-1600..1699 · stt/tts/vad · `ai::audio` seam R6).
     Audio,
+    /// Execution access resolution (NIKA-1800..1849 · D-2026-08-04-N1 ·
+    /// the admission-time resolver, the `--access` pin, the P3+ harness
+    /// probes — `model:` picks the intelligence, access picks the path).
+    Access,
 }
 
 impl Category {
@@ -136,6 +141,7 @@ impl Category {
             Self::Browser => "browser",
             Self::Vision => "vision",
             Self::Audio => "audio",
+            Self::Access => "access",
         }
     }
 }
@@ -316,6 +322,7 @@ pub fn code_help(code: NikaCode) -> &'static str {
             "Audio inference failed. Check the model/voice is available, the clip format (PCM s16le), and an audio backend is installed."
         }
         1700..=1799 => run_code_help(code.num),
+        1800..=1849 => access_code_help(code.num),
         700..=749 => {
             "WASM plugin host reported an error. Check plugin manifest and capability grants."
         }
@@ -323,6 +330,26 @@ pub fn code_help(code: NikaCode) -> &'static str {
         800..=819 => "Observability sink rejected the event. Check exporter configuration.",
         999 => "Internal error. Please report at github.com/supernovae-st/nika/issues",
         _ => "Unknown error code. Check documentation for details.",
+    }
+}
+
+/// The access-family helps (1800-1849 · D-2026-08-04-N1) — split out
+/// of [`code_help`] to keep both under the 100-line cap (the
+/// [`run_code_help`] precedent).
+fn access_code_help(num: u16) -> &'static str {
+    match num {
+        1800 => {
+            "No access path survives admission for this model — every candidate was rejected with a witness. Read the rejected rows (`nika explain <workflow>`), then configure the key it names, start the local server, or widen policy.allow.providers."
+        }
+        1801 => {
+            "The `--access` pin names a path this task cannot use here. A pin is a pin: the engine refuses rather than substitute another path or model. Drop the pin, or pick one of the paths `nika doctor` lists for this provider."
+        }
+        1802 => {
+            "The `--access` token is neither an access class (local · api · harness · oauth · mock) nor an access id this machine offers. `nika doctor` lists every path with its class and state."
+        }
+        _ => {
+            "Execution access resolution failed. `model:` picks the intelligence; access picks the path — read the plan's witnesses via `nika explain`, then fix the path the witness names."
+        }
     }
 }
 
@@ -1019,6 +1046,38 @@ mod tests {
                 let wire = format!("{code}");
                 let back = super::lookup(&wire);
                 assert_eq!(back, Some(code), "memory code roundtrip failed for {code}");
+            }
+        }
+
+        #[test]
+        fn access_codes_ride_the_1800_block_and_roundtrip() {
+            // D-2026-08-04-N1 · the access block is 1800..=1849 and every
+            // registered row is Category::Access with a distinct fix line.
+            for code in [super::NIKA_1800, super::NIKA_1801, super::NIKA_1802] {
+                assert_eq!(
+                    code.category,
+                    super::Category::Access,
+                    "{code} must be Category::Access"
+                );
+                assert!(
+                    code.num >= 1800 && code.num <= 1849,
+                    "{code} num must be inside the 1800..=1849 block"
+                );
+                let wire = format!("{code}");
+                let back = super::lookup(&wire);
+                assert_eq!(back, Some(code), "access code roundtrip failed for {code}");
+            }
+            // The three fix lines teach three DIFFERENT gestures — a
+            // shared string would mean a copy-paste arm (mutation bait).
+            let helps = [
+                super::code_help(super::NIKA_1800),
+                super::code_help(super::NIKA_1801),
+                super::code_help(super::NIKA_1802),
+            ];
+            for (i, a) in helps.iter().enumerate() {
+                for b in &helps[i + 1..] {
+                    assert_ne!(a, b, "access help arms must stay distinct");
+                }
             }
         }
     }

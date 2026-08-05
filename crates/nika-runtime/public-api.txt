@@ -872,6 +872,12 @@ impl<T> tracing::instrument::WithSubscriber for nika_runtime::InputOrigin
 impl<T> typenum::type_operators::Same for nika_runtime::InputOrigin
 pub type nika_runtime::InputOrigin::Output = T
 #[non_exhaustive] pub enum nika_runtime::RuntimeError
+pub nika_runtime::RuntimeError::AccessNoPath
+pub nika_runtime::RuntimeError::AccessNoPath::message: alloc::string::String
+pub nika_runtime::RuntimeError::AccessPinUnsatisfied
+pub nika_runtime::RuntimeError::AccessPinUnsatisfied::message: alloc::string::String
+pub nika_runtime::RuntimeError::AccessUnknownToken
+pub nika_runtime::RuntimeError::AccessUnknownToken::message: alloc::string::String
 pub nika_runtime::RuntimeError::BudgetFloor
 pub nika_runtime::RuntimeError::BudgetFloor::message: alloc::string::String
 pub nika_runtime::RuntimeError::CelEval
@@ -1222,6 +1228,8 @@ impl<S, T, H, P, D, C> nika_runtime::Runtime<S, T, H, P, D, C> where S: nika_ker
 pub async fn nika_runtime::Runtime<S, T, H, P, D, C>::run(&self, wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, stamper: &mut dyn nika_runtime::Stamper, sink: &mut dyn nika_runtime::EventSink) -> core::result::Result<nika_runtime::RunOutcome, nika_runtime::RuntimeError>
 impl<S, T, H, P, D, C> nika_runtime::Runtime<S, T, H, P, D, C>
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::new(shell: nika_verb_exec::ExecVerb<S>, invoke: alloc::sync::Arc<nika_verb_invoke::InvokeVerb<T>>, infer: nika_verb_infer::InferVerb<H>, agent: nika_verb_agent::AgentVerb<P, T, D>, clock: C, config: nika_runtime::config::RuntimeConfig) -> Self
+pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_access_pin(self, pin: core::option::Option<alloc::string::String>) -> Self
+pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_access_probes(self, probes: alloc::vec::Vec<nika_providers::probe::ProviderProbe>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_child_closures(self, closures: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_input_origins(self, origins: alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_runtime::InputOrigin>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_max_cost_usd(self, budget: core::option::Option<f64>) -> Self
@@ -1640,6 +1648,7 @@ pub trait nika_runtime::WorkflowSecretResolver: core::marker::Send + core::marke
 pub fn nika_runtime::WorkflowSecretResolver::resolve(&self, name: &str, reference: &nika_vocab::secret::SecretRef) -> core::result::Result<alloc::string::String, nika_runtime::SecretResolveError>
 impl nika_runtime::WorkflowSecretResolver for nika_runtime::NoSecrets
 pub fn nika_runtime::NoSecrets::resolve(&self, name: &str, _reference: &nika_vocab::secret::SecretRef) -> core::result::Result<alloc::string::String, nika_runtime::SecretResolveError>
+pub fn nika_runtime::access_pin_refusal(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, probes: &[nika_providers::probe::ProviderProbe], access_pin: core::option::Option<&str>, model_override: core::option::Option<&str>) -> core::option::Option<nika_runtime::RuntimeError>
 pub fn nika_runtime::budget_floor_refusal(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, budget: core::option::Option<f64>, model_override: core::option::Option<&str>) -> core::option::Option<nika_runtime::RuntimeError>
 pub fn nika_runtime::capabilities_of(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_runtime::compose::RuntimeCapabilities
 pub fn nika_runtime::floor_refusal(floor: f64, budget: f64) -> core::option::Option<alloc::string::String>

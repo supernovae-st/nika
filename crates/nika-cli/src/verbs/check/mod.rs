@@ -160,7 +160,7 @@ use crate::verbs::{VerbOutput, load_checked, load_checked_with_source};
 
 mod drift;
 pub(crate) mod energy;
-mod models_rung;
+pub(crate) mod models_rung;
 use models_rung::{ModelFinding, ModelsAudit, pricing_section, unresolvable_models};
 
 use nika_display::check_render::render;
@@ -478,6 +478,17 @@ fn json_verdict(
             obj.insert(
                 "models_catalog_warnings".to_owned(),
                 model_finding_rows(&models_audit.catalog_warnings),
+            );
+        }
+        // The access-plan rows (D-2026-08-04-N1 · P2.5): HOW this
+        // machine would reach each judged model — MACHINE truth (env
+        // key presence), presence-gated and advisory like its
+        // siblings; `clean` and the exit codes never read it.
+        let access_rows = models_rung::access_plan_rows(report);
+        if !access_rows.is_empty() {
+            obj.insert(
+                "access_plan".to_owned(),
+                serde_json::Value::Array(access_rows),
             );
         }
         skills.extend_check_json(obj);
