@@ -87,6 +87,9 @@ impl<T> tracing::instrument::Instrument for nika_cli::verbs::check::Profile
 impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::check::Profile
 impl<T> typenum::type_operators::Same for nika_cli::verbs::check::Profile
 pub type nika_cli::verbs::check::Profile::Output = T
+impl<T> zvariant::optional::NoneValue for nika_cli::verbs::check::Profile where T: core::default::Default
+pub type nika_cli::verbs::check::Profile::NoneType = T
+pub fn nika_cli::verbs::check::Profile::null_value() -> T
 pub struct nika_cli::verbs::check::CheckArgs
 pub nika_cli::verbs::check::CheckArgs::files: alloc::vec::Vec<alloc::string::String>
 pub nika_cli::verbs::check::CheckArgs::fix: bool
@@ -1106,6 +1109,9 @@ impl<T> tracing::instrument::Instrument for nika_cli::verbs::trace_verify::Verif
 impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::trace_verify::VerifyOptions
 impl<T> typenum::type_operators::Same for nika_cli::verbs::trace_verify::VerifyOptions
 pub type nika_cli::verbs::trace_verify::VerifyOptions::Output = T
+impl<T> zvariant::optional::NoneValue for nika_cli::verbs::trace_verify::VerifyOptions where T: core::default::Default
+pub type nika_cli::verbs::trace_verify::VerifyOptions::NoneType = T
+pub fn nika_cli::verbs::trace_verify::VerifyOptions::null_value() -> T
 pub fn nika_cli::verbs::trace_verify::verify(trace: &str) -> nika_cli_host::output::VerbOutput
 pub fn nika_cli::verbs::trace_verify::verify_many(traces: &[std::path::PathBuf]) -> nika_cli_host::output::VerbOutput
 pub fn nika_cli::verbs::trace_verify::verify_many_with(traces: &[std::path::PathBuf], opts: &nika_cli::verbs::trace_verify::VerifyOptions) -> nika_cli_host::output::VerbOutput

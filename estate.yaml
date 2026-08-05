@@ -140,7 +140,7 @@ patterns:
 - glob: "crates/*/public-api.txt"
   class: generated
   match_count: 59
-  aggregate_sha256: c9eb39e76a71b00418648a4eec9028e49a7d58478624dba10ee1a16c434bc103
+  aggregate_sha256: 891557e5661ed8b1bfe98da7df50ed5dfd0b6f9c37658627f5c5189cceb3431d
   evidence: ".github/workflows/public-api.yml 'diff each covered lib crate' byte-compares each snapshot against cargo public-api output; macOS renders differently, so snapshots regenerate FROM THE UBUNTU ARTIFACT (workflow comment)"
   derivation:
     tool: "cargo public-api -p <crate> --omit auto-trait-impls > crates/<crate>/public-api.txt (DEFAULT features · the CI job shape — all-features drags platform deps into the render · cargo-public-api 0.51.0 pinned · the public-api-actual CI artifact stays the judge)"
@@ -152,7 +152,7 @@ patterns:
 - glob: "crates/**/src/**"
   class: authored
   match_count: 704
-  aggregate_sha256: 38fed4e9b9a54cc7c658311ce31b19dc34ea62d2d96ef3370b79ec99f3027787
+  aggregate_sha256: a99ecc768e0b1739c5945efa0b22099c0369884856c727cf49b5060f67fbb491
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
@@ -162,7 +162,7 @@ patterns:
 - glob: "crates/**"
   class: authored
   match_count: 128
-  aggregate_sha256: c298190010c81997132607efa08cda76404d40f5797a69b1831f35dd2c01f473
+  aggregate_sha256: 73684d7711b34cebb44f43b533f19a5fb85260ab4fdd33fd1d5b704b0be48e1f
   evidence: "the remaining crate surface — Cargo.toml manifests · build.rs · benches · READMEs · hand-curated data catalogs (llm-providers · mcp-servers · embeddings · model-capabilities, probed daily by catalog-verify.yml); the pricing snapshot is excepted in files:"
   note: "crates/nika-pack/scripts/sync-pack.sh is a DIVERGENT older duplicate of scripts/sync-pack.sh — the pack-resync.yml lane runs the root one"
 - glob: "fuzz/**"
