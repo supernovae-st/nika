@@ -1094,3 +1094,40 @@ fn the_welcome_sample_is_a_real_workflow_that_checks_clean() {
         out.text
     );
 }
+
+#[test]
+fn access_plan_rows_narrate_the_machine_paths() {
+    // mock: keyless, compiled in — deterministic on EVERY machine (the
+    // env-independent fixture class this advisory section must test on).
+    let wf = parse_wf(
+        "nika: v1\nworkflow:\n  id: a\ntasks:\n  t:\n    infer: { prompt: hi, model: \"mock/echo\" }\n",
+    );
+    let rows = models_rung::access_plan_rows(&nika_check::check(&wf));
+    assert_eq!(rows.len(), 1, "{rows:?}");
+    let row = &rows[0];
+    assert_eq!(row["model"], "mock/echo");
+    assert_eq!(row["resolved"], true);
+    assert_eq!(row["access"], "mock");
+    assert_eq!(row["chosen"], "mock");
+    assert_eq!(row["billing"], "local");
+    assert_eq!(row["pinned"], false);
+
+    // ollama: keyless local — `configured` holds on every machine, so
+    // the chosen class is deterministic (liveness is the RUN's business).
+    let wf = parse_wf(
+        "nika: v1\nworkflow:\n  id: b\ntasks:\n  t:\n    infer: { prompt: hi, model: \"ollama/llama3.2\" }\n",
+    );
+    let rows = models_rung::access_plan_rows(&nika_check::check(&wf));
+    assert_eq!(rows[0]["resolved"], true);
+    assert_eq!(rows[0]["chosen"], "local");
+    assert_eq!(rows[0]["billing"], "local");
+
+    // A templated `model:` is not a static fact — never judged here.
+    let wf = parse_wf(
+        "nika: v1\nworkflow:\n  id: c\nconst:\n  m: { default: \"mock/echo\" }\ntasks:\n  t:\n    infer: { prompt: hi, model: \"${{ const.m }}\" }\n",
+    );
+    assert!(
+        models_rung::access_plan_rows(&nika_check::check(&wf)).is_empty(),
+        "a templated model must stay unjudged"
+    );
+}

@@ -251,9 +251,7 @@ pub enum PinRefusal {
 
 /// Judge an explicit `--access` pin over statically-known models — the
 /// admission gate's core (D-2026-08-04-N1 · pure · zero I/O). `None` =
-/// the pin is satisfied everywhere (or nothing static to judge). The
-/// mock backend is compiled in and keyless — probes exclude it, this
-/// judgment must not (a pinned `mock/echo` rehearsal runs).
+/// the pin is satisfied everywhere (or nothing static to judge).
 #[must_use]
 pub fn refuse_pin<'m>(
     models: impl IntoIterator<Item = &'m str>,
@@ -272,10 +270,7 @@ pub fn refuse_pin<'m>(
     }
     for model in models {
         let provider = model.split_once('/').map_or(model, |(p, _)| p);
-        let mut candidates = candidates_for(probes, provider);
-        if provider == "mock" && candidates.is_empty() {
-            candidates.push(AccessCandidate::new("mock", AccessClass::Mock, true));
-        }
+        let candidates = candidates_for(probes, provider);
         if let Err(refusal) = resolve_access(model, &candidates, None, Some(pin)) {
             return Some(classify_pin_refusal(model, pin, &refusal));
         }
@@ -320,9 +315,14 @@ fn classify_pin_refusal(model: &str, pin: &str, refusal: &AccessRefusal) -> PinR
 
 /// Bridge the probe layer to resolver input — the candidates a machine
 /// offers for ONE provider (exactly the profile row today; the P3
-/// access registry adds harness/oauth rows beside it).
+/// access registry adds harness/oauth rows beside it). The mock
+/// backend is compiled in and keyless — probes exclude it, the bridge
+/// must not (a `mock/echo` rehearsal is always an offered path).
 #[must_use]
 pub fn candidates_for(probes: &[ProviderProbe], provider: &str) -> Vec<AccessCandidate> {
+    if provider == "mock" {
+        return vec![AccessCandidate::new("mock", AccessClass::Mock, true)];
+    }
     probes
         .iter()
         .filter(|p| p.id == provider)

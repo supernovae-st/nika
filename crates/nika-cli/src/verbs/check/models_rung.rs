@@ -7,6 +7,85 @@
 //! (`nika_display::check_render` · the 15k descent).
 
 pub(crate) use nika_display::check_render::{ModelFinding, ModelsAudit};
+use nika_providers::resolve_access::{AccessRefusal, resolve_access};
+use nika_types::access::{AccessPlan, AccessRejection};
+
+/// The admission-time access decision per statically-known model
+/// (D-2026-08-04-N1 · P2.5) — resolved over THIS machine's probe truth
+/// (env key presence · no socket), the SAME derivation the run's
+/// admission gate judges. Advisory: `clean` and the exit codes never
+/// read it — the runtime gate holds the refusal authority, these rows
+/// narrate it. One derivation, two renders (`check --json` ·
+/// `explain`).
+pub(crate) fn access_decisions(
+    report: &nika_check::CheckReport,
+) -> Vec<(String, Result<AccessPlan, AccessRefusal>)> {
+    let judged: Vec<&str> = report
+        .requirements
+        .models
+        .iter()
+        .map(|m| m.model.as_str())
+        .filter(|m| !m.contains("${{"))
+        .collect();
+    if judged.is_empty() {
+        return Vec::new();
+    }
+    let probes = nika_providers::probe::collect_provider_probes(
+        &nika_providers::ProviderRegistry::without_http(nika_runtime::compose::config_from_env()),
+    );
+    judged
+        .into_iter()
+        .map(|model| {
+            let provider = model.split_once('/').map_or(model, |(p, _)| p);
+            let candidates = nika_providers::candidates_for(&probes, provider);
+            (
+                model.to_owned(),
+                resolve_access(model, &candidates, None, None),
+            )
+        })
+        .collect()
+}
+
+/// The `check --json` rows over [`access_decisions`] — wire keys match
+/// the `AccessPlan` serde shape (`chosen`/`billing` `snake_case`), plus
+/// the `resolved` discriminant a machine consumer branches on.
+pub(super) fn access_plan_rows(report: &nika_check::CheckReport) -> Vec<serde_json::Value> {
+    access_decisions(report)
+        .into_iter()
+        .map(|(model, decision)| match decision {
+            Ok(plan) => serde_json::json!({
+                "model": model,
+                "provider": plan.provider,
+                "resolved": true,
+                "access": plan.access,
+                "chosen": plan.chosen.as_str(),
+                "billing": plan.billing.as_str(),
+                "pinned": plan.pinned,
+                "rejected": rejection_rows(&plan.rejected),
+            }),
+            Err(refusal) => serde_json::json!({
+                "model": model,
+                "provider": refusal.provider,
+                "resolved": false,
+                "rejected": rejection_rows(&refusal.rejected),
+            }),
+        })
+        .collect()
+}
+
+fn rejection_rows(rejected: &[AccessRejection]) -> Vec<serde_json::Value> {
+    rejected
+        .iter()
+        .map(|r| {
+            serde_json::json!({
+                "access": r.access,
+                "dimension": r.dimension.as_str(),
+                "layer": r.layer.as_str(),
+                "witness": r.witness,
+            })
+        })
+        .collect()
+}
 
 /// Cross `requirements.models` against the RESOLVER (the runnable
 /// provider set, [`nika_providers::CANONICAL_IDS`]) — never the vendor

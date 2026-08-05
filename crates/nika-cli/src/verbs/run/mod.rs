@@ -302,6 +302,8 @@ fn run_verdict(
         Err(code) => return RunVerdict::bare(code),
     };
 
+    announce_access_pin(access_pin, (json, output_json), mode);
+
     // ── Execute + the terminal ask (extracted · the fn-length wall) ──
     execute_and_ask(
         &runtime,
@@ -317,6 +319,25 @@ fn run_verdict(
         mode,
         (json, output_json, no_trace_file, no_outputs),
     )
+}
+
+/// The access announce (D-2026-08-04-N1 · P2.6): a pinned path is a
+/// behavior the operator chose — said on the human surfaces before the
+/// first frame. Machine lanes stay silent (the trace carries the
+/// refusal side; the chosen-path trace field is P3's, when >1
+/// candidate can exist). Un-pinned single-access runs stay quiet.
+fn announce_access_pin(
+    access_pin: Option<&str>,
+    (json, output_json): (bool, bool),
+    mode: RenderMode,
+) {
+    if let Some(pin) = access_pin
+        && !json
+        && !output_json
+        && mode != RenderMode::Quiet
+    {
+        eprintln!("access: pinned `{pin}` — unsatisfied refuses, never substitutes");
+    }
 }
 
 /// The first leg + the terminal ask (ADR-099 · "interactively it asks").
