@@ -43,6 +43,17 @@ pub enum AccessClass {
 }
 
 impl AccessClass {
+    /// Every class, in sovereign presentation order — the ONE list the
+    /// pin-token grammar and the teaching messages derive from (a
+    /// hand-typed mirror is the drift class the parity tests kill).
+    pub const ALL: [Self; 5] = [
+        Self::Local,
+        Self::Mock,
+        Self::Harness,
+        Self::Oauth,
+        Self::Api,
+    ];
+
     /// The `snake_case` wire form (trace `access` field · probe JSON).
     #[must_use]
     pub const fn as_str(self) -> &'static str {
@@ -404,19 +415,17 @@ mod tests {
         assert_eq!(AccessClass::Harness.as_str(), "harness");
         assert_eq!(AccessClass::Oauth.as_str(), "oauth");
         assert_eq!(AccessClass::Mock.as_str(), "mock");
-        // Distinctness kills any two-arms-one-string mutant.
-        let all = [
-            AccessClass::Local,
-            AccessClass::Api,
-            AccessClass::Harness,
-            AccessClass::Oauth,
-            AccessClass::Mock,
-        ];
-        for (i, a) in all.iter().enumerate() {
-            for b in &all[i + 1..] {
+        // Distinctness over the CANONICAL list (`ALL`) — kills both the
+        // two-arms-one-string mutant and a dropped-from-ALL mutant.
+        assert_eq!(AccessClass::ALL.len(), 5);
+        for (i, a) in AccessClass::ALL.iter().enumerate() {
+            for b in &AccessClass::ALL[i + 1..] {
                 assert_ne!(a.as_str(), b.as_str());
             }
         }
+        // Sovereign presentation order: local leads, api never first.
+        assert_eq!(AccessClass::ALL[0], AccessClass::Local);
+        assert_eq!(AccessClass::ALL[4], AccessClass::Api);
     }
 
     #[test]

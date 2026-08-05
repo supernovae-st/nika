@@ -21,8 +21,9 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   carries its witness (dimension · layer · teaching line). `--access
   <path>` on `run` and `try` pins the path: judged at the launch gates
   before the prologue (zero events · zero spend); unsatisfied refuses
-  with `NIKA-1800/1801/1802`, never substitutes. Without a pin nothing
-  changes — single-access installs keep today's behavior exactly.
+  with `NIKA-1800/1801/1802`, never substitutes. Without a pin the RUN
+  path is byte-unchanged — the gate never fires; the audit surfaces do
+  grow (additive, the `models_catalog_warnings` precedent):
   `check --json` gains the advisory `access_plan` rows, `explain`
   gains the « access (this machine) » section, the run header
   announces an explicit pin, and `AccessPlan` records the chosen

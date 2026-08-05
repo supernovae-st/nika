@@ -55,5 +55,6 @@ pub use profile::{
 };
 pub use registry::{NoHttp, ProviderRegistry, ProvidersConfig, ResolvedProvider};
 pub use resolve_access::{
-    AccessCandidate, AccessRefusal, PinRefusal, candidates_for, refuse_pin, resolve_access,
+    AccessCandidate, AccessRefusal, PinRefusal, candidates_for, provider_of, refuse_pin,
+    resolve_access,
 };

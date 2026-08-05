@@ -36,8 +36,8 @@ pub(crate) fn access_decisions(
     judged
         .into_iter()
         .map(|model| {
-            let provider = model.split_once('/').map_or(model, |(p, _)| p);
-            let candidates = nika_providers::candidates_for(&probes, provider);
+            let candidates =
+                nika_providers::candidates_for(&probes, nika_providers::provider_of(model));
             (
                 model.to_owned(),
                 resolve_access(model, &candidates, None, None),

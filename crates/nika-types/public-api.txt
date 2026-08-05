@@ -7,6 +7,7 @@ pub nika_types::access::AccessClass::Local
 pub nika_types::access::AccessClass::Mock
 pub nika_types::access::AccessClass::Oauth
 impl nika_types::access::AccessClass
+pub const nika_types::access::AccessClass::ALL: [Self; 5]
 pub const fn nika_types::access::AccessClass::as_str(self) -> &'static str
 pub const fn nika_types::access::AccessClass::default_billing(self) -> nika_types::access::BillingClass
 impl core::clone::Clone for nika_types::access::AccessClass

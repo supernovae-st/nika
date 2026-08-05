@@ -114,6 +114,14 @@ const fn sovereign_rank(class: AccessClass) -> u8 {
     }
 }
 
+/// The provider prefix of a `provider/name` model id (the whole id
+/// when no slash rides it) — the ONE parse every access lane shares
+/// (a fourth hand copy is how lanes drift).
+#[must_use]
+pub fn provider_of(model: &str) -> &str {
+    model.split_once('/').map_or(model, |(prefix, _)| prefix)
+}
+
 /// A pin names a path by its ID or by its CLASS wire string —
 /// `--access ollama` and `--access local` both read naturally, and the
 /// P3 adapter ids (`codex-acp`) ride the same grammar unchanged.
@@ -121,16 +129,23 @@ fn pin_matches(pin: &str, candidate: &AccessCandidate) -> bool {
     pin == candidate.access || pin == candidate.class.as_str()
 }
 
-/// The strict total order (rank · id · configured-first · billing ·
-/// fix-var) — total over ANY input, so even pathological duplicate ids
-/// resolve identically under permutation.
-fn order_key(c: &AccessCandidate) -> (u8, &str, bool, &'static str, &str) {
+/// The strict total order (rank · id · configured-first · class ·
+/// billing · fix-var) — total over ANY input, so even pathological
+/// duplicate ids resolve identically under permutation. `fix_var`
+/// keys as the `Option` itself (`None < Some("")` · the empty-string
+/// collapse broke totality — the review's P0). The class discriminant
+/// immunizes against two FUTURE classes sharing the fallback rank;
+/// the billing leg is an arbitrary-but-deterministic tiebreak
+/// (codepoint order · twins differing only in billing are
+/// pathological inputs, not machine truth).
+fn order_key(c: &AccessCandidate) -> (u8, &str, bool, &'static str, &'static str, Option<&str>) {
     (
         sovereign_rank(c.class),
         c.access.as_str(),
         !c.configured,
+        c.class.as_str(),
         c.billing.as_str(),
-        c.fix_var.as_deref().unwrap_or(""),
+        c.fix_var.as_deref(),
     )
 }
 
@@ -198,7 +213,7 @@ pub fn resolve_access(
     allow_providers: Option<&[String]>,
     pin: Option<&str>,
 ) -> Result<AccessPlan, AccessRefusal> {
-    let provider = model.split_once('/').map_or(model, |(prefix, _)| prefix);
+    let provider = provider_of(model);
     let mut ordered: Vec<&AccessCandidate> = candidates.iter().collect();
     ordered.sort_by(|a, b| order_key(a).cmp(&order_key(b)));
 
@@ -258,19 +273,19 @@ pub fn refuse_pin<'m>(
     probes: &[ProviderProbe],
     pin: &str,
 ) -> Option<PinRefusal> {
-    let class_token = ["local", "api", "harness", "oauth", "mock"].contains(&pin);
+    let class_token = AccessClass::ALL.iter().any(|c| c.as_str() == pin);
     if !class_token && !probes.iter().any(|p| p.id == pin) {
+        let vocabulary = AccessClass::ALL.map(AccessClass::as_str).join(" \u{b7} ");
         return Some(PinRefusal::UnknownToken {
             message: format!(
-                "`--access {pin}` names neither an access class (local · api · \
-                 harness · oauth · mock) nor an access id this machine offers — \
-                 `nika doctor` lists every path"
+                "`--access {pin}` names neither an access class ({vocabulary}) \
+                 nor an access id this machine offers — `nika doctor` lists \
+                 every path"
             ),
         });
     }
     for model in models {
-        let provider = model.split_once('/').map_or(model, |(p, _)| p);
-        let candidates = candidates_for(probes, provider);
+        let candidates = candidates_for(probes, provider_of(model));
         if let Err(refusal) = resolve_access(model, &candidates, None, Some(pin)) {
             return Some(classify_pin_refusal(model, pin, &refusal));
         }
@@ -282,6 +297,19 @@ pub fn refuse_pin<'m>(
 /// any other dimension = the pinned path itself failed. Witnesses ride
 /// the message either way (a refusal is never a shrug · A-8).
 fn classify_pin_refusal(model: &str, pin: &str, refusal: &AccessRefusal) -> PinRefusal {
+    if refusal.rejected.is_empty() {
+        // Zero candidates enumerated: the provider itself is unknown to
+        // this binary — name IT, never a witness-less shrug (A-8). The
+        // MODELS rung is advisory, so this CAN reach the run-time gate.
+        return PinRefusal::PinUnsatisfied {
+            message: format!(
+                "model `{model}` names provider `{}` — no access candidate \
+                 exists for it here (`nika doctor` lists the providers this \
+                 binary drives)",
+                refusal.provider
+            ),
+        };
+    }
     let witnesses: Vec<String> = refusal
         .rejected
         .iter()
@@ -566,12 +594,22 @@ mod prop_tests {
         ]
     }
 
+    /// Pins draw from BOTH grammars the flag accepts: candidate-id
+    /// shaped tokens AND the class wire strings (the review's blind
+    /// spot: `[a-e]{1,6}` can never spell `local`).
+    fn pin_strategy() -> impl Strategy<Value = Option<String>> {
+        proptest::option::of(prop_oneof![
+            "[a-e]{1,6}".prop_map(String::from),
+            class_strategy().prop_map(|c| c.as_str().to_owned()),
+        ])
+    }
+
     prop_compose! {
         fn candidate_strategy()(
             id in "[a-e]{1,6}",
             class in class_strategy(),
             configured in any::<bool>(),
-            fix in proptest::option::of("[A-Z_]{3,12}"),
+            fix in proptest::option::of("[A-Z_]{0,12}"),
         ) -> AccessCandidate {
             let candidate = AccessCandidate::new(id, class, configured);
             match fix {
@@ -603,13 +641,15 @@ mod prop_tests {
         #[test]
         fn permutation_never_changes_the_outcome(
             candidates in proptest::collection::vec(candidate_strategy(), 0..8),
-            pin in proptest::option::of("[a-e]{1,6}"),
-            allow in proptest::option::of(proptest::collection::vec("[a-e]{1,6}", 0..3)),
+            pin in pin_strategy(),
+            provider in "[a-e]{1,3}",
+            allow in proptest::option::of(proptest::collection::vec("[a-e]{1,3}", 0..3)),
             seed in any::<u64>(),
         ) {
-            let first = resolve_access("prov/m", &candidates, allow.as_deref(), pin.as_deref());
+            let model = format!("{provider}/m");
+            let first = resolve_access(&model, &candidates, allow.as_deref(), pin.as_deref());
             let shuffled = shuffle(candidates, seed);
-            let second = resolve_access("prov/m", &shuffled, allow.as_deref(), pin.as_deref());
+            let second = resolve_access(&model, &shuffled, allow.as_deref(), pin.as_deref());
             prop_assert_eq!(first, second);
         }
 
@@ -619,11 +659,13 @@ mod prop_tests {
         #[test]
         fn witnesses_are_total_and_the_chosen_is_admissible(
             candidates in proptest::collection::vec(candidate_strategy(), 0..8),
-            pin in proptest::option::of("[a-e]{1,6}"),
-            allow in proptest::option::of(proptest::collection::vec("[a-e]{1,6}", 0..3)),
+            pin in pin_strategy(),
+            provider in "[a-e]{1,3}",
+            allow in proptest::option::of(proptest::collection::vec("[a-e]{1,3}", 0..3)),
         ) {
+            let model = format!("{provider}/m");
             let ids: Vec<&str> = candidates.iter().map(|c| c.access.as_str()).collect();
-            match resolve_access("prov/m", &candidates, allow.as_deref(), pin.as_deref()) {
+            match resolve_access(&model, &candidates, allow.as_deref(), pin.as_deref()) {
                 Ok(plan) => {
                     prop_assert!(ids.contains(&plan.access.as_str()));
                     prop_assert!(plan.rejected.len() < candidates.len());
@@ -643,7 +685,7 @@ mod prop_tests {
                         "the chosen path must name a configured input row"
                     );
                     if let Some(list) = allow.as_deref() {
-                        prop_assert!(list.iter().any(|p| p == "prov"));
+                        prop_assert!(list.iter().any(|p| p == &provider));
                     }
                     if let Some(p) = pin.as_deref() {
                         prop_assert!(plan.pinned);
