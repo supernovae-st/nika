@@ -112,7 +112,7 @@ use nika_verb_invoke::InvokeVerb;
 use serde_json::Value;
 
 pub use admit::{
-    AccessGate, access_pin_refusal, budget_floor_refusal, floor_refusal, required_inputs_refusal,
+    access_pin_refusal, budget_floor_refusal, floor_refusal, required_inputs_refusal,
     scope_to_task, unbounded_breakdown,
 };
 pub use compose::{
@@ -938,10 +938,8 @@ where
             &self.var_overrides,
             self.config.max_cost_usd,
             self.model_override.as_deref(),
-            &admit::AccessGate {
-                pin: self.access_pin.as_deref(),
-                probes: &self.access_probes,
-            },
+            self.access_pin.as_deref(),
+            &self.access_probes,
         )?;
         let EnvelopeValues {
             inputs,
