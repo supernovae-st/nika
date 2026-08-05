@@ -62,12 +62,65 @@ find_crate_name() {
   return 1
 }
 
+# A manifest that carries its own [workspace] table is a STANDALONE
+# workspace (root `exclude` · nika-acp precedent: the ACP SDK's
+# serde_json/preserve_order must never unify into the engine's feature
+# graph). `--package` from the root cannot resolve it — the gate stays
+# REAL by running clippy INSIDE that workspace instead (never a skip).
+find_crate_dir() {
+  local file="$1"
+  local dir
+  dir="$(dirname "$file")"
+  while [[ "$dir" != '.' && "$dir" != '/' ]]; do
+    if [[ -f "${dir}/Cargo.toml" ]] && grep -q '^\[package\]' "${dir}/Cargo.toml" 2>/dev/null; then
+      printf '%s' "$dir"
+      return 0
+    fi
+    dir="$(dirname "$dir")"
+  done
+  return 1
+}
+
 declare -A TOUCHED_CRATES
+declare -A STANDALONE_DIRS
+# Scalar counts ride beside the assoc arrays: under `set -u`, expanding
+# an EMPTY `declare -A` array is "unbound" on the bash this hook may
+# meet — and "every staged file went standalone" makes empty real.
+TOUCHED_COUNT=0
+STANDALONE_COUNT=0
 for rs_file in "${STAGED_RS[@]}"; do
   if crate=$(find_crate_name "$rs_file" 2>/dev/null); then
-    TOUCHED_CRATES["$crate"]=1
+    crate_dir=$(find_crate_dir "$rs_file" 2>/dev/null) || crate_dir=''
+    if [[ -n "$crate_dir" ]] && grep -q '^\[workspace\]' "${crate_dir}/Cargo.toml" 2>/dev/null; then
+      STANDALONE_DIRS["$crate_dir"]=1
+      STANDALONE_COUNT=1
+    else
+      TOUCHED_CRATES["$crate"]=1
+      TOUCHED_COUNT=1
+    fi
   fi
 done
+
+# Standalone workspaces are judged in place, each in its own feature graph.
+if ((STANDALONE_COUNT > 0)); then
+  STANDALONE_FAILED=''
+  for dir in "${!STANDALONE_DIRS[@]}"; do
+    printf '[clippy-touched] standalone workspace: %s\n' "$dir" >&2
+    # shellcheck disable=SC2086
+    if ! (cd "$dir" && cargo clippy $CLIPPY_FLAGS) 2>&1; then
+      STANDALONE_FAILED="${STANDALONE_FAILED} ${dir}"
+    fi
+  done
+  if [[ -n "$STANDALONE_FAILED" ]]; then
+    printf '\n[clippy-touched] FAILED on standalone workspace(s):%s\n' "$STANDALONE_FAILED" >&2
+    exit 1
+  fi
+fi
+
+if ((TOUCHED_COUNT == 0 && STANDALONE_COUNT > 0)); then
+  printf '[clippy-touched] OK — standalone workspace(s) clean · no member crates touched\n' >&2
+  exit 0
+fi
 
 if ((${#TOUCHED_CRATES[@]} == 0)); then
   printf '[clippy-touched] could not resolve crate names — running full workspace clippy\n' >&2

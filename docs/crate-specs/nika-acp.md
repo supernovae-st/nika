@@ -33,6 +33,33 @@ evidence-gated question, refused here with a witness.
 - SDK roles: Client · Agent · Proxy · Conductor. Nika implements the
   **Client** role only.
 
+### §2bis · The `preserve_order` wall (found 2026-08-05 · the quarantine)
+
+The official SDK requires `serde_json/preserve_order` — **every version
+since 0.15.0** (sparse-index verified; wire-v1 stability only exists after).
+Cargo feature unification is workspace-global: the moment the dep entered
+the diamond graph, `serde_json::Value` flipped from sorted keys (BTreeMap)
+to insertion order (IndexMap) across the WHOLE engine, and five
+byte-attested goldens turned red (decision receipts · dispatcher receipts ·
+urlencoded forms). Byte-attested surfaces are the product's honesty layer —
+they can never depend on a vendor SDK's cosmetic feature choice.
+
+**Structural consequence (in force)** · `crates/nika-acp` is a STANDALONE
+workspace (root `exclude` + its own lockfile): the mock agent + SDK-side
+conformance live there; the SDK's feature graph never unifies with the
+engine's. The engine-side design is the OPERATOR'S GATE, two lanes:
+
+- **Lane A (recommended · sovereign)** · the engine speaks wire v1 through a
+  small hand-rolled JSON-RPC client (initialize · session/new · prompt ·
+  update · cancel · request_permission — the Client role's narrow waist),
+  and THIS harness proves conformance from the outside (the official SDK
+  drives the mock agent against our client over a process boundary).
+  Anti-capture by construction; the official SDK stays the judge, never a
+  link-time dependency.
+- **Lane B (parallel · upstream)** · PR the SDK to feature-gate
+  `preserve_order` (it is cosmetic for JSON-RPC). If accepted, Lane A's
+  hand-rolled client can retire at a later major — evidence first.
+
 ## 3 · Public API (the seam, not the protocol)
 
 ```rust
