@@ -10,7 +10,25 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+## [0.108.0](https://github.com/supernovae-st/nika/compare/v0.107.2..v0.108.0) - 2026-08-05
+
+**The access layer arrives; the check stops trusting what it cannot
+read.** Three steps of the access ratification land (`access` picks the
+path, `model:` picks the intelligence — resolver, pin, and the ACP
+harness class with its mock instrument), and the zero-authority scan now
+refuses every `exec` spelling — the shell form included. Proven
+red-first, like everything on this train.
+
 ### Added
+
+- **Execution access · step 3 — the ACP harness class** (D-2026-08-04-N1
+  · P3). The `nika-acp` spec crate lands (ACP 2.0.0 = wire v1, verified
+  against the published schema) with its **mock agent in a quarantined
+  workspace** — the instrument that proves the wire without a vendor in
+  the loop — and the kernel gains the **`AgentBackend` seam**
+  (`nika-kernel-ai` · lane-agnostic): the harness access path plugs in
+  where every other lane already does, behind a trait, never a special
+  case.
 
 - **Execution access · step 2 — the deterministic resolver, the pin,
   the narration** (D-2026-08-04-N1 · steps P2.1–P2.8). `model:` picks
@@ -36,6 +54,21 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   the models rung pushed each `models_catalog_warnings` row two times;
   one block remains, with a test that proved red against the doubled
   version first.
+- **The taught surfaces stopped misdirecting.** The injected session map
+  no longer teaches doors that refuse; `--recipe starter` says which
+  half a pipe cannot deliver; the taught next step works on the machine
+  that just ran it; `explain`'s two golden-lane refusals teach instead
+  of misdirecting; the check strictness hint says close, not add.
+- **The sandbox tightened twice more.** The scratch claims its path
+  exclusively — never adopts one — and the shared host tmp stops being
+  an ambient grant; exec-runner's scratch moved out of egress at the
+  file wall.
+- **A resumed run keeps its seat.** The model override rides the trace —
+  a silent seat swap refuses.
+- **The pure-internal security exemption asked about the tool, not the
+  call.** It asks about the call now.
+- **Every pack skeleton passes its own golden lane** — the armor reaches
+  the tails.
 
 ### Changed
 
