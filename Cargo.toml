@@ -5,6 +5,7 @@ members  = ["crates/nika-types", "crates/nika-error", "crates/nika-catalog", "cr
 # manifests under crates/ (the orphan working tree carries them but they
 # are not part of the diamond workspace).
 exclude = [
+  "crates/nika-acp",
   "crates/nika-core", "crates/nika-daemon", "crates/nika-display", "crates/nika-engine",
   "crates/nika-init",
   "crates/nika-lsp-core", "crates/nika-macros",
