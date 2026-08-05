@@ -1131,3 +1131,19 @@ fn access_plan_rows_narrate_the_machine_paths() {
         "a templated model must stay unjudged"
     );
 }
+
+#[test]
+fn a_catalog_warning_speaks_exactly_once_per_model() {
+    // The duplicated advisory block (pre-2026-08-05) doubled every row —
+    // one model with a catalog miss must yield ONE warning.
+    let wf = parse_wf(
+        "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    infer: { prompt: hi, model: \"anthropic/claude-never-heard-of-it\" }\n",
+    );
+    let report = nika_check::check(&wf);
+    let audit = unresolvable_models(&report, &wf);
+    assert_eq!(
+        audit.catalog_warnings.len(),
+        1,
+        "one miss, one warning — never a doubled row"
+    );
+}
