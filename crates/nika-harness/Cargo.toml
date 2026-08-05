@@ -1,0 +1,34 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+[package]
+name          = "nika-harness"
+description   = "The harness access class client (D-2026-08-04-N1 · P3 · Lane A) — a hand-rolled ACP wire-v1 JSON-lines client implementing the kernel AgentBackend seam. The official SDK is never linked (its serde_json/preserve_order requirement would flip the engine's byte-attested surfaces — spec §2bis); it judges this client from the quarantined conformance workspace instead."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false  # Internal L1 effect crate.
+
+[dependencies]
+nika-kernel = { path = "../nika-kernel", version = "0.107.2" }
+serde       = { workspace = true }
+thiserror   = { workspace = true }
+serde_json  = { workspace = true }
+tokio       = { workspace = true, features = ["io-util", "sync", "rt", "macros"] }
+futures-core = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["io-util", "sync", "rt", "macros", "rt-multi-thread", "time"] }
+
+[package.metadata.lore]
+daemon        = "messager"
+archetype     = "kodama-messager"
+spirit_role   = "parle le protocole du harness de l'utilisateur dans la langue officielle · six messages · jamais une créance"
+voice_pattern = "silent"
+layer         = "L1"
+err_prefix    = "none"
+
+[lints]
+workspace = true

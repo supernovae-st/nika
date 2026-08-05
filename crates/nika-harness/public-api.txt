@@ -1,0 +1,423 @@
+pub mod nika_harness
+pub mod nika_harness::client
+pub const nika_harness::client::MAX_LINE_BYTES: usize
+pub fn nika_harness::client::drive<R, W>(reader: R, writer: W, request: nika_kernel_ai::harness::HarnessRequest) -> nika_kernel_ai::harness::HarnessEventStream where R: tokio::io::async_read::AsyncRead + core::marker::Unpin + core::marker::Send + 'static, W: tokio::io::async_write::AsyncWrite + core::marker::Unpin + core::marker::Send + 'static
+pub mod nika_harness::wire
+#[non_exhaustive] pub enum nika_harness::wire::Incoming
+pub nika_harness::wire::Incoming::ErrorResponse
+pub nika_harness::wire::Incoming::ErrorResponse::id: u64
+pub nika_harness::wire::Incoming::ErrorResponse::message: alloc::string::String
+pub nika_harness::wire::Incoming::Notification
+pub nika_harness::wire::Incoming::Notification::method: alloc::string::String
+pub nika_harness::wire::Incoming::Notification::params: serde_json::value::Value
+pub nika_harness::wire::Incoming::Request
+pub nika_harness::wire::Incoming::Request::id: serde_json::value::Value
+pub nika_harness::wire::Incoming::Request::method: alloc::string::String
+pub nika_harness::wire::Incoming::Request::params: serde_json::value::Value
+pub nika_harness::wire::Incoming::Response
+pub nika_harness::wire::Incoming::Response::id: u64
+pub nika_harness::wire::Incoming::Response::result: serde_json::value::Value
+impl core::clone::Clone for nika_harness::wire::Incoming
+pub fn nika_harness::wire::Incoming::clone(&self) -> nika_harness::wire::Incoming
+impl core::cmp::PartialEq for nika_harness::wire::Incoming
+pub fn nika_harness::wire::Incoming::eq(&self, other: &nika_harness::wire::Incoming) -> bool
+impl core::fmt::Debug for nika_harness::wire::Incoming
+pub fn nika_harness::wire::Incoming::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_harness::wire::Incoming
+impl<D> owo_colors::OwoColorize for nika_harness::wire::Incoming
+impl<T, U> core::convert::Into<U> for nika_harness::wire::Incoming where U: core::convert::From<T>
+pub fn nika_harness::wire::Incoming::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::wire::Incoming where U: core::convert::Into<T>
+pub type nika_harness::wire::Incoming::Error = core::convert::Infallible
+pub fn nika_harness::wire::Incoming::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::wire::Incoming where U: core::convert::TryFrom<T>
+pub type nika_harness::wire::Incoming::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::wire::Incoming::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::wire::Incoming where T: core::clone::Clone
+pub type nika_harness::wire::Incoming::Owned = T
+pub fn nika_harness::wire::Incoming::clone_into(&self, target: &mut T)
+pub fn nika_harness::wire::Incoming::to_owned(&self) -> T
+impl<T> core::any::Any for nika_harness::wire::Incoming where T: 'static + ?core::marker::Sized
+pub fn nika_harness::wire::Incoming::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::wire::Incoming where T: ?core::marker::Sized
+pub fn nika_harness::wire::Incoming::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::wire::Incoming where T: ?core::marker::Sized
+pub fn nika_harness::wire::Incoming::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::wire::Incoming where T: core::clone::Clone
+pub unsafe fn nika_harness::wire::Incoming::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::wire::Incoming
+pub fn nika_harness::wire::Incoming::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::wire::Incoming where T: 'static
+pub fn nika_harness::wire::Incoming::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub enum nika_harness::wire::WireError
+pub nika_harness::wire::WireError::Envelope
+pub nika_harness::wire::WireError::Envelope::why: alloc::string::String
+pub nika_harness::wire::WireError::Json(serde_json::error::Error)
+impl core::convert::From<serde_json::error::Error> for nika_harness::wire::WireError
+pub fn nika_harness::wire::WireError::from(source: serde_json::error::Error) -> Self
+impl core::error::Error for nika_harness::wire::WireError
+pub fn nika_harness::wire::WireError::source(&self) -> core::option::Option<&(dyn core::error::Error + 'static)>
+impl core::fmt::Debug for nika_harness::wire::WireError
+pub fn nika_harness::wire::WireError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_harness::wire::WireError
+pub fn nika_harness::wire::WireError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_harness::wire::WireError
+impl<T, U> core::convert::Into<U> for nika_harness::wire::WireError where U: core::convert::From<T>
+pub fn nika_harness::wire::WireError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::wire::WireError where U: core::convert::Into<T>
+pub type nika_harness::wire::WireError::Error = core::convert::Infallible
+pub fn nika_harness::wire::WireError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::wire::WireError where U: core::convert::TryFrom<T>
+pub type nika_harness::wire::WireError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::wire::WireError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_harness::wire::WireError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_harness::wire::WireError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_harness::wire::WireError where T: 'static + ?core::marker::Sized
+pub fn nika_harness::wire::WireError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::wire::WireError where T: ?core::marker::Sized
+pub fn nika_harness::wire::WireError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::wire::WireError where T: ?core::marker::Sized
+pub fn nika_harness::wire::WireError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_harness::wire::WireError
+pub fn nika_harness::wire::WireError::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::wire::WireError where T: 'static
+pub fn nika_harness::wire::WireError::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub struct nika_harness::wire::CancelParams
+pub nika_harness::wire::CancelParams::session_id: alloc::string::String
+impl core::fmt::Debug for nika_harness::wire::CancelParams
+pub fn nika_harness::wire::CancelParams::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl serde_core::ser::Serialize for nika_harness::wire::CancelParams
+pub fn nika_harness::wire::CancelParams::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_harness::wire::CancelParams
+impl<T, U> core::convert::Into<U> for nika_harness::wire::CancelParams where U: core::convert::From<T>
+pub fn nika_harness::wire::CancelParams::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::wire::CancelParams where U: core::convert::Into<T>
+pub type nika_harness::wire::CancelParams::Error = core::convert::Infallible
+pub fn nika_harness::wire::CancelParams::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::wire::CancelParams where U: core::convert::TryFrom<T>
+pub type nika_harness::wire::CancelParams::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::wire::CancelParams::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_harness::wire::CancelParams where T: 'static + ?core::marker::Sized
+pub fn nika_harness::wire::CancelParams::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::wire::CancelParams where T: ?core::marker::Sized
+pub fn nika_harness::wire::CancelParams::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::wire::CancelParams where T: ?core::marker::Sized
+pub fn nika_harness::wire::CancelParams::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_harness::wire::CancelParams
+pub fn nika_harness::wire::CancelParams::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::wire::CancelParams where T: 'static
+pub fn nika_harness::wire::CancelParams::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub struct nika_harness::wire::InitializeParams
+pub nika_harness::wire::InitializeParams::client_capabilities: serde_json::value::Value
+pub nika_harness::wire::InitializeParams::protocol_version: u16
+impl core::fmt::Debug for nika_harness::wire::InitializeParams
+pub fn nika_harness::wire::InitializeParams::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl serde_core::ser::Serialize for nika_harness::wire::InitializeParams
+pub fn nika_harness::wire::InitializeParams::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_harness::wire::InitializeParams
+impl<T, U> core::convert::Into<U> for nika_harness::wire::InitializeParams where U: core::convert::From<T>
+pub fn nika_harness::wire::InitializeParams::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::wire::InitializeParams where U: core::convert::Into<T>
+pub type nika_harness::wire::InitializeParams::Error = core::convert::Infallible
+pub fn nika_harness::wire::InitializeParams::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::wire::InitializeParams where U: core::convert::TryFrom<T>
+pub type nika_harness::wire::InitializeParams::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::wire::InitializeParams::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_harness::wire::InitializeParams where T: 'static + ?core::marker::Sized
+pub fn nika_harness::wire::InitializeParams::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::wire::InitializeParams where T: ?core::marker::Sized
+pub fn nika_harness::wire::InitializeParams::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::wire::InitializeParams where T: ?core::marker::Sized
+pub fn nika_harness::wire::InitializeParams::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_harness::wire::InitializeParams
+pub fn nika_harness::wire::InitializeParams::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::wire::InitializeParams where T: 'static
+pub fn nika_harness::wire::InitializeParams::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub struct nika_harness::wire::InitializeResult
+pub nika_harness::wire::InitializeResult::protocol_version: u16
+impl core::fmt::Debug for nika_harness::wire::InitializeResult
+pub fn nika_harness::wire::InitializeResult::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'de> serde_core::de::Deserialize<'de> for nika_harness::wire::InitializeResult
+pub fn nika_harness::wire::InitializeResult::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_harness::wire::InitializeResult
+impl<T, U> core::convert::Into<U> for nika_harness::wire::InitializeResult where U: core::convert::From<T>
+pub fn nika_harness::wire::InitializeResult::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::wire::InitializeResult where U: core::convert::Into<T>
+pub type nika_harness::wire::InitializeResult::Error = core::convert::Infallible
+pub fn nika_harness::wire::InitializeResult::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::wire::InitializeResult where U: core::convert::TryFrom<T>
+pub type nika_harness::wire::InitializeResult::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::wire::InitializeResult::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_harness::wire::InitializeResult where T: 'static + ?core::marker::Sized
+pub fn nika_harness::wire::InitializeResult::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::wire::InitializeResult where T: ?core::marker::Sized
+pub fn nika_harness::wire::InitializeResult::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::wire::InitializeResult where T: ?core::marker::Sized
+pub fn nika_harness::wire::InitializeResult::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_harness::wire::InitializeResult
+pub fn nika_harness::wire::InitializeResult::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::wire::InitializeResult where T: 'static
+pub fn nika_harness::wire::InitializeResult::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_harness::wire::InitializeResult where T: for<'de> serde_core::de::Deserialize<'de>
+pub struct nika_harness::wire::NewSessionParams
+pub nika_harness::wire::NewSessionParams::cwd: std::path::PathBuf
+pub nika_harness::wire::NewSessionParams::mcp_servers: alloc::vec::Vec<serde_json::value::Value>
+impl core::fmt::Debug for nika_harness::wire::NewSessionParams
+pub fn nika_harness::wire::NewSessionParams::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl serde_core::ser::Serialize for nika_harness::wire::NewSessionParams
+pub fn nika_harness::wire::NewSessionParams::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_harness::wire::NewSessionParams
+impl<T, U> core::convert::Into<U> for nika_harness::wire::NewSessionParams where U: core::convert::From<T>
+pub fn nika_harness::wire::NewSessionParams::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::wire::NewSessionParams where U: core::convert::Into<T>
+pub type nika_harness::wire::NewSessionParams::Error = core::convert::Infallible
+pub fn nika_harness::wire::NewSessionParams::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::wire::NewSessionParams where U: core::convert::TryFrom<T>
+pub type nika_harness::wire::NewSessionParams::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::wire::NewSessionParams::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_harness::wire::NewSessionParams where T: 'static + ?core::marker::Sized
+pub fn nika_harness::wire::NewSessionParams::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::wire::NewSessionParams where T: ?core::marker::Sized
+pub fn nika_harness::wire::NewSessionParams::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::wire::NewSessionParams where T: ?core::marker::Sized
+pub fn nika_harness::wire::NewSessionParams::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_harness::wire::NewSessionParams
+pub fn nika_harness::wire::NewSessionParams::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::wire::NewSessionParams where T: 'static
+pub fn nika_harness::wire::NewSessionParams::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub struct nika_harness::wire::NewSessionResult
+pub nika_harness::wire::NewSessionResult::session_id: alloc::string::String
+impl core::fmt::Debug for nika_harness::wire::NewSessionResult
+pub fn nika_harness::wire::NewSessionResult::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'de> serde_core::de::Deserialize<'de> for nika_harness::wire::NewSessionResult
+pub fn nika_harness::wire::NewSessionResult::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_harness::wire::NewSessionResult
+impl<T, U> core::convert::Into<U> for nika_harness::wire::NewSessionResult where U: core::convert::From<T>
+pub fn nika_harness::wire::NewSessionResult::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::wire::NewSessionResult where U: core::convert::Into<T>
+pub type nika_harness::wire::NewSessionResult::Error = core::convert::Infallible
+pub fn nika_harness::wire::NewSessionResult::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::wire::NewSessionResult where U: core::convert::TryFrom<T>
+pub type nika_harness::wire::NewSessionResult::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::wire::NewSessionResult::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_harness::wire::NewSessionResult where T: 'static + ?core::marker::Sized
+pub fn nika_harness::wire::NewSessionResult::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::wire::NewSessionResult where T: ?core::marker::Sized
+pub fn nika_harness::wire::NewSessionResult::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::wire::NewSessionResult where T: ?core::marker::Sized
+pub fn nika_harness::wire::NewSessionResult::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_harness::wire::NewSessionResult
+pub fn nika_harness::wire::NewSessionResult::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::wire::NewSessionResult where T: 'static
+pub fn nika_harness::wire::NewSessionResult::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_harness::wire::NewSessionResult where T: for<'de> serde_core::de::Deserialize<'de>
+pub struct nika_harness::wire::PermissionOptionIn
+pub nika_harness::wire::PermissionOptionIn::kind: alloc::string::String
+pub nika_harness::wire::PermissionOptionIn::option_id: alloc::string::String
+impl core::clone::Clone for nika_harness::wire::PermissionOptionIn
+pub fn nika_harness::wire::PermissionOptionIn::clone(&self) -> nika_harness::wire::PermissionOptionIn
+impl core::fmt::Debug for nika_harness::wire::PermissionOptionIn
+pub fn nika_harness::wire::PermissionOptionIn::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'de> serde_core::de::Deserialize<'de> for nika_harness::wire::PermissionOptionIn
+pub fn nika_harness::wire::PermissionOptionIn::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_harness::wire::PermissionOptionIn
+impl<T, U> core::convert::Into<U> for nika_harness::wire::PermissionOptionIn where U: core::convert::From<T>
+pub fn nika_harness::wire::PermissionOptionIn::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::wire::PermissionOptionIn where U: core::convert::Into<T>
+pub type nika_harness::wire::PermissionOptionIn::Error = core::convert::Infallible
+pub fn nika_harness::wire::PermissionOptionIn::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::wire::PermissionOptionIn where U: core::convert::TryFrom<T>
+pub type nika_harness::wire::PermissionOptionIn::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::wire::PermissionOptionIn::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::wire::PermissionOptionIn where T: core::clone::Clone
+pub type nika_harness::wire::PermissionOptionIn::Owned = T
+pub fn nika_harness::wire::PermissionOptionIn::clone_into(&self, target: &mut T)
+pub fn nika_harness::wire::PermissionOptionIn::to_owned(&self) -> T
+impl<T> core::any::Any for nika_harness::wire::PermissionOptionIn where T: 'static + ?core::marker::Sized
+pub fn nika_harness::wire::PermissionOptionIn::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::wire::PermissionOptionIn where T: ?core::marker::Sized
+pub fn nika_harness::wire::PermissionOptionIn::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::wire::PermissionOptionIn where T: ?core::marker::Sized
+pub fn nika_harness::wire::PermissionOptionIn::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::wire::PermissionOptionIn where T: core::clone::Clone
+pub unsafe fn nika_harness::wire::PermissionOptionIn::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::wire::PermissionOptionIn
+pub fn nika_harness::wire::PermissionOptionIn::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::wire::PermissionOptionIn where T: 'static
+pub fn nika_harness::wire::PermissionOptionIn::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_harness::wire::PermissionOptionIn where T: for<'de> serde_core::de::Deserialize<'de>
+pub struct nika_harness::wire::PermissionRequestIn
+pub nika_harness::wire::PermissionRequestIn::options: alloc::vec::Vec<nika_harness::wire::PermissionOptionIn>
+pub nika_harness::wire::PermissionRequestIn::session_id: alloc::string::String
+pub nika_harness::wire::PermissionRequestIn::tool_call: serde_json::value::Value
+impl core::fmt::Debug for nika_harness::wire::PermissionRequestIn
+pub fn nika_harness::wire::PermissionRequestIn::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'de> serde_core::de::Deserialize<'de> for nika_harness::wire::PermissionRequestIn
+pub fn nika_harness::wire::PermissionRequestIn::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_harness::wire::PermissionRequestIn
+impl<T, U> core::convert::Into<U> for nika_harness::wire::PermissionRequestIn where U: core::convert::From<T>
+pub fn nika_harness::wire::PermissionRequestIn::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::wire::PermissionRequestIn where U: core::convert::Into<T>
+pub type nika_harness::wire::PermissionRequestIn::Error = core::convert::Infallible
+pub fn nika_harness::wire::PermissionRequestIn::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::wire::PermissionRequestIn where U: core::convert::TryFrom<T>
+pub type nika_harness::wire::PermissionRequestIn::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::wire::PermissionRequestIn::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_harness::wire::PermissionRequestIn where T: 'static + ?core::marker::Sized
+pub fn nika_harness::wire::PermissionRequestIn::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::wire::PermissionRequestIn where T: ?core::marker::Sized
+pub fn nika_harness::wire::PermissionRequestIn::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::wire::PermissionRequestIn where T: ?core::marker::Sized
+pub fn nika_harness::wire::PermissionRequestIn::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_harness::wire::PermissionRequestIn
+pub fn nika_harness::wire::PermissionRequestIn::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::wire::PermissionRequestIn where T: 'static
+pub fn nika_harness::wire::PermissionRequestIn::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_harness::wire::PermissionRequestIn where T: for<'de> serde_core::de::Deserialize<'de>
+pub struct nika_harness::wire::PermissionResult
+pub nika_harness::wire::PermissionResult::outcome: serde_json::value::Value
+impl nika_harness::wire::PermissionResult
+pub fn nika_harness::wire::PermissionResult::cancelled() -> Self
+pub fn nika_harness::wire::PermissionResult::selected(option_id: &str) -> Self
+impl core::fmt::Debug for nika_harness::wire::PermissionResult
+pub fn nika_harness::wire::PermissionResult::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl serde_core::ser::Serialize for nika_harness::wire::PermissionResult
+pub fn nika_harness::wire::PermissionResult::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_harness::wire::PermissionResult
+impl<T, U> core::convert::Into<U> for nika_harness::wire::PermissionResult where U: core::convert::From<T>
+pub fn nika_harness::wire::PermissionResult::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::wire::PermissionResult where U: core::convert::Into<T>
+pub type nika_harness::wire::PermissionResult::Error = core::convert::Infallible
+pub fn nika_harness::wire::PermissionResult::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::wire::PermissionResult where U: core::convert::TryFrom<T>
+pub type nika_harness::wire::PermissionResult::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::wire::PermissionResult::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_harness::wire::PermissionResult where T: 'static + ?core::marker::Sized
+pub fn nika_harness::wire::PermissionResult::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::wire::PermissionResult where T: ?core::marker::Sized
+pub fn nika_harness::wire::PermissionResult::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::wire::PermissionResult where T: ?core::marker::Sized
+pub fn nika_harness::wire::PermissionResult::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_harness::wire::PermissionResult
+pub fn nika_harness::wire::PermissionResult::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::wire::PermissionResult where T: 'static
+pub fn nika_harness::wire::PermissionResult::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub struct nika_harness::wire::PromptParams
+pub nika_harness::wire::PromptParams::prompt: alloc::vec::Vec<nika_harness::wire::TextBlock>
+pub nika_harness::wire::PromptParams::session_id: alloc::string::String
+impl core::fmt::Debug for nika_harness::wire::PromptParams
+pub fn nika_harness::wire::PromptParams::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl serde_core::ser::Serialize for nika_harness::wire::PromptParams
+pub fn nika_harness::wire::PromptParams::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_harness::wire::PromptParams
+impl<T, U> core::convert::Into<U> for nika_harness::wire::PromptParams where U: core::convert::From<T>
+pub fn nika_harness::wire::PromptParams::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::wire::PromptParams where U: core::convert::Into<T>
+pub type nika_harness::wire::PromptParams::Error = core::convert::Infallible
+pub fn nika_harness::wire::PromptParams::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::wire::PromptParams where U: core::convert::TryFrom<T>
+pub type nika_harness::wire::PromptParams::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::wire::PromptParams::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_harness::wire::PromptParams where T: 'static + ?core::marker::Sized
+pub fn nika_harness::wire::PromptParams::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::wire::PromptParams where T: ?core::marker::Sized
+pub fn nika_harness::wire::PromptParams::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::wire::PromptParams where T: ?core::marker::Sized
+pub fn nika_harness::wire::PromptParams::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_harness::wire::PromptParams
+pub fn nika_harness::wire::PromptParams::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::wire::PromptParams where T: 'static
+pub fn nika_harness::wire::PromptParams::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub struct nika_harness::wire::PromptResult
+pub nika_harness::wire::PromptResult::stop_reason: alloc::string::String
+impl core::fmt::Debug for nika_harness::wire::PromptResult
+pub fn nika_harness::wire::PromptResult::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'de> serde_core::de::Deserialize<'de> for nika_harness::wire::PromptResult
+pub fn nika_harness::wire::PromptResult::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_harness::wire::PromptResult
+impl<T, U> core::convert::Into<U> for nika_harness::wire::PromptResult where U: core::convert::From<T>
+pub fn nika_harness::wire::PromptResult::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::wire::PromptResult where U: core::convert::Into<T>
+pub type nika_harness::wire::PromptResult::Error = core::convert::Infallible
+pub fn nika_harness::wire::PromptResult::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::wire::PromptResult where U: core::convert::TryFrom<T>
+pub type nika_harness::wire::PromptResult::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::wire::PromptResult::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_harness::wire::PromptResult where T: 'static + ?core::marker::Sized
+pub fn nika_harness::wire::PromptResult::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::wire::PromptResult where T: ?core::marker::Sized
+pub fn nika_harness::wire::PromptResult::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::wire::PromptResult where T: ?core::marker::Sized
+pub fn nika_harness::wire::PromptResult::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_harness::wire::PromptResult
+pub fn nika_harness::wire::PromptResult::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::wire::PromptResult where T: 'static
+pub fn nika_harness::wire::PromptResult::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_harness::wire::PromptResult where T: for<'de> serde_core::de::Deserialize<'de>
+pub struct nika_harness::wire::SessionUpdateParams
+pub nika_harness::wire::SessionUpdateParams::session_id: alloc::string::String
+pub nika_harness::wire::SessionUpdateParams::update: serde_json::value::Value
+impl core::fmt::Debug for nika_harness::wire::SessionUpdateParams
+pub fn nika_harness::wire::SessionUpdateParams::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'de> serde_core::de::Deserialize<'de> for nika_harness::wire::SessionUpdateParams
+pub fn nika_harness::wire::SessionUpdateParams::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_harness::wire::SessionUpdateParams
+impl<T, U> core::convert::Into<U> for nika_harness::wire::SessionUpdateParams where U: core::convert::From<T>
+pub fn nika_harness::wire::SessionUpdateParams::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::wire::SessionUpdateParams where U: core::convert::Into<T>
+pub type nika_harness::wire::SessionUpdateParams::Error = core::convert::Infallible
+pub fn nika_harness::wire::SessionUpdateParams::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::wire::SessionUpdateParams where U: core::convert::TryFrom<T>
+pub type nika_harness::wire::SessionUpdateParams::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::wire::SessionUpdateParams::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_harness::wire::SessionUpdateParams where T: 'static + ?core::marker::Sized
+pub fn nika_harness::wire::SessionUpdateParams::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::wire::SessionUpdateParams where T: ?core::marker::Sized
+pub fn nika_harness::wire::SessionUpdateParams::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::wire::SessionUpdateParams where T: ?core::marker::Sized
+pub fn nika_harness::wire::SessionUpdateParams::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_harness::wire::SessionUpdateParams
+pub fn nika_harness::wire::SessionUpdateParams::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::wire::SessionUpdateParams where T: 'static
+pub fn nika_harness::wire::SessionUpdateParams::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_harness::wire::SessionUpdateParams where T: for<'de> serde_core::de::Deserialize<'de>
+pub struct nika_harness::wire::TextBlock
+pub nika_harness::wire::TextBlock::kind: &'static str
+pub nika_harness::wire::TextBlock::text: alloc::string::String
+impl core::fmt::Debug for nika_harness::wire::TextBlock
+pub fn nika_harness::wire::TextBlock::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl serde_core::ser::Serialize for nika_harness::wire::TextBlock
+pub fn nika_harness::wire::TextBlock::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_harness::wire::TextBlock
+impl<T, U> core::convert::Into<U> for nika_harness::wire::TextBlock where U: core::convert::From<T>
+pub fn nika_harness::wire::TextBlock::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::wire::TextBlock where U: core::convert::Into<T>
+pub type nika_harness::wire::TextBlock::Error = core::convert::Infallible
+pub fn nika_harness::wire::TextBlock::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::wire::TextBlock where U: core::convert::TryFrom<T>
+pub type nika_harness::wire::TextBlock::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::wire::TextBlock::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_harness::wire::TextBlock where T: 'static + ?core::marker::Sized
+pub fn nika_harness::wire::TextBlock::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::wire::TextBlock where T: ?core::marker::Sized
+pub fn nika_harness::wire::TextBlock::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::wire::TextBlock where T: ?core::marker::Sized
+pub fn nika_harness::wire::TextBlock::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_harness::wire::TextBlock
+pub fn nika_harness::wire::TextBlock::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::wire::TextBlock where T: 'static
+pub fn nika_harness::wire::TextBlock::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub const nika_harness::wire::METHOD_INITIALIZE: &str
+pub const nika_harness::wire::METHOD_REQUEST_PERMISSION: &str
+pub const nika_harness::wire::METHOD_SESSION_CANCEL: &str
+pub const nika_harness::wire::METHOD_SESSION_NEW: &str
+pub const nika_harness::wire::METHOD_SESSION_PROMPT: &str
+pub const nika_harness::wire::METHOD_SESSION_UPDATE: &str
+pub const nika_harness::wire::PROTOCOL_V1: u16
+pub fn nika_harness::wire::agent_chunk_text(update: &serde_json::value::Value) -> core::option::Option<alloc::string::String>
+pub fn nika_harness::wire::notification_line(method: &str, params: &impl serde_core::ser::Serialize) -> core::result::Result<alloc::string::String, nika_harness::wire::WireError>
+pub fn nika_harness::wire::parse_line(line: &str) -> core::result::Result<nika_harness::wire::Incoming, nika_harness::wire::WireError>
+pub fn nika_harness::wire::request_line(id: u64, method: &str, params: &impl serde_core::ser::Serialize) -> core::result::Result<alloc::string::String, nika_harness::wire::WireError>
+pub fn nika_harness::wire::response_line(id: &serde_json::value::Value, result: &impl serde_core::ser::Serialize) -> core::result::Result<alloc::string::String, nika_harness::wire::WireError>
+pub const nika_harness::MAX_LINE_BYTES: usize
+pub fn nika_harness::drive<R, W>(reader: R, writer: W, request: nika_kernel_ai::harness::HarnessRequest) -> nika_kernel_ai::harness::HarnessEventStream where R: tokio::io::async_read::AsyncRead + core::marker::Unpin + core::marker::Send + 'static, W: tokio::io::async_write::AsyncWrite + core::marker::Unpin + core::marker::Send + 'static

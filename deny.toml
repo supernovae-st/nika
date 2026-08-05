@@ -65,6 +65,7 @@ wrappers = [
   "nika-input",            # L1 write-side effect (M2.4): tokio `rt` for spawn_blocking — the sync `enigo` OS-event synthesis runs off the async runtime (worker-local · CANCEL SAFETY contract · same pattern as nika-a11y) · B.3 wires enigo
   "nika-browser",          # L1 web effect (M2.5): tokio `rt` for the per-session CDP Handler task — chromiumoxide is async-native (NO spawn_blocking) · B.3 wires chromiumoxide
   "nika-providers",
+  "nika-harness",          # L1 effect (P3 · D-2026-08-04-N1): tokio io-util/sync drive the ACP wire-v1 session (JSON-lines transport · mpsc event stream · the spawned adapter's stdio underneath at B3.2)
   "nika-infer-local",      # L1.5 candle sidecar (ADR-091): tokio for the local-inference worker
   "nika-models",           # L4 local-models unit (descended from nika-cli 2026-07-12): current-thread runtime blocks the Hub pull on the nika-http seam (the registry #452 idiom)
   "nika-registry-client",  # L2 service (descended from nika-cli 2026-07-12): tokio dev-dep ONLY — the tests park a current-thread executor around the async resolve (zero runtime tokio dep · the L4 shim owns the production executor)
