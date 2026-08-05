@@ -18,11 +18,11 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4320
+  classified_files: 4321
   file_rows: 11
   pattern_rows: 22
   by_class:
-    authored: 1393
+    authored: 1394
     authored-pin: 2
     generated: 115
     pinned-copy: 114
@@ -177,8 +177,8 @@ patterns:
   evidence: "per-decision records authored at decision time (scripts/adr/new.sh scaffolds · adr-seal-check hook seals); index.toml excepted in files:"
 - glob: "docs/**"
   class: authored
-  match_count: 99
-  aggregate_sha256: 75955b865006a0edac7f192b58c6f66ad2ff67e1b91e27220079ff372260ed68
+  match_count: 100
+  aggregate_sha256: 26a2f24a8b2c3289d77a25dd214917a482575fb99f0b26ce6738a7fed84398bf
   evidence: "crate-specs · architecture prose · perf notes — no generation markers at file heads"
 - glob: "scripts/**"
   class: authored
