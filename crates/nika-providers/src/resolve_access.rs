@@ -631,11 +631,17 @@ mod prop_tests {
                         prop_assert!(ids.contains(&r.access.as_str()));
                         prop_assert!(!r.witness.is_empty());
                     }
-                    let chosen = candidates
-                        .iter()
-                        .find(|c| c.access == plan.access && c.class == plan.chosen)
-                        .expect("the chosen id must exist among inputs");
-                    prop_assert!(chosen.configured);
+                    // (id · class) does not single out a row when twin
+                    // ids ride the input (the shrunk regression case:
+                    // one configured, one not — the resolver picks the
+                    // configured twin). The honest predicate: SOME
+                    // configured input carries the chosen (id · class).
+                    prop_assert!(
+                        candidates.iter().any(|c| c.access == plan.access
+                            && c.class == plan.chosen
+                            && c.configured),
+                        "the chosen path must name a configured input row"
+                    );
                     if let Some(list) = allow.as_deref() {
                         prop_assert!(list.iter().any(|p| p == "prov"));
                     }

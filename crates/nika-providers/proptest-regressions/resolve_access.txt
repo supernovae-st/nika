@@ -5,3 +5,4 @@
 # It is recommended to check this file in to source control so that
 # everyone who runs the test benefits from these saved cases.
 cc 12e28fae3953ea269a786f194da970b1b0fcc68415fc384a7ab2dfec675ebe4b # shrinks to candidates = [AccessCandidate { access: "a", class: Local, configured: false, fix_var: None, billing: Local }], pin = None, allow = None
+cc 28936d3f5bd0fcdd081a7ca9c1d0d48b4dbef1d25a0b3271663532ec21fe5545 # shrinks to candidates = [AccessCandidate { access: "e", class: Mock, configured: false, fix_var: None, billing: Local }, AccessCandidate { access: "e", class: Mock, configured: true, fix_var: None, billing: Local }], pin = None, allow = None
