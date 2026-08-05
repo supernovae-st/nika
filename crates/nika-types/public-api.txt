@@ -202,6 +202,7 @@ impl<T> core::convert::From<T> for nika_types::access::RejectionLayer
 pub fn nika_types::access::RejectionLayer::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::access::RejectionLayer where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub struct nika_types::access::AccessPlan
+pub nika_types::access::AccessPlan::access: alloc::string::String
 pub nika_types::access::AccessPlan::billing: nika_types::access::BillingClass
 pub nika_types::access::AccessPlan::chosen: nika_types::access::AccessClass
 pub nika_types::access::AccessPlan::model: alloc::string::String
@@ -209,7 +210,7 @@ pub nika_types::access::AccessPlan::pinned: bool
 pub nika_types::access::AccessPlan::provider: alloc::string::String
 pub nika_types::access::AccessPlan::rejected: alloc::vec::Vec<nika_types::access::AccessRejection>
 impl nika_types::access::AccessPlan
-pub fn nika_types::access::AccessPlan::new(model: impl core::convert::Into<alloc::string::String>, provider: impl core::convert::Into<alloc::string::String>, chosen: nika_types::access::AccessClass, billing: nika_types::access::BillingClass, pinned: bool, rejected: alloc::vec::Vec<nika_types::access::AccessRejection>) -> Self
+pub fn nika_types::access::AccessPlan::new(model: impl core::convert::Into<alloc::string::String>, provider: impl core::convert::Into<alloc::string::String>, access: impl core::convert::Into<alloc::string::String>, chosen: nika_types::access::AccessClass, billing: nika_types::access::BillingClass, pinned: bool, rejected: alloc::vec::Vec<nika_types::access::AccessRejection>) -> Self
 impl core::clone::Clone for nika_types::access::AccessPlan
 pub fn nika_types::access::AccessPlan::clone(&self) -> nika_types::access::AccessPlan
 impl core::cmp::Eq for nika_types::access::AccessPlan

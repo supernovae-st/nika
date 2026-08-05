@@ -264,6 +264,10 @@ pub struct AccessPlan {
     pub model: alloc::string::String,
     /// The provider prefix.
     pub provider: alloc::string::String,
+    /// The chosen path's id (a provider id today · an adapter id at
+    /// P3) — a plan that cannot NAME its path is not attested (A-9):
+    /// two P3 harness adapters share one class, never one id.
+    pub access: alloc::string::String,
     /// The chosen path's class.
     pub chosen: AccessClass,
     /// The chosen path's economic lane.
@@ -280,6 +284,7 @@ impl AccessPlan {
     pub fn new(
         model: impl Into<alloc::string::String>,
         provider: impl Into<alloc::string::String>,
+        access: impl Into<alloc::string::String>,
         chosen: AccessClass,
         billing: BillingClass,
         pinned: bool,
@@ -288,6 +293,7 @@ impl AccessPlan {
         Self {
             model: model.into(),
             provider: provider.into(),
+            access: access.into(),
             chosen,
             billing,
             pinned,
@@ -349,6 +355,7 @@ mod plan_tests {
         let plan = AccessPlan::new(
             "mistral/mistral-small-latest",
             "mistral",
+            "mistral",
             AccessClass::Api,
             BillingClass::ApiMetered,
             false,
@@ -360,6 +367,7 @@ mod plan_tests {
             )],
         );
         assert_eq!(plan.model, "mistral/mistral-small-latest");
+        assert_eq!(plan.access, "mistral");
         assert_eq!(plan.chosen, AccessClass::Api);
         assert!(!plan.pinned);
         assert_eq!(plan.rejected.len(), 1);
@@ -371,12 +379,14 @@ mod plan_tests {
         let plan = AccessPlan::new(
             "mock/echo",
             "mock",
+            "mock",
             AccessClass::Mock,
             BillingClass::Local,
             true,
             Vec::new(),
         );
         let json = serde_json::to_string(&plan).expect("serialize");
+        assert!(json.contains("\"access\":\"mock\""), "{json}");
         assert!(json.contains("\"chosen\":\"mock\""), "{json}");
         assert!(json.contains("\"billing\":\"local\""), "{json}");
         assert!(json.contains("\"pinned\":true"), "{json}");
