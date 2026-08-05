@@ -112,8 +112,8 @@ use nika_verb_invoke::InvokeVerb;
 use serde_json::Value;
 
 pub use admit::{
-    budget_floor_refusal, floor_refusal, required_inputs_refusal, scope_to_task,
-    unbounded_breakdown,
+    AccessGate, access_pin_refusal, budget_floor_refusal, floor_refusal, required_inputs_refusal,
+    scope_to_task, unbounded_breakdown,
 };
 pub use compose::{
     ProdRuntime, RunSeams, RuntimeCapabilities, SimRuntime, capabilities_of, production_runtime,
@@ -238,6 +238,15 @@ pub struct Runtime<S, T, H, P, D, C> {
     /// envelope model:` — resume identity must cover it, or a model swap
     /// cache-hits the OLD model's output. `None` = envelope only.
     model_override: Option<String>,
+    /// The operator's `--access` pin (D-2026-08-04-N1 · P2): judged at
+    /// ADMISSION against the probe rows below — unsatisfied is a
+    /// refusal before the prologue, never a substitute (A-4). `None`
+    /// (the default) never gates: single-access installs unchanged.
+    access_pin: Option<String>,
+    /// The machine's access-probe rows, collected by the COMPOSER (env
+    /// presence only — the runtime itself stays env-free here). Empty
+    /// by default: embedded/test callers without a pin never look here.
+    access_probes: Vec<nika_providers::probe::ProviderProbe>,
     /// The run's SOURCE identity — sha256 hex over the exact bytes the
     /// operator ran (computed by the composer that read the file; the
     /// runtime never re-reads). Stamped on `workflow_started` so every
@@ -338,6 +347,8 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
             run_depth: 0,
             approvals: approval::ApprovalBook::new(),
             resume_compat: None,
+            access_pin: None,
+            access_probes: Vec::new(),
         }
     }
 
@@ -350,6 +361,26 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
     #[must_use]
     pub fn with_model_override(mut self, model: Option<String>) -> Self {
         self.model_override = model;
+        self
+    }
+
+    /// Declare the operator's `--access` pin (D-2026-08-04-N1): the
+    /// admission gate judges it against the probe rows — an unsatisfied
+    /// pin refuses BEFORE the prologue, never substitutes (A-4).
+    /// Builder form — `None` (the default) never gates.
+    #[must_use]
+    pub fn with_access_pin(mut self, pin: Option<String>) -> Self {
+        self.access_pin = pin;
+        self
+    }
+
+    /// Inject the composer-collected access probes (env presence only)
+    /// the `--access` admission gate judges against. Builder form —
+    /// empty (the default) means an id-form pin cannot match and the
+    /// class vocabulary alone is judged.
+    #[must_use]
+    pub fn with_access_probes(mut self, probes: Vec<nika_providers::probe::ProviderProbe>) -> Self {
+        self.access_probes = probes;
         self
     }
 
@@ -914,6 +945,10 @@ where
             &self.var_overrides,
             self.config.max_cost_usd,
             self.model_override.as_deref(),
+            &admit::AccessGate {
+                pin: self.access_pin.as_deref(),
+                probes: &self.access_probes,
+            },
         )?;
         let EnvelopeValues {
             inputs,

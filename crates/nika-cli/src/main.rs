@@ -420,6 +420,13 @@ struct RunArgs {
     /// mock/echo` previews any workflow offline (zero key · zero network).
     #[arg(long, value_name = "PROVIDER/NAME")]
     model: Option<String>,
+    /// Pin the ACCESS path (`model:` picks the intelligence; access
+    /// picks the path) — an access class (`local` · `api` · `harness` ·
+    /// `oauth` · `mock`) or an access id `nika doctor` lists. A pin is
+    /// a pin: unsatisfied refuses before the prologue with a witness,
+    /// never substitutes another path or model (D-2026-08-04-N1).
+    #[arg(long, value_name = "PATH")]
+    access: Option<String>,
     /// Set a workflow `inputs:` value (repeatable). Overrides a declared
     /// `default:` and satisfies a `required: true` input. JSON when it
     /// parses (numbers · booleans · arrays), else a string. Unknown keys refused.
@@ -986,6 +993,7 @@ fn run_verb(
         mode,
         args.dry_run,
         args.model.as_deref(),
+        args.access.as_deref(),
         &args.var,
         resume.as_ref(),
         args.no_trace_file || env_flag("NIKA_NO_TRACE_FILE"),
