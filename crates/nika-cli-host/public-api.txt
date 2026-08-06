@@ -1542,6 +1542,39 @@ pub type nika_cli_host::metrics::Facts::NoneType = T
 pub fn nika_cli_host::metrics::Facts::null_value() -> T
 pub fn nika_cli_host::metrics::record(path: &std::path::Path, event: nika_cli_host::metrics::EventKind, facts: nika_cli_host::metrics::Facts) -> core::io::error::Result<()>
 pub fn nika_cli_host::metrics::record_if_enabled(event: nika_cli_host::metrics::EventKind, facts: nika_cli_host::metrics::Facts)
+pub mod nika_cli_host::notify
+pub struct nika_cli_host::notify::NotifyConfig
+impl nika_cli_host::notify::NotifyConfig
+pub fn nika_cli_host::notify::NotifyConfig::from_env() -> core::option::Option<Self>
+impl<D> owo_colors::OwoColorize for nika_cli_host::notify::NotifyConfig
+impl<T, U> core::convert::Into<U> for nika_cli_host::notify::NotifyConfig where U: core::convert::From<T>
+pub fn nika_cli_host::notify::NotifyConfig::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli_host::notify::NotifyConfig where U: core::convert::Into<T>
+pub type nika_cli_host::notify::NotifyConfig::Error = core::convert::Infallible
+pub fn nika_cli_host::notify::NotifyConfig::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli_host::notify::NotifyConfig where U: core::convert::TryFrom<T>
+pub type nika_cli_host::notify::NotifyConfig::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli_host::notify::NotifyConfig::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_cli_host::notify::NotifyConfig where T: 'static + ?core::marker::Sized
+pub fn nika_cli_host::notify::NotifyConfig::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli_host::notify::NotifyConfig where T: ?core::marker::Sized
+pub fn nika_cli_host::notify::NotifyConfig::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli_host::notify::NotifyConfig where T: ?core::marker::Sized
+pub fn nika_cli_host::notify::NotifyConfig::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_cli_host::notify::NotifyConfig
+pub fn nika_cli_host::notify::NotifyConfig::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_cli_host::notify::NotifyConfig where T: 'static
+pub fn nika_cli_host::notify::NotifyConfig::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::notify::NotifyConfig where T: ?core::marker::Sized
+pub fn nika_cli_host::notify::NotifyConfig::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli_host::notify::NotifyConfig::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli_host::notify::NotifyConfig
+impl<T> tracing::instrument::WithSubscriber for nika_cli_host::notify::NotifyConfig
+impl<T> typenum::type_operators::Same for nika_cli_host::notify::NotifyConfig
+pub type nika_cli_host::notify::NotifyConfig::Output = T
+pub async fn nika_cli_host::notify::deliver_paused(workflow: &str, pause: &nika_runtime::pause::WorkflowPause, trace_path: &std::path::Path, resume_hint: &str, stamper: &mut dyn nika_runtime::stamp::Stamper, sink: &mut dyn nika_runtime::stamp::EventSink)
+pub fn nika_cli_host::notify::event_id(trace_id: &str, task: &str) -> alloc::string::String
+pub fn nika_cli_host::notify::workflow_label(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::string::String
 pub mod nika_cli_host::output
 pub mod nika_cli_host::output::exit
 pub const nika_cli_host::output::exit::ENV: u8

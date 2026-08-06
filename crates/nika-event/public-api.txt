@@ -284,6 +284,8 @@ pub nika_event::kind::EventKind::Declassify
 pub nika_event::kind::EventKind::InferChunk
 pub nika_event::kind::EventKind::MemoryEntryRejected
 pub nika_event::kind::EventKind::MemoryRejectionsSummary
+pub nika_event::kind::EventKind::NotifyDelivered
+pub nika_event::kind::EventKind::NotifyFailed
 pub nika_event::kind::EventKind::PermitChecked
 pub nika_event::kind::EventKind::RunSealed
 pub nika_event::kind::EventKind::TaskCacheHit
@@ -461,6 +463,8 @@ pub nika_event::prelude::EventKind::Declassify
 pub nika_event::prelude::EventKind::InferChunk
 pub nika_event::prelude::EventKind::MemoryEntryRejected
 pub nika_event::prelude::EventKind::MemoryRejectionsSummary
+pub nika_event::prelude::EventKind::NotifyDelivered
+pub nika_event::prelude::EventKind::NotifyFailed
 pub nika_event::prelude::EventKind::PermitChecked
 pub nika_event::prelude::EventKind::RunSealed
 pub nika_event::prelude::EventKind::TaskCacheHit
@@ -770,6 +774,8 @@ pub nika_event::EventKind::Declassify
 pub nika_event::EventKind::InferChunk
 pub nika_event::EventKind::MemoryEntryRejected
 pub nika_event::EventKind::MemoryRejectionsSummary
+pub nika_event::EventKind::NotifyDelivered
+pub nika_event::EventKind::NotifyFailed
 pub nika_event::EventKind::PermitChecked
 pub nika_event::EventKind::RunSealed
 pub nika_event::EventKind::TaskCacheHit
