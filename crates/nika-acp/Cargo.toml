@@ -36,6 +36,17 @@ nika-kernel  = { path = "../nika-kernel" }
 [lints.rust]
 unsafe_code = "forbid"
 
+[dev-dependencies.nika-verb-agent]
+# The seat e2e drives the verb's harness path (feature-gated there).
+path = "../nika-verb-agent"
+features = ["access-harness"]
+
+[dev-dependencies.nika-kernel-mock]
+path = "../nika-kernel-mock"
+
+[dev-dependencies.nika-verb-invoke]
+path = "../nika-verb-invoke"
+
 [dev-dependencies.nika-harness]
 # The engine's hand-rolled wire-v1 client — judged HERE, from the
 # quarantine, by the official SDK's Agent role (spec §2bis Lane A: the

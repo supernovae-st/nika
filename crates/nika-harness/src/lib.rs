@@ -21,10 +21,12 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 
 pub mod client;
+pub mod declaration;
 pub mod probe;
 pub mod spawn;
 pub mod wire;
 
 pub use client::{IDLE_TIMEOUT_SECS, MAX_LINE_BYTES, drive, drive_with_idle};
+pub use declaration::{seat_from_env, seat_from_lookup};
 pub use probe::{VersionPin, judge_version, parse_version};
 pub use spawn::{HarnessAdapter, SpawnedHarness, compose_env};

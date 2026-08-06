@@ -53,6 +53,17 @@ impl std::fmt::Debug for HarnessSeat {
 }
 
 impl HarnessSeat {
+    /// Construct from a backend, reading the session cwd — the
+    /// composer's one-liner (P3 B4.5).
+    ///
+    /// # Errors
+    ///
+    /// The process cwd is unreadable.
+    pub fn from_backend(backend: Arc<dyn DynAgentBackend>) -> Result<Self, String> {
+        let cwd = std::env::current_dir().map_err(|e| format!("harness seat: no cwd: {e}"))?;
+        Ok(Self::new(backend, cwd))
+    }
+
     /// Construct (INV-019).
     #[must_use]
     pub fn new(backend: Arc<dyn DynAgentBackend>, cwd: impl Into<std::path::PathBuf>) -> Self {
