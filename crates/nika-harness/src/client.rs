@@ -88,6 +88,7 @@ where
             event_tx,
             output: String::new(),
             idle,
+            pending: Vec::new(),
         };
         if let Err(e) = driver.run(request).await {
             // The stream may already be dropped — best-effort final word.
@@ -113,6 +114,10 @@ struct Driver<R, W> {
     output: String,
     /// How long a silence may last before the session is abandoned.
     idle: std::time::Duration,
+    /// The partial-line accumulator (see [`read_bounded_line`]'s
+    /// cancel-safety note): it MUST outlive any single read future,
+    /// because a `select!` may drop that future mid-line.
+    pending: Vec<u8>,
 }
 
 impl<R, W> Driver<R, W>
@@ -184,7 +189,7 @@ where
         let mut reply_rx = prx;
         loop {
             tokio::select! {
-                line = read_bounded_line(&mut self.reader, self.idle) => {
+                line = read_bounded_line(&mut self.reader, &mut self.pending, self.idle) => {
                     let line = line?;
                     match wire::parse_line(&line).map_err(|e| HarnessError::Session {
                         reason: e.to_string(),
@@ -304,13 +309,31 @@ where
         self.write_line(&line).await
     }
 
+    /// Write one line — deadlined like the read half: a peer that
+    /// stops READING its stdin fills the pipe and blocks us here, and
+    /// a driver blocked in `write_all` is not reading either (the
+    /// mutual wedge · review 2026-08-06).
     async fn write_line(&mut self, line: &str) -> Result<(), HarnessError> {
-        self.writer
-            .write_all(line.as_bytes())
+        let idle = self.idle;
+        let stalled = || HarnessError::Session {
+            reason: format!(
+                "transport: the agent stopped reading its input for {}s \
+                 (write deadline) — the session is abandoned",
+                idle.as_secs_f32()
+            ),
+        };
+        tokio::time::timeout(idle, self.writer.write_all(line.as_bytes()))
             .await
+            .map_err(|_| stalled())?
             .map_err(|e| io_err(&e))?;
-        self.writer.write_all(b"\n").await.map_err(|e| io_err(&e))?;
-        self.writer.flush().await.map_err(|e| io_err(&e))
+        tokio::time::timeout(idle, self.writer.write_all(b"\n"))
+            .await
+            .map_err(|_| stalled())?
+            .map_err(|e| io_err(&e))?;
+        tokio::time::timeout(idle, self.writer.flush())
+            .await
+            .map_err(|_| stalled())?
+            .map_err(|e| io_err(&e))
     }
 
     /// Await the response to `id`, routing any interleaved beat that
@@ -321,7 +344,7 @@ where
         what: &str,
     ) -> Result<T, HarnessError> {
         loop {
-            let line = read_bounded_line(&mut self.reader, self.idle).await?;
+            let line = read_bounded_line(&mut self.reader, &mut self.pending, self.idle).await?;
             match wire::parse_line(&line).map_err(session_err)? {
                 Incoming::Response { id: got, result } if got == id => {
                     return parse_payload(result, what);
@@ -397,11 +420,22 @@ fn parse_payload<T: serde::de::DeserializeOwned>(v: Value, what: &str) -> Result
 
 /// Read one newline-terminated line, bounded at [`MAX_LINE_BYTES`] —
 /// overflow and EOF are both session deaths with their own words.
+///
+/// CANCEL SAFETY, the load-bearing detail: `read_until` is only
+/// conditionally cancel-safe — tokio's own contract says partial bytes
+/// are appended to `buf` and the call may be resumed, which holds ONLY
+/// if the CALLER owns `buf` across the cancellation. This future is a
+/// `select!` branch (the reply lane can win the race), so the
+/// accumulator lives on the DRIVER, not here: a future-local buffer
+/// dropped mid-line silently ate bytes already consumed out of the
+/// `BufReader`, and the next read started mid-frame — truncation
+/// reported as the peer's invalid JSON (found by review 2026-08-06,
+/// verified against `tokio::io::AsyncBufReadExt::read_until` docs).
 async fn read_bounded_line<R: AsyncRead + Unpin>(
     reader: &mut BufReader<R>,
+    buf: &mut Vec<u8>,
     idle: std::time::Duration,
 ) -> Result<String, HarnessError> {
-    let mut buf: Vec<u8> = Vec::new();
     loop {
         let budget = (MAX_LINE_BYTES + 1).saturating_sub(buf.len());
         let mut limited = reader.take(budget as u64);
@@ -411,7 +445,7 @@ async fn read_bounded_line<R: AsyncRead + Unpin>(
         // a driver hung forever. Each read waits at most `idle` for
         // progress; any byte resets it, so a long thinking turn is
         // never killed, only a dead one.
-        let n = tokio::time::timeout(idle, limited.read_until(b'\n', &mut buf))
+        let n = tokio::time::timeout(idle, limited.read_until(b'\n', buf))
             .await
             .map_err(|_| HarnessError::Session {
                 reason: format!(
@@ -423,9 +457,10 @@ async fn read_bounded_line<R: AsyncRead + Unpin>(
             .map_err(|e| io_err(&e))?;
         if buf.last() == Some(&b'\n') {
             buf.pop();
-            let line = String::from_utf8(buf).map_err(|_| HarnessError::Session {
-                reason: "transport: line is not UTF-8".to_owned(),
-            })?;
+            let line =
+                String::from_utf8(std::mem::take(buf)).map_err(|_| HarnessError::Session {
+                    reason: "transport: line is not UTF-8".to_owned(),
+                })?;
             return Ok(line);
         }
         if n == 0 {
