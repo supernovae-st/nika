@@ -20,7 +20,7 @@
 use std::collections::BTreeMap;
 use std::process::Stdio;
 
-use nika_kernel::ai::harness::{AgentBackend, HarnessError, HarnessEventStream, HarnessRequest};
+use nika_kernel::ai::harness::{AgentBackendDyn, HarnessError, HarnessEventStream, HarnessRequest};
 
 use crate::client::drive;
 
@@ -197,7 +197,7 @@ impl HarnessAdapter {
     }
 }
 
-/// A spawned, session-ready harness — [`AgentBackend`] over the
+/// A spawned, session-ready harness — `AgentBackend` over the
 /// adapter's stdio. Serial by construction: `run_agent` consumes ONE
 /// spawn per call (the self-queue lives at the verb seam · B4).
 #[derive(Debug, Clone)]
@@ -297,7 +297,10 @@ impl SpawnedHarness {
     }
 }
 
-impl AgentBackend for SpawnedHarness {
+// The Send variant is what the house consumes (the `ProviderInferDyn`
+// precedent: every impl site writes the `*Dyn` form, and the kernel's
+// blanket erasure builds `Arc<dyn DynAgentBackend>` from it).
+impl AgentBackendDyn for SpawnedHarness {
     async fn run_agent(&self, request: HarnessRequest) -> Result<HarnessEventStream, HarnessError> {
         // Identity before dialect (spec §4): a version outside the pin
         // refuses HERE, with the version named — never as a protocol

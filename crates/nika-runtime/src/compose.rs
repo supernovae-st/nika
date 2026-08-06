@@ -849,9 +849,11 @@ pub fn production_runtime(
     // The access-probe rows (D-2026-08-04-N1) the `--access` admission
     // gate judges — a no-http registry view of the SAME env ladder
     // (the doctor gesture: probing never needs a socket).
-    let access_probes = nika_providers::probe::collect_provider_probes(
-        &ProviderRegistry::without_http(config_from_env()),
-    );
+    let access_probes = crate::harness_seat::access_probes();
+    // Read BEFORE the runtime is built (a broken adapter refuses at
+    // composition · A-4). The SIMULATED plane never seats one: `nika
+    // test` is offline by contract.
+    let harness_seat = crate::harness_seat::seat_from_env()?;
 
     Ok(Runtime::new(
         // The exec child environment is COMPOSED at the spawn site (NEP-0005 ·
@@ -861,11 +863,14 @@ pub fn production_runtime(
         ExecVerb::new(Arc::new(TokioShell::with_sandbox(sandbox))),
         Arc::clone(&invoke),
         InferVerb::new(registry, default_model),
-        AgentVerb::new(
-            agent_provider,
-            invoke,
-            Arc::clone(&dispatcher),
-            default_model,
+        seated(
+            AgentVerb::new(
+                agent_provider,
+                invoke,
+                Arc::clone(&dispatcher),
+                default_model,
+            ),
+            harness_seat,
         ),
         seams.clock,
         RuntimeConfig::new(None, seams.jitter_seed)
@@ -877,6 +882,17 @@ pub fn production_runtime(
     // store boundary). A miss leaves the secret unbound → NIKA-1702 (fail-
     // closed); the IFC governs where a resolved value may flow.
     .with_secret_resolver(Arc::new(EnvFileSecretResolver)))
+}
+
+/// Seat the verb (P3 B4.5) — the feature split, in one place.
+fn seated<P, T, D>(v: AgentVerb<P, T, D>, s: crate::harness_seat::Seat) -> AgentVerb<P, T, D> {
+    #[cfg(feature = "access-harness")]
+    return v.seated(s);
+    #[cfg(not(feature = "access-harness"))]
+    {
+        let crate::harness_seat::Seat = s;
+        v
+    }
 }
 
 /// The fully-resolved SIMULATED runtime spelling (the `nika test` plane ·
