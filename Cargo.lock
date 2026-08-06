@@ -4783,6 +4783,7 @@ dependencies = [
  "nika-sandbox-landlock",
  "nika-sandbox-seatbelt",
  "nika-schema",
+ "nika-secret",
  "nika-tmpl",
  "nika-types",
  "nika-verb-agent",
@@ -4843,6 +4844,14 @@ dependencies = [
  "proptest",
  "tokio",
  "xcap",
+]
+
+[[package]]
+name = "nika-secret"
+version = "0.108.0"
+dependencies = [
+ "nika-schema",
+ "serde_json",
 ]
 
 [[package]]

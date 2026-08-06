@@ -112,3 +112,5 @@ nika-check-wasm
 nika-proof
 # --- 2026-07-29: the signed-memory substrate (F-P8 · L1 · the recall path's TCB foundation) ---
 nika-store
+# --- 2026-08-06: the secret resolution half out of nika-runtime (the 15k wall — nika-proof/nika-dap/nika-cap precedent) ---
+nika-secret
