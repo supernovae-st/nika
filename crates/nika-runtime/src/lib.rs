@@ -124,7 +124,8 @@ pub use errors::RuntimeError;
 pub use origins::{InputOrigin, input_origins};
 pub use pause::WorkflowPause;
 pub use record::{TaskErrorRecord, TaskRecord, TaskStatus, TerminalCause, legal};
-pub use secret::{
+// Descended to `nika-secret` at the 15k wall — paths preserved.
+pub use nika_secret::{
     NoSecrets, SecretResolveError, WorkflowSecretResolver, source_is_runtime_resolvable,
 };
 pub use stamp::{DeterministicStamper, EventSink, Stamper, SystemStamper, VecSink};
@@ -329,7 +330,7 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
             agent,
             clock,
             config,
-            secrets: Arc::new(secret::NoSecrets),
+            secrets: Arc::new(nika_secret::NoSecrets),
             var_overrides: BTreeMap::new(),
             input_origins: BTreeMap::new(),
             resume_plan: resume::ResumePlan::new(),

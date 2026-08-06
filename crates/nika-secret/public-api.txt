@@ -1,0 +1,86 @@
+pub mod nika_secret
+pub struct nika_secret::NoSecrets
+impl core::clone::Clone for nika_secret::NoSecrets
+pub fn nika_secret::NoSecrets::clone(&self) -> nika_secret::NoSecrets
+impl core::default::Default for nika_secret::NoSecrets
+pub fn nika_secret::NoSecrets::default() -> nika_secret::NoSecrets
+impl core::fmt::Debug for nika_secret::NoSecrets
+pub fn nika_secret::NoSecrets::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_secret::NoSecrets
+impl nika_secret::WorkflowSecretResolver for nika_secret::NoSecrets
+pub fn nika_secret::NoSecrets::resolve(&self, name: &str, _reference: &nika_vocab::secret::SecretRef) -> core::result::Result<alloc::string::String, nika_secret::SecretResolveError>
+impl<D> owo_colors::OwoColorize for nika_secret::NoSecrets
+impl<T, U> core::convert::Into<U> for nika_secret::NoSecrets where U: core::convert::From<T>
+pub fn nika_secret::NoSecrets::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_secret::NoSecrets where U: core::convert::Into<T>
+pub type nika_secret::NoSecrets::Error = core::convert::Infallible
+pub fn nika_secret::NoSecrets::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_secret::NoSecrets where U: core::convert::TryFrom<T>
+pub type nika_secret::NoSecrets::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_secret::NoSecrets::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_secret::NoSecrets where T: core::clone::Clone
+pub type nika_secret::NoSecrets::Owned = T
+pub fn nika_secret::NoSecrets::clone_into(&self, target: &mut T)
+pub fn nika_secret::NoSecrets::to_owned(&self) -> T
+impl<T> core::any::Any for nika_secret::NoSecrets where T: 'static + ?core::marker::Sized
+pub fn nika_secret::NoSecrets::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_secret::NoSecrets where T: ?core::marker::Sized
+pub fn nika_secret::NoSecrets::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_secret::NoSecrets where T: ?core::marker::Sized
+pub fn nika_secret::NoSecrets::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_secret::NoSecrets where T: core::clone::Clone
+pub unsafe fn nika_secret::NoSecrets::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_secret::NoSecrets
+pub fn nika_secret::NoSecrets::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_secret::NoSecrets where T: 'static
+pub fn nika_secret::NoSecrets::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub struct nika_secret::SecretResolveError
+pub nika_secret::SecretResolveError::name: alloc::string::String
+pub nika_secret::SecretResolveError::reason: alloc::string::String
+impl core::clone::Clone for nika_secret::SecretResolveError
+pub fn nika_secret::SecretResolveError::clone(&self) -> nika_secret::SecretResolveError
+impl core::cmp::Eq for nika_secret::SecretResolveError
+impl core::cmp::PartialEq for nika_secret::SecretResolveError
+pub fn nika_secret::SecretResolveError::eq(&self, other: &nika_secret::SecretResolveError) -> bool
+impl core::error::Error for nika_secret::SecretResolveError
+impl core::fmt::Debug for nika_secret::SecretResolveError
+pub fn nika_secret::SecretResolveError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_secret::SecretResolveError
+pub fn nika_secret::SecretResolveError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_secret::SecretResolveError
+impl<D> owo_colors::OwoColorize for nika_secret::SecretResolveError
+impl<Q, K> hashbrown::Equivalent<K> for nika_secret::SecretResolveError where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_secret::SecretResolveError::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_secret::SecretResolveError where U: core::convert::From<T>
+pub fn nika_secret::SecretResolveError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_secret::SecretResolveError where U: core::convert::Into<T>
+pub type nika_secret::SecretResolveError::Error = core::convert::Infallible
+pub fn nika_secret::SecretResolveError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_secret::SecretResolveError where U: core::convert::TryFrom<T>
+pub type nika_secret::SecretResolveError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_secret::SecretResolveError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_secret::SecretResolveError where T: core::clone::Clone
+pub type nika_secret::SecretResolveError::Owned = T
+pub fn nika_secret::SecretResolveError::clone_into(&self, target: &mut T)
+pub fn nika_secret::SecretResolveError::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_secret::SecretResolveError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_secret::SecretResolveError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_secret::SecretResolveError where T: 'static + ?core::marker::Sized
+pub fn nika_secret::SecretResolveError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_secret::SecretResolveError where T: ?core::marker::Sized
+pub fn nika_secret::SecretResolveError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_secret::SecretResolveError where T: ?core::marker::Sized
+pub fn nika_secret::SecretResolveError::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_secret::SecretResolveError where T: core::clone::Clone
+pub unsafe fn nika_secret::SecretResolveError::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_secret::SecretResolveError
+pub fn nika_secret::SecretResolveError::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_secret::SecretResolveError where T: 'static
+pub fn nika_secret::SecretResolveError::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub const nika_secret::REDACTED: &str
+pub trait nika_secret::WorkflowSecretResolver: core::marker::Send + core::marker::Sync
+pub fn nika_secret::WorkflowSecretResolver::resolve(&self, name: &str, reference: &nika_vocab::secret::SecretRef) -> core::result::Result<alloc::string::String, nika_secret::SecretResolveError>
+impl nika_secret::WorkflowSecretResolver for nika_secret::NoSecrets
+pub fn nika_secret::NoSecrets::resolve(&self, name: &str, _reference: &nika_vocab::secret::SecretRef) -> core::result::Result<alloc::string::String, nika_secret::SecretResolveError>
+pub fn nika_secret::resolve_secrets<R: nika_secret::WorkflowSecretResolver + ?core::marker::Sized>(resolver: &R, declared: &[(nika_source::span::Spanned<alloc::string::String>, nika_source::span::Spanned<nika_vocab::secret::SecretRef>)]) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>
+pub fn nika_secret::source_is_runtime_resolvable(source: nika_vocab::secret::SecretSource) -> bool

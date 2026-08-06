@@ -104,17 +104,17 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 | branch           | `feat/access-b3-harness-client`                                      |
 | HEAD             | `e321891b5` (`e321891b573f7cd5cd762ea09714101e010b5ed7`)             |
 | workspace        | v0.108.0                                  |
-| crates (workspace)| 61                                              |
-| crates (admitted)| 56                                             |
+| crates (workspace)| 62                                              |
+| crates (admitted)| 57                                             |
 | crates (WIP)     | 5 — nika-chart nika-fx nika-proof nika-store nika-harness                                  |
 | L0               | 19                                              |
 | L0.5             | 6                                              |
-| L1               | 16                                              |
+| L1               | 17                                              |
 | L1.5             | 4                                              |
 | L2               | 5                                              |
 | L3               | 1                                              |
 | L4               | 10                                              |
-| lib tests        | 5606 passed, 0 failed                              |
+| lib tests        | 5613 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
 
 Diamond foundation — orphan branch from scratch. Live counts (admitted ·

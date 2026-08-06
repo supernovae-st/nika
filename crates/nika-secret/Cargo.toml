@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+[package]
+name          = "nika-secret"
+description   = "Workflow secret RESOLUTION (spec 01 §secrets) — the store-reference seam the composer injects. Descended from nika-runtime at the 15k prod-LOC wall; pure (zero runtime types), so the dynamic scrub stays behind with the EventSink it implements."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false
+
+[dependencies]
+nika-schema = { path = "../nika-schema", version = "0.108.0" }
+serde_json  = { workspace = true }
+
+[package.metadata.lore]
+daemon        = "gardien"
+archetype     = "kodama-gardien"
+spirit_role   = "resout la reference au coffre · jamais la valeur en clair dans la lumiere"
+voice_pattern = "silent"
+layer         = "L1"
+err_prefix    = "none"
+
+[lints]
+workspace = true
