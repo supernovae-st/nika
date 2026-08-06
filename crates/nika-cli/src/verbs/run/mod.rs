@@ -48,6 +48,7 @@ use sink::{TraceNote, surface_trace};
 mod budget;
 mod epilogue;
 mod heartbeat;
+mod notify;
 mod resume_setup;
 mod teardown;
 pub(crate) use nika_event::source_id::{lf_normal_form, sha256_hex};
@@ -970,8 +971,18 @@ async fn execute_output_json_lane(
     fold.set_trace_recorded(!trace.is_disabled());
     let mut tee = Tee::new(fold, trace);
     let (code, outcome) = drive(runtime, wf, report, stamper, &mut tee).await;
-    let (mut sink, trace) = tee.into_parts();
+    let (mut sink, mut trace) = tee.into_parts();
     sink.print_final();
+    // ADR-111 · the pause is heard — deliver + journal BEFORE the seal
+    // (the notify events must land under the chain the seal covers).
+    if let (Some(p), Some(pause)) = (
+        trace.path().map(std::path::Path::to_path_buf),
+        outcome.paused.as_ref(),
+    ) {
+        let hint = epilogue::resume_hint_line(file, &p, pause, carry);
+        let label = notify::workflow_label(wf);
+        notify::deliver_paused(&label, pause, &p, &hint, stamper, &mut trace).await;
+    }
     // F-P14 · la dette du run: a FAILED run quarantines its semi-written
     // outputs BEFORE the seal attests the end (None elsewhere — key OUT).
     let teardown = attended_facts(wf, report, &outcome, trace.path());
@@ -1037,7 +1048,16 @@ async fn execute_json_lane(
 ) -> RunVerdict {
     let mut tee = Tee::new(JsonSink::new(std::io::stdout().lock()), trace);
     let (code, outcome) = drive(runtime, wf, report, stamper, &mut tee).await;
-    let (sink, trace) = tee.into_parts();
+    let (sink, mut trace) = tee.into_parts();
+    // ADR-111 · the pause is heard — deliver + journal BEFORE the seal.
+    if let (Some(p), Some(pause)) = (
+        trace.path().map(std::path::Path::to_path_buf),
+        outcome.paused.as_ref(),
+    ) {
+        let hint = epilogue::resume_hint_line(file, &p, pause, carry);
+        let label = notify::workflow_label(wf);
+        notify::deliver_paused(&label, pause, &p, &hint, stamper, &mut trace).await;
+    }
     // F-P14 · the failure lane's quarantine runs BEFORE the seal.
     let teardown = attended_facts(wf, report, &outcome, trace.path());
     let trace_path = surface_trace(
@@ -1125,7 +1145,17 @@ async fn execute_fold_lane(
     if let Some(spinner) = &spinner {
         spinner.abort();
     }
-    let (_inner, trace) = tee.into_parts();
+    let (_inner, mut trace) = tee.into_parts();
+    // ADR-111 · the pause is heard — deliver + journal BEFORE the seal
+    // (fold_lane_verdict seals inside; this is the last async point).
+    if let (Some(p), Some(pause)) = (
+        trace.path().map(std::path::Path::to_path_buf),
+        outcome.paused.as_ref(),
+    ) {
+        let hint = epilogue::resume_hint_line(file, &p, pause, carry);
+        let label = notify::workflow_label(wf);
+        notify::deliver_paused(&label, pause, &p, &hint, stamper, &mut trace).await;
+    }
     let Ok(mut sink) = fold.lock() else {
         // A poisoned fold = a render-side panic already reported by the
         // runtime; the verdict must still leave honestly.
