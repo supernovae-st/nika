@@ -262,6 +262,7 @@ fn one_task_span(
     if let Some(FieldValue::Int(tokens)) = field(terminal, "tokens") {
         attributes.push(kv_int("nika.tokens", *tokens));
     }
+    push_genai_semconv(&mut attributes, terminal);
     if let Some(FieldValue::Float(usd)) = field(terminal, "cost_usd") {
         attributes.push(kv_double(COST_ATTR, *usd));
         attributes.push(kv_double("nika.cost.usd", *usd));
@@ -405,6 +406,26 @@ fn hex_bytes(bytes: &[u8]) -> String {
         let _ = write!(hex, "{b:02x}");
     }
     hex
+}
+
+/// Project an infer/agent terminal's access facts (D-2026-08-04-N1 ·
+/// `model` = `<provider>/<name>` · `provider` = the prefix) to the
+/// CURRENT `OTel` `GenAI` semconv names, so every viewer and eval tool
+/// reads the model without a translation shim. NEVER the deprecated
+/// `gen_ai.system` (renamed in semconv v1.37.0). One place, so a
+/// pre-stable-semconv rename upstream is one edit, never a scatter.
+fn push_genai_semconv(attributes: &mut Vec<serde_json::Value>, terminal: &Event) {
+    if let Some(model) = field_str(terminal, "model") {
+        // `gen_ai.request.model` is the model NAME; the provider rides
+        // its own attribute (semconv keeps them distinct). Split the
+        // canonical `provider/name` form; a slash-less value stays whole.
+        let name = model.split_once('/').map_or(model, |(_, n)| n);
+        attributes.push(kv_str("gen_ai.request.model", name));
+        attributes.push(kv_str("gen_ai.response.model", name));
+    }
+    if let Some(provider) = field_str(terminal, "provider") {
+        attributes.push(kv_str("gen_ai.provider.name", provider));
+    }
 }
 
 fn field<'e>(event: &'e Event, key: &str) -> Option<&'e FieldValue> {
@@ -654,6 +675,58 @@ mod tests {
     fn a_journal_without_a_start_is_refused() {
         let orphan = vec![ev(9, 1, EventKind::TaskCompleted, &[("task", s("x"))])];
         assert!(project_bare(&orphan, false).is_err());
+    }
+
+    /// The access facts (D-2026-08-04-N1) an infer terminal carries
+    /// (`model` = `<provider>/<name>` · `provider` = the prefix) project
+    /// to the CURRENT `OTel` `GenAI` semconv names (`gen_ai.provider.name`,
+    /// `gen_ai.request.model`, `gen_ai.response.model`) so every viewer and
+    /// eval tool reads the model without a translation shim — and NEVER the
+    /// deprecated `gen_ai.system` (semconv v1.37.0 renamed it).
+    #[test]
+    fn infer_access_facts_project_to_current_genai_semconv() {
+        let events = vec![
+            ev(
+                1,
+                1_000,
+                EventKind::WorkflowStarted,
+                &[("workflow", s("brief"))],
+            ),
+            ev(2, 1_050, EventKind::TaskStarted, &[("task", s("draft"))]),
+            ev(
+                3,
+                1_900,
+                EventKind::TaskCompleted,
+                &[
+                    ("task", s("draft")),
+                    ("note", s("infer · mistral/mistral-large")),
+                    ("duration_ms", FieldValue::Int(800)),
+                    ("model", s("mistral/mistral-large")),
+                    ("provider", s("mistral")),
+                ],
+            ),
+        ];
+        let line = project_bare(&events, false).expect("projects");
+        let spans = spans_of(&line);
+        let draft = spans.iter().find(|sp| sp["name"] == "draft").unwrap();
+        assert_eq!(
+            attr(draft, "gen_ai.provider.name").unwrap()["stringValue"],
+            "mistral"
+        );
+        assert_eq!(
+            attr(draft, "gen_ai.request.model").unwrap()["stringValue"],
+            "mistral-large",
+            "the model NAME (after the provider slash), semconv shape"
+        );
+        assert_eq!(
+            attr(draft, "gen_ai.response.model").unwrap()["stringValue"],
+            "mistral-large"
+        );
+        // The deprecated name must NEVER appear.
+        assert!(
+            attr(draft, "gen_ai.system").is_none(),
+            "gen_ai.system was deprecated in semconv v1.37.0 — never emit it"
+        );
     }
 
     /// The chain verdict rides the resource: intact/torn anchor their
