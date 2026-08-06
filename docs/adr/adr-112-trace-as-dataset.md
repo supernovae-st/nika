@@ -55,9 +55,33 @@ it changes the trace's content policy.**
 `nika_dap::otel::one_task_span` now projects the access facts to the
 **current** semconv names, in the one projection module:
 
-- `gen_ai.provider.name` ← the terminal's `provider` field
-- `gen_ai.request.model` / `gen_ai.response.model` ← the model NAME
-  (the part after the `provider/` prefix; a slash-less value stays whole)
+- `gen_ai.provider.name` ← the terminal's `provider` field, normalized
+  to the semconv well-known values where one exists and differs
+  (`mistral` → `mistral_ai` · `xai` → `x_ai` · `gemini` → `gcp.gemini`,
+  the well-known for the `generativelanguage.googleapis.com` endpoint
+  the gemini profile dials · registry checked 2026-08-06); every other
+  canonical id passes through verbatim (already the well-known, or none
+  exists · the local five · `openrouter` · `huggingface` · `nvidia` ·
+  `mock`)
+- `gen_ai.request.model` ← the model NAME (the part after the FIRST
+  `provider/` slash · the inner-slash convention keeps an
+  `openrouter/anthropic/claude` tail whole · a slash-less value stays
+  whole)
+
+`gen_ai.response.model` is NOT emitted (audit fix, 2026-08-06): the
+semconv defines it as the model that SERVED the response, reported by
+the provider, and the engine captures no provider-reported model id
+anywhere in the journal. Emitting the requested name in its place
+would assert a fact never captured · aliases (`-latest` · nicknames)
+make served ≠ requested, and an eval tool would read "requested" as
+"served". It returns when the providers report a response model id.
+
+Deferred, named: `gen_ai.usage.input_tokens` /
+`gen_ai.usage.output_tokens` (the trace carries one total `tokens`
+today · the input/output split asks an upstream capture change, out of
+scope here) and `error.type` (failed spans carry only `status.message`
+today). Both stay out rather than emit a value the journal does not
+carry.
 
 Never `gen_ai.system` (deprecated in semconv v1.37.0, Aug 2025). The
 GenAI semconv is still "Development" and recently moved repos with no

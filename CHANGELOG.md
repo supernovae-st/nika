@@ -29,11 +29,18 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   metadata-range refusal · unreachable-target non-fatality.
 - **Traces speak the current OTel GenAI semantic conventions
   (ADR-112, Part 1).** `nika trace export` now projects an infer/agent
-  task's access facts to `gen_ai.provider.name`, `gen_ai.request.model`,
-  and `gen_ai.response.model` — the *current* semconv names (never the
-  deprecated `gen_ai.system`) — so any OTel-native viewer or eval tool
+  task's access facts to `gen_ai.provider.name` and
+  `gen_ai.request.model` · the *current* semconv names (never the
+  deprecated `gen_ai.system`) · so any OTel-native viewer or eval tool
   reads the model and provider off a nika trace with zero translation.
-  The mapping lives in the one projection module (`nika_dap::otel`); a
+  Provider ids normalize to the semconv well-known values where one
+  exists and differs (`mistral` → `mistral_ai` · `xai` → `x_ai` ·
+  `gemini` → `gcp.gemini`); every other id passes through verbatim.
+  `gen_ai.response.model` stays OUT: the semconv defines it as the
+  provider-reported model that SERVED, the journal captures no
+  provider-reported id, and emitting the requested name there would
+  assert a fact never captured. The mapping lives in the one projection
+  module (`nika_dap::otel`); a
   pre-stable-semconv rename is one edit, never a scatter. Additive: the
   existing `nika.*` attributes are unchanged. (The `--format dataset`
   SFT/eval export — ADR-112 Part 2 — is proposed and gated on an
