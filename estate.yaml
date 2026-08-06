@@ -18,11 +18,11 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4352
+  classified_files: 4353
   file_rows: 11
   pattern_rows: 22
   by_class:
-    authored: 1421
+    authored: 1422
     authored-pin: 2
     generated: 118
     pinned-copy: 115
@@ -140,7 +140,7 @@ patterns:
 - glob: "crates/*/public-api.txt"
   class: generated
   match_count: 62
-  aggregate_sha256: 2c25244c8966f1047232e53d66a6ea1541242fdcd3dca2c462b0c042469e22e0
+  aggregate_sha256: 1fa6cdf2eae5dd2436d671eecacfc169c1392762af26e73b388577aaedec634f
   evidence: ".github/workflows/public-api.yml 'diff each covered lib crate' byte-compares each snapshot against cargo public-api output; macOS renders differently, so snapshots regenerate FROM THE UBUNTU ARTIFACT (workflow comment)"
   derivation:
     tool: "cargo public-api -p <crate> --omit auto-trait-impls > crates/<crate>/public-api.txt (DEFAULT features · the CI job shape — all-features drags platform deps into the render · cargo-public-api 0.51.0 pinned · the public-api-actual CI artifact stays the judge)"
@@ -156,13 +156,13 @@ patterns:
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
-  match_count: 133
-  aggregate_sha256: 1d89e1ebff5338f3ca66439023cd90c4ae6b06a451d64a23bd4b36208f466ca1
+  match_count: 134
+  aggregate_sha256: c5d32ac931c237478cb7ba4a6d6b911b8d397480d2c59a5ab5dbe88074c20687
   evidence: "crate-owned tests + fixtures under tests/ — written with the crate per gate discipline, no generation markers"
 - glob: "crates/**"
   class: authored
   match_count: 132
-  aggregate_sha256: e2c8ffc3e96fbb90007650ffcb7111146b14dc47210646e4862bb83a851540c4
+  aggregate_sha256: 87b0cb65130f7016519626d4b4afbd968ea32297f92fc2a67fc6734e2a23b877
   evidence: "the remaining crate surface — Cargo.toml manifests · build.rs · benches · READMEs · hand-curated data catalogs (llm-providers · mcp-servers · embeddings · model-capabilities, probed daily by catalog-verify.yml); the pricing snapshot is excepted in files:"
   note: "crates/nika-pack/scripts/sync-pack.sh is a DIVERGENT older duplicate of scripts/sync-pack.sh — the pack-resync.yml lane runs the root one"
 - glob: "fuzz/**"

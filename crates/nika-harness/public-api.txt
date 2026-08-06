@@ -550,6 +550,7 @@ pub const nika_harness::wire::METHOD_SESSION_PROMPT: &str
 pub const nika_harness::wire::METHOD_SESSION_UPDATE: &str
 pub const nika_harness::wire::PROTOCOL_V1: u16
 pub fn nika_harness::wire::agent_chunk_text(update: &serde_json::value::Value) -> core::option::Option<alloc::string::String>
+pub fn nika_harness::wire::ask_facts(tool_call: &serde_json::value::Value) -> (core::option::Option<alloc::string::String>, alloc::vec::Vec<alloc::string::String>, alloc::vec::Vec<alloc::string::String>, core::option::Option<alloc::string::String>)
 pub fn nika_harness::wire::notification_line(method: &str, params: &impl serde_core::ser::Serialize) -> core::result::Result<alloc::string::String, nika_harness::wire::WireError>
 pub fn nika_harness::wire::parse_line(line: &str) -> core::result::Result<nika_harness::wire::Incoming, nika_harness::wire::WireError>
 pub fn nika_harness::wire::request_line(id: u64, method: &str, params: &impl serde_core::ser::Serialize) -> core::result::Result<alloc::string::String, nika_harness::wire::WireError>

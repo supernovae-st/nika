@@ -1375,8 +1375,10 @@ dependencies = [
  "nika-harness",
  "nika-kernel",
  "nika-kernel-mock",
+ "nika-schema",
  "nika-verb-agent",
  "nika-verb-invoke",
+ "serde_json",
  "tokio",
  "tokio-util",
 ]
@@ -1589,6 +1591,7 @@ dependencies = [
  "jsonschema",
  "miette",
  "nika-bm25",
+ "nika-cap",
  "nika-catalog",
  "nika-check",
  "nika-error",
