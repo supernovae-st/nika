@@ -236,6 +236,13 @@ Every run writes its own journal to `.nika/traces/` (opt out per run with
 `nika:prompt` journals its question); cache hits on resume are always
 visible: nothing is skipped silently.
 
+Crash-resume without a server: the trace a run already writes **is** the
+checkpoint · `--resume` is a reader of a file, not a client of a run-store.
+Two hashes decide skip-or-rerun, recorded `infer:`/`agent:` work replays
+from the trace instead of re-calling the model, and every agent tool call
+lands in the same hash chain · [the architecture and its honest
+limit](https://docs.nika.sh/guides/resume).
+
 <!-- city:map -->
 ## The city · where this repo sits
 
