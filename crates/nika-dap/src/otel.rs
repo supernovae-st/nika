@@ -262,6 +262,7 @@ fn one_task_span(
     if let Some(FieldValue::Int(tokens)) = field(terminal, "tokens") {
         attributes.push(kv_int("nika.tokens", *tokens));
     }
+    push_genai_semconv(&mut attributes, terminal);
     if let Some(FieldValue::Float(usd)) = field(terminal, "cost_usd") {
         attributes.push(kv_double(COST_ATTR, *usd));
         attributes.push(kv_double("nika.cost.usd", *usd));
@@ -405,6 +406,51 @@ fn hex_bytes(bytes: &[u8]) -> String {
         let _ = write!(hex, "{b:02x}");
     }
     hex
+}
+
+/// Project an infer/agent terminal's access facts (D-2026-08-04-N1 ·
+/// `model` = `<provider>/<name>` · `provider` = the prefix) to the
+/// CURRENT `OTel` `GenAI` semconv names, so every viewer and eval tool
+/// reads the model without a translation shim. NEVER the deprecated
+/// `gen_ai.system` (renamed in semconv v1.37.0). One place, so a
+/// pre-stable-semconv rename upstream is one edit, never a scatter.
+fn push_genai_semconv(attributes: &mut Vec<serde_json::Value>, terminal: &Event) {
+    if let Some(model) = field_str(terminal, "model") {
+        // `gen_ai.request.model` is the model NAME; the provider rides
+        // its own attribute (semconv keeps them distinct). Split the
+        // canonical `provider/name` form at the FIRST slash — the
+        // inner-slash convention (`openrouter/anthropic/claude` ·
+        // `huggingface/Qwen/Qwen3.5-9B`) keeps the tail whole; a
+        // slash-less value stays whole.
+        let name = model.split_once('/').map_or(model, |(_, n)| n);
+        attributes.push(kv_str("gen_ai.request.model", name));
+        // `gen_ai.response.model` is NOT emitted: the semconv defines it
+        // as the model that SERVED the response, as the provider reports
+        // it — and the journal captures no provider-reported model id
+        // anywhere. The alternative (re-emitting the requested name
+        // here) does not survive: aliases (`-latest` · nicknames) make
+        // served ≠ requested, so the attribute would assert a fact never
+        // captured and an eval tool would read "requested" as "served".
+        // Deferred until the providers report a response model id.
+    }
+    if let Some(provider) = field_str(terminal, "provider") {
+        // The normalization table: canonical nika ids → the semconv
+        // well-known values, where one exists and differs (registry
+        // checked 2026-08-06). `gemini` → `gcp.gemini` is the well-known
+        // for `generativelanguage.googleapis.com` — the exact endpoint
+        // the gemini profile dials. Everything else passes through
+        // verbatim: the ids that already ARE the well-known (`openai` ·
+        // `anthropic` · `deepseek` · `groq`) and the ones with none (the
+        // five local servers · `openrouter` · `huggingface` · `nvidia` ·
+        // `mock`).
+        let well_known = match provider {
+            "gemini" => "gcp.gemini",
+            "mistral" => "mistral_ai",
+            "xai" => "x_ai",
+            other => other,
+        };
+        attributes.push(kv_str("gen_ai.provider.name", well_known));
+    }
 }
 
 fn field<'e>(event: &'e Event, key: &str) -> Option<&'e FieldValue> {
@@ -654,6 +700,181 @@ mod tests {
     fn a_journal_without_a_start_is_refused() {
         let orphan = vec![ev(9, 1, EventKind::TaskCompleted, &[("task", s("x"))])];
         assert!(project_bare(&orphan, false).is_err());
+    }
+
+    /// The access facts (D-2026-08-04-N1) an infer terminal carries
+    /// (`model` = `<provider>/<name>` · `provider` = the prefix) project
+    /// to the CURRENT `OTel` `GenAI` semconv names (`gen_ai.provider.name`
+    /// — the canonical id normalized to the well-known value where one
+    /// differs · `gen_ai.request.model`) so every viewer and eval tool
+    /// reads the model without a translation shim — and NEVER the
+    /// deprecated `gen_ai.system` (semconv v1.37.0 renamed it).
+    /// `gen_ai.response.model` stays OUT: the semconv makes it the
+    /// provider-reported SERVED model, and the journal captures none.
+    #[test]
+    fn infer_access_facts_project_to_current_genai_semconv() {
+        let events = vec![
+            ev(
+                1,
+                1_000,
+                EventKind::WorkflowStarted,
+                &[("workflow", s("brief"))],
+            ),
+            ev(2, 1_050, EventKind::TaskStarted, &[("task", s("draft"))]),
+            ev(
+                3,
+                1_900,
+                EventKind::TaskCompleted,
+                &[
+                    ("task", s("draft")),
+                    ("note", s("infer · mistral/mistral-large")),
+                    ("duration_ms", FieldValue::Int(800)),
+                    ("model", s("mistral/mistral-large")),
+                    ("provider", s("mistral")),
+                ],
+            ),
+        ];
+        let line = project_bare(&events, false).expect("projects");
+        let spans = spans_of(&line);
+        let draft = spans.iter().find(|sp| sp["name"] == "draft").unwrap();
+        assert_eq!(
+            attr(draft, "gen_ai.provider.name").unwrap()["stringValue"],
+            "mistral_ai",
+            "the canonical id normalizes to the semconv well-known value"
+        );
+        assert_eq!(
+            attr(draft, "gen_ai.request.model").unwrap()["stringValue"],
+            "mistral-large",
+            "the model NAME (after the provider slash), semconv shape"
+        );
+        // The served model is a provider-reported fact the journal never
+        // captures — emitting the requested name there would assert it.
+        assert!(
+            attr(draft, "gen_ai.response.model").is_none(),
+            "gen_ai.response.model is the SERVED model — uncaptured, so unemitted"
+        );
+        // The deprecated name must NEVER appear.
+        assert!(
+            attr(draft, "gen_ai.system").is_none(),
+            "gen_ai.system was deprecated in semconv v1.37.0 — never emit it"
+        );
+    }
+
+    /// A slash-less `model` (a bare local id) projects whole — the split
+    /// is the `provider/` prefix, nothing else.
+    #[test]
+    fn a_slash_less_model_projects_whole() {
+        let events = vec![
+            ev(
+                1,
+                1_000,
+                EventKind::WorkflowStarted,
+                &[("workflow", s("brief"))],
+            ),
+            ev(2, 1_050, EventKind::TaskStarted, &[("task", s("draft"))]),
+            ev(
+                3,
+                1_900,
+                EventKind::TaskCompleted,
+                &[("task", s("draft")), ("model", s("qwen2.5"))],
+            ),
+        ];
+        let line = project_bare(&events, false).expect("projects");
+        let spans = spans_of(&line);
+        let draft = spans.iter().find(|sp| sp["name"] == "draft").unwrap();
+        assert_eq!(
+            attr(draft, "gen_ai.request.model").unwrap()["stringValue"],
+            "qwen2.5",
+            "no provider slash → the value stays whole"
+        );
+        assert!(attr(draft, "gen_ai.response.model").is_none());
+    }
+
+    /// The inner-slash convention: the split is the FIRST slash, so a
+    /// three-segment spec keeps its tail (`openrouter/anthropic/claude`
+    /// → `anthropic/claude`) — the same `split_once` the resolver hands
+    /// huggingface's `Qwen/Qwen3.5-9B` through untouched.
+    #[test]
+    fn a_three_segment_spec_splits_at_the_first_slash() {
+        let events = vec![
+            ev(
+                1,
+                1_000,
+                EventKind::WorkflowStarted,
+                &[("workflow", s("brief"))],
+            ),
+            ev(2, 1_050, EventKind::TaskStarted, &[("task", s("draft"))]),
+            ev(
+                3,
+                1_900,
+                EventKind::TaskCompleted,
+                &[
+                    ("task", s("draft")),
+                    ("model", s("openrouter/anthropic/claude")),
+                    ("provider", s("openrouter")),
+                ],
+            ),
+        ];
+        let line = project_bare(&events, false).expect("projects");
+        let spans = spans_of(&line);
+        let draft = spans.iter().find(|sp| sp["name"] == "draft").unwrap();
+        assert_eq!(
+            attr(draft, "gen_ai.request.model").unwrap()["stringValue"],
+            "anthropic/claude",
+            "split at the FIRST slash — the inner-slash tail stays whole"
+        );
+        assert_eq!(
+            attr(draft, "gen_ai.provider.name").unwrap()["stringValue"],
+            "openrouter",
+            "no well-known value for openrouter — passes through verbatim"
+        );
+        assert!(attr(draft, "gen_ai.response.model").is_none());
+    }
+
+    /// The provider normalization table: canonical ids with a diverging
+    /// semconv well-known value map to it (registry checked 2026-08-06);
+    /// ids that already ARE the well-known — or have none — pass through
+    /// verbatim.
+    #[test]
+    fn provider_ids_normalize_to_the_well_known_values() {
+        let provider_name = |provider: &str| -> String {
+            let events = vec![
+                ev(
+                    1,
+                    1_000,
+                    EventKind::WorkflowStarted,
+                    &[("workflow", s("brief"))],
+                ),
+                ev(2, 1_050, EventKind::TaskStarted, &[("task", s("draft"))]),
+                ev(
+                    3,
+                    1_900,
+                    EventKind::TaskCompleted,
+                    &[("task", s("draft")), ("provider", s(provider))],
+                ),
+            ];
+            let line = project_bare(&events, false).expect("projects");
+            let spans = spans_of(&line);
+            let draft = spans.iter().find(|sp| sp["name"] == "draft").unwrap();
+            attr(draft, "gen_ai.provider.name").unwrap()["stringValue"]
+                .as_str()
+                .unwrap()
+                .to_owned()
+        };
+        // The three divergences — gemini's well-known names the exact
+        // endpoint the profile dials (generativelanguage.googleapis.com).
+        assert_eq!(provider_name("gemini"), "gcp.gemini");
+        assert_eq!(provider_name("mistral"), "mistral_ai");
+        assert_eq!(provider_name("xai"), "x_ai");
+        // Already the well-known, or none exists: verbatim.
+        assert_eq!(provider_name("openai"), "openai");
+        assert_eq!(provider_name("anthropic"), "anthropic");
+        assert_eq!(provider_name("deepseek"), "deepseek");
+        assert_eq!(provider_name("groq"), "groq");
+        assert_eq!(provider_name("ollama"), "ollama");
+        assert_eq!(provider_name("openrouter"), "openrouter");
+        assert_eq!(provider_name("huggingface"), "huggingface");
+        assert_eq!(provider_name("mock"), "mock");
     }
 
     /// The chain verdict rides the resource: intact/torn anchor their
