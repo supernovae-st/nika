@@ -173,6 +173,24 @@ pub enum EventKind {
     /// the names). Diagnostic, like the agent-telemetry cohort: the recall
     /// verdict itself rides the recall API.
     MemoryEntryRejected,
+    // ── additive cohort 2026-08-06 · ADR-111 outbound pause delivery —
+    //    the question is heard, and the hearing is journaled. MINOR-bump
+    //    additive per the header law. ──
+    /// The pause event's outbound delivery landed — the engine sent the
+    /// `workflow_paused` payload (one HTTP POST · a `CloudEvents`
+    /// envelope · ADR-111) to the
+    /// operator-configured `NIKA_NOTIFY_URL` and a 2xx came back
+    /// (`target_host` + `duration_ms` fields). Observable history, never
+    /// control flow: the run's `paused` outcome is identical with or
+    /// without it, and the event lands BEFORE the seal so the chain
+    /// covers the delivery claim.
+    NotifyDelivered,
+    /// The pause event's outbound delivery did not land — refused by the
+    /// SSRF floor, timed out, or answered outside 2xx (`target_host` +
+    /// `error` class fields · ADR-111). Journaled loudly, changes
+    /// nothing: delivery failure is never the run's failure, and the run
+    /// exits `paused` with the same code either way.
+    NotifyFailed,
     /// The ONE summary of a rejection flood (`total` + `journaled` fields —
     /// additive cohort 2026-07-30 · H14 · NEP-0012 law 1): a store stuffed
     /// with rejections journals at most K individually-named
@@ -223,6 +241,8 @@ impl EventKind {
             Self::ApprovalDecided => "approval_decided",
             Self::MemoryEntryRejected => "memory_entry_rejected",
             Self::MemoryRejectionsSummary => "memory_rejections_summary",
+            Self::NotifyDelivered => "notify_delivered",
+            Self::NotifyFailed => "notify_failed",
         }
     }
 
@@ -279,7 +299,9 @@ impl EventKind {
             | Self::WorkflowCompleted
             | Self::WorkflowFailed
             | Self::WorkflowCancelled
-            | Self::WorkflowPaused => EventClass::Workflow,
+            | Self::WorkflowPaused
+            | Self::NotifyDelivered
+            | Self::NotifyFailed => EventClass::Workflow,
             Self::TaskScheduled
             | Self::TaskStarted
             | Self::TaskCompleted
@@ -381,6 +403,8 @@ mod tests {
         EventKind::ApprovalDecided,
         EventKind::MemoryEntryRejected,
         EventKind::MemoryRejectionsSummary,
+        EventKind::NotifyDelivered,
+        EventKind::NotifyFailed,
     ];
 
     #[test]
@@ -419,10 +443,12 @@ mod tests {
                 | EventKind::Declassify
                 | EventKind::ApprovalDecided
                 | EventKind::MemoryEntryRejected
-                | EventKind::MemoryRejectionsSummary => {}
+                | EventKind::MemoryRejectionsSummary
+                | EventKind::NotifyDelivered
+                | EventKind::NotifyFailed => {}
             }
         }
-        assert_eq!(ALL.len(), 30, "extend ALL when a variant is added");
+        assert_eq!(ALL.len(), 32, "extend ALL when a variant is added");
     }
 
     /// FCI-003: the canonical wire slug has TWO independent encoders — the
@@ -504,6 +530,9 @@ mod tests {
                 | "approval_decided"
                 | "memory_entry_rejected"
                 | "memory_rejections_summary" => Some(EventClass::Security),
+                // ADR-111 · delivery evidence rides beside the pause it
+                // narrates — Workflow class by decision, not by prefix.
+                "notify_delivered" | "notify_failed" => Some(EventClass::Workflow),
                 s if s.starts_with("agent_") => Some(EventClass::Agent),
                 _ => None,
             };
@@ -563,5 +592,20 @@ mod tests {
         assert_eq!(EventKind::InferChunk.as_str(), "infer_chunk");
         assert_eq!(EventKind::TaskRetrying.as_str(), "task_retrying");
         assert_eq!(EventKind::TaskCancelled.as_str(), "task_cancelled");
+    }
+
+    #[test]
+    fn notify_kinds_are_observable_history_never_control_flow() {
+        // ADR-111: the pause event's outbound delivery is journaled
+        // evidence — the run's `paused` outcome is identical with or
+        // without it, so neither kind is terminal nor a failure, and
+        // both class as Workflow beside the pause they narrate.
+        for k in [EventKind::NotifyDelivered, EventKind::NotifyFailed] {
+            assert!(!k.is_terminal(), "{k:?} must not be terminal");
+            assert!(!k.is_failure(), "{k:?} must not be a lifecycle failure");
+            assert_eq!(k.class(), EventClass::Workflow);
+        }
+        assert_eq!(EventKind::NotifyDelivered.as_str(), "notify_delivered");
+        assert_eq!(EventKind::NotifyFailed.as_str(), "notify_failed");
     }
 }
