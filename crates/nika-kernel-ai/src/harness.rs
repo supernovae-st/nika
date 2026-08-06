@@ -20,6 +20,7 @@
 //! grants and pauses outside them; `allow_always` is NEVER granted
 //! (A-5 · the `GOOSE_MODE=auto` anti-pattern is the named counter-example).
 
+use core::future::Future;
 use std::pin::Pin;
 
 use futures_core::Stream;
@@ -235,6 +236,29 @@ pub trait AgentBackend: Send + Sync {
     /// Run ONE delegated agentic turn; events stream until
     /// [`HarnessEvent::Completed`].
     async fn run_agent(&self, request: HarnessRequest) -> Result<HarnessEventStream, HarnessError>;
+}
+
+/// The OBJECT-SAFE erasure of [`AgentBackendDyn`] — an async-fn trait
+/// cannot ride behind `dyn`, and the verb's optional 4th seam must
+/// (the observer precedent: a generic would infect every embedder
+/// signature). The blanket impl makes every backend an
+/// `Arc<dyn DynAgentBackend>` for free; consumers never implement
+/// this trait directly.
+pub trait DynAgentBackend: Send + Sync {
+    /// [`AgentBackend::run_agent`], boxed.
+    fn run_agent_boxed(
+        &self,
+        request: HarnessRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<HarnessEventStream, HarnessError>> + Send + '_>>;
+}
+
+impl<B: AgentBackendDyn + Sync> DynAgentBackend for B {
+    fn run_agent_boxed(
+        &self,
+        request: HarnessRequest,
+    ) -> Pin<Box<dyn Future<Output = Result<HarnessEventStream, HarnessError>> + Send + '_>> {
+        Box::pin(self.run_agent(request))
+    }
 }
 
 #[cfg(test)]
