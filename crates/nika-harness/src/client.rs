@@ -38,6 +38,15 @@ use crate::wire::{
 /// hostile or broken peer overflows into a refusal, never an OOM.
 pub const MAX_LINE_BYTES: usize = 1024 * 1024;
 
+/// How long the driver waits for the NEXT byte before calling the
+/// session dead. A size bound alone leaves the wedge the refuter
+/// found (2026-08-06): a peer that writes half a line and goes silent
+/// without closing its pipe hangs the driver forever — no EOF, no
+/// overflow, no newline. Agent turns are long (a harness may think for
+/// minutes), so the bound is on SILENCE between bytes, never on the
+/// turn: any progress resets it.
+pub const IDLE_TIMEOUT_SECS: u64 = 300;
+
 const ID_INITIALIZE: u64 = 1;
 const ID_SESSION_NEW: u64 = 2;
 const ID_PROMPT: u64 = 3;
@@ -49,6 +58,28 @@ where
     R: AsyncRead + Unpin + Send + 'static,
     W: AsyncWrite + Unpin + Send + 'static,
 {
+    drive_with_idle(
+        reader,
+        writer,
+        request,
+        std::time::Duration::from_secs(IDLE_TIMEOUT_SECS),
+    )
+}
+
+/// [`drive`] with an explicit idle deadline — the seam the wedge tests
+/// drive at millisecond scale (a five-minute constant cannot be proven
+/// by a test that must finish; virtual time does not compose with the
+/// spawned driver task).
+pub fn drive_with_idle<R, W>(
+    reader: R,
+    writer: W,
+    request: HarnessRequest,
+    idle: std::time::Duration,
+) -> HarnessEventStream
+where
+    R: AsyncRead + Unpin + Send + 'static,
+    W: AsyncWrite + Unpin + Send + 'static,
+{
     let (event_tx, event_rx) = mpsc::channel::<Result<HarnessEvent, HarnessError>>(64);
     tokio::spawn(async move {
         let mut driver = Driver {
@@ -56,6 +87,7 @@ where
             writer,
             event_tx,
             output: String::new(),
+            idle,
         };
         if let Err(e) = driver.run(request).await {
             // The stream may already be dropped — best-effort final word.
@@ -79,6 +111,8 @@ struct Driver<R, W> {
     writer: W,
     event_tx: mpsc::Sender<Result<HarnessEvent, HarnessError>>,
     output: String,
+    /// How long a silence may last before the session is abandoned.
+    idle: std::time::Duration,
 }
 
 impl<R, W> Driver<R, W>
@@ -150,7 +184,7 @@ where
         let mut reply_rx = prx;
         loop {
             tokio::select! {
-                line = read_bounded_line(&mut self.reader) => {
+                line = read_bounded_line(&mut self.reader, self.idle) => {
                     let line = line?;
                     match wire::parse_line(&line).map_err(|e| HarnessError::Session {
                         reason: e.to_string(),
@@ -287,7 +321,7 @@ where
         what: &str,
     ) -> Result<T, HarnessError> {
         loop {
-            let line = read_bounded_line(&mut self.reader).await?;
+            let line = read_bounded_line(&mut self.reader, self.idle).await?;
             match wire::parse_line(&line).map_err(session_err)? {
                 Incoming::Response { id: got, result } if got == id => {
                     return parse_payload(result, what);
@@ -365,14 +399,27 @@ fn parse_payload<T: serde::de::DeserializeOwned>(v: Value, what: &str) -> Result
 /// overflow and EOF are both session deaths with their own words.
 async fn read_bounded_line<R: AsyncRead + Unpin>(
     reader: &mut BufReader<R>,
+    idle: std::time::Duration,
 ) -> Result<String, HarnessError> {
     let mut buf: Vec<u8> = Vec::new();
     loop {
         let budget = (MAX_LINE_BYTES + 1).saturating_sub(buf.len());
         let mut limited = reader.take(budget as u64);
-        let n = limited
-            .read_until(b'\n', &mut buf)
+        // The idle deadline (the anti-wedge · refuted 2026-08-06): the
+        // size bound alone let a peer write half a line and go silent
+        // WITHOUT closing its pipe — no EOF, no overflow, no newline,
+        // a driver hung forever. Each read waits at most `idle` for
+        // progress; any byte resets it, so a long thinking turn is
+        // never killed, only a dead one.
+        let n = tokio::time::timeout(idle, limited.read_until(b'\n', &mut buf))
             .await
+            .map_err(|_| HarnessError::Session {
+                reason: format!(
+                    "transport: the agent sent nothing for {}s (idle deadline) \
+                     — the session is abandoned",
+                    idle.as_secs_f32()
+                ),
+            })?
             .map_err(|e| io_err(&e))?;
         if buf.last() == Some(&b'\n') {
             buf.pop();
@@ -700,6 +747,100 @@ mod tests {
         assert!(
             matches!(next, Some(Err(HarnessError::Session { .. }))),
             "EOF mid-handshake is a session death, got {next:?}"
+        );
+    }
+}
+
+#[cfg(test)]
+mod wedge_tests {
+    use super::*;
+    use nika_kernel::ai::harness::HarnessRequest;
+    const FAST_IDLE: std::time::Duration = std::time::Duration::from_millis(80);
+
+    /// The refuter's counterexample (2026-08-06), pinned: a peer that
+    /// writes half a line and goes silent WITHOUT closing its pipe used
+    /// to hang the driver forever (a size bound, no time bound).
+    #[tokio::test]
+    async fn a_silent_partial_line_ends_at_the_idle_deadline() {
+        let (ours, theirs) = tokio::io::duplex(4096);
+        let (client_read, client_write) = tokio::io::split(ours);
+        let (_agent_read, mut agent_write) = tokio::io::split(theirs);
+        agent_write
+            .write_all(b"{\"jsonrpc\":\"2.0\"")
+            .await
+            .expect("partial write");
+
+        let mut stream = drive_with_idle(
+            client_read,
+            client_write,
+            HarnessRequest::new("hi", "/tmp"),
+            FAST_IDLE,
+        );
+        let next = std::future::poll_fn(|cx| Pin::new(&mut stream).poll_next(cx)).await;
+        let Some(Err(HarnessError::Session { reason })) = next else {
+            panic!("the idle deadline must end a silent peer, got {next:?}");
+        };
+        assert!(reason.contains("idle deadline"), "{reason}");
+        drop(agent_write); // the pipe stayed OPEN for the whole wait
+    }
+
+    /// Progress resets the deadline: an agent that answers slowly (each
+    /// beat inside the window) is never killed mid-turn.
+    #[tokio::test]
+    async fn progress_resets_the_idle_deadline() {
+        let (ours, theirs) = tokio::io::duplex(64 * 1024);
+        let (client_read, client_write) = tokio::io::split(ours);
+        let (agent_read, mut agent_write) = tokio::io::split(theirs);
+
+        let agent = tokio::spawn(async move {
+            use tokio::io::AsyncBufReadExt as _;
+            let mut r = tokio::io::BufReader::new(agent_read);
+            let mut line = String::new();
+            let answer = async |w: &mut tokio::io::WriteHalf<tokio::io::DuplexStream>, v: Value| {
+                let mut s = serde_json::to_string(&v).expect("json");
+                s.push('\n');
+                w.write_all(s.as_bytes()).await.expect("write");
+            };
+            for step in 0..3 {
+                // Each beat lands at 60% of the window: three gaps in a
+                // row, none fatal — the reset is what proves it.
+                tokio::time::sleep(FAST_IDLE.mul_f32(0.6)).await;
+                line.clear();
+                r.read_line(&mut line).await.expect("read");
+                let req: Value = serde_json::from_str(line.trim_end()).expect("json");
+                let result = match step {
+                    0 => serde_json::json!({"protocolVersion": 1}),
+                    1 => serde_json::json!({"sessionId": "s-slow"}),
+                    _ => serde_json::json!({"stopReason": "end_turn"}),
+                };
+                answer(
+                    &mut agent_write,
+                    serde_json::json!({"jsonrpc":"2.0","id":req["id"],"result":result}),
+                )
+                .await;
+            }
+        });
+
+        let mut stream = drive_with_idle(
+            client_read,
+            client_write,
+            HarnessRequest::new("slow", "/tmp"),
+            FAST_IDLE,
+        );
+        let mut completed = false;
+        loop {
+            let next = std::future::poll_fn(|cx| Pin::new(&mut stream).poll_next(cx)).await;
+            match next {
+                Some(Ok(HarnessEvent::Completed { .. })) => completed = true,
+                Some(Ok(_)) => {}
+                Some(Err(e)) => panic!("a slow BUT ALIVE agent must survive: {e}"),
+                None => break,
+            }
+        }
+        agent.await.expect("scripted slow agent");
+        assert!(
+            completed,
+            "the turn completes across three near-deadline gaps"
         );
     }
 }

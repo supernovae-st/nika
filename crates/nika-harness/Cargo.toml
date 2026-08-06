@@ -17,12 +17,13 @@ nika-types  = { path = "../nika-types", version = "0.108.0" }
 serde       = { workspace = true }
 thiserror   = { workspace = true }
 serde_json  = { workspace = true }
-tokio       = { workspace = true, features = ["io-util", "sync", "rt", "macros", "process"] }
+tokio       = { workspace = true, features = ["io-util", "sync", "rt", "macros", "process", "time"] }
 futures-core = { workspace = true }
 
 [dev-dependencies]
 futures-core = { workspace = true }
-tokio = { workspace = true, features = ["io-util", "sync", "rt", "macros", "rt-multi-thread", "time"] }
+# `start_paused` (virtual time) proves the idle deadline in ms, not 5min.
+tokio = { workspace = true, features = ["io-util", "sync", "rt", "macros", "process", "time", "test-util", "rt-multi-thread"] }
 
 [package.metadata.lore]
 daemon        = "messager"

@@ -24,5 +24,5 @@ pub mod client;
 pub mod spawn;
 pub mod wire;
 
-pub use client::{MAX_LINE_BYTES, drive};
+pub use client::{IDLE_TIMEOUT_SECS, MAX_LINE_BYTES, drive, drive_with_idle};
 pub use spawn::{HarnessAdapter, SpawnedHarness, compose_env};
