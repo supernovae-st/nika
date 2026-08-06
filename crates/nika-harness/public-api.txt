@@ -2,6 +2,84 @@ pub mod nika_harness
 pub mod nika_harness::client
 pub const nika_harness::client::MAX_LINE_BYTES: usize
 pub fn nika_harness::client::drive<R, W>(reader: R, writer: W, request: nika_kernel_ai::harness::HarnessRequest) -> nika_kernel_ai::harness::HarnessEventStream where R: tokio::io::async_read::AsyncRead + core::marker::Unpin + core::marker::Send + 'static, W: tokio::io::async_write::AsyncWrite + core::marker::Unpin + core::marker::Send + 'static
+pub mod nika_harness::spawn
+#[non_exhaustive] pub struct nika_harness::spawn::HarnessAdapter
+pub nika_harness::spawn::HarnessAdapter::args: alloc::vec::Vec<alloc::string::String>
+pub nika_harness::spawn::HarnessAdapter::command: alloc::string::String
+pub nika_harness::spawn::HarnessAdapter::id: alloc::string::String
+pub nika_harness::spawn::HarnessAdapter::passthrough_env: alloc::vec::Vec<alloc::string::String>
+impl nika_harness::spawn::HarnessAdapter
+pub fn nika_harness::spawn::HarnessAdapter::new(id: impl core::convert::Into<alloc::string::String>, command: impl core::convert::Into<alloc::string::String>) -> core::result::Result<Self, nika_kernel_ai::harness::HarnessError>
+pub fn nika_harness::spawn::HarnessAdapter::with_args(self, args: alloc::vec::Vec<alloc::string::String>) -> Self
+pub fn nika_harness::spawn::HarnessAdapter::with_passthrough_env(self, vars: alloc::vec::Vec<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_harness::spawn::HarnessAdapter
+pub fn nika_harness::spawn::HarnessAdapter::clone(&self) -> nika_harness::spawn::HarnessAdapter
+impl core::cmp::Eq for nika_harness::spawn::HarnessAdapter
+impl core::cmp::PartialEq for nika_harness::spawn::HarnessAdapter
+pub fn nika_harness::spawn::HarnessAdapter::eq(&self, other: &nika_harness::spawn::HarnessAdapter) -> bool
+impl core::fmt::Debug for nika_harness::spawn::HarnessAdapter
+pub fn nika_harness::spawn::HarnessAdapter::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_harness::spawn::HarnessAdapter
+impl<D> owo_colors::OwoColorize for nika_harness::spawn::HarnessAdapter
+impl<T, U> core::convert::Into<U> for nika_harness::spawn::HarnessAdapter where U: core::convert::From<T>
+pub fn nika_harness::spawn::HarnessAdapter::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::spawn::HarnessAdapter where U: core::convert::Into<T>
+pub type nika_harness::spawn::HarnessAdapter::Error = core::convert::Infallible
+pub fn nika_harness::spawn::HarnessAdapter::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::spawn::HarnessAdapter where U: core::convert::TryFrom<T>
+pub type nika_harness::spawn::HarnessAdapter::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::spawn::HarnessAdapter::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::spawn::HarnessAdapter where T: core::clone::Clone
+pub type nika_harness::spawn::HarnessAdapter::Owned = T
+pub fn nika_harness::spawn::HarnessAdapter::clone_into(&self, target: &mut T)
+pub fn nika_harness::spawn::HarnessAdapter::to_owned(&self) -> T
+impl<T> core::any::Any for nika_harness::spawn::HarnessAdapter where T: 'static + ?core::marker::Sized
+pub fn nika_harness::spawn::HarnessAdapter::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::spawn::HarnessAdapter where T: ?core::marker::Sized
+pub fn nika_harness::spawn::HarnessAdapter::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::spawn::HarnessAdapter where T: ?core::marker::Sized
+pub fn nika_harness::spawn::HarnessAdapter::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::spawn::HarnessAdapter where T: core::clone::Clone
+pub unsafe fn nika_harness::spawn::HarnessAdapter::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::spawn::HarnessAdapter
+pub fn nika_harness::spawn::HarnessAdapter::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::spawn::HarnessAdapter where T: 'static
+pub fn nika_harness::spawn::HarnessAdapter::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub struct nika_harness::spawn::SpawnedHarness
+impl nika_harness::spawn::SpawnedHarness
+pub fn nika_harness::spawn::SpawnedHarness::new(adapter: nika_harness::spawn::HarnessAdapter) -> Self
+impl core::clone::Clone for nika_harness::spawn::SpawnedHarness
+pub fn nika_harness::spawn::SpawnedHarness::clone(&self) -> nika_harness::spawn::SpawnedHarness
+impl core::fmt::Debug for nika_harness::spawn::SpawnedHarness
+pub fn nika_harness::spawn::SpawnedHarness::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl nika_kernel_ai::harness::AgentBackend for nika_harness::spawn::SpawnedHarness
+pub async fn nika_harness::spawn::SpawnedHarness::run_agent(&self, request: nika_kernel_ai::harness::HarnessRequest) -> core::result::Result<nika_kernel_ai::harness::HarnessEventStream, nika_kernel_ai::harness::HarnessError>
+impl<D> owo_colors::OwoColorize for nika_harness::spawn::SpawnedHarness
+impl<T, U> core::convert::Into<U> for nika_harness::spawn::SpawnedHarness where U: core::convert::From<T>
+pub fn nika_harness::spawn::SpawnedHarness::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::spawn::SpawnedHarness where U: core::convert::Into<T>
+pub type nika_harness::spawn::SpawnedHarness::Error = core::convert::Infallible
+pub fn nika_harness::spawn::SpawnedHarness::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::spawn::SpawnedHarness where U: core::convert::TryFrom<T>
+pub type nika_harness::spawn::SpawnedHarness::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::spawn::SpawnedHarness::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::spawn::SpawnedHarness where T: core::clone::Clone
+pub type nika_harness::spawn::SpawnedHarness::Owned = T
+pub fn nika_harness::spawn::SpawnedHarness::clone_into(&self, target: &mut T)
+pub fn nika_harness::spawn::SpawnedHarness::to_owned(&self) -> T
+impl<T> core::any::Any for nika_harness::spawn::SpawnedHarness where T: 'static + ?core::marker::Sized
+pub fn nika_harness::spawn::SpawnedHarness::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::spawn::SpawnedHarness where T: ?core::marker::Sized
+pub fn nika_harness::spawn::SpawnedHarness::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::spawn::SpawnedHarness where T: ?core::marker::Sized
+pub fn nika_harness::spawn::SpawnedHarness::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::spawn::SpawnedHarness where T: core::clone::Clone
+pub unsafe fn nika_harness::spawn::SpawnedHarness::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::spawn::SpawnedHarness
+pub fn nika_harness::spawn::SpawnedHarness::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::spawn::SpawnedHarness where T: 'static
+pub fn nika_harness::spawn::SpawnedHarness::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub fn nika_harness::spawn::compose_env(parent: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>, passthrough: &[alloc::string::String]) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
 pub mod nika_harness::wire
 #[non_exhaustive] pub enum nika_harness::wire::Incoming
 pub nika_harness::wire::Incoming::ErrorResponse
@@ -419,5 +497,82 @@ pub fn nika_harness::wire::notification_line(method: &str, params: &impl serde_c
 pub fn nika_harness::wire::parse_line(line: &str) -> core::result::Result<nika_harness::wire::Incoming, nika_harness::wire::WireError>
 pub fn nika_harness::wire::request_line(id: u64, method: &str, params: &impl serde_core::ser::Serialize) -> core::result::Result<alloc::string::String, nika_harness::wire::WireError>
 pub fn nika_harness::wire::response_line(id: &serde_json::value::Value, result: &impl serde_core::ser::Serialize) -> core::result::Result<alloc::string::String, nika_harness::wire::WireError>
+#[non_exhaustive] pub struct nika_harness::HarnessAdapter
+pub nika_harness::HarnessAdapter::args: alloc::vec::Vec<alloc::string::String>
+pub nika_harness::HarnessAdapter::command: alloc::string::String
+pub nika_harness::HarnessAdapter::id: alloc::string::String
+pub nika_harness::HarnessAdapter::passthrough_env: alloc::vec::Vec<alloc::string::String>
+impl nika_harness::spawn::HarnessAdapter
+pub fn nika_harness::spawn::HarnessAdapter::new(id: impl core::convert::Into<alloc::string::String>, command: impl core::convert::Into<alloc::string::String>) -> core::result::Result<Self, nika_kernel_ai::harness::HarnessError>
+pub fn nika_harness::spawn::HarnessAdapter::with_args(self, args: alloc::vec::Vec<alloc::string::String>) -> Self
+pub fn nika_harness::spawn::HarnessAdapter::with_passthrough_env(self, vars: alloc::vec::Vec<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_harness::spawn::HarnessAdapter
+pub fn nika_harness::spawn::HarnessAdapter::clone(&self) -> nika_harness::spawn::HarnessAdapter
+impl core::cmp::Eq for nika_harness::spawn::HarnessAdapter
+impl core::cmp::PartialEq for nika_harness::spawn::HarnessAdapter
+pub fn nika_harness::spawn::HarnessAdapter::eq(&self, other: &nika_harness::spawn::HarnessAdapter) -> bool
+impl core::fmt::Debug for nika_harness::spawn::HarnessAdapter
+pub fn nika_harness::spawn::HarnessAdapter::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_harness::spawn::HarnessAdapter
+impl<D> owo_colors::OwoColorize for nika_harness::spawn::HarnessAdapter
+impl<T, U> core::convert::Into<U> for nika_harness::spawn::HarnessAdapter where U: core::convert::From<T>
+pub fn nika_harness::spawn::HarnessAdapter::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::spawn::HarnessAdapter where U: core::convert::Into<T>
+pub type nika_harness::spawn::HarnessAdapter::Error = core::convert::Infallible
+pub fn nika_harness::spawn::HarnessAdapter::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::spawn::HarnessAdapter where U: core::convert::TryFrom<T>
+pub type nika_harness::spawn::HarnessAdapter::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::spawn::HarnessAdapter::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::spawn::HarnessAdapter where T: core::clone::Clone
+pub type nika_harness::spawn::HarnessAdapter::Owned = T
+pub fn nika_harness::spawn::HarnessAdapter::clone_into(&self, target: &mut T)
+pub fn nika_harness::spawn::HarnessAdapter::to_owned(&self) -> T
+impl<T> core::any::Any for nika_harness::spawn::HarnessAdapter where T: 'static + ?core::marker::Sized
+pub fn nika_harness::spawn::HarnessAdapter::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::spawn::HarnessAdapter where T: ?core::marker::Sized
+pub fn nika_harness::spawn::HarnessAdapter::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::spawn::HarnessAdapter where T: ?core::marker::Sized
+pub fn nika_harness::spawn::HarnessAdapter::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::spawn::HarnessAdapter where T: core::clone::Clone
+pub unsafe fn nika_harness::spawn::HarnessAdapter::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::spawn::HarnessAdapter
+pub fn nika_harness::spawn::HarnessAdapter::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::spawn::HarnessAdapter where T: 'static
+pub fn nika_harness::spawn::HarnessAdapter::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub struct nika_harness::SpawnedHarness
+impl nika_harness::spawn::SpawnedHarness
+pub fn nika_harness::spawn::SpawnedHarness::new(adapter: nika_harness::spawn::HarnessAdapter) -> Self
+impl core::clone::Clone for nika_harness::spawn::SpawnedHarness
+pub fn nika_harness::spawn::SpawnedHarness::clone(&self) -> nika_harness::spawn::SpawnedHarness
+impl core::fmt::Debug for nika_harness::spawn::SpawnedHarness
+pub fn nika_harness::spawn::SpawnedHarness::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl nika_kernel_ai::harness::AgentBackend for nika_harness::spawn::SpawnedHarness
+pub async fn nika_harness::spawn::SpawnedHarness::run_agent(&self, request: nika_kernel_ai::harness::HarnessRequest) -> core::result::Result<nika_kernel_ai::harness::HarnessEventStream, nika_kernel_ai::harness::HarnessError>
+impl<D> owo_colors::OwoColorize for nika_harness::spawn::SpawnedHarness
+impl<T, U> core::convert::Into<U> for nika_harness::spawn::SpawnedHarness where U: core::convert::From<T>
+pub fn nika_harness::spawn::SpawnedHarness::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::spawn::SpawnedHarness where U: core::convert::Into<T>
+pub type nika_harness::spawn::SpawnedHarness::Error = core::convert::Infallible
+pub fn nika_harness::spawn::SpawnedHarness::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::spawn::SpawnedHarness where U: core::convert::TryFrom<T>
+pub type nika_harness::spawn::SpawnedHarness::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::spawn::SpawnedHarness::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::spawn::SpawnedHarness where T: core::clone::Clone
+pub type nika_harness::spawn::SpawnedHarness::Owned = T
+pub fn nika_harness::spawn::SpawnedHarness::clone_into(&self, target: &mut T)
+pub fn nika_harness::spawn::SpawnedHarness::to_owned(&self) -> T
+impl<T> core::any::Any for nika_harness::spawn::SpawnedHarness where T: 'static + ?core::marker::Sized
+pub fn nika_harness::spawn::SpawnedHarness::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::spawn::SpawnedHarness where T: ?core::marker::Sized
+pub fn nika_harness::spawn::SpawnedHarness::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::spawn::SpawnedHarness where T: ?core::marker::Sized
+pub fn nika_harness::spawn::SpawnedHarness::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::spawn::SpawnedHarness where T: core::clone::Clone
+pub unsafe fn nika_harness::spawn::SpawnedHarness::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::spawn::SpawnedHarness
+pub fn nika_harness::spawn::SpawnedHarness::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::spawn::SpawnedHarness where T: 'static
+pub fn nika_harness::spawn::SpawnedHarness::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub const nika_harness::MAX_LINE_BYTES: usize
+pub fn nika_harness::compose_env(parent: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>, passthrough: &[alloc::string::String]) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
 pub fn nika_harness::drive<R, W>(reader: R, writer: W, request: nika_kernel_ai::harness::HarnessRequest) -> nika_kernel_ai::harness::HarnessEventStream where R: tokio::io::async_read::AsyncRead + core::marker::Unpin + core::marker::Send + 'static, W: tokio::io::async_write::AsyncWrite + core::marker::Unpin + core::marker::Send + 'static

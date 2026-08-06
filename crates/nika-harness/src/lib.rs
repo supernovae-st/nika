@@ -21,6 +21,8 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 
 pub mod client;
+pub mod spawn;
 pub mod wire;
 
 pub use client::{MAX_LINE_BYTES, drive};
+pub use spawn::{HarnessAdapter, SpawnedHarness, compose_env};
