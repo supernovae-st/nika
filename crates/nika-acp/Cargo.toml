@@ -27,8 +27,19 @@ publish       = false
 agent-client-protocol = "2.0.0"   # wire v1 (SDK 2.x) · pin per spec §2
 
 [dev-dependencies]
-# The mock/conformance tests only — the lib carries no runtime of its own yet.
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
+# The mock + conformance tests only — the lib carries no runtime of its own yet.
+tokio        = { version = "1", features = ["macros", "rt-multi-thread", "time"] }
+futures-core = "0.3"
+tokio-util   = { version = "0.7", features = ["compat"] }
+nika-kernel  = { path = "../nika-kernel" }
 
 [lints.rust]
 unsafe_code = "forbid"
+
+[dev-dependencies.nika-harness]
+# The engine's hand-rolled wire-v1 client — judged HERE, from the
+# quarantine, by the official SDK's Agent role (spec §2bis Lane A: the
+# SDK is the JUDGE, never a link-time dependency of the engine). The
+# path dep is test-only and lives in THIS workspace's lockfile, so the
+# SDK's serde_json/preserve_order never reaches the engine build.
+path = "../nika-harness"

@@ -28,14 +28,45 @@ use crate::client::drive;
 /// CLI needs to run at all, none of them a secret channel.
 const ENV_FLOOR: [&str; 7] = ["HOME", "PATH", "TERM", "LANG", "LC_ALL", "USER", "TMPDIR"];
 
-/// A parent variable whose NAME is credential-shaped never rides the
-/// floor or a passthrough — nika's own keys above all (A-3: the
-/// harness owns ITS auth; nika's never crosses).
+/// Credential-shaped NAME fragments — a suffix list is not enough:
+/// the single most common cloud family (`AWS_SECRET_ACCESS_KEY` ·
+/// `AWS_ACCESS_KEY_ID`) ends in neither `_API_KEY` nor `_SECRET`, and
+/// the refuter proved it crossed. The predicate is now SUBSTRING-based
+/// over the vocabulary that names authority, plus the explicit
+/// ambient-authority handles no pattern would catch.
+const CREDENTIAL_FRAGMENTS: [&str; 10] = [
+    "SECRET",
+    "TOKEN",
+    "PASSWORD",
+    "PASSWD",
+    "CREDENTIAL",
+    "API_KEY",
+    "ACCESS_KEY",
+    "PRIVATE_KEY",
+    "SESSION_KEY",
+    "AUTH",
+];
+
+/// Ambient-authority handles: not static secrets, but LIVE authority a
+/// child could wield (an agent socket · a connection string that
+/// commonly embeds a password).
+const AMBIENT_AUTHORITY: [&str; 4] = [
+    "SSH_AUTH_SOCK",
+    "GPG_AGENT_INFO",
+    "DATABASE_URL",
+    "GOOGLE_APPLICATION_CREDENTIALS",
+];
+
+/// A parent variable whose NAME carries authority never rides the floor
+/// or a passthrough — nika's own keys above all (A-3: the harness owns
+/// ITS auth; nika's never crosses). Deliberately over-broad: a false
+/// positive costs a harness one env var it can ask for by another name;
+/// a false negative hands a child a live credential.
 fn credential_shaped(name: &str) -> bool {
+    let upper = name.to_ascii_uppercase();
     name.starts_with("NIKA_")
-        || name.ends_with("_API_KEY")
-        || name.ends_with("_TOKEN")
-        || name.ends_with("_SECRET")
+        || AMBIENT_AUTHORITY.contains(&upper.as_str())
+        || CREDENTIAL_FRAGMENTS.iter().any(|f| upper.contains(f))
 }
 
 /// Compose the child environment — PURE (the negative test's whole
@@ -253,6 +284,34 @@ mod tests {
         }
         // Non-floor, non-passthrough plain vars do not cross either.
         assert!(!env.contains_key("NO_COLOR"));
+    }
+
+    #[test]
+    fn the_refuters_counterexamples_never_cross() {
+        // The suffix heuristic let these through (refuted 2026-08-06):
+        // AWS's canonical pair ends in `_KEY`/`_KEY_ID`, GCP's in
+        // `_CREDENTIALS`, and the ambient handles match no pattern.
+        let parent: BTreeMap<String, String> = [
+            ("AWS_SECRET_ACCESS_KEY", "AKIA-never"),
+            ("AWS_ACCESS_KEY_ID", "AKIA-id-never"),
+            ("GOOGLE_APPLICATION_CREDENTIALS", "/path/to/sa.json"),
+            ("DATABASE_URL", "postgres://u:p@h/db"),
+            ("SSH_AUTH_SOCK", "/tmp/agent.sock"),
+            ("ANTHROPIC_AUTH_TOKEN", "sk-never"),
+            ("MY_PASSWORD", "hunter2"),
+            ("SERVICE_PRIVATE_KEY", "-----BEGIN"),
+        ]
+        .into_iter()
+        .map(|(k, v)| (k.to_owned(), v.to_owned()))
+        .collect();
+        // Even DECLARED as passthrough (the config-mistake path), none
+        // may cross.
+        let declared: Vec<String> = parent.keys().cloned().collect();
+        let env = compose_env(&parent, &declared);
+        assert!(
+            env.is_empty(),
+            "every authority-shaped name must stay on nika's side, got {env:?}"
+        );
     }
 
     #[test]
