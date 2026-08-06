@@ -26,6 +26,11 @@ use crate::client::drive;
 
 /// The env floor a spawned adapter always receives — the variables a
 /// CLI needs to run at all, none of them a secret channel.
+/// How long a version probe may take before the adapter is called
+/// unavailable — a `--version` is a millisecond operation; ten seconds
+/// is already generous for a cold npx resolve.
+const PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+
 const ENV_FLOOR: [&str; 7] = ["HOME", "PATH", "TERM", "LANG", "LC_ALL", "USER", "TMPDIR"];
 
 /// Credential-shaped NAME fragments — a suffix list is not enough:
@@ -34,17 +39,19 @@ const ENV_FLOOR: [&str; 7] = ["HOME", "PATH", "TERM", "LANG", "LC_ALL", "USER", 
 /// the refuter proved it crossed. The predicate is now SUBSTRING-based
 /// over the vocabulary that names authority, plus the explicit
 /// ambient-authority handles no pattern would catch.
-const CREDENTIAL_FRAGMENTS: [&str; 10] = [
+const CREDENTIAL_FRAGMENTS: [&str; 8] = [
     "SECRET",
     "TOKEN",
     "PASSWORD",
     "PASSWD",
     "CREDENTIAL",
-    "API_KEY",
-    "ACCESS_KEY",
-    "PRIVATE_KEY",
-    "SESSION_KEY",
+    // Bare `KEY` on purpose (review 2026-08-06): the qualified list
+    // (`API_KEY` · `ACCESS_KEY` · `PRIVATE_KEY`) is the same
+    // incomplete-vocabulary class the AWS refutation already cost us —
+    // a provider that ships `<NAME>_KEY` would have walked through.
+    "KEY",
     "AUTH",
+    "PASSPHRASE",
 ];
 
 /// Ambient-authority handles: not static secrets, but LIVE authority a
@@ -114,6 +121,17 @@ pub struct HarnessAdapter {
     /// Extra parent env vars the adapter may read (beyond the floor) —
     /// credential-shaped names are refused by composition.
     pub passthrough_env: Vec<String>,
+    /// The accepted `--version` range (spec §4). `None` = unpinned,
+    /// which is honest for a locally-built adapter under development
+    /// and refused by the B6 registry for shipped rows.
+    pub version_pin: Option<crate::probe::VersionPin>,
+    /// The argv that makes the ADAPTER print ITS version. Defaults to
+    /// `["--version"]`, which is right when `command` IS the adapter —
+    /// and WRONG for every wrapper shape (`npx codex-acp`, `node
+    /// dist/index.js`, `python -m …`): there the bare flag probes the
+    /// WRAPPER (the gauntlet caught `python3 --version` being judged
+    /// against a codex pin). A wrapper row overrides this.
+    pub version_args: Vec<String>,
 }
 
 impl HarnessAdapter {
@@ -142,6 +160,8 @@ impl HarnessAdapter {
             command: command.into(),
             args: Vec::new(),
             passthrough_env: Vec::new(),
+            version_pin: None,
+            version_args: vec!["--version".to_owned()],
         })
     }
 
@@ -157,6 +177,22 @@ impl HarnessAdapter {
     #[must_use]
     pub fn with_passthrough_env(mut self, vars: Vec<String>) -> Self {
         self.passthrough_env = vars;
+        self
+    }
+
+    /// Pin the accepted `--version` range — the probe then runs BEFORE
+    /// every session (spec §4).
+    #[must_use]
+    pub fn with_version_pin(mut self, pin: crate::probe::VersionPin) -> Self {
+        self.version_pin = Some(pin);
+        self
+    }
+
+    /// Override the version argv for a WRAPPER command (the bare
+    /// `--version` would probe the wrapper, not the adapter).
+    #[must_use]
+    pub fn with_version_args(mut self, args: Vec<String>) -> Self {
+        self.version_args = args;
         self
     }
 }
@@ -182,6 +218,12 @@ impl SpawnedHarness {
         let parent: BTreeMap<String, String> = std::env::vars().collect();
         let env = compose_env(&parent, &self.adapter.passthrough_env);
         let mut cmd = tokio::process::Command::new(&self.adapter.command);
+        // NOTE (review 2026-08-06): the child deliberately inherits the
+        // ENGINE's cwd — the task's `cwd` is a SESSION-scoped logical
+        // root carried on the wire (`session/new.cwd`), not a process
+        // cwd. An adapter that resolved paths against its OS cwd would
+        // escape the intended root; the sandbox backing at B5 is what
+        // enforces that, never this spawn.
         cmd.args(&self.adapter.args)
             .env_clear()
             .envs(&env)
@@ -198,8 +240,69 @@ impl SpawnedHarness {
     }
 }
 
+impl SpawnedHarness {
+    /// Run `<command> --version` and judge it against the adapter's pin
+    /// (spec §4 · identity BEFORE dialect). `Ok(None)` when the adapter
+    /// declares no pin.
+    ///
+    /// # Errors
+    ///
+    /// The binary cannot spawn, prints no version, or sits outside the
+    /// pin — every case an [`HarnessError::Unavailable`] naming the
+    /// adapter.
+    pub async fn probe_version(&self) -> Result<Option<(u32, u32)>, HarnessError> {
+        let Some(pin) = &self.adapter.version_pin else {
+            return Ok(None);
+        };
+        let parent: BTreeMap<String, String> = std::env::vars().collect();
+        let env = compose_env(&parent, &self.adapter.passthrough_env);
+        let out = tokio::process::Command::new(&self.adapter.command)
+            .args(&self.adapter.version_args)
+            .env_clear()
+            .envs(&env)
+            .stdin(Stdio::null())
+            .kill_on_drop(true)
+            .output();
+        // A `--version` that never answers (a TTY prompt · a licence
+        // check on the network) hung the verb before a driver existed
+        // (review 2026-08-06): the probe is bounded like every other
+        // wait, and kill-on-drop reaps the stalled child.
+        let out = tokio::time::timeout(PROBE_TIMEOUT, out)
+            .await
+            .map_err(|_| HarnessError::Unavailable {
+                reason: format!(
+                    "adapter `{}`: `{} {}` did not answer in {}s",
+                    self.adapter.id,
+                    self.adapter.command,
+                    self.adapter.version_args.join(" "),
+                    PROBE_TIMEOUT.as_secs()
+                ),
+            })?
+            .map_err(|e| HarnessError::Unavailable {
+                reason: format!(
+                    "adapter `{}`: cannot probe `{} {}`: {e}",
+                    self.adapter.id,
+                    self.adapter.command,
+                    self.adapter.version_args.join(" ")
+                ),
+            })?;
+        // Some CLIs print their version on stderr — judge both, in
+        // stdout-first order (never a guess about which one it is).
+        let text = format!(
+            "{}\n{}",
+            String::from_utf8_lossy(&out.stdout),
+            String::from_utf8_lossy(&out.stderr)
+        );
+        crate::probe::judge_version(&self.adapter.id, &text, pin).map(Some)
+    }
+}
+
 impl AgentBackend for SpawnedHarness {
     async fn run_agent(&self, request: HarnessRequest) -> Result<HarnessEventStream, HarnessError> {
+        // Identity before dialect (spec §4): a version outside the pin
+        // refuses HERE, with the version named — never as a protocol
+        // confusion three frames into a session.
+        self.probe_version().await?;
         let mut child = self.spawn_child()?;
         let stdout = child.stdout.take().ok_or_else(|| HarnessError::Session {
             reason: "the child's stdout was not piped".to_owned(),

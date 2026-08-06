@@ -4,16 +4,62 @@ pub const nika_harness::client::IDLE_TIMEOUT_SECS: u64
 pub const nika_harness::client::MAX_LINE_BYTES: usize
 pub fn nika_harness::client::drive<R, W>(reader: R, writer: W, request: nika_kernel_ai::harness::HarnessRequest) -> nika_kernel_ai::harness::HarnessEventStream where R: tokio::io::async_read::AsyncRead + core::marker::Unpin + core::marker::Send + 'static, W: tokio::io::async_write::AsyncWrite + core::marker::Unpin + core::marker::Send + 'static
 pub fn nika_harness::client::drive_with_idle<R, W>(reader: R, writer: W, request: nika_kernel_ai::harness::HarnessRequest, idle: core::time::Duration) -> nika_kernel_ai::harness::HarnessEventStream where R: tokio::io::async_read::AsyncRead + core::marker::Unpin + core::marker::Send + 'static, W: tokio::io::async_write::AsyncWrite + core::marker::Unpin + core::marker::Send + 'static
+pub mod nika_harness::probe
+#[non_exhaustive] pub struct nika_harness::probe::VersionPin
+pub nika_harness::probe::VersionPin::max_major: u32
+pub nika_harness::probe::VersionPin::min: (u32, u32)
+impl nika_harness::probe::VersionPin
+pub const fn nika_harness::probe::VersionPin::accepts(&self, major: u32, minor: u32) -> bool
+pub const fn nika_harness::probe::VersionPin::new(min: (u32, u32), max_major: u32) -> Self
+impl core::clone::Clone for nika_harness::probe::VersionPin
+pub fn nika_harness::probe::VersionPin::clone(&self) -> nika_harness::probe::VersionPin
+impl core::cmp::Eq for nika_harness::probe::VersionPin
+impl core::cmp::PartialEq for nika_harness::probe::VersionPin
+pub fn nika_harness::probe::VersionPin::eq(&self, other: &nika_harness::probe::VersionPin) -> bool
+impl core::fmt::Debug for nika_harness::probe::VersionPin
+pub fn nika_harness::probe::VersionPin::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_harness::probe::VersionPin
+impl<D> owo_colors::OwoColorize for nika_harness::probe::VersionPin
+impl<T, U> core::convert::Into<U> for nika_harness::probe::VersionPin where U: core::convert::From<T>
+pub fn nika_harness::probe::VersionPin::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::probe::VersionPin where U: core::convert::Into<T>
+pub type nika_harness::probe::VersionPin::Error = core::convert::Infallible
+pub fn nika_harness::probe::VersionPin::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::probe::VersionPin where U: core::convert::TryFrom<T>
+pub type nika_harness::probe::VersionPin::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::probe::VersionPin::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::probe::VersionPin where T: core::clone::Clone
+pub type nika_harness::probe::VersionPin::Owned = T
+pub fn nika_harness::probe::VersionPin::clone_into(&self, target: &mut T)
+pub fn nika_harness::probe::VersionPin::to_owned(&self) -> T
+impl<T> core::any::Any for nika_harness::probe::VersionPin where T: 'static + ?core::marker::Sized
+pub fn nika_harness::probe::VersionPin::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::probe::VersionPin where T: ?core::marker::Sized
+pub fn nika_harness::probe::VersionPin::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::probe::VersionPin where T: ?core::marker::Sized
+pub fn nika_harness::probe::VersionPin::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::probe::VersionPin where T: core::clone::Clone
+pub unsafe fn nika_harness::probe::VersionPin::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::probe::VersionPin
+pub fn nika_harness::probe::VersionPin::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::probe::VersionPin where T: 'static
+pub fn nika_harness::probe::VersionPin::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub fn nika_harness::probe::judge_version(adapter_id: &str, output: &str, pin: &nika_harness::probe::VersionPin) -> core::result::Result<(u32, u32), nika_kernel_ai::harness::HarnessError>
+pub fn nika_harness::probe::parse_version(line: &str) -> core::option::Option<(u32, u32)>
 pub mod nika_harness::spawn
 #[non_exhaustive] pub struct nika_harness::spawn::HarnessAdapter
 pub nika_harness::spawn::HarnessAdapter::args: alloc::vec::Vec<alloc::string::String>
 pub nika_harness::spawn::HarnessAdapter::command: alloc::string::String
 pub nika_harness::spawn::HarnessAdapter::id: alloc::string::String
 pub nika_harness::spawn::HarnessAdapter::passthrough_env: alloc::vec::Vec<alloc::string::String>
+pub nika_harness::spawn::HarnessAdapter::version_args: alloc::vec::Vec<alloc::string::String>
+pub nika_harness::spawn::HarnessAdapter::version_pin: core::option::Option<nika_harness::probe::VersionPin>
 impl nika_harness::spawn::HarnessAdapter
 pub fn nika_harness::spawn::HarnessAdapter::new(id: impl core::convert::Into<alloc::string::String>, command: impl core::convert::Into<alloc::string::String>) -> core::result::Result<Self, nika_kernel_ai::harness::HarnessError>
 pub fn nika_harness::spawn::HarnessAdapter::with_args(self, args: alloc::vec::Vec<alloc::string::String>) -> Self
 pub fn nika_harness::spawn::HarnessAdapter::with_passthrough_env(self, vars: alloc::vec::Vec<alloc::string::String>) -> Self
+pub fn nika_harness::spawn::HarnessAdapter::with_version_args(self, args: alloc::vec::Vec<alloc::string::String>) -> Self
+pub fn nika_harness::spawn::HarnessAdapter::with_version_pin(self, pin: nika_harness::probe::VersionPin) -> Self
 impl core::clone::Clone for nika_harness::spawn::HarnessAdapter
 pub fn nika_harness::spawn::HarnessAdapter::clone(&self) -> nika_harness::spawn::HarnessAdapter
 impl core::cmp::Eq for nika_harness::spawn::HarnessAdapter
@@ -50,6 +96,8 @@ pub fn nika_harness::spawn::HarnessAdapter::as_any(&self) -> &(dyn core::any::An
 pub struct nika_harness::spawn::SpawnedHarness
 impl nika_harness::spawn::SpawnedHarness
 pub fn nika_harness::spawn::SpawnedHarness::new(adapter: nika_harness::spawn::HarnessAdapter) -> Self
+impl nika_harness::spawn::SpawnedHarness
+pub async fn nika_harness::spawn::SpawnedHarness::probe_version(&self) -> core::result::Result<core::option::Option<(u32, u32)>, nika_kernel_ai::harness::HarnessError>
 impl core::clone::Clone for nika_harness::spawn::SpawnedHarness
 pub fn nika_harness::spawn::SpawnedHarness::clone(&self) -> nika_harness::spawn::SpawnedHarness
 impl core::fmt::Debug for nika_harness::spawn::SpawnedHarness
@@ -504,10 +552,14 @@ pub nika_harness::HarnessAdapter::args: alloc::vec::Vec<alloc::string::String>
 pub nika_harness::HarnessAdapter::command: alloc::string::String
 pub nika_harness::HarnessAdapter::id: alloc::string::String
 pub nika_harness::HarnessAdapter::passthrough_env: alloc::vec::Vec<alloc::string::String>
+pub nika_harness::HarnessAdapter::version_args: alloc::vec::Vec<alloc::string::String>
+pub nika_harness::HarnessAdapter::version_pin: core::option::Option<nika_harness::probe::VersionPin>
 impl nika_harness::spawn::HarnessAdapter
 pub fn nika_harness::spawn::HarnessAdapter::new(id: impl core::convert::Into<alloc::string::String>, command: impl core::convert::Into<alloc::string::String>) -> core::result::Result<Self, nika_kernel_ai::harness::HarnessError>
 pub fn nika_harness::spawn::HarnessAdapter::with_args(self, args: alloc::vec::Vec<alloc::string::String>) -> Self
 pub fn nika_harness::spawn::HarnessAdapter::with_passthrough_env(self, vars: alloc::vec::Vec<alloc::string::String>) -> Self
+pub fn nika_harness::spawn::HarnessAdapter::with_version_args(self, args: alloc::vec::Vec<alloc::string::String>) -> Self
+pub fn nika_harness::spawn::HarnessAdapter::with_version_pin(self, pin: nika_harness::probe::VersionPin) -> Self
 impl core::clone::Clone for nika_harness::spawn::HarnessAdapter
 pub fn nika_harness::spawn::HarnessAdapter::clone(&self) -> nika_harness::spawn::HarnessAdapter
 impl core::cmp::Eq for nika_harness::spawn::HarnessAdapter
@@ -544,6 +596,8 @@ pub fn nika_harness::spawn::HarnessAdapter::as_any(&self) -> &(dyn core::any::An
 pub struct nika_harness::SpawnedHarness
 impl nika_harness::spawn::SpawnedHarness
 pub fn nika_harness::spawn::SpawnedHarness::new(adapter: nika_harness::spawn::HarnessAdapter) -> Self
+impl nika_harness::spawn::SpawnedHarness
+pub async fn nika_harness::spawn::SpawnedHarness::probe_version(&self) -> core::result::Result<core::option::Option<(u32, u32)>, nika_kernel_ai::harness::HarnessError>
 impl core::clone::Clone for nika_harness::spawn::SpawnedHarness
 pub fn nika_harness::spawn::SpawnedHarness::clone(&self) -> nika_harness::spawn::SpawnedHarness
 impl core::fmt::Debug for nika_harness::spawn::SpawnedHarness
@@ -575,8 +629,49 @@ impl<T> core::convert::From<T> for nika_harness::spawn::SpawnedHarness
 pub fn nika_harness::spawn::SpawnedHarness::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_harness::spawn::SpawnedHarness where T: 'static
 pub fn nika_harness::spawn::SpawnedHarness::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_harness::VersionPin
+pub nika_harness::VersionPin::max_major: u32
+pub nika_harness::VersionPin::min: (u32, u32)
+impl nika_harness::probe::VersionPin
+pub const fn nika_harness::probe::VersionPin::accepts(&self, major: u32, minor: u32) -> bool
+pub const fn nika_harness::probe::VersionPin::new(min: (u32, u32), max_major: u32) -> Self
+impl core::clone::Clone for nika_harness::probe::VersionPin
+pub fn nika_harness::probe::VersionPin::clone(&self) -> nika_harness::probe::VersionPin
+impl core::cmp::Eq for nika_harness::probe::VersionPin
+impl core::cmp::PartialEq for nika_harness::probe::VersionPin
+pub fn nika_harness::probe::VersionPin::eq(&self, other: &nika_harness::probe::VersionPin) -> bool
+impl core::fmt::Debug for nika_harness::probe::VersionPin
+pub fn nika_harness::probe::VersionPin::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_harness::probe::VersionPin
+impl<D> owo_colors::OwoColorize for nika_harness::probe::VersionPin
+impl<T, U> core::convert::Into<U> for nika_harness::probe::VersionPin where U: core::convert::From<T>
+pub fn nika_harness::probe::VersionPin::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::probe::VersionPin where U: core::convert::Into<T>
+pub type nika_harness::probe::VersionPin::Error = core::convert::Infallible
+pub fn nika_harness::probe::VersionPin::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::probe::VersionPin where U: core::convert::TryFrom<T>
+pub type nika_harness::probe::VersionPin::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::probe::VersionPin::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::probe::VersionPin where T: core::clone::Clone
+pub type nika_harness::probe::VersionPin::Owned = T
+pub fn nika_harness::probe::VersionPin::clone_into(&self, target: &mut T)
+pub fn nika_harness::probe::VersionPin::to_owned(&self) -> T
+impl<T> core::any::Any for nika_harness::probe::VersionPin where T: 'static + ?core::marker::Sized
+pub fn nika_harness::probe::VersionPin::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::probe::VersionPin where T: ?core::marker::Sized
+pub fn nika_harness::probe::VersionPin::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::probe::VersionPin where T: ?core::marker::Sized
+pub fn nika_harness::probe::VersionPin::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::probe::VersionPin where T: core::clone::Clone
+pub unsafe fn nika_harness::probe::VersionPin::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::probe::VersionPin
+pub fn nika_harness::probe::VersionPin::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::probe::VersionPin where T: 'static
+pub fn nika_harness::probe::VersionPin::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub const nika_harness::IDLE_TIMEOUT_SECS: u64
 pub const nika_harness::MAX_LINE_BYTES: usize
 pub fn nika_harness::compose_env(parent: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>, passthrough: &[alloc::string::String]) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
 pub fn nika_harness::drive<R, W>(reader: R, writer: W, request: nika_kernel_ai::harness::HarnessRequest) -> nika_kernel_ai::harness::HarnessEventStream where R: tokio::io::async_read::AsyncRead + core::marker::Unpin + core::marker::Send + 'static, W: tokio::io::async_write::AsyncWrite + core::marker::Unpin + core::marker::Send + 'static
 pub fn nika_harness::drive_with_idle<R, W>(reader: R, writer: W, request: nika_kernel_ai::harness::HarnessRequest, idle: core::time::Duration) -> nika_kernel_ai::harness::HarnessEventStream where R: tokio::io::async_read::AsyncRead + core::marker::Unpin + core::marker::Send + 'static, W: tokio::io::async_write::AsyncWrite + core::marker::Unpin + core::marker::Send + 'static
+pub fn nika_harness::judge_version(adapter_id: &str, output: &str, pin: &nika_harness::probe::VersionPin) -> core::result::Result<(u32, u32), nika_kernel_ai::harness::HarnessError>
+pub fn nika_harness::parse_version(line: &str) -> core::option::Option<(u32, u32)>

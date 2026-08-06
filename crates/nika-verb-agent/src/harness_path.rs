@@ -148,11 +148,28 @@ pub(crate) async fn run_on_harness(
 /// Harness failures speak the verb's inference-family error — the
 /// provider seam's own class (a harness IS this task's provider). The
 /// spend box is empty-honest: a failed harness run reports no usage.
+///
+/// TRANSIENCE SURVIVES THE WRAP (review 2026-08-06): collapsing every
+/// variant into `ProviderError::Other` lost it — `Other` is never
+/// transient, so a retryable session death (a transport hiccup the
+/// harness itself calls transient) arrived at the retry layer as
+/// permanent, and the workflow's automatic retry silently stopped
+/// working. A transient harness failure now rides the ONE provider
+/// variant that carries the same verdict (a 5xx-class `Api`), so
+/// `is_transient()` reads the same on both sides of the seam.
 fn harness_err(e: &HarnessError) -> VerbAgentError {
-    VerbAgentError::Inference {
-        source: nika_kernel::ProviderError::Other {
+    let source = if e.is_transient() {
+        nika_kernel::ProviderError::Api {
+            status: 503,
+            message: e.to_string(),
+        }
+    } else {
+        nika_kernel::ProviderError::Other {
             reason: e.to_string(),
-        },
+        }
+    };
+    VerbAgentError::Inference {
+        source,
         spend: Box::default(),
     }
 }
@@ -317,5 +334,45 @@ mod tests {
             .expect("completes");
         assert_eq!(out.total_tokens, 140);
         assert_eq!(out.usage.input_tokens, 100);
+    }
+}
+
+#[cfg(test)]
+mod transience_tests {
+    use super::*;
+    use nika_error::traits::NikaErrorCode as _;
+
+    /// The review's finding (2026-08-06), pinned: a transient harness
+    /// failure must STILL read transient after the wrap, or the retry
+    /// layer silently stops retrying a recoverable disconnect.
+    #[test]
+    fn a_transient_harness_failure_stays_transient_through_the_wrap() {
+        let session = HarnessError::Session {
+            reason: "pipe closed".to_owned(),
+        };
+        assert!(session.is_transient(), "the harness calls this transient");
+        let wrapped = harness_err(&session);
+        assert!(
+            wrapped.is_transient(),
+            "and so must the verb error the retry layer reads"
+        );
+    }
+
+    #[test]
+    fn a_permanent_harness_failure_stays_permanent() {
+        for e in [
+            HarnessError::Unavailable {
+                reason: "binary absent".to_owned(),
+            },
+            HarnessError::Refused {
+                reason: "auth absent".to_owned(),
+            },
+        ] {
+            assert!(!e.is_transient());
+            assert!(
+                !harness_err(&e).is_transient(),
+                "a structural failure must never earn a retry"
+            );
+        }
     }
 }
