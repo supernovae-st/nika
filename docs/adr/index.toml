@@ -705,9 +705,9 @@ affects_layers = ["L4"]
 [[adr]]
 id = "ADR-111"
 title = "Deliver the pause event outward — operator-configured CloudEvents webhook"
-status = "proposed"
+status = "accepted"
 date = "2026-08-06"
 filename = "adr-111-outbound-pause-delivery.md"
 tags = ["notify", "pause", "human-gate", "webhook", "cloudevents", "trace", "resume"]
-affects_crates = ["nika-runtime", "nika-event"]
-affects_layers = ["L0", "L3"]
+affects_crates = ["nika-cli", "nika-event"]
+affects_layers = ["L0", "L4"]
