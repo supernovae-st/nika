@@ -157,7 +157,7 @@ patterns:
 - glob: "crates/**/tests/**"
   class: authored
   match_count: 130
-  aggregate_sha256: 431bc19c8be487dc2b3c6855f0dbb5e86e4ee8d73f88ce03664771a54c03e7be
+  aggregate_sha256: f8315404737de852c3b2d16c2a45a35f9aaa2ff1dd9b6ef541368c590c4f97df
   evidence: "crate-owned tests + fixtures under tests/ — written with the crate per gate discipline, no generation markers"
 - glob: "crates/**"
   class: authored
@@ -237,7 +237,7 @@ patterns:
 - glob: "*"
   class: authored
   match_count: 28
-  aggregate_sha256: 3e404d8a4e579e0cdd1ada2c87443b9c76052dd8708c19be35ab4614acf2a4ab
+  aggregate_sha256: 923104db1af967ffc2885fc19c92de5a76006d9fdbcb40b33fc71c5a6254134f
   evidence: "root prose + config surface (README · DIAMOND · LICENSE · llms.txt · Cargo.toml · deny/clippy/cliff/typos toml · lefthook.yml · flake.nix · Dockerfile) — no generation markers at file heads; CHANGELOG.md · Cargo.lock · SPEC_PIN · ROADMAP.md excepted in files:"
 - glob: "**"
   class: authored
