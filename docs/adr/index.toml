@@ -701,3 +701,13 @@ tags = ["architecture", "crates", "split", "size-cap", "host-integration"]
 affects_crates = ["nika-cli", "nika-cli-host"]
 affects_layers = ["L4"]
 
+
+[[adr]]
+id = "ADR-111"
+title = "Deliver the pause event outward — operator-configured CloudEvents webhook"
+status = "proposed"
+date = "2026-08-06"
+filename = "adr-111-outbound-pause-delivery.md"
+tags = ["notify", "pause", "human-gate", "webhook", "cloudevents", "trace", "resume"]
+affects_crates = ["nika-runtime", "nika-event"]
+affects_layers = ["L0", "L3"]
