@@ -18,14 +18,14 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4344
+  classified_files: 4345
   file_rows: 11
   pattern_rows: 22
   by_class:
     authored: 1414
     authored-pin: 2
     generated: 118
-    pinned-copy: 114
+    pinned-copy: 115
     testimonial: 2696
     foreign: 0
   unverified-default: 5
@@ -113,8 +113,8 @@ files:
 patterns:
 - glob: "crates/nika-pack/pack/**"
   class: pinned-copy
-  match_count: 113
-  aggregate_sha256: f96c38f04b38d892c6df179e2f591e976b4668384ddd51e592946a1adaf5065e
+  match_count: 114
+  aggregate_sha256: 7076fb2b63092c0784da6ee52371df370186df2cb8adb78692862a3a8f0af124
   evidence: "crates/nika-pack/src/lib.rs:16 'The snapshot under pack/ is vendored by scripts/sync-pack.sh' — a byte-copy of the spec surface, never edited here"
   derivation:
     tool: "bash scripts/sync-pack.sh <nika-spec checkout> — healed daily by .github/workflows/pack-resync.yml (branch bot/pack-resync · PR-only, the 12-gate CI judges)"
@@ -237,7 +237,7 @@ patterns:
 - glob: "*"
   class: authored
   match_count: 28
-  aggregate_sha256: 9b5674f01711cb49bf5309c0221802715347fef5f22be726dedf298f7ffd084b
+  aggregate_sha256: e2a148bc6de1ec2881e302055e24c3188bfc4a97cf345a9e7ecd7dd755843780
   evidence: "root prose + config surface (README · DIAMOND · LICENSE · llms.txt · Cargo.toml · deny/clippy/cliff/typos toml · lefthook.yml · flake.nix · Dockerfile) — no generation markers at file heads; CHANGELOG.md · Cargo.lock · SPEC_PIN · ROADMAP.md excepted in files:"
 - glob: "**"
   class: authored
