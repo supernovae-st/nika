@@ -655,6 +655,10 @@ impl<TraitVariantBlanketType: nika_kernel_ai::harness::AgentBackendDyn> nika_ker
 pub async fn TraitVariantBlanketType::run_agent(&self, request: nika_kernel_ai::harness::HarnessRequest) -> core::result::Result<nika_kernel_ai::harness::HarnessEventStream, nika_kernel_ai::harness::HarnessError>
 pub trait nika_kernel_ai::harness::AgentBackendDyn: core::marker::Send + core::marker::Sync + core::marker::Send
 pub fn nika_kernel_ai::harness::AgentBackendDyn::run_agent(&self, request: nika_kernel_ai::harness::HarnessRequest) -> impl core::future::future::Future<Output = core::result::Result<nika_kernel_ai::harness::HarnessEventStream, nika_kernel_ai::harness::HarnessError>> + core::marker::Send
+pub trait nika_kernel_ai::harness::DynAgentBackend: core::marker::Send + core::marker::Sync
+pub fn nika_kernel_ai::harness::DynAgentBackend::run_agent_boxed(&self, request: nika_kernel_ai::harness::HarnessRequest) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = core::result::Result<nika_kernel_ai::harness::HarnessEventStream, nika_kernel_ai::harness::HarnessError>> + core::marker::Send + '_)>>
+impl<B: nika_kernel_ai::harness::AgentBackendDyn + core::marker::Sync> nika_kernel_ai::harness::DynAgentBackend for B
+pub fn B::run_agent_boxed(&self, request: nika_kernel_ai::harness::HarnessRequest) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = core::result::Result<nika_kernel_ai::harness::HarnessEventStream, nika_kernel_ai::harness::HarnessError>> + core::marker::Send + '_)>>
 pub type nika_kernel_ai::harness::HarnessEventStream = core::pin::Pin<alloc::boxed::Box<(dyn futures_core::stream::Stream<Item = core::result::Result<nika_kernel_ai::harness::HarnessEvent, nika_kernel_ai::harness::HarnessError>> + core::marker::Send)>>
 pub mod nika_kernel_ai::memory
 pub use nika_kernel_ai::memory::MemoryDirective
