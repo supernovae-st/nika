@@ -19,6 +19,68 @@ use nika_types::access::{
 
 use crate::probe::ProviderProbe;
 
+/// A harness adapter's offer to the resolver (P3 B6) — the composer
+/// builds these from the `nika-harness` registry + probe rows, so the
+/// resolver never imports the harness crate (the mock-synthesis
+/// precedent: candidates are synthesized at THIS bridge).
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct HarnessOffer {
+    /// The adapter id (unique · never a class token — the registry
+    /// enforces R-5d at load).
+    pub id: String,
+    /// The provider ids this harness can serve (`gemini` · `openai` …).
+    pub serves: Vec<String>,
+    /// The version probe passed (binary present AND inside the pin).
+    pub detected: bool,
+    /// The auth surface's verdict — `None` when unreadable (absent is
+    /// honest: the candidate is not configured, the fix names the
+    /// harness's own sign-in).
+    pub authenticated: Option<bool>,
+}
+
+impl HarnessOffer {
+    /// Construct (INV-019).
+    #[must_use]
+    pub fn new(id: impl Into<String>, serves: Vec<String>, detected: bool) -> Self {
+        Self {
+            id: id.into(),
+            serves,
+            detected,
+            authenticated: None,
+        }
+    }
+
+    /// Attach the auth surface's verdict.
+    #[must_use]
+    pub fn with_authenticated(mut self, authenticated: Option<bool>) -> Self {
+        self.authenticated = authenticated;
+        self
+    }
+
+    /// The candidate this offer yields for `provider` — `Some` only
+    /// when the harness serves it. A harness the probe did not detect
+    /// yields NOTHING (an absent adapter is no candidate at all — its
+    /// place is the doctor row, not the resolver's witness list); an
+    /// unauthenticated one is a candidate marked unconfigured, so the
+    /// refusal names the harness's own sign-in gesture.
+    #[must_use]
+    pub fn candidate_for(&self, provider: &str) -> Option<AccessCandidate> {
+        if !self.detected || !self.serves.iter().any(|s| s == provider) {
+            return None;
+        }
+        let mut candidate = AccessCandidate::new(
+            self.id.clone(),
+            AccessClass::Harness,
+            self.authenticated == Some(true),
+        );
+        if self.authenticated != Some(true) {
+            candidate = candidate.with_fix_var(format!("sign in to `{}` itself", self.id));
+        }
+        Some(candidate)
+    }
+}
+
 /// One enumerated way to reach a provider — the resolver's INPUT row.
 /// Today a provider yields exactly one candidate (its profile's class ·
 /// key state); the P3 adapters add `harness`/`oauth` rows beside it.
@@ -159,10 +221,27 @@ fn judge(
     pin: Option<&str>,
 ) -> Option<AccessRejection> {
     if !candidate.configured {
-        let witness = candidate.fix_var.as_ref().map_or_else(
-            || String::from("no credential configured"),
-            |var| format!("{var} unset"),
-        );
+        // The harness class's fix is the harness's OWN sign-in gesture
+        // (never a credential nika holds) — the fix line rides verbatim;
+        // every other class names the env var to set. An EMPTY fix line
+        // never renders (the witness totality law · proptest 2026-08-07):
+        // the default gesture stands in.
+        let witness = if candidate.class == AccessClass::Harness {
+            candidate
+                .fix_var
+                .as_deref()
+                .map(str::trim)
+                .filter(|f| !f.is_empty())
+                .map_or_else(
+                    || String::from("not signed in to the harness itself"),
+                    str::to_owned,
+                )
+        } else {
+            candidate.fix_var.as_ref().map_or_else(
+                || String::from("no credential configured"),
+                |var| format!("{var} unset"),
+            )
+        };
         return Some(AccessRejection::new(
             candidate.access.clone(),
             RejectionDimension::NotConfigured,
@@ -273,8 +352,25 @@ pub fn refuse_pin<'m>(
     probes: &[ProviderProbe],
     pin: &str,
 ) -> Option<PinRefusal> {
+    refuse_pin_with_offers(models, probes, &[], pin)
+}
+
+/// [`refuse_pin`] with the harness offers (P3 B6): an adapter id is a
+/// legal pin token when its row is detected on this machine, and the
+/// per-model judgement sees the harness candidates beside the profile
+/// rows.
+#[must_use]
+pub fn refuse_pin_with_offers<'m>(
+    models: impl IntoIterator<Item = &'m str>,
+    probes: &[ProviderProbe],
+    offers: &[HarnessOffer],
+    pin: &str,
+) -> Option<PinRefusal> {
     let class_token = AccessClass::ALL.iter().any(|c| c.as_str() == pin);
-    if !class_token && !probes.iter().any(|p| p.id == pin) {
+    if !class_token
+        && !probes.iter().any(|p| p.id == pin)
+        && !offers.iter().any(|o| o.detected && o.id == pin)
+    {
         let vocabulary = AccessClass::ALL.map(AccessClass::as_str).join(" \u{b7} ");
         return Some(PinRefusal::UnknownToken {
             message: format!(
@@ -285,7 +381,7 @@ pub fn refuse_pin<'m>(
         });
     }
     for model in models {
-        let candidates = candidates_for(probes, provider_of(model));
+        let candidates = candidates_with_offers(probes, offers, provider_of(model));
         if let Err(refusal) = resolve_access(model, &candidates, None, Some(pin)) {
             return Some(classify_pin_refusal(model, pin, &refusal));
         }
@@ -348,22 +444,40 @@ fn classify_pin_refusal(model: &str, pin: &str, refusal: &AccessRefusal) -> PinR
 /// must not (a `mock/echo` rehearsal is always an offered path).
 #[must_use]
 pub fn candidates_for(probes: &[ProviderProbe], provider: &str) -> Vec<AccessCandidate> {
-    if provider == "mock" {
-        return vec![AccessCandidate::new("mock", AccessClass::Mock, true)];
-    }
-    probes
-        .iter()
-        .filter(|p| p.id == provider)
-        .map(|p| {
-            let candidate =
-                AccessCandidate::new(p.id.clone(), p.readiness.access, p.readiness.configured);
-            if p.requires_key {
-                candidate.with_fix_var(p.fix_var.clone())
-            } else {
-                candidate
-            }
-        })
-        .collect()
+    candidates_with_offers(probes, &[], provider)
+}
+
+/// [`candidates_for`] with the harness offers folded in (P3 B6): every
+/// detected adapter serving `provider` becomes a `harness`-class
+/// candidate beside the profile row — the resolver's total order (rank
+/// · id · configured) then judges them like any other path, so two
+/// adapters never share an id and a harness never silently outranks
+/// the local class.
+#[must_use]
+pub fn candidates_with_offers(
+    probes: &[ProviderProbe],
+    offers: &[HarnessOffer],
+    provider: &str,
+) -> Vec<AccessCandidate> {
+    let mut candidates = if provider == "mock" {
+        vec![AccessCandidate::new("mock", AccessClass::Mock, true)]
+    } else {
+        probes
+            .iter()
+            .filter(|p| p.id == provider)
+            .map(|p| {
+                let candidate =
+                    AccessCandidate::new(p.id.clone(), p.readiness.access, p.readiness.configured);
+                if p.requires_key {
+                    candidate.with_fix_var(p.fix_var.clone())
+                } else {
+                    candidate
+                }
+            })
+            .collect()
+    };
+    candidates.extend(offers.iter().filter_map(|o| o.candidate_for(provider)));
+    candidates
 }
 
 /// The admission-time access decision per model (R-1/R-2 · P3 B5) —
@@ -420,6 +534,110 @@ mod tests {
         assert_eq!(plan.billing, BillingClass::ApiMetered);
         assert!(!plan.pinned);
         assert!(plan.rejected.is_empty());
+    }
+
+    // ── P3 B6 · the harness offers bridge ─────────────────────────
+
+    fn offer(id: &str, serves: &[&str], detected: bool, auth: Option<bool>) -> HarnessOffer {
+        HarnessOffer::new(
+            id,
+            serves.iter().map(|s| (*s).to_owned()).collect(),
+            detected,
+        )
+        .with_authenticated(auth)
+    }
+
+    #[test]
+    fn a_detected_authenticated_adapter_becomes_a_harness_candidate() {
+        let offers = vec![offer("codex-acp", &["openai"], true, Some(true))];
+        let candidates = candidates_with_offers(&[], &offers, "openai");
+        assert_eq!(candidates.len(), 1);
+        assert_eq!(candidates[0].access, "codex-acp");
+        assert_eq!(candidates[0].class, AccessClass::Harness);
+        assert!(candidates[0].configured);
+    }
+
+    #[test]
+    fn an_undetected_adapter_offers_nothing() {
+        let offers = vec![offer("codex-acp", &["openai"], false, None)];
+        assert!(candidates_with_offers(&[], &offers, "openai").is_empty());
+    }
+
+    #[test]
+    fn an_unauthenticated_adapter_is_a_candidate_marked_unconfigured() {
+        let offers = vec![offer("codex-acp", &["openai"], true, Some(false))];
+        let candidates = candidates_with_offers(&[], &offers, "openai");
+        assert_eq!(
+            candidates.len(),
+            1,
+            "the refusal must NAME the harness's sign-in"
+        );
+        assert!(!candidates[0].configured);
+        let refusal = resolve_access("openai/gpt-5", &candidates, None, None)
+            .expect_err("unauthenticated never resolves");
+        let witness = &refusal.rejected[0].witness;
+        assert!(
+            witness.contains("sign in to `codex-acp` itself"),
+            "the harness fix line rides verbatim, never `unset`: {witness}"
+        );
+        assert!(!witness.contains("unset"), "{witness}");
+    }
+
+    #[test]
+    fn the_harness_outranks_the_metered_api_when_both_serve() {
+        // The sovereign order (local < mock < harness < oauth < api):
+        // an authenticated harness wins over the metered key — the
+        // access doctrine's whole point (the operator's own plan first).
+        let offers = vec![offer("claude-agent-acp", &["anthropic"], true, Some(true))];
+        let probe = ProviderProbe {
+            id: "anthropic".to_owned(),
+            requires_key: true,
+            key_present: true,
+            fix_var: "ANTHROPIC_API_KEY".to_owned(),
+            structured_native: true,
+            readiness: crate::probe::ProviderReadiness {
+                recognized: true,
+                configured: true,
+                reachable: None,
+                model_available: None,
+                priced: true,
+                execution_locus: crate::probe::ExecutionLocus::Cloud,
+                access: AccessClass::Api,
+            },
+            endpoint: "https://api.anthropic.com".to_owned(),
+        };
+        let plan = resolve_access(
+            "anthropic/claude-sonnet-4-5",
+            &candidates_with_offers(&[probe], &offers, "anthropic"),
+            None,
+            None,
+        )
+        .expect("both paths configured → a plan");
+        assert_eq!(plan.access, "claude-agent-acp");
+        assert_eq!(plan.chosen, AccessClass::Harness);
+        assert_eq!(
+            plan.rejected.len(),
+            0,
+            "the api row is outranked, NOT rejected (dispo au pin): {:?}",
+            plan.rejected
+        );
+    }
+
+    #[test]
+    fn a_pin_names_an_adapter_id_once_detected() {
+        let offers = vec![offer("codex-acp", &["openai"], true, Some(true))];
+        assert!(
+            refuse_pin_with_offers(["openai/gpt-5"], &[], &offers, "codex-acp").is_none(),
+            "a detected adapter id is a legal pin"
+        );
+        let hidden = vec![offer("codex-acp", &["openai"], false, None)];
+        assert!(
+            matches!(
+                refuse_pin_with_offers(["openai/gpt-5"], &[], &hidden, "codex-acp"),
+                Some(PinRefusal::UnknownToken { .. })
+            ),
+            "an UNDETECTED adapter is no pin target (1802)"
+        );
     }
 
     #[test]

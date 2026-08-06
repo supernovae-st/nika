@@ -19,6 +19,133 @@
 
 use nika_kernel::ai::harness::HarnessError;
 
+use crate::registry::{AdapterRow, AuthProbe};
+use crate::spawn::{SpawnedHarness, compose_env};
+
+/// One adapter's probe row (P3 B6 · the doctor surface's facts) —
+/// presence and exit codes only, never a credential read.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct AdapterProbeRow {
+    /// The adapter id (registry row).
+    pub id: String,
+    /// The version the probe read, inside the pin (None = binary
+    /// absent or outside the pin — `note` names which).
+    pub version: Option<(u32, u32)>,
+    /// The auth surface's verdict: `Some(true)` an auth exists,
+    /// `Some(false)` the surface says none, `None` the surface itself
+    /// is unreadable here (absent is honest — never a guess).
+    pub authenticated: Option<bool>,
+    /// The install pointer (the registry row's package line).
+    pub package: String,
+    /// What the probe saw when detection failed (the adapter's own
+    /// words) — empty on a clean detection.
+    pub note: String,
+}
+
+impl AdapterProbeRow {
+    /// Whether the adapter can serve a session NOW (detected AND inside
+    /// the pin). Auth stays a separate column — a harness without auth
+    /// is detected-but-refusing, a truth the row keeps distinct.
+    #[must_use]
+    pub fn usable(&self) -> bool {
+        self.version.is_some()
+    }
+}
+
+/// Probe every registry row (B6) — version BEFORE dialect (spec §4),
+/// then the auth surface. Rows the kill-switch removed never probe.
+/// Each probe is deadlined (a hung wrapper is a `None`, never a hang);
+/// the rows probe CONCURRENTLY (four cold npx resolves must not add).
+pub async fn probe_adapters(rows: Vec<AdapterRow>) -> Vec<AdapterProbeRow> {
+    let mut set = tokio::task::JoinSet::new();
+    for (idx, row) in rows.into_iter().enumerate() {
+        set.spawn(async move { (idx, probe_one(row).await) });
+    }
+    let mut out = Vec::new();
+    while let Some(done) = set.join_next().await {
+        if let Ok(done) = done {
+            out.push(done);
+        }
+    }
+    // The join order is scheduling — the report's order is the
+    // REGISTRY's (G-3), so two runs never disagree.
+    out.sort_by_key(|(idx, _)| *idx);
+    out.into_iter().map(|(_, row)| row).collect()
+}
+
+/// The sync façade (the doctor surface is sync by design) — the
+/// probes' async lives inside nika-harness, behind a one-shot runtime.
+#[must_use]
+pub fn probe_adapters_sync(rows: Vec<AdapterRow>) -> Vec<AdapterProbeRow> {
+    let Ok(rt) = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+    else {
+        return rows
+            .into_iter()
+            .map(|row| AdapterProbeRow {
+                id: row.adapter.id.clone(),
+                version: None,
+                authenticated: None,
+                package: row.package.to_owned(),
+                note: "could not start the probe runtime".to_owned(),
+            })
+            .collect();
+    };
+    rt.block_on(probe_adapters(rows))
+}
+
+async fn probe_one(row: AdapterRow) -> AdapterProbeRow {
+    let harness = SpawnedHarness::new(row.adapter.clone());
+    let (version, note) = match harness.probe_version().await {
+        Ok(seen) => (seen, String::new()),
+        Err(e) => (None, e.to_string()),
+    };
+    let authenticated = probe_auth(&row.auth).await;
+    AdapterProbeRow {
+        id: row.adapter.id.clone(),
+        version,
+        authenticated,
+        package: row.package.to_owned(),
+        note,
+    }
+}
+
+/// The auth surface probe — an exit code or a presence bit, bounded
+/// like every spawn (a hung status command is `None`, not a hang).
+async fn probe_auth(surface: &AuthProbe) -> Option<bool> {
+    #[allow(clippy::disallowed_methods)] // the sanctioned env boundary ($HOME presence)
+    let home = std::env::var_os("HOME");
+    probe_auth_with(home.as_deref(), surface).await
+}
+
+/// [`probe_auth`] with the home dir injected — the pure half tests
+/// drive (writing `$HOME` would need `unsafe` under Rust 2024).
+async fn probe_auth_with(home: Option<&std::ffi::OsStr>, surface: &AuthProbe) -> Option<bool> {
+    match surface {
+        AuthProbe::HomeFile(rel) => Some(std::path::Path::new(home?).join(rel).exists()),
+        AuthProbe::Command { command, args } => {
+            let parent: std::collections::BTreeMap<String, String> = std::env::vars().collect();
+            let env = compose_env(&parent, &[]);
+            let child = tokio::process::Command::new(command)
+                .args(*args)
+                .env_clear()
+                .envs(&env)
+                .stdin(std::process::Stdio::null())
+                .stdout(std::process::Stdio::null())
+                .stderr(std::process::Stdio::null())
+                .kill_on_drop(true)
+                .status();
+            let status = tokio::time::timeout(std::time::Duration::from_secs(10), child)
+                .await
+                .ok()?
+                .ok()?;
+            Some(status.success())
+        }
+    }
+}
+
 /// The inclusive version range an adapter is pinned to — the
 /// schema-diff gate's binary-side twin (spec §2).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -201,5 +328,95 @@ mod tests {
         )
         .expect("second line carries it");
         assert_eq!(seen, (4, 2));
+    }
+
+    #[tokio::test]
+    async fn the_auth_probe_reads_exit_codes_and_presence_bits() {
+        // Command: the exit code IS the verdict.
+        let yes = AuthProbe::Command {
+            command: "true",
+            args: &[],
+        };
+        let no = AuthProbe::Command {
+            command: "false",
+            args: &[],
+        };
+        assert_eq!(probe_auth(&yes).await, Some(true));
+        assert_eq!(probe_auth(&no).await, Some(false));
+        // An absent binary is unreadable, never a guess.
+        let absent = AuthProbe::Command {
+            command: "nika-no-such-binary- anywhere",
+            args: &[],
+        };
+        assert_eq!(probe_auth(&absent).await, None);
+
+        // HomeFile: presence against the INJECTED home.
+        let dir = std::env::temp_dir().join(format!("nika-auth-probe-{}", std::process::id()));
+        std::fs::create_dir_all(dir.join(".gemini")).expect("dir");
+        std::fs::write(dir.join(".gemini/google_accounts.json"), b"{}").expect("file");
+        let home = dir.as_os_str();
+        let present = AuthProbe::HomeFile(".gemini/google_accounts.json");
+        let missing = AuthProbe::HomeFile(".qwen");
+        assert_eq!(probe_auth_with(Some(home), &present).await, Some(true));
+        assert_eq!(probe_auth_with(Some(home), &missing).await, Some(false));
+        // No home at all: unreadable, never a guess.
+        assert_eq!(probe_auth_with(None, &present).await, None);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn probe_one_reports_the_version_and_the_auth_together() {
+        let dir = std::env::temp_dir().join(format!("nika-probe-one-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("dir");
+        let script = dir.join("fake.py");
+        std::fs::write(&script, "print('fake-harness 1.4.0')\n").expect("script");
+        let path = script.to_string_lossy().into_owned();
+        let row = crate::registry::AdapterRow {
+            adapter: crate::HarnessAdapter::new("fake-harness", "python3")
+                .expect("id is no class token")
+                .with_args(vec![path.clone()])
+                .with_version_args(vec![path])
+                .with_version_pin(VersionPin::new((1, 0), 1)),
+            serves: &["mock"],
+            auth: AuthProbe::Command {
+                command: "true",
+                args: &[],
+            },
+            package: "test-only",
+        };
+        let probed = probe_one(row).await;
+        assert_eq!(probed.version, Some((1, 4)));
+        assert_eq!(probed.authenticated, Some(true));
+        assert!(probed.note.is_empty(), "{:?}", probed.note);
+        assert!(probed.usable());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn probe_adapters_keeps_the_registry_order_not_the_join_order() {
+        let mk = |id: &str| crate::registry::AdapterRow {
+            adapter: crate::HarnessAdapter::new(id, "false")
+                .expect("fine")
+                .with_version_pin(VersionPin::new((1, 0), 1)),
+            serves: &["mock"],
+            auth: AuthProbe::HomeFile(".definitely-absent-nika-test"),
+            package: "test-only",
+        };
+        let rows = vec![mk("zzz-first"), mk("aaa-second")];
+        let out = probe_adapters(rows).await;
+        let ids: Vec<&str> = out.iter().map(|r| r.id.as_str()).collect();
+        assert_eq!(
+            ids,
+            ["zzz-first", "aaa-second"],
+            "registry order, not alphabetical"
+        );
+        assert!(
+            out.iter().all(|r| r.version.is_none()),
+            "`false` prints no version"
+        );
+        assert_eq!(
+            out.iter().map(|r| r.authenticated).collect::<Vec<_>>(),
+            vec![Some(false), Some(false)]
+        );
     }
 }
