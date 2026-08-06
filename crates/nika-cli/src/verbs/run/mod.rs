@@ -48,9 +48,11 @@ use sink::{TraceNote, surface_trace};
 mod budget;
 mod epilogue;
 mod heartbeat;
-mod notify;
 mod resume_setup;
 mod teardown;
+// ADR-111 · the outbound pause delivery lives in the host member
+// (ADR-110 precedent — compute descends, render stays).
+use nika_cli_host::notify;
 pub(crate) use nika_event::source_id::{lf_normal_form, sha256_hex};
 use resume_setup::{ResumeSetup, resume_setup};
 use teardown::attended_facts;

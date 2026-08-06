@@ -4238,14 +4238,10 @@ dependencies = [
 name = "nika-cli"
 version = "0.108.0"
 dependencies = [
- "base64 0.22.1",
  "blake3",
- "bytes",
  "clap",
  "clap_complete",
  "expectrl",
- "hmac 0.12.1",
- "jiff",
  "minisign",
  "nika-builtin",
  "nika-cap",
@@ -4282,7 +4278,6 @@ dependencies = [
  "sha2 0.10.9",
  "tempfile",
  "tokio",
- "url",
  "uuid",
 ]
 
@@ -4290,22 +4285,32 @@ dependencies = [
 name = "nika-cli-host"
 version = "0.108.0"
 dependencies = [
+ "base64 0.22.1",
+ "bytes",
  "clap",
+ "hmac 0.12.1",
+ "jiff",
  "nika-builtin",
  "nika-catalog",
  "nika-check",
  "nika-dap",
  "nika-display",
+ "nika-event",
+ "nika-http",
+ "nika-kernel",
  "nika-models",
  "nika-pack",
  "nika-providers",
  "nika-runtime",
  "nika-schema",
+ "nika-types",
  "serde",
  "serde_json",
  "serde_yaml_bw",
+ "sha2 0.10.9",
  "tempfile",
  "toml_edit",
+ "url",
 ]
 
 [[package]]

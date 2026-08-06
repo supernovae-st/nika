@@ -3,6 +3,10 @@
 
 //! ADR-111 — outbound pause delivery: the question is heard.
 //!
+//! Home: the host member (ADR-110 precedent — compute descends, render
+//! stays): the run lanes in `nika-cli` call [`deliver_paused`] after the
+//! tee splits and before the seal.
+//!
 //! A paused run journals `workflow_paused` and exits; nothing pushes. When
 //! the operator configures `NIKA_NOTIFY_URL`, each lane POSTs the pause
 //! payload ONCE — a `CloudEvents` 1.0.2 structured envelope
@@ -38,7 +42,8 @@ use nika_types::timestamp::Timestamp;
 /// The workflow's display label — the same fallback expression the
 /// runtime's envelope derivation uses (`"workflow"` when the header is
 /// unreadable, which a checked run never is).
-pub(super) fn workflow_label(wf: &nika_schema::raw::RawWorkflow) -> String {
+#[must_use]
+pub fn workflow_label(wf: &nika_schema::raw::RawWorkflow) -> String {
     wf.workflow
         .as_ref()
         .map_or_else(|| String::from("workflow"), |w| w.value.clone())
@@ -46,7 +51,7 @@ pub(super) fn workflow_label(wf: &nika_schema::raw::RawWorkflow) -> String {
 
 /// The operator's delivery configuration — env-borne, per the engine's
 /// existing `NIKA_*` surface. Absent URL ⇒ the feature is OFF.
-pub(super) struct NotifyConfig {
+pub struct NotifyConfig {
     url: String,
     /// Decoded `whsec_` secret bytes (absent or undecodable ⇒ unsigned).
     secret: Option<Vec<u8>>,
@@ -55,7 +60,7 @@ pub(super) struct NotifyConfig {
 impl NotifyConfig {
     /// Read `NIKA_NOTIFY_URL` (+ optional `NIKA_NOTIFY_SECRET`). The
     /// sovereign default is silence: no URL, no socket, no config object.
-    pub(super) fn from_env() -> Option<Self> {
+    pub fn from_env() -> Option<Self> {
         let url = env_value("NIKA_NOTIFY_URL")?;
         if url.trim().is_empty() {
             return None;
@@ -128,7 +133,8 @@ fn slice_is_empty(v: &&[String]) -> bool {
 /// lowercase hex. Re-delivering the same pause yields the same id
 /// (consumers dedup for free); a resumed run writes a NEW trace, so a
 /// later re-pause of the same task yields a new id.
-pub(super) fn event_id(trace_id: &str, task: &str) -> String {
+#[must_use]
+pub fn event_id(trace_id: &str, task: &str) -> String {
     use sha2::Digest as _;
     let mut h = sha2::Sha256::new();
     h.update(trace_id.as_bytes());
@@ -314,7 +320,7 @@ fn journal_outcome(report: &DeliveryReport, id_ts: (EventId, Timestamp), sink: &
 /// Called by every lane AFTER the tee splits and BEFORE `surface_trace`
 /// seals. No configured URL ⇒ silent no-op. Failure never touches the
 /// verdict: the run exits `paused` with the same code either way.
-pub(super) async fn deliver_paused(
+pub async fn deliver_paused(
     workflow: &str,
     pause: &WorkflowPause,
     trace_path: &Path,

@@ -6,7 +6,7 @@ date: 2026-08-06
 phase: ""
 deciders: ["@ThibautMelen"]
 tags: [notify, pause, human-gate, webhook, cloudevents, trace, resume]
-affects_crates: [nika-cli, nika-event]
+affects_crates: [nika-cli-host, nika-cli, nika-event]
 affects_layers: [L0, L4]
 supersedes: []
 superseded_by: []
@@ -28,7 +28,9 @@ implementation: the runtime core keeps its zero-tokio-edge posture, so
 the lanes (nika-cli run · L4 shim) deliver AFTER the tee splits and
 BEFORE surface_trace seals — same contract (after the journal write,
 before exit, awaited with timeout, outcome journaled under the chain),
-different crate than first sketched (nika-runtime untouched). Proven:
+different crate than first sketched (nika-runtime untouched); the module
+itself lives in nika-cli-host (the ADR-110 member — the 15k wall fired on
+nika-cli at 15150 during this very arc, and compute descends). Proven:
 unit golden envelope byte-pinned + HMAC vector verified against
 CPython + deterministic id; live three-scenario proof at the binary
 plane (signed delivery · default-off silence · ssrf_blocked refusal,
