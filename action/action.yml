@@ -1,0 +1,65 @@
+# Run Nika Workflow — the composite action (in-repo · `uses: supernovae-st/nika/action@<tag>`)
+#
+# Check-gates then runs one .nika.yaml with a mandatory cost ceiling, and
+# names the trace path for upload. The action consumes the PUBLIC binary
+# via the sha256-verified installer — the same door every user walks
+# through (the binary boundary · dogfooding pure).
+name: "Run Nika Workflow"
+description: "nika check, then nika run with a cost ceiling — audited before it runs, hash-chain traced after"
+branding:
+  icon: "check-circle"
+  color: "purple"
+
+inputs:
+  file:
+    description: "Path to the .nika.yaml workflow file"
+    required: true
+  max-cost-usd:
+    description: "Hard USD ceiling for the run (cost honesty: local models are unpriced, never free)"
+    required: true
+  args:
+    description: "Extra arguments appended to nika run (e.g. --var key=value)"
+    required: false
+    default: ""
+  version:
+    description: "Nika version to install (default: latest release)"
+    required: false
+    default: ""
+
+outputs:
+  trace:
+    description: "Path of the run's trace file (empty when the run never started)"
+    value: ${{ steps.run.outputs.trace }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install nika
+      shell: bash
+      run: |
+        if [ -n "${{ inputs.version }}" ]; then
+          curl -fsSL https://nika.sh/install.sh | NIKA_VERSION="${{ inputs.version }}" sh
+        else
+          curl -fsSL https://nika.sh/install.sh | sh
+        fi
+        echo "$HOME/.nika/bin" >> "$GITHUB_PATH"
+
+    - name: Check (audit before run)
+      shell: bash
+      run: nika check "${{ inputs.file }}"
+
+    - name: Run (cost-capped · traced)
+      id: run
+      shell: bash
+      run: |
+        rc=0
+        nika run "${{ inputs.file }}" --max-cost-usd "${{ inputs.max-cost-usd }}" --json ${{ inputs.args }} || rc=$?
+        # The newest trace is this run's journal — name it for upload.
+        trace=$(ls -t .nika/traces/*.ndjson 2>/dev/null | head -1 || true)
+        echo "trace=$trace" >> "$GITHUB_OUTPUT"
+        # Exit 4 = paused on a human gate: a real state, not a failure —
+        # but CI has no human, so surface it loudly and stop the job.
+        if [ "$rc" -eq 4 ]; then
+          echo "::error::run paused on a human gate — answer with --answer <task>=<value> (pre-seed it in `args` for CI)"
+        fi
+        exit "$rc"
