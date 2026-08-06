@@ -34,6 +34,13 @@ use crate::task::{Finish, RunResult, SettleAs};
 /// fail hard).
 const PROMPT_BLOCKED_CODE: &str = "NIKA-BUILTIN-PROMPT-001";
 
+/// The harness gate's wire code (P3 B5 · NIKA-1806) — the agent-task
+/// twin of [`PROMPT_BLOCKED_CODE`]: the permission bridge judged an
+/// ask outside every `permits:` grant and no operator verdict was
+/// bound, so the run pauses for a human instead of answering (a gate
+/// question is never auto-answered · A-5).
+const HARNESS_GATE_CODE: &str = "NIKA-1806";
+
 /// A paused run's prompt payload (ADR-099 rider) — what `workflow_paused`
 /// journals and what [`crate::RunOutcome::paused`] carries to the CLI.
 #[derive(Debug, Clone)]
@@ -146,6 +153,58 @@ pub(crate) fn prompt_block(
     Some(pause)
 }
 
+/// Does this finish pause the run on the HARNESS gate? (P3 B5 · the
+/// prompt rider's agent-task twin.) `Some(payload)` iff an `agent:` task
+/// failed with the bridge's gate code (NIKA-1806 — an ask outside every
+/// `permits:` grant, no operator verdict bound) AND no authored
+/// `on_error:` claims it. The question rides the verb's Display
+/// (`harness gate: <question>`) and surfaces VERBATIM; mode `confirm`:
+/// `--answer <task>=true` grants the re-asked action ONCE (consumed — a
+/// second ask pauses again), `false` denies. No F-P4 ticket rides this
+/// pause (the question only exists mid-run, where the ticket layer
+/// never mints): the resume binds unvalidated per the ADR-099
+/// ticketless contract, narrowed by the consume-once law; the
+/// question-hash binding (F-P4's harness twin) defers.
+pub(crate) fn harness_gate_block(finish: &Finish, wf: &RawWorkflow) -> Option<WorkflowPause> {
+    let SettleAs::Ran(ran) = &finish.settle else {
+        return None;
+    };
+    let RunResult::Failed { error, .. } = &ran.result else {
+        return None;
+    };
+    if error.code != HARNESS_GATE_CODE {
+        return None;
+    }
+    let task = wf
+        .tasks
+        .iter()
+        .map(|t| &t.value)
+        .find(|t| t.id.value == finish.id)?;
+    // The author explicitly routed this code (`on_error:` wins) — the
+    // rider never overrides authored policy (the prompt rider's honor).
+    if let Some(on_error) = task.on_error.as_ref()
+        && crate::task::on_error_applies(&on_error.value, error)
+    {
+        return None;
+    }
+    if !matches!(task.action, RawAction::Agent(_)) {
+        return None; // the gate binds an agent task only
+    }
+    // The verb's Display carries the question after ONE fixed prefix —
+    // strip it so the pause shows the harness's own words, untouched.
+    let question = error
+        .message
+        .strip_prefix("harness gate: ")
+        .map(str::to_owned)
+        .or(Some(error.message.clone()));
+    Some(WorkflowPause::new(
+        finish.id.clone(),
+        "confirm".to_owned(),
+        question,
+        Vec::new(),
+    ))
+}
+
 /// Build the pause payload from the prompt's `args:` — rendered when the
 /// scope resolves them, the RAW authored values otherwise (best-effort ·
 /// a payload never blocks the pause itself).
@@ -192,6 +251,14 @@ mod tests {
     }
 
     fn failed_finish(id: &str, code: &str) -> Finish {
+        failed_finish_msg(id, code, "non-interactive and no `default:`")
+    }
+
+    const PROMPT_WF: &str = "nika: v1\nworkflow:\n  id: gate\ninputs:\n  q: { type: string, default: \"deploy?\" }\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"choice\", message: \"${{ inputs.q }}\", choices: [\"yes\", \"no\"] }\n";
+
+    /// A Finish failing with a caller-chosen message (the harness gate's
+    /// question rides the verb's Display).
+    fn failed_finish_msg(id: &str, code: &str, message: &str) -> Finish {
         Finish {
             id: id.to_owned(),
             settle: SettleAs::Ran(Box::new(RanTask {
@@ -204,7 +271,7 @@ mod tests {
                 result: RunResult::Failed {
                     error: TaskErrorRecord {
                         code: code.to_owned(),
-                        message: "non-interactive and no `default:`".to_owned(),
+                        message: message.to_owned(),
                         transient: false,
                     },
                     cost_usd: None,
@@ -219,7 +286,76 @@ mod tests {
         }
     }
 
-    const PROMPT_WF: &str = "nika: v1\nworkflow:\n  id: gate\ninputs:\n  q: { type: string, default: \"deploy?\" }\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"choice\", message: \"${{ inputs.q }}\", choices: [\"yes\", \"no\"] }\n";
+    const AGENT_WF: &str = "nika: v1\nworkflow:\n  id: g\npermits: { exec: [\"git\"] }\ntasks:\n  fix:\n    agent: { prompt: \"fix it\" }\n";
+
+    #[test]
+    fn the_harness_gate_pauses_an_agent_task_with_the_question_verbatim() {
+        let wf = parse(AGENT_WF);
+        let finish = failed_finish_msg("fix", "NIKA-1806", "harness gate: run `rm -rf /`");
+        let pause = harness_gate_block(&finish, &wf).expect("the gate branch pauses");
+        assert_eq!(pause.task, "fix");
+        assert_eq!(pause.mode, "confirm");
+        assert_eq!(
+            pause.message.as_deref(),
+            Some("run `rm -rf /`"),
+            "the question surfaces VERBATIM — the prefix stripped, never a paraphrase"
+        );
+        assert!(pause.choices.is_empty(), "a confirm carries no choices");
+        assert!(
+            pause.approval.is_none(),
+            "no F-P4 ticket exists mid-run — the ticketless ADR-099 posture, documented"
+        );
+    }
+
+    #[test]
+    fn the_harness_gate_never_pauses_other_branches() {
+        let wf = parse(AGENT_WF);
+        // Another code on an agent task: a hard failure, never a pause.
+        assert!(
+            harness_gate_block(
+                &failed_finish_msg("fix", "NIKA-1804", "harness session failed: x"),
+                &wf
+            )
+            .is_none()
+        );
+        // The gate code on a NON-agent task (an exec failing with a
+        // lifted code string): the gate binds agent tasks only.
+        let exec_wf = parse(
+            "nika: v1\nworkflow:\n  id: t\ntasks:\n  ask:\n    exec: { command: [\"true\"] }\n",
+        );
+        assert!(
+            harness_gate_block(
+                &failed_finish_msg("ask", "NIKA-1806", "harness gate: x"),
+                &exec_wf
+            )
+            .is_none()
+        );
+        // An authored on_error claiming the failure wins over the pause
+        // (a bare catch-all route — `on_codes` takes only the namespaced
+        // NIKA-<NS>-<NNN> form, which the numeric gate code never wears).
+        let routed = parse(
+            "nika: v1\nworkflow:\n  id: t\ntasks:\n  fix:\n    agent: { prompt: \"x\" }\n    on_error:\n      fail_workflow: true\n",
+        );
+        assert!(
+            harness_gate_block(
+                &failed_finish_msg("fix", "NIKA-1806", "harness gate: x"),
+                &routed
+            )
+            .is_none(),
+            "authored policy is never hijacked"
+        );
+    }
+
+    #[test]
+    #[allow(clippy::unreachable)]
+    fn the_gate_message_without_the_prefix_still_surfaces() {
+        // A message that lost the prefix (a future constructor) still
+        // surfaces WHOLE — the question is never swallowed.
+        let wf = parse(AGENT_WF);
+        let finish = failed_finish_msg("fix", "NIKA-1806", "a bare question");
+        let pause = harness_gate_block(&finish, &wf).expect("pauses");
+        assert_eq!(pause.message.as_deref(), Some("a bare question"));
+    }
 
     #[test]
     fn prompt_001_on_a_direct_invoke_pauses_with_the_rendered_payload() {

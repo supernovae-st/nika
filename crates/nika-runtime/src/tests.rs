@@ -1444,7 +1444,7 @@ fn the_boot_manifest_follows_the_run_declaration() {
             nika_schema::ParseMode::Strict,
         )
         .expect("fixture parses");
-        format!("{:?}", super::boot_attestation_fields(&wf))
+        format!("{:?}", crate::prologue::boot_attestation_fields(&wf))
     };
     let ambient = dump(HEAD);
     assert!(ambient.contains("spec_pin"), "{ambient}");

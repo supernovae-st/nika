@@ -300,6 +300,7 @@ fn run_verdict(
         max_cost_usd,
         skills.clone(),
         (no_trace_file, output_json),
+        &report,
     ) {
         Ok(rt) => rt,
         Err(code) => return RunVerdict::bare(code),
@@ -462,6 +463,7 @@ fn answered_leg(
         max_cost_usd,
         skills.clone(),
         (no_trace_file, output_json),
+        report,
     ) {
         Ok(rt) => rt,
         Err(code) => return RunVerdict::bare(code),
@@ -663,6 +665,7 @@ fn composed_runtime(
     max_cost_usd: Option<f64>,
     skills: BTreeMap<String, String>,
     (no_trace_file, output_json): (bool, bool),
+    report: &nika_check::CheckReport,
 ) -> Result<ProdRuntime, u8> {
     let ResumeSetup {
         plan: resume_plan,
@@ -726,6 +729,12 @@ fn composed_runtime(
                 // runtime's admission gate against the composer-collected
                 // probes — unsatisfied refuses BEFORE the prologue.
                 .with_access_pin(access_pin.map(ToOwned::to_owned))
+                // R-2 (P3 B5) · the boot-manifest access stamps: the pin
+                // + the per-model plan, composer-computed over this
+                // machine's probes, journaled verbatim by the runtime.
+                .with_boot_access_fields(crate::verbs::check::models_rung::boot_access_fields(
+                    report, access_pin,
+                ))
                 // The run's identity: the journal names the definition it
                 // recorded (sha256 of the exact bytes this composer read).
                 .with_source_sha256(sha256_hex(source.as_bytes()));

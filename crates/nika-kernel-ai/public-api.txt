@@ -483,8 +483,12 @@ pub nika_kernel_ai::harness::HarnessEvent::Completed::outcome: alloc::boxed::Box
 pub nika_kernel_ai::harness::HarnessEvent::MessageChunk
 pub nika_kernel_ai::harness::HarnessEvent::MessageChunk::text: alloc::string::String
 pub nika_kernel_ai::harness::HarnessEvent::PermissionAsked
+pub nika_kernel_ai::harness::HarnessEvent::PermissionAsked::command: alloc::vec::Vec<alloc::string::String>
+pub nika_kernel_ai::harness::HarnessEvent::PermissionAsked::kind: core::option::Option<alloc::string::String>
+pub nika_kernel_ai::harness::HarnessEvent::PermissionAsked::locations: alloc::vec::Vec<alloc::string::String>
 pub nika_kernel_ai::harness::HarnessEvent::PermissionAsked::question: alloc::string::String
 pub nika_kernel_ai::harness::HarnessEvent::PermissionAsked::reply: nika_kernel_ai::harness::PermissionReply
+pub nika_kernel_ai::harness::HarnessEvent::PermissionAsked::url: core::option::Option<alloc::string::String>
 impl core::fmt::Debug for nika_kernel_ai::harness::HarnessEvent
 pub fn nika_kernel_ai::harness::HarnessEvent::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<D> owo_colors::OwoColorize for nika_kernel_ai::harness::HarnessEvent

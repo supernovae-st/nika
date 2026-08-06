@@ -18,7 +18,7 @@
 
 use nika_error::codes::{
     NIKA_460, NIKA_461, NIKA_462, NIKA_463, NIKA_464, NIKA_465, NIKA_466, NIKA_467, NIKA_468,
-    NIKA_469, NikaCode,
+    NIKA_469, NIKA_1806, NikaCode,
 };
 use nika_error::traits::NikaErrorCode;
 use nika_kernel::ai::provider::ProviderError;
@@ -183,6 +183,25 @@ pub enum VerbAgentError {
         /// arrives after billed turns).
         spend: Box<SpendOnFailure>,
     },
+
+    /// The harness asked for authority the workflow's `permits:` grants
+    /// do not cover, and no operator answer is bound (NIKA-1806 · P3
+    /// B5). This is NOT a failure — it is the durable human gate
+    /// (ADR-099's harness twin): the runtime recognizes this exact
+    /// branch and PAUSES the run, the gate question surfacing VERBATIM
+    /// (a gate question is never auto-answered, never paraphrased).
+    /// `--resume --answer <task>=true|false` binds the human verdict.
+    #[error("harness gate: {question}")]
+    #[diagnostic(code(nika::access::harness_gate))]
+    HarnessGate {
+        /// The harness's ask, verbatim — the pause surfaces it untouched.
+        question: String,
+        /// The bridge judge's why (the grant the ask missed).
+        detail: String,
+        /// Empty-honest: a gated run never reached the harness's
+        /// usage report, so there is nothing to meter.
+        spend: Box<SpendOnFailure>,
+    },
 }
 
 impl VerbAgentError {
@@ -203,7 +222,8 @@ impl VerbAgentError {
             | Self::Inference { spend, .. }
             | Self::SchemaValidation { spend, .. }
             | Self::Stalled { spend, .. }
-            | Self::SecurityBoundary { spend, .. } => *spend = incurred,
+            | Self::SecurityBoundary { spend, .. }
+            | Self::HarnessGate { spend, .. } => *spend = incurred,
             Self::InvalidParam { .. } | Self::ToolDefs { .. } => {}
         }
         self
@@ -222,7 +242,8 @@ impl VerbAgentError {
             | Self::Inference { spend, .. }
             | Self::SchemaValidation { spend, .. }
             | Self::Stalled { spend, .. }
-            | Self::SecurityBoundary { spend, .. } => spend.has_signal().then_some(spend),
+            | Self::SecurityBoundary { spend, .. }
+            | Self::HarnessGate { spend, .. } => spend.has_signal().then_some(spend),
             Self::InvalidParam { .. } | Self::ToolDefs { .. } => None,
         }
     }
@@ -241,6 +262,7 @@ impl NikaErrorCode for VerbAgentError {
             Self::Stalled { .. } => NIKA_467,
             Self::SecurityBoundary { .. } => NIKA_468,
             Self::UsageUnmetered { .. } => NIKA_469,
+            Self::HarnessGate { .. } => NIKA_1806,
         }
     }
 
@@ -271,9 +293,10 @@ impl NikaErrorCode for VerbAgentError {
             Self::Inference { .. } => "NIKA-INFER-001".to_owned(),
             Self::SchemaValidation { .. } => "NIKA-INFER-002".to_owned(),
             Self::SecurityBoundary { code, .. } => code.clone(),
-            Self::InvalidParam { .. } | Self::ToolDefs { .. } | Self::Stalled { .. } => {
-                self.nika_code().to_string()
-            }
+            Self::InvalidParam { .. }
+            | Self::ToolDefs { .. }
+            | Self::Stalled { .. }
+            | Self::HarnessGate { .. } => self.nika_code().to_string(),
         }
     }
 
@@ -290,7 +313,8 @@ impl NikaErrorCode for VerbAgentError {
             | Self::InvalidParam { .. }
             | Self::Stalled { .. }
             | Self::SecurityBoundary { .. }
-            | Self::UsageUnmetered { .. } => false,
+            | Self::UsageUnmetered { .. }
+            | Self::HarnessGate { .. } => false,
             // Mid-loop provider failures inherit the provider's verdict
             // (rate limits ARE transient).
             Self::Inference { source, .. } => source.is_transient(),

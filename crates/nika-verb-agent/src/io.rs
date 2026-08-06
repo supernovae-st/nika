@@ -31,6 +31,15 @@ pub struct AgentInput {
     pub temperature: Option<f32>,
     /// JSON Schema validating the FINAL output (spec `schema:`).
     pub schema: Option<serde_json::Value>,
+    /// The workflow's declared `permits:` boundary (P3 B5) — the
+    /// harness permission bridge judges every ask against it. `None`
+    /// on the native path (the dispatch layer gates effects there) or
+    /// under an undeclared block (zero authority · F-O8).
+    pub permits: Option<nika_schema::types::Permits>,
+    /// The operator's bound `--answer` for THIS task on a resumed run
+    /// (P3 B5) — the harness gate's human verdict. `None` on a fresh
+    /// run (an out-of-grants ask then pauses for the operator).
+    pub gate_answer: Option<serde_json::Value>,
 }
 
 impl AgentInput {
@@ -46,6 +55,8 @@ impl AgentInput {
             max_tokens_total: None,
             temperature: None,
             schema: None,
+            permits: None,
+            gate_answer: None,
         }
     }
 }

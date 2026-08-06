@@ -25,12 +25,14 @@ mod algebra;
 mod effect;
 pub mod env;
 mod fit;
+mod harness_gate;
 mod integrity;
 mod permits;
 mod policy;
 mod shape;
 pub mod sink;
 mod trifecta;
+mod witness;
 
 // Public surface = the 4 capability types + their inherent methods (allows_* ·
 // union · intersect · new) + the ONE lexical canonicalization (F-O1 PR-2 · the
@@ -49,6 +51,9 @@ pub use env::{
     DANGEROUS_ENV_VARS, RUNNER_FLOOR_ENV_VARS, compose_child_env, is_dangerous_env_name,
 };
 pub use fit::{glob_admits, lexically_normalize};
+// P3 B5 · the harness permission-bridge judge (the pure half — the
+// wire facts' translation into the declared boundary's verdict).
+pub use harness_gate::{HarnessAskFacts, HarnessGate, judge_harness_ask};
 pub use sink::code_bearing_path_class;
 // F-O1 PR-1 · the runtime integrity label (the Integ axis of RS-06's
 // trifecta Value) + the shared untrusted-ingress source predicates
@@ -67,3 +72,7 @@ pub use shape::builtin_shape_findings;
 // leg-conjunction + path-dominance logic; the projection lives in
 // `nika-schema::check::trifecta` (the PolicySubject / policy_violations split).
 pub use trifecta::{TaintWitness, TrifectaSubject, TrifectaViolation, trifecta_violations};
+// NEP-0007 · the permit-decision witness (descended from nika-runtime at
+// the 15k wall · P3 B5 — the decision over a Permits boundary is
+// capability-boundary data).
+pub use witness::{PermitDecision, PermitWitness};

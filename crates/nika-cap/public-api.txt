@@ -172,6 +172,46 @@ pub unsafe fn nika_cap::ExecPermit::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cap::ExecPermit
 pub fn nika_cap::ExecPermit::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_cap::ExecPermit where T: for<'de> serde_core::de::Deserialize<'de>
+pub enum nika_cap::HarnessGate
+pub nika_cap::HarnessGate::Inside
+pub nika_cap::HarnessGate::Inside::plane: &'static str
+pub nika_cap::HarnessGate::Inside::why: alloc::string::String
+pub nika_cap::HarnessGate::Outside
+pub nika_cap::HarnessGate::Outside::plane: &'static str
+pub nika_cap::HarnessGate::Outside::why: alloc::string::String
+impl nika_cap::HarnessGate
+pub fn nika_cap::HarnessGate::plane(&self) -> &'static str
+pub fn nika_cap::HarnessGate::why(&self) -> &str
+impl core::clone::Clone for nika_cap::HarnessGate
+pub fn nika_cap::HarnessGate::clone(&self) -> nika_cap::HarnessGate
+impl core::cmp::Eq for nika_cap::HarnessGate
+impl core::cmp::PartialEq for nika_cap::HarnessGate
+pub fn nika_cap::HarnessGate::eq(&self, other: &nika_cap::HarnessGate) -> bool
+impl core::fmt::Debug for nika_cap::HarnessGate
+pub fn nika_cap::HarnessGate::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_cap::HarnessGate
+impl<T, U> core::convert::Into<U> for nika_cap::HarnessGate where U: core::convert::From<T>
+pub fn nika_cap::HarnessGate::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cap::HarnessGate where U: core::convert::Into<T>
+pub type nika_cap::HarnessGate::Error = core::convert::Infallible
+pub fn nika_cap::HarnessGate::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cap::HarnessGate where U: core::convert::TryFrom<T>
+pub type nika_cap::HarnessGate::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cap::HarnessGate::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cap::HarnessGate where T: core::clone::Clone
+pub type nika_cap::HarnessGate::Owned = T
+pub fn nika_cap::HarnessGate::clone_into(&self, target: &mut T)
+pub fn nika_cap::HarnessGate::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cap::HarnessGate where T: 'static + ?core::marker::Sized
+pub fn nika_cap::HarnessGate::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cap::HarnessGate where T: ?core::marker::Sized
+pub fn nika_cap::HarnessGate::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cap::HarnessGate where T: ?core::marker::Sized
+pub fn nika_cap::HarnessGate::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cap::HarnessGate where T: core::clone::Clone
+pub unsafe fn nika_cap::HarnessGate::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cap::HarnessGate
+pub fn nika_cap::HarnessGate::from(t: T) -> T
 pub enum nika_cap::Integrity
 pub nika_cap::Integrity::Trusted
 pub nika_cap::Integrity::Untrusted
@@ -454,6 +494,49 @@ pub unsafe fn nika_cap::FsPermits::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cap::FsPermits
 pub fn nika_cap::FsPermits::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_cap::FsPermits where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_cap::HarnessAskFacts
+pub nika_cap::HarnessAskFacts::command: alloc::vec::Vec<alloc::string::String>
+pub nika_cap::HarnessAskFacts::kind: core::option::Option<alloc::string::String>
+pub nika_cap::HarnessAskFacts::locations: alloc::vec::Vec<alloc::string::String>
+pub nika_cap::HarnessAskFacts::url: core::option::Option<alloc::string::String>
+impl nika_cap::HarnessAskFacts
+pub fn nika_cap::HarnessAskFacts::new() -> Self
+pub fn nika_cap::HarnessAskFacts::with_command(self, command: alloc::vec::Vec<alloc::string::String>) -> Self
+pub fn nika_cap::HarnessAskFacts::with_kind(self, kind: core::option::Option<alloc::string::String>) -> Self
+pub fn nika_cap::HarnessAskFacts::with_locations(self, locations: alloc::vec::Vec<alloc::string::String>) -> Self
+pub fn nika_cap::HarnessAskFacts::with_url(self, url: core::option::Option<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_cap::HarnessAskFacts
+pub fn nika_cap::HarnessAskFacts::clone(&self) -> nika_cap::HarnessAskFacts
+impl core::cmp::Eq for nika_cap::HarnessAskFacts
+impl core::cmp::PartialEq for nika_cap::HarnessAskFacts
+pub fn nika_cap::HarnessAskFacts::eq(&self, other: &nika_cap::HarnessAskFacts) -> bool
+impl core::default::Default for nika_cap::HarnessAskFacts
+pub fn nika_cap::HarnessAskFacts::default() -> nika_cap::HarnessAskFacts
+impl core::fmt::Debug for nika_cap::HarnessAskFacts
+pub fn nika_cap::HarnessAskFacts::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_cap::HarnessAskFacts
+impl<T, U> core::convert::Into<U> for nika_cap::HarnessAskFacts where U: core::convert::From<T>
+pub fn nika_cap::HarnessAskFacts::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cap::HarnessAskFacts where U: core::convert::Into<T>
+pub type nika_cap::HarnessAskFacts::Error = core::convert::Infallible
+pub fn nika_cap::HarnessAskFacts::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cap::HarnessAskFacts where U: core::convert::TryFrom<T>
+pub type nika_cap::HarnessAskFacts::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cap::HarnessAskFacts::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cap::HarnessAskFacts where T: core::clone::Clone
+pub type nika_cap::HarnessAskFacts::Owned = T
+pub fn nika_cap::HarnessAskFacts::clone_into(&self, target: &mut T)
+pub fn nika_cap::HarnessAskFacts::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cap::HarnessAskFacts where T: 'static + ?core::marker::Sized
+pub fn nika_cap::HarnessAskFacts::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cap::HarnessAskFacts where T: ?core::marker::Sized
+pub fn nika_cap::HarnessAskFacts::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cap::HarnessAskFacts where T: ?core::marker::Sized
+pub fn nika_cap::HarnessAskFacts::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cap::HarnessAskFacts where T: core::clone::Clone
+pub unsafe fn nika_cap::HarnessAskFacts::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cap::HarnessAskFacts
+pub fn nika_cap::HarnessAskFacts::from(t: T) -> T
 #[non_exhaustive] pub struct nika_cap::Limits
 pub nika_cap::Limits::max_tasks: core::option::Option<u32>
 impl core::clone::Clone for nika_cap::Limits
@@ -534,6 +617,66 @@ pub unsafe fn nika_cap::NetPermits::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cap::NetPermits
 pub fn nika_cap::NetPermits::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_cap::NetPermits where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_cap::PermitDecision
+pub nika_cap::PermitDecision::decision: &'static str
+pub nika_cap::PermitDecision::gate: alloc::string::String
+pub nika_cap::PermitDecision::plane: &'static str
+pub nika_cap::PermitDecision::why: alloc::string::String
+impl core::clone::Clone for nika_cap::PermitDecision
+pub fn nika_cap::PermitDecision::clone(&self) -> nika_cap::PermitDecision
+impl core::cmp::Eq for nika_cap::PermitDecision
+impl core::cmp::PartialEq for nika_cap::PermitDecision
+pub fn nika_cap::PermitDecision::eq(&self, other: &nika_cap::PermitDecision) -> bool
+impl core::fmt::Debug for nika_cap::PermitDecision
+pub fn nika_cap::PermitDecision::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_cap::PermitDecision
+impl<T, U> core::convert::Into<U> for nika_cap::PermitDecision where U: core::convert::From<T>
+pub fn nika_cap::PermitDecision::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cap::PermitDecision where U: core::convert::Into<T>
+pub type nika_cap::PermitDecision::Error = core::convert::Infallible
+pub fn nika_cap::PermitDecision::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cap::PermitDecision where U: core::convert::TryFrom<T>
+pub type nika_cap::PermitDecision::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cap::PermitDecision::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cap::PermitDecision where T: core::clone::Clone
+pub type nika_cap::PermitDecision::Owned = T
+pub fn nika_cap::PermitDecision::clone_into(&self, target: &mut T)
+pub fn nika_cap::PermitDecision::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cap::PermitDecision where T: 'static + ?core::marker::Sized
+pub fn nika_cap::PermitDecision::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cap::PermitDecision where T: ?core::marker::Sized
+pub fn nika_cap::PermitDecision::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cap::PermitDecision where T: ?core::marker::Sized
+pub fn nika_cap::PermitDecision::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cap::PermitDecision where T: core::clone::Clone
+pub unsafe fn nika_cap::PermitDecision::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cap::PermitDecision
+pub fn nika_cap::PermitDecision::from(t: T) -> T
+pub struct nika_cap::PermitWitness
+impl nika_cap::PermitWitness
+pub fn nika_cap::PermitWitness::new() -> Self
+pub fn nika_cap::PermitWitness::record(&self, plane: &'static str, gate: impl core::convert::Into<alloc::string::String>, decision: &'static str, why: impl core::convert::Into<alloc::string::String>)
+pub fn nika_cap::PermitWitness::take(&self) -> alloc::vec::Vec<nika_cap::PermitDecision>
+impl core::default::Default for nika_cap::PermitWitness
+pub fn nika_cap::PermitWitness::default() -> nika_cap::PermitWitness
+impl core::fmt::Debug for nika_cap::PermitWitness
+pub fn nika_cap::PermitWitness::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<T, U> core::convert::Into<U> for nika_cap::PermitWitness where U: core::convert::From<T>
+pub fn nika_cap::PermitWitness::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cap::PermitWitness where U: core::convert::Into<T>
+pub type nika_cap::PermitWitness::Error = core::convert::Infallible
+pub fn nika_cap::PermitWitness::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cap::PermitWitness where U: core::convert::TryFrom<T>
+pub type nika_cap::PermitWitness::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cap::PermitWitness::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_cap::PermitWitness where T: 'static + ?core::marker::Sized
+pub fn nika_cap::PermitWitness::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cap::PermitWitness where T: ?core::marker::Sized
+pub fn nika_cap::PermitWitness::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cap::PermitWitness where T: ?core::marker::Sized
+pub fn nika_cap::PermitWitness::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_cap::PermitWitness
+pub fn nika_cap::PermitWitness::from(t: T) -> T
 #[non_exhaustive] pub struct nika_cap::Permits
 pub nika_cap::Permits::env: core::option::Option<alloc::vec::Vec<alloc::string::String>>
 pub nika_cap::Permits::exec: core::option::Option<nika_cap::ExecPermit>
@@ -925,6 +1068,7 @@ pub fn nika_cap::invoke_tool_is_ingress(tool_id: &str, mcp_content_trusted: bool
 pub fn nika_cap::is_dangerous_env_name(name: &str) -> bool
 pub fn nika_cap::is_pure_internal(tool: &str) -> bool
 pub fn nika_cap::is_pure_internal_call(tool: &str, args: core::option::Option<&serde_json::value::Value>) -> bool
+pub fn nika_cap::judge_harness_ask(facts: &nika_cap::HarnessAskFacts, permits: core::option::Option<&nika_cap::Permits>) -> nika_cap::HarnessGate
 pub fn nika_cap::lexically_normalize(path: &str) -> alloc::string::String
 pub fn nika_cap::policy_child_keys(family: &str) -> core::option::Option<&'static [&'static str]>
 pub fn nika_cap::policy_violations(policy: &nika_cap::Policy, tasks: &[nika_cap::PolicySubject]) -> alloc::vec::Vec<nika_cap::PolicyViolation>

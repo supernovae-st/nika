@@ -121,6 +121,10 @@ impl<T> nika_error::traits::AsAny for nika_verb_agent::config::RouterConfig wher
 pub fn nika_verb_agent::config::RouterConfig::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub mod nika_verb_agent::errors
 #[non_exhaustive] pub enum nika_verb_agent::errors::VerbAgentError
+pub nika_verb_agent::errors::VerbAgentError::HarnessGate
+pub nika_verb_agent::errors::VerbAgentError::HarnessGate::detail: alloc::string::String
+pub nika_verb_agent::errors::VerbAgentError::HarnessGate::question: alloc::string::String
+pub nika_verb_agent::errors::VerbAgentError::HarnessGate::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
 pub nika_verb_agent::errors::VerbAgentError::Inference
 pub nika_verb_agent::errors::VerbAgentError::Inference::source: nika_kernel_ai::provider::ProviderError
 pub nika_verb_agent::errors::VerbAgentError::Inference::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
@@ -210,6 +214,11 @@ pub nika_verb_agent::observe::AgentEvent::Nudged
 pub nika_verb_agent::observe::AgentEvent::Nudged::period: u32
 pub nika_verb_agent::observe::AgentEvent::Nudged::reason: nika_verb_agent::observe::NudgeReason
 pub nika_verb_agent::observe::AgentEvent::Nudged::turn: u32
+pub nika_verb_agent::observe::AgentEvent::PermissionJudged
+pub nika_verb_agent::observe::AgentEvent::PermissionJudged::decision: &'static str
+pub nika_verb_agent::observe::AgentEvent::PermissionJudged::gate: alloc::string::String
+pub nika_verb_agent::observe::AgentEvent::PermissionJudged::plane: &'static str
+pub nika_verb_agent::observe::AgentEvent::PermissionJudged::why: alloc::string::String
 pub nika_verb_agent::observe::AgentEvent::RunStarted
 pub nika_verb_agent::observe::AgentEvent::RunStarted::model: alloc::string::String
 pub nika_verb_agent::observe::AgentEvent::RunStarted::routed: bool
@@ -505,6 +514,11 @@ pub nika_verb_agent::AgentEvent::Nudged
 pub nika_verb_agent::AgentEvent::Nudged::period: u32
 pub nika_verb_agent::AgentEvent::Nudged::reason: nika_verb_agent::observe::NudgeReason
 pub nika_verb_agent::AgentEvent::Nudged::turn: u32
+pub nika_verb_agent::AgentEvent::PermissionJudged
+pub nika_verb_agent::AgentEvent::PermissionJudged::decision: &'static str
+pub nika_verb_agent::AgentEvent::PermissionJudged::gate: alloc::string::String
+pub nika_verb_agent::AgentEvent::PermissionJudged::plane: &'static str
+pub nika_verb_agent::AgentEvent::PermissionJudged::why: alloc::string::String
 pub nika_verb_agent::AgentEvent::RunStarted
 pub nika_verb_agent::AgentEvent::RunStarted::model: alloc::string::String
 pub nika_verb_agent::AgentEvent::RunStarted::routed: bool
@@ -691,6 +705,10 @@ pub fn nika_verb_agent::observe::ToolSource::as_any(&self) -> &(dyn core::any::A
 impl<T> outref::AsOut<T> for nika_verb_agent::observe::ToolSource where T: core::marker::Copy
 pub fn nika_verb_agent::observe::ToolSource::as_out(&mut self) -> outref::Out<'_, T>
 #[non_exhaustive] pub enum nika_verb_agent::VerbAgentError
+pub nika_verb_agent::VerbAgentError::HarnessGate
+pub nika_verb_agent::VerbAgentError::HarnessGate::detail: alloc::string::String
+pub nika_verb_agent::VerbAgentError::HarnessGate::question: alloc::string::String
+pub nika_verb_agent::VerbAgentError::HarnessGate::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
 pub nika_verb_agent::VerbAgentError::Inference
 pub nika_verb_agent::VerbAgentError::Inference::source: nika_kernel_ai::provider::ProviderError
 pub nika_verb_agent::VerbAgentError::Inference::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
@@ -803,9 +821,11 @@ pub fn nika_verb_agent::config::AgentConfig::__clone_box(&self, _: dyn_clone::se
 impl<T> nika_error::traits::AsAny for nika_verb_agent::config::AgentConfig where T: 'static
 pub fn nika_verb_agent::config::AgentConfig::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_verb_agent::AgentInput
+pub nika_verb_agent::AgentInput::gate_answer: core::option::Option<serde_json::value::Value>
 pub nika_verb_agent::AgentInput::max_tokens_total: core::option::Option<u64>
 pub nika_verb_agent::AgentInput::max_turns: core::option::Option<u32>
 pub nika_verb_agent::AgentInput::model: core::option::Option<alloc::string::String>
+pub nika_verb_agent::AgentInput::permits: core::option::Option<nika_cap::permits::Permits>
 pub nika_verb_agent::AgentInput::prompt: alloc::string::String
 pub nika_verb_agent::AgentInput::schema: core::option::Option<serde_json::value::Value>
 pub nika_verb_agent::AgentInput::system: core::option::Option<alloc::string::String>

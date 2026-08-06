@@ -183,6 +183,21 @@ pub enum AgentEvent {
         /// Total tokens spent.
         total_tokens: u64,
     },
+    /// The harness permission bridge judged one ask (P3 B5 · the
+    /// NEP-0007 witness's harness row: every authority decision the
+    /// bridge takes is observed — an auditor reconstructs WHAT
+    /// authority was exercised or escalated).
+    PermissionJudged {
+        /// The authority plane (`exec` · `fs` · `net` · `agent`).
+        plane: &'static str,
+        /// What was judged (the program · the paths · the ask's kind).
+        gate: String,
+        /// `allow` (inside grants) · `deny` (the operator said no) ·
+        /// `escalate` (outside grants — paused for a human).
+        decision: &'static str,
+        /// The grant law applied (the teaching one-liner).
+        why: String,
+    },
 }
 
 /// The observer seam. Implementations MUST be cheap and non-blocking

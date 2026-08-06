@@ -16,18 +16,22 @@
 //! - a `tools:` whitelist refuses — the harness runs its OWN tools;
 //!   the enforceable boundary is the permission bridge (B5), and a
 //!   declared whitelist the engine cannot enforce would be a lie;
-//! - a permission ask is answered **Deny** (fail-closed) — B5 replaces
-//!   this constant with the runtime's permits bridge; until then no
+//! - a permission ask is judged by the B5 AUTHORITY BRIDGE: inside the
+//!   workflow's `permits:` grants it is answered `AllowOnce` (never
+//!   `allow_always` — A-5) and witnessed; outside every grant the run
+//!   PAUSES for the operator (NIKA-1806 · the ADR-099 durable gate's
+//!   harness twin) unless a `--answer` verdict is already bound. No
 //!   harness action escapes the engine's authority by default.
 
 use std::sync::Arc;
 
+use nika_cap::{HarnessAskFacts, HarnessGate, judge_harness_ask};
 use nika_kernel::ai::harness::{
     DynAgentBackend, HarnessError, HarnessEvent, HarnessRequest, PermissionDecision,
 };
 use nika_kernel::runtime::agent::AgentStopReason;
 
-use crate::{AgentInput, AgentOutput, AgentValue, VerbAgentError};
+use crate::{AgentEvent, AgentInput, AgentObserver, AgentOutput, AgentValue, VerbAgentError};
 
 /// The configured harness seat — the backend plus the session facts
 /// the VERB cannot know (the composer owns cwd · the runtime owns the
@@ -68,6 +72,7 @@ impl HarnessSeat {
 pub(crate) async fn run_on_harness(
     seat: &HarnessSeat,
     input: AgentInput,
+    observer: &dyn AgentObserver,
 ) -> Result<AgentOutput, VerbAgentError> {
     if input.schema.is_some() {
         return Err(VerbAgentError::InvalidParam {
@@ -95,6 +100,11 @@ pub(crate) async fn run_on_harness(
     if let Some(model) = &input.model {
         request = request.with_requested_model(model.clone());
     }
+    // B5 · the operator's bound verdict is CONSUMED by the first
+    // out-of-grants ask it decides: the human answered ONE question, so
+    // a second ask (or a different one on a nondeterministic replay)
+    // pauses again instead of riding a stale grant.
+    let mut gate_answer = input.gate_answer.clone();
 
     let mut stream = seat
         .backend
@@ -105,10 +115,77 @@ pub(crate) async fn run_on_harness(
     loop {
         let next = std::future::poll_fn(|cx| stream.as_mut().poll_next(cx)).await;
         match next {
-            Some(Ok(HarnessEvent::PermissionAsked { reply, .. })) => {
-                // B4 fail-closed constant — B5 swaps in the permits
-                // bridge (auto-answer inside grants · pause outside).
-                reply.respond(PermissionDecision::Deny);
+            Some(Ok(HarnessEvent::PermissionAsked {
+                question,
+                reply,
+                kind,
+                locations,
+                command,
+                url,
+            })) => {
+                // B5 · the AUTHORITY BRIDGE. The ask is judged against the
+                // workflow's declared `permits:` — inside, it is answered
+                // ONCE and witnessed; outside, the operator's bound
+                // verdict decides, and absent one the run PAUSES (the
+                // reply lane drops unanswered: the harness hears
+                // `cancelled`, so zero action runs before a human speaks).
+                let facts = HarnessAskFacts::new()
+                    .with_kind(kind)
+                    .with_locations(locations)
+                    .with_command(command)
+                    .with_url(url);
+                let gate = gate_label(&facts);
+                match judge_harness_ask(&facts, input.permits.as_ref()) {
+                    HarnessGate::Inside { plane, why } => {
+                        observer.on_event(&AgentEvent::PermissionJudged {
+                            plane,
+                            gate,
+                            decision: "allow",
+                            why,
+                        });
+                        reply.respond(PermissionDecision::AllowOnce);
+                    }
+                    HarnessGate::Outside { plane, why } => {
+                        match gate_answer
+                            .take()
+                            .as_ref()
+                            .and_then(serde_json::Value::as_bool)
+                        {
+                            Some(true) => {
+                                observer.on_event(&AgentEvent::PermissionJudged {
+                                    plane,
+                                    gate,
+                                    decision: "allow",
+                                    why: format!("operator granted at the gate (--answer) · {why}"),
+                                });
+                                reply.respond(PermissionDecision::AllowOnce);
+                            }
+                            Some(false) => {
+                                observer.on_event(&AgentEvent::PermissionJudged {
+                                    plane,
+                                    gate,
+                                    decision: "deny",
+                                    why: format!("operator denied at the gate (--answer) · {why}"),
+                                });
+                                reply.respond(PermissionDecision::Deny);
+                            }
+                            None => {
+                                observer.on_event(&AgentEvent::PermissionJudged {
+                                    plane,
+                                    gate,
+                                    decision: "escalate",
+                                    why: why.clone(),
+                                });
+                                drop(reply);
+                                return Err(VerbAgentError::HarnessGate {
+                                    question,
+                                    detail: why,
+                                    spend: Box::default(),
+                                });
+                            }
+                        }
+                    }
+                }
             }
             Some(Ok(HarnessEvent::Completed { outcome })) => {
                 let mut out = AgentOutput::new(
@@ -142,6 +219,27 @@ pub(crate) async fn run_on_harness(
                 }));
             }
         }
+    }
+}
+
+/// The witness `gate` label for one ask — what the bridge judged, in
+/// one string (the program · the paths · the kind): an auditor reads
+/// WHICH authority was exercised without re-parsing wire facts.
+fn gate_label(facts: &HarnessAskFacts) -> String {
+    let kind = facts.kind.as_deref().unwrap_or("<undeclared>");
+    match kind {
+        "execute" => match facts.command.first() {
+            Some(program) => format!("execute · {program}"),
+            None => "execute · <prose>".to_owned(),
+        },
+        "read" | "search" | "edit" | "delete" | "move" => {
+            format!("{kind} · {}", facts.locations.join(","))
+        }
+        "fetch" => match &facts.url {
+            Some(url) => format!("fetch · {url}"),
+            None => "fetch · <no url>".to_owned(),
+        },
+        other => other.to_owned(),
     }
 }
 
@@ -181,6 +279,7 @@ mod tests {
     use std::sync::Mutex;
     use std::task::{Context, Poll};
 
+    use nika_error::traits::NikaErrorCode as _;
     use nika_kernel::ai::harness::{HarnessEventStream, HarnessOutcome, PermissionReply};
 
     /// A scripted backend: plays a fixed event tape (permission
@@ -217,6 +316,16 @@ mod tests {
 
     use core::future::Future;
 
+    /// A recording observer — the bridge's witness decisions under test.
+    #[derive(Default)]
+    struct VecObserver(Mutex<Vec<AgentEvent>>);
+
+    impl AgentObserver for VecObserver {
+        fn on_event(&self, event: &AgentEvent) {
+            self.0.lock().expect("observer lock").push(event.clone());
+        }
+    }
+
     fn seat_with(tape: Vec<HarnessEvent>) -> HarnessSeat {
         let backend = TapeBackend {
             tape: Mutex::new(tape),
@@ -230,6 +339,25 @@ mod tests {
         }
     }
 
+    /// A permission ask event whose reply closure records the verdict.
+    fn ask(
+        question: &str,
+        kind: Option<&str>,
+        command: Vec<String>,
+        verdicts: Arc<Mutex<Vec<PermissionDecision>>>,
+    ) -> HarnessEvent {
+        HarnessEvent::PermissionAsked {
+            question: question.to_owned(),
+            reply: PermissionReply::new(Box::new(move |d| {
+                verdicts.lock().expect("verdict lock").push(d);
+            })),
+            kind: kind.map(str::to_owned),
+            locations: Vec::new(),
+            command,
+            url: None,
+        }
+    }
+
     #[tokio::test]
     async fn a_completed_tape_yields_the_pre_shaped_honest_output() {
         let seat = seat_with(vec![
@@ -238,7 +366,7 @@ mod tests {
             },
             completed("the harness answered"),
         ]);
-        let out = run_on_harness(&seat, AgentInput::new("do it"))
+        let out = run_on_harness(&seat, AgentInput::new("do it"), &crate::NoopObserver)
             .await
             .expect("a completed tape succeeds");
         let AgentValue::Text(text) = &out.output else {
@@ -257,49 +385,214 @@ mod tests {
         assert!(out.tools_cost_usd.is_none());
     }
 
+    /// B5 · inside the grants, the bridge answers AllowOnce itself and
+    /// witnesses the decision (the permit_checked channel's verb half).
     #[tokio::test]
-    async fn a_permission_ask_is_denied_fail_closed_in_b4() {
+    async fn an_ask_inside_the_grants_is_allowed_once_and_witnessed() {
         let verdicts = Arc::new(Mutex::new(Vec::new()));
-        let verdicts_in = Arc::clone(&verdicts);
-        let ask = HarnessEvent::PermissionAsked {
-            question: "run `rm -rf /`".to_owned(),
-            reply: PermissionReply::new(Box::new(move |d| {
-                verdicts_in.lock().expect("verdict lock").push(d);
-            })),
-        };
-        let seat2 = seat_with(vec![ask, completed("done")]);
-        let out = run_on_harness(&seat2, AgentInput::new("try"))
+        let tape = vec![
+            ask(
+                "run `git status`",
+                Some("execute"),
+                vec!["git".to_owned(), "status".to_owned()],
+                Arc::clone(&verdicts),
+            ),
+            completed("done"),
+        ];
+        let mut input = AgentInput::new("try");
+        input.permits = Some({
+            let mut p = nika_schema::types::Permits::new();
+            p.exec = Some(nika_schema::types::ExecPermit::Any);
+            p
+        });
+        let observer = VecObserver::default();
+        let out = run_on_harness(&seat_with(tape), input, &observer)
             .await
-            .expect("the run completes past the denied ask");
+            .expect("an in-grants ask completes the run");
         let AgentValue::Text(text) = &out.output else {
             panic!("text output");
         };
         assert_eq!(text, "done");
         assert_eq!(
             verdicts.lock().expect("verdict lock").as_slice(),
-            &[PermissionDecision::Deny],
-            "B4 answers every ask Deny — fail-closed until the B5 bridge"
+            &[PermissionDecision::AllowOnce],
+            "inside grants → AllowOnce (never allow_always · A-5)"
+        );
+        let events = observer.0.lock().expect("observer lock");
+        assert!(
+            events.iter().any(|e| matches!(
+                e,
+                AgentEvent::PermissionJudged {
+                    plane: "exec",
+                    decision: "allow",
+                    ..
+                }
+            )),
+            "the allow decision is witnessed: {events:?}"
+        );
+    }
+
+    /// B5 · outside the grants with NO operator answer: the run pauses
+    /// (HarnessGate error), the question rides VERBATIM, and the reply
+    /// lane was never answered — zero harness action before a human.
+    #[tokio::test]
+    async fn an_ask_outside_the_grants_pauses_with_the_question_verbatim() {
+        let verdicts = Arc::new(Mutex::new(Vec::new()));
+        let tape = vec![
+            ask(
+                "run `rm -rf /`",
+                Some("execute"),
+                vec!["rm".to_owned(), "-rf".to_owned(), "/".to_owned()],
+                Arc::clone(&verdicts),
+            ),
+            completed("never reached"),
+        ];
+        let observer = VecObserver::default();
+        let err = run_on_harness(&seat_with(tape), AgentInput::new("try"), &observer)
+            .await
+            .expect_err("an out-of-grants ask pauses the run");
+        let VerbAgentError::HarnessGate { question, .. } = &err else {
+            panic!("the gate error is the pause branch, got {err:?}");
+        };
+        assert_eq!(question, "run `rm -rf /`", "the question rides verbatim");
+        assert_eq!(
+            err.nika_code(),
+            nika_error::codes::NIKA_1806,
+            "the gate speaks the access family's code"
+        );
+        assert!(
+            verdicts.lock().expect("verdict lock").is_empty(),
+            "the ask was NEVER answered — the dropped lane reads cancelled fail-closed"
+        );
+        let events = observer.0.lock().expect("observer lock");
+        let allows = events
+            .iter()
+            .filter(|e| {
+                matches!(
+                    e,
+                    AgentEvent::PermissionJudged {
+                        decision: "allow",
+                        ..
+                    }
+                )
+            })
+            .count();
+        assert_eq!(allows, 0, "zero allow before the refusal");
+        assert!(
+            events.iter().any(|e| matches!(
+                e,
+                AgentEvent::PermissionJudged {
+                    decision: "escalate",
+                    ..
+                }
+            )),
+            "the escalation itself is witnessed: {events:?}"
+        );
+    }
+
+    /// B5 · the operator's bound `--answer` decides: `true` grants ONCE
+    /// (witnessed as operator-granted), `false` denies.
+    #[tokio::test]
+    async fn the_operators_bound_answer_decides_the_ask() {
+        for (answer, expected, word) in [
+            (true, PermissionDecision::AllowOnce, "operator granted"),
+            (false, PermissionDecision::Deny, "operator denied"),
+        ] {
+            let verdicts = Arc::new(Mutex::new(Vec::new()));
+            let tape = vec![
+                ask(
+                    "run `make deploy`",
+                    Some("execute"),
+                    vec!["make".to_owned(), "deploy".to_owned()],
+                    Arc::clone(&verdicts),
+                ),
+                completed("done"),
+            ];
+            let mut input = AgentInput::new("try");
+            input.gate_answer = Some(serde_json::Value::Bool(answer));
+            let observer = VecObserver::default();
+            run_on_harness(&seat_with(tape), input, &observer)
+                .await
+                .expect("an answered gate completes the run");
+            assert_eq!(
+                verdicts.lock().expect("verdict lock").as_slice(),
+                &[expected],
+                "answer={answer}"
+            );
+            let events = observer.0.lock().expect("observer lock");
+            assert!(
+                events.iter().any(|e| {
+                    matches!(e, AgentEvent::PermissionJudged { why, .. } if why.contains(word))
+                }),
+                "the operator's verdict is witnessed as such ({word}): {events:?}"
+            );
+        }
+    }
+
+    /// B5 · the bound answer is CONSUMED by the first out-of-grants ask:
+    /// a second ask pauses again rather than ride a stale grant (the
+    /// human answered ONE question).
+    #[tokio::test]
+    async fn the_bound_answer_is_consumed_by_the_first_ask_only() {
+        let verdicts = Arc::new(Mutex::new(Vec::new()));
+        let tape = vec![
+            ask(
+                "run `make deploy`",
+                Some("execute"),
+                vec!["make".to_owned(), "deploy".to_owned()],
+                Arc::clone(&verdicts),
+            ),
+            ask(
+                "run `make clean`",
+                Some("execute"),
+                vec!["make".to_owned(), "clean".to_owned()],
+                Arc::clone(&verdicts),
+            ),
+            completed("never reached"),
+        ];
+        let mut input = AgentInput::new("try");
+        input.gate_answer = Some(serde_json::Value::Bool(true));
+        let observer = VecObserver::default();
+        let err = run_on_harness(&seat_with(tape), input, &observer)
+            .await
+            .expect_err("the SECOND out-of-grants ask pauses again");
+        let VerbAgentError::HarnessGate { question, .. } = &err else {
+            panic!("the second ask hits the gate, got {err:?}");
+        };
+        assert_eq!(question, "run `make clean`");
+        assert_eq!(
+            verdicts.lock().expect("verdict lock").as_slice(),
+            &[PermissionDecision::AllowOnce],
+            "exactly ONE ask rode the operator's grant"
         );
     }
 
     #[tokio::test]
     async fn schema_and_tools_refuse_with_witnesses() {
         let seat = seat_with(vec![completed("never reached")]);
-        let schema_err = run_on_harness(&seat, {
-            let mut i = AgentInput::new("x");
-            i.schema = Some(serde_json::json!({"type": "object"}));
-            i
-        })
+        let schema_err = run_on_harness(
+            &seat,
+            {
+                let mut i = AgentInput::new("x");
+                i.schema = Some(serde_json::json!({"type": "object"}));
+                i
+            },
+            &crate::NoopObserver,
+        )
         .await
         .expect_err("schema refuses on a harness in P3");
         assert!(schema_err.to_string().contains("P4"), "{schema_err}");
 
         let seat2 = seat_with(vec![completed("never reached")]);
-        let tools_err = run_on_harness(&seat2, {
-            let mut i = AgentInput::new("x");
-            i.tools = vec!["nika:*".to_owned()];
-            i
-        })
+        let tools_err = run_on_harness(
+            &seat2,
+            {
+                let mut i = AgentInput::new("x");
+                i.tools = vec!["nika:*".to_owned()];
+                i
+            },
+            &crate::NoopObserver,
+        )
         .await
         .expect_err("tools refuse on a harness");
         assert!(
@@ -313,7 +606,7 @@ mod tests {
         let seat = seat_with(vec![HarnessEvent::MessageChunk {
             text: "then silence".to_owned(),
         }]);
-        let err = run_on_harness(&seat, AgentInput::new("x"))
+        let err = run_on_harness(&seat, AgentInput::new("x"), &crate::NoopObserver)
             .await
             .expect_err("no Completed beat is an error");
         assert!(err.to_string().contains("without a Completed"), "{err}");
@@ -329,7 +622,7 @@ mod tests {
         let seat = seat_with(vec![HarnessEvent::Completed {
             outcome: Box::new(outcome),
         }]);
-        let out = run_on_harness(&seat, AgentInput::new("x"))
+        let out = run_on_harness(&seat, AgentInput::new("x"), &crate::NoopObserver)
             .await
             .expect("completes");
         assert_eq!(out.total_tokens, 140);

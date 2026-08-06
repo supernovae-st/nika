@@ -331,6 +331,46 @@ pub fn agent_chunk_text(update: &Value) -> Option<String> {
         .map(str::to_owned)
 }
 
+/// The judgeable facts of a permission ask's `toolCall` (B5) — the
+/// wire's own words, extracted verbatim for the kernel event. Lenient
+/// like every DTO here: a missing or mis-shaped field reads as ABSENT
+/// (the bridge then judges an absent fact unverifiable, fail-closed —
+/// never a guess at what the agent meant).
+#[must_use]
+pub fn ask_facts(tool_call: &Value) -> (Option<String>, Vec<String>, Vec<String>, Option<String>) {
+    let kind = tool_call
+        .get("kind")
+        .and_then(Value::as_str)
+        .map(str::to_owned);
+    let locations = tool_call
+        .get("locations")
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(|loc| loc.get("path").and_then(Value::as_str).map(str::to_owned))
+                .collect()
+        })
+        .unwrap_or_default();
+    let raw = tool_call.get("rawInput").cloned().unwrap_or(Value::Null);
+    // The command judges ONLY the array form (argv): a string command
+    // is prose — a pipeline can launch anything, so one leading token
+    // cannot verify it (the permits.exec shell-form law, wire-side).
+    let command = raw
+        .get("command")
+        .and_then(Value::as_array)
+        .map(|items| {
+            items
+                .iter()
+                .filter_map(Value::as_str)
+                .map(str::to_owned)
+                .collect()
+        })
+        .unwrap_or_default();
+    let url = raw.get("url").and_then(Value::as_str).map(str::to_owned);
+    (kind, locations, command, url)
+}
+
 // ─── Wire error ─────────────────────────────────────────────────────
 
 /// A wire-level defect (invalid JSON · unclassifiable envelope).
@@ -471,5 +511,35 @@ mod tests {
         .expect("lenient");
         assert_eq!(p.options.len(), 1);
         assert_eq!(p.options[0].kind, "allow_once");
+    }
+
+    #[test]
+    fn ask_facts_reads_kind_locations_command_and_url() {
+        let tc = serde_json::json!({
+            "title": "run `git status`",
+            "kind": "execute",
+            "locations": [{"path": "src/a.rs"}, {"path": "out/b.md"}, {"noPath": 1}],
+            "rawInput": {"command": ["git", "status"], "url": "https://x.sh"}
+        });
+        let (kind, locations, command, url) = ask_facts(&tc);
+        assert_eq!(kind.as_deref(), Some("execute"));
+        // A location without a `path` string drops out — never a guess.
+        assert_eq!(locations, vec!["src/a.rs", "out/b.md"]);
+        assert_eq!(command, vec!["git", "status"]);
+        assert_eq!(url.as_deref(), Some("https://x.sh"));
+    }
+
+    #[test]
+    fn ask_facts_is_absent_not_invented_on_a_bare_or_misshaped_call() {
+        let (kind, locations, command, url) = ask_facts(&serde_json::json!({}));
+        assert!(kind.is_none() && locations.is_empty() && command.is_empty() && url.is_none());
+        // A STRING command is prose — never an argv the judge can match.
+        let (_, _, command2, _) =
+            ask_facts(&serde_json::json!({"rawInput": {"command": "git status"}}));
+        assert!(command2.is_empty(), "prose is not a program");
+        // A non-string member drops out of an otherwise-fine argv.
+        let (_, _, command3, _) =
+            ask_facts(&serde_json::json!({"rawInput": {"command": ["git", 42, "status"]}}));
+        assert_eq!(command3, vec!["git", "status"]);
     }
 }

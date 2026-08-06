@@ -813,7 +813,13 @@ where
             // F-O1 PR-2 · the re-gate's per-template oracle — computed ONCE, used per attempt.
             let value_taint = crate::integrity::ValueTaint::of_task(task, scope.records);
             // law 6 · the child budget reads the ledger AT CALL TIME (per attempt).
-            let ctx = || DispatchCtx::of_task(task, budget, ledger.remaining_usd(), witness);
+            // P3 B5 · the operator's bound `--answer` for THIS task rides
+            // the ctx (the harness gate's human verdict on a resumed run).
+            let ctx = || {
+                let mut c = DispatchCtx::of_task(task, budget, ledger.remaining_usd(), witness);
+                c.gate_answer = self.prompt_answers.get(&task.id.value).cloned();
+                c
+            };
             let attempts = async {
                 let mut attempt = 1_u32;
                 // Spend of FAILED attempts — folded onto the terminal frame.

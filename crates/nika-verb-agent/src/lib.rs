@@ -299,7 +299,7 @@ where
         // path only; the harness boundary is the permission bridge.
         #[cfg(feature = "access-harness")]
         if let Some(seat) = &self.harness {
-            return harness_path::run_on_harness(seat, input).await;
+            return harness_path::run_on_harness(seat, input, observer).await;
         }
         // arm_run failures precede any billed call — no spend to decorate.
         let (whitelist, defs, model, budget) = self.arm_run(&input).await?;

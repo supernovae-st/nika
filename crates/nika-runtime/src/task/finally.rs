@@ -185,6 +185,8 @@ where
                 // — a code-bearing cleanup fetch refuses like any other.
                 inert: None,
                 witness,
+                // a cleanup mini-task never carries a gate answer (B5).
+                gate_answer: None,
             },
             None,
         ));

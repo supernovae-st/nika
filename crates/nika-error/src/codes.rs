@@ -356,6 +356,9 @@ fn access_code_help(num: u16) -> &'static str {
         1805 => {
             "The harness refused the request in its own words (its auth may be absent on ITS side, or the capability unsupported). Sign in to the harness itself — nika never holds its credential."
         }
+        1806 => {
+            "The harness asked for an action the workflow's `permits:` grants do not cover, so the run PAUSED for a human answer (a gate question is never auto-answered). Resume with `nika run --resume <trace> --answer <task>=true` to grant it once, `=false` to deny — or widen the permits block."
+        }
         _ => {
             "Execution access resolution failed. `model:` picks the intelligence; access picks the path — read the plan's witnesses via `nika explain`, then fix the path the witness names."
         }
@@ -1062,7 +1065,15 @@ mod tests {
         fn access_codes_ride_the_1800_block_and_roundtrip() {
             // D-2026-08-04-N1 · the access block is 1800..=1849 and every
             // registered row is Category::Access with a distinct fix line.
-            for code in [super::NIKA_1800, super::NIKA_1801, super::NIKA_1802] {
+            for code in [
+                super::NIKA_1800,
+                super::NIKA_1801,
+                super::NIKA_1802,
+                super::NIKA_1803,
+                super::NIKA_1804,
+                super::NIKA_1805,
+                super::NIKA_1806,
+            ] {
                 assert_eq!(
                     code.category,
                     super::Category::Access,
@@ -1076,12 +1087,13 @@ mod tests {
                 let back = super::lookup(&wire);
                 assert_eq!(back, Some(code), "access code roundtrip failed for {code}");
             }
-            // The three fix lines teach three DIFFERENT gestures — a
-            // shared string would mean a copy-paste arm (mutation bait).
+            // The fix lines teach DIFFERENT gestures — a shared string
+            // would mean a copy-paste arm (mutation bait).
             let helps = [
                 super::code_help(super::NIKA_1800),
                 super::code_help(super::NIKA_1801),
                 super::code_help(super::NIKA_1802),
+                super::code_help(super::NIKA_1806),
             ];
             for (i, a) in helps.iter().enumerate() {
                 for b in &helps[i + 1..] {

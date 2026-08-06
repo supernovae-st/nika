@@ -270,6 +270,10 @@ where
                 || "the harness asked to perform an action".to_owned(),
                 str::to_owned,
             );
+        // B5: the judgeable facts ride beside the question (kind ·
+        // locations · command · url — the wire's own words, absent when
+        // the agent did not speak them).
+        let (kind, locations, command, url) = wire::ask_facts(&ask.tool_call);
         // The drop-reads-as-Deny guard: if the engine never answers,
         // the closure is DROPPED, the guard fires, the agent hears
         // `cancelled` — fail-closed, never a hang (A-5 twin).
@@ -283,7 +287,14 @@ where
         };
         let _ = self
             .event_tx
-            .send(Ok(HarnessEvent::PermissionAsked { question, reply }))
+            .send(Ok(HarnessEvent::PermissionAsked {
+                question,
+                reply,
+                kind,
+                locations,
+                command,
+                url,
+            }))
             .await;
         Ok(())
     }
@@ -651,7 +662,8 @@ mod tests {
                 &serde_json::json!({"jsonrpc":"2.0","id":"ask-1",
                 "method":"session/request_permission","params":{
                     "sessionId":"s-test",
-                    "toolCall":{"title":"run `ls`"},
+                    "toolCall":{"title":"run `ls`","kind":"execute",
+                                "rawInput":{"command":["ls"]}},
                     "options":[
                         {"optionId":"opt-always","name":"Always","kind":"allow_always"},
                         {"optionId":"opt-once","name":"Once","kind":"allow_once"}
@@ -681,8 +693,18 @@ mod tests {
         loop {
             let next = std::future::poll_fn(|cx| Pin::new(&mut stream).poll_next(cx)).await;
             match next {
-                Some(Ok(HarnessEvent::PermissionAsked { question, reply })) => {
+                Some(Ok(HarnessEvent::PermissionAsked {
+                    question,
+                    reply,
+                    kind,
+                    locations,
+                    command,
+                    ..
+                })) => {
                     assert_eq!(question, "run `ls`");
+                    assert_eq!(kind.as_deref(), Some("execute"));
+                    assert_eq!(command, vec!["ls"]);
+                    assert!(locations.is_empty());
                     reply.respond(PermissionDecision::AllowOnce);
                 }
                 Some(Ok(HarnessEvent::Completed { outcome: o })) => outcome = Some(*o),

@@ -381,6 +381,10 @@ pub(crate) struct DispatchCtx<'a> {
     /// permit witness) — every dispatch-boundary decision records here,
     /// the settle spine emits one `permit_checked` frame per entry.
     pub witness: &'a crate::witness::PermitWitness,
+    /// P3 B5 · the operator's bound `--answer` for THIS task (the
+    /// harness permission gate's human verdict on a resumed run).
+    /// `None` on a fresh run — an out-of-grants ask then pauses.
+    pub gate_answer: Option<serde_json::Value>,
 }
 
 impl<'a> DispatchCtx<'a> {
@@ -399,6 +403,7 @@ impl<'a> DispatchCtx<'a> {
             child_budget,
             inert: task.inert.as_ref().map(|s| s.value.as_str()),
             witness,
+            gate_answer: None,
         }
     }
 }
@@ -801,6 +806,12 @@ where
         }
         input.model = action.model.as_ref().map(|m| m.value.clone());
         input.tools = action.tools.iter().map(|t| t.value.clone()).collect();
+        // P3 B5 · the harness permission bridge's inputs: the workflow's
+        // declared boundary (the native path gates effects at THIS layer
+        // instead; a harness gates them inside the verb) and the
+        // operator's bound `--answer` for this task on a resumed run.
+        input.permits = scope.permits.cloned();
+        input.gate_answer.clone_from(&ctx.gate_answer);
         input.max_turns = action.max_turns.as_ref().map(|t| t.value);
         input.max_tokens_total = action.max_tokens_total.as_ref().map(|t| t.value);
         input.temperature = temp_f32(action.temperature.as_ref());
