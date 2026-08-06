@@ -130,8 +130,8 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 | field            | value                                          |
 |------------------|------------------------------------------------|
 | branch           | `feat/access-b3-harness-client`                                      |
-| HEAD             | `faf4e0f08` (`faf4e0f0814d808dc78776e1573b5283d0fed894`)             |
-| workspace        | v0.107.2                                  |
+| HEAD             | `e321891b5` (`e321891b573f7cd5cd762ea09714101e010b5ed7`)             |
+| workspace        | v0.108.0                                  |
 | crates (workspace)| 61                                              |
 | crates (admitted)| 56                                             |
 | crates (WIP)     | 5 — nika-chart nika-fx nika-proof nika-store nika-harness                                  |
