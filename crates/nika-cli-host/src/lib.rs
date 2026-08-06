@@ -28,6 +28,7 @@ pub mod door;
 pub mod experience;
 pub mod machine_truth;
 pub mod metrics;
+pub mod notify;
 pub mod output;
 pub mod probe;
 pub mod retention;

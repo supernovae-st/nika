@@ -19,8 +19,18 @@ nika-display   = { path = "../nika-display", version = "0.108.0" }   # theme (Ro
 nika-models    = { path = "../nika-models", version = "0.108.0" }    # model ids the probe/doctor ladders name
 nika-pack      = { path = "../nika-pack", version = "0.108.0" }      # embedded pack version (kit probes)
 nika-providers = { path = "../nika-providers", version = "0.108.0" } # ProviderRegistry + ExecutionLocus (the probe ladders)
-nika-runtime   = { path = "../nika-runtime", version = "0.108.0" }   # trace-store shapes retention walks
+nika-runtime   = { path = "../nika-runtime", version = "0.108.0" }   # trace-store shapes retention walks + WorkflowPause/Stamper (notify · ADR-111)
 nika-schema    = { path = "../nika-schema", version = "0.108.0" }    # RawWorkflow (context envelope · glance)
+nika-http      = { path = "../nika-http", version = "0.108.0" }      # ReqwestHttp — the notify webhook client (ADR-111 · SSRF floor)
+nika-event     = { path = "../nika-event", version = "0.108.0" }     # Event + notify_delivered/notify_failed kinds (ADR-111)
+nika-types     = { path = "../nika-types", version = "0.108.0" }     # EventId · KeyValue · Timestamp (notify journal fields)
+nika-kernel    = { path = "../nika-kernel", version = "0.108.0" }    # HttpPostDyn seam the notify client posts through
+sha2           = { workspace = true }   # ADR-111 — the deterministic CloudEvents id (trace × task)
+hmac           = { workspace = true }   # ADR-111 — Standard Webhooks `v1,` HMAC-SHA256 signature
+base64         = { workspace = true }   # ADR-111 — whsec_ secret decode + signature encoding
+url            = { workspace = true }   # ADR-111 — notify target host extraction (boundary allowlist)
+jiff           = { workspace = true }   # ADR-111 — the envelope's RFC 3339 `time` attribute
+bytes          = { workspace = true }   # ADR-111 — the POST body rides the kernel HttpRequest shape
 clap           = { workspace = true }                                # WireTarget ValueEnum (the wire verb's clap seam)
 serde          = { workspace = true }                                # receipts + registry rows
 serde_json     = { workspace = true }                                # --json surfaces (doctor receipt · wire plan)

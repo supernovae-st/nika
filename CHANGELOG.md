@@ -10,6 +10,24 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+### Added
+
+- **The pause is heard — outbound pause delivery (ADR-111).** When the
+  operator sets `NIKA_NOTIFY_URL`, a run that pauses on a human gate
+  POSTs its pause payload once — a CloudEvents 1.0.2 structured envelope
+  (`sh.nika.run.paused`, deterministic id from trace × task) with
+  Standard Webhooks headers (`webhook-id`/`webhook-timestamp` always;
+  `webhook-signature` `v1,`-HMAC-SHA256 when `NIKA_NOTIFY_SECRET` holds
+  a `whsec_` secret) — then journals the outcome (`notify_delivered` /
+  `notify_failed`, two additive event kinds) BEFORE the seal, so the
+  chain covers the delivery claim. Default OFF: no URL, no socket. The
+  same SSRF floor as every engine egress judges the target (the
+  exact-loopback carve-out included, so a local ntfy relay works
+  as-is), and delivery failure never changes the run's verdict — the
+  run exits `paused` with the same code either way. Proven red-first at
+  the binary plane: default-off · signed CloudEvents delivery ·
+  metadata-range refusal · unreachable-target non-fatality.
+
 ## [0.108.0](https://github.com/supernovae-st/nika/compare/v0.107.2..v0.108.0) - 2026-08-05
 
 **The access layer arrives; the check stops trusting what it cannot
