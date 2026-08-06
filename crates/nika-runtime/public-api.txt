@@ -1,4 +1,8 @@
 pub mod nika_runtime
+pub use nika_runtime::NoSecrets
+pub use nika_runtime::SecretResolveError
+pub use nika_runtime::WorkflowSecretResolver
+pub use nika_runtime::source_is_runtime_resolvable
 pub mod nika_runtime::approval
 #[non_exhaustive] pub enum nika_runtime::approval::ApprovalDecision
 pub nika_runtime::approval::ApprovalDecision::Allow
@@ -1105,52 +1109,6 @@ impl<T> tracing::instrument::Instrument for nika_runtime::DeterministicStamper
 impl<T> tracing::instrument::WithSubscriber for nika_runtime::DeterministicStamper
 impl<T> typenum::type_operators::Same for nika_runtime::DeterministicStamper
 pub type nika_runtime::DeterministicStamper::Output = T
-pub struct nika_runtime::NoSecrets
-impl core::clone::Clone for nika_runtime::NoSecrets
-pub fn nika_runtime::NoSecrets::clone(&self) -> nika_runtime::NoSecrets
-impl core::default::Default for nika_runtime::NoSecrets
-pub fn nika_runtime::NoSecrets::default() -> nika_runtime::NoSecrets
-impl core::fmt::Debug for nika_runtime::NoSecrets
-pub fn nika_runtime::NoSecrets::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::marker::Copy for nika_runtime::NoSecrets
-impl nika_runtime::WorkflowSecretResolver for nika_runtime::NoSecrets
-pub fn nika_runtime::NoSecrets::resolve(&self, name: &str, _reference: &nika_vocab::secret::SecretRef) -> core::result::Result<alloc::string::String, nika_runtime::SecretResolveError>
-impl<D> owo_colors::OwoColorize for nika_runtime::NoSecrets
-impl<T, U> core::convert::Into<U> for nika_runtime::NoSecrets where U: core::convert::From<T>
-pub fn nika_runtime::NoSecrets::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_runtime::NoSecrets where U: core::convert::Into<T>
-pub type nika_runtime::NoSecrets::Error = core::convert::Infallible
-pub fn nika_runtime::NoSecrets::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_runtime::NoSecrets where U: core::convert::TryFrom<T>
-pub type nika_runtime::NoSecrets::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_runtime::NoSecrets::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_runtime::NoSecrets where T: core::clone::Clone
-pub type nika_runtime::NoSecrets::Owned = T
-pub fn nika_runtime::NoSecrets::clone_into(&self, target: &mut T)
-pub fn nika_runtime::NoSecrets::to_owned(&self) -> T
-impl<T> core::any::Any for nika_runtime::NoSecrets where T: 'static + ?core::marker::Sized
-pub fn nika_runtime::NoSecrets::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_runtime::NoSecrets where T: ?core::marker::Sized
-pub fn nika_runtime::NoSecrets::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_runtime::NoSecrets where T: ?core::marker::Sized
-pub fn nika_runtime::NoSecrets::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_runtime::NoSecrets where T: core::clone::Clone
-pub unsafe fn nika_runtime::NoSecrets::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_runtime::NoSecrets
-pub fn nika_runtime::NoSecrets::from(t: T) -> T
-impl<T> dyn_clone::DynClone for nika_runtime::NoSecrets where T: core::clone::Clone
-pub fn nika_runtime::NoSecrets::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> nika_error::traits::AsAny for nika_runtime::NoSecrets where T: 'static
-pub fn nika_runtime::NoSecrets::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> outref::AsOut<T> for nika_runtime::NoSecrets where T: core::marker::Copy
-pub fn nika_runtime::NoSecrets::as_out(&mut self) -> outref::Out<'_, T>
-impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::NoSecrets where T: ?core::marker::Sized
-pub fn nika_runtime::NoSecrets::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-pub fn nika_runtime::NoSecrets::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-impl<T> tracing::instrument::Instrument for nika_runtime::NoSecrets
-impl<T> tracing::instrument::WithSubscriber for nika_runtime::NoSecrets
-impl<T> typenum::type_operators::Same for nika_runtime::NoSecrets
-pub type nika_runtime::NoSecrets::Output = T
 #[non_exhaustive] pub struct nika_runtime::RunOutcome
 pub nika_runtime::RunOutcome::budget_exceeded: bool
 pub nika_runtime::RunOutcome::cache_hits: alloc::vec::Vec<alloc::string::String>
@@ -1239,7 +1197,7 @@ pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_prompt_answers(self, answer
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_prompt_pause(self, pause: bool) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_resume_compat(self, compat: core::option::Option<alloc::string::String>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_resume_plan(self, plan: nika_runtime::resume::ResumePlan) -> Self
-pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_secret_resolver(self, resolver: alloc::sync::Arc<dyn nika_runtime::WorkflowSecretResolver>) -> Self
+pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_secret_resolver(self, resolver: alloc::sync::Arc<dyn nika_secret::WorkflowSecretResolver>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_skills(self, skills: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_source_sha256(self, hex: alloc::string::String) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_source_sha256_lf(self, hex: alloc::string::String) -> Self
@@ -1354,62 +1312,6 @@ impl<T> tracing::instrument::Instrument for nika_runtime::config::RuntimeConfig
 impl<T> tracing::instrument::WithSubscriber for nika_runtime::config::RuntimeConfig
 impl<T> typenum::type_operators::Same for nika_runtime::config::RuntimeConfig
 pub type nika_runtime::config::RuntimeConfig::Output = T
-pub struct nika_runtime::SecretResolveError
-pub nika_runtime::SecretResolveError::name: alloc::string::String
-pub nika_runtime::SecretResolveError::reason: alloc::string::String
-impl core::clone::Clone for nika_runtime::SecretResolveError
-pub fn nika_runtime::SecretResolveError::clone(&self) -> nika_runtime::SecretResolveError
-impl core::cmp::Eq for nika_runtime::SecretResolveError
-impl core::cmp::PartialEq for nika_runtime::SecretResolveError
-pub fn nika_runtime::SecretResolveError::eq(&self, other: &nika_runtime::SecretResolveError) -> bool
-impl core::error::Error for nika_runtime::SecretResolveError
-impl core::fmt::Debug for nika_runtime::SecretResolveError
-pub fn nika_runtime::SecretResolveError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::fmt::Display for nika_runtime::SecretResolveError
-pub fn nika_runtime::SecretResolveError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::marker::StructuralPartialEq for nika_runtime::SecretResolveError
-impl<D> owo_colors::OwoColorize for nika_runtime::SecretResolveError
-impl<Q, K> equivalent::Equivalent<K> for nika_runtime::SecretResolveError where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_runtime::SecretResolveError::equivalent(&self, key: &K) -> bool
-impl<Q, K> hashbrown::Equivalent<K> for nika_runtime::SecretResolveError where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_runtime::SecretResolveError::equivalent(&self, key: &K) -> bool
-impl<T, U> core::convert::Into<U> for nika_runtime::SecretResolveError where U: core::convert::From<T>
-pub fn nika_runtime::SecretResolveError::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_runtime::SecretResolveError where U: core::convert::Into<T>
-pub type nika_runtime::SecretResolveError::Error = core::convert::Infallible
-pub fn nika_runtime::SecretResolveError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_runtime::SecretResolveError where U: core::convert::TryFrom<T>
-pub type nika_runtime::SecretResolveError::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_runtime::SecretResolveError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_runtime::SecretResolveError where T: core::clone::Clone
-pub type nika_runtime::SecretResolveError::Owned = T
-pub fn nika_runtime::SecretResolveError::clone_into(&self, target: &mut T)
-pub fn nika_runtime::SecretResolveError::to_owned(&self) -> T
-impl<T> alloc::string::ToString for nika_runtime::SecretResolveError where T: core::fmt::Display + ?core::marker::Sized
-pub fn nika_runtime::SecretResolveError::to_string(&self) -> alloc::string::String
-impl<T> core::any::Any for nika_runtime::SecretResolveError where T: 'static + ?core::marker::Sized
-pub fn nika_runtime::SecretResolveError::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_runtime::SecretResolveError where T: ?core::marker::Sized
-pub fn nika_runtime::SecretResolveError::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_runtime::SecretResolveError where T: ?core::marker::Sized
-pub fn nika_runtime::SecretResolveError::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_runtime::SecretResolveError where T: core::clone::Clone
-pub unsafe fn nika_runtime::SecretResolveError::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_runtime::SecretResolveError
-pub fn nika_runtime::SecretResolveError::from(t: T) -> T
-impl<T> dyn_clone::DynClone for nika_runtime::SecretResolveError where T: core::clone::Clone
-pub fn nika_runtime::SecretResolveError::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> iri_string::format::ToStringFallible for nika_runtime::SecretResolveError where T: core::fmt::Display
-pub fn nika_runtime::SecretResolveError::try_to_string(&self) -> core::result::Result<alloc::string::String, alloc::collections::TryReserveError>
-impl<T> nika_error::traits::AsAny for nika_runtime::SecretResolveError where T: 'static
-pub fn nika_runtime::SecretResolveError::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::SecretResolveError where T: ?core::marker::Sized
-pub fn nika_runtime::SecretResolveError::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-pub fn nika_runtime::SecretResolveError::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-impl<T> tracing::instrument::Instrument for nika_runtime::SecretResolveError
-impl<T> tracing::instrument::WithSubscriber for nika_runtime::SecretResolveError
-impl<T> typenum::type_operators::Same for nika_runtime::SecretResolveError
-pub type nika_runtime::SecretResolveError::Output = T
 pub struct nika_runtime::SystemStamper
 impl nika_runtime::SystemStamper
 pub fn nika_runtime::SystemStamper::new() -> Self
@@ -1644,10 +1546,6 @@ impl nika_runtime::Stamper for nika_runtime::DeterministicStamper
 pub fn nika_runtime::DeterministicStamper::next(&mut self) -> (nika_types::id::EventId, nika_types::timestamp::Timestamp)
 impl nika_runtime::Stamper for nika_runtime::SystemStamper
 pub fn nika_runtime::SystemStamper::next(&mut self) -> (nika_types::id::EventId, nika_types::timestamp::Timestamp)
-pub trait nika_runtime::WorkflowSecretResolver: core::marker::Send + core::marker::Sync
-pub fn nika_runtime::WorkflowSecretResolver::resolve(&self, name: &str, reference: &nika_vocab::secret::SecretRef) -> core::result::Result<alloc::string::String, nika_runtime::SecretResolveError>
-impl nika_runtime::WorkflowSecretResolver for nika_runtime::NoSecrets
-pub fn nika_runtime::NoSecrets::resolve(&self, name: &str, _reference: &nika_vocab::secret::SecretRef) -> core::result::Result<alloc::string::String, nika_runtime::SecretResolveError>
 pub fn nika_runtime::access_pin_refusal(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, probes: &[nika_providers::probe::ProviderProbe], access_pin: core::option::Option<&str>, model_override: core::option::Option<&str>) -> core::option::Option<nika_runtime::RuntimeError>
 pub fn nika_runtime::budget_floor_refusal(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, budget: core::option::Option<f64>, model_override: core::option::Option<&str>) -> core::option::Option<nika_runtime::RuntimeError>
 pub fn nika_runtime::capabilities_of(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_runtime::compose::RuntimeCapabilities
@@ -1658,7 +1556,6 @@ pub fn nika_runtime::production_runtime(default_model: &str, caps: nika_runtime:
 pub fn nika_runtime::required_inputs_refusal(wf: &nika_schema::raw::workflow::RawWorkflow, overrides: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>) -> core::option::Option<nika_runtime::RuntimeError>
 pub fn nika_runtime::scope_to_task(wf: nika_schema::raw::workflow::RawWorkflow, target: &str) -> core::result::Result<nika_schema::raw::workflow::RawWorkflow, alloc::string::String>
 pub fn nika_runtime::simulated_runtime(default_model: &str, caps: nika_runtime::compose::RuntimeCapabilities, run: core::option::Option<&nika_vocab::run::RunDecl>) -> core::result::Result<nika_runtime::compose::SimRuntime, nika_kernel_core::io::http::HttpError>
-pub fn nika_runtime::source_is_runtime_resolvable(source: nika_vocab::secret::SecretSource) -> bool
 pub fn nika_runtime::unbounded_breakdown(cost: &nika_check::cost::CostCeiling) -> alloc::string::String
 pub type nika_runtime::ProdRuntime = nika_runtime::Runtime<nika_exec_runner::TokioShell, nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::declared_clock::DeclaredClock, nika_runtime::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::NoWorkflow>, nika_http::ReqwestHttp, nika_runtime::compose::RegistryProvider<nika_http::ReqwestHttp>, nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::declared_clock::DeclaredClock, nika_runtime::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::NoWorkflow>, nika_clock::declared_clock::DeclaredClock>
 pub type nika_runtime::SimRuntime = nika_runtime::Runtime<nika_runtime::simulated::SimulatedShell, nika_runtime::simulated::SimulatedDispatcher<nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::declared_clock::DeclaredClock, nika_runtime::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::NoWorkflow>>, nika_http::ReqwestHttp, nika_runtime::compose::RegistryProvider<nika_http::ReqwestHttp>, nika_runtime::simulated::SimulatedDispatcher<nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::declared_clock::DeclaredClock, nika_runtime::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::NoWorkflow>>, nika_clock::declared_clock::DeclaredClock>
