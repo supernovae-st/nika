@@ -87,15 +87,26 @@ spec: `specversion: "1.0"`, `id`, `source`, `type`. Ours:
 
 - `type`: `sh.nika.run.paused` (reverse-DNS per the CloudEvents convention)
 - `source`: the run URI (trace identity)
-- `subject`: the pausing task id
-- `id`: **deterministic** — derived from the trace id + the pause event's
-  chain position. Re-delivering the same pause yields the same id (consumers
-  dedup for free); a later re-pause of the same task yields a new id.
+- `subject`: `task:<id>` · the pausing task id, namespaced
+- `id`: **deterministic** · sha256 over `trace_id:task`, lowercase hex.
+  Re-delivering the same pause yields the same id (consumers dedup for
+  free); a later re-pause of the same task yields a new id. The contract
+  holds by construction, not by chain position: the trace id is the fresh
+  per-run mint the trace file is named from (a resume leg opens a NEW
+  trace), and within one trace a task pauses at most once (the pause ends
+  the run).
 - `time`: RFC 3339, from the engine's injected clock
-- `data`: the `workflow_paused` journal payload verbatim (workflow, task,
-  mode, message?, choices?, approval ticket fields — secret-masked exactly as
-  the journal is) plus `trace_path` and the resume teaching line the pause
-  note already carries.
+- `data`: a curated subset of the `workflow_paused` journal payload, not
+  the frame verbatim · `workflow`, `task`, `mode`, `message?`, `choices?`,
+  `approval_digest?`, plus the two facts a remote surface needs to act:
+  `trace_path` and the rendered `resume_hint` teaching line. What stays on
+  the machine: the journal's `note` (the envelope speaks the same teaching
+  through `resume_hint`) and the approval ticket's replay-guard internals
+  · `approval_shown_hash`, `approval_nonce`, `approval_minted_at_ms`,
+  `approval_ttl_seconds`. The resumed run validates `--answer` against
+  those locally; only the digest rides, so the replay surface stays
+  bounded. Masking is unchanged: the payload renders over the
+  secret-marker scope upstream, exactly as the journal does.
 
 One serde struct. No new dependency for the envelope; the signature needs
 `hmac` (RustCrypto — `sha2` is already in the tree for the chain).
@@ -111,8 +122,14 @@ explicitly out of scope: an operator-configured target IS the consent.
 
 The notifier runs AFTER the `workflow_paused` journal write and BEFORE
 process exit, awaited with its timeout (never spawned — the pause path exits
-the process, and a detached task would be dropped mid-flight). Its outcome is
-journaled as one of two additive event kinds:
+the process, and a detached task would be dropped mid-flight).
+
+Every lane delivers · including an interactive TTY run, where the POST
+leaves before the terminal's in-process ask continues the run · because
+the human a gate waits on may be far from the keyboard, so the outbound
+signal must not wait on the local ask.
+
+Its outcome is journaled as one of two additive event kinds:
 
 - `notify_delivered` (target host, duration)
 - `notify_failed` (target host, error class — including the SSRF refusal
@@ -149,9 +166,14 @@ notification is observable history, not control flow.
 
 ### Negative
 
-- The pause path gains up to one timeout (3 s) of latency when a URL is
-  configured and the target is slow. Bounded and journaled; acceptable for a
-  path whose next step is a human.
+- The pause path gains up to ~8 s of worst-case latency when a URL is
+  configured and the target is slow · the 3 s request budget
+  (`request.timeout` in `deliver`) plus the 5 s SSRF DNS-resolve advisory
+  budget (`DNS_RESOLVE_TIMEOUT` in `nika-http`), which runs before and
+  outside the request budget. Bounded and journaled; acceptable for a path
+  whose next step is a human. No dynamic test exercises this bound today:
+  the e2e "unreachable" scenario points at a closed loopback port and
+  fails as instant connection-refused, never at the timeout.
 - Two more event kinds for run-report consumers to render.
 - A secret in `NIKA_NOTIFY_SECRET` is env-borne; store-backed references can
   follow later without changing the header contract.
@@ -169,9 +191,9 @@ notification is observable history, not control flow.
 1. Kind unit test — the two kinds serialize snake_case and class as Workflow.
 2. Default OFF — a pausing run with no `NIKA_NOTIFY_URL` journals no
    `notify_*` kind and opens no socket.
-3. Delivery — a local listener receives ONE structured CloudEvents POST whose
-   required attributes and `data` match the journal payload; the trace gains
-   `notify_delivered`.
+3. Delivery · a local listener receives ONE structured CloudEvents POST whose
+   required attributes and curated `data` match the pause payload; the trace
+   gains `notify_delivered`.
 4. SSRF refusal — a metadata-range URL yields no POST, a `notify_failed`
    carrying the SSRF class, and an unchanged `paused` exit.
 5. Failure is not control flow — an unreachable target still exits `paused`
