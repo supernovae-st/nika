@@ -116,6 +116,7 @@ pub enum PermissionDecision {
 }
 
 /// One observed beat of a delegated run.
+#[derive(Debug)]
 #[non_exhaustive]
 pub enum HarnessEvent {
     /// A chunk of the agent's message text.

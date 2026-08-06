@@ -4453,6 +4453,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "nika-harness"
+version = "0.108.0"
+dependencies = [
+ "futures-core",
+ "nika-kernel",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.19",
+ "tokio",
+]
+
+[[package]]
 name = "nika-http"
 version = "0.108.0"
 dependencies = [

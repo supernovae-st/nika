@@ -485,6 +485,8 @@ pub nika_kernel_ai::harness::HarnessEvent::MessageChunk::text: alloc::string::St
 pub nika_kernel_ai::harness::HarnessEvent::PermissionAsked
 pub nika_kernel_ai::harness::HarnessEvent::PermissionAsked::question: alloc::string::String
 pub nika_kernel_ai::harness::HarnessEvent::PermissionAsked::reply: nika_kernel_ai::harness::PermissionReply
+impl core::fmt::Debug for nika_kernel_ai::harness::HarnessEvent
+pub fn nika_kernel_ai::harness::HarnessEvent::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<D> owo_colors::OwoColorize for nika_kernel_ai::harness::HarnessEvent
 impl<T, U> core::convert::Into<U> for nika_kernel_ai::harness::HarnessEvent where U: core::convert::From<T>
 pub fn nika_kernel_ai::harness::HarnessEvent::into(self) -> U
