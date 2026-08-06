@@ -57,6 +57,7 @@ mod dispatch;
 mod emit_task;
 mod errors;
 mod expr;
+pub(crate) mod harness_seat;
 mod integrity;
 mod jq;
 mod ledger;

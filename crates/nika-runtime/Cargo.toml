@@ -27,6 +27,9 @@ nika-verb-infer  = { path = "../nika-verb-infer", version = "0.108.0" }
 nika-verb-exec   = { path = "../nika-verb-exec", version = "0.108.0" }
 nika-verb-invoke = { path = "../nika-verb-invoke", version = "0.108.0" }
 nika-verb-agent  = { path = "../nika-verb-agent", version = "0.108.0" }
+# The harness access class (P3 · feature-gated · default OFF): the L1
+# client the composer seats when an adapter is configured.
+nika-harness     = { path = "../nika-harness", version = "0.108.0", optional = true }
 # The production composer (descended from nika-cli's run verb 2026-07-22 ·
 # compute descends, render stays): compose.rs wires the REAL effects into
 # the generic Runtime for every embedder. The runtime CORE stays
@@ -54,6 +57,7 @@ miette           = { workspace = true }
 uuid             = { workspace = true }
 
 [dev-dependencies]
+nika-harness = { path = "../nika-harness", version = "0.108.0" }
 nika-kernel-mock = { path = "../nika-kernel-mock", version = "0.108.0" }  # MockClock · MockShell · MockToolExecutor · MockToolDefinitionProvider
 nika-pack        = { path = "../nika-pack", version = "0.108.0" }          # error_codes() — the spec-plane codes the runtime emits pin to the embedded canon
 bytes            = { workspace = true }   # canned HttpResponse bodies (the F1 capturing http seam)
@@ -68,6 +72,11 @@ spirit_role   = "tient la barre du DAG · chaque vague part à son heure · l'au
 voice_pattern = "spoken"
 layer         = "L3"
 err_prefix    = "NIKA-170x"
+
+[features]
+# Forwarded to the verb: `agent:` may delegate to the user's own
+# harness (D-2026-08-04-N1 · P3 B4.5 wires the composer).
+access-harness = ["dep:nika-harness", "nika-verb-agent/access-harness"]
 
 [lints]
 workspace = true

@@ -217,6 +217,17 @@ impl<P, T, D> AgentVerb<P, T, D> {
         self
     }
 
+    /// Seat an OPTIONAL harness — the composer's shape (a machine that
+    /// declares none keeps the native loop).
+    #[cfg(feature = "access-harness")]
+    #[must_use]
+    pub fn seated(self, seat: Option<harness_path::HarnessSeat>) -> Self {
+        match seat {
+            Some(seat) => self.with_harness_seat(seat),
+            None => self,
+        }
+    }
+
     /// Override the intelligence-layer tuning (ADR-096).
     #[must_use]
     pub fn with_config(mut self, config: AgentConfig) -> Self {

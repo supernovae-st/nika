@@ -4784,6 +4784,7 @@ dependencies = [
  "nika-event",
  "nika-exec-runner",
  "nika-fs",
+ "nika-harness",
  "nika-http",
  "nika-kernel",
  "nika-kernel-mock",

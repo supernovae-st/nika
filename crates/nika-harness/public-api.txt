@@ -4,6 +4,9 @@ pub const nika_harness::client::IDLE_TIMEOUT_SECS: u64
 pub const nika_harness::client::MAX_LINE_BYTES: usize
 pub fn nika_harness::client::drive<R, W>(reader: R, writer: W, request: nika_kernel_ai::harness::HarnessRequest) -> nika_kernel_ai::harness::HarnessEventStream where R: tokio::io::async_read::AsyncRead + core::marker::Unpin + core::marker::Send + 'static, W: tokio::io::async_write::AsyncWrite + core::marker::Unpin + core::marker::Send + 'static
 pub fn nika_harness::client::drive_with_idle<R, W>(reader: R, writer: W, request: nika_kernel_ai::harness::HarnessRequest, idle: core::time::Duration) -> nika_kernel_ai::harness::HarnessEventStream where R: tokio::io::async_read::AsyncRead + core::marker::Unpin + core::marker::Send + 'static, W: tokio::io::async_write::AsyncWrite + core::marker::Unpin + core::marker::Send + 'static
+pub mod nika_harness::declaration
+pub fn nika_harness::declaration::seat_from_env() -> core::result::Result<core::option::Option<nika_harness::spawn::SpawnedHarness>, alloc::string::String>
+pub fn nika_harness::declaration::seat_from_lookup(lookup: &dyn core::ops::function::Fn(&str) -> core::option::Option<alloc::string::String>) -> core::result::Result<core::option::Option<nika_harness::spawn::SpawnedHarness>, alloc::string::String>
 pub mod nika_harness::probe
 #[non_exhaustive] pub struct nika_harness::probe::VersionPin
 pub nika_harness::probe::VersionPin::max_major: u32
@@ -102,8 +105,10 @@ impl core::clone::Clone for nika_harness::spawn::SpawnedHarness
 pub fn nika_harness::spawn::SpawnedHarness::clone(&self) -> nika_harness::spawn::SpawnedHarness
 impl core::fmt::Debug for nika_harness::spawn::SpawnedHarness
 pub fn nika_harness::spawn::SpawnedHarness::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl nika_kernel_ai::harness::AgentBackend for nika_harness::spawn::SpawnedHarness
+impl nika_kernel_ai::harness::AgentBackendDyn for nika_harness::spawn::SpawnedHarness
 pub async fn nika_harness::spawn::SpawnedHarness::run_agent(&self, request: nika_kernel_ai::harness::HarnessRequest) -> core::result::Result<nika_kernel_ai::harness::HarnessEventStream, nika_kernel_ai::harness::HarnessError>
+impl<B> nika_kernel_ai::harness::DynAgentBackend for nika_harness::spawn::SpawnedHarness where B: nika_kernel_ai::harness::AgentBackendDyn + core::marker::Sync
+pub fn nika_harness::spawn::SpawnedHarness::run_agent_boxed(&self, request: nika_kernel_ai::harness::HarnessRequest) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = core::result::Result<core::pin::Pin<alloc::boxed::Box<(dyn futures_core::stream::Stream<Item = core::result::Result<nika_kernel_ai::harness::HarnessEvent, nika_kernel_ai::harness::HarnessError>> + core::marker::Send)>>, nika_kernel_ai::harness::HarnessError>> + core::marker::Send + '_)>>
 impl<D> owo_colors::OwoColorize for nika_harness::spawn::SpawnedHarness
 impl<T, U> core::convert::Into<U> for nika_harness::spawn::SpawnedHarness where U: core::convert::From<T>
 pub fn nika_harness::spawn::SpawnedHarness::into(self) -> U
@@ -129,6 +134,8 @@ impl<T> core::convert::From<T> for nika_harness::spawn::SpawnedHarness
 pub fn nika_harness::spawn::SpawnedHarness::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_harness::spawn::SpawnedHarness where T: 'static
 pub fn nika_harness::spawn::SpawnedHarness::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<TraitVariantBlanketType> nika_kernel_ai::harness::AgentBackend for nika_harness::spawn::SpawnedHarness where TraitVariantBlanketType: nika_kernel_ai::harness::AgentBackendDyn
+pub async fn nika_harness::spawn::SpawnedHarness::run_agent(&self, request: nika_kernel_ai::harness::HarnessRequest) -> core::result::Result<core::pin::Pin<alloc::boxed::Box<(dyn futures_core::stream::Stream<Item = core::result::Result<nika_kernel_ai::harness::HarnessEvent, nika_kernel_ai::harness::HarnessError>> + core::marker::Send)>>, nika_kernel_ai::harness::HarnessError>
 pub fn nika_harness::spawn::compose_env(parent: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>, passthrough: &[alloc::string::String]) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
 pub mod nika_harness::wire
 #[non_exhaustive] pub enum nika_harness::wire::Incoming
@@ -602,8 +609,10 @@ impl core::clone::Clone for nika_harness::spawn::SpawnedHarness
 pub fn nika_harness::spawn::SpawnedHarness::clone(&self) -> nika_harness::spawn::SpawnedHarness
 impl core::fmt::Debug for nika_harness::spawn::SpawnedHarness
 pub fn nika_harness::spawn::SpawnedHarness::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl nika_kernel_ai::harness::AgentBackend for nika_harness::spawn::SpawnedHarness
+impl nika_kernel_ai::harness::AgentBackendDyn for nika_harness::spawn::SpawnedHarness
 pub async fn nika_harness::spawn::SpawnedHarness::run_agent(&self, request: nika_kernel_ai::harness::HarnessRequest) -> core::result::Result<nika_kernel_ai::harness::HarnessEventStream, nika_kernel_ai::harness::HarnessError>
+impl<B> nika_kernel_ai::harness::DynAgentBackend for nika_harness::spawn::SpawnedHarness where B: nika_kernel_ai::harness::AgentBackendDyn + core::marker::Sync
+pub fn nika_harness::spawn::SpawnedHarness::run_agent_boxed(&self, request: nika_kernel_ai::harness::HarnessRequest) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = core::result::Result<core::pin::Pin<alloc::boxed::Box<(dyn futures_core::stream::Stream<Item = core::result::Result<nika_kernel_ai::harness::HarnessEvent, nika_kernel_ai::harness::HarnessError>> + core::marker::Send)>>, nika_kernel_ai::harness::HarnessError>> + core::marker::Send + '_)>>
 impl<D> owo_colors::OwoColorize for nika_harness::spawn::SpawnedHarness
 impl<T, U> core::convert::Into<U> for nika_harness::spawn::SpawnedHarness where U: core::convert::From<T>
 pub fn nika_harness::spawn::SpawnedHarness::into(self) -> U
@@ -629,6 +638,8 @@ impl<T> core::convert::From<T> for nika_harness::spawn::SpawnedHarness
 pub fn nika_harness::spawn::SpawnedHarness::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_harness::spawn::SpawnedHarness where T: 'static
 pub fn nika_harness::spawn::SpawnedHarness::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<TraitVariantBlanketType> nika_kernel_ai::harness::AgentBackend for nika_harness::spawn::SpawnedHarness where TraitVariantBlanketType: nika_kernel_ai::harness::AgentBackendDyn
+pub async fn nika_harness::spawn::SpawnedHarness::run_agent(&self, request: nika_kernel_ai::harness::HarnessRequest) -> core::result::Result<core::pin::Pin<alloc::boxed::Box<(dyn futures_core::stream::Stream<Item = core::result::Result<nika_kernel_ai::harness::HarnessEvent, nika_kernel_ai::harness::HarnessError>> + core::marker::Send)>>, nika_kernel_ai::harness::HarnessError>
 #[non_exhaustive] pub struct nika_harness::VersionPin
 pub nika_harness::VersionPin::max_major: u32
 pub nika_harness::VersionPin::min: (u32, u32)
@@ -675,3 +686,5 @@ pub fn nika_harness::drive<R, W>(reader: R, writer: W, request: nika_kernel_ai::
 pub fn nika_harness::drive_with_idle<R, W>(reader: R, writer: W, request: nika_kernel_ai::harness::HarnessRequest, idle: core::time::Duration) -> nika_kernel_ai::harness::HarnessEventStream where R: tokio::io::async_read::AsyncRead + core::marker::Unpin + core::marker::Send + 'static, W: tokio::io::async_write::AsyncWrite + core::marker::Unpin + core::marker::Send + 'static
 pub fn nika_harness::judge_version(adapter_id: &str, output: &str, pin: &nika_harness::probe::VersionPin) -> core::result::Result<(u32, u32), nika_kernel_ai::harness::HarnessError>
 pub fn nika_harness::parse_version(line: &str) -> core::option::Option<(u32, u32)>
+pub fn nika_harness::seat_from_env() -> core::result::Result<core::option::Option<nika_harness::spawn::SpawnedHarness>, alloc::string::String>
+pub fn nika_harness::seat_from_lookup(lookup: &dyn core::ops::function::Fn(&str) -> core::option::Option<alloc::string::String>) -> core::result::Result<core::option::Option<nika_harness::spawn::SpawnedHarness>, alloc::string::String>
