@@ -1,0 +1,46 @@
+pub mod nika_secret
+pub struct nika_secret::NoSecrets
+impl core::clone::Clone for nika_secret::NoSecrets
+pub fn nika_secret::NoSecrets::clone(&self) -> nika_secret::NoSecrets
+impl core::default::Default for nika_secret::NoSecrets
+pub fn nika_secret::NoSecrets::default() -> nika_secret::NoSecrets
+impl core::fmt::Debug for nika_secret::NoSecrets
+pub fn nika_secret::NoSecrets::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_secret::NoSecrets
+impl nika_secret::WorkflowSecretResolver for nika_secret::NoSecrets
+pub fn nika_secret::NoSecrets::resolve(&self, name: &str, _reference: &nika_vocab::secret::SecretRef) -> core::result::Result<alloc::string::String, nika_secret::SecretResolveError>
+impl core::marker::Freeze for nika_secret::NoSecrets
+impl core::marker::Send for nika_secret::NoSecrets
+impl core::marker::Sync for nika_secret::NoSecrets
+impl core::marker::Unpin for nika_secret::NoSecrets
+impl core::marker::UnsafeUnpin for nika_secret::NoSecrets
+impl core::panic::unwind_safe::RefUnwindSafe for nika_secret::NoSecrets
+impl core::panic::unwind_safe::UnwindSafe for nika_secret::NoSecrets
+pub struct nika_secret::SecretResolveError
+pub nika_secret::SecretResolveError::name: alloc::string::String
+pub nika_secret::SecretResolveError::reason: alloc::string::String
+impl core::clone::Clone for nika_secret::SecretResolveError
+pub fn nika_secret::SecretResolveError::clone(&self) -> nika_secret::SecretResolveError
+impl core::cmp::Eq for nika_secret::SecretResolveError
+impl core::cmp::PartialEq for nika_secret::SecretResolveError
+pub fn nika_secret::SecretResolveError::eq(&self, other: &nika_secret::SecretResolveError) -> bool
+impl core::error::Error for nika_secret::SecretResolveError
+impl core::fmt::Debug for nika_secret::SecretResolveError
+pub fn nika_secret::SecretResolveError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_secret::SecretResolveError
+pub fn nika_secret::SecretResolveError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_secret::SecretResolveError
+impl core::marker::Freeze for nika_secret::SecretResolveError
+impl core::marker::Send for nika_secret::SecretResolveError
+impl core::marker::Sync for nika_secret::SecretResolveError
+impl core::marker::Unpin for nika_secret::SecretResolveError
+impl core::marker::UnsafeUnpin for nika_secret::SecretResolveError
+impl core::panic::unwind_safe::RefUnwindSafe for nika_secret::SecretResolveError
+impl core::panic::unwind_safe::UnwindSafe for nika_secret::SecretResolveError
+pub const nika_secret::REDACTED: &str
+pub trait nika_secret::WorkflowSecretResolver: core::marker::Send + core::marker::Sync
+pub fn nika_secret::WorkflowSecretResolver::resolve(&self, name: &str, reference: &nika_vocab::secret::SecretRef) -> core::result::Result<alloc::string::String, nika_secret::SecretResolveError>
+impl nika_secret::WorkflowSecretResolver for nika_secret::NoSecrets
+pub fn nika_secret::NoSecrets::resolve(&self, name: &str, _reference: &nika_vocab::secret::SecretRef) -> core::result::Result<alloc::string::String, nika_secret::SecretResolveError>
+pub fn nika_secret::resolve_secrets<R: nika_secret::WorkflowSecretResolver + ?core::marker::Sized>(resolver: &R, declared: &[(nika_source::span::Spanned<alloc::string::String>, nika_source::span::Spanned<nika_vocab::secret::SecretRef>)]) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>
+pub fn nika_secret::source_is_runtime_resolvable(source: nika_vocab::secret::SecretSource) -> bool

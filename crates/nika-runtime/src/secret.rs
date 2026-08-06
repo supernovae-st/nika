@@ -1,175 +1,28 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! Workflow secret resolution — the `secrets:` namespace seam (MINOR-B).
-//!
-//! The envelope's `secrets:` block declares each value as a STORE REFERENCE
-//! (`{ source, key }` · never an inline literal · spec 01 §secrets). At run
-//! time the engine resolves those references into the values the
-//! `${{ secrets.X }}` namespace exposes — but resolution READS a store
-//! (env var · file · vault), which is an EFFECT. So the runtime (L3) never
-//! reads env/files itself: the COMPOSER (L4 · nika-cli, the sanctioned
-//! `std::env` boundary) injects a [`WorkflowSecretResolver`].
-//!
-//! ## Sovereignty + masking
-//!
-//! A resolved value flows ONLY where the static IFC (`nika check`
-//! secret-flow analysis · ADR-092) sanctions it, and is NEVER written to the
-//! event stream (notes carry the program/model name, not field values). The
-//! resolved values live in the [`Scope`](crate::expr::Scope)'s `secrets`
-//! map for the duration of the run and are dropped with it.
-//!
-//! The "never written" half is enforced DYNAMICALLY (S1 · journal
-//! hygiene): the IFC sees declared flows, not a value that surfaces
-//! through a side channel — an `exec` that cats a file-sourced secret,
-//! an mcp tool that echoes its input. Such a value lands in a task's
-//! OUTPUT and would ride the terminal frame's `outcome`/`output`
-//! payload into `.nika/traces/*.ndjson` in plaintext. [`RedactingSink`]
-//! wraps the run's ONE sink seam and rewrites every occurrence of a
-//! resolved value to [`REDACTED`] before any lane (journal · `--json` ·
-//! the live fold) sees the event. Redaction follows PROVENANCE — any
-//! value the map resolved, down to one byte (P0-19 · the PIN/OTP
-//! class) — never a length floor; a short needle only narrows its blast
-//! radius to the value-payload fields (see [`WIDE_SCRUB_MIN`]).
-//!
-//! ## Fail-closed
-//!
-//! A reference that does not resolve (env var unset · file missing) is
-//! simply OMITTED from the namespace — so `${{ secrets.X }}` then raises the
-//! loud unresolved class (`NIKA-1702`), a clean typed error, BEFORE the
-//! value is ever needed. It is NEVER a panic, and NEVER a silent empty value
-//! (which would turn `${{ secrets.X }}` into the literal string "null"). A
-//! workflow that declares a secret it never references is unaffected (the
-//! omission only bites a reference) — the same posture as today, where every
-//! `secrets.X` was unresolved.
+//! The DYNAMIC scrub half of the secrets seam — it stays in the
+//! runtime because it implements the runtime's own `EventSink`
+//! (the resolution half descended to `nika-secret` 2026-08-06).
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 
 use nika_event::Event;
-use nika_schema::types::{SecretRef, SecretSource};
 use nika_types::resource::Value as FieldValue;
 use serde_json::Value;
 
+pub(crate) use nika_secret::{REDACTED, resolve_secrets};
+
 use crate::EventSink;
 
-/// Resolve a workflow `secrets:` reference into its value.
-///
-/// The composer (L4) implements this over the real stores (env · file ·
-/// vault). The runtime calls it once per declared secret at run start.
-pub trait WorkflowSecretResolver: Send + Sync {
-    /// Resolve one `{ source, key }` reference to its plaintext value.
-    ///
-    /// The implementor MUST NOT log the returned value. `name` is the
-    /// `secrets.<name>` key (for diagnostics only · safe to log).
-    ///
-    /// # Errors
-    ///
-    /// [`SecretResolveError`] when the reference cannot be resolved (store
-    /// miss · source not supported by this resolver). The run fails cleanly.
-    fn resolve(&self, name: &str, reference: &SecretRef) -> Result<String, SecretResolveError>;
-}
-
-/// A workflow secret reference that did not resolve (MINOR-B).
-///
-/// Surfaced by a [`WorkflowSecretResolver`] when a store lookup misses. The
-/// runtime treats it as « leave this `secrets.<name>` unbound » → a later
-/// `${{ secrets.<name>` reference raises `NIKA-1702` (the loud unresolved
-/// class · clean typed error · never a panic). The message NEVER contains a
-/// value (there is none — resolution failed) nor the store contents.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct SecretResolveError {
-    /// The `secrets.<name>` that failed (safe to surface · not the value).
-    pub name: String,
-    /// Why it failed (store miss · unsupported source · safe to surface).
-    pub reason: String,
-}
-
-impl std::fmt::Display for SecretResolveError {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "secrets.{} did not resolve · {}", self.name, self.reason)
-    }
-}
-
-impl std::error::Error for SecretResolveError {}
-
-/// The no-op resolver — the default when the composer injects none. Every
-/// `secrets.X` then resolves to `None` (NIKA-1702 · the prior behavior ·
-/// secrets fail CLOSED). Used by tests + any headless run with no store.
-#[derive(Debug, Clone, Copy, Default)]
-pub struct NoSecrets;
-
-impl WorkflowSecretResolver for NoSecrets {
-    fn resolve(&self, name: &str, _reference: &SecretRef) -> Result<String, SecretResolveError> {
-        Err(SecretResolveError {
-            name: name.to_owned(),
-            reason: "no secret resolver is configured for this run".to_owned(),
-        })
-    }
-}
-
-/// Resolve every declared `secrets:` reference into the `secrets` namespace
-/// map (`<name>` → the value as a JSON string · MINOR-B).
-///
-/// Called once at run start. A reference that does not resolve is OMITTED
-/// (fail-closed · the later `${{ secrets.X }}` reference then raises
-/// `NIKA-1702`, never reads "null") — a declared-but-unreferenced secret is
-/// therefore harmless. The returned map is bound in the run's
-/// [`Scope`](crate::expr::Scope).
-///
-/// `declared` is `wf.secrets` (`<name>` → reference).
-#[must_use]
-pub(crate) fn resolve_secrets<R: WorkflowSecretResolver + ?Sized>(
-    resolver: &R,
-    declared: &[(
-        nika_schema::Spanned<String>,
-        nika_schema::Spanned<SecretRef>,
-    )],
-) -> BTreeMap<String, Value> {
-    let mut out = BTreeMap::new();
-    for (name, reference) in declared {
-        // A miss leaves the secret UNBOUND (omitted) — fail-closed: the
-        // reference site raises NIKA-1702, never reads a silent "null".
-        if let Ok(value) = resolver.resolve(&name.value, &reference.value) {
-            out.insert(name.value.clone(), Value::String(value));
-        }
-    }
-    out
-}
-
-/// Whether a [`SecretSource`] is runtime-resolvable by the canonical
-/// composer resolver today (`env` · `file`). `vault` is not yet wired — the
-/// checker WARNs rather than letting a green check fail at runtime
-/// (NIKA-1702). Exposed so the CLI's `check` can surface the warning.
-#[must_use]
-pub fn source_is_runtime_resolvable(source: SecretSource) -> bool {
-    matches!(source, SecretSource::Env | SecretSource::File)
-}
-
-// ─────────────────────── S1 · journal hygiene ───────────────────────
-
-/// The redaction marker — a resolved secret value that reaches an event
-/// payload is rewritten to these exact bytes. Fixed width: the marker
-/// must not encode anything about the value it hides, not even a length.
-pub(crate) const REDACTED: &str = "***";
-
-/// The wide-scrub threshold (P0-19). Redaction follows PROVENANCE —
-/// every value resolved through the `secrets` map joins the scrub set,
-/// down to ONE byte (the PIN/OTP class) — never a length floor. What a
-/// needle's length decides is its BLAST RADIUS: at this size or beyond
-/// the needle is distinctive enough to scrub every String field of the
-/// frame; below it the needle bites only [`PAYLOAD_FIELDS`], because a
-/// handful of characters rides inside hashes · ids · ordinary words and
-/// a frame-wide scrub would mangle the journal.
+/// Below this length a needle scrubs ONLY the payload fields: a
+/// handful of characters rides inside hashes · ids · ordinary words
+/// and a frame-wide scrub would mangle the journal.
 const WIDE_SCRUB_MIN: usize = 8;
 
-/// The String fields that can carry a resolved secret's VALUE — the
-/// terminal frame's `outcome` payload (spec 13 · serialized task data),
-/// the ADR-099 `output` rehydration text, and the failure frame's
-/// `detail` (`error.code · error.message` — the message embeds up to
-/// 1024 bytes of raw process stderr, the audit's 6-byte OTP leak).
-/// Short needles scrub ONLY these; digests · ids · labels stay outside
-/// by construction.
+/// The event fields whose payload may carry a resolved value (the
+/// terminal frame's outcome/output and the failure detail).
 const PAYLOAD_FIELDS: [&str; 3] = ["outcome", crate::resume::fields::OUTPUT, "detail"];
 
 /// The dynamic-flow backstop (S1). The static IFC sanctions every
@@ -350,7 +203,10 @@ fn json_escaped(raw: &str) -> String {
 #[allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 mod tests {
     use super::*;
-    use nika_schema::Spanned;
+    use nika_schema::{SecretRef, SecretSource, Spanned};
+    use nika_secret::{
+        NoSecrets, SecretResolveError, WorkflowSecretResolver, source_is_runtime_resolvable,
+    };
     use proptest::prelude::*;
 
     /// A scripted resolver mapping `name → value` (the composer's role,

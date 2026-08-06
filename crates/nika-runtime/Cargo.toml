@@ -15,6 +15,7 @@ nika-types       = { path = "../nika-types", version = "0.108.0" }        # Even
 nika-error       = { path = "../nika-error", version = "0.108.0" }        # NIKA_1700..1703 registry constants
 nika-event       = { path = "../nika-event", version = "0.108.0" }        # Event · EventKind (the stream this crate emits)
 nika-schema      = { path = "../nika-schema", version = "0.108.0" }       # RawWorkflow · RawAction (the run input)
+nika-secret      = { path = "../nika-secret", version = "0.108.0" }       # the secret resolution half (descended at the 15k wall)
 nika-check       = { path = "../nika-check", version = "0.108.0" }        # CheckReport · the audit-before-run gate (the admit/trust planes)
 nika-proof       = { path = "../nika-proof", version = "0.108.0" }        # the proof layer's hash primitives + the one receipt (spec 15 · the crate-size split)
 nika-tmpl        = { path = "../nika-tmpl", version = "0.108.0" }         # the ONE ${{ }} island lexer · shared with the checker (check⇄run parity)
