@@ -381,6 +381,9 @@ pub(crate) struct DispatchCtx<'a> {
     /// permit witness) — every dispatch-boundary decision records here,
     /// the settle spine emits one `permit_checked` frame per entry.
     pub witness: &'a crate::witness::PermitWitness,
+    /// P3 B5 · the operator's bound `--answer` for THIS task (the
+    /// harness gate's human verdict on a resumed run).
+    pub gate_answer: Option<serde_json::Value>,
 }
 
 impl<'a> DispatchCtx<'a> {
@@ -399,6 +402,7 @@ impl<'a> DispatchCtx<'a> {
             child_budget,
             inert: task.inert.as_ref().map(|s| s.value.as_str()),
             witness,
+            gate_answer: None,
         }
     }
 }
@@ -801,6 +805,7 @@ where
         }
         input.model = action.model.as_ref().map(|m| m.value.clone());
         input.tools = action.tools.iter().map(|t| t.value.clone()).collect();
+        Self::bridge_inputs(&mut input, scope, ctx);
         input.max_turns = action.max_turns.as_ref().map(|t| t.value);
         input.max_tokens_total = action.max_tokens_total.as_ref().map(|t| t.value);
         input.temperature = temp_f32(action.temperature.as_ref());
@@ -863,6 +868,13 @@ where
                 Dispatched::verb_err_spent("agent · ?".to_owned(), &err, spend)
             }
         }
+    }
+
+    /// P3 B5 · the bridge's inputs: the workflow's declared boundary
+    /// (judged in-verb for a harness) + the operator's bound `--answer`.
+    fn bridge_inputs(input: &mut AgentInput, scope: &Scope<'_>, ctx: &DispatchCtx<'_>) {
+        input.permits = scope.permits.cloned();
+        input.gate_answer.clone_from(&ctx.gate_answer);
     }
 
     /// Parse the composer-resolved skill texts one agent action names

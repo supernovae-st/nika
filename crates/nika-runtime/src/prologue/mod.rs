@@ -7,9 +7,15 @@
 //! from `lib.rs` under the same ceiling, cohesion intact: a prologue
 //! field belongs to the prologue module).
 
-use nika_types::resource::Value as FieldValue;
+use std::collections::BTreeMap;
 
-use crate::s;
+use nika_event::{Event, EventKind};
+use nika_schema::raw::RawWorkflow;
+use nika_types::resource::{KeyValue, Value as FieldValue};
+
+use crate::origins::InputOrigin;
+use crate::stamp::{EventSink, Stamper};
+use crate::{approval, emit, i, s};
 
 #[cfg(test)]
 mod tests;
@@ -48,4 +54,230 @@ pub(crate) fn cost_pin_fields(max_cost_usd: Option<f64>) -> Vec<(&'static str, F
         fields.push(("budget", s(&resolved.to_string())));
     }
     fields
+}
+
+/// The run banner's boundary clause — it reflects the ACTUAL boundary:
+/// a declared `permits:` block is a default-deny boundary, so the
+/// banner must not keep saying "no boundary declared" once one is
+/// present (it misled operators into thinking permits were inert). We
+/// state only what is unconditionally true and DO NOT claim
+/// "(enforced)": runtime enforcement is axis-dependent (fs+exec gate at
+/// dispatch; tools+net are validated by `nika check`), so a blanket
+/// enforcement claim would over-state for a tools/net-only block
+/// (NIKA-SEC-004 · spn-nika review). And when `exec:` is granted,
+/// `default-deny` would itself over-state (user gauntlet 2026-07-31 ·
+/// G-10: a sub-process read files no `fs.read` admitted, under this
+/// very banner) — the grant is named as the opening it is, until the
+/// engine binds sub-process I/O to the fs boundary (spec-first ·
+/// operator Q2).
+pub(crate) fn permits_banner(wf: &RawWorkflow) -> &'static str {
+    match wf.permits.as_ref() {
+        Some(p) if p.value.allows_exec() => "declared boundary · exec outside the fs bounds",
+        Some(_) => "declared boundary · default-deny",
+        None => "zero authority (no `permits:` declared · F-O8)",
+    }
+}
+
+/// The NEP-0014 boot-manifest fields (F-P13 · F-P21) — additive, the
+/// `permits_json` posture: older readers ignore unknown fields, newer
+/// readers find them absent where no claim exists.
+///
+/// - `inputs` (F-P13 law 2) — every input the run binds names its
+///   channel, one JSON map field (`{"name":"origin"}`); absent when the
+///   run binds no input (no claim, never a guess);
+/// - `resumed_from_engine` + `resume_compat: declared` (F-P21 law 4) —
+///   the cross-version crossing the operator DECLARED (`--resume-compat`),
+///   attested; absent on an exact resume (no crossing, no claim).
+pub(crate) fn nep_0014_fields(
+    input_origins: &BTreeMap<String, InputOrigin>,
+    resume_compat: Option<&str>,
+) -> Vec<(&'static str, FieldValue)> {
+    let mut fields = Vec::new();
+    if !input_origins.is_empty() {
+        let map: BTreeMap<&str, &str> = input_origins
+            .iter()
+            .map(|(name, origin)| (name.as_str(), origin.as_str()))
+            .collect();
+        if let Ok(json) = serde_json::to_string(&map) {
+            fields.push(("inputs", s(&json)));
+        }
+    }
+    if let Some(recorded) = resume_compat {
+        fields.push(("resumed_from_engine", s(recorded)));
+        fields.push(("resume_compat", s("declared")));
+    }
+    fields
+}
+
+/// The spec commit this engine's conformance is proven at (F-P2 · the
+/// boot manifest's `spec_pin`) — the workspace-root `SPEC_PIN` file,
+/// baked in at compile time (the `engine_version`/`platform` idiom:
+/// a compile-time constant, no clock, no I/O — determinism intact).
+/// `None` only if the file ever loses its hash line (a comment-only
+/// `SPEC_PIN` pins nothing — absent is honest).
+pub(crate) fn spec_pin() -> Option<&'static str> {
+    const RAW: &str = include_str!("../../../../SPEC_PIN");
+    RAW.lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty() && !line.starts_with('#'))
+        .next_back()
+}
+
+/// The F-P2 boot attestation fields (LOT-1 · the run's life opens with
+/// an attested BOOT frame). Additive to the opening vec — older readers
+/// ignore unknown fields, newer readers find them absent on older
+/// journals and say "unrecorded", never a guess:
+///
+/// - `spec_pin` — the spec commit the engine was proven at (above);
+/// - `stamper_kind` — the event-identity seam the `run:` declaration
+///   resolves to (F-P3 · `RunSeams`): `deterministic` under
+///   `entropy: none | seeded(N)`, `system` otherwise. The composer's
+///   stamper pick rides the SAME resolution (`RunSeams::stamper` is the
+///   one pick site), so the manifest names the seam the journal's own
+///   identities came from;
+/// - `clock` — the resolved clock the run rides (F-P3 ·
+///   [`nika_schema::types::RunDecl::clock_or_default`]): `virtual` when
+///   declared or forced by a determinism demand, `system` otherwise —
+///   the run-level time-source claim, so the journal names the clock
+///   its durations were measured against;
+/// - `seed` — only under a determinism demand: the value that keys the
+///   retry jitter stream (`seeded(N)` → `N` · `none` → the zero
+///   stream). An ambient run carries no seed claim (absent is honest).
+///
+/// `time_source`/`time_scale` stay the F-N10 RECEIPT enums (out of the
+/// run block by design); the run-level time axis is claimed above as
+/// `clock`. The `nika.lock` digest has no recording surface today (the
+/// `LOCK_UNRECORDED` posture) — the manifest claims only what exists.
+pub(crate) fn boot_attestation_fields(wf: &RawWorkflow) -> Vec<(&'static str, FieldValue)> {
+    let mut fields = Vec::new();
+    if let Some(pin) = spec_pin() {
+        fields.push(("spec_pin", s(pin)));
+    }
+    let decl = wf
+        .run
+        .as_ref()
+        .map_or_else(nika_schema::types::RunDecl::default, |decl| decl.value);
+    let entropy = decl.entropy_or_default();
+    fields.push((
+        "stamper_kind",
+        s(if entropy.is_deterministic() {
+            "deterministic"
+        } else {
+            "system"
+        }),
+    ));
+    fields.push(("clock", s(decl.clock_or_default().name())));
+    if entropy.is_deterministic() {
+        // The u64→wire idiom (settle.rs `delay_ms`): saturate at i64::MAX.
+        fields.push((
+            "seed",
+            i(i64::try_from(entropy.jitter_seed()).unwrap_or(i64::MAX)),
+        ));
+    }
+    fields
+}
+
+/// Emit the run's opening frames · `WorkflowStarted` + one
+/// `TaskScheduled` per task (the storyboard's fixed prologue) — then
+/// open the F-P4 approval book on the opening frame's id (the run
+/// nonce every ticket this run mints is scoped to · NEP-0013 law 2).
+#[allow(clippy::too_many_arguments)] // the prologue parts + the pens
+pub(crate) fn emit_prologue(
+    wf: &RawWorkflow,
+    workflow_name: &str,
+    source_sha256: Option<&str>,
+    source_sha256_lf: Option<&str>,
+    sandbox_backend: Option<&str>,
+    input_origins: &BTreeMap<String, InputOrigin>,
+    resume_compat: Option<&str>,
+    max_cost_usd: Option<f64>,
+    model_override: Option<&str>,
+    access: Vec<(&'static str, FieldValue)>,
+    approvals: &approval::ApprovalBook,
+    stamper: &mut dyn Stamper,
+    sink: &mut dyn EventSink,
+) {
+    let mut opening = vec![
+        ("workflow", s(workflow_name)),
+        ("permits", s(permits_banner(wf))),
+    ];
+    if let Some(hex) = source_sha256 {
+        opening.push(("workflow_sha256", s(hex)));
+    }
+    if let Some(hex) = source_sha256_lf {
+        opening.push(("workflow_sha256_lf", s(hex)));
+    }
+    // The evidence-pack fields (A5): the journal must let an auditor read
+    // the run's identity + boundary + confinement from the journal's OWN
+    // bytes — a claim the pack cannot trace to journal bytes is marketing.
+    // All three are deterministic projections of what the run already knew
+    // (no clock, no I/O), and additive: older readers ignore unknown fields
+    // (tolerant serde), newer readers find them absent on older journals
+    // and say "unrecorded", never a guess.
+    if let Some(hash) = crate::proof::ir::semantic_ir_hash(wf) {
+        opening.push(("semantic_hash", s(hash.as_hex())));
+    }
+    if let Some(permits) = wf.permits.as_ref()
+        && let Ok(json) = serde_json::to_string(&permits.value)
+    {
+        opening.push(("permits_json", s(&json)));
+    }
+    if let Some(backend) = sandbox_backend {
+        opening.push(("sandbox", s(backend)));
+    }
+    // F-P13 + F-P21 · the NEP-0014 attestation fields (the fn-length
+    // ratchet keeps them in their own helper).
+    opening.extend(nep_0014_fields(input_origins, resume_compat));
+    // The trace-format marker (spec 13 §trace · the graph_format: 2
+    // precedent): format-2 lines carry `outcome: {class, cause}` on
+    // every terminal task event, so the run's opening frame — the
+    // trace's header — names the format it speaks. ONE source:
+    // `TraceFormatVersion::CURRENT` (pack-parity-pinned).
+    opening.push((
+        "trace_format",
+        i(i64::from(nika_types::TraceFormatVersion::CURRENT.version)),
+    ));
+    // Environment attestation (Q11): reproducing a failure needs to know
+    // WHICH engine on WHICH platform wrote the journal. Compile-time
+    // constants only — the workspace releases in lockstep, so the
+    // runtime crate's version IS the engine version; no clock, no I/O,
+    // determinism intact.
+    opening.push(("engine_version", s(env!("CARGO_PKG_VERSION"))));
+    let platform = format!("{}/{}", std::env::consts::OS, std::env::consts::ARCH);
+    opening.push(("platform", s(&platform)));
+    // F-P2 · the boot attestation (spec pin · the declaration-resolved
+    // entropy seam · the seed under a determinism demand).
+    opening.extend(boot_attestation_fields(wf));
+    // F-P18 · the pricing-table pin + the resolved operator budget
+    // (NEP-0017 — the table that gives sense to ρ rides the pin).
+    opening.extend(cost_pin_fields(max_cost_usd));
+    // Issue 772 · the composer's `--model` override rides the boot
+    // manifest (additive · spec 17 §manifest law — engines MAY add
+    // fields): a resume can only judge what the trace records. Absent
+    // when the run carried no override — no claim, never a guess.
+    if let Some(model) = model_override {
+        opening.push(("model_override", s(model)));
+    }
+    opening.extend(access);
+    // Stamped by hand (not via `emit`) so the opening frame's id comes
+    // back as the run nonce — the F-P4 approval scope.
+    let (nonce, ts) = stamper.next();
+    let mut event = Event::new(nonce, ts, EventKind::WorkflowStarted);
+    for (key, value) in opening {
+        event = event.with_field(KeyValue::new(key, value));
+    }
+    sink.emit(event);
+    for task in &wf.tasks {
+        emit(
+            stamper,
+            sink,
+            EventKind::TaskScheduled,
+            &[("task", s(&task.value.id.value))],
+        );
+    }
+    // F-P4 · the approval book opens with the run: the nonce is the
+    // opening frame's id, and every prompt's unleashed closure is
+    // precomputed over THESE bytes (the resumed run recomputes the same
+    // closure — the shown hash stays comparable).
+    approvals.begin_run(wf, nonce.uuid.to_string());
 }

@@ -4917,6 +4917,7 @@ dependencies = [
  "jsonschema",
  "miette",
  "nika-bm25",
+ "nika-cap",
  "nika-catalog",
  "nika-check",
  "nika-error",

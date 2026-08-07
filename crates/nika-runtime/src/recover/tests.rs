@@ -338,8 +338,14 @@ fn undeclared_awaited_root_fails_fast_at_the_park_site() {
     )
     .expect("fixture parses");
     let (vars, env, secrets) = (BTreeMap::new(), BTreeMap::new(), BTreeMap::new());
-    let resume_ctx =
-        resume::ResumeContext::of(&wf, &secrets, None, &BTreeMap::new(), &BTreeMap::new());
+    let resume_ctx = resume::ResumeContext::of(
+        &wf,
+        &secrets,
+        None,
+        &BTreeMap::new(),
+        &BTreeMap::new(),
+        None,
+    );
     let scope = crate::recover::ResolveScope {
         wf: &wf,
         inputs: &vars,

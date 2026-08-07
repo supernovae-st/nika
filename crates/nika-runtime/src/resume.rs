@@ -288,6 +288,14 @@ pub(crate) struct ResumeContext {
     /// child's cached output). A target the composer did not resolve
     /// makes the task non-eligible (records no key · never skips).
     child_closures: BTreeMap<String, String>,
+    /// The operator's `--access` pin (R-1 · P3) — behavior-bearing like
+    /// the model: a run pinned `codex-acp` resumed under `api` must
+    /// RE-RUN, never serve the other path's cached output (envelope
+    /// fidelity differs by access class). The CHOSEN-access half lands
+    /// with the B6 registry — the rider's own trigger (« the moment >1
+    /// access can serve one provider ») is unreachable while every
+    /// provider carries exactly one row.
+    access_pin: Option<String>,
 }
 
 impl ResumeContext {
@@ -302,6 +310,7 @@ impl ResumeContext {
         model_override: Option<&str>,
         skills: &BTreeMap<String, String>,
         child_closures: &BTreeMap<String, String>,
+        access_pin: Option<&str>,
     ) -> Self {
         let markers = wf
             .secrets
@@ -331,6 +340,7 @@ impl ResumeContext {
             default_model,
             skills: skills.clone(),
             child_closures: child_closures.clone(),
+            access_pin: access_pin.filter(|p| !p.is_empty()).map(ToOwned::to_owned),
         }
     }
 
@@ -369,6 +379,16 @@ pub(crate) fn stamp(
         && let Some(obj) = definition.as_object_mut()
     {
         obj.insert("default_model".to_owned(), json!(model));
+    }
+    // R-1 (P3 · the #409 precedent's ACCESS twin — pin half): the pin an
+    // infer/agent task runs under is behavior-bearing — a run pinned
+    // `codex-acp` resumed under `api` RE-RUNS, never serves the other
+    // path's cached output. The chosen-access half lands with B6.
+    if touches_intelligence(task)
+        && let Some(pin) = ctx.access_pin.as_deref()
+        && let Some(obj) = definition.as_object_mut()
+    {
+        obj.insert("access_pin".to_owned(), json!(pin));
     }
     // #473 · an agent task's `skills:` TEXTS join its definition identity
     // (spec 02 §agent skills · the same law as an edited prompt): editing
@@ -439,6 +459,14 @@ fn reads_default_model(task: &RawTask) -> bool {
             .on_finally
             .iter()
             .any(|mini| action_reads(&mini.value.action))
+}
+
+/// The R-1 detector (P3): does this task run an infer/agent action
+/// (main verb or any `on_finally` mini)? Those tasks' identities carry
+/// the access pin; every other action kind never reads it.
+fn touches_intelligence(task: &RawTask) -> bool {
+    let is_ai = |a: &RawAction| matches!(a, RawAction::Infer(_) | RawAction::Agent(_));
+    is_ai(&task.action) || task.on_finally.iter().any(|mini| is_ai(&mini.value.action))
 }
 
 /// Every STATIC child-workflow target this task carries (the main verb

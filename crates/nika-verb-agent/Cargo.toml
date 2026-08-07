@@ -17,6 +17,7 @@ nika-error       = { path = "../nika-error", version = "0.108.0" }        # NIKA
 nika-verb-invoke = { path = "../nika-verb-invoke", version = "0.108.0" }  # tool dispatch (same-layer L2 · spec §0.5)
 nika-bm25        = { path = "../nika-bm25", version = "0.108.0" }         # deterministic per-turn tool routing (L2→L1 downward · ADR-096)
 nika-schema      = { path = "../nika-schema", version = "0.108.0" }       # agent:compose parse (L2→L0 downward)
+nika-cap         = { path = "../nika-cap", version = "0.108.0" }          # the harness permission bridge's judge (L2→L0 · B5)
 nika-check       = { path = "../nika-check", version = "0.108.0" }        # agent:compose static gate (L2→L0 downward · check-before-permission)
 nika-catalog     = { path = "../nika-catalog", version = "0.108.0", features = ["pricing"] } # find_pricing_for — the priced-ness the unmetered gate reads (R3-F1)
 jsonschema       = { workspace = true }                                   # final-message `schema:` validation (NIKA_464)

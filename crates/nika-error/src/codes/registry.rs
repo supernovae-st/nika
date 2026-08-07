@@ -910,6 +910,17 @@ pub const NIKA_1805: NikaCode = NikaCode {
     severity: Severity::Error,
     slug: "access-harness-refused",
 };
+/// NIKA-1806: The harness asked for authority the workflow's `permits:`
+/// grants do not cover — the run PAUSES for the operator (the durable
+/// human gate · ADR-099's harness twin), never an auto-grant. The gate
+/// question rides the pause verbatim; `--resume --answer <task>=true`
+/// grants it once, `false` denies.
+pub const NIKA_1806: NikaCode = NikaCode {
+    num: 1806,
+    category: Category::Access,
+    severity: Severity::Error,
+    slug: "access-harness-gate",
+};
 
 /// All registered codes within nika-error's own ranges + the M2
 /// computer-use L1 ranges (Screen/Ocr/A11y · ADR-081 · the impls live
@@ -938,5 +949,5 @@ pub const ALL: &[NikaCode] = &[
     NIKA_1501, NIKA_1502, NIKA_1503, NIKA_1504, NIKA_1505, NIKA_1601, NIKA_1602, NIKA_1603,
     NIKA_1604, NIKA_1605, NIKA_1700, NIKA_1701, NIKA_1702, NIKA_1703, NIKA_1704, NIKA_1705,
     NIKA_1706, NIKA_1707, NIKA_1708, NIKA_1709, NIKA_1800, NIKA_1801, NIKA_1802, NIKA_1803,
-    NIKA_1804, NIKA_1805,
+    NIKA_1804, NIKA_1805, NIKA_1806,
 ];

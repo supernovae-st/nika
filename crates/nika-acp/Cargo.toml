@@ -54,3 +54,11 @@ path = "../nika-verb-invoke"
 # path dep is test-only and lives in THIS workspace's lockfile, so the
 # SDK's serde_json/preserve_order never reaches the engine build.
 path = "../nika-harness"
+
+[dev-dependencies.nika-schema]
+# The gate e2e declares the workflow's permits: boundary on the input.
+path = "../nika-schema"
+
+[dev-dependencies.serde_json]
+# The gate e2e binds the operator's answer value.
+version = "1"

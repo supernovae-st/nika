@@ -210,8 +210,36 @@ fn fields_of(event: &AgentEvent) -> Option<(EventKind, Vec<(&'static str, FieldV
             }
             Some((EventKind::AgentBudgetCheckpoint, fields))
         }
+        // P3 B5 · the harness bridge speaks the NEP-0007 witness frame
+        // (extracted — the fn-length law).
+        AgentEvent::PermissionJudged {
+            plane,
+            gate,
+            decision,
+            why,
+        } => Some(permission_judged_fields(plane, gate, decision, why)),
         _ => None,
     }
+}
+
+/// `PermissionJudged` → the `permit_checked` frame fields (SAME kind +
+/// field names as the dispatch boundary's witness emission — one frame
+/// shape for every authority decision, wherever taken).
+fn permission_judged_fields(
+    plane: &'static str,
+    gate: &str,
+    decision: &'static str,
+    why: &str,
+) -> (EventKind, Vec<(&'static str, FieldValue)>) {
+    (
+        EventKind::PermitChecked,
+        vec![
+            ("plane", s(plane)),
+            ("gate", s(gate)),
+            ("decision", s(decision)),
+            ("why", s(why)),
+        ],
+    )
 }
 
 /// Emit-and-discard (the settle pass tracks timestamps only for the
@@ -233,5 +261,37 @@ fn reason_slug(reason: NudgeReason) -> &'static str {
         // `#[non_exhaustive]` upstream — a future reason keeps a stable
         // fallback rather than breaking the runtime build.
         _ => "other",
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::panic, clippy::expect_used)]
+mod tests {
+    use super::*;
+
+    /// P3 B5 — the harness bridge's judgment rides the NEP-0007 witness
+    /// frame: SAME kind, SAME field names as the dispatch boundary's
+    /// `PermitWitness` emission (settle.rs), so an auditor reads one
+    /// frame shape for every authority decision.
+    #[test]
+    fn a_permission_judgment_maps_to_the_permit_witness_frame() {
+        let (kind, fields) = fields_of(&AgentEvent::PermissionJudged {
+            plane: "exec",
+            gate: "execute · git".to_owned(),
+            decision: "allow",
+            why: "permits.exec covers `git`".to_owned(),
+        })
+        .expect("the judgment maps to a frame");
+        assert_eq!(kind, EventKind::PermitChecked);
+        let keys: Vec<&str> = fields.iter().map(|(k, _)| *k).collect();
+        assert_eq!(
+            keys,
+            ["plane", "gate", "decision", "why"],
+            "field parity with the dispatch-side witness frame"
+        );
+        let FieldValue::String(gate) = &fields[1].1 else {
+            panic!("the gate rides as a string");
+        };
+        assert_eq!(gate, "execute · git");
     }
 }

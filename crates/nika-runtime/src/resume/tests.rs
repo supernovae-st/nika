@@ -29,6 +29,7 @@ mod unit {
             default_model: None,
             skills: BTreeMap::new(),
             child_closures: BTreeMap::new(),
+            access_pin: None,
         }
     }
 
@@ -142,6 +143,7 @@ mod unit {
             None,
             &BTreeMap::new(),
             &BTreeMap::new(),
+            None,
         );
         let ctx_v2 = ResumeContext::of(
             &wf,
@@ -149,6 +151,7 @@ mod unit {
             None,
             &BTreeMap::new(),
             &BTreeMap::new(),
+            None,
         );
         let a = stamp(
             &wf.tasks[0].value,
@@ -179,6 +182,7 @@ mod unit {
             None,
             &BTreeMap::new(),
             &BTreeMap::new(),
+            None,
         );
         let c = stamp(
             &wf2.tasks[0].value,
@@ -214,6 +218,7 @@ mod unit {
                 over,
                 &BTreeMap::new(),
                 &BTreeMap::new(),
+                None,
             );
             stamp(
                 &wf.tasks[0].value,
@@ -265,6 +270,64 @@ mod unit {
         assert_eq!(e1.def_hash, e2.def_hash, "exec ignores the model line");
     }
 
+    /// R-1 (P3 · the #409 precedent's ACCESS twin — pin half): a run
+    /// pinned `codex-acp` resumed under `api` must RE-RUN the infer/agent
+    /// task (envelope fidelity differs by access class — never serve the
+    /// other path's cached output). An exec task's identity never reads
+    /// the pin. (The chosen-access half lands with the B6 registry — its
+    /// trigger, >1 access per provider, is unreachable before it.)
+    #[test]
+    fn the_access_pin_rekeys_infer_and_agent_only() {
+        const AGENT: &str = "nika: v1\nworkflow:\n  id: t\nmodel: mock/echo\ntasks:\n  go:\n    agent: { prompt: \"hi\" }\n";
+        // An exec control (items live at scope top · the lint law).
+        const EXEC: &str = "nika: v1\nworkflow:\n  id: t\nmodel: mock/echo\ntasks:\n  run:\n    exec: { command: [\"echo\", \"hi\"] }\n";
+        let records = BTreeMap::new();
+        let vars = BTreeMap::new();
+        let stamp_with = |yaml: &str, pin: Option<&str>| {
+            let wf = parse(yaml);
+            let ctx = ResumeContext::of(
+                &wf,
+                &BTreeMap::new(),
+                None,
+                &BTreeMap::new(),
+                &BTreeMap::new(),
+                pin,
+            );
+            stamp(
+                &wf.tasks[0].value,
+                &records,
+                &vars,
+                &BTreeMap::new(),
+                &BTreeMap::new(),
+                &ctx,
+            )
+            .expect("eligible")
+        };
+        let unpinned = stamp_with(AGENT, None);
+        let pinned = stamp_with(AGENT, Some("codex-acp"));
+        assert_ne!(
+            unpinned.def_hash, pinned.def_hash,
+            "a pin joins the identity — resuming under one re-runs"
+        );
+        let other_pin = stamp_with(AGENT, Some("api"));
+        assert_ne!(
+            pinned.def_hash, other_pin.def_hash,
+            "a DIFFERENT pin re-keys (the R-1 repro: codex-acp vs api)"
+        );
+        assert_eq!(
+            pinned.def_hash,
+            stamp_with(AGENT, Some("codex-acp")).def_hash,
+            "the same pin is stable (no churn)"
+        );
+
+        // Exec never reads the pin.
+        assert_eq!(
+            stamp_with(EXEC, None).def_hash,
+            stamp_with(EXEC, Some("codex-acp")).def_hash,
+            "an exec task's identity ignores the pin"
+        );
+    }
+
     /// #473 · an agent task's `skills:` participate in its DEFINITION
     /// identity by TEXT (spec 02 §agent skills · the ADR-099 law): an
     /// edited SKILL.md re-runs the task; the same text is stable; a
@@ -280,7 +343,8 @@ mod unit {
         let env = BTreeMap::new();
         let stamp_with = |yaml: &str, skills: &BTreeMap<String, String>| {
             let wf = parse(yaml);
-            let ctx = ResumeContext::of(&wf, &BTreeMap::new(), None, skills, &BTreeMap::new());
+            let ctx =
+                ResumeContext::of(&wf, &BTreeMap::new(), None, skills, &BTreeMap::new(), None);
             stamp(
                 &wf.tasks[0].value,
                 &records,
@@ -343,6 +407,7 @@ mod unit {
             None,
             &BTreeMap::new(),
             &BTreeMap::new(),
+            None,
         );
         let vars = BTreeMap::new();
         let leaked = BTreeMap::from([(
@@ -477,7 +542,14 @@ mod unit {
         let vars = BTreeMap::new();
         let stamp_with = |yaml: &str, closures: &BTreeMap<String, String>| {
             let wf = parse(yaml);
-            let ctx = ResumeContext::of(&wf, &BTreeMap::new(), None, &BTreeMap::new(), closures);
+            let ctx = ResumeContext::of(
+                &wf,
+                &BTreeMap::new(),
+                None,
+                &BTreeMap::new(),
+                closures,
+                None,
+            );
             stamp(
                 &wf.tasks[0].value,
                 &records,
@@ -600,6 +672,7 @@ mod trace_carry {
             None,
             &BTreeMap::new(),
             &BTreeMap::new(),
+            None,
         );
         let stamp = crate::resume::stamp(
             &wf.tasks[0].value,

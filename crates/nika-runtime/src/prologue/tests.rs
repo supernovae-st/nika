@@ -9,6 +9,7 @@
 
 #![allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 
+use super::emit_prologue;
 use crate::*;
 
 /// Run the prologue over one yaml fixture and return the started
@@ -56,6 +57,7 @@ fn started_fields_full(
         resume_compat,
         max_cost_usd,
         model_override,
+        Vec::new(),
         &book,
         &mut stamper,
         &mut sink,

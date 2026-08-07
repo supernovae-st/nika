@@ -133,6 +133,17 @@ pub enum HarnessEvent {
         question: String,
         /// The one-shot reply lane.
         reply: PermissionReply,
+        /// The wire's toolCall `kind` (`execute` · `edit` · `fetch` …)
+        /// when the agent declared one — the bridge's judge reads this
+        /// (B5); absent means unverifiable, which pauses (fail-closed).
+        kind: Option<String>,
+        /// The paths the action touches (`toolCall.locations[].path`).
+        locations: Vec<String>,
+        /// The argv of an `execute` ask (`rawInput.command`, array
+        /// form) — empty for a prose-only ask.
+        command: Vec<String>,
+        /// The URL of a `fetch` ask (`rawInput.url`).
+        url: Option<String>,
     },
     /// The run completed — the terminal beat. Boxed: the outcome is
     /// the fat variant and every OTHER beat is hot-path (the clippy

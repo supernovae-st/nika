@@ -46,6 +46,54 @@ pub(crate) fn access_decisions(
         .collect()
 }
 
+/// The R-2 boot-manifest access stamps (P3 B5 · the composer-computed
+/// half): `access_pin` verbatim + `access_plan` — the per-model
+/// admission decision as ONE compact JSON text, derived by the ONE
+/// resolver ([`nika_providers::access_plan_map`]) over THIS machine's
+/// probe rows (the doctor gesture: presence only, no socket). The
+/// runtime journals the fields verbatim (`with_boot_access_fields` ·
+/// the F-P13 composer-derives-runtime-journals posture). A model the
+/// resolver refuses is absent from the plan — never a guessed row.
+pub(crate) fn boot_access_fields(
+    report: &nika_check::CheckReport,
+    access_pin: Option<&str>,
+) -> Vec<(&'static str, nika_types::resource::Value)> {
+    use nika_types::resource::Value as FieldValue;
+    let mut fields = Vec::new();
+    if let Some(pin) = access_pin {
+        fields.push(("access_pin", FieldValue::String(pin.to_owned())));
+    }
+    let models: Vec<String> = report
+        .requirements
+        .models
+        .iter()
+        .map(|m| m.model.clone())
+        .collect();
+    let probes = nika_providers::probe::collect_provider_probes(
+        &nika_providers::ProviderRegistry::without_http(nika_runtime::compose::config_from_env()),
+    );
+    let plan: serde_json::Map<String, serde_json::Value> =
+        nika_providers::access_plan_map(&models, &probes, access_pin)
+            .into_iter()
+            .map(|(model, plan)| {
+                (
+                    model,
+                    serde_json::json!({
+                        "access": plan.access,
+                        "billing": plan.billing.as_str(),
+                    }),
+                )
+            })
+            .collect();
+    if !plan.is_empty() {
+        fields.push((
+            "access_plan",
+            FieldValue::String(serde_json::Value::Object(plan).to_string()),
+        ));
+    }
+    fields
+}
+
 /// The `check --json` rows over [`access_decisions`] — wire keys match
 /// the `AccessPlan` serde shape (`chosen`/`billing` `snake_case`), plus
 /// the `resolved` discriminant a machine consumer branches on.

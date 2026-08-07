@@ -366,6 +366,32 @@ pub fn candidates_for(probes: &[ProviderProbe], provider: &str) -> Vec<AccessCan
         .collect()
 }
 
+/// The admission-time access decision per model (R-1/R-2 · P3 B5) —
+/// ONE derivation for the trace prologue's `access_plan` stamp and the
+/// resume identity's `access.` keys, over the composer's probe rows.
+/// Templated models (`${{ }}`) are not static facts and never appear;
+/// a model the resolver refuses is ABSENT from the map (absent is
+/// honest — never a guessed row, and the resume pair stamps the same
+/// absence on both sides).
+#[must_use]
+pub fn access_plan_map(
+    models: &[String],
+    probes: &[ProviderProbe],
+    pin: Option<&str>,
+) -> std::collections::BTreeMap<String, AccessPlan> {
+    models
+        .iter()
+        .map(String::as_str)
+        .filter(|m| !m.contains("${{"))
+        .filter_map(|model| {
+            let candidates = candidates_for(probes, provider_of(model));
+            resolve_access(model, &candidates, None, pin)
+                .ok()
+                .map(|plan| (model.to_owned(), plan))
+        })
+        .collect()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
