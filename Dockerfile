@@ -2,7 +2,7 @@
 #
 # Built on the release train (.github/workflows/release.yml `docker` job) from
 # the SAME tarball binaries the GitHub release ships — never a rebuild. The
-# base mirrors the proven MCP-lane image (nika-agents integrations/mcp/
+# base mirrors the proven MCP-lane image (nika-plugins integrations/mcp/
 # Dockerfile · in-container oracle probed in CI): ubuntu:24.04 matches the
 # glibc of the release build runners (the linux-arm64 lane builds on
 # ubuntu-24.04-arm — a smaller-glibc base would strand that binary). TLS
