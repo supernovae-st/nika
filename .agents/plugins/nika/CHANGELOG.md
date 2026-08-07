@@ -5,6 +5,47 @@ Versions move together across all manifests (the mirror gate pins it).
 
 ## Unreleased
 
+## 0.108.0 — 2026-08-07
+
+The bundle becomes portable. [Agent Plugins 1.0.0](https://agent-plugins.org)
+published 2026-08-06 — the package format Cursor, GitHub Copilot, Kiro,
+VS Code and ChatGPT/Codex read — and the kit now carries its manifest at
+the plugin root beside the three client-native ones: `plugin.json` and
+`mcp.json`.
+
+Purely additive, and that is the format's own doing. v1 standardises
+exactly two component types, skills and MCP servers, and says why in its
+own text: commands, hooks, agents, rules and LSP are « too
+client-specific for a stable portable contract ». So `.claude-plugin/`
+and `.cursor-plugin/` keep every reason they had — a conformant client
+never looks there, and the client that reads the richer layout still
+gets all of it.
+
+`mcp.json` is not a copy of `.mcp.json`. The portable form carries its
+own `$schema` and a `type` discriminant per server that the Claude Code
+shape has no field for, and the two schema versions must agree or the
+MCP half is refused on its own.
+
+What this deliberately did NOT do: rename anything to a reverse-domain
+namespace (that namespace belongs to the client owning the domain, and
+we own none of them), and claim GitHub Copilot — it reads a root
+`plugin.json` too, but in its own format. Same filename, different
+contract. VS Code and Cursor were verified from their own documentation
+before a single matrix cell moved.
+
+Guarded, not hoped: the portable manifest fails CLOSED — one wrong
+character in `name` and a conformant client drops the whole kit in
+silence — so hygiene vector 48 checks the manifest, the MCP config and
+every skill's frontmatter against the encoded 1.0.0 rules, and vector 49
+runs the mutation proof that keeps 48 honest.
+
+Same wave, the repo this kit ships from was renamed
+`supernovae-st/nika-agents` → `supernovae-st/nika-plugins`. The old name
+said what the kit is made of, not what it is, and « agent » already meant
+three other things here: the frozen `agent:` verb, other vendors'
+products, and the repo. Every install line, marketplace card and teaching
+page follows; GitHub redirects the rest.
+
 ## 0.107.0 — 2026-08-01
 
 The agent-run contract lands (the friction was WRITTEN, not
