@@ -385,9 +385,8 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
         self
     }
 
-    /// Inject the composer-COMPUTED access stamps (R-2 · P3 B5) —
-    /// journaled on the boot manifest verbatim (the F-P13 posture: the
-    /// composer derives, the runtime journals). Empty (default) = no claim.
+    /// Inject the composer-COMPUTED access stamps (R-2 · B5) — journaled
+    /// verbatim (the composer derives, the runtime journals).
     #[must_use]
     pub fn with_boot_access_fields(mut self, fields: Vec<(&'static str, FieldValue)>) -> Self {
         self.boot_access_fields = fields;

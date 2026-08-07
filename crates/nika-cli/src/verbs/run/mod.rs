@@ -680,6 +680,8 @@ fn composed_runtime(
     let envelope_model = wf.model.as_ref().map_or("", |m| m.value.as_str());
     let default_model = model_override.unwrap_or(envelope_model);
     let caps = capabilities_of(wf);
+    // R-2 · the boot-manifest access stamps, composer-computed (P3 B5).
+    let boot_access = crate::verbs::check::models_rung::boot_access_fields(report, access_pin);
     // F-P3 · the run: declaration rides the SAME composition path (clock ·
     // jitter seed — the stamper half is picked at the drive site).
     match production_runtime(default_model, caps, wf.run.as_ref().map(|s| &s.value)) {
@@ -726,15 +728,9 @@ fn composed_runtime(
                 // model-less infer/agent task (the model they RUN on).
                 .with_model_override(model_override.map(ToOwned::to_owned))
                 // D-2026-08-04-N1 · the `--access` pin: judged at the
-                // runtime's admission gate against the composer-collected
-                // probes — unsatisfied refuses BEFORE the prologue.
+                // admission gate — unsatisfied refuses BEFORE the prologue.
                 .with_access_pin(access_pin.map(ToOwned::to_owned))
-                // R-2 (P3 B5) · the boot-manifest access stamps: the pin
-                // + the per-model plan, composer-computed over this
-                // machine's probes, journaled verbatim by the runtime.
-                .with_boot_access_fields(crate::verbs::check::models_rung::boot_access_fields(
-                    report, access_pin,
-                ))
+                .with_boot_access_fields(boot_access)
                 // The run's identity: the journal names the definition it
                 // recorded (sha256 of the exact bytes this composer read).
                 .with_source_sha256(sha256_hex(source.as_bytes()));
