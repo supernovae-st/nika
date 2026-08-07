@@ -18,17 +18,17 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4363
+  classified_files: 4366
   file_rows: 11
   pattern_rows: 22
   by_class:
-    authored: 1432
+    authored: 1435
     authored-pin: 2
     generated: 118
     pinned-copy: 115
     testimonial: 2696
     foreign: 0
-  unverified-default: 5
+  unverified-default: 7
 files:
 - path: ".claude/CLAUDE.md"
   class: authored
@@ -187,8 +187,8 @@ patterns:
   evidence: "hand-written gates · hooks · hygiene vectors · media lanes; the ratchet baselines (scripts/ci/*-baseline.txt · scripts/hygiene/baselines/) are hand-kept monotonic floors ('Never remove a line by hand')"
 - glob: ".github/workflows/**"
   class: authored
-  match_count: 21
-  aggregate_sha256: 0e81db3185a94024c204a55aee2e50fd1099dcbb6190721da65e7ee34bfdb360
+  match_count: 22
+  aggregate_sha256: 294a6aced13a5e5bf546c525c09037878d5794415835761ea079f8e8d20fb054
   evidence: "hand-written CI rails, comments narrate design decisions; the heal lanes here rewrite OTHER files (spec-pin-heal.yml → SPEC_PIN · pack-resync.yml → the pack · changelog-cliff.yml → CHANGELOG.md), nothing rewrites the workflows themselves"
 - glob: ".github/**"
   class: authored
@@ -241,11 +241,13 @@ patterns:
   evidence: "root prose + config surface (README · DIAMOND · LICENSE · llms.txt · Cargo.toml · deny/clippy/cliff/typos toml · lefthook.yml · flake.nix · Dockerfile) — no generation markers at file heads; CHANGELOG.md · Cargo.lock · SPEC_PIN · ROADMAP.md excepted in files:"
 - glob: "**"
   class: authored
-  match_count: 5
-  aggregate_sha256: de9c042a389476192b19b6d036ea70660f6ce6235aac4ce142f8f6c90a3fd904
+  match_count: 7
+  aggregate_sha256: 43af5b947d6c96ad649adf3d8c64016fb40a876eb562e6aac51a11e89cc60945
   evidence: "no evidence gathered — honesty over completeness (the catchall; anything landing here is reported under unverified:)"
   note: "unverified-default"
 unverified:
+- "action/README.md"
+- "action/action.yml"
 - "workflows/catalog-pricing-probe.nika.yaml"
 - "workflows/catalog/deprecated-models.nika.yaml"
 - "workflows/catalog/drift-watch.nika.yaml"

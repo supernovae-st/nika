@@ -1,0 +1,58 @@
+# Dogfood: the composite action runs itself against a $0 mock workflow.
+# Proves the whole chain end-to-end — install the released binary, check,
+# run cost-capped, name the trace — through the SAME door a user gets
+# (the binary boundary · nika.sh/install.sh · no local build).
+name: action-dogfood
+
+on:
+  push:
+    paths:
+      - "action/**"
+      - ".github/workflows/action-dogfood.yml"
+  pull_request:
+    paths:
+      - "action/**"
+      - ".github/workflows/action-dogfood.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  dogfood:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Write a $0 mock workflow
+        shell: bash
+        run: |
+          mkdir -p wf
+          cat > wf/smoke.nika.yaml <<'YAML'
+          nika: v1
+
+          workflow:
+            id: action-dogfood
+            description: A zero-cost mock run proving the action end-to-end.
+
+          tasks:
+            greet:
+              infer:
+                model: mock/echo
+                prompt: "hello from the action"
+          YAML
+
+      - name: Run via the local composite action
+        id: nika
+        uses: ./action
+        with:
+          file: wf/smoke.nika.yaml
+          max-cost-usd: "0.01"
+
+      - name: Assert the trace exists and verifies
+        shell: bash
+        env:
+          TRACE: ${{ steps.nika.outputs.trace }}
+        run: |
+          test -n "$TRACE" || { echo "no trace output"; exit 1; }
+          test -f "$TRACE" || { echo "trace file missing"; exit 1; }
+          nika trace verify "$TRACE"
