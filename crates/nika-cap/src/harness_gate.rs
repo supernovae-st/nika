@@ -422,4 +422,27 @@ mod tests {
         assert_eq!(inside.why(), "w");
         assert_eq!(outside.why(), "z");
     }
+
+    /// Every builder sets exactly its field (the mutation-killers for
+    /// the `with_*` row — a builder replaced by a default is a facts
+    /// hole the bridge would judge blind).
+    #[test]
+    fn the_fact_builders_set_exactly_their_field() {
+        let f = HarnessAskFacts::new()
+            .with_kind(Some("execute".to_owned()))
+            .with_locations(vec!["a.rs".to_owned()])
+            .with_command(vec!["git".to_owned()])
+            .with_url(Some("https://x.sh".to_owned()));
+        assert_eq!(f.kind.as_deref(), Some("execute"));
+        assert_eq!(f.locations, vec!["a.rs"]);
+        assert_eq!(f.command, vec!["git"]);
+        assert_eq!(f.url.as_deref(), Some("https://x.sh"));
+        let bare = HarnessAskFacts::new();
+        assert!(
+            bare.kind.is_none()
+                && bare.locations.is_empty()
+                && bare.command.is_empty()
+                && bare.url.is_none()
+        );
+    }
 }

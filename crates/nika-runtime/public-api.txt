@@ -1159,6 +1159,7 @@ pub fn nika_runtime::Runtime<S, T, H, P, D, C>::new(shell: nika_verb_exec::ExecV
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_access_pin(self, pin: core::option::Option<alloc::string::String>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_access_probes(self, probes: alloc::vec::Vec<nika_providers::probe::ProviderProbe>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_boot_access_fields(self, fields: alloc::vec::Vec<(&'static str, nika_types::resource::Value)>) -> Self
+pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_harness_seat_id(self, id: core::option::Option<alloc::string::String>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_child_closures(self, closures: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_input_origins(self, origins: alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_runtime::InputOrigin>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_max_cost_usd(self, budget: core::option::Option<f64>) -> Self

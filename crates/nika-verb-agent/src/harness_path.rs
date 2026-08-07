@@ -373,6 +373,43 @@ mod tests {
         HarnessSeat::new(Arc::new(backend), "/tmp")
     }
 
+    /// The witness label names WHAT was judged (mutation-killers for
+    /// `gate_label` — an empty or constant label is a blind auditor).
+    #[test]
+    fn the_gate_label_names_the_fact() {
+        let exec = HarnessAskFacts::new()
+            .with_kind(Some("execute".to_owned()))
+            .with_command(vec!["git".to_owned(), "status".to_owned()]);
+        assert_eq!(gate_label(&exec), "execute · git");
+        let prose = HarnessAskFacts::new().with_kind(Some("execute".to_owned()));
+        assert_eq!(gate_label(&prose), "execute · <prose>");
+        let edit = HarnessAskFacts::new()
+            .with_kind(Some("edit".to_owned()))
+            .with_locations(vec!["a.rs".to_owned(), "b.rs".to_owned()]);
+        assert_eq!(gate_label(&edit), "edit · a.rs,b.rs");
+        let fetch = HarnessAskFacts::new()
+            .with_kind(Some("fetch".to_owned()))
+            .with_url(Some("https://x.sh".to_owned()));
+        assert_eq!(gate_label(&fetch), "fetch · https://x.sh");
+        let no_url = HarnessAskFacts::new().with_kind(Some("fetch".to_owned()));
+        assert_eq!(gate_label(&no_url), "fetch · <no url>");
+        let think = HarnessAskFacts::new().with_kind(Some("think".to_owned()));
+        assert_eq!(gate_label(&think), "think");
+        let bare = HarnessAskFacts::new();
+        assert_eq!(gate_label(&bare), "<undeclared>");
+    }
+
+    /// The seat's Debug shows the cwd and never the backend (the
+    /// finish_non_exhaustive shape — mutation-pinned).
+    #[test]
+    fn the_seat_debug_is_cwd_only_and_non_exhaustive() {
+        let seat = seat_with(vec![]);
+        let dbg = format!("{seat:?}");
+        assert!(dbg.contains("/tmp"), "{dbg}");
+        assert!(dbg.contains("HarnessSeat"), "{dbg}");
+        assert!(dbg.contains(".."), "{dbg}");
+    }
+
     fn completed(text: &str) -> HarnessEvent {
         HarnessEvent::Completed {
             outcome: Box::new(HarnessOutcome::new(text)),

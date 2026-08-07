@@ -1690,7 +1690,7 @@ pub struct nika_dap::journal::JsonSink<W: core::io::write::Write>
 impl<W: core::io::write::Write> nika_dap::journal::JsonSink<W>
 pub fn nika_dap::journal::JsonSink<W>::into_error(self) -> core::option::Option<core::io::error::Error>
 pub fn nika_dap::journal::JsonSink<W>::new(writer: W) -> Self
-impl<W: core::io::write::Write> nika_runtime::stamp::EventSink for nika_dap::journal::JsonSink<W>
+impl<W: core::io::write::Write> nika_event::stamp::EventSink for nika_dap::journal::JsonSink<W>
 pub fn nika_dap::journal::JsonSink<W>::emit(&mut self, event: nika_event::event::Event)
 impl<D> owo_colors::OwoColorize for nika_dap::journal::JsonSink<W>
 impl<T, U> core::convert::Into<U> for nika_dap::journal::JsonSink<W> where U: core::convert::From<T>
@@ -1718,11 +1718,11 @@ impl<T> tracing::instrument::Instrument for nika_dap::journal::JsonSink<W>
 impl<T> tracing::instrument::WithSubscriber for nika_dap::journal::JsonSink<W>
 impl<T> typenum::type_operators::Same for nika_dap::journal::JsonSink<W>
 pub type nika_dap::journal::JsonSink<W>::Output = T
-pub struct nika_dap::journal::Tee<A: nika_runtime::stamp::EventSink, B: nika_runtime::stamp::EventSink>
-impl<A: nika_runtime::stamp::EventSink, B: nika_runtime::stamp::EventSink> nika_dap::journal::Tee<A, B>
+pub struct nika_dap::journal::Tee<A: nika_event::stamp::EventSink, B: nika_event::stamp::EventSink>
+impl<A: nika_event::stamp::EventSink, B: nika_event::stamp::EventSink> nika_dap::journal::Tee<A, B>
 pub fn nika_dap::journal::Tee<A, B>::into_parts(self) -> (A, B)
 pub fn nika_dap::journal::Tee<A, B>::new(a: A, b: B) -> Self
-impl<A: nika_runtime::stamp::EventSink, B: nika_runtime::stamp::EventSink> nika_runtime::stamp::EventSink for nika_dap::journal::Tee<A, B>
+impl<A: nika_event::stamp::EventSink, B: nika_event::stamp::EventSink> nika_event::stamp::EventSink for nika_dap::journal::Tee<A, B>
 pub fn nika_dap::journal::Tee<A, B>::emit(&mut self, event: nika_event::event::Event)
 impl<D> owo_colors::OwoColorize for nika_dap::journal::Tee<A, B>
 impl<T, U> core::convert::Into<U> for nika_dap::journal::Tee<A, B> where U: core::convert::From<T>
@@ -1760,7 +1760,7 @@ pub fn nika_dap::journal::TraceFileSink::into_error(self) -> core::option::Optio
 pub fn nika_dap::journal::TraceFileSink::is_disabled(&self) -> bool
 pub fn nika_dap::journal::TraceFileSink::new(dir: impl core::convert::Into<std::path::PathBuf>) -> Self
 pub fn nika_dap::journal::TraceFileSink::path(&self) -> core::option::Option<&std::path::Path>
-impl nika_runtime::stamp::EventSink for nika_dap::journal::TraceFileSink
+impl nika_event::stamp::EventSink for nika_dap::journal::TraceFileSink
 pub fn nika_dap::journal::TraceFileSink::emit(&mut self, event: nika_event::event::Event)
 impl<D> owo_colors::OwoColorize for nika_dap::journal::TraceFileSink
 impl<T, U> core::convert::Into<U> for nika_dap::journal::TraceFileSink where U: core::convert::From<T>

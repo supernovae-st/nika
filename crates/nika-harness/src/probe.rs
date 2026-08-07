@@ -274,6 +274,72 @@ mod tests {
     }
 
     #[test]
+    fn the_parse_never_starts_a_run_mid_token() {
+        // The scan's boundary law (mutation-killers for the guard +
+        // increments): a digit run glued to a LETTER is a name and is
+        // skipped — but a DOT is a clean separator, so the run right
+        // after it is a fair candidate.
+        assert_eq!(parse_version("x1.2"), None, "mid-token, no continuation");
+        assert_eq!(
+            parse_version("abc9.9.9"),
+            Some((9, 9)),
+            "the first run is glued (skipped) · the tail after the dot parses"
+        );
+        assert_eq!(
+            parse_version("v1.2"),
+            Some((1, 2)),
+            "the v prefix is conventional"
+        );
+        // The FIRST parseable triple wins, later ones never consulted.
+        assert_eq!(parse_version("junk 1.2 then 9.9"), Some((1, 2)));
+        // A dot with no minor digits is not a version — scan continues.
+        assert_eq!(parse_version("v1. then 2.3"), Some((2, 3)));
+        // A triple glued to prose after the minor still parses at its start.
+        assert_eq!(parse_version("tool 3.7-beta"), Some((3, 7)));
+    }
+
+    #[test]
+    fn the_probe_row_usable_flag_reads_the_version() {
+        let row = |version: Option<(u32, u32)>| AdapterProbeRow {
+            id: "x".to_owned(),
+            version,
+            authenticated: None,
+            package: "p".to_owned(),
+            note: String::new(),
+        };
+        assert!(row(Some((1, 0))).usable());
+        assert!(
+            !row(None).usable(),
+            "no version = not usable (never an assumption)"
+        );
+    }
+
+    #[test]
+    fn the_env_registry_wrapper_delegates_and_reads_the_switch() {
+        // NIKA_HARNESS_DISABLE is unset in this process → the full table.
+        let rows = crate::registry().expect("the live env loads");
+        assert_eq!(rows.len(), 4, "registry() reads the real env boundary");
+    }
+
+    /// The sync façade is FOR sync callers (doctor) — so the test is
+    /// sync too (a `block_on` inside a tokio test's runtime is the
+    /// "runtime within a runtime" panic by design).
+    #[test]
+    fn the_sync_facade_probes_for_real() {
+        let mk = |id: &str| crate::registry::AdapterRow {
+            adapter: crate::HarnessAdapter::new(id, "false")
+                .expect("fine")
+                .with_version_pin(VersionPin::new((1, 0), 1)),
+            serves: &["mock"],
+            auth: crate::registry::AuthProbe::HomeFile(".definitely-absent-nika-test"),
+            package: "test-only",
+        };
+        let out = probe_adapters_sync(vec![mk("sync-a"), mk("sync-b")]);
+        assert_eq!(out.len(), 2, "the façade probes, never an empty vec");
+        assert!(out.iter().all(|r| r.version.is_none()));
+    }
+
+    #[test]
     fn the_pin_is_inclusive_at_the_floor_and_caps_the_major() {
         let pin = VersionPin::new((1, 2), 2);
         assert!(pin.accepts(1, 2), "the floor itself is accepted");
