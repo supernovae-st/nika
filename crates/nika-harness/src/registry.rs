@@ -128,44 +128,36 @@ fn rows() -> Result<Vec<AdapterRow>, HarnessError> {
             package: "@qwen-code/qwen-code (npm i -g @qwen-code/qwen-code)",
         },
         AdapterRow {
-            adapter: HarnessAdapter::new("codex-acp", "npx")?
-                .with_args(vec![
-                    "--yes".to_owned(),
-                    "@zed-industries/codex-acp@0.16.0".to_owned(),
-                ])
-                // The wrapper class (the gauntlet's lesson): probe the
-                // ADAPTER through the wrapper, never the wrapper itself.
-                .with_version_args(vec![
-                    "--yes".to_owned(),
-                    "@zed-industries/codex-acp@0.16.0".to_owned(),
-                    "--version".to_owned(),
-                ])
+            adapter: HarnessAdapter::new("codex-acp", "codex-acp")?
+                // The npm class, honestly: `npm i -g` puts the bin on
+                // PATH (the npx-on-the-spec form does NOT link these
+                // packages' bins — measured 2026-08-07). No working
+                // version flag — the probe is the initialize self-report.
+                // The curated model override: 0.16.0's built-in default
+                // (gpt-5.6-sol) predates the backend's support floor —
+                // the backend refuses it with "requires a newer version"
+                // (measured 2026-08-07); the override rides the row and
+                // moves with each re-pin.
+                .with_args(vec!["-c".to_owned(), "model=gpt-5.5".to_owned()])
+                .with_handshake_probe()
                 .with_version_pin(VersionPin::new((0, 16), 0)),
             serves: &["openai"],
             auth: AuthProbe::Command {
                 command: "codex",
                 args: &["login", "status"],
             },
-            package: "@zed-industries/codex-acp@0.16.0 (npm · wraps the codex CLI's own auth)",
+            package: "@zed-industries/codex-acp@0.16.0 (npm i -g · wraps the codex CLI's own auth)",
         },
         AdapterRow {
-            adapter: HarnessAdapter::new("claude-agent-acp", "npx")?
-                .with_args(vec![
-                    "--yes".to_owned(),
-                    "@zed-industries/claude-agent-acp@0.23.1".to_owned(),
-                ])
-                .with_version_args(vec![
-                    "--yes".to_owned(),
-                    "@zed-industries/claude-agent-acp@0.23.1".to_owned(),
-                    "--version".to_owned(),
-                ])
+            adapter: HarnessAdapter::new("claude-agent-acp", "claude-agent-acp")?
+                .with_handshake_probe()
                 .with_version_pin(VersionPin::new((0, 23), 0)),
             serves: &["anthropic"],
             auth: AuthProbe::Command {
                 command: "claude",
                 args: &["auth", "status"],
             },
-            package: "@zed-industries/claude-agent-acp@0.23.1 (npm · wraps the claude CLI's own auth)",
+            package: "@zed-industries/claude-agent-acp@0.23.1 (npm i -g · wraps the claude CLI's own auth)",
         },
     ])
 }
@@ -216,14 +208,20 @@ mod tests {
     }
 
     #[test]
-    fn the_wrapper_rows_probe_the_adapter_not_the_wrapper() {
+    fn the_wrapper_rows_probe_by_handshake_never_a_wrapper_flag() {
         let rows = registry_with(&no_env).expect("loads");
         for id in ["codex-acp", "claude-agent-acp"] {
             let row = rows.iter().find(|r| r.adapter.id == id).expect("row");
-            assert_eq!(row.adapter.command, "npx", "{id} rides the npm wrapper");
+            // The bin on PATH (npm i -g) — the npx-on-the-spec form does
+            // NOT link these packages' bins (measured 2026-08-07).
+            assert_eq!(row.adapter.command, id, "{id}: spawned directly");
             assert!(
-                row.adapter.version_args.iter().any(|a| a.contains(id)),
-                "{id}: the version argv names the ADAPTER package (never a bare --version)"
+                row.adapter.probe_via_handshake,
+                "{id}: no working version flag exists — the probe is the initialize self-report"
+            );
+            assert!(
+                row.package.contains(id),
+                "{id}: the install pointer names the pinned package"
             );
         }
     }

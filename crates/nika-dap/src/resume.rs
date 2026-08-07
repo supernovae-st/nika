@@ -294,9 +294,13 @@ pub fn parse_answers(
             nika_schema::raw::RawAction::Invoke(invoke)
                 if invoke.tool().map(|t| t.value.as_str()) == Some("nika:prompt")
         );
-        if !is_prompt {
+        // P3 B5 · an `agent:` task is answerable too: on a harness seat
+        // its out-of-grants ask pauses the run (NIKA-1806) and this
+        // answer is the operator's bound verdict.
+        let is_agent = matches!(&task.value.action, nika_schema::raw::RawAction::Agent(_));
+        if !is_prompt && !is_agent {
             return Err(format!(
-                "--answer {task_id}: not a `nika:prompt` task — an answer would do nothing"
+                "--answer {task_id}: not a `nika:prompt` or `agent` task — an answer would do nothing"
             ));
         }
         let value =
@@ -572,6 +576,9 @@ mod tests {
     #[test]
     fn answers_bind_only_known_prompt_tasks() {
         const WF: &str = "nika: v1\nworkflow:\n  id: t\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"confirm\", message: \"go?\" }\n  build:\n    exec: { command: [\"true\"] }\n";
+        // An agent-task fixture (B5 · items live at scope top, the lint law).
+        const AGENT_WF: &str =
+            "nika: v1\nworkflow:\n  id: t\ntasks:\n  fix:\n    agent: { prompt: \"x\" }\n";
         let wf = nika_schema::parse(
             WF,
             nika_schema::FileId::new(0),
@@ -587,6 +594,16 @@ mod tests {
         // A non-prompt task → refused (the answer would do nothing).
         let err = parse_answers(&["build=1".to_owned()], &wf).expect_err("not a prompt");
         assert!(err.contains("not a `nika:prompt`"), "{err}");
+        // P3 B5 · an agent task IS answerable (the harness gate binds it).
+        let agent_wf = nika_schema::parse(
+            AGENT_WF,
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("parses");
+        let answers = parse_answers(&["fix=false".to_owned()], &agent_wf)
+            .expect("an agent task takes the gate answer");
+        assert_eq!(answers["fix"], serde_json::json!(false));
         // Shape errors are loud.
         assert!(parse_answers(&["noequals".to_owned()], &wf).is_err());
     }

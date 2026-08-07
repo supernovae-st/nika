@@ -878,6 +878,7 @@ pub fn production_runtime(
             .with_sandbox_backend(sandbox_backend),
     )
     .with_access_probes(access_probes)
+    .with_harness_seat_id(crate::harness_seat::declared_id())
     // Resolve `secrets:` from env/file at run start (MINOR-B · the sanctioned
     // store boundary). A miss leaves the secret unbound → NIKA-1702 (fail-
     // closed); the IFC governs where a resolved value may flow.

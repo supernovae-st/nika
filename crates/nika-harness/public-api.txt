@@ -5,6 +5,7 @@ pub const nika_harness::client::MAX_LINE_BYTES: usize
 pub fn nika_harness::client::drive<R, W>(reader: R, writer: W, request: nika_kernel_ai::harness::HarnessRequest) -> nika_kernel_ai::harness::HarnessEventStream where R: tokio::io::async_read::AsyncRead + core::marker::Unpin + core::marker::Send + 'static, W: tokio::io::async_write::AsyncWrite + core::marker::Unpin + core::marker::Send + 'static
 pub fn nika_harness::client::drive_with_idle<R, W>(reader: R, writer: W, request: nika_kernel_ai::harness::HarnessRequest, idle: core::time::Duration) -> nika_kernel_ai::harness::HarnessEventStream where R: tokio::io::async_read::AsyncRead + core::marker::Unpin + core::marker::Send + 'static, W: tokio::io::async_write::AsyncWrite + core::marker::Unpin + core::marker::Send + 'static
 pub mod nika_harness::declaration
+pub fn nika_harness::declaration::declared_adapter_id() -> core::option::Option<alloc::string::String>
 pub fn nika_harness::declaration::seat_from_env() -> core::result::Result<core::option::Option<nika_harness::spawn::SpawnedHarness>, alloc::string::String>
 pub fn nika_harness::declaration::seat_from_lookup(lookup: &dyn core::ops::function::Fn(&str) -> core::option::Option<alloc::string::String>) -> core::result::Result<core::option::Option<nika_harness::spawn::SpawnedHarness>, alloc::string::String>
 pub mod nika_harness::probe
@@ -175,11 +176,13 @@ pub nika_harness::spawn::HarnessAdapter::args: alloc::vec::Vec<alloc::string::St
 pub nika_harness::spawn::HarnessAdapter::command: alloc::string::String
 pub nika_harness::spawn::HarnessAdapter::id: alloc::string::String
 pub nika_harness::spawn::HarnessAdapter::passthrough_env: alloc::vec::Vec<alloc::string::String>
+pub nika_harness::spawn::HarnessAdapter::probe_via_handshake: bool
 pub nika_harness::spawn::HarnessAdapter::version_args: alloc::vec::Vec<alloc::string::String>
 pub nika_harness::spawn::HarnessAdapter::version_pin: core::option::Option<nika_harness::probe::VersionPin>
 impl nika_harness::spawn::HarnessAdapter
 pub fn nika_harness::spawn::HarnessAdapter::new(id: impl core::convert::Into<alloc::string::String>, command: impl core::convert::Into<alloc::string::String>) -> core::result::Result<Self, nika_kernel_ai::harness::HarnessError>
 pub fn nika_harness::spawn::HarnessAdapter::with_args(self, args: alloc::vec::Vec<alloc::string::String>) -> Self
+pub fn nika_harness::spawn::HarnessAdapter::with_handshake_probe(self) -> Self
 pub fn nika_harness::spawn::HarnessAdapter::with_passthrough_env(self, vars: alloc::vec::Vec<alloc::string::String>) -> Self
 pub fn nika_harness::spawn::HarnessAdapter::with_version_args(self, args: alloc::vec::Vec<alloc::string::String>) -> Self
 pub fn nika_harness::spawn::HarnessAdapter::with_version_pin(self, pin: nika_harness::probe::VersionPin) -> Self
@@ -794,11 +797,13 @@ pub nika_harness::HarnessAdapter::args: alloc::vec::Vec<alloc::string::String>
 pub nika_harness::HarnessAdapter::command: alloc::string::String
 pub nika_harness::HarnessAdapter::id: alloc::string::String
 pub nika_harness::HarnessAdapter::passthrough_env: alloc::vec::Vec<alloc::string::String>
+pub nika_harness::HarnessAdapter::probe_via_handshake: bool
 pub nika_harness::HarnessAdapter::version_args: alloc::vec::Vec<alloc::string::String>
 pub nika_harness::HarnessAdapter::version_pin: core::option::Option<nika_harness::probe::VersionPin>
 impl nika_harness::spawn::HarnessAdapter
 pub fn nika_harness::spawn::HarnessAdapter::new(id: impl core::convert::Into<alloc::string::String>, command: impl core::convert::Into<alloc::string::String>) -> core::result::Result<Self, nika_kernel_ai::harness::HarnessError>
 pub fn nika_harness::spawn::HarnessAdapter::with_args(self, args: alloc::vec::Vec<alloc::string::String>) -> Self
+pub fn nika_harness::spawn::HarnessAdapter::with_handshake_probe(self) -> Self
 pub fn nika_harness::spawn::HarnessAdapter::with_passthrough_env(self, vars: alloc::vec::Vec<alloc::string::String>) -> Self
 pub fn nika_harness::spawn::HarnessAdapter::with_version_args(self, args: alloc::vec::Vec<alloc::string::String>) -> Self
 pub fn nika_harness::spawn::HarnessAdapter::with_version_pin(self, pin: nika_harness::probe::VersionPin) -> Self
@@ -918,6 +923,7 @@ pub const nika_harness::DISABLE_ENV: &str
 pub const nika_harness::IDLE_TIMEOUT_SECS: u64
 pub const nika_harness::MAX_LINE_BYTES: usize
 pub fn nika_harness::compose_env(parent: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>, passthrough: &[alloc::string::String]) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
+pub fn nika_harness::declared_adapter_id() -> core::option::Option<alloc::string::String>
 pub fn nika_harness::drive<R, W>(reader: R, writer: W, request: nika_kernel_ai::harness::HarnessRequest) -> nika_kernel_ai::harness::HarnessEventStream where R: tokio::io::async_read::AsyncRead + core::marker::Unpin + core::marker::Send + 'static, W: tokio::io::async_write::AsyncWrite + core::marker::Unpin + core::marker::Send + 'static
 pub fn nika_harness::drive_with_idle<R, W>(reader: R, writer: W, request: nika_kernel_ai::harness::HarnessRequest, idle: core::time::Duration) -> nika_kernel_ai::harness::HarnessEventStream where R: tokio::io::async_read::AsyncRead + core::marker::Unpin + core::marker::Send + 'static, W: tokio::io::async_write::AsyncWrite + core::marker::Unpin + core::marker::Send + 'static
 pub fn nika_harness::judge_version(adapter_id: &str, output: &str, pin: &nika_harness::probe::VersionPin) -> core::result::Result<(u32, u32), nika_kernel_ai::harness::HarnessError>

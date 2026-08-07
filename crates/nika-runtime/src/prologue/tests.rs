@@ -58,6 +58,7 @@ fn started_fields_full(
         max_cost_usd,
         model_override,
         Vec::new(),
+        None,
         &book,
         &mut stamper,
         &mut sink,

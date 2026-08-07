@@ -633,6 +633,113 @@ mod tests {
         assert!(plan.rejected.is_empty());
     }
 
+    /// `order_key`'s configured-first leg (the `!` is load-bearing):
+    /// twin candidates differing only in key state resolve to the
+    /// CONFIGURED one, whichever order they arrive in.
+    #[test]
+    fn the_configured_twin_wins_either_order() {
+        for pair in [
+            vec![
+                api("mistral", false, "MISTRAL_API_KEY"),
+                api("mistral", true, "MISTRAL_API_KEY"),
+            ],
+            vec![
+                api("mistral", true, "MISTRAL_API_KEY"),
+                api("mistral", false, "MISTRAL_API_KEY"),
+            ],
+        ] {
+            let plan = resolve_access("mistral/mistral-large", &pair, None, None)
+                .expect("the configured twin resolves");
+            assert_eq!(plan.access, "mistral");
+            assert_eq!(plan.rejected.len(), 1, "the unconfigured twin is rejected");
+            assert!(
+                plan.rejected[0].witness.contains("MISTRAL_API_KEY unset"),
+                "with its witness: {}",
+                plan.rejected[0].witness
+            );
+        }
+    }
+
+    /// The FULL sovereign chain, pinned pairwise (mutation-killers for
+    /// every `sovereign_rank` arm — a deleted arm must flip a winner).
+    #[test]
+    fn the_sovereign_chain_is_total_local_mock_harness_oauth_api() {
+        let all = [
+            AccessCandidate::new("the-local", AccessClass::Local, true),
+            AccessCandidate::new("the-mock", AccessClass::Mock, true),
+            AccessCandidate::new("the-harness", AccessClass::Harness, true),
+            AccessCandidate::new("the-oauth", AccessClass::Oauth, true),
+            AccessCandidate::new("the-api", AccessClass::Api, true),
+        ];
+        for (winner, loser_rank) in [
+            ("the-local", 0),
+            ("the-mock", 1),
+            ("the-harness", 2),
+            ("the-oauth", 3),
+        ] {
+            let _ = loser_rank;
+            let idx = all
+                .iter()
+                .position(|c| c.access == winner)
+                .expect("present");
+            let mut subset = all[idx..].to_vec();
+            subset.reverse(); // enumeration order must never matter
+            let plan = resolve_access("p/m", &subset, None, None).expect("configured");
+            assert_eq!(
+                plan.access, winner,
+                "against every lower-ranked class, {winner} wins"
+            );
+        }
+    }
+
+    /// `classify_pin_refusal` (NIKA-1800 vs 1801): the pin-layer-only
+    /// refusal reads 1801; a candidate failing EARLIER (not configured)
+    /// reads 1800 with its access-layer witness.
+    #[test]
+    fn the_pin_refusal_classification_reads_the_failing_layer() {
+        // Every rejection at the PIN layer → PinUnsatisfied (1801).
+        let pin_refusal = resolve_access(
+            "openai/gpt-5",
+            &[
+                api("openai", true, "OPENAI_API_KEY"),
+                AccessCandidate::new("codex-acp", AccessClass::Harness, true),
+            ],
+            None,
+            Some("local"),
+        )
+        .expect_err("nothing matches the pin");
+        assert!(matches!(
+            classify_pin_refusal("openai/gpt-5", "local", &pin_refusal),
+            PinRefusal::PinUnsatisfied { .. }
+        ));
+        // The api row unconfigured → it fails at the ACCESS layer first
+        // → NoPath (1800) naming that witness.
+        let access_refusal = resolve_access(
+            "openai/gpt-5",
+            &[api("openai", false, "OPENAI_API_KEY")],
+            None,
+            Some("codex-acp"),
+        )
+        .expect_err("unconfigured fails before the pin");
+        assert!(matches!(
+            classify_pin_refusal("openai/gpt-5", "codex-acp", &access_refusal),
+            PinRefusal::NoPath { .. }
+        ));
+    }
+
+    /// `access_plan_map`: a templated model is not a static fact — it
+    /// never appears in the map (the `!contains` filter, mutation-pinned).
+    #[test]
+    fn the_plan_map_skips_templated_models() {
+        let map = access_plan_map(
+            &["mock/echo".to_owned(), "${{ vars.model }}".to_owned()],
+            &[],
+            None,
+        );
+        assert!(map.contains_key("mock/echo"));
+        assert_eq!(map.len(), 1, "the templated row is absent, never guessed");
+    }
+
     #[test]
     fn a_pin_by_class_forces_the_outranked_path() {
         let plan = resolve_access(

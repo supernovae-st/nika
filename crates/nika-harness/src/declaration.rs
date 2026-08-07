@@ -26,19 +26,25 @@
 //! NIKA_HARNESS_ENV=NO_COLOR,GEMINI_PROFILE  # optional passthrough names
 //! ```
 
+use crate::spawn::SpawnedHarness;
+
+/// The declared adapter id, when the machine declares one (B6 · the
+/// boot-manifest `harness_seat` stamp reads it — the trace names the
+/// execution override beside the resolver's plan).
+#[must_use]
+pub fn declared_adapter_id() -> Option<String> {
+    #[allow(clippy::disallowed_methods)] // the sanctioned env boundary (compose's own)
+    std::env::var("NIKA_HARNESS_ADAPTER")
+        .ok()
+        .filter(|v| !v.is_empty())
+}
+
 /// Read the configured adapter from the environment.
 ///
 /// `Ok(None)` when no adapter is declared — the native loop keeps the
 /// task, unchanged. `Err` when a seat IS declared but cannot be built:
 /// the operator asked for a harness, so a silent native fallback would
 /// substitute a different execution model behind their back (A-4).
-///
-/// # Errors
-///
-/// A declared adapter whose id collides with an access-class token, or
-/// whose command is missing.
-use crate::spawn::SpawnedHarness;
-
 ///
 /// # Errors
 ///
