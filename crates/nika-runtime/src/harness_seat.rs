@@ -45,3 +45,18 @@ pub(crate) fn seat_from_env() -> Result<Seat, nika_kernel::HttpError> {
 pub(crate) const fn seat_from_env() -> Result<Seat, nika_kernel::HttpError> {
     Ok(Seat)
 }
+
+/// The declared adapter id for the boot-manifest `harness_seat` stamp
+/// (B6): the trace names the execution override beside the resolver's
+/// plan. `None` in both builds when nothing is declared — and always
+/// without the feature (no seat exists to name).
+#[cfg(feature = "access-harness")]
+pub(crate) fn declared_id() -> Option<String> {
+    nika_harness::declared_adapter_id()
+}
+
+/// The feature-off twin (always `None` — no seat exists to name).
+#[cfg(not(feature = "access-harness"))]
+pub(crate) const fn declared_id() -> Option<String> {
+    None
+}

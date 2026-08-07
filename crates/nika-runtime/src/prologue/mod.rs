@@ -193,6 +193,7 @@ pub(crate) fn emit_prologue(
     max_cost_usd: Option<f64>,
     model_override: Option<&str>,
     access: Vec<(&'static str, FieldValue)>,
+    harness_seat: Option<&str>,
     approvals: &approval::ApprovalBook,
     stamper: &mut dyn Stamper,
     sink: &mut dyn EventSink,
@@ -225,8 +226,7 @@ pub(crate) fn emit_prologue(
     if let Some(backend) = sandbox_backend {
         opening.push(("sandbox", s(backend)));
     }
-    // F-P13 + F-P21 · the NEP-0014 attestation fields (the fn-length
-    // ratchet keeps them in their own helper).
+    // F-P13 + F-P21 · the NEP-0014 attestation fields (own helper).
     opening.extend(nep_0014_fields(input_origins, resume_compat));
     // The trace-format marker (spec 13 §trace · the graph_format: 2
     // precedent): format-2 lines carry `outcome: {class, cause}` on
@@ -259,6 +259,7 @@ pub(crate) fn emit_prologue(
         opening.push(("model_override", s(model)));
     }
     opening.extend(access);
+    opening.extend(harness_seat.map(|seat| ("harness_seat", s(seat))));
     // Stamped by hand (not via `emit`) so the opening frame's id comes
     // back as the run nonce — the F-P4 approval scope.
     let (nonce, ts) = stamper.next();

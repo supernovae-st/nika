@@ -251,6 +251,10 @@ pub struct Runtime<S, T, H, P, D, C> {
     /// F-P13 `input_origins` posture: the composer derives, the runtime
     /// journals — the runtime never re-resolves). Empty = no claim.
     boot_access_fields: Vec<(&'static str, FieldValue)>,
+    /// The seated harness adapter's id (B6) — journaled as
+    /// `harness_seat` so the trace names the execution override beside
+    /// the resolver's plan. `None` without a declaration.
+    harness_seat_id: Option<String>,
     /// The run's SOURCE identity — sha256 hex over the exact bytes the
     /// operator ran (computed by the composer that read the file; the
     /// runtime never re-reads). Stamped on `workflow_started` so every
@@ -354,6 +358,7 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
             access_pin: None,
             access_probes: Vec::new(),
             boot_access_fields: Vec::new(),
+            harness_seat_id: None,
         }
     }
 
@@ -390,6 +395,15 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
     #[must_use]
     pub fn with_boot_access_fields(mut self, fields: Vec<(&'static str, FieldValue)>) -> Self {
         self.boot_access_fields = fields;
+        self
+    }
+
+    /// Set the seated harness adapter's id (B6) — journaled as
+    /// `harness_seat` on the boot manifest (the execution override
+    /// named beside the resolver's plan).
+    #[must_use]
+    pub fn with_harness_seat_id(mut self, id: Option<String>) -> Self {
+        self.harness_seat_id = id;
         self
     }
 
@@ -691,6 +705,7 @@ where
             self.config.max_cost_usd,
             self.model_override.as_deref(),
             self.boot_access_fields.clone(),
+            self.harness_seat_id.as_deref(),
             &self.approvals,
             stamper,
             sink,

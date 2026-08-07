@@ -132,6 +132,14 @@ pub struct HarnessAdapter {
     /// WRAPPER (the gauntlet caught `python3 --version` being judged
     /// against a codex pin). A wrapper row overrides this.
     pub version_args: Vec<String>,
+    /// The npm-wrapper class (B6 · codex-acp · claude-agent-acp): these
+    /// adapters have NO version flag at all (codex-acp rejects it,
+    /// claude-agent-acp prints nothing), and the pin rides the exact
+    /// package spec in the argv — so the probe is the wire itself:
+    /// spawn the session argv, send `initialize`, judge the agent's
+    /// self-report (`agentInfo.name` + `agentInfo.version` · the
+    /// protocol version). When set, this supersedes `version_args`.
+    pub probe_via_handshake: bool,
 }
 
 impl HarnessAdapter {
@@ -162,6 +170,7 @@ impl HarnessAdapter {
             passthrough_env: Vec::new(),
             version_pin: None,
             version_args: vec!["--version".to_owned()],
+            probe_via_handshake: false,
         })
     }
 
@@ -193,6 +202,16 @@ impl HarnessAdapter {
     #[must_use]
     pub fn with_version_args(mut self, args: Vec<String>) -> Self {
         self.version_args = args;
+        self
+    }
+
+    /// The npm-wrapper class's probe (B6): the version is judged from
+    /// the agent's OWN initialize answer (`agentInfo`), not a flag —
+    /// these adapters have no working version flag, and their pin rides
+    /// the exact package spec in the argv.
+    #[must_use]
+    pub fn with_handshake_probe(mut self) -> Self {
+        self.probe_via_handshake = true;
         self
     }
 }
@@ -251,6 +270,9 @@ impl SpawnedHarness {
     /// pin — every case an [`HarnessError::Unavailable`] naming the
     /// adapter.
     pub async fn probe_version(&self) -> Result<Option<(u32, u32)>, HarnessError> {
+        if self.adapter.probe_via_handshake {
+            return self.probe_handshake().await;
+        }
         let Some(pin) = &self.adapter.version_pin else {
             return Ok(None);
         };
@@ -295,6 +317,128 @@ impl SpawnedHarness {
         );
         crate::probe::judge_version(&self.adapter.id, &text, pin).map(Some)
     }
+
+    /// The npm-wrapper class's probe (B6): spawn the SESSION argv, send
+    /// `initialize`, and judge the agent's self-report — `agentInfo.name`
+    /// must be this adapter's id (identity, not assumption) and
+    /// `agentInfo.version` must sit inside the pin when the row declares
+    /// one. Deadlined like every probe (a cold npx resolve gets 30s; a
+    /// hung agent is `Unavailable`, never a hang). The child is killed
+    /// before any `session/new` — an initialize answer is free of side
+    /// effects by construction.
+    async fn probe_handshake(&self) -> Result<Option<(u32, u32)>, HarnessError> {
+        let parent: BTreeMap<String, String> = std::env::vars().collect();
+        let env = compose_env(&parent, &self.adapter.passthrough_env);
+        let mut cmd = tokio::process::Command::new(&self.adapter.command);
+        cmd.args(&self.adapter.args)
+            .env_clear()
+            .envs(&env)
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::null())
+            .kill_on_drop(true);
+        let handshake =
+            tokio::time::timeout(std::time::Duration::from_secs(30), handshake_roundtrip(cmd));
+        let answered = handshake.await.map_err(|_| HarnessError::Unavailable {
+            reason: format!(
+                "adapter `{}`: the initialize handshake did not answer in 30s",
+                self.adapter.id
+            ),
+        })??;
+        // The answer is a v1 InitializeResult: protocol version 1, and
+        // the agent's self-report for identity + version.
+        let version = answered
+            .pointer("/result/agentInfo/version")
+            .and_then(serde_json::Value::as_str)
+            .and_then(crate::probe::parse_version);
+        let name = answered
+            .pointer("/result/agentInfo/name")
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("");
+        if name != self.adapter.id {
+            return Err(HarnessError::Unavailable {
+                reason: format!(
+                    "adapter `{}`: the handshake answered as `{name}` — this binary is not \
+                     the adapter it claims to be",
+                    self.adapter.id
+                ),
+            });
+        }
+        match (&self.adapter.version_pin, version) {
+            (Some(pin), Some((major, minor))) if pin.accepts(major, minor) => {
+                Ok(Some((major, minor)))
+            }
+            (Some(pin), Some((major, minor))) => Err(HarnessError::Unavailable {
+                reason: format!(
+                    "adapter `{}`: handshake version {major}.{minor} is outside the pin \
+                     (>= {}.{} · major <= {})",
+                    self.adapter.id, pin.min.0, pin.min.1, pin.max_major
+                ),
+            }),
+            (Some(_), None) => Err(HarnessError::Unavailable {
+                reason: format!(
+                    "adapter `{}`: the initialize answer carried no `agentInfo.version`",
+                    self.adapter.id
+                ),
+            }),
+            (None, seen) => Ok(seen),
+        }
+    }
+}
+
+/// One initialize roundtrip over the child's pipes (the probe's
+/// transport half — write the request, read one bounded line).
+async fn handshake_roundtrip(
+    mut cmd: tokio::process::Command,
+) -> Result<serde_json::Value, HarnessError> {
+    use tokio::io::{AsyncBufReadExt, AsyncWriteExt};
+    let mut child = cmd.spawn().map_err(|e| HarnessError::Unavailable {
+        reason: format!("cannot spawn the adapter: {e}"),
+    })?;
+    let mut stdin = child.stdin.take().ok_or_else(|| HarnessError::Session {
+        reason: "the child's stdin was not piped".to_owned(),
+    })?;
+    let stdout = child.stdout.take().ok_or_else(|| HarnessError::Session {
+        reason: "the child's stdout was not piped".to_owned(),
+    })?;
+    let line = crate::wire::request_line(
+        1,
+        crate::wire::METHOD_INITIALIZE,
+        &crate::wire::InitializeParams {
+            protocol_version: crate::wire::PROTOCOL_V1,
+            client_capabilities: serde_json::json!({}),
+        },
+    )
+    .map_err(|e| HarnessError::Session {
+        reason: e.to_string(),
+    })?;
+    stdin
+        .write_all(line.as_bytes())
+        .await
+        .map_err(|e| HarnessError::Session {
+            reason: format!("handshake write: {e}"),
+        })?;
+    stdin
+        .write_all(b"\n")
+        .await
+        .map_err(|e| HarnessError::Session {
+            reason: format!("handshake write: {e}"),
+        })?;
+    let mut line = String::new();
+    let n = tokio::io::BufReader::new(stdout)
+        .read_line(&mut line)
+        .await
+        .map_err(|e| HarnessError::Session {
+            reason: format!("handshake read: {e}"),
+        })?;
+    if n == 0 {
+        return Err(HarnessError::Unavailable {
+            reason: "the adapter closed its pipe without answering initialize".to_owned(),
+        });
+    }
+    serde_json::from_str(line.trim_end()).map_err(|e| HarnessError::Session {
+        reason: format!("the initialize answer is not valid JSON: {e}"),
+    })
 }
 
 // The Send variant is what the house consumes (the `ProviderInferDyn`
@@ -456,5 +600,62 @@ mod tests {
             panic!("an absent binary is Unavailable, got {err:?}");
         };
         assert!(reason.contains("ghost"), "{reason}");
+    }
+
+    /// The handshake probe (the npm-wrapper class): a fake agent answers
+    /// initialize with its `agentInfo` self-report — judged by name AND
+    /// version, never trusted from the argv alone.
+    fn handshake_agent(
+        dir: &std::path::Path,
+        id: &str,
+        reports: &str,
+        version: &str,
+    ) -> HarnessAdapter {
+        let script = dir.join(format!("agent-{reports}.py"));
+        std::fs::write(
+            &script,
+            format!(
+                r#"import json, sys
+line = sys.stdin.readline()
+req = json.loads(line)
+assert req["method"] == "initialize"
+print(json.dumps({{"jsonrpc":"2.0","id":req["id"],"result":{{"protocolVersion":1,"agentInfo":{{"name":"{reports}","version":"{version}"}}}}}}))
+sys.stdout.flush()
+"#
+            ),
+        )
+        .expect("script");
+        let path = script.to_string_lossy().into_owned();
+        HarnessAdapter::new(id, "python3")
+            .expect("id is fine")
+            .with_args(vec![path])
+            .with_handshake_probe()
+            .with_version_pin(crate::probe::VersionPin::new((0, 16), 0))
+    }
+
+    #[tokio::test]
+    async fn the_handshake_probe_judges_the_agents_own_report() {
+        let dir = std::env::temp_dir().join(format!("nika-hs-probe-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("dir");
+        // In-pin + right name → detected with the version read.
+        let ok = SpawnedHarness::new(handshake_agent(&dir, "codex-acp", "codex-acp", "0.16.2"));
+        assert_eq!(ok.probe_version().await.expect("in pin"), Some((0, 16)));
+        // Out-of-pin → refused with both sides named.
+        let old = SpawnedHarness::new(handshake_agent(&dir, "codex-acp", "codex-acp", "0.9.0"));
+        let err = old.probe_version().await.expect_err("below the floor");
+        assert!(err.to_string().contains("0.9"), "{err}");
+        // A DIFFERENT name answering → not the adapter it claims to be.
+        let impostor = SpawnedHarness::new(handshake_agent(
+            &dir,
+            "claude-agent-acp",
+            "qwen-code",
+            "0.21.0",
+        ));
+        let err = impostor
+            .probe_version()
+            .await
+            .expect_err("the impostor refuses");
+        assert!(err.to_string().contains("qwen-code"), "{err}");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
