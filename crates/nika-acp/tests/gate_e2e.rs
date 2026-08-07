@@ -88,7 +88,8 @@ fn seated_verb(
     >,
     Guard,
 ) {
-    let dir = std::env::temp_dir().join(format!("nika-gate-e2e-{}-{}", std::process::id(), program));
+    let dir =
+        std::env::temp_dir().join(format!("nika-gate-e2e-{}-{}", std::process::id(), program));
     std::fs::create_dir_all(&dir).expect("tmpdir");
     let script = dir.join("asking_harness.py");
     std::fs::write(&script, ASKING_AGENT).expect("script");
@@ -133,7 +134,9 @@ impl AgentObserver for VecObserver {
 
 fn permits_with_exec_git() -> nika_schema::types::Permits {
     let mut p = nika_schema::types::Permits::new();
-    p.exec = Some(nika_schema::types::ExecPermit::Programs(vec!["git".to_owned()]));
+    p.exec = Some(nika_schema::types::ExecPermit::Programs(vec![
+        "git".to_owned(),
+    ]));
     p
 }
 
@@ -191,7 +194,10 @@ async fn an_out_of_grants_ask_pauses_with_the_question_verbatim() {
     assert!(
         !events.iter().any(|e| matches!(
             e,
-            AgentEvent::PermissionJudged { decision: "allow", .. }
+            AgentEvent::PermissionJudged {
+                decision: "allow",
+                ..
+            }
         )),
         "zero allow before the refusal: {events:?}"
     );

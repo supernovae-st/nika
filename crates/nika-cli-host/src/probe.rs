@@ -14,6 +14,7 @@
 
 use std::path::{Path, PathBuf};
 
+pub use crate::harness::access_probes_with_harness;
 use nika_providers::ProviderRegistry;
 use nika_providers::probe::ExecutionLocus;
 pub use nika_providers::probe::{PingState, ProviderProbe, env_present};
@@ -1084,43 +1085,45 @@ mod tests {
     /// seed needs nothing), never adoption. Detection needs an operator
     /// signal: an override, bytes on disk, or an explicit `--ping`.
     fn ladder_probe() -> Probe {
-        let readiness = |configured, locus: ExecutionLocus| ProviderReadiness {
-            recognized: true,
-            configured,
-            reachable: None,
-            model_available: None,
-            priced: false,
-            execution_locus: locus,
-            // Mirrors Profile::access_class on the synthetic machine.
-            access: match locus {
-                ExecutionLocus::Loopback | ExecutionLocus::Lan => {
-                    nika_providers::probe::AccessClass::Local
-                }
-                _ => nika_providers::probe::AccessClass::Api,
-            },
+        let readiness = |configured, locus: ExecutionLocus| {
+            ProviderReadiness::new(
+                true,
+                configured,
+                None,
+                None,
+                false,
+                locus,
+                // Mirrors Profile::access_class on the synthetic machine.
+                match locus {
+                    ExecutionLocus::Loopback | ExecutionLocus::Lan => {
+                        nika_providers::probe::AccessClass::Local
+                    }
+                    _ => nika_providers::probe::AccessClass::Api,
+                },
+            )
         };
         Probe {
             version: "0.0.0-test".to_owned(),
             config_path: None,
             providers: vec![
-                ProviderProbe {
-                    id: "ollama".to_owned(),
-                    requires_key: false,
-                    key_present: false,
-                    fix_var: String::new(),
-                    structured_native: true,
-                    readiness: readiness(true, ExecutionLocus::Loopback),
-                    endpoint: "http://127.0.0.1:11434".to_owned(),
-                },
-                ProviderProbe {
-                    id: "mistral".to_owned(),
-                    requires_key: true,
-                    key_present: false,
-                    fix_var: "MISTRAL_API_KEY".to_owned(),
-                    structured_native: true,
-                    readiness: readiness(false, ExecutionLocus::Cloud),
-                    endpoint: "https://api.mistral.ai/v1/chat/completions".to_owned(),
-                },
+                ProviderProbe::new(
+                    "ollama",
+                    false,
+                    false,
+                    "",
+                    true,
+                    readiness(true, ExecutionLocus::Loopback),
+                    "http://127.0.0.1:11434",
+                ),
+                ProviderProbe::new(
+                    "mistral",
+                    true,
+                    false,
+                    "MISTRAL_API_KEY",
+                    true,
+                    readiness(false, ExecutionLocus::Cloud),
+                    "https://api.mistral.ai/v1/chat/completions",
+                ),
             ],
             clients: vec![],
             kits: vec![],

@@ -13,45 +13,45 @@ use nika_providers::probe::{
 const PLAIN: Theme = Theme::new(false, false, false);
 
 fn readiness(configured: bool, locus: ExecutionLocus) -> ProviderReadiness {
-    ProviderReadiness {
-        recognized: true,
+    ProviderReadiness::new(
+        true,
         configured,
-        reachable: None,
-        model_available: None,
-        priced: false,
-        execution_locus: locus,
+        None,
+        None,
+        false,
+        locus,
         // Synthetic rows model cloud providers unless the locus says
         // loopback — mirrors Profile::access_class.
-        access: match locus {
+        match locus {
             ExecutionLocus::Loopback | ExecutionLocus::Lan => {
                 nika_providers::probe::AccessClass::Local
             }
             _ => nika_providers::probe::AccessClass::Api,
         },
-    }
+    )
 }
 
 fn cloud(id: &str, var: &str, present: bool) -> ProviderProbe {
-    ProviderProbe {
-        id: id.to_owned(),
-        requires_key: true,
-        key_present: present,
-        fix_var: var.to_owned(),
-        structured_native: id != "deepseek",
-        readiness: readiness(present, ExecutionLocus::Cloud),
-        endpoint: format!("https://api.{id}.example/v1"),
-    }
+    ProviderProbe::new(
+        id,
+        true,
+        present,
+        var,
+        id != "deepseek",
+        readiness(present, ExecutionLocus::Cloud),
+        format!("https://api.{id}.example/v1"),
+    )
 }
 fn local(id: &str) -> ProviderProbe {
-    ProviderProbe {
-        id: id.to_owned(),
-        requires_key: false,
-        key_present: false,
-        fix_var: String::new(),
-        structured_native: true,
-        readiness: readiness(true, ExecutionLocus::Loopback),
-        endpoint: "http://127.0.0.1:11434".to_owned(),
-    }
+    ProviderProbe::new(
+        id,
+        false,
+        false,
+        "",
+        true,
+        readiness(true, ExecutionLocus::Loopback),
+        "http://127.0.0.1:11434",
+    )
 }
 
 #[test]

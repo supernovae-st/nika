@@ -16,6 +16,7 @@ nika-error = { path = "../nika-error", version = "0.108.0" }
 thiserror  = { workspace = true }
 miette     = { workspace = true, features = ["fancy-no-backtrace"] }
 sha2       = { workspace = true }   # source_id — the journal's workflow_sha256/def_hash primitive (pure hash · zero I/O)
+uuid       = { workspace = true }   # EventId minting in the stamper seam (ADR-033 v7)
 serde      = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }
 

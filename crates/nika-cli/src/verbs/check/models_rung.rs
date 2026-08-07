@@ -30,9 +30,8 @@ pub(crate) fn access_decisions(
     if judged.is_empty() {
         return Vec::new();
     }
-    let probes = nika_providers::probe::collect_provider_probes(
-        &nika_providers::ProviderRegistry::without_http(nika_runtime::compose::config_from_env()),
-    );
+    // P3 B6 · one channel: provider rows + harness rows (feature-on).
+    let probes = nika_cli_host::probe::access_probes_with_harness();
     judged
         .into_iter()
         .map(|model| {
@@ -69,9 +68,8 @@ pub(crate) fn boot_access_fields(
         .iter()
         .map(|m| m.model.clone())
         .collect();
-    let probes = nika_providers::probe::collect_provider_probes(
-        &nika_providers::ProviderRegistry::without_http(nika_runtime::compose::config_from_env()),
-    );
+    // P3 B6 · one channel (provider + harness rows, feature-on).
+    let probes = nika_cli_host::probe::access_probes_with_harness();
     let plan: serde_json::Map<String, serde_json::Value> =
         nika_providers::access_plan_map(&models, &probes, access_pin)
             .into_iter()

@@ -4296,6 +4296,7 @@ dependencies = [
  "nika-dap",
  "nika-display",
  "nika-event",
+ "nika-harness",
  "nika-http",
  "nika-kernel",
  "nika-models",

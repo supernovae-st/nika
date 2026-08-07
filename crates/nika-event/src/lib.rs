@@ -53,6 +53,7 @@ pub mod event;
 pub mod fold;
 pub mod kind;
 pub mod source_id;
+pub mod stamp;
 
 pub use emitter::{Emitter, InMemoryEmitter, NoOpEmitter};
 pub use error::EventError;

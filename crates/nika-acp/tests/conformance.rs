@@ -28,9 +28,9 @@ use agent_client_protocol::schema::v1::{
     SessionNotification, SessionUpdate, StopReason, TextContent,
 };
 use agent_client_protocol::{Agent, ByteStreams};
-use tokio_util::compat::{TokioAsyncReadCompatExt as _, TokioAsyncWriteCompatExt as _};
 use futures_core::Stream as _;
 use nika_kernel::ai::harness::{HarnessEvent, HarnessRequest};
+use tokio_util::compat::{TokioAsyncReadCompatExt as _, TokioAsyncWriteCompatExt as _};
 
 /// The SDK-side agent: asserts the ENGINE's frames deserialize into the
 /// official types (that is the judgment), then answers the dialogue.

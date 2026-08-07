@@ -23,10 +23,14 @@
 pub mod client;
 pub mod declaration;
 pub mod probe;
+pub mod registry;
 pub mod spawn;
 pub mod wire;
 
 pub use client::{IDLE_TIMEOUT_SECS, MAX_LINE_BYTES, drive, drive_with_idle};
 pub use declaration::{seat_from_env, seat_from_lookup};
-pub use probe::{VersionPin, judge_version, parse_version};
+pub use probe::{
+    AdapterProbeRow, VersionPin, judge_version, parse_version, probe_adapters, probe_adapters_sync,
+};
+pub use registry::{AdapterRow, AuthProbe, DISABLE_ENV, registry, registry_with};
 pub use spawn::{HarnessAdapter, SpawnedHarness, compose_env};

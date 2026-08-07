@@ -149,6 +149,7 @@ pub use nika_types::access::AccessClass;
 /// surface ever has to conflate them again; the rungs a probe did not
 /// measure stay `None`, never a hopeful default.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct ProviderReadiness {
     /// The id resolves in the canonical registry (a NAME fact).
     pub recognized: bool,
@@ -167,13 +168,42 @@ pub struct ProviderReadiness {
     /// Where the EFFECTIVE endpoint executes (override-aware · P0-20).
     pub execution_locus: ExecutionLocus,
     /// HOW this provider is reached (D-2026-08-04-N1) — the profile's
-    /// access class (`local` · `api` · `mock` today; `harness`/`oauth`
-    /// arrive with their P3+ adapters, never from a profile).
+    /// access class (`local` · `api` · `mock`). A `harness` row arrives
+    /// as a probe row of its OWN (the adapter id · `serves` set · R-5c),
+    /// still never from a profile; `oauth` lands with its adapter.
     pub access: nika_types::access::AccessClass,
 }
 
+impl ProviderReadiness {
+    /// Construct (INV-019) — every rung named, in ladder order.
+    #[must_use]
+    pub fn new(
+        recognized: bool,
+        configured: bool,
+        reachable: Option<bool>,
+        model_available: Option<bool>,
+        priced: bool,
+        execution_locus: ExecutionLocus,
+        access: nika_types::access::AccessClass,
+    ) -> Self {
+        Self {
+            recognized,
+            configured,
+            reachable,
+            model_available,
+            priced,
+            execution_locus,
+            access,
+        }
+    }
+}
+
 /// A provider's environment facts — key PRESENCE only, never the value.
+/// A harness adapter rides the SAME row (R-5c · one channel, one
+/// derivation): the adapter id in `id`, the providers it fronts in
+/// `serves`, `readiness.access == AccessClass::Harness`.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct ProviderProbe {
     pub id: String,
     pub requires_key: bool,
@@ -191,6 +221,43 @@ pub struct ProviderProbe {
     /// The EFFECTIVE base URL a run would hit (override-aware) — config,
     /// not a credential; renderers redact userinfo before printing.
     pub endpoint: String,
+    /// The provider ids a HARNESS-class row serves (R-5c) — `["openai"]`
+    /// for `codex-acp`. EMPTY on a provider row: a profile serves
+    /// exactly its own id, and the resolver reads that from `id`.
+    pub serves: Vec<String>,
+}
+
+impl ProviderProbe {
+    /// Construct (INV-019) — a provider row (`serves` stays empty; a
+    /// harness row names them via [`with_serves`](Self::with_serves)).
+    #[must_use]
+    pub fn new(
+        id: impl Into<String>,
+        requires_key: bool,
+        key_present: bool,
+        fix_var: impl Into<String>,
+        structured_native: bool,
+        readiness: ProviderReadiness,
+        endpoint: impl Into<String>,
+    ) -> Self {
+        Self {
+            id: id.into(),
+            requires_key,
+            key_present,
+            fix_var: fix_var.into(),
+            structured_native,
+            readiness,
+            endpoint: endpoint.into(),
+            serves: Vec::new(),
+        }
+    }
+
+    /// Name the provider ids a harness-class row serves (R-5c).
+    #[must_use]
+    pub fn with_serves(mut self, serves: Vec<String>) -> Self {
+        self.serves = serves;
+        self
+    }
 }
 
 /// Probe every operator-facing provider in `registry` (the `mock` test
@@ -209,31 +276,31 @@ pub fn collect_provider_probes(registry: &ProviderRegistry) -> Vec<ProviderProbe
             // The URL a run would ACTUALLY hit — the operator override
             // when present, else the seed (the registry already folds).
             let endpoint = registry.effective_base_url(p.id).unwrap_or(p.base_url);
-            ProviderProbe {
-                id: p.id.to_owned(),
-                requires_key: p.requires_key,
+            ProviderProbe::new(
+                p.id.to_owned(),
+                p.requires_key,
                 key_present,
-                structured_native: p.supports_response_format(),
                 // The conventional var (last candidate) is the
                 // friendliest fix; `NIKA_<ID>_API_KEY` always works too
                 // but reads less familiar.
-                fix_var: candidates
+                candidates
                     .last()
                     .cloned()
                     .unwrap_or_else(|| format!("NIKA_{}_API_KEY", p.id.to_uppercase())),
-                readiness: ProviderReadiness {
-                    recognized: true,
-                    configured: !p.requires_key || key_present,
-                    reachable: None,
-                    model_available: None,
-                    priced: nika_catalog::all_pricing()
+                p.supports_response_format(),
+                ProviderReadiness::new(
+                    true,
+                    !p.requires_key || key_present,
+                    None,
+                    None,
+                    nika_catalog::all_pricing()
                         .iter()
                         .any(|r| r.provider.eq_ignore_ascii_case(p.id)),
-                    execution_locus: ExecutionLocus::classify(Some(endpoint), p.base_url),
-                    access: p.access_class(),
-                },
-                endpoint: endpoint.to_owned(),
-            }
+                    ExecutionLocus::classify(Some(endpoint), p.base_url),
+                    p.access_class(),
+                ),
+                endpoint.to_owned(),
+            )
         })
         .collect()
 }

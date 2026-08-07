@@ -795,8 +795,7 @@ where
             Err(err) => return Dispatched::template_err("agent · ?", &err),
         };
         // `skills:` — the composer-resolved Agent Skill texts join the
-        // system context as ONE deterministic `## Skills` section (spec
-        // 02 §agent skills · source order · name + description + body).
+        // system context as ONE `## Skills` section (spec 02 §agent skills).
         if !action.skills.is_empty() {
             match self.skill_docs(action) {
                 Ok(docs) => input.system = Some(system_with_skills(input.system.take(), &docs)),
@@ -846,8 +845,9 @@ where
                 // tool spend DID meter.
                 let (llm_cost, llm_unpriced) = match out.model_resolved.as_deref() {
                     Some(model) => spend_for_model(model, &out.usage),
-                    // Harness-built outputs that never touched a provider.
-                    None => (None, None),
+                    // Harness-built (B7): the subscription absorbs it —
+                    // named, NEVER a fabricated $0 (the ledger law).
+                    None => (None, Some(UnpricedReason::SubscriptionQuota)),
                 };
                 let cost_usd = match (llm_cost, out.tools_cost_usd) {
                     (None, None) => None,

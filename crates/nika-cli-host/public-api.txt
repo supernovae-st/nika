@@ -2135,6 +2135,7 @@ pub type nika_cli_host::probe::TtsProbe::Output = T
 impl<T> zvariant::optional::NoneValue for nika_cli_host::probe::TtsProbe where T: core::default::Default
 pub type nika_cli_host::probe::TtsProbe::NoneType = T
 pub fn nika_cli_host::probe::TtsProbe::null_value() -> T
+pub fn nika_cli_host::probe::access_probes_with_harness() -> alloc::vec::Vec<nika_providers::probe::ProviderProbe>
 pub fn nika_cli_host::probe::adoption_state(probe: &nika_cli_host::probe::Probe) -> nika_cli_host::probe::AdoptionState
 pub fn nika_cli_host::probe::capability_receipts(probe: &nika_cli_host::probe::Probe) -> alloc::vec::Vec<nika_cli_host::probe::HostCapabilityReceipt>
 pub fn nika_cli_host::probe::collect(ping: bool) -> nika_cli_host::probe::Probe

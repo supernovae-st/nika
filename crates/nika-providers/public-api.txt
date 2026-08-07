@@ -118,14 +118,18 @@ impl<T> core::convert::From<T> for nika_providers::probe::PingState
 pub fn nika_providers::probe::PingState::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::probe::PingState where T: 'static
 pub fn nika_providers::probe::PingState::as_any(&self) -> &(dyn core::any::Any + 'static)
-pub struct nika_providers::probe::ProviderProbe
+#[non_exhaustive] pub struct nika_providers::probe::ProviderProbe
 pub nika_providers::probe::ProviderProbe::endpoint: alloc::string::String
 pub nika_providers::probe::ProviderProbe::fix_var: alloc::string::String
 pub nika_providers::probe::ProviderProbe::id: alloc::string::String
 pub nika_providers::probe::ProviderProbe::key_present: bool
 pub nika_providers::probe::ProviderProbe::readiness: nika_providers::probe::ProviderReadiness
 pub nika_providers::probe::ProviderProbe::requires_key: bool
+pub nika_providers::probe::ProviderProbe::serves: alloc::vec::Vec<alloc::string::String>
 pub nika_providers::probe::ProviderProbe::structured_native: bool
+impl nika_providers::probe::ProviderProbe
+pub fn nika_providers::probe::ProviderProbe::new(id: impl core::convert::Into<alloc::string::String>, requires_key: bool, key_present: bool, fix_var: impl core::convert::Into<alloc::string::String>, structured_native: bool, readiness: nika_providers::probe::ProviderReadiness, endpoint: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_providers::probe::ProviderProbe::with_serves(self, serves: alloc::vec::Vec<alloc::string::String>) -> Self
 impl core::clone::Clone for nika_providers::probe::ProviderProbe
 pub fn nika_providers::probe::ProviderProbe::clone(&self) -> nika_providers::probe::ProviderProbe
 impl core::cmp::Eq for nika_providers::probe::ProviderProbe
@@ -159,7 +163,7 @@ impl<T> core::convert::From<T> for nika_providers::probe::ProviderProbe
 pub fn nika_providers::probe::ProviderProbe::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::probe::ProviderProbe where T: 'static
 pub fn nika_providers::probe::ProviderProbe::as_any(&self) -> &(dyn core::any::Any + 'static)
-pub struct nika_providers::probe::ProviderReadiness
+#[non_exhaustive] pub struct nika_providers::probe::ProviderReadiness
 pub nika_providers::probe::ProviderReadiness::access: nika_types::access::AccessClass
 pub nika_providers::probe::ProviderReadiness::configured: bool
 pub nika_providers::probe::ProviderReadiness::execution_locus: nika_providers::probe::ExecutionLocus
@@ -167,6 +171,8 @@ pub nika_providers::probe::ProviderReadiness::model_available: core::option::Opt
 pub nika_providers::probe::ProviderReadiness::priced: bool
 pub nika_providers::probe::ProviderReadiness::reachable: core::option::Option<bool>
 pub nika_providers::probe::ProviderReadiness::recognized: bool
+impl nika_providers::probe::ProviderReadiness
+pub fn nika_providers::probe::ProviderReadiness::new(recognized: bool, configured: bool, reachable: core::option::Option<bool>, model_available: core::option::Option<bool>, priced: bool, execution_locus: nika_providers::probe::ExecutionLocus, access: nika_types::access::AccessClass) -> Self
 impl core::clone::Clone for nika_providers::probe::ProviderReadiness
 pub fn nika_providers::probe::ProviderReadiness::clone(&self) -> nika_providers::probe::ProviderReadiness
 impl core::cmp::Eq for nika_providers::probe::ProviderReadiness
