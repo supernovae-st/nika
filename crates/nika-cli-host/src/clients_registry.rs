@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The client registry — the engine CONSUMES the nika-agents matrix
+//! The client registry — the engine CONSUMES the nika-plugins matrix
 //! (H6 · operator decision Q1 2026-07-31: `clients.yaml` in the agents
 //! repo stays the ONE SSOT of client × component coverage; the binary
 //! reads a vendored snapshot of it, never a second hand-maintained
@@ -296,7 +296,7 @@ mod tests {
     // depending on what unrelated repos sit on the machine (the
     // wrong-judge class — it blocked two unrelated engine pushes
     // 2026-07-31). The drift surfaces in CI instead: the daily
-    // `clients-resync.yml` lane clones nika-agents@main, re-vendors, and
+    // `clients-resync.yml` lane clones nika-plugins@main, re-vendors, and
     // opens ONE heal PR on drift — the 12-gate CI judges the new
     // snapshot. Manual heal when the PR can't wait:
     //   cp <agents>/repo/clients.yaml crates/nika-cli-host/data/clients.registry.yaml

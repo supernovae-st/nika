@@ -397,7 +397,7 @@ fn major_minor(v: &str) -> Option<(u64, u64)> {
 
 /// One installed plugin-kit row — the kit↔binary handshake nothing
 /// client-side used to surface (the drift contract lived only in the
-/// nika-agents CI). Same train → ✔. A lagging kit names the refresh
+/// nika-plugins CI). Same train → ✔. A lagging kit names the refresh
 /// command for ITS client (Claude Code climbs TWO rungs); a kit riding
 /// ahead names the binary upgrade. An unparseable manifest version
 /// warns and never guesses a train.
@@ -430,7 +430,7 @@ fn kit_finding(kit: &KitProbe, bin_version: &str) -> Finding {
                 "claude plugin marketplace update nika, then claude plugin update nika@nika"
             }
             "codex" => "codex plugin marketplace upgrade nika",
-            "cursor" => "re-sync the local drop: scripts/update-mirrors.sh (nika-agents checkout)",
+            "cursor" => "re-sync the local drop: scripts/update-mirrors.sh (nika-plugins checkout)",
             _ => "refresh the nika plugin from its marketplace",
         };
         return Finding {

@@ -217,7 +217,7 @@ Real semver toward a 1.0 launch, then `MAJOR.MINOR.PATCH`:
 | Tag        | Meaning                                                              |
 |------------|----------------------------------------------------------------------|
 | `0.91.0`   | release-candidate grade — usable vertical slice works (4 verbs · 14 providers · effects · static-check · MCP/LSP · CLI) · headless workspace build |
-| `0.92.0`   | **agent-native** — `nika wire codex` · `nika init` ships the repo-level agent skill (`.agents/skills/nika-authoring`) · the plugin marketplaces (Codex + Claude Code · `supernovae-st/nika-agents`) · MCP learning tools (schema · examples · template · canon) · cold-first-run fixes |
+| `0.92.0`   | **agent-native** — `nika wire codex` · `nika init` ships the repo-level agent skill (`.agents/skills/nika-authoring`) · the plugin marketplaces (Codex + Claude Code · `supernovae-st/nika-plugins`) · MCP learning tools (schema · examples · template · canon) · cold-first-run fixes |
 | `0.93.0`   | `nika-cap` admitted (capability tokens · L0) — 40/42 · `nika run --resume` durable-lite (ADR-099) · `nika test` harness · 180s provider-plane timeout unbricks local thinking models |
 | `0.94.0`   | **the media suite** — `nika:image_generate` + `nika:tts_generate` (stdlib 25) · trace files by default · `catalog`/`tools --json` + their MCP twins (protocol 2026-07-28) · per-task `cost_usd` · huggingface + nvidia join (16 canonical providers) |
 | `0.95.0`   | **local-first catalog** — the 5 local servers get their catalog face (keyless by construction · sovereign models stay unpriced) · seam-discipline hygiene vector |
@@ -654,7 +654,7 @@ Per D-2026-05-22-N18.)
 - Getting started, concepts, guides, reference
 - 2-tab navigation (Guide / Reference), live snapshot of workspace state
 
-**Agent skill surface** ([`supernovae-st/nika-agents`](https://github.com/supernovae-st/nika-agents)):
+**Agent skill surface** ([`supernovae-st/nika-plugins`](https://github.com/supernovae-st/nika-plugins)):
 - The public skill + read-only MCP oracle ("make your AI agent a Nika expert")
 - Design tokens + motion ride the spec SSOT (`nika-spec` `design/`,
   vendored into the engine pack by `scripts/sync-pack.sh`)

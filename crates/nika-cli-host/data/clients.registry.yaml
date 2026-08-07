@@ -32,7 +32,7 @@ clients:
     name: Claude Code
     class: A
     status: proven
-    install: "claude plugin marketplace add supernovae-st/nika-agents && claude plugin install nika@nika"
+    install: "claude plugin marketplace add supernovae-st/nika-plugins && claude plugin install nika@nika"
     components: {manifest: native-manifest, skills: native-manifest,
                  subagents: native-manifest, commands: native-manifest,
                  hooks: native-manifest, mcp: native-manifest,
@@ -47,7 +47,7 @@ clients:
     name: Codex
     class: A
     status: proven
-    install: "codex plugin marketplace add supernovae-st/nika-agents && codex plugin add nika@nika"
+    install: "codex plugin marketplace add supernovae-st/nika-plugins && codex plugin add nika@nika"
     components: {manifest: native-manifest, skills: native-manifest,
                  commands: native-manifest, hooks: native-manifest,
                  mcp: native-manifest, presentation: native-manifest,
@@ -77,7 +77,7 @@ clients:
     name: OpenClaude
     class: A
     status: wired
-    install: "openclaude plugin marketplace add supernovae-st/nika-agents && openclaude plugin install nika@nika"
+    install: "openclaude plugin marketplace add supernovae-st/nika-plugins && openclaude plugin install nika@nika"
     components: {manifest: claude-layout, skills: claude-layout,
                  subagents: claude-layout, commands: claude-layout,
                  hooks: claude-layout, mcp: claude-layout, scaffold: init}
@@ -91,7 +91,7 @@ clients:
     name: Grok Build (xAI)
     class: A
     status: proven
-    install: "grok plugin marketplace add supernovae-st/nika-agents && grok plugin install nika@nika --trust"
+    install: "grok plugin marketplace add supernovae-st/nika-plugins && grok plugin install nika@nika --trust"
     components: {manifest: claude-layout, skills: claude-layout,
                  subagents: claude-layout, commands: claude-layout,
                  hooks: claude-layout, mcp: claude-layout, scaffold: init}
@@ -288,7 +288,7 @@ clients:
     name: Hermes · skills.sh clients
     class: B
     status: proven
-    install: "hermes skills tap add supernovae-st/nika-agents · or npx skills add supernovae-st/nika-agents"
+    install: "hermes skills tap add supernovae-st/nika-plugins · or npx skills add supernovae-st/nika-plugins"
     components: {skills: skill-pack, mcp: wire, scaffold: init}
     class_gap: "skills-first client · the delegation skill carries the teaching · no manifest/commands/hooks surfaces"
     wire: hermes

@@ -3,12 +3,12 @@ name: clients-resync
 # The vendored client matrix follows the agents SSOT without blocking
 # unrelated pushes: the snapshot at
 # crates/nika-cli-host/data/clients.registry.yaml is a byte-copy of
-# nika-agents/clients.yaml, and drift used to be judged by a unit test
+# nika-plugins/clients.yaml, and drift used to be judged by a unit test
 # reading the LIVE sibling checkout on the developer's machine — the
 # wrong-judge class (one test binary, two verdicts, whichever repos
 # happen to sit beside the checkout; it blocked two unrelated engine
 # pushes 2026-07-31). The assertion is gone from cargo test; the drift
-# surfaces here instead. Daily: clone nika-agents@main, re-vendor, open
+# surfaces here instead. Daily: clone nika-plugins@main, re-vendor, open
 # ONE idempotent PR on drift — Diamond CI (the vendored-bytes tests
 # included) judges the new snapshot, never a direct push.
 # SECURITY: no github.event data reaches the shell.
@@ -35,7 +35,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          git clone --depth 1 https://github.com/supernovae-st/nika-agents ../agents
+          git clone --depth 1 https://github.com/supernovae-st/nika-plugins ../agents
           cp ../agents/clients.yaml crates/nika-cli-host/data/clients.registry.yaml
           git add crates/nika-cli-host/data/clients.registry.yaml
           if git diff --cached --quiet; then echo "matrix current — nothing to resync"; exit 0; fi
