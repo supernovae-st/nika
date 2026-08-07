@@ -1574,7 +1574,7 @@ impl<T> tracing::instrument::Instrument for nika_cli_host::notify::NotifyConfig
 impl<T> tracing::instrument::WithSubscriber for nika_cli_host::notify::NotifyConfig
 impl<T> typenum::type_operators::Same for nika_cli_host::notify::NotifyConfig
 pub type nika_cli_host::notify::NotifyConfig::Output = T
-pub async fn nika_cli_host::notify::deliver_paused(workflow: &str, pause: &nika_runtime::pause::WorkflowPause, trace_path: &std::path::Path, resume_hint: &str, stamper: &mut dyn nika_runtime::stamp::Stamper, sink: &mut dyn nika_runtime::stamp::EventSink)
+pub async fn nika_cli_host::notify::deliver_paused(workflow: &str, pause: &nika_runtime::pause::WorkflowPause, trace_path: &std::path::Path, resume_hint: &str, stamper: &mut dyn nika_event::stamp::Stamper, sink: &mut dyn nika_event::stamp::EventSink)
 pub fn nika_cli_host::notify::event_id(trace_id: &str, task: &str) -> alloc::string::String
 pub fn nika_cli_host::notify::workflow_label(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::string::String
 pub mod nika_cli_host::output
