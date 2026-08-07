@@ -100,6 +100,17 @@ pub(crate) fn emit_completed(
             fields.push(("access", s(access.as_str())));
             fields.push(("billing", s(access.default_billing().as_str())));
         }
+    } else if cost_unpriced == Some(nika_types::cost::UnpricedReason::SubscriptionQuota) {
+        // P3 B7 · the harness row: the task ran on the operator's own
+        // harness (the SubscriptionQuota arm in dispatch is only ever
+        // set there), so the receipt says so — `access: harness`, and
+        // the billing lane stays `unknown` until an adapter's own
+        // surface attests included/extra usage (P5). Never a fake $0.
+        fields.push(("access", s("harness")));
+        fields.push((
+            "billing",
+            s(nika_types::access::BillingClass::Unknown.as_str()),
+        ));
     }
     // OBS-E · a non-fatal diagnostic rides the success frame as a
     // `warning` field (the reasoning-model blank-answer footgun) · the

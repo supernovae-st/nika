@@ -62,3 +62,26 @@ path = "../nika-schema"
 [dev-dependencies.serde_json]
 # The gate e2e binds the operator's answer value.
 version = "1"
+
+[dev-dependencies.nika-runtime]
+# The billing e2e drives a FULL run (the trace frame is the receipt).
+path = "../nika-runtime"
+features = ["access-harness"]
+
+[dev-dependencies.nika-verb-infer]
+path = "../nika-verb-infer"
+
+[dev-dependencies.nika-verb-exec]
+path = "../nika-verb-exec"
+
+[dev-dependencies.nika-providers]
+path = "../nika-providers"
+
+[dev-dependencies.nika-check]
+path = "../nika-check"
+
+[dev-dependencies.nika-event]
+path = "../nika-event"
+
+[dev-dependencies.nika-types]
+path = "../nika-types"

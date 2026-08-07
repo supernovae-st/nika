@@ -846,8 +846,9 @@ where
                 // tool spend DID meter.
                 let (llm_cost, llm_unpriced) = match out.model_resolved.as_deref() {
                     Some(model) => spend_for_model(model, &out.usage),
-                    // Harness-built outputs that never touched a provider.
-                    None => (None, None),
+                    // Harness-built (P3 B7): the subscription absorbs the
+                    // spend — named, NEVER a fabricated $0 (the ledger law).
+                    None => (None, Some(UnpricedReason::SubscriptionQuota)),
                 };
                 let cost_usd = match (llm_cost, out.tools_cost_usd) {
                     (None, None) => None,
