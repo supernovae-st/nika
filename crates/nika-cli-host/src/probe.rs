@@ -36,7 +36,7 @@ pub struct Probe {
     /// the kit is optional).
     pub kits: Vec<KitProbe>,
     /// The client-matrix coverage (H6 · Q1 2026-07-31): derived from
-    /// the vendored nika-agents registry — the counts doctor renders
+    /// the vendored nika-plugins registry — the counts doctor renders
     /// are read-time derivations of the ONE SSOT, never hand counts.
     pub clients_registry: RegistryCoverage,
     /// The `nika:image_generate` plane — key/URL PRESENCE only.
@@ -106,7 +106,7 @@ pub struct ImageProbe {
     pub local_url: Option<String>,
 }
 
-/// One installed plugin-kit surface (the nika-agents bundle a client
+/// One installed plugin-kit surface (the nika-plugins bundle a client
 /// cloned): which client landed it and the version its manifest
 /// declares. Found kits only — a client without the kit is not a
 /// finding (the MCP wire via `nika wire` needs no kit).
@@ -178,7 +178,7 @@ impl ClientProbe {
     }
 }
 
-/// The nika-agents kit ships its hook definitions INSIDE the same drop
+/// The nika-plugins kit ships its hook definitions INSIDE the same drop
 /// as the manifest (`hooks/<client>-hooks.json` next to
 /// `.claude-plugin/plugin.json` — verified against the bundle
 /// 2026-07-31): finding the manifest proves the hooks landed with it.
@@ -407,7 +407,7 @@ fn client_probes() -> Vec<ClientProbe> {
         .collect()
 }
 
-/// The known kit landings (`update-mirrors.sh` in nika-agents climbs the
+/// The known kit landings (`update-mirrors.sh` in nika-plugins climbs the
 /// same ladder). Each client is probed at the rung its SESSIONS load —
 /// the install, not the clone — because that is the drift the operator
 /// lives (empirical 2026-07-29: a fresh clone sat next to a 0.105
@@ -1402,7 +1402,7 @@ mod tests {
     }
 
     // ── The client registry (H6 · Q1 2026-07-31 — the binary consumes
-    // the vendored nika-agents matrix) ──
+    // the vendored nika-plugins matrix) ──
 
     #[test]
     fn the_real_probe_derives_registry_coverage_from_the_vendored_matrix() {

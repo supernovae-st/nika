@@ -112,15 +112,15 @@ def main():
         FINDINGS.append(("WARN", "pack content",
                          f"vendored canon {ph} != spec canon {sh} (same VERSION possible) — sync-pack before the next tag"))
 
-    # The marketplace mirror (nika-agents) claims byte-parity with engine
+    # The marketplace mirror (nika-plugins) claims byte-parity with engine
     # main; its own gate only fires on push/PR + a daily cron. This pin
     # gives the nightly issue the same eye (drift proven to reappear
     # within 24h of a resync, 2026-07-09).
     eng_skill = grab(f"{RAW}/supernovae-st/nika/main/.agents/plugins/nika/skills/nika-authoring/SKILL.md", str, "agents mirror")
-    mir_skill = grab(f"{RAW}/supernovae-st/nika-agents/main/.agents/plugins/nika/skills/nika-authoring/SKILL.md", str, "agents mirror")
+    mir_skill = grab(f"{RAW}/supernovae-st/nika-plugins/main/.agents/plugins/nika/skills/nika-authoring/SKILL.md", str, "agents mirror")
     if eng_skill and mir_skill and eng_skill != mir_skill:
         FINDINGS.append(("WARN", "agents mirror",
-                         "nika-agents SKILL.md != engine main — the byte-parity claim drifted; resync the mirror"))
+                         "nika-plugins SKILL.md != engine main — the byte-parity claim drifted; resync the mirror"))
 
     vscode_repo = grab(f"{RAW}/supernovae-st/nika-vscode/main/package.json",
                        lambda t: json.loads(t)["version"], "vscode repo")
@@ -193,7 +193,7 @@ def main():
         ("nika-action", "release-heal.yml"),
         ("nika-actions-starter", "release-heal.yml"),
         ("nika-client", "release-heal.yml"),
-        ("nika-agents", "release-heal.yml"),
+        ("nika-plugins", "release-heal.yml"),
         ("nika-registry", "release-heal.yml"),
         ("nika-vscode", "spec-pin-heal.yml"),
         ("nika", "pack-resync.yml"),

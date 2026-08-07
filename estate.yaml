@@ -199,7 +199,7 @@ patterns:
   class: authored
   match_count: 30
   aggregate_sha256: d6a82273304f6e0732dfe4cffffdc00f098b34c4e3cb7a06c4a3ce5179db91c9
-  evidence: "the agent-plugin pack SOURCE (marketplace.json · plugin manifests · skills · rules · hooks) — authored here, mirrored downstream into supernovae-st/nika-agents (its plugins/ is a byte-pinned copy healed on releases)"
+  evidence: "the agent-plugin pack SOURCE (marketplace.json · plugin manifests · skills · rules · hooks) — authored here, mirrored downstream into supernovae-st/nika-plugins (its plugins/ is a byte-pinned copy healed on releases)"
 - glob: ".claude/**"
   class: authored
   match_count: 15

@@ -14,7 +14,7 @@ content="$(gh api repos/supernovae-st/.github/contents/profile/README.md --jq .c
 
 missing=""
 # homebrew-nika was RENAMED homebrew-tap (canonical per api .full_name · GitHub
-# redirects the old name); nika-agents + nika-registry joined the profile with
+# redirects the old name); nika-plugins + nika-registry joined the profile with
 # the 2026-07-09 storefront-truth pass (.github#1).
 #
 # The list below IS the city (D-2026-07-29-N10 · thirteen buildings). It gained
@@ -24,7 +24,7 @@ missing=""
 # the second because it shared nine of twelve files with nika-actions-starter.
 # An archived repo must NOT be advertised on the front page, so this vector
 # tracks the living city rather than a frozen snapshot of it.
-for repo in nika nika.sh nika-client nika-spec nika-docs nika-vscode nika-agents \
+for repo in nika nika.sh nika-client nika-spec nika-docs nika-vscode nika-plugins \
   gh-nika nika-registry homebrew-tap nika-action nika-actions-starter \
   nika-estate; do
   echo "$content" | grep -q "$repo" || missing="${missing}${repo} "

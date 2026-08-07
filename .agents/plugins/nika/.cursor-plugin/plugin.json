@@ -8,7 +8,7 @@
     "email": "nika@supernovae.studio"
   },
   "homepage": "https://docs.nika.sh",
-  "repository": "https://github.com/supernovae-st/nika-agents",
+  "repository": "https://github.com/supernovae-st/nika-plugins",
   "license": "AGPL-3.0-or-later",
   "logo": "./assets/nika-logo.png",
   "keywords": [
