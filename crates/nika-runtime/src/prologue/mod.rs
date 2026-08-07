@@ -258,8 +258,6 @@ pub(crate) fn emit_prologue(
     if let Some(model) = model_override {
         opening.push(("model_override", s(model)));
     }
-    // R-2 (P3 B5) · the access pin + per-model plan, computed beside the
-    // admission gate's own derivation (additive · the manifest law).
     opening.extend(access);
     // Stamped by hand (not via `emit`) so the opening frame's id comes
     // back as the run nonce — the F-P4 approval scope.

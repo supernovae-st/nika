@@ -786,6 +786,20 @@ where
         ran
     }
 
+    /// The per-attempt dispatch context (the fn-length law's
+    /// extraction) — the bound `--answer` for THIS task rides it (B5).
+    fn task_ctx<'a>(
+        &'a self,
+        task: &'a RawTask,
+        deadline: Option<std::time::Duration>,
+        child_budget: Option<f64>,
+        witness: &'a PermitWitness,
+    ) -> DispatchCtx<'a> {
+        let mut ctx = DispatchCtx::of_task(task, deadline, child_budget, witness);
+        ctx.gate_answer = self.prompt_answers.get(&task.id.value).cloned();
+        ctx
+    }
+
     async fn attempt_loop(
         &self,
         task: &RawTask,
@@ -813,13 +827,7 @@ where
             // F-O1 PR-2 · the re-gate's per-template oracle — computed ONCE, used per attempt.
             let value_taint = crate::integrity::ValueTaint::of_task(task, scope.records);
             // law 6 · the child budget reads the ledger AT CALL TIME (per attempt).
-            // P3 B5 · the operator's bound `--answer` for THIS task rides
-            // the ctx (the harness gate's human verdict on a resumed run).
-            let ctx = || {
-                let mut c = DispatchCtx::of_task(task, budget, ledger.remaining_usd(), witness);
-                c.gate_answer = self.prompt_answers.get(&task.id.value).cloned();
-                c
-            };
+            let ctx = || self.task_ctx(task, budget, ledger.remaining_usd(), witness);
             let attempts = async {
                 let mut attempt = 1_u32;
                 // Spend of FAILED attempts — folded onto the terminal frame.

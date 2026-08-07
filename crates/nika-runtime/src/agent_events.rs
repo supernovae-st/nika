@@ -210,26 +210,36 @@ fn fields_of(event: &AgentEvent) -> Option<(EventKind, Vec<(&'static str, FieldV
             }
             Some((EventKind::AgentBudgetCheckpoint, fields))
         }
-        // P3 B5 · the harness permission bridge's decisions speak the
-        // NEP-0007 witness frame (the SAME kind + field names the
-        // dispatch boundary's `PermitWitness` emits — one frame shape
-        // for every authority decision, wherever it was taken).
+        // P3 B5 · the harness bridge speaks the NEP-0007 witness frame
+        // (extracted — the fn-length law).
         AgentEvent::PermissionJudged {
             plane,
             gate,
             decision,
             why,
-        } => Some((
-            EventKind::PermitChecked,
-            vec![
-                ("plane", s(plane)),
-                ("gate", s(gate)),
-                ("decision", s(decision)),
-                ("why", s(why)),
-            ],
-        )),
+        } => Some(permission_judged_fields(plane, gate, decision, why)),
         _ => None,
     }
+}
+
+/// `PermissionJudged` → the `permit_checked` frame fields (SAME kind +
+/// field names as the dispatch boundary's witness emission — one frame
+/// shape for every authority decision, wherever taken).
+fn permission_judged_fields(
+    plane: &'static str,
+    gate: &str,
+    decision: &'static str,
+    why: &str,
+) -> (EventKind, Vec<(&'static str, FieldValue)>) {
+    (
+        EventKind::PermitChecked,
+        vec![
+            ("plane", s(plane)),
+            ("gate", s(gate)),
+            ("decision", s(decision)),
+            ("why", s(why)),
+        ],
+    )
 }
 
 /// Emit-and-discard (the settle pass tracks timestamps only for the

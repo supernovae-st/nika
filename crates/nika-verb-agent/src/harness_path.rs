@@ -28,6 +28,7 @@ use std::sync::Arc;
 use nika_cap::{HarnessAskFacts, HarnessGate, judge_harness_ask};
 use nika_kernel::ai::harness::{
     DynAgentBackend, HarnessError, HarnessEvent, HarnessRequest, PermissionDecision,
+    PermissionReply,
 };
 use nika_kernel::runtime::agent::AgentStopReason;
 
@@ -134,89 +135,28 @@ pub(crate) async fn run_on_harness(
                 command,
                 url,
             })) => {
-                // B5 · the AUTHORITY BRIDGE. The ask is judged against the
-                // workflow's declared `permits:` — inside, it is answered
-                // ONCE and witnessed; outside, the operator's bound
-                // verdict decides, and absent one the run PAUSES (the
-                // reply lane drops unanswered: the harness hears
-                // `cancelled`, so zero action runs before a human speaks).
+                // B5 · the AUTHORITY BRIDGE (extracted under the
+                // fn-length law): judged against the workflow's
+                // declared `permits:` — answered ONCE and witnessed
+                // inside, the operator's bound verdict outside, and
+                // absent one the run PAUSES (the reply lane drops
+                // unanswered: the harness hears `cancelled`).
                 let facts = HarnessAskFacts::new()
                     .with_kind(kind)
                     .with_locations(locations)
                     .with_command(command)
                     .with_url(url);
-                let gate = gate_label(&facts);
-                match judge_harness_ask(&facts, input.permits.as_ref()) {
-                    HarnessGate::Inside { plane, why } => {
-                        observer.on_event(&AgentEvent::PermissionJudged {
-                            plane,
-                            gate,
-                            decision: "allow",
-                            why,
-                        });
-                        reply.respond(PermissionDecision::AllowOnce);
-                    }
-                    HarnessGate::Outside { plane, why } => {
-                        match gate_answer
-                            .take()
-                            .as_ref()
-                            .and_then(serde_json::Value::as_bool)
-                        {
-                            Some(true) => {
-                                observer.on_event(&AgentEvent::PermissionJudged {
-                                    plane,
-                                    gate,
-                                    decision: "allow",
-                                    why: format!("operator granted at the gate (--answer) · {why}"),
-                                });
-                                reply.respond(PermissionDecision::AllowOnce);
-                            }
-                            Some(false) => {
-                                observer.on_event(&AgentEvent::PermissionJudged {
-                                    plane,
-                                    gate,
-                                    decision: "deny",
-                                    why: format!("operator denied at the gate (--answer) · {why}"),
-                                });
-                                reply.respond(PermissionDecision::Deny);
-                            }
-                            None => {
-                                observer.on_event(&AgentEvent::PermissionJudged {
-                                    plane,
-                                    gate,
-                                    decision: "escalate",
-                                    why: why.clone(),
-                                });
-                                drop(reply);
-                                return Err(VerbAgentError::HarnessGate {
-                                    question,
-                                    detail: why,
-                                    spend: Box::default(),
-                                });
-                            }
-                        }
-                    }
-                }
+                bridge_ask(
+                    &facts,
+                    question,
+                    reply,
+                    input.permits.as_ref(),
+                    &mut gate_answer,
+                    observer,
+                )?;
             }
             Some(Ok(HarnessEvent::Completed { outcome })) => {
-                let mut out = AgentOutput::new(
-                    AgentValue::Text(outcome.output.clone()),
-                    AgentStopReason::Completed,
-                    1,
-                    outcome
-                        .usage
-                        .as_ref()
-                        .map_or(0, |u| u.input_tokens + u.output_tokens),
-                );
-                // Harness-built output honesty (the pre-shaped AgentOutput
-                // docs): usage stays harness-reported-or-zero ·
-                // model_resolved stays None — the receipt records the
-                // REQUESTED model; an observed identity is the trace's
-                // fact, never reconciled here (A-2/A-7).
-                if let Some(usage) = outcome.usage {
-                    out.usage = usage;
-                }
-                return Ok(out);
+                return Ok(completed_output(*outcome));
             }
             Some(Ok(_)) => {
                 // Chunks (the outcome carries the accumulated text ·
@@ -252,6 +192,95 @@ fn gate_label(facts: &HarnessAskFacts) -> String {
         },
         other => other.to_owned(),
     }
+}
+
+/// The terminal beat → the pre-shaped honest `AgentOutput` (extracted
+/// under the fn-length law): usage stays harness-reported-or-zero ·
+/// `model_resolved` stays None — the receipt records the REQUESTED
+/// model; an observed identity is the trace's fact, never reconciled
+/// here (A-2/A-7).
+fn completed_output(outcome: nika_kernel::ai::harness::HarnessOutcome) -> AgentOutput {
+    let mut out = AgentOutput::new(
+        AgentValue::Text(outcome.output.clone()),
+        AgentStopReason::Completed,
+        1,
+        outcome
+            .usage
+            .as_ref()
+            .map_or(0, |u| u.input_tokens + u.output_tokens),
+    );
+    if let Some(usage) = outcome.usage {
+        out.usage = usage;
+    }
+    out
+}
+
+/// Judge ONE ask and answer it (the B5 bridge's heart): inside the
+/// grants → `AllowOnce` + the witness; outside → the operator's bound
+/// verdict (CONSUMED on use) or the gate error that pauses the run.
+/// Every decision rides the observer as `PermissionJudged` (NEP-0007's
+/// harness row).
+fn bridge_ask(
+    facts: &HarnessAskFacts,
+    question: String,
+    reply: PermissionReply,
+    permits: Option<&nika_schema::types::Permits>,
+    gate_answer: &mut Option<serde_json::Value>,
+    observer: &dyn AgentObserver,
+) -> Result<(), VerbAgentError> {
+    let gate = gate_label(facts);
+    match judge_harness_ask(facts, permits) {
+        HarnessGate::Inside { plane, why } => {
+            observer.on_event(&AgentEvent::PermissionJudged {
+                plane,
+                gate,
+                decision: "allow",
+                why,
+            });
+            reply.respond(PermissionDecision::AllowOnce);
+        }
+        HarnessGate::Outside { plane, why } => {
+            match gate_answer
+                .take()
+                .as_ref()
+                .and_then(serde_json::Value::as_bool)
+            {
+                Some(true) => {
+                    observer.on_event(&AgentEvent::PermissionJudged {
+                        plane,
+                        gate,
+                        decision: "allow",
+                        why: format!("operator granted at the gate (--answer) · {why}"),
+                    });
+                    reply.respond(PermissionDecision::AllowOnce);
+                }
+                Some(false) => {
+                    observer.on_event(&AgentEvent::PermissionJudged {
+                        plane,
+                        gate,
+                        decision: "deny",
+                        why: format!("operator denied at the gate (--answer) · {why}"),
+                    });
+                    reply.respond(PermissionDecision::Deny);
+                }
+                None => {
+                    observer.on_event(&AgentEvent::PermissionJudged {
+                        plane,
+                        gate,
+                        decision: "escalate",
+                        why: why.clone(),
+                    });
+                    drop(reply);
+                    return Err(VerbAgentError::HarnessGate {
+                        question,
+                        detail: why,
+                        spend: Box::default(),
+                    });
+                }
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Harness failures speak the verb's inference-family error — the
