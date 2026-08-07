@@ -855,6 +855,15 @@ pub fn redact_userinfo(url: &str) -> String {
 pub fn run(ping: bool, json: bool, verbose: bool, theme: Theme) -> VerbOutput {
     let probe = crate::probe::collect(ping);
     let findings = diagnose(&probe);
+    // P3 B6 · the harness adapter rows (feature-gated): the registry's
+    // probes render detected/authenticated honestly — an absent adapter
+    // stays silent (the exception gets the ink).
+    #[cfg(feature = "access-harness")]
+    let findings = {
+        let mut findings = findings;
+        findings.extend(harness_findings());
+        findings
+    };
     let code = exit_code(&findings);
     VerbOutput {
         text: if json {
@@ -877,3 +886,79 @@ pub fn run(ping: bool, json: bool, verbose: bool, theme: Theme) -> VerbOutput {
 
 #[cfg(test)]
 mod tests;
+
+/// P3 B6 · the harness adapter section (feature `access-harness`).
+/// Every row renders what the probe SAW: the version inside its pin,
+/// the auth surface's verdict, the install pointer. An absent adapter
+/// earns no row (the exception gets the ink); a DECLARED-but-absent
+/// one does (the operator asked for it).
+#[cfg(feature = "access-harness")]
+fn harness_findings() -> Vec<Finding> {
+    let rows = match nika_harness::registry() {
+        Ok(rows) => rows,
+        Err(e) => {
+            return vec![Finding {
+                level: Level::Warn,
+                label: "harness".to_owned(),
+                detail: format!("the adapter registry refused to load: {e}"),
+                fix: None,
+            }];
+        }
+    };
+    let declared = declared_adapter_id();
+    nika_harness::probe_adapters_sync(rows)
+        .into_iter()
+        .filter_map(|row| {
+            let finding = match (row.version, row.authenticated) {
+                (Some((major, minor)), Some(true)) => Finding {
+                    level: Level::Ok,
+                    label: "harness".to_owned(),
+                    detail: format!(
+                        "{} — detected (v{major}.{minor}) · authenticated (its own login)",
+                        row.id
+                    ),
+                    fix: None,
+                },
+                (Some((major, minor)), _) => Finding {
+                    level: Level::Warn,
+                    label: "harness".to_owned(),
+                    detail: format!(
+                        "{} — detected (v{major}.{minor}) · no auth observed (its own status surface)",
+                        row.id
+                    ),
+                    fix: Some(format!("sign in to `{}` itself", row.id)),
+                },
+                (None, _) if declared.as_deref() == Some(row.id.as_str()) => Finding {
+                    level: Level::Warn,
+                    label: "harness".to_owned(),
+                    detail: format!(
+                        "{} — DECLARED but not detected ({})",
+                        row.id,
+                        if row.note.is_empty() {
+                            "no version read".to_owned()
+                        } else {
+                            row.note.clone()
+                        }
+                    ),
+                    fix: Some(format!("install: {}", row.package)),
+                },
+                // An absent, undeclared adapter is silence (optional rows
+                // never clutter the diagnosis).
+                (None, _) => return None,
+            };
+            Some(finding)
+        })
+        .collect()
+}
+
+/// The operator's declared adapter id (`NIKA_HARNESS_ADAPTER`), when set
+/// — a declaration with no detected binary is the one absence that
+/// earns a row.
+#[cfg(feature = "access-harness")]
+fn declared_adapter_id() -> Option<String> {
+    #[allow(clippy::disallowed_methods)]
+    // presence of the operator's declaration (compose's own boundary)
+    std::env::var("NIKA_HARNESS_ADAPTER")
+        .ok()
+        .filter(|v| !v.is_empty())
+}

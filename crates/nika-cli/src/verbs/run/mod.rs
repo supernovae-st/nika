@@ -306,7 +306,7 @@ fn run_verdict(
         Err(code) => return RunVerdict::bare(code),
     };
 
-    announce_access_pin(access_pin, (json, output_json), mode);
+    announce_access_pin(access_pin, (json, output_json), mode, &report);
 
     // ── Execute + the terminal ask (extracted · the fn-length wall) ──
     execute_and_ask(
@@ -325,22 +325,47 @@ fn run_verdict(
     )
 }
 
-/// The access announce (D-2026-08-04-N1 · P2.6): a pinned path is a
-/// behavior the operator chose — said on the human surfaces before the
-/// first frame. Machine lanes stay silent (the trace carries the
-/// refusal side; the chosen-path trace field is P3's, when >1
-/// candidate can exist). Un-pinned single-access runs stay quiet.
+/// The access announce (D-2026-08-04-N1 · P2.6 + R-4): a pinned path is
+/// a behavior the operator chose — said on the human surfaces before the
+/// first frame. And when more than one access CAN serve a model, the
+/// CHOSEN path is announced with its billing class (R-4 · the rich
+/// announce: the choice is a fact worth hearing, never a silent pick).
+/// Machine lanes stay silent (the trace carries the fields).
 fn announce_access_pin(
     access_pin: Option<&str>,
     (json, output_json): (bool, bool),
     mode: RenderMode,
+    report: &CheckReport,
 ) {
-    if let Some(pin) = access_pin
-        && !json
-        && !output_json
-        && mode != RenderMode::Quiet
-    {
+    if json || output_json || mode == RenderMode::Quiet {
+        return;
+    }
+    if let Some(pin) = access_pin {
         eprintln!("access: pinned `{pin}` — unsatisfied refuses, never substitutes");
+    }
+    // R-4 · the rich announce: only when a real choice existed (>1
+    // candidate). Feature-off the vec carries provider rows only, so
+    // this stays silent exactly as before (one candidate per provider).
+    let probes = nika_cli_host::probe::access_probes_with_harness();
+    for m in &report.requirements.models {
+        let model = m.model.as_str();
+        if model.contains("${{") {
+            continue;
+        }
+        let candidates =
+            nika_providers::candidates_for(&probes, nika_providers::provider_of(model));
+        if candidates.len() < 2 {
+            continue;
+        }
+        if let Ok(plan) = nika_providers::resolve_access(model, &candidates, None, access_pin) {
+            eprintln!(
+                "access: {model} → {} ({} · {}) — chosen over {} other path(s)",
+                plan.access,
+                plan.chosen.as_str(),
+                plan.billing.as_str(),
+                candidates.len() - 1
+            );
+        }
     }
 }
 
@@ -727,10 +752,10 @@ fn composed_runtime(
                 // #409 · the override joins the resume identity of every
                 // model-less infer/agent task (the model they RUN on).
                 .with_model_override(model_override.map(ToOwned::to_owned))
-                // D-2026-08-04-N1 · the `--access` pin: judged at the
-                // admission gate — unsatisfied refuses BEFORE the prologue.
+                // D-2026-08-04-N1 · the `--access` pin: unsatisfied refuses BEFORE the prologue.
                 .with_access_pin(access_pin.map(ToOwned::to_owned))
                 .with_boot_access_fields(boot_access)
+                .with_access_probes(nika_cli_host::probe::access_probes_with_harness())
                 // The run's identity: the journal names the definition it
                 // recorded (sha256 of the exact bytes this composer read).
                 .with_source_sha256(sha256_hex(source.as_bytes()));

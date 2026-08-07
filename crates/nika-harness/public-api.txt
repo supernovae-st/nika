@@ -8,6 +8,47 @@ pub mod nika_harness::declaration
 pub fn nika_harness::declaration::seat_from_env() -> core::result::Result<core::option::Option<nika_harness::spawn::SpawnedHarness>, alloc::string::String>
 pub fn nika_harness::declaration::seat_from_lookup(lookup: &dyn core::ops::function::Fn(&str) -> core::option::Option<alloc::string::String>) -> core::result::Result<core::option::Option<nika_harness::spawn::SpawnedHarness>, alloc::string::String>
 pub mod nika_harness::probe
+#[non_exhaustive] pub struct nika_harness::probe::AdapterProbeRow
+pub nika_harness::probe::AdapterProbeRow::authenticated: core::option::Option<bool>
+pub nika_harness::probe::AdapterProbeRow::id: alloc::string::String
+pub nika_harness::probe::AdapterProbeRow::note: alloc::string::String
+pub nika_harness::probe::AdapterProbeRow::package: alloc::string::String
+pub nika_harness::probe::AdapterProbeRow::version: core::option::Option<(u32, u32)>
+impl nika_harness::probe::AdapterProbeRow
+pub fn nika_harness::probe::AdapterProbeRow::usable(&self) -> bool
+impl core::clone::Clone for nika_harness::probe::AdapterProbeRow
+pub fn nika_harness::probe::AdapterProbeRow::clone(&self) -> nika_harness::probe::AdapterProbeRow
+impl core::cmp::Eq for nika_harness::probe::AdapterProbeRow
+impl core::cmp::PartialEq for nika_harness::probe::AdapterProbeRow
+pub fn nika_harness::probe::AdapterProbeRow::eq(&self, other: &nika_harness::probe::AdapterProbeRow) -> bool
+impl core::fmt::Debug for nika_harness::probe::AdapterProbeRow
+pub fn nika_harness::probe::AdapterProbeRow::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_harness::probe::AdapterProbeRow
+impl<D> owo_colors::OwoColorize for nika_harness::probe::AdapterProbeRow
+impl<T, U> core::convert::Into<U> for nika_harness::probe::AdapterProbeRow where U: core::convert::From<T>
+pub fn nika_harness::probe::AdapterProbeRow::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::probe::AdapterProbeRow where U: core::convert::Into<T>
+pub type nika_harness::probe::AdapterProbeRow::Error = core::convert::Infallible
+pub fn nika_harness::probe::AdapterProbeRow::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::probe::AdapterProbeRow where U: core::convert::TryFrom<T>
+pub type nika_harness::probe::AdapterProbeRow::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::probe::AdapterProbeRow::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::probe::AdapterProbeRow where T: core::clone::Clone
+pub type nika_harness::probe::AdapterProbeRow::Owned = T
+pub fn nika_harness::probe::AdapterProbeRow::clone_into(&self, target: &mut T)
+pub fn nika_harness::probe::AdapterProbeRow::to_owned(&self) -> T
+impl<T> core::any::Any for nika_harness::probe::AdapterProbeRow where T: 'static + ?core::marker::Sized
+pub fn nika_harness::probe::AdapterProbeRow::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::probe::AdapterProbeRow where T: ?core::marker::Sized
+pub fn nika_harness::probe::AdapterProbeRow::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::probe::AdapterProbeRow where T: ?core::marker::Sized
+pub fn nika_harness::probe::AdapterProbeRow::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::probe::AdapterProbeRow where T: core::clone::Clone
+pub unsafe fn nika_harness::probe::AdapterProbeRow::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::probe::AdapterProbeRow
+pub fn nika_harness::probe::AdapterProbeRow::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::probe::AdapterProbeRow where T: 'static
+pub fn nika_harness::probe::AdapterProbeRow::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_harness::probe::VersionPin
 pub nika_harness::probe::VersionPin::max_major: u32
 pub nika_harness::probe::VersionPin::min: (u32, u32)
@@ -49,6 +90,85 @@ impl<T> nika_error::traits::AsAny for nika_harness::probe::VersionPin where T: '
 pub fn nika_harness::probe::VersionPin::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub fn nika_harness::probe::judge_version(adapter_id: &str, output: &str, pin: &nika_harness::probe::VersionPin) -> core::result::Result<(u32, u32), nika_kernel_ai::harness::HarnessError>
 pub fn nika_harness::probe::parse_version(line: &str) -> core::option::Option<(u32, u32)>
+pub async fn nika_harness::probe::probe_adapters(rows: alloc::vec::Vec<nika_harness::registry::AdapterRow>) -> alloc::vec::Vec<nika_harness::probe::AdapterProbeRow>
+pub fn nika_harness::probe::probe_adapters_sync(rows: alloc::vec::Vec<nika_harness::registry::AdapterRow>) -> alloc::vec::Vec<nika_harness::probe::AdapterProbeRow>
+pub mod nika_harness::registry
+#[non_exhaustive] pub enum nika_harness::registry::AuthProbe
+pub nika_harness::registry::AuthProbe::Command
+pub nika_harness::registry::AuthProbe::Command::args: &'static [&'static str]
+pub nika_harness::registry::AuthProbe::Command::command: &'static str
+pub nika_harness::registry::AuthProbe::HomeFile(&'static str)
+impl core::clone::Clone for nika_harness::registry::AuthProbe
+pub fn nika_harness::registry::AuthProbe::clone(&self) -> nika_harness::registry::AuthProbe
+impl core::cmp::Eq for nika_harness::registry::AuthProbe
+impl core::cmp::PartialEq for nika_harness::registry::AuthProbe
+pub fn nika_harness::registry::AuthProbe::eq(&self, other: &nika_harness::registry::AuthProbe) -> bool
+impl core::fmt::Debug for nika_harness::registry::AuthProbe
+pub fn nika_harness::registry::AuthProbe::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_harness::registry::AuthProbe
+impl core::marker::StructuralPartialEq for nika_harness::registry::AuthProbe
+impl<D> owo_colors::OwoColorize for nika_harness::registry::AuthProbe
+impl<T, U> core::convert::Into<U> for nika_harness::registry::AuthProbe where U: core::convert::From<T>
+pub fn nika_harness::registry::AuthProbe::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::registry::AuthProbe where U: core::convert::Into<T>
+pub type nika_harness::registry::AuthProbe::Error = core::convert::Infallible
+pub fn nika_harness::registry::AuthProbe::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::registry::AuthProbe where U: core::convert::TryFrom<T>
+pub type nika_harness::registry::AuthProbe::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::registry::AuthProbe::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::registry::AuthProbe where T: core::clone::Clone
+pub type nika_harness::registry::AuthProbe::Owned = T
+pub fn nika_harness::registry::AuthProbe::clone_into(&self, target: &mut T)
+pub fn nika_harness::registry::AuthProbe::to_owned(&self) -> T
+impl<T> core::any::Any for nika_harness::registry::AuthProbe where T: 'static + ?core::marker::Sized
+pub fn nika_harness::registry::AuthProbe::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::registry::AuthProbe where T: ?core::marker::Sized
+pub fn nika_harness::registry::AuthProbe::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::registry::AuthProbe where T: ?core::marker::Sized
+pub fn nika_harness::registry::AuthProbe::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::registry::AuthProbe where T: core::clone::Clone
+pub unsafe fn nika_harness::registry::AuthProbe::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::registry::AuthProbe
+pub fn nika_harness::registry::AuthProbe::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::registry::AuthProbe where T: 'static
+pub fn nika_harness::registry::AuthProbe::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_harness::registry::AdapterRow
+pub nika_harness::registry::AdapterRow::adapter: nika_harness::spawn::HarnessAdapter
+pub nika_harness::registry::AdapterRow::auth: nika_harness::registry::AuthProbe
+pub nika_harness::registry::AdapterRow::package: &'static str
+pub nika_harness::registry::AdapterRow::serves: &'static [&'static str]
+impl core::clone::Clone for nika_harness::registry::AdapterRow
+pub fn nika_harness::registry::AdapterRow::clone(&self) -> nika_harness::registry::AdapterRow
+impl core::fmt::Debug for nika_harness::registry::AdapterRow
+pub fn nika_harness::registry::AdapterRow::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_harness::registry::AdapterRow
+impl<T, U> core::convert::Into<U> for nika_harness::registry::AdapterRow where U: core::convert::From<T>
+pub fn nika_harness::registry::AdapterRow::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::registry::AdapterRow where U: core::convert::Into<T>
+pub type nika_harness::registry::AdapterRow::Error = core::convert::Infallible
+pub fn nika_harness::registry::AdapterRow::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::registry::AdapterRow where U: core::convert::TryFrom<T>
+pub type nika_harness::registry::AdapterRow::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::registry::AdapterRow::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::registry::AdapterRow where T: core::clone::Clone
+pub type nika_harness::registry::AdapterRow::Owned = T
+pub fn nika_harness::registry::AdapterRow::clone_into(&self, target: &mut T)
+pub fn nika_harness::registry::AdapterRow::to_owned(&self) -> T
+impl<T> core::any::Any for nika_harness::registry::AdapterRow where T: 'static + ?core::marker::Sized
+pub fn nika_harness::registry::AdapterRow::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::registry::AdapterRow where T: ?core::marker::Sized
+pub fn nika_harness::registry::AdapterRow::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::registry::AdapterRow where T: ?core::marker::Sized
+pub fn nika_harness::registry::AdapterRow::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::registry::AdapterRow where T: core::clone::Clone
+pub unsafe fn nika_harness::registry::AdapterRow::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::registry::AdapterRow
+pub fn nika_harness::registry::AdapterRow::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::registry::AdapterRow where T: 'static
+pub fn nika_harness::registry::AdapterRow::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub const nika_harness::registry::DISABLE_ENV: &str
+pub fn nika_harness::registry::registry() -> core::result::Result<alloc::vec::Vec<nika_harness::registry::AdapterRow>, nika_kernel_ai::harness::HarnessError>
+pub fn nika_harness::registry::registry_with(env: &dyn core::ops::function::Fn(&str) -> core::option::Option<alloc::string::String>) -> core::result::Result<alloc::vec::Vec<nika_harness::registry::AdapterRow>, nika_kernel_ai::harness::HarnessError>
 pub mod nika_harness::spawn
 #[non_exhaustive] pub struct nika_harness::spawn::HarnessAdapter
 pub nika_harness::spawn::HarnessAdapter::args: alloc::vec::Vec<alloc::string::String>
@@ -555,6 +675,120 @@ pub fn nika_harness::wire::notification_line(method: &str, params: &impl serde_c
 pub fn nika_harness::wire::parse_line(line: &str) -> core::result::Result<nika_harness::wire::Incoming, nika_harness::wire::WireError>
 pub fn nika_harness::wire::request_line(id: u64, method: &str, params: &impl serde_core::ser::Serialize) -> core::result::Result<alloc::string::String, nika_harness::wire::WireError>
 pub fn nika_harness::wire::response_line(id: &serde_json::value::Value, result: &impl serde_core::ser::Serialize) -> core::result::Result<alloc::string::String, nika_harness::wire::WireError>
+#[non_exhaustive] pub enum nika_harness::AuthProbe
+pub nika_harness::AuthProbe::Command
+pub nika_harness::AuthProbe::Command::args: &'static [&'static str]
+pub nika_harness::AuthProbe::Command::command: &'static str
+pub nika_harness::AuthProbe::HomeFile(&'static str)
+impl core::clone::Clone for nika_harness::registry::AuthProbe
+pub fn nika_harness::registry::AuthProbe::clone(&self) -> nika_harness::registry::AuthProbe
+impl core::cmp::Eq for nika_harness::registry::AuthProbe
+impl core::cmp::PartialEq for nika_harness::registry::AuthProbe
+pub fn nika_harness::registry::AuthProbe::eq(&self, other: &nika_harness::registry::AuthProbe) -> bool
+impl core::fmt::Debug for nika_harness::registry::AuthProbe
+pub fn nika_harness::registry::AuthProbe::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_harness::registry::AuthProbe
+impl core::marker::StructuralPartialEq for nika_harness::registry::AuthProbe
+impl<D> owo_colors::OwoColorize for nika_harness::registry::AuthProbe
+impl<T, U> core::convert::Into<U> for nika_harness::registry::AuthProbe where U: core::convert::From<T>
+pub fn nika_harness::registry::AuthProbe::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::registry::AuthProbe where U: core::convert::Into<T>
+pub type nika_harness::registry::AuthProbe::Error = core::convert::Infallible
+pub fn nika_harness::registry::AuthProbe::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::registry::AuthProbe where U: core::convert::TryFrom<T>
+pub type nika_harness::registry::AuthProbe::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::registry::AuthProbe::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::registry::AuthProbe where T: core::clone::Clone
+pub type nika_harness::registry::AuthProbe::Owned = T
+pub fn nika_harness::registry::AuthProbe::clone_into(&self, target: &mut T)
+pub fn nika_harness::registry::AuthProbe::to_owned(&self) -> T
+impl<T> core::any::Any for nika_harness::registry::AuthProbe where T: 'static + ?core::marker::Sized
+pub fn nika_harness::registry::AuthProbe::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::registry::AuthProbe where T: ?core::marker::Sized
+pub fn nika_harness::registry::AuthProbe::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::registry::AuthProbe where T: ?core::marker::Sized
+pub fn nika_harness::registry::AuthProbe::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::registry::AuthProbe where T: core::clone::Clone
+pub unsafe fn nika_harness::registry::AuthProbe::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::registry::AuthProbe
+pub fn nika_harness::registry::AuthProbe::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::registry::AuthProbe where T: 'static
+pub fn nika_harness::registry::AuthProbe::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_harness::AdapterProbeRow
+pub nika_harness::AdapterProbeRow::authenticated: core::option::Option<bool>
+pub nika_harness::AdapterProbeRow::id: alloc::string::String
+pub nika_harness::AdapterProbeRow::note: alloc::string::String
+pub nika_harness::AdapterProbeRow::package: alloc::string::String
+pub nika_harness::AdapterProbeRow::version: core::option::Option<(u32, u32)>
+impl nika_harness::probe::AdapterProbeRow
+pub fn nika_harness::probe::AdapterProbeRow::usable(&self) -> bool
+impl core::clone::Clone for nika_harness::probe::AdapterProbeRow
+pub fn nika_harness::probe::AdapterProbeRow::clone(&self) -> nika_harness::probe::AdapterProbeRow
+impl core::cmp::Eq for nika_harness::probe::AdapterProbeRow
+impl core::cmp::PartialEq for nika_harness::probe::AdapterProbeRow
+pub fn nika_harness::probe::AdapterProbeRow::eq(&self, other: &nika_harness::probe::AdapterProbeRow) -> bool
+impl core::fmt::Debug for nika_harness::probe::AdapterProbeRow
+pub fn nika_harness::probe::AdapterProbeRow::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_harness::probe::AdapterProbeRow
+impl<D> owo_colors::OwoColorize for nika_harness::probe::AdapterProbeRow
+impl<T, U> core::convert::Into<U> for nika_harness::probe::AdapterProbeRow where U: core::convert::From<T>
+pub fn nika_harness::probe::AdapterProbeRow::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::probe::AdapterProbeRow where U: core::convert::Into<T>
+pub type nika_harness::probe::AdapterProbeRow::Error = core::convert::Infallible
+pub fn nika_harness::probe::AdapterProbeRow::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::probe::AdapterProbeRow where U: core::convert::TryFrom<T>
+pub type nika_harness::probe::AdapterProbeRow::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::probe::AdapterProbeRow::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::probe::AdapterProbeRow where T: core::clone::Clone
+pub type nika_harness::probe::AdapterProbeRow::Owned = T
+pub fn nika_harness::probe::AdapterProbeRow::clone_into(&self, target: &mut T)
+pub fn nika_harness::probe::AdapterProbeRow::to_owned(&self) -> T
+impl<T> core::any::Any for nika_harness::probe::AdapterProbeRow where T: 'static + ?core::marker::Sized
+pub fn nika_harness::probe::AdapterProbeRow::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::probe::AdapterProbeRow where T: ?core::marker::Sized
+pub fn nika_harness::probe::AdapterProbeRow::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::probe::AdapterProbeRow where T: ?core::marker::Sized
+pub fn nika_harness::probe::AdapterProbeRow::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::probe::AdapterProbeRow where T: core::clone::Clone
+pub unsafe fn nika_harness::probe::AdapterProbeRow::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::probe::AdapterProbeRow
+pub fn nika_harness::probe::AdapterProbeRow::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::probe::AdapterProbeRow where T: 'static
+pub fn nika_harness::probe::AdapterProbeRow::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_harness::AdapterRow
+pub nika_harness::AdapterRow::adapter: nika_harness::spawn::HarnessAdapter
+pub nika_harness::AdapterRow::auth: nika_harness::registry::AuthProbe
+pub nika_harness::AdapterRow::package: &'static str
+pub nika_harness::AdapterRow::serves: &'static [&'static str]
+impl core::clone::Clone for nika_harness::registry::AdapterRow
+pub fn nika_harness::registry::AdapterRow::clone(&self) -> nika_harness::registry::AdapterRow
+impl core::fmt::Debug for nika_harness::registry::AdapterRow
+pub fn nika_harness::registry::AdapterRow::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_harness::registry::AdapterRow
+impl<T, U> core::convert::Into<U> for nika_harness::registry::AdapterRow where U: core::convert::From<T>
+pub fn nika_harness::registry::AdapterRow::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::registry::AdapterRow where U: core::convert::Into<T>
+pub type nika_harness::registry::AdapterRow::Error = core::convert::Infallible
+pub fn nika_harness::registry::AdapterRow::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::registry::AdapterRow where U: core::convert::TryFrom<T>
+pub type nika_harness::registry::AdapterRow::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::registry::AdapterRow::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::registry::AdapterRow where T: core::clone::Clone
+pub type nika_harness::registry::AdapterRow::Owned = T
+pub fn nika_harness::registry::AdapterRow::clone_into(&self, target: &mut T)
+pub fn nika_harness::registry::AdapterRow::to_owned(&self) -> T
+impl<T> core::any::Any for nika_harness::registry::AdapterRow where T: 'static + ?core::marker::Sized
+pub fn nika_harness::registry::AdapterRow::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::registry::AdapterRow where T: ?core::marker::Sized
+pub fn nika_harness::registry::AdapterRow::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::registry::AdapterRow where T: ?core::marker::Sized
+pub fn nika_harness::registry::AdapterRow::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::registry::AdapterRow where T: core::clone::Clone
+pub unsafe fn nika_harness::registry::AdapterRow::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::registry::AdapterRow
+pub fn nika_harness::registry::AdapterRow::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::registry::AdapterRow where T: 'static
+pub fn nika_harness::registry::AdapterRow::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_harness::HarnessAdapter
 pub nika_harness::HarnessAdapter::args: alloc::vec::Vec<alloc::string::String>
 pub nika_harness::HarnessAdapter::command: alloc::string::String
@@ -680,6 +914,7 @@ impl<T> core::convert::From<T> for nika_harness::probe::VersionPin
 pub fn nika_harness::probe::VersionPin::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_harness::probe::VersionPin where T: 'static
 pub fn nika_harness::probe::VersionPin::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub const nika_harness::DISABLE_ENV: &str
 pub const nika_harness::IDLE_TIMEOUT_SECS: u64
 pub const nika_harness::MAX_LINE_BYTES: usize
 pub fn nika_harness::compose_env(parent: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>, passthrough: &[alloc::string::String]) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
@@ -687,5 +922,9 @@ pub fn nika_harness::drive<R, W>(reader: R, writer: W, request: nika_kernel_ai::
 pub fn nika_harness::drive_with_idle<R, W>(reader: R, writer: W, request: nika_kernel_ai::harness::HarnessRequest, idle: core::time::Duration) -> nika_kernel_ai::harness::HarnessEventStream where R: tokio::io::async_read::AsyncRead + core::marker::Unpin + core::marker::Send + 'static, W: tokio::io::async_write::AsyncWrite + core::marker::Unpin + core::marker::Send + 'static
 pub fn nika_harness::judge_version(adapter_id: &str, output: &str, pin: &nika_harness::probe::VersionPin) -> core::result::Result<(u32, u32), nika_kernel_ai::harness::HarnessError>
 pub fn nika_harness::parse_version(line: &str) -> core::option::Option<(u32, u32)>
+pub async fn nika_harness::probe_adapters(rows: alloc::vec::Vec<nika_harness::registry::AdapterRow>) -> alloc::vec::Vec<nika_harness::probe::AdapterProbeRow>
+pub fn nika_harness::probe_adapters_sync(rows: alloc::vec::Vec<nika_harness::registry::AdapterRow>) -> alloc::vec::Vec<nika_harness::probe::AdapterProbeRow>
+pub fn nika_harness::registry() -> core::result::Result<alloc::vec::Vec<nika_harness::registry::AdapterRow>, nika_kernel_ai::harness::HarnessError>
+pub fn nika_harness::registry_with(env: &dyn core::ops::function::Fn(&str) -> core::option::Option<alloc::string::String>) -> core::result::Result<alloc::vec::Vec<nika_harness::registry::AdapterRow>, nika_kernel_ai::harness::HarnessError>
 pub fn nika_harness::seat_from_env() -> core::result::Result<core::option::Option<nika_harness::spawn::SpawnedHarness>, alloc::string::String>
 pub fn nika_harness::seat_from_lookup(lookup: &dyn core::ops::function::Fn(&str) -> core::option::Option<alloc::string::String>) -> core::result::Result<core::option::Option<nika_harness::spawn::SpawnedHarness>, alloc::string::String>

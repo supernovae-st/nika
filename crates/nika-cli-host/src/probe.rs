@@ -385,6 +385,76 @@ pub fn collect(ping: bool) -> Probe {
     }
 }
 
+/// P3 B6 · the harness adapters as RESOLVER probe rows (feature
+/// `access-harness`): the registry rows that probed detected become
+/// harness-class [`ProviderProbe`] rows (`serves` set · the auth
+/// surface's verdict in `configured`), riding the SAME vec as the
+/// provider rows so the admission gate, `check --json` and `explain`
+/// all read one channel (R-5c). An undetected adapter yields no row —
+/// its place is the doctor section, never the resolver's input.
+#[cfg(feature = "access-harness")]
+#[must_use]
+pub fn harness_provider_rows() -> Vec<ProviderProbe> {
+    let Ok(rows) = nika_harness::registry() else {
+        return Vec::new(); // a broken registry offers nothing (fail-closed)
+    };
+    let serves_of: std::collections::BTreeMap<String, Vec<String>> = rows
+        .iter()
+        .map(|r| {
+            (
+                r.adapter.id.clone(),
+                r.serves.iter().map(|s| (*s).to_owned()).collect(),
+            )
+        })
+        .collect();
+    nika_harness::probe_adapters_sync(rows)
+        .into_iter()
+        // An undetected adapter yields no row (its place is the doctor
+        // section, never the resolver's input).
+        .filter(|row| row.version.is_some())
+        .map(|row| {
+            let configured = row.authenticated == Some(true);
+            let readiness = nika_providers::probe::ProviderReadiness::new(
+                true,
+                configured,
+                None,
+                None,
+                false,
+                ExecutionLocus::Loopback,
+                nika_types::access::AccessClass::Harness,
+            );
+            ProviderProbe::new(row.id.clone(), false, configured, "", false, readiness, "")
+                .with_serves(serves_of.get(&row.id).cloned().unwrap_or_default())
+        })
+        .collect()
+}
+
+/// The access-probe rows every admission surface judges (P3 B6): the
+/// provider rows PLUS the harness rows when the feature is on — ONE
+/// fn, so the run's gate and `check`/`explain` can never drift (the
+/// composer's `production_runtime` internal collection is the
+/// non-CLI default; this is the CLI surfaces' superset).
+#[cfg(feature = "access-harness")]
+#[must_use]
+pub fn access_probes_with_harness() -> Vec<ProviderProbe> {
+    let mut probes = nika_providers::probe::collect_provider_probes(
+        &ProviderRegistry::without_http(nika_runtime::compose::config_from_env()),
+    );
+    probes.extend(harness_provider_rows());
+    probes
+}
+
+/// Feature-off twin of [`access_probes_with_harness`] — the same call
+/// reads identically in both builds (the seat's zero-sized-witness
+/// precedent): the provider rows alone.
+#[cfg(not(feature = "access-harness"))]
+#[must_use]
+pub fn access_probes_with_harness() -> Vec<ProviderProbe> {
+    nika_providers::probe::collect_provider_probes(&ProviderRegistry::without_http(
+        nika_runtime::compose::config_from_env(),
+    ))
+}
+
 /// The probe LIST derives from the vendored client registry (H6): a
 /// client is probed only while the matrix claims its wire target — the
 /// hard-coded set is gone, and the per-target MECHANISM (which file,
@@ -1084,43 +1154,45 @@ mod tests {
     /// seed needs nothing), never adoption. Detection needs an operator
     /// signal: an override, bytes on disk, or an explicit `--ping`.
     fn ladder_probe() -> Probe {
-        let readiness = |configured, locus: ExecutionLocus| ProviderReadiness {
-            recognized: true,
-            configured,
-            reachable: None,
-            model_available: None,
-            priced: false,
-            execution_locus: locus,
-            // Mirrors Profile::access_class on the synthetic machine.
-            access: match locus {
-                ExecutionLocus::Loopback | ExecutionLocus::Lan => {
-                    nika_providers::probe::AccessClass::Local
-                }
-                _ => nika_providers::probe::AccessClass::Api,
-            },
+        let readiness = |configured, locus: ExecutionLocus| {
+            ProviderReadiness::new(
+                true,
+                configured,
+                None,
+                None,
+                false,
+                locus,
+                // Mirrors Profile::access_class on the synthetic machine.
+                match locus {
+                    ExecutionLocus::Loopback | ExecutionLocus::Lan => {
+                        nika_providers::probe::AccessClass::Local
+                    }
+                    _ => nika_providers::probe::AccessClass::Api,
+                },
+            )
         };
         Probe {
             version: "0.0.0-test".to_owned(),
             config_path: None,
             providers: vec![
-                ProviderProbe {
-                    id: "ollama".to_owned(),
-                    requires_key: false,
-                    key_present: false,
-                    fix_var: String::new(),
-                    structured_native: true,
-                    readiness: readiness(true, ExecutionLocus::Loopback),
-                    endpoint: "http://127.0.0.1:11434".to_owned(),
-                },
-                ProviderProbe {
-                    id: "mistral".to_owned(),
-                    requires_key: true,
-                    key_present: false,
-                    fix_var: "MISTRAL_API_KEY".to_owned(),
-                    structured_native: true,
-                    readiness: readiness(false, ExecutionLocus::Cloud),
-                    endpoint: "https://api.mistral.ai/v1/chat/completions".to_owned(),
-                },
+                ProviderProbe::new(
+                    "ollama",
+                    false,
+                    false,
+                    "",
+                    true,
+                    readiness(true, ExecutionLocus::Loopback),
+                    "http://127.0.0.1:11434",
+                ),
+                ProviderProbe::new(
+                    "mistral",
+                    true,
+                    false,
+                    "MISTRAL_API_KEY",
+                    true,
+                    readiness(false, ExecutionLocus::Cloud),
+                    "https://api.mistral.ai/v1/chat/completions",
+                ),
             ],
             clients: vec![],
             kits: vec![],

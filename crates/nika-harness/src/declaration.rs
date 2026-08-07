@@ -68,10 +68,12 @@ pub fn seat_from_lookup(
         return Ok(None);
     };
     let Some(command) = var("NIKA_HARNESS_COMMAND") else {
-        return Err(format!(
-            "harness adapter `{id}` is declared but NIKA_HARNESS_COMMAND is unset \
-             — name the binary to drive, or unset NIKA_HARNESS_ADAPTER"
-        ));
+        // B6 · the registry lane: a bare id reads the shipped row (the
+        // kill-switch applies — a disabled row is no row). The env
+        // COMMAND/ARGS/… override below stays the LOCAL-DEV lane (an
+        // unpinned adapter is honest for a locally-built binary, never
+        // for a shipped row).
+        return registry_seat(&id, lookup);
     };
 
     let mut adapter = crate::HarnessAdapter::new(&id, command)
@@ -104,6 +106,30 @@ pub fn seat_from_lookup(
     Ok(Some(SpawnedHarness::new(adapter)))
 }
 
+/// The B6 registry lane of the declaration: a bare
+/// `NIKA_HARNESS_ADAPTER=<id>` seats the shipped row's pinned identity
+/// (command · argv · version pin), never an env hand-picked binary.
+/// An unknown (or kill-switched) id refuses, naming the live rows.
+fn registry_seat(
+    id: &str,
+    lookup: &dyn Fn(&str) -> Option<String>,
+) -> Result<Option<SpawnedHarness>, String> {
+    let rows = crate::registry::registry_with(&|name| lookup(name)).map_err(|e| e.to_string())?;
+    let Some(row) = rows.iter().find(|r| r.adapter.id == id) else {
+        let known: Vec<&str> = rows.iter().map(|r| r.adapter.id.as_str()).collect();
+        return Err(format!(
+            "harness adapter `{id}` is not in the registry (known: {}) — \
+             or set NIKA_HARNESS_COMMAND for a local-dev adapter",
+            if known.is_empty() {
+                "none — all disabled".to_owned()
+            } else {
+                known.join(", ")
+            }
+        ));
+    };
+    Ok(Some(SpawnedHarness::new(row.adapter.clone())))
+}
+
 fn split_ws(s: &str) -> Vec<String> {
     s.split_whitespace().map(str::to_owned).collect()
 }
@@ -132,5 +158,39 @@ mod tests {
             vec!["NO_COLOR", "GEMINI_PROFILE"]
         );
         assert!(split_list(",,").is_empty());
+    }
+
+    /// B6 · the registry lane: a bare known id seats the shipped row's
+    /// pinned identity (never an env-picked binary); a kill-switched or
+    /// unknown id refuses with the live rows named.
+    #[test]
+    fn a_bare_known_id_seats_the_registry_row() {
+        let env = |name: &str| (name == "NIKA_HARNESS_ADAPTER").then(|| "gemini-cli".to_owned());
+        let seat = seat_from_lookup(&env)
+            .expect("a known id composes")
+            .expect("and yields a seat");
+        // The row's own identity — the probe pin, not an env var.
+        let dbg = format!("{seat:?}");
+        assert!(dbg.contains("gemini"), "{dbg}");
+    }
+
+    #[test]
+    fn a_kill_switched_id_refuses_naming_the_live_rows() {
+        let env = |name: &str| match name {
+            "NIKA_HARNESS_ADAPTER" | "NIKA_HARNESS_DISABLE" => Some("codex-acp".to_owned()),
+            _ => None,
+        };
+        let err = seat_from_lookup(&env).expect_err("a disabled row is no row");
+        assert!(err.contains("codex-acp"), "{err}");
+        assert!(err.contains("gemini-cli"), "the live rows are named: {err}");
+    }
+
+    #[test]
+    fn an_unknown_id_refuses_and_teaches_the_local_dev_lane() {
+        let env =
+            |name: &str| (name == "NIKA_HARNESS_ADAPTER").then(|| "my-own-harness".to_owned());
+        let err = seat_from_lookup(&env).expect_err("unknown ids refuse");
+        assert!(err.contains("my-own-harness"), "{err}");
+        assert!(err.contains("NIKA_HARNESS_COMMAND"), "{err}");
     }
 }

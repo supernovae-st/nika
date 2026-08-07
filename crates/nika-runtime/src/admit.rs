@@ -661,23 +661,23 @@ mod tests {
         access: nika_types::access::AccessClass,
     ) -> ProviderProbe {
         use nika_providers::probe::{ExecutionLocus, ProviderReadiness};
-        ProviderProbe {
-            id: id.to_owned(),
+        ProviderProbe::new(
+            id,
             requires_key,
             key_present,
-            fix_var: format!("{}_API_KEY", id.to_uppercase()),
-            structured_native: false,
-            readiness: ProviderReadiness {
-                recognized: true,
-                configured: !requires_key || key_present,
-                reachable: None,
-                model_available: None,
-                priced: true,
-                execution_locus: ExecutionLocus::classify(None, "https://api.example.com"),
+            format!("{}_API_KEY", id.to_uppercase()),
+            false,
+            ProviderReadiness::new(
+                true,
+                !requires_key || key_present,
+                None,
+                None,
+                true,
+                ExecutionLocus::classify(None, "https://api.example.com"),
                 access,
-            },
-            endpoint: "https://api.example.com".to_owned(),
-        }
+            ),
+            "https://api.example.com",
+        )
     }
 
     fn mistral_wf() -> (RawWorkflow, CheckReport) {

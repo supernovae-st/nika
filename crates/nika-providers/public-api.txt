@@ -118,14 +118,18 @@ impl<T> core::convert::From<T> for nika_providers::probe::PingState
 pub fn nika_providers::probe::PingState::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::probe::PingState where T: 'static
 pub fn nika_providers::probe::PingState::as_any(&self) -> &(dyn core::any::Any + 'static)
-pub struct nika_providers::probe::ProviderProbe
+#[non_exhaustive] pub struct nika_providers::probe::ProviderProbe
 pub nika_providers::probe::ProviderProbe::endpoint: alloc::string::String
 pub nika_providers::probe::ProviderProbe::fix_var: alloc::string::String
 pub nika_providers::probe::ProviderProbe::id: alloc::string::String
 pub nika_providers::probe::ProviderProbe::key_present: bool
 pub nika_providers::probe::ProviderProbe::readiness: nika_providers::probe::ProviderReadiness
 pub nika_providers::probe::ProviderProbe::requires_key: bool
+pub nika_providers::probe::ProviderProbe::serves: alloc::vec::Vec<alloc::string::String>
 pub nika_providers::probe::ProviderProbe::structured_native: bool
+impl nika_providers::probe::ProviderProbe
+pub fn nika_providers::probe::ProviderProbe::new(id: impl core::convert::Into<alloc::string::String>, requires_key: bool, key_present: bool, fix_var: impl core::convert::Into<alloc::string::String>, structured_native: bool, readiness: nika_providers::probe::ProviderReadiness, endpoint: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_providers::probe::ProviderProbe::with_serves(self, serves: alloc::vec::Vec<alloc::string::String>) -> Self
 impl core::clone::Clone for nika_providers::probe::ProviderProbe
 pub fn nika_providers::probe::ProviderProbe::clone(&self) -> nika_providers::probe::ProviderProbe
 impl core::cmp::Eq for nika_providers::probe::ProviderProbe
@@ -159,7 +163,7 @@ impl<T> core::convert::From<T> for nika_providers::probe::ProviderProbe
 pub fn nika_providers::probe::ProviderProbe::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::probe::ProviderProbe where T: 'static
 pub fn nika_providers::probe::ProviderProbe::as_any(&self) -> &(dyn core::any::Any + 'static)
-pub struct nika_providers::probe::ProviderReadiness
+#[non_exhaustive] pub struct nika_providers::probe::ProviderReadiness
 pub nika_providers::probe::ProviderReadiness::access: nika_types::access::AccessClass
 pub nika_providers::probe::ProviderReadiness::configured: bool
 pub nika_providers::probe::ProviderReadiness::execution_locus: nika_providers::probe::ExecutionLocus
@@ -167,6 +171,8 @@ pub nika_providers::probe::ProviderReadiness::model_available: core::option::Opt
 pub nika_providers::probe::ProviderReadiness::priced: bool
 pub nika_providers::probe::ProviderReadiness::reachable: core::option::Option<bool>
 pub nika_providers::probe::ProviderReadiness::recognized: bool
+impl nika_providers::probe::ProviderReadiness
+pub fn nika_providers::probe::ProviderReadiness::new(recognized: bool, configured: bool, reachable: core::option::Option<bool>, model_available: core::option::Option<bool>, priced: bool, execution_locus: nika_providers::probe::ExecutionLocus, access: nika_types::access::AccessClass) -> Self
 impl core::clone::Clone for nika_providers::probe::ProviderReadiness
 pub fn nika_providers::probe::ProviderReadiness::clone(&self) -> nika_providers::probe::ProviderReadiness
 impl core::cmp::Eq for nika_providers::probe::ProviderReadiness
@@ -564,6 +570,7 @@ impl<T> core::convert::From<T> for nika_providers::resolve_access::AccessRefusal
 pub fn nika_providers::resolve_access::AccessRefusal::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::resolve_access::AccessRefusal where T: 'static
 pub fn nika_providers::resolve_access::AccessRefusal::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub fn nika_providers::resolve_access::access_plan_map(models: &[alloc::string::String], probes: &[nika_providers::probe::ProviderProbe], pin: core::option::Option<&str>) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_types::access::AccessPlan>
 pub fn nika_providers::resolve_access::candidates_for(probes: &[nika_providers::probe::ProviderProbe], provider: &str) -> alloc::vec::Vec<nika_providers::resolve_access::AccessCandidate>
 pub fn nika_providers::resolve_access::provider_of(model: &str) -> &str
 pub fn nika_providers::resolve_access::refuse_pin<'m>(models: impl core::iter::traits::collect::IntoIterator<Item = &'m str>, probes: &[nika_providers::probe::ProviderProbe], pin: &str) -> core::option::Option<nika_providers::resolve_access::PinRefusal>
@@ -918,6 +925,7 @@ pub async fn nika_providers::registry::ResolvedProvider<H>::infer(&self, request
 impl<TraitVariantBlanketType> nika_kernel_ai::provider::ProviderStream for nika_providers::registry::ResolvedProvider<H> where TraitVariantBlanketType: nika_kernel_ai::provider::ProviderStreamDyn
 pub async fn nika_providers::registry::ResolvedProvider<H>::infer_stream(&self, request: nika_kernel_ai::provider::InferRequest) -> core::result::Result<core::pin::Pin<alloc::boxed::Box<(dyn futures_core::stream::Stream<Item = core::result::Result<nika_kernel_ai::provider::InferEvent, nika_kernel_ai::provider::ProviderError>> + core::marker::Send)>>, nika_kernel_ai::provider::ProviderError>
 pub const nika_providers::CANONICAL_IDS: [&str; 16]
+pub fn nika_providers::access_plan_map(models: &[alloc::string::String], probes: &[nika_providers::probe::ProviderProbe], pin: core::option::Option<&str>) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_types::access::AccessPlan>
 pub fn nika_providers::candidates_for(probes: &[nika_providers::probe::ProviderProbe], provider: &str) -> alloc::vec::Vec<nika_providers::resolve_access::AccessCandidate>
 pub fn nika_providers::catalog_warning(model: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_providers::provider_of(model: &str) -> &str

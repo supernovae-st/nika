@@ -7,22 +7,22 @@ use nika_providers::probe::{ExecutionLocus, ProviderReadiness};
 /// The default synthetic readiness — recognized · loopback · the
 /// opt-in rungs unmeasured (mirrors `collect_provider_probes`).
 fn readiness(configured: bool, locus: ExecutionLocus) -> ProviderReadiness {
-    ProviderReadiness {
-        recognized: true,
+    ProviderReadiness::new(
+        true,
         configured,
-        reachable: None,
-        model_available: None,
-        priced: false,
-        execution_locus: locus,
+        None,
+        None,
+        false,
+        locus,
         // Synthetic rows model cloud providers unless the locus says
         // loopback — mirrors Profile::access_class.
-        access: match locus {
+        match locus {
             ExecutionLocus::Loopback | ExecutionLocus::Lan => {
                 nika_providers::probe::AccessClass::Local
             }
             _ => nika_providers::probe::AccessClass::Api,
         },
-    }
+    )
 }
 
 fn synthetic_probe() -> Probe {
@@ -31,33 +31,33 @@ fn synthetic_probe() -> Probe {
         version: "0.0.0-test".to_owned(),
         config_path: None,
         providers: vec![
-            ProviderProbe {
-                id: "ollama".to_owned(),
-                requires_key: false,
-                key_present: false,
-                fix_var: "NIKA_OLLAMA_API_KEY".to_owned(),
-                structured_native: true,
-                readiness: readiness(true, ExecutionLocus::Loopback),
-                endpoint: "http://127.0.0.1:11434".to_owned(),
-            },
-            ProviderProbe {
-                id: "mistral".to_owned(),
-                requires_key: true,
-                key_present: false,
-                fix_var: "MISTRAL_API_KEY".to_owned(),
-                structured_native: true,
-                readiness: readiness(false, ExecutionLocus::Cloud),
-                endpoint: "https://api.mistral.ai/v1/chat/completions".to_owned(),
-            },
-            ProviderProbe {
-                id: "anthropic".to_owned(),
-                requires_key: true,
-                key_present: true,
-                fix_var: "ANTHROPIC_API_KEY".to_owned(),
-                structured_native: true,
-                readiness: readiness(true, ExecutionLocus::Cloud),
-                endpoint: "https://api.anthropic.com/v1/messages".to_owned(),
-            },
+            ProviderProbe::new(
+                "ollama",
+                false,
+                false,
+                "NIKA_OLLAMA_API_KEY",
+                true,
+                readiness(true, ExecutionLocus::Loopback),
+                "http://127.0.0.1:11434",
+            ),
+            ProviderProbe::new(
+                "mistral",
+                true,
+                false,
+                "MISTRAL_API_KEY",
+                true,
+                readiness(false, ExecutionLocus::Cloud),
+                "https://api.mistral.ai/v1/chat/completions",
+            ),
+            ProviderProbe::new(
+                "anthropic",
+                true,
+                true,
+                "ANTHROPIC_API_KEY",
+                true,
+                readiness(true, ExecutionLocus::Cloud),
+                "https://api.anthropic.com/v1/messages",
+            ),
         ],
         clients: vec![
             ClientProbe {
@@ -496,23 +496,27 @@ fn human_mirror_carries_the_four_sections_and_no_key_names() {
 /// second passed on four hand-written clients while the real machine
 /// rendered 112). Counts that can drift are derived here, not typed.
 fn shipped_shape_probe() -> Probe {
-    let local = |id: &str| ProviderProbe {
-        id: id.to_owned(),
-        requires_key: false,
-        key_present: false,
-        fix_var: String::new(),
-        structured_native: true,
-        readiness: readiness(true, ExecutionLocus::Loopback),
-        endpoint: "http://127.0.0.1:1".to_owned(),
+    let local = |id: &str| {
+        ProviderProbe::new(
+            id,
+            false,
+            false,
+            "",
+            true,
+            readiness(true, ExecutionLocus::Loopback),
+            "http://127.0.0.1:1",
+        )
     };
-    let cloud = |id: &str| ProviderProbe {
-        id: id.to_owned(),
-        requires_key: true,
-        key_present: false,
-        fix_var: String::new(),
-        structured_native: true,
-        readiness: readiness(false, ExecutionLocus::Cloud),
-        endpoint: format!("https://api.{id}.example/v1"),
+    let cloud = |id: &str| {
+        ProviderProbe::new(
+            id,
+            true,
+            false,
+            "",
+            true,
+            readiness(false, ExecutionLocus::Cloud),
+            format!("https://api.{id}.example/v1"),
+        )
     };
     let client = |id: &str| ClientProbe {
         id: id.to_owned(),
