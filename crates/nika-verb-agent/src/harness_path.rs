@@ -425,8 +425,8 @@ mod tests {
         assert!(out.tools_cost_usd.is_none());
     }
 
-    /// B5 · inside the grants, the bridge answers AllowOnce itself and
-    /// witnesses the decision (the permit_checked channel's verb half).
+    /// B5 · inside the grants, the bridge answers `AllowOnce` itself and
+    /// witnesses the decision (the `permit_checked` channel's verb half).
     #[tokio::test]
     async fn an_ask_inside_the_grants_is_allowed_once_and_witnessed() {
         let verdicts = Arc::new(Mutex::new(Vec::new()));
@@ -473,7 +473,7 @@ mod tests {
     }
 
     /// B5 · outside the grants with NO operator answer: the run pauses
-    /// (HarnessGate error), the question rides VERBATIM, and the reply
+    /// (`HarnessGate` error), the question rides VERBATIM, and the reply
     /// lane was never answered — zero harness action before a human.
     #[tokio::test]
     async fn an_ask_outside_the_grants_pauses_with_the_question_verbatim() {

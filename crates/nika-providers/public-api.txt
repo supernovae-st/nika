@@ -564,6 +564,7 @@ impl<T> core::convert::From<T> for nika_providers::resolve_access::AccessRefusal
 pub fn nika_providers::resolve_access::AccessRefusal::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::resolve_access::AccessRefusal where T: 'static
 pub fn nika_providers::resolve_access::AccessRefusal::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub fn nika_providers::resolve_access::access_plan_map(models: &[alloc::string::String], probes: &[nika_providers::probe::ProviderProbe], pin: core::option::Option<&str>) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_types::access::AccessPlan>
 pub fn nika_providers::resolve_access::candidates_for(probes: &[nika_providers::probe::ProviderProbe], provider: &str) -> alloc::vec::Vec<nika_providers::resolve_access::AccessCandidate>
 pub fn nika_providers::resolve_access::provider_of(model: &str) -> &str
 pub fn nika_providers::resolve_access::refuse_pin<'m>(models: impl core::iter::traits::collect::IntoIterator<Item = &'m str>, probes: &[nika_providers::probe::ProviderProbe], pin: &str) -> core::option::Option<nika_providers::resolve_access::PinRefusal>
@@ -918,6 +919,7 @@ pub async fn nika_providers::registry::ResolvedProvider<H>::infer(&self, request
 impl<TraitVariantBlanketType> nika_kernel_ai::provider::ProviderStream for nika_providers::registry::ResolvedProvider<H> where TraitVariantBlanketType: nika_kernel_ai::provider::ProviderStreamDyn
 pub async fn nika_providers::registry::ResolvedProvider<H>::infer_stream(&self, request: nika_kernel_ai::provider::InferRequest) -> core::result::Result<core::pin::Pin<alloc::boxed::Box<(dyn futures_core::stream::Stream<Item = core::result::Result<nika_kernel_ai::provider::InferEvent, nika_kernel_ai::provider::ProviderError>> + core::marker::Send)>>, nika_kernel_ai::provider::ProviderError>
 pub const nika_providers::CANONICAL_IDS: [&str; 16]
+pub fn nika_providers::access_plan_map(models: &[alloc::string::String], probes: &[nika_providers::probe::ProviderProbe], pin: core::option::Option<&str>) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_types::access::AccessPlan>
 pub fn nika_providers::candidates_for(probes: &[nika_providers::probe::ProviderProbe], provider: &str) -> alloc::vec::Vec<nika_providers::resolve_access::AccessCandidate>
 pub fn nika_providers::catalog_warning(model: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_providers::provider_of(model: &str) -> &str
