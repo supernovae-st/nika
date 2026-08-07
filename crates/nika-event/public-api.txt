@@ -668,6 +668,109 @@ pub fn nika_event::emitter::NoOpEmitter::emit(&self, _event: nika_event::event::
 pub mod nika_event::source_id
 pub fn nika_event::source_id::lf_normal_form(source: &str) -> alloc::borrow::Cow<'_, str>
 pub fn nika_event::source_id::sha256_hex(bytes: &[u8]) -> alloc::string::String
+pub mod nika_event::stamp
+pub struct nika_event::stamp::DeterministicStamper
+impl nika_event::stamp::DeterministicStamper
+pub fn nika_event::stamp::DeterministicStamper::new() -> Self
+impl core::default::Default for nika_event::stamp::DeterministicStamper
+pub fn nika_event::stamp::DeterministicStamper::default() -> nika_event::stamp::DeterministicStamper
+impl core::fmt::Debug for nika_event::stamp::DeterministicStamper
+pub fn nika_event::stamp::DeterministicStamper::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl nika_event::stamp::Stamper for nika_event::stamp::DeterministicStamper
+pub fn nika_event::stamp::DeterministicStamper::next(&mut self) -> (nika_types::id::EventId, nika_types::timestamp::Timestamp)
+impl<D> owo_colors::OwoColorize for nika_event::stamp::DeterministicStamper
+impl<T, U> core::convert::Into<U> for nika_event::stamp::DeterministicStamper where U: core::convert::From<T>
+pub fn nika_event::stamp::DeterministicStamper::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_event::stamp::DeterministicStamper where U: core::convert::Into<T>
+pub type nika_event::stamp::DeterministicStamper::Error = core::convert::Infallible
+pub fn nika_event::stamp::DeterministicStamper::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_event::stamp::DeterministicStamper where U: core::convert::TryFrom<T>
+pub type nika_event::stamp::DeterministicStamper::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_event::stamp::DeterministicStamper::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_event::stamp::DeterministicStamper where T: 'static + ?core::marker::Sized
+pub fn nika_event::stamp::DeterministicStamper::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_event::stamp::DeterministicStamper where T: ?core::marker::Sized
+pub fn nika_event::stamp::DeterministicStamper::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_event::stamp::DeterministicStamper where T: ?core::marker::Sized
+pub fn nika_event::stamp::DeterministicStamper::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_event::stamp::DeterministicStamper
+pub fn nika_event::stamp::DeterministicStamper::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_event::stamp::DeterministicStamper where T: 'static
+pub fn nika_event::stamp::DeterministicStamper::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_event::stamp::DeterministicStamper
+pub type nika_event::stamp::DeterministicStamper::Output = T
+pub struct nika_event::stamp::SystemStamper
+impl nika_event::stamp::SystemStamper
+pub fn nika_event::stamp::SystemStamper::new() -> Self
+impl core::default::Default for nika_event::stamp::SystemStamper
+pub fn nika_event::stamp::SystemStamper::default() -> nika_event::stamp::SystemStamper
+impl core::fmt::Debug for nika_event::stamp::SystemStamper
+pub fn nika_event::stamp::SystemStamper::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl nika_event::stamp::Stamper for nika_event::stamp::SystemStamper
+pub fn nika_event::stamp::SystemStamper::next(&mut self) -> (nika_types::id::EventId, nika_types::timestamp::Timestamp)
+impl<D> owo_colors::OwoColorize for nika_event::stamp::SystemStamper
+impl<T, U> core::convert::Into<U> for nika_event::stamp::SystemStamper where U: core::convert::From<T>
+pub fn nika_event::stamp::SystemStamper::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_event::stamp::SystemStamper where U: core::convert::Into<T>
+pub type nika_event::stamp::SystemStamper::Error = core::convert::Infallible
+pub fn nika_event::stamp::SystemStamper::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_event::stamp::SystemStamper where U: core::convert::TryFrom<T>
+pub type nika_event::stamp::SystemStamper::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_event::stamp::SystemStamper::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_event::stamp::SystemStamper where T: 'static + ?core::marker::Sized
+pub fn nika_event::stamp::SystemStamper::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_event::stamp::SystemStamper where T: ?core::marker::Sized
+pub fn nika_event::stamp::SystemStamper::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_event::stamp::SystemStamper where T: ?core::marker::Sized
+pub fn nika_event::stamp::SystemStamper::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_event::stamp::SystemStamper
+pub fn nika_event::stamp::SystemStamper::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_event::stamp::SystemStamper where T: 'static
+pub fn nika_event::stamp::SystemStamper::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_event::stamp::SystemStamper
+pub type nika_event::stamp::SystemStamper::Output = T
+pub struct nika_event::stamp::VecSink
+impl nika_event::stamp::VecSink
+pub fn nika_event::stamp::VecSink::events(&self) -> &[nika_event::event::Event]
+pub fn nika_event::stamp::VecSink::into_events(self) -> alloc::vec::Vec<nika_event::event::Event>
+pub fn nika_event::stamp::VecSink::new() -> Self
+impl core::default::Default for nika_event::stamp::VecSink
+pub fn nika_event::stamp::VecSink::default() -> nika_event::stamp::VecSink
+impl core::fmt::Debug for nika_event::stamp::VecSink
+pub fn nika_event::stamp::VecSink::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl nika_event::stamp::EventSink for nika_event::stamp::VecSink
+pub fn nika_event::stamp::VecSink::emit(&mut self, event: nika_event::event::Event)
+impl<D> owo_colors::OwoColorize for nika_event::stamp::VecSink
+impl<T, U> core::convert::Into<U> for nika_event::stamp::VecSink where U: core::convert::From<T>
+pub fn nika_event::stamp::VecSink::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_event::stamp::VecSink where U: core::convert::Into<T>
+pub type nika_event::stamp::VecSink::Error = core::convert::Infallible
+pub fn nika_event::stamp::VecSink::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_event::stamp::VecSink where U: core::convert::TryFrom<T>
+pub type nika_event::stamp::VecSink::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_event::stamp::VecSink::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_event::stamp::VecSink where T: 'static + ?core::marker::Sized
+pub fn nika_event::stamp::VecSink::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_event::stamp::VecSink where T: ?core::marker::Sized
+pub fn nika_event::stamp::VecSink::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_event::stamp::VecSink where T: ?core::marker::Sized
+pub fn nika_event::stamp::VecSink::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_event::stamp::VecSink
+pub fn nika_event::stamp::VecSink::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_event::stamp::VecSink where T: 'static
+pub fn nika_event::stamp::VecSink::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_event::stamp::VecSink
+pub type nika_event::stamp::VecSink::Output = T
+pub trait nika_event::stamp::EventSink
+pub fn nika_event::stamp::EventSink::emit(&mut self, event: nika_event::event::Event)
+impl nika_event::stamp::EventSink for nika_event::stamp::VecSink
+pub fn nika_event::stamp::VecSink::emit(&mut self, event: nika_event::event::Event)
+pub trait nika_event::stamp::Stamper
+pub fn nika_event::stamp::Stamper::next(&mut self) -> (nika_types::id::EventId, nika_types::timestamp::Timestamp)
+impl nika_event::stamp::Stamper for nika_event::stamp::DeterministicStamper
+pub fn nika_event::stamp::DeterministicStamper::next(&mut self) -> (nika_types::id::EventId, nika_types::timestamp::Timestamp)
+impl nika_event::stamp::Stamper for nika_event::stamp::SystemStamper
+pub fn nika_event::stamp::SystemStamper::next(&mut self) -> (nika_types::id::EventId, nika_types::timestamp::Timestamp)
 #[non_exhaustive] pub enum nika_event::EventClass
 pub nika_event::EventClass::Agent
 pub nika_event::EventClass::Cost

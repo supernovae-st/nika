@@ -1,6 +1,11 @@
 pub mod nika_runtime
+pub use nika_runtime::DeterministicStamper
+pub use nika_runtime::EventSink
 pub use nika_runtime::NoSecrets
 pub use nika_runtime::SecretResolveError
+pub use nika_runtime::Stamper
+pub use nika_runtime::SystemStamper
+pub use nika_runtime::VecSink
 pub use nika_runtime::WorkflowSecretResolver
 pub use nika_runtime::source_is_runtime_resolvable
 pub mod nika_runtime::approval
@@ -406,7 +411,7 @@ pub nika_runtime::compose::RunSeams::clock: nika_clock::declared_clock::Declared
 pub nika_runtime::compose::RunSeams::jitter_seed: u64
 impl nika_runtime::compose::RunSeams
 pub fn nika_runtime::compose::RunSeams::of(decl: core::option::Option<&nika_vocab::run::RunDecl>) -> Self
-pub fn nika_runtime::compose::RunSeams::stamper(&self) -> alloc::boxed::Box<dyn nika_runtime::Stamper>
+pub fn nika_runtime::compose::RunSeams::stamper(&self) -> alloc::boxed::Box<dyn nika_event::stamp::Stamper>
 impl<D> owo_colors::OwoColorize for nika_runtime::compose::RunSeams
 impl<T, U> core::convert::Into<U> for nika_runtime::compose::RunSeams where U: core::convert::From<T>
 pub fn nika_runtime::compose::RunSeams::into(self) -> U
@@ -1074,41 +1079,6 @@ impl<T> tracing::instrument::Instrument for nika_runtime::TerminalCause
 impl<T> tracing::instrument::WithSubscriber for nika_runtime::TerminalCause
 impl<T> typenum::type_operators::Same for nika_runtime::TerminalCause
 pub type nika_runtime::TerminalCause::Output = T
-pub struct nika_runtime::DeterministicStamper
-impl nika_runtime::DeterministicStamper
-pub fn nika_runtime::DeterministicStamper::new() -> Self
-impl core::default::Default for nika_runtime::DeterministicStamper
-pub fn nika_runtime::DeterministicStamper::default() -> nika_runtime::DeterministicStamper
-impl core::fmt::Debug for nika_runtime::DeterministicStamper
-pub fn nika_runtime::DeterministicStamper::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl nika_runtime::Stamper for nika_runtime::DeterministicStamper
-pub fn nika_runtime::DeterministicStamper::next(&mut self) -> (nika_types::id::EventId, nika_types::timestamp::Timestamp)
-impl<D> owo_colors::OwoColorize for nika_runtime::DeterministicStamper
-impl<T, U> core::convert::Into<U> for nika_runtime::DeterministicStamper where U: core::convert::From<T>
-pub fn nika_runtime::DeterministicStamper::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_runtime::DeterministicStamper where U: core::convert::Into<T>
-pub type nika_runtime::DeterministicStamper::Error = core::convert::Infallible
-pub fn nika_runtime::DeterministicStamper::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_runtime::DeterministicStamper where U: core::convert::TryFrom<T>
-pub type nika_runtime::DeterministicStamper::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_runtime::DeterministicStamper::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> core::any::Any for nika_runtime::DeterministicStamper where T: 'static + ?core::marker::Sized
-pub fn nika_runtime::DeterministicStamper::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_runtime::DeterministicStamper where T: ?core::marker::Sized
-pub fn nika_runtime::DeterministicStamper::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_runtime::DeterministicStamper where T: ?core::marker::Sized
-pub fn nika_runtime::DeterministicStamper::borrow_mut(&mut self) -> &mut T
-impl<T> core::convert::From<T> for nika_runtime::DeterministicStamper
-pub fn nika_runtime::DeterministicStamper::from(t: T) -> T
-impl<T> nika_error::traits::AsAny for nika_runtime::DeterministicStamper where T: 'static
-pub fn nika_runtime::DeterministicStamper::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::DeterministicStamper where T: ?core::marker::Sized
-pub fn nika_runtime::DeterministicStamper::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-pub fn nika_runtime::DeterministicStamper::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-impl<T> tracing::instrument::Instrument for nika_runtime::DeterministicStamper
-impl<T> tracing::instrument::WithSubscriber for nika_runtime::DeterministicStamper
-impl<T> typenum::type_operators::Same for nika_runtime::DeterministicStamper
-pub type nika_runtime::DeterministicStamper::Output = T
 #[non_exhaustive] pub struct nika_runtime::RunOutcome
 pub nika_runtime::RunOutcome::budget_exceeded: bool
 pub nika_runtime::RunOutcome::cache_hits: alloc::vec::Vec<alloc::string::String>
@@ -1154,7 +1124,7 @@ pub nika_runtime::RunSeams::clock: nika_clock::declared_clock::DeclaredClock
 pub nika_runtime::RunSeams::jitter_seed: u64
 impl nika_runtime::compose::RunSeams
 pub fn nika_runtime::compose::RunSeams::of(decl: core::option::Option<&nika_vocab::run::RunDecl>) -> Self
-pub fn nika_runtime::compose::RunSeams::stamper(&self) -> alloc::boxed::Box<dyn nika_runtime::Stamper>
+pub fn nika_runtime::compose::RunSeams::stamper(&self) -> alloc::boxed::Box<dyn nika_event::stamp::Stamper>
 impl<D> owo_colors::OwoColorize for nika_runtime::compose::RunSeams
 impl<T, U> core::convert::Into<U> for nika_runtime::compose::RunSeams where U: core::convert::From<T>
 pub fn nika_runtime::compose::RunSeams::into(self) -> U
@@ -1183,7 +1153,7 @@ impl<T> typenum::type_operators::Same for nika_runtime::compose::RunSeams
 pub type nika_runtime::compose::RunSeams::Output = T
 pub struct nika_runtime::Runtime<S, T, H, P, D, C>
 impl<S, T, H, P, D, C> nika_runtime::Runtime<S, T, H, P, D, C> where S: nika_kernel_core::io::process::ShellRunDyn + core::marker::Sync, T: nika_kernel_runtime::tool_executor::ToolExecuteDyn, H: nika_kernel_core::io::http::HttpPostDyn + core::marker::Send + core::marker::Sync + 'static, P: nika_kernel_ai::provider::ProviderInferDyn + nika_kernel_ai::provider::ProviderMeta, D: nika_kernel_ai::tool_defs::ToolDefinitionProviderDyn, C: nika_kernel_core::io::clock::ClockDyn + core::marker::Sync
-pub async fn nika_runtime::Runtime<S, T, H, P, D, C>::run(&self, wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, stamper: &mut dyn nika_runtime::Stamper, sink: &mut dyn nika_runtime::EventSink) -> core::result::Result<nika_runtime::RunOutcome, nika_runtime::RuntimeError>
+pub async fn nika_runtime::Runtime<S, T, H, P, D, C>::run(&self, wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, stamper: &mut dyn nika_event::stamp::Stamper, sink: &mut dyn nika_event::stamp::EventSink) -> core::result::Result<nika_runtime::RunOutcome, nika_runtime::RuntimeError>
 impl<S, T, H, P, D, C> nika_runtime::Runtime<S, T, H, P, D, C>
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::new(shell: nika_verb_exec::ExecVerb<S>, invoke: alloc::sync::Arc<nika_verb_invoke::InvokeVerb<T>>, infer: nika_verb_infer::InferVerb<H>, agent: nika_verb_agent::AgentVerb<P, T, D>, clock: C, config: nika_runtime::config::RuntimeConfig) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_access_pin(self, pin: core::option::Option<alloc::string::String>) -> Self
@@ -1313,41 +1283,6 @@ impl<T> tracing::instrument::Instrument for nika_runtime::config::RuntimeConfig
 impl<T> tracing::instrument::WithSubscriber for nika_runtime::config::RuntimeConfig
 impl<T> typenum::type_operators::Same for nika_runtime::config::RuntimeConfig
 pub type nika_runtime::config::RuntimeConfig::Output = T
-pub struct nika_runtime::SystemStamper
-impl nika_runtime::SystemStamper
-pub fn nika_runtime::SystemStamper::new() -> Self
-impl core::default::Default for nika_runtime::SystemStamper
-pub fn nika_runtime::SystemStamper::default() -> nika_runtime::SystemStamper
-impl core::fmt::Debug for nika_runtime::SystemStamper
-pub fn nika_runtime::SystemStamper::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl nika_runtime::Stamper for nika_runtime::SystemStamper
-pub fn nika_runtime::SystemStamper::next(&mut self) -> (nika_types::id::EventId, nika_types::timestamp::Timestamp)
-impl<D> owo_colors::OwoColorize for nika_runtime::SystemStamper
-impl<T, U> core::convert::Into<U> for nika_runtime::SystemStamper where U: core::convert::From<T>
-pub fn nika_runtime::SystemStamper::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_runtime::SystemStamper where U: core::convert::Into<T>
-pub type nika_runtime::SystemStamper::Error = core::convert::Infallible
-pub fn nika_runtime::SystemStamper::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_runtime::SystemStamper where U: core::convert::TryFrom<T>
-pub type nika_runtime::SystemStamper::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_runtime::SystemStamper::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> core::any::Any for nika_runtime::SystemStamper where T: 'static + ?core::marker::Sized
-pub fn nika_runtime::SystemStamper::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_runtime::SystemStamper where T: ?core::marker::Sized
-pub fn nika_runtime::SystemStamper::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_runtime::SystemStamper where T: ?core::marker::Sized
-pub fn nika_runtime::SystemStamper::borrow_mut(&mut self) -> &mut T
-impl<T> core::convert::From<T> for nika_runtime::SystemStamper
-pub fn nika_runtime::SystemStamper::from(t: T) -> T
-impl<T> nika_error::traits::AsAny for nika_runtime::SystemStamper where T: 'static
-pub fn nika_runtime::SystemStamper::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::SystemStamper where T: ?core::marker::Sized
-pub fn nika_runtime::SystemStamper::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-pub fn nika_runtime::SystemStamper::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-impl<T> tracing::instrument::Instrument for nika_runtime::SystemStamper
-impl<T> tracing::instrument::WithSubscriber for nika_runtime::SystemStamper
-impl<T> typenum::type_operators::Same for nika_runtime::SystemStamper
-pub type nika_runtime::SystemStamper::Output = T
 pub struct nika_runtime::TaskErrorRecord
 pub nika_runtime::TaskErrorRecord::code: alloc::string::String
 pub nika_runtime::TaskErrorRecord::message: alloc::string::String
@@ -1453,43 +1388,6 @@ impl<T> tracing::instrument::Instrument for nika_runtime::TaskRecord
 impl<T> tracing::instrument::WithSubscriber for nika_runtime::TaskRecord
 impl<T> typenum::type_operators::Same for nika_runtime::TaskRecord
 pub type nika_runtime::TaskRecord::Output = T
-pub struct nika_runtime::VecSink
-impl nika_runtime::VecSink
-pub fn nika_runtime::VecSink::events(&self) -> &[nika_event::event::Event]
-pub fn nika_runtime::VecSink::into_events(self) -> alloc::vec::Vec<nika_event::event::Event>
-pub fn nika_runtime::VecSink::new() -> Self
-impl core::default::Default for nika_runtime::VecSink
-pub fn nika_runtime::VecSink::default() -> nika_runtime::VecSink
-impl core::fmt::Debug for nika_runtime::VecSink
-pub fn nika_runtime::VecSink::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl nika_runtime::EventSink for nika_runtime::VecSink
-pub fn nika_runtime::VecSink::emit(&mut self, event: nika_event::event::Event)
-impl<D> owo_colors::OwoColorize for nika_runtime::VecSink
-impl<T, U> core::convert::Into<U> for nika_runtime::VecSink where U: core::convert::From<T>
-pub fn nika_runtime::VecSink::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_runtime::VecSink where U: core::convert::Into<T>
-pub type nika_runtime::VecSink::Error = core::convert::Infallible
-pub fn nika_runtime::VecSink::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_runtime::VecSink where U: core::convert::TryFrom<T>
-pub type nika_runtime::VecSink::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_runtime::VecSink::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> core::any::Any for nika_runtime::VecSink where T: 'static + ?core::marker::Sized
-pub fn nika_runtime::VecSink::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_runtime::VecSink where T: ?core::marker::Sized
-pub fn nika_runtime::VecSink::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_runtime::VecSink where T: ?core::marker::Sized
-pub fn nika_runtime::VecSink::borrow_mut(&mut self) -> &mut T
-impl<T> core::convert::From<T> for nika_runtime::VecSink
-pub fn nika_runtime::VecSink::from(t: T) -> T
-impl<T> nika_error::traits::AsAny for nika_runtime::VecSink where T: 'static
-pub fn nika_runtime::VecSink::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::VecSink where T: ?core::marker::Sized
-pub fn nika_runtime::VecSink::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-pub fn nika_runtime::VecSink::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-impl<T> tracing::instrument::Instrument for nika_runtime::VecSink
-impl<T> tracing::instrument::WithSubscriber for nika_runtime::VecSink
-impl<T> typenum::type_operators::Same for nika_runtime::VecSink
-pub type nika_runtime::VecSink::Output = T
 #[non_exhaustive] pub struct nika_runtime::WorkflowPause
 pub nika_runtime::WorkflowPause::approval: core::option::Option<nika_runtime::approval::ApprovalTicket>
 pub nika_runtime::WorkflowPause::choices: alloc::vec::Vec<alloc::string::String>
@@ -1537,16 +1435,6 @@ impl<T> tracing::instrument::Instrument for nika_runtime::WorkflowPause
 impl<T> tracing::instrument::WithSubscriber for nika_runtime::WorkflowPause
 impl<T> typenum::type_operators::Same for nika_runtime::WorkflowPause
 pub type nika_runtime::WorkflowPause::Output = T
-pub trait nika_runtime::EventSink
-pub fn nika_runtime::EventSink::emit(&mut self, event: nika_event::event::Event)
-impl nika_runtime::EventSink for nika_runtime::VecSink
-pub fn nika_runtime::VecSink::emit(&mut self, event: nika_event::event::Event)
-pub trait nika_runtime::Stamper
-pub fn nika_runtime::Stamper::next(&mut self) -> (nika_types::id::EventId, nika_types::timestamp::Timestamp)
-impl nika_runtime::Stamper for nika_runtime::DeterministicStamper
-pub fn nika_runtime::DeterministicStamper::next(&mut self) -> (nika_types::id::EventId, nika_types::timestamp::Timestamp)
-impl nika_runtime::Stamper for nika_runtime::SystemStamper
-pub fn nika_runtime::SystemStamper::next(&mut self) -> (nika_types::id::EventId, nika_types::timestamp::Timestamp)
 pub fn nika_runtime::access_pin_refusal(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, probes: &[nika_providers::probe::ProviderProbe], access_pin: core::option::Option<&str>, model_override: core::option::Option<&str>) -> core::option::Option<nika_runtime::RuntimeError>
 pub fn nika_runtime::budget_floor_refusal(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, budget: core::option::Option<f64>, model_override: core::option::Option<&str>) -> core::option::Option<nika_runtime::RuntimeError>
 pub fn nika_runtime::capabilities_of(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_runtime::compose::RuntimeCapabilities
