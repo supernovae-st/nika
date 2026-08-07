@@ -32,6 +32,7 @@ checked=0
 
 # <path>|<extraction>|<what it is>
 surfaces=(
+  ".agents/plugins/nika/plugin.json|json|the portable Agent Plugins manifest"
   ".agents/plugins/nika/.claude-plugin/plugin.json|json|the Claude Code plugin manifest"
   ".agents/plugins/nika/.codex-plugin/plugin.json|json|the Codex plugin manifest"
   ".agents/plugins/nika/.cursor-plugin/plugin.json|json|the Cursor plugin manifest"

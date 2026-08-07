@@ -191,7 +191,7 @@ PATTERNS = [
     {
         "glob": ".agents/**",
         "class": "authored",
-        "evidence": "the agent-plugin pack SOURCE (marketplace.json · plugin manifests · skills · rules · hooks) — authored here, mirrored downstream into supernovae-st/nika-agents (its plugins/ is a byte-pinned copy healed on releases)",
+        "evidence": "the agent-plugin pack SOURCE (marketplace.json · plugin manifests · skills · rules · hooks) — authored here, mirrored downstream into supernovae-st/nika-plugins (its plugins/ is a byte-pinned copy healed on releases)",
     },
     {
         "glob": ".claude/**",

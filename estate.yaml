@@ -18,11 +18,11 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4358
+  classified_files: 4363
   file_rows: 11
   pattern_rows: 22
   by_class:
-    authored: 1427
+    authored: 1432
     authored-pin: 2
     generated: 118
     pinned-copy: 115
@@ -62,7 +62,7 @@ files:
   evidence: "its own header: 'Bump deliberately: edit this' · the rev the shared estate tool is mirrored from, and the INPUT the mirror gate compares against"
 - path: "ROADMAP.md"
   class: authored
-  sha256: 7135aad7760d58e509077d9bd8693c20b9b46db1a435ebf8c4ce1912d3b9a2ff
+  sha256: 5c9b6a64fd35fbb482f379665ce26f266dc088b097e5ae096c717e417c7b1a4f
   evidence: "hand-written roadmap prose (real-semver ladder · layer plan)"
   note: "ROADMAP.md:98 carries the same refresh-status.sh AUTO-GENERATED status block — a tool-maintained block inside an authored file"
 - path: "SPEC_PIN"
@@ -152,7 +152,7 @@ patterns:
 - glob: "crates/**/src/**"
   class: authored
   match_count: 722
-  aggregate_sha256: af77a81f044ab7287d513b833df754e8b2189fbd2b3b8e771618ac83cb37c2c1
+  aggregate_sha256: 162306c21e98589a85d592f129d512f675c703eeda12f2658b48a52df3c7c554
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
@@ -162,7 +162,7 @@ patterns:
 - glob: "crates/**"
   class: authored
   match_count: 132
-  aggregate_sha256: b74233e3eda9951853cb69b57f1fa52d98e5c73531c0dc466c5656005529e0f3
+  aggregate_sha256: b7da702fbb4d59c102bde02586f9fbe065e938829e820d5ffa15c10c28b8085f
   evidence: "the remaining crate surface — Cargo.toml manifests · build.rs · benches · READMEs · hand-curated data catalogs (llm-providers · mcp-servers · embeddings · model-capabilities, probed daily by catalog-verify.yml); the pricing snapshot is excepted in files:"
   note: "crates/nika-pack/scripts/sync-pack.sh is a DIVERGENT older duplicate of scripts/sync-pack.sh — the pack-resync.yml lane runs the root one"
 - glob: "fuzz/**"
@@ -182,13 +182,13 @@ patterns:
   evidence: "crate-specs · architecture prose · perf notes — no generation markers at file heads"
 - glob: "scripts/**"
   class: authored
-  match_count: 135
-  aggregate_sha256: 54010611a244ba45a21690c4785026856c66e2bb69007fa2ff2eaeffa5294b48
+  match_count: 138
+  aggregate_sha256: 214f0018a8fcd13e182ecc1b1069321df29393a25727db82ae7216740c7a95f6
   evidence: "hand-written gates · hooks · hygiene vectors · media lanes; the ratchet baselines (scripts/ci/*-baseline.txt · scripts/hygiene/baselines/) are hand-kept monotonic floors ('Never remove a line by hand')"
 - glob: ".github/workflows/**"
   class: authored
   match_count: 21
-  aggregate_sha256: 545eb0751b3524890a76dcff4469a34543648c6145aeee88abd338c9d4fc0496
+  aggregate_sha256: 0e81db3185a94024c204a55aee2e50fd1099dcbb6190721da65e7ee34bfdb360
   evidence: "hand-written CI rails, comments narrate design decisions; the heal lanes here rewrite OTHER files (spec-pin-heal.yml → SPEC_PIN · pack-resync.yml → the pack · changelog-cliff.yml → CHANGELOG.md), nothing rewrites the workflows themselves"
 - glob: ".github/**"
   class: authored
@@ -197,9 +197,9 @@ patterns:
   evidence: "issue/PR templates · CODEOWNERS · dependabot config — hand-written review policy"
 - glob: ".agents/**"
   class: authored
-  match_count: 30
-  aggregate_sha256: d6a82273304f6e0732dfe4cffffdc00f098b34c4e3cb7a06c4a3ce5179db91c9
-  evidence: "the agent-plugin pack SOURCE (marketplace.json · plugin manifests · skills · rules · hooks) — authored here, mirrored downstream into supernovae-st/nika-agents (its plugins/ is a byte-pinned copy healed on releases)"
+  match_count: 32
+  aggregate_sha256: 635d1a2a76b6b5989e826fe00a8d31939db69a5e003b0dd512124e8bfc218fa9
+  evidence: "the agent-plugin pack SOURCE (marketplace.json · plugin manifests · skills · rules · hooks) — authored here, mirrored downstream into supernovae-st/nika-plugins (its plugins/ is a byte-pinned copy healed on releases)"
 - glob: ".claude/**"
   class: authored
   match_count: 15
@@ -237,7 +237,7 @@ patterns:
 - glob: "*"
   class: authored
   match_count: 28
-  aggregate_sha256: e2a148bc6de1ec2881e302055e24c3188bfc4a97cf345a9e7ecd7dd755843780
+  aggregate_sha256: 0e3c8ef08f7d890b7221b270cb33a35e7e2bbcd8c452331dbb3487620b43e4a6
   evidence: "root prose + config surface (README · DIAMOND · LICENSE · llms.txt · Cargo.toml · deny/clippy/cliff/typos toml · lefthook.yml · flake.nix · Dockerfile) — no generation markers at file heads; CHANGELOG.md · Cargo.lock · SPEC_PIN · ROADMAP.md excepted in files:"
 - glob: "**"
   class: authored

@@ -254,7 +254,7 @@ limit](https://docs.nika.sh/guides/resume).
     │ the release train                  🖥️ nika.sh · 📖 nika-docs
     ▼                                     the showroom · the manual
 📦 homebrew-tap · npm · Docker ── the docks
-🔌 nika-client · 🎨 nika-vscode · 🤖 nika-agents · ⚡ gh-nika ── the doors
+🔌 nika-client · 🎨 nika-vscode · 🤖 nika-plugins · ⚡ gh-nika ── the doors
 🏭 nika-action · 🧪 nika-actions-starter ── the CI district
 🏪 nika-registry ── the market · 🏛 nika-estate ── the land registry
 ```
@@ -269,7 +269,7 @@ limit](https://docs.nika.sh/guides/resume).
 
 **Truth lives** · engine numbers come from the binary, never from prose · `crates/nika-pack/pack/` is a byte-gated MIRROR of the spec — editing it is a lost gesture.
 
-All the buildings: [nika-spec](https://github.com/supernovae-st/nika-spec) · [nika](https://github.com/supernovae-st/nika) · [nika.sh](https://github.com/supernovae-st/nika.sh) · [nika-docs](https://github.com/supernovae-st/nika-docs) · [nika-client](https://github.com/supernovae-st/nika-client) · [nika-vscode](https://github.com/supernovae-st/nika-vscode) · [nika-agents](https://github.com/supernovae-st/nika-agents) · [gh-nika](https://github.com/supernovae-st/gh-nika) · [homebrew-tap](https://github.com/supernovae-st/homebrew-tap) · [nika-action](https://github.com/supernovae-st/nika-action) · [nika-actions-starter](https://github.com/supernovae-st/nika-actions-starter) · [nika-registry](https://github.com/supernovae-st/nika-registry) · [nika-estate](https://github.com/supernovae-st/nika-estate)
+All the buildings: [nika-spec](https://github.com/supernovae-st/nika-spec) · [nika](https://github.com/supernovae-st/nika) · [nika.sh](https://github.com/supernovae-st/nika.sh) · [nika-docs](https://github.com/supernovae-st/nika-docs) · [nika-client](https://github.com/supernovae-st/nika-client) · [nika-vscode](https://github.com/supernovae-st/nika-vscode) · [nika-plugins](https://github.com/supernovae-st/nika-plugins) · [gh-nika](https://github.com/supernovae-st/gh-nika) · [homebrew-tap](https://github.com/supernovae-st/homebrew-tap) · [nika-action](https://github.com/supernovae-st/nika-action) · [nika-actions-starter](https://github.com/supernovae-st/nika-actions-starter) · [nika-registry](https://github.com/supernovae-st/nika-registry) · [nika-estate](https://github.com/supernovae-st/nika-estate)
 
 Every fact has one home · everything else is a gated projection.
 The living map: [nika.sh/map](https://nika.sh/map).
@@ -513,8 +513,8 @@ authoring skill · the `nika-author` subagent · three commands · a
 check-on-edit hook · the read-only MCP oracle) for three ecosystems:
 
 ```sh
-codex plugin marketplace add supernovae-st/nika-agents && codex plugin add nika@nika
-claude plugin marketplace add supernovae-st/nika-agents && claude plugin install nika@nika
+codex plugin marketplace add supernovae-st/nika-plugins && codex plugin add nika@nika
+claude plugin marketplace add supernovae-st/nika-plugins && claude plugin install nika@nika
 # Cursor: search "nika" in Settings → Plugins · one Add installs the bundle
 ```
 
@@ -558,7 +558,7 @@ each with one job:
 | [nika-docs](https://github.com/supernovae-st/nika-docs) | the source of [docs.nika.sh](https://docs.nika.sh) |
 | [nika.sh](https://github.com/supernovae-st/nika.sh) | the source of [nika.sh](https://nika.sh) |
 | [nika-vscode](https://github.com/supernovae-st/nika-vscode) | the editor extension: VS Code, Cursor, Windsurf, VSCodium |
-| [nika-agents](https://github.com/supernovae-st/nika-agents) | the plugin marketplace: skill + subagent + commands + hooks + the read-only MCP oracle · Claude Code, Codex, Cursor |
+| [nika-plugins](https://github.com/supernovae-st/nika-plugins) | the plugin marketplace: skill + subagent + commands + hooks + the read-only MCP oracle · Claude Code, Codex, Cursor |
 | [nika-registry](https://github.com/supernovae-st/nika-registry) | the verifiable workflow registry: every entry pinned and re-proven in CI |
 | [nika-client](https://github.com/supernovae-st/nika-client) | the TypeScript SDK (targets the `nika serve` HTTP surface) |
 | [homebrew-tap](https://github.com/supernovae-st/homebrew-tap) | the brew formula: `brew install supernovae-st/tap/nika` |

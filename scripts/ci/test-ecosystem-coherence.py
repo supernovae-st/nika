@@ -62,7 +62,7 @@ def fixtures(*, tag="0.95.0", age_h=48.0, tap="0.95.0", site="0.95.0",
            for repo, wf in (("nika-docs","release-heal.yml"),("nika.sh","release-heal.yml"),
                             ("nika.sh","spec-resync.yml"),("nika-action","release-heal.yml"),
                             ("nika-actions-starter","release-heal.yml"),("nika-client","release-heal.yml"),
-                            ("nika-agents","release-heal.yml"),("nika-registry","release-heal.yml"),
+                            ("nika-plugins","release-heal.yml"),("nika-registry","release-heal.yml"),
                             ("nika-vscode","spec-pin-heal.yml"),("nika","pack-resync.yml"))},
     }
 
@@ -136,11 +136,11 @@ check("T6c deliberate-bump surfaces stay WARN",
 # (fetch miss), never a crash; a trigger-less one is named.
 tbl = fixtures(age_h=48.0)
 del tbl[bot.RAW + "/supernovae-st/nika-registry/main/.github/workflows/release-heal.yml"]
-tbl[bot.RAW + "/supernovae-st/nika-agents/main/.github/workflows/release-heal.yml"] = "name: dead\n"
+tbl[bot.RAW + "/supernovae-st/nika-plugins/main/.github/workflows/release-heal.yml"] = "name: dead\n"
 code, f = run(tbl)
 check("T7 immune legs watched (missing=WARN · trigger-less named)",
       any(x[1] == "immune nika-registry" for x in f)
-      and any(x[1] == "immune nika-agents" and "no trigger" in x[2] for x in f)
+      and any(x[1] == "immune nika-plugins" and "no trigger" in x[2] for x in f)
       and all(x[0] == "WARN" for x in f if x[1].startswith("immune")), f)
 
 print(f"\nself-test: {'PASS (10/10)' if not fails else 'FAIL ' + str(fails)}")
