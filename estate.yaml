@@ -89,7 +89,7 @@ files:
     - "docs/adr/adr-*.md YAML frontmatter"
 - path: "fuzz/Cargo.lock"
   class: generated
-  sha256: 138f1bc277914b13f25b8ca654d3ecf171c50612390321e53c824aab0240e2a0
+  sha256: 420898a5f77c798ef981236fd687e381a81d7485002eb66e8317585716a68756
   evidence: "cargo's resolver writes it for the fuzz workspace; no human edits a lockfile"
   derivation:
     tool: "cargo (dependency resolution against fuzz/Cargo.toml)"
@@ -152,7 +152,7 @@ patterns:
 - glob: "crates/**/src/**"
   class: authored
   match_count: 722
-  aggregate_sha256: 162306c21e98589a85d592f129d512f675c703eeda12f2658b48a52df3c7c554
+  aggregate_sha256: c8ae64567be919b5a4102a600ef802cb042340b90adbae81d5395f309ffa07e5
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
@@ -173,7 +173,7 @@ patterns:
 - glob: "docs/adr/**"
   class: authored
   match_count: 78
-  aggregate_sha256: a0a7dc11482a5cc00842188558ebab3262f857c8e00c58c656d8d3ebc062915b
+  aggregate_sha256: 382f9509ebbfd2ef42ee3a55389aa096775e7279956ec67f2509549b3446a026
   evidence: "per-decision records authored at decision time (scripts/adr/new.sh scaffolds · adr-seal-check hook seals); index.toml excepted in files:"
 - glob: "docs/**"
   class: authored
