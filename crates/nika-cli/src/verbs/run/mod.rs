@@ -431,6 +431,10 @@ fn execute_and_ask(
             from: None,
             answers: vec![format!("{}={value}", leg.pause.task)],
             compat: None,
+            // The in-process continuation folds THIS run's own just-written
+            // trace — the chain precondition applies unchanged (it holds
+            // by construction: the pause frame closes the lifecycle).
+            allow_unverified: false,
         };
         verdict = answered_leg(
             (file, source),
@@ -697,6 +701,7 @@ fn composed_runtime(
         answers,
         paused,
         compat,
+        unverified,
     } = setup;
     let inputs::ValidatedInputs {
         values: overrides,
@@ -737,6 +742,10 @@ fn composed_runtime(
                 // F-P21 · the declared cross-version compat (NEP-0014
                 // law 4) — attested on the boot manifest.
                 .with_resume_compat(compat)
+                // ADR-099 trust amendment · the `--resume-unverified`
+                // opt-out, attested the same way (a laundered trace can
+                // never claim a clean ancestry silently).
+                .with_resume_unverified(unverified)
                 // #473 · composer-resolved SKILL.md texts (`## Skills`
                 // injection + the referencing tasks' resume identity).
                 .with_skills(skills)

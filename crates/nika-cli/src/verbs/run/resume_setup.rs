@@ -34,6 +34,28 @@ pub(super) struct ResumeSetup {
     /// version the operator allowed the crossing from (`Some` only when
     /// a cross-version resume proceeds under `--resume-compat`).
     pub compat: Option<String>,
+    /// The ADR-099 trust amendment attestation (2026-08-08) — the chain
+    /// finding the operator resumed PAST under `--resume-unverified`
+    /// (`Some` only then), journaled on the run's boot manifest so a
+    /// trace that failed verification can never launder into one that
+    /// silently passed. `None` = the chain verified (or no resume).
+    pub unverified: Option<String>,
+}
+
+/// The folded parts of one `--resume <trace>` (the skip plan · the F-P4
+/// ticket · the F-P21 compat · the trust attestation) — a named return:
+/// the four-tuple it replaces had grown past readability (the clippy
+/// wall agreed).
+struct LoadedResume {
+    /// The folded skip plan (possibly empty — honest degradation).
+    plan: ResumePlan,
+    /// The F-P4 paused ticket (`None` on a pause-free or pre-F-P4 trace).
+    paused: Option<nika_runtime::approval::PausedApproval>,
+    /// The F-P21 declared compat (`Some` on a discharged crossing).
+    compat: Option<String>,
+    /// The trust-amendment attestation (`Some` on a `--resume-unverified`
+    /// proceed — the finding to journal).
+    unverified: Option<String>,
 }
 
 /// Validate + fold the whole `--resume` surface (plan · `--from` ·
@@ -50,17 +72,20 @@ pub(super) fn resume_setup(
     model_override: Option<&str>,
     output_json: bool,
 ) -> Result<ResumeSetup, u8> {
-    let (plan, paused, compat) = match resume {
-        None => (None, None, None),
+    let loaded = match resume {
+        None => None,
         Some(req) => match req.trace.as_deref() {
             // The answers-only form (F4): no trace, no plan — the answers
             // below ride into the gate map and wait for the ask.
-            None => (None, None, None),
-            Some(trace) => {
-                let (plan, paused, compat) =
-                    load_resume_plan(req, trace, wf, source, model_override, output_json)?;
-                (Some(plan), paused, compat)
-            }
+            None => None,
+            Some(trace) => Some(load_resume_plan(
+                req,
+                trace,
+                wf,
+                source,
+                model_override,
+                output_json,
+            )?),
         },
     };
     let answers =
@@ -70,28 +95,44 @@ pub(super) fn resume_setup(
                 epilogue::emit_error_envelope(&message, output_json);
                 exit::ENV
             })?;
-    Ok(ResumeSetup {
-        plan,
-        answers,
-        paused,
-        compat,
+    Ok(match loaded {
+        Some(l) => ResumeSetup {
+            plan: Some(l.plan),
+            answers,
+            paused: l.paused,
+            compat: l.compat,
+            unverified: l.unverified,
+        },
+        None => ResumeSetup {
+            plan: None,
+            answers,
+            paused: None,
+            compat: None,
+            unverified: None,
+        },
     })
 }
 
 /// Read + fold the `--resume` trace into the runtime skip plan (ADR-099)
 /// plus the F-P4 paused ticket (NEP-0013) plus the F-P21 version verdict
-/// (NEP-0014 law 4). The cross-version judgment comes FIRST: a resume
-/// under an engine different from the recording one is an explicit
-/// refusal naming both versions — or rides a declared compat
-/// (`--resume-compat` · attested on the run's boot manifest). Honest
-/// degradation stays the contract for the KEYS: a keyless trace (older
-/// engine) yields an EMPTY plan + a notice — never an error; an
-/// unreadable file or an unknown `--from` id is refused loudly
-/// (environment class).
+/// (NEP-0014 law 4). The TRUST judgment comes FIRST (ADR-099 trust
+/// amendment · 2026-08-08): a resume serves the trace's recorded
+/// successes as cache hits and runs live tasks on their values, so the
+/// tamper-evidence chain is verified BEFORE anything is folded — the
+/// forgery class refuses (the FILE class, one voice with `trace
+/// verify`), or rides the NAMED opt-out (`--resume-unverified` ·
+/// attested on the run's boot manifest, never a silent default). The
+/// cross-version judgment follows: a resume under an engine different
+/// from the recording one is an explicit refusal naming both versions —
+/// or rides a declared compat (`--resume-compat`). Honest degradation
+/// stays the contract for the KEYS: a keyless trace (older engine)
+/// yields an EMPTY plan + a notice — never an error; an unreadable file
+/// or an unknown `--from` id is refused loudly (environment class).
 ///
 /// # Errors
 ///
-/// The exit code (already printed + enveloped) — ENV for every refusal.
+/// The exit code (already printed + enveloped) — FILE for the tamper
+/// class, ENV for every other refusal.
 fn load_resume_plan(
     req: &ResumeRequest,
     trace: &std::path::Path,
@@ -99,14 +140,7 @@ fn load_resume_plan(
     source: &str,
     model_override: Option<&str>,
     output_json: bool,
-) -> Result<
-    (
-        ResumePlan,
-        Option<nika_runtime::approval::PausedApproval>,
-        Option<String>,
-    ),
-    u8,
-> {
+) -> Result<LoadedResume, u8> {
     let label = trace.display().to_string();
     let refuse = |message: String| {
         eprintln!("nika run: {message}");
@@ -115,6 +149,52 @@ fn load_resume_plan(
     };
     let raw = std::fs::read_to_string(trace)
         .map_err(|e| refuse(format!("--resume: cannot read {label}: {e}")))?;
+    // ADR-099 trust amendment — the chain verdict BEFORE the fold. A
+    // crash leaves a torn tail (trusted — the resume use case); an
+    // edited, inserted, dropped or reordered line refuses by default.
+    let unverified = match nika_dap::resume::judge_trust(&raw) {
+        nika_dap::resume::TrustVerdict::Verified => None,
+        // The chainless capture (`--json > t.ndjson` · a pre-0.96
+        // journal): nothing to verify — trusted, but SAID (the silence
+        // class closes completely: every resume's trust posture speaks).
+        nika_dap::resume::TrustVerdict::Unverifiable => {
+            eprintln!(
+                "nika run: --resume: {label} carries no tamper-evidence chain (a stream \
+                 capture or a pre-0.96 journal) — the records are trusted WITHOUT \
+                 verification"
+            );
+            None
+        }
+        nika_dap::resume::TrustVerdict::Tampered { finding } => {
+            if req.allow_unverified {
+                eprintln!(
+                    "nika run: --resume: {finding} — proceeding under --resume-unverified: \
+                     the records are trusted WITHOUT chain verification (attested on the \
+                     run's boot manifest)"
+                );
+                Some(finding)
+            } else {
+                let message = format!(
+                    "--resume: {finding}\n  a resume trusts the trace's recorded successes — \
+                     the chain verdict is the resume's precondition (ADR-099)\n  verify: \
+                     nika trace verify {label} · or re-run fresh · or resume under \
+                     --resume-unverified (attested on the run's boot manifest)"
+                );
+                eprintln!("nika run: {message}");
+                epilogue::emit_error_envelope(&message, output_json);
+                return Err(exit::FILE);
+            }
+        }
+        // TrustVerdict is #[non_exhaustive]: a class newer than this CLI
+        // refuses — fail closed, never a guessed trust (the `trace
+        // verify` unknown-verdict posture).
+        _ => {
+            return Err(refuse(format!(
+                "--resume: {label}: unknown chain verdict class — the forensics library is \
+                 newer than this CLI"
+            )));
+        }
+    };
     let recovered =
         recover_events(&raw, &label).map_err(|message| refuse(format!("--resume: {message}")))?;
     if let Some(note) = &recovered.truncated_note {
@@ -167,7 +247,12 @@ fn load_resume_plan(
         nika_dap::resume::apply_from(&mut plan, wf, from)
             .map_err(|message| refuse(format!("--resume: {message}")))?;
     }
-    Ok((plan, fold.paused, compat))
+    Ok(LoadedResume {
+        plan,
+        paused: fold.paused,
+        compat,
+        unverified,
+    })
 }
 
 /// The two judgments about WHICH SEAT the resumed legs will run on —

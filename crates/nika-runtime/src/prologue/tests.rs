@@ -25,16 +25,18 @@ fn started_fields_with_origins(
     sandbox: Option<&str>,
     origins: &BTreeMap<String, InputOrigin>,
 ) -> Vec<(String, String)> {
-    started_fields_full(yaml, sandbox, origins, None, None, None)
+    started_fields_full(yaml, sandbox, origins, None, None, None, None)
 }
 
-/// The full knob set (origins · the F-P21 declared compat · the F-P18
-/// operator budget · the issue-772 model override).
+/// The full knob set (origins · the F-P21 declared compat · the ADR-099
+/// trust-amendment opt-out · the F-P18 operator budget · the issue-772
+/// model override).
 fn started_fields_full(
     yaml: &str,
     sandbox: Option<&str>,
     origins: &BTreeMap<String, InputOrigin>,
     resume_compat: Option<&str>,
+    resume_unverified: Option<&str>,
     max_cost_usd: Option<f64>,
     model_override: Option<&str>,
 ) -> Vec<(String, String)> {
@@ -55,6 +57,7 @@ fn started_fields_full(
         sandbox,
         origins,
         resume_compat,
+        resume_unverified,
         max_cost_usd,
         model_override,
         Vec::new(),
@@ -160,7 +163,15 @@ fn prologue_journals_the_input_origins() {
 fn prologue_attests_the_declared_cross_version_compat() {
     let yaml =
         "nika: v1\nworkflow:\n  id: pay\ntasks:\n  t:\n    exec: { command: [\"echo\", \"x\"] }\n";
-    let fields = started_fields_full(yaml, None, &BTreeMap::new(), Some("0.105.0"), None, None);
+    let fields = started_fields_full(
+        yaml,
+        None,
+        &BTreeMap::new(),
+        Some("0.105.0"),
+        None,
+        None,
+        None,
+    );
     assert_eq!(get(&fields, "resumed_from_engine"), Some("0.105.0"));
     assert_eq!(get(&fields, "resume_compat"), Some("declared"));
 
@@ -168,6 +179,36 @@ fn prologue_attests_the_declared_cross_version_compat() {
     let exact = started_fields(yaml, None);
     assert_eq!(get(&exact, "resumed_from_engine"), None);
     assert_eq!(get(&exact, "resume_compat"), None);
+}
+
+/// ADR-099 trust amendment (2026-08-08) — a resume that proceeded PAST
+/// a chain finding attests the opt-out on the boot manifest
+/// (`resume_unverified: declared` + the walk's finding): a laundered
+/// trace can never claim a clean ancestry silently. A verified resume
+/// (or none) journals NO claim — never a flag echo.
+#[test]
+fn prologue_attests_the_resume_unverified_opt_out() {
+    let yaml =
+        "nika: v1\nworkflow:\n  id: pay\ntasks:\n  t:\n    exec: { command: [\"echo\", \"x\"] }\n";
+    let fields = started_fields_full(
+        yaml,
+        None,
+        &BTreeMap::new(),
+        None,
+        Some("chain BROKEN at line 31 — recorded 856411a17a21b83f · computed 82585b166114d2f2"),
+        None,
+        None,
+    );
+    assert_eq!(get(&fields, "resume_unverified"), Some("declared"));
+    assert!(
+        get(&fields, "resume_unverified_finding").is_some_and(|f| f.contains("BROKEN at line 31")),
+        "the walk's finding rides: {fields:?}"
+    );
+
+    // A verified resume (or none) → both fields absent (no claim).
+    let clean = started_fields(yaml, None);
+    assert_eq!(get(&clean, "resume_unverified"), None);
+    assert_eq!(get(&clean, "resume_unverified_finding"), None);
 }
 
 /// F-P18 (NEP-0017 · la table de prix DANS le pin) — the boot manifest
@@ -208,7 +249,7 @@ fn prologue_pins_the_pricing_table_identity() {
 fn prologue_journals_the_budget_only_when_bounded() {
     let yaml =
         "nika: v1\nworkflow:\n  id: pay\ntasks:\n  t:\n    exec: { command: [\"echo\", \"x\"] }\n";
-    let bounded = started_fields_full(yaml, None, &BTreeMap::new(), None, Some(0.05), None);
+    let bounded = started_fields_full(yaml, None, &BTreeMap::new(), None, None, Some(0.05), None);
     let budget: serde_json::Value =
         serde_json::from_str(get(&bounded, "budget").expect("a bounded run journals its budget"))
             .expect("budget is one JSON document");
@@ -227,7 +268,15 @@ fn prologue_journals_the_budget_only_when_bounded() {
     );
     // …and a NaN/inf budget is filtered before the wire (the CLI
     // refuses it at the flag; the journal guard is the second wall).
-    let non_finite = started_fields_full(yaml, None, &BTreeMap::new(), None, Some(f64::NAN), None);
+    let non_finite = started_fields_full(
+        yaml,
+        None,
+        &BTreeMap::new(),
+        None,
+        None,
+        Some(f64::NAN),
+        None,
+    );
     assert_eq!(get(&non_finite, "budget"), None);
 }
 
@@ -243,6 +292,7 @@ fn prologue_journals_the_model_override_only_when_declared() {
         yaml,
         None,
         &BTreeMap::new(),
+        None,
         None,
         None,
         Some("mock/override"),

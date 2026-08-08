@@ -304,6 +304,11 @@ pub struct Runtime<S, T, H, P, D, C> {
     /// cross from (`--resume-compat`), attested on the boot manifest.
     /// `None` = no crossing declared (an exact resume · a fresh run).
     resume_compat: Option<String>,
+    /// ADR-099 trust amendment (2026-08-08) — the chain finding the
+    /// operator resumed PAST under `--resume-unverified`, attested on
+    /// the boot manifest (`resume_unverified: declared` + the finding).
+    /// `None` = the resume's chain verified (or no resume at all).
+    resume_unverified: Option<String>,
 }
 
 /// One wave's read-only value scope — (`vars` · `env` · `secrets` ·
@@ -355,6 +360,7 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
             run_depth: 0,
             approvals: approval::ApprovalBook::new(),
             resume_compat: None,
+            resume_unverified: None,
             access_pin: None,
             access_probes: Vec::new(),
             boot_access_fields: Vec::new(),
@@ -470,6 +476,19 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
     #[must_use]
     pub fn with_resume_compat(mut self, compat: Option<String>) -> Self {
         self.resume_compat = compat;
+        self
+    }
+
+    /// Stamp the `--resume-unverified` attestation (ADR-099 trust
+    /// amendment · 2026-08-08): the composer verified the trace's chain
+    /// BEFORE the fold and the operator resumed PAST this finding — the
+    /// boot manifest journals `resume_unverified: declared` + the walk's
+    /// finding, so a trace that failed verification can never launder
+    /// into a fresh one that silently passes. Builder form — `None`
+    /// (the chain verified · no resume) journals no claim.
+    #[must_use]
+    pub fn with_resume_unverified(mut self, unverified: Option<String>) -> Self {
+        self.resume_unverified = unverified;
         self
     }
 
@@ -702,6 +721,7 @@ where
             self.config.sandbox_backend.as_deref(),
             &self.input_origins,
             self.resume_compat.as_deref(),
+            self.resume_unverified.as_deref(),
             self.config.max_cost_usd,
             self.model_override.as_deref(),
             self.boot_access_fields.clone(),

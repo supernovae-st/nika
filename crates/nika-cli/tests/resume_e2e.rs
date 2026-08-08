@@ -25,6 +25,12 @@
 //!   the mint rides the pause frame, the decision lands hash-chained,
 //!   and an answer whose content drifted HALTS typed (`NIKA-SEC-010` ·
 //!   `approval.content_mismatch`).
+//! - **(d) tampered-trace-refused-never-laundered** (trust amendment ·
+//!   2026-08-08) — a trace whose chain fails the walk is REFUSED (exit
+//!   2 · the FILE class, one voice with `trace verify`) naming the
+//!   `--resume-unverified` opt-out; under it the run proceeds LOUDLY and
+//!   the NEW journal attests the finding on its boot manifest — a
+//!   laundered trace can never claim a clean ancestry silently.
 
 use std::io::Write as _;
 use std::process::Command;
@@ -848,6 +854,26 @@ fn a_composition_torn_mid_child_reruns_the_child_whole() {
 
 // ─── (d) the cross-version judgment (F-P21 · NEP-0014 law 4) ───────────
 
+/// Re-stamp every line's `chain` field after a content edit: the
+/// doctored journal stays chain-VALID — a foreign engine's honest
+/// artifact, NOT a forgery. Without it the edit would trip the chain
+/// precondition (the trust amendment's whole point) and the VERSION
+/// judgment these tests exercise would never be reached.
+fn rechain(raw: &str) -> String {
+    use sha2::{Digest as _, Sha256};
+    let mut prev = format!("{:x}", Sha256::digest(b"nika-trace-v1"));
+    let mut out = String::new();
+    for line in raw.lines().filter(|l| !l.trim().is_empty()) {
+        let mut v: serde_json::Value = serde_json::from_str(line).expect("a JSON line");
+        v["chain"] = serde_json::Value::String(prev.clone());
+        let stamped = serde_json::to_string(&v).expect("re-serializes");
+        prev = format!("{:x}", Sha256::digest(stamped.as_bytes()));
+        out.push_str(&stamped);
+        out.push('\n');
+    }
+    out
+}
+
 /// Rewrite the trace's recorded `engine_version` (the `workflow_started`
 /// line) — the exact artifact a DIFFERENT engine's journal is.
 fn trace_with_engine_version(trace: &str, version: &str) -> String {
@@ -856,10 +882,11 @@ fn trace_with_engine_version(trace: &str, version: &str) -> String {
         .find(|l| l.contains("\"kind\":\"workflow_started\""))
         .expect("a started frame");
     let recorded = field_str(started, "engine_version");
-    trace.replace(
+    let doctored = trace.replace(
         &format!("\"key\":\"engine_version\",\"value\":\"{recorded}\""),
         &format!("\"key\":\"engine_version\",\"value\":\"{version}\""),
-    )
+    );
+    rechain(&doctored)
 }
 
 /// F-P21 negative — a resume under a DIFFERENT engine refuses, naming
@@ -1017,7 +1044,9 @@ fn a_versionless_trace_is_judged_with_the_unrecorded_token() {
         !stripped.contains("engine_version"),
         "the field is gone from every line"
     );
-    let trace = write_trace("versionless.ndjson", &stripped);
+    // Chain-valid (a pre-A5 journal is an honest artifact), so the
+    // trust precondition passes and the VERSION judgment speaks.
+    let trace = write_trace("versionless.ndjson", &rechain(&stripped));
 
     let refused = bin()
         .args([
@@ -1065,5 +1094,171 @@ fn a_versionless_trace_is_judged_with_the_unrecorded_token() {
         Some(0),
         "the unrecorded compat proceeds: {}",
         String::from_utf8_lossy(&declared.stderr)
+    );
+}
+
+// ─── (d) the chain-trust precondition (ADR-099 trust amendment) ──────
+
+/// Stage the laundering setup: a unique run dir with the CHAIN workflow
+/// and its REAL journal (`.nika/traces/` — the chained artifact `trace
+/// verify` and the resume precondition both walk; the `--json` STDOUT
+/// stream carries no `chain` field, so tampering the stream proves
+/// nothing), plus the same journal with ONE recorded byte flipped
+/// (length unchanged — the report's forgery): `a`'s completion now
+/// claims "bravo", and the NEXT line's chain breaks.
+fn staged_tampered_trace(
+    name: &str,
+) -> (std::path::PathBuf, std::path::PathBuf, std::path::PathBuf) {
+    let dir =
+        std::env::temp_dir().join(format!("nika-resume-launder-{name}-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("run dir");
+    let wf = dir.join("chain.nika.yaml");
+    std::fs::write(&wf, CHAIN).expect("workflow");
+    let run = bin()
+        .args(["run", "chain.nika.yaml"])
+        .current_dir(&dir)
+        .output()
+        .expect("binary runs");
+    assert_eq!(
+        run.status.code(),
+        Some(0),
+        "the honest run: {}",
+        String::from_utf8_lossy(&run.stderr)
+    );
+    let journal = std::fs::read_dir(dir.join(".nika").join("traces"))
+        .expect("trace dir")
+        .map(|e| e.expect("entry").path())
+        .next()
+        .expect("one journal");
+    let raw = std::fs::read_to_string(&journal).expect("journal reads");
+    let mut lines: Vec<String> = raw.lines().map(str::to_owned).collect();
+    let idx = lines
+        .iter()
+        .position(|l| l.contains("\"kind\":\"task_completed\"") && l.contains("\"a\""))
+        .expect("`a` completed");
+    lines[idx] = lines[idx].replacen("alpha", "bravo", 1);
+    let tampered = dir.join("tampered.ndjson");
+    std::fs::write(&tampered, lines.join("\n") + "\n").expect("tampered written");
+    (wf, journal, tampered)
+}
+
+/// Default: the forgery is REFUSED before the fold (exit 2 · the FILE
+/// class, one voice with `trace verify`) — the run never starts, the
+/// refusal names the finding and the opt-out. Measured 2026-08-07 on
+/// 0.108.0: the same journal resumed silently, exit 0.
+#[test]
+fn a_tampered_trace_is_refused_naming_the_opt_out() {
+    let (wf, _journal, tampered) = staged_tampered_trace("refuse");
+
+    // The detector still works (the conjunction's first role was never
+    // broken — the report's step 2).
+    let verified = bin()
+        .args(["trace", "verify", &tampered.to_string_lossy()])
+        .output()
+        .expect("binary runs");
+    assert_eq!(verified.status.code(), Some(2), "the forgery is detected");
+
+    let refused = bin()
+        .args([
+            "run",
+            &wf.to_string_lossy(),
+            "--resume",
+            &tampered.to_string_lossy(),
+            "--json",
+            "--color",
+            "never",
+        ])
+        .output()
+        .expect("binary runs");
+    let stderr = String::from_utf8(refused.stderr).expect("utf8");
+    assert_eq!(
+        refused.status.code(),
+        Some(2),
+        "the tamper class is the FILE class: {stderr}"
+    );
+    assert!(
+        stderr.contains("chain BROKEN at line"),
+        "the finding: {stderr}"
+    );
+    assert!(
+        stderr.contains("--resume-unverified"),
+        "the opt-out is named: {stderr}"
+    );
+    assert!(
+        refused.stdout.is_empty(),
+        "a refused resume never starts:\n{}",
+        String::from_utf8_lossy(&refused.stdout)
+    );
+}
+
+/// The NAMED opt-out: the run proceeds LOUDLY, and the NEW journal
+/// attests the finding on its boot manifest — a laundered trace can
+/// never claim a clean ancestry silently. The control arm: the SAME flag
+/// over the INTACT journal journals no claim (the journal says what
+/// HAPPENED — never a flag echo).
+#[test]
+fn the_named_opt_out_proceeds_loudly_and_attests() {
+    let (wf, journal, tampered) = staged_tampered_trace("optout");
+    let opted = bin()
+        .args([
+            "run",
+            &wf.to_string_lossy(),
+            "--resume",
+            &tampered.to_string_lossy(),
+            "--resume-unverified",
+            "--json",
+            "--color",
+            "never",
+        ])
+        .output()
+        .expect("binary runs");
+    let stdout = String::from_utf8(opted.stdout).expect("utf8");
+    let stderr = String::from_utf8(opted.stderr).expect("utf8");
+    assert_eq!(
+        opted.status.code(),
+        Some(0),
+        "the named opt-out proceeds: {stderr}"
+    );
+    assert!(
+        stderr.contains("proceeding under --resume-unverified"),
+        "said out loud: {stderr}"
+    );
+    let new_started = stdout
+        .lines()
+        .find(|l| l.contains("\"kind\":\"workflow_started\""))
+        .expect("the new run's started frame");
+    assert_eq!(field_str(new_started, "resume_unverified"), "declared");
+    assert!(
+        field_str(new_started, "resume_unverified_finding").contains("chain BROKEN at line"),
+        "the finding rides the new journal: {new_started}"
+    );
+
+    let control = bin()
+        .args([
+            "run",
+            &wf.to_string_lossy(),
+            "--resume",
+            &journal.to_string_lossy(),
+            "--resume-unverified",
+            "--json",
+            "--color",
+            "never",
+        ])
+        .output()
+        .expect("binary runs");
+    let stdout = String::from_utf8(control.stdout).expect("utf8");
+    assert_eq!(
+        control.status.code(),
+        Some(0),
+        "the intact control resumes: {}",
+        String::from_utf8_lossy(&control.stderr)
+    );
+    let started = stdout
+        .lines()
+        .find(|l| l.contains("\"kind\":\"workflow_started\""))
+        .expect("the control run's started frame");
+    assert!(
+        !started.contains("resume_unverified"),
+        "a verified trace journals no claim: {started}"
     );
 }

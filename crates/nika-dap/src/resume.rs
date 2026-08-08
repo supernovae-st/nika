@@ -51,6 +51,14 @@ pub struct ResumeRequest {
     /// (`unrecorded` for a pre-versioning journal) — a blanket force is
     /// precisely the silent degradation the law retires.
     pub compat: Option<String>,
+    /// `--resume-unverified` (ADR-099 trust amendment · 2026-08-08) —
+    /// the NAMED opt-out of the chain precondition: a trace whose
+    /// tamper-evidence chain fails [`judge_trust`] is trusted anyway,
+    /// the walk's finding journaled on the run's boot manifest
+    /// (`resume_unverified: declared`). Never a silent default — and
+    /// consumed only when the walk objects: a verified trace journals
+    /// no claim.
+    pub allow_unverified: bool,
 }
 
 /// The compat token a pre-versioning trace names (`--resume-compat
@@ -308,6 +316,80 @@ pub fn parse_answers(
         answers.insert(task_id.to_owned(), value);
     }
     Ok(answers)
+}
+
+/// The resume's chain-trust verdict (ADR-099 trust amendment ·
+/// 2026-08-08) — a resume TRUSTS the trace's recorded successes: it
+/// serves them as cache hits and runs live tasks on their values. The
+/// tamper-evidence walk ([`crate::chain::walk`]) therefore judges the
+/// trace BEFORE the fold: the journal is one artifact with two roles
+/// (the audit record · the checkpoint), and the second role now
+/// CONSULTS the first — enforced, no longer aspirational. The opt-out
+/// stays possible but NAMED (`--resume-unverified` · attested on the
+/// run's boot manifest), never a silent default.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum TrustVerdict {
+    /// The chain holds over every line — or over every COMPLETE line:
+    /// a crash (killed mid-flight · a torn tail) leaves an honest
+    /// journal, and crash-resumption is exactly the resume use case.
+    Verified,
+    /// A pre-chain (pre-0.96) or event-less journal: nothing to verify
+    /// and — the fold finds no resume keys on it — nothing to trust.
+    /// The honest-degradation law covers it (a notice, never an error).
+    Unverifiable,
+    /// The chain is broken, unreadable mid-journal, or over the line
+    /// bound — the forgery / `DoS` class. The run refuses unless the
+    /// operator names the opt-out; `finding` carries the walk's
+    /// one-line evidence (sanitized — the journal is untrusted input).
+    Tampered {
+        /// The walk's one-line finding (line · hashes · bound named).
+        finding: String,
+    },
+}
+
+/// Judge a `--resume` trace's chain BEFORE its records are trusted —
+/// the pure half; the caller maps the verdict to its exit class and
+/// attests any opt-out on the run's boot manifest. A crash leaves a
+/// torn TAIL (trusted); a bad line with good lines after it is a HOLE
+/// (the tamper class — no crash writes one).
+#[must_use]
+pub fn judge_trust(raw: &str) -> TrustVerdict {
+    use crate::chain::Verdict;
+    match crate::chain::walk(raw) {
+        Verdict::Intact { .. } | Verdict::Incomplete { .. } | Verdict::TornTail { .. } => {
+            TrustVerdict::Verified
+        }
+        Verdict::Unchained | Verdict::Empty => TrustVerdict::Unverifiable,
+        Verdict::Broken {
+            line,
+            recorded,
+            computed,
+        } => TrustVerdict::Tampered {
+            finding: format!(
+                "chain BROKEN at line {line} — recorded {} · computed {} (edited, inserted, dropped or reordered)",
+                short(&recorded),
+                short(&computed)
+            ),
+        },
+        Verdict::Unreadable { line } => TrustVerdict::Tampered {
+            finding: format!(
+                "line {line} is not valid JSON mid-journal — a crash leaves a torn tail, not a hole; the chain is unverifiable"
+            ),
+        },
+        Verdict::LineOverLong { line, got } => TrustVerdict::Tampered {
+            finding: format!(
+                "line {line} is {got} bytes — over the journal line bound (a journal line is small; an oversized one is the DoS class)"
+            ),
+        },
+    }
+}
+
+/// First 16 chars of a control-stripped string — a journal field is
+/// untrusted input: terminal escapes never ride a finding (the
+/// `trace verify` voice, one idiom).
+fn short(hex: &str) -> String {
+    hex.chars().filter(|c| !c.is_control()).take(16).collect()
 }
 
 /// The fold's yield — the skip plan plus the honesty counters the
@@ -571,6 +653,85 @@ mod tests {
             summary_line(3, 2),
             "resumed · 3 skipped (cache hit) · 2 ran live"
         );
+    }
+
+    // ── ADR-099 trust amendment · the chain precondition ─────────────
+
+    /// A chained journal the way the sink writes one (the nika-dap
+    /// chain-test idiom).
+    fn chained(kinds: &[&str]) -> String {
+        let mut chain = nika_event::source_id::sha256_hex(crate::chain::CHAIN_GENESIS);
+        let mut out = String::new();
+        for kind in kinds {
+            let mut v = serde_json::json!({
+                "id": {"uuid": "01912345-0000-7000-8000-000000000001"},
+                "timestamp": 1000, "kind": kind, "run": null,
+                "correlation": null, "fields": []
+            });
+            v["chain"] = serde_json::Value::String(chain.clone());
+            let line = serde_json::to_string(&v).expect("test json");
+            chain = nika_event::source_id::sha256_hex(line.as_bytes());
+            out.push_str(&line);
+            out.push('\n');
+        }
+        out
+    }
+
+    #[test]
+    fn an_intact_or_crashed_journal_is_trusted() {
+        assert_eq!(
+            judge_trust(&chained(&["workflow_started", "workflow_completed"])),
+            TrustVerdict::Verified
+        );
+        // The crash signatures ARE the resume use case — trusted.
+        let killed = chained(&["workflow_started", "task_completed"]);
+        assert_eq!(judge_trust(&killed), TrustVerdict::Verified);
+        let mut torn = chained(&["workflow_started"]);
+        torn.push_str("{\"id\":{\"uuid\":\"half-written-by-sigkill");
+        assert_eq!(judge_trust(&torn), TrustVerdict::Verified);
+    }
+
+    #[test]
+    fn a_pre_chain_journal_is_unverifiable_never_an_error() {
+        let raw = "{\"kind\":\"workflow_started\"}\n";
+        assert_eq!(judge_trust(raw), TrustVerdict::Unverifiable);
+        assert_eq!(judge_trust(""), TrustVerdict::Unverifiable);
+    }
+
+    #[test]
+    fn one_edited_byte_refuses_the_trust() {
+        let raw = chained(&["workflow_started", "task_completed", "workflow_completed"])
+            .replace("task_completed", "task_complexed");
+        let TrustVerdict::Tampered { finding } = judge_trust(&raw) else {
+            panic!("an edited journal is the tamper class");
+        };
+        assert!(finding.contains("BROKEN at line 3"), "{finding}");
+    }
+
+    #[test]
+    fn a_mid_journal_hole_is_tampered_not_a_crash() {
+        // A crash leaves a torn TAIL — a bad line with good lines after
+        // it is the hole class, refused by name.
+        let good = chained(&["workflow_started", "workflow_completed"]);
+        let mut lines: Vec<&str> = good.lines().collect();
+        lines.insert(1, "{corrupt");
+        let raw = lines.join("\n");
+        let TrustVerdict::Tampered { finding } = judge_trust(&raw) else {
+            panic!("a mid-journal hole is not a crash");
+        };
+        assert!(finding.contains("line 2"), "{finding}");
+    }
+
+    #[test]
+    fn a_finding_never_rides_terminal_escapes() {
+        // The journal is untrusted input: an adversarial `chain` string
+        // renders control-stripped and truncated (the verify idiom).
+        let mut raw = chained(&["workflow_started", "workflow_completed"]);
+        raw = raw.replacen("\"chain\":\"", "\"chain\":\"\u{1b}[2Jevil", 1);
+        let TrustVerdict::Tampered { finding } = judge_trust(&raw) else {
+            panic!("a forged chain field is the tamper class");
+        };
+        assert!(!finding.contains('\u{1b}'), "stripped: {finding}");
     }
 
     #[test]

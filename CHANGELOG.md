@@ -47,6 +47,30 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   operator go: it needs the trace to capture input prompts, a content-
   policy change, not a mere projection.)
 
+### Fixed
+
+- **The resume verifies the chain before trusting the trace (ADR-099
+  trust amendment).** `nika run --resume` served a trace's recorded
+  successes as cache hits WITHOUT consulting the tamper-evidence chain
+  the same journal carries: a chain-broken journal resumed silently
+  (exit 0), propagated a forged output into a live task, and emitted a
+  fresh journal whose own chain verified clean — one resume laundering
+  a journal that FAILS `nika trace verify` into one that PASSES it.
+  The chain is now walked BEFORE the fold (the same walk the verify
+  verb runs): a broken chain refuses (exit 2 · the FILE class, one
+  voice with the verify verb) naming the finding and the opt-out, while
+  a crash's honest signatures (killed mid-flight · torn tail) still
+  resume — crash-resumption is the use case. The opt-out is NAMED, never
+  a silent default: `--resume-unverified` proceeds loudly and the NEW
+  run's boot manifest journals `resume_unverified: declared` +
+  `resume_unverified_finding`, so a laundered trace can never claim a
+  clean ancestry silently. A chainless journal (a `--json` stream
+  capture · a pre-0.96 journal) still resumes — with a printed notice
+  that the records are trusted without verification. Proven red-first at
+  the binary plane: the forgery refused by default · the opt-out
+  attested on the child journal · the intact control journaling no
+  claim.
+
 ## [0.108.0](https://github.com/supernovae-st/nika/compare/v0.107.2..v0.108.0) - 2026-08-05
 
 **The access layer arrives; the check stops trusting what it cannot
