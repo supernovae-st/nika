@@ -400,7 +400,7 @@ mod tests {
     }
 
     /// The seat's Debug shows the cwd and never the backend (the
-    /// finish_non_exhaustive shape — mutation-pinned).
+    /// `finish_non_exhaustive` shape — mutation-pinned).
     #[test]
     fn the_seat_debug_is_cwd_only_and_non_exhaustive() {
         let seat = seat_with(vec![]);

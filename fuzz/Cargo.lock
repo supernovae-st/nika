@@ -2445,6 +2445,7 @@ dependencies = [
  "serde_json",
  "sha2 0.10.9",
  "thiserror",
+ "uuid",
 ]
 
 [[package]]
@@ -2617,6 +2618,7 @@ dependencies = [
  "nika-sandbox-landlock",
  "nika-sandbox-seatbelt",
  "nika-schema",
+ "nika-secret",
  "nika-tmpl",
  "nika-types",
  "nika-verb-agent",
@@ -2673,6 +2675,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "nika-secret"
+version = "0.108.0"
+dependencies = [
+ "nika-schema",
+ "serde_json",
+]
+
+[[package]]
 name = "nika-source"
 version = "0.108.0"
 dependencies = [
@@ -2716,6 +2726,7 @@ dependencies = [
  "jsonschema",
  "miette",
  "nika-bm25",
+ "nika-cap",
  "nika-catalog",
  "nika-check",
  "nika-error",
