@@ -74,6 +74,28 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   (and no new journal descending from it) · the opt-out attested on the
   child journal · the stripped forgery attested `unchained` · the
   intact control journaling no claim.
+- **An exact `fs` grant is judged by its effective path identity on the
+  builtin arm too (NEP-0009).** Between `nika check` and `nika run`, an
+  exact grant literal swapped for a symlink (e.g. `read:
+  ["./allowed.txt"]` → `./oob/secret.txt`) was served by the in-process
+  builtins (`nika:read` · `nika:glob` · `nika:grep` · `nika:write` ·
+  `nika:edit`): the boundary re-judged the path the task NAMED, and the
+  resolved-vs-resolved comparison followed the planted symlink on both
+  sides — the kernel sandbox never sees an in-process read, so the arm
+  suspected least was the open one. The boundary now judges the grant's
+  effective path identity (the longest existing ancestor canonicalized,
+  the FINAL component held lexical — the dispatch re-gate's own
+  judgment, restated on the builtin seam) and refuses the divergence as
+  `fs.path_mismatch` (`NIKA-SEC-004`), naming the judged prefix and the
+  resolved target — one verdict voice on both arms. A symlinked
+  ANCESTOR stays tolerated (`/tmp`→`/private/tmp` · a nix-store link),
+  a not-yet-existing write target stays legal (law 5), and a grant that
+  legitimately traverses a symlink changes verdict: declare the
+  effective path instead (the NEP's documented backwards-compat). Proven
+  red-first at the unit and binary planes: the swapped exact grant
+  refused with the secret never served · the inside-pointing symlink
+  refused as divergence · the swapped glob root refused · the honest
+  tree admitted before and after.
 
 ## [0.108.0](https://github.com/supernovae-st/nika/compare/v0.107.2..v0.108.0) - 2026-08-05
 

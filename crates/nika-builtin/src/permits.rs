@@ -123,7 +123,13 @@ impl FsBoundary {
     /// yet-existing write target, the longest existing ancestor is
     /// canonicalized and the trailing (non-existent · so symlink-free)
     /// components are folded lexically, so a legitimate NEW file inside the
-    /// boundary is admitted while a `..` that climbs out is refused.
+    /// boundary is admitted while a `..` that climbs out is refused. The
+    /// GRANT is judged by its effective path identity (NEP-0009 law 1 —
+    /// [`grant_identity`]): the ancestor canonicalized, the FINAL component
+    /// held lexical, so a symlink planted AT the grant literal between
+    /// check and run cannot redirect the judgment (resolved-vs-resolved
+    /// followed it — the measured 2026-08-08 hole, refused as
+    /// `fs.path_mismatch`, never rewritten).
     pub(crate) async fn enforce<F: FsReadDyn>(
         &self,
         fs: &F,
@@ -134,16 +140,36 @@ impl FsBoundary {
             return Ok(()); // no boundary in force · the engine floor only
         }
         let effective = resolve_effective(fs, Path::new(path)).await;
-        let globs = self.globs(access);
-        for glob in globs {
-            if confines(fs, glob, &effective).await {
-                return Ok(());
+        let mut mismatch = None; // the first exact grant whose identity diverged
+        for glob in self.globs(access) {
+            match confines(fs, glob, path, &effective).await {
+                ConfineVerdict::Admits => return Ok(()),
+                ConfineVerdict::Outside => {}
+                ConfineVerdict::IdentityMismatch(judged) => {
+                    mismatch = mismatch.or(Some(judged));
+                }
             }
+        }
+        // NEP-0009 law 3 — the refusal carries the judged prefix and the
+        // resolved target, in the exec arm's own voice (one verdict on
+        // every enforcement arm · law 4).
+        if let Some(judged) = mismatch {
+            return Err(BuiltinFailure::new(
+                SEC_DENIED,
+                format!(
+                    "fs.path_mismatch · `{path}` resolves to `{}` · the judged grant is \
+                     `{judged}` · outside the declared {} set (NEP-0009)",
+                    effective.display(),
+                    access.category(),
+                    judged = judged.display(),
+                ),
+            ));
         }
         Err(BuiltinFailure::new(
             SEC_DENIED,
             format!(
-                "`{path}` resolves outside the declared {} boundary",
+                "`{path}` resolves to `{}` — outside the declared {} boundary",
+                effective.display(),
                 access.category()
             ),
         ))
@@ -245,33 +271,105 @@ fn lexical_only(path: &Path) -> PathBuf {
     out
 }
 
+/// The confinement verdict for one grant against an effective path — the
+/// bool it replaces could not say WHY a refusal happened, and the
+/// attestation needs the class (NEP-0009 law 3).
+enum ConfineVerdict {
+    /// The effective path IS the granted identity or descends from it.
+    Admits,
+    /// No part of the grant covers the effective path.
+    Outside,
+    /// The task named an EXACT grant verbatim yet the resolve landed
+    /// elsewhere — the grant's final component is a planted symlink
+    /// (NEP-0009 law 2: refuse, never rewrite). Carries the judged
+    /// identity the attestation names.
+    IdentityMismatch(PathBuf),
+}
+
+/// A grant's EFFECTIVE PATH IDENTITY (NEP-0009 law 1 — the exec arm's
+/// `judge_identity` comparison, restated on this seam): when the literal
+/// EXISTS, its identity is the parent canonicalized (a legitimately-
+/// symlinked ANCESTOR is absorbed — tolerated: `/tmp`→`/private/tmp`, a
+/// nix-store link) with the FINAL component carried LEXICALLY, so a
+/// symlink planted AT the grant literal (the measured 2026-08-08 pivot)
+/// makes the identity diverge from the fully-resolved form instead of
+/// redirecting it — resolved-vs-resolved followed the plant on both
+/// sides and compared equal. A not-yet-existing literal (law 5 · the
+/// legal new write) cannot contain a redirecting symlink, so the plain
+/// `resolve_effective` fold IS the identity. The result rides the
+/// lexical fold so a no-op `canonicalize` (the mock seam) reduces this
+/// to the literal itself — the identity judgment is a no-op exactly
+/// where nothing can be a symlink.
+async fn grant_identity<F: FsReadDyn>(fs: &F, root_lit: &str) -> PathBuf {
+    let lit = Path::new(root_lit);
+    let resolved = resolve_effective(fs, lit).await;
+    let Some(name) = lit.file_name() else {
+        return resolved; // a bare root · a `..` tail: no final component to redirect
+    };
+    if fs.canonicalize(lit).await.is_err() {
+        // Not-yet-existing (or a mocked no-op that never redirects) —
+        // the folded resolve is already the identity.
+        return resolved;
+    }
+    // The literal exists, so its parent exists: the parent walk always
+    // canonicalizes here (a bare name's empty parent is the cwd, the
+    // same anchor `canonicalize` resolves against).
+    let parent = lit
+        .parent()
+        .filter(|p| *p != lit && !p.as_os_str().is_empty())
+        .unwrap_or_else(|| Path::new("."));
+    lexical_only(&resolve_effective(fs, parent).await.join(name))
+}
+
 /// Whether `effective` (already canonical) is confined to `glob`'s declared
-/// root. The root is the glob's longest LITERAL directory prefix (the part
-/// before any `*`); it is canonicalized so a symlinked boundary compares by
-/// its real location too. Confinement = `effective` IS the root or a
-/// descendant of it — the descendancy test a literal-prefix string match
-/// fails to make.
-async fn confines<F: FsReadDyn>(fs: &F, glob: &str, effective: &Path) -> bool {
+/// root, judging the grant by its effective path identity ([`grant_identity`]
+/// — NEP-0009). `named` is the path the task asked for, used only to tell
+/// a planted-symlink-at-the-grant (the task named the grant verbatim) from
+/// an ordinary out-of-boundary miss. The root is the glob's longest LITERAL
+/// directory prefix (the part before any `*`). Confinement = `effective` IS
+/// the root identity or a descendant of it — the descendancy test a
+/// literal-prefix string match fails to make.
+async fn confines<F: FsReadDyn>(
+    fs: &F,
+    glob: &str,
+    named: &str,
+    effective: &Path,
+) -> ConfineVerdict {
     let (root_lit, tail) = literal_root(glob);
-    // Resolve the permit root the SAME way the effective path was resolved
-    // ([`resolve_effective`]: longest existing ancestor canonicalized —
-    // symlinks resolved, the security core — then the trailing non-existent
-    // components folded lexically). The literal prefix is a directory for a
-    // `**`/`*` glob; for an exact-path glob it IS the target. A raw
-    // `canonicalize` failed CLOSED on a not-yet-existing target — the common
-    // `nika:write` of a new file (and exactly what `nika check
-    // --infer-permits` emits): `nika check` passed, `nika run` then died on
-    // NIKA-SEC-004. Resolving the root like the write path admits the
-    // declared new file/dir while a fake root still resolves to a path no
-    // real (canonicalized) effective path can match — fail-closed preserved.
-    // (A `..` inside a permit literal — e.g. `out/../secret/**` — resolves
-    // here too, WIDENING the declared boundary; that is author responsibility,
-    // not an escape: the boundary only ever ADMITS on a match · authors should
-    // write canonical `permits.fs` paths.)
-    let canon_root = resolve_effective(fs, Path::new(&root_lit)).await;
+    // Both sides compare in the lexically-folded form: a canonical
+    // (real-fs) path is already folded, so this is a no-op there, and a
+    // mocked/relative path keeps its literal identity (`./x` ≡ `x`) —
+    // the identity judgment never forks on spelling.
+    let effective = &lexical_only(effective);
+    // The permit root is judged by its IDENTITY (ancestor canonicalized,
+    // final component lexical — never the fully-resolved form that
+    // follows a planted final symlink). A raw `canonicalize` also failed
+    // CLOSED on a not-yet-existing target — the common `nika:write` of a
+    // new file (and exactly what `nika check --infer-permits` emits):
+    // `nika check` passed, `nika run` then died on NIKA-SEC-004. The
+    // identity fold admits the declared new file/dir while a fake root
+    // still resolves to a path no real effective path can match —
+    // fail-closed preserved. (A `..` inside a permit literal — e.g.
+    // `out/../secret/**` — resolves here too, WIDENING the declared
+    // boundary; that is author responsibility, not an escape: the
+    // boundary only ever ADMITS on a match · authors should write
+    // canonical `permits.fs` paths.)
+    let canon_root = lexical_only(&grant_identity(fs, &root_lit).await);
     let Some(tail) = tail else {
-        // An exact path (no wildcard) — the resolved target must BE it.
-        return effective == canon_root;
+        // An exact path (no wildcard) — the resolved target must BE the
+        // grant's identity. The measured hole: the grant literal swapped
+        // for a symlink BETWEEN check and run — resolved-vs-resolved
+        // followed the plant on both sides and compared equal, serving
+        // the out-of-bounds target through the in-process builtin the
+        // sandbox never sees.
+        if *effective == canon_root {
+            return ConfineVerdict::Admits;
+        }
+        return if Path::new(named) == Path::new(&root_lit) {
+            ConfineVerdict::IdentityMismatch(canon_root)
+        } else {
+            ConfineVerdict::Outside
+        };
     };
     // Descendancy is NECESSARY but not SUFFICIENT. The wildcard half of the
     // permit is then re-applied to whatever the path has beyond the root.
@@ -295,11 +393,15 @@ async fn confines<F: FsReadDyn>(fs: &F, glob: &str, effective: &Path) -> bool {
     // one pattern, which is ordinary glob matching and entirely decidable.
     // A correct theorem justified a shortcut on a problem it does not govern.
     let Ok(rest) = effective.strip_prefix(&canon_root) else {
-        return false; // not under the root at all
+        return ConfineVerdict::Outside;
     };
     // An empty remainder is the root itself: `<root>/**` admits it (zero
     // segments), `<root>/*` does not (it wants exactly one).
-    nika_cap::glob_admits(&tail, &rest.to_string_lossy())
+    if nika_cap::glob_admits(&tail, &rest.to_string_lossy()) {
+        ConfineVerdict::Admits
+    } else {
+        ConfineVerdict::Outside
+    }
 }
 
 /// Split a gitignore-style permit glob into its literal directory prefix and
@@ -547,6 +649,103 @@ mod fs_security_tests {
         assert!(
             matches!(got, Err(ref f) if f.code == super::SEC_DENIED),
             "a symlink that escapes the boundary must be refused: {got:?}"
+        );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn an_exact_grant_swapped_to_a_symlink_is_refused() {
+        // The measured 2026-08-08 hole (NEP-0009 on the builtin arm): the
+        // grant's OWN literal is replaced by a symlink BETWEEN check and
+        // run. The floor re-judged the path the task NAMED — and both
+        // sides of the resolved-vs-resolved comparison followed the same
+        // plant, so the swapped grant compared equal and was admitted.
+        // The identity judgment holds the grant's FINAL component
+        // lexical: the judged form cannot be redirected.
+        let s = Scratch::new();
+        let grant = s.path("allowed/swapped.txt");
+        std::fs::write(&grant, b"honest").unwrap();
+        let boundary = FsBoundary::declared(vec![grant.clone()], vec![]);
+        let fs = TokioFs;
+        // The honest tree admits — the instrument is qualified (the
+        // grant works before the pivot).
+        assert!(
+            boundary.enforce(&fs, &grant, FsAccess::Read).await.is_ok(),
+            "the honest grant admits"
+        );
+        // The pivot: the grant literal becomes a symlink OUT of the
+        // judged tree.
+        std::fs::remove_file(&grant).unwrap();
+        std::os::unix::fs::symlink(s.root.join("secret.txt"), &grant).unwrap();
+        let got = boundary.enforce(&fs, &grant, FsAccess::Read).await;
+        assert!(
+            matches!(got, Err(ref f) if f.code == super::SEC_DENIED),
+            "a swapped exact grant refuses, never follows: {got:?}"
+        );
+        // NEP-0009 law 3 — the refusal names the judged prefix and the
+        // resolved target, in the exec arm's `fs.path_mismatch` voice.
+        let Err(f) = got else { panic!("refused above") };
+        assert!(f.message.contains("fs.path_mismatch"), "{f:?}");
+        assert!(f.message.contains("secret.txt"), "{f:?}");
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn an_exact_grant_symlink_is_refused_even_pointing_inside() {
+        // NEP-0009 backwards-compat: a grant whose final component is a
+        // symlink changes verdict EVEN when the target stays inside the
+        // tree — divergence, not escape, is the trigger (the exec arm's
+        // parity: « final-component symlink to a sibling refused »). The
+        // author declares the effective path instead.
+        let s = Scratch::new();
+        let link = s.path("allowed/alias.txt");
+        std::os::unix::fs::symlink(s.root.join("allowed/in.txt"), &link).unwrap();
+        let boundary = FsBoundary::declared(vec![link.clone()], vec![]);
+        let fs = TokioFs;
+        let got = boundary.enforce(&fs, &link, FsAccess::Read).await;
+        assert!(
+            matches!(got, Err(ref f) if f.code == super::SEC_DENIED),
+            "a symlinked grant literal refuses even pointing inside: {got:?}"
+        );
+        // …while the SAME target declared by its effective path admits.
+        let direct = FsBoundary::declared(vec![s.path("allowed/in.txt")], vec![]);
+        assert!(
+            direct
+                .enforce(&fs, &s.path("allowed/in.txt"), FsAccess::Read)
+                .await
+                .is_ok(),
+            "the effective path declared directly admits"
+        );
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn a_glob_root_swapped_to_a_symlink_is_refused() {
+        // Platform parity (NEP-0009 law 4) on the GLOB arm: the exec
+        // arm's `judge_identity` refuses a symlink at the glob's literal
+        // ROOT (bwrap would mount the target); the builtin arm judged
+        // the root fully-resolved and followed the plant. The identity
+        // judgment holds the root's final component lexical, so the
+        // swapped tree no longer confines anything.
+        let s = Scratch::new();
+        let fs = TokioFs;
+        // The honest tree admits (instrument qualification).
+        assert!(
+            s.boundary()
+                .enforce(&fs, &s.path("allowed/in.txt"), FsAccess::Read)
+                .await
+                .is_ok(),
+            "the honest glob root admits"
+        );
+        // The pivot: the glob's root dir becomes a symlink to the parent
+        // (which holds the out-of-boundary secret).
+        std::fs::remove_dir_all(s.root.join("allowed")).unwrap();
+        std::os::unix::fs::symlink(&s.root, s.root.join("allowed")).unwrap();
+        let through = s.path("allowed/secret.txt");
+        let got = s.boundary().enforce(&fs, &through, FsAccess::Read).await;
+        assert!(
+            matches!(got, Err(ref f) if f.code == super::SEC_DENIED),
+            "a swapped glob root refuses: {got:?}"
         );
     }
 
