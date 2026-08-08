@@ -34,19 +34,15 @@ pub(super) struct ResumeSetup {
     /// version the operator allowed the crossing from (`Some` only when
     /// a cross-version resume proceeds under `--resume-compat`).
     pub compat: Option<String>,
-    /// The ADR-099 trust amendment attestation (2026-08-08) — the
-    /// resume's trust posture when the chain precondition did NOT hold
-    /// (the declared `--resume-unverified` opt-out · the chainless
-    /// compat), journaled on the run's boot manifest so a trace that
-    /// failed — or carried no — verification can never launder into one
-    /// that silently passed. `None` = the chain verified (or no resume).
+    /// The ADR-099 trust attestation (2026-08-08) — `Some` when the run
+    /// proceeds WITHOUT a verified chain (the declared opt-out · the
+    /// chainless compat), journaled on the boot manifest so no unverified
+    /// ancestor launders silently. `None` = the chain verified (or no resume).
     pub unverified: Option<ResumeUnverified>,
 }
 
-/// The folded parts of one `--resume <trace>` (the skip plan · the F-P4
-/// ticket · the F-P21 compat · the trust attestation) — a named return:
-/// the four-tuple it replaces had grown past readability (the clippy
-/// wall agreed).
+/// The folded parts of one `--resume <trace>` — a named return: the
+/// four-tuple it replaces had grown past readability.
 struct LoadedResume {
     /// The folded skip plan (possibly empty — honest degradation).
     plan: ResumePlan,
@@ -54,10 +50,7 @@ struct LoadedResume {
     paused: Option<nika_runtime::approval::PausedApproval>,
     /// The F-P21 declared compat (`Some` on a discharged crossing).
     compat: Option<String>,
-    /// The trust-amendment attestation (`Some` when the run proceeds
-    /// WITHOUT a verified chain — the declared opt-out past a finding,
-    /// or the chainless-capture compat — the posture + finding to
-    /// journal).
+    /// The trust attestation (`None` = the chain verified).
     unverified: Option<ResumeUnverified>,
 }
 
@@ -119,15 +112,11 @@ pub(super) fn resume_setup(
 /// Read + fold the `--resume` trace into the runtime skip plan (ADR-099)
 /// plus the F-P4 paused ticket (NEP-0013) plus the F-P21 version verdict
 /// (NEP-0014 law 4). The TRUST judgment comes FIRST (ADR-099 trust
-/// amendment · 2026-08-08): a resume serves the trace's recorded
-/// successes as cache hits and runs live tasks on their values, so the
-/// tamper-evidence chain is verified BEFORE anything is folded — the
-/// forgery class refuses (the FILE class, one voice with `trace
-/// verify`), or rides the NAMED opt-out (`--resume-unverified` ·
-/// attested on the run's boot manifest, never a silent default); a
-/// chainless trace (a stream capture · a pre-0.96 journal) proceeds
-/// under the compat, ATTESTED the same (`resume_unverified: unchained`)
-/// so the strip-the-chain forgery never launders silently. The
+/// amendment · 2026-08-08): the tamper-evidence chain is verified BEFORE
+/// anything is folded — the forgery class refuses (FILE, one voice with
+/// `trace verify`), rides the NAMED `--resume-unverified` opt-out, or
+/// proceeds under the chainless compat — both attested on the boot
+/// manifest (`resume_unverified`), never a silent default. The
 /// cross-version judgment follows: a resume under an engine different
 /// from the recording one is an explicit refusal naming both versions —
 /// or rides a declared compat (`--resume-compat`). Honest degradation
@@ -220,10 +209,8 @@ fn load_resume_plan(
 
 /// The ADR-099 trust gate — the chain verdict BEFORE the fold (the same
 /// walk `nika trace verify` runs), mapped to the run's exit classes and
-/// the boot-manifest attestation. `Ok(None)` = the chain verified, no
-/// claim journaled; `Ok(Some(_))` = the run proceeds WITHOUT a verified
-/// chain and the manifest says so; `Err` = the tamper class, refused
-/// (the FILE class, one voice with `trace verify`).
+/// the boot-manifest attestation (`Ok(None)` = verified · `Ok(Some(_))`
+/// = proceeding WITHOUT a verified chain, attested · `Err` = refused).
 fn gate_trust(
     raw: &str,
     label: &str,
@@ -234,11 +221,9 @@ fn gate_trust(
     match nika_dap::resume::judge_trust(raw) {
         TrustVerdict::Verified => Ok(None),
         // The chainless capture (`--json > t.ndjson` · a pre-0.96
-        // journal): nothing to verify — the compat proceeds, but it is
-        // SAID on stderr AND attested on the boot manifest. The
-        // strip-the-chain forgery (tamper, then delete every `chain`
-        // field) converts the walker's Broken into Unchained — it lands
-        // here, and it never launders silently.
+        // journal): the compat proceeds, SAID on stderr AND attested —
+        // the strip-the-chain forgery (delete every `chain` field) lands
+        // exactly here, and it never launders silently.
         TrustVerdict::Unverifiable => {
             eprintln!(
                 "nika run: --resume: {label} carries no tamper-evidence chain (a stream \

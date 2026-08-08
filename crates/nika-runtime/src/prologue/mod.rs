@@ -109,6 +109,23 @@ pub(crate) fn nep_0014_fields(
     fields
 }
 
+/// ADR-099 trust amendment (2026-08-08) · every resume that proceeded
+/// WITHOUT a verified chain attests it: the posture (`declared` — the
+/// operator named `--resume-unverified` past a finding · `unchained` —
+/// the chainless-capture compat the strip-the-chain forgery lands in) +
+/// the finding. Absent when the chain verified: no claim, never a flag
+/// echo (the journal says what HAPPENED, not what was asked).
+pub(crate) fn trust_amendment_fields(
+    unverified: Option<&crate::resume::ResumeUnverified>,
+) -> Vec<(&'static str, FieldValue)> {
+    let mut fields = Vec::new();
+    if let Some(unverified) = unverified {
+        fields.push(("resume_unverified", s(unverified.posture())));
+        fields.push(("resume_unverified_finding", s(unverified.finding())));
+    }
+    fields
+}
+
 /// The spec commit this engine's conformance is proven at (F-P2 · the
 /// boot manifest's `spec_pin`) — the workspace-root `SPEC_PIN` file,
 /// baked in at compile time (the `engine_version`/`platform` idiom:
@@ -209,13 +226,10 @@ pub(crate) fn emit_prologue(
     if let Some(hex) = source_sha256_lf {
         opening.push(("workflow_sha256_lf", s(hex)));
     }
-    // The evidence-pack fields (A5): the journal must let an auditor read
-    // the run's identity + boundary + confinement from the journal's OWN
-    // bytes — a claim the pack cannot trace to journal bytes is marketing.
-    // All three are deterministic projections of what the run already knew
-    // (no clock, no I/O), and additive: older readers ignore unknown fields
-    // (tolerant serde), newer readers find them absent on older journals
-    // and say "unrecorded", never a guess.
+    // The evidence-pack fields (A5): the journal carries the run's
+    // identity + boundary + confinement in its OWN bytes — all three are
+    // deterministic projections (no clock, no I/O) and additive (older
+    // readers ignore them, newer readers say "unrecorded", never guess).
     if let Some(hash) = crate::proof::ir::semantic_ir_hash(wf) {
         opening.push(("semantic_hash", s(hash.as_hex())));
     }
@@ -229,18 +243,9 @@ pub(crate) fn emit_prologue(
     }
     // F-P13 + F-P21 · the NEP-0014 attestation fields (own helper).
     opening.extend(nep_0014_fields(input_origins, resume_compat));
-    // ADR-099 trust amendment (2026-08-08) · every resume that proceeded
-    // WITHOUT a verified chain attests it: the posture (`declared` — the
-    // operator named `--resume-unverified` past a finding · `unchained` —
-    // the trace carried no chain at all, the chainless-capture compat the
-    // strip-the-chain forgery lands in) + the finding. A laundered trace
-    // can never claim a clean ancestry silently. Absent when the chain
-    // verified: no claim, never a flag echo (the journal says what
-    // HAPPENED, not what was asked).
-    if let Some(unverified) = resume_unverified {
-        opening.push(("resume_unverified", s(unverified.posture())));
-        opening.push(("resume_unverified_finding", s(unverified.finding())));
-    }
+    // ADR-099 trust amendment (2026-08-08) · the unverified-trust
+    // attestation (own helper).
+    opening.extend(trust_amendment_fields(resume_unverified));
     // The trace-format marker (spec 13 §trace · the graph_format: 2
     // precedent): format-2 lines carry `outcome: {class, cause}` on
     // every terminal task event, so the run's opening frame — the
@@ -250,11 +255,8 @@ pub(crate) fn emit_prologue(
         "trace_format",
         i(i64::from(nika_types::TraceFormatVersion::CURRENT.version)),
     ));
-    // Environment attestation (Q11): reproducing a failure needs to know
-    // WHICH engine on WHICH platform wrote the journal. Compile-time
-    // constants only — the workspace releases in lockstep, so the
-    // runtime crate's version IS the engine version; no clock, no I/O,
-    // determinism intact.
+    // Environment attestation (Q11): WHICH engine on WHICH platform —
+    // compile-time constants only; no clock, no I/O, determinism intact.
     opening.push(("engine_version", s(env!("CARGO_PKG_VERSION"))));
     let platform = format!("{}/{}", std::env::consts::OS, std::env::consts::ARCH);
     opening.push(("platform", s(&platform)));

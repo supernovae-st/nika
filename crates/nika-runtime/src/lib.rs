@@ -305,10 +305,9 @@ pub struct Runtime<S, T, H, P, D, C> {
     /// `None` = no crossing declared (an exact resume · a fresh run).
     resume_compat: Option<String>,
     /// ADR-099 trust amendment (2026-08-08) — the resume's trust posture
-    /// when the chain precondition did NOT hold (the declared opt-out ·
-    /// the chainless-capture compat), attested on the boot manifest
-    /// (`resume_unverified: <posture>` + the finding). `None` = the
-    /// resume's chain verified (or no resume at all).
+    /// when the chain precondition did NOT hold, attested on the boot
+    /// manifest (`resume_unverified: <posture>` + the finding). `None` =
+    /// the resume's chain verified (or no resume at all).
     resume_unverified: Option<resume::ResumeUnverified>,
 }
 
@@ -481,17 +480,11 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
     }
 
     /// Stamp the resume's unverified-trust attestation (ADR-099 trust
-    /// amendment · 2026-08-08): the composer judged the trace's chain
-    /// BEFORE the fold and the run proceeded WITHOUT a verified chain —
-    /// the operator named `--resume-unverified` past a finding
-    /// ([`resume::ResumeUnverified::Declared`]), or the trace carried no
-    /// chain at all ([`resume::ResumeUnverified::Unchained`] · the
-    /// chainless-capture compat). The boot manifest journals the posture
-    /// and the finding, so a laundered trace can never claim a clean
-    /// ancestry silently — and the strip-the-chain forgery (tamper, then
-    /// delete every `chain` field) cannot convert a refusal into a
-    /// silent proceed. Builder form — `None` (the chain verified · no
-    /// resume) journals no claim.
+    /// amendment · 2026-08-08): the run proceeded WITHOUT a verified
+    /// chain — the declared opt-out past a finding, or the chainless
+    /// compat — and the boot manifest journals the posture and the
+    /// finding, so no unverified ancestor launders silently. `None` (the
+    /// chain verified · no resume) journals no claim.
     #[must_use]
     pub fn with_resume_unverified(mut self, unverified: Option<resume::ResumeUnverified>) -> Self {
         self.resume_unverified = unverified;

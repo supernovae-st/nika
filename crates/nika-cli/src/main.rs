@@ -452,12 +452,10 @@ struct RunArgs {
     #[arg(long, value_name = "VERSION", requires = "resume")]
     resume_compat: Option<String>,
     /// Trust a `--resume` trace whose tamper-evidence chain FAILS the
-    /// walk (ADR-099 trust amendment): the named opt-out of the chain
-    /// precondition, for a trace the operator edited or truncated by
-    /// hand. The walk's finding is journaled on the run's boot manifest
-    /// (`resume_unverified: declared`) — never a silent default.
-    /// Consumed only when the chain verdict objects; a verified trace
-    /// journals no claim.
+    /// walk (ADR-099 trust amendment): the named opt-out, for a trace the
+    /// operator edited or truncated by hand. The finding is journaled on
+    /// the boot manifest (`resume_unverified: declared`) — never a silent
+    /// default; a verified trace journals no claim.
     #[arg(long, requires = "resume")]
     resume_unverified: bool,
     /// Force this task AND its transitive downstream to re-run even on an

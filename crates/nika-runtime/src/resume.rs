@@ -72,21 +72,19 @@ pub mod fields {
 
 /// The resume's chain-trust posture when the run proceeded WITHOUT a
 /// verified chain (ADR-099 trust amendment · 2026-08-08) — attested on
-/// the run's boot manifest as `resume_unverified: <posture>` +
-/// `resume_unverified_finding: <finding>`, so no resume can launder an
-/// unverified ancestor into a journal that silently claims a clean one.
+/// the boot manifest as `resume_unverified: <posture>` +
+/// `resume_unverified_finding`, so no unverified ancestor launders
+/// silently into a journal claiming a clean one.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ResumeUnverified {
     /// The operator named `--resume-unverified` past a BROKEN chain —
     /// the finding carries the walk's one-line evidence (sanitized).
     Declared(String),
-    /// The trace carries NO tamper-evidence chain (a `--json` stream
-    /// capture · a pre-0.96 journal): nothing to verify, and the run
-    /// proceeds under the chainless-capture compat — attested all the
-    /// same. The strip-the-chain forgery (tamper, then delete every
-    /// `chain` field so the walker reads `Unchained` instead of
-    /// `Broken`) lands exactly here; it must not ride in silence.
+    /// The trace carries NO chain (a `--json` stream capture · a
+    /// pre-0.96 journal): the chainless-capture compat — and the
+    /// strip-the-chain forgery (delete every `chain` field) lands
+    /// exactly here; attested, never silent.
     Unchained(String),
 }
 

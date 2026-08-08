@@ -728,12 +728,9 @@ fn composed_runtime(
                 .with_input_origins(origins)
                 .with_max_cost_usd(max_cost_usd)
                 // ADR-099 rider — ALWAYS armed: a blocked `nika:prompt`
-                // pauses durably on EVERY lane; the epilogue speaks the
-                // pause per surface (json envelope · headless resume line
-                // · TTY ask). The old `json || output_json` proxy left a
-                // headless TEXT run dying NIKA-BUILTIN-PROMPT-001 at its
-                // own gate — the ADR's own words ("under a non-interactive
-                // surface") never meant "only when an output flag says so".
+                // pauses durably on EVERY lane; the old `json ||
+                // output_json` proxy left a headless TEXT run dying at
+                // its own gate.
                 .with_prompt_pause(true)
                 .with_prompt_answers(answers)
                 // F-P4 · the folded resume authority (NEP-0013) — the
@@ -742,18 +739,15 @@ fn composed_runtime(
                 // F-P21 · the declared cross-version compat (NEP-0014
                 // law 4) — attested on the boot manifest.
                 .with_resume_compat(compat)
-                // ADR-099 trust amendment · the `--resume-unverified`
-                // opt-out, attested the same way (a laundered trace can
-                // never claim a clean ancestry silently).
+                // ADR-099 trust amendment · the unverified-trust
+                // posture, attested on the boot manifest.
                 .with_resume_unverified(unverified)
                 // #473 · composer-resolved SKILL.md texts (`## Skills`
                 // injection + the referencing tasks' resume identity).
                 .with_skills(skills)
                 // Spec 14 law 10 (def_hash tier) · the child closure
-                // digests join the calling tasks' resume identity — an
-                // edited child (or grandchild) re-runs the call instead
-                // of serving the old child's cached output (ADR-099
-                // trap 6 across the file boundary).
+                // digests join the caller's resume identity — an edited
+                // child re-runs instead of serving the old cached output.
                 .with_child_closures(child_runner::closure_digests(
                     wf,
                     std::path::Path::new(file),
