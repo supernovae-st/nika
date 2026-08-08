@@ -13,7 +13,7 @@
 use std::collections::BTreeMap;
 
 use nika_dap::resume::ResumeRequest;
-use nika_runtime::resume::ResumePlan;
+use nika_runtime::resume::{ResumePlan, ResumeUnverified};
 use nika_schema::raw::RawWorkflow;
 use serde_json::Value;
 
@@ -34,12 +34,13 @@ pub(super) struct ResumeSetup {
     /// version the operator allowed the crossing from (`Some` only when
     /// a cross-version resume proceeds under `--resume-compat`).
     pub compat: Option<String>,
-    /// The ADR-099 trust amendment attestation (2026-08-08) — the chain
-    /// finding the operator resumed PAST under `--resume-unverified`
-    /// (`Some` only then), journaled on the run's boot manifest so a
-    /// trace that failed verification can never launder into one that
-    /// silently passed. `None` = the chain verified (or no resume).
-    pub unverified: Option<String>,
+    /// The ADR-099 trust amendment attestation (2026-08-08) — the
+    /// resume's trust posture when the chain precondition did NOT hold
+    /// (the declared `--resume-unverified` opt-out · the chainless
+    /// compat), journaled on the run's boot manifest so a trace that
+    /// failed — or carried no — verification can never launder into one
+    /// that silently passed. `None` = the chain verified (or no resume).
+    pub unverified: Option<ResumeUnverified>,
 }
 
 /// The folded parts of one `--resume <trace>` (the skip plan · the F-P4
@@ -53,9 +54,11 @@ struct LoadedResume {
     paused: Option<nika_runtime::approval::PausedApproval>,
     /// The F-P21 declared compat (`Some` on a discharged crossing).
     compat: Option<String>,
-    /// The trust-amendment attestation (`Some` on a `--resume-unverified`
-    /// proceed — the finding to journal).
-    unverified: Option<String>,
+    /// The trust-amendment attestation (`Some` when the run proceeds
+    /// WITHOUT a verified chain — the declared opt-out past a finding,
+    /// or the chainless-capture compat — the posture + finding to
+    /// journal).
+    unverified: Option<ResumeUnverified>,
 }
 
 /// Validate + fold the whole `--resume` surface (plan · `--from` ·
@@ -121,7 +124,10 @@ pub(super) fn resume_setup(
 /// tamper-evidence chain is verified BEFORE anything is folded — the
 /// forgery class refuses (the FILE class, one voice with `trace
 /// verify`), or rides the NAMED opt-out (`--resume-unverified` ·
-/// attested on the run's boot manifest, never a silent default). The
+/// attested on the run's boot manifest, never a silent default); a
+/// chainless trace (a stream capture · a pre-0.96 journal) proceeds
+/// under the compat, ATTESTED the same (`resume_unverified: unchained`)
+/// so the strip-the-chain forgery never launders silently. The
 /// cross-version judgment follows: a resume under an engine different
 /// from the recording one is an explicit refusal naming both versions —
 /// or rides a declared compat (`--resume-compat`). Honest degradation
@@ -149,52 +155,9 @@ fn load_resume_plan(
     };
     let raw = std::fs::read_to_string(trace)
         .map_err(|e| refuse(format!("--resume: cannot read {label}: {e}")))?;
-    // ADR-099 trust amendment — the chain verdict BEFORE the fold. A
-    // crash leaves a torn tail (trusted — the resume use case); an
-    // edited, inserted, dropped or reordered line refuses by default.
-    let unverified = match nika_dap::resume::judge_trust(&raw) {
-        nika_dap::resume::TrustVerdict::Verified => None,
-        // The chainless capture (`--json > t.ndjson` · a pre-0.96
-        // journal): nothing to verify — trusted, but SAID (the silence
-        // class closes completely: every resume's trust posture speaks).
-        nika_dap::resume::TrustVerdict::Unverifiable => {
-            eprintln!(
-                "nika run: --resume: {label} carries no tamper-evidence chain (a stream \
-                 capture or a pre-0.96 journal) — the records are trusted WITHOUT \
-                 verification"
-            );
-            None
-        }
-        nika_dap::resume::TrustVerdict::Tampered { finding } => {
-            if req.allow_unverified {
-                eprintln!(
-                    "nika run: --resume: {finding} — proceeding under --resume-unverified: \
-                     the records are trusted WITHOUT chain verification (attested on the \
-                     run's boot manifest)"
-                );
-                Some(finding)
-            } else {
-                let message = format!(
-                    "--resume: {finding}\n  a resume trusts the trace's recorded successes — \
-                     the chain verdict is the resume's precondition (ADR-099)\n  verify: \
-                     nika trace verify {label} · or re-run fresh · or resume under \
-                     --resume-unverified (attested on the run's boot manifest)"
-                );
-                eprintln!("nika run: {message}");
-                epilogue::emit_error_envelope(&message, output_json);
-                return Err(exit::FILE);
-            }
-        }
-        // TrustVerdict is #[non_exhaustive]: a class newer than this CLI
-        // refuses — fail closed, never a guessed trust (the `trace
-        // verify` unknown-verdict posture).
-        _ => {
-            return Err(refuse(format!(
-                "--resume: {label}: unknown chain verdict class — the forensics library is \
-                 newer than this CLI"
-            )));
-        }
-    };
+    // ADR-099 trust amendment — the chain verdict BEFORE the fold (own
+    // fn: the 100-line wall, and the judgment belongs to itself).
+    let unverified = gate_trust(&raw, &label, req.allow_unverified, output_json)?;
     let recovered =
         recover_events(&raw, &label).map_err(|message| refuse(format!("--resume: {message}")))?;
     if let Some(note) = &recovered.truncated_note {
@@ -253,6 +216,74 @@ fn load_resume_plan(
         compat,
         unverified,
     })
+}
+
+/// The ADR-099 trust gate — the chain verdict BEFORE the fold (the same
+/// walk `nika trace verify` runs), mapped to the run's exit classes and
+/// the boot-manifest attestation. `Ok(None)` = the chain verified, no
+/// claim journaled; `Ok(Some(_))` = the run proceeds WITHOUT a verified
+/// chain and the manifest says so; `Err` = the tamper class, refused
+/// (the FILE class, one voice with `trace verify`).
+fn gate_trust(
+    raw: &str,
+    label: &str,
+    allow_unverified: bool,
+    output_json: bool,
+) -> Result<Option<ResumeUnverified>, u8> {
+    use nika_dap::resume::TrustVerdict;
+    match nika_dap::resume::judge_trust(raw) {
+        TrustVerdict::Verified => Ok(None),
+        // The chainless capture (`--json > t.ndjson` · a pre-0.96
+        // journal): nothing to verify — the compat proceeds, but it is
+        // SAID on stderr AND attested on the boot manifest. The
+        // strip-the-chain forgery (tamper, then delete every `chain`
+        // field) converts the walker's Broken into Unchained — it lands
+        // here, and it never launders silently.
+        TrustVerdict::Unverifiable => {
+            eprintln!(
+                "nika run: --resume: {label} carries no tamper-evidence chain (a stream \
+                 capture or a pre-0.96 journal) — the records are trusted WITHOUT \
+                 verification (attested on the run's boot manifest)"
+            );
+            Ok(Some(ResumeUnverified::Unchained(
+                "the trace carries no tamper-evidence chain (a stream capture or a pre-0.96 \
+                 journal) — the records were trusted without verification"
+                    .to_owned(),
+            )))
+        }
+        TrustVerdict::Tampered { finding } => {
+            if allow_unverified {
+                eprintln!(
+                    "nika run: --resume: {finding} — proceeding under --resume-unverified: \
+                     the records are trusted WITHOUT chain verification (attested on the \
+                     run's boot manifest)"
+                );
+                Ok(Some(ResumeUnverified::Declared(finding)))
+            } else {
+                let message = format!(
+                    "--resume: {finding}\n  a resume trusts the trace's recorded successes — \
+                     the chain verdict is the resume's precondition (ADR-099)\n  verify: \
+                     nika trace verify {label} · or re-run fresh · or resume under \
+                     --resume-unverified (attested on the run's boot manifest)"
+                );
+                eprintln!("nika run: {message}");
+                epilogue::emit_error_envelope(&message, output_json);
+                Err(exit::FILE)
+            }
+        }
+        // TrustVerdict is #[non_exhaustive]: a class newer than this CLI
+        // refuses — fail closed, never a guessed trust (the `trace
+        // verify` unknown-verdict posture).
+        _ => {
+            let message = format!(
+                "--resume: {label}: unknown chain verdict class — the forensics library is \
+                 newer than this CLI"
+            );
+            eprintln!("nika run: {message}");
+            epilogue::emit_error_envelope(&message, output_json);
+            Err(exit::ENV)
+        }
+    }
 }
 
 /// The two judgments about WHICH SEAT the resumed legs will run on —

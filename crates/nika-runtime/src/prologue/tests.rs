@@ -36,7 +36,7 @@ fn started_fields_full(
     sandbox: Option<&str>,
     origins: &BTreeMap<String, InputOrigin>,
     resume_compat: Option<&str>,
-    resume_unverified: Option<&str>,
+    resume_unverified: Option<&crate::resume::ResumeUnverified>,
     max_cost_usd: Option<f64>,
     model_override: Option<&str>,
 ) -> Vec<(String, String)> {
@@ -195,7 +195,10 @@ fn prologue_attests_the_resume_unverified_opt_out() {
         None,
         &BTreeMap::new(),
         None,
-        Some("chain BROKEN at line 31 — recorded 856411a17a21b83f · computed 82585b166114d2f2"),
+        Some(&crate::resume::ResumeUnverified::Declared(
+            "chain BROKEN at line 31 — recorded 856411a17a21b83f · computed 82585b166114d2f2"
+                .to_owned(),
+        )),
         None,
         None,
     );
@@ -209,6 +212,36 @@ fn prologue_attests_the_resume_unverified_opt_out() {
     let clean = started_fields(yaml, None);
     assert_eq!(get(&clean, "resume_unverified"), None);
     assert_eq!(get(&clean, "resume_unverified_finding"), None);
+}
+
+/// ADR-099 trust amendment, the strip-attack arm — a resume over a
+/// CHAINLESS trace (a `--json` stream capture · a pre-0.96 journal · a
+/// forgery whose `chain` fields were deleted to convert the walker's
+/// `Broken` into `Unchained`) proceeds under the chainless-capture
+/// compat, and the boot manifest ATTESTS it (`unchained` + the reason).
+/// The posture token is NOT `declared`: no opt-out flag was named, and
+/// the journal never claims one.
+#[test]
+fn prologue_attests_the_unchained_resume_compat() {
+    let yaml =
+        "nika: v1\nworkflow:\n  id: pay\ntasks:\n  t:\n    exec: { command: [\"echo\", \"x\"] }\n";
+    let fields = started_fields_full(
+        yaml,
+        None,
+        &BTreeMap::new(),
+        None,
+        Some(&crate::resume::ResumeUnverified::Unchained(
+            "the trace carries no tamper-evidence chain".to_owned(),
+        )),
+        None,
+        None,
+    );
+    assert_eq!(get(&fields, "resume_unverified"), Some("unchained"));
+    assert!(
+        get(&fields, "resume_unverified_finding")
+            .is_some_and(|f| f.contains("no tamper-evidence chain")),
+        "the reason rides: {fields:?}"
+    );
 }
 
 /// F-P18 (NEP-0017 · la table de prix DANS le pin) — the boot manifest

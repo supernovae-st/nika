@@ -65,11 +65,15 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   run's boot manifest journals `resume_unverified: declared` +
   `resume_unverified_finding`, so a laundered trace can never claim a
   clean ancestry silently. A chainless journal (a `--json` stream
-  capture · a pre-0.96 journal) still resumes — with a printed notice
-  that the records are trusted without verification. Proven red-first at
-  the binary plane: the forgery refused by default · the opt-out
-  attested on the child journal · the intact control journaling no
-  claim.
+  capture · a pre-0.96 journal) still resumes under the compat — said
+  on stderr AND attested on the boot manifest (`resume_unverified:
+  unchained` + the reason), so the strip-the-chain forgery (tamper,
+  then delete every `chain` field to turn the walker's `Broken` into
+  `Unchained`) never converts the refusal into a SILENT proceed.
+  Proven red-first at the binary plane: the forgery refused by default
+  (and no new journal descending from it) · the opt-out attested on the
+  child journal · the stripped forgery attested `unchained` · the
+  intact control journaling no claim.
 
 ## [0.108.0](https://github.com/supernovae-st/nika/compare/v0.107.2..v0.108.0) - 2026-08-05
 

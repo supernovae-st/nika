@@ -190,7 +190,7 @@ pub(crate) fn emit_prologue(
     sandbox_backend: Option<&str>,
     input_origins: &BTreeMap<String, InputOrigin>,
     resume_compat: Option<&str>,
-    resume_unverified: Option<&str>,
+    resume_unverified: Option<&crate::resume::ResumeUnverified>,
     max_cost_usd: Option<f64>,
     model_override: Option<&str>,
     access: Vec<(&'static str, FieldValue)>,
@@ -229,15 +229,17 @@ pub(crate) fn emit_prologue(
     }
     // F-P13 + F-P21 · the NEP-0014 attestation fields (own helper).
     opening.extend(nep_0014_fields(input_origins, resume_compat));
-    // ADR-099 trust amendment (2026-08-08) · the named opt-out,
-    // attested: a resume that proceeded PAST a chain finding journals
-    // the declaration + the walk's finding — a laundered trace can
-    // never claim a clean ancestry silently. Absent when the chain
+    // ADR-099 trust amendment (2026-08-08) · every resume that proceeded
+    // WITHOUT a verified chain attests it: the posture (`declared` — the
+    // operator named `--resume-unverified` past a finding · `unchained` —
+    // the trace carried no chain at all, the chainless-capture compat the
+    // strip-the-chain forgery lands in) + the finding. A laundered trace
+    // can never claim a clean ancestry silently. Absent when the chain
     // verified: no claim, never a flag echo (the journal says what
     // HAPPENED, not what was asked).
-    if let Some(finding) = resume_unverified {
-        opening.push(("resume_unverified", s("declared")));
-        opening.push(("resume_unverified_finding", s(finding)));
+    if let Some(unverified) = resume_unverified {
+        opening.push(("resume_unverified", s(unverified.posture())));
+        opening.push(("resume_unverified_finding", s(unverified.finding())));
     }
     // The trace-format marker (spec 13 §trace · the graph_format: 2
     // precedent): format-2 lines carry `outcome: {class, cause}` on

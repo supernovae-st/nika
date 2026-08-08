@@ -172,7 +172,14 @@ The law, enforced by the reference engine:
   when the walk objects; a verified trace journals no claim.
 - A chainless journal (a `--json` stream capture · a pre-0.96 journal)
   carries nothing to verify: the resume proceeds with a printed notice
-  — trusted WITHOUT verification, said, never silent.
+  — trusted WITHOUT verification, said, never silent — AND attested on
+  the new run's boot manifest (`resume_unverified: unchained` + the
+  reason). The strip-the-chain forgery (tamper, then delete every
+  `chain` field) converts the walker's `Broken` into `Unchained` and
+  lands exactly here: it cannot convert the refusal into a SILENT
+  proceed. Named residual: a chainless trace is still TRUSTED under
+  this compat — chaining the `--json` stream (the sink writes no
+  `chain` today) is the follow-on that retires the class.
 
 ### Rider — the durable human gate (`nika:prompt` pause)
 

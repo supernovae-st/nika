@@ -304,11 +304,12 @@ pub struct Runtime<S, T, H, P, D, C> {
     /// cross from (`--resume-compat`), attested on the boot manifest.
     /// `None` = no crossing declared (an exact resume · a fresh run).
     resume_compat: Option<String>,
-    /// ADR-099 trust amendment (2026-08-08) — the chain finding the
-    /// operator resumed PAST under `--resume-unverified`, attested on
-    /// the boot manifest (`resume_unverified: declared` + the finding).
-    /// `None` = the resume's chain verified (or no resume at all).
-    resume_unverified: Option<String>,
+    /// ADR-099 trust amendment (2026-08-08) — the resume's trust posture
+    /// when the chain precondition did NOT hold (the declared opt-out ·
+    /// the chainless-capture compat), attested on the boot manifest
+    /// (`resume_unverified: <posture>` + the finding). `None` = the
+    /// resume's chain verified (or no resume at all).
+    resume_unverified: Option<resume::ResumeUnverified>,
 }
 
 /// One wave's read-only value scope — (`vars` · `env` · `secrets` ·
@@ -479,15 +480,20 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
         self
     }
 
-    /// Stamp the `--resume-unverified` attestation (ADR-099 trust
-    /// amendment · 2026-08-08): the composer verified the trace's chain
-    /// BEFORE the fold and the operator resumed PAST this finding — the
-    /// boot manifest journals `resume_unverified: declared` + the walk's
-    /// finding, so a trace that failed verification can never launder
-    /// into a fresh one that silently passes. Builder form — `None`
-    /// (the chain verified · no resume) journals no claim.
+    /// Stamp the resume's unverified-trust attestation (ADR-099 trust
+    /// amendment · 2026-08-08): the composer judged the trace's chain
+    /// BEFORE the fold and the run proceeded WITHOUT a verified chain —
+    /// the operator named `--resume-unverified` past a finding
+    /// ([`resume::ResumeUnverified::Declared`]), or the trace carried no
+    /// chain at all ([`resume::ResumeUnverified::Unchained`] · the
+    /// chainless-capture compat). The boot manifest journals the posture
+    /// and the finding, so a laundered trace can never claim a clean
+    /// ancestry silently — and the strip-the-chain forgery (tamper, then
+    /// delete every `chain` field) cannot convert a refusal into a
+    /// silent proceed. Builder form — `None` (the chain verified · no
+    /// resume) journals no claim.
     #[must_use]
-    pub fn with_resume_unverified(mut self, unverified: Option<String>) -> Self {
+    pub fn with_resume_unverified(mut self, unverified: Option<resume::ResumeUnverified>) -> Self {
         self.resume_unverified = unverified;
         self
     }
@@ -721,7 +727,7 @@ where
             self.config.sandbox_backend.as_deref(),
             &self.input_origins,
             self.resume_compat.as_deref(),
-            self.resume_unverified.as_deref(),
+            self.resume_unverified.as_ref(),
             self.config.max_cost_usd,
             self.model_override.as_deref(),
             self.boot_access_fields.clone(),

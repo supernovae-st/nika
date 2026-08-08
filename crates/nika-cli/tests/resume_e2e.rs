@@ -1158,6 +1158,7 @@ fn a_tampered_trace_is_refused_naming_the_opt_out() {
         .expect("binary runs");
     assert_eq!(verified.status.code(), Some(2), "the forgery is detected");
 
+    let journals_before = trace_count(&wf);
     let refused = bin()
         .args([
             "run",
@@ -1188,6 +1189,91 @@ fn a_tampered_trace_is_refused_naming_the_opt_out() {
         refused.stdout.is_empty(),
         "a refused resume never starts:\n{}",
         String::from_utf8_lossy(&refused.stdout)
+    );
+    assert_eq!(
+        trace_count(&wf),
+        journals_before,
+        "no new journal descends from a broken ancestor (the laundering plane)"
+    );
+}
+
+/// The journals a run dir holds (`.nika/traces/*.ndjson`) — the
+/// laundering plane: a refused resume must leave the count untouched.
+fn trace_count(wf: &std::path::Path) -> usize {
+    std::fs::read_dir(wf.parent().expect("a dir").join(".nika").join("traces"))
+        .expect("trace dir")
+        .count()
+}
+
+/// The STRIP attack: tamper, then delete every `chain` field — the
+/// walker's `Broken` (refusal) becomes `Unchained` (the chainless
+/// compat, indistinguishable-by-shape from an honest `--json` capture).
+/// The compat proceeds — and the NEW journal ATTESTS the unverified
+/// ancestry (`unchained`, never `declared`: no opt-out was named), so
+/// one resume cannot launder a forged journal into a clean one silently.
+#[test]
+fn a_stripped_trace_proceeds_but_attests_the_unchained_trust() {
+    let (wf, _journal, tampered) = staged_tampered_trace("strip");
+    let raw = std::fs::read_to_string(&tampered).expect("tampered reads");
+    let stripped = raw
+        .lines()
+        .map(|line| {
+            let mut v: serde_json::Value = serde_json::from_str(line).expect("one JSON event");
+            v.as_object_mut().expect("an object").remove("chain");
+            serde_json::to_string(&v).expect("re-serialized")
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    let stripped_path = wf.with_file_name("stripped.ndjson");
+    std::fs::write(&stripped_path, format!("{stripped}\n")).expect("stripped written");
+
+    // The detector now reads the compat class, not the tamper class —
+    // the strip is exactly why the attestation below must exist.
+    let verified = bin()
+        .args(["trace", "verify", &stripped_path.to_string_lossy()])
+        .output()
+        .expect("binary runs");
+    assert_eq!(
+        verified.status.code(),
+        Some(3),
+        "a stripped journal reads unchained (the ENV class)"
+    );
+
+    let resumed = bin()
+        .args([
+            "run",
+            &wf.to_string_lossy(),
+            "--resume",
+            &stripped_path.to_string_lossy(),
+            "--json",
+            "--color",
+            "never",
+        ])
+        .output()
+        .expect("binary runs");
+    let stdout = String::from_utf8(resumed.stdout).expect("utf8");
+    let stderr = String::from_utf8(resumed.stderr).expect("utf8");
+    assert_eq!(
+        resumed.status.code(),
+        Some(0),
+        "the chainless compat proceeds: {stderr}"
+    );
+    assert!(
+        stderr.contains("trusted WITHOUT verification"),
+        "said on stderr: {stderr}"
+    );
+    let started = stdout
+        .lines()
+        .find(|l| l.contains("\"kind\":\"workflow_started\""))
+        .expect("the new run's started frame");
+    assert_eq!(
+        field_str(started, "resume_unverified"),
+        "unchained",
+        "attested as the chainless compat — never `declared` (no opt-out was named): {started}"
+    );
+    assert!(
+        field_str(started, "resume_unverified_finding").contains("no tamper-evidence chain"),
+        "the reason rides the new journal: {started}"
     );
 }
 
