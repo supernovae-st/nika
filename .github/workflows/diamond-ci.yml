@@ -73,7 +73,7 @@ jobs:
           shared-key: diamond
       - name: Install cargo-nextest (tests leg)
         if: matrix.job == 'tests'
-        uses: taiki-e/install-action@065d6a08a14e61e89fb0a4c10eecdbdef39c7d8e # v2
+        uses: taiki-e/install-action@cb33e69fad06166ca28a42b2575e4dadabf62ee8 # v2
         with:
           tool: cargo-nextest
       - name: Install bubblewrap (tests leg · forces the landlock jail proof to RUN not skip)
@@ -125,7 +125,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
         with:
           toolchain: stable
-      - uses: taiki-e/install-action@065d6a08a14e61e89fb0a4c10eecdbdef39c7d8e # cargo-deny
+      - uses: taiki-e/install-action@cb33e69fad06166ca28a42b2575e4dadabf62ee8 # cargo-deny
         with:
           tool: cargo-deny
       - run: cargo deny --all-features check
@@ -148,7 +148,7 @@ jobs:
       - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
         with:
           shared-key: diamond
-      - uses: taiki-e/install-action@065d6a08a14e61e89fb0a4c10eecdbdef39c7d8e # cargo-hack
+      - uses: taiki-e/install-action@cb33e69fad06166ca28a42b2575e4dadabf62ee8 # cargo-hack
         with:
           tool: cargo-hack
       - name: check feature powerset (no dev deps)
@@ -206,7 +206,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: taiki-e/install-action@065d6a08a14e61e89fb0a4c10eecdbdef39c7d8e # cargo-machete
+      - uses: taiki-e/install-action@cb33e69fad06166ca28a42b2575e4dadabf62ee8 # cargo-machete
         with:
           tool: cargo-machete
       - name: check for unused dependencies
@@ -239,7 +239,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: crate-ci/typos@26e1ab0f398ee2139416a695ba2f7497533e6909 # master
+      - uses: crate-ci/typos@5e38bf262baaf477ca9f241b3a7cd3d277fd7df8 # master
 
   # The declared rust-version is a public contract (consumers pin against
   # it), so it gets its own named gate: the workspace must build with
