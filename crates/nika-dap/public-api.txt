@@ -1824,6 +1824,9 @@ impl<T> tracing::instrument::Instrument for nika_dap::memory::MemoryAttend
 impl<T> tracing::instrument::WithSubscriber for nika_dap::memory::MemoryAttend
 impl<T> typenum::type_operators::Same for nika_dap::memory::MemoryAttend
 pub type nika_dap::memory::MemoryAttend::Output = T
+impl<T> zvariant::optional::NoneValue for nika_dap::memory::MemoryAttend where T: core::default::Default
+pub type nika_dap::memory::MemoryAttend::NoneType = T
+pub fn nika_dap::memory::MemoryAttend::null_value() -> T
 #[non_exhaustive] pub struct nika_dap::memory::RejectedEntry
 pub nika_dap::memory::RejectedEntry::path: std::path::PathBuf
 pub nika_dap::memory::RejectedEntry::reason: alloc::string::String
@@ -2676,6 +2679,9 @@ impl<T> tracing::instrument::Instrument for nika_dap::retention::RetentionConfig
 impl<T> tracing::instrument::WithSubscriber for nika_dap::retention::RetentionConfig
 impl<T> typenum::type_operators::Same for nika_dap::retention::RetentionConfig
 pub type nika_dap::retention::RetentionConfig::Output = T
+impl<T> zvariant::optional::NoneValue for nika_dap::retention::RetentionConfig where T: core::default::Default
+pub type nika_dap::retention::RetentionConfig::NoneType = T
+pub fn nika_dap::retention::RetentionConfig::null_value() -> T
 pub fn nika_dap::retention::collect(dir: &std::path::Path, cfg: &nika_dap::retention::RetentionConfig, now: std::time::SystemTime) -> core::option::Option<nika_dap::retention::GcReport>
 pub fn nika_dap::retention::newest_per_workflow(traces: &[nika_dap::store::TraceMeta]) -> alloc::collections::btree::set::BTreeSet<usize>
 pub fn nika_dap::retention::plan(traces: &[nika_dap::store::TraceMeta], cfg: &nika_dap::retention::RetentionConfig, now: std::time::SystemTime) -> alloc::vec::Vec<(usize, nika_dap::retention::Reason)>
@@ -2732,6 +2738,9 @@ impl<T> tracing::instrument::Instrument for nika_dap::seal::SealTeardown
 impl<T> tracing::instrument::WithSubscriber for nika_dap::seal::SealTeardown
 impl<T> typenum::type_operators::Same for nika_dap::seal::SealTeardown
 pub type nika_dap::seal::SealTeardown::Output = T
+impl<T> zvariant::optional::NoneValue for nika_dap::seal::SealTeardown where T: core::default::Default
+pub type nika_dap::seal::SealTeardown::NoneType = T
+pub fn nika_dap::seal::SealTeardown::null_value() -> T
 pub fn nika_dap::seal::candidate_pubkeys(key_file: core::option::Option<&std::path::Path>) -> core::result::Result<alloc::vec::Vec<(alloc::string::String, alloc::string::String)>, alloc::string::String>
 pub fn nika_dap::seal::fingerprint(pubkey_box: &str) -> alloc::string::String
 pub fn nika_dap::seal::key_init(force: bool) -> core::result::Result<alloc::string::String, alloc::string::String>
