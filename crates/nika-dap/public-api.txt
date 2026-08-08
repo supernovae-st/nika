@@ -1824,9 +1824,6 @@ impl<T> tracing::instrument::Instrument for nika_dap::memory::MemoryAttend
 impl<T> tracing::instrument::WithSubscriber for nika_dap::memory::MemoryAttend
 impl<T> typenum::type_operators::Same for nika_dap::memory::MemoryAttend
 pub type nika_dap::memory::MemoryAttend::Output = T
-impl<T> zvariant::optional::NoneValue for nika_dap::memory::MemoryAttend where T: core::default::Default
-pub type nika_dap::memory::MemoryAttend::NoneType = T
-pub fn nika_dap::memory::MemoryAttend::null_value() -> T
 #[non_exhaustive] pub struct nika_dap::memory::RejectedEntry
 pub nika_dap::memory::RejectedEntry::path: std::path::PathBuf
 pub nika_dap::memory::RejectedEntry::reason: alloc::string::String
@@ -2377,6 +2374,57 @@ impl<T> tracing::instrument::Instrument for nika_dap::resume::ResumeVersion
 impl<T> tracing::instrument::WithSubscriber for nika_dap::resume::ResumeVersion
 impl<T> typenum::type_operators::Same for nika_dap::resume::ResumeVersion
 pub type nika_dap::resume::ResumeVersion::Output = T
+#[non_exhaustive] pub enum nika_dap::resume::TrustVerdict
+pub nika_dap::resume::TrustVerdict::Tampered
+pub nika_dap::resume::TrustVerdict::Tampered::finding: alloc::string::String
+pub nika_dap::resume::TrustVerdict::Unverifiable
+pub nika_dap::resume::TrustVerdict::Verified
+impl core::clone::Clone for nika_dap::resume::TrustVerdict
+pub fn nika_dap::resume::TrustVerdict::clone(&self) -> nika_dap::resume::TrustVerdict
+impl core::cmp::Eq for nika_dap::resume::TrustVerdict
+impl core::cmp::PartialEq for nika_dap::resume::TrustVerdict
+pub fn nika_dap::resume::TrustVerdict::eq(&self, other: &nika_dap::resume::TrustVerdict) -> bool
+impl core::fmt::Debug for nika_dap::resume::TrustVerdict
+pub fn nika_dap::resume::TrustVerdict::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_dap::resume::TrustVerdict
+impl<D> owo_colors::OwoColorize for nika_dap::resume::TrustVerdict
+impl<Q, K> equivalent::Equivalent<K> for nika_dap::resume::TrustVerdict where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::resume::TrustVerdict::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dap::resume::TrustVerdict where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dap::resume::TrustVerdict::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dap::resume::TrustVerdict where U: core::convert::From<T>
+pub fn nika_dap::resume::TrustVerdict::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dap::resume::TrustVerdict where U: core::convert::Into<T>
+pub type nika_dap::resume::TrustVerdict::Error = core::convert::Infallible
+pub fn nika_dap::resume::TrustVerdict::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dap::resume::TrustVerdict where U: core::convert::TryFrom<T>
+pub type nika_dap::resume::TrustVerdict::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dap::resume::TrustVerdict::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dap::resume::TrustVerdict where T: core::clone::Clone
+pub type nika_dap::resume::TrustVerdict::Owned = T
+pub fn nika_dap::resume::TrustVerdict::clone_into(&self, target: &mut T)
+pub fn nika_dap::resume::TrustVerdict::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dap::resume::TrustVerdict where T: 'static + ?core::marker::Sized
+pub fn nika_dap::resume::TrustVerdict::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dap::resume::TrustVerdict where T: ?core::marker::Sized
+pub fn nika_dap::resume::TrustVerdict::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dap::resume::TrustVerdict where T: ?core::marker::Sized
+pub fn nika_dap::resume::TrustVerdict::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dap::resume::TrustVerdict where T: core::clone::Clone
+pub unsafe fn nika_dap::resume::TrustVerdict::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dap::resume::TrustVerdict
+pub fn nika_dap::resume::TrustVerdict::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dap::resume::TrustVerdict where T: core::clone::Clone
+pub fn nika_dap::resume::TrustVerdict::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dap::resume::TrustVerdict where T: 'static
+pub fn nika_dap::resume::TrustVerdict::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_dap::resume::TrustVerdict where T: ?core::marker::Sized
+pub fn nika_dap::resume::TrustVerdict::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_dap::resume::TrustVerdict::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_dap::resume::TrustVerdict
+impl<T> tracing::instrument::WithSubscriber for nika_dap::resume::TrustVerdict
+impl<T> typenum::type_operators::Same for nika_dap::resume::TrustVerdict
+pub type nika_dap::resume::TrustVerdict::Output = T
 #[non_exhaustive] pub struct nika_dap::resume::PlanFold
 pub nika_dap::resume::PlanFold::keyless: usize
 pub nika_dap::resume::PlanFold::paused: core::option::Option<nika_runtime::approval::PausedApproval>
@@ -2409,6 +2457,7 @@ impl<T> tracing::instrument::WithSubscriber for nika_dap::resume::PlanFold
 impl<T> typenum::type_operators::Same for nika_dap::resume::PlanFold
 pub type nika_dap::resume::PlanFold::Output = T
 pub struct nika_dap::resume::ResumeRequest
+pub nika_dap::resume::ResumeRequest::allow_unverified: bool
 pub nika_dap::resume::ResumeRequest::answers: alloc::vec::Vec<alloc::string::String>
 pub nika_dap::resume::ResumeRequest::compat: core::option::Option<alloc::string::String>
 pub nika_dap::resume::ResumeRequest::from: core::option::Option<alloc::string::String>
@@ -2457,6 +2506,7 @@ pub fn nika_dap::resume::compat_discharges(judgment: &nika_dap::resume::ResumeVe
 pub fn nika_dap::resume::fold_plan(events: &[nika_event::event::Event]) -> nika_dap::resume::PlanFold
 pub fn nika_dap::resume::judge_model(recorded: core::option::Option<&str>, declared: core::option::Option<&str>) -> nika_dap::resume::ModelVerdict
 pub fn nika_dap::resume::judge_resume(judgment: &nika_dap::resume::ResumeVersion, compat: core::option::Option<&str>) -> nika_dap::resume::CompatVerdict
+pub fn nika_dap::resume::judge_trust(raw: &str) -> nika_dap::resume::TrustVerdict
 pub fn nika_dap::resume::judge_version(events: &[nika_event::event::Event], current: &str) -> nika_dap::resume::ResumeVersion
 pub fn nika_dap::resume::parse_answers(pairs: &[alloc::string::String], wf: &nika_schema::raw::workflow::RawWorkflow) -> core::result::Result<alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>, alloc::string::String>
 pub fn nika_dap::resume::source_drifted(yaml: &str, events: &[nika_event::event::Event]) -> core::option::Option<bool>
@@ -2626,9 +2676,6 @@ impl<T> tracing::instrument::Instrument for nika_dap::retention::RetentionConfig
 impl<T> tracing::instrument::WithSubscriber for nika_dap::retention::RetentionConfig
 impl<T> typenum::type_operators::Same for nika_dap::retention::RetentionConfig
 pub type nika_dap::retention::RetentionConfig::Output = T
-impl<T> zvariant::optional::NoneValue for nika_dap::retention::RetentionConfig where T: core::default::Default
-pub type nika_dap::retention::RetentionConfig::NoneType = T
-pub fn nika_dap::retention::RetentionConfig::null_value() -> T
 pub fn nika_dap::retention::collect(dir: &std::path::Path, cfg: &nika_dap::retention::RetentionConfig, now: std::time::SystemTime) -> core::option::Option<nika_dap::retention::GcReport>
 pub fn nika_dap::retention::newest_per_workflow(traces: &[nika_dap::store::TraceMeta]) -> alloc::collections::btree::set::BTreeSet<usize>
 pub fn nika_dap::retention::plan(traces: &[nika_dap::store::TraceMeta], cfg: &nika_dap::retention::RetentionConfig, now: std::time::SystemTime) -> alloc::vec::Vec<(usize, nika_dap::retention::Reason)>
@@ -2685,9 +2732,6 @@ impl<T> tracing::instrument::Instrument for nika_dap::seal::SealTeardown
 impl<T> tracing::instrument::WithSubscriber for nika_dap::seal::SealTeardown
 impl<T> typenum::type_operators::Same for nika_dap::seal::SealTeardown
 pub type nika_dap::seal::SealTeardown::Output = T
-impl<T> zvariant::optional::NoneValue for nika_dap::seal::SealTeardown where T: core::default::Default
-pub type nika_dap::seal::SealTeardown::NoneType = T
-pub fn nika_dap::seal::SealTeardown::null_value() -> T
 pub fn nika_dap::seal::candidate_pubkeys(key_file: core::option::Option<&std::path::Path>) -> core::result::Result<alloc::vec::Vec<(alloc::string::String, alloc::string::String)>, alloc::string::String>
 pub fn nika_dap::seal::fingerprint(pubkey_box: &str) -> alloc::string::String
 pub fn nika_dap::seal::key_init(force: bool) -> core::result::Result<alloc::string::String, alloc::string::String>
