@@ -28,9 +28,9 @@ follow_ups: ["Part 2 (input capture + --format dataset) needs an operator go —
 
 Every run writes a hash-chained trace, and `nika trace export` already
 projects it to OTLP/JSON lines (`nika_dap::otel` — the one projection
-module). The competitive read (omnara-steals SOTA sweep, 2026-08-06)
-named a cheap, sovereign win: **your own runs are your eval/fine-tune
-dataset — locally, jq-able, no vendor store**. Two pieces make it real:
+module). A state-of-the-art sweep (2026-08-06) named a cheap, sovereign
+win: **your own runs are your eval/fine-tune dataset — locally,
+jq-able, no vendor store**. Two pieces make it real:
 (1) the OTLP export must speak the *current* OTel GenAI semantic
 conventions so any OTel/eval tool reads the model, and (2) a
 `--format dataset` projection must emit the interchange shape trainers
