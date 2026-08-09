@@ -1101,11 +1101,11 @@ fn a_versionless_trace_is_judged_with_the_unrecorded_token() {
 
 /// Stage the laundering setup: a unique run dir with the CHAIN workflow
 /// and its REAL journal (`.nika/traces/` — the chained artifact `trace
-/// verify` and the resume precondition both walk; the `--json` STDOUT
-/// stream carries no `chain` field, so tampering the stream proves
-/// nothing), plus the same journal with ONE recorded byte flipped
-/// (length unchanged — the report's forgery): `a`'s completion now
-/// claims "bravo", and the NEXT line's chain breaks.
+/// verify` and the resume precondition both walk; the `--json` stream
+/// carries the same chain since the ADR-099 §5 follow-on — either
+/// lane's journal serves), plus the same journal with ONE recorded byte
+/// flipped (length unchanged — the report's forgery): `a`'s completion
+/// now claims "bravo", and the NEXT line's chain breaks.
 fn staged_tampered_trace(
     name: &str,
 ) -> (std::path::PathBuf, std::path::PathBuf, std::path::PathBuf) {
@@ -1346,5 +1346,110 @@ fn the_named_opt_out_proceeds_loudly_and_attests() {
     assert!(
         !started.contains("resume_unverified"),
         "a verified trace journals no claim: {started}"
+    );
+}
+
+/// The class RETIRED (ADR-099 §5 follow-on): the `--json` stdout stream
+/// carries the chain since the sink learned it — a capture resumes
+/// VERIFIED (no notice · no attestation), and a capture with one
+/// recorded byte flipped is REFUSED like any broken journal. The
+/// Unchained compat shrinks to pre-chain captures and stripped
+/// forgeries.
+#[test]
+fn a_json_capture_resumes_verified_and_its_forgery_is_refused() {
+    let dir = std::env::temp_dir().join(format!("nika-resume-capture-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("run dir");
+    std::fs::write(dir.join("chain.nika.yaml"), CHAIN).expect("workflow");
+    let run = bin()
+        .args(["run", "chain.nika.yaml", "--json", "--color", "never"])
+        .current_dir(&dir)
+        .output()
+        .expect("binary runs");
+    assert_eq!(
+        run.status.code(),
+        Some(0),
+        "the honest run: {}",
+        String::from_utf8_lossy(&run.stderr)
+    );
+    let raw = String::from_utf8(run.stdout).expect("utf8");
+    assert!(
+        raw.lines().all(|l| l.contains("\"chain\":\"")),
+        "every streamed line carries the chain"
+    );
+    let capture = dir.join("capture.ndjson");
+    std::fs::write(&capture, &raw).expect("capture written");
+
+    // The capture VERIFIES — the stream is a first-class journal now.
+    let verified = bin()
+        .args(["trace", "verify", &capture.to_string_lossy()])
+        .output()
+        .expect("binary runs");
+    assert_eq!(
+        verified.status.code(),
+        Some(0),
+        "the capture's chain is intact: {}",
+        String::from_utf8_lossy(&verified.stderr)
+    );
+
+    // The resume from it rides the VERIFIED lane — never the chainless
+    // compat (no notice on stderr · no attestation on the boot frame).
+    let resumed = bin()
+        .args([
+            "run",
+            &dir.join("chain.nika.yaml").to_string_lossy(),
+            "--resume",
+            &capture.to_string_lossy(),
+            "--json",
+            "--color",
+            "never",
+        ])
+        .output()
+        .expect("binary runs");
+    let stdout = String::from_utf8(resumed.stdout).expect("utf8");
+    let stderr = String::from_utf8(resumed.stderr).expect("utf8");
+    assert_eq!(resumed.status.code(), Some(0), "the resume: {stderr}");
+    assert!(
+        !stderr.contains("trusted WITHOUT verification"),
+        "the chainless notice is gone: {stderr}"
+    );
+    let started = stdout
+        .lines()
+        .find(|l| l.contains("\"kind\":\"workflow_started\""))
+        .expect("the resumed run's started frame");
+    assert!(
+        !started.contains("resume_unverified"),
+        "a verified capture journals no claim: {started}"
+    );
+
+    // And its forgery is REFUSED — the stream is no longer a blind spot.
+    let mut lines: Vec<String> = raw.lines().map(str::to_owned).collect();
+    let idx = lines
+        .iter()
+        .position(|l| l.contains("\"kind\":\"task_completed\"") && l.contains("\"a\""))
+        .expect("`a` completed");
+    lines[idx] = lines[idx].replacen("alpha", "bravo", 1);
+    let forged = dir.join("forged-capture.ndjson");
+    std::fs::write(&forged, lines.join("\n") + "\n").expect("forged written");
+    let refused = bin()
+        .args([
+            "run",
+            &dir.join("chain.nika.yaml").to_string_lossy(),
+            "--resume",
+            &forged.to_string_lossy(),
+            "--json",
+            "--color",
+            "never",
+        ])
+        .output()
+        .expect("binary runs");
+    let stderr = String::from_utf8(refused.stderr).expect("utf8");
+    assert_eq!(
+        refused.status.code(),
+        Some(2),
+        "the forged capture is refused: {stderr}"
+    );
+    assert!(
+        stderr.contains("chain BROKEN at line"),
+        "the finding: {stderr}"
     );
 }

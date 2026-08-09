@@ -96,6 +96,21 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   refused with the secret never served · the inside-pointing symlink
   refused as divergence · the swapped glob root refused · the honest
   tree admitted before and after.
+- **The `--json` stream carries the chain — the trusted-by-default class
+  is retired (ADR-099 §5 follow-on).** A `nika run --json` capture was
+  the last journal shape the resume trusted by default: the stream wrote
+  no `chain` field, so a captured journal resumed under the
+  attested-but-unverified `unchained` compat, and tampering the capture
+  met no walk. The two lanes now drive one shared chain state — the
+  journal file is the stdout stream BYTE FOR BYTE — so a fresh capture
+  verifies under `nika trace verify`, resumes on the verified lane (no
+  notice · no attestation), and its forgery is refused (exit 2) like any
+  broken journal. The compat stays for pre-chain journals and stripped
+  forgeries — said, attested, never silent. Proven red-first at the
+  unit and binary planes: every streamed line carries the chain · the
+  capture verifies and resumes verified with no claim journaled · the
+  forged capture refused · both mutations (the insert dropped · the
+  head never advancing) kill their tests.
 
 ## [0.108.0](https://github.com/supernovae-st/nika/compare/v0.107.2..v0.108.0) - 2026-08-05
 
