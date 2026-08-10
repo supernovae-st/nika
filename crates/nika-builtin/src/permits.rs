@@ -136,14 +136,48 @@ impl FsBoundary {
         path: &str,
         access: FsAccess,
     ) -> Result<(), BuiltinFailure> {
+        self.enforce_judged(fs, path, access, true).await
+    }
+
+    /// The at-open RE-judgment ([`JudgedFs`](crate::judged_fs::JudgedFs))
+    /// — the same op's second enforcement, SILENT: the dispatch guard
+    /// already witnessed the op's decision (one fs frame per op · a
+    /// confirming allow recorded twice would charge one decision twice),
+    /// and a refusal here stays the coded `NIKA-SEC-004` it always was.
+    pub(crate) async fn enforce_unwitnessed<F: FsReadDyn>(
+        &self,
+        fs: &F,
+        path: &str,
+        access: FsAccess,
+    ) -> Result<(), BuiltinFailure> {
+        self.enforce_judged(fs, path, access, false).await
+    }
+
+    async fn enforce_judged<F: FsReadDyn>(
+        &self,
+        fs: &F,
+        path: &str,
+        access: FsAccess,
+        witness: bool,
+    ) -> Result<(), BuiltinFailure> {
         if !self.declared {
-            return Ok(()); // no boundary in force · the engine floor only
+            return Ok(()); // no boundary in force · no decision to witness
         }
         let effective = resolve_effective(fs, Path::new(path)).await;
         let mut mismatch = None; // the first exact grant whose identity diverged
         for glob in self.globs(access) {
             match confines(fs, glob, path, &effective).await {
-                ConfineVerdict::Admits => return Ok(()),
+                ConfineVerdict::Admits => {
+                    if witness {
+                        crate::witness::record_decision(
+                            "fs",
+                            format!("{} {path}", access.category()),
+                            "allow",
+                            "the effective identity stays inside the declared set".to_owned(),
+                        );
+                    }
+                    return Ok(());
+                }
                 ConfineVerdict::Outside => {}
                 ConfineVerdict::IdentityMismatch(judged) => {
                     mismatch = mismatch.or(Some(judged));
@@ -154,6 +188,18 @@ impl FsBoundary {
         // resolved target, in the exec arm's own voice (one verdict on
         // every enforcement arm · law 4).
         if let Some(judged) = mismatch {
+            if witness {
+                crate::witness::record_decision(
+                    "fs",
+                    format!("{} {path}", access.category()),
+                    "deny",
+                    format!(
+                        "the resolved target `{}` diverges from the judged grant `{judged}`",
+                        effective.display(),
+                        judged = judged.display(),
+                    ),
+                );
+            }
             return Err(BuiltinFailure::new(
                 SEC_DENIED,
                 format!(
@@ -164,6 +210,18 @@ impl FsBoundary {
                     judged = judged.display(),
                 ),
             ));
+        }
+        if witness {
+            crate::witness::record_decision(
+                "fs",
+                format!("{} {path}", access.category()),
+                "deny",
+                format!(
+                    "the resolved target `{}` is outside the declared {} set",
+                    effective.display(),
+                    access.category()
+                ),
+            );
         }
         Err(BuiltinFailure::new(
             SEC_DENIED,

@@ -111,6 +111,54 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   capture verifies and resumes verified with no claim journaled · the
   forged capture refused · both mutations (the insert dropped · the
   head never advancing) kill their tests.
+- **The builtin fs boundary's decisions ride the permit witness
+  (NEP-0007 law 2 · the declared v1 residual, closed).** Until now the
+  in-process arm attested a refusal only as the task's coded failure
+  (`NIKA-SEC-004` in `task_failed`), and its GRANTED reads and writes
+  were witnessed nowhere — an auditor could not reconstruct what
+  authority the builtin arm actually exercised. The boundary's
+  enforcement point now records every verdict, allow and deny alike,
+  into the attempt's collector (a tokio task-local scoped by the
+  runtime per attempt — the one channel that reaches the enforcement
+  point inside the shared dispatcher without breaking the kernel's
+  `ToolExecute` seam, and the only one that follows the attempt across
+  `.await`), and the settle spine emits one `permit_checked` frame per
+  decision with `plane: "fs"` — the same payload shape as every other
+  plane, so the frames bind to the task that took them through the hash
+  chain, on the failure path too (the deny precedes `task_failed`).
+  Outside a run the slot is a no-op: telemetry never panics. Proven
+  red-first at the binary plane: the permitted read journals one allow
+  between `task_started` and `task_completed` · the dynamically-refused
+  read journals one deny before `task_failed` with zero secret bytes
+  emitted · neutralizing the record kills both planes. The per-op NET
+  decisions remain the declared residual.
+- **The builtin fs reads open pinned — the enforce→open race closes on
+  the in-process arm (NEP-0009 law 6 · the builtin-side follow-on).**
+  The dispatch guard judged the path and THEN the op opened it: between
+  the two, a parallel task of the same run could swap the judged file
+  for a symlink, and a plain `open(2)` would follow it — the parallel
+  sibling of the sequenced pivot the re-gate killed. Every builtin READ
+  (`read` · `edit`'s read phase · `grep` · `glob` · `decide`'s bundle ·
+  `fetch`'s multipart parts) now runs against the judged fs: the path is
+  re-judged at open time (SILENT — the guard already witnessed the op's
+  one fs frame), then opened `O_NOFOLLOW`, so the KERNEL refuses a
+  swapped final component (`ELOOP`) inside the syscall itself,
+  atomically — no check-then-act, no window. A pre-existing
+  inside-pointing symlink is still served (resolved, re-judged on the
+  TARGET, re-opened pinned · the no-regression rule), a dangling link
+  keeps the file-not-found verdict, and a redirect storm refuses coded
+  past a hard hop bound instead of hanging. Writes need no pin: the
+  atomic temp+rename lane replaces a symlinked destination, never
+  follows it. Declared gaps, honestly on the record: the pin compiles
+  on the tier-1 unixes (macOS · Linux) and every other target
+  degenerates to enforce + plain read; `O_NOFOLLOW` pins the FINAL
+  component only, so a swapped ANCESTOR directory stays a residual of
+  the exec arm's `--bind-fd` follow-on class; and `chart` keeps the raw
+  fs because its save lane re-reads the write-permitted artifact for the
+  idempotence law. Proven red-first at the unit plane: the nofollow open
+  never serves a symlink target · the swapped exact grant refuses coded
+  with zero secret bytes · the inside link serves byte-exact · the loop
+  and the storm refuse coded and RETURN.
 
 ## [0.108.0](https://github.com/supernovae-st/nika/compare/v0.107.2..v0.108.0) - 2026-08-05
 
