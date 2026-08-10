@@ -18,6 +18,7 @@ use nika_display::chrome;
 use nika_display::theme::{Role, Theme};
 
 use crate::founding::{BriefOutcome, CanvasTheme, apply_briefs, proof_receipts, wire_receipts};
+use crate::gitignore;
 use crate::guided;
 use crate::recipes::{RECIPES, Recipe, ScaffoldStatus, scaffold, takes_model};
 use crate::{Audit, Outcome, Wire, codes};
@@ -266,6 +267,12 @@ fn found(
         };
         writeln!(out, "{line}").ok();
     }
+    // The trace cover — the same adds-only guarantee the scripted twin
+    // gives (one law, two doors · `gitignore.rs`).
+    let (git_path, git_outcome) = gitignore::ensure(dir);
+    failed |= matches!(git_outcome, gitignore::Outcome::Failed(_));
+    let (mark, msg) = gitignore::report(&relative(dir, &git_path), &git_outcome);
+    writeln!(out, "{}", brief_line(theme, mark, &msg)).ok();
     if failed {
         return Outcome::env("scaffold failed — see the report above".to_owned());
     }
@@ -807,6 +814,35 @@ mod tests {
             parsed.get("yaml.schemas").is_some(),
             "schema wiring survives the stamp"
         );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// The wizard lane lays the same trace cover (T1 · one law, two
+    /// doors): the row rides the scaffold block, project-relative.
+    #[test]
+    fn the_wizard_lays_the_traces_cover_too() {
+        let dir = fresh_dir("gitignore");
+        let d = dir.to_str().expect("utf8");
+        // recipe 5 (minimal) · canvas Enter (skip) · agents Enter (skip)
+        let mut input = std::io::Cursor::new(b"5\n\n\n".to_vec());
+        let mut out = Vec::new();
+        let v = wizard_io(
+            d,
+            false,
+            PLAIN,
+            &mut input,
+            &mut out,
+            &stub_audit,
+            &stub_wire,
+        );
+        assert_eq!(v.code, codes::OK, "{}", v.text);
+        let shown = String::from_utf8(out).expect("utf8");
+        assert!(
+            shown.contains("created .gitignore"),
+            "the cover row, project-relative: {shown}"
+        );
+        let body = std::fs::read_to_string(dir.join(".gitignore")).expect("written");
+        assert!(body.contains(".nika/traces/"), "the cover entry: {body}");
         std::fs::remove_dir_all(&dir).ok();
     }
 

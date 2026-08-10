@@ -24,6 +24,7 @@
 pub mod briefs;
 pub mod fixtures;
 pub mod founding;
+mod gitignore;
 pub mod guided;
 mod intent;
 pub mod recipes;
