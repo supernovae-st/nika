@@ -173,6 +173,8 @@ impl<T> nika_error::traits::AsAny for nika_builtin::tts::TtsKeys where T: 'stati
 pub fn nika_builtin::tts::TtsKeys::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_builtin::tts::TtsKeys
 pub type nika_builtin::tts::TtsKeys::Output = T
+pub mod nika_builtin::witness
+pub async fn nika_builtin::witness::scope_attempt_witness<F>(witness: alloc::sync::Arc<nika_cap::witness::PermitWitness>, fut: F) -> <F as core::future::future::Future>::Output where F: core::future::future::Future
 pub struct nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W>
 impl<F, H, C, Em, P, W> nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W>
 pub fn nika_builtin::BuiltinDispatcher<F, H, C, Em, P, W>::new(fs: alloc::sync::Arc<F>, http: alloc::sync::Arc<H>, clock: alloc::sync::Arc<C>, emitter: alloc::sync::Arc<Em>, prompter: alloc::sync::Arc<P>, workflow: alloc::sync::Arc<W>) -> Self
