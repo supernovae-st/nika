@@ -15,6 +15,21 @@
 
 use std::path::Path;
 
+/// The repo-redirect variables a git hook exports (`GIT_DIR` & co.).
+/// Left to inherit they would make `git ls-files` answer about the
+/// CALLER's repo, not `dir`'s — the pre-push gate caught exactly that:
+/// `Some(0)` where no repo existed. Scrubbed, never forwarded: the
+/// probe speaks for `dir` alone, whoever invoked it.
+const GIT_REDIRECT_ENV: [&str; 7] = [
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_INDEX_FILE",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_COMMON_DIR",
+    "GIT_NAMESPACE",
+];
+
 /// Journals `dir`'s repo tracks under the trace dir — `None` when the
 /// observation was impossible (git absent · not a repo · git refused).
 // disallowed_types: `std::process::Command` — the kernel ShellExecutor
@@ -22,11 +37,14 @@ use std::path::Path;
 // the CLI surface; the nika-mcp client.rs carve-out class.
 #[allow(clippy::disallowed_types)]
 pub(crate) fn tracked_trace_journals(dir: &Path) -> Option<usize> {
-    let out = std::process::Command::new("git")
+    let mut probe = std::process::Command::new("git");
+    probe
         .args(["ls-files", "-z", "--", nika_dap::store::TRACE_DIR])
-        .current_dir(dir)
-        .output()
-        .ok()?;
+        .current_dir(dir);
+    for var in GIT_REDIRECT_ENV {
+        probe.env_remove(var);
+    }
+    let out = probe.output().ok()?;
     if !out.status.success() {
         return None;
     }
@@ -67,16 +85,22 @@ mod tests {
         // fixture hit exactly that on a real dev machine) — the repo
         // under test must see a stock git. (`ls-files` reads the index
         // and never consults ignore rules, so the production probe is
-        // untouched by this class.)
+        // untouched by this class.) The redirect scrub matters MORE
+        // here: under a hook env an unscrubbed `git add` would stage
+        // into the CALLER's index — a test mutating the repo that
+        // hosts it.
         let empty = dir.join("empty-gitconfig");
         std::fs::write(&empty, "# fixture: no global config\n").expect("empty config");
-        let status = std::process::Command::new("git")
+        let mut fixture = std::process::Command::new("git");
+        fixture
             .args(args)
             .current_dir(dir)
             .env("GIT_CONFIG_NOSYSTEM", "1")
-            .env("GIT_CONFIG_GLOBAL", &empty)
-            .status()
-            .expect("git runs");
+            .env("GIT_CONFIG_GLOBAL", &empty);
+        for var in GIT_REDIRECT_ENV {
+            fixture.env_remove(var);
+        }
+        let status = fixture.status().expect("git runs");
         assert!(status.success(), "git {args:?}");
     }
 
