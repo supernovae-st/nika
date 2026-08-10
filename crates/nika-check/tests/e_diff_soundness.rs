@@ -410,3 +410,53 @@ proptest! {
         }
     }
 }
+
+// -- the env category is never inferred --------------------------------------
+
+/// The bait an `env:` inference would take: a task whose `exec:` verb carries
+/// its OWN `env:` map. That map is AUTHORED VALUES handed to one subprocess —
+/// a different plane from `permits.env`, which grants passthrough of the
+/// ENGINE's environment. Spec 01 §permits composes a child environment from
+/// the two as distinct sources, and spec 02 §exec says it outright: « They are
+/// NOT auto-connected ». Reading task env keys as a passthrough need is the
+/// most natural wrong move available here, so the property carries it.
+const ENV_BAIT_TASK: &str = concat!(
+    "  envy:\n",
+    "    exec:\n",
+    "      command: [\"git\", \"status\"]\n",
+    "      env:\n",
+    "        CI: \"1\"\n",
+    "        NIKA_LOG: \"debug\"\n",
+);
+
+proptest! {
+    #![proptest_config(ProptestConfig { cases: 64, ..ProptestConfig::default() })]
+
+    /// `env:` is NEVER inferred — spec 01 §permits, normative: « permit
+    /// inference MUST NOT invent the list » (NEP-0005 law 7 · LAW-AUTH-0326).
+    /// `permits_infer` states the law in a comment above `infer`; until this
+    /// property, nothing asserted it, so the first refactor to wire task env
+    /// keys into inference would have kept every test green.
+    ///
+    /// The workflow exercises effects across every INFERABLE family — fs read,
+    /// fs write, net, exec, tools — and adds [`ENV_BAIT_TASK`] on top, so the
+    /// inferred block is non-trivial in four categories and must still be
+    /// silent in the fifth.
+    ///
+    /// The assertion reads the STRUCT, never the rendered YAML: `render_yaml`
+    /// has no `env` arm at all, so a check on its text could not fail whatever
+    /// `permits.env` held — a reference that cannot move with the mutant.
+    #[test]
+    fn inference_never_invents_an_env_category(moves in gen_moves()) {
+        let tasks = format!("{}{}", tasks_for(&moves), ENV_BAIT_TASK);
+        let wf = parse(&workflow("", &tasks), FileId::new(0), ParseMode::Strict)
+            .expect("bait workflow parses");
+        let inferred = infer_permits(&wf);
+        prop_assert!(
+            inferred.permits.env.is_none(),
+            "inference invented an env category ({:?}) · the author would paste \
+             an environment passthrough they never asked for · moves={:?}",
+            inferred.permits.env, moves
+        );
+    }
+}
