@@ -79,24 +79,18 @@ fn is_eloop(e: &std::io::Error) -> bool {
 }
 
 /// The judged fs view one guarded op runs against: `inner` does the I/O,
-/// `boundary` owns the judgment, `access` is the direction reads are
-/// judged under (always `permits.fs.read` · the pin guards the READ lane;
-/// writes delegate to the atomic lane untouched).
+/// `boundary` owns the judgment (always `permits.fs.read` · the pin guards
+/// the READ lane; writes delegate to the atomic lane untouched).
 pub(crate) struct JudgedFs<'a, F> {
     inner: &'a F,
     boundary: &'a FsBoundary,
-    access: FsAccess,
 }
 
 impl<'a, F> JudgedFs<'a, F> {
     /// Wrap `inner` so every read is boundary-judged at open time and
     /// fd-pinned against the enforce→open swap (NEP-0009 law 6).
     pub(crate) fn new(inner: &'a F, boundary: &'a FsBoundary) -> Self {
-        Self {
-            inner,
-            boundary,
-            access: FsAccess::Read,
-        }
+        Self { inner, boundary }
     }
 }
 
@@ -134,7 +128,7 @@ impl<F: FsReadDyn> JudgedFs<'_, F> {
         // refusal as the dispatch guard — UNWITNESSED: the guard already
         // journaled this op's decision (one fs frame per op).
         self.boundary
-            .enforce_unwitnessed(self.inner, &path.to_string_lossy(), self.access)
+            .enforce_unwitnessed(self.inner, &path.to_string_lossy(), FsAccess::Read)
             .await
             .map_err(PinError::Denied)?;
         let mut current = path.to_path_buf();
@@ -162,7 +156,11 @@ impl<F: FsReadDyn> JudgedFs<'_, F> {
                                 other => PinError::Denied(loop_refusal(&current, &other)),
                             })?;
                     self.boundary
-                        .enforce_unwitnessed(self.inner, &resolved.to_string_lossy(), self.access)
+                        .enforce_unwitnessed(
+                            self.inner,
+                            &resolved.to_string_lossy(),
+                            FsAccess::Read,
+                        )
                         .await
                         .map_err(PinError::Denied)?;
                     current = resolved;
@@ -180,7 +178,7 @@ impl<F: FsReadDyn> JudgedFs<'_, F> {
     #[cfg(not(any(target_os = "macos", target_os = "linux")))]
     async fn read_pinned(&self, path: &Path) -> Result<Bytes, PinError> {
         self.boundary
-            .enforce_unwitnessed(self.inner, &path.to_string_lossy(), self.access)
+            .enforce_unwitnessed(self.inner, &path.to_string_lossy(), FsAccess::Read)
             .await
             .map_err(PinError::Denied)?;
         self.inner.read(path).await.map_err(PinError::Fs)
