@@ -126,6 +126,7 @@ fn a_lan_override_is_named_on_the_local_lane() {
         retention: crate::retention::RetentionConfig::default(),
         retention_notes: vec![],
         recorded_runs: 0,
+        tracked_traces: None,
     };
     let findings = diagnose(&probe);
     let rows: Vec<_> = findings.iter().filter(|f| f.label == "local").collect();
@@ -181,6 +182,7 @@ fn key_present_is_ok_and_exits_zero() {
         retention: crate::retention::RetentionConfig::default(),
         retention_notes: vec![],
         recorded_runs: 0,
+        tracked_traces: None,
     };
     let f = diagnose(&probe);
     let prov = f
@@ -214,6 +216,7 @@ fn unset_key_is_a_warn_with_a_fix_not_a_fail() {
         retention: crate::retention::RetentionConfig::default(),
         retention_notes: vec![],
         recorded_runs: 0,
+        tracked_traces: None,
     };
     let f = diagnose(&probe);
     let prov = f
@@ -252,6 +255,7 @@ fn never_prints_a_secret_value() {
         retention: crate::retention::RetentionConfig::default(),
         retention_notes: vec![],
         recorded_runs: 0,
+        tracked_traces: None,
     };
     let text = render(&diagnose(&probe), true, PLAIN);
     assert!(text.contains("OPENAI_API_KEY"), "names the var: {text}");
@@ -280,6 +284,7 @@ fn no_provider_at_all_fails_with_exit_three() {
         retention: crate::retention::RetentionConfig::default(),
         retention_notes: vec![],
         recorded_runs: 0,
+        tracked_traces: None,
     };
     let f = diagnose(&probe);
     assert!(f.iter().any(|f| f.level == Level::Fail));
@@ -303,6 +308,7 @@ fn local_provider_alone_is_a_usable_path_exit_zero() {
         retention: crate::retention::RetentionConfig::default(),
         retention_notes: vec![],
         recorded_runs: 0,
+        tracked_traces: None,
     };
     let f = diagnose(&probe);
     let loc = f.iter().find(|f| f.label == "local").expect("local line");
@@ -399,6 +405,7 @@ fn doctor_json_adds_host_receipts_without_touching_existing_fields() {
         retention: crate::retention::RetentionConfig::default(),
         retention_notes: vec![],
         recorded_runs: 0,
+        tracked_traces: None,
     };
     let findings = diagnose(&probe);
     let json: serde_json::Value = serde_json::from_str(&render_json(
@@ -514,6 +521,7 @@ fn sidecar_row_tracks_the_build_feature() {
         retention: crate::retention::RetentionConfig::default(),
         retention_notes: vec![],
         recorded_runs: 0,
+        tracked_traces: None,
     };
     let sidecar = diagnose(&probe).into_iter().find(|f| f.label == "sidecar");
     if cfg!(feature = "local-infer") {
@@ -610,6 +618,7 @@ fn the_ascii_theme_folds_every_doctor_glyph() {
         retention: crate::retention::RetentionConfig::default(),
         retention_notes: vec![],
         recorded_runs: 0,
+        tracked_traces: None,
     };
     let ascii_theme = Theme::new(false, true, false);
     let folded =
@@ -651,6 +660,7 @@ fn doctor_names_each_host_capability_level() {
         retention: crate::retention::RetentionConfig::default(),
         retention_notes: vec![],
         recorded_runs: 0,
+        tracked_traces: None,
     };
     let text = render(&diagnose(&probe), true, PLAIN);
     assert!(
@@ -693,6 +703,7 @@ fn client_probe_reports_stale_wiring_with_a_wire_fix() {
         retention: crate::retention::RetentionConfig::default(),
         retention_notes: vec![],
         recorded_runs: 0,
+        tracked_traces: None,
     };
     let text = render(&diagnose(&probe), true, PLAIN);
     assert!(text.contains("stale MCP args"), "{text}");
@@ -792,6 +803,7 @@ fn diagnose_carries_one_kit_row_per_found_surface() {
         retention: crate::retention::RetentionConfig::default(),
         retention_notes: vec![],
         recorded_runs: 0,
+        tracked_traces: None,
     };
     let findings = diagnose(&probe);
     let kits: Vec<_> = findings.iter().filter(|f| f.label == "kit").collect();
@@ -1016,6 +1028,7 @@ fn local_line_hands_off_to_ping_and_ping_lines_render() {
         retention: crate::retention::RetentionConfig::default(),
         retention_notes: vec![],
         recorded_runs: 0,
+        tracked_traces: None,
     };
     let findings = diagnose(&base);
     let local = findings
@@ -1055,6 +1068,69 @@ fn local_line_hands_off_to_ping_and_ping_lines_render() {
         .find(|f| f.label == "local")
         .expect("local line");
     assert!(local.fix.is_none(), "pinged run drops the hand-off");
+}
+
+/// The trace-leak signal (the doctor half of init's `.gitignore`
+/// guarantee): a repo that TRACKS its run journals gets ONE loud warn
+/// naming the count and the exact remedy; zero tracked — or an
+/// unobserved surface (no git · no repo) — is silence, never a guess.
+#[test]
+fn tracked_trace_journals_warn_with_the_untrack_remedy() {
+    let rows = tracked_traces_finding(Some(2));
+    assert_eq!(rows.len(), 1, "one row, never a pile");
+    let f = &rows[0];
+    assert_eq!(f.level, Level::Warn, "advisory — the env works");
+    assert_eq!(f.label, "traces");
+    assert!(f.detail.contains("2 run journals"), "{}", f.detail);
+    assert!(f.detail.contains("tracked by git"), "{}", f.detail);
+    let fix = f.fix.as_deref().expect("the remedy is printed");
+    assert!(
+        fix.contains("git rm") && fix.contains("--cached") && fix.contains(".nika/traces"),
+        "the untrack command, copy-paste ready: {fix}"
+    );
+    assert!(
+        tracked_traces_finding(Some(0)).is_empty(),
+        "nothing tracked — nothing to say"
+    );
+    assert!(
+        tracked_traces_finding(None).is_empty(),
+        "unobserved is silence"
+    );
+}
+
+/// Through the full diagnose lane: the row rides next to the retention
+/// one, a warn never moves the exit code, and the calm render may NOT
+/// fold it (the fold classes are the healthy machine's three — a leak
+/// earned its row).
+#[test]
+fn diagnose_surfaces_the_tracked_traces_row_without_failing() {
+    let probe = Probe {
+        models: ModelsProbe::default(),
+        version: "0.0.0".to_owned(),
+        config_path: None,
+        providers: vec![local("ollama")],
+        clients: vec![],
+        kits: vec![],
+        clients_registry: RegistryCoverage::default(),
+        image: ImageProbe::default(),
+        tts: TtsProbe::default(),
+        local_pings: Vec::new(),
+        pricing: PricingProbe::default(),
+        retention: crate::retention::RetentionConfig::default(),
+        retention_notes: vec![],
+        recorded_runs: 1,
+        tracked_traces: Some(1),
+    };
+    let findings = diagnose(&probe);
+    let rows: Vec<_> = findings
+        .iter()
+        .filter(|f| f.label == "traces" && f.detail.contains("tracked by git"))
+        .collect();
+    assert_eq!(rows.len(), 1, "the leak row rides diagnose: {findings:?}");
+    assert_eq!(rows[0].level, Level::Warn);
+    assert_eq!(exit_code(&findings), exit::OK, "a warn never fails the env");
+    let calm = render(&findings, false, PLAIN);
+    assert!(calm.contains("tracked by git"), "never folded: {calm}");
 }
 
 /// Every label `diagnose` can emit fits STRICTLY inside the fixed
@@ -1189,6 +1265,7 @@ fn diagnose_emits_one_registry_coverage_row() {
         retention: crate::retention::RetentionConfig::default(),
         retention_notes: vec![],
         recorded_runs: 0,
+        tracked_traces: None,
     };
     let findings = diagnose(&base);
     let rows: Vec<_> = findings.iter().filter(|f| f.label == "registry").collect();

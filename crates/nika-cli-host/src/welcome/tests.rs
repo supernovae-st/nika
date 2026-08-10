@@ -84,6 +84,7 @@ fn synthetic_probe() -> Probe {
         retention: crate::retention::RetentionConfig::default(),
         retention_notes: vec![],
         recorded_runs: 0,
+        tracked_traces: None,
     }
 }
 
@@ -569,6 +570,7 @@ fn shipped_shape_probe() -> Probe {
         retention: crate::retention::RetentionConfig::default(),
         retention_notes: vec![],
         recorded_runs: 0,
+        tracked_traces: None,
     }
 }
 
