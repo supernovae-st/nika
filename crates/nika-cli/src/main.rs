@@ -39,6 +39,8 @@ use nika_event::Event;
     name = "nika",
     bin_name = "nika",
     version,
+    // #774 · the build stamp rides the long form (build.rs): a between-tags build never reads as its tag; gitless ⇒ long IS bare.
+    long_version = env!("NIKA_VERSION_LONG"),
     about = "nika · the AI workflow engine — operator surface",
     // The lost-user footer (clig.dev · suggest the next command): a bare
     // `nika` is someone asking where to start, not someone reading a

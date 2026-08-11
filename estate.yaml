@@ -18,11 +18,11 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4376
+  classified_files: 4377
   file_rows: 11
   pattern_rows: 22
   by_class:
-    authored: 1445
+    authored: 1446
     authored-pin: 2
     generated: 118
     pinned-copy: 115
@@ -152,7 +152,7 @@ patterns:
 - glob: "crates/**/src/**"
   class: authored
   match_count: 730
-  aggregate_sha256: 78134ca1a4001e1d75c8409abe69651db0cdce8739344a9f328ce160e0a47069
+  aggregate_sha256: 940090427b2124e99e27d4fc302f8e8037d1ee6408dd4f98e82b855d6efbead3
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
@@ -161,8 +161,8 @@ patterns:
   evidence: "crate-owned tests + fixtures under tests/ — written with the crate per gate discipline, no generation markers"
 - glob: "crates/**"
   class: authored
-  match_count: 132
-  aggregate_sha256: 605ad36d6fb0c4600c18d9f190bef7ae7350f2c14562f2b7f805c912527fe419
+  match_count: 133
+  aggregate_sha256: e15b654fb62046a65894ec40d2db06bd3712a077a1128b8cbfdf536f503f7d57
   evidence: "the remaining crate surface — Cargo.toml manifests · build.rs · benches · READMEs · hand-curated data catalogs (llm-providers · mcp-servers · embeddings · model-capabilities, probed daily by catalog-verify.yml); the pricing snapshot is excepted in files:"
   note: "crates/nika-pack/scripts/sync-pack.sh is a DIVERGENT older duplicate of scripts/sync-pack.sh — the pack-resync.yml lane runs the root one"
 - glob: "fuzz/**"
