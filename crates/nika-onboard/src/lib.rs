@@ -27,6 +27,7 @@ pub mod founding;
 mod gitignore;
 pub mod guided;
 mod intent;
+pub mod project_file;
 pub mod recipes;
 pub mod routing;
 pub mod wizard;

@@ -46,6 +46,7 @@ pub use example::example;
 use sink::{TraceNote, surface_trace};
 
 mod budget;
+mod ceiling;
 mod epilogue;
 mod heartbeat;
 mod resume_setup;
@@ -245,6 +246,17 @@ fn run_verdict(
     let output_json = match output_mode(output) {
         Ok(flag) => flag,
         Err(code) => return RunVerdict::bare(code),
+    };
+    // The project ceiling rung (D-2026-08-11-N5) — resolved BEFORE the
+    // gc hook so a broken `nika.yaml` speaks ONCE, here, CLOSED (the
+    // fail-open note lane never sees it). The flag ALWAYS wins; an
+    // absent file is the built-in default, zero ceremony.
+    let max_cost_usd = match ceiling::from_cwd(max_cost_usd) {
+        Ok(v) => v,
+        Err(e) => {
+            epilogue::emit_diagnostic(&e.to_string(), output_json);
+            return RunVerdict::bare(exit::ENV);
+        }
     };
     run_start_gc(no_gc, dry_run);
 

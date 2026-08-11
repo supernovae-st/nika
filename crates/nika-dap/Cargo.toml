@@ -16,6 +16,7 @@ nika-schema = { path = "../nika-schema", version = "0.108.0" }  # parse the work
 nika-check  = { path = "../nika-check", version = "0.108.0" }  # the check ladder the evidence pack + inventory/drift scans fold
 nika-types  = { path = "../nika-types", version = "0.108.0" }   # field values on replayed frames
 nika-cap    = { path = "../nika-cap", version = "0.108.0" }     # BuiltinEffect — the drift scan's permit taxonomy
+nika-vocab  = { path = "../nika-vocab", version = "0.108.0" }   # the project file (traces.keep — the retention ladder's file rung · D-2026-08-11-N5)
 nika-runtime = { path = "../nika-runtime", version = "0.108.0" }  # the proof layer (preimage · receipt · semantic hash) — seal canonicalization + the evidence pack's fold
 nika-kernel = { path = "../nika-kernel", version = "0.108.0" }   # the HttpPostDyn seam the anchor's submit rides
 nika-store  = { path = "../nika-store", version = "0.108.0" }    # F-P8 signed memory — the teardown's `covers["memory"]` fold substrate (memory::attend)

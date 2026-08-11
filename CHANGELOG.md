@@ -12,6 +12,22 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Added
 
+- **The project file `nika.yaml` (D-2026-08-11-N5).** An OPTIONAL file at
+  the repo root, discovered upward from the CWD the way git finds `.git`,
+  carrying the four keys that are decisions of a project rather than of an
+  invocation: `ceiling` (the `--max-cost-usd` flag's DEFAULT — the flag
+  always wins), `traces.keep` (the retention ladder's file rung, below the
+  three `NIKA_TRACE_*` env vars), `registry.floor` (a GATE, max-composed
+  with `~/.nika/registry/policy.toml` — a project raises the bar, never
+  lowers the operator's), and `arm:` (the team arming registry — parsed
+  and shape-validated here, executed by the cadence arc). An absent file
+  is today's behavior bit for bit; a present-but-broken one refuses
+  before any spend, with its line. The founding wizard offers a
+  commented starter on an explicit yes (scripted twin: `nika init
+  --project-file`) — never laid silently. No `seat`, no `profile`, no
+  permits in it: the portability test (D-2026-08-10-N2) keeps the file
+  to defaults and gates, never meaning.
+
 - **The pause is heard — outbound pause delivery (ADR-111).** When the
   operator sets `NIKA_NOTIFY_URL`, a run that pauses on a human gate
   POSTs its pause payload once — a CloudEvents 1.0.2 structured envelope

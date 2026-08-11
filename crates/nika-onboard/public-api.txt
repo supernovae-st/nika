@@ -72,6 +72,39 @@ pub mod nika_onboard::guided
 pub fn nika_onboard::guided::dispatch(from: core::option::Option<&str>, dest: core::option::Option<&str>, force: bool, theme: nika_display::theme::Theme, audit: &nika_onboard::Audit<'_>) -> nika_onboard::Outcome
 pub fn nika_onboard::guided::run(template: &str, dest: core::option::Option<&str>, force: bool) -> nika_onboard::Outcome
 pub fn nika_onboard::guided::wizard_io(base: &str, dest_hint: core::option::Option<&str>, force: bool, theme: nika_display::theme::Theme, input: &mut dyn alloc::io::buf_read::BufRead, out: &mut dyn core::io::write::Write, audit: &nika_onboard::Audit<'_>) -> nika_onboard::Outcome
+pub mod nika_onboard::project_file
+#[non_exhaustive] pub enum nika_onboard::project_file::Outcome
+pub nika_onboard::project_file::Outcome::Created
+pub nika_onboard::project_file::Outcome::Failed(alloc::string::String)
+pub nika_onboard::project_file::Outcome::Skipped
+impl<D> owo_colors::OwoColorize for nika_onboard::project_file::Outcome
+impl<T, U> core::convert::Into<U> for nika_onboard::project_file::Outcome where U: core::convert::From<T>
+pub fn nika_onboard::project_file::Outcome::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_onboard::project_file::Outcome where U: core::convert::Into<T>
+pub type nika_onboard::project_file::Outcome::Error = core::convert::Infallible
+pub fn nika_onboard::project_file::Outcome::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_onboard::project_file::Outcome where U: core::convert::TryFrom<T>
+pub type nika_onboard::project_file::Outcome::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_onboard::project_file::Outcome::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_onboard::project_file::Outcome where T: 'static + ?core::marker::Sized
+pub fn nika_onboard::project_file::Outcome::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_onboard::project_file::Outcome where T: ?core::marker::Sized
+pub fn nika_onboard::project_file::Outcome::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_onboard::project_file::Outcome where T: ?core::marker::Sized
+pub fn nika_onboard::project_file::Outcome::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_onboard::project_file::Outcome
+pub fn nika_onboard::project_file::Outcome::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_onboard::project_file::Outcome where T: 'static
+pub fn nika_onboard::project_file::Outcome::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_onboard::project_file::Outcome where T: ?core::marker::Sized
+pub fn nika_onboard::project_file::Outcome::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_onboard::project_file::Outcome::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_onboard::project_file::Outcome
+impl<T> tracing::instrument::WithSubscriber for nika_onboard::project_file::Outcome
+impl<T> typenum::type_operators::Same for nika_onboard::project_file::Outcome
+pub type nika_onboard::project_file::Outcome::Output = T
+pub fn nika_onboard::project_file::ensure(dir: &str, force: bool) -> (alloc::string::String, nika_onboard::project_file::Outcome)
+pub fn nika_onboard::project_file::report(path: &str, outcome: &nika_onboard::project_file::Outcome) -> (char, alloc::string::String)
 pub mod nika_onboard::recipes
 pub mod nika_onboard::routing
 pub enum nika_onboard::routing::RoutedEntry

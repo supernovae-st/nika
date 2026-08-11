@@ -2629,6 +2629,7 @@ pub nika_dap::retention::RetentionConfig::keep_last: usize
 pub nika_dap::retention::RetentionConfig::max_age: core::time::Duration
 impl nika_dap::retention::RetentionConfig
 pub fn nika_dap::retention::RetentionConfig::from_env() -> (Self, alloc::vec::Vec<alloc::string::String>)
+pub fn nika_dap::retention::RetentionConfig::layered_at(keep: core::option::Option<&str>, age_days: core::option::Option<&str>, budget_mb: core::option::Option<&str>, start: &std::path::Path) -> (Self, alloc::vec::Vec<alloc::string::String>)
 pub const fn nika_dap::retention::RetentionConfig::new(keep_last: usize, max_age: core::time::Duration, budget_bytes: u64) -> Self
 pub fn nika_dap::retention::RetentionConfig::resolve(keep: core::option::Option<&str>, age_days: core::option::Option<&str>, budget_mb: core::option::Option<&str>) -> (Self, alloc::vec::Vec<alloc::string::String>)
 pub fn nika_dap::retention::RetentionConfig::summary(&self) -> alloc::string::String
