@@ -12,6 +12,14 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Added
 
+- **The thinking-budget teaching at check (#651 · leg 3).** A
+  reasoning-capable model (the vendored catalog knows) seated with
+  `max_tokens` but no `thinking:` now draws the `thinking-budget` hint:
+  the reasoning share lives INSIDE that budget, and a heavy think
+  concludes with a paid blank answer — the typed NIKA-INFER-004 failure
+  at run since leg 1. The hint teaches the declaration before a token
+  is spent; a templated seat defers to the run's resolution, a declared
+  `thinking:` or a no-think model stays silent.
 - **The pause is heard — outbound pause delivery (ADR-111).** When the
   operator sets `NIKA_NOTIFY_URL`, a run that pauses on a human gate
   POSTs its pause payload once — a CloudEvents 1.0.2 structured envelope
