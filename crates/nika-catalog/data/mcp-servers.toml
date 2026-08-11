@@ -20,6 +20,44 @@
 
 schema = "nika/mcp-servers@1.1"
 
+# ─── [meta] · l'honnêteté de ce fichier · ajouté 2026-08-11 ──────────────────
+#
+# Ce fichier est une étagère RECENSÉ : il décrit des produits TIERS. Son contrat
+# est donc « ça existe, d'après TELLE source, à TELLE date » — et aujourd'hui il
+# ne tient NI l'une NI l'autre. Le bloc ci-dessous le dit plutôt que de le cacher.
+#
+# ⚠️ `last_verified` N'EST PAS une date de vérification par entrée.
+#    Mesuré le 2026-08-11 : les 105 entrées portent LA MÊME valeur, "2026-04-14".
+#    Un champ qui ne varie jamais est un TAMPON DE LOT, pas une mesure — et c'est
+#    pire que son absence, parce qu'un faux signal ne se voit pas.
+#    Sonde de contrôle :
+#      grep -oE 'last_verified = "[0-9-]+"' mcp-servers.toml | sort | uniq -c
+#    Une seule ligne en sortie = tampon. Plusieurs = vraies vérifications.
+#
+# ⚠️ `pricing` est ÉDITORIAL. C'est une affirmation commerciale sur une société
+#    tierce, sans aucun champ `source`. Personne ne peut la re-dériver, donc
+#    personne ne peut nous contredire — la position exacte que Rule 1 interdit.
+#
+# ⚠️ AUCUN GATE ne surveille ce fichier. `PRICING_STALE_DAYS = 120`
+#    (crates/nika-cli-host/src/doctor.rs) garde le snapshot de PRIX, qui lui a un
+#    vrai `as_of`, un `sha` et scripts/refresh-pricing.sh. Le catalogue MCP n'a
+#    aucun des quatre. Il pourrit en silence.
+#
+# CE QUE LE CONTRAT EXIGERA (non livré · le gate doit rougir sur l'UNIFORMITÉ des
+# dates autant que sur leur âge — l'uniformité est le vrai signal) :
+[meta]
+shelf = "RECENSE"
+last_verified_semantics = "bulk-stamp"     # jamais "per-entry" tant que les dates ne varient pas
+bulk_stamped_at = "2026-04-14"
+measured_on = "2026-08-11"
+entries_measured = 105
+distinct_last_verified_values = 1          # > 1 le jour où c'est vraiment vérifié
+source_field_present = false               # chaque entrée devra nommer son amont
+staleness_budget_days = 120                # aligné sur PRICING_STALE_DAYS
+gate = "ABSENT"                            # doit rougir sur âge ET sur uniformité
+upstream = "registry.modelcontextprotocol.io"
+# ─────────────────────────────────────────────────────────────────────────────
+
 
 # ─── Anthropic Official (3) ──────────────────────────
 
