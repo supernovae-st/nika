@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+#
+# nika-tui-core · L4 · la LOI de la session TUI · pur · zéro I/O · zéro async.
+#
+# ⚠️ TEMPORARY — the [workspace] shim below isolates this crate while the
+# root Cargo.toml is shared with live sessions (the nika-cadence precedent,
+# 92a0f8497). At admission (the 12 gates): remove the shim, add
+# `crates/nika-tui-core` to `members` + the `wip` array, set
+# `layers.nika-tui-core = "L4"`, and switch every dependency to
+# `workspace = true` inheritance.
+[package]
+name        = "nika-tui-core"
+version     = "0.108.0"
+edition     = "2024"
+license     = "AGPL-3.0-or-later"
+description = "L4 interface law — the TUI session model + the derivation layer (waves · idle · bottleneck · totals), one Rust truth for every surface (native · WASM · cloud)"
+rust-version = "1.91"
+
+[workspace]
+
+[dependencies]
+serde = { version = "1.0", features = ["derive"] }
+
+[dev-dependencies]
+# float_roundtrip — the parity test compares BITS; serde_json's default fast
+# float parser rounds 420.40000000000003 to 420.4 (measured). Exact parsing
+# or the proof measures nothing.
+serde_json = { version = "1.0", features = ["float_roundtrip"] }
