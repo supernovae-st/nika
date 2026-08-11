@@ -1549,7 +1549,6 @@ to sail through.
   the dither pulse that only exists where motion does — every shape
   colour-through-Role only, 2-cell law, zero escapes when colour is
   off.
-||||||| 6207ec234
 - **LSP code actions — the `--fix` engine in every editor**: the language
   server now answers `textDocument/codeAction` with quickfix renames
   built from the checker's typed `offending`/`suggestion` pairs (unknown
