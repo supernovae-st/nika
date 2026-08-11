@@ -3,7 +3,7 @@
 
 //! The human render surface of `nika check` — the themed report sections
 //! (conformance · plan · models · skills · cost · secrets · types ·
-//! tools · args · composition · schema · gates · permits · policy ·
+//! tools · args · composition · schema · gates · exec · permits · policy ·
 //! trifecta · run · hints) and their row builders. Descended from
 //! nika-cli's `verbs::check` 2026-07-29 (the 15k wall · this crate's own
 //! precedent — one truth in, text out, no I/O): the render lives beside
@@ -143,6 +143,7 @@ pub fn render(
         gate_rows(report),
     );
     writes_rung(&mut out, report, t);
+    exec_rung(&mut out, report, t);
     permits(&mut out, report, wf, t);
     policy_rung(&mut out, report, wf, t);
     trifecta_rung(&mut out, report, wf, t);
@@ -360,6 +361,34 @@ fn writes_rung(out: &mut String, report: &CheckReport, t: Theme) {
             .write_conflicts
             .iter()
             .map(|w| format!("[{}] {} · fix: {}", w.wire_code(), w.detail, w.fix))
+            .collect(),
+    );
+}
+
+/// EXEC rung (#605 · NIKA-SEC-001) · always present — the argv floor is
+/// an always-on static law like WRITES. The scan judges the SAME
+/// predicate the run refuses with (`nika_types::exec::argv_floor_refusal`
+/// — one predicate, check ≡ run), so the ✔ names its own blind spot:
+/// a `${{ }}`-templated argv is re-judged pre-spawn, never statically
+/// claimed.
+fn exec_rung(out: &mut String, report: &CheckReport, t: Theme) {
+    section_list(
+        out,
+        t,
+        "EXEC",
+        "no literal argv the exec floor refuses at run · a templated argv is the RUN's verdict",
+        report
+            .exec_floor_findings
+            .iter()
+            .map(|e| {
+                format!(
+                    "[{}] task `{}` · {} · fix: {}",
+                    e.wire_code(),
+                    e.task,
+                    e.detail,
+                    e.fix
+                )
+            })
             .collect(),
     );
 }

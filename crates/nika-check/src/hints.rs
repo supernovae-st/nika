@@ -53,13 +53,11 @@
 //!   `check/native_first.rs` pass (the `native-first/001..005` ruleset:
 //!   http/file/data/media/helper commands a builtin or MCP tool
 //!   covers); `nika check --native-strict` promotes them to failures.
-//! - **exec the run will refuse** (`exec-floor`) — emitted by the
-//!   `check/exec_floor.rs` mirror (P0-13): an argv-form command whose
-//!   interpreter inline-eval flag or subcommand the runtime's exec
-//!   floor refuses positionally — the check predicts the refusal the
-//!   run would apply (the script file is the route · N-6: the old
-//!   advice also named `pre_validated`, the kernel's internal wire
-//!   flag no author can write).
+//! - **exec the run will refuse** (`exec-floor`) — RETIRED by #605: the
+//!   argv-form command the runtime's exec floor refuses is the
+//!   `NIKA-SEC-001` FINDING now (`check/exec_floor.rs` judges the SAME
+//!   `nika-types::exec` predicate the run does — an error owns its
+//!   repair, never a hint · the write-conflict precedent, F-P15).
 //! - **unproven human-gate route** (`consent`) — emitted by the
 //!   `check/consent.rs` lane (P0-2 · NEP-0020): an egress-capable
 //!   descendant of a confirm-mode `nika:prompt` sits behind a gate the
@@ -105,13 +103,15 @@ pub struct Hint {
     /// `thinking-budget` · `dead-spend` ·
     /// `typing` · `permits` · `strictness` · `schema-portability` ·
     /// `redundant-gate` · `retry-effects` ·
-    /// `secrets-store` · `native-first` · `exec-floor` ·
+    /// `secrets-store` · `native-first` ·
     /// `exec-json-capture` ·
     /// `unwrapped-ref` · `envelope-output` · `policy-soft` · `run-clock`
     /// · `analysis` · `consent` (additive · agents route on it; the
     /// module doc describes each).
     /// `parallel-writers` is RETIRED (F-P15 · promoted to the
     /// NIKA-SEC-012 finding — an error owns its repair, never a hint).
+    /// `exec-floor` is RETIRED (#605 · promoted to the NIKA-SEC-001
+    /// finding — the check judges the SAME predicate the run does).
     pub kind: &'static str,
     /// The task it concerns (`-` for workflow-level hints).
     pub task: String,

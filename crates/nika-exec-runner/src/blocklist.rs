@@ -18,8 +18,16 @@
 //! dequoted · basename-dequoted) so a pattern hidden behind any one transform
 //! is still caught. CRAFT-preserved from the battle-tested brouillon —
 //! **do not weaken**: every pattern + layer closes a documented attack.
+//!
+//! The ARGV half of the floor (program identity · interpreter inline-eval ·
+//! `nc -e` · `dd if=`) lives in [`nika_types::exec`] — the ONE predicate the
+//! runtime refusal AND the static `nika check` finding judge with (#605 ·
+//! the `net::host_in_allowlist` precedent: an L0 leaf both sides depend on,
+//! so check ≡ run by construction, no mirrored table to drift). The wrappers
+//! below only map its verdict onto [`ShellError::Blocked`].
 
 use nika_kernel::ShellError;
+use nika_types::exec::normalize_for_blocklist;
 
 /// Dangerous command patterns (matched case-insensitively after normalization).
 const BLOCKLIST: &[&str] = &[
@@ -143,132 +151,7 @@ const BLOCKLIST: &[&str] = &[
 /// Shell-mode patterns ALWAYS blocked (structural commands · `shell: true`).
 const SHELL_MODE_BLOCKLIST: &[&str] = &["alias ", "function ", "declare -f"];
 
-/// Programs blocked at the ARGV floor by their BASENAME alone — their mere
-/// invocation is dangerous regardless of arguments. `command[0]` can be an
-/// interpolated, attacker-influenced value, so [`check_program`] NFKC-
-/// normalizes confusables (fullwidth `ｓｕｄｏ` → `sudo`) before the EXACT
-/// basename match (no substring false-positives · `issue` ≠ `su`). The argv
-/// re-exec class (interpreter `-c`/`-e`, `nc -e`, `dd if=`) is handled
-/// structurally by [`check_argv`] — symmetric with shell mode.
-const DANGEROUS_PROGRAMS: &[&str] = &[
-    // Privilege escalation
-    "sudo", "doas", "pkexec", "su", "runas",
-    // System control (halts / reboots / powers off the host)
-    "shutdown", "reboot", "halt", "poweroff",
-    // Re-exec / env re-injection (review P0): `env VAR=x cmd` re-adds a
-    // stripped var into the child (defeats the env scrub); `xargs` runs a
-    // command built from its input. Workflows use the `env:` field, not `env`.
-    "env", "xargs",
-];
-
-/// One interpreter family's inline-eval signature (P0-13 · audit UX
-/// 2026-07-30). The flag that re-parses an argument AS code is a property of
-/// the INTERPRETER (and its subcommand), not a global set — `python -c` and
-/// `node -p` eval, but `node -c` is a syntax check, `php -r` evals, and
-/// `unittest -p <pattern>` is the module's own flag, not a print-eval. A
-/// global set both over-blocked (the `python3 -m unittest … -p` false
-/// positive) and under-blocked (`deno eval <code>` — a SUBCOMMAND the flag
-/// scan never saw).
-#[derive(Clone, Copy)]
-struct EvalSpec {
-    /// Short-option LETTERS: any single-dash bundle containing one re-parses
-    /// code (`perl -pe` · `node -pe` · `sh -ce`).
-    short_letters: &'static [char],
-    /// Long eval flags, EXACT — only where the interpreter really has them.
-    long_flags: &'static [&'static str],
-    /// Eval SUBCOMMANDS (`deno eval <code>`) — code execution with no flag.
-    eval_subcommands: &'static [&'static str],
-    /// Flags that CONSUME the next argv element as their operand — skipped,
-    /// so the scan resumes after them (`python3 -X faulthandler -c …`).
-    value_flags: &'static [&'static str],
-    /// The module handoff (python `-m`): everything after `-m <module>` is
-    /// the MODULE's argv — the interpreter's scan stops there.
-    module_flag: Option<&'static str>,
-}
-
-/// The per-interpreter eval table — `None` for a program with no inline-eval
-/// form. Running any of these on a SCRIPT FILE (`["python","app.py"]`) stays
-/// allowed; only an eval flag/subcommand in the INTERPRETER's own argv
-/// (before the script positional, `--`, or `-m <module>`) is refused at the
-/// floor (route a genuine need via `pre_validated`).
-fn eval_spec(base: &str) -> Option<EvalSpec> {
-    const SHELLS: EvalSpec = EvalSpec {
-        short_letters: &['c'],
-        long_flags: &[],
-        eval_subcommands: &[],
-        value_flags: &[],
-        module_flag: None,
-    };
-    const PYTHON: EvalSpec = EvalSpec {
-        short_letters: &['c'],
-        long_flags: &[],
-        eval_subcommands: &[],
-        value_flags: &["-W", "-X"],
-        module_flag: Some("-m"),
-    };
-    const PERL_RUBY: EvalSpec = EvalSpec {
-        short_letters: &['e', 'E'],
-        long_flags: &[],
-        eval_subcommands: &[],
-        value_flags: &["-I", "-M", "-m", "-r"],
-        module_flag: None,
-    };
-    const NODE: EvalSpec = EvalSpec {
-        short_letters: &['e', 'p'],
-        long_flags: &["--eval", "--print"],
-        eval_subcommands: &[],
-        value_flags: &["-r", "--require", "--import", "--loader"],
-        module_flag: None,
-    };
-    const DENO_BUN: EvalSpec = EvalSpec {
-        short_letters: &['e', 'p'],
-        long_flags: &["--eval", "--print"],
-        eval_subcommands: &["eval"],
-        value_flags: &["-r", "--require", "--import", "--loader"],
-        module_flag: None,
-    };
-    const PHP: EvalSpec = EvalSpec {
-        short_letters: &['r'],
-        long_flags: &[],
-        eval_subcommands: &[],
-        value_flags: &["-d", "-c"],
-        module_flag: None,
-    };
-    match base {
-        "sh" | "bash" | "zsh" | "dash" | "ksh" | "csh" | "tcsh" => Some(SHELLS),
-        "python" | "python2" | "python3" => Some(PYTHON),
-        "perl" | "ruby" => Some(PERL_RUBY),
-        "node" => Some(NODE),
-        "deno" | "bun" => Some(DENO_BUN),
-        "php" => Some(PHP),
-        _ => None,
-    }
-}
-
-/// Zero-width / invisible characters stripped before the blocklist check
-/// (NFKC preserves these — they are a confusable-bypass vector on their own).
-const ZERO_WIDTH_CHARS: &[char] = &[
-    '\u{200B}', // Zero Width Space
-    '\u{200C}', // Zero Width Non-Joiner
-    '\u{200D}', // Zero Width Joiner
-    '\u{FEFF}', // Zero Width No-Break Space (BOM)
-    '\u{00AD}', // Soft Hyphen
-    '\u{2060}', // Word Joiner
-    '\u{180E}', // Mongolian Vowel Separator
-];
-
-/// NFKC-normalize + strip zero-width + collapse whitespace.
-fn normalize_for_blocklist(s: &str) -> String {
-    use unicode_normalization::UnicodeNormalization;
-    s.nfkc()
-        .filter(|c| !ZERO_WIDTH_CHARS.contains(c))
-        .collect::<String>()
-        .split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
-}
-
-/// Replace the first token with its basename (`/usr/bin/sudo rm` → `sudo rm`),
+/// Check a command against the blocklist.
 /// so an absolute-path prefix cannot hide a blocklisted program.
 fn normalize_first_token_basename(cmd: &str) -> String {
     let mut parts = cmd.splitn(2, ' ');
@@ -370,128 +253,26 @@ pub(crate) fn check_shell_mode(command: &str) -> Result<(), ShellError> {
     Ok(())
 }
 
-/// The normalized lowercase BASENAME of an argv program — NFKC + zero-width
-/// folding (because `command[0]` may be an interpolated, attacker-influenced
-/// value), then the path tail. Quoting is NOT stripped — `execve` takes the
-/// program literally, so `su""do` is a (non-existent) filename, not `sudo`.
-fn program_basename(program: &str) -> String {
-    let normalized = normalize_for_blocklist(program);
-    normalized
-        .rsplit(['/', '\\'])
-        .next()
-        .unwrap_or(normalized.as_str())
-        .to_lowercase()
-}
-
-/// Check an argv-form PROGRAM's IDENTITY against [`DANGEROUS_PROGRAMS`] (an
-/// exact basename match · no substring false-positives).
-///
-/// # Errors
-///
-/// [`ShellError::Blocked`] when the program basename is a dangerous program.
-pub(crate) fn check_program(program: &str) -> Result<(), ShellError> {
-    let base = program_basename(program);
-    if DANGEROUS_PROGRAMS.contains(&base.as_str()) {
-        return Err(ShellError::Blocked {
-            reason: format!(
-                "program {base:?} is blocked at the exec floor \
-                 (privilege escalation / system control / re-exec)"
-            ),
-        });
-    }
-    Ok(())
-}
-
 /// Check a full argv-form command at the floor: the program IDENTITY
-/// ([`check_program`]) PLUS the structural re-exec class that shell mode
-/// blocks but a name-only check misses — an interpreter invoked with an
-/// inline-eval flag or subcommand (`["sh","-c",…]` · `["python","-c",…]` ·
-/// `["perl","-e",…]` · `["deno","eval",…]`, per the interpreter's own
-/// [`eval_spec`] · P0-13), `nc -e`/`-c` (reverse shell), `dd if=`/`of=`
-/// (raw disk). Checked STRUCTURALLY (positionally, per discrete argv
-/// element), so a LITERAL argument that merely CONTAINS such text is NOT a
-/// false positive — the difference from a joined-string scan. Without this
-/// the argv form re-introduces every interpreter / `env` danger shell mode
-/// forbids (review P0).
+/// (the dangerous-basename list) PLUS the structural re-exec class that
+/// shell mode blocks but a name-only check misses — an interpreter invoked
+/// with an inline-eval flag or subcommand (`["sh","-c",…]` ·
+/// `["python","-c",…]` · `["perl","-e",…]` · `["deno","eval",…]`),
+/// `nc -e`/`-c` (reverse shell), `dd if=`/`of=` (raw disk). The judgment
+/// itself is [`nika_types::exec::argv_floor_refusal`] — the SAME predicate
+/// `nika check` evaluates statically (#605), so a workflow the check
+/// passes the run never refuses here, and vice versa.
 ///
 /// # Errors
 ///
 /// [`ShellError::Blocked`] on a dangerous program or a re-exec form.
 pub(crate) fn check_argv(program: &str, args: &[String]) -> Result<(), ShellError> {
-    check_program(program)?;
-    let base = program_basename(program);
-
-    if interpreter_eval_requested(&base, args) {
-        return Err(ShellError::Blocked {
-            reason: format!(
-                "argv interpreter inline-eval refused: {base:?} with an eval flag \
-                 or subcommand runs attacker-influenceable code — run a script \
-                 file or route via pre_validated"
-            ),
-        });
+    match nika_types::exec::argv_floor_refusal(program, args) {
+        Some(refusal) => Err(ShellError::Blocked {
+            reason: refusal.reason(),
+        }),
+        None => Ok(()),
     }
-    if matches!(base.as_str(), "nc" | "ncat")
-        && args
-            .iter()
-            .any(|a| a.starts_with("-e") || a.starts_with("-c"))
-    {
-        return Err(ShellError::Blocked {
-            reason: "argv `nc -e/-c` (reverse shell) refused at the exec floor".to_string(),
-        });
-    }
-    if base == "dd"
-        && args
-            .iter()
-            .any(|a| a.starts_with("if=") || a.starts_with("of="))
-    {
-        return Err(ShellError::Blocked {
-            reason: "argv `dd if=/of=` (raw disk read/write) refused at the exec floor".to_string(),
-        });
-    }
-    Ok(())
-}
-
-/// Whether an interpreter's argv requests INLINE code evaluation (vs running
-/// a script file) — POSITIONAL over the discrete argv elements, per the
-/// interpreter's [`EvalSpec`] (P0-13): an eval flag (`python -c` · `node -p`
-/// · `perl -pe` · `php -r`) or an eval SUBCOMMAND (`deno eval`) before the
-/// handoff point refuses; the scan stops at the first positional (the script
-/// file — the flags after it are the SCRIPT's argv), at `--`, and at the
-/// module handoff (`python -m <module>` — the flags after it are the
-/// MODULE's, so `python3 -m unittest discover -p test_*.py` stays allowed).
-fn interpreter_eval_requested(base: &str, args: &[String]) -> bool {
-    let Some(spec) = eval_spec(base) else {
-        return false;
-    };
-    let mut i = 0;
-    while i < args.len() {
-        let arg = args[i].as_str();
-        if arg == "--" || Some(arg) == spec.module_flag {
-            return false; // `--` / `-m <module>`: the rest is not the interpreter's
-        }
-        if spec.value_flags.contains(&arg) {
-            i += 2; // the flag's operand is a value, not an option
-            continue;
-        }
-        if arg.starts_with("--") {
-            if spec.long_flags.contains(&arg) {
-                return true;
-            }
-        } else if let Some(bundle) = arg.strip_prefix('-') {
-            if bundle.is_empty() {
-                return false; // `-` (stdin handoff): the rest is the script's
-            }
-            if bundle.chars().any(|c| spec.short_letters.contains(&c)) {
-                return true;
-            }
-        } else {
-            // First positional: an eval subcommand, else the script file —
-            // everything after it belongs to the script.
-            return spec.eval_subcommands.contains(&arg);
-        }
-        i += 1;
-    }
-    false
 }
 
 #[cfg(test)]
@@ -732,70 +513,11 @@ mod tests {
         assert!(blocked("printenv PATH"), "env-wrapper substring over-block");
     }
 
-    // ── argv-mode program floor (check_program · exact basename) ──
+    // ── argv-mode program floor ──
     //
-    // The shell-line scanner above is the SHELL-mode tripwire. Argv mode has
-    // no shell, so it checks only the program's IDENTITY — which removes the
-    // shell-line false-positives (printenv / timeout / env / nice) AND the
-    // value false-positives (a `;` inside an argument is a literal char).
-
-    fn prog_blocked(program: &str) -> bool {
-        matches!(check_program(program), Err(ShellError::Blocked { .. }))
-    }
-
-    #[test]
-    fn argv_floor_blocks_priv_esc_and_system_control() {
-        for p in [
-            "sudo",
-            "/usr/bin/sudo",
-            "doas",
-            "pkexec",
-            "su",
-            "runas",
-            "shutdown",
-            "/sbin/reboot",
-            "halt",
-            "poweroff",
-        ] {
-            assert!(prog_blocked(p), "argv floor must block: {p}");
-        }
-    }
-
-    #[test]
-    fn argv_floor_is_exact_basename_not_substring() {
-        // `su` is blocked, but programs that merely CONTAIN it are not —
-        // exact basename match kills the substring false-positives.
-        assert!(prog_blocked("su"));
-        for ok in ["issue", "sudoku", "subl", "lsusb"] {
-            assert!(check_program(ok).is_ok(), "must allow: {ok}");
-        }
-    }
-
-    #[test]
-    fn argv_floor_allows_normal_programs_and_shell_wrappers() {
-        // The wrappers the SHELL-line scanner over-blocks (timeout / env /
-        // nice) and ordinary tools pass the argv floor — checked by identity,
-        // not by a fake-shell scan of their arguments.
-        for ok in [
-            "echo", "cargo", "git", "npm", "ffmpeg", "timeout", "nice", "rm", "printenv",
-        ] {
-            assert!(check_program(ok).is_ok(), "argv floor must allow: {ok}");
-        }
-    }
-
-    #[test]
-    fn argv_floor_normalizes_confusable_program() {
-        // An interpolated `command[0]` of fullwidth `ｓｕｄｏ` folds to `sudo`.
-        assert!(prog_blocked("\u{FF53}\u{FF55}\u{FF44}\u{FF4F}"));
-    }
-
-    #[test]
-    fn argv_floor_does_not_dequote_the_program() {
-        // execve takes the program literally; `su""do` is a filename that is
-        // NOT `sudo` (no shell to strip the quotes), so the floor allows it
-        // (it would simply fail to spawn as NotFound).
-        assert!(check_program("su\"\"do").is_ok());
-    }
+    // The program-identity matrix (exact basename · confusable fold ·
+    // no-dequote) moved WITH the predicate to `nika_types::exec` (#605) —
+    // it is pinned there, against the shared floor itself.
 
     // ── argv re-exec class (check_argv · review P0) ──────────────────
 
@@ -953,5 +675,63 @@ mod tests {
         assert!(check_shell_mode("cat a.log | grep error").is_ok());
         assert!(check_shell_mode("echo hi > out.txt").is_ok());
         assert!(check_shell_mode("sort < in.txt").is_ok());
+    }
+
+    // ── #605: check ≡ run on the argv floor (ONE predicate) ──────────
+
+    /// The issue's agreement law: for the SAME literal argv, the runtime
+    /// floor ([`check_argv`]) and the static check (`nika_check::check`'s
+    /// `NIKA-SEC-001` finding) must return the SAME verdict — because both
+    /// call [`nika_types::exec::argv_floor_refusal`]. The table pins the
+    /// issue's own shapes: `bash -c` (refused), `sh -e` (ALLOWED — `e` is
+    /// not the shell family's eval letter, and the check must not
+    /// over-refuse what the run accepts), plus the benign negative.
+    #[test]
+    fn check_and_run_agree_on_the_argv_floor() {
+        let cases: &[(&[&str], bool)] = &[
+            (&["bash", "-c", "echo hello"], true), // the issue's repro
+            (&["sh", "-c", "echo hello"], true),
+            (&["sh", "-e", "deploy.sh"], false), // errexit, NOT inline eval
+            (&["perl", "-e", "system('id')"], true),
+            (&["echo", "hi"], false), // the benign negative
+        ];
+        for (argv, refused) in cases {
+            let (program, rest) = argv.split_first().expect("non-empty case");
+            let owned: Vec<String> = rest.iter().map(|s| (*s).to_string()).collect();
+            let runtime_refused = check_argv(program, &owned).is_err();
+            assert_eq!(
+                runtime_refused, *refused,
+                "runtime floor verdict for {argv:?}"
+            );
+
+            let list = argv
+                .iter()
+                .map(|a| format!("\"{a}\""))
+                .collect::<Vec<_>>()
+                .join(", ");
+            let yaml = format!(
+                "nika: v1\nworkflow:\n  id: w\npermits:\n  exec: true\ntasks:\n  t:\n    exec: {{ command: [{list}] }}\n"
+            );
+            let wf = nika_schema::parser::parse(
+                &yaml,
+                nika_schema::source::FileId::new(0),
+                nika_schema::parser::ParseMode::Strict,
+            )
+            .expect("fixture parses");
+            let report = nika_check::check(&wf);
+            let static_refused = report
+                .findings
+                .iter()
+                .any(|f| f.code.as_deref() == Some("NIKA-SEC-001"));
+            assert_eq!(
+                static_refused, *refused,
+                "static check verdict for {argv:?} (findings: {:?})",
+                report.findings
+            );
+            assert_eq!(
+                static_refused, runtime_refused,
+                "check ≡ run on {argv:?} — the #605 law"
+            );
+        }
     }
 }

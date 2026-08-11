@@ -50,6 +50,7 @@ pub mod cancel;
 pub mod checkpoint;
 pub mod compression;
 pub mod embedding;
+pub mod exec;
 pub mod extract;
 pub mod memory;
 pub mod net;

@@ -30,9 +30,9 @@ use super::{CheckReport, FindingSeverity};
 #[non_exhaustive]
 pub struct UnifiedFinding {
     /// The class slug (`conformance` · `secret_leak` · `secret_egress` ·
-    /// `capability_escape` · `permit_taint` · `data_sink` · `policy` ·
-    /// `consent` · `trifecta` · `schema_type` · `gate` · `run_decl` ·
-    /// `write_conflict` · `composition` · `unknown_tool` ·
+    /// `capability_escape` · `exec_floor` · `permit_taint` · `data_sink` ·
+    /// `policy` · `consent` · `trifecta` · `schema_type` · `gate` ·
+    /// `run_decl` · `write_conflict` · `composition` · `unknown_tool` ·
     /// `unknown_arg` · `missing_arg` · `schema_lint`).
     pub kind: &'static str,
     /// The ladder section the human render files this under.
@@ -214,6 +214,7 @@ pub(super) fn collect(report: &CheckReport) -> Vec<UnifiedFinding> {
     }
     fold_permit_taints(report, &mut out);
     fold_sink_findings(report, &mut out);
+    fold_exec_floor(report, &mut out);
     fold_policy_findings(report, &mut out);
     fold_consent(report, &mut out);
     fold_trifecta(report, &mut out);
@@ -256,6 +257,23 @@ pub(super) fn collect(report: &CheckReport) -> Vec<UnifiedFinding> {
         out.push(f);
     }
     out
+}
+
+/// The argv exec-floor class (#605 · NIKA-SEC-001) — the finding's own
+/// code is the one the run stamps on the same refusal (check ≡ run down
+/// to the code); the fold follows the sink/run-decl precedent.
+fn fold_exec_floor(report: &CheckReport, out: &mut Vec<UnifiedFinding>) {
+    for e in &report.exec_floor_findings {
+        let mut f = UnifiedFinding::new(
+            "exec_floor",
+            "EXEC",
+            format!("{} (task `{}`) — fix: {}", e.detail, e.task, e.fix),
+        );
+        f.code = Some(e.wire_code().to_owned());
+        f.docs_url = Some(format!("{}/{}", super::ERROR_DOCS_BASE, e.wire_code()));
+        f.task = Some(e.task.clone());
+        out.push(f);
+    }
 }
 
 /// The permit-taint class (NEP-0004 · the check-time twin of the runtime

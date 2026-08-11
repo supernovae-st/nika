@@ -19,9 +19,10 @@ adr = ["ADR-003", "ADR-016"]
 nika-kernel = { path = "../nika-kernel", version = "0.108.0" }
 # The ONE host matcher (host_in_allowlist) the egress proxy decides with —
 # shared with nika-http's wire boundary and the static check, so check ≡
-# run ≡ jail cannot drift on the glob (L0 leaf, no I/O pulled in).
+# run ≡ jail cannot drift on the glob (L0 leaf, no I/O pulled in). The same
+# leaf carries the ONE argv exec-floor predicate (#605 · exec::argv_floor_refusal)
+# the blocklist wrapper and the `nika check` SEC-001 finding both judge with.
 nika-types = { path = "../nika-types", version = "0.108.0" }
-unicode-normalization = { workspace = true }  # NFKC confusable-bypass defense
 # tokio::process spawns the child; io-util drains pipes; sync::Notify backs the
 # cancel-by-pid registry; time::timeout enforces the deadline.
 tokio = { workspace = true, features = ["process", "io-util", "sync", "time", "rt", "macros"] }
@@ -37,6 +38,11 @@ nix = { workspace = true }
 [dev-dependencies]
 proptest = { workspace = true }
 tokio    = { workspace = true, features = ["process", "io-util", "sync", "time", "rt", "macros"] }
+# The #605 agreement test (blocklist::tests): the static check and the
+# runtime floor must return the SAME verdict on the same literal argv —
+# L0 leaves, downward-only.
+nika-check  = { path = "../nika-check", version = "0.108.0" }
+nika-schema = { path = "../nika-schema", version = "0.108.0" }
 
 [package.metadata.lore]
 daemon        = "timonier"
