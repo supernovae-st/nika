@@ -231,6 +231,19 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   with zero secret bytes · the inside link serves byte-exact · the loop
   and the storm refuse coded and RETURN.
 
+### Security
+
+- **`nika mcp --transport http` refuses a non-loopback bind without a
+  bearer token (#890 · #822 P0/P1).** `NIKA_MCP_TOKEN` was optional and
+  the auth gate treated its absence as OK — right for the loopback
+  default, a classic misconfiguration the moment `--bind 0.0.0.0` met a
+  multi-user or VPS host. The refusal is code-enforced before serving
+  (`HttpServer::guard_bind_auth` judges the RESOLVED address, so
+  `localhost` reads as the loopback it bound, never the spelling) and
+  names both fixes: set `NIKA_MCP_TOKEN` to require a bearer, or bind a
+  loopback address. Loopback without a token stays convenient,
+  unchanged.
+
 ## [0.108.0](https://github.com/supernovae-st/nika/compare/v0.107.2..v0.108.0) - 2026-08-05
 
 **The access layer arrives; the check stops trusting what it cannot
