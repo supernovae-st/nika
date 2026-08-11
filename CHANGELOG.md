@@ -12,6 +12,14 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Added
 
+- **The thinking-budget teaching at check (#651 · leg 3).** A
+  reasoning-capable model (the vendored catalog knows) seated with
+  `max_tokens` but no `thinking:` now draws the `thinking-budget` hint:
+  the reasoning share lives INSIDE that budget, and a heavy think
+  concludes with a paid blank answer — the typed NIKA-INFER-004 failure
+  at run since leg 1. The hint teaches the declaration before a token
+  is spent; a templated seat defers to the run's resolution, a declared
+  `thinking:` or a no-think model stays silent.
 - **The pause is heard — outbound pause delivery (ADR-111).** When the
   operator sets `NIKA_NOTIFY_URL`, a run that pauses on a human gate
   POSTs its pause payload once — a CloudEvents 1.0.2 structured envelope
@@ -49,6 +57,21 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Fixed
 
+- **A templated `model:` resolves at run, not just at check (#824).**
+  `infer.model: "${{ config.model }}"` checked green — the MODELS rung
+  judges the declared default through the one shared static resolver —
+  then the run handed the RAW template bytes to the provider, dying
+  NIKA-INFER-001 on a string that was never a model id. The dispatch
+  now renders `model:` (infer AND agent — the same one-line seam each)
+  through the `${{ }}` render path `prompt:`/`system:` already took, so
+  the resolved binding is what reaches the wire and the
+  spec-sanctioned parameterization idiom (03 §model-by-condition ·
+  08 §H20 env targeting) holds end-to-end. A declared-but-valueless
+  ref now fails the task loud (NIKA-1702) instead of leaking the raw
+  island to the provider. Proven red-first at the seam: the issue's
+  repro workflow lands the resolved default in the captured provider
+  request body, and the agent loop's mock records `mock/echo`, never
+  the template.
 - **`check --fix` migrates the pre-0.103 string `command:` (#572 · the
   D1 codemod).** The refusal taught the migration in prose but answered
   « no machine-applicable repairs » on the exact finding whose repair IS
