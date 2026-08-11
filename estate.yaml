@@ -48,7 +48,7 @@ files:
   note: "generated with a human gate — the maintainer may amend the section at PR review"
 - path: "Cargo.lock"
   class: generated
-  sha256: ec69042f7b0e9156471971497c40ce1b14c81aab09ba2e0bf5f9547336353c55
+  sha256: f06d42cd866fd5b68e57d7e1f711fb11450e744a39f87e0042996c86c2118436
   evidence: "cargo's resolver writes it; no human edits a lockfile"
   derivation:
     tool: "cargo (dependency resolution against Cargo.toml + crates/*/Cargo.toml)"
@@ -89,7 +89,7 @@ files:
     - "docs/adr/adr-*.md YAML frontmatter"
 - path: "fuzz/Cargo.lock"
   class: generated
-  sha256: 420898a5f77c798ef981236fd687e381a81d7485002eb66e8317585716a68756
+  sha256: e2c7f865e84e950708007e2b62c582be91de95d29a8d1660d8219aa2447c0cef
   evidence: "cargo's resolver writes it for the fuzz workspace; no human edits a lockfile"
   derivation:
     tool: "cargo (dependency resolution against fuzz/Cargo.toml)"
@@ -152,17 +152,17 @@ patterns:
 - glob: "crates/**/src/**"
   class: authored
   match_count: 724
-  aggregate_sha256: c036e05f463a3ede40dd7edfdf02eba97e621887b784bb157409d83075e38457
+  aggregate_sha256: 5d4826f15d4a69bbe5db702fd78547db5ccd08135ab4265f635621d8cf31c51e
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
   match_count: 137
-  aggregate_sha256: 493f7baa422c2da3258149ba3d037b436d5ac93df7232df263f4ab7301f2abcb
+  aggregate_sha256: a1b0120d352a2aa9283add6f3e8b29566e865466da90af94c2664e613b87f555
   evidence: "crate-owned tests + fixtures under tests/ — written with the crate per gate discipline, no generation markers"
 - glob: "crates/**"
   class: authored
   match_count: 132
-  aggregate_sha256: 38846f400c93b3bb53d9590c4cec573e73416b2e901773fbf17f34fed824a0e4
+  aggregate_sha256: 86b97ef09ead2199c5fed3d638e7e1c98d5bcd66461ae5a709ed9bf938be9745
   evidence: "the remaining crate surface — Cargo.toml manifests · build.rs · benches · READMEs · hand-curated data catalogs (llm-providers · mcp-servers · embeddings · model-capabilities, probed daily by catalog-verify.yml); the pricing snapshot is excepted in files:"
   note: "crates/nika-pack/scripts/sync-pack.sh is a DIVERGENT older duplicate of scripts/sync-pack.sh — the pack-resync.yml lane runs the root one"
 - glob: "fuzz/**"
@@ -188,7 +188,7 @@ patterns:
 - glob: ".github/workflows/**"
   class: authored
   match_count: 22
-  aggregate_sha256: 294a6aced13a5e5bf546c525c09037878d5794415835761ea079f8e8d20fb054
+  aggregate_sha256: 9b78c1aa438a98695a00440cd30719d6f1a5e9038257794a9743034fa3687d5e
   evidence: "hand-written CI rails, comments narrate design decisions; the heal lanes here rewrite OTHER files (spec-pin-heal.yml → SPEC_PIN · pack-resync.yml → the pack · changelog-cliff.yml → CHANGELOG.md), nothing rewrites the workflows themselves"
 - glob: ".github/**"
   class: authored
@@ -237,7 +237,7 @@ patterns:
 - glob: "*"
   class: authored
   match_count: 28
-  aggregate_sha256: 0e3c8ef08f7d890b7221b270cb33a35e7e2bbcd8c452331dbb3487620b43e4a6
+  aggregate_sha256: 6b0dba4dbc99e34ea17a2f75f4e25acf68d29b02c1ccc762867b9fa4b357f1ab
   evidence: "root prose + config surface (README · DIAMOND · LICENSE · llms.txt · Cargo.toml · deny/clippy/cliff/typos toml · lefthook.yml · flake.nix · Dockerfile) — no generation markers at file heads; CHANGELOG.md · Cargo.lock · SPEC_PIN · ROADMAP.md excepted in files:"
 - glob: "**"
   class: authored
