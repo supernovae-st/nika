@@ -89,6 +89,8 @@ nika-cel
 nika-cli
 # --- 2026-07-31: the host-integration member out of nika-cli at the 15k wall (ADR-110 · one unit, two members) ---
 nika-cli-host
+# --- 2026-08-11: the flight-recorder reader descends from nika-cli at the 15k wall (D-2026-07-09-N1 · the ADR-110 precedent) ---
+nika-trace
 nika-dap
 nika-display
 nika-pck-manifest

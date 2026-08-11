@@ -9,13 +9,13 @@
 //! 2-4 runs earn a range · bands are earned at n ≥ 5. Every skip is
 //! counted; a suggestion never outweighs a proof.
 
-pub(crate) mod gather;
-pub(crate) mod render;
+pub mod gather;
+pub mod render;
 
 use std::collections::BTreeMap;
 
 use crate::display::state::TaskState;
-use crate::verbs::trace::store::TraceState;
+use crate::trace::store::TraceState;
 
 use gather::{Gathered, RunSample, TaskSample};
 use nika_dap::stats::Prior;
@@ -23,13 +23,13 @@ use nika_dap::stats::Prior;
 /// `explain <file>` includes the section unprompted once the window
 /// holds this many runs (under it, the recorder glance suffices);
 /// `--forecast` always forces.
-pub(crate) const AUTO_FORECAST_MIN_RUNS: usize = 3;
+pub const AUTO_FORECAST_MIN_RUNS: usize = 3;
 
 /// The current file's source identity — computed ONCE by the caller
 /// (`load_checked_with_source` + `run/source_id.rs` hashes; the stdin
 /// `-` arm works for free).
 #[derive(Debug, Clone)]
-pub(crate) struct WorkflowIdentity {
+pub struct WorkflowIdentity {
     /// The workflow name (matches `workflow_started`'s field).
     pub name: String,
     /// sha256 hex over the exact bytes read.
@@ -41,7 +41,7 @@ pub(crate) struct WorkflowIdentity {
 
 /// The gather accounting — every bound and every skip, counted.
 #[derive(Debug, Clone, Copy, serde::Serialize)]
-pub(crate) struct Window {
+pub struct Window {
     /// The run-count cap (policy · C4).
     pub k: usize,
     /// The age cap in days (policy · C4).
@@ -95,7 +95,7 @@ pub(crate) enum ShaMatch {
 /// The run population census — who is in the window, by identity and
 /// by terminal state.
 #[derive(Debug, Clone, Copy, Default, serde::Serialize)]
-pub(crate) struct RunCensus {
+pub struct RunCensus {
     /// Matching runs inside the window.
     pub total: usize,
     /// Runs whose recorded source hash matches the current file.
@@ -120,7 +120,7 @@ pub(crate) struct RunCensus {
 
 /// One task's learned priors across the window.
 #[derive(Debug, Clone, serde::Serialize)]
-pub(crate) struct TaskPrior {
+pub struct TaskPrior {
     /// The task id.
     pub id: String,
     /// Runs where the task actually EXECUTED (ok · failed · torn
@@ -153,7 +153,7 @@ pub(crate) struct TaskPrior {
 /// The forecast — learned truth, labeled as such, sample counts on
 /// every number.
 #[derive(Debug, Clone, serde::Serialize)]
-pub(crate) struct ForecastReport {
+pub struct ForecastReport {
     /// The workflow name the history was matched on.
     pub workflow: String,
     /// The window population census.
@@ -199,7 +199,7 @@ fn push_finite(values: &mut Vec<f64>, v: f64, dropped: &mut usize) {
 /// Fold gathered samples into the forecast report. PURE — zero I/O,
 /// zero clock: the same gather always computes the same report.
 #[must_use]
-pub(crate) fn compute(id: &WorkflowIdentity, gathered: &Gathered) -> ForecastReport {
+pub fn compute(id: &WorkflowIdentity, gathered: &Gathered) -> ForecastReport {
     let mut window = gathered.window;
     let mut runs = RunCensus {
         total: gathered.samples.len(),
@@ -373,8 +373,8 @@ mod tests {
     }
 
     fn sample_from(body: &str) -> RunSample {
-        let recovered = crate::verbs::run::recover_events(body, "test").expect("parses");
-        let (_, state, _) = crate::verbs::trace::store::fold_facts(&recovered.events);
+        let recovered = nika_dap::recover::recover_events(body, "test").expect("parses");
+        let (_, state, _) = crate::trace::store::fold_facts(&recovered.events);
         super::gather::fold_sample(&recovered.events, state).expect("sample")
     }
 

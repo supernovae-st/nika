@@ -52,7 +52,7 @@ fn no_teaching_surface_names_a_verb_the_tree_refuses() {
         .map(clap::Command::get_name)
         .collect();
 
-    let hook = include_str!("../../../.agents/plugins/nika/scripts/session-context.sh");
+    let hook = include_str!("../../../../.agents/plugins/nika/scripts/session-context.sh");
     let taught = hook
         .split("CLI: nika ")
         .nth(1)

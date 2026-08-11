@@ -28,7 +28,10 @@ pub use nika_display as display;
 pub use nika_display::demo;
 // The agent-run contract, pinned against the in-repo kit source
 // (RAMS-17 · the prose must match the structure guard already judges).
+// The file rides the `tests.rs` name so the prod-LOC counter excludes it
+// (the check/tests.rs idiom · a `*_tests.rs` basename counts as prod).
 #[cfg(test)]
+#[path = "agent_kit/tests.rs"]
 mod agent_kit_tests;
 pub mod anchor;
 pub use nika_cli_host::metrics;

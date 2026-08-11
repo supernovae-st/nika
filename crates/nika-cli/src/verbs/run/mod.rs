@@ -123,8 +123,8 @@ use crate::verbs::exit;
 /// silent deletion is forbidden, and stderr keeps the machine surfaces
 /// (`--json` · `--output json` stdout) byte-frozen.
 fn run_start_gc(no_gc: bool, dry_run: bool) {
-    if let Some(line) = super::trace::retention::gc_at_run_start(
-        std::path::Path::new(super::trace::store::TRACE_DIR),
+    if let Some(line) = nika_cli_host::retention::gc_at_run_start(
+        std::path::Path::new(nika_dap::store::TRACE_DIR),
         no_gc,
         dry_run,
     ) {

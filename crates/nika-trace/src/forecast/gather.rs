@@ -17,9 +17,9 @@ use nika_types::resource::Value;
 
 use crate::RunView;
 use crate::display::state::TaskState;
-use crate::verbs::run::recover_events;
-use crate::verbs::trace::retention::RetentionConfig;
-use crate::verbs::trace::store::{TraceState, fold_facts};
+use crate::trace::retention::RetentionConfig;
+use crate::trace::store::{TraceState, fold_facts};
+use nika_dap::recover::recover_events;
 
 use super::Window;
 
@@ -40,7 +40,7 @@ pub(crate) const WINDOW_MS: i64 = WINDOW_DAYS as i64 * 86_400_000;
 
 /// One task occurrence inside one recovered run.
 #[derive(Debug, Clone)]
-pub(crate) struct TaskSample {
+pub struct TaskSample {
     /// The task id (the workflow's vocabulary).
     pub id: String,
     /// Folded terminal state for this occurrence.
@@ -64,7 +64,7 @@ pub(crate) struct TaskSample {
 
 /// One recovered run, reduced to its forecast facts.
 #[derive(Debug, Clone)]
-pub(crate) struct RunSample {
+pub struct RunSample {
     /// Source identity from `workflow_started` — `None` when the run
     /// predates hash stamping (the fields are OPTIONAL): bucketed
     /// `Unknown`, never silently same/stale.
@@ -87,7 +87,7 @@ pub(crate) struct RunSample {
 /// Everything the reader hands `compute` — samples in newest-first
 /// order plus the accounting every skip landed in.
 #[derive(Debug, Default)]
-pub(crate) struct Gathered {
+pub struct Gathered {
     /// Matching runs inside the window, newest first.
     pub samples: Vec<RunSample>,
     /// The window accounting (caps · skips · retention knob).
@@ -96,7 +96,8 @@ pub(crate) struct Gathered {
 
 /// Scan `dir` for the newest runs of `workflow_name`, bounded and
 /// fail-open. A missing directory gathers empty — gather never errs.
-pub(crate) fn gather(dir: &Path, workflow_name: &str) -> Gathered {
+#[must_use]
+pub fn gather(dir: &Path, workflow_name: &str) -> Gathered {
     let mut out = Gathered {
         window: Window::new(),
         ..Gathered::default()
@@ -268,7 +269,7 @@ fn float_field(event: &Event, key: &str) -> Option<f64> {
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;
-    use crate::verbs::trace::store::tests::{stage_trace, temp_store};
+    use crate::trace::store::tests::{stage_trace, temp_store};
     use nika_types::id::EventId;
     use nika_types::resource::KeyValue;
     use nika_types::timestamp::Timestamp;
@@ -532,7 +533,7 @@ pub(crate) mod tests {
     /// the report carries the knob that explains why.
     #[test]
     fn retention_bounds_the_window_and_the_report_names_it() {
-        use crate::verbs::trace::retention;
+        use crate::trace::retention;
         use std::time::SystemTime;
         let dir = temp_store("forecast-gather-retention");
         for i in 0..12u64 {

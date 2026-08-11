@@ -19,7 +19,7 @@ use nika_dap::stats::Prior;
 const LOW_CONFIDENCE_N: usize = 10;
 
 /// The whole FORECAST section (the composer — one honest block).
-pub(crate) fn forecast_section(s: &mut String, report: &ForecastReport) {
+pub fn forecast_section(s: &mut String, report: &ForecastReport) {
     let _ = writeln!(s);
     if report.runs.total == 0 {
         let _ = writeln!(

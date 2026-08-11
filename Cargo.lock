@@ -4267,6 +4267,7 @@ dependencies = [
  "nika-runtime",
  "nika-schema",
  "nika-store",
+ "nika-trace",
  "nika-types",
  "nika-verb-agent",
  "nika-verb-exec",
@@ -4896,6 +4897,28 @@ name = "nika-tmpl"
 version = "0.108.0"
 dependencies = [
  "proptest",
+]
+
+[[package]]
+name = "nika-trace"
+version = "0.108.0"
+dependencies = [
+ "clap",
+ "minisign",
+ "nika-catalog",
+ "nika-check",
+ "nika-cli-host",
+ "nika-dap",
+ "nika-display",
+ "nika-event",
+ "nika-http",
+ "nika-runtime",
+ "nika-schema",
+ "nika-types",
+ "serde",
+ "serde_json",
+ "tokio",
+ "uuid",
 ]
 
 [[package]]

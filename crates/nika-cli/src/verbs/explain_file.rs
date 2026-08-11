@@ -32,8 +32,8 @@ use nika_event::{Event, EventKind};
 
 use crate::verbs::graph::{GraphDoc, Node, project};
 use crate::verbs::run::{lf_normal_form, recover_events, sha256_hex};
-use crate::verbs::trace::store::{TraceState, fold_facts};
 use crate::verbs::{VerbOutput, load_checked_with_source};
+use nika_dap::store::{TraceState, fold_facts};
 
 /// Route `explain`'s positional: an existing path or a path-shaped string
 /// (`/` · `.yaml`/`.yml` · `-`) narrates the FILE; everything else teaches
@@ -1065,11 +1065,121 @@ mod tests {
     // staged through the SAME serde path the sink writes — the honesty
     // matrix rules the plan pins, proven at the render/JSON surface.
 
-    use crate::verbs::forecast::gather::tests as fx;
-    use crate::verbs::trace::store::tests::{stage_trace, temp_store};
+    // The staged-journal fixtures — local twins of the set that descended
+    // with the trace plane to `nika-trace` (2026-08-11): a `#[cfg(test)]`
+    // fixture module cannot cross a crate boundary, and the house pattern
+    // is one fixture set per crate (the nika-dap store-tests twin).
     use nika_event::EventKind;
     use nika_types::resource::Value;
     use std::time::Duration;
+
+    /// A fresh per-test trace directory under the cargo tmp root.
+    fn temp_store(name: &str) -> std::path::PathBuf {
+        let base = std::env::temp_dir().join("nika-cli-trace-store");
+        let dir = base.join(format!("{name}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("store dir");
+        dir
+    }
+
+    /// Stage one trace file and BACKDATE its mtime by `age` — the age
+    /// clock the policy reads is the file's mtime.
+    fn stage_trace(dir: &Path, name: &str, body: &str, age: Duration) -> std::path::PathBuf {
+        let path = dir.join(name);
+        std::fs::write(&path, body).expect("trace staged");
+        let mtime = std::time::SystemTime::now()
+            .checked_sub(age)
+            .expect("test age fits the clock");
+        let file = std::fs::File::options()
+            .write(true)
+            .open(&path)
+            .expect("reopen for times");
+        file.set_times(std::fs::FileTimes::new().set_modified(mtime))
+            .expect("mtime set");
+        path
+    }
+
+    /// The forecast journal fixtures (the descended `gather::tests` set,
+    /// verb-era call sites kept: `fx::…`).
+    mod fx {
+        use nika_event::{Event, EventKind};
+        use nika_types::id::EventId;
+        use nika_types::resource::{KeyValue, Value};
+        use nika_types::timestamp::Timestamp;
+        use uuid::Uuid;
+
+        /// One journal event with arbitrary KV fields (the store helper
+        /// carries exactly one string field — forecasts need several).
+        pub(super) fn ev(kind: EventKind, ms: u64, fields: &[(&str, Value)]) -> Event {
+            let mut event =
+                Event::new(EventId::new(Uuid::nil()), Timestamp::from_unix_ms(ms), kind);
+            for (key, value) in fields {
+                event = event.with_field(KeyValue::new(*key, value.clone()));
+            }
+            event
+        }
+
+        /// Serialize events as one NDJSON trace body.
+        fn ndjson(events: &[Event]) -> String {
+            let mut body = String::new();
+            for e in events {
+                body.push_str(&serde_json::to_string(e).expect("event serializes"));
+                body.push('\n');
+            }
+            body
+        }
+
+        /// A complete run journal: started (with hashes) · tasks · terminal.
+        pub(super) fn run_body(
+            workflow: &str,
+            sha: Option<&str>,
+            started_ms: u64,
+            tasks: &[Event],
+            terminal: Option<Event>,
+        ) -> String {
+            let mut events = Vec::new();
+            let mut fields = vec![("workflow", Value::string(workflow))];
+            if let Some(sha) = sha {
+                fields.push(("workflow_sha256", Value::string(sha)));
+                fields.push(("workflow_sha256_lf", Value::string(sha)));
+            }
+            events.push(ev(EventKind::WorkflowStarted, started_ms, &fields));
+            events.extend_from_slice(tasks);
+            if let Some(t) = terminal {
+                events.push(t);
+            }
+            ndjson(&events)
+        }
+
+        /// One completed-task frame with duration + optional cost/model.
+        pub(super) fn task_done(
+            id: &str,
+            ms: u64,
+            dur: u64,
+            cost: Option<f64>,
+            model: Option<&str>,
+        ) -> Event {
+            let mut fields = vec![
+                ("task", Value::string(id)),
+                ("duration_ms", Value::Int(i64::try_from(dur).unwrap_or(0))),
+            ];
+            if let Some(c) = cost {
+                fields.push(("cost_usd", Value::Float(c)));
+            }
+            if let Some(m) = model {
+                fields.push(("note", Value::string(format!("infer · {m}"))));
+            }
+            ev(EventKind::TaskCompleted, ms, &fields)
+        }
+
+        pub(super) fn done(ms: u64, total: Option<f64>) -> Event {
+            let mut fields = vec![("workflow", Value::string("wf"))];
+            if let Some(t) = total {
+                fields.push(("total_cost_usd", Value::Float(t)));
+            }
+            ev(EventKind::WorkflowCompleted, ms, &fields)
+        }
+    }
 
     const FC: &str = "nika: v1\nworkflow:\n  id: fc-fix\n  description: forecast fixture\n\nmodel: mock/echo\n\ntasks:\n  fetch:\n    exec: { command: [\"echo\", \"x\"] }\n  think:\n    after:\n      fetch: success\n    infer: { prompt: \"p\", max_tokens: 10 }\n";
 
@@ -1277,7 +1387,7 @@ mod tests {
         assert_eq!(fc["run_duration"]["kind"], "bands");
         assert_eq!(fc["runs"]["completed"], 6);
         assert_eq!(fc["runs"]["same_hash"], 6);
-        let expected_keep = crate::verbs::trace::retention::RetentionConfig::from_env()
+        let expected_keep = nika_cli_host::retention::RetentionConfig::from_env()
             .0
             .keep_last;
         assert_eq!(

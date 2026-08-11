@@ -19,13 +19,13 @@ pub enum TraceAction {
     /// (read · export · prove), all under `trace`.
     Evidence {
         #[command(flatten)]
-        args: crate::verbs::evidence::EvidenceArgs,
+        args: crate::evidence::EvidenceArgs,
     },
     /// Read a run receipt — `explain` renders its readable projection
     /// (stable text · a READING, never a proof).
     Receipt {
         #[command(subcommand)]
-        action: crate::verbs::receipt::ReceiptAction,
+        action: crate::receipt::ReceiptAction,
     },
     /// Print the final card only.
     Show(TraceArgs),

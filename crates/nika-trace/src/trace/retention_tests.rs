@@ -4,8 +4,8 @@
 //! Tests of the retention config (an ADR-110 host-member module),
 //! living cli-side where the `trace::store` test fixtures are.
 
-use crate::verbs::trace::retention::*;
-use crate::verbs::trace::store::tests::{ndjson, run_events, stage_trace, temp_store};
+use crate::trace::retention::*;
+use crate::trace::store::tests::{ndjson, run_events, stage_trace, temp_store};
 use nika_event::EventKind;
 use std::path::Path;
 use std::time::Duration;
