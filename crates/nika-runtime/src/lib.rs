@@ -78,6 +78,9 @@ mod record;
 mod recover;
 pub mod resume;
 mod retry;
+/// The ONE OS-sandbox selection (ADR-095 Layer 6 · #888) — `pub` because
+/// `nika-mcp`'s spawn confinement rides the same decision (L4→L3).
+pub mod sandbox_select;
 mod secret;
 mod settle;
 /// The effects-simulated seams (the `nika test` plane · P0-16) — `pub`

@@ -4643,6 +4643,7 @@ dependencies = [
  "nika-onboard",
  "nika-pack",
  "nika-providers",
+ "nika-runtime",
  "nika-sandbox-landlock",
  "nika-sandbox-seatbelt",
  "nika-schema",

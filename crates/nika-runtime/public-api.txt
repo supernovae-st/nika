@@ -786,6 +786,39 @@ pub type nika_runtime::resume::ResumeKey::Output = T
 pub const nika_runtime::resume::KEY_VERSION: u32
 pub fn nika_runtime::resume::referenced_upstreams(task: &nika_schema::raw::task::RawTask) -> alloc::collections::btree::set::BTreeSet<alloc::string::String>
 pub type nika_runtime::resume::ResumePlan = alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_runtime::resume::PriorSuccess>
+pub mod nika_runtime::sandbox_select
+pub struct nika_runtime::sandbox_select::SandboxDecision
+impl nika_runtime::sandbox_select::SandboxDecision
+pub fn nika_runtime::sandbox_select::SandboxDecision::backend(&self) -> &'static str
+pub fn nika_runtime::sandbox_select::SandboxDecision::into_sandbox(self) -> alloc::sync::Arc<dyn nika_kernel_core::io::command_sandbox::CommandSandbox>
+pub fn nika_runtime::sandbox_select::SandboxDecision::is_confined(&self) -> bool
+impl<D> owo_colors::OwoColorize for nika_runtime::sandbox_select::SandboxDecision
+impl<T, U> core::convert::Into<U> for nika_runtime::sandbox_select::SandboxDecision where U: core::convert::From<T>
+pub fn nika_runtime::sandbox_select::SandboxDecision::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_runtime::sandbox_select::SandboxDecision where U: core::convert::Into<T>
+pub type nika_runtime::sandbox_select::SandboxDecision::Error = core::convert::Infallible
+pub fn nika_runtime::sandbox_select::SandboxDecision::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_runtime::sandbox_select::SandboxDecision where U: core::convert::TryFrom<T>
+pub type nika_runtime::sandbox_select::SandboxDecision::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_runtime::sandbox_select::SandboxDecision::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_runtime::sandbox_select::SandboxDecision where T: 'static + ?core::marker::Sized
+pub fn nika_runtime::sandbox_select::SandboxDecision::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_runtime::sandbox_select::SandboxDecision where T: ?core::marker::Sized
+pub fn nika_runtime::sandbox_select::SandboxDecision::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_runtime::sandbox_select::SandboxDecision where T: ?core::marker::Sized
+pub fn nika_runtime::sandbox_select::SandboxDecision::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_runtime::sandbox_select::SandboxDecision
+pub fn nika_runtime::sandbox_select::SandboxDecision::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_runtime::sandbox_select::SandboxDecision where T: 'static
+pub fn nika_runtime::sandbox_select::SandboxDecision::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::sandbox_select::SandboxDecision where T: ?core::marker::Sized
+pub fn nika_runtime::sandbox_select::SandboxDecision::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_runtime::sandbox_select::SandboxDecision::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_runtime::sandbox_select::SandboxDecision
+impl<T> tracing::instrument::WithSubscriber for nika_runtime::sandbox_select::SandboxDecision
+impl<T> typenum::type_operators::Same for nika_runtime::sandbox_select::SandboxDecision
+pub type nika_runtime::sandbox_select::SandboxDecision::Output = T
+pub fn nika_runtime::sandbox_select::select_command_sandbox() -> nika_runtime::sandbox_select::SandboxDecision
 pub mod nika_runtime::simulated
 pub struct nika_runtime::simulated::SimulatedDispatcher<D>
 impl<D> nika_runtime::simulated::SimulatedDispatcher<D>
