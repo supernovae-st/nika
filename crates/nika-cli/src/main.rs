@@ -437,8 +437,11 @@ struct RunArgs {
     /// success is skipped with a visible `task_cache_hit` — an edited
     /// task or a changed input always re-runs (ADR-099). A trace without
     /// resume keys runs everything live (a notice, never an error). The
-    /// trace's recorded engine version is JUDGED (F-P21): a resume under
-    /// a different engine refuses, naming both versions.
+    /// trace's tamper-evidence chain is VERIFIED before any record is
+    /// trusted: a broken chain refuses (exit 2), naming `nika trace
+    /// verify` and the `--resume-unverified` opt-out. The trace's
+    /// recorded engine version is JUDGED (F-P21): a resume under a
+    /// different engine refuses, naming both versions.
     #[arg(long, value_name = "TRACE", conflicts_with = "dry_run")]
     resume: Option<PathBuf>,
     /// Declare a cross-version resume compatible (F-P21 · NEP-0014 law
@@ -448,6 +451,13 @@ struct RunArgs {
     /// compat is journaled on the run's boot manifest.
     #[arg(long, value_name = "VERSION", requires = "resume")]
     resume_compat: Option<String>,
+    /// Trust a `--resume` trace whose tamper-evidence chain FAILS the
+    /// walk (ADR-099 trust amendment): the named opt-out, for a trace the
+    /// operator edited or truncated by hand. The finding is journaled on
+    /// the boot manifest (`resume_unverified: declared`) — never a silent
+    /// default; a verified trace journals no claim.
+    #[arg(long, requires = "resume")]
+    resume_unverified: bool,
     /// Force this task AND its transitive downstream to re-run even on an
     /// identity match (the lever for changes the hashes cannot see —
     /// rotated secret · external state · an infer output to re-roll).
@@ -971,6 +981,7 @@ fn run_verb(
             from: args.from.clone(),
             answers: args.answer.clone(),
             compat: args.resume_compat.clone(),
+            allow_unverified: args.resume_unverified,
         }
     });
     let mode = resolve_run_mode(args.quiet, args.no_progress || plain);

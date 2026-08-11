@@ -46,6 +46,7 @@ pub mod file;
 pub mod image;
 pub mod image_fx;
 pub mod inspect;
+pub(crate) mod judged_fs;
 pub(crate) mod media;
 pub mod net;
 pub(crate) mod net_payload;
@@ -53,6 +54,7 @@ pub(crate) mod net_traverse;
 pub mod permits;
 pub mod tts;
 pub(crate) mod wire;
+pub mod witness;
 
 use std::sync::Arc;
 
@@ -399,20 +401,14 @@ where
             "wait" => Ok(core_tools::wait(self.clock.as_ref(), args).await),
             // file 5 — each fs op is gated by the declared permits.fs
             // boundary FIRST (spec §permits · NIKA-SEC-004) — outside fails
-            // before I/O · undeclared = no-op (the pre-permits floor).
-            "read" => Ok(self
-                .guarded_fs(args, &[permits::FsAccess::Read], file::read)
-                .await),
-            "write" => Ok(self
-                .guarded_fs(args, &[permits::FsAccess::Write], file::write)
-                .await),
-            "edit" => Ok(self
-                .guarded_fs(
-                    args,
-                    &[permits::FsAccess::Read, permits::FsAccess::Write],
-                    file::edit,
-                )
-                .await),
+            // before I/O · undeclared = no-op (the pre-permits floor). Every
+            // op then runs against the JUDGED fs (NEP-0009 law 6 · the
+            // builtin-arm fd-pin): reads are re-judged at open time and
+            // opened O_NOFOLLOW, so a symlink swapped in after the judgment
+            // can never be followed.
+            "read" => Ok(self.guarded_read(args).await),
+            "write" => Ok(self.guarded_write(args).await),
+            "edit" => Ok(self.guarded_edit(args).await),
             // grep is a recursive READER rooted at `path:` (default `.`).
             "grep" => Ok(self.guarded_grep(args).await),
             // glob walks descendants of `.` (the kernel walk never crosses
@@ -431,17 +427,13 @@ where
             // decide is PURE compute over its two args (spec 11 §nika:decide);
             // the ONE effectful form — a `bundle:` path — rides the permits.fs
             // READ boundary like any fs.read, gated inside the builtin.
-            "decide" => Ok(decide::run(self.fs.as_ref(), &self.fs_boundary, args).await),
+            "decide" => Ok(decide::run(&self.judged(), &self.fs_boundary, args).await),
             // network 2 — fetch's `multipart:` file parts ride the SAME
             // permits.fs READ boundary as the file builtins (gated inside
-            // resolve_multipart · before any byte is read).
-            "fetch" => Ok(net::fetch(
-                self.http.as_ref(),
-                self.fs.as_ref(),
-                &self.fs_boundary,
-                args,
-            )
-            .await),
+            // resolve_multipart · the judged fs pins each file read).
+            "fetch" => {
+                Ok(net::fetch(self.http.as_ref(), &self.judged(), &self.fs_boundary, args).await)
+            }
             "notify" => Ok(net::notify(self.http.as_ref(), args).await),
             // media 3 — provider calls ride dedicated planes (const endpoints);
             // saves gate each final path on the permits.fs boundary before I/O.
@@ -512,21 +504,17 @@ where
         .await
     }
 
-    /// Enforce the `permits.fs` boundary for every `access` direction the
-    /// op needs on its `path:` arg, THEN run the builtin. A path that
-    /// resolves outside the boundary fails (`NIKA-SEC-004`) before the op —
+    /// The shared early ladder for the `path:`-keyed fs ops: enforce every
+    /// `access` direction the op needs on its `path:` arg · a path that
+    /// resolves outside the boundary fails (`NIKA-SEC-004`) before any I/O,
     /// the capability boundary, not the I/O, is the gate. When `path:` is
     /// absent the op runs (its own arg ladder surfaces the missing-arg
     /// error · the boundary has nothing to confine).
-    async fn guarded_fs<'a, Fut>(
-        &'a self,
-        args: &'a Args,
+    async fn enforce_fs_path(
+        &self,
+        args: &Args,
         accesses: &[permits::FsAccess],
-        op: impl FnOnce(&'a F, &'a Args) -> Fut,
-    ) -> BuiltinOutcome
-    where
-        Fut: std::future::Future<Output = BuiltinOutcome>,
-    {
+    ) -> Result<(), BuiltinFailure> {
         if let Some(path) = args.get("path").and_then(serde_json::Value::as_str) {
             for &access in accesses {
                 self.fs_boundary
@@ -544,7 +532,41 @@ where
                     .await;
             }
         }
-        op(self.fs.as_ref(), args).await
+        Ok(())
+    }
+
+    /// The judged view every fs-builtin READ runs against (NEP-0009 law 6 ·
+    /// the builtin-arm fd-pin closing the enforce→open race): re-enforces
+    /// at open time, then opens `O_NOFOLLOW` so a symlink swapped in after
+    /// the judgment is refused by the kernel, never followed. Writes
+    /// delegate verbatim (the atomic temp+rename lane is already
+    /// non-following at the destination).
+    fn judged(&self) -> judged_fs::JudgedFs<'_, F> {
+        judged_fs::JudgedFs::new(self.fs.as_ref(), &self.fs_boundary)
+    }
+
+    /// `nika:read` under the boundary: the early coded gate, then the
+    /// pinned read.
+    async fn guarded_read(&self, args: &Args) -> BuiltinOutcome {
+        self.enforce_fs_path(args, &[permits::FsAccess::Read])
+            .await?;
+        file::read(&self.judged(), args).await
+    }
+
+    /// `nika:write` under the boundary: the gate, then the atomic write
+    /// (delegated through the judged view · already non-following).
+    async fn guarded_write(&self, args: &Args) -> BuiltinOutcome {
+        self.enforce_fs_path(args, &[permits::FsAccess::Write])
+            .await?;
+        file::write(&self.judged(), args).await
+    }
+
+    /// `nika:edit` under the boundary: gated BOTH directions; the read
+    /// phase rides the pin, the write phase the atomic lane.
+    async fn guarded_edit(&self, args: &Args) -> BuiltinOutcome {
+        self.enforce_fs_path(args, &[permits::FsAccess::Read, permits::FsAccess::Write])
+            .await?;
+        file::edit(&self.judged(), args).await
     }
 
     /// `nika:chart` under the boundary — gate the `out:` artifact (WRITE ·
@@ -570,11 +592,19 @@ where
                 .enforce(self.fs.as_ref(), src, permits::FsAccess::Read)
                 .await?;
         }
+        // chart keeps the RAW fs: its save lane re-reads the WRITE-permitted
+        // artifact for the idempotence law (chart.rs `save`), and a
+        // READ-judged view would refuse that read under a write-only grant
+        // (default-deny) · breaking `wrote: false` on byte-equal artifacts.
+        // The `data.path` read keeps the early coded gate above; the
+        // parallel-race sliver on it stays a declared law-6 residual.
         chart::render(self.fs.as_ref(), args).await
     }
 
     /// `nika:grep` under the boundary — a recursive READ rooted at `path:`
-    /// (default `.`). Gate the root, then run.
+    /// (default `.`). Gate the root, then run against the judged fs: the
+    /// per-file reads ride the fd-pin (a leaf swapped to an escaping
+    /// symlink mid-walk is skipped, never followed).
     async fn guarded_grep(&self, args: &Args) -> BuiltinOutcome {
         let root = args
             .get("path")
@@ -583,7 +613,7 @@ where
         self.fs_boundary
             .enforce(self.fs.as_ref(), root, permits::FsAccess::Read)
             .await?;
-        file::grep(self.fs.as_ref(), &self.fs_boundary, args).await
+        file::grep(&self.judged(), &self.fs_boundary, args).await
     }
 
     /// `nika:glob` under the boundary — the walk never crosses `..` nor
@@ -602,7 +632,7 @@ where
         self.fs_boundary
             .enforce(self.fs.as_ref(), root.as_ref(), permits::FsAccess::Read)
             .await?;
-        file::glob(self.fs.as_ref(), args).await
+        file::glob(&self.judged(), args).await
     }
 }
 

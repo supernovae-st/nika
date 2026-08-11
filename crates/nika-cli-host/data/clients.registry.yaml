@@ -13,6 +13,11 @@
 #   manifest skills subagents commands hooks rules mcp presentation scaffold
 # mechanisms (closed enum):
 #   native-manifest  the client's own plugin system loads it from our manifest
+#   agent-plugin     the client reads the PORTABLE Agent Plugins 1.0.0 package
+#                    (agent-plugins.org · published 2026-08-06) · root
+#                    plugin.json + skills/ + mcp.json, and nothing else: v1
+#                    standardises exactly two component types, so a cell can
+#                    only be agent-plugin for manifest, skills or mcp
 #   claude-layout    the client reads the Claude Code layout unported
 #   wire             `nika wire <target>` writes the client's real config
 #   init             `nika init` project scaffold covers it (AGENTS.md family ·
@@ -71,7 +76,7 @@ clients:
                  scaffold: init}
     wire: cursor
     docs: integrations/clients/cursor.mdx
-    notes: "the fullest manifest (rules + agents declared) · live one-Add fiche owed (W6 debt) · the manual-drop partial path is documented in the kit README"
+    notes: "the fullest manifest (rules + agents declared) · live one-Add fiche owed (W6 debt) · the manual-drop partial path is documented in the kit README · Cursor ALSO reads Agent Plugins and discriminates by manifest LOCATION (root plugin.json = Agent Plugins · .cursor-plugin/plugin.json = Cursor Plugin · cursor.com/docs/plugins, PRIMARY 2026-08-07), and the bundle now ships both · the cells stay native-manifest because that path carries 7 component types against the portable 2 · ⚠ UNVERIFIED which manifest Cursor prefers when both are present · the Vercel installer showed no loss (discover reports the same surface with and without), but Cursor's own loader was not probed · re-sonde before this row reaches proven"
 
   - id: openclaude
     name: OpenClaude
@@ -118,11 +123,13 @@ clients:
     name: VS Code · Copilot
     class: B
     status: wired
-    install: "nika wire vscode · or the one-click MCP install badge · the compiled extension (nika-vscode) is a separate product"
-    components: {mcp: wire, scaffold: init}
-    class_gap: "no agent-plugin loader · MCP + the init scaffold (.vscode wiring · copilot brief) carry the teaching"
+    install: "Settings → chat.plugins.enabled, then npx plugins add supernovae-st/nika-plugins · or nika wire vscode for the oracle alone · the compiled extension (nika-vscode) is a separate product"
+    components: {manifest: agent-plugin, skills: agent-plugin,
+                 mcp: wire, scaffold: init}
+    class_gap: "Agent Plugins v1 standardises skills and MCP and nothing else (§7 · commands, subagents, hooks and rules are named as too client-specific for a portable contract), so the portable manifest cannot carry them and VS Code has no other loader for ours · mcp stays `wire` because that path is proven and needs no preview setting, the portable mcp.json is a second road"
     wire: vscode
     docs: integrations/clients/vscode.mdx
+    notes: "the agent-plugin cells landed 2026-08-07 on PRIMARY evidence (code.visualstudio.com/docs/agent-customization/agent-plugins · « A root plugin.json that declares the canonical Agent Plugins $schema uses Agent Plugins semantics » · skills from skills/, MCP from mcp.json) · gated behind the chat.plugins.enabled setting, which an org can manage · live one-Add fiche owed before this row reaches proven"
 
   - id: windsurf
     name: Windsurf
@@ -250,7 +257,7 @@ clients:
     wire: copilot
     proof: "verified live 2026-07-31 · copilot 1.0.76 · nika 0.106.1 (the digest-verified release asset) · copilot mcp get nika answers Enabled/local/User · AND the session-level receipt: a headless copilot -p run calls the oracle and its transcript names the server — `The spec canon (MCP: nika)` — returning the 37.5KB canon"
     docs: "pending · a page ships at proven"
-    notes: "wave-2/3 recon+probe [PRIMARY + on-machine]: brew cask copilot-cli · the gh-copilot extension died 2025-10-25 · their mcp --help names the workspace sources .mcp.json and .github/mcp.json — the kit interop confirmed by the binary itself"
+    notes: "wave-2/3 recon+probe [PRIMARY + on-machine]: brew cask copilot-cli · the gh-copilot extension died 2025-10-25 · their mcp --help names the workspace sources .mcp.json and .github/mcp.json — the kit interop confirmed by the binary itself · ⚠ NOT claimed as agent-plugin: Copilot reads a root plugin.json too, but in ITS OWN format (agents/ · .mcp.json · hooks.json · lsp.json · docs.github.com/en/copilot/concepts/agents/about-plugins, PRIMARY 2026-08-07) — same filename, different contract, and the $schema discriminator was not confirmed · the bundle now carries an Agent Plugins root manifest, so what Copilot makes of it is an open probe"
 
   - id: amp
     name: Amp (Sourcegraph)

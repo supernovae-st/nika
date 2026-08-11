@@ -70,6 +70,43 @@ pub mod fields {
     pub const OUTPUT: &str = "output";
 }
 
+/// The resume's chain-trust posture when the run proceeded WITHOUT a
+/// verified chain (ADR-099 trust amendment · 2026-08-08) — attested on
+/// the boot manifest as `resume_unverified: <posture>` +
+/// `resume_unverified_finding`, so no unverified ancestor launders
+/// silently into a journal claiming a clean one.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum ResumeUnverified {
+    /// The operator named `--resume-unverified` past a BROKEN chain —
+    /// the finding carries the walk's one-line evidence (sanitized).
+    Declared(String),
+    /// The trace carries NO chain (a `--json` stream capture · a
+    /// pre-0.96 journal): the chainless-capture compat — and the
+    /// strip-the-chain forgery (delete every `chain` field) lands
+    /// exactly here; attested, never silent.
+    Unchained(String),
+}
+
+impl ResumeUnverified {
+    /// The boot-manifest posture token (`declared` · `unchained`).
+    #[must_use]
+    pub fn posture(&self) -> &'static str {
+        match self {
+            Self::Declared(_) => "declared",
+            Self::Unchained(_) => "unchained",
+        }
+    }
+
+    /// The one-line finding the manifest journals.
+    #[must_use]
+    pub fn finding(&self) -> &str {
+        match self {
+            Self::Declared(finding) | Self::Unchained(finding) => finding,
+        }
+    }
+}
+
 /// Private-use sentinel bracketing the marker vocabulary below — a real
 /// workflow string colliding with a marker requires deliberately crafted
 /// `U+F8FF` data (documented, adversarial-self-harm class).
