@@ -19,8 +19,15 @@
 //!    column and the migrated document no longer parses)
 //! 3. `tasks:` sequence `  - id: X`   → map key `  X:` (the two-space list
 //!    marker becomes the key's indent, so task bodies never re-indent)
+//! 3. `tasks:` sequence → map — `  - id: X` becomes the key `  X:` (the
+//!    two-space list marker becomes the key's indent, so task bodies
+//!    never re-indent); a single-line FLOW item `  - { id: X, … }`
+//!    expands to `  X:` + one block line per remaining entry. The list
+//!    migrates ATOMICALLY: every item must have its mechanical rewrite
+//!    or the whole sequence stays a sequence — a half-mapped collection
+//!    is invalid YAML no later pass can repair (issue #645).
 //!
-//! A task whose `id:` is NOT the item's first line is deliberately not
+//! A task whose `id:` is NOT the item's first entry is deliberately not
 //! handled — the parser's teaching names the file and a human decides
 //! (never guess; the conformance suite pins the refusal).
 //!
@@ -48,10 +55,12 @@
     )
 )]
 
+mod d1;
 mod esplit;
 mod predicates;
 pub mod repair;
 
+pub use d1::{D1Outcome, d1};
 pub use esplit::{EsplitOutcome, esplit};
 pub use predicates::predicates;
 
@@ -97,6 +106,24 @@ pub fn w1(source: &str) -> Option<String> {
     let mut out: Vec<String> = Vec::with_capacity(lines.len() + 2);
     let mut in_tasks = false;
     let mut changed = false;
+    // The tasks list migrates ATOMICALLY (issue #645): every `  - ` item
+    // must have its mechanical rewrite, or the WHOLE sequence stays a
+    // sequence — a half-mapped collection is invalid YAML, and writing it
+    // would strand the repair loop on an intermediate no pass can parse.
+    let mut tasks_convertible = true;
+    {
+        let mut in_t = false;
+        for l in &lines {
+            if !l.starts_with(' ') && !l.starts_with('#') && l.contains(':') {
+                in_t = l.starts_with("tasks:");
+                continue;
+            }
+            if in_t && l.starts_with("  - ") && migrate_task_item(l).is_none() {
+                tasks_convertible = false;
+                break;
+            }
+        }
+    }
     for (i, l) in lines.iter().enumerate() {
         if Some(i) == desc_line {
             changed = true; // hoisted under workflow (emitted there)
@@ -127,8 +154,11 @@ pub fn w1(source: &str) -> Option<String> {
         if !l.starts_with(' ') && !l.starts_with('#') && l.contains(':') {
             in_tasks = l.starts_with("tasks:");
         }
-        if in_tasks && let Some(rewritten) = task_item_to_key(l) {
-            out.push(rewritten);
+        if in_tasks
+            && tasks_convertible
+            && let Some(rewritten) = migrate_task_item(l)
+        {
+            out.extend(rewritten);
             changed = true;
             continue;
         }
@@ -228,6 +258,133 @@ fn task_item_to_key(line: &str) -> Option<String> {
             .chars()
             .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_');
     ok.then(|| format!("  {token}:{comment}"))
+}
+
+/// One `  - ` sequence item → its map-entry lines, when the rewrite is
+/// mechanical: the block form (`  - id: name` → the bare key, body lines
+/// untouched) or a single-line flow form (`  - { id: name, … }` → the
+/// key + one block line per remaining entry). `None` = a human decides
+/// (never guess).
+fn migrate_task_item(line: &str) -> Option<Vec<String>> {
+    if let Some(key) = task_item_to_key(line) {
+        return Some(vec![key]);
+    }
+    flow_item_to_block(line)
+}
+
+/// `  - { id: name, verb: … }` (a single-line flow item) → `  name:` plus
+/// one `    key: value` line per remaining entry, each entry's original
+/// flow text preserved. The id must LEAD the entries — a buried id is
+/// the block form's refusal one line down (never guess).
+fn flow_item_to_block(line: &str) -> Option<Vec<String>> {
+    let rest = line.strip_prefix("  - ")?.trim_start();
+    if !rest.starts_with('{') {
+        return None;
+    }
+    let (body, comment) = split_flow_comment(rest);
+    let inner = body.trim_end().strip_suffix('}')?.strip_prefix('{')?;
+    let scan = flow_scan(inner);
+    if !scan.balanced {
+        return None; // unterminated quote / brace — a human untangles
+    }
+    let mut entries: Vec<&str> = Vec::with_capacity(scan.commas.len() + 1);
+    let mut start = 0;
+    for &c in &scan.commas {
+        entries.push(&inner[start..c]);
+        start = c + 1;
+    }
+    entries.push(&inner[start..]);
+    let id = entries.first()?.trim().strip_prefix("id:")?.trim();
+    let ok = !id.is_empty()
+        && id.chars().next().is_some_and(|c| c.is_ascii_lowercase())
+        && id
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_');
+    if !ok {
+        return None;
+    }
+    let mut out = vec![format!("  {id}:{comment}")];
+    for e in &entries[1..] {
+        let e = e.trim();
+        if !e.is_empty() {
+            out.push(format!("    {e}"));
+        }
+    }
+    Some(out)
+}
+
+/// The quote/depth-aware scan of one flow line.
+struct FlowScan {
+    /// Byte offsets of every depth-0 `,` (the entry separators).
+    commas: Vec<usize>,
+    /// Byte offset of the first depth-0 ` #` comment opener.
+    comment: Option<usize>,
+    /// Quotes and braces all closed by end of line.
+    balanced: bool,
+}
+
+/// Scan `text` (one line of flow YAML) for its depth-0 structure. A
+/// quote byte only OPENS a quoted scalar where YAML lets a value start —
+/// after `{` `[` `,` `:` or at the head; anywhere else it is plain-scalar
+/// content (`it's` never opens a quote). Inside single quotes `''` is an
+/// escaped quote; inside double quotes `\x` escapes `x`.
+fn flow_scan(text: &str) -> FlowScan {
+    let mut scan = FlowScan {
+        commas: Vec::new(),
+        comment: None,
+        balanced: false,
+    };
+    let mut depth = 0usize;
+    let mut quote: Option<u8> = None;
+    // last non-space byte seen OUTSIDE a quoted scalar
+    let mut prev: Option<u8> = None;
+    let bytes = text.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() {
+        let b = bytes[i];
+        if let Some(q) = quote {
+            if b == q {
+                if q == b'\'' && bytes.get(i + 1) == Some(&b'\'') {
+                    i += 1; // the doubled '' is one escaped quote
+                } else {
+                    quote = None;
+                }
+            } else if q == b'"' && b == b'\\' {
+                i += 1; // the escaped byte is content
+            }
+        } else {
+            match b {
+                b'"' | b'\'' if matches!(prev, None | Some(b'{' | b'[' | b',' | b':')) => {
+                    quote = Some(b);
+                }
+                b'{' | b'[' => depth += 1,
+                b'}' | b']' => depth = depth.saturating_sub(1),
+                b',' if depth == 0 => scan.commas.push(i),
+                b'#' if depth == 0 && scan.comment.is_none() && i > 0 && bytes[i - 1] == b' ' => {
+                    scan.comment = Some(i - 1); // keep the separating space
+                }
+                _ => {}
+            }
+            if !matches!(b, b' ' | b'\t') {
+                prev = Some(b);
+            }
+        }
+        i += 1;
+    }
+    scan.balanced = quote.is_none() && depth == 0;
+    scan
+}
+
+/// Split the trailing `# comment` off a flow item's text: the first
+/// depth-0 ` #` outside quoted scalars (one INSIDE the flow would have
+/// swallowed the closing brace — such an item then fails the `}` check
+/// and stays for a human). The comment keeps its leading spaces so the
+/// rewritten key line reads `  name: # note` like the block form's.
+fn split_flow_comment(text: &str) -> (&str, &str) {
+    match flow_scan(text).comment {
+        Some(at) => (&text[..at], &text[at..]),
+        None => (text, ""),
+    }
 }
 
 // ─────────────────────────── W2 « the flow » ───────────────────────────
@@ -1124,9 +1281,69 @@ mod tests {
     fn id_not_first_line_is_left_for_a_human() {
         // deliberate refusal: the id is not the item's first line — the
         // transform does not fire on that item (the parser teaches).
+        // Atomicity (issue #645): one non-mechanical item parks the WHOLE
+        // list — a half-mapped collection would be invalid YAML.
         let old = "nika: v1\nworkflow: t\ntasks:\n  - depends_on: []\n    id: probe\n";
         let new = w1(old).expect("workflow line still migrates");
         assert!(new.contains("    id: probe"), "ambiguous item untouched");
+    }
+
+    #[test]
+    fn flow_items_expand_and_the_whole_list_converges() {
+        // Issue #645 — the exact repro bytes: the flow item expands to
+        // block entries, the block item keeps its body, and the whole
+        // list becomes a map in the SAME pass as the envelope (the old
+        // code left the flow item a sequence entry → mixed collection →
+        // the intermediate document no longer parsed).
+        let old = "nika: v1\nworkflow: daily-brief\nmodel: ollama/llama3.2:3b\ntasks:\n  - { id: notes, invoke: { tool: \"nika:read\", args: { path: ./notes/today.md } } }\n  - id: triage\n    depends_on: [notes]\n    with:\n      notes: ${{ tasks.notes.output }}\n    infer: { prompt: \"triage ${{ with.notes }}\" }\n";
+        let new = w1(old).expect("changes");
+        assert_eq!(
+            new,
+            "nika: v1\nworkflow:\n  id: daily-brief\nmodel: ollama/llama3.2:3b\ntasks:\n  notes:\n    invoke: { tool: \"nika:read\", args: { path: ./notes/today.md } }\n  triage:\n    depends_on: [notes]\n    with:\n      notes: ${{ tasks.notes.output }}\n    infer: { prompt: \"triage ${{ with.notes }}\" }\n",
+        );
+        assert!(w1(&new).is_none(), "still idempotent: {new}");
+    }
+
+    #[test]
+    fn quoted_commas_nested_flow_and_a_trailing_comment_survive() {
+        // The splitter is quote/depth-aware: `,` and braces inside quoted
+        // scalars never split an entry, `''` is an escaped quote, and a
+        // `#` comment rides the rewritten key line like the block form's.
+        let old = "workflow: t\ntasks:\n  - { id: say, infer: { prompt: \"a, b } c\", note: 'it''s } fine' } } # the loud one\n";
+        let new = w1(old).expect("changes");
+        assert_eq!(
+            new,
+            "workflow:\n  id: t\ntasks:\n  say: # the loud one\n    infer: { prompt: \"a, b } c\", note: 'it''s } fine' }\n",
+        );
+    }
+
+    #[test]
+    fn one_non_mechanical_item_parks_the_whole_list() {
+        // Atomicity: the flow item COULD expand, but the second item's
+        // buried id is the ratified refusal — so the list stays a list
+        // (valid YAML; the parser's teaching names the file) instead of
+        // becoming a mixed collection no later pass can parse.
+        let old = "workflow: t\ntasks:\n  - { id: a, exec: { command: [\"true\"] } }\n  - { exec: { command: [\"true\"] }, id: b }\n";
+        let new = w1(old).expect("workflow line still migrates");
+        assert!(new.contains("workflow:\n  id: t"), "{new}");
+        assert!(
+            new.contains("  - { id: a, exec: { command: [\"true\"] } }"),
+            "convertible item stays too — all or nothing: {new}"
+        );
+        assert!(new.contains("id: b }"), "{new}");
+    }
+
+    #[test]
+    fn multi_line_flow_and_scalar_items_stay_for_a_human() {
+        // A flow item spanning lines and a scalar item are outside the
+        // mechanical reach — the whole list parks (atomicity), the
+        // envelope still migrates, and the file remains valid YAML.
+        let old = "workflow: t\ntasks:\n  - { id: a,\n      exec: { command: [\"true\"] } }\n";
+        let new = w1(old).expect("workflow line still migrates");
+        assert!(new.contains("  - { id: a,"), "untouched: {new}");
+        let old_scalar = "workflow: t\ntasks:\n  - just_a_string\n";
+        let new_scalar = w1(old_scalar).expect("workflow line still migrates");
+        assert!(new_scalar.contains("  - just_a_string"), "{new_scalar}");
     }
 
     #[test]

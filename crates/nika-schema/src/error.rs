@@ -168,6 +168,20 @@ pub enum SchemaError {
         span: Option<Span>,
     },
 
+    /// D1 « the split » · `command:` carried a STRING — the pre-0.103
+    /// implicit shell. `command:` is argv-only now (execve · each
+    /// element one token); the shell string lives in `shell:` (spec
+    /// `02-verbs.md` §exec · `check --fix` migrates the mechanical
+    /// cases). The wire code stays the generic structural PARSE-019 —
+    /// the variant exists so the fix ladder can MATCH the dead form.
+    #[error(
+        "`exec.command` is argv-only — [\"prog\", \"arg\", …] runs via execve, each element one token (an interpolated value can never break out) · the old string form was an IMPLICIT shell: pipes/redirects/globs now live in `shell:` explicitly (02 §exec · 0.103 · `nika check --fix` migrates)"
+    )]
+    D1StringCommand {
+        /// Span of the string node.
+        span: Option<Span>,
+    },
+
     /// W2 · an out-of-set `after:` predicate (03 §after · `NIKA-DAG-005` · R5 dead spellings teach).
     #[error("{message}")]
     UnknownAfterPredicate {
@@ -738,6 +752,7 @@ impl SchemaError {
             | Self::WhenNotBoolean { span, .. }
             | Self::UnknownDependency { span, .. }
             | Self::W2DependsOnField { span, .. }
+            | Self::D1StringCommand { span, .. }
             | Self::UnknownAfterPredicate { span, .. }
             | Self::RefOutsideBoundary { span, .. }
             | Self::UnresolvedNamespaceRef { span, .. }
@@ -872,7 +887,9 @@ impl NikaErrorCode for SchemaError {
             Self::JqBindingContainsTemplate { .. } => SCHEMA_296,
             Self::DuplicateKey { .. } => SCHEMA_297,
             Self::MissingField { .. } => SCHEMA_298,
-            Self::Validation { .. } => SCHEMA_299,
+            // D1 keeps the GENERIC structural code (PARSE-019) — the
+            // variant exists for the fix ladder's match, not the wire.
+            Self::Validation { .. } | Self::D1StringCommand { .. } => SCHEMA_299,
             Self::RunContradiction { .. } => SCHEMA_327,
             Self::WhenNotBoolean { .. } => SCHEMA_300,
             Self::RecoverAwaitDeadlock { .. } => SCHEMA_308,
