@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! Memory traits + types — Cortex kernel hooks.
+//! Memory traits + types — the Connectome's kernel hooks.
 //!
 //! ISP decomposition: `MemoryRemember`, `MemoryRecall`, `MemoryForget`.
 //! Super-trait: `MemoryStore` (blanket for all 3).
@@ -9,7 +9,8 @@
 //!
 //! These hooks land Phase 1 to avoid breaking-change cascades on
 //! `#[non_exhaustive]` structs (ROI 6.7x per `POST_AUDIT` decision 3).
-//! Business logic lives in `nika-memory` (Phase 9+).
+//! No business-logic crate exists in this repo today — the Connectome
+//! layer owns it when it lands (the `nika-memory` name is retired).
 
 use std::collections::BTreeMap;
 
@@ -39,16 +40,16 @@ pub struct MemoryFrame {
     /// EC-4 ratchet 2026-05-14 · USER GATE OUI ns canonical).
     pub observed_at: Option<u64>,
     /// Encryption cipher used (v0.95 Cortex — encrypted memory).
-    /// Reserved: always `None` until nika-memory crate ships.
+    /// Reserved: always `None` at v1 — the Connectome layer owns this when it lands.
     pub cipher: Option<String>,
     /// Provenance chain (v0.95 Cortex — who created this memory).
-    /// Reserved: always `None` until nika-memory crate ships.
+    /// Reserved: always `None` at v1 — the Connectome layer owns this when it lands.
     pub provenance: Option<String>,
     /// Retention policy tag (v0.95 Cortex — TTL / archival).
-    /// Reserved: always `None` until nika-memory crate ships.
+    /// Reserved: always `None` at v1 — the Connectome layer owns this when it lands.
     pub retention: Option<String>,
     /// Redacted field paths (v0.95 Cortex — PII scrubbing).
-    /// Reserved: always `None` until nika-memory crate ships.
+    /// Reserved: always `None` at v1 — the Connectome layer owns this when it lands.
     pub redactions: Option<Vec<String>>,
 }
 
