@@ -162,7 +162,7 @@ patterns:
 - glob: "crates/**"
   class: authored
   match_count: 132
-  aggregate_sha256: b7da702fbb4d59c102bde02586f9fbe065e938829e820d5ffa15c10c28b8085f
+  aggregate_sha256: 38846f400c93b3bb53d9590c4cec573e73416b2e901773fbf17f34fed824a0e4
   evidence: "the remaining crate surface — Cargo.toml manifests · build.rs · benches · READMEs · hand-curated data catalogs (llm-providers · mcp-servers · embeddings · model-capabilities, probed daily by catalog-verify.yml); the pricing snapshot is excepted in files:"
   note: "crates/nika-pack/scripts/sync-pack.sh is a DIVERGENT older duplicate of scripts/sync-pack.sh — the pack-resync.yml lane runs the root one"
 - glob: "fuzz/**"
