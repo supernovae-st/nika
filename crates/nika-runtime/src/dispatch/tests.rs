@@ -109,3 +109,39 @@ async fn agent_model_config_template_resolves_before_the_provider() {
         "the RESOLVED config default reaches the provider, never the raw `${{{{ }}}}`"
     );
 }
+
+#[test]
+fn invoke_meters_a_top_level_cost_usd_from_structured_output() {
+    // The honest-spend channel: a tool reporting real spend as a
+    // top-level numeric `cost_usd` is metered; junk shapes never are.
+    // (Rides with the #824 parity proofs since the D1-era extraction —
+    // the inline `mod tests` block it came from collided with this
+    // sibling file's declaration at the #884 merge.)
+    let extract = |v: serde_json::Value| {
+        v.get("cost_usd")
+            .and_then(serde_json::Value::as_f64)
+            .filter(|c| c.is_finite() && *c >= 0.0)
+    };
+    assert_eq!(
+        extract(serde_json::json!({ "cost_usd": 0.02, "images": [] })),
+        Some(0.02)
+    );
+    assert_eq!(extract(serde_json::json!({ "cost_usd": null })), None);
+    assert_eq!(
+        extract(serde_json::json!({ "cost_usd": -1.0 })),
+        None,
+        "negative refused"
+    );
+    assert_eq!(
+        extract(serde_json::json!({ "cost_usd": "0.02" })),
+        None,
+        "strings refused"
+    );
+    assert_eq!(extract(serde_json::json!({ "other": 1 })), None);
+    assert_eq!(extract(serde_json::json!("just text")), None);
+    assert_eq!(
+        extract(serde_json::json!({ "cost_usd": f64::NAN })),
+        None,
+        "non-finite refused"
+    );
+}

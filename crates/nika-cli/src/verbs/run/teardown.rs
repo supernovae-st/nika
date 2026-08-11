@@ -271,8 +271,7 @@ mod tests {
     /// `covers["memory"]`).
     #[test]
     fn the_memory_fold_counts_the_admitted_set_and_the_rejected() {
-        let pair = minisign::KeyPair::generate_encrypted_keypair(Some(String::new()))
-            .expect("keypair mints");
+        let pair = minisign::KeyPair::generate_unencrypted_keypair().expect("keypair mints");
         let tmp = tempfile::tempdir().expect("tempdir");
         let root = tmp.path().join(nika_store::MEMORY_ROOT);
         let dir = nika_store::store_dir(&root, "default").expect("the store dir");

@@ -194,6 +194,9 @@ fn verb_help(num: u16) -> &'static str {
         434 => {
             "The provider returned no token usage for a priced model, so the ledger cannot bill the call honestly — it refuses rather than record $0 for real spend (fail-closed). Use a backend that reports usage, or drop the priced model's budget reliance explicitly."
         }
+        435 => {
+            "The provider spent tokens yet the visible answer is empty — a thinking model ate the whole budget on its reasoning trace. Raise `max_tokens` (the reasoning share lives inside it), set an explicit `thinking.budget_tokens`, or pick a no-think variant."
+        }
         440 => {
             "The command exited non-zero. Inspect stderr, or use capture: structured to branch on the exit code instead of failing."
         }

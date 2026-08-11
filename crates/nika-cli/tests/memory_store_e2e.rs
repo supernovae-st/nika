@@ -47,8 +47,7 @@ fn bin() -> Command {
 /// path is checked FIRST (the CI door), so the OS keychain is never
 /// touched. Returns the pair (for signing entries) + the env array.
 fn signing_key(dir: &Path) -> (minisign::KeyPair, [(String, String); 3]) {
-    let pair =
-        minisign::KeyPair::generate_encrypted_keypair(Some(String::new())).expect("keypair mints");
+    let pair = minisign::KeyPair::generate_unencrypted_keypair().expect("keypair mints");
     let key = dir.join("run-signing.key");
     let pub_ = dir.join("run-signing.pub");
     std::fs::write(&key, pair.sk.to_box(None).expect("sk box").to_string()).expect("write key");
