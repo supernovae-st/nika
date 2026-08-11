@@ -57,7 +57,21 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Fixed
 
-<<<<<<< HEAD
+- **The argv exec floor is judged at check, with the run's own
+  predicate (#605 · NIKA-SEC-001).** `nika check` audited green an
+  argv-form `exec:` command the runtime's exec floor refuses at spawn
+  (`["bash","-c",…]` — interpreter inline-eval): the static lane was an
+  advisory hint over a hand-mirrored eval table, and a hint cannot fail
+  a file the run refuses — an `on_error: {skip: true}` leg swallowed
+  the refusal as a SKIP and fleets degraded silently. The predicate now
+  lives in `nika-types::exec` (the L0 leaf both sides depend on — the
+  `host_in_allowlist` precedent), the check emits the `NIKA-SEC-001`
+  FINDING (exit 2) for any literal argv the run would refuse, and the
+  advisory hint retires. Honest scope, pinned by tests: the shell form
+  and any `${{ }}`-templated argv make no static claim — the runtime
+  re-judges the resolved argv pre-spawn. `nika explain NIKA-SEC-001`
+  teaches exactly that split, the human render gains the EXEC rung, and
+  a cross-crate agreement test pins check ≡ run on the same argv.
 - **A templated `model:` resolves at run, not just at check (#824).**
   `infer.model: "${{ config.model }}"` checked green — the MODELS rung
   judges the declared default through the one shared static resolver —
@@ -73,8 +87,6 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   repro workflow lands the resolved default in the captured provider
   request body, and the agent loop's mock records `mock/echo`, never
   the template.
-||||||| b67e6dee5
-=======
 - **`check --fix` migrates the pre-0.103 string `command:` (#572 · the
   D1 codemod).** The refusal taught the migration in prose but answered
   « no machine-applicable repairs » on the exact finding whose repair IS
@@ -108,7 +120,6 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   completion, not the footgun), and the `schema:` lane is untouched —
   an empty reply already dies NIKA-INFER-002 at extraction, while a
   schema-validated empty container stays a legitimate answer.
->>>>>>> origin/main
 - **The resume verifies the chain before trusting the trace (ADR-099
   trust amendment).** `nika run --resume` served a trace's recorded
   successes as cache hits WITHOUT consulting the tamper-evidence chain
