@@ -17,6 +17,10 @@
 //! - **degenerate cap** (`zero-cap`) — a declared `max_tokens: 0` /
 //!   `max_tokens_total: 0`: arithmetically a true $0/0 Wh output
 //!   ceiling, practically a call no provider will honor.
+//! - **thinking budget** (`thinking-budget`) — a reasoning-capable
+//!   model (the catalog knows) seated with `max_tokens` but no
+//!   `thinking:`: the reasoning share lives INSIDE that budget, and a
+//!   heavy think ends in a paid blank answer (NIKA-INFER-004 at run).
 //! - **unconsumed output** (`dead-spend`) — a pure `infer:` task whose
 //!   output no one reads (no task references it · not in `outputs:`):
 //!   every token it spends is dead spend.
@@ -96,7 +100,7 @@ use nika_schema::types::CaptureMode;
 #[non_exhaustive]
 pub struct Hint {
     /// The hint class — the closed set today: `cost` · `zero-cap` ·
-    /// `dead-spend` ·
+    /// `thinking-budget` · `dead-spend` ·
     /// `typing` · `permits` · `strictness` · `schema-portability` ·
     /// `redundant-gate` · `retry-effects` ·
     /// `secrets-store` · `native-first` ·
@@ -229,6 +233,23 @@ fn push_infer_hints(
     if a.max_tokens.as_ref().is_some_and(|t| t.value == 0) {
         hints.push(hint("zero-cap", id, format!(
             "`max_tokens: 0` on `{id}` forbids all output — the call cannot produce anything (providers refuse a zero budget); set a real cap or remove the task"
+        )));
+    }
+    // The thinking-budget teaching (#651 · leg 3): a reasoning-capable
+    // model with `max_tokens` but no `thinking:` can burn the whole
+    // budget on its reasoning trace and conclude with a blank visible
+    // answer — the typed NIKA-INFER-004 failure at run since leg 1. The
+    // hint teaches the declaration BEFORE a token is spent. A literal
+    // seat only: a templated model defers to the run's resolution.
+    if a.thinking.is_none()
+        && a.max_tokens.is_some()
+        && let Some(m) = &a.model
+        && !m.value.contains("${{")
+        && let Some((provider, name)) = m.value.split_once('/')
+        && nika_catalog::model_capabilities(provider, name).reasoning
+    {
+        hints.push(hint("thinking-budget", id, format!(
+            "`{id}` seats a reasoning-capable model with `max_tokens` but no `thinking:` — the reasoning share lives INSIDE that budget; declare `thinking:` (or a no-think variant) before a heavy think ends NIKA-INFER-004 (a paid blank answer)"
         )));
     }
     if !consumed.contains(id) && !envelope_ids.contains(id) {
