@@ -300,7 +300,7 @@ serde      = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 toml_edit  = "0.25"   # nika-cli L4 — `nika wire codex` patches ~/.codex/config.toml (comment-preserving)
 marked-yaml  = "0.8"
-serde-saphyr = { version = "0.0.29", features = ["miette"] }
+serde-saphyr = { version = "1.0.0", features = ["miette"] }
 phf        = { version = "0.14", features = ["macros", "unicase"] }
 unicase    = "2.9"
 
@@ -362,7 +362,7 @@ getrandom-02 = { package = "getrandom", version = "0.2" }  # nika-check-wasm L4 
 uuid     = { version = "1", features = ["v7", "v4", "serde"] }   # ADR-033 UUIDv7 IDs (nika-error L0) · v4 for nika:builtin nika:uuid
 clap     = { version = "4.5", features = ["derive"] }       # L4 CLI surface (completions + man derive from this tree)
 clap_complete = "4.5"   # L4 CLI — shell completions generated from the clap tree (nika-cli spec §9)
-lsp-server = "0.7"      # nika-lsp L4 — sync stdio JSON-RPC message loop (rust-analyzer's · MIT)
+lsp-server = "0.10"      # nika-lsp L4 — sync stdio JSON-RPC message loop (rust-analyzer's · MIT)
 lsp-types  = "0.97"     # nika-lsp L4 — LSP 3.17 protocol types (Diagnostic · Position · CompletionItem · MIT)
 zeroize  = "1.8"    # ADR-034 Secret zeroize-on-drop (nika-kernel L0.5) — 1.8 adds heap-String zeroing
 
