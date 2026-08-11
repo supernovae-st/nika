@@ -4292,6 +4292,7 @@ dependencies = [
  "nika-harness",
  "nika-http",
  "nika-kernel",
+ "nika-migrate",
  "nika-models",
  "nika-pack",
  "nika-providers",

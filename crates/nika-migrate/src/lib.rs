@@ -50,10 +50,12 @@
     )
 )]
 
+mod d1;
 mod esplit;
 mod predicates;
 pub mod repair;
 
+pub use d1::{D1Outcome, d1};
 pub use esplit::{EsplitOutcome, esplit};
 pub use predicates::predicates;
 
