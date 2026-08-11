@@ -3,28 +3,28 @@
 #
 # nika-cadence · L0 · PUR · zéro I/O · zéro async.
 # The arming-registry grammar + the next-slot calculator.
-#
-# ⚠️ TEMPORARY — the [workspace] shim below isolates this crate while the
-# root Cargo.toml is shared with a live session (T-cadence-crate-l0-pur).
-# At admission (the 12 gates): remove the shim, add `crates/nika-cadence`
-# to `members` + the `wip` array, set `layers.nika-cadence = "L0"`, and
-# switch every dependency to `workspace = true` inheritance.
 [package]
 name        = "nika-cadence"
-version     = "0.108.0"
-edition     = "2024"
-license     = "AGPL-3.0-or-later"
 description = "L0 cadence engine — the arm: registry grammar and the pure next-slot calculator (hand-counted 5-field cron · embedded IANA tzdb · zero I/O)"
-rust-version = "1.91"
 
-[workspace]
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false  # Foundation crate, never on crates.io (ADR-022).
+
+[lints]
+workspace = true
 
 [dependencies]
-serde        = { version = "1.0", features = ["derive"] }
-serde_yaml_bw = "2.5"   # the panic-free vendored fork — the house YAML plane
-thiserror    = "2.0"
-jiff         = "0.2"
-jiff-tzdb    = "0.1"    # the EMBEDDED IANA tzdb — never the host's zoneinfo
+serde         = { workspace = true }
+serde_yaml_bw = { workspace = true }   # the panic-free vendored fork — the house YAML plane
+thiserror     = { workspace = true }
+jiff          = { workspace = true }
+jiff-tzdb     = { workspace = true }   # the EMBEDDED IANA tzdb — never the host's zoneinfo
 
 [dev-dependencies]
-proptest = "1.6"
+proptest = { workspace = true }

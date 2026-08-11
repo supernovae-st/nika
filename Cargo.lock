@@ -4126,6 +4126,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "nika-cadence"
+version = "0.108.0"
+dependencies = [
+ "jiff",
+ "jiff-tzdb",
+ "proptest",
+ "serde",
+ "serde_yaml_bw",
+ "thiserror 2.0.19",
+]
+
+[[package]]
 name = "nika-cap"
 version = "0.108.0"
 dependencies = [
