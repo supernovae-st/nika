@@ -128,10 +128,8 @@ fn closer_line(code: &str) -> &'static str {
              itself — a live server, a valid key, a priced usage block — \
              is the RUN's verdict (`nika doctor --ping` dials ahead)."
         }
-        // The exec floor (#605): since the static finding ships, check
-        // DOES catch the literal argv (the SAME predicate the run judges
-        // with) — but a templated command (`${{ }}` island) only resolves
-        // at run, so the closer names whose verdict that half is.
+        // The exec floor (#605): check catches the literal argv (the SAME
+        // predicate the run judges) — a `${{ }}` island is the RUN's verdict.
         "NIKA-SEC-001" => {
             "`nika check` catches a literal argv before a run (the same \
              floor predicate the run judges with); a templated command — \

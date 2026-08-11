@@ -271,7 +271,7 @@ impl ArgvFloorRefusal {
     }
 }
 
-/// Check an argv-form PROGRAM's IDENTITY against [`DANGEROUS_PROGRAMS`] (an
+/// Check an argv-form PROGRAM's IDENTITY against `DANGEROUS_PROGRAMS` (an
 /// exact basename match · no substring false-positives).
 #[must_use]
 pub fn argv_program_refusal(program: &str) -> Option<ArgvFloorRefusal> {
@@ -287,7 +287,7 @@ pub fn argv_program_refusal(program: &str) -> Option<ArgvFloorRefusal> {
 /// that shell mode blocks but a name-only check misses — an interpreter
 /// invoked with an inline-eval flag or subcommand (`["sh","-c",…]` ·
 /// `["python","-c",…]` · `["perl","-e",…]` · `["deno","eval",…]`, per the
-/// interpreter's own [`eval_spec`] · P0-13), `nc -e`/`-c` (reverse shell),
+/// interpreter's own `eval_spec` · P0-13), `nc -e`/`-c` (reverse shell),
 /// `dd if=`/`of=` (raw disk). Checked STRUCTURALLY (positionally, per
 /// discrete argv element), so a LITERAL argument that merely CONTAINS such
 /// text is NOT a false positive — the difference from a joined-string

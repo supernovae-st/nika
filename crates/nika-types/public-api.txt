@@ -963,6 +963,49 @@ pub unsafe fn nika_types::embedding::EmbeddingSpec::clone_to_uninit(&self, dest:
 impl<T> core::convert::From<T> for nika_types::embedding::EmbeddingSpec
 pub fn nika_types::embedding::EmbeddingSpec::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::embedding::EmbeddingSpec where T: for<'de> serde_core::de::Deserialize<'de>
+pub mod nika_types::exec
+#[non_exhaustive] pub enum nika_types::exec::ArgvFloorRefusal
+pub nika_types::exec::ArgvFloorRefusal::DangerousProgram
+pub nika_types::exec::ArgvFloorRefusal::DangerousProgram::base: alloc::string::String
+pub nika_types::exec::ArgvFloorRefusal::DdRawDisk
+pub nika_types::exec::ArgvFloorRefusal::InterpreterEval
+pub nika_types::exec::ArgvFloorRefusal::InterpreterEval::base: alloc::string::String
+pub nika_types::exec::ArgvFloorRefusal::NetcatExec
+impl nika_types::exec::ArgvFloorRefusal
+pub fn nika_types::exec::ArgvFloorRefusal::reason(&self) -> alloc::string::String
+impl core::clone::Clone for nika_types::exec::ArgvFloorRefusal
+pub fn nika_types::exec::ArgvFloorRefusal::clone(&self) -> nika_types::exec::ArgvFloorRefusal
+impl core::cmp::Eq for nika_types::exec::ArgvFloorRefusal
+impl core::cmp::PartialEq for nika_types::exec::ArgvFloorRefusal
+pub fn nika_types::exec::ArgvFloorRefusal::eq(&self, other: &nika_types::exec::ArgvFloorRefusal) -> bool
+impl core::fmt::Debug for nika_types::exec::ArgvFloorRefusal
+pub fn nika_types::exec::ArgvFloorRefusal::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_types::exec::ArgvFloorRefusal
+impl<T, U> core::convert::Into<U> for nika_types::exec::ArgvFloorRefusal where U: core::convert::From<T>
+pub fn nika_types::exec::ArgvFloorRefusal::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::exec::ArgvFloorRefusal where U: core::convert::Into<T>
+pub type nika_types::exec::ArgvFloorRefusal::Error = core::convert::Infallible
+pub fn nika_types::exec::ArgvFloorRefusal::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::exec::ArgvFloorRefusal where U: core::convert::TryFrom<T>
+pub type nika_types::exec::ArgvFloorRefusal::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::exec::ArgvFloorRefusal::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::exec::ArgvFloorRefusal where T: core::clone::Clone
+pub type nika_types::exec::ArgvFloorRefusal::Owned = T
+pub fn nika_types::exec::ArgvFloorRefusal::clone_into(&self, target: &mut T)
+pub fn nika_types::exec::ArgvFloorRefusal::to_owned(&self) -> T
+impl<T> core::any::Any for nika_types::exec::ArgvFloorRefusal where T: 'static + ?core::marker::Sized
+pub fn nika_types::exec::ArgvFloorRefusal::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::exec::ArgvFloorRefusal where T: ?core::marker::Sized
+pub fn nika_types::exec::ArgvFloorRefusal::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::exec::ArgvFloorRefusal where T: ?core::marker::Sized
+pub fn nika_types::exec::ArgvFloorRefusal::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::exec::ArgvFloorRefusal where T: core::clone::Clone
+pub unsafe fn nika_types::exec::ArgvFloorRefusal::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::exec::ArgvFloorRefusal
+pub fn nika_types::exec::ArgvFloorRefusal::from(t: T) -> T
+pub fn nika_types::exec::argv_floor_refusal<S: core::convert::AsRef<str>>(program: &str, args: &[S]) -> core::option::Option<nika_types::exec::ArgvFloorRefusal>
+pub fn nika_types::exec::argv_program_refusal(program: &str) -> core::option::Option<nika_types::exec::ArgvFloorRefusal>
+pub fn nika_types::exec::normalize_for_blocklist(s: &str) -> alloc::string::String
 pub mod nika_types::extract
 #[non_exhaustive] pub enum nika_types::extract::ExtractMode
 pub nika_types::extract::ExtractMode::Article
