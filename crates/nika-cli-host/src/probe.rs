@@ -66,7 +66,7 @@ pub struct Probe {
     /// Journals the CWD's git repo ALREADY tracks under the trace dir —
     /// the leak `init`'s `.gitignore` cover now prevents, counted so
     /// doctor can print the untrack remedy for repos founded before it
-    /// did. Index-only via `git ls-files` ([`crate::git`]); `None` when
+    /// did. Index-only via `git ls-files` (`crate::git`); `None` when
     /// the observation was impossible (no git · not a repo) — an
     /// unobserved surface is no finding.
     pub tracked_traces: Option<usize>,
