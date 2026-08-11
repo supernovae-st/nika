@@ -160,6 +160,7 @@ pub use data_sink::SinkFinding;
 pub use declass::LeakReason;
 pub use effective::{EffectivePermits, PermitsSource};
 pub use energy::{EnergyCounts, EnergyReading, EnergyTask};
+pub use exec_floor::ExecFloorFinding;
 pub use findings::UnifiedFinding;
 pub use flow::{FlowFacts, TaintTrace, action_effect_fields};
 pub use hints::Hint;
@@ -344,6 +345,14 @@ pub struct CheckReport {
     /// `undeclared` → `NIKA-AUTH-006`) — only a pure-compute body stays
     /// empty here (and gets the « declare `permits: {}` » hint instead).
     pub capability_escapes: Vec<CapabilityEscape>,
+    /// Every argv-form `exec:` command the runtime's exec floor WILL
+    /// refuse (#605 · `NIKA-SEC-001`) — judged by the SAME predicate the
+    /// run uses ([`nika_types::exec::argv_floor_refusal`]), so check ≡
+    /// run: a literal `["bash","-c",…]` no longer audits green and dies
+    /// at spawn (and an `on_error: skip` leg can no longer hide it).
+    /// Literal argv only — a `${{ }}` island defers to the runtime's
+    /// pre-spawn re-judgment. Additive: `report_version` stays 1.
+    pub exec_floor_findings: Vec<ExecFloorFinding>,
     /// Every permit-parameterization taint finding (NEP-0004 · the static
     /// twin of the runtime re-gate): an interpolated permit BOUND
     /// (`NIKA-AUTH-007` · law 1) or an untrusted value whose canonical
@@ -471,16 +480,17 @@ pub struct CheckReport {
 
 impl CheckReport {
     /// Whether the workflow is clean — conformant, no leaks, no
-    /// egresses, no capability escapes, no policy or consent refusals,
-    /// no schema-type findings, no unknown tools, no schema-lint
-    /// defects. (Cost-ceiling unknowns and hints are informational, not
-    /// failures.)
+    /// egresses, no capability escapes, no exec-floor refusals, no
+    /// policy or consent refusals, no schema-type findings, no unknown
+    /// tools, no schema-lint defects. (Cost-ceiling unknowns and hints
+    /// are informational, not failures.)
     #[must_use]
     pub fn is_clean(&self) -> bool {
         self.conformance.is_empty()
             && self.secret_leaks.is_empty()
             && self.secret_egresses.is_empty()
             && self.capability_escapes.is_empty()
+            && self.exec_floor_findings.is_empty()
             && self.permit_taints.is_empty()
             && self.sink_findings.is_empty()
             && self.policy_findings.is_empty()
@@ -526,6 +536,13 @@ impl CheckReport {
                 SpecCode::new("SEC", 4, SpecCategory::SecurityError)
             }
         }));
+        // The argv exec floor (#605): the code the run would stamp on the
+        // same argv's `ShellError::Blocked` — SEC-001, check ≡ run.
+        codes.extend(
+            self.exec_floor_findings
+                .iter()
+                .map(|_| SpecCode::new("SEC", 1, SpecCategory::SecurityError)),
+        );
         // The permits-block taint findings: the finding's own kind maps to
         // its ONE wire code (NEP-0004 law 1 → AUTH-007 · law 2 → AUTH-008 ·
         // NEP-0005 law 3 env dead grant → AUTH-009 · F-P5 net wildcard →
@@ -732,9 +749,6 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
     };
     let mut hints = hints::scan_hints(wf);
     hints.extend(native_first::scan(wf));
-    // P0-13 check-side · the exec-floor mirror predicts the refusal the
-    // run's eval floor would apply (advisory — argv form, literal only).
-    hints.extend(exec_floor::scan(wf));
     // H6 · the width-capped DAG read STATES its miss (the
     // verdict-coverage law: a law that did not judge says so, in the
     // report's own surface — the JSON `hints[]` and the console HINTS
@@ -766,6 +780,11 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
         secret_leaks: secrets::scan_leaks(wf, &flow),
         secret_egresses: secrets::scan_egresses(&flow),
         capability_escapes,
+        // #605 · the argv exec floor as a FINDING (NIKA-SEC-001) — the
+        // same predicate the run judges with (nika-types::exec), so a
+        // refused-at-spawn argv refuses here first (the P0-13 hint
+        // mirror is retired: one predicate, never a duplicated table).
+        exec_floor_findings: exec_floor::scan(wf),
         permit_taints: permit_taint::scan_permit_taint(wf),
         sink_findings: data_sink::scan_data_sink(wf),
         policy_findings,

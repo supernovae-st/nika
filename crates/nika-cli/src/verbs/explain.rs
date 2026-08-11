@@ -128,6 +128,15 @@ fn closer_line(code: &str) -> &'static str {
              itself — a live server, a valid key, a priced usage block — \
              is the RUN's verdict (`nika doctor --ping` dials ahead)."
         }
+        // The exec floor (#605): since the static finding ships, check
+        // DOES catch the literal argv (the SAME predicate the run judges
+        // with) — but a templated command (`${{ }}` island) only resolves
+        // at run, so the closer names whose verdict that half is.
+        "NIKA-SEC-001" => {
+            "`nika check` catches a literal argv before a run (the same \
+             floor predicate the run judges with); a templated command — \
+             a `${{ }}` island — is judged at RUN."
+        }
         _ => "`nika check` catches this before a run ever starts.",
     }
 }
@@ -349,6 +358,21 @@ mod tests {
             infer.text.contains("doctor --ping") && infer.text.contains("RUN's verdict"),
             "the honest wire split is taught:\n{}",
             infer.text
+        );
+        // #605: the exec floor IS statically judged now (the same
+        // predicate both sides) — but only for a LITERAL argv, so the
+        // closer claims exactly that and hands the templated half to RUN.
+        let floor = run("NIKA-SEC-001");
+        assert_eq!(floor.code, exit::OK);
+        assert!(
+            !floor.text.contains("catches this before a run ever starts"),
+            "no blanket promise while a templated argv is run-judged:\n{}",
+            floor.text
+        );
+        assert!(
+            floor.text.contains("literal argv") && floor.text.contains("judged at RUN"),
+            "the literal/templated split is taught:\n{}",
+            floor.text
         );
     }
 
