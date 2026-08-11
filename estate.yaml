@@ -48,7 +48,7 @@ files:
   note: "generated with a human gate — the maintainer may amend the section at PR review"
 - path: "Cargo.lock"
   class: generated
-  sha256: ee978e5e3e91d6d9994ea60f624b1d0dc24648dec6fcb80f771c54ded971522f
+  sha256: b19213500d864a4a7898d0c4475d4c5d6dc1f6b8b371b0630b0e9e6abe67a650
   evidence: "cargo's resolver writes it; no human edits a lockfile"
   derivation:
     tool: "cargo (dependency resolution against Cargo.toml + crates/*/Cargo.toml)"
@@ -237,7 +237,7 @@ patterns:
 - glob: "*"
   class: authored
   match_count: 28
-  aggregate_sha256: 87f99475e7ba1ebaee26fcb1a15496643fe0d4f43defca1dd210027737963e39
+  aggregate_sha256: b58ac2a8e4cd10fc760a5ce4497622275cd9dda4fd0854663adacc566b6cbecd
   evidence: "root prose + config surface (README · DIAMOND · LICENSE · llms.txt · Cargo.toml · deny/clippy/cliff/typos toml · lefthook.yml · flake.nix · Dockerfile) — no generation markers at file heads; CHANGELOG.md · Cargo.lock · SPEC_PIN · ROADMAP.md excepted in files:"
 - glob: "**"
   class: authored

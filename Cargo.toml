@@ -300,7 +300,7 @@ serde      = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 toml_edit  = "0.25"   # nika-cli L4 — `nika wire codex` patches ~/.codex/config.toml (comment-preserving)
 marked-yaml  = "0.8"
-serde-saphyr = { version = "0.0.29", features = ["miette"] }
+serde-saphyr = { version = "1.0.0", features = ["miette"] }
 phf        = { version = "0.14", features = ["macros", "unicase"] }
 unicase    = "2.9"
 
