@@ -12,6 +12,16 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Added
 
+- **The doctor's sandbox row (#891 · #822 P1).** `nika doctor` was
+  blind to the OS sandbox: a Linux host without `/usr/bin/bwrap` read
+  green while every `exec:` and external MCP spawn ran unconfined. The
+  row rides the ONE selection's `SandboxDecision` (#888 — never a third
+  selector): a confined backend is Ok and names its mechanism (`Linux
+  sandbox (bubblewrap) · backend id: landlock`, the host-granular
+  allowlist residual named as follow-on — never a full-strength claim),
+  and a `noop` WARNS with the exact per-OS fix. `doctor --json` carries
+  the row on the same findings lane.
+
 - **The thinking-budget teaching at check (#651 · leg 3).** A
   reasoning-capable model (the vendored catalog knows) seated with
   `max_tokens` but no `thinking:` now draws the `thinking-budget` hint:

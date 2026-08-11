@@ -2150,6 +2150,58 @@ impl<T> tracing::instrument::Instrument for nika_cli_host::probe::Probe
 impl<T> tracing::instrument::WithSubscriber for nika_cli_host::probe::Probe
 impl<T> typenum::type_operators::Same for nika_cli_host::probe::Probe
 pub type nika_cli_host::probe::Probe::Output = T
+pub struct nika_cli_host::probe::SandboxProbe
+pub nika_cli_host::probe::SandboxProbe::backend: &'static str
+pub nika_cli_host::probe::SandboxProbe::confined: bool
+impl core::clone::Clone for nika_cli_host::probe::SandboxProbe
+pub fn nika_cli_host::probe::SandboxProbe::clone(&self) -> nika_cli_host::probe::SandboxProbe
+impl core::cmp::Eq for nika_cli_host::probe::SandboxProbe
+impl core::cmp::PartialEq for nika_cli_host::probe::SandboxProbe
+pub fn nika_cli_host::probe::SandboxProbe::eq(&self, other: &nika_cli_host::probe::SandboxProbe) -> bool
+impl core::fmt::Debug for nika_cli_host::probe::SandboxProbe
+pub fn nika_cli_host::probe::SandboxProbe::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cli_host::probe::SandboxProbe
+impl core::marker::StructuralPartialEq for nika_cli_host::probe::SandboxProbe
+impl<D> owo_colors::OwoColorize for nika_cli_host::probe::SandboxProbe
+impl<Q, K> equivalent::Equivalent<K> for nika_cli_host::probe::SandboxProbe where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli_host::probe::SandboxProbe::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cli_host::probe::SandboxProbe where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cli_host::probe::SandboxProbe::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cli_host::probe::SandboxProbe where U: core::convert::From<T>
+pub fn nika_cli_host::probe::SandboxProbe::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli_host::probe::SandboxProbe where U: core::convert::Into<T>
+pub type nika_cli_host::probe::SandboxProbe::Error = core::convert::Infallible
+pub fn nika_cli_host::probe::SandboxProbe::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli_host::probe::SandboxProbe where U: core::convert::TryFrom<T>
+pub type nika_cli_host::probe::SandboxProbe::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli_host::probe::SandboxProbe::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli_host::probe::SandboxProbe where T: core::clone::Clone
+pub type nika_cli_host::probe::SandboxProbe::Owned = T
+pub fn nika_cli_host::probe::SandboxProbe::clone_into(&self, target: &mut T)
+pub fn nika_cli_host::probe::SandboxProbe::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli_host::probe::SandboxProbe where T: 'static + ?core::marker::Sized
+pub fn nika_cli_host::probe::SandboxProbe::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli_host::probe::SandboxProbe where T: ?core::marker::Sized
+pub fn nika_cli_host::probe::SandboxProbe::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli_host::probe::SandboxProbe where T: ?core::marker::Sized
+pub fn nika_cli_host::probe::SandboxProbe::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli_host::probe::SandboxProbe where T: core::clone::Clone
+pub unsafe fn nika_cli_host::probe::SandboxProbe::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli_host::probe::SandboxProbe
+pub fn nika_cli_host::probe::SandboxProbe::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli_host::probe::SandboxProbe where T: core::clone::Clone
+pub fn nika_cli_host::probe::SandboxProbe::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli_host::probe::SandboxProbe where T: 'static
+pub fn nika_cli_host::probe::SandboxProbe::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_cli_host::probe::SandboxProbe where T: core::marker::Copy
+pub fn nika_cli_host::probe::SandboxProbe::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::probe::SandboxProbe where T: ?core::marker::Sized
+pub fn nika_cli_host::probe::SandboxProbe::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli_host::probe::SandboxProbe::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli_host::probe::SandboxProbe
+impl<T> tracing::instrument::WithSubscriber for nika_cli_host::probe::SandboxProbe
+impl<T> typenum::type_operators::Same for nika_cli_host::probe::SandboxProbe
+pub type nika_cli_host::probe::SandboxProbe::Output = T
 pub struct nika_cli_host::probe::TtsProbe
 pub nika_cli_host::probe::TtsProbe::elevenlabs_key: bool
 pub nika_cli_host::probe::TtsProbe::local_url: core::option::Option<alloc::string::String>
@@ -2210,6 +2262,7 @@ pub fn nika_cli_host::probe::adoption_state(probe: &nika_cli_host::probe::Probe)
 pub fn nika_cli_host::probe::capability_receipts(probe: &nika_cli_host::probe::Probe) -> alloc::vec::Vec<nika_cli_host::probe::HostCapabilityReceipt>
 pub fn nika_cli_host::probe::collect(ping: bool) -> nika_cli_host::probe::Probe
 pub fn nika_cli_host::probe::environment_json(probe: &nika_cli_host::probe::Probe) -> serde_json::value::Value
+pub fn nika_cli_host::probe::sandbox_probe() -> nika_cli_host::probe::SandboxProbe
 pub fn nika_cli_host::probe::train_differs(a: &str, b: &str) -> bool
 pub mod nika_cli_host::retention
 pub use nika_cli_host::retention::GcReport
