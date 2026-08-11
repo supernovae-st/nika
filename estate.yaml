@@ -114,7 +114,7 @@ patterns:
 - glob: "crates/nika-pack/pack/**"
   class: pinned-copy
   match_count: 114
-  aggregate_sha256: 7076fb2b63092c0784da6ee52371df370186df2cb8adb78692862a3a8f0af124
+  aggregate_sha256: aed224dfaf83990a8648c3a984829c1cfd0fcba50a2b011255e81fed35a24533
   evidence: "crates/nika-pack/src/lib.rs:16 'The snapshot under pack/ is vendored by scripts/sync-pack.sh' — a byte-copy of the spec surface, never edited here"
   derivation:
     tool: "bash scripts/sync-pack.sh <nika-spec checkout> — healed daily by .github/workflows/pack-resync.yml (branch bot/pack-resync · PR-only, the 12-gate CI judges)"
