@@ -11,9 +11,11 @@
 //! binary's behavior). So the spawn is confined by construction, through
 //! the one `CommandSandbox` seam the exec path uses:
 //!
-//! - **Backend** — [`platform_sandbox`] makes the same selection the exec
-//!   composition root makes: Seatbelt on macOS, bwrap on Linux, the
-//!   deliberate loud [`NoopSandbox`](nika_kernel::command_sandbox::NoopSandbox)
+//! - **Backend** — [`platform_sandbox`] delegates to the ONE selection
+//!   (`nika_runtime::sandbox_select` · #888 — the exec composition root and
+//!   this spawn path ride the same decision): Seatbelt on macOS, bwrap on
+//!   Linux, the deliberate loud
+//!   [`NoopSandbox`](nika_kernel::command_sandbox::NoopSandbox)
 //!   elsewhere (named by the note on every connect — never silent).
 //! - **Filesystem** — [`McpServerConfig::sandbox_spec`] anchors the
 //!   boundary at the project dir (the same boundary the exec sandbox
@@ -40,23 +42,18 @@ use nika_kernel::process::{NetPolicy, SandboxSpec};
 
 use crate::client::McpServerConfig;
 
-/// The OS command sandbox for this platform — the same selection the exec
-/// composition root makes (ADR-095 Layer 6): macOS rides Seatbelt, Linux
-/// rides bubblewrap, anything else is the deliberate
-/// [`NoopSandbox`](nika_kernel::command_sandbox::NoopSandbox) — loud via the
-/// connect note ([`StdioMcpClient::sandbox_note`](crate::client::StdioMcpClient::sandbox_note)),
-/// never the silent default.
+/// The OS command sandbox for this platform — delegates to the ONE
+/// selection every composition root rides
+/// ([`nika_runtime::sandbox_select::select_command_sandbox`] · ADR-095
+/// Layer 6 · #888 — the twin selector that used to live here retired):
+/// macOS rides Seatbelt, Linux rides bubblewrap, anything else is the
+/// deliberate [`NoopSandbox`](nika_kernel::command_sandbox::NoopSandbox) —
+/// loud via the connect note ([`StdioMcpClient::sandbox_note`](crate::client::StdioMcpClient::sandbox_note)),
+/// never the silent default. Kept as the crate's stable API spelling over
+/// the shared decision (the record's `into_sandbox`, verbatim).
 #[must_use]
 pub fn platform_sandbox() -> Arc<dyn CommandSandbox> {
-    #[cfg(target_os = "macos")]
-    if nika_sandbox_seatbelt::SeatbeltSandbox::available() {
-        return Arc::new(nika_sandbox_seatbelt::SeatbeltSandbox::new());
-    }
-    #[cfg(target_os = "linux")]
-    if nika_sandbox_landlock::LandlockSandbox::available() {
-        return Arc::new(nika_sandbox_landlock::LandlockSandbox::new());
-    }
-    Arc::new(nika_kernel::command_sandbox::NoopSandbox)
+    nika_runtime::sandbox_select::select_command_sandbox().into_sandbox()
 }
 
 /// The one-line sandbox mode note printed on every connect/verify —

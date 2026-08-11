@@ -585,23 +585,6 @@ pub fn capabilities_of(wf: &nika_schema::raw::RawWorkflow) -> RuntimeCapabilitie
     }
 }
 
-/// The OS command sandbox for this platform (ADR-095 Layer 6): macOS rides
-/// Seatbelt, Linux rides bubblewrap when the launcher is present, anything
-/// else is the deliberate [`nika_kernel::command_sandbox::NoopSandbox`] —
-/// selected HERE, logged at the call site, never the silent default (the
-/// kernel seam's own law).
-fn command_sandbox() -> Arc<dyn nika_kernel::command_sandbox::CommandSandbox> {
-    #[cfg(target_os = "macos")]
-    if nika_sandbox_seatbelt::SeatbeltSandbox::available() {
-        return Arc::new(nika_sandbox_seatbelt::SeatbeltSandbox::new());
-    }
-    #[cfg(target_os = "linux")]
-    if nika_sandbox_landlock::LandlockSandbox::available() {
-        return Arc::new(nika_sandbox_landlock::LandlockSandbox::new());
-    }
-    Arc::new(nika_kernel::command_sandbox::NoopSandbox)
-}
-
 /// The provider client's transport ceiling — `HttpConfig::timeout` on the
 /// PROVIDER client, which reqwest applies as the client-level idle-read
 /// guard (armed even while AWAITING RESPONSE HEADERS) and as the fallback
@@ -792,21 +775,20 @@ pub fn production_runtime(
     // F-P3 · the run: declaration picks the run's seams (clock · jitter
     // stream) ONCE; every injection below reads the same resolution.
     let seams = RunSeams::of(run);
-    // The OS sandbox for exec children (ADR-095 Layer 6) — selected once:
-    // the note AND the shell read the same backend. A declared boundary
-    // with exec tasks but no backend on this platform = the exec child
-    // runs unconfined; the builtin/fetch seams still enforce, said loudly.
-    let sandbox = command_sandbox();
-    // The backend NAME rides into the journal (`workflow_started.sandbox`)
-    // so the evidence pack reads the run's confinement mode from journal
-    // bytes — captured before the sandbox moves into the shell.
-    let sandbox_backend = sandbox.backend();
+    // The OS sandbox for exec children (ADR-095 Layer 6) — decided once, at
+    // the ONE selection every composition root rides (#888): the note AND
+    // the shell read the same record. No backend on this platform = the
+    // exec child runs unconfined; the builtin/fetch seams enforce, loudly.
+    let decision = crate::sandbox_select::select_command_sandbox();
+    // The backend NAME rides into the journal (`workflow_started.sandbox`).
+    let sandbox_backend = decision.backend();
     if caps.exec_tasks && caps.fs.is_declared() && sandbox_backend == "noop" {
         eprintln!(
             "note: exec runs UNCONFINED (no OS sandbox backend on this platform) — the \
              declared boundary still gates fs/net at the builtin and fetch seams"
         );
     }
+    let sandbox = decision.into_sandbox();
     // The fetch/builtin client enforces SSRF (workflow URLs) AND the
     // declared permits.net.http boundary (NIKA-SEC-004 · per-hop).
     let http = Arc::new(fetch_http(caps.net)?);
