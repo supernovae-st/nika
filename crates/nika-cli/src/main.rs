@@ -814,6 +814,7 @@ fn evidence_run(args: verbs::evidence::EvidenceArgs) -> u8 {
             args.out.as_deref(),
             args.workflow.as_deref(),
             args.json,
+            args.full,
         )),
         Err(code) => code,
     }

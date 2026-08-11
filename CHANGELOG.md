@@ -47,6 +47,30 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   operator go: it needs the trace to capture input prompts, a content-
   policy change, not a mere projection.)
 
+### Changed
+
+- **Evidence packs redact by default — the auditor gets hashes, not
+  payloads.** `nika trace evidence` now builds a REDACTED pack unless
+  `--full` is passed: every payload field of the copied journal (task
+  outputs, model answers, tool results, failure details, shown prompts)
+  is replaced by `{"sha256", "unavailable"}` — the hash of the field's
+  own bytes plus the reason it stays with the operator — while every
+  structural field (event kinds, chain links, digests, durations,
+  verdicts) rides verbatim. The manifest still attests the ORIGINAL
+  journal (`journal_sha256`, chain, head, seal), gains
+  `trace.projection_sha256` (the one offline check the projection
+  supports) and a `redaction` object declaring the class, because a
+  pack that cannot say which class it is would wear the old one's
+  trust. VERIFY.md now teaches the two classes apart: a redacted pack
+  proves the run's INTEGRITY, not its CONTENT — those are two
+  different asks, and content disclosure is a separate, operator-side
+  gesture. `--full` keeps the historical bytes and says so, in the
+  summary and in the manifest. `evidence_format` stays 1 (additive
+  fields · zero programmatic consumers). Measured on a real trace:
+  the redacted copy leaks zero payload bytes, each placeholder
+  verifies against the disclosed value with `shasum -a 256`, and a
+  zero-payload journal projects byte-identical.
+
 ### Fixed
 
 - **The resume verifies the chain before trusting the trace (ADR-099

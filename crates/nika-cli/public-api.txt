@@ -173,6 +173,7 @@ pub mod nika_cli::verbs::context
 pub fn nika_cli::verbs::context::run(json: bool, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
 pub mod nika_cli::verbs::evidence
 pub struct nika_cli::verbs::evidence::EvidenceArgs
+pub nika_cli::verbs::evidence::EvidenceArgs::full: bool
 pub nika_cli::verbs::evidence::EvidenceArgs::json: bool
 pub nika_cli::verbs::evidence::EvidenceArgs::out: core::option::Option<std::path::PathBuf>
 pub nika_cli::verbs::evidence::EvidenceArgs::trace: core::option::Option<std::path::PathBuf>
@@ -212,7 +213,7 @@ impl<T> tracing::instrument::Instrument for nika_cli::verbs::evidence::EvidenceA
 impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::evidence::EvidenceArgs
 impl<T> typenum::type_operators::Same for nika_cli::verbs::evidence::EvidenceArgs
 pub type nika_cli::verbs::evidence::EvidenceArgs::Output = T
-pub fn nika_cli::verbs::evidence::export(trace: &str, out: core::option::Option<&std::path::Path>, workflow: core::option::Option<&str>, json: bool) -> nika_cli_host::output::VerbOutput
+pub fn nika_cli::verbs::evidence::export(trace: &str, out: core::option::Option<&std::path::Path>, workflow: core::option::Option<&str>, json: bool, full: bool) -> nika_cli_host::output::VerbOutput
 pub mod nika_cli::verbs::examples
 pub fn nika_cli::verbs::examples::list(theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
 pub fn nika_cli::verbs::examples::rehearsal_seat(model: core::option::Option<&str>) -> core::option::Option<&str>
