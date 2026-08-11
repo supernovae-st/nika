@@ -164,73 +164,39 @@ impl FsBoundary {
             return Ok(()); // no boundary in force · no decision to witness
         }
         let effective = resolve_effective(fs, Path::new(path)).await;
+        let verdict = self.judge(fs, path, access, &effective).await;
+        if witness {
+            crate::witness::record_decision(
+                "fs",
+                format!("{} {path}", access.category()),
+                verdict.decision(),
+                verdict.why(&effective, access),
+            );
+        }
+        verdict.into_result(path, &effective, access)
+    }
+
+    /// The glob walk, pure of side effect: the first glob that admits
+    /// wins, else the first exact grant whose identity diverged (NEP-0009
+    /// law 2), else outside.
+    async fn judge<F: FsReadDyn>(
+        &self,
+        fs: &F,
+        path: &str,
+        access: FsAccess,
+        effective: &Path,
+    ) -> FsVerdict {
         let mut mismatch = None; // the first exact grant whose identity diverged
         for glob in self.globs(access) {
-            match confines(fs, glob, path, &effective).await {
-                ConfineVerdict::Admits => {
-                    if witness {
-                        crate::witness::record_decision(
-                            "fs",
-                            format!("{} {path}", access.category()),
-                            "allow",
-                            "the effective identity stays inside the declared set".to_owned(),
-                        );
-                    }
-                    return Ok(());
-                }
+            match confines(fs, glob, path, effective).await {
+                ConfineVerdict::Admits => return FsVerdict::Admitted,
                 ConfineVerdict::Outside => {}
                 ConfineVerdict::IdentityMismatch(judged) => {
                     mismatch = mismatch.or(Some(judged));
                 }
             }
         }
-        // NEP-0009 law 3 — the refusal carries the judged prefix and the
-        // resolved target, in the exec arm's own voice (one verdict on
-        // every enforcement arm · law 4).
-        if let Some(judged) = mismatch {
-            if witness {
-                crate::witness::record_decision(
-                    "fs",
-                    format!("{} {path}", access.category()),
-                    "deny",
-                    format!(
-                        "the resolved target `{}` diverges from the judged grant `{judged}`",
-                        effective.display(),
-                        judged = judged.display(),
-                    ),
-                );
-            }
-            return Err(BuiltinFailure::new(
-                SEC_DENIED,
-                format!(
-                    "fs.path_mismatch · `{path}` resolves to `{}` · the judged grant is \
-                     `{judged}` · outside the declared {} set (NEP-0009)",
-                    effective.display(),
-                    access.category(),
-                    judged = judged.display(),
-                ),
-            ));
-        }
-        if witness {
-            crate::witness::record_decision(
-                "fs",
-                format!("{} {path}", access.category()),
-                "deny",
-                format!(
-                    "the resolved target `{}` is outside the declared {} set",
-                    effective.display(),
-                    access.category()
-                ),
-            );
-        }
-        Err(BuiltinFailure::new(
-            SEC_DENIED,
-            format!(
-                "`{path}` resolves to `{}` — outside the declared {} boundary",
-                effective.display(),
-                access.category()
-            ),
-        ))
+        mismatch.map_or(FsVerdict::Outside, |judged| FsVerdict::Mismatch { judged })
     }
 
     /// #433 option C · create `path`'s parent directory WHEN the boundary
@@ -342,6 +308,79 @@ enum ConfineVerdict {
     /// (NEP-0009 law 2: refuse, never rewrite). Carries the judged
     /// identity the attestation names.
     IdentityMismatch(PathBuf),
+}
+
+/// The boundary's judgment on one op, computed ONCE from the glob set —
+/// the record AND the coded refusal derive from the same value, so the
+/// attested `why` and the `NIKA-SEC-004` message can never drift apart
+/// (NEP-0009 law 3 · one verdict on every enforcement arm, law 4).
+enum FsVerdict {
+    /// The effective identity stays inside a declared glob.
+    Admitted,
+    /// The resolved target is outside every declared glob for the access.
+    Outside,
+    /// An exact grant matched the path yet the resolve landed elsewhere
+    /// (NEP-0009 law 2 · carries the judged identity the attestation names).
+    Mismatch { judged: PathBuf },
+}
+
+impl FsVerdict {
+    /// The witness record's decision word.
+    fn decision(&self) -> &'static str {
+        match self {
+            Self::Admitted => "allow",
+            Self::Outside | Self::Mismatch { .. } => "deny",
+        }
+    }
+
+    /// The witness record's one-line attestation.
+    fn why(&self, effective: &Path, access: FsAccess) -> String {
+        match self {
+            Self::Admitted => "the effective identity stays inside the declared set".to_owned(),
+            Self::Outside => format!(
+                "the resolved target `{}` is outside the declared {} set",
+                effective.display(),
+                access.category()
+            ),
+            Self::Mismatch { judged } => format!(
+                "the resolved target `{}` diverges from the judged grant `{judged}`",
+                effective.display(),
+                judged = judged.display(),
+            ),
+        }
+    }
+
+    /// The enforcement result: `Ok(())` on an admission, the coded
+    /// `NIKA-SEC-004` refusal otherwise (the exact voice the guard has
+    /// always spoken).
+    fn into_result(
+        self,
+        path: &str,
+        effective: &Path,
+        access: FsAccess,
+    ) -> Result<(), BuiltinFailure> {
+        match self {
+            Self::Admitted => Ok(()),
+            Self::Outside => Err(BuiltinFailure::new(
+                SEC_DENIED,
+                format!(
+                    "`{path}` resolves to `{}` — outside the declared {} boundary",
+                    effective.display(),
+                    access.category()
+                ),
+            )),
+            Self::Mismatch { judged } => Err(BuiltinFailure::new(
+                SEC_DENIED,
+                format!(
+                    "fs.path_mismatch · `{path}` resolves to `{}` · the judged grant is \
+                     `{judged}` · outside the declared {} set (NEP-0009)",
+                    effective.display(),
+                    access.category(),
+                    judged = judged.display(),
+                ),
+            )),
+        }
+    }
 }
 
 /// A grant's EFFECTIVE PATH IDENTITY (NEP-0009 law 1 — the exec arm's
