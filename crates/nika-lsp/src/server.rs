@@ -457,7 +457,7 @@ mod tests {
         };
         let req = Request::new(1.into(), HoverRequest::METHOD.to_owned(), params);
         let resp = handle_request(req, &docs);
-        let result = resp.result.expect("ok result");
+        let result = resp.response_result.expect("ok result");
         assert!(
             result.to_string().contains("infer"),
             "hover mentions the verb: {result}"
@@ -476,7 +476,7 @@ mod tests {
         };
         let req = Request::new(2.into(), DOCUMENT_SYMBOL_METHOD.to_owned(), params);
         let resp = handle_request(req, &docs);
-        let result = resp.result.expect("ok result");
+        let result = resp.response_result.expect("ok result");
         assert!(result.to_string().contains('a'), "task `a` in outline");
     }
 
@@ -489,8 +489,7 @@ mod tests {
             serde_json::json!({}),
         );
         let resp = handle_request(req, &docs);
-        assert_eq!(resp.result, Some(serde_json::Value::Null));
-        assert!(resp.error.is_none());
+        assert!(matches!(resp.response_result, Ok(serde_json::Value::Null)));
     }
 
     #[test]
@@ -506,9 +505,10 @@ mod tests {
             serde_json::json!({ "garbage": true }),
         );
         let resp = handle_request(req, &docs);
-        let err = resp.error.expect("an error response, not ok-null");
+        let err = resp
+            .response_result
+            .expect_err("an error response, not ok-null");
         assert_eq!(err.code, -32602, "JSON-RPC InvalidParams reserved code");
-        assert!(resp.result.is_none(), "no result alongside the error");
         assert!(
             err.message.contains("invalid params for"),
             "the error names the bad method: {}",
@@ -1042,25 +1042,37 @@ mod canary {
                 .unwrap_or_else(|| panic!("response {id} present"))
         };
         // hover mentions the verb
-        let hover = response(10).result.clone().expect("hover result");
+        let hover = response(10).response_result.clone().expect("hover result");
         assert!(hover.to_string().contains("infer"), "hover: {hover}");
         // documentSymbol returns the workflow outline with the task
-        let symbols = response(11).result.clone().expect("symbols result");
+        let symbols = response(11)
+            .response_result
+            .clone()
+            .expect("symbols result");
         assert!(symbols.to_string().contains("greet"), "symbols: {symbols}");
         // definition resolves the island ref to a Location
-        let def = response(12).result.clone().expect("definition result");
+        let def = response(12)
+            .response_result
+            .clone()
+            .expect("definition result");
         assert!(def.to_string().contains("hello.nika.yaml"), "def: {def}");
         // completion offers providers at the model value
-        let completion = response(13).result.clone().expect("completion result");
+        let completion = response(13)
+            .response_result
+            .clone()
+            .expect("completion result");
         assert!(
             completion.to_string().contains("ollama/"),
             "completion: {completion}"
         );
         // prepareRename answers the key token + placeholder
-        let prep = response(14).result.clone().expect("prepare result");
+        let prep = response(14)
+            .response_result
+            .clone()
+            .expect("prepare result");
         assert!(prep.to_string().contains("greet"), "prepare: {prep}");
         // rename returns a WorkspaceEdit moving the key + the dep + the ref
-        let ws = response(15).result.clone().expect("rename result");
+        let ws = response(15).response_result.clone().expect("rename result");
         let ws_str = ws.to_string();
         assert!(ws_str.contains("salute"), "rename edit: {ws_str}");
         assert_eq!(
@@ -1070,7 +1082,10 @@ mod canary {
         );
         // an invalid new name is a request ERROR carrying the teaching
         let refusal = response(16);
-        let err = refusal.error.as_ref().expect("rename refusal is an error");
+        let err = refusal
+            .response_result
+            .as_ref()
+            .expect_err("rename refusal is an error");
         assert!(
             err.message.contains("snake_case"),
             "the refusal teaches the grammar: {}",
@@ -1128,17 +1143,16 @@ mod canary {
         };
         let cancelled = by_id(10);
         let err = cancelled
-            .error
+            .response_result
             .as_ref()
-            .expect("cancelled request → an error response, not a computed result");
+            .expect_err("cancelled request → an error response, not a computed result");
         assert_eq!(err.code, -32800, "LSP RequestCancelled reserved code");
-        assert!(
-            cancelled.result.is_none(),
-            "no result alongside the cancellation"
-        );
         let live = by_id(11);
-        assert!(live.error.is_none(), "the live request still computes");
-        let hover = live.result.clone().expect("hover result");
+        assert!(
+            live.response_result.is_ok(),
+            "the live request still computes"
+        );
+        let hover = live.response_result.clone().expect("hover result");
         assert!(hover.to_string().contains("infer"), "hover: {hover}");
     }
 
@@ -1211,7 +1225,7 @@ mod canary {
             .find(|r| r.id == 11.into())
             .expect("response 11 present");
         assert!(
-            live.error.is_none(),
+            live.response_result.is_ok(),
             "request 11 unaffected by the stale cancel"
         );
         assert!(
@@ -1244,7 +1258,7 @@ mod canary {
             .iter()
             .find(|r| r.id == 99.into())
             .expect("shutdown response");
-        assert!(shutdown.error.is_none(), "shutdown acknowledged ok");
+        assert!(shutdown.response_result.is_ok(), "shutdown acknowledged ok");
     }
 
     #[test]
