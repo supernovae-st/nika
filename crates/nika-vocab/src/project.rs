@@ -301,7 +301,7 @@ impl ProjectErrorKind {
 
 /// One named refusal: the law's reason + the fix form + the line (when
 /// the text carries one) + the path (attached by [`discover`] — the
-/// pure [`parse`] knows no path). Every consumer maps it to its own
+/// pure [`parse()`] knows no path). Every consumer maps it to its own
 /// law: the budget/registry gates refuse CLOSED, the retention seam
 /// notes it and fails OPEN (a broken GC never blocks a run).
 #[derive(Debug, Clone, PartialEq, Eq)]
