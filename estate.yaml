@@ -48,7 +48,7 @@ files:
   note: "generated with a human gate — the maintainer may amend the section at PR review"
 - path: "Cargo.lock"
   class: generated
-  sha256: b19213500d864a4a7898d0c4475d4c5d6dc1f6b8b371b0630b0e9e6abe67a650
+  sha256: ea8112d5d8b4991374d98946f785c8a2c72c4dc4e6661cb4fa1482de59ac3446
   evidence: "cargo's resolver writes it; no human edits a lockfile"
   derivation:
     tool: "cargo (dependency resolution against Cargo.toml + crates/*/Cargo.toml)"
@@ -89,7 +89,7 @@ files:
     - "docs/adr/adr-*.md YAML frontmatter"
 - path: "fuzz/Cargo.lock"
   class: generated
-  sha256: 420898a5f77c798ef981236fd687e381a81d7485002eb66e8317585716a68756
+  sha256: 3282c1b86b32950038e0ba8cd487ceaa7b12d6adb4e2129b2484860381d7943a
   evidence: "cargo's resolver writes it for the fuzz workspace; no human edits a lockfile"
   derivation:
     tool: "cargo (dependency resolution against fuzz/Cargo.toml)"
@@ -140,7 +140,7 @@ patterns:
 - glob: "crates/*/public-api.txt"
   class: generated
   match_count: 62
-  aggregate_sha256: 2df7584151e54a980fa3474fdb5ad60dd9da41051359446a39057f8cdf01dcb5
+  aggregate_sha256: 27ec215192a9a3d18c8cebf3e9babbefcf394c8ba85a0017de427afd35048b0e
   evidence: ".github/workflows/public-api.yml 'diff each covered lib crate' byte-compares each snapshot against cargo public-api output; macOS renders differently, so snapshots regenerate FROM THE UBUNTU ARTIFACT (workflow comment)"
   derivation:
     tool: "cargo public-api -p <crate> --omit auto-trait-impls > crates/<crate>/public-api.txt (DEFAULT features · the CI job shape — all-features drags platform deps into the render · cargo-public-api 0.51.0 pinned · the public-api-actual CI artifact stays the judge)"
@@ -152,17 +152,17 @@ patterns:
 - glob: "crates/**/src/**"
   class: authored
   match_count: 726
-  aggregate_sha256: cf13fb403a980ae515af57f18a78618c8066e99959ad92f91c18b5444ab6cfea
+  aggregate_sha256: d886df3adad7b5d98d34a3deee75dc02b74b38ec1c4e6234afd063b41c47f1b7
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
   match_count: 137
-  aggregate_sha256: 493f7baa422c2da3258149ba3d037b436d5ac93df7232df263f4ab7301f2abcb
+  aggregate_sha256: a1b0120d352a2aa9283add6f3e8b29566e865466da90af94c2664e613b87f555
   evidence: "crate-owned tests + fixtures under tests/ — written with the crate per gate discipline, no generation markers"
 - glob: "crates/**"
   class: authored
   match_count: 132
-  aggregate_sha256: 38846f400c93b3bb53d9590c4cec573e73416b2e901773fbf17f34fed824a0e4
+  aggregate_sha256: 291cca47b7774456af501798b19e2ce5a1695b9fd0c5ab35c981506b9ed23cfd
   evidence: "the remaining crate surface — Cargo.toml manifests · build.rs · benches · READMEs · hand-curated data catalogs (llm-providers · mcp-servers · embeddings · model-capabilities, probed daily by catalog-verify.yml); the pricing snapshot is excepted in files:"
   note: "crates/nika-pack/scripts/sync-pack.sh is a DIVERGENT older duplicate of scripts/sync-pack.sh — the pack-resync.yml lane runs the root one"
 - glob: "fuzz/**"
@@ -237,7 +237,7 @@ patterns:
 - glob: "*"
   class: authored
   match_count: 28
-  aggregate_sha256: b58ac2a8e4cd10fc760a5ce4497622275cd9dda4fd0854663adacc566b6cbecd
+  aggregate_sha256: 6cf896b417cc2c71dbe931ec1ba8f5fd1170ee3fbd2310a47a95d084216d848e
   evidence: "root prose + config surface (README · DIAMOND · LICENSE · llms.txt · Cargo.toml · deny/clippy/cliff/typos toml · lefthook.yml · flake.nix · Dockerfile) — no generation markers at file heads; CHANGELOG.md · Cargo.lock · SPEC_PIN · ROADMAP.md excepted in files:"
 - glob: "**"
   class: authored
