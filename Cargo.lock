@@ -4273,8 +4273,8 @@ dependencies = [
  "nika-verb-exec",
  "nika-verb-infer",
  "nika-verb-invoke",
+ "nika-vocab",
  "proptest",
- "serde",
  "serde_json",
  "sha2 0.10.9",
  "tempfile",
@@ -4345,6 +4345,7 @@ dependencies = [
  "nika-schema",
  "nika-store",
  "nika-types",
+ "nika-vocab",
  "p384",
  "proptest",
  "serde",
@@ -4700,6 +4701,7 @@ dependencies = [
  "nika-display",
  "nika-pack",
  "nika-schema",
+ "nika-vocab",
  "serde_json",
 ]
 
@@ -4756,6 +4758,7 @@ dependencies = [
  "minisign",
  "nika-kernel",
  "nika-kernel-mock",
+ "nika-vocab",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -5004,9 +5007,11 @@ dependencies = [
 name = "nika-vocab"
 version = "0.108.0"
 dependencies = [
+ "marked-yaml",
  "nika-cap",
  "nika-source",
  "nika-types",
+ "proptest",
  "serde",
  "serde_json",
 ]

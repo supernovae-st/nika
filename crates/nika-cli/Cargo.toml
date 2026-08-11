@@ -23,7 +23,6 @@ nika-pack   = { path = "../nika-pack", version = "0.108.0" }   # the embedded la
 # nika-cap + url moved out with the drift compute (nika-dap hosts both now).
 clap        = { workspace = true }                             # verb tree (completions + man derive later)
 clap_complete = { workspace = true }                           # `nika completions <shell>` (spec §9)
-serde       = { workspace = true }                             # graph projection envelope (§6)
 serde_json  = { workspace = true }                             # trace NDJSON parse · --json surfaces
 # The `nika run` composer (verbs/run/compose.rs · the verb/agent/effect
 # crates) descended to `nika_runtime::compose` 2026-07-22 (the 15k wall —
