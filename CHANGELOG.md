@@ -49,6 +49,22 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Fixed
 
+- **`check --fix` migrates the pre-0.103 string `command:` (#572 · the
+  D1 codemod).** The refusal taught the migration in prose but answered
+  « no machine-applicable repairs » on the exact finding whose repair IS
+  mechanical. The parser's refusal is now the typed
+  `SchemaError::D1StringCommand` (same wire code — NIKA-PARSE-019 — the
+  variant exists so the ladder can match it), and the D1 codemod joins
+  the ladder: a string command inside an `exec:` block becomes `shell:`
+  VERBATIM (the same decoded string reaches /bin/sh -c — semantics
+  byte-identical) or, for a bare string of provably-inert tokens
+  (no character a shell could reinterpret), the argv flow form the
+  grammar prefers. A `command:` outside an exec block (an `invoke:` arg
+  named `command`) is never touched; a mapping/null value STOPS with an
+  honest note, never a guess. The repair ladder itself descended to
+  `nika-cli-host::fix_ladder` at the 15k wall (ADR-110 · one
+  architectural unit, two members), and nika-migrate's D1 lives in its
+  own `d1.rs` (the 1500-file wall, ADR-023).
 - **The resume verifies the chain before trusting the trace (ADR-099
   trust amendment).** `nika run --resume` served a trace's recorded
   successes as cache hits WITHOUT consulting the tamper-evidence chain

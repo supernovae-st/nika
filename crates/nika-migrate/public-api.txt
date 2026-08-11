@@ -3,6 +3,25 @@ pub mod nika_migrate::repair
 pub fn nika_migrate::repair::splice_unique(source: &mut alloc::string::String, old: &str, new: &str) -> bool
 pub fn nika_migrate::repair::word_sites(hay: &str, needle: &str) -> alloc::vec::Vec<usize>
 pub fn nika_migrate::repair::write_atomic(path: &str, contents: &str) -> core::io::error::Result<()>
+pub enum nika_migrate::D1Outcome
+pub nika_migrate::D1Outcome::Changed(alloc::string::String)
+pub nika_migrate::D1Outcome::Stop(alloc::vec::Vec<alloc::string::String>)
+impl<T, U> core::convert::Into<U> for nika_migrate::D1Outcome where U: core::convert::From<T>
+pub fn nika_migrate::D1Outcome::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_migrate::D1Outcome where U: core::convert::Into<T>
+pub type nika_migrate::D1Outcome::Error = core::convert::Infallible
+pub fn nika_migrate::D1Outcome::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_migrate::D1Outcome where U: core::convert::TryFrom<T>
+pub type nika_migrate::D1Outcome::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_migrate::D1Outcome::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_migrate::D1Outcome where T: 'static + ?core::marker::Sized
+pub fn nika_migrate::D1Outcome::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_migrate::D1Outcome where T: ?core::marker::Sized
+pub fn nika_migrate::D1Outcome::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_migrate::D1Outcome where T: ?core::marker::Sized
+pub fn nika_migrate::D1Outcome::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_migrate::D1Outcome
+pub fn nika_migrate::D1Outcome::from(t: T) -> T
 #[non_exhaustive] pub enum nika_migrate::EsplitOutcome
 pub nika_migrate::EsplitOutcome::Changed(alloc::string::String, alloc::vec::Vec<alloc::string::String>)
 pub nika_migrate::EsplitOutcome::Clean
@@ -44,6 +63,7 @@ impl<T> core::borrow::BorrowMut<T> for nika_migrate::W2Outcome where T: ?core::m
 pub fn nika_migrate::W2Outcome::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for nika_migrate::W2Outcome
 pub fn nika_migrate::W2Outcome::from(t: T) -> T
+pub fn nika_migrate::d1(source: &str) -> nika_migrate::D1Outcome
 pub fn nika_migrate::esplit(source: &str) -> nika_migrate::EsplitOutcome
 pub fn nika_migrate::predicates(source: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_migrate::w1(source: &str) -> core::option::Option<alloc::string::String>
