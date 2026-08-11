@@ -57,6 +57,24 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Fixed
 
+<<<<<<< HEAD
+- **A templated `model:` resolves at run, not just at check (#824).**
+  `infer.model: "${{ config.model }}"` checked green — the MODELS rung
+  judges the declared default through the one shared static resolver —
+  then the run handed the RAW template bytes to the provider, dying
+  NIKA-INFER-001 on a string that was never a model id. The dispatch
+  now renders `model:` (infer AND agent — the same one-line seam each)
+  through the `${{ }}` render path `prompt:`/`system:` already took, so
+  the resolved binding is what reaches the wire and the
+  spec-sanctioned parameterization idiom (03 §model-by-condition ·
+  08 §H20 env targeting) holds end-to-end. A declared-but-valueless
+  ref now fails the task loud (NIKA-1702) instead of leaking the raw
+  island to the provider. Proven red-first at the seam: the issue's
+  repro workflow lands the resolved default in the captured provider
+  request body, and the agent loop's mock records `mock/echo`, never
+  the template.
+||||||| b67e6dee5
+=======
 - **`check --fix` migrates the pre-0.103 string `command:` (#572 · the
   D1 codemod).** The refusal taught the migration in prose but answered
   « no machine-applicable repairs » on the exact finding whose repair IS
@@ -90,6 +108,7 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   completion, not the footgun), and the `schema:` lane is untouched —
   an empty reply already dies NIKA-INFER-002 at extraction, while a
   schema-validated empty container stays a legitimate answer.
+>>>>>>> origin/main
 - **The resume verifies the chain before trusting the trace (ADR-099
   trust amendment).** `nika run --resume` served a trace's recorded
   successes as cache hits WITHOUT consulting the tamper-evidence chain
