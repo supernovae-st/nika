@@ -144,6 +144,7 @@ mod tests {
     /// silent probe loss.
     const MECHANISMS: &[&str] = &[
         "native-manifest",
+        "agent-plugin",
         "claude-layout",
         "wire",
         "init",

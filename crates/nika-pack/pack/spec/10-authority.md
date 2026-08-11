@@ -341,6 +341,15 @@ affirmative-consent law) join the same `NIKA-SEC` namespace.
 - **No policy inheritance.** A file's law is the file's — composition
   across `invoke: workflow:` calls stays the callee's own policy (the
   ceiling algebra is reserved, unwired).
+- **No memory category.** Recall is a **tool**, reached through `invoke:`
+  like every other callable ([08 §H9](./08-out-of-scope.md) · today
+  `mcp:memory-server/recall`, tomorrow the reserved `nika:connectome/*`
+  group — same verb, zero workflow-shape change). It is therefore
+  governed by `permits.tools`, and **never by an ambient implicit
+  memory**: a recall a reader cannot see in the file does not exist.
+  Whether a store-scoped grant deserves its own effect category — the
+  `net` precedent, where `nika:fetch` is a tool and yet hosts need
+  bounding — is an open question for a future proposal, not a v1 gap.
 
 ## Related
 

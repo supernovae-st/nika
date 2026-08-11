@@ -6,11 +6,16 @@
 //! operator policy allows Y, effective = X ∩ Y (`intersect`); the dual
 //! `union` combines declared boundaries across included sub-workflows.
 //!
-//! Shipped now, unwired (FCI-001 "traits upfront, impls deferred" spirit):
-//! pure value algebra, zero callers today, exactly the reservation this
-//! codebase already carries for `InferRequest`/`CatalogEntry`. `None` in any
-//! category is the empty set (default-deny), so union keeps the present side
-//! and intersect collapses to `None`.
+//! The two halves ship at different maturities. `intersect` is WIRED and
+//! load-bearing on BOTH surfaces of the composition laws (spec 14 laws 3/4):
+//! `nika-check`'s `composition.rs` meets parent ∩ child-declared to judge a
+//! child's boundary statically, and `nika-cli`'s `child_runner.rs` computes
+//! the same meet to cap a child at run. `union` is the half still unwired
+//! (tests only) — the FCI-001 "traits upfront, impls deferred" reservation
+//! this codebase already carries for `InferRequest`/`CatalogEntry`.
+//!
+//! `None` in any category is the empty set (default-deny), so union keeps
+//! the present side and intersect collapses to `None`.
 
 use crate::{ExecPermit, FsPermits, NetPermits, Permits};
 

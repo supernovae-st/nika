@@ -293,7 +293,7 @@ jobs:
               artifacts/nika-*.tar.gz artifacts/SHA256SUMS
           fi
       - name: Attest build provenance (SLSA · verifiable via `gh attestation verify`)
-        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: 'artifacts/nika-*.tar.gz'
 
@@ -504,7 +504,7 @@ jobs:
           # path in this file — a re-run must not go red on its own assets
           gh release upload "$TAG" --repo "$REPO" --clobber ./*.tgz ./*.tgz.sha256
       - name: Attest build provenance (the npm tarball · verifiable via `gh attestation verify`)
-        uses: actions/attest-build-provenance@0f67c3f4856b2e3261c31976d6725780e5e4c373 # v4.1.1
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: '*.tgz'
       - name: Publish to npm — loud-skip without a credential

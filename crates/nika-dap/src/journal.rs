@@ -36,14 +36,76 @@ use uuid::Uuid;
 use crate::chain::CHAIN_GENESIS;
 use nika_event::source_id::sha256_hex;
 
+/// The chain state EVERY lane drives identically (the module's « one
+/// constant · one hash » law made a type): sha256 hex of the LAST
+/// line's exact bytes rides the NEXT line as its `chain` field. The
+/// head commits only after the bytes landed — a failed write must never
+/// advance it, or a later "N events · chain X" note would describe
+/// bytes no surface holds.
+struct ChainState {
+    chain: String,
+}
+
+impl ChainState {
+    /// The genesis head — sha256 of the shared tag the walk verifies
+    /// against.
+    fn genesis() -> Self {
+        Self {
+            chain: sha256_hex(CHAIN_GENESIS),
+        }
+    }
+
+    /// Serialize `event` as one journal line with the `chain` field
+    /// inserted, plus the head those exact bytes mint — WITHOUT
+    /// committing it (the caller commits once the write lands). Hashing
+    /// the written bytes, never a re-serialization, is what makes
+    /// `trace verify` total: no canonical-JSON contract to drift. Event
+    /// consumers ignore the extra field (tolerant serde — pinned in
+    /// verify tests).
+    fn line(&self, event: &Event) -> std::io::Result<(String, String)> {
+        let mut value = serde_json::to_value(event).map_err(std::io::Error::from)?;
+        let Some(obj) = value.as_object_mut() else {
+            // A non-object event is a WRITER defect — fail loudly here;
+            // a silent chainless line would read as an Unchained/Broken
+            // verdict (an attack) downstream.
+            return Err(std::io::Error::other(
+                "event did not serialize to a JSON object",
+            ));
+        };
+        obj.insert(
+            "chain".to_owned(),
+            serde_json::Value::String(self.chain.clone()),
+        );
+        let line = serde_json::to_string(&value).map_err(std::io::Error::from)?;
+        let next = sha256_hex(line.as_bytes());
+        Ok((line, next))
+    }
+
+    /// Commit the head the landed bytes minted.
+    fn commit(&mut self, next: String) {
+        self.chain = next;
+    }
+
+    /// The current head — the last landed line's hash (the genesis
+    /// before anything landed).
+    fn head(&self) -> &str {
+        &self.chain
+    }
+}
+
 /// Writes one NDJSON line per event to the wrapped writer (the `--json`
 /// lane · "NDJSON events verbatim · CI/agents" · spec §3). Never
-/// coloured. Flushes per event so a tailing agent sees liveness.
+/// coloured. Flushes per event so a tailing agent sees liveness. Each
+/// line carries the `chain` field — the stream is a first-class journal
+/// (ADR-099 §5 follow-on): a captured stream verifies, and a broken one
+/// is refused on resume like any forged journal.
 pub struct JsonSink<W: Write> {
     writer: W,
     /// The first write error, buffered (the sink contract is infallible
     /// w.r.t. the run · the caller checks this after the run).
     error: Option<std::io::Error>,
+    /// The tamper-evidence chain, shared with the file lane.
+    chain: ChainState,
 }
 
 impl<W: Write> JsonSink<W> {
@@ -52,6 +114,7 @@ impl<W: Write> JsonSink<W> {
         Self {
             writer,
             error: None,
+            chain: ChainState::genesis(),
         }
     }
 
@@ -66,14 +129,17 @@ impl<W: Write> EventSink for JsonSink<W> {
         if self.error.is_some() {
             return; // already broken · stop touching a dead pipe
         }
-        // serde_json::to_writer never fails on a valid Event (only the
-        // writer can) — fold any error into the buffer.
-        let result = serde_json::to_writer(&mut self.writer, &event)
-            .map_err(std::io::Error::from)
-            .and_then(|()| self.writer.write_all(b"\n"))
-            .and_then(|()| self.writer.flush());
-        if let Err(e) = result {
-            self.error = Some(e);
+        // Chain state commits only AFTER the bytes landed — a failed
+        // write must never advance the head.
+        let result = self.chain.line(&event).and_then(|(line, next)| {
+            self.writer.write_all(line.as_bytes())?;
+            self.writer.write_all(b"\n")?;
+            self.writer.flush()?;
+            Ok(next)
+        });
+        match result {
+            Ok(next) => self.chain.commit(next),
+            Err(e) => self.error = Some(e),
         }
     }
 }
@@ -123,10 +189,9 @@ pub struct TraceFileSink {
     /// The first fs error, buffered (the sink contract is infallible
     /// w.r.t. the run · the caller surfaces this after the run).
     error: Option<std::io::Error>,
-    /// The tamper-evidence chain: sha256 hex of the LAST line's exact
-    /// bytes (genesis: sha256 of [`CHAIN_GENESIS`]) — injected into the
-    /// NEXT line as its `chain` field. After the run, this is the HEAD.
-    chain: String,
+    /// The tamper-evidence chain, shared with the stream lane — after
+    /// the run, its head is the HEAD the anchor trio prints.
+    chain: ChainState,
     /// Lines actually written (the anchor trio's count).
     written: usize,
 }
@@ -139,7 +204,7 @@ impl TraceFileSink {
             lane: Lane::Pending,
             path: None,
             error: None,
-            chain: sha256_hex(CHAIN_GENESIS),
+            chain: ChainState::genesis(),
             written: 0,
         }
     }
@@ -153,7 +218,7 @@ impl TraceFileSink {
             lane: Lane::Disabled,
             path: None,
             error: None,
-            chain: sha256_hex(CHAIN_GENESIS),
+            chain: ChainState::genesis(),
             written: 0,
         }
     }
@@ -185,7 +250,7 @@ impl TraceFileSink {
     /// that upgrades tamper-EVIDENT toward attributable.
     #[must_use]
     pub fn chain_head(&self) -> &str {
-        &self.chain
+        self.chain.head()
     }
 
     /// Lines written — the anchor trio's middle term (the C2SP
@@ -276,37 +341,20 @@ impl EventSink for TraceFileSink {
             return; // Disabled — a deliberate no-op
         };
         // One JSON document per line + flush per event (the watcher tails
-        // for liveness). The journal line = the event object PLUS a
-        // `chain` field — sha256 hex of the PREVIOUS line's exact bytes
-        // (genesis: CHAIN_GENESIS). Hashing written bytes, never a
-        // re-serialization, is what makes `trace verify` total: no
-        // canonical-JSON contract to drift. Event consumers ignore the
-        // extra field (tolerant serde — pinned in verify tests).
-        let chain = self.chain.clone();
-        let result = serde_json::to_value(&event)
-            .map_err(std::io::Error::from)
-            .and_then(|mut value| {
-                let Some(obj) = value.as_object_mut() else {
-                    // A non-object event is a WRITER defect — fail loudly
-                    // here; a silent chainless line would read as an
-                    // Unchained/Broken verdict (an attack) downstream.
-                    return Err(std::io::Error::other(
-                        "event did not serialize to a JSON object",
-                    ));
-                };
-                obj.insert("chain".to_owned(), serde_json::Value::String(chain));
-                let line = serde_json::to_string(&value).map_err(std::io::Error::from)?;
-                writer.write_all(line.as_bytes())?;
-                writer.write_all(b"\n")?;
-                writer.flush()?;
-                Ok(sha256_hex(line.as_bytes()))
-            });
+        // for liveness). The line shape (event + `chain` field · hash of
+        // the written bytes) lives in ChainState — one law, both lanes.
+        let result = self.chain.line(&event).and_then(|(line, next)| {
+            writer.write_all(line.as_bytes())?;
+            writer.write_all(b"\n")?;
+            writer.flush()?;
+            Ok(next)
+        });
         // Chain state commits only AFTER the bytes landed: a failed
         // write must never advance the head (a later "N events · chain
         // X" note would otherwise describe bytes no file holds).
         match result {
             Ok(next) => {
-                self.chain = next;
+                self.chain.commit(next);
                 self.written += 1;
             }
             Err(e) => {
@@ -532,11 +580,12 @@ mod tests {
         assert_eq!(mode & 0o777, 0o600, "journal perms: {mode:o}");
     }
 
-    /// The journal is the `--json` lane SEMANTICALLY: same events in,
-    /// each line carrying one extra committed key (`chain`) — key order
-    /// is NOT byte-mirrored (the Value round-trip sorts keys).
+    /// The journal is the `--json` lane BYTE FOR BYTE: same events in,
+    /// same `ChainState`, same line shape — since the ADR-099 §5
+    /// follow-on the stream carries the chain too, so nothing is left
+    /// to differ.
     #[test]
-    fn trace_sink_journal_mirrors_the_json_lane_semantically() {
+    fn trace_sink_journal_mirrors_the_json_lane_byte_for_byte() {
         let tmp = tempfile::tempdir().expect("tempdir");
         let dir = tmp.path().join("traces");
         let events = demo::success();
@@ -561,29 +610,43 @@ mod tests {
         assert!(sink.into_error().is_none(), "a writable dir never errors");
 
         let written = std::fs::read(&path).expect("journal readable");
-        // The journal = the --json lane PLUS the chain field (0.96): each
-        // line parses to the SAME event with one extra key committing to
-        // the previous line's bytes. Semantic mirror, chained.
-        let jl: Vec<serde_json::Value> = String::from_utf8(written)
-            .expect("utf8")
-            .lines()
-            .map(|l| serde_json::from_str(l).expect("journal line parses"))
-            .collect();
-        let el: Vec<serde_json::Value> = String::from_utf8(expected)
-            .expect("utf8")
-            .lines()
-            .map(|l| serde_json::from_str(l).expect("json line parses"))
-            .collect();
-        assert_eq!(jl.len(), el.len(), "one NDJSON line per event, both lanes");
-        for (j, e) in jl.iter().zip(&el) {
-            let mut j = j.clone();
-            let chain = j
-                .as_object_mut()
-                .and_then(|o| o.remove("chain"))
-                .expect("every journal line carries its chain");
-            assert_eq!(chain.as_str().map(str::len), Some(64), "a full sha256 hex");
-            assert_eq!(&j, e, "the event itself mirrors the --json lane");
+        // Both lanes drive the SAME ChainState over the SAME events:
+        // the journal file is the --json stream BYTE FOR BYTE (the
+        // 0.96 « journal = stream + chain key » relation is promoted —
+        // the stream carries the chain too since the ADR-099 §5
+        // follow-on, so nothing is left to differ).
+        assert_eq!(
+            written, expected,
+            "the journal file IS the --json stream, byte for byte"
+        );
+    }
+
+    /// The `--json` lane speaks the chain the walk verifies: line N+1's
+    /// `chain` field is sha256 of line N's exact bytes, genesis first.
+    /// Mutation-sensitive by construction — drop the insert or break
+    /// the advance and this goes red.
+    #[test]
+    fn json_sink_lines_carry_the_walkable_chain() {
+        let mut buf = Vec::new();
+        {
+            let mut sink = JsonSink::new(&mut buf);
+            for ev in demo::success() {
+                sink.emit(ev);
+            }
+            assert!(sink.into_error().is_none(), "the vec writer never fails");
         }
+        let text = String::from_utf8(buf).expect("utf8");
+        let mut prev = sha256_hex(CHAIN_GENESIS);
+        let mut n = 0usize;
+        for line in text.lines() {
+            let value: serde_json::Value =
+                serde_json::from_str(line).expect("each line is one JSON Event");
+            let chain = value["chain"].as_str().expect("the chain field rides");
+            assert_eq!(chain, prev, "line {n} commits to the previous line's bytes");
+            prev = sha256_hex(line.as_bytes());
+            n += 1;
+        }
+        assert!(n > 1, "the demo stream holds several events");
     }
 
     /// The opt-out shape: `disabled()` swallows every event with zero fs

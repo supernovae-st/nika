@@ -644,6 +644,58 @@ pub mod nika_runtime::resume::fields
 pub const nika_runtime::resume::fields::DEF_HASH: &str
 pub const nika_runtime::resume::fields::INPUT_HASH: &str
 pub const nika_runtime::resume::fields::OUTPUT: &str
+#[non_exhaustive] pub enum nika_runtime::resume::ResumeUnverified
+pub nika_runtime::resume::ResumeUnverified::Declared(alloc::string::String)
+pub nika_runtime::resume::ResumeUnverified::Unchained(alloc::string::String)
+impl nika_runtime::resume::ResumeUnverified
+pub fn nika_runtime::resume::ResumeUnverified::finding(&self) -> &str
+pub fn nika_runtime::resume::ResumeUnverified::posture(&self) -> &'static str
+impl core::clone::Clone for nika_runtime::resume::ResumeUnverified
+pub fn nika_runtime::resume::ResumeUnverified::clone(&self) -> nika_runtime::resume::ResumeUnverified
+impl core::cmp::Eq for nika_runtime::resume::ResumeUnverified
+impl core::cmp::PartialEq for nika_runtime::resume::ResumeUnverified
+pub fn nika_runtime::resume::ResumeUnverified::eq(&self, other: &nika_runtime::resume::ResumeUnverified) -> bool
+impl core::fmt::Debug for nika_runtime::resume::ResumeUnverified
+pub fn nika_runtime::resume::ResumeUnverified::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_runtime::resume::ResumeUnverified
+impl<D> owo_colors::OwoColorize for nika_runtime::resume::ResumeUnverified
+impl<Q, K> equivalent::Equivalent<K> for nika_runtime::resume::ResumeUnverified where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_runtime::resume::ResumeUnverified::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_runtime::resume::ResumeUnverified where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_runtime::resume::ResumeUnverified::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_runtime::resume::ResumeUnverified where U: core::convert::From<T>
+pub fn nika_runtime::resume::ResumeUnverified::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_runtime::resume::ResumeUnverified where U: core::convert::Into<T>
+pub type nika_runtime::resume::ResumeUnverified::Error = core::convert::Infallible
+pub fn nika_runtime::resume::ResumeUnverified::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_runtime::resume::ResumeUnverified where U: core::convert::TryFrom<T>
+pub type nika_runtime::resume::ResumeUnverified::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_runtime::resume::ResumeUnverified::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_runtime::resume::ResumeUnverified where T: core::clone::Clone
+pub type nika_runtime::resume::ResumeUnverified::Owned = T
+pub fn nika_runtime::resume::ResumeUnverified::clone_into(&self, target: &mut T)
+pub fn nika_runtime::resume::ResumeUnverified::to_owned(&self) -> T
+impl<T> core::any::Any for nika_runtime::resume::ResumeUnverified where T: 'static + ?core::marker::Sized
+pub fn nika_runtime::resume::ResumeUnverified::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_runtime::resume::ResumeUnverified where T: ?core::marker::Sized
+pub fn nika_runtime::resume::ResumeUnverified::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_runtime::resume::ResumeUnverified where T: ?core::marker::Sized
+pub fn nika_runtime::resume::ResumeUnverified::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_runtime::resume::ResumeUnverified where T: core::clone::Clone
+pub unsafe fn nika_runtime::resume::ResumeUnverified::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_runtime::resume::ResumeUnverified
+pub fn nika_runtime::resume::ResumeUnverified::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_runtime::resume::ResumeUnverified where T: core::clone::Clone
+pub fn nika_runtime::resume::ResumeUnverified::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_runtime::resume::ResumeUnverified where T: 'static
+pub fn nika_runtime::resume::ResumeUnverified::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::resume::ResumeUnverified where T: ?core::marker::Sized
+pub fn nika_runtime::resume::ResumeUnverified::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_runtime::resume::ResumeUnverified::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_runtime::resume::ResumeUnverified
+impl<T> tracing::instrument::WithSubscriber for nika_runtime::resume::ResumeUnverified
+impl<T> typenum::type_operators::Same for nika_runtime::resume::ResumeUnverified
+pub type nika_runtime::resume::ResumeUnverified::Output = T
 #[non_exhaustive] pub struct nika_runtime::resume::PriorSuccess
 pub nika_runtime::resume::PriorSuccess::def_hash: alloc::string::String
 pub nika_runtime::resume::PriorSuccess::input_hash: alloc::string::String
@@ -1169,6 +1221,7 @@ pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_prompt_answers(self, answer
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_prompt_pause(self, pause: bool) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_resume_compat(self, compat: core::option::Option<alloc::string::String>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_resume_plan(self, plan: nika_runtime::resume::ResumePlan) -> Self
+pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_resume_unverified(self, unverified: core::option::Option<nika_runtime::resume::ResumeUnverified>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_secret_resolver(self, resolver: alloc::sync::Arc<dyn nika_secret::WorkflowSecretResolver>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_skills(self, skills: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_source_sha256(self, hex: alloc::string::String) -> Self

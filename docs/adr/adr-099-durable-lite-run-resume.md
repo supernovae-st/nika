@@ -30,6 +30,14 @@ follow_ups: []
   / `--from` / `--answer` · `EventKind::{TaskCacheHit, WorkflowPaused}`
   · exit code `4` (`paused`) · the 3 conformance fixtures as engine
   e2e tests (`crates/nika-cli/tests/resume_e2e.rs`).
+- **Trust amendment (2026-08-08)** — §5. The resume path's trust
+  assumption, stated at last and ENFORCED: the chain is walked before
+  the fold. Measured 2026-08-07 on the 0.108.0 binary, a chain-broken
+  journal resumed silently (exit 0), propagated a forged output into a
+  live task, and emitted a fresh journal whose own chain verified
+  clean — laundering. This ADR held zero occurrences of verify / trust
+  / tamper: the assumption was never stated, which is how it was never
+  questioned.
 - **Surface**: CLI + trace/event vocabulary ONLY. Zero envelope change ·
   zero new YAML · the 4-verbs and `nika: v1` locks are untouched.
 - **Home**: the CANONICAL prose lives in the `nika-spec` repo's `adr/`
@@ -133,6 +141,48 @@ Determinism is never the author's problem: there are no replay rules,
 no "workflow versioning", no side-effect wrappers. A task that does not
 hash-match simply re-runs live, side effects included (see Non-goals).
 
+### 5 · The resume VERIFIES the chain before trusting the records (trust amendment · 2026-08-08)
+
+The trust assumption this ADR left unstated, stated now: **a `--resume`
+trace is an authority claim.** Its recorded successes are served as
+cache hits, and live tasks run on the values those records carry — so
+the journal is one artifact with two roles the literature keeps apart
+(the tamper-evident audit record · the resume checkpoint), and the
+second role MUST consult the first. Measured 2026-08-07 on the 0.108.0
+binary, it did not: a chain-broken journal resumed silently (exit 0),
+propagated a forged output into a live task, and emitted a fresh
+journal whose own chain verified clean — one resume laundering a
+journal that FAILS verification into one that PASSES it.
+
+The law, enforced by the reference engine:
+
+- The trace's tamper-evidence chain is walked BEFORE the fold (the same
+  walk `nika trace verify` runs). `Intact` proceeds; `Incomplete` and
+  `TornTail` proceed (a crash leaves an honest journal — crash
+  resumption is the use case).
+- `Broken` — edited, inserted, dropped, reordered, unreadable
+  mid-journal, or over the line bound: the run REFUSES (exit 2 · the
+  FILE class, one voice with `trace verify`), naming the finding,
+  `nika trace verify`, and the opt-out below.
+- **`--resume-unverified`** is the NAMED opt-out (a trace the operator
+  edited or truncated by hand): the run proceeds loudly, and the NEW
+  run's boot manifest journals `resume_unverified: declared` +
+  `resume_unverified_finding` (the walk's finding). A laundered trace
+  can never claim a clean ancestry silently. The flag is consumed only
+  when the walk objects; a verified trace journals no claim.
+- A chainless journal (a pre-chain `--json` capture · a pre-0.96
+  journal) carries nothing to verify: the resume proceeds with a
+  printed notice — trusted WITHOUT verification, said, never silent —
+  AND attested on the new run's boot manifest (`resume_unverified:
+  unchained` + the reason). The strip-the-chain forgery (tamper, then
+  delete every `chain` field) converts the walker's `Broken` into
+  `Unchained` and lands exactly here: it cannot convert the refusal
+  into a SILENT proceed. Retired 2026-08-09: the `--json` stream
+  carries the chain (the sinks share one ChainState · the journal file
+  is the stream byte for byte), so a fresh capture verifies and its
+  forgery is refused — the compat now covers only pre-chain journals
+  and stripped forgeries, and it stays attested, never silent.
+
 ### Rider — the durable human gate (`nika:prompt` pause)
 
 Today's normative non-interactive contract
@@ -208,6 +258,11 @@ run reports and events, never inside `${{ }}`.
   input hash · output) become a compatibility surface: they MUST evolve
   additively, and an engine facing a trace it cannot read MUST say so
   and re-run fully — never guess a partial skip.
+- The trust amendment (§5) turns a previously silent acceptance into a
+  refusal: a chain-broken trace no longer resumes (exit 2), so an
+  operator who hand-edits or truncates a journal MUST name
+  `--resume-unverified` — attested on the new run's boot manifest. A
+  deliberate behavior change, landed with its conformance fixture.
 - Secrets-by-name hashing means a rotated secret silently cache-hits;
   the limit is documented and `--from` is the override, but it is a
   real sharp edge to teach.
