@@ -48,7 +48,7 @@ files:
   note: "generated with a human gate — the maintainer may amend the section at PR review"
 - path: "Cargo.lock"
   class: generated
-  sha256: f06d42cd866fd5b68e57d7e1f711fb11450e744a39f87e0042996c86c2118436
+  sha256: ea8112d5d8b4991374d98946f785c8a2c72c4dc4e6661cb4fa1482de59ac3446
   evidence: "cargo's resolver writes it; no human edits a lockfile"
   derivation:
     tool: "cargo (dependency resolution against Cargo.toml + crates/*/Cargo.toml)"
@@ -152,7 +152,7 @@ patterns:
 - glob: "crates/**/src/**"
   class: authored
   match_count: 724
-  aggregate_sha256: 5d4826f15d4a69bbe5db702fd78547db5ccd08135ab4265f635621d8cf31c51e
+  aggregate_sha256: be030b4d2307d88f879642999843034e2b4701a4bbace0ec9ebb256502b8da30
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
@@ -237,7 +237,7 @@ patterns:
 - glob: "*"
   class: authored
   match_count: 28
-  aggregate_sha256: 6b0dba4dbc99e34ea17a2f75f4e25acf68d29b02c1ccc762867b9fa4b357f1ab
+  aggregate_sha256: 6cf896b417cc2c71dbe931ec1ba8f5fd1170ee3fbd2310a47a95d084216d848e
   evidence: "root prose + config surface (README · DIAMOND · LICENSE · llms.txt · Cargo.toml · deny/clippy/cliff/typos toml · lefthook.yml · flake.nix · Dockerfile) — no generation markers at file heads; CHANGELOG.md · Cargo.lock · SPEC_PIN · ROADMAP.md excepted in files:"
 - glob: "**"
   class: authored
