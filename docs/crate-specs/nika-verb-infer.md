@@ -10,7 +10,7 @@
 | License | `AGPL-3.0-or-later` |
 | Edition | 2024 |
 | Publish | `false` — internal L2 verb crate |
-| NIKA codes | **NIKA_430–439** claimed inside the reserved Verb range 430–479 (`nika-error/src/codes.rs:61` · `Category::Verb`) · maps to the spec-level `NIKA-INFER-001/002` rows (`nika-spec spec/05-errors.md`) |
+| NIKA codes | **NIKA_430–439** claimed inside the reserved Verb range 430–479 (`nika-error/src/codes.rs:61` · `Category::Verb`) · maps to the spec-level `NIKA-INFER-001..004` rows (`nika-spec spec/05-errors.md`) |
 
 ---
 
@@ -115,8 +115,10 @@ Per Invariant #25: `VerbInferError` is `#[non_exhaustive]` from day one.
 | NIKA_431 | `SchemaValidation { attempts }` | NIKA-INFER-002 | `false` |
 | NIKA_432 | `InvalidParam` (temperature range · empty prompt) | upstream-reject class | `false` |
 | NIKA_433 | `ModelResolution` (registry resolve failed) | NIKA-INFER-001 family | `false` |
+| NIKA_434 | `UsageUnmetered` (priced model · no usage block) | NIKA-INFER-003 | `false` |
+| NIKA_435 | `EmptyAnswer` (blank visible answer WITH token spend) | NIKA-INFER-004 | `false` |
 
-NIKA_434–439 stay reserved for the verb's future (vision staging · streaming
+NIKA_436–439 stay reserved for the verb's future (vision staging · streaming
 passthrough). Range registered in the kernel range-registry hub at admission.
 
 ## §3 · Scope fences (what this crate is NOT)

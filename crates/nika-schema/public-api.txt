@@ -156,6 +156,8 @@ pub nika_schema::error::SchemaError::BareTaskEnvelope::span: core::option::Optio
 pub nika_schema::error::SchemaError::BareTaskEnvelope::task: alloc::string::String
 pub nika_schema::error::SchemaError::Cycle
 pub nika_schema::error::SchemaError::Cycle::cycle: alloc::vec::Vec<alloc::string::String>
+pub nika_schema::error::SchemaError::D1StringCommand
+pub nika_schema::error::SchemaError::D1StringCommand::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::error::SchemaError::DeadValueForm
 pub nika_schema::error::SchemaError::DeadValueForm::form: nika_vocab::dead_form::DeadForm
 pub nika_schema::error::SchemaError::DeadValueForm::message: alloc::string::String
@@ -1822,6 +1824,8 @@ pub nika_schema::SchemaError::BareTaskEnvelope::span: core::option::Option<nika_
 pub nika_schema::SchemaError::BareTaskEnvelope::task: alloc::string::String
 pub nika_schema::SchemaError::Cycle
 pub nika_schema::SchemaError::Cycle::cycle: alloc::vec::Vec<alloc::string::String>
+pub nika_schema::SchemaError::D1StringCommand
+pub nika_schema::SchemaError::D1StringCommand::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::SchemaError::DeadValueForm
 pub nika_schema::SchemaError::DeadValueForm::form: nika_vocab::dead_form::DeadForm
 pub nika_schema::SchemaError::DeadValueForm::message: alloc::string::String

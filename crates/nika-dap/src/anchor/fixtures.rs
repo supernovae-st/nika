@@ -75,11 +75,14 @@ pub(crate) fn pk32() -> [u8; 32] {
 }
 
 /// The fixture run key's signing material (secret box · empty
-/// password — see the module doc for why this key is committed).
+/// password — see the module doc for why this key is committed). The
+/// box is a rs-minisign 0.7 LEGACY shape (kdf-marked, plaintext
+/// material): it doubles as the regression vector for the legacy open.
 #[cfg(test)]
 pub(crate) fn key_material() -> super::RunKeyMaterial {
     let sk = minisign::SecretKeyBox::from_string(SECRET_BOX)
-        .and_then(|b| b.into_secret_key(Some(String::new())))
+        .ok()
+        .and_then(|b| crate::seal::open_fixture_box(&b))
         .expect("the frozen secret box opens");
     super::run_key_material(&sk, PUBLIC_BOX).expect("the frozen key's material")
 }

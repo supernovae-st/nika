@@ -25,6 +25,7 @@ nika-http      = { path = "../nika-http", version = "0.108.0" }      # ReqwestHt
 nika-event     = { path = "../nika-event", version = "0.108.0" }     # Event + notify_delivered/notify_failed kinds (ADR-111)
 nika-types     = { path = "../nika-types", version = "0.108.0" }     # EventId · KeyValue · Timestamp (notify journal fields)
 nika-kernel    = { path = "../nika-kernel", version = "0.108.0" }    # HttpPostDyn seam the notify client posts through
+nika-migrate   = { path = "../nika-migrate", version = "0.108.0" }   # the codemods the fix_ladder arms ride (W1 · W2 · C2 · R5 · D1)
 nika-harness   = { path = "../nika-harness", version = "0.108.0", optional = true } # the adapter registry + probes (P3 B6 · access-harness)
 sha2           = { workspace = true }   # ADR-111 — the deterministic CloudEvents id (trace × task)
 hmac           = { workspace = true }   # ADR-111 — Standard Webhooks `v1,` HMAC-SHA256 signature

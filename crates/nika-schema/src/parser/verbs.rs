@@ -177,14 +177,9 @@ fn parse_command(cx: &Cx<'_>, body: &MarkedMappingNode) -> Result<RawCommand, Sc
         });
     };
     let Some(seq) = node.as_sequence() else {
-        // The pre-0.103 implicit-shell string — rejected WITH the migration.
-        return Err(SchemaError::Validation {
-            message: "`exec.command` is argv-only — [\"prog\", \"arg\", …] runs via \
-                      execve, each element one token (an interpolated value can never \
-                      break out) · the old string form was an IMPLICIT shell: \
-                      pipes/redirects/globs now live in `shell:` explicitly (02 §exec \
-                      · 0.103)"
-                .to_owned(),
+        // The pre-0.103 implicit-shell string — the typed dead form so
+        // `check --fix` matches it (the message lives on the variant).
+        return Err(SchemaError::D1StringCommand {
             span: cx.span(node.span()),
         });
     };

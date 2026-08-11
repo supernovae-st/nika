@@ -238,8 +238,9 @@ type ValueBags<'a> = (
 pub(crate) enum RunResult {
     /// Success — the verb's value (or the `on_error: recover` value) +
     /// token spend when the verb reports it + an optional non-fatal
-    /// diagnostic (OBS-E · a reasoning model's blank-answer footgun ·
-    /// rides `TaskCompleted` as a `warning` field).
+    /// diagnostic (rides `TaskCompleted` as a `warning` field · the OBS-E
+    /// blank-answer class left this channel when it was promoted to the
+    /// typed NIKA-INFER-004 failure · #651).
     Success {
         value: Value,
         tokens: Option<i64>,
@@ -1321,11 +1322,11 @@ fn eval_gate(gate: &WhenGate, scope: &Scope<'_>) -> Result<bool, RuntimeError> {
 
 /// Map an attempt-loop outcome to the terminal [`RunResult`] PLUS the
 /// F-P6 binding evidence: a success carries the value + token spend +
-/// the optional OBS-E diagnostic straight through · a failure runs the
-/// `on_error:` policy (spec 05). The evidence is lifted BEFORE the fold
-/// so it rides OUTSIDE it — a recovered divergence keeps its finding
-/// (never a warn), and a post-gate verb failure keeps the passed gate's
-/// attestation.
+/// the optional success-riding diagnostic straight through · a failure
+/// runs the `on_error:` policy (spec 05). The evidence is lifted BEFORE
+/// the fold so it rides OUTSIDE it — a recovered divergence keeps its
+/// finding (never a warn), and a post-gate verb failure keeps the passed
+/// gate's attestation.
 fn dispatch_result(
     task: &RawTask,
     scope: &Scope<'_>,
