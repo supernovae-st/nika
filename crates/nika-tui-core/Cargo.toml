@@ -21,9 +21,11 @@ rust-version = "1.91"
 
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }
+# float_roundtrip — the fingerprint, the journal fold and the parity test
+# compare BITS; serde_json's default fast float parser rounds
+# 420.40000000000003 to 420.4 (measured). Exact parsing or the proof
+# measures nothing.
+serde_json = { version = "1.0", features = ["float_roundtrip"] }
+thiserror = "2.0"
 
 [dev-dependencies]
-# float_roundtrip — the parity test compares BITS; serde_json's default fast
-# float parser rounds 420.40000000000003 to 420.4 (measured). Exact parsing
-# or the proof measures nothing.
-serde_json = { version = "1.0", features = ["float_roundtrip"] }

@@ -1,0 +1,101 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
+//! The seating law's proofs — synthetic graphs, one law per test.
+
+use nika_tui_core::ingress::{GraphDoc, Node};
+use nika_tui_core::model::Verb;
+use nika_tui_core::plan::{Mark, seat_first, seat_next};
+
+fn node(id: &str, tool: Option<&str>) -> Node {
+    Node {
+        id: id.to_owned(),
+        verb: Verb::Invoke,
+        tool: tool.map(str::to_owned),
+        model: None,
+        when: None,
+        fan_out: None,
+        permits: Vec::new(),
+        cost_interval: None,
+        retry_max_attempts: None,
+        timeout_ms: None,
+        on_error: None,
+        outputs: Vec::new(),
+    }
+}
+
+fn graph(ids: &[&str]) -> GraphDoc {
+    GraphDoc {
+        graph_format: 2,
+        workflow: "test".to_owned(),
+        nodes: ids.iter().map(|id| node(id, None)).collect(),
+        edges: Vec::new(),
+    }
+}
+
+/// The first plan: every slot is born, the revision is r1.
+#[test]
+fn the_first_plan_births_every_slot() {
+    let b = seat_first(&graph(&["a", "b", "c"]));
+    assert_eq!(b.rev, 1);
+    assert_eq!(
+        b.slots,
+        vec![
+            Some("a".to_owned()),
+            Some("b".to_owned()),
+            Some("c".to_owned())
+        ]
+    );
+    assert_eq!(b.marks, vec![Mark::Born, Mark::Born, Mark::Born]);
+}
+
+/// THE SLOT LAW — a dead step's slot empties forever, a birth goes to the
+/// END, nobody moves.
+#[test]
+fn a_freed_slot_stays_empty_and_births_go_to_the_end() {
+    let b1 = seat_first(&graph(&["a", "b", "c"]));
+    let b2 = seat_next(&b1, &graph(&["a", "c", "d"]));
+    assert_eq!(b2.rev, 2);
+    assert_eq!(
+        b2.slots,
+        vec![
+            Some("a".to_owned()),
+            None, // b's hole stays a hole
+            Some("c".to_owned()),
+            Some("d".to_owned()), // the birth at the END
+        ]
+    );
+    assert_eq!(
+        b2.marks,
+        vec![Mark::Kept, Mark::Dead, Mark::Kept, Mark::Born]
+    );
+    // r3 — b does not resurrect its slot
+    let b3 = seat_next(&b2, &graph(&["a", "c", "d", "b"]));
+    assert_eq!(b3.slots[1], None, "the hole is permanent");
+    assert_eq!(
+        b3.slots[4],
+        Some("b".to_owned()),
+        "the return is a NEW birth at the end"
+    );
+    assert_eq!(b3.marks[4], Mark::Born);
+}
+
+/// A change the engine makes flips the mark to `Changed` — the print
+/// ignores the id and keeps everything else.
+#[test]
+fn a_changed_description_marks_the_slot() {
+    let b1 = seat_first(&graph(&["a", "b"]));
+    let mut g2 = graph(&["a", "b"]);
+    g2.nodes[1] = node("b", Some("nika:jq")); // same id, another tool
+    let b2 = seat_next(&b1, &g2);
+    assert_eq!(b2.marks, vec![Mark::Kept, Mark::Changed]);
+}
+
+/// A no-change revision keeps every mark calm.
+#[test]
+fn a_calm_revision_marks_nothing() {
+    let b1 = seat_first(&graph(&["a", "b"]));
+    let b2 = seat_next(&b1, &graph(&["a", "b"]));
+    assert_eq!(b2.marks, vec![Mark::Kept, Mark::Kept]);
+    assert_eq!(b2.rev, 2);
+}

@@ -16,5 +16,8 @@
 //! pins (Workflow, Run, expected) triples and the crate must land on the
 //! same bits.
 
+pub mod claims;
 pub mod derive;
+pub mod ingress;
 pub mod model;
+pub mod plan;
