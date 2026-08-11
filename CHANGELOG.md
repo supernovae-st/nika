@@ -47,6 +47,119 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   operator go: it needs the trace to capture input prompts, a content-
   policy change, not a mere projection.)
 
+### Fixed
+
+- **The resume verifies the chain before trusting the trace (ADR-099
+  trust amendment).** `nika run --resume` served a trace's recorded
+  successes as cache hits WITHOUT consulting the tamper-evidence chain
+  the same journal carries: a chain-broken journal resumed silently
+  (exit 0), propagated a forged output into a live task, and emitted a
+  fresh journal whose own chain verified clean — one resume laundering
+  a journal that FAILS `nika trace verify` into one that PASSES it.
+  The chain is now walked BEFORE the fold (the same walk the verify
+  verb runs): a broken chain refuses (exit 2 · the FILE class, one
+  voice with the verify verb) naming the finding and the opt-out, while
+  a crash's honest signatures (killed mid-flight · torn tail) still
+  resume — crash-resumption is the use case. The opt-out is NAMED, never
+  a silent default: `--resume-unverified` proceeds loudly and the NEW
+  run's boot manifest journals `resume_unverified: declared` +
+  `resume_unverified_finding`, so a laundered trace can never claim a
+  clean ancestry silently. A chainless journal (a `--json` stream
+  capture · a pre-0.96 journal) still resumes under the compat — said
+  on stderr AND attested on the boot manifest (`resume_unverified:
+  unchained` + the reason), so the strip-the-chain forgery (tamper,
+  then delete every `chain` field to turn the walker's `Broken` into
+  `Unchained`) never converts the refusal into a SILENT proceed.
+  Proven red-first at the binary plane: the forgery refused by default
+  (and no new journal descending from it) · the opt-out attested on the
+  child journal · the stripped forgery attested `unchained` · the
+  intact control journaling no claim.
+- **An exact `fs` grant is judged by its effective path identity on the
+  builtin arm too (NEP-0009).** Between `nika check` and `nika run`, an
+  exact grant literal swapped for a symlink (e.g. `read:
+  ["./allowed.txt"]` → `./oob/secret.txt`) was served by the in-process
+  builtins (`nika:read` · `nika:glob` · `nika:grep` · `nika:write` ·
+  `nika:edit`): the boundary re-judged the path the task NAMED, and the
+  resolved-vs-resolved comparison followed the planted symlink on both
+  sides — the kernel sandbox never sees an in-process read, so the arm
+  suspected least was the open one. The boundary now judges the grant's
+  effective path identity (the longest existing ancestor canonicalized,
+  the FINAL component held lexical — the dispatch re-gate's own
+  judgment, restated on the builtin seam) and refuses the divergence as
+  `fs.path_mismatch` (`NIKA-SEC-004`), naming the judged prefix and the
+  resolved target — one verdict voice on both arms. A symlinked
+  ANCESTOR stays tolerated (`/tmp`→`/private/tmp` · a nix-store link),
+  a not-yet-existing write target stays legal (law 5), and a grant that
+  legitimately traverses a symlink changes verdict: declare the
+  effective path instead (the NEP's documented backwards-compat). Proven
+  red-first at the unit and binary planes: the swapped exact grant
+  refused with the secret never served · the inside-pointing symlink
+  refused as divergence · the swapped glob root refused · the honest
+  tree admitted before and after.
+- **The `--json` stream carries the chain — the trusted-by-default class
+  is retired (ADR-099 §5 follow-on).** A `nika run --json` capture was
+  the last journal shape the resume trusted by default: the stream wrote
+  no `chain` field, so a captured journal resumed under the
+  attested-but-unverified `unchained` compat, and tampering the capture
+  met no walk. The two lanes now drive one shared chain state — the
+  journal file is the stdout stream BYTE FOR BYTE — so a fresh capture
+  verifies under `nika trace verify`, resumes on the verified lane (no
+  notice · no attestation), and its forgery is refused (exit 2) like any
+  broken journal. The compat stays for pre-chain journals and stripped
+  forgeries — said, attested, never silent. Proven red-first at the
+  unit and binary planes: every streamed line carries the chain · the
+  capture verifies and resumes verified with no claim journaled · the
+  forged capture refused · both mutations (the insert dropped · the
+  head never advancing) kill their tests.
+- **The builtin fs boundary's decisions ride the permit witness
+  (NEP-0007 law 2 · the declared v1 residual, closed).** Until now the
+  in-process arm attested a refusal only as the task's coded failure
+  (`NIKA-SEC-004` in `task_failed`), and its GRANTED reads and writes
+  were witnessed nowhere — an auditor could not reconstruct what
+  authority the builtin arm actually exercised. The boundary's
+  enforcement point now records every verdict, allow and deny alike,
+  into the attempt's collector (a tokio task-local scoped by the
+  runtime per attempt — the one channel that reaches the enforcement
+  point inside the shared dispatcher without breaking the kernel's
+  `ToolExecute` seam, and the only one that follows the attempt across
+  `.await`), and the settle spine emits one `permit_checked` frame per
+  decision with `plane: "fs"` — the same payload shape as every other
+  plane, so the frames bind to the task that took them through the hash
+  chain, on the failure path too (the deny precedes `task_failed`).
+  Outside a run the slot is a no-op: telemetry never panics. Proven
+  red-first at the binary plane: the permitted read journals one allow
+  between `task_started` and `task_completed` · the dynamically-refused
+  read journals one deny before `task_failed` with zero secret bytes
+  emitted · neutralizing the record kills both planes. The per-op NET
+  decisions remain the declared residual.
+- **The builtin fs reads open pinned — the enforce→open race closes on
+  the in-process arm (NEP-0009 law 6 · the builtin-side follow-on).**
+  The dispatch guard judged the path and THEN the op opened it: between
+  the two, a parallel task of the same run could swap the judged file
+  for a symlink, and a plain `open(2)` would follow it — the parallel
+  sibling of the sequenced pivot the re-gate killed. Every builtin READ
+  (`read` · `edit`'s read phase · `grep` · `glob` · `decide`'s bundle ·
+  `fetch`'s multipart parts) now runs against the judged fs: the path is
+  re-judged at open time (SILENT — the guard already witnessed the op's
+  one fs frame), then opened `O_NOFOLLOW`, so the KERNEL refuses a
+  swapped final component (`ELOOP`) inside the syscall itself,
+  atomically — no check-then-act, no window. A pre-existing
+  inside-pointing symlink is still served (resolved, re-judged on the
+  TARGET, re-opened pinned · the no-regression rule), a dangling link
+  keeps the file-not-found verdict, and a redirect storm refuses coded
+  past a hard hop bound instead of hanging. Writes need no pin: the
+  atomic temp+rename lane replaces a symlinked destination, never
+  follows it. Declared gaps, honestly on the record: the pin compiles
+  on the tier-1 unixes (macOS · Linux) and every other target
+  degenerates to enforce + plain read; `O_NOFOLLOW` pins the FINAL
+  component only, so a swapped ANCESTOR directory stays a residual of
+  the exec arm's `--bind-fd` follow-on class; and `chart` keeps the raw
+  fs because its save lane re-reads the write-permitted artifact for the
+  idempotence law. Proven red-first at the unit plane: the nofollow open
+  never serves a symlink target · the swapped exact grant refuses coded
+  with zero secret bytes · the inside link serves byte-exact · the loop
+  and the storm refuse coded and RETURN.
+
 ## [0.108.0](https://github.com/supernovae-st/nika/compare/v0.107.2..v0.108.0) - 2026-08-05
 
 **The access layer arrives; the check stops trusting what it cannot

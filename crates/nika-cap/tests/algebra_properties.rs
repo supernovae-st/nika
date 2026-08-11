@@ -10,6 +10,13 @@
 //!   can both admit an atom yet share no pattern, so the string-intersection
 //!   meet omits it — safe for a ceiling, never grants what either denies).
 //! * **bottom** — the empty boundary denies everything.
+//!
+//! Every plane of the boundary is generated and probed — `tools` · `net` ·
+//! `fs` (read AND write) · `exec` · `env`. `env` is the plane whose atoms are
+//! EXACT POSIX names instead of globs (spec `01-envelope.md` §permits ·
+//! NEP-0005), so it carries its own alphabet: a starred entry there is a dead
+//! grant, never a pattern, and generating one would property-test a semantics
+//! the language does not have.
 
 use nika_cap::{ExecPermit, FsPermits, NetPermits, Permits};
 use proptest::prelude::*;
@@ -33,6 +40,23 @@ fn rel_path() -> impl Strategy<Value = String> {
         .prop_map(|segs| format!("./{}", segs.join("/")))
 }
 
+/// The `env:` alphabet — exact POSIX identifiers (`[A-Za-z_][A-Za-z0-9_]*`).
+/// Small on purpose, like every alphabet here: collisions between two
+/// operands' name sets are what exercise the join and the meet.
+const ENV_NAMES: &[&str] = &["HOME", "TZ", "CI", "CI_COMMIT_SHA", "NIKA_LOG"];
+
+/// One exact env name. Deliberately NOT built from [`glob`] — `env:` has no
+/// glob form, so a starred atom would probe a rule that does not exist.
+/// `select` also keeps each atom byte-exact (a bare literal inside
+/// `prop_oneof!` is read as a REGEX).
+fn env_name() -> impl Strategy<Value = String> {
+    prop::sample::select(ENV_NAMES).prop_map(String::from)
+}
+
+fn env_list() -> impl Strategy<Value = Vec<String>> {
+    prop::collection::vec(env_name(), 0..4)
+}
+
 fn arb_exec() -> impl Strategy<Value = Option<ExecPermit>> {
     prop_oneof![
         Just(None),
@@ -48,12 +72,14 @@ prop_compose! {
         net in prop::option::of(glob_list()),
         exec in arb_exec(),
         tools in prop::option::of(glob_list()),
+        env in prop::option::of(env_list()),
     ) -> Permits {
         let mut p = Permits::new();
         p.fs = fs.map(|(read, write)| FsPermits::new(read, write));
         p.net = net.map(NetPermits::new);
         p.exec = exec;
         p.tools = tools;
+        p.env = env;
         p
     }
 }
@@ -79,28 +105,39 @@ proptest! {
     fn union_program_is_or(a in arb_permits(), b in arb_permits(), pr in tok()) {
         prop_assert_eq!(a.union(&b).allows_program(&pr), a.allows_program(&pr) || b.allows_program(&pr));
     }
+    /// The `env` plane of the join. It needs its own probe drawn from the
+    /// env alphabet: `tok()` and `ENV_NAMES` are disjoint, so probing this
+    /// plane with a `tok()` atom would assert `false == false || false`
+    /// forever — green, and blind.
     #[test]
-    fn intersect_is_sound(a in arb_permits(), b in arb_permits(), x in tok()) {
+    fn union_env_is_or(a in arb_permits(), b in arb_permits(), k in env_name()) {
+        prop_assert_eq!(a.union(&b).allows_env_key(&k), a.allows_env_key(&k) || b.allows_env_key(&k));
+    }
+    #[test]
+    fn intersect_is_sound(a in arb_permits(), b in arb_permits(), x in tok(), k in env_name()) {
         let i = a.intersect(&b);
         if i.allows_tool(&x)       { prop_assert!(a.allows_tool(&x) && b.allows_tool(&x)); }
         if i.allows_host(&x)       { prop_assert!(a.allows_host(&x) && b.allows_host(&x)); }
         if i.allows_path(&x, false){ prop_assert!(a.allows_path(&x, false) && b.allows_path(&x, false)); }
         if i.allows_path(&x, true) { prop_assert!(a.allows_path(&x, true) && b.allows_path(&x, true)); }
         if i.allows_program(&x)    { prop_assert!(a.allows_program(&x) && b.allows_program(&x)); }
+        if i.allows_env_key(&k)    { prop_assert!(a.allows_env_key(&k) && b.allows_env_key(&k)); }
     }
     #[test]
-    fn empty_denies_everything(x in tok()) {
+    fn empty_denies_everything(x in tok(), k in env_name()) {
         let e = Permits::new();
         prop_assert!(!e.allows_tool(&x) && !e.allows_host(&x));
         prop_assert!(!e.allows_path(&x, false) && !e.allows_path(&x, true));
         prop_assert!(!e.allows_program(&x) && !e.allows_exec());
+        prop_assert!(!e.allows_env_key(&k), "⊥ passes no environment through");
     }
     #[test]
-    fn union_with_empty_is_identity(a in arb_permits(), x in tok()) {
+    fn union_with_empty_is_identity(a in arb_permits(), x in tok(), k in env_name()) {
         let u = a.union(&Permits::new());
         prop_assert_eq!(u.allows_tool(&x), a.allows_tool(&x));
         prop_assert_eq!(u.allows_host(&x), a.allows_host(&x));
         prop_assert_eq!(u.allows_program(&x), a.allows_program(&x));
+        prop_assert_eq!(u.allows_env_key(&k), a.allows_env_key(&k));
     }
     #[test]
     fn union_commutes(a in arb_permits(), b in arb_permits(), x in tok()) {

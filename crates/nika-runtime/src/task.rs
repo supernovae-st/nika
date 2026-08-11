@@ -579,17 +579,16 @@ where
             permits,
         };
         let started = self.clock.now();
-        let witness = PermitWitness::new();
-        let mut ran = self
-            .attempt_loop(task, &scope, types, ledger, &witness)
-            .await;
+        let witness = std::sync::Arc::new(PermitWitness::new());
+        let attempt = self.attempt_loop(task, &scope, types, ledger, &witness);
+        let mut ran = nika_builtin::witness::scope_attempt_witness(witness.clone(), attempt).await;
         // `on_finally:` — the task STARTED (spec 03 · success AND
         // failure · before the failure propagates in the DAG). The
         // cleanup lane's decisions ride a dedicated witness (the
         // parent's is already drained by attempt_loop) merged right after.
-        let finally_witness = PermitWitness::new();
-        self.run_finally(task, &scope, &ran, integrity, &finally_witness)
-            .await;
+        let finally_witness = std::sync::Arc::new(PermitWitness::new());
+        let finally = self.run_finally(task, &scope, &ran, integrity, &finally_witness);
+        nika_builtin::witness::scope_attempt_witness(finally_witness.clone(), finally).await;
         ran.decisions.extend(finally_witness.take());
         ran.duration_ms = self.since_ms(started);
         SettleAs::Ran(Box::new(ran))
@@ -690,9 +689,9 @@ where
         // `item`/`index` are NOT in scope there).
         let finally_scope =
             Self::fan_out_finally_scope(records, (inputs, config, consts, secrets), permits);
-        let finally_witness = PermitWitness::new();
-        self.run_finally(task, &finally_scope, &ran, integrity, &finally_witness)
-            .await;
+        let finally_witness = std::sync::Arc::new(PermitWitness::new());
+        let finally = self.run_finally(task, &finally_scope, &ran, integrity, &finally_witness);
+        nika_builtin::witness::scope_attempt_witness(finally_witness.clone(), finally).await;
         ran.decisions.extend(finally_witness.take());
         ran.duration_ms = self.since_ms(started);
         SettleAs::Ran(Box::new(ran))
@@ -773,10 +772,9 @@ where
             index: Some(locals.index),
             permits,
         };
-        let witness = PermitWitness::new();
-        let mut ran = self
-            .attempt_loop(task, &scope, types, ledger, &witness)
-            .await;
+        let witness = std::sync::Arc::new(PermitWitness::new());
+        let attempt = self.attempt_loop(task, &scope, types, ledger, &witness);
+        let mut ran = nika_builtin::witness::scope_attempt_witness(witness.clone(), attempt).await;
         // Stamp the lane: without it a 2-iteration fan-out and a retried
         // single lane produce indistinguishable flat streams (review F3).
         #[allow(clippy::cast_possible_truncation)] // fan-out ≪ u32::MAX

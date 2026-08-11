@@ -10,11 +10,12 @@
 //! Granted decisions are witnessed, not only refusals: an auditor
 //! reconstructs WHAT authority was exercised. The v1 planes are the
 //! dispatch-visible gates (exec program · tool grant · the NEP-0004
-//! re-gate · the NEP-0005 env composition · the NEP-0006 sink); the
-//! per-operation fs/net enforcement decisions live INSIDE the builtin
-//! sinks and their allow-side witness is the DECLARED v1 residual
-//! (NEP-0007 law 2 · a dispatch-side pre-witness could lie against
-//! canonicalize-then-confine).
+//! re-gate · the NEP-0005 env composition · the NEP-0006 sink) plus —
+//! since 2026-08-09 — the builtin fs boundary's per-op verdicts
+//! (`plane: "fs"`), recorded AT the enforcement point through the
+//! attempt-scoped slot in `nika_builtin::witness` (a dispatch-side
+//! pre-witness could lie against canonicalize-then-confine). The
+//! per-operation NET enforcement decisions remain the declared residual.
 //!
 //! The record + collector live in `nika-cap` (descended from the
 //! runtime at the 15k wall · P3 B5): the decision over a [`crate::Permits`]

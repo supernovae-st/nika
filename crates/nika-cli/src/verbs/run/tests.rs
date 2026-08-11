@@ -162,6 +162,7 @@ fn answer_without_resume_preseeds_the_gate() {
         from: None,
         answers: vec!["ask=true".to_owned()],
         compat: None,
+        allow_unverified: false,
     };
     let code = run(
         &wf.to_string_lossy(),
@@ -202,6 +203,7 @@ fn answer_without_resume_still_refuses_an_unknown_task() {
         from: None,
         answers: vec!["ghost=true".to_owned()],
         compat: None,
+        allow_unverified: false,
     };
     let code = run(
         &wf.to_string_lossy(),

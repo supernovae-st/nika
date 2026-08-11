@@ -304,6 +304,11 @@ pub struct Runtime<S, T, H, P, D, C> {
     /// cross from (`--resume-compat`), attested on the boot manifest.
     /// `None` = no crossing declared (an exact resume · a fresh run).
     resume_compat: Option<String>,
+    /// ADR-099 trust amendment (2026-08-08) — the resume's trust posture
+    /// when the chain precondition did NOT hold, attested on the boot
+    /// manifest (`resume_unverified: <posture>` + the finding). `None` =
+    /// the resume's chain verified (or no resume at all).
+    resume_unverified: Option<resume::ResumeUnverified>,
 }
 
 /// One wave's read-only value scope — (`vars` · `env` · `secrets` ·
@@ -355,6 +360,7 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
             run_depth: 0,
             approvals: approval::ApprovalBook::new(),
             resume_compat: None,
+            resume_unverified: None,
             access_pin: None,
             access_probes: Vec::new(),
             boot_access_fields: Vec::new(),
@@ -470,6 +476,18 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
     #[must_use]
     pub fn with_resume_compat(mut self, compat: Option<String>) -> Self {
         self.resume_compat = compat;
+        self
+    }
+
+    /// Stamp the resume's unverified-trust attestation (ADR-099 trust
+    /// amendment · 2026-08-08): the run proceeded WITHOUT a verified
+    /// chain — the declared opt-out past a finding, or the chainless
+    /// compat — and the boot manifest journals the posture and the
+    /// finding, so no unverified ancestor launders silently. `None` (the
+    /// chain verified · no resume) journals no claim.
+    #[must_use]
+    pub fn with_resume_unverified(mut self, unverified: Option<resume::ResumeUnverified>) -> Self {
+        self.resume_unverified = unverified;
         self
     }
 
@@ -702,6 +720,7 @@ where
             self.config.sandbox_backend.as_deref(),
             &self.input_origins,
             self.resume_compat.as_deref(),
+            self.resume_unverified.as_ref(),
             self.config.max_cost_usd,
             self.model_override.as_deref(),
             self.boot_access_fields.clone(),
