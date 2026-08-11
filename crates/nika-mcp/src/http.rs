@@ -107,6 +107,33 @@ impl HttpServer {
         Ok(self.listener.local_addr()?)
     }
 
+    /// Refuse a public bind with no bearer token (#822 · #890): a
+    /// non-loopback address with no auth answers every request
+    /// unauthenticated — refuse to START, naming both fixes. The caller
+    /// reads its env and asks before [`Self::serve`]; loopback with no
+    /// token stays convenient. Judges the RESOLVED address, so a
+    /// `localhost` bind reads as the loopback it bound, never the
+    /// spelling.
+    ///
+    /// # Errors
+    /// [`McpError::Transport`] when the bound address is non-loopback and
+    /// no token is held (the refusal names both fixes), or when the OS
+    /// cannot report the listener's address.
+    pub fn guard_bind_auth(&self, token: Option<&str>) -> Result<(), McpError> {
+        let addr = self.addr()?;
+        if bind_auth_ok(addr.ip(), token) {
+            return Ok(());
+        }
+        Err(McpError::Transport(std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            format!(
+                "refusing to serve {addr} without auth — a non-loopback bind reaches the \
+                 network unauthenticated; set NIKA_MCP_TOKEN (a bearer is required) or \
+                 bind a loopback address"
+            ),
+        )))
+    }
+
     /// Accept forever — SEQUENTIAL: one connection, one request, one
     /// response (`Connection: close`), then the next. An MCP host is one
     /// client issuing millisecond-scale audit calls; serializing them is
@@ -258,6 +285,12 @@ fn auth_ok(header: Option<&str>, token: Option<&str>) -> bool {
         return false;
     }
     a.iter().zip(b).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
+}
+
+/// The bind×auth matrix, pure (#890): a held token makes any bind lawful;
+/// loopback is lawful without one. Anything else refuses to start.
+fn bind_auth_ok(ip: std::net::IpAddr, token: Option<&str>) -> bool {
+    token.is_some() || ip.is_loopback()
 }
 
 /// Read one HTTP/1.1 request: start line + headers (bounded), then a
@@ -455,6 +488,34 @@ mod tests {
             "raw token without the Bearer form"
         );
         assert!(auth_ok(Some("Bearer s3cret"), Some("s3cret")));
+    }
+
+    /// The bind×auth matrix (#890): a token lawfuls any bind · loopback
+    /// is lawful without one · a public or wildcard address without a
+    /// token refuses to start.
+    #[test]
+    fn bind_auth_matrix() {
+        use std::net::IpAddr;
+        let v4_loop: IpAddr = "127.0.0.1".parse().expect("literal");
+        let v6_loop: IpAddr = "::1".parse().expect("literal");
+        let v4_public: IpAddr = "192.168.1.20".parse().expect("literal");
+        let v4_wildcard: IpAddr = "0.0.0.0".parse().expect("literal");
+        assert!(bind_auth_ok(v4_loop, None));
+        assert!(bind_auth_ok(v6_loop, None));
+        assert!(bind_auth_ok(v4_public, Some("s3cret")));
+        assert!(bind_auth_ok(v4_wildcard, Some("s3cret")));
+        assert!(!bind_auth_ok(v4_public, None));
+        assert!(!bind_auth_ok(v4_wildcard, None));
+    }
+
+    /// The guard on a REAL loopback bind passes with or without a token
+    /// (#890) — the refusal needs no fixture: the bind×auth matrix above
+    /// decides it, and the resolved address here is the loopback kind.
+    #[test]
+    fn a_loopback_bind_passes_the_guard_without_a_token() {
+        let server = HttpServer::bind("127.0.0.1", 0).expect("ephemeral bind");
+        assert!(server.guard_bind_auth(None).is_ok());
+        assert!(server.guard_bind_auth(Some("s3cret")).is_ok());
     }
 
     /// GET answers the spec-sanctioned 405 (no push stream to offer) —

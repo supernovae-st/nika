@@ -452,6 +452,7 @@ pub struct nika_mcp::HttpServer
 impl nika_mcp::HttpServer
 pub fn nika_mcp::HttpServer::addr(&self) -> core::result::Result<core::net::socket_addr::SocketAddr, nika_mcp::McpError>
 pub fn nika_mcp::HttpServer::bind(bind: &str, port: u16) -> core::result::Result<Self, nika_mcp::McpError>
+pub fn nika_mcp::HttpServer::guard_bind_auth(&self, token: core::option::Option<&str>) -> core::result::Result<(), nika_mcp::McpError>
 pub fn nika_mcp::HttpServer::serve(&self, token: core::option::Option<&str>) -> never
 impl<D> owo_colors::OwoColorize for nika_mcp::HttpServer
 impl<T, U> core::convert::Into<U> for nika_mcp::HttpServer where U: core::convert::From<T>
