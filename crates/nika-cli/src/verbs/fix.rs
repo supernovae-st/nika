@@ -735,4 +735,94 @@ mod tests {
         assert_ne!(out.code, exit::OK, "the dead form still reds: {}", out.text);
         let _ = std::fs::remove_file(&path);
     }
+
+    #[test]
+    fn w1_flow_items_converge_and_w2_follows_in_the_same_run() {
+        // Issue #645 — the exact repro bytes: a W2 list-form file whose
+        // FIRST item is single-line flow. The old codemod mapped the
+        // second item but left the flow one a sequence entry — a mixed
+        // collection, invalid YAML, and the loop stalled on an
+        // intermediate no pass could parse. Now the whole list maps in
+        // the same pass as the envelope (the flow item expands to block
+        // entries), the next round's W2 migration drops the depends_on,
+        // and the written file parses.
+        let dir = std::env::temp_dir().join(format!("nika-fix-i645-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("tmpdir");
+        let path = dir.join("w2-list.nika.yaml");
+        std::fs::write(
+            &path,
+            "nika: v1\nworkflow: daily-brief\nmodel: ollama/llama3.2:3b\ntasks:\n  - { id: notes, invoke: { tool: \"nika:read\", args: { path: ./notes/today.md } } }\n  - id: triage\n    depends_on: [notes]\n    with:\n      notes: ${{ tasks.notes.output }}\n    infer: { prompt: \"triage ${{ with.notes }}\" }\n",
+        )
+        .expect("write fixture");
+        let out = run(
+            path.to_str().expect("utf8 path"),
+            false,
+            None,
+            Theme::new(false, true, false),
+        );
+        let healed = std::fs::read_to_string(&path).expect("re-read");
+        assert!(
+            healed.contains(
+                "  notes:\n    invoke: { tool: \"nika:read\", args: { path: ./notes/today.md } }\n"
+            ),
+            "the flow item expanded to block entries: {healed}"
+        );
+        assert!(healed.contains("  triage:\n"), "{healed}");
+        assert!(
+            !healed.contains("- id:") && !healed.contains("- { id:"),
+            "{healed}"
+        );
+        assert!(
+            !healed.contains("depends_on"),
+            "the W2 round followed through: {healed}"
+        );
+        assert!(
+            nika_schema::parse(&healed, nika_schema::FileId::new(0), ParseMode::Strict).is_ok(),
+            "the written file parses strict: {healed}"
+        );
+        assert!(
+            !out.text.contains("NIKA-PARSE-001"),
+            "no unparseable intermediate survives: {}",
+            out.text
+        );
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn a_list_with_a_non_mechanical_item_is_never_half_mapped() {
+        // Atomicity: the second item's `id:` does not lead, so the WHOLE
+        // list stays a sequence — the written file is valid YAML and the
+        // re-audit names the dead form (never a mixed collection).
+        let dir = std::env::temp_dir().join(format!("nika-fix-i645atomic-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("tmpdir");
+        let path = dir.join("atomic.nika.yaml");
+        std::fs::write(
+            &path,
+            "nika: v1\nworkflow: t\ntasks:\n  - { id: a, exec: { command: [\"true\"] } }\n  - { exec: { command: [\"true\"] }, id: b }\n",
+        )
+        .expect("write fixture");
+        let out = run(
+            path.to_str().expect("utf8 path"),
+            false,
+            None,
+            Theme::new(false, true, false),
+        );
+        let healed = std::fs::read_to_string(&path).expect("re-read");
+        assert!(healed.contains("workflow:\n  id: t"), "{healed}");
+        assert!(
+            healed.contains("  - { id: a, exec: { command: [\"true\"] } }"),
+            "the convertible item stays too — all or nothing: {healed}"
+        );
+        assert!(
+            out.text.contains("NIKA-PARSE-022"),
+            "the sequence teaching stands: {}",
+            out.text
+        );
+        assert!(
+            !out.text.contains("NIKA-PARSE-001"),
+            "valid YAML throughout: {}",
+            out.text
+        );
+        let _ = std::fs::remove_file(&path);
+    }
 }
