@@ -64,6 +64,39 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   re-judges the resolved argv pre-spawn. `nika explain NIKA-SEC-001`
   teaches exactly that split, the human render gains the EXEC rung, and
   a cross-crate agreement test pins check ≡ run on the same argv.
+- **`check --fix` migrates the pre-0.103 string `command:` (#572 · the
+  D1 codemod).** The refusal taught the migration in prose but answered
+  « no machine-applicable repairs » on the exact finding whose repair IS
+  mechanical. The parser's refusal is now the typed
+  `SchemaError::D1StringCommand` (same wire code — NIKA-PARSE-019 — the
+  variant exists so the ladder can match it), and the D1 codemod joins
+  the ladder: a string command inside an `exec:` block becomes `shell:`
+  VERBATIM (the same decoded string reaches /bin/sh -c — semantics
+  byte-identical) or, for a bare string of provably-inert tokens
+  (no character a shell could reinterpret), the argv flow form the
+  grammar prefers. A `command:` outside an exec block (an `invoke:` arg
+  named `command`) is never touched; a mapping/null value STOPS with an
+  honest note, never a guess. The repair ladder itself descended to
+  `nika-cli-host::fix_ladder` at the 15k wall (ADR-110 · one
+  architectural unit, two members), and nika-migrate's D1 lives in its
+  own `d1.rs` (the 1500-file wall, ADR-023).
+- **An empty `infer` answer settles FAILED, never green (#651).** A
+  thinking model under a tight `max_tokens` can spend the whole budget
+  on its reasoning trace and conclude with a blank visible answer — the
+  run used to finish green (exit 0) over `output: ""`, the only signal
+  a non-fatal console warn every downstream `${{ tasks.X.output }}`
+  silently ignored. The warn is promoted to the typed failure
+  `NIKA-INFER-004` (`VerbInferError::EmptyAnswer` · NIKA-435), raised at
+  the verb on the exact signal the warn keyed off (blank visible answer
+  + token spend — a reported reasoning split OR one undifferentiated
+  output count) and carrying the same max_tokens/no-think teaching.
+  Non-transient: a declared `retry:` never re-asks at the same budget
+  unless the author opts in via `on_codes: [NIKA-INFER-004]`, and the
+  billed round-trip rides the failure's spend. The zero-spend carve-out
+  is preserved (a blank answer with zero tokens is a plain empty
+  completion, not the footgun), and the `schema:` lane is untouched —
+  an empty reply already dies NIKA-INFER-002 at extraction, while a
+  schema-validated empty container stays a legitimate answer.
 - **The resume verifies the chain before trusting the trace (ADR-099
   trust amendment).** `nika run --resume` served a trace's recorded
   successes as cache hits WITHOUT consulting the tamper-evidence chain
@@ -237,6 +270,24 @@ red-first, like everything on this train.
 
 ### Changed
 
+- **A blank answer that burned tokens is a typed failure, not a green
+  task (#651 · NIKA-INFER-004).** A thinking model under a tight
+  `max_tokens` can spend the whole budget on its reasoning trace and
+  conclude with a BLANK visible answer — the task used to settle green
+  over `""` (a warn nobody downstream acts on) while every
+  `${{ tasks.X.output }}` silently resolved to nothing. The OBS-E warn
+  is promoted to the typed `NIKA-INFER-004` failure (engine NIKA-435),
+  fail-closed with the spend attached as ledger evidence. The signal is
+  deliberately narrow: blank visible answer PAIRED with token spend
+  (a reported reasoning split, or an undifferentiated
+  `output_tokens > 0` — the ollama path strips the think block
+  upstream). A blank answer with zero spend stays green (a plain empty
+  completion is not the footgun), the `schema:` lane is untouched (an
+  empty reply already dies NIKA-INFER-002 at extraction; a validated
+  empty container is a legitimate answer), and `on_error:` remains the
+  author's named opt-out. The summary's « 7/7 done » can no longer
+  count an empty paid answer as done — the failure default makes the
+  honesty leg moot.
 - **The anthropic default moves to `claude-sonnet-4-6`.** The catalog sat
   two generations back (`claude-sonnet-4-20250514`) while the spec's
   examples and conformance fixtures standardized on the 4.6 id — the

@@ -230,7 +230,7 @@ impl SchemaError {
             Self::BadSecretRef { .. } => parse(14, ValidationError),
             Self::DuplicateKey { .. } => parse(17, ValidationError),
             Self::MissingField { .. } => parse(18, ValidationError),
-            Self::Validation { .. } => parse(19, ValidationError),
+            Self::Validation { .. } | Self::D1StringCommand { .. } => parse(19, ValidationError),
             Self::RunContradiction { class, .. } => run_contradiction_code(*class),
             // W1 « the map » migration teachings (dead forms · 0.104)
             Self::W1WorkflowScalar { .. } => parse(20, ValidationError),

@@ -19,7 +19,7 @@ use crate::chain::CHAIN_GENESIS;
 const WF_YAML: &str = "nika: v1\nworkflow:\n  id: pay\npermits:\n  fs: { read: [\"./in/**\"], write: [\"./out/**\"] }\n  exec: [\"echo\"]\nassert: [\"no_secret_egress\"]\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n";
 
 fn keypair() -> (String, minisign::SecretKey) {
-    let pair = minisign::KeyPair::generate_encrypted_keypair(Some(String::new())).expect("keypair");
+    let pair = minisign::KeyPair::generate_unencrypted_keypair().expect("keypair");
     (pair.pk.to_box().expect("pk box").to_string(), pair.sk)
 }
 

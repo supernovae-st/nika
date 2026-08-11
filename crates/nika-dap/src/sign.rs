@@ -126,8 +126,7 @@ mod tests {
     use super::*;
 
     fn keypair() -> (String, minisign::SecretKey) {
-        let pair =
-            minisign::KeyPair::generate_encrypted_keypair(Some(String::new())).expect("keypair");
+        let pair = minisign::KeyPair::generate_unencrypted_keypair().expect("keypair");
         (pair.pk.to_box().expect("pk box").to_string(), pair.sk)
     }
     /// `sign → check` round-trip: a workflow signed with an injected key

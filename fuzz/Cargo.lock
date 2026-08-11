@@ -2247,12 +2247,12 @@ dependencies = [
 
 [[package]]
 name = "minisign"
-version = "0.7.9"
+version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "26541387415a1e829df5d532aad019fb11bc723e2b5bc99edefa4cf5bfad0de7"
+checksum = "aefd422a7a8b5efced01cd7cdf3771e62ebecbc90e3d27695002d3af6af94586"
 dependencies = [
  "ct-codecs",
- "getrandom 0.2.17",
+ "getrandom 0.4.2",
  "rpassword",
  "scrypt",
 ]
