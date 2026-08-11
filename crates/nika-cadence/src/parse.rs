@@ -120,6 +120,14 @@ fn validate_beat(beat: &Beat, faults: &mut Vec<CadenceError>) {
             "manqué: rattraper · rattraper-une-fois · sauter — l opérateur dit ce que « raté » veut dire",
         ));
     }
+    validate_beat_guards(beat, faults);
+}
+
+/// The conditional laws of one beat — each refuses its own broken
+/// condition (the ratchet's 100-line cap splits them from the
+/// required-fields pass above, and the split reads better anyway).
+fn validate_beat_guards(beat: &Beat, faults: &mut Vec<CadenceError>) {
+    let w = beat.workflow.as_str();
     if beat.apres_saut.is_some() && beat.chevauchement.is_some_and(|o| o != Overlap::Sauter) {
         faults.push(CadenceError::beat(
             w,
