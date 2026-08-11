@@ -48,7 +48,7 @@ files:
   note: "generated with a human gate — the maintainer may amend the section at PR review"
 - path: "Cargo.lock"
   class: generated
-  sha256: ec69042f7b0e9156471971497c40ce1b14c81aab09ba2e0bf5f9547336353c55
+  sha256: dc37556703515e6ab91a7637a7c5e76242627a27986ed178dd5e6a2aff53f45d
   evidence: "cargo's resolver writes it; no human edits a lockfile"
   derivation:
     tool: "cargo (dependency resolution against Cargo.toml + crates/*/Cargo.toml)"
@@ -152,7 +152,7 @@ patterns:
 - glob: "crates/**/src/**"
   class: authored
   match_count: 724
-  aggregate_sha256: c036e05f463a3ede40dd7edfdf02eba97e621887b784bb157409d83075e38457
+  aggregate_sha256: 94b5df24c02b87d2af9b8341940a12acb13306175441c83c92cdb610a6e9fd0d
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
@@ -188,7 +188,7 @@ patterns:
 - glob: ".github/workflows/**"
   class: authored
   match_count: 22
-  aggregate_sha256: 294a6aced13a5e5bf546c525c09037878d5794415835761ea079f8e8d20fb054
+  aggregate_sha256: 9b78c1aa438a98695a00440cd30719d6f1a5e9038257794a9743034fa3687d5e
   evidence: "hand-written CI rails, comments narrate design decisions; the heal lanes here rewrite OTHER files (spec-pin-heal.yml → SPEC_PIN · pack-resync.yml → the pack · changelog-cliff.yml → CHANGELOG.md), nothing rewrites the workflows themselves"
 - glob: ".github/**"
   class: authored
@@ -237,7 +237,7 @@ patterns:
 - glob: "*"
   class: authored
   match_count: 28
-  aggregate_sha256: 0e3c8ef08f7d890b7221b270cb33a35e7e2bbcd8c452331dbb3487620b43e4a6
+  aggregate_sha256: ea647458a5b0c91f205a0652e97140df8b3abfed490d333ebd7fabb1c1a06127
   evidence: "root prose + config surface (README · DIAMOND · LICENSE · llms.txt · Cargo.toml · deny/clippy/cliff/typos toml · lefthook.yml · flake.nix · Dockerfile) — no generation markers at file heads; CHANGELOG.md · Cargo.lock · SPEC_PIN · ROADMAP.md excepted in files:"
 - glob: "**"
   class: authored
