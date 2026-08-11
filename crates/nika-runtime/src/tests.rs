@@ -828,9 +828,11 @@ fn recovered_success_emits_task_recovered_before_completed() {
     assert!(ok, "a recovered task is a SUCCESS at workflow level");
 }
 
-/// A settled success carrying an OBS-E `warning` puts it on the
+/// A settled success carrying a non-fatal `warning` puts it on the
 /// `TaskCompleted` frame as a `warning` field — the wiring proof that
-/// the dispatch's diagnostic actually reaches the event stream.
+/// a dispatch diagnostic actually reaches the event stream. (The OBS-E
+/// empty-answer producer left this channel at #651 — promoted to the
+/// typed NIKA-INFER-004 failure; the channel itself stays.)
 #[test]
 fn obs_e_warning_rides_task_completed() {
     let ran = task::RanTask {
@@ -893,8 +895,8 @@ fn obs_e_warning_rides_task_completed() {
     );
 }
 
-/// The common path · a success with no OBS-E diagnostic emits NO
-/// `warning` field (zero false-alarm noise on the happy stream).
+/// The common path · a success with no diagnostic emits NO `warning`
+/// field (zero false-alarm noise on the happy stream).
 #[test]
 fn no_warning_field_on_a_clean_success() {
     let ran = task::RanTask {
