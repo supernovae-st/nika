@@ -194,9 +194,7 @@ fn dispatch_routes_codes_and_files() {
 fn unbounded_glosses_never_say_zero() {
     assert!(unbounded_gloss("t", Some("x/y"), UnboundedReason::NoPrice).contains("never $0"));
     assert!(unbounded_gloss("t", None, UnboundedReason::NoTokenLimit).contains("no ceiling"));
-    assert!(
-        unbounded_gloss("t", None, UnboundedReason::UnknownIterations).contains("run time")
-    );
+    assert!(unbounded_gloss("t", None, UnboundedReason::UnknownIterations).contains("run time"));
 }
 
 // ─── the forecast surface · staged-history integration ─────────────
@@ -250,8 +248,7 @@ mod fx {
     /// One journal event with arbitrary KV fields (the store helper
     /// carries exactly one string field — forecasts need several).
     pub(super) fn ev(kind: EventKind, ms: u64, fields: &[(&str, Value)]) -> Event {
-        let mut event =
-            Event::new(EventId::new(Uuid::nil()), Timestamp::from_unix_ms(ms), kind);
+        let mut event = Event::new(EventId::new(Uuid::nil()), Timestamp::from_unix_ms(ms), kind);
         for (key, value) in fields {
             event = event.with_field(KeyValue::new(*key, value.clone()));
         }
