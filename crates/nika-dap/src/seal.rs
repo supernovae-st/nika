@@ -127,7 +127,7 @@ pub fn load_signing_key() -> Option<(minisign::SecretKey, String)> {
     if let Ok(entry) = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER)
         && let Ok(text) = entry.get_password()
         && let Ok(boxed) = minisign::SecretKeyBox::from_string(&text)
-        && let Ok(sk) = boxed.into_secret_key(Some(key_password()))
+        && let Some(sk) = open_secret_box(boxed, &key_password())
         && let Ok(pub_entry) = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER_PUB)
         && let Ok(pk_box) = pub_entry.get_password()
     {
@@ -144,9 +144,57 @@ pub fn load_signing_key() -> Option<(minisign::SecretKey, String)> {
 fn load_from_files(key: &Path, pub_: &Path) -> Option<(minisign::SecretKey, String)> {
     let text = std::fs::read_to_string(key).ok()?;
     let boxed = minisign::SecretKeyBox::from_string(&text).ok()?;
-    let sk = boxed.into_secret_key(Some(key_password())).ok()?;
+    let sk = open_secret_box(boxed, &key_password())?;
     let pk_box = std::fs::read_to_string(pub_).ok()?;
     Some((sk, pk_box.trim().to_owned()))
+}
+
+/// Open a secret-key box under the custody password — plus the pre-0.9
+/// rs-minisign legacy: 0.7 wrote boxes MARKED encrypted (kdf alg `Sc`)
+/// whose material stayed PLAINTEXT when the password was empty (the
+/// crate skipped `encrypt()` but kept the marker and a valid checksum).
+/// 0.9 always runs the KDF, so `into_secret_key` with an empty password
+/// XOR-corrupts those boxes into a « wrong password » miss. The fallback
+/// [`plaintext_probe`] lets the crate's own checksum judge: a legacy
+/// box's checksum covers its plaintext material, so
+/// [`minisign::SecretKey::is_encrypted`] is false — while a genuinely
+/// encrypted box (a real password exists somewhere) stays refused.
+pub(crate) fn open_secret_box(
+    boxed: minisign::SecretKeyBox,
+    password: &str,
+) -> Option<minisign::SecretKey> {
+    // The box text is borrowed out BEFORE the box is consumed — the probe
+    // only matters when the configured password is empty (a non-empty
+    // password either opens the box or doesn't).
+    let probe = if password.is_empty() {
+        Some(boxed.to_string())
+    } else {
+        None
+    };
+    if let Ok(sk) = boxed.into_secret_key(Some(password.to_owned())) {
+        return Some(sk);
+    }
+    plaintext_probe(&probe?)
+}
+
+/// Parse a box's payload and accept it when the crate's own checksum
+/// proves the material is plaintext — the two unencrypted shapes: the
+/// standard `KDF_NONE` box (0.9 `generate_unencrypted_keypair`, real
+/// minisign with an empty password) and the 0.7 legacy marker.
+fn plaintext_probe(text: &str) -> Option<minisign::SecretKey> {
+    let mut lines = text.lines().map(str::to_owned);
+    let payload = lines.next().and_then(|_| lines.next())?;
+    let bytes = base64_decode(&payload)?;
+    let sk = minisign::SecretKey::from_bytes(&bytes).ok()?;
+    (!sk.is_encrypted()).then_some(sk)
+}
+
+/// The fixture open (tests only) — the frozen vector's custody is empty
+/// BY CONSTRUCTION, so no password literal ever rides a call site
+/// (codeql `rust/hard-coded-cryptographic-value`).
+#[cfg(test)]
+pub(crate) fn open_fixture_box(boxed: &minisign::SecretKeyBox) -> Option<minisign::SecretKey> {
+    plaintext_probe(&boxed.to_string())
 }
 
 /// The PUBLIC half of the run-key, when a usable PAIR exists on this
@@ -635,8 +683,7 @@ mod tests {
     use super::*;
 
     fn keypair() -> (String, minisign::SecretKey) {
-        let pair =
-            minisign::KeyPair::generate_encrypted_keypair(Some(String::new())).expect("keypair");
+        let pair = minisign::KeyPair::generate_unencrypted_keypair().expect("keypair");
         (pair.pk.to_box().expect("pk box").to_string(), pair.sk)
     }
 

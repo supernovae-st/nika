@@ -20,8 +20,7 @@ use nika_kernel::memory::{
 };
 
 pub(crate) fn keypair() -> (minisign::PublicKey, minisign::SecretKey) {
-    let pair =
-        minisign::KeyPair::generate_encrypted_keypair(Some(String::new())).expect("keypair mints");
+    let pair = minisign::KeyPair::generate_unencrypted_keypair().expect("keypair mints");
     (pair.pk, pair.sk)
 }
 
