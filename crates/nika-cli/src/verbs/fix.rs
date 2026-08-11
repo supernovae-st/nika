@@ -735,4 +735,78 @@ mod tests {
         assert_ne!(out.code, exit::OK, "the dead form still reds: {}", out.text);
         let _ = std::fs::remove_file(&path);
     }
+
+    #[test]
+    fn w1_block_scalar_description_reindents_and_the_file_stays_valid_yaml() {
+        // Issue #831 — the exact repro bytes: a pre-W1 file whose
+        // top-level `description: |` content sits at the old indent. The
+        // hoist sinks the key +2; the prose must sink with it, or the
+        // rewrite leaves a document that no longer parses
+        // (NIKA-PARSE-001 · simple key expect ':'). The `schema:` key is
+        // the pre-Diamond version marker (ADR-082) — a real finding the
+        // re-audit keeps naming; erasing it is not the codemod's call.
+        let dir = std::env::temp_dir().join(format!("nika-fix-i831-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("tmpdir");
+        let path = dir.join("block-scalar.nika.yaml");
+        std::fs::write(
+            &path,
+            "schema: \"nika/workflow@0.12\"\nworkflow: pulse\ndescription: |\n  some prose here\n",
+        )
+        .expect("write fixture");
+        let out = run(
+            path.to_str().expect("utf8 path"),
+            false,
+            None,
+            Theme::new(false, true, false),
+        );
+        let healed = std::fs::read_to_string(&path).expect("re-read");
+        assert!(
+            healed.contains("  description: |\n    some prose here\n"),
+            "the prose sank +2 with the key: {healed}"
+        );
+        assert!(
+            !out.text.contains("NIKA-PARSE-001"),
+            "no YAML-level corruption survives: {}",
+            out.text
+        );
+        assert!(
+            nika_schema::parse(&healed, nika_schema::FileId::new(0), ParseMode::Lenient).is_ok(),
+            "the rewrite is valid YAML: {healed}"
+        );
+        assert!(
+            out.text.contains("NIKA-PARSE-005"),
+            "the residual finding is the author's `schema:` key: {}",
+            out.text
+        );
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn w1_block_scalar_migration_converges_green_on_a_full_envelope() {
+        // The same re-indent on a COMPLETE pre-W1 file: envelope +
+        // tasks list + the block scalar all migrate and the final audit
+        // is clean — convergence IS the proof.
+        let dir = std::env::temp_dir().join(format!("nika-fix-i831green-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("tmpdir");
+        let path = dir.join("full.nika.yaml");
+        std::fs::write(
+            &path,
+            "nika: v1\nworkflow: pulse\ndescription: |\n  some prose here\npermits: { exec: [\"true\"] }\ntasks:\n  - id: probe\n    exec: { command: [\"true\"] }\n",
+        )
+        .expect("write fixture");
+        let out = run(
+            path.to_str().expect("utf8 path"),
+            false,
+            None,
+            Theme::new(false, true, false),
+        );
+        let healed = std::fs::read_to_string(&path).expect("re-read");
+        assert!(
+            healed.contains("  description: |\n    some prose here\n"),
+            "{healed}"
+        );
+        assert!(healed.contains("  probe:\n"), "{healed}");
+        assert_eq!(out.code, exit::OK, "clean after the hoist: {}", out.text);
+        let _ = std::fs::remove_file(&path);
+    }
 }

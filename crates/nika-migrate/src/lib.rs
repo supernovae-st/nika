@@ -14,6 +14,9 @@
 //! Transforms (top-level only — nothing else is touched):
 //! 1. `workflow: <scalar>`            → `workflow:` + `  id: <scalar>`
 //! 2. top-level `description: <text>` → hoisted under the workflow object
+//!    (a `|`/`>` block-scalar value carries its content lines along,
+//!    re-indented +2 with the key — else the prose lands at the key's own
+//!    column and the migrated document no longer parses)
 //! 3. `tasks:` sequence `  - id: X`   → map key `  X:` (the two-space list
 //!    marker becomes the key's indent, so task bodies never re-indent)
 //!
@@ -74,6 +77,22 @@ pub fn w1(source: &str) -> Option<String> {
             wf_line = Some(i);
         }
     }
+    // The hoist needs its anchor: with NO `workflow:` line there is
+    // nowhere to re-emit the key, so `description:` stays put (dropping
+    // it here would lose the author's prose — never guess).
+    if wf_line.is_none() {
+        desc_line = None;
+        desc_text = None;
+    }
+    // A block-scalar description (`|` · `>` forms) carries its prose on
+    // the FOLLOWING lines at the key's old depth: the hoist sinks the key
+    // two columns, so the content rides along, re-indented +2 (issue
+    // #831 — left in place it lands at the key's own column and the
+    // migrated document no longer parses).
+    let desc_content = desc_line.and_then(|dl| {
+        let head = desc_text?;
+        is_block_scalar_head(head).then(|| block_scalar_span(&lines, dl))
+    });
 
     let mut out: Vec<String> = Vec::with_capacity(lines.len() + 2);
     let mut in_tasks = false;
@@ -83,12 +102,15 @@ pub fn w1(source: &str) -> Option<String> {
             changed = true; // hoisted under workflow (emitted there)
             continue;
         }
+        if desc_content.is_some_and(|(start, end)| i >= start && i < end) {
+            continue; // block-scalar content rides with the hoisted key
+        }
         if Some(i) == wf_line {
             if let Some(id) = scalar_workflow_id(l) {
                 out.push("workflow:".to_owned());
                 out.push(format!("  id: {id}"));
                 if let Some(d) = desc_text {
-                    out.push(format!("  description: {d}"));
+                    push_description(&mut out, d, &lines, desc_content);
                 }
                 changed = true;
                 continue;
@@ -96,7 +118,7 @@ pub fn w1(source: &str) -> Option<String> {
             // already an object — still hoist a stray top-level description
             out.push((*l).to_owned());
             if let Some(d) = desc_text {
-                out.push(format!("  description: {d}"));
+                push_description(&mut out, d, &lines, desc_content);
                 changed = true;
             }
             continue;
@@ -135,6 +157,57 @@ fn scalar_workflow_id(line: &str) -> Option<&str> {
             .chars()
             .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_');
     ok.then_some(rest)
+}
+
+/// Whether a hoisted `description:` value opens a YAML block scalar —
+/// `|` or `>`, then only chomping (`-` · `+`) / explicit-indent (`1`–`9`)
+/// indicators and an optional trailing comment.
+fn is_block_scalar_head(text: &str) -> bool {
+    let head = match text.find(" #") {
+        Some(idx) => text[..idx].trim_end(),
+        None => text.trim_end(),
+    };
+    let mut chars = head.chars();
+    let Some(first) = chars.next() else {
+        return false;
+    };
+    matches!(first, '|' | '>') && chars.all(|c| matches!(c, '+' | '-' | '1'..='9'))
+}
+
+/// The line span `[start, end)` of the block scalar opening at
+/// `head_line` (a col-0 key): the consecutive following lines that are
+/// blank or space-indented. The first col-0 line — the next top-level
+/// key, a comment — ends the scalar.
+fn block_scalar_span(lines: &[&str], head_line: usize) -> (usize, usize) {
+    let mut end = head_line + 1;
+    while let Some(l) = lines.get(end) {
+        if !l.is_empty() && !l.starts_with(' ') {
+            break;
+        }
+        end += 1;
+    }
+    (head_line + 1, end)
+}
+
+/// Emit the hoisted `  description: <head>` — plus its block-scalar
+/// content lines when the value opens one, each re-indented +2 to stay
+/// under the sunk key (blank lines carry no indent to shift).
+fn push_description(
+    out: &mut Vec<String>,
+    head: &str,
+    lines: &[&str],
+    content: Option<(usize, usize)>,
+) {
+    out.push(format!("  description: {head}"));
+    if let Some((start, end)) = content {
+        for l in &lines[start..end] {
+            if l.is_empty() {
+                out.push(String::new());
+            } else {
+                out.push(format!("  {l}"));
+            }
+        }
+    }
 }
 
 /// `  - id: name` (optional trailing comment) → `  name:` (+ comment).
@@ -967,6 +1040,78 @@ mod tests {
         let new = w1(old).expect("changes");
         assert!(new.contains("  id: t  # SLOT: kebab id"));
         assert!(new.contains("  probe:  # the one task"));
+    }
+
+    #[test]
+    fn block_scalar_description_reindents_with_the_hoisted_key() {
+        // Issue #831 — the exact repro bytes: the key sinks +2 under the
+        // workflow object; the prose must sink with it. Left at its old
+        // column it lands at the key's own depth and the migrated
+        // document dies NIKA-PARSE-001 (simple key expect ':').
+        let old =
+            "schema: \"nika/workflow@0.12\"\nworkflow: pulse\ndescription: |\n  some prose here\n";
+        let new = w1(old).expect("changes");
+        assert_eq!(
+            new,
+            "schema: \"nika/workflow@0.12\"\nworkflow:\n  id: pulse\n  description: |\n    some prose here\n",
+        );
+        assert!(w1(&new).is_none(), "still idempotent: {new}");
+    }
+
+    #[test]
+    fn block_scalar_forms_all_reindent() {
+        // `|` · `>` × chomping `-`/`+` — every header form sinks its
+        // content +2 (the header itself rides the hoisted key verbatim).
+        for head in ["|", "|-", "|+", ">", ">-", ">+"] {
+            let old = format!("workflow: pulse\ndescription: {head}\n  some prose here\n");
+            let new = w1(&old).expect("changes");
+            assert!(
+                new.contains(&format!("  description: {head}\n    some prose here\n")),
+                "head {head}: {new}"
+            );
+            assert!(w1(&new).is_none(), "head {head} idempotent: {new}");
+        }
+    }
+
+    #[test]
+    fn block_scalar_content_moves_with_a_preposed_description() {
+        // The hoist anchors at the `workflow:` line WHEREVER the stray
+        // description sat — a description ABOVE workflow carries its
+        // content down with the key; re-indent alone would leave the
+        // prose orphaned above the header it belongs to.
+        let old = "description: |-\n  prose first\nworkflow: pulse\nmodel: mock/echo\n";
+        let new = w1(old).expect("changes");
+        assert_eq!(
+            new,
+            "workflow:\n  id: pulse\n  description: |-\n    prose first\nmodel: mock/echo\n",
+        );
+    }
+
+    #[test]
+    fn block_scalar_span_stops_at_the_next_top_level_key() {
+        // Only the scalar's own lines move — a following top-level key
+        // (and a col-0 comment) is not content and never shifts.
+        let old =
+            "workflow: pulse\ndescription: >\n  folded prose\n# a col-0 note\nmodel: mock/echo\n";
+        let new = w1(old).expect("changes");
+        assert_eq!(
+            new,
+            "workflow:\n  id: pulse\n  description: >\n    folded prose\n# a col-0 note\nmodel: mock/echo\n",
+        );
+    }
+
+    #[test]
+    fn description_without_a_workflow_line_stays_put() {
+        // The hoist needs its anchor: no `workflow:` line means nowhere
+        // to re-emit the key — the line must survive untouched (dropping
+        // it would silently lose the author's prose).
+        let old = "description: |\n  some prose here\ntasks:\n  - id: probe\n    exec:\n      command: [\"true\"]\n";
+        let new = w1(old).expect("tasks still migrate");
+        assert!(
+            new.contains("description: |\n  some prose here\n"),
+            "prose kept at its column: {new}"
+        );
+        assert!(new.contains("  probe:\n"), "tasks list still maps: {new}");
     }
 
     #[test]
