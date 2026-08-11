@@ -23,7 +23,7 @@ sha2        = { workspace = true }                              # the chain prim
 # The trust plane (descended from nika-cli 2026-07-21 · the 15k wall —
 # compute descends, render stays): seal custody · workflow signing.
 keyring     = { version = "4" }                                 # the run-key custody (OS keychain first)
-minisign    = { version = "0.7", default-features = false }     # the seal + workflow signature primitive (the registry v0.2 voice, shared)
+minisign    = { version = "0.9", default-features = false }     # the seal + workflow signature primitive (the registry v0.2 voice, shared)
 serde      = { workspace = true }                             # protocol frames (Request derive)
 serde_json = { workspace = true }                             # DAP wire bodies + replay journal parse
 thiserror  = { workspace = true }                             # RecoverError — typed, never a bare String (FCI-019)

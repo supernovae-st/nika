@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! `VerbInferError` — the `infer` verb error surface (NIKA-430..433).
+//! `VerbInferError` — the `infer` verb error surface (NIKA-430..435).
 //!
 //! Constants are registry-owned in `nika_error::codes` (same pattern as
 //! the M2 computer-use ranges); the spec-level rows are
-//! `NIKA-INFER-001/002` in `nika-spec spec/05-errors.md` — 430 maps to
-//! 001 (provider call), 431 maps to 002 (schema validation).
+//! `NIKA-INFER-001..004` in `nika-spec spec/05-errors.md` — 430 maps to
+//! 001 (provider call), 431 maps to 002 (schema validation), 434 maps to
+//! 003 (usage unmetered), 435 maps to 004 (empty answer · #651).
 
 use nika_error::codes::{self, NikaCode};
 use nika_error::traits::NikaErrorCode;
@@ -46,6 +47,28 @@ pub enum VerbInferError {
         /// The priced model whose spend is now invisible.
         model: String,
         /// The spend of the round-trips that DID run before this call.
+        spend: Box<SpendOnFailure>,
+    },
+
+    /// The provider spent tokens yet the VISIBLE answer is empty
+    /// (NIKA-435 · wire `NIKA-INFER-004` · #651 — the OBS-E warn,
+    /// promoted): a thinking model under a tight `max_tokens` can spend
+    /// the whole budget on its reasoning trace and conclude BLANK — the
+    /// run used to settle green over an empty `output`. Fail-closed with
+    /// the `max_tokens` / thinking-budget teaching on `detail`; a blank
+    /// answer with ZERO tokens of any kind is a plain empty completion
+    /// and never reaches this variant.
+    #[error("infer produced an empty answer on `{model}` — {detail}")]
+    #[diagnostic(code(nika::verb::infer_empty_answer))]
+    EmptyAnswer {
+        /// The model that answered blank (`provider/name`).
+        model: String,
+        /// The spend signal that fired + the `max_tokens` /
+        /// thinking-budget teaching (the warn's text, carried over
+        /// verbatim).
+        detail: String,
+        /// The spend of the round-trip that answered blank — the tokens
+        /// ARE billed whether or not anything visible came back.
         spend: Box<SpendOnFailure>,
     },
 
@@ -94,6 +117,7 @@ impl VerbInferError {
         match self {
             Self::ProviderCall { spend, .. }
             | Self::UsageUnmetered { spend, .. }
+            | Self::EmptyAnswer { spend, .. }
             | Self::SchemaValidation { spend, .. } => spend.has_signal().then_some(spend),
             Self::InvalidParam { .. } | Self::ModelResolution { .. } => None,
         }
@@ -105,6 +129,7 @@ impl NikaErrorCode for VerbInferError {
         match self {
             Self::ProviderCall { .. } => codes::NIKA_430,
             Self::UsageUnmetered { .. } => codes::NIKA_434,
+            Self::EmptyAnswer { .. } => codes::NIKA_435,
             Self::SchemaValidation { .. } => codes::NIKA_431,
             Self::InvalidParam { .. } => codes::NIKA_432,
             Self::ModelResolution { .. } => codes::NIKA_433,
@@ -114,13 +139,16 @@ impl NikaErrorCode for VerbInferError {
     /// The user-facing SPEC code (`spec/05-errors.md` · what `on_codes:`
     /// filters on). `NIKA-430` → `NIKA-INFER-001` (provider call) · `NIKA-431`
     /// → `NIKA-INFER-002` (schema validation) · `NIKA-433` (model resolution)
-    /// is the `NIKA-INFER-001` family (a provider-resolution failure). `NIKA-432`
-    /// (`InvalidParam`) has NO spec row (an upstream-reject guard) — it keeps
-    /// its numeric wire form via the trait default.
+    /// is the `NIKA-INFER-001` family (a provider-resolution failure) ·
+    /// `NIKA-434` → `NIKA-INFER-003` (usage unmetered) · `NIKA-435` →
+    /// `NIKA-INFER-004` (empty answer · #651). `NIKA-432` (`InvalidParam`)
+    /// has NO spec row (an upstream-reject guard) — it keeps its numeric
+    /// wire form via the trait default.
     fn spec_code(&self) -> String {
         match self {
             Self::ProviderCall { .. } | Self::ModelResolution { .. } => "NIKA-INFER-001".to_owned(),
             Self::UsageUnmetered { .. } => "NIKA-INFER-003".to_owned(),
+            Self::EmptyAnswer { .. } => "NIKA-INFER-004".to_owned(),
             Self::SchemaValidation { .. } => "NIKA-INFER-002".to_owned(),
             Self::InvalidParam { .. } => self.nika_code().to_string(),
         }
@@ -131,7 +159,10 @@ impl NikaErrorCode for VerbInferError {
             // Inherit the provider's own retry classification (rate limits
             // and 5xx are transient; auth and model-not-found are not).
             Self::ProviderCall { source, .. } => source.is_transient(),
-            Self::SchemaValidation { .. }
+            // An empty answer at the SAME budget re-asks for the identical
+            // failure — the remedy is `max_tokens`, never a retry (#651).
+            Self::EmptyAnswer { .. }
+            | Self::SchemaValidation { .. }
             | Self::UsageUnmetered { .. }
             | Self::InvalidParam { .. }
             | Self::ModelResolution { .. } => false,
@@ -182,6 +213,14 @@ mod tests {
                 },
                 codes::NIKA_433,
             ),
+            (
+                VerbInferError::EmptyAnswer {
+                    model: "ollama/qwen3.5:4b".to_owned(),
+                    detail: "reasoning consumed 84 tokens".to_owned(),
+                    spend: Box::default(),
+                },
+                codes::NIKA_435,
+            ),
         ];
         for (err, expected) in cases {
             assert_eq!(err.nika_code(), expected, "{err}");
@@ -211,6 +250,17 @@ mod tests {
             spend: Box::default(),
         };
         assert_eq!(schema.spec_code(), "NIKA-INFER-002");
+        // The promoted empty-answer footgun (#651) speaks its own row.
+        let empty = VerbInferError::EmptyAnswer {
+            model: "ollama/qwen3.5:4b".to_owned(),
+            detail: "reasoning consumed 84 tokens".to_owned(),
+            spend: Box::default(),
+        };
+        assert_eq!(empty.spec_code(), "NIKA-INFER-004");
+        assert!(
+            !empty.is_transient(),
+            "the remedy is max_tokens, never a retry"
+        );
         // The upstream-reject guard has no spec row — numeric wire form.
         let param = VerbInferError::InvalidParam {
             param: "temperature",

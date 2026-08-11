@@ -269,8 +269,7 @@ mod tests {
     /// A fresh minisign keypair (the custody test idiom — the box is
     /// trimmed exactly as the loaders hand it back).
     fn keypair() -> (String, minisign::SecretKey) {
-        let pair =
-            minisign::KeyPair::generate_encrypted_keypair(Some(String::new())).expect("keypair");
+        let pair = minisign::KeyPair::generate_unencrypted_keypair().expect("keypair");
         (
             pair.pk
                 .to_box()
@@ -576,7 +575,8 @@ mod tests {
         use crate::anchor::fixtures;
         let sk_box = fixtures::SECRET_BOX;
         let sk = minisign::SecretKeyBox::from_string(sk_box)
-            .and_then(|b| b.into_secret_key(Some(String::new())))
+            .ok()
+            .and_then(|b| crate::seal::open_fixture_box(&b))
             .expect("the fixture key opens");
         let journal = fixtures::JOURNAL;
         let events = 6;
