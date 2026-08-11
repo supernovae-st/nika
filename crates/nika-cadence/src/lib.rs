@@ -70,10 +70,17 @@ pub mod parse;
 pub mod phrase;
 pub mod registry;
 
-pub use cron::CronSpec;
+pub use cron::{CronSpec, Field};
 pub use error::{CadenceError, CadenceErrorKind};
+pub use next::{Shift, Slot};
 pub use parse::{parse_registry, validate};
 pub use registry::{AfterSkip, ArmRegistry, Beat, Cadence, Locus, MissPolicy, Overlap};
 
 #[cfg(test)]
+#[allow(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable
+)]
 mod tests;

@@ -101,7 +101,11 @@ impl CadenceErrorKind {
 }
 
 /// One named refusal: the law's reason + the fix form + the beat it
-/// rides on (`None` when file-level).
+/// rides on (`None` when file-level) + the byte span of the faulty token
+/// when the refusal was born on authored text (`None` for a structural
+/// absence — a missing `plafond:` has no bytes to paint). The span is
+/// the painter's data (the `CelError` precedent: a refusal that cannot
+/// point at the faulty byte teaches half its fix).
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
 #[error("{} · {detail}", kind.spec_code())]
 #[non_exhaustive]
@@ -110,6 +114,10 @@ pub struct CadenceError {
     detail: String,
     remedy: String,
     on: Option<String>,
+    span: Option<(usize, usize)>,
+    /// The cron field label the error was born on (crate-internal — the
+    /// caller attaches the token's byte span from it).
+    field: Option<&'static str>,
 }
 
 impl CadenceError {
@@ -125,6 +133,8 @@ impl CadenceError {
             detail: detail.into(),
             remedy: remedy.into(),
             on: None,
+            span: None,
+            field: None,
         }
     }
 
@@ -141,7 +151,23 @@ impl CadenceError {
             detail: detail.into(),
             remedy: remedy.into(),
             on: Some(workflow.to_owned()),
+            span: None,
+            field: None,
         }
+    }
+
+    /// Mark the cron field this error was born on (builder, crate-internal).
+    #[must_use]
+    pub(crate) fn on_field(mut self, label: &'static str) -> Self {
+        self.field = Some(label);
+        self
+    }
+
+    /// Attach the byte span of the faulty token (builder).
+    #[must_use]
+    pub fn with_span(mut self, span: (usize, usize)) -> Self {
+        self.span = Some(span);
+        self
     }
 
     /// The refusal class.
@@ -166,5 +192,20 @@ impl CadenceError {
     #[must_use]
     pub fn on(&self) -> Option<&str> {
         self.on.as_deref()
+    }
+
+    /// The byte span of the faulty token in the cadence expression,
+    /// when the refusal was born on authored text (`None` for a
+    /// structural absence — there are no bytes to paint).
+    #[must_use]
+    pub fn span(&self) -> Option<(usize, usize)> {
+        self.span
+    }
+
+    /// The cron field label this error was born on, when one applies
+    /// (crate-internal: `Cadence::parse` maps it to the token's span).
+    #[must_use]
+    pub(crate) fn field(&self) -> Option<&'static str> {
+        self.field
     }
 }

@@ -11,8 +11,13 @@
 //! Round 1 claims exactly ONE readable shape: `<jour-fr> <H>h<MM>`
 //! (the only form the canon attests — `lundi 9h07` · `dimanche 18h07`).
 //! Everything else speaks cron.
+//!
+//! The display rides the bitset's ONE encoding: a full field prints
+//! `*` (never its expansion — the pre-bitset `describe("* * * * *")`
+//! rendered 244 characters; now 5).
 
-use crate::cron::CronSpec;
+use crate::cron::{CronSpec, Field};
+use crate::next::Slot;
 use crate::registry::Cadence;
 
 /// The French weekday names the readable form accepts (lundi = 1 …
@@ -69,11 +74,11 @@ impl Cadence {
                 } else {
                     format!(
                         "TZ={tz} {} {} {} {} {}",
-                        join_field(spec.minutes()),
-                        join_field(spec.hours()),
-                        join_field(spec.dom()),
-                        join_field(spec.months()),
-                        join_field(spec.dow()),
+                        show_field(*spec.minutes()),
+                        show_field(*spec.hours()),
+                        show_field(*spec.dom()),
+                        show_field(*spec.months()),
+                        show_field(*spec.dow()),
                     )
                 }
             }
@@ -84,30 +89,26 @@ impl Cadence {
 /// `lundi 9h07` when the spec is exactly `m h * * dow` with one value
 /// each — the shape the readable form renders.
 fn weekly_readable(spec: &CronSpec) -> Option<String> {
-    if spec.minutes().len() == 1
-        && spec.hours().len() == 1
-        && spec.dom().is_empty()
-        && spec.months().is_empty()
-        && spec.dow().len() == 1
-    {
-        let jour = weekday_fr(spec.dow()[0])?;
-        Some(format!(
-            "{jour} {}h{:02}",
-            spec.hours()[0],
-            spec.minutes()[0]
-        ))
+    if spec.dom().is_full() && spec.months().is_full() {
+        let minute = spec.minutes().single()?;
+        let hour = spec.hours().single()?;
+        let dow = spec.dow().single()?;
+        let jour = weekday_fr(dow)?;
+        Some(format!("{jour} {hour}h{minute:02}"))
     } else {
         None
     }
 }
 
-fn join_field(values: &[u8]) -> String {
-    if values.is_empty() {
+/// A field as the cron text speaks it: `*` when full (the bitset's one
+/// encoding — never the expansion), else the values comma-joined.
+fn show_field<const LO: u8, const HI: u8>(field: Field<LO, HI>) -> String {
+    if field.is_full() {
         "*".to_owned()
     } else {
-        values
+        field
             .iter()
-            .map(u8::to_string)
+            .map(|v| v.to_string())
             .collect::<Vec<_>>()
             .join(",")
     }
@@ -117,11 +118,13 @@ fn join_field(values: &[u8]) -> String {
 /// display shows. An infinite-safe fold over [`Cadence::next_after`]
 /// (each step is strictly later than the last), truncated at `count`;
 /// a webhook or an unreachable schedule simply ends the walk early.
+/// Each item is a [`Slot`] — a displaced or merged slot SAYS so
+/// (`shift`), so the display can teach the DST law per date.
 pub fn next_slots(
     cadence: &Cadence,
     from: &jiff::Zoned,
     count: usize,
-) -> impl Iterator<Item = jiff::Zoned> {
+) -> impl Iterator<Item = Slot> {
     let first = cadence.next_after(from);
-    std::iter::successors(first, move |prev| cadence.next_after(prev)).take(count)
+    std::iter::successors(first, move |prev| cadence.next_after(&prev.at)).take(count)
 }

@@ -1,16 +1,25 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The hand-counted 5-field cron — zero library, on purpose.
+//! The hand-counted 5-field cron — zero library, on purpose, and ONE
+//! encoding per field: a bitset.
 //!
-//! Two scars own this file:
+//! Three scars own this file:
 //!
 //! - **#6** · a library that silently accepts SIX fields fires at the
-//!   wrong time (the draft scheduler's, verbatim). So the field COUNT
-//!   is validated here, by hand, before any field semantics.
+//!   wrong time (the draft scheduler's, verbatim). So the field COUNT is
+//!   the TYPE — `parse_cron_fields` takes `&[&str; 5]`; the compiler,
+//!   not the discipline, refuses the sixth.
 //! - **the Vixie OR** · `dom` and `dow` restricted together match when
 //!   EITHER does — the classic mis-fire trap. This grammar refuses the
-//!   combination and asks for one side only.
+//!   combination, judged on the SETS (a `1-31` dom is every day, so only
+//!   the dow side restricts — semantically, never textually).
+//! - **the two encodings** · the pre-bitset struct expanded `minutes`/
+//!   `hours` but read « empty means all » for `dom`/`months`/`dow` —
+//!   every check carried two arms, and `describe("* * * * *")` rendered
+//!   244 characters (the expanded minutes). [`Field`] is ONE encoding:
+//!   bit `v - LO` set ⇔ value `v` present · `*` is all bits set ·
+//!   8 bytes · `Copy` · zero alloc.
 //!
 //! The weekday origin is NAMED: `0` and `7` are dimanche/Sunday, `1` is
 //! lundi/Monday (`0 9 * * 1` reads as Monday on two hosts, Sunday on a
@@ -18,57 +27,134 @@
 
 use crate::error::{CadenceError, CadenceErrorKind};
 
-/// The five cron fields, sorted and deduplicated. An empty `dom`,
-/// `months`, or `dow` means `*` (unrestricted).
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// One cron field as a bitset over `LO..=HI` — ONE encoding for one
+/// field. `*` is all bits set; there is no empty-means-all second form.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Field<const LO: u8, const HI: u8> {
+    bits: u64,
+}
+
+impl<const LO: u8, const HI: u8> Field<LO, HI> {
+    /// No bit set — the parser's starting point (`*` never produces it).
+    fn empty() -> Self {
+        Self { bits: 0 }
+    }
+
+    /// Every value set — the `*` field.
+    fn full() -> Self {
+        let width = HI - LO + 1;
+        Self {
+            bits: if width >= 64 {
+                u64::MAX
+            } else {
+                (1u64 << width) - 1
+            },
+        }
+    }
+
+    /// Mark value `v` present. The parser guarantees `LO <= v <= HI`.
+    fn set(&mut self, v: u8) {
+        self.bits |= 1u64 << (v - LO);
+    }
+
+    /// Is value `v` in this field?
+    #[must_use]
+    pub fn contains(&self, v: u8) -> bool {
+        v >= LO && v <= HI && self.bits & (1u64 << (v - LO)) != 0
+    }
+
+    /// All values set (`*` or a full range — the display prints `*`).
+    #[must_use]
+    pub fn is_full(&self) -> bool {
+        self.bits == Self::full().bits
+    }
+
+    /// No value set — a parse error, never a valid field.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.bits == 0
+    }
+
+    /// How many values are set.
+    #[must_use]
+    pub fn len(&self) -> u32 {
+        self.bits.count_ones()
+    }
+
+    /// The values, ascending (FCI-014 — an iterator, never a Vec).
+    pub fn iter(&self) -> impl Iterator<Item = u8> {
+        (LO..=HI).filter(move |v| self.contains(*v))
+    }
+
+    /// The single value when exactly one is set (the readable form's test).
+    #[must_use]
+    pub fn single(&self) -> Option<u8> {
+        if self.len() == 1 {
+            self.iter().next()
+        } else {
+            None
+        }
+    }
+}
+
+/// The five cron fields — one bitset each, 40 bytes, `Copy`, zero alloc.
+/// Every field carries ALL its values (`*` is all bits set): matching is
+/// five `contains`, with no empty-means-all special case.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct CronSpec {
-    minutes: Vec<u8>,
-    hours: Vec<u8>,
-    dom: Vec<u8>,
-    months: Vec<u8>,
-    dow: Vec<u8>,
+    minutes: Field<0, 59>,
+    hours: Field<0, 23>,
+    dom: Field<1, 31>,
+    months: Field<1, 12>,
+    dow: Field<0, 6>,
 }
 
 impl CronSpec {
-    /// Minutes (`0..=59`).
+    /// The minute field (`0..=59`).
     #[must_use]
-    pub fn minutes(&self) -> &[u8] {
+    pub fn minutes(&self) -> &Field<0, 59> {
         &self.minutes
     }
 
-    /// Hours (`0..=23`).
+    /// The hour field (`0..=23`).
     #[must_use]
-    pub fn hours(&self) -> &[u8] {
+    pub fn hours(&self) -> &Field<0, 23> {
         &self.hours
     }
 
-    /// Days of month (`1..=31`) — empty means every day.
+    /// The day-of-month field (`1..=31`) — full means every day.
     #[must_use]
-    pub fn dom(&self) -> &[u8] {
+    pub fn dom(&self) -> &Field<1, 31> {
         &self.dom
     }
 
-    /// Months (`1..=12`) — empty means every month.
+    /// The month field (`1..=12`) — full means every month.
     #[must_use]
-    pub fn months(&self) -> &[u8] {
+    pub fn months(&self) -> &Field<1, 12> {
         &self.months
     }
 
-    /// Weekdays (`0..=6`, Sunday `0`) — empty means every day.
+    /// The weekday field (`0..=6`, Sunday `0`) — full means every day.
     #[must_use]
-    pub fn dow(&self) -> &[u8] {
+    pub fn dow(&self) -> &Field<0, 6> {
         &self.dow
     }
 
     /// Build from already-validated fields (the readable form's path).
     pub(crate) fn weekly(hour: u8, minute: u8, weekday: u8) -> Self {
+        let mut minutes = Field::empty();
+        minutes.set(minute);
+        let mut hours = Field::empty();
+        hours.set(hour);
+        let mut dow = Field::empty();
+        dow.set(weekday);
         Self {
-            minutes: vec![minute],
-            hours: vec![hour],
-            dom: Vec::new(),
-            months: Vec::new(),
-            dow: vec![weekday],
+            minutes,
+            hours,
+            dom: Field::full(),
+            months: Field::full(),
+            dow,
         }
     }
 
@@ -81,18 +167,14 @@ impl CronSpec {
         let Ok(day) = u8::try_from(date.day()) else {
             return false;
         };
-        if !self.months.is_empty() && !self.months.contains(&month) {
+        if !self.months.contains(month) || !self.dom.contains(day) {
             return false;
         }
-        let dom_ok = self.dom.is_empty() || self.dom.contains(&day);
         // jiff offsets Sunday at 1 — this grammar NAMES Sunday at 0.
         let Ok(dow) = u8::try_from((date.weekday().to_sunday_one_offset() + 6) % 7) else {
             return false;
         };
-        let dow_ok = self.dow.is_empty() || self.dow.contains(&dow);
-        // Both-restricted is a parse-time refusal — at most one side is
-        // ever restricted here.
-        dom_ok && dow_ok
+        self.dow.contains(dow)
     }
 }
 
@@ -121,24 +203,22 @@ const DOW_NAMES: [(&str, u8); 7] = [
     ("sat", 6),
 ];
 
-/// Parse the five tokens — the count was already validated by the
-/// caller (scar #6), this checks each field's shape and ranges.
-pub(crate) fn parse_cron_fields(tokens: &[&str]) -> Result<CronSpec, CadenceError> {
-    let minutes = parse_field(tokens[0], 0, 59, &[], "minute")?;
-    let hours = parse_field(tokens[1], 0, 23, &[], "heure")?;
-    let dom_raw = parse_field(tokens[2], 1, 31, &[], "jour-du-mois")?;
-    let months = parse_field(tokens[3], 1, 12, &MONTH_NAMES, "mois")?;
-    let mut dow = parse_field(tokens[4], 0, 7, &DOW_NAMES, "jour-de-semaine")?;
-    for d in &mut dow {
-        if *d == 7 {
-            *d = 0;
-        }
+/// Parse five tokens — the COUNT is the array type (scar #6 is the
+/// compiler's, not a discipline's). Each field then validates its shape
+/// and ranges. Errors carry the field label so the caller can attach
+/// the byte span of the faulty token.
+pub(crate) fn parse_cron_fields(tokens: &[&str; 5]) -> Result<CronSpec, CadenceError> {
+    let minutes = parse_field(tokens[0], &[], "minute")?;
+    let hours = parse_field(tokens[1], &[], "heure")?;
+    let dom = parse_field(tokens[2], &[], "jour-du-mois")?;
+    let months = parse_field(tokens[3], &MONTH_NAMES, "mois")?;
+    let dow7: Field<0, 7> = parse_field(tokens[4], &DOW_NAMES, "jour-de-semaine")?;
+    // 7 is dimanche — folded into 0, the NAMED origin.
+    let mut dow = Field::empty();
+    for v in dow7.iter() {
+        dow.set(if v == 7 { 0 } else { v });
     }
-    dow.sort_unstable();
-    dow.dedup();
-    let dom_any = tokens[2] == "*";
-    let dow_any = tokens[4] == "*";
-    if !dom_any && !dow_any {
+    if !dom.is_full() && !dow.is_full() {
         return Err(CadenceError::file(
             CadenceErrorKind::DomDowOr,
             "jour-du-mois ET jour-de-semaine restreints ensemble — le OR de Vixie entre les deux est le piège classique du tir raté",
@@ -148,21 +228,19 @@ pub(crate) fn parse_cron_fields(tokens: &[&str]) -> Result<CronSpec, CadenceErro
     Ok(CronSpec {
         minutes,
         hours,
-        dom: if dom_any { Vec::new() } else { dom_raw },
-        months: if tokens[3] == "*" { Vec::new() } else { months },
-        dow: if dow_any { Vec::new() } else { dow },
+        dom,
+        months,
+        dow,
     })
 }
 
 /// One field: `*` · `*/n` · `a` · `a-b` · `a-b/n` · `a/n` · comma-joined.
-fn parse_field(
+fn parse_field<const LO: u8, const HI: u8>(
     text: &str,
-    lo: u8,
-    hi: u8,
     names: &[(&str, u8)],
-    label: &str,
-) -> Result<Vec<u8>, CadenceError> {
-    let mut out = Vec::new();
+    label: &'static str,
+) -> Result<Field<LO, HI>, CadenceError> {
+    let mut out = Field::empty();
     for part in text.split(',') {
         let (range_text, step) = match part.split_once('/') {
             Some((base, stride)) => {
@@ -172,6 +250,7 @@ fn parse_field(
                         format!("champ {label} `{part}` · un pas vaut au moins 1"),
                         format!("`{label}` · ex. `*/15`"),
                     )
+                    .on_field(label)
                 })?;
                 (base, step)
             }
@@ -179,41 +258,42 @@ fn parse_field(
         };
         let has_step = part.contains('/');
         if range_text == "*" {
-            push_range(&mut out, lo, hi, step);
+            set_range(&mut out, LO, HI, step);
         } else if let Some((a, b)) = range_text.split_once('-') {
-            let from = field_value(a, lo, hi, names, label)?;
-            let to = field_value(b, lo, hi, names, label)?;
+            let from = field_value::<LO, HI>(a, names, label)?;
+            let to = field_value::<LO, HI>(b, names, label)?;
             if from > to {
                 return Err(CadenceError::file(
                     CadenceErrorKind::FieldRange,
                     format!("champ {label} `{part}` · borne basse au-dessus de la haute"),
-                    format!("`{label}` entre {lo} et {hi}"),
-                ));
+                    format!("`{label}` entre {LO} et {HI}"),
+                )
+                .on_field(label));
             }
-            push_range(&mut out, from, to, step);
+            set_range(&mut out, from, to, step);
         } else if has_step {
-            let from = field_value(range_text, lo, hi, names, label)?;
-            push_range(&mut out, from, hi, step);
+            let from = field_value::<LO, HI>(range_text, names, label)?;
+            set_range(&mut out, from, HI, step);
         } else {
-            out.push(field_value(range_text, lo, hi, names, label)?);
+            let v = field_value::<LO, HI>(range_text, names, label)?;
+            out.set(v);
         }
     }
-    out.sort_unstable();
-    out.dedup();
     if out.is_empty() {
         return Err(CadenceError::file(
             CadenceErrorKind::FieldSyntax,
             format!("champ {label} `{text}` · vide"),
-            format!("`{label}` entre {lo} et {hi}"),
-        ));
+            format!("`{label}` entre {LO} et {HI}"),
+        )
+        .on_field(label));
     }
     Ok(out)
 }
 
-fn push_range(out: &mut Vec<u8>, from: u8, to: u8, step: u8) {
+fn set_range<const LO: u8, const HI: u8>(out: &mut Field<LO, HI>, from: u8, to: u8, step: u8) {
     let mut v = from;
     loop {
-        out.push(v);
+        out.set(v);
         let Some(next) = v.checked_add(step) else {
             break;
         };
@@ -224,12 +304,10 @@ fn push_range(out: &mut Vec<u8>, from: u8, to: u8, step: u8) {
     }
 }
 
-fn field_value(
+fn field_value<const LO: u8, const HI: u8>(
     text: &str,
-    lo: u8,
-    hi: u8,
     names: &[(&str, u8)],
-    label: &str,
+    label: &'static str,
 ) -> Result<u8, CadenceError> {
     let lower = text.to_ascii_lowercase();
     if let Some((_, v)) = names.iter().find(|(name, _)| *name == lower) {
@@ -237,12 +315,13 @@ fn field_value(
     }
     text.parse::<u8>()
         .ok()
-        .filter(|v| *v >= lo && *v <= hi)
+        .filter(|v| *v >= LO && *v <= HI)
         .ok_or_else(|| {
             CadenceError::file(
                 CadenceErrorKind::FieldRange,
                 format!("champ {label} `{text}` · hors bornes ou illisible"),
-                format!("`{label}` entre {lo} et {hi}"),
+                format!("`{label}` entre {LO} et {HI}"),
             )
+            .on_field(label)
         })
 }

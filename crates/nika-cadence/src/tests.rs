@@ -5,7 +5,9 @@
 //!
 //! - **the calculator (here, L0)** — ZERO clock: every test rides
 //!   literal `Zoned` instants (trap ① · there is no clock to drive).
-//!   The DST tests traverse the 2026 Paris transitions and pin N1.
+//!   The DST tests traverse the 2026 Paris transitions and pin N1 —
+//!   and since the slot-merge correction, they also pin that a
+//!   displaced or merged slot is DECLARED ([`Slot::shift`]).
 //! - **the dispatcher (later, L4)** — that is where `VirtualClock`
 //!   will live, never here.
 
@@ -16,8 +18,8 @@ use proptest::prelude::*;
 
 use crate::phrase::next_slots;
 use crate::{
-    AfterSkip, ArmRegistry, Cadence, CadenceErrorKind, Locus, MissPolicy, Overlap, parse_registry,
-    validate,
+    AfterSkip, ArmRegistry, Cadence, CadenceErrorKind, Locus, MissPolicy, Overlap, Shift,
+    parse_registry, validate,
 };
 
 /// A literal instant (UTC) — the calculator's only input.
@@ -30,6 +32,14 @@ fn at(ts: &str) -> Zoned {
 /// The instant a candidate landed on, as a UTC string.
 fn utc(z: &Zoned) -> String {
     z.timestamp().to_string()
+}
+
+/// The next slot's instant as a UTC string.
+fn next_at(cadence: &Cadence, from: &str) -> String {
+    utc(&cadence
+        .next_after(&at(from))
+        .expect("un créneau attendu")
+        .at)
 }
 
 /// Parse + law pass, returning the refusal classes.
@@ -57,11 +67,15 @@ fn parse_cron_with_zone_inside() {
         panic!("une cadence cron, pas un webhook");
     };
     assert_eq!(tz, "Europe/Paris");
-    assert_eq!(spec.minutes(), &[0]);
-    assert_eq!(spec.hours(), &[9]);
-    assert_eq!(spec.dom(), &[]);
-    assert_eq!(spec.months(), &[]);
-    assert_eq!(spec.dow(), &[1]);
+    assert_eq!(spec.minutes().single(), Some(0));
+    assert_eq!(spec.hours().single(), Some(9));
+    assert!(spec.dom().is_full(), "une seule encodage · * = plein");
+    assert!(spec.months().is_full());
+    assert_eq!(
+        spec.dow().iter().collect::<Vec<_>>(),
+        vec![1],
+        "lundi, seul"
+    );
 }
 
 #[test]
@@ -88,14 +102,20 @@ fn refuse_a_zoneless_cadence() {
     let err = Cadence::parse("0 9 * * 1").expect_err("le fuseau vit DANS l expression");
     assert_eq!(err.kind(), CadenceErrorKind::TzMissing);
     assert_eq!(err.kind().spec_code(), "cadence.tz-missing");
+    assert_eq!(
+        err.span(),
+        Some((0, 9)),
+        "le refus peint l expression entière"
+    );
 }
 
 #[test]
 fn refuse_six_fields_before_any_field_semantics() {
-    // Scar #6 · the count dies FIRST — the 6th field is also out of
-    // range, and the refusal must still be the count.
+    // Scar #6 · the count is the TYPE — the sixth field never reaches a
+    // field parser, and the refusal paints the whole expression.
     let err = Cadence::parse("TZ=UTC 0 9 * * 1 99").expect_err("6 champs");
     assert_eq!(err.kind(), CadenceErrorKind::FieldCount);
+    assert_eq!(err.span(), Some((7, 19)));
     let err = Cadence::parse("TZ=UTC 0 9 * *").expect_err("4 champs");
     assert_eq!(err.kind(), CadenceErrorKind::FieldCount);
 }
@@ -104,23 +124,29 @@ fn refuse_six_fields_before_any_field_semantics() {
 fn refuse_a_field_out_of_range() {
     let err = Cadence::parse("TZ=UTC 61 9 * * 1").expect_err("minute 61");
     assert_eq!(err.kind(), CadenceErrorKind::FieldRange);
+    assert_eq!(err.span(), Some((7, 9)), "le token fautif, peint");
     let err = Cadence::parse("TZ=UTC 0 25 * * 1").expect_err("heure 25");
     assert_eq!(err.kind(), CadenceErrorKind::FieldRange);
+    assert_eq!(err.span(), Some((9, 11)));
 }
 
 #[test]
 fn refuse_dom_and_dow_restricted_together() {
-    // The Vixie OR trap — one side only, never both.
+    // The Vixie OR trap — judged on the SETS, not the text: a 1-31 dom
+    // is every day, so only the dow side restricts and it is ACCEPTED.
     let err = Cadence::parse("TZ=UTC 0 9 1 * 1").expect_err("le OR de Vixie");
     assert_eq!(err.kind(), CadenceErrorKind::DomDowOr);
+    assert_eq!(err.span(), Some((11, 16)), "la paire fautive, peinte");
     Cadence::parse("TZ=UTC 0 9 1 * *").expect("dom seul, accepté");
     Cadence::parse("TZ=UTC 0 9 * * 1").expect("dow seul, accepté");
+    Cadence::parse("TZ=UTC 0 9 1 * 1-7").expect("1-7 = tous les jours · dom seul restreint");
 }
 
 #[test]
 fn refuse_a_zone_unknown_to_the_embedded_tzdb() {
     let err = Cadence::parse("TZ=Mars/Olympus 0 9 * * 1").expect_err("fuseau inconnu");
     assert_eq!(err.kind(), CadenceErrorKind::TzUnknown);
+    assert_eq!(err.span(), Some((3, 15)), "le nom du fuseau, peint");
 }
 
 #[test]
@@ -133,7 +159,7 @@ fn weekday_origin_is_named_and_seven_is_sunday() {
     let Cadence::Cron { spec, .. } = &seven else {
         panic!("cron");
     };
-    assert_eq!(spec.dow(), &[0], "dimanche est NOMMÉ 0");
+    assert_eq!(spec.dow().single(), Some(0), "dimanche est NOMMÉ 0");
 }
 
 #[test]
@@ -142,8 +168,8 @@ fn month_and_weekday_names_parse() {
     let Cadence::Cron { spec, .. } = &cadence else {
         panic!("cron");
     };
-    assert_eq!(spec.months(), &[1]);
-    assert_eq!(spec.dow(), &[1]);
+    assert_eq!(spec.months().single(), Some(1));
+    assert_eq!(spec.dow().single(), Some(1));
 }
 
 // ── next_after · the pure calculator, literal instants ─────────────
@@ -151,47 +177,58 @@ fn month_and_weekday_names_parse() {
 #[test]
 fn next_weekly_slot_from_the_previous_sunday() {
     let cadence = Cadence::parse("TZ=Europe/Paris lundi 9h07").expect("cadence");
-    let next = cadence
+    let slot = cadence
         .next_after(&at("2026-08-09T12:00:00Z"))
         .expect("un lundi suit toujours un dimanche");
-    assert_eq!(utc(&next), "2026-08-10T07:07:00Z");
+    assert_eq!(utc(&slot.at), "2026-08-10T07:07:00Z");
+    assert_eq!(
+        slot.shift,
+        Shift::Exact,
+        "un lundi ordinaire, rien à déclarer"
+    );
 }
 
 #[test]
 fn next_slot_is_strictly_after() {
     let cadence = Cadence::parse("TZ=Europe/Paris lundi 9h07").expect("cadence");
-    let next = cadence
-        .next_after(&at("2026-08-10T07:07:00Z"))
-        .expect("la semaine suivante");
     assert_eq!(
-        utc(&next),
-        "2026-08-17T07:07:00Z",
-        "jamais deux tirs au même instant"
+        next_at(&cadence, "2026-08-10T07:07:00Z"),
+        "2026-08-17T07:07:00Z"
     );
 }
 
 #[test]
 fn next_slot_crosses_a_month() {
     let cadence = Cadence::parse("TZ=Europe/Paris 0 9 1 * *").expect("cadence");
-    let next = cadence
-        .next_after(&at("2026-08-15T00:00:00Z"))
-        .expect("le 1er du mois suivant");
-    assert_eq!(utc(&next), "2026-09-01T07:00:00Z");
+    assert_eq!(
+        next_at(&cadence, "2026-08-15T00:00:00Z"),
+        "2026-09-01T07:00:00Z"
+    );
 }
 
 #[test]
 fn dst_gap_fires_at_the_first_valid_instant() {
     // N1 · 2026-03-29, Paris springs 02:00 → 03:00. A 02:30 slot does
-    // not exist: it fires at 03:00 CEST — NEVER a silent skip, and
-    // never jiff s 03:30 roll-forward.
+    // not exist: it fires at 03:00 CEST — NEVER a silent skip, never
+    // jiff s 03:30 roll-forward — and the slot SAYS it moved.
     let cadence = Cadence::parse("TZ=Europe/Paris 30 2 * * *").expect("cadence");
-    let next = cadence
+    let slot = cadence
         .next_after(&at("2026-03-28T12:00:00Z"))
         .expect("le créneau absent tire quand même");
     assert_eq!(
-        utc(&next),
+        utc(&slot.at),
         "2026-03-29T01:00:00Z",
         "03:00 CEST, le premier instant valide"
+    );
+    assert_eq!(
+        slot.shift,
+        Shift::AdvancedFirstValid,
+        "le déplacement est DÉCLARÉ"
+    );
+    assert_eq!(
+        slot.civil.to_string(),
+        "2026-03-29T02:30:00",
+        "le civil demandé reste lisible"
     );
 }
 
@@ -199,30 +236,54 @@ fn dst_gap_fires_at_the_first_valid_instant() {
 fn dst_gap_at_the_boundary_also_fires_at_first_valid() {
     // N1, the doc s own example · 02:00 absent ⇒ 03:00.
     let cadence = Cadence::parse("TZ=Europe/Paris 0 2 * * *").expect("cadence");
-    let next = cadence
+    let slot = cadence
         .next_after(&at("2026-03-28T12:00:00Z"))
         .expect("le créneau absent tire quand même");
-    assert_eq!(utc(&next), "2026-03-29T01:00:00Z");
+    assert_eq!(utc(&slot.at), "2026-03-29T01:00:00Z");
+    assert_eq!(slot.shift, Shift::AdvancedFirstValid);
 }
 
 #[test]
 fn dst_fold_fires_once_at_the_first_occurrence() {
     // N1 · 2026-10-25, Paris falls 03:00 → 02:00: 02:30 exists TWICE.
-    // The beat fires at the first occurrence (CEST), and the following
-    // slot is the next DAY — the doubled hour fires exactly once.
+    // The beat fires at the first occurrence (CEST), declares the fold,
+    // and the following slot is the next DAY — the doubled hour fires
+    // exactly once.
     let cadence = Cadence::parse("TZ=Europe/Paris 30 2 * * *").expect("cadence");
     let first = cadence
         .next_after(&at("2026-10-24T12:00:00Z"))
         .expect("la première occurrence");
     assert_eq!(
-        utc(&first),
+        utc(&first.at),
         "2026-10-25T00:30:00Z",
         "02:30 CEST, la première"
     );
+    assert_eq!(first.shift, Shift::FoldedFirst, "le repli est DÉCLARÉ");
     let after = cadence
-        .next_after(&first)
+        .next_after(&first.at)
         .expect("le lendemain, pas la seconde occurrence");
-    assert_eq!(utc(&after), "2026-10-26T01:30:00Z", "UNE fois, jamais deux");
+    assert_eq!(
+        utc(&after.at),
+        "2026-10-26T01:30:00Z",
+        "UNE fois, jamais deux"
+    );
+    assert_eq!(after.shift, Shift::Exact);
+}
+
+#[test]
+fn the_gap_merge_is_visible_in_the_types() {
+    // The correction s whole point (§2unvicies ②) · `0,30 2,3 * * *` on
+    // gap day: four civil slots, TWO fires — and the fire that absorbed
+    // 02:00/02:30 says so, with the civil it answered for.
+    let cadence = Cadence::parse("TZ=Europe/Paris 0,30 2,3 * * *").expect("cadence");
+    let slots: Vec<_> = next_slots(&cadence, &at("2026-03-28T12:00:00Z"), 2).collect();
+    assert_eq!(slots.len(), 2);
+    assert_eq!(utc(&slots[0].at), "2026-03-29T01:00:00Z");
+    assert_eq!(slots[0].civil.to_string(), "2026-03-29T02:00:00");
+    assert_eq!(slots[0].shift, Shift::AdvancedFirstValid);
+    assert_eq!(utc(&slots[1].at), "2026-03-29T01:30:00Z", "03:30 CEST");
+    assert_eq!(slots[1].shift, Shift::Exact);
+    // « le 29 mars ce beat tire 2 fois au lieu de 4 » se LIT ici.
 }
 
 #[test]
@@ -230,31 +291,27 @@ fn a_slept_machine_simply_gets_the_next_slot() {
     // The laptop slept 3 days (N2 · no resume, no catch-up in the
     // calculator): it answers the next slot, nothing more.
     let cadence = Cadence::parse("TZ=Europe/Paris 0 6 * * *").expect("cadence");
-    let next = cadence
-        .next_after(&at("2026-08-13T10:00:00Z"))
-        .expect("demain 6h");
-    assert_eq!(utc(&next), "2026-08-14T04:00:00Z");
+    assert_eq!(
+        next_at(&cadence, "2026-08-13T10:00:00Z"),
+        "2026-08-14T04:00:00Z"
+    );
 }
 
 #[test]
 fn a_29_february_lands_inside_the_horizon() {
     let cadence = Cadence::parse("TZ=Europe/Paris 0 9 29 2 *").expect("cadence");
-    let next = cadence
-        .next_after(&at("2026-08-11T00:00:00Z"))
-        .expect("2028 est bissextile · 567 jours, sous l horizon de 1500");
-    assert_eq!(utc(&next), "2028-02-29T08:00:00Z");
+    assert_eq!(
+        next_at(&cadence, "2026-08-11T00:00:00Z"),
+        "2028-02-29T08:00:00Z"
+    );
 }
 
 #[test]
 fn next_slot_crosses_a_year() {
     let cadence = Cadence::parse("TZ=Europe/Paris 0 0 1 1 *").expect("cadence");
-    let next = cadence
-        .next_after(&at("2026-12-15T00:00:00Z"))
-        .expect("le jour de l an");
     assert_eq!(
-        utc(&next),
-        "2026-12-31T23:00:00Z",
-        "minuit CET, le 1er janvier"
+        next_at(&cadence, "2026-12-15T00:00:00Z"),
+        "2026-12-31T23:00:00Z"
     );
 }
 
@@ -284,6 +341,14 @@ fn display_keeps_cron_when_not_a_single_weekly_slot() {
 }
 
 #[test]
+fn display_a_full_spec_stays_short() {
+    // The two-encodings regression (§2unvicies ①) · the pre-bitset
+    // describe rendered every minute of "* * * * *" — 244 characters.
+    let cadence = Cadence::parse("TZ=UTC * * * * *").expect("cadence");
+    assert_eq!(cadence.describe(), "TZ=UTC * * * * *");
+}
+
+#[test]
 fn display_a_webhook() {
     assert_eq!(Cadence::Webhook.describe(), "on-webhook");
 }
@@ -292,7 +357,7 @@ fn display_a_webhook() {
 fn the_four_next_dates_the_display_shows() {
     let cadence = Cadence::parse("TZ=Europe/Paris lundi 9h07").expect("cadence");
     let slots: Vec<String> = next_slots(&cadence, &at("2026-08-09T12:00:00Z"), 4)
-        .map(|z| utc(&z))
+        .map(|s| utc(&s.at))
         .collect();
     assert_eq!(
         slots,
@@ -619,14 +684,16 @@ fn the_embedded_tzdb_carries_real_dst_rules() {
         "la base embarquée répond"
     );
     let noon = Cadence::parse("TZ=Europe/Paris 0 12 * * *").expect("cadence");
-    let winter = noon
-        .next_after(&at("2026-01-14T00:00:00Z"))
-        .expect("midi en hiver");
-    assert_eq!(utc(&winter), "2026-01-14T11:00:00Z", "CET = UTC+1");
-    let summer = noon
-        .next_after(&at("2026-07-14T00:00:00Z"))
-        .expect("midi en été");
-    assert_eq!(utc(&summer), "2026-07-14T10:00:00Z", "CEST = UTC+2");
+    assert_eq!(
+        next_at(&noon, "2026-01-14T00:00:00Z"),
+        "2026-01-14T11:00:00Z",
+        "CET = UTC+1"
+    );
+    assert_eq!(
+        next_at(&noon, "2026-07-14T00:00:00Z"),
+        "2026-07-14T10:00:00Z",
+        "CEST = UTC+2"
+    );
 }
 
 #[test]
@@ -684,7 +751,7 @@ proptest! {
         let next = cadence
             .next_after(&from)
             .expect("un beat quotidien a toujours un prochain créneau");
-        prop_assert!(next.timestamp() > from_ts, "strictement après");
-        prop_assert!(next.timestamp().as_second() - secs <= 86_400, "au plus un jour");
+        prop_assert!(next.at.timestamp() > from_ts, "strictement après");
+        prop_assert!(next.at.timestamp().as_second() - secs <= 86_400, "au plus un jour");
     }
 }

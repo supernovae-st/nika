@@ -2,10 +2,10 @@
 
 | | |
 |---|---|
-| Status | **CANDIDATE** — Gate 1 (this document) authored 2026-08-11. Crafted shim-standalone (43 tests · clippy 0 `-D warnings` · rustfmt clean) and committed with the temporary `[workspace]` shim (`92a0f8497`) while the checkout carried a live session; the shim leaves at admission (members + `wip` + `layers` + allowlist, one edit set). |
+| Status | **CANDIDATE** — Gate 1 (this document) authored 2026-08-11. Crafted shim-standalone (45 tests · clippy 0 `-D warnings` · rustfmt clean) · committed with the temporary `[workspace]` shim (`92a0f8497`), then the four pre-freeze corrections of plan §2unvicies (the bitset's ONE encoding · `Slot` declares the DST shift · the field count is the type · the error span). Remaining before admission (task T-cadence-crate-l0-pur): the `spec-plane` allowlist row and the shim removal (the wip join). |
 | Layer | L0 — pure, zero I/O, zero async |
 | Design | The arming-registry grammar (the `arm:` block of `nika.yaml`, D-2026-08-10-N3) + the pure next-slot calculator. Hand-counted 5-field cron (zero cron library — the count is validated BEFORE field semantics, scar #6) · IANA zones resolved from the EMBEDDED tzdb only (`jiff-tzdb`, never the host's zoneinfo) · two cadence forms (cron + readable `lundi 9h07`), display normalizing to the readable one. |
-| LOC budget | ≤2,000 src prod (at authoring 1,219 + 690 cfg(test)) · ≤15,000 hard cap |
+| LOC budget | ≤2,000 src prod (post-corrections 1,467 prod + 753 cfg(test)) · ≤15,000 hard cap |
 | File cap | ≤1,500 LOC each (max file 690, the tests) |
 | Function cap | ≤100 lines each (max ~60) |
 | Crate version | tracks workspace |
@@ -77,29 +77,40 @@ time — the caller sleeps, never the calculator) · host zone resolution
 
 `parse_registry(&str) -> Result<ArmRegistry, CadenceError>` ·
 `validate(&ArmRegistry) -> impl Iterator<Item = CadenceError>` (an
-empty walk IS the green verdict) · `Cadence::parse(&str)` ·
-`Cadence::next_after(&Zoned) -> Option<Zoned>` (`None` for a webhook) ·
-`Cadence::describe() -> String` (normalizes to the readable form, the
-zone always shown) · `phrase::next_slots(&Cadence, &Zoned, usize) ->
-impl Iterator<Item = Zoned>` (the display's "4 prochaines dates") ·
-`ArmRegistry::{SCHEMA, beats, beat_count}` ·
-`Beat::{locus, overlap, after_skip, is_active}` (the safe defaults
-applied) · `CronSpec` field accessors · `CadenceError{kind, detail,
-remedy, on}` + `CadenceErrorKind::spec_code()`.
+empty walk IS the green verdict) · `Cadence::parse(&str)` (the count
+is the TYPE — `parse_cron_fields(&[&str; 5])`, scar #6 is the
+compiler's) · `Cadence::next_after(&Zoned) -> Option<Slot>` where
+`Slot { at, civil, shift }` DECLARES the DST displacement
+(`Shift::{Exact, AdvancedFirstValid, FoldedFirst}` — N1 at the type
+level; a merged slot says so) · `Cadence::describe() -> String` (the
+readable form wins, full fields print `*` — the bitset's one
+encoding) · `phrase::next_slots(&Cadence, &Zoned, usize) -> impl
+Iterator<Item = Slot>` · `ArmRegistry::{SCHEMA, beats, beat_count}` ·
+`Beat::{locus, overlap, after_skip, is_active}` · `CronSpec` field
+accessors handing out `Field<LO, HI>` (the bitset: `contains` ·
+`iter` · `single` · `is_full` · 8 bytes · `Copy` · zero alloc) ·
+`CadenceError{kind, detail, remedy, on, span}` (the span paints the
+faulty byte, the `CelError` precedent) + `CadenceErrorKind::
+spec_code()`.
 
 ## 4. Tests
 
-43 at authoring: parse (both forms · TZ-less refused · 6 fields refused
-on the COUNT before semantics · out-of-range · Vixie OR · unknown zone
-· 7-is-dimanche) · calculator (strictly-after · month/year crossing ·
-slept-3-days · 29 Feb 2028 inside the horizon · **DST traversal**: the
-2026-03-29 gap fires 03:00 CEST, the 2026-10-25 fold fires once) ·
-validate (every law, every refusal teaching its fix) · the embedded
-tzdb proven twice (behavioral Paris offsets + a static source guard:
-no non-comment line may name the host-preferring resolvers) · proptest
-(parse never panics · law pass never panics · a daily slot is strictly
-later and within a day). Mutation floor: run `check-mutation-floor.sh`
-at admission.
+45 at authoring: parse (both forms · TZ-less refused · 6 fields refused
+by the TYPE · out-of-range · Vixie OR judged on the sets (`1-31` dom is
+every day) · unknown zone · 7-is-dimanche · spans pin the faulty token)
+· calculator (strictly-after · month/year crossing · slept-3-days ·
+29 Feb 2028 inside the horizon · **DST traversal**: the 2026-03-29 gap
+fires 03:00 CEST with `Shift::AdvancedFirstValid`, the 2026-10-25 fold
+fires once with `Shift::FoldedFirst`, and the gap-day merge
+`0,30 2,3 * * *` is visible in the returned slots — 4 civil slots, 2
+fires, the absorbing fire declared) · the two-encodings regression
+(`describe("* * * * *")` stays 5 fields, not 244 chars) · validate
+(every law, every refusal teaching its fix) · the embedded tzdb proven
+twice (behavioral Paris offsets + a static source guard: no non-comment
+line may name the host-preferring resolvers) · proptest (parse never
+panics · law pass never panics · a daily slot is strictly later and
+within a day). Mutation floor: run `check-mutation-floor.sh` at
+admission.
 
 ## 5. Non-goals / guards
 

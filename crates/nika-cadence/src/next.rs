@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The next-slot calculator — pure, clock-free, zero I/O.
+//! The next-slot calculator — pure, clock-free, zero I/O, and every
+//! displacement DECLARED at the type level.
 //!
 //! Trap ① · the kernel `Clock` trait has no civil surface (an `Instant`
 //! and a `SystemTime`, no zone, no day) — so this calculator takes a
@@ -17,7 +18,11 @@
 //! N1 (D-2026-08-11-N1) · the DST law: a slot inside a spring gap fires
 //! at the FIRST VALID instant (02:00 absent ⇒ 03:00 — a beat never
 //! dies silently) · a slot in an autumn fold fires ONCE, at its first
-//! occurrence.
+//! occurrence. Since the slot-merge correction: the displacement rides
+//! the TYPE ([`Slot::shift`]) — for an engine whose thesis is « refusal
+//! is declared », a slot that moved (or two that merged) is declared,
+//! never lost in silence (before, `0,30 2,3 * * *` on gap day fired
+//! twice instead of four times and no signature could say why).
 
 use jiff::ToSpan;
 use jiff::civil::DateTime;
@@ -34,25 +39,81 @@ pub(crate) fn bundled_tz(name: &str) -> Option<TimeZone> {
     TimeZone::tzif(canonical, tzif).ok()
 }
 
-/// Resolve a civil slot to an instant, applying N1:
+/// What the calendar did to a slot — the N1 law, declared.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum Shift {
+    /// The civil slot exists exactly once — nothing happened.
+    Exact,
+    /// The civil slot did not exist (a spring gap) — the beat fires at
+    /// the FIRST VALID instant instead (`02:30 → 03:00`, N1 · AVANCER).
+    AdvancedFirstValid,
+    /// The civil slot exists twice (an autumn fold) — the beat fires at
+    /// its FIRST occurrence only (N1 · PREMIÈRE OCCURRENCE).
+    FoldedFirst,
+}
+
+/// One computed slot: the instant, the civil slot that asked for it,
+/// and the calendar's verdict. The merge visibility lives here — a
+/// `check` display can now say « le 29 mars ce beat tire 2 fois au
+/// lieu de 4 » from the types alone.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct Slot {
+    /// The instant the beat fires.
+    pub at: jiff::Zoned,
+    /// The civil slot (in the beat's zone) that produced it.
+    pub civil: DateTime,
+    /// What the calendar did to this slot (N1, declared).
+    pub shift: Shift,
+}
+
+/// Resolve a civil slot to an instant, applying N1 — and SAY which arm
+/// applied. The tzdb itself classifies (no minute-stepping):
 ///
-/// - unambiguous → itself;
-/// - in a gap → jiff's compatible disambiguation rolls FORWARD, which
-///   we detect (`zoned.datetime() != civil`) and correct by stepping
-///   the civil time minute by minute until it lands on a real instant —
-///   the FIRST VALID one (02:30 in a one-hour gap ⇒ 03:00, not 03:30);
-/// - in a fold → the compatible disambiguation already picks the FIRST
-///   occurrence, which is exactly the law.
+/// - unambiguous → [`Shift::Exact`];
+/// - in a fold → `earlier()` maps back to the same civil time: that IS
+///   the first occurrence — [`Shift::FoldedFirst`];
+/// - in a gap → the civil time exists nowhere, so `later()` is the first
+///   valid instant (02:30 in a one-hour gap ⇒ 03:00, never jiff's
+///   03:30 roll-forward) — [`Shift::AdvancedFirstValid`].
 ///
-/// Bounded: no DST gap spans a day (the loop cap is 26 h of minutes,
-/// never reached in practice — the widest known gaps are hours).
-fn resolve(mut civil: DateTime, tz: &TimeZone) -> Option<jiff::Zoned> {
+/// `None` only when the tzdb itself cannot disambiguate (never in
+/// practice — a fold always has two sides and a gap is bounded).
+fn resolve(civil: DateTime, tz: &TimeZone) -> Option<Slot> {
+    let amb = tz.to_ambiguous_zoned(civil);
+    if !amb.is_ambiguous() {
+        return Some(Slot {
+            at: amb.compatible().ok()?,
+            civil,
+            shift: Shift::Exact,
+        });
+    }
+    // Ambiguous: a fold or a gap. In a FOLD, the earlier occurrence maps
+    // back to the same civil time — it IS the first occurrence (N1). In
+    // a GAP the civil time exists nowhere; jiff's `later()` rolls forward
+    // by the gap LENGTH (02:30 ⇒ 03:30), which is NOT the law. N1 says
+    // AVANCER to the FIRST VALID instant (02:30 ⇒ 03:00): step the civil
+    // clock forward until it exists. Bounded — no DST gap spans a day.
+    let first = amb.earlier().ok()?;
+    if first.datetime() == civil {
+        return Some(Slot {
+            at: first,
+            civil,
+            shift: Shift::FoldedFirst,
+        });
+    }
+    let mut cursor = civil;
     for _ in 0..=(26 * 60) {
-        let zoned = civil.to_zoned(tz.clone()).ok()?;
-        if zoned.datetime() == civil {
-            return Some(zoned);
+        cursor = cursor.checked_add(1.minute()).ok()?;
+        let probe = tz.to_ambiguous_zoned(cursor);
+        if !probe.is_ambiguous() {
+            return Some(Slot {
+                at: probe.compatible().ok()?,
+                civil,
+                shift: Shift::AdvancedFirstValid,
+            });
         }
-        civil = civil.checked_add(1.minute()).ok()?;
     }
     None
 }
@@ -62,7 +123,7 @@ impl Cadence {
     /// calendar) or an unreachable schedule. The computation is pure:
     /// `from` carries the instant, the BEAT's zone carries the days.
     #[must_use]
-    pub fn next_after(&self, from: &jiff::Zoned) -> Option<jiff::Zoned> {
+    pub fn next_after(&self, from: &jiff::Zoned) -> Option<Slot> {
         match self {
             Self::Webhook => None,
             Self::Cron { tz, spec } => {
@@ -78,13 +139,13 @@ impl CronSpec {
     /// further than 4 years), hours and minutes nested inside matching
     /// days. The day walk happens in the BEAT's zone — a Monday slot is
     /// Monday in Paris, whatever zone `from` rides.
-    pub(crate) fn next_after(&self, tz: &TimeZone, from: &jiff::Zoned) -> Option<jiff::Zoned> {
+    pub(crate) fn next_after(&self, tz: &TimeZone, from: &jiff::Zoned) -> Option<Slot> {
         let from_local = from.with_time_zone(tz.clone());
         let mut day = from_local.date();
         for _ in 0..1500 {
             if self.covers(day) {
-                for &hour in self.hours() {
-                    for &minute in self.minutes() {
+                for hour in self.hours().iter() {
+                    for minute in self.minutes().iter() {
                         let civil = day.to_datetime(jiff::civil::time(
                             i8::try_from(hour).ok()?,
                             i8::try_from(minute).ok()?,
@@ -92,7 +153,7 @@ impl CronSpec {
                             0,
                         ));
                         let candidate = resolve(civil, tz)?;
-                        if &candidate > from {
+                        if &candidate.at > from {
                             return Some(candidate);
                         }
                     }

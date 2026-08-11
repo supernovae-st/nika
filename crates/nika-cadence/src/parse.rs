@@ -218,32 +218,81 @@ impl Cadence {
     /// refused by name (scar #1 is closed by the form, not vigilance).
     ///
     /// # Errors
-    /// A [`CadenceError`] naming the law and the fix.
+    /// A [`CadenceError`] naming the law and the fix — and, when the
+    /// refusal was born on authored text, carrying the byte span of the
+    /// faulty token (the painter's data, the `CelError` precedent).
     pub fn parse(raw: &str) -> Result<Self, CadenceError> {
         let text = raw.trim();
         if text.eq_ignore_ascii_case("on-webhook") {
             return Ok(Self::Webhook);
         }
         let (tz, rest) = split_tz(text)?;
+        let base = text.len() - rest.len();
         let tokens: Vec<&str> = rest.split_whitespace().collect();
         if let Some(spec) = parse_readable(&tokens) {
             return Ok(Self::Cron { tz, spec });
         }
-        // The field count is validated BEFORE any field semantics —
-        // scar #6: a library that silently accepts 6 fields fires at
-        // the wrong time. This grammar counts first.
-        if tokens.len() != 5 {
-            return Err(CadenceError::file(
-                CadenceErrorKind::FieldCount,
-                format!(
-                    "cadence `{text}` · {} champs au lieu de 5 — le compte se valide AVANT la bibliothèque (cicatrice n°6)",
-                    tokens.len()
-                ),
-                "cron = minute heure jour-du-mois mois jour-de-semaine · ex. `TZ=Europe/Paris 0 9 * * 1`",
-            ));
-        }
-        let spec = parse_cron_fields(&tokens)?;
+        // The field count is the TYPE — scar #6 belongs to the compiler,
+        // not to a discipline: five tokens ride one array, and a sixth
+        // field cannot call the field parser at all.
+        let spans = token_spans(rest, base);
+        let fields: &[&str; 5] = match tokens.as_slice().try_into() {
+            Ok(f) => f,
+            Err(_) => {
+                return Err(CadenceError::file(
+                    CadenceErrorKind::FieldCount,
+                    format!(
+                        "cadence `{text}` · {} champs au lieu de 5 — le compte est le TYPE, la cicatrice n°6 est le compilateur",
+                        tokens.len()
+                    ),
+                    "cron = minute heure jour-du-mois mois jour-de-semaine · ex. `TZ=Europe/Paris 0 9 * * 1`",
+                )
+                .with_span((base, text.len())));
+            }
+        };
+        let spec = parse_cron_fields(fields).map_err(|e| attach_field_span(e, &spans))?;
         Ok(Self::Cron { tz, spec })
+    }
+}
+
+/// Byte spans of the whitespace-separated tokens of `rest`, rebased on
+/// the full cadence expression (`base`).
+fn token_spans(rest: &str, base: usize) -> Vec<(usize, usize)> {
+    let mut out = Vec::new();
+    let mut start: Option<usize> = None;
+    for (i, c) in rest.char_indices() {
+        if c.is_whitespace() {
+            if let Some(s) = start.take() {
+                out.push((base + s, base + i));
+            }
+        } else if start.is_none() {
+            start = Some(i);
+        }
+    }
+    if let Some(s) = start {
+        out.push((base + s, base + rest.len()));
+    }
+    out
+}
+
+/// Attach the faulty token's byte span to a field-born error (the label
+/// rides the error from its birth in `parse_field`). A `dom`+`dow`
+/// refusal paints the pair.
+fn attach_field_span(err: CadenceError, spans: &[(usize, usize)]) -> CadenceError {
+    const FIELDS: [&str; 5] = ["minute", "heure", "jour-du-mois", "mois", "jour-de-semaine"];
+    if err.kind() == CadenceErrorKind::DomDowOr && spans.len() == 5 {
+        return err.with_span((spans[2].0, spans[4].1));
+    }
+    let Some(label) = err.field() else {
+        return err;
+    };
+    match FIELDS
+        .iter()
+        .position(|f| f == &label)
+        .and_then(|i| spans.get(i))
+    {
+        Some(&(a, b)) => err.with_span((a, b)),
+        None => err,
     }
 }
 
@@ -257,7 +306,8 @@ fn split_tz(text: &str) -> Result<(String, &str), CadenceError> {
                     CadenceErrorKind::TzUnknown,
                     format!("cadence `{text}` · fuseau `{name}` inconnu de la base IANA embarquée"),
                     "un nom IANA · ex. `TZ=Europe/Paris …` (la base est figée au build, zéro lecture système)",
-                ));
+                )
+                .with_span((3, head.len())));
             }
             Ok((name.to_owned(), rest.trim_start()))
         }
@@ -267,7 +317,8 @@ fn split_tz(text: &str) -> Result<(String, &str), CadenceError> {
                 "cadence `{text}` · pas de fuseau — il ne peut pas être oublié par le calculateur, donc il vit DANS l expression"
             ),
             "préfixe la cadence de `TZ=<iana>` · ex. `TZ=Europe/Paris 0 9 * * 1` (seul `on-webhook` n en porte pas)",
-        )),
+        )
+        .with_span((0, text.len()))),
     }
 }
 
