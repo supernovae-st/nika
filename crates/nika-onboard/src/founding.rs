@@ -13,7 +13,7 @@
 //! The human keeps the hand everywhere: an existing file is SKIPPED,
 //! never clobbered — `--force` is the explicit override (same law as
 //! `nika new`). A write failure is the one environment error (`exit 3`).
-//! The one append-maybe surface is `.gitignore` ([`crate::gitignore`] —
+//! The one append-maybe surface is `.gitignore` (`crate::gitignore` —
 //! adds-only: the trace-cover section joins an existing file, never a
 //! rewrite, and a second run adds nothing).
 
