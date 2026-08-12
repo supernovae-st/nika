@@ -11,7 +11,7 @@ import { readFileSync } from 'node:fs';
 // the Node target — no fetch-based init (the web target's init can't read
 // a file path from Node · the browser consumer rides pkg/, this rides
 // pkg-node/)
-import { derive_run, fold_journal, seat_first_json, seat_next_json } from './pkg-node/nika_tui_core.js';
+import { derive_run, fold_journal, seat_first, seat_next } from './pkg-node/nika_tui_core.js';
 
 const fixture = JSON.parse(readFileSync(new URL('./tests/fixtures/demo-ok.json', import.meta.url)));
 const derived = JSON.parse(derive_run(JSON.stringify(fixture.workflow), JSON.stringify(fixture.run)));
@@ -31,11 +31,11 @@ console.assert(run.steps.find((s) => s.id === 'lire')?.failed?.code === 'NIKA-BU
 console.assert(run.steps.find((s) => s.id === 'ecris')?.blockedBy === 'resume', 'the culpable, not needs[0]');
 
 const graph = readFileSync(new URL('./tests/fixtures/inspect-gated.json', import.meta.url), 'utf8');
-const b1 = JSON.parse(seat_first_json(graph));
+const b1 = JSON.parse(seat_first(graph));
 console.assert(b1.rev === 1 && b1.marks.every((m) => m === '+'), 'r1 births all');
 const g2 = JSON.parse(graph);
 g2.nodes = g2.nodes.slice(1); // kill the first node — its slot must empty FOREVER
-const b2 = JSON.parse(seat_next_json(JSON.stringify(b1), JSON.stringify(g2)));
+const b2 = JSON.parse(seat_next(JSON.stringify(b1), JSON.stringify(g2)));
 console.assert(b2.rev === 2 && b2.slots[0] === null && b2.marks[0] === '−', 'the hole is permanent');
 
 console.log('wasm harness · all doors exercised, all green');
