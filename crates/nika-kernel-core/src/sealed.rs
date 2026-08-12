@@ -34,7 +34,7 @@
 //! - `WasmPluginHost`, `Sandbox` — open per ADR-020 (community WASM/sandbox
 //!   backends).
 //! - `MemoryRemember`, `MemoryRecall`, `MemoryForget`, `EmbeddingProvider` —
-//!   Cortex sub-system (v0.95), open for community memory stores
+//!   the Connectome sub-system, open for community memory stores
 //!   (HNSW/BM25/RRF backends ship separately per ADR-033).
 //! - `ToolExecute`, `ToolBatch`, `ContextCompressor` — open for the
 //!   third-party MCP ecosystem.
