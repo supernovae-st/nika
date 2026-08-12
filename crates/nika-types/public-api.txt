@@ -2040,6 +2040,47 @@ pub fn nika_types::net::host_is_blocked(host: &str) -> bool
 pub fn nika_types::net::ip_is_blocked(ip: core::net::ip_addr::IpAddr) -> bool
 pub fn nika_types::net::is_exact_loopback_literal(entry: &str) -> bool
 pub fn nika_types::net::loopback_declassified(allowlist: &[alloc::string::String], host: &str) -> bool
+pub mod nika_types::origins
+#[non_exhaustive] pub enum nika_types::origins::InputOrigin
+pub nika_types::origins::InputOrigin::CiContext
+pub nika_types::origins::InputOrigin::CliOperator
+pub nika_types::origins::InputOrigin::Env
+pub nika_types::origins::InputOrigin::File
+impl nika_types::origins::InputOrigin
+pub const fn nika_types::origins::InputOrigin::as_str(self) -> &'static str
+impl core::clone::Clone for nika_types::origins::InputOrigin
+pub fn nika_types::origins::InputOrigin::clone(&self) -> nika_types::origins::InputOrigin
+impl core::cmp::Eq for nika_types::origins::InputOrigin
+impl core::cmp::PartialEq for nika_types::origins::InputOrigin
+pub fn nika_types::origins::InputOrigin::eq(&self, other: &nika_types::origins::InputOrigin) -> bool
+impl core::fmt::Debug for nika_types::origins::InputOrigin
+pub fn nika_types::origins::InputOrigin::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_types::origins::InputOrigin
+impl core::marker::StructuralPartialEq for nika_types::origins::InputOrigin
+impl serde_core::ser::Serialize for nika_types::origins::InputOrigin
+pub fn nika_types::origins::InputOrigin::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<T, U> core::convert::Into<U> for nika_types::origins::InputOrigin where U: core::convert::From<T>
+pub fn nika_types::origins::InputOrigin::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::origins::InputOrigin where U: core::convert::Into<T>
+pub type nika_types::origins::InputOrigin::Error = core::convert::Infallible
+pub fn nika_types::origins::InputOrigin::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::origins::InputOrigin where U: core::convert::TryFrom<T>
+pub type nika_types::origins::InputOrigin::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::origins::InputOrigin::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::origins::InputOrigin where T: core::clone::Clone
+pub type nika_types::origins::InputOrigin::Owned = T
+pub fn nika_types::origins::InputOrigin::clone_into(&self, target: &mut T)
+pub fn nika_types::origins::InputOrigin::to_owned(&self) -> T
+impl<T> core::any::Any for nika_types::origins::InputOrigin where T: 'static + ?core::marker::Sized
+pub fn nika_types::origins::InputOrigin::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::origins::InputOrigin where T: ?core::marker::Sized
+pub fn nika_types::origins::InputOrigin::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::origins::InputOrigin where T: ?core::marker::Sized
+pub fn nika_types::origins::InputOrigin::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::origins::InputOrigin where T: core::clone::Clone
+pub unsafe fn nika_types::origins::InputOrigin::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::origins::InputOrigin
+pub fn nika_types::origins::InputOrigin::from(t: T) -> T
 pub mod nika_types::prelude
 #[non_exhaustive] pub enum nika_types::prelude::BudgetDirective
 pub nika_types::prelude::BudgetDirective::Cost
@@ -2288,6 +2329,46 @@ pub unsafe fn nika_types::extract::ExtractMode::clone_to_uninit(&self, dest: *mu
 impl<T> core::convert::From<T> for nika_types::extract::ExtractMode
 pub fn nika_types::extract::ExtractMode::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::extract::ExtractMode where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub enum nika_types::prelude::InputOrigin
+pub nika_types::prelude::InputOrigin::CiContext
+pub nika_types::prelude::InputOrigin::CliOperator
+pub nika_types::prelude::InputOrigin::Env
+pub nika_types::prelude::InputOrigin::File
+impl nika_types::origins::InputOrigin
+pub const fn nika_types::origins::InputOrigin::as_str(self) -> &'static str
+impl core::clone::Clone for nika_types::origins::InputOrigin
+pub fn nika_types::origins::InputOrigin::clone(&self) -> nika_types::origins::InputOrigin
+impl core::cmp::Eq for nika_types::origins::InputOrigin
+impl core::cmp::PartialEq for nika_types::origins::InputOrigin
+pub fn nika_types::origins::InputOrigin::eq(&self, other: &nika_types::origins::InputOrigin) -> bool
+impl core::fmt::Debug for nika_types::origins::InputOrigin
+pub fn nika_types::origins::InputOrigin::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_types::origins::InputOrigin
+impl core::marker::StructuralPartialEq for nika_types::origins::InputOrigin
+impl serde_core::ser::Serialize for nika_types::origins::InputOrigin
+pub fn nika_types::origins::InputOrigin::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<T, U> core::convert::Into<U> for nika_types::origins::InputOrigin where U: core::convert::From<T>
+pub fn nika_types::origins::InputOrigin::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::origins::InputOrigin where U: core::convert::Into<T>
+pub type nika_types::origins::InputOrigin::Error = core::convert::Infallible
+pub fn nika_types::origins::InputOrigin::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::origins::InputOrigin where U: core::convert::TryFrom<T>
+pub type nika_types::origins::InputOrigin::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::origins::InputOrigin::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::origins::InputOrigin where T: core::clone::Clone
+pub type nika_types::origins::InputOrigin::Owned = T
+pub fn nika_types::origins::InputOrigin::clone_into(&self, target: &mut T)
+pub fn nika_types::origins::InputOrigin::to_owned(&self) -> T
+impl<T> core::any::Any for nika_types::origins::InputOrigin where T: 'static + ?core::marker::Sized
+pub fn nika_types::origins::InputOrigin::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::origins::InputOrigin where T: ?core::marker::Sized
+pub fn nika_types::origins::InputOrigin::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::origins::InputOrigin where T: ?core::marker::Sized
+pub fn nika_types::origins::InputOrigin::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::origins::InputOrigin where T: core::clone::Clone
+pub unsafe fn nika_types::origins::InputOrigin::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::origins::InputOrigin
+pub fn nika_types::origins::InputOrigin::from(t: T) -> T
 #[non_exhaustive] pub enum nika_types::prelude::MemoryDirective
 pub nika_types::prelude::MemoryDirective::Auto
 pub nika_types::prelude::MemoryDirective::Disabled
@@ -2417,6 +2498,86 @@ pub unsafe fn nika_types::role::Role::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_types::role::Role
 pub fn nika_types::role::Role::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::role::Role where T: for<'de> serde_core::de::Deserialize<'de>
+pub enum nika_types::prelude::SandboxPolicy
+pub nika_types::prelude::SandboxPolicy::Auto
+pub nika_types::prelude::SandboxPolicy::Off
+pub nika_types::prelude::SandboxPolicy::Require
+impl nika_types::sandbox_policy::SandboxPolicy
+pub const nika_types::sandbox_policy::SandboxPolicy::ENV_VAR: &'static str
+pub fn nika_types::sandbox_policy::SandboxPolicy::as_str(self) -> &'static str
+pub fn nika_types::sandbox_policy::SandboxPolicy::judge(self, confined: bool, permits_declared: bool) -> nika_types::sandbox_policy::SandboxVerdict
+impl core::clone::Clone for nika_types::sandbox_policy::SandboxPolicy
+pub fn nika_types::sandbox_policy::SandboxPolicy::clone(&self) -> nika_types::sandbox_policy::SandboxPolicy
+impl core::cmp::Eq for nika_types::sandbox_policy::SandboxPolicy
+impl core::cmp::PartialEq for nika_types::sandbox_policy::SandboxPolicy
+pub fn nika_types::sandbox_policy::SandboxPolicy::eq(&self, other: &nika_types::sandbox_policy::SandboxPolicy) -> bool
+impl core::default::Default for nika_types::sandbox_policy::SandboxPolicy
+pub fn nika_types::sandbox_policy::SandboxPolicy::default() -> nika_types::sandbox_policy::SandboxPolicy
+impl core::fmt::Debug for nika_types::sandbox_policy::SandboxPolicy
+pub fn nika_types::sandbox_policy::SandboxPolicy::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_types::sandbox_policy::SandboxPolicy
+impl core::marker::StructuralPartialEq for nika_types::sandbox_policy::SandboxPolicy
+impl core::str::traits::FromStr for nika_types::sandbox_policy::SandboxPolicy
+pub type nika_types::sandbox_policy::SandboxPolicy::Err = nika_types::sandbox_policy::SandboxPolicyParseError
+pub fn nika_types::sandbox_policy::SandboxPolicy::from_str(raw: &str) -> core::result::Result<Self, Self::Err>
+impl<T, U> core::convert::Into<U> for nika_types::sandbox_policy::SandboxPolicy where U: core::convert::From<T>
+pub fn nika_types::sandbox_policy::SandboxPolicy::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::sandbox_policy::SandboxPolicy where U: core::convert::Into<T>
+pub type nika_types::sandbox_policy::SandboxPolicy::Error = core::convert::Infallible
+pub fn nika_types::sandbox_policy::SandboxPolicy::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::sandbox_policy::SandboxPolicy where U: core::convert::TryFrom<T>
+pub type nika_types::sandbox_policy::SandboxPolicy::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::sandbox_policy::SandboxPolicy::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::sandbox_policy::SandboxPolicy where T: core::clone::Clone
+pub type nika_types::sandbox_policy::SandboxPolicy::Owned = T
+pub fn nika_types::sandbox_policy::SandboxPolicy::clone_into(&self, target: &mut T)
+pub fn nika_types::sandbox_policy::SandboxPolicy::to_owned(&self) -> T
+impl<T> core::any::Any for nika_types::sandbox_policy::SandboxPolicy where T: 'static + ?core::marker::Sized
+pub fn nika_types::sandbox_policy::SandboxPolicy::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::sandbox_policy::SandboxPolicy where T: ?core::marker::Sized
+pub fn nika_types::sandbox_policy::SandboxPolicy::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::sandbox_policy::SandboxPolicy where T: ?core::marker::Sized
+pub fn nika_types::sandbox_policy::SandboxPolicy::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::sandbox_policy::SandboxPolicy where T: core::clone::Clone
+pub unsafe fn nika_types::sandbox_policy::SandboxPolicy::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::sandbox_policy::SandboxPolicy
+pub fn nika_types::sandbox_policy::SandboxPolicy::from(t: T) -> T
+pub enum nika_types::prelude::SandboxVerdict
+pub nika_types::prelude::SandboxVerdict::Confined
+pub nika_types::prelude::SandboxVerdict::PermitlessBestEffort
+pub nika_types::prelude::SandboxVerdict::Refused
+pub nika_types::prelude::SandboxVerdict::Waived
+impl core::clone::Clone for nika_types::sandbox_policy::SandboxVerdict
+pub fn nika_types::sandbox_policy::SandboxVerdict::clone(&self) -> nika_types::sandbox_policy::SandboxVerdict
+impl core::cmp::Eq for nika_types::sandbox_policy::SandboxVerdict
+impl core::cmp::PartialEq for nika_types::sandbox_policy::SandboxVerdict
+pub fn nika_types::sandbox_policy::SandboxVerdict::eq(&self, other: &nika_types::sandbox_policy::SandboxVerdict) -> bool
+impl core::fmt::Debug for nika_types::sandbox_policy::SandboxVerdict
+pub fn nika_types::sandbox_policy::SandboxVerdict::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_types::sandbox_policy::SandboxVerdict
+impl core::marker::StructuralPartialEq for nika_types::sandbox_policy::SandboxVerdict
+impl<T, U> core::convert::Into<U> for nika_types::sandbox_policy::SandboxVerdict where U: core::convert::From<T>
+pub fn nika_types::sandbox_policy::SandboxVerdict::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::sandbox_policy::SandboxVerdict where U: core::convert::Into<T>
+pub type nika_types::sandbox_policy::SandboxVerdict::Error = core::convert::Infallible
+pub fn nika_types::sandbox_policy::SandboxVerdict::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::sandbox_policy::SandboxVerdict where U: core::convert::TryFrom<T>
+pub type nika_types::sandbox_policy::SandboxVerdict::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::sandbox_policy::SandboxVerdict::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::sandbox_policy::SandboxVerdict where T: core::clone::Clone
+pub type nika_types::sandbox_policy::SandboxVerdict::Owned = T
+pub fn nika_types::sandbox_policy::SandboxVerdict::clone_into(&self, target: &mut T)
+pub fn nika_types::sandbox_policy::SandboxVerdict::to_owned(&self) -> T
+impl<T> core::any::Any for nika_types::sandbox_policy::SandboxVerdict where T: 'static + ?core::marker::Sized
+pub fn nika_types::sandbox_policy::SandboxVerdict::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::sandbox_policy::SandboxVerdict where T: ?core::marker::Sized
+pub fn nika_types::sandbox_policy::SandboxVerdict::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::sandbox_policy::SandboxVerdict where T: ?core::marker::Sized
+pub fn nika_types::sandbox_policy::SandboxVerdict::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::sandbox_policy::SandboxVerdict where T: core::clone::Clone
+pub unsafe fn nika_types::sandbox_policy::SandboxVerdict::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::sandbox_policy::SandboxVerdict
+pub fn nika_types::sandbox_policy::SandboxVerdict::from(t: T) -> T
 #[non_exhaustive] pub enum nika_types::prelude::Value
 pub nika_types::prelude::Value::Bool(bool)
 pub nika_types::prelude::Value::Float(f64)
@@ -3445,6 +3606,42 @@ pub unsafe fn nika_types::id::RunId::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_types::id::RunId
 pub fn nika_types::id::RunId::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::id::RunId where T: for<'de> serde_core::de::Deserialize<'de>
+pub struct nika_types::prelude::SandboxPolicyParseError(pub alloc::string::String)
+impl core::clone::Clone for nika_types::sandbox_policy::SandboxPolicyParseError
+pub fn nika_types::sandbox_policy::SandboxPolicyParseError::clone(&self) -> nika_types::sandbox_policy::SandboxPolicyParseError
+impl core::cmp::Eq for nika_types::sandbox_policy::SandboxPolicyParseError
+impl core::cmp::PartialEq for nika_types::sandbox_policy::SandboxPolicyParseError
+pub fn nika_types::sandbox_policy::SandboxPolicyParseError::eq(&self, other: &nika_types::sandbox_policy::SandboxPolicyParseError) -> bool
+impl core::error::Error for nika_types::sandbox_policy::SandboxPolicyParseError
+impl core::fmt::Debug for nika_types::sandbox_policy::SandboxPolicyParseError
+pub fn nika_types::sandbox_policy::SandboxPolicyParseError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_types::sandbox_policy::SandboxPolicyParseError
+pub fn nika_types::sandbox_policy::SandboxPolicyParseError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_types::sandbox_policy::SandboxPolicyParseError
+impl<T, U> core::convert::Into<U> for nika_types::sandbox_policy::SandboxPolicyParseError where U: core::convert::From<T>
+pub fn nika_types::sandbox_policy::SandboxPolicyParseError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::sandbox_policy::SandboxPolicyParseError where U: core::convert::Into<T>
+pub type nika_types::sandbox_policy::SandboxPolicyParseError::Error = core::convert::Infallible
+pub fn nika_types::sandbox_policy::SandboxPolicyParseError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::sandbox_policy::SandboxPolicyParseError where U: core::convert::TryFrom<T>
+pub type nika_types::sandbox_policy::SandboxPolicyParseError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::sandbox_policy::SandboxPolicyParseError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::sandbox_policy::SandboxPolicyParseError where T: core::clone::Clone
+pub type nika_types::sandbox_policy::SandboxPolicyParseError::Owned = T
+pub fn nika_types::sandbox_policy::SandboxPolicyParseError::clone_into(&self, target: &mut T)
+pub fn nika_types::sandbox_policy::SandboxPolicyParseError::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_types::sandbox_policy::SandboxPolicyParseError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_types::sandbox_policy::SandboxPolicyParseError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_types::sandbox_policy::SandboxPolicyParseError where T: 'static + ?core::marker::Sized
+pub fn nika_types::sandbox_policy::SandboxPolicyParseError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::sandbox_policy::SandboxPolicyParseError where T: ?core::marker::Sized
+pub fn nika_types::sandbox_policy::SandboxPolicyParseError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::sandbox_policy::SandboxPolicyParseError where T: ?core::marker::Sized
+pub fn nika_types::sandbox_policy::SandboxPolicyParseError::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::sandbox_policy::SandboxPolicyParseError where T: core::clone::Clone
+pub unsafe fn nika_types::sandbox_policy::SandboxPolicyParseError::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::sandbox_policy::SandboxPolicyParseError
+pub fn nika_types::sandbox_policy::SandboxPolicyParseError::from(t: T) -> T
 #[non_exhaustive] pub struct nika_types::prelude::SpanId
 pub nika_types::prelude::SpanId::bytes: [u8; 8]
 impl nika_types::id::SpanId
@@ -4312,6 +4509,124 @@ pub unsafe fn nika_types::role::Role::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_types::role::Role
 pub fn nika_types::role::Role::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::role::Role where T: for<'de> serde_core::de::Deserialize<'de>
+pub mod nika_types::sandbox_policy
+pub enum nika_types::sandbox_policy::SandboxPolicy
+pub nika_types::sandbox_policy::SandboxPolicy::Auto
+pub nika_types::sandbox_policy::SandboxPolicy::Off
+pub nika_types::sandbox_policy::SandboxPolicy::Require
+impl nika_types::sandbox_policy::SandboxPolicy
+pub const nika_types::sandbox_policy::SandboxPolicy::ENV_VAR: &'static str
+pub fn nika_types::sandbox_policy::SandboxPolicy::as_str(self) -> &'static str
+pub fn nika_types::sandbox_policy::SandboxPolicy::judge(self, confined: bool, permits_declared: bool) -> nika_types::sandbox_policy::SandboxVerdict
+impl core::clone::Clone for nika_types::sandbox_policy::SandboxPolicy
+pub fn nika_types::sandbox_policy::SandboxPolicy::clone(&self) -> nika_types::sandbox_policy::SandboxPolicy
+impl core::cmp::Eq for nika_types::sandbox_policy::SandboxPolicy
+impl core::cmp::PartialEq for nika_types::sandbox_policy::SandboxPolicy
+pub fn nika_types::sandbox_policy::SandboxPolicy::eq(&self, other: &nika_types::sandbox_policy::SandboxPolicy) -> bool
+impl core::default::Default for nika_types::sandbox_policy::SandboxPolicy
+pub fn nika_types::sandbox_policy::SandboxPolicy::default() -> nika_types::sandbox_policy::SandboxPolicy
+impl core::fmt::Debug for nika_types::sandbox_policy::SandboxPolicy
+pub fn nika_types::sandbox_policy::SandboxPolicy::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_types::sandbox_policy::SandboxPolicy
+impl core::marker::StructuralPartialEq for nika_types::sandbox_policy::SandboxPolicy
+impl core::str::traits::FromStr for nika_types::sandbox_policy::SandboxPolicy
+pub type nika_types::sandbox_policy::SandboxPolicy::Err = nika_types::sandbox_policy::SandboxPolicyParseError
+pub fn nika_types::sandbox_policy::SandboxPolicy::from_str(raw: &str) -> core::result::Result<Self, Self::Err>
+impl<T, U> core::convert::Into<U> for nika_types::sandbox_policy::SandboxPolicy where U: core::convert::From<T>
+pub fn nika_types::sandbox_policy::SandboxPolicy::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::sandbox_policy::SandboxPolicy where U: core::convert::Into<T>
+pub type nika_types::sandbox_policy::SandboxPolicy::Error = core::convert::Infallible
+pub fn nika_types::sandbox_policy::SandboxPolicy::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::sandbox_policy::SandboxPolicy where U: core::convert::TryFrom<T>
+pub type nika_types::sandbox_policy::SandboxPolicy::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::sandbox_policy::SandboxPolicy::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::sandbox_policy::SandboxPolicy where T: core::clone::Clone
+pub type nika_types::sandbox_policy::SandboxPolicy::Owned = T
+pub fn nika_types::sandbox_policy::SandboxPolicy::clone_into(&self, target: &mut T)
+pub fn nika_types::sandbox_policy::SandboxPolicy::to_owned(&self) -> T
+impl<T> core::any::Any for nika_types::sandbox_policy::SandboxPolicy where T: 'static + ?core::marker::Sized
+pub fn nika_types::sandbox_policy::SandboxPolicy::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::sandbox_policy::SandboxPolicy where T: ?core::marker::Sized
+pub fn nika_types::sandbox_policy::SandboxPolicy::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::sandbox_policy::SandboxPolicy where T: ?core::marker::Sized
+pub fn nika_types::sandbox_policy::SandboxPolicy::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::sandbox_policy::SandboxPolicy where T: core::clone::Clone
+pub unsafe fn nika_types::sandbox_policy::SandboxPolicy::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::sandbox_policy::SandboxPolicy
+pub fn nika_types::sandbox_policy::SandboxPolicy::from(t: T) -> T
+pub enum nika_types::sandbox_policy::SandboxVerdict
+pub nika_types::sandbox_policy::SandboxVerdict::Confined
+pub nika_types::sandbox_policy::SandboxVerdict::PermitlessBestEffort
+pub nika_types::sandbox_policy::SandboxVerdict::Refused
+pub nika_types::sandbox_policy::SandboxVerdict::Waived
+impl core::clone::Clone for nika_types::sandbox_policy::SandboxVerdict
+pub fn nika_types::sandbox_policy::SandboxVerdict::clone(&self) -> nika_types::sandbox_policy::SandboxVerdict
+impl core::cmp::Eq for nika_types::sandbox_policy::SandboxVerdict
+impl core::cmp::PartialEq for nika_types::sandbox_policy::SandboxVerdict
+pub fn nika_types::sandbox_policy::SandboxVerdict::eq(&self, other: &nika_types::sandbox_policy::SandboxVerdict) -> bool
+impl core::fmt::Debug for nika_types::sandbox_policy::SandboxVerdict
+pub fn nika_types::sandbox_policy::SandboxVerdict::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_types::sandbox_policy::SandboxVerdict
+impl core::marker::StructuralPartialEq for nika_types::sandbox_policy::SandboxVerdict
+impl<T, U> core::convert::Into<U> for nika_types::sandbox_policy::SandboxVerdict where U: core::convert::From<T>
+pub fn nika_types::sandbox_policy::SandboxVerdict::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::sandbox_policy::SandboxVerdict where U: core::convert::Into<T>
+pub type nika_types::sandbox_policy::SandboxVerdict::Error = core::convert::Infallible
+pub fn nika_types::sandbox_policy::SandboxVerdict::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::sandbox_policy::SandboxVerdict where U: core::convert::TryFrom<T>
+pub type nika_types::sandbox_policy::SandboxVerdict::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::sandbox_policy::SandboxVerdict::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::sandbox_policy::SandboxVerdict where T: core::clone::Clone
+pub type nika_types::sandbox_policy::SandboxVerdict::Owned = T
+pub fn nika_types::sandbox_policy::SandboxVerdict::clone_into(&self, target: &mut T)
+pub fn nika_types::sandbox_policy::SandboxVerdict::to_owned(&self) -> T
+impl<T> core::any::Any for nika_types::sandbox_policy::SandboxVerdict where T: 'static + ?core::marker::Sized
+pub fn nika_types::sandbox_policy::SandboxVerdict::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::sandbox_policy::SandboxVerdict where T: ?core::marker::Sized
+pub fn nika_types::sandbox_policy::SandboxVerdict::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::sandbox_policy::SandboxVerdict where T: ?core::marker::Sized
+pub fn nika_types::sandbox_policy::SandboxVerdict::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::sandbox_policy::SandboxVerdict where T: core::clone::Clone
+pub unsafe fn nika_types::sandbox_policy::SandboxVerdict::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::sandbox_policy::SandboxVerdict
+pub fn nika_types::sandbox_policy::SandboxVerdict::from(t: T) -> T
+pub struct nika_types::sandbox_policy::SandboxPolicyParseError(pub alloc::string::String)
+impl core::clone::Clone for nika_types::sandbox_policy::SandboxPolicyParseError
+pub fn nika_types::sandbox_policy::SandboxPolicyParseError::clone(&self) -> nika_types::sandbox_policy::SandboxPolicyParseError
+impl core::cmp::Eq for nika_types::sandbox_policy::SandboxPolicyParseError
+impl core::cmp::PartialEq for nika_types::sandbox_policy::SandboxPolicyParseError
+pub fn nika_types::sandbox_policy::SandboxPolicyParseError::eq(&self, other: &nika_types::sandbox_policy::SandboxPolicyParseError) -> bool
+impl core::error::Error for nika_types::sandbox_policy::SandboxPolicyParseError
+impl core::fmt::Debug for nika_types::sandbox_policy::SandboxPolicyParseError
+pub fn nika_types::sandbox_policy::SandboxPolicyParseError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_types::sandbox_policy::SandboxPolicyParseError
+pub fn nika_types::sandbox_policy::SandboxPolicyParseError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_types::sandbox_policy::SandboxPolicyParseError
+impl<T, U> core::convert::Into<U> for nika_types::sandbox_policy::SandboxPolicyParseError where U: core::convert::From<T>
+pub fn nika_types::sandbox_policy::SandboxPolicyParseError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::sandbox_policy::SandboxPolicyParseError where U: core::convert::Into<T>
+pub type nika_types::sandbox_policy::SandboxPolicyParseError::Error = core::convert::Infallible
+pub fn nika_types::sandbox_policy::SandboxPolicyParseError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::sandbox_policy::SandboxPolicyParseError where U: core::convert::TryFrom<T>
+pub type nika_types::sandbox_policy::SandboxPolicyParseError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::sandbox_policy::SandboxPolicyParseError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::sandbox_policy::SandboxPolicyParseError where T: core::clone::Clone
+pub type nika_types::sandbox_policy::SandboxPolicyParseError::Owned = T
+pub fn nika_types::sandbox_policy::SandboxPolicyParseError::clone_into(&self, target: &mut T)
+pub fn nika_types::sandbox_policy::SandboxPolicyParseError::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_types::sandbox_policy::SandboxPolicyParseError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_types::sandbox_policy::SandboxPolicyParseError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_types::sandbox_policy::SandboxPolicyParseError where T: 'static + ?core::marker::Sized
+pub fn nika_types::sandbox_policy::SandboxPolicyParseError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::sandbox_policy::SandboxPolicyParseError where T: ?core::marker::Sized
+pub fn nika_types::sandbox_policy::SandboxPolicyParseError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::sandbox_policy::SandboxPolicyParseError where T: ?core::marker::Sized
+pub fn nika_types::sandbox_policy::SandboxPolicyParseError::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::sandbox_policy::SandboxPolicyParseError where T: core::clone::Clone
+pub unsafe fn nika_types::sandbox_policy::SandboxPolicyParseError::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::sandbox_policy::SandboxPolicyParseError
+pub fn nika_types::sandbox_policy::SandboxPolicyParseError::from(t: T) -> T
+pub fn nika_types::sandbox_policy::parse_policy_env(raw: core::option::Option<&str>) -> core::result::Result<nika_types::sandbox_policy::SandboxPolicy, nika_types::sandbox_policy::SandboxPolicyParseError>
 pub mod nika_types::schema
 #[non_exhaustive] pub struct nika_types::schema::EventSchemaVersion
 pub nika_types::schema::EventSchemaVersion::version: u16
@@ -5270,6 +5585,46 @@ pub unsafe fn nika_types::extract::ExtractMode::clone_to_uninit(&self, dest: *mu
 impl<T> core::convert::From<T> for nika_types::extract::ExtractMode
 pub fn nika_types::extract::ExtractMode::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::extract::ExtractMode where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub enum nika_types::InputOrigin
+pub nika_types::InputOrigin::CiContext
+pub nika_types::InputOrigin::CliOperator
+pub nika_types::InputOrigin::Env
+pub nika_types::InputOrigin::File
+impl nika_types::origins::InputOrigin
+pub const fn nika_types::origins::InputOrigin::as_str(self) -> &'static str
+impl core::clone::Clone for nika_types::origins::InputOrigin
+pub fn nika_types::origins::InputOrigin::clone(&self) -> nika_types::origins::InputOrigin
+impl core::cmp::Eq for nika_types::origins::InputOrigin
+impl core::cmp::PartialEq for nika_types::origins::InputOrigin
+pub fn nika_types::origins::InputOrigin::eq(&self, other: &nika_types::origins::InputOrigin) -> bool
+impl core::fmt::Debug for nika_types::origins::InputOrigin
+pub fn nika_types::origins::InputOrigin::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_types::origins::InputOrigin
+impl core::marker::StructuralPartialEq for nika_types::origins::InputOrigin
+impl serde_core::ser::Serialize for nika_types::origins::InputOrigin
+pub fn nika_types::origins::InputOrigin::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<T, U> core::convert::Into<U> for nika_types::origins::InputOrigin where U: core::convert::From<T>
+pub fn nika_types::origins::InputOrigin::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::origins::InputOrigin where U: core::convert::Into<T>
+pub type nika_types::origins::InputOrigin::Error = core::convert::Infallible
+pub fn nika_types::origins::InputOrigin::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::origins::InputOrigin where U: core::convert::TryFrom<T>
+pub type nika_types::origins::InputOrigin::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::origins::InputOrigin::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::origins::InputOrigin where T: core::clone::Clone
+pub type nika_types::origins::InputOrigin::Owned = T
+pub fn nika_types::origins::InputOrigin::clone_into(&self, target: &mut T)
+pub fn nika_types::origins::InputOrigin::to_owned(&self) -> T
+impl<T> core::any::Any for nika_types::origins::InputOrigin where T: 'static + ?core::marker::Sized
+pub fn nika_types::origins::InputOrigin::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::origins::InputOrigin where T: ?core::marker::Sized
+pub fn nika_types::origins::InputOrigin::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::origins::InputOrigin where T: ?core::marker::Sized
+pub fn nika_types::origins::InputOrigin::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::origins::InputOrigin where T: core::clone::Clone
+pub unsafe fn nika_types::origins::InputOrigin::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::origins::InputOrigin
+pub fn nika_types::origins::InputOrigin::from(t: T) -> T
 #[non_exhaustive] pub enum nika_types::MemoryDirective
 pub nika_types::MemoryDirective::Auto
 pub nika_types::MemoryDirective::Disabled
@@ -5399,6 +5754,86 @@ pub unsafe fn nika_types::role::Role::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_types::role::Role
 pub fn nika_types::role::Role::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::role::Role where T: for<'de> serde_core::de::Deserialize<'de>
+pub enum nika_types::SandboxPolicy
+pub nika_types::SandboxPolicy::Auto
+pub nika_types::SandboxPolicy::Off
+pub nika_types::SandboxPolicy::Require
+impl nika_types::sandbox_policy::SandboxPolicy
+pub const nika_types::sandbox_policy::SandboxPolicy::ENV_VAR: &'static str
+pub fn nika_types::sandbox_policy::SandboxPolicy::as_str(self) -> &'static str
+pub fn nika_types::sandbox_policy::SandboxPolicy::judge(self, confined: bool, permits_declared: bool) -> nika_types::sandbox_policy::SandboxVerdict
+impl core::clone::Clone for nika_types::sandbox_policy::SandboxPolicy
+pub fn nika_types::sandbox_policy::SandboxPolicy::clone(&self) -> nika_types::sandbox_policy::SandboxPolicy
+impl core::cmp::Eq for nika_types::sandbox_policy::SandboxPolicy
+impl core::cmp::PartialEq for nika_types::sandbox_policy::SandboxPolicy
+pub fn nika_types::sandbox_policy::SandboxPolicy::eq(&self, other: &nika_types::sandbox_policy::SandboxPolicy) -> bool
+impl core::default::Default for nika_types::sandbox_policy::SandboxPolicy
+pub fn nika_types::sandbox_policy::SandboxPolicy::default() -> nika_types::sandbox_policy::SandboxPolicy
+impl core::fmt::Debug for nika_types::sandbox_policy::SandboxPolicy
+pub fn nika_types::sandbox_policy::SandboxPolicy::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_types::sandbox_policy::SandboxPolicy
+impl core::marker::StructuralPartialEq for nika_types::sandbox_policy::SandboxPolicy
+impl core::str::traits::FromStr for nika_types::sandbox_policy::SandboxPolicy
+pub type nika_types::sandbox_policy::SandboxPolicy::Err = nika_types::sandbox_policy::SandboxPolicyParseError
+pub fn nika_types::sandbox_policy::SandboxPolicy::from_str(raw: &str) -> core::result::Result<Self, Self::Err>
+impl<T, U> core::convert::Into<U> for nika_types::sandbox_policy::SandboxPolicy where U: core::convert::From<T>
+pub fn nika_types::sandbox_policy::SandboxPolicy::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::sandbox_policy::SandboxPolicy where U: core::convert::Into<T>
+pub type nika_types::sandbox_policy::SandboxPolicy::Error = core::convert::Infallible
+pub fn nika_types::sandbox_policy::SandboxPolicy::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::sandbox_policy::SandboxPolicy where U: core::convert::TryFrom<T>
+pub type nika_types::sandbox_policy::SandboxPolicy::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::sandbox_policy::SandboxPolicy::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::sandbox_policy::SandboxPolicy where T: core::clone::Clone
+pub type nika_types::sandbox_policy::SandboxPolicy::Owned = T
+pub fn nika_types::sandbox_policy::SandboxPolicy::clone_into(&self, target: &mut T)
+pub fn nika_types::sandbox_policy::SandboxPolicy::to_owned(&self) -> T
+impl<T> core::any::Any for nika_types::sandbox_policy::SandboxPolicy where T: 'static + ?core::marker::Sized
+pub fn nika_types::sandbox_policy::SandboxPolicy::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::sandbox_policy::SandboxPolicy where T: ?core::marker::Sized
+pub fn nika_types::sandbox_policy::SandboxPolicy::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::sandbox_policy::SandboxPolicy where T: ?core::marker::Sized
+pub fn nika_types::sandbox_policy::SandboxPolicy::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::sandbox_policy::SandboxPolicy where T: core::clone::Clone
+pub unsafe fn nika_types::sandbox_policy::SandboxPolicy::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::sandbox_policy::SandboxPolicy
+pub fn nika_types::sandbox_policy::SandboxPolicy::from(t: T) -> T
+pub enum nika_types::SandboxVerdict
+pub nika_types::SandboxVerdict::Confined
+pub nika_types::SandboxVerdict::PermitlessBestEffort
+pub nika_types::SandboxVerdict::Refused
+pub nika_types::SandboxVerdict::Waived
+impl core::clone::Clone for nika_types::sandbox_policy::SandboxVerdict
+pub fn nika_types::sandbox_policy::SandboxVerdict::clone(&self) -> nika_types::sandbox_policy::SandboxVerdict
+impl core::cmp::Eq for nika_types::sandbox_policy::SandboxVerdict
+impl core::cmp::PartialEq for nika_types::sandbox_policy::SandboxVerdict
+pub fn nika_types::sandbox_policy::SandboxVerdict::eq(&self, other: &nika_types::sandbox_policy::SandboxVerdict) -> bool
+impl core::fmt::Debug for nika_types::sandbox_policy::SandboxVerdict
+pub fn nika_types::sandbox_policy::SandboxVerdict::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_types::sandbox_policy::SandboxVerdict
+impl core::marker::StructuralPartialEq for nika_types::sandbox_policy::SandboxVerdict
+impl<T, U> core::convert::Into<U> for nika_types::sandbox_policy::SandboxVerdict where U: core::convert::From<T>
+pub fn nika_types::sandbox_policy::SandboxVerdict::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::sandbox_policy::SandboxVerdict where U: core::convert::Into<T>
+pub type nika_types::sandbox_policy::SandboxVerdict::Error = core::convert::Infallible
+pub fn nika_types::sandbox_policy::SandboxVerdict::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::sandbox_policy::SandboxVerdict where U: core::convert::TryFrom<T>
+pub type nika_types::sandbox_policy::SandboxVerdict::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::sandbox_policy::SandboxVerdict::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::sandbox_policy::SandboxVerdict where T: core::clone::Clone
+pub type nika_types::sandbox_policy::SandboxVerdict::Owned = T
+pub fn nika_types::sandbox_policy::SandboxVerdict::clone_into(&self, target: &mut T)
+pub fn nika_types::sandbox_policy::SandboxVerdict::to_owned(&self) -> T
+impl<T> core::any::Any for nika_types::sandbox_policy::SandboxVerdict where T: 'static + ?core::marker::Sized
+pub fn nika_types::sandbox_policy::SandboxVerdict::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::sandbox_policy::SandboxVerdict where T: ?core::marker::Sized
+pub fn nika_types::sandbox_policy::SandboxVerdict::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::sandbox_policy::SandboxVerdict where T: ?core::marker::Sized
+pub fn nika_types::sandbox_policy::SandboxVerdict::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::sandbox_policy::SandboxVerdict where T: core::clone::Clone
+pub unsafe fn nika_types::sandbox_policy::SandboxVerdict::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::sandbox_policy::SandboxVerdict
+pub fn nika_types::sandbox_policy::SandboxVerdict::from(t: T) -> T
 #[non_exhaustive] pub enum nika_types::Value
 pub nika_types::Value::Bool(bool)
 pub nika_types::Value::Float(f64)
@@ -6427,6 +6862,42 @@ pub unsafe fn nika_types::id::RunId::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_types::id::RunId
 pub fn nika_types::id::RunId::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::id::RunId where T: for<'de> serde_core::de::Deserialize<'de>
+pub struct nika_types::SandboxPolicyParseError(pub alloc::string::String)
+impl core::clone::Clone for nika_types::sandbox_policy::SandboxPolicyParseError
+pub fn nika_types::sandbox_policy::SandboxPolicyParseError::clone(&self) -> nika_types::sandbox_policy::SandboxPolicyParseError
+impl core::cmp::Eq for nika_types::sandbox_policy::SandboxPolicyParseError
+impl core::cmp::PartialEq for nika_types::sandbox_policy::SandboxPolicyParseError
+pub fn nika_types::sandbox_policy::SandboxPolicyParseError::eq(&self, other: &nika_types::sandbox_policy::SandboxPolicyParseError) -> bool
+impl core::error::Error for nika_types::sandbox_policy::SandboxPolicyParseError
+impl core::fmt::Debug for nika_types::sandbox_policy::SandboxPolicyParseError
+pub fn nika_types::sandbox_policy::SandboxPolicyParseError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_types::sandbox_policy::SandboxPolicyParseError
+pub fn nika_types::sandbox_policy::SandboxPolicyParseError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_types::sandbox_policy::SandboxPolicyParseError
+impl<T, U> core::convert::Into<U> for nika_types::sandbox_policy::SandboxPolicyParseError where U: core::convert::From<T>
+pub fn nika_types::sandbox_policy::SandboxPolicyParseError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::sandbox_policy::SandboxPolicyParseError where U: core::convert::Into<T>
+pub type nika_types::sandbox_policy::SandboxPolicyParseError::Error = core::convert::Infallible
+pub fn nika_types::sandbox_policy::SandboxPolicyParseError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::sandbox_policy::SandboxPolicyParseError where U: core::convert::TryFrom<T>
+pub type nika_types::sandbox_policy::SandboxPolicyParseError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::sandbox_policy::SandboxPolicyParseError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::sandbox_policy::SandboxPolicyParseError where T: core::clone::Clone
+pub type nika_types::sandbox_policy::SandboxPolicyParseError::Owned = T
+pub fn nika_types::sandbox_policy::SandboxPolicyParseError::clone_into(&self, target: &mut T)
+pub fn nika_types::sandbox_policy::SandboxPolicyParseError::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_types::sandbox_policy::SandboxPolicyParseError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_types::sandbox_policy::SandboxPolicyParseError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_types::sandbox_policy::SandboxPolicyParseError where T: 'static + ?core::marker::Sized
+pub fn nika_types::sandbox_policy::SandboxPolicyParseError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::sandbox_policy::SandboxPolicyParseError where T: ?core::marker::Sized
+pub fn nika_types::sandbox_policy::SandboxPolicyParseError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::sandbox_policy::SandboxPolicyParseError where T: ?core::marker::Sized
+pub fn nika_types::sandbox_policy::SandboxPolicyParseError::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::sandbox_policy::SandboxPolicyParseError where T: core::clone::Clone
+pub unsafe fn nika_types::sandbox_policy::SandboxPolicyParseError::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::sandbox_policy::SandboxPolicyParseError
+pub fn nika_types::sandbox_policy::SandboxPolicyParseError::from(t: T) -> T
 #[non_exhaustive] pub struct nika_types::SpanId
 pub nika_types::SpanId::bytes: [u8; 8]
 impl nika_types::id::SpanId

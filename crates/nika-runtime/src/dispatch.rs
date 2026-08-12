@@ -32,7 +32,6 @@ pub(crate) mod commit;
 mod exec_io;
 mod permits;
 mod regate;
-mod sandbox;
 use crate::expr::{self, Scope};
 use crate::record::TaskErrorRecord;
 use exec_io::{build_exec_input, capture_mode, render_exec_io};
@@ -565,7 +564,7 @@ where
             .clone()
             .or_else(|| std::env::current_dir().ok())
             .unwrap_or_default();
-        match sandbox::spec_of(permits, &root) {
+        match nika_exec_runner::sandbox_spec::spec_of(permits, &root) {
             Ok(spec) => {
                 for grant in spec.fs_read.iter().chain(spec.fs_write.iter()) {
                     witness.record(

@@ -8,6 +8,10 @@
 //! `ci-context` where a pipeline supplied the value, `cli-operator`
 //! where a human typed it, `env` where the declared `@env:` channel
 //! read it, and `file` where the workflow's own `default:` filled it.
+//!
+//! The vocabulary itself descended to `nika-types` at the 15k wall
+//! (ADR-110 · #889); the derivation stays here, over the file's own
+//! declarations.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -15,37 +19,7 @@ use nika_schema::raw::RawWorkflow;
 use nika_schema::types::VarDecl;
 use serde_json::Value;
 
-/// The closed origin vocabulary of a bound input (NEP-0014 law 2 ·
-/// kebab-case on the wire).
-#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize)]
-#[serde(rename_all = "kebab-case")]
-#[non_exhaustive]
-pub enum InputOrigin {
-    /// `--var name=value` typed by the operator at a terminal.
-    CliOperator,
-    /// `--var name=value` supplied through the CI context (the `CI`
-    /// environment marks it — the pipeline, not a human, is the caller).
-    CiContext,
-    /// `--var name=@env:VAR` — the declared environment channel: the
-    /// value was read from the OS environment through the explicit
-    /// spelling, never an ambient guess.
-    Env,
-    /// The declared `default:` in the workflow file filled the input.
-    File,
-}
-
-impl InputOrigin {
-    /// The wire form (the journal's field values).
-    #[must_use]
-    pub const fn as_str(self) -> &'static str {
-        match self {
-            Self::CliOperator => "cli-operator",
-            Self::CiContext => "ci-context",
-            Self::Env => "env",
-            Self::File => "file",
-        }
-    }
-}
+pub use nika_types::InputOrigin;
 
 /// The origin map of a run's bound inputs — one entry per input that
 /// carries a value into the run (caller overrides + declared defaults).
@@ -147,18 +121,5 @@ mod tests {
                 "an @env: read is `env` in every context (ci={ci})"
             );
         }
-    }
-
-    #[test]
-    fn the_wire_forms_are_the_laws_vocabulary() {
-        assert_eq!(InputOrigin::CliOperator.as_str(), "cli-operator");
-        assert_eq!(InputOrigin::CiContext.as_str(), "ci-context");
-        assert_eq!(InputOrigin::Env.as_str(), "env");
-        assert_eq!(InputOrigin::File.as_str(), "file");
-        assert_eq!(
-            serde_json::to_value(InputOrigin::CiContext).expect("serializes"),
-            Value::from("ci-context"),
-            "serde speaks the same kebab-case"
-        );
     }
 }

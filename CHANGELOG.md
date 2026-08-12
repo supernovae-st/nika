@@ -12,6 +12,28 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Added
 
+- **The sandbox policy: declared `permits:` now require confinement, or
+  the run refuses (#889 · #822's P0 fail-open).** A workflow asserting a
+  `permits:` boundary used to run UNCONFINED with a loud note when the
+  host had no OS sandbox (Linux without bwrap · any platform without the
+  layer) — the contract silently degraded. The severity now derives from
+  the declared contract, never the machine: `NIKA_SANDBOX=auto` (the
+  default) refuses a permits-declaring workflow with `exec:` children
+  the host cannot jail (any block counts — even tools-only jails the
+  exec child to the empty axes; permits without exec keep running),
+  `require` refuses any unconfined start, and `off` is the explicit
+  waiver — parsed ONCE at the composition root
+  (`SandboxPolicy::judge`'s truth table: policy × confined × permits ·
+  no cell yields a silent unconfined-with-permits), and an unparsable
+  value refuses to start (a typo'd security knob loudly defaulting would
+  be the fail-open class). The refusal is the typed NIKA-1710 (the
+  NIKA-1708/1709 launch-refusal precedent — before the prologue, zero
+  events, zero spend), naming the exact per-OS fix. Every waiver is
+  WITNESSED: the journal's opening frame attests `sandbox_policy` +
+  `sandbox_waived`, so a sealed trace SHOWS the operator chose it (the
+  `resume_unverified` trust-amendment precedent). ADR-080 Q4.B amended;
+  platform-gated best-effort stays for permit-less runs.
+
 - **The doctor's sandbox row (#891 · #822 P1).** `nika doctor` was
   blind to the OS sandbox: a Linux host without `/usr/bin/bwrap` read
   green while every `exec:` and external MCP spawn ran unconfined. The

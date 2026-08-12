@@ -69,6 +69,10 @@
 
 mod blocklist;
 mod egress;
+/// The `permits:` → `SandboxSpec` derivation (ADR-095 Layer 6 · descended
+/// from `nika-runtime::dispatch` at the 15k wall, ADR-110 · #889) — `pub`
+/// because the runtime's dispatch still judges through it (L3→L1).
+pub mod sandbox_spec;
 mod scratch;
 
 pub use egress::{EgressDecision, EgressEvent, EgressObserver};

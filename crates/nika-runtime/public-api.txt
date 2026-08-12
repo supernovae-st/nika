@@ -1,6 +1,7 @@
 pub mod nika_runtime
 pub use nika_runtime::DeterministicStamper
 pub use nika_runtime::EventSink
+pub use nika_runtime::InputOrigin
 pub use nika_runtime::NoSecrets
 pub use nika_runtime::SecretResolveError
 pub use nika_runtime::Stamper
@@ -369,6 +370,63 @@ pub const nika_runtime::child::MAX_RUN_DEPTH: u32
 pub trait nika_runtime::child::ChildRunner: core::marker::Send + core::marker::Sync
 pub fn nika_runtime::child::ChildRunner::run_child<'a>(&'a self, call: nika_runtime::child::ChildCall) -> core::pin::Pin<alloc::boxed::Box<(dyn core::future::future::Future<Output = core::result::Result<nika_runtime::child::ChildOutcome, nika_runtime::child::ChildRunRefusal>> + 'a)>>
 pub mod nika_runtime::compose
+pub enum nika_runtime::compose::ComposeError
+pub nika_runtime::compose::ComposeError::Http(nika_kernel_core::io::http::HttpError)
+pub nika_runtime::compose::ComposeError::Policy(nika_types::sandbox_policy::SandboxPolicyParseError)
+pub nika_runtime::compose::ComposeError::Sandbox(nika_runtime::sandbox_select::SandboxRefusal)
+impl core::convert::From<nika_kernel_core::io::http::HttpError> for nika_runtime::sandbox_select::ComposeError
+pub fn nika_runtime::sandbox_select::ComposeError::from(source: nika_kernel_core::io::http::HttpError) -> Self
+impl core::convert::From<nika_runtime::sandbox_select::SandboxRefusal> for nika_runtime::sandbox_select::ComposeError
+pub fn nika_runtime::sandbox_select::ComposeError::from(source: nika_runtime::sandbox_select::SandboxRefusal) -> Self
+impl core::convert::From<nika_types::sandbox_policy::SandboxPolicyParseError> for nika_runtime::sandbox_select::ComposeError
+pub fn nika_runtime::sandbox_select::ComposeError::from(source: nika_types::sandbox_policy::SandboxPolicyParseError) -> Self
+impl core::error::Error for nika_runtime::sandbox_select::ComposeError
+pub fn nika_runtime::sandbox_select::ComposeError::source(&self) -> core::option::Option<&(dyn core::error::Error + 'static)>
+impl core::fmt::Debug for nika_runtime::sandbox_select::ComposeError
+pub fn nika_runtime::sandbox_select::ComposeError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_runtime::sandbox_select::ComposeError
+pub fn nika_runtime::sandbox_select::ComposeError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl miette::protocol::Diagnostic for nika_runtime::sandbox_select::ComposeError
+pub fn nika_runtime::sandbox_select::ComposeError::code(&self) -> core::option::Option<alloc::boxed::Box<(dyn core::fmt::Display + '_)>>
+pub fn nika_runtime::sandbox_select::ComposeError::diagnostic_source(&self) -> core::option::Option<&dyn miette::protocol::Diagnostic>
+pub fn nika_runtime::sandbox_select::ComposeError::help(&self) -> core::option::Option<alloc::boxed::Box<(dyn core::fmt::Display + '_)>>
+pub fn nika_runtime::sandbox_select::ComposeError::labels(&self) -> core::option::Option<alloc::boxed::Box<(dyn core::iter::traits::iterator::Iterator<Item = miette::protocol::LabeledSpan> + '_)>>
+pub fn nika_runtime::sandbox_select::ComposeError::related(&self) -> core::option::Option<alloc::boxed::Box<(dyn core::iter::traits::iterator::Iterator<Item = &dyn miette::protocol::Diagnostic> + '_)>>
+pub fn nika_runtime::sandbox_select::ComposeError::severity(&self) -> core::option::Option<miette::protocol::Severity>
+pub fn nika_runtime::sandbox_select::ComposeError::source_code(&self) -> core::option::Option<&dyn miette::protocol::SourceCode>
+pub fn nika_runtime::sandbox_select::ComposeError::url(&self) -> core::option::Option<alloc::boxed::Box<(dyn core::fmt::Display + '_)>>
+impl nika_error::traits::NikaErrorCode for nika_runtime::sandbox_select::ComposeError
+pub fn nika_runtime::sandbox_select::ComposeError::nika_code(&self) -> nika_error::codes::NikaCode
+impl<D> owo_colors::OwoColorize for nika_runtime::sandbox_select::ComposeError
+impl<T, U> core::convert::Into<U> for nika_runtime::sandbox_select::ComposeError where U: core::convert::From<T>
+pub fn nika_runtime::sandbox_select::ComposeError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_runtime::sandbox_select::ComposeError where U: core::convert::Into<T>
+pub type nika_runtime::sandbox_select::ComposeError::Error = core::convert::Infallible
+pub fn nika_runtime::sandbox_select::ComposeError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_runtime::sandbox_select::ComposeError where U: core::convert::TryFrom<T>
+pub type nika_runtime::sandbox_select::ComposeError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_runtime::sandbox_select::ComposeError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_runtime::sandbox_select::ComposeError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_runtime::sandbox_select::ComposeError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_runtime::sandbox_select::ComposeError where T: 'static + ?core::marker::Sized
+pub fn nika_runtime::sandbox_select::ComposeError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_runtime::sandbox_select::ComposeError where T: ?core::marker::Sized
+pub fn nika_runtime::sandbox_select::ComposeError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_runtime::sandbox_select::ComposeError where T: ?core::marker::Sized
+pub fn nika_runtime::sandbox_select::ComposeError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_runtime::sandbox_select::ComposeError
+pub fn nika_runtime::sandbox_select::ComposeError::from(t: T) -> T
+impl<T> iri_string::format::ToStringFallible for nika_runtime::sandbox_select::ComposeError where T: core::fmt::Display
+pub fn nika_runtime::sandbox_select::ComposeError::try_to_string(&self) -> core::result::Result<alloc::string::String, alloc::collections::TryReserveError>
+impl<T> nika_error::traits::AsAny for nika_runtime::sandbox_select::ComposeError where T: 'static
+pub fn nika_runtime::sandbox_select::ComposeError::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::sandbox_select::ComposeError where T: ?core::marker::Sized
+pub fn nika_runtime::sandbox_select::ComposeError::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_runtime::sandbox_select::ComposeError::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_runtime::sandbox_select::ComposeError
+impl<T> tracing::instrument::WithSubscriber for nika_runtime::sandbox_select::ComposeError
+impl<T> typenum::type_operators::Same for nika_runtime::sandbox_select::ComposeError
+pub type nika_runtime::sandbox_select::ComposeError::Output = T
 pub struct nika_runtime::compose::RegistryProvider<H>
 impl<H: core::fmt::Debug> core::fmt::Debug for nika_runtime::compose::RegistryProvider<H>
 pub fn nika_runtime::compose::RegistryProvider<H>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
@@ -442,6 +500,7 @@ pub struct nika_runtime::compose::RuntimeCapabilities
 pub nika_runtime::compose::RuntimeCapabilities::exec_tasks: bool
 pub nika_runtime::compose::RuntimeCapabilities::fs: nika_builtin::permits::FsBoundary
 pub nika_runtime::compose::RuntimeCapabilities::net: nika_http::NetBoundary
+pub nika_runtime::compose::RuntimeCapabilities::permits_declared: bool
 impl<D> owo_colors::OwoColorize for nika_runtime::compose::RuntimeCapabilities
 impl<T, U> core::convert::Into<U> for nika_runtime::compose::RuntimeCapabilities where U: core::convert::From<T>
 pub fn nika_runtime::compose::RuntimeCapabilities::into(self) -> U
@@ -514,13 +573,14 @@ impl<T> tracing::instrument::Instrument for nika_runtime::compose::StderrEmitter
 impl<T> tracing::instrument::WithSubscriber for nika_runtime::compose::StderrEmitter
 impl<T> typenum::type_operators::Same for nika_runtime::compose::StderrEmitter
 pub type nika_runtime::compose::StderrEmitter::Output = T
+pub fn nika_runtime::compose::apply_sandbox_policy(decision: &nika_runtime::sandbox_select::SandboxDecision, permits_declared: bool) -> core::result::Result<(nika_types::sandbox_policy::SandboxPolicy, nika_types::sandbox_policy::SandboxVerdict), nika_runtime::sandbox_select::ComposeError>
 pub fn nika_runtime::compose::capabilities_of(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_runtime::compose::RuntimeCapabilities
 pub fn nika_runtime::compose::config_from_env() -> nika_providers::registry::ProvidersConfig
 pub fn nika_runtime::compose::fs_boundary_of(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_builtin::permits::FsBoundary
 pub fn nika_runtime::compose::fs_boundary_of_permits(permits: core::option::Option<&nika_cap::permits::Permits>) -> nika_builtin::permits::FsBoundary
 pub fn nika_runtime::compose::net_boundary_of(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_http::NetBoundary
 pub fn nika_runtime::compose::net_boundary_of_permits(permits: core::option::Option<&nika_cap::permits::Permits>) -> nika_http::NetBoundary
-pub fn nika_runtime::compose::production_runtime(default_model: &str, caps: nika_runtime::compose::RuntimeCapabilities, run: core::option::Option<&nika_vocab::run::RunDecl>) -> core::result::Result<nika_runtime::compose::ProdRuntime, nika_kernel_core::io::http::HttpError>
+pub fn nika_runtime::compose::production_runtime(default_model: &str, caps: nika_runtime::compose::RuntimeCapabilities, run: core::option::Option<&nika_vocab::run::RunDecl>) -> core::result::Result<nika_runtime::compose::ProdRuntime, nika_runtime::sandbox_select::ComposeError>
 pub fn nika_runtime::compose::simulated_runtime(default_model: &str, caps: nika_runtime::compose::RuntimeCapabilities, run: core::option::Option<&nika_vocab::run::RunDecl>) -> core::result::Result<nika_runtime::compose::SimRuntime, nika_kernel_core::io::http::HttpError>
 pub type nika_runtime::compose::ProdRuntime = nika_runtime::Runtime<nika_exec_runner::TokioShell, nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::declared_clock::DeclaredClock, nika_runtime::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::NoWorkflow>, nika_http::ReqwestHttp, nika_runtime::compose::RegistryProvider<nika_http::ReqwestHttp>, nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::declared_clock::DeclaredClock, nika_runtime::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::NoWorkflow>, nika_clock::declared_clock::DeclaredClock>
 pub type nika_runtime::compose::SimRuntime = nika_runtime::Runtime<nika_runtime::simulated::SimulatedShell, nika_runtime::simulated::SimulatedDispatcher<nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::declared_clock::DeclaredClock, nika_runtime::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::NoWorkflow>>, nika_http::ReqwestHttp, nika_runtime::compose::RegistryProvider<nika_http::ReqwestHttp>, nika_runtime::simulated::SimulatedDispatcher<nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::declared_clock::DeclaredClock, nika_runtime::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::NoWorkflow>>, nika_clock::declared_clock::DeclaredClock>
@@ -529,13 +589,17 @@ pub mod nika_runtime::config
 pub nika_runtime::config::RuntimeConfig::jitter_seed: u64
 pub nika_runtime::config::RuntimeConfig::max_cost_usd: core::option::Option<f64>
 pub nika_runtime::config::RuntimeConfig::sandbox_backend: core::option::Option<alloc::string::String>
+pub nika_runtime::config::RuntimeConfig::sandbox_policy: core::option::Option<alloc::string::String>
 pub nika_runtime::config::RuntimeConfig::sandbox_root: core::option::Option<std::path::PathBuf>
+pub nika_runtime::config::RuntimeConfig::sandbox_waived: bool
 pub nika_runtime::config::RuntimeConfig::wave_parallelism: core::option::Option<core::num::nonzero::NonZeroUsize>
 impl nika_runtime::config::RuntimeConfig
 pub fn nika_runtime::config::RuntimeConfig::new(wave_parallelism: core::option::Option<core::num::nonzero::NonZeroUsize>, jitter_seed: u64) -> Self
 pub fn nika_runtime::config::RuntimeConfig::with_max_cost_usd(self, budget: core::option::Option<f64>) -> Self
 pub fn nika_runtime::config::RuntimeConfig::with_sandbox_backend(self, backend: &str) -> Self
+pub fn nika_runtime::config::RuntimeConfig::with_sandbox_policy(self, policy: &str) -> Self
 pub fn nika_runtime::config::RuntimeConfig::with_sandbox_root(self, root: std::path::PathBuf) -> Self
+pub fn nika_runtime::config::RuntimeConfig::with_sandbox_waived(self, waived: bool) -> Self
 impl core::clone::Clone for nika_runtime::config::RuntimeConfig
 pub fn nika_runtime::config::RuntimeConfig::clone(&self) -> nika_runtime::config::RuntimeConfig
 impl core::default::Default for nika_runtime::config::RuntimeConfig
@@ -787,6 +851,67 @@ pub const nika_runtime::resume::KEY_VERSION: u32
 pub fn nika_runtime::resume::referenced_upstreams(task: &nika_schema::raw::task::RawTask) -> alloc::collections::btree::set::BTreeSet<alloc::string::String>
 pub type nika_runtime::resume::ResumePlan = alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_runtime::resume::PriorSuccess>
 pub mod nika_runtime::sandbox_select
+pub use nika_runtime::sandbox_select::SandboxPolicy
+pub use nika_runtime::sandbox_select::SandboxPolicyParseError
+pub use nika_runtime::sandbox_select::SandboxVerdict
+pub use nika_runtime::sandbox_select::parse_policy_env
+pub enum nika_runtime::sandbox_select::ComposeError
+pub nika_runtime::sandbox_select::ComposeError::Http(nika_kernel_core::io::http::HttpError)
+pub nika_runtime::sandbox_select::ComposeError::Policy(nika_types::sandbox_policy::SandboxPolicyParseError)
+pub nika_runtime::sandbox_select::ComposeError::Sandbox(nika_runtime::sandbox_select::SandboxRefusal)
+impl core::convert::From<nika_kernel_core::io::http::HttpError> for nika_runtime::sandbox_select::ComposeError
+pub fn nika_runtime::sandbox_select::ComposeError::from(source: nika_kernel_core::io::http::HttpError) -> Self
+impl core::convert::From<nika_runtime::sandbox_select::SandboxRefusal> for nika_runtime::sandbox_select::ComposeError
+pub fn nika_runtime::sandbox_select::ComposeError::from(source: nika_runtime::sandbox_select::SandboxRefusal) -> Self
+impl core::convert::From<nika_types::sandbox_policy::SandboxPolicyParseError> for nika_runtime::sandbox_select::ComposeError
+pub fn nika_runtime::sandbox_select::ComposeError::from(source: nika_types::sandbox_policy::SandboxPolicyParseError) -> Self
+impl core::error::Error for nika_runtime::sandbox_select::ComposeError
+pub fn nika_runtime::sandbox_select::ComposeError::source(&self) -> core::option::Option<&(dyn core::error::Error + 'static)>
+impl core::fmt::Debug for nika_runtime::sandbox_select::ComposeError
+pub fn nika_runtime::sandbox_select::ComposeError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_runtime::sandbox_select::ComposeError
+pub fn nika_runtime::sandbox_select::ComposeError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl miette::protocol::Diagnostic for nika_runtime::sandbox_select::ComposeError
+pub fn nika_runtime::sandbox_select::ComposeError::code(&self) -> core::option::Option<alloc::boxed::Box<(dyn core::fmt::Display + '_)>>
+pub fn nika_runtime::sandbox_select::ComposeError::diagnostic_source(&self) -> core::option::Option<&dyn miette::protocol::Diagnostic>
+pub fn nika_runtime::sandbox_select::ComposeError::help(&self) -> core::option::Option<alloc::boxed::Box<(dyn core::fmt::Display + '_)>>
+pub fn nika_runtime::sandbox_select::ComposeError::labels(&self) -> core::option::Option<alloc::boxed::Box<(dyn core::iter::traits::iterator::Iterator<Item = miette::protocol::LabeledSpan> + '_)>>
+pub fn nika_runtime::sandbox_select::ComposeError::related(&self) -> core::option::Option<alloc::boxed::Box<(dyn core::iter::traits::iterator::Iterator<Item = &dyn miette::protocol::Diagnostic> + '_)>>
+pub fn nika_runtime::sandbox_select::ComposeError::severity(&self) -> core::option::Option<miette::protocol::Severity>
+pub fn nika_runtime::sandbox_select::ComposeError::source_code(&self) -> core::option::Option<&dyn miette::protocol::SourceCode>
+pub fn nika_runtime::sandbox_select::ComposeError::url(&self) -> core::option::Option<alloc::boxed::Box<(dyn core::fmt::Display + '_)>>
+impl nika_error::traits::NikaErrorCode for nika_runtime::sandbox_select::ComposeError
+pub fn nika_runtime::sandbox_select::ComposeError::nika_code(&self) -> nika_error::codes::NikaCode
+impl<D> owo_colors::OwoColorize for nika_runtime::sandbox_select::ComposeError
+impl<T, U> core::convert::Into<U> for nika_runtime::sandbox_select::ComposeError where U: core::convert::From<T>
+pub fn nika_runtime::sandbox_select::ComposeError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_runtime::sandbox_select::ComposeError where U: core::convert::Into<T>
+pub type nika_runtime::sandbox_select::ComposeError::Error = core::convert::Infallible
+pub fn nika_runtime::sandbox_select::ComposeError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_runtime::sandbox_select::ComposeError where U: core::convert::TryFrom<T>
+pub type nika_runtime::sandbox_select::ComposeError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_runtime::sandbox_select::ComposeError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_runtime::sandbox_select::ComposeError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_runtime::sandbox_select::ComposeError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_runtime::sandbox_select::ComposeError where T: 'static + ?core::marker::Sized
+pub fn nika_runtime::sandbox_select::ComposeError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_runtime::sandbox_select::ComposeError where T: ?core::marker::Sized
+pub fn nika_runtime::sandbox_select::ComposeError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_runtime::sandbox_select::ComposeError where T: ?core::marker::Sized
+pub fn nika_runtime::sandbox_select::ComposeError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_runtime::sandbox_select::ComposeError
+pub fn nika_runtime::sandbox_select::ComposeError::from(t: T) -> T
+impl<T> iri_string::format::ToStringFallible for nika_runtime::sandbox_select::ComposeError where T: core::fmt::Display
+pub fn nika_runtime::sandbox_select::ComposeError::try_to_string(&self) -> core::result::Result<alloc::string::String, alloc::collections::TryReserveError>
+impl<T> nika_error::traits::AsAny for nika_runtime::sandbox_select::ComposeError where T: 'static
+pub fn nika_runtime::sandbox_select::ComposeError::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::sandbox_select::ComposeError where T: ?core::marker::Sized
+pub fn nika_runtime::sandbox_select::ComposeError::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_runtime::sandbox_select::ComposeError::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_runtime::sandbox_select::ComposeError
+impl<T> tracing::instrument::WithSubscriber for nika_runtime::sandbox_select::ComposeError
+impl<T> typenum::type_operators::Same for nika_runtime::sandbox_select::ComposeError
+pub type nika_runtime::sandbox_select::ComposeError::Output = T
 pub struct nika_runtime::sandbox_select::SandboxDecision
 impl nika_runtime::sandbox_select::SandboxDecision
 pub fn nika_runtime::sandbox_select::SandboxDecision::backend(&self) -> &'static str
@@ -818,6 +943,52 @@ impl<T> tracing::instrument::Instrument for nika_runtime::sandbox_select::Sandbo
 impl<T> tracing::instrument::WithSubscriber for nika_runtime::sandbox_select::SandboxDecision
 impl<T> typenum::type_operators::Same for nika_runtime::sandbox_select::SandboxDecision
 pub type nika_runtime::sandbox_select::SandboxDecision::Output = T
+pub struct nika_runtime::sandbox_select::SandboxRefusal
+impl nika_runtime::sandbox_select::SandboxRefusal
+pub fn nika_runtime::sandbox_select::SandboxRefusal::for_policy(policy: nika_types::sandbox_policy::SandboxPolicy, permits_declared: bool) -> Self
+impl core::convert::From<nika_runtime::sandbox_select::SandboxRefusal> for nika_runtime::sandbox_select::ComposeError
+pub fn nika_runtime::sandbox_select::ComposeError::from(source: nika_runtime::sandbox_select::SandboxRefusal) -> Self
+impl core::error::Error for nika_runtime::sandbox_select::SandboxRefusal
+impl core::fmt::Debug for nika_runtime::sandbox_select::SandboxRefusal
+pub fn nika_runtime::sandbox_select::SandboxRefusal::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_runtime::sandbox_select::SandboxRefusal
+pub fn nika_runtime::sandbox_select::SandboxRefusal::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl miette::protocol::Diagnostic for nika_runtime::sandbox_select::SandboxRefusal
+pub fn nika_runtime::sandbox_select::SandboxRefusal::code(&self) -> core::option::Option<alloc::boxed::Box<(dyn core::fmt::Display + '_)>>
+impl nika_error::traits::NikaErrorCode for nika_runtime::sandbox_select::SandboxRefusal
+pub fn nika_runtime::sandbox_select::SandboxRefusal::nika_code(&self) -> nika_error::codes::NikaCode
+impl<D> owo_colors::OwoColorize for nika_runtime::sandbox_select::SandboxRefusal
+impl<T, U> core::convert::Into<U> for nika_runtime::sandbox_select::SandboxRefusal where U: core::convert::From<T>
+pub fn nika_runtime::sandbox_select::SandboxRefusal::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_runtime::sandbox_select::SandboxRefusal where U: core::convert::Into<T>
+pub type nika_runtime::sandbox_select::SandboxRefusal::Error = core::convert::Infallible
+pub fn nika_runtime::sandbox_select::SandboxRefusal::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_runtime::sandbox_select::SandboxRefusal where U: core::convert::TryFrom<T>
+pub type nika_runtime::sandbox_select::SandboxRefusal::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_runtime::sandbox_select::SandboxRefusal::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_runtime::sandbox_select::SandboxRefusal where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_runtime::sandbox_select::SandboxRefusal::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_runtime::sandbox_select::SandboxRefusal where T: 'static + ?core::marker::Sized
+pub fn nika_runtime::sandbox_select::SandboxRefusal::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_runtime::sandbox_select::SandboxRefusal where T: ?core::marker::Sized
+pub fn nika_runtime::sandbox_select::SandboxRefusal::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_runtime::sandbox_select::SandboxRefusal where T: ?core::marker::Sized
+pub fn nika_runtime::sandbox_select::SandboxRefusal::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_runtime::sandbox_select::SandboxRefusal
+pub fn nika_runtime::sandbox_select::SandboxRefusal::from(t: T) -> T
+impl<T> iri_string::format::ToStringFallible for nika_runtime::sandbox_select::SandboxRefusal where T: core::fmt::Display
+pub fn nika_runtime::sandbox_select::SandboxRefusal::try_to_string(&self) -> core::result::Result<alloc::string::String, alloc::collections::TryReserveError>
+impl<T> nika_error::traits::AsAny for nika_runtime::sandbox_select::SandboxRefusal where T: 'static
+pub fn nika_runtime::sandbox_select::SandboxRefusal::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::sandbox_select::SandboxRefusal where T: ?core::marker::Sized
+pub fn nika_runtime::sandbox_select::SandboxRefusal::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_runtime::sandbox_select::SandboxRefusal::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_runtime::sandbox_select::SandboxRefusal
+impl<T> tracing::instrument::WithSubscriber for nika_runtime::sandbox_select::SandboxRefusal
+impl<T> typenum::type_operators::Same for nika_runtime::sandbox_select::SandboxRefusal
+pub type nika_runtime::sandbox_select::SandboxRefusal::Output = T
+pub fn nika_runtime::sandbox_select::apply_sandbox_policy(decision: &nika_runtime::sandbox_select::SandboxDecision, permits_declared: bool) -> core::result::Result<(nika_types::sandbox_policy::SandboxPolicy, nika_types::sandbox_policy::SandboxVerdict), nika_runtime::sandbox_select::ComposeError>
+pub fn nika_runtime::sandbox_select::sandbox_policy_from_env() -> core::result::Result<nika_types::sandbox_policy::SandboxPolicy, nika_types::sandbox_policy::SandboxPolicyParseError>
 pub fn nika_runtime::sandbox_select::select_command_sandbox() -> nika_runtime::sandbox_select::SandboxDecision
 pub mod nika_runtime::simulated
 pub struct nika_runtime::simulated::SimulatedDispatcher<D>
@@ -907,64 +1078,6 @@ impl<T> typenum::type_operators::Same for nika_runtime::simulated::SimulatedShel
 pub type nika_runtime::simulated::SimulatedShell::Output = T
 impl<TraitVariantBlanketType> nika_kernel_core::io::process::ShellRun for nika_runtime::simulated::SimulatedShell where TraitVariantBlanketType: nika_kernel_core::io::process::ShellRunDyn
 pub async fn nika_runtime::simulated::SimulatedShell::run(&self, command: nika_kernel_core::io::process::ShellCommand) -> core::result::Result<nika_kernel_core::io::process::ShellResult, nika_kernel_core::io::process::ShellError>
-#[non_exhaustive] pub enum nika_runtime::InputOrigin
-pub nika_runtime::InputOrigin::CiContext
-pub nika_runtime::InputOrigin::CliOperator
-pub nika_runtime::InputOrigin::Env
-pub nika_runtime::InputOrigin::File
-impl nika_runtime::InputOrigin
-pub const fn nika_runtime::InputOrigin::as_str(self) -> &'static str
-impl core::clone::Clone for nika_runtime::InputOrigin
-pub fn nika_runtime::InputOrigin::clone(&self) -> nika_runtime::InputOrigin
-impl core::cmp::Eq for nika_runtime::InputOrigin
-impl core::cmp::PartialEq for nika_runtime::InputOrigin
-pub fn nika_runtime::InputOrigin::eq(&self, other: &nika_runtime::InputOrigin) -> bool
-impl core::fmt::Debug for nika_runtime::InputOrigin
-pub fn nika_runtime::InputOrigin::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::marker::Copy for nika_runtime::InputOrigin
-impl core::marker::StructuralPartialEq for nika_runtime::InputOrigin
-impl serde_core::ser::Serialize for nika_runtime::InputOrigin
-pub fn nika_runtime::InputOrigin::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
-impl<D> owo_colors::OwoColorize for nika_runtime::InputOrigin
-impl<Q, K> equivalent::Equivalent<K> for nika_runtime::InputOrigin where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_runtime::InputOrigin::equivalent(&self, key: &K) -> bool
-impl<Q, K> hashbrown::Equivalent<K> for nika_runtime::InputOrigin where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_runtime::InputOrigin::equivalent(&self, key: &K) -> bool
-impl<T, U> core::convert::Into<U> for nika_runtime::InputOrigin where U: core::convert::From<T>
-pub fn nika_runtime::InputOrigin::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_runtime::InputOrigin where U: core::convert::Into<T>
-pub type nika_runtime::InputOrigin::Error = core::convert::Infallible
-pub fn nika_runtime::InputOrigin::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_runtime::InputOrigin where U: core::convert::TryFrom<T>
-pub type nika_runtime::InputOrigin::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_runtime::InputOrigin::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_runtime::InputOrigin where T: core::clone::Clone
-pub type nika_runtime::InputOrigin::Owned = T
-pub fn nika_runtime::InputOrigin::clone_into(&self, target: &mut T)
-pub fn nika_runtime::InputOrigin::to_owned(&self) -> T
-impl<T> core::any::Any for nika_runtime::InputOrigin where T: 'static + ?core::marker::Sized
-pub fn nika_runtime::InputOrigin::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_runtime::InputOrigin where T: ?core::marker::Sized
-pub fn nika_runtime::InputOrigin::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_runtime::InputOrigin where T: ?core::marker::Sized
-pub fn nika_runtime::InputOrigin::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_runtime::InputOrigin where T: core::clone::Clone
-pub unsafe fn nika_runtime::InputOrigin::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_runtime::InputOrigin
-pub fn nika_runtime::InputOrigin::from(t: T) -> T
-impl<T> dyn_clone::DynClone for nika_runtime::InputOrigin where T: core::clone::Clone
-pub fn nika_runtime::InputOrigin::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> nika_error::traits::AsAny for nika_runtime::InputOrigin where T: 'static
-pub fn nika_runtime::InputOrigin::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> outref::AsOut<T> for nika_runtime::InputOrigin where T: core::marker::Copy
-pub fn nika_runtime::InputOrigin::as_out(&mut self) -> outref::Out<'_, T>
-impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::InputOrigin where T: ?core::marker::Sized
-pub fn nika_runtime::InputOrigin::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-pub fn nika_runtime::InputOrigin::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-impl<T> tracing::instrument::Instrument for nika_runtime::InputOrigin
-impl<T> tracing::instrument::WithSubscriber for nika_runtime::InputOrigin
-impl<T> typenum::type_operators::Same for nika_runtime::InputOrigin
-pub type nika_runtime::InputOrigin::Output = T
 #[non_exhaustive] pub enum nika_runtime::RuntimeError
 pub nika_runtime::RuntimeError::AccessNoPath
 pub nika_runtime::RuntimeError::AccessNoPath::message: alloc::string::String
@@ -1246,7 +1359,7 @@ pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_access_probes(self, probes:
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_boot_access_fields(self, fields: alloc::vec::Vec<(&'static str, nika_types::resource::Value)>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_child_closures(self, closures: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_harness_seat_id(self, id: core::option::Option<alloc::string::String>) -> Self
-pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_input_origins(self, origins: alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_runtime::InputOrigin>) -> Self
+pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_input_origins(self, origins: alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_types::origins::InputOrigin>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_max_cost_usd(self, budget: core::option::Option<f64>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_model_override(self, model: core::option::Option<alloc::string::String>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_paused_approval(self, paused: core::option::Option<nika_runtime::approval::PausedApproval>) -> Self
@@ -1293,6 +1406,7 @@ pub struct nika_runtime::RuntimeCapabilities
 pub nika_runtime::RuntimeCapabilities::exec_tasks: bool
 pub nika_runtime::RuntimeCapabilities::fs: nika_builtin::permits::FsBoundary
 pub nika_runtime::RuntimeCapabilities::net: nika_http::NetBoundary
+pub nika_runtime::RuntimeCapabilities::permits_declared: bool
 impl<D> owo_colors::OwoColorize for nika_runtime::compose::RuntimeCapabilities
 impl<T, U> core::convert::Into<U> for nika_runtime::compose::RuntimeCapabilities where U: core::convert::From<T>
 pub fn nika_runtime::compose::RuntimeCapabilities::into(self) -> U
@@ -1323,13 +1437,17 @@ pub type nika_runtime::compose::RuntimeCapabilities::Output = T
 pub nika_runtime::RuntimeConfig::jitter_seed: u64
 pub nika_runtime::RuntimeConfig::max_cost_usd: core::option::Option<f64>
 pub nika_runtime::RuntimeConfig::sandbox_backend: core::option::Option<alloc::string::String>
+pub nika_runtime::RuntimeConfig::sandbox_policy: core::option::Option<alloc::string::String>
 pub nika_runtime::RuntimeConfig::sandbox_root: core::option::Option<std::path::PathBuf>
+pub nika_runtime::RuntimeConfig::sandbox_waived: bool
 pub nika_runtime::RuntimeConfig::wave_parallelism: core::option::Option<core::num::nonzero::NonZeroUsize>
 impl nika_runtime::config::RuntimeConfig
 pub fn nika_runtime::config::RuntimeConfig::new(wave_parallelism: core::option::Option<core::num::nonzero::NonZeroUsize>, jitter_seed: u64) -> Self
 pub fn nika_runtime::config::RuntimeConfig::with_max_cost_usd(self, budget: core::option::Option<f64>) -> Self
 pub fn nika_runtime::config::RuntimeConfig::with_sandbox_backend(self, backend: &str) -> Self
+pub fn nika_runtime::config::RuntimeConfig::with_sandbox_policy(self, policy: &str) -> Self
 pub fn nika_runtime::config::RuntimeConfig::with_sandbox_root(self, root: std::path::PathBuf) -> Self
+pub fn nika_runtime::config::RuntimeConfig::with_sandbox_waived(self, waived: bool) -> Self
 impl core::clone::Clone for nika_runtime::config::RuntimeConfig
 pub fn nika_runtime::config::RuntimeConfig::clone(&self) -> nika_runtime::config::RuntimeConfig
 impl core::default::Default for nika_runtime::config::RuntimeConfig
@@ -1526,9 +1644,9 @@ pub fn nika_runtime::access_pin_refusal(wf: &nika_schema::raw::workflow::RawWork
 pub fn nika_runtime::budget_floor_refusal(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, budget: core::option::Option<f64>, model_override: core::option::Option<&str>) -> core::option::Option<nika_runtime::RuntimeError>
 pub fn nika_runtime::capabilities_of(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_runtime::compose::RuntimeCapabilities
 pub fn nika_runtime::floor_refusal(floor: f64, budget: f64) -> core::option::Option<alloc::string::String>
-pub fn nika_runtime::input_origins(wf: &nika_schema::raw::workflow::RawWorkflow, overrides: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>, env_sourced: &alloc::collections::btree::set::BTreeSet<alloc::string::String>, ci: bool) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_runtime::InputOrigin>
+pub fn nika_runtime::input_origins(wf: &nika_schema::raw::workflow::RawWorkflow, overrides: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>, env_sourced: &alloc::collections::btree::set::BTreeSet<alloc::string::String>, ci: bool) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_types::origins::InputOrigin>
 pub const fn nika_runtime::legal(class: nika_runtime::TaskStatus, cause: nika_runtime::TerminalCause) -> bool
-pub fn nika_runtime::production_runtime(default_model: &str, caps: nika_runtime::compose::RuntimeCapabilities, run: core::option::Option<&nika_vocab::run::RunDecl>) -> core::result::Result<nika_runtime::compose::ProdRuntime, nika_kernel_core::io::http::HttpError>
+pub fn nika_runtime::production_runtime(default_model: &str, caps: nika_runtime::compose::RuntimeCapabilities, run: core::option::Option<&nika_vocab::run::RunDecl>) -> core::result::Result<nika_runtime::compose::ProdRuntime, nika_runtime::sandbox_select::ComposeError>
 pub fn nika_runtime::required_inputs_refusal(wf: &nika_schema::raw::workflow::RawWorkflow, overrides: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>) -> core::option::Option<nika_runtime::RuntimeError>
 pub fn nika_runtime::scope_to_task(wf: nika_schema::raw::workflow::RawWorkflow, target: &str) -> core::result::Result<nika_schema::raw::workflow::RawWorkflow, alloc::string::String>
 pub fn nika_runtime::simulated_runtime(default_model: &str, caps: nika_runtime::compose::RuntimeCapabilities, run: core::option::Option<&nika_vocab::run::RunDecl>) -> core::result::Result<nika_runtime::compose::SimRuntime, nika_kernel_core::io::http::HttpError>
