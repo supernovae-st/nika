@@ -63,6 +63,13 @@ impl Cadence {
     /// The normalized display — the readable form wins when the spec is
     /// exactly one weekly slot; the zone is ALWAYS shown (the binding
     /// must be visible, never implicit).
+    ///
+    /// **Never re-parse this output** (tranché 2026-08-12): the readable
+    /// display is for EYES — `lundi 9h07 · Europe/Paris` is refused at
+    /// parse (`TzMissing`, the `· tz` suffix is not grammar). The cron
+    /// branch alone round-trips (`TZ=… m h dom mo dow`). The `Shift`
+    /// enum stays `#[non_exhaustive]` so a declared « absorbed slot »
+    /// can join when a consumer truly needs it (decision deferred).
     #[must_use]
     pub fn describe(&self) -> String {
         match self {

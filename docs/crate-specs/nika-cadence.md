@@ -120,3 +120,16 @@ forever under `clock: virtual`) · no `TimeZone::get` (hermeticity) ·
 no NIKA-* codes (no range allocated) · no resume/catch-up state (N2 —
 the dispatcher's concern, L4) · no disarm gesture (N4) · no signature
 verification (②'s, refused by name in round 1).
+
+### Tranché à la revue d'avant-gel (2026-08-12, opérateur)
+
+- **`describe()` n'est jamais re-parsé** — la forme lisible affichée
+  (`lundi 9h07 · Europe/Paris`) est pour les yeux ; la branche cron
+  seule est round-trip. La grammaire ne s'étend PAS au suffixe `· tz`.
+- **les créneaux absorbés ne sont pas un élément du flux** — `Shift`
+  reste `#[non_exhaustive]` : un `Absorbed` déclaré peut rejoindre sans
+  casser, le jour où un consommateur en a vraiment besoin.
+- **`ArmedRegistry` (champs déballés, légalité structurelle) se tranche
+  à V3⑪**, avec le premier consommateur réel (`sign cadence`) en main —
+  la duplication « re-parse + None-impossible » sera prouvée ou
+  imaginaire à ce moment-là, pas avant.
