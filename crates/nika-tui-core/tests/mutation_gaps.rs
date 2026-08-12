@@ -158,7 +158,7 @@ fn is_fanout_tells_single_from_group() {
             assert_eq!(name, "traduire");
             assert_eq!(members.len(), 12);
         }
-        Group::Single(_) => unreachable!("filtered above"),
+        _ => unreachable!("filtered above"),
     }
 }
 
@@ -175,7 +175,11 @@ fn the_fold_pins_relative_starts_exactly() {
     assert!((by_id("fetch").start - 0.001).abs() < 1e-9);
     assert!((by_id("lire").start - 0.009).abs() < 1e-9);
     assert!((by_id("compte").start - 0.01).abs() < 1e-9);
-    assert!((by_id("resume").start - 0.422).abs() < 1e-9);
+    assert_eq!(
+        by_id("resume").start,
+        0.0,
+        "a never-born has no start · the cancellation stamps at teardown"
+    );
 }
 
 /// `total_cost` on PRICED steps — the demo runs are all unpriced, so a
@@ -196,6 +200,7 @@ fn total_cost_sums_the_priced_steps() {
                 failed: None,
                 never_born: None,
                 blocked_by: None,
+                skipped: None,
             },
             Step {
                 id: "b".to_owned(),
@@ -206,6 +211,7 @@ fn total_cost_sums_the_priced_steps() {
                 failed: None,
                 never_born: None,
                 blocked_by: None,
+                skipped: None,
             },
             Step {
                 id: "c".to_owned(),
@@ -216,6 +222,7 @@ fn total_cost_sums_the_priced_steps() {
                 failed: None,
                 never_born: None,
                 blocked_by: None,
+                skipped: None,
             },
         ],
     };
@@ -276,7 +283,7 @@ fn the_wasm_doors_answer_with_content() {
     assert_eq!(run2["steps"].as_array().expect("steps").len(), 7);
 
     let graph = std::fs::read_to_string("tests/fixtures/inspect-gated.json").expect("graph");
-    let b1 = nika_tui_core::wasm::seat_first(&graph);
+    let b1 = nika_tui_core::wasm::board_first(&graph);
     let b1v: serde_json::Value = serde_json::from_str(&b1).expect("json");
     assert_eq!(b1v["rev"].as_u64(), Some(1));
     let g: GraphDoc = serde_json::from_str(&graph).expect("graphdoc");
@@ -284,7 +291,7 @@ fn the_wasm_doors_answer_with_content() {
         nodes: g.nodes[1..].to_vec(),
         ..g
     };
-    let b2 = nika_tui_core::wasm::seat_next(&b1, &serde_json::to_string(&smaller).expect("g2"));
+    let b2 = nika_tui_core::wasm::board_next(&b1, &serde_json::to_string(&smaller).expect("g2"));
     let b2v: serde_json::Value = serde_json::from_str(&b2).expect("json");
     assert_eq!(
         b2v["marks"][0].as_str(),

@@ -31,6 +31,7 @@ use crate::ingress::{GraphDoc, Node};
 /// What a revision did to a slot — serialized as the studio's glyph, so
 /// the caller never translates the vocabulary.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[non_exhaustive]
 pub enum Mark {
     /// Born this revision.
     #[serde(rename = "+")]
@@ -47,7 +48,7 @@ pub enum Mark {
 }
 
 /// The board: slots in birth order, one mark and one print per revision.
-#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct Board {
     /// The revision number — r1 · r2 · …
     pub rev: u32,
@@ -136,7 +137,7 @@ pub fn seat_next(prev: &Board, g: &GraphDoc) -> Board {
     }
 
     Board {
-        rev: prev.rev + 1,
+        rev: prev.rev.saturating_add(1), // a hostile board's u32::MAX stays MAX — wrapping to 0 would renumber history
         slots,
         marks,
         prints: g

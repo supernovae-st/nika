@@ -27,9 +27,24 @@ pub enum Verb {
     Agent,
 }
 
+impl Verb {
+    /// The verb's lowercase spelling — the one wire voice (C-CONV · the
+    /// `Touch::permit_key` precedent).
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Infer => "infer",
+            Self::Exec => "exec",
+            Self::Invoke => "invoke",
+            Self::Agent => "agent",
+        }
+    }
+}
+
 /// The five permit classes — what a step TOUCHES.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum Touch {
     /// Reads the filesystem.
     FsRead,
@@ -63,6 +78,7 @@ impl Touch {
 /// re-proven in CI. The three do not carry the same trust.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[non_exhaustive]
 pub enum Origin {
     /// Ships in the engine binary.
     Builtin,
@@ -79,6 +95,7 @@ pub enum Origin {
 /// The builtin families — their glyphs live in the SSOT.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
+#[non_exhaustive]
 pub enum Family {
     /// The core set.
     Core,
@@ -95,7 +112,7 @@ pub enum Family {
 }
 
 /// One declared task. `needs` is what makes the waves.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Task {
     /// The task id (the file's map key).
     pub id: String,
@@ -121,7 +138,7 @@ pub struct Task {
 }
 
 /// What the file declares.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Workflow {
     /// The workflow file name.
     pub file: String,
@@ -172,6 +189,12 @@ pub struct Step {
     /// can lie.
     #[serde(default)]
     pub blocked_by: Option<String>,
+    /// The engine said `task_skipped` (a `when:` gate or an `on_error:
+    /// skip`) — the step exists in the DAG and never ran. Absent from the
+    /// studio's own data (the field is the engine-side enrichment); a run
+    /// without skips never carries the key at all.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub skipped: Option<bool>,
 }
 
 /// What the trace recorded.
@@ -190,7 +213,8 @@ pub struct Run {
 /// ⭐⭐ THE FAN-OUT — one line in the display is either a single task or
 /// a group of tasks sharing verb, tool AND dependencies (the exact
 /// signature of a declared `for_each`). Derived, never annotated.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum Group {
     /// A task with no twins.
     Single(Task),
@@ -209,5 +233,22 @@ impl Group {
     #[must_use]
     pub const fn is_fanout(&self) -> bool {
         matches!(self, Self::Fanout { .. })
+    }
+}
+
+/// The wire vocabulary (`{task: id}` · `{group, members: [ids]}`) lives
+/// HERE, once — the studio's gen-parity emits it, the parity test reads
+/// it, and the wasm door serves it. Members serialize as IDS (the full
+/// tasks are the caller's already).
+impl serde::Serialize for Group {
+    fn serialize<S: serde::Serializer>(&self, ser: S) -> Result<S::Ok, S::Error> {
+        match self {
+            Self::Single(t) => serde_json::json!({ "task": t.id }),
+            Self::Fanout { name, members } => serde_json::json!({
+                "group": name,
+                "members": members.iter().map(|m| &m.id).collect::<Vec<_>>(),
+            }),
+        }
+        .serialize(ser)
     }
 }

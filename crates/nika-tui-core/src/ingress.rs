@@ -104,6 +104,7 @@ pub struct Edge {
 /// The one refusal the ingress owns — the bytes are not a journal this
 /// engine wrote.
 #[derive(Debug, Clone, PartialEq, Eq, thiserror::Error)]
+#[non_exhaustive]
 pub enum IngressError {
     /// A journal line is not valid JSON.
     #[error("line {line}: not JSON — not a journal this engine wrote")]
@@ -144,7 +145,10 @@ impl Line {
 }
 
 /// The outcome's decoded payload — carried as a JSON STRING inside the
-/// `outcome` field (the journal's one nested stringification).
+/// `outcome` field (the journal's one nested stringification). The error
+/// object is the engine's own `{code, message, transient}` — the first
+/// fold expected a `why` that never exists, and the decode was dead code
+/// until the swarm's correctness lens proved it.
 #[derive(Deserialize)]
 struct Outcome {
     payload: Option<OutcomePayload>,
@@ -153,7 +157,14 @@ struct Outcome {
 #[derive(Deserialize)]
 struct OutcomePayload {
     #[serde(default)]
-    error: Option<Failure>,
+    error: Option<OutcomeError>,
+}
+
+#[derive(Deserialize)]
+struct OutcomeError {
+    code: String,
+    #[serde(default)]
+    message: Option<String>,
 }
 
 /// Fold a journal's NDJSON bytes into the session's [`Run`].
@@ -183,7 +194,7 @@ pub fn run_from_journal(bytes: &str) -> Result<Run, IngressError> {
                 }
                 t0_ns = line.timestamp.map(u128::from);
             }
-            "task_completed" | "task_failed" | "task_cancelled" => {
+            "task_completed" | "task_failed" | "task_cancelled" | "task_skipped" => {
                 let Some(id) = line.field("task").and_then(serde_json::Value::as_str) else {
                     continue;
                 };
@@ -206,42 +217,53 @@ pub fn run_from_journal(bytes: &str) -> Result<Run, IngressError> {
                 let tokens = line.field("tokens").and_then(serde_json::Value::as_u64);
                 let cost = line.field("cost_usd").and_then(serde_json::Value::as_f64);
                 let failed = (line.kind == "task_failed").then(|| {
-                    let why = line
+                    let detail = line
                         .field("detail")
                         .and_then(|v| v.as_str())
-                        .unwrap_or("failed")
-                        .to_owned();
-                    let code = line
+                        .unwrap_or("failed");
+                    let decoded = line
                         .field("outcome")
                         .and_then(|v| v.as_str())
                         .and_then(|s| serde_json::from_str::<Outcome>(s).ok())
                         .and_then(|o| o.payload)
-                        .and_then(|p| p.error)
-                        .map_or_else(
-                            || why.chars().take_while(|c| *c != ' ').collect(),
-                            |e| e.code,
-                        );
+                        .and_then(|p| p.error);
+                    let code = decoded.as_ref().map_or_else(
+                        || detail.chars().take_while(|c| *c != ' ').collect(),
+                        |e| e.code.clone(),
+                    );
+                    // `why` is the error's clean message (never the doubled
+                    // `detail` string, which repeats the code twice).
+                    let why = decoded
+                        .and_then(|e| e.message)
+                        .unwrap_or_else(|| detail.to_owned());
                     Failure { code, why }
                 });
-                let (never_born, blocked_by) = if line.kind == "task_cancelled" {
-                    (
+                // Cancelled and skipped steps never STARTED — the studio's
+                // convention is 0/0 (a cancellation stamps at teardown, and
+                // a real timestamp would inflate its wave's end — measured
+                // by the swarm on Ctrl-C runs).
+                let timeless = matches!(line.kind.as_str(), "task_cancelled" | "task_skipped");
+                let (never_born, skipped, blocked_by) = match line.kind.as_str() {
+                    "task_cancelled" => (
                         Some(true),
+                        None,
                         line.field("blocked_by")
                             .and_then(|v| v.as_str())
                             .map(str::to_owned),
-                    )
-                } else {
-                    (None, None)
+                    ),
+                    "task_skipped" => (None, Some(true), None),
+                    _ => (None, None, None),
                 };
                 steps.push(Step {
                     id: id.to_owned(),
-                    start: start.max(0.0),
-                    dur: duration_ms / 1000.0,
+                    start: if timeless { 0.0 } else { start.max(0.0) },
+                    dur: if timeless { 0.0 } else { duration_ms / 1000.0 },
                     cost,
                     tokens,
                     failed,
                     never_born,
                     blocked_by,
+                    skipped,
                 });
             }
             _ => {}

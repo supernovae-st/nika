@@ -10,59 +10,135 @@
 //! written by hand and both lied: the run's duration and the bottleneck's
 //! idle sum. Derived, never written.
 
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use crate::model::{Group, Run, Task, Touch, Verb, Workflow};
 
-/// A task's wave — the depth of its dependency chain. A cycle answers 0
-/// instead of looping (the check catches the cycle; the renderer must not
-/// hang on a file it refused).
-fn wave_of_rec(wf: &Workflow, id: &str, seen: &mut BTreeSet<String>) -> usize {
-    if !seen.insert(id.to_owned()) {
-        return 0;
-    }
-    let Some(t) = wf.tasks.iter().find(|x| x.id == id) else {
-        return 0;
-    };
-    if t.needs.is_empty() {
-        return 0;
-    }
-    1 + t
-        .needs
-        .iter()
-        .map(|n| wave_of_rec(wf, n, seen))
-        .max()
-        .unwrap_or(0)
+/// The wave assignment, computed ONCE per workflow and shared by every
+/// derivation below (the swarm's F2 · recomputing `waves()` per question
+/// was O(n³) on a chain — one pass, then reads).
+///
+/// NO RECURSION — an explicit stack walks each dependency chain, so a
+/// hostile multi-thousand-task file cannot trap the 1 MiB wasm stack
+/// (the swarm's F1 · the sibling crate's jq-bomb class). The law is the
+/// TRUE longest path — amended upstream on 2026-08-12 after the swarm
+/// proved the studio's shared-guard quirk could seat a task in its own
+/// dependency's wave (the sonde-diamant fixture pins the class forever).
+/// The cycle guard answers 0, because the check refuses cycles before any
+/// render and a refused file must never hang the surface.
+#[derive(Debug, Clone)]
+pub struct Waves {
+    by_wave: Vec<Vec<Task>>,
+    of_task: BTreeMap<String, usize>,
 }
 
-/// A task's wave — fresh guard per call (the studio's default-parameter
-/// semantics, kept: a wave question never inherits another's guard).
-#[must_use]
-pub fn wave_of(wf: &Workflow, id: &str) -> usize {
-    wave_of_rec(wf, id, &mut BTreeSet::new())
+impl Waves {
+    /// The tasks grouped by wave — the real execution order, declared
+    /// order inside each wave.
+    #[must_use]
+    pub fn groups(&self) -> &[Vec<Task>] {
+        &self.by_wave
+    }
+
+    /// A task's wave index (0 when unknown).
+    #[must_use]
+    pub fn of(&self, id: &str) -> usize {
+        self.of_task.get(id).copied().unwrap_or(0)
+    }
+
+    /// Is this id a declared task? (a ghost step in an old journal is not
+    /// one — the fold reads journals written against older files).
+    #[must_use]
+    pub fn contains(&self, id: &str) -> bool {
+        self.of_task.contains_key(id)
+    }
+
+    /// The wave count.
+    #[must_use]
+    pub fn len(&self) -> usize {
+        self.by_wave.len()
+    }
+
+    /// No waves at all.
+    #[must_use]
+    pub fn is_empty(&self) -> bool {
+        self.by_wave.is_empty()
+    }
 }
 
-/// The tasks grouped by wave — the real execution order, declared order
-/// inside each wave.
-#[must_use]
-pub fn waves(wf: &Workflow) -> Vec<Vec<Task>> {
-    let mut out: Vec<Vec<Task>> = Vec::new();
-    for t in &wf.tasks {
-        let w = wave_of(wf, &t.id);
-        if out.len() <= w {
-            out.resize_with(w + 1, Vec::new);
+/// One task's wave, walked ITERATIVELY from the root — post-order DFS on
+/// an explicit stack. `visiting` is the fresh per-root guard: a revisited
+/// id (a cycle) answers 0, exactly the studio's `seen` set.
+fn wave_of_walk(tasks: &BTreeMap<&str, &Task>, root: &str) -> usize {
+    enum Frame<'a> {
+        Enter(&'a str),
+        Exit(&'a str),
+    }
+    let mut memo: BTreeMap<&str, usize> = BTreeMap::new();
+    let mut visiting: BTreeSet<&str> = BTreeSet::new();
+    let mut stack = vec![Frame::Enter(root)];
+    while let Some(frame) = stack.pop() {
+        match frame {
+            Frame::Enter(id) => {
+                if memo.contains_key(id) {
+                    continue;
+                }
+                if !visiting.insert(id) {
+                    continue; // a cycle answers 0, never loops
+                }
+                let Some(t) = tasks.get(id) else {
+                    memo.insert(id, 0);
+                    continue;
+                };
+                if t.needs.is_empty() {
+                    memo.insert(id, 0);
+                    continue;
+                }
+                stack.push(Frame::Exit(id));
+                for n in t.needs.iter().rev() {
+                    stack.push(Frame::Enter(n.as_str()));
+                }
+            }
+            Frame::Exit(id) => {
+                visiting.remove(id);
+                let w = tasks.get(id).map_or(0, |t| {
+                    1 + t
+                        .needs
+                        .iter()
+                        .map(|n| memo.get(n.as_str()).copied().unwrap_or(0))
+                        .max()
+                        .unwrap_or(0)
+                });
+                memo.insert(id, w);
+            }
         }
-        out[w].push(t.clone());
     }
-    out
+    memo.get(root).copied().unwrap_or(0)
+}
+
+/// The tasks' waves, computed once — the real execution order.
+#[must_use]
+pub fn waves(wf: &Workflow) -> Waves {
+    let tasks: BTreeMap<&str, &Task> = wf.tasks.iter().map(|t| (t.id.as_str(), t)).collect();
+    let mut by_wave: Vec<Vec<Task>> = Vec::new();
+    let mut of_task: BTreeMap<String, usize> = BTreeMap::new();
+    for t in &wf.tasks {
+        let w = wave_of_walk(&tasks, &t.id);
+        of_task.insert(t.id.clone(), w);
+        if by_wave.len() <= w {
+            by_wave.resize_with(w + 1, Vec::new);
+        }
+        by_wave[w].push(t.clone());
+    }
+    Waves { by_wave, of_task }
 }
 
 /// When a wave ends — the max of its ends. Steps never started do not
 /// extend it (they carry no end; the max of an empty wave is 0).
 #[must_use]
-pub fn wave_end(wf: &Workflow, run: &Run, w: usize) -> f64 {
-    let by_wave = waves(wf);
-    let ids: BTreeSet<&str> = by_wave
+pub fn wave_end(ws: &Waves, run: &Run, w: usize) -> f64 {
+    let ids: BTreeSet<&str> = ws
+        .groups()
         .get(w)
         .map(|g| g.iter().map(|t| t.id.as_str()).collect())
         .unwrap_or_default();
@@ -73,16 +149,18 @@ pub fn wave_end(wf: &Workflow, run: &Run, w: usize) -> f64 {
         .fold(0.0, f64::max)
 }
 
-/// The time a step spends WAITING for its own wave to end.
+/// The time a step spends WAITING for its own wave to end. A ghost step
+/// (an id the workflow does not declare — an old journal against a
+/// renamed file) has no wave and no idle: 0, never a phantom number.
 #[must_use]
-pub fn idle_of(wf: &Workflow, run: &Run, id: &str) -> f64 {
+pub fn idle_of(ws: &Waves, run: &Run, id: &str) -> f64 {
+    if !ws.contains(id) {
+        return 0.0;
+    }
     let Some(s) = run.steps.iter().find(|x| x.id == id) else {
         return 0.0;
     };
-    let Some(t) = wf.tasks.iter().find(|x| x.id == id) else {
-        return 0.0;
-    };
-    let end = wave_end(wf, run, wave_of(wf, &t.id));
+    let end = wave_end(ws, run, ws.of(id));
     (end - (s.start + s.dur)).max(0.0)
 }
 
@@ -107,13 +185,13 @@ pub struct Neck {
 
 /// The worst holder across waves — by summed idle.
 #[must_use]
-pub fn bottleneck(wf: &Workflow, run: &Run) -> Option<Neck> {
+pub fn bottleneck(ws: &Waves, run: &Run) -> Option<Neck> {
     let mut best: Option<Neck> = None;
-    for (w, group) in waves(wf).iter().enumerate() {
+    for (w, group) in ws.groups().iter().enumerate() {
         if group.len() < 2 {
             continue;
         }
-        let end = wave_end(wf, run, w);
+        let end = wave_end(ws, run, w);
         let Some(holder) = group.iter().find(|t| {
             run.steps
                 .iter()
@@ -122,10 +200,10 @@ pub fn bottleneck(wf: &Workflow, run: &Run) -> Option<Neck> {
         }) else {
             continue;
         };
-        let idle_total = group.iter().map(|t| idle_of(wf, run, &t.id)).sum();
+        let idle_total = group.iter().map(|t| idle_of(ws, run, &t.id)).sum();
         let blocked = group
             .iter()
-            .filter(|t| idle_of(wf, run, &t.id) > 0.05)
+            .filter(|t| idle_of(ws, run, &t.id) > 0.05)
             .count();
         if blocked == 0 {
             continue;

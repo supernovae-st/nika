@@ -44,6 +44,7 @@ fn the_derivation_lands_on_the_same_bits() {
         "stress.json",
         "sonde-single.json",
         "sonde-neverborn.json",
+        "sonde-diamant.json",
     ] {
         let f = load(file);
         check_case(&f);
@@ -56,7 +57,8 @@ fn check_case(f: &Fixture) {
     let case = f.name.as_str();
 
     // waves — the ids, grouped, in declared order.
-    let got_waves_vec = derive::waves(wf);
+    let got_waves_struct = derive::waves(wf);
+    let got_waves_vec = got_waves_struct.groups();
     let got_waves: Vec<Vec<&str>> = got_waves_vec
         .iter()
         .map(|g| g.iter().map(|t| t.id.as_str()).collect())
@@ -77,7 +79,7 @@ fn check_case(f: &Fixture) {
 
     // wave_end — one number per wave.
     let got_ends: Vec<f64> = (0..got_waves.len())
-        .map(|w| derive::wave_end(wf, run, w))
+        .map(|w| derive::wave_end(&got_waves_struct, run, w))
         .collect();
     let want_ends: Vec<f64> = want["wave_end"]
         .as_array()
@@ -92,7 +94,7 @@ fn check_case(f: &Fixture) {
     for s in &run.steps {
         let want_i = want_idle[&s.id].as_f64().expect("idle f64");
         assert_eq!(
-            derive::idle_of(wf, run, &s.id),
+            derive::idle_of(&got_waves_struct, run, &s.id),
             want_i,
             "{case} · idle · {}",
             s.id
@@ -100,7 +102,10 @@ fn check_case(f: &Fixture) {
     }
 
     // bottleneck — the holder, its summed idle, its blocked count.
-    match (&want["bottleneck"], derive::bottleneck(wf, run)) {
+    match (
+        &want["bottleneck"],
+        derive::bottleneck(&got_waves_struct, run),
+    ) {
         (serde_json::Value::Null, None) => {}
         (w, Some(got)) => {
             assert_eq!(
@@ -182,6 +187,7 @@ fn check_vocabulary(f: &Fixture) {
         Touch::Net => "net",
         Touch::Exec => "exec",
         Touch::Tools => "tools",
+        _ => "unknown", // non_exhaustive — a future class spells itself when it lands
     };
     let got_und: Vec<&str> = derive::undeclared(wf).iter().map(spell).collect();
     let want_und: Vec<&str> = want["undeclared"]
@@ -209,6 +215,7 @@ fn check_vocabulary(f: &Fixture) {
                 "group": name,
                 "members": members.iter().map(|m| &m.id).collect::<Vec<_>>(),
             }),
+            _ => serde_json::json!(null), // non_exhaustive — a future variant is visible, not silent
         })
         .collect();
     assert_eq!(

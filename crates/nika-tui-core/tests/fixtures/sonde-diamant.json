@@ -1,0 +1,182 @@
+{
+  "name": "sonde-diamant",
+  "workflow": {
+    "file": "sonde-diamant.nika.yaml",
+    "engine": "0.108.0",
+    "prompt": "sonde",
+    "permits": [],
+    "missing": "rien",
+    "tasks": [
+      {
+        "id": "d",
+        "verb": "infer",
+        "glyph": "◇",
+        "needs": [],
+        "tool": "mock",
+        "origin": "model"
+      },
+      {
+        "id": "c",
+        "verb": "infer",
+        "glyph": "◇",
+        "needs": [
+          "d"
+        ],
+        "tool": "mock",
+        "origin": "model"
+      },
+      {
+        "id": "a",
+        "verb": "infer",
+        "glyph": "◇",
+        "needs": [
+          "c"
+        ],
+        "tool": "mock",
+        "origin": "model"
+      },
+      {
+        "id": "e",
+        "verb": "infer",
+        "glyph": "◇",
+        "needs": [
+          "c"
+        ],
+        "tool": "mock",
+        "origin": "model"
+      },
+      {
+        "id": "b",
+        "verb": "infer",
+        "glyph": "◇",
+        "needs": [
+          "e"
+        ],
+        "tool": "mock",
+        "origin": "model"
+      },
+      {
+        "id": "root",
+        "verb": "infer",
+        "glyph": "◇",
+        "needs": [
+          "a",
+          "b"
+        ],
+        "tool": "mock",
+        "origin": "model"
+      }
+    ]
+  },
+  "run": {
+    "trace": "sonde",
+    "when": "never ran",
+    "output": "",
+    "steps": [
+      {
+        "id": "d",
+        "start": 0,
+        "dur": 0.1
+      },
+      {
+        "id": "c",
+        "start": 0.1,
+        "dur": 0.1
+      },
+      {
+        "id": "a",
+        "start": 0.2,
+        "dur": 0.1
+      },
+      {
+        "id": "e",
+        "start": 0.2,
+        "dur": 0.4
+      },
+      {
+        "id": "b",
+        "start": 0.6,
+        "dur": 0.1
+      },
+      {
+        "id": "root",
+        "start": 0.7,
+        "dur": 0.1
+      }
+    ]
+  },
+  "derived": {
+    "waves": [
+      [
+        "d"
+      ],
+      [
+        "c"
+      ],
+      [
+        "a",
+        "e"
+      ],
+      [
+        "b"
+      ],
+      [
+        "root"
+      ]
+    ],
+    "wave_end": [
+      0.1,
+      0.2,
+      0.6000000000000001,
+      0.7,
+      0.7999999999999999
+    ],
+    "idle": {
+      "d": 0,
+      "c": 0,
+      "a": 0.30000000000000004,
+      "e": 0,
+      "b": 0,
+      "root": 0
+    },
+    "bottleneck": {
+      "id": "e",
+      "idleTotal": 0.30000000000000004,
+      "blocked": 1
+    },
+    "total_cost": 0,
+    "total_time": 0.7999999999999999,
+    "verbs_used": [
+      "infer"
+    ],
+    "has_failed": false,
+    "cost_by_verb": {
+      "infer": 0,
+      "exec": 0,
+      "invoke": 0,
+      "agent": 0
+    },
+    "undeclared": [],
+    "blast_radius": [],
+    "groups": [
+      {
+        "task": "d"
+      },
+      {
+        "task": "c"
+      },
+      {
+        "task": "a"
+      },
+      {
+        "task": "e"
+      },
+      {
+        "task": "b"
+      },
+      {
+        "task": "root"
+      }
+    ]
+  }
+}

@@ -1,6 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
-#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::unreachable
+)]
 
 //! Gate 6 — the derivation invariants under arbitrary shapes. The
 //! properties are the law's promises, stated so the machine can try to
@@ -69,6 +74,7 @@ fn arb_run(ids: Vec<String>) -> impl Strategy<Value = Run> {
                 failed: None,
                 never_born: None,
                 blocked_by: None,
+                skipped: None,
             })
             .collect(),
     })
@@ -88,7 +94,7 @@ proptest! {
     #[test]
     fn waves_partition_every_task(wf in arb_workflow()) {
         let ws = derive::waves(&wf);
-        let mut seen: Vec<&str> = ws.iter().flat_map(|g| g.iter().map(|t| t.id.as_str())).collect();
+        let mut seen: Vec<&str> = ws.groups().iter().flat_map(|g| g.iter().map(|t| t.id.as_str())).collect();
         seen.sort_unstable();
         let mut want: Vec<&str> = wf.tasks.iter().map(|t| t.id.as_str()).collect();
         want.sort_unstable();
@@ -98,8 +104,9 @@ proptest! {
     /// Idleness never goes negative, whatever the timings.
     #[test]
     fn idle_is_never_negative((wf, run) in arb_pair()) {
+        let ws = derive::waves(&wf);
         for s in &run.steps {
-            prop_assert!(derive::idle_of(&wf, &run, &s.id) >= 0.0, "{} idle < 0", s.id);
+            prop_assert!(derive::idle_of(&ws, &run, &s.id) >= 0.0, "{} idle < 0", s.id);
         }
     }
 
@@ -118,7 +125,8 @@ proptest! {
     /// A crowned bottleneck ALWAYS has at least one waiter.
     #[test]
     fn a_crowned_neck_has_waiters((wf, run) in arb_pair()) {
-        if let Some(neck) = derive::bottleneck(&wf, &run) {
+        let ws = derive::waves(&wf);
+        if let Some(neck) = derive::bottleneck(&ws, &run) {
             prop_assert!(neck.blocked >= 1, "a free neck is crowned");
             prop_assert!(neck.idle_total > 0.0, "a costless neck is crowned");
         }
@@ -133,6 +141,7 @@ proptest! {
             match g {
                 nika_tui_core::model::Group::Single(_) => count += 1,
                 nika_tui_core::model::Group::Fanout { members, .. } => count += members.len(),
+                _ => unreachable!("two variants today · a third is a deliberate law change"),
             }
         }
         prop_assert_eq!(count, wf.tasks.len());

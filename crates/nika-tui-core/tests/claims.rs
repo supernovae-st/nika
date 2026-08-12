@@ -58,7 +58,8 @@ fn check_clean_needs_an_answer() {
 #[test]
 fn a_free_bottleneck_claims_nothing() {
     let (wf, run, _d) = load_parity("demo-ok");
-    let neck = derive::bottleneck(&wf, &run);
+    let ws = derive::waves(&wf);
+    let neck = derive::bottleneck(&ws, &run);
     assert!(
         claims::may_claim_bottleneck(neck.as_ref()),
         "the recorded demo's neck holds its wave"
