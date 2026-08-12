@@ -72,7 +72,7 @@ pub mod registry;
 
 pub use cron::{CronSpec, Field};
 pub use error::{CadenceError, CadenceErrorKind};
-pub use next::{Shift, Slot};
+pub use next::{Shift, Slot, next_slots};
 pub use parse::{parse_registry, validate};
 pub use registry::{AfterSkip, ArmRegistry, Beat, Cadence, Locus, MissPolicy, Overlap};
 

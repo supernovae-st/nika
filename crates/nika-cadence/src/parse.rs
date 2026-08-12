@@ -85,15 +85,25 @@ pub fn validate(registry: &ArmRegistry) -> impl Iterator<Item = CadenceError> {
 /// the conditional fields refuse their broken condition.
 fn validate_beat(beat: &Beat, faults: &mut Vec<CadenceError>) {
     let w = beat.workflow.as_str();
-    if w.is_empty() || !w.ends_with(".nika.yaml") {
+    // The path's SHAPE is judged here — the law says « relatif au
+    // registre »: no absolute prefix, no `..` segment, a real basename
+    // before the `.nika.yaml` suffix. Existence is the L4 edge's.
+    let shape_bad = w.is_empty()
+        || !w.ends_with(".nika.yaml")
+        || w.starts_with('/')
+        || w.split(':').nth(1).is_some()
+        || w.split('/').any(|seg| seg == "..")
+        || w.rsplit('/')
+            .next()
+            .is_some_and(|base| base == ".nika.yaml");
+    if shape_bad {
         faults.push(CadenceError::beat(
             w,
             CadenceErrorKind::WorkflowPath,
-            "workflow: · un chemin `*.nika.yaml` relatif au registre",
+            "workflow: · un chemin `*.nika.yaml` relatif au registre (ni absolu, ni `..`, un vrai basename)",
             "workflow: dx/workflows/mon-beat.nika.yaml",
         ));
     }
-    // l'existence du fichier se juge au bord L4 — ici, zéro I/O.
     if let Err(fault) = Cadence::parse(&beat.cadence) {
         faults.push(fault.on_beat(w));
     }
@@ -223,14 +233,34 @@ impl Cadence {
     /// faulty token (the painter's data, the `CelError` precedent).
     pub fn parse(raw: &str) -> Result<Self, CadenceError> {
         let text = raw.trim();
+        let lead = raw.len() - raw.trim_start().len(); // spans rebase on RAW input
         if text.eq_ignore_ascii_case("on-webhook") {
             return Ok(Self::Webhook);
         }
-        let (tz, rest) = split_tz(text)?;
-        let base = text.len() - rest.len();
+        let (tz, rest) = split_tz(text, lead)?;
+        let base = lead + text.len() - rest.len();
         let tokens: Vec<&str> = rest.split_whitespace().collect();
         if let Some(spec) = parse_readable(&tokens) {
             return Ok(Self::Cron { tz, spec });
+        }
+        // An attempted readable form earns its OWN refusal — preaching
+        // the cron syntax at a French sentence is the refusal-trompeur
+        // class this grammar exists to kill.
+        if tokens.len() == 2 && looks_readable(tokens[0], tokens[1]) {
+            let spans = token_spans(rest, base);
+            let faulty = if weekday_fr_lenient(tokens[0]) {
+                spans.get(1).copied()
+            } else {
+                spans.first().copied()
+            };
+            return Err(CadenceError::file(
+                CadenceErrorKind::PhraseSyntax,
+                format!(
+                    "cadence `{text}` · la forme lisible est `<jour-fr> <H>h<MM>` (jour en minuscules · minute sur 2 chiffres)"
+                ),
+                "ex. `TZ=Europe/Paris lundi 9h07` — tout le reste parle cron",
+            )
+            .with_span(faulty.unwrap_or((base, lead + text.len()))));
         }
         // The field count is the TYPE — scar #6 belongs to the compiler,
         // not to a discipline: five tokens ride one array, and a sixth
@@ -247,12 +277,28 @@ impl Cadence {
                     ),
                     "cron = minute heure jour-du-mois mois jour-de-semaine · ex. `TZ=Europe/Paris 0 9 * * 1`",
                 )
-                .with_span((base, text.len())));
+                .with_span((base, lead + text.len())));
             }
         };
         let spec = parse_cron_fields(fields).map_err(|e| attach_field_span(e, &spans))?;
         Ok(Self::Cron { tz, spec })
     }
+}
+
+/// Does this pair of tokens look like an ATTEMPTED readable form (a
+/// French weekday — case forgiven — or an `HhMM` shape) ?
+fn looks_readable(jour: &str, heure: &str) -> bool {
+    weekday_fr_lenient(jour) || heure.contains('h')
+}
+
+/// The French weekday, case-insensitive (an attempted form is named even
+/// when the case betrays it — the refusal teaches the exact form).
+fn weekday_fr_lenient(jour: &str) -> bool {
+    [
+        "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi", "dimanche",
+    ]
+    .iter()
+    .any(|name| jour.eq_ignore_ascii_case(name))
 }
 
 /// Byte spans of the whitespace-separated tokens of `rest`, rebased on
@@ -297,7 +343,8 @@ fn attach_field_span(err: CadenceError, spans: &[(usize, usize)]) -> CadenceErro
 }
 
 /// Detach the `TZ=<iana>` prefix — REQUIRED for every scheduled form.
-fn split_tz(text: &str) -> Result<(String, &str), CadenceError> {
+/// `lead` is the raw-input trim offset so spans paint the raw text.
+fn split_tz(text: &str, lead: usize) -> Result<(String, &str), CadenceError> {
     match text.split_once(char::is_whitespace) {
         Some((head, rest)) if head.starts_with("TZ=") => {
             let name = &head[3..];
@@ -307,10 +354,25 @@ fn split_tz(text: &str) -> Result<(String, &str), CadenceError> {
                     format!("cadence `{text}` · fuseau `{name}` inconnu de la base IANA embarquée"),
                     "un nom IANA · ex. `TZ=Europe/Paris …` (la base est figée au build, zéro lecture système)",
                 )
-                .with_span((3, head.len())));
+                .with_span((lead + 3, lead + head.len())));
             }
-            Ok((name.to_owned(), rest.trim_start()))
+            let rest = rest.trim_start();
+            if rest.is_empty() {
+                return Err(CadenceError::file(
+                    CadenceErrorKind::FieldCount,
+                    format!("cadence `{text}` · le fuseau est là — ce sont les 5 champs qui manquent"),
+                    "cron = minute heure jour-du-mois mois jour-de-semaine · ex. `TZ=Europe/Paris 0 9 * * 1`",
+                )
+                .with_span((lead + head.len(), lead + text.len())));
+            }
+            Ok((name.to_owned(), rest))
         }
+        _ if text.starts_with("TZ=") => Err(CadenceError::file(
+            CadenceErrorKind::FieldCount,
+            format!("cadence `{text}` · le fuseau est là — ce sont les 5 champs qui manquent"),
+            "cron = minute heure jour-du-mois mois jour-de-semaine · ex. `TZ=Europe/Paris 0 9 * * 1`",
+        )
+        .with_span((lead, lead + text.len()))),
         _ => Err(CadenceError::file(
             CadenceErrorKind::TzMissing,
             format!(
@@ -318,16 +380,6 @@ fn split_tz(text: &str) -> Result<(String, &str), CadenceError> {
             ),
             "préfixe la cadence de `TZ=<iana>` · ex. `TZ=Europe/Paris 0 9 * * 1` (seul `on-webhook` n en porte pas)",
         )
-        .with_span((0, text.len()))),
-    }
-}
-
-impl CadenceError {
-    /// Re-attach a file-level refusal to its beat.
-    fn on_beat(mut self, workflow: &str) -> Self {
-        if self.on().is_none() {
-            self = Self::beat(workflow, self.kind(), self.detail(), self.remedy());
-        }
-        self
+        .with_span((lead, lead + text.len()))),
     }
 }

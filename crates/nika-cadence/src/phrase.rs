@@ -17,7 +17,6 @@
 //! rendered 244 characters; now 5).
 
 use crate::cron::{CronSpec, Field};
-use crate::next::Slot;
 use crate::registry::Cadence;
 
 /// The French weekday names the readable form accepts (lundi = 1 …
@@ -112,19 +111,4 @@ fn show_field<const LO: u8, const HI: u8>(field: Field<LO, HI>) -> String {
             .collect::<Vec<_>>()
             .join(",")
     }
-}
-
-/// The next `count` slots after `from` — "les 4 prochaines dates" the
-/// display shows. An infinite-safe fold over [`Cadence::next_after`]
-/// (each step is strictly later than the last), truncated at `count`;
-/// a webhook or an unreachable schedule simply ends the walk early.
-/// Each item is a [`Slot`] — a displaced or merged slot SAYS so
-/// (`shift`), so the display can teach the DST law per date.
-pub fn next_slots(
-    cadence: &Cadence,
-    from: &jiff::Zoned,
-    count: usize,
-) -> impl Iterator<Item = Slot> {
-    let first = cadence.next_after(from);
-    std::iter::successors(first, move |prev| cadence.next_after(&prev.at)).take(count)
 }

@@ -208,4 +208,16 @@ impl CadenceError {
     pub(crate) fn field(&self) -> Option<&'static str> {
         self.field
     }
+
+    /// Re-attach this refusal to a beat — mutating `on` ONLY: the span
+    /// and the field label survive the transit (a refusal born on
+    /// authored text must still paint its byte when it surfaces
+    /// through `validate`).
+    #[must_use]
+    pub(crate) fn on_beat(mut self, workflow: &str) -> Self {
+        if self.on.is_none() {
+            self.on = Some(workflow.to_owned());
+        }
+        self
+    }
 }

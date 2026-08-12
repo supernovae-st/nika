@@ -16,7 +16,7 @@ use jiff::Zoned;
 use jiff::tz::TimeZone;
 use proptest::prelude::*;
 
-use crate::phrase::next_slots;
+use crate::next::next_slots;
 use crate::{
     AfterSkip, ArmRegistry, Cadence, CadenceErrorKind, Locus, MissPolicy, Overlap, Shift,
     parse_registry, validate,
@@ -645,6 +645,92 @@ arm:
 ",
     );
     assert!(faults.contains(&CadenceErrorKind::WorkflowPath));
+}
+
+#[test]
+fn the_span_survives_the_law_pass() {
+    // The painter's data never dies in transit (F1) — a refusal born on
+    // authored text keeps its byte span THROUGH validate().
+    let reg = parse_registry(
+        "
+nika: v1
+arm:
+  - workflow: dx/workflows/a.nika.yaml
+    cadence: TZ=UTC 61 9 * * 1
+    plafond: 0.35
+    manqué: sauter
+",
+    )
+    .expect("parse");
+    let faults: Vec<_> = validate(&reg).collect();
+    assert_eq!(faults.len(), 1);
+    assert_eq!(faults[0].kind(), CadenceErrorKind::FieldRange);
+    assert_eq!(
+        faults[0].span(),
+        Some((7, 9)),
+        "le span survit à validate — sinon il ne peint jamais"
+    );
+    assert_eq!(faults[0].on(), Some("dx/workflows/a.nika.yaml"));
+}
+
+#[test]
+fn an_attempted_readable_form_earns_its_own_refusal() {
+    // PhraseSyntax is wired: a French sentence with a malformed time is
+    // never answered with a cron sermon.
+    let err = Cadence::parse("TZ=Europe/Paris lundi 9h7").expect_err("minute à 1 chiffre");
+    assert_eq!(err.kind(), CadenceErrorKind::PhraseSyntax);
+    assert_eq!(err.span(), Some((22, 25)), "le token horaire fautif, peint");
+    let err = Cadence::parse("TZ=UTC Lundi 9h07").expect_err("la casse trahit la tentative");
+    assert_eq!(err.kind(), CadenceErrorKind::PhraseSyntax);
+    assert_eq!(err.span(), Some((13, 17)));
+}
+
+#[test]
+fn a_zone_without_fields_says_the_fields_are_missing() {
+    let err = Cadence::parse("TZ=Europe/Paris").expect_err("le fuseau seul");
+    assert_eq!(err.kind(), CadenceErrorKind::FieldCount);
+    assert!(
+        err.detail().contains("les 5 champs qui manquent"),
+        "le diagnostic ne confond pas fuseau absent et champs absents"
+    );
+}
+
+#[test]
+fn spans_paint_the_raw_input_even_through_trimming() {
+    // A quoted YAML scalar can carry leading spaces — the span rebases.
+    let err = Cadence::parse("   TZ=UTC 61 9 * * 1").expect_err("minute 61");
+    assert_eq!(err.kind(), CadenceErrorKind::FieldRange);
+    assert_eq!(
+        err.span(),
+        Some((10, 12)),
+        "la peinture vise l entrée BRUTE"
+    );
+}
+
+#[test]
+fn the_workflow_path_is_relative_to_the_registry() {
+    for path in [
+        "/etc/cron.d/a.nika.yaml",
+        "../hors-registre/a.nika.yaml",
+        "dx/.nika.yaml",
+        "sub/.nika.yaml",
+    ] {
+        let yaml = format!(
+            "
+nika: v1
+arm:
+  - workflow: {path}
+    cadence: on-webhook
+    plafond: 0.35
+    manqué: sauter
+"
+        );
+        let faults = kinds(&yaml);
+        assert!(
+            faults.contains(&CadenceErrorKind::WorkflowPath),
+            "{path} · ni absolu, ni .., ni basename vide — la loi couvre sa phrase"
+        );
+    }
 }
 
 #[test]

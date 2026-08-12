@@ -42,6 +42,9 @@ impl<const LO: u8, const HI: u8> Field<LO, HI> {
 
     /// Every value set — the `*` field.
     fn full() -> Self {
+        // The bitset holds a field whose width fits a u64 — the grammar's
+        // five fields are ≤60 wide; a wider instantiation is a type bug.
+        debug_assert!(LO <= HI && HI - LO < 64);
         let width = HI - LO + 1;
         Self {
             bits: if width >= 64 {
@@ -54,6 +57,7 @@ impl<const LO: u8, const HI: u8> Field<LO, HI> {
 
     /// Mark value `v` present. The parser guarantees `LO <= v <= HI`.
     fn set(&mut self, v: u8) {
+        debug_assert!(LO <= HI && HI - LO < 64);
         self.bits |= 1u64 << (v - LO);
     }
 
@@ -279,14 +283,6 @@ fn parse_field<const LO: u8, const HI: u8>(
             out.set(v);
         }
     }
-    if out.is_empty() {
-        return Err(CadenceError::file(
-            CadenceErrorKind::FieldSyntax,
-            format!("champ {label} `{text}` · vide"),
-            format!("`{label}` entre {LO} et {HI}"),
-        )
-        .on_field(label));
-    }
     Ok(out)
 }
 
@@ -309,8 +305,10 @@ fn field_value<const LO: u8, const HI: u8>(
     names: &[(&str, u8)],
     label: &'static str,
 ) -> Result<u8, CadenceError> {
-    let lower = text.to_ascii_lowercase();
-    if let Some((_, v)) = names.iter().find(|(name, _)| *name == lower) {
+    if let Some((_, v)) = names
+        .iter()
+        .find(|(name, _)| text.eq_ignore_ascii_case(name))
+    {
         return Ok(*v);
     }
     text.parse::<u8>()

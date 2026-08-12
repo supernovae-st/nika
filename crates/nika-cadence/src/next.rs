@@ -94,7 +94,9 @@ fn resolve(civil: DateTime, tz: &TimeZone) -> Option<Slot> {
     // a GAP the civil time exists nowhere; jiff's `later()` rolls forward
     // by the gap LENGTH (02:30 ⇒ 03:30), which is NOT the law. N1 says
     // AVANCER to the FIRST VALID instant (02:30 ⇒ 03:00): step the civil
-    // clock forward until it exists. Bounded — no DST gap spans a day.
+    // clock forward until it exists. Bounded at 26 h of minutes — the
+    // widest gap the tzdb remembers is Apia 2011 (a whole DAY skipped,
+    // 24 h), and the loop still lands (probed: 2011-12-30 → 12-31).
     let first = amb.earlier().ok()?;
     if first.datetime() == civil {
         return Some(Slot {
@@ -163,4 +165,19 @@ impl CronSpec {
         }
         None
     }
+}
+
+/// The next `count` slots after `from` — "les 4 prochaines dates" the
+/// display shows. An infinite-safe fold over [`Cadence::next_after`]
+/// (each step is strictly later than the last), truncated at `count`;
+/// a webhook or an unreachable schedule simply ends the walk early.
+/// Each item is a [`Slot`] — a displaced or merged slot SAYS so
+/// (`shift`), so the display can teach the DST law per date.
+pub fn next_slots(
+    cadence: &Cadence,
+    from: &jiff::Zoned,
+    count: usize,
+) -> impl Iterator<Item = Slot> {
+    let first = cadence.next_after(from);
+    std::iter::successors(first, move |prev| cadence.next_after(&prev.at)).take(count)
 }
