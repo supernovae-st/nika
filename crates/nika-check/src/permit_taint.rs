@@ -329,10 +329,12 @@ fn scan_regate(wf: &RawWorkflow, permits: &Permits, out: &mut Vec<PermitTaint>) 
     let boundary = literal_permits(permits);
     for task in &wf.tasks {
         let task = &task.value;
+        // the `taint` doors only — a `data-as-code` lift raises no
+        // binding, and `from:` is parser-forbidden on it
         let declassified: Vec<&str> = task
-            .declassify
-            .iter()
-            .map(|entry| entry.from.value.as_str())
+            .taint_lifts()
+            .filter_map(|entry| entry.from.as_ref())
+            .map(|from| from.value.as_str())
             .collect();
         match &task.action {
             RawAction::Invoke(a) => {
@@ -992,9 +994,9 @@ tasks:
     invoke:
       tool: nika:read
       args: { path: "${{ inputs.p }}" }
-    declassify:
-      - from: inputs.p
-        to: trusted
+    lift:
+      - law: taint
+        from: inputs.p
         because: "vendor inventory path, deployment-controlled, reviewed at release time"
 "#;
         assert!(

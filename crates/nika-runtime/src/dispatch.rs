@@ -400,7 +400,7 @@ impl<'a> DispatchCtx<'a> {
         Self {
             deadline,
             child_budget,
-            inert: task.inert.as_ref().map(|s| s.value.as_str()),
+            inert: task.data_as_code_because().map(|s| s.value.as_str()),
             witness,
             gate_answer: None,
         }

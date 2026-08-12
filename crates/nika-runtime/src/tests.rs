@@ -151,7 +151,7 @@ async fn code_bearing_fetch_refuses_at_run_and_the_inert_door_opens() {
         let yaml = if inert {
             base.replace(
                 "      args: { url: \"${{ with.u }}\" }\n",
-                "      args: { url: \"${{ with.u }}\" }\n    inert: \"archived for provenance · never loaded\"\n",
+                "      args: { url: \"${{ with.u }}\" }\n    lift:\n      - law: data-as-code\n        because: \"archived for provenance · never loaded\"\n",
             )
         } else {
             base.to_owned()

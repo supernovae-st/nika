@@ -272,7 +272,7 @@ async fn on_finally_cleanup_reading_the_parents_taint_is_regated() {
 /// carrying `from` · `because` · the admitted value's digest.
 #[tokio::test]
 async fn declassify_admits_the_binding_and_the_receipt_records_it() {
-    let yaml = "nika: regate-declassify\ninputs:\n  p: { type: string, default: \"datasets/../../../etc/passwd\" }\npermits:\n  exec: [\"tar\"]\n  fs: { read: [\"datasets/**\"] }\ntasks:\n  untar:\n    exec: { command: [\"tar\", \"-xf\", \"${{ inputs.p }}\"] }\n    declassify:\n      - from: inputs.p\n        to: trusted\n        because: \"pinned vendor bundle, hash-reviewed at release time\"\n";
+    let yaml = "nika: regate-declassify\ninputs:\n  p: { type: string, default: \"datasets/../../../etc/passwd\" }\npermits:\n  exec: [\"tar\"]\n  fs: { read: [\"datasets/**\"] }\ntasks:\n  untar:\n    exec: { command: [\"tar\", \"-xf\", \"${{ inputs.p }}\"] }\n    lift:\n      - law: taint\n        from: inputs.p\n        because: \"pinned vendor bundle, hash-reviewed at release time\"\n";
     let (outcome, _, shell) =
         run_with_ingress(yaml, "unused", MockShell::new().enqueue_ok("extracted\n")).await;
     assert!(

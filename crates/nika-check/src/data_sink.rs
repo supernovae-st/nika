@@ -7,7 +7,8 @@
 //! [`nika_cap::code_bearing_path_class`] · one predicate for the check
 //! twin, the run twin, and the reference oracle) is refused
 //! (`NIKA-SEC-008`) unless the task declares the honest door
-//! (`inert: "<because>"` · the parser enforces the non-empty because).
+//! (`lift: [{law: data-as-code, because}]` · the parser enforces the
+//! non-empty because).
 //!
 //! Resolution at check covers the literal URL and every island over
 //! `const.*` or an `inputs.*`/`config.*` entry carrying a declared string
@@ -57,7 +58,7 @@ pub(crate) fn scan_data_sink(wf: &RawWorkflow) -> Vec<SinkFinding> {
     let mut out = Vec::new();
     for task in &wf.tasks {
         let task = &task.value;
-        if task.inert.is_some() {
+        if task.data_as_code_because().is_some() {
             continue; // the declared door · law 2 (non-empty by the parser)
         }
         let RawAction::Invoke(a) = &task.action else {
@@ -91,7 +92,7 @@ pub(crate) fn scan_data_sink(wf: &RawWorkflow) -> Vec<SinkFinding> {
                  program, not data: the read hides an execution sink (NEP-0006 law 1)"
             ),
             fix: "model the acquisition as the exec it feeds (exec: + a program permit) · or \
-                  declare the read inert on the task (inert: \"<because>\")"
+                  declare the door on the task (lift: law: data-as-code)"
                 .to_owned(),
         });
     }
@@ -217,7 +218,7 @@ mod tests {
     #[test]
     fn fixture_021_the_declared_door_silences() {
         let y = format!(
-            "{BASE}tasks:\n  archive:\n    invoke:\n      tool: \"nika:fetch\"\n      args: {{ url: \"https://data.example.com/models/legacy.pkl\" }}\n    inert: \"archived for provenance · never loaded by any child of this workflow\"\n"
+            "{BASE}tasks:\n  archive:\n    invoke:\n      tool: \"nika:fetch\"\n      args: {{ url: \"https://data.example.com/models/legacy.pkl\" }}\n    lift:\n      - law: data-as-code\n        because: \"archived for provenance · never loaded by any child of this workflow\"\n"
         );
         assert!(findings_of(&y).is_empty());
     }

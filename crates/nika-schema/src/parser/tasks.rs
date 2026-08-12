@@ -6,7 +6,7 @@
 //! The canonical v1 task field set is CLOSED (spec `03-dag.md`
 //! §forward-compat + NEP-0004 law 7's ONE grammar addition) · `with` ·
 //! `after` · `when` · `for_each` · `max_parallel` · `fail_fast` ·
-//! `retry` · `on_error` · `timeout` · `on_finally` · `extract` ·
+//! `retry` · `on_error` · `timeout` · `on_finally` · `extract` · `lift` ·
 //! `declassify` · plus exactly one verb key.
 
 use std::time::Duration;
@@ -47,8 +47,7 @@ const TASK_KEYS: &[&str] = &[
     "extract",
     "returns",
     "on_finally",
-    "declassify",
-    "inert",
+    "lift",
 ];
 
 pub(crate) use nika_vocab::keys::{FINALLY_KEYS, ON_ERROR_KEYS, RETRY_KEYS};
@@ -184,8 +183,7 @@ fn parse_task(
     task.extract = parse_extract_bindings(cx, mapping)?;
     task.returns = parse_returns(cx, mapping)?;
     task.on_finally = parse_on_finally(cx, mapping, &task_label)?;
-    task.declassify = super::declassify::parse_declassify(cx, mapping, &task_label)?;
-    task.inert = super::inert::parse_inert(cx, mapping, &task_label)?;
+    task.lift = super::lift::parse_lift(cx, mapping, &task_label)?;
 
     Ok(task)
 }

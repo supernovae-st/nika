@@ -37,10 +37,14 @@ pub(crate) fn declassify_evidence(
     config: &BTreeMap<String, Value>,
     records: &BTreeMap<String, TaskRecord>,
 ) -> Vec<DeclassifyEvidence> {
-    task.declassify
-        .iter()
+    task.taint_lifts()
+        .filter(|entry| entry.from.is_some())
         .map(|entry| {
-            let from = entry.from.value.clone();
+            // parser-guaranteed on `law: taint` (rule 5), filtered above
+            let from = entry
+                .from
+                .as_ref()
+                .map_or_else(String::new, |f| f.value.clone());
             let value = binding_value(&from, inputs, config, records);
             DeclassifyEvidence {
                 from,

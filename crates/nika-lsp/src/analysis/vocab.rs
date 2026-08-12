@@ -168,17 +168,10 @@ pub const TASK_FIELD_KEYS: &[Entry] = &[
         doc: "Cleanup mini-tasks that ALWAYS run after this task.",
     },
     Entry {
-        name: "declassify",
-        doc: "Declare a taint lift (NEP-0004 law 5 · the only door through \
-              the re-gate): `{from, to: trusted, because}` entries — \
-              check-visible and receipt-recorded, never a permit bypass.",
-    },
-    Entry {
-        name: "inert",
-        doc: "Declare this task's fetch a code-bearing artifact it will \
-              never load or run (NEP-0006 · the data-as-code door): one \
-              non-empty justification string — lifts the sink law only, \
-              never the host boundary or the SSRF floor.",
+        name: "lift",
+        doc: "The authored doors · `[{law, from?, because}]` · one entry lifts \
+              exactly ONE named law (taint · data-as-code) with a mandatory \
+              reason. Never a permit bypass.",
     },
 ];
 
