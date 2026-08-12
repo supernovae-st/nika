@@ -161,6 +161,11 @@ struct OutcomePayload {
 /// Steps appear in terminal-event order (the journal's own order — the
 /// run's truth). A line that does not parse refuses the whole fold: half
 /// a journal is no journal.
+///
+/// # Errors
+///
+/// [`IngressError::NotJson`] with the 1-based line number — the bytes are
+/// not a journal this engine wrote.
 pub fn run_from_journal(bytes: &str) -> Result<Run, IngressError> {
     let mut trace = String::new();
     let mut t0_ns: Option<u128> = None;
@@ -174,30 +179,32 @@ pub fn run_from_journal(bytes: &str) -> Result<Run, IngressError> {
         match line.kind.as_str() {
             "workflow_started" => {
                 if let Some(id) = &line.id {
-                    trace = id.uuid.clone();
+                    trace.clone_from(&id.uuid);
                 }
                 t0_ns = line.timestamp.map(u128::from);
             }
             "task_completed" | "task_failed" | "task_cancelled" => {
-                let Some(id) = line.field("task").and_then(|v| v.as_str()) else {
+                let Some(id) = line.field("task").and_then(serde_json::Value::as_str) else {
                     continue;
                 };
                 let duration_ms = line
                     .field("duration_ms")
-                    .and_then(|v| v.as_f64())
+                    .and_then(serde_json::Value::as_f64)
                     .unwrap_or(0.0);
                 // ns timestamps exceed 2^53 — u128 arithmetic, f64 only at
                 // the very end. start = completed_ts − duration_ms, RELATIVE
                 // to the run's first event (task_started stamps batch-late
                 // on parallel waves — measured).
+                #[allow(clippy::cast_precision_loss)]
+                // RELATIVE seconds — sub-ms precision is the display's ceiling, never the law's
                 let start = match (line.timestamp, t0_ns) {
                     (Some(ts), Some(t0)) => {
                         (u128::from(ts).saturating_sub(t0) as f64 / 1e9) - duration_ms / 1000.0
                     }
                     _ => 0.0,
                 };
-                let tokens = line.field("tokens").and_then(|v| v.as_u64());
-                let cost = line.field("cost_usd").and_then(|v| v.as_f64());
+                let tokens = line.field("tokens").and_then(serde_json::Value::as_u64);
+                let cost = line.field("cost_usd").and_then(serde_json::Value::as_f64);
                 let failed = (line.kind == "task_failed").then(|| {
                     let why = line
                         .field("detail")
@@ -210,8 +217,10 @@ pub fn run_from_journal(bytes: &str) -> Result<Run, IngressError> {
                         .and_then(|s| serde_json::from_str::<Outcome>(s).ok())
                         .and_then(|o| o.payload)
                         .and_then(|p| p.error)
-                        .map(|e| e.code)
-                        .unwrap_or_else(|| why.chars().take_while(|c| *c != ' ').collect());
+                        .map_or_else(
+                            || why.chars().take_while(|c| *c != ' ').collect(),
+                            |e| e.code,
+                        );
                     Failure { code, why }
                 });
                 let (never_born, blocked_by) = if line.kind == "task_cancelled" {

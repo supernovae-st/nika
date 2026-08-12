@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 //! Gate 6 — the derivation invariants under arbitrary shapes. The
 //! properties are the law's promises, stated so the machine can try to

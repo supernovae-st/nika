@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 //! The ingress tests — the journal fold pinned against a REAL recorded
 //! trace (the demo's broken lane, mock content), and the graph mirror

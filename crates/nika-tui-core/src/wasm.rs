@@ -6,7 +6,7 @@
 //!
 //! THE BOUNDARY SHAPE IS THE PRECEDENT'S: strings in, strings out, and a
 //! refusal is a JSON VALUE (`{"error": "door · reason"}`), never a
-//! thrown JsValue — a panic at the FFI arrives as `unreachable`, and a
+//! thrown `JsValue` — a panic at the FFI arrives as `unreachable`, and a
 //! refused door must stay readable by the caller AND testable natively
 //! (the same function runs in `cargo test` and in the browser).
 //!
@@ -30,6 +30,7 @@ fn refuse(door: &str, why: impl std::fmt::Display) -> String {
 /// The derivation of one (workflow, run) pair — the same block the parity
 /// fixtures pin, so the browser shows exactly what the studio computed.
 #[wasm_bindgen]
+#[must_use]
 pub fn derive_run(workflow_json: &str, run_json: &str) -> String {
     let wf: Workflow = match serde_json::from_str(workflow_json) {
         Ok(wf) => wf,
@@ -59,6 +60,7 @@ pub fn derive_run(workflow_json: &str, run_json: &str) -> String {
 
 /// The journal fold — NDJSON bytes to the session's [`Run`].
 #[wasm_bindgen]
+#[must_use]
 pub fn fold_journal(ndjson: &str) -> String {
     match ingress::run_from_journal(ndjson) {
         Ok(run) => serde_json::to_string(&run).unwrap_or_else(|e| refuse("fold_journal · emit", e)),
@@ -68,6 +70,7 @@ pub fn fold_journal(ndjson: &str) -> String {
 
 /// The first seating — every slot born.
 #[wasm_bindgen]
+#[must_use]
 pub fn seat_first(graph_json: &str) -> String {
     let g: GraphDoc = match serde_json::from_str(graph_json) {
         Ok(g) => g,
@@ -79,6 +82,7 @@ pub fn seat_first(graph_json: &str) -> String {
 /// The next seating — the caller hands the previous board back (the law
 /// keeps no state between revisions; the board IS the state).
 #[wasm_bindgen]
+#[must_use]
 pub fn seat_next(board_json: &str, graph_json: &str) -> String {
     let prev: Board = match serde_json::from_str(board_json) {
         Ok(b) => b,

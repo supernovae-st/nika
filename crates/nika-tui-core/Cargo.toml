@@ -2,45 +2,36 @@
 # Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 #
 # nika-tui-core · L4 · la LOI de la session TUI · pur · zéro I/O · zéro async.
-#
-# ⚠️ TEMPORARY — the [workspace] shim below isolates this crate while the
-# root Cargo.toml is shared with live sessions (the nika-cadence precedent,
-# 92a0f8497). At admission (the 12 gates): remove the shim, add
-# `crates/nika-tui-core` to `members` + the `wip` array, set
-# `layers.nika-tui-core = "L4"`, and switch every dependency to
-# `workspace = true` inheritance.
+# Joined the workspace as WIP 2026-08-12 (the nika-cadence precedent) ·
+# the shim is retired · the 12-gate admission removes it from `wip`.
 [package]
 name        = "nika-tui-core"
-version     = "0.108.0"
-edition     = "2024"
-license     = "AGPL-3.0-or-later"
-description = "L4 interface law — the TUI session model + the derivation layer (waves · idle · bottleneck · totals), one Rust truth for every surface (native · WASM · cloud)"
-rust-version = "1.91"
+description = "L4 interface law — the TUI session model + the derivation layer (waves · idle · bottleneck · totals) + the plan-board seating + the executable claims · one Rust truth for every surface (native · WASM · cloud)"
 
-[workspace]
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false  # Interface crate — ships as an npm pack via wasm-bindgen, never on crates.io.
 
 [lib]
-crate-type = ["cdylib", "rlib"]   # the house law ① · the .wasm artifact AND a normal Rust dep
+crate-type = ["cdylib", "rlib"]   # the .wasm artifact AND a normal Rust dep
 
 [dependencies]
-serde = { version = "1.0", features = ["derive"] }
+serde        = { workspace = true }
 # float_roundtrip — the fingerprint, the journal fold and the parity test
 # compare BITS; serde_json's default fast float parser rounds
 # 420.40000000000003 to 420.4 (measured). Exact parsing or the proof
 # measures nothing.
-serde_json = { version = "1.0", features = ["float_roundtrip"] }
-thiserror = "2.0"
-wasm-bindgen = "0.2"
+serde_json   = { workspace = true, features = ["float_roundtrip"] }
+thiserror    = { workspace = true }
+wasm-bindgen = { workspace = true }
 
-# the size law ③ · opt-level "s" + lto, never wee_alloc
-[profile.release]
-opt-level = "s"
-lto = true
-
-# law ④ · wasm-pack's bundled wasm-opt predates the current rustc wasm
-# features — OFF here, a current binaryen runs in build-wasm.sh
-[package.metadata.wasm-pack.profile.release]
-wasm-opt = false
+[lints]
+workspace = true
 
 [dev-dependencies]
-proptest = "1.6"   # Gate 6 · the derivation invariants under arbitrary shapes
+proptest = { workspace = true }   # Gate 6 · the derivation invariants under arbitrary shapes

@@ -1,5 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+#![allow(clippy::float_cmp)] // the parity proof compares f64 BITS — strict equality is its whole point
 
 //! The parity proof (T28 · D-2026-08-11-N6): the studio's derivation
 //! fixtures, replayed against the crate. Every number must land on the
@@ -45,6 +47,7 @@ fn the_derivation_lands_on_the_same_bits() {
     ] {
         let f = load(file);
         check_case(&f);
+        check_vocabulary(&f);
     }
 }
 
@@ -112,7 +115,7 @@ fn check_case(f: &Fixture) {
             );
             assert_eq!(
                 got.blocked,
-                w["blocked"].as_u64().expect("blocked") as usize,
+                usize::try_from(w["blocked"].as_u64().expect("blocked")).expect("a count fits"),
                 "{case} · bottleneck blocked"
             );
         }
@@ -135,6 +138,13 @@ fn check_case(f: &Fixture) {
         want["has_failed"].as_bool().expect("has_failed"),
         "{case} · has_failed"
     );
+}
+
+/// The vocabulary half — verbs · costs · touches · groups (split from the
+/// timing half: the 100-line law holds in tests too).
+fn check_vocabulary(f: &Fixture) {
+    let (wf, run, want) = (&f.workflow, &f.run, &f.derived);
+    let case = f.name.as_str();
 
     // verbs used — declared order, deduplicated.
     let got_verbs: Vec<&str> = derive::verbs_used(wf)

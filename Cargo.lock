@@ -4937,6 +4937,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "nika-tui-core"
+version = "0.108.0"
+dependencies = [
+ "proptest",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.19",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "nika-types"
 version = "0.108.0"
 dependencies = [

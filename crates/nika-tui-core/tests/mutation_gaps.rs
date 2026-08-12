@@ -1,5 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::unreachable
+)]
+#![allow(clippy::float_cmp)] // the parity proof compares f64 BITS — strict equality is its whole point
 
 //! The mutation-gap proofs — each test here exists because a mutant
 //! survived the first sweep (155 tested · 35 missed). Every one names

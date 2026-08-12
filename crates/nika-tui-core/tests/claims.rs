@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+#![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 //! The claims' proofs — each predicate against a case the studio lived.
 
@@ -10,7 +11,7 @@ use crate::common::load_parity;
 
 mod common {
     use nika_tui_core::model::{Run, Workflow};
-    pub fn load_parity(name: &str) -> (Workflow, Run, serde_json::Value) {
+    pub(crate) fn load_parity(name: &str) -> (Workflow, Run, serde_json::Value) {
         let raw = std::fs::read_to_string(format!("tests/fixtures/{name}.json")).expect("fixture");
         let v: serde_json::Value = serde_json::from_str(&raw).expect("parses");
         (

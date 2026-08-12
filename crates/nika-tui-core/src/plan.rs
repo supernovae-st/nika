@@ -67,7 +67,7 @@ pub struct Board {
 /// first enrichment.
 ///
 /// The print is an INTERNAL fingerprint: JSON with the id removed and
-/// keys canonicalized (BTree order). The studio's print keeps emission
+/// keys canonicalized (`BTree` order). The studio's print keeps emission
 /// order; both are only ever compared within their own implementation, so
 /// the orders never meet — what matters is that ANY change flips the
 /// print.
