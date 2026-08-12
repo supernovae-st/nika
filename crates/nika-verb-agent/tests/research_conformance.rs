@@ -326,9 +326,7 @@ async fn zero_overlap_queries_fail_open_to_the_full_universe() {
 
 // ─────── compose · PCE arXiv:2605.24462 + CodeAct arXiv:2402.01030 ───────
 
-const BROKEN_DRAFT: &str = r#"nika: v1
-workflow:
-  id: broken
+const BROKEN_DRAFT: &str = r#"nika: broken
 tasks:
   a:
     after:
@@ -337,9 +335,7 @@ tasks:
       command: ["echo", "x"]
 "#;
 
-const VALID_DRAFT: &str = r#"nika: v1
-workflow:
-  id: composed-by-agent
+const VALID_DRAFT: &str = r#"nika: composed-by-agent
 tasks:
   greet:
     exec:

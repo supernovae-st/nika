@@ -110,7 +110,7 @@ fn fold_numbers(value: Value) -> Value {
 /// the fixture's independent recomputation of the canonical request.
 #[tokio::test]
 async fn an_unchanged_request_fires_and_attests() {
-    let yaml = "nika: v1\nworkflow:\n  id: fp6-positive\npermits:\n  exec: [\"echo\"]\n  tools: [\"mcp:docs/read\"]\ntasks:\n  say:\n    exec: { command: [\"echo\", \"hello-fp6\"] }\n  read:\n    after: { say: success }\n    invoke:\n      tool: \"mcp:docs/read\"\n      args: { path: \"/readme\" }\n";
+    let yaml = "nika: fp6-positive\npermits:\n  exec: [\"echo\"]\n  tools: [\"mcp:docs/read\"]\ntasks:\n  say:\n    exec: { command: [\"echo\", \"hello-fp6\"] }\n  read:\n    after: { say: success }\n    invoke:\n      tool: \"mcp:docs/read\"\n      args: { path: \"/readme\" }\n";
     let shell = MockShell::new().enqueue_ok("hello-fp6\n");
     let tools = MockToolExecutor::new().enqueue_ok(ToolResult::success("r1", "doc contents"));
     let (outcome, sink) = run(yaml, shell, tools).await;
@@ -163,7 +163,7 @@ async fn an_unchanged_request_fires_and_attests() {
 /// carries ZERO `divergence` finding and zero NIKA-SEC-011 anywhere.
 #[tokio::test]
 async fn an_honest_run_carries_zero_divergence_finding() {
-    let yaml = "nika: v1\nworkflow:\n  id: fp6-green\ninputs:\n  msg: { type: string, default: \"rendered-fp6\" }\npermits:\n  exec: [\"echo\"]\ntasks:\n  say:\n    with: { msg: \"${{ inputs.msg }}\" }\n    exec: { command: [\"echo\", \"${{ with.msg }}\"] }\n";
+    let yaml = "nika: fp6-green\ninputs:\n  msg: { type: string, default: \"rendered-fp6\" }\npermits:\n  exec: [\"echo\"]\ntasks:\n  say:\n    with: { msg: \"${{ inputs.msg }}\" }\n    exec: { command: [\"echo\", \"${{ with.msg }}\"] }\n";
     let shell = MockShell::new().enqueue_ok("rendered-fp6\n");
     let (outcome, sink) = run(yaml, shell, MockToolExecutor::new()).await;
     assert!(outcome.ok);

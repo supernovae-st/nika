@@ -573,7 +573,7 @@ mod tests {
     #[test]
     fn direct_secret_into_exec_is_effect_tainted() {
         let y = format!(
-            "nika: v1\nworkflow:\n  id: w\n{S}tasks:\n  t:\n    exec: {{ shell: \"curl -H ${{{{ secrets.api_key }}}}\" }}\n"
+            "nika: w\n{S}tasks:\n  t:\n    exec: {{ shell: \"curl -H ${{{{ secrets.api_key }}}}\" }}\n"
         );
         let (wf, f) = facts(&y);
         assert!(f.effect_taint(idx(&wf, "t")).is_some());
@@ -591,7 +591,7 @@ mod tests {
         // guard is completion — a regression to O(N²) makes this test crawl.
         use std::fmt::Write as _;
         const N: usize = 3_000;
-        let mut y = format!("nika: v1\nworkflow:\n  id: w\n{S}tasks:\n");
+        let mut y = format!("nika: w\n{S}tasks:\n");
         y.push_str("  t0:\n    exec: { command: [\"echo\", \"${{ secrets.api_key }}\"] }\n");
         for k in 1..N {
             let p = k - 1;
@@ -622,7 +622,7 @@ mod tests {
         // The false negative the review found: with: { tok: secret } then
         // ${{ with.tok }} into exec — one hop the old substring scan missed.
         let y = format!(
-            "nika: v1\nworkflow:\n  id: w\n{S}tasks:\n  t:\n    with: {{ tok: \"${{{{ secrets.api_key }}}}\" }}\n    exec: {{ shell: \"curl -H ${{{{ with.tok }}}}\" }}\n"
+            "nika: w\n{S}tasks:\n  t:\n    with: {{ tok: \"${{{{ secrets.api_key }}}}\" }}\n    exec: {{ shell: \"curl -H ${{{{ with.tok }}}}\" }}\n"
         );
         let (wf, f) = facts(&y);
         let trace = f
@@ -641,7 +641,7 @@ mod tests {
         // A cleanup exec that sees a secret re-emits it like a main effect —
         // and a cleanup ALWAYS runs (the review's PROVEN blind spot).
         let y = format!(
-            "nika: v1\nworkflow:\n  id: w\n{S}tasks:\n  t:\n    exec: {{ command: [\"echo\", \"build\"] }}\n    on_finally:\n      - exec: {{ shell: \"curl -d ${{{{ secrets.api_key }}}} x\" }}\n"
+            "nika: w\n{S}tasks:\n  t:\n    exec: {{ command: [\"echo\", \"build\"] }}\n    on_finally:\n      - exec: {{ shell: \"curl -d ${{{{ secrets.api_key }}}} x\" }}\n"
         );
         let (wf, f) = facts(&y);
         assert!(
@@ -664,7 +664,7 @@ mod tests {
         // a leaks secret into its exec → a.output tainted → b consuming
         // a.output into ITS exec is also tainted (transitive, via the DAG).
         let y = format!(
-            "nika: v1\nworkflow:\n  id: w\n{S}tasks:\n  a:\n    exec: {{ shell: \"echo ${{{{ secrets.api_key }}}}\" }}\n  b:\n    with: {{ upstream: \"${{{{ tasks.a.output }}}}\" }}\n    exec: {{ shell: \"echo ${{{{ with.upstream }}}}\" }}\n"
+            "nika: w\n{S}tasks:\n  a:\n    exec: {{ shell: \"echo ${{{{ secrets.api_key }}}}\" }}\n  b:\n    with: {{ upstream: \"${{{{ tasks.a.output }}}}\" }}\n    exec: {{ shell: \"echo ${{{{ with.upstream }}}}\" }}\n"
         );
         let (wf, f) = facts(&y);
         let tb = f.effect_taint(idx(&wf, "b")).expect("transitive taint");
@@ -682,7 +682,7 @@ mod tests {
         // a third-party provider) — but the model's RESPONSE is NOT tainted
         // (not a verbatim echo · the OUTPUT carve-out is preserved · ADR-092).
         let y = format!(
-            "nika: v1\nworkflow:\n  id: w\n{S}tasks:\n  a:\n    infer: {{ prompt: \"use ${{{{ secrets.api_key }}}}\", max_tokens: 10 }}\n  b:\n    with: {{ upstream: \"${{{{ tasks.a.output }}}}\" }}\n    exec: {{ shell: \"echo ${{{{ with.upstream }}}}\" }}\n"
+            "nika: w\n{S}tasks:\n  a:\n    infer: {{ prompt: \"use ${{{{ secrets.api_key }}}}\", max_tokens: 10 }}\n  b:\n    with: {{ upstream: \"${{{{ tasks.a.output }}}}\" }}\n    exec: {{ shell: \"echo ${{{{ with.upstream }}}}\" }}\n"
         );
         let (wf, f) = facts(&y);
         // The prompt is now a sink (an unsanctioned provider egress · leak).
@@ -703,9 +703,7 @@ mod tests {
         // stays tainted, outputs is where it LEAVES — `to: "outputs"` is
         // the owner's declassification of the workflow boundary itself.
         let y = "\
-nika: v1
-workflow:
-  id: w
+nika: w
 secrets:
   api_key:
     source: vault
@@ -732,9 +730,7 @@ outputs:
     fn outputs_egress_stays_default_deny_without_the_rule() {
         // Same workflow, no `to: "outputs"` — the report STANDS.
         let y = "\
-nika: v1
-workflow:
-  id: w
+nika: w
 secrets:
   api_key:
     source: vault
@@ -758,9 +754,7 @@ outputs:
         // `to: "outputs"` ALONE: the boundary is cleared but the SEND to
         // nika:fetch is still an unsanctioned leak (no cross-sink grant).
         let y = "\
-nika: v1
-workflow:
-  id: w
+nika: w
 secrets:
   api_key:
     source: vault
@@ -787,9 +781,7 @@ outputs:
     fn sanctioned_infer_prompt_is_not_a_leak() {
         // BUG#3: an explicit `to: "infer"` egress sanctions the prompt send.
         let y = "\
-nika: v1
-workflow:
-  id: w
+nika: w
 secrets:
   api_key:
     source: vault
@@ -811,7 +803,7 @@ tasks:
     fn secret_reaching_outputs_is_an_egress() {
         // a secret leaving the run as the return value — the literal exfil.
         let y = format!(
-            "nika: v1\nworkflow:\n  id: w\n{S}tasks:\n  a:\n    exec: {{ shell: \"echo ${{{{ secrets.api_key }}}}\" }}\noutputs:\n  leaked: ${{{{ tasks.a.output }}}}\n"
+            "nika: w\n{S}tasks:\n  a:\n    exec: {{ shell: \"echo ${{{{ secrets.api_key }}}}\" }}\noutputs:\n  leaked: ${{{{ tasks.a.output }}}}\n"
         );
         let (_wf, f) = facts(&y);
         let eg = f.egresses();
@@ -825,7 +817,7 @@ tasks:
         // for_each over a tainted upstream output → item is tainted → an
         // exec using ${{ item }} re-emits it.
         let y = format!(
-            "nika: v1\nworkflow:\n  id: w\n{S}tasks:\n  a:\n    exec: {{ shell: \"echo ${{{{ secrets.api_key }}}}\" }}\n  b:\n    with: {{ items: \"${{{{ tasks.a.output }}}}\" }}\n    for_each: ${{{{ with.items }}}}\n    exec: {{ shell: \"echo ${{{{ item }}}}\" }}\n"
+            "nika: w\n{S}tasks:\n  a:\n    exec: {{ shell: \"echo ${{{{ secrets.api_key }}}}\" }}\n  b:\n    with: {{ items: \"${{{{ tasks.a.output }}}}\" }}\n    for_each: ${{{{ with.items }}}}\n    exec: {{ shell: \"echo ${{{{ item }}}}\" }}\n"
         );
         let (wf, f) = facts(&y);
         assert!(
@@ -836,7 +828,7 @@ tasks:
 
     #[test]
     fn no_secrets_declared_is_empty() {
-        let y = "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    exec: { command: [\"echo\", \"hi\"] }\n";
+        let y = "nika: w\ntasks:\n  t:\n    exec: { command: [\"echo\", \"hi\"] }\n";
         let (_wf, f) = facts(y);
         assert!(f.effect_taint(0).is_none());
         assert!(f.egresses().is_empty());
@@ -849,7 +841,7 @@ tasks:
         // requires an explicit `to: "infer"` egress (see
         // `sanctioned_infer_prompt_is_not_a_leak`).
         let y = format!(
-            "nika: v1\nworkflow:\n  id: w\n{S}tasks:\n  t:\n    infer: {{ prompt: \"hi ${{{{ secrets.api_key }}}}\", max_tokens: 5 }}\n"
+            "nika: w\n{S}tasks:\n  t:\n    infer: {{ prompt: \"hi ${{{{ secrets.api_key }}}}\", max_tokens: 5 }}\n"
         );
         let (wf, f) = facts(&y);
         let leak = f
@@ -865,7 +857,7 @@ tasks:
     fn agent_prompt_is_a_sink_too() {
         // BUG#3: the agent verb's prompt is the same provider-egress sink.
         let y = format!(
-            "nika: v1\nworkflow:\n  id: w\n{S}tasks:\n  t:\n    agent: {{ prompt: \"do ${{{{ secrets.api_key }}}}\", max_turns: 2 }}\n"
+            "nika: w\n{S}tasks:\n  t:\n    agent: {{ prompt: \"do ${{{{ secrets.api_key }}}}\", max_turns: 2 }}\n"
         );
         let (wf, f) = facts(&y);
         assert!(
@@ -878,7 +870,7 @@ tasks:
     fn secret_in_infer_system_field_is_a_sink() {
         // The `system:` field is part of the prompt egress surface too.
         let y = format!(
-            "nika: v1\nworkflow:\n  id: w\n{S}tasks:\n  t:\n    infer: {{ prompt: \"go\", system: \"key ${{{{ secrets.api_key }}}}\", max_tokens: 5 }}\n"
+            "nika: w\n{S}tasks:\n  t:\n    infer: {{ prompt: \"go\", system: \"key ${{{{ secrets.api_key }}}}\", max_tokens: 5 }}\n"
         );
         let (wf, f) = facts(&y);
         assert!(
@@ -897,7 +889,7 @@ tasks:
         // drops the array's strings, so the secret is invisible and the
         // effect wrongly reads clean.
         let y = format!(
-            "nika: v1\nworkflow:\n  id: w\n{S}tasks:\n  t:\n    invoke: {{ tool: \"mcp:srv/run\", args: {{ items: [\"${{{{ secrets.api_key }}}}\"] }} }}\n"
+            "nika: w\n{S}tasks:\n  t:\n    invoke: {{ tool: \"mcp:srv/run\", args: {{ items: [\"${{{{ secrets.api_key }}}}\"] }} }}\n"
         );
         let (wf, f) = facts(&y);
         let trace = f

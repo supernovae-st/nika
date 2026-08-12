@@ -170,7 +170,7 @@ mod tests {
     #[test]
     fn human_gate_missing_then_satisfied_through_the_edge() {
         let ungated = report(
-            "nika: v1\nworkflow:\n  id: t\npolicy:\n  require:\n    human_gate_before: [exec]\npermits:\n  exec: [\"echo\"]\ntasks:\n  act:\n    exec: { command: [\"echo\", \"unattended\"] }\n",
+            "nika: t\npolicy:\n  require:\n    human_gate_before: [exec]\npermits:\n  exec: [\"echo\"]\ntasks:\n  act:\n    exec: { command: [\"echo\", \"unattended\"] }\n",
         );
         assert!(!ungated.is_clean());
         assert_eq!(ungated.policy_findings.len(), 1);
@@ -180,7 +180,7 @@ mod tests {
         assert!(f.detail.contains("no nika:prompt ancestor"), "{}", f.detail);
 
         let gated = report(
-            "nika: v1\nworkflow:\n  id: t\npolicy:\n  require:\n    human_gate_before: [exec]\n  endorsement: solo\npermits:\n  exec: [\"echo\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  human:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"Proceed?\", default: false }\n  act:\n    with: { go: \"${{ tasks.human.output }}\" }\n    when: ${{ with.go == true }}\n    exec: { command: [\"echo\", \"shipped\"] }\n",
+            "nika: t\npolicy:\n  require:\n    human_gate_before: [exec]\n  endorsement: solo\npermits:\n  exec: [\"echo\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  human:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"Proceed?\", default: false }\n  act:\n    with: { go: \"${{ tasks.human.output }}\" }\n    when: ${{ with.go == true }}\n    exec: { command: [\"echo\", \"shipped\"] }\n",
         );
         assert!(gated.is_clean(), "{:?}", gated.policy_findings);
     }
@@ -193,7 +193,7 @@ mod tests {
     #[test]
     fn a_bare_after_route_to_the_gate_is_refused() {
         let r = report(
-            "nika: v1\nworkflow:\n  id: t\npolicy:\n  require:\n    human_gate_before: [exec]\n  endorsement: solo\npermits:\n  exec: [\"git\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"push?\", default: false }\n  push:\n    after: { ask: success }\n    exec: { command: [\"git\", \"push\"] }\n",
+            "nika: t\npolicy:\n  require:\n    human_gate_before: [exec]\n  endorsement: solo\npermits:\n  exec: [\"git\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"push?\", default: false }\n  push:\n    after: { ask: success }\n    exec: { command: [\"git\", \"push\"] }\n",
         );
         let gated: Vec<_> = r
             .policy_findings
@@ -222,7 +222,7 @@ mod tests {
     fn the_affirmative_cut_protects_transitively() {
         // prompt → mid (affirmative gate) → exec (bare after:)
         let via_mid = report(
-            "nika: v1\nworkflow:\n  id: t\npolicy:\n  require:\n    human_gate_before: [exec]\n  endorsement: solo\npermits:\n  exec: [\"echo\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"go?\", default: false }\n  mid:\n    with: { go: \"${{ tasks.ask.output }}\" }\n    when: ${{ with.go == true }}\n    infer: { prompt: \"x\", max_tokens: 9 }\n  act:\n    after: { mid: success }\n    exec: { command: [\"echo\", \"x\"] }\n",
+            "nika: t\npolicy:\n  require:\n    human_gate_before: [exec]\n  endorsement: solo\npermits:\n  exec: [\"echo\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"go?\", default: false }\n  mid:\n    with: { go: \"${{ tasks.ask.output }}\" }\n    when: ${{ with.go == true }}\n    infer: { prompt: \"x\", max_tokens: 9 }\n  act:\n    after: { mid: success }\n    exec: { command: [\"echo\", \"x\"] }\n",
         );
         assert!(
             via_mid.is_clean(),
@@ -231,7 +231,7 @@ mod tests {
         );
         // prompt → mid (bare) → exec (its OWN affirmative when:)
         let via_self = report(
-            "nika: v1\nworkflow:\n  id: t\npolicy:\n  require:\n    human_gate_before: [exec]\n  endorsement: solo\npermits:\n  exec: [\"echo\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"go?\", default: false }\n  mid:\n    after: { ask: success }\n    infer: { prompt: \"x\", max_tokens: 9 }\n  act:\n    after: { mid: success }\n    with: { go: \"${{ tasks.ask.output }}\" }\n    when: ${{ with.go == true }}\n    exec: { command: [\"echo\", \"x\"] }\n",
+            "nika: t\npolicy:\n  require:\n    human_gate_before: [exec]\n  endorsement: solo\npermits:\n  exec: [\"echo\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"go?\", default: false }\n  mid:\n    after: { ask: success }\n    infer: { prompt: \"x\", max_tokens: 9 }\n  act:\n    after: { mid: success }\n    with: { go: \"${{ tasks.ask.output }}\" }\n    when: ${{ with.go == true }}\n    exec: { command: [\"echo\", \"x\"] }\n",
         );
         assert!(
             via_self.is_clean(),
@@ -246,7 +246,7 @@ mod tests {
     #[test]
     fn a_bypass_route_is_refused_even_with_a_gated_sibling() {
         let r = report(
-            "nika: v1\nworkflow:\n  id: t\npolicy:\n  require:\n    human_gate_before: [exec]\n  endorsement: solo\npermits:\n  exec: [\"echo\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"go?\", default: false }\n  act:\n    with: { go: \"${{ tasks.ask.output }}\" }\n    when: ${{ with.go == true }}\n    exec: { command: [\"echo\", \"a\"] }\n  ship:\n    after: { ask: success }\n    exec: { command: [\"echo\", \"b\"] }\n",
+            "nika: t\npolicy:\n  require:\n    human_gate_before: [exec]\n  endorsement: solo\npermits:\n  exec: [\"echo\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"go?\", default: false }\n  act:\n    with: { go: \"${{ tasks.ask.output }}\" }\n    when: ${{ with.go == true }}\n    exec: { command: [\"echo\", \"a\"] }\n  ship:\n    after: { ask: success }\n    exec: { command: [\"echo\", \"b\"] }\n",
         );
         let gated: Vec<_> = r
             .policy_findings
@@ -261,7 +261,7 @@ mod tests {
     /// carries the exact path, and an independent exec stays clean.
     #[test]
     fn exec_after_net_violation_carries_the_exact_path() {
-        let base = "nika: v1\nworkflow:\n  id: t\npolicy:\n  forbid:\n    exec_after: [net]\npermits:\n  exec: [\"echo\"]\n  net: { http: [\"example.com\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  fetch_page:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://example.com/data\" }\n";
+        let base = "nika: t\npolicy:\n  forbid:\n    exec_after: [net]\npermits:\n  exec: [\"echo\"]\n  net: { http: [\"example.com\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  fetch_page:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://example.com/data\" }\n";
         let bad = report(&format!(
             "{base}  act:\n    with: {{ body: \"${{{{ tasks.fetch_page.output }}}}\" }}\n    exec: {{ command: [\"echo\", \"${{{{ with.body }}}}\"] }}\n"
         ));
@@ -284,7 +284,7 @@ mod tests {
     #[test]
     fn exec_after_reads_control_edges_too() {
         let r = report(
-            "nika: v1\nworkflow:\n  id: t\npolicy:\n  forbid:\n    exec_after: [net]\npermits:\n  exec: [\"echo\"]\n  net: { http: [\"example.com\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  fetch_page:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://example.com/data\" }\n  act:\n    after: { fetch_page: success }\n    exec: { command: [\"echo\", \"x\"] }\n",
+            "nika: t\npolicy:\n  forbid:\n    exec_after: [net]\npermits:\n  exec: [\"echo\"]\n  net: { http: [\"example.com\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  fetch_page:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://example.com/data\" }\n  act:\n    after: { fetch_page: success }\n    exec: { command: [\"echo\", \"x\"] }\n",
         );
         assert_eq!(r.policy_findings.len(), 1, "{:?}", r.policy_findings);
     }
@@ -294,7 +294,7 @@ mod tests {
     #[test]
     fn providers_allowlist_violation_and_clean() {
         let bad = report(
-            "nika: v1\nworkflow:\n  id: t\npolicy:\n  allow:\n    providers: [ollama, mistral]\ntasks:\n  s:\n    infer: { prompt: \"summarize\", model: \"openai/gpt-4o\" }\n",
+            "nika: t\npolicy:\n  allow:\n    providers: [ollama, mistral]\ntasks:\n  s:\n    infer: { prompt: \"summarize\", model: \"openai/gpt-4o\" }\n",
         );
         assert_eq!(bad.policy_findings.len(), 1);
         assert!(
@@ -305,7 +305,7 @@ mod tests {
             bad.policy_findings[0].detail
         );
         let clean = report(
-            "nika: v1\nworkflow:\n  id: t\npolicy:\n  allow:\n    providers: [ollama, mistral]\ntasks:\n  s:\n    infer: { prompt: \"summarize\", model: \"ollama/llama3.2\" }\n",
+            "nika: t\npolicy:\n  allow:\n    providers: [ollama, mistral]\ntasks:\n  s:\n    infer: { prompt: \"summarize\", model: \"ollama/llama3.2\" }\n",
         );
         assert!(clean.is_clean(), "{:?}", clean.policy_findings);
     }
@@ -315,11 +315,11 @@ mod tests {
     #[test]
     fn root_model_is_the_provider_fallback() {
         let clean = report(
-            "nika: v1\nworkflow:\n  id: t\nmodel: ollama/llama3.2\npolicy:\n  allow:\n    providers: [ollama]\ntasks:\n  s:\n    infer: { prompt: \"x\" }\n",
+            "nika: t\nmodel: ollama/llama3.2\npolicy:\n  allow:\n    providers: [ollama]\ntasks:\n  s:\n    infer: { prompt: \"x\" }\n",
         );
         assert!(clean.is_clean(), "{:?}", clean.policy_findings);
         let bad = report(
-            "nika: v1\nworkflow:\n  id: t\nmodel: openai/gpt-4o\npolicy:\n  allow:\n    providers: [ollama]\ntasks:\n  s:\n    infer: { prompt: \"x\" }\n",
+            "nika: t\nmodel: openai/gpt-4o\npolicy:\n  allow:\n    providers: [ollama]\ntasks:\n  s:\n    infer: { prompt: \"x\" }\n",
         );
         assert_eq!(bad.policy_findings.len(), 1);
     }
@@ -329,7 +329,7 @@ mod tests {
     #[test]
     fn templated_model_fails_closed() {
         let r = report(
-            "nika: v1\nworkflow:\n  id: t\nconst:\n  m: { default: \"ollama/llama3.2\" }\npolicy:\n  allow:\n    providers: [ollama]\ntasks:\n  s:\n    infer: { prompt: \"summarize\", model: \"${{ const.m }}\" }\n",
+            "nika: t\nconst:\n  m: { default: \"ollama/llama3.2\" }\npolicy:\n  allow:\n    providers: [ollama]\ntasks:\n  s:\n    infer: { prompt: \"summarize\", model: \"${{ const.m }}\" }\n",
         );
         assert_eq!(r.policy_findings.len(), 1);
         assert!(
@@ -346,7 +346,7 @@ mod tests {
     #[test]
     fn absent_model_everywhere_fails_closed() {
         let r = report(
-            "nika: v1\nworkflow:\n  id: t\npolicy:\n  allow:\n    providers: [ollama]\ntasks:\n  s:\n    infer: { prompt: \"x\" }\n",
+            "nika: t\npolicy:\n  allow:\n    providers: [ollama]\ntasks:\n  s:\n    infer: { prompt: \"x\" }\n",
         );
         assert_eq!(r.policy_findings.len(), 1);
         assert!(r.policy_findings[0].detail.contains("templated or absent"));
@@ -356,7 +356,7 @@ mod tests {
     #[test]
     fn max_tasks_exceeded() {
         let r = report(
-            "nika: v1\nworkflow:\n  id: t\npolicy:\n  limits:\n    max_tasks: 2\ntasks:\n  a:\n    infer: { prompt: \"one\" }\n  b:\n    infer: { prompt: \"two\" }\n  c:\n    infer: { prompt: \"three\" }\n",
+            "nika: t\npolicy:\n  limits:\n    max_tasks: 2\ntasks:\n  a:\n    infer: { prompt: \"one\" }\n  b:\n    infer: { prompt: \"two\" }\n  c:\n    infer: { prompt: \"three\" }\n",
         );
         assert_eq!(r.policy_findings.len(), 1);
         let f = &r.policy_findings[0];
@@ -375,7 +375,7 @@ mod tests {
     #[test]
     fn soft_families_record_a_hint_and_judge_nothing() {
         let r = report(
-            "nika: v1\nworkflow:\n  id: t\npolicy:\n  prefer:\n    providers: [ollama]\n  optimize: cost\ntasks:\n  s:\n    infer: { prompt: \"summarize\", model: \"openai/gpt-4o\" }\n",
+            "nika: t\npolicy:\n  prefer:\n    providers: [ollama]\n  optimize: cost\ntasks:\n  s:\n    infer: { prompt: \"summarize\", model: \"openai/gpt-4o\" }\n",
         );
         assert!(r.is_clean(), "{:?}", r.policy_findings);
         assert!(
@@ -386,7 +386,7 @@ mod tests {
         );
         // no soft families → no hint
         let quiet = report(
-            "nika: v1\nworkflow:\n  id: t\npolicy:\n  limits: { max_tasks: 5 }\ntasks:\n  s:\n    infer: { prompt: \"x\" }\n",
+            "nika: t\npolicy:\n  limits: { max_tasks: 5 }\ntasks:\n  s:\n    infer: { prompt: \"x\" }\n",
         );
         assert!(!quiet.hints.iter().any(|h| h.kind == "policy-soft"));
     }
@@ -397,7 +397,7 @@ mod tests {
     #[test]
     fn broken_dag_skips_the_policy_lane() {
         let r = report(
-            "nika: v1\nworkflow:\n  id: t\npolicy:\n  require:\n    human_gate_before: [exec]\ntasks:\n  act:\n    after: { ghost: success }\n    exec: { command: [\"echo\", \"x\"] }\n",
+            "nika: t\npolicy:\n  require:\n    human_gate_before: [exec]\ntasks:\n  act:\n    after: { ghost: success }\n    exec: { command: [\"echo\", \"x\"] }\n",
         );
         assert!(!r.conformance.is_empty());
         assert!(
@@ -415,7 +415,7 @@ mod tests {
     #[test]
     fn approval_batch_heterogeneous_is_refused_with_the_approval_code() {
         let r = report(
-            "nika: v1\nworkflow:\n  id: t\npolicy:\n  require:\n    human_gate_before: [exec, net]\n  endorsement: solo\npermits:\n  exec: [\"echo\"]\n  net: { http: [\"example.com\"] }\n  tools: [\"nika:prompt\", \"nika:fetch\"]\ntasks:\n  gate:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"Proceed?\", default: false }\n  act:\n    with: { go: \"${{ tasks.gate.output }}\" }\n    when: ${{ with.go == true }}\n    exec: { command: [\"echo\", \"shipped\"] }\n  page:\n    with: { go: \"${{ tasks.gate.output }}\" }\n    when: ${{ with.go == true }}\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://example.com/data\" }\n",
+            "nika: t\npolicy:\n  require:\n    human_gate_before: [exec, net]\n  endorsement: solo\npermits:\n  exec: [\"echo\"]\n  net: { http: [\"example.com\"] }\n  tools: [\"nika:prompt\", \"nika:fetch\"]\ntasks:\n  gate:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"Proceed?\", default: false }\n  act:\n    with: { go: \"${{ tasks.gate.output }}\" }\n    when: ${{ with.go == true }}\n    exec: { command: [\"echo\", \"shipped\"] }\n  page:\n    with: { go: \"${{ tasks.gate.output }}\" }\n    when: ${{ with.go == true }}\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://example.com/data\" }\n",
         );
         assert!(!r.is_clean());
         let batch: Vec<_> = r
@@ -458,7 +458,7 @@ mod tests {
     #[test]
     fn approval_batch_homogeneous_is_clean() {
         let r = report(
-            "nika: v1\nworkflow:\n  id: t\npolicy:\n  require:\n    human_gate_before: [exec]\n  endorsement: solo\npermits:\n  exec: [\"echo\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  gate:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"Proceed?\", default: false }\n  one:\n    with: { go: \"${{ tasks.gate.output }}\" }\n    when: ${{ with.go == true }}\n    exec: { command: [\"echo\", \"a\"] }\n  two:\n    with: { go: \"${{ tasks.gate.output }}\" }\n    when: ${{ with.go == true }}\n    exec: { command: [\"echo\", \"b\"] }\n",
+            "nika: t\npolicy:\n  require:\n    human_gate_before: [exec]\n  endorsement: solo\npermits:\n  exec: [\"echo\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  gate:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"Proceed?\", default: false }\n  one:\n    with: { go: \"${{ tasks.gate.output }}\" }\n    when: ${{ with.go == true }}\n    exec: { command: [\"echo\", \"a\"] }\n  two:\n    with: { go: \"${{ tasks.gate.output }}\" }\n    when: ${{ with.go == true }}\n    exec: { command: [\"echo\", \"b\"] }\n",
         );
         assert!(r.is_clean(), "{:?}", r.policy_findings);
     }
@@ -470,7 +470,7 @@ mod tests {
     #[test]
     fn approval_batch_is_inert_without_the_declared_lane() {
         let r = report(
-            "nika: v1\nworkflow:\n  id: t\npermits:\n  exec: [\"echo\"]\n  tools: [\"nika:prompt\", \"nika:notify\"]\n  net: { http: [\"hooks.slack.com\"] }\ntasks:\n  gate:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"Proceed?\", default: false }\n  act:\n    with: { go: \"${{ tasks.gate.output }}\" }\n    when: ${{ with.go == true }}\n    exec: { command: [\"echo\", \"x\"] }\n  record:\n    after: { act: success }\n    invoke:\n      tool: \"nika:notify\"\n      args: { url: \"https://hooks.slack.com/x\", message: \"done\" }\n",
+            "nika: t\npermits:\n  exec: [\"echo\"]\n  tools: [\"nika:prompt\", \"nika:notify\"]\n  net: { http: [\"hooks.slack.com\"] }\ntasks:\n  gate:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"Proceed?\", default: false }\n  act:\n    with: { go: \"${{ tasks.gate.output }}\" }\n    when: ${{ with.go == true }}\n    exec: { command: [\"echo\", \"x\"] }\n  record:\n    after: { act: success }\n    invoke:\n      tool: \"nika:notify\"\n      args: { url: \"https://hooks.slack.com/x\", message: \"done\" }\n",
         );
         assert!(
             r.policy_findings.is_empty(),
@@ -485,7 +485,7 @@ mod tests {
     #[test]
     fn approval_batch_stops_at_the_nearest_gate() {
         let r = report(
-            "nika: v1\nworkflow:\n  id: t\npolicy:\n  require:\n    human_gate_before: [exec, net]\npermits:\n  exec: [\"echo\"]\n  net: { http: [\"example.com\"] }\n  tools: [\"nika:prompt\", \"nika:fetch\"]\ntasks:\n  first:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"one?\", default: false }\n  second:\n    after: { first: success }\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"two?\", default: false }\n  act:\n    after: { second: success }\n    exec: { command: [\"echo\", \"x\"] }\n  page:\n    after: { second: success }\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://example.com/x\" }\n",
+            "nika: t\npolicy:\n  require:\n    human_gate_before: [exec, net]\npermits:\n  exec: [\"echo\"]\n  net: { http: [\"example.com\"] }\n  tools: [\"nika:prompt\", \"nika:fetch\"]\ntasks:\n  first:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"one?\", default: false }\n  second:\n    after: { first: success }\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"two?\", default: false }\n  act:\n    after: { second: success }\n    exec: { command: [\"echo\", \"x\"] }\n  page:\n    after: { second: success }\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://example.com/x\" }\n",
         );
         let batch: Vec<_> = r
             .policy_findings
@@ -506,7 +506,7 @@ mod tests {
     #[test]
     fn policy_finding_folds_into_findings_with_its_code() {
         let r = report(
-            "nika: v1\nworkflow:\n  id: t\npolicy:\n  limits:\n    max_tasks: 1\ntasks:\n  a:\n    infer: { prompt: \"x\" }\n  b:\n    infer: { prompt: \"y\" }\n",
+            "nika: t\npolicy:\n  limits:\n    max_tasks: 1\ntasks:\n  a:\n    infer: { prompt: \"x\" }\n  b:\n    infer: { prompt: \"y\" }\n",
         );
         assert!(!r.is_clean());
         let f = r
@@ -538,7 +538,7 @@ mod tests {
     #[test]
     fn endorsement_undeclared_with_a_gate_is_refused_with_the_sec_code() {
         let r = report(
-            "nika: v1\nworkflow:\n  id: t\npolicy:\n  limits: { max_tasks: 5 }\npermits:\n  exec: [\"echo\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  human:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"Proceed?\", default: false }\n  act:\n    with: { go: \"${{ tasks.human.output }}\" }\n    when: ${{ with.go == true }}\n    exec: { command: [\"echo\", \"shipped\"] }\n",
+            "nika: t\npolicy:\n  limits: { max_tasks: 5 }\npermits:\n  exec: [\"echo\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  human:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"Proceed?\", default: false }\n  act:\n    with: { go: \"${{ tasks.human.output }}\" }\n    when: ${{ with.go == true }}\n    exec: { command: [\"echo\", \"shipped\"] }\n",
         );
         assert!(!r.is_clean());
         assert_eq!(
@@ -581,7 +581,7 @@ mod tests {
     #[test]
     fn endorsement_solo_declared_with_one_gate_is_clean() {
         let r = report(
-            "nika: v1\nworkflow:\n  id: t\npolicy:\n  endorsement: solo\npermits:\n  exec: [\"echo\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  human:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"Proceed?\", default: false }\n  act:\n    with: { go: \"${{ tasks.human.output }}\" }\n    when: ${{ with.go == true }}\n    exec: { command: [\"echo\", \"shipped\"] }\n",
+            "nika: t\npolicy:\n  endorsement: solo\npermits:\n  exec: [\"echo\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  human:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"Proceed?\", default: false }\n  act:\n    with: { go: \"${{ tasks.human.output }}\" }\n    when: ${{ with.go == true }}\n    exec: { command: [\"echo\", \"shipped\"] }\n",
         );
         assert!(r.is_clean(), "{:?}", r.policy_findings);
     }
@@ -592,7 +592,7 @@ mod tests {
     #[test]
     fn endorsement_solo_with_two_gates_is_the_declaration_lying() {
         let r = report(
-            "nika: v1\nworkflow:\n  id: t\npolicy:\n  endorsement: solo\npermits:\n  exec: [\"echo\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  first:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"one?\", default: false }\n  second:\n    after: { first: success }\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"two?\", default: false }\n  act:\n    after: { second: success }\n    exec: { command: [\"echo\", \"shipped\"] }\n",
+            "nika: t\npolicy:\n  endorsement: solo\npermits:\n  exec: [\"echo\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  first:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"one?\", default: false }\n  second:\n    after: { first: success }\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"two?\", default: false }\n  act:\n    after: { second: success }\n    exec: { command: [\"echo\", \"shipped\"] }\n",
         );
         assert!(!r.is_clean());
         assert_eq!(
@@ -623,7 +623,7 @@ mod tests {
     #[test]
     fn endorsement_lane_is_inert_without_a_policy_block() {
         let r = report(
-            "nika: v1\nworkflow:\n  id: t\npermits:\n  exec: [\"echo\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  human:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"Proceed?\", default: false }\n  act:\n    with: { go: \"${{ tasks.human.output }}\" }\n    when: ${{ with.go == true }}\n    exec: { command: [\"echo\", \"shipped\"] }\n",
+            "nika: t\npermits:\n  exec: [\"echo\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  human:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"Proceed?\", default: false }\n  act:\n    with: { go: \"${{ tasks.human.output }}\" }\n    when: ${{ with.go == true }}\n    exec: { command: [\"echo\", \"shipped\"] }\n",
         );
         assert!(
             r.policy_findings.is_empty(),

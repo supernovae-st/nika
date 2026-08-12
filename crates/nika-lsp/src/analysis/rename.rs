@@ -253,7 +253,7 @@ mod tests {
     /// The W2 fixture — `fetch` is spoken at FIVE sites: its key, two
     /// `after:` entries (digest's + save's) and two `${{ tasks.fetch }}`
     /// islands (both inside `with:` binding values, the boundary form).
-    const DOC: &str = "nika: v1\nworkflow:\n  id: w\ntasks:\n  fetch:\n    exec: { command: [\"curl\"] }\n  digest:\n    after: { fetch: success }\n    with:\n      article: \"${{ tasks.fetch.output }}\"\n    infer: { prompt: \"sum ${{ with.article }}\", max_tokens: 10 }\n  save:\n    after: { digest: success, fetch: terminal }\n    with:\n      doc: \"${{ tasks.digest.output }}\"\n      raw: \"${{ tasks.fetch.output }}\"\n    exec: { command: [\"tee\", \"${{ with.doc }}\", \"${{ with.raw }}\"] }\n";
+    const DOC: &str = "nika: w\ntasks:\n  fetch:\n    exec: { command: [\"curl\"] }\n  digest:\n    after: { fetch: success }\n    with:\n      article: \"${{ tasks.fetch.output }}\"\n    infer: { prompt: \"sum ${{ with.article }}\", max_tokens: 10 }\n  save:\n    after: { digest: success, fetch: terminal }\n    with:\n      doc: \"${{ tasks.digest.output }}\"\n      raw: \"${{ tasks.fetch.output }}\"\n    exec: { command: [\"tee\", \"${{ with.doc }}\", \"${{ with.raw }}\"] }\n";
 
     fn uri() -> Uri {
         Uri::from_str("file:///w.nika.yaml").expect("uri")
@@ -351,7 +351,7 @@ mod tests {
         );
         // a ghost after: site — rename refuses (rename the definition,
         // not a ghost)
-        let ghost_doc = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    after: { ghost: success }\n    exec: { command: [\"x\"] }\n";
+        let ghost_doc = "nika: w\ntasks:\n  a:\n    after: { ghost: success }\n    exec: { command: [\"x\"] }\n";
         let at = ghost_doc.find("ghost").expect("ghost") + 1;
         assert!(
             rename(&uri(), ghost_doc, at, "real")
@@ -385,16 +385,16 @@ mod tests {
         // a verb keyword is NOT a renameable site
         let verb_at = DOC.find("infer:").expect("verb");
         assert!(prepare(DOC, verb_at).is_none(), "verb keyword refuses");
-        // the workflow id is NOT a task identity
-        let wf_at = DOC.find("id: w").expect("wf id") + 4;
-        assert!(prepare(DOC, wf_at).is_none(), "workflow id refuses");
+        // the workflow name is NOT a task identity
+        let wf_at = DOC.find("nika: w").expect("wf name") + "nika: ".len();
+        assert!(prepare(DOC, wf_at).is_none(), "the `nika:` name refuses");
     }
 
     #[test]
     fn verb_named_task_renames_only_identity_sites() {
         // a task NAMED `invoke` (the census trap): the verb KEY of another
         // task must not be touched — only identity sites move.
-        let doc = "nika: v1\nworkflow:\n  id: w\ntasks:\n  invoke:\n    exec: { command: [\"x\"] }\n  b:\n    after: { invoke: success }\n    with:\n      path: \"${{ tasks.invoke.output }}\"\n    invoke:\n      tool: \"nika:read\"\n      args: { path: \"${{ with.path }}\" }\n";
+        let doc = "nika: w\ntasks:\n  invoke:\n    exec: { command: [\"x\"] }\n  b:\n    after: { invoke: success }\n    with:\n      path: \"${{ tasks.invoke.output }}\"\n    invoke:\n      tool: \"nika:read\"\n      args: { path: \"${{ with.path }}\" }\n";
         let at = doc.find("\n  invoke:").expect("key") + 3;
         let we = rename(&uri(), doc, at, "caller").expect("renames");
         let after = apply(doc, edits(&we));

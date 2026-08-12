@@ -426,14 +426,14 @@ secrets:
 
     #[test]
     fn empty_egress_never_sanctions() {
-        let y = "nika: v1\nworkflow:\n  id: w\nsecrets:\n  k:\n    source: env\n    key: K\ntasks:\n  t:\n    invoke: { tool: \"nika:notify\", args: { channel: webhook, target: \"${{ secrets.k }}\", message: \"x\" } }\n";
+        let y = "nika: w\nsecrets:\n  k:\n    source: env\n    key: K\ntasks:\n  t:\n    invoke: { tool: \"nika:notify\", args: { channel: webhook, target: \"${{ secrets.k }}\", message: \"x\" } }\n";
         assert!(!sanctioned(y, "k", "t"), "default-deny");
     }
 
     #[test]
     fn self_url_direct_secret_is_sanctioned() {
         let y = format!(
-            "nika: v1\nworkflow:\n  id: w\n{HOOK}tasks:\n  t:\n    invoke: {{ tool: \"nika:notify\", args: {{ channel: webhook, target: \"${{{{ secrets.hook }}}}\", message: \"hi\" }} }}\n"
+            "nika: w\n{HOOK}tasks:\n  t:\n    invoke: {{ tool: \"nika:notify\", args: {{ channel: webhook, target: \"${{{{ secrets.hook }}}}\", message: \"hi\" }} }}\n"
         );
         assert!(sanctioned(&y, "hook", "t"));
     }
@@ -442,7 +442,7 @@ secrets:
     fn self_url_concatenated_is_not_sanctioned() {
         // the secret is part of a larger string — not the direct URL.
         let y = format!(
-            "nika: v1\nworkflow:\n  id: w\n{HOOK}tasks:\n  t:\n    invoke: {{ tool: \"nika:notify\", args: {{ channel: webhook, target: \"${{{{ secrets.hook }}}}/extra\", message: \"hi\" }} }}\n"
+            "nika: w\n{HOOK}tasks:\n  t:\n    invoke: {{ tool: \"nika:notify\", args: {{ channel: webhook, target: \"${{{{ secrets.hook }}}}/extra\", message: \"hi\" }} }}\n"
         );
         assert!(
             !sanctioned(&y, "hook", "t"),
@@ -453,9 +453,7 @@ secrets:
     #[test]
     fn self_url_with_second_secret_in_body_is_occluded() {
         let y = "\
-nika: v1
-workflow:
-  id: w
+nika: w
 secrets:
   hook:
     source: env
@@ -482,9 +480,7 @@ tasks:
     fn cross_tool_laundering_is_not_sanctioned() {
         // egress cleared nika:fetch, but the secret is used in exec.
         let y = "\
-nika: v1
-workflow:
-  id: w
+nika: w
 secrets:
   k:
     source: env
@@ -502,9 +498,7 @@ tasks:
     #[test]
     fn literal_host_match_is_sanctioned() {
         let y = "\
-nika: v1
-workflow:
-  id: w
+nika: w
 secrets:
   k:
     source: env
@@ -522,9 +516,7 @@ tasks:
     #[test]
     fn literal_host_mismatch_is_not_sanctioned() {
         let y = "\
-nika: v1
-workflow:
-  id: w
+nika: w
 secrets:
   k:
     source: env
@@ -543,9 +535,7 @@ tasks:
     fn derived_destination_with_host_clause_is_not_sanctioned() {
         // the url is templated — robust declass refuses (injectable).
         let y = "\
-nika: v1
-workflow:
-  id: w
+nika: w
 const: { ep: \"api.stripe.com\" }
 secrets:
   k:
@@ -568,9 +558,7 @@ tasks:
     fn permits_intersection_blocks_unlisted_host() {
         // egress cleared the host, but permits.net does NOT list it (L3).
         let y = "\
-nika: v1
-workflow:
-  id: w
+nika: w
 permits:
   net: { http: [\"api.anthropic.com\"] }
   tools: [\"nika:fetch\"]
@@ -594,9 +582,7 @@ tasks:
     #[test]
     fn permits_intersection_allows_listed_host() {
         let y = "\
-nika: v1
-workflow:
-  id: w
+nika: w
 permits:
   net: { http: [\"api.stripe.com\"] }
   tools: [\"nika:fetch\"]
@@ -618,7 +604,7 @@ tasks:
     fn wrong_tool_id_does_not_match_l1() {
         // egress is for nika:notify but the sink is nika:fetch.
         let y = format!(
-            "nika: v1\nworkflow:\n  id: w\n{HOOK}tasks:\n  t:\n    invoke: {{ tool: \"nika:fetch\", args: {{ url: \"${{{{ secrets.hook }}}}\" }} }}\n"
+            "nika: w\n{HOOK}tasks:\n  t:\n    invoke: {{ tool: \"nika:fetch\", args: {{ url: \"${{{{ secrets.hook }}}}\" }} }}\n"
         );
         assert!(!sanctioned(&y, "hook", "t"), "L1 sink id must match");
     }
@@ -671,9 +657,7 @@ tasks:
         // trusted self-URL. Deleting the `Value::Array` walk arm lets it
         // through (wrongly sanctioned) — this asserts it stays a leak.
         let y = "\
-nika: v1
-workflow:
-  id: w
+nika: w
 secrets:
   hook:
     source: env

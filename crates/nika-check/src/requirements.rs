@@ -225,9 +225,7 @@ mod tests {
     fn requirements_state_the_full_caller_contract() {
         let wf = wf_of(
             r#"
-nika: v1
-workflow:
-  id: req-probe
+nika: req-probe
 model: anthropic/claude-sonnet-4-6
 inputs:
   target_url: { type: string, required: true }
@@ -300,9 +298,7 @@ outputs:
 
     #[test]
     fn an_invoke_only_workflow_needs_no_model_and_says_so() {
-        let wf = wf_of(
-            "nika: v1\nworkflow:\n  id: none\ntasks:\n  a:\n    invoke: { tool: \"nika:uuid\" }\n",
-        );
+        let wf = wf_of("nika: none\ntasks:\n  a:\n    invoke: { tool: \"nika:uuid\" }\n");
         let req = collect(&wf);
         assert!(req.models.is_empty());
         assert!(req.config_reads.is_empty());

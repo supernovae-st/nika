@@ -29,10 +29,7 @@ use nika_verb_invoke::InvokeVerb;
 /// Two tasks · two verbs — enough DAG for a run-level elapsed and a
 /// per-task model bucket (`think` rides mock/echo · `probe` is exec).
 const WORKFLOW: &str = r#"
-nika: v1
-workflow:
-  id: fc-e2e
-  description: forecast ladder fixture
+nika: fc-e2e
 
 model: mock/echo
 

@@ -28,7 +28,7 @@ fn payload_strategy() -> impl Strategy<Value = String> {
 }
 
 /// The base workflow — valid, one exec task, no prose variants yet.
-const BASE: &str = "nika: v1\nworkflow:\n  id: r3\nmodel: mock/echo\npermits: { exec: [\"true\"] }\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n";
+const BASE: &str = "nika: r3\nmodel: mock/echo\npermits: { exec: [\"true\"] }\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n";
 
 /// Escape a payload for a YAML double-quoted scalar (the relation
 /// embeds hostile text — the embedding itself must never break the

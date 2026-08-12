@@ -23,9 +23,7 @@ fn bin() -> Command {
 /// by design: integration files share no code, and the 5 lines beat a
 /// support-crate ceremony).
 const VALID: &str = r#"
-nika: v1
-workflow:
-  id: smoke
+nika: smoke
 permits: { exec: ["echo"] }
 tasks:
   greet:

@@ -137,7 +137,7 @@ mod tests {
         let dir = tempfile::tempdir().expect("tempdir");
         let (pk, sk) = keypair();
         let wf = dir.path().join("flow.nika.yaml");
-        let bytes = b"nika: v1\nworkflow:\n  id: signed\n";
+        let bytes = b"nika: signed\n";
         std::fs::write(&wf, bytes).expect("fixture");
 
         let fp = sign_workflow_with(&wf, &sk, pk.trim()).expect("signs");
@@ -167,7 +167,7 @@ mod tests {
         let dir = tempfile::tempdir().expect("tempdir");
         let (pk, sk) = keypair();
         let wf = dir.path().join("flow.nika.yaml");
-        std::fs::write(&wf, b"nika: v1\nworkflow:\n  id: honest\n").expect("fixture");
+        std::fs::write(&wf, b"nika: honest\n").expect("fixture");
         sign_workflow_with(&wf, &sk, pk.trim()).expect("signs");
         let text = std::fs::read_to_string(sidecar_path(&wf)).expect("sidecar");
 

@@ -29,7 +29,7 @@ mod policy_rung_tests {
     #[test]
     fn a_solo_count_row_prints_sec_013_on_console() {
         let out = console(
-            "nika: v1\nworkflow:\n  id: t\npolicy:\n  endorsement: solo\npermits:\n  exec: [\"echo\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  first:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"one?\", default: false }\n  second:\n    after: { first: success }\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"two?\", default: false }\n  act:\n    after: { second: success }\n    exec: { command: [\"echo\", \"shipped\"] }\n",
+            "nika: t\npolicy:\n  endorsement: solo\npermits:\n  exec: [\"echo\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  first:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"one?\", default: false }\n  second:\n    after: { first: success }\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"two?\", default: false }\n  act:\n    after: { second: success }\n    exec: { command: [\"echo\", \"shipped\"] }\n",
         );
         let row = out
             .lines()
@@ -50,7 +50,7 @@ mod policy_rung_tests {
     #[test]
     fn a_limits_row_keeps_policy_001_on_console() {
         let out = console(
-            "nika: v1\nworkflow:\n  id: t\npolicy:\n  limits: { max_tasks: 1 }\ntasks:\n  a:\n    infer: { prompt: \"x\" }\n  b:\n    infer: { prompt: \"y\" }\n",
+            "nika: t\npolicy:\n  limits: { max_tasks: 1 }\ntasks:\n  a:\n    infer: { prompt: \"x\" }\n  b:\n    infer: { prompt: \"y\" }\n",
         );
         let row = out
             .lines()
@@ -88,7 +88,7 @@ mod journey_rung_tests {
     #[test]
     fn a_pure_mock_workflow_states_its_trivial_journey() {
         let out = console(
-            "nika: v1\nworkflow:\n  id: t\nmodel: mock/echo\npermits: {}\ntasks:\n  think:\n    infer: { prompt: \"hi\", max_tokens: 5 }\n",
+            "nika: t\nmodel: mock/echo\npermits: {}\ntasks:\n  think:\n    infer: { prompt: \"hi\", max_tokens: 5 }\n",
         );
         let line = out
             .lines()
@@ -108,9 +108,7 @@ mod journey_rung_tests {
     fn a_secret_reaching_a_cloud_endpoint_is_named_with_the_receipt_law() {
         let out = console(
             r#"
-    nika: v1
-    workflow:
-      id: t
+    nika: t
     model: openai/gpt-4o-mini
     secrets:
       openai_key:
@@ -157,7 +155,7 @@ mod journey_rung_tests {
     #[test]
     fn a_cloud_endpoint_earns_its_readable_disclosure_row() {
         let cloud = console(
-            "nika: v1\nworkflow:\n  id: t\nmodel: openai/gpt-4o-mini\npermits: {}\ntasks:\n  think:\n    infer: { prompt: \"hi\", max_tokens: 5 }\n",
+            "nika: t\nmodel: openai/gpt-4o-mini\npermits: {}\ntasks:\n  think:\n    infer: { prompt: \"hi\", max_tokens: 5 }\n",
         );
         let row = cloud
             .lines()
@@ -173,7 +171,7 @@ mod journey_rung_tests {
         );
 
         let mock = console(
-            "nika: v1\nworkflow:\n  id: t\nmodel: mock/echo\npermits: {}\ntasks:\n  think:\n    infer: { prompt: \"hi\", max_tokens: 5 }\n",
+            "nika: t\nmodel: mock/echo\npermits: {}\ntasks:\n  think:\n    infer: { prompt: \"hi\", max_tokens: 5 }\n",
         );
         assert!(
             !mock.contains("cloud endpoint"),
@@ -228,7 +226,7 @@ mod models_rung_tests {
     /// of it — the user sees « resolves » AND « unheard of » together.
     #[test]
     fn a_catalog_warning_rides_under_the_green_models_line() {
-        let yaml = "nika: v1\nworkflow:\n  id: t\ntasks:\n  probe:\n    infer: { model: anthropic/claude-4-nonexistent, prompt: \"x\" }\n";
+        let yaml = "nika: t\ntasks:\n  probe:\n    infer: { model: anthropic/claude-4-nonexistent, prompt: \"x\" }\n";
         let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parses");
         let report = nika_check::check(&wf);
         let audit =
@@ -270,7 +268,8 @@ mod models_rung_liveness_tests {
     use crate::check_render::*;
 
     fn console(audit: &ModelsAudit) -> String {
-        let yaml = "nika: v1\nworkflow:\n  id: t\nmodel: ollama/qwen3.5:4b\ntasks:\n  think:\n    infer: { prompt: \"hi\" }\n";
+        let yaml =
+            "nika: t\nmodel: ollama/qwen3.5:4b\ntasks:\n  think:\n    infer: { prompt: \"hi\" }\n";
         let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parses");
         let report = nika_check::check(&wf);
         render(

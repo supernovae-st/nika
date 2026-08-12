@@ -3,9 +3,7 @@
 # scan catches literal escapes, so this never reaches a run: NIKA-SEC-004 at
 # `nika check` time. The static twin of f4-02's dynamic escape — together
 # they pin that check and run speak one boundary.
-nika: v1
-workflow:
-  id: f4-04-literal-program-escape
+nika: f4-04-literal-program-escape
 permits:
   exec: ["git"]
 tasks:

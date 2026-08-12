@@ -255,9 +255,7 @@ mod tests {
         } else {
             "shell"
         };
-        format!(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    exec: {{ {field}: {command_yaml} }}\n"
-        )
+        format!("nika: w\ntasks:\n  t:\n    exec: {{ {field}: {command_yaml} }}\n")
     }
 
     fn sole_native_hint(yaml: &str) -> Hint {
@@ -398,7 +396,7 @@ mod tests {
 
     #[test]
     fn on_finally_cleanups_are_scanned_too() {
-        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    exec: { command: [\"make\", \"build\"] }\n    on_finally:\n      - exec: { command: [\"curl\", \"-X\", \"POST\", \"https://hooks.test/done\"] }\n";
+        let yaml = "nika: w\ntasks:\n  t:\n    exec: { command: [\"make\", \"build\"] }\n    on_finally:\n      - exec: { command: [\"curl\", \"-X\", \"POST\", \"https://hooks.test/done\"] }\n";
         let hints = hints_of(yaml);
         assert!(
             hints
@@ -413,9 +411,7 @@ mod tests {
         // The genericized empirical trigger: a site-asset workflow whose
         // four exec tasks are all natively expressible. Spec-VALID (it
         // parses + checks) yet every task earns its native-first hint.
-        let yaml = r#"nika: v1
-workflow:
-  id: site-asset
+        let yaml = r#"nika: site-asset
 model: mock/echo
 tasks:
   crawl_site:

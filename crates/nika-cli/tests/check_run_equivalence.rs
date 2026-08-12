@@ -533,7 +533,7 @@ fn e_diff_runtime_fs_leg() {
     let mut failures: Vec<String> = Vec::new();
     for (name, permits, path, want_ok) in rows {
         let yaml = format!(
-            "nika: v1\nworkflow:\n  id: ediff-fs\n{permits}tasks:\n  grab:\n    invoke:\n      tool: \"nika:read\"\n      args: {{ path: \"{path}\" }}\n"
+            "nika: ediff-fs\n{permits}tasks:\n  grab:\n    invoke:\n      tool: \"nika:read\"\n      args: {{ path: \"{path}\" }}\n"
         );
         let wf = root.join(format!("{name}.nika.yaml"));
         std::fs::write(&wf, yaml).expect("write workflow");
@@ -592,7 +592,7 @@ fn e_diff_runtime_net_leg() {
     let mut observed_codes: Vec<String> = Vec::new();
     for (name, permits, url) in rows {
         let yaml = format!(
-            "nika: v1\nworkflow:\n  id: ediff-net\n{permits}tasks:\n  grab:\n    invoke:\n      tool: \"nika:fetch\"\n      args: {{ url: \"{url}\" }}\n"
+            "nika: ediff-net\n{permits}tasks:\n  grab:\n    invoke:\n      tool: \"nika:fetch\"\n      args: {{ url: \"{url}\" }}\n"
         );
         let wf = root.join(format!("{name}.nika.yaml"));
         std::fs::write(&wf, yaml).expect("write workflow");

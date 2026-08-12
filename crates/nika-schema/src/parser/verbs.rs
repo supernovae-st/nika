@@ -1050,7 +1050,7 @@ tasks:
     fn agent_whitelist_rejects_an_unknown_namespace() {
         // The closed-namespace gate (ADR-096 · the compose move): a third
         // namespace fails at parse with a pointer to nika:compose.
-        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    agent:\n      prompt: \"go\"\n      tools: [\"agent:compose\"]\n";
+        let yaml = "nika: w\ntasks:\n  t:\n    agent:\n      prompt: \"go\"\n      tools: [\"agent:compose\"]\n";
         let err = parse(yaml, FileId::new(0), ParseMode::Strict).expect_err("rejected");
         assert!(
             err.to_string().contains("unknown tool namespace")
@@ -1058,15 +1058,15 @@ tasks:
             "{err}"
         );
         // nika: + mcp: globs (incl. negation) + a bare `*` stay legal.
-        let ok = "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    agent:\n      prompt: \"go\"\n      tools: [\"nika:*\", \"mcp:srv/*\", \"!mcp:srv/danger\", \"nika:compose\", \"*\"]\n";
+        let ok = "nika: w\ntasks:\n  t:\n    agent:\n      prompt: \"go\"\n      tools: [\"nika:*\", \"mcp:srv/*\", \"!mcp:srv/danger\", \"nika:compose\", \"*\"]\n";
         assert!(parse(ok, FileId::new(0), ParseMode::Strict).is_ok());
         // A SECOND colon is malformed even in a glob — parity with the
         // invoke `validate_tool_ref` boundary rule.
-        let two_colons = "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    agent:\n      prompt: \"go\"\n      tools: [\"nika:read:typo\"]\n";
+        let two_colons = "nika: w\ntasks:\n  t:\n    agent:\n      prompt: \"go\"\n      tools: [\"nika:read:typo\"]\n";
         let err = parse(two_colons, FileId::new(0), ParseMode::Strict).expect_err("rejected");
         assert!(err.to_string().contains("exactly once"), "{err}");
         // Uppercase namespace is not a v1 namespace.
-        let upper = "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    agent:\n      prompt: \"go\"\n      tools: [\"NIKA:read\"]\n";
+        let upper = "nika: w\ntasks:\n  t:\n    agent:\n      prompt: \"go\"\n      tools: [\"NIKA:read\"]\n";
         assert!(parse(upper, FileId::new(0), ParseMode::Strict).is_err());
     }
 
@@ -1300,9 +1300,7 @@ mod argv_command {
 
     #[test]
     fn scalar_command_is_shell() {
-        let c = exec_command(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    exec: { shell: \"a | b\" }\n",
-        );
+        let c = exec_command("nika: w\ntasks:\n  t:\n    exec: { shell: \"a | b\" }\n");
         assert!(matches!(c, RawCommand::Shell(_)));
         assert_eq!(c.shell_str(), Some("a | b"));
         assert_eq!(c.argv_program(), None);
@@ -1310,9 +1308,8 @@ mod argv_command {
 
     #[test]
     fn array_command_is_argv() {
-        let c = exec_command(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    exec: { command: [\"git\", \"status\"] }\n",
-        );
+        let c =
+            exec_command("nika: w\ntasks:\n  t:\n    exec: { command: [\"git\", \"status\"] }\n");
         assert!(matches!(c, RawCommand::Argv(_)));
         assert_eq!(c.argv_program(), Some("git"), "argv[0] is the program");
         assert_eq!(c.shell_str(), None, "argv has no shell string");
@@ -1322,7 +1319,7 @@ mod argv_command {
     #[test]
     fn empty_array_command_is_rejected() {
         let err = parse(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    exec: { command: [] }\n",
+            "nika: w\ntasks:\n  t:\n    exec: { command: [] }\n",
             FileId::new(0),
             ParseMode::Strict,
         )
@@ -1335,7 +1332,7 @@ mod argv_command {
         // A nested mapping is not a scalar (a bare number `42` is a YAML
         // scalar string `"42"` and is fine — argv elements are strings).
         let err = parse(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    exec: { command: [\"git\", { a: 1 }] }\n",
+            "nika: w\ntasks:\n  t:\n    exec: { command: [\"git\", { a: 1 }] }\n",
             FileId::new(0),
             ParseMode::Strict,
         )

@@ -91,9 +91,7 @@ fn str_field<'a>(event: &'a Event, key: &str) -> Option<&'a str> {
 #[tokio::test]
 async fn output_named_bindings_resolve_downstream() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: out-bind
+nika: out-bind
 permits: { exec: true, tools: ["nika:jq"] }
 tasks:
   src:
@@ -138,9 +136,7 @@ tasks:
 #[tokio::test]
 async fn output_binding_jq_path_and_collect() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: out-bind-jq
+nika: out-bind-jq
 permits: { exec: true, tools: ["nika:jq"] }
 tasks:
   api:
@@ -185,9 +181,7 @@ tasks:
 #[tokio::test]
 async fn output_binding_cardinality_error_fails_the_task() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: out-bind-card
+nika: out-bind-card
 permits: { tools: ["nika:jq"] }
 tasks:
   src:
@@ -239,9 +233,7 @@ async fn output_binding_of_skipped_task_is_defined_null() {
     // checker rejects as a dead branch) closes `maybe` at run · its
     // declared binding `c` must then read defined-null downstream.
     let yaml = r#"
-nika: v1
-workflow:
-  id: out-bind-skip
+nika: out-bind-skip
 permits: { exec: true, tools: ["nika:jq"] }
 const:
   run: "no"
@@ -286,9 +278,7 @@ tasks:
 #[tokio::test]
 async fn exec_capture_structured_exposes_stdout_stderr_exit_code() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: exec-structured
+nika: exec-structured
 permits: { exec: true }
 tasks:
   probe:
@@ -341,9 +331,7 @@ tasks:
 #[tokio::test]
 async fn exec_plain_capture_stays_a_trimmed_string() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: exec-plain
+nika: exec-plain
 permits: { exec: true }
 tasks:
   e:
@@ -381,9 +369,7 @@ tasks:
 #[tokio::test]
 async fn typed_output_type_mismatch_fails_the_run_with_var009() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: typed-out-mismatch
+nika: typed-out-mismatch
 permits: { tools: ["nika:jq"] }
 tasks:
   n:
@@ -428,9 +414,7 @@ outputs:
 #[tokio::test]
 async fn run_banner_reflects_a_declared_permits_boundary() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: permits-banner
+nika: permits-banner
 permits:
   tools: ["nika:jq"]
 tasks:
@@ -465,9 +449,7 @@ tasks:
 #[tokio::test]
 async fn run_banner_names_the_exec_opening_when_exec_granted() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: exec-banner
+nika: exec-banner
 permits:
   exec: true
   tools: ["nika:jq"]
@@ -500,9 +482,7 @@ tasks:
 #[tokio::test]
 async fn run_banner_reports_engine_floor_when_no_permits_declared() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: no-permits-banner
+nika: no-permits-banner
 tasks:
   t:
     invoke: { tool: "nika:jq", args: { input: { x: 1 }, expression: ".x" } }
@@ -535,9 +515,7 @@ tasks:
 #[tokio::test]
 async fn workflow_started_carries_the_source_identity_when_injected() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: source-identity
+nika: source-identity
 permits: { tools: ["nika:jq"] }
 tasks:
   t:
@@ -612,9 +590,7 @@ tasks:
 #[tokio::test]
 async fn skip_and_cancel_events_carry_their_why() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: skip-why
+nika: skip-why
 permits: { exec: true, tools: ["nika:jq"] }
 tasks:
   seed:
@@ -693,7 +669,7 @@ tasks:
 /// prologue attests both, from compile-time constants only.
 #[tokio::test]
 async fn workflow_started_attests_engine_and_platform() {
-    let yaml = "nika: v1\nworkflow:\n  id: attest\npermits: { exec: true }\ntasks:\n  a:\n    exec:\n      command: [\"true\"]\n";
+    let yaml = "nika: attest\npermits: { exec: true }\ntasks:\n  a:\n    exec:\n      command: [\"true\"]\n";
     let (_outcome, events) = run_to_events(
         yaml,
         MockShell::new(),

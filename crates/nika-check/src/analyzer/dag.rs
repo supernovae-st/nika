@@ -261,7 +261,7 @@ mod tests {
         analyze(&wf)
     }
 
-    const HEADER: &str = "nika: v1\nworkflow:\n  id: t\n";
+    const HEADER: &str = "nika: t\n";
 
     #[test]
     fn recover_deadlock_transitive_and_nested_refs() {

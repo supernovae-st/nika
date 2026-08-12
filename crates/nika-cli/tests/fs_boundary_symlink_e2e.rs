@@ -25,9 +25,7 @@ fn bin() -> Command {
 /// The preserved probe's shape: an exact read grant + a log of what was
 /// read (any leak rides the run's own outputs).
 const SONDE: &str = r#"
-nika: v1
-workflow:
-  id: toctou-probe
+nika: toctou-probe
 
 permits:
   fs:

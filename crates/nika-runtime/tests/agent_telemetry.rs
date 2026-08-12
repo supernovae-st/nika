@@ -28,9 +28,7 @@ use nika_verb_infer::InferVerb;
 use nika_verb_invoke::InvokeVerb;
 
 const AGENT_WORKFLOW: &str = r#"
-nika: v1
-workflow:
-  id: agent-telemetry
+nika: agent-telemetry
 model: mock/echo
 
 permits:
@@ -257,9 +255,7 @@ async fn a_timed_out_agent_keeps_its_pre_timeout_evidence() {
     // region — a timed-out attempt's decisions (routing · budget) must
     // survive the drop of the attempt future and reach the stream.
     const TIMEOUT_WORKFLOW: &str = r#"
-nika: v1
-workflow:
-  id: agent-timeout
+nika: agent-timeout
 model: mock/echo
 
 permits:
@@ -362,9 +358,7 @@ tasks:
 #[tokio::test]
 async fn a_stalled_agent_puts_the_evidence_on_the_stream() {
     const STALL_WORKFLOW: &str = r#"
-nika: v1
-workflow:
-  id: agent-stall
+nika: agent-stall
 model: mock/echo
 
 permits:
@@ -470,9 +464,7 @@ async fn agent_decisions_are_attributed_to_their_retry_attempt() {
     // this is also the ONLY test that exercises `BufferingObserver::len`
     // returning a meaningful (non-zero, per-attempt) value.
     const RETRY_WORKFLOW: &str = r#"
-nika: v1
-workflow:
-  id: agent-retry
+nika: agent-retry
 model: mock/echo
 
 permits:
@@ -555,9 +547,7 @@ async fn an_agent_compose_check_rides_the_canonical_stream() {
     // as `agent_compose_checked` — the ONE agent kind the prior e2e set
     // never exercised through the real runtime (mutation gap).
     const COMPOSE_WORKFLOW: &str = r#"
-nika: v1
-workflow:
-  id: agent-compose
+nika: agent-compose
 model: mock/echo
 
 permits:
@@ -573,7 +563,7 @@ tasks:
     let wf = parse(COMPOSE_WORKFLOW, FileId::new(0), ParseMode::Strict).expect("fixture parses");
     let report = check(&wf);
 
-    let draft = "nika: v1\nworkflow:\n  id: drafted\ntasks:\n  t:\n    exec:\n      command: [\"echo\", \"hi\"]\n";
+    let draft = "nika: drafted\ntasks:\n  t:\n    exec:\n      command: [\"echo\", \"hi\"]\n";
     let provider = MockProvider::new("mock")
         .enqueue_response(tool_use_response(
             "d1",
@@ -623,9 +613,7 @@ async fn an_error_streak_nudge_names_its_reason_on_the_stream() {
     // test's `repeated_actions` reason, and the ONLY runtime test that
     // pins the `error_streak` slug (mutation gap on `reason_slug`).
     const STREAK_WORKFLOW: &str = r#"
-nika: v1
-workflow:
-  id: agent-streak
+nika: agent-streak
 model: mock/echo
 
 permits:

@@ -174,9 +174,7 @@ fn str_field<'a>(event: &'a Event, key: &str) -> Option<&'a str> {
 }
 
 const CALL: &str = "\
-nika: v1
-workflow:
-  id: parent
+nika: parent
 const:
   target_url: \"https://example.com\"
 tasks:
@@ -215,7 +213,7 @@ async fn runner_less_workflow_call_refuses_loudly() {
 #[tokio::test]
 async fn a_floor_above_budget_aborts_at_admission_with_zero_events() {
     let (wf, report) = parse_and_check(
-        "nika: v1\nworkflow:\n  id: m\ntasks:\n  \
+        "nika: m\ntasks:\n  \
          a:\n    infer: { prompt: hi, max_tokens: 1000000, model: \"anthropic/claude-sonnet-5\" }\n",
     );
     assert!(
@@ -350,9 +348,7 @@ async fn child_spend_crossing_the_budget_trips_the_parent() {
 #[tokio::test]
 async fn returns_contract_judges_the_child_value() {
     let yaml = "\
-nika: v1
-workflow:
-  id: parent
+nika: parent
 tasks:
   audit:
     invoke:
@@ -410,9 +406,7 @@ async fn child_failure_surfaces_the_child_code() {
 #[tokio::test]
 async fn refusals_are_not_retried() {
     let yaml = "\
-nika: v1
-workflow:
-  id: parent
+nika: parent
 tasks:
   audit:
     invoke:
@@ -440,9 +434,7 @@ tasks:
 #[tokio::test]
 async fn parent_permits_ride_the_call() {
     let yaml = "\
-nika: v1
-workflow:
-  id: parent
+nika: parent
 permits:
   net:
     http: [\"api.example.com\"]

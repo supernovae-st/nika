@@ -70,7 +70,7 @@ mod tests {
     #[test]
     fn mirrors_the_spec_lints_fixtures() {
         let fired = lints_of(
-            "nika: v1\nworkflow:\n  id: curl-crawl\ntasks:\n  crawl:\n    exec: { command: [\"curl\", \"-s\", \"https://example.com\", \"-o\", \"out/site.html\"] }\n",
+            "nika: curl-crawl\ntasks:\n  crawl:\n    exec: { command: [\"curl\", \"-s\", \"https://example.com\", \"-o\", \"out/site.html\"] }\n",
         );
         assert_eq!(
             fired,
@@ -78,7 +78,7 @@ mod tests {
         );
 
         let helper = lints_of(
-            "nika: v1\nworkflow:\n  id: helper\ntasks:\n  upload:\n    exec:\n      command: [\"node\", \"workflows/site/bin/helper.mjs\", \"upload\", \"--file\", \"out/bg.png\"]\n",
+            "nika: helper\ntasks:\n  upload:\n    exec:\n      command: [\"node\", \"workflows/site/bin/helper.mjs\", \"upload\", \"--file\", \"out/bg.png\"]\n",
         );
         assert_eq!(
             helper,
@@ -86,7 +86,7 @@ mod tests {
         );
 
         let silent = lints_of(
-            "nika: v1\nworkflow:\n  id: build\ntasks:\n  test:\n    exec: { command: [\"cargo\", \"test\", \"--workspace\", \"--lib\"] }\n  nested:\n    after: { test: success }\n    exec: { command: [\"nika\", \"run\", \"subroutine.nika.yaml\"] }\n",
+            "nika: build\ntasks:\n  test:\n    exec: { command: [\"cargo\", \"test\", \"--workspace\", \"--lib\"] }\n  nested:\n    after: { test: success }\n    exec: { command: [\"nika\", \"run\", \"subroutine.nika.yaml\"] }\n",
         );
         assert!(silent.is_empty(), "{silent:?}");
     }

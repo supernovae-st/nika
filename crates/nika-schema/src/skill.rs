@@ -438,7 +438,7 @@ mod tests {
         ];
         for (permits, label) in cases {
             let yaml = format!(
-                "nika: v1\nworkflow:\n  id: w\nmodel: mock/echo\n{permits}\
+                "nika: w\nmodel: mock/echo\n{permits}\
                  tasks:\n  a:\n    agent: {{ prompt: \"hi\", skills: [\"outside/SKILL.md\"] }}\n"
             );
             let wf = crate::parse(&yaml, crate::FileId::new(0), crate::ParseMode::Strict)
@@ -469,9 +469,7 @@ mod tests {
         // boundary, so it declares what it reaches (see the sibling test
         // `resolve_skills_refuses_a_path_outside_the_boundary`).
         let yaml = "\
-nika: v1
-workflow:
-  id: w
+nika: w
 model: mock/echo
 permits:
   fs:
@@ -539,7 +537,7 @@ tasks:
     #[test]
     fn resolve_skills_is_empty_for_a_skill_less_workflow() {
         let wf = crate::parse(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    exec: { command: [\"echo\", \"hi\"] }\n",
+            "nika: w\ntasks:\n  t:\n    exec: { command: [\"echo\", \"hi\"] }\n",
             crate::FileId::new(0),
             crate::ParseMode::Strict,
         )
@@ -551,9 +549,7 @@ tasks:
     #[test]
     fn skill_refs_walks_main_and_finally_actions() {
         let yaml = "\
-nika: v1
-workflow:
-  id: w
+nika: w
 tasks:
   a:
     agent:

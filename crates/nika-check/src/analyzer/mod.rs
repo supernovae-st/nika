@@ -101,18 +101,17 @@ pub fn analyze(wf: &RawWorkflow) -> Result<AnalyzedWorkflow, Vec<SchemaError>> {
     }
 }
 
-/// Envelope presence (spec `01-envelope.md` · « Two required lines
-/// (`nika:` + `workflow:`) and a non-empty `tasks:` »).
+/// Envelope presence (spec `01-envelope.md` · « The `nika:` line and a
+/// non-empty `tasks:` map. That's the **whole minimum** to be a valid
+/// Nika workflow. »).
+///
+/// ONE required line since the envelope nuke (2026-08-12), not two:
+/// `wf.workflow` holds the value of `nika:` — the mark AND the name in
+/// a single key — so its absence is the absence of `nika:`.
 fn check_envelope(wf: &RawWorkflow, errors: &mut Vec<SchemaError>) {
-    if wf.nika.is_none() {
-        errors.push(SchemaError::MissingEnvelopeField {
-            field: "nika".to_owned(),
-            span: None,
-        });
-    }
     if wf.workflow.is_none() {
         errors.push(SchemaError::MissingEnvelopeField {
-            field: "workflow".to_owned(),
+            field: "nika".to_owned(),
             span: None,
         });
     }
@@ -158,9 +157,7 @@ mod tests {
     }
 
     const MINIMAL_OK: &str = "\
-nika: v1
-workflow:
-  id: hello
+nika: hello
 tasks:
   greet:
     infer:
@@ -177,11 +174,12 @@ tasks:
     // ── Envelope rules ──────────────────────────────────────────────
 
     #[test]
-    fn missing_nika_workflow_and_tasks_all_collected() {
-        // COLLECT all errors · not fail-fast.
-        let errors = analyze_yaml("model: mock/echo\n").expect_err("3 missing");
-        assert_eq!(errors.len(), 3, "{errors:?}");
-        for field in ["nika", "workflow", "tasks"] {
+    fn missing_nika_and_tasks_all_collected() {
+        // COLLECT all errors · not fail-fast. TWO since the envelope
+        // nuke, not three — `nika:` carries the identity alone.
+        let errors = analyze_yaml("model: mock/echo\n").expect_err("2 missing");
+        assert_eq!(errors.len(), 2, "{errors:?}");
+        for field in ["nika", "tasks"] {
             assert_has(
                 &errors,
                 |e| matches!(e, SchemaError::MissingEnvelopeField { field: f, .. } if f == field),
@@ -191,19 +189,19 @@ tasks:
     }
 
     #[test]
-    fn missing_workflow_only() {
-        // Conformance fixture envelope/007-missing-workflow.
+    fn missing_nika_only() {
+        // Conformance fixture envelope/parse-missing-nika-key.
         let yaml = "\
-nika: v1
 tasks:
   greet:
     infer: { prompt: hi }
 ";
-        let errors = analyze_yaml(yaml).expect_err("missing workflow");
+        let errors = analyze_yaml(yaml).expect_err("missing nika");
+        assert_eq!(errors.len(), 1, "tasks are present: {errors:?}");
         assert_has(
             &errors,
-            |e| matches!(e, SchemaError::MissingEnvelopeField { field, .. } if field == "workflow"),
-            "missing workflow",
+            |e| matches!(e, SchemaError::MissingEnvelopeField { field, .. } if field == "nika"),
+            "missing nika",
         );
     }
 
@@ -211,7 +209,7 @@ tasks:
     fn empty_tasks_array_errors() {
         // Conformance fixture envelope/006-empty-tasks-array (W1 form: an
         // empty MAP — the sequence form dies earlier as NIKA-PARSE-022).
-        let yaml = "nika: v1\nworkflow:\n  id: hello\ntasks: {}\n";
+        let yaml = "nika: hello\ntasks: {}\n";
         let errors = analyze_yaml(yaml).expect_err("empty tasks");
         assert_has(
             &errors,
@@ -226,9 +224,7 @@ tasks:
         // a duplicate MAP KEY — the YAML loader itself refuses it (PARSE-007
         // mechanics), before the analyzer ever runs.
         let yaml = "\
-nika: v1
-workflow:
-  id: dup
+nika: dup
 tasks:
   same:
     exec: { command: [echo] }
@@ -247,9 +243,7 @@ tasks:
         // Defense in depth: a RawWorkflow built by another frontend (not the
         // YAML loader) with two same-id tasks still trips the analyzer.
         let yaml = "\
-nika: v1
-workflow:
-  id: dup
+nika: dup
 tasks:
   same:
     exec: { command: [echo] }
@@ -276,9 +270,7 @@ tasks:
         // `when:` reads LOCAL names only — even WITH a control edge in
         // place, a `tasks.*` read there is refused (hoist into `with:`).
         let yaml = "\
-nika: v1
-workflow:
-  id: t
+nika: t
 tasks:
   test:
     exec: { command: [\"./test.sh\"] }
@@ -302,9 +294,7 @@ tasks:
         // reference without its `depends_on:` restatement); W2 derives the
         // edge FROM the binding, so the shape is simply valid.
         let yaml = "\
-nika: v1
-workflow:
-  id: t
+nika: t
 tasks:
   research:
     infer: { prompt: \"research\" }
@@ -322,9 +312,7 @@ tasks:
     fn verb_body_ref_is_outside_the_boundary() {
         // Conformance fixture dag-topology/006-verb-body-reference-illegal.
         let yaml = "\
-nika: v1
-workflow:
-  id: t
+nika: t
 tasks:
   research:
     infer: { prompt: \"research\" }
@@ -345,9 +333,7 @@ tasks:
         // Conformance fixture dag-topology/007-for-each-reference-illegal ·
         // the collection crosses through `with:`, never directly.
         let yaml = "\
-nika: v1
-workflow:
-  id: t
+nika: t
 tasks:
   discover:
     invoke: { tool: \"nika:read\" }
@@ -370,9 +356,7 @@ tasks:
         // would render `task `task `x```. The id field carries the BARE id —
         // the message reads `task `b` a verb field references …` cleanly.
         let yaml = "\
-nika: v1
-workflow:
-  id: t
+nika: t
 tasks:
   a:
     exec: { command: [\"echo\", \"hi\"] }
@@ -402,9 +386,7 @@ tasks:
         // The wording moved when `when:`/`for_each:` stopped admitting the
         // locals; what this test protects is the rendering, not the prose.
         let yaml = "\
-nika: v1
-workflow:
-  id: t
+nika: t
 tasks:
   a:
     exec: { command: [\"echo\", \"${{ item }}\"] }
@@ -431,9 +413,7 @@ tasks:
         // `after: {fetch: success}` BESIDE the value edge is a meaningful
         // tightening (edges compose by intersection · spec 03 §after).
         let yaml = "\
-nika: v1
-workflow:
-  id: t
+nika: t
 tasks:
   fetch:
     invoke: { tool: \"nika:fetch\", args: { url: \"https://x.io\" } }
@@ -451,9 +431,7 @@ tasks:
         // Spec example 16 · on_finally references the OWNING task's
         // status — no self-edge required.
         let yaml = "\
-nika: v1
-workflow:
-  id: t
+nika: t
 tasks:
   test:
     exec: { command: [\"cargo\", \"test\"] }
@@ -471,9 +449,7 @@ tasks:
         // Spec example 22 · recover references the fallback task with
         // NO depends_on edge.
         let yaml = "\
-nika: v1
-workflow:
-  id: t
+nika: t
 tasks:
   cached:
     invoke: { tool: \"nika:read\" }
@@ -492,9 +468,7 @@ tasks:
         // Conformance fixture variables/003-vars-undeclared (post-C2: the
         // inputs authority).
         let yaml = "\
-nika: v1
-workflow:
-  id: t
+nika: t
 inputs:
   topic: { type: string, required: true }
 tasks:
@@ -514,9 +488,7 @@ tasks:
         // C2 · a `${{ vars.X }}` read is the dead namespace's refusal,
         // never the generic unresolved class (LAW-GRAMMAR-0201).
         let yaml = "\
-nika: v1
-workflow:
-  id: t
+nika: t
 tasks:
   go:
     infer: { prompt: \"about ${{ vars.topic }}\" }
@@ -539,9 +511,7 @@ tasks:
     fn dead_env_ref_refuses_with_values_002() {
         // C2 · a `${{ env.X }}` read (LAW-GRAMMAR-0202).
         let yaml = "\
-nika: v1
-workflow:
-  id: t
+nika: t
 tasks:
   go:
     exec: { command: [\"echo\", \"${{ env.HOME }}\"] }
@@ -562,9 +532,7 @@ tasks:
         // LAYERED: VAR-001 carries the did-you-mean, VALUES-003 teaches
         // the closed family (the oracle emits both · match-any protocol).
         let yaml = "\
-nika: v1
-workflow:
-  id: t
+nika: t
 inputs:
   region: { type: string, required: true }
 tasks:
@@ -601,7 +569,8 @@ tasks:
     fn envelope_model_unresolved_var_is_flagged() {
         // deep/019 — the oracle false-green class: an envelope
         // `model: "${{ vars.nope }}"` was ACCEPTED and died at dispatch.
-        let yaml = "nika: v1\nworkflow:\n  id: w\nmodel: \"${{ inputs.nope }}\"\ntasks:\n  a:\n    infer: { prompt: hi }\n";
+        let yaml =
+            "nika: w\nmodel: \"${{ inputs.nope }}\"\ntasks:\n  a:\n    infer: { prompt: hi }\n";
         let errors = analyze_yaml(yaml).expect_err("envelope model ref must flag");
         assert_has(
             &errors,
@@ -617,9 +586,7 @@ tasks:
         // emits BOTH the unresolved refusal (VAR-001, did-you-mean) AND the
         // family refusal (VALUES-003 · LAW-SURFACE-0201).
         let yaml = "\
-nika: v1
-workflow:
-  id: t
+nika: t
 inputs:
   region: { type: string, required: true }
 tasks:
@@ -655,9 +622,7 @@ tasks:
     fn with_undeclared_errors() {
         // Conformance fixture variables/004-with-undeclared.
         let yaml = "\
-nika: v1
-workflow:
-  id: t
+nika: t
 tasks:
   go:
     with:
@@ -676,9 +641,7 @@ tasks:
     fn env_and_secrets_undeclared_error() {
         // Conformance fixtures variables/005 + 006 (post-C2: the config authority).
         let yaml = "\
-nika: v1
-workflow:
-  id: t
+nika: t
 tasks:
   go:
     exec:
@@ -702,9 +665,7 @@ tasks:
         // Conformance fixture variables/002-undefined-namespace ·
         // « Five namespaces. That's it. »
         let yaml = "\
-nika: v1
-workflow:
-  id: t
+nika: t
 tasks:
   go:
     infer: { prompt: \"${{ foo.bar }}\" }
@@ -721,9 +682,7 @@ tasks:
     fn outputs_reference_missing_task_errors() {
         // Conformance fixture variables/001-outputs-reference-missing-task.
         let yaml = "\
-nika: v1
-workflow:
-  id: t
+nika: t
 tasks:
   real:
     exec: { command: [echo] }
@@ -742,9 +701,7 @@ outputs:
     fn item_outside_for_each_errors() {
         // Conformance fixture variables/007-item-outside-for-each.
         let yaml = "\
-nika: v1
-workflow:
-  id: t
+nika: t
 tasks:
   process:
     infer: { prompt: \"handle ${{ item }}\" }
@@ -761,9 +718,7 @@ tasks:
     fn item_index_inside_for_each_valid() {
         // Conformance fixture variables/008 + spec example 26.
         let yaml = "\
-nika: v1
-workflow:
-  id: t
+nika: t
 const:
   locales: [\"fr\", \"es\"]
 tasks:
@@ -781,9 +736,7 @@ tasks:
     fn escaped_literal_needs_no_declaration() {
         // Conformance fixture variables/010-valid-escaped-literal.
         let yaml = "\
-nika: v1
-workflow:
-  id: t
+nika: t
 tasks:
   doc:
     infer:
@@ -796,9 +749,7 @@ tasks:
     fn unclosed_expression_errors() {
         // Conformance fixture variables/011-unclosed-expression.
         let yaml = "\
-nika: v1
-workflow:
-  id: t
+nika: t
 tasks:
   go:
     infer:
@@ -824,7 +775,7 @@ tasks:
             "${{ vars.a + vars.b }}",          // arithmetic (outside the subset)
         ] {
             let yaml = format!(
-                "nika: v1\nworkflow:\n  id: t\ntasks:\n  go:\n    when: {expr}\n    exec: {{ command: [\"echo\", \"hi\"] }}\n"
+                "nika: t\ntasks:\n  go:\n    when: {expr}\n    exec: {{ command: [\"echo\", \"hi\"] }}\n"
             );
             let errors = analyze_yaml(&yaml).expect_err("grammar error");
             assert!(
@@ -847,9 +798,7 @@ tasks:
         // A declared `output:` binding and a reserved record field both
         // resolve — judged at the boundary (`with:`), where refs live now.
         let yaml = "\
-nika: v1
-workflow:
-  id: t
+nika: t
 tasks:
   api:
     invoke: { tool: \"nika:fetch\", args: { url: \"https://x.test\" } }
@@ -869,9 +818,7 @@ tasks:
     fn unknown_task_field_errors() {
         // The record-shape check fires on the boundary surface.
         let yaml = "\
-nika: v1
-workflow:
-  id: t
+nika: t
 tasks:
   api:
     invoke: { tool: \"nika:fetch\" }
@@ -895,9 +842,7 @@ tasks:
     fn reserved_binding_name_errors() {
         // Conformance fixture variables/009-output-binding-reserved-name.
         let yaml = "\
-nika: v1
-workflow:
-  id: t
+nika: t
 tasks:
   api:
     invoke: { tool: \"nika:fetch\" }
@@ -917,9 +862,7 @@ tasks:
         // Spec 04 §binding rules · « the two expression layers never
         // nest ».
         let yaml = "\
-nika: v1
-workflow:
-  id: t
+nika: t
 tasks:
   api:
     invoke: { tool: \"nika:fetch\" }
@@ -941,9 +884,7 @@ tasks:
         // Spec 03 §when invalid · « when: "literal string" ❌ not a
         // ${{ }} expression ».
         let yaml = "\
-nika: v1
-workflow:
-  id: t
+nika: t
 tasks:
   go:
     when: \"literal string\"
@@ -962,9 +903,7 @@ tasks:
         // Spec 03 §when invalid · a bare flag reference that is not
         // boolean-shaped.
         let yaml = "\
-nika: v1
-workflow:
-  id: t
+nika: t
 inputs:
   threshold: { type: integer, required: true }
 tasks:
@@ -997,9 +936,7 @@ tasks:
     fn when_explicit_comparison_valid() {
         // Spec 03 §when · « when: ${{ inputs.threshold > 0 }} ».
         let yaml = "\
-nika: v1
-workflow:
-  id: t
+nika: t
 inputs:
   threshold: { type: integer, required: true }
 tasks:
@@ -1015,9 +952,7 @@ tasks:
         // The most frequent agent error class: a typo'd name. Every
         // namespace suggests within ITS OWN declared set (rustc model).
         let yaml = "\
-nika: v1
-workflow:
-  id: t
+nika: t
 inputs: { topic: { type: string, required: true } }
 tasks:
   extract:
@@ -1047,9 +982,7 @@ tasks:
     #[test]
     fn typo_d_namespace_root_suggests_the_root() {
         let yaml = "\
-nika: v1
-workflow:
-  id: t
+nika: t
 inputs: { topic: { type: string, required: true } }
 tasks:
   a:
@@ -1068,9 +1001,7 @@ tasks:
     #[test]
     fn far_typo_gets_no_suggestion_clause() {
         let yaml = "\
-nika: v1
-workflow:
-  id: t
+nika: t
 inputs: { topic: { type: string, required: true } }
 tasks:
   a:
@@ -1092,9 +1023,7 @@ tasks:
     fn all_errors_collected_not_fail_fast() {
         // One workflow · several independent violations · ALL reported.
         let yaml = "\
-nika: v1
-workflow:
-  id: t
+nika: t
 tasks:
   a:
     after: { ghost: success }

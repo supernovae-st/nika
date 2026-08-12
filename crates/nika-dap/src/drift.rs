@@ -685,7 +685,7 @@ mod tests {
     #[test]
     fn unused_var_env_and_secret_are_hinted() {
         let advice = drifted(
-            "nika: v1\nworkflow:\n  id: w\nconst:\n  topic: \"x\"\nconfig:\n  REGION: { type: string, default: \"eu\" }\nsecrets:\n  k: { source: env, key: K }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
+            "nika: w\nconst:\n  topic: \"x\"\nconfig:\n  REGION: { type: string, default: \"eu\" }\nsecrets:\n  k: { source: env, key: K }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
         );
         assert_eq!(advice.len(), 3, "{advice:?}");
         assert!(
@@ -708,7 +708,7 @@ mod tests {
         // each walker arm is pinned: prompt · exec env · with · outputs ·
         // the envelope model: · on_error.recover · when:.
         let advice = drifted(
-            "nika: v1\nworkflow:\n  id: w\nmodel: \"${{ inputs.backend }}\"\ninputs:\n  backend: { type: string, required: true }\n  gate: { type: string, required: true }\n  recovered: { type: string, required: true }\nconst:\n  topic: \"x\"\nconfig:\n  REGION: { type: string, default: \"eu\" }\nsecrets:\n  k: { source: env, key: K }\ntasks:\n  a:\n    when: ${{ inputs.gate == \"yes\" }}\n    with: { token: \"${{ secrets.k }}\" }\n    on_error: { recover: \"${{ inputs.recovered }}\" }\n    exec:\n      command: [\"echo\", \"${{ const.topic }}\"]\n      env: { R: \"${{ config.REGION }}\" }\noutputs:\n  out: \"${{ const.topic }}\"\n",
+            "nika: w\nmodel: \"${{ inputs.backend }}\"\ninputs:\n  backend: { type: string, required: true }\n  gate: { type: string, required: true }\n  recovered: { type: string, required: true }\nconst:\n  topic: \"x\"\nconfig:\n  REGION: { type: string, default: \"eu\" }\nsecrets:\n  k: { source: env, key: K }\ntasks:\n  a:\n    when: ${{ inputs.gate == \"yes\" }}\n    with: { token: \"${{ secrets.k }}\" }\n    on_error: { recover: \"${{ inputs.recovered }}\" }\n    exec:\n      command: [\"echo\", \"${{ const.topic }}\"]\n      env: { R: \"${{ config.REGION }}\" }\noutputs:\n  out: \"${{ const.topic }}\"\n",
         );
         assert!(advice.is_empty(), "{advice:?}");
     }
@@ -719,7 +719,7 @@ mod tests {
         // cleanup command · infer vision endpoint — each pins its walker
         // arm (a blind arm would flag a USED name).
         let advice = drifted(
-            "nika: v1\nworkflow:\n  id: w\ninputs:\n  items: { type: { array: string }, required: true }\nconst:\n  cleanup_msg: \"done\"\n  image: \"./in.png\"\ntasks:\n  a:\n    for_each: \"${{ inputs.items }}\"\n    on_finally:\n      - exec: { command: [\"echo\", \"${{ const.cleanup_msg }}\"] }\n    infer:\n      prompt: \"describe\"\n      max_tokens: 10\n      vision: [{ source: file, path: \"${{ const.image }}\" }]\noutputs:\n  r: ${{ tasks.a.output }}\n",
+            "nika: w\ninputs:\n  items: { type: { array: string }, required: true }\nconst:\n  cleanup_msg: \"done\"\n  image: \"./in.png\"\ntasks:\n  a:\n    for_each: \"${{ inputs.items }}\"\n    on_finally:\n      - exec: { command: [\"echo\", \"${{ const.cleanup_msg }}\"] }\n    infer:\n      prompt: \"describe\"\n      max_tokens: 10\n      vision: [{ source: file, path: \"${{ const.image }}\" }]\noutputs:\n  r: ${{ tasks.a.output }}\n",
         );
         assert!(advice.is_empty(), "{advice:?}");
     }
@@ -727,10 +727,10 @@ mod tests {
     #[test]
     fn hints_are_sorted_and_deterministic() {
         let first = drifted(
-            "nika: v1\nworkflow:\n  id: w\nconst:\n  zeta: \"x\"\n  alpha: \"y\"\nsecrets:\n  k2: { source: env, key: K2 }\n  k1: { source: env, key: K1 }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
+            "nika: w\nconst:\n  zeta: \"x\"\n  alpha: \"y\"\nsecrets:\n  k2: { source: env, key: K2 }\n  k1: { source: env, key: K1 }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
         );
         let second = drifted(
-            "nika: v1\nworkflow:\n  id: w\nconst:\n  zeta: \"x\"\n  alpha: \"y\"\nsecrets:\n  k2: { source: env, key: K2 }\n  k1: { source: env, key: K1 }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
+            "nika: w\nconst:\n  zeta: \"x\"\n  alpha: \"y\"\nsecrets:\n  k2: { source: env, key: K2 }\n  k1: { source: env, key: K1 }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
         );
         assert_eq!(first, second, "same input → same order");
         let mut sorted = first.clone();
@@ -746,7 +746,7 @@ mod tests {
         // ladder owns it (NIKA-VAR-001) — the drift pass stays silent
         // (the two codes must never fire on the same reference).
         let wf = parse(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"echo\", \"${{ inputs.ghost }}\"] }\n",
+            "nika: w\ntasks:\n  a:\n    exec: { command: [\"echo\", \"${{ inputs.ghost }}\"] }\n",
             FileId::new(0),
             ParseMode::Strict,
         )
@@ -771,7 +771,7 @@ mod tests {
         // (topik): both true, never the same site, and the hint clears
         // when the typo is fixed.
         let wf = parse(
-            "nika: v1\nworkflow:\n  id: w\ninputs:\n  topik: { type: string, required: true }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"${{ inputs.topic }}\"] }\n",
+            "nika: w\ninputs:\n  topik: { type: string, required: true }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"${{ inputs.topic }}\"] }\n",
             FileId::new(0),
             ParseMode::Strict,
         )
@@ -795,7 +795,7 @@ mod tests {
     #[test]
     fn exec_true_without_any_exec_task_is_hinted() {
         let advice = drifted(
-            "nika: v1\nworkflow:\n  id: w\npermits: { exec: true }\ntasks:\n  a:\n    infer: { prompt: hi, max_tokens: 10, model: \"mock/echo\" }\n",
+            "nika: w\npermits: { exec: true }\ntasks:\n  a:\n    infer: { prompt: hi, max_tokens: 10, model: \"mock/echo\" }\n",
         );
         assert!(
             advice.iter().any(|a| a.contains("`permits.exec: true`")),
@@ -806,7 +806,7 @@ mod tests {
     #[test]
     fn exec_true_with_an_exec_task_is_silent() {
         let advice = drifted(
-            "nika: v1\nworkflow:\n  id: w\npermits: { exec: true }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
+            "nika: w\npermits: { exec: true }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
         );
         assert!(
             !advice.iter().any(|a| a.contains("permits.exec")),
@@ -817,7 +817,7 @@ mod tests {
     #[test]
     fn exec_false_is_a_posture_never_a_drift() {
         let advice = drifted(
-            "nika: v1\nworkflow:\n  id: w\npermits: { exec: false }\ntasks:\n  a:\n    infer: { prompt: hi, max_tokens: 10, model: \"mock/echo\" }\n",
+            "nika: w\npermits: { exec: false }\ntasks:\n  a:\n    infer: { prompt: hi, max_tokens: 10, model: \"mock/echo\" }\n",
         );
         assert!(
             !advice.iter().any(|a| a.contains("permits.exec")),
@@ -829,7 +829,7 @@ mod tests {
     fn exec_program_list_is_judged_per_entry() {
         // `cargo` is used · `make` is not — ONLY `make` is flagged.
         let advice = drifted(
-            "nika: v1\nworkflow:\n  id: w\npermits: { exec: [\"cargo\", \"make\"] }\ntasks:\n  a:\n    exec: { command: [\"cargo\", \"build\"] }\n",
+            "nika: w\npermits: { exec: [\"cargo\", \"make\"] }\ntasks:\n  a:\n    exec: { command: [\"cargo\", \"build\"] }\n",
         );
         assert!(
             advice
@@ -846,7 +846,7 @@ mod tests {
     #[test]
     fn exec_program_list_with_no_exec_task_flags_every_entry() {
         let advice = drifted(
-            "nika: v1\nworkflow:\n  id: w\npermits: { exec: [\"cargo\", \"make\"] }\ntasks:\n  a:\n    infer: { prompt: hi, max_tokens: 10, model: \"mock/echo\" }\n",
+            "nika: w\npermits: { exec: [\"cargo\", \"make\"] }\ntasks:\n  a:\n    infer: { prompt: hi, max_tokens: 10, model: \"mock/echo\" }\n",
         );
         let exec_hints: Vec<&String> = advice
             .iter()
@@ -860,7 +860,7 @@ mod tests {
         // a shell command's program set is opaque — no per-entry claim
         // (the form under an allowlist is the hard lane's business).
         let advice = drifted(
-            "nika: v1\nworkflow:\n  id: w\npermits: { exec: [\"cargo\", \"make\"] }\ntasks:\n  a:\n    exec: { shell: \"cargo build && make test\" }\n",
+            "nika: w\npermits: { exec: [\"cargo\", \"make\"] }\ntasks:\n  a:\n    exec: { shell: \"cargo build && make test\" }\n",
         );
         assert!(
             !advice.iter().any(|a| a.contains("`permits.exec` entry")),
@@ -871,7 +871,7 @@ mod tests {
     #[test]
     fn exec_in_on_finally_counts_as_a_use() {
         let advice = drifted(
-            "nika: v1\nworkflow:\n  id: w\npermits: { exec: [\"cargo\"] }\ntasks:\n  a:\n    infer: { prompt: hi, max_tokens: 10, model: \"mock/echo\" }\n    on_finally:\n      - exec: { command: [\"cargo\", \"clean\"] }\n",
+            "nika: w\npermits: { exec: [\"cargo\"] }\ntasks:\n  a:\n    infer: { prompt: hi, max_tokens: 10, model: \"mock/echo\" }\n    on_finally:\n      - exec: { command: [\"cargo\", \"clean\"] }\n",
         );
         assert!(
             !advice.iter().any(|a| a.contains("permits.exec")),
@@ -884,7 +884,7 @@ mod tests {
     #[test]
     fn tools_entry_nothing_invokes_is_hinted() {
         let advice = drifted(
-            "nika: v1\nworkflow:\n  id: w\npermits: { tools: [\"nika:read\", \"mcp:github/*\"] }\ntasks:\n  a:\n    invoke: { tool: \"nika:read\", args: { path: \"./x\" } }\n",
+            "nika: w\npermits: { tools: [\"nika:read\", \"mcp:github/*\"] }\ntasks:\n  a:\n    invoke: { tool: \"nika:read\", args: { path: \"./x\" } }\n",
         );
         assert!(
             advice
@@ -903,7 +903,7 @@ mod tests {
         // the agent dispatches dynamically; a tools entry may exist to
         // cover its whitelist globs — glob ⊆ glob is undecidable.
         let advice = drifted(
-            "nika: v1\nworkflow:\n  id: w\npermits: { tools: [\"mcp:github/*\"] }\ntasks:\n  a:\n    agent: { prompt: \"triage\", tools: [\"mcp:github/*\"], max_tokens_total: 1000, model: \"mock/echo\" }\n",
+            "nika: w\npermits: { tools: [\"mcp:github/*\"] }\ntasks:\n  a:\n    agent: { prompt: \"triage\", tools: [\"mcp:github/*\"], max_tokens_total: 1000, model: \"mock/echo\" }\n",
         );
         assert!(
             !advice.iter().any(|a| a.contains("`permits.tools` entry")),
@@ -919,7 +919,7 @@ mod tests {
         // template-suppression arm — if the grammar ever loosens, this
         // test turns red and the suppression must be (re)added.
         let result = parse(
-            "nika: v1\nworkflow:\n  id: w\nconst:\n  t: \"nika:read\"\ntasks:\n  a:\n    invoke: { tool: \"${{ const.t }}\" }\n",
+            "nika: w\nconst:\n  t: \"nika:read\"\ntasks:\n  a:\n    invoke: { tool: \"${{ const.t }}\" }\n",
             FileId::new(0),
             ParseMode::Strict,
         );
@@ -934,7 +934,7 @@ mod tests {
     #[test]
     fn net_entry_matching_no_literal_host_is_hinted() {
         let advice = drifted(
-            "nika: v1\nworkflow:\n  id: w\npermits:\n  net: { http: [\"api.example.com\", \"other.example.com\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  a:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.example.com/x\" } }\n",
+            "nika: w\npermits:\n  net: { http: [\"api.example.com\", \"other.example.com\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  a:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.example.com/x\" } }\n",
         );
         assert!(
             advice
@@ -951,7 +951,7 @@ mod tests {
     #[test]
     fn net_entries_all_unused_when_no_net_effect_exists() {
         let advice = drifted(
-            "nika: v1\nworkflow:\n  id: w\npermits:\n  net: { http: [\"api.example.com\"] }\n  tools: [\"nika:read\"]\ntasks:\n  a:\n    invoke: { tool: \"nika:read\", args: { path: \"./x\" } }\n",
+            "nika: w\npermits:\n  net: { http: [\"api.example.com\"] }\n  tools: [\"nika:read\"]\ntasks:\n  a:\n    invoke: { tool: \"nika:read\", args: { path: \"./x\" } }\n",
         );
         assert!(
             advice
@@ -964,7 +964,7 @@ mod tests {
     #[test]
     fn dynamic_url_suppresses_net_entry_flags() {
         let advice = drifted(
-            "nika: v1\nworkflow:\n  id: w\nconst:\n  u: \"https://api.example.com/x\"\npermits:\n  net: { http: [\"other.example.com\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  a:\n    invoke: { tool: \"nika:fetch\", args: { url: \"${{ const.u }}\" } }\n",
+            "nika: w\nconst:\n  u: \"https://api.example.com/x\"\npermits:\n  net: { http: [\"other.example.com\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  a:\n    invoke: { tool: \"nika:fetch\", args: { url: \"${{ const.u }}\" } }\n",
         );
         assert!(
             !advice
@@ -981,7 +981,7 @@ mod tests {
         // name the declared grant dead for the same token (F15: two
         // lanes, one judgment).
         let advice = drifted(
-            "nika: v1\nworkflow:\n  id: w\npermits:\n  exec: [\"curl\"]\n  net: { http: [\"acme.test\"] }\ntasks:\n  crawl:\n    exec: { command: [\"curl\", \"-s\", \"https://acme.test\"] }\n",
+            "nika: w\npermits:\n  exec: [\"curl\"]\n  net: { http: [\"acme.test\"] }\ntasks:\n  crawl:\n    exec: { command: [\"curl\", \"-s\", \"https://acme.test\"] }\n",
         );
         assert!(
             !advice
@@ -997,14 +997,14 @@ mod tests {
         // template that can expand to a whole URL — poison the host set
         // rather than order a load-bearing removal.
         let shell = drifted(
-            "nika: v1\nworkflow:\n  id: w\npermits: { exec: true, net: { http: [\"acme.test\"] } }\ntasks:\n  crawl:\n    exec: { shell: \"curl https://acme.test\" }\n",
+            "nika: w\npermits: { exec: true, net: { http: [\"acme.test\"] } }\ntasks:\n  crawl:\n    exec: { shell: \"curl https://acme.test\" }\n",
         );
         assert!(
             !shell.iter().any(|a| a.contains("`permits.net.http` entry")),
             "a shell line hides the host set: {shell:?}"
         );
         let dynamic = drifted(
-            "nika: v1\nworkflow:\n  id: w\nconst:\n  u: \"https://acme.test\"\npermits:\n  exec: [\"curl\"]\n  net: { http: [\"acme.test\"] }\ntasks:\n  crawl:\n    exec: { command: [\"curl\", \"${{ const.u }}\"] }\n",
+            "nika: w\nconst:\n  u: \"https://acme.test\"\npermits:\n  exec: [\"curl\"]\n  net: { http: [\"acme.test\"] }\ntasks:\n  crawl:\n    exec: { command: [\"curl\", \"${{ const.u }}\"] }\n",
         );
         assert!(
             !dynamic
@@ -1020,7 +1020,7 @@ mod tests {
         // already names it (the hard lane); the drift hint must NOT
         // double-report the same entry.
         let wf = parse(
-            "nika: v1\nworkflow:\n  id: w\npermits:\n  net: { http: [\"10.0.0.8\", \"api.example.com\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  a:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.example.com/x\" } }\n",
+            "nika: w\npermits:\n  net: { http: [\"10.0.0.8\", \"api.example.com\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  a:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.example.com/x\" } }\n",
             FileId::new(0),
             ParseMode::Strict,
         )
@@ -1048,7 +1048,7 @@ mod tests {
         // read `./in/**` is used · write `./out/**` is not — ONLY the
         // write entry is flagged (a read use never covers a write grant).
         let advice = drifted(
-            "nika: v1\nworkflow:\n  id: w\npermits:\n  fs: { read: [\"./in/**\"], write: [\"./out/**\"] }\n  tools: [\"nika:read\"]\ntasks:\n  a:\n    invoke: { tool: \"nika:read\", args: { path: \"./in/data.txt\" } }\n",
+            "nika: w\npermits:\n  fs: { read: [\"./in/**\"], write: [\"./out/**\"] }\n  tools: [\"nika:read\"]\ntasks:\n  a:\n    invoke: { tool: \"nika:read\", args: { path: \"./in/data.txt\" } }\n",
         );
         assert!(
             advice
@@ -1067,7 +1067,7 @@ mod tests {
         // `compile_to: vega_lite` writes `out` AND its `.vl.json`
         // sibling — both literal writes (the fit pass's own law).
         let advice = drifted(
-            "nika: v1\nworkflow:\n  id: w\npermits:\n  fs: { write: [\"./chart.svg\", \"./chart.vl.json\"] }\n  tools: [\"nika:chart\"]\ntasks:\n  a:\n    invoke: { tool: \"nika:chart\", args: { spec: { mark: \"line\" }, out: \"./chart.svg\", compile_to: \"vega_lite\" } }\n",
+            "nika: w\npermits:\n  fs: { write: [\"./chart.svg\", \"./chart.vl.json\"] }\n  tools: [\"nika:chart\"]\ntasks:\n  a:\n    invoke: { tool: \"nika:chart\", args: { spec: { mark: \"line\" }, out: \"./chart.svg\", compile_to: \"vega_lite\" } }\n",
         );
         assert!(
             !advice.iter().any(|a| a.contains("`permits.fs.write`")),
@@ -1078,7 +1078,7 @@ mod tests {
     #[test]
     fn dynamic_path_suppresses_fs_entry_flags() {
         let advice = drifted(
-            "nika: v1\nworkflow:\n  id: w\nconst:\n  p: \"./in/data.txt\"\npermits:\n  fs: { read: [\"./other/**\"] }\n  tools: [\"nika:read\"]\ntasks:\n  a:\n    invoke: { tool: \"nika:read\", args: { path: \"${{ const.p }}\" } }\n",
+            "nika: w\nconst:\n  p: \"./in/data.txt\"\npermits:\n  fs: { read: [\"./other/**\"] }\n  tools: [\"nika:read\"]\ntasks:\n  a:\n    invoke: { tool: \"nika:read\", args: { path: \"${{ const.p }}\" } }\n",
         );
         assert!(
             !advice.iter().any(|a| a.contains("`permits.fs.read` entry")),
@@ -1088,9 +1088,7 @@ mod tests {
 
     #[test]
     fn no_permits_block_means_no_permits_drift() {
-        let advice = drifted(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
-        );
+        let advice = drifted("nika: w\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n");
         assert!(advice.is_empty(), "{advice:?}");
     }
 
@@ -1102,7 +1100,7 @@ mod tests {
         // at run — argv literals carry no path semantics, so the hint must
         // NEVER order their removal.
         let advice = drifted(
-            "nika: v1\nworkflow:\n  id: w\npermits:\n  fs: { read: [\"out/smart/**\"], write: [\"out/smart/**\"] }\n  exec: [\"qrt\"]\ntasks:\n  a:\n    exec: { command: [\"qrt\", \"smart\", \"--db\", \"out/smart/smartlink.db\"] }\n",
+            "nika: w\npermits:\n  fs: { read: [\"out/smart/**\"], write: [\"out/smart/**\"] }\n  exec: [\"qrt\"]\ntasks:\n  a:\n    exec: { command: [\"qrt\", \"smart\", \"--db\", \"out/smart/smartlink.db\"] }\n",
         );
         assert!(
             !advice.iter().any(|a| a.contains("`permits.fs.")),
@@ -1113,7 +1111,7 @@ mod tests {
     #[test]
     fn exec_in_on_finally_also_poisons_the_fs_sets() {
         let advice = drifted(
-            "nika: v1\nworkflow:\n  id: w\npermits:\n  fs: { read: [\"./data/**\"] }\ntasks:\n  a:\n    infer: { prompt: hi, max_tokens: 10, model: \"mock/echo\" }\n    on_finally:\n      - exec: { command: [\"tar\", \"cf\", \"./data/a.tar\", \".\"] }\n",
+            "nika: w\npermits:\n  fs: { read: [\"./data/**\"] }\ntasks:\n  a:\n    infer: { prompt: hi, max_tokens: 10, model: \"mock/echo\" }\n    on_finally:\n      - exec: { command: [\"tar\", \"cf\", \"./data/a.tar\", \".\"] }\n",
         );
         assert!(
             !advice.iter().any(|a| a.contains("`permits.fs.")),
@@ -1126,7 +1124,7 @@ mod tests {
         // A literal pattern's walk root IS a read: the `./hiring/**` entry
         // is used (silent), the `./other/**` entry is provably dead (flagged).
         let advice = drifted(
-            "nika: v1\nworkflow:\n  id: w\npermits:\n  fs: { read: [\"./hiring/**\", \"./other/**\"] }\n  tools: [\"nika:glob\"]\ntasks:\n  a:\n    invoke: { tool: \"nika:glob\", args: { pattern: \"./hiring/inbox/*.md\" } }\n",
+            "nika: w\npermits:\n  fs: { read: [\"./hiring/**\", \"./other/**\"] }\n  tools: [\"nika:glob\"]\ntasks:\n  a:\n    invoke: { tool: \"nika:glob\", args: { pattern: \"./hiring/inbox/*.md\" } }\n",
         );
         assert!(
             !advice
@@ -1147,7 +1145,7 @@ mod tests {
         // The fanout shape: `read: ["./items"]` + pattern `./items/*.md` —
         // the walk root IS the granted directory.
         let advice = drifted(
-            "nika: v1\nworkflow:\n  id: w\npermits:\n  fs: { read: [\"./items\"] }\n  tools: [\"nika:glob\"]\ntasks:\n  a:\n    invoke: { tool: \"nika:glob\", args: { pattern: \"./items/*.md\" } }\n",
+            "nika: w\npermits:\n  fs: { read: [\"./items\"] }\n  tools: [\"nika:glob\"]\ntasks:\n  a:\n    invoke: { tool: \"nika:glob\", args: { pattern: \"./items/*.md\" } }\n",
         );
         assert!(
             !advice.iter().any(|a| a.contains("`permits.fs.read` entry")),
@@ -1158,7 +1156,7 @@ mod tests {
     #[test]
     fn dynamic_glob_pattern_poisons_the_read_set() {
         let advice = drifted(
-            "nika: v1\nworkflow:\n  id: w\nconst:\n  src: \"./items\"\npermits:\n  fs: { read: [\"./items\"] }\n  tools: [\"nika:glob\"]\ntasks:\n  a:\n    invoke: { tool: \"nika:glob\", args: { pattern: \"${{ const.src }}/*.md\" } }\n",
+            "nika: w\nconst:\n  src: \"./items\"\npermits:\n  fs: { read: [\"./items\"] }\n  tools: [\"nika:glob\"]\ntasks:\n  a:\n    invoke: { tool: \"nika:glob\", args: { pattern: \"${{ const.src }}/*.md\" } }\n",
         );
         assert!(
             !advice.iter().any(|a| a.contains("`permits.fs.read` entry")),
@@ -1171,7 +1169,7 @@ mod tests {
         // The file part's `path` is fs.read-gated at run (the defs
         // contract) — the `./data/**` entry is used; the text part is no fs.
         let advice = drifted(
-            "nika: v1\nworkflow:\n  id: w\npermits:\n  fs: { read: [\"./data/**\"] }\n  tools: [\"nika:fetch\"]\n  net: { http: [\"api.example.com\"] }\ntasks:\n  a:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.example.com/up\", method: \"POST\", multipart: [{ name: \"file\", path: \"./data/report.csv\" }, { name: \"note\", value: \"hi\" }] } }\n",
+            "nika: w\npermits:\n  fs: { read: [\"./data/**\"] }\n  tools: [\"nika:fetch\"]\n  net: { http: [\"api.example.com\"] }\ntasks:\n  a:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.example.com/up\", method: \"POST\", multipart: [{ name: \"file\", path: \"./data/report.csv\" }, { name: \"note\", value: \"hi\" }] } }\n",
         );
         assert!(
             !advice.iter().any(|a| a.contains("`permits.fs.read` entry")),
@@ -1182,7 +1180,7 @@ mod tests {
     #[test]
     fn a_dynamic_multipart_part_poisons_the_read_set() {
         let advice = drifted(
-            "nika: v1\nworkflow:\n  id: w\nconst:\n  p: \"./data/report.csv\"\npermits:\n  fs: { read: [\"./data/**\"] }\n  tools: [\"nika:fetch\"]\n  net: { http: [\"api.example.com\"] }\ntasks:\n  a:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.example.com/up\", method: \"POST\", multipart: [{ name: \"file\", path: \"${{ const.p }}\" }] } }\n",
+            "nika: w\nconst:\n  p: \"./data/report.csv\"\npermits:\n  fs: { read: [\"./data/**\"] }\n  tools: [\"nika:fetch\"]\n  net: { http: [\"api.example.com\"] }\ntasks:\n  a:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.example.com/up\", method: \"POST\", multipart: [{ name: \"file\", path: \"${{ const.p }}\" }] } }\n",
         );
         assert!(
             !advice.iter().any(|a| a.contains("`permits.fs.read` entry")),

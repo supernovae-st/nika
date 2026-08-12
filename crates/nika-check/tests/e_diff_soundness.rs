@@ -129,7 +129,7 @@ fn render_permits(p: &Permits) -> String {
 }
 
 fn workflow(permits_block: &str, tasks_block: &str) -> String {
-    format!("nika: v1\nworkflow:\n  id: ediff\n{permits_block}tasks:\n{tasks_block}")
+    format!("nika: ediff\n{permits_block}tasks:\n{tasks_block}")
 }
 
 fn checked(yaml: &str) -> nika_check::CheckReport {

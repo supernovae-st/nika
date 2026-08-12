@@ -357,7 +357,7 @@ mod tests {
         entries.into_iter().collect()
     }
 
-    const HEAD: &str = "nika: v1\nworkflow:\n  id: w\ntasks:\n";
+    const HEAD: &str = "nika: w\ntasks:\n";
 
     #[test]
     fn fetch_output_is_born_untrusted_with_its_own_id_as_witness() {

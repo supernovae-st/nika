@@ -100,9 +100,7 @@ fn recovered_code<'e>(events: &'e [Event], task: &str) -> &'e str {
 #[tokio::test]
 async fn same_wave_noedge_recover_awaits_the_referent() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: recover-await-same-wave
+nika: recover-await-same-wave
 permits: { exec: true }
 tasks:
   risky:
@@ -163,9 +161,7 @@ tasks:
 #[tokio::test]
 async fn later_wave_referent_resolves_transitively_on_the_spine() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: recover-await-chain
+nika: recover-await-chain
 permits: { exec: true }
 tasks:
   a:
@@ -210,9 +206,7 @@ tasks:
 #[tokio::test]
 async fn skipped_referent_resolves_to_defined_null() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: recover-await-skipped
+nika: recover-await-skipped
 permits: { exec: true }
 tasks:
   risky:
@@ -248,9 +242,7 @@ tasks:
 #[tokio::test]
 async fn mutual_recovery_resolves_at_workflow_end_against_failed_records() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: recover-await-mutual
+nika: recover-await-mutual
 permits: { exec: true }
 tasks:
   a:
@@ -290,9 +282,7 @@ tasks:
 #[tokio::test]
 async fn broken_path_into_a_terminal_referent_still_fails_fast() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: recover-terminal-broken-path
+nika: recover-terminal-broken-path
 permits: { exec: true }
 tasks:
   done:
@@ -330,7 +320,7 @@ tasks:
 /// runtime backstop is what this pins.)
 #[test]
 fn undeclared_awaited_root_fails_fast_at_the_park_site() {
-    let yaml = "nika: v1\nworkflow:\n  id: t\ntasks:\n  risky:\n    exec: { shell: \"exit 1\" }\n";
+    let yaml = "nika: t\ntasks:\n  risky:\n    exec: { shell: \"exit 1\" }\n";
     let wf = nika_schema::parse(
         yaml,
         nika_schema::FileId::new(0),
@@ -433,9 +423,7 @@ fn undeclared_awaited_root_fails_fast_at_the_park_site() {
 #[tokio::test]
 async fn fan_out_iteration_recover_keeps_todays_fail_fast() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: recover-fanout-boundary
+nika: recover-fanout-boundary
 permits: { exec: true }
 tasks:
   fan:

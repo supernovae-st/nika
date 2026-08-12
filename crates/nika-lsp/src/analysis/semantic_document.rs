@@ -110,7 +110,7 @@ pub fn semantic_document(text: &str) -> SemanticDocument {
 mod tests {
     use super::*;
 
-    const DIAMOND: &str = "nika: v1\nworkflow:\n  id: w\npermits: { exec: [\"true\"] }\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: success }\n    exec: { command: [\"true\"] }\n  c:\n    after: { a: success }\n    exec: { command: [\"true\"] }\n  d:\n    after: { b: success, c: success }\n    exec: { command: [\"true\"] }\n";
+    const DIAMOND: &str = "nika: w\npermits: { exec: [\"true\"] }\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: success }\n    exec: { command: [\"true\"] }\n  c:\n    after: { a: success }\n    exec: { command: [\"true\"] }\n  d:\n    after: { b: success, c: success }\n    exec: { command: [\"true\"] }\n";
 
     fn as_value(doc: &SemanticDocument) -> serde_json::Value {
         serde_json::to_value(doc).expect("payload serializes")
@@ -146,7 +146,7 @@ mod tests {
         );
         assert_eq!(ok["graph"]["graph_format"], 2, "the nested graph's version");
         // absent-graph cases still name the surface version (findings · parse)
-        let findings = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    after: { b: success }\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: success }\n    exec: { command: [\"true\"] }\n";
+        let findings = "nika: w\ntasks:\n  a:\n    after: { b: success }\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: success }\n    exec: { command: [\"true\"] }\n";
         assert_eq!(
             as_value(&semantic_document(findings))["semantic_document_format"],
             1
@@ -164,10 +164,11 @@ mod tests {
         let spans = doc["spans"].as_object().expect("spans object");
         assert_eq!(spans.len(), 4);
         let a = &spans["a"];
-        // task `a`'s declaring KEY sits on line 5 (0-based · the
-        // workflow object + the permits line add two lines) — the span
-        // points there.
-        assert_eq!(a["start"]["line"], 5, "{a}");
+        // task `a`'s declaring KEY sits on line 3 (0-based · `nika:`
+        // + the permits line + `tasks:` precede it) — the span points
+        // there. It was line 5 until the envelope nuke removed the
+        // two-line `workflow:` object.
+        assert_eq!(a["start"]["line"], 3, "{a}");
     }
 
     /// A document with findings projects NO graph (the CLI skips PLAN
@@ -175,7 +176,7 @@ mod tests {
     /// spans it could read.
     #[test]
     fn findings_yield_a_null_graph_not_an_error() {
-        let cyclic = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    after: { b: success }\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: success }\n    exec: { command: [\"true\"] }\n";
+        let cyclic = "nika: w\ntasks:\n  a:\n    after: { b: success }\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: success }\n    exec: { command: [\"true\"] }\n";
         let doc = as_value(&semantic_document(cyclic));
         assert_eq!(doc["graph"], serde_json::Value::Null);
         assert_eq!(doc["reason"], "findings", "why, in one word");

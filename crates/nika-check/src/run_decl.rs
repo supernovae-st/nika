@@ -131,7 +131,7 @@ mod tests {
         scan_run_decl(&wf)
     }
 
-    const HEAD: &str = "nika: v1\nworkflow:\n  id: w\npermits: { exec: [\"flaky\"] }\n";
+    const HEAD: &str = "nika: w\npermits: { exec: [\"flaky\"] }\n";
 
     #[test]
     fn entropy_none_times_retry_jitter_is_a_finding() {

@@ -37,9 +37,7 @@ fn workspace_tmp_dir(name: &str) -> std::path::PathBuf {
 /// One clean workflow that still exercises the hint lane (a declared
 /// input with no default rides the `↳` HINT marker — the leak class).
 const VALID: &str = r#"
-nika: v1
-workflow:
-  id: ascii-probe
+nika: ascii-probe
 model: mock/echo
 inputs:
   topic:

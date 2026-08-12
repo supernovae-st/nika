@@ -734,7 +734,7 @@ mod tests {
         analyze(&wf)
     }
 
-    const HEADER: &str = "nika: v1\nworkflow:\n  id: t\n";
+    const HEADER: &str = "nika: t\n";
 
     /// The unresolved-ref reference string carried by the first finding.
     fn sole_unresolved(yaml: &str) -> String {

@@ -568,7 +568,7 @@ mod tests {
     }
 
     fn wf(tasks: &str) -> String {
-        format!("nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n{tasks}")
+        format!("nika: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n{tasks}")
     }
 
     fn konst(n: u64) -> Bound {
@@ -848,7 +848,7 @@ mod tests {
         // otherwise NIKA-SEC-009 flags it and the fixture is not clean.
         // NEP-0020: the gate's answer is consumed AFFIRMATIVELY (a bare
         // `after:` would carry the refusal — NIKA-SEC-014).
-        let yaml = "nika: v1\nworkflow:\n  id: w\npermits:\n  fs: { read: [\"./data/**\"] }\n  exec: [\"git\"]\n  tools: [\"nika:read\", \"nika:prompt\"]\ntasks:\n  a:\n    invoke: { tool: \"nika:read\", args: { path: \"./data/in.txt\" } }\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"run git status?\" }\n  b:\n    with: { go: \"${{ tasks.ask.output }}\" }\n    when: ${{ with.go == true }}\n    exec: { command: [\"git\", \"status\"] }\n";
+        let yaml = "nika: w\npermits:\n  fs: { read: [\"./data/**\"] }\n  exec: [\"git\"]\n  tools: [\"nika:read\", \"nika:prompt\"]\ntasks:\n  a:\n    invoke: { tool: \"nika:read\", args: { path: \"./data/in.txt\" } }\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"run git status?\" }\n  b:\n    with: { go: \"${{ tasks.ask.output }}\" }\n    when: ${{ with.go == true }}\n    exec: { command: [\"git\", \"status\"] }\n";
         let parsed = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse");
         let report = crate::check(&parsed);
         assert!(report.is_clean(), "the fixture fits its boundary");

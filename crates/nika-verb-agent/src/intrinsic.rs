@@ -233,9 +233,7 @@ fn certificate_summary(cert: &nika_check::RunCertificate) -> serde_json::Value {
 mod tests {
     use super::*;
 
-    const VALID_DRAFT: &str = r#"nika: v1
-workflow:
-  id: composed-by-agent
+    const VALID_DRAFT: &str = r#"nika: composed-by-agent
 tasks:
   greet:
     exec:
@@ -271,9 +269,7 @@ tasks:
     fn a_conformance_violation_feeds_back_code_and_message() {
         // An `after:` edge on a task that does not exist — a classic DAG
         // error (NIKA-DAG-002).
-        let draft = r#"nika: v1
-workflow:
-  id: broken
+        let draft = r#"nika: broken
 tasks:
   a:
     after:
@@ -306,10 +302,7 @@ tasks:
 
     #[test]
     fn oversized_drafts_are_rejected_before_parsing() {
-        let huge = format!(
-            "nika: v1\nworkflow:\n  id: x\n# {}",
-            "y".repeat(MAX_DRAFT_BYTES)
-        );
+        let huge = format!("nika: x\n# {}", "y".repeat(MAX_DRAFT_BYTES));
         let (content, is_error, _) = run_compose(&serde_json::json!({"workflow_yaml": huge}));
         assert!(is_error);
         assert!(content.contains("too large"));

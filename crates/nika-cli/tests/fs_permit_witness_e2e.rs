@@ -22,9 +22,7 @@ fn bin() -> Command {
 
 /// One permitted read + one refused read, in two workflows.
 const WF_ALLOW: &str = r#"
-nika: v1
-workflow:
-  id: witness-allow
+nika: witness-allow
 
 permits:
   fs:
@@ -45,9 +43,7 @@ tasks:
 /// path at run time (a jq output the static analysis honestly calls
 /// opaque — « computed paths + symlinks are the RUN's verdict »).
 const WF_DENY: &str = r#"
-nika: v1
-workflow:
-  id: witness-deny
+nika: witness-deny
 
 permits:
   fs:

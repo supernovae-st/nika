@@ -337,7 +337,7 @@ mod tests {
 
     #[test]
     fn clean_workflow_has_no_error_diagnostics() {
-        let yaml = "nika: v1\nworkflow:\n  id: clean\npermits: { exec: [\"echo\"] }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n";
+        let yaml = "nika: clean\npermits: { exec: [\"echo\"] }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n";
         let diags = diags_of(yaml);
         let errors: Vec<_> = diags
             .iter()
@@ -352,7 +352,7 @@ mod tests {
         // ladder (`NIKA-TYPE-001` · unknown name with a did-you-mean) rides
         // the SAME from_report projection every ladder finding rides — the
         // LSP never re-judges types.
-        let yaml = "nika: v1\nworkflow:\n  id: w\ntypes:\n  Story: { object: { headline: strng } }\ntasks:\n  a:\n    exec: { command: [\"x\"] }\n";
+        let yaml = "nika: w\ntypes:\n  Story: { object: { headline: strng } }\ntasks:\n  a:\n    exec: { command: [\"x\"] }\n";
         let diags = diags_of(yaml);
         let ty = diags
             .iter()
@@ -378,7 +378,7 @@ mod tests {
         // ladder (`NIKA-POLICY-001` · spec 10) rides the SAME from_report
         // projection — the LSP never re-judges the law. The task-keyed
         // finding anchors on the offending task's id (a real span).
-        let yaml = "nika: v1\nworkflow:\n  id: w\npolicy:\n  require:\n    human_gate_before: [exec]\npermits:\n  exec: [\"echo\"]\ntasks:\n  act:\n    exec: { command: [\"echo\", \"unattended\"] }\n";
+        let yaml = "nika: w\npolicy:\n  require:\n    human_gate_before: [exec]\npermits:\n  exec: [\"echo\"]\ntasks:\n  act:\n    exec: { command: [\"echo\", \"unattended\"] }\n";
         let diags = diags_of(yaml);
         let pol = diags
             .iter()
@@ -404,7 +404,7 @@ mod tests {
         // check ladder (`NIKA-SEC-009`) rides the SAME from_report
         // projection — anchored on the ungated tainted egress task's id
         // (the SINK · v2.0).
-        let yaml = "nika: v1\nworkflow:\n  id: w\npermits:\n  fs: { read: [\"./inbox/**\"] }\n  net: { http: [\"api.example.com\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  fetch_page:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.example.com/x\" }\n  leak:\n    with: { d: \"${{ tasks.fetch_page.output }}\" }\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.example.com/${{ with.d }}\" }\n";
+        let yaml = "nika: w\npermits:\n  fs: { read: [\"./inbox/**\"] }\n  net: { http: [\"api.example.com\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  fetch_page:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.example.com/x\" }\n  leak:\n    with: { d: \"${{ tasks.fetch_page.output }}\" }\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.example.com/${{ with.d }}\" }\n";
         let diags = diags_of(yaml);
         let tri = diags
             .iter()
@@ -429,7 +429,7 @@ mod tests {
     fn unknown_dep_yields_dag002_error_with_span() {
         // an `after:` entry naming a ghost task — NIKA-DAG-002, carries
         // a span on the target token.
-        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    after: { ghost: success }\n    exec: { command: [\"x\"] }\n";
+        let yaml = "nika: w\ntasks:\n  a:\n    after: { ghost: success }\n    exec: { command: [\"x\"] }\n";
         let diags = diags_of(yaml);
         let dag = diags
             .iter()
@@ -445,7 +445,8 @@ mod tests {
 
     #[test]
     fn unknown_tool_yields_error_with_did_you_mean() {
-        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    invoke: { tool: \"nika:raed\", args: { path: \"./x\" } }\n";
+        let yaml =
+            "nika: w\ntasks:\n  a:\n    invoke: { tool: \"nika:raed\", args: { path: \"./x\" } }\n";
         let diags = diags_of(yaml);
         let tool = diags
             .iter()
@@ -463,7 +464,8 @@ mod tests {
     fn task_keyed_finding_anchors_on_the_task_id_not_origin() {
         // an unknown tool carries no span of its own — it must anchor on the
         // offending task's `id` source range, NOT the document origin (0,0).
-        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    invoke: { tool: \"nika:raed\", args: { path: \"./x\" } }\n";
+        let yaml =
+            "nika: w\ntasks:\n  a:\n    invoke: { tool: \"nika:raed\", args: { path: \"./x\" } }\n";
         let diags = diags_of(yaml);
         let tool = diags
             .iter()
@@ -492,7 +494,7 @@ mod tests {
         // severity, the `nika` source, and a span on the `when:` expression.
         // W2 form: the status observation crosses the boundary through a
         // `with:` binding; the gate reads the LOCAL alias.
-        let yaml = "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/c\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n  b:\n    with: { a_status: \"${{ tasks.a.status }}\" }\n    when: ${{ with.a_status == 'success' && with.a_status == 'failure' }}\n    exec: { command: [\"true\"] }\n";
+        let yaml = "nika: w\nmodel: anthropic/c\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n  b:\n    with: { a_status: \"${{ tasks.a.status }}\" }\n    when: ${{ with.a_status == 'success' && with.a_status == 'failure' }}\n    exec: { command: [\"true\"] }\n";
         let diags = diags_of(yaml);
         let dead = diags
             .iter()
@@ -521,7 +523,7 @@ mod tests {
         // gate finding with its OWN code (deleting the match arm would
         // degrade it to the generic NIKA-DAG-GATE fallback). W2 form: the
         // observation crosses through `with:`, the gate reads the alias.
-        let yaml = "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/c\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n  b:\n    with: { a_status: \"${{ tasks.a.status }}\" }\n    when: ${{ with.a_status == 'failed' }}\n    exec: { command: [\"true\"] }\n";
+        let yaml = "nika: w\nmodel: anthropic/c\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n  b:\n    with: { a_status: \"${{ tasks.a.status }}\" }\n    when: ${{ with.a_status == 'failed' }}\n    exec: { command: [\"true\"] }\n";
         let diags = diags_of(yaml);
         let bad = diags
             .iter()
@@ -548,7 +550,7 @@ mod tests {
         // HINT diagnostic is a precise object: HINT severity, NO code, the
         // `nika` source, a non-empty message anchored on the task id, and a
         // range over the offending task's id span (NOT the document origin).
-        let yaml = "nika: v1\nworkflow:\n  id: w\nmodel: ollama/llama3\ntasks:\n  a:\n    infer: { prompt: \"hi\" }\n";
+        let yaml = "nika: w\nmodel: ollama/llama3\ntasks:\n  a:\n    infer: { prompt: \"hi\" }\n";
         let diags = diags_of(yaml);
         let hint = diags
             .iter()

@@ -730,9 +730,7 @@ mod tests {
     }
 
     const CHILD_OK: &str = "\
-nika: v1
-workflow:
-  id: child
+nika: child
 inputs:
   url: { type: string, required: true }
 permits:
@@ -746,7 +744,7 @@ outputs:
 
     fn parent_yaml(target: &str, args: &str) -> String {
         format!(
-            "nika: v1\nworkflow:\n  id: parent\ntasks:\n  audit:\n    invoke:\n      workflow: \"{target}\"\n      args: {args}\n"
+            "nika: parent\ntasks:\n  audit:\n    invoke:\n      workflow: \"{target}\"\n      args: {args}\n"
         )
     }
 
@@ -785,9 +783,7 @@ outputs:
     fn typed_call_judges_args_and_returns() {
         // unknown arg + missing required + literal misfit + returns misfit
         let yaml = "\
-nika: v1
-workflow:
-  id: parent
+nika: parent
 permits:
   exec: [\"echo\"]
 tasks:
@@ -816,9 +812,7 @@ tasks:
     #[test]
     fn a_fitting_typed_call_is_clean() {
         let yaml = "\
-nika: v1
-workflow:
-  id: parent
+nika: parent
 permits:
   exec: [\"echo\"]
 tasks:
@@ -836,9 +830,7 @@ tasks:
     #[test]
     fn literal_arg_misfit_is_comp_004_and_templated_is_gradual() {
         let yaml = "\
-nika: v1
-workflow:
-  id: parent
+nika: parent
 const:
   u: \"x\"
 permits:
@@ -907,9 +899,7 @@ tasks:
         // Parent declares a narrow boundary; the child (no declared
         // permits) INFERS an exec effect — outside the parent's wall.
         let parent = "\
-nika: v1
-workflow:
-  id: parent
+nika: parent
 permits:
   net:
     http: [\"api.example.com\"]
@@ -929,9 +919,7 @@ tasks:
     #[test]
     fn contained_child_is_clean_under_declared_parent() {
         let parent = "\
-nika: v1
-workflow:
-  id: parent
+nika: parent
 permits:
   exec: [\"echo\"]
 tasks:
@@ -941,9 +929,7 @@ tasks:
       args: { url: \"https://example.com\" }
 ";
         let child = "\
-nika: v1
-workflow:
-  id: child
+nika: child
 inputs:
   url: { type: string, required: true }
 permits:
@@ -964,9 +950,7 @@ tasks:
         // need exceeds it — containment refuses (law 3's ∩ cuts to zero).
         let wf = parse(&parent_yaml("./child.nika.yaml", "{}"));
         let child = "\
-nika: v1
-workflow:
-  id: child
+nika: child
 tasks:
   go:
     exec: { command: [\"rm\", \"-rf\", \"x\"] }
@@ -1031,9 +1015,7 @@ tasks:
     /// A child with a priced infer task (the fixture's floor comes from
     /// its OWN check — the assertion is catalog-move-proof).
     const CHILD_PRICED: &str = "\
-nika: v1
-workflow:
-  id: child
+nika: child
 tasks:
   spend:
     infer: { prompt: hi, max_tokens: 1000000, model: \"anthropic/claude-sonnet-5\" }
@@ -1043,7 +1025,7 @@ outputs:
 
     fn parent_calling(target: &str) -> RawWorkflow {
         parse(&format!(
-            "nika: v1\nworkflow:\n  id: parent\ntasks:\n  call:\n    invoke:\n      workflow: \"{target}\"\n"
+            "nika: parent\ntasks:\n  call:\n    invoke:\n      workflow: \"{target}\"\n"
         ))
     }
 
@@ -1079,9 +1061,7 @@ outputs:
     #[test]
     fn a_grandchild_folds_through_the_child() {
         let middle = "\
-nika: v1
-workflow:
-  id: middle
+nika: middle
 tasks:
   call:
     invoke:
@@ -1110,7 +1090,7 @@ tasks:
     #[test]
     fn the_calling_tasks_multipliers_scale_the_child() {
         let wf = parse(
-            "nika: v1\nworkflow:\n  id: parent\ntasks:\n  call:\n    for_each: [\"a\", \"b\"]\n    retry: { max_attempts: 3 }\n    invoke:\n      workflow: \"./child.nika.yaml\"\n",
+            "nika: parent\ntasks:\n  call:\n    for_each: [\"a\", \"b\"]\n    retry: { max_attempts: 3 }\n    invoke:\n      workflow: \"./child.nika.yaml\"\n",
         );
         let child = crate::check(&parse(CHILD_PRICED)).cost;
         let report =
@@ -1138,7 +1118,7 @@ tasks:
     #[test]
     fn a_gated_call_floors_at_zero_and_an_unknown_fanout_unbounds() {
         let gated = parse(
-            "nika: v1\nworkflow:\n  id: parent\ntasks:\n  call:\n    when: ${{ inputs.go == \"yes\" }}\n    invoke:\n      workflow: \"./child.nika.yaml\"\n",
+            "nika: parent\ntasks:\n  call:\n    when: ${{ inputs.go == \"yes\" }}\n    invoke:\n      workflow: \"./child.nika.yaml\"\n",
         );
         let child = crate::check(&parse(CHILD_PRICED)).cost;
         let report = crate::check_composed(&gated, "parent.nika.yaml", &mut |_| {
@@ -1154,7 +1134,7 @@ tasks:
         );
 
         let fanned = parse(
-            "nika: v1\nworkflow:\n  id: parent\ntasks:\n  call:\n    for_each: ${{ tasks.seed.output }}\n    invoke:\n      workflow: \"./child.nika.yaml\"\n  seed:\n    exec: { command: [\"echo\", \"[]\"] }\n",
+            "nika: parent\ntasks:\n  call:\n    for_each: ${{ tasks.seed.output }}\n    invoke:\n      workflow: \"./child.nika.yaml\"\n  seed:\n    exec: { command: [\"echo\", \"[]\"] }\n",
         );
         let report = crate::check_composed(&fanned, "parent.nika.yaml", &mut |_| {
             Ok(CHILD_PRICED.to_owned())
@@ -1168,9 +1148,7 @@ tasks:
     #[test]
     fn an_unbounded_child_propagates_the_warning() {
         let child = "\
-nika: v1
-workflow:
-  id: child
+nika: child
 tasks:
   spend:
     infer: { prompt: hi, model: \"anthropic/claude-sonnet-5\" }
@@ -1200,18 +1178,14 @@ tasks:
     #[test]
     fn a_cyclic_call_graph_neither_hangs_nor_contributes() {
         let a = "\
-nika: v1
-workflow:
-  id: a
+nika: a
 tasks:
   call:
     invoke:
       workflow: \"./b.nika.yaml\"
 ";
         let b = "\
-nika: v1
-workflow:
-  id: b
+nika: b
 tasks:
   call:
     invoke:

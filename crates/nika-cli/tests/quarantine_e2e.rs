@@ -98,9 +98,7 @@ fn sealed_covers(journal: &Path) -> serde_json::Value {
 /// `fix` edits a pre-existing note), then `boom` fails the run AFTER
 /// them — the semi-written debt of F-P14.
 const FAIL_WF: &str = r#"
-nika: v1
-workflow:
-  id: quarantine-e2e
+nika: quarantine-e2e
 permits:
   tools: ["nika:write", "nika:edit"]
   fs: { write: ["semi.txt", "note.txt"], read: ["note.txt"] }
@@ -185,9 +183,7 @@ fn a_successful_run_attests_no_quarantine() {
     std::fs::write(
         dir.path().join("w.nika.yaml"),
         r#"
-nika: v1
-workflow:
-  id: quarantine-clean
+nika: quarantine-clean
 permits:
   tools: ["nika:write"]
   fs: { write: ["keep.txt"] }
@@ -239,9 +235,7 @@ fn the_next_run_reading_the_old_path_fails_loud() {
     std::fs::write(
         dir.path().join("reader.nika.yaml"),
         r#"
-nika: v1
-workflow:
-  id: quarantine-reader
+nika: quarantine-reader
 permits:
   tools: ["nika:read"]
   fs: { read: ["semi.txt"] }

@@ -59,11 +59,7 @@ pub const VERBS: &[Entry] = &[
 pub const TOP_LEVEL_KEYS: &[Entry] = &[
     Entry {
         name: "nika",
-        doc: "The language + contract version. Exactly `v1`. Required.",
-    },
-    Entry {
-        name: "workflow",
-        doc: "The workflow id (kebab-case). Required.",
+        doc: "The mark AND the file's name — kebab-case (`^[a-z][a-z0-9-]*$`). Required.",
     },
     Entry {
         name: "model",

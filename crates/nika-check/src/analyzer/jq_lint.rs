@@ -285,9 +285,7 @@ mod tests {
         // of the `"nika:jq"` match arm (each → no finding).
         let wf = wf_of(
             "\
-nika: v1
-workflow:
-  id: jq-bad
+nika: jq-bad
 tasks:
   transform:
     invoke: { tool: \"nika:jq\", args: { expression: \".a |\" } }
@@ -312,9 +310,7 @@ tasks:
         // finding → caught here (the `nika:jq` test alone would not).
         let wf = wf_of(
             "\
-nika: v1
-workflow:
-  id: fetch-bad-jq
+nika: fetch-bad-jq
 tasks:
   pull:
     invoke: { tool: \"nika:fetch\", args: { url: \"https://example.com\", mode: jq, jq: \".a |\" } }
@@ -341,9 +337,7 @@ tasks:
         // real compile, not a constant).
         let wf = wf_of(
             "\
-nika: v1
-workflow:
-  id: jq-ok
+nika: jq-ok
 tasks:
   transform:
     invoke: { tool: \"nika:jq\", args: { expression: \"[.items[].name]\" } }

@@ -12,14 +12,16 @@
 //! legacy parser path).
 //!
 //! Transforms (top-level only — nothing else is touched):
-//! 1. `workflow: <scalar>`            → `workflow:` + `  id: <scalar>`
-//! 2. top-level `description: <text>` → hoisted under the workflow object
-//!    (a `|`/`>` block-scalar value carries its content lines along,
-//!    re-indented +2 with the key — else the prose lands at the key's own
-//!    column and the migrated document no longer parses)
-//! 3. `tasks:` sequence `  - id: X`   → map key `  X:` (the two-space list
-//!    marker becomes the key's indent, so task bodies never re-indent)
-//! 3. `tasks:` sequence → map — `  - id: X` becomes the key `  X:` (the
+//!
+//! The ENVELOPE migrations — `workflow: <scalar>` → the object, and the
+//! top-level `description:` hoist — are RETIRED. The envelope nuke of
+//! 2026-08-12 killed their target: `workflow: { id, description }` is
+//! exactly what the parser refuses now, so emitting it would be a repair
+//! whose output its own checker rejects. The identity move onto `nika:`
+//! is a codemod of its own (its `description:` prose must be demoted,
+//! never silently dropped).
+//!
+//! 1. `tasks:` sequence → map — `  - id: X` becomes the key `  X:` (the
 //!    two-space list marker becomes the key's indent, so task bodies
 //!    never re-indent); a single-line FLOW item `  - { id: X, … }`
 //!    expands to `  X:` + one block line per remaining entry. The list
@@ -70,39 +72,17 @@ pub use predicates::predicates;
 pub fn w1(source: &str) -> Option<String> {
     let lines: Vec<&str> = source.split('\n').collect();
 
-    // pass 1 · locate the top-level `description:` (to hoist) and the
-    // top-level `workflow:` line (scalar or already-object).
-    let mut desc_line: Option<usize> = None;
-    let mut desc_text: Option<&str> = None;
-    let mut wf_line: Option<usize> = None;
-    for (i, l) in lines.iter().enumerate() {
-        if desc_line.is_none()
-            && let Some(rest) = l.strip_prefix("description: ")
-        {
-            desc_line = Some(i);
-            desc_text = Some(rest.trim_end());
-        }
-        if wf_line.is_none() && (l.starts_with("workflow:") || *l == "workflow:") {
-            wf_line = Some(i);
-        }
-    }
-    // The hoist needs its anchor: with NO `workflow:` line there is
-    // nowhere to re-emit the key, so `description:` stays put (dropping
-    // it here would lose the author's prose — never guess).
-    if wf_line.is_none() {
-        desc_line = None;
-        desc_text = None;
-    }
-    // A block-scalar description (`|` · `>` forms) carries its prose on
-    // the FOLLOWING lines at the key's old depth: the hoist sinks the key
-    // two columns, so the content rides along, re-indented +2 (issue
-    // #831 — left in place it lands at the key's own column and the
-    // migrated document no longer parses).
-    let desc_content = desc_line.and_then(|dl| {
-        let head = desc_text?;
-        is_block_scalar_head(head).then(|| block_scalar_span(&lines, dl))
-    });
-
+    // The ENVELOPE half of W1 (`workflow: <scalar>` → the object · the
+    // top-level `description:` hoist) is RETIRED with the envelope nuke
+    // (2026-08-12). Both migrated INTO `workflow: { id, description }`,
+    // and that object is exactly what the parser refuses now — a repair
+    // that produces a document its own checker rejects is worse than no
+    // repair. The identity migration (`workflow:`/`nika: v1` → a single
+    // `nika: <id>`) needs a codemod of its own, with the `description:`
+    // prose demoted rather than silently dropped; it is NOT this one.
+    //
+    // What survives here is the TASKS half, whose target is untouched:
+    // the sequence → map rewrite and the `- id:` field removal.
     let mut out: Vec<String> = Vec::with_capacity(lines.len() + 2);
     let mut in_tasks = false;
     let mut changed = false;
@@ -124,32 +104,7 @@ pub fn w1(source: &str) -> Option<String> {
             }
         }
     }
-    for (i, l) in lines.iter().enumerate() {
-        if Some(i) == desc_line {
-            changed = true; // hoisted under workflow (emitted there)
-            continue;
-        }
-        if desc_content.is_some_and(|(start, end)| i >= start && i < end) {
-            continue; // block-scalar content rides with the hoisted key
-        }
-        if Some(i) == wf_line {
-            if let Some(id) = scalar_workflow_id(l) {
-                out.push("workflow:".to_owned());
-                out.push(format!("  id: {id}"));
-                if let Some(d) = desc_text {
-                    push_description(&mut out, d, &lines, desc_content);
-                }
-                changed = true;
-                continue;
-            }
-            // already an object — still hoist a stray top-level description
-            out.push((*l).to_owned());
-            if let Some(d) = desc_text {
-                push_description(&mut out, d, &lines, desc_content);
-                changed = true;
-            }
-            continue;
-        }
+    for l in &lines {
         // track which top-level section we are in (col-0 keys)
         if !l.starts_with(' ') && !l.starts_with('#') && l.contains(':') {
             in_tasks = l.starts_with("tasks:");
@@ -165,79 +120,6 @@ pub fn w1(source: &str) -> Option<String> {
         out.push((*l).to_owned());
     }
     changed.then(|| out.join("\n"))
-}
-
-/// `workflow: some-id` (optional trailing comment) → the id, comment kept
-/// by the caller's rewrite of the line pair. `workflow:` alone (object
-/// head) returns `None`.
-fn scalar_workflow_id(line: &str) -> Option<&str> {
-    let rest = line.strip_prefix("workflow: ")?;
-    let rest = rest.trim_end();
-    if rest.is_empty() {
-        return None;
-    }
-    // keep any trailing comment attached to the id line
-    let token_end = rest.find(" #").unwrap_or(rest.len());
-    let token = rest[..token_end].trim_end();
-    let ok = token
-        .chars()
-        .next()
-        .is_some_and(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
-        && token
-            .chars()
-            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_');
-    ok.then_some(rest)
-}
-
-/// Whether a hoisted `description:` value opens a YAML block scalar —
-/// `|` or `>`, then only chomping (`-` · `+`) / explicit-indent (`1`–`9`)
-/// indicators and an optional trailing comment.
-fn is_block_scalar_head(text: &str) -> bool {
-    let head = match text.find(" #") {
-        Some(idx) => text[..idx].trim_end(),
-        None => text.trim_end(),
-    };
-    let mut chars = head.chars();
-    let Some(first) = chars.next() else {
-        return false;
-    };
-    matches!(first, '|' | '>') && chars.all(|c| matches!(c, '+' | '-' | '1'..='9'))
-}
-
-/// The line span `[start, end)` of the block scalar opening at
-/// `head_line` (a col-0 key): the consecutive following lines that are
-/// blank or space-indented. The first col-0 line — the next top-level
-/// key, a comment — ends the scalar.
-fn block_scalar_span(lines: &[&str], head_line: usize) -> (usize, usize) {
-    let mut end = head_line + 1;
-    while let Some(l) = lines.get(end) {
-        if !l.is_empty() && !l.starts_with(' ') {
-            break;
-        }
-        end += 1;
-    }
-    (head_line + 1, end)
-}
-
-/// Emit the hoisted `  description: <head>` — plus its block-scalar
-/// content lines when the value opens one, each re-indented +2 to stay
-/// under the sunk key (blank lines carry no indent to shift).
-fn push_description(
-    out: &mut Vec<String>,
-    head: &str,
-    lines: &[&str],
-    content: Option<(usize, usize)>,
-) {
-    out.push(format!("  description: {head}"));
-    if let Some((start, end)) = content {
-        for l in &lines[start..end] {
-            if l.is_empty() {
-                out.push(String::new());
-            } else {
-                out.push(format!("  {l}"));
-            }
-        }
-    }
 }
 
 /// `  - id: name` (optional trailing comment) → `  name:` (+ comment).
@@ -1163,12 +1045,11 @@ fn two_space_key(line: &str) -> Option<&str> {
 mod tests {
     use super::*;
 
-    const OLD: &str = "# banner\nnika: v1\nworkflow: demo-flow\ndescription: A demo\nmodel: mock/echo\n\ntasks:\n  # fetch first\n  - id: fetch\n    invoke:\n      tool: nika:fetch\n      args: { url: x }\n\n  - id: summarize\n    depends_on: [fetch]\n    with:\n      doc: ${{ tasks.fetch.output }}\n    infer:\n      prompt: go\n";
+    const OLD: &str = "# banner\nnika: demo-flow\nmodel: mock/echo\n\ntasks:\n  # fetch first\n  - id: fetch\n    invoke:\n      tool: nika:fetch\n      args: { url: x }\n\n  - id: summarize\n    depends_on: [fetch]\n    with:\n      doc: ${{ tasks.fetch.output }}\n    infer:\n      prompt: go\n";
 
     #[test]
-    fn migrates_all_three_shapes_and_preserves_comments() {
+    fn migrates_the_tasks_shapes_and_preserves_comments() {
         let new = w1(OLD).expect("changes");
-        assert!(new.contains("workflow:\n  id: demo-flow\n  description: A demo"));
         assert!(new.contains("  # fetch first\n  fetch:\n    invoke:"));
         assert!(new.contains("  summarize:\n    depends_on: [fetch]"));
         assert!(new.contains("# banner"), "comments preserved");
@@ -1185,7 +1066,7 @@ mod tests {
     fn verb_named_ids_survive_the_trap() {
         // the census trap: task ids shadowing verb names — the KEY is the
         // identity, the inner verb key is untouched
-        let old = "nika: v1\nworkflow: t\ntasks:\n  - id: invoke\n    exec:\n      command: [\"true\"]\n  - id: agent\n    infer:\n      prompt: hi\n";
+        let old = "nika: t\ntasks:\n  - id: invoke\n    exec:\n      command: [\"true\"]\n  - id: agent\n    infer:\n      prompt: hi\n";
         let new = w1(old).expect("changes");
         assert!(new.contains("  invoke:\n    exec:"));
         assert!(new.contains("  agent:\n    infer:"));
@@ -1193,68 +1074,9 @@ mod tests {
 
     #[test]
     fn trailing_comments_ride_along() {
-        let old = "nika: v1\nworkflow: t  # SLOT: kebab id\ntasks:\n  - id: probe  # the one task\n    exec:\n      command: [\"true\"]\n";
+        let old = "nika: t\ntasks:\n  - id: probe  # the one task\n    exec:\n      command: [\"true\"]\n";
         let new = w1(old).expect("changes");
-        assert!(new.contains("  id: t  # SLOT: kebab id"));
         assert!(new.contains("  probe:  # the one task"));
-    }
-
-    #[test]
-    fn block_scalar_description_reindents_with_the_hoisted_key() {
-        // Issue #831 — the exact repro bytes: the key sinks +2 under the
-        // workflow object; the prose must sink with it. Left at its old
-        // column it lands at the key's own depth and the migrated
-        // document dies NIKA-PARSE-001 (simple key expect ':').
-        let old =
-            "schema: \"nika/workflow@0.12\"\nworkflow: pulse\ndescription: |\n  some prose here\n";
-        let new = w1(old).expect("changes");
-        assert_eq!(
-            new,
-            "schema: \"nika/workflow@0.12\"\nworkflow:\n  id: pulse\n  description: |\n    some prose here\n",
-        );
-        assert!(w1(&new).is_none(), "still idempotent: {new}");
-    }
-
-    #[test]
-    fn block_scalar_forms_all_reindent() {
-        // `|` · `>` × chomping `-`/`+` — every header form sinks its
-        // content +2 (the header itself rides the hoisted key verbatim).
-        for head in ["|", "|-", "|+", ">", ">-", ">+"] {
-            let old = format!("workflow: pulse\ndescription: {head}\n  some prose here\n");
-            let new = w1(&old).expect("changes");
-            assert!(
-                new.contains(&format!("  description: {head}\n    some prose here\n")),
-                "head {head}: {new}"
-            );
-            assert!(w1(&new).is_none(), "head {head} idempotent: {new}");
-        }
-    }
-
-    #[test]
-    fn block_scalar_content_moves_with_a_preposed_description() {
-        // The hoist anchors at the `workflow:` line WHEREVER the stray
-        // description sat — a description ABOVE workflow carries its
-        // content down with the key; re-indent alone would leave the
-        // prose orphaned above the header it belongs to.
-        let old = "description: |-\n  prose first\nworkflow: pulse\nmodel: mock/echo\n";
-        let new = w1(old).expect("changes");
-        assert_eq!(
-            new,
-            "workflow:\n  id: pulse\n  description: |-\n    prose first\nmodel: mock/echo\n",
-        );
-    }
-
-    #[test]
-    fn block_scalar_span_stops_at_the_next_top_level_key() {
-        // Only the scalar's own lines move — a following top-level key
-        // (and a col-0 comment) is not content and never shifts.
-        let old =
-            "workflow: pulse\ndescription: >\n  folded prose\n# a col-0 note\nmodel: mock/echo\n";
-        let new = w1(old).expect("changes");
-        assert_eq!(
-            new,
-            "workflow:\n  id: pulse\n  description: >\n    folded prose\n# a col-0 note\nmodel: mock/echo\n",
-        );
     }
 
     #[test]
@@ -1273,7 +1095,7 @@ mod tests {
 
     #[test]
     fn already_new_form_untouched() {
-        let doc = "nika: v1\nworkflow:\n  id: t\ntasks:\n  probe:\n    exec:\n      command: [\"true\"]\n";
+        let doc = "nika: t\ntasks:\n  probe:\n    exec:\n      command: [\"true\"]\n";
         assert!(w1(doc).is_none());
     }
 
@@ -1283,9 +1105,12 @@ mod tests {
         // transform does not fire on that item (the parser teaches).
         // Atomicity (issue #645): one non-mechanical item parks the WHOLE
         // list — a half-mapped collection would be invalid YAML.
-        let old = "nika: v1\nworkflow: t\ntasks:\n  - depends_on: []\n    id: probe\n";
-        let new = w1(old).expect("workflow line still migrates");
-        assert!(new.contains("    id: probe"), "ambiguous item untouched");
+        let old = "nika: t\ntasks:\n  - depends_on: []\n    id: probe\n";
+        assert!(
+            w1(old).is_none(),
+            "the buried id parks the list, and with the envelope half retired \
+             nothing else in the document changes — None IS the refusal"
+        );
     }
 
     #[test]
@@ -1295,11 +1120,11 @@ mod tests {
         // list becomes a map in the SAME pass as the envelope (the old
         // code left the flow item a sequence entry → mixed collection →
         // the intermediate document no longer parsed).
-        let old = "nika: v1\nworkflow: daily-brief\nmodel: ollama/llama3.2:3b\ntasks:\n  - { id: notes, invoke: { tool: \"nika:read\", args: { path: ./notes/today.md } } }\n  - id: triage\n    depends_on: [notes]\n    with:\n      notes: ${{ tasks.notes.output }}\n    infer: { prompt: \"triage ${{ with.notes }}\" }\n";
+        let old = "nika: daily-brief\nmodel: ollama/llama3.2:3b\ntasks:\n  - { id: notes, invoke: { tool: \"nika:read\", args: { path: ./notes/today.md } } }\n  - id: triage\n    depends_on: [notes]\n    with:\n      notes: ${{ tasks.notes.output }}\n    infer: { prompt: \"triage ${{ with.notes }}\" }\n";
         let new = w1(old).expect("changes");
         assert_eq!(
             new,
-            "nika: v1\nworkflow:\n  id: daily-brief\nmodel: ollama/llama3.2:3b\ntasks:\n  notes:\n    invoke: { tool: \"nika:read\", args: { path: ./notes/today.md } }\n  triage:\n    depends_on: [notes]\n    with:\n      notes: ${{ tasks.notes.output }}\n    infer: { prompt: \"triage ${{ with.notes }}\" }\n",
+            "nika: daily-brief\nmodel: ollama/llama3.2:3b\ntasks:\n  notes:\n    invoke: { tool: \"nika:read\", args: { path: ./notes/today.md } }\n  triage:\n    depends_on: [notes]\n    with:\n      notes: ${{ tasks.notes.output }}\n    infer: { prompt: \"triage ${{ with.notes }}\" }\n",
         );
         assert!(w1(&new).is_none(), "still idempotent: {new}");
     }
@@ -1309,11 +1134,11 @@ mod tests {
         // The splitter is quote/depth-aware: `,` and braces inside quoted
         // scalars never split an entry, `''` is an escaped quote, and a
         // `#` comment rides the rewritten key line like the block form's.
-        let old = "workflow: t\ntasks:\n  - { id: say, infer: { prompt: \"a, b } c\", note: 'it''s } fine' } } # the loud one\n";
+        let old = "nika: t\ntasks:\n  - { id: say, infer: { prompt: \"a, b } c\", note: 'it''s } fine' } } # the loud one\n";
         let new = w1(old).expect("changes");
         assert_eq!(
             new,
-            "workflow:\n  id: t\ntasks:\n  say: # the loud one\n    infer: { prompt: \"a, b } c\", note: 'it''s } fine' }\n",
+            "nika: t\ntasks:\n  say: # the loud one\n    infer: { prompt: \"a, b } c\", note: 'it''s } fine' }\n",
         );
     }
 
@@ -1323,14 +1148,11 @@ mod tests {
         // buried id is the ratified refusal — so the list stays a list
         // (valid YAML; the parser's teaching names the file) instead of
         // becoming a mixed collection no later pass can parse.
-        let old = "workflow: t\ntasks:\n  - { id: a, exec: { command: [\"true\"] } }\n  - { exec: { command: [\"true\"] }, id: b }\n";
-        let new = w1(old).expect("workflow line still migrates");
-        assert!(new.contains("workflow:\n  id: t"), "{new}");
+        let old = "nika: t\ntasks:\n  - { id: a, exec: { command: [\"true\"] } }\n  - { exec: { command: [\"true\"] }, id: b }\n";
         assert!(
-            new.contains("  - { id: a, exec: { command: [\"true\"] } }"),
-            "convertible item stays too — all or nothing: {new}"
+            w1(old).is_none(),
+            "the convertible item stays a sequence entry too — all or nothing"
         );
-        assert!(new.contains("id: b }"), "{new}");
     }
 
     #[test]
@@ -1338,19 +1160,17 @@ mod tests {
         // A flow item spanning lines and a scalar item are outside the
         // mechanical reach — the whole list parks (atomicity), the
         // envelope still migrates, and the file remains valid YAML.
-        let old = "workflow: t\ntasks:\n  - { id: a,\n      exec: { command: [\"true\"] } }\n";
-        let new = w1(old).expect("workflow line still migrates");
-        assert!(new.contains("  - { id: a,"), "untouched: {new}");
-        let old_scalar = "workflow: t\ntasks:\n  - just_a_string\n";
-        let new_scalar = w1(old_scalar).expect("workflow line still migrates");
-        assert!(new_scalar.contains("  - just_a_string"), "{new_scalar}");
+        let old = "nika: t\ntasks:\n  - { id: a,\n      exec: { command: [\"true\"] } }\n";
+        assert!(w1(old).is_none(), "multi-line flow item parks the list");
+        let old_scalar = "nika: t\ntasks:\n  - just_a_string\n";
+        assert!(w1(old_scalar).is_none(), "a scalar item parks the list");
     }
 
     #[test]
     fn w2_emits_the_r5_predicate_spelling() {
         // The codemod never emits a spelling its own parser refuses —
         // post-R5 the provably-strict control edge is `after: {d: success}`.
-        let old = "nika: v1\nworkflow: t\ntasks:\n  a:\n    exec:\n      command: [\"true\"]\n  b:\n    depends_on: [a]\n    exec:\n      command: [\"true\"]\n";
+        let old = "nika: t\ntasks:\n  a:\n    exec:\n      command: [\"true\"]\n  b:\n    depends_on: [a]\n    exec:\n      command: [\"true\"]\n";
         let W2Outcome::Changed(new) = w2(old) else {
             panic!("provably-strict control migrates");
         };

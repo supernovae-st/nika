@@ -10,8 +10,7 @@ use super::*;
 use nika_kernel_mock::MockHttp;
 
 const REV: &str = "0123456789abcdef0123456789abcdef01234567";
-const BODY: &[u8] =
-    b"nika: v1\nworkflow:\n  id: greet\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n";
+const BODY: &[u8] = b"nika: greet\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n";
 
 fn kind_code(err: &RegistryError) -> Option<&'static str> {
     err.code()
@@ -399,7 +398,7 @@ fn a_rekeyed_publisher_is_refused_by_the_tofu_record() {
 
 #[test]
 fn bare_ref_picks_newest_semver_and_writes_the_pin() {
-    let body_new = b"nika: v1\nworkflow:\n  id: greet-new\n";
+    let body_new = b"nika: greet-new\n";
     let d_old = sha256_hex(BODY);
     let d_new = sha256_hex(body_new);
     let mock = MockHttp::new()

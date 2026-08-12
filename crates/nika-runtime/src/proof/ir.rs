@@ -128,7 +128,7 @@ mod tests {
         .expect("fixture parses")
     }
 
-    const BASE: &str = "nika: v1\nworkflow:\n  id: demo\ntasks:\n  a:\n    exec: { command: [\"echo\", \"x\"] }\n  b:\n    with: { p: \"${{ tasks.a.output }}\" }\n    exec: { command: [\"echo\", \"${{ with.p }}\"] }\n";
+    const BASE: &str = "nika: demo\ntasks:\n  a:\n    exec: { command: [\"echo\", \"x\"] }\n  b:\n    with: { p: \"${{ tasks.a.output }}\" }\n    exec: { command: [\"echo\", \"${{ with.p }}\"] }\n";
 
     #[test]
     fn the_root_commits_to_every_task_leaf() {
@@ -160,8 +160,8 @@ mod tests {
         // Two files that MEAN the same workflow (authored `with:` order is not
         // behavior · spec 15) lower to the SAME semantic hash — semantic, not
         // textual. This is the property the cache/resume re-key rides.
-        const AB: &str = "nika: v1\nworkflow:\n  id: demo\ntasks:\n  t:\n    with: { a: \"1\", b: \"2\" }\n    exec: { command: [\"echo\", \"${{ with.a }}${{ with.b }}\"] }\n";
-        const BA: &str = "nika: v1\nworkflow:\n  id: demo\ntasks:\n  t:\n    with: { b: \"2\", a: \"1\" }\n    exec: { command: [\"echo\", \"${{ with.a }}${{ with.b }}\"] }\n";
+        const AB: &str = "nika: demo\ntasks:\n  t:\n    with: { a: \"1\", b: \"2\" }\n    exec: { command: [\"echo\", \"${{ with.a }}${{ with.b }}\"] }\n";
+        const BA: &str = "nika: demo\ntasks:\n  t:\n    with: { b: \"2\", a: \"1\" }\n    exec: { command: [\"echo\", \"${{ with.a }}${{ with.b }}\"] }\n";
         let ab = semantic_ir_hash(&parse(AB)).expect("projectable");
         let ba = semantic_ir_hash(&parse(BA)).expect("projectable");
         assert_eq!(ab, ba, "authored map order is not semantic identity");
@@ -169,8 +169,8 @@ mod tests {
 
     #[test]
     fn task_order_does_not_change_the_root() {
-        const AB: &str = "nika: v1\nworkflow:\n  id: demo\ntasks:\n  a:\n    exec: { command: [\"echo\", \"1\"] }\n  b:\n    exec: { command: [\"echo\", \"2\"] }\n";
-        const BA: &str = "nika: v1\nworkflow:\n  id: demo\ntasks:\n  b:\n    exec: { command: [\"echo\", \"2\"] }\n  a:\n    exec: { command: [\"echo\", \"1\"] }\n";
+        const AB: &str = "nika: demo\ntasks:\n  a:\n    exec: { command: [\"echo\", \"1\"] }\n  b:\n    exec: { command: [\"echo\", \"2\"] }\n";
+        const BA: &str = "nika: demo\ntasks:\n  b:\n    exec: { command: [\"echo\", \"2\"] }\n  a:\n    exec: { command: [\"echo\", \"1\"] }\n";
         assert_eq!(
             semantic_ir_hash(&parse(AB)).expect("projectable"),
             semantic_ir_hash(&parse(BA)).expect("projectable"),
@@ -181,7 +181,7 @@ mod tests {
     #[test]
     fn the_workflow_id_participates_in_the_root() {
         let a = semantic_ir_hash(&parse(BASE)).expect("projectable");
-        let renamed = BASE.replace("id: demo", "id: other");
+        let renamed = BASE.replace("nika: demo", "nika: other");
         let b = semantic_ir_hash(&parse(&renamed)).expect("projectable");
         assert_ne!(a, b, "the workflow id is part of the identity");
     }
@@ -199,9 +199,7 @@ mod tests {
         use nika_schema::types::AssertProperty;
         use serde_json::json;
 
-        let wf = parse(
-            "nika: v1\nworkflow:\n  id: pay\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
-        );
+        let wf = parse("nika: pay\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n");
         let report = nika_check::check(&wf);
         let proves = semantic_ir_hash(&wf).expect("projectable");
 
@@ -244,7 +242,7 @@ mod tests {
 
     /// The rich fixture's YAML — one const so the receipt, the proves
     /// and the golden can never drift apart.
-    const RICH_YAML: &str = "nika: v1\nworkflow:\n  id: pay\nmodel: anthropic/claude-sonnet-4-6\npermits:\n  exec: [\"ls\", \"echo\"]\n  tools: [\"nika:log\"]\ntasks:\n  src:\n    exec: { command: [\"ls\"] }\n  fan:\n    with: { items: \"${{ tasks.src.output.files }}\" }\n    for_each: ${{ with.items }}\n    retry: { max_attempts: 2 }\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 200 }\n    on_finally:\n      - invoke: { tool: \"nika:log\", args: { message: \"done\" } }\n";
+    const RICH_YAML: &str = "nika: pay\nmodel: anthropic/claude-sonnet-4-6\npermits:\n  exec: [\"ls\", \"echo\"]\n  tools: [\"nika:log\"]\ntasks:\n  src:\n    exec: { command: [\"ls\"] }\n  fan:\n    with: { items: \"${{ tasks.src.output.files }}\" }\n    for_each: ${{ with.items }}\n    retry: { max_attempts: 2 }\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 200 }\n    on_finally:\n      - invoke: { tool: \"nika:log\", args: { message: \"done\" } }\n";
 
     /// A receipt whose certificate exercises EVERY field family: a
     /// `for_each` expression (parametric terms) · a retry · a declared

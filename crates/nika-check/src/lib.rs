@@ -917,9 +917,7 @@ mod tests {
         // truth without re-deriving either.
         let r = check_yaml(
             "\
-nika: v1
-workflow:
-  id: t
+nika: t
 tasks:
   a:
     after: { ghost: success }
@@ -947,9 +945,7 @@ tasks:
     fn clean_minimal_workflow() {
         let r = check_yaml(
             "\
-nika: v1
-workflow:
-  id: clean
+nika: clean
 permits: { exec: [\"echo\"] }
 tasks:
   a:
@@ -967,9 +963,7 @@ tasks:
     /// refusal is proven, not supposed (EPERM-style).
     #[test]
     fn absent_permits_with_effects_is_auth_006() {
-        let r = check_yaml(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
-        );
+        let r = check_yaml("nika: w\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n");
         assert!(!r.is_clean(), "absent + an effect is dirty (F-O8)");
         assert!(
             r.capability_escapes
@@ -1008,7 +1002,7 @@ tasks:
     #[test]
     fn pure_compute_absent_permits_gets_the_legal_zero_hint() {
         let r = check_yaml(
-            "nika: v1\nworkflow:\n  id: w\nmodel: mock/echo\ntasks:\n  a:\n    infer: { prompt: \"hi\", max_tokens: 5 }\n",
+            "nika: w\nmodel: mock/echo\ntasks:\n  a:\n    infer: { prompt: \"hi\", max_tokens: 5 }\n",
         );
         assert!(r.is_clean(), "pure compute stays clean: {r:?}");
         let h = r
@@ -1020,7 +1014,7 @@ tasks:
         // …and `permits: {}` EXPLICIT is silent (the declared zero is
         // assumed, nothing to teach).
         let declared = check_yaml(
-            "nika: v1\nworkflow:\n  id: w\nmodel: mock/echo\npermits: {}\ntasks:\n  a:\n    infer: { prompt: \"hi\", max_tokens: 5 }\n",
+            "nika: w\nmodel: mock/echo\npermits: {}\ntasks:\n  a:\n    infer: { prompt: \"hi\", max_tokens: 5 }\n",
         );
         assert!(declared.is_clean(), "{declared:?}");
         assert!(
@@ -1035,9 +1029,7 @@ tasks:
         // The agent-loop contract, AUTOMATED: a 6-finding workflow's
         // emitted fixes/suggestions, applied verbatim, reach is_clean().
         // Round 1 — assert the exact repairs the report prescribes.
-        let broken = r#"nika: v1
-workflow:
-  id: agent-demo
+        let broken = r#"nika: agent-demo
 model: anthropic/claude-sonnet-4-6
 permits:
   exec: false
@@ -1121,9 +1113,7 @@ tasks:
         // a cycle is a Core violation → reported IN the report (rustc model)
         let wf = parse(
             "\
-nika: v1
-workflow:
-  id: cyclic
+nika: cyclic
 tasks:
   a:
     after: { b: success }
@@ -1152,7 +1142,7 @@ tasks:
     fn broken_dag_still_yields_every_dag_independent_finding() {
         // ONE round-trip: the agent gets the conformance violation AND
         // the tool typo AND the schema defect AND the hints, together.
-        let src = "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  a:\n    after: { ghost: success }\n    invoke: { tool: \"nika:raed\", args: { path: \"./x\" } }\n  b:\n    infer:\n      prompt: \"x\"\n      schema:\n        type: object\n        properties:\n          s: { type: string }\n        required: [z]\n";
+        let src = "nika: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  a:\n    after: { ghost: success }\n    invoke: { tool: \"nika:raed\", args: { path: \"./x\" } }\n  b:\n    infer:\n      prompt: \"x\"\n      schema:\n        type: object\n        properties:\n          s: { type: string }\n        required: [z]\n";
         let r = check_yaml(src);
         assert!(
             r.conformance.iter().any(|c| c.code == "NIKA-DAG-002"),
@@ -1194,7 +1184,7 @@ tasks:
         // Two independent check() runs over the same input must render
         // byte-identical JSON — pins the BTree-everywhere discipline (a
         // stray HashMap would randomize field/finding order run-to-run).
-        let yaml = "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\npermits: { exec: false, tools: [\"nika:read\"] }\nsecrets:\n  k: { source: vault, key: x }\ntasks:\n  a:\n    invoke: { tool: \"nika:raed\", args: { path: \"./in\" } }\n  b:\n    after: { a: success }\n    exec: { command: [\"curl\", \"-d\", \"${{ secrets.k }}\", \"x\"] }\n  c:\n    with: { b_out: \"${{ tasks.b.output }}\" }\n    infer: { prompt: \"go ${{ with.b_out }}\", max_tokens: 50 }\n";
+        let yaml = "nika: w\nmodel: anthropic/claude-sonnet-4-6\npermits: { exec: false, tools: [\"nika:read\"] }\nsecrets:\n  k: { source: vault, key: x }\ntasks:\n  a:\n    invoke: { tool: \"nika:raed\", args: { path: \"./in\" } }\n  b:\n    after: { a: success }\n    exec: { command: [\"curl\", \"-d\", \"${{ secrets.k }}\", \"x\"] }\n  c:\n    with: { b_out: \"${{ tasks.b.output }}\" }\n    infer: { prompt: \"go ${{ with.b_out }}\", max_tokens: 50 }\n";
         let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse");
         let first = serde_json::to_string(&check(&wf)).expect("serialize");
         let second = serde_json::to_string(&check(&wf)).expect("serialize");
@@ -1218,9 +1208,7 @@ tasks:
         // but fails the populated ones.
         let r = check_yaml(
             "\
-nika: v1
-workflow:
-  id: clean
+nika: clean
 permits: { exec: [\"echo\"] }
 tasks:
   a:
@@ -1242,7 +1230,7 @@ tasks:
         // extra-conformance list AND the unified findings) and failing
         // `is_clean` (the permit_taints arm kills `-> vec![]`).
         let r = check_yaml(
-            "nika: v1\nworkflow:\n  id: w\npermits:\n  net: { http: [\"${{ inputs.host }}\"] }\n  tools: [\"nika:fetch\"]\ninputs:\n  host: { type: string, default: \"api.example.com\" }\ntasks:\n  grab:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.example.com/x\" }\n",
+            "nika: w\npermits:\n  net: { http: [\"${{ inputs.host }}\"] }\n  tools: [\"nika:fetch\"]\ninputs:\n  host: { type: string, default: \"api.example.com\" }\ntasks:\n  grab:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.example.com/x\" }\n",
         );
         assert!(!r.is_clean(), "an interpolated bound is dirty (law 1)");
         assert_eq!(r.permit_taints.len(), 1, "{:?}", r.permit_taints);
@@ -1277,9 +1265,7 @@ tasks:
         // capability-escape arm removal (without it the list is empty).
         let r = check_yaml(
             "\
-nika: v1
-workflow:
-  id: escape
+nika: escape
 permits:
   exec: false
 tasks:
@@ -1319,9 +1305,7 @@ tasks:
         // NIKA-PARSE-028 mint (NEP-0010 · the 87f764a pack).
         let r = check_yaml(
             "\
-nika: v1
-workflow:
-  id: strict
+nika: strict
 permits: { exec: [\"flaky\"] }
 run: { entropy: none }
 tasks:
@@ -1355,9 +1339,7 @@ tasks:
         // the unknown_tools arm in isolation.
         let r = check_yaml(
             "\
-nika: v1
-workflow:
-  id: typo
+nika: typo
 tasks:
   a:
     invoke: { tool: \"nika:wrte\", args: { path: \"./out\", content: \"x\" } }
@@ -1389,9 +1371,7 @@ tasks:
         // missing_args) would shrink the count below the sum and fail.
         let r = check_yaml(
             "\
-nika: v1
-workflow:
-  id: many
+nika: many
 permits:
   exec: false
   tools: [\"nika:read\"]
@@ -1428,7 +1408,7 @@ tasks:
     #[test]
     fn write_write_overlap_without_an_edge_refuses() {
         let r = check_yaml(
-            "nika: v1\nworkflow:\n  id: w\npermits:\n  fs: { write: [\"out/**\"] }\n  tools: [\"nika:write\"]\ntasks:\n  left:\n    invoke: { tool: \"nika:write\", args: { path: out/report.md, content: \"a\" } }\n  right:\n    invoke: { tool: \"nika:write\", args: { path: out/report.md, content: \"b\" } }\n",
+            "nika: w\npermits:\n  fs: { write: [\"out/**\"] }\n  tools: [\"nika:write\"]\ntasks:\n  left:\n    invoke: { tool: \"nika:write\", args: { path: out/report.md, content: \"a\" } }\n  right:\n    invoke: { tool: \"nika:write\", args: { path: out/report.md, content: \"b\" } }\n",
         );
         assert!(!r.is_clean(), "the unordered shared write is a finding");
         assert_eq!(r.write_conflicts.len(), 1, "{r:?}");
@@ -1477,7 +1457,7 @@ tasks:
     #[test]
     fn write_write_overlap_with_an_ordering_edge_passes() {
         let r = check_yaml(
-            "nika: v1\nworkflow:\n  id: w\npermits:\n  fs: { write: [\"out/**\"] }\n  tools: [\"nika:write\"]\ntasks:\n  first:\n    invoke: { tool: \"nika:write\", args: { path: out/report.md, content: \"a\" } }\n  second:\n    after: { first: success }\n    invoke: { tool: \"nika:write\", args: { path: out/report.md, content: \"b\" } }\n",
+            "nika: w\npermits:\n  fs: { write: [\"out/**\"] }\n  tools: [\"nika:write\"]\ntasks:\n  first:\n    invoke: { tool: \"nika:write\", args: { path: out/report.md, content: \"a\" } }\n  second:\n    after: { first: success }\n    invoke: { tool: \"nika:write\", args: { path: out/report.md, content: \"b\" } }\n",
         );
         assert!(r.is_clean(), "ordered writers are no race: {r:?}");
         assert!(r.write_conflicts.is_empty());
@@ -1488,7 +1468,7 @@ tasks:
     #[test]
     fn write_write_for_each_same_path_refuses() {
         let r = check_yaml(
-            "nika: v1\nworkflow:\n  id: w\npermits:\n  fs: { write: [\"out/**\"] }\n  tools: [\"nika:write\"]\ntasks:\n  fan:\n    for_each: [1, 2, 3]\n    invoke: { tool: \"nika:write\", args: { path: out/same.md, content: \"x\" } }\n",
+            "nika: w\npermits:\n  fs: { write: [\"out/**\"] }\n  tools: [\"nika:write\"]\ntasks:\n  fan:\n    for_each: [1, 2, 3]\n    invoke: { tool: \"nika:write\", args: { path: out/same.md, content: \"x\" } }\n",
         );
         assert!(!r.is_clean(), "the fan-out overwrite is a finding");
         assert_eq!(r.write_conflicts.len(), 1, "{r:?}");

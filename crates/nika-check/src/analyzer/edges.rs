@@ -307,7 +307,7 @@ mod tests {
         (derive_edges(&wf.tasks, &ids), names)
     }
 
-    const HEADER: &str = "nika: v1\nworkflow:\n  id: t\n";
+    const HEADER: &str = "nika: t\n";
 
     #[test]
     fn with_binding_is_the_edge_role_per_field() {

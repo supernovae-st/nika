@@ -2,9 +2,7 @@
 # TWO parallel branches (a jq extraction and a model summary), and a fan-in
 # task rejoins both into one egress message. Splitting the flow does not
 # dilute the taint — the realized-flow judge must name the ungated sink.
-nika: v1
-workflow:
-  id: f5-02-fan-out-fan-in
+nika: f5-02-fan-out-fan-in
 permits:
   fs: { read: ["./inbox/**"] }
   net: { http: ["api.example.com"] }

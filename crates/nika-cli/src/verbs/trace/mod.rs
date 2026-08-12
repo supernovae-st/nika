@@ -748,7 +748,7 @@ mod tests {
         let path = dir.join(name);
         std::fs::write(
             &path,
-            "nika: v1\nworkflow:\n  id: geo-audit\nmodel: mock/echo\ntasks:\n  read_payload:\n    invoke: { tool: \"nika:read\", args: { path: \"x.json\" } }\n  audit:\n    with:\n      payload: ${{ tasks.read_payload.output }}\n    infer: { prompt: \"score ${{ with.payload }}\" }\noutputs:\n  geo_score: ${{ tasks.audit.output }}\n",
+            "nika: geo-audit\nmodel: mock/echo\ntasks:\n  read_payload:\n    invoke: { tool: \"nika:read\", args: { path: \"x.json\" } }\n  audit:\n    with:\n      payload: ${{ tasks.read_payload.output }}\n    infer: { prompt: \"score ${{ with.payload }}\" }\noutputs:\n  geo_score: ${{ tasks.audit.output }}\n",
         )
         .expect("workflow staged");
         path

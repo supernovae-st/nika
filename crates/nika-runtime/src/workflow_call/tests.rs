@@ -44,7 +44,7 @@ const SKILL_MD: &str =
 
 fn wf_with_skill() -> nika_schema::raw::RawWorkflow {
     nika_schema::parse(
-            "nika: v1\nworkflow:\n  id: w\nmodel: mock/echo\ntasks:\n  go:\n    agent:\n      system: \"Base system.\"\n      prompt: \"hello\"\n      skills: [\"skills/reviewer/SKILL.md\"]\n",
+            "nika: w\nmodel: mock/echo\ntasks:\n  go:\n    agent:\n      system: \"Base system.\"\n      prompt: \"hello\"\n      skills: [\"skills/reviewer/SKILL.md\"]\n",
             nika_schema::FileId::new(0),
             nika_schema::ParseMode::Strict,
         )

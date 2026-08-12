@@ -2,9 +2,7 @@
 # the workflow never declared. The mock model obeys (the hijack is scripted).
 # Only two trifecta legs are declared (no fs.read) so the static lane is
 # intentionally inert — the RUNTIME whitelist is the boundary under test.
-nika: v1
-workflow:
-  id: f1-01-undeclared-egress-tool
+nika: f1-01-undeclared-egress-tool
 model: mock/echo
 permits:
   net: { http: ["news.example"] }

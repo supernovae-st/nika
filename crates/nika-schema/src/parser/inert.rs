@@ -52,7 +52,8 @@ pub(super) fn parse_inert(
 mod tests {
     use crate::{FileId, ParseMode, parse};
 
-    const BASE: &str = "nika: v1\nworkflow:\n  id: w\npermits:\n  net: { http: [\"data.example.com\"] }\n  tools: [\"nika:fetch\"]\n";
+    const BASE: &str =
+        "nika: w\npermits:\n  net: { http: [\"data.example.com\"] }\n  tools: [\"nika:fetch\"]\n";
 
     #[test]
     fn inert_parses_a_non_empty_string() {

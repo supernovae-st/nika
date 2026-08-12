@@ -254,7 +254,7 @@ mod tests {
         failed_finish_msg(id, code, "non-interactive and no `default:`")
     }
 
-    const PROMPT_WF: &str = "nika: v1\nworkflow:\n  id: gate\ninputs:\n  q: { type: string, default: \"deploy?\" }\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"choice\", message: \"${{ inputs.q }}\", choices: [\"yes\", \"no\"] }\n";
+    const PROMPT_WF: &str = "nika: gate\ninputs:\n  q: { type: string, default: \"deploy?\" }\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"choice\", message: \"${{ inputs.q }}\", choices: [\"yes\", \"no\"] }\n";
 
     /// A Finish failing with a caller-chosen message (the harness gate's
     /// question rides the verb's Display).
@@ -286,7 +286,7 @@ mod tests {
         }
     }
 
-    const AGENT_WF: &str = "nika: v1\nworkflow:\n  id: g\npermits: { exec: [\"git\"] }\ntasks:\n  fix:\n    agent: { prompt: \"fix it\" }\n";
+    const AGENT_WF: &str = "nika: g\npermits: { exec: [\"git\"] }\ntasks:\n  fix:\n    agent: { prompt: \"fix it\" }\n";
 
     #[test]
     fn the_harness_gate_pauses_an_agent_task_with_the_question_verbatim() {
@@ -320,9 +320,7 @@ mod tests {
         );
         // The gate code on a NON-agent task (an exec failing with a
         // lifted code string): the gate binds agent tasks only.
-        let exec_wf = parse(
-            "nika: v1\nworkflow:\n  id: t\ntasks:\n  ask:\n    exec: { command: [\"true\"] }\n",
-        );
+        let exec_wf = parse("nika: t\ntasks:\n  ask:\n    exec: { command: [\"true\"] }\n");
         assert!(
             harness_gate_block(
                 &failed_finish_msg("ask", "NIKA-1806", "harness gate: x"),
@@ -334,7 +332,7 @@ mod tests {
         // (a bare catch-all route — `on_codes` takes only the namespaced
         // NIKA-<NS>-<NNN> form, which the numeric gate code never wears).
         let routed = parse(
-            "nika: v1\nworkflow:\n  id: t\ntasks:\n  fix:\n    agent: { prompt: \"x\" }\n    on_error:\n      fail_workflow: true\n",
+            "nika: t\ntasks:\n  fix:\n    agent: { prompt: \"x\" }\n    on_error:\n      fail_workflow: true\n",
         );
         assert!(
             harness_gate_block(
@@ -399,9 +397,7 @@ mod tests {
             .is_none()
         );
         // A non-prompt task failing with the same code text never pauses.
-        let exec_wf = parse(
-            "nika: v1\nworkflow:\n  id: t\ntasks:\n  ask:\n    exec: { command: [\"true\"] }\n",
-        );
+        let exec_wf = parse("nika: t\ntasks:\n  ask:\n    exec: { command: [\"true\"] }\n");
         assert!(
             prompt_block(
                 &failed_finish("ask", PROMPT_BLOCKED_CODE),
@@ -422,7 +418,7 @@ mod tests {
         // The author explicitly claimed the code (`fail_workflow`) — the
         // rider never hijacks authored routing.
         let wf = parse(
-            "nika: v1\nworkflow:\n  id: t\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"go?\" }\n    on_error:\n      fail_workflow: true\n      on_codes: [\"NIKA-BUILTIN-PROMPT-001\"]\n",
+            "nika: t\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"go?\" }\n    on_error:\n      fail_workflow: true\n      on_codes: [\"NIKA-BUILTIN-PROMPT-001\"]\n",
         );
         let (records, vars, markers) = (BTreeMap::new(), BTreeMap::new(), BTreeMap::new());
         assert!(
@@ -449,7 +445,7 @@ mod tests {
         use nika_event::EventKind;
         use nika_kernel::tool_executor::{ToolErrorMeta, ToolResult};
 
-        const GATED: &str = "nika: v1\nworkflow:\n  id: gated\npermits: { exec: [\"echo\"], tools: [\"nika:prompt\"] }\ntasks:\n  prep:\n    exec: { command: [\"echo\", \"ready\"] }\n  ask:\n    after: { prep: success }\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"input\", message: \"proceed?\" }\n  finish:\n    after: { ask: success }\n    exec: { command: [\"echo\", \"done\"] }\n";
+        const GATED: &str = "nika: gated\npermits: { exec: [\"echo\"], tools: [\"nika:prompt\"] }\ntasks:\n  prep:\n    exec: { command: [\"echo\", \"ready\"] }\n  ask:\n    after: { prep: success }\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"input\", message: \"proceed?\" }\n  finish:\n    after: { ask: success }\n    exec: { command: [\"echo\", \"done\"] }\n";
 
         let blocked_prompt = || {
             let mut result = ToolResult::error("tc1", "non-interactive and no `default:`");
@@ -649,7 +645,7 @@ mod tests {
         // `${{ tasks.missing.output }}` cannot render (no record) — the
         // payload carries the AUTHORED text instead of blocking the pause.
         let wf = parse(
-            "nika: v1\nworkflow:\n  id: t\ntasks:\n  up:\n    exec: { command: [\"true\"] }\n  ask:\n    with: { upstream: \"${{ tasks.up.output }}\" }\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"input\", message: \"about ${{ with.upstream }}\" }\n",
+            "nika: t\ntasks:\n  up:\n    exec: { command: [\"true\"] }\n  ask:\n    with: { upstream: \"${{ tasks.up.output }}\" }\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"input\", message: \"about ${{ with.upstream }}\" }\n",
         );
         let (records, vars, markers) = (BTreeMap::new(), BTreeMap::new(), BTreeMap::new());
         let pause = prompt_block(

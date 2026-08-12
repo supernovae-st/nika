@@ -88,9 +88,7 @@ fn shell_two_ok() -> MockShell {
 #[tokio::test]
 async fn seeded_runs_are_byte_identical() {
     const YAML: &str = "\
-nika: v1
-workflow:
-  id: seeded-replay
+nika: seeded-replay
 permits: { exec: [\"echo\"] }
 run:
   entropy:
@@ -123,9 +121,7 @@ tasks:
 #[tokio::test]
 async fn entropy_none_runs_are_byte_identical() {
     const YAML: &str = "\
-nika: v1
-workflow:
-  id: strict-replay
+nika: strict-replay
 permits: { exec: [\"echo\"] }
 run:
   entropy: none
@@ -143,9 +139,7 @@ tasks:
 #[tokio::test]
 async fn the_seed_is_where_the_entropy_lives() {
     const TEMPLATE: &str = "\
-nika: v1
-workflow:
-  id: seeded-divergence
+nika: seeded-divergence
 permits: { exec: [\"flaky\"] }
 run:
   entropy:
@@ -211,9 +205,7 @@ tasks:
 #[tokio::test]
 async fn absent_run_block_stays_the_ambient_status_quo() {
     const YAML: &str = "\
-nika: v1
-workflow:
-  id: ambient-default
+nika: ambient-default
 permits: { exec: [\"echo\"] }
 tasks:
   only:

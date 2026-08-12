@@ -4,9 +4,7 @@
 # so the capability-escape scan refuses at `nika check` with NIKA-SEC-004.
 # The dynamic-command twin (f4-02, a RENDERED program outside an existing
 # allowlist) is what falls to the runtime gate.
-nika: v1
-workflow:
-  id: f4-01-exec-effect-undeclared
+nika: f4-01-exec-effect-undeclared
 permits:
   net: { http: ["news.example"] }
   tools: ["nika:fetch"]

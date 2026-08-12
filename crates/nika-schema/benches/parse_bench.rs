@@ -28,9 +28,7 @@ use std::hint::black_box;
 /// A realistic small workflow: an `infer` producer with a structured-output
 /// schema feeding an `exec` consumer that binds two declared output paths.
 /// (The `declared_property_path_is_accepted` shape — parses clean.)
-const SMALL: &str = r#"nika: v1
-workflow:
-  id: bench-small
+const SMALL: &str = r#"nika: bench-small
 tasks:
   extract:
     infer:
@@ -55,7 +53,7 @@ tasks:
 /// `push_str` (no `format!`) keeps the `${{ }}` literal clean.
 fn large_workflow(n: usize) -> String {
     let mut s = String::from(
-        "nika: v1\nworkflow:\n  id: bench-large\ntasks:\n  extract:\n    infer:\n      \
+        "nika: bench-large\ntasks:\n  extract:\n    infer:\n      \
          prompt: \"Extract entities.\"\n      schema:\n        type: object\n        \
          additionalProperties: false\n        required: [entities]\n        properties:\n          \
          entities:\n            type: array\n            items: { type: string }\n",

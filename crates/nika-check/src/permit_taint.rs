@@ -621,9 +621,7 @@ mod tests {
         // Conformance fixture core/authority/010 — the default even
         // MATCHES the intended host: irrelevant, the boundary would be
         // self-serve.
-        let y = r#"nika: v1
-workflow:
-  id: w
+        let y = r#"nika: w
 permits:
   net: { http: ["${{ inputs.host }}"] }
   tools: ["nika:fetch"]
@@ -648,16 +646,9 @@ tasks:
     #[test]
     fn literal_bounds_and_an_absent_block_are_silent() {
         // Law 1 judges a PRESENT block only — absent is NEP-0003's ground.
-        assert!(
-            taints_of(
-                "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    exec: { command: [\"true\"] }\n"
-            )
-            .is_empty()
-        );
+        assert!(taints_of("nika: w\ntasks:\n  t:\n    exec: { command: [\"true\"] }\n").is_empty());
         // …and literal bounds never fire (every honest file).
-        let y = r#"nika: v1
-workflow:
-  id: w
+        let y = r#"nika: w
 permits:
   fs: { read: ["datasets/**"] }
   net: { http: ["api.example.com"] }
@@ -672,9 +663,7 @@ tasks:
 
     #[test]
     fn every_bound_family_is_walked() {
-        let y = r#"nika: v1
-workflow:
-  id: w
+        let y = r#"nika: w
 permits:
   fs: { read: ["${{ inputs.a }}"], write: ["out/**"] }
   net: { http: ["${{ inputs.b }}"] }
@@ -701,9 +690,7 @@ tasks:
 
     #[test]
     fn fixture_015_env_dangerous_dead_grant_is_refused() {
-        let y = r#"nika: v1
-workflow:
-  id: t-env-dangerous-dead-grant
+        let y = r#"nika: t-env-dangerous-dead-grant
 permits:
   exec: true
   env: ["LD_PRELOAD"]
@@ -722,9 +709,7 @@ tasks:
     #[test]
     fn fixtures_016_017_declared_and_zero_env_pass_clean() {
         for y in [
-            r#"nika: v1
-workflow:
-  id: t-env-passthrough-declared
+            r#"nika: t-env-passthrough-declared
 permits:
   exec: true
   env: ["CI_COMMIT_SHA"]
@@ -732,9 +717,7 @@ tasks:
   stamp:
     exec: { shell: "echo ok" }
 "#,
-            r#"nika: v1
-workflow:
-  id: t-env-declared-zero
+            r#"nika: t-env-declared-zero
 permits:
   exec: true
   env: []
@@ -755,9 +738,7 @@ tasks:
         // The matcher ADMITS the task's host through the wildcard (no
         // escape) — the refusal is entry-level: the grant itself is the
         // hole, whatever the body does.
-        let y = r#"nika: v1
-workflow:
-  id: t-wildcard
+        let y = r#"nika: t-wildcard
 permits:
   net: { http: ["*.github.com"] }
   tools: ["nika:fetch"]
@@ -809,7 +790,7 @@ tasks:
         // ground (it carries no `*.` substring). Exact hosts neither.
         for entries in ["\"*\"", "\"api.github.com\", \"github.com\""] {
             let y = format!(
-                "nika: v1\nworkflow:\n  id: w\npermits:\n  net: {{ http: [{entries}] }}\n  \
+                "nika: w\npermits:\n  net: {{ http: [{entries}] }}\n  \
                  tools: [\"nika:fetch\"]\ntasks:\n  t:\n    \
                  invoke: {{ tool: \"nika:fetch\", args: {{ url: \"https://api.github.com/x\" }} }}\n"
             );
@@ -825,9 +806,7 @@ tasks:
     fn an_interpolated_wildcard_bound_is_law1s_ground_only() {
         // `${{ inputs.h }}` containing `*.` never double-fires: law 1
         // (BoundInterpolated) owns the interpolated bound.
-        let y = r#"nika: v1
-workflow:
-  id: w
+        let y = r#"nika: w
 permits:
   net: { http: ["${{ inputs.h }}"] }
 inputs:
@@ -846,9 +825,7 @@ tasks:
 
     #[test]
     fn fixture_007_untrusted_traversal_under_fs_read_is_refused() {
-        let y = r#"nika: v1
-workflow:
-  id: t
+        let y = r#"nika: t
 permits:
   fs: { read: ["datasets/**"] }
   tools: ["nika:read"]
@@ -877,9 +854,7 @@ tasks:
 
     #[test]
     fn fixture_008_untrusted_exec_reentry_flag_is_refused() {
-        let y = r#"nika: v1
-workflow:
-  id: t
+        let y = r#"nika: t
 permits:
   exec: ["find"]
 inputs:
@@ -913,7 +888,7 @@ tasks:
     fn every_reentry_token_is_refused_by_name() {
         for token in REENTRY_TOKENS {
             let y = format!(
-                "nika: v1\nworkflow:\n  id: t\npermits:\n  exec: [\"find\"]\ninputs:\n  \
+                "nika: t\npermits:\n  exec: [\"find\"]\ninputs:\n  \
                  extra: {{ type: string, default: \"{token}\" }}\ntasks:\n  search:\n    \
                  exec: {{ command: [\"find\", \".\", \"${{{{ inputs.extra }}}}\"] }}\n"
             );
@@ -949,9 +924,7 @@ tasks:
 
     #[test]
     fn fixture_009_untrusted_host_under_fetch_permit_is_refused() {
-        let y = r#"nika: v1
-workflow:
-  id: t
+        let y = r#"nika: t
 permits:
   net: { http: ["api.example.com"] }
   tools: ["nika:fetch"]
@@ -983,9 +956,7 @@ tasks:
         // bound AND law 2 fires on the task — the interpolated bound is
         // never something to match against, so the (default-resolved)
         // host escapes the EMPTY literal boundary.
-        let y = r#"nika: v1
-workflow:
-  id: t
+        let y = r#"nika: t
 permits:
   net: { http: ["${{ inputs.host }}"] }
   tools: ["nika:fetch"]
@@ -1010,9 +981,7 @@ tasks:
 
     #[test]
     fn fixture_011_declassify_declared_opens_the_door() {
-        let y = r#"nika: v1
-workflow:
-  id: t
+        let y = r#"nika: t
 permits:
   fs: { read: ["datasets/**", "vendor/**"] }
   tools: ["nika:read"]
@@ -1052,9 +1021,7 @@ tasks:
     fn fixture_012_trusted_value_passes() {
         // `const.p` is author-baked (Integ=trusted): the static match
         // against the boundary succeeds, no re-gate needed.
-        let y = r#"nika: v1
-workflow:
-  id: t
+        let y = r#"nika: t
 permits:
   fs: { read: ["datasets/**"] }
   tools: ["nika:read"]
@@ -1073,9 +1040,7 @@ tasks:
     fn fixture_013_canonical_form_back_inside_boundary_passes() {
         // The RAW string spells `..` yet canonicalizes INSIDE the bound —
         // the canonicalize-first pivot a prefix matcher false-positives on.
-        let y = r#"nika: v1
-workflow:
-  id: t
+        let y = r#"nika: t
 permits:
   fs: { read: ["datasets/**"] }
   tools: ["nika:read"]
@@ -1094,9 +1059,7 @@ tasks:
     fn law4_the_unresolvable_defers_never_a_check_error() {
         // No default → caller-supplied at launch: the file stays valid,
         // the runtime re-gate is mandatory (NIKA-SEC-004).
-        let y = r#"nika: v1
-workflow:
-  id: t
+        let y = r#"nika: t
 permits:
   fs: { read: ["datasets/**"] }
   tools: ["nika:read"]
@@ -1111,9 +1074,7 @@ tasks:
         assert!(taints_of(y).is_empty(), "{:?}", taints_of(y));
         // …and a with:/tasks.* derivation defers too (the runtime re-gate
         // owns the chain — the static twin resolves the direct roots only).
-        let chained = r#"nika: v1
-workflow:
-  id: t
+        let chained = r#"nika: t
 permits:
   fs: { read: ["datasets/**"] }
   tools: ["nika:read"]
@@ -1133,9 +1094,7 @@ tasks:
     fn config_defaults_are_an_untrusted_root_too() {
         // NEP-0004's Integ table: config.* is deployment-supplied, outside
         // the file — the file cannot vouch for what it does not contain.
-        let y = r#"nika: v1
-workflow:
-  id: t
+        let y = r#"nika: t
 permits:
   fs: { read: ["datasets/**"] }
   tools: ["nika:read"]
@@ -1158,9 +1117,7 @@ tasks:
 
     #[test]
     fn exec_argv0_data_is_regated_against_the_allowlist() {
-        let y = r#"nika: v1
-workflow:
-  id: t
+        let y = r#"nika: t
 permits:
   exec: ["find"]
 inputs:

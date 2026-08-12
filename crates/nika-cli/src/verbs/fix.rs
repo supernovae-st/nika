@@ -129,7 +129,7 @@ mod tests {
         let path = dir.join("broken.nika.yaml");
         std::fs::write(
             &path,
-            "nika: v1\nworkflow:\n  id: w\nmodel: mock/echo\npermits: { tools: [\"nika:read\", \"nika:jq\"], fs: { read: [\"./x\"] } }\ntasks:\n  think:\n    infer: { promt: \"hi\", max_tokens: 10 }\n  read_it:\n    invoke: { tool: \"nika:raed\", args: { path: \"./x\" } }\n  shape:\n    invoke: { tool: \"nika:jq\", args: { expression: \".\", inpit: 1 } }\n",
+            "nika: w\nmodel: mock/echo\npermits: { tools: [\"nika:read\", \"nika:jq\"], fs: { read: [\"./x\"] } }\ntasks:\n  think:\n    infer: { promt: \"hi\", max_tokens: 10 }\n  read_it:\n    invoke: { tool: \"nika:raed\", args: { path: \"./x\" } }\n  shape:\n    invoke: { tool: \"nika:jq\", args: { expression: \".\", inpit: 1 } }\n",
         )
         .expect("write fixture");
         let out = run(
@@ -165,8 +165,7 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("nika-fix-noop-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("tmpdir");
         let path = dir.join("structural.nika.yaml");
-        let body =
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    invoke: { tool: \"nika:hash\" }\n";
+        let body = "nika: w\ntasks:\n  t:\n    invoke: { tool: \"nika:hash\" }\n";
         std::fs::write(&path, body).expect("write fixture");
         let out = run(
             path.to_str().expect("utf8 path"),
@@ -203,7 +202,7 @@ mod tests {
         let path = dir.join("two-site.nika.yaml");
         std::fs::write(
             &path,
-            "nika: v1\nworkflow:\n  id: w\npermits: { tools: [\"nika:log\"] }\ninputs: { topic: { type: string, required: true } }\ntasks:\n  build:\n    invoke: { tool: \"nika:log\", args: { message: \"building ${{ inputs.topik }}\" } }\n  ship:\n    after:\n      buidl: success\n    invoke: { tool: \"nika:log\", args: { message: \"shipping\" } }\noutputs:\n  made: ${{ tasks.buidl.output }}\n",
+            "nika: w\npermits: { tools: [\"nika:log\"] }\ninputs: { topic: { type: string, required: true } }\ntasks:\n  build:\n    invoke: { tool: \"nika:log\", args: { message: \"building ${{ inputs.topik }}\" } }\n  ship:\n    after:\n      buidl: success\n    invoke: { tool: \"nika:log\", args: { message: \"shipping\" } }\noutputs:\n  made: ${{ tasks.buidl.output }}\n",
         )
         .expect("write fixture");
         let out = run(
@@ -255,7 +254,7 @@ mod tests {
         let path = dir.join("idem.nika.yaml");
         std::fs::write(
             &path,
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    invoke: { tool: \"nika:raed\", args: { path: \"./x\" } }\n",
+            "nika: w\ntasks:\n  t:\n    invoke: { tool: \"nika:raed\", args: { path: \"./x\" } }\n",
         )
         .expect("write fixture");
         let p = path.to_str().expect("utf8 path");
@@ -301,7 +300,7 @@ mod tests {
         let path = dir.join("prer5.nika.yaml");
         std::fs::write(
             &path,
-            "nika: v1\nworkflow:\n  id: w\npermits: { exec: [\"true\"] }\ntasks:\n  build:\n    exec: { command: [\"true\"] }\n  test:\n    after: { build: succeeded }\n    exec: { command: [\"true\"] }\n  notify:\n    after:\n      test: failed\n    exec: { command: [\"true\"] }\n",
+            "nika: w\npermits: { exec: [\"true\"] }\ntasks:\n  build:\n    exec: { command: [\"true\"] }\n  test:\n    after: { build: succeeded }\n    exec: { command: [\"true\"] }\n  notify:\n    after:\n      test: failed\n    exec: { command: [\"true\"] }\n",
         )
         .expect("write fixture");
         let out = run(
@@ -329,7 +328,7 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("nika-fix-r5noop-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("tmpdir");
         let path = dir.join("unknown.nika.yaml");
-        let body = "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    exec: { command: [\"true\"] }\n  d:\n    after: { t: passed }\n    exec: { command: [\"true\"] }\n";
+        let body = "nika: w\ntasks:\n  t:\n    exec: { command: [\"true\"] }\n  d:\n    after: { t: passed }\n    exec: { command: [\"true\"] }\n";
         std::fs::write(&path, body).expect("write fixture");
         let out = run(
             path.to_str().expect("utf8 path"),
@@ -357,7 +356,7 @@ mod tests {
         let path = dir.join("prec2.nika.yaml");
         std::fs::write(
             &path,
-            "nika: v1\nworkflow:\n  id: w\nmodel: mock/echo\nvars:\n  topic:\n    type: string\n    required: true\n  retries: 3\ntasks:\n  t:\n    infer: { prompt: \"${{ vars.topic }} · up to ${{ vars.retries }}\" }\n",
+            "nika: w\nmodel: mock/echo\nvars:\n  topic:\n    type: string\n    required: true\n  retries: 3\ntasks:\n  t:\n    infer: { prompt: \"${{ vars.topic }} · up to ${{ vars.retries }}\" }\n",
         )
         .expect("write fixture");
         let out = run(
@@ -393,7 +392,7 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("nika-fix-estop-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("tmpdir");
         let path = dir.join("stop.nika.yaml");
-        let body = "nika: v1\nworkflow:\n  id: w\nvars:\n  api_token: abc123\ntasks:\n  t:\n    exec: { command: [\"true\"] }\n";
+        let body = "nika: w\nvars:\n  api_token: abc123\ntasks:\n  t:\n    exec: { command: [\"true\"] }\n";
         std::fs::write(&path, body).expect("write fixture");
         let out = run(
             path.to_str().expect("utf8 path"),
@@ -427,7 +426,7 @@ mod tests {
         let path = dir.join("w2-list.nika.yaml");
         std::fs::write(
             &path,
-            "nika: v1\nworkflow: daily-brief\nmodel: ollama/llama3.2:3b\ntasks:\n  - { id: notes, invoke: { tool: \"nika:read\", args: { path: ./notes/today.md } } }\n  - id: triage\n    depends_on: [notes]\n    with:\n      notes: ${{ tasks.notes.output }}\n    infer: { prompt: \"triage ${{ with.notes }}\" }\n",
+            "nika: daily-brief\nmodel: ollama/llama3.2:3b\ntasks:\n  - { id: notes, invoke: { tool: \"nika:read\", args: { path: ./notes/today.md } } }\n  - id: triage\n    depends_on: [notes]\n    with:\n      notes: ${{ tasks.notes.output }}\n    infer: { prompt: \"triage ${{ with.notes }}\" }\n",
         )
         .expect("write fixture");
         let out = run(
@@ -474,7 +473,7 @@ mod tests {
         let path = dir.join("atomic.nika.yaml");
         std::fs::write(
             &path,
-            "nika: v1\nworkflow: t\ntasks:\n  - { id: a, exec: { command: [\"true\"] } }\n  - { exec: { command: [\"true\"] }, id: b }\n",
+            "nika: t\ntasks:\n  - { id: a, exec: { command: [\"true\"] } }\n  - { exec: { command: [\"true\"] }, id: b }\n",
         )
         .expect("write fixture");
         let out = run(
@@ -484,7 +483,6 @@ mod tests {
             Theme::new(false, true, false),
         );
         let healed = std::fs::read_to_string(&path).expect("re-read");
-        assert!(healed.contains("workflow:\n  id: t"), "{healed}");
         assert!(
             healed.contains("  - { id: a, exec: { command: [\"true\"] } }"),
             "the convertible item stays too — all or nothing: {healed}"
@@ -512,7 +510,7 @@ mod tests {
         let path = dir.join("string-cmd.nika.yaml");
         std::fs::write(
             &path,
-            "nika: v1\nworkflow:\n  id: d1\npermits:\n  exec: [\"echo\"]\ntasks:\n  a:\n    exec:\n      command: echo hello\n",
+            "nika: d1\npermits:\n  exec: [\"echo\"]\ntasks:\n  a:\n    exec:\n      command: echo hello\n",
         )
         .expect("write fixture");
         let out = run(
@@ -539,7 +537,7 @@ mod tests {
         let path = dir.join("shell-cmd.nika.yaml");
         std::fs::write(
             &path,
-            "nika: v1\nworkflow:\n  id: d1sh\npermits:\n  exec: [\"sh\"]\ntasks:\n  a:\n    exec:\n      command: echo a | grep b\n",
+            "nika: d1sh\npermits:\n  exec: [\"sh\"]\ntasks:\n  a:\n    exec:\n      command: echo a | grep b\n",
         )
         .expect("write fixture");
         let out = run(
@@ -558,80 +556,6 @@ mod tests {
             "the D1 refusal is repaired: {}",
             out.text
         );
-        let _ = std::fs::remove_file(&path);
-    }
-
-    #[test]
-    fn w1_block_scalar_description_reindents_and_the_file_stays_valid_yaml() {
-        // Issue #831 — the exact repro bytes: a pre-W1 file whose
-        // top-level `description: |` content sits at the old indent. The
-        // hoist sinks the key +2; the prose must sink with it, or the
-        // rewrite leaves a document that no longer parses
-        // (NIKA-PARSE-001 · simple key expect ':'). The `schema:` key is
-        // the pre-Diamond version marker (ADR-082) — a real finding the
-        // re-audit keeps naming; erasing it is not the codemod's call.
-        let dir = std::env::temp_dir().join(format!("nika-fix-i831-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).expect("tmpdir");
-        let path = dir.join("block-scalar.nika.yaml");
-        std::fs::write(
-            &path,
-            "schema: \"nika/workflow@0.12\"\nworkflow: pulse\ndescription: |\n  some prose here\n",
-        )
-        .expect("write fixture");
-        let out = run(
-            path.to_str().expect("utf8 path"),
-            false,
-            None,
-            Theme::new(false, true, false),
-        );
-        let healed = std::fs::read_to_string(&path).expect("re-read");
-        assert!(
-            healed.contains("  description: |\n    some prose here\n"),
-            "the prose sank +2 with the key: {healed}"
-        );
-        assert!(
-            !out.text.contains("NIKA-PARSE-001"),
-            "no YAML-level corruption survives: {}",
-            out.text
-        );
-        assert!(
-            nika_schema::parse(&healed, nika_schema::FileId::new(0), ParseMode::Lenient).is_ok(),
-            "the rewrite is valid YAML: {healed}"
-        );
-        assert!(
-            out.text.contains("NIKA-PARSE-005"),
-            "the residual finding is the author's `schema:` key: {}",
-            out.text
-        );
-        let _ = std::fs::remove_file(&path);
-    }
-
-    #[test]
-    fn w1_block_scalar_migration_converges_green_on_a_full_envelope() {
-        // The same re-indent on a COMPLETE pre-W1 file: envelope +
-        // tasks list + the block scalar all migrate and the final audit
-        // is clean — convergence IS the proof.
-        let dir = std::env::temp_dir().join(format!("nika-fix-i831green-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).expect("tmpdir");
-        let path = dir.join("full.nika.yaml");
-        std::fs::write(
-            &path,
-            "nika: v1\nworkflow: pulse\ndescription: |\n  some prose here\npermits: { exec: [\"true\"] }\ntasks:\n  - id: probe\n    exec: { command: [\"true\"] }\n",
-        )
-        .expect("write fixture");
-        let out = run(
-            path.to_str().expect("utf8 path"),
-            false,
-            None,
-            Theme::new(false, true, false),
-        );
-        let healed = std::fs::read_to_string(&path).expect("re-read");
-        assert!(
-            healed.contains("  description: |\n    some prose here\n"),
-            "{healed}"
-        );
-        assert!(healed.contains("  probe:\n"), "{healed}");
-        assert_eq!(out.code, exit::OK, "clean after the hoist: {}", out.text);
         let _ = std::fs::remove_file(&path);
     }
 }

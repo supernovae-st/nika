@@ -4,9 +4,7 @@
 # dynamic effects defer to the runtime). The realized-flow judge sees through
 # the structured hop anyway: fetch_page's content reaches the second fetch's
 # url, a realized sink. The parse hop does not launder the taint.
-nika: v1
-workflow:
-  id: f3-01-jq-hop-steers-the-egress-url
+nika: f3-01-jq-hop-steers-the-egress-url
 permits:
   fs: { read: ["./inbox/**"] }
   net: { http: ["api.example.com"] }

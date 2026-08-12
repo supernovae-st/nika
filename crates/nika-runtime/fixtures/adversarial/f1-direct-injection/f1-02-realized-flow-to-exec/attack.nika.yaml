@@ -2,9 +2,7 @@
 # hops into an exec command. All three trifecta legs are declared and no
 # human gate dominates the sink — the realized-flow judge must name
 # fetch_page → run_it before the workflow ever runs.
-nika: v1
-workflow:
-  id: f1-02-realized-flow-to-exec
+nika: f1-02-realized-flow-to-exec
 permits:
   fs: { read: ["./inbox/**"] }
   exec: ["sh"]

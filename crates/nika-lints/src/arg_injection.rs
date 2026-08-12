@@ -293,7 +293,7 @@ mod tests {
 
     fn one_lint(prog: &str) -> Lint {
         let yaml = format!(
-            "nika: v1\nworkflow:\n  id: ai\nconst:\n  x: \"v\"\ntasks:\n  t:\n    exec:\n      command: [\"{prog}\", \"${{{{ const.x }}}}\"]\n"
+            "nika: ai\nconst:\n  x: \"v\"\ntasks:\n  t:\n    exec:\n      command: [\"{prog}\", \"${{{{ const.x }}}}\"]\n"
         );
         let mut ls = lints_of(&yaml);
         assert_eq!(ls.len(), 1, "exactly one /001 for {prog}");
@@ -383,9 +383,7 @@ mod tests {
     #[test]
     fn flags_interpolated_value_for_a_catalog_binary() {
         let yaml = "\
-nika: v1
-workflow:
-  id: ai
+nika: ai
 const:
   host: \"example.com\"
 tasks:
@@ -409,9 +407,7 @@ tasks:
     #[test]
     fn dash_dash_suggestion_for_a_positional_binary() {
         let yaml = "\
-nika: v1
-workflow:
-  id: ai
+nika: ai
 const:
   file: \"data.tar\"
 tasks:
@@ -432,9 +428,7 @@ tasks:
     fn silent_when_dash_dash_guards_the_value() {
         // The value is AFTER a `--` separator → positional, never a flag.
         let yaml = "\
-nika: v1
-workflow:
-  id: ai
+nika: ai
 const:
   file: \"x\"
 tasks:
@@ -451,9 +445,7 @@ tasks:
     #[test]
     fn silent_without_interpolation() {
         let yaml = "\
-nika: v1
-workflow:
-  id: ai
+nika: ai
 tasks:
   connect:
     exec:
@@ -468,9 +460,7 @@ tasks:
     #[test]
     fn silent_for_a_non_catalog_binary() {
         let yaml = "\
-nika: v1
-workflow:
-  id: ai
+nika: ai
 const:
   msg: \"hello\"
 tasks:
@@ -488,9 +478,7 @@ tasks:
     fn silent_for_the_shell_form() {
         // The shell form is one-obvious-way/008's concern, not this pass's.
         let yaml = "\
-nika: v1
-workflow:
-  id: ai
+nika: ai
 const:
   host: \"h\"
 tasks:
@@ -507,9 +495,7 @@ tasks:
     #[test]
     fn basename_resolves_an_absolute_path() {
         let yaml = "\
-nika: v1
-workflow:
-  id: ai
+nika: ai
 const:
   url: \"https://x\"
 tasks:

@@ -3,9 +3,7 @@
 # attacker-influenced even with a statically clean prompt. That summary flows
 # into an ungated egress write — the realized-flow judge must name
 # browse → leak before the run. (Mirrors the engine's own ingress-agent pin.)
-nika: v1
-workflow:
-  id: f2-03-agent-browses-and-summarizes
+nika: f2-03-agent-browses-and-summarizes
 model: mock/echo
 permits:
   fs: { read: ["./inbox/**"], write: ["./out/**"] }

@@ -59,10 +59,7 @@ use nika_verb_invoke::InvokeVerb;
 /// joining both sources, a persist joining both infers, and a
 /// statically-closed gate. 5 waves · 7 tasks.
 const WORKFLOW_OK: &str = r#"
-nika: v1
-workflow:
-  id: e2e-veille
-  description: "gather facts in parallel, extract typed data, think once, persist, gated notify"
+nika: e2e-veille
 
 model: mock/echo
 

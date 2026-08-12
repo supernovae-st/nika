@@ -225,9 +225,7 @@ mod tests {
     #[test]
     fn assert_block_parses_obligations_and_refuses_the_unknown() {
         let ok = "\
-nika: v1
-workflow:
-  id: gated
+nika: gated
 assert:
   - no_secret_egress
   - before: { first: gate, second: deploy }
@@ -243,9 +241,7 @@ tasks:
         assert_eq!(wf.assert[2].value.name(), "bounded");
 
         let bad = "\
-nika: v1
-workflow:
-  id: gated
+nika: gated
 assert:
   - telepathy: {}
 tasks:
@@ -260,9 +256,7 @@ tasks:
 
         // A non-list `assert:` is refused too (it is a list of obligations).
         let not_a_list = "\
-nika: v1
-workflow:
-  id: gated
+nika: gated
 assert: no_secret_egress
 tasks:
   gate:
@@ -1088,9 +1082,7 @@ mod policy_tests {
     use crate::types::{EffectClass, Objective};
 
     const BASE: &str = "\
-nika: v1
-workflow:
-  id: demo
+nika: demo
 tasks:
   t:
     infer: { prompt: \"x\" }
@@ -1212,9 +1204,7 @@ mod permits_tests {
     }
 
     const BASE: &str = "\
-nika: v1
-workflow:
-  id: demo
+nika: demo
 tasks:
   t:
     exec: { command: [\"true\"] }
@@ -1340,9 +1330,7 @@ mod run_tests {
     use crate::types::{RunClock, RunEntropy};
 
     const BASE: &str = "\
-nika: v1
-workflow:
-  id: demo
+nika: demo
 ";
 
     fn parse_strict(yaml: &str) -> Result<crate::raw::RawWorkflow, crate::error::SchemaError> {

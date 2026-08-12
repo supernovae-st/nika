@@ -141,7 +141,7 @@ fn scratch(files: &[(&str, &str)]) -> tempfile::TempDir {
 
 /// The context.rs red fixture: `when:` as a bare string is a
 /// conformance finding — the file parses, the ladder refuses it.
-const RED_WORKFLOW: &str = "nika: v1\nworkflow:\n  id: bad\ntasks:\n  a:\n    exec: { command: [\"echo\", \"x\"] }\n  b:\n    after:\n      a: success\n    when: maybe\n    exec: { command: [\"echo\", \"y\"] }\n";
+const RED_WORKFLOW: &str = "nika: bad\ntasks:\n  a:\n    exec: { command: [\"echo\", \"x\"] }\n  b:\n    after:\n      a: success\n    when: maybe\n    exec: { command: [\"echo\", \"y\"] }\n";
 
 /// P0-3 (audit UX 2026-07-30) — one RED workflow, agents briefed:
 /// the concierge must NEVER carry a `nika run` CTA (head or dim)
@@ -195,7 +195,7 @@ fn one_clean_mock_workflow_keeps_the_run_cta_uncapped() {
         ("AGENTS.md", "x"),
         (
             "good.nika.yaml",
-            "nika: v1\nworkflow:\n  id: good\nmodel: mock/echo\ntasks:\n  a:\n    infer: { prompt: \"x\", max_tokens: 10 }\n",
+            "nika: good\nmodel: mock/echo\ntasks:\n  a:\n    infer: { prompt: \"x\", max_tokens: 10 }\n",
         ),
     ]);
     let (g, sole) = glance(dir.path(), 4000);
@@ -233,7 +233,7 @@ fn one_clean_priced_workflow_carries_the_loi3_cap() {
         ("AGENTS.md", "x"),
         (
             "priced.nika.yaml",
-            "nika: v1\nworkflow:\n  id: priced\nmodel: openai/gpt-4o-mini\ntasks:\n  a:\n    infer: { prompt: \"x\", max_tokens: 10 }\n",
+            "nika: priced\nmodel: openai/gpt-4o-mini\ntasks:\n  a:\n    infer: { prompt: \"x\", max_tokens: 10 }\n",
         ),
     ]);
     let (g, sole) = glance(dir.path(), 4000);
@@ -601,7 +601,9 @@ fn the_stranger_sees_the_language_and_it_fits_eighty_columns() {
         text.contains("a whole workflow is one file"),
         "0 workflows → the sample shows:\n{text}"
     );
-    assert!(text.contains("nika: v1"), "{text}");
+    // the sample teaches the LIVE envelope — a welcome screen showing
+    // `nika: v1` would hand a stranger a file its own binary refuses
+    assert!(text.contains("nika: hello"), "{text}");
     assert!(text.contains("infer:"), "{text}");
     for line in text.lines() {
         assert!(

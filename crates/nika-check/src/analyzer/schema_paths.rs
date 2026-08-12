@@ -742,9 +742,7 @@ mod tests {
         // `tasks.prod.output.nope` through `with:` (the binding is the
         // edge — and the boundary is where the path is judged).
         let yaml = "\
-nika: v1
-workflow:
-  id: t
+nika: t
 tasks:
   prod:
     infer:

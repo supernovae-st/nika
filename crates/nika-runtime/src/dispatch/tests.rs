@@ -29,9 +29,7 @@ use crate::{DeterministicStamper, Runtime, RuntimeConfig, VecSink};
 /// The issue's verbatim repro shape (`config.model` default · the
 /// ollama wire so the RESOLVED string is observable in the request
 /// body the provider seam captured).
-const ISSUE_824_REPRO: &str = "nika: v1\n\
-     workflow:\n  \
-     id: seat-from-config\n\
+const ISSUE_824_REPRO: &str = "nika: seat-from-config\n\
      config:\n  \
      model: { type: string, default: \"ollama/llama3.2:3b\" }\n\
      tasks:\n  \
@@ -62,9 +60,7 @@ async fn infer_model_config_template_resolves_before_the_wire() {
 #[tokio::test]
 async fn agent_model_config_template_resolves_before_the_provider() {
     let wf = nika_schema::parse(
-        "nika: v1\n\
-         workflow:\n  \
-         id: agent-seat\n\
+        "nika: agent-seat\n\
          config:\n  \
          model: { type: string, default: \"mock/echo\" }\n\
          tasks:\n  \

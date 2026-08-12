@@ -178,7 +178,8 @@ mod tests {
         scan_data_sink(&wf)
     }
 
-    const BASE: &str = "nika: v1\nworkflow:\n  id: w\npermits:\n  net: { http: [\"data.example.com\"] }\n  tools: [\"nika:fetch\"]\n";
+    const BASE: &str =
+        "nika: w\npermits:\n  net: { http: [\"data.example.com\"] }\n  tools: [\"nika:fetch\"]\n";
 
     // ── the conformance fixtures 018-022, mirrored one test each ──
 

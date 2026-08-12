@@ -710,7 +710,7 @@ mod tests {
                 .collect::<Vec<_>>()
                 .join(", ");
             let yaml = format!(
-                "nika: v1\nworkflow:\n  id: w\npermits:\n  exec: true\ntasks:\n  t:\n    exec: {{ command: [{list}] }}\n"
+                "nika: w\npermits:\n  exec: true\ntasks:\n  t:\n    exec: {{ command: [{list}] }}\n"
             );
             let wf = nika_schema::parser::parse(
                 &yaml,

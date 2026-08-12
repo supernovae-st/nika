@@ -293,7 +293,7 @@ mod tests {
     /// stays bare.
     #[test]
     fn task_labels_speak_the_static_truth() {
-        let yaml = "nika: v1\nworkflow:\n  id: t\nmodel: ollama/qwen3.5:4b\ntasks:\n  think:\n    infer: { prompt: hi }\n  pinned:\n    infer: { prompt: hi, model: \"mock/echo\" }\n  fetch:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://example.com\" } }\n  build:\n    exec: { command: [\"sleep\", \"1\"] }\n";
+        let yaml = "nika: t\nmodel: ollama/qwen3.5:4b\ntasks:\n  think:\n    infer: { prompt: hi }\n  pinned:\n    infer: { prompt: hi, model: \"mock/echo\" }\n  fetch:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://example.com\" } }\n  build:\n    exec: { command: [\"sleep\", \"1\"] }\n";
         let wf = nika_schema::parse(
             yaml,
             nika_schema::FileId::new(0),

@@ -6,9 +6,7 @@
 # default-deny fs boundary and the refusal lands pre-spawn (NIKA-SEC-004).
 # The argv form stays the structural fix against shell re-parsing; the
 # re-gate closes what the program allowlist could not see.
-nika: v1
-workflow:
-  id: f3-03-allowlisted-program-tainted-argv
+nika: f3-03-allowlisted-program-tainted-argv
 permits:
   exec: ["echo"]
   net: { http: ["news.example"] }

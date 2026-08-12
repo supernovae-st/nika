@@ -83,9 +83,7 @@ fn workflow_strategy() -> impl Strategy<Value = Vec<TaskSpec>> {
 
 /// Render the structure to YAML with `prefix` naming the tasks.
 fn to_yaml(tasks: &[TaskSpec], prefix: &str) -> String {
-    let mut y = String::from(
-        "nika: v1\nworkflow:\n  id: meta\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n",
-    );
+    let mut y = String::from("nika: meta\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n");
     for (i, t) in tasks.iter().enumerate() {
         let id = format!("{prefix}{i}");
         let _ = writeln!(y, "  {id}:");
@@ -286,7 +284,7 @@ proptest! {
                 String::new()
             };
             let mut y = String::from(
-                "nika: v1\nworkflow:\n  id: meta\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n",
+                "nika: meta\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n",
             );
             for i in 0..n {
                 use std::fmt::Write as _;

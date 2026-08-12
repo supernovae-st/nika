@@ -80,7 +80,7 @@ async fn run_with_ingress(
 /// a `with:` slot (NIKA-VAR-021's idiom).
 fn exec_workflow(permits: &str, task: &str) -> String {
     format!(
-        "nika: v1\nworkflow:\n  id: regate\n{permits}\ntasks:\n  dl:\n    invoke:\n      tool: \"nika:fetch\"\n      args: {{ url: \"https://news.example/payload.txt\" }}\n{task}\n"
+        "nika: regate\n{permits}\ntasks:\n  dl:\n    invoke:\n      tool: \"nika:fetch\"\n      args: {{ url: \"https://news.example/payload.txt\" }}\n{task}\n"
     )
 }
 
@@ -92,7 +92,7 @@ fn exec_workflow(permits: &str, task: &str) -> String {
 /// the canonical fold refuses the argv element pre-spawn.
 #[tokio::test]
 async fn untrusted_traversal_under_fs_read_is_refused() {
-    let yaml = "nika: v1\nworkflow:\n  id: regate\ninputs:\n  p: { type: string, default: \"datasets/../../../etc/passwd\" }\npermits:\n  exec: [\"tar\"]\n  fs: { read: [\"datasets/**\"] }\ntasks:\n  untar:\n    with: { p: \"${{ inputs.p }}\" }\n    exec: { command: [\"tar\", \"-xf\", \"${{ with.p }}\"] }\n";
+    let yaml = "nika: regate\ninputs:\n  p: { type: string, default: \"datasets/../../../etc/passwd\" }\npermits:\n  exec: [\"tar\"]\n  fs: { read: [\"datasets/**\"] }\ntasks:\n  untar:\n    with: { p: \"${{ inputs.p }}\" }\n    exec: { command: [\"tar\", \"-xf\", \"${{ with.p }}\"] }\n";
     let (outcome, _, shell) = run_with_ingress(yaml, "unused", MockShell::new()).await;
     assert!(!outcome.ok, "a re-gate refusal fails the run");
     let rec = &outcome.records["untar"];
@@ -141,7 +141,7 @@ async fn untrusted_option_injection_is_refused() {
 /// re-gate is not a blind deny, the step RUNS.
 #[tokio::test]
 async fn untrusted_value_inside_the_permit_runs() {
-    let yaml = "nika: v1\nworkflow:\n  id: regate\ninputs:\n  p: { type: string, default: \"datasets/2026/report.csv\" }\npermits:\n  exec: [\"tar\"]\n  fs: { read: [\"datasets/**\"] }\ntasks:\n  untar:\n    with: { p: \"${{ inputs.p }}\" }\n    exec: { command: [\"tar\", \"-xf\", \"${{ with.p }}\"] }\n";
+    let yaml = "nika: regate\ninputs:\n  p: { type: string, default: \"datasets/2026/report.csv\" }\npermits:\n  exec: [\"tar\"]\n  fs: { read: [\"datasets/**\"] }\ntasks:\n  untar:\n    with: { p: \"${{ inputs.p }}\" }\n    exec: { command: [\"tar\", \"-xf\", \"${{ with.p }}\"] }\n";
     let (outcome, _, shell) =
         run_with_ingress(yaml, "unused", MockShell::new().enqueue_ok("extracted\n")).await;
     assert!(outcome.ok, "a covered value runs: {:?}", outcome.records);
@@ -158,7 +158,7 @@ async fn untrusted_value_inside_the_permit_runs() {
 /// the tool is the category, never the resolved value).
 #[tokio::test]
 async fn untrusted_mcp_arg_escaping_net_is_refused() {
-    let yaml = "nika: v1\nworkflow:\n  id: regate-mcp\npermits:\n  net: { http: [\"news.example\", \"api.example.com\"] }\n  tools: [\"nika:fetch\", \"mcp:store/put\"]\ntasks:\n  dl:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://news.example/payload.txt\" }\n  put:\n    after: { dl: success }\n    with: { u: \"${{ tasks.dl.output }}\" }\n    invoke:\n      tool: \"mcp:store/put\"\n      args: { url: \"${{ with.u }}\" }\n";
+    let yaml = "nika: regate-mcp\npermits:\n  net: { http: [\"news.example\", \"api.example.com\"] }\n  tools: [\"nika:fetch\", \"mcp:store/put\"]\ntasks:\n  dl:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://news.example/payload.txt\" }\n  put:\n    after: { dl: success }\n    with: { u: \"${{ tasks.dl.output }}\" }\n    invoke:\n      tool: \"mcp:store/put\"\n      args: { url: \"${{ with.u }}\" }\n";
     let (outcome, tools, _) =
         run_with_ingress(yaml, "https://evil.example/x", MockShell::new()).await;
     assert!(!outcome.ok);
@@ -183,7 +183,7 @@ async fn untrusted_mcp_arg_escaping_net_is_refused() {
 /// egress — the static human-gate, a different law.)
 #[tokio::test]
 async fn untrusted_mcp_path_arg_inside_the_permit_runs() {
-    let yaml = "nika: v1\nworkflow:\n  id: regate-mcp-ok\ninputs:\n  p: { type: string, default: \"datasets/report.csv\" }\npermits:\n  fs: { read: [\"datasets/**\"] }\n  tools: [\"mcp:fs/read\"]\ntasks:\n  read:\n    with: { p: \"${{ inputs.p }}\" }\n    invoke:\n      tool: \"mcp:fs/read\"\n      args: { path: \"${{ with.p }}\" }\n";
+    let yaml = "nika: regate-mcp-ok\ninputs:\n  p: { type: string, default: \"datasets/report.csv\" }\npermits:\n  fs: { read: [\"datasets/**\"] }\n  tools: [\"mcp:fs/read\"]\ntasks:\n  read:\n    with: { p: \"${{ inputs.p }}\" }\n    invoke:\n      tool: \"mcp:fs/read\"\n      args: { path: \"${{ with.p }}\" }\n";
     let tools =
         Arc::new(MockToolExecutor::new().enqueue_ok(ToolResult::success("r1", "file contents")));
     let registry = Arc::new(ProviderRegistry::without_http(ProvidersConfig::default()));
@@ -250,7 +250,7 @@ async fn untrusted_cwd_escaping_is_refused() {
 /// cleanup's exec would reach the (enqueue-less) mock and panic.
 #[tokio::test]
 async fn on_finally_cleanup_reading_the_parents_taint_is_regated() {
-    let yaml = "nika: v1\nworkflow:\n  id: regate-finally\npermits:\n  exec: [\"tar\"]\n  net: { http: [\"news.example\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  dl:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://news.example/payload.txt\" }\n    on_finally:\n      - exec: { command: [\"tar\", \"-xf\", \"${{ tasks.dl.output }}\"] }\n";
+    let yaml = "nika: regate-finally\npermits:\n  exec: [\"tar\"]\n  net: { http: [\"news.example\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  dl:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://news.example/payload.txt\" }\n    on_finally:\n      - exec: { command: [\"tar\", \"-xf\", \"${{ tasks.dl.output }}\"] }\n";
     let (outcome, _, shell) =
         run_with_ingress(yaml, "datasets/../../../etc/passwd", MockShell::new()).await;
     assert!(
@@ -272,7 +272,7 @@ async fn on_finally_cleanup_reading_the_parents_taint_is_regated() {
 /// carrying `from` · `because` · the admitted value's digest.
 #[tokio::test]
 async fn declassify_admits_the_binding_and_the_receipt_records_it() {
-    let yaml = "nika: v1\nworkflow:\n  id: regate-declassify\ninputs:\n  p: { type: string, default: \"datasets/../../../etc/passwd\" }\npermits:\n  exec: [\"tar\"]\n  fs: { read: [\"datasets/**\"] }\ntasks:\n  untar:\n    exec: { command: [\"tar\", \"-xf\", \"${{ inputs.p }}\"] }\n    declassify:\n      - from: inputs.p\n        to: trusted\n        because: \"pinned vendor bundle, hash-reviewed at release time\"\n";
+    let yaml = "nika: regate-declassify\ninputs:\n  p: { type: string, default: \"datasets/../../../etc/passwd\" }\npermits:\n  exec: [\"tar\"]\n  fs: { read: [\"datasets/**\"] }\ntasks:\n  untar:\n    exec: { command: [\"tar\", \"-xf\", \"${{ inputs.p }}\"] }\n    declassify:\n      - from: inputs.p\n        to: trusted\n        because: \"pinned vendor bundle, hash-reviewed at release time\"\n";
     let (outcome, _, shell) =
         run_with_ingress(yaml, "unused", MockShell::new().enqueue_ok("extracted\n")).await;
     assert!(

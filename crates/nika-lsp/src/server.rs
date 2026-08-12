@@ -444,7 +444,7 @@ mod tests {
     #[test]
     fn hover_request_returns_verb_doc() {
         let mut docs = BTreeMap::new();
-        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    infer: { prompt: \"hi\" }\n";
+        let yaml = "nika: w\ntasks:\n  a:\n    infer: { prompt: \"hi\" }\n";
         open(&mut docs, yaml);
         let index = LineIndex::new(yaml);
         let pos = index.position(yaml.find("infer").expect("verb") + 1);
@@ -467,7 +467,7 @@ mod tests {
     #[test]
     fn document_symbol_request_returns_nested_tree() {
         let mut docs = BTreeMap::new();
-        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"x\"] }\n";
+        let yaml = "nika: w\ntasks:\n  a:\n    exec: { command: [\"x\"] }\n";
         open(&mut docs, yaml);
         let params = DocumentSymbolParams {
             text_document: TextDocumentIdentifier::new(uri()),
@@ -554,7 +554,7 @@ mod tests {
     #[test]
     fn diagnose_broken_workflow_yields_an_error() {
         let doc = Document::new(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    after: { ghost: success }\n    exec: { command: [\"x\"] }\n",
+            "nika: w\ntasks:\n  a:\n    after: { ghost: success }\n    exec: { command: [\"x\"] }\n",
         );
         let diags = diagnose(&doc);
         assert!(
@@ -625,10 +625,10 @@ mod tests {
         let mut docs: Docs = BTreeMap::new();
         open(
             &mut docs,
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"x\"] }\n",
+            "nika: w\ntasks:\n  a:\n    exec: { command: [\"x\"] }\n",
         );
         // change to a BROKEN workflow (waits on a ghost) → an error diag.
-        let broken = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    after: { ghost: success }\n    exec: { command: [\"x\"] }\n";
+        let broken = "nika: w\ntasks:\n  a:\n    after: { ghost: success }\n    exec: { command: [\"x\"] }\n";
         handle_notification(&server, change_note(broken), &mut docs).expect("handled");
         assert_eq!(
             docs.get(uri_key(&uri())).map(Document::text),
@@ -880,7 +880,7 @@ mod canary {
 
     /// Open a `model:`-value document and queue a completion request (id 13).
     fn queue_model_completion(client: &Connection) {
-        let model_doc = "nika: v1\nworkflow:\n  id: w\nmodel: ";
+        let model_doc = "nika: w\nmodel: ";
         let model_uri = Uri::from_str("file:///m.nika.yaml").expect("uri");
         open_uri(client, &model_uri, model_doc);
         let model_idx = crate::analysis::position::LineIndex::new(model_doc);
@@ -986,12 +986,12 @@ mod canary {
             .expect("initialized");
 
         // 1) A broken workflow → a NIKA-* error diagnostic published.
-        let broken = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    after: { ghost: success }\n    exec: { command: [\"x\"] }\n";
+        let broken = "nika: w\ntasks:\n  a:\n    after: { ghost: success }\n    exec: { command: [\"x\"] }\n";
         did_open(&client, broken);
 
         // 2) A clean workflow with a verb, an `after:` entry and a
         //    template ref riding a `with:` binding (the W2 doors).
-        let hello = "nika: v1\nworkflow:\n  id: hello\ntasks:\n  greet:\n    infer: { prompt: \"hi\", max_tokens: 10 }\n  use_it:\n    after: { greet: success }\n    with:\n      msg: \"${{ tasks.greet.output }}\"\n    exec: { command: [\"echo\", \"${{ with.msg }}\"] }\n";
+        let hello = "nika: hello\ntasks:\n  greet:\n    infer: { prompt: \"hi\", max_tokens: 10 }\n  use_it:\n    after: { greet: success }\n    with:\n      msg: \"${{ tasks.greet.output }}\"\n    exec: { command: [\"echo\", \"${{ with.msg }}\"] }\n";
         let hello_uri = Uri::from_str("file:///hello.nika.yaml").expect("uri");
         open_uri(&client, &hello_uri, hello);
         let idx = crate::analysis::position::LineIndex::new(hello);
@@ -1119,7 +1119,8 @@ mod canary {
             .sender
             .send(Notification::new("initialized".to_owned(), serde_json::json!({})).into())
             .expect("initialized");
-        let hello = "nika: v1\nworkflow:\n  id: hello\ntasks:\n  greet:\n    infer: { prompt: \"hi\", max_tokens: 10 }\n";
+        let hello =
+            "nika: hello\ntasks:\n  greet:\n    infer: { prompt: \"hi\", max_tokens: 10 }\n";
         let hello_uri = Uri::from_str("file:///hello.nika.yaml").expect("uri");
         open_uri(&client, &hello_uri, hello);
         let idx = crate::analysis::position::LineIndex::new(hello);

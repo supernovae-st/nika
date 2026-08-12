@@ -39,9 +39,7 @@ fn write_file(dir: &std::path::Path, name: &str, body: &str) -> std::path::PathB
 }
 
 const FAN: &str = r#"
-nika: v1
-workflow:
-  id: fan-tally
+nika: fan-tally
 model: mock/echo
 permits:
   tools: ["nika:read"]

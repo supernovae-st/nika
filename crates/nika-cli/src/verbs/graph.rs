@@ -244,7 +244,7 @@ mod tests {
     #[test]
     fn mermaid_paints_verb_identity() {
         let (mermaid, _) = renders(
-            "nika: v1\nworkflow:\n  id: paint\nmodel: mock/echo\ntasks:\n  a:\n    infer: { prompt: \"p\", max_tokens: 5 }\n",
+            "nika: paint\nmodel: mock/echo\ntasks:\n  a:\n    infer: { prompt: \"p\", max_tokens: 5 }\n",
         );
         assert!(mermaid.contains(":::infer"), "node classed:\n{mermaid}");
         assert!(
@@ -265,7 +265,7 @@ mod tests {
     fn special_chars_in_model_are_escaped_in_both_renders() {
         // model value parses to ·  mock/echo"]x
         let (mermaid, dot) = renders(
-            "nika: v1\nworkflow:\n  id: adv\nmodel: \"mock/echo\\\"]x\"\ntasks:\n  a:\n    infer: { prompt: \"p\", max_tokens: 5 }\n",
+            "nika: adv\nmodel: \"mock/echo\\\"]x\"\ntasks:\n  a:\n    infer: { prompt: \"p\", max_tokens: 5 }\n",
         );
         assert!(
             mermaid.contains("#quot;"),
@@ -284,7 +284,7 @@ mod tests {
     /// (`skip_serializing` — no fake defaults).
     #[test]
     fn declared_policy_projects_and_undeclared_stays_absent() {
-        let yaml = "nika: v1\nworkflow:\n  id: policy\nmodel: mock/echo\ntasks:\n  guarded:\n    infer: { prompt: \"p\", max_tokens: 5 }\n    timeout: \"30s\"\n    retry:\n      max_attempts: 3\n    on_error:\n      skip: true\n    output:\n      summary: \".text\"\n      title: \".title\"\n  bare:\n    after:\n      guarded: success\n    infer: { prompt: \"q\", max_tokens: 5 }\n";
+        let yaml = "nika: policy\nmodel: mock/echo\ntasks:\n  guarded:\n    infer: { prompt: \"p\", max_tokens: 5 }\n    timeout: \"30s\"\n    retry:\n      max_attempts: 3\n    on_error:\n      skip: true\n    output:\n      summary: \".text\"\n      title: \".title\"\n  bare:\n    after:\n      guarded: success\n    infer: { prompt: \"q\", max_tokens: 5 }\n";
         let wf = nika_schema::parse(
             yaml,
             nika_schema::FileId::new(0),

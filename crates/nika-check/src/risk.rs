@@ -172,7 +172,7 @@ mod tests {
     fn uncapped_inference_is_unbounded() {
         assert_eq!(
             grade_of(
-                "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  t:\n    infer: { prompt: hi }\n",
+                "nika: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  t:\n    infer: { prompt: hi }\n",
             ),
             RiskGrade::Unbounded,
             "no max_tokens = no ceiling"
@@ -185,7 +185,7 @@ mod tests {
     fn an_agent_loop_without_a_token_cap_is_unbounded() {
         assert_eq!(
             grade_of(
-                "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\npermits: { tools: [\"nika:read\"] }\ntasks:\n  t:\n    agent: { prompt: go, tools: [\"nika:read\"], max_turns: 100 }\n",
+                "nika: w\nmodel: anthropic/claude-sonnet-4-6\npermits: { tools: [\"nika:read\"] }\ntasks:\n  t:\n    agent: { prompt: go, tools: [\"nika:read\"], max_turns: 100 }\n",
             ),
             RiskGrade::Unbounded,
             "max_turns bounds turns, never tokens"
@@ -193,7 +193,7 @@ mod tests {
         // …and the SAME loop with a hard budget drops off the top rung.
         assert_ne!(
             grade_of(
-                "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\npermits: { tools: [\"nika:read\"] }\ntasks:\n  t:\n    agent: { prompt: go, tools: [\"nika:read\"], max_turns: 100, max_tokens_total: 5000 }\n",
+                "nika: w\nmodel: anthropic/claude-sonnet-4-6\npermits: { tools: [\"nika:read\"] }\ntasks:\n  t:\n    agent: { prompt: go, tools: [\"nika:read\"], max_turns: 100, max_tokens_total: 5000 }\n",
             ),
             RiskGrade::Unbounded,
             "max_tokens_total is the ceiling"
@@ -206,7 +206,7 @@ mod tests {
     fn true_wildcard_grants_are_unbounded() {
         let bounded = |permits: &str| {
             format!(
-                "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\npermits: {permits}\ntasks:\n  t:\n    infer: {{ prompt: hi, max_tokens: 10 }}\n"
+                "nika: w\nmodel: anthropic/claude-sonnet-4-6\npermits: {permits}\ntasks:\n  t:\n    infer: {{ prompt: hi, max_tokens: 10 }}\n"
             )
         };
         assert_eq!(
@@ -237,14 +237,14 @@ mod tests {
     fn glob_grants_are_high() {
         assert_eq!(
             grade_of(
-                "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\npermits: { tools: [\"nika:*\"] }\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 10 }\n",
+                "nika: w\nmodel: anthropic/claude-sonnet-4-6\npermits: { tools: [\"nika:*\"] }\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 10 }\n",
             ),
             RiskGrade::High,
             "tools `nika:*` is the whole builtin surface, bounded"
         );
         assert_eq!(
             grade_of(
-                "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\npermits: { fs: { write: [\"out/*\"] } }\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 10 }\n",
+                "nika: w\nmodel: anthropic/claude-sonnet-4-6\npermits: { fs: { write: [\"out/*\"] } }\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 10 }\n",
             ),
             RiskGrade::High,
             "an fs single-star is broad, not ceiling-less"
@@ -257,7 +257,7 @@ mod tests {
     fn narrow_declared_effects_are_supervised() {
         assert_eq!(
             grade_of(
-                "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\npermits: { exec: [\"echo\"] }\ntasks:\n  t:\n    exec: { command: [\"echo\", \"hi\"] }\n",
+                "nika: w\nmodel: anthropic/claude-sonnet-4-6\npermits: { exec: [\"echo\"] }\ntasks:\n  t:\n    exec: { command: [\"echo\", \"hi\"] }\n",
             ),
             RiskGrade::Supervised,
             "a named program is a narrow grant"
@@ -270,14 +270,14 @@ mod tests {
     fn pure_compute_is_low() {
         assert_eq!(
             grade_of(
-                "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\npermits: {}\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 10 }\n",
+                "nika: w\nmodel: anthropic/claude-sonnet-4-6\npermits: {}\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 10 }\n",
             ),
             RiskGrade::Low,
             "the declared zero"
         );
         assert_eq!(
             grade_of(
-                "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 10 }\n",
+                "nika: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 10 }\n",
             ),
             RiskGrade::Low,
             "the absent boundary is the zero boundary"

@@ -94,9 +94,7 @@ fn str_field<'a>(event: &'a Event, key: &str) -> Option<&'a str> {
 #[tokio::test]
 async fn on_finally_runs_on_success_and_failure_and_routes_on_status() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: cleanup
+nika: cleanup
 permits: { exec: true }
 tasks:
   works:
@@ -149,9 +147,7 @@ tasks:
 #[tokio::test]
 async fn on_finally_decisions_are_attested_as_permit_checked() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: attest-finally
+nika: attest-finally
 model: mock/echo
 permits: { exec: ["echo"] }
 tasks:
@@ -193,9 +189,7 @@ tasks:
 #[tokio::test]
 async fn on_finally_errors_are_swallowed() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: cleanup-err
+nika: cleanup-err
 permits: { exec: true }
 tasks:
   main:

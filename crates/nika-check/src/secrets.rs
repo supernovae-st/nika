@@ -191,7 +191,7 @@ secrets:
     #[test]
     fn secret_into_exec_command_leaks() {
         let yaml = format!(
-            "nika: v1\nworkflow:\n  id: leak\n{SECRETS}tasks:\n  t:\n    exec: {{ shell: \"curl -H 'Auth: ${{{{ secrets.api_key }}}}' x\" }}\n"
+            "nika: leak\n{SECRETS}tasks:\n  t:\n    exec: {{ shell: \"curl -H 'Auth: ${{{{ secrets.api_key }}}}' x\" }}\n"
         );
         let l = leaks_of(&yaml);
         assert_eq!(l.len(), 1);
@@ -202,7 +202,7 @@ secrets:
     #[test]
     fn secret_into_exec_env_leaks() {
         let yaml = format!(
-            "nika: v1\nworkflow:\n  id: leak\n{SECRETS}tasks:\n  t:\n    exec:\n      command: [\"printenv\"]\n      env:\n        TOKEN: \"${{{{ secrets.api_key }}}}\"\n"
+            "nika: leak\n{SECRETS}tasks:\n  t:\n    exec:\n      command: [\"printenv\"]\n      env:\n        TOKEN: \"${{{{ secrets.api_key }}}}\"\n"
         );
         let l = leaks_of(&yaml);
         assert_eq!(l.len(), 1);
@@ -212,7 +212,7 @@ secrets:
     #[test]
     fn secret_into_invoke_args_leaks() {
         let yaml = format!(
-            "nika: v1\nworkflow:\n  id: leak\n{SECRETS}tasks:\n  t:\n    invoke: {{ tool: \"nika:write\", args: {{ path: \"x\", content: \"${{{{ secrets.api_key }}}}\" }} }}\n"
+            "nika: leak\n{SECRETS}tasks:\n  t:\n    invoke: {{ tool: \"nika:write\", args: {{ path: \"x\", content: \"${{{{ secrets.api_key }}}}\" }} }}\n"
         );
         let l = leaks_of(&yaml);
         assert_eq!(l.len(), 1);
@@ -224,7 +224,7 @@ secrets:
         // BUG#3: a secret in an infer prompt leaves the run to a third-party
         // provider — a leak (sink "infer") unless sanctioned by `to: "infer"`.
         let yaml = format!(
-            "nika: v1\nworkflow:\n  id: leak\n{SECRETS}tasks:\n  t:\n    infer: {{ prompt: \"use ${{{{ secrets.api_key }}}}\", max_tokens: 10 }}\n"
+            "nika: leak\n{SECRETS}tasks:\n  t:\n    infer: {{ prompt: \"use ${{{{ secrets.api_key }}}}\", max_tokens: 10 }}\n"
         );
         let l = leaks_of(&yaml);
         assert_eq!(l.len(), 1, "the provider send is a leak");
@@ -236,7 +236,7 @@ secrets:
     fn secret_into_agent_prompt_is_a_leak() {
         // BUG#3: the agent prompt is the same provider-egress sink.
         let yaml = format!(
-            "nika: v1\nworkflow:\n  id: leak\n{SECRETS}tasks:\n  t:\n    agent: {{ prompt: \"do ${{{{ secrets.api_key }}}}\", max_turns: 2 }}\n"
+            "nika: leak\n{SECRETS}tasks:\n  t:\n    agent: {{ prompt: \"do ${{{{ secrets.api_key }}}}\", max_turns: 2 }}\n"
         );
         let l = leaks_of(&yaml);
         assert_eq!(l.len(), 1);
@@ -247,14 +247,14 @@ secrets:
     fn non_secret_prompt_is_clean() {
         // A prompt with no secret reference is clean (no false positive).
         let yaml = format!(
-            "nika: v1\nworkflow:\n  id: ok\n{SECRETS}tasks:\n  t:\n    infer: {{ prompt: \"just text\", max_tokens: 10 }}\n"
+            "nika: ok\n{SECRETS}tasks:\n  t:\n    infer: {{ prompt: \"just text\", max_tokens: 10 }}\n"
         );
         assert!(leaks_of(&yaml).is_empty(), "no secret reference → no leak");
     }
 
     #[test]
     fn no_secrets_declared_no_scan() {
-        let yaml = "nika: v1\nworkflow:\n  id: none\ntasks:\n  t:\n    exec: { command: [\"echo\", \"hi\"] }\n";
+        let yaml = "nika: none\ntasks:\n  t:\n    exec: { command: [\"echo\", \"hi\"] }\n";
         assert!(leaks_of(yaml).is_empty());
     }
 
@@ -262,7 +262,7 @@ secrets:
     fn with_aliased_secret_now_leaks_with_a_trace() {
         // The review's false negative — fixed by the IFC engine.
         let yaml = format!(
-            "nika: v1\nworkflow:\n  id: w\n{SECRETS}tasks:\n  t:\n    with: {{ tok: \"${{{{ secrets.api_key }}}}\" }}\n    exec: {{ shell: \"curl -H ${{{{ with.tok }}}}\" }}\n"
+            "nika: w\n{SECRETS}tasks:\n  t:\n    with: {{ tok: \"${{{{ secrets.api_key }}}}\" }}\n    exec: {{ shell: \"curl -H ${{{{ with.tok }}}}\" }}\n"
         );
         let l = leaks_of(&yaml);
         assert_eq!(l.len(), 1);
@@ -272,7 +272,7 @@ secrets:
     #[test]
     fn secret_into_on_finally_cleanup_leaks() {
         let yaml = format!(
-            "nika: v1\nworkflow:\n  id: w\n{SECRETS}tasks:\n  t:\n    exec: {{ command: [\"echo\", \"build\"] }}\n    on_finally:\n      - invoke: {{ tool: \"nika:write\", args: {{ path: \"x\", content: \"${{{{ secrets.api_key }}}}\" }} }}\n"
+            "nika: w\n{SECRETS}tasks:\n  t:\n    exec: {{ command: [\"echo\", \"build\"] }}\n    on_finally:\n      - invoke: {{ tool: \"nika:write\", args: {{ path: \"x\", content: \"${{{{ secrets.api_key }}}}\" }} }}\n"
         );
         let l = leaks_of(&yaml);
         assert_eq!(l.len(), 1, "the cleanup leak is reported");
@@ -283,7 +283,7 @@ secrets:
     #[test]
     fn secret_egress_into_outputs_is_reported() {
         let yaml = format!(
-            "nika: v1\nworkflow:\n  id: w\n{SECRETS}tasks:\n  a:\n    exec: {{ shell: \"echo ${{{{ secrets.api_key }}}}\" }}\noutputs:\n  leaked: ${{{{ tasks.a.output }}}}\n"
+            "nika: w\n{SECRETS}tasks:\n  a:\n    exec: {{ shell: \"echo ${{{{ secrets.api_key }}}}\" }}\noutputs:\n  leaked: ${{{{ tasks.a.output }}}}\n"
         );
         let e = egresses_of(&yaml);
         assert_eq!(e.len(), 1);
@@ -295,7 +295,7 @@ secrets:
     fn literal_prose_mentioning_secret_is_not_a_leak() {
         // No ${{ }} island → no reference → no leak (the prose false positive).
         let yaml = format!(
-            "nika: v1\nworkflow:\n  id: w\n{SECRETS}tasks:\n  t:\n    exec: {{ command: [\"echo\", \"'set\", \"secrets.api_key\", \"in\", \"vault'\"] }}\n"
+            "nika: w\n{SECRETS}tasks:\n  t:\n    exec: {{ command: [\"echo\", \"'set\", \"secrets.api_key\", \"in\", \"vault'\"] }}\n"
         );
         assert!(
             leaks_of(&yaml).is_empty(),
@@ -325,9 +325,7 @@ mod declassification {
     #[test]
     fn sanctioned_fetch_literal_host_is_clean() {
         let yaml = "\
-nika: v1
-workflow:
-  id: w
+nika: w
 secrets:
   stripe:
     source: env
@@ -349,9 +347,7 @@ tasks:
     #[test]
     fn sanctioned_fetch_to_unlisted_host_still_leaks() {
         let yaml = "\
-nika: v1
-workflow:
-  id: w
+nika: w
 secrets:
   stripe:
     source: env
@@ -376,9 +372,7 @@ tasks:
     fn host_clause_with_derived_destination_still_leaks() {
         // robust declass: the host is templated → not author-fixed.
         let yaml = "\
-nika: v1
-workflow:
-  id: w
+nika: w
 const: { ep: \"api.stripe.com\" }
 secrets:
   stripe:
@@ -401,9 +395,7 @@ tasks:
     #[test]
     fn host_from_self_direct_secret_url_is_clean() {
         let yaml = "\
-nika: v1
-workflow:
-  id: w
+nika: w
 secrets:
   hook:
     source: env
@@ -426,9 +418,7 @@ tasks:
     #[test]
     fn host_from_self_with_concatenated_url_still_leaks() {
         let yaml = "\
-nika: v1
-workflow:
-  id: w
+nika: w
 secrets:
   hook:
     source: env
@@ -452,9 +442,7 @@ tasks:
     fn host_from_self_with_second_secret_in_body_still_leaks() {
         // non-occlusion: a second secret rides out under the trusted URL.
         let yaml = "\
-nika: v1
-workflow:
-  id: w
+nika: w
 secrets:
   hook:
     source: env
@@ -487,9 +475,7 @@ tasks:
     fn cross_tool_laundering_still_leaks() {
         // egress cleared nika:fetch, but the secret is used in exec.
         let yaml = "\
-nika: v1
-workflow:
-  id: w
+nika: w
 secrets:
   k:
     source: env
@@ -510,9 +496,7 @@ tasks:
     fn permits_net_intersection_blocks_egress() {
         // host cleared by egress but absent from permits.net.http (L3).
         let yaml = "\
-nika: v1
-workflow:
-  id: w
+nika: w
 permits:
   net: { http: [\"api.anthropic.com\"] }
   tools: [\"nika:fetch\"]
@@ -544,9 +528,7 @@ tasks:
         // leaves the run to a third-party provider · supersedes the prior
         // unconditional carve-out · same class as a secret→mcp: tool).
         let yaml = "\
-nika: v1
-workflow:
-  id: w
+nika: w
 secrets:
   k:
     source: env
@@ -567,9 +549,7 @@ tasks:
         // workflow-controlled URL — L2/L3 vacuous, same shape as an `exec`
         // egress). The OUTPUT is never tainted regardless (flow.rs §4).
         let yaml = "\
-nika: v1
-workflow:
-  id: w
+nika: w
 secrets:
   k:
     source: env
@@ -591,9 +571,7 @@ tasks:
         // `to: "agent"` clears the agent send; an `infer`-only clearance does
         // NOT cross to an agent sink (the no-cross-tool-laundering rule).
         let agent_ok = "\
-nika: v1
-workflow:
-  id: w
+nika: w
 secrets:
   k:
     source: env
@@ -610,9 +588,7 @@ tasks:
         );
 
         let wrong_sink = "\
-nika: v1
-workflow:
-  id: w
+nika: w
 secrets:
   k:
     source: env
@@ -636,9 +612,7 @@ tasks:
     fn sanctioned_on_finally_cleanup_is_clean() {
         // the declass clears the cleanup's webhook egress (the war-room shape).
         let yaml = "\
-nika: v1
-workflow:
-  id: w
+nika: w
 secrets:
   hook:
     source: env
@@ -665,9 +639,7 @@ tasks:
         // soundness: a sanctioned FIRST cleanup must not mask an
         // unsanctioned SECOND one.
         let yaml = "\
-nika: v1
-workflow:
-  id: w
+nika: w
 secrets:
   hook:
     source: env
@@ -710,7 +682,7 @@ secrets:
     #[test]
     fn the_ladder_distinguishes_no_egress_from_a_wrong_sink() {
         let bare = format!(
-            "nika: v1\nworkflow:\n  id: w\n{KEYED}permits: {{ exec: [\"curl\"] }}\ntasks:\n  t:\n    exec: {{ command: [\"curl\", \"${{{{ secrets.k }}}}\", \"https://x.com\"] }}\n"
+            "nika: w\n{KEYED}permits: {{ exec: [\"curl\"] }}\ntasks:\n  t:\n    exec: {{ command: [\"curl\", \"${{{{ secrets.k }}}}\", \"https://x.com\"] }}\n"
         );
         let l = leaks_of(&bare);
         assert!(
@@ -720,9 +692,7 @@ secrets:
         );
 
         let wrong_sink = "\
-nika: v1
-workflow:
-  id: w
+nika: w
 secrets:
   k:
     source: env
@@ -759,9 +729,7 @@ tasks:
     #[test]
     fn the_ladder_names_the_host_and_the_capability_layer() {
         let wrong_host = "\
-nika: v1
-workflow:
-  id: w
+nika: w
 secrets:
   k:
     source: env
@@ -793,9 +761,7 @@ tasks:
         );
 
         let capability_missing = "\
-nika: v1
-workflow:
-  id: w
+nika: w
 secrets:
   k:
     source: env
@@ -831,9 +797,7 @@ tasks:
     #[test]
     fn the_ladder_names_derived_destinations_and_broken_self_shapes() {
         let derived = "\
-nika: v1
-workflow:
-  id: w
+nika: w
 const:
   host: \"api.stripe.com\"
 secrets:
@@ -866,9 +830,7 @@ tasks:
         );
 
         let broken_self = "\
-nika: v1
-workflow:
-  id: w
+nika: w
 secrets:
   hook:
     source: env
@@ -903,9 +865,7 @@ tasks:
     #[test]
     fn the_rendered_fix_teaches_the_missing_layer() {
         let yaml = "\
-nika: v1
-workflow:
-  id: w
+nika: w
 secrets:
   k:
     source: env

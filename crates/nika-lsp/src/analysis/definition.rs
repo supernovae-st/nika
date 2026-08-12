@@ -312,7 +312,7 @@ mod tests {
         // `island_start + search_from + rel`. The FIRST resolves to `aaa`,
         // the SECOND to `bbb`; a broken advance/kw_at would mis-resolve or
         // miss the second.
-        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  aaa:\n    exec: { command: [\"x\"] }\n  bbb:\n    exec: { command: [\"${{ tasks.aaa == tasks.bbb }}\"] }\n";
+        let yaml = "nika: w\ntasks:\n  aaa:\n    exec: { command: [\"x\"] }\n  bbb:\n    exec: { command: [\"${{ tasks.aaa == tasks.bbb }}\"] }\n";
         let index = LineIndex::new(yaml);
         let aaa_id = yaml.find("\n  aaa:").map(|p| p + 3).expect("aaa");
         let bbb_id = yaml.find("\n  bbb:").map(|p| p + 3).expect("bbb");
@@ -377,7 +377,7 @@ mod tests {
             "an empty id resolves to None, not Some(\"\")"
         );
         // also through the public surface for good measure.
-        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"${{ tasks. }}\"] }\n";
+        let yaml = "nika: w\ntasks:\n  a:\n    exec: { command: [\"${{ tasks. }}\"] }\n";
         assert!(definition(&uri(), yaml, yaml.find("tasks.").unwrap()).is_none());
     }
 
@@ -388,7 +388,7 @@ mod tests {
         // requires the NEXT byte; if it checked the current byte instead
         // (`i * 1`), a lone `}` would close the island early and `tasks.a`
         // (after the lone `}`) would be unreachable.
-        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { shell: \"${{ x } tasks.a }}\" }\n";
+        let yaml = "nika: w\ntasks:\n  a:\n    exec: { shell: \"${{ x } tasks.a }}\" }\n";
         let index = LineIndex::new(yaml);
         let a_id = yaml.find("\n  a:").map(|p| p + 3).expect("a id");
         let at = yaml.find("tasks.a }}").expect("ref") + "tasks.".len();
@@ -423,7 +423,7 @@ mod tests {
             "tasks.x after the quoted `}}` resolves"
         );
         // end-to-end through the public surface.
-        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  x:\n    exec: { shell: \"${{ 'a}}b' + tasks.x }}\" }\n";
+        let yaml = "nika: w\ntasks:\n  x:\n    exec: { shell: \"${{ 'a}}b' + tasks.x }}\" }\n";
         let index = LineIndex::new(yaml);
         let x_id = yaml.find("\n  x:").map(|p| p + 3).expect("x id");
         let at = yaml.rfind("tasks.x").expect("ref") + "tasks.".len();
@@ -475,7 +475,7 @@ mod tests {
 
     #[test]
     fn after_target_resolves_to_the_exact_full_id_range() {
-        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  extract:\n    exec: { command: [\"x\"] }\n  save:\n    after: { extract: success }\n    exec: { command: [\"y\"] }\n";
+        let yaml = "nika: w\ntasks:\n  extract:\n    exec: { command: [\"x\"] }\n  save:\n    after: { extract: success }\n    exec: { command: [\"y\"] }\n";
         // cursor on the `extract` target inside the after: map
         let dep_offset = yaml.rfind("extract").expect("after target") + 1;
         let loc = definition(&uri(), yaml, dep_offset).expect("resolves");
@@ -500,7 +500,7 @@ mod tests {
         // cursor resolves on the FIRST byte through the LAST byte of
         // `extract`, but NOT on the space one byte before nor the `:` one
         // byte after.
-        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  extract:\n    exec: { command: [\"x\"] }\n  save:\n    after: { extract: success }\n    exec: { command: [\"y\"] }\n";
+        let yaml = "nika: w\ntasks:\n  extract:\n    exec: { command: [\"x\"] }\n  save:\n    after: { extract: success }\n    exec: { command: [\"y\"] }\n";
         let tok = yaml.rfind("extract").expect("after target");
         // one byte BEFORE the token (the space after `{`): no resolution.
         assert!(
@@ -526,7 +526,7 @@ mod tests {
 
     #[test]
     fn template_tasks_ref_resolves_to_the_exact_full_id_range() {
-        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  extract:\n    infer: { prompt: \"hi\", max_tokens: 10 }\n  use_it:\n    with:\n      article: \"${{ tasks.extract.output }}\"\n    exec: { command: [\"echo\", \"${{ with.article }}\"] }\n";
+        let yaml = "nika: w\ntasks:\n  extract:\n    infer: { prompt: \"hi\", max_tokens: 10 }\n  use_it:\n    with:\n      article: \"${{ tasks.extract.output }}\"\n    exec: { command: [\"echo\", \"${{ with.article }}\"] }\n";
         // cursor inside `tasks.extract` in the binding's template
         let ref_at = yaml.find("tasks.extract").expect("tpl ref") + "tasks.ex".len();
         let loc = definition(&uri(), yaml, ref_at).expect("resolves");
@@ -547,7 +547,7 @@ mod tests {
         // Two `${{ … }}` islands · the cursor in the SECOND island's
         // `tasks.b` resolves to `b` (the islands loop must continue past the
         // first island, and `find_close` must close each correctly).
-        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"x\"] }\n  b:\n    exec: { command: [\"x\"] }\n  c:\n    with:\n      first: \"${{ tasks.a.output }}\"\n      second: \"${{ tasks.b.output }}\"\n    exec: { command: [\"x\"] }\n";
+        let yaml = "nika: w\ntasks:\n  a:\n    exec: { command: [\"x\"] }\n  b:\n    exec: { command: [\"x\"] }\n  c:\n    with:\n      first: \"${{ tasks.a.output }}\"\n      second: \"${{ tasks.b.output }}\"\n    exec: { command: [\"x\"] }\n";
         let second = yaml.rfind("tasks.b").expect("2nd island ref") + "tasks.".len();
         let loc = definition(&uri(), yaml, second).expect("resolves in island 2");
         let index = LineIndex::new(yaml);
@@ -564,7 +564,7 @@ mod tests {
         // The cursor on the `tasks.` keyword itself (not just the id) also
         // resolves — `template_task_target` accepts `kw_at..id_end`. The byte
         // one PAST the id end does NOT (it's `.output`, outside the id).
-        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  extract:\n    exec: { command: [\"x\"] }\n  u:\n    exec: { command: [\"${{ tasks.extract.output }}\"] }\n";
+        let yaml = "nika: w\ntasks:\n  extract:\n    exec: { command: [\"x\"] }\n  u:\n    exec: { command: [\"${{ tasks.extract.output }}\"] }\n";
         let kw = yaml.find("tasks.extract").expect("ref");
         // cursor on the `t` of `tasks.` resolves.
         assert!(
@@ -638,7 +638,7 @@ mod tests {
 
     #[test]
     fn cursor_not_on_a_reference_returns_none() {
-        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"x\"] }\n";
+        let yaml = "nika: w\ntasks:\n  a:\n    exec: { command: [\"x\"] }\n";
         // cursor on the `command` keyword — not a task reference
         let cmd_at = yaml.find("command").expect("kw");
         assert!(definition(&uri(), yaml, cmd_at).is_none());
@@ -647,7 +647,7 @@ mod tests {
     #[test]
     fn ref_to_undefined_task_returns_none() {
         // an `after:` entry naming a ghost — no id span to jump to
-        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    after: { ghost: success }\n    exec: { command: [\"x\"] }\n";
+        let yaml = "nika: w\ntasks:\n  a:\n    after: { ghost: success }\n    exec: { command: [\"x\"] }\n";
         let ghost_at = yaml.find("ghost").expect("ref") + 1;
         assert!(definition(&uri(), yaml, ghost_at).is_none());
     }
@@ -719,7 +719,8 @@ mod tests {
         );
         // and it resolves the ref inside it (proves the even-run path keeps
         // the island live, exercising backslash_run_is_odd's `% 2` parity).
-        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  foo:\n    exec: { command: [\"x\", \"${{ tasks.foo }}\"] }\n";
+        let yaml =
+            "nika: w\ntasks:\n  foo:\n    exec: { command: [\"x\", \"${{ tasks.foo }}\"] }\n";
         let at = yaml.rfind("tasks.foo").expect("ref") + "tasks.".len();
         assert!(
             definition(&uri(), yaml, at).is_some(),
@@ -743,7 +744,8 @@ mod tests {
     #[test]
     fn tasks_substring_mid_identifier_is_not_a_reference() {
         // `mytasks.foo` contains `tasks.` but is not a task reference.
-        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  foo:\n    exec: { command: [\"echo\", \"${{ mytasks.foo }}\"] }\n";
+        let yaml =
+            "nika: w\ntasks:\n  foo:\n    exec: { command: [\"echo\", \"${{ mytasks.foo }}\"] }\n";
         let at = yaml.find("mytasks.foo").expect("substr") + "mytasks.fo".len();
         assert!(
             definition(&uri(), yaml, at).is_none(),
@@ -756,7 +758,7 @@ mod tests {
     /// member resolves nowhere (no invented target).
     #[test]
     fn member_ref_jumps_to_its_declaration() {
-        let text = "nika: v1\nworkflow:\n  id: w\nconst:\n  city: \"paris\"\nconfig:\n  REGION: { type: string, default: \"eu\" }\nsecrets:\n  api_key:\n    source: env\n    key: K\ntasks:\n  a:\n    exec: { command: [\"echo\", \"${{ const.city }}\", \"${{ config.REGION }}\", \"${{ secrets.api_key }}\"] }\n";
+        let text = "nika: w\nconst:\n  city: \"paris\"\nconfig:\n  REGION: { type: string, default: \"eu\" }\nsecrets:\n  api_key:\n    source: env\n    key: K\ntasks:\n  a:\n    exec: { command: [\"echo\", \"${{ const.city }}\", \"${{ config.REGION }}\", \"${{ secrets.api_key }}\"] }\n";
         let uri: Uri = "file:///w.nika.yaml".parse().expect("uri");
         let decl_line = |needle: &str| {
             let at = text.find(needle).expect(needle);

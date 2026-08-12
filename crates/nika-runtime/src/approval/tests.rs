@@ -115,7 +115,7 @@ fn the_book_mints_counts_and_refuses_the_sixth_distinct() {
     let book = ApprovalBook::new();
     book.begin_run(
         &nika_schema::parse(
-            "nika: v1\nworkflow:\n  id: t\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n",
+            "nika: t\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n",
             nika_schema::FileId::new(0),
             nika_schema::ParseMode::Strict,
         )
@@ -145,7 +145,7 @@ fn the_book_dedups_a_decided_ticket_and_re_mints_a_stale_one() {
     let book = ApprovalBook::new();
     book.begin_run(
         &nika_schema::parse(
-            "nika: v1\nworkflow:\n  id: t\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n",
+            "nika: t\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n",
             nika_schema::FileId::new(0),
             nika_schema::ParseMode::Strict,
         )
@@ -212,7 +212,7 @@ fn the_book_validates_the_resumed_ticket_laws() {
     let book = ApprovalBook::new();
     book.begin_run(
         &nika_schema::parse(
-            "nika: v1\nworkflow:\n  id: t\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n",
+            "nika: t\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n",
             nika_schema::FileId::new(0),
             nika_schema::ParseMode::Strict,
         )
@@ -278,7 +278,7 @@ fn the_book_validates_the_resumed_ticket_laws() {
 #[test]
 fn the_closure_stops_at_the_nearest_gate() {
     let wf = nika_schema::parse(
-        "nika: v1\nworkflow:\n  id: t\npermits: { exec: [\"echo\"], tools: [\"nika:prompt\"] }\ntasks:\n  first:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"one?\" }\n  second:\n    after: { first: success }\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"two?\" }\n  act:\n    after: { second: success }\n    exec: { command: [\"echo\", \"x\"] }\n",
+        "nika: t\npermits: { exec: [\"echo\"], tools: [\"nika:prompt\"] }\ntasks:\n  first:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"one?\" }\n  second:\n    after: { first: success }\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"two?\" }\n  act:\n    after: { second: success }\n    exec: { command: [\"echo\", \"x\"] }\n",
         nika_schema::FileId::new(0),
         nika_schema::ParseMode::Strict,
     )
@@ -472,9 +472,7 @@ fn blocked_prompt() -> ToolResult {
 
 #[tokio::test]
 async fn fixture_a_the_sixth_distinct_prompt_halts_typed() {
-    let mut yaml = String::from(
-        "nika: v1\nworkflow:\n  id: storm\npermits: { tools: [\"nika:prompt\"] }\ntasks:\n",
-    );
+    let mut yaml = String::from("nika: storm\npermits: { tools: [\"nika:prompt\"] }\ntasks:\n");
     for i in 1..=6 {
         let after = if i == 1 {
             String::new()
@@ -527,7 +525,7 @@ async fn fixture_a_the_sixth_distinct_prompt_halts_typed() {
 
 // ─── (b) content mismatch — the answer signs what was never shown ───
 
-const MISMATCH_WF: &str = "nika: v1\nworkflow:\n  id: gated\npermits: { exec: [\"echo\"], tools: [\"nika:prompt\"] }\ntasks:\n  prep:\n    exec: { command: [\"echo\", \"STATE\"] }\n  ask:\n    after: { prep: success }\n    with: { state: \"${{ tasks.prep.output }}\" }\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"input\", message: \"ship ${{ with.state }}?\" }\n  finish:\n    after: { ask: success }\n    exec: { command: [\"echo\", \"done\"] }\n";
+const MISMATCH_WF: &str = "nika: gated\npermits: { exec: [\"echo\"], tools: [\"nika:prompt\"] }\ntasks:\n  prep:\n    exec: { command: [\"echo\", \"STATE\"] }\n  ask:\n    after: { prep: success }\n    with: { state: \"${{ tasks.prep.output }}\" }\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"input\", message: \"ship ${{ with.state }}?\" }\n  finish:\n    after: { ask: success }\n    exec: { command: [\"echo\", \"done\"] }\n";
 
 #[tokio::test]
 async fn fixture_b_a_stale_answer_halts_with_content_mismatch() {
@@ -601,7 +599,7 @@ async fn fixture_b_a_stale_answer_halts_with_content_mismatch() {
 
 #[tokio::test]
 async fn fixture_c_an_expired_ticket_re_prompts_and_a_cross_run_replay_is_refused() {
-    const WF: &str = "nika: v1\nworkflow:\n  id: gated\npermits: { tools: [\"nika:prompt\"] }\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"input\", message: \"proceed?\" }\n";
+    const WF: &str = "nika: gated\npermits: { tools: [\"nika:prompt\"] }\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"input\", message: \"proceed?\" }\n";
     // Run A pauses and mints.
     let (paused_outcome, sink_a) = run_gated(
         WF,
@@ -687,7 +685,7 @@ async fn fixture_c_an_expired_ticket_re_prompts_and_a_cross_run_replay_is_refuse
 
 #[tokio::test]
 async fn fixture_e_identical_prompts_share_one_ticket() {
-    const WF: &str = "nika: v1\nworkflow:\n  id: dedup\npermits: { tools: [\"nika:prompt\"] }\ntasks:\n  one:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"confirm\", message: \"same question?\" }\n  two:\n    after: { one: success }\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"confirm\", message: \"same question?\" }\n";
+    const WF: &str = "nika: dedup\npermits: { tools: [\"nika:prompt\"] }\ntasks:\n  one:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"confirm\", message: \"same question?\" }\n  two:\n    after: { one: success }\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"confirm\", message: \"same question?\" }\n";
     let (outcome, sink) = run_gated(
         WF,
         Seams {

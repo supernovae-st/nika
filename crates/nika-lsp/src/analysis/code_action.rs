@@ -214,7 +214,7 @@ mod tests {
     /// quickfix whose edit slices exactly the offending token.
     #[test]
     fn an_unknown_dependency_offers_the_did_you_mean_rename() {
-        let text = "nika: v1\nworkflow:\n  id: t\ntasks:\n  gather:\n    exec: { command: [\"true\"] }\n  think:\n    after: { gathr: success }\n    exec: { command: [\"true\"] }\n";
+        let text = "nika: t\ntasks:\n  gather:\n    exec: { command: [\"true\"] }\n  think:\n    after: { gathr: success }\n    exec: { command: [\"true\"] }\n";
         let acts = actions(text);
         assert_eq!(acts.len(), 1, "one typed rename");
         let edit = first_edit(&acts[0]);
@@ -228,7 +228,8 @@ mod tests {
     /// A finding with no suggestion offers NOTHING (silence beats a guess).
     #[test]
     fn no_suggestion_means_no_action() {
-        let text = "nika: v1\nworkflow:\n  id: t\ntasks:\n  a:\n    exec: { command: [\"${{ tasks.zzzzzz.output }}\"] }\n";
+        let text =
+            "nika: t\ntasks:\n  a:\n    exec: { command: [\"${{ tasks.zzzzzz.output }}\"] }\n";
         // `zzzzzz` is nowhere near any declared name — no did-you-mean.
         assert!(actions(text).is_empty());
     }
@@ -249,7 +250,7 @@ mod tests {
     /// The lightbulb only lights where the finding lives.
     #[test]
     fn actions_off_the_requested_range_stay_silent() {
-        let text = "nika: v1\nworkflow:\n  id: t\ntasks:\n  gather:\n    exec: { command: [\"true\"] }\n  think:\n    after: { gathr: success }\n    exec: { command: [\"true\"] }\n";
+        let text = "nika: t\ntasks:\n  gather:\n    exec: { command: [\"true\"] }\n  think:\n    after: { gathr: success }\n    exec: { command: [\"true\"] }\n";
         let top = Range {
             start: lsp_types::Position {
                 line: 0,

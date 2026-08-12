@@ -125,9 +125,7 @@ fn output_str(outcome: &RunOutcome, task: &str) -> String {
 #[tokio::test]
 async fn cap_equivalence_byte_identical_streams() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: cap-eq
+nika: cap-eq
 permits: { exec: true }
 const: { publish: "no" }
 tasks:
@@ -221,9 +219,7 @@ impl ToolExecuteDyn for BarrierTools {
 #[tokio::test]
 async fn same_wave_tasks_truly_run_concurrently() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: handshake
+nika: handshake
 permits: { tools: ["nika:read"], fs: { read: ["left.txt", "right.txt"] } }
 tasks:
   left:
@@ -259,9 +255,7 @@ tasks:
 #[tokio::test]
 async fn sibling_failure_drains_the_wave() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: drain
+nika: drain
 permits: { exec: true }
 tasks:
   dies:
@@ -294,9 +288,7 @@ tasks:
 #[tokio::test]
 async fn always_pattern_runs_after_upstream_failure() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: always
+nika: always
 permits: { exec: true }
 tasks:
   build:
@@ -343,9 +335,7 @@ tasks:
 #[tokio::test]
 async fn fan_out_iterations_jitter_on_distinct_streams() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: herd
+nika: herd
 model: mock/echo
 const:
   items: ["x", "y"]
@@ -413,9 +403,7 @@ tasks:
 #[tokio::test]
 async fn transient_failure_retries_and_succeeds() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: flaky
+nika: flaky
 model: mock/echo
 tasks:
   ask:
@@ -467,9 +455,7 @@ tasks:
 #[tokio::test]
 async fn terminal_error_never_retries() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: terminal
+nika: terminal
 permits: { tools: ["nika:fetch"], net: { http: ["example.com"] } }
 tasks:
   fetch:
@@ -514,9 +500,7 @@ impl ToolExecuteDyn for HangingTools {
 #[tokio::test]
 async fn timeout_kills_a_hanging_task_with_the_spec_code() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: hung
+nika: hung
 permits: { tools: ["nika:read"], fs: { read: ["slow.txt"] } }
 tasks:
   stuck:
@@ -583,9 +567,7 @@ tasks:
 #[tokio::test]
 async fn on_error_recover_skip_and_filter() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: recovery
+nika: recovery
 permits: { exec: true, tools: ["nika:fetch"], net: { http: ["example.com"] } }
 tasks:
   cached:
@@ -651,9 +633,7 @@ tasks:
 async fn on_codes_matches_the_user_facing_spec_code() {
     // 1 · on_error.on_codes:[NIKA-EXEC-001] on a non-zero exit → recovery FIRES.
     let yaml = r#"
-nika: v1
-workflow:
-  id: oncodes-catch
+nika: oncodes-catch
 permits: { exec: true }
 tasks:
   boom:
@@ -678,9 +658,7 @@ tasks:
     // 2 · the SAME failure surfaces the SPEC code at tasks.X.error.code (so a
     //     downstream `on_codes`/CEL filter reads the form it was forced to write).
     let yaml_skip = r#"
-nika: v1
-workflow:
-  id: oncodes-skip
+nika: oncodes-skip
 permits: { exec: true }
 tasks:
   boom:
@@ -714,9 +692,7 @@ async fn on_codes_retry_filter_and_selectivity_use_the_spec_code() {
     // 3 · retry.on_codes:[NIKA-EXEC-001] selectively retries a NON-transient
     //     exit (the override's whole point) → a TaskRetrying frame is emitted.
     let yaml_retry = r#"
-nika: v1
-workflow:
-  id: oncodes-retry
+nika: oncodes-retry
 permits: { exec: true }
 tasks:
   boom:
@@ -746,9 +722,7 @@ tasks:
 
     // 4 · selectivity intact: a NON-matching code does NOT recover.
     let yaml_miss = r#"
-nika: v1
-workflow:
-  id: oncodes-miss
+nika: oncodes-miss
 permits: { exec: true }
 tasks:
   boom:
@@ -777,9 +751,7 @@ tasks:
 #[tokio::test]
 async fn for_each_maps_items_in_order_with_locals() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: fan
+nika: fan
 permits: { exec: true }
 const:
   urls: ["alpha", "beta", "gamma"]
@@ -833,9 +805,7 @@ tasks:
 #[tokio::test]
 async fn for_each_infer_sums_iteration_tokens() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: fan-tokens
+nika: fan-tokens
 model: mock/echo
 const:
   prompts: ["alpha", "beta", "gamma"]
@@ -877,9 +847,7 @@ tasks:
 #[tokio::test]
 async fn for_each_fail_fast_false_nulls_at_index() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: fan-collect
+nika: fan-collect
 permits: { exec: true }
 const:
   items: ["one", "two", "three"]
@@ -922,9 +890,7 @@ tasks:
 #[tokio::test]
 async fn for_each_on_error_skip_nulls_at_index_parent_succeeds() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: fan-skip
+nika: fan-skip
 permits: { exec: true }
 const:
   items: ["one", "two", "three"]
@@ -965,9 +931,7 @@ tasks:
 #[tokio::test]
 async fn for_each_fail_fast_true_stops_the_lane() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: fan-abort
+nika: fan-abort
 permits: { exec: true }
 const:
   items: ["one", "two", "three"]
@@ -1000,9 +964,7 @@ tasks:
 #[tokio::test]
 async fn for_each_empty_skips_and_non_array_fails() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: fan-edges
+nika: fan-edges
 permits: { exec: true }
 const:
   none: []
@@ -1047,9 +1009,7 @@ tasks:
 #[tokio::test]
 async fn for_each_iterations_run_concurrently_under_the_cap() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: fan-pair
+nika: fan-pair
 permits: { tools: ["nika:read"] }
 const:
   items: ["x", "y"]
@@ -1088,9 +1048,7 @@ tasks:
 #[tokio::test]
 async fn status_gates_route_on_skipped_upstream() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: routing
+nika: routing
 permits: { exec: true }
 const: { mode: "fast" }
 tasks:
@@ -1127,9 +1085,7 @@ tasks:
 async fn emitted_spec_codes_resolve_in_the_embedded_canon() {
     // Shape 1 · the timeout class (NIKA-TIMEOUT-001).
     let timeout_yaml = r#"
-nika: v1
-workflow:
-  id: pin-timeout
+nika: pin-timeout
 permits: { tools: ["nika:read"], fs: { read: ["slow.txt"] } }
 tasks:
   stuck:
@@ -1161,9 +1117,7 @@ tasks:
 
     // Shape 2 · the expression-type class (non-array for_each).
     let var_yaml = r#"
-nika: v1
-workflow:
-  id: pin-var
+nika: pin-var
 permits: { exec: true }
 const: { scalar: "not a list" }
 tasks:
@@ -1211,9 +1165,7 @@ tasks:
 #[test]
 fn for_each_when_gate_referencing_item_is_refused_statically() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: gate-item
+nika: gate-item
 permits: { exec: true }
 const:
   items: ["a", "b"]
@@ -1259,9 +1211,7 @@ tasks:
 #[tokio::test]
 async fn builtin_invoke_array_output_lets_for_each_iterate() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: glob-fanout
+nika: glob-fanout
 permits: { tools: ["nika:glob", "nika:read"] }
 tasks:
   files:
@@ -1317,9 +1267,7 @@ tasks:
 #[tokio::test]
 async fn structured_object_tool_output_navigates() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: object-nav
+nika: object-nav
 permits: { exec: true, tools: ["nika:jq"] }
 tasks:
   api:
@@ -1362,9 +1310,7 @@ tasks:
 #[tokio::test]
 async fn text_only_tool_output_stays_a_string() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: text-output
+nika: text-output
 permits: { tools: ["mcp:server/echo"] }
 tasks:
   tool:
