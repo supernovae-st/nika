@@ -94,7 +94,8 @@ pub fn idle_of(wf: &Workflow, run: &Run, id: &str) -> f64 {
 /// ⭐ A bottleneck that costs nothing ISN'T one — between two near-equal
 /// checks one finishes "last" and was getting crowned. At least ONE step
 /// must be waiting (`blocked > 0`), or the wave reports nothing.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+#[serde(rename_all = "camelCase")]
 pub struct Neck {
     /// The holder's id.
     pub id: String,

@@ -28,21 +28,26 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::ingress::{GraphDoc, Node};
 
-/// What a revision did to a slot.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+/// What a revision did to a slot — serialized as the studio's glyph, so
+/// the caller never translates the vocabulary.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub enum Mark {
     /// Born this revision.
+    #[serde(rename = "+")]
     Born,
     /// Changed this revision (the engine describes it otherwise).
+    #[serde(rename = "~")]
     Changed,
     /// Died this revision — the slot stays empty forever.
+    #[serde(rename = "−")]
     Dead,
     /// Untouched.
+    #[serde(rename = " ")]
     Kept,
 }
 
 /// The board: slots in birth order, one mark and one print per revision.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 pub struct Board {
     /// The revision number — r1 · r2 · …
     pub rev: u32,

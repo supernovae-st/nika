@@ -21,3 +21,4 @@ pub mod derive;
 pub mod ingress;
 pub mod model;
 pub mod plan;
+pub mod wasm;
