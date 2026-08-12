@@ -277,8 +277,30 @@ pub fn resolve_skills(
         if resolved.texts.contains_key(key) {
             continue; // already resolved for an earlier reference
         }
+        // The `skills:` fs edge lives INSIDE the boundary. The grant is
+        // judged BEFORE the reader runs · a refused path is never read,
+        // so nothing of it can reach the agent's prompt. Absent `permits:`
+        // is zero authority (F-O8), and `permits: {}` denies by default
+        // (an omitted `fs` block forbids every path · `nika-cap::fit`).
+        //
+        // Falsified at 0.108.0 before this gate existed: a VALID skill at
+        // an absolute path outside `permits: {}` · whose own doc says the
+        // workflow "opens no file" · was read, and the engine reported on
+        // its CONTENT while the PERMITS and TRIFECTA rungs stayed green.
+        let granted = wf
+            .permits
+            .as_ref()
+            .is_some_and(|p| p.value.allows_path(key, false));
         let (code, detail) = match defects.get(key) {
             Some((code, detail)) => (*code, detail.clone()),
+            None if !granted => {
+                let d = format!(
+                    "`{key}` is outside the permits.fs.read boundary · grant the path, \
+                     or move the skill inside one the file already grants"
+                );
+                defects.insert(key.to_owned(), ("NIKA-SEC-004", d.clone()));
+                ("NIKA-SEC-004", d)
+            }
             None => match read(key) {
                 Ok(text) => match parse_skill(&text) {
                     Ok(_) => {
@@ -396,17 +418,64 @@ mod tests {
         assert_eq!(doc.name, "x");
     }
 
+    /// The `skills:` fs edge is INSIDE the boundary · the reader never runs
+    /// for a path the file does not grant. The fixture is a skill that would
+    /// PARSE FINE · only a refusal can keep it out of `texts`, so the test
+    /// cannot go green on a malformation (the first version of this probe
+    /// pointed at an invalid file and passed for the wrong reason).
+    #[test]
+    fn resolve_skills_refuses_a_path_outside_the_boundary() {
+        let cases = [
+            // the DECLARED ZERO · its own doc says "opens no file"
+            ("permits: {}\n", "declared zero"),
+            // absent · zero authority (F-O8)
+            ("", "absent permits"),
+            // granted, but ELSEWHERE
+            (
+                "permits:\n  fs:\n    read: [\"allowed/SKILL.md\"]\n",
+                "grant elsewhere",
+            ),
+        ];
+        for (permits, label) in cases {
+            let yaml = format!(
+                "nika: v1\nworkflow:\n  id: w\nmodel: mock/echo\n{permits}\
+                 tasks:\n  a:\n    agent: {{ prompt: \"hi\", skills: [\"outside/SKILL.md\"] }}\n"
+            );
+            let wf = crate::parse(&yaml, crate::FileId::new(0), crate::ParseMode::Strict)
+                .expect("fixture parses");
+            let mut reads = 0usize;
+            let resolved = resolve_skills(&wf, &mut |_| {
+                reads += 1;
+                Ok("---\nname: g\ndescription: d\n---\nbody\n".to_owned())
+            });
+            assert_eq!(reads, 0, "{label}: the reader must never run");
+            assert!(resolved.texts.is_empty(), "{label}: nothing may carry");
+            assert_eq!(
+                resolved.findings.first().map(|f| f.code),
+                Some("NIKA-SEC-004"),
+                "{label}: the refusal is a boundary escape, not a read defect"
+            );
+        }
+    }
+
     #[test]
     fn resolve_skills_splits_003_and_004_and_carries_texts() {
         // The pure resolution over an injected reader (the CLI's fs edge
         // stays 3 lines): a good skill carries its raw text; a missing
         // file is NIKA-AGENT-003; an invalid one is NIKA-AGENT-004; a
         // duplicated bad reference gets a row PER TASK without re-reads.
+        // The grant is a PRECONDITION of the read since the boundary gate
+        // landed · this fixture measures the 003/004 split, not the
+        // boundary, so it declares what it reaches (see the sibling test
+        // `resolve_skills_refuses_a_path_outside_the_boundary`).
         let yaml = "\
 nika: v1
 workflow:
   id: w
 model: mock/echo
+permits:
+  fs:
+    read: [\"good/SKILL.md\", \"bad/SKILL.md\", \"ghost/SKILL.md\"]
 tasks:
   a:
     agent: { prompt: \"hi\", skills: [\"good/SKILL.md\", \"ghost/SKILL.md\"] }

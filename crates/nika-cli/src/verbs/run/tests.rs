@@ -314,8 +314,11 @@ fn capture_mock_outputs_carries_the_resolved_skills() {
     let skill = dir.join("SKILL.md");
     std::fs::write(&skill, "---\nname: s\ndescription: d\n---\nBe careful.\n")
         .expect("fixture skill");
+    // The grant is a PRECONDITION since the skills fs edge moved inside the
+    // boundary · the fixture declares exactly the path it reaches.
     let yaml = format!(
-        "nika: v1\nworkflow:\n  id: w\nmodel: mock/echo\ntasks:\n  go:\n    agent: {{ prompt: \"hi\", skills: [\"{}\"] }}\n",
+        "nika: v1\nworkflow:\n  id: w\nmodel: mock/echo\npermits:\n  fs:\n    read: [\"{}\"]\ntasks:\n  go:\n    agent: {{ prompt: \"hi\", skills: [\"{}\"] }}\n",
+        skill.display(),
         skill.display()
     );
     let wf = nika_schema::parse(
