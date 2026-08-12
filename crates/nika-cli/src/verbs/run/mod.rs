@@ -223,6 +223,33 @@ pub fn run(
     .code
 }
 
+/// The first rungs of the run pipeline — the output flag, the project
+/// ceiling rung (D-2026-08-11-N5 · resolved BEFORE the gc hook so a
+/// broken `nika.yaml` speaks ONCE, here, CLOSED — the fail-open note
+/// lane never sees it; the flag ALWAYS wins; an absent file is the
+/// built-in default, zero ceremony), then the gc hook. Extracted under
+/// the 100-line fn law (ADR-023).
+fn preflight(
+    output: Option<&str>,
+    max_cost_usd: Option<f64>,
+    no_gc: bool,
+    dry_run: bool,
+) -> Result<(bool, Option<f64>), Box<RunVerdict>> {
+    let output_json = match output_mode(output) {
+        Ok(flag) => flag,
+        Err(code) => return Err(Box::new(RunVerdict::bare(code))),
+    };
+    let max_cost_usd = match ceiling::from_cwd(max_cost_usd) {
+        Ok(v) => v,
+        Err(e) => {
+            epilogue::emit_diagnostic(&e.to_string(), output_json);
+            return Err(Box::new(RunVerdict::bare(exit::ENV)));
+        }
+    };
+    run_start_gc(no_gc, dry_run);
+    Ok((output_json, max_cost_usd))
+}
+
 #[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
 #[must_use]
 fn run_verdict(
@@ -243,22 +270,10 @@ fn run_verdict(
     no_gc: bool,
     require_signature: bool,
 ) -> RunVerdict {
-    let output_json = match output_mode(output) {
-        Ok(flag) => flag,
-        Err(code) => return RunVerdict::bare(code),
+    let (output_json, max_cost_usd) = match preflight(output, max_cost_usd, no_gc, dry_run) {
+        Ok(pair) => pair,
+        Err(verdict) => return *verdict,
     };
-    // The project ceiling rung (D-2026-08-11-N5) — resolved BEFORE the
-    // gc hook so a broken `nika.yaml` speaks ONCE, here, CLOSED (the
-    // fail-open note lane never sees it). The flag ALWAYS wins; an
-    // absent file is the built-in default, zero ceremony.
-    let max_cost_usd = match ceiling::from_cwd(max_cost_usd) {
-        Ok(v) => v,
-        Err(e) => {
-            epilogue::emit_diagnostic(&e.to_string(), output_json);
-            return RunVerdict::bare(exit::ENV);
-        }
-    };
-    run_start_gc(no_gc, dry_run);
 
     // ── Audit BEFORE run (spec §3 · INV the runtime also enforces) ──
     let (source, wf, report) = match crate::verbs::load_checked_with_source(file) {
