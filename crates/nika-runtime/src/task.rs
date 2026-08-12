@@ -978,7 +978,7 @@ where
 /// over the deferred value through THIS one site (spec 05 · the recovery
 /// substitutes the raw output BEFORE binding extraction).
 pub(crate) fn bind_outputs(task: &RawTask, settle: &mut SettleAs) -> BTreeMap<String, Value> {
-    if task.output.is_empty() {
+    if task.extract.is_empty() {
         return BTreeMap::new();
     }
     // The success raw output, if this task succeeded — bindings extract
@@ -1003,7 +1003,7 @@ pub(crate) fn bind_outputs(task: &RawTask, settle: &mut SettleAs) -> BTreeMap<St
 /// the read of a binding on a non-success task). Names are unique (the
 /// checker · §rules) · empty when the task declares no `output:`.
 fn null_bindings(task: &RawTask) -> BTreeMap<String, Value> {
-    task.output
+    task.extract
         .iter()
         .map(|(name, _)| (name.value.clone(), Value::Null))
         .collect()
@@ -1109,7 +1109,7 @@ fn eval_all_bindings(
     output: &Value,
 ) -> Result<BTreeMap<String, Value>, TaskErrorRecord> {
     let mut named = BTreeMap::new();
-    for (name, program) in &task.output {
+    for (name, program) in &task.extract {
         let value =
             crate::jq::eval_binding(&name.value, &program.value, output).map_err(|err| {
                 TaskErrorRecord {

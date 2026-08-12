@@ -160,8 +160,8 @@ pub const TASK_FIELD_KEYS: &[Entry] = &[
         doc: "Task-scope variable injection (`${{ with.X }}`).",
     },
     Entry {
-        name: "output",
-        doc: "Named jq bindings over the verb's raw response.",
+        name: "extract",
+        doc: "Named jq bindings over the verb's raw response · read as `${{ tasks.X.<name> }}`.",
     },
     Entry {
         name: "on_finally",

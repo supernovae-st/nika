@@ -242,7 +242,7 @@ fn effectful_without_permits_gets_no_hint_the_error_owns_it() {
 #[test]
 fn structured_exec_parsing_stdout_json_gets_capture_hint() {
     let h = hints_of(
-        "nika: w\npermits: { exec: true }\ntasks:\n  crawl:\n    exec:\n      command: [\"node\", \"helper.mjs\"]\n      capture: structured\n    output:\n      crawl: \".stdout | fromjson\"\n      url: \".stdout | fromjson | .url\"\n",
+        "nika: w\npermits: { exec: true }\ntasks:\n  crawl:\n    exec:\n      command: [\"node\", \"helper.mjs\"]\n      capture: structured\n    extract:\n      crawl: \".stdout | fromjson\"\n      url: \".stdout | fromjson | .url\"\n",
     );
     let hit = h
         .iter()
@@ -252,7 +252,7 @@ fn structured_exec_parsing_stdout_json_gets_capture_hint() {
     assert!(hit.advice.contains("exit_code"), "{hit:?}");
 
     let intentional = hints_of(
-        "nika: w\npermits: { exec: true }\ntasks:\n  probe:\n    exec:\n      command: [\"false\"]\n      capture: structured\n    output:\n      exit_code: \".exit_code\"\n",
+        "nika: w\npermits: { exec: true }\ntasks:\n  probe:\n    exec:\n      command: [\"false\"]\n      capture: structured\n    extract:\n      exit_code: \".exit_code\"\n",
     );
     assert!(
         !intentional.iter().any(|x| x.kind == "exec-json-capture"),
@@ -263,7 +263,7 @@ fn structured_exec_parsing_stdout_json_gets_capture_hint() {
     // exit_code. `structured` is the point (switching would break `ok`);
     // the hint must stay silent (Gate-11 review: the any-vs-all misfire).
     let mixed = hints_of(
-        "nika: w\npermits: { exec: true }\ntasks:\n  health:\n    exec:\n      command: [\"curl\", \"-s\", \"https://api.example/health\"]\n      capture: structured\n    output:\n      body: \".stdout | fromjson\"\n      ok: \".exit_code == 0\"\n",
+        "nika: w\npermits: { exec: true }\ntasks:\n  health:\n    exec:\n      command: [\"curl\", \"-s\", \"https://api.example/health\"]\n      capture: structured\n    extract:\n      body: \".stdout | fromjson\"\n      ok: \".exit_code == 0\"\n",
     );
     assert!(
         !mixed.iter().any(|x| x.kind == "exec-json-capture"),
@@ -274,7 +274,7 @@ fn structured_exec_parsing_stdout_json_gets_capture_hint() {
     // `fromjson` (the old independent-substring predicate fired) but they
     // never form the `.stdout | fromjson` chain; no hint.
     let lookalike = hints_of(
-        "nika: w\npermits: { exec: true }\ntasks:\n  diag:\n    exec:\n      command: [\"node\", \"diag.mjs\"]\n      capture: structured\n    output:\n      log: \".raw | fromjson | .stdout_field\"\n",
+        "nika: w\npermits: { exec: true }\ntasks:\n  diag:\n    exec:\n      command: [\"node\", \"diag.mjs\"]\n      capture: structured\n    extract:\n      log: \".raw | fromjson | .stdout_field\"\n",
     );
     assert!(
         !lookalike.iter().any(|x| x.kind == "exec-json-capture"),

@@ -231,7 +231,7 @@ nika: stream
 tasks:
   fetch:
     invoke: { tool: \"nika:read\", args: { path: \"u.json\" } }
-    output:
+    extract:
       emails: \".users[]\"
 ";
     let nine = lints_009(yaml);
@@ -253,7 +253,7 @@ nika: collected
 tasks:
   fetch:
     invoke: { tool: \"nika:read\", args: { path: \"u.json\" } }
-    output:
+    extract:
       emails: \"[.users[].email]\"
 ";
     assert!(
@@ -269,7 +269,7 @@ nika: indexed
 tasks:
   fetch:
     invoke: { tool: \"nika:read\", args: { path: \"u.json\" } }
-    output:
+    extract:
       first_user: \".users[0]\"
 ";
     assert!(
@@ -287,7 +287,7 @@ nika: deflt
 tasks:
   fetch:
     invoke: { tool: \"nika:read\", args: { path: \"u.json\" } }
-    output:
+    extract:
       users: \".users // []\"
 ";
     assert!(

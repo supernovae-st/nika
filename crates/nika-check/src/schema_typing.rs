@@ -315,10 +315,10 @@ fn declared_shapes<'a>(
     for task in &wf.tasks {
         let t = &task.value;
         let id = t.id.value.as_str();
-        if !t.output.is_empty() {
+        if !t.extract.is_empty() {
             shapes.insert(
                 id,
-                Shape::Bindings(t.output.iter().map(|(n, _)| n.value.as_str()).collect()),
+                Shape::Bindings(t.extract.iter().map(|(n, _)| n.value.as_str()).collect()),
             );
             continue;
         }
@@ -728,7 +728,7 @@ mod tests {
 
     #[test]
     fn output_bindings_rebind_the_address_space() {
-        let yaml = "nika: w\ntasks:\n  a:\n    exec: { command: [\"cat\", \"data.json\"] }\n    output:\n      first: \". | .[0]\"\n  b:\n    with:\n      ok: \"${{ tasks.a.output.first }}\"\n      typo: \"${{ tasks.a.output.frist }}\"\n    exec: { command: [\"echo\", \"${{ with.ok }}\", \"${{ with.typo }}\"] }\n";
+        let yaml = "nika: w\ntasks:\n  a:\n    exec: { command: [\"cat\", \"data.json\"] }\n    extract:\n      first: \". | .[0]\"\n  b:\n    with:\n      ok: \"${{ tasks.a.output.first }}\"\n      typo: \"${{ tasks.a.output.frist }}\"\n    exec: { command: [\"echo\", \"${{ with.ok }}\", \"${{ with.typo }}\"] }\n";
         let f = findings_of(yaml);
         assert_eq!(f.len(), 1, "first ok, frist flagged");
         assert!(f[0].detail.contains("first"), "lists bindings");

@@ -111,7 +111,7 @@ nika: stream
 tasks:
   fetch:
     invoke: { tool: \"nika:read\", args: { path: \"u.json\" } }
-    output:
+    extract:
       emails: \".users[]\"
 ";
     let nine = lints_for(yaml, "one-obvious-way/009");
@@ -573,7 +573,7 @@ nika: f010named
 tasks:
   a:
     invoke: { tool: \"nika:read\", args: { path: \"u.json\" } }
-    output:
+    extract:
       summary: \".s\"
   b:
     with:

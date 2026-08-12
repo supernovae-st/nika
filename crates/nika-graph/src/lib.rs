@@ -199,7 +199,7 @@ pub fn project(wf: &RawWorkflow, report: &CheckReport) -> GraphDoc {
                     )]
                     other => unreachable!("unknown on_error action: {other:?}"),
                 }),
-                outputs: task.output.iter().map(|(k, _)| k.value.clone()).collect(),
+                outputs: task.extract.iter().map(|(k, _)| k.value.clone()).collect(),
             });
         }
     }
@@ -390,7 +390,7 @@ mod tests {
     #[test]
     fn node_facts_are_projected() {
         let g = doc(
-            "nika: w\nmodel: mock/echo\ntasks:\n  think:\n    infer: { prompt: \"hi\", max_tokens: 5 }\n    output:\n      summary: \".\"\n",
+            "nika: w\nmodel: mock/echo\ntasks:\n  think:\n    infer: { prompt: \"hi\", max_tokens: 5 }\n    extract:\n      summary: \".\"\n",
         );
         let n = &g.nodes[0];
         assert_eq!(n.verb, "infer");

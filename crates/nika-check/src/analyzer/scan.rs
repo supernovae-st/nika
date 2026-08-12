@@ -70,7 +70,7 @@ impl<'a> WorkflowIndex<'a> {
             bindings.insert(
                 task.value.id.value.as_str(),
                 task.value
-                    .output
+                    .extract
                     .iter()
                     .map(|(name, _)| name.value.as_str())
                     .collect(),
@@ -426,7 +426,7 @@ fn check_single_island(
 /// « the two expression layers never nest »).
 fn check_output_bindings(task: &RawTask, errors: &mut Vec<SchemaError>) {
     let id = task.id.value.as_str();
-    for (name, value) in &task.output {
+    for (name, value) in &task.extract {
         if RESERVED_RECORD_FIELDS.contains(&name.value.as_str()) {
             errors.push(SchemaError::ReservedBindingName {
                 name: name.value.clone(),

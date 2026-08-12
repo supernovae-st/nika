@@ -392,7 +392,7 @@ fn task_field_offers_exactly_the_fields_and_verbs() {
             "on_error",
             "timeout",
             "with",
-            "output",
+            "extract",
             "on_finally",
             "declassify",
             "inert",
@@ -842,7 +842,7 @@ fn an_abandoned_open_bracket_upstream_captures_nothing() {
 
 #[test]
 fn task_member_island_teaches_the_three_facts_and_the_bindings() {
-    let text = "nika: w\ntasks:\n  gather:\n    exec:\n      command: [\"ls\"]\n    output:\n      first_line: \".stdout\"\n  use:\n    with:\n      report: ${{ tasks.gather.";
+    let text = "nika: w\ntasks:\n  gather:\n    exec:\n      command: [\"ls\"]\n    extract:\n      first_line: \".stdout\"\n  use:\n    with:\n      report: ${{ tasks.gather.";
     let got = labels(&completion(text, text.len()));
     assert!(
         got.contains(&"output".to_owned())

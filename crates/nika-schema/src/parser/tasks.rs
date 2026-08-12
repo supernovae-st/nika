@@ -6,7 +6,7 @@
 //! The canonical v1 task field set is CLOSED (spec `03-dag.md`
 //! §forward-compat + NEP-0004 law 7's ONE grammar addition) · `with` ·
 //! `after` · `when` · `for_each` · `max_parallel` · `fail_fast` ·
-//! `retry` · `on_error` · `timeout` · `on_finally` · `output` ·
+//! `retry` · `on_error` · `timeout` · `on_finally` · `extract` ·
 //! `declassify` · plus exactly one verb key.
 
 use std::time::Duration;
@@ -44,7 +44,7 @@ const TASK_KEYS: &[&str] = &[
     "on_error",
     "timeout",
     "with",
-    "output",
+    "extract",
     "returns",
     "on_finally",
     "declassify",
@@ -181,7 +181,7 @@ fn parse_task(
     task.on_error = parse_on_error(cx, mapping)?;
     task.timeout = parse_timeout(cx, mapping, "timeout")?;
     task.with = parse_with(cx, mapping)?;
-    task.output = parse_output_bindings(cx, mapping)?;
+    task.extract = parse_extract_bindings(cx, mapping)?;
     task.returns = parse_returns(cx, mapping)?;
     task.on_finally = parse_on_finally(cx, mapping, &task_label)?;
     task.declassify = super::declassify::parse_declassify(cx, mapping, &task_label)?;
@@ -670,23 +670,23 @@ fn parse_with(
     Ok(out)
 }
 
-/// `output:` — named jq bindings · key → jq expression string
-/// (spec 04 §output binding).
-fn parse_output_bindings(
+/// `extract:` — named jq bindings · key → jq expression string (spec 04
+/// §binding rules). The reserved-projection refusal is unchanged.
+fn parse_extract_bindings(
     cx: &Cx<'_>,
     mapping: &MarkedMappingNode,
 ) -> Result<super::SpannedEntries<String>, SchemaError> {
-    let Some(node) = mapping.get_node("output") else {
+    let Some(node) = mapping.get_node("extract") else {
         return Ok(Vec::new());
     };
-    let Some(output_map) = node.as_mapping() else {
+    let Some(extract_map) = node.as_mapping() else {
         return Err(SchemaError::Validation {
-            message: "`output` must be a YAML mapping of name → jq expression".to_owned(),
+            message: "`extract` must be a YAML mapping of name → jq expression".to_owned(),
             span: cx.span(node.span()),
         });
     };
-    let mut out = Vec::with_capacity(output_map.len());
-    for (key, value) in output_map.iter() {
+    let mut out = Vec::with_capacity(extract_map.len());
+    for (key, value) in extract_map.iter() {
         let Some(scalar) = value.as_scalar() else {
             return Err(SchemaError::Validation {
                 message: format!(
@@ -1408,14 +1408,14 @@ tasks:
     invoke:
       tool: \"nika:fetch\"
       args: { url: \"https://api.example.com/data\" }
-    output:
+    extract:
       user_count: \".data.users | length\"
       first_user: \".data.users[0]\"
 ";
         let task = one_task(yaml);
-        assert_eq!(task.output.len(), 2);
-        assert_eq!(task.output[0].0.value, "user_count");
-        assert_eq!(task.output[0].1.value, ".data.users | length");
+        assert_eq!(task.extract.len(), 2);
+        assert_eq!(task.extract[0].0.value, "user_count");
+        assert_eq!(task.extract[0].1.value, ".data.users | length");
     }
 
     #[test]

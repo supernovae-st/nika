@@ -137,7 +137,7 @@ fn config_reads_of_task(
     if let Some(WhenGate::Expr(cel)) = task.value.when.as_ref().map(|g| &g.value) {
         collect_config_reads(cel, config_reads);
     }
-    for (_, expr) in &task.value.output {
+    for (_, expr) in &task.value.extract {
         collect_config_reads(&expr.value, config_reads);
     }
     // `for_each:` — the collection expression (or list literals) can

@@ -7,7 +7,7 @@
 //! NEP-0004 law 7's one grammar addition ·
 //! « v1 ships with these task fields · `with` · `after` · `when` ·
 //! `for_each` · `max_parallel` · `fail_fast` · `retry` · `on_error` ·
-//! `timeout` · `on_finally` · `output` · `declassify` · plus the verb
+//! `timeout` · `on_finally` · `extract` · `declassify` · plus the verb
 //! selector. »
 //! The set is CLOSED — strict mode rejects anything else.
 
@@ -73,8 +73,13 @@ pub struct RawTask {
     pub timeout: Option<Spanned<Duration>>,
     /// `with:` — task-scope variable injection (`${{ with.X }}`).
     pub with: Vec<(Spanned<String>, Spanned<serde_json::Value>)>,
-    /// `output:` — named jq bindings over the verb's raw response.
-    pub output: Vec<(Spanned<String>, Spanned<String>)>,
+    /// `extract:` — named jq bindings over the verb's raw response,
+    /// read downstream as `${{ tasks.X.<name> }}`. The field names the
+    /// OPERATION (run this jq); it does NOT write `output` —
+    /// `${{ tasks.X.output }}` stays the raw response. The old spelling
+    /// `output:` lied twice, measured at 0.108.0: `output: { output: "." }`
+    /// refused its own name, and the field never wrote `output`.
+    pub extract: Vec<(Spanned<String>, Spanned<String>)>,
     /// `returns:` — the task's output contract (spec 09 · a named type
     /// or an inline type expression · RAW here, parsed by the type core
     /// at check time).
@@ -106,7 +111,7 @@ impl RawTask {
             on_error: None,
             timeout: None,
             with: Vec::new(),
-            output: Vec::new(),
+            extract: Vec::new(),
             returns: None,
             on_finally: Vec::new(),
             declassify: Vec::new(),
@@ -178,7 +183,7 @@ mod tests {
         assert!(task.on_error.is_none());
         assert!(task.timeout.is_none());
         assert!(task.with.is_empty());
-        assert!(task.output.is_empty());
+        assert!(task.extract.is_empty());
         assert!(task.returns.is_none());
         assert!(task.on_finally.is_empty());
     }

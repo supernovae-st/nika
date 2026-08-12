@@ -141,7 +141,7 @@ permits: { exec: true, tools: ["nika:jq"] }
 tasks:
   api:
     invoke: { tool: "nika:jq", args: { input: {}, expression: "." } }
-    output:
+    extract:
       n: ".data.users | length"
       emails: "[.data.users[].email]"
   use:

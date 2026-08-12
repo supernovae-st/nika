@@ -802,7 +802,7 @@ nika: t
 tasks:
   api:
     invoke: { tool: \"nika:fetch\", args: { url: \"https://x.test\" } }
-    output:
+    extract:
       user_count: \".data.users | length\"
   report:
     with:
@@ -846,7 +846,7 @@ nika: t
 tasks:
   api:
     invoke: { tool: \"nika:fetch\" }
-    output:
+    extract:
       status: \".data.status\"
 ";
         let errors = analyze_yaml(yaml).expect_err("reserved");
@@ -866,7 +866,7 @@ nika: t
 tasks:
   api:
     invoke: { tool: \"nika:fetch\" }
-    output:
+    extract:
       field: \".data | ${{ vars.x }}\"
 ";
         let errors = analyze_yaml(yaml).expect_err("template in jq");

@@ -107,7 +107,7 @@ tasks:
     exec: { shell: "exit 1" }
     on_error:
       recover: ${{ tasks.source.output }}
-    output:
+    extract:
       v: "."
   source:
     exec: { command: ["echo", "99"] }

@@ -284,7 +284,7 @@ mod tests {
     /// (`skip_serializing` — no fake defaults).
     #[test]
     fn declared_policy_projects_and_undeclared_stays_absent() {
-        let yaml = "nika: policy\nmodel: mock/echo\ntasks:\n  guarded:\n    infer: { prompt: \"p\", max_tokens: 5 }\n    timeout: \"30s\"\n    retry:\n      max_attempts: 3\n    on_error:\n      skip: true\n    output:\n      summary: \".text\"\n      title: \".title\"\n  bare:\n    after:\n      guarded: success\n    infer: { prompt: \"q\", max_tokens: 5 }\n";
+        let yaml = "nika: policy\nmodel: mock/echo\ntasks:\n  guarded:\n    infer: { prompt: \"p\", max_tokens: 5 }\n    timeout: \"30s\"\n    retry:\n      max_attempts: 3\n    on_error:\n      skip: true\n    extract:\n      summary: \".text\"\n      title: \".title\"\n  bare:\n    after:\n      guarded: success\n    infer: { prompt: \"q\", max_tokens: 5 }\n";
         let wf = nika_schema::parse(
             yaml,
             nika_schema::FileId::new(0),

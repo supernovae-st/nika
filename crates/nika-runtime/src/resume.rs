@@ -571,7 +571,7 @@ pub(crate) fn definition_value(task: &RawTask) -> Option<Value> {
         "on_error": on_error_value(task)?,
         "timeout_ms": task.timeout.as_ref().map(duration_ms),
         "with": raw_with_object(&task.with),
-        "output": task.output.iter()
+        "output": task.extract.iter()
             .map(|(name, program)| (name.value.clone(), Value::String(program.value.clone())))
             .collect::<serde_json::Map<_, _>>(),
         "on_finally": finally_values(&task.on_finally)?,
