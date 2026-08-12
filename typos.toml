@@ -41,6 +41,7 @@ strng      = "strng"
 frist      = "frist"
 titel      = "titel"
 requierd   = "requierd"
+requrie    = "requrie"    # the NIKA-1711 typo-refusal fixture (#889 · the sandbox-policy tests ASSERT the misspelled knob refuses — "fixing" it breaks them)
 filesytem  = "filesytem"
 BUIL       = "BUIL"
 markdwon   = "markdwon"  # extract-mode typo rung fixture (nika-types suggest/extract tests)

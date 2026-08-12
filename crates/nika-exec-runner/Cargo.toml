@@ -23,6 +23,10 @@ nika-kernel = { path = "../nika-kernel", version = "0.108.0" }
 # leaf carries the ONE argv exec-floor predicate (#605 · exec::argv_floor_refusal)
 # the blocklist wrapper and the `nika check` SEC-001 finding both judge with.
 nika-types = { path = "../nika-types", version = "0.108.0" }
+# L0 · the declared `permits:` vocabulary the spawn-side SandboxSpec derives
+# from (sandbox_spec · descended from nika-runtime::dispatch at the 15k wall ·
+# ADR-110 · #889). L1 → L0, no cycle possible.
+nika-schema = { path = "../nika-schema", version = "0.108.0" }
 # tokio::process spawns the child; io-util drains pipes; sync::Notify backs the
 # cancel-by-pid registry; time::timeout enforces the deadline.
 tokio = { workspace = true, features = ["process", "io-util", "sync", "time", "rt", "macros"] }
@@ -40,9 +44,9 @@ proptest = { workspace = true }
 tokio    = { workspace = true, features = ["process", "io-util", "sync", "time", "rt", "macros"] }
 # The #605 agreement test (blocklist::tests): the static check and the
 # runtime floor must return the SAME verdict on the same literal argv —
-# L0 leaves, downward-only.
+# L0 leaves, downward-only. (nika-schema rides [dependencies] — the
+# sandbox_spec derivation speaks Permits in prod.)
 nika-check  = { path = "../nika-check", version = "0.108.0" }
-nika-schema = { path = "../nika-schema", version = "0.108.0" }
 
 [package.metadata.lore]
 daemon        = "timonier"

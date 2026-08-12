@@ -25,15 +25,18 @@ fn started_fields_with_origins(
     sandbox: Option<&str>,
     origins: &BTreeMap<String, InputOrigin>,
 ) -> Vec<(String, String)> {
-    started_fields_full(yaml, sandbox, origins, None, None, None, None)
+    started_fields_full(yaml, sandbox, None, false, origins, None, None, None, None)
 }
 
 /// The full knob set (origins · the F-P21 declared compat · the ADR-099
 /// trust-amendment opt-out · the F-P18 operator budget · the issue-772
-/// model override).
+/// model override · the #889 policy posture + witnessed waiver).
+#[allow(clippy::too_many_arguments)] // the prologue's own knob set (its precedent)
 fn started_fields_full(
     yaml: &str,
     sandbox: Option<&str>,
+    sandbox_policy: Option<&str>,
+    sandbox_waived: bool,
     origins: &BTreeMap<String, InputOrigin>,
     resume_compat: Option<&str>,
     resume_unverified: Option<&crate::resume::ResumeUnverified>,
@@ -55,6 +58,8 @@ fn started_fields_full(
         None,
         None,
         sandbox,
+        sandbox_policy,
+        sandbox_waived,
         origins,
         resume_compat,
         resume_unverified,
@@ -130,6 +135,41 @@ fn prologue_omits_absent_boundary_and_backend() {
     );
 }
 
+/// #889 — the waiver is ATTESTED: the policy posture and the waived flag
+/// ride the opening frame when the run proceeds unconfined with
+/// `permits:` declared under `NIKA_SANDBOX=off`; every other posture
+/// leaves them absent (never an invented claim).
+#[test]
+fn the_waiver_is_attested_on_the_opening_frame() {
+    let yaml = "nika: v1\nworkflow:\n  id: pay\npermits:\n  fs: { read: [\"./in/**\"] }\ntasks:\n  t:\n    exec: { command: [\"echo\", \"x\"] }\n";
+    let waived = started_fields_full(
+        yaml,
+        Some("noop"),
+        Some("off"),
+        true,
+        &BTreeMap::new(),
+        None,
+        None,
+        None,
+        None,
+    );
+    assert_eq!(get(&waived, "sandbox"), Some("noop"));
+    assert_eq!(get(&waived, "sandbox_policy"), Some("off"));
+    assert_eq!(get(&waived, "sandbox_waived"), Some("true"));
+
+    let auto = started_fields(yaml, Some("seatbelt"));
+    assert_eq!(
+        get(&auto, "sandbox_policy"),
+        None,
+        "an unrecorded posture stays absent"
+    );
+    assert_eq!(
+        get(&auto, "sandbox_waived"),
+        None,
+        "no waiver = nothing attested"
+    );
+}
+
 /// F-P13 (NEP-0014 law 2) — the boot manifest journals the origin of
 /// every input the run binds (`inputs` = one JSON map field), and a run
 /// without origins carries NO claim (absent is honest).
@@ -166,6 +206,8 @@ fn prologue_attests_the_declared_cross_version_compat() {
     let fields = started_fields_full(
         yaml,
         None,
+        None,
+        false,
         &BTreeMap::new(),
         Some("0.105.0"),
         None,
@@ -193,6 +235,8 @@ fn prologue_attests_the_resume_unverified_opt_out() {
     let fields = started_fields_full(
         yaml,
         None,
+        None,
+        false,
         &BTreeMap::new(),
         None,
         Some(&crate::resume::ResumeUnverified::Declared(
@@ -228,6 +272,8 @@ fn prologue_attests_the_unchained_resume_compat() {
     let fields = started_fields_full(
         yaml,
         None,
+        None,
+        false,
         &BTreeMap::new(),
         None,
         Some(&crate::resume::ResumeUnverified::Unchained(
@@ -282,7 +328,17 @@ fn prologue_pins_the_pricing_table_identity() {
 fn prologue_journals_the_budget_only_when_bounded() {
     let yaml =
         "nika: v1\nworkflow:\n  id: pay\ntasks:\n  t:\n    exec: { command: [\"echo\", \"x\"] }\n";
-    let bounded = started_fields_full(yaml, None, &BTreeMap::new(), None, None, Some(0.05), None);
+    let bounded = started_fields_full(
+        yaml,
+        None,
+        None,
+        false,
+        &BTreeMap::new(),
+        None,
+        None,
+        Some(0.05),
+        None,
+    );
     let budget: serde_json::Value =
         serde_json::from_str(get(&bounded, "budget").expect("a bounded run journals its budget"))
             .expect("budget is one JSON document");
@@ -304,6 +360,8 @@ fn prologue_journals_the_budget_only_when_bounded() {
     let non_finite = started_fields_full(
         yaml,
         None,
+        None,
+        false,
         &BTreeMap::new(),
         None,
         None,
@@ -324,6 +382,8 @@ fn prologue_journals_the_model_override_only_when_declared() {
     let overridden = started_fields_full(
         yaml,
         None,
+        None,
+        false,
         &BTreeMap::new(),
         None,
         None,

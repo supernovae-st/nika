@@ -721,6 +721,8 @@ where
             self.source_sha256.as_deref(),
             self.source_sha256_lf.as_deref(),
             self.config.sandbox_backend.as_deref(),
+            self.config.sandbox_policy.as_deref(),
+            self.config.sandbox_waived,
             &self.input_origins,
             self.resume_compat.as_deref(),
             self.resume_unverified.as_ref(),

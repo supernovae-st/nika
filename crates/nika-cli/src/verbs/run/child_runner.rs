@@ -281,6 +281,9 @@ impl ChildRunner for ProdChildRunner {
                     .tasks
                     .iter()
                     .any(|t| matches!(t.value.action, nika_schema::raw::RawAction::Exec(_))),
+                // spec 14's intersection: the boundary is DECLARED over the
+                // child when either side named one (the parent's binds too).
+                permits_declared: wf.permits.is_some() || call.parent_permits.is_some(),
             };
             let model = wf.model.as_ref().map_or("", |m| m.value.as_str());
             // F-P3 · the CHILD's own run: declaration governs its seams
