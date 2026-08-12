@@ -282,20 +282,17 @@ fn ask_project_file(
     )
 }
 
-/// The write phase — briefs · workflows · wires · proof · panel.
-fn found(
+/// The briefs rows of the write phase — the adds-only report, and
+/// `true` when any write FAILED (the caller folds it into its early
+/// exit). Extracted under the 100-line fn law (ADR-023).
+fn report_briefs(
     dir: &str,
-    force: bool,
     theme: Theme,
-    choices: &Choices,
-    input: &mut dyn BufRead,
+    briefs: &[(String, BriefOutcome)],
     out: &mut dyn std::io::Write,
-    (audit, wire): (&Audit<'_>, &Wire<'_>),
-) -> Outcome {
-    writeln!(out, "{}", chrome::rail_head(theme, "scaffold")).ok();
-    let briefs = apply_briefs(dir, force, choices.canvas);
+) -> bool {
     let mut failed = false;
-    for (path, outcome) in &briefs {
+    for (path, outcome) in briefs {
         let rel = relative(dir, path);
         let line = match outcome {
             BriefOutcome::Created => brief_line(theme, '✔', &format!("created {rel}")),
@@ -309,6 +306,22 @@ fn found(
         };
         writeln!(out, "{line}").ok();
     }
+    failed
+}
+
+/// The write phase — briefs · workflows · wires · proof · panel.
+fn found(
+    dir: &str,
+    force: bool,
+    theme: Theme,
+    choices: &Choices,
+    input: &mut dyn BufRead,
+    out: &mut dyn std::io::Write,
+    (audit, wire): (&Audit<'_>, &Wire<'_>),
+) -> Outcome {
+    writeln!(out, "{}", chrome::rail_head(theme, "scaffold")).ok();
+    let briefs = apply_briefs(dir, force, choices.canvas);
+    let mut failed = report_briefs(dir, theme, &briefs, out);
     // The trace cover — the same adds-only guarantee the scripted twin
     // gives (one law, two doors · `gitignore.rs`).
     let (git_path, git_outcome) = gitignore::ensure(dir);
