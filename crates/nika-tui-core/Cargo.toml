@@ -43,3 +43,4 @@ lto = true
 wasm-opt = false
 
 [dev-dependencies]
+proptest = "1.6"   # Gate 6 · the derivation invariants under arbitrary shapes
