@@ -24,6 +24,12 @@
 # measurements. A regeneration nobody can run is a regeneration nobody
 # runs.
 #
+# ⚠️ The `HEAD` field can NEVER equal the current HEAD of a committed tree:
+# the commit that carries the block does not exist when the block is
+# generated. It means «the HEAD the block was generated against», one
+# commit behind by construction — not a drift to chase. What IS a drift is
+# a HEAD from eleven commits back, which is what --write exists to close.
+#
 # Companion: scripts/hygiene/check-status-claims-sync.sh (Phase B vector
 # 26) greps the status docs and fails if their claims don't match this
 # script's output.

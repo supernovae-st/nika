@@ -169,8 +169,13 @@ Narrative context (manually maintained):
   NIKA-1000..1599 · detail in `docs/crate-specs/` + adr-081). The first-15-min
   slice is now CLOSED · nika-cli (operator surface) + nika-builtin (s16 · the
   23 stdlib tools) + nika-infer-local (candle · ADR-091) + nika-extract (the 9
-  fetch extract modes) are ALL admitted (2026-06-21) — **the wip array is empty**
-  (39 admitted at the time · all existing crates admitted).
+  fetch extract modes) are ALL admitted (2026-06-21) — **the wip array WAS
+  empty on that date** (39 admitted then · every crate that existed).
+  ⚠️ It said « the wip array **is** empty », in the present tense, thirty-five
+  lines under an auto-block reading `crates (WIP) | 6`. One file, two answers
+  to the same question. The narrative was TRUE on 2026-06-21 and became a lie
+  by outliving its tense — which is why every declaration here carries its
+  date, and why the live figure is only ever read from the block above.
 - **Last stabilization — 2026-06-16** (origin/main `0b558f7f8`) · the static-check
   layer hardened to runtime-parity. **DEEP_GAPS conformance ledger EMPTIED** ·
   jq compile-check (jaq) + schema meta-check (jsonschema), both in L0 calling the
