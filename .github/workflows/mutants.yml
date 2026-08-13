@@ -27,7 +27,32 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        crate: [nika-cap]
+        # Each crate is its own job (fail-fast: false, 90 min each), so this
+        # list widens without any crate's cost reaching another's.
+        crate:
+          # The capability boundary itself.
+          - nika-cap
+          # Added 2026-08-13. These six carry a `GATE5-EXEMPT` marker, and
+          # until today that marker attested ITSELF: check-gate5-attestation.sh
+          # greps for its presence and calls the crate attested, so a budget
+          # could drift to nothing and CI would stay green. The floor script
+          # already honours BUDGET mode for them; they simply were never RUN.
+          # A declaration is not a measurement.
+          - nika-types
+          - nika-cel
+          - nika-catalog
+          - nika-catalog-codegen
+          - nika-tmpl
+          - nika-schema
+          # NOT added, and the reason is the point. nika-a11y · nika-screen ·
+          # nika-input · nika-browser are platform-sensitive, and the floor
+          # script's own header documents that `-- --lib` on ubuntu mutates the
+          # cfg'd-out other-OS arms, so they report MORE survivors than their
+          # spec's reachable count. Running them here would manufacture a red
+          # that accuses the crate for the runner's platform · the exact
+          # instrument fault this gate was just fixed to stop making. Their
+          # exemption stays DECLARED rather than measured, and naming that is
+          # the honest half of the ratchet.
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
