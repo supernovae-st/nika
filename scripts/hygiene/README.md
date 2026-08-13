@@ -79,20 +79,27 @@ Exits `0`/`1`/`2` to signal green/yellow/red.
 - Any red → open (or update) 1 idempotent issue with label `hygiene-drift`
   containing the full output
 
-## Olympus dashboard auto-refresh (post-commit)
+## Olympus dashboard auto-refresh (post-commit) — RETIRED 2026-08-14
 
-After every engine commit, lefthook fires
-`scripts/hooks/post-commit-olympus-xtask.sh` in the background (nohup +
-`pnpm tsx olympus/scripts/xtask.ts`). This regenerates
-`olympus/data/workspace.json` + `data/snapshots/<timestamp>.json`
-+ `data/hygiene-status.json`, which the Olympus file-watcher picks up
-via `WorkspacePatchKind` so `/timeline`, `/graph/diff`, `/graph/fitness`,
-and `/hygiene` all refresh live without manual reload.
+There was a `post-commit-olympus-xtask` hook here that regenerated an
+Olympus dashboard after every engine commit. It is gone.
 
-The hook is non-blocking: commits always succeed. Missing pnpm or a
-missing olympus sibling directory causes a silent skip logged to
-`.nika/post-commit-xtask.log`. The log is gitignored via the root
-`/.nika/` entry.
+It resolved its target as `<engine>/../../olympus`, which the tree moved
+out from under: that path names `…/repos/olympus`, and Olympus lives at
+`ventures/olympus`. The hook opened with `[ -d "$OLYMPUS" ] || exit 0`
+placed ABOVE its own log write, so once the directory was gone it left
+no trace at all — it did not even create `.nika/`.
+
+Its own log is the record: 190 fires ever, the last at
+`2026-06-05T15:05:13Z`, ending in `ERR_MODULE_NOT_FOUND`. **1722
+commits since, in silence.**
+
+Repair was not available. The receiving `scripts/xtask.ts` still exists
+in the Olympus OS repo, but that repo has no `package.json`, so the
+`pnpm tsx` invocation cannot resolve; its output `data/workspace.json`
+is not tracked anywhere; and `olympus studio health` has since taken
+over the job. Re-pointing the path would only have reached a script
+that cannot run.
 
 ## Integration with Claude Code hooks
 
