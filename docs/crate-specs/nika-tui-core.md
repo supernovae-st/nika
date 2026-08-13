@@ -93,3 +93,44 @@ une « différence de plateforme » — c'est pour ça que la loi déménage.
 - la carte du portage du studio (sa SSOT) · ce que T27 portera
 - D-2026-08-11-N6 · l'arbitrage d'ordre (T28 avant T27)
 - ADR-107 · le précédent WASM (nika-check-wasm)
+
+---
+
+## 7. Gate status (amendment · 2026-08-12)
+
+| Gate | Verdict | Preuve |
+|---|---|---|
+| 5 **Mutation** | **90,3 %** (130/144 viables · 2026-08-12) | `cargo mutants` sur le shim · première passe 76 %, chaque trou nommé puis fermé (`ed66cc539`) · résidu = la classe frontière (epsilon 1e-6 · tie-breaks de `>` strict · const de vocabulaire), nommée dans le journal de mutation |
+| 6 **Property** | 5 propriétés (`77283178e`) | partition des vagues · idle ≥ 0 · durée couvrante · goulot couronné a des attendants · groupage partitionne · cycles inclus |
+| 7 **Benchmarks** | **no hot path, décidé** | la dérivation sur 24 tâches est de l'ordre de la microseconde (la fixture stress, 8 vagues, se replie en <1 ms natif) · un bench mesurerait la plateforme, pas la loi |
+| 9 **Canary E2E** | **la forme du crate n'a pas de canary workflow** · l'E2E réel est le harnais Node sur le lot construit (`test.mjs` · fixtures réelles à travers la frontière) + le gate `wasm-parity` du studio | un canary `.nika.yaml` n'invoque pas une bibliothèque de loi |
+| 10 **Parity legacy** | n/a · pas de brouillon pour ce crate (loi neuve) · la parité de RÉFÉRENCE est le studio TS (fixtures `gen-parity`, rejouées bit à bit) | — |
+| 11 **Review swarm** | ✅ **répondu** (`650d3a58a` · « la reponse du swarm, gate 11 ») | — |
+| 12 **Atomic commit** | à l'admission (shim retiré · members + wip + layers) | — |
+
+### ⚠️ Gate 5 · le chiffre de 90,3 % a été pris avec un AUTRE instrument
+
+Mesuré 2026-08-13, dans le workspace : `check-mutation-floor.sh nika-tui-core`
+rend **0 pris sur 165 viables**. Ce n'est pas une régression de la suite, c'est
+une faute de portée. La porte invoque `cargo mutants -- --lib` (convention
+diamant + la règle macOS sans Keychain), or ce crate n'a **aucun**
+`#[cfg(test)]` dans `src/` et **1047 lignes de tests dans `tests/`**. Aucun
+test ne tourne, donc rien n'est tué, donc le ratio ne mesure rien.
+
+Le 90,3 % de la ligne ci-dessus avait été pris **« sur le shim »**, quand le
+crate vivait encore en standalone avec son propre `[workspace]`. Le shim est
+parti à `c5c8f96cc`. Le chiffre est honnête pour sa configuration et muet pour
+celle-ci.
+
+Deux crates du workspace occupent ce trou (`nika-acp` et celui-ci) ; les 61
+autres gardent leurs tests unitaires inline et sont mesurés correctement.
+La porte a été corrigée le même jour (`df59b5f8a`) pour **refuser de rendre un
+ratio quand elle n'a exécuté aucun test** : elle sort désormais en 3 (outillage)
+avec la cause nommée, au lieu de 2 (sous le plancher), parce qu'un rouge qui
+accuse le mauvais sujet envoie réparer un crate qui n'est pas cassé.
+
+**Ce que Gate 5 exige encore ici** · une mesure prise sans la restriction
+`--lib` (attention à la règle Keychain de `.claude/CLAUDE.md`), OU le
+rapatriement des tests unitaires en `src/`. Tant que l'un des deux n'est pas
+fait, ce crate n'a pas de verdict Gate 5, et « pas de verdict » n'est ni un
+vert ni un rouge.

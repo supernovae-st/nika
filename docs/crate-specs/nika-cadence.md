@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | **CANDIDATE** — Gate 1 (this document) authored 2026-08-11. Crafted shim-standalone (45 tests · clippy 0 `-D warnings` · rustfmt clean) · committed with the temporary `[workspace]` shim (`92a0f8497`), then the four pre-freeze corrections of plan §2unvicies (the bitset's ONE encoding · `Slot` declares the DST shift · the field count is the type · the error span). Remaining before admission (task T-cadence-crate-l0-pur): the `spec-plane` allowlist row and the shim removal (the wip join). |
+| Status | **CANDIDATE** — Gate 1 (this document) authored 2026-08-11. Crafted shim-standalone (50 tests today, 45 at authoring · clippy 0 `-D warnings` · rustfmt clean) · committed with the temporary `[workspace]` shim (`92a0f8497`), then the four pre-freeze corrections of plan §2unvicies (the bitset's ONE encoding · `Slot` declares the DST shift · the field count is the type · the error span). The two items this row used to name (the allowlist row, the shim removal) are BOTH DONE; the row described work already shipped. Remaining before admission, measured 2026-08-13: the Gate 11 P1 below, and Gate 5 at 88 percent against a 90 floor. |
 | Layer | L0 — pure, zero I/O, zero async |
 | Design | The arming-registry grammar (the `arm:` block of `nika.yaml`, D-2026-08-10-N3) + the pure next-slot calculator. Hand-counted 5-field cron (zero cron library — the count is validated BEFORE field semantics, scar #6) · IANA zones resolved from the EMBEDDED tzdb only (`jiff-tzdb`, never the host's zoneinfo) · two cadence forms (cron + readable `lundi 9h07`), display normalizing to the readable one. |
 | LOC budget | ≤2,000 src prod (post-corrections 1,467 prod + 753 cfg(test)) · ≤15,000 hard cap |
@@ -13,7 +13,7 @@
 | Edition | 2024 (workspace-inherited at admission) |
 | Publish | `false` — foundation crate, never on crates.io |
 | Dependencies | `serde` · `serde_yaml_bw` (the panic-free YAML plane) · `thiserror` · `jiff` · `jiff-tzdb` (the embedded IANA tzdb) — dev: `proptest` |
-| NIKA codes | **none owed** — `CadenceErrorKind::spec_code()` emits the grammar's OWN slugs (`cadence.*`), never a `NIKA-*` registry code; every refusal is rendered as a taught fix at the L4 verb boundary (`exit 2`, the FILE plane). The `check-error-one-voice.sh` allowlist row (class wrapped-intermediate, the `ExprError` precedent) rides the admission commit. |
+| NIKA codes | **none owed** — `CadenceErrorKind::spec_code()` emits the grammar's OWN slugs (`cadence.*`), never a `NIKA-*` registry code; every refusal is rendered as a taught fix at the L4 verb boundary (`exit 2`, the FILE plane). The `check-error-one-voice.sh` allowlist row is ALREADY in place (class `spec-plane`, the `CelErrorKind` precedent — corrected 2026-08-13 at Gate 11; this row said `wrapped-intermediate`/`ExprError`, which the real TSV and the canonical audit table both contradict). |
 
 ---
 
@@ -95,7 +95,9 @@ spec_code()`.
 
 ## 4. Tests
 
-45 at authoring: parse (both forms · TZ-less refused · 6 fields refused
+50 today, 45 at authoring (the four pre-freeze corrections added five that
+were described in prose here without being recounted): parse (both forms ·
+TZ-less refused · 6 fields refused
 by the TYPE · out-of-range · Vixie OR judged on the sets (`1-31` dom is
 every day) · unknown zone · 7-is-dimanche · spans pin the faulty token)
 · calculator (strictly-after · month/year crossing · slept-3-days ·
@@ -133,3 +135,69 @@ verification (②'s, refused by name in round 1).
   à V3⑪**, avec le premier consommateur réel (`sign cadence`) en main —
   la duplication « re-parse + None-impossible » sera prouvée ou
   imaginaire à ce moment-là, pas avant.
+
+---
+
+## 6. Gate status (measured 2026-08-13, not declared)
+
+| Gate | Verdict | Evidence |
+|---|---|---|
+| 1 SPEC | ✅ | this document |
+| 2/3 TDD + IMPL | ✅ | 50 tests, all green (`cargo nextest -p nika-cadence`) |
+| 4 CLIPPY | ✅ | `--all-targets -- -D warnings`, rc 0 |
+| 5 MUTATION | 🔴 **88 percent** (186/209 viable, 23 survived) | `scripts/ci/check-mutation-floor.sh nika-cadence 90`, real run. Two points short of the floor. |
+| 8 DOCS | ✅ | `cargo doc --no-deps`, 0 warnings |
+| 11 REVIEW SWARM | 🔴 **one P1 open** | three lenses dispatched 2026-08-13 (doctrine · Rust · spec-vs-code) |
+| 12 ATOMIC | pending admission | removal from the `wip` array in the workspace manifest |
+
+Plus the shared gates, all green the same day: loc-limits · fn-length ·
+unwrap · expect · crate-size · adr-coverage · credential-headers ·
+layering · dead-code · error-one-voice.
+
+### 6.1 The Gate 11 P1, and why it blocks
+
+**A `(dom, months)` pair that no calendar can satisfy parses green, and the
+beat then never fires, in silence.**
+
+`TZ=Europe/Paris 0 9 31 4 *` (April 31, a banal typo) parses `Ok` and
+`validate` returns zero faults: after the five fields, the ONLY structural
+check is the Vixie `dom`+`dow` OR guard (`src/cron.rs`). `next_after`
+(`src/next.rs`) then walks its horizon, `covers()` is true on no day, and it
+returns `None` forever.
+
+This crate's own contract is that every refusal is named and teaches its fix.
+A silent `None` is the one outcome that contract forbids. The fix owed: after
+the Vixie guard, refuse when no month in the set admits a day in the `dom`
+set (February 29 · April, June, September, November 30 · otherwise 31).
+
+### 6.2 Two P2s found alongside, both confirmed by reading
+
+- **The 1500-day horizon is too short, and its comment is false.**
+  `src/next.rs` reasons that "a 29 February is never further than 4 years".
+  2100 is not a leap year, so from 2096-03-01 the next one is 2104-02-29,
+  2920 days out. `0 9 29 2 *` returns `None` there. Raise to 3000.
+- **One unresolvable slot kills the whole walk.** `resolve(civil, tz)?`
+  propagates its `None` out of `next_after` rather than skipping that
+  candidate, so a single irresolvable civil time silences the entire beat.
+  Use an `else { continue }` binding.
+
+### 6.3 One finding raised then withdrawn, recorded so it is not re-raised
+
+`Field<LO, HI>` (`src/cron.rs`) carries no `#[non_exhaustive]`. Two lenses
+disagreed; the tie was settled by reading. Its single field `bits: u64` is
+private and there is no public constructor (`empty`/`full`/`set` are all
+crate-private), so external code can neither literal-construct it nor match
+it exhaustively. FCI-016 governs public FIELDS and does not bind here. No
+change owed.
+
+### 6.4 What Gate 5 says about the tests, concretely
+
+The 23 survivors cluster, and one cluster matters more than the others:
+three of them sit on `validate_beat`'s ceiling guard
+(`!(p > 0.0 && p.is_finite())`, `src/parse.rs`). Replacing `&&` with `||`,
+`>` with `>=`, or the whole guard with `false` all survive, which means no
+test distinguishes a ceiling of zero, of infinity, or of NaN from a valid
+one. `plafond:` is a REQUIRED field with no default precisely because it
+decides who pays; its guard is the last one that should be untested. The
+other named survivors sit on `Field::is_empty`, `parse_field`'s bound
+comparison, `CadenceError::remedy` (never asserted), and a `*` in `resolve`.

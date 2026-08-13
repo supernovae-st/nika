@@ -6,9 +6,19 @@
 //! This crate owes no `NIKA-*` range: every fault is rendered as a
 //! taught fix at the L4 verb boundary (`exit 2`, the FILE plane), never
 //! crossing into the workflow/runtime plane as a code. The
-//! `check-error-one-voice.sh` allowlist row rides the admission commit
-//! (class: wrapped-intermediate — the same class as `nika-tmpl`'s
-//! `ExprError`, wrapped before the boundary).
+//! `check-error-one-voice.sh` allowlist row is already in place (class
+//! `spec-plane`, the same class as `nika-cel`'s `CelErrorKind`, which
+//! also carries its own wire slugs rather than a registry range).
+//!
+//! Corrected 2026-08-13 at Gate 11: this comment and the crate spec both
+//! cited `wrapped-intermediate` and the `ExprError` precedent. Both were
+//! wrong. That class is for an error WRAPPED into a coded one before it
+//! crosses a boundary; this one is never wrapped, it carries its own
+//! plane. The real row (`scripts/ci/error-one-voice-allowlist.tsv`) and
+//! the canonical audit table have said `spec-plane` all along. The gate
+//! matches enum and crate and ignores the class, so nothing broke; a
+//! wrong precedent is worse than a broken gate because the next crate
+//! copies it.
 //!
 //! [`CadenceErrorKind::spec_code`] follows the `CelError` model — a
 //! stable per-kind slug — but the slugs are this grammar's OWN names
