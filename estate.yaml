@@ -162,7 +162,7 @@ patterns:
 - glob: "crates/**"
   class: authored
   match_count: 133
-  aggregate_sha256: 665931739e41252f41b4463837f2ea533a6d0547938868f2f1ed8a4ddeebea14
+  aggregate_sha256: 09ba472d11d0399d5f0fbf5f74fadcca3e09e40617ccaa4ff307f5862c35d6a5
   evidence: "the remaining crate surface — Cargo.toml manifests · build.rs · benches · READMEs · hand-curated data catalogs (llm-providers · mcp-servers · embeddings · model-capabilities, probed daily by catalog-verify.yml); the pricing snapshot is excepted in files:"
   note: "crates/nika-pack/scripts/sync-pack.sh is a DIVERGENT older duplicate of scripts/sync-pack.sh — the pack-resync.yml lane runs the root one"
 - glob: "fuzz/**"
@@ -237,7 +237,7 @@ patterns:
 - glob: "*"
   class: authored
   match_count: 28
-  aggregate_sha256: e6b39af8ee175126a7780375fe0cccd8e3909ab0a0dff20ab8e1f62d23a9c180
+  aggregate_sha256: 002375a46669f3ce6db509375d59ab4ae1acafbb8580608cbca23e20ea2d515f
   evidence: "root prose + config surface (README · DIAMOND · LICENSE · llms.txt · Cargo.toml · deny/clippy/cliff/typos toml · lefthook.yml · flake.nix · Dockerfile) — no generation markers at file heads; CHANGELOG.md · Cargo.lock · SPEC_PIN · ROADMAP.md excepted in files:"
 - glob: "**"
   class: authored
