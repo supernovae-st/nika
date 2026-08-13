@@ -112,4 +112,13 @@ fn extend_law_codes(report: &CheckReport, codes: &mut Vec<SpecCode>) {
             .iter()
             .map(|_| SpecCode::new("SEC", 15, SpecCategory::SecurityError)),
     );
+    // The authored doors rule 6 (spec 10) → NIKA-AUTH-011. A validation
+    // error, not a security one: the file is not dangerous, it is
+    // MISLEADING — and review reads the difference.
+    codes.extend(
+        report
+            .lift_findings
+            .iter()
+            .map(|_| SpecCode::new("AUTH", 11, SpecCategory::ValidationError)),
+    );
 }

@@ -122,3 +122,7 @@ envelope	NIKA-SEC-009	check-fail	conformance/envelope/trifecta-realized-flow-ung
 envelope	(positive)	positive-check	conformance/envelope/trifecta-human-gate-dominates.nika.yaml
 composition	NIKA-COMP-003	check-fail	conformance/composition/self-launch-cycle.nika.yaml
 composition	(positive)	positive-run	conformance/composition/parent-child-acyclic.nika.yaml
+authority	NIKA-AUTH-011	check-reject	conformance/tests/core/authority/028-lift-that-lifts-nothing-refused
+authority	NIKA-AUTH-011	check-reject	conformance/tests/core/authority/029-lift-data-as-code-on-inert-refused
+authority	(positive)	positive-check	conformance/tests/core/authority/011-declassify-declared-opens-the-door
+authority	(positive)	positive-check	conformance/tests/core/authority/021-inert-door-declared-passes

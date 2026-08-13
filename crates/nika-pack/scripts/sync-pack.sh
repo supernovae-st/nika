@@ -22,8 +22,17 @@ DEST="${CRATE_DIR}/pack"
   exit 2
 }
 
-rm -rf "${DEST}"
-mkdir -p "${DEST}/schemas" "${DEST}/examples/showcase" "${DEST}/templates" "${DEST}/spec" "${DEST}/stdlib"
+# ATOMIC by construction. Three copy-list blind spots are documented
+# below, and a fourth (`examples/showcase/`, nuked by spec 72fa40b) left
+# the vendored pack GUTTED mid-run on 2026-08-13: `rm -rf` had already
+# fired when the dead path failed the copy. Staging then swapping means a
+# failed sync leaves the pack exactly as it was — the blind spots stay
+# blind, but they stop being destructive.
+STAGE="$(mktemp -d "${TMPDIR:-/tmp}/nika-pack.XXXXXX")"
+trap 'rm -rf "${STAGE}"' EXIT
+DEST_FINAL="${DEST}"
+DEST="${STAGE}/pack"
+mkdir -p "${DEST}/schemas" "${DEST}/examples" "${DEST}/templates" "${DEST}/spec" "${DEST}/stdlib"
 
 cp "${SPEC}/VERSION" "${SPEC}/canon.yaml" "${SPEC}/QUICKSTART.md" "${DEST}/"
 # ALL published schemas, not a named one: the single-file form of this line
@@ -32,7 +41,20 @@ cp "${SPEC}/VERSION" "${SPEC}/canon.yaml" "${SPEC}/QUICKSTART.md" "${DEST}/"
 # documents — third instance of the class, so the line becomes a glob)
 cp "${SPEC}"/schemas/*.json "${DEST}/schemas/"
 cp "${SPEC}/examples/manifest.yaml" "${SPEC}"/examples/*.nika.yaml "${DEST}/examples/"
-cp "${SPEC}"/examples/showcase/*.nika.yaml "${DEST}/examples/showcase/"
+# …and the prose that ships WITH them (CONVENTIONS · README-jobs ·
+# README). The sixth instance of the blind spot, found while fixing
+# the fifth: the line above takes `*.nika.yaml` only, so a re-sync
+# quietly dropped two files the pack had carried since its first
+# vendoring. Nothing embeds them and no test names them — which is
+# exactly why they went unnoticed.
+cp "${SPEC}"/examples/*.md "${DEST}/examples/"
+# The manifest lists `examples/snippets/**` and the jobs read
+# `examples/fixtures/**`; neither was ever in the copy list, so a
+# re-sync dropped 8 manifest entries and every fixture — the FIFTH
+# instance of the copy-list blind spot documented above, and the one
+# `pack_integrity` catches (58 manifest entries vs 50 embedded).
+# Whole subtrees, so a new file joins without a new line here.
+cp -R "${SPEC}/examples/snippets" "${SPEC}/examples/fixtures" "${DEST}/examples/"
 cp "${SPEC}"/templates/*.nika.yaml "${DEST}/templates/"
 cp "${SPEC}"/spec/*.md "${DEST}/spec/"
 cp "${SPEC}"/stdlib/*.md "${DEST}/stdlib/"
@@ -49,4 +71,6 @@ cp "${SPEC}/design/tokens.yaml" "${DEST}/design-tokens.yaml"
 # derivation the site's tiles and the CLI's spinners share.
 cp "${SPEC}/design/motion.yaml" "${DEST}/design-motion.yaml"
 
-echo "pack synced from ${SPEC} → ${DEST} (version $(cat "${DEST}/VERSION"))"
+rm -rf "${DEST_FINAL}"
+mv "${DEST}" "${DEST_FINAL}"
+echo "pack synced from ${SPEC} → ${DEST_FINAL} (version $(cat "${DEST_FINAL}/VERSION"))"

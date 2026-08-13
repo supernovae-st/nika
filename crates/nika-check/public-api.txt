@@ -1188,6 +1188,7 @@ pub nika_check::CheckReport::exec_floor_findings: alloc::vec::Vec<nika_check::Ex
 pub nika_check::CheckReport::findings: alloc::vec::Vec<nika_check::UnifiedFinding>
 pub nika_check::CheckReport::gate_findings: alloc::vec::Vec<nika_check::GateFinding>
 pub nika_check::CheckReport::hints: alloc::vec::Vec<nika_check::Hint>
+pub nika_check::CheckReport::lift_findings: alloc::vec::Vec<nika_check::LiftFinding>
 pub nika_check::CheckReport::missing_args: alloc::vec::Vec<nika_check::MissingArg>
 pub nika_check::CheckReport::order_findings: alloc::vec::Vec<nika_check::OrderFinding>
 pub nika_check::CheckReport::permit_taints: alloc::vec::Vec<nika_check::PermitTaint>
@@ -2184,6 +2185,55 @@ impl<T> dyn_clone::DynClone for nika_check::ModelRequirement where T: core::clon
 pub fn nika_check::ModelRequirement::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_check::ModelRequirement where T: 'static
 pub fn nika_check::ModelRequirement::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_check::LiftFinding
+pub nika_check::LiftFinding::detail: alloc::string::String
+pub nika_check::LiftFinding::fix: alloc::string::String
+pub nika_check::LiftFinding::from: core::option::Option<alloc::string::String>
+pub nika_check::LiftFinding::law: &'static str
+pub nika_check::LiftFinding::task: alloc::string::String
+impl nika_check::LiftFinding
+pub const nika_check::LiftFinding::WIRE_CODE: &'static str
+impl core::clone::Clone for nika_check::LiftFinding
+pub fn nika_check::LiftFinding::clone(&self) -> nika_check::LiftFinding
+impl core::cmp::Eq for nika_check::LiftFinding
+impl core::cmp::PartialEq for nika_check::LiftFinding
+pub fn nika_check::LiftFinding::eq(&self, other: &nika_check::LiftFinding) -> bool
+impl core::fmt::Debug for nika_check::LiftFinding
+pub fn nika_check::LiftFinding::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_check::LiftFinding
+impl serde_core::ser::Serialize for nika_check::LiftFinding
+pub fn nika_check::LiftFinding::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_check::LiftFinding
+impl<Q, K> equivalent::Equivalent<K> for nika_check::LiftFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::LiftFinding::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::LiftFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::LiftFinding::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check::LiftFinding where U: core::convert::From<T>
+pub fn nika_check::LiftFinding::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::LiftFinding where U: core::convert::Into<T>
+pub type nika_check::LiftFinding::Error = core::convert::Infallible
+pub fn nika_check::LiftFinding::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::LiftFinding where U: core::convert::TryFrom<T>
+pub type nika_check::LiftFinding::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::LiftFinding::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::LiftFinding where T: core::clone::Clone
+pub type nika_check::LiftFinding::Owned = T
+pub fn nika_check::LiftFinding::clone_into(&self, target: &mut T)
+pub fn nika_check::LiftFinding::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::LiftFinding where T: 'static + ?core::marker::Sized
+pub fn nika_check::LiftFinding::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::LiftFinding where T: ?core::marker::Sized
+pub fn nika_check::LiftFinding::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::LiftFinding where T: ?core::marker::Sized
+pub fn nika_check::LiftFinding::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::LiftFinding where T: core::clone::Clone
+pub unsafe fn nika_check::LiftFinding::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::LiftFinding
+pub fn nika_check::LiftFinding::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::LiftFinding where T: core::clone::Clone
+pub fn nika_check::LiftFinding::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::LiftFinding where T: 'static
+pub fn nika_check::LiftFinding::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_check::OrderFinding
 pub nika_check::OrderFinding::detail: alloc::string::String
 pub nika_check::OrderFinding::sink: alloc::string::String

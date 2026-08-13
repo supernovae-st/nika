@@ -212,6 +212,7 @@ pub(super) fn collect(report: &CheckReport) -> Vec<UnifiedFinding> {
         f.task = Some(c.task.clone());
         out.push(f);
     }
+    fold_idle_doors(report, &mut out);
     fold_permit_taints(report, &mut out);
     fold_sink_findings(report, &mut out);
     fold_exec_floor(report, &mut out);
@@ -342,6 +343,20 @@ fn fold_order(report: &CheckReport, out: &mut Vec<UnifiedFinding>) {
         f.code = Some(code.to_owned());
         f.docs_url = Some(format!("{}/{code}", super::ERROR_DOCS_BASE));
         f.task = Some(o.sink.clone());
+        out.push(f);
+    }
+}
+
+/// The authored-doors class (spec 10 rule 6 · NIKA-AUTH-011) — the
+/// detail names the law the door claims and the reason it never fires,
+/// because a door is only reviewable when both halves are visible.
+fn fold_idle_doors(report: &CheckReport, out: &mut Vec<UnifiedFinding>) {
+    for l in &report.lift_findings {
+        let code = crate::LiftFinding::WIRE_CODE;
+        let mut f = UnifiedFinding::new("lift", "LIFT", l.detail.clone());
+        f.code = Some(code.to_owned());
+        f.docs_url = Some(format!("{}/{code}", super::ERROR_DOCS_BASE));
+        f.task = Some(l.task.clone());
         out.push(f);
     }
 }

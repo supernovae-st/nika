@@ -7,7 +7,7 @@
 #   sealed outcome_class enum) · the 15 ledger sections (canon/EXCEPTIONS.md ·
 #   SSOT-1 §18) stay AUTHORED and are carried verbatim — editing those is legal.
 # regenerate: python3 scripts/ssot-compiler.py --emit-canon
-# body-sha256: cc49ef142a3511c8709533ec4b075f011f075bf630ea08d7295bf2903b79dbdf
+# body-sha256: 217600dc1ce36a702d8958847d3d560d6ec6299b3d69f51f76b794fa1939a3a8
 #   (digest of every byte below the end-of-header line · detached self-hash per PAA-006)
 # ---- end generated header (SSOT-1 §21-23 · the canon flip · C0)
 # nika canonical registry · the single source of truth for Nika canonical facts
@@ -65,7 +65,7 @@ counts:
   templates: 10
   error_namespaces: 24
   error_categories: 12
-  error_codes: 102
+  error_codes: 103
   pillars: 5
   # ---- extended v0.2 · 2026-05-27 · lifecycle + diamond + steal + severity
   lifecycle_product: 4
@@ -294,7 +294,7 @@ error_categories:
 # check binds the prose table to it (same row set · same fields).
 # transient · false | engine-assessed
 error_codes:
-  count: 102
+  count: 103
   reference: spec/05-errors.md
   items:
     - { code: NIKA-PARSE-001, category: parse_error, transient: "false", failure: "the YAML itself does not parse (syntax error)" }
@@ -309,7 +309,7 @@ error_codes:
     - { code: NIKA-PARSE-010, category: validation_error, transient: "false", failure: "timeout: violates the quoted Go-duration contract (positive · max 24h · descending units)" }
     - { code: NIKA-PARSE-011, category: validation_error, transient: "false", failure: "retry: block violates the spec shape" }
     - { code: NIKA-PARSE-012, category: validation_error, transient: "false", failure: "on_error: block violates the spec shape (fields mutually exclusive)" }
-    - { code: NIKA-PARSE-013, category: validation_error, transient: "false", failure: "with:/output: binding uses a reserved name (output · status · error · started_at · ended_at · duration_ms)" }
+    - { code: NIKA-PARSE-013, category: validation_error, transient: "false", failure: "with:/extract: binding uses a reserved name (output · status · error · started_at · ended_at · duration_ms)" }
     - { code: NIKA-PARSE-014, category: validation_error, transient: "false", failure: "secrets: entry is not a store reference — inline literals forbidden" }
     # NIKA-PARSE-015 · RETIRED (never reuse) — the typed-vars 6-enum class died
     # with the E-split (R3b · LAW-GRAMMAR-0211): the type: field of inputs/
@@ -412,6 +412,7 @@ error_codes:
     - { code: NIKA-AUTH-008, category: security_error, transient: "false", failure: "an untrusted value reaches a permitted verb's argument and its canonical resolved form escapes the step's permit — re-gate refused (F-O1 · NEP-0004)" }
     - { code: NIKA-AUTH-009, category: security_error, transient: "false", failure: "a permits env: entry names a dangerous-floor variable · the engine strips the name unconditionally, the grant can never take effect: an inert dead grant (F-O4 · NEP-0005)" }
     - { code: NIKA-AUTH-010, category: security_error, transient: "false", failure: "a permits net.http: entry carries the *. subdomain wildcard · the grant delegates the boundary to the zone operator (every host under the suffix, present and future) — refused: name exact hosts, or the bare * when allow-all is genuinely intended (F-P5 · NEP-0008)" }
+    - { code: NIKA-AUTH-011, category: validation_error, transient: "false", failure: "a lift: entry whose named law would not have fired on this task — a trapdoor that lifts nothing is refused, never a silent no-op (10 §the authored doors rule 6)" }
     - { code: NIKA-VALUES-001, category: validation_error, transient: "false", failure: "vars: is a dead envelope field (R3a · the E-split)" }
     - { code: NIKA-VALUES-002, category: validation_error, transient: "false", failure: "env: is a dead envelope field (R3a · the E-split)" }
     - { code: NIKA-VALUES-003, category: validation_error, transient: "false", failure: "a value-namespace read outside the four-authority family (R3a · LAW-SURFACE-0201)" }

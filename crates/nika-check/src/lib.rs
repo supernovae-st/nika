@@ -129,6 +129,7 @@ mod exec_floor;
 mod findings;
 mod flow;
 mod hints;
+mod lift;
 pub mod native_first;
 mod order;
 mod permit_taint;
@@ -165,6 +166,7 @@ pub use exec_floor::ExecFloorFinding;
 pub use findings::UnifiedFinding;
 pub use flow::{FlowFacts, TaintTrace, action_effect_fields};
 pub use hints::Hint;
+pub use lift::LiftFinding;
 pub use order::OrderFinding;
 pub use permit_taint::{PermitTaint, PermitTaintKind};
 pub use permits_fit::CapabilityEscape;
@@ -384,6 +386,12 @@ pub struct CheckReport {
     /// that did not build cannot be walked. Additive:
     /// `report_version` stays 1.
     pub order_findings: Vec<OrderFinding>,
+    /// Every authored door that guards nothing (spec 10 §the authored
+    /// doors rule 6 · `NIKA-AUTH-011`): a well-shaped `lift:` naming a
+    /// law that would never have fired on its task. Each arm ASKS the
+    /// law it judges rather than re-typing its conditions. Additive:
+    /// `report_version` stays 1.
+    pub lift_findings: Vec<LiftFinding>,
     /// Every lethal-trifecta finding (NEP-0002 · `NIKA-SEC-009`): all
     /// three legs declared AND an egress-capable task no blocking
     /// `nika:prompt` gate dominates. Judged on the derived graph and the
@@ -498,6 +506,7 @@ impl CheckReport {
             && self.sink_findings.is_empty()
             && self.consent_findings.is_empty()
             && self.order_findings.is_empty()
+            && self.lift_findings.is_empty()
             && self.trifecta_findings.is_empty()
             && self.schema_findings.is_empty()
             && self.unknown_tools.is_empty()
@@ -703,6 +712,7 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
         sink_findings: data_sink::scan_data_sink(wf),
         consent_findings: consent_scan.findings,
         order_findings,
+        lift_findings: lift::scan_idle_doors(wf),
         trifecta_findings,
         schema_findings,
         unverifiable_output_refs,

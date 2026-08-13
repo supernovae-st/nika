@@ -18,14 +18,14 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4383
+  classified_files: 4386
   file_rows: 11
   pattern_rows: 22
   by_class:
-    authored: 1452
+    authored: 1453
     authored-pin: 2
     generated: 118
-    pinned-copy: 115
+    pinned-copy: 117
     testimonial: 2696
     foreign: 0
   unverified-default: 7
@@ -67,7 +67,7 @@ files:
   note: "ROADMAP.md:98 carries the same refresh-status.sh AUTO-GENERATED status block — a tool-maintained block inside an authored file"
 - path: "SPEC_PIN"
   class: authored-pin
-  sha256: ba4a50a97bfeb354ff1c558e08e07245c1e4ae35233ade469e296f7b6ccd1527
+  sha256: 787c3a2a3bb709df3c149731a1689a7152c892829ba427f94bd93faef1f7d2cc
   evidence: "its own header: 'Advanced by .github/workflows/spec-pin-heal.yml (PR-only · the Diamond CI tests leg judges at the new pin). Consumed by diamond-ci.yml. Never HEAD.'"
 - path: "crates/nika-catalog/data/model-pricing.toml"
   class: generated
@@ -113,8 +113,8 @@ files:
 patterns:
 - glob: "crates/nika-pack/pack/**"
   class: pinned-copy
-  match_count: 114
-  aggregate_sha256: b1e0bed9bba0dab2acdd031a6ddfe9de0a28ddd276ed71a321acc6d1e76c09e0
+  match_count: 116
+  aggregate_sha256: 4a00ff02bdb8446d14b981849831722e69093b598d564efcf8304f875340ab22
   evidence: "crates/nika-pack/src/lib.rs:16 'The snapshot under pack/ is vendored by scripts/sync-pack.sh' — a byte-copy of the spec surface, never edited here"
   derivation:
     tool: "bash scripts/sync-pack.sh <nika-spec checkout> — healed daily by .github/workflows/pack-resync.yml (branch bot/pack-resync · PR-only, the 12-gate CI judges)"
@@ -140,7 +140,7 @@ patterns:
 - glob: "crates/*/public-api.txt"
   class: generated
   match_count: 62
-  aggregate_sha256: 5bb6e89f48c160003e916592c8b82ea99366393ceb7995d98d44b7a280bbb204
+  aggregate_sha256: d288adae94805fa50d314ac017395450ae67d307ba87793845d89a3387e84ce1
   evidence: ".github/workflows/public-api.yml 'diff each covered lib crate' byte-compares each snapshot against cargo public-api output; macOS renders differently, so snapshots regenerate FROM THE UBUNTU ARTIFACT (workflow comment)"
   derivation:
     tool: "cargo public-api -p <crate> --omit auto-trait-impls > crates/<crate>/public-api.txt (DEFAULT features · the CI job shape — all-features drags platform deps into the render · cargo-public-api 0.51.0 pinned · the public-api-actual CI artifact stays the judge)"
@@ -151,8 +151,8 @@ patterns:
     - "cargo-public-api 0.51.0"
 - glob: "crates/**/src/**"
   class: authored
-  match_count: 735
-  aggregate_sha256: a682b1b2bf9d4be7be1d818bd5543e17459228547f63925b6011b9b88bd362f8
+  match_count: 736
+  aggregate_sha256: c71f6f6d19d3225c47a6b87ac0e19ac165e4cdd4997eba19858f50a58e70bb6d
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
@@ -162,7 +162,7 @@ patterns:
 - glob: "crates/**"
   class: authored
   match_count: 133
-  aggregate_sha256: c0302fb005d36bcea70ef4ce1ef71cf728ab62087adb949f1145a7f7fdac01d9
+  aggregate_sha256: 277960a3b983331394ccd663dd429214b8527325ffec1ab4730f470a159f9d44
   evidence: "the remaining crate surface — Cargo.toml manifests · build.rs · benches · READMEs · hand-curated data catalogs (llm-providers · mcp-servers · embeddings · model-capabilities, probed daily by catalog-verify.yml); the pricing snapshot is excepted in files:"
   note: "crates/nika-pack/scripts/sync-pack.sh is a DIVERGENT older duplicate of scripts/sync-pack.sh — the pack-resync.yml lane runs the root one"
 - glob: "fuzz/**"
