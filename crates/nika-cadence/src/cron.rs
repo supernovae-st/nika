@@ -229,6 +229,28 @@ pub(crate) fn parse_cron_fields(tokens: &[&str; 5]) -> Result<CronSpec, CadenceE
             "garde un seul côté · `* * * * 1` (chaque lundi) ou `* * 1 * *` (chaque 1er), jamais les deux",
         ));
     }
+    // A (dom, months) pair no calendar can satisfy parses as five well-formed
+    // fields, clears the Vixie guard, and then dies quietly: covers() is true
+    // on no day, next_after walks its whole horizon, and the beat never fires
+    // without a word. `31 4` is a banal typo. This grammar names every refusal
+    // and teaches its fix; a silent None is the one outcome that contract
+    // forbids, so the impossibility is caught HERE, at parse, not discovered
+    // by an operator wondering why nothing ran.
+    //
+    // Judged on the SETS, like the Vixie guard above: one satisfiable month is
+    // enough for the whole set. An unrestricted side can never make the pair
+    // impossible, so no special case is needed for `*` on either side.
+    if !months
+        .iter()
+        .any(|m| dom.iter().any(|d| d <= longest_day_of(m)))
+    {
+        return Err(CadenceError::file(
+            CadenceErrorKind::DateImpossible,
+            "aucun jour demandé n'existe dans les mois demandés · le beat parserait bien et ne tirerait JAMAIS",
+            "vérifie la paire jour/mois · avril juin septembre novembre s'arrêtent à 30, février à 29",
+        ));
+    }
+
     Ok(CronSpec {
         minutes,
         hours,
@@ -236,6 +258,20 @@ pub(crate) fn parse_cron_fields(tokens: &[&str; 5]) -> Result<CronSpec, CadenceE
         months,
         dow,
     })
+}
+
+/// The longest day a month can have, ever.
+///
+/// February takes 29, not 28: a leap year makes the 29th real, so `29 2` is a
+/// beat that fires rarely rather than an impossible one. Only 30 and 31 are
+/// impossible there. Refusing the 29th would be the mirror of the fault this
+/// guard exists to close.
+const fn longest_day_of(month: u8) -> u8 {
+    match month {
+        2 => 29,
+        4 | 6 | 9 | 11 => 30,
+        _ => 31,
+    }
 }
 
 /// One field: `*` · `*/n` · `a` · `a-b` · `a-b/n` · `a/n` · comma-joined.

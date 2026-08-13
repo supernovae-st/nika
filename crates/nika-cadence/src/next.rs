@@ -137,14 +137,22 @@ impl Cadence {
 }
 
 impl CronSpec {
-    /// Day-by-day over a 1500-day horizon (a 29 February is never
-    /// further than 4 years), hours and minutes nested inside matching
-    /// days. The day walk happens in the BEAT's zone — a Monday slot is
-    /// Monday in Paris, whatever zone `from` rides.
+    /// Day-by-day over a 3000-day horizon, hours and minutes nested inside
+    /// matching days. The day walk happens in the BEAT's zone — a Monday
+    /// slot is Monday in Paris, whatever zone `from` rides.
+    ///
+    /// The horizon was 1500 days, justified by "a 29 February is never
+    /// further than 4 years". That is false (Gate 11, 2026-08-13): a century
+    /// year is leap only when divisible by 400, so 2100 is not one, and from
+    /// 2096-03-01 the next 29 February is 2104-02-29 — about 2920 days out.
+    /// A `0 9 29 2 *` beat returned None there and died in silence. 3000 days
+    /// clears the widest real gap the Gregorian rules can produce (8 years)
+    /// with room to spare; the walk still ends rather than spinning, which is
+    /// what the bound is for.
     pub(crate) fn next_after(&self, tz: &TimeZone, from: &jiff::Zoned) -> Option<Slot> {
         let from_local = from.with_time_zone(tz.clone());
         let mut day = from_local.date();
-        for _ in 0..1500 {
+        for _ in 0..3000 {
             if self.covers(day) {
                 for hour in self.hours().iter() {
                     for minute in self.minutes().iter() {
@@ -154,7 +162,20 @@ impl CronSpec {
                             0,
                             0,
                         ));
-                        let candidate = resolve(civil, tz)?;
+                        // One irresolvable civil time must not silence the
+                        // whole beat. This was `resolve(civil, tz)?`, which
+                        // propagated the None straight out of next_after: a
+                        // single unresolvable candidate killed every later
+                        // slot, forever. Skip the candidate, keep the walk.
+                        //
+                        // No tzdb entry reaches this arm today — resolve only
+                        // gives up after 26 h of minute-stepping, wider than
+                        // any gap the tzdb remembers (Apia 2011, a whole day).
+                        // So this is GUARDED, not tested: a non-attempt is not
+                        // a proof, and claiming a test here would be the lie.
+                        let Some(candidate) = resolve(civil, tz) else {
+                            continue;
+                        };
                         if &candidate.at > from {
                             return Some(candidate);
                         }

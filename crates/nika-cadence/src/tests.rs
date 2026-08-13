@@ -143,6 +143,147 @@ fn refuse_dom_and_dow_restricted_together() {
 }
 
 #[test]
+fn refuse_a_day_and_month_pair_no_calendar_can_satisfy() {
+    // Gate 11, 2026-08-13. `31 4` is a banal typo: five well-formed fields,
+    // zero faults from validate, and then covers() is true on no day, so
+    // next_after walks its whole horizon and returns None. The beat parses
+    // green and never fires, in silence. This grammar's contract is that
+    // every refusal is named and teaches its fix; a silent None is the one
+    // outcome it forbids.
+    let err = Cadence::parse("TZ=UTC 0 9 31 4 *").expect_err("le 31 avril n'existe pas");
+    assert_eq!(err.kind(), CadenceErrorKind::DateImpossible);
+    assert!(
+        err.remedy().contains("30"),
+        "le refus enseigne la borne du mois, pas seulement qu'il refuse"
+    );
+
+    // The three months that stop at 30, each refused on 31.
+    for token in [
+        "TZ=UTC 0 9 31 6 *",
+        "TZ=UTC 0 9 31 9 *",
+        "TZ=UTC 0 9 31 11 *",
+    ] {
+        assert_eq!(
+            Cadence::parse(token).expect_err(token).kind(),
+            CadenceErrorKind::DateImpossible
+        );
+    }
+    // February stops at 29, so 30 and 31 are impossible there.
+    assert_eq!(
+        Cadence::parse("TZ=UTC 0 9 30 2 *")
+            .expect_err("30 février")
+            .kind(),
+        CadenceErrorKind::DateImpossible
+    );
+
+    // What must still pass. 29 February is REAL: a leap year makes it fire,
+    // just rarely. Refusing it here would be the mirror fault.
+    Cadence::parse("TZ=UTC 0 9 29 2 *").expect("le 29 février existe, tous les 4 ans");
+    Cadence::parse("TZ=UTC 0 9 31 1 *").expect("le 31 janvier existe");
+    Cadence::parse("TZ=UTC 0 9 30 4 *").expect("le 30 avril existe");
+    // One satisfiable month in the set is enough for the whole set.
+    Cadence::parse("TZ=UTC 0 9 31 4,5 *").expect("mai a un 31, la paire est satisfiable");
+    // An unrestricted side can never make the pair impossible.
+    Cadence::parse("TZ=UTC 0 9 31 * *").expect("dom seul restreint · janvier a un 31");
+    Cadence::parse("TZ=UTC 0 9 * 4 *").expect("mois seul restreint");
+}
+
+#[test]
+fn the_horizon_reaches_the_next_29_february_across_a_skipped_century() {
+    // Gate 11, 2026-08-13. The horizon's own comment read "a 29 February is
+    // never further than 4 years". It is false: a century year is leap only
+    // when divisible by 400, so 2100 is not. From 2096-03-01 the next 29
+    // February is 2104-02-29, about 2920 days out, and a 1500-day horizon
+    // returned None. Same silent death as the (dom, month) pair, one layer
+    // down: the beat parses green and never fires.
+    let feb29 = Cadence::parse("TZ=UTC 0 9 29 2 *").expect("le 29 février");
+    assert_eq!(
+        next_at(&feb29, "2096-03-01T00:00:00Z"),
+        "2104-02-29T09:00:00Z",
+        "2100 n'est pas bissextile · le prochain 29 février est en 2104"
+    );
+    // The ordinary case still lands, and lands FIRST.
+    assert_eq!(
+        next_at(&feb29, "2028-01-01T00:00:00Z"),
+        "2028-02-29T09:00:00Z"
+    );
+}
+
+#[test]
+fn the_ceiling_guard_refuses_zero_negative_infinite_and_nan() {
+    // Gate 5, 2026-08-13. Three mutants survived on this guard
+    // (`!(p > 0.0 && p.is_finite())`): flipping && to ||, > to >=, and the
+    // whole guard to false all passed unnoticed. `plafond:` is REQUIRED with
+    // no default precisely because it decides who pays; its guard was the
+    // last one that should have been untested.
+    //
+    // Each value below kills a specific mutant:
+    //   0.0   → kills `> to >=` (0 >= 0 would accept) AND `&& to ||`
+    //           (`p > 0.0` false but is_finite true, so || would accept)
+    //   -1.0  → kills the guard-to-false mutant
+    //   .inf  → kills the is_finite half
+    //   .nan  → NaN fails every comparison; the guard must still catch it
+    for value in ["0", "0.0", "-1.0", ".inf", "-.inf", ".nan"] {
+        let yaml = format!(
+            "
+nika: v1
+ceiling: 0.50
+arm:
+  - workflow: dx/workflows/geo-probe.nika.yaml
+    cadence: TZ=Europe/Paris 0 9 * * 1
+    plafond: {value}
+    manqué: sauter
+"
+        );
+        assert!(
+            kinds(&yaml).contains(&CadenceErrorKind::PlafondNonPositive),
+            "plafond: {value} doit être refusé · un plafond se borne au réel positif"
+        );
+    }
+    // And the healthy one still passes, so the guard is not simply always-on.
+    assert!(
+        !kinds(HEALTHY).contains(&CadenceErrorKind::PlafondNonPositive),
+        "0.35 est un plafond valide"
+    );
+}
+
+#[test]
+fn a_range_bound_is_judged_strictly() {
+    // Gate 5, 2026-08-13. `if from > to` carried two survivors (> to ==,
+    // > to >=). A single-value range must be ACCEPTED and a reversed one
+    // REFUSED; either mutant breaks exactly one of those two.
+    Cadence::parse("TZ=UTC 0 9 * * 5-5").expect("5-5 est un intervalle d un seul jour");
+    Cadence::parse("TZ=UTC 5-5 9 * * *").expect("5-5 en minutes aussi");
+    let err = Cadence::parse("TZ=UTC 0 9 * * 5-1").expect_err("un intervalle inversé");
+    assert_eq!(err.kind(), CadenceErrorKind::FieldRange);
+}
+
+#[test]
+fn an_empty_field_is_distinguishable_from_a_full_one() {
+    // Gate 5, 2026-08-13. `Field::is_empty` had three survivors because it
+    // has ZERO caller in src: the zero-consumer law at method granularity.
+    // Clippy's len_without_is_empty forbids deleting it next to `len`, so it
+    // gets the direct test it never had. Parsing is the only public way to
+    // reach a Field, and the parser never yields an empty one, which is the
+    // property worth pinning.
+    let spec = Cadence::parse("TZ=UTC 0 9 * * 1").expect("cadence");
+    let Cadence::Cron { spec, .. } = &spec else {
+        panic!("une cadence cron");
+    };
+    assert!(
+        !spec.dow().is_empty(),
+        "un champ parsé porte au moins un bit"
+    );
+    assert!(!spec.minutes().is_empty());
+    assert!(spec.dom().is_full(), "et * est plein, jamais vide");
+    assert!(
+        !spec.dom().is_empty(),
+        "plein et vide ne sont pas la même chose"
+    );
+    assert_eq!(spec.dow().len(), 1, "len et is_empty s accordent");
+}
+
+#[test]
 fn refuse_a_zone_unknown_to_the_embedded_tzdb() {
     let err = Cadence::parse("TZ=Mars/Olympus 0 9 * * 1").expect_err("fuseau inconnu");
     assert_eq!(err.kind(), CadenceErrorKind::TzUnknown);

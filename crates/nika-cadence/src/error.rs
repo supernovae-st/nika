@@ -51,6 +51,11 @@ pub enum CadenceErrorKind {
     FieldRange,
     /// `dom` and `dow` restricted together (the Vixie OR trap).
     DomDowOr,
+    /// No day in the `dom` set exists in any month of the `months` set
+    /// (`31 4`). Five well-formed fields that no calendar can satisfy: the
+    /// walk covers no day and the beat never fires. Named rather than left
+    /// silent, because a `None` teaches nothing.
+    DateImpossible,
     /// The readable form is not exactly `<jour-fr> <H>h<MM>`.
     PhraseSyntax,
     /// `workflow:` empty, or not a `*.nika.yaml` path.
@@ -94,6 +99,7 @@ impl CadenceErrorKind {
             Self::FieldSyntax => "cadence.field-syntax",
             Self::FieldRange => "cadence.field-range",
             Self::DomDowOr => "cadence.dom-dow-or",
+            Self::DateImpossible => "cadence.date-impossible",
             Self::PhraseSyntax => "cadence.phrase-syntax",
             Self::WorkflowPath => "cadence.workflow-path",
             Self::DuplicateWorkflow => "cadence.duplicate-workflow",
