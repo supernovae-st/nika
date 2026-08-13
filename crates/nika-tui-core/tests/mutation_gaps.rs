@@ -309,3 +309,137 @@ fn the_wasm_doors_answer_with_content() {
         "the refusal names its door: {out}"
     );
 }
+
+// ── the 2026-08-13 sweep · the survivors of the long run, named ────
+
+/// Build a workflow and a run from bare ids, needs and (start, dur).
+fn bench(tasks: &[(&str, Vec<&str>)], steps: &[(&str, f64, f64)]) -> (Workflow, Run) {
+    let wf = serde_json::json!({
+        "file": "b.nika.yaml", "engine": "test", "prompt": "", "permits": [], "missing": "",
+        "tasks": tasks.iter().map(|(id, needs)| serde_json::json!({
+            "id": id, "verb": "infer", "glyph": "◇", "needs": needs,
+        })).collect::<Vec<_>>(),
+    });
+    let run = serde_json::json!({
+        "trace": "t", "when": "recorded", "output": "",
+        "steps": steps.iter().map(|(id, start, dur)| serde_json::json!({
+            "id": id, "start": start, "dur": dur,
+        })).collect::<Vec<_>>(),
+    });
+    (
+        serde_json::from_value(wf).expect("workflow"),
+        serde_json::from_value(run).expect("run"),
+    )
+}
+
+/// WHICH neck gets crowned when two waves both have one.
+///
+/// `idle_total > b.idle_total` carried THREE survivors (`>` to `<`, to
+/// `==`, to `>=`). The crown is the whole point of the function: a surface
+/// reading the wrong neck chases the wrong task and never diverges
+/// visibly. Two cases pin all three mutants.
+#[test]
+fn the_worst_wave_wins_the_crown_and_a_tie_keeps_the_first() {
+    // Wave 0 · a1 holds to 10, a2 idles 9. Wave 1 · b1 holds to 30, b2
+    // idles 19. The strictly worse wave must win.
+    let (wf, run) = bench(
+        &[
+            ("a1", vec![]),
+            ("a2", vec![]),
+            ("b1", vec!["a1"]),
+            ("b2", vec!["a1"]),
+        ],
+        &[
+            ("a1", 0.0, 10.0),
+            ("a2", 0.0, 1.0),
+            ("b1", 10.0, 20.0),
+            ("b2", 10.0, 1.0),
+        ],
+    );
+    let ws = derive::waves(&wf);
+    let neck = derive::bottleneck(&ws, &run).expect("un goulot");
+    assert_eq!(
+        neck.id, "b1",
+        "la vague la PIRE est couronnée · `<` et `==` la ratent"
+    );
+    assert_eq!(neck.idle_total, 19.0);
+
+    // A TIE · both waves idle 9. Strict `>` keeps the FIRST; `>=` lets the
+    // later one steal a crown it did not earn.
+    let (wf, run) = bench(
+        &[
+            ("a1", vec![]),
+            ("a2", vec![]),
+            ("b1", vec!["a1"]),
+            ("b2", vec!["a1"]),
+        ],
+        &[
+            ("a1", 0.0, 10.0),
+            ("a2", 0.0, 1.0),
+            ("b1", 10.0, 10.0),
+            ("b2", 10.0, 1.0),
+        ],
+    );
+    let ws = derive::waves(&wf);
+    let neck = derive::bottleneck(&ws, &run).expect("un goulot");
+    assert_eq!(
+        neck.id, "a1",
+        "à égalité le premier garde la couronne · `>=` la vole"
+    );
+}
+
+/// The blocked threshold is STRICT: an idle of exactly 0.05 does not count.
+///
+/// `idle_of(..) > 0.05` survived a flip to `>=`. Reached exactly by ending
+/// the wave at 0.05 and the idler at 0.0, so the subtraction is
+/// bit-identical to the literal rather than a float near it.
+#[test]
+fn an_idle_exactly_at_the_threshold_is_not_blocked() {
+    let (wf, run) = bench(
+        &[("a1", vec![]), ("a2", vec![])],
+        &[("a1", 0.0, 0.05), ("a2", 0.0, 0.0)],
+    );
+    let ws = derive::waves(&wf);
+    assert_eq!(
+        derive::bottleneck(&ws, &run),
+        None,
+        "0.05 pile n est pas bloqué · `>=` inventerait un goulot"
+    );
+}
+
+/// `Waves::contains` and `Waves::is_empty` had no direct caller at all, so
+/// every mutant on them rode free. The zero-consumer law, at method scale.
+#[test]
+fn the_wave_index_answers_membership_and_emptiness() {
+    let (wf, _run) = bench(&[("a", vec![]), ("b", vec!["a"])], &[]);
+    let ws = derive::waves(&wf);
+    assert!(ws.contains("a"), "une tâche déclarée est connue");
+    assert!(ws.contains("b"));
+    assert!(
+        !ws.contains("fantome"),
+        "un pas fantôme d un vieux journal n est PAS une tâche"
+    );
+    assert!(!ws.is_empty(), "deux vagues, donc non vide");
+    assert_eq!(ws.len(), 2);
+
+    let (empty, _run) = bench(&[], &[]);
+    let ws = derive::waves(&empty);
+    assert!(ws.is_empty(), "zéro tâche, zéro vague");
+    assert_eq!(ws.len(), 0);
+}
+
+/// The four verb spellings are the WIRE voice, and a consumer pins them.
+/// Both the enum speller and the fixture speller survived being blanked.
+#[test]
+fn the_four_verbs_spell_themselves() {
+    assert_eq!(Verb::Infer.as_str(), "infer");
+    assert_eq!(Verb::Exec.as_str(), "exec");
+    assert_eq!(Verb::Invoke.as_str(), "invoke");
+    assert_eq!(Verb::Agent.as_str(), "agent");
+
+    // and through the derivation, where the fixture speller lives
+    let (wf, run) = bench(&[("a", vec![])], &[("a", 0.0, 1.0)]);
+    let costs = derive::cost_by_verb(&wf, &run);
+    let names: Vec<&str> = costs.iter().map(|(n, _)| *n).collect();
+    assert_eq!(names, vec!["infer", "exec", "invoke", "agent"]);
+}
