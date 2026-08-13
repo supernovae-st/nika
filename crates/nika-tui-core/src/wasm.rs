@@ -115,8 +115,11 @@ pub fn derive_run(workflow_json: &str, run_json: &str) -> String {
     };
     let out = serde_json::json!({
         "waves": ws.groups().iter().map(|g| g.iter().map(|t| &t.id).collect::<Vec<_>>()).collect::<Vec<_>>(),
-        "wave_end": (0..ws.len()).map(|w| derive::wave_end(&ws, &run, w)).collect::<Vec<_>>(),
-        "idle": run.steps.iter().map(|s| (s.id.clone(), serde_json::Value::from(derive::idle_of(&ws, &run, &s.id)))).collect::<serde_json::Map<String, serde_json::Value>>(),
+        // the BATCH forms · asking the singular ones n times was O(n²) twice
+        // over (a wave scan per wave, a step scan plus a wave scan per step).
+        // Same law, asked once for everything.
+        "wave_end": derive::wave_ends(&ws, &run),
+        "idle": derive::idles(&ws, &run).into_iter().map(|(k, v)| (k, serde_json::Value::from(v))).collect::<serde_json::Map<String, serde_json::Value>>(),
         "bottleneck": neck,
         "total_cost": derive::total_cost(&run),
         "total_time": derive::total_time(&run),

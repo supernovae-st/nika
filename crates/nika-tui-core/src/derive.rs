@@ -194,6 +194,50 @@ pub fn wave_end(ws: &Waves, run: &Run, w: usize) -> f64 {
         .fold(0.0, f64::max)
 }
 
+/// EVERY wave's end, in one pass — the shape the door actually asks for.
+///
+/// [`wave_end`] answers ONE wave and pays a full scan of `run.steps` to do
+/// it, so the door's `(0..ws.len()).map(wave_end)` was O(waves × steps).
+/// Same for [`idle_of`], called once per step: a scan to find the step,
+/// then another whole `wave_end` inside. A Gate-11 lens measured 80 ms and
+/// 99 ms at n=5000 — invisible to the pinned test, which passes `steps: []`.
+///
+/// The singular functions stay: they are the honest API for one question,
+/// and they are what the parity fixtures pin. This is the same law asked
+/// n times at once, never a second copy of it.
+#[must_use]
+pub fn wave_ends(ws: &Waves, run: &Run) -> Vec<f64> {
+    let mut ends = vec![0.0; ws.len()];
+    for s in run.steps.iter().filter(|s| ran(s)) {
+        if !ws.contains(&s.id) {
+            continue; // a ghost step belongs to no wave
+        }
+        let w = ws.of(&s.id);
+        if let Some(e) = ends.get_mut(w) {
+            *e = f64::max(*e, s.start + s.dur);
+        }
+    }
+    ends
+}
+
+/// Every step's idle, in one pass over the precomputed wave ends.
+#[must_use]
+pub fn idles(ws: &Waves, run: &Run) -> BTreeMap<String, f64> {
+    let ends = wave_ends(ws, run);
+    run.steps
+        .iter()
+        .map(|s| {
+            let idle = if ws.contains(&s.id) {
+                ends.get(ws.of(&s.id))
+                    .map_or(0.0, |&end| idle_against(s, end))
+            } else {
+                0.0
+            };
+            (s.id.clone(), idle)
+        })
+        .collect()
+}
+
 /// The time a step spends WAITING for its own wave to end. A ghost step
 /// (an id the workflow does not declare — an old journal against a
 /// renamed file) has no wave and no idle: 0, never a phantom number.
@@ -361,12 +405,15 @@ pub fn cost_by_verb(wf: &Workflow, run: &Run) -> [(&'static str, f64); 4] {
         ("invoke", 0.0),
         ("agent", 0.0),
     ];
+    // one index, not a `find` per step (that was O(tasks × steps) · 18 ms at
+    // n=5000, the smallest of the three door quadratics a Gate-11 lens named)
+    let verbs: BTreeMap<&str, Verb> = wf.tasks.iter().map(|t| (t.id.as_str(), t.verb)).collect();
     for s in &run.steps {
-        let Some(t) = wf.tasks.iter().find(|x| x.id == s.id) else {
+        let Some(t_verb) = verbs.get(s.id.as_str()).copied() else {
             continue;
         };
         let Some(c) = s.cost else { continue };
-        let idx = match t.verb {
+        let idx = match t_verb {
             Verb::Infer => 0,
             Verb::Exec => 1,
             Verb::Invoke => 2,

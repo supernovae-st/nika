@@ -324,3 +324,81 @@ fn the_grouping_scales_with_the_tasks_not_their_square() {
          linear costs ~4×, quadratic ~16×. The per-task full scan is back."
     );
 }
+
+/// The THIRD complexity gate — the door end-to-end, WITH steps.
+///
+/// The 5 000-chain test above passes `steps: []`, so the per-step half of
+/// `derive_run` was never exercised: a Gate-11 lens measured 80 ms in
+/// `wave_end` (once per wave, each scanning every step), 99 ms in `idle_of`
+/// (once per step, each rebuilding a wave and scanning again) and 18 ms in
+/// `cost_by_verb` (a `find` per step) at n=5000 — all invisible.
+///
+/// An empty `steps` array is a green on a half nobody named. This gate runs
+/// the real shape: as many recorded steps as tasks.
+#[test]
+fn the_door_scales_with_the_run_not_its_square() {
+    fn pair(n: usize) -> (String, String) {
+        let tasks: Vec<_> = (0..n)
+            .map(|i| {
+                serde_json::json!({
+                    "id": format!("t{i}"), "verb": "infer", "glyph": "◇",
+                    "needs": if i == 0 { vec![] } else { vec![format!("t{}", i - 1)] },
+                })
+            })
+            .collect();
+        let steps: Vec<_> = (0..n)
+            .map(|i| {
+                serde_json::json!({
+                    "id": format!("t{i}"),
+                    // u32 → f64 is exact; the cast lint is right that usize
+                    // is not, and the sizes here never leave u32's range
+                    "start": f64::from(u32::try_from(i).unwrap_or(u32::MAX)),
+                    "dur": 1.0, "cost": 0.001,
+                })
+            })
+            .collect();
+        (
+            serde_json::json!({
+                "file": "d.nika.yaml", "engine": "test", "prompt": "",
+                "permits": [], "missing": "", "tasks": tasks,
+            })
+            .to_string(),
+            serde_json::json!({
+                "trace": "t", "when": "recorded", "output": "", "steps": steps,
+            })
+            .to_string(),
+        )
+    }
+
+    fn floor_of(wf: &str, run: &str) -> std::time::Duration {
+        (0..3)
+            .map(|_| {
+                let t0 = std::time::Instant::now();
+                let out = wasm::derive_run(wf, run);
+                assert!(
+                    !out.contains("\"error\""),
+                    "the door must answer, not refuse"
+                );
+                t0.elapsed()
+            })
+            .min()
+            .expect("three runs")
+    }
+
+    let (wf_s, run_s) = pair(1_000);
+    let (wf_l, run_l) = pair(4_000); // ×4
+
+    let t_small = floor_of(&wf_s, &run_s);
+    let t_large = floor_of(&wf_l, &run_l);
+    assert!(
+        t_small.as_micros() >= 50,
+        "the small leg ran in {t_small:?} — too fast to compare; raise the sizes"
+    );
+
+    let ratio = t_large.as_secs_f64() / t_small.as_secs_f64();
+    assert!(
+        ratio < 8.0,
+        "×4 the run cost ×{ratio:.1} the time ({t_small:?} → {t_large:?}) — \
+         linear costs ~4×, quadratic ~16×. A per-step scan is back on the door."
+    );
+}
