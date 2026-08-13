@@ -107,6 +107,37 @@ if [ "$viable" -eq 0 ]; then
   exit 0
 fi
 
+# --- HARNESS GUARD: zero caught over N viable is an INSTRUMENT fault --------
+# A suite that kills NONE of N viable mutants has not run. A weak suite still
+# catches something; a ratio of exactly 0% is the signature of a test command
+# that executed nothing. Printing it as a FLOOR failure sends a human to repair
+# a crate that is not broken, and that is the more expensive lie: a red that
+# accuses the wrong subject.
+#
+# The dominant cause is SCOPE. This script runs `-- --lib` (the diamond
+# convention + the macOS no-Keychain rule), so a crate whose tests live ONLY in
+# tests/ has zero test executed. Measured 2026-08-13: nika-tui-core, 0 caught of
+# 165 viable, with 1047 LOC of tests sitting in crates/nika-tui-core/tests/.
+# Exactly two crates in the workspace sit in that hole (nika-acp · nika-tui-core);
+# the other 61 keep their unit tests inline and are measured correctly.
+#
+# Exit 3 (tooling/usage), never 2 (below floor): the run produced no verdict.
+if [ "$caught" -eq 0 ]; then
+  echo "MUTATION HARNESS FAULT: ${crate} caught 0 of ${viable} viable mutants."
+  echo "  The test run executed nothing. This is NOT a kill ratio and must not be read as one."
+  inline_tests="$(grep -rl 'cfg(test)' "crates/${crate}/src" 2>/dev/null | wc -l | tr -d ' ')"
+  if [ "${inline_tests:-0}" -eq 0 ] && [ -d "crates/${crate}/tests" ]; then
+    echo "  cause: crates/${crate}/src carries no #[cfg(test)] and crates/${crate}/tests/ exists,"
+    echo "         so the '-- --lib' invocation cannot reach this crate's tests."
+    echo "  fix:   measure this crate without the --lib restriction (mind the macOS Keychain"
+    echo "         rule in .claude/CLAUDE.md), or move its unit tests inline into src/."
+  else
+    echo "  cause: not the --lib scope hole. Inspect the cargo-mutants baseline output"
+    echo "         before trusting any ratio from this crate."
+  fi
+  exit 3
+fi
+
 # --- BUDGET mode (documented exemption) ------------------------------------
 if [ "$exempt" -gt 0 ]; then
   if [ "$survivors" -le "$exempt" ]; then
