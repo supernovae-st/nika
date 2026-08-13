@@ -22,9 +22,20 @@ jobs:
     permissions:
       contents: write # push the heal branch
       pull-requests: write # open the heal PR
-    timeout-minutes: 10
+    # Raised from 10: this job now RUNS the conformance suites before it opens
+    # anything, instead of delegating that to a CI run that never comes.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # master
+        with:
+          toolchain: "1.91"
+      - uses: Swatinem/rust-cache@a45951ff880207c249adf57334cf2e9bd81d6e1e # v2
+        with:
+          shared-key: diamond
+      - uses: taiki-e/install-action@6c6fd71fe4fb72c3697d269963d0e15df8adedad # v2
+        with:
+          tool: cargo-nextest
       - name: The pin follows the spec
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -43,6 +54,26 @@ jobs:
           git add SPEC_PIN
           python3 scripts/estate.py --write   # the manifest rides the heal (staged files first — estate.py reads the INDEX)
           git add estate.yaml
+
+          # THE JOB JUDGES ITSELF — it used to delegate to a judge that never came.
+          # This body previously ended by opening a PR that said "the Diamond CI
+          # conformance leg judges at the new pin; merge on green". That judgement
+          # was impossible: GitHub does not start workflow runs from events raised
+          # with the repository's GITHUB_TOKEN (anti-recursion), so a bot PR carries
+          # no Rust job at all. On 2026-08-13 one such PR advanced the pin ACROSS
+          # the envelope freeze and reddened main with 240 NIKA-PARSE-003 — its
+          # rollup held three checks, none of them Rust.
+          # Scope: the whole `nika-check` crate, NOT a hand-listed set of suite
+          # names. A list would go stale the day a fourth conformance suite lands,
+          # and a guard that names its subjects is a guard that misses the next one.
+          git -C ../spec checkout --detach "$head"
+          echo "::group::conformance at the candidate pin"
+          if ! NIKA_SPEC_DIR="$PWD/../spec" cargo nextest run -p nika-check --no-fail-fast; then
+            echo "::endgroup::"
+            echo "::error::the engine does not implement spec $head — pin NOT advanced, no PR opened"
+            exit 1   # loud, not silent: a red cron run is the signal a human sees
+          fi
+          echo "::endgroup::"
           git config user.name "nika-release[bot]"
           git config user.email "nika@supernovae.studio"
           git checkout -B bot/spec-pin
