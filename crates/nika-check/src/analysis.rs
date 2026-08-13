@@ -812,7 +812,7 @@ mod tests {
         // F-P15 · the fan flavor: every iteration overwrites the same
         // file — the task races its own fan-out (`other` is None).
         let yaml = format!(
-            "{HEADER}  fan:\n    for_each: [1, 2, 3]\n    invoke:\n      tool: nika:write\n      args:\n        path: out/same.md\n        content: \"x\"\n"
+            "{HEADER}  fan:\n    for_each: {{ items: [1, 2, 3] }}\n    invoke:\n      tool: nika:write\n      args:\n        path: out/same.md\n        content: \"x\"\n"
         );
         let conflicts = read(&yaml).conflicts;
         assert_eq!(conflicts.len(), 1);
@@ -907,7 +907,7 @@ mod tests {
         // `for_each` same-path flavor — which needs no closure — still
         // refuses above the cap.
         let mut yaml = String::from(HEADER);
-        yaml.push_str("  fan:\n    for_each: [1, 2]\n    invoke:\n      tool: nika:write\n      args:\n        path: out/same.md\n        content: \"x\"\n");
+        yaml.push_str("  fan:\n    for_each: { items: [1, 2] }\n    invoke:\n      tool: nika:write\n      args:\n        path: out/same.md\n        content: \"x\"\n");
         for i in 0..ANALYSIS_TASK_CAP {
             yaml.push_str(&infer_task(&format!("t{i}"), &[]));
         }
@@ -938,7 +938,7 @@ mod tests {
         // (JSON `hints[]` + the console HINTS section carry it), and the
         // fan flavor's refusal lands as the law's finding.
         let mut yaml = String::from(HEADER);
-        yaml.push_str("  fan:\n    for_each: [1, 2]\n    invoke:\n      tool: nika:write\n      args:\n        path: out/same.md\n        content: \"x\"\n");
+        yaml.push_str("  fan:\n    for_each: { items: [1, 2] }\n    invoke:\n      tool: nika:write\n      args:\n        path: out/same.md\n        content: \"x\"\n");
         for i in 0..ANALYSIS_TASK_CAP {
             yaml.push_str(&infer_task(&format!("t{i}"), &[]));
         }
@@ -997,7 +997,7 @@ mod tests {
     fn a_for_each_fan_over_one_immutable_ref_races_itself() {
         // The fan flavor reaches the ref class too: every iteration
         // writes `${{ inputs.f }}` — one file, N writers.
-        let yaml = "nika: t\n\nmodel: mock/echo\n\ninputs:\n  f: { type: string, required: true }\n\ntasks:\n  fan:\n    for_each: [1, 2]\n    invoke:\n      tool: nika:write\n      args:\n        path: \"${{ inputs.f }}\"\n        content: \"x\"\n";
+        let yaml = "nika: t\n\nmodel: mock/echo\n\ninputs:\n  f: { type: string, required: true }\n\ntasks:\n  fan:\n    for_each: { items: [1, 2] }\n    invoke:\n      tool: nika:write\n      args:\n        path: \"${{ inputs.f }}\"\n        content: \"x\"\n";
         let conflicts = read(yaml).conflicts;
         assert_eq!(conflicts.len(), 1, "{conflicts:?}");
         assert_eq!(conflicts[0].other, None);

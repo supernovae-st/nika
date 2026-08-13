@@ -341,7 +341,7 @@ const:
   items: ["x", "y"]
 tasks:
   flaky_fan:
-    for_each: ${{ const.items }}
+    for_each: { items: "${{ const.items }}" }
     max_parallel: 1
     retry: { max_attempts: 2, backoff_ms: 10000, backoff_strategy: fixed, jitter: true }
     agent:
@@ -757,7 +757,7 @@ const:
   urls: ["alpha", "beta", "gamma"]
 tasks:
   scrape:
-    for_each: ${{ const.urls }}
+    for_each: { items: "${{ const.urls }}" }
     max_parallel: 1
     with: { page: "${{ item }}" }
     exec: { command: ["fetch", "${{ with.page }}", "at", "${{ index }}"] }
@@ -811,7 +811,7 @@ const:
   prompts: ["alpha", "beta", "gamma"]
 tasks:
   think_all:
-    for_each: ${{ const.prompts }}
+    for_each: { items: "${{ const.prompts }}" }
     max_parallel: 1
     infer:
       prompt: "ponder ${{ item }}"
@@ -853,7 +853,7 @@ const:
   items: ["one", "two", "three"]
 tasks:
   work:
-    for_each: ${{ const.items }}
+    for_each: { items: "${{ const.items }}" }
     max_parallel: 1
     fail_fast: false
     exec: { command: ["do", "${{ item }}"] }
@@ -896,7 +896,7 @@ const:
   items: ["one", "two", "three"]
 tasks:
   work:
-    for_each: ${{ const.items }}
+    for_each: { items: "${{ const.items }}" }
     max_parallel: 1
     on_error: { skip: true }
     exec: { command: ["do", "${{ item }}"] }
@@ -937,7 +937,7 @@ const:
   items: ["one", "two", "three"]
 tasks:
   work:
-    for_each: ${{ const.items }}
+    for_each: { items: "${{ const.items }}" }
     max_parallel: 1
     exec: { command: ["do", "${{ item }}"] }
 "#;
@@ -971,10 +971,10 @@ const:
   scalar: "not a list"
 tasks:
   empty_lane:
-    for_each: ${{ const.none }}
+    for_each: { items: "${{ const.none }}" }
     exec: { command: ["never", "${{ item }}"] }
   bad_lane:
-    for_each: ${{ const.scalar }}
+    for_each: { items: "${{ const.scalar }}" }
     exec: { command: ["never", "${{ item }}"] }
 "#;
     let (outcome, events) = run_to_events(
@@ -1015,7 +1015,7 @@ const:
   items: ["x", "y"]
 tasks:
   pair:
-    for_each: ${{ const.items }}
+    for_each: { items: "${{ const.items }}" }
     max_parallel: 2
     invoke: { tool: "nika:read", args: { path: "${{ item }}" } }
 "#;
@@ -1122,7 +1122,7 @@ permits: { exec: true }
 const: { scalar: "not a list" }
 tasks:
   bad:
-    for_each: ${{ const.scalar }}
+    for_each: { items: "${{ const.scalar }}" }
     exec: { command: ["never", "${{ item }}"] }
 "#;
     let (outcome2, _) = run_to_events(
@@ -1171,7 +1171,7 @@ const:
   items: ["a", "b"]
 tasks:
   fan:
-    for_each: ${{ const.items }}
+    for_each: { items: "${{ const.items }}" }
     when: ${{ item != 'skip' }}
     exec: { command: ["do", "${{ item }}"] }
 "#;
@@ -1220,7 +1220,7 @@ tasks:
       args: { pattern: "./docs/**/*.md" }
   texts:
     with: { files: "${{ tasks.files.output }}" }
-    for_each: ${{ with.files }}
+    for_each: { items: "${{ with.files }}" }
     max_parallel: 1
     invoke:
       tool: "nika:read"

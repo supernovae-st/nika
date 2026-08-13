@@ -498,13 +498,13 @@ mod tests {
     #[test]
     fn for_each_item_carries_the_collections_taint() {
         let task = parse_task(&format!(
-            "{HEAD}  t:\n    for_each: \"${{{{ tasks.dl.output }}}}\"\n    infer: {{ prompt: \"${{{{ item }}}}\", max_tokens: 5 }}\n"
+            "{HEAD}  t:\n    for_each: {{ items: \"${{{{ tasks.dl.output }}}}\" }}\n    infer: {{ prompt: \"${{{{ item }}}}\", max_tokens: 5 }}\n"
         ));
         let recs = records(vec![settled("dl", Integrity::untrusted("dl"))]);
         assert_eq!(task_integrity(&task, &recs), Integrity::untrusted("dl"));
         // A literal list is authored — clean even with an item read.
         let literal = parse_task(&format!(
-            "{HEAD}  t:\n    for_each: [\"a\", \"b\"]\n    infer: {{ prompt: \"${{{{ item }}}}\", max_tokens: 5 }}\n"
+            "{HEAD}  t:\n    for_each: {{ items: [\"a\", \"b\"] }}\n    infer: {{ prompt: \"${{{{ item }}}}\", max_tokens: 5 }}\n"
         ));
         assert_eq!(
             task_integrity(&literal, &records(Vec::new())),
@@ -561,7 +561,7 @@ mod tests {
     #[test]
     fn value_taint_item_reads_the_collections_taint() {
         let task = parse_task(&format!(
-            "{HEAD}  t:\n    for_each: \"${{{{ tasks.dl.output }}}}\"\n    exec: {{ command: [\"echo\", \"${{{{ item }}}}\"] }}\n"
+            "{HEAD}  t:\n    for_each: {{ items: \"${{{{ tasks.dl.output }}}}\" }}\n    exec: {{ command: [\"echo\", \"${{{{ item }}}}\"] }}\n"
         ));
         let recs = records(vec![settled("dl", Integrity::untrusted("dl"))]);
         let oracle = ValueTaint::of_task(&task, &recs);
@@ -571,7 +571,7 @@ mod tests {
         );
         // A literal list is authored — the item stays clean.
         let literal = parse_task(&format!(
-            "{HEAD}  t:\n    for_each: [\"a\", \"b\"]\n    exec: {{ command: [\"echo\", \"${{{{ item }}}}\"] }}\n"
+            "{HEAD}  t:\n    for_each: {{ items: [\"a\", \"b\"] }}\n    exec: {{ command: [\"echo\", \"${{{{ item }}}}\"] }}\n"
         ));
         assert_eq!(
             ValueTaint::of_task(&literal, &recs).label("${{ item }}", &recs),

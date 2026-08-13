@@ -1090,7 +1090,7 @@ tasks:
     #[test]
     fn the_calling_tasks_multipliers_scale_the_child() {
         let wf = parse(
-            "nika: parent\ntasks:\n  call:\n    for_each: [\"a\", \"b\"]\n    retry: { max_attempts: 3 }\n    invoke:\n      workflow: \"./child.nika.yaml\"\n",
+            "nika: parent\ntasks:\n  call:\n    for_each: { items: [\"a\", \"b\"] }\n    retry: { max_attempts: 3 }\n    invoke:\n      workflow: \"./child.nika.yaml\"\n",
         );
         let child = crate::check(&parse(CHILD_PRICED)).cost;
         let report =
@@ -1134,7 +1134,7 @@ tasks:
         );
 
         let fanned = parse(
-            "nika: parent\ntasks:\n  call:\n    for_each: ${{ tasks.seed.output }}\n    invoke:\n      workflow: \"./child.nika.yaml\"\n  seed:\n    exec: { command: [\"echo\", \"[]\"] }\n",
+            "nika: parent\ntasks:\n  call:\n    for_each: { items: \"${{ tasks.seed.output }}\" }\n    invoke:\n      workflow: \"./child.nika.yaml\"\n  seed:\n    exec: { command: [\"echo\", \"[]\"] }\n",
         );
         let report = crate::check_composed(&fanned, "parent.nika.yaml", &mut |_| {
             Ok(CHILD_PRICED.to_owned())

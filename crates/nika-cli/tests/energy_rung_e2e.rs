@@ -144,7 +144,7 @@ fn an_empty_for_each_claims_no_energy_and_agrees_with_cost() {
     let (code, text) = check(
         "nika: v1\nworkflow: { id: zero }\nmodel: groq/qwen/qwen3-32b\n\
          const:\n  nothing: []\ntasks:\n  brief:\n    \
-         for_each: ${{ const.nothing }}\n    \
+         for_each: { items: \"${{ const.nothing }}\" }\n    \
          infer: { prompt: \"hi\", max_tokens: 1000 }\n",
     );
     assert_eq!(code, 0, "{text}");

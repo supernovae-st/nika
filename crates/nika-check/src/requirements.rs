@@ -250,7 +250,7 @@ tasks:
       prompt: "Summarize for ${{ config.REGION }}"
   local_pass:
     after: { fetch: success }
-    for_each: "${{ config.SHARDS }}"
+    for_each: { items: "${{ config.SHARDS }}" }
     on_finally:
       - exec: { command: ["echo", "${{ config.CLEANUP_FLAG }}"] }
     infer:

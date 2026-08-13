@@ -338,7 +338,7 @@ tasks:
   discover:
     invoke: { tool: \"nika:read\" }
   process:
-    for_each: ${{ tasks.discover.output }}
+    for_each: { items: \"${{ tasks.discover.output }}\" }
     exec: { command: [echo] }
 ";
         let errors = analyze_yaml(yaml).expect_err("ref outside the boundary");
@@ -723,7 +723,7 @@ const:
   locales: [\"fr\", \"es\"]
 tasks:
   translate:
-    for_each: ${{ const.locales }}
+    for_each: { items: \"${{ const.locales }}\" }
     with:
       locale: ${{ item }}
       n: ${{ index }}

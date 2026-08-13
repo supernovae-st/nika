@@ -174,8 +174,8 @@ mod tests {
             "nika: m\ntasks:\n  \
              a:\n    infer: { prompt: hi, max_tokens: 1000, model: \"groq/qwen/qwen3-32b\" }\n  \
              b:\n    infer: { prompt: hi, model: \"groq/qwen/qwen3-32b\" }\n  \
-             c:\n    for_each: ${{ tasks.a.output }}\n    infer: { prompt: hi, max_tokens: 100, model: \"groq/qwen/qwen3-32b\" }\n  \
-             d:\n    for_each: []\n    infer: { prompt: hi, max_tokens: 100, model: \"groq/qwen/qwen3-32b\" }\n  \
+             c:\n    for_each: { items: \"${{ tasks.a.output }}\" }\n    infer: { prompt: hi, max_tokens: 100, model: \"groq/qwen/qwen3-32b\" }\n  \
+             d:\n    for_each: { items: [] }\n    infer: { prompt: hi, max_tokens: 100, model: \"groq/qwen/qwen3-32b\" }\n  \
              e:\n    infer: { prompt: hi, max_tokens: 100, model: \"mock/echo\" }\n  \
              f:\n    infer: { prompt: hi, max_tokens: 100, model: \"ollama/qwen3\" }\n",
         );

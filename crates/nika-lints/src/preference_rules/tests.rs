@@ -664,7 +664,7 @@ fn rule_006_fires_on_a_timeout_wrapper_in_for_each() {
 nika: f006
 tasks:
   shards:
-    for_each: [1, 2, 3]
+    for_each: { items: [1, 2, 3] }
     exec: { command: [\"timeout\", \"30\", \"./process.sh\"] }
 ";
     let six = lints_for(yaml, "one-obvious-way/006");
@@ -680,7 +680,7 @@ fn rule_006_fires_on_a_gtimeout_wrapper() {
 nika: f006g
 tasks:
   shards:
-    for_each: [1, 2, 3]
+    for_each: { items: [1, 2, 3] }
     exec: { command: [\"gtimeout\", \"30\", \"./process.sh\"] }
 ";
     let six = lints_for(yaml, "one-obvious-way/006");
@@ -696,7 +696,7 @@ fn rule_006_silent_on_a_plain_for_each_command() {
 nika: f006ok
 tasks:
   shards:
-    for_each: [1, 2, 3]
+    for_each: { items: [1, 2, 3] }
     timeout: 30s
     exec: { command: [\"./process.sh\"] }
 ";

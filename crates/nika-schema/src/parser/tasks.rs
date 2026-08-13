@@ -5,7 +5,7 @@
 //!
 //! The canonical v1 task field set is CLOSED (spec `03-dag.md`
 //! §forward-compat + NEP-0004 law 7's ONE grammar addition) · `with` ·
-//! `after` · `when` · `for_each` · `max_parallel` · `fail_fast` ·
+//! `after` · `when` · `for_each` (a BLOCK · `items` + the two knobs) ·
 //! `retry` · `on_error` · `timeout` · `on_finally` · `extract` · `lift` ·
 //! `declassify` · plus exactly one verb key.
 
@@ -15,7 +15,7 @@ use marked_yaml::types::MarkedMappingNode;
 use nika_vocab::after::predicate_refusal;
 
 use crate::error::SchemaError;
-use crate::raw::{ForEachValue, RawFinallyTask, RawTask};
+use crate::raw::{RawFinallyTask, RawTask};
 use crate::source::Spanned;
 use crate::types::{
     AfterPredicate, BackoffStrategy, OnError, OnErrorAction, RetryConfig, WhenGate,
@@ -38,8 +38,6 @@ const TASK_KEYS: &[&str] = &[
     "after",
     "when",
     "for_each",
-    "max_parallel",
-    "fail_fast",
     "retry",
     "on_error",
     "timeout",
@@ -173,9 +171,10 @@ fn parse_task(
 
     task.after = parse_after(cx, mapping, &task_label)?;
     task.when = parse_when(cx, mapping)?;
-    task.for_each = parse_for_each(cx, mapping)?;
-    task.max_parallel = parse_max_parallel(cx, mapping)?;
-    task.fail_fast = parse_bool_field(cx, mapping, "fail_fast")?;
+    let (for_each, max_parallel, fail_fast) = super::for_each::parse_for_each(cx, mapping)?;
+    task.for_each = for_each;
+    task.max_parallel = max_parallel;
+    task.fail_fast = fail_fast;
     task.retry = parse_retry(cx, mapping)?;
     task.on_error = parse_on_error(cx, mapping)?;
     task.timeout = parse_timeout(cx, mapping, "timeout")?;
@@ -315,62 +314,8 @@ pub(super) fn parse_string_list(
     Ok(out)
 }
 
-/// `for_each:` — an expression string OR a literal YAML list (spec
-/// `03-dag.md` §`for_each` · « The collection is either a literal list
-/// or a reference to an upstream task's array output »).
-fn parse_for_each(
-    cx: &Cx<'_>,
-    mapping: &MarkedMappingNode,
-) -> Result<Option<Spanned<ForEachValue>>, SchemaError> {
-    let Some(node) = mapping.get_node("for_each") else {
-        return Ok(None);
-    };
-    let span = cx.span_or_zero(node.span());
-    if let Some(scalar) = node.as_scalar() {
-        return Ok(Some(Spanned::new(
-            ForEachValue::Expression(scalar.as_str().to_owned()),
-            span,
-        )));
-    }
-    if node.as_sequence().is_some() {
-        return Ok(Some(Spanned::new(
-            ForEachValue::List(json_value(cx, node)?),
-            span,
-        )));
-    }
-    Err(SchemaError::Validation {
-        message: "`for_each` must be a `${{ … }}` expression or a literal list".to_owned(),
-        span: cx.span(node.span()),
-    })
-}
-
-/// `max_parallel:` — positive integer ≥ 1 (spec 03 §`max_parallel` ·
-/// « **Positive integer** · `1` to `n`. `1` = sequential »).
-fn parse_max_parallel(
-    cx: &Cx<'_>,
-    mapping: &MarkedMappingNode,
-) -> Result<Option<Spanned<u32>>, SchemaError> {
-    let Some(node) = mapping.get_node("max_parallel") else {
-        return Ok(None);
-    };
-    let value = node
-        .as_scalar()
-        .and_then(marked_yaml::types::MarkedScalarNode::as_u32)
-        .ok_or_else(|| SchemaError::Validation {
-            message: "`max_parallel` must be a positive integer".to_owned(),
-            span: cx.span(node.span()),
-        })?;
-    if value == 0 {
-        return Err(SchemaError::Validation {
-            message: "`max_parallel` must be ≥ 1".to_owned(),
-            span: cx.span(node.span()),
-        });
-    }
-    Ok(Some(Spanned::new(value, cx.span_or_zero(node.span()))))
-}
-
 /// An optional boolean scalar field (`fail_fast:` · `retry.jitter:`).
-fn parse_bool_field(
+pub(super) fn parse_bool_field(
     cx: &Cx<'_>,
     mapping: &MarkedMappingNode,
     key: &str,
@@ -949,7 +894,7 @@ tasks:
   b:
     after: { a: success }
     when: ${{ vars.flag == true }}
-    for_each: ${{ vars.items }}
+    for_each: { items: \"${{ vars.items }}\" }
     exec: { shell: echo b }
 ";
         let wf = parse_strict(yaml).expect("parse");
@@ -1018,9 +963,10 @@ tasks:
         let yaml = "\
 tasks:
   scrape_all:
-    for_each: ${{ vars.urls }}
-    max_parallel: 5
-    fail_fast: false
+    for_each:
+      items: \"${{ vars.urls }}\"
+      max_parallel: 5
+      fail_fast: false
     exec: { command: [echo] }
 ";
         let task = one_task(yaml);
@@ -1030,10 +976,15 @@ tasks:
 
     #[test]
     fn max_parallel_zero_errors() {
+        // the knob only exists inside the block now — a task-level
+        // `max_parallel:` is an unknown field, and a zero inside the
+        // block is still the >= 1 refusal
         let yaml = "\
 tasks:
   x:
-    max_parallel: 0
+    for_each:
+      items: [1]
+      max_parallel: 0
     exec: { command: [echo] }
 ";
         let err = parse_strict(yaml).expect_err("zero");

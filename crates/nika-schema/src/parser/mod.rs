@@ -20,6 +20,7 @@
 
 pub(crate) mod envelope;
 pub(crate) mod envelope_values;
+pub(crate) mod for_each;
 mod lift;
 pub(crate) mod tasks;
 mod value;

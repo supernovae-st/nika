@@ -284,7 +284,7 @@ tasks:
   e:
     invoke: { tool: "nika:edit", args: { path: "two.txt" } }
   f:
-    for_each: ["u", "v"]
+    for_each: { items: ["u", "v"] }
     invoke: { tool: "nika:write", args: { path: "${{ item }}.txt", content: "x" } }
   j:
     invoke: { tool: "nika:read", args: { path: "one.txt" } }

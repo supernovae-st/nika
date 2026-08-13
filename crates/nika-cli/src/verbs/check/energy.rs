@@ -240,7 +240,7 @@ mod fragment_tests {
     #[test]
     fn a_never_running_workflow_has_nothing_to_bound() {
         let r = report_of(
-            "nika: w\nmodel: groq/qwen/qwen3-32b\ntasks:\n  t:\n    for_each: []\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 1000 }\n",
+            "nika: w\nmodel: groq/qwen/qwen3-32b\ntasks:\n  t:\n    for_each: { items: [] }\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 1000 }\n",
         );
         let frag = inspect_fragment(&r, false).expect("fragment");
         assert_eq!(frag, "no energy to bound (no task runs)");

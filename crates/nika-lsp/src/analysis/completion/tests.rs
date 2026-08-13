@@ -938,7 +938,7 @@ fn task_fields_survive_outside_schema() {
 /// (so the doc PARSES and the island lanes ride the parse path; the
 /// cursor sits just after `for_each: ` where the typed prefix is still
 /// the empty-value position).
-const FLOW_DOC: &str = "nika: w\ninputs:\n  urls:\n    type: { array: string }\n    default: []\n  topic: { type: string, default: \"rust\" }\ntasks:\n  gather:\n    exec:\n      command: [\"ls\"]\n  fan:\n    after: { gather: success }\n    for_each: \"${{ inputs.urls }}\"\n    exec:\n      command: [\"echo\"]\n  last:\n    after: { fan: success }\n    exec:\n      command: [\"true\"]\n";
+const FLOW_DOC: &str = "nika: w\ninputs:\n  urls:\n    type: { array: string }\n    default: []\n  topic: { type: string, default: \"rust\" }\ntasks:\n  gather:\n    exec:\n      command: [\"ls\"]\n  fan:\n    after: { gather: success }\n    for_each: { items: \"${{ inputs.urls }}\" }\n    exec:\n      command: [\"echo\"]\n  last:\n    after: { fan: success }\n    exec:\n      command: [\"true\"]\n";
 
 #[test]
 fn for_each_offers_typed_arrays_first_then_the_boundary_import() {
@@ -1002,7 +1002,7 @@ fn when_composes_the_cel_shapes_from_the_document() {
             "    with:\n      items: \"${{ tasks.gather.output }}\"\n",
         )
         .replace(
-            "for_each: \"${{ inputs.urls }}\"",
+            "for_each: { items: \"${{ inputs.urls }}\" }",
             "when: \"${{ with.items != null }}\"",
         );
     let at = doc.find("when: ").expect("key") + "when: ".len();
@@ -1025,7 +1025,10 @@ fn when_composes_the_cel_shapes_from_the_document() {
 
 #[test]
 fn a_partial_non_island_value_stays_silent() {
-    let doc = FLOW_DOC.replace("for_each: \"${{ inputs.urls }}\"", "for_each: som");
+    let doc = FLOW_DOC.replace(
+        "for_each: { items: \"${{ inputs.urls }}\" }",
+        "for_each: som",
+    );
     let at = doc.find("for_each: som").expect("key") + "for_each: som".len();
     assert!(
         completion(&doc, at).is_empty(),
@@ -1146,7 +1149,7 @@ fn loop_roots_are_gated_to_for_each_tasks() {
     );
     assert!(!got.contains(&"index".to_owned()), "{got:?}");
 
-    let fanned = "nika: w\ninputs:\n  urls: [1, 2]\ntasks:\n  a:\n    for_each: \"${{ inputs.urls }}\"\n    exec: { command: [\"echo\", \"${{ ";
+    let fanned = "nika: w\ninputs:\n  urls: [1, 2]\ntasks:\n  a:\n    for_each: { items: \"${{ inputs.urls }}\" }\n    exec: { command: [\"echo\", \"${{ ";
     let got = labels(&completion(fanned, fanned.len()));
     assert!(got.contains(&"item".to_owned()), "{got:?}");
     assert!(

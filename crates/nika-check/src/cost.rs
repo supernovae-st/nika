@@ -327,7 +327,7 @@ const:
   items: [\"a\", \"b\", \"c\"]
 tasks:
   fan:
-    for_each: ${{ const.items }}
+    for_each: { items: \"${{ const.items }}\" }
     infer: { prompt: \"x\", max_tokens: 100 }
 ",
         );
@@ -350,7 +350,7 @@ inputs:
   items: { type: { array: string }, required: true }
 tasks:
   fan:
-    for_each: ${{ inputs.items }}
+    for_each: { items: \"${{ inputs.items }}\" }
     infer: { prompt: \"x\", max_tokens: 100 }
 ",
         );
@@ -372,7 +372,7 @@ inputs:
   items: { type: { array: string }, default: [\"a\", \"b\"] }
 tasks:
   fan:
-    for_each: ${{ inputs.items }}
+    for_each: { items: \"${{ inputs.items }}\" }
     infer: { prompt: \"x\", max_tokens: 100 }
 ",
         );
@@ -585,7 +585,7 @@ mod for_each_fanout {
             "nika: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  t:\n    infer: { prompt: \"x\", max_tokens: 1000 }\n",
         );
         let batch = ceiling_of(
-            "nika: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  t:\n    for_each: [1, 2, 3, 4, 5]\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 1000 }\n",
+            "nika: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  t:\n    for_each: { items: [1, 2, 3, 4, 5] }\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 1000 }\n",
         );
         assert_eq!(batch.tasks[0].iterations, 5);
         let one = single.bounded_total_usd;
@@ -601,7 +601,7 @@ mod for_each_fanout {
     fn expression_for_each_is_unbounded() {
         // ${{ inputs.items }} source → unknown iteration count → unbounded.
         let c = ceiling_of(
-            "nika: w\nmodel: anthropic/claude-sonnet-4-6\ninputs: { items: { type: string, required: true } }\ntasks:\n  t:\n    for_each: ${{ inputs.items }}\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 1000 }\n",
+            "nika: w\nmodel: anthropic/claude-sonnet-4-6\ninputs: { items: { type: string, required: true } }\ntasks:\n  t:\n    for_each: { items: \"${{ inputs.items }}\" }\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 1000 }\n",
         );
         assert!(c.has_unbounded);
         assert_eq!(
@@ -681,7 +681,7 @@ mod ceiling_arithmetic {
         // worst (the degenerate n = 1 case cannot see it, which is why it
         // survived). Both ends are still priced (sonnet), so they compare.
         let c = ceiling_of(
-            "nika: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  t:\n    for_each: [1, 2]\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 1000 }\n",
+            "nika: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  t:\n    for_each: { items: [1, 2] }\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 1000 }\n",
         );
         assert_eq!(c.tasks[0].iterations, 2, "two-element list = 2 iterations");
         assert!(c.bounded_total_usd > 0.0, "priced worst path");

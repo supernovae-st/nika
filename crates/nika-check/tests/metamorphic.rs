@@ -118,9 +118,9 @@ fn to_yaml(tasks: &[TaskSpec], prefix: &str) -> String {
             _ => {}
         }
         match (t.fan, bound_dep) {
-            (1, _) => y.push_str("    for_each: [\"a\", \"b\"]\n"),
+            (1, _) => y.push_str("    for_each: { items: [\"a\", \"b\"] }\n"),
             (2, Some(_)) => {
-                y.push_str("    for_each: ${{ with.upstream }}\n");
+                y.push_str("    for_each: { items: \"${{ with.upstream }}\" }\n");
             }
             _ => {}
         }
@@ -291,7 +291,7 @@ proptest! {
                 let _ = writeln!(y, "  t{i}:");
                 y.push_str(&retry);
                 if fan {
-                    y.push_str("    for_each: [\"a\", \"b\"]\n");
+                    y.push_str("    for_each: { items: [\"a\", \"b\"] }\n");
                 }
                 y.push_str(body);
             }

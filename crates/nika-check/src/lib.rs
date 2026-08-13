@@ -1468,7 +1468,7 @@ tasks:
     #[test]
     fn write_write_for_each_same_path_refuses() {
         let r = check_yaml(
-            "nika: w\npermits:\n  fs: { write: [\"out/**\"] }\n  tools: [\"nika:write\"]\ntasks:\n  fan:\n    for_each: [1, 2, 3]\n    invoke: { tool: \"nika:write\", args: { path: out/same.md, content: \"x\" } }\n",
+            "nika: w\npermits:\n  fs: { write: [\"out/**\"] }\n  tools: [\"nika:write\"]\ntasks:\n  fan:\n    for_each: { items: [1, 2, 3] }\n    invoke: { tool: \"nika:write\", args: { path: out/same.md, content: \"x\" } }\n",
         );
         assert!(!r.is_clean(), "the fan-out overwrite is a finding");
         assert_eq!(r.write_conflicts.len(), 1, "{r:?}");

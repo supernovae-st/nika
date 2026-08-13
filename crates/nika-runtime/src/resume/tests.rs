@@ -490,8 +490,8 @@ mod unit {
     /// is not resume-eligible (fail-closed, never a wrong skip).
     #[test]
     fn fan_out_collection_participates_and_deep_item_nav_is_ineligible() {
-        const SHALLOW: &str = "nika: t\nconst:\n  urls: [\"a\", \"b\"]\ntasks:\n  fan:\n    for_each: ${{ const.urls }}\n    exec: { command: [\"echo\", \"${{ item }}\"] }\n";
-        const DEEP: &str = "nika: t\nconst:\n  rows: [{ url: \"a\" }]\ntasks:\n  fan:\n    for_each: ${{ const.rows }}\n    exec: { command: [\"echo\", \"${{ item.url }}\"] }\n";
+        const SHALLOW: &str = "nika: t\nconst:\n  urls: [\"a\", \"b\"]\ntasks:\n  fan:\n    for_each: { items: \"${{ const.urls }}\" }\n    exec: { command: [\"echo\", \"${{ item }}\"] }\n";
+        const DEEP: &str = "nika: t\nconst:\n  rows: [{ url: \"a\" }]\ntasks:\n  fan:\n    for_each: { items: \"${{ const.rows }}\" }\n    exec: { command: [\"echo\", \"${{ item.url }}\"] }\n";
         let records = BTreeMap::new();
         let ab = BTreeMap::from([("urls".to_owned(), json!(["a", "b"]))]);
         let ac = BTreeMap::from([("urls".to_owned(), json!(["a", "c"]))]);

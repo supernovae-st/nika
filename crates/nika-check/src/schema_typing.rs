@@ -198,7 +198,7 @@ fn scan_for_each_sources(wf: &RawWorkflow, findings: &mut Vec<SchemaTypeFinding>
         if !assignable(&any_array, &declared_type, &named) {
             findings.push(SchemaTypeFinding {
                 site: task.value.id.value.clone(),
-                reference: format!("for_each: ${{{{ {authority}.{name} }}}}"),
+                reference: format!("for_each: {{ items: \"${{{{ {authority}.{name} }}}}\" }}"),
                 target: format!("{authority}.{name}"),
                 detail: format!(
                     "`{authority}.{name}` is declared `type: {}` — `for_each` needs an array \
@@ -568,7 +568,7 @@ mod tests {
     fn for_each_wf(authority: &str, var_decl: &str) -> String {
         format!(
             "nika: w\nmodel: mock/echo\n{authority}:\n  xs: {var_decl}\n\
-             tasks:\n  fan:\n    for_each: ${{{{ {authority}.xs }}}}\n    \
+             tasks:\n  fan:\n    for_each: {{ items: \"${{{{ {authority}.xs }}}}\" }}\n    \
              with: {{ it: \"${{{{ item }}}}\" }}\n    infer: {{ prompt: \"do ${{{{ with.it }}}}\" }}\n"
         )
     }
@@ -626,7 +626,7 @@ mod tests {
         assert!(findings_of(&for_each_wf("const", "\"hello\"")).is_empty()); // untyped literal string
         // An inline list literal source never resolves to a bare authority ref.
         let inline = "nika: w\nmodel: mock/echo\ntasks:\n  fan:\n    \
-                      for_each: [1, 2, 3]\n    with: { it: \"${{ item }}\" }\n    \
+                      for_each: { items: [1, 2, 3] }\n    with: { it: \"${{ item }}\" }\n    \
                       infer: { prompt: \"do ${{ with.it }}\" }\n";
         assert!(findings_of(inline).is_empty());
     }

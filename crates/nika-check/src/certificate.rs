@@ -626,7 +626,7 @@ mod tests {
     #[test]
     fn literal_for_each_folds_into_the_constant() {
         let c = cert(&wf(
-            "  a:\n    for_each: [\"x\", \"y\", \"z\"]\n    retry: { max_attempts: 2 }\n    exec: { command: [\"echo\", \"${{ item }}\"] }\n",
+            "  a:\n    for_each: { items: [\"x\", \"y\", \"z\"] }\n    retry: { max_attempts: 2 }\n    exec: { command: [\"echo\", \"${{ item }}\"] }\n",
         ));
         // 3 elements × 2 attempts
         assert_eq!(c.task_attempts, konst(6));
@@ -636,7 +636,7 @@ mod tests {
     #[test]
     fn expression_for_each_yields_a_parametric_term() {
         let c = cert(&wf(
-            "  src:\n    exec: { command: [\"ls\"] }\n  fan:\n    with: { files: \"${{ tasks.src.output.files }}\" }\n    for_each: ${{ with.files }}\n    retry: { max_attempts: 2 }\n    infer: { prompt: \"summarize ${{ item }}\", max_tokens: 10 }\n",
+            "  src:\n    exec: { command: [\"ls\"] }\n  fan:\n    with: { files: \"${{ tasks.src.output.files }}\" }\n    for_each: { items: \"${{ with.files }}\" }\n    retry: { max_attempts: 2 }\n    infer: { prompt: \"summarize ${{ item }}\", max_tokens: 10 }\n",
         ));
         // src: 1 attempt · fan: 2·|fan| body runs
         assert_eq!(c.task_attempts.constant, 1);
@@ -685,7 +685,7 @@ mod tests {
     fn spend_axis_is_parametric_where_cost_says_unknown_iterations() {
         // the deepening: for_each-expression spend = a degree-1 term
         let c = cert(&wf(
-            "  src:\n    exec: { command: [\"ls\"] }\n  fan:\n    with: { files: \"${{ tasks.src.output.files }}\" }\n    for_each: ${{ with.files }}\n    retry: { max_attempts: 2 }\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 200 }\n",
+            "  src:\n    exec: { command: [\"ls\"] }\n  fan:\n    with: { files: \"${{ tasks.src.output.files }}\" }\n    for_each: { items: \"${{ with.files }}\" }\n    retry: { max_attempts: 2 }\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 200 }\n",
         ));
         let usd = c.usd_micros.expect("priced");
         assert_eq!(usd.constant, 0);
@@ -717,7 +717,7 @@ mod tests {
     #[test]
     fn audit_accepts_honest_and_rejects_tampered_certificates() {
         let yaml = wf(
-            "  a:\n    exec: { command: [\"true\"] }\n  fan:\n    with: { items: \"${{ tasks.a.output.items }}\" }\n    for_each: ${{ with.items }}\n    retry: { max_attempts: 2 }\n    infer: { prompt: \"x\", max_tokens: 50 }\n",
+            "  a:\n    exec: { command: [\"true\"] }\n  fan:\n    with: { items: \"${{ tasks.a.output.items }}\" }\n    for_each: { items: \"${{ with.items }}\" }\n    retry: { max_attempts: 2 }\n    infer: { prompt: \"x\", max_tokens: 50 }\n",
         );
         let parsed = parse(&yaml, FileId::new(0), ParseMode::Strict).expect("parse");
         let honest = certify(&parsed);
@@ -776,7 +776,7 @@ mod tests {
         // a for_each over 4 elements: work ×4, span unchanged (the
         // elements run in parallel — Brent: parallelism = work/span)
         let c = cert(&wf(
-            "  a:\n    exec: { command: [\"true\"] }\n  fan:\n    after: { a: success }\n    for_each: [\"w\", \"x\", \"y\", \"z\"]\n    exec: { command: [\"true\"] }\n",
+            "  a:\n    exec: { command: [\"true\"] }\n  fan:\n    after: { a: success }\n    for_each: { items: [\"w\", \"x\", \"y\", \"z\"] }\n    exec: { command: [\"true\"] }\n",
         ));
         assert_eq!(c.task_attempts, konst(5), "work: 1 + 4");
         assert_eq!(c.span_attempts, 2, "span: 1 + 1 (elements parallel)");
@@ -803,7 +803,7 @@ mod tests {
     #[test]
     fn the_wire_shape_is_pinned() {
         let c = cert(&wf(
-            "  fan:\n    for_each: ${{ vars.items }}\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 5 }\n",
+            "  fan:\n    for_each: { items: \"${{ vars.items }}\" }\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 5 }\n",
         ));
         let json = serde_json::to_value(&c).expect("serializes");
         assert_eq!(

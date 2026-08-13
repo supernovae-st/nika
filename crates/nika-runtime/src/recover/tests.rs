@@ -427,7 +427,7 @@ nika: recover-fanout-boundary
 permits: { exec: true }
 tasks:
   fan:
-    for_each: ["x"]
+    for_each: { items: ["x"] }
     exec: { shell: "exit 1" }
     on_error:
       recover: ${{ tasks.source.output }}

@@ -41,7 +41,7 @@ tasks:
   fan:
     after:
       gather: success
-    for_each: ["a", "b", "c"]
+    for_each: { items: ["a", "b", "c"] }
     infer:
       prompt: "Classify · ${{ item }}"
       max_tokens: 100

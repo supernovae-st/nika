@@ -1106,13 +1106,16 @@ mod tests {
     #[test]
     fn typed_default_block_value_completes_keeping_the_value_lines() {
         // the t2-bookmark-triage shape: a block-sequence default value.
-        let old = "vars:\n  bookmarks:\n    type: array\n    default:\n      - \"https://example.com\"\n      - \"https://example.org\" # the second\ntasks:\n  t:\n    for_each: ${{ vars.bookmarks }}\n    infer: { prompt: go }\n";
+        let old = "vars:\n  bookmarks:\n    type: array\n    default:\n      - \"https://example.com\"\n      - \"https://example.org\" # the second\ntasks:\n  t:\n    for_each: { items: \"${{ vars.bookmarks }}\" }\n    infer: { prompt: go }\n";
         let new = changed(old);
         assert!(
             new.contains("const:\n  bookmarks:\n    type: array\n    value:\n      - \"https://example.com\"\n      - \"https://example.org\" # the second"),
             "{new}"
         );
-        assert!(new.contains("for_each: ${{ const.bookmarks }}"), "{new}");
+        assert!(
+            new.contains("for_each: { items: \"${{ const.bookmarks }}\" }"),
+            "{new}"
+        );
     }
 
     #[test]
@@ -1231,13 +1234,16 @@ mod tests {
 
     #[test]
     fn block_sequence_literal_is_const() {
-        let old = "vars:\n  locales:\n    - fr\n    - es\ntasks:\n  t:\n    for_each: ${{ vars.locales }}\n    infer: { prompt: go }\n";
+        let old = "vars:\n  locales:\n    - fr\n    - es\ntasks:\n  t:\n    for_each: { items: \"${{ vars.locales }}\" }\n    infer: { prompt: go }\n";
         let new = changed(old);
         assert!(
             new.contains("const:\n  locales:\n    - fr\n    - es"),
             "{new}"
         );
-        assert!(new.contains("for_each: ${{ const.locales }}"), "{new}");
+        assert!(
+            new.contains("for_each: { items: \"${{ const.locales }}\" }"),
+            "{new}"
+        );
     }
 
     #[test]

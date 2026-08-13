@@ -109,7 +109,7 @@ fn yaml_of(specs: &[TaskSpec]) -> String {
                 let _ = writeln!(y, "    infer: {{ prompt: \"gated {i}\" }}");
             }
             Kind::Fails => {
-                let _ = writeln!(y, "    for_each: ${{{{ const.scalar }}}}");
+                let _ = writeln!(y, "    for_each: {{ items: \"${{{{ const.scalar }}}}\" }}");
                 let _ = writeln!(y, "    infer: {{ prompt: \"iter ${{{{ item }}}}\" }}");
             }
             Kind::Normal => {

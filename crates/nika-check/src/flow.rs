@@ -817,7 +817,7 @@ tasks:
         // for_each over a tainted upstream output → item is tainted → an
         // exec using ${{ item }} re-emits it.
         let y = format!(
-            "nika: w\n{S}tasks:\n  a:\n    exec: {{ shell: \"echo ${{{{ secrets.api_key }}}}\" }}\n  b:\n    with: {{ items: \"${{{{ tasks.a.output }}}}\" }}\n    for_each: ${{{{ with.items }}}}\n    exec: {{ shell: \"echo ${{{{ item }}}}\" }}\n"
+            "nika: w\n{S}tasks:\n  a:\n    exec: {{ shell: \"echo ${{{{ secrets.api_key }}}}\" }}\n  b:\n    with: {{ items: \"${{{{ tasks.a.output }}}}\" }}\n    for_each: {{ items: \"${{{{ with.items }}}}\" }}\n    exec: {{ shell: \"echo ${{{{ item }}}}\" }}\n"
         );
         let (wf, f) = facts(&y);
         assert!(

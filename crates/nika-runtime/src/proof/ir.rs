@@ -242,7 +242,7 @@ mod tests {
 
     /// The rich fixture's YAML — one const so the receipt, the proves
     /// and the golden can never drift apart.
-    const RICH_YAML: &str = "nika: pay\nmodel: anthropic/claude-sonnet-4-6\npermits:\n  exec: [\"ls\", \"echo\"]\n  tools: [\"nika:log\"]\ntasks:\n  src:\n    exec: { command: [\"ls\"] }\n  fan:\n    with: { items: \"${{ tasks.src.output.files }}\" }\n    for_each: ${{ with.items }}\n    retry: { max_attempts: 2 }\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 200 }\n    on_finally:\n      - invoke: { tool: \"nika:log\", args: { message: \"done\" } }\n";
+    const RICH_YAML: &str = "nika: pay\nmodel: anthropic/claude-sonnet-4-6\npermits:\n  exec: [\"ls\", \"echo\"]\n  tools: [\"nika:log\"]\ntasks:\n  src:\n    exec: { command: [\"ls\"] }\n  fan:\n    with: { items: \"${{ tasks.src.output.files }}\" }\n    for_each: { items: \"${{ with.items }}\" }\n    retry: { max_attempts: 2 }\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 200 }\n    on_finally:\n      - invoke: { tool: \"nika:log\", args: { message: \"done\" } }\n";
 
     /// A receipt whose certificate exercises EVERY field family: a
     /// `for_each` expression (parametric terms) · a retry · a declared

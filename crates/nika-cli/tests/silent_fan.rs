@@ -47,7 +47,7 @@ permits:
     read: ["items", "items/*"]
 tasks:
   fan:
-    for_each: ["items/a.txt", "items/GHOST.txt", "items/c.txt"]
+    for_each: { items: ["items/a.txt", "items/GHOST.txt", "items/c.txt"] }
     on_error:
       recover: null
     invoke:
