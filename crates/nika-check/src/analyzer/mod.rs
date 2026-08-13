@@ -631,8 +631,10 @@ tasks:
         );
         let rendered: Vec<String> = errors.iter().map(ToString::to_string).collect();
         assert!(
-            rendered.iter().any(|m| m.contains("dead `vars` namespace")
-                && m.contains("inputs · config · const · secrets")),
+            rendered
+                .iter()
+                .any(|m| m.contains("dead `vars` namespace")
+                    && m.contains("inputs · const · secrets")),
             "the classification teaching: {rendered:?}"
         );
     }
@@ -690,7 +692,7 @@ tasks:
             rendered
                 .iter()
                 .any(|m| m.contains("outside the four-authority family")
-                    && m.contains("inputs · config · const · secrets")),
+                    && m.contains("inputs · const · secrets")),
             "the closed-family teaching: {rendered:?}"
         );
     }
@@ -743,7 +745,7 @@ tasks:
         assert_eq!(foreign.spec_code().to_string(), "NIKA-VALUES-003");
         let rendered = foreign.to_string();
         assert!(
-            rendered.contains("params") && rendered.contains("inputs · config · const · secrets"),
+            rendered.contains("params") && rendered.contains("inputs · const · secrets"),
             "the byte-mirrored teaching: {rendered}"
         );
     }
@@ -769,19 +771,20 @@ tasks:
 
     #[test]
     fn env_and_secrets_undeclared_error() {
-        // Conformance fixtures variables/005 + 006 (post-C2: the config authority).
+        // Conformance fixtures variables/005 + 006 (an undeclared read of
+        // a LIVE authority — `inputs:` since `config:` died).
         let yaml = "\
 nika: t
 tasks:
   go:
     exec:
-      command: [\"echo\", \"${{ config.MISSING }}\", \"${{ secrets.api_key }}\"]
+      command: [\"echo\", \"${{ inputs.MISSING }}\", \"${{ secrets.api_key }}\"]
 ";
         let errors = analyze_yaml(yaml).expect_err("undeclared");
         assert_has(
             &errors,
-            |e| matches!(e, SchemaError::UnresolvedNamespaceRef { reference, .. } if reference == "config.MISSING"),
-            "config.MISSING",
+            |e| matches!(e, SchemaError::UnresolvedNamespaceRef { reference, .. } if reference == "inputs.MISSING"),
+            "inputs.MISSING",
         );
         assert_has(
             &errors,

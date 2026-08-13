@@ -57,7 +57,7 @@ fn a_reasoning_model_without_a_thinking_budget_gets_the_teaching() {
     for yaml in [
         "nika: w\ntasks:\n  t:\n    infer:\n      model: \"openai/o3\"\n      max_tokens: 500\n      thinking: { enabled: true }\n      prompt: hi\n",
         "nika: w\ntasks:\n  t:\n    infer:\n      model: \"openai/gpt-4o-mini\"\n      max_tokens: 500\n      prompt: hi\n",
-        "nika: w\nconfig:\n  seat:\n    type: string\n    default: \"openai/o3\"\ntasks:\n  t:\n    infer:\n      model: \"${{ config.seat }}\"\n      max_tokens: 500\n      prompt: hi\n",
+        "nika: w\ninputs:\n  seat:\n    type: string\n    default: \"openai/o3\"\ntasks:\n  t:\n    infer:\n      model: \"${{ inputs.seat }}\"\n      max_tokens: 500\n      prompt: hi\n",
         "nika: w\ntasks:\n  t:\n    infer:\n      model: \"openai/o3\"\n      prompt: hi\n",
     ] {
         assert!(

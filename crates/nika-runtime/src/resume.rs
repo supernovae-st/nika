@@ -401,7 +401,6 @@ pub(crate) fn stamp(
     task: &RawTask,
     records: &BTreeMap<String, TaskRecord>,
     inputs: &BTreeMap<String, Value>,
-    config: &BTreeMap<String, Value>,
     consts: &BTreeMap<String, Value>,
     ctx: &ResumeContext,
 ) -> Option<ResumeStamp> {
@@ -462,7 +461,7 @@ pub(crate) fn stamp(
             .as_object_mut()?
             .insert("child_closure".to_owned(), Value::Object(closures));
     }
-    let inputs = input_value(task, records, inputs, config, consts, &ctx.markers)?;
+    let inputs = input_value(task, records, inputs, consts, &ctx.markers)?;
     let key = ResumeKey::new(
         task.id.value.clone(),
         task.action.verb().to_owned(),
@@ -639,14 +638,12 @@ fn input_value(
     task: &RawTask,
     records: &BTreeMap<String, TaskRecord>,
     inputs: &BTreeMap<String, Value>,
-    config: &BTreeMap<String, Value>,
     consts: &BTreeMap<String, Value>,
     markers: &BTreeMap<String, Value>,
 ) -> Option<Value> {
     let workflow_scope = Scope {
         records,
         inputs,
-        config,
         consts,
         secrets: markers,
         with_ns: None,
@@ -676,7 +673,6 @@ fn input_value(
     let base = Scope {
         records,
         inputs,
-        config,
         consts,
         secrets: markers,
         with_ns: None,

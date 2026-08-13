@@ -23,14 +23,12 @@ pub(super) fn render_boundary_with(
     task: &RawTask,
     records: &BTreeMap<String, TaskRecord>,
     inputs: &BTreeMap<String, Value>,
-    config: &BTreeMap<String, Value>,
     consts: &BTreeMap<String, Value>,
     secrets: &BTreeMap<String, Value>,
 ) -> Result<BTreeMap<String, Value>, RuntimeError> {
     let scope = Scope {
         records,
         inputs,
-        config,
         consts,
         secrets, // `with: { tok: "${{ secrets.X }}" }` resolves here (MINOR-B)
         with_ns: None,
@@ -73,7 +71,6 @@ pub(super) fn render_with(
     task: &RawTask,
     records: &BTreeMap<String, TaskRecord>,
     inputs: &BTreeMap<String, Value>,
-    config: &BTreeMap<String, Value>,
     consts: &BTreeMap<String, Value>,
     secrets: &BTreeMap<String, Value>,
     item: Option<&Value>,
@@ -82,7 +79,6 @@ pub(super) fn render_with(
     let scope = Scope {
         records,
         inputs,
-        config,
         consts,
         secrets, // `with: { tok: "${{ secrets.X }}" }` resolves here (MINOR-B)
         with_ns: None,

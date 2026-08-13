@@ -130,7 +130,7 @@ pub(super) fn scan_types(wf: &RawWorkflow) -> (Vec<SchemaTypeFinding>, Vec<Unver
     (findings, unverifiable)
 }
 
-/// A `for_each:` source that is a BARE `${{ inputs.X }}`/`${{ config.X }}`/
+/// A `for_each:` source that is a BARE `${{ inputs.X }}`/`${{ inputs.X }}`/
 /// `${{ const.X }}` whose declaration is a non-array type can never be an
 /// array — the runtime refuses it (NIKA-VAR-006 « `for_each` collection
 /// must be an array ») and the check must catch that BEFORE the run
@@ -158,7 +158,6 @@ fn scan_for_each_sources(wf: &RawWorkflow, findings: &mut Vec<SchemaTypeFinding>
         };
         let block = match authority.as_str() {
             "inputs" => &wf.inputs,
-            "config" => &wf.config,
             _ => &wf.consts,
         };
         let declared = block.iter().find(|(n, _)| n.value == name);
@@ -185,7 +184,7 @@ fn scan_for_each_sources(wf: &RawWorkflow, findings: &mut Vec<SchemaTypeFinding>
 }
 
 /// The `(authority, name)` of a source that is EXACTLY `${{ inputs.X }}` /
-/// `${{ config.X }}` / `${{ const.X }}` (one template island covering the
+/// `${{ inputs.X }}` / `${{ const.X }}` (one template island covering the
 /// whole value, a bare `Member { Ident(authority), X }` with no further
 /// path), else `None`. `for_each` sources carry the raw `${{ … }}`
 /// wrapper, so the island's pre-parsed `expr` is the entry.

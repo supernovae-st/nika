@@ -70,10 +70,6 @@ pub const TOP_LEVEL_KEYS: &[Entry] = &[
         doc: "Typed workflow inputs — caller-supplied declarations (`${{ inputs.X }}`).",
     },
     Entry {
-        name: "config",
-        doc: "Non-sensitive runtime config — deployment-supplied (`${{ config.X }}`).",
-    },
-    Entry {
         name: "const",
         doc: "Named constants — author-fixed values (`${{ const.X }}`).",
     },
@@ -99,10 +95,6 @@ pub const TOP_LEVEL_KEYS: &[Entry] = &[
     Entry {
         name: "run",
         doc: "Run-level settings the engine reads before the DAG starts.",
-    },
-    Entry {
-        name: "assert",
-        doc: "Post-run assertions the engine evaluates against the outputs.",
     },
 ];
 

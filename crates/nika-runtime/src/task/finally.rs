@@ -141,7 +141,6 @@ where
         let cleanup_scope = Scope {
             records: &records,
             inputs: scope.inputs,
-            config: scope.config,
             consts: scope.consts,
             secrets: scope.secrets, // a cleanup may reference secrets.X too
             with_ns: scope.with_ns,

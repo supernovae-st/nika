@@ -682,9 +682,9 @@ fn touches_section(s: &mut String, doc: &GraphDoc, report: &CheckReport, permits
     needs.extend(
         report
             .requirements
-            .config_reads
+            .inputs_read
             .iter()
-            .map(|e| format!("config.{e}")),
+            .map(|e| format!("inputs.{e}")),
     );
     if !needs.is_empty() {
         let _ = writeln!(

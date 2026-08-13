@@ -123,7 +123,6 @@ fn resolve_static(template: &str, wf: &RawWorkflow) -> Option<String> {
         let value = match reference {
             NamespaceRef::Const(name) => const_string(wf, name)?,
             NamespaceRef::Inputs(name) => declared_string_default(&wf.inputs, name)?,
-            NamespaceRef::Config(name) => declared_string_default(&wf.config, name)?,
             _ => return None, // secrets · tasks.* · with.* — dynamic here
         };
         resolved.push_str(&template[cursor..island.start]);
@@ -232,7 +231,7 @@ mod tests {
         assert!(findings_of(&dynamic).is_empty());
         // a declared string default resolves · classify
         let defaulted = format!(
-            "{BASE}inputs:\n  artifact: {{ type: string, default: \"https://data.example.com/a.pkl\" }}\ntasks:\n  grab:\n    invoke:\n      tool: \"nika:fetch\"\n      args: {{ url: \"${{{{ inputs.artifact }}}}\" }}\n"
+            "{BASE}inputs:\n  artifact: {{ type: string, required: false, default: \"https://data.example.com/a.pkl\" }}\ntasks:\n  grab:\n    invoke:\n      tool: \"nika:fetch\"\n      args: {{ url: \"${{{{ inputs.artifact }}}}\" }}\n"
         );
         assert_eq!(findings_of(&defaulted).len(), 1);
         // the trusted const root resolves too (the oracle parity)

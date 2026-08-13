@@ -2280,8 +2280,7 @@ pub fn nika_check::PermitTaint::__clone_box(&self, _: dyn_clone::sealed::Private
 impl<T> nika_error::traits::AsAny for nika_check::PermitTaint where T: 'static
 pub fn nika_check::PermitTaint::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub struct nika_check::Requirements
-pub nika_check::Requirements::config_defined: alloc::vec::Vec<alloc::string::String>
-pub nika_check::Requirements::config_reads: alloc::vec::Vec<alloc::string::String>
+pub nika_check::Requirements::inputs_read: alloc::vec::Vec<alloc::string::String>
 pub nika_check::Requirements::inputs_required: alloc::vec::Vec<alloc::string::String>
 pub nika_check::Requirements::models: alloc::vec::Vec<nika_check::ModelRequirement>
 pub nika_check::Requirements::secrets: alloc::vec::Vec<nika_check::SecretRequirement>

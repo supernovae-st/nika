@@ -3,7 +3,7 @@
 
 //! Declared-vs-used drift — the `NIKA-DRIFT-001` advisory family.
 //!
-//! A workflow's envelope DECLARES its contract (`inputs:` · `config:` · `const:` ·
+//! A workflow's envelope DECLARES its contract (`inputs:` · `const:` ·
 //! `secrets:` · `permits:`); the body USES it. When the two drift apart
 //! the file lies about itself: a declared input nothing reads is smell
 //! (the author pruned the body but not the contract). This pass names
@@ -28,7 +28,7 @@
 //! The reverse direction — USED but UNDECLARED — is already a hard
 //! failure everywhere the check surface can see it:
 //!
-//! - `${{ inputs./config./const./secrets./with.X }}` with no `X` declared →
+//! - `${{ inputs./const./secrets./with.X }}` with no `X` declared →
 //!   `NIKA-VAR-001` (the analyzer's template scan, EVERY island surface) ·
 //!   the dead `vars`/`env` reads refuse `NIKA-VALUES-001`/`NIKA-VALUES-002`
 //!   and a foreign root `NIKA-VALUES-003` (the C2 family is closed);
@@ -99,11 +99,10 @@ pub fn scan(wf: &RawWorkflow) -> Vec<String> {
     out
 }
 
-/// Every `inputs./config./const./secrets.` name the body references (module-doc parity set).
+/// Every `inputs./const./secrets.` name the body references (module-doc parity set).
 #[derive(Default)]
 struct UsedNames {
     inputs: BTreeSet<String>,
-    config: BTreeSet<String>,
     consts: BTreeSet<String>,
     secrets: BTreeSet<String>,
 }
@@ -158,9 +157,6 @@ impl UsedNames {
                 match r {
                     NamespaceRef::Inputs(name) => {
                         self.inputs.insert(name);
-                    }
-                    NamespaceRef::Config(name) => {
-                        self.config.insert(name);
                     }
                     NamespaceRef::Const(name) => {
                         self.consts.insert(name);
@@ -234,20 +230,14 @@ impl UsedNames {
     }
 }
 
-/// Declared `inputs:`/`config:`/`const:`/`secrets:` names nothing references.
+/// Declared `inputs:`/`const:`/`secrets:` names nothing references.
 fn push_unused_declarations(wf: &RawWorkflow, used: &UsedNames, out: &mut Vec<String>) {
-    let declared: [(&str, Vec<&str>, &BTreeSet<String>, &str); 4] = [
+    let declared: [(&str, Vec<&str>, &BTreeSet<String>, &str); 3] = [
         (
             "inputs",
             wf.inputs.iter().map(|(n, _)| n.value.as_str()).collect(),
             &used.inputs,
             "a dead input drifts from the body it describes",
-        ),
-        (
-            "config",
-            wf.config.iter().map(|(n, _)| n.value.as_str()).collect(),
-            &used.config,
-            "a dead config entry drifts from the body it describes",
         ),
         (
             "const",
@@ -678,7 +668,7 @@ mod tests {
     #[test]
     fn unused_var_env_and_secret_are_hinted() {
         let advice = drifted(
-            "nika: w\nconst:\n  topic: \"x\"\nconfig:\n  REGION: { type: string, default: \"eu\" }\nsecrets:\n  k: { source: env, key: K }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
+            "nika: w\nconst:\n  topic: \"x\"\ninputs:\n  REGION: { type: string, required: false, default: \"eu\" }\nsecrets:\n  k: { source: env, key: K }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
         );
         assert_eq!(advice.len(), 3, "{advice:?}");
         assert!(
@@ -686,7 +676,7 @@ mod tests {
             "{advice:?}"
         );
         assert!(
-            advice.iter().any(|a| a.contains("`config.REGION`")),
+            advice.iter().any(|a| a.contains("`inputs.REGION`")),
             "{advice:?}"
         );
         assert!(
@@ -701,7 +691,7 @@ mod tests {
         // each walker arm is pinned: prompt · exec env · with · outputs ·
         // the envelope model: · on_error.recover · when:.
         let advice = drifted(
-            "nika: w\nmodel: \"${{ inputs.backend }}\"\ninputs:\n  backend: { type: string, required: true }\n  gate: { type: string, required: true }\n  recovered: { type: string, required: true }\nconst:\n  topic: \"x\"\nconfig:\n  REGION: { type: string, default: \"eu\" }\nsecrets:\n  k: { source: env, key: K }\ntasks:\n  a:\n    when: ${{ inputs.gate == \"yes\" }}\n    with: { token: \"${{ secrets.k }}\" }\n    on_error: { recover: \"${{ inputs.recovered }}\" }\n    exec:\n      command: [\"echo\", \"${{ const.topic }}\"]\n      env: { R: \"${{ config.REGION }}\" }\noutputs:\n  out: \"${{ const.topic }}\"\n",
+            "nika: w\nmodel: \"${{ inputs.backend }}\"\ninputs:\n  backend: { type: string, required: true }\n  gate: { type: string, required: true }\n  recovered: { type: string, required: true }\n  REGION: { type: string, required: false, default: \"eu\" }\nconst:\n  topic: \"x\"\nsecrets:\n  k: { source: env, key: K }\ntasks:\n  a:\n    when: ${{ inputs.gate == \"yes\" }}\n    with: { token: \"${{ secrets.k }}\" }\n    on_error: { recover: \"${{ inputs.recovered }}\" }\n    exec:\n      command: [\"echo\", \"${{ const.topic }}\"]\n      env: { R: \"${{ inputs.REGION }}\" }\noutputs:\n  out: \"${{ const.topic }}\"\n",
         );
         assert!(advice.is_empty(), "{advice:?}");
     }

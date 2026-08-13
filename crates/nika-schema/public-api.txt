@@ -975,8 +975,6 @@ impl<T> nika_error::traits::AsAny for nika_schema::raw::task::RawTask where T: '
 pub fn nika_schema::raw::task::RawTask::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub mod nika_schema::raw::workflow
 #[non_exhaustive] pub struct nika_schema::raw::workflow::RawWorkflow
-pub nika_schema::raw::workflow::RawWorkflow::assert: alloc::vec::Vec<nika_source::span::Spanned<nika_vocab::assert::AssertProperty>>
-pub nika_schema::raw::workflow::RawWorkflow::config: alloc::vec::Vec<(nika_source::span::Spanned<alloc::string::String>, nika_vocab::var_decl::VarDecl)>
 pub nika_schema::raw::workflow::RawWorkflow::consts: alloc::vec::Vec<(nika_source::span::Spanned<alloc::string::String>, nika_vocab::var_decl::VarDecl)>
 pub nika_schema::raw::workflow::RawWorkflow::inputs: alloc::vec::Vec<(nika_source::span::Spanned<alloc::string::String>, nika_vocab::var_decl::VarDecl)>
 pub nika_schema::raw::workflow::RawWorkflow::model: core::option::Option<nika_source::span::Spanned<alloc::string::String>>
@@ -1484,8 +1482,6 @@ pub fn nika_schema::raw::task::RawTask::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_schema::raw::task::RawTask where T: 'static
 pub fn nika_schema::raw::task::RawTask::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_schema::raw::RawWorkflow
-pub nika_schema::raw::RawWorkflow::assert: alloc::vec::Vec<nika_source::span::Spanned<nika_vocab::assert::AssertProperty>>
-pub nika_schema::raw::RawWorkflow::config: alloc::vec::Vec<(nika_source::span::Spanned<alloc::string::String>, nika_vocab::var_decl::VarDecl)>
 pub nika_schema::raw::RawWorkflow::consts: alloc::vec::Vec<(nika_source::span::Spanned<alloc::string::String>, nika_vocab::var_decl::VarDecl)>
 pub nika_schema::raw::RawWorkflow::inputs: alloc::vec::Vec<(nika_source::span::Spanned<alloc::string::String>, nika_vocab::var_decl::VarDecl)>
 pub nika_schema::raw::RawWorkflow::model: core::option::Option<nika_source::span::Spanned<alloc::string::String>>

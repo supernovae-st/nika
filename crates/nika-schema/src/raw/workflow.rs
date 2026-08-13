@@ -24,7 +24,7 @@
 //! `NIKA-VALUES-001`/`NIKA-VALUES-002` at parse).
 
 use crate::source::Spanned;
-use crate::types::{AssertProperty, OutputDecl, Permits, RunDecl, SecretRef, VarDecl};
+use crate::types::{OutputDecl, Permits, RunDecl, SecretRef, VarDecl};
 
 use super::task::RawTask;
 
@@ -48,9 +48,6 @@ pub struct RawWorkflow {
     pub model: Option<Spanned<String>>,
     /// `inputs:` — typed workflow inputs (caller-supplied · spec 01 §inputs).
     pub inputs: Vec<(Spanned<String>, VarDecl)>,
-    /// `config:` — non-sensitive runtime config (deployment-supplied ·
-    /// spec 01 §config).
-    pub config: Vec<(Spanned<String>, VarDecl)>,
     /// `const:` — named constants (spec 01 §const · bare literal →
     /// `VarDecl::Untyped` · `{type, value}` → `VarDecl::Typed` (value in `default`).
     pub consts: Vec<(Spanned<String>, VarDecl)>,
@@ -67,10 +64,6 @@ pub struct RawWorkflow {
     pub tasks: Vec<Spanned<RawTask>>,
     /// `outputs:` — the workflow's return contract.
     pub outputs: Vec<(Spanned<String>, OutputDecl)>,
-    /// `assert:` — the author's obligations (spec 15 §assert · the closed
-    /// vocabulary the engine judges at an honest level · malformed refused
-    /// `NIKA-ASSERT-001`).
-    pub assert: Vec<Spanned<AssertProperty>>,
 }
 
 impl RawWorkflow {
@@ -81,14 +74,12 @@ impl RawWorkflow {
             workflow: None,
             model: None,
             inputs: Vec::new(),
-            config: Vec::new(),
             consts: Vec::new(),
             secrets: Vec::new(),
             permits: None,
             run: None,
             tasks: Vec::new(),
             outputs: Vec::new(),
-            assert: Vec::new(),
         }
     }
 }
@@ -109,7 +100,6 @@ mod tests {
         assert!(w.workflow.is_none());
         assert!(w.tasks.is_empty());
         assert!(w.inputs.is_empty());
-        assert!(w.config.is_empty());
         assert!(w.consts.is_empty());
         assert!(w.secrets.is_empty());
         assert!(w.run.is_none());

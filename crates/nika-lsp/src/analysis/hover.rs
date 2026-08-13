@@ -72,24 +72,6 @@ fn member_ref_hover(text: &str, offset: usize) -> Option<Hover> {
                 }
             }
         }
-        "config" => {
-            let (_, decl) = wf.config.iter().find(|(n, _)| n.value == name)?;
-            match decl {
-                nika_schema::VarDecl::Typed {
-                    r#type, default, ..
-                } => {
-                    let mut b = format!("**`config.{name}`** — _{}_", ty(r#type));
-                    b.push_str(" · non-sensitive runtime config");
-                    if let Some(d) = default {
-                        let _ = write!(b, " · default `{d}`");
-                    }
-                    b
-                }
-                nika_schema::VarDecl::Untyped(v) => {
-                    format!("**`config.{name}`** — _config_\n\n`{v}`")
-                }
-            }
-        }
         "const" => {
             let (_, decl) = wf.consts.iter().find(|(n, _)| n.value == name)?;
             match decl {
@@ -704,10 +686,10 @@ mod tests {
 
     /// Hover on island members — the declaration's card: typed input
     /// (type · required · default · description) · secret (masked line)
-    /// · config (its declared default).
+    /// · a deployment-supplied input (its declared default).
     #[test]
     fn hover_on_member_refs_shows_the_declaration_cards() {
-        let text = "nika: w\ninputs:\n  city:\n    type: string\n    required: true\n    default: paris\n    description: target city\nconfig:\n  REGION: { type: string, default: \"eu\" }\nsecrets:\n  api_key:\n    source: env\n    key: K\ntasks:\n  a:\n    exec: { command: [\"echo\", \"${{ inputs.city }}\", \"${{ config.REGION }}\", \"${{ secrets.api_key }}\"] }\n";
+        let text = "nika: w\ninputs:\n  city:\n    type: string\n    required: true\n    default: paris\n    description: target city\n  REGION: { type: string, required: false, default: \"eu\" }\nsecrets:\n  api_key:\n    source: env\n    key: K\ntasks:\n  a:\n    exec: { command: [\"echo\", \"${{ inputs.city }}\", \"${{ inputs.REGION }}\", \"${{ secrets.api_key }}\"] }\n";
         let h = hover(text, text.find("inputs.city").expect("ref") + 6).expect("input card");
         let b = body(&h);
         assert!(
@@ -716,9 +698,9 @@ mod tests {
         );
         let h = hover(text, text.find("secrets.api_key").expect("ref") + 9).expect("secret card");
         assert!(body(&h).contains("never echoed"), "{}", body(&h));
-        let h = hover(text, text.find("config.REGION").expect("ref") + 5).expect("config card");
+        let h = hover(text, text.find("inputs.REGION").expect("ref") + 8).expect("input card");
         assert!(
-            body(&h).contains("non-sensitive runtime config") && body(&h).contains("eu"),
+            body(&h).contains("string") && body(&h).contains("eu"),
             "{}",
             body(&h)
         );

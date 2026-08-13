@@ -40,14 +40,7 @@ mod unit {
     ) -> Option<ResumeStamp> {
         let wf = parse(yaml);
         let ctx = no_secrets();
-        stamp(
-            &wf.tasks[0].value,
-            records,
-            vars,
-            &BTreeMap::new(),
-            &BTreeMap::new(),
-            &ctx,
-        )
+        stamp(&wf.tasks[0].value, records, vars, &BTreeMap::new(), &ctx)
     }
 
     /// The `const:`-riding twin — the map lands in the consts slot (the
@@ -59,14 +52,7 @@ mod unit {
     ) -> Option<ResumeStamp> {
         let wf = parse(yaml);
         let ctx = no_secrets();
-        stamp(
-            &wf.tasks[0].value,
-            records,
-            &BTreeMap::new(),
-            &BTreeMap::new(),
-            consts,
-            &ctx,
-        )
+        stamp(&wf.tasks[0].value, records, &BTreeMap::new(), consts, &ctx)
     }
 
     fn success_record(output: Value) -> TaskRecord {
@@ -75,7 +61,7 @@ mod unit {
         rec
     }
 
-    const BASE: &str = "nika: t\ninputs:\n  topic: { type: string, default: \"news\" }\ntasks:\n  ask:\n    infer: { prompt: \"about ${{ inputs.topic }}\" }\n";
+    const BASE: &str = "nika: t\ninputs:\n  topic: { type: string, required: false, default: \"news\" }\ntasks:\n  ask:\n    infer: { prompt: \"about ${{ inputs.topic }}\" }\n";
 
     #[test]
     fn key_is_stable_across_recomputation() {
@@ -158,7 +144,6 @@ mod unit {
             &records,
             &vars,
             &BTreeMap::new(),
-            &BTreeMap::new(),
             &ctx_v1,
         )
         .expect("eligible");
@@ -166,7 +151,6 @@ mod unit {
             &wf.tasks[0].value,
             &records,
             &vars,
-            &BTreeMap::new(),
             &BTreeMap::new(),
             &ctx_v2,
         )
@@ -189,7 +173,6 @@ mod unit {
             &records,
             &vars,
             &BTreeMap::new(),
-            &BTreeMap::new(),
             &ctx2,
         )
         .expect("eligible");
@@ -209,7 +192,6 @@ mod unit {
         const EXEC: &str = "nika: t\nmodel: ollama/qwen3.5:4b\ntasks:\n  run:\n    exec: { command: [\"echo\", \"hi\"] }\n";
         let records = BTreeMap::new();
         let vars = BTreeMap::new();
-        let env = BTreeMap::new();
         let stamp_with = |yaml: &str, over: Option<&str>| {
             let wf = parse(yaml);
             let ctx = ResumeContext::of(
@@ -220,15 +202,7 @@ mod unit {
                 &BTreeMap::new(),
                 None,
             );
-            stamp(
-                &wf.tasks[0].value,
-                &records,
-                &vars,
-                &env,
-                &BTreeMap::new(),
-                &ctx,
-            )
-            .expect("eligible")
+            stamp(&wf.tasks[0].value, &records, &vars, &BTreeMap::new(), &ctx).expect("eligible")
         };
 
         // The issue's exact repro: edit ONLY the envelope `model:` line.
@@ -294,15 +268,7 @@ mod unit {
                 &BTreeMap::new(),
                 pin,
             );
-            stamp(
-                &wf.tasks[0].value,
-                &records,
-                &vars,
-                &BTreeMap::new(),
-                &BTreeMap::new(),
-                &ctx,
-            )
-            .expect("eligible")
+            stamp(&wf.tasks[0].value, &records, &vars, &BTreeMap::new(), &ctx).expect("eligible")
         };
         let unpinned = stamp_with(AGENT, None);
         let pinned = stamp_with(AGENT, Some("codex-acp"));
@@ -342,19 +308,11 @@ mod unit {
             "nika: t\nmodel: mock/echo\ntasks:\n  go:\n    agent: { prompt: \"hi\" }\n";
         let records = BTreeMap::new();
         let vars = BTreeMap::new();
-        let env = BTreeMap::new();
         let stamp_with = |yaml: &str, skills: &BTreeMap<String, String>| {
             let wf = parse(yaml);
             let ctx =
                 ResumeContext::of(&wf, &BTreeMap::new(), None, skills, &BTreeMap::new(), None);
-            stamp(
-                &wf.tasks[0].value,
-                &records,
-                &vars,
-                &env,
-                &BTreeMap::new(),
-                &ctx,
-            )
+            stamp(&wf.tasks[0].value, &records, &vars, &BTreeMap::new(), &ctx)
         };
         let v1 = BTreeMap::from([(
             "s/SKILL.md".to_owned(),
@@ -417,28 +375,12 @@ mod unit {
             success_record(json!("prefix hunter2-secret suffix")),
         )]);
         assert!(
-            stamp(
-                &wf.tasks[0].value,
-                &leaked,
-                &vars,
-                &BTreeMap::new(),
-                &BTreeMap::new(),
-                &ctx
-            )
-            .is_none(),
+            stamp(&wf.tasks[0].value, &leaked, &vars, &BTreeMap::new(), &ctx,).is_none(),
             "a secret value in the rendered inputs → not resume-eligible"
         );
         let clean = BTreeMap::from([("up".to_owned(), success_record(json!("safe")))]);
         assert!(
-            stamp(
-                &wf.tasks[0].value,
-                &clean,
-                &vars,
-                &BTreeMap::new(),
-                &BTreeMap::new(),
-                &ctx
-            )
-            .is_some(),
+            stamp(&wf.tasks[0].value, &clean, &vars, &BTreeMap::new(), &ctx,).is_some(),
             "the same task without the leak stays eligible"
         );
     }
@@ -462,7 +404,7 @@ mod unit {
     /// input hashes (the number pre-fold carries full i64 fidelity).
     #[test]
     fn int64_beyond_2p53_never_collide() {
-        const WF: &str = "nika: t\ninputs:\n  id: { type: integer, default: 1 }\ntasks:\n  t:\n    exec: { command: [\"echo\", \"${{ inputs.id }}\"] }\n";
+        const WF: &str = "nika: t\ninputs:\n  id: { type: integer, required: false, default: 1 }\ntasks:\n  t:\n    exec: { command: [\"echo\", \"${{ inputs.id }}\"] }\n";
         let records = BTreeMap::new();
         // 2^53 + 1 and 2^53 + 2 are the SAME f64 — distinct i64s.
         let a_vars = BTreeMap::from([("id".to_owned(), json!(9_007_199_254_740_993_i64))]);
@@ -552,14 +494,7 @@ mod unit {
                 closures,
                 None,
             );
-            stamp(
-                &wf.tasks[0].value,
-                &records,
-                &vars,
-                &BTreeMap::new(),
-                &BTreeMap::new(),
-                &ctx,
-            )
+            stamp(&wf.tasks[0].value, &records, &vars, &BTreeMap::new(), &ctx)
         };
         let d1 = BTreeMap::from([("./child.nika.yaml".to_owned(), "digest-one".to_owned())]);
         let d2 = BTreeMap::from([("./child.nika.yaml".to_owned(), "digest-two".to_owned())]);
@@ -678,7 +613,6 @@ mod trace_carry {
         );
         let stamp = crate::resume::stamp(
             &wf.tasks[0].value,
-            &BTreeMap::new(),
             &BTreeMap::new(),
             &BTreeMap::new(),
             &BTreeMap::new(),

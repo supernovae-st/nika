@@ -67,9 +67,6 @@ pub(crate) struct Scope<'a> {
     /// `inputs.<key>` — typed input defaults + the operator's `--var`
     /// overrides (JSON values).
     pub inputs: &'a BTreeMap<String, Value>,
-    /// `config.<key>` — non-sensitive runtime config (typed-with-default
-    /// declarations · the deployment's override supply is a later wave).
-    pub config: &'a BTreeMap<String, Value>,
     /// `const.<key>` — named constants (bare literals + typed `{type,
     /// value}` values · always bound, never overridable).
     pub consts: &'a BTreeMap<String, Value>,
@@ -103,13 +100,7 @@ impl<'a> Scope<'a> {
         records: &'a BTreeMap<String, TaskRecord>,
         inputs: &'a BTreeMap<String, Value>,
     ) -> Self {
-        Self::workflow_with_value_authorities(
-            records,
-            inputs,
-            &EMPTY_ENV,
-            &EMPTY_ENV,
-            &EMPTY_SECRETS,
-        )
+        Self::workflow_with_value_authorities(records, inputs, &EMPTY_ENV, &EMPTY_SECRETS)
     }
 
     /// A workflow-level scope carrying the resolved `secrets:` namespace
@@ -120,23 +111,21 @@ impl<'a> Scope<'a> {
         inputs: &'a BTreeMap<String, Value>,
         secrets: &'a BTreeMap<String, Value>,
     ) -> Self {
-        Self::workflow_with_value_authorities(records, inputs, &EMPTY_ENV, &EMPTY_ENV, secrets)
+        Self::workflow_with_value_authorities(records, inputs, &EMPTY_ENV, secrets)
     }
 
-    /// A workflow-level scope carrying the four-authority value
+    /// A workflow-level scope carrying the three-authority value
     /// environment + resolved `secrets:` values. This is the production
     /// constructor.
     pub(crate) fn workflow_with_value_authorities(
         records: &'a BTreeMap<String, TaskRecord>,
         inputs: &'a BTreeMap<String, Value>,
-        config: &'a BTreeMap<String, Value>,
         consts: &'a BTreeMap<String, Value>,
         secrets: &'a BTreeMap<String, Value>,
     ) -> Self {
         Self {
             records,
             inputs,
-            config,
             consts,
             secrets,
             with_ns: None,
@@ -188,10 +177,10 @@ impl Resolver for ScopeResolver<'_, '_> {
             "item" => scope.item.cloned(),
             "index" => scope.index.map(|i| Value::Number(i.into())),
             // The value authorities → a CEL object each (the computer
-            // indexes it). The dead `vars`/`env` roots fall through to
-            // unresolved (check refuses them statically anyway).
+            // indexes it). The dead `vars`/`env`/`config` roots fall
+            // through to unresolved (check refuses them statically, and
+            // an empty namespace object would answer where nothing lives).
             "inputs" => Some(ns_object(scope.inputs)),
-            "config" => Some(ns_object(scope.config)),
             "const" => Some(ns_object(scope.consts)),
             "with" => scope.with_ns.map(ns_object),
             // `tasks` → an object of per-id RECORD objects (the record's
@@ -412,23 +401,21 @@ mod tests {
     }
 
     #[test]
-    fn render_resolves_envelope_env_namespace() {
-        let (records, vars) = fixture();
-        let env = BTreeMap::from([(
+    fn render_resolves_a_deployment_supplied_input() {
+        let (records, mut inputs) = fixture();
+        inputs.insert(
             "API_BASE".to_owned(),
             Value::String("https://odin.example".to_owned()),
-        )]);
-        let scope = Scope::workflow_with_value_authorities(
-            &records,
-            &vars,
-            &env,
-            &EMPTY_ENV,
-            &EMPTY_SECRETS,
         );
+        let scope =
+            Scope::workflow_with_value_authorities(&records, &inputs, &EMPTY_ENV, &EMPTY_SECRETS);
         assert_eq!(
-            render("${{ config.API_BASE }}", &scope).expect("config resolves"),
+            render("${{ inputs.API_BASE }}", &scope).expect("the input resolves"),
             "https://odin.example"
         );
+        // The dead `config` root answers NOTHING — an empty namespace
+        // object would have resolved where no authority lives.
+        assert!(render("${{ config.API_BASE }}", &scope).is_err());
     }
 
     #[test]
@@ -810,7 +797,6 @@ mod tests {
         let scope = Scope {
             records: &records,
             inputs: &vars,
-            config: &EMPTY_ENV,
             consts: &EMPTY_ENV,
             secrets: &EMPTY_SECRETS,
             with_ns: None,
@@ -880,7 +866,6 @@ mod tests {
         let scope = Scope {
             records: &records,
             inputs: &vars,
-            config: &EMPTY_ENV,
             consts: &EMPTY_ENV,
             secrets: &EMPTY_SECRETS,
             with_ns: Some(&with_ns),

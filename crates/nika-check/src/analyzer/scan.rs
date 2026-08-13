@@ -47,7 +47,6 @@ pub(super) const RESERVED_RECORD_FIELDS: &[&str] = &[
 /// Name-resolution index over the whole workflow.
 pub(super) struct WorkflowIndex<'a> {
     inputs: BTreeSet<&'a str>,
-    config: BTreeSet<&'a str>,
     consts: BTreeSet<&'a str>,
     secrets: BTreeSet<&'a str>,
     task_ids: BTreeSet<&'a str>,
@@ -99,7 +98,6 @@ impl<'a> WorkflowIndex<'a> {
         }
         Self {
             inputs: wf.inputs.iter().map(|(k, _)| k.value.as_str()).collect(),
-            config: wf.config.iter().map(|(k, _)| k.value.as_str()).collect(),
             consts: wf.consts.iter().map(|(k, _)| k.value.as_str()).collect(),
             secrets: wf.secrets.iter().map(|(k, _)| k.value.as_str()).collect(),
             task_ids: wf.tasks.iter().map(|t| t.value.id.value.as_str()).collect(),
@@ -620,12 +618,6 @@ fn check_ref(
             if !index.inputs.contains(name.as_str()) {
                 let hint = suggest_in("inputs", name, index.inputs.iter().copied());
                 errors.push(unresolved(&format!("inputs.{name}"), ctx, span, hint));
-            }
-        }
-        NamespaceRef::Config(name) => {
-            if !index.config.contains(name.as_str()) {
-                let hint = suggest_in("config", name, index.config.iter().copied());
-                errors.push(unresolved(&format!("config.{name}"), ctx, span, hint));
             }
         }
         NamespaceRef::Const(name) => {

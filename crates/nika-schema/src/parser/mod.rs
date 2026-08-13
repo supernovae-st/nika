@@ -68,8 +68,7 @@ pub enum ParseMode {
 /// to a third hand-written list. A mirror validated against itself proves
 /// nothing (2026-08-02).
 pub const TOP_LEVEL_KEYS: &[&str] = &[
-    "nika", "model", "inputs", "config", "const", "secrets", "permits", "run", "tasks", "outputs",
-    "assert",
+    "nika", "model", "inputs", "const", "secrets", "permits", "run", "tasks", "outputs",
 ];
 
 /// Parse a YAML string into a [`RawWorkflow`].
@@ -167,13 +166,11 @@ pub fn parse(yaml: &str, file_id: FileId, mode: ParseMode) -> Result<RawWorkflow
     }
 
     workflow.inputs = envelope::parse_inputs(&cx, mapping)?;
-    workflow.config = envelope::parse_config(&cx, mapping)?;
     workflow.consts = envelope::parse_const(&cx, mapping)?;
     workflow.secrets = envelope::parse_secrets(&cx, mapping)?;
     workflow.permits = envelope::parse_permits(&cx, mapping)?;
     workflow.run = envelope::parse_run(&cx, mapping)?;
     workflow.outputs = envelope::parse_outputs(&cx, mapping)?;
-    workflow.assert = envelope::parse_assert(&cx, mapping)?;
     workflow.tasks = tasks::parse_tasks(&cx, mapping)?;
 
     Ok(workflow)

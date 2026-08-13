@@ -45,7 +45,7 @@ pub fn definition(uri: &Uri, text: &str, offset: usize) -> Option<Location> {
     ))
 }
 
-/// If `offset` sits on an `inputs.X` / `config.X` / `const.X` /
+/// If `offset` sits on an `inputs.X` / `const.X` /
 /// `secrets.X` member inside an island, return the DECLARATION's name
 /// span (+ byte length). The same byte-scan discipline as
 /// [`template_task_target`], generalized over the declaring roots.
@@ -54,11 +54,6 @@ fn member_decl_target(wf: &RawWorkflow, text: &str, offset: usize) -> Option<(Sp
     match root {
         "inputs" => wf
             .inputs
-            .iter()
-            .find(|(n, _)| n.value == name)
-            .map(|(n, _)| (n.span, n.value.len())),
-        "config" => wf
-            .config
             .iter()
             .find(|(n, _)| n.value == name)
             .map(|(n, _)| (n.span, n.value.len())),
@@ -85,7 +80,7 @@ pub(crate) fn template_member_at(text: &str, offset: usize) -> Option<(&'static 
             continue;
         }
         let inner = text.get(island_start..island_end)?;
-        for root in ["inputs", "config", "const", "secrets"] {
+        for root in ["inputs", "const", "secrets"] {
             let needle = format!("{root}.");
             let mut search_from = 0usize;
             while let Some(rel) = inner.get(search_from..)?.find(&needle) {
@@ -758,7 +753,7 @@ mod tests {
     /// member resolves nowhere (no invented target).
     #[test]
     fn member_ref_jumps_to_its_declaration() {
-        let text = "nika: w\nconst:\n  city: \"paris\"\nconfig:\n  REGION: { type: string, default: \"eu\" }\nsecrets:\n  api_key:\n    source: env\n    key: K\ntasks:\n  a:\n    exec: { command: [\"echo\", \"${{ const.city }}\", \"${{ config.REGION }}\", \"${{ secrets.api_key }}\"] }\n";
+        let text = "nika: w\nconst:\n  city: \"paris\"\ninputs:\n  REGION: { type: string, required: false, default: \"eu\" }\nsecrets:\n  api_key:\n    source: env\n    key: K\ntasks:\n  a:\n    exec: { command: [\"echo\", \"${{ const.city }}\", \"${{ inputs.REGION }}\", \"${{ secrets.api_key }}\"] }\n";
         let uri: Uri = "file:///w.nika.yaml".parse().expect("uri");
         let decl_line = |needle: &str| {
             let at = text.find(needle).expect(needle);
@@ -766,7 +761,7 @@ mod tests {
         };
         for (ref_needle, decl_needle) in [
             ("const.city", "  city:"),
-            ("config.REGION", "  REGION:"),
+            ("inputs.REGION", "  REGION:"),
             ("secrets.api_key", "  api_key:"),
         ] {
             let at = text.find(ref_needle).expect(ref_needle) + ref_needle.len() - 2;

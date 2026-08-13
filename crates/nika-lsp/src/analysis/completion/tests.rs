@@ -517,7 +517,7 @@ fn expression_start_completes_roots_and_free_functions() {
         .into_iter()
         .map(|i| i.label)
         .collect();
-    for root in ["tasks", "inputs", "config", "const", "secrets", "with"] {
+    for root in ["tasks", "inputs", "const", "secrets", "with"] {
         assert!(
             labels.contains(&root.to_owned()),
             "missing root {root}: {labels:?}"
@@ -709,7 +709,7 @@ fn fetch_mode_offers_the_stdlib_extract_vocabulary() {
 /// block scan — names still arrive, detail goes generic.
 #[test]
 fn island_vars_offer_the_declared_names() {
-    let text = "nika: w\ninputs:\n  city:\n    type: string\n    required: true\n    description: target city\n  out_dir: { type: string, default: \"./out\" }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"${{ inputs.city }}\"] }\n";
+    let text = "nika: w\ninputs:\n  city:\n    type: string\n    required: true\n    description: target city\n  out_dir: { type: string, required: false, default: \"./out\" }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"${{ inputs.city }}\"] }\n";
     let cursor = text.find("${{ inputs.").expect("island") + "${{ inputs.".len();
     let items = completion(text, cursor);
     let got = labels(&items);
@@ -726,19 +726,19 @@ fn island_vars_offer_the_declared_names() {
 
     // mid-keystroke fallback: unterminated island · parse fails · the
     // block scan still teaches the NAMES
-    let typing = "nika: w\ninputs:\n  city:\n    type: string\n  out_dir: { type: string, default: \"./out\" }\ntasks:\n  a:\n    exec: { command: \"echo ${{ inputs.";
+    let typing = "nika: w\ninputs:\n  city:\n    type: string\n  out_dir: { type: string, required: false, default: \"./out\" }\ntasks:\n  a:\n    exec: { command: \"echo ${{ inputs.";
     let fallback = labels(&completion(typing, typing.len()));
     assert_eq!(fallback, vec!["city", "out_dir"], "{fallback:?}");
 }
 
-/// `${{ secrets.` / `${{ config.` offer the file's own declared names.
+/// `${{ secrets.` / `${{ inputs.` offer the file's own declared names.
 #[test]
 fn island_secrets_and_env_offer_declared_names() {
-    let text = "nika: w\nconfig:\n  REGION: eu-west-1\nsecrets:\n  api_key:\n    source: env\n    key: MY_KEY\ntasks:\n  a:\n    exec: { command: \"echo ${{ secrets.";
+    let text = "nika: w\ninputs:\n  REGION: eu-west-1\nsecrets:\n  api_key:\n    source: env\n    key: MY_KEY\ntasks:\n  a:\n    exec: { command: \"echo ${{ secrets.";
     let labels_s = labels(&completion(text, text.len()));
     assert_eq!(labels_s, vec!["api_key"], "{labels_s:?}");
 
-    let text2 = "nika: w\nconfig:\n  REGION: eu-west-1\ntasks:\n  a:\n    exec: { command: \"echo ${{ config.";
+    let text2 = "nika: w\ninputs:\n  REGION: eu-west-1\ntasks:\n  a:\n    exec: { command: \"echo ${{ inputs.";
     let labels_e = labels(&completion(text2, text2.len()));
     assert_eq!(labels_e, vec!["REGION"], "{labels_e:?}");
 }
@@ -936,7 +936,7 @@ fn task_fields_survive_outside_schema() {
 /// (so the doc PARSES and the island lanes ride the parse path; the
 /// cursor sits just after `for_each: ` where the typed prefix is still
 /// the empty-value position).
-const FLOW_DOC: &str = "nika: w\ninputs:\n  urls:\n    type: { array: string }\n    default: []\n  topic: { type: string, default: \"rust\" }\ntasks:\n  gather:\n    exec:\n      command: [\"ls\"]\n  fan:\n    after: { gather: success }\n    for_each: { items: \"${{ inputs.urls }}\" }\n    exec:\n      command: [\"echo\"]\n  last:\n    after: { fan: success }\n    exec:\n      command: [\"true\"]\n";
+const FLOW_DOC: &str = "nika: w\ninputs:\n  urls:\n    type: { array: string }\n    default: []\n  topic: { type: string, required: false, default: \"rust\" }\ntasks:\n  gather:\n    exec:\n      command: [\"ls\"]\n  fan:\n    after: { gather: success }\n    for_each: { items: \"${{ inputs.urls }}\" }\n    exec:\n      command: [\"echo\"]\n  last:\n    after: { fan: success }\n    exec:\n      command: [\"true\"]\n";
 
 #[test]
 fn for_each_offers_typed_arrays_first_then_the_boundary_import() {

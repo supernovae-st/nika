@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The `${{ inputs. / config. / const. / secrets. }}` member lanes — the workflow's
+//! The `${{ inputs. / const. / secrets. }}` member lanes — the workflow's
 //! OWN declarations offered at the island, parse-first with a line-scan
 //! fallback for mid-keystroke documents (the `scan_task_ids` spirit).
 
 use lsp_types::{CompletionItem, CompletionItemKind};
 use nika_schema::{FileId, ParseMode, parse};
 
-/// An open island ending in `inputs.` / `config.` / `const.` / `secrets.` — the member
+/// An open island ending in `inputs.` / `const.` / `secrets.` — the member
 /// position for the workflow's OWN declarations.
 pub(super) fn template_member_root(prefix: &str) -> Option<&'static str> {
     let island = prefix.rfind("${{")?;
@@ -17,7 +17,7 @@ pub(super) fn template_member_root(prefix: &str) -> Option<&'static str> {
         return None;
     }
     let t = after.trim_end();
-    for root in ["inputs", "config", "const", "secrets", "with"] {
+    for root in ["inputs", "const", "secrets", "with"] {
         if t.ends_with(&format!("{root}.")) {
             return Some(root);
         }
@@ -113,7 +113,6 @@ pub(super) fn member_items(text: &str, root: &str) -> Vec<CompletionItem> {
                     &name,
                     match root {
                         "inputs" => "input".to_owned(),
-                        "config" => "config · non-sensitive runtime config".to_owned(),
                         "const" => "const".to_owned(),
                         _ => "secret · masked, never echoed".to_owned(),
                     },
@@ -157,20 +156,6 @@ pub(super) fn member_items(text: &str, root: &str) -> Vec<CompletionItem> {
                 items.push(member_item(&name.value, detail));
             }
         }
-        "config" => {
-            for (name, decl) in &wf.config {
-                let detail = match decl {
-                    nika_schema::VarDecl::Typed { r#type, .. } => {
-                        format!(
-                            "config · {} · non-sensitive runtime config",
-                            nika_schema::types::type_expr_display(&r#type.value)
-                        )
-                    }
-                    nika_schema::VarDecl::Untyped(v) => format!("config · {v}"),
-                };
-                items.push(member_item(&name.value, detail));
-            }
-        }
         "const" => {
             for (name, decl) in &wf.consts {
                 let detail = match decl {
@@ -206,14 +191,14 @@ fn member_item(name: &str, detail: String) -> CompletionItem {
     }
 }
 
-/// The value-authority names by line shape (`inputs:` · `config:` ·
-/// `const:`) — the mid-keystroke fallback the island lanes share (a
+/// The value-authority names by line shape (`inputs:` · `const:`)
+/// — the mid-keystroke fallback the island lanes share (a
 /// `for_each:`/`when:` position often sits in a document that no longer
 /// parses).
 pub(super) fn scan_value_authority_keys(text: &str) -> Vec<String> {
-    // Dotted refs (`inputs.x` · `config.x` · `const.x`) — the mid-keystroke
+    // Dotted refs (`inputs.x` · `const.x`) — the mid-keystroke
     // fallback offers exactly what a valid island would spell.
-    ["inputs", "config", "const"]
+    ["inputs", "const"]
         .into_iter()
         .flat_map(|root| {
             scan_block_keys(text, root)
@@ -223,8 +208,8 @@ pub(super) fn scan_value_authority_keys(text: &str) -> Vec<String> {
         .collect()
 }
 
-/// The immediate child keys of a top-level `inputs:` / `config:` /
-/// `const:` / `secrets:` block, by line shape — the fallback when the
+/// The immediate child keys of a top-level `inputs:` / `const:` /
+/// `secrets:` block, by line shape — the fallback when the
 /// document mid-keystroke no longer parses.
 fn scan_block_keys(text: &str, root: &str) -> Vec<String> {
     let mut keys = Vec::new();

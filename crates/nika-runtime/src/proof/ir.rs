@@ -196,21 +196,15 @@ mod tests {
     #[test]
     fn a_run_receipt_folds_the_engine_certificate_and_verifies() {
         use nika_proof::receipt::{build_run_receipt, verify};
-        use nika_schema::types::AssertProperty;
         use serde_json::json;
 
         let wf = parse("nika: pay\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n");
         let report = nika_check::check(&wf);
         let proves = semantic_ir_hash(&wf).expect("projectable");
 
-        // Judge one obligation at its honest level (no_secret_egress is static).
-        let property = AssertProperty::NoSecretEgress;
-        let judged = vec![(property.clone(), property.level(false))];
-
         let receipt = build_run_receipt(
             &proves,
             &report.certificate,
-            &judged,
             json!({ "outcome": "success" }),
             "blake3:lockdigest",
         );
@@ -225,12 +219,9 @@ mod tests {
             receipt["certificate"].is_object(),
             "the RunCertificate is folded, not a placeholder"
         );
-        // The judged assertion rides with its honest level.
-        assert_eq!(
-            receipt["assertions"][0]["assert"],
-            json!("no_secret_egress")
-        );
-        assert_eq!(receipt["assertions"][0]["level"], json!("StaticProof"));
+        // No obligation can be minted since `assert:` died — the array
+        // is present (readers index it) and empty (nothing was claimed).
+        assert_eq!(receipt["assertions"], json!([]));
         assert_eq!(receipt["lock_digest"], json!("blake3:lockdigest"));
         // It does NOT verify against a different workflow's identity.
         assert!(!verify(&receipt, "blake3:someotherworkflow"));
@@ -249,19 +240,15 @@ mod tests {
     /// boundary (the effects projection) · an `on_finally` cleanup.
     fn rich_receipt() -> Value {
         use nika_proof::receipt::build_run_receipt;
-        use nika_schema::types::AssertProperty;
         use serde_json::json;
 
         let wf = parse(RICH_YAML);
         let report = nika_check::check(&wf);
         assert!(report.is_clean(), "the fixture is clean: {report:?}");
         let proves = semantic_ir_hash(&wf).expect("projectable");
-        let property = AssertProperty::NoSecretEgress;
-        let judged = vec![(property.clone(), property.level(false))];
         build_run_receipt(
             &proves,
             &report.certificate,
-            &judged,
             json!({
                 "outcome": "completed",
                 "chain": "intact",
@@ -430,8 +417,7 @@ trace_verdict — the trace-verify result folded into this receipt
   head       ab12 — the chain head the verdict names
   sealed     true — whether the journal is sealed (attributable)
 
-assertions  1 judged — the assert: obligations, each judged at its honest level
-  no_secret_egress  StaticProof
+assertions  none — no obligation was claimed (the `assert:` key died 2026-08-13)
 ";
         let normalized = text
             .replace(&rich_proves(), "PROVES")

@@ -16,9 +16,10 @@
 //!   rejection is this static gate, before any token.
 //! - **Law 2 ([`PermitTaintKind::ArgEscapes`] · `NIKA-AUTH-008`)** — an
 //!   UNTRUSTED value reaching a permitted verb's ARGUMENT is re-gated on
-//!   its RESOLVED, canonical form against the step's permit: `inputs.*` /
-//!   `config.*` (the two roots resolvable at check, via their declared
-//!   defaults) substitute, the fs path folds lexically
+//!   its RESOLVED, canonical form against the step's permit: `inputs.*`
+//!   (the one root resolvable at check, via its declared `default:` —
+//!   `config.*` was the second until that authority died with the 9-key
+//!   envelope) substitutes, the fs path folds lexically
 //!   ([`lexically_normalize`]) before the glob match, the net host reads
 //!   through the shared WHATWG extractor ([`super::permits_fit::url_host`]),
 //!   and an exec argv tail token of the re-entry class (`--exec` · `-c` ·
@@ -519,7 +520,6 @@ fn resolve_untrusted(
         };
         let (root, name) = match reference {
             NamespaceRef::Inputs(name) => ("inputs", name),
-            NamespaceRef::Config(name) => ("config", name),
             _ => return None, // trusted root (const · secrets) or dynamic
         };
         let binding = format!("{root}.{name}");
@@ -540,11 +540,12 @@ fn resolve_untrusted(
 /// one shape the static re-gate can resolve (a non-string or absent
 /// default defers: caller-supplied at launch, law 4).
 fn string_default<'a>(wf: &'a RawWorkflow, root: &str, name: &str) -> Option<&'a str> {
-    let declarations = if root == "inputs" {
-        &wf.inputs
-    } else {
-        &wf.config
-    };
+    // `inputs:` is the only declaring authority left with a `default:`
+    // (`config:` died 2026-08-13 · `const:` has no default, it IS the value).
+    if root != "inputs" {
+        return None;
+    }
+    let declarations = &wf.inputs;
     let (_, decl) = declarations.iter().find(|(n, _)| n.value == name)?;
     match decl {
         VarDecl::Typed {
@@ -628,7 +629,7 @@ permits:
   net: { http: ["${{ inputs.host }}"] }
   tools: ["nika:fetch"]
 inputs:
-  host: { type: string, default: "api.example.com" }
+  host: { type: string, required: false, default: "api.example.com" }
 tasks:
   grab:
     invoke:
@@ -812,7 +813,7 @@ tasks:
 permits:
   net: { http: ["${{ inputs.h }}"] }
 inputs:
-  h: { type: string, default: "*.github.com" }
+  h: { type: string, required: false, default: "*.github.com" }
 tasks:
   t:
     exec: { command: ["true"] }
@@ -832,7 +833,7 @@ permits:
   fs: { read: ["datasets/**"] }
   tools: ["nika:read"]
 inputs:
-  p: { type: string, default: "../../etc/passwd" }
+  p: { type: string, required: false, default: "../../etc/passwd" }
 tasks:
   load:
     invoke:
@@ -860,7 +861,7 @@ tasks:
 permits:
   exec: ["find"]
 inputs:
-  extra: { type: string, default: "--exec" }
+  extra: { type: string, required: false, default: "--exec" }
 tasks:
   search:
     exec: { command: ["find", ".", "-name", "report", "${{ inputs.extra }}"] }
@@ -891,7 +892,7 @@ tasks:
         for token in REENTRY_TOKENS {
             let y = format!(
                 "nika: t\npermits:\n  exec: [\"find\"]\ninputs:\n  \
-                 extra: {{ type: string, default: \"{token}\" }}\ntasks:\n  search:\n    \
+                 extra: {{ type: string, required: false, default: \"{token}\" }}\ntasks:\n  search:\n    \
                  exec: {{ command: [\"find\", \".\", \"${{{{ inputs.extra }}}}\"] }}\n"
             );
             let taints = taints_of(&y);
@@ -931,7 +932,7 @@ permits:
   net: { http: ["api.example.com"] }
   tools: ["nika:fetch"]
 inputs:
-  host: { type: string, default: "evil.example.com" }
+  host: { type: string, required: false, default: "evil.example.com" }
 tasks:
   grab:
     invoke:
@@ -963,7 +964,7 @@ permits:
   net: { http: ["${{ inputs.host }}"] }
   tools: ["nika:fetch"]
 inputs:
-  host: { type: string, default: "api.example.com" }
+  host: { type: string, required: false, default: "api.example.com" }
 tasks:
   grab:
     invoke:
@@ -988,7 +989,7 @@ permits:
   fs: { read: ["datasets/**", "vendor/**"] }
   tools: ["nika:read"]
 inputs:
-  p: { type: string, default: "vendor/q3.csv" }
+  p: { type: string, required: false, default: "vendor/q3.csv" }
 tasks:
   load:
     invoke:
@@ -1047,7 +1048,7 @@ permits:
   fs: { read: ["datasets/**"] }
   tools: ["nika:read"]
 inputs:
-  p: { type: string, default: "datasets/../datasets/q3.csv" }
+  p: { type: string, required: false, default: "datasets/../datasets/q3.csv" }
 tasks:
   load:
     invoke:
@@ -1081,7 +1082,7 @@ permits:
   fs: { read: ["datasets/**"] }
   tools: ["nika:read"]
 inputs:
-  p: { type: string, default: "../../etc/passwd" }
+  p: { type: string, required: false, default: "../../etc/passwd" }
 tasks:
   load:
     with: { q: "${{ inputs.p }}" }
@@ -1093,25 +1094,25 @@ tasks:
     }
 
     #[test]
-    fn config_defaults_are_an_untrusted_root_too() {
+    fn input_defaults_are_an_untrusted_root_too() {
         // NEP-0004's Integ table: config.* is deployment-supplied, outside
         // the file — the file cannot vouch for what it does not contain.
         let y = r#"nika: t
 permits:
   fs: { read: ["datasets/**"] }
   tools: ["nika:read"]
-config:
-  p: { type: string, default: "../../etc/passwd" }
+inputs:
+  p: { type: string, required: false, default: "../../etc/passwd" }
 tasks:
   load:
     invoke:
       tool: nika:read
-      args: { path: "${{ config.p }}" }
+      args: { path: "${{ inputs.p }}" }
 "#;
         let taints = taints_of(y);
         assert_eq!(taints.len(), 1, "{taints:?}");
         assert!(
-            taints[0].detail.contains("config.p -> args.path"),
+            taints[0].detail.contains("inputs.p -> args.path"),
             "{}",
             taints[0].detail
         );
@@ -1123,7 +1124,7 @@ tasks:
 permits:
   exec: ["find"]
 inputs:
-  bin: { type: string, default: "rm" }
+  bin: { type: string, required: false, default: "rm" }
 tasks:
   t:
     exec: { command: ["${{ inputs.bin }}", "."] }

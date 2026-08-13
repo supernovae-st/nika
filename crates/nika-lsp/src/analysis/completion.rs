@@ -423,7 +423,6 @@ fn expression_roots(in_for_each: bool) -> Vec<CompletionItem> {
     const ROOTS: &[(&str, &str)] = &[
         ("tasks", "an upstream task's output (`tasks.<id>.output`)"),
         ("inputs", "a declared typed workflow input"),
-        ("config", "a declared non-sensitive runtime config"),
         ("const", "a declared named constant"),
         ("secrets", "a declared secret (never echoed)"),
         ("with", "this task's own `with:` aliases"),

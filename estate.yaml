@@ -18,11 +18,11 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4384
+  classified_files: 4383
   file_rows: 11
   pattern_rows: 22
   by_class:
-    authored: 1453
+    authored: 1452
     authored-pin: 2
     generated: 118
     pinned-copy: 115
@@ -140,7 +140,7 @@ patterns:
 - glob: "crates/*/public-api.txt"
   class: generated
   match_count: 62
-  aggregate_sha256: 68976e7fd5abd8c6b9f500fed1308033117da6a0fc684c6ec37485eff8dafbaa
+  aggregate_sha256: 5bb6e89f48c160003e916592c8b82ea99366393ceb7995d98d44b7a280bbb204
   evidence: ".github/workflows/public-api.yml 'diff each covered lib crate' byte-compares each snapshot against cargo public-api output; macOS renders differently, so snapshots regenerate FROM THE UBUNTU ARTIFACT (workflow comment)"
   derivation:
     tool: "cargo public-api -p <crate> --omit auto-trait-impls > crates/<crate>/public-api.txt (DEFAULT features · the CI job shape — all-features drags platform deps into the render · cargo-public-api 0.51.0 pinned · the public-api-actual CI artifact stays the judge)"
@@ -151,8 +151,8 @@ patterns:
     - "cargo-public-api 0.51.0"
 - glob: "crates/**/src/**"
   class: authored
-  match_count: 736
-  aggregate_sha256: 4c8c464beef71b3ace93d150a4e233c560c70f090fbe90999531f334167ec826
+  match_count: 735
+  aggregate_sha256: a682b1b2bf9d4be7be1d818bd5543e17459228547f63925b6011b9b88bd362f8
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
@@ -198,7 +198,7 @@ patterns:
 - glob: ".agents/**"
   class: authored
   match_count: 32
-  aggregate_sha256: 79fb782ea2e6b765950dc71d100eda9e3c1fb500ff4df16af5317570ce438cc2
+  aggregate_sha256: b20ec81860a76f5e94a615ff5992f45ac92402b0acb5fd320f531c93e3f89c78
   evidence: "the agent-plugin pack SOURCE (marketplace.json · plugin manifests · skills · rules · hooks) — authored here, mirrored downstream into supernovae-st/nika-plugins (its plugins/ is a byte-pinned copy healed on releases)"
 - glob: ".claude/**"
   class: authored

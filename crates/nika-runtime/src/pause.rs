@@ -97,7 +97,6 @@ pub(crate) fn prompt_block(
     wf: &RawWorkflow,
     records: &BTreeMap<String, TaskRecord>,
     inputs: &BTreeMap<String, Value>,
-    config: &BTreeMap<String, Value>,
     consts: &BTreeMap<String, Value>,
     markers: &BTreeMap<String, Value>,
     approvals: &crate::approval::ApprovalBook,
@@ -136,7 +135,6 @@ pub(crate) fn prompt_block(
     let scope = Scope {
         records,
         inputs,
-        config,
         consts,
         secrets: markers,
         with_ns: None,
@@ -254,7 +252,7 @@ mod tests {
         failed_finish_msg(id, code, "non-interactive and no `default:`")
     }
 
-    const PROMPT_WF: &str = "nika: gate\ninputs:\n  q: { type: string, default: \"deploy?\" }\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"choice\", message: \"${{ inputs.q }}\", choices: [\"yes\", \"no\"] }\n";
+    const PROMPT_WF: &str = "nika: gate\ninputs:\n  q: { type: string, required: false, default: \"deploy?\" }\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"choice\", message: \"${{ inputs.q }}\", choices: [\"yes\", \"no\"] }\n";
 
     /// A Finish failing with a caller-chosen message (the harness gate's
     /// question rides the verb's Display).
@@ -367,7 +365,6 @@ mod tests {
             &records,
             &vars,
             &BTreeMap::new(),
-            &BTreeMap::new(),
             &markers,
             &crate::approval::ApprovalBook::new(),
         )
@@ -390,7 +387,6 @@ mod tests {
                 &records,
                 &vars,
                 &BTreeMap::new(),
-                &BTreeMap::new(),
                 &markers,
                 &crate::approval::ApprovalBook::new(),
             )
@@ -404,7 +400,6 @@ mod tests {
                 &exec_wf,
                 &records,
                 &vars,
-                &BTreeMap::new(),
                 &BTreeMap::new(),
                 &markers,
                 &crate::approval::ApprovalBook::new(),
@@ -427,7 +422,6 @@ mod tests {
                 &wf,
                 &records,
                 &vars,
-                &BTreeMap::new(),
                 &BTreeMap::new(),
                 &markers,
                 &crate::approval::ApprovalBook::new(),
@@ -653,7 +647,6 @@ mod tests {
             &wf,
             &records,
             &vars,
-            &BTreeMap::new(),
             &BTreeMap::new(),
             &markers,
             &crate::approval::ApprovalBook::new(),

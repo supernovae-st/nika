@@ -49,20 +49,11 @@ fn teardown_fold(
     let mut teardown = nika_dap::seal::SealTeardown::new();
     teardown.proves = nika_runtime::proof::ir::semantic_ir_hash(wf).map(|h| h.as_hex().to_owned());
     teardown.certificate = serde_json::to_value(&report.certificate).ok();
-    // The judged-assertions fold mirrors the evidence pack's receipt
-    // (`level(true)` — the journal IS the trace).
-    teardown.assertions = wf
-        .assert
-        .iter()
-        .map(|sp| {
-            let property = sp.value.clone();
-            let level = property.level(true);
-            serde_json::json!({
-                "assert": property.name(),
-                "level": level.as_str(),
-            })
-        })
-        .collect();
+    // The judged-assertions fold is EMPTY by construction since the
+    // `assert:` key died (spec 15 · 2026-08-13): nothing mints an
+    // obligation any more. The field stays in the seal's wire shape —
+    // a reader that indexes it must keep finding it, and an empty array
+    // says exactly what happened: nothing was claimed.
     teardown.outcome = Some(
         if outcome.paused.is_some() {
             "paused"

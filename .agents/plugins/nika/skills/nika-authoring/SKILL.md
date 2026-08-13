@@ -524,7 +524,7 @@ the human at handoff, not to expect a green.
 ## Discipline
 
 - References: `${{ inputs.x }}` · `${{ const.x }}` ·
-  `${{ config.KEY }}` · `${{ secrets.X }}` · `${{ tasks.<id>.output }}`
+  `${{ secrets.X }}` · `${{ tasks.<id>.output }}`
   · `${{ with.alias }}` (never inline a credential) · and inside a
   `for_each:` body only, the loop-scoped `${{ item }}` · `${{ index }}`.
 - Quote any scalar that STARTS with `${{` inside a FLOW mapping —

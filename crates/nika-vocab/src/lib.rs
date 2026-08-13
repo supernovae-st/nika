@@ -33,7 +33,6 @@
 )]
 
 pub mod after;
-pub mod assert;
 pub mod capture;
 pub mod dead_form;
 pub mod decode;
@@ -53,7 +52,6 @@ pub mod when_gate;
 
 // Re-exports for convenience.
 pub use after::AfterPredicate;
-pub use assert::{AssertLevel, AssertProperty, AssertRefusal, NIKA_ASSERT_001};
 pub use capture::CaptureMode;
 pub use dead_form::DeadForm;
 pub use decode::DecodeMode;

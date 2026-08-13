@@ -869,7 +869,6 @@ where
         task: &RawTask,
         records: &BTreeMap<String, TaskRecord>,
         inputs: &BTreeMap<String, Value>,
-        config: &BTreeMap<String, Value>,
         consts: &BTreeMap<String, Value>,
         resume_ctx: &crate::resume::ResumeContext,
     ) -> Gate {
@@ -887,7 +886,6 @@ where
         let base = Scope {
             records,
             inputs,
-            config,
             consts,
             secrets: resume_ctx.markers(),
             with_ns: None,

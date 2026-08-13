@@ -27,7 +27,6 @@ pub(super) fn resolve_fan_out_items(
     collection: &ForEachValue,
     boundary_with: &BTreeMap<String, Value>,
     inputs: &BTreeMap<String, Value>,
-    config: &BTreeMap<String, Value>,
     consts: &BTreeMap<String, Value>,
     secrets: &BTreeMap<String, Value>,
 ) -> Result<Vec<Value>, Box<SettleAs>> {
@@ -35,7 +34,6 @@ pub(super) fn resolve_fan_out_items(
     let scope = Scope {
         records: &empty_records,
         inputs,
-        config,
         consts,
         secrets,
         with_ns: Some(boundary_with),

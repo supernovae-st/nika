@@ -57,21 +57,6 @@ fn workflow_symbol(index: &LineIndex, wf: &RawWorkflow) -> DocumentSymbol {
             SymbolKind::VARIABLE,
         ));
     }
-    for (name, decl) in &wf.config {
-        let detail = match decl {
-            nika_schema::VarDecl::Typed { r#type, .. } => {
-                format!("config · {}", type_expr_display(&r#type.value))
-            }
-            nika_schema::VarDecl::Untyped(_) => "config".to_owned(),
-        };
-        children.push(decl_symbol(
-            index,
-            &name.value,
-            name.span,
-            detail,
-            SymbolKind::VARIABLE,
-        ));
-    }
     for (name, decl) in &wf.consts {
         let detail = match decl {
             nika_schema::VarDecl::Typed { r#type, .. } => {
@@ -345,11 +330,11 @@ mod tests {
     }
 
     /// The outline carries every DECLARATION — vars (typed detail) ·
-    /// inputs · config · const · secrets · tasks, in declaration order, each selection
+    /// inputs · const · secrets · tasks, in declaration order, each selection
     /// range on the declaring name (the go-to-definition twin).
     #[test]
     fn outline_carries_vars_env_secrets_and_tasks() {
-        let text = "nika: w\ninputs:\n  city:\n    type: string\nconst:\n  out: \"./o\"\nconfig:\n  REGION: { type: string, default: \"eu\" }\nsecrets:\n  api_key: { source: vault, key: k }\ntasks:\n  a:\n    exec: { command: [\"x\"] }\n";
+        let text = "nika: w\ninputs:\n  city:\n    type: string\n  REGION: { type: string, required: false, default: \"eu\" }\nconst:\n  out: \"./o\"\nsecrets:\n  api_key: { source: vault, key: k }\ntasks:\n  a:\n    exec: { command: [\"x\"] }\n";
         let syms = document_symbols(text);
         assert_eq!(syms.len(), 1, "one workflow root");
         let children = syms[0].children.as_ref().expect("children");

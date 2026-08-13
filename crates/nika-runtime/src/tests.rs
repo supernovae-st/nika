@@ -662,13 +662,12 @@ fn envelope_values_carries_typed_defaults_and_containers() {
     // value model must carry them (for_each collections · spec 03).
     let yaml = r#"
 nika: vals
-config:
-  API_BASE: { type: string, default: "https://api.example.test" }
+inputs:
+  API_BASE: { type: string, required: false, default: "https://api.example.test" }
+  topic: { type: string, required: false, default: "news" }
 const:
   plain: "text"
   urls: ["a", "b"]
-inputs:
-  topic: { type: string, default: "news" }
 tasks:
   t:
     exec: { command: ["true"] }
@@ -681,13 +680,12 @@ tasks:
     .expect("parses");
     let EnvelopeValues {
         inputs,
-        config,
         consts,
         workflow_name: name,
     } = envelope_values(&wf, &BTreeMap::new());
     assert_eq!(name, "vals");
     assert_eq!(
-        config["API_BASE"],
+        inputs["API_BASE"],
         Value::String("https://api.example.test".into())
     );
     assert_eq!(inputs["topic"], Value::String("news".into()));
@@ -1305,7 +1303,7 @@ mod tools_permits_tests {
     #[tokio::test]
     async fn integrity_label_flows_from_ingress_to_the_records_and_frames() {
         let wf = parse(
-            "nika: integ-label\ninputs:\n  q: { type: string, default: \"authored-default\" }\npermits: { tools: [\"nika:fetch\", \"nika:jq\"], net: { http: [\"example.com\"] } }\ntasks:\n  dl:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://example.com/page\" } }\n  probe:\n    with: { page: \"${{ tasks.dl.output }}\" }\n    invoke: { tool: \"nika:jq\", args: { expression: \".\", input: \"${{ with.page }}\" } }\n  plain:\n    invoke: { tool: \"nika:jq\", args: { expression: \".\", input: \"authored\" } }\n  inp:\n    invoke: { tool: \"nika:jq\", args: { expression: \".\", input: \"${{ inputs.q }}\" } }\n",
+            "nika: integ-label\ninputs:\n  q: { type: string, required: false, default: \"authored-default\" }\npermits: { tools: [\"nika:fetch\", \"nika:jq\"], net: { http: [\"example.com\"] } }\ntasks:\n  dl:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://example.com/page\" } }\n  probe:\n    with: { page: \"${{ tasks.dl.output }}\" }\n    invoke: { tool: \"nika:jq\", args: { expression: \".\", input: \"${{ with.page }}\" } }\n  plain:\n    invoke: { tool: \"nika:jq\", args: { expression: \".\", input: \"authored\" } }\n  inp:\n    invoke: { tool: \"nika:jq\", args: { expression: \".\", input: \"${{ inputs.q }}\" } }\n",
         );
         let report = nika_check::check(&wf);
         assert!(report.is_clean(), "the fixture fits its boundary");

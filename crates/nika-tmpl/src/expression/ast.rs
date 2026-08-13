@@ -152,7 +152,7 @@ impl RelOp {
 }
 
 /// A classified root reference found in an expression (spec
-/// `04-variables.md` §Resolution order · the four value authorities +
+/// `04-variables.md` §Resolution order · the three value authorities +
 /// `with`/`tasks` + the 2 `for_each` loop-locals · the dead `vars`/`env`
 /// roots stay CLASSIFIED at the C2 flag-day so the analyzer can teach
 /// their NIKA-VALUES-001/002 refusal instead of a generic unknown-root).
@@ -162,8 +162,6 @@ pub enum NamespaceRef {
     Vars(String),
     /// `inputs.<name>` — typed workflow inputs (caller-supplied).
     Inputs(String),
-    /// `config.<name>` — non-sensitive runtime config (deployment-supplied).
-    Config(String),
     /// `const.<name>` — named constants (author-fixed).
     Const(String),
     /// `with.<name>` — task-scope injections.

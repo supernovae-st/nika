@@ -168,11 +168,7 @@ fn check_task_contract(task: &RawTask, names: &BTreeSet<String>, errors: &mut Ve
 pub(super) fn check_io_declarations(wf: &RawWorkflow, errors: &mut Vec<SchemaError>) {
     let type_names = BTreeSet::new();
     let named = BTreeMap::new();
-    let authorities = [
-        ("inputs", &wf.inputs),
-        ("config", &wf.config),
-        ("const", &wf.consts),
-    ];
+    let authorities = [("inputs", &wf.inputs), ("const", &wf.consts)];
     for (authority, block) in authorities {
         for (name, decl) in block {
             let VarDecl::Typed {
@@ -487,12 +483,12 @@ tasks:
     #[test]
     fn conforming_defaults_and_typed_consts_are_clean() {
         // The valid conformance fixture's shape (values/valid/
-        // default-conforms-to-type): primitives · an enum composite ·
-        // config · a typed constant — every value conforms, zero findings.
+        // default-conforms-to-type): primitives · an enum composite · a
+        // deployment-supplied input · a typed constant — every value
+        // conforms, zero findings.
         let yaml = format!(
             "nika: t\n\
-             inputs:\n  count: {{ type: integer, default: 5 }}\n  mode: {{ type: {{ enum: [\"fast\", \"slow\"] }}, default: \"fast\" }}\n\
-             config:\n  timeout_s: {{ type: number, default: 30 }}\n\
+             inputs:\n  count: {{ type: integer, required: false, default: 5 }}\n  mode: {{ type: {{ enum: [\"fast\", \"slow\"] }}, default: \"fast\" }}\n  timeout_s: {{ type: number, required: false, default: 30 }}\n\
              const:\n  label: {{ type: string, value: \"prod\" }}\n{TASKS_TAIL}"
         );
         assert!(io_errors_of(&yaml).is_empty());
@@ -539,11 +535,11 @@ tasks:
 
     #[test]
     fn default_mismatch_is_default_001_with_the_teaching() {
-        // The P0 witness of the ruling — `{ type: integer, default:
+        // The P0 witness of the ruling — `{ type: integer, required: false, default:
         // "abc" }` passed check AND run before (values/invalid/
         // default-type-mismatch).
         let yaml = format!(
-            "nika: t\ninputs:\n  count: {{ type: integer, default: \"abc\" }}\n{TASKS_TAIL}"
+            "nika: t\ninputs:\n  count: {{ type: integer, required: false, default: \"abc\" }}\n{TASKS_TAIL}"
         );
         let errors = io_errors_of(&yaml);
         assert_eq!(codes_of(&errors), ["NIKA-DEFAULT-001"]);
@@ -563,19 +559,21 @@ tasks:
     }
 
     #[test]
-    fn config_and_const_ride_the_same_code() {
-        // config's default: and the typed constant's value: are the SAME
+    fn inputs_and_const_ride_the_same_code() {
+        // An input's default: and the typed constant's value: are the SAME
         // class — no second code minted for the const variant (the law).
+        // The fixture rode `config:` until the 9-key envelope killed it;
+        // the deployment-supplied role is an `inputs:` entry now.
         let yaml = format!(
             "nika: t\n\
-             config:\n  timeout_s: {{ type: number, default: \"soon\" }}\n\
+             inputs:\n  timeout_s: {{ type: number, required: false, default: \"soon\" }}\n\
              const:\n  retries: {{ type: integer, value: \"many\" }}\n{TASKS_TAIL}"
         );
         let errors = io_errors_of(&yaml);
         assert_eq!(codes_of(&errors), ["NIKA-DEFAULT-001", "NIKA-DEFAULT-001"]);
         let rendered: Vec<String> = errors.iter().map(ToString::to_string).collect();
         assert!(
-            rendered[0].contains("config.timeout_s.default"),
+            rendered[0].contains("inputs.timeout_s.default"),
             "{rendered:?}"
         );
         assert!(rendered[1].contains("const.retries.value"), "{rendered:?}");
@@ -585,8 +583,9 @@ tasks:
     fn a_broken_declared_type_skips_the_conformance_arm() {
         // The oracle's « reported elsewhere »: an out-of-grammar type
         // refuses ONCE (the grammar arm) — never a doubled DEFAULT-001.
-        let yaml =
-            format!("nika: t\ninputs:\n  x: {{ type: frobnicate, default: 5 }}\n{TASKS_TAIL}");
+        let yaml = format!(
+            "nika: t\ninputs:\n  x: {{ type: frobnicate, required: false, default: 5 }}\n{TASKS_TAIL}"
+        );
         assert_eq!(codes_of(&io_errors_of(&yaml)), ["NIKA-TYPE-001"]);
     }
 

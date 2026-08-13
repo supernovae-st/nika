@@ -15,10 +15,6 @@
 /// Keys of the typed `inputs:` form (spec 01 §inputs · `type` required).
 pub const INPUT_KEYS: &[&str] = &["type", "required", "default", "description"];
 
-/// Keys of the typed `config:` form (spec 01 §config · `type` required ·
-/// never caller-`required`).
-pub const CONFIG_KEYS: &[&str] = &["type", "default", "description"];
-
 /// Keys of the typed `const:` form (spec 01 §const · `{type, value}` exactly).
 pub const CONST_TYPED_KEYS: &[&str] = &["type", "value"];
 

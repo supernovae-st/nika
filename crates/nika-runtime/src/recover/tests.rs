@@ -327,7 +327,7 @@ fn undeclared_awaited_root_fails_fast_at_the_park_site() {
         nika_schema::ParseMode::Strict,
     )
     .expect("fixture parses");
-    let (vars, env, secrets) = (BTreeMap::new(), BTreeMap::new(), BTreeMap::new());
+    let (vars, secrets) = (BTreeMap::new(), BTreeMap::new());
     let resume_ctx = resume::ResumeContext::of(
         &wf,
         &secrets,
@@ -339,7 +339,6 @@ fn undeclared_awaited_root_fails_fast_at_the_park_site() {
     let scope = crate::recover::ResolveScope {
         wf: &wf,
         inputs: &vars,
-        config: &env,
         consts: &BTreeMap::new(),
         secrets: &secrets,
         resume_ctx: &resume_ctx,
