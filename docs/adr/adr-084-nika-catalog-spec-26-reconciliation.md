@@ -32,7 +32,7 @@ inventory grew during Sprint 2 + media planning before the spec
 minimalism doctrine locked).
 
 A monorepo-side §2.6 Signal 7 verify-the-auditor catch (2026-05-27 ·
-`studio/architecture/research/2026-05-27-g1-builtins-enum-codegen-design.md`
+internal design review · private DX surface ·
 §10 BLOCKER) surfaced the drift empirically · engine first-5 names were
 `aggregate · assert · chart · chunk · compare` vs spec first-5
 `sleep · log · emit · assert · prompt`. The drift gates the future
@@ -182,7 +182,7 @@ admission) · the ADR-003 12-gate ceremony reduces to applicable gates ·
 - `nika-catalog/src/lib.rs` · `all_builtins_non_empty` test 63 → 26.
 - `nika-schema/src/trust.rs` · 67 → 26 hardcoded refs · 4 → 3 trust
   category lists · 2 new tests.
-- `studio/architecture/research/2026-05-27-g1-builtins-enum-codegen-design.md`
+- Internal design review · private DX surface
   · §10 BLOCKER inventory + reconciliation scope (the design + audit
   trail · monorepo-side).
 - `nika/spec/stdlib/builtins-v0.1.md` · the canonical source-of-truth
