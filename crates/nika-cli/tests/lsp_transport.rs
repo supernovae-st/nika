@@ -118,7 +118,7 @@ fn lsp_survives_adversarial_request_positions_over_stdio() {
     use std::process::Stdio;
     // butterfly + é in a value, a multibyte task id — every position below
     // lands in, or past, one of this document's multibyte spans.
-    let multi = "nika: v1\nworkflow:\n  id: 🦋é\ntasks:\n  café:\n    exec: { command: [\"echo\", \"${{ tasks.café.output }}\"] }\n";
+    let multi = "nika: butterfly\ntasks:\n  café:\n    exec: { command: [\"echo\", \"${{ tasks.café.output }}\"] }\n";
     let uri = "file:///t/multi.nika.yaml";
     let max = u32::MAX;
     let mut child = bin()

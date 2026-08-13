@@ -116,6 +116,7 @@ pub mod analyzer;
 mod analysis;
 mod certificate;
 mod composition;
+mod conformance_codes;
 mod consent;
 mod content_flow;
 mod cost;
@@ -129,6 +130,7 @@ mod findings;
 mod flow;
 mod hints;
 pub mod native_first;
+mod order;
 mod permit_taint;
 pub mod permits_fit;
 mod permits_infer;
@@ -144,7 +146,7 @@ mod tools;
 pub mod trifecta;
 mod walk;
 
-use nika_schema::error::{SpecCategory, SpecCode};
+use nika_schema::error::SpecCode;
 use nika_schema::raw::RawWorkflow;
 
 pub use analysis::{DagAnalysis, TaskBlast, WriteConflict};
@@ -164,6 +166,7 @@ pub use exec_floor::ExecFloorFinding;
 pub use findings::UnifiedFinding;
 pub use flow::{FlowFacts, TaintTrace, action_effect_fields};
 pub use hints::Hint;
+pub use order::OrderFinding;
 pub use permit_taint::{PermitTaint, PermitTaintKind};
 pub use permits_fit::CapabilityEscape;
 pub use permits_infer::InferredPermits;
@@ -381,6 +384,13 @@ pub struct CheckReport {
     /// fires only on the PROVEN route (sound, never a false red).
     /// Additive: `report_version` stays 1.
     pub consent_findings: Vec<ConsentFinding>,
+    /// Every order-law refusal (spec 10 · `NIKA-SEC-015`): an `exec:`
+    /// task transitively downstream of a net-effecting one over the
+    /// derived graph. UNCONDITIONAL — no block declares it and none
+    /// can disable it; the only gate is a valid DAG, because a graph
+    /// that did not build cannot be walked. Additive:
+    /// `report_version` stays 1.
+    pub order_findings: Vec<OrderFinding>,
     /// Every lethal-trifecta finding (NEP-0002 · `NIKA-SEC-009`): all
     /// three legs declared AND an egress-capable task no blocking
     /// `nika:prompt` gate dominates. Judged on the derived graph and the
@@ -495,6 +505,7 @@ impl CheckReport {
             && self.sink_findings.is_empty()
             && self.policy_findings.is_empty()
             && self.consent_findings.is_empty()
+            && self.order_findings.is_empty()
             && self.trifecta_findings.is_empty()
             && self.schema_findings.is_empty()
             && self.unknown_tools.is_empty()
@@ -519,104 +530,14 @@ impl CheckReport {
     /// a body outside the declared `permits:` → `NIKA-SEC-004`, a hard
     /// `policy:` rule violation → `NIKA-POLICY-001` (spec 10 · the
     /// `core/policy` fixtures match on it).
+    /// The extra-conformance codes the Deep tier adds — every check-only
+    /// invalidating surface, projected as the spec codes the conformance
+    /// runner matches on. The walk lives in [`conformance_codes`]: it is
+    /// one long list of one-line arms, and it crossed the 100-line
+    /// ratchet the day the unconditional order law joined it.
     #[must_use]
     pub fn extra_conformance_codes(&self) -> Vec<SpecCode> {
-        let builtin = SpecCode::new("BUILTIN", 1, SpecCategory::ValidationError);
-        let mut codes = Vec::new();
-        codes.extend(self.capability_escapes.iter().map(|e| {
-            // Floor escapes carry the code the run would emit (SEC-005 ·
-            // the always-on SSRF floor); an effect judged against the
-            // F-O8 zero boundary (no `permits:` declared) is AUTH-006;
-            // declared-boundary escapes stay SEC-004.
-            if e.floor {
-                SpecCode::new("SEC", 5, SpecCategory::SecurityError)
-            } else if e.undeclared {
-                SpecCode::new("AUTH", 6, SpecCategory::SecurityError)
-            } else {
-                SpecCode::new("SEC", 4, SpecCategory::SecurityError)
-            }
-        }));
-        // The argv exec floor (#605): the code the run would stamp on the
-        // same argv's `ShellError::Blocked` — SEC-001, check ≡ run.
-        codes.extend(
-            self.exec_floor_findings
-                .iter()
-                .map(|_| SpecCode::new("SEC", 1, SpecCategory::SecurityError)),
-        );
-        // The permits-block taint findings: the finding's own kind maps to
-        // its ONE wire code (NEP-0004 law 1 → AUTH-007 · law 2 → AUTH-008 ·
-        // NEP-0005 law 3 env dead grant → AUTH-009 · F-P5 net wildcard →
-        // AUTH-010 · all check-time security refusals).
-        codes.extend(self.permit_taints.iter().map(|t| match t.kind {
-            PermitTaintKind::BoundInterpolated => {
-                SpecCode::new("AUTH", 7, SpecCategory::SecurityError)
-            }
-            PermitTaintKind::ArgEscapes => SpecCode::new("AUTH", 8, SpecCategory::SecurityError),
-            PermitTaintKind::EnvDeadGrant => SpecCode::new("AUTH", 9, SpecCategory::SecurityError),
-            PermitTaintKind::NetWildcard => SpecCode::new("AUTH", 10, SpecCategory::SecurityError),
-        }));
-        // The data-as-code sink (NEP-0006) → NIKA-SEC-008.
-        let sink_code = SpecCode::new("SEC", 8, SpecCategory::SecurityError);
-        codes.extend(self.sink_findings.iter().map(|_| sink_code));
-        // Hard policy: violations (spec 10) → NIKA-POLICY-001 · the F-P4
-        // approval rules (NEP-0013) → NIKA-SEC-010 · the F-P23 endorsement
-        // rules (NEP-0017) → NIKA-SEC-013 (one lane, three voices — the
-        // rule prefix discriminates, same as the findings fold).
-        let policy_code = SpecCode::new("POLICY", 1, SpecCategory::SecurityError);
-        codes.extend(self.policy_findings.iter().map(|p| {
-            if p.rule.starts_with("approval.") {
-                SpecCode::new("SEC", 10, SpecCategory::SecurityError)
-            } else if p.rule.starts_with("endorsement.") {
-                SpecCode::new("SEC", 13, SpecCategory::SecurityError)
-            } else {
-                policy_code
-            }
-        }));
-        // Lethal trifecta (NEP-0002) → NIKA-SEC-009.
-        let trifecta_code = SpecCode::new("SEC", 9, SpecCategory::SecurityError);
-        codes.extend(self.trifecta_findings.iter().map(|_| trifecta_code));
-        // The affirmative-consent law (NEP-0020) → NIKA-SEC-014.
-        codes.extend(
-            self.consent_findings
-                .iter()
-                .map(|_| SpecCode::new("SEC", 14, SpecCategory::SecurityError)),
-        );
-        codes.extend(self.unknown_tools.iter().map(|_| builtin));
-        codes.extend(self.unknown_args.iter().map(|_| builtin));
-        codes.extend(self.missing_args.iter().map(|_| builtin));
-        // Gate liveness (03 §static liveness · check-only, reach.rs):
-        // DAG-006 statically dead task · DAG-007 out-of-vocabulary literal.
-        codes.extend(self.gate_findings.iter().map(|g| match g.kind {
-            reach::GateFindingKind::DeadTask => {
-                SpecCode::new("DAG", 6, SpecCategory::ValidationError)
-            }
-            reach::GateFindingKind::BadStatusLiteral => {
-                SpecCode::new("DAG", 7, SpecCategory::ValidationError)
-            }
-        }));
-        // F-P3 · the run: declaration contradicted by the body — the
-        // dedicated NIKA-PARSE-028 mint (NEP-0010 · the 87f764a pack).
-        codes.extend(
-            self.run_decl_findings
-                .iter()
-                .map(|_| SpecCode::new("PARSE", 28, SpecCategory::ValidationError)),
-        );
-        // F-P15 · the write-write law (NEP-0014 law 1) — the security
-        // class: an effect overlap the boundary never sanctioned.
-        codes.extend(
-            self.write_conflicts
-                .iter()
-                .map(|_| SpecCode::new("SEC", 12, SpecCategory::SecurityError)),
-        );
-        // Composition lane (spec 14): COMP-002 is the security law
-        // (child boundary ⊄ parent); 001/003/004 are validation.
-        codes.extend(self.composition.iter().map(|f| match f.code {
-            "NIKA-COMP-002" => SpecCode::new("COMP", 2, SpecCategory::SecurityError),
-            "NIKA-COMP-003" => SpecCode::new("COMP", 3, SpecCategory::ValidationError),
-            "NIKA-COMP-004" => SpecCode::new("COMP", 4, SpecCategory::ValidationError),
-            _ => SpecCode::new("COMP", 1, SpecCategory::ValidationError),
-        }));
-        codes
+        conformance_codes::of(self)
     }
 }
 
@@ -713,14 +634,21 @@ fn gated_scans(
     Vec<nika_cap::PolicyViolation>,
     Vec<nika_cap::TrifectaViolation>,
     consent::ConsentScan,
+    Vec<OrderFinding>,
 ) {
     if !conformance_clean {
-        return (Vec::new(), Vec::new(), consent::ConsentScan::default());
+        return (
+            Vec::new(),
+            Vec::new(),
+            consent::ConsentScan::default(),
+            Vec::new(),
+        );
     }
     (
         policy::scan_policy(wf, edges),
         trifecta::scan_trifecta(wf, edges, topo_waves),
         consent::scan_consent(wf, edges),
+        order::scan_order(wf, edges),
     )
 }
 
@@ -760,7 +688,7 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
             advice: miss,
         });
     }
-    let (policy_findings, trifecta_findings, mut consent_scan) =
+    let (policy_findings, trifecta_findings, mut consent_scan, order_findings) =
         gated_scans(wf, conformance.is_empty(), &edges, &topo_waves);
     hints.extend(std::mem::take(&mut consent_scan.hints));
     let capability_escapes = permits_fit::scan_escapes(wf);
@@ -789,6 +717,7 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
         sink_findings: data_sink::scan_data_sink(wf),
         policy_findings,
         consent_findings: consent_scan.findings,
+        order_findings,
         trifecta_findings,
         schema_findings,
         unverifiable_output_refs,
@@ -901,6 +830,7 @@ pub fn task_permits(task: &nika_schema::raw::RawTask) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use nika_schema::error::SpecCategory;
     use nika_schema::parser::{ParseMode, parse};
     use nika_schema::source::FileId;
 

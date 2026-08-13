@@ -86,7 +86,7 @@ fn explain_opens_on_the_recovery_rail_after_a_real_failure() {
     // naked re-run CTA steps aside (the resume/repair line is the only
     // run-shaped line allowed to compete).
     let rail = text.find("last run failed").expect("rail present");
-    let anatomy = text.find("rail-witness —").expect("the title line");
+    let anatomy = text.find("rail-witness\n").expect("the title line");
     assert!(rail < anatomy, "the rail opens before the anatomy:\n{text}");
     assert!(
         !text.contains("\nrun it\n"),

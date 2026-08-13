@@ -218,6 +218,7 @@ pub(super) fn collect(report: &CheckReport) -> Vec<UnifiedFinding> {
     fold_policy_findings(report, &mut out);
     fold_consent(report, &mut out);
     fold_trifecta(report, &mut out);
+    fold_order(report, &mut out);
     for s in &report.schema_findings {
         out.push(UnifiedFinding::new(
             "schema_type",
@@ -344,6 +345,20 @@ fn fold_consent(report: &CheckReport, out: &mut Vec<UnifiedFinding>) {
             crate::ConsentFinding::WIRE_CODE
         ));
         f.task = Some(c.sink.clone());
+        out.push(f);
+    }
+}
+
+/// The order-law class (spec 10 · NIKA-SEC-015) — the detail carries the
+/// PATH, which is the witness: a refusal that named only the two ends
+/// would leave the author hunting for the edge that carried the content.
+fn fold_order(report: &CheckReport, out: &mut Vec<UnifiedFinding>) {
+    for o in &report.order_findings {
+        let code = crate::OrderFinding::WIRE_CODE;
+        let mut f = UnifiedFinding::new("order", "ORDER", o.detail.clone());
+        f.code = Some(code.to_owned());
+        f.docs_url = Some(format!("{}/{code}", super::ERROR_DOCS_BASE));
+        f.task = Some(o.sink.clone());
         out.push(f);
     }
 }

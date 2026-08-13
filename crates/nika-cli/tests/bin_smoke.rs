@@ -1114,7 +1114,7 @@ fn explain_narrates_a_file_and_still_teaches_codes() {
     let text = String::from_utf8_lossy(&out.stdout);
     assert_eq!(out.status.code(), Some(0), "clean file narrates: {text}");
     for needle in [
-        "smoke-story — a two-step story",
+        "smoke-story",
         "the story",
         "cost before a token is spent",
         "run it",

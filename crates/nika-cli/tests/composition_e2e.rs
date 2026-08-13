@@ -334,9 +334,7 @@ tasks:
         } else {
             format!(
                 "\
-nika: v1
-workflow:
-  id: f{i}
+nika: f{i}
 permits: {{ exec: [\"echo\"] }}
 tasks:
   descend:

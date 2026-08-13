@@ -56,7 +56,7 @@ fn chips(verbs: &[&str], theme: Theme) -> String {
 /// `--teaches`, and reporting the gaps. A grouping that only decorated a
 /// list would not have earned its place.
 #[cfg(test)]
-const CONSTRUCTS: [(&str, &str); 16] = [
+const CONSTRUCTS: [(&str, &str); 15] = [
     ("infer:", "ask a model"),
     ("exec:", "run a program"),
     ("invoke:", "call a tool"),
@@ -66,18 +66,24 @@ const CONSTRUCTS: [(&str, &str); 16] = [
     ("after:", "an explicit edge"),
     ("retry:", "absorb a transient failure"),
     ("on_error:", "recover, or route the failure"),
-    ("on_finally:", "cleanup that always runs"),
+    ("unwind", "cleanup that always runs"),
     ("schema:", "structured output"),
     ("returns:", "a typed task output"),
-    // The four the corpus does not cover, deliberately listed so the gap
+    // The ones the corpus does not cover, deliberately listed so the gap
     // is visible rather than absent. Measured 2026-07-29 against the spec
     // prose, which discusses each at length: composition 36 mentions,
-    // returns: 47, config: 16, declassify: 3 — and the spec calls that
-    // last one « the ONLY door » through the permit taint. An author who
-    // meets that wall with no example widens a boundary instead.
+    // returns: 47 — and the spec calls `lift:` « the ONLY door » through
+    // the permit taint. An author who meets that wall with no example
+    // widens a boundary instead.
+    //
+    // `config:` LEFT this census (2026-08-13): the spec folded it into
+    // `inputs:` with `required: false`, so the corpus stopped teaching
+    // it. The engine still parses it until that tranche lands — this
+    // table follows the CORPUS, which is what it measures, and listing
+    // a key the corpus deliberately dropped would report a gap nobody
+    // can close.
     ("workflow:", "call another workflow"),
-    ("config:", "a value authority"),
-    ("declassify:", "the door through a taint"),
+    ("lift:", "the door through a taint"),
     ("inputs:", "a runtime parameter"),
 ];
 
@@ -105,6 +111,12 @@ fn teaches(body: &str) -> Vec<&'static str> {
         .filter(|(key, _)| {
             body.lines().any(|l| {
                 let t = l.trim_start();
+                // `unwind` is a predicate VALUE, not a key — it is the
+                // one construct spelled inside `after:`, so the key-at-
+                // line-start rule cannot see it.
+                if *key == "unwind" {
+                    return !t.starts_with('#') && t.contains("unwind");
+                }
                 if !t.starts_with(key) || t.starts_with('#') {
                     return false;
                 }
@@ -113,7 +125,7 @@ fn teaches(body: &str) -> Vec<&'static str> {
                     // nested only — the envelope form is a different thing
                     "workflow:" => indented,
                     // top level only — the authority block
-                    "inputs:" | "config:" => !indented,
+                    "inputs:" => !indented,
                     _ => true,
                 }
             })

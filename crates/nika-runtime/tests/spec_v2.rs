@@ -567,7 +567,7 @@ tasks:
 async fn on_error_recover_skip_and_filter() {
     let yaml = r#"
 nika: recovery
-permits: { exec: true, tools: ["nika:fetch"], net: { http: ["example.com"] } }
+permits: { exec: true, tools: ["nika:fetch", "nika:jq"], net: { http: ["example.com"] } }
 tasks:
   cached:
     exec: { command: ["cat", "cache.json"] }
@@ -582,12 +582,13 @@ tasks:
     on_error: { on_codes: [NIKA-GHOST-999], skip: true }
     invoke: { tool: "nika:fetch", args: { url: "https://example.com/c" } }
   downstream:
+    # a BUILTIN consumer, not a shell: the order law (NIKA-SEC-015)
+    # refuses an `exec:` downstream of a fetch, and this fixture is
+    # about `on_error:` routing, never about reaching a shell.
     with: { fetched: "${{ tasks.live.output }}" }
-    exec: { command: ["use", "${{ with.fetched }}"] }
+    invoke: { tool: "nika:jq", args: { input: "${{ with.fetched }}", expression: "." } }
 "#;
-    let shell = MockShell::new()
-        .enqueue_ok("stale data\n")
-        .enqueue_ok("consumed\n");
+    let shell = MockShell::new().enqueue_ok("stale data\n");
     let tools = MockToolExecutor::new()
         .enqueue_err(ToolExecError::NotFound {
             name: "nika:fetch".to_owned(),
@@ -597,7 +598,8 @@ tasks:
         })
         .enqueue_err(ToolExecError::NotFound {
             name: "nika:fetch".to_owned(),
-        });
+        })
+        .enqueue_ok(ToolResult::success("jq", "\"stale data\\n\""));
     let (outcome, _events) = run_to_events(
         yaml,
         shell,

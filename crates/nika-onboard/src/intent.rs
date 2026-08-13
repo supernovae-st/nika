@@ -585,6 +585,21 @@ fn body_of(name: &str) -> Option<&'static str> {
 /// clear [`TAU`] and outscore the runner-up by [`MARGIN`]. Anything else
 /// is a [`RoutingOutcome::NeedsClarification`] — routing below the
 /// evidence bar would be a guess (P0-1 · P0-10).
+/// The naive singular of a plural token — `invoices` → `invoice`.
+/// Query-side only, like every other expansion here: documents are never
+/// rewritten, so a wrong guess costs one term that matches nothing.
+fn singular_of(token: &str) -> Option<&str> {
+    if let Some(stem) = token.strip_suffix("es")
+        && stem.len() >= 3
+        && stem.ends_with(['s', 'x', 'z', 'h'])
+    {
+        return Some(stem);
+    }
+    token
+        .strip_suffix('s')
+        .filter(|stem| stem.len() >= 3 && !stem.ends_with('s'))
+}
+
 /// Index each entry's MEANINGFUL vocabulary — verbs · tools ·
 /// structure — but STRIP `#` comments. The `# SLOT: kebab-case workflow
 /// id` scaffolding prose otherwise pollutes the index, so
@@ -597,6 +612,7 @@ fn build_template_index(names: &[String]) -> BmIndex {
     let mut index = BmIndex::new(BmParams::default());
     for (i, name) in names.iter().enumerate() {
         let body = body_of(name).unwrap_or_default();
+        let sentence = crate::banner::sentence(body).unwrap_or_default();
         let meaningful: String = body
             .lines()
             .filter(|l| !l.trim_start().starts_with('#'))
@@ -606,7 +622,7 @@ fn build_template_index(names: &[String]) -> BmIndex {
         let Ok(doc_id) = u32::try_from(i) else {
             continue;
         };
-        index.add_document(doc_id, &format!("{name}\n{meaningful}"));
+        index.add_document(doc_id, &format!("{name}\n{sentence}\n{meaningful}"));
     }
     index.finalize();
     index
@@ -668,6 +684,10 @@ fn route_impl(intent: &str, names: &[String], tau: f64) -> RoutingOutcome {
                     query.push_str(e);
                 }
             }
+        }
+        if let Some(singular) = singular_of(token) {
+            query.push(' ');
+            query.push_str(singular);
         }
     }
 
@@ -1024,8 +1044,11 @@ mod tests {
 
     #[test]
     fn below_the_bar_clarifies_with_the_closest_candidates() {
-        // media-asset-pack 4.014 vs website-brief 3.988 — a 1.007 ratio,
-        // far under the margin: neither wins, both are named.
+        // A genuine coin-flip: several same-facet entries say nearly the
+        // same words, so none wins and all are named. The NAMES moved
+        // when the corpus did (`competitor-radar` entered on the word it
+        // is about, `media-asset-pack` left) — what this pins is the
+        // behaviour, never a score from a corpus that has since changed.
         let outcome = route("Chaque lundi compare three competitors and write a French brief");
         let candidates = match outcome {
             RoutingOutcome::NeedsClarification { candidates, .. } => Some(candidates),
@@ -1033,7 +1056,7 @@ mod tests {
         }
         .expect("a coin-flip must clarify");
         assert!(
-            candidates.contains(&"media-asset-pack".to_owned()),
+            candidates.contains(&"competitor-radar".to_owned()),
             "{candidates:?}"
         );
         assert!(
@@ -1170,11 +1193,20 @@ mod catalog_routing_laws {
             matches!(p1, RoutingOutcome::Routed { ref template, .. } if template == "meeting-actions"),
             "probe 1 must route to the job: {p1:?}"
         );
-        let p2 = route("translate my docs folder to spanish");
-        assert!(
-            matches!(p2, RoutingOutcome::Routed { ref template, .. } if template == "localization-factory"),
-            "probe 2 must route to the job: {p2:?}"
-        );
+        // Probe 2 carries the same honest arm as probe 3: its runner-up
+        // (`07-for-each-locales`) is the LESSON that teaches the very
+        // shape the job uses, so the two say almost the same words and
+        // the margin does not clear. The job must LEAD either way.
+        match route("translate my docs folder to spanish") {
+            RoutingOutcome::Routed { template, .. } => {
+                assert_eq!(template, "localization-factory");
+            }
+            RoutingOutcome::NeedsClarification { candidates, .. } => assert_eq!(
+                candidates.first().map(String::as_str),
+                Some("localization-factory"),
+                "the job leads the clarify list: {candidates:?}"
+            ),
+        }
         match route("chase unpaid invoices every friday") {
             RoutingOutcome::Routed { template, .. } => assert_eq!(template, "invoice-chaser"),
             RoutingOutcome::NeedsClarification { candidates, .. } => assert_eq!(

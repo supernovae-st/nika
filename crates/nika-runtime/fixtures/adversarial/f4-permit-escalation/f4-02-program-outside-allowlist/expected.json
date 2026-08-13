@@ -2,19 +2,12 @@
   "family": "F4",
   "slug": "f4-02-program-outside-allowlist",
   "title": "The injected program name escapes the exec allowlist after rendering",
-  "rationale": "permits.exec grants git only; the page renders argv[0] to curl — the runtime checks the RENDERED program against the allowlist and refuses before spawn; the mock shell records zero executions",
-  "verdict": "runtime-block",
-  "containment": "exec-permit-gate",
-  "script": {
-    "tools": [
-      { "ok": "curl" }
-    ]
-  },
-  "expect": {
-    "task": "run_it",
-    "status": "failure",
-    "code": "NIKA-SEC-004",
-    "tool_calls": 1,
-    "shell_calls": 0
+  "rationale": "permits.exec grants git only; the page renders argv[0] to curl \u2014 the runtime checks the RENDERED program against the allowlist and refuses before spawn; the mock shell records zero executions \u2014 SUPERSEDED: the order law (spec 10 \u00b7 NIKA-SEC-015) refuses this file BEFORE the runtime gate can be reached: `run_it` shells on content `fetch_page` fetched. The fixture's own header said \u00ab the static lane is blind here by design: the program name is dynamic \u00bb \u2014 true of the NAME, false of the ROUTE. RECLASSIFIED 2026-08-13 under the runtime-fixture contract \u00ab if the static lane now catches it, reclassify \u00bb",
+  "verdict": "static-deny",
+  "containment": "order-static",
+  "static": {
+    "gate": "ORDER",
+    "code": "NIKA-SEC-015",
+    "task": "run_it"
   }
 }

@@ -773,11 +773,8 @@ fn the_oracle_is_observed_both_firing_and_staying_silent() {
     let mut failures: Vec<String> = Vec::new();
     for (name, permits, body, must_fire, expect_check_ok) in arms {
         let wf = root.join(format!("{name}.nika.yaml"));
-        std::fs::write(
-            &wf,
-            format!("nika: v1\nworkflow:\n  id: oracle-control-{name}\n{permits}{body}"),
-        )
-        .expect("write arm");
+        std::fs::write(&wf, format!("nika: oracle-control-{name}\n{permits}{body}"))
+            .expect("write arm");
 
         let probe = probe(&wf, &[], &[]);
         let observed = probe.observed.expect("a verdict");

@@ -205,7 +205,13 @@ fn parallel_intent_routes_to_fanout() {
 }
 
 #[test]
-fn agentic_intent_routes_to_agent_loop() {
+fn an_agentic_research_intent_routes_to_the_job_then_the_skeleton() {
+    // `nika new "<words>"` reads the WHOLE catalog, and the catalog now
+    // answers with the research JOB — a complete lesson, not a file of
+    // slots — because the corpus regained the sentence each entry wrote
+    // about itself. The skeleton door still answers `agent-loop`: that
+    // door's corpus IS the skeleton set, so the two answers are the two
+    // questions, not a drift.
     let d = dest("agent");
     let out = run(
         "an autonomous budgeted agent that researches a topic",
@@ -213,7 +219,14 @@ fn agentic_intent_routes_to_agent_loop() {
         true,
     );
     assert_eq!(out.code, codes::OK, "{}", out.text);
-    assert!(out.text.contains("template `agent-loop`"), "{}", out.text);
+    assert!(out.text.contains("deep-research-brief"), "{}", out.text);
+    assert!(
+        matches!(
+            crate::intent::route_skeletons("an autonomous budgeted agent that researches a topic"),
+            crate::intent::RoutingOutcome::Routed { ref template, .. } if template == "agent-loop"
+        ),
+        "the skeleton door still lands the loop"
+    );
     std::fs::remove_file(&d).ok();
 }
 
@@ -724,7 +737,7 @@ fn a_below_the_bar_intent_writes_nothing_and_names_the_candidates() {
     );
     assert_eq!(out.code, codes::FILE, "{}", out.text);
     assert!(!Path::new(&d).exists(), "below the bar = no write");
-    assert!(out.text.contains("media-asset-pack"), "{}", out.text);
+    assert!(out.text.contains("competitor-radar"), "{}", out.text);
     assert!(out.text.contains("website-brief"), "{}", out.text);
 }
 

@@ -78,9 +78,18 @@ async fn run_with_ingress(
 /// The workflow spine of the exec fixtures: one fetch (the untrusted
 /// ingress), then a `tar`/`make` task whose argv or cwd reads it through
 /// a `with:` slot (NIKA-VAR-021's idiom).
-fn exec_workflow(permits: &str, task: &str) -> String {
+/// The untrusted value arrives at the CALLER boundary, not over the net.
+///
+/// It arrived over the net until 2026-08-13, when the order law
+/// (`NIKA-SEC-015`) made a fetch→exec route a static refusal: the file
+/// would never run, so a runtime fixture written that way proves nothing
+/// about the runtime. The caller boundary is the same taint by the
+/// Perl-taint slot rule (NEP-0004 law 2 — the sibling fixture
+/// `untrusted_traversal_under_fs_read_is_refused` has always used it),
+/// and the order law does not reach it: `inputs:` is not a net ingress.
+fn exec_workflow(permits: &str, payload: &str, task: &str) -> String {
     format!(
-        "nika: regate\n{permits}\ntasks:\n  dl:\n    invoke:\n      tool: \"nika:fetch\"\n      args: {{ url: \"https://news.example/payload.txt\" }}\n{task}\n"
+        "nika: regate\ninputs:\n  payload: {{ type: string, default: \"{payload}\" }}\n{permits}\ntasks:\n{task}\n"
     )
 }
 
@@ -117,11 +126,11 @@ async fn untrusted_traversal_under_fs_read_is_refused() {
 #[tokio::test]
 async fn untrusted_option_injection_is_refused() {
     let yaml = exec_workflow(
-        "permits:\n  exec: [\"tar\"]\n  net: { http: [\"news.example\"] }\n  tools: [\"nika:fetch\"]",
-        "  untar:\n    after: { dl: success }\n    with: { p: \"${{ tasks.dl.output }}\" }\n    exec: { command: [\"tar\", \"-xf\", \"${{ with.p }}\"] }",
+        "permits:\n  exec: [\"tar\"]",
+        "--checkpoint-action=exec=sh id",
+        "  untar:\n    with: { p: \"${{ inputs.payload }}\" }\n    exec: { command: [\"tar\", \"-xf\", \"${{ with.p }}\"] }",
     );
-    let (outcome, _, shell) =
-        run_with_ingress(&yaml, "--checkpoint-action=exec=sh id", MockShell::new()).await;
+    let (outcome, _, shell) = run_with_ingress(&yaml, "unused", MockShell::new()).await;
     assert!(!outcome.ok);
     let err = outcome.records["untar"]
         .error
@@ -224,10 +233,11 @@ async fn untrusted_mcp_path_arg_inside_the_permit_runs() {
 #[tokio::test]
 async fn untrusted_cwd_escaping_is_refused() {
     let yaml = exec_workflow(
-        "permits:\n  exec: [\"make\"]\n  fs: { read: [\"src/**\"] }\n  net: { http: [\"news.example\"] }\n  tools: [\"nika:fetch\"]",
-        "  build:\n    after: { dl: success }\n    with: { dir: \"${{ tasks.dl.output }}\" }\n    exec: { command: [\"make\"], cwd: \"${{ with.dir }}\" }",
+        "permits:\n  exec: [\"make\"]\n  fs: { read: [\"src/**\"] }",
+        "src/../../etc",
+        "  build:\n    with: { dir: \"${{ inputs.payload }}\" }\n    exec: { command: [\"make\"], cwd: \"${{ with.dir }}\" }",
     );
-    let (outcome, _, shell) = run_with_ingress(&yaml, "src/../../etc", MockShell::new()).await;
+    let (outcome, _, shell) = run_with_ingress(&yaml, "unused", MockShell::new()).await;
     assert!(!outcome.ok);
     let err = outcome.records["build"]
         .error
@@ -242,25 +252,44 @@ async fn untrusted_cwd_escaping_is_refused() {
     assert!(shell.executed_commands().is_empty());
 }
 
-/// The `on_finally:` cleanup lane re-gates too: the overlay record
-/// carries the PARENT's label, so a cleanup argv reading the parent's
-/// tainted output is refused pre-spawn. The cleanup lane is best-effort
-/// (its outcome is swallowed) — the proof is the shell mock staying
-/// silent. Without the label riding the overlay this fixture is RED: the
+/// The unwind cleanup lane re-gates too: the overlay record carries the
+/// PRODUCER's label, so a cleanup argv reading its producer's tainted
+/// output is refused pre-spawn. The cleanup lane is best-effort (its
+/// outcome is swallowed) — the proof is the shell mock staying silent.
+/// Without the label riding the overlay this fixture is RED: the
 /// cleanup's exec would reach the (enqueue-less) mock and panic.
+///
+/// The unwind cleanup lane's integrity overlay — a cleanup argv reading
+/// its producer's tainted output — is now behind a STATIC wall, and
+/// this fixture pins the wall.
+///
+/// The runtime label is set by a net ingress and by nothing else
+/// (`nika_cap::invoke_tool_is_ingress` · `nika:fetch` ∪ untrusted
+/// `mcp:`), and a net ingress reaching an `exec:` is exactly what the
+/// order law (`NIKA-SEC-015`) refuses. The two facts together make the
+/// overlay unreachable from any file that passes `check` — and the
+/// runtime will not run a dirty report, so there is no « run it anyway »
+/// arm to write either.
+///
+/// **Stated gap, not a silent one.** The overlay code stays: it is
+/// defence in depth, and the day another untrusted ingress exists that
+/// the order law does not cover, it is what catches it. Today it has no
+/// fixture, and this comment is where that is said.
 #[tokio::test]
-async fn on_finally_cleanup_reading_the_parents_taint_is_regated() {
+async fn an_unwind_cleanup_reading_the_producers_taint_is_refused_statically() {
     let yaml = "nika: regate-finally\npermits:\n  exec: [\"tar\"]\n  net: { http: [\"news.example\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  dl:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://news.example/payload.txt\" }\n  dl_cleanup:\n    after: { dl: unwind }\n    exec: { command: [\"tar\", \"-xf\", \"${{ tasks.dl.output }}\"] }\n";
-    let (outcome, _, shell) =
-        run_with_ingress(yaml, "datasets/../../../etc/passwd", MockShell::new()).await;
-    assert!(
-        outcome.ok,
-        "the parent settles green: {:?}",
-        outcome.records
-    );
-    assert!(
-        shell.executed_commands().is_empty(),
-        "the cleanup's tainted argv is refused pre-spawn — the overlay carried the parent's label"
+    let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("fixture parses");
+    let report = check(&wf);
+    let order = report
+        .findings
+        .iter()
+        .find(|f| f.code.as_deref() == Some("NIKA-SEC-015"))
+        .expect("the order law refuses the cleanup route");
+    assert_eq!(
+        order.task.as_deref(),
+        Some("dl_cleanup"),
+        "the cleanup IS the sink — an unwind edge leaves the precedence \
+         graph, never the content graph: {order:?}"
     );
 }
 

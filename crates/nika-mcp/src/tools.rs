@@ -988,7 +988,7 @@ mod tests {
             out.starts_with("# routed: `chase unpaid invoices` → example `invoice-chaser`"),
             "the routing is said: {out}"
         );
-        assert!(out.contains("nika: v1"), "the body follows: {out}");
+        assert!(out.contains("nika: "), "the body follows: {out}");
     }
 
     /// RAMS-11, the honest floor: plain words below the confidence bar
@@ -1041,7 +1041,7 @@ mod tests {
     fn template_with_name_returns_the_skeleton() {
         let out = execute("nika_template", &json!({ "name": "chain" })).expect("ran");
         assert!(
-            out.contains("nika: v1") && out.contains("SLOT"),
+            out.contains("nika: ") && out.contains("SLOT"),
             "a fillable skeleton with SLOT markers: {out}"
         );
     }
