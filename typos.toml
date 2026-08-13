@@ -7,6 +7,18 @@ extend-ignore-identifiers-re = [
   # Hex strings (commit SHAs, hashes)
   "^[0-9a-f]{7,40}$",
 ]
+# Verbatim French citations. The studio commits in French, so any doc that
+# QUOTES a commit subject carries French prose inside English text. The
+# guillemets are this repo's verbatim marker — nothing else uses them — so
+# ignoring what sits between them is surgical.
+#
+# Deliberately NOT `extend-words`: the words these citations trip on are
+# `enveloppe` and `identite`, plausible English typos of `envelope` and
+# `identity`, and allowlisting them would blind the gate across 57 crates
+# of public code — the exact reasoning the two file exclusions below give.
+# Deliberately NOT a file exclusion either: an ADR is normative public
+# prose, and a real typo in its ENGLISH half must still be caught.
+extend-ignore-re = ["« [^»]* »"]
 
 [default.extend-words]
 # Speaches is a real project (speaches.ai · OpenAI-compat speech server), not a typo of "Speeches".
