@@ -235,3 +235,30 @@ fn the_wave_walk_scales_with_the_chain_not_its_square() {
          linear costs ~4×, quadratic ~16×. The per-root memo is back."
     );
 }
+
+/// The ceiling's EXACT boundary — a mutation sweep found `>` → `>=` alive
+/// in `admit`: no test said whether 64 MiB itself is admitted or refused.
+/// The message says «over the 64 MiB ceiling», so exactly 64 MiB is UNDER
+/// it and passes. Pinning it makes the boundary a decision instead of an
+/// accident, and kills the survivor.
+#[test]
+fn the_ceiling_admits_exactly_its_limit_and_refuses_one_byte_more() {
+    const CEILING: usize = 64 * 1024 * 1024;
+
+    // A workflow that is not JSON still gets PAST the size pre-flight —
+    // the refusal names the parse, not the ceiling. That distinction is
+    // the whole assertion: `admit` ran and let it through.
+    let at = "x".repeat(CEILING);
+    let out = wasm::derive_run(&at, r#"{"trace":"t","when":"w","output":"","steps":[]}"#);
+    assert!(
+        !out.contains("ceiling"),
+        "exactly 64 MiB is not OVER the ceiling · it must reach the parser"
+    );
+
+    let over = "x".repeat(CEILING + 1);
+    let out = wasm::derive_run(&over, r#"{"trace":"t","when":"w","output":"","steps":[]}"#);
+    assert!(
+        out.contains("ceiling"),
+        "one byte more must be refused BY THE CEILING, named as such"
+    );
+}
