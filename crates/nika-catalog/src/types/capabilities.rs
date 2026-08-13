@@ -4,7 +4,7 @@
 //! Runtime types backing the TOML-driven `model_capabilities` resolver.
 //!
 //! The three core types — [`CapPatch`], [`Matcher`], and [`CapRule`] — are
-//! public and `#[non_exhaustive]` so that overlay crates (pck, Cortex) can
+//! public and `#[non_exhaustive]` so that overlay crates (pck, the Connectome) can
 //! build alternative capability sources without coupling to crate internals.
 //!
 //! The TOML-generated tables are emitted by `build.rs` into

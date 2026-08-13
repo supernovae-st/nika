@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! Read-only capability view trait for Cortex forward-compat (v0.95).
+//! Read-only capability view trait for the Connectome's forward-compat.
 //!
 //! [`ModelCapabilitiesView`] abstracts over [`ModelCapabilities`] so that
-//! v0.95 Cortex can provide alternative capability sources (overlay from
+//! the Connectome can provide alternative capability sources (overlay from
 //! `pck`, runtime discovery, etc.) without coupling to the concrete struct.
 
 use super::model::{ModelCapabilities, TokenLimitParam};
@@ -12,7 +12,7 @@ use super::{JsonMode, Modality, ParamFlag, TokenizerFamily};
 
 /// Read-only view of a model's capabilities.
 ///
-/// Blanket-implemented for [`ModelCapabilities`]. The v0.95 Cortex
+/// Blanket-implemented for [`ModelCapabilities`]. The Connectome
 /// subsystem will implement this for overlay capability sources
 /// (package-provided caps, runtime-discovered caps) so the runtime
 /// can program against capabilities without knowing the concrete

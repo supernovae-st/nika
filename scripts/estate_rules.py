@@ -80,7 +80,12 @@ FILES = [
         "evidence": "in-file marker '── GENERATED · do not hand-edit' + [meta] source=https://models.dev/api.json · as_of · source_sha256_16 — a vendored snapshot, refreshed at maintenance time, never a runtime fetch",
         "derivation": {
             "tool": "bash scripts/refresh-pricing.sh (emission laws matched to src/data/models.rs lookup semantics)",
-            "gate": ".github/workflows/catalog-verify.yml (daily probe of catalog entries against upstream registries)",
+            # MEASURED 2026-08-12: catalog-verify.yml imports all_embeddings
+            # and all_mcp_servers ONLY (crates/nika-catalog-verify/src/main.rs:36)
+            # and never reads a pricing rule. The old string here named it as
+            # this snapshot's gate, which made every reader believe the price
+            # was watched. A claimed-but-unfired gate is worse than no gate.
+            "gate": "NONE. catalog-verify.yml probes embeddings + mcp servers only (all_embeddings, all_mcp_servers) and never a pricing rule, so this snapshot is UNWATCHED. Two guards EXIST and neither runs: drift-watch.nika.yaml hashes upstream against [meta].sha256 (no cron calls it) and pricing-differential.py cross-checks models.dev against LiteLLM (its workflow has no schedule).",
             "inputs": ["https://models.dev/api.json (MIT · sst/models.dev)"],
         },
     },
