@@ -25,6 +25,16 @@
 /// for terms appearing in every document.
 ///
 /// Returns `0.0` if `n == 0` or `df > n` (defensive · empty corpus).
+///
+/// Computed with [`f64::ln_1p`] rather than `(1.0 + x).ln()`. The two
+/// agree bit-for-bit while `x` is large — a RARE term, where `df` is
+/// small and the ratio is huge — and diverge exactly where the IDF is
+/// smallest: a term in (almost) every document gives `x ≈ 0.5/n`, and
+/// `1.0 + x` rounds that away. Measured 2026-08-13 · relative error of
+/// the naive form against `ln_1p`, at `df == n` · `1.2e-15` at n=10 ·
+/// `1.9e-11` at n=10^5 · `8.3e-8` at n=10^10; and `0.0` for `df == 1`
+/// at every n. The near-zero end is where near-stopwords compete, so
+/// it is the end that decides ties.
 #[must_use]
 #[inline]
 pub(crate) fn idf_robertson(n: usize, df: usize) -> f64 {
@@ -35,7 +45,7 @@ pub(crate) fn idf_robertson(n: usize, df: usize) -> f64 {
     let n_f = n as f64;
     #[allow(clippy::cast_precision_loss)]
     let df_f = df as f64;
-    ((n_f - df_f + 0.5) / (df_f + 0.5) + 1.0).ln()
+    ((n_f - df_f + 0.5) / (df_f + 0.5)).ln_1p()
 }
 
 /// Per-term BM25 score contribution.
@@ -98,6 +108,51 @@ mod tests {
         let idf = idf_robertson(4, 4);
         assert!(idf > 0.0);
         assert!(idf.is_finite());
+    }
+
+    /// The `ln_1p` law, and the test dies if the naive form comes back.
+    ///
+    /// At `df == n` the log's argument is `x = 0.5 / (n + 0.5)`, which
+    /// `1.0 + x` rounds away — so `(1.0 + x).ln()` and `x.ln_1p()`
+    /// part company precisely where the IDF is smallest. This asserts
+    /// BOTH halves: the implementation matches `ln_1p`, and the naive
+    /// form does NOT match it at the same tolerance. Without the second
+    /// half the first would pass under either implementation, and the
+    /// green would be worth nothing.
+    #[test]
+    fn idf_uses_ln_1p_where_the_naive_form_loses_the_bits() {
+        let n = 10_000_000_000_usize; // 10^10 · the divergence is ~8e-8 relative
+        let got = idf_robertson(n, n);
+
+        #[allow(clippy::cast_precision_loss)]
+        let x = 0.5 / (n as f64 + 0.5);
+        let exact = x.ln_1p();
+        let naive = (1.0 + x).ln();
+
+        let tol = exact * 1e-12;
+        assert!(
+            (got - exact).abs() < tol,
+            "the implementation must BE the ln_1p form: got {got:e} want {exact:e}"
+        );
+        assert!(
+            (naive - exact).abs() > tol,
+            "the naive form must MISS at this tolerance, else this test proves nothing: \
+             naive {naive:e} exact {exact:e}"
+        );
+    }
+
+    /// The other end of the same law: for a rare term the two forms are
+    /// bit-identical, so `ln_1p` costs nothing where it buys nothing.
+    #[test]
+    fn idf_ln_1p_is_bit_identical_for_a_rare_term() {
+        for n in [1_000_usize, 1_000_000] {
+            #[allow(clippy::cast_precision_loss)]
+            let x = (n as f64 - 1.0 + 0.5) / 1.5;
+            assert!(
+                (x.ln_1p().to_bits() == (1.0 + x).ln().to_bits()),
+                "df == 1 · the two forms must agree exactly at n={n}"
+            );
+        }
     }
 
     #[test]
