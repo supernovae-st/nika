@@ -133,8 +133,8 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 | HEAD             | `e2d4e7a21` (`e2d4e7a21f81a7351b0fd2decdab86d613f2be4d`)             |
 | workspace        | v0.108.0                                  |
 | crates (workspace)| 65                                              |
-| crates (admitted)| 58                                             |
-| crates (WIP)     | 7 — nika-cadence nika-chart nika-fx nika-proof nika-store nika-harness nika-tui-core                                  |
+| crates (admitted)| 59                                             |
+| crates (WIP)     | 6 — nika-chart nika-fx nika-proof nika-store nika-harness nika-tui-core                                  |
 | L0               | 20                                              |
 | L0.5             | 6                                              |
 | L1               | 17                                              |

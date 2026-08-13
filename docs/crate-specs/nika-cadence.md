@@ -145,16 +145,16 @@ verification (②'s, refused by name in round 1).
 | 1 SPEC | ✅ | this document |
 | 2/3 TDD + IMPL | ✅ | 50 tests, all green (`cargo nextest -p nika-cadence`) |
 | 4 CLIPPY | ✅ | `--all-targets -- -D warnings`, rc 0 |
-| 5 MUTATION | 🔴 **88 percent** (186/209 viable, 23 survived) | `scripts/ci/check-mutation-floor.sh nika-cadence 90`, real run. Two points short of the floor. |
+| 5 MUTATION | ✅ **93 percent** (200/215 viable) | `scripts/ci/check-mutation-floor.sh nika-cadence 90`, real run, after the three killer tests below. Was 88 percent. |
 | 8 DOCS | ✅ | `cargo doc --no-deps`, 0 warnings |
-| 11 REVIEW SWARM | 🔴 **one P1 open** | three lenses dispatched 2026-08-13 (doctrine · Rust · spec-vs-code) |
-| 12 ATOMIC | pending admission | removal from the `wip` array in the workspace manifest |
+| 11 REVIEW SWARM | ✅ **three lenses, P1 and both P2 closed** | doctrine lens approved outright; the Rust lens found the P1; the spec-vs-code lens found two doc faults. All fixed the same session. |
+| 12 ATOMIC | ✅ this admission | removal from the `wip` array in the workspace manifest |
 
 Plus the shared gates, all green the same day: loc-limits · fn-length ·
 unwrap · expect · crate-size · adr-coverage · credential-headers ·
 layering · dead-code · error-one-voice.
 
-### 6.1 The Gate 11 P1, and why it blocks
+### 6.1 The Gate 11 P1, and why it blocked (CLOSED 2026-08-13)
 
 **A `(dom, months)` pair that no calendar can satisfy parses green, and the
 beat then never fires, in silence.**
@@ -166,9 +166,15 @@ check is the Vixie `dom`+`dow` OR guard (`src/cron.rs`). `next_after`
 returns `None` forever.
 
 This crate's own contract is that every refusal is named and teaches its fix.
-A silent `None` is the one outcome that contract forbids. The fix owed: after
-the Vixie guard, refuse when no month in the set admits a day in the `dom`
-set (February 29 · April, June, September, November 30 · otherwise 31).
+A silent `None` is the one outcome that contract forbids.
+
+**Closed** · `CadenceErrorKind::DateImpossible` (`cadence.date-impossible`)
+now refuses at parse, after the Vixie guard, when no month in the set admits
+a day in the `dom` set. February takes **29**, not 28: a leap year makes the
+29th real, so `29 2` is a beat that fires rarely rather than an impossible
+one, and refusing it would have been the mirror of the fault being closed.
+Judged on the SETS like the Vixie guard, so an unrestricted side needs no
+special case. The refusal teaches the bound, not just the refusal.
 
 ### 6.2 Two P2s found alongside, both confirmed by reading
 
