@@ -542,7 +542,7 @@ Stated so the curve is not over-read.
   unaudited surfaces, §8 the twelve method lessons, §5 the twenty retractions
 - `docs/plans/2026-07-28-resource-algebra.md` — §1.7 the security-gate
   measurements, §4 what is not tested, §7 the method
-- `dx/doctrine/rules/nika-first-automation.md` §4bis — the reciprocal dogfood
+- the `nika-first-automation` rule (monorepo-internal) §4bis — the reciprocal dogfood
   law: an authoring friction is a finding, not an inconvenience
 
 ---

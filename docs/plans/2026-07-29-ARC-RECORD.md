@@ -162,7 +162,7 @@ instances cleared the house stress-to-ratchet threshold.
 
 ### 2.8 · The dogfood doctrine · monorepo
 
-`dx/doctrine/rules/nika-first-automation.md` §4bis — the reciprocal law. The
+The `nika-first-automation` rule (monorepo-internal), §4bis — the reciprocal law. The
 atelier runs the product it ships (§0-§4); §4bis says friction writing a
 workflow REMOVES upward into the spec and engine. 7 triggers, a 5-step gesture,
 4 anti-patterns, and the empirical proof: one workflow, twenty minutes, three
