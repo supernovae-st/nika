@@ -453,6 +453,56 @@ fn the_slowest_of_a_tie_is_the_first_member() {
     assert_eq!(span.slowest, "y", "9 bat 5 · la comparaison fonctionne");
 }
 
+/// A different verb BREAKS the grouping signature, so tasks that are not
+/// alike are never reported as alike.
+///
+/// `verb_name` has exactly one caller: `signature`, which is
+/// `verb|tool|sorted-needs`. Blanking it makes every verb spell the same, so
+/// an infer and an exec sharing a tool and needs collapse into one fanout.
+///
+/// Its two mutants survived the first sweep, and the test written for them
+/// missed: it asserted `cost_by_verb`'s names, which are HARDCODED literals
+/// that never reach `verb_name`. A test that pins the wrong subject passes
+/// and proves nothing, which is the failure this whole file exists to close.
+#[test]
+fn a_different_verb_breaks_the_grouping_signature() {
+    let three = |third_verb: &str| -> Workflow {
+        serde_json::from_value(serde_json::json!({
+            "file": "g.nika.yaml", "engine": "test", "prompt": "",
+            "permits": [], "missing": "",
+            "tasks": [
+                { "id": "traduire-fr", "verb": "infer", "glyph": "◇", "needs": [] },
+                { "id": "traduire-en", "verb": "infer", "glyph": "◇", "needs": [] },
+                { "id": "traduire-de", "verb": third_verb, "glyph": "◇", "needs": [] },
+            ],
+        }))
+        .expect("workflow")
+    };
+
+    // Three alike · one fanout. Without this arm the test would pass by
+    // pinning "always Single", which is not the property.
+    let groups = derive::groups_of(&three("infer"));
+    assert_eq!(groups.len(), 1, "trois jumelles font UN éventail");
+    let Group::Fanout { members, .. } = &groups[0] else {
+        panic!("un éventail attendu, pas un singleton");
+    };
+    assert_eq!(members.len(), 3);
+
+    // Change ONE verb and the third task stops being a twin. Two twins are
+    // not enough for a fanout (three or more), so all three stand alone.
+    let groups = derive::groups_of(&three("exec"));
+    assert_eq!(
+        groups.len(),
+        3,
+        "un verbe différent casse la signature · `verb_name` blanchi les \
+         referait fusionner"
+    );
+    assert!(
+        groups.iter().all(|g| matches!(g, Group::Single(_))),
+        "aucun éventail ne survit à un verbe divergent"
+    );
+}
+
 /// The four verb spellings are the WIRE voice, and a consumer pins them.
 /// Both the enum speller and the fixture speller survived being blanked.
 #[test]
