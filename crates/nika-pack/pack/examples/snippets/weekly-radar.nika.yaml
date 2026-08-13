@@ -21,10 +21,7 @@
 #   No ollama? `--model mock/echo` rehearses the whole file keyless.
 #
 # Run · nika run examples/snippets/weekly-radar.nika.yaml
-nika: v1
-workflow:
-  id: weekly-radar
-  description: "gate → parallel gather (fetch · git log · notes) → one synthesis → save"
+nika: weekly-radar
 inputs:
   topic:
     type: string

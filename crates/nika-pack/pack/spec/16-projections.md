@@ -7,7 +7,7 @@
 > for byte the same**. One truth, many lenses.
 >
 > This is the first chapter of the post-1.0, additive arc. Everything it
-> adds is a **projection over the frozen `nika: v1` IR** — never a change
+> adds is a **projection over the frozen v1 IR** — never a change
 > to the language. A projection is a *view*; the thing viewed does not
 > move.
 
@@ -16,7 +16,7 @@
 ## The one projection (normative)
 
 There is **one canonical projection** of a workflow — the graph of
-[03](./03-dag.md) (`graph_format: 2`) — and every surface serves *that same
+[03](./03-dag.md) (`graph_format: 3`) — and every surface serves *that same
 projection*. `nika inspect --format json` (CLI), `nika/semanticDocument`
 (LSP), and the `nika_inspect` MCP tool all carry the **byte-identical**
 canonical projection; the surfaces differ only in what presentation they
@@ -33,7 +33,7 @@ which is why it carries its own version.
 ```
 semantic_document = (
   semantic_document_format   # the surface's OWN version (this chapter)
-  graph?                     # the canonical projection (03 · graph_format: 2) · absent when unbuildable
+  graph?                     # the canonical projection (03 · graph_format: 3) · absent when unbuildable
   reason?                    # WHY graph is absent · one word · closed vocabulary · omitted when graph is present
   spans                      # task id → the range of its declaring `id` token
 )
@@ -46,7 +46,7 @@ semantic_document = (
   capabilities · §the additive arc) needs a version of its own so a
   consumer can reason about the *surface* without unwrapping the graph.
 - **`graph`** is the canonical projection of [03](./03-dag.md) *verbatim*
-  (`graph_format: 2` · the derived edges · the reference identity). The
+  (`graph_format: 3` · the derived edges · the reference identity). The
   semantic document never re-derives it — it carries it.
 - **`spans`** map each task id to the LSP range of its declaring `id`
   token, so a canvas or a lens links a node back to source without
@@ -74,7 +74,7 @@ The **canonical projection** has **exactly one producer** and is served,
 byte-identical, by three surfaces:
 
 ```
-nika inspect --format json     ┐  the canonical projection (graph_format: 2)
+nika inspect --format json     ┐  the canonical projection (graph_format: 3)
 nika/semanticDocument (LSP)     ├─ byte-identical · one projection, three lenses
 nika_inspect (MCP)              ┘  (the LSP additionally wraps editor spans)
 ```
@@ -95,8 +95,8 @@ nika_inspect (MCP)              ┘  (the LSP additionally wraps editor spans)
   a `reason` and whatever spans it could recover — never an error. Judgment
   lives in `nika check` (05), never in the projection.
 - **Structure only.** The projection carries names, shapes, spans, and
-  derived structure — **never** a `config` value, a secret, or resolved
-  material ([10](./10-authority.md) flow laws hold here too). A projection
+  derived structure — **never** a resolved `inputs:` value, a secret, or any
+  other resolved material ([10](./10-authority.md) flow laws hold here too). A projection
   that leaked a secret would be a sink; it is not one, by construction.
 - **A projection is a view over the frozen IR.** It never mutates, never
   re-orders, never re-interprets the workflow. Given the same source it is
@@ -112,7 +112,7 @@ piece of the language:
 - **Additive-field discipline.** A new optional field (holes · actions ·
   capabilities) bumps `semantic_document_format` and is `skip`-omitted when
   empty. A consumer that ignores an additive field still reads the whole
-  older surface correctly — the same forward-compat the `graph_format: 2`
+  older surface correctly — the same forward-compat the `graph_format: 3`
   envelope already keeps (03). A consumer MUST ignore fields it does not
   know, never fail on them.
 - **Capabilities are negotiated, not assumed.** A client announces which
@@ -156,7 +156,7 @@ them is a reservation, never a promise they exist.
 
 ## Related
 
-- [03 · DAG](./03-dag.md) — the `graph_format: 2` projection this carries
+- [03 · DAG](./03-dag.md) — the `graph_format: 3` projection this carries
 - [05 · Errors](./05-errors.md) — the diagnostics lane (judgment lives there, not here)
 - [10 · Authority](./10-authority.md) — the flow laws the projection also obeys (structure only)
 - [15 · Proof](./15-proof.md) — the semantic identity the projected graph commits to

@@ -11,7 +11,7 @@
 > *instances* of one shape, never three.
 >
 > This is the last pre-1.0 chapter. It closes the loop the language
-> opened: `nika: v1` in, a signed honest proof out.
+> opened: a `nika:` file in, a signed honest proof out.
 
 ---
 
@@ -68,8 +68,14 @@ providers:                      # every model pinned by content digest
   "anthropic/claude-…": { digest: "blake3:…" }
 tools:                          # builtin + MCP surface versions
 registry:                       # every registry: ref pinned owner/name@version + digest
-policy:                         # the resolved policy decisions (10)
 ```
+
+> The `policy:` row died with the envelope block it materialized
+> (2026-08-12): the author surface and its lock materialization die
+> together — a lock field pinning « the resolved policy decisions » of a
+> block that cannot be written is a column with no source. The
+> unconditional laws ([10](./10-authority.md)) need no pin: nothing
+> declares them, so nothing about them can drift between runs.
 
 - **Pin by default**: a run resolves ONLY what the lock pins; an
   unpinned dependency is a refusal (`NIKA-LOCK-001`). Nothing floats.
@@ -79,12 +85,40 @@ policy:                         # the resolved policy decisions (10)
   file — the local boundary of the same supply chain the gateway (12)
   and the distribution work extend.
 
-## `assert:` · *the author's obligations (normative)*
+## `assert:` · ⚰️ *NOT in the envelope of v0.1 (removed 2026-08-11)*
 
-A task or workflow declares assertions the engine judges — distinct
-from `nika:assert` (the single-condition fail-fast builtin): `assert:`
-is a **closed vocabulary of properties**, each judged at an honest
-level:
+> **The envelope key is gone. `nika:assert`, the single-condition fail-fast
+> builtin, stays and is untouched** — that half works and is what an author
+> actually reaches for today.
+>
+> **Three measurements forced the subtraction, and any one of them would have.**
+> ① The published JSON Schema carries **9 envelope keys and `assert` is not
+> among them** — so a feature the engine accepted *failed the validator the
+> project ships*, and since [07 §unknown key](./07-conformance.md) made refusal
+> strict, that contradiction became fatal rather than untidy. ② It judged
+> **nothing**: an assertion naming an ordering over two tasks that do not exist
+> was accepted with a `clean · risk low` verdict, where the same mistake one
+> field away (`after:`) is `NIKA-DAG-002`. ③ Across **661 workflow files**,
+> exactly **one** carried the block — and that file is the probe written to
+> demonstrate this very defect. *The only user of the field was the witness of
+> its flaw.*
+>
+> **Why removal rather than repair.** A vocabulary of obligations that accepts
+> anything and checks nothing is worse than its absence: absence sends an
+> author looking for a real mechanism, silence tells them a guarantee is held.
+> Making it merely *refuse* would have kept an envelope key that expresses
+> nothing an engine can act on. **The subtraction is the fix, and it costs one
+> reserved slot back.**
+>
+> **It returns as an ADDITION, not as a rescue.** The vocabulary and the three
+> honesty levels below are kept in this chapter as the design of record. The
+> day `nika trace verify` can judge a property, that property comes back —
+> one at a time, each moving from *absent* to *judged*, never from *silent* to
+> *judged*. A closed language always permits an addition; that is the whole
+> point of closing it.
+
+The design of record — a **closed vocabulary of properties**, each judged at an
+honest level — is preserved below and is **not implementable surface today**:
 
 ```yaml
 assert:
@@ -119,6 +153,44 @@ assertion with its achieved level, and a `StaticProof` claim that the
 IR cannot actually decide is itself a refusal (`NIKA-ASSERT-001` — an
 assertion mis-leveled). Bounded/statistical assertions stay LAB
 (calibrated research · never presented as a guarantee).
+
+### An assertion the engine cannot judge is REFUSED (normative · D-2026-08-11-N34)
+
+⚰️ **Superseded the same day by the removal above.** This clause hardened an
+envelope key into refusing what it could not judge; the key is now absent, so
+there is nothing to harden. The clause is kept because its *reason* survives
+the key and generalises — it is the law any future property must satisfy
+before it re-enters ·
+
+An engine MUST refuse (`NIKA-ASSERT-001`) any property it does not judge. It
+MUST NOT parse it, accept it, and stay silent.
+
+**This is written because the opposite was measured on a shipped engine,
+2026-08-11.** An `assert:` naming a `before:` ordering over **two tasks that do
+not exist** was accepted and the audit reported `clean · risk low` — no lane,
+no finding, nothing. Compare `after:` pointing at an undeclared task, which is
+`NIKA-DAG-002`. The same mistake, one field apart, once fatal and once
+invisible.
+
+That silence contradicts [10 · Authority](./10-authority.md) in its own words —
+*a constraint that cannot be judged must never look judged* — and this block
+is where an author states an **obligation**, the one place in the language
+where a human writes what the file is supposed to guarantee. A vocabulary of
+obligations that accepts anything and checks nothing is worse than its
+absence: absence teaches the author to look elsewhere, silence teaches them
+that a guarantee is held.
+
+**The properties land one at a time**, each moving from *refused* to *judged*,
+never from *silent* to *judged*. An author is never surprised in the direction
+that matters: a file that checked clean does not later reveal it was carrying
+an unjudged claim.
+
+⚠️ **The cost was measured before this was written.** Across 661 workflow
+files in the shipped and internal corpora, exactly **one** carries an
+`assert:` block — and that file is the probe written to demonstrate this very
+defect. **The only user of the field is the witness of the flaw it has.** It
+uses `before:`, the most decidable of the five, so starting there breaks
+nothing real.
 
 ## `receipt_format: 1` · *the one receipt (normative)*
 

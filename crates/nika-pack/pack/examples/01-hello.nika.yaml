@@ -20,9 +20,7 @@
 #
 # Run · nika run examples/01-hello.nika.yaml
 
-nika: v1
-workflow:
-  id: hello
+nika: hello
 
 model: ollama/qwen3.5:4b   # local · zero key · swap for any provider in the catalog
 

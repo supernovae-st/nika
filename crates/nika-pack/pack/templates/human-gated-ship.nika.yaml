@@ -30,11 +30,7 @@
 #       run PAUSES instead (exit 4 · durable, not a failure) and prints its
 #       own resume line ·
 #       nika run <file> --resume <trace> --answer human=true · or false
-nika: v1
-workflow:
-  id: human-gated-ship-template  # SLOT: kebab-case workflow id
-  # SLOT: one honest sentence — `nika new` matches intents against these words
-  description: "verify in parallel · human GO · act · record"
+nika: human-gated-ship-template       # SLOT: kebab-case workflow id
 
 permits:                            # SLOT: the blast radius · default-deny once present
   exec: ["echo"]                    # SLOT: ONLY the programs the gates + act run (argv form)
@@ -52,8 +48,6 @@ secrets:
     egress:
       - to: "nika:notify"
         host_from_self: true        # the secret value IS the destination URL
-policy:                              # NEP-0014 · the gate runs under a NAMED endorsement mode
-  endorsement: solo
 
 tasks:
   # ── the verification wave · all checks run in parallel ──

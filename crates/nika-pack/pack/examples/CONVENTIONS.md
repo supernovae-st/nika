@@ -35,7 +35,7 @@ A permits block is a claim. A header is a claim. Every comment is a claim.
 □ permits  the TIGHTEST block that covers the body · never widened to silence
           a message · never a root-level `**`
 □ comments  every one is TRUE · measured, or citing a spec line
-□ authorities  only inputs: · config: · const: · secrets:
+□ authorities  only inputs: · const: · secrets:
 □ verbs   only infer · exec · invoke · agent · native-first
 ```
 
@@ -306,7 +306,7 @@ Offline-runnable is the default expectation. Reach for it in this order:
 2. **A committed fixture** — the file the workflow reads lives in the repo.
 3. **`on_error: recover:`** — the honest dry run. A fetch at a placeholder
    host resolves nowhere, a literal recovery value mirroring the API's shape
-   takes over, and the same `output:` bindings work on both paths.
+   takes over, and the same `extract:` bindings work on both paths.
 
 When an effect genuinely prevents it, the header says **exactly which one**,
 in one sentence, on the `Needs ·` line. Not "requires setup" — the effect:
@@ -359,13 +359,14 @@ If you are about to explain a mechanism, run it first.
 
 ## §8 · The language surface
 
-**Four authorities. No others.** `vars:` and `env:` are dead and refuse with
-`NIKA-VALUES-001` / `NIKA-VALUES-002`.
+**Three authorities. No others.** `vars:` and `env:` are dead and refuse with
+`NIKA-VALUES-001` / `NIKA-VALUES-002`; the top-level `config:` block is gone
+with the envelope nuke, and a value outside the three refuses with
+`NIKA-VALUES-003`.
 
 | Authority | Role |
 |---|---|
-| `inputs:` | a typed parameter the caller may supply |
-| `config:` | non-sensitive runtime configuration |
+| `inputs:` | a typed parameter · `required: true` the caller supplies at launch · `required: false` + `default:` is the DEPLOYMENT's knob, unreachable from `--var` |
 | `const:` | a fixed value baked in · never caller-supplied |
 | `secrets:` | a governed store reference · masked · `egress:`-gated |
 

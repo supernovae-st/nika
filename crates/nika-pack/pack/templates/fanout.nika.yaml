@@ -14,7 +14,8 @@
 # Demonstrates ·
 #   - `for_each:` over a RUNTIME collection · the fan width is discovered, never
 #     written down
-#   - the full leash · `max_parallel` + `timeout` + `retry` + `fail_fast: false`
+#   - the full leash · `for_each.max_parallel` + `timeout` + `retry` +
+#     `for_each.fail_fast: false`
 #   - `on_error: recover: null` + a null-aware fan-in · a failed item becomes a
 #     hole at its index, order is preserved, the batch survives
 #
@@ -22,11 +23,7 @@
 #   discovery skips the fan-out and the fan-in still returns a value.
 #
 # Run · nika run <file> --model mock/echo    # offline rehearsal
-nika: v1
-workflow:
-  id: fanout-template           # SLOT: kebab-case workflow id
-  # SLOT: one honest sentence — `nika new` matches intents against these words
-  description: "do the same step for each item · discover the collection · process in parallel · merge"
+nika: fanout-template       # SLOT: kebab-case workflow id
 
 # SLOT: provider/model · local · zero key. Measured seat — `ollama/llama3.2:3b`.
 # `--model mock/echo` needs no seat and is the path this file guarantees.
@@ -72,9 +69,10 @@ tasks:
   read:
     with:
       discover: ${{ tasks.discover.output }}
-    for_each: ${{ with.discover }}
-    max_parallel: 8
-    fail_fast: false
+    for_each:
+      items: ${{ with.discover }}
+      max_parallel: 8
+      fail_fast: false
     on_error:
       recover: null                 # an unreadable item yields null · the batch lives
     invoke:
@@ -87,9 +85,10 @@ tasks:
     # The quiet-day guard: an EMPTY discovery skips the `read` fan, and a
     # skipped task hands NULL — which a bare for_each refuses (NIKA-VAR-006).
     # The ternary keeps the no-items day green end to end.
-    for_each: "${{ with.read == null ? [] : with.read }}"
-    max_parallel: 4                 # SLOT: the polite ceiling
-    fail_fast: false
+    for_each:
+      items: "${{ with.read == null ? [] : with.read }}"
+      max_parallel: 4                 # SLOT: the polite ceiling
+      fail_fast: false
     timeout: "60s"                  # SLOT: per-iteration bound
     retry:
       max_attempts: 3

@@ -20,11 +20,7 @@
 # Needs · nothing. Scaffolds and runs green in an empty directory.
 #
 # Run · nika run <file> --model mock/echo    # offline rehearsal · assets land in ./out/assets
-nika: v1
-workflow:
-  id: media-asset-pack-template # SLOT: kebab-case workflow id
-  # SLOT: one honest sentence — `nika new` matches intents against these words
-  description: "brief → generate image assets → manifest"
+nika: media-asset-pack-template       # SLOT: kebab-case workflow id
 
 # SLOT: provider/model · local · zero key. Measured seat — `ollama/qwen2.5:14b`
 # holds the small schema below. `--model mock/echo` needs no seat at all.

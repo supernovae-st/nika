@@ -14,10 +14,7 @@
 #   - `description:` · the envelope carries its own explanation
 #
 # Run · nika run examples/snippets/not-found.nika.yaml
-nika: v1
-workflow:
-  id: not-found
-  description: "404 · nothing at this path parses"
+nika: not-found
 permits:
   tools: ["nika:log"]
 tasks:

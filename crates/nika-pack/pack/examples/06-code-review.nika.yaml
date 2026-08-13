@@ -26,9 +26,7 @@
 # Run · nika run examples/06-code-review.nika.yaml   (from the repo root ·
 #   paths resolve against your working directory, not the file's location)
 
-nika: v1
-workflow:
-  id: code-review
+nika: code-review
 
 model: ollama/qwen3.5:4b   # local tool-calling model · zero key · the diff never leaves the machine
 

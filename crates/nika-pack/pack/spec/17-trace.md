@@ -65,7 +65,7 @@ sequence; it does not prove authorship (the seal and anchor rails of
 The dialect version rides the FIRST frame (the prologue's
 `trace_format` field). It versions the JOURNAL WIRE · orthogonal to
 `nika: v1` (the language), `receipt_format: 1` (the folded receipt) and
-`graph_format: 2` (the projection). Version 2 is THIS chapter. A wire
+`graph_format: 3` (the projection). Version 2 is THIS chapter. A wire
 change that breaks a version-2 reader MUST bump it; additive fields and
 additive kinds MUST NOT.
 
@@ -99,7 +99,7 @@ re-meant:
 `task_retrying` · `task_recovered` · `task_cancelled` ·
 `task_cache_hit` · `verb_invoked` · `tool_invoked` ·
 `checkpoint_written` · `cost_incurred` · `infer_chunk` ·
-`permit_checked` · `declassify` · `run_sealed` ·
+`permit_checked` · `lift` · `run_sealed` ·
 `agent_tools_selected` · `agent_nudge` · `agent_stalled` ·
 `agent_compose_checked` · `agent_budget_checkpoint`
 

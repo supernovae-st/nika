@@ -102,7 +102,7 @@ A v0.1-compliant engine MUST ·
 - Call the configured provider with the given prompt + system + parameters
 - Return the model's response as the task output
 - Validate the response against `schema` if present · MAY auto-retry validation failures internally before surfacing `NIKA-INFER-002` (engine-configurable · the same rule as [05 §structured output](./05-errors.md#structured-output-validation))
-- Reject any unknown field with a clear error (forward-compat) · or accept + warn (engine choice)
+- **Reject** any unknown field with a clear error (`NIKA-PARSE-005`) — the choice this line used to leave open is closed by [07 §unknown key](./07-conformance.md#an-unknown-key-is-an-error-at-every-level-normative--d-2026-08-11-n20): a key can REMOVE authority, so accept-and-warn fails open
 
 ---
 
@@ -144,12 +144,12 @@ test:
 | `capture` | no | enum | `stdout` (default) · `stderr` · `combined` · `structured` (= `{ stdout, stderr, exit_code }`) — the **source** |
 | `decode` | no | enum | `text` (default) · `json` · `jsonl` · `bytes` — how the captured **string** becomes a value ([09 §decode](./09-types.md#decode--how-exec-bytes-become-a-value-normative)) · illegal with `capture: structured` (`NIKA-PARSE-025` — that capture already IS an object) · a non-parsing stream settles the task `failure` inside `on_error:` scope |
 
-> **`exec.env` ≠ the envelope `config:`**: different scopes, neighboring words
-> (the one overlap to know · the pre-flip envelope `env:` block is dead —
-> `NIKA-VALUES-002`). The envelope `config:` is *workflow config* read via
-> `${{ config.* }}`; `exec.env` is the *OS environment of this subprocess*. They
-> are NOT auto-connected. To pass a workflow value into the process, do it
-> explicitly: `env: { API_BASE: "${{ config.API_BASE }}" }`. The subprocess
+> **`exec.env` is a subprocess field, never an envelope block**: no top-level
+> key of that family survives — the pre-flip envelope `env:` block is dead
+> (`NIKA-VALUES-002`) and the top-level `config:` block died with the envelope
+> nuke, so `exec.env` is the *OS environment of this subprocess* and nothing
+> else. Nothing is auto-connected. To pass a workflow value into the process,
+> do it explicitly: `env: { API_BASE: "${{ inputs.api_base }}" }`. The subprocess
 > environment itself is COMPOSED, never inherited (NEP-0005 ·
 > [01 §permits](./01-envelope.md#permits--optional--the-declared-capability-boundary)):
 > the runner env floor ∪ the `permits.env:` passthrough ∪ this map, minus
@@ -485,7 +485,7 @@ Every candidate operation decomposes along **two orthogonal axes** ·
   the `invoke` model.
 - **WHEN it runs**: ordering. Edges (`with:` data · `after:` control) ·
   conditions (`when`) · iteration (`for_each`) · time-bounds (`timeout`) ·
-  recovery (`retry` · `on_error` · `on_finally`). Ordering never executes
+  recovery (`retry` · `on_error` · an `unwind` task). Ordering never executes
   anything: it is DAG-side, or host-side when it concerns *starting* a run
   at all.
 
@@ -505,7 +505,7 @@ inspected since the 4-verb lock (D-2026-05-22-N18) has resolved to a tool
 (WHO · request/response) or an ordering construct (WHEN). That is the
 closure: **the verb set is closed under decomposition into WHO × WHEN.**
 
-Field additions to each verb are **additive** within `nika: v1` (feature-detected · no minor version in the file). Field removal NEVER happens at v1.
+Field additions to each verb are **additive** within `v1` (feature-detected · no version marker in the file at all). Field removal NEVER happens at v1.
 
 A v0.1-compliant engine that encounters an unknown field on a verb may ·
 

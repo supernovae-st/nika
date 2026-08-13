@@ -17,10 +17,7 @@
 #     agent's whole reach, declared before the first turn
 #
 # Run · nika run examples/snippets/delegate.nika.yaml
-nika: v1
-workflow:
-  id: delegate
-  description: "the agent verb alone · goal + tool whitelist, loop bounded"
+nika: delegate
 model: ollama/llama3.2:3b
 permits:
   tools: ["nika:read", "nika:fetch"]

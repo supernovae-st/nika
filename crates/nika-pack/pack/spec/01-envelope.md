@@ -9,34 +9,46 @@
 ## Minimal envelope
 
 ```yaml
-nika: v1
-workflow:
-  id: my-workflow-id
+nika: my-workflow-id
 
 tasks:
   my_task:
     ...
 ```
 
-The `nika:` header, a `workflow:` object with an `id`, and a non-empty
-`tasks:` map. That's the **whole minimum** to be a valid Nika workflow.
+The `nika:` line and a non-empty `tasks:` map. That's the **whole
+minimum** to be a valid Nika workflow.
+
+---
+
+## The type discriminant (normative)
+
+Two kinds of file speak Nika, and **one key tells them apart**:
+
+```
+   a `tasks:` key   →  this document is a WORKFLOW
+   no `tasks:` key  →  this document is a PROJECT (nika.yaml)
+```
+
+That is the whole rule. It holds at **100% coverage** — a workflow
+without tasks is not a workflow, and a project never carries a task
+graph — and it holds **without the filename**, which is the case that
+matters: a file arrives as a registry blob, an HTTP body, a stdin pipe
+(`nika check -`), a chat paste. In all of those `.nika.yaml` is gone and
+the bytes must still say what they are.
+
+`workflow:` used to be the discriminator. It is not a key any more (see
+[§`nika`](#nika--required--the-mark-and-the-name) below).
 
 ---
 
 ## Full envelope
 
 ```yaml
-nika: v1                                # required · language + contract version
-workflow:                               # required · the workflow object (W1: the map)
-  id: scrape-and-summarize              #   required · kebab-case · unique within file
-  description: "Fetch + summarize"      #   optional · human-readable
+nika: scrape-and-summarize              # required · the mark AND the file's name
 
 # Workflow-level default model · any task may override · <provider>/<name>
 model: ollama/qwen3.5:4b         # optional · anthropic/claude-sonnet-4-6 for cloud
-
-# Named types · referenced by returns:/outputs: (09-types.md)
-types:
-  Summary: { object: { title: string, bullets: { array: string } } }
 
 # Typed workflow inputs · supplied by the caller at launch · available as ${{ inputs.<name> }}
 inputs:
@@ -44,14 +56,14 @@ inputs:
     type: string
     required: true
     description: "Subject to research"
+  region:                                # a deployment knob is an input with a default
+    type: string
+    required: false
+    default: "eu"
 
 # Named constants · fixed values baked into the workflow · available as ${{ const.<name> }}
 const:
   output_dir: "./output"                 # bare literal
-
-# Non-sensitive runtime config · supplied by the deployment · available as ${{ config.<name> }}
-config:
-  log_level: { type: string, default: "info" }
 
 # Sensitive values · vault-backed · masked in logs · available as ${{ secrets.<name> }}
 secrets:
@@ -74,8 +86,6 @@ tasks:
 outputs:
   summary: ${{ tasks.summarize.output }}
 ```
-
----
 
 ## YAML profile (normative)
 
@@ -110,62 +120,78 @@ adds the belt to those suspenders.)
 
 ## Field-by-field
 
-### `nika` · **required · the contract version**
+### `nika` · **required · the mark AND the name**
 
 ```yaml
-nika: v1
+nika: scrape-and-summarize
 ```
 
 The first line of every workflow. The key `nika` declares « this is a
-Nika workflow »; the value `v1` pins the **language contract version**.
+Nika file »; the value is the **file's name**, kebab-case
+(`^[a-z][a-z0-9-]*$`), used in journal events, traces and error
+messages.
 
-`v1` is the only value for the entire lifetime of the v1 contract. Minor
-additions to the language (a new optional field, a new builtin) are
-**additive** and never change this value. **There is no `nika: v2` — ever**:
-while the reference engine is pre-1.0, deep grammar changes happen INSIDE
-`v1` (per the [pre-1.0 stability contract](./00-overview.md#pre-10-stability-contract));
-after engine 1.0.0, changes are additive only. (This is the **language**
-version, independent of any engine version.)
+**One word, one meaning, in both document types** ·
 
-**Anti-pattern** · do not write `nika: v1.0` · `nika: "1"` · or
-`nika: 1.0`. The value is exactly `v1`.
+```
+nika.yaml           →  nika: my-project      # the PROJECT's name
+deploy.nika.yaml    →  nika: deploy-to-prod  # the WORKFLOW's name
+```
+
+`nika:` always says *« this is a nika file, and it is called X »*. Which
+KIND of file it is comes from `tasks:` — see
+[§The type discriminant](#the-type-discriminant-normative) above.
+
+**Anti-pattern** · do not write `nika: v1` · `nika: My_Workflow` ·
+`nika: "1.0"`. The value is a kebab-case id. A missing `nika:` is
+`NIKA-PARSE-002`; a value that is not kebab-case is `NIKA-PARSE-003`.
+
+> **The version slot is gone, and that is LOSSLESS (2026-08-12).** This key
+> held the literal `v1` until the envelope nuke. Two normative sentences
+> already in this chapter made that slot carry **zero bits**: `v1` was the
+> only legal value for the entire lifetime of the contract, and **there is
+> no `nika: v2` — ever**. Deep grammar changes happen INSIDE `v1` while the
+> reference engine is pre-1.0 (the [pre-1.0 stability
+> contract](./00-overview.md#pre-10-stability-contract)); after engine 1.0.0
+> they are additive only. A field with one legal value is not a version — so
+> nothing was traded away, and the slot now carries the file's most necessary
+> field instead. **A key that carries the identity can never go back to being
+> dead weight.**
+>
+> **The magic-number function survives intact.** What `nika:` was really
+> doing — the `#!/bin/sh` / `%PDF-` / `\x7fELF` job of saying *this
+> byte-stream is a Nika file* — is done by the KEY, never by the value. On
+> disk `.nika.yaml` discriminates; off disk (registry blob · HTTP body ·
+> stdin pipe · chat paste) the extension is gone and the first line is the
+> only discriminator. It still is.
+>
+> ⚠️ The choice stays **coupled** to [07 §unknown key](./07-conformance.md):
+> Docker Compose could demote its marker precisely because it chose
+> accept-and-warn — an old runtime meeting a new file just warns. Under our
+> strict refusal an old engine must say *why* it refuses, and the `nika:`
+> KEY is what lets it say *"I do not speak this contract"* rather than
+> *"unknown key"*. The two decisions are one decision.
 
 > **Why one field, not `apiVersion` + `schema`?** Earlier drafts used a
 > Kubernetes-style `apiVersion: nika.sh/v1` (the superseded ADR-021 form)
-> plus a separate `schema: nika/workflow@v1` (superseded too). That is two version-ish fields and
-> ceremony a workflow file does not need. Modern specs converge on a
-> single version marker: OpenAPI writes `openapi: 3.1.0`, Docker
-> Compose dropped its `version:` field entirely. Nika takes the
-> middle, proven path: **one field, the language name as the key, the
-> contract version as the value.** The engine's internal canonical URI
-> stays `https://nika.sh/spec/v1` for RDF / conformance tooling, but
-> the author never types a URL.
+> plus a separate `schema: nika/workflow@v1` (superseded too). That is two
+> version-ish fields and ceremony a workflow file does not need. The engine's
+> internal canonical URI stays `https://nika.sh/spec/v1` for RDF /
+> conformance tooling, but the author never types a URL.
 
-### `workflow` · **required · an OBJECT · `{id, description}`**
-
-```yaml
-workflow:
-  id: scrape-and-summarize
-  description: "Fetch article, summarize in 3 bullets, write to disk"
-```
-
-The workflow object — a stable home for the file's identity and metadata.
-
-- **`id`** · required · kebab-case (`^[a-z][a-z0-9-]*$`) · unique within
-  file · used in journal events, traces and error messages.
-- **`description`** · optional · free-form text · not used by the engine
-  for execution · useful for `nika ls` listings + LSP hover hints.
-
-The presence of `workflow:` is also the **document-type discriminator**:
-it marks this file as a workflow. Future Nika document types (if any ever
-ship) would use their own top-level key; there is no separate `kind:`
-field in v1.
-
-**Dead forms (rejected with a migration teaching · W1 « the map »)** ·
-a scalar `workflow: some-id` is `NIKA-PARSE-020`; a top-level
-`description:` is `NIKA-PARSE-021` — both moved INTO the object. No alias
-survives: the old spellings left the parser in the same window that
-introduced the object.
+> **⚰️ `workflow:` (2026-08-12).** The envelope key `workflow:` is **dead**,
+> not renamed. It existed only to house `id:` and `description:`. The
+> description died the same day — **one consumer across five reading
+> surfaces**, and the `semantic_hash` came back byte-identical with « AAA »,
+> with « BBB » and with the field absent; the argument for keeping it cited a
+> `nika ls` that answers `unrecognized subcommand`. With the description gone
+> the object held one field, so the field moved onto the mark and the object
+> had nothing left to hold. `NIKA-PARSE-020` and `NIKA-PARSE-021` are
+> **retired with it** — no retired code is ever reused.
+>
+> ⚠️ **Not to be confused** · `invoke: { workflow: <path> }` is a *task-level*
+> key and is very much alive — it is how one workflow calls another
+> ([14-composition](./14-composition.md)).
 
 ### `model` · *optional · default model · `<provider>/<name>`*
 
@@ -183,22 +209,6 @@ backend and decides local-vs-cloud (`ollama/` · `lmstudio/` = local · the rest
 
 A task may override this. If absent · each `infer:`/`agent:` task must specify
 its own `model:`.
-
-### `types` · *optional · named type declarations*
-
-```yaml
-types:
-  Summary:
-    object:
-      title: string
-      bullets: { array: string }
-```
-
-Named, PascalCase, acyclic type declarations — referenced by task
-`returns:` and typed `outputs:`. The grammar, the subtyping lattice and
-the JSON-Schema lowering are the whole of [09-types.md](./09-types.md);
-the envelope only owns the block's position. Unknown names are
-`NIKA-TYPE-001` · recursion is `NIKA-TYPE-002`.
 
 ### `inputs` · *optional · typed workflow inputs*
 
@@ -227,6 +237,19 @@ generation. Typed `inputs:` are the **input** half of that callable
 contract; typed [`outputs:`](#outputs--optional--the-workflows-return-value--untyped-or-typed)
 (below) are the **output** half.
 
+**The deployment's knobs live here too (2026-08-12).** A non-sensitive
+runtime value — a region label, a verbosity switch — is an `inputs:` entry
+with `required: false` and a `default:`. It used to have its own block,
+`config:`, and that block is **dead**: it had zero usage in real work, its
+`default:` was its only possible source, and — the argument that settled it —
+under the taint lattice `config.p` and `inputs.p` produced **the same**
+`NIKA-AUTH-008` by the same taint path. Two authorities the checker could not
+tell apart are one authority. The cell `config:` occupied (nobody supplies it
+× treated as untrusted) was a constant the checker was being asked to treat as
+hostile. A credential still never lands here: an input's value appears in logs
+and traces — a value that must stay masked belongs to
+[`secrets:`](#secrets--optional--vault-backed--masked).
+
 **Supplying values at launch** · the caller provides inputs when starting
 the run; how is an engine CLI concern. The reference engine's surface ·
 `nika run flow.nika.yaml --var topic="Rust async 2026"` (repeatable · one
@@ -238,25 +261,6 @@ boolean) · else it rides as a string. An **unknown key is refused** before
 the run, with the declared set listed: a typo that silently did nothing
 would be the worst outcome. The file stays the contract · every input a
 caller can pass is declared in `inputs:`.
-
-### `config` · *optional · non-sensitive runtime config*
-
-```yaml
-config:
-  log_level: { type: string, default: "info" }
-  region:    { type: string }                     # no default · the deployment supplies it
-```
-
-Non-sensitive configuration available via `${{ config.<name> }}`, supplied
-by the deployment or environment (engine launch concern · `default:` is the
-declared fallback). Each entry is a typed declaration (`type:` required ·
-full TypeExpr · a `default:` MUST conform · `NIKA-DEFAULT-001`). Values may
-appear in logs and traces. For anything secret, use `secrets:` instead.
-
-**Declared-only · no ambient OS fallback** · a `${{ config.X }}` read
-resolves ONLY against this block (an undeclared entry is `NIKA-VAR-001`):
-the engine never silently reads the OS environment — every value a workflow
-depends on is visible in the file (sovereignty + portability).
 
 ### `const` · *optional · named constants*
 
@@ -286,8 +290,9 @@ See [04-variables.md](./04-variables.md) for the full substitution grammar.
 > `vars:` refuses `NIKA-VALUES-001`, `env:` refuses `NIKA-VALUES-002`.
 > Classify each old use into the authority its role commands — a typed
 > parameter is an `inputs:` declaration, a fixed value is a `const:` entry,
-> non-sensitive runtime configuration is a `config:` declaration, a
-> governed store reference is a `secrets:` entry (classify-not-rename ·
+> non-sensitive runtime configuration is an `inputs:` declaration with
+> `required: false` and a `default:`, a governed store reference is a
+> `secrets:` entry (classify-not-rename ·
 > no alias survives · LAW-SURFACE-0201/0202 · LAW-GRAMMAR-0201/0202).
 
 ### `secrets` · *optional · vault-backed · masked*
@@ -317,14 +322,39 @@ resolved secret values in logs, traces, and journal events.
 
 | `source` | `key` means | Use |
 |---|---|---|
-| `vault` (default) | path in the local `nika-vault` | the sovereign default |
 | `env` | name of an OS environment variable | 12-factor / CI secrets |
 | `file` | path to a file holding the value | Docker / k8s mounted secrets |
+| ~~`vault`~~ | — | **withdrawn from the contract · see below** |
 
-The `config` / `secrets` split is the modern secure-workflow default: non-sensitive
-config in `config:` (appears in logs), masked references in `secrets:` (never
-logged). Note `source: env` reads a *secret* from an OS env var and still masks
-it, which is different from the plain `config:` block.
+> #### 🔴 `vault` is withdrawn until it runs · corrected 2026-08-12
+>
+> This table called `vault` **« the sovereign default »**. The reference
+> engine's own hint says otherwise, verbatim ·
+>
+> > `secrets.k` uses source `vault`, **not yet runtime-resolvable — the
+> > check is green but `${{ secrets.k }}` will fail at run with
+> > NIKA-1702**; use `source: env` or `source: file` until vault
+> > resolution ships
+>
+> There is no `nika vault` verb and no `nika-vault` crate. Corpus vote,
+> derived: **`env` 19 · `vault` 0 · `file` 0.**
+>
+> This is the same class as the `config:`-without-`default:` defect fixed
+> the day before — **green at check, dead at run** — except it sat on the
+> member this table designated as THE default. A spec that names a
+> non-functioning member as the recommended one does not merely fail to
+> help: it steers every new author into the failure.
+>
+> The enum is therefore `env | file` until vault resolution ships, at
+> which point `vault` returns **additively** and reclaims the default. A
+> capability re-enters the contract when it runs, never before — and
+> nothing is lost meanwhile, because nothing was working.
+
+The `inputs` / `secrets` split is the modern secure-workflow default:
+non-sensitive values in `inputs:` (they appear in logs), masked references in
+`secrets:` (never logged). Note `source: env` reads a *secret* from an OS env
+var and still masks it, which is different from an ordinary input that happens
+to be supplied by the deployment.
 
 #### `egress` · *optional · sanctioned destinations (declassification)*
 
@@ -560,10 +590,58 @@ subprocess's environment reads are opaque) · the undeclared-read failure
 mode is the child tool's own missing-variable error, and the repair is
 one declared line (`env: [NAME]`).
 
-So `permits: {}` is a workflow provably limited to pure compute (`infer:` +
-CEL + `nika:jq`): zero fs, zero net, zero shell, zero tools, zero env
+So `permits: {}` is a workflow limited to compute (`infer:` + CEL +
+`nika:jq`): zero fs, zero net, zero shell, zero tools, zero env
 passthrough (its children see the runner env floor plus their task `env:`
 maps, nothing else). That property is checkable BEFORE the run.
+
+> #### 🔴 `permits: {}` MUST be identical to an absent block · corrected 2026-08-11
+>
+> **Measured on 0.108.0, two files differing by one line ·**
+>
+> ```
+> no permits:      rc=0 · « ○ PERMITS zero authority · pure compute
+>                            · `permits: {}` states it »        ← the engine's own hint
+> permits: {}      rc=2 · « ✖ NIKA-SEC-004 · invoke tool `nika:jq`
+>                            is outside permits.tools »
+> ```
+>
+> **The engine teaches a repair that breaks the file**, and the sentence
+> directly above this note names `nika:jq` as legal under `{}`. Three
+> surfaces, three answers, on the same body.
+>
+> The root cause is a rule that is too broad: `permits.tools` was written
+> to govern *the `invoke:` surface*, and `invoke:` also carries the
+> builtins that have **no effect at all**. So the contract is now stated
+> at the grain that matters ·
+>
+> **A pure-compute builtin requires NO `tools` grant, under any form of
+> the block.** `nika:jq` · `hash` · `date` · `uuid` · `validate` ·
+> `convert` · `json_diff` · `json_merge_patch` · `decide` compute a value
+> from their arguments and reach nothing. `permits.tools` governs the
+> tools that CARRY an effect — `mcp:` targets, and any builtin whose
+> catalog entry declares an `fs` · `net` · `exec` category.
+>
+> The consequence is the invariant NEP-0003 always claimed: **an absent
+> block and `{}` are the same declaration** — zero authority — and the
+> only difference between them is that one says it out loud. A language
+> whose thesis is « the file IS the blast radius » cannot have a blast
+> radius that changes when you write the zero down.
+
+> ⚠️ **The word `provably` was here and it was measured FALSE on 2026-08-11.**
+> The passthrough claim above holds — it is about what a CHILD PROCESS
+> inherits. What did not hold is the stronger reading a reader takes away:
+> under `permits: {}` a `nika:jq` binding reads the engine's *own* ambient
+> environment (measured: a canary variable reaching a downstream prompt, under
+> an absent block and again under an explicit empty `permits.env`), while the
+> static check reports the body as pure compute from which nothing escapes.
+> **A computation that reads the ambient environment is not pure.** The repair
+> is D-2026-08-11-N26 (*an expression sees only its input*); until it ships,
+> this paragraph says `limited to compute`, not `provably limited to pure
+> compute`. The reach is bounded: such an expression is a literal in the
+> reviewed file and cannot be interpolated from a model's output
+> (`NIKA-VAR-005`), so this is authority an author takes, not authority an
+> injection steals.
 
 **The engine MUST enforce `permits:` on BOTH surfaces** ·
 1. **Statically** (`nika check`) · a `nika:write ./etc/x` outside `fs.write`,
@@ -679,11 +757,12 @@ If `outputs:` is omitted, the workflow still runs; its result is
 engine-defined (a reusable/callable workflow SHOULD declare `outputs:`). The
 referenced task ids must exist (parse-time validated).
 
-> **`outputs:` (envelope · plural) ≠ `output:` (task · singular).** The
-> workflow-level `outputs:` is the *return contract*; the task-level `output:`
-> ([04-variables.md](./04-variables.md#output-binding--output)) defines *named
-> jq bindings* on one task. Plural-at-the-top, singular-per-task: the
-> same split GitHub Actions uses for `workflow_call.outputs` vs step `outputs`.
+> **`outputs:` (envelope) ≠ `extract:` (task).** The workflow-level
+> `outputs:` is the *return contract*; the task-level `extract:`
+> ([04-variables.md](./04-variables.md#extraction-bindings--extract)) defines
+> *named jq bindings* on one task. Two different words for two different
+> jobs — until 2026-08-12 the task field was `output:`, and the distinction
+> rode on a single letter (see [03 §extract](./03-dag.md#extract--optional--extraction-bindings)).
 
 ### What leaves a run · the export contract (normative)
 
@@ -774,9 +853,7 @@ forever — that lesson is upstream, and this door closes pre-1.0.
 ### Minimal
 
 ```yaml
-nika: v1
-workflow:
-  id: hello
+nika: hello
 
 tasks:
   greet:
@@ -788,10 +865,7 @@ tasks:
 ### Full · with typed inputs (callable over MCP)
 
 ```yaml
-nika: v1
-workflow:
-  id: research-pipeline
-  description: "Research a topic and write a markdown brief"
+nika: research-pipeline
 
 model: anthropic/claude-sonnet-4-6
 inputs:
@@ -824,10 +898,10 @@ tasks:
 
 A v0.1-compliant engine MUST ·
 
-1. Reject any workflow missing `nika:` or `workflow:` with a clear error
-2. Accept exactly `nika: v1` · reject any other value (`v1.0` · `1` · `v2` …) with a clear error
-3. Validate `workflow` identifier kebab-case format
-4. Make workflow-level `model`, `inputs`, `config`, `const`, `secrets` available to all tasks as defaults
+1. Reject any file missing `nika:` or carrying an empty `tasks:` with a clear error (`NIKA-PARSE-002`)
+2. Validate the `nika:` value as a kebab-case id `^[a-z][a-z0-9-]*$` · reject any other shape (`v1` · `My_Flow` · `1.0` …) with a clear error (`NIKA-PARSE-003`)
+3. Read the document TYPE from `tasks:` — present means workflow, absent means project — never from the filename
+4. Make workflow-level `model`, `inputs`, `const`, `secrets` available to all tasks as defaults
 5. Validate typed `inputs` (type + required) before execution · reject missing required inputs · refuse every declared `default:` / typed `const:` value that does not conform to its declared `type:` (`NIKA-DEFAULT-001`)
 6. Validate each typed `outputs` value against its declared `type:` at run end · a value that does not match its declared type fails the run (`NIKA-VAR-009` · `validation_error`): the callable contract is enforced on BOTH halves (typed in via `inputs`, typed out via `outputs`) · symmetric with rule 5
 7. Mask resolved `secrets` values in all logs · traces · journal events

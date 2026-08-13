@@ -11,15 +11,13 @@
 # Demonstrates ·
 #   - `for_each:` · run a task once per element of a collection
 #   - `${{ item }}` + `${{ index }}` · loop-scoped locals, not a namespace
-#   - `max_parallel:` · a ceiling on concurrent iterations
-#   - `fail_fast: false` · finish the batch even when one element fails
+#   - `for_each.max_parallel:` · a ceiling on concurrent iterations
+#   - `for_each.fail_fast: false` · finish the batch even when one element fails
 #   - fan-in · the whole array lands in one downstream binding
 #
 # Run · nika run examples/07-for-each-locales.nika.yaml
 
-nika: v1
-workflow:
-  id: for-each-locales
+nika: for-each-locales
 
 model: mock/echo   # the dry twin · this file teaches the loop, not the translations
 
@@ -31,12 +29,13 @@ const:
 
 tasks:
   translate:
-    for_each: ${{ const.locales }}   # five elements → five iterations
-    max_parallel: 3                  # at most 3 in flight · the rest queue
-    # Default is fail_fast: true — the first failure cancels the siblings.
-    # A batch job usually wants the opposite: four good translations beat
-    # zero, and you would rather learn which one broke.
-    fail_fast: false
+    for_each:
+      items: ${{ const.locales }}      # five elements → five iterations
+      max_parallel: 3                  # at most 3 in flight · the rest queue
+      # Default is fail_fast: true — the first failure cancels the siblings.
+      # A batch job usually wants the opposite: four good translations beat
+      # zero, and you would rather learn which one broke.
+      fail_fast: false
     on_error:
       # Without this, a failed element fails the task even under
       # fail_fast: false. `recover: null` keeps the array whole and puts a

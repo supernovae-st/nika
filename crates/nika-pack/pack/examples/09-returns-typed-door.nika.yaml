@@ -10,7 +10,7 @@
 # can, at settle where it cannot.
 #
 # Demonstrates ·
-#   - a named type in `types:` · PascalCase, reused by name
+#   - a type expression written INLINE · self-contained, no name to look up
 #   - `returns:` on `infer:` · compiled into the structured-output contract
 #     (so `returns:` + `schema:` on one task is refused · `NIKA-TYPE-003` ·
 #     one-obvious-way/011: `returns:` is the one way)
@@ -21,26 +21,12 @@
 #
 # Run · nika run examples/09-returns-typed-door.nika.yaml
 
-nika: v1
-workflow:
-  id: returns-typed-door
+nika: returns-typed-door
 
 model: mock/echo   # the dry twin · swap `--model ollama/qwen3.5:4b` for real extraction
 
 permits:
   tools: ["nika:jq"]
-
-types:
-  # The type grammar is closed and small: 10 primitives · array · map ·
-  # object · union · optional (field position only — a nullable ROOT is
-  # `{ union: [T, "null"] }`, spec/09-types.md) · enum · bounded numbers.
-  Entities:
-    object:
-      entities:
-        array:
-          object:
-            name: string
-            kind: string
 
 inputs:
   text:
@@ -54,16 +40,25 @@ tasks:
     infer:
       prompt: "Extract named entities from · ${{ inputs.text }}"
       max_tokens: 512
-    # The named type IS the contract: for `infer:` it lowers to the same
-    # structured-output floor 04 built with `schema:` — the model's answer
-    # is validated against it, or the task fails loudly.
-    returns: Entities
+    # The type expression IS the contract: for `infer:` it lowers to the
+    # same structured-output floor 04 built with `schema:` — the model's
+    # answer is validated against it, or the task fails loudly. The grammar
+    # is closed and small: 10 primitives · array · map · object · union ·
+    # optional (field position only — a nullable ROOT is
+    # `{ union: [T, "null"] }`, spec/09-types.md) · enum · bounded numbers.
+    returns:
+      object:
+        entities:
+          array:
+            object:
+              name: string
+              kind: string
 
   stats:
     with:
       # This deep reference is legal BECAUSE `returns:` declared the member.
-      # `Entities` is closed: `.output.entitles` (typo'd) would be
-      # NIKA-VAR-003 at check, not a null at midnight.
+      # A `returns:`-typed object is closed: `.output.entitles` (typo'd)
+      # would be NIKA-VAR-003 at check, not a null at midnight.
       entities: ${{ tasks.extract.output.entities }}
     invoke:
       tool: "nika:jq"

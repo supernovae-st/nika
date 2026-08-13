@@ -20,10 +20,7 @@
 # Run · nika run examples/social-repurpose.nika.yaml
 #   Offline rehearsal (zero key, deterministic) · add `--model mock/echo`.
 
-nika: v1
-workflow:
-  id: social-repurpose
-  description: "One post → thread + LinkedIn + newsletter, in parallel"
+nika: social-repurpose
 
 model: ollama/qwen3.5:4b   # local · zero key · swap for mistral/mistral-large or any provider
 

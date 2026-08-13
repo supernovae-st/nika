@@ -12,10 +12,7 @@
 #   - `permits.exec` · the program allowlist the verb answers to
 #
 # Run · nika run examples/snippets/run.nika.yaml
-nika: v1
-workflow:
-  id: run
-  description: "the exec verb alone · one program, argv form, allowlisted"
+nika: run
 permits:
   exec: ["cargo"]
 tasks:

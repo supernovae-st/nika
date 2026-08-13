@@ -23,11 +23,7 @@
 #   `on_error:` so a dead source is loud.
 #
 # Run · nika run <file>          # offline rehearsal · the gate stays closed
-nika: v1
-workflow:
-  id: gate-and-act-template     # SLOT: kebab-case workflow id
-  # SLOT: one honest sentence — `nika new` matches intents against these words
-  description: "watch a value · act only when the condition holds"
+nika: gate-and-act-template       # SLOT: kebab-case workflow id
 
 const:
   source_url: "https://api.example.com/v1/value"   # SLOT: what to watch
@@ -59,7 +55,7 @@ tasks:
         url: "${{ const.source_url }}"
         mode: jq
         jq: "."
-    output:
+    extract:
       value: ".value"               # SLOT: the jq path to the watched field
     on_error:
       # Offline rehearsal · a sample UNDER the threshold — the gate stays

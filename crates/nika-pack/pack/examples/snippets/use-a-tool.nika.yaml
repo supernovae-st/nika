@@ -13,10 +13,7 @@
 #     reaching anything
 #
 # Run · nika run examples/snippets/use-a-tool.nika.yaml
-nika: v1
-workflow:
-  id: use-a-tool
-  description: "the invoke verb alone · one tool call under the two-part grant"
+nika: use-a-tool
 permits:
   tools: ["nika:fetch"]
   net: { http: ["nika.sh"] }

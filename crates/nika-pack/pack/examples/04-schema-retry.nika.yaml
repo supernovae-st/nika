@@ -20,9 +20,7 @@
 #   with your own text · nika run examples/04-schema-retry.nika.yaml \
 #     --var text="Marie Curie worked in Paris for the Sorbonne"
 
-nika: v1
-workflow:
-  id: schema-retry
+nika: schema-retry
 
 model: mock/echo   # the dry twin · swap `--model ollama/qwen3.5:4b` for a real extraction
 

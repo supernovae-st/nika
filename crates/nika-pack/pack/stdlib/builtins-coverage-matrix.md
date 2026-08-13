@@ -13,7 +13,7 @@
 | Capability class | Covered by | Status |
 |---|---|---|
 | data-shaping | `jq` · `json_diff` · `json_merge_patch` · `convert` · `validate` | ✅ full (jq is the one data language) |
-| web I/O | `fetch` (inbound · <!-- canon:extract_modes -->9<!-- /canon --> extract modes · SSRF-guarded) · `notify` (outbound) | ✅ for content · APIs see boundary B1 |
+| web I/O | `fetch` (<!-- canon:extract_modes -->9<!-- /canon --> extract modes · all 6 methods · headers/body/form/multipart · SSRF-guarded) · `notify` (outbound) | ✅ content AND APIs · the two residual shapes are named in §overlap boundaries |
 | files | `read` · `write` · `edit` · `glob` · `grep` | ✅ full |
 | databases | — | ✅ **deliberate** · `mcp:<server>/<tool>` (e.g. `mcp:postgres/query`) |
 | memory / recall | — | ✅ **deliberate** · `mcp:memory-server/*` today · `nika:connectome/*` reserved ([08 §Connectome](../spec/08-out-of-scope.md)) |
@@ -34,8 +34,9 @@ posture** with an escape hatch (`exec:` · `mcp:`). No silent gaps.
 
 | Pair | The boundary |
 |---|---|
-| `fetch` vs « an HTTP client » | `fetch` is web-**content acquisition** (GET + extract modes + SSRF guards) · NOT an API client. API calls → `mcp:` or `exec: curl`. |
+| `fetch` vs « an HTTP client » | **`fetch` IS the API client.** It carries `method` (GET · POST · PUT · DELETE · PATCH · HEAD), `headers` (auth rides here, masked · `x-api-key: "${{ secrets.KEY }}"`), `body`, `form`, and `multipart` file upload under the `permits.fs` read boundary — plus the extract modes and the SSRF floor. **An API call belongs in `fetch`.** `mcp:` is for a tool a server already exposes; `exec: curl` is for the two things `fetch` deliberately does not do (below). |
 | `jq` vs `json_diff` / `json_merge_patch` | both *expressible* in jq · named for their RFC contracts (merge-patch = RFC 7396) · stable semantics worth a name. |
+| **the two things `fetch` does NOT do** | ① **no response-body-to-file** · every `mode:` returns text or JSON, so a binary response (an image, an archive) has nowhere to land. ② **no failure tolerance** · a non-2xx is a normative throw (`NIKA-BUILTIN-FETCH-001`), so a call that must survive a 404 cannot. **Both are measured, not hypothetical** — a corpus sweep found 18 `exec: curl` sites and *every one* is one of these two (12 saving a binary body, 5 tolerating failure, 1 an adversarial deny-probe). Until they are closed, those two shapes are the honest `exec: curl` territory — and nothing else is. |
 | `jq` vs `convert` | jq is JSON-in/JSON-out · `convert` crosses formats (yaml↔json↔toml…). |
 | `validate` vs per-task `schema:` | `schema:` gates a task's OWN output (auto-retry) · `validate` checks any value mid-flow · same JSON Schema dialect. |
 | `write` vs `edit` | whole-file vs in-place patch (mirrors agent-tool conventions). |
@@ -51,7 +52,7 @@ real ones (`sleep`+`wait_until`→`wait` · 4 introspections→`inspect` ·
 
 | # | Candidate | Verdict |
 |---|---|---|
-| B1 | generic HTTP builtin (`nika:http` · POST/PUT) | **rejected v0.1** · unconstrained HTTP is the SSRF/exfiltration surface `fetch` deliberately guards · `mcp:` servers and `exec: curl` cover it inside the trust model |
+| B1 | an **UNGUARDED** HTTP builtin (`nika:http`) | **rejected forever** · and the wording once read « POST/PUT », which misread as « nika does not do POST ». It does: `fetch` carries all six methods. What B1 refuses is HTTP *without* the SSRF floor, the permits boundary and the secret-egress check — a second, ungoverned door beside the governed one. **The guarded client shipped; it is called `fetch`.** |
 | B2 | crypto beyond hashing (sign · encrypt) | **rejected** · key handling in YAML is a trap · `exec:`/`mcp:` territory |
 | B3 | archive ops (tar/zip) | **deferred** with the media builtins (stdlib v0.x) |
 | B4 | randomness beyond `uuid` | **rejected** · an anti-feature for run determinism · jq/`exec:` territory |
@@ -66,11 +67,16 @@ tools are ONE builtin with a discriminating argument (`wait` mode ·
 
 ## Known set-level gap (work item)
 
-Per-builtin **formal args/returns schemas** are not yet published:
-builtins-v0.1.md ships examples + prose. A per-builtin contract block
-(`args:` JSON Schema · `returns:` shape · `throws:` codes) is the next
-stdlib documentation milestone; until it lands, the YAML examples + the
-reference engine define the precise shapes.
+~~Per-builtin **formal args/returns schemas** are not yet published.~~
+**Stale — they ARE published.** `nika catalog --tools --json` ships a
+full JSON Schema per builtin (`parameters` with `properties` and
+`required`) for all <!-- canon:builtins -->28<!-- /canon -->. The
+machine surface exists; this paragraph claiming otherwise was the drift.
+
+What remains genuinely missing is the **prose** half: `builtins-v0.1.md`
+carries examples and description, not a rendered contract block beside
+each entry. That is a documentation projection of a machine surface that
+already exists — not an unwritten contract.
 
 ---
 

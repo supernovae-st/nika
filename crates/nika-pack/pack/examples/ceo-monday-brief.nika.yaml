@@ -15,9 +15,9 @@
 #   - the root human gate · NEP-0002, and WHY it cannot sit anywhere else
 #   - `on_error: recover:` · the offline rehearsal for the untrusted leg
 #   - the always-pattern · `after: {save: terminal}`, so an armed ping fires on
-#     every settled outcome — landed, failed, or declined. It is a TASK and not
-#     an `on_finally:` hook because 03 §on_finally makes cleanup failures
-#     LOG-ONLY: an alert that cannot fail loudly is not an alert.
+#     every settled outcome — landed, failed, or declined. It rides `terminal`
+#     and not `unwind` because 03 §unwind makes cleanup failures LOG-ONLY:
+#     an alert that cannot fail loudly is not an alert.
 #
 # Needs · a git repo (the pulse reads YOUR week; anywhere else it recovers to a
 # labelled stand-in and the brief is told the pulse is missing). The KPI sheet
@@ -30,10 +30,7 @@
 #       · arm the founders ping · add --var alert=true — FOUNDERS_WEBHOOK_URL must be
 #         set or the armed run dies NIKA-VAR-001 at `alert` (see permits.net.http)
 
-nika: v1
-workflow:
-  id: ceo-monday-brief
-  description: "news + repo pulse + KPIs → one synthesis → dated brief → a ping on every outcome"
+nika: ceo-monday-brief
 
 model: ollama/qwen3.5:4b   # local · zero key · `--model mock/echo` rehearses the whole file
 
@@ -77,8 +74,6 @@ permits:
     # segment and never crosses `/`, so nothing here can steer the write into a
     # subtree — which is why this is not `./briefs/**`.
     write: ["./briefs/*-monday.md"]
-policy:                              # NEP-0014 · the gate runs under a NAMED endorsement mode
-  endorsement: solo
 
 tasks:
   # ── the human gate · FIRST, before anything untrusted enters ──
@@ -226,7 +221,7 @@ tasks:
     invoke:
       tool: "nika:date"
       args: { op: now }
-    output:
+    extract:
       day: ".[:10]"                  # nika:date returns the ISO string itself · slice YYYY-MM-DD
 
   save:
@@ -246,10 +241,10 @@ tasks:
   #
   # `after: {save: terminal}` admits all four settled states, so this fires
   # whether the brief landed, failed, or was skipped by a « no » at the gate.
-  # It is deliberately not an `on_finally:` hook: cleanup errors are LOGGED and
-  # DO NOT PROPAGATE (03 §on_finally · best-effort lane), so a webhook that
+  # It deliberately does not ride an `unwind` edge: cleanup errors are LOGGED
+  # and DO NOT PROPAGATE (03 §unwind · best-effort lane), so a webhook that
   # dies there dies in silence — measured: an unresolved secret in a cleanup
-  # hook leaves the run green with nothing sent. An alert you cannot trust to
+  # task leaves the run green with nothing sent. An alert you cannot trust to
   # fail loudly is not an alert.
   alert:
     after:

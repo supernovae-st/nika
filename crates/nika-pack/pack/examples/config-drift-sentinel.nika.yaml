@@ -37,10 +37,7 @@
 #         (runs as-is from the repo root · add --model mock/echo for a
 #          zero-key rehearsal)
 
-nika: v1
-workflow:
-  id: config-drift-sentinel
-  description: "live config vs sanctioned baseline → typed drift → triaged, explained alert"
+nika: config-drift-sentinel
 
 # A NON-thinking seat, deliberately. Measured with qwen3.5:4b: `explain`'s
 # 600-token ceiling was spent entirely inside the think block, the run stayed

@@ -21,6 +21,120 @@ in stdlib v0.x extensions.
 
 ---
 
+## Antivalues · what this language is AGAINST, permanently
+
+A defer list is not enough. « Later OR never » is itself accretion
+pressure — every deferred item reads as a promise to someone. The list
+below is the other kind: **things nika will not do, at any version.** If
+you need one of them, nika is the wrong tool and the honest answer is to
+say so. (Prior art for publishing this at all: WDL's `Antivalues` section
+— the only workflow language that names what it refuses.)
+
+**A1 · Flexibility at all costs.** nika expresses the majority of
+workflows, not all of them. Arbitrary execution patterns are out. If you
+want them, use a language embedded in a general-purpose host — Nextflow
+or Snakemake are good, and they say so themselves.
+
+**A2 · A second way to spell one intent.** Every construct has one
+spelling. Argo ships `steps:` and `dag:` for the same thing, and inside
+`dag:` ships both `dependencies:` and `depends:` — three ways to say one
+thing. The `one-obvious-way/*` lint set exists so that never happens
+here. *(Design bet, stated as one: PEP 20's slogan has no empirical
+support anywhere we could find.)*
+
+**A3 · Ambient state.** A body reads its declared imports and nothing
+else. No implicit environment, no global task namespace, no inherited
+scope. This is the [hidden dependencies](https://www.cl.cam.ac.uk/~afb21/CognitiveDimensions/)
+dimension of Green's Cognitive Dimensions of Notations (1989/1996) —
+« is every dependency overtly indicated *in both directions*? » — and it
+is why the graph document lists every edge with `from` and `to`.
+
+**A4 · An unversioned expression layer.** Both expression sublanguages
+carry a normative, versioned grammar with a closed callable set
+(`cel-subset/0.1` · `jq-subset/0.1`). CWL feature-gates its JavaScript
+hatch but does not bound it — and portability breaks exactly there.
+GitHub Actions documents its `${{ }}`-into-shell hazard and ships the
+canonical injection class anyway. Nextflow is amputating Groovy right
+now (strict parser default in 26.04, `for`/`while`/`switch`/`import`
+removed) at the cost of a multi-year migration. A hatch you cannot
+version is a hatch you cannot keep.
+
+**A5 · Orchestration.** No scheduler, no queue, no cluster. `nika.yaml`
+arms a cadence; it does not become a control plane.
+
+**A6 · More than one thread of control per node.** A task settles
+exactly once. This permanently refuses the discriminator family
+(WCP-9, WCP-28–32 — six members), Multi-Merge (WCP-8), and N-of-M
+joins. It is not a
+gap to patch — it is the property that makes
+[soundness conditions (i) and (ii)](./03-dag.md#what-that-liveness-check-is--soundness-and-what-it-costs-elsewhere)
+structural rather than checked.
+
+**A7 · Cancellation of an arbitrary region.** Reset arcs make every
+variant of soundness undecidable (LICS 2024). This closes YAWL-style
+cancellation regions, BPMN cancel/compensate events, and the general
+OR-join — whose accepted formalization *is* a reset net.
+
+### The counter-arguments, stated before a reviewer states them
+
+Honesty costs less than being caught. The strongest published positions
+against this design ·
+
+- **The configuration complexity clock** (Hadlow, 2012): config grows a
+  rules engine, grows a DSL, and you have rebuilt a bad programming
+  language. Folklore, zero data — but it is *the* objection.
+- **Snakemake** (Mölder et al., F1000Research 10:33) states it from
+  inside the field: purely declarative systems get « concision and
+  clarity … [but] can be **more restrictive in the processes that can be
+  expressed** ». Their `checkpoint` — re-plan the DAG mid-run — is the
+  strongest existing counter to A6/A7.
+- **Closedness does not buy comprehensibility**, only analysability. A
+  large Starlark codebase is still hard to read.
+- **Oozie's rigid XML lost to Airflow's Python.** Being closed is not
+  sufficient.
+
+**The rebuttal, in one line:** nika's escape hatches are *declared floors,
+not ambient capability* — `exec:` (lint-discouraged, `native-first/*`),
+`agent:` (budget-bounded, cap in the file), `invoke: workflow:`
+(authority intersected). And the measurement now runs the other way:
+custom shell commands carry **4.12× the odds of failure**, environment
+variables 1.84×, and **each additional language feature used adds ~19%
+to the odds of failure** (Bardsiri, Decan, Mens, arXiv:2605.26825,
+2026). Attribution matters and the first version of this paragraph got
+it wrong: those odds ratios are regressed over **13,915 workflows across
+six months**, not over the paper's larger 260K/six-year usage corpus —
+the Gini 0.84 and the 74.6%-of-constructs-at-7.1%-of-use figures come
+from the usage study, the odds ratios from the reliability study. Two
+populations, one paper.
+
+### The same metric, turned on ourselves
+
+A citation that can only ever agree with us is decoration. So the
+authors' own metric was run against **this** language, over 669 files
+and 2071 authored tasks ·
+
+| | GitHub Actions | nika |
+|---|---|---|
+| constructs measured | 197 | **41** |
+| usage Gini | 0.840 | **0.700** |
+| constructs under 1% of use | 147 (74.6%) | **16** |
+| never written | — | **2** |
+
+Read it honestly. Our distribution is **less** concentrated (0.700 vs
+0.840), but **we have a long tail too** — 16 constructs sit under 1% of
+use, and 2 have never been written. The argument that survives is
+therefore **not** « nika has no long tail ». It is the surface size:
+**41 constructs against 197.** With ~19% added odds of failure per
+feature *used*, the ceiling on what an author CAN reach is the
+protection — and that ceiling is what this document defends.
+
+Two limits of that measurement, stated rather than hidden: the corpus is
+our own (a first-party corpus is not a population sample), and the
+envelope-key count picks up keys from files still written in an older
+dialect, so the tail is if anything **understated**.
+
+---
+
 ## Workflow composition · the CALL half SHIPPED ([14](./14-composition.md)) · the TEXTUAL half deferred
 
 ### Multi-file workflows (`include:` · `import:`)
@@ -63,7 +177,7 @@ half of the original design survived unchanged.
 **The sibling-run workaround stays valid** · `exec: shell: "nika run
 subroutine.yaml --output json"` launches a sibling workflow PROCESS ·
 `--output json` (engine CLI) prints the child's typed `outputs:` as JSON on
-stdout · the parent binds it back with `capture: stdout` + a jq `output:`
+stdout · the parent binds it back with `capture: stdout` + a jq `extract:`
 (the typed contract survives the process boundary). It remains floor 1 below
 and the one form for what a static call graph cannot express (an unbounded
 cursor chain · H23) · wherever the target is static, a linter recommends the
@@ -115,11 +229,23 @@ poll_until:
       command: ["./check.sh"]
 ```
 
-**Why deferred** · unbounded loops break the « acyclic » guarantee of the DAG
-and the static-analyzability that makes Core conformance possible (you cannot
-bound the work statically). Workaround in v1 · use the `agent:` verb with a
-tool + `max_turns` budget (bounded), OR `for_each:` over a known collection
-(bounded fan-out).
+**Not deferred — REFUSED, permanently.** This section previously said
+« why deferred », which contradicted two other places in this spec that
+call the same construct a structural refusal. One statement, one home:
+**the status of `while:` is decided in
+[03 §where this sits](./03-dag.md#where-this-sits--deliberately-between-two-named-dataflow-models),
+and it is `A1` + `A6` here.** Everywhere else points at those.
+
+The reason is not that loops are hard to analyse. It is that a
+data-dependent branch whose decision **re-enters the graph** is exactly
+the SDF→BDF line: Boolean dataflow is Turing-complete, and bounded-memory
+scheduling plus deadlock-freedom become **undecidable** (Buck & Lee 1993 ·
+Lee & Parks, Proc. IEEE 83(5), 1995). Nothing about a future version
+changes that; a `while:` that stayed decidable would not be a `while:`.
+
+Bounded iteration already exists and is not a workaround: `for_each:`
+over a runtime-computed collection (WCP-14), or `agent:` with a
+`max_turns` budget written in the file.
 
 ### Goto / jumps
 
@@ -141,7 +267,7 @@ stream_chat:
     infer:
       prompt: "..."
       stream: true
-    output:
+    extract:
       chunks: .stream                 # not in v0.1
 ```
 
@@ -405,15 +531,15 @@ or a non-goal, with the line that says whose job it is.
 | H12 | Security in-language vs runtime | **WRITTEN** | Language-visible security is now FOUR surfaces · the `exec:` blocklist (MUST · + the argv form as the structural injection fix) · the `agent:` tools whitelist (default-deny MUST) · secrets masking + no-inline-literals (`secrets:` envelope) · and the workflow-level **`permits:`** capability boundary ([01 §permits](./01-envelope.md#permits--optional--the-declared-capability-boundary) · default-deny once present · enforced statically + at runtime · NIKA-SEC-004). Everything else, trust levels · spotlighting · canaries · taint tracking (the reference engine's Shield · NIKA-SEC family), is **runtime-side** and intentionally NOT in YAML v0.1. |
 | H13 | Packaging / distribution (registries · semver · signing) | **OUT** | The envelope pin `nika: v1` is the only versioning surface in the language. Workflow registries · package manifests · signing are ecosystem/engine concerns (the reference engine plans `nika-pck`) · not spec surface. |
 | H14 | Testing workflows (dry-run · mocks · goldens) | **IN (pieces)** | The `mock/` provider is one of the <!-- canon:providers -->17<!-- /canon --> (deterministic · no LLM call): `model: mock/echo` per task or via one `inputs.model` swap turns any workflow into a test. Golden runs reuse the conformance fixture pattern. `--dry-run` (parse + plan · execute nothing) is an engine CLI concern · MAY. A workflow without a test story is a script: the test story is · swap to `mock/`, assert with `nika:assert`/`schema:`. |
-| H15 | Concurrency / rate governance | **PARTIAL** | In-language · `max_parallel` (per `for_each`) + `fail_fast` + wave-parallel scheduling (normative · [03 §execution model](./03-dag.md#dag-execution-model)). Per-provider rate limits · engine config (the engine MUST honor declared caps · how it throttles providers is its business). Cross-run/global scheduling · NEVER (§Multi-workflow orchestration). |
-| H16 | Interop (import/export GHA · LangGraph · Temporal) | **PROUD NON-GOAL** | Nika is a source language, not a compatibility layer: no importers/exporters, ever (a translated workflow is a worse workflow). The interop boundaries are **MCP** (any MCP tool is callable · `mcp:<server>/<tool>`) and **`exec:`** (anything with a CLI). That covers the actual need (calling the world) without chaining the language to others' semantics. |
+| H15 | Concurrency / rate governance | **PARTIAL** | In-language · `for_each.max_parallel` + `for_each.fail_fast` + wave-parallel scheduling (normative · [03 §execution model](./03-dag.md#dag-execution-model)). Per-provider rate limits · engine config (the engine MUST honor declared caps · how it throttles providers is its business). Cross-run/global scheduling · NEVER (§Multi-workflow orchestration). |
+| H16 | Interop (import/export GHA · LangGraph · Temporal) | **PROUD NON-GOAL** | Nika is a source language, not a compatibility layer: no importers/exporters, ever (a translated workflow is a worse workflow). **⚠️ AMENDED 2026-08-11 — the old wording said the interop boundaries are MCP and `exec:` « anything with a CLI ». That sentence manufactured the problem it pretended to solve: everything has a CLI, so it routed the world to the escape hatch.** The reach-for order is now a LADDER, and `exec:` is its last rung — see [§the interop ladder](#the-interop-ladder-normative) below. |
 | H17 | Step caching / memoization (`cache_key:`) | **OUT (durable-adjacent)** | A v0.1 run executes every non-skipped task: no memoize field. The dominant cacheable class (deterministic `exec:`/`invoke:`) collides with side effects, and `infer:` is non-deterministic (a wrong default poisons correctness). Lands as an additive task field WITH the durable-execution waypoint (a run store exists then · H1). Until then · cache at the tool layer (`nika:read`/`nika:write` a content-keyed path · HTTP caches honor ETags). |
 | H18 | Matrix strategy (cartesian product · include/exclude) | **PARTIAL (idiom · no field)** | `for_each` is one-dimensional by design: a matrix is **precomputed data, not control flow** · emit the product with `nika:jq` (`[ .os[] as $o | .ver[] as $v | {os:$o, ver:$v} ]`) · `for_each` over it (`item.os` · `item.ver`) · include/exclude = jq filters on the product. A `matrix:` sugar field would restate this in control-flow clothing · deferred unless empirical demand. |
 | H19 | Value-conditioned retry / polling (« retry until the VALUE says done ») | **OUT (v0.2 `retry_when:` candidate)** | `retry:` fires on ERRORS · never on values. The v0.1 canonical polling pattern · make not-ready an error INSIDE the task: `nika:fetch` with a jq `mode` whose program `error("not ready")`s on the pending shape + `retry: { max_attempts: N, backoff_strategy: fixed, backoff_ms: 30000, on_codes: [...] }` · OR an `agent:` with fetch+wait+done (budget-bounded). `retry_when: ${{ … }}` is the additive v0.2 shape: it must not ship before the error-vs-value semantics are provably clean. |
 | H20 | Environment targeting (dev / staging / prod) | **WRITTEN (idiom · no field)** | No `environments:` block. The pattern is **launch-time `inputs` + per-env secret paths** · pass `--var env=prod` (engine CLI), branch values with the CEL conditional (`model: ${{ inputs.env == 'prod' ? … : … }}`), and select the secret store path the same way (`secrets.api_key.key` is a per-env vault path the deploy supplies, OR two declared secrets gated by `when:`). Connection-set switching as a first-class construct (GHA environments · Prefect deployments) is a host/deploy concern: the language stays single-file and the env is just another input. An `environments:` sugar block is deferred unless empirical demand. |
 | H21 | Else / default branch (exhaustive choice) | **WRITTEN (idiom · no construct)** | No `else:` / `Choice.Default` construct. Mutually-exclusive branches are two tasks with negated `when:` joined by the defined-null diamond pattern ([03 §branch joins](./03-dag.md)); an N-way switch is N tasks each `when: ${{ inputs.mode == '<case>' }}`. Exhaustiveness is author-maintained (a missing case = all-skip = a `null` at the join, which downstream sees explicitly: it does not silently corrupt). A dedicated `switch:`/`else:` would add a second control-flow primitive beside `when:`/`after:` · deferred · the CEL conditional `?:` already covers conditional VALUES (the common case) without any branch at all. |
 | H22 | Embeddings (`embed(text) → vector`) | **WRITTEN (deliberate absence · `mcp:` / Connectome territory)** | No `embed:` verb and no `nika:embed` builtin. Raw embedding generation is not a language primitive: it is a tool, reached via `invoke: mcp:<embedder>/embed` (any embedding server) or `exec:` (a local model). Semantic RECALL (the RAG read path) is the reference engine's **Connectome** (`nika:connectome/*` · a deferred capability · [§Connectome](#the-connectome--deferred-capability--not-a-deferred-verb)), not a language verb. The language stays about ORCHESTRATION; embedding is a capability the orchestrated tools provide. Stated here because « an AI workflow language with no embeddings » is a fair « did you think of X »: yes · it is `mcp:`/tool territory by design, not a silent gap. |
-| H23 | Cursor pagination / unbounded iteration (« fetch page → follow next-cursor until none ») | **OUT (the bounded forms are written · `while:` stays deferred)** | `for_each` iterates a collection KNOWN up front ([03 §fan-out](./03-dag.md)) and a task cannot `for_each` its own output: cursor-following is inherently unbounded iteration, which is `while:` (deferred above · it breaks the acyclic guarantee AND the static cost story: a workflow whose request count depends on a server's answers is not auditable-before-run). The v0.1 canonical forms · **(a) depth-known** · precompute the page list (`[range(1; N+1)]` via `nika:jq`) + `for_each` with `max_parallel` (page-numbered APIs); **(b) depth-unknown** · an `agent:` task whitelisted to `nika:fetch` + `nika:done` with `max_turns` as the page budget: the loop is budget-bounded and the cap is IN the file (auditable); **(c) heavy crawls** · the host loop (`exec: nika run fetch-page.yaml` per cursor · the sibling-run floor above — an unbounded cursor chain has no static call graph, so the native `invoke: workflow:` form cannot express it). A dedicated bounded construct (`while_bounded:` / `unfold:` with a MANDATORY `max_iterations:`) is the additive v0.2 candidate IF empirical demand shows (b) too heavy: it must carry a static iteration cap or it never ships. |
+| H23 | Cursor pagination / unbounded iteration (« fetch page → follow next-cursor until none ») | **OUT (the bounded forms are written · `while:` stays deferred)** | `for_each` iterates a collection KNOWN up front ([03 §fan-out](./03-dag.md)) and a task cannot `for_each` its own output: cursor-following is inherently unbounded iteration, which is `while:` (deferred above · it breaks the acyclic guarantee AND the static cost story: a workflow whose request count depends on a server's answers is not auditable-before-run). The v0.1 canonical forms · **(a) depth-known** · precompute the page list (`[range(1; N+1)]` via `nika:jq`) + `for_each` with `for_each.max_parallel` (page-numbered APIs); **(b) depth-unknown** · an `agent:` task whitelisted to `nika:fetch` + `nika:done` with `max_turns` as the page budget: the loop is budget-bounded and the cap is IN the file (auditable); **(c) heavy crawls** · the host loop (`exec: nika run fetch-page.yaml` per cursor · the sibling-run floor above — an unbounded cursor chain has no static call graph, so the native `invoke: workflow:` form cannot express it). A dedicated bounded construct (`while_bounded:` / `unfold:` with a MANDATORY `max_iterations:`) is the additive v0.2 candidate IF empirical demand shows (b) too heavy: it must carry a static iteration cap or it never ships. |
 
 ---
 
@@ -429,3 +555,54 @@ This is the spec's structural protection against feature creep · Rams principle
 ---
 
 🦋 *End of the v0.1 spec. The 5 pillars are locked. The defer list is canon.*
+
+---
+
+## The interop ladder (normative)
+
+`exec:` is not an interop boundary. It is the **last rung of a ladder**,
+and a workflow that reaches it has usually skipped a rung above.
+
+> **Why this section exists.** The rule it replaces read « the interop
+> boundaries are MCP and `exec:` (anything with a CLI) ». Everything has
+> a CLI. That sentence made the escape hatch the default answer for the
+> entire outside world, and the corpus shows the result: **13% of work
+> tasks are `exec:`, and 54% of those are `bash` calling a shell-script
+> library that lives outside any checkable file.** A language cannot
+> claim a declared blast radius and then route the world through a rung
+> that grants « run this program, and whatever it runs ».
+
+Reach in this order. Each rung buys something the rung below cannot ·
+
+| | rung | what it buys | reach for it when |
+|---|---|---|---|
+| 1 | **a builtin** (`invoke: tool: nika:*`) | typed args · typed output · per-operation permits · deterministic · no process | the capability is in the stdlib |
+| 2 | **a sub-workflow** (`invoke: workflow:`) | **the reuse unit** · typed inputs/outputs · authority intersected · checkable · testable | you are about to write the same thing twice |
+| 3 | **MCP** (`invoke: tool: mcp:<server>/<tool>`) | a typed tool contract someone already maintains | a server exposes it |
+| 4 | **`agent:`** | a bounded loop that picks among tools | the sequence is not known in advance |
+| 5 | **`exec:`** | a process | **nothing above fits, and you can say why** |
+
+**Rung 2 is the one authors skip, and it is the one that matters.** It
+shipped in engine 0.105 ([14 · Composition](./14-composition.md)) and
+the corpus still contains workflows that `exec: bash -c "nika run ..."`
+— shelling out to the very engine that was already offering the typed
+call. Independent evidence that this is the load-bearing rung: in 68K
+GitHub repositories, **half of all steps are shell, and half of THOSE
+repeat a command that exists elsewhere in the corpus** (Decan, Mens et
+al., ICSME 2022 — 139,501 distinct commands across 287,868 steps). The
+missing thing was never a builtin. It was a place to put the second copy.
+
+**What `exec:` is still for, and it is a short list** · a program with no
+tool contract anywhere (`git`, `docker`, `cargo`), a one-off local
+script, an OS operation with no builtin (`tar`). Those are legitimate and
+they are why the rung exists. What is NOT legitimate is reaching rung 5
+because rung 1 or 2 was never looked at — and the `native-first/*` lint
+set exists to say so at check time.
+
+**The measurable form of this rule.** A workflow whose `exec:` count
+exceeds its `invoke:` count is not automatically wrong, but it is
+answerable: *which rung did each `exec:` skip, and why?* If the answer is
+« none, nothing above fits », the file is honest. If the answer is
+« I did not know rung 2 existed », that is a documentation defect, not an
+author defect.
+

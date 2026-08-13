@@ -7,47 +7,18 @@
   "type": "object",
   "required": [
     "nika",
-    "workflow",
     "tasks"
   ],
   "additionalProperties": false,
   "properties": {
     "nika": {
-      "const": "v1",
-      "description": "Language contract version · exactly `v1` for the v1 lifetime. NOT `v1.0` · `1` · `1.0`."
-    },
-    "workflow": {
-      "type": "object",
-      "required": [
-        "id"
-      ],
-      "additionalProperties": false,
-      "properties": {
-        "id": {
-          "type": "string",
-          "pattern": "^[a-z][a-z0-9-]*$",
-          "description": "Workflow id · kebab-case · the document-type discriminator (W1: the envelope became an object)."
-        },
-        "description": {
-          "description": "Free-form prose about the workflow · documentation for whoever reads the file, never read by the engine (spec/01-envelope.md).",
-          "type": "string"
-        }
-      },
-      "description": "The workflow object · a stable home for identity and metadata (W1 'the map')."
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]*$",
+      "description": "The file's NAME · kebab-case · and the mark that says « this is a nika file ». One word, one meaning across both document types: `nika.yaml` carries the PROJECT name, a `*.nika.yaml` carries the WORKFLOW name. The document TYPE is read from `tasks:` — present means workflow, absent means project — so it survives a blob, a paste or an HTTP body where the filename does not travel. This key held the literal `v1` until the envelope nuke; it carried zero bits as a version (there is no `nika: v2` — ever) and now carries the file's most necessary field instead."
     },
     "model": {
       "type": "string",
       "description": "Default model · `<provider>/<name>` (e.g. ollama/qwen3.5:9b · anthropic/claude-sonnet-4-6 · mock/echo)."
-    },
-    "types": {
-      "type": "object",
-      "description": "Named type declarations · the workflow's own vocabulary, referenced by name wherever a type is expected. PascalCase · acyclic (spec 09-types.md).",
-      "propertyNames": {
-        "pattern": "^[A-Z][A-Za-z0-9]*$"
-      },
-      "additionalProperties": {
-        "$ref": "#/$defs/typeExpr"
-      }
     },
     "inputs": {
       "type": "object",
@@ -71,29 +42,6 @@
           },
           "description": {
             "description": "Free-form prose about this input · what a caller is being asked for. Documentation only — the contract is `type` and `required`.",
-            "type": "string"
-          }
-        }
-      }
-    },
-    "config": {
-      "type": "object",
-      "description": "Typed non-sensitive runtime config · `${{ config.X }}` · supplied by the deployment, and it MAY appear in logs. Each entry is a typed declaration; a `default:` MUST conform to `type:` (LAW-TYPE-0211 · NIKA-DEFAULT-001). Succeeds the dead `env:` block (R3a · LAW-SURFACE-0201).",
-      "additionalProperties": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "type"
-        ],
-        "properties": {
-          "type": {
-            "$ref": "#/$defs/typeExpr"
-          },
-          "default": {
-            "description": "The value used when the deployment supplies none · MUST conform to `type:` (NIKA-DEFAULT-001)."
-          },
-          "description": {
-            "description": "Free-form prose about this config value · where a deployment is expected to get it. Documentation only — the contract is `type`.",
             "type": "string"
           }
         }
@@ -340,100 +288,6 @@
         }
       }
     },
-    "policy": {
-      "type": "object",
-      "additionalProperties": false,
-      "description": "Named workflow law · hard families are judged at check, soft families are only recorded. Hard is require/forbid/allow/limits/endorsement (NIKA-POLICY-001 · the endorsement mode speaks NIKA-SEC-013) · soft is prefer/optimize, never judged in v1 (spec/10-authority.md).",
-      "properties": {
-        "require": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "human_gate_before": {
-              "type": "array",
-              "items": {
-                "enum": [
-                  "exec",
-                  "write",
-                  "net",
-                  "tools"
-                ]
-              },
-              "description": "Effect classes that must sit behind a human gate (an ancestor nika:prompt)."
-            }
-          }
-        },
-        "forbid": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "exec_after": {
-              "type": "array",
-              "items": {
-                "enum": [
-                  "exec",
-                  "write",
-                  "net",
-                  "tools"
-                ]
-              },
-              "description": "No exec: task downstream of a task carrying these effect classes (order law)."
-            }
-          }
-        },
-        "allow": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "providers": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              },
-              "description": "infer:/agent: provider allowlist (the segment of model: before /) · fail-closed on statically unknown providers."
-            }
-          }
-        },
-        "limits": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "max_tasks": {
-              "type": "integer",
-              "minimum": 1,
-              "description": "The workflow declares at most this many tasks."
-            }
-          }
-        },
-        "prefer": {
-          "type": "object",
-          "additionalProperties": false,
-          "properties": {
-            "providers": {
-              "type": "array",
-              "items": {
-                "type": "string"
-              },
-              "description": "SOFT · ordered provider preference · recorded, never judged (v1)."
-            }
-          }
-        },
-        "optimize": {
-          "enum": [
-            "cost",
-            "latency",
-            "quality"
-          ],
-          "description": "SOFT · declared objective · recorded, never judged (v1)."
-        },
-        "endorsement": {
-          "enum": [
-            "solo"
-          ],
-          "description": "HARD · the NAMED solo mode of endorsement (NEP-0017 · F-P23) · judged at check: a human gate under no declared mode refuses (NIKA-SEC-013 · fail-closed), and a declared solo with more than one gate refuses as the declaration lying."
-        }
-      }
-    },
     "tasks": {
       "type": "object",
       "minProperties": 1,
@@ -509,6 +363,11 @@
         }
       ],
       "properties": {
+        "group": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$",
+          "description": "Fan-in MEMBERSHIP · this task joins the named group, and a consumer folds the whole group with one `${{ group.<name> }}` binding in its `with:` (spec/03-dag.md §group). Membership is DECLARED, never matched: a renamed member leaves its group loudly (NIKA-DAG-008 on the reference), where a glob would shrink the fold in silence. A group exists iff at least one task declares it. An `unwind` task may not join one (NIKA-DAG-009 · cleanup never schedules)."
+        },
         "after": {
           "type": "object",
           "description": "The CONTROL boundary · {producer-task: predicate}. Each entry is one control edge (spec/03-dag.md §after). State, never data — observe outcomes through with:.",
@@ -520,9 +379,10 @@
                 "success",
                 "failure",
                 "skipped",
-                "terminal"
+                "terminal",
+                "unwind"
               ],
-              "description": "The producer states that admit this task · terminal = any settled state INCLUDING cancelled (spec/03-dag.md §gate algebra v2)."
+              "description": "The producer states that admit this task · terminal = any settled state INCLUDING cancelled (spec/03-dag.md §gate algebra v2). `unwind` is NOT a settle-state comparison · it is the E_f cleanup attachment (spec/03-dag.md §unwind) · it fires on cancel and timeout for a producer that STARTED, runs before the failure settles outward, never enters G_p, and its own failure does not propagate."
             }
           }
         },
@@ -541,20 +401,30 @@
           "description": "LOCAL business condition · false skips the task · evaluated POST-gate over {vars · env · with · item · index}. Referring to `tasks.*` is illegal here (NIKA-VAR-021 · hoist it into `with:`) · spec/03-dag.md §when."
         },
         "for_each": {
-          "description": "Map this task over a collection · `${{ ... }}` reference OR a literal array.",
-          "type": [
-            "string",
-            "array"
-          ]
-        },
-        "max_parallel": {
-          "type": "integer",
-          "minimum": 1,
-          "description": "Cap concurrent for_each iterations · default unbounded · 1 = sequential."
-        },
-        "fail_fast": {
-          "type": "boolean",
-          "description": "Whether a `for_each` fan-out abandons the batch on the first failure · default true. False finishes every item and yields null at a failed index, so the batch reports what it could."
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "items"
+          ],
+          "description": "Fan this task out over a collection · ONE block, so the concurrency is visible where the fan-out is declared. `max_parallel` and `fail_fast` live here because they have no meaning without it.",
+          "properties": {
+            "items": {
+              "type": [
+                "string",
+                "array"
+              ],
+              "description": "The collection · a `${{ ... }}` reference OR a literal array. Evaluated EXACTLY ONCE, before the fan-out; no iteration feeds back into it (spec 03 §where this sits)."
+            },
+            "max_parallel": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Cap concurrent iterations · default unbounded · 1 = sequential."
+            },
+            "fail_fast": {
+              "type": "boolean",
+              "description": "Whether the fan-out abandons the batch on the first failure · default true. False finishes every item and yields null at a failed index, so the batch reports what it could."
+            }
+          }
         },
         "retry": {
           "description": "Retry policy for this task · `{ max_attempts, backoff_ms, backoff_strategy, backoff_max_ms, jitter, on_codes }`. Retries run BEFORE `on_error` sees anything — the catch handles the last error only (spec/05-errors.md §Retry policy).",
@@ -568,20 +438,13 @@
           "pattern": "^[0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h)([0-9]+(\\.[0-9]+)?(ns|us|µs|ms|s|m|h))*$",
           "description": "Go-duration string · quoted · e.g. \"30s\" \"5m\" \"1h30m\" \"2.5s\". Max 24h."
         },
-        "on_finally": {
-          "type": "array",
-          "description": "Cleanup mini-tasks · ALWAYS run (success/fail/timeout/cancel) · sequential · best-effort.",
-          "items": {
-            "$ref": "#/$defs/finallyStep"
-          }
-        },
         "with": {
           "type": "object",
           "description": "Task-level scope injection · `${{ with.X }}`."
         },
-        "output": {
+        "extract": {
           "type": "object",
-          "description": "Named jq-expression bindings · `${{ tasks.X.<name> }}`. jq is the single data extraction-and-transform language (the former RFC 9535 JSONPath was dropped · jq is a superset · per spec/04-variables.md §216-225). Reserved names forbidden at parse time (spec/04-variables.md §Rules): output · status · error · started_at · ended_at · duration_ms — enforced via propertyNames.",
+          "description": "Named jq-expression bindings extracted from the verb's raw response · read downstream as `${{ tasks.X.<name> }}`. The field names the OPERATION (run this jq); it does not write `output` — `${{ tasks.X.output }}` stays the raw response (spec/03-dag.md §extract). jq is the single data extraction-and-transform language (the former RFC 9535 JSONPath was dropped · jq is a superset · per spec/04-variables.md §216-225). A binding may not shadow a record projection: output · status · error · started_at · ended_at · duration_ms are forbidden at parse time (spec/04-variables.md §Rules) — enforced via propertyNames.",
           "propertyNames": {
             "not": {
               "enum": [
@@ -599,42 +462,60 @@
             "format": "jq"
           }
         },
-        "inert": {
-          "type": "string",
-          "minLength": 1,
-          "description": "The honest door of the data-as-code sink · declares this task's fetch a code-bearing artifact it will never load or run. The non-empty string IS the justification · it lifts the sink law only, never the net boundary and never the SSRF floor (spec/10-authority.md · NEP-0006 · LAW-AUTH-0327)."
-        },
-        "declassify": {
+        "lift": {
           "type": "array",
-          "description": "The ONLY door through the permit-parameterization taint (spec/10-authority.md §the permit-parameterization taint · NEP-0004 · LAW-AUTH-0325) · each entry raises ONE binding from untrusted to trusted, check-visible and receipt-recorded. Lifts the taint law only — the value is still matched against the declared boundary (never a permit bypass).",
+          "description": "The authored doors · each entry lifts exactly ONE named law, with a mandatory reason, check-visible and receipt-recorded. A lift is NEVER a permit bypass — the value still sits inside the declared boundary, and no law but the named one moves. The law set is CLOSED and normative (a NEP amends it): this is why a new law costs zero language fields (spec/10-authority.md §the authored doors).",
           "minItems": 1,
           "items": {
             "type": "object",
             "additionalProperties": false,
             "required": [
-              "from",
-              "to",
+              "law",
               "because"
             ],
             "properties": {
+              "law": {
+                "type": "string",
+                "enum": [
+                  "taint",
+                  "data-as-code"
+                ],
+                "description": "WHICH law this entry lifts · 'taint' raises ONE binding from untrusted to trusted (NEP-0004 · LAW-AUTH-0325) · 'data-as-code' declares this task's fetch a code-bearing artifact it will never load or run (NEP-0006 · LAW-AUTH-0327). Neither ever lifts the net boundary or the SSRF floor."
+              },
               "from": {
                 "type": "string",
                 "pattern": "^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*)+$",
-                "description": "The ONE binding this entry raises (e.g. inputs.p · config.region · tasks.fetch.output) · a dotted value-binding path."
-              },
-              "to": {
-                "type": "string",
-                "enum": [
-                  "trusted"
-                ],
-                "description": "The target integrity label · v1 knows exactly one raise: untrusted -> trusted."
+                "description": "REQUIRED for law 'taint', forbidden otherwise · the ONE binding this entry raises (e.g. inputs.p · config.region · tasks.fetch.output) · a dotted value-binding path."
               },
               "because": {
                 "type": "string",
                 "minLength": 1,
                 "description": "The non-empty justification · recorded in the run receipt with the taint path and the value digest."
               }
-            }
+            },
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "law": {
+                      "const": "taint"
+                    }
+                  }
+                },
+                "then": {
+                  "required": [
+                    "from"
+                  ]
+                },
+                "else": {
+                  "not": {
+                    "required": [
+                      "from"
+                    ]
+                  }
+                }
+              }
+            ]
           }
         },
         "infer": {
@@ -975,17 +856,13 @@
     "onError": {
       "type": "object",
       "additionalProperties": false,
-      "description": "Error recovery · exactly ONE action (recover / skip / fail_workflow · the oneOf enforces it) + optional on_codes filter (spec/05-errors.md §Fields · catch-side mirror of retry.on_codes · skip preserves the original error at tasks.X.error).",
+      "description": "Error recovery · exactly ONE action (recover / skip · the oneOf enforces it) + optional on_codes filter (spec/05-errors.md §Fields · catch-side mirror of retry.on_codes · skip preserves the original error at tasks.X.error).",
       "properties": {
         "recover": {
           "description": "Recovery output · a `${{ }}` ref OR a literal (merges the former fallback/value per spec/05-errors.md)."
         },
         "skip": {
-          "description": "Swallow the error and let the DAG continue · the task produces no output, and the original error stays readable at `tasks.<id>.error`. Exactly one of `recover` · `skip` · `fail_workflow`.",
-          "type": "boolean"
-        },
-        "fail_workflow": {
-          "description": "Fail the whole workflow on this error · the written-down form of the default, so a reader sees the choice instead of inferring it. Exactly one of `recover` · `skip` · `fail_workflow`.",
+          "description": "Swallow the error and let the DAG continue · the task produces no output, and the original error stays readable at `tasks.<id>.error`. Exactly one of `recover` · `skip`.",
           "type": "boolean"
         },
         "on_codes": {
@@ -1008,68 +885,6 @@
           "required": [
             "skip"
           ]
-        },
-        {
-          "required": [
-            "fail_workflow"
-          ]
-        }
-      ]
-    },
-    "finallyStep": {
-      "type": "object",
-      "additionalProperties": false,
-      "properties": {
-        "when": {
-          "oneOf": [
-            {
-              "type": "boolean",
-              "description": "YAML boolean literal."
-            },
-            {
-              "type": "string",
-              "format": "cel-expression",
-              "description": "A ${{ }} CEL boolean expression (cel-subset/0.1 · spec/03-dag.md). Statically non-boolean-shaped roots are rejected (NIKA-VAR-005)."
-            }
-          ],
-          "description": "Cleanup condition · may read the PARENT task's record (tasks.<parent>.status / .error — the only legal tasks.* target inside on_finally · spec/03-dag.md §on_finally)."
-        },
-        "timeout": {
-          "type": "string"
-        },
-        "infer": {
-          "$ref": "#/$defs/infer"
-        },
-        "exec": {
-          "$ref": "#/$defs/exec"
-        },
-        "invoke": {
-          "$ref": "#/$defs/invoke"
-        },
-        "agent": {
-          "$ref": "#/$defs/agent"
-        }
-      },
-      "oneOf": [
-        {
-          "required": [
-            "infer"
-          ]
-        },
-        {
-          "required": [
-            "exec"
-          ]
-        },
-        {
-          "required": [
-            "invoke"
-          ]
-        },
-        {
-          "required": [
-            "agent"
-          ]
         }
       ]
     },
@@ -1082,8 +897,8 @@
         },
         {
           "type": "string",
-          "pattern": "^(null|bool|integer|number|string|bytes|uri|path|duration|timestamp|[A-Z][A-Za-z0-9]*)$",
-          "description": "a primitive name or a declared PascalCase type reference (money/result/artifact/secret are reserved — the checker refuses them with their wave)"
+          "pattern": "^(null|bool|integer|number|string|bytes|uri|path|duration|timestamp)$",
+          "description": "a primitive type name · named types died with the `types:` block (spec/09-types.md) so a PascalCase name resolves to nothing · money/result/artifact/secret stay reserved"
         },
         {
           "type": "object",

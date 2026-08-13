@@ -35,10 +35,7 @@
 #   state, the second reports only what shipped in between.
 #   Offline rehearsal (zero key, deterministic) · add `--model mock/echo`.
 
-nika: v1
-workflow:
-  id: release-radar
-  description: "dependency release feed → diff vs last run → only the NEW ships"
+nika: release-radar
 
 model: ollama/qwen3.5:4b   # local · zero key · swap for any provider in the catalog
 
@@ -99,13 +96,13 @@ tasks:
       args:
         url: "${{ const.releases_feed }}"
         mode: feed
-    output:
+    extract:
       entries: "[.items[] | {title, link}]"
     on_error:
       # No network → this sample stands in for the RAW feed response: it
       # carries `items:` under the keys `mode: feed` actually returns
       # (probed live on this feed: title · link · id · author · content —
-      # there is no `published` field), so the `output:` jq above runs over
+      # there is no `published` field), so the `extract:` jq above runs over
       # it unchanged. Recovering the BINDING's shape instead makes the jq
       # throw NIKA-VAR-004 — the recovery must mirror the response, never
       # the binding.

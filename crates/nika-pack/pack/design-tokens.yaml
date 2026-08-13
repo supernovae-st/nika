@@ -455,11 +455,14 @@ roles:
     vscode_semantic: "variable.other.link"
   fail:
     means: "the declared failure grammar"
-    seed: ["on_error", "on_finally", "retry", "recover"]
+    # `on_finally` left the language (cleanup is a task on an `unwind` edge ·
+    # 03 §unwind) · `unwind` is an after: PREDICATE VALUE, not a declared
+    # word, so the failure grammar seeds on the three that remain words.
+    seed: ["on_error", "retry", "recover"]
     # the closure: a word whose ONLY scopes are recovery scopes is failure
     # grammar, however deep it sits (backoff_ms · jitter · on_codes · skip …)
     inherit: "scopes_closed_under"
-    recovery_scopes: ["on_error", "on_finally", "retry"]
+    recovery_scopes: ["on_error", "retry"]
     # refusals — the one layer hue no verb claims, and the exact hue /errors
     # and the danger ring already speak
     mark: "danger"

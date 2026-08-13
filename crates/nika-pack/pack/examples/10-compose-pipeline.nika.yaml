@@ -26,9 +26,7 @@
 #   this file. Taken alone, check refuses before anything runs — NIKA-COMP-001
 #   names the missing file (measured · a bare copy dies on exactly that).
 
-nika: v1
-workflow:
-  id: compose-pipeline
+nika: compose-pipeline
 
 model: mock/echo   # the dry twin — and the child carries its own seat
 

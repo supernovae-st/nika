@@ -17,18 +17,16 @@
 #   - real WORK on the failure path · the sanctioned use — `retry:` covers
 #     transient errors, `on_error: recover:` covers a fallback value, a
 #     failure-edge task is for work (one-obvious-way/003 · /004)
-#   - `on_finally:` in its FULL mini form · `when:` + `timeout:` + verb
-#     (03 showed the minimal form) · cleanup errors are logged, never
-#     propagated · a task that never STARTED runs no cleanup at all
+#   - cleanup as a TASK on an `unwind` edge · `when:` + `timeout:` are the
+#     ordinary task fields, not a second grammar · cleanup errors are logged,
+#     never propagated · a producer that never STARTED unwinds nothing
 #
 # Run · nika run examples/12-failure-routing.nika.yaml
 #   the drill · nika run examples/12-failure-routing.nika.yaml --var drill=true
 #     — the deploy fails ON PURPOSE, the run exits red, and out/incident.md
 #     is the artifact that proves the failure arm ran.
 
-nika: v1
-workflow:
-  id: failure-routing
+nika: failure-routing
 
 permits:
   exec: false
@@ -54,18 +52,20 @@ tasks:
       args:
         condition: "${{ inputs.drill == false }}"
         message: "drill requested · the deploy step fails on purpose"
-    on_finally:
-      # The FULL mini-task form: `when:` + `timeout:` + exactly one verb —
-      # the closed shape (03 showed the minimal one). It runs once the
-      # parent has STARTED, on every settle — and its errors are logged,
-      # never propagated: a cleanup can never turn a green run red.
-      - when: ${{ tasks.deploy.status != "success" }}
-        timeout: "10s"
-        invoke:
-          tool: "nika:log"
-          args:
-            level: warn
-            message: "deploy settled ${{ tasks.deploy.status }} · lock released"
+  release_lock:
+    # Cleanup is a TASK on an `unwind` edge — `when:` and `timeout:` are the
+    # ordinary task fields, not a second grammar. It runs once `deploy` has
+    # STARTED, on every settle — and its errors are logged, never propagated:
+    # a cleanup can never turn a green run red. An unwind task may read the
+    # producer it unwinds (settled by definition) and nothing else.
+    after: { deploy: unwind }
+    when: ${{ tasks.deploy.status != "success" }}
+    timeout: "10s"
+    invoke:
+      tool: "nika:log"
+      args:
+        level: warn
+        message: "deploy settled ${{ tasks.deploy.status }} · lock released"
 
   publish:
     after: { deploy: success }

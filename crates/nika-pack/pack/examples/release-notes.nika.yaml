@@ -32,10 +32,7 @@
 #   To really ping · --var announce=true and export TEAM_WEBHOOK_URL.
 #   Offline rehearsal (zero key, deterministic) · add `--model mock/echo`.
 
-nika: v1
-workflow:
-  id: release-notes
-  description: "git log → typed release notes → CHANGELOG insert → team ping"
+nika: release-notes
 
 # A NON-thinking local model, deliberately: a thinking model can spend the
 # whole `max_tokens` budget in its think block and return before the JSON

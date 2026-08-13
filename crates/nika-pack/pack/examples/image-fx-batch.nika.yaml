@@ -12,7 +12,7 @@
 #   - `nika:glob` · the folder IS the work list (drop a photo in, re-run)
 #   - `nika:jq` deriving the output paths · string work belongs in a builtin,
 #     not in a shell call
-#   - `for_each` + `max_parallel` · the whole folder at once, bounded
+#   - `for_each` + `for_each.max_parallel` · the whole folder at once, bounded
 #   - `nika:image_fx` · an ORDERED ops chain (grayscale → bayer dither →
 #     pixelate) · every op deterministic, no model, no network
 #   - the glob read boundary · see the comment on `permits.fs.read`: it is
@@ -20,10 +20,7 @@
 #
 # Run · nika run examples/image-fx-batch.nika.yaml
 
-nika: v1
-workflow:
-  id: image-fx-batch
-  description: "Folder of PNG files → deterministic art (grayscale · dither · pixelate) · offline batch"
+nika: image-fx-batch
 
 const:
   # Two sample photos ship with the repo. Point this at your own folder and
@@ -71,8 +68,9 @@ tasks:
   stylize:
     with:
       jobs: ${{ tasks.jobs.output }}
-    for_each: ${{ with.jobs }}
-    max_parallel: 4
+    for_each:
+      items: ${{ with.jobs }}
+      max_parallel: 4
     invoke:
       tool: "nika:image_fx"
       args:

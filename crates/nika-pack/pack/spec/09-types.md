@@ -1,9 +1,9 @@
 # 09 · Types
 
-> Nika has a **decidable type core**. A workflow declares named types
-> once (`types:`), tasks declare what they return (`returns:`), and the
-> engine checks every deep reference, compiles structured-output
-> contracts, and types every value edge — **before a token is spent**.
+> Nika has a **decidable type core**. Tasks declare what they return
+> (`returns:`) with a **self-contained type expression**, and the engine
+> checks every deep reference, compiles structured-output contracts, and
+> types every value edge — **before a token is spent**.
 > The type language is deliberately small: every judgment (subtyping ·
 > path validity · contract compilation) terminates, by construction.
 >
@@ -16,37 +16,53 @@
 
 ---
 
-## The `types:` block · *optional · named type declarations*
+## Where a type is written · *inline, at its declaration position*
 
 ```yaml
-nika: v1
-workflow:
-  id: research-pipeline
-
-types:
-  Summary:
-    object:
-      title: string
-      bullets: { array: string }
-      score: { integer: { min: 0, max: 100 } }
+nika: research-pipeline
 
 tasks:
   summarize:
     with: { article: "${{ tasks.fetch.output }}" }
     infer:
       prompt: "Summarize · ${{ with.article }}"
-    returns: Summary
+    returns:
+      object:
+        title: string
+        bullets: { array: string }
+        score: { integer: { min: 0, max: 100 } }
 ```
 
-- A type name matches `^[A-Z][A-Za-z0-9]*$` (PascalCase — disjoint from
-  task ids and from the lowercase primitive names by construction).
-- A name may reference other named types. References must be **acyclic**:
-  a recursive type is rejected (`NIKA-TYPE-002` — unbounded recursion
-  would make subtyping and lowering undecidable; v1 keeps every judgment
-  total).
-- An unknown name (in `types:`, `returns:`, an `outputs:` `type:`, or a
-  field position) is `NIKA-TYPE-001`, with a did-you-mean fix when a
-  declared name is close.
+A type expression is **self-contained**: it is written where it is used
+(`returns:` · an `inputs:` `type:` · an `outputs:` `type:`) and refers to
+nothing outside itself. There is no name to look up, so there is no name
+environment, no import order, and no cycle to detect.
+
+> **⚰️ The `types:` block (2026-08-12).** Named, PascalCase type
+> declarations are **dead**. Measured: **zero** usage in real work, and
+> **14 `returns:` in total across 815 files** — nothing was ever declared
+> twice, so there was never a second site to name a type *for*. `returns:`
+> already accepted an inline type expression; the block was the
+> infrastructure of a reuse that never happened.
+>
+> Consequence in the grammar: a **PascalCase name in type position now
+> resolves to nothing** and refuses `NIKA-TYPE-001`, teaching the inline
+> form. `NIKA-TYPE-002` (« the `types:` graph must be acyclic ») is
+> **retired** — the class has no object, and no retired code is ever
+> reused.
+>
+> Nothing about the type *language* shrank. Every constructor below —
+> objects, arrays, maps, unions, enums, refinements, the optional
+> modifier, the lowering, the subtyping lattice — is unchanged. Only the
+> naming layer died.
+
+- A **PascalCase word** in type position (a `returns:`, an `inputs:`
+  `type:`, an `outputs:` `type:`, a field) is `NIKA-TYPE-001`: there is
+  no name environment to resolve it against, and the refusal teaches the
+  inline form.
+- Every judgment (subtyping · path validity · contract compilation)
+  **terminates by construction** — with no names there is no reference
+  graph, so decidability is structural rather than guarded.
 
 ## The type grammar (closed · v1)
 
@@ -90,8 +106,7 @@ code, the same class, one voice with the schema walk of
 Opt out per object with `additional: true` ·
 
 ```yaml
-types:
-  Loose: { object: { id: string }, additional: true }
+    returns: { object: { id: string }, additional: true }
 ```
 
 ### Optional is presence, not null (normative)
@@ -100,13 +115,12 @@ types:
 apart ·
 
 ```yaml
-types:
-  Story:
-    object:
-      headline: string                     # required · present · non-null
-      byline: { optional: string }         # MAY BE ABSENT · when present: a string (null refused)
-      score: { union: [integer, null] }    # required · present · may be NULL
-      note: { optional: { union: [string, null] } }   # may be absent · may be null
+    returns:
+      object:
+        headline: string                     # required · present · non-null
+        byline: { optional: string }         # MAY BE ABSENT · when present: a string (null refused)
+        score: { union: [integer, null] }    # required · present · may be NULL
+        note: { optional: { union: [string, null] } }   # may be absent · may be null
 ```
 
 - `{ optional: T }` is a **field-presence modifier**: the field may be
@@ -114,8 +128,8 @@ types:
   is a violation unless `T` itself admits null.
 - **Nullability is a union**: `{ union: [T, null] }` — one spelling,
   no `nullable<>` alias.
-- `optional:` anywhere OUTSIDE a field position (a `returns:`, an array
-  element, a union member, a `types:` root) is refused —
+- `optional:` anywhere OUTSIDE a field position (a `returns:` root, an
+  array element, a union member) is refused —
   `NIKA-TYPE-001`-class, with the teaching « optional is a
   field-presence modifier — for a nullable value write
   `union: [T, null]` ».
@@ -381,8 +395,7 @@ value MUST conform to its declared type — checked, never warnings
 
 | Code | Failure | Category | `transient` |
 |---|---|---|---|
-| `NIKA-TYPE-001` | unknown type name (in `types:` · `returns:` · an `outputs:` type) — did-you-mean when close | `validation_error` | false |
-| `NIKA-TYPE-002` | recursive type reference — the `types:` graph must be acyclic | `validation_error` | false |
+| `NIKA-TYPE-001` | unknown type name in any type position (`returns:` · an `inputs:`/`outputs:` `type:` · a field) — with named types retired the name environment is empty, so the refusal teaches the inline form | `validation_error` | false |
 | `NIKA-TYPE-003` | `returns:` and `schema:` on the same task — one contract, one spelling | `validation_error` | false |
 | `NIKA-TYPE-004` | `returns:` type unreachable from the declared `decode:` (an object over `decode: text` · …) | `validation_error` | false |
 | `NIKA-TYPE-005` | a secret-carrying type in a lowered position (reserved with `secret<T>` · W4) | `security_error` | false |
@@ -393,7 +406,7 @@ value MUST conform to its declared type — checked, never warnings
 | Rule | Instead of | Write |
 |---|---|---|
 | `one-obvious-way/011` | `schema:` on an `infer:`/`agent:` task whose shape fits the v1 type grammar | `returns:` (the typed door — the hatch is for out-of-core shapes) |
-| `one-obvious-way/012` | an inline `returns:` object repeated across tasks | a named type in `types:` (one declaration, N references) |
+| `one-obvious-way/012` | ⚰️ RETIRED 2026-08-12 — it routed to `types:`, which is dead. A repeated `returns:` object is repeated in the source; measured, it never happened (14 `returns:` across 815 files) |
 
 ## What v1 deliberately does not do
 

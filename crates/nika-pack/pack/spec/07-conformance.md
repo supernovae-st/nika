@@ -35,11 +35,11 @@ A higher level **includes** the lower levels.
 An engine claims « Core v0.1-compliant » if it ·
 
 1. **Parses** any valid v0.1 workflow YAML correctly
-   - Accepts exactly `nika: v1` · a `workflow:` object carrying a kebab-case `id` · rejects any other `nika:` value (a scalar `workflow:` is the dead W1 form · `NIKA-PARSE-020`)
-   - Validates the `workflow` identifier kebab-case
-   - Validates typed `inputs` (type + required) · validates `config` / `const` / `secrets` shape
+   - Accepts a kebab-case `nika:` id (`^[a-z][a-z0-9-]*$`) · rejects any other shape, `v1` included (`NIKA-PARSE-003`) — the key carries the file's NAME, and the version slot is gone forever and losslessly
+   - Reads the document TYPE from `tasks:` (present ⇒ workflow · absent ⇒ project), never from the filename
+   - Validates typed `inputs` (type + required) · validates `const` / `secrets` shape
    - Recognizes the 4 verbs (`infer` · `exec` · `invoke` · `agent`)
-   - Rejects unknown top-level fields with a clear error OR ignores with warning (engine's choice · documented behavior)
+   - **Rejects** unknown fields with a clear error (`NIKA-PARSE-005` · strict) — at every level, not only the top (D-2026-08-11-N20)
 
 2. **Computes DAG topology** correctly
    - Derives E_d from `with:` bindings (role per referenced field) and E_c from `after:` entries · G_p = E_d ∪ E_c ([03 §four graphs](./03-dag.md#the-four-graphs-normative))
@@ -54,9 +54,9 @@ An engine claims « Core v0.1-compliant » if it ·
    - `${{ inputs.x }}` · `${{ const.x }}` resolve to declared envelope `inputs:` / `const:` entries
    - `${{ with.x }}` resolves to a declared task `with:` key
    - `${{ tasks.X.field }}` resolves to a declared upstream task + a valid field name
-   - `${{ config.X }}` · `${{ secrets.X }}` resolve to declared namespaces
+   - `${{ secrets.X }}` resolves to a declared `secrets:` entry
    - `when:` and `for_each:` expressions are valid **CEL** (the v0.1 subset · see 03-dag) and their references **resolve to known namespaces**: Core parses but does NOT *evaluate* them (no execution = no `tasks.X.status` to compare against · that is Runtime's job)
-   - `output:` bindings are valid **jq** expressions (the one data language · see 04-variables) · `${{ }}` never appears inside a binding
+   - `extract:` bindings are valid **jq** expressions (the one data language · see 04-variables) · `${{ }}` never appears inside a binding
    - Reports undefined references with `NIKA-VAR-001` · static expression violations with `NIKA-VAR-005` (the deep-static layer · CEL subset parse · jq compile · `when:` boolean shape)
 
 4. **Produces typed errors** matching the v0.1 spec
@@ -108,11 +108,41 @@ GitHub Actions and Docker Compose. A working modeline today:
 
 ```yaml
 # yaml-language-server: $schema=https://raw.githubusercontent.com/supernovae-st/nika-spec/main/schemas/workflow.schema.json
-nika: v1
+nika: my-workflow
 ```
 
-(The short `https://nika.sh/spec/v1/workflow.schema.json` form goes live
-with the site launch · both will resolve to the same schema.) This is also what makes a Nika file
+#### The address MUST become versioned and immutable (normative · D-2026-08-11-N24)
+
+⚠️ **The modeline above points at a moving branch, and that is a defect with
+two independent causes.**
+
+*The first is ours.* Since [§unknown key](#an-unknown-key-is-an-error-at-every-level-normative--d-2026-08-11-n20)
+an unknown key is an error, so this schema's `additionalProperties: false` is
+no longer a lint preference — it is the accepted surface of the language. Served
+from `main`, that surface moves under every editor in the world **while no file
+has changed**. A workflow that validated on Monday shows red on Tuesday because
+a schema it never named was edited. This is precisely the drift the strict rule
+exists to prevent, arriving through the back door.
+
+*The second is the host's.* `raw.githubusercontent.com` fronts a cache that
+serves stale bytes: a schema can be correct at the commit and wrong at the
+reader for an unspecified window. **Immutable upstream is not immutable at the
+point of use** — measured in this workspace, 2026-08-07.
+
+**The shape.** One address per minor, frozen forever ·
+
+```yaml
+# yaml-language-server: $schema=https://nika.sh/schema/v0.1/workflow.schema.json
+nika: my-workflow
+```
+
+This is what JSON Schema, OpenAPI, Kubernetes and CWL all do, and it composes
+with the `nika:` mark the envelope already carries. A file written in 2027
+still reads in 2030 against **its own** schema. Until the address ships, the
+modeline above is the pragmatic form and this paragraph is the standing debt —
+stated, not hidden.
+
+This is also what makes a Nika file
 pleasant (and trap-free) for an AI to author: the schema constrains the shape
 before the engine ever runs. CEL expressions and jq expressions inside string
 fields are validated by the engine (Core level), not the JSON Schema.
@@ -221,7 +251,7 @@ conformance/
 │                              # proof · projection) + their `*_selftest.py` sweeps
 ├── yaml-profile/              # R11 profile fixtures (valid/ + invalid/)
 ├── type-corpus/               # the generated type corpus (gen-type-corpus.py)
-├── values/                    # the four-authority family (C2 · R3a · valid/ + invalid/)
+├── values/                    # the three-authority family (C2 · R3a · valid/ + invalid/)
 ├── types/                     # io-declaration predicate vocabulary (C2 · R3b · valid/ + invalid/)
 ├── gates/                     # the after: predicate vocabulary (C2 · R5 · valid/ + invalid/)
 └── runner-protocol.md         # how to run the suite against any engine
@@ -272,6 +302,44 @@ The reference implementation [supernovae-st/nika](https://github.com/supernovae-
 ## Versioning
 
 A conformance claim is **specific to a spec version**. As the stdlib evolves to v0.2 · engines re-claim conformance against the new suite. The Core conformance level is stable forever within v1 of the language.
+
+### An unknown key is an error, at every level (normative · D-2026-08-11-N20)
+
+An engine MUST refuse a key it does not know (`NIKA-PARSE-005`). It MUST NOT
+accept-and-warn. **This clause used to leave the choice to the engine, and a
+choice here is not a detail: it is the whole growth model.** Two conformant
+engines were entitled to disagree on every future key — one refusing a file
+the other ran — which is the definition of a language that has not decided
+what it is.
+
+**Why refusal is the safe direction, and acceptance is not.** The instinct
+runs the other way: accept-and-warn looks forward-compatible, since a file
+written for a later minor would still run on an older engine. It is the wrong
+instinct here, because **a key in this language can REMOVE authority.** A
+future rule that forbids something would be silently dropped by an older
+engine, and the file would run with **more** authority than its author
+granted — failing open, in the one language whose premise is that an absent
+grant means zero. Refusal fails closed: the file does not run at all, and the
+author learns why.
+
+**What it buys, and it is not small.** Every key this spec reserves for a later
+minor lands **additively and for free** under refusal: no valid file uses one
+today, so admitting it later breaks nothing. Adding to a closed space is always
+compatible; the closure is what makes the growth safe. It also
+catches the misspelling — `permit:` written for `permits:` — which today is
+accepted in silence and yields *zero authority* without saying so, the most
+expensive typo the language can carry.
+
+**Precedent, and it is not ours.** CWL treats an unrecognised field as *a
+fatal error*; the field its readers may ignore is the advisory one, not the
+structural one. A serious specification refuses.
+
+⚠️ **A corollary that is not optional.** Under strict refusal, the published
+JSON Schema (`additionalProperties: false`) can no longer be served from a
+moving branch: it needs a **versioned, immutable address** (one per minor).
+Otherwise the editors of the world watch the accepted surface move under them
+while no file has changed — the drift the refusal exists to prevent, arriving
+by the back door.
 
 ---
 

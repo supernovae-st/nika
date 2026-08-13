@@ -29,10 +29,7 @@
 #         --var topic="local-first AI runtimes"
 #       · rehearse with no keys and no network · add --model mock/echo
 
-nika: v1
-workflow:
-  id: deep-research-brief
-  description: "plan → budgeted research agent → thinking synthesis → brief on disk"
+nika: deep-research-brief
 
 model: ollama/qwen3.5:4b   # local · zero key · `--model mock/echo` rehearses the whole file
 
