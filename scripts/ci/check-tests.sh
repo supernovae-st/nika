@@ -20,11 +20,32 @@ if grep -qE '^\s*members\s*=\s*\[\s*\]\s*$' Cargo.toml; then
   exit 0
 fi
 
-if [ -n "${CI:-}" ] && command -v cargo-nextest >/dev/null 2>&1; then
+# The environment and the tool are judged SEPARATELY. They used to share
+# one `&&`, which made a missing cargo-nextest indistinguishable from "not
+# CI": in CI, with the tool absent, the whole condition went false and the
+# script fell through to `cargo test --workspace --lib` — silently
+# reinstating the exact regression the SCOPE note above says was closed on
+# 2026-07-06, with the tests/ suites running nowhere again. `command -v`
+# failing has to read as "I cannot judge", never as "take the narrower
+# path".
+if [ -n "${CI:-}" ]; then
+  if ! command -v cargo-nextest >/dev/null 2>&1; then
+    echo "FAIL  CI requires cargo-nextest for the FULL battery (lib AND tests/)." >&2
+    echo "      Refusing to fall back to --lib: that scope is the 2026-07-06" >&2
+    echo "      regression, and a narrower run is not this gate passing." >&2
+    exit 1
+  fi
   # CI: the FULL battery — lib AND integration targets (tests/).
   exec cargo nextest run --workspace
 fi
+
 if command -v cargo-nextest >/dev/null 2>&1; then
   exec cargo nextest run --workspace --lib
 fi
+
+# Local, no nextest: the fallback stays, but it says what it is NOT running.
+# A reduced scope that announces itself is a choice; one that does not is a
+# false green.
+echo "WARN  cargo-nextest absent — running 'cargo test --workspace --lib'." >&2
+echo "      LIB TARGETS ONLY: the tests/ integration suites are NOT executed." >&2
 exec cargo test --workspace --lib
