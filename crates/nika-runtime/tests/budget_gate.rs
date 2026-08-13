@@ -182,7 +182,7 @@ async fn budget_starves_a_serial_fan_out_mid_flight() {
     // `max_parallel: 1` serializes admission: 0.03 + 0.03 crosses
     // the 0.05 budget after the second iteration — the third is
     // never admitted, the task fails NIKA-1704 naming the shortfall.
-    let yaml = "nika: w\ntasks:\n  fan:\n    for_each: { items: [1, 2, 3] }\n    max_parallel: 1\n    invoke: { tool: \"nika:jq\", args: { input: \"${{ item }}\", expression: \".\" } }\n";
+    let yaml = "nika: w\ntasks:\n  fan:\n    for_each: { items: [1, 2, 3], max_parallel: 1 }\n    invoke: { tool: \"nika:jq\", args: { input: \"${{ item }}\", expression: \".\" } }\n";
     let tools = MockToolExecutor::new()
         .enqueue_ok(priced_result("c1", 0.03))
         .enqueue_ok(priced_result("c2", 0.03))

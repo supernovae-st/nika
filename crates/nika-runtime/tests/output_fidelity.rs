@@ -96,7 +96,7 @@ permits: { exec: true, tools: ["nika:jq"] }
 tasks:
   src:
     invoke: { tool: "nika:jq", args: { input: { count: 7 }, expression: "." } }
-    output: { c: ".count" }
+    extract: { c: ".count" }
   gate:
     with: { c: "${{ tasks.src.c }}" }
     when: ${{ with.c == 7 }}
@@ -186,7 +186,7 @@ permits: { tools: ["nika:jq"] }
 tasks:
   src:
     invoke: { tool: "nika:jq", args: { input: { users: [1, 2, 3] }, expression: "." } }
-    output: { each: ".users[]" }
+    extract: { each: ".users[]" }
 "#;
     let tools = MockToolExecutor::new().enqueue_ok(
         ToolResult::success("c", r#"{"users":[1,2,3]}"#)
@@ -241,7 +241,7 @@ tasks:
   maybe:
     when: ${{ const.run == 'yes' }}
     invoke: { tool: "nika:jq", args: { input: { count: 5 }, expression: "." } }
-    output: { c: ".count" }
+    extract: { c: ".count" }
   join:
     with: { c: "${{ tasks.maybe.c }}" }
     when: ${{ with.c == null }}

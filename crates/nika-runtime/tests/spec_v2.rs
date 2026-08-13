@@ -341,8 +341,7 @@ const:
   items: ["x", "y"]
 tasks:
   flaky_fan:
-    for_each: { items: "${{ const.items }}" }
-    max_parallel: 1
+    for_each: { items: "${{ const.items }}", max_parallel: 1 }
     retry: { max_attempts: 2, backoff_ms: 10000, backoff_strategy: fixed, jitter: true }
     agent:
       prompt: "ask ${{ item }}"
@@ -757,8 +756,7 @@ const:
   urls: ["alpha", "beta", "gamma"]
 tasks:
   scrape:
-    for_each: { items: "${{ const.urls }}" }
-    max_parallel: 1
+    for_each: { items: "${{ const.urls }}", max_parallel: 1 }
     with: { page: "${{ item }}" }
     exec: { command: ["fetch", "${{ with.page }}", "at", "${{ index }}"] }
   join:
@@ -811,8 +809,7 @@ const:
   prompts: ["alpha", "beta", "gamma"]
 tasks:
   think_all:
-    for_each: { items: "${{ const.prompts }}" }
-    max_parallel: 1
+    for_each: { items: "${{ const.prompts }}", max_parallel: 1 }
     infer:
       prompt: "ponder ${{ item }}"
 "#;
@@ -853,9 +850,7 @@ const:
   items: ["one", "two", "three"]
 tasks:
   work:
-    for_each: { items: "${{ const.items }}" }
-    max_parallel: 1
-    fail_fast: false
+    for_each: { items: "${{ const.items }}", max_parallel: 1, fail_fast: false }
     exec: { command: ["do", "${{ item }}"] }
 "#;
     let shell = MockShell::new()
@@ -896,8 +891,7 @@ const:
   items: ["one", "two", "three"]
 tasks:
   work:
-    for_each: { items: "${{ const.items }}" }
-    max_parallel: 1
+    for_each: { items: "${{ const.items }}", max_parallel: 1 }
     on_error: { skip: true }
     exec: { command: ["do", "${{ item }}"] }
 "#;
@@ -937,8 +931,7 @@ const:
   items: ["one", "two", "three"]
 tasks:
   work:
-    for_each: { items: "${{ const.items }}" }
-    max_parallel: 1
+    for_each: { items: "${{ const.items }}", max_parallel: 1 }
     exec: { command: ["do", "${{ item }}"] }
 "#;
     // Only TWO shell results enqueued: iteration 1 ok · iteration 2
@@ -1015,8 +1008,7 @@ const:
   items: ["x", "y"]
 tasks:
   pair:
-    for_each: { items: "${{ const.items }}" }
-    max_parallel: 2
+    for_each: { items: "${{ const.items }}", max_parallel: 2 }
     invoke: { tool: "nika:read", args: { path: "${{ item }}" } }
 "#;
     let (wf, report) = parse_and_check(yaml);
@@ -1220,8 +1212,7 @@ tasks:
       args: { pattern: "./docs/**/*.md" }
   texts:
     with: { files: "${{ tasks.files.output }}" }
-    for_each: { items: "${{ with.files }}" }
-    max_parallel: 1
+    for_each: { items: "${{ with.files }}", max_parallel: 1 }
     invoke:
       tool: "nika:read"
       args: { path: "${{ item }}" }
