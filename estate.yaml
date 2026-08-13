@@ -183,7 +183,7 @@ patterns:
 - glob: "scripts/**"
   class: authored
   match_count: 138
-  aggregate_sha256: 4f110974fecc1ca01fe3c2faca8d40648d8a0faf8dbee51e4947136261b550ad
+  aggregate_sha256: 6faa1c08418fe9ab51d7f2fd82015bced00e79a57d76683ca6d461d4ca97d5d0
   evidence: "hand-written gates · hooks · hygiene vectors · media lanes; the ratchet baselines (scripts/ci/*-baseline.txt · scripts/hygiene/baselines/) are hand-kept monotonic floors ('Never remove a line by hand')"
 - glob: ".github/workflows/**"
   class: authored
