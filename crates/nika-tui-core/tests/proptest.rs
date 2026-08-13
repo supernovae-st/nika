@@ -22,31 +22,31 @@ use proptest::prelude::*;
 fn arb_workflow() -> impl Strategy<Value = Workflow> {
     (1usize..12).prop_flat_map(|n| {
         prop::collection::vec(prop::collection::vec(0usize..n, 0..3), n..=n).prop_map(
-            move |needs| Workflow {
-                file: "prop.nika.yaml".to_owned(),
-                engine: "test".to_owned(),
-                prompt: String::new(),
-                permits: Vec::new(),
-                missing: String::new(),
-                tasks: needs
-                    .into_iter()
-                    .enumerate()
-                    .map(|(i, ns)| Task {
-                        id: format!("t{i}"),
-                        verb: match i % 4 {
-                            0 => Verb::Infer,
-                            1 => Verb::Exec,
-                            2 => Verb::Invoke,
-                            _ => Verb::Agent,
-                        },
-                        glyph: "·".to_owned(),
-                        needs: ns.into_iter().map(|j| format!("t{j}")).collect(),
-                        tool: None,
-                        origin: None,
-                        family: None,
-                        touches: None,
-                    })
-                    .collect(),
+            move |needs| {
+                Workflow::new(
+                    "prop.nika.yaml".to_owned(),
+                    "test".to_owned(),
+                    String::new(),
+                    Vec::new(),
+                    String::new(),
+                    needs
+                        .into_iter()
+                        .enumerate()
+                        .map(|(i, ns)| {
+                            Task::new(
+                                format!("t{i}"),
+                                match i % 4 {
+                                    0 => Verb::Infer,
+                                    1 => Verb::Exec,
+                                    2 => Verb::Invoke,
+                                    _ => Verb::Agent,
+                                },
+                                "·".to_owned(),
+                                ns.into_iter().map(|j| format!("t{j}")).collect(),
+                            )
+                        })
+                        .collect(),
+                )
             },
         )
     })
@@ -75,25 +75,23 @@ fn arb_run(ids: Vec<String>) -> impl Strategy<Value = Run> {
         ),
         0..=ids.len(),
     )
-    .prop_map(move |rows| Run {
-        trace: "prop".to_owned(),
-        when: "recorded".to_owned(),
-        output: String::new(),
-        steps: rows
-            .into_iter()
-            .enumerate()
-            .map(|(i, (start, dur, cost, never_born, skipped))| Step {
-                id: ids.get(i).cloned().unwrap_or_else(|| "ghost".to_owned()),
-                start,
-                dur,
-                cost,
-                tokens: None,
-                failed: None,
-                never_born,
-                blocked_by: None,
-                skipped,
-            })
-            .collect(),
+    .prop_map(move |rows| {
+        Run::new(
+            "prop".to_owned(),
+            "recorded".to_owned(),
+            String::new(),
+            rows.into_iter()
+                .enumerate()
+                .map(|(i, (start, dur, cost, never_born, skipped))| {
+                    let id = ids.get(i).cloned().unwrap_or_else(|| "ghost".to_owned());
+                    let mut step = Step::new(id, start, dur);
+                    step.cost = cost;
+                    step.never_born = never_born;
+                    step.skipped = skipped;
+                    step
+                })
+                .collect(),
+        )
     })
 }
 

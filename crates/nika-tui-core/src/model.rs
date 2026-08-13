@@ -113,6 +113,7 @@ pub enum Family {
 
 /// One declared task. `needs` is what makes the waves.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct Task {
     /// The task id (the file's map key).
     pub id: String,
@@ -137,8 +138,35 @@ pub struct Task {
     pub touches: Option<Vec<Touch>>,
 }
 
+impl Task {
+    /// The constructor the `#[non_exhaustive]` marker requires (invariant
+    /// #19). Only the fields the WIRE requires are arguments; the rest stay
+    /// `pub` — set what you mean, leave the rest.
+    ///
+    /// The marker was deferred once, on the argument that a `publish = false`
+    /// crate has no external consumer to protect. The operator corrected the
+    /// premise: the design and its functionality are FAR from finished, so
+    /// these types will keep gaining fields. That is precisely when the
+    /// ratchet earns its cost — it is what lets them grow without breaking a
+    /// caller.
+    #[must_use]
+    pub fn new(id: String, verb: Verb, glyph: String, needs: Vec<String>) -> Self {
+        Self {
+            id,
+            verb,
+            glyph,
+            needs,
+            tool: None,
+            origin: None,
+            family: None,
+            touches: None,
+        }
+    }
+}
+
 /// What the file declares.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct Workflow {
     /// The workflow file name.
     pub file: String,
@@ -154,8 +182,40 @@ pub struct Workflow {
     pub tasks: Vec<Task>,
 }
 
+impl Workflow {
+    /// The constructor the `#[non_exhaustive]` marker requires (invariant
+    /// #19). Only the fields the WIRE requires are arguments; the rest stay
+    /// `pub` — set what you mean, leave the rest.
+    ///
+    /// The marker was deferred once, on the argument that a `publish = false`
+    /// crate has no external consumer to protect. The operator corrected the
+    /// premise: the design and its functionality are FAR from finished, so
+    /// these types will keep gaining fields. That is precisely when the
+    /// ratchet earns its cost — it is what lets them grow without breaking a
+    /// caller.
+    #[must_use]
+    pub const fn new(
+        file: String,
+        engine: String,
+        prompt: String,
+        permits: Vec<String>,
+        missing: String,
+        tasks: Vec<Task>,
+    ) -> Self {
+        Self {
+            file,
+            engine,
+            prompt,
+            permits,
+            missing,
+            tasks,
+        }
+    }
+}
+
 /// A recorded failure — the code and its reason.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct Failure {
     /// The NIKA code.
     pub code: String,
@@ -163,9 +223,18 @@ pub struct Failure {
     pub why: String,
 }
 
+impl Failure {
+    /// The constructor the `#[non_exhaustive]` marker requires (invariant #19).
+    #[must_use]
+    pub const fn new(code: String, why: String) -> Self {
+        Self { code, why }
+    }
+}
+
 /// One recorded step of a run.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct Step {
     /// The task id it ran.
     pub id: String,
@@ -197,8 +266,36 @@ pub struct Step {
     pub skipped: Option<bool>,
 }
 
+impl Step {
+    /// The constructor the `#[non_exhaustive]` marker requires (invariant
+    /// #19). Only the fields the WIRE requires are arguments; the rest stay
+    /// `pub` — set what you mean, leave the rest.
+    ///
+    /// The marker was deferred once, on the argument that a `publish = false`
+    /// crate has no external consumer to protect. The operator corrected the
+    /// premise: the design and its functionality are FAR from finished, so
+    /// these types will keep gaining fields. That is precisely when the
+    /// ratchet earns its cost — it is what lets them grow without breaking a
+    /// caller.
+    #[must_use]
+    pub const fn new(id: String, start: f64, dur: f64) -> Self {
+        Self {
+            id,
+            start,
+            dur,
+            cost: None,
+            tokens: None,
+            failed: None,
+            never_born: None,
+            blocked_by: None,
+            skipped: None,
+        }
+    }
+}
+
 /// What the trace recorded.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct Run {
     /// The trace id.
     pub trace: String,
@@ -208,6 +305,28 @@ pub struct Run {
     pub output: String,
     /// The recorded steps.
     pub steps: Vec<Step>,
+}
+
+impl Run {
+    /// The constructor the `#[non_exhaustive]` marker requires (invariant
+    /// #19). Only the fields the WIRE requires are arguments; the rest stay
+    /// `pub` — set what you mean, leave the rest.
+    ///
+    /// The marker was deferred once, on the argument that a `publish = false`
+    /// crate has no external consumer to protect. The operator corrected the
+    /// premise: the design and its functionality are FAR from finished, so
+    /// these types will keep gaining fields. That is precisely when the
+    /// ratchet earns its cost — it is what lets them grow without breaking a
+    /// caller.
+    #[must_use]
+    pub const fn new(trace: String, when: String, output: String, steps: Vec<Step>) -> Self {
+        Self {
+            trace,
+            when,
+            output,
+            steps,
+        }
+    }
 }
 
 /// ⭐⭐ THE FAN-OUT — one line in the display is either a single task or

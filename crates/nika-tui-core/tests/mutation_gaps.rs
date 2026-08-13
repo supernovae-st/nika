@@ -32,20 +32,18 @@ fn load(name: &str) -> (Workflow, Run, serde_json::Value) {
 fn the_group_span_reports_its_members() {
     let (_wf, run, _d) = load("stress");
     let members: Vec<Task> = (0..12)
-        .map(|i| Task {
-            id: format!(
-                "traduire-{}",
-                [
-                    "fr", "en", "de", "es", "it", "pt", "nl", "pl", "ja", "ko", "zh", "ar"
-                ][i]
-            ),
-            verb: Verb::Infer,
-            glyph: "◇".to_owned(),
-            needs: Vec::new(),
-            tool: None,
-            origin: None,
-            family: None,
-            touches: None,
+        .map(|i| {
+            Task::new(
+                format!(
+                    "traduire-{}",
+                    [
+                        "fr", "en", "de", "es", "it", "pt", "nl", "pl", "ja", "ko", "zh", "ar"
+                    ][i]
+                ),
+                Verb::Infer,
+                "◇".to_owned(),
+                Vec::new(),
+            )
         })
         .collect();
     let span = derive::group_span(&members, &run).expect("twelve recorded members");
@@ -84,22 +82,18 @@ fn the_group_span_reports_its_members() {
 #[test]
 fn a_span_without_steps_is_absent() {
     let (_wf, _run, _d) = load("stress");
-    let members = vec![Task {
-        id: "fantome".to_owned(),
-        verb: Verb::Infer,
-        glyph: "◇".to_owned(),
-        needs: Vec::new(),
-        tool: None,
-        origin: None,
-        family: None,
-        touches: None,
-    }];
-    let run = Run {
-        trace: "t".to_owned(),
-        when: "recorded".to_owned(),
-        output: String::new(),
-        steps: Vec::new(),
-    };
+    let members = vec![Task::new(
+        "fantome".to_owned(),
+        Verb::Infer,
+        "◇".to_owned(),
+        Vec::new(),
+    )];
+    let run = Run::new(
+        "t".to_owned(),
+        "recorded".to_owned(),
+        String::new(),
+        Vec::new(),
+    );
     assert_eq!(derive::group_span(&members, &run), None);
 }
 
@@ -186,46 +180,21 @@ fn the_fold_pins_relative_starts_exactly() {
 /// `-> 0.0` mutant survived the fixtures. This one costs real money.
 #[test]
 fn total_cost_sums_the_priced_steps() {
-    let run = Run {
-        trace: "t".to_owned(),
-        when: "recorded".to_owned(),
-        output: String::new(),
-        steps: vec![
-            Step {
-                id: "a".to_owned(),
-                start: 0.0,
-                dur: 1.0,
-                cost: Some(0.004),
-                tokens: None,
-                failed: None,
-                never_born: None,
-                blocked_by: None,
-                skipped: None,
-            },
-            Step {
-                id: "b".to_owned(),
-                start: 1.0,
-                dur: 1.0,
-                cost: Some(0.02),
-                tokens: None,
-                failed: None,
-                never_born: None,
-                blocked_by: None,
-                skipped: None,
-            },
-            Step {
-                id: "c".to_owned(),
-                start: 2.0,
-                dur: 1.0,
-                cost: None, // the unpriced one contributes nothing
-                tokens: None,
-                failed: None,
-                never_born: None,
-                blocked_by: None,
-                skipped: None,
-            },
-        ],
+    let priced = |id: &str, start: f64, cost: Option<f64>| {
+        let mut s = Step::new(id.to_owned(), start, 1.0);
+        s.cost = cost;
+        s
     };
+    let run = Run::new(
+        "t".to_owned(),
+        "recorded".to_owned(),
+        String::new(),
+        vec![
+            priced("a", 0.0, Some(0.004)),
+            priced("b", 1.0, Some(0.02)),
+            priced("c", 2.0, None), // the unpriced one contributes nothing
+        ],
+    );
     assert_eq!(derive::total_cost(&run), 0.024);
 }
 
@@ -234,23 +203,18 @@ fn total_cost_sums_the_priced_steps() {
 /// mutant survived).
 #[test]
 fn undeclared_names_the_missing_permit() {
-    let wf = Workflow {
-        file: "gap.nika.yaml".to_owned(),
-        engine: "test".to_owned(),
-        prompt: String::new(),
-        permits: vec!["exec: [\"gh\"]".to_owned()],
-        missing: String::new(),
-        tasks: vec![Task {
-            id: "lit".to_owned(),
-            verb: Verb::Invoke,
-            glyph: "◆".to_owned(),
-            needs: Vec::new(),
-            tool: Some("nika:read".to_owned()),
-            origin: Some(Origin::Builtin),
-            family: None,
-            touches: Some(vec![Touch::FsRead, Touch::Tools]),
-        }],
-    };
+    let mut lit = Task::new("lit".to_owned(), Verb::Invoke, "◆".to_owned(), Vec::new());
+    lit.tool = Some("nika:read".to_owned());
+    lit.origin = Some(Origin::Builtin);
+    lit.touches = Some(vec![Touch::FsRead, Touch::Tools]);
+    let wf = Workflow::new(
+        "gap.nika.yaml".to_owned(),
+        "test".to_owned(),
+        String::new(),
+        vec!["exec: [\"gh\"]".to_owned()],
+        String::new(),
+        vec![lit],
+    );
     let gaps = derive::undeclared(&wf);
     assert!(
         gaps.contains(&Touch::FsRead),
