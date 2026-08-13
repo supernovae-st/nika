@@ -102,7 +102,7 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 | field            | value                                          |
 |------------------|------------------------------------------------|
 | branch           | `feat/trace-cover-doctor-signal`                                      |
-| HEAD             | `e2d4e7a21` (`e2d4e7a21f81a7351b0fd2decdab86d613f2be4d`)             |
+| HEAD             | `f5a3379e1` (`f5a3379e1d22d027c54e97cd3a95b3340884c617`)             |
 | workspace        | v0.108.0                                  |
 | crates (workspace)| 65                                              |
 | crates (admitted)| 59                                             |
@@ -114,8 +114,8 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 | L2               | 5                                              |
 | L3               | 1                                              |
 | L4               | 12                                              |
-| lib tests        | (skipped — pass --no-quick to compute)                              |
-| clippy           | (skipped)                              |
+| lib tests        | 5805 passed, 0 failed                              |
+| clippy           | 0 warnings                              |
 
 Diamond foundation — orphan branch from scratch. Live counts (admitted ·
 WIP · per-layer) are in the AUTO-GENERATED status block above (the
