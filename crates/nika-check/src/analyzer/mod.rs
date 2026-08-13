@@ -205,6 +205,97 @@ tasks:
         );
     }
 
+    // ── group · the fan-in fold (spec 03 §group) ───────────────────
+
+    const GROUP_OK: &str = "\
+nika: fold
+tasks:
+  leg_a:
+    group: probes
+    exec: { command: [\"a\"] }
+  leg_b:
+    group: probes
+    exec: { command: [\"b\"] }
+  summary:
+    with:
+      legs: \"${{ group.probes }}\"
+    exec: { command: [\"report\"] }
+";
+
+    #[test]
+    fn a_fold_derives_one_edge_per_declared_member() {
+        // The PLURAL of the data edge: two members, two edges, both
+        // fan-in, arriving in DECLARATION order so the fold's shape is
+        // stable across re-runs where completion order would not be.
+        let a = analyze_yaml(GROUP_OK).expect("valid");
+        let fan: Vec<_> = a
+            .edges
+            .iter()
+            .filter(|e| matches!(e.kind, EdgeKind::FanIn))
+            .collect();
+        assert_eq!(fan.len(), 2, "one edge per member: {:?}", a.edges);
+        assert_eq!(fan[0].from, 0, "declaration order · leg_a first");
+        assert_eq!(fan[1].from, 1, "declaration order · leg_b second");
+        assert!(fan.iter().all(|e| e.to == 2), "both land on the consumer");
+    }
+
+    #[test]
+    fn a_fan_in_edge_admits_every_settled_state() {
+        // DELIBERATELY not the intersection of the members' field roles ·
+        // an intersection would leave {skipped} and every fold would be
+        // NIKA-DAG-006-dead on arrival. The fold runs whatever happened.
+        use edges::SettledState::{Cancelled, Failure, Skipped, Success};
+        for st in [Success, Failure, Skipped, Cancelled] {
+            assert!(EdgeKind::FanIn.admits(st), "fan-in admits {st:?}");
+        }
+    }
+
+    #[test]
+    fn a_group_nobody_declares_is_refused() {
+        // The load-bearing choice: a rename must be an ERROR, not a
+        // smaller fold that stays green. An empty group is the same fact
+        // as an absent one, so one code covers both.
+        let yaml = GROUP_OK.replace("group: probes", "group: legs");
+        let errors = analyze_yaml(&yaml).expect_err("no task declares `probes`");
+        assert_has(
+            &errors,
+            |e| matches!(e, SchemaError::UnknownGroup { name, .. } if name == "probes"),
+            "NIKA-DAG-008 on the renamed group",
+        );
+    }
+
+    #[test]
+    fn a_bare_group_names_no_group() {
+        let yaml = GROUP_OK.replace("${{ group.probes }}", "${{ group }}");
+        let errors = analyze_yaml(&yaml).expect_err("bare group");
+        assert_has(
+            &errors,
+            |e| matches!(e, SchemaError::UnknownGroup { name, .. } if name.is_empty()),
+            "the bare group names nothing",
+        );
+    }
+
+    #[test]
+    fn a_fold_outside_the_with_boundary_is_refused() {
+        // ONE door, where `tasks.*` has five — nothing in VAR-021 needed
+        // widening to admit the fold.
+        let yaml = GROUP_OK.replace(
+            "    with:\n      legs: \"${{ group.probes }}\"\n",
+            "    when: \"${{ group.probes }}\"\n",
+        );
+        let errors = analyze_yaml(&yaml).expect_err("group outside with:");
+        assert_has(
+            &errors,
+            |e| {
+                matches!(
+                    e,
+                    SchemaError::RefOutsideBoundary { reference, .. } if reference == "group.probes"
+                )
+            },
+            "NIKA-VAR-021 on a fold outside `with:`",
+        );
+    }
+
     #[test]
     fn empty_tasks_array_errors() {
         // Conformance fixture envelope/006-empty-tasks-array (W1 form: an

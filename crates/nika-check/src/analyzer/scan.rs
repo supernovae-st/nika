@@ -50,6 +50,10 @@ pub(super) struct WorkflowIndex<'a> {
     consts: BTreeSet<&'a str>,
     secrets: BTreeSet<&'a str>,
     task_ids: BTreeSet<&'a str>,
+    /// the group names at least one task DECLARES (spec 03 §group ·
+    /// a group exists iff a member declares it · an empty group is
+    /// the same fact as an absent one, so one set answers both).
+    groups: BTreeSet<&'a str>,
     /// task id → declared `output:` binding names.
     bindings: BTreeMap<&'a str, BTreeSet<&'a str>>,
     /// task id → declared structured-output `schema:` (infer/agent ·
@@ -98,6 +102,12 @@ impl<'a> WorkflowIndex<'a> {
             consts: wf.consts.iter().map(|(k, _)| k.value.as_str()).collect(),
             secrets: wf.secrets.iter().map(|(k, _)| k.value.as_str()).collect(),
             task_ids: wf.tasks.iter().map(|t| t.value.id.value.as_str()).collect(),
+            groups: wf
+                .tasks
+                .iter()
+                .filter_map(|t| t.value.group.as_ref())
+                .map(|g| g.value.as_str())
+                .collect(),
             bindings,
             schemas,
             lowered: super::types_contract::lowered_returns(wf),
@@ -113,6 +123,55 @@ impl<'a> WorkflowIndex<'a> {
             .get(task_id)
             .copied()
             .or_else(|| self.lowered.get(task_id))
+    }
+}
+
+/// A `${{ group.<name> }}` fold — the plural reader of the `tasks`
+/// namespace (spec 03 §group).
+///
+/// TWO refusals, in order · the reference boundary first (`group.*` is
+/// legal in a `with:` value and NOWHERE else — one door, where `tasks.*`
+/// has five), then existence (`NIKA-DAG-008`). The boundary dominates
+/// for the same reason it does for `tasks.*`: the fix hoists the
+/// reference off this surface entirely, so existence is judged after.
+fn check_group_ref(
+    name: &str,
+    span: Span,
+    ctx: &ScanCtx<'_>,
+    index: &WorkflowIndex<'_>,
+    errors: &mut Vec<SchemaError>,
+) {
+    match ctx.task_rule {
+        TaskRefRule::Body(surface) => {
+            errors.push(SchemaError::RefOutsideBoundary {
+                task: ctx.task_id.to_owned(),
+                surface: surface.to_owned(),
+                reference: format!("group.{name}"),
+                span: Some(span),
+            });
+            return;
+        }
+        // `on_finally` reads its PARENT only; a group fold there would
+        // read siblings that may still be running.
+        TaskRefRule::FinallyParentOnly | TaskRefRule::Resolution => {
+            errors.push(SchemaError::RefOutsideBoundary {
+                task: ctx.task_id.to_owned(),
+                surface: "outputs".to_owned(),
+                reference: format!("group.{name}"),
+                span: Some(span),
+            });
+            return;
+        }
+        TaskRefRule::Boundary => {}
+    }
+    // A bare `${{ group }}` names no group (empty name) and lands here
+    // too — same code, same fact: the fold would harvest zero members.
+    if name.is_empty() || !index.groups.contains(name) {
+        errors.push(SchemaError::UnknownGroup {
+            task: ctx.task_id.to_owned(),
+            name: name.to_owned(),
+            span: Some(span),
+        });
     }
 }
 
@@ -585,6 +644,9 @@ fn check_ref(
         }
         NamespaceRef::Tasks { id, field } => {
             check_task_ref(id, field.as_deref(), span, ctx, index, errors);
+        }
+        NamespaceRef::Group(name) => {
+            check_group_ref(name, span, ctx, index, errors);
         }
         NamespaceRef::Item | NamespaceRef::Index => {
             if !ctx.allow_loop_locals {

@@ -111,6 +111,13 @@ pub struct RawTask {
     /// and [`RawTask::data_as_code_because`] rather than matching the
     /// enum at each call site.
     pub lift: Vec<LiftEntry>,
+    /// `group:` — fan-in MEMBERSHIP (spec 03 §group). This task JOINS
+    /// the named set; a consumer folds the whole set with one
+    /// `${{ group.<name> }}` binding. Membership is DECLARED, never
+    /// matched: a renamed member leaves its group loudly
+    /// (`NIKA-DAG-008` on the reference), where a glob would shrink
+    /// the fold in silence and the run would stay green.
+    pub group: Option<Spanned<String>>,
     /// The verb (exactly one · parser-enforced).
     pub action: RawAction,
 }
@@ -134,6 +141,7 @@ impl RawTask {
             returns: None,
             on_finally: Vec::new(),
             lift: Vec::new(),
+            group: None,
             action,
         }
     }

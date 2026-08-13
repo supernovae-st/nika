@@ -394,6 +394,7 @@ fn task_field_offers_exactly_the_fields_and_verbs() {
             "with",
             "extract",
             "on_finally",
+            "group",
             "lift",
             // then the 4 verbs
             "infer",
@@ -403,13 +404,13 @@ fn task_field_offers_exactly_the_fields_and_verbs() {
         ],
         "task fields then the 4 verbs"
     );
-    // the first 12 are PROPERTY (fields), the last 4 are KEYWORD (verbs).
+    // the first 13 are PROPERTY (fields), the last 4 are KEYWORD (verbs).
     // 12, not 13: `declassify` + `inert` merged into the single `lift`
     // door when the law became a parameter of the construct.
     let ks = kinds(&items);
-    assert_eq!(ks.len(), 16, "16 items, all kinded");
+    assert_eq!(ks.len(), 17, "17 items, all kinded");
     assert!(
-        ks[..12].iter().all(|k| *k == CompletionItemKind::PROPERTY),
+        ks[..13].iter().all(|k| *k == CompletionItemKind::PROPERTY),
         "fields are PROPERTY-kinded"
     );
     assert!(

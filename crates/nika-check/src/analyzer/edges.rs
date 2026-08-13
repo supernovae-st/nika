@@ -57,6 +57,15 @@ pub enum EdgeKind {
     /// carry a PRESERVED error · `on_error: skip` · spec 05 §Fields; a
     /// decision-skip's error reads defined-`null`).
     FailureObservation,
+    /// A `${{ group.<name> }}` fold — ONE edge per declared member
+    /// (spec 03 §the fan-in edge). Pass-set is all four settled states,
+    /// DELIBERATELY not the intersection of its members' field roles: a
+    /// value edge admits `{success, skipped}` and a failure-observation
+    /// `{failure, skipped}`, so an intersection would leave `{skipped}`
+    /// and every fold would be `NIKA-DAG-006`-dead on arrival. The fold
+    /// is a terminal observation of each member — it runs whatever
+    /// happened, and the per-member truth lives in the record.
+    FanIn,
     /// An `after:` entry — pass per its predicate.
     Control(AfterPredicate),
 }
@@ -70,7 +79,7 @@ impl EdgeKind {
         use SettledState::{Cancelled, Failure, Skipped, Success};
         match self {
             Self::Value => matches!(s, Success | Skipped),
-            Self::TerminalObservation => true,
+            Self::TerminalObservation | Self::FanIn => true,
             Self::FailureObservation => matches!(s, Failure | Skipped),
             Self::Control(p) => match p {
                 AfterPredicate::Success => matches!(s, Success),
@@ -90,6 +99,10 @@ impl EdgeKind {
             Self::Value => "value",
             Self::TerminalObservation => "terminal-observation",
             Self::FailureObservation => "failure-observation",
+            // the fan-in role lands with the format-3 bump; no
+            // format-2 document can carry one, since `group:` is
+            // new grammar (nothing existing declares a member).
+            Self::FanIn => "fan-in",
             Self::Control(_) => "control",
         }
     }
@@ -170,6 +183,54 @@ pub fn task_refs_in_value(value: &serde_json::Value, out: &mut Vec<(String, Opti
     }
 }
 
+/// group name → the member task indices, in DECLARATION order.
+///
+/// A group exists IFF at least one task declares it — there is no glob,
+/// no prefix match, no regex. That is the load-bearing choice: with a
+/// pattern, renaming a member silently shrinks every fold that globbed
+/// it and the run stays GREEN while covering less. Declared membership
+/// turns the same rename into `NIKA-DAG-008`, at check time.
+#[must_use]
+pub fn group_members(tasks: &[Spanned<RawTask>]) -> BTreeMap<&str, Vec<usize>> {
+    let mut out: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
+    for (i, task) in tasks.iter().enumerate() {
+        if let Some(g) = &task.value.group {
+            out.entry(g.value.as_str()).or_default().push(i);
+        }
+    }
+    out
+}
+
+/// Every `group.<name>` fold inside the `${{ }}` islands of a value tree
+/// (the bare `${{ group }}` yields an empty name — `NIKA-DAG-008`).
+pub fn group_refs_in_value(value: &serde_json::Value, out: &mut Vec<String>) {
+    match value {
+        serde_json::Value::String(s) => {
+            let Ok(islands) = scan_templates(s) else {
+                return; // malformed · the scan layer reports it
+            };
+            for island in islands {
+                for r in expr_refs(&island.expr) {
+                    if let NamespaceRef::Group(name) = r {
+                        out.push(name);
+                    }
+                }
+            }
+        }
+        serde_json::Value::Array(items) => {
+            for i in items {
+                group_refs_in_value(i, out);
+            }
+        }
+        serde_json::Value::Object(map) => {
+            for v in map.values() {
+                group_refs_in_value(v, out);
+            }
+        }
+        _ => {}
+    }
+}
+
 /// THE derivation — `E_d` from `with:` (one edge per static reference ·
 /// role per field) ∪ `E_c` from `after:` (one control edge per entry).
 ///
@@ -179,6 +240,7 @@ pub fn task_refs_in_value(value: &serde_json::Value, out: &mut Vec<(String, Opti
 /// then `after:` source order.
 #[must_use]
 pub fn derive_edges(tasks: &[Spanned<RawTask>], ids: &BTreeMap<String, usize>) -> Vec<Edge> {
+    let members = group_members(tasks);
     let mut edges = Vec::new();
     for (to, task) in tasks.iter().enumerate() {
         for (key, value) in &task.value.with {
@@ -195,6 +257,26 @@ pub fn derive_edges(tasks: &[Spanned<RawTask>], ids: &BTreeMap<String, usize>) -
                     binding: Some(key.value.clone()),
                     span: value.span,
                 });
+            }
+            // the PLURAL of the data edge — one edge per declared member,
+            // in DECLARATION order (the source order of `tasks:`), so the
+            // fold's shape is stable across re-runs where completion
+            // order would not be (spec 03 §the member record).
+            let mut folds = Vec::new();
+            group_refs_in_value(&value.value, &mut folds);
+            for name in folds {
+                let Some(idx) = members.get(name.as_str()) else {
+                    continue; // DAG-008's report
+                };
+                for &from in idx {
+                    edges.push(Edge {
+                        from,
+                        to,
+                        kind: EdgeKind::FanIn,
+                        binding: Some(key.value.clone()),
+                        span: value.span,
+                    });
+                }
             }
         }
         for (target, predicate) in &task.value.after {

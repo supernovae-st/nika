@@ -180,6 +180,12 @@ pub enum NamespaceRef {
     Env(String),
     /// `secrets.<name>` — secret references.
     Secrets(String),
+    /// `group.<name>` — the PLURAL reader of the `tasks` namespace
+    /// (spec 03 §group). Not a new namespace and not a new authority:
+    /// one edge per declared member, legal in a `with:` value and
+    /// nowhere else. An empty name is the bare `${{ group }}`, which
+    /// names no group (`NIKA-DAG-008`).
+    Group(String),
     /// `item` — the current `for_each` element (loop-local).
     Item,
     /// `index` — the current `for_each` position (loop-local).

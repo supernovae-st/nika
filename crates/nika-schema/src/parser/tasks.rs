@@ -46,6 +46,7 @@ const TASK_KEYS: &[&str] = &[
     "returns",
     "on_finally",
     "lift",
+    "group",
 ];
 
 pub(crate) use nika_vocab::keys::{FINALLY_KEYS, ON_ERROR_KEYS, RETRY_KEYS};
@@ -183,6 +184,7 @@ fn parse_task(
     task.returns = parse_returns(cx, mapping)?;
     task.on_finally = parse_on_finally(cx, mapping, &task_label)?;
     task.lift = super::lift::parse_lift(cx, mapping, &task_label)?;
+    task.group = parse_group(cx, mapping, &task_label)?;
 
     Ok(task)
 }
@@ -312,6 +314,46 @@ pub(super) fn parse_string_list(
         ));
     }
     Ok(out)
+}
+
+/// `group:` — fan-in MEMBERSHIP (spec 03 §group). One name, matching
+/// `^[a-z][a-z0-9_]*$` like a task key. Membership only: it carries no
+/// predicate, no ordering and no data.
+///
+/// A group name MAY coincide with a task key — the roots disambiguate
+/// structurally (`group.probes` vs `tasks.probes`).
+fn parse_group(
+    cx: &Cx<'_>,
+    mapping: &MarkedMappingNode,
+    task_label: &str,
+) -> Result<Option<Spanned<String>>, SchemaError> {
+    let Some(node) = mapping.get_node("group") else {
+        return Ok(None);
+    };
+    let Some(scalar) = node.as_scalar() else {
+        return Err(SchemaError::Validation {
+            message: format!("`group` on task `{task_label}` must be one name (a string)"),
+            span: cx.span(node.span()),
+        });
+    };
+    let name = scalar.as_str();
+    let shaped = name.chars().next().is_some_and(|c| c.is_ascii_lowercase())
+        && name
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_');
+    if !shaped {
+        return Err(SchemaError::Validation {
+            message: format!(
+                "invalid group name `{name}` on task `{task_label}` — must match \
+                 ^[a-z][a-z0-9_]*$ (snake_case, like a task key)"
+            ),
+            span: cx.span(node.span()),
+        });
+    }
+    Ok(Some(Spanned::new(
+        name.to_owned(),
+        cx.span_or_zero(node.span()),
+    )))
 }
 
 /// An optional boolean scalar field (`fail_fast:` · `retry.jitter:`).

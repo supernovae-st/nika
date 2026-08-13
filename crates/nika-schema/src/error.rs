@@ -161,6 +161,23 @@ pub enum SchemaError {
         span: Option<Span>,
     },
 
+    /// A `${{ group.<name> }}` reference to a group NO task declares
+    /// (`NIKA-DAG-008`) — an empty group is the same fact as an absent
+    /// one, so one code covers both, and a fold can never harvest zero
+    /// members and read as clean. A bare `${{ group }}` names no group
+    /// and lands here too (spec 03 §group).
+    #[error(
+        "task `{task}` folds `group.{name}` — no task declares that group (membership is DECLARED, never matched: check the members' `group:` keys)"
+    )]
+    UnknownGroup {
+        /// The consuming task.
+        task: String,
+        /// The group named by the reference (empty = the bare `${{ group }}`).
+        name: String,
+        /// Span of the reference.
+        span: Option<Span>,
+    },
+
     /// W2 · an out-of-set `after:` predicate (03 §after · `NIKA-DAG-005` · R5 dead spellings teach).
     #[error("{message}")]
     UnknownAfterPredicate {
@@ -729,6 +746,7 @@ impl SchemaError {
             | Self::UnknownDependency { span, .. }
             | Self::W2DependsOnField { span, .. }
             | Self::D1StringCommand { span, .. }
+            | Self::UnknownGroup { span, .. }
             | Self::UnknownAfterPredicate { span, .. }
             | Self::RefOutsideBoundary { span, .. }
             | Self::UnresolvedNamespaceRef { span, .. }
@@ -835,6 +853,7 @@ schema_code!(SCHEMA_324, 324, "dead-value-form");
 schema_code!(SCHEMA_325, 325, "foreign-value-namespace");
 schema_code!(SCHEMA_326, 326, "default-not-conforming");
 schema_code!(SCHEMA_327, 327, "run-contradiction");
+schema_code!(SCHEMA_328, 328, "unknown-group");
 
 impl NikaErrorCode for SchemaError {
     fn nika_code(&self) -> NikaCode {
@@ -849,6 +868,7 @@ impl NikaErrorCode for SchemaError {
             Self::W1TaskIdField { .. } => SCHEMA_315,
             Self::W2DependsOnField { .. } => SCHEMA_316,
             Self::UnknownAfterPredicate { .. } => SCHEMA_317,
+            Self::UnknownGroup { .. } => SCHEMA_328,
             Self::RefOutsideBoundary { .. } => SCHEMA_318,
             Self::MissingVerb { .. } => SCHEMA_287,
             Self::MultipleVerbs { .. } => SCHEMA_288,

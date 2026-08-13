@@ -198,6 +198,7 @@ fn classify_root(root: &str, path: &[String]) -> NamespaceRef {
             id: first.unwrap_or_default(),
             field: path.get(1).cloned(),
         },
+        "group" => NamespaceRef::Group(first.unwrap_or_default()),
         "item" => NamespaceRef::Item,
         "index" => NamespaceRef::Index,
         other => NamespaceRef::Unknown(other.to_owned()),

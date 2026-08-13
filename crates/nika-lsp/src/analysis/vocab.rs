@@ -168,6 +168,12 @@ pub const TASK_FIELD_KEYS: &[Entry] = &[
         doc: "Cleanup mini-tasks that ALWAYS run after this task.",
     },
     Entry {
+        name: "group",
+        doc: "Fan-in MEMBERSHIP · this task joins the named set, and a consumer \
+              folds the whole set with one `${{ group.<name> }}` binding in its \
+              `with:`. Membership is DECLARED, never matched.",
+    },
+    Entry {
         name: "lift",
         doc: "The authored doors · `[{law, from?, because}]` · one entry lifts \
               exactly ONE named law (taint · data-as-code) with a mandatory \
