@@ -646,3 +646,94 @@ fn a_step_that_never_ran_cannot_extend_its_wave() {
         "a skipped step contributes no duration · the run lasted 10 s"
     );
 }
+
+/// ⭐ THE BATCH MUST AGREE WITH THE SINGULAR — the safety property of the
+/// whole refactor, and the test the batch shipped WITHOUT.
+///
+/// A crate-wide mutation sweep run minutes after they landed put all 14 of
+/// its survivors here: `wave_ends` and `idles` could be replaced by `vec![]`
+/// or an empty map and every test stayed green. The parity fixtures pin the
+/// SINGULAR forms; the door's gate only judges time. Two public functions on
+/// the hot path, zero Rust coverage — the zero-consumer law at the scale of
+/// a function, committed by the same hand that wrote the law this evening.
+///
+/// The property is the one that makes the batch safe to exist: it is not a
+/// second implementation of the law, it is the same law asked n times, so
+/// it must answer exactly what n singular questions answer. Bit-for-bit —
+/// this crate's parity is measured on bits.
+#[test]
+fn the_batch_derivations_answer_exactly_what_the_singular_ones_do() {
+    for name in [
+        "demo-ok",
+        "demo-fail",
+        "stress",
+        "sonde-single",
+        "sonde-neverborn",
+        "sonde-diamant",
+    ] {
+        let (wf, run, _d) = load(name);
+        let ws = derive::waves(&wf);
+
+        let batch_ends = derive::wave_ends(&ws, &run);
+        assert_eq!(batch_ends.len(), ws.len(), "{name} · one end per wave");
+        for (w, &got) in batch_ends.iter().enumerate() {
+            assert_eq!(
+                got,
+                derive::wave_end(&ws, &run, w),
+                "{name} · wave {w} · the batch and the singular disagree"
+            );
+        }
+
+        let batch_idles = derive::idles(&ws, &run);
+        assert_eq!(
+            batch_idles.len(),
+            run.steps.len(),
+            "{name} · one idle per step, ghosts included"
+        );
+        for s in &run.steps {
+            assert_eq!(
+                batch_idles.get(&s.id).copied(),
+                Some(derive::idle_of(&ws, &run, &s.id)),
+                "{name} · step {} · the batch and the singular disagree",
+                s.id
+            );
+        }
+    }
+
+    // A synthetic case pins what no fixture carries: a step that did NOT run
+    // sharing a wave with one that did, and arithmetic no constant can fake.
+    let wf: nika_tui_core::model::Workflow = serde_json::from_value(serde_json::json!({
+        "file": "b.nika.yaml", "engine": "test", "prompt": "", "permits": [], "missing": "",
+        "tasks": [
+            {"id": "a", "verb": "infer", "glyph": "◇", "needs": []},
+            {"id": "b", "verb": "infer", "glyph": "◇", "needs": []},
+            {"id": "c", "verb": "infer", "glyph": "◇", "needs": ["a"]},
+        ],
+    }))
+    .expect("wf");
+    let run: Run = serde_json::from_value(serde_json::json!({
+        "trace": "t", "when": "recorded", "output": "",
+        "steps": [
+            {"id": "a", "start": 2.0, "dur": 3.0},          // end 5 · not 2-3, not 2*3
+            {"id": "b", "start": 90.0, "dur": 9.0, "neverBorn": true},
+            {"id": "c", "start": 5.0, "dur": 2.5},          // end 7.5, its own wave
+        ],
+    }))
+    .expect("run");
+    let ws = derive::waves(&wf);
+    let ends = derive::wave_ends(&ws, &run);
+    assert_eq!(
+        ends,
+        vec![5.0, 7.5],
+        "wave 0 ends at a's 5 s (b never ran · 99 would be its ghost), wave 1 at 7,5"
+    );
+
+    let idles = derive::idles(&ws, &run);
+    assert_eq!(idles.get("a").copied(), Some(0.0), "a held its own wave");
+    assert_eq!(
+        idles.get("b").copied(),
+        Some(0.0),
+        "a step that never ran waits for nothing"
+    );
+    assert_eq!(idles.get("c").copied(), Some(0.0), "c alone in wave 1");
+}

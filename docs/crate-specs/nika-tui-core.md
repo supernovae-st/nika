@@ -12,8 +12,8 @@
 | License | `AGPL-3.0-or-later` |
 | Edition | 2024 (workspace-inherited) |
 | Publish | `false` — interface crate, jamais sur crates.io (le WASM part vers npm `@supernovae-st`, le précédent check-wasm) |
-| Dependencies | `serde` · `serde_json` · `thiserror` · `nika-event` (les kinds du journal) · `nika-graph` (RevGraph, la projection canonique) — dev: `proptest` · WASM wrapper : `wasm-bindgen` (cdylib séparé si la loi le demande, sinon la double crate-type du précédent) |
-| NIKA codes | **none owed** — la couche ne refuse pas au sens moteur · ses invariants sont des `debug_assert!` issus des CLAIMS de la SSOT (la carte de portage §3) |
+| Dependencies | **mesurées sur `Cargo.toml`, pas déclarées ici** · `serde` · `serde_json` (feature `float_roundtrip` — la parité compare des BITS) · `thiserror` · `wasm-bindgen` · dev: `proptest`. **ZÉRO dépendance interne** — ce tableau annonçait `nika-event` et `nika-graph`, la crate n'en a jamais eu aucune : `ingress.rs` porte un miroir typé de `graph_format: 2`, sans lien à la compilation. Corrigé après qu'une lentille Gate-11 ait lu les deux fichiers. |
+| NIKA codes | **none owed** — la couche ne refuse pas au sens moteur. ⚠️ Cette ligne disait « ses invariants sont des `debug_assert!` » · aucun ne l'était. Les CLAIMS sont des prédicats, et **deux des quatre** voyagent par la porte wasm (`claims.chain_intact` · `claims.bottleneck`) ; les deux autres ne peuvent pas, et `src/claims.rs` dit lesquels et pourquoi. |
 
 ---
 
