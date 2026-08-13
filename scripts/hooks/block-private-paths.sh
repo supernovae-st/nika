@@ -56,6 +56,13 @@ readonly PRIVATE_PATTERNS=(
   # The studio + the agent substrate.
   'studio/'
   'dx/.claude/'
+  # Added 2026-08-13 · the TIER-2/3 rules MOVED from `dx/.claude/rules/` to
+  # `dx/doctrine/rules/` in June, and this list stayed at the old address.
+  # The gate blocked a door nobody used any more while the new one stood open ·
+  # measured the same day, 71 private files behind it, and two public docs in
+  # THIS repo already citing the new path. A blocklist is a projection of a
+  # tree · when the tree moves, the list is stale until someone re-derives it.
+  'dx/doctrine/'
   'dx/journal/'
   'dx/state/'
   '.claude/projects/'
