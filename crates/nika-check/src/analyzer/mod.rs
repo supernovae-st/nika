@@ -205,6 +205,36 @@ tasks:
         );
     }
 
+    #[test]
+    fn a_bare_tasks_envelope_teaches_var_020_alone() {
+        // `${{ tasks }}` names the ENVELOPE, not a dependency. It yields
+        // an empty id, and DAG-002 used to fire on it — accusing the
+        // author of depending on a task named `` and burying the real
+        // teaching (NIKA-VAR-020) under a phantom typo.
+        let yaml = "\
+nika: bare
+tasks:
+  a:
+    exec: { command: [\"a\"] }
+  summary:
+    with:
+      all: \"${{ tasks }}\"
+    exec: { command: [\"report\"] }
+";
+        let errors = analyze_yaml(yaml).expect_err("the bare envelope is not a value");
+        assert_has(
+            &errors,
+            |e| matches!(e, SchemaError::BareTaskEnvelope { .. }),
+            "NIKA-VAR-020 · the envelope is not a value",
+        );
+        assert!(
+            !errors
+                .iter()
+                .any(|e| matches!(e, SchemaError::UnknownDependency { .. })),
+            "no phantom dependency on a task named ``: {errors:?}"
+        );
+    }
+
     // ── group · the fan-in fold (spec 03 §group) ───────────────────
 
     const GROUP_OK: &str = "\

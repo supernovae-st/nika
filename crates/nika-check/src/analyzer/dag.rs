@@ -70,6 +70,15 @@ pub(super) fn check_edge_targets_resolve(
             refs.sort();
             refs.dedup();
             for (id, _field) in refs {
+                // A bare `${{ tasks }}` yields an EMPTY id · it names no
+                // dependency, it names the envelope, and that class has
+                // its own code (`NIKA-VAR-020` · BareTaskEnvelope, from
+                // the scanner). Reporting DAG-002 here would accuse the
+                // author of a typo'd task named `` and bury the real
+                // teaching under it.
+                if id.is_empty() {
+                    continue;
+                }
                 if !ids.contains_key(&id) {
                     errors.push(SchemaError::UnknownDependency {
                         from: task.value.id.value.clone(),

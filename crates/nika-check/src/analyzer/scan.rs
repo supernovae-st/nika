@@ -724,6 +724,19 @@ fn check_task_ref(
         }
         TaskRefRule::Boundary | TaskRefRule::Resolution => {}
     }
+    // The BARE envelope first · `${{ tasks }}` yields an EMPTY id. It
+    // names no task, so the unknown-task branch below would swallow it
+    // and defer to the DAG layer — which then accuses the author of
+    // depending on a task named ``. The envelope has its own teaching
+    // (`NIKA-VAR-020`) and it must reach it, on every surface.
+    if id.is_empty() {
+        errors.push(SchemaError::BareTaskEnvelope {
+            task: String::new(),
+            location: ctx.location.clone(),
+            span: Some(span),
+        });
+        return;
+    }
     if !index.task_ids.contains(id) {
         if matches!(ctx.task_rule, TaskRefRule::Boundary) {
             return; // an edge to nowhere · the DAG layer reports NIKA-DAG-002
