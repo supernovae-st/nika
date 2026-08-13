@@ -1,6 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+// A timeless step is 0.0 by a LITERAL in the fold (`if timeless { 0.0 }`),
+// never by arithmetic, so strict equality is the assertion that means
+// something here · an epsilon would pass on a value the fold never writes.
+#![allow(clippy::float_cmp)]
 
 //! The ingress tests — the journal fold pinned against a REAL recorded
 //! trace (the demo's broken lane, mock content), and the graph mirror
@@ -57,6 +61,80 @@ fn a_torn_journal_refuses_with_its_line() {
         err.to_string(),
         "line 2: not JSON — not a journal this engine wrote"
     );
+}
+
+/// A journal line, minimal but shaped like the engine's.
+fn line(kind: &str, ts: u64, fields: &[(&str, serde_json::Value)]) -> String {
+    serde_json::json!({
+        "chain": "0", "correlation": null, "run": null,
+        "id": { "uuid": "019fedd4-0000-0000-0000-000000000000" },
+        "kind": kind,
+        "timestamp": ts,
+        "fields": fields
+            .iter()
+            .map(|(k, v)| serde_json::json!({ "key": k, "value": v }))
+            .collect::<Vec<_>>(),
+    })
+    .to_string()
+}
+
+/// Gate 5, 2026-08-13. When a failure carries no structured outcome the
+/// code is the FIRST WORD of `detail`, taken while the char is not a
+/// space. Flipping that `!=` to `==` collects the leading spaces instead,
+/// which is none of them, and the code comes out empty. No fixture
+/// exercised the fallback, so the mutant rode free.
+#[test]
+fn a_failure_without_a_structured_outcome_takes_its_code_from_the_first_word() {
+    let journal = [
+        line("workflow_started", 1_000_000_000, &[]),
+        line(
+            "task_failed",
+            1_000_000_000,
+            &[
+                ("task", serde_json::json!("boom")),
+                (
+                    "detail",
+                    serde_json::json!("NIKA-TEST-001 · le message qui suit"),
+                ),
+                ("duration_ms", serde_json::json!(0)),
+            ],
+        ),
+    ]
+    .join("\n");
+    let run = run_from_journal(&journal).expect("folds");
+    let step = run.steps.iter().find(|s| s.id == "boom").expect("boom");
+    let failed = step.failed.as_ref().expect("boom a échoué");
+    assert_eq!(
+        failed.code, "NIKA-TEST-001",
+        "le code est le PREMIER MOT du detail · `==` le rendrait vide"
+    );
+}
+
+/// Gate 5, 2026-08-13. The whole `task_skipped` arm could be deleted and
+/// nothing noticed: the fixture journal contains no skipped step at all.
+/// A skip is not a failure and not a never-born, and it stays timeless
+/// because it never started, whatever duration the line declares.
+#[test]
+fn a_skipped_step_says_so_and_stays_timeless() {
+    let journal = [
+        line("workflow_started", 1_000_000_000, &[]),
+        line(
+            "task_skipped",
+            2_000_000_000,
+            &[
+                ("task", serde_json::json!("saute")),
+                ("duration_ms", serde_json::json!(999)),
+            ],
+        ),
+    ]
+    .join("\n");
+    let run = run_from_journal(&journal).expect("folds");
+    let step = run.steps.iter().find(|s| s.id == "saute").expect("saute");
+    assert_eq!(step.skipped, Some(true), "un pas sauté le DIT");
+    assert_eq!(step.never_born, None, "sauté n est pas jamais-né");
+    assert_eq!(step.failed, None, "ni un échec");
+    assert_eq!(step.start, 0.0, "intemporel · il n a jamais démarré");
+    assert_eq!(step.dur, 0.0, "malgré les 999 ms que la ligne déclare");
 }
 
 /// The graph mirror reads a real inspect output — verb enum, tool/model
