@@ -78,6 +78,59 @@ fn hostile_markup_is_escaped_at_the_source() {
     assert!(out.contains("\\u003c"), "the five-char rewrite rode");
 }
 
+/// EACH of the five, proven on its own.
+///
+/// Gate 5, 2026-08-13. The test above passed while FOUR of the five match
+/// arms could be deleted: both of its assertions are satisfied by escaping
+/// `<` alone. `!contains("</script>")` is true the moment the `<` is gone,
+/// and `contains("<")` names only that arm. The other four rode for
+/// free, so `>`, `&`, U+2028 and U+2029 had no proof at all.
+///
+/// This is the security half of the crate, not a coverage statistic: the
+/// escape exists because a page that inlines this JSON is one `</script>`
+/// away from an element break, and U+2028/9 break a JS parse outright. So
+/// each character is now asserted twice, present as its escape and absent
+/// raw, and one dropped arm turns exactly one assertion red.
+#[test]
+fn every_one_of_the_five_embedding_escapes_is_proven_alone() {
+    for (raw, escaped, why) in [
+        ('<', "\\u003c", "ouvre une balise"),
+        (
+            '>',
+            "\\u003e",
+            "ferme une balise · </script> a besoin des deux",
+        ),
+        ('&', "\\u0026", "ouvre une entité HTML"),
+        (
+            '\u{2028}',
+            "\\u2028",
+            "séparateur de ligne · casse un parse JS",
+        ),
+        ('\u{2029}', "\\u2029", "séparateur de paragraphe · idem"),
+    ] {
+        // The character rides inside a task id, the caller-controlled byte
+        // path this escape exists to cover.
+        let wf = serde_json::json!({
+            "file": "x.nika.yaml", "engine": "test", "prompt": "", "permits": [], "missing": "",
+            "tasks": [{
+                "id": format!("a{raw}b"),
+                "verb": "infer", "glyph": "◇", "needs": [],
+            }],
+        });
+        let run = serde_json::json!({"trace": "t", "when": "recorded", "output": "", "steps": []});
+        let out = wasm::derive_run(&wf.to_string(), &run.to_string());
+
+        assert!(
+            out.contains(escaped),
+            "{raw:?} ({why}) doit sortir en {escaped} · sortie: {out}"
+        );
+        assert!(
+            !out.contains(raw),
+            "{raw:?} ({why}) ne doit JAMAIS sortir brut · sortie: {out}"
+        );
+    }
+}
+
 /// A board at `u32::MAX` stays at MAX — a wrap would renumber history.
 #[test]
 fn the_revision_never_wraps() {
