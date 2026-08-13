@@ -163,11 +163,38 @@ fichier restauré byte-identique) ·
 | le repli de code · le bras `task_skipped` | la fixture enregistrée ne les exerce JAMAIS · les tests écrivent leur journal à la main |
 | le plafond 64 MiB · le plus lent d'une égalité | l'arithmétique du plafond, et la stabilité d'un rapport à durées égales |
 
-⚠️ **Un non-tué DÉLIBÉRÉ, nommé plutôt que maquillé** · le mutant `>` → `>=`
-sur la borne d'admission (`input.len() > MAX_INPUT_BYTES`) ne se tue qu'avec
-une entrée d'**exactement 64 MiB**. Fabriquer un test qui alloue 64 Mo pour
-un mutant de borne coûte plus que ce qu'il prouve. Il reste vivant, et il est
-écrit ici pour que personne ne le compte comme couvert.
+⚠️ ~~**Un non-tué DÉLIBÉRÉ**~~ · le mutant `>` → `>=` sur la borne
+d'admission était déclaré ici comme trop coûteux à tuer (« fabriquer un test
+qui alloue 64 Mo coûte plus que ce qu'il prouve »). **TUÉ le 2026-08-13** ·
+allouer deux fois 64 Mo coûte 60 ms, et la borne EXACTE valait d'être une
+décision plutôt qu'un accident. La déclaration est conservée barrée · une
+exemption qu'on lève doit se voir, sinon la prochaine se justifiera par
+celle-ci.
+
+### ✅ **La mesure qui compte · 99,5 %**, Gate 5 VERT · 2026-08-13 soir
+
+`cargo mutants -p nika-tui-core` sur l'arbre committé, répertoire de build
+DÉDIÉ (partager celui d'une campagne empoisonne la suivante · payé quatre
+tours ce soir) · **209 mutants · 191 pris · 17 non viables · 1 survivant**
+⇒ **191/192 viables = 99,5 %**, très au-dessus du plancher de 90.
+La comptabilité SOMME · 191 + 1 + 17 = 209.
+
+Le chemin, parce qu'il enseigne · 87 % (ROUGE) le matin → les six grappes
+ci-dessus → **92,7 %** en début de soirée, dont **les 14 survivants étaient
+TOUS les deux fonctions par lot ajoutées une heure plus tôt** (`wave_ends` ·
+`idles`) · elles pouvaient rendre `vec![]` sans qu'un test rougisse, parce
+que les fixtures de parité épinglent les formes SINGULIÈRES et que le gate
+d'échelle de la porte ne juge que le temps. La propriété d'équivalence
+(le lot répond exactement ce que n questions singulières répondent, au bit
+près) les a tuées toutes les quatorze.
+
+⚠️ **Le seul survivant, nommé plutôt que maquillé** · `< 1e-6` → `<= 1e-6`
+dans le couronnement de `bottleneck` (`derive.rs`) · une borne STRICTE sur
+une tolérance flottante. La tuer exigerait un écart valant *exactement*
+`1e-6` en f64 · on testerait la représentation des flottants, pas la loi.
+La direction est le point · `<` couronne MOINS de candidats que `<=`, donc
+c'est le choix serré, et il est délibéré. Il reste vivant, et il est écrit
+ici pour que personne ne le compte comme couvert.
 
 Et au passage · tant que les tests de ce crate vivent en `tests/`, sa mesure
 de mutation demande l'invocation longue, hors de la convention `--lib` ·
