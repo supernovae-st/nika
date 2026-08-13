@@ -22,6 +22,7 @@ fn node(id: &str, tool: Option<&str>) -> Node {
         timeout_ms: None,
         on_error: None,
         outputs: Vec::new(),
+        extra: std::collections::BTreeMap::new(),
     }
 }
 
@@ -99,4 +100,49 @@ fn a_calm_revision_marks_nothing() {
     let b2 = seat_next(&b1, &graph(&["a", "b"]));
     assert_eq!(b2.marks, vec![Mark::Kept, Mark::Kept]);
     assert_eq!(b2.rev, 2);
+}
+
+/// ⭐ THE PRINT'S OWN PROMISE — "a field the engine adds tomorrow counts as
+/// a change without anyone having to foresee it". The typed `Node` broke it
+/// silently: serde drops what the struct does not declare, so the print was
+/// computed over the KNOWN keys only. A field arriving on the wire was
+/// already gone before the fingerprint saw it.
+///
+/// The case that makes it a P0 rather than a nicety: a graph whose only
+/// diff is `sandbox: off → ON-DANGEROUS` read as `Kept`. The board would
+/// tell an operator that nothing changed on the revision where the sandbox
+/// came down.
+///
+/// The surfaces disagreed here too — the browser's `JSON.parse` keeps every
+/// key, so it would have flagged the change this crate called calm.
+#[test]
+fn a_field_the_engine_adds_tomorrow_still_flips_the_print() {
+    let with_sandbox = |v: &str| {
+        let doc = serde_json::json!({
+            "graph_format": 2,
+            "workflow": "test",
+            "nodes": [{
+                "id": "a", "verb": "exec", "permits": [], "outputs": [],
+                "sandbox": v,                       // ⟵ undeclared on `Node`
+            }],
+            "edges": [],
+        });
+        serde_json::from_value::<GraphDoc>(doc).expect("graph")
+    };
+
+    let b1 = seat_first(&with_sandbox("off"));
+    let b2 = seat_next(&b1, &with_sandbox("ON-DANGEROUS"));
+    assert_eq!(
+        b2.marks,
+        vec![Mark::Changed],
+        "the sandbox came down and the board said nothing changed"
+    );
+
+    // and the converse, so the fix cannot be « mark everything Changed »
+    let b3 = seat_next(&b2, &with_sandbox("ON-DANGEROUS"));
+    assert_eq!(
+        b3.marks,
+        vec![Mark::Kept],
+        "an unchanged unknown field must stay calm"
+    );
 }

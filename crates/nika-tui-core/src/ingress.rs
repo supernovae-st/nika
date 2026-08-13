@@ -70,6 +70,21 @@ pub struct Node {
     /// Declared `output:` binding names, in source order.
     #[serde(default)]
     pub outputs: Vec<String>,
+    /// ⭐ EVERY KEY THIS STRUCT DOES NOT NAME, kept verbatim.
+    ///
+    /// Without it the type was a sieve: serde drops what is not declared,
+    /// so a field the engine adds tomorrow vanished before anything could
+    /// see it — and `plan::print_of` promised the exact opposite («a field
+    /// the engine adds tomorrow counts as a change without anyone having
+    /// to foresee it»). A graph whose only diff was `sandbox: off →
+    /// ON-DANGEROUS` marked `Kept`: the board told the operator nothing
+    /// changed on the revision where the sandbox came down.
+    ///
+    /// `BTreeMap` and not a `serde_json::Map`: the fingerprint compares
+    /// serialized bytes, so the key order must be the map's, never the
+    /// wire's.
+    #[serde(flatten)]
+    pub extra: std::collections::BTreeMap<String, serde_json::Value>,
 }
 
 /// `for_each` fan-out description.
