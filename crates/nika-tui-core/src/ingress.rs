@@ -12,7 +12,8 @@
 //!   (`task_completed` · `task_failed` · `task_cancelled`) — a step's
 //!   START derives as `completed_ts − duration_ms` (`task_started` stamps
 //!   batch-late on parallel waves — measured), and ns timestamps exceed
-//!   2^53, so the arithmetic rides i128, never f64.
+//!   2^53, so the arithmetic rides u128, never f64. (This line said `i128`
+//!   while the code has always used `u128` — a Gate-11 lens read both.)
 
 use serde::Deserialize;
 
@@ -158,6 +159,17 @@ pub struct FanOut {
     pub count: Option<u64>,
 }
 
+impl FanOut {
+    /// The constructor the `#[non_exhaustive]` marker requires (invariant
+    /// #19): a field added later must not break a caller's build. Four of
+    /// the eight markers shipped without one — two Gate-11 lenses found the
+    /// same gap independently, which is the whole point of running three.
+    #[must_use]
+    pub const fn new(kind: String, count: Option<u64>) -> Self {
+        Self { kind, count }
+    }
+}
+
 /// One typed edge.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
 #[non_exhaustive]
@@ -176,6 +188,29 @@ pub struct Edge {
     /// The `with:` key that created a data/observation edge.
     #[serde(default)]
     pub binding: Option<String>,
+}
+
+impl Edge {
+    /// The constructor the `#[non_exhaustive]` marker requires (invariant
+    /// #19): a field added later must not break a caller's build. Four of
+    /// the eight markers shipped without one — two Gate-11 lenses found the
+    /// same gap independently, which is the whole point of running three.
+    #[must_use]
+    pub const fn new(
+        from: String,
+        to: String,
+        kind: String,
+        predicate: Option<String>,
+        binding: Option<String>,
+    ) -> Self {
+        Self {
+            from,
+            to,
+            kind,
+            predicate,
+            binding,
+        }
+    }
 }
 
 /// The one refusal the ingress owns — the bytes are not a journal this

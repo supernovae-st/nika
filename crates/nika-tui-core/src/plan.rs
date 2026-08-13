@@ -63,6 +63,27 @@ pub struct Board {
     pub prints: BTreeMap<String, String>,
 }
 
+impl Board {
+    /// The constructor the `#[non_exhaustive]` marker requires (invariant
+    /// #19): a field added later must not break a caller's build. Four of
+    /// the eight markers shipped without one — two Gate-11 lenses found the
+    /// same gap independently, which is the whole point of running three.
+    #[must_use]
+    pub const fn new(
+        rev: u32,
+        slots: Vec<Option<String>>,
+        marks: Vec<Mark>,
+        prints: BTreeMap<String, String>,
+    ) -> Self {
+        Self {
+            rev,
+            slots,
+            marks,
+            prints,
+        }
+    }
+}
+
 /// ⭐ The fingerprint ignores the id and keeps EVERYTHING ELSE — a field
 /// the engine adds tomorrow counts as a change without anyone having to
 /// foresee it. A hand-written watchlist would expire at the engine's

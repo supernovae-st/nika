@@ -154,8 +154,32 @@ pub fn waves(wf: &Workflow) -> Waves {
     Waves { by_wave, of_task }
 }
 
-/// When a wave ends — the max of its ends. Steps never started do not
-/// extend it (they carry no end; the max of an empty wave is 0).
+/// Did this step actually happen? THE law of the crate, in one place.
+///
+/// It used to live only inside `idle_against`. `wave_end` and `total_time`
+/// each leaned on an invariant that only the journal fold guarantees —
+/// `ingress::run_from_journal` zeroes the timings of a timeless step — but
+/// [`crate::wasm::derive_run`] deserializes the CALLER's run directly, so a
+/// step marked never-born while carrying real timings walks straight in.
+///
+/// The consequence was the exact misattribution this crate exists to close:
+/// the dead step stretched its wave, got crowned its holder, and a step that
+/// finished on time was reported as having idled for it. A law applied at
+/// three seams out of four is not a law.
+///
+/// PUBLIC on purpose. It was `pub(crate)` for an hour, and in that hour a
+/// property test had to re-list the flags by hand — which is how the
+/// property came to encode the OLD contract («living» = not never-born)
+/// and kept passing after the law changed. A law worth applying at four
+/// seams is worth NAMING once, so nothing has to spell it a fifth time.
+#[must_use]
+pub fn ran(s: &Step) -> bool {
+    s.never_born != Some(true) && s.skipped != Some(true)
+}
+
+/// When a wave ends — the max of its ends among the steps that RAN. A step
+/// that never started, or was skipped, does not extend it (the max of an
+/// empty wave is 0).
 #[must_use]
 pub fn wave_end(ws: &Waves, run: &Run, w: usize) -> f64 {
     let ids: BTreeSet<&str> = ws
@@ -165,7 +189,7 @@ pub fn wave_end(ws: &Waves, run: &Run, w: usize) -> f64 {
         .unwrap_or_default();
     run.steps
         .iter()
-        .filter(|s| ids.contains(s.id.as_str()))
+        .filter(|s| ran(s) && ids.contains(s.id.as_str()))
         .map(|s| s.start + s.dur)
         .fold(0.0, f64::max)
 }
@@ -202,7 +226,7 @@ pub fn idle_of(ws: &Waves, run: &Run, id: &str) -> f64 {
 /// this helper exists rather than a second copy of the rule inside
 /// `bottleneck`.
 fn idle_against(s: &Step, end: f64) -> f64 {
-    if s.never_born == Some(true) || s.skipped == Some(true) {
+    if !ran(s) {
         return 0.0;
     }
     (end - (s.start + s.dur)).max(0.0)
@@ -294,14 +318,17 @@ pub fn total_cost(run: &Run) -> f64 {
     run.steps.iter().map(|s| s.cost.unwrap_or(0.0)).sum()
 }
 
-/// The run's DURATION — derived, never written. A never-born step has no
-/// end and does not extend it. (It was hand-written once, and wrong: 1,5 s
-/// announced for a run ending at 1,6 s.)
+/// The run's DURATION — derived, never written. A step that did not run has
+/// no end and does not extend it. (It was hand-written once, and wrong:
+/// 1,5 s announced for a run ending at 1,6 s.)
+///
+/// This filtered `never_born` only, not `skipped` — the same seam as
+/// `wave_end`, smaller radius. Both ride [`ran`] now.
 #[must_use]
 pub fn total_time(run: &Run) -> f64 {
     run.steps
         .iter()
-        .filter(|s| s.never_born != Some(true))
+        .filter(|s| ran(s))
         .map(|s| s.start + s.dur)
         .fold(0.0, f64::max)
 }
@@ -386,47 +413,49 @@ pub fn undeclared(wf: &Workflow) -> Vec<Touch> {
 /// Derived, never annotated.
 #[must_use]
 pub fn groups_of(wf: &Workflow) -> Vec<Group> {
-    // The signature was recomputed inside the inner scan, so every pair paid
-    // a `format!` and a needs-sort: n² allocations. A Rust review measured
-    // 2.8 s on the 5000-chain the security test already pins. Compute each
-    // task's signature ONCE, then compare the cached strings.
+    // ⚠️ TWO repairs, and the first was incomplete — worth the record.
     //
-    // Same answers by construction: `signature` is a pure function of the
-    // task, and nothing in this loop mutates a task.
+    // The signature used to be recomputed inside the inner scan, so every
+    // pair paid a `format!` and a needs-sort. Hoisting that removed the n²
+    // ALLOCATIONS and the comment then claimed the quadratic was gone. It
+    // was not: each task with its own signature still triggered a full
+    // n-scan, so a chain stayed O(n²). A Gate-11 lens measured 6.6 s at
+    // n=10 000 while the correctness test sat green — it asserts no bound.
+    //
+    // The grouping is an EQUIVALENCE RELATION, so it wants one pass, not a
+    // scan per task. Classes first, then one walk in declared order.
     let sigs: Vec<String> = wf.tasks.iter().map(signature).collect();
+    let mut classes: BTreeMap<&str, Vec<usize>> = BTreeMap::new();
+    for (i, s) in sigs.iter().enumerate() {
+        classes.entry(s.as_str()).or_default().push(i);
+    }
 
-    let mut out: Vec<Group> = Vec::new();
-    let mut taken: BTreeSet<&str> = BTreeSet::new();
+    // Same answers by construction. The old loop's `taken` set only ever
+    // held tasks already emitted, and the FIRST task of a class always saw
+    // its class whole (nothing taken yet) — so the partition it computed IS
+    // the signature equivalence. A class of 3+ became one `Fanout` at its
+    // first member's position; a smaller class became one `Single` per
+    // member, each at its own position. That is exactly the walk below.
+    let mut out: Vec<Group> = Vec::with_capacity(wf.tasks.len());
     for (i, t) in wf.tasks.iter().enumerate() {
-        if taken.contains(t.id.as_str()) {
+        let members = classes.get(sigs[i].as_str()).map_or(&[][..], Vec::as_slice);
+        if members.len() < 3 {
+            out.push(Group::Single(t.clone()));
             continue;
         }
-        let sig = &sigs[i];
-        let kin: Vec<&Task> = wf
-            .tasks
-            .iter()
-            .enumerate()
-            .filter(|(j, o)| !taken.contains(o.id.as_str()) && &sigs[*j] == sig)
-            .map(|(_, o)| o)
-            .collect();
-        if kin.len() >= 3 {
-            for k in &kin {
-                taken.insert(k.id.as_str());
-            }
-            // the common prefix — what the `for_each` named once
-            let first = kin[0].id.clone();
-            let name = match first.rfind(['-', '_']) {
-                Some(at) => first[..at].to_owned(),
-                None => first,
-            };
-            out.push(Group::Fanout {
-                name,
-                members: kin.into_iter().cloned().collect(),
-            });
-        } else {
-            taken.insert(t.id.as_str());
-            out.push(Group::Single(t.clone()));
+        if members[0] != i {
+            continue; // the group was emitted at its first member
         }
+        // the common prefix — what the `for_each` named once
+        let first = t.id.clone();
+        let name = match first.rfind(['-', '_']) {
+            Some(at) => first[..at].to_owned(),
+            None => first,
+        };
+        out.push(Group::Fanout {
+            name,
+            members: members.iter().map(|&j| wf.tasks[j].clone()).collect(),
+        });
     }
     out
 }
@@ -468,6 +497,23 @@ pub struct GroupSpan {
     pub cost: f64,
     /// The slowest member's id.
     pub slowest: String,
+}
+
+impl GroupSpan {
+    /// The constructor the `#[non_exhaustive]` marker requires (invariant
+    /// #19): a field added later must not break a caller's build. Four of
+    /// the eight markers shipped without one — two Gate-11 lenses found the
+    /// same gap independently, which is the whole point of running three.
+    #[must_use]
+    pub const fn new(n: usize, min: f64, max: f64, cost: f64, slowest: String) -> Self {
+        Self {
+            n,
+            min,
+            max,
+            cost,
+            slowest,
+        }
+    }
 }
 
 /// The span of one fan-out group over a run.

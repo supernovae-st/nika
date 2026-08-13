@@ -12,9 +12,29 @@
 //! No renderer did. The module had ZERO consumers in `src/` while the
 //! surface on the other side of the wasm door decided the same questions
 //! inline, with a different rule — a law nothing applied, next to a rule
-//! nobody had written down. What is true now: the verdicts ride
-//! [`crate::wasm::derive_run`], so the surface reads them instead of
-//! re-deriving them. An unwired predicate is not a law, it is a wish.
+//! nobody had written down. An unwired predicate is not a law, it is a wish.
+//!
+//! ⚠️ And the sentence that replaced it — « the verdicts ride
+//! [`crate::wasm::derive_run`] » — was itself an OVERCLAIM, caught by two
+//! independent Gate-11 lenses within the hour. Two of four ride it. The
+//! honest state, per predicate:
+//!
+//! | predicate | wired | where, and why |
+//! |---|---|---|
+//! | [`may_claim_chain_intact`] | ✅ | `derive_run` → `claims.chain_intact` |
+//! | [`may_claim_bottleneck`] | ✅ | `derive_run` → `claims.bottleneck` |
+//! | [`may_claim_check_clean`] | ❌ | its input is a CHECKER report, which
+//!   this door never sees. Its consumer is the check surface, a different
+//!   crate. It lives here so the law has one home, not because this crate
+//!   applies it. |
+//! | [`must_mark_simulated`] | ❌ | it answers `true` unconditionally — a
+//!   RULE addressed to renderers («if the content is simulated, say so»),
+//!   not a per-run verdict. Shipping a constant through a per-run door
+//!   would be ceremony, and the run-level question it looks like is
+//!   already answered by `chain_intact`. |
+//!
+//! Writing « two of four, and here is why the other two cannot » costs one
+//! table. Writing « the verdicts ride the door » cost two reviewers.
 //!
 //! The two gate claims (`gate_blind` · `gate_law`) are TYPE-level, not
 //! predicates: they bind the gate-question builder (a permit gate's

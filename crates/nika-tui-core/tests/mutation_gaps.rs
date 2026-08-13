@@ -582,3 +582,67 @@ fn the_four_verbs_spell_themselves() {
     let names: Vec<&str> = costs.iter().map(|(n, _)| *n).collect();
     assert_eq!(names, vec!["infer", "exec", "invoke", "agent"]);
 }
+
+/// ⭐ THE LAW HAD ONE SEAM LEFT — a Gate-11 lens found it.
+///
+/// `idle_against` refuses to count a step that never started; `wave_end`
+/// did NOT, and neither did `total_time` for a SKIPPED step. Both leaned on
+/// an invariant only the journal fold guarantees (`ingress` zeroes the
+/// timings of a timeless step) — but `wasm::derive_run` deserializes the
+/// caller's run DIRECTLY, so a step marked never-born while carrying real
+/// timings walks straight in.
+///
+/// The consequence is the exact misattribution the crate says it closed:
+/// the dead step is crowned holder of its wave, and a step that finished on
+/// time is reported as having idled for it.
+#[test]
+fn a_step_that_never_ran_cannot_extend_its_wave() {
+    let wf: nika_tui_core::model::Workflow = serde_json::from_value(serde_json::json!({
+        "file": "w.nika.yaml", "engine": "test", "prompt": "", "permits": [], "missing": "",
+        "tasks": [
+            {"id": "real",  "verb": "infer", "glyph": "◇", "needs": []},
+            {"id": "ghost", "verb": "infer", "glyph": "◇", "needs": []},
+        ],
+    }))
+    .expect("wf");
+    let run: Run = serde_json::from_value(serde_json::json!({
+        "trace": "t", "when": "recorded", "output": "",
+        "steps": [
+            {"id": "real",  "start": 0.0,   "dur": 10.0},
+            // never born, yet carrying timings — only the fold zeroes those
+            {"id": "ghost", "start": 500.0, "dur": 500.0, "neverBorn": true},
+        ],
+    }))
+    .expect("run");
+
+    let ws = derive::waves(&wf);
+    assert_eq!(
+        derive::wave_end(&ws, &run, 0),
+        10.0,
+        "a step that never started must not stretch its wave to 1000 s"
+    );
+    assert_eq!(
+        derive::idle_of(&ws, &run, "real"),
+        0.0,
+        "`real` finished with the wave · it waited for nobody"
+    );
+    assert!(
+        derive::bottleneck(&ws, &run).is_none(),
+        "nobody held this wave · crowning the ghost blames `real` for 990 s"
+    );
+
+    // the sister seam · `total_time` filtered never-born but not SKIPPED
+    let skipped: Run = serde_json::from_value(serde_json::json!({
+        "trace": "t", "when": "recorded", "output": "",
+        "steps": [
+            {"id": "real",    "start": 0.0,   "dur": 10.0},
+            {"id": "sauteur", "start": 900.0, "dur": 100.0, "skipped": true},
+        ],
+    }))
+    .expect("run");
+    assert_eq!(
+        derive::total_time(&skipped),
+        10.0,
+        "a skipped step contributes no duration · the run lasted 10 s"
+    );
+}

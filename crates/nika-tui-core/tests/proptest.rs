@@ -53,9 +53,26 @@ fn arb_workflow() -> impl Strategy<Value = Workflow> {
 }
 
 /// A run whose steps shadow a subset of the workflow's tasks.
+///
+/// ⚠️ `never_born` and `skipped` used to be hardcoded `None` here, so the
+/// whole suite was STRUCTURALLY blind to the flags: `total_time_covers_
+/// every_step`'s never-born guard could never fire, and a green run proved
+/// nothing about that boundary. A Gate-11 lens found a P0 living exactly
+/// there — `wave_end` did not apply the law — and the reason no property
+/// caught it was this generator, not the properties.
+///
+/// They are GENERATED now, and generated INDEPENDENTLY of the timings: a
+/// step marked never-born while carrying real `start`/`dur` is precisely
+/// the shape the journal fold never produces and the wasm door accepts.
 fn arb_run(ids: Vec<String>) -> impl Strategy<Value = Run> {
     prop::collection::vec(
-        (0.0f64..100.0, 0.0f64..50.0, prop::option::of(0.0f64..5.0)),
+        (
+            0.0f64..100.0,
+            0.0f64..50.0,
+            prop::option::of(0.0f64..5.0),
+            prop::option::of(prop::bool::ANY),
+            prop::option::of(prop::bool::ANY),
+        ),
         0..=ids.len(),
     )
     .prop_map(move |rows| Run {
@@ -65,16 +82,16 @@ fn arb_run(ids: Vec<String>) -> impl Strategy<Value = Run> {
         steps: rows
             .into_iter()
             .enumerate()
-            .map(|(i, (start, dur, cost))| Step {
+            .map(|(i, (start, dur, cost, never_born, skipped))| Step {
                 id: ids.get(i).cloned().unwrap_or_else(|| "ghost".to_owned()),
                 start,
                 dur,
                 cost,
                 tokens: None,
                 failed: None,
-                never_born: None,
+                never_born,
                 blocked_by: None,
-                skipped: None,
+                skipped,
             })
             .collect(),
     })
@@ -110,12 +127,19 @@ proptest! {
         }
     }
 
-    /// The run's duration covers every living step's end.
+    /// The run's duration covers the end of every step that RAN.
+    ///
+    /// This re-listed the flags by hand (`never_born == Some(true)`) and so
+    /// encoded the OLD contract — it kept passing after `total_time` learned
+    /// to exclude SKIPPED steps too, and the generator's hardcoded `None`
+    /// meant it could never notice. It rides `derive::ran` now: the same
+    /// predicate the derivation uses, so the property cannot drift from the
+    /// law it is supposed to guard.
     #[test]
-    fn total_time_covers_every_step((_wf, run) in arb_pair()) {
+    fn total_time_covers_every_step_that_ran((_wf, run) in arb_pair()) {
         let total = derive::total_time(&run);
         for s in &run.steps {
-            if s.never_born == Some(true) {
+            if !derive::ran(s) {
                 continue;
             }
             prop_assert!(total >= s.start + s.dur, "total {total} < end of {}", s.id);

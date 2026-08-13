@@ -262,3 +262,65 @@ fn the_ceiling_admits_exactly_its_limit_and_refuses_one_byte_more() {
         "one byte more must be refused BY THE CEILING, named as such"
     );
 }
+
+/// The SISTER complexity gate — `groups_of`, same law, own measurement.
+///
+/// The first repair hoisted the `format!` out of the inner scan and the
+/// comment claimed the quadratic was gone. It was not: only the ALLOCATIONS
+/// left. Every task with its own signature still triggered a full n-scan,
+/// so an n-chain stayed O(n²) — a review measured 6.6 s at n=10 000 while
+/// the correctness test above sat green, because it asserts no bound.
+///
+/// One gate per function, because one gate covered only `waves()` and that
+/// is exactly how the second quadratic survived the first repair.
+#[test]
+fn the_grouping_scales_with_the_tasks_not_their_square() {
+    fn chain(n: usize) -> Workflow {
+        let tasks: Vec<_> = (0..n)
+            .map(|i| {
+                serde_json::json!({
+                    "id": format!("t{i}"), "verb": "infer", "glyph": "◇",
+                    "needs": if i == 0 { vec![] } else { vec![format!("t{}", i - 1)] },
+                })
+            })
+            .collect();
+        serde_json::from_value(serde_json::json!({
+            "file": "c.nika.yaml", "engine": "test", "prompt": "",
+            "permits": [], "missing": "", "tasks": tasks,
+        }))
+        .expect("wf")
+    }
+
+    fn floor_of(wf: &Workflow) -> std::time::Duration {
+        (0..5)
+            .map(|_| {
+                let t0 = std::time::Instant::now();
+                let g = nika_tui_core::derive::groups_of(wf);
+                assert_eq!(
+                    g.len(),
+                    wf.tasks.len(),
+                    "a chain groups nothing — each alone"
+                );
+                t0.elapsed()
+            })
+            .min()
+            .expect("five runs")
+    }
+
+    let small = chain(2_000);
+    let large = chain(8_000); // ×4
+
+    let t_small = floor_of(&small);
+    let t_large = floor_of(&large);
+    assert!(
+        t_small.as_micros() >= 50,
+        "the small leg ran in {t_small:?} — too fast to compare; raise the sizes"
+    );
+
+    let ratio = t_large.as_secs_f64() / t_small.as_secs_f64();
+    assert!(
+        ratio < 8.0,
+        "×4 the tasks cost ×{ratio:.1} the time ({t_small:?} → {t_large:?}) — \
+         linear costs ~4×, quadratic ~16×. The per-task full scan is back."
+    );
+}
