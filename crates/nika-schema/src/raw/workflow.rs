@@ -63,10 +63,6 @@ pub struct RawWorkflow {
     /// `policy:` — named workflow law (spec 10 · hard families judged
     /// at check · soft recorded, never judged).
     pub policy: Option<Spanned<Policy>>,
-    /// `types:` — named type declarations (spec 09 · `PascalCase` name →
-    /// RAW type expression · parsed/validated by the type core at
-    /// check time, never here — the parser is shape-only).
-    pub types: Vec<(Spanned<String>, Spanned<serde_json::Value>)>,
     /// `run:` — the run's entropy + clock declaration (F-P3 · `None` =
     /// absent = the status quo: `entropy: ambient` + `clock: system`).
     pub run: Option<Spanned<RunDecl>>,
@@ -93,7 +89,6 @@ impl RawWorkflow {
             secrets: Vec::new(),
             permits: None,
             policy: None,
-            types: Vec::new(),
             run: None,
             tasks: Vec::new(),
             outputs: Vec::new(),
@@ -122,7 +117,6 @@ mod tests {
         assert!(w.config.is_empty());
         assert!(w.consts.is_empty());
         assert!(w.secrets.is_empty());
-        assert!(w.types.is_empty());
         assert!(w.run.is_none());
         assert!(w.outputs.is_empty());
     }

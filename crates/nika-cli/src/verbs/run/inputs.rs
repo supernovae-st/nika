@@ -93,8 +93,8 @@ fn parse_var_overrides_with(
     env: &dyn Fn(&str) -> Option<String>,
     ci: bool,
 ) -> Result<ValidatedInputs, String> {
-    let named = nika_check::named_types(wf);
-    let type_names: std::collections::BTreeSet<String> = named.keys().cloned().collect();
+    let named = BTreeMap::new();
+    let type_names = BTreeSet::new();
     let mut overrides = BTreeMap::new();
     let mut env_sourced = BTreeSet::new();
     for pair in pairs {

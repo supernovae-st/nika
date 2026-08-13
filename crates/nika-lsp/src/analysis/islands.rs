@@ -67,8 +67,8 @@ fn doc_view(text: &str, offset: usize) -> DocView {
             };
             (format!("{root}.{name}", name = name.value), is_array)
         }
-        let named = nika_check::named_types(&wf);
-        let type_names: std::collections::BTreeSet<String> = named.keys().cloned().collect();
+        let named = std::collections::BTreeMap::new();
+        let type_names = std::collections::BTreeSet::new();
         let vars: Vec<(String, bool)> = wf
             .inputs
             .iter()

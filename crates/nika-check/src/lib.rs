@@ -181,7 +181,7 @@ pub use walk::{static_literal_of, static_read_paths};
 // The analyzer's surface at the crate root — the same shape `nika-schema`
 // re-exported before the split (`analyze` · `AnalyzedWorkflow` · the
 // type-contract projections).
-pub use analyzer::{AnalyzedWorkflow, analyze, lowered_returns, named_types, returns_type};
+pub use analyzer::{AnalyzedWorkflow, analyze, lowered_returns, returns_type};
 
 /// The JSON contract version of [`CheckReport`] — bumped on any
 /// breaking field rename/removal so agent loops fail LOUDLY instead of

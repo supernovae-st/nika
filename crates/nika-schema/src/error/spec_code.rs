@@ -290,7 +290,6 @@ impl SchemaError {
             // rides the payload, carried verbatim from the type core's
             // ParseTypeError (one truth · never re-derived here).
             Self::TypeExprInvalid { num, .. } => typ(*num),
-            Self::TypeRecursive { .. } => typ(2),
             Self::TypeContractDuplicated { .. } => typ(3),
             Self::TypeUndecodable { .. } => typ(4),
             // NIKA-PARSE-025 · decode: with capture: structured (05 §registry).
@@ -544,8 +543,10 @@ mod tests {
         // R3b retires BadTypedVar/PARSE-015 with the TypeExpr widen and
         // adds DEFAULT-001. The envelope nuke (2026-08-12) retires
         // PARSE-004 with `BadWorkflowId` — the id moved onto `nika:`
-        // and PARSE-003 judges it — so the census drops to 36.
-        assert_eq!(seen.len(), 36, "{seen:?}");
+        // and PARSE-003 judges it — and TYPE-002 with `TypeRecursive`,
+        // whose object died with the `types:` block, so the census
+        // drops to 35.
+        assert_eq!(seen.len(), 35, "{seen:?}");
     }
 
     #[test]
@@ -619,14 +620,7 @@ mod tests {
         // The W3 contract layer (spec 09 §errors) — each variant to its
         // exact canon row · TYPE codes are validation_error · the
         // decode/structured conflict files under PARSE (05 §registry).
-        let cases: [(SchemaError, &str); 4] = [
-            (
-                SchemaError::TypeRecursive {
-                    name: String::new(),
-                    span: None,
-                },
-                "NIKA-TYPE-002",
-            ),
+        let cases: [(SchemaError, &str); 3] = [
             (
                 SchemaError::TypeContractDuplicated {
                     task: String::new(),

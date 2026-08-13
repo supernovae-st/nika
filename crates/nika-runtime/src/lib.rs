@@ -793,10 +793,10 @@ where
         // The declared capability boundary (spec 01 §permits) flows to every
         // task's dispatch scope so the exec sink can enforce it (NIKA-SEC-004).
         let permits = wf.permits.as_ref().map(|spanned| &spanned.value);
-        // The acyclic named types (spec 09 · `types:`) — resolved ONCE
-        // per run through the schema's one projection; every task's
-        // `returns:` contract parses against THIS environment (W3).
-        let types = nika_check::named_types(wf);
+        // The name environment (spec 09) — EMPTY, permanently: a type
+        // expression is self-contained, so there is nothing to resolve
+        // once per run and nothing a task's `returns:` can look up.
+        let types = std::collections::BTreeMap::new();
         self.emit_run_prologue(wf, &workflow_name, stamper, sink);
 
         let mut records: BTreeMap<String, TaskRecord> = BTreeMap::new();
@@ -1282,8 +1282,8 @@ fn first_output_type_violation(
     wf: &RawWorkflow,
     resolved: &BTreeMap<String, Value>,
 ) -> Option<OutputTypeViolation> {
-    let named = nika_check::named_types(wf);
-    let type_names: std::collections::BTreeSet<String> = named.keys().cloned().collect();
+    let named = std::collections::BTreeMap::new();
+    let type_names = std::collections::BTreeSet::new();
     for (key, decl) in &wf.outputs {
         let OutputDecl::Typed {
             r#type: Some(ty), ..

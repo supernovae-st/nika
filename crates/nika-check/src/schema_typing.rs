@@ -25,7 +25,6 @@ use std::collections::BTreeMap;
 
 use nika_types::types::{NikaType, assignable, parse_type};
 
-use crate::analyzer::named_types;
 use nika_schema::expression::{Expr, scan_templates, task_output_paths, with_alias_paths};
 use nika_schema::raw::{ForEachValue, RawAction, RawTask, RawWorkflow};
 use nika_schema::types::{VarDecl, type_expr_display};
@@ -145,8 +144,8 @@ pub(super) fn scan_types(wf: &RawWorkflow) -> (Vec<SchemaTypeFinding>, Vec<Unver
 /// rides the one type core (`assignable` answers « admits an array » ·
 /// a broken expression skips, its refusal is the analyzer's).
 fn scan_for_each_sources(wf: &RawWorkflow, findings: &mut Vec<SchemaTypeFinding>) {
-    let named = named_types(wf);
-    let type_names: std::collections::BTreeSet<String> = named.keys().cloned().collect();
+    let named = std::collections::BTreeMap::new();
+    let type_names = std::collections::BTreeSet::new();
     for task in &wf.tasks {
         let Some(fe) = &task.value.for_each else {
             continue;

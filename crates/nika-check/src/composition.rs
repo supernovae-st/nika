@@ -31,7 +31,6 @@ use nika_cap::{ExecPermit, Permits};
 use nika_types::types::{Field, NikaType, assignable, fits, parse_type};
 
 use super::ByteSpan;
-use crate::analyzer;
 use nika_schema::raw::{RawAction, RawInvokeTarget, RawWorkflow};
 use nika_schema::source::Span;
 use nika_schema::types::{OutputDecl, VarDecl, type_expr_display};
@@ -149,7 +148,7 @@ pub(super) fn scan_resolved(
 ) -> Vec<CompositionFinding> {
     let mut out = scan_static(wf);
     let statically_bad: Vec<String> = out.iter().map(|f| f.target.clone()).collect();
-    let parent_env = analyzer::named_types(wf);
+    let parent_env = BTreeMap::new();
     let parent_permits = wf.permits.as_ref().map(|s| &s.value);
     let mut walker = GraphWalker {
         read,
@@ -491,9 +490,10 @@ fn typed_call_defects(
         }
     }
     // The declared TypeExpr renders for the findings; the fit itself is
-    // judged by the one type core against the CHILD's named env.
-    let child_named = analyzer::named_types(child);
-    let child_type_names: BTreeSet<String> = child_named.keys().cloned().collect();
+    // judged by the one type core. There is no named env on either side
+    // any more — a type expression is self-contained.
+    let child_named = BTreeMap::new();
+    let child_type_names = BTreeSet::new();
     for (name, decl) in &declared {
         let VarDecl::Typed {
             r#type,
@@ -542,12 +542,11 @@ fn typed_call_defects(
 /// entries (`{name: declared-or-Unknown}` · closed). This IS the value
 /// shape the runtime hands the parent task (the child `RunOutcome`
 /// outputs map), so the static judgment and the run agree. A declared
-/// `type:` is parsed against the child's own named env (R3b · the full
-/// `TypeExpr`) — a broken expression degrades to `Unknown` (gradual · its
-/// refusal is the child's own check).
+/// `type:` is parsed as a self-contained `TypeExpr` (R3b) — a broken
+/// expression degrades to `Unknown` (gradual · its refusal is the
+/// child's own check).
 fn child_outputs_type(child: &RawWorkflow) -> NikaType {
-    let child_named = analyzer::named_types(child);
-    let child_type_names: BTreeSet<String> = child_named.keys().cloned().collect();
+    let child_type_names = BTreeSet::new();
     let fields: BTreeMap<String, Field> = child
         .outputs
         .iter()

@@ -348,11 +348,11 @@ mod tests {
 
     #[test]
     fn a_type_finding_projects_with_its_span_and_code() {
-        // W3 one-voice proof: a `types:` grammar refusal born in the check
-        // ladder (`NIKA-TYPE-001` · unknown name with a did-you-mean) rides
-        // the SAME from_report projection every ladder finding rides — the
-        // LSP never re-judges types.
-        let yaml = "nika: w\ntypes:\n  Story: { object: { headline: strng } }\ntasks:\n  a:\n    exec: { command: [\"x\"] }\n";
+        // W3 one-voice proof: a type-grammar refusal born in the check
+        // ladder (`NIKA-TYPE-001` · a misspelled primitive inside an
+        // inline `returns:`) rides the SAME from_report projection every
+        // ladder finding rides — the LSP never re-judges types.
+        let yaml = "nika: w\ntasks:\n  a:\n    exec: { command: [\"x\"] }\n    returns:\n      object: { headline: strng }\n";
         let diags = diags_of(yaml);
         let ty = diags
             .iter()
@@ -361,7 +361,7 @@ mod tests {
         assert_eq!(ty.severity, Some(DiagnosticSeverity::ERROR));
         assert_eq!(ty.source.as_deref(), Some("nika"));
         assert!(
-            ty.message.contains("not a type") && ty.message.contains("types.Story"),
+            ty.message.contains("not a type") && ty.message.contains("tasks.a.returns"),
             "the teaching + the place survive the projection: {}",
             ty.message
         );

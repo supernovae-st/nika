@@ -585,17 +585,6 @@ pub enum SchemaError {
         span: Option<Span>,
     },
 
-    /// A `types:` declaration participates in a reference cycle —
-    /// unbounded recursion would make subtyping and lowering
-    /// undecidable; v1 keeps every judgment total (`NIKA-TYPE-002`).
-    #[error("types.{name} · recursive type reference — the types: graph must be acyclic")]
-    TypeRecursive {
-        /// The cyclic declaration's name.
-        name: String,
-        /// Span of the declaration name.
-        span: Option<Span>,
-    },
-
     /// `returns:` and a verb-level `schema:` on the same task — two
     /// spellings of one contract (`NIKA-TYPE-003` · one-obvious-way).
     #[error(
@@ -771,7 +760,6 @@ impl SchemaError {
             | Self::OutputPathProvablyInvalid { span, .. }
             | Self::BareTaskEnvelope { span, .. }
             | Self::TypeExprInvalid { span, .. }
-            | Self::TypeRecursive { span, .. }
             | Self::TypeContractDuplicated { span, .. }
             | Self::TypeUndecodable { span, .. }
             | Self::DecodeWithStructuredCapture { span, .. }
@@ -861,7 +849,10 @@ schema_code!(SCHEMA_316, 316, "w2-depends-on-field");
 schema_code!(SCHEMA_317, 317, "unknown-after-predicate");
 schema_code!(SCHEMA_318, 318, "ref-outside-boundary");
 schema_code!(SCHEMA_319, 319, "type-expr-invalid");
-schema_code!(SCHEMA_320, 320, "type-recursive");
+// SCHEMA_320 « type-recursive » RETIRED (never reuse) — it carried
+// NIKA-TYPE-002, and the `types:` block that gave the class an object
+// died with the 9-key envelope (2026-08-12). A type expression is
+// self-contained, so there is no reference graph left to cycle.
 schema_code!(SCHEMA_321, 321, "type-contract-duplicated");
 schema_code!(SCHEMA_322, 322, "type-undecodable");
 schema_code!(SCHEMA_323, 323, "decode-with-structured-capture");
@@ -915,7 +906,6 @@ impl NikaErrorCode for SchemaError {
             Self::OutputPathProvablyInvalid { .. } => SCHEMA_307,
             Self::BareTaskEnvelope { .. } => SCHEMA_311,
             Self::TypeExprInvalid { .. } => SCHEMA_319,
-            Self::TypeRecursive { .. } => SCHEMA_320,
             Self::TypeContractDuplicated { .. } => SCHEMA_321,
             Self::TypeUndecodable { .. } => SCHEMA_322,
             Self::DecodeWithStructuredCapture { .. } => SCHEMA_323,
@@ -1128,10 +1118,6 @@ fn type_level_variants() -> Vec<SchemaError> {
         SchemaError::TypeExprInvalid {
             num: 1,
             detail: String::new(),
-            span: None,
-        },
-        SchemaError::TypeRecursive {
-            name: String::new(),
             span: None,
         },
         SchemaError::TypeContractDuplicated {

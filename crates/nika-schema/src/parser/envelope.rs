@@ -66,55 +66,6 @@ pub(super) fn parse_assert(
     Ok(out)
 }
 
-/// A parsed `types:` block — declaration name → raw expression, spans kept.
-pub(super) type TypeDecls = Vec<(Spanned<String>, Spanned<serde_json::Value>)>;
-
-/// Parse `types:` — named type declarations (spec `09-types.md`) ·
-/// `PascalCase` name → RAW type expression.
-///
-/// Shape-only (the parser's contract): the block is a mapping, each
-/// declaration name matches `^[A-Z][A-Za-z0-9]*$` (the published
-/// `workflow.schema.json` `propertyNames` rule — engine ≡ schema), and
-/// each value converts to a neutral JSON value. The GRAMMAR of the
-/// expression (`NIKA-TYPE-001/002/006`) is the analyzer's job via the
-/// type core — one truth, never re-implemented here.
-pub(super) fn parse_types(
-    cx: &Cx<'_>,
-    workflow: &MarkedMappingNode,
-) -> Result<TypeDecls, SchemaError> {
-    let Some(node) = workflow.get_node("types") else {
-        return Ok(Vec::new());
-    };
-    let mapping = require_mapping(cx, node, "types")?;
-    let mut out = Vec::with_capacity(mapping.len());
-    for (key, value) in mapping.iter() {
-        let name = Spanned::new(key.as_str().to_owned(), cx.span_or_zero(key.span()));
-        if !is_pascal_case(&name.value) {
-            return Err(SchemaError::Validation {
-                message: format!(
-                    "type name `{}` must be PascalCase (^[A-Z][A-Za-z0-9]*$) — \
-                     disjoint from task ids and the lowercase primitives by \
-                     construction (09-types.md)",
-                    name.value
-                ),
-                span: Some(name.span),
-            });
-        }
-        out.push((
-            name,
-            Spanned::new(json_value(cx, value)?, cx.span_or_zero(value.span())),
-        ));
-    }
-    Ok(out)
-}
-
-/// A legal declared-type name (spec 09 · `^[A-Z][A-Za-z0-9]*$`).
-fn is_pascal_case(s: &str) -> bool {
-    let mut chars = s.chars();
-    matches!(chars.next(), Some(c) if c.is_ascii_uppercase())
-        && chars.all(|c| c.is_ascii_alphanumeric())
-}
-
 /// Parse `outputs:` — untyped (`name: ${{ … }}`) OR typed
 /// (`name: { value, type, description }`).
 pub(super) fn parse_outputs(

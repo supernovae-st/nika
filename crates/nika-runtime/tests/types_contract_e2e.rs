@@ -89,12 +89,10 @@ async fn decode_json_feeds_a_typed_object_downstream() {
     let yaml = r#"
 nika: w3-json
 permits: { exec: true }
-types:
-  Stats: { object: { count: integer, mean: number } }
 tasks:
   stats:
     exec: { command: ["jq-mock"], decode: json }
-    returns: Stats
+    returns: { object: { count: integer, mean: number } }
   gate:
     with: { c: "${{ tasks.stats.output.count }}" }
     when: ${{ with.c == 3 }}

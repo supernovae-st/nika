@@ -39,7 +39,7 @@ use nika_schema::source::Spanned;
 use nika_schema::types::AfterPredicate;
 
 pub use edges::{Edge, EdgeKind, RecoveryRead, SettledState, role_of_field};
-pub use types_contract::{lowered_returns, named_types, returns_type};
+pub use types_contract::{lowered_returns, returns_type};
 
 /// The analyzer's output — the Graph IR plus its waves · lowering is
 /// the runtime's job.
