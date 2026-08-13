@@ -12,7 +12,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::model::{Group, Run, Task, Touch, Verb, Workflow};
+use crate::model::{Group, Run, Step, Task, Touch, Verb, Workflow};
 
 /// The wave assignment, computed ONCE per workflow and shared by every
 /// derivation below (the swarm's F2 · recomputing `waves()` per question
@@ -160,21 +160,30 @@ pub fn idle_of(ws: &Waves, run: &Run, id: &str) -> f64 {
     let Some(s) = run.steps.iter().find(|x| x.id == id) else {
         return 0.0;
     };
-    // A step that never STARTED never waited. The fold stamps a cancelled or
-    // skipped step at 0/0 because it has no real instants, and that zero then
-    // read as "started at the top of the wave and idled until the end" — so a
-    // Ctrl-C run had its dead steps accusing the wave's holder of the whole
-    // wave. That is the « 420,4 s d'attente » class the doc below says is
-    // closed, reopened by a different door. Measured by a Rust review,
-    // 2026-08-13: {real 10 s · dead never_born} crowned a bottleneck with
-    // blocked = 1, on a step nobody ever waited for.
-    //
-    // The studio carries the same hole. This crate exists so the law is
-    // written ONCE, so it is fixed here and the surfaces inherit it.
+    idle_against(s, wave_end(ws, run, ws.of(id)))
+}
+
+/// One step's wait against a KNOWN wave end — the single place the rule
+/// lives. `idle_of` looks the end up; `bottleneck` already holds it and
+/// would otherwise pay for a rebuild per member per call.
+///
+/// A step that never STARTED never waited. The fold stamps a cancelled or
+/// skipped step at 0/0 because it has no real instants, and that zero read
+/// as "started at the top of the wave and idled until the end" — so a
+/// Ctrl-C run had its dead steps accusing the wave's holder of the whole
+/// wave. That is the « 420,4 s d'attente » class the doc below says is
+/// closed, reopened by a different door. Measured by a Rust review,
+/// 2026-08-13: {real 10 s · dead `never_born`} crowned a bottleneck with
+/// blocked = 1, on a step nobody ever waited for.
+///
+/// The studio carries the same hole. This crate exists so the law is written
+/// ONCE, so it is fixed here and the surfaces inherit it — which is also why
+/// this helper exists rather than a second copy of the rule inside
+/// `bottleneck`.
+fn idle_against(s: &Step, end: f64) -> f64 {
     if s.never_born == Some(true) || s.skipped == Some(true) {
         return 0.0;
     }
-    let end = wave_end(ws, run, ws.of(id));
     (end - (s.start + s.dur)).max(0.0)
 }
 
@@ -214,11 +223,22 @@ pub fn bottleneck(ws: &Waves, run: &Run) -> Option<Neck> {
         }) else {
             continue;
         };
-        let idle_total = group.iter().map(|t| idle_of(ws, run, &t.id)).sum();
-        let blocked = group
+        // `idle_of` was called TWICE per member here, and each call rebuilt
+        // this wave's id-set and rescanned every step to recompute the `end`
+        // already in hand two lines up. On the 5000-chain the security test
+        // pins, that arithmetic is a measured 2.8 s. Compute each wait ONCE,
+        // against the end we hold. Same rule, one copy, via `idle_against`.
+        let idles: Vec<f64> = group
             .iter()
-            .filter(|t| idle_of(ws, run, &t.id) > 0.05)
-            .count();
+            .map(|t| {
+                run.steps
+                    .iter()
+                    .find(|x| x.id == t.id)
+                    .map_or(0.0, |s| idle_against(s, end))
+            })
+            .collect();
+        let idle_total: f64 = idles.iter().sum();
+        let blocked = idles.iter().filter(|i| **i > 0.05).count();
         if blocked == 0 {
             continue;
         }

@@ -192,15 +192,11 @@
       "fetch": 0,
       "lire": 1.734723475976807e-18,
       "compte": 0,
-      "resume": 0.422,
-      "verifie": 0.422,
+      "resume": 0,
+      "verifie": 0,
       "ecris": 0
     },
-    "bottleneck": {
-      "id": "compte",
-      "idleTotal": 0.844,
-      "blocked": 2
-    },
+    "bottleneck": null,
     "total_cost": 0,
     "total_time": 0.422,
     "verbs_used": [
