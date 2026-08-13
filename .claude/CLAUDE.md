@@ -132,16 +132,16 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 | branch           | `feat/trace-cover-doctor-signal`                                      |
 | HEAD             | `e2d4e7a21` (`e2d4e7a21f81a7351b0fd2decdab86d613f2be4d`)             |
 | workspace        | v0.108.0                                  |
-| crates (workspace)| 64                                              |
+| crates (workspace)| 65                                              |
 | crates (admitted)| 58                                             |
-| crates (WIP)     | 6 — nika-cadence nika-chart nika-fx nika-proof nika-store nika-harness                                  |
+| crates (WIP)     | 7 — nika-cadence nika-chart nika-fx nika-proof nika-store nika-harness nika-tui-core                                  |
 | L0               | 20                                              |
 | L0.5             | 6                                              |
 | L1               | 17                                              |
 | L1.5             | 4                                              |
 | L2               | 5                                              |
 | L3               | 1                                              |
-| L4               | 11                                              |
+| L4               | 12                                              |
 | lib tests        | (skipped — pass --no-quick to compute)                              |
 | clippy           | (skipped)                              |
 
