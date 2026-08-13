@@ -6,9 +6,15 @@
 //! after four false claims were caught in one evening.
 //!
 //! A claim is not only what one WRITES — it is also what one forbids
-//! oneself to write. These predicates are the executable form: a renderer
-//! `debug_assert!`s them, and a false claim fails LOUD in development
-//! instead of eroding the product's one promise quietly.
+//! oneself to write. These predicates are the executable form.
+//!
+//! ⚠️ This paragraph used to read « a renderer `debug_assert!`s them ».
+//! No renderer did. The module had ZERO consumers in `src/` while the
+//! surface on the other side of the wasm door decided the same questions
+//! inline, with a different rule — a law nothing applied, next to a rule
+//! nobody had written down. What is true now: the verdicts ride
+//! [`crate::wasm::derive_run`], so the surface reads them instead of
+//! re-deriving them. An unwired predicate is not a law, it is a wish.
 //!
 //! The two gate claims (`gate_blind` · `gate_law`) are TYPE-level, not
 //! predicates: they bind the gate-question builder (a permit gate's
@@ -19,12 +25,49 @@
 use crate::derive::Neck;
 use crate::model::Run;
 
-/// `chain intact` — only if the trace is REAL, never on synthetic
-/// timings (the run's `when` carries the declared sentinel then). THE
-/// claim of the product: placing it on emptiness empties it everywhere.
+/// The words a producer writes when it has nothing real to write. They are
+/// checked against BOTH fields, because a fabricated run marks whichever one
+/// its producer reaches for, and the claim must not depend on which.
+const FABRICATED: [&str; 2] = ["synthetic", "never ran"];
+
+fn is_fabricated(field: &str) -> bool {
+    FABRICATED.iter().any(|f| field.contains(f))
+}
+
+/// `chain intact` — only on a run that carries POSITIVE evidence of having
+/// happened. THE claim of the product: placing it on emptiness empties it
+/// everywhere.
+///
+/// **The receipt must exist.** A trace id is what a verifier would ask for
+/// first, so an empty `trace` refuses regardless of anything else. Then
+/// NEITHER field may carry a fabrication sentinel — a producer marks
+/// whichever one it reaches for, and a real id beside `when: "synthetic"`
+/// is a contradiction, which refuses too.
+///
+/// This predicate used to read `!when.contains(sentinel)` alone, which
+/// failed OPEN: a run with no trace and no stamp at all claimed an intact
+/// chain, and so did any `when` nobody had thought to enumerate. Denying
+/// two magic words is not evidence — it is the absence of one specific lie.
+///
+/// An EMPTY `when` beside a real trace still claims, deliberately: the
+/// journal fold (`ingress::run_from_journal`) leaves the display stamp
+/// blank while carrying a real `workflow_started` uuid. That is a missing
+/// field on a real run, not a fabricated one, and refusing there would
+/// have made the honest case the failing case.
+///
+/// The two surfaces also disagreed. This crate judged `when`; the renderer
+/// on the other side of the wasm door judged the trace id. They only agreed
+/// because the fixtures happened to set both. One law now, and it RIDES the
+/// door — the browser reads the verdict instead of re-deriving it, the same
+/// argument the `groups` projection already won.
+///
+/// ⚠️ Honest limit · `trace` and `when` are the presence of a receipt, not
+/// its verification. Whether the hash chain actually holds is the engine
+/// verifier's answer, never this crate's. This predicate gates PRINTING
+/// the claim; it does not establish it.
 #[must_use]
 pub fn may_claim_chain_intact(run: &Run) -> bool {
-    !run.when.contains("synthetic") && !run.when.contains("never ran")
+    !run.trace.trim().is_empty() && !is_fabricated(&run.trace) && !is_fabricated(&run.when)
 }
 
 /// `check · clean` — only if the checker ANSWERED (a report exists) and

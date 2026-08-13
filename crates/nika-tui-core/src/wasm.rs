@@ -23,6 +23,7 @@
 
 use wasm_bindgen::prelude::*;
 
+use crate::claims;
 use crate::derive;
 use crate::ingress::{self, GraphDoc};
 use crate::model::{Run, Workflow};
@@ -115,6 +116,16 @@ pub fn derive_run(workflow_json: &str, run_json: &str) -> String {
         // re-derives the grouping in TS, and the divergence disease survives
         // for exactly that feature (the API lens, gate 11)
         "groups": derive::groups_of(&wf).iter().map(serde_json::to_value).collect::<Result<Vec<_>, _>>().unwrap_or_default(),
+        // the CLAIMS ride the door for exactly the reason `groups` does.
+        // Until this line the `claims` module had zero consumers in `src/`:
+        // a law nothing applied, while the browser decided the same
+        // questions inline with a DIFFERENT rule (`run.trace === 'synthetic'`
+        // against this crate's `when`). One verdict, computed once, printed
+        // by whoever renders.
+        "claims": {
+            "chain_intact": claims::may_claim_chain_intact(&run),
+            "bottleneck": claims::may_claim_bottleneck(neck.as_ref()),
+        },
     });
     escape_for_embedding(&out.to_string())
 }

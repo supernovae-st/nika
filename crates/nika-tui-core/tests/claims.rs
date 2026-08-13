@@ -43,6 +43,67 @@ fn chain_intact_is_real_or_nothing() {
     );
 }
 
+/// The hole the predicate used to have: it denied two magic words instead
+/// of requiring a receipt, so ANYTHING it had not enumerated claimed the
+/// product's gravest line — including a run with nothing in it at all.
+#[test]
+fn a_run_with_no_receipt_claims_nothing() {
+    let bare: nika_tui_core::model::Run = serde_json::from_value(serde_json::json!({
+        "trace": "", "when": "", "output": "", "steps": [],
+    }))
+    .expect("run");
+    assert!(
+        !claims::may_claim_chain_intact(&bare),
+        "no trace id = no receipt = no claim · this one used to pass"
+    );
+
+    // A word nobody enumerated is not evidence either — unless the receipt
+    // is there, which is the whole point of asking for the receipt first.
+    let odd: nika_tui_core::model::Run = serde_json::from_value(serde_json::json!({
+        "trace": "", "when": "fabricated by hand", "output": "", "steps": [],
+    }))
+    .expect("run");
+    assert!(!claims::may_claim_chain_intact(&odd), "still no receipt");
+
+    // A real id beside a fabricated stamp is a CONTRADICTION, and a
+    // contradiction refuses — the sentinel may land on either field.
+    let contradictory: nika_tui_core::model::Run = serde_json::from_value(serde_json::json!({
+        "trace": "01ff-real-looking-uuid", "when": "synthetic", "output": "", "steps": [],
+    }))
+    .expect("run");
+    assert!(
+        !claims::may_claim_chain_intact(&contradictory),
+        "a real id does not launder a fabricated stamp"
+    );
+}
+
+/// The journal fold leaves `when` blank while carrying a real
+/// `workflow_started` uuid. That is a MISSING display field on a real run,
+/// not a fabricated one — refusing here would have made the honest case
+/// the failing case, which is how a fail-closed fix turns into a new bug.
+///
+/// The journal is built HERE, not read from the studio tree: a cross-repo
+/// path would make this test skip itself in a public engine checkout, and a
+/// skip is a green on a subset nobody named.
+#[test]
+fn a_folded_journal_still_claims_its_chain() {
+    let journal = [
+        r#"{"kind":"workflow_started","timestamp":1786401552473000000,"#.to_owned()
+            + r#""id":{"uuid":"019fedd4-7859-7b31-b27f-896a6f3b01ff"},"#
+            + r#""fields":[{"key":"workflow","value":"rapport-hebdo"}]}"#,
+        r#"{"kind":"task_completed","timestamp":1786401553000000000,"#.to_owned()
+            + r#""fields":[{"key":"task","value":"lire"},{"key":"duration_ms","value":120}]}"#,
+    ]
+    .join("\n");
+    let run = nika_tui_core::ingress::run_from_journal(&journal).expect("folds");
+    assert!(!run.trace.is_empty(), "the fold carries the receipt");
+    assert!(run.when.is_empty(), "and leaves the display stamp blank");
+    assert!(
+        claims::may_claim_chain_intact(&run),
+        "a real fold claims its chain · the receipt is what a verifier asks for"
+    );
+}
+
 /// `check · clean` — only an answered-clean checker claims it; an
 /// unanswered or refused one may not.
 #[test]
