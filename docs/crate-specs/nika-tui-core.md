@@ -129,8 +129,28 @@ ratio quand elle n'a exécuté aucun test** : elle sort désormais en 3 (outilla
 avec la cause nommée, au lieu de 2 (sous le plancher), parce qu'un rouge qui
 accuse le mauvais sujet envoie réparer un crate qui n'est pas cassé.
 
-**Ce que Gate 5 exige encore ici** · une mesure prise sans la restriction
-`--lib` (attention à la règle Keychain de `.claude/CLAUDE.md`), OU le
-rapatriement des tests unitaires en `src/`. Tant que l'un des deux n'est pas
-fait, ce crate n'a pas de verdict Gate 5, et « pas de verdict » n'est ni un
-vert ni un rouge.
+### ✅ La vraie mesure, prise le 2026-08-13 · **87 %**, sous le plancher
+
+`cargo mutants -p nika-tui-core` sans la restriction `--lib`, 55 minutes ·
+**181 mutants · 144 pris · 21 survivants · 16 non viables** ⇒ **144/165
+viables = 87 %**, sous le plancher de 90. Gate 5 est **ROUGE**, pour de vrai
+cette fois, et le 90,3 % du tableau ci-dessus ne tient pas dans le workspace.
+
+**Les survivants se groupent, et le groupe est parlant** · cinq d'entre eux
+sont sur `derive.rs::bottleneck`, tous sur ses opérateurs de comparaison
+(`<` vers `<=` · `>` vers `>=` · `>` vers `==` · `>` vers `<`). Trois autres
+sont sur `Waves::contains` et `Waves::is_empty`, rendus constants sans qu'un
+test le voie.
+
+Le goulot est l'une des huit fonctions de dérivation que ce crate existe pour
+posséder UNE fois plutôt que trois. La propriété de Gate 6 (« goulot couronné
+a des attendants ») prouve qu'il en a ; elle ne pinne pas la DIRECTION de la
+comparaison qui le couronne. C'est exactement le trou qu'une loi partagée ne
+peut pas se permettre · une surface qui la lit hériterait du mauvais goulot
+sans jamais diverger visiblement.
+
+**Ce que Gate 5 exige donc ici** · des tests qui tuent ces 21 survivants,
+en priorité les bornes de `bottleneck`. Et au passage · tant que les tests de
+ce crate vivent en `tests/`, sa mesure de mutation demande l'invocation
+longue, hors de la convention `--lib` · c'est un coût récurrent que le
+rapatriement des tests unitaires en `src/` supprimerait.
