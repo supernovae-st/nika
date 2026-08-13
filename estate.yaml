@@ -178,12 +178,12 @@ patterns:
 - glob: "docs/**"
   class: authored
   match_count: 101
-  aggregate_sha256: 5d73a1f1a3f378efa6ab78bed90d2ea8585cff785ac9c0d8dc7fd00a0af380be
+  aggregate_sha256: 56dcfb2a7001079a2ba90d888f9611a54f122411be02de2d00a7855caa3de6a3
   evidence: "crate-specs · architecture prose · perf notes — no generation markers at file heads"
 - glob: "scripts/**"
   class: authored
   match_count: 138
-  aggregate_sha256: 0c7d72997b8f8affba54f042c674a2b8dc65920710e89aff8c4ce1a0fb4b3a45
+  aggregate_sha256: 4f110974fecc1ca01fe3c2faca8d40648d8a0faf8dbee51e4947136261b550ad
   evidence: "hand-written gates · hooks · hygiene vectors · media lanes; the ratchet baselines (scripts/ci/*-baseline.txt · scripts/hygiene/baselines/) are hand-kept monotonic floors ('Never remove a line by hand')"
 - glob: ".github/workflows/**"
   class: authored
