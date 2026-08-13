@@ -149,8 +149,27 @@ comparaison qui le couronne. C'est exactement le trou qu'une loi partagée ne
 peut pas se permettre · une surface qui la lit hériterait du mauvais goulot
 sans jamais diverger visiblement.
 
-**Ce que Gate 5 exige donc ici** · des tests qui tuent ces 21 survivants,
-en priorité les bornes de `bottleneck`. Et au passage · tant que les tests de
-ce crate vivent en `tests/`, sa mesure de mutation demande l'invocation
-longue, hors de la convention `--lib` · c'est un coût récurrent que le
-rapatriement des tests unitaires en `src/` supprimerait.
+**Ce que Gate 5 exigeait ici** · des tests qui tuent ces 21 survivants, en
+priorité les bornes de `bottleneck`. Fait le 2026-08-13, six grappes,
+**chacune prouvée par mutation isolée** (le mutant posé, le test rougit, le
+fichier restauré byte-identique) ·
+
+| grappe | ce qu'elle protège |
+|---|---|
+| les 5 échappements d'embarquement | la moitié SÉCURITÉ · le test qui les couvrait était satisfait en n'échappant que `<`, les 4 autres bras roulaient gratis |
+| la couronne de `bottleneck` (×3) | QUEL goulot est couronné quand deux vagues en ont un · une surface lirait le mauvais et ne divergerait jamais visiblement |
+| le seuil à 0,05 | strict · une fixture naïve donne 0.050000000000000044 et ne discrimine rien |
+| `Waves::contains` / `is_empty` | zéro appelant en `src` · la loi du consommateur-zéro à l'échelle d'une méthode |
+| le repli de code · le bras `task_skipped` | la fixture enregistrée ne les exerce JAMAIS · les tests écrivent leur journal à la main |
+| le plafond 64 MiB · le plus lent d'une égalité | l'arithmétique du plafond, et la stabilité d'un rapport à durées égales |
+
+⚠️ **Un non-tué DÉLIBÉRÉ, nommé plutôt que maquillé** · le mutant `>` → `>=`
+sur la borne d'admission (`input.len() > MAX_INPUT_BYTES`) ne se tue qu'avec
+une entrée d'**exactement 64 MiB**. Fabriquer un test qui alloue 64 Mo pour
+un mutant de borne coûte plus que ce qu'il prouve. Il reste vivant, et il est
+écrit ici pour que personne ne le compte comme couvert.
+
+Et au passage · tant que les tests de ce crate vivent en `tests/`, sa mesure
+de mutation demande l'invocation longue, hors de la convention `--lib` ·
+c'est un coût récurrent que le rapatriement des tests unitaires en `src/`
+supprimerait.

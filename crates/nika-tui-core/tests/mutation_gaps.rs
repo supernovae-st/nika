@@ -428,6 +428,31 @@ fn the_wave_index_answers_membership_and_emptiness() {
     assert_eq!(ws.len(), 0);
 }
 
+/// `group_span` picks its slowest by STRICT `>`, so a tie keeps the FIRST
+/// member. `>=` would let a later equal member steal the title, and a
+/// report that reshuffles on equal durations is a report nobody can pin.
+#[test]
+fn the_slowest_of_a_tie_is_the_first_member() {
+    let members: Vec<Task> = serde_json::from_value(serde_json::json!([
+        { "id": "x", "verb": "infer", "glyph": "◇", "needs": [] },
+        { "id": "y", "verb": "infer", "glyph": "◇", "needs": [] },
+    ]))
+    .expect("members");
+    let (_wf, run) = bench(&[], &[("x", 0.0, 5.0), ("y", 0.0, 5.0)]);
+    let span = derive::group_span(&members, &run).expect("un span");
+    assert_eq!(
+        span.slowest, "x",
+        "à durée égale le PREMIER reste le plus lent · `>=` le remplacerait"
+    );
+    assert_eq!(span.n, 2);
+
+    // and a real difference still wins, so the test is not simply pinning
+    // "always the first".
+    let (_wf, run) = bench(&[], &[("x", 0.0, 5.0), ("y", 0.0, 9.0)]);
+    let span = derive::group_span(&members, &run).expect("un span");
+    assert_eq!(span.slowest, "y", "9 bat 5 · la comparaison fonctionne");
+}
+
 /// The four verb spellings are the WIRE voice, and a consumer pins them.
 /// Both the enum speller and the fixture speller survived being blanked.
 #[test]

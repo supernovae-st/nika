@@ -131,6 +131,29 @@ fn every_one_of_the_five_embedding_escapes_is_proven_alone() {
     }
 }
 
+/// The ceiling is 64 MiB, and the arithmetic that says so is pinned.
+///
+/// Gate 5, 2026-08-13. `64 * 1024 * 1024` survived a flip to `+`, which
+/// drops the ceiling to about 1 MiB. The existing ceiling test uses 65 MiB
+/// and is refused under BOTH readings, so it proved the refusal exists and
+/// never proved where the line sits. A 2 MiB input is comfortably legal at
+/// 64 MiB and refused at 1 MiB, so it separates them.
+///
+/// It is asserted by ABSENCE: 2 MiB of spaces is not a journal either, so
+/// the fold still refuses. What must not appear is the CEILING refusal.
+#[test]
+fn a_two_mebibyte_input_is_under_the_ceiling() {
+    let two_mib = " ".repeat(2 * 1024 * 1024);
+    let out = wasm::fold_journal(&two_mib);
+    let v: serde_json::Value = serde_json::from_str(&out).expect("json");
+    let msg = v["error"].as_str().unwrap_or_default();
+    assert!(
+        !msg.contains("ceiling"),
+        "2 MiB est SOUS le plafond de 64 MiB · un `+` à la place du `*` le \
+         descendrait à ~1 MiB et refuserait ici · message: {msg}"
+    );
+}
+
 /// A board at `u32::MAX` stays at MAX — a wrap would renumber history.
 #[test]
 fn the_revision_never_wraps() {
