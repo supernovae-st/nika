@@ -23,12 +23,12 @@
 
 mod algebra;
 mod effect;
+mod effect_vocab;
 pub mod env;
 mod fit;
 mod harness_gate;
 mod integrity;
 mod permits;
-mod policy;
 mod shape;
 pub mod sink;
 mod trifecta;
@@ -60,13 +60,12 @@ pub use sink::code_bearing_path_class;
 // (check≡run by construction).
 pub use integrity::{Integrity, invoke_tool_is_ingress, tool_grant_admits_ingress};
 pub use permits::{ExecPermit, FsPermits, NetPermits, Permits, glob_matches};
-// W4 « the authority » (spec 10) — the policy: vocabulary (closed at the
-// type level) + the pure judge + the certificate's authority projection.
-pub use policy::{
-    Allow, CertEffects, EffectClass, Endorsement, Forbid, HUMAN_GATE_TOOL, Limits, Objective,
-    POLICY_KEYS, Policy, PolicySubject, PolicyViolation, Prefer, ProviderPin, Require,
-    approval_batch_violations, endorsement_solo_violations, policy_child_keys, policy_violations,
-};
+// W4 « the authority » (spec 10) — the effect vocabulary. The `policy:`
+// block and its judge died with the 9-key envelope (2026-08-13); the
+// three words below outlived it because the trifecta, the consent law,
+// the approval tickets and the certificate all read them without ever
+// reading a declaration.
+pub use effect_vocab::{CertEffects, EffectClass, HUMAN_GATE_TOOL};
 pub use shape::builtin_shape_findings;
 // NEP-0002 · the lethal-trifecta judge (`NIKA-SEC-009`) — the pure
 // leg-conjunction + path-dominance logic; the projection lives in

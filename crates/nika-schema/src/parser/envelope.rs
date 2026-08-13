@@ -12,8 +12,8 @@ use marked_yaml::types::MarkedMappingNode;
 use crate::error::SchemaError;
 use crate::source::Spanned;
 use crate::types::{
-    AssertProperty, ExecPermit, FsPermits, NetPermits, OutputDecl, Permits, Policy, RunClock,
-    RunDecl, RunEntropy,
+    AssertProperty, ExecPermit, FsPermits, NetPermits, OutputDecl, Permits, RunClock, RunDecl,
+    RunEntropy,
 };
 
 use super::{Cx, value::json_value};
@@ -897,25 +897,6 @@ fn string_list_values(
         .collect())
 }
 
-/// Parse `policy:` — named workflow law (spec `10-authority.md`). The
-/// families/rules/values are a CLOSED set at the TYPE level (`nika-cap`
-/// serde `deny_unknown_fields`) — an unknown name is a `NIKA-PARSE`-class
-/// refusal in BOTH parse modes (the `permits:` precedent: a typo'd law
-/// silently not binding would be a security bug).
-pub(super) fn parse_policy(
-    cx: &Cx<'_>,
-    workflow: &MarkedMappingNode,
-) -> Result<Option<Spanned<Policy>>, SchemaError> {
-    let Some(node) = workflow.get_node("policy") else {
-        return Ok(None);
-    };
-    require_mapping(cx, node, "policy")?;
-    let span = cx.span(node.span());
-    let policy = Policy::from_value(json_value(cx, node)?)
-        .map_err(|message| SchemaError::Validation { message, span })?;
-    Ok(Some(Spanned::new(policy, cx.span_or_zero(node.span()))))
-}
-
 /// Parse `run:` — the run's entropy + clock declaration (F-P3).
 ///
 /// Shape-only, with the CLOSED key set `{entropy, clock}` refused in BOTH
@@ -1024,124 +1005,6 @@ fn parse_run_entropy(cx: &Cx<'_>, node: &marked_yaml::Node) -> Result<RunEntropy
             span: cx.span(seed_scalar.span()),
         })?;
     Ok(RunEntropy::Seeded(seed))
-}
-
-#[cfg(test)]
-mod policy_tests {
-    use crate::parser::{ParseMode, parse};
-    use crate::source::FileId;
-    use crate::types::{EffectClass, Objective};
-
-    const BASE: &str = "\
-nika: demo
-tasks:
-  t:
-    infer: { prompt: \"x\" }
-";
-
-    #[test]
-    fn absent_policy_is_none() {
-        let wf = parse(BASE, FileId::new(0), ParseMode::Strict).expect("parse");
-        assert!(wf.policy.is_none(), "absent block = no law bound");
-    }
-
-    #[test]
-    fn full_policy_block_parses_spec_shape() {
-        // The spec 10 §policy example, verbatim families.
-        let yaml = format!(
-            "{BASE}\
-policy:
-  require:
-    human_gate_before: [exec, write]
-  forbid:
-    exec_after: [net]
-  allow:
-    providers: [ollama, mistral]
-  limits:
-    max_tasks: 50
-  prefer:
-    providers: [ollama]
-  optimize: cost
-"
-        );
-        let wf = parse(&yaml, FileId::new(0), ParseMode::Strict).expect("parse");
-        let p = &wf.policy.expect("present").value;
-        assert_eq!(
-            p.require.as_ref().expect("require").human_gate_before,
-            Some(vec![EffectClass::Exec, EffectClass::Write])
-        );
-        assert_eq!(
-            p.forbid.as_ref().expect("forbid").exec_after,
-            Some(vec![EffectClass::Net])
-        );
-        assert_eq!(
-            p.allow.as_ref().expect("allow").providers,
-            Some(vec!["ollama".to_owned(), "mistral".to_owned()])
-        );
-        assert_eq!(p.limits.as_ref().expect("limits").max_tasks, Some(50));
-        assert!(p.has_soft_families());
-        assert_eq!(p.optimize, Some(Objective::Cost));
-    }
-
-    #[test]
-    fn unknown_rule_is_a_parse_class_refusal_in_both_modes() {
-        // Fixture core/policy/009: `write_after` is not a v1 rule — the
-        // closed set refuses (never a silent no-op), and the refusal
-        // holds in LENIENT mode too (the permits precedent: a law that
-        // silently does not bind is a security bug).
-        let yaml = format!("{BASE}policy:\n  forbid:\n    write_after: [net]\n");
-        for mode in [ParseMode::Strict, ParseMode::Lenient] {
-            let err = parse(&yaml, FileId::new(0), mode).expect_err("refused");
-            let code = err.spec_code();
-            assert_eq!(code.namespace, "PARSE", "{mode:?}");
-            assert_eq!(code.category.as_str(), "validation_error", "{mode:?}");
-            let msg = err.to_string();
-            assert!(
-                msg.contains("write_after") && msg.contains("exec_after"),
-                "the refusal teaches the closed rule set: {msg}"
-            );
-        }
-    }
-
-    #[test]
-    fn unknown_family_and_value_are_refused_with_the_vocabulary() {
-        let unknown_family = format!("{BASE}policy:\n  deny:\n    exec_after: [net]\n");
-        let err = parse(&unknown_family, FileId::new(0), ParseMode::Strict).expect_err("family");
-        assert!(
-            err.to_string().contains("require") && err.to_string().contains("optimize"),
-            "the family vocabulary rides the refusal: {err}"
-        );
-        // an effect class outside the closed set (reads are not gateable)
-        let bad_class = format!("{BASE}policy:\n  forbid:\n    exec_after: [read]\n");
-        let err = parse(&bad_class, FileId::new(0), ParseMode::Strict).expect_err("class");
-        assert!(
-            err.to_string().contains("exec·write·net·tools"),
-            "the class vocabulary rides the refusal: {err}"
-        );
-    }
-
-    #[test]
-    fn max_tasks_zero_is_refused_at_parse() {
-        let yaml = format!("{BASE}policy:\n  limits:\n    max_tasks: 0\n");
-        let err = parse(&yaml, FileId::new(0), ParseMode::Strict).expect_err("zero");
-        assert!(err.to_string().contains("must be ≥ 1"), "{err}");
-    }
-
-    #[test]
-    fn non_mapping_policy_is_refused() {
-        let yaml = format!("{BASE}policy: strict\n");
-        let err = parse(&yaml, FileId::new(0), ParseMode::Strict).expect_err("scalar");
-        assert!(err.to_string().contains("mapping"), "{err}");
-    }
-
-    #[test]
-    fn empty_policy_block_parses_as_no_law() {
-        let yaml = format!("{BASE}policy: {{}}\n");
-        let wf = parse(&yaml, FileId::new(0), ParseMode::Strict).expect("parse");
-        let p = &wf.policy.expect("present").value;
-        assert!(p.require.is_none() && p.forbid.is_none());
-        assert!(!p.has_soft_families());
-    }
 }
 
 #[cfg(test)]

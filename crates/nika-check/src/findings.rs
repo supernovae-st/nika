@@ -31,7 +31,7 @@ use super::{CheckReport, FindingSeverity};
 pub struct UnifiedFinding {
     /// The class slug (`conformance` · `secret_leak` · `secret_egress` ·
     /// `capability_escape` · `exec_floor` · `permit_taint` · `data_sink` ·
-    /// `policy` · `consent` · `trifecta` · `schema_type` · `gate` ·
+    /// `consent` · `trifecta` · `schema_type` · `gate` ·
     /// `run_decl` · `write_conflict` · `composition` · `unknown_tool` ·
     /// `unknown_arg` · `missing_arg` · `schema_lint`).
     pub kind: &'static str,
@@ -215,7 +215,6 @@ pub(super) fn collect(report: &CheckReport) -> Vec<UnifiedFinding> {
     fold_permit_taints(report, &mut out);
     fold_sink_findings(report, &mut out);
     fold_exec_floor(report, &mut out);
-    fold_policy_findings(report, &mut out);
     fold_consent(report, &mut out);
     fold_trifecta(report, &mut out);
     fold_order(report, &mut out);
@@ -294,22 +293,6 @@ fn fold_permit_taints(report: &CheckReport, out: &mut Vec<UnifiedFinding>) {
         f.code = Some(code.to_owned());
         f.docs_url = Some(format!("{}/{code}", super::ERROR_DOCS_BASE));
         f.task = Some(t.task.clone());
-        out.push(f);
-    }
-}
-
-/// The hard-`policy:` class (spec 10 · NIKA-POLICY-001) — the detail
-/// already names rule + task + witness. The wire code is the ONE
-/// mapping every surface reads ([`crate::policy_wire_code`]): F-P4's
-/// `approval.*` rules (NEP-0013) speak NIKA-SEC-010, F-P23's
-/// `endorsement.*` rules (NEP-0017) speak NIKA-SEC-013.
-fn fold_policy_findings(report: &CheckReport, out: &mut Vec<UnifiedFinding>) {
-    for p in &report.policy_findings {
-        let mut f = UnifiedFinding::new("policy", "POLICY", p.detail.clone());
-        let code = crate::policy_wire_code(p.rule);
-        f.code = Some(code.to_owned());
-        f.docs_url = Some(format!("{}/{code}", super::ERROR_DOCS_BASE));
-        f.task.clone_from(&p.task);
         out.push(f);
     }
 }
@@ -544,7 +527,7 @@ mod tests {
     }
 
     /// The canonical-code law: conformance + escapes + secret-flow +
-    /// policy + tool-contract classes carry a code AND its docs url;
+    /// the law + tool-contract classes carry a code AND its docs url;
     /// analysis-native classes carry neither (a conjured code would 404).
     /// W4: the two flow refusals were report-only until the canon
     /// registered NIKA-SEC-006/007 (spec 10 §secret flow refusals).
@@ -595,18 +578,6 @@ mod tests {
             egress.docs_url.as_deref(),
             Some("https://nika.sh/language/errors/NIKA-SEC-007")
         );
-
-        // policy → NIKA-POLICY-001 (spec 10).
-        let r = report(
-            "nika: w\npolicy:\n  limits: { max_tasks: 1 }\ntasks:\n  a:\n    infer: { prompt: \"x\" }\n  b:\n    infer: { prompt: \"y\" }\n",
-        );
-        let policy = r
-            .findings
-            .iter()
-            .find(|f| f.kind == "policy")
-            .expect("policy row");
-        assert_eq!(policy.code.as_deref(), Some("NIKA-POLICY-001"));
-        assert_eq!(policy.gate, "POLICY");
 
         // trifecta → NIKA-SEC-009 (NEP-0002) — the code rides with the
         // witness task (the SINK the content reaches · v2.0), one voice

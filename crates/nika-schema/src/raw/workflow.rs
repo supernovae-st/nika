@@ -24,7 +24,7 @@
 //! `NIKA-VALUES-001`/`NIKA-VALUES-002` at parse).
 
 use crate::source::Spanned;
-use crate::types::{AssertProperty, OutputDecl, Permits, Policy, RunDecl, SecretRef, VarDecl};
+use crate::types::{AssertProperty, OutputDecl, Permits, RunDecl, SecretRef, VarDecl};
 
 use super::task::RawTask;
 
@@ -60,9 +60,6 @@ pub struct RawWorkflow {
     /// `None` = absent = ZERO authority (F-O8 · every effect refused) ·
     /// `Some` = default-deny).
     pub permits: Option<Spanned<Permits>>,
-    /// `policy:` — named workflow law (spec 10 · hard families judged
-    /// at check · soft recorded, never judged).
-    pub policy: Option<Spanned<Policy>>,
     /// `run:` — the run's entropy + clock declaration (F-P3 · `None` =
     /// absent = the status quo: `entropy: ambient` + `clock: system`).
     pub run: Option<Spanned<RunDecl>>,
@@ -88,7 +85,6 @@ impl RawWorkflow {
             consts: Vec::new(),
             secrets: Vec::new(),
             permits: None,
-            policy: None,
             run: None,
             tasks: Vec::new(),
             outputs: Vec::new(),
@@ -111,7 +107,6 @@ mod tests {
     fn new_is_empty() {
         let w = RawWorkflow::new();
         assert!(w.workflow.is_none());
-        assert!(w.policy.is_none());
         assert!(w.tasks.is_empty());
         assert!(w.inputs.is_empty());
         assert!(w.config.is_empty());

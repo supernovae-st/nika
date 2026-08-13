@@ -97,10 +97,6 @@ pub const TOP_LEVEL_KEYS: &[Entry] = &[
         doc: "The workflow's return contract — named values the run yields.",
     },
     Entry {
-        name: "policy",
-        doc: "Run-wide policy (retries · timeouts · concurrency) applied to every task.",
-    },
-    Entry {
         name: "run",
         doc: "Run-level settings the engine reads before the DAG starts.",
     },

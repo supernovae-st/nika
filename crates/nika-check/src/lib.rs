@@ -134,7 +134,6 @@ mod order;
 mod permit_taint;
 pub mod permits_fit;
 mod permits_infer;
-mod policy;
 mod reach;
 mod requirements;
 mod risk;
@@ -170,7 +169,6 @@ pub use order::OrderFinding;
 pub use permit_taint::{PermitTaint, PermitTaintKind};
 pub use permits_fit::CapabilityEscape;
 pub use permits_infer::InferredPermits;
-pub use policy::policy_wire_code;
 pub use reach::{GateFinding, GateFindingKind, STATUS_VOCAB};
 pub use requirements::{ModelRequirement, Requirements, SecretRequirement};
 pub use risk::{RiskGrade, risk_grade};
@@ -370,11 +368,6 @@ pub struct CheckReport {
     /// run twin (`NIKA-SEC-004` · law 3). Additive: `report_version`
     /// stays 1.
     pub sink_findings: Vec<SinkFinding>,
-    /// Every hard `policy:` rule violation (spec 10 · `NIKA-POLICY-001` ·
-    /// the approval batch speaks `NIKA-SEC-010` · the endorsement mode
-    /// `NIKA-SEC-013` — judged on the derived graph, so empty when
-    /// `conformance` has entries). Additive: `report_version` stays 1.
-    pub policy_findings: Vec<nika_cap::PolicyViolation>,
     /// Every affirmative-consent refusal (NEP-0020 · `NIKA-SEC-014`): an
     /// egress-capable task reached from a confirm-mode human gate over a
     /// route no affirmative gate closes — false triggers exactly zero
@@ -503,7 +496,6 @@ impl CheckReport {
             && self.exec_floor_findings.is_empty()
             && self.permit_taints.is_empty()
             && self.sink_findings.is_empty()
-            && self.policy_findings.is_empty()
             && self.consent_findings.is_empty()
             && self.order_findings.is_empty()
             && self.trifecta_findings.is_empty()
@@ -632,21 +624,14 @@ fn gated_scans(
     edges: &[analyzer::Edge],
     topo_waves: &[Vec<usize>],
 ) -> (
-    Vec<nika_cap::PolicyViolation>,
     Vec<nika_cap::TrifectaViolation>,
     consent::ConsentScan,
     Vec<OrderFinding>,
 ) {
     if !conformance_clean {
-        return (
-            Vec::new(),
-            Vec::new(),
-            consent::ConsentScan::default(),
-            Vec::new(),
-        );
+        return (Vec::new(), consent::ConsentScan::default(), Vec::new());
     }
     (
-        policy::scan_policy(wf, edges),
         trifecta::scan_trifecta(wf, edges, topo_waves),
         consent::scan_consent(wf, edges),
         order::scan_order(wf, edges),
@@ -689,7 +674,7 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
             advice: miss,
         });
     }
-    let (policy_findings, trifecta_findings, mut consent_scan, order_findings) =
+    let (trifecta_findings, mut consent_scan, order_findings) =
         gated_scans(wf, conformance.is_empty(), &edges, &topo_waves);
     hints.extend(std::mem::take(&mut consent_scan.hints));
     let capability_escapes = permits_fit::scan_escapes(wf);
@@ -716,7 +701,6 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
         exec_floor_findings: exec_floor::scan(wf),
         permit_taints: permit_taint::scan_permit_taint(wf),
         sink_findings: data_sink::scan_data_sink(wf),
-        policy_findings,
         consent_findings: consent_scan.findings,
         order_findings,
         trifecta_findings,
@@ -1314,7 +1298,6 @@ tasks:
 ",
         );
         let expected = r.capability_escapes.len()
-            + r.policy_findings.len()
             + r.unknown_tools.len()
             + r.unknown_args.len()
             + r.missing_args.len();

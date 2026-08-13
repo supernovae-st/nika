@@ -33,7 +33,8 @@
 //! ungated tainted egress task, message opening with the NEP's verbatim
 //! « lethal trifecta complete · human gate required ».
 //!
-//! The judge is pure L0 (the [`crate::policy_violations`] precedent): it
+//! The judge is pure L0 (the same shape the dead `policy_violations`
+//! set): it
 //! reads projected [`TrifectaSubject`] rows, [`TaintWitness`] flow facts
 //! and the declared boundary, never an AST. `nika_check` owns the
 //! projection, the content-taint pass, and the DAG-validity gating (an

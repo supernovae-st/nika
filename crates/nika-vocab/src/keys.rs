@@ -120,10 +120,6 @@ pub const THINKING_KEYS: &[&str] = &["enabled", "budget_tokens"];
 #[must_use]
 pub fn known_child_keys(block_key: &str, parent: Option<&str>) -> Option<&'static [&'static str]> {
     match block_key {
-        // policy vocabulary FIRST (spec 10 · nika-cap is the SSOT — the
-        // serde type and this door are pinned coherent by test)
-        key if parent == Some("policy") => nika_cap::policy_child_keys(key),
-        "policy" => Some(nika_cap::POLICY_KEYS),
         "retry" => Some(RETRY_KEYS),
         "on_error" => Some(ON_ERROR_KEYS),
         "infer" => Some(INFER_KEYS),

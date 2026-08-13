@@ -127,19 +127,6 @@ pub(super) fn scan_hints(wf: &RawWorkflow) -> Vec<Hint> {
     let envelope_bound = envelope_bound_outputs(wf);
     let envelope_ids: BTreeSet<&str> = envelope_bound.iter().map(|(_, id)| id.as_str()).collect();
     let mut hints = Vec::new();
-    // SOFT policy families (spec 10) — a constraint that cannot be judged
-    // must never look judged: the hint records them, nothing reads them.
-    if let Some(p) = &wf.policy
-        && p.value.has_soft_families()
-    {
-        hints.push(hint(
-            "policy-soft",
-            "-",
-            "soft policy recorded · not judged (v1) — `prefer:`/`optimize:` record \
-             intent; no v1 judge reads them (spec 10 §policy)"
-                .to_owned(),
-        ));
-    }
     for (name, id) in &envelope_bound {
         hints.push(Hint {
             kind: "envelope-output",

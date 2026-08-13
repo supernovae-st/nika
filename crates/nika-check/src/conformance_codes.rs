@@ -52,20 +52,6 @@ pub(crate) fn of(report: &CheckReport) -> Vec<SpecCode> {
     // The data-as-code sink (NEP-0006) → NIKA-SEC-008.
     let sink_code = SpecCode::new("SEC", 8, SpecCategory::SecurityError);
     codes.extend(report.sink_findings.iter().map(|_| sink_code));
-    // Hard policy: violations (spec 10) → NIKA-POLICY-001 · the F-P4
-    // approval rules (NEP-0013) → NIKA-SEC-010 · the F-P23 endorsement
-    // rules (NEP-0017) → NIKA-SEC-013 (one lane, three voices — the
-    // rule prefix discriminates, same as the findings fold).
-    let policy_code = SpecCode::new("POLICY", 1, SpecCategory::SecurityError);
-    codes.extend(report.policy_findings.iter().map(|p| {
-        if p.rule.starts_with("approval.") {
-            SpecCode::new("SEC", 10, SpecCategory::SecurityError)
-        } else if p.rule.starts_with("endorsement.") {
-            SpecCode::new("SEC", 13, SpecCategory::SecurityError)
-        } else {
-            policy_code
-        }
-    }));
     extend_law_codes(report, &mut codes);
     codes.extend(report.unknown_tools.iter().map(|_| builtin));
     codes.extend(report.unknown_args.iter().map(|_| builtin));
