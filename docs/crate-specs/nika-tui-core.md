@@ -200,3 +200,22 @@ Et au passage · tant que les tests de ce crate vivent en `tests/`, sa mesure
 de mutation demande l'invocation longue, hors de la convention `--lib` ·
 c'est un coût récurrent que le rapatriement des tests unitaires en `src/`
 supprimerait.
+
+---
+
+### 📋 Ce qui reste AVANT l'admission (mesuré · 2026-08-13 soir)
+
+Le swarm Gate-11 (3 lentilles indépendantes) a fermé son P0 et ses P1 dans la
+session. Ce qui suit est ce qu'il a nommé et que la session a **délibérément
+laissé**, avec son coût mesuré — pour que l'admission ait une liste, pas une
+surprise.
+
+| item | mesure | pourquoi pas ce soir |
+|---|---|---|
+| `#[non_exhaustive]` sur les 6 **structs** de `model.rs` (`Task` · `Workflow` · `Failure` · `Step` · `Run` · et `Group` l'enum l'a déjà) | **23 sites** de construction littérale à réécrire (17 en `tests/`, 6 en `src/`) + 6 constructeurs | Les 4 **enums** de `model.rs` le portent déjà · l'écart est réel. Mais 23 réécritures de tests contre un forward-compat qui protège une crate `publish = false` sans consommateur externe, c'est le mauvais échange à minuit. Item d'admission, pas item de session. |
+| `run_from_journal` à **99 lignes** (cap 100) | `scripts/ci/check-fn-length.sh` · **VERT** | Le plafond est GARDÉ, pas seulement écrit. 99 passe ; la 101ᵉ ligne fait rougir le gate. Pré-découper une fonction de pli à froid introduit un risque pour zéro bénéfice mesuré — la structure fera le travail au moment où il faut. |
+| `extra` catch-all sur les types de `model.rs` | — | **Intentionnel, et différent d'`ingress::Node`.** Node en avait besoin parce que `plan::print_of` promet «tout SAUF l'id» — une promesse que le type trahissait. Les types de `model.rs` n'ont pas d'empreinte «tout le reste» · `derive::signature` NOMME ses trois champs (verbe, outil, needs triés). Pas de promesse, pas de trahison. |
+
+**Trois copies d'une même loi fondues le même soir** · `Verb::as_str` se déclare
+« the ONE wire voice » et un `verb_name` privé plus les littéraux de
+`cost_by_verb` la recopiaient. Les copies sont supprimées, pas la déclaration.

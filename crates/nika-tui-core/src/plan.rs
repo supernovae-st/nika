@@ -122,6 +122,15 @@ pub fn seat_first(g: &GraphDoc) -> Board {
 #[must_use]
 pub fn seat_next(prev: &Board, g: &GraphDoc) -> Board {
     let vus: BTreeMap<&str, &Node> = g.nodes.iter().map(|n| (n.id.as_str(), n)).collect();
+    // ⭐ ONE fingerprint pass. `print_of` used to run once per survivor for
+    // the comparison, then again for EVERY node to fill the board — each
+    // survivor serialized twice per revision, for the same bytes. Computed
+    // here, read twice.
+    let prints: BTreeMap<String, String> = g
+        .nodes
+        .iter()
+        .map(|n| (n.id.clone(), print_of(n)))
+        .collect();
     let mut slots = prev.slots.clone();
     let mut marks: Vec<Mark> = prev.slots.iter().map(|_| Mark::Kept).collect();
 
@@ -138,11 +147,11 @@ pub fn seat_next(prev: &Board, g: &GraphDoc) -> Board {
     // ② the survivors — `Changed` when the engine describes them otherwise
     for (i, id) in slots.iter().enumerate() {
         let Some(name) = id.as_deref() else { continue };
-        if let Some(n) = vus.get(name) {
-            let differs = prev.prints.get(name).is_none_or(|p| *p != print_of(n));
-            if differs {
-                marks[i] = Mark::Changed;
-            }
+        if vus.contains_key(name)
+            && let Some(now) = prints.get(name)
+            && prev.prints.get(name).is_none_or(|before| before != now)
+        {
+            marks[i] = Mark::Changed;
         }
     }
 
@@ -162,10 +171,6 @@ pub fn seat_next(prev: &Board, g: &GraphDoc) -> Board {
         rev: prev.rev.saturating_add(1), // a hostile board's u32::MAX stays MAX — wrapping to 0 would renumber history
         slots,
         marks,
-        prints: g
-            .nodes
-            .iter()
-            .map(|n| (n.id.clone(), print_of(n)))
-            .collect(),
+        prints,
     }
 }

@@ -399,11 +399,12 @@ pub fn has_failed(run: &Run) -> bool {
 /// Cost per verb — answers ⟦ where does the money go ⟧.
 #[must_use]
 pub fn cost_by_verb(wf: &Workflow, run: &Run) -> [(&'static str, f64); 4] {
+    // the spellings ride `Verb::as_str` (const) — the third copy, deleted
     let mut sums = [
-        ("infer", 0.0),
-        ("exec", 0.0),
-        ("invoke", 0.0),
-        ("agent", 0.0),
+        (Verb::Infer.as_str(), 0.0),
+        (Verb::Exec.as_str(), 0.0),
+        (Verb::Invoke.as_str(), 0.0),
+        (Verb::Agent.as_str(), 0.0),
     ];
     // one index, not a `find` per step (that was O(tasks × steps) · 18 ms at
     // n=5000, the smallest of the three door quadratics a Gate-11 lens named)
@@ -514,20 +515,15 @@ fn signature(t: &Task) -> String {
     needs.sort_unstable();
     format!(
         "{}|{}|{}",
-        verb_name(t.verb),
+        // `Verb::as_str` calls itself «the ONE wire voice» — and a private
+        // `verb_name` here spelled the same four words a second time, with
+        // `cost_by_verb`'s array literals making a third. Three copies of a
+        // law that declares itself singular; the copy is deleted, not the
+        // declaration. A Gate-11 lens named it.
+        t.verb.as_str(),
         t.tool.as_deref().unwrap_or(""),
         needs.join(",")
     )
-}
-
-/// The verb's lowercase spelling (the fixture's spelling).
-fn verb_name(v: Verb) -> &'static str {
-    match v {
-        Verb::Infer => "infer",
-        Verb::Exec => "exec",
-        Verb::Invoke => "invoke",
-        Verb::Agent => "agent",
-    }
 }
 
 /// A group's span — the shortest, the longest, the total spent.
