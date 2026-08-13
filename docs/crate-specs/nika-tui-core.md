@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | **CANDIDATE** — Gate 1 (this document) authored 2026-08-12 · tranché D-2026-08-11-N6 (T28 d'abord · T27, le renderer ratatui, en est le premier consommateur natif) |
+| Status | **ADMITTED 2026-08-14** — les 12 gates · Gate 1 (this document) authored 2026-08-12 · tranché D-2026-08-11-N6 (T28 d'abord · T27, le renderer ratatui, en est le premier consommateur natif) |
 | Layer | L4 — interfaces (libraries only) · le précédent WASM : `nika-check-wasm` (WIP · ADR-107) |
 | Design | La LOI de la session TUI en UN crate Rust — le modèle de session (Session · l'enum fermé Block), la couche de dérivation (vagues · idle · goulot · totaux), le seating du board de plan, les CLAIMS en assertions exécutables. Compilé natif (T27) ET en WASM (le studio web) · le DESSIN reste en SSOT YAML projetée (un essai de design ne demande jamais un `wasm-pack build`). |
 | LOC budget | ≤4,000 src prod · ≤15,000 hard cap |
@@ -100,13 +100,13 @@ une « différence de plateforme » — c'est pour ça que la loi déménage.
 
 | Gate | Verdict | Preuve |
 |---|---|---|
-| 5 **Mutation** | **90,3 %** (130/144 viables · 2026-08-12) | `cargo mutants` sur le shim · première passe 76 %, chaque trou nommé puis fermé (`ed66cc539`) · résidu = la classe frontière (epsilon 1e-6 · tie-breaks de `>` strict · const de vocabulaire), nommée dans le journal de mutation |
+| 5 **Mutation** | ✅ **99,5 %** · 209 mutants · 189 pris · 19 non viables · **1 survivant nommé** (2026-08-14, arbre committé, répertoire de build DÉDIÉ) | ⚠️ Cette ligne a porté **90,3 %** pendant deux jours · un chiffre pris **sur le shim**, avec un autre instrument, que la §7bis dessous démonte. Une lentille Gate-11 a refusé de le croire, et elle avait raison. Le chemin mesuré · 87 % ROUGE le matin → 92,7 % (dont **14 survivants tous sur deux fonctions ajoutées une heure plus tôt**) → 99,5 %. La comptabilité SOMME · 189+1+19=209. Survivant · `<` → `<=` sur une tolérance flottante · intuable sans tester la représentation des f64 plutôt que la loi · sa DIRECTION est délibérée (`<` couronne moins). |
 | 6 **Property** | 5 propriétés (`77283178e`) | partition des vagues · idle ≥ 0 · durée couvrante · goulot couronné a des attendants · groupage partitionne · cycles inclus |
-| 7 **Benchmarks** | **no hot path, décidé** | la dérivation sur 24 tâches est de l'ordre de la microseconde (la fixture stress, 8 vagues, se replie en <1 ms natif) · un bench mesurerait la plateforme, pas la loi |
+| 7 **Benchmarks** | ⚠️ **AMENDÉ 2026-08-14 · trois gates d'ÉCHELLE, pas un bench** | La ligne disait « **no hot path, décidé** · la dérivation sur 24 tâches est de l'ordre de la microseconde ». Vrai sur 24 tâches, et **faux comme conclusion** · `MAX_INPUT_BYTES` admet ~1 M de tâches par la porte, et une revue Gate-11 a trouvé **quatre** quadratiques que ce raisonnement avait couverts (le memo de `waves()` par racine · le balayage de `groups_of` · trois formes singulières appelées n fois par la porte). La chaîne de 5000 déjà épinglée par le test de sécurité passait **14,35 s** — verte tout du long, parce qu'elle n'assertait aucune borne. Un bench aurait mesuré la plateforme ; ce qui manquait était un gate de **COMPLEXITÉ**. Trois posés (`waves` · `groups_of` · la porte de bout en bout **avec** des steps) · un RAPPORT et non un chrono, donc indépendant de la machine · ×4 l'entrée doit coûter <×8. Chacun prouvé par mutation en rougissant sur l'ancien code (×18,4 · ×20,1 · ×14,3). La chaîne pinnée est à **0,02 s**. |
 | 9 **Canary E2E** | **la forme du crate n'a pas de canary workflow** · l'E2E réel est le harnais Node sur le lot construit (`test.mjs` · fixtures réelles à travers la frontière) + le gate `wasm-parity` du studio | un canary `.nika.yaml` n'invoque pas une bibliothèque de loi |
 | 10 **Parity legacy** | n/a · pas de brouillon pour ce crate (loi neuve) · la parité de RÉFÉRENCE est le studio TS (fixtures `gen-parity`, rejouées bit à bit) | — |
-| 11 **Review swarm** | ✅ **répondu** (`650d3a58a` · « la reponse du swarm, gate 11 ») | — |
-| 12 **Atomic commit** | à l'admission (shim retiré · members + wip + layers) | — |
+| 11 **Review swarm** | ✅ **3 lentilles indépendantes · 2026-08-14** (contrat Nika · craft Rust · justesse et honnêteté des tests) · P0/P1 fermés dans la session | **Deux lentilles ont convergé sur les MÊMES trous sans se voir** — c'est ce qui justifie d'en lancer trois. Trouvé · un **P0** (la loi `ran()` appliquée à 3 coutures sur 4 ⇒ une étape morte étirait sa vague et une étape finie à l'heure était rapportée comme ayant attendu pour elle) · un quadratique que la première réparation avait manqué · 4 marqueurs `non_exhaustive` sans constructeur · deux de MES surengagements de doc. ⚠️ **Une trouvaille était FABRIQUÉE** (une citation `Cargo.toml:53` dans un fichier de 37 lignes) · chaque constat a été vérifié sur la source avant tout commit, celui-là n'a produit aucun changement. |
+| 12 **Atomic commit** | ✅ **l'admission 2026-08-14** · `nika-tui-core` sort du tableau `wip` | Le tableau `wip` est le SEUL registre d'admission · le compte se DÉRIVE (`bash scripts/crate-metrics.sh --wip`), il ne se tape pas. |
 
 ### ⚠️ Gate 5 · le chiffre de 90,3 % a été pris avec un AUTRE instrument
 

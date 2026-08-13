@@ -3,7 +3,7 @@
 #
 # nika-tui-core · L4 · la LOI de la session TUI · pur · zéro I/O · zéro async.
 # Joined the workspace as WIP 2026-08-12 (the nika-cadence precedent) ·
-# the shim is retired · the 12-gate admission removes it from `wip`.
+# ADMITTED 2026-08-14 · all 12 gates · retire du tableau `wip`.
 [package]
 name        = "nika-tui-core"
 description = "L4 interface law — the TUI session model + the derivation layer (waves · idle · bottleneck · totals) + the plan-board seating + the executable claims · one Rust truth for every surface (native · WASM · cloud)"

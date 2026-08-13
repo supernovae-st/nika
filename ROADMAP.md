@@ -102,11 +102,11 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 | field            | value                                          |
 |------------------|------------------------------------------------|
 | branch           | `feat/trace-cover-doctor-signal`                                      |
-| HEAD             | `f5a3379e1` (`f5a3379e1d22d027c54e97cd3a95b3340884c617`)             |
+| HEAD             | `fe8a5d3e4` (`fe8a5d3e4a917b0e83ee26276e4d059859f8ed6a`)             |
 | workspace        | v0.108.0                                  |
 | crates (workspace)| 65                                              |
-| crates (admitted)| 59                                             |
-| crates (WIP)     | 6 — nika-chart nika-fx nika-proof nika-store nika-harness nika-tui-core                                  |
+| crates (admitted)| 60                                             |
+| crates (WIP)     | 5 — nika-chart nika-fx nika-proof nika-store nika-harness                                  |
 | L0               | 20                                              |
 | L0.5             | 6                                              |
 | L1               | 17                                              |
