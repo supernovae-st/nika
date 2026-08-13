@@ -1,0 +1,7 @@
+# Seeds for failure cases proptest has generated in the past. It is
+# automatically read and these particular cases re-run before any
+# novel cases are generated.
+#
+# It is recommended to check this file in to source control so that
+# everyone who runs the test benefits from these saved cases.
+cc 1a8d32de33738e52c844e95004a4bff963140d25830c55edc6e800f7fce6fe6c # shrinks to (_wf, run) = (Workflow { file: "prop.nika.yaml", engine: "test", prompt: "", permits: [], missing: "", tasks: [Task { id: "t0", verb: Infer, glyph: "·", needs: [], tool: None, origin: None, family: None, touches: None }] }, Run { trace: "prop", when: "recorded", output: "", steps: [Step { id: "t0", start: 0.0, dur: 23.09940764756106, cost: None, tokens: None, failed: None, never_born: None, blocked_by: None, skipped: Some(true) }] })
