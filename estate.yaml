@@ -48,7 +48,7 @@ files:
   note: "generated with a human gate — the maintainer may amend the section at PR review"
 - path: "Cargo.lock"
   class: generated
-  sha256: 10e32e0c5717cb34573b2f7363aa6ebc64d55873ef11309bc786643e68afff2a
+  sha256: be3dc18d9cdfe321646e6998857d9746525123b736b078c38e56e965e7f02367
   evidence: "cargo's resolver writes it; no human edits a lockfile"
   derivation:
     tool: "cargo (dependency resolution against Cargo.toml + crates/*/Cargo.toml)"
@@ -89,7 +89,7 @@ files:
     - "docs/adr/adr-*.md YAML frontmatter"
 - path: "fuzz/Cargo.lock"
   class: generated
-  sha256: aac86fb19fd4340b3550300e5e1392af11463248adb179b592ddea61f75bad75
+  sha256: 299a596f0822fed3054cf88c301fb2dbff5c09b2a16df51d4cbfbe48e1a7b087
   evidence: "cargo's resolver writes it for the fuzz workspace; no human edits a lockfile"
   derivation:
     tool: "cargo (dependency resolution against fuzz/Cargo.toml)"
@@ -162,7 +162,7 @@ patterns:
 - glob: "crates/**"
   class: authored
   match_count: 138
-  aggregate_sha256: 56f1f0d8e7c85366614e0a9e1103f899b55da8536b806dd51ee967208aeaa58f
+  aggregate_sha256: 9447d41cdec41c413c13fc3b40c391130951327a9f35219fcc627e3ec277124d
   evidence: "the remaining crate surface — Cargo.toml manifests · build.rs · benches · READMEs · hand-curated data catalogs (llm-providers · mcp-servers · embeddings · model-capabilities, probed daily by catalog-verify.yml); the pricing snapshot is excepted in files:"
   note: "crates/nika-pack/scripts/sync-pack.sh is a DIVERGENT older duplicate of scripts/sync-pack.sh — the pack-resync.yml lane runs the root one"
 - glob: "fuzz/**"
@@ -183,12 +183,12 @@ patterns:
 - glob: "scripts/**"
   class: authored
   match_count: 150
-  aggregate_sha256: a37bced46e69afacff334299dd0aff4056aa429427bf7f300a7148f67c8cb900
+  aggregate_sha256: d1d1c49a7122fc48b76b398867b8749d94e1401f46c2e4b1da4538891400901a
   evidence: "hand-written gates · hooks · hygiene vectors · media lanes; the ratchet baselines (scripts/ci/*-baseline.txt · scripts/hygiene/baselines/) are hand-kept monotonic floors ('Never remove a line by hand')"
 - glob: ".github/workflows/**"
   class: authored
   match_count: 22
-  aggregate_sha256: f3f2f23869cb0866e8e09ea65fb605f95b1468b7342cae58c42f951a97d565b6
+  aggregate_sha256: bce68e93e48ad1283e612655ee2b3800a127d06b4dced01202389d89273ceafa
   evidence: "hand-written CI rails, comments narrate design decisions; the heal lanes here rewrite OTHER files (spec-pin-heal.yml → SPEC_PIN · pack-resync.yml → the pack · changelog-cliff.yml → CHANGELOG.md), nothing rewrites the workflows themselves"
 - glob: ".github/**"
   class: authored
@@ -237,7 +237,7 @@ patterns:
 - glob: "*"
   class: authored
   match_count: 28
-  aggregate_sha256: d10f025e02073f78252c534abb78db3f70f9c37f8133bcafad7ed76cf2cdbdbf
+  aggregate_sha256: 548fdc1b250fd02b604725fb1e3215805fb6e152a7c0eb8c2423eb7dab54cf43
   evidence: "root prose + config surface (README · DIAMOND · LICENSE · llms.txt · Cargo.toml · deny/clippy/cliff/typos toml · lefthook.yml · flake.nix · Dockerfile) — no generation markers at file heads; CHANGELOG.md · Cargo.lock · SPEC_PIN · ROADMAP.md excepted in files:"
 - glob: "**"
   class: authored
