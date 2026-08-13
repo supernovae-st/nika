@@ -171,3 +171,67 @@ fn the_revision_never_wraps() {
 fn the_version_door_answers() {
     assert_eq!(wasm::engine_version(), env!("CARGO_PKG_VERSION"));
 }
+
+/// The complexity gate — a WALL CLOCK would measure the machine; a RATIO
+/// measures the algorithm. Both legs run in the same process on the same
+/// core, so the hardware cancels out.
+///
+/// `waves()` used to rebuild its memo per root, so an n-link chain walked
+/// n times. Measured on the pinned 5 000-chain: 14.35 s → 1.62 s release
+/// (`cargo test -p nika-tui-core --release --test security a_five_thousand`).
+/// The correctness test above would NOT have caught that: it passed the
+/// whole time, just slowly. This one is the guard the fix needed.
+///
+/// Quadruple the input · linear answers ~4× · quadratic answers ~16×.
+/// The ceiling sits at 8: far above the honest answer, far below the trap.
+#[test]
+fn the_wave_walk_scales_with_the_chain_not_its_square() {
+    fn chain(n: usize) -> Workflow {
+        let tasks: Vec<_> = (0..n)
+            .map(|i| {
+                serde_json::json!({
+                    "id": format!("t{i}"), "verb": "infer", "glyph": "◇",
+                    "needs": if i == 0 { vec![] } else { vec![format!("t{}", i - 1)] },
+                })
+            })
+            .collect();
+        serde_json::from_value(serde_json::json!({
+            "file": "c.nika.yaml", "engine": "test", "prompt": "",
+            "permits": [], "missing": "", "tasks": tasks,
+        }))
+        .expect("wf")
+    }
+
+    // The MINIMUM of several runs, never the mean: a scheduler steals time,
+    // it never gives any back, so the floor is the honest measurement.
+    fn floor_of(wf: &Workflow) -> std::time::Duration {
+        (0..5)
+            .map(|_| {
+                let t0 = std::time::Instant::now();
+                let w = nika_tui_core::derive::waves(wf);
+                assert_eq!(w.len(), wf.tasks.len(), "the walk must answer, not skip");
+                t0.elapsed()
+            })
+            .min()
+            .expect("five runs")
+    }
+
+    let small = chain(2_000);
+    let large = chain(8_000); // ×4
+
+    let t_small = floor_of(&small);
+    let t_large = floor_of(&large);
+
+    // Guard the guard: too fast to time means the ratio is noise, not signal.
+    assert!(
+        t_small.as_micros() >= 50,
+        "the small leg ran in {t_small:?} — too fast to compare; raise the sizes"
+    );
+
+    let ratio = t_large.as_secs_f64() / t_small.as_secs_f64();
+    assert!(
+        ratio < 8.0,
+        "×4 the chain cost ×{ratio:.1} the time ({t_small:?} → {t_large:?}) — \
+         linear costs ~4×, quadratic ~16×. The per-root memo is back."
+    );
+}

@@ -69,12 +69,18 @@ impl Waves {
 /// One task's wave, walked ITERATIVELY from the root — post-order DFS on
 /// an explicit stack. `visiting` is the fresh per-root guard: a revisited
 /// id (a cycle) answers 0, exactly the studio's `seen` set.
-fn wave_of_walk(tasks: &BTreeMap<&str, &Task>, root: &str) -> usize {
+fn wave_of_walk<'a>(
+    tasks: &BTreeMap<&'a str, &'a Task>,
+    root: &'a str,
+    memo: &mut BTreeMap<&'a str, usize>,
+) -> usize {
     enum Frame<'a> {
         Enter(&'a str),
         Exit(&'a str),
     }
-    let mut memo: BTreeMap<&str, usize> = BTreeMap::new();
+    // `visiting` stays PER ROOT: it is this walk's cycle guard, and sharing it
+    // would make an earlier walk's path look like a cycle to a later one.
+    // Only the answers are shared, never the in-flight state.
     let mut visiting: BTreeSet<&str> = BTreeSet::new();
     let mut stack = vec![Frame::Enter(root)];
     while let Some(frame) = stack.pop() {
@@ -122,8 +128,22 @@ pub fn waves(wf: &Workflow) -> Waves {
     let tasks: BTreeMap<&str, &Task> = wf.tasks.iter().map(|t| (t.id.as_str(), t)).collect();
     let mut by_wave: Vec<Vec<Task>> = Vec::new();
     let mut of_task: BTreeMap<String, usize> = BTreeMap::new();
+    // The memo is hoisted OUT of the per-root walk. It used to be built fresh
+    // for every task, so an n-task chain walked n times: a measured 5.1 s on
+    // the 5000-chain the security test pins, and quadratic by construction.
+    // The doc above already promised "computed ONCE"; this is the line that
+    // makes the promise true.
+    //
+    // ⚠️ DECLARED semantic change · a CYCLE now answers whatever the FIRST
+    // walk that met it recorded, instead of being re-decided per root. The
+    // previous answer was already arbitrary (whichever root arrived first
+    // within its own walk), and a cyclic workflow never reaches this code in
+    // production because `nika check` refuses it. Deterministic-and-different
+    // beats arbitrary-and-recomputed, and it is written here rather than
+    // discovered later.
+    let mut memo: BTreeMap<&str, usize> = BTreeMap::new();
     for t in &wf.tasks {
-        let w = wave_of_walk(&tasks, &t.id);
+        let w = wave_of_walk(&tasks, &t.id, &mut memo);
         of_task.insert(t.id.clone(), w);
         if by_wave.len() <= w {
             by_wave.resize_with(w + 1, Vec::new);
@@ -351,17 +371,28 @@ pub fn undeclared(wf: &Workflow) -> Vec<Touch> {
 /// Derived, never annotated.
 #[must_use]
 pub fn groups_of(wf: &Workflow) -> Vec<Group> {
+    // The signature was recomputed inside the inner scan, so every pair paid
+    // a `format!` and a needs-sort: n² allocations. A Rust review measured
+    // 2.8 s on the 5000-chain the security test already pins. Compute each
+    // task's signature ONCE, then compare the cached strings.
+    //
+    // Same answers by construction: `signature` is a pure function of the
+    // task, and nothing in this loop mutates a task.
+    let sigs: Vec<String> = wf.tasks.iter().map(signature).collect();
+
     let mut out: Vec<Group> = Vec::new();
     let mut taken: BTreeSet<&str> = BTreeSet::new();
-    for t in &wf.tasks {
+    for (i, t) in wf.tasks.iter().enumerate() {
         if taken.contains(t.id.as_str()) {
             continue;
         }
-        let sig = signature(t);
+        let sig = &sigs[i];
         let kin: Vec<&Task> = wf
             .tasks
             .iter()
-            .filter(|o| !taken.contains(o.id.as_str()) && signature(o) == sig)
+            .enumerate()
+            .filter(|(j, o)| !taken.contains(o.id.as_str()) && &sigs[*j] == sig)
+            .map(|(_, o)| o)
             .collect();
         if kin.len() >= 3 {
             for k in &kin {
