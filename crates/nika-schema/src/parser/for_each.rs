@@ -30,7 +30,8 @@ type ForEach = (
 /// task-level siblings they read as general knobs and were silently
 /// inert on a task that never fans out.
 ///
-/// The IR keeps the three flat on [`RawTask`]: the GRAMMAR nests them,
+/// The IR keeps the three flat on [`crate::raw::RawTask`]: the GRAMMAR
+/// nests them,
 /// the internal shape does not need to, and flattening leaves the resume
 /// wire keys (`max_parallel` · `fail_fast`) exactly where they are —
 /// a wire rename needs its own version bump, not a grammar change.

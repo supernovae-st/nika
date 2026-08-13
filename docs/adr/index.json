@@ -1169,5 +1169,21 @@
       "requires": [],
       "enables": []
     }
+    ,
+    {
+      "id": "ADR-113",
+      "title": "The envelope's identity moves onto `nika:` — the version slot dies, losslessly",
+      "status": "accepted",
+      "date": "2026-08-13",
+      "filename": "adr-113-envelope-identity-on-nika.md",
+      "tags": ["envelope","grammar","parser","flag-day","spec-alignment"],
+      "affects_crates": ["nika-schema","nika-vocab","nika-check","nika-lsp","nika-migrate","nika-cli","nika-cli-host","nika-runtime","nika-display"],
+      "affects_layers": ["L0","L4"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-001","ADR-021"],
+      "requires": [],
+      "enables": []
+    }
   ]
 }

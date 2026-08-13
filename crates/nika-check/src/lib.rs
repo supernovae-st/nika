@@ -532,9 +532,10 @@ impl CheckReport {
     /// `core/policy` fixtures match on it).
     /// The extra-conformance codes the Deep tier adds — every check-only
     /// invalidating surface, projected as the spec codes the conformance
-    /// runner matches on. The walk lives in [`conformance_codes`]: it is
-    /// one long list of one-line arms, and it crossed the 100-line
-    /// ratchet the day the unconditional order law joined it.
+    /// runner matches on. The walk lives in the private
+    /// `conformance_codes` module: it is one long list of one-line arms,
+    /// and it crossed the 100-line ratchet the day the unconditional
+    /// order law joined it.
     #[must_use]
     pub fn extra_conformance_codes(&self) -> Vec<SpecCode> {
         conformance_codes::of(self)
