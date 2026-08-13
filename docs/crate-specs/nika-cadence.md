@@ -196,7 +196,43 @@ crate-private), so external code can neither literal-construct it nor match
 it exhaustively. FCI-016 governs public FIELDS and does not bind here. No
 change owed.
 
-### 6.4 What Gate 5 says about the tests, concretely
+### 6.4 What two adversarial reviews found AFTER admission
+
+Admission is not the end of the review; it is the point where the crate stops
+being watched, which is why both passes were run against the shipped code
+rather than the candidate.
+
+**A refuter attacked the `DateImpossible` guard and could not break it.** The
+guard is an existential OR over the full `months` × `dom` product, so it can
+only reject a pair no calendar satisfies, never a satisfiable one. Blast
+radius measured the same day and it is zero: the only cron in the monorepo
+matching the refused shape is this crate's own fixture, and no `arm:` registry
+exists on disk at all.
+
+**It found the mine beside its target instead.** `field_value` returned a
+matched NAMED alias without the bound check the numeric path applied. Harmless
+while every table sits in range, and a hazard otherwise, because `Field::set`
+shifts by `v - LO` and an alias below `LO` underflows a `u8` before the shift.
+Closed, and the test guards the TABLES rather than the branch, since the branch
+cannot be exercised without adding a bad alias.
+
+**A Rust review then found the guard's default arm pointing the wrong way.**
+`longest_day_of` answered `31`, the most permissive bound, to the one input
+nobody had vetted. An out-of-range month would have made the satisfiability
+check PASS, which is the silent `None` the guard exists to kill. Unreachable
+today, and being unreachable is not being right: it answers `0` now, and no day
+a `Field<1, 31>` holds is `<= 0`, so an impossible month contributes nothing.
+
+The same review measured what this spec had only asserted. The cartesian
+product costs 2 iterations on the common path and its 372 only on the error
+path, once, at parse. The 3000-day horizon clears a worst REAL walk of 2921
+days (the day after a 29 February, across a non-leap century) with 79 days to
+spare, and the test pins 2920, so shrinking the horizon reddens.
+
+**Property gained**, in the reviewer's words: the guard and the horizon
+together make « it parses ⇒ it fires » total.
+
+### 6.5 What Gate 5 said about the tests, concretely
 
 The 23 survivors cluster, and one cluster matters more than the others:
 three of them sit on `validate_beat`'s ceiling guard
