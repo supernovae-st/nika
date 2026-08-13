@@ -210,6 +210,89 @@ fn the_horizon_reaches_the_next_29_february_across_a_skipped_century() {
 }
 
 #[test]
+fn every_refusal_class_carries_its_own_distinct_slug() {
+    // Found while adding `DateImpossible` on 2026-08-13. The compiler
+    // guarantees the COUNT (a match on this enum must cover every variant),
+    // and it guarantees nothing about the VALUES: two variants returning the
+    // same `cadence.*` slug compiles, passes every test, and silently merges
+    // two refusal classes at the wire. A consumer switching on the slug would
+    // then handle one case believing it handled two.
+    //
+    // The match below is the forcing function: adding a variant makes THIS
+    // FILE fail to compile, which is the reminder to list it. The array is
+    // the hand-kept half and the match is the compiler-kept half; neither
+    // alone would hold.
+    use CadenceErrorKind as K;
+    let all = [
+        K::Grammar,
+        K::TagFrozen,
+        K::CeilingNonPositive,
+        K::DeferredKey,
+        K::TzMissing,
+        K::TzUnknown,
+        K::FieldCount,
+        K::FieldSyntax,
+        K::FieldRange,
+        K::DomDowOr,
+        K::DateImpossible,
+        K::PhraseSyntax,
+        K::WorkflowPath,
+        K::DuplicateWorkflow,
+        K::PlafondMissing,
+        K::PlafondNonPositive,
+        K::ManqueMissing,
+        K::ApresSautMisplaced,
+        K::SuspensionSansRaison,
+        K::SuspensionSansEcheance,
+        K::EcheanceSyntaxe,
+        K::ToleranceSyntaxe,
+        K::DecalageInconnu,
+    ];
+    for k in all {
+        #[allow(clippy::match_same_arms)]
+        match k {
+            K::Grammar
+            | K::TagFrozen
+            | K::CeilingNonPositive
+            | K::DeferredKey
+            | K::TzMissing
+            | K::TzUnknown
+            | K::FieldCount
+            | K::FieldSyntax
+            | K::FieldRange
+            | K::DomDowOr
+            | K::DateImpossible
+            | K::PhraseSyntax
+            | K::WorkflowPath
+            | K::DuplicateWorkflow
+            | K::PlafondMissing
+            | K::PlafondNonPositive
+            | K::ManqueMissing
+            | K::ApresSautMisplaced
+            | K::SuspensionSansRaison
+            | K::SuspensionSansEcheance
+            | K::EcheanceSyntaxe
+            | K::ToleranceSyntaxe
+            | K::DecalageInconnu => {}
+        }
+    }
+
+    let mut slugs: Vec<&str> = all.iter().map(|k| k.spec_code()).collect();
+    assert!(
+        slugs.iter().all(|s| s.starts_with("cadence.")),
+        "chaque slug porte le plan de la grammaire, jamais une plage NIKA-*"
+    );
+    let n = slugs.len();
+    slugs.sort_unstable();
+    slugs.dedup();
+    assert_eq!(
+        slugs.len(),
+        n,
+        "deux classes de refus partagent un slug · elles fusionneraient au fil"
+    );
+}
+
+#[test]
 fn the_ceiling_guard_refuses_zero_negative_infinite_and_nan() {
     // Gate 5, 2026-08-13. Three mutants survived on this guard
     // (`!(p > 0.0 && p.is_finite())`): flipping && to ||, > to >=, and the
