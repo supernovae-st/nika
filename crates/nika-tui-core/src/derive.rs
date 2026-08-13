@@ -27,6 +27,7 @@ use crate::model::{Group, Run, Step, Task, Touch, Verb, Workflow};
 /// The cycle guard answers 0, because the check refuses cycles before any
 /// render and a refused file must never hang the surface.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct Waves {
     by_wave: Vec<Vec<Task>>,
     of_task: BTreeMap<String, usize>,
@@ -217,6 +218,7 @@ fn idle_against(s: &Step, end: f64) -> f64 {
 /// must be waiting (`blocked > 0`), or the wave reports nothing.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "camelCase")]
+#[non_exhaustive]
 pub struct Neck {
     /// The holder's id.
     pub id: String,
@@ -224,6 +226,19 @@ pub struct Neck {
     pub idle_total: f64,
     /// How many steps actually waited (> 0.05 s).
     pub blocked: usize,
+}
+
+impl Neck {
+    /// The constructor the `#[non_exhaustive]` marker requires (invariant
+    /// #19): a field added later must not break a caller's build.
+    #[must_use]
+    pub const fn new(id: String, idle_total: f64, blocked: usize) -> Self {
+        Self {
+            id,
+            idle_total,
+            blocked,
+        }
+    }
 }
 
 /// The worst holder across waves — by summed idle.
@@ -441,6 +456,7 @@ fn verb_name(v: Verb) -> &'static str {
 
 /// A group's span — the shortest, the longest, the total spent.
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub struct GroupSpan {
     /// Members with a recorded step.
     pub n: usize,

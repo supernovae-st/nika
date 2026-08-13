@@ -9,30 +9,18 @@ use nika_tui_core::model::Verb;
 use nika_tui_core::plan::{Mark, seat_first, seat_next};
 
 fn node(id: &str, tool: Option<&str>) -> Node {
-    Node {
-        id: id.to_owned(),
-        verb: Verb::Invoke,
-        tool: tool.map(str::to_owned),
-        model: None,
-        when: None,
-        fan_out: None,
-        permits: Vec::new(),
-        cost_interval: None,
-        retry_max_attempts: None,
-        timeout_ms: None,
-        on_error: None,
-        outputs: Vec::new(),
-        extra: std::collections::BTreeMap::new(),
-    }
+    let mut n = Node::new(id.to_owned(), Verb::Invoke);
+    n.tool = tool.map(str::to_owned);
+    n
 }
 
 fn graph(ids: &[&str]) -> GraphDoc {
-    GraphDoc {
-        graph_format: 2,
-        workflow: "test".to_owned(),
-        nodes: ids.iter().map(|id| node(id, None)).collect(),
-        edges: Vec::new(),
-    }
+    GraphDoc::new(
+        2,
+        "test".to_owned(),
+        ids.iter().map(|id| node(id, None)).collect(),
+        Vec::new(),
+    )
 }
 
 /// The first plan: every slot is born, the revision is r1.

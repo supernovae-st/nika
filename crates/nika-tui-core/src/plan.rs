@@ -49,6 +49,7 @@ pub enum Mark {
 
 /// The board: slots in birth order, one mark and one print per revision.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[non_exhaustive]
 pub struct Board {
     /// The revision number — r1 · r2 · …
     pub rev: u32,

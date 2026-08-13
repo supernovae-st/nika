@@ -20,6 +20,7 @@ use crate::model::{Failure, Run, Step, Verb};
 
 /// The versioned projection envelope (`graph_format: 2`).
 #[derive(Debug, Clone, PartialEq, serde::Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct GraphDoc {
     /// Envelope version — additive evolution only within 2.
     pub graph_format: u32,
@@ -31,8 +32,40 @@ pub struct GraphDoc {
     pub edges: Vec<Edge>,
 }
 
+impl GraphDoc {
+    /// The constructor the `#[non_exhaustive]` marker requires (invariant
+    /// #19): a field added later must not break a caller's build.
+    #[must_use]
+    pub const fn new(
+        graph_format: u32,
+        workflow: String,
+        nodes: Vec<Node>,
+        edges: Vec<Edge>,
+    ) -> Self {
+        Self {
+            graph_format,
+            workflow,
+            nodes,
+            edges,
+        }
+    }
+
+    /// The same envelope with other nodes — the shape a revision test
+    /// reaches for, and the one `..spread` can no longer express.
+    #[must_use]
+    pub fn with_nodes(&self, nodes: Vec<Node>) -> Self {
+        Self {
+            graph_format: self.graph_format,
+            workflow: self.workflow.clone(),
+            nodes,
+            edges: self.edges.clone(),
+        }
+    }
+}
+
 /// One task node — the engine's static facts, mirrored.
 #[derive(Debug, Clone, PartialEq, serde::Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct Node {
     /// Task id.
     pub id: String,
@@ -87,8 +120,36 @@ pub struct Node {
     pub extra: std::collections::BTreeMap<String, serde_json::Value>,
 }
 
+impl Node {
+    /// The constructor the `#[non_exhaustive]` marker requires (invariant
+    /// #19). Only `id` and `verb` are arguments because only those two are
+    /// required ON THE WIRE — every other field carries `#[serde(default)]`,
+    /// so a thirteen-argument signature would encode a strictness the
+    /// format does not have. Fields stay `pub`: set what you mean, leave
+    /// the rest.
+    #[must_use]
+    pub fn new(id: String, verb: Verb) -> Self {
+        Self {
+            id,
+            verb,
+            tool: None,
+            model: None,
+            when: None,
+            fan_out: None,
+            permits: Vec::new(),
+            cost_interval: None,
+            retry_max_attempts: None,
+            timeout_ms: None,
+            on_error: None,
+            outputs: Vec::new(),
+            extra: std::collections::BTreeMap::new(),
+        }
+    }
+}
+
 /// `for_each` fan-out description.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct FanOut {
     /// `"list"` (literal) or `"expression"` (computed at run).
     pub kind: String,
@@ -99,6 +160,7 @@ pub struct FanOut {
 
 /// One typed edge.
 #[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, Deserialize)]
+#[non_exhaustive]
 pub struct Edge {
     /// Producer task id.
     pub from: String,

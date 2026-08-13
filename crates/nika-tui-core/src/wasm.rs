@@ -100,6 +100,19 @@ pub fn derive_run(workflow_json: &str, run_json: &str) -> String {
     };
     let ws = derive::waves(&wf);
     let neck = derive::bottleneck(&ws, &run);
+    // ⚠️ This used to end in `.unwrap_or_default()`, which turns ONE group
+    // failing to serialize into an EMPTY array — the surface would render
+    // "no fan-out anywhere" and read it as a fact about the workflow. A
+    // total silent loss dressed as an answer. The door has one refusal
+    // shape; a failure here takes it, like every other.
+    let groups = match derive::groups_of(&wf)
+        .iter()
+        .map(serde_json::to_value)
+        .collect::<Result<Vec<_>, _>>()
+    {
+        Ok(g) => g,
+        Err(e) => return refuse("derive_run · groups", e),
+    };
     let out = serde_json::json!({
         "waves": ws.groups().iter().map(|g| g.iter().map(|t| &t.id).collect::<Vec<_>>()).collect::<Vec<_>>(),
         "wave_end": (0..ws.len()).map(|w| derive::wave_end(&ws, &run, w)).collect::<Vec<_>>(),
@@ -115,7 +128,7 @@ pub fn derive_run(workflow_json: &str, run_json: &str) -> String {
         // the fan-out projection rides the door too — otherwise the browser
         // re-derives the grouping in TS, and the divergence disease survives
         // for exactly that feature (the API lens, gate 11)
-        "groups": derive::groups_of(&wf).iter().map(serde_json::to_value).collect::<Result<Vec<_>, _>>().unwrap_or_default(),
+        "groups": groups,
         // the CLAIMS ride the door for exactly the reason `groups` does.
         // Until this line the `claims` module had zero consumers in `src/`:
         // a law nothing applied, while the browser decided the same

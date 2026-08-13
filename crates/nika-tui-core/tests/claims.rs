@@ -125,11 +125,7 @@ fn a_free_bottleneck_claims_nothing() {
         claims::may_claim_bottleneck(neck.as_ref()),
         "the recorded demo's neck holds its wave"
     );
-    let free = nika_tui_core::derive::Neck {
-        id: "personne".to_owned(),
-        idle_total: 0.0,
-        blocked: 0,
-    };
+    let free = nika_tui_core::derive::Neck::new("personne".to_owned(), 0.0, 0);
     assert!(
         !claims::may_claim_bottleneck(Some(&free)),
         "blocked 0 = nothing to claim"

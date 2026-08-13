@@ -287,10 +287,7 @@ fn the_wasm_doors_answer_with_content() {
     let b1v: serde_json::Value = serde_json::from_str(&b1).expect("json");
     assert_eq!(b1v["rev"].as_u64(), Some(1));
     let g: GraphDoc = serde_json::from_str(&graph).expect("graphdoc");
-    let smaller = GraphDoc {
-        nodes: g.nodes[1..].to_vec(),
-        ..g
-    };
+    let smaller = g.with_nodes(g.nodes[1..].to_vec());
     let b2 = nika_tui_core::wasm::board_next(&b1, &serde_json::to_string(&smaller).expect("g2"));
     let b2v: serde_json::Value = serde_json::from_str(&b2).expect("json");
     assert_eq!(
