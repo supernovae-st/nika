@@ -210,6 +210,67 @@ fn the_horizon_reaches_the_next_29_february_across_a_skipped_century() {
 }
 
 #[test]
+fn every_named_alias_resolves_inside_its_field() {
+    // The named path in `field_value` returned its value WITHOUT the bound
+    // check the numeric path applies. Harmless while every table sits inside
+    // its field's range, and a mine otherwise: `Field::set` shifts by
+    // `v - LO`, so an alias below LO underflows a u8. Found 2026-08-13 by an
+    // adversarial review of the DateImpossible guard — not its target, the
+    // mine beside it.
+    //
+    // The bound now lives in `field_value`; this test guards the TABLES. An
+    // out-of-range alias added later falls through to the numeric path,
+    // fails to parse, and reddens HERE rather than shifting by a wrapped
+    // byte at runtime.
+    for (name, want) in [
+        ("jan", 1),
+        ("feb", 2),
+        ("mar", 3),
+        ("apr", 4),
+        ("may", 5),
+        ("jun", 6),
+        ("jul", 7),
+        ("aug", 8),
+        ("sep", 9),
+        ("oct", 10),
+        ("nov", 11),
+        ("dec", 12),
+    ] {
+        let cadence = Cadence::parse(&format!("TZ=UTC 0 9 * {name} *"))
+            .unwrap_or_else(|e| panic!("{name}: {e}"));
+        let Cadence::Cron { spec, .. } = &cadence else {
+            panic!("une cadence cron");
+        };
+        assert_eq!(
+            spec.months().single(),
+            Some(want),
+            "le mois `{name}` doit valoir {want} et rester dans 1..=12"
+        );
+    }
+
+    for (name, want) in [
+        ("sun", 0),
+        ("mon", 1),
+        ("tue", 2),
+        ("wed", 3),
+        ("thu", 4),
+        ("fri", 5),
+        ("sat", 6),
+    ] {
+        let cadence = Cadence::parse(&format!("TZ=UTC 0 9 * * {name}"))
+            .unwrap_or_else(|e| panic!("{name}: {e}"));
+        let Cadence::Cron { spec, .. } = &cadence else {
+            panic!("une cadence cron");
+        };
+        assert_eq!(
+            spec.dow().single(),
+            Some(want),
+            "le jour `{name}` doit valoir {want} et rester dans l origine NOMMÉE"
+        );
+    }
+}
+
+#[test]
 fn every_refusal_class_carries_its_own_distinct_slug() {
     // Found while adding `DateImpossible` on 2026-08-13. The compiler
     // guarantees the COUNT (a match on this enum must cover every variant),

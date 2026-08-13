@@ -345,7 +345,17 @@ fn field_value<const LO: u8, const HI: u8>(
         .iter()
         .find(|(name, _)| text.eq_ignore_ascii_case(name))
     {
-        return Ok(*v);
+        // A named alias takes the SAME bound as a numeric one. Today every
+        // table sits inside its field's range so this changes no behaviour,
+        // but the numeric path filtered and this one did not, and the day a
+        // table gains an out-of-range entry `Field::set` would shift by
+        // `v - LO` on an UNDERFLOWED u8. Found by an adversarial review of
+        // the DateImpossible guard, 2026-08-13: not the target, but the mine
+        // next to it. An out-of-bound alias now falls through to the numeric
+        // path, fails to parse, and refuses with the field's own bounds.
+        if *v >= LO && *v <= HI {
+            return Ok(*v);
+        }
     }
     text.parse::<u8>()
         .ok()
