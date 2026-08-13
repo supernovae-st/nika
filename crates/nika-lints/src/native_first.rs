@@ -25,14 +25,6 @@ pub fn native_first(wf: &RawWorkflow) -> Vec<Lint> {
     for task in &wf.tasks {
         let t = &task.value;
         push(&t.action, t.id.value.as_str(), t.id.span, &mut lints);
-        for cleanup in &t.on_finally {
-            push(
-                &cleanup.value.action,
-                t.id.value.as_str(),
-                t.id.span,
-                &mut lints,
-            );
-        }
     }
     lints
 }

@@ -117,31 +117,6 @@ pub(super) fn scan_types(wf: &RawWorkflow) -> (Vec<SchemaTypeFinding>, Vec<Unver
                 check_alias_text(id, text, &aliases, &mut unverifiable);
             }
         }
-        for cleanup in &task.value.on_finally {
-            let site = format!("{id} (on_finally)");
-            if let Some(when) = &cleanup.value.when
-                && let Some(expr) = when.value.as_expr()
-            {
-                check_text(
-                    &site,
-                    expr,
-                    &shapes,
-                    &all_tasks,
-                    &mut findings,
-                    &mut unverifiable,
-                );
-            }
-            for text in action_texts(&cleanup.value.action) {
-                check_text(
-                    &site,
-                    text,
-                    &shapes,
-                    &all_tasks,
-                    &mut findings,
-                    &mut unverifiable,
-                );
-            }
-        }
     }
     for (_, decl) in &wf.outputs {
         check_text(
@@ -742,15 +717,6 @@ mod tests {
         let f = findings_of(yaml);
         assert_eq!(f.len(), 1);
         assert_eq!(f[0].site, "report");
-    }
-
-    #[test]
-    fn envelope_outputs_and_on_finally_are_checked() {
-        let yaml = "nika: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  extract:\n    infer:\n      prompt: \"x\"\n      max_tokens: 10\n      schema:\n        type: object\n        properties:\n          summary: { type: string }\n    on_finally:\n      - invoke: { tool: \"nika:log\", args: { message: \"${{ tasks.extract.output.sumamry }}\" } }\noutputs:\n  result: ${{ tasks.extract.output.summry }}\n";
-        let f = findings_of(yaml);
-        assert_eq!(f.len(), 2, "both surfaces: {f:?}");
-        assert!(f.iter().any(|x| x.site == "extract (on_finally)"));
-        assert!(f.iter().any(|x| x.site == "outputs"));
     }
 
     #[test]

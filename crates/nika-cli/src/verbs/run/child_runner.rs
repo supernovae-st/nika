@@ -179,9 +179,6 @@ fn workflow_targets_of(wf: &RawWorkflow) -> Vec<String> {
     let mut out = Vec::new();
     for task in &wf.tasks {
         out.extend(of(&task.value.action));
-        for mini in &task.value.on_finally {
-            out.extend(of(&mini.value.action));
-        }
     }
     out
 }

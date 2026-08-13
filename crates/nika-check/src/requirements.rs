@@ -169,14 +169,6 @@ fn config_reads_of_task(
         }
     }
     // `on_finally:` cleanups carry full actions (and gates) of their own.
-    for cleanup in &task.value.on_finally {
-        for text in task_template_fields(&cleanup.value.action) {
-            collect_config_reads(text, config_reads);
-        }
-        if let Some(WhenGate::Expr(cel)) = cleanup.value.when.as_ref().map(|g| &g.value) {
-            collect_config_reads(cel, config_reads);
-        }
-    }
 }
 
 /// Every template-bearing string of one action — flow's effect fields
@@ -251,11 +243,12 @@ tasks:
   local_pass:
     after: { fetch: success }
     for_each: { items: "${{ config.SHARDS }}" }
-    on_finally:
-      - exec: { command: ["echo", "${{ config.CLEANUP_FLAG }}"] }
     infer:
       model: ollama/qwen3
       prompt: "rank"
+  local_pass_cleanup:
+    after: { local_pass: unwind }
+    exec: { command: ["echo", "${{ config.CLEANUP_FLAG }}"] }
 outputs:
   report: "${{ config.REPORT_PATH }}"
 "#,

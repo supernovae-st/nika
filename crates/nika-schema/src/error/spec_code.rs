@@ -253,11 +253,11 @@ impl SchemaError {
             Self::UnknownDependency { .. } => dag(2),
             Self::RecoverAwaitDeadlock { .. } => dag(4),
             Self::UnknownAfterPredicate { .. } => dag(5),
-            // NIKA-DAG-008 · a fold of a group nobody declares (spec 03
-            // §group · the empty group is the SAME fact as an absent one,
-            // so one code covers both and a fold never harvests zero and
-            // reads as clean).
+            // DAG-008 · a fold of a group nobody declares (the empty
+            // group is the SAME fact as an absent one) · DAG-009 ·
+            // cleanup never enters G_p, so it can never be folded.
             Self::UnknownGroup { .. } => dag(8),
+            Self::UnwindInGroup { .. } => dag(9),
 
             // ── NIKA-BUILTIN · arg-shape contracts ─────────────────
             Self::BadBuiltinArgs { tool, .. } => builtin_spec_code(tool),

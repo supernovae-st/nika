@@ -85,9 +85,6 @@ pub(super) fn scan(wf: &RawWorkflow) -> Vec<Hint> {
     for task in &wf.tasks {
         let id = task.value.id.value.as_str();
         push_native_first(&task.value.action, id, &mut hints);
-        for cleanup in &task.value.on_finally {
-            push_native_first(&cleanup.value.action, id, &mut hints);
-        }
     }
     hints
 }
@@ -392,18 +389,6 @@ mod tests {
         // A bare interpreter computation is a legitimate subprocess.
         let hints = hints_of(&exec_wf("\"python3 -c 'print(6*7)'\""));
         assert!(!hints.iter().any(|h| h.kind == "native-first"), "{hints:?}");
-    }
-
-    #[test]
-    fn on_finally_cleanups_are_scanned_too() {
-        let yaml = "nika: w\ntasks:\n  t:\n    exec: { command: [\"make\", \"build\"] }\n    on_finally:\n      - exec: { command: [\"curl\", \"-X\", \"POST\", \"https://hooks.test/done\"] }\n";
-        let hints = hints_of(yaml);
-        assert!(
-            hints
-                .iter()
-                .any(|h| h.kind == "native-first" && h.task == "t"),
-            "{hints:?}"
-        );
     }
 
     #[test]

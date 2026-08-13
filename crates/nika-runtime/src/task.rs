@@ -2,7 +2,7 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! The per-task pipeline (spec 03/05) — gate → `with:` → `for_each:` →
-//! attempt loop (`retry:` × `timeout:`) → `on_error:` → `on_finally:`.
+//! attempt loop (`retry:` × `timeout:`) → `on_error:` → unwind.
 //!
 //! The pipeline is PURE with respect to the pens: it returns a
 //! [`Finish`] describing everything that happened (retries · result ·
@@ -21,7 +21,7 @@ use nika_kernel::clock::ClockDyn;
 use nika_kernel::http::HttpPostDyn;
 use nika_kernel::process::ShellRunDyn;
 use nika_kernel::tool_executor::ToolExecuteDyn;
-use nika_schema::raw::{ForEachValue, RawAction, RawTask};
+use nika_schema::raw::{ForEachValue, RawAction, RawTask, RawWorkflow};
 use nika_schema::types::{OnErrorAction, Permits, WhenGate};
 use serde_json::Value;
 
@@ -34,8 +34,10 @@ use crate::record::{TaskErrorRecord, TaskRecord, TaskStatus};
 use crate::retry::jitter_key;
 pub(crate) use crate::retry::on_error_applies;
 use crate::witness::PermitWitness;
+use with_map::{render_boundary_with, render_with};
 
 mod fan_out;
+mod with_map;
 
 /// The spec wire code for a task-level timeout (spec 03 §timeout ·
 /// catchable by `on_error:` · never retryable).
@@ -320,6 +322,7 @@ where
     pub(crate) async fn run_task_pipeline(
         &self,
         task: &RawTask,
+        wf: &RawWorkflow,
         records: &BTreeMap<String, TaskRecord>,
         inputs: &BTreeMap<String, Value>,
         config: &BTreeMap<String, Value>,
@@ -387,6 +390,7 @@ where
         let settle = self
             .run_lanes(
                 task,
+                wf,
                 boundary_with,
                 records,
                 (inputs, config, consts, secrets),
@@ -474,6 +478,7 @@ where
     async fn run_lanes(
         &self,
         task: &RawTask,
+        wf: &RawWorkflow,
         boundary_with: BTreeMap<String, Value>,
         records: &BTreeMap<String, TaskRecord>,
         (inputs, config, consts, secrets): ValueBags<'_>,
@@ -486,6 +491,7 @@ where
             None => {
                 self.run_single(
                     task,
+                    wf,
                     boundary_with,
                     records,
                     (inputs, config, consts, secrets),
@@ -499,6 +505,7 @@ where
             Some(spanned) => {
                 self.run_fan_out(
                     task,
+                    wf,
                     &spanned.value,
                     &boundary_with,
                     records,
@@ -558,6 +565,7 @@ where
     async fn run_single(
         &self,
         task: &RawTask,
+        wf: &RawWorkflow,
         with_ns: BTreeMap<String, Value>,
         records: &BTreeMap<String, TaskRecord>,
         (inputs, config, consts, secrets): ValueBags<'_>,
@@ -588,7 +596,7 @@ where
         // cleanup lane's decisions ride a dedicated witness (the
         // parent's is already drained by attempt_loop) merged right after.
         let finally_witness = std::sync::Arc::new(PermitWitness::new());
-        let finally = self.run_finally(task, &scope, &ran, integrity, &finally_witness);
+        let finally = self.run_finally(task, wf, &scope, &ran, integrity, &finally_witness);
         nika_builtin::witness::scope_attempt_witness(finally_witness.clone(), finally).await;
         ran.decisions.extend(finally_witness.take());
         ran.duration_ms = self.since_ms(started);
@@ -601,6 +609,7 @@ where
     async fn run_fan_out(
         &self,
         task: &RawTask,
+        wf: &RawWorkflow,
         collection: &ForEachValue,
         boundary_with: &BTreeMap<String, Value>,
         records: &BTreeMap<String, TaskRecord>,
@@ -691,7 +700,7 @@ where
         let finally_scope =
             Self::fan_out_finally_scope(records, (inputs, config, consts, secrets), permits);
         let finally_witness = std::sync::Arc::new(PermitWitness::new());
-        let finally = self.run_finally(task, &finally_scope, &ran, integrity, &finally_witness);
+        let finally = self.run_finally(task, wf, &finally_scope, &ran, integrity, &finally_witness);
         nika_builtin::witness::scope_attempt_witness(finally_witness.clone(), finally).await;
         ran.decisions.extend(finally_witness.take());
         ran.duration_ms = self.since_ms(started);
@@ -1173,7 +1182,14 @@ fn gate_finish(
     records: &BTreeMap<String, TaskRecord>,
 ) -> Option<Finish> {
     use nika_check::analyzer::edges::SettledState;
-    for (producer, kind) in nika_check::analyzer::edges::incoming_of(task) {
+    for (producer, kind) in nika_check::analyzer::edges::incoming_of(task)
+        .into_iter()
+        // The `unwind` edge is E_f: it does not gate. Cleanup is
+        // DISPATCHED off its producer's settle, never admitted through
+        // the precedence gate — reading it here cancelled every cleanup
+        // task (the producer has no record while the wave runs).
+        .filter(|(_, kind)| kind.is_scheduling())
+    {
         // Missing record: the checker law makes it unreachable (every
         // target resolves · waves order producers first) — defensively
         // treated as not-admitting, loudly NOT silently-open.
@@ -1257,57 +1273,6 @@ fn when_finish(
         declassified: Vec::new(),
         approval: None,
     })
-}
-
-/// The boundary `with:` render (spec 03 §dispatch pipeline) — ALL
-/// bindings for a single-lane task · only the loop-local-free ones for
-/// a fan-out task (the item/index-bound ones re-render per iteration).
-fn render_boundary_with(
-    task: &RawTask,
-    records: &BTreeMap<String, TaskRecord>,
-    inputs: &BTreeMap<String, Value>,
-    config: &BTreeMap<String, Value>,
-    consts: &BTreeMap<String, Value>,
-    secrets: &BTreeMap<String, Value>,
-) -> Result<BTreeMap<String, Value>, RuntimeError> {
-    let scope = Scope {
-        records,
-        inputs,
-        config,
-        consts,
-        secrets, // `with: { tok: "${{ secrets.X }}" }` resolves here (MINOR-B)
-        with_ns: None,
-        item: None,
-        index: None,
-        permits: None, // `with:` rendering performs no effect (no exec sink)
-    };
-    let fan_out = task.for_each.is_some();
-    task.with
-        .iter()
-        .filter(|(_key, value)| !(fan_out && references_loop_locals(&value.value)))
-        .map(|(key, value)| Ok((key.value.clone(), expr::render_json(&value.value, &scope)?)))
-        .collect()
-}
-
-/// Whether a JSON value's `${{ }}` islands reference the `for_each`
-/// loop-locals (`item` / `index`) — those bindings are per-iteration.
-fn references_loop_locals(value: &Value) -> bool {
-    use nika_schema::expression::{NamespaceRef, expr_refs, scan_templates};
-    match value {
-        Value::String(s) => {
-            let Ok(islands) = scan_templates(s) else {
-                return false;
-            };
-            islands.iter().any(|island| {
-                expr_refs(&island.expr)
-                    .into_iter()
-                    .any(|r| matches!(r, NamespaceRef::Item | NamespaceRef::Index))
-            })
-        }
-        Value::Array(items) => items.iter().any(references_loop_locals),
-        Value::Object(map) => map.values().any(references_loop_locals),
-        _ => false,
-    }
 }
 
 /// Evaluate a `when:` gate value (shared by tasks + cleanup mini-tasks).
@@ -1439,35 +1404,6 @@ fn apply_on_error(task: &RawTask, scope: &Scope<'_>, failed: FailedOutcome) -> R
             cost_unpriced,
         },
     }
-}
-
-/// Render the task's `with:` map (spec 03 · per-iteration in fan-out ·
-/// entries cannot reference each other · spec 04).
-fn render_with(
-    task: &RawTask,
-    records: &BTreeMap<String, TaskRecord>,
-    inputs: &BTreeMap<String, Value>,
-    config: &BTreeMap<String, Value>,
-    consts: &BTreeMap<String, Value>,
-    secrets: &BTreeMap<String, Value>,
-    item: Option<&Value>,
-    index: Option<usize>,
-) -> Result<BTreeMap<String, Value>, RuntimeError> {
-    let scope = Scope {
-        records,
-        inputs,
-        config,
-        consts,
-        secrets, // `with: { tok: "${{ secrets.X }}" }` resolves here (MINOR-B)
-        with_ns: None,
-        item,
-        index,
-        permits: None, // `with:` rendering performs no effect (no exec sink)
-    };
-    task.with
-        .iter()
-        .map(|(key, value)| Ok((key.value.clone(), expr::render_json(&value.value, &scope)?)))
-        .collect()
 }
 
 /// A `RuntimeError` as a task error record. The wire code is the SPEC-PLANE

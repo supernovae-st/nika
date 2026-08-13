@@ -104,8 +104,6 @@ pub struct RawTask {
     /// or an inline type expression · RAW here, parsed by the type core
     /// at check time).
     pub returns: Option<Spanned<serde_json::Value>>,
-    /// `on_finally:` — cleanup mini-tasks · ALWAYS run (spec 03).
-    pub on_finally: Vec<Spanned<RawFinallyTask>>,
     /// `lift:` — the authored doors (spec 10 §the authored doors). ONE
     /// construct for every law; read it through [`RawTask::taint_lifts`]
     /// and [`RawTask::data_as_code_because`] rather than matching the
@@ -139,7 +137,6 @@ impl RawTask {
             with: Vec::new(),
             extract: Vec::new(),
             returns: None,
-            on_finally: Vec::new(),
             lift: Vec::new(),
             group: None,
             action,
@@ -179,33 +176,6 @@ pub enum ForEachValue {
 
 /// One `on_finally:` cleanup mini-task.
 ///
-/// Spec `03-dag.md` §`on_finally` · « **List of mini-tasks** · zero or
-/// more · each with its own verb » · may carry its own `when:` (e.g.
-/// only-on-error notification) and a per-cleanup `timeout:`.
-#[derive(Debug, Clone)]
-#[non_exhaustive]
-pub struct RawFinallyTask {
-    /// `when:` — conditional cleanup (sees the parent's status/error) ·
-    /// same two forms as the task-level gate.
-    pub when: Option<Spanned<WhenGate>>,
-    /// `timeout:` — per-cleanup-task override (default 30s · engine).
-    pub timeout: Option<Spanned<Duration>>,
-    /// The cleanup verb.
-    pub action: RawAction,
-}
-
-impl RawFinallyTask {
-    /// Create a cleanup mini-task with the given action.
-    #[must_use]
-    pub fn new(action: RawAction) -> Self {
-        Self {
-            when: None,
-            timeout: None,
-            action,
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -231,16 +201,5 @@ mod tests {
         assert!(task.with.is_empty());
         assert!(task.extract.is_empty());
         assert!(task.returns.is_none());
-        assert!(task.on_finally.is_empty());
-    }
-
-    #[test]
-    fn finally_task_new() {
-        let action = RawAction::Exec(super::super::action::RawExecAction::new(span_str(
-            "rm -f x",
-        )));
-        let f = RawFinallyTask::new(action);
-        assert!(f.when.is_none());
-        assert!(f.timeout.is_none());
     }
 }

@@ -130,10 +130,6 @@ impl UsedNames {
             {
                 used.eat_json(&value.value);
             }
-            for cleanup in &t.on_finally {
-                used.eat_gate(cleanup.value.when.as_ref());
-                used.eat_action(&cleanup.value.action);
-            }
         }
         for (_, decl) in &wf.outputs {
             used.eat(&decl.value().value);
@@ -314,9 +310,6 @@ impl BodyUsage {
         };
         for task in &wf.tasks {
             u.eat_action(&task.value.action);
-            for cleanup in &task.value.on_finally {
-                u.eat_action(&cleanup.value.action);
-            }
         }
         u
     }
@@ -714,17 +707,6 @@ mod tests {
     }
 
     #[test]
-    fn references_in_for_each_and_on_finally_and_vision_count_as_uses() {
-        // the less-obvious surfaces: for_each expression · on_finally
-        // cleanup command · infer vision endpoint — each pins its walker
-        // arm (a blind arm would flag a USED name).
-        let advice = drifted(
-            "nika: w\ninputs:\n  items: { type: { array: string }, required: true }\nconst:\n  cleanup_msg: \"done\"\n  image: \"./in.png\"\ntasks:\n  a:\n    for_each: { items: \"${{ inputs.items }}\" }\n    on_finally:\n      - exec: { command: [\"echo\", \"${{ const.cleanup_msg }}\"] }\n    infer:\n      prompt: \"describe\"\n      max_tokens: 10\n      vision: [{ source: file, path: \"${{ const.image }}\" }]\noutputs:\n  r: ${{ tasks.a.output }}\n",
-        );
-        assert!(advice.is_empty(), "{advice:?}");
-    }
-
-    #[test]
     fn hints_are_sorted_and_deterministic() {
         let first = drifted(
             "nika: w\nconst:\n  zeta: \"x\"\n  alpha: \"y\"\nsecrets:\n  k2: { source: env, key: K2 }\n  k1: { source: env, key: K1 }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
@@ -864,17 +846,6 @@ mod tests {
         );
         assert!(
             !advice.iter().any(|a| a.contains("`permits.exec` entry")),
-            "{advice:?}"
-        );
-    }
-
-    #[test]
-    fn exec_in_on_finally_counts_as_a_use() {
-        let advice = drifted(
-            "nika: w\npermits: { exec: [\"cargo\"] }\ntasks:\n  a:\n    infer: { prompt: hi, max_tokens: 10, model: \"mock/echo\" }\n    on_finally:\n      - exec: { command: [\"cargo\", \"clean\"] }\n",
-        );
-        assert!(
-            !advice.iter().any(|a| a.contains("permits.exec")),
             "{advice:?}"
         );
     }
@@ -1101,17 +1072,6 @@ mod tests {
         // NEVER order their removal.
         let advice = drifted(
             "nika: w\npermits:\n  fs: { read: [\"out/smart/**\"], write: [\"out/smart/**\"] }\n  exec: [\"qrt\"]\ntasks:\n  a:\n    exec: { command: [\"qrt\", \"smart\", \"--db\", \"out/smart/smartlink.db\"] }\n",
-        );
-        assert!(
-            !advice.iter().any(|a| a.contains("`permits.fs.")),
-            "{advice:?}"
-        );
-    }
-
-    #[test]
-    fn exec_in_on_finally_also_poisons_the_fs_sets() {
-        let advice = drifted(
-            "nika: w\npermits:\n  fs: { read: [\"./data/**\"] }\ntasks:\n  a:\n    infer: { prompt: hi, max_tokens: 10, model: \"mock/echo\" }\n    on_finally:\n      - exec: { command: [\"tar\", \"cf\", \"./data/a.tar\", \".\"] }\n",
         );
         assert!(
             !advice.iter().any(|a| a.contains("`permits.fs.")),

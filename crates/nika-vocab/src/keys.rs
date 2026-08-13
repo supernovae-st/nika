@@ -64,8 +64,15 @@ pub const RUN_ENTROPY_MAP_KEYS: &[&str] = &["seeded"];
 /// ACTION + the optional `on_codes` filter).
 pub const ON_ERROR_KEYS: &[&str] = &["recover", "skip", "fail_workflow", "on_codes"];
 
-/// Keys of an `on_finally:` cleanup task (the reduced task shape).
-pub const FINALLY_KEYS: &[&str] = &["when", "timeout"];
+/// The canonical TASK-level keys (spec `03-dag.md` §the task shape ·
+/// the 4 verb selectors live in the parser's `VERB_KEYS`). One list,
+/// two consumers: the parser REFUSES anything else, and the LSP OFFERS
+/// exactly this — pinned coherent by test so a teaching surface can
+/// never drift ahead of, or behind, what the engine admits.
+pub const TASK_KEYS: &[&str] = &[
+    "after", "when", "for_each", "retry", "on_error", "timeout", "with", "extract", "returns",
+    "lift", "group",
+];
 
 /// `infer:` fields (spec `02-verbs.md` §infer field table).
 pub const INFER_KEYS: &[&str] = &[
@@ -119,7 +126,6 @@ pub fn known_child_keys(block_key: &str, parent: Option<&str>) -> Option<&'stati
         "policy" => Some(nika_cap::POLICY_KEYS),
         "retry" => Some(RETRY_KEYS),
         "on_error" => Some(ON_ERROR_KEYS),
-        "on_finally" => Some(FINALLY_KEYS),
         "infer" => Some(INFER_KEYS),
         "exec" => Some(EXEC_KEYS),
         "invoke" => Some(INVOKE_KEYS),

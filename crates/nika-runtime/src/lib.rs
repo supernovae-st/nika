@@ -1020,8 +1020,8 @@ where
             futures_util::stream::iter(members.iter().take_while(|_| !ledger.tripped()).map(
                 |&task| {
                     self.run_task_pipeline(
-                        task, frozen, inputs, config, consts, secrets, permits, types, resume_ctx,
-                        ledger,
+                        task, wf, frozen, inputs, config, consts, secrets, permits, types,
+                        resume_ctx, ledger,
                     )
                 },
             ))

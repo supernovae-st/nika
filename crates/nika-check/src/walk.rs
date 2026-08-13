@@ -89,14 +89,6 @@ fn for_each_island_text(wf: &RawWorkflow, visit: &mut dyn FnMut(&str)) {
         for (_, v) in &t.with {
             visit_json(&v.value, visit);
         }
-        for cleanup in &t.on_finally {
-            if let Some(when) = &cleanup.value.when
-                && let Some(expr) = when.value.as_expr()
-            {
-                visit(expr);
-            }
-            visit_action(&cleanup.value.action, visit);
-        }
     }
     for (_, decl) in &wf.outputs {
         visit(&decl.value().value);

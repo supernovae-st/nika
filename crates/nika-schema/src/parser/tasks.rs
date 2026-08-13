@@ -6,8 +6,9 @@
 //! The canonical v1 task field set is CLOSED (spec `03-dag.md`
 //! §forward-compat + NEP-0004 law 7's ONE grammar addition) · `with` ·
 //! `after` · `when` · `for_each` (a BLOCK · `items` + the two knobs) ·
-//! `retry` · `on_error` · `timeout` · `on_finally` · `extract` · `lift` ·
-//! `declassify` · plus exactly one verb key.
+//! `retry` · `on_error` · `timeout` · `extract` · `lift` · `group` ·
+//! plus exactly one verb key. Cleanup is a TASK joined by an `unwind`
+//! edge now — `on_finally:` was a second grammar for a task body.
 
 use std::time::Duration;
 
@@ -15,7 +16,7 @@ use marked_yaml::types::MarkedMappingNode;
 use nika_vocab::after::predicate_refusal;
 
 use crate::error::SchemaError;
-use crate::raw::{RawFinallyTask, RawTask};
+use crate::raw::RawTask;
 use crate::source::Spanned;
 use crate::types::{
     AfterPredicate, BackoffStrategy, OnError, OnErrorAction, RetryConfig, WhenGate,
@@ -33,23 +34,7 @@ use super::{Cx, validate_task_id};
 /// sub-workflows. Generous — no hand-written workflow approaches it.
 pub(super) const MAX_TASKS: usize = 10_000;
 
-/// The canonical task-level keys (verbs handled separately).
-const TASK_KEYS: &[&str] = &[
-    "after",
-    "when",
-    "for_each",
-    "retry",
-    "on_error",
-    "timeout",
-    "with",
-    "extract",
-    "returns",
-    "on_finally",
-    "lift",
-    "group",
-];
-
-pub(crate) use nika_vocab::keys::{FINALLY_KEYS, ON_ERROR_KEYS, RETRY_KEYS};
+pub(crate) use nika_vocab::keys::{ON_ERROR_KEYS, RETRY_KEYS, TASK_KEYS};
 
 /// The `on_error:` ACTION keys (mutually exclusive · exactly one).
 const ON_ERROR_ACTION_KEYS: &[&str] = &["recover", "skip", "fail_workflow"];
@@ -182,7 +167,6 @@ fn parse_task(
     task.with = parse_with(cx, mapping)?;
     task.extract = parse_extract_bindings(cx, mapping)?;
     task.returns = parse_returns(cx, mapping)?;
-    task.on_finally = parse_on_finally(cx, mapping, &task_label)?;
     task.lift = super::lift::parse_lift(cx, mapping, &task_label)?;
     task.group = parse_group(cx, mapping, &task_label)?;
 
@@ -689,46 +673,6 @@ fn parse_extract_bindings(
     Ok(out)
 }
 
-/// `on_finally:` — a sequence of cleanup mini-tasks (spec 03 §`on_finally`).
-fn parse_on_finally(
-    cx: &Cx<'_>,
-    mapping: &MarkedMappingNode,
-    task_label: &str,
-) -> Result<Vec<Spanned<RawFinallyTask>>, SchemaError> {
-    let Some(node) = mapping.get_node("on_finally") else {
-        return Ok(Vec::new());
-    };
-    let Some(seq) = node.as_sequence() else {
-        return Err(SchemaError::Validation {
-            message: "`on_finally` must be a YAML sequence of cleanup tasks".to_owned(),
-            span: cx.span(node.span()),
-        });
-    };
-    let mut out = Vec::with_capacity(seq.len());
-    for item in seq.iter() {
-        let Some(cleanup_map) = item.as_mapping() else {
-            return Err(SchemaError::Validation {
-                message: "each `on_finally` entry must be a mapping".to_owned(),
-                span: cx.span(item.span()),
-            });
-        };
-        let mut known: Vec<&str> = FINALLY_KEYS.to_vec();
-        known.extend_from_slice(VERB_KEYS);
-        cx.check_unknown_keys(
-            cleanup_map,
-            &known,
-            &format!("on_finally of task `{task_label}`"),
-        )?;
-
-        let action = parse_verb(cx, cleanup_map, &format!("{task_label}.on_finally"))?;
-        let mut finally = RawFinallyTask::new(action);
-        finally.when = parse_when(cx, cleanup_map)?;
-        finally.timeout = parse_timeout(cx, cleanup_map, "timeout")?;
-        out.push(Spanned::new(finally, cx.span_or_zero(item.span())));
-    }
-    Ok(out)
-}
-
 #[cfg(test)]
 pub(crate) mod tests {
     use std::time::Duration;
@@ -994,7 +938,7 @@ tasks:
         };
         assert!(message.contains("is not a predicate"), "{message}");
         assert!(
-            message.contains("success · failure · skipped · terminal"),
+            message.contains("success · failure · skipped · terminal · unwind"),
             "{message}"
         );
         assert_eq!(err.spec_code().to_string(), "NIKA-DAG-005");
@@ -1407,36 +1351,6 @@ tasks:
         assert_eq!(task.extract.len(), 2);
         assert_eq!(task.extract[0].0.value, "user_count");
         assert_eq!(task.extract[0].1.value, ".data.users | length");
-    }
-
-    #[test]
-    fn on_finally_mini_tasks() {
-        // Spec 03 §on_finally + example 16.
-        let yaml = "\
-tasks:
-  test:
-    timeout: \"5m\"
-    exec:
-      shell: \"cargo test\"
-    on_finally:
-      - exec:
-          shell: \"rm -rf /tmp/x\"
-      - when: ${{ tasks.test.status == 'failed' }}
-        timeout: \"10s\"
-        invoke:
-          tool: nika:emit
-          args: { event: \"done\" }
-";
-        let task = one_task(yaml);
-        assert_eq!(task.on_finally.len(), 2);
-        assert!(task.on_finally[0].value.when.is_none());
-        let second = &task.on_finally[1].value;
-        assert!(second.when.is_some());
-        assert_eq!(
-            second.timeout.as_ref().expect("timeout").value,
-            Duration::from_secs(10)
-        );
-        assert!(matches!(second.action, RawAction::Invoke(_)));
     }
 
     #[test]

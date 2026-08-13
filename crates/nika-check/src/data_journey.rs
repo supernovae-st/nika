@@ -209,15 +209,6 @@ pub(crate) fn collect(wf: &RawWorkflow, flow: &FlowFacts) -> DataJourney {
         let id = t.id.value.clone();
         let mut cloud = BTreeSet::new();
         collect_action_effects(&consts, &id, &t.action, &mut endpoints, &mut cloud);
-        for cleanup in &t.on_finally {
-            collect_action_effects(
-                &consts,
-                &id,
-                &cleanup.value.action,
-                &mut endpoints,
-                &mut cloud,
-            );
-        }
         if let Some(ep) = model_endpoint_of(wf, t, envelope.as_deref()) {
             if ep.locus == EndpointLocus::Cloud {
                 cloud.insert(ep.provider.clone());
@@ -425,16 +416,8 @@ fn secret_names_of_task(
     {
         scan(src);
     }
-    for cleanup in &task.on_finally {
-        for text in action_effect_fields(&cleanup.value.action) {
-            scan(text);
-        }
-    }
     // The propagation facts (valid order only — empty facts, never wrong).
     if let Some(trace) = flow.effect_taint(idx) {
-        out.insert(trace.secret.clone());
-    }
-    if let Some((trace, _, _)) = flow.finally_effect_taint(idx) {
         out.insert(trace.secret.clone());
     }
     out

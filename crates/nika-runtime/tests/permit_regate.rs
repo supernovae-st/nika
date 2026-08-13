@@ -250,7 +250,7 @@ async fn untrusted_cwd_escaping_is_refused() {
 /// cleanup's exec would reach the (enqueue-less) mock and panic.
 #[tokio::test]
 async fn on_finally_cleanup_reading_the_parents_taint_is_regated() {
-    let yaml = "nika: regate-finally\npermits:\n  exec: [\"tar\"]\n  net: { http: [\"news.example\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  dl:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://news.example/payload.txt\" }\n    on_finally:\n      - exec: { command: [\"tar\", \"-xf\", \"${{ tasks.dl.output }}\"] }\n";
+    let yaml = "nika: regate-finally\npermits:\n  exec: [\"tar\"]\n  net: { http: [\"news.example\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  dl:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://news.example/payload.txt\" }\n  dl_cleanup:\n    after: { dl: unwind }\n    exec: { command: [\"tar\", \"-xf\", \"${{ tasks.dl.output }}\"] }\n";
     let (outcome, _, shell) =
         run_with_ingress(yaml, "datasets/../../../etc/passwd", MockShell::new()).await;
     assert!(

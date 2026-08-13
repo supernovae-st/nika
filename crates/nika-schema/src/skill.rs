@@ -160,11 +160,6 @@ pub fn skill_refs(wf: &RawWorkflow) -> Vec<(&str, &Spanned<String>)> {
         if let RawAction::Agent(a) = &task.value.action {
             out.extend(a.skills.iter().map(|s| (id, s)));
         }
-        for mini in &task.value.on_finally {
-            if let RawAction::Agent(a) = &mini.value.action {
-                out.extend(a.skills.iter().map(|s| (id, s)));
-            }
-        }
     }
     out
 }
@@ -544,35 +539,5 @@ tasks:
         .expect("fixture parses");
         let resolved = resolve_skills(&wf, &mut |_| panic!("no reference → no read"));
         assert!(resolved.texts.is_empty() && resolved.findings.is_empty());
-    }
-
-    #[test]
-    fn skill_refs_walks_main_and_finally_actions() {
-        let yaml = "\
-nika: w
-tasks:
-  a:
-    agent:
-      prompt: \"go\"
-      skills: [\"s1/SKILL.md\", \"s2/SKILL.md\"]
-  b:
-    exec: { command: [\"echo\", \"hi\"] }
-    on_finally:
-      - agent:
-          prompt: \"wrap up\"
-          skills: [\"s3/SKILL.md\"]
-";
-        let wf = crate::parse(yaml, crate::FileId::new(0), crate::ParseMode::Strict)
-            .expect("fixture parses");
-        let refs = skill_refs(&wf);
-        let flat: Vec<(&str, &str)> = refs.iter().map(|(id, s)| (*id, s.value.as_str())).collect();
-        assert_eq!(
-            flat,
-            vec![
-                ("a", "s1/SKILL.md"),
-                ("a", "s2/SKILL.md"),
-                ("b", "s3/SKILL.md"),
-            ]
-        );
     }
 }

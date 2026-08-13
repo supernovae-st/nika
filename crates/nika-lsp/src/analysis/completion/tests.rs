@@ -274,7 +274,7 @@ fn after_value_offers_the_closed_predicate_set() {
     let items = completion(text, text.len());
     assert_eq!(
         labels(&items),
-        vec!["success", "failure", "skipped", "terminal"],
+        vec!["success", "failure", "skipped", "terminal", "unwind"],
         "the closed predicate set, spec order"
     );
     assert!(
@@ -372,49 +372,46 @@ fn top_level_after_a_colon_offers_no_keys() {
 
 #[test]
 fn task_field_offers_exactly_the_fields_and_verbs() {
-    // indented key position inside a task: the 12 task fields followed by
-    // the 4 verbs, in that order. EXACT set + kinds (fields PROPERTY,
-    // verbs KEYWORD).
+    // indented key position inside a task: the task fields in vocab
+    // order, then the 4 verbs. EXACT set + kinds (fields PROPERTY,
+    // verbs KEYWORD). The SET itself is pinned to the parser by
+    // `vocab::tests::task_field_keys_mirror_the_parser` — this test
+    // owns the ORDER and the kinds, which no derivation can carry.
     let text = "nika: w\ntasks:\n  a:\n    af";
     let items = completion(text, text.len());
     assert_eq!(
         labels(&items),
         vec![
-            // the 13 task fields (vocab order · W2: after/with are the
-            // two doors · id and depends_on are dead forms · NEP-0004
-            // law 7 added declassify)
-            "after",
-            "when",
-            "for_each",
-            "max_parallel",
-            "fail_fast",
-            "retry",
-            "on_error",
-            "timeout",
-            "with",
-            "extract",
-            "on_finally",
-            "group",
-            "lift",
-            // then the 4 verbs
-            "infer",
-            "exec",
-            "invoke",
-            "agent",
+            // W2: after/with are the two doors · id and depends_on are
+            // dead forms · `max_parallel`/`fail_fast` live INSIDE
+            // `for_each:` and `on_finally` died with the E_f rewrite
+            "after", "when", "for_each", "retry", "on_error", "timeout", "with", "extract",
+            "returns", "group", "lift", // then the 4 verbs
+            "infer", "exec", "invoke", "agent",
         ],
         "task fields then the 4 verbs"
     );
-    // the first 13 are PROPERTY (fields), the last 4 are KEYWORD (verbs).
-    // 12, not 13: `declassify` + `inert` merged into the single `lift`
-    // door when the law became a parameter of the construct.
+    // Fields are PROPERTY-kinded, verbs KEYWORD-kinded — the SPLIT
+    // POINT derives from the tables, because a hand-typed index moves
+    // silently every time the task shape does (it did, three times in
+    // one night: `max_parallel` · `fail_fast` · `on_finally`).
+    let fields = crate::analysis::vocab::TASK_FIELD_KEYS.len();
     let ks = kinds(&items);
-    assert_eq!(ks.len(), 17, "17 items, all kinded");
+    assert_eq!(
+        ks.len(),
+        fields + crate::analysis::vocab::VERBS.len(),
+        "every field and every verb, all kinded"
+    );
     assert!(
-        ks[..13].iter().all(|k| *k == CompletionItemKind::PROPERTY),
+        ks[..fields]
+            .iter()
+            .all(|k| *k == CompletionItemKind::PROPERTY),
         "fields are PROPERTY-kinded"
     );
     assert!(
-        ks[13..].iter().all(|k| *k == CompletionItemKind::KEYWORD),
+        ks[fields..]
+            .iter()
+            .all(|k| *k == CompletionItemKind::KEYWORD),
         "verbs are KEYWORD-kinded"
     );
     // the verb items carry their doc as detail (the detail field).
@@ -770,7 +767,7 @@ fn with_and_on_finally_islands_offer_the_boundary_sets() {
     );
 
     // on_finally — the PARENT is the only readable task.
-    let cleanup = "nika: w\ntasks:\n  a:\n    exec: { command: [\"x\"] }\n  b:\n    exec: { command: [\"y\"] }\n    on_finally:\n      sweep:\n        exec: { command: [\"rm\", \"${{ tasks.";
+    let cleanup = "nika: w\ntasks:\n  a:\n    exec: { command: [\"x\"] }\n  b:\n    exec: { command: [\"y\"] }\n  sweep:\n    after: { b: unwind }\n    exec: { command: [\"rm\", \"${{ tasks.";
     let got2 = labels(&completion(cleanup, cleanup.len()));
     assert_eq!(got2, vec!["b"], "the parent alone");
 }

@@ -101,9 +101,6 @@ fn syntax_msg(expected: &str, at: &str) -> String {
 pub(super) fn scan_jq(wf: &RawWorkflow, errors: &mut Vec<SchemaError>) {
     for task in &wf.tasks {
         check_action(&task.value.action, errors);
-        for cleanup in &task.value.on_finally {
-            check_action(&cleanup.value.action, errors);
-        }
     }
 }
 

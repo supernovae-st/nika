@@ -122,7 +122,8 @@ pub const TASK_FIELD_KEYS: &[Entry] = &[
         name: "after",
         doc: "The CONTROL boundary — `{producer: predicate}` map; each \
               entry is one control edge (success · failure · skipped · \
-              terminal).",
+              terminal) · plus `unwind`, the E_f cleanup attachment that \
+              never enters the precedence graph.",
     },
     Entry {
         name: "when",
@@ -134,14 +135,6 @@ pub const TASK_FIELD_KEYS: &[Entry] = &[
         name: "for_each",
         doc: "Map the task over a literal list or an upstream array output \
               (bounded fan-out).",
-    },
-    Entry {
-        name: "max_parallel",
-        doc: "Cap concurrent `for_each` iterations (≥ 1).",
-    },
-    Entry {
-        name: "fail_fast",
-        doc: "Abort the `for_each` on the first error (default true).",
     },
     Entry {
         name: "retry",
@@ -164,8 +157,10 @@ pub const TASK_FIELD_KEYS: &[Entry] = &[
         doc: "Named jq bindings over the verb's raw response · read as `${{ tasks.X.<name> }}`.",
     },
     Entry {
-        name: "on_finally",
-        doc: "Cleanup mini-tasks that ALWAYS run after this task.",
+        name: "returns",
+        doc: "The OUTPUT CONTRACT · the type expression, INLINE. Absent = \
+              `Unknown` (gradual and honest). Never together with a \
+              verb-level `schema:` (`NIKA-TYPE-003`).",
     },
     Entry {
         name: "group",
@@ -317,6 +312,26 @@ mod tests {
             ours, theirs,
             "the editor's top-level vocabulary must BE the parser's — \
              anything it offers that the parser refuses teaches a broken file"
+        );
+    }
+
+    #[test]
+    fn task_field_keys_mirror_the_parser() {
+        // DERIVED, never retyped — the sister of
+        // `top_level_keys_mirror_the_parser`. This gate was born the
+        // night the task shape moved (`max_parallel`/`fail_fast` went
+        // INSIDE `for_each`, `on_finally` died) and the editor kept
+        // offering all three: three keys the parser refuses outright,
+        // and one it admits (`returns`) that the editor never taught.
+        let mut ours: Vec<&str> = TASK_FIELD_KEYS.iter().map(|e| e.name).collect();
+        let mut theirs: Vec<&str> = nika_vocab::keys::TASK_KEYS.to_vec();
+        ours.sort_unstable();
+        theirs.sort_unstable();
+        assert_eq!(
+            ours, theirs,
+            "the editor's task vocabulary must BE the parser's — a key it \
+             offers that the parser refuses teaches a broken file, and a \
+             key it withholds is a field nobody discovers"
         );
     }
 

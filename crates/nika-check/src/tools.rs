@@ -44,13 +44,6 @@ pub(super) fn scan_unknown_tools(wf: &RawWorkflow) -> Vec<UnknownTool> {
     for task in &wf.tasks {
         let id = &task.value.id.value;
         collect(id, &task.value.action, &mut findings);
-        for cleanup in &task.value.on_finally {
-            collect(
-                &format!("{id} (on_finally)"),
-                &cleanup.value.action,
-                &mut findings,
-            );
-        }
     }
     findings
 }
@@ -138,13 +131,6 @@ pub(super) fn scan_unknown_args(wf: &RawWorkflow) -> Vec<UnknownArg> {
     for task in &wf.tasks {
         let id = &task.value.id.value;
         collect_args(id, &task.value.action, &mut findings);
-        for cleanup in &task.value.on_finally {
-            collect_args(
-                &format!("{id} (on_finally)"),
-                &cleanup.value.action,
-                &mut findings,
-            );
-        }
     }
     findings
 }
@@ -231,13 +217,6 @@ pub(super) fn scan_missing_args(wf: &RawWorkflow) -> Vec<MissingArg> {
     for task in &wf.tasks {
         let id = &task.value.id.value;
         collect_missing(id, &task.value.action, &mut findings);
-        for cleanup in &task.value.on_finally {
-            collect_missing(
-                &format!("{id} (on_finally)"),
-                &cleanup.value.action,
-                &mut findings,
-            );
-        }
     }
     findings
 }
@@ -325,16 +304,6 @@ mod tests {
             "nika: w\ntasks:\n  t:\n    agent:\n      prompt: \"go\"\n      tools: [\"nika:done\", \"nika:compose\"]\n",
         );
         assert!(f.is_empty(), "loop-only builtins are catalogued: {f:?}");
-    }
-
-    #[test]
-    fn on_finally_cleanup_tools_are_checked() {
-        let f = findings_of(
-            "nika: w\ntasks:\n  t:\n    exec: { command: [\"true\"] }\n    on_finally:\n      - invoke: { tool: \"nika:wrte\", args: { path: \"x\", content: \"y\" } }\n",
-        );
-        assert_eq!(f.len(), 1);
-        assert_eq!(f[0].task, "t (on_finally)");
-        assert_eq!(f[0].suggestion.as_deref(), Some("nika:write"));
     }
 
     #[test]
@@ -463,16 +432,6 @@ mod tests {
         assert!(f.is_empty(), "unknown builtin owns its finding: {f:?}");
     }
 
-    #[test]
-    fn on_finally_invoke_args_are_checked() {
-        let f = arg_findings_of(
-            "nika: w\ntasks:\n  t:\n    exec: { command: [\"true\"] }\n    on_finally:\n      - invoke: { tool: \"nika:write\", args: { path: \"x\", content: \"y\", appnd: true } }\n",
-        );
-        assert_eq!(f.len(), 1);
-        assert_eq!(f[0].task, "t (on_finally)");
-        assert_eq!(f[0].arg, "appnd");
-    }
-
     // ── F5 · missing required args (extends the 5/22 static check) ───────
 
     fn missing_of(yaml: &str) -> Vec<MissingArg> {
@@ -548,16 +507,6 @@ mod tests {
         assert!(wait.is_empty(), "wait is conditional, not flat-required");
         let fetch = missing_of("nika: w\ntasks:\n  t:\n    invoke: { tool: \"nika:fetch\" }\n");
         assert!(fetch.is_empty(), "fetch contract is builtin_shape's");
-    }
-
-    #[test]
-    fn missing_required_in_on_finally_is_checked() {
-        let f = missing_of(
-            "nika: w\ntasks:\n  t:\n    exec: { command: [\"true\"] }\n    on_finally:\n      - invoke: { tool: \"nika:hash\" }\n",
-        );
-        assert_eq!(f.len(), 1);
-        assert_eq!(f[0].task, "t (on_finally)");
-        assert_eq!(f[0].arg, "content");
     }
 
     #[test]

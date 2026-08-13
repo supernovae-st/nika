@@ -242,7 +242,7 @@ mod tests {
 
     /// The rich fixture's YAML — one const so the receipt, the proves
     /// and the golden can never drift apart.
-    const RICH_YAML: &str = "nika: pay\nmodel: anthropic/claude-sonnet-4-6\npermits:\n  exec: [\"ls\", \"echo\"]\n  tools: [\"nika:log\"]\ntasks:\n  src:\n    exec: { command: [\"ls\"] }\n  fan:\n    with: { items: \"${{ tasks.src.output.files }}\" }\n    for_each: { items: \"${{ with.items }}\" }\n    retry: { max_attempts: 2 }\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 200 }\n    on_finally:\n      - invoke: { tool: \"nika:log\", args: { message: \"done\" } }\n";
+    const RICH_YAML: &str = "nika: pay\nmodel: anthropic/claude-sonnet-4-6\npermits:\n  exec: [\"ls\", \"echo\"]\n  tools: [\"nika:log\"]\ntasks:\n  src:\n    exec: { command: [\"ls\"] }\n  fan:\n    with: { items: \"${{ tasks.src.output.files }}\" }\n    for_each: { items: \"${{ with.items }}\" }\n    retry: { max_attempts: 2 }\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 200 }\n  fan_cleanup:\n    after: { fan: unwind }\n    invoke: { tool: \"nika:log\", args: { message: \"done\" } }\n";
 
     /// A receipt whose certificate exercises EVERY field family: a
     /// `for_each` expression (parametric terms) · a retry · a declared
@@ -415,12 +415,12 @@ digest       DIGEST — the self-binding digest — verify recomputes it over th
 lock_digest  blake3:lockdigest — the nika.lock digest the run resolved under (unrecorded when the journal never carried it)
 
 certificate — the check-time resource certificate folded into this receipt
-  task_attempts  ≤ 1 + 2·|fan| — upper bound on task-body executions (attempts × fan-out)
+  task_attempts  ≤ 2 + 2·|fan| — upper bound on task-body executions (attempts × fan-out)
   llm_calls      ≤ 0 + 2·|fan| — upper bound on LLM calls (infer + agent turns)
-  effect_calls   ≤ 1 + 1·|fan| — upper bound on effect calls (exec + invoke dispatches)
+  effect_calls   ≤ 2 — upper bound on effect calls (exec + invoke dispatches)
   usd_micros     ≤ 0 + 6000·|fan| — the parametric spend bound in micro-USD (absent when unpriceable)
-  span_attempts  3 — the longest sequential dependency chain, in attempts (the span)
-  derivation     2 witness rows — the per-task witness rows the audit re-checks
+  span_attempts  4 — the longest sequential dependency chain, in attempts (the span)
+  derivation     3 witness rows — the per-task witness rows the audit re-checks
   effects        boundary declared · 0 escapes — the authority projection (spec 10 · re-derived at audit, never trusted)
 
 trace_verdict — the trace-verify result folded into this receipt

@@ -28,6 +28,7 @@ use nika_schema::expression::{
 };
 use nika_schema::raw::{ForEachValue, RawAction, RawTask, RawWorkflow};
 use nika_schema::source::{Span, Spanned};
+use nika_schema::types::AfterPredicate;
 use nika_schema::types::WhenGate;
 
 /// The reserved result-record fields (spec `04-variables.md` §result
@@ -151,9 +152,8 @@ fn check_group_ref(
             });
             return;
         }
-        // `on_finally` reads its PARENT only; a group fold there would
-        // read siblings that may still be running.
-        TaskRefRule::FinallyParentOnly | TaskRefRule::Resolution => {
+        // a resolution surface reads settled records, never a fold
+        TaskRefRule::Resolution => {
             errors.push(SchemaError::RefOutsideBoundary {
                 task: ctx.task_id.to_owned(),
                 surface: "outputs".to_owned(),
@@ -191,9 +191,6 @@ enum TaskRefRule {
     /// `on_error.recover`) — existence + record-shape checks apply ·
     /// no edge semantics.
     Resolution,
-    /// An `on_finally:` surface — the PARENT is the only readable task
-    /// (a sibling read would race · `NIKA-VAR-021` otherwise).
-    FinallyParentOnly,
 }
 
 /// Where a scanned string lives — drives the boundary / loop-local /
@@ -214,6 +211,11 @@ struct ScanCtx<'a> {
     with_names: Option<&'a BTreeSet<&'a str>>,
     /// `item` / `index` in scope (the owning task has `for_each:`).
     allow_loop_locals: bool,
+    /// When the owning task is an UNWIND task, the producers it may
+    /// read. Cleanup sees its producer and nothing else: a sibling may
+    /// still be RUNNING, so the read would race (spec 03 §unwind ·
+    /// `NIKA-VAR-021` otherwise). `None` = an ordinary task.
+    unwind_producers: Option<&'a BTreeSet<&'a str>>,
 }
 
 /// Scan every template surface of the workflow · collect all errors.
@@ -234,6 +236,7 @@ pub(super) fn scan_workflow(wf: &RawWorkflow, errors: &mut Vec<SchemaError>) {
         task_rule: TaskRefRule::Resolution,
         with_names: None,
         allow_loop_locals: false,
+        unwind_producers: None,
     };
     let outputs_ctx = envelope_ctx("outputs");
     for (_, decl) in &wf.outputs {
@@ -256,6 +259,7 @@ fn task_ctx<'a>(
     with_names: &'a BTreeSet<&'a str>,
     task_rule: TaskRefRule,
     allow_loop_locals: bool,
+    unwind_producers: Option<&'a BTreeSet<&'a str>>,
 ) -> ScanCtx<'a> {
     ScanCtx {
         location: format!("task `{id}`"),
@@ -263,6 +267,7 @@ fn task_ctx<'a>(
         task_rule,
         with_names: Some(with_names),
         allow_loop_locals,
+        unwind_producers,
     }
 }
 
@@ -271,10 +276,33 @@ fn scan_task(task: &RawTask, index: &WorkflowIndex<'_>, errors: &mut Vec<SchemaE
     let with_names: BTreeSet<&str> = task.with.iter().map(|(k, _)| k.value.as_str()).collect();
     let has_for_each = task.for_each.is_some();
 
+    // An UNWIND task is cleanup: it reads its producer and nothing
+    // else (spec 03 §unwind · a sibling may still be RUNNING).
+    let unwind_producers: BTreeSet<&str> = task
+        .after
+        .iter()
+        .filter(|(_, p)| matches!(p.value, AfterPredicate::Unwind))
+        .map(|(target, _)| target.value.as_str())
+        .collect();
+
+    let unwind: Option<&BTreeSet<&str>> = if unwind_producers.is_empty() {
+        None
+    } else {
+        Some(&unwind_producers)
+    };
+
     // `with:` — the data boundary (the binding IS the edge).
-    let boundary_ctx = task_ctx(id, &with_names, TaskRefRule::Boundary, has_for_each);
+    let boundary_ctx = task_ctx(id, &with_names, TaskRefRule::Boundary, has_for_each, unwind);
     // Body surfaces read LOCAL names only (04 §the reference boundary).
-    let body_ctx = |surface| task_ctx(id, &with_names, TaskRefRule::Body(surface), has_for_each);
+    let body_ctx = |surface| {
+        task_ctx(
+            id,
+            &with_names,
+            TaskRefRule::Body(surface),
+            has_for_each,
+            unwind,
+        )
+    };
     // The two surfaces evaluated BEFORE the fan-out, where the loop
     // locals are simply not bound yet. `when:` decides whether an
     // ADMITTED TASK runs (spec 03 §when · post-gate means after the
@@ -284,7 +312,8 @@ fn scan_task(task: &RawTask, index: &WorkflowIndex<'_>, errors: &mut Vec<SchemaE
     // whenever the task carries a `for_each:` — so `when: ${{ item }}`
     // passed check and then died at run with NIKA-VAR-001, and the
     // audit-before-run promise broke in the one place it is loudest.
-    let pre_fanout_ctx = |surface| task_ctx(id, &with_names, TaskRefRule::Body(surface), false);
+    let pre_fanout_ctx =
+        |surface| task_ctx(id, &with_names, TaskRefRule::Body(surface), false, unwind);
 
     // `when:` — the expression form is a single boolean-shaped island
     // over local namespaces (POST-gate · spec 03 §when) · the YAML
@@ -334,32 +363,12 @@ fn scan_task(task: &RawTask, index: &WorkflowIndex<'_>, errors: &mut Vec<SchemaE
         task_rule: TaskRefRule::Resolution,
         with_names: Some(&with_names),
         allow_loop_locals: has_for_each,
+        unwind_producers: None,
     };
     if let Some(on_error) = &task.on_error
         && let nika_schema::types::OnErrorAction::Recover(value) = &on_error.value.action
     {
         scan_json(value, &no_edge_ctx, index, errors);
-    }
-
-    // `on_finally:` — the PARENT is the only readable task (W2 · a
-    // sibling may still be RUNNING when this cleanup fires — the read
-    // would race · spec 03 §on_finally).
-    let finally_ctx = ScanCtx {
-        location: format!("task `{id}` on_finally"),
-        task_id: id,
-        task_rule: TaskRefRule::FinallyParentOnly,
-        with_names: Some(&with_names),
-        allow_loop_locals: has_for_each,
-    };
-    for cleanup in &task.on_finally {
-        if let Some(when) = &cleanup.value.when
-            && let WhenGate::Expr(expr) = &when.value
-        {
-            let spanned = Spanned::new(expr.clone(), when.span);
-            check_single_island(&spanned, "when", id, true, errors);
-            scan_string(&spanned, &finally_ctx, index, errors);
-        }
-        scan_action(&cleanup.value.action, &finally_ctx, index, errors);
     }
 }
 
@@ -698,31 +707,39 @@ fn check_task_ref(
     index: &WorkflowIndex<'_>,
     errors: &mut Vec<SchemaError>,
 ) {
-    match ctx.task_rule {
-        TaskRefRule::Body(surface) => {
-            // NIKA-VAR-021 dominates: the fix (hoist into with:) removes
-            // the reference from this surface entirely — existence and
-            // shape are judged at the boundary after the hoist.
+    // An UNWIND task's rule REPLACES the surface rule: cleanup reads its
+    // PRODUCER on any surface (settled by definition when unwind runs),
+    // and no other task at all — a sibling may still be RUNNING, so the
+    // read would race (spec 03 §unwind · what it may read). Hoisting
+    // into `with:` would not help, so the ordinary body refusal — whose
+    // whole teaching IS « hoist it » — must not fire here.
+    if let Some(producers) = ctx.unwind_producers {
+        if !id.is_empty() && !producers.contains(id) {
             errors.push(SchemaError::RefOutsideBoundary {
                 task: ctx.task_id.to_owned(),
-                surface: surface.to_owned(),
+                surface: "an unwind task".to_owned(),
                 reference: id.to_owned(),
                 span: Some(span),
             });
             return;
         }
-        TaskRefRule::FinallyParentOnly => {
-            if id != ctx.task_id {
+    } else {
+        match ctx.task_rule {
+            TaskRefRule::Body(surface) => {
+                // NIKA-VAR-021 dominates: the fix (hoist into with:)
+                // removes the reference from this surface entirely —
+                // existence and shape are judged at the boundary after
+                // the hoist.
                 errors.push(SchemaError::RefOutsideBoundary {
                     task: ctx.task_id.to_owned(),
-                    surface: "on_finally".to_owned(),
+                    surface: surface.to_owned(),
                     reference: id.to_owned(),
                     span: Some(span),
                 });
                 return;
             }
+            TaskRefRule::Boundary | TaskRefRule::Resolution => {}
         }
-        TaskRefRule::Boundary | TaskRefRule::Resolution => {}
     }
     // The BARE envelope first · `${{ tasks }}` yields an EMPTY id. It
     // names no task, so the unknown-task branch below would swallow it

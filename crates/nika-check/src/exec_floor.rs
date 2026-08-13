@@ -67,9 +67,6 @@ pub(crate) fn scan(wf: &RawWorkflow) -> Vec<ExecFloorFinding> {
     for task in &wf.tasks {
         let id = task.value.id.value.as_str();
         push_exec_floor(&task.value.action, id, &mut out);
-        for cleanup in &task.value.on_finally {
-            push_exec_floor(&cleanup.value.action, id, &mut out);
-        }
     }
     out
 }
@@ -348,20 +345,6 @@ mod tests {
     fn a_pathed_interpreter_is_still_judged() {
         let findings = floor_findings(&exec_wf("[\"/usr/bin/python3\", \"-c\", \"import os\"]"));
         assert_eq!(findings.len(), 1, "the basename is judged: {findings:?}");
-    }
-
-    /// `on_finally` cleanups are scanned too (the native-first
-    /// precedent — a cleanup command is the same floor).
-    #[test]
-    fn on_finally_cleanups_are_scanned_too() {
-        let r = report(
-            "nika: w\npermits:\n  exec: true\ntasks:\n  t:\n    exec: { command: [\"make\", \"build\"] }\n    on_finally:\n      - exec: { command: [\"node\", \"-e\", \"process.exit(0)\"] }\n",
-        );
-        assert!(
-            r.exec_floor_findings.iter().any(|f| f.task == "t"),
-            "the cleanup's refusal is predicted: {:?}",
-            r.exec_floor_findings
-        );
     }
 
     /// The emitted⊆registered ratchet, exec-floor tier (the

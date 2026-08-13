@@ -88,8 +88,25 @@ impl EdgeKind {
                 AfterPredicate::Terminal => {
                     matches!(s, Success | Failure | Skipped | Cancelled)
                 }
+                // Not a settle-state comparison · the E_f attachment
+                // fires for a producer that STARTED, whatever it became.
+                // It can never be the edge that proves a task dead —
+                // `is_scheduling` keeps it out of that analysis entirely.
+                AfterPredicate::Unwind => true,
             },
         }
+    }
+
+    /// Whether this edge belongs to `G_p`, the PRECEDENCE graph.
+    ///
+    /// `false` for `unwind` alone: an `E_f` attachment does not schedule,
+    /// does not participate in cycle detection and does not enter wave
+    /// assignment (spec 03 §the rest of the contract · « an engine that
+    /// adds them to the precedence graph is wrong »). Structural rather
+    /// than a filter at each call site, so a new pass cannot forget it.
+    #[must_use]
+    pub fn is_scheduling(self) -> bool {
+        !matches!(self, Self::Control(AfterPredicate::Unwind))
     }
 
     /// The `graph_format: 2` wire kind.

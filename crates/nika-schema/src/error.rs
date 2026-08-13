@@ -178,6 +178,21 @@ pub enum SchemaError {
         span: Option<Span>,
     },
 
+    /// An `unwind` task declares a `group:` (`NIKA-DAG-009`) — cleanup
+    /// is an `E_f` attachment that never enters `G_p`, so a fan-in edge
+    /// from it would have no wave to schedule against (spec 03 §group).
+    #[error(
+        "task `{task}` is an unwind task and joins group `{group}` — cleanup never enters the precedence graph, so a fold of it would have no wave to schedule against"
+    )]
+    UnwindInGroup {
+        /// The cleanup task.
+        task: String,
+        /// The group it tried to join.
+        group: String,
+        /// Span of the `group:` value.
+        span: Option<Span>,
+    },
+
     /// W2 · an out-of-set `after:` predicate (03 §after · `NIKA-DAG-005` · R5 dead spellings teach).
     #[error("{message}")]
     UnknownAfterPredicate {
@@ -747,6 +762,7 @@ impl SchemaError {
             | Self::W2DependsOnField { span, .. }
             | Self::D1StringCommand { span, .. }
             | Self::UnknownGroup { span, .. }
+            | Self::UnwindInGroup { span, .. }
             | Self::UnknownAfterPredicate { span, .. }
             | Self::RefOutsideBoundary { span, .. }
             | Self::UnresolvedNamespaceRef { span, .. }
@@ -854,6 +870,7 @@ schema_code!(SCHEMA_325, 325, "foreign-value-namespace");
 schema_code!(SCHEMA_326, 326, "default-not-conforming");
 schema_code!(SCHEMA_327, 327, "run-contradiction");
 schema_code!(SCHEMA_328, 328, "unknown-group");
+schema_code!(SCHEMA_329, 329, "unwind-in-group");
 
 impl NikaErrorCode for SchemaError {
     fn nika_code(&self) -> NikaCode {
@@ -869,6 +886,7 @@ impl NikaErrorCode for SchemaError {
             Self::W2DependsOnField { .. } => SCHEMA_316,
             Self::UnknownAfterPredicate { .. } => SCHEMA_317,
             Self::UnknownGroup { .. } => SCHEMA_328,
+            Self::UnwindInGroup { .. } => SCHEMA_329,
             Self::RefOutsideBoundary { .. } => SCHEMA_318,
             Self::MissingVerb { .. } => SCHEMA_287,
             Self::MultipleVerbs { .. } => SCHEMA_288,

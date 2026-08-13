@@ -324,16 +324,6 @@ tasks:
     }
 
     #[test]
-    fn on_finally_cleanup_outside_boundary_escapes() {
-        // A cleanup verb runs under the same boundary — and ALWAYS runs.
-        let y = "nika: w\npermits: { exec: [\"cargo\"] }\ntasks:\n  build:\n    exec: { command: [\"cargo\", \"build\"] }\n    on_finally:\n      - invoke: { tool: \"nika:write\", args: { path: \"./log\", content: \"x\" } }\n";
-        let e = escapes_of(y);
-        assert_eq!(e.len(), 1, "the cleanup's tool grant is missing");
-        assert_eq!(e[0].task, "build (on_finally)");
-        assert_eq!(e[0].category, "tools");
-    }
-
-    #[test]
     fn edit_requires_both_fs_directions() {
         // in-place find/replace reads the bytes, then rewrites the path —
         // a write-only grant leaves the read side escaping.

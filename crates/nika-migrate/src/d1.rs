@@ -337,13 +337,16 @@ mod tests {
     }
 
     #[test]
-    fn d1_on_finally_exec_migrates_too() {
-        let old = "workflow: t\ntasks:\n  a:\n    exec:\n      command: [\"make\"]\n    on_finally:\n      - exec:\n          command: docker stop db\n";
+    fn d1_reaches_a_cleanup_task_too() {
+        // A cleanup is an ordinary task joined by `after: { a: unwind }`
+        // — D1 scopes by the `exec:` block, never by the task's role,
+        // so it reaches this one at the same indent as any other.
+        let old = "nika: t\ntasks:\n  a:\n    exec:\n      command: [\"make\"]\n  a_cleanup:\n    after: { a: unwind }\n    exec:\n      command: docker stop db\n";
         let D1Outcome::Changed(new) = d1(old) else {
             panic!("the cleanup migrates")
         };
         assert!(
-            new.contains("          command: [\"docker\", \"stop\", \"db\"]\n"),
+            new.contains("      command: [\"docker\", \"stop\", \"db\"]\n"),
             "{new}"
         );
         assert!(new.contains("      command: [\"make\"]\n"), "{new}");

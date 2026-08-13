@@ -83,13 +83,6 @@ fn workflow_calls(wf: &RawWorkflow) -> Vec<(&str, &nika_schema::source::Spanned<
         {
             out.push((id, w));
         }
-        for mini in &task.value.on_finally {
-            if let RawAction::Invoke(a) = &mini.value.action
-                && let RawInvokeTarget::Workflow(w) = &a.target
-            {
-                out.push((id, w));
-            }
-        }
     }
     out
 }

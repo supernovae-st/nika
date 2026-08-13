@@ -103,9 +103,6 @@ pub(super) fn infer(wf: &RawWorkflow) -> InferredPermits {
     for task in &wf.tasks {
         let id = &task.value.id.value;
         collect_action(&mut c, id, &task.value.action);
-        for cleanup in &task.value.on_finally {
-            collect_action(&mut c, &format!("{id} (on_finally)"), &cleanup.value.action);
-        }
     }
 
     let exec = if !c.exec_used {
@@ -141,9 +138,6 @@ pub(crate) fn task_permits(task: &RawTask) -> Vec<String> {
     let mut c = Collector::default();
     let id = &task.id.value;
     collect_action(&mut c, id, &task.action);
-    for cleanup in &task.on_finally {
-        collect_action(&mut c, &format!("{id} (on_finally)"), &cleanup.value.action);
-    }
     let mut out = Vec::new();
     if c.exec_used {
         if c.exec_dynamic {
@@ -648,26 +642,6 @@ tasks:
         // host couldn't be pinned → net stays unset, a note flags it
         assert!(r.permits.net.is_none());
         assert!(r.notes.iter().any(|n| n.contains("dynamic URL")));
-    }
-
-    #[test]
-    fn on_finally_cleanup_effects_are_collected() {
-        // The review's PROVEN miss: a cleanup that writes a log file MUST
-        // contribute its tool grant + fs.write — it always runs.
-        let yaml = "nika: w\ntasks:\n  build:\n    exec: { command: [\"cargo\", \"build\"] }\n    on_finally:\n      - invoke: { tool: \"nika:write\", args: { path: \"./out/log.txt\", content: \"done\" } }\n";
-        let r = infer_of(yaml);
-        assert_eq!(
-            r.permits.fs.as_ref().expect("fs").write,
-            vec!["./out/log.txt"]
-        );
-        assert!(
-            r.permits
-                .tools
-                .as_ref()
-                .expect("tools")
-                .contains(&"nika:write".to_owned())
-        );
-        assert_round_trips_clean(yaml);
     }
 
     #[test]

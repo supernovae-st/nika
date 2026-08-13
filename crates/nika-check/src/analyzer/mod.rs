@@ -34,7 +34,9 @@ pub mod types_contract;
 use std::collections::BTreeMap;
 
 use nika_schema::error::SchemaError;
-use nika_schema::raw::RawWorkflow;
+use nika_schema::raw::{RawTask, RawWorkflow};
+use nika_schema::source::Spanned;
+use nika_schema::types::AfterPredicate;
 
 pub use edges::{Edge, EdgeKind, RecoveryRead, SettledState, role_of_field};
 pub use types_contract::{lowered_returns, named_types, returns_type};
@@ -85,6 +87,7 @@ pub fn analyze(wf: &RawWorkflow) -> Result<AnalyzedWorkflow, Vec<SchemaError>> {
     dag::check_edge_targets_resolve(&wf.tasks, &ids, &mut errors);
     dag::check_cycles(&wf.tasks, &ids, &derived, &mut errors);
     dag::check_recover_acyclic(&wf.tasks, &ids, &derived, &mut errors);
+    check_unwind_never_folds(&wf.tasks, &mut errors);
     builtin_shape::check_builtin_shapes(&wf.tasks, &mut errors);
     scan::scan_workflow(wf, &mut errors);
     jq_lint::scan_jq(wf, &mut errors);
@@ -120,6 +123,30 @@ fn check_envelope(wf: &RawWorkflow, errors: &mut Vec<SchemaError>) {
             field: "tasks".to_owned(),
             span: None,
         });
+    }
+}
+
+/// `NIKA-DAG-009` — an unwind task may not join a group.
+///
+/// Cleanup is an `E_f` attachment that never enters `G_p`; a fan-in edge
+/// from it would have no wave to schedule against (spec 03 §group).
+fn check_unwind_never_folds(tasks: &[Spanned<RawTask>], errors: &mut Vec<SchemaError>) {
+    for task in tasks {
+        let Some(group) = &task.value.group else {
+            continue;
+        };
+        let is_unwind = task
+            .value
+            .after
+            .iter()
+            .any(|(_, p)| matches!(p.value, AfterPredicate::Unwind));
+        if is_unwind {
+            errors.push(SchemaError::UnwindInGroup {
+                task: task.value.id.value.clone(),
+                group: group.value.clone(),
+                span: Some(group.span),
+            });
+        }
     }
 }
 
@@ -543,24 +570,6 @@ tasks:
     with:
       data: ${{ tasks.fetch.output }}
     infer: { prompt: \"use ${{ with.data }}\" }
-";
-        analyze_yaml(yaml).expect("valid");
-    }
-
-    #[test]
-    fn on_finally_owner_ref_needs_no_edge() {
-        // Spec example 16 · on_finally references the OWNING task's
-        // status — no self-edge required.
-        let yaml = "\
-nika: t
-tasks:
-  test:
-    exec: { command: [\"cargo\", \"test\"] }
-    on_finally:
-      - invoke:
-          tool: nika:emit
-          args:
-            status: \"${{ tasks.test.status }}\"
 ";
         analyze_yaml(yaml).expect("valid");
     }

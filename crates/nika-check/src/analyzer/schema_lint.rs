@@ -56,9 +56,6 @@ fn first_line(msg: &str) -> String {
 pub(super) fn scan_schemas(wf: &RawWorkflow, errors: &mut Vec<SchemaError>) {
     for task in &wf.tasks {
         check_action(&task.value.action, errors);
-        for cleanup in &task.value.on_finally {
-            check_action(&cleanup.value.action, errors);
-        }
     }
 }
 
