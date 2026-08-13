@@ -13,6 +13,7 @@ pub nika_vocab::after::AfterPredicate::Failure
 pub nika_vocab::after::AfterPredicate::Skipped
 pub nika_vocab::after::AfterPredicate::Success
 pub nika_vocab::after::AfterPredicate::Terminal
+pub nika_vocab::after::AfterPredicate::Unwind
 impl nika_vocab::after::AfterPredicate
 pub fn nika_vocab::after::AfterPredicate::all() -> &'static [&'static str]
 pub fn nika_vocab::after::AfterPredicate::as_str(self) -> &'static str
@@ -476,7 +477,6 @@ pub const nika_vocab::keys::CONFIG_KEYS: &[&str]
 pub const nika_vocab::keys::CONST_TYPED_KEYS: &[&str]
 pub const nika_vocab::keys::EGRESS_KEYS: &[&str]
 pub const nika_vocab::keys::EXEC_KEYS: &[&str]
-pub const nika_vocab::keys::FINALLY_KEYS: &[&str]
 pub const nika_vocab::keys::INFER_KEYS: &[&str]
 pub const nika_vocab::keys::INPUT_KEYS: &[&str]
 pub const nika_vocab::keys::INVOKE_KEYS: &[&str]
@@ -488,6 +488,7 @@ pub const nika_vocab::keys::RETRY_KEYS: &[&str]
 pub const nika_vocab::keys::RUN_ENTROPY_MAP_KEYS: &[&str]
 pub const nika_vocab::keys::RUN_KEYS: &[&str]
 pub const nika_vocab::keys::SECRET_KEYS: &[&str]
+pub const nika_vocab::keys::TASK_KEYS: &[&str]
 pub const nika_vocab::keys::THINKING_KEYS: &[&str]
 pub const nika_vocab::keys::TYPED_OUTPUT_KEYS: &[&str]
 pub fn nika_vocab::keys::known_child_keys(block_key: &str, parent: core::option::Option<&str>) -> core::option::Option<&'static [&'static str]>
@@ -1141,6 +1142,7 @@ pub nika_vocab::AfterPredicate::Failure
 pub nika_vocab::AfterPredicate::Skipped
 pub nika_vocab::AfterPredicate::Success
 pub nika_vocab::AfterPredicate::Terminal
+pub nika_vocab::AfterPredicate::Unwind
 impl nika_vocab::after::AfterPredicate
 pub fn nika_vocab::after::AfterPredicate::all() -> &'static [&'static str]
 pub fn nika_vocab::after::AfterPredicate::as_str(self) -> &'static str
