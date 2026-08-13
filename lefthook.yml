@@ -65,6 +65,19 @@ pre-commit:
       glob: '**/*.sh'
       run: shfmt -d -i 2 -ci -bn {staged_files}
 
+    # estate.yaml hache l arbre suivi. Rien en local ne le controlait, alors
+    # que la CI le fait : chaque oubli coutait un push et une attente de CI.
+    # Mesure du 2026-08-13 · QUATRE allers-retours en une soiree, et la
+    # quatrieme fois la cause etait subtile — l inventaire avait bien ete
+    # regenere, puis `shfmt -w` a reformate le fichier APRES, l invalidant.
+    # Le bon moment n est donc pas « quand on y pense » mais « apres le
+    # dernier formatage » : un hook le sait, un humain non.
+    # --check, jamais --write : un hook qui REPARE en silence cache la derive
+    # au lieu de l apprendre, et il ecrirait un fichier que personne n a relu.
+    estate-manifest:
+      run: python3 scripts/estate.py --check
+      fail_text: 'estate.yaml diverge de l arbre suivi. Lancer: python3 scripts/estate.py --write puis rejouer le commit.'
+
     block-private-paths:
       run: bash scripts/hooks/block-private-paths.sh
       fail_text: 'Private path reference in public engine files. Engine is PUBLIC.'
