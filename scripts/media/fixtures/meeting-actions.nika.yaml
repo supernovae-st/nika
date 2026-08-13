@@ -2,10 +2,8 @@
 # media fixture · the chat-to-workflow demo — derived from the embedded
 # showcase workflow examples/showcase/t1-meeting-actions.nika.yaml with a
 # defaulted transcript path so the demo runs with zero flags.
-nika: v1
-workflow:
-  id: meeting-actions
-  description: "Transcript → typed action items {owner, task, due}"
+# Transcript → typed action items {owner, task, due}
+nika: meeting-actions
 
 model: mock/echo            # offline demo path · swap for any provider
 

@@ -4,10 +4,8 @@
 #   `tasks.digets` (a `with:` edge) → NIKA-DAG-002 · did you mean `digest`?
 #   `nika:wrte`    → TOOLS · did you mean `nika:write`? (+ the PERMITS echo)
 # validate-media.sh keeps this file FAILING check — the asset's point.
-nika: v1
-workflow:
-  id: release-notes
-  description: "git log → typed notes → RELEASE_NOTES.md · checked before it spends"
+# git log → typed notes → RELEASE_NOTES.md · checked before it spends
+nika: release-notes
 
 model: ollama/qwen3.5:4b   # local · zero key · or mistral/mistral-small · mock/echo offline
 

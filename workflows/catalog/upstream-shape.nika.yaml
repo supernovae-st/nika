@@ -23,11 +23,8 @@
 #
 #   nika check  workflows/catalog/upstream-shape.nika.yaml
 #   nika run    workflows/catalog/upstream-shape.nika.yaml
-nika: v1
-
-workflow:
-  id: catalog-upstream-shape
-  description: "census the upstream model fields · mark the ones our import reads"
+# census the upstream model fields · mark the ones our import reads
+nika: catalog-upstream-shape
 
 const:
   source_url: "https://models.dev/api.json"

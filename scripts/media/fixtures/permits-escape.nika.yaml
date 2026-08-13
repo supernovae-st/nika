@@ -1,9 +1,7 @@
 # The permits-audit asset · ACT 1 — this file DECLARES its blast radius,
 # then one task quietly reaches beyond it. `nika check` catches the escape
 # statically and prints the machine-applicable fix. Deliberately escaping.
-nika: v1
-workflow:
-  id: release-brief
+nika: release-brief
 model: ollama/llama3.2:3b
 
 permits:
@@ -24,8 +22,8 @@ tasks:
 
   brief:
     after:
-      release: succeeded
-      changelog_page: succeeded
+      release: success
+      changelog_page: success
     infer:
       prompt: "Write a 3-line release brief from this JSON and page."
 

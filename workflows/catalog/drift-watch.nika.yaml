@@ -32,11 +32,8 @@
 # WHAT IT DOES NOT DO. It does not refresh anything. A drift verdict is a
 # maintenance signal, not an upgrade — scripts/refresh-pricing.sh owns the
 # write, with its own shrink guard.
-nika: v1
-
-workflow:
-  id: catalog-drift-watch
-  description: "hash the live upstream · hold it against the digest pinned in [meta]"
+# hash the live upstream · hold it against the digest pinned in [meta]
+nika: catalog-drift-watch
 
 const:
   source_url: "https://models.dev/api.json"

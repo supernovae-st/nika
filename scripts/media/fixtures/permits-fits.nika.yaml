@@ -1,9 +1,7 @@
 # The permits-audit asset · ACT 3 — the two-line fix: the host joins the
 # declared boundary, max_tokens turns the cost floor into a HARD ceiling.
 # Every vector green, before a single token is spent.
-nika: v1
-workflow:
-  id: release-brief
+nika: release-brief
 model: ollama/llama3.2:3b
 
 permits:

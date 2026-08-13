@@ -30,11 +30,8 @@
 #   nika check workflows/catalog/deprecated-models.nika.yaml
 #   nika run --output json workflows/catalog/deprecated-models.nika.yaml \
 #     > ./target/catalog-deprecated-models.json
-nika: v1
-
-workflow:
-  id: catalog-deprecated-models
-  description: "join upstream model status against the rows we price and the ids we teach"
+# join upstream model status against the rows we price and the ids we teach
+nika: catalog-deprecated-models
 
 const:
   source_url: "https://models.dev/api.json"

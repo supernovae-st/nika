@@ -2,9 +2,7 @@
 # media fixture · the static-check-fix demo "after" — same workflow, fixed:
 # the diff crosses the `with:` boundary, fixed typo, cost ceiling, strict
 # schema, permits.
-nika: v1
-workflow:
-  id: pr-risk-review
+nika: pr-risk-review
 model: ollama/llama3.1
 
 tasks:
