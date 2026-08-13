@@ -36,6 +36,23 @@ use crate::wire::{
 
 /// One incoming line may not exceed this (bounded reads · spec §4): a
 /// hostile or broken peer overflows into a refusal, never an OOM.
+///
+/// **This is a TRANSPORT bound and it is not the forensics decode
+/// grain**, even though both are 1 MiB today. It guards one line off a
+/// live wire from a peer this process is talking to; `nika_dap`'s
+/// `bounded::MAX_ARTIFACT_BYTES` guards a stored artifact a verifier
+/// reads whole. Two readers, two threat models, two bounds that happen
+/// to agree on a number.
+///
+/// Do not "de-duplicate" them onto one constant. A grep finds three
+/// `1024 * 1024` in this tree and reads like a single value restated
+/// three times; it is not (measured 2026-08-13 · nika-spec
+/// `conformance/FINDINGS.md` F-4). Aliasing this to a forensics
+/// constant would couple a wire protocol to a decoder, so raising one
+/// bound would move the other for no stated reason — the coupling
+/// costs more than the repetition. The one real duplicate is
+/// `nika-registry-client`'s own artifact bound, which shares this
+/// crate's number *and* `nika-dap`'s meaning.
 pub const MAX_LINE_BYTES: usize = 1024 * 1024;
 
 /// How long the driver waits for the NEXT byte before calling the
