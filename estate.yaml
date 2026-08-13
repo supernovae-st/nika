@@ -75,7 +75,7 @@ files:
   evidence: "in-file marker '── GENERATED · do not hand-edit' + [meta] source=https://models.dev/api.json · as_of · source_sha256_16 — a vendored snapshot, refreshed at maintenance time, never a runtime fetch"
   derivation:
     tool: "bash scripts/refresh-pricing.sh (emission laws matched to src/data/models.rs lookup semantics)"
-    gate: ".github/workflows/catalog-verify.yml (daily probe of catalog entries against upstream registries)"
+    gate: "NONE. catalog-verify.yml probes embeddings + mcp servers only (all_embeddings, all_mcp_servers) and never a pricing rule, so this snapshot is UNWATCHED. Two guards EXIST and neither runs: drift-watch.nika.yaml hashes upstream against [meta].sha256 (no cron calls it) and pricing-differential.py cross-checks models.dev against LiteLLM (its workflow has no schedule)."
     inputs:
     - "https://models.dev/api.json (MIT · sst/models.dev)"
 - path: "docs/adr/index.toml"
@@ -183,7 +183,7 @@ patterns:
 - glob: "scripts/**"
   class: authored
   match_count: 138
-  aggregate_sha256: 214f0018a8fcd13e182ecc1b1069321df29393a25727db82ae7216740c7a95f6
+  aggregate_sha256: 0c7d72997b8f8affba54f042c674a2b8dc65920710e89aff8c4ce1a0fb4b3a45
   evidence: "hand-written gates · hooks · hygiene vectors · media lanes; the ratchet baselines (scripts/ci/*-baseline.txt · scripts/hygiene/baselines/) are hand-kept monotonic floors ('Never remove a line by hand')"
 - glob: ".github/workflows/**"
   class: authored
