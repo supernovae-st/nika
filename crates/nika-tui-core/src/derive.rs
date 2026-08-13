@@ -160,6 +160,20 @@ pub fn idle_of(ws: &Waves, run: &Run, id: &str) -> f64 {
     let Some(s) = run.steps.iter().find(|x| x.id == id) else {
         return 0.0;
     };
+    // A step that never STARTED never waited. The fold stamps a cancelled or
+    // skipped step at 0/0 because it has no real instants, and that zero then
+    // read as "started at the top of the wave and idled until the end" — so a
+    // Ctrl-C run had its dead steps accusing the wave's holder of the whole
+    // wave. That is the « 420,4 s d'attente » class the doc below says is
+    // closed, reopened by a different door. Measured by a Rust review,
+    // 2026-08-13: {real 10 s · dead never_born} crowned a bottleneck with
+    // blocked = 1, on a step nobody ever waited for.
+    //
+    // The studio carries the same hole. This crate exists so the law is
+    // written ONCE, so it is fixed here and the surfaces inherit it.
+    if s.never_born == Some(true) || s.skipped == Some(true) {
+        return 0.0;
+    }
     let end = wave_end(ws, run, ws.of(id));
     (end - (s.start + s.dur)).max(0.0)
 }

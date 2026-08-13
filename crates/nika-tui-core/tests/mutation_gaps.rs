@@ -453,6 +453,73 @@ fn the_slowest_of_a_tie_is_the_first_member() {
     assert_eq!(span.slowest, "y", "9 bat 5 · la comparaison fonctionne");
 }
 
+/// A step that never STARTED never waited, so it cannot crown a bottleneck.
+///
+/// Named by a Rust review, 2026-08-13. The fold stamps a cancelled or
+/// skipped step at 0/0 because it has no real instants, and `idle_of` read
+/// that zero as "started at the top of the wave and idled until the end".
+/// So on any Ctrl-C run the dead steps accused the wave's holder of the
+/// whole wave: the « 420,4 s d'attente » class the code says it closed,
+/// walking back in through a different door.
+#[test]
+fn a_step_that_never_started_never_waited() {
+    let wf: Workflow = serde_json::from_value(serde_json::json!({
+        "file": "c.nika.yaml", "engine": "test", "prompt": "",
+        "permits": [], "missing": "",
+        "tasks": [
+            { "id": "real", "verb": "infer", "glyph": "◇", "needs": [] },
+            { "id": "dead", "verb": "infer", "glyph": "◇", "needs": [] },
+        ],
+    }))
+    .expect("workflow");
+    // `dead` never began: the fold gives it 0/0 and marks it never_born.
+    let run: Run = serde_json::from_value(serde_json::json!({
+        "trace": "t", "when": "recorded", "output": "",
+        "steps": [
+            { "id": "real", "start": 0.0, "dur": 10.0 },
+            // `neverBorn`, not `never_born`: Step is camelCase, and a key
+            // that does not match is dropped in SILENCE because the field is
+            // `#[serde(default)]`. Written snake_case first, this fixture
+            // deserialized to None and the test failed loudly — which is the
+            // good outcome. The same silence is the P0 a review found on
+            // `Node` the same hour, one struct away.
+            { "id": "dead", "start": 0.0, "dur": 0.0, "neverBorn": true },
+        ],
+    }))
+    .expect("run");
+    let ws = derive::waves(&wf);
+
+    assert_eq!(
+        derive::idle_of(&ws, &run, "dead"),
+        0.0,
+        "un pas jamais né n a pas attendu · son 0/0 n est pas une oisiveté"
+    );
+    assert_eq!(
+        derive::bottleneck(&ws, &run),
+        None,
+        "personne n a attendu `real` · il ne tient rien"
+    );
+
+    // And a step that DID run and wait is still counted, so the fix does not
+    // simply silence the derivation.
+    let run: Run = serde_json::from_value(serde_json::json!({
+        "trace": "t", "when": "recorded", "output": "",
+        "steps": [
+            { "id": "real", "start": 0.0, "dur": 10.0 },
+            { "id": "dead", "start": 0.0, "dur": 1.0 },
+        ],
+    }))
+    .expect("run");
+    assert_eq!(
+        derive::idle_of(&ws, &run, "dead"),
+        9.0,
+        "celui-là a vraiment attendu"
+    );
+    let neck = derive::bottleneck(&ws, &run).expect("un goulot réel");
+    assert_eq!(neck.id, "real");
+    assert_eq!(neck.blocked, 1);
+}
+
 /// A different verb BREAKS the grouping signature, so tasks that are not
 /// alike are never reported as alike.
 ///
