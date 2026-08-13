@@ -152,7 +152,7 @@ patterns:
 - glob: "crates/**/src/**"
   class: authored
   match_count: 733
-  aggregate_sha256: 27c60117e4682b7bd78b608c515cbb5f48ecaaa9f6ce31ddd1ce483f4c927a58
+  aggregate_sha256: 7f2d967615ca024076f238a284d9098b20e35842b27648e3c0a39564b0a3ae35
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
@@ -162,7 +162,7 @@ patterns:
 - glob: "crates/**"
   class: authored
   match_count: 133
-  aggregate_sha256: 14c925d6a16110a1e6bc0c178eaf70e90a5798f7af5bf0e52bc1f0e19718eda2
+  aggregate_sha256: 665931739e41252f41b4463837f2ea533a6d0547938868f2f1ed8a4ddeebea14
   evidence: "the remaining crate surface — Cargo.toml manifests · build.rs · benches · READMEs · hand-curated data catalogs (llm-providers · mcp-servers · embeddings · model-capabilities, probed daily by catalog-verify.yml); the pricing snapshot is excepted in files:"
   note: "crates/nika-pack/scripts/sync-pack.sh is a DIVERGENT older duplicate of scripts/sync-pack.sh — the pack-resync.yml lane runs the root one"
 - glob: "fuzz/**"

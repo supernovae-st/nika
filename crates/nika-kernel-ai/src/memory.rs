@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! Memory traits + types — Cortex kernel hooks.
+//! Memory traits + types — the Connectome's kernel hooks.
 //!
 //! ISP decomposition: `MemoryRemember`, `MemoryRecall`, `MemoryForget`.
 //! Super-trait: `MemoryStore` (blanket for all 3).
@@ -9,7 +9,8 @@
 //!
 //! These hooks land Phase 1 to avoid breaking-change cascades on
 //! `#[non_exhaustive]` structs (ROI 6.7x per `POST_AUDIT` decision 3).
-//! Business logic lives in `nika-memory` (Phase 9+).
+//! No business-logic crate exists in this repo today — the Connectome
+//! layer owns it when it lands (the `nika-memory` name is retired).
 
 use std::collections::BTreeMap;
 
@@ -38,17 +39,17 @@ pub struct MemoryFrame {
     /// (cohérent `screen.rs` `captured_at_ns` + cockpit `nano_now()` ·
     /// EC-4 ratchet 2026-05-14 · USER GATE OUI ns canonical).
     pub observed_at: Option<u64>,
-    /// Encryption cipher used (v0.95 Cortex — encrypted memory).
-    /// Reserved: always `None` until nika-memory crate ships.
+    /// Encryption cipher used (the Connectome · encrypted memory).
+    /// Reserved: always `None` at v1 — the Connectome layer owns this when it lands.
     pub cipher: Option<String>,
-    /// Provenance chain (v0.95 Cortex — who created this memory).
-    /// Reserved: always `None` until nika-memory crate ships.
+    /// Provenance chain (the Connectome · who created this memory).
+    /// Reserved: always `None` at v1 — the Connectome layer owns this when it lands.
     pub provenance: Option<String>,
-    /// Retention policy tag (v0.95 Cortex — TTL / archival).
-    /// Reserved: always `None` until nika-memory crate ships.
+    /// Retention policy tag (the Connectome · TTL / archival).
+    /// Reserved: always `None` at v1 — the Connectome layer owns this when it lands.
     pub retention: Option<String>,
-    /// Redacted field paths (v0.95 Cortex — PII scrubbing).
-    /// Reserved: always `None` until nika-memory crate ships.
+    /// Redacted field paths (the Connectome · PII scrubbing).
+    /// Reserved: always `None` at v1 — the Connectome layer owns this when it lands.
     pub redactions: Option<Vec<String>>,
 }
 
@@ -82,7 +83,7 @@ impl MemoryFrame {
 #[non_exhaustive]
 pub struct RecallQuery {
     /// Tenant keyspace — reserved at v0.81 for v0.95 multi-tenant
-    /// Cortex (ADR-031). Every recall MUST scope by tenant.
+    /// the Connectome (ADR-031). Every recall MUST scope by tenant.
     pub tenant: TenantId,
     /// Text to search for (semantic similarity).
     pub text: String,
@@ -150,7 +151,7 @@ pub struct MemoryHit {
     /// Reserved for nika-memory-temporal ranking (v0.95).
     pub observed_at: Option<u64>,
     /// Source of this memory (parity with `MemoryFrame`).
-    /// Reserved for v0.95 Cortex provenance tracking.
+    /// Reserved for the Connectome's provenance tracking.
     pub source: Option<String>,
 }
 
@@ -282,13 +283,13 @@ pub trait MemoryForget: Send + Sync + nika_kernel_core::sealed::Sealed {
     async fn forget(&self, id: MemoryId) -> Result<(), MemoryError>;
 }
 
-// ─── Cortex lifecycle reservation (Wave 4A R5, ADR-033 amendment) ────
+// ─── Connectome lifecycle reservation (Wave 4A R5, ADR-033 amendment) ─
 //
 // Cognitive consolidation + retention pruning are the two background
 // duties the v0.95 nika-memory orchestrator drives. Reserving them on
 // the MemoryStore surface at v0.81 (with default no-op impls) avoids
 // a breaking change every external Store impl would have to absorb
-// when Cortex lands.
+// when the Connectome lands.
 
 /// Scope selector for a consolidation pass.
 ///
@@ -339,7 +340,7 @@ impl ConsolidationReport {
 
 /// Retention pruning policy.
 ///
-/// Cortex pruning removes frames that fall below a retention threshold
+/// the Connectome's pruning removes frames below a retention threshold
 /// (e.g., FSRS stability below X, age above Y, unaccessed for Z).
 /// Defaults to "no-op" — impls override with their retention model.
 #[derive(Debug, Clone, Default)]
@@ -380,7 +381,7 @@ impl PruneReport {
     }
 }
 
-/// Cortex lifecycle operations — consolidation + prune.
+/// Connectome lifecycle operations · consolidation + prune.
 ///
 /// Reserved at v0.81 as a STANDALONE trait (not a super-trait of
 /// `MemoryStore`) with default no-op implementations. Impls opt in
@@ -392,7 +393,7 @@ impl PruneReport {
 /// separate means external `MemoryStore` impls aren't forced to add an
 /// `impl MemoryLifecycle` until they actually want the behaviour — no
 /// migration burden for crates that only care about remember/recall/
-/// forget. v0.95 Cortex will use `T: MemoryStore + MemoryLifecycle` as
+/// forget. The Connectome will use `T: MemoryStore + MemoryLifecycle` as
 /// its bound, making the opt-in explicit at the consumer boundary.
 pub trait MemoryLifecycle: Send + Sync {
     /// Run a consolidation pass on the given scope.

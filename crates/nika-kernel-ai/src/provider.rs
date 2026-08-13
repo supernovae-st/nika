@@ -205,7 +205,7 @@ pub struct InferRequest {
     pub thinking_budget: Option<u32>,
     /// Provider-specific extra parameters.
     pub extra: ProviderExtras,
-    /// Memory directive (Cortex hook, Phase 1).
+    /// Memory directive (Connectome hook, Phase 1).
     pub memory: Option<MemoryDirective>,
     /// Cancellation context (v0.95 structured cancellation hook).
     /// Reserved: always `None` until DAG propagation ships.
@@ -310,7 +310,7 @@ pub struct InferResponse {
     pub cost: Option<Cost>,
     /// Raw finish reason from the provider.
     pub finish_reason_raw: Option<String>,
-    /// Memory frames created during inference (Cortex hook, Phase 1).
+    /// Memory frames created during inference (Connectome hook, Phase 1).
     pub memory_frames: Vec<MemoryFrameRef>,
     /// Trace ID for distributed tracing (W3C Trace Context).
     pub trace_id: Option<nika_error::id::TraceId>,

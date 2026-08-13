@@ -3,7 +3,7 @@
 
 //! Embedding shape — dim/dtype/metric/model trio.
 //!
-//! Reserved at v0.81 so that v0.95 Cortex can land embedding storage
+//! Reserved at v0.81 so that the Connectome can land embedding storage
 //! without breaking-change migrations. The embedding landscape evolves
 //! monthly (Matryoshka, 256/384/512/768/1024/1536/3072 dims; f32/f16/
 //! bf16/i8/binary dtypes; cosine/dot-product/euclidean/hamming metrics)
