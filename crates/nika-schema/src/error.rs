@@ -273,7 +273,7 @@ pub enum SchemaError {
         span: Option<Span>,
     },
 
-    /// `on_error:` violates exactly-one-of `recover`|`skip`|`fail_workflow`.
+    /// `on_error:` violates exactly-one-of `recover`|`skip`.
     ///
     /// Spec `05-errors.md` §`on_error` · « Fields (mutually exclusive) ».
     #[error("invalid `on_error:` — {reason}")]

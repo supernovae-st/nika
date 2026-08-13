@@ -1388,11 +1388,6 @@ fn apply_on_error(task: &RawTask, scope: &Scope<'_>, failed: FailedOutcome) -> R
             cost_usd,
             cost_unpriced,
         },
-        OnErrorAction::FailWorkflow => RunResult::Failed {
-            error,
-            cost_usd,
-            cost_unpriced,
-        },
         // #[non_exhaustive] · refuse loudly.
         other => RunResult::Failed {
             error: TaskErrorRecord {

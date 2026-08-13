@@ -605,7 +605,6 @@ fn on_error_value(task: &RawTask) -> Option<Value> {
     let action = match &on_error.action {
         OnErrorAction::Recover(v) => json!({ "recover": v.value }),
         OnErrorAction::Skip => json!("skip"),
-        OnErrorAction::FailWorkflow => json!("fail_workflow"),
         _ => return None,
     };
     Some(json!({

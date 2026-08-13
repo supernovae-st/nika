@@ -37,7 +37,7 @@ pub(super) const MAX_TASKS: usize = 10_000;
 pub(crate) use nika_vocab::keys::{ON_ERROR_KEYS, RETRY_KEYS, TASK_KEYS};
 
 /// The `on_error:` ACTION keys (mutually exclusive · exactly one).
-const ON_ERROR_ACTION_KEYS: &[&str] = &["recover", "skip", "fail_workflow"];
+const ON_ERROR_ACTION_KEYS: &[&str] = &["recover", "skip"];
 
 /// Parse the top-level `tasks:` sequence into `Vec<Spanned<RawTask>>`.
 ///
@@ -497,7 +497,7 @@ fn parse_retry(
 }
 
 /// `on_error:` — exactly one ACTION (`recover` | `skip: true` |
-/// `fail_workflow: true`) + the optional `on_codes:` filter (spec 05
+/// the optional `on_codes:` filter (spec 05
 /// §`on_error` · the catch-side mirror of `retry.on_codes`).
 fn parse_on_error(
     cx: &Cx<'_>,
@@ -512,7 +512,7 @@ fn parse_on_error(
         // action vocabulary, not just the type mismatch.
         return Err(SchemaError::BadOnError {
             reason: "`on_error` must be a mapping carrying exactly one action — \
-                     `recover:` · `skip: true` · `fail_workflow: true` \
+                     `recover:` · `skip: true` \
                      (e.g. `on_error: { skip: true }`)"
                 .to_owned(),
             span: cx.span(node.span()),
@@ -529,7 +529,7 @@ fn parse_on_error(
         [one] => *one,
         [] => {
             return Err(SchemaError::BadOnError {
-                reason: "exactly one of `recover`, `skip`, `fail_workflow` required (none found \
+                reason: "exactly one of `recover`, `skip` required (none found \
                          — `on_codes` alone is a filter with nothing to filter)"
                     .to_owned(),
                 span: cx.span(on_error_map.span()),
@@ -564,10 +564,15 @@ fn parse_on_error(
             require_true_flag(cx, on_error_map, "skip")?;
             OnErrorAction::Skip
         }
-        _ => {
-            require_true_flag(cx, on_error_map, "fail_workflow")?;
-            OnErrorAction::FailWorkflow
-        }
+        // The set is CLOSED at two: `fail_workflow: true` died with the
+        // spec's 3-modes→2 cut (2026-08-11). It only ever spelled the
+        // DEFAULT out loud, and a keyword whose whole job is to restate
+        // the absence of a keyword is a keyword that teaches nothing.
+        #[allow(
+            clippy::unreachable,
+            reason = "the exactly-one-of check above admits only the two arms"
+        )]
+        other => unreachable!("unknown on_error action: {other}"),
     };
 
     let mut policy = OnError::new(action);
@@ -588,7 +593,7 @@ fn parse_on_error(
     Ok(Some(Spanned::new(policy, cx.span_or_zero(node.span()))))
 }
 
-/// `skip:` / `fail_workflow:` carry the literal `true` (spec 05 syntax ·
+/// `skip:` carries the literal `true` (spec 05 syntax ·
 /// `skip: true`) — anything else is a shape error.
 fn require_true_flag(
     cx: &Cx<'_>,
@@ -1122,25 +1127,27 @@ tasks:
     }
 
     #[test]
-    fn on_error_skip_and_fail_workflow() {
+    fn on_error_skip_parses_and_fail_workflow_is_refused() {
         let yaml = "\
 tasks:
   a:
     exec: { command: [echo] }
     on_error: { skip: true }
-  b:
-    exec: { command: [echo] }
-    on_error: { fail_workflow: true }
 ";
         let wf = parse_strict(yaml).expect("parse");
         assert!(matches!(
             wf.tasks[0].value.on_error.as_ref().expect("a").value.action,
             OnErrorAction::Skip
         ));
-        assert!(matches!(
-            wf.tasks[1].value.on_error.as_ref().expect("b").value.action,
-            OnErrorAction::FailWorkflow
-        ));
+        // The third mode died 2026-08-11 (3 modes → 2): it only ever
+        // spelled the DEFAULT out loud, and the default needs no keyword.
+        let dead = "\
+tasks:
+  b:
+    exec: { command: [echo] }
+    on_error: { fail_workflow: true }
+";
+        assert!(parse_strict(dead).is_err(), "the dead mode is refused");
     }
 
     #[test]
@@ -1173,7 +1180,7 @@ tasks:
     exec: { command: [echo] }
     on_error:
       skip: true
-      fail_workflow: true
+      recover: 0
 ";
         let err = parse_strict(yaml).expect_err("two fields");
         assert!(matches!(err, SchemaError::BadOnError { .. }), "{err:?}");

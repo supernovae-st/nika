@@ -87,7 +87,7 @@ impl WorkflowPause {
 /// Does this finish pause the run? `Some(payload)` iff the task failed
 /// on the blocking-prompt branch (PROMPT-001) of a direct
 /// `invoke: nika:prompt` AND the author did not claim that code with an
-/// `on_error:` policy (an explicit `fail_workflow`/filter wins — the
+/// `on_error:` policy (an explicit route/filter wins — the
 /// author's routing is never hijacked). The F-P4 ticket the gate minted
 /// for the step rides the payload (NEP-0013 · the resumed run validates
 /// the `--answer` against it).
@@ -119,7 +119,7 @@ pub(crate) fn prompt_block(
     // The author explicitly routed this code (`on_error:` applies to it,
     // whatever the action) — the rider never overrides authored policy.
     // (An applying `recover`/`skip` never reaches here — the result is
-    // no longer a failure; this guards the explicit `fail_workflow`.)
+    // no longer a failure; this guards the explicit authored route.)
     if let Some(on_error) = task.on_error.as_ref()
         && crate::task::on_error_applies(&on_error.value, error)
     {
@@ -332,7 +332,7 @@ mod tests {
         // (a bare catch-all route — `on_codes` takes only the namespaced
         // NIKA-<NS>-<NNN> form, which the numeric gate code never wears).
         let routed = parse(
-            "nika: t\ntasks:\n  fix:\n    agent: { prompt: \"x\" }\n    on_error:\n      fail_workflow: true\n",
+            "nika: t\ntasks:\n  fix:\n    agent: { prompt: \"x\" }\n    on_error:\n      skip: true\n",
         );
         assert!(
             harness_gate_block(
@@ -415,10 +415,10 @@ mod tests {
 
     #[test]
     fn an_authored_on_error_route_wins_over_the_pause() {
-        // The author explicitly claimed the code (`fail_workflow`) — the
+        // The author explicitly claimed the code — the
         // rider never hijacks authored routing.
         let wf = parse(
-            "nika: t\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"go?\" }\n    on_error:\n      fail_workflow: true\n      on_codes: [\"NIKA-BUILTIN-PROMPT-001\"]\n",
+            "nika: t\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"go?\" }\n    on_error:\n      skip: true\n      on_codes: [\"NIKA-BUILTIN-PROMPT-001\"]\n",
         );
         let (records, vars, markers) = (BTreeMap::new(), BTreeMap::new(), BTreeMap::new());
         assert!(

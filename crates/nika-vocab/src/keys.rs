@@ -62,7 +62,7 @@ pub const RUN_ENTROPY_MAP_KEYS: &[&str] = &["seeded"];
 
 /// Keys of an `on_error:` block (spec 05 §`on_error` · exactly one
 /// ACTION + the optional `on_codes` filter).
-pub const ON_ERROR_KEYS: &[&str] = &["recover", "skip", "fail_workflow", "on_codes"];
+pub const ON_ERROR_KEYS: &[&str] = &["recover", "skip", "on_codes"];
 
 /// The canonical TASK-level keys (spec `03-dag.md` §the task shape ·
 /// the 4 verb selectors live in the parser's `VERB_KEYS`). One list,

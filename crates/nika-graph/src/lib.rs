@@ -81,7 +81,8 @@ pub struct Node {
     /// duration — unambiguous where the source string form is not).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub timeout_ms: Option<u64>,
-    /// `on_error:` action — `recover` · `skip` · `fail_workflow` (spec 05).
+    /// `on_error:` action — `recover` · `skip` (spec 05 · the set is
+    /// closed at two since `fail_workflow` died 2026-08-11).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub on_error: Option<&'static str>,
     /// Declared `output:` binding names, in source order (spec 04) — what
@@ -192,7 +193,6 @@ pub fn project(wf: &RawWorkflow, report: &CheckReport) -> GraphDoc {
                 on_error: task.on_error.as_ref().map(|o| match &o.value.action {
                     OnErrorAction::Recover(_) => "recover",
                     OnErrorAction::Skip => "skip",
-                    OnErrorAction::FailWorkflow => "fail_workflow",
                     #[allow(
                         clippy::unreachable,
                         reason = "non_exhaustive future variant — enum and projector ship together; fail loud beats silently-wrong output"

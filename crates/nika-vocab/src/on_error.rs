@@ -10,7 +10,6 @@
 //! |---|---|---|
 //! | `recover: <value>` | a `${{ }}` ref OR a literal | `status: success` |
 //! | `skip: true` | skip on error · **the original error stays readable** at `tasks.X.error` | `status: skipped` |
-//! | `fail_workflow: true` | fail the workflow (default behavior) | n/a |
 //! | `on_codes: [NIKA-…]` | **filter** · the action applies ONLY when the final error's code is listed · an unlisted code falls through to the default fail — the catch-side mirror of `retry.on_codes` |
 //!
 //! Two-or-zero actions = a parse error — exactly one must be present.
@@ -33,8 +32,6 @@ pub enum OnErrorAction {
     /// typed error stays readable at `tasks.X.error` (spec 05 · the one
     /// state where both coexist · enables per-code routing).
     Skip,
-    /// `fail_workflow: true` — explicit form of the default behavior.
-    FailWorkflow,
 }
 
 /// A task's `on_error:` recovery policy — one action + optional filter.
@@ -82,10 +79,6 @@ mod tests {
         assert!(matches!(
             OnError::new(OnErrorAction::Skip).action,
             OnErrorAction::Skip
-        ));
-        assert!(matches!(
-            OnError::new(OnErrorAction::FailWorkflow).action,
-            OnErrorAction::FailWorkflow
         ));
     }
 }
