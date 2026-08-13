@@ -210,6 +210,36 @@ fn the_horizon_reaches_the_next_29_february_across_a_skipped_century() {
 }
 
 #[test]
+fn the_month_bound_fails_closed_outside_the_calendar() {
+    // Named by a Rust review, 2026-08-13. The default arm used to answer 31,
+    // the MOST permissive bound, to the one input nobody vetted. An
+    // out-of-range month would then have made the satisfiability guard PASS,
+    // which is the silent None the guard exists to kill. Unreachable today
+    // and still the wrong direction: a guard fails CLOSED.
+    use crate::cron::longest_day_of;
+    assert_eq!(longest_day_of(1), 31, "janvier");
+    assert_eq!(
+        longest_day_of(2),
+        29,
+        "février · le 29 existe, tous les 4 ans"
+    );
+    assert_eq!(longest_day_of(4), 30, "avril");
+    assert_eq!(longest_day_of(12), 31, "décembre");
+    // The two edges of the calendar, and what lies outside it.
+    assert_eq!(longest_day_of(0), 0, "aucun mois · ne contribue RIEN");
+    assert_eq!(longest_day_of(13), 0, "aucun mois · ne contribue RIEN");
+    assert_eq!(longest_day_of(u8::MAX), 0);
+    // The property that makes 0 the safe answer: no day a Field<1,31> can
+    // hold is <= 0, so an impossible month admits nothing.
+    for d in 1..=31u8 {
+        assert!(
+            d > longest_day_of(0),
+            "aucun jour ne tient dans un non-mois"
+        );
+    }
+}
+
+#[test]
 fn every_named_alias_resolves_inside_its_field() {
     // The named path in `field_value` returned its value WITHOUT the bound
     // check the numeric path applies. Harmless while every table sits inside

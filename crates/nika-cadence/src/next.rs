@@ -156,12 +156,18 @@ impl CronSpec {
             if self.covers(day) {
                 for hour in self.hours().iter() {
                     for minute in self.minutes().iter() {
-                        let civil = day.to_datetime(jiff::civil::time(
-                            i8::try_from(hour).ok()?,
-                            i8::try_from(minute).ok()?,
-                            0,
-                            0,
-                        ));
+                        // Both conversions are unreachable by TYPE (a
+                        // `Field<0, 23>` and a `Field<0, 59>` cannot exceed
+                        // i8), and they used to answer `?` while the line
+                        // below answered `continue`. Same failure shape, same
+                        // expression, two different answers, which teaches
+                        // the next reader the wrong one. A per-candidate
+                        // failure skips the candidate; it never kills the
+                        // beat. Named by a Rust review, 2026-08-13.
+                        let (Ok(h), Ok(m)) = (i8::try_from(hour), i8::try_from(minute)) else {
+                            continue;
+                        };
+                        let civil = day.to_datetime(jiff::civil::time(h, m, 0, 0));
                         // One irresolvable civil time must not silence the
                         // whole beat. This was `resolve(civil, tz)?`, which
                         // propagated the None straight out of next_after: a

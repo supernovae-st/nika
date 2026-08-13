@@ -266,11 +266,20 @@ pub(crate) fn parse_cron_fields(tokens: &[&str; 5]) -> Result<CronSpec, CadenceE
 /// beat that fires rarely rather than an impossible one. Only 30 and 31 are
 /// impossible there. Refusing the 29th would be the mirror of the fault this
 /// guard exists to close.
-const fn longest_day_of(month: u8) -> u8 {
+/// A month outside 1..=12 answers 0, which is FAIL-CLOSED: `d <= 0` is false
+/// for every `d` a `Field<1, 31>` can hold, so an impossible month
+/// contributes nothing to the satisfiability check instead of admitting
+/// everything. The arm is unreachable today (`months.iter()` walks a
+/// `Field<1, 12>`), and its DIRECTION still matters: a `_ => 31` default
+/// handed the most permissive bound to the one input nobody vetted, which is
+/// the silent pass this guard exists to kill. Named by a Rust review,
+/// 2026-08-13.
+pub(crate) const fn longest_day_of(month: u8) -> u8 {
     match month {
-        2 => 29,
+        1 | 3 | 5 | 7 | 8 | 10 | 12 => 31,
         4 | 6 | 9 | 11 => 30,
-        _ => 31,
+        2 => 29,
+        _ => 0,
     }
 }
 
