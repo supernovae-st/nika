@@ -67,7 +67,7 @@ files:
   note: "ROADMAP.md:98 carries the same refresh-status.sh AUTO-GENERATED status block — a tool-maintained block inside an authored file"
 - path: "SPEC_PIN"
   class: authored-pin
-  sha256: ba4a50a97bfeb354ff1c558e08e07245c1e4ae35233ade469e296f7b6ccd1527
+  sha256: 0eaa9307fbe0bf7b23a4e51010d35a648fe4f32ab0e08493b65ed9f15bba8bab
   evidence: "its own header: 'Advanced by .github/workflows/spec-pin-heal.yml (PR-only · the Diamond CI tests leg judges at the new pin). Consumed by diamond-ci.yml. Never HEAD.'"
 - path: "crates/nika-catalog/data/model-pricing.toml"
   class: generated
