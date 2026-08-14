@@ -29,10 +29,11 @@ and `./check-all.sh` prints the tally it actually ran.
 
 Exit codes: `0` = all green, `1` = at least one yellow, `2` = at least one red.
 
-## The 37 vectors
+## The vectors
 
 Each vector is a single `check-*.sh` script. Single responsibility.
-Exits `0`/`1`/`2` to signal green/yellow/red.
+Exits `0`/`1`/`2` to signal green/yellow/red. Rows marked *(killed …)*
+keep their number: renumbering is churn for no value.
 
 | # | Script | Detects |
 |---|---|---|
