@@ -140,7 +140,7 @@ patterns:
 - glob: "crates/*/public-api.txt"
   class: generated
   match_count: 62
-  aggregate_sha256: 5415a50ff5a9cadc26470ab7cd72d0904b6836ce09936044f7791716a7a2e021
+  aggregate_sha256: 2804873b16bdb0dcaa64514d04977180bc507ff6600d2caf451b93a33ab7f270
   evidence: ".github/workflows/public-api.yml 'diff each covered lib crate' byte-compares each snapshot against cargo public-api output; macOS renders differently, so snapshots regenerate FROM THE UBUNTU ARTIFACT (workflow comment)"
   derivation:
     tool: "cargo public-api -p <crate> --omit auto-trait-impls > crates/<crate>/public-api.txt (DEFAULT features · the CI job shape — all-features drags platform deps into the render · cargo-public-api 0.51.0 pinned · the public-api-actual CI artifact stays the judge)"
@@ -152,12 +152,12 @@ patterns:
 - glob: "crates/**/src/**"
   class: authored
   match_count: 736
-  aggregate_sha256: e38a21df01d607c920382f1aa82b41f3906c0d7aa6408a352ea6254dc1f85568
+  aggregate_sha256: 2b81d11aa06f9223da4fcc970c93094343d9693205cba4f22092ee58234f5094
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
   match_count: 137
-  aggregate_sha256: fceb55c50c99085df1e3bb9274567f234576332daae88f68fb6beb14d83a943c
+  aggregate_sha256: 56ff705b379f8441514e804e4004d3aacca6a1511b336c15c6c25a2009164694
   evidence: "crate-owned tests + fixtures under tests/ — written with the crate per gate discipline, no generation markers"
 - glob: "crates/**"
   class: authored
@@ -178,7 +178,7 @@ patterns:
 - glob: "docs/**"
   class: authored
   match_count: 101
-  aggregate_sha256: 56dcfb2a7001079a2ba90d888f9611a54f122411be02de2d00a7855caa3de6a3
+  aggregate_sha256: f997ed9df159ff9b8748f89135c367f4404db7cb013a38bcf57fdd0da4429020
   evidence: "crate-specs · architecture prose · perf notes — no generation markers at file heads"
 - glob: "scripts/**"
   class: authored

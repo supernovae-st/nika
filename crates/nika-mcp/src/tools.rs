@@ -111,7 +111,7 @@ fn validate_tools() -> Value {
         {
             "name": "nika_inspect",
             "description": "Project a Nika workflow's DAG as the canonical \
-                            graph document (graph_format: 2 — the same bytes \
+                            graph document (graph_format: 3 — the same bytes \
                             `nika inspect --format json` prints and the LSP's \
                             nika/semanticDocument serves): wave-ordered nodes \
                             with verbs, models, permits, cost intervals; \
@@ -493,7 +493,7 @@ fn template(args: &Value) -> Result<String, String> {
 /// `nika_catalog` — the versioned provider/model projection: the SAME
 /// payload `nika catalog --json` emits (built by `nika-catalog::export`,
 /// the one owning builder — CLI and MCP never drift).
-/// `nika_inspect` — the canonical graph projection (`graph_format: 2`),
+/// `nika_inspect` — the canonical graph projection (`graph_format: 3`),
 /// the SAME contract the LSP's `nika/semanticDocument` serves: the
 /// projection verbatim when the ladder is clean, `{"graph": null,
 /// "reason": …}` otherwise (`"findings"` — parse failures error like
@@ -625,7 +625,7 @@ mod tests {
         let report = nika_check::check(&wf);
         let expected = serde_json::to_value(nika_graph::project(&wf, &report)).expect("serializes");
         assert_eq!(got, expected);
-        assert_eq!(got["graph_format"], 2, "in-payload version");
+        assert_eq!(got["graph_format"], 3, "in-payload version");
     }
 
     /// Findings → null graph + the one-word reason (the LSP contract,

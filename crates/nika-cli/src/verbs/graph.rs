@@ -3,7 +3,7 @@
 
 //! The ONE graph projector (spec 03 §graph-projection) — `--json` is the canonical
 //! projection; mermaid/dot/ASCII derive from it, never from the workflow
-//! directly. Versioned envelope (`graph_format: 2` · typed edges) · nodes topologically
+//! directly. Versioned envelope (`graph_format: 3` · typed edges) · nodes topologically
 //! sorted (stable order = stable layouts) · `edges.kind` closed enum ·
 //! the static graph NEVER carries run state.
 
@@ -128,7 +128,7 @@ pub enum GraphFormat {
 /// the verbs own their arg types).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
 pub enum GraphFormatArg {
-    /// Canonical JSON projection (`graph_format: 2`).
+    /// Canonical JSON projection (`graph_format: 3`).
     Json,
     /// Mermaid flowchart.
     Mermaid,

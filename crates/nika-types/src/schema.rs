@@ -86,7 +86,7 @@ mod tests {
     #[test]
     fn trace_format_current() {
         // Spec 13 (W5): the cause axis is a semantic change under
-        // readable JSON — the graph_format: 2 precedent — so the format
+        // readable JSON — the graph_format: 3 precedent — so the format
         // bumped once, to 2.
         assert_eq!(TraceFormatVersion::CURRENT.version, 2);
     }

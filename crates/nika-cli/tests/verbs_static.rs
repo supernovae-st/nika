@@ -81,7 +81,7 @@ fn graph_json_envelope_is_versioned_topo_sorted_and_stable() {
     assert_eq!(out.code, exit::OK);
 
     let doc: serde_json::Value = serde_json::from_str(&out.text).expect("valid JSON");
-    assert_eq!(doc["graph_format"], 2, "versioned envelope");
+    assert_eq!(doc["graph_format"], 3, "versioned envelope");
     assert_eq!(doc["workflow"], "static-suite");
 
     // Topological order: wave 0 (gather/probe) before fan/think before notify.
@@ -128,7 +128,7 @@ fn graph_json_envelope_is_versioned_topo_sorted_and_stable() {
         serde_json::json!([0.0, 0.0])
     );
 
-    // Edges: typed (graph_format 2 · kind closed enum), sorted (from, to).
+    // Edges: typed (graph_format 3 · kind closed enum), sorted (from, to).
     let edges: Vec<(String, String)> = doc["edges"]
         .as_array()
         .expect("edges")

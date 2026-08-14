@@ -4,7 +4,7 @@
 //! `nika/semanticDocument` — the analyzed workflow as ONE JSON payload.
 //!
 //! The graph half is `nika_graph::project` VERBATIM — the same
-//! `graph_format: 2` document `nika inspect --format json` prints (spec
+//! `graph_format: 3` document `nika inspect --format json` prints (spec
 //! 03 §graph-projection), so a canvas webview, an agent over MCP and an
 //! editor extension all read one truth. The LSP adds a PRESENTATION
 //! wrapper only: per-task declaration ranges, so a client can link
@@ -126,7 +126,7 @@ mod tests {
         let report = nika_check::check(&wf);
         let expected = serde_json::to_value(nika_graph::project(&wf, &report)).expect("serializes");
         assert_eq!(doc["graph"], expected);
-        assert_eq!(doc["graph"]["graph_format"], 2, "in-payload version (W2)");
+        assert_eq!(doc["graph"]["graph_format"], 3, "in-payload version (W2)");
         assert_eq!(
             doc["graph"]["nodes"].as_array().map(Vec::len),
             Some(4),
@@ -144,7 +144,7 @@ mod tests {
             ok["semantic_document_format"], 1,
             "the surface's own version"
         );
-        assert_eq!(ok["graph"]["graph_format"], 2, "the nested graph's version");
+        assert_eq!(ok["graph"]["graph_format"], 3, "the nested graph's version");
         // absent-graph cases still name the surface version (findings · parse)
         let findings = "nika: w\ntasks:\n  a:\n    after: { b: success }\n    exec: { command: [\"true\"] }\n  b:\n    after: { a: success }\n    exec: { command: [\"true\"] }\n";
         assert_eq!(

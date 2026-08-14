@@ -8,7 +8,7 @@
 //! declaration surfaces — `with:` bindings (`E_d` · role per referenced
 //! field) and `after:` entries (`E_c` · predicate per entry) — plus the
 //! non-scheduling recovery reads (`E_r` · `on_error.recover`). The
-//! analyzer checks, the runtime gate, the `graph_format: 2` projection,
+//! analyzer checks, the runtime gate, the `graph_format: 3` projection,
 //! the LSP lanes and the codemod ALL consume this module; none re-walks
 //! the AST for edges (one-truth · the pre-W2 world had three parallel
 //! walks and NIKA-DAG-003 existed to keep them honest).
@@ -109,17 +109,20 @@ impl EdgeKind {
         !matches!(self, Self::Control(AfterPredicate::Unwind))
     }
 
-    /// The `graph_format: 2` wire kind.
+    /// The `graph_format: 3` wire kind.
     #[must_use]
     pub fn wire_kind(self) -> &'static str {
         match self {
             Self::Value => "value",
             Self::TerminalObservation => "terminal-observation",
             Self::FailureObservation => "failure-observation",
-            // the fan-in role lands with the format-3 bump; no
-            // format-2 document can carry one, since `group:` is
-            // new grammar (nothing existing declares a member).
             Self::FanIn => "fan-in",
+            // E_f is its OWN row in the four-graphs table, not a control
+            // predicate that happens to be spelled `unwind`. Reading it
+            // as `control` told every client the cleanup attachment
+            // schedules like an ordering dependency — it does not
+            // (`schedules()` has always said so; only the WIRE lied).
+            Self::Control(AfterPredicate::Unwind) => "finally",
             Self::Control(_) => "control",
         }
     }
@@ -136,14 +139,14 @@ pub struct Edge {
     /// The role (and predicate for control edges).
     pub kind: EdgeKind,
     /// The `with:` key that created a data/observation edge (`None`
-    /// for control edges) — the `graph_format: 2` `binding` field.
+    /// for control edges) — the `graph_format: 3` `binding` field.
     pub binding: Option<String>,
     /// The declaration site (the binding value · the `after:` entry).
     pub span: Span,
 }
 
 /// A non-scheduling recovery read (`on_error.recover` · `E_r`) — projected
-/// as a `recovery` edge in `graph_format: 2`, never gating, never
+/// as a `recovery` edge in `graph_format: 3`, never gating, never
 /// ordering (the parking-table semantics · `NIKA-DAG-004` guards the
 /// deadlock).
 #[derive(Debug, Clone, PartialEq, Eq)]
