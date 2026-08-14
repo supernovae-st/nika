@@ -7,10 +7,11 @@
 //! [`nika_cap::code_bearing_path_class`] · one predicate for the check
 //! twin, the run twin, and the reference oracle) is refused
 //! (`NIKA-SEC-008`) unless the task declares the honest door
-//! (`inert: "<because>"` · the parser enforces the non-empty because).
+//! (`lift: [{law: data-as-code, because}]` · the parser enforces the
+//! non-empty because).
 //!
 //! Resolution at check covers the literal URL and every island over
-//! `const.*` or an `inputs.*`/`config.*` entry carrying a declared string
+//! `const.*` or an `inputs.*` entry carrying a declared string
 //! default (the NEP-0004 resolution rules extended to the trusted const
 //! root — the SINK law classifies the artifact; trust is not the question
 //! here). Anything else DEFERS to the run twin (`NIKA-SEC-004` on the
@@ -54,48 +55,55 @@ impl SinkFinding {
 /// (law 2) silences a task, the unresolvable defers (law 3).
 #[must_use]
 pub(crate) fn scan_data_sink(wf: &RawWorkflow) -> Vec<SinkFinding> {
-    let mut out = Vec::new();
-    for task in &wf.tasks {
-        let task = &task.value;
-        if task.inert.is_some() {
-            continue; // the declared door · law 2 (non-empty by the parser)
-        }
-        let RawAction::Invoke(a) = &task.action else {
-            continue;
-        };
-        let Some(tool) = a.tool() else {
-            continue;
-        };
-        if tool.value.as_str() != "nika:fetch" {
-            continue;
-        }
-        let Some(template) = url_arg(a.args.as_ref()) else {
-            continue;
-        };
-        let Some(resolved) = resolve_static(template, wf) else {
-            continue; // dynamic · the run twin owns it (law 3)
-        };
-        let Some(path) = url_path(&resolved) else {
-            continue; // not a parseable URL · the fetch arg checks own it
-        };
-        let Some((class, ext)) = nika_cap::code_bearing_path_class(&path) else {
-            continue; // the unbounded inert world
-        };
-        out.push(SinkFinding {
-            task: task.id.value.clone(),
-            url: resolved.clone(),
-            class,
-            ext,
-            detail: format!(
-                "fetches a code-bearing artifact ({class} class · `{ext}`) · {resolved} is a \
-                 program, not data: the read hides an execution sink (NEP-0006 law 1)"
-            ),
-            fix: "model the acquisition as the exec it feeds (exec: + a program permit) · or \
-                  declare the read inert on the task (inert: \"<because>\")"
-                .to_owned(),
-        });
+    wf.tasks
+        .iter()
+        .map(|t| &t.value)
+        // the declared door · law 2 (non-empty by the parser)
+        .filter(|task| task.data_as_code_because().is_none())
+        .filter_map(|task| sink_finding_for(wf, task))
+        .collect()
+}
+
+/// Whether law 1 WOULD fire on this task, the door notwithstanding — the
+/// question `lift.rs` asks to judge an authored door (rule 6 ·
+/// `NIKA-AUTH-011`). Asking the law itself is the point: a door judged
+/// against a re-typed copy of the law's conditions would drift from it.
+#[must_use]
+pub(crate) fn would_fire(wf: &RawWorkflow, task: &nika_schema::raw::RawTask) -> bool {
+    sink_finding_for(wf, task).is_some()
+}
+
+/// The per-task classification, door-blind. `scan_data_sink` filters the
+/// door out BEFORE calling this; `would_fire` calls it WITHOUT filtering
+/// — one body, two questions, no second table to drift.
+fn sink_finding_for(wf: &RawWorkflow, task: &nika_schema::raw::RawTask) -> Option<SinkFinding> {
+    let RawAction::Invoke(a) = &task.action else {
+        return None;
+    };
+    let tool = a.tool()?;
+    if tool.value.as_str() != "nika:fetch" {
+        return None;
     }
-    out
+    let template = url_arg(a.args.as_ref())?;
+    // dynamic · the run twin owns it (law 3)
+    let resolved = resolve_static(template, wf)?;
+    // not a parseable URL · the fetch arg checks own it
+    let path = url_path(&resolved)?;
+    // the unbounded inert world
+    let (class, ext) = nika_cap::code_bearing_path_class(&path)?;
+    Some(SinkFinding {
+        task: task.id.value.clone(),
+        url: resolved.clone(),
+        class,
+        ext,
+        detail: format!(
+            "fetches a code-bearing artifact ({class} class · `{ext}`) · {resolved} is a \
+             program, not data: the read hides an execution sink (NEP-0006 law 1)"
+        ),
+        fix: "model the acquisition as the exec it feeds (exec: + a program permit) · or \
+              declare the door on the task (lift: law: data-as-code)"
+            .to_owned(),
+    })
 }
 
 /// The `url` argument's raw string — literal or template alike (unlike
@@ -105,8 +113,8 @@ fn url_arg(args: Option<&Spanned<serde_json::Value>>) -> Option<&str> {
 }
 
 /// Resolve a fetch URL at check: the literal as-is · every island over
-/// `const.*` (the author-fixed string) or `inputs.*`/`config.*` with a
-/// declared STRING default. `None` = at least one island stays dynamic.
+/// `const.*` (the author-fixed string) or `inputs.*` with a declared
+/// STRING default. `None` = at least one island stays dynamic.
 fn resolve_static(template: &str, wf: &RawWorkflow) -> Option<String> {
     let islands = scan_templates(template).ok()?;
     if islands.is_empty() {
@@ -122,7 +130,6 @@ fn resolve_static(template: &str, wf: &RawWorkflow) -> Option<String> {
         let value = match reference {
             NamespaceRef::Const(name) => const_string(wf, name)?,
             NamespaceRef::Inputs(name) => declared_string_default(&wf.inputs, name)?,
-            NamespaceRef::Config(name) => declared_string_default(&wf.config, name)?,
             _ => return None, // secrets · tasks.* · with.* — dynamic here
         };
         resolved.push_str(&template[cursor..island.start]);
@@ -147,7 +154,7 @@ fn const_string<'a>(wf: &'a RawWorkflow, name: &str) -> Option<&'a str> {
     }
 }
 
-/// A declared STRING default of an `inputs:`/`config:` entry.
+/// A declared STRING default of an `inputs:` entry.
 fn declared_string_default<'a>(
     declarations: &'a [(Spanned<String>, VarDecl)],
     name: &str,
@@ -178,7 +185,8 @@ mod tests {
         scan_data_sink(&wf)
     }
 
-    const BASE: &str = "nika: v1\nworkflow:\n  id: w\npermits:\n  net: { http: [\"data.example.com\"] }\n  tools: [\"nika:fetch\"]\n";
+    const BASE: &str =
+        "nika: w\npermits:\n  net: { http: [\"data.example.com\"] }\n  tools: [\"nika:fetch\"]\n";
 
     // ── the conformance fixtures 018-022, mirrored one test each ──
 
@@ -216,7 +224,7 @@ mod tests {
     #[test]
     fn fixture_021_the_declared_door_silences() {
         let y = format!(
-            "{BASE}tasks:\n  archive:\n    invoke:\n      tool: \"nika:fetch\"\n      args: {{ url: \"https://data.example.com/models/legacy.pkl\" }}\n    inert: \"archived for provenance · never loaded by any child of this workflow\"\n"
+            "{BASE}tasks:\n  archive:\n    invoke:\n      tool: \"nika:fetch\"\n      args: {{ url: \"https://data.example.com/models/legacy.pkl\" }}\n    lift:\n      - law: data-as-code\n        because: \"archived for provenance · never loaded by any child of this workflow\"\n"
         );
         assert!(findings_of(&y).is_empty());
     }
@@ -230,7 +238,7 @@ mod tests {
         assert!(findings_of(&dynamic).is_empty());
         // a declared string default resolves · classify
         let defaulted = format!(
-            "{BASE}inputs:\n  artifact: {{ type: string, default: \"https://data.example.com/a.pkl\" }}\ntasks:\n  grab:\n    invoke:\n      tool: \"nika:fetch\"\n      args: {{ url: \"${{{{ inputs.artifact }}}}\" }}\n"
+            "{BASE}inputs:\n  artifact: {{ type: string, required: false, default: \"https://data.example.com/a.pkl\" }}\ntasks:\n  grab:\n    invoke:\n      tool: \"nika:fetch\"\n      args: {{ url: \"${{{{ inputs.artifact }}}}\" }}\n"
         );
         assert_eq!(findings_of(&defaulted).len(), 1);
         // the trusted const root resolves too (the oracle parity)

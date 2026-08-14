@@ -62,7 +62,7 @@ const MEASURED_MODEL: &str = "groq/qwen/qwen3-32b";
 fn wf(model: &str, max_tokens: Option<u32>) -> String {
     let cap = max_tokens.map_or(String::new(), |n| format!(", max_tokens: {n}"));
     format!(
-        "nika: v1\nworkflow: {{ id: e }}\nmodel: {model}\ntasks:\n  \
+        "nika: e\nmodel: {model}\ntasks:\n  \
          brief:\n    infer: {{ prompt: \"hi\"{cap} }}\n"
     )
 }
@@ -142,9 +142,9 @@ fn uncapped_task_yields_no_total_ceiling() {
 #[test]
 fn an_empty_for_each_claims_no_energy_and_agrees_with_cost() {
     let (code, text) = check(
-        "nika: v1\nworkflow: { id: zero }\nmodel: groq/qwen/qwen3-32b\n\
+        "nika: zero\nmodel: groq/qwen/qwen3-32b\n\
          const:\n  nothing: []\ntasks:\n  brief:\n    \
-         for_each: ${{ const.nothing }}\n    \
+         for_each: { items: \"${{ const.nothing }}\" }\n    \
          infer: { prompt: \"hi\", max_tokens: 1000 }\n",
     );
     assert_eq!(code, 0, "{text}");
@@ -167,7 +167,7 @@ fn an_empty_for_each_claims_no_energy_and_agrees_with_cost() {
 #[test]
 fn no_inference_tasks_renders_no_energy_rung() {
     let (code, text) = check(
-        "nika: v1\nworkflow: { id: x }\npermits: { exec: [\"echo\"] }\n\
+        "nika: x\npermits: { exec: [\"echo\"] }\n\
          tasks:\n  probe:\n    exec: { command: [\"echo\", \"hi\"] }\n",
     );
     assert_eq!(code, 0, "{text}");

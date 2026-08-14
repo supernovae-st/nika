@@ -39,9 +39,7 @@ fn write_file(dir: &std::path::Path, name: &str, body: &str) -> std::path::PathB
 }
 
 const FAN: &str = r#"
-nika: v1
-workflow:
-  id: fan-tally
+nika: fan-tally
 model: mock/echo
 permits:
   tools: ["nika:read"]
@@ -49,7 +47,7 @@ permits:
     read: ["items", "items/*"]
 tasks:
   fan:
-    for_each: ["items/a.txt", "items/GHOST.txt", "items/c.txt"]
+    for_each: { items: ["items/a.txt", "items/GHOST.txt", "items/c.txt"] }
     on_error:
       recover: null
     invoke:

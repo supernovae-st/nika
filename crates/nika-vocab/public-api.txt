@@ -3,16 +3,14 @@ pub use nika_vocab::EffectClass
 pub use nika_vocab::ExecPermit
 pub use nika_vocab::FsPermits
 pub use nika_vocab::NetPermits
-pub use nika_vocab::Objective
 pub use nika_vocab::Permits
-pub use nika_vocab::Policy
-pub use nika_vocab::PolicyViolation
 pub mod nika_vocab::after
 pub enum nika_vocab::after::AfterPredicate
 pub nika_vocab::after::AfterPredicate::Failure
 pub nika_vocab::after::AfterPredicate::Skipped
 pub nika_vocab::after::AfterPredicate::Success
 pub nika_vocab::after::AfterPredicate::Terminal
+pub nika_vocab::after::AfterPredicate::Unwind
 impl nika_vocab::after::AfterPredicate
 pub fn nika_vocab::after::AfterPredicate::all() -> &'static [&'static str]
 pub fn nika_vocab::after::AfterPredicate::as_str(self) -> &'static str
@@ -56,139 +54,6 @@ impl<T> core::convert::From<T> for nika_vocab::after::AfterPredicate
 pub fn nika_vocab::after::AfterPredicate::from(t: T) -> T
 pub fn nika_vocab::after::dead_spelling_respelling(s: &str) -> core::option::Option<&'static str>
 pub fn nika_vocab::after::predicate_refusal(task: &str, target: &str, spelling: &str) -> alloc::string::String
-pub mod nika_vocab::assert
-#[non_exhaustive] pub enum nika_vocab::assert::AssertLevel
-pub nika_vocab::assert::AssertLevel::StaticProof
-pub nika_vocab::assert::AssertLevel::TraceVerified
-pub nika_vocab::assert::AssertLevel::Unknown
-impl nika_vocab::assert::AssertLevel
-pub const fn nika_vocab::assert::AssertLevel::as_str(self) -> &'static str
-pub const fn nika_vocab::assert::AssertLevel::rank(self) -> u8
-impl core::clone::Clone for nika_vocab::assert::AssertLevel
-pub fn nika_vocab::assert::AssertLevel::clone(&self) -> nika_vocab::assert::AssertLevel
-impl core::cmp::Eq for nika_vocab::assert::AssertLevel
-impl core::cmp::PartialEq for nika_vocab::assert::AssertLevel
-pub fn nika_vocab::assert::AssertLevel::eq(&self, other: &nika_vocab::assert::AssertLevel) -> bool
-impl core::fmt::Debug for nika_vocab::assert::AssertLevel
-pub fn nika_vocab::assert::AssertLevel::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::hash::Hash for nika_vocab::assert::AssertLevel
-pub fn nika_vocab::assert::AssertLevel::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
-impl core::marker::Copy for nika_vocab::assert::AssertLevel
-impl core::marker::StructuralPartialEq for nika_vocab::assert::AssertLevel
-impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::assert::AssertLevel where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_vocab::assert::AssertLevel::equivalent(&self, key: &K) -> bool
-impl<T, U> core::convert::Into<U> for nika_vocab::assert::AssertLevel where U: core::convert::From<T>
-pub fn nika_vocab::assert::AssertLevel::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_vocab::assert::AssertLevel where U: core::convert::Into<T>
-pub type nika_vocab::assert::AssertLevel::Error = core::convert::Infallible
-pub fn nika_vocab::assert::AssertLevel::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_vocab::assert::AssertLevel where U: core::convert::TryFrom<T>
-pub type nika_vocab::assert::AssertLevel::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_vocab::assert::AssertLevel::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_vocab::assert::AssertLevel where T: core::clone::Clone
-pub type nika_vocab::assert::AssertLevel::Owned = T
-pub fn nika_vocab::assert::AssertLevel::clone_into(&self, target: &mut T)
-pub fn nika_vocab::assert::AssertLevel::to_owned(&self) -> T
-impl<T> core::any::Any for nika_vocab::assert::AssertLevel where T: 'static + ?core::marker::Sized
-pub fn nika_vocab::assert::AssertLevel::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_vocab::assert::AssertLevel where T: ?core::marker::Sized
-pub fn nika_vocab::assert::AssertLevel::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_vocab::assert::AssertLevel where T: ?core::marker::Sized
-pub fn nika_vocab::assert::AssertLevel::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_vocab::assert::AssertLevel where T: core::clone::Clone
-pub unsafe fn nika_vocab::assert::AssertLevel::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_vocab::assert::AssertLevel
-pub fn nika_vocab::assert::AssertLevel::from(t: T) -> T
-#[non_exhaustive] pub enum nika_vocab::assert::AssertProperty
-pub nika_vocab::assert::AssertProperty::Before
-pub nika_vocab::assert::AssertProperty::Before::first: alloc::string::String
-pub nika_vocab::assert::AssertProperty::Before::second: alloc::string::String
-pub nika_vocab::assert::AssertProperty::Bounded
-pub nika_vocab::assert::AssertProperty::Bounded::max_iterations: u64
-pub nika_vocab::assert::AssertProperty::Bounded::task: alloc::string::String
-pub nika_vocab::assert::AssertProperty::Eventually
-pub nika_vocab::assert::AssertProperty::Eventually::state: alloc::string::String
-pub nika_vocab::assert::AssertProperty::Eventually::task: alloc::string::String
-pub nika_vocab::assert::AssertProperty::NoSecretEgress
-pub nika_vocab::assert::AssertProperty::Resource
-pub nika_vocab::assert::AssertProperty::Resource::cost_usd_max: alloc::string::String
-impl nika_vocab::assert::AssertProperty
-pub fn nika_vocab::assert::AssertProperty::check_claim(&self, claimed: nika_vocab::assert::AssertLevel, trace_available: bool) -> core::result::Result<(), nika_vocab::assert::AssertRefusal>
-pub const fn nika_vocab::assert::AssertProperty::level(&self, trace_available: bool) -> nika_vocab::assert::AssertLevel
-pub const fn nika_vocab::assert::AssertProperty::name(&self) -> &'static str
-pub fn nika_vocab::assert::AssertProperty::parse(value: &serde_json::value::Value) -> core::result::Result<Self, nika_vocab::assert::AssertRefusal>
-impl core::clone::Clone for nika_vocab::assert::AssertProperty
-pub fn nika_vocab::assert::AssertProperty::clone(&self) -> nika_vocab::assert::AssertProperty
-impl core::cmp::Eq for nika_vocab::assert::AssertProperty
-impl core::cmp::PartialEq for nika_vocab::assert::AssertProperty
-pub fn nika_vocab::assert::AssertProperty::eq(&self, other: &nika_vocab::assert::AssertProperty) -> bool
-impl core::fmt::Debug for nika_vocab::assert::AssertProperty
-pub fn nika_vocab::assert::AssertProperty::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::marker::StructuralPartialEq for nika_vocab::assert::AssertProperty
-impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::assert::AssertProperty where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_vocab::assert::AssertProperty::equivalent(&self, key: &K) -> bool
-impl<T, U> core::convert::Into<U> for nika_vocab::assert::AssertProperty where U: core::convert::From<T>
-pub fn nika_vocab::assert::AssertProperty::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_vocab::assert::AssertProperty where U: core::convert::Into<T>
-pub type nika_vocab::assert::AssertProperty::Error = core::convert::Infallible
-pub fn nika_vocab::assert::AssertProperty::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_vocab::assert::AssertProperty where U: core::convert::TryFrom<T>
-pub type nika_vocab::assert::AssertProperty::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_vocab::assert::AssertProperty::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_vocab::assert::AssertProperty where T: core::clone::Clone
-pub type nika_vocab::assert::AssertProperty::Owned = T
-pub fn nika_vocab::assert::AssertProperty::clone_into(&self, target: &mut T)
-pub fn nika_vocab::assert::AssertProperty::to_owned(&self) -> T
-impl<T> core::any::Any for nika_vocab::assert::AssertProperty where T: 'static + ?core::marker::Sized
-pub fn nika_vocab::assert::AssertProperty::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_vocab::assert::AssertProperty where T: ?core::marker::Sized
-pub fn nika_vocab::assert::AssertProperty::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_vocab::assert::AssertProperty where T: ?core::marker::Sized
-pub fn nika_vocab::assert::AssertProperty::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_vocab::assert::AssertProperty where T: core::clone::Clone
-pub unsafe fn nika_vocab::assert::AssertProperty::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_vocab::assert::AssertProperty
-pub fn nika_vocab::assert::AssertProperty::from(t: T) -> T
-#[non_exhaustive] pub struct nika_vocab::assert::AssertRefusal
-pub nika_vocab::assert::AssertRefusal::code: &'static str
-pub nika_vocab::assert::AssertRefusal::message: alloc::string::String
-impl core::clone::Clone for nika_vocab::assert::AssertRefusal
-pub fn nika_vocab::assert::AssertRefusal::clone(&self) -> nika_vocab::assert::AssertRefusal
-impl core::cmp::Eq for nika_vocab::assert::AssertRefusal
-impl core::cmp::PartialEq for nika_vocab::assert::AssertRefusal
-pub fn nika_vocab::assert::AssertRefusal::eq(&self, other: &nika_vocab::assert::AssertRefusal) -> bool
-impl core::fmt::Debug for nika_vocab::assert::AssertRefusal
-pub fn nika_vocab::assert::AssertRefusal::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::fmt::Display for nika_vocab::assert::AssertRefusal
-pub fn nika_vocab::assert::AssertRefusal::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::marker::StructuralPartialEq for nika_vocab::assert::AssertRefusal
-impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::assert::AssertRefusal where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_vocab::assert::AssertRefusal::equivalent(&self, key: &K) -> bool
-impl<T, U> core::convert::Into<U> for nika_vocab::assert::AssertRefusal where U: core::convert::From<T>
-pub fn nika_vocab::assert::AssertRefusal::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_vocab::assert::AssertRefusal where U: core::convert::Into<T>
-pub type nika_vocab::assert::AssertRefusal::Error = core::convert::Infallible
-pub fn nika_vocab::assert::AssertRefusal::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_vocab::assert::AssertRefusal where U: core::convert::TryFrom<T>
-pub type nika_vocab::assert::AssertRefusal::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_vocab::assert::AssertRefusal::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_vocab::assert::AssertRefusal where T: core::clone::Clone
-pub type nika_vocab::assert::AssertRefusal::Owned = T
-pub fn nika_vocab::assert::AssertRefusal::clone_into(&self, target: &mut T)
-pub fn nika_vocab::assert::AssertRefusal::to_owned(&self) -> T
-impl<T> alloc::string::ToString for nika_vocab::assert::AssertRefusal where T: core::fmt::Display + ?core::marker::Sized
-pub fn nika_vocab::assert::AssertRefusal::to_string(&self) -> alloc::string::String
-impl<T> core::any::Any for nika_vocab::assert::AssertRefusal where T: 'static + ?core::marker::Sized
-pub fn nika_vocab::assert::AssertRefusal::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_vocab::assert::AssertRefusal where T: ?core::marker::Sized
-pub fn nika_vocab::assert::AssertRefusal::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_vocab::assert::AssertRefusal where T: ?core::marker::Sized
-pub fn nika_vocab::assert::AssertRefusal::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_vocab::assert::AssertRefusal where T: core::clone::Clone
-pub unsafe fn nika_vocab::assert::AssertRefusal::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_vocab::assert::AssertRefusal
-pub fn nika_vocab::assert::AssertRefusal::from(t: T) -> T
-pub const nika_vocab::assert::NIKA_ASSERT_001: &str
 pub mod nika_vocab::capture
 #[non_exhaustive] pub enum nika_vocab::capture::CaptureMode
 pub nika_vocab::capture::CaptureMode::Combined
@@ -492,11 +357,9 @@ pub fn nika_vocab::extract::ResponseMode::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_vocab::extract::ResponseMode where T: for<'de> serde_core::de::Deserialize<'de>
 pub mod nika_vocab::keys
 pub const nika_vocab::keys::AGENT_KEYS: &[&str]
-pub const nika_vocab::keys::CONFIG_KEYS: &[&str]
 pub const nika_vocab::keys::CONST_TYPED_KEYS: &[&str]
 pub const nika_vocab::keys::EGRESS_KEYS: &[&str]
 pub const nika_vocab::keys::EXEC_KEYS: &[&str]
-pub const nika_vocab::keys::FINALLY_KEYS: &[&str]
 pub const nika_vocab::keys::INFER_KEYS: &[&str]
 pub const nika_vocab::keys::INPUT_KEYS: &[&str]
 pub const nika_vocab::keys::INVOKE_KEYS: &[&str]
@@ -508,12 +371,12 @@ pub const nika_vocab::keys::RETRY_KEYS: &[&str]
 pub const nika_vocab::keys::RUN_ENTROPY_MAP_KEYS: &[&str]
 pub const nika_vocab::keys::RUN_KEYS: &[&str]
 pub const nika_vocab::keys::SECRET_KEYS: &[&str]
+pub const nika_vocab::keys::TASK_KEYS: &[&str]
 pub const nika_vocab::keys::THINKING_KEYS: &[&str]
 pub const nika_vocab::keys::TYPED_OUTPUT_KEYS: &[&str]
 pub fn nika_vocab::keys::known_child_keys(block_key: &str, parent: core::option::Option<&str>) -> core::option::Option<&'static [&'static str]>
 pub mod nika_vocab::on_error
 #[non_exhaustive] pub enum nika_vocab::on_error::OnErrorAction
-pub nika_vocab::on_error::OnErrorAction::FailWorkflow
 pub nika_vocab::on_error::OnErrorAction::Recover(nika_source::span::Spanned<serde_json::value::Value>)
 pub nika_vocab::on_error::OnErrorAction::Skip
 impl core::clone::Clone for nika_vocab::on_error::OnErrorAction
@@ -1546,6 +1409,7 @@ pub nika_vocab::AfterPredicate::Failure
 pub nika_vocab::AfterPredicate::Skipped
 pub nika_vocab::AfterPredicate::Success
 pub nika_vocab::AfterPredicate::Terminal
+pub nika_vocab::AfterPredicate::Unwind
 impl nika_vocab::after::AfterPredicate
 pub fn nika_vocab::after::AfterPredicate::all() -> &'static [&'static str]
 pub fn nika_vocab::after::AfterPredicate::as_str(self) -> &'static str
@@ -1587,98 +1451,6 @@ impl<T> core::clone::CloneToUninit for nika_vocab::after::AfterPredicate where T
 pub unsafe fn nika_vocab::after::AfterPredicate::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_vocab::after::AfterPredicate
 pub fn nika_vocab::after::AfterPredicate::from(t: T) -> T
-#[non_exhaustive] pub enum nika_vocab::AssertLevel
-pub nika_vocab::AssertLevel::StaticProof
-pub nika_vocab::AssertLevel::TraceVerified
-pub nika_vocab::AssertLevel::Unknown
-impl nika_vocab::assert::AssertLevel
-pub const fn nika_vocab::assert::AssertLevel::as_str(self) -> &'static str
-pub const fn nika_vocab::assert::AssertLevel::rank(self) -> u8
-impl core::clone::Clone for nika_vocab::assert::AssertLevel
-pub fn nika_vocab::assert::AssertLevel::clone(&self) -> nika_vocab::assert::AssertLevel
-impl core::cmp::Eq for nika_vocab::assert::AssertLevel
-impl core::cmp::PartialEq for nika_vocab::assert::AssertLevel
-pub fn nika_vocab::assert::AssertLevel::eq(&self, other: &nika_vocab::assert::AssertLevel) -> bool
-impl core::fmt::Debug for nika_vocab::assert::AssertLevel
-pub fn nika_vocab::assert::AssertLevel::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::hash::Hash for nika_vocab::assert::AssertLevel
-pub fn nika_vocab::assert::AssertLevel::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
-impl core::marker::Copy for nika_vocab::assert::AssertLevel
-impl core::marker::StructuralPartialEq for nika_vocab::assert::AssertLevel
-impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::assert::AssertLevel where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_vocab::assert::AssertLevel::equivalent(&self, key: &K) -> bool
-impl<T, U> core::convert::Into<U> for nika_vocab::assert::AssertLevel where U: core::convert::From<T>
-pub fn nika_vocab::assert::AssertLevel::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_vocab::assert::AssertLevel where U: core::convert::Into<T>
-pub type nika_vocab::assert::AssertLevel::Error = core::convert::Infallible
-pub fn nika_vocab::assert::AssertLevel::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_vocab::assert::AssertLevel where U: core::convert::TryFrom<T>
-pub type nika_vocab::assert::AssertLevel::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_vocab::assert::AssertLevel::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_vocab::assert::AssertLevel where T: core::clone::Clone
-pub type nika_vocab::assert::AssertLevel::Owned = T
-pub fn nika_vocab::assert::AssertLevel::clone_into(&self, target: &mut T)
-pub fn nika_vocab::assert::AssertLevel::to_owned(&self) -> T
-impl<T> core::any::Any for nika_vocab::assert::AssertLevel where T: 'static + ?core::marker::Sized
-pub fn nika_vocab::assert::AssertLevel::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_vocab::assert::AssertLevel where T: ?core::marker::Sized
-pub fn nika_vocab::assert::AssertLevel::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_vocab::assert::AssertLevel where T: ?core::marker::Sized
-pub fn nika_vocab::assert::AssertLevel::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_vocab::assert::AssertLevel where T: core::clone::Clone
-pub unsafe fn nika_vocab::assert::AssertLevel::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_vocab::assert::AssertLevel
-pub fn nika_vocab::assert::AssertLevel::from(t: T) -> T
-#[non_exhaustive] pub enum nika_vocab::AssertProperty
-pub nika_vocab::AssertProperty::Before
-pub nika_vocab::AssertProperty::Before::first: alloc::string::String
-pub nika_vocab::AssertProperty::Before::second: alloc::string::String
-pub nika_vocab::AssertProperty::Bounded
-pub nika_vocab::AssertProperty::Bounded::max_iterations: u64
-pub nika_vocab::AssertProperty::Bounded::task: alloc::string::String
-pub nika_vocab::AssertProperty::Eventually
-pub nika_vocab::AssertProperty::Eventually::state: alloc::string::String
-pub nika_vocab::AssertProperty::Eventually::task: alloc::string::String
-pub nika_vocab::AssertProperty::NoSecretEgress
-pub nika_vocab::AssertProperty::Resource
-pub nika_vocab::AssertProperty::Resource::cost_usd_max: alloc::string::String
-impl nika_vocab::assert::AssertProperty
-pub fn nika_vocab::assert::AssertProperty::check_claim(&self, claimed: nika_vocab::assert::AssertLevel, trace_available: bool) -> core::result::Result<(), nika_vocab::assert::AssertRefusal>
-pub const fn nika_vocab::assert::AssertProperty::level(&self, trace_available: bool) -> nika_vocab::assert::AssertLevel
-pub const fn nika_vocab::assert::AssertProperty::name(&self) -> &'static str
-pub fn nika_vocab::assert::AssertProperty::parse(value: &serde_json::value::Value) -> core::result::Result<Self, nika_vocab::assert::AssertRefusal>
-impl core::clone::Clone for nika_vocab::assert::AssertProperty
-pub fn nika_vocab::assert::AssertProperty::clone(&self) -> nika_vocab::assert::AssertProperty
-impl core::cmp::Eq for nika_vocab::assert::AssertProperty
-impl core::cmp::PartialEq for nika_vocab::assert::AssertProperty
-pub fn nika_vocab::assert::AssertProperty::eq(&self, other: &nika_vocab::assert::AssertProperty) -> bool
-impl core::fmt::Debug for nika_vocab::assert::AssertProperty
-pub fn nika_vocab::assert::AssertProperty::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::marker::StructuralPartialEq for nika_vocab::assert::AssertProperty
-impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::assert::AssertProperty where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_vocab::assert::AssertProperty::equivalent(&self, key: &K) -> bool
-impl<T, U> core::convert::Into<U> for nika_vocab::assert::AssertProperty where U: core::convert::From<T>
-pub fn nika_vocab::assert::AssertProperty::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_vocab::assert::AssertProperty where U: core::convert::Into<T>
-pub type nika_vocab::assert::AssertProperty::Error = core::convert::Infallible
-pub fn nika_vocab::assert::AssertProperty::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_vocab::assert::AssertProperty where U: core::convert::TryFrom<T>
-pub type nika_vocab::assert::AssertProperty::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_vocab::assert::AssertProperty::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_vocab::assert::AssertProperty where T: core::clone::Clone
-pub type nika_vocab::assert::AssertProperty::Owned = T
-pub fn nika_vocab::assert::AssertProperty::clone_into(&self, target: &mut T)
-pub fn nika_vocab::assert::AssertProperty::to_owned(&self) -> T
-impl<T> core::any::Any for nika_vocab::assert::AssertProperty where T: 'static + ?core::marker::Sized
-pub fn nika_vocab::assert::AssertProperty::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_vocab::assert::AssertProperty where T: ?core::marker::Sized
-pub fn nika_vocab::assert::AssertProperty::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_vocab::assert::AssertProperty where T: ?core::marker::Sized
-pub fn nika_vocab::assert::AssertProperty::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_vocab::assert::AssertProperty where T: core::clone::Clone
-pub unsafe fn nika_vocab::assert::AssertProperty::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_vocab::assert::AssertProperty
-pub fn nika_vocab::assert::AssertProperty::from(t: T) -> T
 #[non_exhaustive] pub enum nika_vocab::BackoffStrategy
 pub nika_vocab::BackoffStrategy::Exponential
 pub nika_vocab::BackoffStrategy::Fixed
@@ -1976,7 +1748,6 @@ pub unsafe fn nika_vocab::duration::GoDurationError::clone_to_uninit(&self, dest
 impl<T> core::convert::From<T> for nika_vocab::duration::GoDurationError
 pub fn nika_vocab::duration::GoDurationError::from(t: T) -> T
 #[non_exhaustive] pub enum nika_vocab::OnErrorAction
-pub nika_vocab::OnErrorAction::FailWorkflow
 pub nika_vocab::OnErrorAction::Recover(nika_source::span::Spanned<serde_json::value::Value>)
 pub nika_vocab::OnErrorAction::Skip
 impl core::clone::Clone for nika_vocab::on_error::OnErrorAction
@@ -2397,45 +2168,6 @@ impl<T> core::clone::CloneToUninit for nika_vocab::when_gate::WhenGate where T: 
 pub unsafe fn nika_vocab::when_gate::WhenGate::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_vocab::when_gate::WhenGate
 pub fn nika_vocab::when_gate::WhenGate::from(t: T) -> T
-#[non_exhaustive] pub struct nika_vocab::AssertRefusal
-pub nika_vocab::AssertRefusal::code: &'static str
-pub nika_vocab::AssertRefusal::message: alloc::string::String
-impl core::clone::Clone for nika_vocab::assert::AssertRefusal
-pub fn nika_vocab::assert::AssertRefusal::clone(&self) -> nika_vocab::assert::AssertRefusal
-impl core::cmp::Eq for nika_vocab::assert::AssertRefusal
-impl core::cmp::PartialEq for nika_vocab::assert::AssertRefusal
-pub fn nika_vocab::assert::AssertRefusal::eq(&self, other: &nika_vocab::assert::AssertRefusal) -> bool
-impl core::fmt::Debug for nika_vocab::assert::AssertRefusal
-pub fn nika_vocab::assert::AssertRefusal::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::fmt::Display for nika_vocab::assert::AssertRefusal
-pub fn nika_vocab::assert::AssertRefusal::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::marker::StructuralPartialEq for nika_vocab::assert::AssertRefusal
-impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::assert::AssertRefusal where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_vocab::assert::AssertRefusal::equivalent(&self, key: &K) -> bool
-impl<T, U> core::convert::Into<U> for nika_vocab::assert::AssertRefusal where U: core::convert::From<T>
-pub fn nika_vocab::assert::AssertRefusal::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_vocab::assert::AssertRefusal where U: core::convert::Into<T>
-pub type nika_vocab::assert::AssertRefusal::Error = core::convert::Infallible
-pub fn nika_vocab::assert::AssertRefusal::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_vocab::assert::AssertRefusal where U: core::convert::TryFrom<T>
-pub type nika_vocab::assert::AssertRefusal::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_vocab::assert::AssertRefusal::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_vocab::assert::AssertRefusal where T: core::clone::Clone
-pub type nika_vocab::assert::AssertRefusal::Owned = T
-pub fn nika_vocab::assert::AssertRefusal::clone_into(&self, target: &mut T)
-pub fn nika_vocab::assert::AssertRefusal::to_owned(&self) -> T
-impl<T> alloc::string::ToString for nika_vocab::assert::AssertRefusal where T: core::fmt::Display + ?core::marker::Sized
-pub fn nika_vocab::assert::AssertRefusal::to_string(&self) -> alloc::string::String
-impl<T> core::any::Any for nika_vocab::assert::AssertRefusal where T: 'static + ?core::marker::Sized
-pub fn nika_vocab::assert::AssertRefusal::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_vocab::assert::AssertRefusal where T: ?core::marker::Sized
-pub fn nika_vocab::assert::AssertRefusal::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_vocab::assert::AssertRefusal where T: ?core::marker::Sized
-pub fn nika_vocab::assert::AssertRefusal::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_vocab::assert::AssertRefusal where T: core::clone::Clone
-pub unsafe fn nika_vocab::assert::AssertRefusal::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_vocab::assert::AssertRefusal
-pub fn nika_vocab::assert::AssertRefusal::from(t: T) -> T
 pub struct nika_vocab::EgressRule
 pub nika_vocab::EgressRule::host: core::option::Option<alloc::string::String>
 pub nika_vocab::EgressRule::host_from_self: bool
@@ -2651,7 +2383,6 @@ pub unsafe fn nika_vocab::secret::SecretRef::clone_to_uninit(&self, dest: *mut u
 impl<T> core::convert::From<T> for nika_vocab::secret::SecretRef
 pub fn nika_vocab::secret::SecretRef::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_vocab::secret::SecretRef where T: for<'de> serde_core::de::Deserialize<'de>
-pub const nika_vocab::NIKA_ASSERT_001: &str
 pub fn nika_vocab::coerce_declared(type_expr: &serde_json::value::Value, type_names: &alloc::collections::btree::set::BTreeSet<alloc::string::String>, named: &alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_types::types::NikaType>, raw: &str) -> core::result::Result<serde_json::value::Value, alloc::string::String>
 pub fn nika_vocab::default_not_conforming_teaching(where_: &str, value: &serde_json::value::Value, type_expr: &serde_json::value::Value) -> alloc::string::String
 pub fn nika_vocab::is_valid_error_code(code: &str) -> bool

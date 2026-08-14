@@ -20,9 +20,7 @@
 #
 # Run · nika run examples/02-parallel-fanout.nika.yaml
 
-nika: v1
-workflow:
-  id: parallel-fanout
+nika: parallel-fanout
 
 # The dry twin, on purpose: this file teaches SHAPE, and the twin makes the
 # shape visible — it echoes each prompt back, so `synthesize`'s output shows

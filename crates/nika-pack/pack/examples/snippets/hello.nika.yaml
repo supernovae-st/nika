@@ -13,10 +13,7 @@
 #   - one `exec:` task · argv form, never a shell string
 #
 # Run · nika run examples/snippets/hello.nika.yaml
-nika: v1
-workflow:
-  id: hello
-  description: "first file after install · one exec, zero setup, zero keys"
+nika: hello
 permits:
   exec: ["echo"]
 tasks:

@@ -732,7 +732,7 @@ mod tests {
     #[test]
     fn the_plan_map_skips_templated_models() {
         let map = access_plan_map(
-            &["mock/echo".to_owned(), "${{ vars.model }}".to_owned()],
+            &["mock/echo".to_owned(), "${{ inputs.model }}".to_owned()],
             &[],
             None,
         );

@@ -116,6 +116,7 @@ pub mod analyzer;
 mod analysis;
 mod certificate;
 mod composition;
+mod conformance_codes;
 mod consent;
 mod content_flow;
 mod cost;
@@ -128,11 +129,12 @@ mod exec_floor;
 mod findings;
 mod flow;
 mod hints;
+mod lift;
 pub mod native_first;
+mod order;
 mod permit_taint;
 pub mod permits_fit;
 mod permits_infer;
-mod policy;
 mod reach;
 mod requirements;
 mod risk;
@@ -144,7 +146,7 @@ mod tools;
 pub mod trifecta;
 mod walk;
 
-use nika_schema::error::{SpecCategory, SpecCode};
+use nika_schema::error::SpecCode;
 use nika_schema::raw::RawWorkflow;
 
 pub use analysis::{DagAnalysis, TaskBlast, WriteConflict};
@@ -164,10 +166,11 @@ pub use exec_floor::ExecFloorFinding;
 pub use findings::UnifiedFinding;
 pub use flow::{FlowFacts, TaintTrace, action_effect_fields};
 pub use hints::Hint;
+pub use lift::LiftFinding;
+pub use order::OrderFinding;
 pub use permit_taint::{PermitTaint, PermitTaintKind};
 pub use permits_fit::CapabilityEscape;
 pub use permits_infer::InferredPermits;
-pub use policy::policy_wire_code;
 pub use reach::{GateFinding, GateFindingKind, STATUS_VOCAB};
 pub use requirements::{ModelRequirement, Requirements, SecretRequirement};
 pub use risk::{RiskGrade, risk_grade};
@@ -181,7 +184,7 @@ pub use walk::{static_literal_of, static_read_paths};
 // The analyzer's surface at the crate root — the same shape `nika-schema`
 // re-exported before the split (`analyze` · `AnalyzedWorkflow` · the
 // type-contract projections).
-pub use analyzer::{AnalyzedWorkflow, analyze, lowered_returns, named_types, returns_type};
+pub use analyzer::{AnalyzedWorkflow, analyze, lowered_returns, returns_type};
 
 /// The JSON contract version of [`CheckReport`] — bumped on any
 /// breaking field rename/removal so agent loops fail LOUDLY instead of
@@ -367,11 +370,6 @@ pub struct CheckReport {
     /// run twin (`NIKA-SEC-004` · law 3). Additive: `report_version`
     /// stays 1.
     pub sink_findings: Vec<SinkFinding>,
-    /// Every hard `policy:` rule violation (spec 10 · `NIKA-POLICY-001` ·
-    /// the approval batch speaks `NIKA-SEC-010` · the endorsement mode
-    /// `NIKA-SEC-013` — judged on the derived graph, so empty when
-    /// `conformance` has entries). Additive: `report_version` stays 1.
-    pub policy_findings: Vec<nika_cap::PolicyViolation>,
     /// Every affirmative-consent refusal (NEP-0020 · `NIKA-SEC-014`): an
     /// egress-capable task reached from a confirm-mode human gate over a
     /// route no affirmative gate closes — false triggers exactly zero
@@ -381,6 +379,19 @@ pub struct CheckReport {
     /// fires only on the PROVEN route (sound, never a false red).
     /// Additive: `report_version` stays 1.
     pub consent_findings: Vec<ConsentFinding>,
+    /// Every order-law refusal (spec 10 · `NIKA-SEC-015`): an `exec:`
+    /// task transitively downstream of a net-effecting one over the
+    /// derived graph. UNCONDITIONAL — no block declares it and none
+    /// can disable it; the only gate is a valid DAG, because a graph
+    /// that did not build cannot be walked. Additive:
+    /// `report_version` stays 1.
+    pub order_findings: Vec<OrderFinding>,
+    /// Every authored door that guards nothing (spec 10 §the authored
+    /// doors rule 6 · `NIKA-AUTH-011`): a well-shaped `lift:` naming a
+    /// law that would never have fired on its task. Each arm ASKS the
+    /// law it judges rather than re-typing its conditions. Additive:
+    /// `report_version` stays 1.
+    pub lift_findings: Vec<LiftFinding>,
     /// Every lethal-trifecta finding (NEP-0002 · `NIKA-SEC-009`): all
     /// three legs declared AND an egress-capable task no blocking
     /// `nika:prompt` gate dominates. Judged on the derived graph and the
@@ -493,8 +504,9 @@ impl CheckReport {
             && self.exec_floor_findings.is_empty()
             && self.permit_taints.is_empty()
             && self.sink_findings.is_empty()
-            && self.policy_findings.is_empty()
             && self.consent_findings.is_empty()
+            && self.order_findings.is_empty()
+            && self.lift_findings.is_empty()
             && self.trifecta_findings.is_empty()
             && self.schema_findings.is_empty()
             && self.unknown_tools.is_empty()
@@ -519,104 +531,15 @@ impl CheckReport {
     /// a body outside the declared `permits:` → `NIKA-SEC-004`, a hard
     /// `policy:` rule violation → `NIKA-POLICY-001` (spec 10 · the
     /// `core/policy` fixtures match on it).
+    /// The extra-conformance codes the Deep tier adds — every check-only
+    /// invalidating surface, projected as the spec codes the conformance
+    /// runner matches on. The walk lives in the private
+    /// `conformance_codes` module: it is one long list of one-line arms,
+    /// and it crossed the 100-line ratchet the day the unconditional
+    /// order law joined it.
     #[must_use]
     pub fn extra_conformance_codes(&self) -> Vec<SpecCode> {
-        let builtin = SpecCode::new("BUILTIN", 1, SpecCategory::ValidationError);
-        let mut codes = Vec::new();
-        codes.extend(self.capability_escapes.iter().map(|e| {
-            // Floor escapes carry the code the run would emit (SEC-005 ·
-            // the always-on SSRF floor); an effect judged against the
-            // F-O8 zero boundary (no `permits:` declared) is AUTH-006;
-            // declared-boundary escapes stay SEC-004.
-            if e.floor {
-                SpecCode::new("SEC", 5, SpecCategory::SecurityError)
-            } else if e.undeclared {
-                SpecCode::new("AUTH", 6, SpecCategory::SecurityError)
-            } else {
-                SpecCode::new("SEC", 4, SpecCategory::SecurityError)
-            }
-        }));
-        // The argv exec floor (#605): the code the run would stamp on the
-        // same argv's `ShellError::Blocked` — SEC-001, check ≡ run.
-        codes.extend(
-            self.exec_floor_findings
-                .iter()
-                .map(|_| SpecCode::new("SEC", 1, SpecCategory::SecurityError)),
-        );
-        // The permits-block taint findings: the finding's own kind maps to
-        // its ONE wire code (NEP-0004 law 1 → AUTH-007 · law 2 → AUTH-008 ·
-        // NEP-0005 law 3 env dead grant → AUTH-009 · F-P5 net wildcard →
-        // AUTH-010 · all check-time security refusals).
-        codes.extend(self.permit_taints.iter().map(|t| match t.kind {
-            PermitTaintKind::BoundInterpolated => {
-                SpecCode::new("AUTH", 7, SpecCategory::SecurityError)
-            }
-            PermitTaintKind::ArgEscapes => SpecCode::new("AUTH", 8, SpecCategory::SecurityError),
-            PermitTaintKind::EnvDeadGrant => SpecCode::new("AUTH", 9, SpecCategory::SecurityError),
-            PermitTaintKind::NetWildcard => SpecCode::new("AUTH", 10, SpecCategory::SecurityError),
-        }));
-        // The data-as-code sink (NEP-0006) → NIKA-SEC-008.
-        let sink_code = SpecCode::new("SEC", 8, SpecCategory::SecurityError);
-        codes.extend(self.sink_findings.iter().map(|_| sink_code));
-        // Hard policy: violations (spec 10) → NIKA-POLICY-001 · the F-P4
-        // approval rules (NEP-0013) → NIKA-SEC-010 · the F-P23 endorsement
-        // rules (NEP-0017) → NIKA-SEC-013 (one lane, three voices — the
-        // rule prefix discriminates, same as the findings fold).
-        let policy_code = SpecCode::new("POLICY", 1, SpecCategory::SecurityError);
-        codes.extend(self.policy_findings.iter().map(|p| {
-            if p.rule.starts_with("approval.") {
-                SpecCode::new("SEC", 10, SpecCategory::SecurityError)
-            } else if p.rule.starts_with("endorsement.") {
-                SpecCode::new("SEC", 13, SpecCategory::SecurityError)
-            } else {
-                policy_code
-            }
-        }));
-        // Lethal trifecta (NEP-0002) → NIKA-SEC-009.
-        let trifecta_code = SpecCode::new("SEC", 9, SpecCategory::SecurityError);
-        codes.extend(self.trifecta_findings.iter().map(|_| trifecta_code));
-        // The affirmative-consent law (NEP-0020) → NIKA-SEC-014.
-        codes.extend(
-            self.consent_findings
-                .iter()
-                .map(|_| SpecCode::new("SEC", 14, SpecCategory::SecurityError)),
-        );
-        codes.extend(self.unknown_tools.iter().map(|_| builtin));
-        codes.extend(self.unknown_args.iter().map(|_| builtin));
-        codes.extend(self.missing_args.iter().map(|_| builtin));
-        // Gate liveness (03 §static liveness · check-only, reach.rs):
-        // DAG-006 statically dead task · DAG-007 out-of-vocabulary literal.
-        codes.extend(self.gate_findings.iter().map(|g| match g.kind {
-            reach::GateFindingKind::DeadTask => {
-                SpecCode::new("DAG", 6, SpecCategory::ValidationError)
-            }
-            reach::GateFindingKind::BadStatusLiteral => {
-                SpecCode::new("DAG", 7, SpecCategory::ValidationError)
-            }
-        }));
-        // F-P3 · the run: declaration contradicted by the body — the
-        // dedicated NIKA-PARSE-028 mint (NEP-0010 · the 87f764a pack).
-        codes.extend(
-            self.run_decl_findings
-                .iter()
-                .map(|_| SpecCode::new("PARSE", 28, SpecCategory::ValidationError)),
-        );
-        // F-P15 · the write-write law (NEP-0014 law 1) — the security
-        // class: an effect overlap the boundary never sanctioned.
-        codes.extend(
-            self.write_conflicts
-                .iter()
-                .map(|_| SpecCode::new("SEC", 12, SpecCategory::SecurityError)),
-        );
-        // Composition lane (spec 14): COMP-002 is the security law
-        // (child boundary ⊄ parent); 001/003/004 are validation.
-        codes.extend(self.composition.iter().map(|f| match f.code {
-            "NIKA-COMP-002" => SpecCode::new("COMP", 2, SpecCategory::SecurityError),
-            "NIKA-COMP-003" => SpecCode::new("COMP", 3, SpecCategory::ValidationError),
-            "NIKA-COMP-004" => SpecCode::new("COMP", 4, SpecCategory::ValidationError),
-            _ => SpecCode::new("COMP", 1, SpecCategory::ValidationError),
-        }));
-        codes
+        conformance_codes::of(self)
     }
 }
 
@@ -710,17 +633,17 @@ fn gated_scans(
     edges: &[analyzer::Edge],
     topo_waves: &[Vec<usize>],
 ) -> (
-    Vec<nika_cap::PolicyViolation>,
     Vec<nika_cap::TrifectaViolation>,
     consent::ConsentScan,
+    Vec<OrderFinding>,
 ) {
     if !conformance_clean {
-        return (Vec::new(), Vec::new(), consent::ConsentScan::default());
+        return (Vec::new(), consent::ConsentScan::default(), Vec::new());
     }
     (
-        policy::scan_policy(wf, edges),
         trifecta::scan_trifecta(wf, edges, topo_waves),
         consent::scan_consent(wf, edges),
+        order::scan_order(wf, edges),
     )
 }
 
@@ -760,7 +683,7 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
             advice: miss,
         });
     }
-    let (policy_findings, trifecta_findings, mut consent_scan) =
+    let (trifecta_findings, mut consent_scan, order_findings) =
         gated_scans(wf, conformance.is_empty(), &edges, &topo_waves);
     hints.extend(std::mem::take(&mut consent_scan.hints));
     let capability_escapes = permits_fit::scan_escapes(wf);
@@ -787,8 +710,9 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
         exec_floor_findings: exec_floor::scan(wf),
         permit_taints: permit_taint::scan_permit_taint(wf),
         sink_findings: data_sink::scan_data_sink(wf),
-        policy_findings,
         consent_findings: consent_scan.findings,
+        order_findings,
+        lift_findings: lift::scan_idle_doors(wf),
         trifecta_findings,
         schema_findings,
         unverifiable_output_refs,
@@ -901,6 +825,7 @@ pub fn task_permits(task: &nika_schema::raw::RawTask) -> Vec<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use nika_schema::error::SpecCategory;
     use nika_schema::parser::{ParseMode, parse};
     use nika_schema::source::FileId;
 
@@ -917,9 +842,7 @@ mod tests {
         // truth without re-deriving either.
         let r = check_yaml(
             "\
-nika: v1
-workflow:
-  id: t
+nika: t
 tasks:
   a:
     after: { ghost: success }
@@ -947,9 +870,7 @@ tasks:
     fn clean_minimal_workflow() {
         let r = check_yaml(
             "\
-nika: v1
-workflow:
-  id: clean
+nika: clean
 permits: { exec: [\"echo\"] }
 tasks:
   a:
@@ -967,9 +888,7 @@ tasks:
     /// refusal is proven, not supposed (EPERM-style).
     #[test]
     fn absent_permits_with_effects_is_auth_006() {
-        let r = check_yaml(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
-        );
+        let r = check_yaml("nika: w\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n");
         assert!(!r.is_clean(), "absent + an effect is dirty (F-O8)");
         assert!(
             r.capability_escapes
@@ -1008,7 +927,7 @@ tasks:
     #[test]
     fn pure_compute_absent_permits_gets_the_legal_zero_hint() {
         let r = check_yaml(
-            "nika: v1\nworkflow:\n  id: w\nmodel: mock/echo\ntasks:\n  a:\n    infer: { prompt: \"hi\", max_tokens: 5 }\n",
+            "nika: w\nmodel: mock/echo\ntasks:\n  a:\n    infer: { prompt: \"hi\", max_tokens: 5 }\n",
         );
         assert!(r.is_clean(), "pure compute stays clean: {r:?}");
         let h = r
@@ -1020,7 +939,7 @@ tasks:
         // …and `permits: {}` EXPLICIT is silent (the declared zero is
         // assumed, nothing to teach).
         let declared = check_yaml(
-            "nika: v1\nworkflow:\n  id: w\nmodel: mock/echo\npermits: {}\ntasks:\n  a:\n    infer: { prompt: \"hi\", max_tokens: 5 }\n",
+            "nika: w\nmodel: mock/echo\npermits: {}\ntasks:\n  a:\n    infer: { prompt: \"hi\", max_tokens: 5 }\n",
         );
         assert!(declared.is_clean(), "{declared:?}");
         assert!(
@@ -1035,9 +954,7 @@ tasks:
         // The agent-loop contract, AUTOMATED: a 6-finding workflow's
         // emitted fixes/suggestions, applied verbatim, reach is_clean().
         // Round 1 — assert the exact repairs the report prescribes.
-        let broken = r#"nika: v1
-workflow:
-  id: agent-demo
+        let broken = r#"nika: agent-demo
 model: anthropic/claude-sonnet-4-6
 permits:
   exec: false
@@ -1121,9 +1038,7 @@ tasks:
         // a cycle is a Core violation → reported IN the report (rustc model)
         let wf = parse(
             "\
-nika: v1
-workflow:
-  id: cyclic
+nika: cyclic
 tasks:
   a:
     after: { b: success }
@@ -1152,7 +1067,7 @@ tasks:
     fn broken_dag_still_yields_every_dag_independent_finding() {
         // ONE round-trip: the agent gets the conformance violation AND
         // the tool typo AND the schema defect AND the hints, together.
-        let src = "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  a:\n    after: { ghost: success }\n    invoke: { tool: \"nika:raed\", args: { path: \"./x\" } }\n  b:\n    infer:\n      prompt: \"x\"\n      schema:\n        type: object\n        properties:\n          s: { type: string }\n        required: [z]\n";
+        let src = "nika: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  a:\n    after: { ghost: success }\n    invoke: { tool: \"nika:raed\", args: { path: \"./x\" } }\n  b:\n    infer:\n      prompt: \"x\"\n      schema:\n        type: object\n        properties:\n          s: { type: string }\n        required: [z]\n";
         let r = check_yaml(src);
         assert!(
             r.conformance.iter().any(|c| c.code == "NIKA-DAG-002"),
@@ -1194,7 +1109,7 @@ tasks:
         // Two independent check() runs over the same input must render
         // byte-identical JSON — pins the BTree-everywhere discipline (a
         // stray HashMap would randomize field/finding order run-to-run).
-        let yaml = "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\npermits: { exec: false, tools: [\"nika:read\"] }\nsecrets:\n  k: { source: vault, key: x }\ntasks:\n  a:\n    invoke: { tool: \"nika:raed\", args: { path: \"./in\" } }\n  b:\n    after: { a: success }\n    exec: { command: [\"curl\", \"-d\", \"${{ secrets.k }}\", \"x\"] }\n  c:\n    with: { b_out: \"${{ tasks.b.output }}\" }\n    infer: { prompt: \"go ${{ with.b_out }}\", max_tokens: 50 }\n";
+        let yaml = "nika: w\nmodel: anthropic/claude-sonnet-4-6\npermits: { exec: false, tools: [\"nika:read\"] }\nsecrets:\n  k: { source: vault, key: x }\ntasks:\n  a:\n    invoke: { tool: \"nika:raed\", args: { path: \"./in\" } }\n  b:\n    after: { a: success }\n    exec: { command: [\"curl\", \"-d\", \"${{ secrets.k }}\", \"x\"] }\n  c:\n    with: { b_out: \"${{ tasks.b.output }}\" }\n    infer: { prompt: \"go ${{ with.b_out }}\", max_tokens: 50 }\n";
         let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse");
         let first = serde_json::to_string(&check(&wf)).expect("serialize");
         let second = serde_json::to_string(&check(&wf)).expect("serialize");
@@ -1218,9 +1133,7 @@ tasks:
         // but fails the populated ones.
         let r = check_yaml(
             "\
-nika: v1
-workflow:
-  id: clean
+nika: clean
 permits: { exec: [\"echo\"] }
 tasks:
   a:
@@ -1242,7 +1155,7 @@ tasks:
         // extra-conformance list AND the unified findings) and failing
         // `is_clean` (the permit_taints arm kills `-> vec![]`).
         let r = check_yaml(
-            "nika: v1\nworkflow:\n  id: w\npermits:\n  net: { http: [\"${{ inputs.host }}\"] }\n  tools: [\"nika:fetch\"]\ninputs:\n  host: { type: string, default: \"api.example.com\" }\ntasks:\n  grab:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.example.com/x\" }\n",
+            "nika: w\npermits:\n  net: { http: [\"${{ inputs.host }}\"] }\n  tools: [\"nika:fetch\"]\ninputs:\n  host: { type: string, default: \"api.example.com\" }\ntasks:\n  grab:\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"https://api.example.com/x\" }\n",
         );
         assert!(!r.is_clean(), "an interpolated bound is dirty (law 1)");
         assert_eq!(r.permit_taints.len(), 1, "{:?}", r.permit_taints);
@@ -1277,9 +1190,7 @@ tasks:
         // capability-escape arm removal (without it the list is empty).
         let r = check_yaml(
             "\
-nika: v1
-workflow:
-  id: escape
+nika: escape
 permits:
   exec: false
 tasks:
@@ -1319,9 +1230,7 @@ tasks:
         // NIKA-PARSE-028 mint (NEP-0010 · the 87f764a pack).
         let r = check_yaml(
             "\
-nika: v1
-workflow:
-  id: strict
+nika: strict
 permits: { exec: [\"flaky\"] }
 run: { entropy: none }
 tasks:
@@ -1355,9 +1264,7 @@ tasks:
         // the unknown_tools arm in isolation.
         let r = check_yaml(
             "\
-nika: v1
-workflow:
-  id: typo
+nika: typo
 tasks:
   a:
     invoke: { tool: \"nika:wrte\", args: { path: \"./out\", content: \"x\" } }
@@ -1389,9 +1296,7 @@ tasks:
         // missing_args) would shrink the count below the sum and fail.
         let r = check_yaml(
             "\
-nika: v1
-workflow:
-  id: many
+nika: many
 permits:
   exec: false
   tools: [\"nika:read\"]
@@ -1403,7 +1308,6 @@ tasks:
 ",
         );
         let expected = r.capability_escapes.len()
-            + r.policy_findings.len()
             + r.unknown_tools.len()
             + r.unknown_args.len()
             + r.missing_args.len();
@@ -1428,7 +1332,7 @@ tasks:
     #[test]
     fn write_write_overlap_without_an_edge_refuses() {
         let r = check_yaml(
-            "nika: v1\nworkflow:\n  id: w\npermits:\n  fs: { write: [\"out/**\"] }\n  tools: [\"nika:write\"]\ntasks:\n  left:\n    invoke: { tool: \"nika:write\", args: { path: out/report.md, content: \"a\" } }\n  right:\n    invoke: { tool: \"nika:write\", args: { path: out/report.md, content: \"b\" } }\n",
+            "nika: w\npermits:\n  fs: { write: [\"out/**\"] }\n  tools: [\"nika:write\"]\ntasks:\n  left:\n    invoke: { tool: \"nika:write\", args: { path: out/report.md, content: \"a\" } }\n  right:\n    invoke: { tool: \"nika:write\", args: { path: out/report.md, content: \"b\" } }\n",
         );
         assert!(!r.is_clean(), "the unordered shared write is a finding");
         assert_eq!(r.write_conflicts.len(), 1, "{r:?}");
@@ -1477,7 +1381,7 @@ tasks:
     #[test]
     fn write_write_overlap_with_an_ordering_edge_passes() {
         let r = check_yaml(
-            "nika: v1\nworkflow:\n  id: w\npermits:\n  fs: { write: [\"out/**\"] }\n  tools: [\"nika:write\"]\ntasks:\n  first:\n    invoke: { tool: \"nika:write\", args: { path: out/report.md, content: \"a\" } }\n  second:\n    after: { first: success }\n    invoke: { tool: \"nika:write\", args: { path: out/report.md, content: \"b\" } }\n",
+            "nika: w\npermits:\n  fs: { write: [\"out/**\"] }\n  tools: [\"nika:write\"]\ntasks:\n  first:\n    invoke: { tool: \"nika:write\", args: { path: out/report.md, content: \"a\" } }\n  second:\n    after: { first: success }\n    invoke: { tool: \"nika:write\", args: { path: out/report.md, content: \"b\" } }\n",
         );
         assert!(r.is_clean(), "ordered writers are no race: {r:?}");
         assert!(r.write_conflicts.is_empty());
@@ -1488,7 +1392,7 @@ tasks:
     #[test]
     fn write_write_for_each_same_path_refuses() {
         let r = check_yaml(
-            "nika: v1\nworkflow:\n  id: w\npermits:\n  fs: { write: [\"out/**\"] }\n  tools: [\"nika:write\"]\ntasks:\n  fan:\n    for_each: [1, 2, 3]\n    invoke: { tool: \"nika:write\", args: { path: out/same.md, content: \"x\" } }\n",
+            "nika: w\npermits:\n  fs: { write: [\"out/**\"] }\n  tools: [\"nika:write\"]\ntasks:\n  fan:\n    for_each: { items: [1, 2, 3] }\n    invoke: { tool: \"nika:write\", args: { path: out/same.md, content: \"x\" } }\n",
         );
         assert!(!r.is_clean(), "the fan-out overwrite is a finding");
         assert_eq!(r.write_conflicts.len(), 1, "{r:?}");

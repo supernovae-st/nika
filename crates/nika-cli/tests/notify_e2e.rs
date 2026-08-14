@@ -47,8 +47,7 @@ fn workdir(name: &str) -> std::path::PathBuf {
     dir
 }
 
-const GATE: &str = "nika: v1\n\nworkflow:\n  id: gate-probe\n  \
-                    description: ADR-111 e2e pause fixture\n\ntasks:\n  \
+const GATE: &str = "nika: gate-probe\n\ntasks:\n  \
                     ask_operator:\n    invoke:\n      tool: \"nika:prompt\"\n      \
                     args:\n        mode: confirm\n        \
                     message: \"Deploy to production?\"\n";

@@ -40,14 +40,7 @@ mod unit {
     ) -> Option<ResumeStamp> {
         let wf = parse(yaml);
         let ctx = no_secrets();
-        stamp(
-            &wf.tasks[0].value,
-            records,
-            vars,
-            &BTreeMap::new(),
-            &BTreeMap::new(),
-            &ctx,
-        )
+        stamp(&wf.tasks[0].value, records, vars, &BTreeMap::new(), &ctx)
     }
 
     /// The `const:`-riding twin — the map lands in the consts slot (the
@@ -59,14 +52,7 @@ mod unit {
     ) -> Option<ResumeStamp> {
         let wf = parse(yaml);
         let ctx = no_secrets();
-        stamp(
-            &wf.tasks[0].value,
-            records,
-            &BTreeMap::new(),
-            &BTreeMap::new(),
-            consts,
-            &ctx,
-        )
+        stamp(&wf.tasks[0].value, records, &BTreeMap::new(), consts, &ctx)
     }
 
     fn success_record(output: Value) -> TaskRecord {
@@ -75,7 +61,7 @@ mod unit {
         rec
     }
 
-    const BASE: &str = "nika: v1\nworkflow:\n  id: t\ninputs:\n  topic: { type: string, default: \"news\" }\ntasks:\n  ask:\n    infer: { prompt: \"about ${{ inputs.topic }}\" }\n";
+    const BASE: &str = "nika: t\ninputs:\n  topic: { type: string, required: false, default: \"news\" }\ntasks:\n  ask:\n    infer: { prompt: \"about ${{ inputs.topic }}\" }\n";
 
     #[test]
     fn key_is_stable_across_recomputation() {
@@ -114,7 +100,7 @@ mod unit {
 
     #[test]
     fn upstream_output_change_cascades_into_the_input_hash() {
-        const DOWNSTREAM: &str = "nika: v1\nworkflow:\n  id: t\ntasks:\n  use:\n    exec: { command: [\"echo\", \"${{ tasks.up.output }}\"] }\n";
+        const DOWNSTREAM: &str = "nika: t\ntasks:\n  use:\n    exec: { command: [\"echo\", \"${{ tasks.up.output }}\"] }\n";
         let vars = BTreeMap::new();
         let r1 = BTreeMap::from([("up".to_owned(), success_record(json!("v1")))]);
         let r2 = BTreeMap::from([("up".to_owned(), success_record(json!("v2")))]);
@@ -133,7 +119,7 @@ mod unit {
     /// the reference re-keys.
     #[test]
     fn secret_value_never_participates_the_reference_identity_does() {
-        const WITH_SECRET: &str = "nika: v1\nworkflow:\n  id: t\nsecrets:\n  tok: { source: env, key: MY_TOKEN }\ntasks:\n  call:\n    exec: { command: [\"curl\", \"-H\", \"'x:\", \"${{ secrets.tok }}'\"] }\n";
+        const WITH_SECRET: &str = "nika: t\nsecrets:\n  tok: { source: env, key: MY_TOKEN }\ntasks:\n  call:\n    exec: { command: [\"curl\", \"-H\", \"'x:\", \"${{ secrets.tok }}'\"] }\n";
         let wf = parse(WITH_SECRET);
         let records = BTreeMap::new();
         let vars = BTreeMap::new();
@@ -158,7 +144,6 @@ mod unit {
             &records,
             &vars,
             &BTreeMap::new(),
-            &BTreeMap::new(),
             &ctx_v1,
         )
         .expect("eligible");
@@ -166,7 +151,6 @@ mod unit {
             &wf.tasks[0].value,
             &records,
             &vars,
-            &BTreeMap::new(),
             &BTreeMap::new(),
             &ctx_v2,
         )
@@ -189,7 +173,6 @@ mod unit {
             &records,
             &vars,
             &BTreeMap::new(),
-            &BTreeMap::new(),
             &ctx2,
         )
         .expect("eligible");
@@ -202,14 +185,13 @@ mod unit {
     /// output produced by a different model than the file now declares.
     #[test]
     fn default_model_swap_rekeys_a_modelless_infer() {
-        const MODELLESS: &str = "nika: v1\nworkflow:\n  id: t\nmodel: ollama/qwen3.5:4b\ntasks:\n  summary:\n    infer: { prompt: \"hi\" }\n";
+        const MODELLESS: &str = "nika: t\nmodel: ollama/qwen3.5:4b\ntasks:\n  summary:\n    infer: { prompt: \"hi\" }\n";
         // A task that PINS its own `model:` · an exec task — the two
         // no-re-key controls (items live at scope top · lint law).
-        const PINNED: &str = "nika: v1\nworkflow:\n  id: t\nmodel: ollama/qwen3.5:4b\ntasks:\n  summary:\n    infer: { prompt: \"hi\", model: \"mock/echo\" }\n";
-        const EXEC: &str = "nika: v1\nworkflow:\n  id: t\nmodel: ollama/qwen3.5:4b\ntasks:\n  run:\n    exec: { command: [\"echo\", \"hi\"] }\n";
+        const PINNED: &str = "nika: t\nmodel: ollama/qwen3.5:4b\ntasks:\n  summary:\n    infer: { prompt: \"hi\", model: \"mock/echo\" }\n";
+        const EXEC: &str = "nika: t\nmodel: ollama/qwen3.5:4b\ntasks:\n  run:\n    exec: { command: [\"echo\", \"hi\"] }\n";
         let records = BTreeMap::new();
         let vars = BTreeMap::new();
-        let env = BTreeMap::new();
         let stamp_with = |yaml: &str, over: Option<&str>| {
             let wf = parse(yaml);
             let ctx = ResumeContext::of(
@@ -220,15 +202,7 @@ mod unit {
                 &BTreeMap::new(),
                 None,
             );
-            stamp(
-                &wf.tasks[0].value,
-                &records,
-                &vars,
-                &env,
-                &BTreeMap::new(),
-                &ctx,
-            )
-            .expect("eligible")
+            stamp(&wf.tasks[0].value, &records, &vars, &BTreeMap::new(), &ctx).expect("eligible")
         };
 
         // The issue's exact repro: edit ONLY the envelope `model:` line.
@@ -278,9 +252,10 @@ mod unit {
     /// trigger, >1 access per provider, is unreachable before it.)
     #[test]
     fn the_access_pin_rekeys_infer_and_agent_only() {
-        const AGENT: &str = "nika: v1\nworkflow:\n  id: t\nmodel: mock/echo\ntasks:\n  go:\n    agent: { prompt: \"hi\" }\n";
+        const AGENT: &str =
+            "nika: t\nmodel: mock/echo\ntasks:\n  go:\n    agent: { prompt: \"hi\" }\n";
         // An exec control (items live at scope top · the lint law).
-        const EXEC: &str = "nika: v1\nworkflow:\n  id: t\nmodel: mock/echo\ntasks:\n  run:\n    exec: { command: [\"echo\", \"hi\"] }\n";
+        const EXEC: &str = "nika: t\nmodel: mock/echo\ntasks:\n  run:\n    exec: { command: [\"echo\", \"hi\"] }\n";
         let records = BTreeMap::new();
         let vars = BTreeMap::new();
         let stamp_with = |yaml: &str, pin: Option<&str>| {
@@ -293,15 +268,7 @@ mod unit {
                 &BTreeMap::new(),
                 pin,
             );
-            stamp(
-                &wf.tasks[0].value,
-                &records,
-                &vars,
-                &BTreeMap::new(),
-                &BTreeMap::new(),
-                &ctx,
-            )
-            .expect("eligible")
+            stamp(&wf.tasks[0].value, &records, &vars, &BTreeMap::new(), &ctx).expect("eligible")
         };
         let unpinned = stamp_with(AGENT, None);
         let pinned = stamp_with(AGENT, Some("codex-acp"));
@@ -335,24 +302,17 @@ mod unit {
     /// of the verb body as written).
     #[test]
     fn skill_edit_rekeys_the_agent_definition() {
-        const WITH_SKILL: &str = "nika: v1\nworkflow:\n  id: t\nmodel: mock/echo\ntasks:\n  go:\n    agent: { prompt: \"hi\", skills: [\"s/SKILL.md\"] }\n";
+        const WITH_SKILL: &str = "nika: t\nmodel: mock/echo\ntasks:\n  go:\n    agent: { prompt: \"hi\", skills: [\"s/SKILL.md\"] }\n";
         // The skill-less control (items live at scope top · lint law).
-        const PLAIN: &str = "nika: v1\nworkflow:\n  id: t\nmodel: mock/echo\ntasks:\n  go:\n    agent: { prompt: \"hi\" }\n";
+        const PLAIN: &str =
+            "nika: t\nmodel: mock/echo\ntasks:\n  go:\n    agent: { prompt: \"hi\" }\n";
         let records = BTreeMap::new();
         let vars = BTreeMap::new();
-        let env = BTreeMap::new();
         let stamp_with = |yaml: &str, skills: &BTreeMap<String, String>| {
             let wf = parse(yaml);
             let ctx =
                 ResumeContext::of(&wf, &BTreeMap::new(), None, skills, &BTreeMap::new(), None);
-            stamp(
-                &wf.tasks[0].value,
-                &records,
-                &vars,
-                &env,
-                &BTreeMap::new(),
-                &ctx,
-            )
+            stamp(&wf.tasks[0].value, &records, &vars, &BTreeMap::new(), &ctx)
         };
         let v1 = BTreeMap::from([(
             "s/SKILL.md".to_owned(),
@@ -399,7 +359,7 @@ mod unit {
     /// carries secret-derived material, not even inside a hash.
     #[test]
     fn secret_leaked_through_an_upstream_record_disables_the_stamp() {
-        const DOWNSTREAM: &str = "nika: v1\nworkflow:\n  id: t\nsecrets:\n  tok: { source: env, key: T }\ntasks:\n  use:\n    exec: { command: [\"echo\", \"${{ tasks.up.output }}\"] }\n";
+        const DOWNSTREAM: &str = "nika: t\nsecrets:\n  tok: { source: env, key: T }\ntasks:\n  use:\n    exec: { command: [\"echo\", \"${{ tasks.up.output }}\"] }\n";
         let wf = parse(DOWNSTREAM);
         let ctx = ResumeContext::of(
             &wf,
@@ -415,28 +375,12 @@ mod unit {
             success_record(json!("prefix hunter2-secret suffix")),
         )]);
         assert!(
-            stamp(
-                &wf.tasks[0].value,
-                &leaked,
-                &vars,
-                &BTreeMap::new(),
-                &BTreeMap::new(),
-                &ctx
-            )
-            .is_none(),
+            stamp(&wf.tasks[0].value, &leaked, &vars, &BTreeMap::new(), &ctx,).is_none(),
             "a secret value in the rendered inputs → not resume-eligible"
         );
         let clean = BTreeMap::from([("up".to_owned(), success_record(json!("safe")))]);
         assert!(
-            stamp(
-                &wf.tasks[0].value,
-                &clean,
-                &vars,
-                &BTreeMap::new(),
-                &BTreeMap::new(),
-                &ctx
-            )
-            .is_some(),
+            stamp(&wf.tasks[0].value, &clean, &vars, &BTreeMap::new(), &ctx,).is_some(),
             "the same task without the leak stays eligible"
         );
     }
@@ -446,8 +390,8 @@ mod unit {
     /// order produce the SAME stamp (JCS sorts keys at every depth).
     #[test]
     fn with_declaration_order_is_canonicalized_away() {
-        const AB: &str = "nika: v1\nworkflow:\n  id: t\ntasks:\n  t:\n    with: { a: \"1\", b: \"2\" }\n    exec: { command: [\"echo\", \"${{ with.a }}\", \"${{ with.b }}\"] }\n";
-        const BA: &str = "nika: v1\nworkflow:\n  id: t\ntasks:\n  t:\n    with: { b: \"2\", a: \"1\" }\n    exec: { command: [\"echo\", \"${{ with.a }}\", \"${{ with.b }}\"] }\n";
+        const AB: &str = "nika: t\ntasks:\n  t:\n    with: { a: \"1\", b: \"2\" }\n    exec: { command: [\"echo\", \"${{ with.a }}\", \"${{ with.b }}\"] }\n";
+        const BA: &str = "nika: t\ntasks:\n  t:\n    with: { b: \"2\", a: \"1\" }\n    exec: { command: [\"echo\", \"${{ with.a }}\", \"${{ with.b }}\"] }\n";
         let records = BTreeMap::new();
         let vars = BTreeMap::new();
         let a = stamp_of(AB, &records, &vars).expect("eligible");
@@ -460,7 +404,7 @@ mod unit {
     /// input hashes (the number pre-fold carries full i64 fidelity).
     #[test]
     fn int64_beyond_2p53_never_collide() {
-        const WF: &str = "nika: v1\nworkflow:\n  id: t\ninputs:\n  id: { type: integer, default: 1 }\ntasks:\n  t:\n    exec: { command: [\"echo\", \"${{ inputs.id }}\"] }\n";
+        const WF: &str = "nika: t\ninputs:\n  id: { type: integer, required: false, default: 1 }\ntasks:\n  t:\n    exec: { command: [\"echo\", \"${{ inputs.id }}\"] }\n";
         let records = BTreeMap::new();
         // 2^53 + 1 and 2^53 + 2 are the SAME f64 — distinct i64s.
         let a_vars = BTreeMap::from([("id".to_owned(), json!(9_007_199_254_740_993_i64))]);
@@ -474,7 +418,7 @@ mod unit {
     /// string and still distinguishes values.
     #[test]
     fn temperature_rides_as_a_string_and_distinguishes() {
-        const T7: &str = "nika: v1\nworkflow:\n  id: t\ntasks:\n  t:\n    infer: { prompt: \"x\", temperature: 0.7 }\n";
+        const T7: &str = "nika: t\ntasks:\n  t:\n    infer: { prompt: \"x\", temperature: 0.7 }\n";
         let t8 = T7.replace("0.7", "0.8");
         let records = BTreeMap::new();
         let vars = BTreeMap::new();
@@ -488,8 +432,8 @@ mod unit {
     /// is not resume-eligible (fail-closed, never a wrong skip).
     #[test]
     fn fan_out_collection_participates_and_deep_item_nav_is_ineligible() {
-        const SHALLOW: &str = "nika: v1\nworkflow:\n  id: t\nconst:\n  urls: [\"a\", \"b\"]\ntasks:\n  fan:\n    for_each: ${{ const.urls }}\n    exec: { command: [\"echo\", \"${{ item }}\"] }\n";
-        const DEEP: &str = "nika: v1\nworkflow:\n  id: t\nconst:\n  rows: [{ url: \"a\" }]\ntasks:\n  fan:\n    for_each: ${{ const.rows }}\n    exec: { command: [\"echo\", \"${{ item.url }}\"] }\n";
+        const SHALLOW: &str = "nika: t\nconst:\n  urls: [\"a\", \"b\"]\ntasks:\n  fan:\n    for_each: { items: \"${{ const.urls }}\" }\n    exec: { command: [\"echo\", \"${{ item }}\"] }\n";
+        const DEEP: &str = "nika: t\nconst:\n  rows: [{ url: \"a\" }]\ntasks:\n  fan:\n    for_each: { items: \"${{ const.rows }}\" }\n    exec: { command: [\"echo\", \"${{ item.url }}\"] }\n";
         let records = BTreeMap::new();
         let ab = BTreeMap::from([("urls".to_owned(), json!(["a", "b"]))]);
         let ac = BTreeMap::from([("urls".to_owned(), json!(["a", "c"]))]);
@@ -536,8 +480,8 @@ mod unit {
     /// consults the map.
     #[test]
     fn child_closure_rekeys_the_call_and_absence_disqualifies() {
-        const CALLER: &str = "nika: v1\nworkflow:\n  id: t\ntasks:\n  call:\n    invoke: { workflow: \"./child.nika.yaml\", args: { name: \"x\" } }\n";
-        const TOOL: &str = "nika: v1\nworkflow:\n  id: t\npermits: { tools: [\"nika:prompt\"] }\ntasks:\n  ask:\n    invoke: { tool: \"nika:prompt\", args: { mode: \"confirm\", message: \"go?\", default: true } }\n";
+        const CALLER: &str = "nika: t\ntasks:\n  call:\n    invoke: { workflow: \"./child.nika.yaml\", args: { name: \"x\" } }\n";
+        const TOOL: &str = "nika: t\npermits: { tools: [\"nika:prompt\"] }\ntasks:\n  ask:\n    invoke: { tool: \"nika:prompt\", args: { mode: \"confirm\", message: \"go?\", default: true } }\n";
         let records = BTreeMap::new();
         let vars = BTreeMap::new();
         let stamp_with = |yaml: &str, closures: &BTreeMap<String, String>| {
@@ -550,14 +494,7 @@ mod unit {
                 closures,
                 None,
             );
-            stamp(
-                &wf.tasks[0].value,
-                &records,
-                &vars,
-                &BTreeMap::new(),
-                &BTreeMap::new(),
-                &ctx,
-            )
+            stamp(&wf.tasks[0].value, &records, &vars, &BTreeMap::new(), &ctx)
         };
         let d1 = BTreeMap::from([("./child.nika.yaml".to_owned(), "digest-one".to_owned())]);
         let d2 = BTreeMap::from([("./child.nika.yaml".to_owned(), "digest-two".to_owned())]);
@@ -614,7 +551,7 @@ mod trace_carry {
 
     #[tokio::test]
     async fn success_task_completed_carries_the_resume_fields() {
-        const WORKFLOW: &str = "nika: v1\nworkflow:\n  id: carry\npermits: { exec: [\"echo\"] }\ntasks:\n  say:\n    exec: { command: [\"echo\", \"hi\"] }\n";
+        const WORKFLOW: &str = "nika: carry\npermits: { exec: [\"echo\"] }\ntasks:\n  say:\n    exec: { command: [\"echo\", \"hi\"] }\n";
         let wf = nika_schema::parse(
             WORKFLOW,
             nika_schema::FileId::new(0),
@@ -679,7 +616,6 @@ mod trace_carry {
             &BTreeMap::new(),
             &BTreeMap::new(),
             &BTreeMap::new(),
-            &BTreeMap::new(),
             &ctx,
         )
         .expect("eligible");
@@ -687,7 +623,7 @@ mod trace_carry {
         assert_eq!(stamp.input_hash, input);
     }
 
-    const TWO_TASKS: &str = "nika: v1\nworkflow:\n  id: resume\npermits: { exec: [\"echo\"] }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"one\"] }\n  b:\n    with: { prev: \"${{ tasks.a.output }}\" }\n    exec: { command: [\"echo\", \"two\", \"${{ with.prev }}\"] }\n";
+    const TWO_TASKS: &str = "nika: resume\npermits: { exec: [\"echo\"] }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"one\"] }\n  b:\n    with: { prev: \"${{ tasks.a.output }}\" }\n    exec: { command: [\"echo\", \"two\", \"${{ with.prev }}\"] }\n";
 
     /// Run [`TWO_TASKS`] over mock seams with an optional resume plan —
     /// returns the outcome + the emitted stream.
@@ -788,8 +724,8 @@ mod trace_carry {
         // behavior (spec 15 · proven canonical in `with_declaration_order_is_
         // canonicalized_away`). `b` is a live downstream so the run is not
         // trivially all-cache-hit — `a`'s reuse is the claim under test.
-        const SPELL_A: &str = "nika: v1\nworkflow:\n  id: sem\npermits: { exec: [\"echo\"] }\ntasks:\n  a:\n    with: { x: \"1\", y: \"2\" }\n    exec: { command: [\"echo\", \"${{ with.x }}${{ with.y }}\"] }\n  b:\n    with: { prev: \"${{ tasks.a.output }}\" }\n    exec: { command: [\"echo\", \"done\", \"${{ with.prev }}\"] }\n";
-        const SPELL_B: &str = "nika: v1\nworkflow:\n  id: sem\npermits: { exec: [\"echo\"] }\ntasks:\n  a:\n    with: { y: \"2\", x: \"1\" }\n    exec: { command: [\"echo\", \"${{ with.x }}${{ with.y }}\"] }\n  b:\n    with: { prev: \"${{ tasks.a.output }}\" }\n    exec: { command: [\"echo\", \"done\", \"${{ with.prev }}\"] }\n";
+        const SPELL_A: &str = "nika: sem\npermits: { exec: [\"echo\"] }\ntasks:\n  a:\n    with: { x: \"1\", y: \"2\" }\n    exec: { command: [\"echo\", \"${{ with.x }}${{ with.y }}\"] }\n  b:\n    with: { prev: \"${{ tasks.a.output }}\" }\n    exec: { command: [\"echo\", \"done\", \"${{ with.prev }}\"] }\n";
+        const SPELL_B: &str = "nika: sem\npermits: { exec: [\"echo\"] }\ntasks:\n  a:\n    with: { y: \"2\", x: \"1\" }\n    exec: { command: [\"echo\", \"${{ with.x }}${{ with.y }}\"] }\n  b:\n    with: { prev: \"${{ tasks.a.output }}\" }\n    exec: { command: [\"echo\", \"done\", \"${{ with.prev }}\"] }\n";
 
         // 1. Run spelling A — harvest a's journaled semantic identity + output.
         let (first, sink) = run_yaml(

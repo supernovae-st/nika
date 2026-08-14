@@ -734,7 +734,7 @@ mod tests {
     }
 
     fn wf(tasks: &str) -> String {
-        format!("nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n{tasks}")
+        format!("nika: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n{tasks}")
     }
 
     #[test]
@@ -846,7 +846,7 @@ mod tests {
     fn unknown_atoms_are_sound_not_dead() {
         // vars/env/output atoms → Unknown → never a dead-claim
         let f = gates(
-            "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\nconst: { env: \"staging\" }\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n  b:\n    with: { a_status: \"${{ tasks.a.status }}\" }\n    when: ${{ const.env == 'production' && with.a_status == 'success' }}\n    exec: { command: [\"true\"] }\n  c:\n    with:\n      a_out_x: \"${{ tasks.a.output.x }}\"\n      a_status: \"${{ tasks.a.status }}\"\n    when: \"${{ has(with.a_out_x) ? with.a_status == 'success' : false }}\"\n    exec: { command: [\"true\"] }\n",
+            "nika: w\nmodel: anthropic/claude-sonnet-4-6\nconst: { env: \"staging\" }\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n  b:\n    with: { a_status: \"${{ tasks.a.status }}\" }\n    when: ${{ const.env == 'production' && with.a_status == 'success' }}\n    exec: { command: [\"true\"] }\n  c:\n    with:\n      a_out_x: \"${{ tasks.a.output.x }}\"\n      a_status: \"${{ tasks.a.status }}\"\n    when: \"${{ has(with.a_out_x) ? with.a_status == 'success' : false }}\"\n    exec: { command: [\"true\"] }\n",
         );
         assert!(f.is_empty(), "{f:?}");
     }

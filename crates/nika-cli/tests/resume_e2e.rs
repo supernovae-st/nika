@@ -87,9 +87,7 @@ fn field_str(line: &str, key: &str) -> String {
 // ─── (a) kill-midrun → resume completes the remainder ───────────────────
 
 const CHAIN: &str = r#"
-nika: v1
-workflow:
-  id: resume-chain
+nika: resume-chain
 permits: { exec: ["echo"] }
 tasks:
   a:
@@ -193,9 +191,7 @@ fn kill_midrun_resume_completes_the_remainder() {
 // ─── (b) input change → rehash → re-run (sibling still skips) ───────────
 
 const FORK: &str = r#"
-nika: v1
-workflow:
-  id: resume-fork
+nika: resume-fork
 inputs:
   topic: { type: string, default: "news" }
 permits: { exec: ["echo"] }
@@ -281,9 +277,7 @@ fn input_change_rehashes_and_reruns_only_the_consumer() {
 // ─── (c) paused prompt re-arms (idempotent · answer binds) ──────────────
 
 const GATED: &str = r#"
-nika: v1
-workflow:
-  id: resume-gated
+nika: resume-gated
 permits: { exec: ["echo"], tools: ["nika:prompt"] }
 tasks:
   prep:
@@ -494,9 +488,7 @@ fn a_headless_text_run_pauses_at_the_gate_and_teaches_the_resume() {
 #[test]
 fn a_prompt_with_a_default_never_pauses() {
     const DEFAULTED: &str = r#"
-nika: v1
-workflow:
-  id: defaulted-prompt
+nika: defaulted-prompt
 tasks:
   ask:
     invoke:
@@ -609,9 +601,7 @@ fn write_in(dir: &std::path::Path, name: &str, body: &str) -> std::path::PathBuf
 }
 
 const COMP_CHILD: &str = r#"
-nika: v1
-workflow:
-  id: greet-child
+nika: greet-child
 inputs:
   name: { type: string, required: true }
 permits: { exec: ["echo"] }
@@ -623,9 +613,7 @@ outputs:
 "#;
 
 const COMP_PARENT: &str = r#"
-nika: v1
-workflow:
-  id: greet-parent
+nika: greet-parent
 permits: { exec: ["echo"] }
 tasks:
   before:
@@ -764,9 +752,7 @@ fn an_edited_child_reruns_the_call_instead_of_serving_stale_output() {
 fn an_edited_grandchild_reruns_the_call_transitively() {
     let dir = comp_dir("comp-grand");
     let leaf = r#"
-nika: v1
-workflow:
-  id: leaf
+nika: leaf
 permits: { exec: ["echo"] }
 tasks:
   speak:
@@ -775,9 +761,7 @@ outputs:
   word: { value: "${{ tasks.speak.output }}", type: string }
 "#;
     let mid = r#"
-nika: v1
-workflow:
-  id: mid
+nika: mid
 permits: { exec: ["echo"] }
 tasks:
   descend:
@@ -787,9 +771,7 @@ outputs:
   relayed: { value: "${{ tasks.descend.output.word }}", type: string }
 "#;
     let parent = r#"
-nika: v1
-workflow:
-  id: root
+nika: root
 permits: { exec: ["echo"] }
 tasks:
   call:

@@ -86,6 +86,7 @@ pub struct nika_graph::Node
 pub nika_graph::Node::cost_interval: core::option::Option<[f64; 2]>
 pub nika_graph::Node::fan_out: core::option::Option<nika_graph::FanOut>
 pub nika_graph::Node::id: alloc::string::String
+pub nika_graph::Node::kind: &'static str
 pub nika_graph::Node::model: core::option::Option<alloc::string::String>
 pub nika_graph::Node::on_error: core::option::Option<&'static str>
 pub nika_graph::Node::outputs: alloc::vec::Vec<alloc::string::String>

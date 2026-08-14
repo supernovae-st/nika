@@ -41,7 +41,7 @@ const PRODUCER: &str = r#"
 "#;
 
 fn wf(consumer: &str) -> String {
-    format!("nika: v1\nworkflow:\n  id: sbp\ntasks:{PRODUCER}{consumer}")
+    format!("nika: sbp\ntasks:{PRODUCER}{consumer}")
 }
 
 // ───────────────────── provably invalid → NIKA-VAR-003 ─────────────────────
@@ -141,9 +141,7 @@ fn a_level_that_declares_nothing_is_never_rejected() {
     // undeclared SIBLING of a declared key — stayed legal; the lock decides
     // that the other way, and it is now the test below.
     let yaml = r#"
-nika: v1
-workflow:
-  id: sbp-open
+nika: sbp-open
 tasks:
   extract:
     infer:
@@ -168,9 +166,7 @@ fn an_undeclared_sibling_of_a_declared_key_is_rejected() {
     // binding, so the misspelled-key class refuses without waiting for an
     // explicit `additionalProperties: false`.
     let yaml = r#"
-nika: v1
-workflow:
-  id: sbp-sibling
+nika: sbp-sibling
 tasks:
   extract:
     infer:
@@ -192,9 +188,7 @@ tasks:
 fn explicitly_reopening_a_declared_level_makes_it_legal_again() {
     // The one-line fix the message prescribes, proven end to end.
     let yaml = r#"
-nika: v1
-workflow:
-  id: sbp-reopened
+nika: sbp-reopened
 tasks:
   extract:
     infer:
@@ -217,9 +211,7 @@ tasks:
 fn non_subset_construct_makes_the_level_open() {
     // oneOf at a level → the walk stops · nothing beneath is rejected.
     let yaml = r#"
-nika: v1
-workflow:
-  id: sbp-oneof
+nika: sbp-oneof
 tasks:
   extract:
     infer:
@@ -243,9 +235,7 @@ tasks:
 #[test]
 fn schema_less_producer_is_fully_dynamic() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: sbp-dyn
+nika: sbp-dyn
 tasks:
   dump:
     exec: { command: ["./dump.sh"] }

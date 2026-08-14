@@ -69,9 +69,7 @@ fn run_in(dir: &std::path::Path, args: &[&str]) -> (i32, String) {
 }
 
 const CHILD: &str = r#"
-nika: v1
-workflow:
-  id: greet-child
+nika: greet-child
 inputs:
   name: { type: string, required: true }
 permits: { exec: ["echo"] }
@@ -83,9 +81,7 @@ outputs:
 "#;
 
 const PARENT: &str = r#"
-nika: v1
-workflow:
-  id: greet-parent
+nika: greet-parent
 permits: { exec: ["echo"] }
 tasks:
   call:
@@ -235,17 +231,13 @@ fn trace_forest_two_chains_and_the_parent_commits_to_the_child() {
 fn static_cycle_is_refused_at_check() {
     let dir = tmp_dir("comp-cycle");
     let a = r#"
-nika: v1
-workflow:
-  id: a
+nika: a
 tasks:
   go:
     invoke: { workflow: "./b.nika.yaml" }
 "#;
     let b = r#"
-nika: v1
-workflow:
-  id: b
+nika: b
 tasks:
   back:
     invoke: { workflow: "./a.nika.yaml" }
@@ -267,9 +259,7 @@ tasks:
 fn child_effect_outside_the_parent_boundary_is_refused() {
     let dir = tmp_dir("comp-contain");
     let parent = r#"
-nika: v1
-workflow:
-  id: contained-parent
+nika: contained-parent
 permits:
   net:
     http: ["api.example.com"]
@@ -292,9 +282,7 @@ tasks:
 fn templated_target_is_refused_at_check() {
     let dir = tmp_dir("comp-templated");
     let parent = r#"
-nika: v1
-workflow:
-  id: t
+nika: t
 const:
   which: "a"
 tasks:
@@ -313,9 +301,7 @@ fn missing_required_child_input_is_refused_at_check() {
     let dir = tmp_dir("comp-args");
     write_fixture(&dir, "child.nika.yaml", CHILD); // requires `name`
     let parent = r#"
-nika: v1
-workflow:
-  id: p
+nika: p
 tasks:
   call:
     invoke: { workflow: "./child.nika.yaml" }
@@ -338,9 +324,7 @@ fn acyclic_chain_beyond_the_depth_bound_fails_closed_at_run() {
     for i in 0..10 {
         let body = if i == 9 {
             "\
-nika: v1
-workflow:
-  id: f9
+nika: f9
 permits: { exec: [\"echo\"] }
 tasks:
   leaf:
@@ -350,9 +334,7 @@ tasks:
         } else {
             format!(
                 "\
-nika: v1
-workflow:
-  id: f{i}
+nika: f{i}
 permits: {{ exec: [\"echo\"] }}
 tasks:
   descend:
@@ -391,9 +373,7 @@ tasks:
 fn the_child_floor_bounds_the_parent_budget_before_any_token() {
     let dir = tmp_dir("comp-budget");
     let priced = "\
-nika: v1
-workflow:
-  id: spender
+nika: spender
 model: groq/qwen/qwen3-32b
 tasks:
   think:
@@ -402,7 +382,7 @@ tasks:
     let unpriced = priced.replace("groq/qwen/qwen3-32b", "mock/echo");
     let parent_of = |child: &str| {
         format!(
-            "nika: v1\nworkflow:\n  id: thrifty\ntasks:\n  call:\n    \
+            "nika: thrifty\ntasks:\n  call:\n    \
              invoke: {{ workflow: \"./{child}\" }}\n"
         )
     };
@@ -485,18 +465,14 @@ tasks:
 fn parent_timeout_bounds_the_real_child() {
     let dir = tmp_dir("comp-deadline");
     let child = r#"
-nika: v1
-workflow:
-  id: sleeper
+nika: sleeper
 permits: { exec: ["sleep"] }
 tasks:
   nap:
     exec: { command: ["sleep", "5"] }
 "#;
     let parent = r#"
-nika: v1
-workflow:
-  id: impatient
+nika: impatient
 permits: { exec: ["sleep"] }
 tasks:
   call:

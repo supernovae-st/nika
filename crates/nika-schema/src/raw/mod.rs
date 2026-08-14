@@ -15,5 +15,5 @@ pub use action::{
     RawAction, RawAgentAction, RawCommand, RawExecAction, RawInferAction, RawInvokeAction,
     RawInvokeTarget, Thinking, VisionInput,
 };
-pub use task::{DeclassifyEntry, ForEachValue, RawFinallyTask, RawTask};
+pub use task::{ForEachValue, LiftEntry, LiftLaw, RawTask};
 pub use workflow::RawWorkflow;

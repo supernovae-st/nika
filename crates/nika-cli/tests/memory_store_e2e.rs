@@ -180,9 +180,7 @@ fn an_unsigned_entry_is_rejected_zero_admission() {
 // ─── (d) the seal integration at the real binary ─────────────────────
 
 const WF: &str = r#"
-nika: v1
-workflow:
-  id: memory-store-e2e
+nika: memory-store-e2e
 permits:
   exec: ["echo"]
 tasks:

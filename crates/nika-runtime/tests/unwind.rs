@@ -2,7 +2,7 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 #![allow(clippy::expect_used, clippy::panic)]
 
-//! The `on_finally:` battery (spec 03 · always-run cleanup) — extracted
+//! The `unwind` battery (spec 03 · always-run cleanup) — extracted
 //! from `spec_v2.rs` (the 1500-LOC ratchet) — every test runs the REAL
 //! parse → check → run chain over mock seams (the floor discipline).
 
@@ -92,28 +92,31 @@ fn str_field<'a>(event: &'a Event, key: &str) -> Option<&'a str> {
 // ─── the battery ─────────────────────────────────────────────────────────
 
 #[tokio::test]
-async fn on_finally_runs_on_success_and_failure_and_routes_on_status() {
+async fn unwind_runs_on_success_and_failure_and_routes_on_status() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: cleanup
+nika: cleanup
 permits: { exec: true }
 tasks:
   works:
     exec: { command: ["make", "thing"] }
-    on_finally:
-      - exec: { command: ["rm", "-f", "scratch-a"] }
+  works_sweep:
+    after: { works: unwind }
+    exec: { command: ["rm", "-f", "scratch-a"] }
   breaks:
     exec: { command: ["make", "other"] }
-    on_finally:
-      - when: ${{ tasks.breaks.status == 'failure' }}
-        exec: { command: ["alert", "on-call"] }
-      - exec: { command: ["rm", "-f", "scratch-b"] }
+  breaks_alert:
+    after: { breaks: unwind }
+    when: ${{ tasks.breaks.status == 'failure' }}
+    exec: { command: ["alert", "on-call"] }
+  breaks_sweep:
+    after: { breaks: unwind }
+    exec: { command: ["rm", "-f", "scratch-b"] }
   never_ran:
     after: { breaks: success }
     exec: { command: ["downstream"] }
-    on_finally:
-      - exec: { command: ["must", "not", "run"] }
+  never_ran_sweep:
+    after: { never_ran: unwind }
+    exec: { command: ["must", "not", "run"] }
 "#;
     // Queue: works · works-cleanup · breaks(FAIL) · breaks-cleanup-1
     // (alert · gate OPEN on failure) · breaks-cleanup-2 — and NOTHING
@@ -147,18 +150,17 @@ tasks:
 /// carry `permit_checked` frames for it (the lane-local witness that
 /// never drained is retired — decisions merge into the parent's stream).
 #[tokio::test]
-async fn on_finally_decisions_are_attested_as_permit_checked() {
+async fn unwind_decisions_are_attested_as_permit_checked() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: attest-finally
+nika: attest-finally
 model: mock/echo
 permits: { exec: ["echo"] }
 tasks:
   main:
     infer: { prompt: "hi" }
-    on_finally:
-      - exec: { command: ["echo", "cleanup"] }
+  main_sweep:
+    after: { main: unwind }
+    exec: { command: ["echo", "cleanup"] }
 "#;
     let (_outcome, events) = run_to_events(
         yaml,
@@ -191,17 +193,16 @@ tasks:
 /// A cleanup error is swallowed — the parent's status reflects ONLY
 /// the main verb (spec 03 · best-effort semantics).
 #[tokio::test]
-async fn on_finally_errors_are_swallowed() {
+async fn unwind_errors_are_swallowed() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: cleanup-err
+nika: cleanup-err
 permits: { exec: true }
 tasks:
   main:
     exec: { command: ["work"] }
-    on_finally:
-      - exec: { command: ["broken", "cleanup"] }
+  main_sweep:
+    after: { main: unwind }
+    exec: { command: ["broken", "cleanup"] }
 "#;
     let shell = MockShell::new()
         .enqueue_ok("worked\n")

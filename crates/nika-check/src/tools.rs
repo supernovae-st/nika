@@ -44,13 +44,6 @@ pub(super) fn scan_unknown_tools(wf: &RawWorkflow) -> Vec<UnknownTool> {
     for task in &wf.tasks {
         let id = &task.value.id.value;
         collect(id, &task.value.action, &mut findings);
-        for cleanup in &task.value.on_finally {
-            collect(
-                &format!("{id} (on_finally)"),
-                &cleanup.value.action,
-                &mut findings,
-            );
-        }
     }
     findings
 }
@@ -138,13 +131,6 @@ pub(super) fn scan_unknown_args(wf: &RawWorkflow) -> Vec<UnknownArg> {
     for task in &wf.tasks {
         let id = &task.value.id.value;
         collect_args(id, &task.value.action, &mut findings);
-        for cleanup in &task.value.on_finally {
-            collect_args(
-                &format!("{id} (on_finally)"),
-                &cleanup.value.action,
-                &mut findings,
-            );
-        }
     }
     findings
 }
@@ -231,13 +217,6 @@ pub(super) fn scan_missing_args(wf: &RawWorkflow) -> Vec<MissingArg> {
     for task in &wf.tasks {
         let id = &task.value.id.value;
         collect_missing(id, &task.value.action, &mut findings);
-        for cleanup in &task.value.on_finally {
-            collect_missing(
-                &format!("{id} (on_finally)"),
-                &cleanup.value.action,
-                &mut findings,
-            );
-        }
     }
     findings
 }
@@ -283,7 +262,7 @@ mod tests {
     #[test]
     fn typo_d_builtin_is_caught_with_the_fix() {
         let f = findings_of(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    invoke: { tool: \"nika:raed\", args: { path: \"./x\" } }\n",
+            "nika: w\ntasks:\n  t:\n    invoke: { tool: \"nika:raed\", args: { path: \"./x\" } }\n",
         );
         assert_eq!(f.len(), 1);
         assert_eq!(f[0].tool, "nika:raed");
@@ -293,7 +272,7 @@ mod tests {
     #[test]
     fn canonical_builtins_are_clean() {
         let f = findings_of(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    invoke: { tool: \"nika:read\", args: { path: \"./x\" } }\n  b:\n    invoke: { tool: \"nika:json_merge_patch\", args: { target: {}, patch: {} } }\n",
+            "nika: w\ntasks:\n  a:\n    invoke: { tool: \"nika:read\", args: { path: \"./x\" } }\n  b:\n    invoke: { tool: \"nika:json_merge_patch\", args: { target: {}, patch: {} } }\n",
         );
         assert!(f.is_empty(), "{f:?}");
     }
@@ -301,7 +280,7 @@ mod tests {
     #[test]
     fn mcp_tools_are_open_namespace() {
         let f = findings_of(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    invoke: { tool: \"mcp:browser/navigate\", args: { url: \"x\" } }\n",
+            "nika: w\ntasks:\n  t:\n    invoke: { tool: \"mcp:browser/navigate\", args: { url: \"x\" } }\n",
         );
         assert!(f.is_empty(), "server-defined tools are runtime-discovered");
     }
@@ -309,7 +288,7 @@ mod tests {
     #[test]
     fn agent_glob_grants_are_skipped_concrete_entries_checked() {
         let f = findings_of(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    agent:\n      prompt: \"go\"\n      tools: [\"nika:*\", \"nika:fetc\", \"mcp:browser/*\"]\n",
+            "nika: w\ntasks:\n  t:\n    agent:\n      prompt: \"go\"\n      tools: [\"nika:*\", \"nika:fetc\", \"mcp:browser/*\"]\n",
         );
         assert_eq!(f.len(), 1, "only the concrete typo flags: {f:?}");
         assert_eq!(f[0].suggestion.as_deref(), Some("nika:fetch"));
@@ -322,25 +301,15 @@ mod tests {
         // unknown-tool finding (the contract that keeps `nika:compose` in
         // the closed catalog rather than a separate `agent:` namespace).
         let f = findings_of(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    agent:\n      prompt: \"go\"\n      tools: [\"nika:done\", \"nika:compose\"]\n",
+            "nika: w\ntasks:\n  t:\n    agent:\n      prompt: \"go\"\n      tools: [\"nika:done\", \"nika:compose\"]\n",
         );
         assert!(f.is_empty(), "loop-only builtins are catalogued: {f:?}");
     }
 
     #[test]
-    fn on_finally_cleanup_tools_are_checked() {
-        let f = findings_of(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    exec: { command: [\"true\"] }\n    on_finally:\n      - invoke: { tool: \"nika:wrte\", args: { path: \"x\", content: \"y\" } }\n",
-        );
-        assert_eq!(f.len(), 1);
-        assert_eq!(f[0].task, "t (on_finally)");
-        assert_eq!(f[0].suggestion.as_deref(), Some("nika:write"));
-    }
-
-    #[test]
     fn far_typo_gets_no_wrong_guess() {
         let f = findings_of(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    invoke: { tool: \"nika:zzzzzzz\", args: {} }\n",
+            "nika: w\ntasks:\n  t:\n    invoke: { tool: \"nika:zzzzzzz\", args: {} }\n",
         );
         assert_eq!(f.len(), 1);
         assert_eq!(f[0].suggestion, None, "silence beats a wrong suggestion");
@@ -358,7 +327,7 @@ mod tests {
         // ignore it and emit `null`. Caught here. (`data`→`input` is too
         // far for a suggestion, but the unknown-arg finding is the value.)
         let f = arg_findings_of(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    invoke: { tool: \"nika:jq\", args: { expression: \".\", data: { a: 1 } } }\n",
+            "nika: w\ntasks:\n  t:\n    invoke: { tool: \"nika:jq\", args: { expression: \".\", data: { a: 1 } } }\n",
         );
         assert_eq!(f.len(), 1, "{f:?}");
         assert_eq!(f[0].tool, "nika:jq");
@@ -370,7 +339,7 @@ mod tests {
     fn near_arg_typo_gets_the_did_you_mean_fix() {
         // `inpit` is one transposition from `input` → suggestion attached.
         let f = arg_findings_of(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    invoke: { tool: \"nika:jq\", args: { expression: \".\", inpit: 1 } }\n",
+            "nika: w\ntasks:\n  t:\n    invoke: { tool: \"nika:jq\", args: { expression: \".\", inpit: 1 } }\n",
         );
         assert_eq!(f.len(), 1, "{f:?}");
         assert_eq!(f[0].arg, "inpit");
@@ -383,7 +352,7 @@ mod tests {
         // distance 6 (invisible to the metric) but an unambiguous
         // abbreviation of exactly one declared key.
         let f = arg_findings_of(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    invoke: { tool: \"nika:jq\", args: { expr: \".\", input: 1 } }\n",
+            "nika: w\ntasks:\n  t:\n    invoke: { tool: \"nika:jq\", args: { expr: \".\", input: 1 } }\n",
         );
         assert_eq!(f.len(), 1, "{f:?}");
         assert_eq!(f[0].arg, "expr");
@@ -396,7 +365,7 @@ mod tests {
         // `nika:json_diff` (`before`/`after`) — no lexical similarity, so
         // no guess; the finding carries the closed declared set instead.
         let f = arg_findings_of(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    invoke: { tool: \"nika:json_diff\", args: { left: { a: 1 }, right: { a: 2 } } }\n",
+            "nika: w\ntasks:\n  t:\n    invoke: { tool: \"nika:json_diff\", args: { left: { a: 1 }, right: { a: 2 } } }\n",
         );
         assert_eq!(f.len(), 2, "{f:?}");
         for u in &f {
@@ -426,7 +395,7 @@ mod tests {
     #[test]
     fn declared_args_are_clean() {
         let f = arg_findings_of(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    invoke: { tool: \"nika:jq\", args: { expression: \".\", input: { a: 1 } } }\n",
+            "nika: w\ntasks:\n  t:\n    invoke: { tool: \"nika:jq\", args: { expression: \".\", input: { a: 1 } } }\n",
         );
         assert!(f.is_empty(), "every key is declared: {f:?}");
     }
@@ -434,7 +403,7 @@ mod tests {
     #[test]
     fn each_undeclared_key_is_its_own_finding() {
         let f = arg_findings_of(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    invoke: { tool: \"nika:read\", args: { path: \"./x\", mode: \"r\", extra: 1 } }\n",
+            "nika: w\ntasks:\n  t:\n    invoke: { tool: \"nika:read\", args: { path: \"./x\", mode: \"r\", extra: 1 } }\n",
         );
         let mut keys: Vec<&str> = f.iter().map(|u| u.arg.as_str()).collect();
         keys.sort_unstable();
@@ -448,7 +417,7 @@ mod tests {
     #[test]
     fn mcp_args_are_the_open_namespace() {
         let f = arg_findings_of(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    invoke: { tool: \"mcp:browser/navigate\", args: { whatever: 1 } }\n",
+            "nika: w\ntasks:\n  t:\n    invoke: { tool: \"mcp:browser/navigate\", args: { whatever: 1 } }\n",
         );
         assert!(f.is_empty(), "server-defined args are not validated");
     }
@@ -458,19 +427,9 @@ mod tests {
         // `nika:raed` is reported by scan_unknown_tools; its args must NOT
         // also flag here (we can't know a typo'd builtin's vocabulary).
         let f = arg_findings_of(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    invoke: { tool: \"nika:raed\", args: { wat: 1 } }\n",
+            "nika: w\ntasks:\n  t:\n    invoke: { tool: \"nika:raed\", args: { wat: 1 } }\n",
         );
         assert!(f.is_empty(), "unknown builtin owns its finding: {f:?}");
-    }
-
-    #[test]
-    fn on_finally_invoke_args_are_checked() {
-        let f = arg_findings_of(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    exec: { command: [\"true\"] }\n    on_finally:\n      - invoke: { tool: \"nika:write\", args: { path: \"x\", content: \"y\", appnd: true } }\n",
-        );
-        assert_eq!(f.len(), 1);
-        assert_eq!(f[0].task, "t (on_finally)");
-        assert_eq!(f[0].arg, "appnd");
     }
 
     // ── F5 · missing required args (extends the 5/22 static check) ───────
@@ -490,7 +449,7 @@ mod tests {
                 continue; // conditional contract · builtin_shape owns it
             }
             let yaml = format!(
-                "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    invoke: {{ tool: \"nika:{}\" }}\n",
+                "nika: w\ntasks:\n  t:\n    invoke: {{ tool: \"nika:{}\" }}\n",
                 b.name
             );
             let f = missing_of(&yaml);
@@ -513,7 +472,7 @@ mod tests {
         // `nika:write` requires path + content · giving only `path` flags
         // exactly `content` (not path), and nothing else.
         let f = missing_of(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    invoke: { tool: \"nika:write\", args: { path: \"./o\" } }\n",
+            "nika: w\ntasks:\n  t:\n    invoke: { tool: \"nika:write\", args: { path: \"./o\" } }\n",
         );
         assert_eq!(f.len(), 1, "{f:?}");
         assert_eq!(f[0].arg, "content");
@@ -523,7 +482,7 @@ mod tests {
     #[test]
     fn all_required_present_is_clean() {
         let f = missing_of(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    invoke: { tool: \"nika:convert\", args: { input: \"x\", from: \"csv\", to: \"json\" } }\n",
+            "nika: w\ntasks:\n  t:\n    invoke: { tool: \"nika:convert\", args: { input: \"x\", from: \"csv\", to: \"json\" } }\n",
         );
         assert!(f.is_empty(), "every required arg present: {f:?}");
     }
@@ -533,9 +492,7 @@ mod tests {
         // `nika:uuid` (version optional) and `nika:done` (no required) never
         // raise a missing-required finding even with empty args.
         for name in ["uuid", "done"] {
-            let yaml = format!(
-                "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    invoke: {{ tool: \"nika:{name}\" }}\n"
-            );
+            let yaml = format!("nika: w\ntasks:\n  t:\n    invoke: {{ tool: \"nika:{name}\" }}\n");
             assert!(missing_of(&yaml).is_empty(), "nika:{name} has no required");
         }
     }
@@ -546,33 +503,17 @@ mod tests {
         // pairings) carry NO flat required — the missing-required scan must
         // stay silent on them (builtin_shape owns the double-report-free
         // contract).
-        let wait = missing_of(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    invoke: { tool: \"nika:wait\" }\n",
-        );
+        let wait = missing_of("nika: w\ntasks:\n  t:\n    invoke: { tool: \"nika:wait\" }\n");
         assert!(wait.is_empty(), "wait is conditional, not flat-required");
-        let fetch = missing_of(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    invoke: { tool: \"nika:fetch\" }\n",
-        );
+        let fetch = missing_of("nika: w\ntasks:\n  t:\n    invoke: { tool: \"nika:fetch\" }\n");
         assert!(fetch.is_empty(), "fetch contract is builtin_shape's");
-    }
-
-    #[test]
-    fn missing_required_in_on_finally_is_checked() {
-        let f = missing_of(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    exec: { command: [\"true\"] }\n    on_finally:\n      - invoke: { tool: \"nika:hash\" }\n",
-        );
-        assert_eq!(f.len(), 1);
-        assert_eq!(f[0].task, "t (on_finally)");
-        assert_eq!(f[0].arg, "content");
     }
 
     #[test]
     fn unknown_builtin_missing_args_not_double_reported() {
         // A typo'd builtin is scan_unknown_tools' finding — the
         // missing-required scan can't know its vocabulary, stays silent.
-        let f = missing_of(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    invoke: { tool: \"nika:hsah\" }\n",
-        );
+        let f = missing_of("nika: w\ntasks:\n  t:\n    invoke: { tool: \"nika:hsah\" }\n");
         assert!(f.is_empty(), "unknown builtin owns its finding: {f:?}");
     }
 }

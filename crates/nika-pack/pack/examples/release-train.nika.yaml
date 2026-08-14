@@ -33,10 +33,7 @@
 #       · watch the hold tick · add --var hold_for=5s
 #       · actually depart · add --var depart=true (and wire the two Needs above)
 
-nika: v1
-workflow:
-  id: release-train
-  description: "parallel gates → one verdict → human GO → hold until the window → ship · verify · record"
+nika: release-train
 
 run:
   # Pin the clock out loud. Every `timeout:` and every absolute `until:` below
@@ -77,8 +74,6 @@ permits:
       - "./VERSION"
       - "./CHANGELOG.md"
       - "./schemas/workflow.schema.json"
-policy:                              # NEP-0014 · the gate runs under a NAMED endorsement mode
-  endorsement: solo
 
 tasks:
   t0:

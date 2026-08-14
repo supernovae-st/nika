@@ -85,9 +85,6 @@ pub(super) fn scan(wf: &RawWorkflow) -> Vec<Hint> {
     for task in &wf.tasks {
         let id = task.value.id.value.as_str();
         push_native_first(&task.value.action, id, &mut hints);
-        for cleanup in &task.value.on_finally {
-            push_native_first(&cleanup.value.action, id, &mut hints);
-        }
     }
     hints
 }
@@ -255,9 +252,7 @@ mod tests {
         } else {
             "shell"
         };
-        format!(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    exec: {{ {field}: {command_yaml} }}\n"
-        )
+        format!("nika: w\ntasks:\n  t:\n    exec: {{ {field}: {command_yaml} }}\n")
     }
 
     fn sole_native_hint(yaml: &str) -> Hint {
@@ -310,7 +305,7 @@ mod tests {
         // An interpreter + script file is the HELPER class even when the
         // script name suggests HTTP — the umbrella advice owns it.
         let h = sole_native_hint(&exec_wf(
-            "[\"node\", \"workflows/site/bin/crawl-and-upload.mjs\", \"--url\", \"${{ vars.site }}\"]",
+            "[\"node\", \"workflows/site/bin/crawl-and-upload.mjs\", \"--url\", \"${{ inputs.site }}\"]",
         ));
         assert!(h.advice.contains("native-first/005"), "{h:?}");
         assert!(h.advice.contains("exec ledger"), "{h:?}");
@@ -379,7 +374,7 @@ mod tests {
             "[\"qrt\", \"product\", \"create\", \"--json\"]",
             "\"make release\"",
             "\"nika run subroutine.nika.yaml\"",
-            "\"${{ vars.tool }} --flag\"",
+            "\"${{ inputs.tool }} --flag\"",
         ] {
             let hints = hints_of(&exec_wf(command));
             assert!(
@@ -397,25 +392,11 @@ mod tests {
     }
 
     #[test]
-    fn on_finally_cleanups_are_scanned_too() {
-        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    exec: { command: [\"make\", \"build\"] }\n    on_finally:\n      - exec: { command: [\"curl\", \"-X\", \"POST\", \"https://hooks.test/done\"] }\n";
-        let hints = hints_of(yaml);
-        assert!(
-            hints
-                .iter()
-                .any(|h| h.kind == "native-first" && h.task == "t"),
-            "{hints:?}"
-        );
-    }
-
-    #[test]
     fn the_site_asset_regression_fixture_yields_all_four_hints() {
         // The genericized empirical trigger: a site-asset workflow whose
         // four exec tasks are all natively expressible. Spec-VALID (it
         // parses + checks) yet every task earns its native-first hint.
-        let yaml = r#"nika: v1
-workflow:
-  id: site-asset
+        let yaml = r#"nika: site-asset
 model: mock/echo
 tasks:
   crawl_site:

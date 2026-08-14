@@ -124,10 +124,11 @@ impl<'a> ValueTaint<'a> {
     /// The task-local taints (the first two steps of the integrity
     /// walk), borrowed from the task's own templates.
     pub(crate) fn of_task(task: &'a RawTask, records: &BTreeMap<String, TaskRecord>) -> Self {
+        // the `taint` doors only — `data-as-code` raises no binding
         let declassified: std::collections::BTreeSet<String> = task
-            .declassify
-            .iter()
-            .map(|entry| entry.from.value.clone())
+            .taint_lifts()
+            .filter_map(|entry| entry.from.as_ref())
+            .map(|from| from.value.clone())
             .collect();
         let mut with_taint: BTreeMap<&str, Integrity> = BTreeMap::new();
         for (key, value) in &task.with {
@@ -357,7 +358,7 @@ mod tests {
         entries.into_iter().collect()
     }
 
-    const HEAD: &str = "nika: v1\nworkflow:\n  id: w\ntasks:\n";
+    const HEAD: &str = "nika: w\ntasks:\n";
 
     #[test]
     fn fetch_output_is_born_untrusted_with_its_own_id_as_witness() {
@@ -497,13 +498,13 @@ mod tests {
     #[test]
     fn for_each_item_carries_the_collections_taint() {
         let task = parse_task(&format!(
-            "{HEAD}  t:\n    for_each: \"${{{{ tasks.dl.output }}}}\"\n    infer: {{ prompt: \"${{{{ item }}}}\", max_tokens: 5 }}\n"
+            "{HEAD}  t:\n    for_each: {{ items: \"${{{{ tasks.dl.output }}}}\" }}\n    infer: {{ prompt: \"${{{{ item }}}}\", max_tokens: 5 }}\n"
         ));
         let recs = records(vec![settled("dl", Integrity::untrusted("dl"))]);
         assert_eq!(task_integrity(&task, &recs), Integrity::untrusted("dl"));
         // A literal list is authored — clean even with an item read.
         let literal = parse_task(&format!(
-            "{HEAD}  t:\n    for_each: [\"a\", \"b\"]\n    infer: {{ prompt: \"${{{{ item }}}}\", max_tokens: 5 }}\n"
+            "{HEAD}  t:\n    for_each: {{ items: [\"a\", \"b\"] }}\n    infer: {{ prompt: \"${{{{ item }}}}\", max_tokens: 5 }}\n"
         ));
         assert_eq!(
             task_integrity(&literal, &records(Vec::new())),
@@ -560,7 +561,7 @@ mod tests {
     #[test]
     fn value_taint_item_reads_the_collections_taint() {
         let task = parse_task(&format!(
-            "{HEAD}  t:\n    for_each: \"${{{{ tasks.dl.output }}}}\"\n    exec: {{ command: [\"echo\", \"${{{{ item }}}}\"] }}\n"
+            "{HEAD}  t:\n    for_each: {{ items: \"${{{{ tasks.dl.output }}}}\" }}\n    exec: {{ command: [\"echo\", \"${{{{ item }}}}\"] }}\n"
         ));
         let recs = records(vec![settled("dl", Integrity::untrusted("dl"))]);
         let oracle = ValueTaint::of_task(&task, &recs);
@@ -570,7 +571,7 @@ mod tests {
         );
         // A literal list is authored — the item stays clean.
         let literal = parse_task(&format!(
-            "{HEAD}  t:\n    for_each: [\"a\", \"b\"]\n    exec: {{ command: [\"echo\", \"${{{{ item }}}}\"] }}\n"
+            "{HEAD}  t:\n    for_each: {{ items: [\"a\", \"b\"] }}\n    exec: {{ command: [\"echo\", \"${{{{ item }}}}\"] }}\n"
         ));
         assert_eq!(
             ValueTaint::of_task(&literal, &recs).label("${{ item }}", &recs),
@@ -606,7 +607,7 @@ mod tests {
         // AND the task's own output label), and leaves every OTHER
         // binding tainted (never a blanket lift).
         let task = parse_task(&format!(
-            "{HEAD}  load:\n    invoke:\n      tool: \"nika:read\"\n      args: {{ path: \"${{{{ inputs.p }}}}\" }}\n    declassify:\n      - {{ from: inputs.p, to: trusted, because: \"reviewed vendor path\" }}\n"
+            "{HEAD}  load:\n    invoke:\n      tool: \"nika:read\"\n      args: {{ path: \"${{{{ inputs.p }}}}\" }}\n    lift:\n      - {{ law: taint, from: inputs.p, because: \"reviewed vendor path\" }}\n"
         ));
         let recs = records(Vec::new());
         let oracle = ValueTaint::of_task(&task, &recs);
@@ -629,7 +630,7 @@ mod tests {
         // output is untrusted regardless of what it read, which would
         // mask the door this test is about.)
         let consumer = parse_task(&format!(
-            "{HEAD}  use:\n    invoke:\n      tool: \"nika:read\"\n      args: {{ path: \"${{{{ tasks.dl.output }}}}\" }}\n    declassify:\n      - {{ from: tasks.dl.output, to: trusted, because: \"pinned artifact, hash-reviewed\" }}\n"
+            "{HEAD}  use:\n    invoke:\n      tool: \"nika:read\"\n      args: {{ path: \"${{{{ tasks.dl.output }}}}\" }}\n    lift:\n      - {{ law: taint, from: tasks.dl.output, because: \"pinned artifact, hash-reviewed\" }}\n"
         ));
         let recs = records(vec![settled("dl", Integrity::untrusted("dl"))]);
         assert_eq!(

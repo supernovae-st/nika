@@ -5,11 +5,11 @@
 //! twin of `conformance/type_core.py::type_core_errors` (one-vérité:
 //! every judgment mirrors the reference evaluator) ·
 //!
-//! - `NIKA-TYPE-002` · the `types:` graph must be acyclic (walked over
-//!   [`type_name_refs`] BEFORE any parse recurses).
-//! - `NIKA-TYPE-001` / `NIKA-TYPE-006` · each declaration + each
-//!   `returns:` parses against the closed v1 grammar — the finding
-//!   carries the type core's own teaching detail verbatim.
+//! - `NIKA-TYPE-001` / `NIKA-TYPE-006` · each `returns:` parses against
+//!   the closed v1 grammar — the finding carries the type core's own
+//!   teaching detail verbatim. A `PascalCase` word in type position is
+//!   `NIKA-TYPE-001` too: the name environment is EMPTY by construction
+//!   now, so the refusal teaches the inline form.
 //! - `NIKA-TYPE-003` · `returns:` and a verb-level `schema:` on one
 //!   task — two spellings of one contract.
 //! - `NIKA-TYPE-004` · a `returns:` type unreachable from the declared
@@ -18,14 +18,14 @@
 //!   capture already IS an object.
 //!
 //! This module ALSO owns the shared projections every downstream
-//! consumer reads (never re-derived): [`named_types`] (the acyclic
-//! declaration map) · [`returns_type`] (one task's parsed contract) ·
+//! consumer reads (never re-derived): [`returns_type`] (one task's
+//! parsed contract) ·
 //! [`lowered_returns`] (task → `lower(returns)` · the schema the static
 //! walks and the structured-output lane consume).
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use nika_types::types::{NikaType, Primitive, fits, lower, parse_type, type_name_refs};
+use nika_types::types::{NikaType, Primitive, fits, lower, parse_type};
 
 use nika_schema::error::SchemaError;
 use nika_schema::raw::{RawAction, RawTask, RawWorkflow};
@@ -40,96 +40,15 @@ fn wire_num(code: &str) -> u16 {
     if code == "NIKA-TYPE-006" { 6 } else { 1 }
 }
 
-/// The declared type NAMES (every `types:` key · cyclic ones included —
-/// a reference to a cyclic name still resolves; the cycle is ITS error).
-fn declared_names(wf: &RawWorkflow) -> BTreeSet<String> {
-    wf.types.iter().map(|(n, _)| n.value.clone()).collect()
-}
-
-/// The cyclic declaration names (spec 09 · `NIKA-TYPE-002`) — mirror of
-/// the reference evaluator's DFS, whose observable rule resolves to:
-/// **a name is cyclic iff its reference CLOSURE contains a cycle**
-/// (cycle members AND the chains that expand into them — inlining such
-/// a declaration never terminates, so every judgment refuses all of
-/// them). Deterministic: `BTreeSet` iteration is sorted.
-fn cyclic_names(wf: &RawWorkflow, names: &BTreeSet<String>) -> BTreeSet<String> {
-    let graph: BTreeMap<String, BTreeSet<String>> = wf
-        .types
-        .iter()
-        .map(|(n, v)| {
-            let refs: BTreeSet<String> = type_name_refs(&v.value)
-                .into_iter()
-                .filter(|r| names.contains(r))
-                .collect();
-            (n.value.clone(), refs)
-        })
-        .collect();
-
-    // A node is ON a cycle iff it reaches itself through ≥ 1 edge.
-    let on_cycle: BTreeSet<String> = graph
-        .keys()
-        .filter(|n| closure(n, &graph).contains(*n))
-        .cloned()
-        .collect();
-
-    // Cyclic = on a cycle OR expands into one.
-    graph
-        .keys()
-        .filter(|n| {
-            on_cycle.contains(*n) || closure(n, &graph).iter().any(|m| on_cycle.contains(m))
-        })
-        .cloned()
-        .collect()
-}
-
-/// Every name reachable from `start` through ≥ 1 reference edge
-/// (iterative — the walk never rides the host stack).
-fn closure(start: &str, graph: &BTreeMap<String, BTreeSet<String>>) -> BTreeSet<String> {
-    let mut out = BTreeSet::new();
-    let mut stack: Vec<&String> = graph
-        .get(start)
-        .map(|refs| refs.iter().collect())
-        .unwrap_or_default();
-    while let Some(n) = stack.pop() {
-        if out.insert(n.clone())
-            && let Some(refs) = graph.get(n)
-        {
-            stack.extend(refs);
-        }
-    }
-    out
-}
-
-/// The acyclic named-type map — the ONE projection every consumer of
-/// `types:` reads (the static walks · the structured-output lowering ·
-/// the runtime fit). Cyclic or grammar-broken declarations are ABSENT
-/// (their errors are the check's findings; a dangling `Ref` lowers to
-/// the honest floor `{}` — sound, never guessy).
-#[must_use]
-pub fn named_types(wf: &RawWorkflow) -> BTreeMap<String, NikaType> {
-    let names = declared_names(wf);
-    let cyclic = cyclic_names(wf, &names);
-    let mut out = BTreeMap::new();
-    for (n, v) in &wf.types {
-        if cyclic.contains(&n.value) {
-            continue;
-        }
-        if let Ok(ty) = parse_type(&v.value, &names, &format!("types.{}", n.value)) {
-            out.insert(n.value.clone(), ty);
-        }
-    }
-    out
-}
-
 /// The parsed `returns:` contract of one task — `None` when absent OR
 /// when the expression does not parse (the finding is the check's).
 #[must_use]
 pub fn returns_type(task: &RawTask, wf: &RawWorkflow) -> Option<NikaType> {
+    let _ = wf;
     let ret = task.returns.as_ref()?;
-    let names = declared_names(wf);
     parse_type(
         &ret.value,
-        &names,
+        &BTreeSet::new(),
         &format!("tasks.{}.returns", task.id.value),
     )
     .ok()
@@ -141,8 +60,8 @@ pub fn returns_type(task: &RawTask, wf: &RawWorkflow) -> Option<NikaType> {
 /// never a second lowering.
 #[must_use]
 pub fn lowered_returns(wf: &RawWorkflow) -> BTreeMap<String, serde_json::Value> {
-    let names = declared_names(wf);
-    let env = named_types(wf);
+    let names = BTreeSet::new();
+    let env = BTreeMap::new();
     let mut out = BTreeMap::new();
     for task in &wf.tasks {
         let t = &task.value;
@@ -160,36 +79,10 @@ pub fn lowered_returns(wf: &RawWorkflow) -> BTreeMap<String, serde_json::Value> 
 /// The NIKA-TYPE static layer + NIKA-PARSE-025 (spec 09 · the engine
 /// twin of `type_core.py::type_core_errors`).
 pub(super) fn check_types_contract(wf: &RawWorkflow, errors: &mut Vec<SchemaError>) {
-    let names = declared_names(wf);
-    let cyclic = cyclic_names(wf, &names);
-
-    // NIKA-TYPE-002 · sorted (BTreeSet) — deterministic finding order.
-    for n in &cyclic {
-        let span = wf
-            .types
-            .iter()
-            .find(|(name, _)| &name.value == n)
-            .map(|(name, _)| name.span);
-        errors.push(SchemaError::TypeRecursive {
-            name: n.clone(),
-            span,
-        });
-    }
-
-    // NIKA-TYPE-001/006 · each non-cyclic declaration parses.
-    for (n, v) in &wf.types {
-        if cyclic.contains(&n.value) {
-            continue;
-        }
-        if let Err(e) = parse_type(&v.value, &names, &format!("types.{}", n.value)) {
-            errors.push(SchemaError::TypeExprInvalid {
-                num: wire_num(e.code),
-                detail: e.detail,
-                span: Some(v.span),
-            });
-        }
-    }
-
+    // The name environment is EMPTY, permanently. There is no `types:`
+    // block to fill it and no import to widen it, so every judgment
+    // below terminates by construction rather than behind a guard.
+    let names = BTreeSet::new();
     for task in &wf.tasks {
         check_task_contract(&task.value, &names, errors);
     }
@@ -273,13 +166,9 @@ fn check_task_contract(task: &RawTask, names: &BTreeSet<String>, errors: &mut Ve
 /// `NIKA-DEFAULT-001` for a declared `default:` / typed `const:` `value:`
 /// misfit (an unparseable type skips the fit · « reported elsewhere »).
 pub(super) fn check_io_declarations(wf: &RawWorkflow, errors: &mut Vec<SchemaError>) {
-    let type_names = declared_names(wf);
-    let named = named_types(wf);
-    let authorities = [
-        ("inputs", &wf.inputs),
-        ("config", &wf.config),
-        ("const", &wf.consts),
-    ];
+    let type_names = BTreeSet::new();
+    let named = BTreeMap::new();
+    let authorities = [("inputs", &wf.inputs), ("const", &wf.consts)];
     for (authority, block) in authorities {
         for (name, decl) in block {
             let VarDecl::Typed {
@@ -385,27 +274,31 @@ mod tests {
         errors.iter().map(|e| e.spec_code().to_string()).collect()
     }
 
+    /// The contract is written where it is USED. There is no `types:`
+    /// block to hoist it into any more, and none was ever wanted: the
+    /// spec measured 14 `returns:` across 815 files, so no expression
+    /// was ever written twice.
     const HAPPY: &str = "\
-nika: v1
-workflow:
-  id: t
-types:
-  Summary:
-    object:
-      title: string
-      bullets: { array: string }
-      score: { integer: { min: 0, max: 100 } }
+nika: t
 tasks:
   stats:
     exec:
       command: [\"jq\", \"-c\", \".stats\", \"report.json\"]
       decode: json
-    returns: Summary
+    returns:
+      object:
+        title: string
+        bullets: { array: string }
+        score: { integer: { min: 0, max: 100 } }
   summarize:
     with: { article: \"${{ tasks.stats.output }}\" }
     infer:
       prompt: \"Summarize\"
-    returns: Summary
+    returns:
+      object:
+        title: string
+        bullets: { array: string }
+        score: { integer: { min: 0, max: 100 } }
 ";
 
     #[test]
@@ -416,56 +309,28 @@ tasks:
     }
 
     #[test]
-    fn unknown_name_is_type_001_with_did_you_mean() {
+    fn a_pascal_name_in_type_position_is_type_001() {
+        // The name environment is empty by construction, so a
+        // PascalCase word resolves to nothing — and the refusal is what
+        // teaches the inline form.
         let errors = errors_of(
-            "nika: v1\nworkflow:\n  id: t\ntypes:\n  Summary: { object: { t: string } }\n\
-             tasks:\n  a:\n    infer: { prompt: hi }\n    returns: Sumary\n",
+            "nika: t
+tasks:
+  a:
+    infer: { prompt: hi }
+    returns: Summary
+",
         );
         assert_eq!(codes_of(&errors), ["NIKA-TYPE-001"]);
         let msg = errors[0].to_string();
-        assert!(
-            msg.contains("did you mean `Summary`?"),
-            "the type core's teaching rides the finding: {msg}"
-        );
         assert!(msg.contains("tasks.a.returns"), "the place is named: {msg}");
         assert!(errors[0].span().is_some(), "span lands on the returns");
     }
 
     #[test]
-    fn recursion_is_type_002_per_cyclic_name_sorted() {
-        // B → C → B (mutual) + A expands into the cycle → all three,
-        // in sorted order (the reference evaluator's closure rule).
-        let errors = errors_of(
-            "nika: v1\nworkflow:\n  id: t\ntypes:\n  B: { array: C }\n  C: { array: B }\n  A: { array: B }\n\
-             tasks:\n  a:\n    infer: { prompt: hi }\n",
-        );
-        assert_eq!(
-            codes_of(&errors),
-            ["NIKA-TYPE-002", "NIKA-TYPE-002", "NIKA-TYPE-002"]
-        );
-        let names: Vec<&str> = errors
-            .iter()
-            .map(|e| match e {
-                SchemaError::TypeRecursive { name, .. } => name.as_str(),
-                other => panic!("expected TypeRecursive, got {other:?}"),
-            })
-            .collect();
-        assert_eq!(names, ["A", "B", "C"], "sorted · deterministic");
-    }
-
-    #[test]
-    fn self_recursion_is_type_002() {
-        let errors = errors_of(
-            "nika: v1\nworkflow:\n  id: t\ntypes:\n  Tree: { object: { kids: { array: Tree } } }\n\
-             tasks:\n  a:\n    infer: { prompt: hi }\n",
-        );
-        assert_eq!(codes_of(&errors), ["NIKA-TYPE-002"]);
-    }
-
-    #[test]
     fn returns_plus_schema_is_type_003() {
         let errors = errors_of(
-            "nika: v1\nworkflow:\n  id: t\ntasks:\n  a:\n    infer:\n      prompt: hi\n      schema: { type: object }\n    returns: string\n",
+            "nika: t\ntasks:\n  a:\n    infer:\n      prompt: hi\n      schema: { type: object }\n    returns: string\n",
         );
         assert_eq!(codes_of(&errors), ["NIKA-TYPE-003"]);
         let msg = errors[0].to_string();
@@ -479,7 +344,7 @@ tasks:
     fn object_over_text_decode_is_type_004() {
         // No decode: (default text) + an object contract → unreachable.
         let errors = errors_of(
-            "nika: v1\nworkflow:\n  id: t\ntasks:\n  a:\n    exec:\n      command: [\"cat\", \"x\"]\n    returns: { object: { n: integer } }\n",
+            "nika: t\ntasks:\n  a:\n    exec:\n      command: [\"cat\", \"x\"]\n    returns: { object: { n: integer } }\n",
         );
         assert_eq!(codes_of(&errors), ["NIKA-TYPE-004"]);
         let msg = errors[0].to_string();
@@ -536,7 +401,7 @@ tasks:
     #[test]
     fn decode_with_structured_capture_is_parse_025() {
         let errors = errors_of(
-            "nika: v1\nworkflow:\n  id: t\ntasks:\n  a:\n    exec:\n      command: [\"true\"]\n      capture: structured\n      decode: json\n",
+            "nika: t\ntasks:\n  a:\n    exec:\n      command: [\"true\"]\n      capture: structured\n      decode: json\n",
         );
         assert_eq!(codes_of(&errors), ["NIKA-PARSE-025"]);
         let msg = errors[0].to_string();
@@ -551,7 +416,7 @@ tasks:
     fn structured_capture_with_returns_and_no_decode_is_clean() {
         // returns: types the structured object directly — legal.
         let errors = errors_of(
-            "nika: v1\nworkflow:\n  id: t\ntasks:\n  a:\n    exec:\n      command: [\"true\"]\n      capture: structured\n    returns: { object: { stdout: string, stderr: string, exit_code: integer } }\n",
+            "nika: t\ntasks:\n  a:\n    exec:\n      command: [\"true\"]\n      capture: structured\n    returns: { object: { stdout: string, stderr: string, exit_code: integer } }\n",
         );
         assert!(errors.is_empty(), "{errors:?}");
     }
@@ -559,29 +424,17 @@ tasks:
     #[test]
     fn out_of_dialect_regex_is_type_006() {
         let errors = errors_of(
-            "nika: v1\nworkflow:\n  id: t\ntypes:\n  Sku: { string: { pattern: \"(?=x)\" } }\ntasks:\n  a:\n    infer: { prompt: hi }\n",
+            "nika: t\ntasks:\n  a:\n    infer: { prompt: hi }\n    returns: { string: { pattern: \"(?=x)\" } }\n",
         );
         assert_eq!(codes_of(&errors), ["NIKA-TYPE-006"]);
     }
 
     #[test]
     fn reserved_constructor_is_type_001_naming_the_wave() {
-        let errors = errors_of(
-            "nika: v1\nworkflow:\n  id: t\ntasks:\n  a:\n    infer: { prompt: hi }\n    returns: money\n",
-        );
+        let errors =
+            errors_of("nika: t\ntasks:\n  a:\n    infer: { prompt: hi }\n    returns: money\n");
         assert_eq!(codes_of(&errors), ["NIKA-TYPE-001"]);
         assert!(errors[0].to_string().contains("reserved"), "{}", errors[0]);
-    }
-
-    #[test]
-    fn named_types_skips_cyclic_and_broken_declarations() {
-        let wf = wf(
-            "nika: v1\nworkflow:\n  id: t\ntypes:\n  Good: string\n  Loop: { array: Loop }\n  Broken: { union: [string] }\n\
-             tasks:\n  a:\n    infer: { prompt: hi }\n",
-        );
-        let named = named_types(&wf);
-        assert_eq!(named.len(), 1, "{named:?}");
-        assert_eq!(named.get("Good"), Some(&NikaType::Prim(Primitive::String)));
     }
 
     #[test]
@@ -604,13 +457,14 @@ tasks:
     }
 
     #[test]
-    fn returns_type_parses_against_declared_names() {
+    fn returns_type_parses_the_inline_expression() {
         let wf = wf(HAPPY);
         let task = &wf.tasks[1].value;
         assert_eq!(task.id.value, "summarize");
-        assert_eq!(
-            returns_type(task, &wf),
-            Some(NikaType::Ref("Summary".to_owned()))
+        let ty = returns_type(task, &wf).expect("the contract parses");
+        assert!(
+            matches!(ty, NikaType::Object { .. }),
+            "the expression is the contract, self-contained: {ty:?}"
         );
     }
 
@@ -629,12 +483,12 @@ tasks:
     #[test]
     fn conforming_defaults_and_typed_consts_are_clean() {
         // The valid conformance fixture's shape (values/valid/
-        // default-conforms-to-type): primitives · an enum composite ·
-        // config · a typed constant — every value conforms, zero findings.
+        // default-conforms-to-type): primitives · an enum composite · a
+        // deployment-supplied input · a typed constant — every value
+        // conforms, zero findings.
         let yaml = format!(
-            "nika: v1\nworkflow:\n  id: t\n\
-             inputs:\n  count: {{ type: integer, default: 5 }}\n  mode: {{ type: {{ enum: [\"fast\", \"slow\"] }}, default: \"fast\" }}\n\
-             config:\n  timeout_s: {{ type: number, default: 30 }}\n\
+            "nika: t\n\
+             inputs:\n  count: {{ type: integer, required: false, default: 5 }}\n  mode: {{ type: {{ enum: [\"fast\", \"slow\"] }}, default: \"fast\" }}\n  timeout_s: {{ type: number, required: false, default: 30 }}\n\
              const:\n  label: {{ type: string, value: \"prod\" }}\n{TASKS_TAIL}"
         );
         assert!(io_errors_of(&yaml).is_empty());
@@ -646,9 +500,7 @@ tasks:
         // spelling) and the bare `array`/`object` constructor names are
         // OUT of the grammar; NIKA-PARSE-015 is never reused.
         for dead in ["boolean", "array", "object"] {
-            let yaml = format!(
-                "nika: v1\nworkflow:\n  id: t\ninputs:\n  x: {{ type: {dead} }}\n{TASKS_TAIL}"
-            );
+            let yaml = format!("nika: t\ninputs:\n  x: {{ type: {dead} }}\n{TASKS_TAIL}");
             let errors = io_errors_of(&yaml);
             assert_eq!(codes_of(&errors), ["NIKA-TYPE-001"], "`{dead}`");
             let msg = errors[0].to_string();
@@ -662,9 +514,7 @@ tasks:
             "{ array: string }",
             "{ object: { x: string } }",
         ] {
-            let yaml = format!(
-                "nika: v1\nworkflow:\n  id: t\ninputs:\n  x: {{ type: {live} }}\n{TASKS_TAIL}"
-            );
+            let yaml = format!("nika: t\ninputs:\n  x: {{ type: {live} }}\n{TASKS_TAIL}");
             assert!(io_errors_of(&yaml).is_empty(), "`{live}`");
         }
     }
@@ -674,22 +524,22 @@ tasks:
         // LAW-GRAMMAR-0211 names inputs AND outputs — the callable
         // contract never speaks two type languages at once.
         let ok = format!(
-            "nika: v1\nworkflow:\n  id: t\noutputs:\n  report: {{ value: \"${{ tasks.a.output }}\", type: {{ enum: [\"md\", \"html\"] }} }}\n{TASKS_TAIL}"
+            "nika: t\noutputs:\n  report: {{ value: \"${{ tasks.a.output }}\", type: {{ enum: [\"md\", \"html\"] }} }}\n{TASKS_TAIL}"
         );
         assert!(io_errors_of(&ok).is_empty());
         let bad = format!(
-            "nika: v1\nworkflow:\n  id: t\noutputs:\n  report: {{ value: \"${{ tasks.a.output }}\", type: boolean }}\n{TASKS_TAIL}"
+            "nika: t\noutputs:\n  report: {{ value: \"${{ tasks.a.output }}\", type: boolean }}\n{TASKS_TAIL}"
         );
         assert_eq!(codes_of(&io_errors_of(&bad)), ["NIKA-TYPE-001"]);
     }
 
     #[test]
     fn default_mismatch_is_default_001_with_the_teaching() {
-        // The P0 witness of the ruling — `{ type: integer, default:
+        // The P0 witness of the ruling — `{ type: integer, required: false, default:
         // "abc" }` passed check AND run before (values/invalid/
         // default-type-mismatch).
         let yaml = format!(
-            "nika: v1\nworkflow:\n  id: t\ninputs:\n  count: {{ type: integer, default: \"abc\" }}\n{TASKS_TAIL}"
+            "nika: t\ninputs:\n  count: {{ type: integer, required: false, default: \"abc\" }}\n{TASKS_TAIL}"
         );
         let errors = io_errors_of(&yaml);
         assert_eq!(codes_of(&errors), ["NIKA-DEFAULT-001"]);
@@ -709,19 +559,21 @@ tasks:
     }
 
     #[test]
-    fn config_and_const_ride_the_same_code() {
-        // config's default: and the typed constant's value: are the SAME
+    fn inputs_and_const_ride_the_same_code() {
+        // An input's default: and the typed constant's value: are the SAME
         // class — no second code minted for the const variant (the law).
+        // The fixture rode `config:` until the 9-key envelope killed it;
+        // the deployment-supplied role is an `inputs:` entry now.
         let yaml = format!(
-            "nika: v1\nworkflow:\n  id: t\n\
-             config:\n  timeout_s: {{ type: number, default: \"soon\" }}\n\
+            "nika: t\n\
+             inputs:\n  timeout_s: {{ type: number, required: false, default: \"soon\" }}\n\
              const:\n  retries: {{ type: integer, value: \"many\" }}\n{TASKS_TAIL}"
         );
         let errors = io_errors_of(&yaml);
         assert_eq!(codes_of(&errors), ["NIKA-DEFAULT-001", "NIKA-DEFAULT-001"]);
         let rendered: Vec<String> = errors.iter().map(ToString::to_string).collect();
         assert!(
-            rendered[0].contains("config.timeout_s.default"),
+            rendered[0].contains("inputs.timeout_s.default"),
             "{rendered:?}"
         );
         assert!(rendered[1].contains("const.retries.value"), "{rendered:?}");
@@ -732,21 +584,21 @@ tasks:
         // The oracle's « reported elsewhere »: an out-of-grammar type
         // refuses ONCE (the grammar arm) — never a doubled DEFAULT-001.
         let yaml = format!(
-            "nika: v1\nworkflow:\n  id: t\ninputs:\n  x: {{ type: frobnicate, default: 5 }}\n{TASKS_TAIL}"
+            "nika: t\ninputs:\n  x: {{ type: frobnicate, required: false, default: 5 }}\n{TASKS_TAIL}"
         );
         assert_eq!(codes_of(&io_errors_of(&yaml)), ["NIKA-TYPE-001"]);
     }
 
     #[test]
-    fn named_type_defaults_fit_through_the_env() {
+    fn inline_enum_defaults_fit_against_their_own_expression() {
         let ok = format!(
-            "nika: v1\nworkflow:\n  id: t\ntypes:\n  Mode: {{ enum: [\"fast\", \"slow\"] }}\n\
-             inputs:\n  mode: {{ type: Mode, default: \"fast\" }}\n{TASKS_TAIL}"
+            "nika: t\ninputs:\n  mode: {{ type: {{ enum: [\"fast\", \"slow\"] }}, \
+             default: \"fast\" }}\n{TASKS_TAIL}"
         );
         assert!(io_errors_of(&ok).is_empty());
         let bad = format!(
-            "nika: v1\nworkflow:\n  id: t\ntypes:\n  Mode: {{ enum: [\"fast\", \"slow\"] }}\n\
-             inputs:\n  mode: {{ type: Mode, default: \"ludicrous\" }}\n{TASKS_TAIL}"
+            "nika: t\ninputs:\n  mode: {{ type: {{ enum: [\"fast\", \"slow\"] }}, \
+             default: \"ludicrous\" }}\n{TASKS_TAIL}"
         );
         assert_eq!(codes_of(&io_errors_of(&bad)), ["NIKA-DEFAULT-001"]);
     }

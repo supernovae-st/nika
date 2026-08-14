@@ -93,8 +93,8 @@ fn parse_var_overrides_with(
     env: &dyn Fn(&str) -> Option<String>,
     ci: bool,
 ) -> Result<ValidatedInputs, String> {
-    let named = nika_check::named_types(wf);
-    let type_names: std::collections::BTreeSet<String> = named.keys().cloned().collect();
+    let named = BTreeMap::new();
+    let type_names = BTreeSet::new();
     let mut overrides = BTreeMap::new();
     let mut env_sourced = BTreeSet::new();
     for pair in pairs {
@@ -224,7 +224,7 @@ mod tests {
     #[test]
     fn parse_var_overrides_types_json_else_string() {
         let wf = parse(
-            "nika: v1\nworkflow:\n  id: t\ninputs:\n  topic: { type: string, required: true }\n  limit: { type: integer, default: 3 }\n  flags: { type: { array: string }, required: true }\ntasks:\n  t:\n    exec: { command: [\"true\"] }\n",
+            "nika: t\ninputs:\n  topic: { type: string, required: true }\n  limit: { type: integer, default: 3 }\n  flags: { type: { array: string }, required: true }\ntasks:\n  t:\n    exec: { command: [\"true\"] }\n",
         );
 
         // string verbatim · integer typed · array typed (the JSON coercion).
@@ -262,7 +262,7 @@ mod tests {
         // Post-R3b the type speaks the full TypeExpr (`bool` is the one
         // boolean spelling).
         let wf = parse(
-            "nika: v1\nworkflow:\n  id: t\ninputs:\n  count: { type: integer, required: true }\n  ratio: { type: number, default: 1.0 }\n  on: { type: bool, default: false }\n  name: { type: string, required: true }\ntasks:\n  t:\n    exec: { command: [\"true\"] }\n",
+            "nika: t\ninputs:\n  count: { type: integer, required: true }\n  ratio: { type: number, default: 1.0 }\n  on: { type: bool, default: false }\n  name: { type: string, required: true }\ntasks:\n  t:\n    exec: { command: [\"true\"] }\n",
         );
 
         // The type DRIVES the parse — well-typed values land as their type.
@@ -298,7 +298,7 @@ mod tests {
 
     // ── F-P13 · the origin law (NEP-0014 law 2) ─────────────────────
 
-    const ORIGIN_WF: &str = "nika: v1\nworkflow:\n  id: t\ninputs:\n  count: { type: integer, required: true }\n  region: { type: string, default: \"eu\" }\ntasks:\n  t:\n    exec: { command: [\"true\"] }\n";
+    const ORIGIN_WF: &str = "nika: t\ninputs:\n  count: { type: integer, required: true }\n  region: { type: string, default: \"eu\" }\ntasks:\n  t:\n    exec: { command: [\"true\"] }\n";
 
     #[test]
     fn every_origin_is_enumerated_at_the_binding() {
@@ -323,7 +323,7 @@ mod tests {
         // string); the origin is `env`, CI or not, once the name is
         // declared in `permits.env:`.
         let wf = parse(
-            "nika: v1\nworkflow:\n  id: t\npermits:\n  env: [\"BUILD_COUNT\"]\ninputs:\n  count: { type: integer, required: true }\ntasks:\n  t:\n    exec: { command: [\"true\"] }\n",
+            "nika: t\npermits:\n  env: [\"BUILD_COUNT\"]\ninputs:\n  count: { type: integer, required: true }\ntasks:\n  t:\n    exec: { command: [\"true\"] }\n",
         );
         for ci in [false, true] {
             let v = parse_var_overrides_with(

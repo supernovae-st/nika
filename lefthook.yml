@@ -63,6 +63,18 @@ pre-commit:
       run: bash scripts/hooks/block-private-paths.sh
       fail_text: 'Private path reference in public engine files. Engine is PUBLIC.'
 
+    # A new crate must arrive with the ADR that justifies admitting it. This
+    # check reads the STAGED diff, so pre-commit is the only place it can
+    # fire — its previous home was run-ci-ratchets at pre-push, where the
+    # index is empty and the branch was unreachable. --staged-only keeps it
+    # silent unless a new crate is actually staged; the standing coverage
+    # report stays at pre-push. Gated on Cargo.toml because a new crate
+    # always brings one.
+    adr-coverage-new-crate:
+      glob: '**/Cargo.toml'
+      run: bash scripts/ci/check-adr-coverage.sh --staged-only
+      fail_text: 'New crate staged without an ADR. Stage docs/adr/adr-NNN-*.md naming it.'
+
 pre-push:
   parallel: false
 

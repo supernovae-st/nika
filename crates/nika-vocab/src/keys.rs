@@ -15,10 +15,6 @@
 /// Keys of the typed `inputs:` form (spec 01 §inputs · `type` required).
 pub const INPUT_KEYS: &[&str] = &["type", "required", "default", "description"];
 
-/// Keys of the typed `config:` form (spec 01 §config · `type` required ·
-/// never caller-`required`).
-pub const CONFIG_KEYS: &[&str] = &["type", "default", "description"];
-
 /// Keys of the typed `const:` form (spec 01 §const · `{type, value}` exactly).
 pub const CONST_TYPED_KEYS: &[&str] = &["type", "value"];
 
@@ -62,10 +58,17 @@ pub const RUN_ENTROPY_MAP_KEYS: &[&str] = &["seeded"];
 
 /// Keys of an `on_error:` block (spec 05 §`on_error` · exactly one
 /// ACTION + the optional `on_codes` filter).
-pub const ON_ERROR_KEYS: &[&str] = &["recover", "skip", "fail_workflow", "on_codes"];
+pub const ON_ERROR_KEYS: &[&str] = &["recover", "skip", "on_codes"];
 
-/// Keys of an `on_finally:` cleanup task (the reduced task shape).
-pub const FINALLY_KEYS: &[&str] = &["when", "timeout"];
+/// The canonical TASK-level keys (spec `03-dag.md` §the task shape ·
+/// the 4 verb selectors live in the parser's `VERB_KEYS`). One list,
+/// two consumers: the parser REFUSES anything else, and the LSP OFFERS
+/// exactly this — pinned coherent by test so a teaching surface can
+/// never drift ahead of, or behind, what the engine admits.
+pub const TASK_KEYS: &[&str] = &[
+    "after", "when", "for_each", "retry", "on_error", "timeout", "with", "extract", "returns",
+    "lift", "group",
+];
 
 /// `infer:` fields (spec `02-verbs.md` §infer field table).
 pub const INFER_KEYS: &[&str] = &[
@@ -113,13 +116,8 @@ pub const THINKING_KEYS: &[&str] = &["enabled", "budget_tokens"];
 #[must_use]
 pub fn known_child_keys(block_key: &str, parent: Option<&str>) -> Option<&'static [&'static str]> {
     match block_key {
-        // policy vocabulary FIRST (spec 10 · nika-cap is the SSOT — the
-        // serde type and this door are pinned coherent by test)
-        key if parent == Some("policy") => nika_cap::policy_child_keys(key),
-        "policy" => Some(nika_cap::POLICY_KEYS),
         "retry" => Some(RETRY_KEYS),
         "on_error" => Some(ON_ERROR_KEYS),
-        "on_finally" => Some(FINALLY_KEYS),
         "infer" => Some(INFER_KEYS),
         "exec" => Some(EXEC_KEYS),
         "invoke" => Some(INVOKE_KEYS),

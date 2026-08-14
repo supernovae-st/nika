@@ -18,9 +18,7 @@
 # Run · nika run examples/10-compose-child.nika.yaml --var topic="the DAG"
 #   (standalone run · the parent passes `topic` through `args:` instead)
 
-nika: v1
-workflow:
-  id: compose-child
+nika: compose-child
 
 model: mock/echo   # the dry twin · the parent's run stays offline too
 

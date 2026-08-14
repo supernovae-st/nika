@@ -22,7 +22,7 @@ fn bin() -> Command {
 
 /// Statically clean (check passes · the exec authority is declared),
 /// fatally failing at run time.
-const FAILING: &str = "nika: v1\nworkflow:\n  id: rail-witness\n  description: fails so the rail has a story\npermits: { exec: true }\ntasks:\n  boom:\n    exec: { shell: \"exit 7\" }\n";
+const FAILING: &str = "nika: rail-witness\npermits: { exec: true }\ntasks:\n  boom:\n    exec: { shell: \"exit 7\" }\n";
 
 #[test]
 fn explain_opens_on_the_recovery_rail_after_a_real_failure() {
@@ -86,7 +86,7 @@ fn explain_opens_on_the_recovery_rail_after_a_real_failure() {
     // naked re-run CTA steps aside (the resume/repair line is the only
     // run-shaped line allowed to compete).
     let rail = text.find("last run failed").expect("rail present");
-    let anatomy = text.find("rail-witness —").expect("the title line");
+    let anatomy = text.find("rail-witness\n").expect("the title line");
     assert!(rail < anatomy, "the rail opens before the anatomy:\n{text}");
     assert!(
         !text.contains("\nrun it\n"),

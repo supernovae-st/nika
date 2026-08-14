@@ -136,9 +136,7 @@ proptest! {
     #[test]
     fn static_check_matches_allows_program(exec in arb_exec(), program in prog()) {
         let yaml = format!(
-"nika: v1
-workflow:
-  id: diff
+"nika: diff
 {permits}
 tasks:
   t:
@@ -169,9 +167,7 @@ proptest! {
     #[test]
     fn runtime_gate_matches_allows_program(exec in arb_exec_enabled(), program in prog()) {
         let yaml = format!(
-"nika: v1
-workflow:
-  id: diff
+"nika: diff
 {permits}
 const:
   prog: \"{program}\"

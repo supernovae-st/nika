@@ -83,9 +83,7 @@ fn workflow_strategy() -> impl Strategy<Value = Vec<TaskSpec>> {
 
 /// Render the structure to YAML with `prefix` naming the tasks.
 fn to_yaml(tasks: &[TaskSpec], prefix: &str) -> String {
-    let mut y = String::from(
-        "nika: v1\nworkflow:\n  id: meta\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n",
-    );
+    let mut y = String::from("nika: meta\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n");
     for (i, t) in tasks.iter().enumerate() {
         let id = format!("{prefix}{i}");
         let _ = writeln!(y, "  {id}:");
@@ -120,9 +118,9 @@ fn to_yaml(tasks: &[TaskSpec], prefix: &str) -> String {
             _ => {}
         }
         match (t.fan, bound_dep) {
-            (1, _) => y.push_str("    for_each: [\"a\", \"b\"]\n"),
+            (1, _) => y.push_str("    for_each: { items: [\"a\", \"b\"] }\n"),
             (2, Some(_)) => {
-                y.push_str("    for_each: ${{ with.upstream }}\n");
+                y.push_str("    for_each: { items: \"${{ with.upstream }}\" }\n");
             }
             _ => {}
         }
@@ -286,14 +284,14 @@ proptest! {
                 String::new()
             };
             let mut y = String::from(
-                "nika: v1\nworkflow:\n  id: meta\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n",
+                "nika: meta\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n",
             );
             for i in 0..n {
                 use std::fmt::Write as _;
                 let _ = writeln!(y, "  t{i}:");
                 y.push_str(&retry);
                 if fan {
-                    y.push_str("    for_each: [\"a\", \"b\"]\n");
+                    y.push_str("    for_each: { items: [\"a\", \"b\"] }\n");
                 }
                 y.push_str(body);
             }

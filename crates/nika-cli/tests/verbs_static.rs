@@ -15,10 +15,7 @@ const PLAIN: Theme = Theme::new(false, false, false);
 
 /// The shared fixture — same shape as the e2e pipeline workflow.
 const WORKFLOW: &str = r#"
-nika: v1
-workflow:
-  id: static-suite
-  description: "the static-verb fixture: all three shipped verbs, a gate, a fan-out"
+nika: static-suite
 
 model: mock/echo
 
@@ -44,7 +41,7 @@ tasks:
   fan:
     after:
       gather: success
-    for_each: ["a", "b", "c"]
+    for_each: { items: ["a", "b", "c"] }
     infer:
       prompt: "Classify · ${{ item }}"
       max_tokens: 100
@@ -84,7 +81,7 @@ fn graph_json_envelope_is_versioned_topo_sorted_and_stable() {
     assert_eq!(out.code, exit::OK);
 
     let doc: serde_json::Value = serde_json::from_str(&out.text).expect("valid JSON");
-    assert_eq!(doc["graph_format"], 2, "versioned envelope");
+    assert_eq!(doc["graph_format"], 3, "versioned envelope");
     assert_eq!(doc["workflow"], "static-suite");
 
     // Topological order: wave 0 (gather/probe) before fan/think before notify.
@@ -131,7 +128,7 @@ fn graph_json_envelope_is_versioned_topo_sorted_and_stable() {
         serde_json::json!([0.0, 0.0])
     );
 
-    // Edges: typed (graph_format 2 · kind closed enum), sorted (from, to).
+    // Edges: typed (graph_format 3 · kind closed enum), sorted (from, to).
     let edges: Vec<(String, String)> = doc["edges"]
         .as_array()
         .expect("edges")
@@ -518,9 +515,7 @@ fn graph_cost_interval_attributes_each_priced_task_to_itself() {
     // must attach each task's own interval (a swapped find would invert
     // the order — the relative assert is price-change-proof).
     let priced = r#"
-nika: v1
-workflow:
-  id: priced-pair
+nika: priced-pair
 model: anthropic/claude-sonnet-4-6
 
 tasks:
@@ -630,7 +625,7 @@ fn check_skills_rung_greens_reds_and_teaches() {
                 // the skills: fs edge lives INSIDE the boundary (#473) — the
                 // grant is judged BEFORE the reader runs, so every posture
                 // below tests the RUNG, never the boundary refusal.
-                "nika: v1\nworkflow:\n  id: w\npermits:\n  fs:\n    read: [\"{p}\"]\nmodel: mock/echo\ntasks:\n  go:\n    agent: {{ prompt: \"hi\", skills: [\"{p}\"] }}\n",
+                "nika: w\npermits:\n  fs:\n    read: [\"{p}\"]\nmodel: mock/echo\ntasks:\n  go:\n    agent: {{ prompt: \"hi\", skills: [\"{p}\"] }}\n",
                 p = skill.display()
             ),
         )
@@ -707,7 +702,7 @@ fn check_skills_rung_greens_reds_and_teaches() {
 /// src loc-cap: the 1500-line law bit check.rs at the merge.)
 #[test]
 fn accents_check_verdict_carries_the_dag_map() {
-    let yaml = "nika: v1\nworkflow:\n  id: m\ntasks:\n  one:\n    infer: { prompt: hi, max_tokens: 5, model: \"mock/echo\" }\n  two:\n    with:\n      prev: ${{ tasks.one.output }}\n    infer: { prompt: \"${{ with.prev }}\", max_tokens: 5, model: \"mock/echo\" }\n";
+    let yaml = "nika: m\ntasks:\n  one:\n    infer: { prompt: hi, max_tokens: 5, model: \"mock/echo\" }\n  two:\n    with:\n      prev: ${{ tasks.one.output }}\n    infer: { prompt: \"${{ with.prev }}\", max_tokens: 5, model: \"mock/echo\" }\n";
     let dir = std::env::temp_dir().join(format!("nika-check-map-{}", std::process::id()));
     let _ = std::fs::create_dir_all(&dir);
     let file = dir.join("map.nika.yaml");

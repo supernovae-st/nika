@@ -40,9 +40,7 @@ fn workspace_tmp_dir(name: &str) -> std::path::PathBuf {
 }
 
 const CLEAN_MOCK: &str = r#"
-nika: v1
-workflow:
-  id: metric-probe
+nika: metric-probe
 model: mock/echo
 tasks:
   greet:

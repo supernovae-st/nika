@@ -2,9 +2,7 @@
 # does not die: `on_error: recover:` degrades to the cached snapshot, the
 # sink still writes, the run exits 0. Deterministic + offline (the missing
 # file is the failure; the cache task is the fallback source).
-nika: v1
-workflow:
-  id: rates-with-fallback
+nika: rates-with-fallback
 
 permits:
   tools: ["nika:jq", "nika:write"]

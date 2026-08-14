@@ -41,11 +41,7 @@
 # Run · nika run <file> --output json
 #     The run PAUSES at the gate (exit 4 · durable, not a failure) and prints
 #     its own resume command. Answer it to continue.
-nika: v1
-workflow:
-  id: etl-state-template        # SLOT: kebab-case workflow id
-  # SLOT: one honest sentence — `nika new` matches intents against these words
-  description: "only what changed since last run · read state · fetch fresh · diff · process the delta · save state"
+nika: etl-state-template       # SLOT: kebab-case workflow id
 
 const:
   source_url: "https://api.example.com/v1/records"   # SLOT: the data source
@@ -57,8 +53,6 @@ permits:                            # the blast radius · default-deny once pres
   fs:                               # the cursor file, read then rewritten — one path, both ways
     read: ["./state/etl-state.json"]    # SLOT: keep in step with const.state_path
     write: ["./state/etl-state.json"]   # SLOT: idem — the job writes nothing else
-policy:                              # NEP-0014 · the gate runs under a NAMED endorsement mode
-  endorsement: solo
 
 tasks:
   # NEP-0002 · the Rule of Two, as a check. This run holds all three legs at

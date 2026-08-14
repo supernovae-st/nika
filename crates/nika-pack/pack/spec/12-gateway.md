@@ -42,7 +42,7 @@ its author proved it.
 |---|---|
 | `manifest` | id · version · owner · the semantic hashes of every workflow it ships |
 | `lock` | every dependency **pinned by digest** (spec pin · tool versions · provider catalog snapshot · schemas) — nothing resolves at run time |
-| `authority` | the DECLARED boundary: the `permits:`/`policy:` blocks verbatim + the inferred needed-effects projection (10 §certificate) |
+| `authority` | the DECLARED boundary: the `permits:` block verbatim + the inferred needed-effects projection (10 §certificate) |
 | `contracts` | the callable contracts (types · returns · inputs/outputs) of every entry workflow |
 | `backend_requirements` | the MINIMUM capability set a backend must attest before this bundle runs (see below) — with per-requirement `on_absent: refuse \| degrade_declared` |
 | `attestations` | reserved (W6 — signatures · provenance · SBOM refs) |

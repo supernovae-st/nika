@@ -31,10 +31,7 @@
 #       `permits.fs.read` entry TOGETHER: a permit is a literal you can
 #       read, it cannot interpolate a const (`NIKA-AUTH-007`).
 
-nika: v1
-workflow:
-  id: resume-screener
-  description: "screen resumes · glob CVs → local-model rubric per candidate → deterministic hiring shortlist"
+nika: resume-screener
 
 model: ollama/qwen3.5:4b   # PII stays on the machine · the whole screen is offline
 
@@ -78,9 +75,10 @@ tasks:
   cvs:
     with:
       paths: ${{ tasks.pool.output }}
-    for_each: ${{ with.paths }}
-    max_parallel: 8
-    fail_fast: false                   # one unreadable CV must not stop the batch
+    for_each:
+      items: ${{ with.paths }}
+      max_parallel: 8
+      fail_fast: false                   # one unreadable CV must not stop the batch
     on_error:
       recover: null                    # null holds the index so the zip below stays aligned
     invoke:
@@ -110,9 +108,10 @@ tasks:
     with:
       pairs: ${{ tasks.pairs.output }}
       cv_path: ${{ item.path }}
-    for_each: ${{ with.pairs }}
-    max_parallel: 2                    # a local model shares one GPU · don't thrash it
-    fail_fast: false
+    for_each:
+      items: ${{ with.pairs }}
+      max_parallel: 2                    # a local model shares one GPU · don't thrash it
+      fail_fast: false
     on_error:
       recover: null
     infer:

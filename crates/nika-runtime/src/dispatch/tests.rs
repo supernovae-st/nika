@@ -2,7 +2,7 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! The #824 check⇄run parity proofs — a templated `model:`
-//! (`${{ config.model }}`) checked green (the MODELS rung judges the
+//! (`${{ inputs.model }}`) checked green (the MODELS rung judges the
 //! DECLARED DEFAULT via `static_literal_of`) but the dispatch handed the
 //! RAW template to the provider, dying NIKA-INFER-001. The dispatch now
 //! renders `model:` through the SAME `${{ }}` seam as
@@ -26,20 +26,20 @@ use nika_verb_invoke::InvokeVerb;
 
 use crate::{DeterministicStamper, Runtime, RuntimeConfig, VecSink};
 
-/// The issue's verbatim repro shape (`config.model` default · the
-/// ollama wire so the RESOLVED string is observable in the request
-/// body the provider seam captured).
-const ISSUE_824_REPRO: &str = "nika: v1\n\
-     workflow:\n  \
-     id: seat-from-config\n\
-     config:\n  \
-     model: { type: string, default: \"ollama/llama3.2:3b\" }\n\
+/// The issue's repro shape (a deployment-supplied `inputs.model`
+/// default · the ollama wire so the RESOLVED string is observable in
+/// the request body the provider seam captured). The issue was filed
+/// against `config.model`; that authority died with the 9-key
+/// envelope and the defect it pins lives on the surviving root.
+const ISSUE_824_REPRO: &str = "nika: seat-from-an-input\n\
+     inputs:\n  \
+     model: { type: string, required: false, default: \"ollama/llama3.2:3b\" }\n\
      tasks:\n  \
      ask:\n    \
-     infer: { model: \"${{ config.model }}\", max_tokens: 32, prompt: \"say ok\" }\n";
+     infer: { model: \"${{ inputs.model }}\", max_tokens: 32, prompt: \"say ok\" }\n";
 
 #[tokio::test]
-async fn infer_model_config_template_resolves_before_the_wire() {
+async fn infer_model_input_template_resolves_before_the_wire() {
     let captured = super::infer_deadline_tests::run_and_capture(ISSUE_824_REPRO).await;
     assert_eq!(
         captured.len(),
@@ -55,21 +55,19 @@ async fn infer_model_config_template_resolves_before_the_wire() {
     .expect("the openai-compat body is json");
     assert_eq!(
         body["model"], "llama3.2:3b",
-        "the RESOLVED config default reaches the provider, never the raw `${{{{ }}}}`"
+        "the RESOLVED input default reaches the provider, never the raw `${{{{ }}}}`"
     );
 }
 
 #[tokio::test]
-async fn agent_model_config_template_resolves_before_the_provider() {
+async fn agent_model_input_template_resolves_before_the_provider() {
     let wf = nika_schema::parse(
-        "nika: v1\n\
-         workflow:\n  \
-         id: agent-seat\n\
-         config:\n  \
-         model: { type: string, default: \"mock/echo\" }\n\
+        "nika: agent-seat\n\
+         inputs:\n  \
+         model: { type: string, required: false, default: \"mock/echo\" }\n\
          tasks:\n  \
          go:\n    \
-         agent: { model: \"${{ config.model }}\", prompt: \"hi\" }\n",
+         agent: { model: \"${{ inputs.model }}\", prompt: \"hi\" }\n",
         nika_schema::FileId::new(0),
         nika_schema::ParseMode::Strict,
     )

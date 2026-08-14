@@ -18,7 +18,7 @@ use serde_json::json;
 /// ride verbatim, and `effects_executed` states the contract.
 #[test]
 fn dry_run_payload_projects_the_versioned_plan() {
-    let yaml = "nika: v1\nworkflow:\n  id: demo\nmodel: mock/echo\ntasks:\n  a:\n    exec: { command: [\"echo\", \"x\"] }\n  b:\n    with:\n      prev: ${{ tasks.a.output }}\n    infer: { prompt: \"go ${{ with.prev }}\", max_tokens: 10 }\n\noutputs:\n  out: \"${{ tasks.b.output }}\"\n";
+    let yaml = "nika: demo\nmodel: mock/echo\ntasks:\n  a:\n    exec: { command: [\"echo\", \"x\"] }\n  b:\n    with:\n      prev: ${{ tasks.a.output }}\n    infer: { prompt: \"go ${{ with.prev }}\", max_tokens: 10 }\n\noutputs:\n  out: \"${{ tasks.b.output }}\"\n";
     let wf = nika_schema::parse(
         yaml,
         nika_schema::source::FileId::new(0),
@@ -82,7 +82,7 @@ fn stage(name: &str, yaml: &str) -> std::path::PathBuf {
 fn model_override_runs_a_local_model_workflow_offline() {
     let wf = stage(
         "override-infer.nika.yaml",
-        "nika: v1\nworkflow:\n  id: override-infer\nmodel: ollama/llama3.1\ntasks:\n  think:\n    infer: { prompt: \"hello\" }\n",
+        "nika: override-infer\nmodel: ollama/llama3.1\ntasks:\n  think:\n    infer: { prompt: \"hello\" }\n",
     );
     let code = run(
         &wf.to_string_lossy(),
@@ -117,7 +117,7 @@ fn model_override_runs_a_local_model_workflow_offline() {
 fn model_override_replaces_the_resolved_model() {
     let wf = stage(
         "override-swap.nika.yaml",
-        "nika: v1\nworkflow:\n  id: override-swap\nmodel: ollama/llama3.1\ntasks:\n  ask:\n    infer: { prompt: \"bonjour\" }\n",
+        "nika: override-swap\nmodel: ollama/llama3.1\ntasks:\n  ask:\n    infer: { prompt: \"bonjour\" }\n",
     );
     // With the override → mock/echo resolves with no provider → OK.
     let overridden = run(
@@ -155,7 +155,7 @@ fn model_override_replaces_the_resolved_model() {
 fn answer_without_resume_preseeds_the_gate() {
     let wf = stage(
         "answer-fresh.nika.yaml",
-        "nika: v1\nworkflow:\n  id: gated\npermits: { exec: [\"echo\"], tools: [\"nika:prompt\"] }\ntasks:\n  ask:\n    invoke: { tool: \"nika:prompt\", args: { mode: \"confirm\", message: \"ship?\" } }\n  done:\n    after: { ask: success }\n    with: { go: \"${{ tasks.ask.output }}\" }\n    when: ${{ with.go == true }}\n    exec: { command: [\"echo\", \"shipped\"] }\n",
+        "nika: gated\npermits: { exec: [\"echo\"], tools: [\"nika:prompt\"] }\ntasks:\n  ask:\n    invoke: { tool: \"nika:prompt\", args: { mode: \"confirm\", message: \"ship?\" } }\n  done:\n    after: { ask: success }\n    with: { go: \"${{ tasks.ask.output }}\" }\n    when: ${{ with.go == true }}\n    exec: { command: [\"echo\", \"shipped\"] }\n",
     );
     let req = nika_dap::resume::ResumeRequest {
         trace: None, // the answers-only form — no plan, no paused ticket
@@ -196,7 +196,7 @@ fn answer_without_resume_preseeds_the_gate() {
 fn answer_without_resume_still_refuses_an_unknown_task() {
     let wf = stage(
         "answer-unknown.nika.yaml",
-        "nika: v1\nworkflow:\n  id: gated\npermits: { tools: [\"nika:prompt\"] }\ntasks:\n  ask:\n    invoke: { tool: \"nika:prompt\", args: { mode: \"confirm\", message: \"ship?\" } }\n",
+        "nika: gated\npermits: { tools: [\"nika:prompt\"] }\ntasks:\n  ask:\n    invoke: { tool: \"nika:prompt\", args: { mode: \"confirm\", message: \"ship?\" } }\n",
     );
     let req = nika_dap::resume::ResumeRequest {
         trace: None,
@@ -234,7 +234,7 @@ fn answer_without_resume_still_refuses_an_unknown_task() {
 
 /// The workflow of the field repro: a `required: true` var with no
 /// default. Before F4 there was NO way to run it from the CLI.
-const REQUIRED_VAR_WF: &str = "nika: v1\nworkflow:\n  id: needs-var\nmodel: mock/echo\ninputs:\n  topic:\n    type: string\n    required: true\ntasks:\n  ask:\n    infer: { prompt: \"about ${{ inputs.topic }}\" }\n";
+const REQUIRED_VAR_WF: &str = "nika: needs-var\nmodel: mock/echo\ninputs:\n  topic:\n    type: string\n    required: true\ntasks:\n  ask:\n    infer: { prompt: \"about ${{ inputs.topic }}\" }\n";
 
 fn run_with_vars(name: &str, vars: &[String]) -> u8 {
     let wf = stage(name, REQUIRED_VAR_WF);
@@ -317,7 +317,7 @@ fn capture_mock_outputs_carries_the_resolved_skills() {
     // The grant is a PRECONDITION since the skills fs edge moved inside the
     // boundary · the fixture declares exactly the path it reaches.
     let yaml = format!(
-        "nika: v1\nworkflow:\n  id: w\nmodel: mock/echo\npermits:\n  fs:\n    read: [\"{}\"]\ntasks:\n  go:\n    agent: {{ prompt: \"hi\", skills: [\"{}\"] }}\n",
+        "nika: w\nmodel: mock/echo\npermits:\n  fs:\n    read: [\"{}\"]\ntasks:\n  go:\n    agent: {{ prompt: \"hi\", skills: [\"{}\"] }}\n",
         skill.display(),
         skill.display()
     );
@@ -378,7 +378,7 @@ fn capture_mock_outputs_refuses_write_effects() {
     let dir = sentinel_dir("write");
     let sentinel = dir.join("sentinel.txt");
     let yaml = format!(
-        "nika: v1\nworkflow:\n  id: fx-write\nmodel: mock/echo\npermits: {{ tools: [\"nika:write\"], fs: {{ write: [\"{}/**\"] }} }}\ntasks:\n  w:\n    invoke: {{ tool: \"nika:write\", args: {{ path: \"{}\", content: \"must never land\" }} }}\n",
+        "nika: fx-write\nmodel: mock/echo\npermits: {{ tools: [\"nika:write\"], fs: {{ write: [\"{}/**\"] }} }}\ntasks:\n  w:\n    invoke: {{ tool: \"nika:write\", args: {{ path: \"{}\", content: \"must never land\" }} }}\n",
         dir.display(),
         sentinel.display()
     );
@@ -412,7 +412,7 @@ fn capture_mock_outputs_refuses_exec_effects() {
     let dir = sentinel_dir("exec");
     let sentinel = dir.join("sentinel.txt");
     let yaml = format!(
-        "nika: v1\nworkflow:\n  id: fx-exec\nmodel: mock/echo\npermits: {{ exec: [\"touch\"] }}\ntasks:\n  t:\n    exec: {{ command: [\"touch\", \"{}\"] }}\n",
+        "nika: fx-exec\nmodel: mock/echo\npermits: {{ exec: [\"touch\"] }}\ntasks:\n  t:\n    exec: {{ command: [\"touch\", \"{}\"] }}\n",
         sentinel.display()
     );
     let wf = nika_schema::parse(
@@ -448,7 +448,7 @@ fn require_signature_refuses_unsigned_before_execution() {
         std::env::temp_dir().join(format!("nika-sig-gate-sentinel-{}", std::process::id()));
     let _ = std::fs::remove_file(&sentinel);
     let yaml = format!(
-        "nika: v1\nworkflow:\n  id: sig-gate\nmodel: mock/echo\npermits: {{ exec: [\"touch\"] }}\ntasks:\n  touch:\n    exec: {{ command: [\"touch\", \"{}\"] }}\n",
+        "nika: sig-gate\nmodel: mock/echo\npermits: {{ exec: [\"touch\"] }}\ntasks:\n  touch:\n    exec: {{ command: [\"touch\", \"{}\"] }}\n",
         sentinel.display()
     );
     let wf = stage("sig-gate.nika.yaml", &yaml);

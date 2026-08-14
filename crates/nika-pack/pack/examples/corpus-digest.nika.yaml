@@ -35,10 +35,7 @@
 #         --var question="what do these docs promise about deployment?"
 #       · rehearse offline with --model mock/echo (zero keys · no network)
 
-nika: v1
-workflow:
-  id: corpus-digest
-  description: "glob a corpus → plan a focus per file → card each doc in a fresh window → jq ranks the deck → one sourced brief"
+nika: corpus-digest
 
 run:
   clock: system   # the `timeout:` deadlines below ride the wall clock · said out loud (see 03)
@@ -121,8 +118,9 @@ tasks:
   texts:
     with:
       files: ${{ tasks.files.output }}
-    for_each: ${{ with.files }}
-    max_parallel: 8              # local disk · the only cost is file handles
+    for_each:
+      items: ${{ with.files }}
+      max_parallel: 8              # local disk · the only cost is file handles
     invoke:
       tool: "nika:read"
       args: { path: "${{ item }}" }
@@ -156,9 +154,10 @@ tasks:
   cards:
     with:
       slices: ${{ tasks.slices.output }}
-    for_each: ${{ with.slices }}
-    max_parallel: 3              # rate-limit the provider, not the disk
-    fail_fast: false             # finish the batch · one bad doc is not a batch failure
+    for_each:
+      items: ${{ with.slices }}
+      max_parallel: 3              # rate-limit the provider, not the disk
+      fail_fast: false             # finish the batch · one bad doc is not a batch failure
     timeout: "8m"                # per ITERATION · same reasoning as `plan`
     on_error:
       recover: null              # null holds the index open so the zip below stays aligned

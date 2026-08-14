@@ -2288,7 +2288,6 @@ version = "0.108.0"
 dependencies = [
  "blake3",
  "nika-check",
- "nika-schema",
  "serde_json",
 ]
 

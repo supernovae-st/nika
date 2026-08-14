@@ -159,8 +159,7 @@ mod tests {
 
         let yaml = format!(
             concat!(
-                "nika: v1\n",
-                "workflow:\n  id: w\n",
+                "nika: w\n",
                 "model: mock/echo\n",
                 "permits: {{}}\n",
                 "tasks:\n  t:\n    agent:\n",
@@ -229,7 +228,7 @@ mod tests {
             std::env::temp_dir().join(format!("nika-parsecode-{}.nika.yaml", std::process::id(),));
         std::fs::write(
             &path,
-            "nika: v1\nworkflow:\n  id: two-verbs\nmodel: mock/echo\ntasks:\n  a:\n    infer: { prompt: \"x\" }\n    exec: { run: \"echo hi\" }\n",
+            "nika: two-verbs\nmodel: mock/echo\ntasks:\n  a:\n    infer: { prompt: \"x\" }\n    exec: { run: \"echo hi\" }\n",
         )
         .expect("fixture written");
         let err = load_checked(path.to_str().expect("utf-8 tmp path"))

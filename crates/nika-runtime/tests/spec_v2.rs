@@ -125,9 +125,7 @@ fn output_str(outcome: &RunOutcome, task: &str) -> String {
 #[tokio::test]
 async fn cap_equivalence_byte_identical_streams() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: cap-eq
+nika: cap-eq
 permits: { exec: true }
 const: { publish: "no" }
 tasks:
@@ -221,9 +219,7 @@ impl ToolExecuteDyn for BarrierTools {
 #[tokio::test]
 async fn same_wave_tasks_truly_run_concurrently() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: handshake
+nika: handshake
 permits: { tools: ["nika:read"], fs: { read: ["left.txt", "right.txt"] } }
 tasks:
   left:
@@ -259,9 +255,7 @@ tasks:
 #[tokio::test]
 async fn sibling_failure_drains_the_wave() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: drain
+nika: drain
 permits: { exec: true }
 tasks:
   dies:
@@ -294,9 +288,7 @@ tasks:
 #[tokio::test]
 async fn always_pattern_runs_after_upstream_failure() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: always
+nika: always
 permits: { exec: true }
 tasks:
   build:
@@ -343,16 +335,13 @@ tasks:
 #[tokio::test]
 async fn fan_out_iterations_jitter_on_distinct_streams() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: herd
+nika: herd
 model: mock/echo
 const:
   items: ["x", "y"]
 tasks:
   flaky_fan:
-    for_each: ${{ const.items }}
-    max_parallel: 1
+    for_each: { items: "${{ const.items }}", max_parallel: 1 }
     retry: { max_attempts: 2, backoff_ms: 10000, backoff_strategy: fixed, jitter: true }
     agent:
       prompt: "ask ${{ item }}"
@@ -413,9 +402,7 @@ tasks:
 #[tokio::test]
 async fn transient_failure_retries_and_succeeds() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: flaky
+nika: flaky
 model: mock/echo
 tasks:
   ask:
@@ -467,9 +454,7 @@ tasks:
 #[tokio::test]
 async fn terminal_error_never_retries() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: terminal
+nika: terminal
 permits: { tools: ["nika:fetch"], net: { http: ["example.com"] } }
 tasks:
   fetch:
@@ -514,9 +499,7 @@ impl ToolExecuteDyn for HangingTools {
 #[tokio::test]
 async fn timeout_kills_a_hanging_task_with_the_spec_code() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: hung
+nika: hung
 permits: { tools: ["nika:read"], fs: { read: ["slow.txt"] } }
 tasks:
   stuck:
@@ -583,10 +566,8 @@ tasks:
 #[tokio::test]
 async fn on_error_recover_skip_and_filter() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: recovery
-permits: { exec: true, tools: ["nika:fetch"], net: { http: ["example.com"] } }
+nika: recovery
+permits: { exec: true, tools: ["nika:fetch", "nika:jq"], net: { http: ["example.com"] } }
 tasks:
   cached:
     exec: { command: ["cat", "cache.json"] }
@@ -601,12 +582,13 @@ tasks:
     on_error: { on_codes: [NIKA-GHOST-999], skip: true }
     invoke: { tool: "nika:fetch", args: { url: "https://example.com/c" } }
   downstream:
+    # a BUILTIN consumer, not a shell: the order law (NIKA-SEC-015)
+    # refuses an `exec:` downstream of a fetch, and this fixture is
+    # about `on_error:` routing, never about reaching a shell.
     with: { fetched: "${{ tasks.live.output }}" }
-    exec: { command: ["use", "${{ with.fetched }}"] }
+    invoke: { tool: "nika:jq", args: { input: "${{ with.fetched }}", expression: "." } }
 "#;
-    let shell = MockShell::new()
-        .enqueue_ok("stale data\n")
-        .enqueue_ok("consumed\n");
+    let shell = MockShell::new().enqueue_ok("stale data\n");
     let tools = MockToolExecutor::new()
         .enqueue_err(ToolExecError::NotFound {
             name: "nika:fetch".to_owned(),
@@ -616,7 +598,8 @@ tasks:
         })
         .enqueue_err(ToolExecError::NotFound {
             name: "nika:fetch".to_owned(),
-        });
+        })
+        .enqueue_ok(ToolResult::success("jq", "\"stale data\\n\""));
     let (outcome, _events) = run_to_events(
         yaml,
         shell,
@@ -651,9 +634,7 @@ tasks:
 async fn on_codes_matches_the_user_facing_spec_code() {
     // 1 · on_error.on_codes:[NIKA-EXEC-001] on a non-zero exit → recovery FIRES.
     let yaml = r#"
-nika: v1
-workflow:
-  id: oncodes-catch
+nika: oncodes-catch
 permits: { exec: true }
 tasks:
   boom:
@@ -678,9 +659,7 @@ tasks:
     // 2 · the SAME failure surfaces the SPEC code at tasks.X.error.code (so a
     //     downstream `on_codes`/CEL filter reads the form it was forced to write).
     let yaml_skip = r#"
-nika: v1
-workflow:
-  id: oncodes-skip
+nika: oncodes-skip
 permits: { exec: true }
 tasks:
   boom:
@@ -714,9 +693,7 @@ async fn on_codes_retry_filter_and_selectivity_use_the_spec_code() {
     // 3 · retry.on_codes:[NIKA-EXEC-001] selectively retries a NON-transient
     //     exit (the override's whole point) → a TaskRetrying frame is emitted.
     let yaml_retry = r#"
-nika: v1
-workflow:
-  id: oncodes-retry
+nika: oncodes-retry
 permits: { exec: true }
 tasks:
   boom:
@@ -746,9 +723,7 @@ tasks:
 
     // 4 · selectivity intact: a NON-matching code does NOT recover.
     let yaml_miss = r#"
-nika: v1
-workflow:
-  id: oncodes-miss
+nika: oncodes-miss
 permits: { exec: true }
 tasks:
   boom:
@@ -777,16 +752,13 @@ tasks:
 #[tokio::test]
 async fn for_each_maps_items_in_order_with_locals() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: fan
+nika: fan
 permits: { exec: true }
 const:
   urls: ["alpha", "beta", "gamma"]
 tasks:
   scrape:
-    for_each: ${{ const.urls }}
-    max_parallel: 1
+    for_each: { items: "${{ const.urls }}", max_parallel: 1 }
     with: { page: "${{ item }}" }
     exec: { command: ["fetch", "${{ with.page }}", "at", "${{ index }}"] }
   join:
@@ -833,16 +805,13 @@ tasks:
 #[tokio::test]
 async fn for_each_infer_sums_iteration_tokens() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: fan-tokens
+nika: fan-tokens
 model: mock/echo
 const:
   prompts: ["alpha", "beta", "gamma"]
 tasks:
   think_all:
-    for_each: ${{ const.prompts }}
-    max_parallel: 1
+    for_each: { items: "${{ const.prompts }}", max_parallel: 1 }
     infer:
       prompt: "ponder ${{ item }}"
 "#;
@@ -877,17 +846,13 @@ tasks:
 #[tokio::test]
 async fn for_each_fail_fast_false_nulls_at_index() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: fan-collect
+nika: fan-collect
 permits: { exec: true }
 const:
   items: ["one", "two", "three"]
 tasks:
   work:
-    for_each: ${{ const.items }}
-    max_parallel: 1
-    fail_fast: false
+    for_each: { items: "${{ const.items }}", max_parallel: 1, fail_fast: false }
     exec: { command: ["do", "${{ item }}"] }
 "#;
     let shell = MockShell::new()
@@ -922,16 +887,13 @@ tasks:
 #[tokio::test]
 async fn for_each_on_error_skip_nulls_at_index_parent_succeeds() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: fan-skip
+nika: fan-skip
 permits: { exec: true }
 const:
   items: ["one", "two", "three"]
 tasks:
   work:
-    for_each: ${{ const.items }}
-    max_parallel: 1
+    for_each: { items: "${{ const.items }}", max_parallel: 1 }
     on_error: { skip: true }
     exec: { command: ["do", "${{ item }}"] }
 "#;
@@ -965,16 +927,13 @@ tasks:
 #[tokio::test]
 async fn for_each_fail_fast_true_stops_the_lane() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: fan-abort
+nika: fan-abort
 permits: { exec: true }
 const:
   items: ["one", "two", "three"]
 tasks:
   work:
-    for_each: ${{ const.items }}
-    max_parallel: 1
+    for_each: { items: "${{ const.items }}", max_parallel: 1 }
     exec: { command: ["do", "${{ item }}"] }
 "#;
     // Only TWO shell results enqueued: iteration 1 ok · iteration 2
@@ -1000,19 +959,17 @@ tasks:
 #[tokio::test]
 async fn for_each_empty_skips_and_non_array_fails() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: fan-edges
+nika: fan-edges
 permits: { exec: true }
 const:
   none: []
   scalar: "not a list"
 tasks:
   empty_lane:
-    for_each: ${{ const.none }}
+    for_each: { items: "${{ const.none }}" }
     exec: { command: ["never", "${{ item }}"] }
   bad_lane:
-    for_each: ${{ const.scalar }}
+    for_each: { items: "${{ const.scalar }}" }
     exec: { command: ["never", "${{ item }}"] }
 "#;
     let (outcome, events) = run_to_events(
@@ -1047,16 +1004,13 @@ tasks:
 #[tokio::test]
 async fn for_each_iterations_run_concurrently_under_the_cap() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: fan-pair
+nika: fan-pair
 permits: { tools: ["nika:read"] }
 const:
   items: ["x", "y"]
 tasks:
   pair:
-    for_each: ${{ const.items }}
-    max_parallel: 2
+    for_each: { items: "${{ const.items }}", max_parallel: 2 }
     invoke: { tool: "nika:read", args: { path: "${{ item }}" } }
 "#;
     let (wf, report) = parse_and_check(yaml);
@@ -1088,9 +1042,7 @@ tasks:
 #[tokio::test]
 async fn status_gates_route_on_skipped_upstream() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: routing
+nika: routing
 permits: { exec: true }
 const: { mode: "fast" }
 tasks:
@@ -1127,9 +1079,7 @@ tasks:
 async fn emitted_spec_codes_resolve_in_the_embedded_canon() {
     // Shape 1 · the timeout class (NIKA-TIMEOUT-001).
     let timeout_yaml = r#"
-nika: v1
-workflow:
-  id: pin-timeout
+nika: pin-timeout
 permits: { tools: ["nika:read"], fs: { read: ["slow.txt"] } }
 tasks:
   stuck:
@@ -1161,14 +1111,12 @@ tasks:
 
     // Shape 2 · the expression-type class (non-array for_each).
     let var_yaml = r#"
-nika: v1
-workflow:
-  id: pin-var
+nika: pin-var
 permits: { exec: true }
 const: { scalar: "not a list" }
 tasks:
   bad:
-    for_each: ${{ const.scalar }}
+    for_each: { items: "${{ const.scalar }}" }
     exec: { command: ["never", "${{ item }}"] }
 "#;
     let (outcome2, _) = run_to_events(
@@ -1211,15 +1159,13 @@ tasks:
 #[test]
 fn for_each_when_gate_referencing_item_is_refused_statically() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: gate-item
+nika: gate-item
 permits: { exec: true }
 const:
   items: ["a", "b"]
 tasks:
   fan:
-    for_each: ${{ const.items }}
+    for_each: { items: "${{ const.items }}" }
     when: ${{ item != 'skip' }}
     exec: { command: ["do", "${{ item }}"] }
 "#;
@@ -1259,9 +1205,7 @@ tasks:
 #[tokio::test]
 async fn builtin_invoke_array_output_lets_for_each_iterate() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: glob-fanout
+nika: glob-fanout
 permits: { tools: ["nika:glob", "nika:read"] }
 tasks:
   files:
@@ -1270,8 +1214,7 @@ tasks:
       args: { pattern: "./docs/**/*.md" }
   texts:
     with: { files: "${{ tasks.files.output }}" }
-    for_each: ${{ with.files }}
-    max_parallel: 1
+    for_each: { items: "${{ with.files }}", max_parallel: 1 }
     invoke:
       tool: "nika:read"
       args: { path: "${{ item }}" }
@@ -1317,9 +1260,7 @@ tasks:
 #[tokio::test]
 async fn structured_object_tool_output_navigates() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: object-nav
+nika: object-nav
 permits: { exec: true, tools: ["nika:jq"] }
 tasks:
   api:
@@ -1362,9 +1303,7 @@ tasks:
 #[tokio::test]
 async fn text_only_tool_output_stays_a_string() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: text-output
+nika: text-output
 permits: { tools: ["mcp:server/echo"] }
 tasks:
   tool:

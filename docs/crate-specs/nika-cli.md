@@ -171,11 +171,11 @@ the trace path (the flight recorder IS the crash report, owned by the user)
 ## 6. The graph projector (one projector · N renderers)
 
 `nika inspect <file> --format json` is the canonical projection;
-mermaid/dot/ASCII/webview all derive from it. Versioned envelope (`graph_format: 2` · typed edges):
+mermaid/dot/ASCII/webview all derive from it. Versioned envelope (`graph_format: 3` · typed edges):
 
 ```json
 {
-  "graph_format": 2,
+  "graph_format": 3,
   "workflow": "veille-news",
   "nodes": [
     {"id": "fetch_top", "verb": "invoke", "tool": "nika:fetch",

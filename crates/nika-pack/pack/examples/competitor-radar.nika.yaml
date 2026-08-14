@@ -14,7 +14,7 @@
 #   - `nika:date` `now` → `subtract` → `format` · « last week » is COMPUTED
 #     on the morning it runs. Slicing the first N sitemap entries instead
 #     would make the header's promise false the first time they reorder it
-#   - `max_parallel:` + `fail_fast: false` + `retry:` + `timeout:` · the four
+#   - `for_each.max_parallel:` + `for_each.fail_fast: false` + `retry:` + `timeout:` · the four
 #     dials that make crawling somebody else's site survivable
 #   - `on_error: recover: null` then `select(. != null)` · a dead page leaves
 #     the batch by VALUE, after the fact — it never aborts the fan-out
@@ -33,10 +33,7 @@
 #       `permits.net.http` TOGETHER: a permit is a literal you can read, it
 #       cannot interpolate an input (`NIKA-AUTH-007`).
 
-nika: v1
-workflow:
-  id: competitor-radar
-  description: "competitor watch · their sitemap says what shipped or changed this week → parallel page reads → one Monday brief"
+nika: competitor-radar
 
 model: ollama/qwen3.5:4b   # local · zero key · swap for anthropic/claude-sonnet-4-6 for a sharper read
 
@@ -144,9 +141,10 @@ tasks:
   pages:
     with:
       urls: ${{ tasks.recent.output }}
-    for_each: ${{ with.urls }}
-    max_parallel: 4                    # be a good guest · four in flight, no more
-    fail_fast: false                   # one dead page must not kill the radar
+    for_each:
+      items: ${{ with.urls }}
+      max_parallel: 4                    # be a good guest · four in flight, no more
+      fail_fast: false                   # one dead page must not kill the radar
     on_error:
       recover: null                    # that page yields null at its index · the batch lives
     timeout: "30s"                     # somebody else's server, somebody else's bad day

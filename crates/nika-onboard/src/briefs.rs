@@ -532,17 +532,25 @@ mod tests {
     /// silent deletion would pass the denylist above while leaving an
     /// agent unable to write a legal envelope.
     #[test]
-    fn the_kit_teaches_the_four_value_authorities_and_the_boundary() {
+    fn the_kit_teaches_the_three_value_authorities_and_the_boundary() {
         for (name, body) in [
             ("the language rule", CURSOR_RULES),
             ("the authoring skill", AGENT_SKILL),
         ] {
-            for needle in ["inputs:", "config:", "const:", "secrets:"] {
+            for needle in ["inputs:", "const:", "secrets:"] {
                 assert!(
                     body.contains(needle),
                     "{name} must name the `{needle}` authority"
                 );
             }
+            // …and NEVER the fourth. A kit that still offers `config:`
+            // teaches an envelope the parser refuses (`NIKA-PARSE`), and
+            // a denylist that only checks for ABSENCE of rot would pass
+            // it. The authorities are exactly three.
+            assert!(
+                !body.contains("${{ config."),
+                "{name} must not teach the dead `config` namespace"
+            );
             assert!(
                 body.contains("NIKA-AUTH-006"),
                 "{name} must teach that an absent `permits:` block is zero authority"

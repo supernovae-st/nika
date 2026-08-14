@@ -13,7 +13,8 @@ use nika_kernel::clock::ClockDyn;
 use nika_kernel::http::HttpPostDyn;
 use nika_kernel::process::ShellRunDyn;
 use nika_kernel::tool_executor::ToolExecuteDyn;
-use nika_schema::raw::{RawFinallyTask, RawTask};
+use nika_schema::raw::{RawTask, RawWorkflow};
+use nika_schema::types::AfterPredicate;
 
 use crate::Runtime;
 use crate::expr::Scope;
@@ -77,6 +78,24 @@ fn preview_record(ran: &RanTask) -> TaskRecord {
     record
 }
 
+/// The cleanup tasks attached to `producer` by an `unwind` edge, in
+/// DECLARATION order (the source order of `tasks:`).
+///
+/// Membership is read off the task's own `after:` — the same place the
+/// checker reads it — so the runtime and the graph can never disagree
+/// about what cleanup exists.
+fn unwind_tasks_of<'a>(wf: &'a RawWorkflow, producer: &str) -> Vec<&'a RawTask> {
+    wf.tasks
+        .iter()
+        .map(|t| &t.value)
+        .filter(|t| {
+            t.after.iter().any(|(target, pred)| {
+                target.value == producer && matches!(pred.value, AfterPredicate::Unwind)
+            })
+        })
+        .collect()
+}
+
 impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C>
 where
     S: ShellRunDyn + Sync,
@@ -91,12 +110,17 @@ where
     pub(crate) async fn run_finally(
         &self,
         task: &RawTask,
+        wf: &RawWorkflow,
         scope: &Scope<'_>,
         ran: &RanTask,
         integrity: &nika_cap::Integrity,
         witness: &crate::witness::PermitWitness,
     ) {
-        if task.on_finally.is_empty() {
+        // The cleanup bodies are TASKS now, joined by an `unwind` edge
+        // (spec 03 §unwind). They run in DECLARATION order — the source
+        // order of `tasks:` — so the sequence is stable across re-runs.
+        let cleanups = unwind_tasks_of(wf, task.id.value.as_str());
+        if cleanups.is_empty() {
             return;
         }
         // The cleanup scope sees the PARENT's fresh status/error via a
@@ -117,7 +141,6 @@ where
         let cleanup_scope = Scope {
             records: &records,
             inputs: scope.inputs,
-            config: scope.config,
             consts: scope.consts,
             secrets: scope.secrets, // a cleanup may reference secrets.X too
             with_ns: scope.with_ns,
@@ -125,22 +148,23 @@ where
             index: None,
             permits: scope.permits, // on_finally exec stays within the boundary
         };
-        for (index, mini) in task.on_finally.iter().enumerate() {
-            self.run_one_cleanup(&mini.value, &cleanup_scope, witness, index)
+        for (index, cleanup) in cleanups.iter().enumerate() {
+            self.run_one_cleanup(cleanup, &cleanup_scope, witness, index)
                 .await;
         }
     }
 
-    /// One cleanup mini-task · own `when:` + `timeout:` · outcome
-    /// swallowed (best-effort semantics · spec 03).
+    /// One cleanup TASK · its own `when:` + `timeout:` · outcome
+    /// swallowed (best-effort by construction · its failure never
+    /// propagates to the producer · spec 03 §unwind guarantee 3).
     async fn run_one_cleanup(
         &self,
-        mini: &RawFinallyTask,
+        cleanup: &RawTask,
         scope: &Scope<'_>,
         witness: &crate::witness::PermitWitness,
         index: usize,
     ) {
-        if let Some(gate) = mini.when.as_ref() {
+        if let Some(gate) = cleanup.when.as_ref() {
             match eval_gate(&gate.value, scope) {
                 Ok(true) => {}
                 // Closed gate OR eval error → the cleanup is skipped
@@ -148,7 +172,10 @@ where
                 _ => return,
             }
         }
-        let limit = mini.timeout.as_ref().map_or(CLEANUP_TIMEOUT, |t| t.value);
+        let limit = cleanup
+            .timeout
+            .as_ref()
+            .map_or(CLEANUP_TIMEOUT, |t| t.value);
         // Cleanup agent decisions are NOT collected (best-effort lane ·
         // outcome dropped by design) — a throwaway buffer satisfies the
         // dispatch seam; collecting it is a trigger-gated ratchet.
@@ -170,7 +197,7 @@ where
             "cleanup mini-task starts (spec 03 · best-effort lane)",
         );
         let attempt = std::pin::pin!(self.dispatch(
-            &mini.action,
+            &cleanup.action,
             scope,
             &value_taint,
             &cleanup_buffer,

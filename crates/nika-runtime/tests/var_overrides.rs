@@ -26,9 +26,7 @@ use serde_json::Value;
 use nika_runtime::{DeterministicStamper, RunOutcome, Runtime, RuntimeConfig, VecSink};
 
 const WORKFLOW: &str = r#"
-nika: v1
-workflow:
-  id: var-override
+nika: var-override
 permits: { exec: true }
 inputs:
   topic:
@@ -120,9 +118,7 @@ async fn missing_required_var_is_refused_at_admission_nika_1708() {
 /// The OPTIONAL sibling of the required fixture: `note` declares no
 /// `default:` and is not `required:` — declared optional.
 const OPTIONAL_WORKFLOW: &str = r#"
-nika: v1
-workflow:
-  id: var-optional
+nika: var-optional
 permits: { exec: true }
 inputs:
   note: { type: string }

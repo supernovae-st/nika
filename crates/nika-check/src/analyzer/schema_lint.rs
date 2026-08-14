@@ -56,9 +56,6 @@ fn first_line(msg: &str) -> String {
 pub(super) fn scan_schemas(wf: &RawWorkflow, errors: &mut Vec<SchemaError>) {
     for task in &wf.tasks {
         check_action(&task.value.action, errors);
-        for cleanup in &task.value.on_finally {
-            check_action(&cleanup.value.action, errors);
-        }
     }
 }
 
@@ -107,7 +104,7 @@ mod tests {
         // `type: objet` does not compile → the runtime-parity meta-check
         // (scan_schemas → check_action → the Infer arm) must push an error.
         let errors = errors_of(
-            "nika: v1\nworkflow:\n  id: wftest\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  t:\n    infer:\n      prompt: \"x\"\n      max_tokens: 10\n      schema:\n        type: objet\n",
+            "nika: wftest\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  t:\n    infer:\n      prompt: \"x\"\n      max_tokens: 10\n      schema:\n        type: objet\n",
         );
         assert_eq!(errors.len(), 1, "{errors:?}");
         assert!(
@@ -122,7 +119,7 @@ mod tests {
         // Same bad schema under an `agent:` task — the Agent arm of
         // `check_action` must also reach the meta-check.
         let errors = errors_of(
-            "nika: v1\nworkflow:\n  id: wftest\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  t:\n    agent:\n      prompt: \"go\"\n      schema:\n        type: objet\n",
+            "nika: wftest\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  t:\n    agent:\n      prompt: \"go\"\n      schema:\n        type: objet\n",
         );
         assert_eq!(errors.len(), 1, "{errors:?}");
         assert!(
@@ -138,7 +135,7 @@ mod tests {
         // reaches the action AND that a good schema passes (so the
         // bad-schema tests above prove the arm, not a blanket reject).
         let errors = errors_of(
-            "nika: v1\nworkflow:\n  id: wftest\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  t:\n    infer:\n      prompt: \"x\"\n      max_tokens: 10\n      schema:\n        type: object\n",
+            "nika: wftest\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  t:\n    infer:\n      prompt: \"x\"\n      max_tokens: 10\n      schema:\n        type: object\n",
         );
         assert!(errors.is_empty(), "{errors:?}");
     }

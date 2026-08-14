@@ -35,10 +35,7 @@
 #       small max_tokens it spends the whole budget reasoning and returns
 #       an empty row — the finding above, reproduced on your own machine.
 
-nika: v1
-workflow:
-  id: model-bench
-  description: "benchmark and compare local models — the same question to each seat → one measured table (latency · length)"
+nika: model-bench
 
 model: ollama/qwen3.5:4b # the house default · contenders below pick their own seats
 

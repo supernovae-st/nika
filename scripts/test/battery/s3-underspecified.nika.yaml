@@ -3,9 +3,7 @@
 # strict wires would reject it, so the engine must take the ADR-098
 # fallback (provider JSON mode + local validation) and still succeed.
 # Expected: exit 0 · task success · usage > 0.
-nika: v1
-workflow:
-  id: battery-s3-underspecified
+nika: battery-s3-underspecified
 model: mock/echo
 
 permits:

@@ -32,11 +32,7 @@
 #   `on_error:` block so a genuine failure is loud.
 #
 # Run · nika run <file>          # offline rehearsal · no key, no endpoint
-nika: v1
-workflow:
-  id: api-upload-and-create-template  # SLOT: kebab-case workflow id
-  # SLOT: one honest sentence — `nika new` matches intents against these words
-  description: "upload + create in one authenticated call"
+nika: api-upload-and-create-template       # SLOT: kebab-case workflow id
 
 const:
   api_base: "https://api.example.com"     # SLOT: the product API base

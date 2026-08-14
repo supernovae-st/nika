@@ -23,10 +23,7 @@
 #   it elsewhere — and then `permits.fs.read` has to name that file too.
 #   Offline rehearsal (zero key, deterministic) · add `--model mock/echo`.
 
-nika: v1
-workflow:
-  id: contract-guard
-  description: "Local-model clause extraction → schema gate → risk memo"
+nika: contract-guard
 
 # Local · the whole review runs offline, zero cloud. Also a NON-thinking
 # model on purpose: a thinking model can spend the whole `max_tokens` budget

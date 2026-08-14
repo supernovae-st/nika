@@ -74,11 +74,11 @@ mod tests {
 
     #[test]
     fn scan_single_island() {
-        let islands = scan_templates("${{ vars.topic }}").expect("scan");
+        let islands = scan_templates("${{ inputs.topic }}").expect("scan");
         assert_eq!(islands.len(), 1);
-        assert_eq!(islands[0].src, "vars.topic");
+        assert_eq!(islands[0].src, "inputs.topic");
         assert_eq!(islands[0].start, 0);
-        assert_eq!(islands[0].end, 17);
+        assert_eq!(islands[0].end, 19);
     }
 
     #[test]
@@ -95,11 +95,11 @@ mod tests {
 
     #[test]
     fn scan_multiple_islands() {
-        let s = "${{ vars.a }} and ${{ vars.b }}";
+        let s = "${{ inputs.a }} and ${{ inputs.b }}";
         let islands = scan_templates(s).expect("scan");
         assert_eq!(islands.len(), 2);
-        assert_eq!(islands[0].src, "vars.a");
-        assert_eq!(islands[1].src, "vars.b");
+        assert_eq!(islands[0].src, "inputs.a");
+        assert_eq!(islands[1].src, "inputs.b");
     }
 
     #[test]
@@ -119,22 +119,22 @@ mod tests {
 
     #[test]
     fn escaped_and_real_island_mix() {
-        let islands = scan_templates(r"\${{ literal }} but ${{ vars.real }}").expect("scan");
+        let islands = scan_templates(r"\${{ literal }} but ${{ inputs.real }}").expect("scan");
         assert_eq!(islands.len(), 1);
-        assert_eq!(islands[0].src, "vars.real");
+        assert_eq!(islands[0].src, "inputs.real");
     }
 
     #[test]
     fn unterminated_island_errors() {
         // Conformance fixture variables/011-unclosed-expression.
-        let err = scan_templates("${{ vars.x ").expect_err("unterminated");
+        let err = scan_templates("${{ inputs.x ").expect_err("unterminated");
         assert_eq!(err, ExprError::UnterminatedTemplate { offset: 0 });
     }
 
     #[test]
     fn island_with_string_containing_close_braces() {
         // A `}}` inside a CEL string literal must not close the island.
-        let islands = scan_templates("${{ vars.x == '}}' }}").expect("scan");
+        let islands = scan_templates("${{ inputs.x == '}}' }}").expect("scan");
         assert_eq!(islands.len(), 1);
         let Expr::Relation {
             op: RelOp::Eq, rhs, ..
@@ -153,15 +153,15 @@ mod tests {
 
     #[test]
     fn island_offsets_are_byte_accurate() {
-        let s = "café ${{ vars.x }}";
+        let s = "café ${{ inputs.x }}";
         let islands = scan_templates(s).expect("scan");
         assert_eq!(islands.len(), 1);
-        assert_eq!(&s[islands[0].start..islands[0].end], "${{ vars.x }}");
+        assert_eq!(&s[islands[0].start..islands[0].end], "${{ inputs.x }}");
     }
 
     #[test]
     fn adjacent_islands() {
-        let islands = scan_templates("${{ vars.a }}${{ vars.b }}").expect("scan");
+        let islands = scan_templates("${{ inputs.a }}${{ inputs.b }}").expect("scan");
         assert_eq!(islands.len(), 2);
     }
 
@@ -174,10 +174,10 @@ mod tests {
         // found. A mutant stride (`i *= 3`) overshoots far past the real
         // island and silently drops it. The long prefix makes the `$`
         // offset large, so `i*3` jumps clean off the end → 0 islands.
-        let s = "prefix-thirty-chars-padding!! \\${{esc}}${{ vars.real }}";
+        let s = "prefix-thirty-chars-padding!! \\${{esc}}${{ inputs.real }}";
         let islands = scan_templates(s).expect("scan");
         assert_eq!(islands.len(), 1, "the real island after `\\${{` must scan");
-        assert_eq!(islands[0].src, "vars.real");
+        assert_eq!(islands[0].src, "inputs.real");
     }
 
     // ── String-escape stride inside an island (`i += 2`) ─────────────
@@ -196,9 +196,9 @@ mod tests {
         // stays "in string", marches forward, re-hits the same `\` and
         // loops → the mutant never terminates (caught by timeout). Correct
         // code parses cleanly.
-        let islands = scan_templates(r"${{ vars.x == 'ab\'}}cd' }}").expect("scan");
+        let islands = scan_templates(r"${{ inputs.x == 'ab\'}}cd' }}").expect("scan");
         assert_eq!(islands.len(), 1);
-        assert_eq!(islands[0].src, r"vars.x == 'ab\'}}cd'");
+        assert_eq!(islands[0].src, r"inputs.x == 'ab\'}}cd'");
         let Expr::Relation {
             op: RelOp::Eq, rhs, ..
         } = &islands[0].expr
@@ -220,9 +220,9 @@ mod tests {
         // quote state on the first non-quote byte (`a`), exposing the inner
         // `}}` as a false close → body `'a` → an unterminated-string error,
         // not the well-formed island correct code produces.
-        let islands = scan_templates("${{ 'a}}b' == vars.x }}").expect("scan");
+        let islands = scan_templates("${{ 'a}}b' == inputs.x }}").expect("scan");
         assert_eq!(islands.len(), 1);
-        assert_eq!(islands[0].src, "'a}}b' == vars.x");
+        assert_eq!(islands[0].src, "'a}}b' == inputs.x");
         let Expr::Relation {
             op: RelOp::Eq, lhs, ..
         } = &islands[0].expr
@@ -234,9 +234,9 @@ mod tests {
         // Plus the canonical short form (a string that IS just `}}`): the
         // single leading char is the quote itself, so the close quote is
         // reached before any non-quote byte — guards the simple case too.
-        let islands = scan_templates("${{ vars.x == '}}' }}").expect("scan");
+        let islands = scan_templates("${{ inputs.x == '}}' }}").expect("scan");
         assert_eq!(islands.len(), 1);
-        assert_eq!(islands[0].src, "vars.x == '}}'");
+        assert_eq!(islands[0].src, "inputs.x == '}}'");
     }
 
     // ── `}}` lookahead (`bytes.get(i + 1)`) ──────────────────────────
@@ -251,7 +251,7 @@ mod tests {
         // after) must NOT produce a false close → the island is reported
         // unterminated. The mutant would instead close AT the lone `}` and
         // report a spurious, well-formed island.
-        let err = scan_templates("${{ vars.x } ").expect_err("lone brace");
+        let err = scan_templates("${{ inputs.x } ").expect_err("lone brace");
         assert_eq!(err, ExprError::UnterminatedTemplate { offset: 0 });
 
         // Case B · a stray `}` (followed by a space) sits mid-body; the
@@ -265,9 +265,9 @@ mod tests {
         );
 
         // …and the all-valid form still closes on the real `}}`.
-        let islands = scan_templates("${{ vars.x in [1, 2] }}").expect("scan");
+        let islands = scan_templates("${{ inputs.x in [1, 2] }}").expect("scan");
         assert_eq!(islands.len(), 1);
-        assert_eq!(islands[0].src, "vars.x in [1, 2]");
+        assert_eq!(islands[0].src, "inputs.x in [1, 2]");
     }
 
     // ── Outer-scan bound (`while i < bytes.len()`) ───────────────────
@@ -277,9 +277,9 @@ mod tests {
         // Pins the outer-scan loop bound: an island flush against the end
         // (no trailing bytes) must be found. The opener probe `bytes[i..]`
         // and the trailing-`}}` are all within bounds.
-        let islands = scan_templates("end:${{ vars.z }}").expect("scan");
+        let islands = scan_templates("end:${{ inputs.z }}").expect("scan");
         assert_eq!(islands.len(), 1);
-        assert_eq!(islands[0].src, "vars.z");
-        assert_eq!(islands[0].end, "end:${{ vars.z }}".len());
+        assert_eq!(islands[0].src, "inputs.z");
+        assert_eq!(islands[0].end, "end:${{ inputs.z }}".len());
     }
 }

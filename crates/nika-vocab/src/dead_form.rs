@@ -46,7 +46,7 @@ impl DeadForm {
             ),
             Self::Env => (
                 "env:",
-                "non-sensitive runtime configuration is a `config:` declaration, a governed store reference is a `secrets:` entry",
+                "non-sensitive runtime configuration is an `inputs:` declaration with `required: false` and a `default:`, a governed store reference is a `secrets:` entry",
             ),
         };
         format!(
@@ -65,7 +65,7 @@ impl DeadForm {
         };
         format!(
             "${{{{ {reference} }}}} reads the dead `{form}` namespace (R3a · the E-split) · \
-             read the value authority its role commands (inputs · config · const · secrets)"
+             read the value authority its role commands (inputs · const · secrets)"
         )
     }
 }
@@ -77,7 +77,7 @@ pub fn foreign_namespace_teaching(root: &str) -> String {
     format!(
         "${{{{ {root}.X }}}} reads `{root}`, a value namespace outside the \
          four-authority family (R3a · LAW-SURFACE-0201) · the authorities are \
-         exactly inputs · config · const · secrets"
+         exactly inputs · const · secrets"
     )
 }
 
@@ -93,7 +93,10 @@ mod tests {
         assert!(v.contains("classify-not-rename"), "{v}");
         assert!(v.contains("nika check --fix"), "{v}");
         let e = DeadForm::Env.field_teaching();
-        assert!(e.contains("`config:`") && e.contains("`secrets:`"), "{e}");
+        assert!(e.contains("`inputs:`") && e.contains("`secrets:`"), "{e}");
+        // `config:` died with the 9-key envelope: the env teaching may
+        // never send an author to it again.
+        assert!(!e.contains("`config:`"), "{e}");
     }
 
     #[test]
@@ -101,7 +104,7 @@ mod tests {
         let v = DeadForm::Vars.ref_teaching("vars.topic");
         assert!(v.contains("${{ vars.topic }}"), "{v}");
         assert!(v.contains("dead `vars` namespace"), "{v}");
-        assert!(v.contains("inputs · config · const · secrets"), "{v}");
+        assert!(v.contains("inputs · const · secrets"), "{v}");
     }
 
     #[test]
@@ -109,6 +112,6 @@ mod tests {
         let f = foreign_namespace_teaching("params");
         assert!(f.contains("${{ params.X }}"), "{f}");
         assert!(f.contains("outside the four-authority family"), "{f}");
-        assert!(f.contains("inputs · config · const · secrets"), "{f}");
+        assert!(f.contains("inputs · const · secrets"), "{f}");
     }
 }

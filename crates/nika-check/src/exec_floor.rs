@@ -67,9 +67,6 @@ pub(crate) fn scan(wf: &RawWorkflow) -> Vec<ExecFloorFinding> {
     for task in &wf.tasks {
         let id = task.value.id.value.as_str();
         push_exec_floor(&task.value.action, id, &mut out);
-        for cleanup in &task.value.on_finally {
-            push_exec_floor(&cleanup.value.action, id, &mut out);
-        }
     }
     out
 }
@@ -162,7 +159,7 @@ mod tests {
 
     fn exec_wf(command_yaml: &str) -> String {
         format!(
-            "nika: v1\nworkflow:\n  id: w\npermits:\n  exec: true\ntasks:\n  t:\n    exec: {{ command: {command_yaml} }}\n"
+            "nika: w\npermits:\n  exec: true\ntasks:\n  t:\n    exec: {{ command: {command_yaml} }}\n"
         )
     }
 
@@ -177,7 +174,7 @@ mod tests {
     fn the_issues_repro_is_a_sec001_finding() {
         // The issue's exact shape (map-form tasks · capture: stdout):
         let r = report(
-            "nika: v1\nworkflow:\n  id: sec001-repro\npermits:\n  exec: [\"bash\"]\ntasks:\n  inline:\n    exec:\n      capture: stdout\n      command: [\"bash\", \"-c\", \"echo hello\"]\n",
+            "nika: sec001-repro\npermits:\n  exec: [\"bash\"]\ntasks:\n  inline:\n    exec:\n      capture: stdout\n      command: [\"bash\", \"-c\", \"echo hello\"]\n",
         );
         assert!(
             !r.is_clean(),
@@ -229,7 +226,7 @@ mod tests {
     #[test]
     fn on_error_skip_does_not_swallow_the_static_finding() {
         let r = report(
-            "nika: v1\nworkflow:\n  id: w\npermits:\n  exec: true\ntasks:\n  t:\n    on_error: { skip: true }\n    exec: { command: [\"bash\", \"-c\", \"echo hi\"] }\n",
+            "nika: w\npermits:\n  exec: true\ntasks:\n  t:\n    on_error: { skip: true }\n    exec: { command: [\"bash\", \"-c\", \"echo hi\"] }\n",
         );
         assert_eq!(
             r.exec_floor_findings.len(),
@@ -314,9 +311,9 @@ mod tests {
     #[test]
     fn templated_argv_makes_no_claim() {
         for command in [
-            "[\"${{ vars.tool }}\", \"-p\", \"1+1\"]",
-            "[\"node\", \"-p\", \"${{ vars.code }}\"]",
-            "[\"node\", \"${{ vars.flag }}\", \"1+1\"]",
+            "[\"${{ inputs.tool }}\", \"-p\", \"1+1\"]",
+            "[\"node\", \"-p\", \"${{ inputs.code }}\"]",
+            "[\"node\", \"${{ inputs.flag }}\", \"1+1\"]",
         ] {
             let findings = floor_findings(&exec_wf(command));
             assert!(
@@ -332,7 +329,7 @@ mod tests {
     #[test]
     fn the_shell_form_makes_no_argv_floor_claim() {
         let r = report(
-            "nika: v1\nworkflow:\n  id: w\npermits:\n  exec: true\ntasks:\n  t:\n    exec: { shell: \"node -p 1+1\" }\n",
+            "nika: w\npermits:\n  exec: true\ntasks:\n  t:\n    exec: { shell: \"node -p 1+1\" }\n",
         );
         assert!(
             r.exec_floor_findings.is_empty(),
@@ -348,20 +345,6 @@ mod tests {
     fn a_pathed_interpreter_is_still_judged() {
         let findings = floor_findings(&exec_wf("[\"/usr/bin/python3\", \"-c\", \"import os\"]"));
         assert_eq!(findings.len(), 1, "the basename is judged: {findings:?}");
-    }
-
-    /// `on_finally` cleanups are scanned too (the native-first
-    /// precedent — a cleanup command is the same floor).
-    #[test]
-    fn on_finally_cleanups_are_scanned_too() {
-        let r = report(
-            "nika: v1\nworkflow:\n  id: w\npermits:\n  exec: true\ntasks:\n  t:\n    exec: { command: [\"make\", \"build\"] }\n    on_finally:\n      - exec: { command: [\"node\", \"-e\", \"process.exit(0)\"] }\n",
-        );
-        assert!(
-            r.exec_floor_findings.iter().any(|f| f.task == "t"),
-            "the cleanup's refusal is predicted: {:?}",
-            r.exec_floor_findings
-        );
     }
 
     /// The emitted⊆registered ratchet, exec-floor tier (the

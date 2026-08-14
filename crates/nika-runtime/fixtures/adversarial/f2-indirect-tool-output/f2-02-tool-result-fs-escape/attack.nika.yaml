@@ -4,9 +4,7 @@
 # in permits.tools — the only remaining boundary is the fs confinement
 # inside the real builtin (canonicalize-then-confine, NIKA-SEC-004), and the
 # agent loop must fail closed without feeding the refusal back to the model.
-nika: v1
-workflow:
-  id: f2-02-tool-result-fs-escape
+nika: f2-02-tool-result-fs-escape
 model: mock/echo
 permits:
   fs: { write: ["./out/**"] }

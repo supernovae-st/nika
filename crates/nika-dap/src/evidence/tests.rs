@@ -15,8 +15,9 @@ use super::*;
 use crate::chain::CHAIN_GENESIS;
 
 /// A workflow with a declared boundary, one exec task and one
-/// statically-decidable assert — check-clean and projectable.
-const WF_YAML: &str = "nika: v1\nworkflow:\n  id: pay\npermits:\n  fs: { read: [\"./in/**\"], write: [\"./out/**\"] }\n  exec: [\"echo\"]\nassert: [\"no_secret_egress\"]\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n";
+/// check-clean and projectable (the `assert:` key it carried died
+/// 2026-08-13 · spec 15 « the subtraction is the fix »).
+const WF_YAML: &str = "nika: pay\npermits:\n  fs: { read: [\"./in/**\"], write: [\"./out/**\"] }\n  exec: [\"echo\"]\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n";
 
 fn keypair() -> (String, minisign::SecretKey) {
     let pair = minisign::KeyPair::generate_unencrypted_keypair().expect("keypair");
@@ -334,11 +335,7 @@ fn hash_checked_workflow_adds_receipt_and_trifecta() {
     );
     assert_eq!(receipt["receipt_format"], json!(1));
     assert_eq!(receipt["lock_digest"], json!(LOCK_UNRECORDED));
-    assert_eq!(
-        receipt["assertions"][0]["assert"],
-        json!("no_secret_egress")
-    );
-    assert_eq!(receipt["assertions"][0]["level"], json!("StaticProof"));
+    assert_eq!(receipt["assertions"], json!([]));
     assert_eq!(receipt["trace_verdict"]["outcome"], json!("completed"));
     assert_eq!(receipt["trace_verdict"]["sealed"], json!(true));
     assert!(
@@ -453,7 +450,7 @@ fn hash_mismatch_workflow_never_leaks_into_the_pack() {
     let other = stage(
         "mismatch",
         "other.nika.yaml",
-        "nika: v1\nworkflow:\n  id: other\ntasks:\n  b:\n    exec: { command: [\"echo\", \"yo\"] }\n",
+        "nika: other\ntasks:\n  b:\n    exec: { command: [\"echo\", \"yo\"] }\n",
     );
     let keys = vec![(fp, pk)];
     let (out, pack) = pack_over("mismatch", &raw, Some(&other), &keys);
@@ -483,7 +480,7 @@ fn hash_mismatch_on_an_old_journal_nulls_the_boundary() {
     let other = stage(
         "mismatch-old",
         "other.nika.yaml",
-        "nika: v1\nworkflow:\n  id: other\ntasks:\n  b:\n    exec: { command: [\"echo\", \"yo\"] }\n",
+        "nika: other\ntasks:\n  b:\n    exec: { command: [\"echo\", \"yo\"] }\n",
     );
     let (out, pack) = pack_over("mismatch-old", &raw, Some(&other), &[]);
     assert!(pack["boundary"].is_null(), "{pack}");

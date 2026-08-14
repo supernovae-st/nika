@@ -300,7 +300,7 @@ mod tests {
     }
 
     /// A deterministic mock workflow with a typed `outputs:` block.
-    const GOLDEN_WF: &str = "nika: v1\nworkflow:\n  id: golden-fixture\nmodel: mock/echo\ntasks:\n  gen:\n    infer: { prompt: \"say hi\" }\noutputs:\n  reply: ${{ tasks.gen.output }}\n";
+    const GOLDEN_WF: &str = "nika: golden-fixture\nmodel: mock/echo\ntasks:\n  gen:\n    infer: { prompt: \"say hi\" }\noutputs:\n  reply: ${{ tasks.gen.output }}\n";
 
     fn stage(name: &str) -> std::path::PathBuf {
         let dir = std::env::temp_dir().join("nika-cli-test-verb");
@@ -371,7 +371,7 @@ mod tests {
         // An unknown builtin tool is a CHECK finding (parses clean).
         std::fs::write(
             &path,
-            "nika: v1\nworkflow:\n  id: dirty\ntasks:\n  t:\n    invoke: { tool: \"nika:no_such_tool\" }\n",
+            "nika: dirty\ntasks:\n  t:\n    invoke: { tool: \"nika:no_such_tool\" }\n",
         )
         .expect("fixture written");
         assert_eq!(

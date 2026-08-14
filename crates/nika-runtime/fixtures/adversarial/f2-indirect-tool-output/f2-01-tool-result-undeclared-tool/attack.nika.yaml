@@ -3,9 +3,7 @@
 # the model makes a legitimate whitelisted fetch; the returned payload tells
 # it to exfiltrate; turn 2 the hijacked model obeys — and the whitelist
 # refuses the undeclared tool before any dispatch.
-nika: v1
-workflow:
-  id: f2-01-tool-result-undeclared-tool
+nika: f2-01-tool-result-undeclared-tool
 model: mock/echo
 permits:
   net: { http: ["news.example"] }

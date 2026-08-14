@@ -98,16 +98,6 @@ pub fn scan_escapes(wf: &RawWorkflow) -> Vec<CapabilityEscape> {
             &consts,
             &mut escapes,
         );
-        for cleanup in &task.value.on_finally {
-            check_action(
-                &format!("{id} (on_finally)"),
-                &cleanup.value.action,
-                permits,
-                undeclared,
-                &consts,
-                &mut escapes,
-            );
-        }
     }
     // Dead grants: a literal `permits.net.http` entry the floor always
     // refuses can never take effect — the runtime blocks the target

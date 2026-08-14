@@ -4,9 +4,7 @@
 # boundary left is the real builtin's fs confinement (NIKA-SEC-004), and the
 # agent loop must hard-stop on the first turn — the refusal is never fed
 # back, so the model gets no second chance to probe the boundary.
-nika: v1
-workflow:
-  id: f4-03-agent-reads-outside-fs-boundary
+nika: f4-03-agent-reads-outside-fs-boundary
 model: mock/echo
 permits:
   fs: { read: ["./in/**"] }

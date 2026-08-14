@@ -151,9 +151,9 @@ pub unsafe fn nika_tmpl::expression::Literal::clone_to_uninit(&self, dest: *mut 
 impl<T> core::convert::From<T> for nika_tmpl::expression::Literal
 pub fn nika_tmpl::expression::Literal::from(t: T) -> T
 pub enum nika_tmpl::expression::NamespaceRef
-pub nika_tmpl::expression::NamespaceRef::Config(alloc::string::String)
 pub nika_tmpl::expression::NamespaceRef::Const(alloc::string::String)
 pub nika_tmpl::expression::NamespaceRef::Env(alloc::string::String)
+pub nika_tmpl::expression::NamespaceRef::Group(alloc::string::String)
 pub nika_tmpl::expression::NamespaceRef::Index
 pub nika_tmpl::expression::NamespaceRef::Inputs(alloc::string::String)
 pub nika_tmpl::expression::NamespaceRef::Item

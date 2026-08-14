@@ -12,7 +12,7 @@
 #   - `nika:glob` · the collection comes from the filesystem at RUNTIME —
 #     nothing about the file count is written down here
 #   - CHAINED `for_each` stages · read-all → translate-all → write-all,
-#     each one a wave, each one bounded by its own `max_parallel`
+#     each one a wave, each one bounded by its own `for_each.max_parallel`
 #   - `nika:jq` `transpose` · the zip that keeps a path attached to its
 #     text across a fan-out (a for_each output is an array in ITEM ORDER,
 #     which is what makes the zip sound)
@@ -30,10 +30,7 @@
 #       `permits.fs.read` entry TOGETHER: a permit is a literal you can
 #       read, it cannot interpolate a const (`NIKA-AUTH-007`).
 
-nika: v1
-workflow:
-  id: localization-factory
-  description: "glob docs → parallel read → parallel translate → mirror tree"
+nika: localization-factory
 
 model: ollama/qwen3.5:4b   # local default · swap for mistral/mistral-large (EU model for EU locales)
 
@@ -72,8 +69,9 @@ tasks:
   texts:
     with:
       files: ${{ tasks.files.output }}
-    for_each: ${{ with.files }}
-    max_parallel: 8                    # local disk · the only cost is file handles
+    for_each:
+      items: ${{ with.files }}
+      max_parallel: 8                    # local disk · the only cost is file handles
     invoke:
       tool: "nika:read"
       args: { path: "${{ item }}" }
@@ -98,9 +96,10 @@ tasks:
   translated:
     with:
       pairs: ${{ tasks.pairs.output }}
-    for_each: ${{ with.pairs }}
-    max_parallel: 3                    # rate-limit the provider, not the disk
-    fail_fast: false                   # finish the batch · one bad file is not a batch failure
+    for_each:
+      items: ${{ with.pairs }}
+      max_parallel: 3                    # rate-limit the provider, not the disk
+      fail_fast: false                   # finish the batch · one bad file is not a batch failure
     on_error:
       recover: null                    # null holds the index open so the zip below stays aligned
     infer:
@@ -132,8 +131,9 @@ tasks:
   mirror:
     with:
       bundle: ${{ tasks.bundle.output }}
-    for_each: ${{ with.bundle }}
-    max_parallel: 8
+    for_each:
+      items: ${{ with.bundle }}
+      max_parallel: 8
     invoke:
       tool: "nika:write"
       args:

@@ -1,6 +1,4 @@
-nika: v1
-workflow:
-  id: seed
+nika: seed
 permits: {}
 tasks:
   t:

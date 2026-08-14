@@ -229,18 +229,21 @@ fn statically_refused_fixtures_never_execute() {
 /// Mapping-law row 1, second tier — the POLICY corpus replays at the
 /// binary under the same contract: every statically-refused fixture
 /// refuses BEFORE the prologue (zero task frames) and voices its judged
-/// code. The tier's clean consent pattern (`012-consent-affirmative-clean`
-/// · NEP-0020) does the opposite walk: the run is NOT refused, the
+/// code. The tier's clean consent pattern (`002-affirmative-clean` ·
+/// NEP-0020) does the opposite walk: the run is NOT refused, the
 /// non-interactive confirm settles on its `default: false` (a refusal,
 /// per the spec's substitution), the affirmative `when:` closes, and the
 /// irreversible exec NEVER starts — the runtime half of NIKA-SEC-014,
 /// proven on the one fixture whose whole point is that the gate works.
 #[test]
-fn policy_consent_fixtures_replay_at_the_binary() {
-    let root = spec_dir().join("conformance/tests/core/policy");
+fn consent_fixtures_replay_at_the_binary() {
+    // The `policy` tier split when the block died (2026-08-12): what it
+    // held that was unconditional moved to `consent` and to `order`.
+    // The consent half is this test's subject.
+    let root = spec_dir().join("conformance/tests/core/consent");
     assert!(
         root.is_dir(),
-        "policy tier missing: {} — set NIKA_SPEC_DIR",
+        "consent tier missing: {} — set NIKA_SPEC_DIR",
         root.display()
     );
     let mut red = 0usize;
@@ -262,7 +265,7 @@ fn policy_consent_fixtures_replay_at_the_binary() {
         )
         .expect("expected parses");
         if expected["valid"].as_bool() == Some(true) {
-            if name.starts_with("012") {
+            if name.starts_with("002") {
                 consent_clean += 1;
                 let observed = run_observed(&input, &[], &[]);
                 if !observed.ok {
@@ -311,14 +314,11 @@ fn policy_consent_fixtures_replay_at_the_binary() {
     }
     assert!(
         failures.is_empty(),
-        "the policy tier must replay under the same mapping law:\n{}",
+        "the consent tier must replay under the same mapping law:\n{}",
         failures.join("\n")
     );
-    assert!(
-        red >= 2,
-        "the policy corpus carries the consent reds (saw {red})"
-    );
-    // The CI judges at SPEC_PIN, which may predate the 012 clean fixture:
+    assert!(red >= 2, "the consent corpus carries its reds (saw {red})");
+    // The CI judges at SPEC_PIN, which may predate the clean fixture:
     // the clean-run proof is mandatory WHEN the pin carries the fixture,
     // and silently absent would mean silently unproven — so the count is
     // pinned at most one, and the printout names which mode ran.
@@ -327,7 +327,7 @@ fn policy_consent_fixtures_replay_at_the_binary() {
         "at most one clean consent fixture (saw {consent_clean})"
     );
     println!(
-        "equivalence leg 1b (policy tier): {red} red replayed · {clean_skipped} clean checked-only · {}",
+        "equivalence leg 1b (consent tier): {red} red replayed · {clean_skipped} clean checked-only · {}",
         if consent_clean == 1 {
             "012 ran its refusal to a closed gate"
         } else {
@@ -533,7 +533,7 @@ fn e_diff_runtime_fs_leg() {
     let mut failures: Vec<String> = Vec::new();
     for (name, permits, path, want_ok) in rows {
         let yaml = format!(
-            "nika: v1\nworkflow:\n  id: ediff-fs\n{permits}tasks:\n  grab:\n    invoke:\n      tool: \"nika:read\"\n      args: {{ path: \"{path}\" }}\n"
+            "nika: ediff-fs\n{permits}tasks:\n  grab:\n    invoke:\n      tool: \"nika:read\"\n      args: {{ path: \"{path}\" }}\n"
         );
         let wf = root.join(format!("{name}.nika.yaml"));
         std::fs::write(&wf, yaml).expect("write workflow");
@@ -592,7 +592,7 @@ fn e_diff_runtime_net_leg() {
     let mut observed_codes: Vec<String> = Vec::new();
     for (name, permits, url) in rows {
         let yaml = format!(
-            "nika: v1\nworkflow:\n  id: ediff-net\n{permits}tasks:\n  grab:\n    invoke:\n      tool: \"nika:fetch\"\n      args: {{ url: \"{url}\" }}\n"
+            "nika: ediff-net\n{permits}tasks:\n  grab:\n    invoke:\n      tool: \"nika:fetch\"\n      args: {{ url: \"{url}\" }}\n"
         );
         let wf = root.join(format!("{name}.nika.yaml"));
         std::fs::write(&wf, yaml).expect("write workflow");

@@ -15,8 +15,9 @@
 #   - `run.clock` · naming the clock that deadline rides
 #   - `with:` + `when:` · a DATA edge · the exit code crosses, the CEL gate reads it
 #   - `after:` · a STATE edge · admit a task on the producer's outcome
-#   - `on_finally:` · runs on every outcome of a STARTED task (success · fail ·
-#     timeout · cancel) · a task that never started runs none (03-dag.md:1045)
+#   - `after: {…: unwind}` · cleanup as a TASK · runs on every outcome of a
+#     STARTED producer (success · fail · timeout · cancel) · a producer that
+#     never started unwinds nothing
 #
 # Runs green anywhere the suite is not passing — no Cargo.toml, or no cargo at
 # all, is a non-zero exit: the gate closes, the deploy is skipped, the notice
@@ -25,9 +26,7 @@
 #
 # Run · nika run examples/03-exec-pipeline.nika.yaml
 
-nika: v1
-workflow:
-  id: exec-pipeline
+nika: exec-pipeline
 
 run:
   # `timeout:` below has to be measured against something. Left undeclared it
@@ -54,12 +53,15 @@ tasks:
       shell: "cargo test --workspace --lib"
       cwd: "."             # the directory you ran `nika` from, not the file's
       capture: structured  # → { stdout, stderr, exit_code }
-    on_finally:
-      # ALWAYS runs · best-effort · an error here is logged, never propagated.
-      # A lock outlives the thing that took it unless something like this
-      # releases it on the failure and timeout paths too.
-      - exec:
-          command: ["rm", "-f", "./.build.lock"]
+
+  release_lock:
+    # ALWAYS runs · best-effort · an error here is logged, never propagated.
+    # A lock outlives the thing that took it unless something like this
+    # releases it on the failure and timeout paths too. Cleanup is a TASK on
+    # an `unwind` edge — one grammar, so it is greppable and testable.
+    after: { test: unwind }
+    exec:
+      command: ["rm", "-f", "./.build.lock"]
 
   deploy:
     with:

@@ -102,13 +102,12 @@ pub(crate) fn run_with_traces(
         Ok(triple) => triple,
         Err(out) => return out,
     };
-    let description = wf.description.as_ref().map(|d| d.value.clone());
     let permits_declared = wf.permits.is_some();
     if !report.conformance.is_empty() {
         // No valid DAG order → no wave story. Explain stays useful:
         // name the findings and hand over to the fixer, never invent
         // a story the checker refused to prove.
-        return dirty(path, description.as_deref(), &report, json);
+        return dirty(path, &report, json);
     }
     let doc = project(&wf, &report);
     let traces = traces_glance(traces_dir);
@@ -137,7 +136,6 @@ pub(crate) fn run_with_traces(
     if json {
         return VerbOutput::ok(render_json(
             path,
-            description.as_deref(),
             &doc,
             &report,
             permits_declared,
@@ -147,7 +145,6 @@ pub(crate) fn run_with_traces(
     }
     VerbOutput::ok(render_human(
         path,
-        description.as_deref(),
         &doc,
         &report,
         permits_declared,
@@ -159,12 +156,11 @@ pub(crate) fn run_with_traces(
 
 /// The findings-first partial for a non-conformant file — explain never
 /// narrates a DAG the checker could not order.
-fn dirty(path: &str, description: Option<&str>, report: &CheckReport, json: bool) -> VerbOutput {
+fn dirty(path: &str, report: &CheckReport, json: bool) -> VerbOutput {
     if json {
         let v = serde_json::json!({
             "explain_version": 1,
             "file": path,
-            "description": description,
             "clean": false,
             "findings": report.conformance.len(),
             "fix": format!("nika check {path}"),
@@ -394,7 +390,6 @@ fn str_field<'a>(event: &'a Event, key: &str) -> Option<&'a str> {
 #[allow(clippy::too_many_arguments)] // one render context per beat — the compose seam
 fn render_human(
     path: &str,
-    description: Option<&str>,
     doc: &GraphDoc,
     report: &CheckReport,
     permits_declared: bool,
@@ -409,13 +404,9 @@ fn render_human(
         recovery_section(&mut s, path, f);
         let _ = writeln!(s);
     }
-    let _ = writeln!(
-        s,
-        "{} — {}",
-        doc.workflow,
-        description
-            .unwrap_or("(no description yet — one line under `description:` says what it is for)")
-    );
+    // The name alone: `description:` died with the envelope nuke
+    // (2026-08-12), and the old fallback line taught the dead key.
+    let _ = writeln!(s, "{}", doc.workflow);
     let _ = writeln!(
         s,
         "  {} · {} · checks clean",
@@ -691,9 +682,9 @@ fn touches_section(s: &mut String, doc: &GraphDoc, report: &CheckReport, permits
     needs.extend(
         report
             .requirements
-            .config_reads
+            .inputs_read
             .iter()
-            .map(|e| format!("config.{e}")),
+            .map(|e| format!("inputs.{e}")),
     );
     if !needs.is_empty() {
         let _ = writeln!(
@@ -805,7 +796,6 @@ fn recorder_section(s: &mut String, traces: Option<&(usize, String)>) {
 /// vocabulary so `check --json` and `explain --json` speak one dialect.
 fn render_json(
     path: &str,
-    description: Option<&str>,
     doc: &GraphDoc,
     report: &CheckReport,
     permits_declared: bool,
@@ -843,7 +833,6 @@ fn render_json(
         "explain_version": 1,
         "file": path,
         "workflow": doc.workflow,
-        "description": description,
         "clean": true,
         "tasks": tasks,
         "waves": waves,

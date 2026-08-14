@@ -22,10 +22,7 @@
 #   → EUR) and re-run to watch the good branch aggregate instead. Both
 #   branches are green: that is the whole lesson.
 
-nika: v1
-workflow:
-  id: etl-quarantine
-  description: "CSV batch → schema gate → quarantine the bad · aggregate the good"
+nika: etl-quarantine
 
 const:
   batch_csv: "examples/fixtures/orders.csv"

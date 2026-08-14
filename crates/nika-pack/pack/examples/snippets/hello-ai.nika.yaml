@@ -17,10 +17,7 @@
 #   No ollama? `--model mock/echo` rehearses the same file keyless.
 #
 # Run · nika run examples/snippets/hello-ai.nika.yaml
-nika: v1
-workflow:
-  id: hello-ai
-  description: "first model call · one local seat, one bounded sentence"
+nika: hello-ai
 model: ollama/llama3.2:3b   # local · zero key · swap for any provider in the catalog
 permits: {}
 tasks:

@@ -3,9 +3,7 @@
 # Two real defects: a task reads another task's output straight from its
 # verb body (outside the `with:` boundary), and a typo'd task reference in
 # the `with:` binding that feeds the `when:` gate.
-nika: v1
-workflow:
-  id: pr-risk-review
+nika: pr-risk-review
 model: ollama/llama3.1
 
 tasks:

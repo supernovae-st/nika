@@ -107,7 +107,7 @@ async fn a_harness_run_receipt_names_the_subscription_lane_never_a_fake_zero() {
     );
 
     let wf = nika_schema::parse(
-        "nika: v1\nworkflow:\n  id: billing\ntasks:\n  ask:\n    agent: { prompt: \"hi\" }\n",
+        "nika: billing\ntasks:\n  ask:\n    agent: { prompt: \"hi\" }\n",
         nika_schema::FileId::new(0),
         nika_schema::ParseMode::Strict,
     )

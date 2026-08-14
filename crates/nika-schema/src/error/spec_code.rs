@@ -212,10 +212,13 @@ impl SchemaError {
             // ── NIKA-PARSE · structural / shape ─────────────────────
             Self::YamlSyntax { .. } => parse(1, ParseError),
             Self::MissingEnvelopeField { .. } => parse(2, ValidationError),
-            // Fixture envelope/003 · bad `nika:` is parse_error (the
-            // version marker gate is the file's entry contract).
-            Self::BadNikaVersion { .. } => parse(3, ParseError),
-            Self::BadWorkflowId { .. } => parse(4, ValidationError),
+            // Fixture envelope/003-nika-id-bad-shape · `validation_error`,
+            // NOT `parse_error`. The code survives the envelope nuke by
+            // changing MEANING and its CATEGORY moves with it: judging a
+            // version marker was the file's entry contract (a parse-level
+            // gate), judging a kebab-case id is a spec-rule violation in
+            // well-formed input. The document parses; the name is wrong.
+            Self::BadNikaId { .. } => parse(3, ValidationError),
             Self::UnknownField { .. } => parse(5, ValidationError),
             Self::BadTaskId { .. } => parse(6, ValidationError),
             Self::DuplicateTaskId { .. } => parse(7, ValidationError),
@@ -232,9 +235,10 @@ impl SchemaError {
             Self::MissingField { .. } => parse(18, ValidationError),
             Self::Validation { .. } | Self::D1StringCommand { .. } => parse(19, ValidationError),
             Self::RunContradiction { class, .. } => run_contradiction_code(*class),
-            // W1 « the map » migration teachings (dead forms · 0.104)
-            Self::W1WorkflowScalar { .. } => parse(20, ValidationError),
-            Self::W1TopLevelDescription { .. } => parse(21, ValidationError),
+            // W1 « the map » migration teachings (dead forms · 0.104).
+            // `NIKA-PARSE-020` / `-021` are RETIRED with the envelope
+            // nuke (2026-08-12) and never reused — their teachings
+            // pointed at the `workflow:` object, itself now dead.
             Self::W1TasksSequence { .. } => parse(22, ValidationError),
             Self::W1TaskIdField { .. } => parse(23, ValidationError),
             // W2 « the flow » migration teaching (dead form · 0.104)
@@ -249,6 +253,11 @@ impl SchemaError {
             Self::UnknownDependency { .. } => dag(2),
             Self::RecoverAwaitDeadlock { .. } => dag(4),
             Self::UnknownAfterPredicate { .. } => dag(5),
+            // DAG-008 · a fold of a group nobody declares (the empty
+            // group is the SAME fact as an absent one) · DAG-009 ·
+            // cleanup never enters G_p, so it can never be folded.
+            Self::UnknownGroup { .. } => dag(8),
+            Self::UnwindInGroup { .. } => dag(9),
 
             // ── NIKA-BUILTIN · arg-shape contracts ─────────────────
             Self::BadBuiltinArgs { tool, .. } => builtin_spec_code(tool),
@@ -281,7 +290,6 @@ impl SchemaError {
             // rides the payload, carried verbatim from the type core's
             // ParseTypeError (one truth · never re-derived here).
             Self::TypeExprInvalid { num, .. } => typ(*num),
-            Self::TypeRecursive { .. } => typ(2),
             Self::TypeContractDuplicated { .. } => typ(3),
             Self::TypeUndecodable { .. } => typ(4),
             // NIKA-PARSE-025 · decode: with capture: structured (05 §registry).
@@ -433,14 +441,16 @@ mod tests {
     #[test]
     fn fixture_critical_mappings() {
         use crate::error::SchemaError;
-        // envelope/003 · bad nika version → NIKA-PARSE + parse_error.
-        let code = SchemaError::BadNikaVersion {
-            version: "v1.0".into(),
+        // envelope/003 · bad nika id → NIKA-PARSE + parse_error.
+        let code = SchemaError::BadNikaId {
+            id: "Not_Kebab".into(),
             span: None,
         }
         .spec_code();
         assert_eq!(code.namespace, "PARSE");
-        assert_eq!(code.category.as_str(), "parse_error");
+        // validation_error since the envelope nuke — the document
+        // parses, the NAME is what violates the rule (fixture 003).
+        assert_eq!(code.category.as_str(), "validation_error");
 
         // dag-topology/001 · cycle → exact NIKA-DAG-001.
         let code = SchemaError::Cycle { cycle: vec![] }.spec_code();
@@ -531,8 +541,12 @@ mod tests {
         // the C2 dead value forms add VALUES-001 (002 rides the same
         // variant by payload) + VALUES-003 (the foreign namespace) ·
         // R3b retires BadTypedVar/PARSE-015 with the TypeExpr widen and
-        // adds DEFAULT-001 — the census holds at 37).
-        assert_eq!(seen.len(), 37, "{seen:?}");
+        // adds DEFAULT-001. The envelope nuke (2026-08-12) retires
+        // PARSE-004 with `BadWorkflowId` — the id moved onto `nika:`
+        // and PARSE-003 judges it — and TYPE-002 with `TypeRecursive`,
+        // whose object died with the `types:` block, so the census
+        // drops to 35.
+        assert_eq!(seen.len(), 35, "{seen:?}");
     }
 
     #[test]
@@ -606,14 +620,7 @@ mod tests {
         // The W3 contract layer (spec 09 §errors) — each variant to its
         // exact canon row · TYPE codes are validation_error · the
         // decode/structured conflict files under PARSE (05 §registry).
-        let cases: [(SchemaError, &str); 4] = [
-            (
-                SchemaError::TypeRecursive {
-                    name: String::new(),
-                    span: None,
-                },
-                "NIKA-TYPE-002",
-            ),
+        let cases: [(SchemaError, &str); 3] = [
             (
                 SchemaError::TypeContractDuplicated {
                     task: String::new(),

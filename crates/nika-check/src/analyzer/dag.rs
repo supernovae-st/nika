@@ -70,6 +70,15 @@ pub(super) fn check_edge_targets_resolve(
             refs.sort();
             refs.dedup();
             for (id, _field) in refs {
+                // A bare `${{ tasks }}` yields an EMPTY id · it names no
+                // dependency, it names the envelope, and that class has
+                // its own code (`NIKA-VAR-020` · BareTaskEnvelope, from
+                // the scanner). Reporting DAG-002 here would accuse the
+                // author of a typo'd task named `` and bury the real
+                // teaching under it.
+                if id.is_empty() {
+                    continue;
+                }
                 if !ids.contains_key(&id) {
                     errors.push(SchemaError::UnknownDependency {
                         from: task.value.id.value.clone(),
@@ -99,9 +108,12 @@ pub(super) fn check_cycles(
         Black,
     }
 
-    // consumer → its producers (the direction the gate awaits)
+    // consumer → its producers (the direction the gate awaits).
+    // `G_p` ONLY: an `unwind` edge is the E_f attachment and never
+    // participates in cycle detection (spec 03 · a cleanup task folding
+    // back on its producer is not a cycle, it is the whole construct).
     let mut producers: Vec<Vec<usize>> = vec![Vec::new(); tasks.len()];
-    for e in edges {
+    for e in edges.iter().filter(|e| e.kind.is_scheduling()) {
         producers[e.to].push(e.from);
     }
 
@@ -159,9 +171,9 @@ pub(super) fn check_recover_acyclic(
     edges: &[Edge],
     errors: &mut Vec<SchemaError>,
 ) {
-    // consumer → producers over `G_p`
+    // consumer → producers over `G_p` (E_f excluded · spec 03)
     let mut producers: Vec<Vec<usize>> = vec![Vec::new(); tasks.len()];
-    for e in edges {
+    for e in edges.iter().filter(|e| e.kind.is_scheduling()) {
         producers[e.to].push(e.from);
     }
 
@@ -225,20 +237,37 @@ pub(super) fn topo_waves(task_count: usize, edges: &[Edge]) -> Vec<Vec<usize>> {
     let mut dependents: Vec<Vec<usize>> = vec![Vec::new(); task_count];
     // Parallel edges between the same pair count once for precedence.
     let mut seen = std::collections::BTreeSet::new();
-    for e in edges {
+    // `unwind` edges do not enter wave assignment — the cleanup runs off
+    // the producer's settle, not off a wave (spec 03).
+    for e in edges.iter().filter(|e| e.kind.is_scheduling()) {
         if seen.insert((e.from, e.to)) {
             indegree[e.to] += 1;
             dependents[e.from].push(e.to);
         }
     }
+    // …and neither do the cleanup TASKS themselves. Excluding only the
+    // EDGE leaves the task at indegree 0, so it lands in wave 0 and the
+    // gate cancels it — the producer has no record yet (measured at the
+    // binary: `⊘ cleanup · gate: an edge did not admit`). A task is an
+    // unwind task exactly when something unwinds INTO it, which the edge
+    // set already says — no extra parameter needed.
+    let unwinds: std::collections::BTreeSet<usize> = edges
+        .iter()
+        .filter(|e| !e.kind.is_scheduling())
+        .map(|e| e.to)
+        .collect();
     let mut waves = Vec::new();
-    let mut current: Vec<usize> = (0..task_count).filter(|&i| indegree[i] == 0).collect();
+    let mut current: Vec<usize> = (0..task_count)
+        .filter(|&i| indegree[i] == 0 && !unwinds.contains(&i))
+        .collect();
     while !current.is_empty() {
         let mut next = Vec::new();
         for &node in &current {
             for &dependent in &dependents[node] {
                 indegree[dependent] -= 1;
-                if indegree[dependent] == 0 {
+                // an unwind task never enters a wave, even when it also
+                // carries a value edge from the producer it cleans up
+                if indegree[dependent] == 0 && !unwinds.contains(&dependent) {
                     next.push(dependent);
                 }
             }
@@ -261,7 +290,7 @@ mod tests {
         analyze(&wf)
     }
 
-    const HEADER: &str = "nika: v1\nworkflow:\n  id: t\n";
+    const HEADER: &str = "nika: t\n";
 
     #[test]
     fn recover_deadlock_transitive_and_nested_refs() {

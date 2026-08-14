@@ -24,9 +24,7 @@
 //! `NIKA-VALUES-001`/`NIKA-VALUES-002` at parse).
 
 use crate::source::Spanned;
-use crate::types::{
-    AssertProperty, OutputDecl, Permits, Policy, RunDecl, SchemaVersion, SecretRef, VarDecl,
-};
+use crate::types::{OutputDecl, Permits, RunDecl, SecretRef, VarDecl};
 
 use super::task::RawTask;
 
@@ -39,19 +37,17 @@ use super::task::RawTask;
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct RawWorkflow {
-    /// `nika:` — the language contract version (exactly `v1`).
-    pub nika: Option<Spanned<SchemaVersion>>,
-    /// `workflow:` — kebab-case workflow id.
+    /// The file's NAME, kebab-case — parsed from `nika:` (spec 01
+    /// §`nika`). The KEY is the mark (« this is a Nika file »), the
+    /// VALUE is the id. The key held the literal `v1` until the envelope
+    /// nuke (2026-08-12): the version slot is gone forever and that is
+    /// lossless — `v1` was the only legal value for the contract's whole
+    /// lifetime and there is no `nika: v2`, ever.
     pub workflow: Option<Spanned<String>>,
-    /// `description:` — free-form human text.
-    pub description: Option<Spanned<String>>,
     /// `model:` — workflow-level default `<provider>/<name>`.
     pub model: Option<Spanned<String>>,
     /// `inputs:` — typed workflow inputs (caller-supplied · spec 01 §inputs).
     pub inputs: Vec<(Spanned<String>, VarDecl)>,
-    /// `config:` — non-sensitive runtime config (deployment-supplied ·
-    /// spec 01 §config).
-    pub config: Vec<(Spanned<String>, VarDecl)>,
     /// `const:` — named constants (spec 01 §const · bare literal →
     /// `VarDecl::Untyped` · `{type, value}` → `VarDecl::Typed` (value in `default`).
     pub consts: Vec<(Spanned<String>, VarDecl)>,
@@ -61,13 +57,6 @@ pub struct RawWorkflow {
     /// `None` = absent = ZERO authority (F-O8 · every effect refused) ·
     /// `Some` = default-deny).
     pub permits: Option<Spanned<Permits>>,
-    /// `policy:` — named workflow law (spec 10 · hard families judged
-    /// at check · soft recorded, never judged).
-    pub policy: Option<Spanned<Policy>>,
-    /// `types:` — named type declarations (spec 09 · `PascalCase` name →
-    /// RAW type expression · parsed/validated by the type core at
-    /// check time, never here — the parser is shape-only).
-    pub types: Vec<(Spanned<String>, Spanned<serde_json::Value>)>,
     /// `run:` — the run's entropy + clock declaration (F-P3 · `None` =
     /// absent = the status quo: `entropy: ambient` + `clock: system`).
     pub run: Option<Spanned<RunDecl>>,
@@ -75,10 +64,6 @@ pub struct RawWorkflow {
     pub tasks: Vec<Spanned<RawTask>>,
     /// `outputs:` — the workflow's return contract.
     pub outputs: Vec<(Spanned<String>, OutputDecl)>,
-    /// `assert:` — the author's obligations (spec 15 §assert · the closed
-    /// vocabulary the engine judges at an honest level · malformed refused
-    /// `NIKA-ASSERT-001`).
-    pub assert: Vec<Spanned<AssertProperty>>,
 }
 
 impl RawWorkflow {
@@ -86,21 +71,15 @@ impl RawWorkflow {
     #[must_use]
     pub fn new() -> Self {
         Self {
-            nika: None,
             workflow: None,
-            description: None,
             model: None,
             inputs: Vec::new(),
-            config: Vec::new(),
             consts: Vec::new(),
             secrets: Vec::new(),
             permits: None,
-            policy: None,
-            types: Vec::new(),
             run: None,
             tasks: Vec::new(),
             outputs: Vec::new(),
-            assert: Vec::new(),
         }
     }
 }
@@ -118,15 +97,11 @@ mod tests {
     #[test]
     fn new_is_empty() {
         let w = RawWorkflow::new();
-        assert!(w.nika.is_none());
         assert!(w.workflow.is_none());
-        assert!(w.policy.is_none());
         assert!(w.tasks.is_empty());
         assert!(w.inputs.is_empty());
-        assert!(w.config.is_empty());
         assert!(w.consts.is_empty());
         assert!(w.secrets.is_empty());
-        assert!(w.types.is_empty());
         assert!(w.run.is_none());
         assert!(w.outputs.is_empty());
     }

@@ -34,10 +34,7 @@ use nika_verb_invoke::InvokeVerb;
 /// mirrors `e2e_pipeline.rs`'s `WORKFLOW_OK` verbatim (same YAML in ·
 /// same stream out) — when the trifecta law moves, both twins move.
 const WORKFLOW_OK: &str = r#"
-nika: v1
-workflow:
-  id: e2e-veille
-  description: "gather facts in parallel, extract typed data, think once, persist, gated notify"
+nika: e2e-veille
 
 model: mock/echo
 
@@ -423,9 +420,7 @@ async fn floor_failure_cascades_and_terminal_is_failed() {
 async fn floor_dirty_report_never_executes() {
     // A cycle: a → b → a. The checker refuses · the runtime must too.
     let dirty = r"
-nika: v1
-workflow:
-  id: cycle
+nika: cycle
 permits: { exec: ['true'] }
 tasks:
   a:
@@ -458,9 +453,7 @@ tasks:
 #[tokio::test]
 async fn floor_agent_task_dispatches_through_the_runtime() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: agent-lane
+nika: agent-lane
 model: mock/echo
 tasks:
   ask:
@@ -506,9 +499,7 @@ tasks:
 #[tokio::test]
 async fn floor_when_literal_true_runs_and_false_skips() {
     let yaml = r"
-nika: v1
-workflow:
-  id: gates
+nika: gates
 permits: { exec: ['echo'] }
 tasks:
   always:
@@ -556,9 +547,7 @@ tasks:
 #[tokio::test]
 async fn floor_typed_var_default_and_typed_output_resolve() {
     let yaml = r"
-nika: v1
-workflow:
-  id: typed-forms
+nika: typed-forms
 permits: { exec: true }
 const:
   greeting:
@@ -603,9 +592,7 @@ outputs:
 #[tokio::test]
 async fn floor_deep_path_system_template_resolves() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: deep-ref
+nika: deep-ref
 model: mock/echo
 tasks:
   extract:
@@ -672,9 +659,7 @@ tasks:
 #[tokio::test]
 async fn floor_skipped_upstream_reads_null_downstream() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: gated-ref
+nika: gated-ref
 model: mock/echo
 permits: { exec: ['echo'] }
 tasks:
@@ -725,8 +710,7 @@ tasks:
 async fn stress_deep_chain_threads_bindings_in_order() {
     const DEPTH: usize = 24;
     use std::fmt::Write as _;
-    let mut yaml =
-        String::from("nika: v1\nworkflow:\n  id: deep-chain\npermits: { exec: true }\ntasks:\n");
+    let mut yaml = String::from("nika: deep-chain\npermits: { exec: true }\ntasks:\n");
     yaml.push_str("  t0:\n    exec: { command: ['step', '0'] }\n");
     for n in 1..DEPTH {
         let _ = writeln!(
@@ -780,7 +764,7 @@ async fn stress_wide_fan_in_joins_every_source() {
     const WIDTH: usize = 12;
     use std::fmt::Write as _;
     let mut yaml = String::from(
-        "nika: v1\nworkflow:\n  id: wide-fan\npermits: { exec: ['src'], tools: ['nika:write'], fs: { write: ['./out/joined.md'] } }\ntasks:\n",
+        "nika: wide-fan\npermits: { exec: ['src'], tools: ['nika:write'], fs: { write: ['./out/joined.md'] } }\ntasks:\n",
     );
     for n in 0..WIDTH {
         let _ = writeln!(yaml, "  src{n}:\n    exec: {{ command: ['src', '{n}'] }}");

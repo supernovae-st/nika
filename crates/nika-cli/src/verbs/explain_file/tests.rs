@@ -17,7 +17,7 @@ fn tmp(name: &str, content: &str) -> std::path::PathBuf {
     path
 }
 
-const DIAMOND: &str = "nika: v1\nworkflow:\n  id: brief-factory\n  description: fetch, summarize twice, join\n\nmodel: mock/echo\n\ntasks:\n  root:\n    infer: { prompt: \"r\", max_tokens: 10 }\n  left:\n    after:\n      root: success\n    infer: { prompt: \"l\", max_tokens: 10 }\n  right:\n    after:\n      root: success\n    infer: { prompt: \"x\", max_tokens: 10 }\n  join:\n    after:\n      left: success\n      right: success\n    infer: { prompt: \"j\", max_tokens: 10 }\noutputs:\n  result: ${{ tasks.join.output }}\n";
+const DIAMOND: &str = "nika: brief-factory\n\nmodel: mock/echo\n\ntasks:\n  root:\n    infer: { prompt: \"r\", max_tokens: 10 }\n  left:\n    after:\n      root: success\n    infer: { prompt: \"l\", max_tokens: 10 }\n  right:\n    after:\n      root: success\n    infer: { prompt: \"x\", max_tokens: 10 }\n  join:\n    after:\n      left: success\n      right: success\n    infer: { prompt: \"j\", max_tokens: 10 }\noutputs:\n  result: ${{ tasks.join.output }}\n";
 
 #[test]
 fn narrates_the_diamond_with_cost_and_handoff() {
@@ -26,7 +26,7 @@ fn narrates_the_diamond_with_cost_and_handoff() {
     std::fs::remove_file(&path).ok();
     assert_eq!(out.code, exit::OK, "{}", out.text);
     for needle in [
-        "brief-factory — fetch, summarize twice, join",
+        "brief-factory",
         "4 tasks · 3 waves · checks clean",
         "the story",
         "wave 2 — 2 in parallel",
@@ -69,7 +69,7 @@ fn unbounded_cost_claims_no_bound_and_names_the_priced_portion() {
     // fake $0 ceiling nor the word FLOOR.
     let path = tmp(
         "floor",
-        "nika: v1\nworkflow:\n  id: floor-story\ntasks:\n  think:\n    infer: { prompt: \"x\" }\n",
+        "nika: floor-story\ntasks:\n  think:\n    infer: { prompt: \"x\" }\n",
     );
     let out = run(path.to_str().expect("utf8"), false, false);
     std::fs::remove_file(&path).ok();
@@ -125,7 +125,7 @@ fn a_dirty_file_gets_findings_first_never_a_story() {
     // must refuse to narrate and hand over to check (exit 2).
     let path = tmp(
         "dirty",
-        "nika: v1\nworkflow:\n  id: dirty\ntasks:\n  a:\n    exec: { command: [\"echo\", \"x\"] }\n  b:\n    after:\n      a: success\n    when: maybe\n    exec: { command: [\"echo\", \"y\"] }\n",
+        "nika: dirty\ntasks:\n  a:\n    exec: { command: [\"echo\", \"x\"] }\n  b:\n    after:\n      a: success\n    when: maybe\n    exec: { command: [\"echo\", \"y\"] }\n",
     );
     let out = run(path.to_str().expect("utf8"), false, false);
     std::fs::remove_file(&path).ok();
@@ -317,7 +317,7 @@ mod fx {
     }
 }
 
-const FC: &str = "nika: v1\nworkflow:\n  id: fc-fix\n  description: forecast fixture\n\nmodel: mock/echo\n\ntasks:\n  fetch:\n    exec: { command: [\"echo\", \"x\"] }\n  think:\n    after:\n      fetch: success\n    infer: { prompt: \"p\", max_tokens: 10 }\n";
+const FC: &str = "nika: fc-fix\n\nmodel: mock/echo\n\ntasks:\n  fetch:\n    exec: { command: [\"echo\", \"x\"] }\n  think:\n    after:\n      fetch: success\n    infer: { prompt: \"p\", max_tokens: 10 }\n";
 
 /// One completed fc-fix run body: fetch (exec) + think (infer),
 /// distinct durations, optional sha/model/extras.
@@ -638,7 +638,7 @@ fn a_failed_latest_run_opens_on_the_recovery_rail() {
         .text
         .find("last run failed")
         .expect("the rail opens the render");
-    let header = out.text.find("fc-fix —").expect("the header renders");
+    let header = out.text.find("fc-fix").expect("the header renders");
     assert!(rail < header, "the rail opens:\n{}", out.text);
     // Task + cause + the trace pointer + the chain claim, and the
     // RESUME names THIS workflow's failed trace (never the other

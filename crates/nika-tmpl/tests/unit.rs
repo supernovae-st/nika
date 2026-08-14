@@ -21,7 +21,7 @@ fn bodies(s: &str) -> Vec<&str> {
 
 #[test]
 fn scans_single_and_prose_and_multiple() {
-    assert_eq!(bodies("${{ vars.x }}"), vec!["vars.x"]);
+    assert_eq!(bodies("${{ inputs.x }}"), vec!["inputs.x"]);
     assert_eq!(bodies("before ${{ a }} after"), vec!["a"]);
     assert_eq!(bodies("${{ a }} mid ${{ b }}"), vec!["a", "b"]);
     assert!(bodies("no islands here").is_empty());
@@ -30,10 +30,10 @@ fn scans_single_and_prose_and_multiple() {
 #[test]
 fn quote_aware_close_is_not_fooled_by_braces_in_literals() {
     assert_eq!(
-        bodies(r#"${{ vars.x == "}}" }}"#),
-        vec![r#"vars.x == "}}""#]
+        bodies(r#"${{ inputs.x == "}}" }}"#),
+        vec![r#"inputs.x == "}}""#]
     );
-    assert_eq!(bodies("${{ vars.x == '}}' }}"), vec!["vars.x == '}}'"]);
+    assert_eq!(bodies("${{ inputs.x == '}}' }}"), vec!["inputs.x == '}}'"]);
     // escaped quote inside a literal does not close the literal early
     assert_eq!(bodies(r#"${{ "\"}}" }}"#), vec![r#""\"}}""#]);
 }
@@ -143,7 +143,7 @@ fn escaped_quote_in_body_literal_pins_the_two_byte_skip() {
 
 #[test]
 fn find_close_matches_the_scanner() {
-    assert_eq!(find_island_close(" vars.x }}", 0), Some(8));
+    assert_eq!(find_island_close(" inputs.x }}", 0), Some(10));
     assert_eq!(find_island_close(" '}}' }}", 0), Some(6));
     assert_eq!(find_island_close(" no close", 0), None);
 }

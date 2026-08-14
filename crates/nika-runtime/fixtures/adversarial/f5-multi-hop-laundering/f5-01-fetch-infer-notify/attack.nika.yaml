@@ -4,9 +4,7 @@
 # Laundering through a model rewrite does not wash the taint out — the
 # realized-flow judge must name fetch_page → tell across the infer hop.
 # (Mirrors the engine's own flow-through-infer pin.)
-nika: v1
-workflow:
-  id: f5-01-fetch-infer-notify
+nika: f5-01-fetch-infer-notify
 permits:
   fs: { read: ["./inbox/**"] }
   net: { http: ["api.example.com"] }

@@ -1,10 +1,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! Envelope block parsing — `assert:` · `types:` · `outputs:` · `permits:`
-//! · `policy:` · `run:` (spec `01-envelope.md` · the four value authorities
-//! parse in `envelope_values.rs`, re-exported below · `vars:`/`env:` are
-//! dead forms, refused at `parser/mod.rs` with NIKA-VALUES-001/002).
+//! Envelope block parsing — `outputs:` · `permits:` · `run:` (spec
+//! `01-envelope.md` · the three value authorities parse in
+//! `envelope_values.rs`, re-exported below · `vars:`/`env:` are dead
+//! forms, refused at `parser/mod.rs` with NIKA-VALUES-001/002 ·
+//! `assert:`/`types:`/`policy:`/`config:` died with the 9-key envelope
+//! and are refused as unknown keys, NIKA-PARSE).
 
 use marked_yaml::Node;
 use marked_yaml::types::MarkedMappingNode;
@@ -12,8 +14,7 @@ use marked_yaml::types::MarkedMappingNode;
 use crate::error::SchemaError;
 use crate::source::Spanned;
 use crate::types::{
-    AssertProperty, ExecPermit, FsPermits, NetPermits, OutputDecl, Permits, Policy, RunClock,
-    RunDecl, RunEntropy,
+    ExecPermit, FsPermits, NetPermits, OutputDecl, Permits, RunClock, RunDecl, RunEntropy,
 };
 
 use super::{Cx, value::json_value};
@@ -21,99 +22,14 @@ use super::{Cx, value::json_value};
 // The closed key vocabularies live in `nika_vocab::keys` (the C2 descent —
 // one vocabulary, one home); the parser reads them through this re-export.
 pub(crate) use nika_vocab::keys::{
-    CONFIG_KEYS, CONST_TYPED_KEYS, EGRESS_KEYS, INPUT_KEYS, PERMITS_FS_KEYS, PERMITS_KEYS,
-    PERMITS_NET_KEYS, RUN_ENTROPY_MAP_KEYS, RUN_KEYS, SECRET_KEYS, TYPED_OUTPUT_KEYS,
+    CONST_TYPED_KEYS, EGRESS_KEYS, INPUT_KEYS, PERMITS_FS_KEYS, PERMITS_KEYS, PERMITS_NET_KEYS,
+    RUN_ENTROPY_MAP_KEYS, RUN_KEYS, SECRET_KEYS, TYPED_OUTPUT_KEYS,
 };
 
-// The four value authorities parse in `envelope_values.rs` (the C2 file
+// The three value authorities parse in `envelope_values.rs` (the C2 file
 // split — ONE coherent unit); the parser's `envelope::parse_*` call paths
 // ride this re-export unchanged.
-pub(super) use super::envelope_values::{parse_config, parse_const, parse_inputs, parse_secrets};
-
-/// Parse the workflow-level `assert:` block (spec 15 §assert) — a list of the
-/// author's obligations, each parsed into the closed [`AssertProperty`]
-/// vocabulary. An unknown property, a non-v1 shape, or a malformed body is a
-/// refusal at check (`NIKA-ASSERT-001`, carried by the vocab refusal). The
-/// engine JUDGES each obligation's honest level (nika-vocab `level`); wiring
-/// the check-time genuine decision (does `before`/`bounded` hold on the
-/// derived graph?) and `nika trace verify` reporting is the named owed — this
-/// parse makes the obligations authorable and typed, refusing the malformed.
-pub(super) fn parse_assert(
-    cx: &Cx<'_>,
-    workflow: &MarkedMappingNode,
-) -> Result<Vec<Spanned<AssertProperty>>, SchemaError> {
-    let Some(node) = workflow.get_node("assert") else {
-        return Ok(Vec::new());
-    };
-    let Some(seq) = node.as_sequence() else {
-        return Err(SchemaError::Validation {
-            message: "`assert:` must be a list of obligations (spec 15 §assert · \
-                      NIKA-ASSERT-001)"
-                .to_owned(),
-            span: cx.span(node.span()),
-        });
-    };
-    let mut out = Vec::with_capacity(seq.len());
-    for item in seq.iter() {
-        let value = json_value(cx, item)?;
-        let property =
-            AssertProperty::parse(&value).map_err(|refusal| SchemaError::Validation {
-                message: refusal.message,
-                span: cx.span(item.span()),
-            })?;
-        out.push(Spanned::new(property, cx.span_or_zero(item.span())));
-    }
-    Ok(out)
-}
-
-/// A parsed `types:` block — declaration name → raw expression, spans kept.
-pub(super) type TypeDecls = Vec<(Spanned<String>, Spanned<serde_json::Value>)>;
-
-/// Parse `types:` — named type declarations (spec `09-types.md`) ·
-/// `PascalCase` name → RAW type expression.
-///
-/// Shape-only (the parser's contract): the block is a mapping, each
-/// declaration name matches `^[A-Z][A-Za-z0-9]*$` (the published
-/// `workflow.schema.json` `propertyNames` rule — engine ≡ schema), and
-/// each value converts to a neutral JSON value. The GRAMMAR of the
-/// expression (`NIKA-TYPE-001/002/006`) is the analyzer's job via the
-/// type core — one truth, never re-implemented here.
-pub(super) fn parse_types(
-    cx: &Cx<'_>,
-    workflow: &MarkedMappingNode,
-) -> Result<TypeDecls, SchemaError> {
-    let Some(node) = workflow.get_node("types") else {
-        return Ok(Vec::new());
-    };
-    let mapping = require_mapping(cx, node, "types")?;
-    let mut out = Vec::with_capacity(mapping.len());
-    for (key, value) in mapping.iter() {
-        let name = Spanned::new(key.as_str().to_owned(), cx.span_or_zero(key.span()));
-        if !is_pascal_case(&name.value) {
-            return Err(SchemaError::Validation {
-                message: format!(
-                    "type name `{}` must be PascalCase (^[A-Z][A-Za-z0-9]*$) — \
-                     disjoint from task ids and the lowercase primitives by \
-                     construction (09-types.md)",
-                    name.value
-                ),
-                span: Some(name.span),
-            });
-        }
-        out.push((
-            name,
-            Spanned::new(json_value(cx, value)?, cx.span_or_zero(value.span())),
-        ));
-    }
-    Ok(out)
-}
-
-/// A legal declared-type name (spec 09 · `^[A-Z][A-Za-z0-9]*$`).
-fn is_pascal_case(s: &str) -> bool {
-    let mut chars = s.chars();
-    matches!(chars.next(), Some(c) if c.is_ascii_uppercase())
-        && chars.all(|c| c.is_ascii_alphanumeric())
-}
+pub(super) use super::envelope_values::{parse_const, parse_inputs, parse_secrets};
 
 /// Parse `outputs:` — untyped (`name: ${{ … }}`) OR typed
 /// (`name: { value, type, description }`).
@@ -219,56 +135,28 @@ mod tests {
         parse(yaml, FileId::new(0), ParseMode::Strict)
     }
 
-    /// The `assert:` block (spec 15 §assert) lowers to the typed obligation
-    /// vocabulary; an unknown property is refused at parse with the
-    /// `NIKA-ASSERT-001` code the reference names.
+    /// The `assert:` block died with the 9-key envelope (spec 15 · « the
+    /// subtraction is the fix »): it judged NOTHING — an obligation naming
+    /// an ordering over two tasks that do not exist was accepted `clean ·
+    /// risk low`, where the same mistake one field away (`after:`) is
+    /// `NIKA-DAG-002`. One file in 661 carried it, and that file was the
+    /// probe written to demonstrate the defect. The builtin `nika:assert`
+    /// is untouched — that half works.
     #[test]
-    fn assert_block_parses_obligations_and_refuses_the_unknown() {
-        let ok = "\
-nika: v1
-workflow:
-  id: gated
+    fn the_assert_block_is_refused() {
+        let dead = "\
+nika: gated
 assert:
   - no_secret_egress
-  - before: { first: gate, second: deploy }
-  - bounded: { task: crawl, max_iterations: 100 }
 tasks:
   gate:
     exec: { command: [\"true\"] }
 ";
-        let wf = parse_strict(ok).expect("a valid assert: block parses");
-        assert_eq!(wf.assert.len(), 3, "three obligations parse");
-        assert_eq!(wf.assert[0].value.name(), "no_secret_egress");
-        assert_eq!(wf.assert[1].value.name(), "before");
-        assert_eq!(wf.assert[2].value.name(), "bounded");
-
-        let bad = "\
-nika: v1
-workflow:
-  id: gated
-assert:
-  - telepathy: {}
-tasks:
-  gate:
-    exec: { command: [\"true\"] }
-";
-        let err = parse_strict(bad).expect_err("an unknown assert property is refused");
+        let err = parse_strict(dead).expect_err("the dead key is refused");
         assert!(
-            err.to_string().contains("NIKA-ASSERT-001"),
-            "the spec-15 refusal code rides: {err}"
+            format!("{err:?}").contains("assert"),
+            "the refusal names the key: {err:?}"
         );
-
-        // A non-list `assert:` is refused too (it is a list of obligations).
-        let not_a_list = "\
-nika: v1
-workflow:
-  id: gated
-assert: no_secret_egress
-tasks:
-  gate:
-    exec: { command: [\"true\"] }
-";
-        assert!(parse_strict(not_a_list).is_err(), "assert: must be a list");
     }
 
     /// T1 (use-case battery 2026-07-11) · an unknown secret field with no
@@ -404,37 +292,45 @@ inputs:
         assert!(err.to_string().contains("`type:` required"), "{err}");
     }
 
+    /// The `config:` key died with the 9-key envelope (2026-08-13):
+    /// measured zero real usage, its `default:` was its only possible
+    /// source, and under the taint lattice `config.p` and `inputs.p`
+    /// produced the SAME `NIKA-AUTH-008` by the same path. A
+    /// deployment-supplied value is an `inputs:` entry with
+    /// `required: false` and a `default:`.
+    /// The fixture MUST carry the dead key. A codemod once migrated it
+    /// away (`config:` → an `inputs:` entry) and left the assertion
+    /// standing: the test then proved that a perfectly valid workflow is
+    /// refused, which it is not. The bytes below are the spec's own
+    /// `core/envelope/023-config-block-rejected` input (`NIKA-PARSE` ·
+    /// `config:` is simply not an envelope key).
     #[test]
-    fn config_typed_with_and_without_default() {
-        // Spec 01 §config · `type` required · `default:` optional (the
-        // deployment supplies when absent).
-        let yaml = "\
+    fn the_config_block_is_refused() {
+        let dead = "\
+nika: t
 config:
   log_level: { type: string, default: \"info\" }
-  region: { type: string }
+tasks:
+  s:
+    infer: { prompt: \"x\" }
 ";
-        let wf = parse_strict(yaml).expect("parse");
-        assert_eq!(wf.config.len(), 2);
-        assert_eq!(wf.config[0].0.value, "log_level");
-        let VarDecl::Typed { default, .. } = &wf.config[0].1 else {
-            panic!("expected Typed");
-        };
-        assert_eq!(default.as_ref().expect("default"), "info");
-        let VarDecl::Typed { default: none, .. } = &wf.config[1].1 else {
-            panic!("expected Typed");
-        };
-        assert!(none.is_none());
-    }
-
-    #[test]
-    fn config_rejects_the_required_key() {
-        // `required:` is inputs vocabulary — config is never caller-required.
-        let yaml = "\
-config:
-  region: { type: string, required: true }
+        let err = parse_strict(dead).expect_err("the dead key is refused");
+        assert_eq!(err.spec_code().namespace, "PARSE", "{err:?}");
+        assert!(
+            format!("{err:?}").contains("config"),
+            "the refusal names the key: {err:?}"
+        );
+        // The same envelope with the key removed is CLEAN — the refusal
+        // is about `config:`, not about anything else in the fixture.
+        let live = "\
+nika: t
+inputs:
+  log_level: { type: string, required: false, default: \"info\" }
+tasks:
+  s:
+    infer: { prompt: \"x\" }
 ";
-        let err = parse_strict(yaml).expect_err("required in config");
-        assert!(matches!(err, SchemaError::UnknownField { .. }), "{err:?}");
+        parse_strict(live).expect("the nine-key envelope parses");
     }
 
     #[test]
@@ -547,9 +443,12 @@ env:
         assert!(matches!(form, crate::error::DeadForm::Env));
         assert_eq!(err.spec_code().to_string(), "NIKA-VALUES-002");
         assert!(
-            message.contains("`config:`") && message.contains("`secrets:`"),
+            message.contains("`inputs:`") && message.contains("`secrets:`"),
             "{message}"
         );
+        // `config:` died with the 9-key envelope — the env refusal may
+        // never route an author to a key the parser also refuses.
+        assert!(!message.contains("`config:`"), "{message}");
     }
 
     #[test]
@@ -952,25 +851,6 @@ fn string_list_values(
         .collect())
 }
 
-/// Parse `policy:` — named workflow law (spec `10-authority.md`). The
-/// families/rules/values are a CLOSED set at the TYPE level (`nika-cap`
-/// serde `deny_unknown_fields`) — an unknown name is a `NIKA-PARSE`-class
-/// refusal in BOTH parse modes (the `permits:` precedent: a typo'd law
-/// silently not binding would be a security bug).
-pub(super) fn parse_policy(
-    cx: &Cx<'_>,
-    workflow: &MarkedMappingNode,
-) -> Result<Option<Spanned<Policy>>, SchemaError> {
-    let Some(node) = workflow.get_node("policy") else {
-        return Ok(None);
-    };
-    require_mapping(cx, node, "policy")?;
-    let span = cx.span(node.span());
-    let policy = Policy::from_value(json_value(cx, node)?)
-        .map_err(|message| SchemaError::Validation { message, span })?;
-    Ok(Some(Spanned::new(policy, cx.span_or_zero(node.span()))))
-}
-
 /// Parse `run:` — the run's entropy + clock declaration (F-P3).
 ///
 /// Shape-only, with the CLOSED key set `{entropy, clock}` refused in BOTH
@@ -1082,126 +962,6 @@ fn parse_run_entropy(cx: &Cx<'_>, node: &marked_yaml::Node) -> Result<RunEntropy
 }
 
 #[cfg(test)]
-mod policy_tests {
-    use crate::parser::{ParseMode, parse};
-    use crate::source::FileId;
-    use crate::types::{EffectClass, Objective};
-
-    const BASE: &str = "\
-nika: v1
-workflow:
-  id: demo
-tasks:
-  t:
-    infer: { prompt: \"x\" }
-";
-
-    #[test]
-    fn absent_policy_is_none() {
-        let wf = parse(BASE, FileId::new(0), ParseMode::Strict).expect("parse");
-        assert!(wf.policy.is_none(), "absent block = no law bound");
-    }
-
-    #[test]
-    fn full_policy_block_parses_spec_shape() {
-        // The spec 10 §policy example, verbatim families.
-        let yaml = format!(
-            "{BASE}\
-policy:
-  require:
-    human_gate_before: [exec, write]
-  forbid:
-    exec_after: [net]
-  allow:
-    providers: [ollama, mistral]
-  limits:
-    max_tasks: 50
-  prefer:
-    providers: [ollama]
-  optimize: cost
-"
-        );
-        let wf = parse(&yaml, FileId::new(0), ParseMode::Strict).expect("parse");
-        let p = &wf.policy.expect("present").value;
-        assert_eq!(
-            p.require.as_ref().expect("require").human_gate_before,
-            Some(vec![EffectClass::Exec, EffectClass::Write])
-        );
-        assert_eq!(
-            p.forbid.as_ref().expect("forbid").exec_after,
-            Some(vec![EffectClass::Net])
-        );
-        assert_eq!(
-            p.allow.as_ref().expect("allow").providers,
-            Some(vec!["ollama".to_owned(), "mistral".to_owned()])
-        );
-        assert_eq!(p.limits.as_ref().expect("limits").max_tasks, Some(50));
-        assert!(p.has_soft_families());
-        assert_eq!(p.optimize, Some(Objective::Cost));
-    }
-
-    #[test]
-    fn unknown_rule_is_a_parse_class_refusal_in_both_modes() {
-        // Fixture core/policy/009: `write_after` is not a v1 rule — the
-        // closed set refuses (never a silent no-op), and the refusal
-        // holds in LENIENT mode too (the permits precedent: a law that
-        // silently does not bind is a security bug).
-        let yaml = format!("{BASE}policy:\n  forbid:\n    write_after: [net]\n");
-        for mode in [ParseMode::Strict, ParseMode::Lenient] {
-            let err = parse(&yaml, FileId::new(0), mode).expect_err("refused");
-            let code = err.spec_code();
-            assert_eq!(code.namespace, "PARSE", "{mode:?}");
-            assert_eq!(code.category.as_str(), "validation_error", "{mode:?}");
-            let msg = err.to_string();
-            assert!(
-                msg.contains("write_after") && msg.contains("exec_after"),
-                "the refusal teaches the closed rule set: {msg}"
-            );
-        }
-    }
-
-    #[test]
-    fn unknown_family_and_value_are_refused_with_the_vocabulary() {
-        let unknown_family = format!("{BASE}policy:\n  deny:\n    exec_after: [net]\n");
-        let err = parse(&unknown_family, FileId::new(0), ParseMode::Strict).expect_err("family");
-        assert!(
-            err.to_string().contains("require") && err.to_string().contains("optimize"),
-            "the family vocabulary rides the refusal: {err}"
-        );
-        // an effect class outside the closed set (reads are not gateable)
-        let bad_class = format!("{BASE}policy:\n  forbid:\n    exec_after: [read]\n");
-        let err = parse(&bad_class, FileId::new(0), ParseMode::Strict).expect_err("class");
-        assert!(
-            err.to_string().contains("exec·write·net·tools"),
-            "the class vocabulary rides the refusal: {err}"
-        );
-    }
-
-    #[test]
-    fn max_tasks_zero_is_refused_at_parse() {
-        let yaml = format!("{BASE}policy:\n  limits:\n    max_tasks: 0\n");
-        let err = parse(&yaml, FileId::new(0), ParseMode::Strict).expect_err("zero");
-        assert!(err.to_string().contains("must be ≥ 1"), "{err}");
-    }
-
-    #[test]
-    fn non_mapping_policy_is_refused() {
-        let yaml = format!("{BASE}policy: strict\n");
-        let err = parse(&yaml, FileId::new(0), ParseMode::Strict).expect_err("scalar");
-        assert!(err.to_string().contains("mapping"), "{err}");
-    }
-
-    #[test]
-    fn empty_policy_block_parses_as_no_law() {
-        let yaml = format!("{BASE}policy: {{}}\n");
-        let wf = parse(&yaml, FileId::new(0), ParseMode::Strict).expect("parse");
-        let p = &wf.policy.expect("present").value;
-        assert!(p.require.is_none() && p.forbid.is_none());
-        assert!(!p.has_soft_families());
-    }
-}
-
-#[cfg(test)]
 mod permits_tests {
     use crate::parser::{ParseMode, parse};
     use crate::source::FileId;
@@ -1212,9 +972,7 @@ mod permits_tests {
     }
 
     const BASE: &str = "\
-nika: v1
-workflow:
-  id: demo
+nika: demo
 tasks:
   t:
     exec: { command: [\"true\"] }
@@ -1340,9 +1098,7 @@ mod run_tests {
     use crate::types::{RunClock, RunEntropy};
 
     const BASE: &str = "\
-nika: v1
-workflow:
-  id: demo
+nika: demo
 ";
 
     fn parse_strict(yaml: &str) -> Result<crate::raw::RawWorkflow, crate::error::SchemaError> {

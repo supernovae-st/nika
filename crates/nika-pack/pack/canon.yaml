@@ -7,7 +7,7 @@
 #   sealed outcome_class enum) · the 15 ledger sections (canon/EXCEPTIONS.md ·
 #   SSOT-1 §18) stay AUTHORED and are carried verbatim — editing those is legal.
 # regenerate: python3 scripts/ssot-compiler.py --emit-canon
-# body-sha256: 6426431ef5e372dbe43ab91dd6f7e0a5c66aeff756e2bd873ebbbab000403f94
+# body-sha256: 217600dc1ce36a702d8958847d3d560d6ec6299b3d69f51f76b794fa1939a3a8
 #   (digest of every byte below the end-of-header line · detached self-hash per PAA-006)
 # ---- end generated header (SSOT-1 §21-23 · the canon flip · C0)
 # nika canonical registry · the single source of truth for Nika canonical facts
@@ -58,14 +58,14 @@ schema_version: 1
 # fast grep-based projection checks (the projector reads `count:` lines).
 counts:
   verbs: 4
-  namespaces: 6
+  namespaces: 5
   builtins: 28
   providers: 17
   extract_modes: 9
   templates: 10
-  error_namespaces: 25
+  error_namespaces: 24
   error_categories: 12
-  error_codes: 104
+  error_codes: 103
   pillars: 5
   # ---- extended v0.2 · 2026-05-27 · lifecycle + diamond + steal + severity
   lifecycle_product: 4
@@ -117,12 +117,11 @@ verbs:
 # plus the runtime namespaces with/tasks · loop-locals item/index are
 # for_each-scoped locals · NOT a 7th namespace).
 namespaces:
-  count: 6
+  count: 5
   immutable: true
   reference: spec/04-variables.md
   items:
     - inputs
-    - config
     - const
     - secrets
     - with
@@ -241,7 +240,7 @@ templates:
 # matching "fetch is a builtin, not a verb" D-N18 · prior count 15 → 14).
 # spec/05-errors.md is the prose home (matches at 15 · NIKA-TYPE joined at W3 · cascade complete 2026-07-14).
 error_namespaces:
-  count: 25
+  count: 24
   reference: spec/05-errors.md
   items:
     - NIKA-AGENT
@@ -261,7 +260,6 @@ error_namespaces:
     - NIKA-DECIDE
     - NIKA-DRIFT
     - NIKA-PARSE
-    - NIKA-POLICY
     - NIKA-PORT
     - NIKA-PROVIDER
     - NIKA-SEC
@@ -296,12 +294,12 @@ error_categories:
 # check binds the prose table to it (same row set · same fields).
 # transient · false | engine-assessed
 error_codes:
-  count: 104
+  count: 103
   reference: spec/05-errors.md
   items:
     - { code: NIKA-PARSE-001, category: parse_error, transient: "false", failure: "the YAML itself does not parse (syntax error)" }
-    - { code: NIKA-PARSE-002, category: validation_error, transient: "false", failure: "missing envelope field (nika: / workflow: / non-empty tasks:)" }
-    - { code: NIKA-PARSE-003, category: parse_error, transient: "false", failure: "nika: version marker is not exactly v1" }
+    - { code: NIKA-PARSE-002, category: validation_error, transient: "false", failure: "missing envelope field (nika: / non-empty tasks:)" }
+    - { code: NIKA-PARSE-003, category: parse_error, transient: "false", failure: "nika: is not a kebab-case id (^[a-z][a-z0-9-]*$)" }
     - { code: NIKA-PARSE-004, category: validation_error, transient: "false", failure: "workflow: id violates ^[a-z][a-z0-9-]*$" }
     - { code: NIKA-PARSE-005, category: validation_error, transient: "false", failure: "unknown field — strict mode rejects anything outside the closed v1 set" }
     - { code: NIKA-PARSE-006, category: validation_error, transient: "false", failure: "task id violates ^[a-z][a-z0-9_]*$ (snake_case · CEL-safe · no hyphens)" }
@@ -311,7 +309,7 @@ error_codes:
     - { code: NIKA-PARSE-010, category: validation_error, transient: "false", failure: "timeout: violates the quoted Go-duration contract (positive · max 24h · descending units)" }
     - { code: NIKA-PARSE-011, category: validation_error, transient: "false", failure: "retry: block violates the spec shape" }
     - { code: NIKA-PARSE-012, category: validation_error, transient: "false", failure: "on_error: block violates the spec shape (fields mutually exclusive)" }
-    - { code: NIKA-PARSE-013, category: validation_error, transient: "false", failure: "with:/output: binding uses a reserved name (output · status · error · started_at · ended_at · duration_ms)" }
+    - { code: NIKA-PARSE-013, category: validation_error, transient: "false", failure: "with:/extract: binding uses a reserved name (output · status · error · started_at · ended_at · duration_ms)" }
     - { code: NIKA-PARSE-014, category: validation_error, transient: "false", failure: "secrets: entry is not a store reference — inline literals forbidden" }
     # NIKA-PARSE-015 · RETIRED (never reuse) — the typed-vars 6-enum class died
     # with the E-split (R3b · LAW-GRAMMAR-0211): the type: field of inputs/
@@ -324,8 +322,6 @@ error_codes:
     - { code: NIKA-PARSE-017, category: validation_error, transient: "false", failure: "duplicate mapping key — no silent last-wins" }
     - { code: NIKA-PARSE-018, category: validation_error, transient: "false", failure: "missing required field in a verb body (infer.prompt · exec.command · invoke.tool)" }
     - { code: NIKA-PARSE-019, category: validation_error, transient: "false", failure: "generic structural validation — wrong YAML shape for a field" }
-    - { code: NIKA-PARSE-020, category: validation_error, transient: "false", failure: "workflow: is a scalar — the envelope became an object (workflow: then id: <value>)" }
-    - { code: NIKA-PARSE-021, category: validation_error, transient: "false", failure: "top-level description: — it moved into workflow.description" }
     - { code: NIKA-PARSE-022, category: validation_error, transient: "false", failure: "tasks: is a sequence — it became a map keyed by task id (drop `- id:`, the key IS the identity)" }
     - { code: NIKA-PARSE-023, category: validation_error, transient: "false", failure: "a task carries an id: field — the map key is the identity, the field is gone" }
     - { code: NIKA-PARSE-024, category: validation_error, transient: "false", failure: "a task carries depends_on: — dead since W2 (data → with: bindings · control → after: predicates · check --fix migrates)" }
@@ -347,8 +343,9 @@ error_codes:
     - { code: NIKA-DAG-005, category: validation_error, transient: "false", failure: "after: predicate outside the closed set (success · failure · skipped · terminal)" }
     - { code: NIKA-DAG-006, category: validation_error, transient: "false", failure: "statically dead task — an incoming edge's pass-set excludes every reachable producer state, or the when: gate is false under every reachable upstream combination (gate algebra v2)" }
     - { code: NIKA-DAG-007, category: validation_error, transient: "false", failure: "status compared against a literal outside the vocabulary (success · failure · skipped · cancelled) — == never matches, != always holds" }
+    - { code: NIKA-DAG-008, category: validation_error, transient: "false", failure: "a group.<name> fold names a group no task declares — including a bare group and the group a renamed member left empty" }
+    - { code: NIKA-DAG-009, category: validation_error, transient: "false", failure: "an unwind task declares group: — cleanup never enters G_p, so it cannot be a fan-in member" }
     - { code: NIKA-TYPE-001, category: validation_error, transient: "false", failure: "unknown type name (in types: · returns: · an outputs: type) — did-you-mean when close" }
-    - { code: NIKA-TYPE-002, category: validation_error, transient: "false", failure: "recursive type reference — the types: graph must be acyclic" }
     - { code: NIKA-TYPE-003, category: validation_error, transient: "false", failure: "returns: and schema: on the same task — one contract, one spelling" }
     - { code: NIKA-TYPE-004, category: validation_error, transient: "false", failure: "returns: type unreachable from the declared decode: (an object contract over decode: text · …)" }
     - { code: NIKA-TYPE-005, category: security_error, transient: "false", failure: "a secret-carrying type in a lowered position (reserved with secret<T> · W4)" }
@@ -363,7 +360,7 @@ error_codes:
     - { code: NIKA-VAR-007, category: variable_error, transient: "false", failure: "bytes value substituted into a string position" }
     - { code: NIKA-VAR-008, category: validation_error, transient: "false", failure: "unclosed ${{ opener" }
     - { code: NIKA-VAR-020, category: validation_error, transient: "false", failure: "bare tasks.X is the envelope, not a value — the projection set (.output/.status/.error/.duration_ms) is closed and required (04 §namespaces · 0.103 · #75 D2)" }
-    - { code: NIKA-VAR-021, category: validation_error, transient: "false", failure: "a tasks.* reference outside the boundary (with: · after: · on_error.recover · on_finally parent-only · workflow outputs) — hoist it into with: (check --fix applies it)" }
+    - { code: NIKA-VAR-021, category: validation_error, transient: "false", failure: "a tasks.* reference outside the boundary (with: · after: · on_error.recover · an unwind task reading its producer · workflow outputs) — hoist it into with: (check --fix applies it)" }
     - { code: NIKA-VAR-009, category: validation_error, transient: "false", failure: "typed outputs value did not match its declared type: at run end (the output half of the callable contract)" }
     - { code: NIKA-INFER-001, category: provider_error, transient: "engine-assessed", failure: "provider call failed (HTTP error · provider refusal)" }
     - { code: NIKA-INFER-002, category: validation_error, transient: "false", failure: "structured output failed schema validation (after any engine-internal retries)" }
@@ -382,7 +379,6 @@ error_codes:
     - { code: NIKA-MCP-002, category: tool_error, transient: "engine-assessed", failure: "MCP tool call failed (transport · tool-side error)" }
     - { code: NIKA-DECIDE-001, category: validation_error, transient: "false", failure: "the decision bundle is malformed or violates its own laws (float weight · undeclared evidence key in rules · identity key feeding a technical dimension · missing contradictory fixture · monotonicity violated by the bundle's own fixtures) (spec 11)" }
     - { code: NIKA-DECIDE-002, category: validation_error, transient: "false", failure: "the evidence snapshot does not satisfy the bundle's evidence schema (type misfit · unauthorized source · integrity below the declared floor · undeclared key) (spec 11)" }
-    - { code: NIKA-POLICY-001, category: security_error, transient: "false", failure: "a hard policy: rule is violated (require.human_gate_before · forbid.exec_after · allow.providers · limits.max_tasks) — the diagnostic names rule + task + witness (order rules: the path) · check-time, before any token (spec 10)" }
     - { code: NIKA-PORT-001, category: validation_error, transient: "false", failure: "a gateway artifact (deployment bundle · capabilities report · lowering report · fidelity report · authority delta) is malformed or violates its laws (unknown promoted · permissive_unsafe without refusal · disclosure subset-chain violated · child authority exceeding parent) (spec 12)" }
     - { code: NIKA-PORT-002, category: security_error, transient: "false", failure: "policy lowering is permissive_unsafe — the backend would allow what the policy forbids · refused with the divergence witness (spec 12)" }
     - { code: NIKA-SEC-001, category: security_error, transient: "false", failure: "exec refused before the child spawns — either the shell floor (a destructive/privilege pattern · always-on · independent of permits:) or the mock plane under `nika test`, which refuses EVERY command by design (it simulates the model, not effects) · under test the exit is `nika run` for real effects, or an `on_error: recover` rehearsal on the task" }
@@ -392,13 +388,13 @@ error_codes:
     - { code: NIKA-SEC-005, category: security_error, transient: "false", failure: "SSRF block — a nika:fetch/nika:notify URL resolves to a loopback/private/link-local/metadata target (always-on engine floor · independent of permits:)" }
     - { code: NIKA-SEC-006, category: security_error, transient: "false", failure: "secret flow — a secrets.<name> value reaches an unsanctioned sink (exec argument · invoke payload · infer/agent prompt) · the diagnostic carries the taint path + the egress clause that would sanction it (spec 10 · flow rules in 01 §egress)" }
     - { code: NIKA-SEC-007, category: security_error, transient: "false", failure: "secret egress — a tainted value reaches the workflow boundary (outputs:) · the diagnostic carries the taint path (spec 10 · the to: outputs sanction in 01 §egress)" }
-    - { code: NIKA-SEC-008, category: security_error, transient: "false", failure: "data-as-code sink · a nika:fetch resolved URL path names a code-bearing class (serialized-executable · script/interpreter · executable binary/module · the closed NEP-0006 list) and the task declares no inert: door · the read hides an execution sink (F-O7 · NEP-0006)" }
+    - { code: NIKA-SEC-008, category: security_error, transient: "false", failure: "data-as-code sink · a nika:fetch resolved URL path names a code-bearing class (serialized-executable · script/interpreter · executable binary/module · the closed NEP-0006 list) and the task declares no door — no lift: entry naming the data-as-code law · the read hides an execution sink (F-O7 · NEP-0006)" }
     - { code: NIKA-SEC-009, category: security_error, transient: "false", failure: "lethal trifecta complete — the declared boundary grants private read (fs.read non-empty) + untrusted ingress (a nika:fetch builtin invoked · an mcp:* tool invoked · an agent: whose whitelist admits ingress) + external egress (net.http non-empty · an escaping fs.write glob · exec enabled), the untrusted content REACHES an egress-capable task's effect surface (a realized flow), and no blocking invoke: nika:prompt (no default:) dominates it (NEP-0002 v2.0 · the Rule of Two as a static check)" }
     - { code: NIKA-SEC-010, category: security_error, transient: "false", failure: "the approval-capability law is violated · a rate-limited approval burst (the N+1th distinct mint of a run) · an approval whose resolved content hash differs from the shown hash (content_mismatch) · a ticket replayed across runs or steps (scope_mismatch) · or the static heterogeneous-batch refusal (one prompt unleashing two or more effect classes) — the 6th invariant (NEP-0013 · F-P4)" }
     - { code: NIKA-SEC-011, category: security_error, transient: "false", failure: "preview-commit divergence — the commit digest recomputed at the sink over the exact bytes about to fire differs from the preview digest computed at resolution (one bit of rendered argv · a permuted context field · a mutated tool argument) · the step refuses fail-closed and the receipt carries divergence:{preview, commit} — judged = executed at the action scale (NEP-0015 · F-P6)" }
     - { code: NIKA-SEC-012, category: security_error, transient: "false", failure: "unordered shared writes — two tasks incomparable in the DAG closure whose literal nika:write/nika:edit paths collide with no ordering edge (after: · with:) to serialize them, or a for_each fan writing one constant path · parallelism is safe exactly where the writes are provably disjoint (NEP-0014 law 1 · F-P15)" }
-    - { code: NIKA-SEC-013, category: security_error, transient: "false", failure: "the endorsement mode law — a human gate (invoke: nika:prompt) declared under a policy: block that names no endorsement mode refuses fail-closed (endorsement.undeclared_mode · F-F5 · zero implicit escape), and endorsement: solo carried by a workflow with more than one gate refuses as the declaration lying (endorsement.solo_count · exactly one endorser) (NEP-0017 · F-P23)" }
     - { code: NIKA-SEC-014, category: security_error, transient: "false", failure: "the affirmative-consent law — a confirm-mode human gate (invoke: nika:prompt · mode absent or confirm) reaches an egress-capable task over a route no affirmative gate closes: a REFUSED confirm settles success with value false, so a bare after: { gate: success } edge, a when: that never reads the answer, and a when: provably true on the refusal all let the effect through · the gate is credited only when every route consumes the answer and proves false on it (the Kleene-falsifiable when: · when: false · a closer confirm gate owns its closure) · an undecidable gate (a nested binding · a non-fragment expression) defers to the advisory hint, never a refusal (NEP-0020 · P0-2 of the 2026-07-30 audit)" }
+    - { code: NIKA-SEC-015, category: security_error, transient: "false", failure: "the order law — an exec: task sits transitively downstream of a net-effecting task (nika:fetch · nika:notify) over the derived graph (with: data edges ∪ after: control edges) · content the workflow did not author must not reach a shell · UNCONDITIONAL: no block declares it and none can disable it" }
     - { code: NIKA-TIMEOUT-001, category: timeout_error, transient: "false", failure: "task (or for_each iteration) exceeded timeout:" }
     - { code: NIKA-CANCEL-001, category: cancelled, transient: "false", failure: "task cancelled (workflow failure gate · user cancellation)" }
     - { code: NIKA-ASSERT-001, category: validation_error, transient: "false", failure: "an assert: claims a level the evidence does not support (a StaticProof the IR cannot decide · a mis-leveled obligation · spec 15)" }
@@ -416,6 +412,7 @@ error_codes:
     - { code: NIKA-AUTH-008, category: security_error, transient: "false", failure: "an untrusted value reaches a permitted verb's argument and its canonical resolved form escapes the step's permit — re-gate refused (F-O1 · NEP-0004)" }
     - { code: NIKA-AUTH-009, category: security_error, transient: "false", failure: "a permits env: entry names a dangerous-floor variable · the engine strips the name unconditionally, the grant can never take effect: an inert dead grant (F-O4 · NEP-0005)" }
     - { code: NIKA-AUTH-010, category: security_error, transient: "false", failure: "a permits net.http: entry carries the *. subdomain wildcard · the grant delegates the boundary to the zone operator (every host under the suffix, present and future) — refused: name exact hosts, or the bare * when allow-all is genuinely intended (F-P5 · NEP-0008)" }
+    - { code: NIKA-AUTH-011, category: validation_error, transient: "false", failure: "a lift: entry whose named law would not have fired on this task — a trapdoor that lifts nothing is refused, never a silent no-op (10 §the authored doors rule 6)" }
     - { code: NIKA-VALUES-001, category: validation_error, transient: "false", failure: "vars: is a dead envelope field (R3a · the E-split)" }
     - { code: NIKA-VALUES-002, category: validation_error, transient: "false", failure: "env: is a dead envelope field (R3a · the E-split)" }
     - { code: NIKA-VALUES-003, category: validation_error, transient: "false", failure: "a value-namespace read outside the four-authority family (R3a · LAW-SURFACE-0201)" }

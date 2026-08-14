@@ -953,19 +953,6 @@ fn receipt_field(
             None,
         );
     };
-    let judged: Vec<(
-        nika_schema::types::AssertProperty,
-        nika_schema::types::AssertLevel,
-    )> = valid
-        .wf
-        .assert
-        .iter()
-        .map(|sp| {
-            let property = sp.value.clone();
-            let level = property.level(true); // the journal IS the trace
-            (property, level)
-        })
-        .collect();
     let trace_verdict = json!({
         "outcome": outcome,
         "chain": chain.status,
@@ -976,7 +963,6 @@ fn receipt_field(
     let receipt = build_run_receipt(
         proves,
         &valid.report.certificate,
-        &judged,
         trace_verdict,
         LOCK_UNRECORDED,
     );

@@ -406,7 +406,7 @@ mod tests {
 
     fn permits_of(yaml: &str) -> Permits {
         let wf = nika_schema::parse(
-            &format!("nika: v1\nworkflow:\n  id: w\n{yaml}\ntasks:\n  t:\n    exec: {{ command: [\"true\"] }}\n"),
+            &format!("nika: w\n{yaml}\ntasks:\n  t:\n    exec: {{ command: [\"true\"] }}\n"),
             nika_schema::FileId::new(0),
             nika_schema::ParseMode::Strict,
         )

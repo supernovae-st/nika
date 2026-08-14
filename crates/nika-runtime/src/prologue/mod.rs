@@ -270,7 +270,7 @@ pub(crate) fn emit_prologue(
     // ADR-099 trust amendment (2026-08-08) · the unverified-trust
     // attestation (own helper).
     opening.extend(trust_amendment_fields(resume_unverified));
-    // The trace-format marker (spec 13 §trace · the graph_format: 2
+    // The trace-format marker (spec 13 §trace · the graph_format: 3
     // precedent): the run's opening frame — the trace's header — names
     // the format it speaks. ONE source: `TraceFormatVersion::CURRENT`.
     opening.push((

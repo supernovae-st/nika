@@ -1,6 +1,6 @@
 //! The workflow's REQUIREMENTS (E-REQ) — declaration facts only:
-//! models per task · secrets (never values) · config reads vs defines ·
-//! required inputs. Presence stays the caller's check.
+//! models per task · secrets (never values) · the `inputs:` names the
+//! body READS · required inputs. Presence stays the caller's check.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -38,10 +38,11 @@ pub struct Requirements {
     pub models: Vec<ModelRequirement>,
     /// Declared `secrets:` (facts only — presence is the caller's check).
     pub secrets: Vec<SecretRequirement>,
-    /// `${{ config.X }}` names the BODY reads — the requirements.
-    pub config_reads: Vec<String>,
-    /// Envelope `config:` keys — configuration (covers a matching read).
-    pub config_defined: Vec<String>,
+    /// `${{ inputs.X }}` names the BODY reads — the requirements. Was
+    /// `inputs_read` until `config:` died: the field measured a dead
+    /// authority, and `config_defined` beside it was `Vec::new()` by
+    /// construction — a constant is not a measurement.
+    pub inputs_read: Vec<String>,
     /// `inputs:` that are `required: true` with no `default:`.
     pub inputs_required: Vec<String>,
 }
@@ -51,7 +52,7 @@ pub struct Requirements {
 pub(crate) fn collect(wf: &RawWorkflow) -> Requirements {
     let envelope_model = wf.model.as_ref().map(|m| m.value.clone());
     let mut models: BTreeMap<String, Vec<String>> = BTreeMap::new();
-    let mut config_reads: BTreeSet<String> = BTreeSet::new();
+    let mut inputs_read: BTreeSet<String> = BTreeSet::new();
 
     for task in &wf.tasks {
         // Model resolution: the verb's own override ?? the envelope.
@@ -67,7 +68,7 @@ pub(crate) fn collect(wf: &RawWorkflow) -> Requirements {
                 .push(task.value.id.value.clone());
         }
 
-        config_reads_of_task(task, &mut config_reads);
+        inputs_reads_of_task(task, &mut inputs_read);
     }
 
     // The envelope `outputs:` return contract — its ${{ }} refs are body
@@ -75,10 +76,10 @@ pub(crate) fn collect(wf: &RawWorkflow) -> Requirements {
     for (_, decl) in &wf.outputs {
         match decl {
             nika_schema::types::OutputDecl::Untyped(expr) => {
-                collect_config_reads(&expr.value, &mut config_reads);
+                collect_inputs_reads(&expr.value, &mut inputs_read);
             }
             nika_schema::types::OutputDecl::Typed { value, .. } => {
-                collect_config_reads(&value.value, &mut config_reads);
+                collect_inputs_reads(&value.value, &mut inputs_read);
             }
         }
     }
@@ -97,8 +98,7 @@ pub(crate) fn collect(wf: &RawWorkflow) -> Requirements {
                 key: decl.value.key.clone(),
             })
             .collect(),
-        config_reads: config_reads.into_iter().collect(),
-        config_defined: wf.config.iter().map(|(k, _)| k.value.clone()).collect(),
+        inputs_read: inputs_read.into_iter().collect(),
         inputs_required: wf
             .inputs
             .iter()
@@ -117,39 +117,39 @@ pub(crate) fn collect(wf: &RawWorkflow) -> Requirements {
     }
 }
 
-/// Every `${{ config.X }}` read across ONE task's whole surface —
+/// Every `${{ inputs.X }}` read across ONE task's whole surface —
 /// action fields (prompts included) · `with` · when-CEL · `output` ·
 /// `for_each` · `on_error` recover · `on_finally` cleanups.
-fn config_reads_of_task(
+fn inputs_reads_of_task(
     task: &nika_schema::Spanned<nika_schema::raw::RawTask>,
-    config_reads: &mut BTreeSet<String>,
+    inputs_read: &mut BTreeSet<String>,
 ) {
     // Env reads: every template-bearing string of the task surface,
     // through the REAL extractor (the same path the analyzer uses).
     for text in task_template_fields(&task.value.action) {
-        collect_config_reads(text, config_reads);
+        collect_inputs_reads(text, inputs_read);
     }
     for (_, v) in &task.value.with {
         for text in collect_json_strings(&v.value) {
-            collect_config_reads(text, config_reads);
+            collect_inputs_reads(text, inputs_read);
         }
     }
     if let Some(WhenGate::Expr(cel)) = task.value.when.as_ref().map(|g| &g.value) {
-        collect_config_reads(cel, config_reads);
+        collect_inputs_reads(cel, inputs_read);
     }
-    for (_, expr) in &task.value.output {
-        collect_config_reads(&expr.value, config_reads);
+    for (_, expr) in &task.value.extract {
+        collect_inputs_reads(&expr.value, inputs_read);
     }
     // `for_each:` — the collection expression (or list literals) can
     // read env like any other template surface.
     if let Some(fe) = &task.value.for_each {
         match &fe.value {
             nika_schema::raw::ForEachValue::Expression(expr) => {
-                collect_config_reads(expr, config_reads);
+                collect_inputs_reads(expr, inputs_read);
             }
             nika_schema::raw::ForEachValue::List(list) => {
                 for text in collect_json_strings(list) {
-                    collect_config_reads(text, config_reads);
+                    collect_inputs_reads(text, inputs_read);
                 }
             }
             #[allow(
@@ -165,18 +165,10 @@ fn config_reads_of_task(
         task.value.on_error.as_ref().map(|o| &o.value.action)
     {
         for text in collect_json_strings(&value.value) {
-            collect_config_reads(text, config_reads);
+            collect_inputs_reads(text, inputs_read);
         }
     }
     // `on_finally:` cleanups carry full actions (and gates) of their own.
-    for cleanup in &task.value.on_finally {
-        for text in task_template_fields(&cleanup.value.action) {
-            collect_config_reads(text, config_reads);
-        }
-        if let Some(WhenGate::Expr(cel)) = cleanup.value.when.as_ref().map(|g| &g.value) {
-            collect_config_reads(cel, config_reads);
-        }
-    }
 }
 
 /// Every template-bearing string of one action — flow's effect fields
@@ -201,9 +193,9 @@ fn task_template_fields(action: &RawAction) -> Vec<&str> {
     fields
 }
 
-fn collect_config_reads(text: &str, out: &mut BTreeSet<String>) {
+fn collect_inputs_reads(text: &str, out: &mut BTreeSet<String>) {
     for r in refs_in_str(text) {
-        if let NamespaceRef::Config(name) = r
+        if let NamespaceRef::Inputs(name) = r
             && !name.is_empty()
         {
             out.insert(name);
@@ -225,13 +217,12 @@ mod tests {
     fn requirements_state_the_full_caller_contract() {
         let wf = wf_of(
             r#"
-nika: v1
-workflow:
-  id: req-probe
+nika: req-probe
 model: anthropic/claude-sonnet-4-6
 inputs:
   target_url: { type: string, required: true }
   region: { type: string, required: true, default: "eu" }
+  REGION: { type: string, required: false, default: "eu-west-1" }
 secrets:
   gh_token:
     source: env
@@ -239,27 +230,26 @@ secrets:
   vault_pass:
     source: vault
     key: prod/db-pass
-config:
-  REGION: { type: string, default: "eu-west-1" }
 tasks:
   fetch:
     invoke:
       tool: "nika:fetch"
-      args: { url: "https://api.example.com/${{ config.GITHUB_ORG }}" }
+      args: { url: "https://api.example.com/${{ inputs.GITHUB_ORG }}" }
   digest:
     after: { fetch: success }
     infer:
-      prompt: "Summarize for ${{ config.REGION }}"
+      prompt: "Summarize for ${{ inputs.REGION }}"
   local_pass:
     after: { fetch: success }
-    for_each: "${{ config.SHARDS }}"
-    on_finally:
-      - exec: { command: ["echo", "${{ config.CLEANUP_FLAG }}"] }
+    for_each: { items: "${{ inputs.SHARDS }}" }
     infer:
       model: ollama/qwen3
       prompt: "rank"
+  local_pass_cleanup:
+    after: { local_pass: unwind }
+    exec: { command: ["echo", "${{ inputs.CLEANUP_FLAG }}"] }
 outputs:
-  report: "${{ config.REPORT_PATH }}"
+  report: "${{ inputs.REPORT_PATH }}"
 "#,
         );
         let req = collect(&wf);
@@ -281,10 +271,10 @@ outputs:
         assert_eq!(req.secrets[0].source, SecretSource::Env);
         assert_eq!(req.secrets[0].key, "GITHUB_TOKEN");
         assert_eq!(req.secrets[1].source, SecretSource::Vault);
-        // The split IS the semantics: REGION is read AND defined ·
-        // GITHUB_ORG is read-only (the caller requirement).
+        // Every `${{ inputs.X }}` the BODY reads, declared or not —
+        // REGION is declared, GITHUB_ORG is not (the caller requirement).
         assert_eq!(
-            req.config_reads,
+            req.inputs_read,
             vec![
                 "CLEANUP_FLAG",
                 "GITHUB_ORG",
@@ -293,18 +283,15 @@ outputs:
                 "SHARDS"
             ]
         );
-        assert_eq!(req.config_defined, vec!["REGION"]);
         // required + defaulted is NOT a requirement.
         assert_eq!(req.inputs_required, vec!["target_url"]);
     }
 
     #[test]
     fn an_invoke_only_workflow_needs_no_model_and_says_so() {
-        let wf = wf_of(
-            "nika: v1\nworkflow:\n  id: none\ntasks:\n  a:\n    invoke: { tool: \"nika:uuid\" }\n",
-        );
+        let wf = wf_of("nika: none\ntasks:\n  a:\n    invoke: { tool: \"nika:uuid\" }\n");
         let req = collect(&wf);
         assert!(req.models.is_empty());
-        assert!(req.config_reads.is_empty());
+        assert!(req.inputs_read.is_empty());
     }
 }

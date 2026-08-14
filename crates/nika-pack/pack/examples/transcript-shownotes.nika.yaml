@@ -26,10 +26,7 @@
 #   at your own and move the read permit with it.
 #   Offline rehearsal (zero key, deterministic) · add `--model mock/echo`.
 
-nika: v1
-workflow:
-  id: transcript-shownotes
-  description: "Raw transcript → typed show-notes (chapters · quotes · summary) · one bounded infer"
+nika: transcript-shownotes
 
 model: ollama/llama3.2:3b # local · zero key · deliberately NOT the qwen3.5 convention: a thinking model can burn max_tokens in its think block before the JSON (engine#428) — schema showcases pick a non-thinking model
 

@@ -44,27 +44,21 @@ pub enum SchemaError {
         span: Option<Span>,
     },
 
-    /// `nika:` carries a value other than exactly `v1`.
+    /// `nika:` carries a value that is not a kebab-case id.
     ///
-    /// Spec `01-envelope.md` · « **Anti-pattern** · do not write
-    /// `nika: v1.0` · `nika: "1"` · or `nika: 1.0`. The value is
-    /// exactly `v1`. »
-    #[error("invalid `nika:` version `{version}` — the value is exactly `v1`")]
-    BadNikaVersion {
-        /// The rejected version string.
-        version: String,
-        /// Source span of the `nika:` scalar.
-        span: Option<Span>,
-    },
-
-    /// `workflow:` is not kebab-case.
+    /// Spec `01-envelope.md` §`nika` · « the value is the **file's
+    /// name**, kebab-case (`^[a-z][a-z0-9-]*$`) » · « **Anti-pattern** ·
+    /// do not write `nika: v1` · `nika: My_Workflow` · `nika: "1.0"`. »
     ///
-    /// Spec `01-envelope.md` · « Must match · `^[a-z][a-z0-9-]*$`. »
-    #[error("invalid `workflow:` id `{id}` — must match ^[a-z][a-z0-9-]*$ (kebab-case)")]
-    BadWorkflowId {
-        /// The rejected workflow id.
+    /// The code (`NIKA-PARSE-003`) SURVIVES the envelope nuke by
+    /// changing meaning: it judges an id now, no longer the literal.
+    #[error(
+        "invalid `nika:` id `{id}` — must match ^[a-z][a-z0-9-]*$ (kebab-case · the file's name)"
+    )]
+    BadNikaId {
+        /// The rejected id.
         id: String,
-        /// Source span.
+        /// Source span of the `nika:` scalar.
         span: Option<Span>,
     },
 
@@ -110,28 +104,13 @@ pub enum SchemaError {
         span: Option<Span>,
     },
 
-    /// W1 « the map » · `workflow:` is a scalar — the envelope became an
-    /// object (spec `01-envelope.md` §workflow · dead form).
-    #[error(
-        "`workflow:` is a scalar — the envelope became an object; write `workflow:` then `  id: {id}` (and move any `description:` under it)"
-    )]
-    W1WorkflowScalar {
-        /// The old scalar id (reused verbatim by the migration).
-        id: String,
-        /// Span of the scalar value.
-        span: Option<Span>,
-    },
-
-    /// W1 « the map » · top-level `description:` moved into the
-    /// `workflow:` object (spec `01-envelope.md` §workflow · dead form).
-    #[error(
-        "top-level `description:` moved into the workflow object — write it as `workflow.description`"
-    )]
-    W1TopLevelDescription {
-        /// Span of the dead key.
-        span: Option<Span>,
-    },
-
+    // W1 « the map » · `W1WorkflowScalar` (`NIKA-PARSE-020`) and
+    // `W1TopLevelDescription` (`NIKA-PARSE-021`) are GONE with the
+    // envelope nuke (2026-08-12). They taught a migration TO the
+    // `workflow: { id, description }` object — a form that is itself
+    // dead now that the id lives on `nika:`. A teaching whose target no
+    // longer exists is worse than no teaching. Both codes are RETIRED
+    // and neither is ever reused (SSOT-2 B.22).
     /// W1 « the map » · `tasks:` is a sequence — it became a map keyed
     /// by task id (spec `01-envelope.md` §tasks · dead form).
     #[error(
@@ -179,6 +158,38 @@ pub enum SchemaError {
     )]
     D1StringCommand {
         /// Span of the string node.
+        span: Option<Span>,
+    },
+
+    /// A `${{ group.<name> }}` reference to a group NO task declares
+    /// (`NIKA-DAG-008`) — an empty group is the same fact as an absent
+    /// one, so one code covers both, and a fold can never harvest zero
+    /// members and read as clean. A bare `${{ group }}` names no group
+    /// and lands here too (spec 03 §group).
+    #[error(
+        "task `{task}` folds `group.{name}` — no task declares that group (membership is DECLARED, never matched: check the members' `group:` keys)"
+    )]
+    UnknownGroup {
+        /// The consuming task.
+        task: String,
+        /// The group named by the reference (empty = the bare `${{ group }}`).
+        name: String,
+        /// Span of the reference.
+        span: Option<Span>,
+    },
+
+    /// An `unwind` task declares a `group:` (`NIKA-DAG-009`) — cleanup
+    /// is an `E_f` attachment that never enters `G_p`, so a fan-in edge
+    /// from it would have no wave to schedule against (spec 03 §group).
+    #[error(
+        "task `{task}` is an unwind task and joins group `{group}` — cleanup never enters the precedence graph, so a fold of it would have no wave to schedule against"
+    )]
+    UnwindInGroup {
+        /// The cleanup task.
+        task: String,
+        /// The group it tried to join.
+        group: String,
+        /// Span of the `group:` value.
         span: Option<Span>,
     },
 
@@ -262,7 +273,7 @@ pub enum SchemaError {
         span: Option<Span>,
     },
 
-    /// `on_error:` violates exactly-one-of `recover`|`skip`|`fail_workflow`.
+    /// `on_error:` violates exactly-one-of `recover`|`skip`.
     ///
     /// Spec `05-errors.md` §`on_error` · « Fields (mutually exclusive) ».
     #[error("invalid `on_error:` — {reason}")]
@@ -574,17 +585,6 @@ pub enum SchemaError {
         span: Option<Span>,
     },
 
-    /// A `types:` declaration participates in a reference cycle —
-    /// unbounded recursion would make subtyping and lowering
-    /// undecidable; v1 keeps every judgment total (`NIKA-TYPE-002`).
-    #[error("types.{name} · recursive type reference — the types: graph must be acyclic")]
-    TypeRecursive {
-        /// The cyclic declaration's name.
-        name: String,
-        /// Span of the declaration name.
-        span: Option<Span>,
-    },
-
     /// `returns:` and a verb-level `schema:` on the same task — two
     /// spellings of one contract (`NIKA-TYPE-003` · one-obvious-way).
     #[error(
@@ -724,13 +724,10 @@ impl SchemaError {
         match self {
             Self::YamlSyntax { span, .. }
             | Self::MissingEnvelopeField { span, .. }
-            | Self::BadNikaVersion { span, .. }
-            | Self::BadWorkflowId { span, .. }
+            | Self::BadNikaId { span, .. }
             | Self::UnknownField { span, .. }
             | Self::BadTaskId { span, .. }
             | Self::DuplicateTaskId { span, .. }
-            | Self::W1WorkflowScalar { span, .. }
-            | Self::W1TopLevelDescription { span, .. }
             | Self::W1TasksSequence { span, .. }
             | Self::W1TaskIdField { span, .. }
             | Self::MissingVerb { span, .. }
@@ -753,6 +750,8 @@ impl SchemaError {
             | Self::UnknownDependency { span, .. }
             | Self::W2DependsOnField { span, .. }
             | Self::D1StringCommand { span, .. }
+            | Self::UnknownGroup { span, .. }
+            | Self::UnwindInGroup { span, .. }
             | Self::UnknownAfterPredicate { span, .. }
             | Self::RefOutsideBoundary { span, .. }
             | Self::UnresolvedNamespaceRef { span, .. }
@@ -761,7 +760,6 @@ impl SchemaError {
             | Self::OutputPathProvablyInvalid { span, .. }
             | Self::BareTaskEnvelope { span, .. }
             | Self::TypeExprInvalid { span, .. }
-            | Self::TypeRecursive { span, .. }
             | Self::TypeContractDuplicated { span, .. }
             | Self::TypeUndecodable { span, .. }
             | Self::DecodeWithStructuredCapture { span, .. }
@@ -806,8 +804,9 @@ macro_rules! schema_code {
 
 schema_code!(SCHEMA_280, 280, "yaml-syntax");
 schema_code!(SCHEMA_281, 281, "missing-envelope-field");
-schema_code!(SCHEMA_282, 282, "bad-nika-version");
-schema_code!(SCHEMA_283, 283, "bad-workflow-id");
+schema_code!(SCHEMA_282, 282, "bad-nika-id");
+// 283 `bad-workflow-id` RETIRED with the envelope nuke (2026-08-12) —
+// the id lives on `nika:` now and 282 judges it. Never reused.
 schema_code!(SCHEMA_284, 284, "unknown-field");
 schema_code!(SCHEMA_285, 285, "bad-task-id");
 schema_code!(SCHEMA_286, 286, "duplicate-task-id");
@@ -841,15 +840,19 @@ schema_code!(SCHEMA_308, 308, "recover-await-deadlock");
 schema_code!(SCHEMA_309, 309, "bad-builtin-args");
 schema_code!(SCHEMA_310, 310, "expression-violation");
 schema_code!(SCHEMA_311, 311, "bare-task-envelope");
-schema_code!(SCHEMA_312, 312, "w1-workflow-scalar");
-schema_code!(SCHEMA_313, 313, "w1-top-level-description");
+// 312 `w1-workflow-scalar` + 313 `w1-top-level-description` RETIRED with
+// the envelope nuke (2026-08-12) — both taught a migration TO the
+// `workflow:` object, itself dead. Never reused.
 schema_code!(SCHEMA_314, 314, "w1-tasks-sequence");
 schema_code!(SCHEMA_315, 315, "w1-task-id-field");
 schema_code!(SCHEMA_316, 316, "w2-depends-on-field");
 schema_code!(SCHEMA_317, 317, "unknown-after-predicate");
 schema_code!(SCHEMA_318, 318, "ref-outside-boundary");
 schema_code!(SCHEMA_319, 319, "type-expr-invalid");
-schema_code!(SCHEMA_320, 320, "type-recursive");
+// SCHEMA_320 « type-recursive » RETIRED (never reuse) — it carried
+// NIKA-TYPE-002, and the `types:` block that gave the class an object
+// died with the 9-key envelope (2026-08-12). A type expression is
+// self-contained, so there is no reference graph left to cycle.
 schema_code!(SCHEMA_321, 321, "type-contract-duplicated");
 schema_code!(SCHEMA_322, 322, "type-undecodable");
 schema_code!(SCHEMA_323, 323, "decode-with-structured-capture");
@@ -857,23 +860,24 @@ schema_code!(SCHEMA_324, 324, "dead-value-form");
 schema_code!(SCHEMA_325, 325, "foreign-value-namespace");
 schema_code!(SCHEMA_326, 326, "default-not-conforming");
 schema_code!(SCHEMA_327, 327, "run-contradiction");
+schema_code!(SCHEMA_328, 328, "unknown-group");
+schema_code!(SCHEMA_329, 329, "unwind-in-group");
 
 impl NikaErrorCode for SchemaError {
     fn nika_code(&self) -> NikaCode {
         match self {
             Self::YamlSyntax { .. } => SCHEMA_280,
             Self::MissingEnvelopeField { .. } => SCHEMA_281,
-            Self::BadNikaVersion { .. } => SCHEMA_282,
-            Self::BadWorkflowId { .. } => SCHEMA_283,
+            Self::BadNikaId { .. } => SCHEMA_282,
             Self::UnknownField { .. } => SCHEMA_284,
             Self::BadTaskId { .. } => SCHEMA_285,
             Self::DuplicateTaskId { .. } => SCHEMA_286,
-            Self::W1WorkflowScalar { .. } => SCHEMA_312,
-            Self::W1TopLevelDescription { .. } => SCHEMA_313,
             Self::W1TasksSequence { .. } => SCHEMA_314,
             Self::W1TaskIdField { .. } => SCHEMA_315,
             Self::W2DependsOnField { .. } => SCHEMA_316,
             Self::UnknownAfterPredicate { .. } => SCHEMA_317,
+            Self::UnknownGroup { .. } => SCHEMA_328,
+            Self::UnwindInGroup { .. } => SCHEMA_329,
             Self::RefOutsideBoundary { .. } => SCHEMA_318,
             Self::MissingVerb { .. } => SCHEMA_287,
             Self::MultipleVerbs { .. } => SCHEMA_288,
@@ -902,7 +906,6 @@ impl NikaErrorCode for SchemaError {
             Self::OutputPathProvablyInvalid { .. } => SCHEMA_307,
             Self::BareTaskEnvelope { .. } => SCHEMA_311,
             Self::TypeExprInvalid { .. } => SCHEMA_319,
-            Self::TypeRecursive { .. } => SCHEMA_320,
             Self::TypeContractDuplicated { .. } => SCHEMA_321,
             Self::TypeUndecodable { .. } => SCHEMA_322,
             Self::DecodeWithStructuredCapture { .. } => SCHEMA_323,
@@ -937,11 +940,7 @@ fn parse_level_variants() -> Vec<SchemaError> {
             field: String::new(),
             span: None,
         },
-        SchemaError::BadNikaVersion {
-            version: String::new(),
-            span: None,
-        },
-        SchemaError::BadWorkflowId {
+        SchemaError::BadNikaId {
             id: String::new(),
             span: None,
         },
@@ -1121,10 +1120,6 @@ fn type_level_variants() -> Vec<SchemaError> {
             detail: String::new(),
             span: None,
         },
-        SchemaError::TypeRecursive {
-            name: String::new(),
-            span: None,
-        },
         SchemaError::TypeContractDuplicated {
             task: String::new(),
             verb: "infer",
@@ -1165,13 +1160,16 @@ mod tests {
     }
 
     #[test]
-    fn bad_nika_version_display() {
-        let err = SchemaError::BadNikaVersion {
-            version: "v1.0".into(),
+    fn bad_nika_id_display() {
+        let err = SchemaError::BadNikaId {
+            id: "My_Workflow".into(),
             span: None,
         };
-        assert!(err.to_string().contains("v1.0"));
-        assert!(err.to_string().contains("exactly `v1`"));
+        assert!(err.to_string().contains("My_Workflow"), "{err}");
+        assert!(err.to_string().contains("kebab-case"), "{err}");
+        // The teaching names the SHAPE, never the dead literal — a
+        // reader must not learn `v1` from the refusal that killed it.
+        assert!(!err.to_string().contains("exactly `v1`"), "{err}");
     }
 
     #[test]

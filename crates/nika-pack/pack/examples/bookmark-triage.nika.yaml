@@ -12,7 +12,7 @@
 # Demonstrates ·
 #   - `nika:fetch` `mode: metadata` · the page's OG/meta head as typed
 #     JSON, not scraped HTML (the mode nobody shows off)
-#   - resilient fan-out · `for_each` + `fail_fast: false` +
+#   - resilient fan-out · `for_each` + `for_each.fail_fast: false` +
 #     `on_error: recover:` — a dead URL yields a marker row instead of
 #     an exception (bad links are DATA, the etl-quarantine law)
 #   - the fan-in · one jq fold separates live rows from dead ones and
@@ -24,10 +24,7 @@
 #
 # Run · nika run examples/bookmark-triage.nika.yaml
 
-nika: v1
-workflow:
-  id: bookmark-triage
-  description: "URL list → per-page metadata fan-out (dead links survive) → one markdown triage table"
+nika: bookmark-triage
 
 const:
   bookmarks:
@@ -61,9 +58,10 @@ tasks:
   # The fan-out · one metadata fetch per URL · a dead link recovers to a
   # marker object (the batch NEVER dies at bookmark 14).
   pages:
-    for_each: ${{ const.bookmarks }}
-    max_parallel: 3
-    fail_fast: false
+    for_each:
+      items: ${{ const.bookmarks }}
+      max_parallel: 3
+      fail_fast: false
     retry: { max_attempts: 2, backoff_ms: 500 } # a transient blip retries BEFORE the dead verdict
     on_error:
       recover: { dead: true } # a YAML value, not a JSON string — the marker row

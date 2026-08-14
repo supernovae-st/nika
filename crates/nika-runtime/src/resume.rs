@@ -45,8 +45,8 @@ use std::collections::BTreeMap;
 
 use nika_schema::Spanned;
 use nika_schema::raw::{
-    ForEachValue, RawAction, RawAgentAction, RawCommand, RawExecAction, RawFinallyTask,
-    RawInferAction, RawInvokeAction, RawTask, RawWorkflow, VisionInput,
+    ForEachValue, RawAction, RawAgentAction, RawCommand, RawExecAction, RawInferAction,
+    RawInvokeAction, RawTask, RawWorkflow, VisionInput,
 };
 use nika_schema::types::{OnErrorAction, WhenGate};
 use serde_json::{Value, json};
@@ -401,7 +401,6 @@ pub(crate) fn stamp(
     task: &RawTask,
     records: &BTreeMap<String, TaskRecord>,
     inputs: &BTreeMap<String, Value>,
-    config: &BTreeMap<String, Value>,
     consts: &BTreeMap<String, Value>,
     ctx: &ResumeContext,
 ) -> Option<ResumeStamp> {
@@ -462,7 +461,7 @@ pub(crate) fn stamp(
             .as_object_mut()?
             .insert("child_closure".to_owned(), Value::Object(closures));
     }
-    let inputs = input_value(task, records, inputs, config, consts, &ctx.markers)?;
+    let inputs = input_value(task, records, inputs, consts, &ctx.markers)?;
     let key = ResumeKey::new(
         task.id.value.clone(),
         task.action.verb().to_owned(),
@@ -481,7 +480,7 @@ pub(crate) fn stamp(
 }
 
 /// Does this task's behavior depend on the run's DEFAULT model? True
-/// when any of its actions (the main verb · every `on_finally` mini) is
+/// when its action is
 /// an infer/agent WITHOUT its own `model:` — those resolve against the
 /// envelope/`--model` default at dispatch, so that default is part of
 /// their behavior (#409).
@@ -492,10 +491,6 @@ fn reads_default_model(task: &RawTask) -> bool {
         _ => false,
     };
     action_reads(&task.action)
-        || task
-            .on_finally
-            .iter()
-            .any(|mini| action_reads(&mini.value.action))
 }
 
 /// The R-1 detector (P3): does this task run an infer/agent action
@@ -503,7 +498,7 @@ fn reads_default_model(task: &RawTask) -> bool {
 /// the access pin; every other action kind never reads it.
 fn touches_intelligence(task: &RawTask) -> bool {
     let is_ai = |a: &RawAction| matches!(a, RawAction::Infer(_) | RawAction::Agent(_));
-    is_ai(&task.action) || task.on_finally.iter().any(|mini| is_ai(&mini.value.action))
+    is_ai(&task.action)
 }
 
 /// Every STATIC child-workflow target this task carries (the main verb
@@ -520,16 +515,12 @@ fn workflow_targets(task: &RawTask) -> Vec<&str> {
             _ => None,
         }
     }
-    let mut out: Vec<&str> = of(&task.action).into_iter().collect();
-    for mini in &task.on_finally {
-        out.extend(of(&mini.value.action));
-    }
-    out
+    of(&task.action).into_iter().collect()
 }
 
-/// Every `skills:` path this task carries (the main verb + every
-/// `on_finally` mini) — declaration order · duplicates deduped by the
-/// map they land in. The per-task twin of `nika_schema::skill_refs`.
+/// Every `skills:` path this task carries — declaration order ·
+/// duplicates deduped by the map they land in. The per-task twin of
+/// `nika_schema::skill_refs`.
 fn skill_paths(task: &RawTask) -> Vec<&str> {
     fn of(action: &RawAction) -> Vec<&str> {
         match action {
@@ -537,11 +528,7 @@ fn skill_paths(task: &RawTask) -> Vec<&str> {
             _ => Vec::new(),
         }
     }
-    let mut out = of(&task.action);
-    for mini in &task.on_finally {
-        out.extend(of(&mini.value.action));
-    }
-    out
+    of(&task.action)
 }
 
 // ─── the definition payload (raw · behavior-bearing fields as written) ──
@@ -571,10 +558,9 @@ pub(crate) fn definition_value(task: &RawTask) -> Option<Value> {
         "on_error": on_error_value(task)?,
         "timeout_ms": task.timeout.as_ref().map(duration_ms),
         "with": raw_with_object(&task.with),
-        "output": task.output.iter()
+        "output": task.extract.iter()
             .map(|(name, program)| (name.value.clone(), Value::String(program.value.clone())))
             .collect::<serde_json::Map<_, _>>(),
-        "on_finally": finally_values(&task.on_finally)?,
         "action": action_value(&task.action, None)?,
     }))
 }
@@ -618,25 +604,12 @@ fn on_error_value(task: &RawTask) -> Option<Value> {
     let action = match &on_error.action {
         OnErrorAction::Recover(v) => json!({ "recover": v.value }),
         OnErrorAction::Skip => json!("skip"),
-        OnErrorAction::FailWorkflow => json!("fail_workflow"),
         _ => return None,
     };
     Some(json!({
         "action": action,
         "on_codes": on_error.on_codes.iter().map(|c| c.value.clone()).collect::<Vec<_>>(),
     }))
-}
-
-fn finally_values(cleanups: &[Spanned<RawFinallyTask>]) -> Option<Value> {
-    let mut out = Vec::with_capacity(cleanups.len());
-    for mini in cleanups {
-        out.push(json!({
-            "when": when_value(mini.value.when.as_ref()),
-            "timeout_ms": mini.value.timeout.as_ref().map(duration_ms),
-            "action": action_value(&mini.value.action, None)?,
-        }));
-    }
-    Some(Value::Array(out))
 }
 
 fn duration_ms(d: &Spanned<std::time::Duration>) -> u64 {
@@ -665,14 +638,12 @@ fn input_value(
     task: &RawTask,
     records: &BTreeMap<String, TaskRecord>,
     inputs: &BTreeMap<String, Value>,
-    config: &BTreeMap<String, Value>,
     consts: &BTreeMap<String, Value>,
     markers: &BTreeMap<String, Value>,
 ) -> Option<Value> {
     let workflow_scope = Scope {
         records,
         inputs,
-        config,
         consts,
         secrets: markers,
         with_ns: None,
@@ -702,7 +673,6 @@ fn input_value(
     let base = Scope {
         records,
         inputs,
-        config,
         consts,
         secrets: markers,
         with_ns: None,

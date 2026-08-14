@@ -30,11 +30,8 @@
 # WHAT IT DOES NOT DO. It does not commit. The diff review and the
 # commit stay the operator's move — the door leaves a judged tree, the
 # human leaves history.
-nika: v1
-
-workflow:
-  id: catalog-ingest
-  description: "refresh the pinned snapshot · judge it against LiteLLM · prove it with the validators"
+# refresh the pinned snapshot · judge it against LiteLLM · prove it with the validators
+nika: catalog-ingest
 
 run: { clock: system }
 

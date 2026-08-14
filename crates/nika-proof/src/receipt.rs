@@ -25,7 +25,6 @@
 //! the parity is on the bytes, never across algorithms.
 
 use nika_check::RunCertificate;
-use nika_schema::types::{AssertLevel, AssertProperty};
 use serde_json::{Map, Value};
 
 use crate::{HashDomain, SemanticHash, hash_in_domain};
@@ -107,9 +106,13 @@ pub fn verify(receipt: &Value, expected_semantic: &str) -> bool {
 /// Fold a run's receipt from the engine's OWN typed pieces (spec 15 · the one
 /// receipt · the parent shape's FIRST real instance): the check certificate
 /// (nika-schema [`RunCertificate`] · attempts · effects · cost bound), the
-/// semantic hash it proves ([`SemanticHash`]), each `assert:` obligation
-/// judged at its honest level (nika-vocab [`AssertProperty`]/[`AssertLevel`]),
-/// the trace verdict, and the `nika.lock` digest the run resolved under.
+/// semantic hash it proves ([`SemanticHash`]), the trace verdict, and the
+/// `nika.lock` digest the run resolved under.
+///
+/// The `assertions` section is EMPTY BY CONSTRUCTION since the `assert:`
+/// block died with the 9-key envelope, and it renders `none` rather than
+/// `0 judged` — a count of zero reads as a judgment that came back empty,
+/// when in truth nothing was ever judged.
 ///
 /// This is the honest realization the spec calls for: the parent shape plus
 /// ONE real instance folding the engine's actual certificate. Fully
@@ -120,24 +123,12 @@ pub fn verify(receipt: &Value, expected_semantic: &str) -> bool {
 pub fn build_run_receipt(
     proves: &SemanticHash,
     certificate: &RunCertificate,
-    judged: &[(AssertProperty, AssertLevel)],
     trace_verdict: Value,
     lock_digest: &str,
 ) -> Value {
     // The certificate is Serialize (nika-schema) — fold it as-is.
     let cert = serde_json::to_value(certificate).unwrap_or(Value::Null);
-    let assertions = judged
-        .iter()
-        .map(|(property, level)| {
-            let mut entry = Map::new();
-            entry.insert(
-                "assert".to_owned(),
-                Value::String(property.name().to_owned()),
-            );
-            entry.insert("level".to_owned(), Value::String(level.as_str().to_owned()));
-            Value::Object(entry)
-        })
-        .collect();
+    let assertions: Vec<Value> = Vec::new();
     build_receipt(
         proves.as_hex(),
         cert,
@@ -427,12 +418,22 @@ pub fn explain_receipt(receipt: &Value) -> String {
         }
     }
     if let Some(assertions) = map.get("assertions").and_then(Value::as_array) {
-        let _ = writeln!(
-            out,
-            "\nassertions  {} judged — {}",
-            assertions.len(),
-            projection_of("assertions").unwrap_or("·")
-        );
+        // « none » rather than « 0 judged »: since the `assert:` key died
+        // (2026-08-13) nothing can mint an obligation, and a count of zero
+        // reads like a judgment that came back empty. It never ran.
+        let _ = if assertions.is_empty() {
+            writeln!(
+                out,
+                "\nassertions  none — no obligation was claimed (the `assert:` key died 2026-08-13)"
+            )
+        } else {
+            writeln!(
+                out,
+                "\nassertions  {} judged — {}",
+                assertions.len(),
+                projection_of("assertions").unwrap_or("·")
+            )
+        };
         for entry in assertions {
             let assert = entry["assert"].as_str().unwrap_or("?");
             let level = entry["level"].as_str().unwrap_or("?");

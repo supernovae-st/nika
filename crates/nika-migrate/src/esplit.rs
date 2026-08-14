@@ -960,7 +960,7 @@ mod tests {
 
     #[test]
     fn single_class_const_renames_header_body_byte_for_byte() {
-        let old = "nika: v1\nworkflow:\n  id: w\nvars:\n  output_dir: \"./output\"\n  retries: 3\ntasks:\n  t:\n    exec: { command: [\"true\"] }\n";
+        let old = "nika: w\nvars:\n  output_dir: \"./output\"\n  retries: 3\ntasks:\n  t:\n    exec: { command: [\"true\"] }\n";
         let new = changed(old);
         assert!(
             new.contains("const:\n  output_dir: \"./output\"\n  retries: 3\ntasks:"),
@@ -971,7 +971,7 @@ mod tests {
 
     #[test]
     fn single_class_inputs_renames_header() {
-        let old = "nika: v1\nworkflow:\n  id: w\nvars:\n  topic:\n    type: string\n    required: true\n    description: the subject\ntasks:\n  t:\n    infer: { prompt: go }\n";
+        let old = "nika: w\nvars:\n  topic:\n    type: string\n    required: true\n    description: the subject\ntasks:\n  t:\n    infer: { prompt: go }\n";
         let new = changed(old);
         assert!(
             new.contains("inputs:\n  topic:\n    type: string\n    required: true\n    description: the subject\ntasks:"),
@@ -981,9 +981,9 @@ mod tests {
 
     #[test]
     fn mixed_file_regroups_inputs_then_const_preserving_lines_and_comments() {
-        let old = "nika: v1\nworkflow:\n  id: w\nvars:\n  # the caller contract\n  topic:\n    type: string\n    required: true\n  output_dir: \"./output\"\n  # a fixed knob\n  retries: 3\ntasks:\n  t:\n    infer: { prompt: go }\n";
+        let old = "nika: w\nvars:\n  # the caller contract\n  topic:\n    type: string\n    required: true\n  output_dir: \"./output\"\n  # a fixed knob\n  retries: 3\ntasks:\n  t:\n    infer: { prompt: go }\n";
         let new = changed(old);
-        let expected = "nika: v1\nworkflow:\n  id: w\ninputs:\n  # the caller contract\n  topic:\n    type: string\n    required: true\nconst:\n  output_dir: \"./output\"\n  # a fixed knob\n  retries: 3\ntasks:\n  t:\n    infer: { prompt: go }\n";
+        let expected = "nika: w\ninputs:\n  # the caller contract\n  topic:\n    type: string\n    required: true\nconst:\n  output_dir: \"./output\"\n  # a fixed knob\n  retries: 3\ntasks:\n  t:\n    infer: { prompt: go }\n";
         assert_eq!(
             new, expected,
             "inputs first · entries keep exact lines + lead comments"
@@ -1106,13 +1106,16 @@ mod tests {
     #[test]
     fn typed_default_block_value_completes_keeping_the_value_lines() {
         // the t2-bookmark-triage shape: a block-sequence default value.
-        let old = "vars:\n  bookmarks:\n    type: array\n    default:\n      - \"https://example.com\"\n      - \"https://example.org\" # the second\ntasks:\n  t:\n    for_each: ${{ vars.bookmarks }}\n    infer: { prompt: go }\n";
+        let old = "vars:\n  bookmarks:\n    type: array\n    default:\n      - \"https://example.com\"\n      - \"https://example.org\" # the second\ntasks:\n  t:\n    for_each: { items: \"${{ vars.bookmarks }}\" }\n    infer: { prompt: go }\n";
         let new = changed(old);
         assert!(
             new.contains("const:\n  bookmarks:\n    type: array\n    value:\n      - \"https://example.com\"\n      - \"https://example.org\" # the second"),
             "{new}"
         );
-        assert!(new.contains("for_each: ${{ const.bookmarks }}"), "{new}");
+        assert!(
+            new.contains("for_each: { items: \"${{ const.bookmarks }}\" }"),
+            "{new}"
+        );
     }
 
     #[test]
@@ -1222,7 +1225,7 @@ mod tests {
 
     #[test]
     fn idempotent_clean_on_post_c2() {
-        let new_form = "nika: v1\nworkflow:\n  id: w\ninputs:\n  topic: { type: string, required: true }\nconst:\n  retries: 3\ntasks:\n  t:\n    infer: { prompt: \"${{ inputs.topic }} ${{ const.retries }}\" }\n";
+        let new_form = "nika: w\ninputs:\n  topic: { type: string, required: true }\nconst:\n  retries: 3\ntasks:\n  t:\n    infer: { prompt: \"${{ inputs.topic }} ${{ const.retries }}\" }\n";
         assert!(matches!(esplit(new_form), EsplitOutcome::Clean));
         // and a migrated document passes through unchanged on a second run
         let once = changed("vars:\n  retries: 3\ntasks:\n  t:\n    infer: { prompt: go }\n");
@@ -1231,13 +1234,16 @@ mod tests {
 
     #[test]
     fn block_sequence_literal_is_const() {
-        let old = "vars:\n  locales:\n    - fr\n    - es\ntasks:\n  t:\n    for_each: ${{ vars.locales }}\n    infer: { prompt: go }\n";
+        let old = "vars:\n  locales:\n    - fr\n    - es\ntasks:\n  t:\n    for_each: { items: \"${{ vars.locales }}\" }\n    infer: { prompt: go }\n";
         let new = changed(old);
         assert!(
             new.contains("const:\n  locales:\n    - fr\n    - es"),
             "{new}"
         );
-        assert!(new.contains("for_each: ${{ const.locales }}"), "{new}");
+        assert!(
+            new.contains("for_each: { items: \"${{ const.locales }}\" }"),
+            "{new}"
+        );
     }
 
     #[test]

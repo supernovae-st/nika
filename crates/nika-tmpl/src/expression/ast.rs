@@ -152,7 +152,7 @@ impl RelOp {
 }
 
 /// A classified root reference found in an expression (spec
-/// `04-variables.md` §Resolution order · the four value authorities +
+/// `04-variables.md` §Resolution order · the three value authorities +
 /// `with`/`tasks` + the 2 `for_each` loop-locals · the dead `vars`/`env`
 /// roots stay CLASSIFIED at the C2 flag-day so the analyzer can teach
 /// their NIKA-VALUES-001/002 refusal instead of a generic unknown-root).
@@ -162,8 +162,6 @@ pub enum NamespaceRef {
     Vars(String),
     /// `inputs.<name>` — typed workflow inputs (caller-supplied).
     Inputs(String),
-    /// `config.<name>` — non-sensitive runtime config (deployment-supplied).
-    Config(String),
     /// `const.<name>` — named constants (author-fixed).
     Const(String),
     /// `with.<name>` — task-scope injections.
@@ -180,6 +178,12 @@ pub enum NamespaceRef {
     Env(String),
     /// `secrets.<name>` — secret references.
     Secrets(String),
+    /// `group.<name>` — the PLURAL reader of the `tasks` namespace
+    /// (spec 03 §group). Not a new namespace and not a new authority:
+    /// one edge per declared member, legal in a `with:` value and
+    /// nowhere else. An empty name is the bare `${{ group }}`, which
+    /// names no group (`NIKA-DAG-008`).
+    Group(String),
     /// `item` — the current `for_each` element (loop-local).
     Item,
     /// `index` — the current `for_each` position (loop-local).

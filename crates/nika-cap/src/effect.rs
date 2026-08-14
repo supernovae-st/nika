@@ -354,7 +354,7 @@ mod tests {
         let desktop = json!({ "channel": "desktop" });
         assert_eq!(builtin_effect("nika:notify", Some(&desktop)), None);
         // a templated channel is unclassifiable → None
-        let dynamic = json!({ "channel": "${{ vars.c }}" });
+        let dynamic = json!({ "channel": "${{ inputs.c }}" });
         assert_eq!(builtin_effect("nika:notify", Some(&dynamic)), None);
     }
 
@@ -375,7 +375,7 @@ mod tests {
         let inline = json!({ "bundle": { "manifest": {} }, "evidence": {} });
         assert_eq!(builtin_effect("nika:decide", Some(&inline)), None);
         // A templated path is unclassifiable statically → runtime concern.
-        let dynamic = json!({ "bundle": "${{ vars.bundle }}", "evidence": {} });
+        let dynamic = json!({ "bundle": "${{ inputs.bundle }}", "evidence": {} });
         assert_eq!(builtin_effect("nika:decide", Some(&dynamic)), None);
         // No args at all (the coarse probes) → nothing to claim.
         assert_eq!(builtin_effect("nika:decide", None), None);

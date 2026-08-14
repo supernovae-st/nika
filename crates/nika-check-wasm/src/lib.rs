@@ -176,7 +176,7 @@ mod tests {
         // 5000 here: if the guard ever stops running first, this test does
         // not fail, it dies — which is the point.
         let bomb = format!(
-            "nika: v1\nworkflow:\n  id: t\ntasks:\n  j:\n    invoke:\n      tool: \"nika:jq\"\n      args:\n        input: \"{{}}\"\n        expression: '{}'\n",
+            "nika: t\ntasks:\n  j:\n    invoke:\n      tool: \"nika:jq\"\n      args:\n        input: \"{{}}\"\n        expression: '{}'\n",
             "[".repeat(5000) + &"]".repeat(5000)
         );
         let v: serde_json::Value = serde_json::from_str(&check(&bomb)).unwrap();
@@ -192,9 +192,7 @@ mod tests {
             "the depth guard names itself: {msgs:?}"
         );
         // and the instance SURVIVES: a clean file still judges clean after
-        let ok = check(
-            "nika: v1\nworkflow:\n  id: k\ntasks:\n  a:\n    exec:\n      command: [\"echo\"]\n",
-        );
+        let ok = check("nika: k\ntasks:\n  a:\n    exec:\n      command: [\"echo\"]\n");
         assert_eq!(
             serde_json::from_str::<serde_json::Value>(&ok).unwrap()["clean"],
             true
@@ -207,7 +205,7 @@ mod tests {
         // 28s of sync CPU at the task cap. Past 256 candidates the
         // unresolved-ref finding keeps firing but stops guessing.
         use std::fmt::Write as _;
-        let mut yaml = String::from("nika: v1\nworkflow:\n  id: t\ntasks:\n");
+        let mut yaml = String::from("nika: t\ntasks:\n");
         for i in 0..300 {
             let _ = writeln!(yaml, "  t{i}:\n    exec:\n      command: [\"echo\"]");
         }
@@ -233,7 +231,7 @@ mod tests {
         // < > & U+2028/9 are hostile in every context a site inlines JSON
         // into. The emitted TEXT carries none of the five, ever; parsing it
         // back yields the identifier intact (escaping, not mangling).
-        let hostile = "nika: v1\nworkflow:\n  id: t\n\"</script><img src=x>\": 1\ntasks:\n  a:\n    exec:\n      command: [\"echo\"]\n";
+        let hostile = "nika: t\n\"</script><img src=x>\": 1\ntasks:\n  a:\n    exec:\n      command: [\"echo\"]\n";
         let out = check(hostile);
         for needle in ["<", ">", "&", "\u{2028}", "\u{2029}"] {
             assert!(!out.contains(needle), "raw {needle:?} in the emitted text");
@@ -285,9 +283,8 @@ mod tests {
 
     #[test]
     fn a_valid_file_is_clean_and_says_what_it_covered() {
-        let out = check(
-            "nika: v1\nworkflow:\n  id: hello\ntasks:\n  greet:\n    exec:\n      command: [\"echo\", \"hi\"]\n",
-        );
+        let out =
+            check("nika: hello\ntasks:\n  greet:\n    exec:\n      command: [\"echo\", \"hi\"]\n");
         let v: serde_json::Value = serde_json::from_str(&out).unwrap();
         assert_eq!(v["clean"], true);
         assert_eq!(v["wasm"], true);
@@ -320,7 +317,7 @@ mod tests {
         // exactly there. (Two earlier drafts put the é on another line or
         // under the caret; both times the test refuted its author, which
         // is the job.)
-        let yaml = "nika: v1\nworkflow:\n  id: t\ntasks:\n  a:\n    with: { p: \"é\", d: \"${{ tasks.zz.output }}\" }\n    exec:\n      command: [\"echo\"]\n";
+        let yaml = "nika: t\ntasks:\n  a:\n    with: { p: \"é\", d: \"${{ tasks.zz.output }}\" }\n    exec:\n      command: [\"echo\"]\n";
         let v: serde_json::Value = serde_json::from_str(&check(yaml)).unwrap();
         let row = &v["findings"][0];
         let (line, col) = (row["line"].as_u64().unwrap(), row["col"].as_u64().unwrap());
@@ -338,7 +335,7 @@ mod tests {
     fn a_conformance_finding_is_the_binary_voice_verbatim() {
         // an unknown dependency — the same file the website's hero twins
         // carry, reduced: `judge` needs `dif`, which does not exist.
-        let yaml = "nika: v1\nworkflow:\n  id: t\ntasks:\n  diff:\n    exec:\n      command: [\"git\", \"diff\"]\n  judge:\n    with:\n      d: ${{ tasks.dif.output }}\n    exec:\n      command: [\"echo\"]\n";
+        let yaml = "nika: t\ntasks:\n  diff:\n    exec:\n      command: [\"git\", \"diff\"]\n  judge:\n    with:\n      d: ${{ tasks.dif.output }}\n    exec:\n      command: [\"echo\"]\n";
         let out = check(yaml);
         let v: serde_json::Value = serde_json::from_str(&out).unwrap();
         assert_eq!(v["clean"], false);

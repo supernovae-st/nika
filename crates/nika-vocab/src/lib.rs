@@ -39,7 +39,6 @@
 )]
 
 pub mod after;
-pub mod assert;
 pub mod capture;
 pub mod dead_form;
 pub mod decode;
@@ -60,7 +59,6 @@ pub mod when_gate;
 
 // Re-exports for convenience.
 pub use after::AfterPredicate;
-pub use assert::{AssertLevel, AssertProperty, AssertRefusal, NIKA_ASSERT_001};
 pub use capture::CaptureMode;
 pub use dead_form::DeadForm;
 pub use decode::DecodeMode;
@@ -68,8 +66,9 @@ pub use duration::{GoDurationError, parse_go_duration};
 pub use extract::{ExtractMode, ResponseMode};
 pub use on_error::{OnError, OnErrorAction};
 pub use output_decl::OutputDecl;
-// `policy:` (spec 10 · W4) — home is `nika-cap`, the `permits` story.
-pub use nika_cap::{EffectClass, Objective, Policy, PolicyViolation};
+// The effect vocabulary (spec 10 · W4) — home is `nika-cap`. `Policy`,
+// `Objective` and `PolicyViolation` left with the `policy:` block.
+pub use nika_cap::EffectClass;
 pub use permits::{ExecPermit, FsPermits, NetPermits, Permits};
 pub use retry::{BackoffStrategy, RetryConfig, is_valid_error_code};
 pub use run::{RunClock, RunContradiction, RunDecl, RunEntropy};

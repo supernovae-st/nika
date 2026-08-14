@@ -4,9 +4,7 @@
 # a paid call spent on a known failure, so the engine must fail FAST.
 # Expected: exit NON-ZERO · the error names the token limit · attempts=1
 # (no blind re-ask at the same budget).
-nika: v1
-workflow:
-  id: battery-s5-truncation
+nika: battery-s5-truncation
 model: mock/echo
 
 permits:

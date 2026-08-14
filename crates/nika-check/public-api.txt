@@ -5,10 +5,12 @@ pub mod nika_check::analyzer::edges
 #[non_exhaustive] pub enum nika_check::analyzer::edges::EdgeKind
 pub nika_check::analyzer::edges::EdgeKind::Control(nika_vocab::after::AfterPredicate)
 pub nika_check::analyzer::edges::EdgeKind::FailureObservation
+pub nika_check::analyzer::edges::EdgeKind::FanIn
 pub nika_check::analyzer::edges::EdgeKind::TerminalObservation
 pub nika_check::analyzer::edges::EdgeKind::Value
 impl nika_check::analyzer::edges::EdgeKind
 pub fn nika_check::analyzer::edges::EdgeKind::admits(self, s: nika_check::analyzer::edges::SettledState) -> bool
+pub fn nika_check::analyzer::edges::EdgeKind::is_scheduling(self) -> bool
 pub fn nika_check::analyzer::edges::EdgeKind::wire_kind(self) -> &'static str
 impl core::clone::Clone for nika_check::analyzer::edges::EdgeKind
 pub fn nika_check::analyzer::edges::EdgeKind::clone(&self) -> nika_check::analyzer::edges::EdgeKind
@@ -188,21 +190,24 @@ impl<T> nika_error::traits::AsAny for nika_check::analyzer::edges::RecoveryRead 
 pub fn nika_check::analyzer::edges::RecoveryRead::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub fn nika_check::analyzer::edges::derive_edges(tasks: &[nika_source::span::Spanned<nika_schema::raw::task::RawTask>], ids: &alloc::collections::btree::map::BTreeMap<alloc::string::String, usize>) -> alloc::vec::Vec<nika_check::analyzer::edges::Edge>
 pub fn nika_check::analyzer::edges::derive_recovery_reads(tasks: &[nika_source::span::Spanned<nika_schema::raw::task::RawTask>], ids: &alloc::collections::btree::map::BTreeMap<alloc::string::String, usize>) -> alloc::vec::Vec<nika_check::analyzer::edges::RecoveryRead>
+pub fn nika_check::analyzer::edges::group_members(tasks: &[nika_source::span::Spanned<nika_schema::raw::task::RawTask>]) -> alloc::collections::btree::map::BTreeMap<&str, alloc::vec::Vec<usize>>
+pub fn nika_check::analyzer::edges::group_refs_in_value(value: &serde_json::value::Value, out: &mut alloc::vec::Vec<alloc::string::String>)
 pub fn nika_check::analyzer::edges::incoming_of(task: &nika_schema::raw::task::RawTask) -> alloc::vec::Vec<(alloc::string::String, nika_check::analyzer::edges::EdgeKind)>
 pub fn nika_check::analyzer::edges::producer_ids(task: &nika_schema::raw::task::RawTask) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_check::analyzer::edges::role_of_field(field: core::option::Option<&str>) -> nika_check::analyzer::edges::EdgeKind
 pub fn nika_check::analyzer::edges::task_refs_in_value(value: &serde_json::value::Value, out: &mut alloc::vec::Vec<(alloc::string::String, core::option::Option<alloc::string::String>)>)
 pub mod nika_check::analyzer::types_contract
 pub fn nika_check::analyzer::types_contract::lowered_returns(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>
-pub fn nika_check::analyzer::types_contract::named_types(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_types::types::NikaType>
 pub fn nika_check::analyzer::types_contract::returns_type(task: &nika_schema::raw::task::RawTask, wf: &nika_schema::raw::workflow::RawWorkflow) -> core::option::Option<nika_types::types::NikaType>
 #[non_exhaustive] pub enum nika_check::analyzer::EdgeKind
 pub nika_check::analyzer::EdgeKind::Control(nika_vocab::after::AfterPredicate)
 pub nika_check::analyzer::EdgeKind::FailureObservation
+pub nika_check::analyzer::EdgeKind::FanIn
 pub nika_check::analyzer::EdgeKind::TerminalObservation
 pub nika_check::analyzer::EdgeKind::Value
 impl nika_check::analyzer::edges::EdgeKind
 pub fn nika_check::analyzer::edges::EdgeKind::admits(self, s: nika_check::analyzer::edges::SettledState) -> bool
+pub fn nika_check::analyzer::edges::EdgeKind::is_scheduling(self) -> bool
 pub fn nika_check::analyzer::edges::EdgeKind::wire_kind(self) -> &'static str
 impl core::clone::Clone for nika_check::analyzer::edges::EdgeKind
 pub fn nika_check::analyzer::edges::EdgeKind::clone(&self) -> nika_check::analyzer::edges::EdgeKind
@@ -427,7 +432,6 @@ impl<T> nika_error::traits::AsAny for nika_check::analyzer::edges::RecoveryRead 
 pub fn nika_check::analyzer::edges::RecoveryRead::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub fn nika_check::analyzer::analyze(wf: &nika_schema::raw::workflow::RawWorkflow) -> core::result::Result<nika_check::analyzer::AnalyzedWorkflow, alloc::vec::Vec<nika_schema::error::SchemaError>>
 pub fn nika_check::analyzer::lowered_returns(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>
-pub fn nika_check::analyzer::named_types(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_types::types::NikaType>
 pub fn nika_check::analyzer::returns_type(task: &nika_schema::raw::task::RawTask, wf: &nika_schema::raw::workflow::RawWorkflow) -> core::option::Option<nika_types::types::NikaType>
 pub fn nika_check::analyzer::role_of_field(field: core::option::Option<&str>) -> nika_check::analyzer::edges::EdgeKind
 pub mod nika_check::native_first
@@ -1184,10 +1188,11 @@ pub nika_check::CheckReport::exec_floor_findings: alloc::vec::Vec<nika_check::Ex
 pub nika_check::CheckReport::findings: alloc::vec::Vec<nika_check::UnifiedFinding>
 pub nika_check::CheckReport::gate_findings: alloc::vec::Vec<nika_check::GateFinding>
 pub nika_check::CheckReport::hints: alloc::vec::Vec<nika_check::Hint>
+pub nika_check::CheckReport::lift_findings: alloc::vec::Vec<nika_check::LiftFinding>
 pub nika_check::CheckReport::missing_args: alloc::vec::Vec<nika_check::MissingArg>
+pub nika_check::CheckReport::order_findings: alloc::vec::Vec<nika_check::OrderFinding>
 pub nika_check::CheckReport::permit_taints: alloc::vec::Vec<nika_check::PermitTaint>
 pub nika_check::CheckReport::permits: nika_check::EffectivePermits
-pub nika_check::CheckReport::policy_findings: alloc::vec::Vec<nika_cap::policy::PolicyViolation>
 pub nika_check::CheckReport::report_version: u32
 pub nika_check::CheckReport::requirements: nika_check::Requirements
 pub nika_check::CheckReport::run_decl_findings: alloc::vec::Vec<nika_check::RunDeclFinding>
@@ -1786,7 +1791,6 @@ impl nika_check::FlowFacts
 pub fn nika_check::FlowFacts::effect_leak(&self, task: usize) -> core::option::Option<&nika_check::TaintTrace>
 pub fn nika_check::FlowFacts::effect_taint(&self, task: usize) -> core::option::Option<&nika_check::TaintTrace>
 pub fn nika_check::FlowFacts::egresses(&self) -> alloc::vec::Vec<(&str, &nika_check::TaintTrace)>
-pub fn nika_check::FlowFacts::finally_effect_taint(&self, task: usize) -> core::option::Option<(&nika_check::TaintTrace, &'static str, usize)>
 impl core::clone::Clone for nika_check::FlowFacts
 pub fn nika_check::FlowFacts::clone(&self) -> nika_check::FlowFacts
 impl core::default::Default for nika_check::FlowFacts
@@ -2041,6 +2045,55 @@ impl<T> dyn_clone::DynClone for nika_check::JourneyEndpoint where T: core::clone
 pub fn nika_check::JourneyEndpoint::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_check::JourneyEndpoint where T: 'static
 pub fn nika_check::JourneyEndpoint::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_check::LiftFinding
+pub nika_check::LiftFinding::detail: alloc::string::String
+pub nika_check::LiftFinding::fix: alloc::string::String
+pub nika_check::LiftFinding::from: core::option::Option<alloc::string::String>
+pub nika_check::LiftFinding::law: &'static str
+pub nika_check::LiftFinding::task: alloc::string::String
+impl nika_check::LiftFinding
+pub const nika_check::LiftFinding::WIRE_CODE: &'static str
+impl core::clone::Clone for nika_check::LiftFinding
+pub fn nika_check::LiftFinding::clone(&self) -> nika_check::LiftFinding
+impl core::cmp::Eq for nika_check::LiftFinding
+impl core::cmp::PartialEq for nika_check::LiftFinding
+pub fn nika_check::LiftFinding::eq(&self, other: &nika_check::LiftFinding) -> bool
+impl core::fmt::Debug for nika_check::LiftFinding
+pub fn nika_check::LiftFinding::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_check::LiftFinding
+impl serde_core::ser::Serialize for nika_check::LiftFinding
+pub fn nika_check::LiftFinding::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_check::LiftFinding
+impl<Q, K> equivalent::Equivalent<K> for nika_check::LiftFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::LiftFinding::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::LiftFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::LiftFinding::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check::LiftFinding where U: core::convert::From<T>
+pub fn nika_check::LiftFinding::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::LiftFinding where U: core::convert::Into<T>
+pub type nika_check::LiftFinding::Error = core::convert::Infallible
+pub fn nika_check::LiftFinding::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::LiftFinding where U: core::convert::TryFrom<T>
+pub type nika_check::LiftFinding::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::LiftFinding::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::LiftFinding where T: core::clone::Clone
+pub type nika_check::LiftFinding::Owned = T
+pub fn nika_check::LiftFinding::clone_into(&self, target: &mut T)
+pub fn nika_check::LiftFinding::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::LiftFinding where T: 'static + ?core::marker::Sized
+pub fn nika_check::LiftFinding::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::LiftFinding where T: ?core::marker::Sized
+pub fn nika_check::LiftFinding::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::LiftFinding where T: ?core::marker::Sized
+pub fn nika_check::LiftFinding::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::LiftFinding where T: core::clone::Clone
+pub unsafe fn nika_check::LiftFinding::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::LiftFinding
+pub fn nika_check::LiftFinding::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::LiftFinding where T: core::clone::Clone
+pub fn nika_check::LiftFinding::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::LiftFinding where T: 'static
+pub fn nika_check::LiftFinding::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_check::MissingArg
 pub nika_check::MissingArg::arg: alloc::string::String
 pub nika_check::MissingArg::task: alloc::string::String
@@ -2180,6 +2233,53 @@ impl<T> dyn_clone::DynClone for nika_check::ModelRequirement where T: core::clon
 pub fn nika_check::ModelRequirement::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_check::ModelRequirement where T: 'static
 pub fn nika_check::ModelRequirement::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_check::OrderFinding
+pub nika_check::OrderFinding::detail: alloc::string::String
+pub nika_check::OrderFinding::sink: alloc::string::String
+pub nika_check::OrderFinding::source: alloc::string::String
+impl nika_check::OrderFinding
+pub const nika_check::OrderFinding::WIRE_CODE: &'static str
+impl core::clone::Clone for nika_check::OrderFinding
+pub fn nika_check::OrderFinding::clone(&self) -> nika_check::OrderFinding
+impl core::cmp::Eq for nika_check::OrderFinding
+impl core::cmp::PartialEq for nika_check::OrderFinding
+pub fn nika_check::OrderFinding::eq(&self, other: &nika_check::OrderFinding) -> bool
+impl core::fmt::Debug for nika_check::OrderFinding
+pub fn nika_check::OrderFinding::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_check::OrderFinding
+impl serde_core::ser::Serialize for nika_check::OrderFinding
+pub fn nika_check::OrderFinding::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_check::OrderFinding
+impl<Q, K> equivalent::Equivalent<K> for nika_check::OrderFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::OrderFinding::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::OrderFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::OrderFinding::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check::OrderFinding where U: core::convert::From<T>
+pub fn nika_check::OrderFinding::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::OrderFinding where U: core::convert::Into<T>
+pub type nika_check::OrderFinding::Error = core::convert::Infallible
+pub fn nika_check::OrderFinding::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::OrderFinding where U: core::convert::TryFrom<T>
+pub type nika_check::OrderFinding::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::OrderFinding::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::OrderFinding where T: core::clone::Clone
+pub type nika_check::OrderFinding::Owned = T
+pub fn nika_check::OrderFinding::clone_into(&self, target: &mut T)
+pub fn nika_check::OrderFinding::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::OrderFinding where T: 'static + ?core::marker::Sized
+pub fn nika_check::OrderFinding::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::OrderFinding where T: ?core::marker::Sized
+pub fn nika_check::OrderFinding::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::OrderFinding where T: ?core::marker::Sized
+pub fn nika_check::OrderFinding::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::OrderFinding where T: core::clone::Clone
+pub unsafe fn nika_check::OrderFinding::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::OrderFinding
+pub fn nika_check::OrderFinding::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::OrderFinding where T: core::clone::Clone
+pub fn nika_check::OrderFinding::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::OrderFinding where T: 'static
+pub fn nika_check::OrderFinding::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_check::PermitTaint
 pub nika_check::PermitTaint::detail: alloc::string::String
 pub nika_check::PermitTaint::fix: core::option::Option<alloc::string::String>
@@ -2229,8 +2329,7 @@ pub fn nika_check::PermitTaint::__clone_box(&self, _: dyn_clone::sealed::Private
 impl<T> nika_error::traits::AsAny for nika_check::PermitTaint where T: 'static
 pub fn nika_check::PermitTaint::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub struct nika_check::Requirements
-pub nika_check::Requirements::config_defined: alloc::vec::Vec<alloc::string::String>
-pub nika_check::Requirements::config_reads: alloc::vec::Vec<alloc::string::String>
+pub nika_check::Requirements::inputs_read: alloc::vec::Vec<alloc::string::String>
 pub nika_check::Requirements::inputs_required: alloc::vec::Vec<alloc::string::String>
 pub nika_check::Requirements::models: alloc::vec::Vec<nika_check::ModelRequirement>
 pub nika_check::Requirements::secrets: alloc::vec::Vec<nika_check::SecretRequirement>
@@ -2325,7 +2424,7 @@ pub fn nika_check::RetentionFact::as_any(&self) -> &(dyn core::any::Any + 'stati
 #[non_exhaustive] pub struct nika_check::RunCertificate
 pub nika_check::RunCertificate::derivation: alloc::vec::Vec<nika_check::certificate::TaskContribution>
 pub nika_check::RunCertificate::effect_calls: nika_check::Bound
-pub nika_check::RunCertificate::effects: nika_cap::policy::CertEffects
+pub nika_check::RunCertificate::effects: nika_cap::effect_vocab::CertEffects
 pub nika_check::RunCertificate::llm_calls: nika_check::Bound
 pub nika_check::RunCertificate::span_attempts: u64
 pub nika_check::RunCertificate::task_attempts: nika_check::Bound
@@ -3108,8 +3207,6 @@ pub fn nika_check::check(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_c
 pub fn nika_check::check_composed(wf: &nika_schema::raw::workflow::RawWorkflow, root: &str, read: &mut dyn core::ops::function::FnMut(&str) -> core::result::Result<alloc::string::String, alloc::string::String>) -> nika_check::CheckReport
 pub fn nika_check::infer_permits(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_check::InferredPermits
 pub fn nika_check::lowered_returns(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>
-pub fn nika_check::named_types(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_types::types::NikaType>
-pub fn nika_check::policy_wire_code(rule: &str) -> &'static str
 pub fn nika_check::returns_type(task: &nika_schema::raw::task::RawTask, wf: &nika_schema::raw::workflow::RawWorkflow) -> core::option::Option<nika_types::types::NikaType>
 pub fn nika_check::risk_grade(report: &nika_check::CheckReport) -> nika_check::RiskGrade
 pub fn nika_check::static_literal_of<'w>(wf: &'w nika_schema::raw::workflow::RawWorkflow, expr: &str) -> core::option::Option<&'w serde_json::value::Value>

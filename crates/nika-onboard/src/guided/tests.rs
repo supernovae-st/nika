@@ -205,7 +205,13 @@ fn parallel_intent_routes_to_fanout() {
 }
 
 #[test]
-fn agentic_intent_routes_to_agent_loop() {
+fn an_agentic_research_intent_routes_to_the_job_then_the_skeleton() {
+    // `nika new "<words>"` reads the WHOLE catalog, and the catalog now
+    // answers with the research JOB — a complete lesson, not a file of
+    // slots — because the corpus regained the sentence each entry wrote
+    // about itself. The skeleton door still answers `agent-loop`: that
+    // door's corpus IS the skeleton set, so the two answers are the two
+    // questions, not a drift.
     let d = dest("agent");
     let out = run(
         "an autonomous budgeted agent that researches a topic",
@@ -213,7 +219,14 @@ fn agentic_intent_routes_to_agent_loop() {
         true,
     );
     assert_eq!(out.code, codes::OK, "{}", out.text);
-    assert!(out.text.contains("template `agent-loop`"), "{}", out.text);
+    assert!(out.text.contains("deep-research-brief"), "{}", out.text);
+    assert!(
+        matches!(
+            crate::intent::route_skeletons("an autonomous budgeted agent that researches a topic"),
+            crate::intent::RoutingOutcome::Routed { ref template, .. } if template == "agent-loop"
+        ),
+        "the skeleton door still lands the loop"
+    );
     std::fs::remove_file(&d).ok();
 }
 
@@ -388,29 +401,22 @@ fn yaml_scalar_keeps_plain_bare_and_single_quotes_the_rest() {
 }
 
 #[test]
-fn stamped_file_survives_a_hostile_intent_and_model_string() {
-    // The rust-pro HIGH: a backslash in the intent (a Windows path ·
-    // a regex) and a YAML-significant model pick BOTH reached the
-    // scalar unescaped → the fresh scaffold failed its OWN check
-    // under a green ✔. Every stamp must now round-trip through the
-    // REAL parser+check clean.
+fn stamped_file_survives_a_hostile_model_string() {
+    // The rust-pro HIGH: a YAML-significant model pick reached the
+    // scalar unescaped -> the fresh scaffold failed its OWN check
+    // under a green. Every stamp must round-trip through the REAL
+    // parser+check clean. The intent no longer rides into the file at
+    // all (there is no description slot), so the hostile-INTENT half
+    // of this battery has no destination left to defend.
     let body = nika_pack::template("chain").expect("embedded");
-    for (desc, model) in [
-        ("save to C:\\Users\\me", "mock/echo"),
-        ("match \\d+ then ship", "mock/echo"),
-        ("it's a \"quoted\" job", "mock/echo"),
-        ("a job", "foo/bar: baz"),
-    ] {
-        let stamped = stamp(body, "hostile", desc, Some(model));
+    for model in ["mock/echo", "foo/bar: baz"] {
+        let stamped = stamp(body, "hostile", Some(model));
         let parsed = nika_schema::parse(
             &stamped,
             nika_schema::FileId::new(0),
             nika_schema::ParseMode::Strict,
         );
-        assert!(
-            parsed.is_ok(),
-            "desc={desc:?} model={model:?} must parse: {parsed:?}"
-        );
+        assert!(parsed.is_ok(), "model={model:?} must parse: {parsed:?}");
         // The check ladder must not choke either (a dirty audit is
         // fine; a PARSE error at this point is the bug).
         let wf = parsed.expect("asserted ok above");
@@ -470,18 +476,14 @@ fn every_embedded_template_audits_clean_or_is_a_documented_gap() {
 }
 
 #[test]
-fn stamp_fills_exactly_the_three_known_slots() {
+fn stamp_fills_exactly_the_two_known_slots() {
     for name in nika_pack::template_names() {
         let body = nika_pack::template(&name).expect("embedded");
-        let stamped = stamp(body, "field-demo", "their problem", Some("mock/echo"));
-        assert!(stamped.contains("  id: field-demo"), "{name}: id stamped");
+        let stamped = stamp(body, "field-demo", Some("mock/echo"));
+        assert!(stamped.contains("nika: field-demo"), "{name}: id stamped");
         assert!(
             !stamped.contains("-template "),
             "{name}: no template id remnant"
-        );
-        assert!(
-            stamped.contains("description: 'their problem'"),
-            "{name}: description stamped (single-quoted YAML scalar)"
         );
         if body.lines().any(|l| l.starts_with("model: ")) {
             assert!(
@@ -661,7 +663,7 @@ fn wizard_io_refuses_a_typed_existing_dest_and_force_overrides() {
     assert!(
         std::fs::read_to_string(base.join("my-first.nika.yaml"))
             .expect("read")
-            .contains("  id: my-first"),
+            .contains("nika: my-first"),
         "--force overwrote with the stamped template"
     );
     std::fs::remove_dir_all(&base).ok();
@@ -689,7 +691,7 @@ fn wizard_io_materializes_a_stamped_file() {
     // arrives already checked, not with a suggestion to check.
     assert!(v.text.contains("audited"), "the ladder ran: {}", v.text);
     let written = std::fs::read_to_string(dir.join("first.nika.yaml")).expect("file written");
-    assert!(written.contains("  id: first"));
+    assert!(written.contains("nika: first"));
     std::fs::remove_dir_all(&dir).ok();
 }
 
@@ -735,7 +737,7 @@ fn a_below_the_bar_intent_writes_nothing_and_names_the_candidates() {
     );
     assert_eq!(out.code, codes::FILE, "{}", out.text);
     assert!(!Path::new(&d).exists(), "below the bar = no write");
-    assert!(out.text.contains("media-asset-pack"), "{}", out.text);
+    assert!(out.text.contains("competitor-radar"), "{}", out.text);
     assert!(out.text.contains("website-brief"), "{}", out.text);
 }
 

@@ -400,7 +400,7 @@ impl<'a> DispatchCtx<'a> {
         Self {
             deadline,
             child_budget,
-            inert: task.inert.as_ref().map(|s| s.value.as_str()),
+            inert: task.data_as_code_because().map(|s| s.value.as_str()),
             witness,
             gate_answer: None,
         }
@@ -1177,7 +1177,7 @@ mod infer_deadline_tests {
     async fn task_timeout_governs_the_provider_http_deadline() {
         // The exact field repro: `timeout: "7m"` on a local-model infer.
         let captured = run_and_capture(
-            "nika: v1\nworkflow:\n  id: w\nmodel: ollama/llama3.2\ntasks:\n  ask:\n    timeout: \"7m\"\n    infer: { prompt: \"hello\" }\n",
+            "nika: w\nmodel: ollama/llama3.2\ntasks:\n  ask:\n    timeout: \"7m\"\n    infer: { prompt: \"hello\" }\n",
         )
         .await;
         assert_eq!(captured.len(), 1, "one provider round-trip");
@@ -1191,7 +1191,7 @@ mod infer_deadline_tests {
     #[tokio::test]
     async fn local_provider_without_task_timeout_gets_the_generous_default() {
         let captured = run_and_capture(
-            "nika: v1\nworkflow:\n  id: w\nmodel: ollama/llama3.2\ntasks:\n  ask:\n    infer: { prompt: \"hello\" }\n",
+            "nika: w\nmodel: ollama/llama3.2\ntasks:\n  ask:\n    infer: { prompt: \"hello\" }\n",
         )
         .await;
         assert_eq!(captured.len(), 1, "one provider round-trip");
@@ -1349,7 +1349,7 @@ mod infer_empty_answer_tests {
     async fn empty_answer_settles_failed_typed_and_the_run_goes_red() {
         let http = ScriptedHttp::serving(&[EMPTY_WITH_SPEND]);
         let outcome = run_workflow(
-            "nika: v1\nworkflow:\n  id: w\nmodel: ollama/llama3.2\ntasks:\n  ask:\n    retry: { max_attempts: 3, backoff_ms: 1, backoff_strategy: fixed, jitter: false }\n    infer: { prompt: \"hello\" }\n",
+            "nika: w\nmodel: ollama/llama3.2\ntasks:\n  ask:\n    retry: { max_attempts: 3, backoff_ms: 1, backoff_strategy: fixed, jitter: false }\n    infer: { prompt: \"hello\" }\n",
             Arc::clone(&http),
         )
         .await;
@@ -1384,7 +1384,7 @@ mod infer_empty_answer_tests {
     async fn empty_answer_retry_is_opt_in_and_bounded() {
         let http = ScriptedHttp::serving(&[EMPTY_WITH_SPEND, EMPTY_WITH_SPEND, EMPTY_WITH_SPEND]);
         let outcome = run_workflow(
-            "nika: v1\nworkflow:\n  id: w\nmodel: ollama/llama3.2\ntasks:\n  ask:\n    retry: { max_attempts: 3, backoff_ms: 1, backoff_strategy: fixed, jitter: false, on_codes: [NIKA-INFER-004] }\n    infer: { prompt: \"hello\" }\n",
+            "nika: w\nmodel: ollama/llama3.2\ntasks:\n  ask:\n    retry: { max_attempts: 3, backoff_ms: 1, backoff_strategy: fixed, jitter: false, on_codes: [NIKA-INFER-004] }\n    infer: { prompt: \"hello\" }\n",
             Arc::clone(&http),
         )
         .await;
@@ -1411,7 +1411,7 @@ mod infer_empty_answer_tests {
             r#"{"choices":[{"message":{"content":"Paris"},"finish_reason":"stop"}],"usage":{"prompt_tokens":7,"completion_tokens":50}}"#,
         ]);
         let outcome = run_workflow(
-            "nika: v1\nworkflow:\n  id: w\nmodel: ollama/llama3.2\ntasks:\n  ask:\n    infer: { prompt: \"capital of France?\" }\n",
+            "nika: w\nmodel: ollama/llama3.2\ntasks:\n  ask:\n    infer: { prompt: \"capital of France?\" }\n",
             Arc::clone(&http),
         )
         .await;

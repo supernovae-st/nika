@@ -165,7 +165,7 @@ mod tests {
     /// line-strip away): all three legs declared, the realized flow
     /// `fetch_page → leak`, no blocking `nika:prompt` gate → the static
     /// lane names `leak` (NIKA-SEC-009).
-    const TRIFECTA: &str = "nika: v1\nworkflow:\n  id: tri\npermits: { fs: { read: [\"./inbox/**\"], write: [\"./out/**\"] }, net: { http: [\"api.example.com\"] }, tools: [\"nika:fetch\", \"nika:write\"] }\ntasks:\n  fetch_page:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.example.com/data\" } }\n  leak:\n    after: { fetch_page: success }\n    with: { body: \"${{ tasks.fetch_page.output }}\" }\n    invoke: { tool: \"nika:write\", args: { path: \"./out/leak.txt\", content: \"${{ with.body }}\" } }\n";
+    const TRIFECTA: &str = "nika: tri\npermits: { fs: { read: [\"./inbox/**\"], write: [\"./out/**\"] }, net: { http: [\"api.example.com\"] }, tools: [\"nika:fetch\", \"nika:write\"] }\ntasks:\n  fetch_page:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.example.com/data\" } }\n  leak:\n    after: { fetch_page: success }\n    with: { body: \"${{ tasks.fetch_page.output }}\" }\n    invoke: { tool: \"nika:write\", args: { path: \"./out/leak.txt\", content: \"${{ with.body }}\" } }\n";
 
     /// The hand-built clean report: `check` refuses the REAL workflow, so
     /// the run is fed the CLEAN report of its wide-boundary twin — same
@@ -295,7 +295,7 @@ mod tests {
     #[tokio::test]
     async fn an_honest_clean_report_passes_the_gate_and_runs() {
         let wf = parse(
-            "nika: v1\nworkflow:\n  id: honest\npermits: { exec: [\"echo\"] }\ntasks:\n  t:\n    exec: { command: [\"echo\", \"hi\"] }\n",
+            "nika: honest\npermits: { exec: [\"echo\"] }\ntasks:\n  t:\n    exec: { command: [\"echo\", \"hi\"] }\n",
         );
         let report = nika_check::check(&wf);
         assert!(report.is_clean(), "the fixture fits its boundary");
@@ -319,7 +319,7 @@ mod tests {
     /// escape OR an undeclared one), so both refusal classes hold.
     #[tokio::test]
     async fn no_declared_boundary_skips_the_gate_but_the_seam_refuses() {
-        let yaml = "nika: v1\nworkflow:\n  id: floor\ntasks:\n  t:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.example.com/x\" } }\n";
+        let yaml = "nika: floor\ntasks:\n  t:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.example.com/x\" } }\n";
         let wf = parse(yaml);
         assert!(
             !nika_check::check(&wf).is_clean(),
@@ -329,7 +329,7 @@ mod tests {
         // the LEGAL zero · clean) — the hand-built-report shape an
         // embedder feeds the run.
         let twin = parse(
-            "nika: v1\nworkflow:\n  id: floor\nmodel: mock/echo\ntasks:\n  t:\n    infer: { prompt: \"hi\", max_tokens: 5 }\n",
+            "nika: floor\nmodel: mock/echo\ntasks:\n  t:\n    infer: { prompt: \"hi\", max_tokens: 5 }\n",
         );
         let report = nika_check::check(&twin);
         assert!(report.is_clean(), "the pure-compute twin checks clean");
@@ -357,7 +357,7 @@ mod tests {
     #[tokio::test]
     async fn a_stamped_report_over_different_bytes_refuses_at_boot() {
         let wf = parse(
-            "nika: v1\nworkflow:\n  id: stale\npermits: { exec: [\"echo\"] }\ntasks:\n  t:\n    exec: { command: [\"echo\", \"hi\"] }\n",
+            "nika: stale\npermits: { exec: [\"echo\"] }\ntasks:\n  t:\n    exec: { command: [\"echo\", \"hi\"] }\n",
         );
         let mut report = nika_check::check(&wf);
         assert!(report.is_clean(), "the fixture fits its boundary");
@@ -386,7 +386,7 @@ mod tests {
     /// None` and that report passes the gate untouched.
     #[tokio::test]
     async fn a_stamped_matching_report_passes_and_the_grain_is_semantic() {
-        let yaml = "nika: v1\nworkflow:\n  id: honest\npermits: { exec: [\"echo\"] }\ntasks:\n  t:\n    exec: { command: [\"echo\", \"hi\"] }\n";
+        let yaml = "nika: honest\npermits: { exec: [\"echo\"] }\ntasks:\n  t:\n    exec: { command: [\"echo\", \"hi\"] }\n";
         let wf = parse(yaml);
         let mut report = nika_check::check(&wf);
         let stamp = crate::proof::ir::semantic_ir_hash(&wf)
