@@ -1055,44 +1055,23 @@ fn parse_ref(arg: &str) -> Result<RegistryRef, RegistryError> {
     let rest = arg
         .strip_prefix(SCHEME)
         .ok_or_else(|| bad("missing the `registry:` scheme"))?;
-    let (locator, version) = match rest.split_once('@') {
-        Some((l, v)) => (l, Some(v)),
-        None => (rest, None),
-    };
-    let Some((owner, name)) = locator.split_once('/') else {
-        return Err(bad(
-            "expected owner/name (the publisher is required — it is what pins WHOSE artifact you get)",
-        ));
-    };
-    if name.contains('/') {
-        return Err(bad("expected exactly owner/name — one `/`"));
-    }
-    if !valid_owner(owner) {
-        return Err(bad(
-            "the owner is a GitHub owner: letters, digits and `-`, not starting with `-`",
-        ));
-    }
-    if !valid_name(name) {
-        return Err(bad(
-            "the name is lowercase letters, digits and `-` (up to 64, starting alphanumeric)",
-        ));
-    }
-    match version {
-        Some(v) if version_key(v).is_none() => Err(bad(
-            "the version is plain SemVer, e.g. 1.2.0 or 1.2.0-rc.1 (no `v` prefix, no build metadata)",
-        )),
-        _ => Ok(RegistryRef {
-            owner: owner.to_owned(),
-            name: name.to_owned(),
-            version: version.map(str::to_owned),
-        }),
-    }
+    // ⭐ ONE grammar, two readers — it lives at L0 in `nika_vocab`
+    // (`nika-check` is L0 and cannot depend on this L2 crate, so the
+    // shared home cannot be here). This crate keeps what is genuinely
+    // resolution's: version ORDERING, and the pin ladder that reads an
+    // UNPINNED ref legitimately where a workflow may not.
+    let parsed = nika_vocab::registry_ref::parse(rest).map_err(|d| bad(d.teaching()))?;
+    Ok(RegistryRef {
+        owner: parsed.owner.to_owned(),
+        name: parsed.name.to_owned(),
+        version: parsed.version.map(str::to_owned),
+    })
 }
 
 fn valid_owner(s: &str) -> bool {
-    !s.is_empty()
-        && !s.starts_with('-')
-        && s.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
+    // ONE definition, at L0 — the owner charset is grammar, not
+    // resolution, and a second spelling of it would drift.
+    nika_vocab::registry_ref::valid_owner(s)
 }
 
 /// GitHub repo names also allow `.` and `_` — path-safe (no separators).
@@ -1104,13 +1083,12 @@ fn valid_repo_name(s: &str) -> bool {
             .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.'))
 }
 
+#[allow(
+    dead_code,
+    reason = "the grammar moved to L0; kept as the named seam for the parity pin"
+)]
 fn valid_name(s: &str) -> bool {
-    s.len() <= 64
-        && s.as_bytes()
-            .first()
-            .is_some_and(|b| b.is_ascii_lowercase() || b.is_ascii_digit())
-        && s.bytes()
-            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+    nika_vocab::registry_ref::valid_name(s)
 }
 
 /// Repo-relative, no traversal, plain charset — the R2 path law.

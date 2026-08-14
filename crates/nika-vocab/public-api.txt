@@ -848,6 +848,90 @@ pub const nika_vocab::project::TOP_LEVEL_KEYS: &[&str]
 pub fn nika_vocab::project::discover(start: &std::path::Path) -> core::result::Result<core::option::Option<(std::path::PathBuf, nika_vocab::project::Project)>, nika_vocab::project::ProjectError>
 pub fn nika_vocab::project::discover_from_cwd() -> core::result::Result<core::option::Option<(std::path::PathBuf, nika_vocab::project::Project)>, nika_vocab::project::ProjectError>
 pub fn nika_vocab::project::parse(text: &str) -> core::result::Result<nika_vocab::project::Project, nika_vocab::project::ProjectError>
+pub mod nika_vocab::registry_ref
+#[non_exhaustive] pub enum nika_vocab::registry_ref::RefDefect
+pub nika_vocab::registry_ref::RefDefect::BadName
+pub nika_vocab::registry_ref::RefDefect::BadOwner
+pub nika_vocab::registry_ref::RefDefect::BadVersion
+pub nika_vocab::registry_ref::RefDefect::MissingOwner
+pub nika_vocab::registry_ref::RefDefect::TooManySegments
+impl nika_vocab::registry_ref::RefDefect
+pub const fn nika_vocab::registry_ref::RefDefect::teaching(self) -> &'static str
+impl core::clone::Clone for nika_vocab::registry_ref::RefDefect
+pub fn nika_vocab::registry_ref::RefDefect::clone(&self) -> nika_vocab::registry_ref::RefDefect
+impl core::cmp::Eq for nika_vocab::registry_ref::RefDefect
+impl core::cmp::PartialEq for nika_vocab::registry_ref::RefDefect
+pub fn nika_vocab::registry_ref::RefDefect::eq(&self, other: &nika_vocab::registry_ref::RefDefect) -> bool
+impl core::fmt::Debug for nika_vocab::registry_ref::RefDefect
+pub fn nika_vocab::registry_ref::RefDefect::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_vocab::registry_ref::RefDefect
+impl core::marker::StructuralPartialEq for nika_vocab::registry_ref::RefDefect
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::registry_ref::RefDefect where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::registry_ref::RefDefect::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_vocab::registry_ref::RefDefect where U: core::convert::From<T>
+pub fn nika_vocab::registry_ref::RefDefect::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_vocab::registry_ref::RefDefect where U: core::convert::Into<T>
+pub type nika_vocab::registry_ref::RefDefect::Error = core::convert::Infallible
+pub fn nika_vocab::registry_ref::RefDefect::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_vocab::registry_ref::RefDefect where U: core::convert::TryFrom<T>
+pub type nika_vocab::registry_ref::RefDefect::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_vocab::registry_ref::RefDefect::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_vocab::registry_ref::RefDefect where T: core::clone::Clone
+pub type nika_vocab::registry_ref::RefDefect::Owned = T
+pub fn nika_vocab::registry_ref::RefDefect::clone_into(&self, target: &mut T)
+pub fn nika_vocab::registry_ref::RefDefect::to_owned(&self) -> T
+impl<T> core::any::Any for nika_vocab::registry_ref::RefDefect where T: 'static + ?core::marker::Sized
+pub fn nika_vocab::registry_ref::RefDefect::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_vocab::registry_ref::RefDefect where T: ?core::marker::Sized
+pub fn nika_vocab::registry_ref::RefDefect::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_vocab::registry_ref::RefDefect where T: ?core::marker::Sized
+pub fn nika_vocab::registry_ref::RefDefect::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_vocab::registry_ref::RefDefect where T: core::clone::Clone
+pub unsafe fn nika_vocab::registry_ref::RefDefect::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_vocab::registry_ref::RefDefect
+pub fn nika_vocab::registry_ref::RefDefect::from(t: T) -> T
+#[non_exhaustive] pub struct nika_vocab::registry_ref::RegistryRef<'a>
+pub nika_vocab::registry_ref::RegistryRef::name: &'a str
+pub nika_vocab::registry_ref::RegistryRef::owner: &'a str
+pub nika_vocab::registry_ref::RegistryRef::version: core::option::Option<&'a str>
+impl<'a> nika_vocab::registry_ref::RegistryRef<'a>
+pub const fn nika_vocab::registry_ref::RegistryRef<'a>::new(owner: &'a str, name: &'a str, version: core::option::Option<&'a str>) -> Self
+impl<'a> core::clone::Clone for nika_vocab::registry_ref::RegistryRef<'a>
+pub fn nika_vocab::registry_ref::RegistryRef<'a>::clone(&self) -> nika_vocab::registry_ref::RegistryRef<'a>
+impl<'a> core::cmp::Eq for nika_vocab::registry_ref::RegistryRef<'a>
+impl<'a> core::cmp::PartialEq for nika_vocab::registry_ref::RegistryRef<'a>
+pub fn nika_vocab::registry_ref::RegistryRef<'a>::eq(&self, other: &nika_vocab::registry_ref::RegistryRef<'a>) -> bool
+impl<'a> core::fmt::Debug for nika_vocab::registry_ref::RegistryRef<'a>
+pub fn nika_vocab::registry_ref::RegistryRef<'a>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'a> core::marker::StructuralPartialEq for nika_vocab::registry_ref::RegistryRef<'a>
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::registry_ref::RegistryRef<'a> where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::registry_ref::RegistryRef<'a>::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_vocab::registry_ref::RegistryRef<'a> where U: core::convert::From<T>
+pub fn nika_vocab::registry_ref::RegistryRef<'a>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_vocab::registry_ref::RegistryRef<'a> where U: core::convert::Into<T>
+pub type nika_vocab::registry_ref::RegistryRef<'a>::Error = core::convert::Infallible
+pub fn nika_vocab::registry_ref::RegistryRef<'a>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_vocab::registry_ref::RegistryRef<'a> where U: core::convert::TryFrom<T>
+pub type nika_vocab::registry_ref::RegistryRef<'a>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_vocab::registry_ref::RegistryRef<'a>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_vocab::registry_ref::RegistryRef<'a> where T: core::clone::Clone
+pub type nika_vocab::registry_ref::RegistryRef<'a>::Owned = T
+pub fn nika_vocab::registry_ref::RegistryRef<'a>::clone_into(&self, target: &mut T)
+pub fn nika_vocab::registry_ref::RegistryRef<'a>::to_owned(&self) -> T
+impl<T> core::any::Any for nika_vocab::registry_ref::RegistryRef<'a> where T: 'static + ?core::marker::Sized
+pub fn nika_vocab::registry_ref::RegistryRef<'a>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_vocab::registry_ref::RegistryRef<'a> where T: ?core::marker::Sized
+pub fn nika_vocab::registry_ref::RegistryRef<'a>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_vocab::registry_ref::RegistryRef<'a> where T: ?core::marker::Sized
+pub fn nika_vocab::registry_ref::RegistryRef<'a>::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_vocab::registry_ref::RegistryRef<'a> where T: core::clone::Clone
+pub unsafe fn nika_vocab::registry_ref::RegistryRef<'a>::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_vocab::registry_ref::RegistryRef<'a>
+pub fn nika_vocab::registry_ref::RegistryRef<'a>::from(t: T) -> T
+pub fn nika_vocab::registry_ref::is_plain_semver(v: &str) -> bool
+pub fn nika_vocab::registry_ref::parse(rest: &str) -> core::result::Result<nika_vocab::registry_ref::RegistryRef<'_>, nika_vocab::registry_ref::RefDefect>
+pub fn nika_vocab::registry_ref::valid_name(s: &str) -> bool
+pub fn nika_vocab::registry_ref::valid_owner(s: &str) -> bool
 pub mod nika_vocab::retry
 #[non_exhaustive] pub enum nika_vocab::retry::BackoffStrategy
 pub nika_vocab::retry::BackoffStrategy::Exponential
