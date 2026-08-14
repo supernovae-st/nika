@@ -28,6 +28,8 @@ impl core::fmt::Display for nika_vocab::after::AfterPredicate
 pub fn nika_vocab::after::AfterPredicate::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::Copy for nika_vocab::after::AfterPredicate
 impl core::marker::StructuralPartialEq for nika_vocab::after::AfterPredicate
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::after::AfterPredicate where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::after::AfterPredicate::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_vocab::after::AfterPredicate where U: core::convert::From<T>
 pub fn nika_vocab::after::AfterPredicate::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_vocab::after::AfterPredicate where U: core::convert::Into<T>
@@ -73,6 +75,8 @@ impl core::hash::Hash for nika_vocab::assert::AssertLevel
 pub fn nika_vocab::assert::AssertLevel::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
 impl core::marker::Copy for nika_vocab::assert::AssertLevel
 impl core::marker::StructuralPartialEq for nika_vocab::assert::AssertLevel
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::assert::AssertLevel where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::assert::AssertLevel::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_vocab::assert::AssertLevel where U: core::convert::From<T>
 pub fn nika_vocab::assert::AssertLevel::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_vocab::assert::AssertLevel where U: core::convert::Into<T>
@@ -121,6 +125,8 @@ pub fn nika_vocab::assert::AssertProperty::eq(&self, other: &nika_vocab::assert:
 impl core::fmt::Debug for nika_vocab::assert::AssertProperty
 pub fn nika_vocab::assert::AssertProperty::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::StructuralPartialEq for nika_vocab::assert::AssertProperty
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::assert::AssertProperty where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::assert::AssertProperty::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_vocab::assert::AssertProperty where U: core::convert::From<T>
 pub fn nika_vocab::assert::AssertProperty::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_vocab::assert::AssertProperty where U: core::convert::Into<T>
@@ -156,6 +162,8 @@ pub fn nika_vocab::assert::AssertRefusal::fmt(&self, f: &mut core::fmt::Formatte
 impl core::fmt::Display for nika_vocab::assert::AssertRefusal
 pub fn nika_vocab::assert::AssertRefusal::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::StructuralPartialEq for nika_vocab::assert::AssertRefusal
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::assert::AssertRefusal where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::assert::AssertRefusal::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_vocab::assert::AssertRefusal where U: core::convert::From<T>
 pub fn nika_vocab::assert::AssertRefusal::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_vocab::assert::AssertRefusal where U: core::convert::Into<T>
@@ -208,6 +216,8 @@ impl serde_core::ser::Serialize for nika_vocab::capture::CaptureMode
 pub fn nika_vocab::capture::CaptureMode::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
 impl<'de> serde_core::de::Deserialize<'de> for nika_vocab::capture::CaptureMode
 pub fn nika_vocab::capture::CaptureMode::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::capture::CaptureMode where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::capture::CaptureMode::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_vocab::capture::CaptureMode where U: core::convert::From<T>
 pub fn nika_vocab::capture::CaptureMode::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_vocab::capture::CaptureMode where U: core::convert::Into<T>
@@ -250,6 +260,8 @@ impl core::fmt::Debug for nika_vocab::dead_form::DeadForm
 pub fn nika_vocab::dead_form::DeadForm::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::Copy for nika_vocab::dead_form::DeadForm
 impl core::marker::StructuralPartialEq for nika_vocab::dead_form::DeadForm
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::dead_form::DeadForm where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::dead_form::DeadForm::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_vocab::dead_form::DeadForm where U: core::convert::From<T>
 pub fn nika_vocab::dead_form::DeadForm::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_vocab::dead_form::DeadForm where U: core::convert::Into<T>
@@ -300,6 +312,8 @@ impl serde_core::ser::Serialize for nika_vocab::decode::DecodeMode
 pub fn nika_vocab::decode::DecodeMode::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
 impl<'de> serde_core::de::Deserialize<'de> for nika_vocab::decode::DecodeMode
 pub fn nika_vocab::decode::DecodeMode::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::decode::DecodeMode where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::decode::DecodeMode::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_vocab::decode::DecodeMode where U: core::convert::From<T>
 pub fn nika_vocab::decode::DecodeMode::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_vocab::decode::DecodeMode where U: core::convert::Into<T>
@@ -346,6 +360,8 @@ pub fn nika_vocab::duration::GoDurationError::fmt(&self, f: &mut core::fmt::Form
 impl core::fmt::Display for nika_vocab::duration::GoDurationError
 pub fn nika_vocab::duration::GoDurationError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::StructuralPartialEq for nika_vocab::duration::GoDurationError
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::duration::GoDurationError where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::duration::GoDurationError::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_vocab::duration::GoDurationError where U: core::convert::From<T>
 pub fn nika_vocab::duration::GoDurationError::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_vocab::duration::GoDurationError where U: core::convert::Into<T>
@@ -397,6 +413,8 @@ impl serde_core::ser::Serialize for nika_vocab::extract::ExtractMode
 pub fn nika_vocab::extract::ExtractMode::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
 impl<'de> serde_core::de::Deserialize<'de> for nika_vocab::extract::ExtractMode
 pub fn nika_vocab::extract::ExtractMode::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::extract::ExtractMode where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::extract::ExtractMode::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_vocab::extract::ExtractMode where U: core::convert::From<T>
 pub fn nika_vocab::extract::ExtractMode::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_vocab::extract::ExtractMode where U: core::convert::Into<T>
@@ -445,6 +463,8 @@ impl serde_core::ser::Serialize for nika_vocab::extract::ResponseMode
 pub fn nika_vocab::extract::ResponseMode::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
 impl<'de> serde_core::de::Deserialize<'de> for nika_vocab::extract::ResponseMode
 pub fn nika_vocab::extract::ResponseMode::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::extract::ResponseMode where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::extract::ResponseMode::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_vocab::extract::ResponseMode where U: core::convert::From<T>
 pub fn nika_vocab::extract::ResponseMode::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_vocab::extract::ResponseMode where U: core::convert::Into<T>
@@ -617,6 +637,8 @@ impl core::fmt::Debug for nika_vocab::project::ArmLocus
 pub fn nika_vocab::project::ArmLocus::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::Copy for nika_vocab::project::ArmLocus
 impl core::marker::StructuralPartialEq for nika_vocab::project::ArmLocus
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::project::ArmLocus where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::project::ArmLocus::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_vocab::project::ArmLocus where U: core::convert::From<T>
 pub fn nika_vocab::project::ArmLocus::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_vocab::project::ArmLocus where U: core::convert::Into<T>
@@ -654,6 +676,8 @@ impl core::fmt::Debug for nika_vocab::project::MissPolicy
 pub fn nika_vocab::project::MissPolicy::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::Copy for nika_vocab::project::MissPolicy
 impl core::marker::StructuralPartialEq for nika_vocab::project::MissPolicy
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::project::MissPolicy where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::project::MissPolicy::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_vocab::project::MissPolicy where U: core::convert::From<T>
 pub fn nika_vocab::project::MissPolicy::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_vocab::project::MissPolicy where U: core::convert::Into<T>
@@ -693,6 +717,8 @@ impl core::fmt::Debug for nika_vocab::project::ProjectErrorKind
 pub fn nika_vocab::project::ProjectErrorKind::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::Copy for nika_vocab::project::ProjectErrorKind
 impl core::marker::StructuralPartialEq for nika_vocab::project::ProjectErrorKind
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::project::ProjectErrorKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::project::ProjectErrorKind::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_vocab::project::ProjectErrorKind where U: core::convert::From<T>
 pub fn nika_vocab::project::ProjectErrorKind::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_vocab::project::ProjectErrorKind where U: core::convert::Into<T>
@@ -740,6 +766,8 @@ impl core::hash::Hash for nika_vocab::project::ProvenanceFloor
 pub fn nika_vocab::project::ProvenanceFloor::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
 impl core::marker::Copy for nika_vocab::project::ProvenanceFloor
 impl core::marker::StructuralPartialEq for nika_vocab::project::ProvenanceFloor
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::project::ProvenanceFloor where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::project::ProvenanceFloor::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_vocab::project::ProvenanceFloor where U: core::convert::From<T>
 pub fn nika_vocab::project::ProvenanceFloor::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_vocab::project::ProvenanceFloor where U: core::convert::Into<T>
@@ -854,6 +882,8 @@ pub fn nika_vocab::project::ProjectError::fmt(&self, f: &mut core::fmt::Formatte
 impl core::fmt::Display for nika_vocab::project::ProjectError
 pub fn nika_vocab::project::ProjectError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::StructuralPartialEq for nika_vocab::project::ProjectError
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::project::ProjectError where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::project::ProjectError::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_vocab::project::ProjectError where U: core::convert::From<T>
 pub fn nika_vocab::project::ProjectError::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_vocab::project::ProjectError where U: core::convert::Into<T>
@@ -889,6 +919,8 @@ impl core::fmt::Debug for nika_vocab::project::RegistryPolicy
 pub fn nika_vocab::project::RegistryPolicy::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::Copy for nika_vocab::project::RegistryPolicy
 impl core::marker::StructuralPartialEq for nika_vocab::project::RegistryPolicy
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::project::RegistryPolicy where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::project::RegistryPolicy::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_vocab::project::RegistryPolicy where U: core::convert::From<T>
 pub fn nika_vocab::project::RegistryPolicy::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_vocab::project::RegistryPolicy where U: core::convert::Into<T>
@@ -922,6 +954,8 @@ impl core::fmt::Debug for nika_vocab::project::TracesPolicy
 pub fn nika_vocab::project::TracesPolicy::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::Copy for nika_vocab::project::TracesPolicy
 impl core::marker::StructuralPartialEq for nika_vocab::project::TracesPolicy
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::project::TracesPolicy where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::project::TracesPolicy::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_vocab::project::TracesPolicy where U: core::convert::From<T>
 pub fn nika_vocab::project::TracesPolicy::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_vocab::project::TracesPolicy where U: core::convert::Into<T>
@@ -977,6 +1011,8 @@ impl serde_core::ser::Serialize for nika_vocab::retry::BackoffStrategy
 pub fn nika_vocab::retry::BackoffStrategy::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
 impl<'de> serde_core::de::Deserialize<'de> for nika_vocab::retry::BackoffStrategy
 pub fn nika_vocab::retry::BackoffStrategy::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::retry::BackoffStrategy where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::retry::BackoffStrategy::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_vocab::retry::BackoffStrategy where U: core::convert::From<T>
 pub fn nika_vocab::retry::BackoffStrategy::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_vocab::retry::BackoffStrategy where U: core::convert::Into<T>
@@ -1023,6 +1059,8 @@ impl serde_core::ser::Serialize for nika_vocab::retry::RetryConfig
 pub fn nika_vocab::retry::RetryConfig::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
 impl<'de> serde_core::de::Deserialize<'de> for nika_vocab::retry::RetryConfig
 pub fn nika_vocab::retry::RetryConfig::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::retry::RetryConfig where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::retry::RetryConfig::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_vocab::retry::RetryConfig where U: core::convert::From<T>
 pub fn nika_vocab::retry::RetryConfig::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_vocab::retry::RetryConfig where U: core::convert::Into<T>
@@ -1064,6 +1102,8 @@ impl core::hash::Hash for nika_vocab::run::RunClock
 pub fn nika_vocab::run::RunClock::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
 impl core::marker::Copy for nika_vocab::run::RunClock
 impl core::marker::StructuralPartialEq for nika_vocab::run::RunClock
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::run::RunClock where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::run::RunClock::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_vocab::run::RunClock where U: core::convert::From<T>
 pub fn nika_vocab::run::RunClock::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_vocab::run::RunClock where U: core::convert::Into<T>
@@ -1104,6 +1144,8 @@ impl core::hash::Hash for nika_vocab::run::RunContradiction
 pub fn nika_vocab::run::RunContradiction::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
 impl core::marker::Copy for nika_vocab::run::RunContradiction
 impl core::marker::StructuralPartialEq for nika_vocab::run::RunContradiction
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::run::RunContradiction where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::run::RunContradiction::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_vocab::run::RunContradiction where U: core::convert::From<T>
 pub fn nika_vocab::run::RunContradiction::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_vocab::run::RunContradiction where U: core::convert::Into<T>
@@ -1147,6 +1189,8 @@ impl core::hash::Hash for nika_vocab::run::RunEntropy
 pub fn nika_vocab::run::RunEntropy::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
 impl core::marker::Copy for nika_vocab::run::RunEntropy
 impl core::marker::StructuralPartialEq for nika_vocab::run::RunEntropy
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::run::RunEntropy where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::run::RunEntropy::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_vocab::run::RunEntropy where U: core::convert::From<T>
 pub fn nika_vocab::run::RunEntropy::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_vocab::run::RunEntropy where U: core::convert::Into<T>
@@ -1191,6 +1235,8 @@ impl core::hash::Hash for nika_vocab::run::RunDecl
 pub fn nika_vocab::run::RunDecl::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
 impl core::marker::Copy for nika_vocab::run::RunDecl
 impl core::marker::StructuralPartialEq for nika_vocab::run::RunDecl
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::run::RunDecl where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::run::RunDecl::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_vocab::run::RunDecl where U: core::convert::From<T>
 pub fn nika_vocab::run::RunDecl::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_vocab::run::RunDecl where U: core::convert::Into<T>
@@ -1237,6 +1283,8 @@ impl serde_core::ser::Serialize for nika_vocab::schema_version::SchemaVersion
 pub fn nika_vocab::schema_version::SchemaVersion::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
 impl<'de> serde_core::de::Deserialize<'de> for nika_vocab::schema_version::SchemaVersion
 pub fn nika_vocab::schema_version::SchemaVersion::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::schema_version::SchemaVersion where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::schema_version::SchemaVersion::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_vocab::schema_version::SchemaVersion where U: core::convert::From<T>
 pub fn nika_vocab::schema_version::SchemaVersion::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_vocab::schema_version::SchemaVersion where U: core::convert::Into<T>
@@ -1288,6 +1336,8 @@ impl serde_core::ser::Serialize for nika_vocab::secret::SecretSource
 pub fn nika_vocab::secret::SecretSource::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
 impl<'de> serde_core::de::Deserialize<'de> for nika_vocab::secret::SecretSource
 pub fn nika_vocab::secret::SecretSource::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::secret::SecretSource where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::secret::SecretSource::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_vocab::secret::SecretSource where U: core::convert::From<T>
 pub fn nika_vocab::secret::SecretSource::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_vocab::secret::SecretSource where U: core::convert::Into<T>
@@ -1333,6 +1383,8 @@ impl serde_core::ser::Serialize for nika_vocab::secret::EgressRule
 pub fn nika_vocab::secret::EgressRule::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
 impl<'de> serde_core::de::Deserialize<'de> for nika_vocab::secret::EgressRule
 pub fn nika_vocab::secret::EgressRule::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::secret::EgressRule where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::secret::EgressRule::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_vocab::secret::EgressRule where U: core::convert::From<T>
 pub fn nika_vocab::secret::EgressRule::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_vocab::secret::EgressRule where U: core::convert::Into<T>
@@ -1375,6 +1427,8 @@ impl serde_core::ser::Serialize for nika_vocab::secret::SecretRef
 pub fn nika_vocab::secret::SecretRef::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
 impl<'de> serde_core::de::Deserialize<'de> for nika_vocab::secret::SecretRef
 pub fn nika_vocab::secret::SecretRef::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::secret::SecretRef where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::secret::SecretRef::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_vocab::secret::SecretRef where U: core::convert::From<T>
 pub fn nika_vocab::secret::SecretRef::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_vocab::secret::SecretRef where U: core::convert::Into<T>
@@ -1463,6 +1517,8 @@ pub fn nika_vocab::when_gate::WhenGate::eq(&self, other: &nika_vocab::when_gate:
 impl core::fmt::Debug for nika_vocab::when_gate::WhenGate
 pub fn nika_vocab::when_gate::WhenGate::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::StructuralPartialEq for nika_vocab::when_gate::WhenGate
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::when_gate::WhenGate where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::when_gate::WhenGate::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_vocab::when_gate::WhenGate where U: core::convert::From<T>
 pub fn nika_vocab::when_gate::WhenGate::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_vocab::when_gate::WhenGate where U: core::convert::Into<T>
@@ -1505,6 +1561,8 @@ impl core::fmt::Display for nika_vocab::after::AfterPredicate
 pub fn nika_vocab::after::AfterPredicate::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::Copy for nika_vocab::after::AfterPredicate
 impl core::marker::StructuralPartialEq for nika_vocab::after::AfterPredicate
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::after::AfterPredicate where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::after::AfterPredicate::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_vocab::after::AfterPredicate where U: core::convert::From<T>
 pub fn nika_vocab::after::AfterPredicate::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_vocab::after::AfterPredicate where U: core::convert::Into<T>
@@ -1547,6 +1605,8 @@ impl core::hash::Hash for nika_vocab::assert::AssertLevel
 pub fn nika_vocab::assert::AssertLevel::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
 impl core::marker::Copy for nika_vocab::assert::AssertLevel
 impl core::marker::StructuralPartialEq for nika_vocab::assert::AssertLevel
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::assert::AssertLevel where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::assert::AssertLevel::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_vocab::assert::AssertLevel where U: core::convert::From<T>
 pub fn nika_vocab::assert::AssertLevel::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_vocab::assert::AssertLevel where U: core::convert::Into<T>
@@ -1595,6 +1655,8 @@ pub fn nika_vocab::assert::AssertProperty::eq(&self, other: &nika_vocab::assert:
 impl core::fmt::Debug for nika_vocab::assert::AssertProperty
 pub fn nika_vocab::assert::AssertProperty::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::StructuralPartialEq for nika_vocab::assert::AssertProperty
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::assert::AssertProperty where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::assert::AssertProperty::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_vocab::assert::AssertProperty where U: core::convert::From<T>
 pub fn nika_vocab::assert::AssertProperty::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_vocab::assert::AssertProperty where U: core::convert::Into<T>
@@ -1642,6 +1704,8 @@ impl serde_core::ser::Serialize for nika_vocab::retry::BackoffStrategy
 pub fn nika_vocab::retry::BackoffStrategy::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
 impl<'de> serde_core::de::Deserialize<'de> for nika_vocab::retry::BackoffStrategy
 pub fn nika_vocab::retry::BackoffStrategy::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::retry::BackoffStrategy where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::retry::BackoffStrategy::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_vocab::retry::BackoffStrategy where U: core::convert::From<T>
 pub fn nika_vocab::retry::BackoffStrategy::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_vocab::retry::BackoffStrategy where U: core::convert::Into<T>
@@ -1693,6 +1757,8 @@ impl serde_core::ser::Serialize for nika_vocab::capture::CaptureMode
 pub fn nika_vocab::capture::CaptureMode::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
 impl<'de> serde_core::de::Deserialize<'de> for nika_vocab::capture::CaptureMode
 pub fn nika_vocab::capture::CaptureMode::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::capture::CaptureMode where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::capture::CaptureMode::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_vocab::capture::CaptureMode where U: core::convert::From<T>
 pub fn nika_vocab::capture::CaptureMode::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_vocab::capture::CaptureMode where U: core::convert::Into<T>
@@ -1734,6 +1800,8 @@ impl core::fmt::Debug for nika_vocab::dead_form::DeadForm
 pub fn nika_vocab::dead_form::DeadForm::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::Copy for nika_vocab::dead_form::DeadForm
 impl core::marker::StructuralPartialEq for nika_vocab::dead_form::DeadForm
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::dead_form::DeadForm where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::dead_form::DeadForm::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_vocab::dead_form::DeadForm where U: core::convert::From<T>
 pub fn nika_vocab::dead_form::DeadForm::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_vocab::dead_form::DeadForm where U: core::convert::Into<T>
@@ -1782,6 +1850,8 @@ impl serde_core::ser::Serialize for nika_vocab::decode::DecodeMode
 pub fn nika_vocab::decode::DecodeMode::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
 impl<'de> serde_core::de::Deserialize<'de> for nika_vocab::decode::DecodeMode
 pub fn nika_vocab::decode::DecodeMode::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::decode::DecodeMode where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::decode::DecodeMode::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_vocab::decode::DecodeMode where U: core::convert::From<T>
 pub fn nika_vocab::decode::DecodeMode::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_vocab::decode::DecodeMode where U: core::convert::Into<T>
@@ -1832,6 +1902,8 @@ impl serde_core::ser::Serialize for nika_vocab::extract::ExtractMode
 pub fn nika_vocab::extract::ExtractMode::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
 impl<'de> serde_core::de::Deserialize<'de> for nika_vocab::extract::ExtractMode
 pub fn nika_vocab::extract::ExtractMode::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::extract::ExtractMode where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::extract::ExtractMode::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_vocab::extract::ExtractMode where U: core::convert::From<T>
 pub fn nika_vocab::extract::ExtractMode::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_vocab::extract::ExtractMode where U: core::convert::Into<T>
@@ -1877,6 +1949,8 @@ pub fn nika_vocab::duration::GoDurationError::fmt(&self, f: &mut core::fmt::Form
 impl core::fmt::Display for nika_vocab::duration::GoDurationError
 pub fn nika_vocab::duration::GoDurationError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::StructuralPartialEq for nika_vocab::duration::GoDurationError
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::duration::GoDurationError where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::duration::GoDurationError::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_vocab::duration::GoDurationError where U: core::convert::From<T>
 pub fn nika_vocab::duration::GoDurationError::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_vocab::duration::GoDurationError where U: core::convert::Into<T>
@@ -1994,6 +2068,8 @@ impl serde_core::ser::Serialize for nika_vocab::extract::ResponseMode
 pub fn nika_vocab::extract::ResponseMode::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
 impl<'de> serde_core::de::Deserialize<'de> for nika_vocab::extract::ResponseMode
 pub fn nika_vocab::extract::ResponseMode::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::extract::ResponseMode where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::extract::ResponseMode::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_vocab::extract::ResponseMode where U: core::convert::From<T>
 pub fn nika_vocab::extract::ResponseMode::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_vocab::extract::ResponseMode where U: core::convert::Into<T>
@@ -2035,6 +2111,8 @@ impl core::hash::Hash for nika_vocab::run::RunClock
 pub fn nika_vocab::run::RunClock::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
 impl core::marker::Copy for nika_vocab::run::RunClock
 impl core::marker::StructuralPartialEq for nika_vocab::run::RunClock
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::run::RunClock where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::run::RunClock::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_vocab::run::RunClock where U: core::convert::From<T>
 pub fn nika_vocab::run::RunClock::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_vocab::run::RunClock where U: core::convert::Into<T>
@@ -2075,6 +2153,8 @@ impl core::hash::Hash for nika_vocab::run::RunContradiction
 pub fn nika_vocab::run::RunContradiction::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
 impl core::marker::Copy for nika_vocab::run::RunContradiction
 impl core::marker::StructuralPartialEq for nika_vocab::run::RunContradiction
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::run::RunContradiction where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::run::RunContradiction::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_vocab::run::RunContradiction where U: core::convert::From<T>
 pub fn nika_vocab::run::RunContradiction::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_vocab::run::RunContradiction where U: core::convert::Into<T>
@@ -2118,6 +2198,8 @@ impl core::hash::Hash for nika_vocab::run::RunEntropy
 pub fn nika_vocab::run::RunEntropy::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
 impl core::marker::Copy for nika_vocab::run::RunEntropy
 impl core::marker::StructuralPartialEq for nika_vocab::run::RunEntropy
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::run::RunEntropy where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::run::RunEntropy::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_vocab::run::RunEntropy where U: core::convert::From<T>
 pub fn nika_vocab::run::RunEntropy::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_vocab::run::RunEntropy where U: core::convert::Into<T>
@@ -2163,6 +2245,8 @@ impl serde_core::ser::Serialize for nika_vocab::schema_version::SchemaVersion
 pub fn nika_vocab::schema_version::SchemaVersion::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
 impl<'de> serde_core::de::Deserialize<'de> for nika_vocab::schema_version::SchemaVersion
 pub fn nika_vocab::schema_version::SchemaVersion::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::schema_version::SchemaVersion where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::schema_version::SchemaVersion::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_vocab::schema_version::SchemaVersion where U: core::convert::From<T>
 pub fn nika_vocab::schema_version::SchemaVersion::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_vocab::schema_version::SchemaVersion where U: core::convert::Into<T>
@@ -2213,6 +2297,8 @@ impl serde_core::ser::Serialize for nika_vocab::secret::SecretSource
 pub fn nika_vocab::secret::SecretSource::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
 impl<'de> serde_core::de::Deserialize<'de> for nika_vocab::secret::SecretSource
 pub fn nika_vocab::secret::SecretSource::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::secret::SecretSource where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::secret::SecretSource::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_vocab::secret::SecretSource where U: core::convert::From<T>
 pub fn nika_vocab::secret::SecretSource::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_vocab::secret::SecretSource where U: core::convert::Into<T>
@@ -2287,6 +2373,8 @@ pub fn nika_vocab::when_gate::WhenGate::eq(&self, other: &nika_vocab::when_gate:
 impl core::fmt::Debug for nika_vocab::when_gate::WhenGate
 pub fn nika_vocab::when_gate::WhenGate::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::StructuralPartialEq for nika_vocab::when_gate::WhenGate
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::when_gate::WhenGate where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::when_gate::WhenGate::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_vocab::when_gate::WhenGate where U: core::convert::From<T>
 pub fn nika_vocab::when_gate::WhenGate::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_vocab::when_gate::WhenGate where U: core::convert::Into<T>
@@ -2322,6 +2410,8 @@ pub fn nika_vocab::assert::AssertRefusal::fmt(&self, f: &mut core::fmt::Formatte
 impl core::fmt::Display for nika_vocab::assert::AssertRefusal
 pub fn nika_vocab::assert::AssertRefusal::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::StructuralPartialEq for nika_vocab::assert::AssertRefusal
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::assert::AssertRefusal where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::assert::AssertRefusal::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_vocab::assert::AssertRefusal where U: core::convert::From<T>
 pub fn nika_vocab::assert::AssertRefusal::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_vocab::assert::AssertRefusal where U: core::convert::Into<T>
@@ -2366,6 +2456,8 @@ impl serde_core::ser::Serialize for nika_vocab::secret::EgressRule
 pub fn nika_vocab::secret::EgressRule::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
 impl<'de> serde_core::de::Deserialize<'de> for nika_vocab::secret::EgressRule
 pub fn nika_vocab::secret::EgressRule::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::secret::EgressRule where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::secret::EgressRule::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_vocab::secret::EgressRule where U: core::convert::From<T>
 pub fn nika_vocab::secret::EgressRule::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_vocab::secret::EgressRule where U: core::convert::Into<T>
@@ -2444,6 +2536,8 @@ impl serde_core::ser::Serialize for nika_vocab::retry::RetryConfig
 pub fn nika_vocab::retry::RetryConfig::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
 impl<'de> serde_core::de::Deserialize<'de> for nika_vocab::retry::RetryConfig
 pub fn nika_vocab::retry::RetryConfig::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::retry::RetryConfig where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::retry::RetryConfig::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_vocab::retry::RetryConfig where U: core::convert::From<T>
 pub fn nika_vocab::retry::RetryConfig::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_vocab::retry::RetryConfig where U: core::convert::Into<T>
@@ -2489,6 +2583,8 @@ impl core::hash::Hash for nika_vocab::run::RunDecl
 pub fn nika_vocab::run::RunDecl::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
 impl core::marker::Copy for nika_vocab::run::RunDecl
 impl core::marker::StructuralPartialEq for nika_vocab::run::RunDecl
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::run::RunDecl where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::run::RunDecl::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_vocab::run::RunDecl where U: core::convert::From<T>
 pub fn nika_vocab::run::RunDecl::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_vocab::run::RunDecl where U: core::convert::Into<T>
@@ -2530,6 +2626,8 @@ impl serde_core::ser::Serialize for nika_vocab::secret::SecretRef
 pub fn nika_vocab::secret::SecretRef::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
 impl<'de> serde_core::de::Deserialize<'de> for nika_vocab::secret::SecretRef
 pub fn nika_vocab::secret::SecretRef::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::secret::SecretRef where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::secret::SecretRef::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_vocab::secret::SecretRef where U: core::convert::From<T>
 pub fn nika_vocab::secret::SecretRef::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_vocab::secret::SecretRef where U: core::convert::Into<T>
