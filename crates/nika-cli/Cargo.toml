@@ -15,7 +15,9 @@ nika-event  = { path = "../nika-event", version = "0.108.0" }  # the REAL event 
 nika-cli-host = { path = "../nika-cli-host", version = "0.108.0" } # the host-integration member (the 15k wall · ADR-110 · one unit, two members)
 nika-types  = { path = "../nika-types", version = "0.108.0" }  # Timestamp · KeyValue · ids
 nika-schema = { path = "../nika-schema", version = "0.108.0" } # parse (check · inspect · graph · run)
-nika-vocab  = { path = "../nika-vocab", version = "0.108.0" }  # the project file (ceiling — the --max-cost-usd flag's default rung · D-2026-08-11-N5)
+nika-vocab  = { path = "../nika-vocab", version = "0.108.0" }
+nika-cadence = { path = "../nika-cadence", version = "0.108.0" }  # the arm: grammar + the pure next-slot calculator (L4→L0)
+jiff        = { workspace = true }  # the CLOCK — nika-cadence is pure and takes a Zoned; reading one is an L4 act  # the project file (ceiling — the --max-cost-usd flag's default rung · D-2026-08-11-N5)
 nika-check  = { path = "../nika-check", version = "0.108.0" }  # the ADR-092 check ladder (the check verb · run gates · fix loop)
 nika-graph = { path = "../nika-graph", version = "0.108.0" }   # the canonical projection (inspect --format json renders it)
 nika-error  = { path = "../nika-error", version = "0.108.0" }  # the code registry (`nika explain`)

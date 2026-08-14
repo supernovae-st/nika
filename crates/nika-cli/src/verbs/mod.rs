@@ -10,6 +10,7 @@
 //! then. The bin (`main.rs`) stays a thin dispatcher so every surface is
 //! testable as a library call.
 
+pub mod arm;
 pub mod catalog;
 pub mod check;
 pub mod context;
