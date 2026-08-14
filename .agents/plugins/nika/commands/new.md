@@ -13,7 +13,7 @@ Arguments: `$ARGUMENTS` (template + destination; either may be missing).
    kebab-case `<name>.nika.yaml` from the intent.
 2. `nika new <template> <file>` — the scriptable scaffold.
 3. Adapt the file to the user's actual task: the envelope stays
-   `nika: v1` + a `workflow:` OBJECT (`id:`) + a `tasks:` MAP keyed by
+   `nika: <id>` (the id lives ON the tag) + a `tasks:` MAP keyed by
    task id · exactly ONE verb per task · prefer `invoke:` builtins
    over `exec:` (native-first) · every `infer:` carries `max_tokens`
    (the cost ceiling depends on it) · templated inputs ride an
