@@ -192,17 +192,47 @@ impl<'de> Deserialize<'de> for ExecPermit {
     }
 }
 
-/// Gitignore-style glob match for tool ids / hosts — v0.1 surface:
-/// exact match, or a single trailing `*` matching any (possibly empty)
-/// tail. Mirrors the agent `tools:` whitelist semantics. Public since
-/// v0.105.x (NEP-0002 v2.0's whitelist classification needs the ONE
-/// matcher — a second spelling of the same rule would drift).
+/// The tool-id separators. A tool id is `nika:<name>` or
+/// `mcp:<server>/<tool>`, so `:` and `/` are what divide one NAME from
+/// the next. Hosts and paths are NOT matched here — they carry their own
+/// matchers (`nika_types::net::host_glob_matches` · `fit::path_glob_matches`),
+/// which is why this one may reason about tool-id shape.
+const TOOL_SEGMENT_SEPARATORS: [char; 2] = [':', '/'];
+
+/// Glob match for tool ids — exact match, or a single trailing `*` that
+/// stops at a SEGMENT BOUNDARY. Mirrors the agent `tools:` whitelist
+/// semantics (spec `02-verbs.md` §tool whitelist). Public since v0.105.x
+/// (NEP-0002 v2.0's whitelist classification needs the ONE matcher — a
+/// second spelling of the same rule would drift).
+///
+/// ⚠️ **The `*` used to be a bare `starts_with`, and that was a hole.** A
+/// grant reads as a family (`mcp:browser*` — "the browser server"), so a
+/// tail that crosses into a DIFFERENT name silently widened it:
+///
+/// ```text
+/// mcp:browser*  admitted  mcp:browser-evil     ← a different server
+/// mcp:brow*     admitted  mcp:browser-evil     ← and it need not even be close
+/// ```
+///
+/// The tail must now end the value or land on a separator, so the grant
+/// can only widen INTO the thing it named, never SIDEWAYS into a
+/// neighbour that merely shares a prefix. Every documented and corpus
+/// idiom is untouched — they all put the `*` after a separator already
+/// (`nika:*` · `mcp:browser/*`).
 #[must_use]
 pub fn glob_matches(glob: &str, value: &str) -> bool {
-    match glob.strip_suffix('*') {
-        Some(prefix) => value.starts_with(prefix),
-        None => glob == value,
-    }
+    let Some(prefix) = glob.strip_suffix('*') else {
+        return glob == value;
+    };
+    let Some(rest) = value.strip_prefix(prefix) else {
+        return false;
+    };
+    // `*` alone is the deliberate "everything" grant, and a prefix that
+    // already ends on a separator has named its boundary explicitly.
+    rest.is_empty()
+        || prefix.is_empty()
+        || prefix.ends_with(TOOL_SEGMENT_SEPARATORS)
+        || rest.starts_with(TOOL_SEGMENT_SEPARATORS)
 }
 
 #[cfg(test)]
@@ -256,6 +286,45 @@ mod tests {
         // no-star = exact only
         assert!(glob_matches("a", "a"));
         assert!(!glob_matches("a", "ab"));
+    }
+
+    /// ⭐ A grant may widen INTO the name it wrote, never SIDEWAYS into a
+    /// neighbour that merely shares a prefix. `starts_with` could not tell
+    /// the two apart, so `mcp:browser*` — which reads as "the browser
+    /// server" — admitted `mcp:browser-evil`.
+    #[test]
+    fn a_tail_never_crosses_into_a_different_name() {
+        // THE HOLE, closed. Both of these read as the browser server.
+        assert!(
+            !glob_matches("mcp:browser*", "mcp:browser-evil"),
+            "a neighbouring server must not ride a shared prefix"
+        );
+        assert!(
+            !glob_matches("mcp:brow*", "mcp:browser-evil"),
+            "and it need not even be a close prefix"
+        );
+        assert!(
+            !glob_matches("mcp:browser*", "mcp:browser-evil/navigate"),
+            "nor may its tools"
+        );
+
+        // The SAME name, however, still widens — that is what was meant.
+        assert!(glob_matches("mcp:browser*", "mcp:browser"));
+        assert!(glob_matches("mcp:browser*", "mcp:browser/navigate"));
+    }
+
+    /// Every idiom the spec teaches and the corpus writes puts the `*`
+    /// after a separator already, so the boundary rule costs them nothing.
+    #[test]
+    fn the_taught_idioms_are_untouched() {
+        assert!(glob_matches("mcp:browser/*", "mcp:browser/navigate"));
+        assert!(glob_matches("nika:*", "nika:write"));
+        assert!(glob_matches("nika:connectome/*", "nika:connectome/recall"));
+        // `*` alone stays the deliberate everything-grant.
+        assert!(glob_matches("*", "mcp:anything/at-all"));
+        assert!(glob_matches("*", ""));
+        // and a sibling namespace is still refused
+        assert!(!glob_matches("mcp:browser/*", "mcp:postgres/query"));
     }
 
     #[test]
