@@ -1,0 +1,891 @@
+pub mod nika_tui_core
+pub mod nika_tui_core::claims
+pub fn nika_tui_core::claims::may_claim_bottleneck(neck: core::option::Option<&nika_tui_core::derive::Neck>) -> bool
+pub fn nika_tui_core::claims::may_claim_chain_intact(run: &nika_tui_core::model::Run) -> bool
+pub fn nika_tui_core::claims::may_claim_check_clean(report_clean: core::option::Option<bool>) -> bool
+pub const fn nika_tui_core::claims::must_mark_simulated() -> bool
+pub mod nika_tui_core::derive
+#[non_exhaustive] pub struct nika_tui_core::derive::GroupSpan
+pub nika_tui_core::derive::GroupSpan::cost: f64
+pub nika_tui_core::derive::GroupSpan::max: f64
+pub nika_tui_core::derive::GroupSpan::min: f64
+pub nika_tui_core::derive::GroupSpan::n: usize
+pub nika_tui_core::derive::GroupSpan::slowest: alloc::string::String
+impl nika_tui_core::derive::GroupSpan
+pub const fn nika_tui_core::derive::GroupSpan::new(n: usize, min: f64, max: f64, cost: f64, slowest: alloc::string::String) -> Self
+impl core::clone::Clone for nika_tui_core::derive::GroupSpan
+pub fn nika_tui_core::derive::GroupSpan::clone(&self) -> nika_tui_core::derive::GroupSpan
+impl core::cmp::PartialEq for nika_tui_core::derive::GroupSpan
+pub fn nika_tui_core::derive::GroupSpan::eq(&self, other: &nika_tui_core::derive::GroupSpan) -> bool
+impl core::fmt::Debug for nika_tui_core::derive::GroupSpan
+pub fn nika_tui_core::derive::GroupSpan::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_tui_core::derive::GroupSpan
+impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_tui_core::derive::GroupSpan where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
+impl<T, U> core::convert::Into<U> for nika_tui_core::derive::GroupSpan where U: core::convert::From<T>
+pub fn nika_tui_core::derive::GroupSpan::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tui_core::derive::GroupSpan where U: core::convert::Into<T>
+pub type nika_tui_core::derive::GroupSpan::Error = core::convert::Infallible
+pub fn nika_tui_core::derive::GroupSpan::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tui_core::derive::GroupSpan where U: core::convert::TryFrom<T>
+pub type nika_tui_core::derive::GroupSpan::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tui_core::derive::GroupSpan::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_tui_core::derive::GroupSpan where T: core::clone::Clone
+pub type nika_tui_core::derive::GroupSpan::Owned = T
+pub fn nika_tui_core::derive::GroupSpan::clone_into(&self, target: &mut T)
+pub fn nika_tui_core::derive::GroupSpan::to_owned(&self) -> T
+impl<T> core::any::Any for nika_tui_core::derive::GroupSpan where T: 'static + ?core::marker::Sized
+pub fn nika_tui_core::derive::GroupSpan::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tui_core::derive::GroupSpan where T: ?core::marker::Sized
+pub fn nika_tui_core::derive::GroupSpan::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tui_core::derive::GroupSpan where T: ?core::marker::Sized
+pub fn nika_tui_core::derive::GroupSpan::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_tui_core::derive::GroupSpan where T: core::clone::Clone
+pub unsafe fn nika_tui_core::derive::GroupSpan::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_tui_core::derive::GroupSpan
+pub fn nika_tui_core::derive::GroupSpan::from(t: T) -> T
+#[non_exhaustive] pub struct nika_tui_core::derive::Neck
+pub nika_tui_core::derive::Neck::blocked: usize
+pub nika_tui_core::derive::Neck::id: alloc::string::String
+pub nika_tui_core::derive::Neck::idle_total: f64
+impl nika_tui_core::derive::Neck
+pub const fn nika_tui_core::derive::Neck::new(id: alloc::string::String, idle_total: f64, blocked: usize) -> Self
+impl core::clone::Clone for nika_tui_core::derive::Neck
+pub fn nika_tui_core::derive::Neck::clone(&self) -> nika_tui_core::derive::Neck
+impl core::cmp::PartialEq for nika_tui_core::derive::Neck
+pub fn nika_tui_core::derive::Neck::eq(&self, other: &nika_tui_core::derive::Neck) -> bool
+impl core::fmt::Debug for nika_tui_core::derive::Neck
+pub fn nika_tui_core::derive::Neck::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_tui_core::derive::Neck
+impl serde_core::ser::Serialize for nika_tui_core::derive::Neck
+pub fn nika_tui_core::derive::Neck::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_tui_core::derive::Neck
+pub fn nika_tui_core::derive::Neck::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_tui_core::derive::Neck where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
+impl<T, U> core::convert::Into<U> for nika_tui_core::derive::Neck where U: core::convert::From<T>
+pub fn nika_tui_core::derive::Neck::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tui_core::derive::Neck where U: core::convert::Into<T>
+pub type nika_tui_core::derive::Neck::Error = core::convert::Infallible
+pub fn nika_tui_core::derive::Neck::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tui_core::derive::Neck where U: core::convert::TryFrom<T>
+pub type nika_tui_core::derive::Neck::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tui_core::derive::Neck::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_tui_core::derive::Neck where T: core::clone::Clone
+pub type nika_tui_core::derive::Neck::Owned = T
+pub fn nika_tui_core::derive::Neck::clone_into(&self, target: &mut T)
+pub fn nika_tui_core::derive::Neck::to_owned(&self) -> T
+impl<T> core::any::Any for nika_tui_core::derive::Neck where T: 'static + ?core::marker::Sized
+pub fn nika_tui_core::derive::Neck::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tui_core::derive::Neck where T: ?core::marker::Sized
+pub fn nika_tui_core::derive::Neck::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tui_core::derive::Neck where T: ?core::marker::Sized
+pub fn nika_tui_core::derive::Neck::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_tui_core::derive::Neck where T: core::clone::Clone
+pub unsafe fn nika_tui_core::derive::Neck::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_tui_core::derive::Neck
+pub fn nika_tui_core::derive::Neck::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_tui_core::derive::Neck where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_tui_core::derive::Waves
+impl nika_tui_core::derive::Waves
+pub fn nika_tui_core::derive::Waves::contains(&self, id: &str) -> bool
+pub fn nika_tui_core::derive::Waves::groups(&self) -> &[alloc::vec::Vec<nika_tui_core::model::Task>]
+pub fn nika_tui_core::derive::Waves::is_empty(&self) -> bool
+pub fn nika_tui_core::derive::Waves::len(&self) -> usize
+pub fn nika_tui_core::derive::Waves::of(&self, id: &str) -> usize
+impl core::clone::Clone for nika_tui_core::derive::Waves
+pub fn nika_tui_core::derive::Waves::clone(&self) -> nika_tui_core::derive::Waves
+impl core::fmt::Debug for nika_tui_core::derive::Waves
+pub fn nika_tui_core::derive::Waves::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_tui_core::derive::Waves where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
+impl<T, U> core::convert::Into<U> for nika_tui_core::derive::Waves where U: core::convert::From<T>
+pub fn nika_tui_core::derive::Waves::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tui_core::derive::Waves where U: core::convert::Into<T>
+pub type nika_tui_core::derive::Waves::Error = core::convert::Infallible
+pub fn nika_tui_core::derive::Waves::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tui_core::derive::Waves where U: core::convert::TryFrom<T>
+pub type nika_tui_core::derive::Waves::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tui_core::derive::Waves::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_tui_core::derive::Waves where T: core::clone::Clone
+pub type nika_tui_core::derive::Waves::Owned = T
+pub fn nika_tui_core::derive::Waves::clone_into(&self, target: &mut T)
+pub fn nika_tui_core::derive::Waves::to_owned(&self) -> T
+impl<T> core::any::Any for nika_tui_core::derive::Waves where T: 'static + ?core::marker::Sized
+pub fn nika_tui_core::derive::Waves::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tui_core::derive::Waves where T: ?core::marker::Sized
+pub fn nika_tui_core::derive::Waves::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tui_core::derive::Waves where T: ?core::marker::Sized
+pub fn nika_tui_core::derive::Waves::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_tui_core::derive::Waves where T: core::clone::Clone
+pub unsafe fn nika_tui_core::derive::Waves::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_tui_core::derive::Waves
+pub fn nika_tui_core::derive::Waves::from(t: T) -> T
+pub fn nika_tui_core::derive::blast_radius(wf: &nika_tui_core::model::Workflow) -> alloc::vec::Vec<nika_tui_core::model::Touch>
+pub fn nika_tui_core::derive::bottleneck(ws: &nika_tui_core::derive::Waves, run: &nika_tui_core::model::Run) -> core::option::Option<nika_tui_core::derive::Neck>
+pub fn nika_tui_core::derive::cost_by_verb(wf: &nika_tui_core::model::Workflow, run: &nika_tui_core::model::Run) -> [(&'static str, f64); 4]
+pub fn nika_tui_core::derive::foreign_tasks(wf: &nika_tui_core::model::Workflow) -> alloc::vec::Vec<&nika_tui_core::model::Task>
+pub fn nika_tui_core::derive::group_span(members: &[nika_tui_core::model::Task], run: &nika_tui_core::model::Run) -> core::option::Option<nika_tui_core::derive::GroupSpan>
+pub fn nika_tui_core::derive::groups_of(wf: &nika_tui_core::model::Workflow) -> alloc::vec::Vec<nika_tui_core::model::Group>
+pub fn nika_tui_core::derive::has_failed(run: &nika_tui_core::model::Run) -> bool
+pub fn nika_tui_core::derive::idle_of(ws: &nika_tui_core::derive::Waves, run: &nika_tui_core::model::Run, id: &str) -> f64
+pub fn nika_tui_core::derive::idles(ws: &nika_tui_core::derive::Waves, run: &nika_tui_core::model::Run) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, f64>
+pub fn nika_tui_core::derive::ran(s: &nika_tui_core::model::Step) -> bool
+pub fn nika_tui_core::derive::tasks_touching(wf: &nika_tui_core::model::Workflow, c: nika_tui_core::model::Touch) -> alloc::vec::Vec<&nika_tui_core::model::Task>
+pub fn nika_tui_core::derive::total_cost(run: &nika_tui_core::model::Run) -> f64
+pub fn nika_tui_core::derive::total_time(run: &nika_tui_core::model::Run) -> f64
+pub fn nika_tui_core::derive::undeclared(wf: &nika_tui_core::model::Workflow) -> alloc::vec::Vec<nika_tui_core::model::Touch>
+pub fn nika_tui_core::derive::verbs_used(wf: &nika_tui_core::model::Workflow) -> alloc::vec::Vec<nika_tui_core::model::Verb>
+pub fn nika_tui_core::derive::wave_end(ws: &nika_tui_core::derive::Waves, run: &nika_tui_core::model::Run, w: usize) -> f64
+pub fn nika_tui_core::derive::wave_ends(ws: &nika_tui_core::derive::Waves, run: &nika_tui_core::model::Run) -> alloc::vec::Vec<f64>
+pub fn nika_tui_core::derive::waves(wf: &nika_tui_core::model::Workflow) -> nika_tui_core::derive::Waves
+pub mod nika_tui_core::ingress
+#[non_exhaustive] pub enum nika_tui_core::ingress::IngressError
+pub nika_tui_core::ingress::IngressError::NotJson
+pub nika_tui_core::ingress::IngressError::NotJson::line: usize
+impl core::clone::Clone for nika_tui_core::ingress::IngressError
+pub fn nika_tui_core::ingress::IngressError::clone(&self) -> nika_tui_core::ingress::IngressError
+impl core::cmp::Eq for nika_tui_core::ingress::IngressError
+impl core::cmp::PartialEq for nika_tui_core::ingress::IngressError
+pub fn nika_tui_core::ingress::IngressError::eq(&self, other: &nika_tui_core::ingress::IngressError) -> bool
+impl core::error::Error for nika_tui_core::ingress::IngressError
+impl core::fmt::Debug for nika_tui_core::ingress::IngressError
+pub fn nika_tui_core::ingress::IngressError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_tui_core::ingress::IngressError
+pub fn nika_tui_core::ingress::IngressError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_tui_core::ingress::IngressError
+impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_tui_core::ingress::IngressError where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
+impl<T, U> core::convert::Into<U> for nika_tui_core::ingress::IngressError where U: core::convert::From<T>
+pub fn nika_tui_core::ingress::IngressError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tui_core::ingress::IngressError where U: core::convert::Into<T>
+pub type nika_tui_core::ingress::IngressError::Error = core::convert::Infallible
+pub fn nika_tui_core::ingress::IngressError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tui_core::ingress::IngressError where U: core::convert::TryFrom<T>
+pub type nika_tui_core::ingress::IngressError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tui_core::ingress::IngressError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_tui_core::ingress::IngressError where T: core::clone::Clone
+pub type nika_tui_core::ingress::IngressError::Owned = T
+pub fn nika_tui_core::ingress::IngressError::clone_into(&self, target: &mut T)
+pub fn nika_tui_core::ingress::IngressError::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_tui_core::ingress::IngressError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_tui_core::ingress::IngressError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_tui_core::ingress::IngressError where T: 'static + ?core::marker::Sized
+pub fn nika_tui_core::ingress::IngressError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tui_core::ingress::IngressError where T: ?core::marker::Sized
+pub fn nika_tui_core::ingress::IngressError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tui_core::ingress::IngressError where T: ?core::marker::Sized
+pub fn nika_tui_core::ingress::IngressError::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_tui_core::ingress::IngressError where T: core::clone::Clone
+pub unsafe fn nika_tui_core::ingress::IngressError::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_tui_core::ingress::IngressError
+pub fn nika_tui_core::ingress::IngressError::from(t: T) -> T
+#[non_exhaustive] pub struct nika_tui_core::ingress::Edge
+pub nika_tui_core::ingress::Edge::binding: core::option::Option<alloc::string::String>
+pub nika_tui_core::ingress::Edge::from: alloc::string::String
+pub nika_tui_core::ingress::Edge::kind: alloc::string::String
+pub nika_tui_core::ingress::Edge::predicate: core::option::Option<alloc::string::String>
+pub nika_tui_core::ingress::Edge::to: alloc::string::String
+impl nika_tui_core::ingress::Edge
+pub const fn nika_tui_core::ingress::Edge::new(from: alloc::string::String, to: alloc::string::String, kind: alloc::string::String, predicate: core::option::Option<alloc::string::String>, binding: core::option::Option<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_tui_core::ingress::Edge
+pub fn nika_tui_core::ingress::Edge::clone(&self) -> nika_tui_core::ingress::Edge
+impl core::cmp::Eq for nika_tui_core::ingress::Edge
+impl core::cmp::PartialEq for nika_tui_core::ingress::Edge
+pub fn nika_tui_core::ingress::Edge::eq(&self, other: &nika_tui_core::ingress::Edge) -> bool
+impl core::fmt::Debug for nika_tui_core::ingress::Edge
+pub fn nika_tui_core::ingress::Edge::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_tui_core::ingress::Edge
+impl serde_core::ser::Serialize for nika_tui_core::ingress::Edge
+pub fn nika_tui_core::ingress::Edge::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_tui_core::ingress::Edge
+pub fn nika_tui_core::ingress::Edge::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_tui_core::ingress::Edge where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
+impl<T, U> core::convert::Into<U> for nika_tui_core::ingress::Edge where U: core::convert::From<T>
+pub fn nika_tui_core::ingress::Edge::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tui_core::ingress::Edge where U: core::convert::Into<T>
+pub type nika_tui_core::ingress::Edge::Error = core::convert::Infallible
+pub fn nika_tui_core::ingress::Edge::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tui_core::ingress::Edge where U: core::convert::TryFrom<T>
+pub type nika_tui_core::ingress::Edge::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tui_core::ingress::Edge::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_tui_core::ingress::Edge where T: core::clone::Clone
+pub type nika_tui_core::ingress::Edge::Owned = T
+pub fn nika_tui_core::ingress::Edge::clone_into(&self, target: &mut T)
+pub fn nika_tui_core::ingress::Edge::to_owned(&self) -> T
+impl<T> core::any::Any for nika_tui_core::ingress::Edge where T: 'static + ?core::marker::Sized
+pub fn nika_tui_core::ingress::Edge::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tui_core::ingress::Edge where T: ?core::marker::Sized
+pub fn nika_tui_core::ingress::Edge::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tui_core::ingress::Edge where T: ?core::marker::Sized
+pub fn nika_tui_core::ingress::Edge::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_tui_core::ingress::Edge where T: core::clone::Clone
+pub unsafe fn nika_tui_core::ingress::Edge::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_tui_core::ingress::Edge
+pub fn nika_tui_core::ingress::Edge::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_tui_core::ingress::Edge where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_tui_core::ingress::FanOut
+pub nika_tui_core::ingress::FanOut::count: core::option::Option<u64>
+pub nika_tui_core::ingress::FanOut::kind: alloc::string::String
+impl nika_tui_core::ingress::FanOut
+pub const fn nika_tui_core::ingress::FanOut::new(kind: alloc::string::String, count: core::option::Option<u64>) -> Self
+impl core::clone::Clone for nika_tui_core::ingress::FanOut
+pub fn nika_tui_core::ingress::FanOut::clone(&self) -> nika_tui_core::ingress::FanOut
+impl core::cmp::Eq for nika_tui_core::ingress::FanOut
+impl core::cmp::PartialEq for nika_tui_core::ingress::FanOut
+pub fn nika_tui_core::ingress::FanOut::eq(&self, other: &nika_tui_core::ingress::FanOut) -> bool
+impl core::fmt::Debug for nika_tui_core::ingress::FanOut
+pub fn nika_tui_core::ingress::FanOut::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_tui_core::ingress::FanOut
+impl serde_core::ser::Serialize for nika_tui_core::ingress::FanOut
+pub fn nika_tui_core::ingress::FanOut::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_tui_core::ingress::FanOut
+pub fn nika_tui_core::ingress::FanOut::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_tui_core::ingress::FanOut where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
+impl<T, U> core::convert::Into<U> for nika_tui_core::ingress::FanOut where U: core::convert::From<T>
+pub fn nika_tui_core::ingress::FanOut::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tui_core::ingress::FanOut where U: core::convert::Into<T>
+pub type nika_tui_core::ingress::FanOut::Error = core::convert::Infallible
+pub fn nika_tui_core::ingress::FanOut::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tui_core::ingress::FanOut where U: core::convert::TryFrom<T>
+pub type nika_tui_core::ingress::FanOut::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tui_core::ingress::FanOut::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_tui_core::ingress::FanOut where T: core::clone::Clone
+pub type nika_tui_core::ingress::FanOut::Owned = T
+pub fn nika_tui_core::ingress::FanOut::clone_into(&self, target: &mut T)
+pub fn nika_tui_core::ingress::FanOut::to_owned(&self) -> T
+impl<T> core::any::Any for nika_tui_core::ingress::FanOut where T: 'static + ?core::marker::Sized
+pub fn nika_tui_core::ingress::FanOut::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tui_core::ingress::FanOut where T: ?core::marker::Sized
+pub fn nika_tui_core::ingress::FanOut::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tui_core::ingress::FanOut where T: ?core::marker::Sized
+pub fn nika_tui_core::ingress::FanOut::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_tui_core::ingress::FanOut where T: core::clone::Clone
+pub unsafe fn nika_tui_core::ingress::FanOut::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_tui_core::ingress::FanOut
+pub fn nika_tui_core::ingress::FanOut::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_tui_core::ingress::FanOut where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_tui_core::ingress::GraphDoc
+pub nika_tui_core::ingress::GraphDoc::edges: alloc::vec::Vec<nika_tui_core::ingress::Edge>
+pub nika_tui_core::ingress::GraphDoc::graph_format: u32
+pub nika_tui_core::ingress::GraphDoc::nodes: alloc::vec::Vec<nika_tui_core::ingress::Node>
+pub nika_tui_core::ingress::GraphDoc::workflow: alloc::string::String
+impl nika_tui_core::ingress::GraphDoc
+pub const fn nika_tui_core::ingress::GraphDoc::new(graph_format: u32, workflow: alloc::string::String, nodes: alloc::vec::Vec<nika_tui_core::ingress::Node>, edges: alloc::vec::Vec<nika_tui_core::ingress::Edge>) -> Self
+pub fn nika_tui_core::ingress::GraphDoc::with_nodes(&self, nodes: alloc::vec::Vec<nika_tui_core::ingress::Node>) -> Self
+impl core::clone::Clone for nika_tui_core::ingress::GraphDoc
+pub fn nika_tui_core::ingress::GraphDoc::clone(&self) -> nika_tui_core::ingress::GraphDoc
+impl core::cmp::PartialEq for nika_tui_core::ingress::GraphDoc
+pub fn nika_tui_core::ingress::GraphDoc::eq(&self, other: &nika_tui_core::ingress::GraphDoc) -> bool
+impl core::fmt::Debug for nika_tui_core::ingress::GraphDoc
+pub fn nika_tui_core::ingress::GraphDoc::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_tui_core::ingress::GraphDoc
+impl serde_core::ser::Serialize for nika_tui_core::ingress::GraphDoc
+pub fn nika_tui_core::ingress::GraphDoc::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_tui_core::ingress::GraphDoc
+pub fn nika_tui_core::ingress::GraphDoc::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_tui_core::ingress::GraphDoc where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
+impl<T, U> core::convert::Into<U> for nika_tui_core::ingress::GraphDoc where U: core::convert::From<T>
+pub fn nika_tui_core::ingress::GraphDoc::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tui_core::ingress::GraphDoc where U: core::convert::Into<T>
+pub type nika_tui_core::ingress::GraphDoc::Error = core::convert::Infallible
+pub fn nika_tui_core::ingress::GraphDoc::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tui_core::ingress::GraphDoc where U: core::convert::TryFrom<T>
+pub type nika_tui_core::ingress::GraphDoc::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tui_core::ingress::GraphDoc::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_tui_core::ingress::GraphDoc where T: core::clone::Clone
+pub type nika_tui_core::ingress::GraphDoc::Owned = T
+pub fn nika_tui_core::ingress::GraphDoc::clone_into(&self, target: &mut T)
+pub fn nika_tui_core::ingress::GraphDoc::to_owned(&self) -> T
+impl<T> core::any::Any for nika_tui_core::ingress::GraphDoc where T: 'static + ?core::marker::Sized
+pub fn nika_tui_core::ingress::GraphDoc::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tui_core::ingress::GraphDoc where T: ?core::marker::Sized
+pub fn nika_tui_core::ingress::GraphDoc::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tui_core::ingress::GraphDoc where T: ?core::marker::Sized
+pub fn nika_tui_core::ingress::GraphDoc::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_tui_core::ingress::GraphDoc where T: core::clone::Clone
+pub unsafe fn nika_tui_core::ingress::GraphDoc::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_tui_core::ingress::GraphDoc
+pub fn nika_tui_core::ingress::GraphDoc::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_tui_core::ingress::GraphDoc where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_tui_core::ingress::Node
+pub nika_tui_core::ingress::Node::cost_interval: core::option::Option<[f64; 2]>
+pub nika_tui_core::ingress::Node::extra: alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>
+pub nika_tui_core::ingress::Node::fan_out: core::option::Option<nika_tui_core::ingress::FanOut>
+pub nika_tui_core::ingress::Node::id: alloc::string::String
+pub nika_tui_core::ingress::Node::model: core::option::Option<alloc::string::String>
+pub nika_tui_core::ingress::Node::on_error: core::option::Option<alloc::string::String>
+pub nika_tui_core::ingress::Node::outputs: alloc::vec::Vec<alloc::string::String>
+pub nika_tui_core::ingress::Node::permits: alloc::vec::Vec<alloc::string::String>
+pub nika_tui_core::ingress::Node::retry_max_attempts: core::option::Option<u32>
+pub nika_tui_core::ingress::Node::timeout_ms: core::option::Option<u64>
+pub nika_tui_core::ingress::Node::tool: core::option::Option<alloc::string::String>
+pub nika_tui_core::ingress::Node::verb: nika_tui_core::model::Verb
+pub nika_tui_core::ingress::Node::when: core::option::Option<alloc::string::String>
+impl nika_tui_core::ingress::Node
+pub fn nika_tui_core::ingress::Node::new(id: alloc::string::String, verb: nika_tui_core::model::Verb) -> Self
+impl core::clone::Clone for nika_tui_core::ingress::Node
+pub fn nika_tui_core::ingress::Node::clone(&self) -> nika_tui_core::ingress::Node
+impl core::cmp::PartialEq for nika_tui_core::ingress::Node
+pub fn nika_tui_core::ingress::Node::eq(&self, other: &nika_tui_core::ingress::Node) -> bool
+impl core::fmt::Debug for nika_tui_core::ingress::Node
+pub fn nika_tui_core::ingress::Node::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_tui_core::ingress::Node
+impl serde_core::ser::Serialize for nika_tui_core::ingress::Node
+pub fn nika_tui_core::ingress::Node::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_tui_core::ingress::Node
+pub fn nika_tui_core::ingress::Node::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_tui_core::ingress::Node where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
+impl<T, U> core::convert::Into<U> for nika_tui_core::ingress::Node where U: core::convert::From<T>
+pub fn nika_tui_core::ingress::Node::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tui_core::ingress::Node where U: core::convert::Into<T>
+pub type nika_tui_core::ingress::Node::Error = core::convert::Infallible
+pub fn nika_tui_core::ingress::Node::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tui_core::ingress::Node where U: core::convert::TryFrom<T>
+pub type nika_tui_core::ingress::Node::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tui_core::ingress::Node::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_tui_core::ingress::Node where T: core::clone::Clone
+pub type nika_tui_core::ingress::Node::Owned = T
+pub fn nika_tui_core::ingress::Node::clone_into(&self, target: &mut T)
+pub fn nika_tui_core::ingress::Node::to_owned(&self) -> T
+impl<T> core::any::Any for nika_tui_core::ingress::Node where T: 'static + ?core::marker::Sized
+pub fn nika_tui_core::ingress::Node::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tui_core::ingress::Node where T: ?core::marker::Sized
+pub fn nika_tui_core::ingress::Node::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tui_core::ingress::Node where T: ?core::marker::Sized
+pub fn nika_tui_core::ingress::Node::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_tui_core::ingress::Node where T: core::clone::Clone
+pub unsafe fn nika_tui_core::ingress::Node::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_tui_core::ingress::Node
+pub fn nika_tui_core::ingress::Node::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_tui_core::ingress::Node where T: for<'de> serde_core::de::Deserialize<'de>
+pub fn nika_tui_core::ingress::run_from_journal(bytes: &str) -> core::result::Result<nika_tui_core::model::Run, nika_tui_core::ingress::IngressError>
+pub mod nika_tui_core::model
+#[non_exhaustive] pub enum nika_tui_core::model::Family
+pub nika_tui_core::model::Family::Core
+pub nika_tui_core::model::Family::Data
+pub nika_tui_core::model::Family::File
+pub nika_tui_core::model::Family::Introspection
+pub nika_tui_core::model::Family::Media
+pub nika_tui_core::model::Family::Network
+impl core::clone::Clone for nika_tui_core::model::Family
+pub fn nika_tui_core::model::Family::clone(&self) -> nika_tui_core::model::Family
+impl core::cmp::Eq for nika_tui_core::model::Family
+impl core::cmp::PartialEq for nika_tui_core::model::Family
+pub fn nika_tui_core::model::Family::eq(&self, other: &nika_tui_core::model::Family) -> bool
+impl core::fmt::Debug for nika_tui_core::model::Family
+pub fn nika_tui_core::model::Family::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_tui_core::model::Family
+impl core::marker::StructuralPartialEq for nika_tui_core::model::Family
+impl serde_core::ser::Serialize for nika_tui_core::model::Family
+pub fn nika_tui_core::model::Family::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_tui_core::model::Family
+pub fn nika_tui_core::model::Family::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_tui_core::model::Family where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
+impl<T, U> core::convert::Into<U> for nika_tui_core::model::Family where U: core::convert::From<T>
+pub fn nika_tui_core::model::Family::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tui_core::model::Family where U: core::convert::Into<T>
+pub type nika_tui_core::model::Family::Error = core::convert::Infallible
+pub fn nika_tui_core::model::Family::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tui_core::model::Family where U: core::convert::TryFrom<T>
+pub type nika_tui_core::model::Family::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tui_core::model::Family::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_tui_core::model::Family where T: core::clone::Clone
+pub type nika_tui_core::model::Family::Owned = T
+pub fn nika_tui_core::model::Family::clone_into(&self, target: &mut T)
+pub fn nika_tui_core::model::Family::to_owned(&self) -> T
+impl<T> core::any::Any for nika_tui_core::model::Family where T: 'static + ?core::marker::Sized
+pub fn nika_tui_core::model::Family::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tui_core::model::Family where T: ?core::marker::Sized
+pub fn nika_tui_core::model::Family::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tui_core::model::Family where T: ?core::marker::Sized
+pub fn nika_tui_core::model::Family::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_tui_core::model::Family where T: core::clone::Clone
+pub unsafe fn nika_tui_core::model::Family::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_tui_core::model::Family
+pub fn nika_tui_core::model::Family::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_tui_core::model::Family where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub enum nika_tui_core::model::Group
+pub nika_tui_core::model::Group::Fanout
+pub nika_tui_core::model::Group::Fanout::members: alloc::vec::Vec<nika_tui_core::model::Task>
+pub nika_tui_core::model::Group::Fanout::name: alloc::string::String
+pub nika_tui_core::model::Group::Single(nika_tui_core::model::Task)
+impl nika_tui_core::model::Group
+pub const fn nika_tui_core::model::Group::is_fanout(&self) -> bool
+impl core::clone::Clone for nika_tui_core::model::Group
+pub fn nika_tui_core::model::Group::clone(&self) -> nika_tui_core::model::Group
+impl core::cmp::Eq for nika_tui_core::model::Group
+impl core::cmp::PartialEq for nika_tui_core::model::Group
+pub fn nika_tui_core::model::Group::eq(&self, other: &nika_tui_core::model::Group) -> bool
+impl core::fmt::Debug for nika_tui_core::model::Group
+pub fn nika_tui_core::model::Group::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_tui_core::model::Group
+impl serde_core::ser::Serialize for nika_tui_core::model::Group
+pub fn nika_tui_core::model::Group::serialize<S: serde_core::ser::Serializer>(&self, ser: S) -> core::result::Result<<S as serde_core::ser::Serializer>::Ok, <S as serde_core::ser::Serializer>::Error>
+impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_tui_core::model::Group where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
+impl<T, U> core::convert::Into<U> for nika_tui_core::model::Group where U: core::convert::From<T>
+pub fn nika_tui_core::model::Group::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tui_core::model::Group where U: core::convert::Into<T>
+pub type nika_tui_core::model::Group::Error = core::convert::Infallible
+pub fn nika_tui_core::model::Group::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tui_core::model::Group where U: core::convert::TryFrom<T>
+pub type nika_tui_core::model::Group::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tui_core::model::Group::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_tui_core::model::Group where T: core::clone::Clone
+pub type nika_tui_core::model::Group::Owned = T
+pub fn nika_tui_core::model::Group::clone_into(&self, target: &mut T)
+pub fn nika_tui_core::model::Group::to_owned(&self) -> T
+impl<T> core::any::Any for nika_tui_core::model::Group where T: 'static + ?core::marker::Sized
+pub fn nika_tui_core::model::Group::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tui_core::model::Group where T: ?core::marker::Sized
+pub fn nika_tui_core::model::Group::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tui_core::model::Group where T: ?core::marker::Sized
+pub fn nika_tui_core::model::Group::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_tui_core::model::Group where T: core::clone::Clone
+pub unsafe fn nika_tui_core::model::Group::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_tui_core::model::Group
+pub fn nika_tui_core::model::Group::from(t: T) -> T
+#[non_exhaustive] pub enum nika_tui_core::model::Origin
+pub nika_tui_core::model::Origin::Builtin
+pub nika_tui_core::model::Origin::Mcp
+pub nika_tui_core::model::Origin::Model
+pub nika_tui_core::model::Origin::Registry
+pub nika_tui_core::model::Origin::Shell
+impl core::clone::Clone for nika_tui_core::model::Origin
+pub fn nika_tui_core::model::Origin::clone(&self) -> nika_tui_core::model::Origin
+impl core::cmp::Eq for nika_tui_core::model::Origin
+impl core::cmp::PartialEq for nika_tui_core::model::Origin
+pub fn nika_tui_core::model::Origin::eq(&self, other: &nika_tui_core::model::Origin) -> bool
+impl core::fmt::Debug for nika_tui_core::model::Origin
+pub fn nika_tui_core::model::Origin::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_tui_core::model::Origin
+impl core::marker::StructuralPartialEq for nika_tui_core::model::Origin
+impl serde_core::ser::Serialize for nika_tui_core::model::Origin
+pub fn nika_tui_core::model::Origin::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_tui_core::model::Origin
+pub fn nika_tui_core::model::Origin::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_tui_core::model::Origin where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
+impl<T, U> core::convert::Into<U> for nika_tui_core::model::Origin where U: core::convert::From<T>
+pub fn nika_tui_core::model::Origin::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tui_core::model::Origin where U: core::convert::Into<T>
+pub type nika_tui_core::model::Origin::Error = core::convert::Infallible
+pub fn nika_tui_core::model::Origin::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tui_core::model::Origin where U: core::convert::TryFrom<T>
+pub type nika_tui_core::model::Origin::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tui_core::model::Origin::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_tui_core::model::Origin where T: core::clone::Clone
+pub type nika_tui_core::model::Origin::Owned = T
+pub fn nika_tui_core::model::Origin::clone_into(&self, target: &mut T)
+pub fn nika_tui_core::model::Origin::to_owned(&self) -> T
+impl<T> core::any::Any for nika_tui_core::model::Origin where T: 'static + ?core::marker::Sized
+pub fn nika_tui_core::model::Origin::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tui_core::model::Origin where T: ?core::marker::Sized
+pub fn nika_tui_core::model::Origin::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tui_core::model::Origin where T: ?core::marker::Sized
+pub fn nika_tui_core::model::Origin::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_tui_core::model::Origin where T: core::clone::Clone
+pub unsafe fn nika_tui_core::model::Origin::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_tui_core::model::Origin
+pub fn nika_tui_core::model::Origin::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_tui_core::model::Origin where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub enum nika_tui_core::model::Touch
+pub nika_tui_core::model::Touch::Exec
+pub nika_tui_core::model::Touch::FsRead
+pub nika_tui_core::model::Touch::FsWrite
+pub nika_tui_core::model::Touch::Net
+pub nika_tui_core::model::Touch::Tools
+impl nika_tui_core::model::Touch
+pub const fn nika_tui_core::model::Touch::permit_key(self) -> &'static str
+impl core::clone::Clone for nika_tui_core::model::Touch
+pub fn nika_tui_core::model::Touch::clone(&self) -> nika_tui_core::model::Touch
+impl core::cmp::Eq for nika_tui_core::model::Touch
+impl core::cmp::PartialEq for nika_tui_core::model::Touch
+pub fn nika_tui_core::model::Touch::eq(&self, other: &nika_tui_core::model::Touch) -> bool
+impl core::fmt::Debug for nika_tui_core::model::Touch
+pub fn nika_tui_core::model::Touch::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_tui_core::model::Touch
+impl core::marker::StructuralPartialEq for nika_tui_core::model::Touch
+impl serde_core::ser::Serialize for nika_tui_core::model::Touch
+pub fn nika_tui_core::model::Touch::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_tui_core::model::Touch
+pub fn nika_tui_core::model::Touch::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_tui_core::model::Touch where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
+impl<T, U> core::convert::Into<U> for nika_tui_core::model::Touch where U: core::convert::From<T>
+pub fn nika_tui_core::model::Touch::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tui_core::model::Touch where U: core::convert::Into<T>
+pub type nika_tui_core::model::Touch::Error = core::convert::Infallible
+pub fn nika_tui_core::model::Touch::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tui_core::model::Touch where U: core::convert::TryFrom<T>
+pub type nika_tui_core::model::Touch::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tui_core::model::Touch::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_tui_core::model::Touch where T: core::clone::Clone
+pub type nika_tui_core::model::Touch::Owned = T
+pub fn nika_tui_core::model::Touch::clone_into(&self, target: &mut T)
+pub fn nika_tui_core::model::Touch::to_owned(&self) -> T
+impl<T> core::any::Any for nika_tui_core::model::Touch where T: 'static + ?core::marker::Sized
+pub fn nika_tui_core::model::Touch::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tui_core::model::Touch where T: ?core::marker::Sized
+pub fn nika_tui_core::model::Touch::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tui_core::model::Touch where T: ?core::marker::Sized
+pub fn nika_tui_core::model::Touch::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_tui_core::model::Touch where T: core::clone::Clone
+pub unsafe fn nika_tui_core::model::Touch::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_tui_core::model::Touch
+pub fn nika_tui_core::model::Touch::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_tui_core::model::Touch where T: for<'de> serde_core::de::Deserialize<'de>
+pub enum nika_tui_core::model::Verb
+pub nika_tui_core::model::Verb::Agent
+pub nika_tui_core::model::Verb::Exec
+pub nika_tui_core::model::Verb::Infer
+pub nika_tui_core::model::Verb::Invoke
+impl nika_tui_core::model::Verb
+pub const fn nika_tui_core::model::Verb::as_str(self) -> &'static str
+impl core::clone::Clone for nika_tui_core::model::Verb
+pub fn nika_tui_core::model::Verb::clone(&self) -> nika_tui_core::model::Verb
+impl core::cmp::Eq for nika_tui_core::model::Verb
+impl core::cmp::PartialEq for nika_tui_core::model::Verb
+pub fn nika_tui_core::model::Verb::eq(&self, other: &nika_tui_core::model::Verb) -> bool
+impl core::fmt::Debug for nika_tui_core::model::Verb
+pub fn nika_tui_core::model::Verb::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_tui_core::model::Verb
+impl core::marker::StructuralPartialEq for nika_tui_core::model::Verb
+impl serde_core::ser::Serialize for nika_tui_core::model::Verb
+pub fn nika_tui_core::model::Verb::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_tui_core::model::Verb
+pub fn nika_tui_core::model::Verb::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_tui_core::model::Verb where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
+impl<T, U> core::convert::Into<U> for nika_tui_core::model::Verb where U: core::convert::From<T>
+pub fn nika_tui_core::model::Verb::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tui_core::model::Verb where U: core::convert::Into<T>
+pub type nika_tui_core::model::Verb::Error = core::convert::Infallible
+pub fn nika_tui_core::model::Verb::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tui_core::model::Verb where U: core::convert::TryFrom<T>
+pub type nika_tui_core::model::Verb::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tui_core::model::Verb::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_tui_core::model::Verb where T: core::clone::Clone
+pub type nika_tui_core::model::Verb::Owned = T
+pub fn nika_tui_core::model::Verb::clone_into(&self, target: &mut T)
+pub fn nika_tui_core::model::Verb::to_owned(&self) -> T
+impl<T> core::any::Any for nika_tui_core::model::Verb where T: 'static + ?core::marker::Sized
+pub fn nika_tui_core::model::Verb::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tui_core::model::Verb where T: ?core::marker::Sized
+pub fn nika_tui_core::model::Verb::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tui_core::model::Verb where T: ?core::marker::Sized
+pub fn nika_tui_core::model::Verb::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_tui_core::model::Verb where T: core::clone::Clone
+pub unsafe fn nika_tui_core::model::Verb::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_tui_core::model::Verb
+pub fn nika_tui_core::model::Verb::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_tui_core::model::Verb where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_tui_core::model::Failure
+pub nika_tui_core::model::Failure::code: alloc::string::String
+pub nika_tui_core::model::Failure::why: alloc::string::String
+impl nika_tui_core::model::Failure
+pub const fn nika_tui_core::model::Failure::new(code: alloc::string::String, why: alloc::string::String) -> Self
+impl core::clone::Clone for nika_tui_core::model::Failure
+pub fn nika_tui_core::model::Failure::clone(&self) -> nika_tui_core::model::Failure
+impl core::cmp::Eq for nika_tui_core::model::Failure
+impl core::cmp::PartialEq for nika_tui_core::model::Failure
+pub fn nika_tui_core::model::Failure::eq(&self, other: &nika_tui_core::model::Failure) -> bool
+impl core::fmt::Debug for nika_tui_core::model::Failure
+pub fn nika_tui_core::model::Failure::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_tui_core::model::Failure
+impl serde_core::ser::Serialize for nika_tui_core::model::Failure
+pub fn nika_tui_core::model::Failure::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_tui_core::model::Failure
+pub fn nika_tui_core::model::Failure::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_tui_core::model::Failure where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
+impl<T, U> core::convert::Into<U> for nika_tui_core::model::Failure where U: core::convert::From<T>
+pub fn nika_tui_core::model::Failure::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tui_core::model::Failure where U: core::convert::Into<T>
+pub type nika_tui_core::model::Failure::Error = core::convert::Infallible
+pub fn nika_tui_core::model::Failure::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tui_core::model::Failure where U: core::convert::TryFrom<T>
+pub type nika_tui_core::model::Failure::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tui_core::model::Failure::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_tui_core::model::Failure where T: core::clone::Clone
+pub type nika_tui_core::model::Failure::Owned = T
+pub fn nika_tui_core::model::Failure::clone_into(&self, target: &mut T)
+pub fn nika_tui_core::model::Failure::to_owned(&self) -> T
+impl<T> core::any::Any for nika_tui_core::model::Failure where T: 'static + ?core::marker::Sized
+pub fn nika_tui_core::model::Failure::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tui_core::model::Failure where T: ?core::marker::Sized
+pub fn nika_tui_core::model::Failure::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tui_core::model::Failure where T: ?core::marker::Sized
+pub fn nika_tui_core::model::Failure::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_tui_core::model::Failure where T: core::clone::Clone
+pub unsafe fn nika_tui_core::model::Failure::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_tui_core::model::Failure
+pub fn nika_tui_core::model::Failure::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_tui_core::model::Failure where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_tui_core::model::Run
+pub nika_tui_core::model::Run::output: alloc::string::String
+pub nika_tui_core::model::Run::steps: alloc::vec::Vec<nika_tui_core::model::Step>
+pub nika_tui_core::model::Run::trace: alloc::string::String
+pub nika_tui_core::model::Run::when: alloc::string::String
+impl nika_tui_core::model::Run
+pub const fn nika_tui_core::model::Run::new(trace: alloc::string::String, when: alloc::string::String, output: alloc::string::String, steps: alloc::vec::Vec<nika_tui_core::model::Step>) -> Self
+impl core::clone::Clone for nika_tui_core::model::Run
+pub fn nika_tui_core::model::Run::clone(&self) -> nika_tui_core::model::Run
+impl core::cmp::PartialEq for nika_tui_core::model::Run
+pub fn nika_tui_core::model::Run::eq(&self, other: &nika_tui_core::model::Run) -> bool
+impl core::fmt::Debug for nika_tui_core::model::Run
+pub fn nika_tui_core::model::Run::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_tui_core::model::Run
+impl serde_core::ser::Serialize for nika_tui_core::model::Run
+pub fn nika_tui_core::model::Run::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_tui_core::model::Run
+pub fn nika_tui_core::model::Run::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_tui_core::model::Run where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
+impl<T, U> core::convert::Into<U> for nika_tui_core::model::Run where U: core::convert::From<T>
+pub fn nika_tui_core::model::Run::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tui_core::model::Run where U: core::convert::Into<T>
+pub type nika_tui_core::model::Run::Error = core::convert::Infallible
+pub fn nika_tui_core::model::Run::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tui_core::model::Run where U: core::convert::TryFrom<T>
+pub type nika_tui_core::model::Run::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tui_core::model::Run::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_tui_core::model::Run where T: core::clone::Clone
+pub type nika_tui_core::model::Run::Owned = T
+pub fn nika_tui_core::model::Run::clone_into(&self, target: &mut T)
+pub fn nika_tui_core::model::Run::to_owned(&self) -> T
+impl<T> core::any::Any for nika_tui_core::model::Run where T: 'static + ?core::marker::Sized
+pub fn nika_tui_core::model::Run::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tui_core::model::Run where T: ?core::marker::Sized
+pub fn nika_tui_core::model::Run::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tui_core::model::Run where T: ?core::marker::Sized
+pub fn nika_tui_core::model::Run::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_tui_core::model::Run where T: core::clone::Clone
+pub unsafe fn nika_tui_core::model::Run::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_tui_core::model::Run
+pub fn nika_tui_core::model::Run::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_tui_core::model::Run where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_tui_core::model::Step
+pub nika_tui_core::model::Step::blocked_by: core::option::Option<alloc::string::String>
+pub nika_tui_core::model::Step::cost: core::option::Option<f64>
+pub nika_tui_core::model::Step::dur: f64
+pub nika_tui_core::model::Step::failed: core::option::Option<nika_tui_core::model::Failure>
+pub nika_tui_core::model::Step::id: alloc::string::String
+pub nika_tui_core::model::Step::never_born: core::option::Option<bool>
+pub nika_tui_core::model::Step::skipped: core::option::Option<bool>
+pub nika_tui_core::model::Step::start: f64
+pub nika_tui_core::model::Step::tokens: core::option::Option<u64>
+impl nika_tui_core::model::Step
+pub const fn nika_tui_core::model::Step::new(id: alloc::string::String, start: f64, dur: f64) -> Self
+impl core::clone::Clone for nika_tui_core::model::Step
+pub fn nika_tui_core::model::Step::clone(&self) -> nika_tui_core::model::Step
+impl core::cmp::PartialEq for nika_tui_core::model::Step
+pub fn nika_tui_core::model::Step::eq(&self, other: &nika_tui_core::model::Step) -> bool
+impl core::fmt::Debug for nika_tui_core::model::Step
+pub fn nika_tui_core::model::Step::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_tui_core::model::Step
+impl serde_core::ser::Serialize for nika_tui_core::model::Step
+pub fn nika_tui_core::model::Step::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_tui_core::model::Step
+pub fn nika_tui_core::model::Step::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_tui_core::model::Step where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
+impl<T, U> core::convert::Into<U> for nika_tui_core::model::Step where U: core::convert::From<T>
+pub fn nika_tui_core::model::Step::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tui_core::model::Step where U: core::convert::Into<T>
+pub type nika_tui_core::model::Step::Error = core::convert::Infallible
+pub fn nika_tui_core::model::Step::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tui_core::model::Step where U: core::convert::TryFrom<T>
+pub type nika_tui_core::model::Step::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tui_core::model::Step::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_tui_core::model::Step where T: core::clone::Clone
+pub type nika_tui_core::model::Step::Owned = T
+pub fn nika_tui_core::model::Step::clone_into(&self, target: &mut T)
+pub fn nika_tui_core::model::Step::to_owned(&self) -> T
+impl<T> core::any::Any for nika_tui_core::model::Step where T: 'static + ?core::marker::Sized
+pub fn nika_tui_core::model::Step::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tui_core::model::Step where T: ?core::marker::Sized
+pub fn nika_tui_core::model::Step::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tui_core::model::Step where T: ?core::marker::Sized
+pub fn nika_tui_core::model::Step::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_tui_core::model::Step where T: core::clone::Clone
+pub unsafe fn nika_tui_core::model::Step::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_tui_core::model::Step
+pub fn nika_tui_core::model::Step::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_tui_core::model::Step where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_tui_core::model::Task
+pub nika_tui_core::model::Task::family: core::option::Option<nika_tui_core::model::Family>
+pub nika_tui_core::model::Task::glyph: alloc::string::String
+pub nika_tui_core::model::Task::id: alloc::string::String
+pub nika_tui_core::model::Task::needs: alloc::vec::Vec<alloc::string::String>
+pub nika_tui_core::model::Task::origin: core::option::Option<nika_tui_core::model::Origin>
+pub nika_tui_core::model::Task::tool: core::option::Option<alloc::string::String>
+pub nika_tui_core::model::Task::touches: core::option::Option<alloc::vec::Vec<nika_tui_core::model::Touch>>
+pub nika_tui_core::model::Task::verb: nika_tui_core::model::Verb
+impl nika_tui_core::model::Task
+pub fn nika_tui_core::model::Task::new(id: alloc::string::String, verb: nika_tui_core::model::Verb, glyph: alloc::string::String, needs: alloc::vec::Vec<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_tui_core::model::Task
+pub fn nika_tui_core::model::Task::clone(&self) -> nika_tui_core::model::Task
+impl core::cmp::Eq for nika_tui_core::model::Task
+impl core::cmp::PartialEq for nika_tui_core::model::Task
+pub fn nika_tui_core::model::Task::eq(&self, other: &nika_tui_core::model::Task) -> bool
+impl core::fmt::Debug for nika_tui_core::model::Task
+pub fn nika_tui_core::model::Task::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_tui_core::model::Task
+impl serde_core::ser::Serialize for nika_tui_core::model::Task
+pub fn nika_tui_core::model::Task::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_tui_core::model::Task
+pub fn nika_tui_core::model::Task::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_tui_core::model::Task where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
+impl<T, U> core::convert::Into<U> for nika_tui_core::model::Task where U: core::convert::From<T>
+pub fn nika_tui_core::model::Task::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tui_core::model::Task where U: core::convert::Into<T>
+pub type nika_tui_core::model::Task::Error = core::convert::Infallible
+pub fn nika_tui_core::model::Task::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tui_core::model::Task where U: core::convert::TryFrom<T>
+pub type nika_tui_core::model::Task::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tui_core::model::Task::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_tui_core::model::Task where T: core::clone::Clone
+pub type nika_tui_core::model::Task::Owned = T
+pub fn nika_tui_core::model::Task::clone_into(&self, target: &mut T)
+pub fn nika_tui_core::model::Task::to_owned(&self) -> T
+impl<T> core::any::Any for nika_tui_core::model::Task where T: 'static + ?core::marker::Sized
+pub fn nika_tui_core::model::Task::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tui_core::model::Task where T: ?core::marker::Sized
+pub fn nika_tui_core::model::Task::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tui_core::model::Task where T: ?core::marker::Sized
+pub fn nika_tui_core::model::Task::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_tui_core::model::Task where T: core::clone::Clone
+pub unsafe fn nika_tui_core::model::Task::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_tui_core::model::Task
+pub fn nika_tui_core::model::Task::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_tui_core::model::Task where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_tui_core::model::Workflow
+pub nika_tui_core::model::Workflow::engine: alloc::string::String
+pub nika_tui_core::model::Workflow::file: alloc::string::String
+pub nika_tui_core::model::Workflow::missing: alloc::string::String
+pub nika_tui_core::model::Workflow::permits: alloc::vec::Vec<alloc::string::String>
+pub nika_tui_core::model::Workflow::prompt: alloc::string::String
+pub nika_tui_core::model::Workflow::tasks: alloc::vec::Vec<nika_tui_core::model::Task>
+impl nika_tui_core::model::Workflow
+pub const fn nika_tui_core::model::Workflow::new(file: alloc::string::String, engine: alloc::string::String, prompt: alloc::string::String, permits: alloc::vec::Vec<alloc::string::String>, missing: alloc::string::String, tasks: alloc::vec::Vec<nika_tui_core::model::Task>) -> Self
+impl core::clone::Clone for nika_tui_core::model::Workflow
+pub fn nika_tui_core::model::Workflow::clone(&self) -> nika_tui_core::model::Workflow
+impl core::cmp::Eq for nika_tui_core::model::Workflow
+impl core::cmp::PartialEq for nika_tui_core::model::Workflow
+pub fn nika_tui_core::model::Workflow::eq(&self, other: &nika_tui_core::model::Workflow) -> bool
+impl core::fmt::Debug for nika_tui_core::model::Workflow
+pub fn nika_tui_core::model::Workflow::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_tui_core::model::Workflow
+impl serde_core::ser::Serialize for nika_tui_core::model::Workflow
+pub fn nika_tui_core::model::Workflow::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_tui_core::model::Workflow
+pub fn nika_tui_core::model::Workflow::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_tui_core::model::Workflow where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
+impl<T, U> core::convert::Into<U> for nika_tui_core::model::Workflow where U: core::convert::From<T>
+pub fn nika_tui_core::model::Workflow::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tui_core::model::Workflow where U: core::convert::Into<T>
+pub type nika_tui_core::model::Workflow::Error = core::convert::Infallible
+pub fn nika_tui_core::model::Workflow::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tui_core::model::Workflow where U: core::convert::TryFrom<T>
+pub type nika_tui_core::model::Workflow::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tui_core::model::Workflow::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_tui_core::model::Workflow where T: core::clone::Clone
+pub type nika_tui_core::model::Workflow::Owned = T
+pub fn nika_tui_core::model::Workflow::clone_into(&self, target: &mut T)
+pub fn nika_tui_core::model::Workflow::to_owned(&self) -> T
+impl<T> core::any::Any for nika_tui_core::model::Workflow where T: 'static + ?core::marker::Sized
+pub fn nika_tui_core::model::Workflow::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tui_core::model::Workflow where T: ?core::marker::Sized
+pub fn nika_tui_core::model::Workflow::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tui_core::model::Workflow where T: ?core::marker::Sized
+pub fn nika_tui_core::model::Workflow::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_tui_core::model::Workflow where T: core::clone::Clone
+pub unsafe fn nika_tui_core::model::Workflow::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_tui_core::model::Workflow
+pub fn nika_tui_core::model::Workflow::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_tui_core::model::Workflow where T: for<'de> serde_core::de::Deserialize<'de>
+pub mod nika_tui_core::plan
+#[non_exhaustive] pub enum nika_tui_core::plan::Mark
+pub nika_tui_core::plan::Mark::Born
+pub nika_tui_core::plan::Mark::Changed
+pub nika_tui_core::plan::Mark::Dead
+pub nika_tui_core::plan::Mark::Kept
+impl core::clone::Clone for nika_tui_core::plan::Mark
+pub fn nika_tui_core::plan::Mark::clone(&self) -> nika_tui_core::plan::Mark
+impl core::cmp::Eq for nika_tui_core::plan::Mark
+impl core::cmp::PartialEq for nika_tui_core::plan::Mark
+pub fn nika_tui_core::plan::Mark::eq(&self, other: &nika_tui_core::plan::Mark) -> bool
+impl core::fmt::Debug for nika_tui_core::plan::Mark
+pub fn nika_tui_core::plan::Mark::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_tui_core::plan::Mark
+impl core::marker::StructuralPartialEq for nika_tui_core::plan::Mark
+impl serde_core::ser::Serialize for nika_tui_core::plan::Mark
+pub fn nika_tui_core::plan::Mark::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_tui_core::plan::Mark
+pub fn nika_tui_core::plan::Mark::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_tui_core::plan::Mark where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
+impl<T, U> core::convert::Into<U> for nika_tui_core::plan::Mark where U: core::convert::From<T>
+pub fn nika_tui_core::plan::Mark::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tui_core::plan::Mark where U: core::convert::Into<T>
+pub type nika_tui_core::plan::Mark::Error = core::convert::Infallible
+pub fn nika_tui_core::plan::Mark::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tui_core::plan::Mark where U: core::convert::TryFrom<T>
+pub type nika_tui_core::plan::Mark::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tui_core::plan::Mark::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_tui_core::plan::Mark where T: core::clone::Clone
+pub type nika_tui_core::plan::Mark::Owned = T
+pub fn nika_tui_core::plan::Mark::clone_into(&self, target: &mut T)
+pub fn nika_tui_core::plan::Mark::to_owned(&self) -> T
+impl<T> core::any::Any for nika_tui_core::plan::Mark where T: 'static + ?core::marker::Sized
+pub fn nika_tui_core::plan::Mark::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tui_core::plan::Mark where T: ?core::marker::Sized
+pub fn nika_tui_core::plan::Mark::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tui_core::plan::Mark where T: ?core::marker::Sized
+pub fn nika_tui_core::plan::Mark::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_tui_core::plan::Mark where T: core::clone::Clone
+pub unsafe fn nika_tui_core::plan::Mark::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_tui_core::plan::Mark
+pub fn nika_tui_core::plan::Mark::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_tui_core::plan::Mark where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_tui_core::plan::Board
+pub nika_tui_core::plan::Board::marks: alloc::vec::Vec<nika_tui_core::plan::Mark>
+pub nika_tui_core::plan::Board::prints: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
+pub nika_tui_core::plan::Board::rev: u32
+pub nika_tui_core::plan::Board::slots: alloc::vec::Vec<core::option::Option<alloc::string::String>>
+impl nika_tui_core::plan::Board
+pub const fn nika_tui_core::plan::Board::new(rev: u32, slots: alloc::vec::Vec<core::option::Option<alloc::string::String>>, marks: alloc::vec::Vec<nika_tui_core::plan::Mark>, prints: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>) -> Self
+impl core::clone::Clone for nika_tui_core::plan::Board
+pub fn nika_tui_core::plan::Board::clone(&self) -> nika_tui_core::plan::Board
+impl core::cmp::Eq for nika_tui_core::plan::Board
+impl core::cmp::PartialEq for nika_tui_core::plan::Board
+pub fn nika_tui_core::plan::Board::eq(&self, other: &nika_tui_core::plan::Board) -> bool
+impl core::fmt::Debug for nika_tui_core::plan::Board
+pub fn nika_tui_core::plan::Board::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_tui_core::plan::Board
+impl serde_core::ser::Serialize for nika_tui_core::plan::Board
+pub fn nika_tui_core::plan::Board::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_tui_core::plan::Board
+pub fn nika_tui_core::plan::Board::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_tui_core::plan::Board where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
+impl<T, U> core::convert::Into<U> for nika_tui_core::plan::Board where U: core::convert::From<T>
+pub fn nika_tui_core::plan::Board::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_tui_core::plan::Board where U: core::convert::Into<T>
+pub type nika_tui_core::plan::Board::Error = core::convert::Infallible
+pub fn nika_tui_core::plan::Board::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_tui_core::plan::Board where U: core::convert::TryFrom<T>
+pub type nika_tui_core::plan::Board::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_tui_core::plan::Board::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_tui_core::plan::Board where T: core::clone::Clone
+pub type nika_tui_core::plan::Board::Owned = T
+pub fn nika_tui_core::plan::Board::clone_into(&self, target: &mut T)
+pub fn nika_tui_core::plan::Board::to_owned(&self) -> T
+impl<T> core::any::Any for nika_tui_core::plan::Board where T: 'static + ?core::marker::Sized
+pub fn nika_tui_core::plan::Board::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_tui_core::plan::Board where T: ?core::marker::Sized
+pub fn nika_tui_core::plan::Board::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_tui_core::plan::Board where T: ?core::marker::Sized
+pub fn nika_tui_core::plan::Board::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_tui_core::plan::Board where T: core::clone::Clone
+pub unsafe fn nika_tui_core::plan::Board::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_tui_core::plan::Board
+pub fn nika_tui_core::plan::Board::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_tui_core::plan::Board where T: for<'de> serde_core::de::Deserialize<'de>
+pub fn nika_tui_core::plan::seat_first(g: &nika_tui_core::ingress::GraphDoc) -> nika_tui_core::plan::Board
+pub fn nika_tui_core::plan::seat_next(prev: &nika_tui_core::plan::Board, g: &nika_tui_core::ingress::GraphDoc) -> nika_tui_core::plan::Board
+pub mod nika_tui_core::wasm
+pub fn nika_tui_core::wasm::board_first(graph_json: &str) -> alloc::string::String
+pub fn nika_tui_core::wasm::board_next(board_json: &str, graph_json: &str) -> alloc::string::String
+pub fn nika_tui_core::wasm::derive_run(workflow_json: &str, run_json: &str) -> alloc::string::String
+pub fn nika_tui_core::wasm::engine_version() -> alloc::string::String
+pub fn nika_tui_core::wasm::fold_journal(ndjson: &str) -> alloc::string::String

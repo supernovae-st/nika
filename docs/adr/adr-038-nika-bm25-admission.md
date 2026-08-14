@@ -34,7 +34,7 @@ follow_ups:
 
 ## Context
 
-The Diamond memory subsystem architecture (locked separately in private studio doctrine and surfaced publicly via `crates/nika-kernel-ai/src/memory.rs:1-413`) ships as 1 L2 orchestrator (`nika-memory`) + 8 L1 satellites — `nika-hnsw` · `nika-bm25` · `nika-rrf` · `nika-fsrs` · `nika-graph-algos` · `nika-rdfs-reasoner` · `nika-temporal` · `nika-autodesc` ★. Each satellite is independently admissible via the 12-gate ceremony (ADR-003) and publishable standalone on crates.io as a SuperNovae contribution to the Rust RDF/ML ecosystem.
+The Diamond memory subsystem architecture (locked separately in private DX doctrine and surfaced publicly via `crates/nika-kernel-ai/src/memory.rs:1-413`) ships as 1 L2 orchestrator (`nika-memory`) + 8 L1 satellites — `nika-hnsw` · `nika-bm25` · `nika-rrf` · `nika-fsrs` · `nika-graph-algos` · `nika-rdfs-reasoner` · `nika-temporal` · `nika-autodesc` ★. Each satellite is independently admissible via the 12-gate ceremony (ADR-003) and publishable standalone on crates.io as a SuperNovae contribution to the Rust RDF/ML ecosystem.
 
 Per Diamond Phase 1 entry plan §3 (W3 wave) `nika-bm25` is the **simplest L1 satellite to admit first** because :
 
@@ -118,7 +118,7 @@ Plus the mandatory pattern gates per `nika/engine/.claude/CLAUDE.md` ·
 
 Per `dx/.claude/rules/steal-pattern.md` §"Step 0 — Consumer-signal gate" (Wave 10 of the DS federation discipline · adopted as a general anti-speculative-port pattern), Tier B/C steal-pattern ports require ≥1 consumer signal before status flips Proposed → Accepted. ADR-038 is an **internal Diamond admission**, not a Tier B/C steal-pattern port, but the same anti-speculative discipline applies ·
 
-- **Locked decision** · the Diamond memory architecture (private studio doctrine + public trait surface at `crates/nika-kernel-ai/src/memory.rs`) lists `nika-bm25` as one of the 8 mandatory L1 memory satellites · ✅ satisfies « locked decision » in §Step 0
+- **Locked decision** · the Diamond memory architecture (private DX doctrine + public trait surface at `crates/nika-kernel-ai/src/memory.rs`) lists `nika-bm25` as one of the 8 mandatory L1 memory satellites · ✅ satisfies « locked decision » in §Step 0
 - **Scheduled launch** · Phase 1 entry plan §3 schedules `nika-bm25` as W3 admission with ~7h focused effort · ✅ satisfies « scheduled launch »
 - **Consumer ticket** · `nika-memory` L2 orchestrator (deferred to W11+) requires both lexical and semantic recall paths · BM25 IS the lexical half · the orchestrator is the consumer-of-record once it ships
 

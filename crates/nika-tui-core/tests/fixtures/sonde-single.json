@@ -1,0 +1,65 @@
+{
+  "name": "sonde-single",
+  "workflow": {
+    "file": "sonde-single.nika.yaml",
+    "engine": "0.108.0",
+    "prompt": "sonde",
+    "permits": [],
+    "missing": "rien",
+    "tasks": [
+      {
+        "id": "seule",
+        "verb": "infer",
+        "glyph": "◇",
+        "needs": [],
+        "tool": "mock",
+        "origin": "model"
+      }
+    ]
+  },
+  "run": {
+    "trace": "sonde",
+    "when": "never ran",
+    "output": "",
+    "steps": [
+      {
+        "id": "seule",
+        "start": 0,
+        "dur": 0.4
+      }
+    ]
+  },
+  "derived": {
+    "waves": [
+      [
+        "seule"
+      ]
+    ],
+    "wave_end": [
+      0.4
+    ],
+    "idle": {
+      "seule": 0
+    },
+    "bottleneck": null,
+    "total_cost": 0,
+    "total_time": 0.4,
+    "verbs_used": [
+      "infer"
+    ],
+    "has_failed": false,
+    "cost_by_verb": {
+      "infer": 0,
+      "exec": 0,
+      "invoke": 0,
+      "agent": 0
+    },
+    "undeclared": [],
+    "blast_radius": [],
+    "groups": [
+      {
+        "task": "seule"
+      }
+    ]
+  }
+}

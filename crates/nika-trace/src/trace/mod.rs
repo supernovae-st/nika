@@ -180,7 +180,7 @@ fn totals_line(view: &RunView, trace: &str, theme: Theme) -> String {
     let _ = write!(
         line,
         " · full value: nika trace peek {} <task>",
-        crate::verbs::linked_path(theme, trace)
+        crate::linked_path(theme, trace)
     );
     theme.paint(Role::Dim, &line)
 }
@@ -443,7 +443,7 @@ fn render_flow(edges: &[FlowEdge], theme: Theme) -> String {
 mod tests {
     use super::*;
     use crate::demo;
-    use crate::verbs::exit;
+    use crate::exit;
 
     fn plain() -> Theme {
         Theme::new(false, false, false)

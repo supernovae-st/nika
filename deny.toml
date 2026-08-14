@@ -78,6 +78,7 @@ wrappers = [
   "nika-extract",          # L1.5 (s17): tokio `rt` for spawn_blocking — the HTML/feed parse of a model-fetched body (up to 64 MiB) runs off the async executor (same pattern) + #[tokio::test]
   "nika-runtime",          # L3 orchestrator (s18): tokio dev-dep for the #[tokio::test] conformance floor over the four verb crates — the crate's own code keeps ZERO tokio edge (async rides the injected verb seams); the descended production composer (2026-07-22) reaches tokio only TRANSITIVELY through the wrapper effect crates below (nika-fs/http/exec-runner), never directly
   "nika-dap",              # L4 forensics (the trust plane · 2026-07-20): tokio dev-dep ONLY — the anchor submit-path tests park a current-thread executor around the HttpPostDyn seam (zero runtime tokio dep · the L4 shim owns the production executor)
+  "nika-trace",            # L4 flight-recorder reader (descended from nika-cli 2026-08-11 · the 15k wall · ADR-110): the anchor verb's production submit parks a current-thread executor around the nika-http Rekor/RFC 3161 round-trips (the nika-models idiom · the lib is sync everywhere else)
   # Transitive consumers via reqwest → hyper stack (allowed through nika-catalog-verify)
   # tower-http joined via chromiumoxide's reqwest 0.13 tree (nika-browser M2.5).
   "reqwest", "hyper", "hyper-util", "hyper-rustls", "h2",

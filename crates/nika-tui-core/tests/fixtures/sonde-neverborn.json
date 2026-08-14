@@ -1,0 +1,95 @@
+{
+  "name": "sonde-neverborn",
+  "workflow": {
+    "file": "sonde-neverborn.nika.yaml",
+    "engine": "0.108.0",
+    "prompt": "sonde",
+    "permits": [],
+    "missing": "rien",
+    "tasks": [
+      {
+        "id": "casse",
+        "verb": "exec",
+        "glyph": "▷",
+        "needs": [],
+        "tool": "false",
+        "origin": "shell"
+      },
+      {
+        "id": "orphelin",
+        "verb": "invoke",
+        "glyph": "◆",
+        "needs": [
+          "casse"
+        ],
+        "tool": "nika:jq",
+        "origin": "builtin"
+      }
+    ]
+  },
+  "run": {
+    "trace": "sonde",
+    "when": "never ran",
+    "output": "",
+    "steps": [
+      {
+        "id": "casse",
+        "start": 0,
+        "dur": 0.1,
+        "failed": {
+          "code": "NIKA-EXEC-001",
+          "why": "rc 1"
+        }
+      },
+      {
+        "id": "orphelin",
+        "start": 0,
+        "dur": 0,
+        "neverBorn": true,
+        "blockedBy": "casse"
+      }
+    ]
+  },
+  "derived": {
+    "waves": [
+      [
+        "casse"
+      ],
+      [
+        "orphelin"
+      ]
+    ],
+    "wave_end": [
+      0.1,
+      0
+    ],
+    "idle": {
+      "casse": 0,
+      "orphelin": 0
+    },
+    "bottleneck": null,
+    "total_cost": 0,
+    "total_time": 0.1,
+    "verbs_used": [
+      "exec",
+      "invoke"
+    ],
+    "has_failed": true,
+    "cost_by_verb": {
+      "infer": 0,
+      "exec": 0,
+      "invoke": 0,
+      "agent": 0
+    },
+    "undeclared": [],
+    "blast_radius": [],
+    "groups": [
+      {
+        "task": "casse"
+      },
+      {
+        "task": "orphelin"
+      }
+    ]
+  }
+}

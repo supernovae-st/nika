@@ -4119,6 +4119,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "nika-cadence"
+version = "0.108.0"
+dependencies = [
+ "jiff",
+ "jiff-tzdb",
+ "proptest",
+ "serde",
+ "serde_yaml_bw",
+ "thiserror 2.0.19",
+]
+
+[[package]]
 name = "nika-cap"
 version = "0.108.0"
 dependencies = [
@@ -4260,13 +4272,14 @@ dependencies = [
  "nika-runtime",
  "nika-schema",
  "nika-store",
+ "nika-trace",
  "nika-types",
  "nika-verb-agent",
  "nika-verb-exec",
  "nika-verb-infer",
  "nika-verb-invoke",
+ "nika-vocab",
  "proptest",
- "serde",
  "serde_json",
  "sha2 0.10.9",
  "tempfile",
@@ -4338,6 +4351,7 @@ dependencies = [
  "nika-schema",
  "nika-store",
  "nika-types",
+ "nika-vocab",
  "p384",
  "proptest",
  "serde",
@@ -4696,6 +4710,7 @@ dependencies = [
  "nika-display",
  "nika-pack",
  "nika-schema",
+ "nika-vocab",
  "serde_json",
 ]
 
@@ -4751,6 +4766,7 @@ dependencies = [
  "minisign",
  "nika-kernel",
  "nika-kernel-mock",
+ "nika-vocab",
  "serde",
  "serde_json",
  "sha2 0.10.9",
@@ -4895,6 +4911,39 @@ dependencies = [
 ]
 
 [[package]]
+name = "nika-trace"
+version = "0.108.0"
+dependencies = [
+ "clap",
+ "minisign",
+ "nika-catalog",
+ "nika-check",
+ "nika-cli-host",
+ "nika-dap",
+ "nika-display",
+ "nika-event",
+ "nika-http",
+ "nika-runtime",
+ "nika-schema",
+ "nika-types",
+ "serde",
+ "serde_json",
+ "tokio",
+ "uuid",
+]
+
+[[package]]
+name = "nika-tui-core"
+version = "0.108.0"
+dependencies = [
+ "proptest",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.19",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "nika-types"
 version = "0.108.0"
 dependencies = [
@@ -4978,9 +5027,11 @@ dependencies = [
 name = "nika-vocab"
 version = "0.108.0"
 dependencies = [
+ "marked-yaml",
  "nika-cap",
  "nika-source",
  "nika-types",
+ "proptest",
  "serde",
  "serde_json",
 ]

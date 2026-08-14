@@ -768,12 +768,10 @@ mod tests {
     /// The frozen LIVE fixture (journal + sidecar + key — captured
     /// once through the live verb · lives with the trust plane in
     /// `nika_dap::anchor::fixtures`, included cross-crate here).
-    const FIXTURE_JOURNAL: &str =
-        include_str!("../../../nika-dap/src/anchor/fixtures/journal.ndjson");
-    const FIXTURE_SIDECAR: &str =
-        include_str!("../../../nika-dap/src/anchor/fixtures/sidecar.json");
+    const FIXTURE_JOURNAL: &str = include_str!("../../nika-dap/src/anchor/fixtures/journal.ndjson");
+    const FIXTURE_SIDECAR: &str = include_str!("../../nika-dap/src/anchor/fixtures/sidecar.json");
     const FIXTURE_PUBLIC_BOX: &str =
-        include_str!("../../../nika-dap/src/anchor/fixtures/run-signing.pub");
+        include_str!("../../nika-dap/src/anchor/fixtures/run-signing.pub");
 
     /// End to end: journal + sidecar + key — the full ladder to
     /// ANCHORED, fully offline.

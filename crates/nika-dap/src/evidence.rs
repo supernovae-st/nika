@@ -18,17 +18,29 @@
 //!
 //! ## The bundle (`evidence_format: 1`)
 //!
-//! - `journal.ndjson` — the exact bytes of the run journal (copied,
-//!   never re-serialized — the chain hashes over those bytes).
+//! - `journal.ndjson` — the run journal, in one of TWO disclosure
+//!   classes (T9 · the SLSA/in-toto posture: an attestation carries
+//!   the payload's HASH, never the payload):
+//!   - **redacted** (the default) — the projection: payload fields
+//!     (model outputs · tool results · file contents · failure
+//!     details · streamed chunks · shown prompts) ride as sha256
+//!     placeholders, structural fields ride verbatim. The pack proves
+//!     the run's INTEGRITY, not its CONTENT — two different asks, and
+//!     content disclosure is a separate, operator-side gesture
+//!     (VERIFY.md teaches both).
+//!   - **full** (`--full`) — the exact bytes, copied, never
+//!     re-serialized (the chain hashes over those bytes). The manifest
+//!     SAYS the class: a silent full pack is the leak wearing a new
+//!     hat.
 //! - `pack.json` — the manifest: trace head + chain status · the seal
 //!   grade · the workflow's semantic hash · the declared `permits:`
 //!   boundary · the trifecta static verdict · the sandbox mode · the
-//!   engine version · `exported_at`.
+//!   engine version · the redaction class · `exported_at`.
 //! - `receipt.json` — the spec-15 receipt
 //!   ([`nika_runtime::proof::receipt::build_run_receipt`]) when a
 //!   hash-checked workflow was available (its certificate is a
 //!   check-time artifact the journal never carried).
-//! - `VERIFY.md` — the three commands an auditor runs, plain.
+//! - `VERIFY.md` — the auditor's checks, per class, plain.
 //!
 //! An UNSEALED journal packs too: `seal.present: false` and VERIFY.md
 //! says what that means (tamper-EVIDENT chain only). Never a faked seal.
@@ -45,6 +57,8 @@ use serde_json::{Value, json};
 
 use crate::chain::{Verdict, walk};
 use nika_event::source_id::sha256_hex;
+
+mod redact;
 
 /// The pack envelope version (`pack.json`'s `evidence_format` field) —
 /// additive fields bump nothing (the forward-compat posture); a shape
@@ -87,7 +101,7 @@ pub enum PackError {
 
 /// The assembled pack, ready to write or project: the manifest value,
 /// the receipt (when a hash-checked workflow made one possible), the
-/// VERIFY.md body, and the journal's exact bytes for the copy.
+/// VERIFY.md body, and journal.ndjson's content.
 #[derive(Debug)]
 #[non_exhaustive]
 pub struct EvidencePack {
@@ -97,9 +111,23 @@ pub struct EvidencePack {
     pub receipt: Option<Value>,
     /// `VERIFY.md`'s content.
     pub verify_md: String,
-    /// The journal's exact bytes (write as `journal.ndjson` verbatim —
-    /// the chain hashes over these bytes).
+    /// `journal.ndjson`'s content: the redacted PROJECTION on the
+    /// default class (payload fields as sha256 placeholders — the
+    /// original's chain links ride verbatim but do not re-walk here),
+    /// the journal's exact bytes on the full class (the chain hashes
+    /// over those bytes).
     pub journal: String,
+}
+
+/// The pack's disclosure class (T9) — REDACTED by default: the
+/// auditor's bundle proves the run's INTEGRITY, not its CONTENT.
+/// Crate-internal: the public surface is the two named builders, so
+/// no caller picks a class silently.
+enum Class {
+    /// Payload fields ride as sha256 placeholders ([`redact`]).
+    Redacted,
+    /// The journal's exact bytes (`--full` — the manifest SAYS it).
+    Full,
 }
 
 /// The journal's tamper-evidence walk, folded for the manifest.
@@ -230,9 +258,12 @@ pub fn candidate_pubkeys() -> Vec<(String, String)> {
     out
 }
 
-/// Build the pack over one journal: fold the chain, the started
-/// fields, the seal grade and (when `workflow` is given) the
-/// hash-checked file arm into the manifest + receipt + VERIFY.md.
+/// Build the REDACTED pack (the default class · T9): journal.ndjson
+/// is the projection — payload fields ride as sha256 placeholders,
+/// structural fields verbatim — while the manifest keeps attesting
+/// the ORIGINAL journal (`journal_sha256` · chain · head · seal). The
+/// pack proves the run's INTEGRITY, not its CONTENT; disclosure is a
+/// separate, operator-side gesture VERIFY.md teaches.
 ///
 /// `keys` is the enrolled-key set the seal grades against —
 /// [`candidate_pubkeys`] for the machine's own custody, a crafted set
@@ -246,6 +277,38 @@ pub fn build(
     trace: &Path,
     workflow: Option<&Path>,
     keys: &[(String, String)],
+) -> Result<EvidencePack, PackError> {
+    build_class(trace, workflow, keys, &Class::Redacted)
+}
+
+/// Build the FULL-CONTENT pack (the CLI's `--full`): journal.ndjson
+/// is the journal's EXACT bytes — model outputs, tool results and
+/// file reads in the clear — and the manifest SAYS so
+/// (`redaction.class: "full"`). The opt-in shape for when the auditor
+/// must see content; the default is [`build`].
+///
+/// # Errors
+///
+/// [`PackError`] — as [`build`].
+pub fn build_full(
+    trace: &Path,
+    workflow: Option<&Path>,
+    keys: &[(String, String)],
+) -> Result<EvidencePack, PackError> {
+    build_class(trace, workflow, keys, &Class::Full)
+}
+
+/// Build the pack over one journal: fold the chain, the started
+/// fields, the seal grade and (when `workflow` is given) the
+/// hash-checked file arm into the manifest + receipt + VERIFY.md —
+/// then cut the journal down to the class's disclosure shape. Every
+/// fact folds from the ORIGINAL bytes BEFORE the projection, so the
+/// seal grade and the chain verdict describe the operator's journal.
+fn build_class(
+    trace: &Path,
+    workflow: Option<&Path>,
+    keys: &[(String, String)],
+    class: &Class,
 ) -> Result<EvidencePack, PackError> {
     let label = trace.display().to_string();
     let raw = read_journal(&label)?;
@@ -279,6 +342,7 @@ pub fn build(
         outcome,
         workflow.is_some(),
         &file,
+        class,
     ))
 }
 
@@ -584,7 +648,9 @@ fn load_file_arm(path: &str, anchors: &Anchors<'_>) -> Result<FileArm, PackError
 
 /// Assemble the manifest + receipt + VERIFY.md from every folded fact.
 /// Each section names its provenance; each null names its reason in
-/// `unavailable`.
+/// `unavailable`. The class decides journal.ndjson's shape: the exact
+/// bytes (full) or the redacted projection (default) — the manifest
+/// attests the ORIGINAL journal either way, and says which class ships.
 #[allow(clippy::too_many_arguments)]
 fn assemble(
     raw: &str,
@@ -595,6 +661,7 @@ fn assemble(
     outcome: &str,
     workflow_given: bool,
     file: &FileArm,
+    class: &Class,
 ) -> EvidencePack {
     let mut unavailable: BTreeMap<String, String> = BTreeMap::new();
     if let FileArm::Refused(reason) = file {
@@ -607,15 +674,22 @@ fn assemble(
     let sandbox = sandbox_field(started, &mut unavailable);
     let engine = engine_field(started, &mut unavailable);
     let (receipt_meta, receipt) = receipt_field(file, chain, event_count, outcome, seal.present);
+    let disclosure = disclosure_of(raw, class);
+    let mut trace = json!({
+        "journal_sha256": sha256_hex(raw.as_bytes()),
+        "events": event_count,
+        "chain": chain.status,
+        "head": chain.head,
+        "note": chain.note,
+    });
+    if let Some(projection_sha256) = &disclosure.projection_sha256
+        && let Some(map) = trace.as_object_mut()
+    {
+        map.insert("projection_sha256".to_owned(), json!(projection_sha256));
+    }
     let manifest = json!({
         "evidence_format": EVIDENCE_FORMAT,
-        "trace": {
-            "journal_sha256": sha256_hex(raw.as_bytes()),
-            "events": event_count,
-            "chain": chain.status,
-            "head": chain.head,
-            "note": chain.note,
-        },
+        "trace": trace,
         "seal": seal_json(seal),
         "workflow": {
             "name": started.workflow,
@@ -628,15 +702,56 @@ fn assemble(
         "sandbox": sandbox,
         "engine": engine,
         "receipt": receipt_meta,
+        "redaction": disclosure.redaction,
         "unavailable": unavailable,
         "exported_at": now_millis(),
         "exported_by": format!("nika {}", env!("CARGO_PKG_VERSION")),
     });
     EvidencePack {
-        verify_md: render_verify_md(seal),
+        verify_md: render_verify_md(seal, class),
         manifest,
         receipt,
-        journal: raw.to_owned(),
+        journal: disclosure.journal,
+    }
+}
+
+/// The class's disclosure shape: journal.ndjson's content + the
+/// manifest's `redaction` section + the projection's own attestation
+/// (redacted only). The corollary rides the manifest where the
+/// auditor reads it: a redacted pack proves the run's INTEGRITY, not
+/// its CONTENT.
+struct Disclosure {
+    journal: String,
+    redaction: Value,
+    projection_sha256: Option<String>,
+}
+
+/// The full class ships the exact bytes and SAYS it carries content;
+/// the redacted class ships the projection and says WHAT it proves.
+fn disclosure_of(raw: &str, class: &Class) -> Disclosure {
+    match class {
+        Class::Full => Disclosure {
+            journal: raw.to_owned(),
+            redaction: json!({
+                "class": "full",
+                "posture": "this pack carries the run's CONTENT verbatim (model outputs · tool results · file reads) — handle the directory as sensitively as the journal itself",
+            }),
+            projection_sha256: None,
+        },
+        Class::Redacted => {
+            let cut = redact::redact_journal(raw);
+            Disclosure {
+                projection_sha256: Some(sha256_hex(cut.projection.as_bytes())),
+                journal: cut.projection,
+                redaction: json!({
+                    "class": "redacted",
+                    "policy": "payload fields ride as sha256 placeholders over the field's own bytes",
+                    "fields": redact::PAYLOAD_KEYS,
+                    "placeholders": cut.placeholders,
+                    "posture": "this pack proves the run's INTEGRITY (chain · head · seal over the ORIGINAL journal the operator keeps) — not its CONTENT; disclosure is a separate, operator-side gesture (VERIFY.md)",
+                }),
+            }
+        }
     }
 }
 
@@ -891,9 +1006,11 @@ pub fn default_out(trace: &Path) -> PathBuf {
         .join(format!("{stem}.evidence"))
 }
 
-/// Write the bundle: the journal's exact bytes (copied, never
-/// re-serialized), the manifest, the receipt when present, VERIFY.md.
-/// An existing dir refuses — evidence is never clobbered in place.
+/// Write the bundle: journal.ndjson (the redacted projection by
+/// default · the exact bytes on the full class — [`EvidencePack::journal`]
+/// already holds the class's shape), the manifest, the receipt when
+/// present, VERIFY.md. An existing dir refuses — evidence is never
+/// clobbered in place.
 ///
 /// # Errors
 ///
@@ -938,10 +1055,24 @@ fn now_millis() -> u64 {
         .unwrap_or(0)
 }
 
-/// VERIFY.md — the three commands an auditor runs, plus what each
-/// trust tier means. Plain, short, and honest about the unsigned case.
-fn render_verify_md(seal: &SealFacts) -> String {
-    let seal_section = if seal.present {
+/// VERIFY.md — the auditor's checks, per disclosure class. The full
+/// pack re-walks the exact bytes (the three commands); the redacted
+/// pack checks the projection's self-consistency + the manifest
+/// hashes, and names the two disclosure paths — the command list
+/// changes CLASS because the evidence changes class.
+fn render_verify_md(seal: &SealFacts, class: &Class) -> String {
+    let section = seal_section(seal);
+    match class {
+        Class::Full => render_verify_full(&section),
+        Class::Redacted => render_verify_redacted(&section),
+    }
+}
+
+/// The seal section, shared by both classes — the grade speaks the
+/// same either way: the seal covers the ORIGINAL journal's head.
+/// Plain, short, and honest about the unsigned case.
+fn seal_section(seal: &SealFacts) -> String {
+    if seal.present {
         format!(
             r"## 2 · the seal
 
@@ -970,9 +1101,33 @@ re-chain it. `nika key init` on the machine that runs the workflows
 mints the key every future run seals with.
 "
         .to_owned()
-    };
+    }
+}
+
+/// The trust tiers, shared by both classes.
+const TIERS: &str = r"## What each tier means
+
+- **unchained** — a pre-0.96 journal: nothing to verify, nothing to
+  distrust.
+- **chained** — tamper-EVIDENT: edits show. A whole-file rewrite does
+  not — only the out-of-band head catches that.
+- **sealed** — chained + attributable: forging the journal needs the
+  run key, not just write access to the file.
+- **anchored** — sealed + the head matches one you saved elsewhere.
+";
+
+/// The FULL-class text: the three commands over the exact bytes, with
+/// the sensitivity warning up top — the pack carries CONTENT, and it
+/// must SAY so (a silent full pack is the leak wearing a new hat).
+fn render_verify_full(seal_section: &str) -> String {
     format!(
-        r"# VERIFY — this evidence pack
+        r"# VERIFY — this evidence pack (FULL CONTENT)
+
+This pack carries the run's CONTENT verbatim — model answers, tool
+results and file reads sit in `journal.ndjson` in the clear. Handle
+the directory as sensitively as the journal itself. The default class
+(`nika trace evidence` without `--full`) is the redacted pack:
+integrity without content.
 
 Everything here checks offline, from this directory. Three commands:
 
@@ -998,16 +1153,79 @@ Every claim names its provenance (`source: journal|seal|file`). A
 can hash-check the workflow against the journal and re-derive the
 boundary, the trifecta verdict and the receipt).
 
-## What each tier means
+{TIERS}"
+    )
+}
 
-- **unchained** — a pre-0.96 journal: nothing to verify, nothing to
-  distrust.
-- **chained** — tamper-EVIDENT: edits show. A whole-file rewrite does
-  not — only the out-of-band head catches that.
-- **sealed** — chained + attributable: forging the journal needs the
-  run key, not just write access to the file.
-- **anchored** — sealed + the head matches one you saved elsewhere.
-"
+/// The REDACTED-class text: the corollary first (INTEGRITY ≠
+/// CONTENT), then the one offline check the projection supports, the
+/// seal, and the two disclosure paths the operator can later walk.
+fn render_verify_redacted(seal_section: &str) -> String {
+    format!(
+        r#"# VERIFY — this evidence pack (REDACTED)
+
+This pack proves the run's INTEGRITY, not its CONTENT — those are two
+different asks. The payload fields (model outputs · tool results ·
+file contents · failure details · streamed chunks · shown prompts)
+ride as sha256 placeholders; the raw journal never left the operator's
+machine. What the run DID is attested here; what the run SAID is a
+separate, operator-side disclosure (§3).
+
+Everything here checks offline, from this directory.
+
+## 1 · the projection is the bytes you were handed
+
+    shasum -a 256 journal.ndjson
+
+must print `pack.json → trace.projection_sha256`. Inside, every
+redacted field reads
+
+    {{"key":"output","value":{{"sha256":"…","unavailable":"…"}}}}
+
+— the sha256 over the field's OWN bytes (the string verbatim · the
+compact JSON for a non-string), the `unavailable` naming why.
+Structural fields — kind · ids · timestamps · hashes · chain links ·
+durations · counts · error classes — are verbatim, and a line with no
+payload field is byte-identical to the operator's line.
+
+The `chain` fields and `pack.json → trace.head` describe the ORIGINAL
+journal: they do not re-walk over this projection (the placeholders
+change the bytes the chain hashes — that is the construction, not a
+tamper), so do not run `nika trace verify` here; it reports broken by
+design. `pack.json → trace.chain` is the verdict the export computed
+over the original bytes.
+
+{seal_section}
+## 3 · content disclosure — the operator's separate gesture
+
+Integrity is covered above. CONTENT is a second ask, answered only by
+the operator disclosing — and both forms check offline:
+
+- one field — the operator shows the original value of one redacted
+  field; then
+
+      printf '%s' '<value>' | shasum -a 256
+
+  must equal that field's `sha256` placeholder.
+- the journal — the operator hands over the original journal.ndjson;
+  its `shasum -a 256` must equal `pack.json → trace.journal_sha256`,
+  and `nika trace verify` on THAT file re-walks intact to
+  `trace.head` — the seal (§2) then covers the disclosed bytes.
+
+A pack whose operator cannot produce a matching disclosure proves the
+integrity of SOMETHING — not of what you were shown.
+
+## 4 · read the manifest
+
+    cat pack.json
+
+Every claim names its provenance (`source: journal|seal|file`). A
+`null` field is an honest unknown — the matching entry in
+`unavailable` says why (usually: pass `--workflow <file>` so the pack
+can hash-check the workflow against the journal and re-derive the
+boundary, the trifecta verdict and the receipt).
+
+{TIERS}"#
     )
 }
 

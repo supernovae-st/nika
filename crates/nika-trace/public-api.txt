@@ -1,0 +1,821 @@
+pub mod nika_trace
+pub use nika_trace::VerbOutput
+pub use nika_trace::display
+pub mod nika_trace::dispatch
+pub fn nika_trace::dispatch::trace_verb(action: nika_trace::trace::action::TraceAction, theme: nika_display::theme::Theme, color: nika_display::format::ColorChoice, link_when: nika_display::format::LinkChoice) -> u8
+pub mod nika_trace::evidence
+pub struct nika_trace::evidence::EvidenceArgs
+pub nika_trace::evidence::EvidenceArgs::full: bool
+pub nika_trace::evidence::EvidenceArgs::json: bool
+pub nika_trace::evidence::EvidenceArgs::out: core::option::Option<std::path::PathBuf>
+pub nika_trace::evidence::EvidenceArgs::trace: core::option::Option<std::path::PathBuf>
+pub nika_trace::evidence::EvidenceArgs::workflow: core::option::Option<alloc::string::String>
+impl clap_builder::derive::Args for nika_trace::evidence::EvidenceArgs
+pub fn nika_trace::evidence::EvidenceArgs::augment_args<'b>(__clap_app: clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn nika_trace::evidence::EvidenceArgs::augment_args_for_update<'b>(__clap_app: clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn nika_trace::evidence::EvidenceArgs::group_id() -> core::option::Option<clap_builder::util::id::Id>
+impl clap_builder::derive::FromArgMatches for nika_trace::evidence::EvidenceArgs
+pub fn nika_trace::evidence::EvidenceArgs::from_arg_matches(__clap_arg_matches: &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn nika_trace::evidence::EvidenceArgs::from_arg_matches_mut(__clap_arg_matches: &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn nika_trace::evidence::EvidenceArgs::update_from_arg_matches(&mut self, __clap_arg_matches: &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+pub fn nika_trace::evidence::EvidenceArgs::update_from_arg_matches_mut(&mut self, __clap_arg_matches: &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+impl<D> owo_colors::OwoColorize for nika_trace::evidence::EvidenceArgs
+impl<T, U> core::convert::Into<U> for nika_trace::evidence::EvidenceArgs where U: core::convert::From<T>
+pub fn nika_trace::evidence::EvidenceArgs::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_trace::evidence::EvidenceArgs where U: core::convert::Into<T>
+pub type nika_trace::evidence::EvidenceArgs::Error = core::convert::Infallible
+pub fn nika_trace::evidence::EvidenceArgs::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_trace::evidence::EvidenceArgs where U: core::convert::TryFrom<T>
+pub type nika_trace::evidence::EvidenceArgs::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_trace::evidence::EvidenceArgs::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_trace::evidence::EvidenceArgs where T: 'static + ?core::marker::Sized
+pub fn nika_trace::evidence::EvidenceArgs::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_trace::evidence::EvidenceArgs where T: ?core::marker::Sized
+pub fn nika_trace::evidence::EvidenceArgs::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_trace::evidence::EvidenceArgs where T: ?core::marker::Sized
+pub fn nika_trace::evidence::EvidenceArgs::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_trace::evidence::EvidenceArgs
+pub fn nika_trace::evidence::EvidenceArgs::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_trace::evidence::EvidenceArgs where T: 'static
+pub fn nika_trace::evidence::EvidenceArgs::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_trace::evidence::EvidenceArgs where T: ?core::marker::Sized
+pub fn nika_trace::evidence::EvidenceArgs::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_trace::evidence::EvidenceArgs::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_trace::evidence::EvidenceArgs
+impl<T> tracing::instrument::WithSubscriber for nika_trace::evidence::EvidenceArgs
+impl<T> typenum::type_operators::Same for nika_trace::evidence::EvidenceArgs
+pub type nika_trace::evidence::EvidenceArgs::Output = T
+pub fn nika_trace::evidence::export(trace: &str, out: core::option::Option<&std::path::Path>, workflow: core::option::Option<&str>, json: bool, full: bool) -> nika_cli_host::output::VerbOutput
+pub mod nika_trace::forecast
+pub mod nika_trace::forecast::gather
+pub struct nika_trace::forecast::gather::Gathered
+pub nika_trace::forecast::gather::Gathered::samples: alloc::vec::Vec<nika_trace::forecast::gather::RunSample>
+pub nika_trace::forecast::gather::Gathered::window: nika_trace::forecast::Window
+impl core::default::Default for nika_trace::forecast::gather::Gathered
+pub fn nika_trace::forecast::gather::Gathered::default() -> nika_trace::forecast::gather::Gathered
+impl core::fmt::Debug for nika_trace::forecast::gather::Gathered
+pub fn nika_trace::forecast::gather::Gathered::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_trace::forecast::gather::Gathered
+impl<T, U> core::convert::Into<U> for nika_trace::forecast::gather::Gathered where U: core::convert::From<T>
+pub fn nika_trace::forecast::gather::Gathered::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_trace::forecast::gather::Gathered where U: core::convert::Into<T>
+pub type nika_trace::forecast::gather::Gathered::Error = core::convert::Infallible
+pub fn nika_trace::forecast::gather::Gathered::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_trace::forecast::gather::Gathered where U: core::convert::TryFrom<T>
+pub type nika_trace::forecast::gather::Gathered::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_trace::forecast::gather::Gathered::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_trace::forecast::gather::Gathered where T: 'static + ?core::marker::Sized
+pub fn nika_trace::forecast::gather::Gathered::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_trace::forecast::gather::Gathered where T: ?core::marker::Sized
+pub fn nika_trace::forecast::gather::Gathered::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_trace::forecast::gather::Gathered where T: ?core::marker::Sized
+pub fn nika_trace::forecast::gather::Gathered::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_trace::forecast::gather::Gathered
+pub fn nika_trace::forecast::gather::Gathered::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_trace::forecast::gather::Gathered where T: 'static
+pub fn nika_trace::forecast::gather::Gathered::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_trace::forecast::gather::Gathered where T: ?core::marker::Sized
+pub fn nika_trace::forecast::gather::Gathered::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_trace::forecast::gather::Gathered::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_trace::forecast::gather::Gathered
+impl<T> tracing::instrument::WithSubscriber for nika_trace::forecast::gather::Gathered
+impl<T> typenum::type_operators::Same for nika_trace::forecast::gather::Gathered
+pub type nika_trace::forecast::gather::Gathered::Output = T
+impl<T> zvariant::optional::NoneValue for nika_trace::forecast::gather::Gathered where T: core::default::Default
+pub type nika_trace::forecast::gather::Gathered::NoneType = T
+pub fn nika_trace::forecast::gather::Gathered::null_value() -> T
+pub struct nika_trace::forecast::gather::RunSample
+pub nika_trace::forecast::gather::RunSample::elapsed_ms: u64
+pub nika_trace::forecast::gather::RunSample::sha256: core::option::Option<alloc::string::String>
+pub nika_trace::forecast::gather::RunSample::sha256_lf: core::option::Option<alloc::string::String>
+pub nika_trace::forecast::gather::RunSample::started_ms: i64
+pub nika_trace::forecast::gather::RunSample::state: nika_dap::store::TraceState
+pub nika_trace::forecast::gather::RunSample::tasks: alloc::vec::Vec<nika_trace::forecast::gather::TaskSample>
+pub nika_trace::forecast::gather::RunSample::total_cost_usd: core::option::Option<f64>
+impl core::clone::Clone for nika_trace::forecast::gather::RunSample
+pub fn nika_trace::forecast::gather::RunSample::clone(&self) -> nika_trace::forecast::gather::RunSample
+impl core::fmt::Debug for nika_trace::forecast::gather::RunSample
+pub fn nika_trace::forecast::gather::RunSample::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_trace::forecast::gather::RunSample
+impl<T, U> core::convert::Into<U> for nika_trace::forecast::gather::RunSample where U: core::convert::From<T>
+pub fn nika_trace::forecast::gather::RunSample::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_trace::forecast::gather::RunSample where U: core::convert::Into<T>
+pub type nika_trace::forecast::gather::RunSample::Error = core::convert::Infallible
+pub fn nika_trace::forecast::gather::RunSample::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_trace::forecast::gather::RunSample where U: core::convert::TryFrom<T>
+pub type nika_trace::forecast::gather::RunSample::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_trace::forecast::gather::RunSample::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_trace::forecast::gather::RunSample where T: core::clone::Clone
+pub type nika_trace::forecast::gather::RunSample::Owned = T
+pub fn nika_trace::forecast::gather::RunSample::clone_into(&self, target: &mut T)
+pub fn nika_trace::forecast::gather::RunSample::to_owned(&self) -> T
+impl<T> core::any::Any for nika_trace::forecast::gather::RunSample where T: 'static + ?core::marker::Sized
+pub fn nika_trace::forecast::gather::RunSample::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_trace::forecast::gather::RunSample where T: ?core::marker::Sized
+pub fn nika_trace::forecast::gather::RunSample::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_trace::forecast::gather::RunSample where T: ?core::marker::Sized
+pub fn nika_trace::forecast::gather::RunSample::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_trace::forecast::gather::RunSample where T: core::clone::Clone
+pub unsafe fn nika_trace::forecast::gather::RunSample::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_trace::forecast::gather::RunSample
+pub fn nika_trace::forecast::gather::RunSample::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_trace::forecast::gather::RunSample where T: core::clone::Clone
+pub fn nika_trace::forecast::gather::RunSample::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_trace::forecast::gather::RunSample where T: 'static
+pub fn nika_trace::forecast::gather::RunSample::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_trace::forecast::gather::RunSample where T: ?core::marker::Sized
+pub fn nika_trace::forecast::gather::RunSample::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_trace::forecast::gather::RunSample::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_trace::forecast::gather::RunSample
+impl<T> tracing::instrument::WithSubscriber for nika_trace::forecast::gather::RunSample
+impl<T> typenum::type_operators::Same for nika_trace::forecast::gather::RunSample
+pub type nika_trace::forecast::gather::RunSample::Output = T
+pub struct nika_trace::forecast::gather::TaskSample
+pub nika_trace::forecast::gather::TaskSample::cached: bool
+pub nika_trace::forecast::gather::TaskSample::cost_usd: core::option::Option<f64>
+pub nika_trace::forecast::gather::TaskSample::duration_ms: core::option::Option<u64>
+pub nika_trace::forecast::gather::TaskSample::id: alloc::string::String
+pub nika_trace::forecast::gather::TaskSample::model: core::option::Option<alloc::string::String>
+pub nika_trace::forecast::gather::TaskSample::retried: bool
+pub nika_trace::forecast::gather::TaskSample::state: nika_display::state::TaskState
+pub nika_trace::forecast::gather::TaskSample::unpriced: core::option::Option<alloc::string::String>
+impl core::clone::Clone for nika_trace::forecast::gather::TaskSample
+pub fn nika_trace::forecast::gather::TaskSample::clone(&self) -> nika_trace::forecast::gather::TaskSample
+impl core::fmt::Debug for nika_trace::forecast::gather::TaskSample
+pub fn nika_trace::forecast::gather::TaskSample::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_trace::forecast::gather::TaskSample
+impl<T, U> core::convert::Into<U> for nika_trace::forecast::gather::TaskSample where U: core::convert::From<T>
+pub fn nika_trace::forecast::gather::TaskSample::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_trace::forecast::gather::TaskSample where U: core::convert::Into<T>
+pub type nika_trace::forecast::gather::TaskSample::Error = core::convert::Infallible
+pub fn nika_trace::forecast::gather::TaskSample::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_trace::forecast::gather::TaskSample where U: core::convert::TryFrom<T>
+pub type nika_trace::forecast::gather::TaskSample::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_trace::forecast::gather::TaskSample::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_trace::forecast::gather::TaskSample where T: core::clone::Clone
+pub type nika_trace::forecast::gather::TaskSample::Owned = T
+pub fn nika_trace::forecast::gather::TaskSample::clone_into(&self, target: &mut T)
+pub fn nika_trace::forecast::gather::TaskSample::to_owned(&self) -> T
+impl<T> core::any::Any for nika_trace::forecast::gather::TaskSample where T: 'static + ?core::marker::Sized
+pub fn nika_trace::forecast::gather::TaskSample::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_trace::forecast::gather::TaskSample where T: ?core::marker::Sized
+pub fn nika_trace::forecast::gather::TaskSample::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_trace::forecast::gather::TaskSample where T: ?core::marker::Sized
+pub fn nika_trace::forecast::gather::TaskSample::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_trace::forecast::gather::TaskSample where T: core::clone::Clone
+pub unsafe fn nika_trace::forecast::gather::TaskSample::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_trace::forecast::gather::TaskSample
+pub fn nika_trace::forecast::gather::TaskSample::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_trace::forecast::gather::TaskSample where T: core::clone::Clone
+pub fn nika_trace::forecast::gather::TaskSample::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_trace::forecast::gather::TaskSample where T: 'static
+pub fn nika_trace::forecast::gather::TaskSample::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_trace::forecast::gather::TaskSample where T: ?core::marker::Sized
+pub fn nika_trace::forecast::gather::TaskSample::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_trace::forecast::gather::TaskSample::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_trace::forecast::gather::TaskSample
+impl<T> tracing::instrument::WithSubscriber for nika_trace::forecast::gather::TaskSample
+impl<T> typenum::type_operators::Same for nika_trace::forecast::gather::TaskSample
+pub type nika_trace::forecast::gather::TaskSample::Output = T
+pub fn nika_trace::forecast::gather::gather(dir: &std::path::Path, workflow_name: &str) -> nika_trace::forecast::gather::Gathered
+pub mod nika_trace::forecast::render
+pub fn nika_trace::forecast::render::forecast_section(s: &mut alloc::string::String, report: &nika_trace::forecast::ForecastReport)
+pub struct nika_trace::forecast::ForecastReport
+pub nika_trace::forecast::ForecastReport::run_cost: core::option::Option<nika_dap::stats::Prior>
+pub nika_trace::forecast::ForecastReport::run_duration: nika_dap::stats::Prior
+pub nika_trace::forecast::ForecastReport::runs: nika_trace::forecast::RunCensus
+pub nika_trace::forecast::ForecastReport::tasks: alloc::vec::Vec<nika_trace::forecast::TaskPrior>
+pub nika_trace::forecast::ForecastReport::window: nika_trace::forecast::Window
+pub nika_trace::forecast::ForecastReport::workflow: alloc::string::String
+impl core::clone::Clone for nika_trace::forecast::ForecastReport
+pub fn nika_trace::forecast::ForecastReport::clone(&self) -> nika_trace::forecast::ForecastReport
+impl core::fmt::Debug for nika_trace::forecast::ForecastReport
+pub fn nika_trace::forecast::ForecastReport::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl serde_core::ser::Serialize for nika_trace::forecast::ForecastReport
+pub fn nika_trace::forecast::ForecastReport::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_trace::forecast::ForecastReport
+impl<T, U> core::convert::Into<U> for nika_trace::forecast::ForecastReport where U: core::convert::From<T>
+pub fn nika_trace::forecast::ForecastReport::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_trace::forecast::ForecastReport where U: core::convert::Into<T>
+pub type nika_trace::forecast::ForecastReport::Error = core::convert::Infallible
+pub fn nika_trace::forecast::ForecastReport::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_trace::forecast::ForecastReport where U: core::convert::TryFrom<T>
+pub type nika_trace::forecast::ForecastReport::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_trace::forecast::ForecastReport::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_trace::forecast::ForecastReport where T: core::clone::Clone
+pub type nika_trace::forecast::ForecastReport::Owned = T
+pub fn nika_trace::forecast::ForecastReport::clone_into(&self, target: &mut T)
+pub fn nika_trace::forecast::ForecastReport::to_owned(&self) -> T
+impl<T> core::any::Any for nika_trace::forecast::ForecastReport where T: 'static + ?core::marker::Sized
+pub fn nika_trace::forecast::ForecastReport::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_trace::forecast::ForecastReport where T: ?core::marker::Sized
+pub fn nika_trace::forecast::ForecastReport::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_trace::forecast::ForecastReport where T: ?core::marker::Sized
+pub fn nika_trace::forecast::ForecastReport::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_trace::forecast::ForecastReport where T: core::clone::Clone
+pub unsafe fn nika_trace::forecast::ForecastReport::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_trace::forecast::ForecastReport
+pub fn nika_trace::forecast::ForecastReport::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_trace::forecast::ForecastReport where T: core::clone::Clone
+pub fn nika_trace::forecast::ForecastReport::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_trace::forecast::ForecastReport where T: 'static
+pub fn nika_trace::forecast::ForecastReport::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_trace::forecast::ForecastReport where T: ?core::marker::Sized
+pub fn nika_trace::forecast::ForecastReport::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_trace::forecast::ForecastReport::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_trace::forecast::ForecastReport
+impl<T> tracing::instrument::WithSubscriber for nika_trace::forecast::ForecastReport
+impl<T> typenum::type_operators::Same for nika_trace::forecast::ForecastReport
+pub type nika_trace::forecast::ForecastReport::Output = T
+pub struct nika_trace::forecast::RunCensus
+pub nika_trace::forecast::RunCensus::cancelled: usize
+pub nika_trace::forecast::RunCensus::completed: usize
+pub nika_trace::forecast::RunCensus::failed: usize
+pub nika_trace::forecast::RunCensus::no_terminal: usize
+pub nika_trace::forecast::RunCensus::paused: usize
+pub nika_trace::forecast::RunCensus::same_hash: usize
+pub nika_trace::forecast::RunCensus::stale_hash: usize
+pub nika_trace::forecast::RunCensus::total: usize
+pub nika_trace::forecast::RunCensus::unknown_hash: usize
+impl core::clone::Clone for nika_trace::forecast::RunCensus
+pub fn nika_trace::forecast::RunCensus::clone(&self) -> nika_trace::forecast::RunCensus
+impl core::default::Default for nika_trace::forecast::RunCensus
+pub fn nika_trace::forecast::RunCensus::default() -> nika_trace::forecast::RunCensus
+impl core::fmt::Debug for nika_trace::forecast::RunCensus
+pub fn nika_trace::forecast::RunCensus::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_trace::forecast::RunCensus
+impl serde_core::ser::Serialize for nika_trace::forecast::RunCensus
+pub fn nika_trace::forecast::RunCensus::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_trace::forecast::RunCensus
+impl<T, U> core::convert::Into<U> for nika_trace::forecast::RunCensus where U: core::convert::From<T>
+pub fn nika_trace::forecast::RunCensus::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_trace::forecast::RunCensus where U: core::convert::Into<T>
+pub type nika_trace::forecast::RunCensus::Error = core::convert::Infallible
+pub fn nika_trace::forecast::RunCensus::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_trace::forecast::RunCensus where U: core::convert::TryFrom<T>
+pub type nika_trace::forecast::RunCensus::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_trace::forecast::RunCensus::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_trace::forecast::RunCensus where T: core::clone::Clone
+pub type nika_trace::forecast::RunCensus::Owned = T
+pub fn nika_trace::forecast::RunCensus::clone_into(&self, target: &mut T)
+pub fn nika_trace::forecast::RunCensus::to_owned(&self) -> T
+impl<T> core::any::Any for nika_trace::forecast::RunCensus where T: 'static + ?core::marker::Sized
+pub fn nika_trace::forecast::RunCensus::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_trace::forecast::RunCensus where T: ?core::marker::Sized
+pub fn nika_trace::forecast::RunCensus::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_trace::forecast::RunCensus where T: ?core::marker::Sized
+pub fn nika_trace::forecast::RunCensus::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_trace::forecast::RunCensus where T: core::clone::Clone
+pub unsafe fn nika_trace::forecast::RunCensus::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_trace::forecast::RunCensus
+pub fn nika_trace::forecast::RunCensus::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_trace::forecast::RunCensus where T: core::clone::Clone
+pub fn nika_trace::forecast::RunCensus::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_trace::forecast::RunCensus where T: 'static
+pub fn nika_trace::forecast::RunCensus::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_trace::forecast::RunCensus where T: core::marker::Copy
+pub fn nika_trace::forecast::RunCensus::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_trace::forecast::RunCensus where T: ?core::marker::Sized
+pub fn nika_trace::forecast::RunCensus::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_trace::forecast::RunCensus::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_trace::forecast::RunCensus
+impl<T> tracing::instrument::WithSubscriber for nika_trace::forecast::RunCensus
+impl<T> typenum::type_operators::Same for nika_trace::forecast::RunCensus
+pub type nika_trace::forecast::RunCensus::Output = T
+impl<T> zvariant::optional::NoneValue for nika_trace::forecast::RunCensus where T: core::default::Default
+pub type nika_trace::forecast::RunCensus::NoneType = T
+pub fn nika_trace::forecast::RunCensus::null_value() -> T
+pub struct nika_trace::forecast::TaskPrior
+pub nika_trace::forecast::TaskPrior::cache_hits: usize
+pub nika_trace::forecast::TaskPrior::cost_usd: core::option::Option<nika_dap::stats::Prior>
+pub nika_trace::forecast::TaskPrior::duration_ms: nika_dap::stats::Prior
+pub nika_trace::forecast::TaskPrior::failed: usize
+pub nika_trace::forecast::TaskPrior::id: alloc::string::String
+pub nika_trace::forecast::TaskPrior::other_model: usize
+pub nika_trace::forecast::TaskPrior::passed_on_retry: usize
+pub nika_trace::forecast::TaskPrior::ran_in_runs: usize
+pub nika_trace::forecast::TaskPrior::unpriced: core::option::Option<alloc::string::String>
+impl core::clone::Clone for nika_trace::forecast::TaskPrior
+pub fn nika_trace::forecast::TaskPrior::clone(&self) -> nika_trace::forecast::TaskPrior
+impl core::fmt::Debug for nika_trace::forecast::TaskPrior
+pub fn nika_trace::forecast::TaskPrior::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl serde_core::ser::Serialize for nika_trace::forecast::TaskPrior
+pub fn nika_trace::forecast::TaskPrior::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_trace::forecast::TaskPrior
+impl<T, U> core::convert::Into<U> for nika_trace::forecast::TaskPrior where U: core::convert::From<T>
+pub fn nika_trace::forecast::TaskPrior::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_trace::forecast::TaskPrior where U: core::convert::Into<T>
+pub type nika_trace::forecast::TaskPrior::Error = core::convert::Infallible
+pub fn nika_trace::forecast::TaskPrior::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_trace::forecast::TaskPrior where U: core::convert::TryFrom<T>
+pub type nika_trace::forecast::TaskPrior::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_trace::forecast::TaskPrior::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_trace::forecast::TaskPrior where T: core::clone::Clone
+pub type nika_trace::forecast::TaskPrior::Owned = T
+pub fn nika_trace::forecast::TaskPrior::clone_into(&self, target: &mut T)
+pub fn nika_trace::forecast::TaskPrior::to_owned(&self) -> T
+impl<T> core::any::Any for nika_trace::forecast::TaskPrior where T: 'static + ?core::marker::Sized
+pub fn nika_trace::forecast::TaskPrior::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_trace::forecast::TaskPrior where T: ?core::marker::Sized
+pub fn nika_trace::forecast::TaskPrior::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_trace::forecast::TaskPrior where T: ?core::marker::Sized
+pub fn nika_trace::forecast::TaskPrior::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_trace::forecast::TaskPrior where T: core::clone::Clone
+pub unsafe fn nika_trace::forecast::TaskPrior::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_trace::forecast::TaskPrior
+pub fn nika_trace::forecast::TaskPrior::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_trace::forecast::TaskPrior where T: core::clone::Clone
+pub fn nika_trace::forecast::TaskPrior::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_trace::forecast::TaskPrior where T: 'static
+pub fn nika_trace::forecast::TaskPrior::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_trace::forecast::TaskPrior where T: ?core::marker::Sized
+pub fn nika_trace::forecast::TaskPrior::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_trace::forecast::TaskPrior::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_trace::forecast::TaskPrior
+impl<T> tracing::instrument::WithSubscriber for nika_trace::forecast::TaskPrior
+impl<T> typenum::type_operators::Same for nika_trace::forecast::TaskPrior
+pub type nika_trace::forecast::TaskPrior::Output = T
+pub struct nika_trace::forecast::Window
+pub nika_trace::forecast::Window::days: u32
+pub nika_trace::forecast::Window::files_examined: usize
+pub nika_trace::forecast::Window::files_truncated: usize
+pub nika_trace::forecast::Window::files_unreadable: usize
+pub nika_trace::forecast::Window::k: usize
+pub nika_trace::forecast::Window::nonfinite_dropped: usize
+pub nika_trace::forecast::Window::retention_keep: usize
+impl core::clone::Clone for nika_trace::forecast::Window
+pub fn nika_trace::forecast::Window::clone(&self) -> nika_trace::forecast::Window
+impl core::default::Default for nika_trace::forecast::Window
+pub fn nika_trace::forecast::Window::default() -> Self
+impl core::fmt::Debug for nika_trace::forecast::Window
+pub fn nika_trace::forecast::Window::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_trace::forecast::Window
+impl serde_core::ser::Serialize for nika_trace::forecast::Window
+pub fn nika_trace::forecast::Window::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_trace::forecast::Window
+impl<T, U> core::convert::Into<U> for nika_trace::forecast::Window where U: core::convert::From<T>
+pub fn nika_trace::forecast::Window::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_trace::forecast::Window where U: core::convert::Into<T>
+pub type nika_trace::forecast::Window::Error = core::convert::Infallible
+pub fn nika_trace::forecast::Window::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_trace::forecast::Window where U: core::convert::TryFrom<T>
+pub type nika_trace::forecast::Window::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_trace::forecast::Window::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_trace::forecast::Window where T: core::clone::Clone
+pub type nika_trace::forecast::Window::Owned = T
+pub fn nika_trace::forecast::Window::clone_into(&self, target: &mut T)
+pub fn nika_trace::forecast::Window::to_owned(&self) -> T
+impl<T> core::any::Any for nika_trace::forecast::Window where T: 'static + ?core::marker::Sized
+pub fn nika_trace::forecast::Window::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_trace::forecast::Window where T: ?core::marker::Sized
+pub fn nika_trace::forecast::Window::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_trace::forecast::Window where T: ?core::marker::Sized
+pub fn nika_trace::forecast::Window::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_trace::forecast::Window where T: core::clone::Clone
+pub unsafe fn nika_trace::forecast::Window::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_trace::forecast::Window
+pub fn nika_trace::forecast::Window::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_trace::forecast::Window where T: core::clone::Clone
+pub fn nika_trace::forecast::Window::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_trace::forecast::Window where T: 'static
+pub fn nika_trace::forecast::Window::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_trace::forecast::Window where T: core::marker::Copy
+pub fn nika_trace::forecast::Window::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_trace::forecast::Window where T: ?core::marker::Sized
+pub fn nika_trace::forecast::Window::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_trace::forecast::Window::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_trace::forecast::Window
+impl<T> tracing::instrument::WithSubscriber for nika_trace::forecast::Window
+impl<T> typenum::type_operators::Same for nika_trace::forecast::Window
+pub type nika_trace::forecast::Window::Output = T
+impl<T> zvariant::optional::NoneValue for nika_trace::forecast::Window where T: core::default::Default
+pub type nika_trace::forecast::Window::NoneType = T
+pub fn nika_trace::forecast::Window::null_value() -> T
+pub struct nika_trace::forecast::WorkflowIdentity
+pub nika_trace::forecast::WorkflowIdentity::name: alloc::string::String
+pub nika_trace::forecast::WorkflowIdentity::sha256: alloc::string::String
+pub nika_trace::forecast::WorkflowIdentity::sha256_lf: alloc::string::String
+impl core::clone::Clone for nika_trace::forecast::WorkflowIdentity
+pub fn nika_trace::forecast::WorkflowIdentity::clone(&self) -> nika_trace::forecast::WorkflowIdentity
+impl core::fmt::Debug for nika_trace::forecast::WorkflowIdentity
+pub fn nika_trace::forecast::WorkflowIdentity::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_trace::forecast::WorkflowIdentity
+impl<T, U> core::convert::Into<U> for nika_trace::forecast::WorkflowIdentity where U: core::convert::From<T>
+pub fn nika_trace::forecast::WorkflowIdentity::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_trace::forecast::WorkflowIdentity where U: core::convert::Into<T>
+pub type nika_trace::forecast::WorkflowIdentity::Error = core::convert::Infallible
+pub fn nika_trace::forecast::WorkflowIdentity::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_trace::forecast::WorkflowIdentity where U: core::convert::TryFrom<T>
+pub type nika_trace::forecast::WorkflowIdentity::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_trace::forecast::WorkflowIdentity::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_trace::forecast::WorkflowIdentity where T: core::clone::Clone
+pub type nika_trace::forecast::WorkflowIdentity::Owned = T
+pub fn nika_trace::forecast::WorkflowIdentity::clone_into(&self, target: &mut T)
+pub fn nika_trace::forecast::WorkflowIdentity::to_owned(&self) -> T
+impl<T> core::any::Any for nika_trace::forecast::WorkflowIdentity where T: 'static + ?core::marker::Sized
+pub fn nika_trace::forecast::WorkflowIdentity::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_trace::forecast::WorkflowIdentity where T: ?core::marker::Sized
+pub fn nika_trace::forecast::WorkflowIdentity::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_trace::forecast::WorkflowIdentity where T: ?core::marker::Sized
+pub fn nika_trace::forecast::WorkflowIdentity::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_trace::forecast::WorkflowIdentity where T: core::clone::Clone
+pub unsafe fn nika_trace::forecast::WorkflowIdentity::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_trace::forecast::WorkflowIdentity
+pub fn nika_trace::forecast::WorkflowIdentity::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_trace::forecast::WorkflowIdentity where T: core::clone::Clone
+pub fn nika_trace::forecast::WorkflowIdentity::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_trace::forecast::WorkflowIdentity where T: 'static
+pub fn nika_trace::forecast::WorkflowIdentity::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_trace::forecast::WorkflowIdentity where T: ?core::marker::Sized
+pub fn nika_trace::forecast::WorkflowIdentity::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_trace::forecast::WorkflowIdentity::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_trace::forecast::WorkflowIdentity
+impl<T> tracing::instrument::WithSubscriber for nika_trace::forecast::WorkflowIdentity
+impl<T> typenum::type_operators::Same for nika_trace::forecast::WorkflowIdentity
+pub type nika_trace::forecast::WorkflowIdentity::Output = T
+pub const nika_trace::forecast::AUTO_FORECAST_MIN_RUNS: usize
+pub fn nika_trace::forecast::compute(id: &nika_trace::forecast::WorkflowIdentity, gathered: &nika_trace::forecast::gather::Gathered) -> nika_trace::forecast::ForecastReport
+pub mod nika_trace::receipt
+pub enum nika_trace::receipt::ReceiptAction
+pub nika_trace::receipt::ReceiptAction::Explain
+pub nika_trace::receipt::ReceiptAction::Explain::file: std::path::PathBuf
+impl clap_builder::derive::FromArgMatches for nika_trace::receipt::ReceiptAction
+pub fn nika_trace::receipt::ReceiptAction::from_arg_matches(__clap_arg_matches: &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn nika_trace::receipt::ReceiptAction::from_arg_matches_mut(__clap_arg_matches: &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn nika_trace::receipt::ReceiptAction::update_from_arg_matches(&mut self, __clap_arg_matches: &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+pub fn nika_trace::receipt::ReceiptAction::update_from_arg_matches_mut<'b>(&mut self, __clap_arg_matches: &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+impl clap_builder::derive::Subcommand for nika_trace::receipt::ReceiptAction
+pub fn nika_trace::receipt::ReceiptAction::augment_subcommands<'b>(__clap_app: clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn nika_trace::receipt::ReceiptAction::augment_subcommands_for_update<'b>(__clap_app: clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn nika_trace::receipt::ReceiptAction::has_subcommand(__clap_name: &str) -> bool
+impl<D> owo_colors::OwoColorize for nika_trace::receipt::ReceiptAction
+impl<T, U> core::convert::Into<U> for nika_trace::receipt::ReceiptAction where U: core::convert::From<T>
+pub fn nika_trace::receipt::ReceiptAction::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_trace::receipt::ReceiptAction where U: core::convert::Into<T>
+pub type nika_trace::receipt::ReceiptAction::Error = core::convert::Infallible
+pub fn nika_trace::receipt::ReceiptAction::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_trace::receipt::ReceiptAction where U: core::convert::TryFrom<T>
+pub type nika_trace::receipt::ReceiptAction::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_trace::receipt::ReceiptAction::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_trace::receipt::ReceiptAction where T: 'static + ?core::marker::Sized
+pub fn nika_trace::receipt::ReceiptAction::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_trace::receipt::ReceiptAction where T: ?core::marker::Sized
+pub fn nika_trace::receipt::ReceiptAction::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_trace::receipt::ReceiptAction where T: ?core::marker::Sized
+pub fn nika_trace::receipt::ReceiptAction::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_trace::receipt::ReceiptAction
+pub fn nika_trace::receipt::ReceiptAction::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_trace::receipt::ReceiptAction where T: 'static
+pub fn nika_trace::receipt::ReceiptAction::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_trace::receipt::ReceiptAction where T: ?core::marker::Sized
+pub fn nika_trace::receipt::ReceiptAction::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_trace::receipt::ReceiptAction::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_trace::receipt::ReceiptAction
+impl<T> tracing::instrument::WithSubscriber for nika_trace::receipt::ReceiptAction
+impl<T> typenum::type_operators::Same for nika_trace::receipt::ReceiptAction
+pub type nika_trace::receipt::ReceiptAction::Output = T
+pub fn nika_trace::receipt::explain(file: &std::path::Path) -> nika_cli_host::output::VerbOutput
+pub fn nika_trace::receipt::run(action: nika_trace::receipt::ReceiptAction) -> nika_cli_host::output::VerbOutput
+pub mod nika_trace::trace
+pub mod nika_trace::trace::action
+pub enum nika_trace::trace::action::TraceAction
+pub nika_trace::trace::action::TraceAction::Anchor
+pub nika_trace::trace::action::TraceAction::Anchor::rekor_url: alloc::string::String
+pub nika_trace::trace::action::TraceAction::Anchor::trace: core::option::Option<std::path::PathBuf>
+pub nika_trace::trace::action::TraceAction::Anchor::tsa_url: alloc::string::String
+pub nika_trace::trace::action::TraceAction::Evidence
+pub nika_trace::trace::action::TraceAction::Evidence::args: nika_trace::evidence::EvidenceArgs
+pub nika_trace::trace::action::TraceAction::Export
+pub nika_trace::trace::action::TraceAction::Export::include_content: bool
+pub nika_trace::trace::action::TraceAction::Export::out: core::option::Option<std::path::PathBuf>
+pub nika_trace::trace::action::TraceAction::Export::trace: std::path::PathBuf
+pub nika_trace::trace::action::TraceAction::Flow
+pub nika_trace::trace::action::TraceAction::Flow::trace: core::option::Option<std::path::PathBuf>
+pub nika_trace::trace::action::TraceAction::Flow::workflow: core::option::Option<alloc::string::String>
+pub nika_trace::trace::action::TraceAction::Ls
+pub nika_trace::trace::action::TraceAction::Outputs
+pub nika_trace::trace::action::TraceAction::Outputs::trace: core::option::Option<std::path::PathBuf>
+pub nika_trace::trace::action::TraceAction::Peek
+pub nika_trace::trace::action::TraceAction::Peek::raw: bool
+pub nika_trace::trace::action::TraceAction::Peek::task: alloc::string::String
+pub nika_trace::trace::action::TraceAction::Peek::trace: std::path::PathBuf
+pub nika_trace::trace::action::TraceAction::Receipt
+pub nika_trace::trace::action::TraceAction::Receipt::action: nika_trace::receipt::ReceiptAction
+pub nika_trace::trace::action::TraceAction::Replay(nika_trace::trace::action::TraceArgs)
+pub nika_trace::trace::action::TraceAction::Reproduce
+pub nika_trace::trace::action::TraceAction::Reproduce::fresh: std::path::PathBuf
+pub nika_trace::trace::action::TraceAction::Reproduce::recorded: std::path::PathBuf
+pub nika_trace::trace::action::TraceAction::Rm
+pub nika_trace::trace::action::TraceAction::Rm::all: bool
+pub nika_trace::trace::action::TraceAction::Rm::force: bool
+pub nika_trace::trace::action::TraceAction::Rm::older_than: core::option::Option<alloc::string::String>
+pub nika_trace::trace::action::TraceAction::Rm::trace: core::option::Option<alloc::string::String>
+pub nika_trace::trace::action::TraceAction::Show(nika_trace::trace::action::TraceArgs)
+pub nika_trace::trace::action::TraceAction::Verify
+pub nika_trace::trace::action::TraceAction::Verify::anchored: bool
+pub nika_trace::trace::action::TraceAction::Verify::key: core::option::Option<std::path::PathBuf>
+pub nika_trace::trace::action::TraceAction::Verify::replay: core::option::Option<std::path::PathBuf>
+pub nika_trace::trace::action::TraceAction::Verify::traces: alloc::vec::Vec<std::path::PathBuf>
+impl clap_builder::derive::FromArgMatches for nika_trace::trace::action::TraceAction
+pub fn nika_trace::trace::action::TraceAction::from_arg_matches(__clap_arg_matches: &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn nika_trace::trace::action::TraceAction::from_arg_matches_mut(__clap_arg_matches: &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn nika_trace::trace::action::TraceAction::update_from_arg_matches(&mut self, __clap_arg_matches: &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+pub fn nika_trace::trace::action::TraceAction::update_from_arg_matches_mut<'b>(&mut self, __clap_arg_matches: &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+impl clap_builder::derive::Subcommand for nika_trace::trace::action::TraceAction
+pub fn nika_trace::trace::action::TraceAction::augment_subcommands<'b>(__clap_app: clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn nika_trace::trace::action::TraceAction::augment_subcommands_for_update<'b>(__clap_app: clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn nika_trace::trace::action::TraceAction::has_subcommand(__clap_name: &str) -> bool
+impl<D> owo_colors::OwoColorize for nika_trace::trace::action::TraceAction
+impl<T, U> core::convert::Into<U> for nika_trace::trace::action::TraceAction where U: core::convert::From<T>
+pub fn nika_trace::trace::action::TraceAction::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_trace::trace::action::TraceAction where U: core::convert::Into<T>
+pub type nika_trace::trace::action::TraceAction::Error = core::convert::Infallible
+pub fn nika_trace::trace::action::TraceAction::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_trace::trace::action::TraceAction where U: core::convert::TryFrom<T>
+pub type nika_trace::trace::action::TraceAction::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_trace::trace::action::TraceAction::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_trace::trace::action::TraceAction where T: 'static + ?core::marker::Sized
+pub fn nika_trace::trace::action::TraceAction::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_trace::trace::action::TraceAction where T: ?core::marker::Sized
+pub fn nika_trace::trace::action::TraceAction::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_trace::trace::action::TraceAction where T: ?core::marker::Sized
+pub fn nika_trace::trace::action::TraceAction::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_trace::trace::action::TraceAction
+pub fn nika_trace::trace::action::TraceAction::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_trace::trace::action::TraceAction where T: 'static
+pub fn nika_trace::trace::action::TraceAction::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_trace::trace::action::TraceAction where T: ?core::marker::Sized
+pub fn nika_trace::trace::action::TraceAction::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_trace::trace::action::TraceAction::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_trace::trace::action::TraceAction
+impl<T> tracing::instrument::WithSubscriber for nika_trace::trace::action::TraceAction
+impl<T> typenum::type_operators::Same for nika_trace::trace::action::TraceAction
+pub type nika_trace::trace::action::TraceAction::Output = T
+pub struct nika_trace::trace::action::TraceArgs
+pub nika_trace::trace::action::TraceArgs::demo: bool
+pub nika_trace::trace::action::TraceArgs::demo_fail: bool
+pub nika_trace::trace::action::TraceArgs::no_outputs: bool
+pub nika_trace::trace::action::TraceArgs::speed: f64
+pub nika_trace::trace::action::TraceArgs::trace: core::option::Option<std::path::PathBuf>
+impl clap_builder::derive::Args for nika_trace::trace::action::TraceArgs
+pub fn nika_trace::trace::action::TraceArgs::augment_args<'b>(__clap_app: clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn nika_trace::trace::action::TraceArgs::augment_args_for_update<'b>(__clap_app: clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn nika_trace::trace::action::TraceArgs::group_id() -> core::option::Option<clap_builder::util::id::Id>
+impl clap_builder::derive::FromArgMatches for nika_trace::trace::action::TraceArgs
+pub fn nika_trace::trace::action::TraceArgs::from_arg_matches(__clap_arg_matches: &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn nika_trace::trace::action::TraceArgs::from_arg_matches_mut(__clap_arg_matches: &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn nika_trace::trace::action::TraceArgs::update_from_arg_matches(&mut self, __clap_arg_matches: &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+pub fn nika_trace::trace::action::TraceArgs::update_from_arg_matches_mut(&mut self, __clap_arg_matches: &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+impl<D> owo_colors::OwoColorize for nika_trace::trace::action::TraceArgs
+impl<T, U> core::convert::Into<U> for nika_trace::trace::action::TraceArgs where U: core::convert::From<T>
+pub fn nika_trace::trace::action::TraceArgs::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_trace::trace::action::TraceArgs where U: core::convert::Into<T>
+pub type nika_trace::trace::action::TraceArgs::Error = core::convert::Infallible
+pub fn nika_trace::trace::action::TraceArgs::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_trace::trace::action::TraceArgs where U: core::convert::TryFrom<T>
+pub type nika_trace::trace::action::TraceArgs::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_trace::trace::action::TraceArgs::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_trace::trace::action::TraceArgs where T: 'static + ?core::marker::Sized
+pub fn nika_trace::trace::action::TraceArgs::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_trace::trace::action::TraceArgs where T: ?core::marker::Sized
+pub fn nika_trace::trace::action::TraceArgs::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_trace::trace::action::TraceArgs where T: ?core::marker::Sized
+pub fn nika_trace::trace::action::TraceArgs::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_trace::trace::action::TraceArgs
+pub fn nika_trace::trace::action::TraceArgs::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_trace::trace::action::TraceArgs where T: 'static
+pub fn nika_trace::trace::action::TraceArgs::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_trace::trace::action::TraceArgs where T: ?core::marker::Sized
+pub fn nika_trace::trace::action::TraceArgs::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_trace::trace::action::TraceArgs::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_trace::trace::action::TraceArgs
+impl<T> tracing::instrument::WithSubscriber for nika_trace::trace::action::TraceArgs
+impl<T> typenum::type_operators::Same for nika_trace::trace::action::TraceArgs
+pub type nika_trace::trace::action::TraceArgs::Output = T
+pub mod nika_trace::trace::manage
+pub use nika_trace::trace::manage::parse_older_than
+pub enum nika_trace::trace::manage::RmTarget
+pub nika_trace::trace::manage::RmTarget::All
+pub nika_trace::trace::manage::RmTarget::OlderThan(core::time::Duration)
+pub nika_trace::trace::manage::RmTarget::One(alloc::string::String)
+impl core::clone::Clone for nika_trace::trace::manage::RmTarget
+pub fn nika_trace::trace::manage::RmTarget::clone(&self) -> nika_trace::trace::manage::RmTarget
+impl core::fmt::Debug for nika_trace::trace::manage::RmTarget
+pub fn nika_trace::trace::manage::RmTarget::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_trace::trace::manage::RmTarget
+impl<T, U> core::convert::Into<U> for nika_trace::trace::manage::RmTarget where U: core::convert::From<T>
+pub fn nika_trace::trace::manage::RmTarget::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_trace::trace::manage::RmTarget where U: core::convert::Into<T>
+pub type nika_trace::trace::manage::RmTarget::Error = core::convert::Infallible
+pub fn nika_trace::trace::manage::RmTarget::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_trace::trace::manage::RmTarget where U: core::convert::TryFrom<T>
+pub type nika_trace::trace::manage::RmTarget::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_trace::trace::manage::RmTarget::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_trace::trace::manage::RmTarget where T: core::clone::Clone
+pub type nika_trace::trace::manage::RmTarget::Owned = T
+pub fn nika_trace::trace::manage::RmTarget::clone_into(&self, target: &mut T)
+pub fn nika_trace::trace::manage::RmTarget::to_owned(&self) -> T
+impl<T> core::any::Any for nika_trace::trace::manage::RmTarget where T: 'static + ?core::marker::Sized
+pub fn nika_trace::trace::manage::RmTarget::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_trace::trace::manage::RmTarget where T: ?core::marker::Sized
+pub fn nika_trace::trace::manage::RmTarget::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_trace::trace::manage::RmTarget where T: ?core::marker::Sized
+pub fn nika_trace::trace::manage::RmTarget::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_trace::trace::manage::RmTarget where T: core::clone::Clone
+pub unsafe fn nika_trace::trace::manage::RmTarget::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_trace::trace::manage::RmTarget
+pub fn nika_trace::trace::manage::RmTarget::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_trace::trace::manage::RmTarget where T: core::clone::Clone
+pub fn nika_trace::trace::manage::RmTarget::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_trace::trace::manage::RmTarget where T: 'static
+pub fn nika_trace::trace::manage::RmTarget::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_trace::trace::manage::RmTarget where T: ?core::marker::Sized
+pub fn nika_trace::trace::manage::RmTarget::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_trace::trace::manage::RmTarget::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_trace::trace::manage::RmTarget
+impl<T> tracing::instrument::WithSubscriber for nika_trace::trace::manage::RmTarget
+impl<T> typenum::type_operators::Same for nika_trace::trace::manage::RmTarget
+pub type nika_trace::trace::manage::RmTarget::Output = T
+pub fn nika_trace::trace::manage::announce_latest(path: &std::path::Path)
+pub fn nika_trace::trace::manage::flow_verb(trace: core::option::Option<std::path::PathBuf>, workflow: core::option::Option<alloc::string::String>, theme: nika_display::theme::Theme) -> core::result::Result<nika_cli_host::output::VerbOutput, u8>
+pub fn nika_trace::trace::manage::latest() -> core::option::Option<std::path::PathBuf>
+pub fn nika_trace::trace::manage::load_events(args: &nika_trace::trace::action::TraceArgs) -> core::result::Result<alloc::vec::Vec<nika_event::event::Event>, alloc::string::String>
+pub fn nika_trace::trace::manage::ls(theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
+pub fn nika_trace::trace::manage::resolve_store_handle(handle: &std::path::Path) -> std::path::PathBuf
+pub fn nika_trace::trace::manage::resolve_trace(given: core::option::Option<std::path::PathBuf>) -> core::result::Result<std::path::PathBuf, u8>
+pub fn nika_trace::trace::manage::rm(target: &nika_trace::trace::manage::RmTarget, force: bool, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
+pub enum nika_trace::trace::TraceAction
+pub nika_trace::trace::TraceAction::Anchor
+pub nika_trace::trace::TraceAction::Anchor::rekor_url: alloc::string::String
+pub nika_trace::trace::TraceAction::Anchor::trace: core::option::Option<std::path::PathBuf>
+pub nika_trace::trace::TraceAction::Anchor::tsa_url: alloc::string::String
+pub nika_trace::trace::TraceAction::Evidence
+pub nika_trace::trace::TraceAction::Evidence::args: nika_trace::evidence::EvidenceArgs
+pub nika_trace::trace::TraceAction::Export
+pub nika_trace::trace::TraceAction::Export::include_content: bool
+pub nika_trace::trace::TraceAction::Export::out: core::option::Option<std::path::PathBuf>
+pub nika_trace::trace::TraceAction::Export::trace: std::path::PathBuf
+pub nika_trace::trace::TraceAction::Flow
+pub nika_trace::trace::TraceAction::Flow::trace: core::option::Option<std::path::PathBuf>
+pub nika_trace::trace::TraceAction::Flow::workflow: core::option::Option<alloc::string::String>
+pub nika_trace::trace::TraceAction::Ls
+pub nika_trace::trace::TraceAction::Outputs
+pub nika_trace::trace::TraceAction::Outputs::trace: core::option::Option<std::path::PathBuf>
+pub nika_trace::trace::TraceAction::Peek
+pub nika_trace::trace::TraceAction::Peek::raw: bool
+pub nika_trace::trace::TraceAction::Peek::task: alloc::string::String
+pub nika_trace::trace::TraceAction::Peek::trace: std::path::PathBuf
+pub nika_trace::trace::TraceAction::Receipt
+pub nika_trace::trace::TraceAction::Receipt::action: nika_trace::receipt::ReceiptAction
+pub nika_trace::trace::TraceAction::Replay(nika_trace::trace::action::TraceArgs)
+pub nika_trace::trace::TraceAction::Reproduce
+pub nika_trace::trace::TraceAction::Reproduce::fresh: std::path::PathBuf
+pub nika_trace::trace::TraceAction::Reproduce::recorded: std::path::PathBuf
+pub nika_trace::trace::TraceAction::Rm
+pub nika_trace::trace::TraceAction::Rm::all: bool
+pub nika_trace::trace::TraceAction::Rm::force: bool
+pub nika_trace::trace::TraceAction::Rm::older_than: core::option::Option<alloc::string::String>
+pub nika_trace::trace::TraceAction::Rm::trace: core::option::Option<alloc::string::String>
+pub nika_trace::trace::TraceAction::Show(nika_trace::trace::action::TraceArgs)
+pub nika_trace::trace::TraceAction::Verify
+pub nika_trace::trace::TraceAction::Verify::anchored: bool
+pub nika_trace::trace::TraceAction::Verify::key: core::option::Option<std::path::PathBuf>
+pub nika_trace::trace::TraceAction::Verify::replay: core::option::Option<std::path::PathBuf>
+pub nika_trace::trace::TraceAction::Verify::traces: alloc::vec::Vec<std::path::PathBuf>
+impl clap_builder::derive::FromArgMatches for nika_trace::trace::action::TraceAction
+pub fn nika_trace::trace::action::TraceAction::from_arg_matches(__clap_arg_matches: &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn nika_trace::trace::action::TraceAction::from_arg_matches_mut(__clap_arg_matches: &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn nika_trace::trace::action::TraceAction::update_from_arg_matches(&mut self, __clap_arg_matches: &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+pub fn nika_trace::trace::action::TraceAction::update_from_arg_matches_mut<'b>(&mut self, __clap_arg_matches: &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+impl clap_builder::derive::Subcommand for nika_trace::trace::action::TraceAction
+pub fn nika_trace::trace::action::TraceAction::augment_subcommands<'b>(__clap_app: clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn nika_trace::trace::action::TraceAction::augment_subcommands_for_update<'b>(__clap_app: clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn nika_trace::trace::action::TraceAction::has_subcommand(__clap_name: &str) -> bool
+impl<D> owo_colors::OwoColorize for nika_trace::trace::action::TraceAction
+impl<T, U> core::convert::Into<U> for nika_trace::trace::action::TraceAction where U: core::convert::From<T>
+pub fn nika_trace::trace::action::TraceAction::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_trace::trace::action::TraceAction where U: core::convert::Into<T>
+pub type nika_trace::trace::action::TraceAction::Error = core::convert::Infallible
+pub fn nika_trace::trace::action::TraceAction::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_trace::trace::action::TraceAction where U: core::convert::TryFrom<T>
+pub type nika_trace::trace::action::TraceAction::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_trace::trace::action::TraceAction::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_trace::trace::action::TraceAction where T: 'static + ?core::marker::Sized
+pub fn nika_trace::trace::action::TraceAction::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_trace::trace::action::TraceAction where T: ?core::marker::Sized
+pub fn nika_trace::trace::action::TraceAction::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_trace::trace::action::TraceAction where T: ?core::marker::Sized
+pub fn nika_trace::trace::action::TraceAction::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_trace::trace::action::TraceAction
+pub fn nika_trace::trace::action::TraceAction::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_trace::trace::action::TraceAction where T: 'static
+pub fn nika_trace::trace::action::TraceAction::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_trace::trace::action::TraceAction where T: ?core::marker::Sized
+pub fn nika_trace::trace::action::TraceAction::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_trace::trace::action::TraceAction::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_trace::trace::action::TraceAction
+impl<T> tracing::instrument::WithSubscriber for nika_trace::trace::action::TraceAction
+impl<T> typenum::type_operators::Same for nika_trace::trace::action::TraceAction
+pub type nika_trace::trace::action::TraceAction::Output = T
+pub struct nika_trace::trace::TraceArgs
+pub nika_trace::trace::TraceArgs::demo: bool
+pub nika_trace::trace::TraceArgs::demo_fail: bool
+pub nika_trace::trace::TraceArgs::no_outputs: bool
+pub nika_trace::trace::TraceArgs::speed: f64
+pub nika_trace::trace::TraceArgs::trace: core::option::Option<std::path::PathBuf>
+impl clap_builder::derive::Args for nika_trace::trace::action::TraceArgs
+pub fn nika_trace::trace::action::TraceArgs::augment_args<'b>(__clap_app: clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn nika_trace::trace::action::TraceArgs::augment_args_for_update<'b>(__clap_app: clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
+pub fn nika_trace::trace::action::TraceArgs::group_id() -> core::option::Option<clap_builder::util::id::Id>
+impl clap_builder::derive::FromArgMatches for nika_trace::trace::action::TraceArgs
+pub fn nika_trace::trace::action::TraceArgs::from_arg_matches(__clap_arg_matches: &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn nika_trace::trace::action::TraceArgs::from_arg_matches_mut(__clap_arg_matches: &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<Self, clap_builder::Error>
+pub fn nika_trace::trace::action::TraceArgs::update_from_arg_matches(&mut self, __clap_arg_matches: &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+pub fn nika_trace::trace::action::TraceArgs::update_from_arg_matches_mut(&mut self, __clap_arg_matches: &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
+impl<D> owo_colors::OwoColorize for nika_trace::trace::action::TraceArgs
+impl<T, U> core::convert::Into<U> for nika_trace::trace::action::TraceArgs where U: core::convert::From<T>
+pub fn nika_trace::trace::action::TraceArgs::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_trace::trace::action::TraceArgs where U: core::convert::Into<T>
+pub type nika_trace::trace::action::TraceArgs::Error = core::convert::Infallible
+pub fn nika_trace::trace::action::TraceArgs::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_trace::trace::action::TraceArgs where U: core::convert::TryFrom<T>
+pub type nika_trace::trace::action::TraceArgs::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_trace::trace::action::TraceArgs::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_trace::trace::action::TraceArgs where T: 'static + ?core::marker::Sized
+pub fn nika_trace::trace::action::TraceArgs::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_trace::trace::action::TraceArgs where T: ?core::marker::Sized
+pub fn nika_trace::trace::action::TraceArgs::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_trace::trace::action::TraceArgs where T: ?core::marker::Sized
+pub fn nika_trace::trace::action::TraceArgs::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_trace::trace::action::TraceArgs
+pub fn nika_trace::trace::action::TraceArgs::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_trace::trace::action::TraceArgs where T: 'static
+pub fn nika_trace::trace::action::TraceArgs::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_trace::trace::action::TraceArgs where T: ?core::marker::Sized
+pub fn nika_trace::trace::action::TraceArgs::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_trace::trace::action::TraceArgs::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_trace::trace::action::TraceArgs
+impl<T> tracing::instrument::WithSubscriber for nika_trace::trace::action::TraceArgs
+impl<T> typenum::type_operators::Same for nika_trace::trace::action::TraceArgs
+pub type nika_trace::trace::action::TraceArgs::Output = T
+pub fn nika_trace::trace::flow(trace: &str, workflow: &str, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
+pub fn nika_trace::trace::outputs(trace: &str, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
+pub fn nika_trace::trace::peek(trace: &str, task: &str, raw: bool, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
+pub mod nika_trace::trace_anchor
+pub fn nika_trace::trace_anchor::run(trace: &str, rekor_url: &str, tsa_url: &str) -> nika_cli_host::output::VerbOutput
+pub mod nika_trace::trace_otel
+pub fn nika_trace::trace_otel::export(trace: &str, out: core::option::Option<&str>, include_content: bool) -> nika_cli_host::output::VerbOutput
+pub mod nika_trace::trace_reproduce
+pub fn nika_trace::trace_reproduce::reproduce(recorded: &str, fresh: &str) -> nika_cli_host::output::VerbOutput
+pub mod nika_trace::trace_verify
+pub struct nika_trace::trace_verify::VerifyOptions
+pub nika_trace::trace_verify::VerifyOptions::anchored: bool
+pub nika_trace::trace_verify::VerifyOptions::key: core::option::Option<std::path::PathBuf>
+pub nika_trace::trace_verify::VerifyOptions::replay: core::option::Option<std::path::PathBuf>
+impl core::clone::Clone for nika_trace::trace_verify::VerifyOptions
+pub fn nika_trace::trace_verify::VerifyOptions::clone(&self) -> nika_trace::trace_verify::VerifyOptions
+impl core::default::Default for nika_trace::trace_verify::VerifyOptions
+pub fn nika_trace::trace_verify::VerifyOptions::default() -> nika_trace::trace_verify::VerifyOptions
+impl core::fmt::Debug for nika_trace::trace_verify::VerifyOptions
+pub fn nika_trace::trace_verify::VerifyOptions::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_trace::trace_verify::VerifyOptions
+impl<T, U> core::convert::Into<U> for nika_trace::trace_verify::VerifyOptions where U: core::convert::From<T>
+pub fn nika_trace::trace_verify::VerifyOptions::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_trace::trace_verify::VerifyOptions where U: core::convert::Into<T>
+pub type nika_trace::trace_verify::VerifyOptions::Error = core::convert::Infallible
+pub fn nika_trace::trace_verify::VerifyOptions::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_trace::trace_verify::VerifyOptions where U: core::convert::TryFrom<T>
+pub type nika_trace::trace_verify::VerifyOptions::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_trace::trace_verify::VerifyOptions::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_trace::trace_verify::VerifyOptions where T: core::clone::Clone
+pub type nika_trace::trace_verify::VerifyOptions::Owned = T
+pub fn nika_trace::trace_verify::VerifyOptions::clone_into(&self, target: &mut T)
+pub fn nika_trace::trace_verify::VerifyOptions::to_owned(&self) -> T
+impl<T> core::any::Any for nika_trace::trace_verify::VerifyOptions where T: 'static + ?core::marker::Sized
+pub fn nika_trace::trace_verify::VerifyOptions::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_trace::trace_verify::VerifyOptions where T: ?core::marker::Sized
+pub fn nika_trace::trace_verify::VerifyOptions::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_trace::trace_verify::VerifyOptions where T: ?core::marker::Sized
+pub fn nika_trace::trace_verify::VerifyOptions::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_trace::trace_verify::VerifyOptions where T: core::clone::Clone
+pub unsafe fn nika_trace::trace_verify::VerifyOptions::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_trace::trace_verify::VerifyOptions
+pub fn nika_trace::trace_verify::VerifyOptions::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_trace::trace_verify::VerifyOptions where T: core::clone::Clone
+pub fn nika_trace::trace_verify::VerifyOptions::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_trace::trace_verify::VerifyOptions where T: 'static
+pub fn nika_trace::trace_verify::VerifyOptions::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_trace::trace_verify::VerifyOptions where T: ?core::marker::Sized
+pub fn nika_trace::trace_verify::VerifyOptions::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_trace::trace_verify::VerifyOptions::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_trace::trace_verify::VerifyOptions
+impl<T> tracing::instrument::WithSubscriber for nika_trace::trace_verify::VerifyOptions
+impl<T> typenum::type_operators::Same for nika_trace::trace_verify::VerifyOptions
+pub type nika_trace::trace_verify::VerifyOptions::Output = T
+impl<T> zvariant::optional::NoneValue for nika_trace::trace_verify::VerifyOptions where T: core::default::Default
+pub type nika_trace::trace_verify::VerifyOptions::NoneType = T
+pub fn nika_trace::trace_verify::VerifyOptions::null_value() -> T
+pub fn nika_trace::trace_verify::verify(trace: &str) -> nika_cli_host::output::VerbOutput
+pub fn nika_trace::trace_verify::verify_many(traces: &[std::path::PathBuf]) -> nika_cli_host::output::VerbOutput
+pub fn nika_trace::trace_verify::verify_many_with(traces: &[std::path::PathBuf], opts: &nika_trace::trace_verify::VerifyOptions) -> nika_cli_host::output::VerbOutput
+pub fn nika_trace::trace_verify::verify_with(trace: &str, opts: &nika_trace::trace_verify::VerifyOptions) -> nika_cli_host::output::VerbOutput

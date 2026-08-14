@@ -18,9 +18,9 @@
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
+use crate::VerbOutput;
 use crate::display::shape;
 use crate::display::theme::{Role, Theme};
-use crate::verbs::VerbOutput;
 
 use super::retention;
 use super::store::{self, TraceMeta, TraceState};
@@ -59,7 +59,7 @@ pub fn resolve_trace(given: Option<PathBuf>) -> Result<PathBuf, u8> {
     eprintln!(
         "nika trace: no traces in .nika/traces yet — run a workflow first, or pass a trace path"
     );
-    Err(crate::verbs::exit::ENV)
+    Err(crate::exit::ENV)
 }
 
 /// `nika trace flow` — two positionals, both optional to clap (a
@@ -89,7 +89,7 @@ pub fn flow_verb(
             eprintln!(
                 "nika trace: flow needs the workflow file — `nika trace flow [trace] <workflow.nika.yaml>` (the trace records values, the definition records the bindings)"
             );
-            return Err(crate::verbs::exit::ENV);
+            return Err(crate::exit::ENV);
         }
     };
     resolve_trace(trace).map(|path| super::flow(&path.to_string_lossy(), &workflow, theme))
@@ -416,8 +416,8 @@ fn scan_foreign(path: &Path) -> Option<store::TraceMeta> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::verbs::exit;
-    use crate::verbs::trace::store::tests::{ndjson, run_events, stage_trace, temp_store};
+    use crate::exit;
+    use crate::trace::store::tests::{ndjson, run_events, stage_trace, temp_store};
     use nika_event::EventKind;
     use std::time::Duration;
 

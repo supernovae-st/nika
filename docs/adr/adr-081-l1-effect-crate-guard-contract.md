@@ -28,7 +28,7 @@ follow_ups: ["per-guard impl review at each M2.X close", "DEF-1 KernelError seal
 
 Phase 2 M2 dispatches 6 L1 effect crates (`nika-screen` · `nika-ocr` · `nika-a11y` · `nika-input` · `nika-browser` · `nika-vision-local`) which implement the L0.5 sealed traits shipped in M1 (per the Phase 2 M1 kernel-modules sprint plan · private DX surface). These crates collectively give the Olympus cockpit (atelier consumer) headless computer-use capability — screen capture · OCR · accessibility tree query · synthetic input · browser automation · local vision inference.
 
-The 6-review-pass audit on M1 close (commits 4836cf7a + 438234ad2) surfaced **5 HIGH security findings** in the Phase 2 M1 security review (private studio surface) · all 5 deferrable to L1 effect crate admission because L0.5 ships only sealed traits + DTOs (zero impl). The findings cluster around 7 concrete guards required across the 6 effect crates · documented verbatim in the Phase 2 M2 entry-conditions doc §2 EC-1 (private DX surface) ·
+An internal security review at M1 close surfaced HIGH-severity findings (private DX surface) · all deferrable to L1 effect crate admission because L0.5 ships only sealed traits + DTOs (zero impl). The findings cluster around 7 concrete guards required across the 6 effect crates · documented verbatim in the M2 entry-conditions doc §2 EC-1 (private DX surface) ·
 
 ```
 L1 nika-input · password-typing redaction guard (intercept type_text into
@@ -95,7 +95,7 @@ Each guard MUST satisfy ALL of ·
 - ❌ **Implementing guards in L0.5 sealed traits directly** · violates ADR-014 sealed kernel traits + ADR-006 layered kernel ISP · L0.5 is impl-free trait surface · guards are L1 IMPL concern by construction
 - ❌ **Cloud telemetry for guard state** · violates `dx/.claude/rules/telemetry-canon.md` §0 + `dx/.claude/rules/supernovae-alignment.md` Rule 1 structural · zero exceptions
 - ❌ **Skipping guard tests for « trivial » paths** · all 7 guards are LOAD-BEARING for atelier integrity · ≥3 unit + ≥1 integration test mandatory per guard
-- ❌ **Defer-all-guards-to-Phase-3** approach · would expose Olympus cockpit to 5 HIGH security findings during M2 dispatch · structural sovereignty > sprint velocity per supernovae-alignment Rule 5
+- ❌ **Defer-all-guards-to-Phase-3** approach · would expose the atelier consumer to the security findings the internal review surfaced during M2 dispatch · structural sovereignty > sprint velocity per supernovae-alignment Rule 5
 
 ## Consequences
 
@@ -165,7 +165,7 @@ All 5 shadow zones addressed by 7-guard contract · cohérent Diamond engine 7 s
 
 | Raison | ✅ | Justification |
 |---|:-:|---|
-| ① Liberté cognitive | ✅ | Single canonical ADR · zero re-litigation · empirical 5 HIGH security findings closed via forever-criteria · zero LLM-memory drift on admission stance |
+| ① Liberté cognitive | ✅ | Single canonical ADR · zero re-litigation · the internal review's findings closed via forever-criteria · zero LLM-memory drift on admission stance |
 | ② Souveraineté | ✅ | 7 guards = structural enforcement of Rule 1 + Rule 5 · zero cloud telemetry · local-first persistence · macOS-native + Linux-native + Windows-native primitives preferred · explicit fallbacks documented |
 | ③ Joy 🦋 | ✅ | Craft mode applied to admission ceremony · 7 guards canonized forever · M2.2..M2.6 inherit template · cohérent take-time + quality user directive · sustainable cadence preserved |
 | ④ Composable galaxy | ✅ | Cross-crate composition · nika-screen consumes nika-input ConsentProof at consent persistence ship M2.4 · M2.4 GAP-1 ConsentProof 2-axis convergence closes · constellation pattern · cohérent atelier-vs-produit D-N1 |
@@ -193,11 +193,10 @@ All 5 shadow zones addressed by 7-guard contract · cohérent Diamond engine 7 s
 - `nika/engine/DIAMOND.md` §7 (7 shadow zones · 5 of 7 addressed by this ADR)
 
 ### Source · empirical research
-- `studio/architecture/research/2026-05-14-olympus-computer-use-megabundle/15-phase2-m1-security-review.md` (5 HIGH findings · trigger for this ADR)
-- `studio/architecture/research/2026-05-14-olympus-computer-use-megabundle/INDEX.md` (18 reports total · 6-review pass post M1)
-- Phase 2 M2 entry-conditions §2 EC-1 · private DX surface (7 L1 guards verbatim)
+- Internal security review · private DX surface (the trigger for this ADR · the 7 guards derive from its findings)
+- Internal M2 entry-conditions §2 EC-1 · private DX surface (7 L1 guards verbatim)
 - nika-screen L1 admission · private DX surface (companion sprint plan · this ADR ships SAME-BATCH as B.1)
-- Olympus computer-use master plan §3 M2 · private DX surface (parent · M2.1..M2.6 sequence)
+- Internal computer-use master plan §3 M2 · private DX surface (parent · M2.1..M2.6 sequence)
 
 ### Companion · future
 - (TBD) `nika/engine/scripts/hygiene/check-l1-guard-compliance.sh` (P2/warn ratchet candidate post 3+ L1 admissions)
@@ -211,7 +210,7 @@ All 5 shadow zones addressed by 7-guard contract · cohérent Diamond engine 7 s
                 acknowledged 7 L1 security guards as crate-admission criteria ·
                 user explicit « fais reco » directive 2026-05-14 PM · Option 1
                 (sprint plan + ADR companion) chosen post EC-4 GATE CLOSED.
-              · Synthesizes · 6-review-pass audit 5 HIGH security findings ·
+              · Synthesizes · the internal security review findings ·
                 4 EC + 5 DEF Phase 2 M2 entry conditions · master plan §3 M2
                 sequence (M2.1..M2.6) · Diamond DIAMOND.md §7 shadow zones
                 (5 of 7 addressed by this ADR).

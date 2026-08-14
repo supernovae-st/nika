@@ -177,7 +177,7 @@ fn manifest_of(dir: &Path) -> Value {
 }
 
 /// Build + write + return the manifest (the test pipeline most
-/// cases share).
+/// cases share). The default class — REDACTED (T9).
 fn pack_over(
     test: &str,
     raw: &str,
@@ -192,19 +192,80 @@ fn pack_over(
     (out, manifest)
 }
 
+/// The FULL-CONTENT pipeline (`build_full`) — the exact-bytes class.
+fn pack_over_full(
+    test: &str,
+    raw: &str,
+    workflow: Option<&Path>,
+    keys: &[(String, String)],
+) -> (PathBuf, Value) {
+    let trace = stage(test, "run.ndjson", raw);
+    let pack = build_full(&trace, workflow, keys).expect("the full pack builds");
+    let out = trace.with_extension("out");
+    write(&out, &pack).expect("the pack writes");
+    let manifest = manifest_of(&out);
+    (out, manifest)
+}
+
+/// One journaled `task_completed` carrying a payload CANARY in both
+/// content fields — the redaction pins read it back.
+fn payload_journal(canary: &str) -> (String, String, String) {
+    let outcome = serde_json::json!({
+        "cause": "normal",
+        "class": "success",
+        "payload": { "attempts": 1, "value": canary },
+    })
+    .to_string();
+    let mut finished = event(
+        EventKind::TaskCompleted,
+        &[("task", "ask"), ("output", canary), ("outcome", &outcome)],
+    );
+    finished = finished.with_field(KeyValue::new("duration_ms", FieldValue::Int(12009)));
+    finished = finished.with_field(KeyValue::new(
+        "def_hash",
+        FieldValue::String("311b6465662a".to_owned()),
+    ));
+    let sem = wf_semantic();
+    let events = vec![
+        started_v2(&sem),
+        event(EventKind::TaskStarted, &[("task", "ask")]),
+        finished,
+        completed(),
+    ];
+    let (raw, head) = chained(&events);
+    (raw, head, outcome)
+}
+
+/// The field entry of one projection line, by key.
+fn field<'v>(line: &'v Value, key: &str) -> &'v Value {
+    line["fields"]
+        .as_array()
+        .expect("fields ride")
+        .iter()
+        .find(|f| f["key"] == json!(key))
+        .unwrap_or_else(|| panic!("the {key} field rides"))
+}
+
 /// The sealed pack: journal bytes verbatim · the seal verifies
 /// against the enrolled key · journal-provenance boundary, sandbox,
 /// engine — and the receipt stays absent (no `--workflow`), said.
+/// The byte-identical assertion needs the FULL class (`build_full`):
+/// the default class is the redacted projection (T9).
 #[test]
 fn sealed_pack_exports_with_journal_provenance() {
     let (pk, sk) = keypair();
     let (raw, head, fp, pk) = sealed_journal_with(&pk, &sk);
     let keys = vec![(fp.clone(), pk)];
-    let (out, pack) = pack_over("sealed", &raw, None, &keys);
+    let (out, pack) = pack_over_full("sealed", &raw, None, &keys);
 
     // The journal copy is byte-identical — never re-serialized.
     let copied = std::fs::read_to_string(out.join("journal.ndjson")).expect("journal copied");
     assert_eq!(copied, raw, "the bundle's journal is the exact bytes");
+    assert_eq!(pack["redaction"]["class"], json!("full"), "{pack}");
+    assert!(
+        pack["trace"].get("projection_sha256").is_none(),
+        "no projection on the full class: {pack}"
+    );
 
     assert_eq!(pack["evidence_format"], json!(1));
     assert_eq!(pack["trace"]["chain"], json!("intact"));
@@ -253,6 +314,10 @@ fn hash_checked_workflow_adds_receipt_and_trifecta() {
     let keys = vec![(fp, pk)];
     let (out, pack) = pack_over("filearm", &raw, Some(&wf_path), &keys);
 
+    // The default class: REDACTED — and the seal still grades (the
+    // facts fold from the ORIGINAL bytes before the projection).
+    assert_eq!(pack["redaction"]["class"], json!("redacted"), "{pack}");
+    assert_eq!(pack["seal"]["verifies"], json!(true), "{pack}");
     assert_eq!(pack["receipt"]["present"], json!(true));
     assert_eq!(pack["receipt"]["proves"], json!(wf_semantic()));
     assert_eq!(pack["trifecta"]["verdict"], json!("clean"));
@@ -541,4 +606,199 @@ fn the_crafted_seal_verifies_through_the_pack() {
     );
     assert_eq!(verifies, Some(false), "a malformed box is a non-verify");
     assert!(reason.is_none());
+}
+
+// ───────────────────────── T9 · the redacted default class ─────────
+
+/// The redaction contract, end to end: no payload byte crosses into
+/// the bundle, every placeholder's sha256 verifies against the
+/// ORIGINAL field, structural fields and chain links survive
+/// verbatim, and the manifest keeps attesting the ORIGINAL journal.
+#[test]
+fn the_default_pack_redacts_payloads_to_hashes() {
+    let canary = "CANARY · the model answered s3cr3t-v4lue-9f8d2c";
+    let (raw, head, outcome) = payload_journal(canary);
+    let (out, pack) = pack_over("redacted", &raw, None, &[]);
+
+    // No payload byte crosses — neither the bare field nor its copy
+    // inside the outcome JSON.
+    let projected = std::fs::read_to_string(out.join("journal.ndjson")).expect("journal written");
+    assert!(
+        !projected.contains(canary),
+        "no payload crosses: {projected}"
+    );
+    assert!(
+        !projected.contains("s3cr3t"),
+        "not even a fragment: {projected}"
+    );
+
+    // One projection line per journal line; the placeholder verifies
+    // against the original field's own bytes (the disclosure contract).
+    let orig: Vec<Value> = raw
+        .lines()
+        .map(|l| serde_json::from_str(l).expect("orig parses"))
+        .collect();
+    let proj: Vec<Value> = projected
+        .lines()
+        .map(|l| serde_json::from_str(l).expect("projection parses"))
+        .collect();
+    assert_eq!(proj.len(), orig.len(), "line count is preserved");
+    let finished = &proj[2];
+    assert_eq!(finished["kind"], json!("task_completed"));
+    let output = &field(finished, "output")["value"];
+    assert_eq!(output["sha256"], json!(sha256_hex(canary.as_bytes())));
+    assert!(
+        output["unavailable"]
+            .as_str()
+            .expect("the reason rides")
+            .contains("integrity, not content"),
+        "the unavailable pattern carries the reason: {output}"
+    );
+    let outcome_ph = &field(finished, "outcome")["value"];
+    assert_eq!(outcome_ph["sha256"], json!(sha256_hex(outcome.as_bytes())));
+
+    // Structural fields survive verbatim — ids · task · hashes · and a
+    // NON-STRING (the int duration keeps its type).
+    assert_eq!(finished["id"], orig[2]["id"], "the event id is verbatim");
+    assert_eq!(finished["timestamp"], orig[2]["timestamp"]);
+    assert_eq!(field(finished, "task")["value"], json!("ask"));
+    assert_eq!(field(finished, "duration_ms")["value"], json!(12009));
+    assert_eq!(field(finished, "def_hash")["value"], json!("311b6465662a"));
+
+    // The chain links ride verbatim — they attest the ORIGINAL
+    // journal's linkage (they do not re-walk over the projection;
+    // VERIFY.md says so).
+    for (o, p) in orig.iter().zip(&proj) {
+        assert_eq!(p["chain"], o["chain"], "the original link rides verbatim");
+    }
+    assert_eq!(pack["trace"]["head"], json!(head));
+    let _ = std::fs::remove_dir_all(out.parent().expect("parent"));
+}
+
+/// The manifest's redaction section: the class is SAID, the manifest
+/// attests the ORIGINAL journal (`journal_sha256`) AND the shipped
+/// projection (`projection_sha256`) — integrity against the bytes the
+/// operator keeps, mappable to the bytes the auditor holds.
+#[test]
+fn the_manifest_attests_the_original_and_names_the_class() {
+    let canary = "CANARY-manifest";
+    let (raw, _, _) = payload_journal(canary);
+    let (out, pack) = pack_over("redacted-manifest", &raw, None, &[]);
+    let projected = std::fs::read_to_string(out.join("journal.ndjson")).expect("journal written");
+
+    assert_eq!(pack["evidence_format"], json!(1), "additive — no bump");
+    assert_eq!(
+        pack["trace"]["journal_sha256"],
+        json!(sha256_hex(raw.as_bytes())),
+        "the manifest attests the ORIGINAL journal"
+    );
+    assert_eq!(
+        pack["trace"]["projection_sha256"],
+        json!(sha256_hex(projected.as_bytes())),
+        "and the shipped projection"
+    );
+    assert_eq!(pack["redaction"]["class"], json!("redacted"));
+    assert_eq!(pack["redaction"]["placeholders"], json!(2));
+    let fields = pack["redaction"]["fields"]
+        .as_array()
+        .expect("the key list");
+    for key in ["output", "outcome", "detail", "delta", "message", "choices"] {
+        assert!(fields.contains(&json!(key)), "the policy names {key}");
+    }
+    assert!(
+        pack["redaction"]["posture"]
+            .as_str()
+            .expect("the posture rides")
+            .contains("INTEGRITY"),
+        "the corollary is written where the auditor reads it: {pack}"
+    );
+    let _ = std::fs::remove_dir_all(out.parent().expect("parent"));
+}
+
+/// A journal with NO payload field projects BYTE-IDENTICAL (untouched
+/// lines ride verbatim) — the chain still re-walks over the
+/// projection, and the placeholder count says nothing was cut.
+#[test]
+fn a_zero_payload_journal_projects_byte_identical() {
+    let sem = wf_semantic();
+    let (raw, _) = chained(&[started_v2(&sem), completed()]);
+    let (out, pack) = pack_over("zero-payload", &raw, None, &[]);
+    let projected = std::fs::read_to_string(out.join("journal.ndjson")).expect("journal written");
+    assert_eq!(projected, raw, "no payload field → the exact bytes");
+    assert_eq!(pack["redaction"]["placeholders"], json!(0));
+    assert!(
+        matches!(
+            crate::chain::walk(&projected),
+            crate::chain::Verdict::Intact { .. }
+        ),
+        "the untouched projection still re-walks"
+    );
+    let _ = std::fs::remove_dir_all(out.parent().expect("parent"));
+}
+
+/// A torn tail (a crash mid-write) can carry HALF a payload: the
+/// unparseable line never crosses — it becomes ONE marker object
+/// carrying its sha256 (disclosable like any field).
+#[test]
+fn a_torn_tail_redacts_to_a_marker() {
+    let sem = wf_semantic();
+    let (mut raw, _) = chained(&[started_v2(&sem), completed()]);
+    let tail =
+        "{\"kind\":\"task_completed\",\"fields\":[{\"key\":\"output\",\"value\":\"CANARY-torn";
+    raw.push_str(tail); // no newline — torn mid-write
+    let (out, pack) = pack_over("torn", &raw, None, &[]);
+    assert_eq!(pack["trace"]["chain"], json!("torn_tail"), "{pack}");
+    let projected = std::fs::read_to_string(out.join("journal.ndjson")).expect("journal written");
+    assert!(
+        !projected.contains("CANARY-torn"),
+        "the partial payload never crosses: {projected}"
+    );
+    let last = projected.lines().last().expect("a tail line");
+    let marker: Value = serde_json::from_str(last).expect("the marker parses");
+    assert_eq!(marker["unparseable_tail"], json!(true));
+    assert_eq!(marker["sha256"], json!(sha256_hex(tail.as_bytes())));
+    assert!(marker["unavailable"].is_string(), "the reason rides");
+    let _ = std::fs::remove_dir_all(out.parent().expect("parent"));
+}
+
+/// VERIFY.md teaches BOTH classes honestly: the redacted text leads
+/// with the corollary (INTEGRITY ≠ CONTENT), warns the chain does not
+/// re-walk here, and names the two disclosure checks; the full text
+/// keeps the three commands and wears the sensitivity warning.
+#[test]
+fn verify_md_teaches_both_classes() {
+    let canary = "CANARY-verify";
+    let (raw, _, _) = payload_journal(canary);
+    let (out, _) = pack_over("verify-redacted", &raw, None, &[]);
+    let redacted = std::fs::read_to_string(out.join("VERIFY.md")).expect("VERIFY.md");
+    assert!(
+        redacted.contains("INTEGRITY, not its CONTENT"),
+        "the corollary leads: {redacted}"
+    );
+    assert!(
+        redacted.contains("trace.projection_sha256"),
+        "the offline check is named"
+    );
+    assert!(
+        redacted.contains("do not re-walk") || redacted.contains("does not re-walk"),
+        "the chain-class change is said"
+    );
+    assert!(
+        redacted.contains("trace.journal_sha256"),
+        "the disclosure path names the original's attestation"
+    );
+    let _ = std::fs::remove_dir_all(out.parent().expect("parent"));
+
+    let (out, pack) = pack_over_full("verify-full", &raw, None, &[]);
+    assert_eq!(pack["redaction"]["class"], json!("full"));
+    let full = std::fs::read_to_string(out.join("VERIFY.md")).expect("VERIFY.md");
+    assert!(
+        full.contains("nika trace verify journal.ndjson"),
+        "the re-walk command stays on the full class"
+    );
+    assert!(
+        full.contains("CONTENT") && full.contains("sensitively"),
+        "the full class SAYS it carries content: {full}"
+    );
+    let _ = std::fs::remove_dir_all(out.parent().expect("parent"));
 }

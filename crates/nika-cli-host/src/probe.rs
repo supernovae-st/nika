@@ -63,6 +63,13 @@ pub struct Probe {
     /// stays instant: no parsing, and a torn journal still proves a run
     /// happened). The adoption ladder's record rung (P0-21).
     pub recorded_runs: usize,
+    /// Journals the CWD's git repo ALREADY tracks under the trace dir —
+    /// the leak `init`'s `.gitignore` cover now prevents, counted so
+    /// doctor can print the untrack remedy for repos founded before it
+    /// did. Index-only via `git ls-files` (`crate::git`); `None` when
+    /// the observation was impossible (no git · not a repo) — an
+    /// unobserved surface is no finding.
+    pub tracked_traces: Option<usize>,
 }
 
 // The models-dir facts live with their store (the descended member) —
@@ -391,6 +398,7 @@ pub fn collect(ping: bool) -> Probe {
         retention_notes,
         models: nika_models::models_probe(),
         recorded_runs: recorded_run_count(),
+        tracked_traces: crate::git::tracked_trace_journals(Path::new(".")),
     };
     if ping {
         let local_pings = nika_providers::probe::collect_local_pings(
@@ -1157,6 +1165,7 @@ mod tests {
             retention_notes: vec![],
             models: ModelsProbe::default(),
             recorded_runs: 0,
+            tracked_traces: None,
         }
     }
 

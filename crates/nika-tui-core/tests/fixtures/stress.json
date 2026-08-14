@@ -1,0 +1,518 @@
+{
+  "name": "stress",
+  "workflow": {
+    "file": "localiser-la-doc.nika.yaml",
+    "engine": "0.108.0",
+    "prompt": "traduis la doc dans les douze langues et publie",
+    "permits": [
+      "fs.read:   [\"./docs/**\"]",
+      "fs.write:  [\"./docs/i18n/**\"]",
+      "net:       [\"api.mistral.ai\", \"api.crowdin.com\"]",
+      "exec:      [\"git\", \"pnpm\"]",
+      "tools:     [\"mcp:crowdin/upload-and-await-translation-memory\"]"
+    ],
+    "missing": "ni le réseau ni l'écriture",
+    "tasks": [
+      {
+        "id": "lire-la-configuration",
+        "verb": "invoke",
+        "glyph": "◆",
+        "needs": [],
+        "tool": "nika:read",
+        "origin": "builtin",
+        "family": "file",
+        "touches": [
+          "fs_read"
+        ]
+      },
+      {
+        "id": "extraire-les-chaînes",
+        "verb": "exec",
+        "glyph": "▷",
+        "needs": [
+          "lire-la-configuration"
+        ],
+        "tool": "pnpm i18n:extract",
+        "origin": "shell",
+        "touches": [
+          "exec",
+          "fs_read"
+        ]
+      },
+      {
+        "id": "traduire-fr",
+        "verb": "infer",
+        "glyph": "◇",
+        "needs": [
+          "extraire-les-chaînes"
+        ],
+        "tool": "mistral-large",
+        "origin": "model",
+        "touches": []
+      },
+      {
+        "id": "traduire-en",
+        "verb": "infer",
+        "glyph": "◇",
+        "needs": [
+          "extraire-les-chaînes"
+        ],
+        "tool": "mistral-large",
+        "origin": "model",
+        "touches": []
+      },
+      {
+        "id": "traduire-de",
+        "verb": "infer",
+        "glyph": "◇",
+        "needs": [
+          "extraire-les-chaînes"
+        ],
+        "tool": "mistral-large",
+        "origin": "model",
+        "touches": []
+      },
+      {
+        "id": "traduire-es",
+        "verb": "infer",
+        "glyph": "◇",
+        "needs": [
+          "extraire-les-chaînes"
+        ],
+        "tool": "mistral-large",
+        "origin": "model",
+        "touches": []
+      },
+      {
+        "id": "traduire-it",
+        "verb": "infer",
+        "glyph": "◇",
+        "needs": [
+          "extraire-les-chaînes"
+        ],
+        "tool": "mistral-large",
+        "origin": "model",
+        "touches": []
+      },
+      {
+        "id": "traduire-pt",
+        "verb": "infer",
+        "glyph": "◇",
+        "needs": [
+          "extraire-les-chaînes"
+        ],
+        "tool": "mistral-large",
+        "origin": "model",
+        "touches": []
+      },
+      {
+        "id": "traduire-nl",
+        "verb": "infer",
+        "glyph": "◇",
+        "needs": [
+          "extraire-les-chaînes"
+        ],
+        "tool": "mistral-large",
+        "origin": "model",
+        "touches": []
+      },
+      {
+        "id": "traduire-pl",
+        "verb": "infer",
+        "glyph": "◇",
+        "needs": [
+          "extraire-les-chaînes"
+        ],
+        "tool": "mistral-large",
+        "origin": "model",
+        "touches": []
+      },
+      {
+        "id": "traduire-ja",
+        "verb": "infer",
+        "glyph": "◇",
+        "needs": [
+          "extraire-les-chaînes"
+        ],
+        "tool": "mistral-large",
+        "origin": "model",
+        "touches": []
+      },
+      {
+        "id": "traduire-ko",
+        "verb": "infer",
+        "glyph": "◇",
+        "needs": [
+          "extraire-les-chaînes"
+        ],
+        "tool": "mistral-large",
+        "origin": "model",
+        "touches": []
+      },
+      {
+        "id": "traduire-zh",
+        "verb": "infer",
+        "glyph": "◇",
+        "needs": [
+          "extraire-les-chaînes"
+        ],
+        "tool": "mistral-large",
+        "origin": "model",
+        "touches": []
+      },
+      {
+        "id": "traduire-ar",
+        "verb": "infer",
+        "glyph": "◇",
+        "needs": [
+          "extraire-les-chaînes"
+        ],
+        "tool": "mistral-large",
+        "origin": "model",
+        "touches": []
+      },
+      {
+        "id": "fusionner",
+        "verb": "invoke",
+        "glyph": "◆",
+        "needs": [
+          "traduire-fr",
+          "traduire-en",
+          "traduire-de",
+          "traduire-es",
+          "traduire-it",
+          "traduire-pt",
+          "traduire-nl",
+          "traduire-pl",
+          "traduire-ja",
+          "traduire-ko",
+          "traduire-zh",
+          "traduire-ar"
+        ],
+        "tool": "nika:jq",
+        "origin": "builtin",
+        "family": "data",
+        "touches": []
+      },
+      {
+        "id": "valider-le-glossaire",
+        "verb": "invoke",
+        "glyph": "◆",
+        "needs": [
+          "fusionner"
+        ],
+        "tool": "mcp:crowdin/upload-and-await-translation-memory",
+        "origin": "mcp",
+        "family": "network",
+        "touches": [
+          "tools",
+          "net"
+        ]
+      },
+      {
+        "id": "relire",
+        "verb": "agent",
+        "glyph": "✦",
+        "needs": [
+          "valider-le-glossaire"
+        ],
+        "tool": "qwen2.5-7b",
+        "origin": "model",
+        "touches": []
+      },
+      {
+        "id": "écrire-les-fichiers",
+        "verb": "invoke",
+        "glyph": "◆",
+        "needs": [
+          "relire"
+        ],
+        "tool": "nika:write",
+        "origin": "builtin",
+        "family": "file",
+        "touches": [
+          "fs_write"
+        ]
+      },
+      {
+        "id": "commiter",
+        "verb": "exec",
+        "glyph": "▷",
+        "needs": [
+          "écrire-les-fichiers"
+        ],
+        "tool": "git commit",
+        "origin": "shell",
+        "touches": [
+          "exec"
+        ]
+      }
+    ]
+  },
+  "run": {
+    "trace": "synthetic",
+    "when": "never ran",
+    "output": "docs/i18n/ · 12 langues",
+    "steps": [
+      {
+        "id": "lire-la-configuration",
+        "start": 0,
+        "dur": 0.02
+      },
+      {
+        "id": "extraire-les-chaînes",
+        "start": 0.02,
+        "dur": 3.4
+      },
+      {
+        "id": "traduire-fr",
+        "start": 3.42,
+        "dur": 6,
+        "cost": 0.012,
+        "tokens": 800
+      },
+      {
+        "id": "traduire-en",
+        "start": 3.42,
+        "dur": 7.7,
+        "cost": 0.015,
+        "tokens": 920
+      },
+      {
+        "id": "traduire-de",
+        "start": 3.42,
+        "dur": 9.4,
+        "cost": 0.018000000000000002,
+        "tokens": 1040
+      },
+      {
+        "id": "traduire-es",
+        "start": 3.42,
+        "dur": 11.1,
+        "cost": 0.021,
+        "tokens": 1160
+      },
+      {
+        "id": "traduire-it",
+        "start": 3.42,
+        "dur": 12.8,
+        "cost": 0.024,
+        "tokens": 1280
+      },
+      {
+        "id": "traduire-pt",
+        "start": 3.42,
+        "dur": 6,
+        "cost": 0.012,
+        "tokens": 1400
+      },
+      {
+        "id": "traduire-nl",
+        "start": 3.42,
+        "dur": 7.7,
+        "cost": 0.015,
+        "tokens": 1520
+      },
+      {
+        "id": "traduire-pl",
+        "start": 3.42,
+        "dur": 9.4,
+        "cost": 0.018000000000000002,
+        "tokens": 1640
+      },
+      {
+        "id": "traduire-ja",
+        "start": 3.42,
+        "dur": 47,
+        "cost": 0.094,
+        "tokens": 1760
+      },
+      {
+        "id": "traduire-ko",
+        "start": 3.42,
+        "dur": 12.8,
+        "cost": 0.024,
+        "tokens": 1880
+      },
+      {
+        "id": "traduire-zh",
+        "start": 3.42,
+        "dur": 6,
+        "cost": 0.012,
+        "tokens": 2000
+      },
+      {
+        "id": "traduire-ar",
+        "start": 3.42,
+        "dur": 7.7,
+        "cost": 0.015,
+        "tokens": 2120
+      },
+      {
+        "id": "fusionner",
+        "start": 50.42,
+        "dur": 0.3
+      },
+      {
+        "id": "valider-le-glossaire",
+        "start": 50.72,
+        "dur": 8.1
+      },
+      {
+        "id": "relire",
+        "start": 58.82,
+        "dur": 12.4,
+        "cost": 0.031,
+        "tokens": 4200
+      },
+      {
+        "id": "écrire-les-fichiers",
+        "start": 71.22,
+        "dur": 0.9
+      },
+      {
+        "id": "commiter",
+        "start": 72.12,
+        "dur": 0.4
+      }
+    ]
+  },
+  "derived": {
+    "waves": [
+      [
+        "lire-la-configuration"
+      ],
+      [
+        "extraire-les-chaînes"
+      ],
+      [
+        "traduire-fr",
+        "traduire-en",
+        "traduire-de",
+        "traduire-es",
+        "traduire-it",
+        "traduire-pt",
+        "traduire-nl",
+        "traduire-pl",
+        "traduire-ja",
+        "traduire-ko",
+        "traduire-zh",
+        "traduire-ar"
+      ],
+      [
+        "fusionner"
+      ],
+      [
+        "valider-le-glossaire"
+      ],
+      [
+        "relire"
+      ],
+      [
+        "écrire-les-fichiers"
+      ],
+      [
+        "commiter"
+      ]
+    ],
+    "wave_end": [
+      0.02,
+      3.42,
+      50.42,
+      50.72,
+      58.82,
+      71.22,
+      72.12,
+      72.52000000000001
+    ],
+    "idle": {
+      "lire-la-configuration": 0,
+      "extraire-les-chaînes": 0,
+      "traduire-fr": 41,
+      "traduire-en": 39.3,
+      "traduire-de": 37.6,
+      "traduire-es": 35.900000000000006,
+      "traduire-it": 34.2,
+      "traduire-pt": 41,
+      "traduire-nl": 39.3,
+      "traduire-pl": 37.6,
+      "traduire-ja": 0,
+      "traduire-ko": 34.2,
+      "traduire-zh": 41,
+      "traduire-ar": 39.3,
+      "fusionner": 0,
+      "valider-le-glossaire": 0,
+      "relire": 0,
+      "écrire-les-fichiers": 0,
+      "commiter": 0
+    },
+    "bottleneck": {
+      "id": "traduire-ja",
+      "idleTotal": 420.40000000000003,
+      "blocked": 11
+    },
+    "total_cost": 0.31100000000000005,
+    "total_time": 72.52000000000001,
+    "verbs_used": [
+      "invoke",
+      "exec",
+      "infer",
+      "agent"
+    ],
+    "has_failed": false,
+    "cost_by_verb": {
+      "infer": 0.28,
+      "exec": 0,
+      "invoke": 0,
+      "agent": 0.031
+    },
+    "undeclared": [],
+    "blast_radius": [
+      "fs_read",
+      "exec",
+      "tools",
+      "net",
+      "fs_write"
+    ],
+    "groups": [
+      {
+        "task": "lire-la-configuration"
+      },
+      {
+        "task": "extraire-les-chaînes"
+      },
+      {
+        "group": "traduire",
+        "members": [
+          "traduire-fr",
+          "traduire-en",
+          "traduire-de",
+          "traduire-es",
+          "traduire-it",
+          "traduire-pt",
+          "traduire-nl",
+          "traduire-pl",
+          "traduire-ja",
+          "traduire-ko",
+          "traduire-zh",
+          "traduire-ar"
+        ]
+      },
+      {
+        "task": "fusionner"
+      },
+      {
+        "task": "valider-le-glossaire"
+      },
+      {
+        "task": "relire"
+      },
+      {
+        "task": "écrire-les-fichiers"
+      },
+      {
+        "task": "commiter"
+      }
+    ]
+  }
+}

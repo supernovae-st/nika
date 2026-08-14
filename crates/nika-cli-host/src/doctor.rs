@@ -109,6 +109,7 @@ pub fn diagnose(probe: &Probe) -> Vec<Finding> {
         fix: None,
     });
     out.extend(retention_findings(&probe.retention, &probe.retention_notes));
+    out.extend(tracked_traces_finding(probe.tracked_traces));
     out.push(Finding {
         level: Level::Ok,
         label: "mcp".to_owned(),
@@ -427,6 +428,33 @@ fn retention_findings(
         });
     }
     out
+}
+
+/// The trace-leak signal (the other half of init's `.gitignore`
+/// guarantee): journals under `.nika/traces` carry model outputs, file
+/// contents and tool arguments, so a repo that TRACKS them is one push
+/// away from publishing them. Init covers repos founded from now on —
+/// this row is for the ones founded before it did. A Warn, never a
+/// Fail (the env works; the hygiene debt is the operator's call), and
+/// never folded into the calm line (it is none of the healthy
+/// machine's three advisory classes). Diagnose-only: the exact remedy
+/// is printed, never run — `git rm` needs `-r` to take a directory.
+fn tracked_traces_finding(tracked: Option<usize>) -> Vec<Finding> {
+    match tracked {
+        Some(n) if n > 0 => vec![Finding {
+            level: Level::Warn,
+            label: "traces".to_owned(),
+            detail: format!(
+                "{} under .nika/traces tracked by git — journals carry model outputs · file contents · tool arguments",
+                crate::text::count(n, "run journal")
+            ),
+            fix: Some(
+                "git rm -r --cached .nika/traces   # files stay on disk · commit the removal"
+                    .to_owned(),
+            ),
+        }],
+        _ => Vec::new(),
+    }
 }
 
 /// `major.minor` from a semver-ish string — the kit handshake compares

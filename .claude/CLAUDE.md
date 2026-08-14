@@ -129,20 +129,20 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| branch           | `feat/access-b3-harness-client`                                      |
-| HEAD             | `e321891b5` (`e321891b573f7cd5cd762ea09714101e010b5ed7`)             |
+| branch           | `feat/trace-cover-doctor-signal`                                      |
+| HEAD             | `fe8a5d3e4` (`fe8a5d3e4a917b0e83ee26276e4d059859f8ed6a`)             |
 | workspace        | v0.108.0                                  |
-| crates (workspace)| 62                                              |
-| crates (admitted)| 57                                             |
+| crates (workspace)| 65                                              |
+| crates (admitted)| 60                                             |
 | crates (WIP)     | 5 — nika-chart nika-fx nika-proof nika-store nika-harness                                  |
-| L0               | 19                                              |
+| L0               | 20                                              |
 | L0.5             | 6                                              |
 | L1               | 17                                              |
 | L1.5             | 4                                              |
 | L2               | 5                                              |
 | L3               | 1                                              |
-| L4               | 10                                              |
-| lib tests        | 5613 passed, 0 failed                              |
+| L4               | 12                                              |
+| lib tests        | 5805 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
 
 Narrative context (manually maintained):
@@ -169,8 +169,13 @@ Narrative context (manually maintained):
   NIKA-1000..1599 · detail in `docs/crate-specs/` + adr-081). The first-15-min
   slice is now CLOSED · nika-cli (operator surface) + nika-builtin (s16 · the
   23 stdlib tools) + nika-infer-local (candle · ADR-091) + nika-extract (the 9
-  fetch extract modes) are ALL admitted (2026-06-21) — **the wip array is empty**
-  (39 admitted at the time · all existing crates admitted).
+  fetch extract modes) are ALL admitted (2026-06-21) — **the wip array WAS
+  empty on that date** (39 admitted then · every crate that existed).
+  ⚠️ It said « the wip array **is** empty », in the present tense, thirty-five
+  lines under an auto-block reading `crates (WIP) | 6`. One file, two answers
+  to the same question. The narrative was TRUE on 2026-06-21 and became a lie
+  by outliving its tense — which is why every declaration here carries its
+  date, and why the live figure is only ever read from the block above.
 - **Last stabilization — 2026-06-16** (origin/main `0b558f7f8`) · the static-check
   layer hardened to runtime-parity. **DEEP_GAPS conformance ledger EMPTIED** ·
   jq compile-check (jaq) + schema meta-check (jsonschema), both in L0 calling the

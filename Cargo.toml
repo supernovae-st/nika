@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members  = ["crates/nika-types", "crates/nika-error", "crates/nika-catalog", "crates/nika-catalog-codegen", "crates/nika-catalog-verify", "crates/nika-chart", "crates/nika-kernel", "crates/nika-kernel-ai", "crates/nika-kernel-core", "crates/nika-kernel-runtime", "crates/nika-kernel-plugin", "crates/nika-kernel-mock", "crates/nika-schema", "crates/nika-check", "crates/nika-check-wasm", "crates/nika-source", "crates/nika-store", "crates/nika-vocab", "crates/nika-lints", "crates/nika-graph", "crates/nika-bm25", "crates/nika-screen", "crates/nika-event", "crates/nika-extract", "crates/nika-exec-runner", "crates/nika-sandbox-seatbelt", "crates/nika-sandbox-landlock", "crates/nika-blob", "crates/nika-clock", "crates/nika-fs", "crates/nika-fx", "crates/nika-http", "crates/nika-ocr", "crates/nika-a11y", "crates/nika-input", "crates/nika-browser", "crates/nika-pack", "crates/nika-proof", "crates/nika-providers", "crates/nika-infer-local", "crates/nika-verb-infer", "crates/nika-verb-exec", "crates/nika-verb-invoke", "crates/nika-verb-agent", "crates/nika-builtin", "crates/nika-cel", "crates/nika-registry-client", "crates/nika-runtime", "crates/nika-cli", "crates/nika-cli-host", "crates/nika-lsp", "crates/nika-mcp", "crates/nika-dap", "crates/nika-display", "crates/nika-onboard", "crates/nika-models", "crates/nika-cap", "crates/nika-pck-manifest", "crates/nika-tmpl", "crates/nika-migrate", "crates/nika-harness", "crates/nika-secret"]
+members  = ["crates/nika-types", "crates/nika-error", "crates/nika-catalog", "crates/nika-catalog-codegen", "crates/nika-catalog-verify", "crates/nika-chart", "crates/nika-cadence", "crates/nika-kernel", "crates/nika-kernel-ai", "crates/nika-kernel-core", "crates/nika-kernel-runtime", "crates/nika-kernel-plugin", "crates/nika-kernel-mock", "crates/nika-schema", "crates/nika-check", "crates/nika-check-wasm", "crates/nika-source", "crates/nika-store", "crates/nika-vocab", "crates/nika-lints", "crates/nika-graph", "crates/nika-bm25", "crates/nika-screen", "crates/nika-event", "crates/nika-extract", "crates/nika-exec-runner", "crates/nika-sandbox-seatbelt", "crates/nika-sandbox-landlock", "crates/nika-blob", "crates/nika-clock", "crates/nika-fs", "crates/nika-fx", "crates/nika-http", "crates/nika-ocr", "crates/nika-a11y", "crates/nika-input", "crates/nika-browser", "crates/nika-pack", "crates/nika-proof", "crates/nika-providers", "crates/nika-infer-local", "crates/nika-verb-infer", "crates/nika-verb-exec", "crates/nika-verb-invoke", "crates/nika-verb-agent", "crates/nika-builtin", "crates/nika-cel", "crates/nika-registry-client", "crates/nika-runtime", "crates/nika-cli", "crates/nika-cli-host", "crates/nika-trace", "crates/nika-tui-core", "crates/nika-lsp", "crates/nika-mcp", "crates/nika-dap", "crates/nika-display", "crates/nika-onboard", "crates/nika-models", "crates/nika-cap", "crates/nika-pck-manifest", "crates/nika-tmpl", "crates/nika-migrate", "crates/nika-harness", "crates/nika-secret"]
 # Excluded so cargo does not try to descend into untracked main-leftover
 # manifests under crates/ (the orphan working tree carries them but they
 # are not part of the diamond workspace).
@@ -41,6 +41,17 @@ wip = ["nika-chart", "nika-fx", "nika-proof", "nika-store", "nika-harness"]
 layers.nika-chart = "L0"
 # nika-chart · deterministic chart artifacts (CHT master plan · stdlib §Media
 # graduate #3 candidate · zero-dep · byte-identical SVG → trace chain).
+# nika-cadence · the arming-registry grammar (the arm: block of nika.yaml,
+# D-2026-08-10-N3) + the pure next-slot calculator · hand-counted 5-field
+# cron (zero cron library — the count is the TYPE) · embedded IANA tzdb ·
+# the DST shift DECLARED in the Slot type (N1) · WIP (the 12-gate admission
+# lands at V3⑪ of the arming-registry plan).
+layers.nika-cadence = "L0"
+# nika-tui-core · the TUI session LAW (session model · derivation · plan
+# seating · claims) in one crate, native + WASM (D-2026-08-11-N6 · T28) ·
+# the parity proof rides the studio's fixtures bit-exact · WIP (gates
+# 1-6+8 green · swarm + consumer swap owed).
+layers.nika-tui-core = "L4"
 layers.nika-pack = "L0"
 # nika-proof · the spec-15 proof layer's hash primitives + the one receipt ·
 # split from nika-runtime 2026-07-29 (the 15k crate-size cap · the
@@ -51,6 +62,12 @@ layers.nika-proof = "L0"
 # 2026-06-11 with the display fold + trace verbs per docs/crate-specs/nika-cli.md.
 layers.nika-cli = "L4"
 layers.nika-cli-host = "L4"
+# nika-trace · the flight-recorder reader (the trace verbs · evidence ·
+# receipt · the learned-truth forecast · the bin's trace arm) · split from
+# nika-cli 2026-08-11 (the 15k crate-size cap · D-2026-07-09-N1 one unit,
+# two members · the ADR-110 cli-host precedent) — re-exported at the
+# historical verbs:: paths, so every consumer reads unchanged.
+layers.nika-trace = "L4"
 # nika-dap · the DAP replay server + the shared forensic seams (recover ·
 # chain) · split from nika-cli's verbs/dap 2026-07-09 (the
 # crate-size cap · the nika-cap precedent) · source_id re-homed to

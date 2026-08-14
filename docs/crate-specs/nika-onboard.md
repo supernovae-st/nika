@@ -15,8 +15,11 @@ hand · the proof inside the first minute):
   wiring), the recipe register (`recipes` — SETS over the embedded
   templates through the guided `stamp`, ids explicit under the kebab
   law), the scripted path (`scripted_run` — historical report bytes),
-  and the canvas stamp (`nika.dag.theme` parsed-and-re-emitted into a
-  CREATED settings.json, never string-spliced).
+  the canvas stamp (`nika.dag.theme` parsed-and-re-emitted into a
+  CREATED settings.json, never string-spliced), and the trace cover
+  (`gitignore` — adds-only: create when absent · one marked section
+  appended when the human's file lacks it · never a duplicate, so a
+  founded repo cannot commit its own `.nika/traces/` journals).
 - **`wizard`** — the founding conversation on the clack rail (recipe ·
   model · canvas · agents), over any `BufRead`/`Write` pair.
 - **`guided`** — `nika new`'s body: exact-name → BM25 intent routing →

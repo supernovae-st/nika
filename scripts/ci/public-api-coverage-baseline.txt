@@ -9,7 +9,13 @@
 # target (generate the baseline, add the crate here, the floor rises). Never remove
 # a line by hand.
 #
-# Generate a baseline:  cargo public-api -p <crate> --all-features --omit auto-trait-impls > crates/<crate>/public-api.txt
+# Generate a baseline:  cargo public-api -p <crate> --omit auto-trait-impls > crates/<crate>/public-api.txt
+#
+# DEFAULT features, never --all-features. This line taught --all-features while
+# public-api.yml has always diffed with default features (its own comment says
+# why: platform-exclusive features). A baseline generated the way this line
+# taught can NEVER match the gate that reads it — the instruction was the one
+# thing here nothing checked.
 #
 # Enforced by scripts/hygiene/check-public-api-coverage.sh (vector 38) AND projected
 # into .github/workflows/public-api.yml (surface diff) + semver-checks.yml (breaking-
@@ -89,6 +95,8 @@ nika-cel
 nika-cli
 # --- 2026-07-31: the host-integration member out of nika-cli at the 15k wall (ADR-110 · one unit, two members) ---
 nika-cli-host
+# --- 2026-08-11: the flight-recorder reader descends from nika-cli at the 15k wall (D-2026-07-09-N1 · the ADR-110 precedent) ---
+nika-trace
 nika-dap
 nika-display
 nika-pck-manifest
@@ -114,3 +122,10 @@ nika-proof
 nika-store
 # --- 2026-08-06: the secret resolution half out of nika-runtime (the 15k wall — nika-proof/nika-dap/nika-cap precedent) ---
 nika-secret
+# --- 2026-08-14: the two session crates, floored AT admission as the WIP rule
+# above requires (both cleared their 12 gates; neither had a snapshot, which is
+# why vector 38 sat at 62/64). Platform-neutral, verified: zero objc/apple/darwin
+# symbols in either snapshot, and nika-tui-core's #[wasm_bindgen] surface is NOT
+# cfg-gated, so its 26 wasm symbols appear identically on macOS and on linux. ---
+nika-cadence
+nika-tui-core

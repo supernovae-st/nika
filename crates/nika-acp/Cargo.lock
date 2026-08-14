@@ -2469,6 +2469,7 @@ dependencies = [
 name = "nika-vocab"
 version = "0.108.0"
 dependencies = [
+ "marked-yaml",
  "nika-cap",
  "nika-source",
  "nika-types",

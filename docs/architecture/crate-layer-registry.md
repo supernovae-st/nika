@@ -59,7 +59,10 @@ Given a crate `nika-<role>`, ask these questions in order:
 │                                             size-cap split D-07-09-N1)   │
 │ nika-vocab                [axes: none]      .nika.yaml config vocabulary │
 │                                             (schema unit's 3rd member ·  │
-│                                             size-cap split D-07-09-N1)   │
+│                                             size-cap split D-07-09-N1) + │
+│                                             the nika.yaml PROJECT file   │
+│                                             (D-2026-08-11-N5 ·           │
+│                                             ceiling/traces/registry/arm) │
 │ nika-migrate              [axes: none]      .nika.yaml fix migrations    │
 │                                             (W1 map · W2 flow · from     │
 │                                             nika-cli · size-cap D-07)    │
@@ -159,13 +162,13 @@ flags. They obey the same 12-gate admission as any other crate.
 
 | Layer | Role | Allowed I/O | Allowed deps | Example crates |
 |---|---|---|---|---|
-| L0 | Pure types, lookup tables, sync-only APIs (live counts: refresh-status block) | none | (leaf) | `nika-types`, `nika-error`, `nika-catalog`, `nika-catalog-codegen`, `nika-schema`, `nika-check`, `nika-source`, `nika-vocab`, `nika-graph`, `nika-event`, `nika-pack`, `nika-migrate`, `nika-proof` (WIP · the spec-15 hash primitives + receipt · split from nika-runtime at the 15k wall 2026-07-29) · *planned* · `nika-binding`, `nika-transform`, `nika-pck-manifest` |
+| L0 | Pure types, lookup tables, sync-only APIs (live counts: refresh-status block) | none | (leaf) | `nika-types`, `nika-error`, `nika-catalog`, `nika-catalog-codegen`, `nika-schema`, `nika-check`, `nika-source`, `nika-vocab` (workflow vocabulary + the `nika.yaml` project file · D-2026-08-11-N5), `nika-graph`, `nika-event`, `nika-pack`, `nika-migrate`, `nika-proof` (WIP · the spec-15 hash primitives + receipt · split from nika-runtime at the 15k wall 2026-07-29), `nika-cadence` (WIP · the `arm:`-registry grammar + the pure next-slot calculator · the 6 pre-freeze corrections of the arming plan §2unvicies · 2026-08-12) · *planned* · `nika-binding`, `nika-transform`, `nika-pck-manifest` |
 | L0.5 | Kernel trait definitions + companions (mock) — async OK; prelude re-export hub | none (traits only) | L0 | `nika-kernel` (facade hub), `nika-kernel-core`, `nika-kernel-ai`, `nika-kernel-runtime`, `nika-kernel-plugin`, `nika-kernel-mock` |
 | L1 | Effect implementations — async, per-crate capability axis | declared axes only (fs/net/exec/env · +computer-use axes from M2) | L0, L0.5 | `nika-clock`, `nika-fs`, `nika-http`, `nika-blob`, `nika-exec-runner`, `nika-screen`, `nika-ocr`, `nika-a11y`, `nika-input`, `nika-browser` (ADR-081 guards), `nika-bm25` ✅, `nika-store` (F-P8 signed memory · SMSR) + the Connectome satellites (`nika-hnsw`, `nika-rrf`, `nika-rerank`, …), `nika-git`, `nika-keys-*`, `nika-pck-registry`, `nika-pck-store`, `nika-catalog-sync` |
 | L1.5 | Provider wire adapters — between effects and verbs | via L1 http seam | L0, L0.5, L1 | `nika-providers` (14/14 wire · in-crate mock), `nika-infer-local` (candle sidecar · ADR-091) |
 | L2 | Verbs + domain services — orchestrates L1 impls behind kernel traits | via L1 traits only | L0, L0.5, L1, L1.5 | `nika-pck`, `nika-verb-*`, `nika-policy` (s8 · design locked), `nika-connectome` (the Connectome orchestrator), `nika-observability`, `nika-builtin-{github,cloud,workspace}`, `nika-registry-client` (size-cap descent from nika-cli · D-2026-07-09-N1) |
 | L3 | Runtime + policy + sandbox — enforces execution contracts | via L2 | L0..L2 | `nika-runtime`, `nika-shield`, `nika-wasm-host` (v0.100), `nika-sandbox` (v0.100) |
-| L4 | Interfaces — transport/UI surface, libraries only | via L3 | L0..L3 | `nika-cli`, `nika-cli-host` (size-cap member of the nika-cli unit · D-2026-07-09-N1 · ADR-110), `nika-dap`, `nika-display`, `nika-onboard`, `nika-models`, `nika-daemon`, `nika-serve`, `nika-mcp`, `nika-lsp`, `nika-sdk`, `nika-catalog-verify`, `nika-check-wasm` (WIP · ADR-107) |
+| L4 | Interfaces — transport/UI surface, libraries only | via L3 | L0..L3 | `nika-cli`, `nika-cli-host` (size-cap member of the nika-cli unit · D-2026-07-09-N1 · ADR-110), `nika-trace` (size-cap member of the nika-cli unit · the flight-recorder reader · D-2026-07-09-N1 · 2026-08-11), `nika-dap`, `nika-display`, `nika-onboard`, `nika-models`, `nika-daemon`, `nika-serve`, `nika-mcp`, `nika-lsp`, `nika-sdk`, `nika-catalog-verify`, `nika-check-wasm` (WIP · ADR-107) |
 | L5 | The binary — sole `[[bin]]` composition root | via L4 | L0..L4 | `nika` (<500 LOC) |
 
 ### Forward compatibility

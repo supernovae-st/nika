@@ -1,6 +1,6 @@
 [package]
 name          = "nika-cli"
-description   = "The operator surface of the engine (L4) — the `nika` verb tree, the display fold (render = pure function of the event stream), and the flight-recorder reader. Seeded 2026-06-11 with display + `trace replay|show`; grows the full first-15-min suite (D-2026-06-10-N6) at the S6 build. Spec: docs/crate-specs/nika-cli.md."
+description   = "The operator surface of the engine (L4) — the `nika` verb tree and the display fold (render = pure function of the event stream); the flight-recorder reader lives in the `nika-trace` member (size-cap split 2026-08-11 · D-2026-07-09-N1). Seeded 2026-06-11 with display + `trace replay|show`; grows the full first-15-min suite (D-2026-06-10-N6) at the S6 build. Spec: docs/crate-specs/nika-cli.md."
 version.workspace      = true
 edition.workspace      = true
 license.workspace      = true
@@ -15,6 +15,7 @@ nika-event  = { path = "../nika-event", version = "0.108.0" }  # the REAL event 
 nika-cli-host = { path = "../nika-cli-host", version = "0.108.0" } # the host-integration member (the 15k wall · ADR-110 · one unit, two members)
 nika-types  = { path = "../nika-types", version = "0.108.0" }  # Timestamp · KeyValue · ids
 nika-schema = { path = "../nika-schema", version = "0.108.0" } # parse (check · inspect · graph · run)
+nika-vocab  = { path = "../nika-vocab", version = "0.108.0" }  # the project file (ceiling — the --max-cost-usd flag's default rung · D-2026-08-11-N5)
 nika-check  = { path = "../nika-check", version = "0.108.0" }  # the ADR-092 check ladder (the check verb · run gates · fix loop)
 nika-graph = { path = "../nika-graph", version = "0.108.0" }   # the canonical projection (inspect --format json renders it)
 nika-error  = { path = "../nika-error", version = "0.108.0" }  # the code registry (`nika explain`)
@@ -22,7 +23,6 @@ nika-pack   = { path = "../nika-pack", version = "0.108.0" }   # the embedded la
 # nika-cap + url moved out with the drift compute (nika-dap hosts both now).
 clap        = { workspace = true }                             # verb tree (completions + man derive later)
 clap_complete = { workspace = true }                           # `nika completions <shell>` (spec §9)
-serde       = { workspace = true }                             # graph projection envelope (§6)
 serde_json  = { workspace = true }                             # trace NDJSON parse · --json surfaces
 # The `nika run` composer (verbs/run/compose.rs · the verb/agent/effect
 # crates) descended to `nika_runtime::compose` 2026-07-22 (the 15k wall —
@@ -44,6 +44,7 @@ nika-lsp         = { path = "../nika-lsp", version = "0.108.0" }           # `ni
 nika-display     = { path = "../nika-display", version = "0.108.0" } # the run-comprehension surface (descended 2026-07-10 · re-exported at display::)
 nika-onboard     = { path = "../nika-onboard", version = "0.108.0" } # the founding wizard + guided first workflow (descended 2026-07-12 · adapters at verbs/{init,new}.rs)
 nika-dap         = { path = "../nika-dap", version = "0.108.0" }           # `nika dap` + the trace-forensics plane (chain · recover · otel · reproduce · store · retention — re-exported at the old verb paths)
+nika-trace       = { path = "../nika-trace", version = "0.108.0" }         # the flight-recorder reader (trace verbs · evidence · receipt · forecast · the bin's trace arm — descended 2026-08-11 · re-exported at the old verb paths)
 nika-mcp         = { path = "../nika-mcp", version = "0.108.0" }           # `nika mcp` — the MCP server (stdio · exposes check/explain to Cursor/Claude Desktop)
 nika-models      = { path = "../nika-models", version = "0.108.0" }        # `nika model` — the local-models unit (ONE dir · Hub pull · serve glue · descended 2026-07-12)
 nika-migrate     = { path = "../nika-migrate", version = "0.108.0" }       # the .nika.yaml envelope migrations (W1 map · W2 flow) — the fix verb's repairs (descended 2026-07-15 · size-cap · pure std)

@@ -6,6 +6,10 @@
 //! COMPUTATION lives in the forensics plane ([`nika_dap::evidence`]);
 //! this shell owns the verb seam: the enrolled-key read, the `--json`
 //! projection, and the one-line human summary (render stays).
+//!
+//! Two disclosure classes (T9): the DEFAULT is the redacted pack —
+//! the run's INTEGRITY, not its CONTENT (payloads ride as sha256
+//! placeholders); `--full` ships the exact journal bytes, and says so.
 
 use std::path::{Path, PathBuf};
 
@@ -29,14 +33,31 @@ pub struct EvidenceArgs {
     /// Print the pack manifest to stdout (no directory written).
     #[arg(long)]
     pub json: bool,
+    /// Carry the run's CONTENT verbatim (model outputs · tool results ·
+    /// file reads). Default: the redacted pack — it proves the run's
+    /// INTEGRITY, not its CONTENT; disclosure stays operator-side.
+    #[arg(long)]
+    pub full: bool,
 }
 
 /// `nika trace evidence <trace>` — export the pack. The enrolled-key set is
 /// the machine's own custody ([`nika_dap::evidence::candidate_pubkeys`]).
+/// `full` picks the exact-bytes class; the default is the redacted one.
 #[must_use]
-pub fn export(trace: &str, out: Option<&Path>, workflow: Option<&str>, json: bool) -> VerbOutput {
+pub fn export(
+    trace: &str,
+    out: Option<&Path>,
+    workflow: Option<&str>,
+    json: bool,
+    full: bool,
+) -> VerbOutput {
     let keys = nika_dap::evidence::candidate_pubkeys();
-    let pack = match nika_dap::evidence::build(Path::new(trace), workflow.map(Path::new), &keys) {
+    let build = if full {
+        nika_dap::evidence::build_full
+    } else {
+        nika_dap::evidence::build
+    };
+    let pack = match build(Path::new(trace), workflow.map(Path::new), &keys) {
         Ok(pack) => pack,
         Err(e) => return VerbOutput::env(e.to_string()),
     };
@@ -64,6 +85,9 @@ fn clip(text: &str) -> String {
 }
 
 /// The human close: where the pack landed + each claim's one-line truth.
+/// The journal line names the disclosure CLASS plainly — the redacted
+/// projection's placeholder count, or the full pack's content warning
+/// (a silent full pack is the leak wearing a new hat).
 fn human_summary(dir: &Path, manifest: &Value) -> String {
     use std::fmt::Write as _;
     let mut out = format!("evidence pack: {}", dir.display());
@@ -72,7 +96,8 @@ fn human_summary(dir: &Path, manifest: &Value) -> String {
         .map_or_else(|| "no head".to_owned(), |h| format!("head {}", clip(h)));
     let _ = write!(
         out,
-        "\n  journal.ndjson — chain {} · {head}",
+        "\n  journal.ndjson — {} · chain {} · {head}",
+        journal_word(manifest),
         manifest["trace"]["chain"].as_str().unwrap_or("?")
     );
     let _ = write!(
@@ -84,8 +109,30 @@ fn human_summary(dir: &Path, manifest: &Value) -> String {
     if let Some(proves) = manifest["receipt"]["proves"].as_str() {
         let _ = write!(out, "\n  receipt.json — proves {}", clip(proves));
     }
-    let _ = write!(out, "\n  VERIFY.md — the auditor's three commands");
+    let verify_word = if is_redacted(manifest) {
+        "the auditor's checks (integrity class · the disclosure paths)"
+    } else {
+        "the auditor's three commands"
+    };
+    let _ = write!(out, "\n  VERIFY.md — {verify_word}");
     out
+}
+
+/// The manifest's disclosure class — an absent `redaction` section is a
+/// pre-T9 manifest, which shipped the exact bytes: that IS the full class.
+fn is_redacted(manifest: &Value) -> bool {
+    manifest["redaction"]["class"].as_str() == Some("redacted")
+}
+
+/// The one-line journal truth: the redacted class names its placeholder
+/// count; the full class wears the content warning.
+fn journal_word(manifest: &Value) -> String {
+    if is_redacted(manifest) {
+        let n = manifest["redaction"]["placeholders"].as_u64().unwrap_or(0);
+        format!("redacted projection ({n} payload fields → sha256)")
+    } else {
+        "FULL CONTENT (the exact bytes — handle as sensitive)".to_owned()
+    }
 }
 
 /// The one-line seal truth for the summary.
@@ -200,8 +247,44 @@ mod tests {
     /// verbatim (never a panic, never a swallowed reason).
     #[test]
     fn a_missing_journal_is_env_class() {
-        let out = export("/nonexistent/trace.ndjson", None, None, false);
+        let out = export("/nonexistent/trace.ndjson", None, None, false, false);
         assert_eq!(out.code, super::super::exit::ENV);
         assert!(out.text.contains("cannot read"), "{}", out.text);
+    }
+
+    /// The summary names the disclosure class plainly: the redacted
+    /// default counts its placeholders and retitles VERIFY.md; the
+    /// full class wears the content warning — and a pre-T9 manifest
+    /// (no `redaction` section) reads as what it was: full bytes.
+    #[test]
+    fn summary_speaks_the_disclosure_class() {
+        let dir = Path::new("/tmp/pack.evidence");
+
+        let mut redacted = manifest(None, &Value::Null);
+        redacted["redaction"] = json!({ "class": "redacted", "placeholders": 3 });
+        let out = human_summary(dir, &redacted);
+        assert!(
+            out.contains("journal.ndjson — redacted projection (3 payload fields → sha256)"),
+            "{out}"
+        );
+        assert!(
+            out.contains("VERIFY.md — the auditor's checks (integrity class"),
+            "{out}"
+        );
+
+        let mut full = manifest(None, &Value::Null);
+        full["redaction"] = json!({ "class": "full" });
+        let out = human_summary(dir, &full);
+        assert!(out.contains("FULL CONTENT (the exact bytes"), "{out}");
+        assert!(
+            out.contains("VERIFY.md — the auditor's three commands"),
+            "{out}"
+        );
+
+        let legacy = human_summary(dir, &manifest(None, &Value::Null));
+        assert!(
+            legacy.contains("FULL CONTENT"),
+            "a pre-T9 manifest shipped the exact bytes: {legacy}"
+        );
     }
 }

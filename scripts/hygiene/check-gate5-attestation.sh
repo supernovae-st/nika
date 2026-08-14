@@ -37,7 +37,10 @@ cd "$ENGINE_ROOT" || exit 2
 . "$ENGINE_ROOT/scripts/ci/_lib.sh"
 
 deferred=""
+declared=""
 attested_n=0
+declared_n=0
+silent_n=0
 checked_n=0
 
 while IFS= read -r crate; do
@@ -50,9 +53,18 @@ while IFS= read -r crate; do
 
   checked_n=$((checked_n + 1))
 
-  # A documented exemption (BUDGET mode marker) counts as attested.
+  # A documented exemption (BUDGET mode marker) counts as attested — but as
+  # a DECLARATION, counted apart. An adversarial review named this on
+  # 2026-08-13: the marker was attesting ITSELF. This vector greps for its
+  # presence and prints "attest", while the budget it stands for is only
+  # ever re-checked by the nightly matrix, which ran against ONE crate. A
+  # budget could drift to nothing and this line would keep reading green.
+  # The number stays (the marker IS the documented handling) and the word
+  # changes, because "attested" and "measured here" are not the same claim.
   if grep -q 'GATE5-EXEMPT:' "$spec"; then
     attested_n=$((attested_n + 1))
+    declared_n=$((declared_n + 1))
+    declared="$declared $crate"
     continue
   fi
 
@@ -61,6 +73,12 @@ while IFS= read -r crate; do
   row="$(grep -iE '^\|[[:space:]]*5[.):[:space:]].*MUTATION' "$spec" | head -1)"
   if [ -z "$row" ]; then
     # No Gate-5 table row → not a deferral signal (inherited / metadata-only).
+    # But it is not an attestation either, and the summary used to fold these
+    # into "all N crates attest Gate 5" while counting none of them. Found
+    # 2026-08-13 while correcting the line above: the same overclaim, one
+    # step further out. They are counted and named now; silence is a state,
+    # not a pass.
+    silent_n=$((silent_n + 1))
     continue
   fi
 
@@ -80,5 +98,15 @@ if [ -n "${deferred# }" ]; then
   exit 1
 fi
 
-echo "OK (all ${checked_n} admitted lib crates attest Gate 5 · measured score or documented exemption · no deferrals)"
+scored_n=$((attested_n - declared_n))
+echo "OK · no deferrals · of ${checked_n} admitted lib crates: ${scored_n} SCORED · ${declared_n} DECLARED · ${silent_n} carry no Gate-5 row at all"
+if [ "$declared_n" -gt 0 ]; then
+  # Say which, and say what the word costs. A reader who sees only a count
+  # reads "verified"; the marker is a documented handling, not a measurement,
+  # and only the crates in .github/workflows/mutants.yml are re-measured.
+  echo "  declared (budget marker · re-measured only if listed in .github/workflows/mutants.yml):"
+  for c in $declared; do
+    echo "    · $c"
+  done
+fi
 exit 0

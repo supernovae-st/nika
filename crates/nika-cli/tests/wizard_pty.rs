@@ -253,6 +253,8 @@ fn init_founding_wizard_golden_path_lands_the_curriculum() {
     p.send_line("").expect("Enter = skip");
     p.expect("agents").expect("the wire step");
     p.send_line("").expect("Enter = skip");
+    p.expect("project file").expect("the project-file beat");
+    p.send_line("").expect("Enter = skip");
     // Then the writes + the proof + the panel.
     p.expect("created AGENTS.md").expect("scaffold report");
     p.expect("workflows/01-hello-chain.nika.yaml")
@@ -302,6 +304,8 @@ fn init_example_lane_founds_around_one_lesson() {
     p.send_line("").expect("skip");
     p.expect("agents").expect("the wire step");
     p.send_line("").expect("skip");
+    p.expect("project file").expect("the project-file beat");
+    p.send_line("").expect("Enter = skip");
     p.expect("created AGENTS.md").expect("briefs land");
     p.expect("workflows/01-hello.nika.yaml")
         .expect("the lesson lands verbatim");
@@ -321,6 +325,14 @@ fn init_example_lane_founds_around_one_lesson() {
         dir.join("workflows/README.md").is_file(),
         "generated index written"
     );
+    // The INTERACTIVE half of « never laid silently » (D-2026-08-11-N5).
+    // The flag's lane is unit-tested (`verbs::init` · the scripted door);
+    // the Enter-skips-it default had no test at all, which is how the
+    // prompt shipped and left three PTY tests hanging on it.
+    assert!(
+        !dir.join("nika.yaml").exists(),
+        "Enter skipped the project file — never laid silently"
+    );
 }
 
 #[test]
@@ -335,6 +347,8 @@ fn init_starter_recipe_hands_over_to_the_guided_flow() {
     p.send_line("").expect("skip");
     p.expect("agents").expect("the wire step");
     p.send_line("").expect("skip");
+    p.expect("project file").expect("the project-file beat");
+    p.send_line("").expect("Enter = skip");
     p.expect("created AGENTS.md").expect("scaffold report");
     // The hand-off: the SAME three-question flow `nika new` speaks.
     p.expect("your first workflow")

@@ -1,0 +1,30 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+#
+# nika-cadence · L0 · PUR · zéro I/O · zéro async.
+# The arming-registry grammar + the next-slot calculator.
+[package]
+name        = "nika-cadence"
+description = "L0 cadence engine — the arm: registry grammar and the pure next-slot calculator (hand-counted 5-field cron · embedded IANA tzdb · zero I/O)"
+
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false  # Foundation crate, never on crates.io (ADR-022).
+
+[lints]
+workspace = true
+
+[dependencies]
+serde         = { workspace = true }
+serde_yaml_bw = { workspace = true }   # the panic-free vendored fork — the house YAML plane
+thiserror     = { workspace = true }
+jiff          = { workspace = true }
+jiff-tzdb     = { workspace = true }   # the EMBEDDED IANA tzdb — never the host's zoneinfo
+
+[dev-dependencies]
+proptest = { workspace = true }

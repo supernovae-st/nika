@@ -8,6 +8,12 @@
 //! They are used by both the raw AST (parser output) and the analyzed AST
 //! (post-validation).
 //!
+//! The sibling [`project`] module is the ONE exception to the workflow
+//! scope: the project file `nika.yaml` (D-2026-08-11-N5) — project-scope
+//! config vocabulary, NOT a workflow. It lives here rather than in the
+//! schema unit so every consumer (the L2 registry gate · the L4 CLI)
+//! depends DOWN on it.
+//!
 //! Split out of `nika-schema` per the size-cap discipline
 //! (D-2026-07-09-N1 · one architectural unit, N workspace members · the
 //! `nika-source` precedent): `nika_schema::types` re-exports this crate
@@ -42,6 +48,7 @@ pub mod keys;
 pub mod on_error;
 pub mod output_decl;
 pub mod permits;
+pub mod project;
 pub mod retry;
 pub mod run;
 pub mod schema_version;

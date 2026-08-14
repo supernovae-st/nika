@@ -61,12 +61,29 @@ buidl      = "buidl"     # dep/ref rename fixture (rename_repair docs + --fix co
 promt      = "promt"     # field rename fixture (--fix docs + CHANGELOG cite the healed typo)
 childs     = "childs"    # the v0.107.0 CHANGELOG cites the healed typo (childs → child · #759)
 topik      = "topik"     # vars-ref rename fixture (--fix convergence test)
+celing     = "celing"    # the `nika.yaml` unknown-key fixture — `ceiling` misspelled ON PURPOSE, and the test ASSERTS the refusal NAMES it (nika-vocab project tests · verbs/run/ceiling.rs)
+flor       = "flor"      # its twin one level down — `registry.flor` must refuse as an unknown key
 # French (the studio writes franglais — these are real French words, not typos)
 raison     = "raison"
 raisons    = "raisons"
 projet     = "projet"
 mesure     = "mesure"
 correspondant = "correspondant"
+# 2026-08-14 · the session crates (nika-cadence · nika-tui-core) comment in
+# French. Only words NO English reader could reach for by mistake land here.
+# The ones that ARE plausible English typos — `sur`/`reste`/`valide`/`formes`/
+# `seconde` — were REWRITTEN in the French instead (`demeure` · `licite` ·
+# `écritures` · `2e`), so those five stay dangerous across all 64 crates.
+# Allowlisting them would have been the cheap fix and the wrong one.
+Syntaxe    = "Syntaxe"
+syntaxe    = "syntaxe"
+registre   = "registre"
+contribue  = "contribue"
+verifie    = "verifie"
+enveloppe  = "enveloppe"
+comparaison = "comparaison"
+toi        = "toi"
+accepte    = "accepte"   # « on ne choisit pas, on accepte » — a quoted French line; rewriting it would bend the quote
 # Code identifiers / domain shorthand
 CLEN       = "CLEN"      # RFC 1951 HCLEN code-length alphabet (nika-fx inflate)
 clen       = "clen"      # its lowercase binding in the dynamic-Huffman header parse
@@ -136,4 +153,18 @@ extend-exclude = [
   "**/*.svg",
   # Snapshot tests — controlled by the test author
   "**/snapshots/",
+  # The session crates' crate-specs, written in French (the studio writes
+  # franglais). Same call as the two lines above, for the same measured
+  # reason: 35 of their 77 hits are `sur` and `reste`, which are plausible
+  # English typos of `sure` and `rest` — allowlisting those two words would
+  # blind the gate across 64 crates of public code. The FILE goes, the
+  # words stay dangerous everywhere else.
+  "docs/crate-specs/nika-tui-core.md",
+  "docs/crate-specs/nika-tui.md",
+  "docs/crate-specs/nika-cadence.md",
+  # Session-law test fixtures — recorded engine output (journals, graph
+  # projections), not prose. The `journal-casse.ndjson` one is a
+  # deliberately TORN journal: its bytes are the test. Same class as
+  # `fuzz/corpus/` above.
+  "crates/nika-tui-core/tests/fixtures/",
 ]

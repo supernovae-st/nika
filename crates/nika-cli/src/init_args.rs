@@ -40,6 +40,12 @@ pub(crate) struct InitArgs {
     /// (comma-separated · the same targets as `nika wire`).
     #[arg(long, value_enum, value_delimiter = ',')]
     wire: Vec<verbs::wire::WireTarget>,
+    /// Lay a starter `nika.yaml` (the project file — ceiling +
+    /// retention examples, commented so the starter governs nothing
+    /// until you edit it). The ONLY scripted door; the wizard lane
+    /// asks instead. An existing file is skipped, `--force` overrides.
+    #[arg(long)]
+    project_file: bool,
 }
 
 /// Unpack the `init` clap surface into the library verb call.
@@ -52,6 +58,7 @@ pub(crate) fn init_verb(args: &InitArgs, plain_theme: Theme) -> VerbOutput {
         args.example.as_deref(),
         args.theme,
         &args.wire,
+        args.project_file,
         plain_theme,
     )
 }

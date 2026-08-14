@@ -13,12 +13,15 @@
 //! The human keeps the hand everywhere: an existing file is SKIPPED,
 //! never clobbered — `--force` is the explicit override (same law as
 //! `nika new`). A write failure is the one environment error (`exit 3`).
+//! The one append-maybe surface is `.gitignore` (`crate::gitignore` —
+//! adds-only: the trace-cover section joins an existing file, never a
+//! rewrite, and a second run adds nothing).
 
 use std::fmt::Write as _;
 use std::path::Path;
 
 use crate::recipes::{self, ScaffoldStatus};
-use crate::{Audit, Outcome, Wire, briefs, codes};
+use crate::{Audit, Outcome, Wire, briefs, codes, gitignore};
 
 pub use briefs::agents_md;
 
@@ -127,12 +130,19 @@ pub fn scripted_run(
         };
     }
     let rows = apply_briefs(dir, force, canvas);
+    // The trace cover rides the same report — adds-only
+    // (`gitignore.rs`), so a re-run or the human's own entry is a calm
+    // skip row, and its write failure is the same exit-3 class as a
+    // brief's.
+    let git = gitignore::ensure(dir);
     let failed = rows
         .iter()
-        .any(|(_, o)| matches!(o, BriefOutcome::Failed(_)));
+        .any(|(_, o)| matches!(o, BriefOutcome::Failed(_)))
+        || matches!(git.1, gitignore::Outcome::Failed(_));
     // The HISTORICAL report bytes (joined paths · ✔/·/✖ rows) — scripts
-    // have parsed this shape since #158.
-    let lines: Vec<(char, String)> = rows
+    // have parsed this shape since #158. The gitignore row is ADDITIVE:
+    // one more row after the brief rows, no historical byte changes.
+    let mut lines: Vec<(char, String)> = rows
         .iter()
         .map(|(path, outcome)| match outcome {
             BriefOutcome::Created => ('✔', format!("created {path}")),
@@ -143,6 +153,7 @@ pub fn scripted_run(
             BriefOutcome::Failed(e) => ('✖', format!("{path}: {e}")),
         })
         .collect();
+    lines.push(gitignore::report(&git.0, &git.1));
     let mut text = render(&lines);
     if failed {
         return Outcome::env(text);
@@ -553,6 +564,58 @@ mod tests {
             "the classic block survives verbatim: {}",
             out.text
         );
+    }
+
+    /// The trace cover lands in the scripted lane (T1): a fresh found
+    /// lays `.gitignore` with the `.nika/traces/` entry and the report
+    /// says so; a second run is the calm skip row and the bytes are
+    /// identical (adds-only — init never rewrites the human's file).
+    #[test]
+    fn scripted_init_lays_the_traces_cover_adds_only() {
+        let tmp = std::env::temp_dir().join(format!("nika-init-gitignore-{}", std::process::id()));
+        std::fs::remove_dir_all(&tmp).ok();
+        std::fs::create_dir_all(&tmp).expect("mkdir");
+        let out = run(
+            tmp.to_str().expect("utf8"),
+            false,
+            true,
+            None,
+            None,
+            &[],
+            PLAIN,
+        );
+        assert_eq!(out.code, codes::OK, "{}", out.text);
+        assert!(
+            out.text.contains("created ") && out.text.contains(".gitignore"),
+            "the cover row rides the report: {}",
+            out.text
+        );
+        let body = std::fs::read_to_string(tmp.join(".gitignore")).expect("gitignore written");
+        assert!(body.contains(".nika/traces/"), "the cover entry: {body}");
+
+        let again = run(
+            tmp.to_str().expect("utf8"),
+            false,
+            true,
+            None,
+            None,
+            &[],
+            PLAIN,
+        );
+        assert_eq!(again.code, codes::OK, "{}", again.text);
+        assert!(
+            again
+                .text
+                .contains(".gitignore (.nika/traces/ already ignored)"),
+            "the second run is a calm skip row: {}",
+            again.text
+        );
+        assert_eq!(
+            std::fs::read_to_string(tmp.join(".gitignore")).expect("read"),
+            body,
+            "adds-only: the second run changed nothing"
+        );
+        std::fs::remove_dir_all(&tmp).ok();
     }
 
     #[test]

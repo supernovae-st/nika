@@ -18,7 +18,9 @@ use nika_display::chrome;
 use nika_display::theme::{Role, Theme};
 
 use crate::founding::{BriefOutcome, CanvasTheme, apply_briefs, proof_receipts, wire_receipts};
+use crate::gitignore;
 use crate::guided;
+use crate::project_file;
 use crate::recipes::{RECIPES, Recipe, ScaffoldStatus, scaffold, takes_model};
 use crate::{Audit, Outcome, Wire, codes};
 
@@ -57,6 +59,9 @@ struct Choices {
     model: Option<String>,
     canvas: Option<CanvasTheme>,
     wires: Vec<&'static str>,
+    /// `true` = the human took the project-file offer (D-2026-08-11-N5)
+    /// — lay the starter `nika.yaml` at founding.
+    project_file: bool,
 }
 
 /// The wizard over injected io: converse (no writes) · then found the
@@ -147,6 +152,9 @@ fn converse(
     let Some(wires) = ask_wires(input, out, theme)? else {
         return Ok(None);
     };
+    let Some(project_file) = ask_project_file(input, out, theme)? else {
+        return Ok(None);
+    };
 
     Ok(Some(Choices {
         recipe,
@@ -154,6 +162,7 @@ fn converse(
         model,
         canvas,
         wires,
+        project_file,
     }))
 }
 
@@ -239,20 +248,51 @@ fn ask_wires(
     Ok(Some(wires))
 }
 
-/// The write phase — briefs · workflows · wires · proof · panel.
-fn found(
-    dir: &str,
-    force: bool,
-    theme: Theme,
-    choices: &Choices,
+/// The project-file beat (D-2026-08-11-N5) — the ONE offer question:
+/// `y` lays a starter `nika.yaml`, Enter skips (the file is optional;
+/// absence IS the defaults — an offer, never a toll). A prose answer
+/// is said and re-asked (the P0-8 loop discipline, every menu beat).
+fn ask_project_file(
     input: &mut dyn BufRead,
     out: &mut dyn std::io::Write,
-    (audit, wire): (&Audit<'_>, &Wire<'_>),
-) -> Outcome {
-    writeln!(out, "{}", chrome::rail_head(theme, "scaffold")).ok();
-    let briefs = apply_briefs(dir, force, choices.canvas);
+    theme: Theme,
+) -> std::io::Result<Option<bool>> {
+    writeln!(
+        out,
+        "{}",
+        chrome::rail_head(theme, "project file — lay a starter nika.yaml?")
+    )?;
+    guided::ask_validated(
+        input,
+        out,
+        theme,
+        &format!(
+            "`y` to lay it, or Enter to skip {}",
+            theme.paint(Role::Dim, "[skip]")
+        ),
+        "`y` lays it · Enter skips",
+        |raw| {
+            matches!(
+                raw.trim().to_ascii_lowercase().as_str(),
+                "y" | "yes" | "o" | "oui"
+            )
+            .then_some(true)
+        },
+        || false,
+    )
+}
+
+/// The briefs rows of the write phase — the adds-only report, and
+/// `true` when any write FAILED (the caller folds it into its early
+/// exit). Extracted under the 100-line fn law (ADR-023).
+fn report_briefs(
+    dir: &str,
+    theme: Theme,
+    briefs: &[(String, BriefOutcome)],
+    out: &mut dyn std::io::Write,
+) -> bool {
     let mut failed = false;
-    for (path, outcome) in &briefs {
+    for (path, outcome) in briefs {
         let rel = relative(dir, path);
         let line = match outcome {
             BriefOutcome::Created => brief_line(theme, '✔', &format!("created {rel}")),
@@ -265,6 +305,34 @@ fn found(
             }
         };
         writeln!(out, "{line}").ok();
+    }
+    failed
+}
+
+/// The write phase — briefs · workflows · wires · proof · panel.
+fn found(
+    dir: &str,
+    force: bool,
+    theme: Theme,
+    choices: &Choices,
+    input: &mut dyn BufRead,
+    out: &mut dyn std::io::Write,
+    (audit, wire): (&Audit<'_>, &Wire<'_>),
+) -> Outcome {
+    writeln!(out, "{}", chrome::rail_head(theme, "scaffold")).ok();
+    let briefs = apply_briefs(dir, force, choices.canvas);
+    let mut failed = report_briefs(dir, theme, &briefs, out);
+    // The trace cover — the same adds-only guarantee the scripted twin
+    // gives (one law, two doors · `gitignore.rs`).
+    let (git_path, git_outcome) = gitignore::ensure(dir);
+    failed |= matches!(git_outcome, gitignore::Outcome::Failed(_));
+    let (mark, msg) = gitignore::report(&relative(dir, &git_path), &git_outcome);
+    writeln!(out, "{}", brief_line(theme, mark, &msg)).ok();
+    // The starter `nika.yaml` — ONLY when the offer was taken, riding
+    // the same adds-only report (D-2026-08-11-N5 · the gitignore row's
+    // sibling: existing = skip · --force overrides).
+    if choices.project_file {
+        failed |= lay_project_file(dir, force, theme, out);
     }
     if failed {
         return Outcome::env("scaffold failed — see the report above".to_owned());
@@ -328,6 +396,19 @@ fn found(
         text: ready_panel(dir, theme, choices, &created),
         code: worst,
     }
+}
+
+/// The starter `nika.yaml` row — laid ONLY when the offer was taken,
+/// riding the same adds-only report as the gitignore cover
+/// (D-2026-08-11-N5). Returns `true` when the write FAILED (init's
+/// one environment error), so `found` folds it into its early exit
+/// (extracted under the 100-line fn law).
+fn lay_project_file(dir: &str, force: bool, theme: Theme, out: &mut dyn std::io::Write) -> bool {
+    let (pf_path, pf_outcome) = project_file::ensure(dir, force);
+    let failed = matches!(pf_outcome, project_file::Outcome::Failed(_));
+    let (mark, msg) = project_file::report(&relative(dir, &pf_path), &pf_outcome);
+    writeln!(out, "{}", brief_line(theme, mark, &msg)).ok();
+    failed
 }
 
 /// One themed report line — the wizard register only (the `--yes` /
@@ -596,16 +677,17 @@ mod tests {
         dir
     }
 
-    /// Two Enters + skip + skip = the golden path: agentic curriculum ·
-    /// offline mock · no canvas stamp · no wires — briefs + 4 workflows
-    /// on disk, every one audited, the panel handed back.
+    /// Two Enters + skip + skip + skip = the golden path: agentic
+    /// curriculum · offline mock · no canvas stamp · no wires · no
+    /// project file — briefs + 4 workflows on disk, every one audited,
+    /// the panel handed back.
     #[test]
     fn golden_path_founds_the_agentic_project() {
         let dir = fresh_dir("golden");
         let d = dir.to_str().expect("utf8");
         // recipe Enter (agentic) · model Enter (mock) · canvas Enter
-        // (skip) · agents Enter (skip)
-        let mut input = std::io::Cursor::new(b"\n\n\n\n".to_vec());
+        // (skip) · agents Enter (skip) · project file Enter (skip)
+        let mut input = std::io::Cursor::new(b"\n\n\n\n\n".to_vec());
         let mut out = Vec::new();
         let v = wizard_io(
             d,
@@ -651,8 +733,9 @@ mod tests {
         let dir = fresh_dir("reask");
         let d = dir.to_str().expect("utf8");
         // recipe « débutant » (invalid → re-asked) · 1 (agentic,
-        // explicit) · model Enter · canvas Enter · agents Enter
-        let mut input = std::io::Cursor::new("débutant\n1\n\n\n\n".as_bytes().to_vec());
+        // explicit) · model Enter · canvas Enter · agents Enter ·
+        // project file Enter (skip)
+        let mut input = std::io::Cursor::new("débutant\n1\n\n\n\n\n".as_bytes().to_vec());
         let mut out = Vec::new();
         let v = wizard_io(
             d,
@@ -692,8 +775,8 @@ mod tests {
         let d = dir.to_str().expect("utf8");
         // recipe 5 (minimal · no model question) · canvas « thème sombre »
         // (invalid → re-asked) · 2 (editor) · agents « aucun » (invalid →
-        // re-asked) · Enter (skip)
-        let mut input = std::io::Cursor::new("5\nthème sombre\n2\naucun\n\n".as_bytes().to_vec());
+        // re-asked) · Enter (skip) · project file Enter (skip)
+        let mut input = std::io::Cursor::new("5\nthème sombre\n2\naucun\n\n\n".as_bytes().to_vec());
         let mut out = Vec::new();
         let v = wizard_io(
             d,
@@ -734,8 +817,8 @@ mod tests {
         let dir = fresh_dir("reask3");
         let d = dir.to_str().expect("utf8");
         // recipe lane « example » · slug « hello » (unknown → re-asked) ·
-        // « 01-hello » · canvas Enter · agents Enter
-        let mut input = std::io::Cursor::new(b"example\nhello\n01-hello\n\n\n".to_vec());
+        // « 01-hello » · canvas Enter · agents Enter · project file Enter
+        let mut input = std::io::Cursor::new(b"example\nhello\n01-hello\n\n\n\n".to_vec());
         let mut out = Vec::new();
         let v = wizard_io(
             d,
@@ -784,8 +867,9 @@ mod tests {
     fn canvas_pick_stamps_the_dag_theme() {
         let dir = fresh_dir("canvas");
         let d = dir.to_str().expect("utf8");
-        // recipe 5 (minimal) · canvas 3 (phosphor) · agents skip
-        let mut input = std::io::Cursor::new(b"5\n3\n\n".to_vec());
+        // recipe 5 (minimal) · canvas 3 (phosphor) · agents skip ·
+        // project file Enter (skip)
+        let mut input = std::io::Cursor::new(b"5\n3\n\n\n".to_vec());
         let mut out = Vec::new();
         let v = wizard_io(
             d,
@@ -806,6 +890,195 @@ mod tests {
         assert!(
             parsed.get("yaml.schemas").is_some(),
             "schema wiring survives the stamp"
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// The wizard lane lays the same trace cover (T1 · one law, two
+    /// doors): the row rides the scaffold block, project-relative.
+    #[test]
+    fn the_wizard_lays_the_traces_cover_too() {
+        let dir = fresh_dir("gitignore");
+        let d = dir.to_str().expect("utf8");
+        // recipe 5 (minimal) · canvas Enter (skip) · agents Enter (skip)
+        // · project file Enter (skip)
+        let mut input = std::io::Cursor::new(b"5\n\n\n\n".to_vec());
+        let mut out = Vec::new();
+        let v = wizard_io(
+            d,
+            false,
+            PLAIN,
+            &mut input,
+            &mut out,
+            &stub_audit,
+            &stub_wire,
+        );
+        assert_eq!(v.code, codes::OK, "{}", v.text);
+        let shown = String::from_utf8(out).expect("utf8");
+        assert!(
+            shown.contains("created .gitignore"),
+            "the cover row, project-relative: {shown}"
+        );
+        let body = std::fs::read_to_string(dir.join(".gitignore")).expect("written");
+        assert!(body.contains(".nika/traces/"), "the cover entry: {body}");
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// The project-file offer (D-2026-08-11-N5): an explicit `y` lays
+    /// the starter and the row rides the founding report — created,
+    /// project-relative, next to the gitignore cover.
+    #[test]
+    fn the_offer_lays_the_starter_on_an_explicit_yes() {
+        let dir = fresh_dir("offer-yes");
+        let d = dir.to_str().expect("utf8");
+        // recipe 5 (minimal) · canvas Enter (skip) · agents Enter (skip)
+        // · project file « y » (the offer, taken)
+        let mut input = std::io::Cursor::new(b"5\n\n\ny\n".to_vec());
+        let mut out = Vec::new();
+        let v = wizard_io(
+            d,
+            false,
+            PLAIN,
+            &mut input,
+            &mut out,
+            &stub_audit,
+            &stub_wire,
+        );
+        assert_eq!(v.code, codes::OK, "{}", v.text);
+        let shown = String::from_utf8(out).expect("utf8");
+        assert!(
+            shown.contains("lay a starter nika.yaml"),
+            "the question is posed: {shown}"
+        );
+        assert!(
+            shown.contains("created nika.yaml"),
+            "the row rides the report: {shown}"
+        );
+        let laid = std::fs::read_to_string(dir.join("nika.yaml")).expect("written");
+        assert!(
+            laid.starts_with("# nika.yaml — the project file"),
+            "the grammar's starter, verbatim: {laid}"
+        );
+        // …and what was laid parses back to the defaults (never a
+        // silently-governing file).
+        let parsed = nika_vocab::project::parse(&laid).expect("the laid starter parses");
+        assert_eq!(parsed, nika_vocab::project::Project::default());
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// Enter SKIPS the offer — never laid silently, nothing on disk.
+    #[test]
+    fn enter_skips_the_offer_and_nothing_is_laid() {
+        let dir = fresh_dir("offer-skip");
+        let d = dir.to_str().expect("utf8");
+        // recipe 5 · canvas Enter · agents Enter · project file Enter
+        let mut input = std::io::Cursor::new(b"5\n\n\n\n".to_vec());
+        let mut out = Vec::new();
+        let v = wizard_io(
+            d,
+            false,
+            PLAIN,
+            &mut input,
+            &mut out,
+            &stub_audit,
+            &stub_wire,
+        );
+        assert_eq!(v.code, codes::OK, "{}", v.text);
+        let shown = String::from_utf8(out).expect("utf8");
+        assert!(shown.contains("lay a starter nika.yaml"), "{shown}");
+        assert!(
+            !shown.contains("created nika.yaml"),
+            "no lay row on a skip: {shown}"
+        );
+        assert!(!dir.join("nika.yaml").exists(), "never laid silently");
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// The skip/overwrite law at the wizard: an existing `nika.yaml`
+    /// is SKIPPED (its bytes untouched) even when the human says yes;
+    /// `--force` is the one override.
+    #[test]
+    fn an_existing_file_is_skipped_and_force_overrides() {
+        // Skip — the human's bytes win over the offer.
+        let dir = fresh_dir("offer-exists");
+        let d = dir.to_str().expect("utf8");
+        std::fs::write(dir.join("nika.yaml"), "nika: v1\nceiling: 9.99\n").expect("seed");
+        let mut input = std::io::Cursor::new(b"5\n\n\ny\n".to_vec());
+        let mut out = Vec::new();
+        let v = wizard_io(
+            d,
+            false,
+            PLAIN,
+            &mut input,
+            &mut out,
+            &stub_audit,
+            &stub_wire,
+        );
+        assert_eq!(v.code, codes::OK, "{}", v.text);
+        let shown = String::from_utf8(out).expect("utf8");
+        assert!(
+            shown.contains("skipped nika.yaml (exists · --force)"),
+            "the skip row, project-relative: {shown}"
+        );
+        assert_eq!(
+            std::fs::read_to_string(dir.join("nika.yaml")).expect("read"),
+            "nika: v1\nceiling: 9.99\n",
+            "the human's bytes survive the offer"
+        );
+        std::fs::remove_dir_all(&dir).ok();
+
+        // Force — the founding law's one override.
+        let dir = fresh_dir("offer-force");
+        let d = dir.to_str().expect("utf8");
+        std::fs::write(dir.join("nika.yaml"), "nika: v1\nceiling: 9.99\n").expect("seed");
+        let mut input = std::io::Cursor::new(b"5\n\n\ny\n".to_vec());
+        let mut out = Vec::new();
+        let v = wizard_io(
+            d,
+            true,
+            PLAIN,
+            &mut input,
+            &mut out,
+            &stub_audit,
+            &stub_wire,
+        );
+        assert_eq!(v.code, codes::OK, "{}", v.text);
+        let shown = String::from_utf8(out).expect("utf8");
+        assert!(shown.contains("created nika.yaml"), "{shown}");
+        let laid = std::fs::read_to_string(dir.join("nika.yaml")).expect("read");
+        assert!(
+            laid.starts_with("# nika.yaml — the project file"),
+            "the starter replaced the seed: {laid}"
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// P0-8 covers the new beat too: a prose answer (« peut-être ») is
+    /// SAID and re-asked — it never becomes a silent skip, let alone a
+    /// silent lay.
+    #[test]
+    fn a_prose_answer_to_the_offer_is_said_and_reasked() {
+        let dir = fresh_dir("offer-reask");
+        let d = dir.to_str().expect("utf8");
+        // recipe 5 · canvas Enter · agents Enter · project file
+        // « peut-être » (invalid → re-asked) · Enter (skip)
+        let mut input = std::io::Cursor::new("5\n\n\npeut-être\n\n".as_bytes().to_vec());
+        let mut out = Vec::new();
+        let v = wizard_io(
+            d,
+            false,
+            PLAIN,
+            &mut input,
+            &mut out,
+            &stub_audit,
+            &stub_wire,
+        );
+        assert_eq!(v.code, codes::OK, "{}", v.text);
+        let shown = String::from_utf8(out).expect("utf8");
+        assert!(shown.contains("unrecognized"), "the prose is said: {shown}");
+        assert!(
+            !dir.join("nika.yaml").exists(),
+            "a re-asked offer lays nothing"
         );
         std::fs::remove_dir_all(&dir).ok();
     }
@@ -849,9 +1122,10 @@ mod tests {
     fn starter_hands_over_to_the_guided_flow() {
         let dir = fresh_dir("starter");
         let d = dir.to_str().expect("utf8");
-        // recipe 2 (starter) · canvas skip · agents skip · then the new
-        // wizard: intent Enter (chain) · file Enter · model Enter (mock)
-        let mut input = std::io::Cursor::new(b"2\n\n\n\n\n\n".to_vec());
+        // recipe 2 (starter) · canvas skip · agents skip · project file
+        // skip · then the new wizard: intent Enter (chain) · file Enter ·
+        // model Enter (mock)
+        let mut input = std::io::Cursor::new(b"2\n\n\n\n\n\n\n".to_vec());
         let mut out = Vec::new();
         let v = wizard_io(
             d,

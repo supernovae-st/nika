@@ -102,9 +102,77 @@ timeout_n="${timeout_n:-0}"
 survivors=$((missed + timeout_n))
 viable=$((caught + survivors))
 
+# --- ACCOUNTING: every mutant lands in exactly one bucket ------------------
+# Found 2026-08-13 by the regression suite this gate never had. The empty
+# check above catches an ABSENT summary; it cannot catch a summary that is
+# present but unreadable. A truncated line ("12 mutants tested in 3s:") or an
+# upstream format change yields caught=missed=timeout=0, which reads as
+# "no viable mutants · nothing to kill" and scores as a PASS. Garbage in,
+# green out — for every crate at once, silently, the day the format moves.
+#
+# So the totals must reconcile: caught + missed + timeout + unviable has to
+# equal the mutants the run says it tested. When it does not, the script has
+# no verdict to give and says so (exit 3) rather than inventing one.
+total="$(printf '%s\n' "$summary" | grep -oE '[0-9]+ mutants tested' | grep -oE '[0-9]+' | head -1)"
+unviable="$(num unviable)"
+unviable="${unviable:-0}"
+if [ -z "$total" ]; then
+  echo "could not read a mutant total from the cargo-mutants summary:"
+  printf '  %s\n' "$summary"
+  exit 3
+fi
+if [ $((caught + missed + timeout_n + unviable)) -ne "$total" ]; then
+  echo "could not account for every mutant in the cargo-mutants summary:"
+  printf '  %s\n' "$summary"
+  echo "  ${caught} caught + ${missed} missed + ${timeout_n} timeout + ${unviable} unviable != ${total} tested"
+  echo "  The summary format moved or the line is truncated. No ratio is trustworthy here."
+  exit 3
+fi
+
 if [ "$viable" -eq 0 ]; then
   echo "OK (${crate}: no viable mutants — nothing to kill · $summary)"
   exit 0
+fi
+
+# --- HARNESS GUARD: zero caught over N viable is an INSTRUMENT fault --------
+# A suite that kills NONE of N viable mutants has not run. A weak suite still
+# catches something; a ratio of exactly 0% is the signature of a test command
+# that executed nothing. Printing it as a FLOOR failure sends a human to repair
+# a crate that is not broken, and that is the more expensive lie: a red that
+# accuses the wrong subject.
+#
+# The dominant cause is SCOPE. This script runs `-- --lib` (the diamond
+# convention + the macOS no-Keychain rule), so a crate whose tests live ONLY in
+# tests/ has zero test executed. Measured 2026-08-13: nika-tui-core, 0 caught of
+# 165 viable, with 1047 LOC of tests sitting in crates/nika-tui-core/tests/.
+# Exactly two crates in the workspace sit in that hole (nika-acp · nika-tui-core);
+# the other 61 keep their unit tests inline and are measured correctly.
+#
+# Exit 3 (tooling/usage), never 2 (below floor): the run produced no verdict.
+if [ "$caught" -eq 0 ]; then
+  # WHICH cause decides the EXIT CODE, not merely the message. The first
+  # version of this guard printed two different causes and returned 3 for
+  # both, so the detection was decoration: an adversarial review named it
+  # "diagnostic theatre, not diagnostic logic" and it was right. A crate
+  # whose tests are INLINE is fully reachable under `-- --lib`, so 0 caught
+  # there is the textbook signature of a vacuous suite — a DESERVED floor
+  # failure. Classifying it as tooling would buy exactly the green this
+  # whole file exists to refuse.
+  inline_tests="$(grep -rl 'cfg(test)' "crates/${crate}/src" 2>/dev/null | wc -l | tr -d ' ')"
+  if [ "${inline_tests:-0}" -eq 0 ] && [ -d "crates/${crate}/tests" ]; then
+    echo "MUTATION HARNESS FAULT: ${crate} caught 0 of ${viable} viable mutants."
+    echo "  The test run executed nothing. This is NOT a kill ratio and must not be read as one."
+    echo "  cause: crates/${crate}/src carries no #[cfg(test)] and crates/${crate}/tests/ exists,"
+    echo "         so the '-- --lib' invocation cannot reach this crate's tests."
+    echo "  fix:   measure this crate without the --lib restriction (mind the macOS Keychain"
+    echo "         rule in .claude/CLAUDE.md), or move its unit tests inline into src/."
+    exit 3
+  fi
+  echo "MUTATION FLOOR FAILED: ${crate} killed 0% · 0/${viable} viable · ${missed} survived, ${timeout_n} timeout"
+  echo "  This crate's tests are reachable under '-- --lib' and killed NOTHING."
+  echo "  That is a vacuous suite, not a broken instrument: a real Gate 5 failure."
+  printf '%s\n' "$out" | grep -iE 'MISSED|survived' | head -10
+  exit 2
 fi
 
 # --- BUDGET mode (documented exemption) ------------------------------------

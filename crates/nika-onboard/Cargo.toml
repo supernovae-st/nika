@@ -10,6 +10,7 @@ repository  = "https://github.com/supernovae-st/nika"
 
 [dependencies]
 nika-pack    = { path = "../nika-pack", version = "0.108.0" }    # templates · examples (the scaffold corpus)
+nika-vocab   = { path = "../nika-vocab", version = "0.108.0" }   # the project file — the wizard's starter nika.yaml rides its STARTER const (zero drift · D-2026-08-11-N5)
 nika-bm25    = { path = "../nika-bm25", version = "0.108.0" }    # intent→template routing (the deterministic floor)
 nika-display = { path = "../nika-display", version = "0.108.0" } # theme + chrome (rail · panel · banner)
 nika-catalog = { path = "../nika-catalog", version = "0.108.0", features = ["providers"] } # the model menu (local first)

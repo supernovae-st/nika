@@ -1,0 +1,245 @@
+# Crate spec — `nika-cadence`
+
+| | |
+|---|---|
+| Status | **CANDIDATE** — Gate 1 (this document) authored 2026-08-11. Crafted shim-standalone (50 tests today, 45 at authoring · clippy 0 `-D warnings` · rustfmt clean) · committed with the temporary `[workspace]` shim (`92a0f8497`), then the four pre-freeze corrections of plan §2unvicies (the bitset's ONE encoding · `Slot` declares the DST shift · the field count is the type · the error span). The two items this row used to name (the allowlist row, the shim removal) are BOTH DONE; the row described work already shipped. Remaining before admission, measured 2026-08-13: the Gate 11 P1 below, and Gate 5 at 88 percent against a 90 floor. |
+| Layer | L0 — pure, zero I/O, zero async |
+| Design | The arming-registry grammar (the `arm:` block of `nika.yaml`, D-2026-08-10-N3) + the pure next-slot calculator. Hand-counted 5-field cron (zero cron library — the count is validated BEFORE field semantics, scar #6) · IANA zones resolved from the EMBEDDED tzdb only (`jiff-tzdb`, never the host's zoneinfo) · two cadence forms (cron + readable `lundi 9h07`), display normalizing to the readable one. |
+| LOC budget | ≤2,000 src prod (post-corrections 1,467 prod + 753 cfg(test)) · ≤15,000 hard cap |
+| File cap | ≤1,500 LOC each (max file 690, the tests) |
+| Function cap | ≤100 lines each (max ~60) |
+| Crate version | tracks workspace |
+| License | `AGPL-3.0-or-later` |
+| Edition | 2024 (workspace-inherited at admission) |
+| Publish | `false` — foundation crate, never on crates.io |
+| Dependencies | `serde` · `serde_yaml_bw` (the panic-free YAML plane) · `thiserror` · `jiff` · `jiff-tzdb` (the embedded IANA tzdb) — dev: `proptest` |
+| NIKA codes | **none owed** — `CadenceErrorKind::spec_code()` emits the grammar's OWN slugs (`cadence.*`), never a `NIKA-*` registry code; every refusal is rendered as a taught fix at the L4 verb boundary (`exit 2`, the FILE plane). The `check-error-one-voice.sh` allowlist row is ALREADY in place (class `spec-plane`, the `CelErrorKind` precedent — corrected 2026-08-13 at Gate 11; this row said `wrapped-intermediate`/`ExprError`, which the real TSV and the canonical audit table both contradict). |
+
+---
+
+## 1. Purpose
+
+`nika-cadence` is the grammar of the arming registry and the calculator
+that answers one question: **given an instant, when does a beat fire
+next?** Two L4 consumers read this registry (`nika arm` today ·
+`nika serve` at ②), so the shared logic lives at L0 — never in a CLI
+crate (the layering precedent: `nika-check`'s Cargo.toml · "THREE L0
+consumers make any higher layer an upward-dep violation").
+
+The four locks (D-2026-08-11-N1→N4 · one law at four moments: THE FILE
+PROPOSES, THE MACHINE DISPOSES):
+
+- **N1 · DST** — a slot inside a spring gap fires at the FIRST VALID
+  instant (02:00 absent ⇒ 03:00 — never jiff's roll-forward, never a
+  silent skip) · a slot in an autumn fold fires ONCE, at its first
+  occurrence. Implemented as gap-detection (`zoned.datetime() != civil`)
+  + minute-stepping, bounded at 26 h.
+- **N2 · no resume** — a beat starts from ZERO; this crate computes
+  slots and never carries run state.
+- **N3 · identity** — `par:` DECLARES the human and proves nothing; the
+  machine's key authorizes. A merge arms nothing (`arm --write` is L4).
+- **N4 · absence** — removing a line does NOT disarm; that gesture is
+  `arm --disarm`, an L4 act this crate knows nothing about.
+
+The grammar laws (validated at parse, every refusal named and teaching
+its fix): `manqué:` and `plafond:` REQUIRED, no default (choosing for
+the operator is choosing who pays) · the zone lives INSIDE the cadence
+expression (`TZ=Europe/Paris 0 9 * * 1` — only `on-webhook` goes
+zoneless) · `dom`+`dow` restricted together refused (the Vixie OR trap)
+· weekday origin NAMED (`0` and `7` are dimanche) · safe defaults in
+the DEFAULTS (law ⑥): `où: local` · `chevauchement: sauter` ·
+`après_saut: prochain-créneau` · `actif: false` requires `raison:` +
+`jusqu_au:` · round 1 refuses by name: `signature:` · `budget:` ·
+`traces:` · `registry:` · every unknown key (`deny_unknown_fields`).
+
+It does **not** own: filesystem access (the L4 edge reads the bytes,
+this layer reads the text — a workflow's EXISTENCE is judged there,
+its SHAPE here) · clocks (trap ①: the kernel `Clock` trait has no civil
+surface, so the calculator takes a `jiff::Zoned` and tests ride literal
+instants) · sleeping (trap ②: `VirtualClock::sleep` does not advance
+time — the caller sleeps, never the calculator) · host zone resolution
+(trap ③: `TimeZone::get` is forbidden — `jiff_tzdb::get` +
+`TimeZone::tzif` only).
+
+## 2. Determinism contract
+
+- same `(cadence, instant)` ⇒ same next slot, on every host — the tzdb
+  is baked at build, re-vendored each release, zero system read
+- no `HashMap` anywhere (the workspace lint guards a future signature's
+  determinism) · no `Vec` in public returns (FCI-014 — accessors hand
+  out slices or iterators) · `#[non_exhaustive]` on public-field
+  structs (FCI-016) · wire tag frozen at `nika: v1` (FCI-003)
+- the day walk happens in the BEAT's zone — a Monday slot is Monday in
+  Paris, whatever zone `from` rides · horizon 1,500 days (a 29 February
+  is never further than 4 years)
+
+## 3. Public surface
+
+`parse_registry(&str) -> Result<ArmRegistry, CadenceError>` ·
+`validate(&ArmRegistry) -> impl Iterator<Item = CadenceError>` (an
+empty walk IS the green verdict) · `Cadence::parse(&str)` (the count
+is the TYPE — `parse_cron_fields(&[&str; 5])`, scar #6 is the
+compiler's) · `Cadence::next_after(&Zoned) -> Option<Slot>` where
+`Slot { at, civil, shift }` DECLARES the DST displacement
+(`Shift::{Exact, AdvancedFirstValid, FoldedFirst}` — N1 at the type
+level; a merged slot says so) · `Cadence::describe() -> String` (the
+readable form wins, full fields print `*` — the bitset's one
+encoding) · `phrase::next_slots(&Cadence, &Zoned, usize) -> impl
+Iterator<Item = Slot>` · `ArmRegistry::{SCHEMA, beats, beat_count}` ·
+`Beat::{locus, overlap, after_skip, is_active}` · `CronSpec` field
+accessors handing out `Field<LO, HI>` (the bitset: `contains` ·
+`iter` · `single` · `is_full` · 8 bytes · `Copy` · zero alloc) ·
+`CadenceError{kind, detail, remedy, on, span}` (the span paints the
+faulty byte, the `CelError` precedent) + `CadenceErrorKind::
+spec_code()`.
+
+## 4. Tests
+
+50 today, 45 at authoring (the four pre-freeze corrections added five that
+were described in prose here without being recounted): parse (both forms ·
+TZ-less refused · 6 fields refused
+by the TYPE · out-of-range · Vixie OR judged on the sets (`1-31` dom is
+every day) · unknown zone · 7-is-dimanche · spans pin the faulty token)
+· calculator (strictly-after · month/year crossing · slept-3-days ·
+29 Feb 2028 inside the horizon · **DST traversal**: the 2026-03-29 gap
+fires 03:00 CEST with `Shift::AdvancedFirstValid`, the 2026-10-25 fold
+fires once with `Shift::FoldedFirst`, and the gap-day merge
+`0,30 2,3 * * *` is visible in the returned slots — 4 civil slots, 2
+fires, the absorbing fire declared) · the two-encodings regression
+(`describe("* * * * *")` stays 5 fields, not 244 chars) · validate
+(every law, every refusal teaching its fix) · the embedded tzdb proven
+twice (behavioral Paris offsets + a static source guard: no non-comment
+line may name the host-preferring resolvers) · proptest (parse never
+panics · law pass never panics · a daily slot is strictly later and
+within a day). Mutation floor: run `check-mutation-floor.sh` at
+admission.
+
+## 5. Non-goals / guards
+
+No `Clock` dependency (the civil surface is a `Zoned`, the clock lives
+at the L4 edge) · no sleep in the calculator (a sleeping loop spins
+forever under `clock: virtual`) · no `TimeZone::get` (hermeticity) ·
+no NIKA-* codes (no range allocated) · no resume/catch-up state (N2 —
+the dispatcher's concern, L4) · no disarm gesture (N4) · no signature
+verification (②'s, refused by name in round 1).
+
+### Tranché à la revue d'avant-gel (2026-08-12, opérateur)
+
+- **`describe()` n'est jamais re-parsé** — la forme lisible affichée
+  (`lundi 9h07 · Europe/Paris`) est pour les yeux ; la branche cron
+  seule est round-trip. La grammaire ne s'étend PAS au suffixe `· tz`.
+- **les créneaux absorbés ne sont pas un élément du flux** — `Shift`
+  reste `#[non_exhaustive]` : un `Absorbed` déclaré peut rejoindre sans
+  casser, le jour où un consommateur en a vraiment besoin.
+- **`ArmedRegistry` (champs déballés, légalité structurelle) se tranche
+  à V3⑪**, avec le premier consommateur réel (`sign cadence`) en main —
+  la duplication « re-parse + None-impossible » sera prouvée ou
+  imaginaire à ce moment-là, pas avant.
+
+---
+
+## 6. Gate status (measured 2026-08-13, not declared)
+
+| Gate | Verdict | Evidence |
+|---|---|---|
+| 1 SPEC | ✅ | this document |
+| 2/3 TDD + IMPL | ✅ | 50 tests, all green (`cargo nextest -p nika-cadence`) |
+| 4 CLIPPY | ✅ | `--all-targets -- -D warnings`, rc 0 |
+| 5 MUTATION | ✅ **93 percent** (200/215 viable) | `scripts/ci/check-mutation-floor.sh nika-cadence 90`, real run, after the three killer tests below. Was 88 percent. |
+| 8 DOCS | ✅ | `cargo doc --no-deps`, 0 warnings |
+| 11 REVIEW SWARM | ✅ **three lenses, P1 and both P2 closed** | doctrine lens approved outright; the Rust lens found the P1; the spec-vs-code lens found two doc faults. All fixed the same session. |
+| 12 ATOMIC | ✅ this admission | removal from the `wip` array in the workspace manifest |
+
+Plus the shared gates, all green the same day: loc-limits · fn-length ·
+unwrap · expect · crate-size · adr-coverage · credential-headers ·
+layering · dead-code · error-one-voice.
+
+### 6.1 The Gate 11 P1, and why it blocked (CLOSED 2026-08-13)
+
+**A `(dom, months)` pair that no calendar can satisfy parses green, and the
+beat then never fires, in silence.**
+
+`TZ=Europe/Paris 0 9 31 4 *` (April 31, a banal typo) parses `Ok` and
+`validate` returns zero faults: after the five fields, the ONLY structural
+check is the Vixie `dom`+`dow` OR guard (`src/cron.rs`). `next_after`
+(`src/next.rs`) then walks its horizon, `covers()` is true on no day, and it
+returns `None` forever.
+
+This crate's own contract is that every refusal is named and teaches its fix.
+A silent `None` is the one outcome that contract forbids.
+
+**Closed** · `CadenceErrorKind::DateImpossible` (`cadence.date-impossible`)
+now refuses at parse, after the Vixie guard, when no month in the set admits
+a day in the `dom` set. February takes **29**, not 28: a leap year makes the
+29th real, so `29 2` is a beat that fires rarely rather than an impossible
+one, and refusing it would have been the mirror of the fault being closed.
+Judged on the SETS like the Vixie guard, so an unrestricted side needs no
+special case. The refusal teaches the bound, not just the refusal.
+
+### 6.2 Two P2s found alongside, both confirmed by reading
+
+- **The 1500-day horizon is too short, and its comment is false.**
+  `src/next.rs` reasons that "a 29 February is never further than 4 years".
+  2100 is not a leap year, so from 2096-03-01 the next one is 2104-02-29,
+  2920 days out. `0 9 29 2 *` returns `None` there. Raise to 3000.
+- **One unresolvable slot kills the whole walk.** `resolve(civil, tz)?`
+  propagates its `None` out of `next_after` rather than skipping that
+  candidate, so a single irresolvable civil time silences the entire beat.
+  Use an `else { continue }` binding.
+
+### 6.3 One finding raised then withdrawn, recorded so it is not re-raised
+
+`Field<LO, HI>` (`src/cron.rs`) carries no `#[non_exhaustive]`. Two lenses
+disagreed; the tie was settled by reading. Its single field `bits: u64` is
+private and there is no public constructor (`empty`/`full`/`set` are all
+crate-private), so external code can neither literal-construct it nor match
+it exhaustively. FCI-016 governs public FIELDS and does not bind here. No
+change owed.
+
+### 6.4 What two adversarial reviews found AFTER admission
+
+Admission is not the end of the review; it is the point where the crate stops
+being watched, which is why both passes were run against the shipped code
+rather than the candidate.
+
+**A refuter attacked the `DateImpossible` guard and could not break it.** The
+guard is an existential OR over the full `months` × `dom` product, so it can
+only reject a pair no calendar satisfies, never a satisfiable one. Blast
+radius measured the same day and it is zero: the only cron in the monorepo
+matching the refused shape is this crate's own fixture, and no `arm:` registry
+exists on disk at all.
+
+**It found the mine beside its target instead.** `field_value` returned a
+matched NAMED alias without the bound check the numeric path applied. Harmless
+while every table sits in range, and a hazard otherwise, because `Field::set`
+shifts by `v - LO` and an alias below `LO` underflows a `u8` before the shift.
+Closed, and the test guards the TABLES rather than the branch, since the branch
+cannot be exercised without adding a bad alias.
+
+**A Rust review then found the guard's default arm pointing the wrong way.**
+`longest_day_of` answered `31`, the most permissive bound, to the one input
+nobody had vetted. An out-of-range month would have made the satisfiability
+check PASS, which is the silent `None` the guard exists to kill. Unreachable
+today, and being unreachable is not being right: it answers `0` now, and no day
+a `Field<1, 31>` holds is `<= 0`, so an impossible month contributes nothing.
+
+The same review measured what this spec had only asserted. The cartesian
+product costs 2 iterations on the common path and its 372 only on the error
+path, once, at parse. The 3000-day horizon clears a worst REAL walk of 2921
+days (the day after a 29 February, across a non-leap century) with 79 days to
+spare, and the test pins 2920, so shrinking the horizon reddens.
+
+**Property gained**, in the reviewer's words: the guard and the horizon
+together make « it parses ⇒ it fires » total.
+
+### 6.5 What Gate 5 said about the tests, concretely
+
+The 23 survivors cluster, and one cluster matters more than the others:
+three of them sit on `validate_beat`'s ceiling guard
+(`!(p > 0.0 && p.is_finite())`, `src/parse.rs`). Replacing `&&` with `||`,
+`>` with `>=`, or the whole guard with `false` all survive, which means no
+test distinguishes a ceiling of zero, of infinity, or of NaN from a valid
+one. `plafond:` is a REQUIRED field with no default precisely because it
+decides who pays; its guard is the last one that should be untested. The
+other named survivors sit on `Field::is_empty`, `parse_field`'s bound
+comparison, `CadenceError::remedy` (never asserted), and a `*` in `resolve`.

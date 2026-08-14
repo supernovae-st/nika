@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+#
+# nika-tui-core · L4 · la LOI de la session TUI · pur · zéro I/O · zéro async.
+# Joined the workspace as WIP 2026-08-12 (the nika-cadence precedent) ·
+# ADMITTED 2026-08-14 · all 12 gates · retire du tableau `wip`.
+[package]
+name        = "nika-tui-core"
+description = "L4 interface law — the TUI session model + the derivation layer (waves · idle · bottleneck · totals) + the plan-board seating + the executable claims · one Rust truth for every surface (native · WASM · cloud)"
+
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false  # Interface crate — ships as an npm pack via wasm-bindgen, never on crates.io.
+
+[lib]
+crate-type = ["cdylib", "rlib"]   # the .wasm artifact AND a normal Rust dep
+
+[dependencies]
+serde        = { workspace = true }
+# float_roundtrip — the fingerprint, the journal fold and the parity test
+# compare BITS; serde_json's default fast float parser rounds
+# 420.40000000000003 to 420.4 (measured). Exact parsing or the proof
+# measures nothing.
+serde_json   = { workspace = true, features = ["float_roundtrip"] }
+thiserror    = { workspace = true }
+wasm-bindgen = { workspace = true }
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+proptest = { workspace = true }   # Gate 6 · the derivation invariants under arbitrary shapes

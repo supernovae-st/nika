@@ -528,7 +528,7 @@ impl<H: HttpGetDyn> RegistryClient<H> {
     /// the TOFU anchor included.
     pub async fn resolve(&self, arg: &str) -> Result<Resolved, RegistryError> {
         let r = parse_ref(arg)?;
-        let policy = tier::Policy::load(&self.cache_root)?;
+        let policy = tier::Policy::load(&self.cache_root)?.with_project_floor()?;
         let (version, pinned) = match &r.version {
             Some(v) => (Some(v.clone()), false),
             None => (self.read_pin(&r)?, true),

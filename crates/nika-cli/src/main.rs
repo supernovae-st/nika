@@ -10,9 +10,8 @@
 // A terminal binary's whole job is printing (the nika-catalog-verify precedent).
 #![allow(clippy::disallowed_macros, clippy::print_stdout, clippy::print_stderr)]
 
-use std::io::{IsTerminal, Write};
+use std::io::IsTerminal;
 use std::path::PathBuf;
-use std::time::Duration;
 
 mod init_args;
 mod lazy;
@@ -22,14 +21,13 @@ mod registry_args;
 mod try_args;
 
 use clap::{Args, CommandFactory, Parser, Subcommand, ValueEnum};
+use nika_cli::Theme;
 use nika_cli::display::format::{ColorChoice, ColorEnv, LinkChoice, color_enabled, links_enabled};
 use nika_cli::verbs::explain_file::dispatch as explain_dispatch;
 use nika_cli::verbs::{self, VerbOutput};
-use nika_cli::{RunView, Theme, frame};
 
 use init_args::{InitArgs, init_verb};
 use lazy::{check_lazy, resolve_lazy_target, run_lazy};
-use nika_event::Event;
 
 #[derive(Parser)]
 // The PUBLIC binary name is `nika` (the release renames the nika-cli artifact +
@@ -761,7 +759,12 @@ fn dispatch_verb(
             write_completions(shell, &mut std::io::stdout());
             0
         }
-        Command::Trace { action } => trace_verb(action, plain_theme, color, link_when),
+        Command::Trace { action } => nika_trace::dispatch::trace_verb(
+            action,
+            plain_theme,
+            color.with_no_color(false),
+            link_when,
+        ),
         Command::Guard(args) => guard_verb(&args, plain_theme),
         // The language server OWNS stdout (JSON-RPC) — it must not go through
         // `emit`. It follows the LSP exit-code convention: 0 on a clean
@@ -807,167 +810,11 @@ fn guard_verb(args: &GuardArgs, theme: Theme) -> u8 {
     out.code
 }
 
-/// The `evidence` arm's routing: resolve the trace (store handle or
-/// bare-latest), then export the pack through the verbs seam.
-fn evidence_run(args: verbs::evidence::EvidenceArgs) -> u8 {
-    match verbs::trace::manage::resolve_trace(args.trace) {
-        Ok(path) => emit(&verbs::evidence::export(
-            &path.to_string_lossy(),
-            args.out.as_deref(),
-            args.workflow.as_deref(),
-            args.json,
-        )),
-        Err(code) => code,
-    }
-}
-
-/// `nika mcp` — serve the read-only MCP surface. stdio owns stdout
-/// (JSON-RPC); http binds first so the banner names the RESOLVED
-/// address, reads `NIKA_MCP_TOKEN` here (the crate is env-free by
-/// discipline), then serves forever. The client subcommand (the
-/// tool-pinning re-approval) dispatches to the verbs layer instead.
-/// `nika trace verify [TRACES…]` — several paths (the shell glob) go
-/// per-file/worst-of; zero or one keeps the existing voice byte-stable
-/// (bare form resolves the latest · one arg resolves store handles).
-fn verify_verb(mut traces: Vec<PathBuf>, opts: &verbs::trace_verify::VerifyOptions) -> u8 {
-    if traces.len() > 1 {
-        return emit(&verbs::trace_verify::verify_many_with(&traces, opts));
-    }
-    match verbs::trace::manage::resolve_trace(traces.pop()) {
-        Ok(path) => emit(&verbs::trace_verify::verify_with(
-            &path.to_string_lossy(),
-            opts,
-        )),
-        Err(code) => code,
-    }
-}
-
-fn trace_verb(
-    action: verbs::trace::TraceAction,
-    theme: Theme,
-    color: ColorWhenArg,
-    link_when: LinkChoice,
-) -> u8 {
-    match action {
-        verbs::trace::TraceAction::Replay(args) => {
-            trace_render(&args, true, color, link_when, theme.ascii)
-        }
-        // RAMS-15 · the dossier doors live under trace (read · export ·
-        // prove) — the old top-level verbs were four doors on one run.
-        verbs::trace::TraceAction::Evidence { args } => evidence_run(args),
-        verbs::trace::TraceAction::Receipt { action } => emit(&verbs::receipt::run(action)),
-        verbs::trace::TraceAction::Show(args) => {
-            trace_render(&args, false, color, link_when, theme.ascii)
-        }
-        verbs::trace::TraceAction::Ls {} => emit(&verbs::trace::manage::ls(theme)),
-        verbs::trace::TraceAction::Rm {
-            trace,
-            older_than,
-            all,
-            force,
-        } => match rm_target(trace, older_than, all) {
-            Ok(target) => emit(&verbs::trace::manage::rm(&target, force, theme)),
-            Err(code) => code,
-        },
-        verbs::trace::TraceAction::Outputs { trace } => {
-            let trace = match verbs::trace::manage::resolve_trace(trace) {
-                Ok(path) => path,
-                Err(code) => return code,
-            };
-            let mut theme = theme;
-            // The dur column's bracket accents: TTY comfort only.
-            theme.accents = std::io::stdout().is_terminal();
-            emit(&verbs::trace::outputs(&trace.to_string_lossy(), theme))
-        }
-        verbs::trace::TraceAction::Verify {
-            traces,
-            key,
-            anchored,
-            replay,
-        } => verify_verb(
-            traces,
-            &verbs::trace_verify::VerifyOptions {
-                key,
-                anchored,
-                replay,
-            },
-        ),
-        verbs::trace::TraceAction::Anchor {
-            trace,
-            rekor_url,
-            tsa_url,
-        } => anchor_verb(trace, &rekor_url, &tsa_url),
-        verbs::trace::TraceAction::Reproduce { recorded, fresh } => {
-            emit(&verbs::trace_reproduce::reproduce(
-                &recorded.to_string_lossy(),
-                &fresh.to_string_lossy(),
-            ))
-        }
-        verbs::trace::TraceAction::Export {
-            trace,
-            out,
-            include_content,
-        } => emit(&verbs::trace_otel::export(
-            &verbs::trace::manage::resolve_store_handle(&trace).to_string_lossy(),
-            out.as_deref()
-                .map(|p| p.to_string_lossy().into_owned())
-                .as_deref(),
-            include_content,
-        )),
-        verbs::trace::TraceAction::Peek { trace, task, raw } => emit(&verbs::trace::peek(
-            &trace.to_string_lossy(),
-            &task,
-            raw,
-            theme,
-        )),
-        verbs::trace::TraceAction::Flow { trace, workflow } => {
-            match verbs::trace::manage::flow_verb(trace, workflow, theme) {
-                Ok(out) => emit(&out),
-                Err(code) => code,
-            }
-        }
-    }
-}
-
-/// The `rm` arm's target resolution — one of three mutually-exclusive
-/// spellings (clap owns the arity; this owns the semantics).
-fn rm_target(
-    trace: Option<String>,
-    older_than: Option<String>,
-    all: bool,
-) -> Result<verbs::trace::manage::RmTarget, u8> {
-    if all {
-        return Ok(verbs::trace::manage::RmTarget::All);
-    }
-    if let Some(raw) = older_than {
-        return match verbs::trace::manage::parse_older_than(&raw) {
-            Ok(cutoff) => Ok(verbs::trace::manage::RmTarget::OlderThan(cutoff)),
-            Err(message) => {
-                eprintln!("nika trace: {message}");
-                Err(verbs::exit::ENV)
-            }
-        };
-    }
-    // clap's required_unless_present_any guarantees the handle.
-    let Some(handle) = trace else {
-        eprintln!("nika trace: rm needs a trace, --older-than, or --all");
-        return Err(verbs::exit::ENV);
-    };
-    Ok(verbs::trace::manage::RmTarget::One(handle))
-}
-
-/// The `anchor` arm's routing: resolve the trace (store handle or
-/// bare-latest), then notarize through the verbs seam.
-fn anchor_verb(trace: Option<PathBuf>, rekor_url: &str, tsa_url: &str) -> u8 {
-    match verbs::trace::manage::resolve_trace(trace) {
-        Ok(path) => emit(&verbs::trace_anchor::run(
-            &path.to_string_lossy(),
-            rekor_url,
-            tsa_url,
-        )),
-        Err(code) => code,
-    }
-}
+// The `trace` arm's routing and render loop descended to
+// `nika_trace::dispatch` 2026-08-11 (the 15k wall · the ADR-110
+// precedent): the bin keeps the one-line arm above; the replay loop,
+// the dossier doors and the rm/anchor target resolution live next to
+// the verbs they drive.
 
 /// Unpack the `run` clap surface into the library verb call.
 fn run_verb(
@@ -1071,126 +918,6 @@ fn term_theme(choice: ColorChoice, ascii: bool, link_when: LinkChoice) -> Theme 
     theme
 }
 
-/// Load events, fold, render — live replay or final card.
-fn trace_render(
-    args: &verbs::trace::TraceArgs,
-    replay: bool,
-    color: ColorWhenArg,
-    link_when: LinkChoice,
-    ascii: bool,
-) -> u8 {
-    let events = match verbs::trace::manage::load_events(args) {
-        Ok(events) => events,
-        Err(message) => {
-            eprintln!("nika trace: {message}");
-            eprintln!(
-                "  fix: a trace is the NDJSON a run records — nika run <wf> --json > run.ndjson"
-            );
-            return verbs::exit::ENV; // environment error (spec §4)
-        }
-    };
-
-    let tty = std::io::stdout().is_terminal();
-    let mut theme = term_theme(color.with_no_color(false), ascii, link_when);
-    theme.animate = tty && replay && !env_flag("NIKA_REDUCED_MOTION");
-    // The duration accents ride the interactive surface only — a piped
-    // `trace show` keeps its exact legacy bytes.
-    theme.accents = tty;
-    // Duration heat additionally needs colour + the truecolor PROOF.
-    theme.heat = tty && theme.color && nika_cli_host::output::truecolor_env();
-
-    // The shape tails ride the interactive surface only: a TTY render
-    // (show OR replay) carries them unless `--no-outputs`; a piped
-    // `trace show` keeps its exact legacy bytes.
-    let outputs = tty && !args.no_outputs;
-    let mut view = RunView::new();
-    if theme.animate {
-        live_replay(&events, &mut view, theme, args.speed, outputs);
-    } else {
-        for event in &events {
-            view.apply(event);
-        }
-        let lines = if outputs {
-            nika_cli::frame_with_outputs(&view, &theme, 0)
-        } else {
-            frame(&view, &theme, 0)
-        };
-        print_lines(&lines);
-    }
-    // The trace surface owns the run overlays (replay = re-render, never
-    // re-execute): the waterfall + the verdict card close the read, from
-    // any past trace — the same final frame a live TTY run ends on. The
-    // fruit rides in its PURE form (paths + the model's last word, no
-    // sizes: stat would read today's disk against a past run's claim).
-    print_lines(&nika_cli::display::flow::waterfall(&view, &theme));
-    let mut notes: Vec<String> = nika_cli::display::fruit::written_files(&view)
-        .iter()
-        .map(|f| format!("{} {}", f.verb, f.path))
-        .collect();
-    if let Some((_task, text)) = nika_cli::display::fruit::last_said(&view)
-        && let Some(quote) = nika_cli::display::shape::summarize(text, 46)
-    {
-        notes.push(format!("said {quote}"));
-    }
-    print_lines(&nika_cli::display::flow::verdict_card(
-        &view, &theme, &notes,
-    ));
-    // The locked exit contract: 0 = run ok · 1 = workflow failed.
-    u8::from(view.verdict != Some(true))
-}
-
-/// Replay with compressed timing: spinner ticks between events, frames
-/// redrawn in place (cursor-up + clear).
-fn live_replay(events: &[Event], view: &mut RunView, theme: Theme, speed: f64, outputs: bool) {
-    let mut drawn = 0usize;
-    let mut tick = 0usize;
-    let mut last_ms = events.first().map_or(0, |e| e.timestamp.unix_ms());
-    for event in events {
-        let ts = event.timestamp.unix_ms();
-        let gap_ms = ts.saturating_sub(last_ms).max(0);
-        #[allow(
-            clippy::cast_precision_loss,
-            clippy::cast_possible_truncation,
-            clippy::cast_sign_loss
-        )]
-        // display pacing only — precision is irrelevant at 80ms granularity
-        let steps = ((gap_ms as f64 / speed.max(0.1) / 80.0).ceil() as u64).clamp(1, 50);
-        for _ in 0..steps {
-            drawn = redraw(view, theme, tick, drawn, outputs);
-            tick += 1;
-            std::thread::sleep(Duration::from_millis(80));
-        }
-        last_ms = ts;
-        view.apply(event);
-        drawn = redraw(view, theme, tick, drawn, outputs);
-    }
-}
-
-/// Draw one frame in place; returns the line count for the next clear.
-fn redraw(view: &RunView, theme: Theme, tick: usize, drawn: usize, outputs: bool) -> usize {
-    let lines = if outputs {
-        nika_cli::frame_with_outputs(view, &theme, tick)
-    } else {
-        frame(view, &theme, tick)
-    };
-    let mut out = std::io::stdout().lock();
-    if drawn > 0 {
-        // Cursor up over the previous frame, then clear to end of screen.
-        let _ = write!(out, "\x1b[{drawn}F\x1b[J");
-    }
-    let _ = writeln!(out, "{}", lines.join("\n"));
-    let _ = out.flush();
-    lines.len()
-}
-
-fn print_lines(lines: &[String]) {
-    if lines.is_empty() {
-        return; // an empty overlay (solo-task waterfall · no verdict) prints nothing
-    }
-    let mut out = std::io::stdout().lock();
-    let _ = writeln!(out, "{}", lines.join("\n"));
-}
-
 /// Read a boolean presentation flag from the environment.
 ///
 /// Presentation flags (`NO_COLOR` · `NIKA_REDUCED_MOTION` ·
@@ -1214,9 +941,10 @@ fn env_value(name: &str) -> Option<String> {
 
 /// Do the teaching surfaces and the clap tree agree? Both directions,
 /// in their own file — they answer one question and `main.rs` has a
-/// 1500-LOC ceiling to respect.
+/// 1500-LOC ceiling to respect. The file rides the `tests.rs` name so
+/// the prod-LOC counter excludes it (the check/tests.rs idiom).
 #[cfg(test)]
-#[path = "teaching_parity_tests.rs"]
+#[path = "teaching_parity/tests.rs"]
 mod teaching_parity_tests;
 
 #[cfg(test)]

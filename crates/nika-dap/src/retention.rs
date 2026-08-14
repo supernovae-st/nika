@@ -21,15 +21,33 @@
 //! `nika run` hook, and re-exports this seam at the old path.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
 use crate::store::{self, TraceMeta, TraceState};
 
+/// The `traces.keep` rung, file-side (D-2026-08-11-N5) — discovery
+/// from `start`, mapped onto the SAME age-cap semantics the env var
+/// carries. Fail-open by note, never by silence: a project file that
+/// will not parse is SAID (the note lane `doctor` prints) and the
+/// knob stays at its default — a broken GC never blocks a run.
+fn project_keep(start: &Path, notes: &mut Vec<String>) -> Option<Duration> {
+    match nika_vocab::project::discover(start) {
+        Ok(Some((_path, project))) => project.traces.map(|t| t.keep),
+        Ok(None) => None,
+        Err(e) => {
+            notes.push(format!("{e} — the retention knobs ignore the project file"));
+            None
+        }
+    }
+}
+
 /// The three knobs (D4) — engine defaults per the ADR-100 contract,
 /// overridable via `NIKA_TRACE_KEEP` · `NIKA_TRACE_MAX_AGE_DAYS` ·
 /// `NIKA_TRACE_BUDGET_MB` (the same env family as every other engine
-/// knob · `nika doctor` reports the active values).
+/// knob · `nika doctor` reports the active values). Below the env
+/// rung sits the project's `nika.yaml` `traces.keep` (D-2026-08-11-N5)
+/// — `max_age` is its one knob; each env var wins its own.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct RetentionConfig {
@@ -117,7 +135,36 @@ impl RetentionConfig {
         )
     }
 
-    /// Read the knobs from the environment (the `NIKA_TRACE_*` family).
+    /// The knob ladder, assembled (D-2026-08-11-N5): each env var wins
+    /// its knob · an UNSET `max_age` falls to the project's `nika.yaml`
+    /// `traces.keep` · last resort the built-in defaults. A project
+    /// file that will not read or parse yields a NOTE, not a refusal —
+    /// the fail-open law outranks it at THIS seam (a broken GC never
+    /// blocks a run); the same error closes the budget/registry gates.
+    ///
+    /// `start` is the discovery root (the CWD in production · a
+    /// tempdir under test) — the walk-up law lives in
+    /// [`nika_vocab::project::discover`].
+    #[must_use]
+    pub fn layered_at(
+        keep: Option<&str>,
+        age_days: Option<&str>,
+        budget_mb: Option<&str>,
+        start: &Path,
+    ) -> (Self, Vec<String>) {
+        let (mut cfg, mut notes) = Self::resolve(keep, age_days, budget_mb);
+        if age_days.is_none()
+            && let Some(keep_for) = project_keep(start, &mut notes)
+        {
+            cfg.max_age = keep_for;
+        }
+        (cfg, notes)
+    }
+
+    /// Read the knobs from the environment (the `NIKA_TRACE_*` family),
+    /// falling back to the project file's `traces.keep` for any knob
+    /// the env leaves unset (D-2026-08-11-N5 — the ladder per key:
+    /// env var · project file · built-in default).
     ///
     /// Config knobs are presentation/behavior state, not secrets — the
     /// same scoped `std::env` exemption `NIKA_REDUCED_MOTION` and
@@ -132,7 +179,10 @@ impl RetentionConfig {
             get("NIKA_TRACE_MAX_AGE_DAYS"),
             get("NIKA_TRACE_BUDGET_MB"),
         );
-        Self::resolve(keep.as_deref(), age.as_deref(), budget.as_deref())
+        // The CWD is the discovery root (the git-style walk-up); a
+        // current_dir failure degrades to the env leg alone.
+        let start = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+        Self::layered_at(keep.as_deref(), age.as_deref(), budget.as_deref(), &start)
     }
 }
 
@@ -577,6 +627,60 @@ mod tests {
             notes,
             vec!["NIKA_TRACE_KEEP=ten is not a number — using the default"]
         );
+    }
+
+    /// The project-file rung (D-2026-08-11-N5): an unset
+    /// `NIKA_TRACE_MAX_AGE_DAYS` falls to `nika.yaml` `traces.keep`;
+    /// a SET env var wins its knob, file or no file.
+    #[test]
+    fn the_project_file_fills_only_the_knob_the_env_leaves_unset() {
+        let dir = std::env::temp_dir().join(format!("nika-retproj-{}", std::process::id()));
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::create_dir_all(&dir).expect("mkdir");
+        std::fs::write(dir.join("nika.yaml"), "nika: v1\ntraces:\n  keep: 45d\n").expect("seed");
+
+        // Env unset → the file rung governs the age cap.
+        let (cfg, notes) = RetentionConfig::layered_at(None, None, None, &dir);
+        assert_eq!(cfg.max_age, Duration::from_secs(45 * DAY), "the file fills");
+        assert_eq!(cfg.keep_last, 10, "the other knobs stay built-in");
+        assert!(notes.is_empty(), "a clean file is silent: {notes:?}");
+
+        // Env set → the env var wins, the file is not even consulted.
+        let (cfg, notes) = RetentionConfig::layered_at(None, Some("7"), None, &dir);
+        assert_eq!(cfg.max_age, Duration::from_secs(7 * DAY), "env beats file");
+        assert!(notes.is_empty(), "{notes:?}");
+
+        // Absent file → the built-in default, zero ceremony.
+        let empty = std::env::temp_dir().join(format!("nika-retnone-{}", std::process::id()));
+        std::fs::remove_dir_all(&empty).ok();
+        std::fs::create_dir_all(&empty).expect("mkdir");
+        let (cfg, notes) = RetentionConfig::layered_at(None, None, None, &empty);
+        assert_eq!(cfg, RetentionConfig::default());
+        assert!(notes.is_empty(), "{notes:?}");
+
+        // A BROKEN file → the default PLUS a loud note (fail-open,
+        // never silent — the same error closes the budget gate).
+        std::fs::write(dir.join("nika.yaml"), "nika: v1\ntraces:\n  keep: soon\n").expect("bad");
+        let (cfg, notes) = RetentionConfig::layered_at(None, None, None, &dir);
+        assert_eq!(
+            cfg.max_age,
+            Duration::from_secs(30 * DAY),
+            "fail-open default"
+        );
+        assert_eq!(notes.len(), 1, "one note, said: {notes:?}");
+        assert!(
+            notes[0].contains("retention"),
+            "the lane is named: {}",
+            notes[0]
+        );
+        assert!(
+            notes[0].contains("project.bad-value"),
+            "the slug: {}",
+            notes[0]
+        );
+
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::remove_dir_all(&empty).ok();
     }
 
     /// Fail-open through collect: a garbage file older than every cap is

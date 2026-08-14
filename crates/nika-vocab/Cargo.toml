@@ -1,6 +1,6 @@
 [package]
 name          = "nika-vocab"
-description   = "Workflow configuration vocabulary for .nika.yaml files: capture/decode modes, retry, durations, secrets, var/output declarations. Layer L0 — pure, zero I/O. Third member of the nika-schema architectural unit (size-cap split, D-2026-07-09-N1)."
+description   = "Configuration vocabulary: the .nika.yaml workflow file (capture/decode modes, retry, durations, secrets, var/output declarations) · and the nika.yaml PROJECT file (D-2026-08-11-N5). Layer L0 — pure, sync parsers; the one fs read is the project discovery (local operator config, the policy.toml seam-bypass class). Third member of the nika-schema architectural unit (size-cap split, D-2026-07-09-N1)."
 version.workspace      = true
 edition.workspace      = true
 license.workspace      = true
@@ -16,6 +16,10 @@ nika-cap    = { path = "../nika-cap", version = "0.108.0" }    # permits/policy 
 nika-types  = { path = "../nika-types", version = "0.108.0" }  # the ONE type core (parse_type · fits) behind the TypeExpr helpers
 serde       = { workspace = true }
 serde_json  = { workspace = true }
+marked-yaml = { workspace = true } # the project-file parser — per-key spans (a refusal names its line · the nika-schema idiom)
+
+[dev-dependencies]
+proptest = { workspace = true }    # the closed grammar's robustness + round-trip ratchets (Gate 6)
 
 [lints]
 workspace = true

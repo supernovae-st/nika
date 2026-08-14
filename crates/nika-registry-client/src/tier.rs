@@ -112,6 +112,47 @@ pub(crate) struct Policy {
 }
 
 impl Policy {
+    /// Compose the PROJECT floor (D-2026-08-11-N5 · the repo's
+    /// `nika.yaml` `registry.floor`) over the operator's own. A gate
+    /// composes by MAX, never by override: the effective floor is the
+    /// STRICTER of the two, so a project can raise its own bar and can
+    /// never lower the operator's. An absent project file is the
+    /// operator's floor alone, zero ceremony; a BROKEN one refuses
+    /// (a typo'd floor must never silently no-op — law 3,
+    /// project-side).
+    pub fn with_project_floor(self) -> Result<Self, RegistryError> {
+        let cwd = std::env::current_dir()
+            .map_err(|e| RegistryError::env(format!("cannot read the current directory: {e}")))?;
+        self.with_project_floor_at(&cwd)
+    }
+
+    /// The composition at an explicit discovery root (the
+    /// tempdir-injectable half — the walk-up law itself lives in
+    /// [`nika_vocab::project::discover`]).
+    fn with_project_floor_at(mut self, start: &Path) -> Result<Self, RegistryError> {
+        let Some((_path, project)) =
+            nika_vocab::project::discover(start).map_err(|e| RegistryError::env(e.to_string()))?
+        else {
+            return Ok(self);
+        };
+        let Some(registry) = project.registry else {
+            return Ok(self);
+        };
+        // The mirrored ladder maps back onto the canonical tier — a
+        // drift between the two closed sets fails LOUD here (pinned
+        // by the round-trip ratchet below), never silently.
+        let floor = ProvenanceTier::parse(registry.floor.as_str()).ok_or_else(|| {
+            RegistryError::env(format!(
+                "the project floor `{}` has no tier on this engine's ladder — the two closed sets drifted (an engine bug, not operator data)",
+                registry.floor.as_str()
+            ))
+        })?;
+        self.floor = self.floor.max(floor);
+        Ok(self)
+    }
+}
+
+impl Policy {
     /// Read `~/.nika/registry/policy.toml`. Absent → the
     /// `unprovenanced` floor. Present → it must be exactly
     /// `{ version = 1, floor = "<tier>" }`: an unknown version, an
@@ -180,5 +221,119 @@ impl Policy {
             )));
         };
         Ok(Self { floor })
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::*;
+
+    fn fresh_dir(tag: &str) -> std::path::PathBuf {
+        let dir = std::env::temp_dir().join(format!("nika-tier-{tag}-{}", std::process::id()));
+        std::fs::remove_dir_all(&dir).ok();
+        std::fs::create_dir_all(&dir).expect("mkdir");
+        dir
+    }
+
+    /// The mirrored ladders walk in lockstep — every project-floor
+    /// spelling lands on the canonical tier of the SAME name (the
+    /// drift guard, this side; the seam fails loud the day they part).
+    #[test]
+    fn the_two_ladders_round_trip() {
+        for floor in nika_vocab::project::ProvenanceFloor::ALL {
+            let tier = ProvenanceTier::parse(floor.as_str());
+            assert!(
+                tier.is_some(),
+                "{} unknown to the tier ladder",
+                floor.as_str()
+            );
+            assert_eq!(tier.map(|t| t.as_str()), Some(floor.as_str()));
+        }
+    }
+
+    /// The max-composition, pinned (D-2026-08-11-N5): the STRICTER of
+    /// the two floors wins — a project raises its own bar, it never
+    /// lowers the operator's.
+    #[test]
+    fn the_project_floor_composes_by_max() {
+        let dir = fresh_dir("max");
+        std::fs::write(
+            dir.join("nika.yaml"),
+            "nika: v1\nregistry:\n  floor: provenanced\n",
+        )
+        .expect("seed");
+
+        // Project HIGHER than the operator → raised.
+        let policy = Policy {
+            floor: ProvenanceTier::Unprovenanced,
+        }
+        .with_project_floor_at(&dir)
+        .expect("no refusal");
+        assert_eq!(
+            policy.floor,
+            ProvenanceTier::Provenanced,
+            "raised to the gate"
+        );
+
+        // Project LOWER than the operator → the operator's stands.
+        let policy = Policy {
+            floor: ProvenanceTier::Verified,
+        }
+        .with_project_floor_at(&dir)
+        .expect("no refusal");
+        assert_eq!(
+            policy.floor,
+            ProvenanceTier::Verified,
+            "a gate never lowers the operator's own floor"
+        );
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// Absent file · present file without a `registry:` block — both
+    /// leave the operator's floor alone, zero ceremony, zero notes.
+    #[test]
+    fn absence_is_the_operator_floor_alone() {
+        let dir = fresh_dir("absent");
+        let policy = Policy {
+            floor: ProvenanceTier::Provenanced,
+        }
+        .with_project_floor_at(&dir)
+        .expect("absence never refuses");
+        assert_eq!(policy.floor, ProvenanceTier::Provenanced);
+
+        std::fs::write(dir.join("nika.yaml"), "nika: v1\nceiling: 0.50\n").expect("seed");
+        let policy = Policy {
+            floor: ProvenanceTier::Unprovenanced,
+        }
+        .with_project_floor_at(&dir)
+        .expect("a file without the block governs nothing here");
+        assert_eq!(policy.floor, ProvenanceTier::Unprovenanced);
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
+    /// A BROKEN project file refuses the resolve — a typo'd floor
+    /// must never silently no-op (law 3, project-side).
+    #[test]
+    fn a_broken_project_file_refuses() {
+        let dir = fresh_dir("broken");
+        std::fs::write(
+            dir.join("nika.yaml"),
+            "nika: v1\nregistry:\n  floor: bogus\n",
+        )
+        .expect("bad");
+        let err = Policy {
+            floor: ProvenanceTier::Unprovenanced,
+        }
+        .with_project_floor_at(&dir)
+        .err()
+        .expect("the broken file refuses");
+        let shown = format!("{err}");
+        assert!(
+            shown.contains("project.bad-value"),
+            "the named error: {shown}"
+        );
+        assert!(shown.contains("nika.yaml:3"), "with its line: {shown}");
+        std::fs::remove_dir_all(&dir).ok();
     }
 }

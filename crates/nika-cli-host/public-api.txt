@@ -2102,6 +2102,7 @@ pub nika_cli_host::probe::Probe::providers: alloc::vec::Vec<nika_providers::prob
 pub nika_cli_host::probe::Probe::recorded_runs: usize
 pub nika_cli_host::probe::Probe::retention: nika_dap::retention::RetentionConfig
 pub nika_cli_host::probe::Probe::retention_notes: alloc::vec::Vec<alloc::string::String>
+pub nika_cli_host::probe::Probe::tracked_traces: core::option::Option<usize>
 pub nika_cli_host::probe::Probe::tts: nika_cli_host::probe::TtsProbe
 pub nika_cli_host::probe::Probe::version: alloc::string::String
 impl core::clone::Clone for nika_cli_host::probe::Probe

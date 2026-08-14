@@ -1,0 +1,79 @@
+{
+  "graph_format": 2,
+  "workflow": "triage-tickets",
+  "nodes": [
+    {
+      "id": "load_macros",
+      "verb": "invoke",
+      "tool": "nika:read",
+      "when": null,
+      "fan_out": null,
+      "permits": [
+        "fs.read: ./macros.json",
+        "tool: nika:read"
+      ],
+      "cost_interval": null
+    },
+    {
+      "id": "fetch_inbox",
+      "verb": "invoke",
+      "tool": "nika:fetch",
+      "when": null,
+      "fan_out": null,
+      "permits": [
+        "net.http: tickets.example.com",
+        "tool: nika:fetch"
+      ],
+      "cost_interval": null
+    },
+    {
+      "id": "triage",
+      "verb": "invoke",
+      "tool": "nika:prompt",
+      "when": null,
+      "fan_out": null,
+      "permits": [
+        "tool: nika:prompt"
+      ],
+      "cost_interval": null
+    },
+    {
+      "id": "combine",
+      "verb": "invoke",
+      "tool": "nika:write",
+      "when": "${{ with.go == true }}",
+      "fan_out": null,
+      "permits": [
+        "fs.write: ../outbox/replies.md",
+        "tool: nika:write"
+      ],
+      "cost_interval": null
+    }
+  ],
+  "edges": [
+    {
+      "from": "fetch_inbox",
+      "to": "triage",
+      "kind": "value",
+      "binding": "inbox"
+    },
+    {
+      "from": "load_macros",
+      "to": "triage",
+      "kind": "value",
+      "binding": "macros"
+    },
+    {
+      "from": "triage",
+      "to": "combine",
+      "kind": "value",
+      "binding": "go"
+    },
+    {
+      "from": "triage",
+      "to": "combine",
+      "kind": "value",
+      "binding": "triage"
+    }
+  ]
+}

@@ -1491,6 +1491,7 @@ impl<T> tracing::instrument::WithSubscriber for nika_dap::evidence::EvidencePack
 impl<T> typenum::type_operators::Same for nika_dap::evidence::EvidencePack
 pub type nika_dap::evidence::EvidencePack::Output = T
 pub fn nika_dap::evidence::build(trace: &std::path::Path, workflow: core::option::Option<&std::path::Path>, keys: &[(alloc::string::String, alloc::string::String)]) -> core::result::Result<nika_dap::evidence::EvidencePack, nika_dap::evidence::PackError>
+pub fn nika_dap::evidence::build_full(trace: &std::path::Path, workflow: core::option::Option<&std::path::Path>, keys: &[(alloc::string::String, alloc::string::String)]) -> core::result::Result<nika_dap::evidence::EvidencePack, nika_dap::evidence::PackError>
 pub fn nika_dap::evidence::candidate_pubkeys() -> alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
 pub fn nika_dap::evidence::default_out(trace: &std::path::Path) -> std::path::PathBuf
 pub fn nika_dap::evidence::write(dir: &std::path::Path, pack: &nika_dap::evidence::EvidencePack) -> core::result::Result<(), nika_dap::evidence::PackError>
@@ -2628,6 +2629,7 @@ pub nika_dap::retention::RetentionConfig::keep_last: usize
 pub nika_dap::retention::RetentionConfig::max_age: core::time::Duration
 impl nika_dap::retention::RetentionConfig
 pub fn nika_dap::retention::RetentionConfig::from_env() -> (Self, alloc::vec::Vec<alloc::string::String>)
+pub fn nika_dap::retention::RetentionConfig::layered_at(keep: core::option::Option<&str>, age_days: core::option::Option<&str>, budget_mb: core::option::Option<&str>, start: &std::path::Path) -> (Self, alloc::vec::Vec<alloc::string::String>)
 pub const fn nika_dap::retention::RetentionConfig::new(keep_last: usize, max_age: core::time::Duration, budget_bytes: u64) -> Self
 pub fn nika_dap::retention::RetentionConfig::resolve(keep: core::option::Option<&str>, age_days: core::option::Option<&str>, budget_mb: core::option::Option<&str>) -> (Self, alloc::vec::Vec<alloc::string::String>)
 pub fn nika_dap::retention::RetentionConfig::summary(&self) -> alloc::string::String

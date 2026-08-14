@@ -1,0 +1,245 @@
+{
+  "name": "demo-fail",
+  "workflow": {
+    "file": "rapport-hebdo.nika.yaml",
+    "engine": "0.108.0",
+    "prompt": "fais-moi un rapport hebdo des issues github",
+    "permits": [
+      "fs.read: [\"./issues.json\"]",
+      "fs.write: [\"./rapports/**\"]",
+      "net: [\"api.github.com\"]",
+      "exec: [\"gh\"]",
+      "tools: [\"mcp:schema/validate\",",
+      "        \"nika:read\",",
+      "        \"nika:write\",",
+      "        \"nika:prompt\"]"
+    ],
+    "missing": "ni le réseau ni l'écriture",
+    "tasks": [
+      {
+        "id": "accorde",
+        "verb": "invoke",
+        "glyph": "◆",
+        "needs": [],
+        "tool": "nika:prompt",
+        "origin": "builtin",
+        "touches": [
+          "tools"
+        ]
+      },
+      {
+        "id": "fetch",
+        "verb": "exec",
+        "glyph": "▷",
+        "needs": [
+          "accorde"
+        ],
+        "tool": "gh issue list --json number,title,state",
+        "origin": "shell",
+        "touches": [
+          "exec"
+        ]
+      },
+      {
+        "id": "lire",
+        "verb": "invoke",
+        "glyph": "◆",
+        "needs": [
+          "accorde"
+        ],
+        "tool": "nika:read",
+        "origin": "builtin",
+        "family": "file",
+        "touches": [
+          "fs_read",
+          "tools"
+        ]
+      },
+      {
+        "id": "resume",
+        "verb": "infer",
+        "glyph": "◇",
+        "needs": [
+          "fetch",
+          "lire"
+        ],
+        "tool": "ollama/qwen2.5:0.5b",
+        "origin": "model",
+        "touches": []
+      },
+      {
+        "id": "compte",
+        "verb": "infer",
+        "glyph": "◇",
+        "needs": [
+          "fetch"
+        ],
+        "tool": "ollama/qwen2.5:0.5b",
+        "origin": "model",
+        "touches": []
+      },
+      {
+        "id": "verifie",
+        "verb": "invoke",
+        "glyph": "◆",
+        "needs": [
+          "lire",
+          "accorde"
+        ],
+        "tool": "mcp:schema/validate",
+        "origin": "mcp",
+        "touches": [
+          "tools"
+        ]
+      },
+      {
+        "id": "ecris",
+        "verb": "invoke",
+        "glyph": "◆",
+        "needs": [
+          "resume",
+          "accorde"
+        ],
+        "tool": "nika:write",
+        "origin": "builtin",
+        "family": "file",
+        "touches": [
+          "fs_write",
+          "tools"
+        ]
+      }
+    ]
+  },
+  "run": {
+    "trace": "01ff",
+    "when": "10/08 22h39",
+    "output": "aucune sortie",
+    "steps": [
+      {
+        "id": "accorde",
+        "start": 0,
+        "dur": 0
+      },
+      {
+        "id": "fetch",
+        "start": 0.001,
+        "dur": 0.008
+      },
+      {
+        "id": "lire",
+        "start": 0.009,
+        "dur": 0,
+        "failed": {
+          "code": "NIKA-BUILTIN-READ-001",
+          "why": "file not found: ./issues.json"
+        }
+      },
+      {
+        "id": "compte",
+        "start": 0.01,
+        "dur": 0.412,
+        "tokens": 64
+      },
+      {
+        "id": "resume",
+        "start": 0,
+        "dur": 0,
+        "neverBorn": true,
+        "blockedBy": "lire"
+      },
+      {
+        "id": "verifie",
+        "start": 0,
+        "dur": 0,
+        "neverBorn": true,
+        "blockedBy": "lire"
+      },
+      {
+        "id": "ecris",
+        "start": 0,
+        "dur": 0,
+        "neverBorn": true,
+        "blockedBy": "resume"
+      }
+    ]
+  },
+  "derived": {
+    "waves": [
+      [
+        "accorde"
+      ],
+      [
+        "fetch",
+        "lire"
+      ],
+      [
+        "resume",
+        "compte",
+        "verifie"
+      ],
+      [
+        "ecris"
+      ]
+    ],
+    "wave_end": [
+      0,
+      0.009000000000000001,
+      0.422,
+      0
+    ],
+    "idle": {
+      "accorde": 0,
+      "fetch": 0,
+      "lire": 1.734723475976807e-18,
+      "compte": 0,
+      "resume": 0,
+      "verifie": 0,
+      "ecris": 0
+    },
+    "bottleneck": null,
+    "total_cost": 0,
+    "total_time": 0.422,
+    "verbs_used": [
+      "invoke",
+      "exec",
+      "infer"
+    ],
+    "has_failed": true,
+    "cost_by_verb": {
+      "infer": 0,
+      "exec": 0,
+      "invoke": 0,
+      "agent": 0
+    },
+    "undeclared": [],
+    "blast_radius": [
+      "tools",
+      "exec",
+      "fs_read",
+      "fs_write"
+    ],
+    "groups": [
+      {
+        "task": "accorde"
+      },
+      {
+        "task": "fetch"
+      },
+      {
+        "task": "lire"
+      },
+      {
+        "task": "resume"
+      },
+      {
+        "task": "compte"
+      },
+      {
+        "task": "verifie"
+      },
+      {
+        "task": "ecris"
+      }
+    ]
+  }
+}

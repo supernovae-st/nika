@@ -51,8 +51,13 @@ impl From<CanvasTheme> for nika_onboard::founding::CanvasTheme {
 /// recipe/theme/wire flag) the founding wizard runs; anything scripted
 /// keeps receipts-plus-hand-off — and with ZERO new flags the output is
 /// the historical bytes exactly.
+///
+/// `project_file` — `--project-file` (D-2026-08-11-N5): the scripted
+/// twin of the wizard's offer question. It routes to the scripted lane
+/// (a flag is a script), and lays the starter AFTER the scaffold with
+/// its receipt appended — never silently, never without the flag.
 #[must_use]
-#[allow(clippy::too_many_arguments)] // the clap surface, unpacked — one struct-shaped seam
+#[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)] // the clap surface, unpacked — one struct-shaped seam
 pub fn run(
     dir: &str,
     force: bool,
@@ -61,6 +66,7 @@ pub fn run(
     example: Option<&str>,
     canvas: Option<CanvasTheme>,
     wires: &[WireTarget],
+    project_file: bool,
     theme: Theme,
 ) -> VerbOutput {
     // The REAL effects, injected (the member never learns what proving
@@ -88,10 +94,11 @@ pub fn run(
         || example.is_some()
         || canvas.is_some()
         || !wires.is_empty()
+        || project_file
         || !interactive();
     let out = if scripted {
         let wire_names: Vec<&str> = wires.iter().copied().map(wire_name).collect();
-        nika_onboard::founding::scripted_run(
+        let out = nika_onboard::founding::scripted_run(
             dir,
             force,
             recipe,
@@ -100,7 +107,26 @@ pub fn run(
             &wire_names,
             &audit,
             &wire,
-        )
+        );
+        // The scripted twin of the wizard's offer — the flag is the
+        // ONLY scripted door (never laid silently), and the receipt
+        // appends to the same report (the adds-only law · one law,
+        // two doors).
+        if project_file {
+            let (path, outcome) = nika_onboard::project_file::ensure(dir, force);
+            let failed = matches!(outcome, nika_onboard::project_file::Outcome::Failed(_));
+            let (_mark, msg) = nika_onboard::project_file::report(&path, &outcome);
+            nika_onboard::Outcome {
+                text: format!("{}\n{msg}", out.text),
+                code: if failed {
+                    nika_onboard::codes::ENV
+                } else {
+                    out.code
+                },
+            }
+        } else {
+            out
+        }
     } else {
         let stdin = std::io::stdin();
         nika_onboard::wizard::wizard_io(
@@ -194,6 +220,7 @@ mod tests {
             None,
             Some(CanvasTheme::Editor),
             &[],
+            false,
             PLAIN,
         );
         assert_eq!(out.code, exit::OK, "{}", out.text);
@@ -204,6 +231,63 @@ mod tests {
         );
         let settings = std::fs::read_to_string(tmp.join(".vscode/settings.json")).expect("written");
         assert!(settings.contains("\"nika.dag.theme\": \"editor\""));
+        assert!(
+            !tmp.join("nika.yaml").exists(),
+            "no flag, no project file — never laid silently"
+        );
+        std::fs::remove_dir_all(&tmp).ok();
+    }
+
+    /// `--project-file` (D-2026-08-11-N5): the ONE scripted door — it
+    /// routes to the scripted lane, lays the starter after the
+    /// scaffold with its receipt appended, and respects the skip law.
+    #[test]
+    fn the_project_file_flag_is_the_only_scripted_door() {
+        let tmp = std::env::temp_dir().join(format!("nika-init-projfile-{}", std::process::id()));
+        std::fs::remove_dir_all(&tmp).ok();
+        std::fs::create_dir_all(&tmp).expect("mkdir");
+        let out = run(
+            tmp.to_str().expect("utf8"),
+            false,
+            true,
+            Some("ship"),
+            None,
+            None,
+            &[],
+            true,
+            PLAIN,
+        );
+        assert_eq!(out.code, exit::OK, "{}", out.text);
+        assert!(
+            out.text
+                .lines()
+                .any(|l| l.contains("created") && l.ends_with("nika.yaml")),
+            "the receipt rides the report (joined path, the scripted register): {}",
+            out.text
+        );
+        let laid = std::fs::read_to_string(tmp.join("nika.yaml")).expect("written");
+        assert!(
+            laid.starts_with("# nika.yaml — the project file"),
+            "the starter, verbatim: {laid}"
+        );
+
+        // A second run: the skip law (adds-only) — the receipt says so.
+        let out = run(
+            tmp.to_str().expect("utf8"),
+            false,
+            true,
+            Some("ship"),
+            None,
+            None,
+            &[],
+            true,
+            PLAIN,
+        );
+        assert!(
+            out.text.contains("skipped") && out.text.contains("(exists · --force)"),
+            "existing = skip: {}",
+            out.text
+        );
         std::fs::remove_dir_all(&tmp).ok();
     }
 

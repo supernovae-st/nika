@@ -13,12 +13,10 @@
 pub mod catalog;
 pub mod check;
 pub mod context;
-pub mod evidence;
 pub mod examples;
 pub mod explain;
 pub mod explain_file;
 pub mod fix;
-pub(crate) mod forecast;
 pub mod graph;
 pub mod guard;
 pub mod init;
@@ -28,17 +26,21 @@ pub mod mcp_pins;
 pub mod model;
 pub mod new;
 pub mod pack_surface;
-pub mod receipt;
 pub mod run;
 pub mod sign;
 pub mod test;
 pub mod tools;
-pub mod trace;
-pub mod trace_anchor;
-pub mod trace_otel;
-pub mod trace_reproduce;
-pub mod trace_verify;
 pub use nika_cli_host::{doctor, probe, welcome, wire};
+// The trace-reading plane descended to `nika-trace` 2026-08-11 (the 15k
+// prod-LOC wall · D-2026-07-09-N1 one unit, two members · the ADR-110
+// cli-host precedent) — re-exported at the historical verbs:: paths so
+// every call site, suite and the bin dispatch read unchanged. The
+// store/retention shims stay crate-internal (consumers read the
+// descended homes: `nika_dap::store` · `nika_cli_host::retention`).
+pub(crate) use nika_trace::forecast;
+pub use nika_trace::{
+    evidence, receipt, trace, trace_anchor, trace_otel, trace_reproduce, trace_verify,
+};
 
 use nika_check::CheckReport;
 use nika_schema::raw::RawWorkflow;
