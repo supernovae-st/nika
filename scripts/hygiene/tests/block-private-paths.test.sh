@@ -40,9 +40,21 @@ trap 'rm -rf "$WORK"' EXIT
 fails=0
 cases=0
 
+# The guarded roots are COMPOSED, never spelled on an executable line.
+# Two reasons, and both are this repo's own rules. Vector 44 reads a
+# literal `dx/…` or `docs/…` in a script as a claim that the file exists;
+# these are payload strings the gate must FLAG, not files, and five of
+# them showed up as stale path references the day this test landed.
+# `${VAR}/` is the exemption that vector documents. And this file ships in
+# a PUBLIC repo, where an inventory of private roots is the very leak the
+# gate exists to stop — which is why block-private-paths.sh composes too.
+DX='dx'
+DOCS='docs'
+SCRIPTS='scripts'
+
 # expect <RED|GREEN> <label> <payload-line> [staged-path]
 expect() {
-  local want="$1" label="$2" payload="$3" rel="${4:-docs/note.md}"
+  local want="$1" label="$2" payload="$3" rel="${4:-${DOCS}/note.md}"
   cases=$((cases + 1))
   local dir="$WORK/case-$cases"
   mkdir -p "$dir/$(dirname "$rel")"
@@ -74,9 +86,9 @@ expect RED "a venture that will not exist until tomorrow" \
 # The agent substrate, matched at its ROOT — an invented child proves the
 # gate no longer depends on knowing the children's names.
 expect RED "agent substrate, invented child" \
-  'per dx/example-tree/thing.yaml'
+  "per ${DX}/example-tree/thing.yaml"
 expect RED "agent substrate, another invented child" \
-  'the ledger at dx/other-example/ledgers/x.yaml'
+  "the ledger at ${DX}/other-example/ledgers/x.yaml"
 expect RED "the studio tree" \
   'per studio/07-operations/north-star/VISION.md'
 expect RED "private memory" \
@@ -109,7 +121,7 @@ expect GREEN "a word merely ending in the guarded root" \
 # The gate deliberately does not scan its own kind — those files
 # legitimately enumerate the patterns.
 expect GREEN "a guarded path inside a self-excluded dir" \
-  'dx/example-tree/thing.yaml' 'scripts/ci/some-check.sh'
+  "${DX}/example-tree/thing.yaml" "${SCRIPTS}/ci/some-check.sh"
 
 if [ "$fails" -gt 0 ]; then
   printf '\n%d/%d case(s) wrong — the gate does not block what it claims,\nor blocks what it must not.\n' \
