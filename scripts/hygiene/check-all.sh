@@ -85,15 +85,22 @@ run_check() {
   fi
 }
 
-# --- All 38 live vectors (vectors 7 + 17 + 18 removed; 41 deployed minus 3 = 38 live).
-# 34-37 added 2026-06-10 (security/supply-chain + doctrine-enforcement arc):
-# cargo-deny policy, ADR-081 computer-use guard-presence admission gate,
-# cargo-machete unused-deps, error one-voice (NikaErrorCode trait completeness). ---
+# --- The live vectors. The count is NOT written here: this comment said
+# "38 live", the README said "37 drift vectors", and there were 46
+# run_check calls. Three surfaces, three numbers, one truth. It derives:
+#   grep -c '^run_check ' scripts/hygiene/check-all.sh
+# Numbering keeps its gaps — renumbering is churn for no value. ---
 run_check "1  memory-head-sha       " "check-memory-head.sh"
 run_check "2  crate-count           " "check-crate-count.sh"
 run_check "3  loc-totals            " "check-loc.sh"
 run_check "4  changelog-dates       " "check-changelog-dates.sh"
-run_check "5  roadmap-crate-status  " "check-roadmap-status.sh"
+# Vector 5 (roadmap-crate-status) removed 2026-08-14 — it grepped ROADMAP.md
+# for `- [ ] <crate>`, a syntax that has NEVER existed in that file across
+# 171 commits, so no repo state could make it fire and it reported OK on
+# every run at pre-push and nightly. The parity it might have been re-aimed
+# at (the ROADMAP census vs Cargo.toml) is already enforced by vector 23,
+# proven by mutation: drop a crate from `wip = [...]` and 23 goes RED while
+# 5 still said "OK (roadmap consistent)". Kept the numbering gap.
 run_check "6  crate-spec-metrics    " "check-crate-specs.sh"
 # Vector 7 (linear-issue-states) removed 2026-04-17 — was a no-op stub
 # without LINEAR_API_KEY in the dev environment. Misleading GREEN/YELLOW

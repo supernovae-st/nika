@@ -1,8 +1,18 @@
 # scripts/hygiene/ — drift detection dashboard
 
-37 drift vectors that keep Nika's ecosystem in sync over 11-12 months of
+Drift vectors that keep Nika's ecosystem in sync over 11-12 months of
 building in public. Zero maintenance required. Runs locally on every
 commit (via Claude Code PostToolUse hook) and nightly via GitHub Action.
+
+The count is not written here. It said 37 while `check-all.sh` said 38
+and the file carried 46 `run_check` calls — three surfaces, three
+numbers. It derives:
+
+```bash
+grep -c '^run_check ' check-all.sh
+```
+
+and `./check-all.sh` prints the tally it actually ran.
 
 ## Quick start
 
@@ -19,10 +29,11 @@ commit (via Claude Code PostToolUse hook) and nightly via GitHub Action.
 
 Exit codes: `0` = all green, `1` = at least one yellow, `2` = at least one red.
 
-## The 37 vectors
+## The vectors
 
 Each vector is a single `check-*.sh` script. Single responsibility.
-Exits `0`/`1`/`2` to signal green/yellow/red.
+Exits `0`/`1`/`2` to signal green/yellow/red. Rows marked *(killed …)*
+keep their number: renumbering is churn for no value.
 
 | # | Script | Detects |
 |---|---|---|
@@ -30,11 +41,11 @@ Exits `0`/`1`/`2` to signal green/yellow/red.
 | 2 | `check-crate-count.sh` | Workspace `members = [...]` count = `[workspace.metadata.diamond.layers.*]` count (every crate must be layer-classified) |
 | 3 | `check-loc.sh` | src LOC drift (> 2% = yellow, > 5% = red) |
 | 4 | `check-changelog-dates.sh` | CHANGELOG top entry date reasonable (not future, not > 14 days old without commit) |
-| 5 | `check-roadmap-status.sh` | ROADMAP checkboxes align with admitted crates |
+| 5 | *(killed 2026-08-14)* | was `check-roadmap-status.sh` — grepped ROADMAP.md for `- [ ] <crate>`, a syntax that has **never** existed in that file (`git log -S` over 171 commits: zero). No repo state could make it fire, so it reported OK on every pre-push and nightly run: one of the greens was unearned. The parity it might have been re-aimed at — the ROADMAP census vs `Cargo.toml`'s `wip` list — is already enforced by vector 23, proven by mutation (drop a crate from `wip = [...]`: 23 goes RED, 5 still said "OK (roadmap consistent)"). Kept gap in numbering |
 | 6 | `check-crate-specs.sh` | Every admitted crate has `docs/crate-specs/nika-X.md` · live-anchored `~NNN LOC src (live · …)` numbers stay within ±15% of `scripts/crate-metrics.sh` (no hardcoded drift) |
 | 7 | *(killed 2026-04-17)* | was `check-linear.sh` — no-op stub without `LINEAR_API_KEY`, misleading green. Linear integration lives in its own MCP, not hygiene |
 | 8 | `check-milestones.sh` | GitHub milestone progress sanity |
-| 9 | `check-org-readme.sh` | Org profile README mentions all 6 canonical repos |
+| 9 | `check-org-readme.sh` | Org profile README mentions every canonical public repo (whole-word, so a longer sibling's name cannot cover a missing one) · and the counts it quotes match `canon.yaml`. YELLOW when canon.yaml is unreachable — the parity is then unmeasured, and the verdict says so rather than asserting it. The count derives from the list in the script; it was written here as "6" while the script carried 13 |
 | 10 | `check-license.sh` | LICENSE file present + AGPL-3.0-or-later (renamed from `check-citation.sh` 2026-04-16; name was misleading — never checked CITATION.cff which doesn't exist) |
 | 11 | `check-unwraps.sh` | Zero `.unwrap()` / `.expect(` outside tests |
 | 12 | `check-file-loc.sh` | Three-tier file-LOC discipline (ADR-023): 800 YELLOW / 1500 RED / 3000 CRITICAL with `// LOC-EXEMPT: <reason>` marker (codegen, lookup-table, enum-mega) |
@@ -79,20 +90,27 @@ Exits `0`/`1`/`2` to signal green/yellow/red.
 - Any red → open (or update) 1 idempotent issue with label `hygiene-drift`
   containing the full output
 
-## Olympus dashboard auto-refresh (post-commit)
+## Olympus dashboard auto-refresh (post-commit) — RETIRED 2026-08-14
 
-After every engine commit, lefthook fires
-`scripts/hooks/post-commit-olympus-xtask.sh` in the background (nohup +
-`pnpm tsx olympus/scripts/xtask.ts`). This regenerates
-`olympus/data/workspace.json` + `data/snapshots/<timestamp>.json`
-+ `data/hygiene-status.json`, which the Olympus file-watcher picks up
-via `WorkspacePatchKind` so `/timeline`, `/graph/diff`, `/graph/fitness`,
-and `/hygiene` all refresh live without manual reload.
+There was a `post-commit-olympus-xtask` hook here that regenerated an
+Olympus dashboard after every engine commit. It is gone.
 
-The hook is non-blocking: commits always succeed. Missing pnpm or a
-missing olympus sibling directory causes a silent skip logged to
-`.nika/post-commit-xtask.log`. The log is gitignored via the root
-`/.nika/` entry.
+It resolved its target as `<engine>/../../olympus`, which the tree moved
+out from under: that path names `…/repos/olympus`, and Olympus lives at
+`ventures/olympus`. The hook opened with `[ -d "$OLYMPUS" ] || exit 0`
+placed ABOVE its own log write, so once the directory was gone it left
+no trace at all — it did not even create `.nika/`.
+
+Its own log is the record: 190 fires ever, the last at
+`2026-06-05T15:05:13Z`, ending in `ERR_MODULE_NOT_FOUND`. **1722
+commits since, in silence.**
+
+Repair was not available. The receiving `scripts/xtask.ts` still exists
+in the Olympus OS repo, but that repo has no `package.json`, so the
+`pnpm tsx` invocation cannot resolve; its output `data/workspace.json`
+is not tracked anywhere; and `olympus studio health` has since taken
+over the job. Re-pointing the path would only have reached a script
+that cannot run.
 
 ## Integration with Claude Code hooks
 

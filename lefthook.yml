@@ -127,13 +127,6 @@ post-commit:
       run: >
         printf '\n[reminder] execution-roadmap/ touched — update SEQUENCE.md status.\n'
 
-    # Auto-fire Olympus xtask so the dashboard (workspace.json, snapshots,
-    # hygiene JSON, graph) reflects the new engine HEAD without manual reload.
-    # Non-blocking: runs in background via nohup; skips silently if olympus
-    # sibling absent or pnpm not on PATH. Output tails to .nika/post-commit-xtask.log.
-    olympus-xtask:
-      run: bash scripts/hooks/post-commit-olympus-xtask.sh
-
 post-merge:
   commands:
     adr-seal-check:
