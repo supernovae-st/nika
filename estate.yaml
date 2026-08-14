@@ -18,11 +18,11 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4391
+  classified_files: 4392
   file_rows: 11
   pattern_rows: 22
   by_class:
-    authored: 1458
+    authored: 1459
     authored-pin: 2
     generated: 118
     pinned-copy: 117
@@ -182,8 +182,8 @@ patterns:
   evidence: "crate-specs · architecture prose · perf notes — no generation markers at file heads"
 - glob: "scripts/**"
   class: authored
-  match_count: 143
-  aggregate_sha256: bd67f7c728ea3f6aa0c5df4713a0562104437de1bfb1cdd4120e1da1cc9187c0
+  match_count: 144
+  aggregate_sha256: e37a32077a2aa30c8224d53e34a10cd5927bc2dd76eaa8e0b97b051ca5bd2c95
   evidence: "hand-written gates · hooks · hygiene vectors · media lanes; the ratchet baselines (scripts/ci/*-baseline.txt · scripts/hygiene/baselines/) are hand-kept monotonic floors ('Never remove a line by hand')"
 - glob: ".github/workflows/**"
   class: authored
@@ -237,7 +237,7 @@ patterns:
 - glob: "*"
   class: authored
   match_count: 28
-  aggregate_sha256: 05630a88477cf473e3fb54c27df16032571103a34634a6555fcda9ededd5b55e
+  aggregate_sha256: 8b5ef08ae941f7535db80deebe1e69d910d611caf158b73dac6b92f7e8c1071e
   evidence: "root prose + config surface (README · DIAMOND · LICENSE · llms.txt · Cargo.toml · deny/clippy/cliff/typos toml · lefthook.yml · flake.nix · Dockerfile) — no generation markers at file heads; CHANGELOG.md · Cargo.lock · SPEC_PIN · ROADMAP.md excepted in files:"
 - glob: "**"
   class: authored
