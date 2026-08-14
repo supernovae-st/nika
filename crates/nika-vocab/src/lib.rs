@@ -49,6 +49,7 @@ pub mod on_error;
 pub mod output_decl;
 pub mod permits;
 pub mod project;
+pub mod registry_ref;
 pub mod retry;
 pub mod run;
 pub mod schema_version;

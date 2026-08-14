@@ -1032,3 +1032,32 @@ fn a_below_floor_fetch_anchors_no_tofu_key() {
     );
     assert!(!client.cache_root.join("acme").exists());
 }
+
+/// ⭐ The grammar (L0) and the ORDERING (here) must never disagree about
+/// what a version IS. They are deliberately split — `nika-vocab` answers
+/// « is this a version », this crate answers « which one wins » — and a
+/// split like that is exactly where two spellings drift apart. This pins
+/// them to one verdict, input by input.
+#[test]
+fn the_two_readers_agree_on_every_version() {
+    for v in [
+        "1.0.0",
+        "1.2.3",
+        "1.2.0-rc.1",
+        "0.0.1-alpha.2",
+        "1.0.0+build",
+        "1.0",
+        "1.0.0.0",
+        "v1.0.0",
+        "nightly",
+        "1.2.0-",
+        "",
+        "1.a.0",
+    ] {
+        assert_eq!(
+            super::version_key(v).is_some(),
+            nika_vocab::registry_ref::is_plain_semver(v),
+            "`{v}` — the grammar and the ordering disagree about validity"
+        );
+    }
+}
