@@ -675,7 +675,7 @@ fn check_ref(
             let hint = nika_types::suggest::did_you_mean(root, ROOTS).map(str::to_owned);
             errors.push(unresolved(root, ctx, span, hint));
             // LAYERED with the unresolved refusal above (the oracle's
-            // values layer emits BOTH): outside the four authorities +
+            // values layer emits BOTH): outside the three authorities +
             // the runtime namespaces + the dead forms, the root is a
             // foreign value namespace — NIKA-VALUES-003
             // (LAW-SURFACE-0201 · the family is closed).

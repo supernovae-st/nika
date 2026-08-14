@@ -714,7 +714,7 @@ tasks:
     #[test]
     fn foreign_value_namespace_refuses_with_values_003_layered_on_var_001() {
         // The conformance `values/invalid/foreign-value-namespace` case:
-        // `params` is not one of the four authorities — the layered oracle
+        // `params` is not one of the three authorities — the layered oracle
         // emits BOTH the unresolved refusal (VAR-001, did-you-mean) AND the
         // family refusal (VALUES-003 · LAW-SURFACE-0201).
         let yaml = "\
