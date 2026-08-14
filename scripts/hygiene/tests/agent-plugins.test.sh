@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# COVERS: scripts/hygiene/check-agent-plugins.sh
 # Mutation proof for vector 48 (check-agent-plugins.sh).
 #
 # A gate that has never been seen to fail is decoration. This copies the

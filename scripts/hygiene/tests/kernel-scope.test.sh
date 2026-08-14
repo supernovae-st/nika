@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# COVERS: scripts/hygiene/check-cancel-safety.sh scripts/hygiene/check-kernel-no-spawn.sh
 # Mutation proof for the two L0.5 kernel vectors — check-kernel-no-spawn
 # and check-cancel-safety.
 #

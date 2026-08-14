@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# COVERS: scripts/hygiene/check-org-readme.sh
 # Mutation proof for vector 9 (check-org-readme.sh).
 #
 # Two defects, both of them a verdict outrunning its evidence.
