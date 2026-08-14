@@ -184,9 +184,6 @@ pub struct nika_trace::forecast::ForecastReport
 pub nika_trace::forecast::ForecastReport::run_cost: core::option::Option<nika_dap::stats::Prior>
 pub nika_trace::forecast::ForecastReport::run_duration: nika_dap::stats::Prior
 pub nika_trace::forecast::ForecastReport::runs: nika_trace::forecast::RunCensus
-impl<T> zvariant::optional::NoneValue for nika_trace::forecast::RunCensus where T: core::default::Default
-pub type nika_trace::forecast::RunCensus::NoneType = T
-pub fn nika_trace::forecast::RunCensus::null_value() -> T
 pub nika_trace::forecast::ForecastReport::tasks: alloc::vec::Vec<nika_trace::forecast::TaskPrior>
 pub nika_trace::forecast::ForecastReport::window: nika_trace::forecast::Window
 pub nika_trace::forecast::ForecastReport::workflow: alloc::string::String
@@ -285,6 +282,9 @@ impl<T> tracing::instrument::Instrument for nika_trace::forecast::RunCensus
 impl<T> tracing::instrument::WithSubscriber for nika_trace::forecast::RunCensus
 impl<T> typenum::type_operators::Same for nika_trace::forecast::RunCensus
 pub type nika_trace::forecast::RunCensus::Output = T
+impl<T> zvariant::optional::NoneValue for nika_trace::forecast::RunCensus where T: core::default::Default
+pub type nika_trace::forecast::RunCensus::NoneType = T
+pub fn nika_trace::forecast::RunCensus::null_value() -> T
 pub struct nika_trace::forecast::TaskPrior
 pub nika_trace::forecast::TaskPrior::cache_hits: usize
 pub nika_trace::forecast::TaskPrior::cost_usd: core::option::Option<nika_dap::stats::Prior>
@@ -388,6 +388,9 @@ impl<T> tracing::instrument::Instrument for nika_trace::forecast::Window
 impl<T> tracing::instrument::WithSubscriber for nika_trace::forecast::Window
 impl<T> typenum::type_operators::Same for nika_trace::forecast::Window
 pub type nika_trace::forecast::Window::Output = T
+impl<T> zvariant::optional::NoneValue for nika_trace::forecast::Window where T: core::default::Default
+pub type nika_trace::forecast::Window::NoneType = T
+pub fn nika_trace::forecast::Window::null_value() -> T
 pub struct nika_trace::forecast::WorkflowIdentity
 pub nika_trace::forecast::WorkflowIdentity::name: alloc::string::String
 pub nika_trace::forecast::WorkflowIdentity::sha256: alloc::string::String

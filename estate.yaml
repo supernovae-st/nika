@@ -140,7 +140,7 @@ patterns:
 - glob: "crates/*/public-api.txt"
   class: generated
   match_count: 65
-  aggregate_sha256: 5326d381f07a7a2e460e3e442496e47241ca97f6159e892395b58b9b200ef82b
+  aggregate_sha256: 974e5a893200098ed0313defcea1c178f69adf32dc846b1451dbde1c3387a053
   evidence: ".github/workflows/public-api.yml 'diff each covered lib crate' byte-compares each snapshot against cargo public-api output; macOS renders differently, so snapshots regenerate FROM THE UBUNTU ARTIFACT (workflow comment)"
   derivation:
     tool: "cargo public-api -p <crate> --omit auto-trait-impls > crates/<crate>/public-api.txt (DEFAULT features · the CI job shape — all-features drags platform deps into the render · cargo-public-api 0.51.0 pinned · the public-api-actual CI artifact stays the judge)"
@@ -152,12 +152,12 @@ patterns:
 - glob: "crates/**/src/**"
   class: authored
   match_count: 759
-  aggregate_sha256: 4922037a7734d0f217ab5a5a8787c598dbf470626968e362f64fb92ed31fe714
+  aggregate_sha256: 93c33748e75c17fa7d74980ccc61cc9fd408f6b564ec2fc2c6b9aba43f2c38eb
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
   match_count: 153
-  aggregate_sha256: 77b00e3f8a64742e27332bd877e46b08f0efc79ae6c2cb9fe2ff7f143c4266a6
+  aggregate_sha256: af47b1cf2c8040144a65b72e2c24405e1f95819e92b6923e9eb28a9b23b667be
   evidence: "crate-owned tests + fixtures under tests/ — written with the crate per gate discipline, no generation markers"
 - glob: "crates/**"
   class: authored
@@ -237,7 +237,7 @@ patterns:
 - glob: "*"
   class: authored
   match_count: 28
-  aggregate_sha256: dec6bb5c4778a5d98b83a2ad615a51e318404c2c59a673c20fff412190558544
+  aggregate_sha256: b9e1148beee291a69b599d1693aec4cf888283cecd5418ac442c52ef5de983d6
   evidence: "root prose + config surface (README · DIAMOND · LICENSE · llms.txt · Cargo.toml · deny/clippy/cliff/typos toml · lefthook.yml · flake.nix · Dockerfile) — no generation markers at file heads; CHANGELOG.md · Cargo.lock · SPEC_PIN · ROADMAP.md excepted in files:"
 - glob: "**"
   class: authored
