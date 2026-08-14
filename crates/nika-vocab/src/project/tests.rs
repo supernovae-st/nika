@@ -26,7 +26,7 @@ nika: v1
 ceiling: 0.50          # default max-cost-usd · the per-invocation --max-cost-usd flag ALWAYS wins
 
 arm:                   # the TEAM arming registry (the personal one stays at ~/.nika/arm.yaml)
-  - workflow: dx/workflows/compost-beat.nika.yaml
+  - workflow: workflows/compost-beat.nika.yaml
     cadence: "dimanche 18h07"
     où:      local     # local | cloud
     plafond: 2.00      # overrides ceiling for this beat
@@ -63,7 +63,7 @@ fn the_canonical_example_parses_verbatim() {
     let arm = p.arm();
     assert_eq!(arm.len(), 1, "one beat armed: {arm:?}");
     let beat = &arm[0];
-    assert_eq!(beat.workflow, "dx/workflows/compost-beat.nika.yaml");
+    assert_eq!(beat.workflow, "workflows/compost-beat.nika.yaml");
     assert_eq!(beat.cadence, "dimanche 18h07");
     assert_eq!(beat.ou, Some(ArmLocus::Local));
     assert_eq!(beat.plafond, 2.00);
@@ -229,7 +229,7 @@ fn the_floor_spellings_round_trip() {
 /// for the cadence arc to consume.
 #[test]
 fn arm_entries_validate_their_shape() {
-    let ok = "nika: v1\narm:\n  - workflow: dx/workflows/w.nika.yaml\n    cadence: \"TZ=Europe/Paris 0 9 * * 1\"\n    plafond: 0.35\n    manqué: rattraper\n  - workflow: dx/workflows/v.nika.yaml\n    cadence: on-webhook\n    où: cloud\n    plafond: 2.00\n    manqué: rattraper-une-fois\n";
+    let ok = "nika: v1\narm:\n  - workflow: workflows/w.nika.yaml\n    cadence: \"TZ=Europe/Paris 0 9 * * 1\"\n    plafond: 0.35\n    manqué: rattraper\n  - workflow: workflows/v.nika.yaml\n    cadence: on-webhook\n    où: cloud\n    plafond: 2.00\n    manqué: rattraper-une-fois\n";
     let p = parse(ok).expect("two beats parse");
     assert_eq!(p.arm().len(), 2);
     assert_eq!(
@@ -389,7 +389,7 @@ proptest::proptest! {
             for (slug, ou, manque, plafond) in &beats {
                 write!(
                     doc,
-                    "  - workflow: dx/workflows/{slug}.nika.yaml\n    cadence: \"dimanche 18h07\"\n    où: {ou}\n    plafond: {plafond}\n    manqué: {manque}\n"
+                    "  - workflow: workflows/{slug}.nika.yaml\n    cadence: \"dimanche 18h07\"\n    où: {ou}\n    plafond: {plafond}\n    manqué: {manque}\n"
                 ).unwrap();
             }
         }
@@ -399,7 +399,7 @@ proptest::proptest! {
         assert_eq!(p.registry.map(|r| r.floor), Some(tier));
         assert_eq!(p.arm().len(), beats.len());
         for (beat, (slug, ou, manque, plafond)) in p.arm().iter().zip(&beats) {
-            assert_eq!(beat.workflow, format!("dx/workflows/{slug}.nika.yaml"));
+            assert_eq!(beat.workflow, format!("workflows/{slug}.nika.yaml"));
             assert_eq!(beat.ou.map(ArmLocus::as_str), Some(*ou));
             assert_eq!(beat.manque.as_str(), *manque);
             assert_eq!(beat.plafond.to_bits(), plafond.to_bits());

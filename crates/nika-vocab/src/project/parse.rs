@@ -233,7 +233,7 @@ fn parse_arm_entry(node: &Node) -> Result<ArmEntry, ProjectError> {
             missing(
                 "workflow",
                 "REQUIRED — what fires",
-                "workflow: dx/workflows/mon-beat.nika.yaml",
+                "workflow: workflows/mon-beat.nika.yaml",
             )
         })?,
         cadence: cadence.ok_or_else(|| {
@@ -269,7 +269,7 @@ fn workflow_path(value: &Node) -> Result<String, ProjectError> {
         return Err(ProjectError::at(
             ProjectErrorKind::BadValue,
             format!("`workflow: {raw}` — a `*.nika.yaml` path relative to the registry"),
-            "workflow: dx/workflows/mon-beat.nika.yaml",
+            "workflow: workflows/mon-beat.nika.yaml",
             line_of(value.span()),
         ));
     }

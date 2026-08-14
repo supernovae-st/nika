@@ -101,7 +101,7 @@ fn validate_beat(beat: &Beat, faults: &mut Vec<CadenceError>) {
             w,
             CadenceErrorKind::WorkflowPath,
             "workflow: · un chemin `*.nika.yaml` relatif au registre (ni absolu, ni `..`, un vrai basename)",
-            "workflow: dx/workflows/mon-beat.nika.yaml",
+            "workflow: workflows/mon-beat.nika.yaml",
         ));
     }
     if let Err(fault) = Cadence::parse(&beat.cadence) {

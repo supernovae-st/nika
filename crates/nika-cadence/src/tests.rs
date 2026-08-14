@@ -52,7 +52,7 @@ const HEALTHY: &str = "
 nika: v1
 ceiling: 0.50
 arm:
-  - workflow: dx/workflows/geo-probe.nika.yaml
+  - workflow: workflows/geo-probe.nika.yaml
     cadence: TZ=Europe/Paris 0 9 * * 1
     plafond: 0.35
     manqué: sauter
@@ -403,7 +403,7 @@ fn the_ceiling_guard_refuses_zero_negative_infinite_and_nan() {
 nika: v1
 ceiling: 0.50
 arm:
-  - workflow: dx/workflows/geo-probe.nika.yaml
+  - workflow: workflows/geo-probe.nika.yaml
     cadence: TZ=Europe/Paris 0 9 * * 1
     plafond: {value}
     manqué: sauter
@@ -723,7 +723,7 @@ fn manque_and_plafond_are_required_without_default() {
         "
 nika: v1
 arm:
-  - workflow: dx/workflows/a.nika.yaml
+  - workflow: workflows/a.nika.yaml
     cadence: on-webhook
 ",
     );
@@ -744,7 +744,7 @@ fn a_suspension_tells_its_reason_and_its_expiry() {
         "
 nika: v1
 arm:
-  - workflow: dx/workflows/a.nika.yaml
+  - workflow: workflows/a.nika.yaml
     cadence: on-webhook
     plafond: 0.35
     manqué: sauter
@@ -759,7 +759,7 @@ arm:
         "
 nika: v1
 arm:
-  - workflow: dx/workflows/a.nika.yaml
+  - workflow: workflows/a.nika.yaml
     cadence: on-webhook
     plafond: 0.35
     manqué: sauter
@@ -778,7 +778,7 @@ arm:
         "
 nika: v1
 arm:
-  - workflow: dx/workflows/a.nika.yaml
+  - workflow: workflows/a.nika.yaml
     cadence: on-webhook
     plafond: 0.35
     manqué: sauter
@@ -796,7 +796,7 @@ fn apres_saut_only_rides_a_sauter_overlap() {
         "
 nika: v1
 arm:
-  - workflow: dx/workflows/a.nika.yaml
+  - workflow: workflows/a.nika.yaml
     cadence: on-webhook
     plafond: 0.35
     manqué: sauter
@@ -810,7 +810,7 @@ arm:
         "
 nika: v1
 arm:
-  - workflow: dx/workflows/a.nika.yaml
+  - workflow: workflows/a.nika.yaml
     cadence: on-webhook
     plafond: 0.35
     manqué: sauter
@@ -828,7 +828,7 @@ fn round_two_keys_are_refused_by_name() {
             "
 nika: v1
 arm:
-  - workflow: dx/workflows/a.nika.yaml
+  - workflow: workflows/a.nika.yaml
     cadence: on-webhook
     plafond: 0.35
     manqué: sauter
@@ -857,11 +857,11 @@ fn a_workflow_armed_twice_is_a_refusal() {
         "
 nika: v1
 arm:
-  - workflow: dx/workflows/a.nika.yaml
+  - workflow: workflows/a.nika.yaml
     cadence: on-webhook
     plafond: 0.35
     manqué: sauter
-  - workflow: dx/workflows/a.nika.yaml
+  - workflow: workflows/a.nika.yaml
     cadence: on-webhook
     plafond: 0.35
     manqué: sauter
@@ -884,7 +884,7 @@ fn an_unknown_key_dies_at_parse() {
         "
 nika: v1
 arm:
-  - workflow: dx/workflows/a.nika.yaml
+  - workflow: workflows/a.nika.yaml
     cadence: on-webhook
     plafond: 0.35
     manqué: sauter
@@ -901,7 +901,7 @@ fn tolerance_is_the_m_over_k_firm_form() {
         "
 nika: v1
 arm:
-  - workflow: dx/workflows/a.nika.yaml
+  - workflow: workflows/a.nika.yaml
     cadence: on-webhook
     plafond: 0.35
     manqué: sauter
@@ -917,7 +917,7 @@ arm:
         "
 nika: v1
 arm:
-  - workflow: dx/workflows/a.nika.yaml
+  - workflow: workflows/a.nika.yaml
     cadence: on-webhook
     plafond: 0.35
     manqué: sauter
@@ -933,7 +933,7 @@ fn only_hash_jitter_exists() {
         "
 nika: v1
 arm:
-  - workflow: dx/workflows/a.nika.yaml
+  - workflow: workflows/a.nika.yaml
     cadence: on-webhook
     plafond: 0.35
     manqué: sauter
@@ -974,7 +974,7 @@ fn the_span_survives_the_law_pass() {
         "
 nika: v1
 arm:
-  - workflow: dx/workflows/a.nika.yaml
+  - workflow: workflows/a.nika.yaml
     cadence: TZ=UTC 61 9 * * 1
     plafond: 0.35
     manqué: sauter
@@ -989,7 +989,7 @@ arm:
         Some((7, 9)),
         "le span survit à validate — sinon il ne peint jamais"
     );
-    assert_eq!(faults[0].on(), Some("dx/workflows/a.nika.yaml"));
+    assert_eq!(faults[0].on(), Some("workflows/a.nika.yaml"));
 }
 
 #[test]
@@ -1031,7 +1031,7 @@ fn the_workflow_path_is_relative_to_the_registry() {
     for path in [
         "/etc/cron.d/a.nika.yaml",
         "../hors-registre/a.nika.yaml",
-        "dx/.nika.yaml",
+        "workflows/.nika.yaml",
         "sub/.nika.yaml",
     ] {
         let yaml = format!(
