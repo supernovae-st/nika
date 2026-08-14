@@ -152,12 +152,12 @@ patterns:
 - glob: "crates/**/src/**"
   class: authored
   match_count: 736
-  aggregate_sha256: e73b0c5fc230316772a0f9a60e863a32831c87f5d9280a2aca59e791a07a14f7
+  aggregate_sha256: 1f913d915e14283a863467d8e3aef6755a3191ac9fb7d36bdfe237dd214a93a3
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
   match_count: 137
-  aggregate_sha256: 56ff705b379f8441514e804e4004d3aacca6a1511b336c15c6c25a2009164694
+  aggregate_sha256: 780892c394f645b3dbe191ee415a4892834657e1bb816e8839162f651c59b473
   evidence: "crate-owned tests + fixtures under tests/ — written with the crate per gate discipline, no generation markers"
 - glob: "crates/**"
   class: authored
@@ -173,12 +173,12 @@ patterns:
 - glob: "docs/adr/**"
   class: authored
   match_count: 79
-  aggregate_sha256: fbe1634f0da8ebf7fb8de326b309ee290da56226b1345bece16e3b5159167941
+  aggregate_sha256: 2e2c5d8c16b2443f4fffc23fdeab4c2f2c20c2c6292ae9cb374c82535b025021
   evidence: "per-decision records authored at decision time (scripts/adr/new.sh scaffolds · adr-seal-check hook seals); index.toml excepted in files:"
 - glob: "docs/**"
   class: authored
   match_count: 101
-  aggregate_sha256: f997ed9df159ff9b8748f89135c367f4404db7cb013a38bcf57fdd0da4429020
+  aggregate_sha256: 227cf47953769506a8d7a7a1c88a0eda5d5f4a953b96cb3fe6e41cc2fc900c8b
   evidence: "crate-specs · architecture prose · perf notes — no generation markers at file heads"
 - glob: "scripts/**"
   class: authored

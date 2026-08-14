@@ -714,7 +714,7 @@ mod tests {
 
     #[test]
     fn used_but_undeclared_never_produces_a_drift_hint() {
-        // `${{ vars.ghost }}` with NOTHING declared: the conformance
+        // `${{ inputs.ghost }}` with NOTHING declared: the conformance
         // ladder owns it (NIKA-VAR-001) — the drift pass stays silent
         // (the two codes must never fire on the same reference).
         let wf = parse(

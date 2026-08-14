@@ -121,7 +121,7 @@ fn issue_511_unterminated_quote_refuses_in_both_vocabularies() {
     );
     assert!(scan_islands(s).is_err(), "the scanner still refuses");
     // The everyday forms are untouched.
-    assert_eq!(single_island("${{ vars.x }}"), Some("vars.x"));
+    assert_eq!(single_island("${{ inputs.x }}"), Some("inputs.x"));
     assert_eq!(
         single_island("  ${{ tasks.a.output }}  "),
         Some("tasks.a.output")

@@ -323,7 +323,7 @@ fn template_island_without_tasks_dot_offers_nothing() {
     let items = completion(text, text.len());
     assert!(
         !labels(&items).iter().any(|l| l == "extract"),
-        "an `${{{{ vars.` island is not a tasks ref: {:?}",
+        "an `${{{{ inputs.` island is not a tasks ref: {:?}",
         labels(&items)
     );
 }

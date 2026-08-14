@@ -305,7 +305,7 @@ mod tests {
         // An interpreter + script file is the HELPER class even when the
         // script name suggests HTTP — the umbrella advice owns it.
         let h = sole_native_hint(&exec_wf(
-            "[\"node\", \"workflows/site/bin/crawl-and-upload.mjs\", \"--url\", \"${{ vars.site }}\"]",
+            "[\"node\", \"workflows/site/bin/crawl-and-upload.mjs\", \"--url\", \"${{ inputs.site }}\"]",
         ));
         assert!(h.advice.contains("native-first/005"), "{h:?}");
         assert!(h.advice.contains("exec ledger"), "{h:?}");
@@ -374,7 +374,7 @@ mod tests {
             "[\"qrt\", \"product\", \"create\", \"--json\"]",
             "\"make release\"",
             "\"nika run subroutine.nika.yaml\"",
-            "\"${{ vars.tool }} --flag\"",
+            "\"${{ inputs.tool }} --flag\"",
         ] {
             let hints = hints_of(&exec_wf(command));
             assert!(

@@ -625,8 +625,8 @@ tasks:
 
     #[test]
     fn dynamic_argv_head_widens_to_any_not_a_garbage_literal() {
-        // `["${{ vars.bin }}"]` must NOT be inferred as a literal program
-        // named `${{ vars.bin }}` — the head is dynamic → exec: true + note.
+        // `["${{ inputs.bin }}"]` must NOT be inferred as a literal program
+        // named `${{ inputs.bin }}` — the head is dynamic → exec: true + note.
         let r = infer_of(
             "nika: w\nconst: { bin: \"git\" }\ntasks:\n  t:\n    exec: { command: [\"${{ const.bin }}\", \"status\"] }\n",
         );

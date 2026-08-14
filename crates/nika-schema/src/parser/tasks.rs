@@ -853,8 +853,8 @@ tasks:
     exec: { shell: echo a }
   b:
     after: { a: success }
-    when: ${{ vars.flag == true }}
-    for_each: { items: \"${{ vars.items }}\" }
+    when: ${{ inputs.flag == true }}
+    for_each: { items: \"${{ inputs.items }}\" }
     exec: { shell: echo b }
 ";
         let wf = parse_strict(yaml).expect("parse");
@@ -864,11 +864,11 @@ tasks:
         assert_eq!(b.after[0].1.value, AfterPredicate::Success);
         assert_eq!(
             b.when.as_ref().expect("when").value,
-            WhenGate::Expr("${{ vars.flag == true }}".into())
+            WhenGate::Expr("${{ inputs.flag == true }}".into())
         );
         assert_eq!(
             b.for_each.as_ref().expect("for_each").value,
-            crate::raw::ForEachValue::Expression("${{ vars.items }}".into())
+            crate::raw::ForEachValue::Expression("${{ inputs.items }}".into())
         );
     }
 
@@ -924,7 +924,7 @@ tasks:
 tasks:
   scrape_all:
     for_each:
-      items: \"${{ vars.urls }}\"
+      items: \"${{ inputs.urls }}\"
       max_parallel: 5
       fail_fast: false
     exec: { command: [echo] }

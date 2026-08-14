@@ -237,7 +237,7 @@ tasks:
 
     #[test]
     fn dynamic_argv_head_is_a_runtime_concern_not_a_static_escape() {
-        // `["${{ vars.bin }}", "x"]` — the program is template-built. The
+        // `["${{ inputs.bin }}", "x"]` — the program is template-built. The
         // static check must NOT compare the raw `${{ }}` island against the
         // allowlist (that was a false positive); runtime NIKA-SEC-004 owns it.
         let y = "nika: w\nconst: { bin: \"git\" }\npermits: { exec: [\"git\"] }\ntasks:\n  t:\n    exec: { command: [\"${{ const.bin }}\", \"status\"] }\n";
@@ -615,7 +615,7 @@ const: { x: "y" }
 permits: { exec: ["git"] }
 tasks:
   t:
-    exec: { command: ["git", "${{ vars.x }}"] }
+    exec: { command: ["git", "${{ inputs.x }}"] }
 "#;
         assert!(escapes(y).is_empty(), "git allowed; the arg is just data");
     }

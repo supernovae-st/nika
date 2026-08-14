@@ -915,7 +915,7 @@ fn plan_prints_wave_membership_with_verbs_and_targets() {
 fn plan_announces_the_skip_when_conformance_fails() {
     let text = checked_text(
         "plan-skip.nika.yaml",
-        "nika: bad-ref\ntasks:\n  a:\n    exec: { command: [\"echo\", \"${{ vars.nope }}\"] }\n",
+        "nika: bad-ref\ntasks:\n  a:\n    exec: { command: [\"echo\", \"${{ inputs.nope }}\"] }\n",
         true,
     );
     assert!(

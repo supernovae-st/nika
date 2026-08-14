@@ -222,7 +222,7 @@ mod tests {
         let vars = BTreeMap::new();
         let scope = Scope::workflow(&records, &vars);
         let mut action = RawExecAction::with_command(RawCommand::Shell(spanned("true")));
-        action.cwd = Some(spanned("${{ vars.nope }}"));
+        action.cwd = Some(spanned("${{ inputs.nope }}"));
         let mut input = ExecInput::shell("true");
         assert!(render_exec_io(&mut input, &action, &scope).is_err());
     }

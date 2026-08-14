@@ -31,7 +31,7 @@ use super::position::LineIndex;
 pub fn definition(uri: &Uri, text: &str, offset: usize) -> Option<Location> {
     let wf = parse(text, FileId::new(0), ParseMode::Lenient).ok()?;
     let index = LineIndex::new(text);
-    // member refs (`${{ vars.X }}` · `secrets.X` · `env.X`) jump to
+    // member refs (`${{ inputs.X }}` · `const.X` · `secrets.X`) jump to
     // their declaration — the parser's own name spans.
     if let Some((span, len)) = member_decl_target(&wf, text, offset) {
         return Some(Location::new(uri.clone(), token_range(&index, span, len)));

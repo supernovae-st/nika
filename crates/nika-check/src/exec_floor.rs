@@ -311,9 +311,9 @@ mod tests {
     #[test]
     fn templated_argv_makes_no_claim() {
         for command in [
-            "[\"${{ vars.tool }}\", \"-p\", \"1+1\"]",
-            "[\"node\", \"-p\", \"${{ vars.code }}\"]",
-            "[\"node\", \"${{ vars.flag }}\", \"1+1\"]",
+            "[\"${{ inputs.tool }}\", \"-p\", \"1+1\"]",
+            "[\"node\", \"-p\", \"${{ inputs.code }}\"]",
+            "[\"node\", \"${{ inputs.flag }}\", \"1+1\"]",
         ] {
             let findings = floor_findings(&exec_wf(command));
             assert!(

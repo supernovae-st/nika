@@ -207,7 +207,7 @@ fn check_row(t: &nika_schema::raw::RawTask, row: &TaskContribution) -> Result<()
         None => FanOut::Known(1),
         Some(ForEachValue::List(arr)) => FanOut::Known(arr.as_array().map_or(1, Vec::len) as u64),
         // Intentional asymmetry with `cost::static_vars_array_len`: a static
-        // `${{ vars.<name> }}` array stays a `Collection` witness here even
+        // `${{ inputs.<name> }}` array stays a `Collection` witness here even
         // though cost.rs resolves it to a count. The certificate verifies
         // STRUCTURE, not spend — `FanOut::Known` would require the certificate
         // schema to carry the resolved count, which it does not.
@@ -411,7 +411,7 @@ fn contribution(t: &nika_schema::raw::RawTask, default_model: Option<&str>) -> T
         None => FanOut::Known(1),
         Some(ForEachValue::List(arr)) => FanOut::Known(arr.as_array().map_or(1, Vec::len) as u64),
         // Intentional asymmetry with `cost::static_vars_array_len`: a static
-        // `${{ vars.<name> }}` array stays a `Collection` witness here even
+        // `${{ inputs.<name> }}` array stays a `Collection` witness here even
         // though cost.rs resolves it to a count. The certificate verifies
         // STRUCTURE, not spend — `FanOut::Known` would require the certificate
         // schema to carry the resolved count, which it does not.
@@ -580,7 +580,7 @@ mod tests {
         assert_eq!(c.effect_calls, konst(5));
         // a templated spec folds to the runtime cap (+ robots).
         let c = cert(&wf(
-            "  crawl:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://a.test\", traverse: \"${{ vars.spec }}\" } }\n",
+            "  crawl:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://a.test\", traverse: \"${{ inputs.spec }}\" } }\n",
         ));
         assert_eq!(c.effect_calls, konst(MAX_TRAVERSE_PAGES + 1));
         // a plain fetch stays exactly 1 (no traverse key).
@@ -781,7 +781,7 @@ mod tests {
     #[test]
     fn the_wire_shape_is_pinned() {
         let c = cert(&wf(
-            "  fan:\n    for_each: { items: \"${{ vars.items }}\" }\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 5 }\n",
+            "  fan:\n    for_each: { items: \"${{ inputs.items }}\" }\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 5 }\n",
         ));
         let json = serde_json::to_value(&c).expect("serializes");
         assert_eq!(

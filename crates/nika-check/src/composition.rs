@@ -742,7 +742,7 @@ outputs:
 
     #[test]
     fn templated_target_is_comp_001_purely() {
-        let wf = parse(&parent_yaml("./x-${{ vars.env }}.nika.yaml", "{}"));
+        let wf = parse(&parent_yaml("./x-${{ inputs.env }}.nika.yaml", "{}"));
         let f = scan_static(&wf);
         assert_eq!(f.len(), 1, "{f:?}");
         assert_eq!(f[0].code, "NIKA-COMP-001");
