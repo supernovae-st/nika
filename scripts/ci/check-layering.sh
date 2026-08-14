@@ -59,8 +59,18 @@ parse_layers() {
   ' Cargo.toml
 }
 
-# Build an associative array: crate → layer
-declare -A CRATE_LAYER
+# Build an associative array: crate → layer.
+#
+# The `=()` is load-bearing. `declare -A CRATE_LAYER` alone leaves the
+# variable UNSET, and under `set -u` (with no `set -e`) the guard below
+# expands `${#CRATE_LAYER[@]}` on an unset name: bash writes "unbound
+# variable" to stderr, the `if` test itself fails, and the protective
+# `exit 2` is SKIPPED. Execution then walks past the loop — which cannot
+# iterate an empty map — straight to `exit 0`. Measured with a real
+# upward L0→L4 dep planted and the metadata section renamed: "OK: all 0
+# admitted crates respect layer discipline", rc=0. Assigning once makes
+# the name bound, so the guard can actually fire.
+declare -A CRATE_LAYER=()
 while IFS='=' read -r crate layer; do
   [ -z "$crate" ] && continue
   CRATE_LAYER["$crate"]="$layer"
@@ -70,6 +80,21 @@ if [ ${#CRATE_LAYER[@]} -eq 0 ]; then
   echo "❌ No [workspace.metadata.diamond.layers] section found in Cargo.toml" >&2
   exit 2
 fi
+
+# Every declared layer must be one this script can rank. `layer_rank`
+# answers -1 for anything else, and -1 is never `-gt` a real rank, so an
+# unrecognised layer made a crate INVISIBLE as a dependency target: any
+# crate could depend upward on it and pass. The default arm has to fail
+# closed, and it cannot do so from inside `layer_rank` — that runs in a
+# command substitution, where `exit` ends only the subshell. So validate
+# here, once, before any comparison is trusted.
+for _crate in "${!CRATE_LAYER[@]}"; do
+  if [ "$(layer_rank "${CRATE_LAYER[$_crate]}")" -lt 0 ]; then
+    echo "❌ ${_crate} declares layer '${CRATE_LAYER[$_crate]}', which this script cannot rank." >&2
+    echo "   Add it to layer_rank() or fix Cargo.toml — an unrankable layer is unenforceable." >&2
+    exit 2
+  fi
+done
 
 violations=0
 

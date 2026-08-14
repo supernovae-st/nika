@@ -24,7 +24,13 @@ REPO_ROOT="$(cd "$HERE/../.." && pwd)"
 cd "$REPO_ROOT" || exit 2
 
 # Parse [workspace.metadata.diamond.layers] → associative crate→layer.
-declare -A CRATE_LAYER
+#
+# The `=()` is load-bearing: `declare -A X` alone leaves the name UNSET,
+# and under `set -u` every later `${#X[@]}` / `${!X[@]}` expansion fails
+# instead of reading empty. With no `set -e` the script does not stop —
+# it just skips whatever those expansions were guarding. Assigning once
+# makes the name bound.
+declare -A CRATE_LAYER=()
 while IFS='=' read -r crate layer; do
   [ -z "$crate" ] && continue
   CRATE_LAYER["$crate"]="$layer"
@@ -43,7 +49,7 @@ done < <(awk '
 # Format in Cargo.toml: `layer-bans.L0 = ["tokio", ...]` or
 # `layer-bans."L0.5" = ["tokio", ...]`.
 # Output: one "layer|dep" per line per banned entry.
-declare -A LAYER_BANS
+declare -A LAYER_BANS=()
 while IFS='|' read -r layer dep; do
   [ -z "$layer" ] && continue
   existing="${LAYER_BANS[$layer]:-}"
@@ -70,6 +76,22 @@ done < <(awk '
     }
   }
 ' Cargo.toml)
+
+# Fail CLOSED on an empty harvest. There was no check here at all: with no
+# layers parsed the loop below has nothing to iterate, every ban is skipped,
+# and the script reaches its OK line having enforced nothing. A rename of
+# the metadata section — or a parse that stops matching it — reads exactly
+# like a clean workspace.
+if [ ${#CRATE_LAYER[@]} -eq 0 ]; then
+  echo "RED: no [workspace.metadata.diamond] layers.* rows parsed from Cargo.toml" >&2
+  echo "  (nothing to check is not the same as nothing to fix)" >&2
+  exit 2
+fi
+if [ ${#LAYER_BANS[@]} -eq 0 ]; then
+  echo "RED: no [workspace.metadata.diamond] layer-bans.* rows parsed from Cargo.toml" >&2
+  echo "  (this vector exists to enforce them; zero bans enforces nothing)" >&2
+  exit 2
+fi
 
 violations=0
 for crate in "${!CRATE_LAYER[@]}"; do
