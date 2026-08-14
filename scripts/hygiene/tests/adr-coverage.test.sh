@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# COVERS: scripts/ci/check-adr-coverage.sh
 # Mutation proof for the ADR-coverage gate's one BLOCKING branch: a new
 # crate staged without the ADR that justifies admitting it.
 #

@@ -18,11 +18,11 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4449
+  classified_files: 4451
   file_rows: 11
   pattern_rows: 22
   by_class:
-    authored: 1513
+    authored: 1515
     authored-pin: 2
     generated: 121
     pinned-copy: 117
@@ -140,7 +140,7 @@ patterns:
 - glob: "crates/*/public-api.txt"
   class: generated
   match_count: 65
-  aggregate_sha256: bc70f6d0541b616067db43412d3446837994ba90a6b245f7c9d859ec5d5f862c
+  aggregate_sha256: 7f80333983ce6c544d7688c52dc20ac8aa67d9e721dc6c2872e9a2cb4b52d43e
   evidence: ".github/workflows/public-api.yml 'diff each covered lib crate' byte-compares each snapshot against cargo public-api output; macOS renders differently, so snapshots regenerate FROM THE UBUNTU ARTIFACT (workflow comment)"
   derivation:
     tool: "cargo public-api -p <crate> --omit auto-trait-impls > crates/<crate>/public-api.txt (DEFAULT features · the CI job shape — all-features drags platform deps into the render · cargo-public-api 0.51.0 pinned · the public-api-actual CI artifact stays the judge)"
@@ -151,8 +151,8 @@ patterns:
     - "cargo-public-api 0.51.0"
 - glob: "crates/**/src/**"
   class: authored
-  match_count: 764
-  aggregate_sha256: 4fdbb549bb31bc891c1f753cde82d66e7bdbbc3a03ec554d6875b6e8b83acf3b
+  match_count: 765
+  aggregate_sha256: 0db427a29f3f0aa8a4c79df6f08f71baf597b93f7efd20b75156ad52d30610da
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
@@ -182,8 +182,8 @@ patterns:
   evidence: "crate-specs · architecture prose · perf notes — no generation markers at file heads"
 - glob: "scripts/**"
   class: authored
-  match_count: 145
-  aggregate_sha256: 38abc4a560f7948f55b03cc776c9503cee448c9f3f4a9ebd5019028bc097ed3b
+  match_count: 146
+  aggregate_sha256: fed158323b2e8c380be68cc455e245806de7d193bf453aa9892d0e1886f7d570
   evidence: "hand-written gates · hooks · hygiene vectors · media lanes; the ratchet baselines (scripts/ci/*-baseline.txt · scripts/hygiene/baselines/) are hand-kept monotonic floors ('Never remove a line by hand')"
 - glob: ".github/workflows/**"
   class: authored

@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# COVERS: scripts/hooks/block-private-paths.sh
 # Mutation proof for the pre-commit private-path gate.
 #
 # The gate reads `git diff --cached`, so every case here is a real staged

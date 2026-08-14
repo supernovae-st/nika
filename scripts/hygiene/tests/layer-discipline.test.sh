@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# COVERS: scripts/ci/check-layering.sh scripts/hygiene/check-layer-deps.sh
 # Mutation proof for the two layer vectors — check-layering (upward deps)
 # and check-layer-deps (per-layer banned third-party deps).
 #
