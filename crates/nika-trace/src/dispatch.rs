@@ -144,6 +144,11 @@ pub fn trace_verb(
                 Err(code) => code,
             }
         }
+        trace::TraceAction::Session { trace, workflow } => emit(&trace::session::session(
+            &trace::manage::resolve_store_handle(&trace).to_string_lossy(),
+            &workflow,
+            theme,
+        )),
     }
 }
 

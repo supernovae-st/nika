@@ -21,6 +21,7 @@ nika-check    = { path = "../nika-check", version = "0.108.0" }    # check_compo
 nika-runtime  = { path = "../nika-runtime", version = "0.108.0" }  # proof::receipt (the receipt verb) + the loader's judged-semantic stamp
 nika-http     = { path = "../nika-http", version = "0.108.0" }     # ReqwestHttp — the anchor's Rekor/RFC 3161 clients
 nika-catalog  = { path = "../nika-catalog", version = "0.108.0", features = ["providers", "pricing"] }  # the F-P18 cost-replay pin (verify's stated leg)
+nika-tui-core = { path = "../nika-tui-core", version = "0.108.0" }  # the session LAW (waves · idle · bottleneck · spend by verb) — L4→L4, same layer; `trace session` is its first engine-side caller
 clap          = { workspace = true }                               # the trace verb's clap seam (TraceAction · EvidenceArgs · ReceiptAction)
 serde         = { workspace = true }                               # the forecast report's Serialize (the explain --json surface)
 serde_json    = { workspace = true }                               # NDJSON journal parse · the evidence pack envelope
