@@ -19,15 +19,31 @@ missing=""
 #
 # The list below IS the city (D-2026-07-29-N10 · thirteen buildings). It gained
 # nika-action, nika-actions-starter, gh-nika and nika-estate, which were doing
-# real work outside the map, and lost nika-site-audit and nika-starter, which
-# were archived: the first because its syntax drifted from the released grammar,
-# the second because it shared nine of twelve files with nika-actions-starter.
-# An archived repo must NOT be advertised on the front page, so this vector
-# tracks the living city rather than a frozen snapshot of it.
-for repo in nika nika.sh nika-client nika-spec nika-docs nika-vscode nika-plugins \
-  gh-nika nika-registry homebrew-tap nika-action nika-actions-starter \
-  nika-estate; do
-  echo "$content" | grep -q "$repo" || missing="${missing}${repo} "
+# real work outside the map, and lost nika-site-audit and nika-starter.
+#
+# 2026-08-14 · that exclusion was justified here as "both archived". The API
+# says otherwise for one of them: nika-site-audit IS archived, but
+# nika-starter is archived=false, private=false, and was updated 2026-08-04.
+# Whether a live public repo belongs on the front page is a curation call and
+# this vector does not make it — but the stated reason was checkable and
+# wrong, so it no longer claims it.
+#
+# Matching is WHOLE-WORD. `grep -q "$repo"` was a bare substring test, so one
+# mention of `nika-actions-starter` satisfied `nika`, `nika-action` AND
+# `nika-actions-starter` at once, and `nika.sh`'s unescaped `.` matched any
+# character. All thirteen appear as whole words on the profile today, so this
+# changes no verdict — it stops a future removal from being covered by a
+# longer sibling's name.
+REPOS=(
+  nika nika.sh nika-client nika-spec nika-docs nika-vscode nika-plugins
+  gh-nika nika-registry homebrew-tap nika-action nika-actions-starter
+  nika-estate
+)
+for repo in "${REPOS[@]}"; do
+  escaped="${repo//./\\.}"
+  printf '%s' "$content" \
+    | grep -qE "(^|[^A-Za-z0-9._-])${escaped}([^A-Za-z0-9._-]|$)" \
+    || missing="${missing}${repo} "
 done
 
 if [ -n "$missing" ]; then
@@ -51,8 +67,18 @@ if [ -n "$canon" ]; then
     exit 1
   fi
 else
-  echo "warn: canon.yaml unreachable — counts parity skipped"
+  # YELLOW, not green. This branch used to print "counts parity skipped" and
+  # then fall through to a verdict that says "counts match canon" — the
+  # script announced the measurement it had just declined to make, and
+  # returned 0 while doing it. A verdict must never claim a measurement that
+  # did not happen. Tier 1 (yellow) is right here: an unreachable network
+  # source is not a drift finding, so it must not block, but it is not a
+  # clean bill of health either.
+  echo "YELLOW (all ${#REPOS[@]} canonical repos listed · counts NOT verified:"
+  echo "        canon.yaml unreachable, so the profile's quoted counts were"
+  echo "        never compared against the SSOT)"
+  exit 1
 fi
 
-echo "OK (all canonical repos listed · counts match canon)"
+echo "OK (all ${#REPOS[@]} canonical repos listed · counts match canon)"
 exit 0
