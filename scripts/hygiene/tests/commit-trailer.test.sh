@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# COVERS: scripts/hooks/validate-conventional-commit.sh
 # Mutation proof for the commit-msg gate's co-author trailer.
 #
 # The gate had two patterns and passed if EITHER matched. The second was
