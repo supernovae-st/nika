@@ -45,7 +45,7 @@ keep their number: renumbering is churn for no value.
 | 6 | `check-crate-specs.sh` | Every admitted crate has `docs/crate-specs/nika-X.md` · live-anchored `~NNN LOC src (live · …)` numbers stay within ±15% of `scripts/crate-metrics.sh` (no hardcoded drift) |
 | 7 | *(killed 2026-04-17)* | was `check-linear.sh` — no-op stub without `LINEAR_API_KEY`, misleading green. Linear integration lives in its own MCP, not hygiene |
 | 8 | `check-milestones.sh` | GitHub milestone progress sanity |
-| 9 | `check-org-readme.sh` | Org profile README mentions all 6 canonical repos |
+| 9 | `check-org-readme.sh` | Org profile README mentions every canonical public repo (whole-word, so a longer sibling's name cannot cover a missing one) · and the counts it quotes match `canon.yaml`. YELLOW when canon.yaml is unreachable — the parity is then unmeasured, and the verdict says so rather than asserting it. The count derives from the list in the script; it was written here as "6" while the script carried 13 |
 | 10 | `check-license.sh` | LICENSE file present + AGPL-3.0-or-later (renamed from `check-citation.sh` 2026-04-16; name was misleading — never checked CITATION.cff which doesn't exist) |
 | 11 | `check-unwraps.sh` | Zero `.unwrap()` / `.expect(` outside tests |
 | 12 | `check-file-loc.sh` | Three-tier file-LOC discipline (ADR-023): 800 YELLOW / 1500 RED / 3000 CRITICAL with `// LOC-EXEMPT: <reason>` marker (codegen, lookup-table, enum-mega) |
@@ -90,20 +90,27 @@ keep their number: renumbering is churn for no value.
 - Any red → open (or update) 1 idempotent issue with label `hygiene-drift`
   containing the full output
 
-## Olympus dashboard auto-refresh (post-commit)
+## Olympus dashboard auto-refresh (post-commit) — RETIRED 2026-08-14
 
-After every engine commit, lefthook fires
-`scripts/hooks/post-commit-olympus-xtask.sh` in the background (nohup +
-`pnpm tsx olympus/scripts/xtask.ts`). This regenerates
-`olympus/data/workspace.json` + `data/snapshots/<timestamp>.json`
-+ `data/hygiene-status.json`, which the Olympus file-watcher picks up
-via `WorkspacePatchKind` so `/timeline`, `/graph/diff`, `/graph/fitness`,
-and `/hygiene` all refresh live without manual reload.
+There was a `post-commit-olympus-xtask` hook here that regenerated an
+Olympus dashboard after every engine commit. It is gone.
 
-The hook is non-blocking: commits always succeed. Missing pnpm or a
-missing olympus sibling directory causes a silent skip logged to
-`.nika/post-commit-xtask.log`. The log is gitignored via the root
-`/.nika/` entry.
+It resolved its target as `<engine>/../../olympus`, which the tree moved
+out from under: that path names `…/repos/olympus`, and Olympus lives at
+`ventures/olympus`. The hook opened with `[ -d "$OLYMPUS" ] || exit 0`
+placed ABOVE its own log write, so once the directory was gone it left
+no trace at all — it did not even create `.nika/`.
+
+Its own log is the record: 190 fires ever, the last at
+`2026-06-05T15:05:13Z`, ending in `ERR_MODULE_NOT_FOUND`. **1722
+commits since, in silence.**
+
+Repair was not available. The receiving `scripts/xtask.ts` still exists
+in the Olympus OS repo, but that repo has no `package.json`, so the
+`pnpm tsx` invocation cannot resolve; its output `data/workspace.json`
+is not tracked anywhere; and `olympus studio health` has since taken
+over the job. Re-pointing the path would only have reached a script
+that cannot run.
 
 ## Integration with Claude Code hooks
 

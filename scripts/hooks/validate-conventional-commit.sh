@@ -53,6 +53,10 @@ else
   readonly VALID_SCOPES="${UNDERIVABLE_SCOPES}|ci|hooks|hygiene|adr|release|test|nika-[a-z0-9-]+"
 fi
 readonly COAUTHOR_PATTERN='^Co-Authored-By: Nika 🦋 <nika@supernovae\.studio>$'
+# The tolerant form, for the shapes that really occur (`nika-bot 🦋`,
+# `nika-release[bot]`). Anchored at BOTH ends, and the identity it pins is
+# the EMAIL — a display name is decoration, an address is a claim.
+readonly COAUTHOR_FALLBACK='^Co-Authored-By: [Nn]ika[^<]* <nika@supernovae\.studio>$'
 readonly MAX_HEADER=100
 readonly MAX_BODY_LINE=72
 
@@ -146,9 +150,14 @@ for ((i = 1; i < ${#LINES[@]}; i++)); do
     die "Trailing whitespace on line $((i + 1)): '${line}'"
   fi
 
-  # Body line length (skip footer lines that contain URLs — common exception)
+  # Body line length. Trailers are exempt: they are not prose and their
+  # shape is fixed by whoever consumes them. `Signed-off-by:` was missing
+  # from this list, and the DCO trailer this repo REQUIRES is 77 chars —
+  # so every correctly signed commit earned a warning it could do nothing
+  # about, which is how a gate teaches people to skim past its output.
   LINE_LEN="${#line}"
-  if ((LINE_LEN > MAX_BODY_LINE)) && ! [[ "$line" =~ ^(https?://|Co-Authored-By:) ]]; then
+  if ((LINE_LEN > MAX_BODY_LINE)) \
+    && ! [[ "$line" =~ ^(https?://|[Cc]o-[Aa]uthored-[Bb]y:|[Ss]igned-off-by:) ]]; then
     warn "Body line $((i + 1)) is ${LINE_LEN} chars (target ≤${MAX_BODY_LINE}): '${line}'"
   fi
 done
@@ -156,16 +165,29 @@ done
 # ---------------------------------------------------------------------------
 # 7. Co-Authored-By: Nika 🦋 must be present in footer (as a REAL trailer)
 # ---------------------------------------------------------------------------
-# P0-2 Batch H+: both patterns anchored with ^...$ to reject commits that
-# only MENTION the trailer in prose (docs, comments, code fences) but lack
-# an actual trailer line. The previous `grep -qP` path relied on Perl regex
-# which BSD grep (default macOS) silently rejects; `2>/dev/null` hid the
-# failure and the non-anchored fallback made this gate substring-permissive.
-# Both patterns now use POSIX `grep -E`, portable across BSD + GNU.
+# P0-2 Batch H+: both patterns use POSIX `grep -E`, portable across BSD +
+# GNU. The previous `grep -qP` path relied on Perl regex, which BSD grep
+# (default macOS) silently rejects, and `2>/dev/null` hid the failure.
+#
+# 2026-08-14: the comment here used to claim "both patterns anchored with
+# ^...$". The first was. The second was `^Co-Authored-By: Nika( |$)`, where
+# `( |$)` is an ALTERNATION INSIDE the pattern, not a terminator for it —
+# match `Nika` followed by a space and everything to the right is
+# unconstrained. So this passed, rc=0:
+#
+#     Co-Authored-By: Nika Impostor <evil@example.com>
+#
+# and so did `Co-Authored-By: Nika Claude <claude@anthropic.com>`, which is
+# the one attribution the alignment doctrine exists to keep out — reachable
+# by prefixing the word `Nika`. A bare `Claude` trailer was correctly
+# rejected the whole time, which is what made the hole invisible.
+#
+# The fallback is now anchored at both ends and pins the EMAIL rather than
+# the display name.
 #
 # Only enforce on non-automated commits (already returned early for merge/fixup above)
 if ! printf '%s\n' "${LINES[@]}" | grep -qE "$COAUTHOR_PATTERN" \
-  && ! printf '%s\n' "${LINES[@]}" | grep -qE '^Co-Authored-By: Nika( |$)'; then
+  && ! printf '%s\n' "${LINES[@]}" | grep -qE "$COAUTHOR_FALLBACK"; then
   die "Missing footer: Co-Authored-By: Nika 🦋 <nika@supernovae.studio>
   Add it to your commit template or use: git commit --trailer 'Co-Authored-By: Nika 🦋 <nika@supernovae.studio>'"
 fi
