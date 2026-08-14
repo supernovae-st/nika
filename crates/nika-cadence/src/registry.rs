@@ -144,7 +144,7 @@ impl Beat {
 }
 
 /// Deployment locus — `où:` (`local | cloud`; moving is a one-word
-/// diff · "le cloud exécute, le calendrier reste à toi").
+/// diff · "le cloud exécute, le calendrier demeure à toi").
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize)]
 #[non_exhaustive]
 pub enum Locus {

@@ -82,7 +82,7 @@ fn parse_cron_with_zone_inside() {
 fn parse_readable_form_equals_cron_form() {
     let readable = Cadence::parse("TZ=Europe/Paris lundi 9h07").expect("lisible");
     let cron = Cadence::parse("TZ=Europe/Paris 7 9 * * 1").expect("cron");
-    assert_eq!(readable, cron, "les deux formes nomment le même créneau");
+    assert_eq!(readable, cron, "les deux écritures nomment le même créneau");
 }
 
 #[test]
@@ -417,7 +417,7 @@ arm:
     // And the healthy one still passes, so the guard is not simply always-on.
     assert!(
         !kinds(HEALTHY).contains(&CadenceErrorKind::PlafondNonPositive),
-        "0.35 est un plafond valide"
+        "0.35 est un plafond licite"
     );
 }
 
@@ -533,7 +533,7 @@ fn dst_gap_fires_at_the_first_valid_instant() {
     assert_eq!(
         utc(&slot.at),
         "2026-03-29T01:00:00Z",
-        "03:00 CEST, le premier instant valide"
+        "03:00 CEST, le premier instant licite"
     );
     assert_eq!(
         slot.shift,
@@ -543,7 +543,7 @@ fn dst_gap_fires_at_the_first_valid_instant() {
     assert_eq!(
         slot.civil.to_string(),
         "2026-03-29T02:30:00",
-        "le civil demandé reste lisible"
+        "le civil demandé demeure lisible"
     );
 }
 
@@ -576,7 +576,7 @@ fn dst_fold_fires_once_at_the_first_occurrence() {
     assert_eq!(first.shift, Shift::FoldedFirst, "le repli est DÉCLARÉ");
     let after = cadence
         .next_after(&first.at)
-        .expect("le lendemain, pas la seconde occurrence");
+        .expect("le lendemain, pas la 2e occurrence");
     assert_eq!(
         utc(&after.at),
         "2026-10-26T01:30:00Z",
@@ -698,7 +698,11 @@ fn a_webhook_yields_no_dates() {
 #[test]
 fn a_healthy_registry_validates_clean() {
     let reg = parse_registry(HEALTHY).expect("parse");
-    assert_eq!(validate(&reg).count(), 0, "aucun refus sur un fichier sain");
+    assert_eq!(
+        validate(&reg).count(),
+        0,
+        "aucun refus pour un fichier sain"
+    );
     assert_eq!(reg.nika, ArmRegistry::SCHEMA);
     assert_eq!(reg.beat_count(), 1);
     let beat = reg.beats().next().expect("un beat");

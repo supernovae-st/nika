@@ -55,14 +55,14 @@ pub fn validate(registry: &ArmRegistry) -> impl Iterator<Item = CadenceError> {
         faults.push(CadenceError::file(
             CadenceErrorKind::DeferredKey,
             "traces: · clé du round 2 — elle attend un manque mesuré",
-            "retire-la · la rétention reste aux 3 variables d env pour l instant",
+            "retire-la · la rétention demeure aux 3 variables d env pour l instant",
         ));
     }
     if registry.registry.is_some() {
         faults.push(CadenceError::file(
             CadenceErrorKind::DeferredKey,
             "registry: · clé du round 2 — elle attend un manque mesuré",
-            "retire-la · le plancher de provenance reste par machine pour l instant",
+            "retire-la · le plancher de provenance demeure par machine pour l instant",
         ));
     }
     let mut seen: Vec<&str> = Vec::new();
@@ -256,9 +256,9 @@ impl Cadence {
             return Err(CadenceError::file(
                 CadenceErrorKind::PhraseSyntax,
                 format!(
-                    "cadence `{text}` · la forme lisible est `<jour-fr> <H>h<MM>` (jour en minuscules · minute sur 2 chiffres)"
+                    "cadence `{text}` · la forme lisible est `<jour-fr> <H>h<MM>` (jour en minuscules · minute à 2 chiffres)"
                 ),
-                "ex. `TZ=Europe/Paris lundi 9h07` — tout le reste parle cron",
+                "ex. `TZ=Europe/Paris lundi 9h07` — sinon, c est du cron",
             )
             .with_span(faulty.unwrap_or((base, lead + text.len()))));
         }

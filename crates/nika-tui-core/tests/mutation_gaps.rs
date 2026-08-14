@@ -403,7 +403,7 @@ fn the_slowest_of_a_tie_is_the_first_member() {
     let span = derive::group_span(&members, &run).expect("un span");
     assert_eq!(
         span.slowest, "x",
-        "à durée égale le PREMIER reste le plus lent · `>=` le remplacerait"
+        "à durée égale le PREMIER demeure le plus lent · `>=` le remplacerait"
     );
     assert_eq!(span.n, 2);
 
