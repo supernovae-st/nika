@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# COVERS: scripts/hooks/run-ci-ratchets.sh scripts/ci/check-tests.sh
 # Mutation proof for the two vectors that used to narrow their own scope
 # and stay green doing it — run-ci-ratchets.sh and check-tests.sh.
 #

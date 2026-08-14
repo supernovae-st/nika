@@ -183,6 +183,15 @@ enum Command {
         #[command(subcommand)]
         action: verbs::key::KeyAction,
     },
+    /// What this project has ARMED, and when each beat next fires.
+    /// Read-only — it schedules nothing (the file proposes, the machine
+    /// disposes). Exit `0` clean · `2` the registry refuses.
+    ///
+    /// RANGED, never deleted (RAMS-13): the first screen is the twelve
+    /// day-one craft verbs, and arming a project is not day one. It
+    /// stays one flag away (`--help --all`) and AGENTS.md teaches it.
+    #[command(hide = true, display_order = 72)]
+    Arm,
     /// Sign a workflow file (S3 · author-binding): mint `<file>.minisig` · `--check` verifies.
     #[command(hide = true, display_order = 71)]
     Sign(verbs::sign::SignArgs),
@@ -723,6 +732,7 @@ fn dispatch_verb(
             forecast,
         } => emit(&explain_dispatch(&code, json, forecast, plain_theme)),
         Command::Key { action } => emit(&verbs::key::run(action)),
+        Command::Arm => emit(&verbs::arm::run()),
         Command::Sign(args) => emit(&verbs::sign::run(&args)),
         Command::Doctor(args) => doctor_verb(&args, plain_theme),
         Command::Init(args) => emit(&init_verb(&args, plain_theme)),

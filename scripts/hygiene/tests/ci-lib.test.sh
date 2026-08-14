@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# COVERS: scripts/ci/_lib.sh
 # Mutation proof for scripts/ci/_lib.sh — the file thirteen ratchets source.
 #
 # Two properties, both of which it failed until 2026-08-14, and neither of
