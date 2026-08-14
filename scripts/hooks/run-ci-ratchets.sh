@@ -1,16 +1,19 @@
 #!/usr/bin/env bash
 # run-ci-ratchets.sh — Tier 2 pre-push, engine context
 #
-# Runs all 9 CI ratchets from scripts/ci/ in parallel (mirrors diamond-ci.yml
+# Runs the CI ratchets from scripts/ci/ in parallel (mirrors diamond-ci.yml
 # matrix). Collects failures and reports them together rather than bailing
 # at the first failure, so the user sees all failures in one push attempt.
 #
-# Ratchets run:
-#   loc-limits, crate-size, fn-length, unwrap, expect,
-#   dead-code, no-default-features, adr-coverage, tests
+# The list lives in the RATCHETS array below and NOWHERE else. This header
+# used to carry a second copy that had drifted out of agreement with it:
+# it said "all 9", listed `tests` — which is explicitly NOT run here — and
+# never named `credential-headers`, which is. A prose list beside the real
+# one is a claim nothing checks.
 #
-# Note: check-tests.sh is excluded here (cargo test runs separately at pre-push
-# to ensure --lib flag and avoid --test which triggers keychain popup on macOS).
+# Note: check-tests.sh is deliberately not in that array (cargo test runs
+# separately at pre-push to keep the --lib flag and avoid --test, which
+# triggers the keychain popup on macOS).
 #
 # Exit: 0 = all pass | 1 = one or more failed
 #
@@ -46,6 +49,34 @@ if ! bash "${CI_DIR}/test-strip-test-items.sh" >/dev/null 2>&1; then
   exit 1
 fi
 
+# Pre-flight: every DECLARED ratchet must be runnable before any of them
+# runs. This used to be decided per-ratchet inside the launch loop, where a
+# missing — or merely non-executable — script printed a WARNING, hit
+# `continue`, and dropped out of RATCHET_NAMES. Since the green line below
+# counts RATCHET_NAMES, the denominator moved with it: `chmod 644` on one
+# file turned "all 9 ratchets passed" into "all 8 ratchets passed", exit 0,
+# and the push went through. The count was arithmetically true the whole
+# time, which is exactly why nobody would catch it.
+#
+# `-x` is the right test here — line ~52 invokes "$script" directly, so the
+# exec bit is genuinely required — it was the VERDICT that was wrong. The
+# fail-closed shape is the one this file already uses above for the filter
+# self-test: a dependency it cannot run means it cannot judge.
+UNRUNNABLE=()
+for ratchet in "${RATCHETS[@]}"; do
+  [[ -x "${CI_DIR}/check-${ratchet}.sh" ]] || UNRUNNABLE+=("$ratchet")
+done
+if ((${#UNRUNNABLE[@]} > 0)); then
+  printf '[ci-ratchets] FAIL — %d of %d declared ratchets cannot run:\n' \
+    "${#UNRUNNABLE[@]}" "${#RATCHETS[@]}" >&2
+  for ratchet in "${UNRUNNABLE[@]}"; do
+    printf '  %-22s %s (missing or not executable)\n' \
+      "$ratchet" "${CI_DIR}/check-${ratchet}.sh" >&2
+  done
+  printf '[ci-ratchets] a ratchet that did not run has not passed\n' >&2
+  exit 1
+fi
+
 TMPDIR_BASE="$(mktemp -d)"
 trap 'rm -rf -- "$TMPDIR_BASE"' EXIT
 
@@ -57,10 +88,6 @@ RATCHET_NAMES=()
 # ---------------------------------------------------------------------------
 for ratchet in "${RATCHETS[@]}"; do
   script="${CI_DIR}/check-${ratchet}.sh"
-  if [[ ! -x "$script" ]]; then
-    printf '[ci-ratchets] WARNING: %s not found or not executable\n' "$script" >&2
-    continue
-  fi
   out_file="${TMPDIR_BASE}/${ratchet}.out"
   # P1-2 Batch H+: the subshell inherits `set -e` from the parent, so if
   # "$script" exits non-zero the subshell terminates before writing .exit.
@@ -102,5 +129,13 @@ if ((${#FAILED[@]} > 0)); then
   exit 1
 fi
 
-printf '[ci-ratchets] all %d ratchets passed\n' "${#RATCHET_NAMES[@]}" >&2
+# The green states the DECLARED count and asserts the attempted count
+# matches it. Belt and braces after the pre-flight above: the number a gate
+# reports must never be one it derived from what happened to run.
+if ((${#RATCHET_NAMES[@]} != ${#RATCHETS[@]})); then
+  printf '[ci-ratchets] FAIL — %d of %d declared ratchets were attempted\n' \
+    "${#RATCHET_NAMES[@]}" "${#RATCHETS[@]}" >&2
+  exit 1
+fi
+printf '[ci-ratchets] all %d ratchets passed\n' "${#RATCHETS[@]}" >&2
 exit 0

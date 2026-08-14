@@ -5,8 +5,10 @@ name: pack-resync
 # sweep (2026-07-13) materialized it and found the pack ALREADY stale in
 # two files the coherence bot's canon-hash probe was blind to. Daily:
 # clone spec@main, run the ONE vendoring lane, open ONE idempotent PR on
-# drift — the 12-gate CI (pack integrity tests included) judges, never a
-# direct push. SECURITY: no github.event data reaches the shell.
+# drift — never a direct push. The job RUNS `nika-pack`'s own tests before
+# it opens anything (see the guard below): a bot PR carries no Rust job, so
+# delegating that judgement to CI would delegate it to nobody.
+# SECURITY: no github.event data reaches the shell.
 
 on:
   schedule:
@@ -22,9 +24,20 @@ jobs:
     permissions:
       contents: write # push the heal branch
       pull-requests: write # open the heal PR
-    timeout-minutes: 10
+    # Raised from 10: this job now RUNS its own tests before it opens
+    # anything, instead of delegating to a CI run that never comes.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # master
+        with:
+          toolchain: "1.91"
+      - uses: Swatinem/rust-cache@a45951ff880207c249adf57334cf2e9bd81d6e1e # v2
+        with:
+          shared-key: diamond
+      - uses: taiki-e/install-action@6c6fd71fe4fb72c3697d269963d0e15df8adedad # v2
+        with:
+          tool: cargo-nextest
       - name: The pack follows the spec
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -36,6 +49,24 @@ jobs:
           if git diff --cached --quiet; then echo "pack current — nothing to resync"; exit 0; fi
           python3 scripts/estate.py --write   # the manifest rides the heal (staged files first — estate.py reads the INDEX)
           git add estate.yaml
+
+          # THE JOB JUDGES ITSELF — the header above promised "the 12-gate CI
+          # (pack integrity tests included) judges". That judgement cannot
+          # happen: GitHub does not start workflow runs from events raised with
+          # the repository's GITHUB_TOKEN (anti-recursion), so a bot PR carries
+          # no Rust job. Measured 2026-08-13 on the sibling spec-pin lane: PR
+          # #904 held three checks (semgrep + 2 CodeQL), advanced the pin across
+          # an engine-breaking spec change, and reddened main with 240 failures.
+          # Scope: the whole `nika-pack` crate, not a list of test names — the
+          # list goes stale the day a fourth pack test lands, and a guard that
+          # names its subjects is a guard that misses the next one.
+          echo "::group::pack integrity at the candidate vendoring"
+          if ! cargo nextest run -p nika-pack --no-fail-fast; then
+            echo "::endgroup::"
+            echo "::error::the vendored pack does not pass its own tests — NOT vendored, no PR opened"
+            exit 1   # loud, not silent: a red cron run is the signal a human sees
+          fi
+          echo "::endgroup::"
           git config user.name "nika-release[bot]"
           git config user.email "nika@supernovae.studio"
           git checkout -B bot/pack-resync

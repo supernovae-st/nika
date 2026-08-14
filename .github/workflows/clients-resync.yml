@@ -9,8 +9,11 @@ name: clients-resync
 # happen to sit beside the checkout; it blocked two unrelated engine
 # pushes 2026-07-31). The assertion is gone from cargo test; the drift
 # surfaces here instead. Daily: clone nika-plugins@main, re-vendor, open
-# ONE idempotent PR on drift — Diamond CI (the vendored-bytes tests
-# included) judges the new snapshot, never a direct push.
+# ONE idempotent PR on drift — never a direct push. The job RUNS
+# `nika-cli-host`'s own tests before it opens anything (see the guard
+# below): a bot PR carries no Rust job, so delegating that judgement to
+# CI would delegate it to nobody — the wrong-judge class this lane was
+# created to escape, landed on again one layer out.
 # SECURITY: no github.event data reaches the shell.
 
 on:
@@ -27,9 +30,20 @@ jobs:
     permissions:
       contents: write # push the heal branch
       pull-requests: write # open the heal PR
-    timeout-minutes: 10
+    # Raised from 10: this job now RUNS its own tests before it opens
+    # anything, instead of delegating to a CI run that never comes.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # master
+        with:
+          toolchain: "1.91"
+      - uses: Swatinem/rust-cache@a45951ff880207c249adf57334cf2e9bd81d6e1e # v2
+        with:
+          shared-key: diamond
+      - uses: taiki-e/install-action@6c6fd71fe4fb72c3697d269963d0e15df8adedad # v2
+        with:
+          tool: cargo-nextest
       - name: The vendored matrix follows the agents SSOT
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -41,6 +55,24 @@ jobs:
           if git diff --cached --quiet; then echo "matrix current — nothing to resync"; exit 0; fi
           python3 scripts/estate.py --write   # the manifest rides the heal (staged files first — estate.py reads the INDEX)
           git add estate.yaml
+
+          # THE JOB JUDGES ITSELF — the header above promised "Diamond CI (the
+          # vendored-bytes tests included) judges". That judgement cannot
+          # happen: GitHub does not start workflow runs from events raised with
+          # the repository's GITHUB_TOKEN (anti-recursion), so a bot PR carries
+          # no Rust job. Note the irony this lane already documents: the drift
+          # check was MOVED here from a unit test to escape the wrong-judge
+          # class, and landed on a judge that never shows up.
+          # Scope: the whole `nika-cli-host` crate (it owns the vendored file
+          # written just above), not a list of test names — a list goes stale
+          # the day a fourth test lands.
+          echo "::group::the vendored matrix at the candidate snapshot"
+          if ! cargo nextest run -p nika-cli-host --no-fail-fast; then
+            echo "::endgroup::"
+            echo "::error::the vendored matrix does not pass its own tests — NOT vendored, no PR opened"
+            exit 1   # loud, not silent: a red cron run is the signal a human sees
+          fi
+          echo "::endgroup::"
           git config user.name "nika-release[bot]"
           git config user.email "nika@supernovae.studio"
           git checkout -B bot/clients-resync
