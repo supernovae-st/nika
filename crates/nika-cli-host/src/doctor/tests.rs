@@ -1361,3 +1361,45 @@ fn an_unlisted_warn_never_folds() {
         "no fold line without a foldable class: {calm}"
     );
 }
+
+/// The sandbox row (#891): a confined backend is Ok and names its
+/// mechanism — the Linux row carries the landlock id AND the allowlist
+/// residual, never a full-strength claim (#822 P3 · #893 owed).
+#[test]
+fn a_confined_backend_reads_ok_with_its_mechanism_named() {
+    let seatbelt = sandbox_finding(&crate::probe::SandboxProbe {
+        backend: "seatbelt",
+        confined: true,
+    });
+    assert_eq!(seatbelt.level, Level::Ok);
+    assert!(seatbelt.detail.contains("seatbelt"), "{seatbelt:?}");
+
+    let landlock = sandbox_finding(&crate::probe::SandboxProbe {
+        backend: "landlock",
+        confined: true,
+    });
+    assert_eq!(landlock.level, Level::Ok);
+    assert!(landlock.detail.contains("bubblewrap"), "{landlock:?}");
+    assert!(
+        landlock.detail.contains("allowlist = follow-on"),
+        "the residual is named, never greenwashed: {landlock:?}"
+    );
+}
+
+/// A noop backend WARNS with the per-OS fix (#891 · #822 P1) — never a
+/// green "sandboxed" over an unconfined spawn.
+#[test]
+fn a_noop_backend_warns_with_the_exact_fix() {
+    let finding = sandbox_finding(&crate::probe::SandboxProbe {
+        backend: "noop",
+        confined: false,
+    });
+    assert_eq!(finding.level, Level::Warn);
+    assert!(finding.detail.contains("UNCONFINED"), "{finding:?}");
+    let fix = finding.fix.expect("a noop carries the printed fix");
+    if cfg!(target_os = "linux") {
+        assert!(fix.contains("bubblewrap"), "{fix}");
+    } else {
+        assert!(fix.contains("sandbox-exec"), "{fix}");
+    }
+}

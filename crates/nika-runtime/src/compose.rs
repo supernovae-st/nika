@@ -568,6 +568,14 @@ pub struct RuntimeCapabilities {
     /// The workflow runs ≥1 `exec:` task — the noop-sandbox note reads it
     /// (a boundary with no exec has nothing to jail, so nothing to note).
     pub exec_tasks: bool,
+    /// An authority boundary was DECLARED over this run (`permits:` present
+    /// on the workflow — or inherited from the parent at a child
+    /// composition, spec 14's intersection) — the #889 policy gate's
+    /// severity signal: declared + exec + no OS backend refuses (auto)
+    /// or rides attested (off). ANY block counts (a tools-only block
+    /// still jails the exec child to the empty axes — F-O8 — a contract
+    /// a backend-less host silently voids).
+    pub permits_declared: bool,
 }
 
 /// Derive BOTH runtime capability boundaries from a parsed workflow — the
@@ -582,24 +590,8 @@ pub fn capabilities_of(wf: &nika_schema::raw::RawWorkflow) -> RuntimeCapabilitie
             .tasks
             .iter()
             .any(|t| matches!(t.value.action, nika_schema::raw::RawAction::Exec(_))),
+        permits_declared: wf.permits.is_some(),
     }
-}
-
-/// The OS command sandbox for this platform (ADR-095 Layer 6): macOS rides
-/// Seatbelt, Linux rides bubblewrap when the launcher is present, anything
-/// else is the deliberate [`nika_kernel::command_sandbox::NoopSandbox`] —
-/// selected HERE, logged at the call site, never the silent default (the
-/// kernel seam's own law).
-fn command_sandbox() -> Arc<dyn nika_kernel::command_sandbox::CommandSandbox> {
-    #[cfg(target_os = "macos")]
-    if nika_sandbox_seatbelt::SeatbeltSandbox::available() {
-        return Arc::new(nika_sandbox_seatbelt::SeatbeltSandbox::new());
-    }
-    #[cfg(target_os = "linux")]
-    if nika_sandbox_landlock::LandlockSandbox::available() {
-        return Arc::new(nika_sandbox_landlock::LandlockSandbox::new());
-    }
-    Arc::new(nika_kernel::command_sandbox::NoopSandbox)
 }
 
 /// The provider client's transport ceiling — `HttpConfig::timeout` on the
@@ -784,29 +776,37 @@ impl RunSeams {
 /// [`ReqwestHttp`] construction can fail if the TLS backend won't
 /// initialize (a `nika_kernel::HttpError`) — the run verb maps it to the
 /// environment exit code (3).
+pub use crate::sandbox_select::{ComposeError, apply_sandbox_policy};
+
+/// Compose the production runtime for one checked workflow — every real
+/// plane (http · dispatcher · provider · agent · sandbox) injected at
+/// the ONE composition root.
+///
+/// # Errors
+/// [`ComposeError::Http`] when the fetch/provider plane cannot build ·
+/// [`ComposeError::Sandbox`] when the policy requires confinement the
+/// host cannot provide (#889 · NIKA-1710) · [`ComposeError::Policy`]
+/// when `NIKA_SANDBOX` holds an unknown word.
 pub fn production_runtime(
     default_model: &str,
     caps: RuntimeCapabilities,
     run: Option<&RunDecl>,
-) -> Result<ProdRuntime, nika_kernel::HttpError> {
+) -> Result<ProdRuntime, ComposeError> {
     // F-P3 · the run: declaration picks the run's seams (clock · jitter
     // stream) ONCE; every injection below reads the same resolution.
     let seams = RunSeams::of(run);
-    // The OS sandbox for exec children (ADR-095 Layer 6) — selected once:
-    // the note AND the shell read the same backend. A declared boundary
-    // with exec tasks but no backend on this platform = the exec child
-    // runs unconfined; the builtin/fetch seams still enforce, said loudly.
-    let sandbox = command_sandbox();
-    // The backend NAME rides into the journal (`workflow_started.sandbox`)
-    // so the evidence pack reads the run's confinement mode from journal
-    // bytes — captured before the sandbox moves into the shell.
-    let sandbox_backend = sandbox.backend();
-    if caps.exec_tasks && caps.fs.is_declared() && sandbox_backend == "noop" {
-        eprintln!(
-            "note: exec runs UNCONFINED (no OS sandbox backend on this platform) — the \
-             declared boundary still gates fs/net at the builtin and fetch seams"
-        );
+    // The OS sandbox for exec children (ADR-095 Layer 6) — decided once, at
+    // the ONE selection every composition root rides (#888), then judged by
+    // the ONE policy knob (#889): permits declared + no backend = refusal.
+    let decision = crate::sandbox_select::select_command_sandbox();
+    let (policy, verdict) =
+        apply_sandbox_policy(&decision, caps.exec_tasks && caps.permits_declared)?;
+    // The backend NAME rides into the journal (`workflow_started.sandbox`).
+    let sandbox_backend = decision.backend();
+    if verdict == crate::sandbox_select::SandboxVerdict::Waived {
+        waived_operator_note();
     }
+    let sandbox = decision.into_sandbox();
     // The fetch/builtin client enforces SSRF (workflow URLs) AND the
     // declared permits.net.http boundary (NIKA-SEC-004 · per-hop).
     let http = Arc::new(fetch_http(caps.net)?);
@@ -875,7 +875,9 @@ pub fn production_runtime(
         seams.clock,
         RuntimeConfig::new(None, seams.jitter_seed)
             .with_sandbox_root(std::env::current_dir().unwrap_or_default())
-            .with_sandbox_backend(sandbox_backend),
+            .with_sandbox_backend(sandbox_backend)
+            .with_sandbox_policy(policy.as_str())
+            .with_sandbox_waived(verdict == crate::sandbox_select::SandboxVerdict::Waived),
     )
     .with_access_probes(access_probes)
     .with_harness_seat_id(crate::harness_seat::declared_id())
@@ -883,6 +885,17 @@ pub fn production_runtime(
     // store boundary). A miss leaves the secret unbound → NIKA-1702 (fail-
     // closed); the IFC governs where a resolved value may flow.
     .with_secret_resolver(Arc::new(EnvFileSecretResolver)))
+}
+
+/// #889 — the waiver's operator note: when the run proceeds unconfined BY
+/// CHOICE (`NIKA_SANDBOX=off`), say so once on stderr; the journal + the
+/// trace carry the attestation (`sandbox_policy` · `sandbox_waived`).
+fn waived_operator_note() {
+    eprintln!(
+        "note: exec runs UNCONFINED — the waiver is attested (NIKA_SANDBOX=off · \
+         journal + trace); the declared boundary still gates fs/net at the \
+         builtin and fetch seams"
+    );
 }
 
 /// Seat the verb (P3 B4.5) — the feature split, in one place.
@@ -1116,6 +1129,16 @@ mod tests {
             format!("{:?}", FsBoundary::unbounded()),
             "fs is a declared boundary when permits.fs is present"
         );
+        // #889's severity signal: the block's PRESENCE is what the policy
+        // gate reads — declared here, absent below.
+        assert!(caps.permits_declared, "a permits: block is declared");
+        let bare = capabilities_of(&parse(
+            "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    exec: { command: [\"echo\", \"hi\"] }\n",
+        ));
+        assert!(
+            !bare.permits_declared,
+            "no permits: block — the permitless best-effort stays (Q4.B)"
+        );
     }
 
     #[test]
@@ -1129,6 +1152,7 @@ mod tests {
                 fs: FsBoundary::unbounded(),
                 net: NetBoundary::Unbounded,
                 exec_tasks: false,
+                permits_declared: false,
             },
             None,
         );
@@ -1149,6 +1173,7 @@ mod tests {
                 fs: FsBoundary::unbounded(),
                 net: NetBoundary::Unbounded,
                 exec_tasks: false,
+                permits_declared: false,
             },
             None,
         );

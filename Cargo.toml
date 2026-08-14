@@ -307,7 +307,7 @@ bare_urls                  = "warn"
 [workspace.dependencies]
 # Pin once here, downstream uses `.workspace = true` (RUST_ENFORCEMENT §2).
 thiserror  = "2.0"
-minisign   = { version = "0.7", default-features = false }   # the seal/signature primitive (nika-dap custody · nika-store F-P8 envelopes)
+minisign   = { version = "0.9", default-features = false }   # the seal/signature primitive (nika-dap custody · nika-store F-P8 envelopes)
 regex      = "1.11"     # nika-builtin L1.5 — nika:grep pattern engine (RE2-class · no backrefs · the portable subset)
 include_dir = "0.7"   # nika-pack L0 · compile-time spec-pack embedding
 sha2 = "0.10"         # nika-pack dev · manifest integrity hashing + nika-event L0 · the source-identity hash
@@ -317,7 +317,7 @@ serde      = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 toml_edit  = "0.25"   # nika-cli L4 — `nika wire codex` patches ~/.codex/config.toml (comment-preserving)
 marked-yaml  = "0.8"
-serde-saphyr = { version = "0.0.29", features = ["miette"] }
+serde-saphyr = { version = "1.0.0", features = ["miette"] }
 phf        = { version = "0.14", features = ["macros", "unicase"] }
 unicase    = "2.9"
 
@@ -327,7 +327,7 @@ blake3        = "1"     # nika-blob L1 — content-addressed hashing (CC0-1.0 OR
 serde_json_canonicalizer = "0.3"   # nika-runtime L3 — RFC 8785 JCS bytes under the ADR-099 resume keys (MIT · rides the existing serde_json/ryu stack)
 annotate-snippets = "0.12"          # nika-cli L4 — rustc-grade painted diagnostics (rust-lang org · cargo depends on it · MIT OR Apache-2.0)
 anstyle = "1"                       # nika-cli L4 — the Style type annotate-snippets' renderer consumes (colour stays OUR seam mapping)
-unicode-normalization = "0.1"   # nika-exec-runner L1 — NFKC confusable-bypass defense in the command blocklist (MIT OR Apache-2.0)
+unicode-normalization = { version = "0.1", default-features = false }   # nika-types L0 (the shared argv exec-floor predicate · #605) — NFKC confusable-bypass defense in the command blocklist · no_std-compatible (the L0 leaf's no-std seam stays intact) · MIT OR Apache-2.0
 nix           = { version = "0.31", default-features = false, features = ["signal"] }   # nika-exec-runner L1 (unix) — safe killpg wrapper for process-group kill (encapsulates the unsafe signal FFI → crate stays unsafe_code = forbid · MIT)
 futures-core  = "0.3"
 parking_lot   = "0.12"
@@ -379,7 +379,7 @@ getrandom-02 = { package = "getrandom", version = "0.2" }  # nika-check-wasm L4 
 uuid     = { version = "1", features = ["v7", "v4", "serde"] }   # ADR-033 UUIDv7 IDs (nika-error L0) · v4 for nika:builtin nika:uuid
 clap     = { version = "4.5", features = ["derive"] }       # L4 CLI surface (completions + man derive from this tree)
 clap_complete = "4.5"   # L4 CLI — shell completions generated from the clap tree (nika-cli spec §9)
-lsp-server = "0.7"      # nika-lsp L4 — sync stdio JSON-RPC message loop (rust-analyzer's · MIT)
+lsp-server = "0.10"      # nika-lsp L4 — sync stdio JSON-RPC message loop (rust-analyzer's · MIT)
 lsp-types  = "0.97"     # nika-lsp L4 — LSP 3.17 protocol types (Diagnostic · Position · CompletionItem · MIT)
 zeroize  = "1.8"    # ADR-034 Secret zeroize-on-drop (nika-kernel L0.5) — 1.8 adds heap-String zeroing
 

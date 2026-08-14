@@ -1,8 +1,18 @@
 # scripts/hygiene/ — drift detection dashboard
 
-37 drift vectors that keep Nika's ecosystem in sync over 11-12 months of
+Drift vectors that keep Nika's ecosystem in sync over 11-12 months of
 building in public. Zero maintenance required. Runs locally on every
 commit (via Claude Code PostToolUse hook) and nightly via GitHub Action.
+
+The count is not written here. It said 37 while `check-all.sh` said 38
+and the file carried 46 `run_check` calls — three surfaces, three
+numbers. It derives:
+
+```bash
+grep -c '^run_check ' check-all.sh
+```
+
+and `./check-all.sh` prints the tally it actually ran.
 
 ## Quick start
 
@@ -19,10 +29,11 @@ commit (via Claude Code PostToolUse hook) and nightly via GitHub Action.
 
 Exit codes: `0` = all green, `1` = at least one yellow, `2` = at least one red.
 
-## The 37 vectors
+## The vectors
 
 Each vector is a single `check-*.sh` script. Single responsibility.
-Exits `0`/`1`/`2` to signal green/yellow/red.
+Exits `0`/`1`/`2` to signal green/yellow/red. Rows marked *(killed …)*
+keep their number: renumbering is churn for no value.
 
 | # | Script | Detects |
 |---|---|---|
@@ -30,7 +41,7 @@ Exits `0`/`1`/`2` to signal green/yellow/red.
 | 2 | `check-crate-count.sh` | Workspace `members = [...]` count = `[workspace.metadata.diamond.layers.*]` count (every crate must be layer-classified) |
 | 3 | `check-loc.sh` | src LOC drift (> 2% = yellow, > 5% = red) |
 | 4 | `check-changelog-dates.sh` | CHANGELOG top entry date reasonable (not future, not > 14 days old without commit) |
-| 5 | `check-roadmap-status.sh` | ROADMAP checkboxes align with admitted crates |
+| 5 | *(killed 2026-08-14)* | was `check-roadmap-status.sh` — grepped ROADMAP.md for `- [ ] <crate>`, a syntax that has **never** existed in that file (`git log -S` over 171 commits: zero). No repo state could make it fire, so it reported OK on every pre-push and nightly run: one of the greens was unearned. The parity it might have been re-aimed at — the ROADMAP census vs `Cargo.toml`'s `wip` list — is already enforced by vector 23, proven by mutation (drop a crate from `wip = [...]`: 23 goes RED, 5 still said "OK (roadmap consistent)"). Kept gap in numbering |
 | 6 | `check-crate-specs.sh` | Every admitted crate has `docs/crate-specs/nika-X.md` · live-anchored `~NNN LOC src (live · …)` numbers stay within ±15% of `scripts/crate-metrics.sh` (no hardcoded drift) |
 | 7 | *(killed 2026-04-17)* | was `check-linear.sh` — no-op stub without `LINEAR_API_KEY`, misleading green. Linear integration lives in its own MCP, not hygiene |
 | 8 | `check-milestones.sh` | GitHub milestone progress sanity |
@@ -51,7 +62,7 @@ Exits `0`/`1`/`2` to signal green/yellow/red.
 | 23 | `check-status-claims-sync.sh` | Whitelisted status docs (ROADMAP, CLAUDE) embed canonical `refresh-status.sh` block verbatim (structural fields) |
 | 24 | `check-crate-size.sh` | Per-crate LOC ratchet — every workspace member ≤ 15,000 LOC (Diamond invariant; was CI-only, now in hygiene dashboard) |
 | 25 | `check-l0-dep-fanout.sh` | Each L0 crate ≤ 3 sibling `nika-*` deps (ADR-027 §"Hard rule"); per-crate exempt via `# L0-DEP-FANOUT-EXEMPT: <reason>` marker |
-| 30 | `check-cancel-safety.sh` | Every `async fn` in `crates/nika-kernel/src/**` has `// CANCEL SAFETY:` or `/// CANCEL SAFETY:` marker in preceding doc block (Batch I.b — kernel effect surface must document drop-safety per method) |
+| 30 | `check-cancel-safety.sh` | Every `async fn` in the **L0.5 layer** has a `// CANCEL SAFETY:` / `/// CANCEL SAFETY:` marker, in the preceding doc block **or on the declaring trait** (Batch I.b — kernel effect surface must document drop-safety per method). Scope DERIVES from `[workspace.metadata.diamond] layers.* = "L0.5"`; it read `crates/nika-kernel/src/**` until 2026-08-14, which the kernel split had emptied, so the vector guarded 0 of 94 async fn while reporting OK. `*-mock` crates are excluded and the exclusion is printed |
 | 31 | `check-owned-strings.sh` | nika-catalog public API uses `&'static str` (ADR-008 codegen pragma) or owned `String` — bans non-static `&str`/`&'a str` in `pub` fields and `pub fn` return types. Allow `&str` in parameters. Per-item exempt via `// OWNED-STRINGS-EXEMPT: <reason>` |
 | 32 | `check-unsafe-count.sh` | `unsafe` token count in `crates/*/src/**/*.rs` ≤ baseline (see `baselines/unsafe-count.txt`). Substitutes cargo-geiger-workspace which is hostile to virtual manifests; dep-tree security still covered by `cargo audit` + `cargo deny`. Baseline currently 0 |
 | 33 | `check-layer-deps.sh` | Per-layer banned third-party deps — L0 rejects tokio/futures/reqwest/hyper/rayon/async-std/smol/axum/actix-web (17 deps); L0.5 rejects the same minus `futures*` (traits use `trait_variant` + `std::future`, 11 deps). Bans table lives in `[workspace.metadata.diamond] layer-bans.<layer>` in Cargo.toml. Per-line exempt via `# LAYER-BAN-EXEMPT: <reason>` |

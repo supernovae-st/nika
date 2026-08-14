@@ -1147,3 +1147,98 @@ fn a_catalog_warning_speaks_exactly_once_per_model() {
         "one miss, one warning — never a doubled row"
     );
 }
+
+/// #774 · the determinism pin. `check --infer-permits` is a STATIC
+/// audit — it has no filesystem. The issue's darwin-vs-ubuntu skew
+/// traced to two binaries that only LOOKED like one release (no build
+/// stamp), but the audit's own contract is that the machine's disk
+/// cannot enter the output. Same workflow, one literal `nika:read`
+/// path arg — once with the named file on disk, once with it absent
+/// (the bare-cwd half of the repro): the bytes must be identical.
+#[test]
+fn infer_permits_output_cannot_depend_on_the_disk() {
+    let dir = std::env::temp_dir().join(format!("nika-i774-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("tmp dir");
+    let target = dir.join("news.json");
+    let path = dir.join("pin.nika.yaml");
+    std::fs::write(
+        &path,
+        format!(
+            "nika: v1\nworkflow:\n  id: pin\ntasks:\n  read:\n    invoke:\n      tool: \"nika:read\"\n      args: {{ path: \"{}\" }}\n",
+            target.display()
+        ),
+    )
+    .expect("fixture body");
+    let wf = path.to_str().expect("utf8 path");
+
+    std::fs::write(&target, "{}").expect("referenced file present");
+    let present = run_infer_permits(wf, false);
+    let present_json = run_infer_permits(wf, true);
+    std::fs::remove_file(&target).expect("referenced file absent");
+    let absent = run_infer_permits(wf, false);
+    let absent_json = run_infer_permits(wf, true);
+
+    assert_eq!(present.code, 0, "{}", present.text);
+    // The fixture really names the read path — the pin is not vacuous.
+    assert!(present.text.contains("news.json"), "{}", present.text);
+    assert_eq!(
+        present.text, absent.text,
+        "the plain bytes are filesystem-independent"
+    );
+    assert_eq!(
+        present_json.text, absent_json.text,
+        "the json bytes are filesystem-independent"
+    );
+}
+
+/// #774 · the provenance pair rides every `--json` report: the bare
+/// crate version under the run journal's `engine_version` key and the
+/// compile-time commit stamp beside it — additive siblings, the
+/// `report_version: 1` contract untouched.
+#[test]
+fn check_json_carries_the_build_provenance_pair() {
+    let dir = std::env::temp_dir().join(format!("nika-cli-killtests-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("tmp dir");
+    let path = dir.join("provenance.nika.yaml");
+    std::fs::write(
+        &path,
+        "nika: v1\nworkflow:\n  id: w\npermits: { exec: [\"echo\"] }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
+    )
+    .expect("fixture body");
+    let out = run(
+        path.to_str().expect("utf8 path"),
+        true,
+        false,
+        None,
+        Theme::new(false, true, false),
+    );
+    assert_eq!(out.code, 0, "{}", out.text);
+    let payload: serde_json::Value = serde_json::from_str(&out.text).expect("json");
+    assert_eq!(payload["engine_version"], env!("CARGO_PKG_VERSION"));
+    let sha = payload["build_sha"].as_str().expect("build_sha string");
+    assert!(!sha.is_empty(), "a stamp always rides: {payload:#}");
+    assert_eq!(
+        sha,
+        env!("NIKA_BUILD_SHA"),
+        "the payload IS the compile-time stamp: {payload:#}"
+    );
+}
+
+/// #774 · the `--version` stamp contract: the bare version stays the
+/// FIRST whitespace token (the harness probe · the nix smoke · the
+/// kit's version handshake all parse it positionally) and a known
+/// commit stamps `(<sha>[-dirty])` after it; `unknown` leaves the long
+/// form byte-identical to the bare version.
+#[test]
+fn the_long_version_keeps_the_bare_version_first() {
+    let long = env!("NIKA_VERSION_LONG");
+    let first = long.split_whitespace().next().expect("a version token");
+    assert_eq!(first, env!("CARGO_PKG_VERSION"), "{long}");
+    let sha = env!("NIKA_BUILD_SHA");
+    assert!(!sha.is_empty(), "build.rs always emits a stamp");
+    if sha == "unknown" {
+        assert_eq!(long, env!("CARGO_PKG_VERSION"), "{long}");
+    } else {
+        assert_eq!(long, format!("{} ({sha})", env!("CARGO_PKG_VERSION")));
+    }
+}

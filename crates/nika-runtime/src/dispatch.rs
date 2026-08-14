@@ -32,7 +32,6 @@ pub(crate) mod commit;
 mod exec_io;
 mod permits;
 mod regate;
-mod sandbox;
 use crate::expr::{self, Scope};
 use crate::record::TaskErrorRecord;
 use exec_io::{build_exec_input, capture_mode, render_exec_io};
@@ -104,8 +103,9 @@ impl FailedDispatch {
 
 /// A successful dispatch — the output value + token spend when the
 /// verb reports it (infer · agent) + an optional non-fatal WARNING
-/// (OBS-E: a thinking model that ate its budget on reasoning and
-/// returned a blank answer · the task still succeeded).
+/// (the success-riding diagnostic channel — no current producer: the
+/// OBS-E empty-answer class was promoted to the typed NIKA-INFER-004
+/// failure at the verb · #651).
 pub(crate) struct DispatchOk {
     pub value: Value,
     pub tokens: Option<i64>,
@@ -564,7 +564,7 @@ where
             .clone()
             .or_else(|| std::env::current_dir().ok())
             .unwrap_or_default();
-        match sandbox::spec_of(permits, &root) {
+        match nika_exec_runner::sandbox_spec::spec_of(permits, &root) {
             Ok(spec) => {
                 for grant in spec.fs_read.iter().chain(spec.fs_write.iter()) {
                     witness.record(
@@ -709,19 +709,15 @@ where
             Ok(v) => v,
             Err(err) => return Dispatched::template_err("infer · ?", &err),
         };
-        input.model = action.model.as_ref().map(|m| m.value.clone());
+        // `model:` renders through the SAME `${{ }}` seam as
+        // prompt/system (#824 · check⇄run parity).
+        input.model = match render_opt(action.model.as_ref(), scope) {
+            Ok(v) => v,
+            Err(err) => return Dispatched::template_err("infer · ?", &err),
+        };
         input.temperature = temp_f32(action.temperature.as_ref());
         input.max_tokens = action.max_tokens.as_ref().map(|t| t.value);
-        // `returns:` compiles `lower(returns)` as the structured-output
-        // contract — EXACTLY the `schema:` lane (spec 09 §returns · one
-        // enforcement path · violations stay NIKA-INFER-002). The two
-        // never coexist (NIKA-TYPE-003); `schema:` wins the or_else
-        // only in the impossible-past-check overlap.
-        input.schema = action
-            .schema
-            .as_ref()
-            .map(|v| v.value.clone())
-            .or_else(|| contract.map(crate::contract::TaskContract::lowered));
+        input.schema = task_schema(action.schema.as_ref(), contract);
         match self.infer.run(input).await {
             Ok(out) => {
                 let note = format!("infer · {}", out.model_resolved);
@@ -740,10 +736,11 @@ where
                     }
                 };
                 let tokens = Some(i64::try_from(out.usage.output_tokens).unwrap_or(i64::MAX));
-                // OBS-E: surface the silent empty-answer footgun (a
-                // reasoning model that ate its budget on thinking) as a
-                // non-fatal warning · the task still succeeds.
-                let warning = empty_thinking_warning(&value, &out.usage);
+                // #651 · the empty-answer footgun (OBS-E) now settles
+                // FAILED at the verb (NIKA-INFER-004) — a blank answer
+                // with token spend never reaches this success arm, so the
+                // non-fatal warning lane is retired here.
+                let warning = None;
                 // Real spend: catalog pricing × the provider's FULL usage
                 // split (cache subsets at their own rates) · the SAME
                 // resolver as the check-time floor (they can never disagree
@@ -802,20 +799,17 @@ where
                 Err(refused) => return *refused,
             }
         }
-        input.model = action.model.as_ref().map(|m| m.value.clone());
+        // `model:` — the SAME render seam as infer's (#824 · one law).
+        input.model = match render_opt(action.model.as_ref(), scope) {
+            Ok(v) => v,
+            Err(err) => return Dispatched::template_err("agent · ?", &err),
+        };
         input.tools = action.tools.iter().map(|t| t.value.clone()).collect();
         Self::bridge_inputs(&mut input, scope, ctx);
         input.max_turns = action.max_turns.as_ref().map(|t| t.value);
         input.max_tokens_total = action.max_tokens_total.as_ref().map(|t| t.value);
         input.temperature = temp_f32(action.temperature.as_ref());
-        // `returns:` — same as infer: `lower(returns)` rides the
-        // structured-output lane over the loop's FINAL message (spec 09
-        // §returns · violations stay NIKA-INFER-002 · one voice).
-        input.schema = action
-            .schema
-            .as_ref()
-            .map(|v| v.value.clone())
-            .or_else(|| contract.map(crate::contract::TaskContract::lowered));
+        input.schema = task_schema(action.schema.as_ref(), contract);
         // The buffer is the CALLER's (per task-attempt-loop · still
         // per-dispatch-isolated since a wave's tasks each own one):
         // owning it here would put it inside the timeout-cancellable
@@ -1010,6 +1004,18 @@ fn render_opt(
     field.map(|f| expr::render(&f.value, scope)).transpose()
 }
 
+/// `returns:` compiles `lower(returns)` as the structured-output contract —
+/// EXACTLY the `schema:` lane (spec 09 §returns · violations NIKA-INFER-002).
+/// One home for infer/agent, zero drift.
+fn task_schema(
+    schema: Option<&nika_schema::Spanned<Value>>,
+    contract: Option<&crate::contract::TaskContract<'_>>,
+) -> Option<Value> {
+    schema
+        .map(|v| v.value.clone())
+        .or_else(|| contract.map(crate::contract::TaskContract::lowered))
+}
+
 /// The effective system prompt of a `skills:`-carrying agent (spec 02
 /// §agent skills · normative injection shape): the authored `system:`
 /// (already rendered · absent = the section stands alone), then ONE
@@ -1038,217 +1044,6 @@ pub(crate) fn system_with_skills(system: Option<String>, docs: &[nika_schema::Sk
         }
     }
     out
-}
-
-/// OBS-E · the silent-empty-answer footgun for reasoning models.
-///
-/// A thinking model (gemini-2.5-flash · openai o-series · anthropic
-/// extended-thinking) under a tight `max_tokens` can spend the whole
-/// budget on its reasoning trace and conclude with a BLANK visible
-/// answer — the task completes rc=0 with `output == ""` and every
-/// downstream `${{ tasks.X.output }}` silently resolves to nothing.
-///
-/// The signal is the **empty visible answer paired with token spend** —
-/// under either report shape:
-///
-/// - a REPORTED reasoning split (`thinking_tokens` · anthropic
-///   extended-thinking; `reasoning_tokens` · `OpenAI` o-series; the
-///   gemini wire folds `thoughtsTokenCount` INTO `output_tokens`, so its
-///   heavy-think empty answer reports `output_tokens == thoughts > 0` —
-///   see `wire::gemini::usage_from`), or
-/// - NO split at all with `output_tokens > 0` (#410 · the ollama path
-///   strips the think block upstream and reports one undifferentiated
-///   count: 512 tokens consumed, 2 bytes visible — the exact silent
-///   footgun, previously unguarded).
-///
-/// A blank answer with ZERO tokens of any kind stays silent — nothing
-/// was spent, so this is a plain empty completion, not the thinking
-/// footgun.
-///
-/// Non-fatal: returns the diagnostic STRING when the footgun is detected
-/// (the caller rides it on `TaskCompleted` as a `warning` field) · the
-/// task still succeeds. Pure (no I/O) so it is `--lib`-testable.
-fn empty_thinking_warning(
-    value: &Value,
-    usage: &nika_kernel::provider::TokenUsage,
-) -> Option<String> {
-    if !value_is_blank(value) {
-        return None;
-    }
-    let reasoning = usage
-        .thinking_tokens
-        .unwrap_or(0)
-        .saturating_add(usage.reasoning_tokens.unwrap_or(0));
-    if reasoning > 0 {
-        return Some(format!(
-            "infer produced an empty answer · max_tokens likely too low for a thinking model \
-             (reasoning consumed {reasoning} tokens)"
-        ));
-    }
-    if usage.output_tokens > 0 {
-        return Some(format!(
-            "infer consumed {} tokens yet the visible answer is empty — a thinking model may \
-             have spent the budget inside its think block (raise max_tokens, or use a no-think \
-             variant)",
-            usage.output_tokens
-        ));
-    }
-    None
-}
-
-/// A "blank" visible answer · an empty/whitespace string, JSON null, or
-/// an empty container (`""`, `null`, `[]`, `{}`). Anything with content
-/// (a non-empty string · a populated object/array · a number/bool) is a
-/// real answer, never the footgun.
-fn value_is_blank(value: &Value) -> bool {
-    match value {
-        Value::Null => true,
-        Value::String(s) => s.trim().is_empty(),
-        Value::Array(a) => a.is_empty(),
-        Value::Object(o) => o.is_empty(),
-        Value::Bool(_) | Value::Number(_) => false,
-    }
-}
-
-#[cfg(test)]
-#[allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
-mod tests {
-    use serde_json::Value;
-
-    #[test]
-    fn invoke_meters_a_top_level_cost_usd_from_structured_output() {
-        // The honest-spend channel: a tool reporting real spend as a
-        // top-level numeric `cost_usd` is metered; junk shapes never are.
-        let extract = |v: serde_json::Value| {
-            v.get("cost_usd")
-                .and_then(Value::as_f64)
-                .filter(|c| c.is_finite() && *c >= 0.0)
-        };
-        assert_eq!(
-            extract(serde_json::json!({ "cost_usd": 0.02, "images": [] })),
-            Some(0.02)
-        );
-        assert_eq!(extract(serde_json::json!({ "cost_usd": null })), None);
-        assert_eq!(
-            extract(serde_json::json!({ "cost_usd": -1.0 })),
-            None,
-            "negative refused"
-        );
-        assert_eq!(
-            extract(serde_json::json!({ "cost_usd": "0.02" })),
-            None,
-            "strings refused"
-        );
-        assert_eq!(extract(serde_json::json!({ "other": 1 })), None);
-        assert_eq!(extract(serde_json::json!("just text")), None);
-        assert_eq!(
-            extract(serde_json::json!({ "cost_usd": f64::NAN })),
-            None,
-            "non-finite refused"
-        );
-    }
-
-    // ── OBS-E · the reasoning-model blank-answer footgun ────────────────
-
-    use nika_kernel::provider::TokenUsage;
-
-    use super::{empty_thinking_warning, value_is_blank};
-
-    fn usage_thinking(output: u64, thinking: u64) -> TokenUsage {
-        let mut u = TokenUsage::new(7, output);
-        u.thinking_tokens = Some(thinking);
-        u
-    }
-
-    #[test]
-    fn obs_e_fires_on_empty_answer_with_thinking_spend() {
-        // The task's footgun: a thinking model that ate its budget on
-        // reasoning and concluded with a blank visible answer.
-        let usage = usage_thinking(0, 84);
-        let warn = empty_thinking_warning(&Value::String(String::new()), &usage)
-            .expect("empty answer + thinking → warning");
-        assert!(warn.contains("empty answer"), "names the footgun: {warn}");
-        assert!(warn.contains("84"), "reports the reasoning spend: {warn}");
-        assert!(warn.contains("max_tokens"), "names the likely fix: {warn}");
-    }
-
-    #[test]
-    fn obs_e_silent_on_a_real_answer_without_thinking() {
-        // The normal path · {output:50, thinking:0} with content → no warn.
-        let usage = usage_thinking(50, 0);
-        assert!(
-            empty_thinking_warning(&Value::String("Paris".to_owned()), &usage).is_none(),
-            "a real answer is never the footgun"
-        );
-    }
-
-    #[test]
-    fn obs_e_keys_off_the_empty_visible_answer_not_output_tokens() {
-        // The gemini wire folds `thoughtsTokenCount` INTO `output_tokens`
-        // (usage_from), so a heavy-think empty answer reports
-        // output_tokens == thoughts > 0 · keying off output_tokens would
-        // MISS it. The blank visible answer is the real signal.
-        let usage = usage_thinking(84, 84); // gemini-shaped: candidates(0)+thoughts(84)
-        assert!(
-            empty_thinking_warning(&Value::String("   ".to_owned()), &usage).is_some(),
-            "whitespace-only answer + thinking fires (the gemini reality)"
-        );
-    }
-
-    #[test]
-    fn obs_e_reasoning_tokens_count_like_thinking_tokens() {
-        // OpenAI o-series reports the reasoning budget under
-        // `reasoning_tokens` · the footgun is provider-agnostic.
-        let mut usage = TokenUsage::new(7, 0);
-        usage.reasoning_tokens = Some(40);
-        assert!(
-            empty_thinking_warning(&Value::Null, &usage).is_some(),
-            "reasoning_tokens triggers the same diagnostic"
-        );
-    }
-
-    #[test]
-    fn obs_e_silent_when_nothing_was_spent() {
-        // A blank answer with ZERO tokens of any kind is a plain empty
-        // completion, not the thinking footgun — silence (no false alarm).
-        let usage = TokenUsage::new(7, 0); // no output, no thinking, no reasoning
-        assert!(empty_thinking_warning(&Value::String(String::new()), &usage).is_none());
-        assert!(empty_thinking_warning(&Value::Null, &usage).is_none());
-    }
-
-    #[test]
-    fn obs_e_fires_on_the_unreported_split_shape() {
-        // #410 · the ollama path: the think block is stripped upstream and
-        // the wire reports ONE undifferentiated count — 512 tokens
-        // consumed, a blank visible answer, no thinking/reasoning split.
-        // The run used to stay green and silent; the warning now names it.
-        let usage = TokenUsage::new(7, 512); // output only — no split fields
-        let warn = empty_thinking_warning(&Value::String(String::new()), &usage)
-            .expect("blank answer + undifferentiated spend → warning");
-        assert!(warn.contains("512"), "reports the spend: {warn}");
-        assert!(warn.contains("max_tokens"), "names the likely fix: {warn}");
-        assert!(warn.contains("no-think"), "names the alternative: {warn}");
-        // A real answer with the same usage shape stays silent.
-        assert!(
-            empty_thinking_warning(&Value::String("Paris".to_owned()), &usage).is_none(),
-            "content is never the footgun"
-        );
-    }
-
-    #[test]
-    fn value_is_blank_classifies_empty_forms() {
-        assert!(value_is_blank(&Value::Null));
-        assert!(value_is_blank(&Value::String(String::new())));
-        assert!(value_is_blank(&Value::String("  \n ".to_owned())));
-        assert!(value_is_blank(&serde_json::json!([])));
-        assert!(value_is_blank(&serde_json::json!({})));
-        // Content of any kind is NOT blank.
-        assert!(!value_is_blank(&Value::String("x".to_owned())));
-        assert!(!value_is_blank(&serde_json::json!({ "k": 1 })));
-        assert!(!value_is_blank(&serde_json::json!([1])));
-        assert!(!value_is_blank(&Value::Bool(false)));
-        assert!(!value_is_blank(&serde_json::json!(0)));
-    }
 }
 
 /// F1 (field report 2026-07-04) — the task `timeout:` must arrive on the
@@ -1318,7 +1113,8 @@ mod infer_deadline_tests {
         }
     }
 
-    async fn run_and_capture(yaml: &str) -> Vec<HttpRequest> {
+    /// `pub(super)`: the `model_template_tests` sibling runs the same rig.
+    pub(super) async fn run_and_capture(yaml: &str) -> Vec<HttpRequest> {
         let wf = nika_schema::parse(
             yaml,
             nika_schema::FileId::new(0),
@@ -1406,5 +1202,223 @@ mod infer_deadline_tests {
             Some(Duration::from_secs(300)),
             "a local provider defaults to minutes, never the 30s cloud default"
         );
+    }
+}
+
+// The #824 model-template parity proofs (the house `tests.rs`
+// convention — `run_and_capture` is `pub(super)` for that sibling).
+#[cfg(test)]
+mod tests;
+/// #651 (OBS-E promoted) — an `infer` whose visible answer is BLANK while
+/// the provider billed real tokens settles the task FAILED with the typed
+/// `NIKA-INFER-004`, and the run verdict follows (no more « 7/7 done ·
+/// exit 0 » over an empty `output`). Proven through the REAL parse →
+/// check → run chain at the http seam (a scripted effect under a real
+/// `ProviderRegistry` · `ollama` profile · zero network).
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
+mod infer_empty_answer_tests {
+    use std::collections::{BTreeMap, VecDeque};
+    use std::sync::{Arc, Mutex};
+
+    use bytes::Bytes;
+    use nika_kernel::http::{
+        HttpError, HttpPostDyn, HttpRequest, HttpResponse, HttpStreamResponse,
+    };
+    use nika_kernel_mock::{
+        MockClock, MockProvider, MockShell, MockToolDefinitionProvider, MockToolExecutor,
+    };
+    use nika_providers::{ProviderRegistry, ProvidersConfig};
+    use nika_verb_agent::AgentVerb;
+    use nika_verb_exec::ExecVerb;
+    use nika_verb_invoke::InvokeVerb;
+
+    use crate::{DeterministicStamper, RunOutcome, Runtime, RuntimeConfig, TaskStatus, VecSink};
+
+    /// Serves the queued canned bodies (one per round-trip) · counts every
+    /// provider request it saw.
+    struct ScriptedHttp {
+        bodies: Mutex<VecDeque<&'static str>>,
+        calls: Mutex<usize>,
+    }
+
+    impl ScriptedHttp {
+        fn serving(bodies: &[&'static str]) -> Arc<Self> {
+            Arc::new(Self {
+                bodies: Mutex::new(bodies.iter().copied().collect()),
+                calls: Mutex::new(0),
+            })
+        }
+
+        fn calls(&self) -> usize {
+            *self.calls.lock().expect("test mutex")
+        }
+    }
+
+    impl HttpPostDyn for ScriptedHttp {
+        async fn post(&self, request: HttpRequest) -> Result<HttpResponse, HttpError> {
+            *self.calls.lock().expect("test mutex") += 1;
+            let body = self
+                .bodies
+                .lock()
+                .expect("test mutex")
+                .pop_front()
+                .ok_or_else(|| HttpError::Other {
+                    reason: "ScriptedHttp: no canned response queued".to_owned(),
+                })?;
+            Ok(HttpResponse::new(
+                200,
+                BTreeMap::new(),
+                Bytes::from_static(body.as_bytes()),
+                request.url,
+            ))
+        }
+
+        async fn send_streaming(
+            &self,
+            _request: HttpRequest,
+        ) -> Result<HttpStreamResponse, HttpError> {
+            Err(HttpError::Unsupported {
+                reason: "streaming not exercised here".to_owned(),
+            })
+        }
+    }
+
+    /// A speaking loopback stub so the B-5 liveness gate passes (the
+    /// localhost-is-shared law: a live/dead ollama on the host must never
+    /// decide this test).
+    #[allow(clippy::disallowed_methods)] // test seam — the probe's own worker pattern
+    fn spawn_stub_server() -> u16 {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").expect("bind");
+        let port = listener.local_addr().expect("addr").port();
+        std::thread::spawn(move || {
+            while let Ok((mut stream, _)) = listener.accept() {
+                use std::io::Write as _;
+                let _ = stream.write_all(b"HTTP/1.0 404 Not Found\r\n\r\n");
+            }
+        });
+        port
+    }
+
+    /// The blank-answer repro body: empty visible content · real billed
+    /// output tokens (the reasoning trace ate the budget).
+    const EMPTY_WITH_SPEND: &str = r#"{"choices":[{"message":{"content":""},"finish_reason":"length"}],"usage":{"prompt_tokens":7,"completion_tokens":512}}"#;
+
+    async fn run_workflow(yaml: &str, http: Arc<ScriptedHttp>) -> RunOutcome {
+        let wf = nika_schema::parse(
+            yaml,
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("fixture parses");
+        let report = nika_check::check(&wf);
+        assert!(report.is_clean(), "fixture passes the ladder");
+        let registry = Arc::new(ProviderRegistry::new(
+            http,
+            ProvidersConfig::new().with_base_url(
+                "ollama",
+                format!("http://127.0.0.1:{}", spawn_stub_server()),
+            ),
+        ));
+        let invoke = Arc::new(InvokeVerb::new(Arc::new(MockToolExecutor::new())));
+        let runtime = Runtime::new(
+            ExecVerb::new(Arc::new(MockShell::new())),
+            Arc::clone(&invoke),
+            nika_verb_infer::InferVerb::new(registry, "ollama/llama3.2"),
+            AgentVerb::new(
+                Arc::new(MockProvider::new("mock")),
+                invoke,
+                Arc::new(MockToolDefinitionProvider::new()),
+                "mock/echo",
+            ),
+            MockClock::new(),
+            RuntimeConfig::default(),
+        );
+        let mut stamper = DeterministicStamper::new();
+        let mut sink = VecSink::new();
+        runtime
+            .run(&wf, &report, &mut stamper, &mut sink)
+            .await
+            .expect("the run completes (a workflow failure is data)")
+    }
+
+    /// The issue's repro: the blank answer fails the task TYPED, the run
+    /// verdict goes red, and the declared `retry:` does NOT fire — the
+    /// remedy is `max_tokens`, never a re-ask at the same budget.
+    #[tokio::test]
+    async fn empty_answer_settles_failed_typed_and_the_run_goes_red() {
+        let http = ScriptedHttp::serving(&[EMPTY_WITH_SPEND]);
+        let outcome = run_workflow(
+            "nika: v1\nworkflow:\n  id: w\nmodel: ollama/llama3.2\ntasks:\n  ask:\n    retry: { max_attempts: 3, backoff_ms: 1, backoff_strategy: fixed, jitter: false }\n    infer: { prompt: \"hello\" }\n",
+            Arc::clone(&http),
+        )
+        .await;
+        assert!(!outcome.ok, "an empty answer is no longer a green run");
+        let rec = &outcome.records["ask"];
+        assert_eq!(rec.status, TaskStatus::Failure, "the task settles failed");
+        let err = rec.error.as_ref().expect("the failure carries its record");
+        assert_eq!(err.code, "NIKA-INFER-004", "the typed wire code");
+        assert!(
+            err.message.contains("infer produced an empty answer"),
+            "the warn's teaching survives the promotion: {}",
+            err.message
+        );
+        assert!(
+            err.message.contains("max_tokens"),
+            "the likely fix is named: {}",
+            err.message
+        );
+        assert!(!err.transient, "never retry-eligible by default");
+        assert_eq!(
+            rec.attempts,
+            Some(1),
+            "the declared retry: does NOT fire on a non-transient code"
+        );
+        assert_eq!(http.calls(), 1, "exactly one billed round-trip");
+    }
+
+    /// The authored escape hatch stays bounded: `on_codes: [NIKA-INFER-004]`
+    /// opts into retries (same policy as every typed infer failure) — and
+    /// the budget caps them, never a forever-loop.
+    #[tokio::test]
+    async fn empty_answer_retry_is_opt_in_and_bounded() {
+        let http = ScriptedHttp::serving(&[EMPTY_WITH_SPEND, EMPTY_WITH_SPEND, EMPTY_WITH_SPEND]);
+        let outcome = run_workflow(
+            "nika: v1\nworkflow:\n  id: w\nmodel: ollama/llama3.2\ntasks:\n  ask:\n    retry: { max_attempts: 3, backoff_ms: 1, backoff_strategy: fixed, jitter: false, on_codes: [NIKA-INFER-004] }\n    infer: { prompt: \"hello\" }\n",
+            Arc::clone(&http),
+        )
+        .await;
+        assert!(!outcome.ok);
+        let rec = &outcome.records["ask"];
+        assert_eq!(rec.status, TaskStatus::Failure);
+        assert_eq!(
+            rec.error.as_ref().expect("error record").code,
+            "NIKA-INFER-004"
+        );
+        assert_eq!(rec.attempts, Some(3), "the authored retries ran");
+        assert_eq!(
+            http.calls(),
+            3,
+            "bounded at max_attempts — never retried forever"
+        );
+    }
+
+    /// Non-regression: a real answer with the same wire shape settles
+    /// green, no error attached.
+    #[tokio::test]
+    async fn a_real_answer_still_settles_green() {
+        let http = ScriptedHttp::serving(&[
+            r#"{"choices":[{"message":{"content":"Paris"},"finish_reason":"stop"}],"usage":{"prompt_tokens":7,"completion_tokens":50}}"#,
+        ]);
+        let outcome = run_workflow(
+            "nika: v1\nworkflow:\n  id: w\nmodel: ollama/llama3.2\ntasks:\n  ask:\n    infer: { prompt: \"capital of France?\" }\n",
+            Arc::clone(&http),
+        )
+        .await;
+        assert!(outcome.ok, "a non-empty answer stays green");
+        let rec = &outcome.records["ask"];
+        assert_eq!(rec.status, TaskStatus::Success);
+        assert!(rec.error.is_none(), "no failure rides a real answer");
+        assert_eq!(http.calls(), 1);
     }
 }

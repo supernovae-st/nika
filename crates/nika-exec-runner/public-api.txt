@@ -1,4 +1,31 @@
 pub mod nika_exec_runner
+pub mod nika_exec_runner::sandbox_spec
+pub struct nika_exec_runner::sandbox_spec::PathMismatch
+pub nika_exec_runner::sandbox_spec::PathMismatch::access: &'static str
+pub nika_exec_runner::sandbox_spec::PathMismatch::grant: alloc::string::String
+pub nika_exec_runner::sandbox_spec::PathMismatch::resolved: alloc::string::String
+impl core::fmt::Debug for nika_exec_runner::sandbox_spec::PathMismatch
+pub fn nika_exec_runner::sandbox_spec::PathMismatch::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_exec_runner::sandbox_spec::PathMismatch
+impl<T, U> core::convert::Into<U> for nika_exec_runner::sandbox_spec::PathMismatch where U: core::convert::From<T>
+pub fn nika_exec_runner::sandbox_spec::PathMismatch::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_exec_runner::sandbox_spec::PathMismatch where U: core::convert::Into<T>
+pub type nika_exec_runner::sandbox_spec::PathMismatch::Error = core::convert::Infallible
+pub fn nika_exec_runner::sandbox_spec::PathMismatch::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_exec_runner::sandbox_spec::PathMismatch where U: core::convert::TryFrom<T>
+pub type nika_exec_runner::sandbox_spec::PathMismatch::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_exec_runner::sandbox_spec::PathMismatch::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_exec_runner::sandbox_spec::PathMismatch where T: 'static + ?core::marker::Sized
+pub fn nika_exec_runner::sandbox_spec::PathMismatch::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_exec_runner::sandbox_spec::PathMismatch where T: ?core::marker::Sized
+pub fn nika_exec_runner::sandbox_spec::PathMismatch::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_exec_runner::sandbox_spec::PathMismatch where T: ?core::marker::Sized
+pub fn nika_exec_runner::sandbox_spec::PathMismatch::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_exec_runner::sandbox_spec::PathMismatch
+pub fn nika_exec_runner::sandbox_spec::PathMismatch::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_exec_runner::sandbox_spec::PathMismatch where T: 'static
+pub fn nika_exec_runner::sandbox_spec::PathMismatch::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub fn nika_exec_runner::sandbox_spec::spec_of(permits: &nika_cap::permits::Permits, root: &std::path::Path) -> core::result::Result<nika_kernel_core::io::process::SandboxSpec, alloc::boxed::Box<nika_exec_runner::sandbox_spec::PathMismatch>>
 #[non_exhaustive] pub enum nika_exec_runner::EgressEvent
 pub nika_exec_runner::EgressEvent::Closed
 pub nika_exec_runner::EgressEvent::Closed::bytes_down: u64
@@ -15,6 +42,8 @@ impl core::fmt::Debug for nika_exec_runner::EgressEvent
 pub fn nika_exec_runner::EgressEvent::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::StructuralPartialEq for nika_exec_runner::EgressEvent
 impl<D> owo_colors::OwoColorize for nika_exec_runner::EgressEvent
+impl<Q, K> hashbrown::Equivalent<K> for nika_exec_runner::EgressEvent where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_exec_runner::EgressEvent::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_exec_runner::EgressEvent where U: core::convert::From<T>
 pub fn nika_exec_runner::EgressEvent::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_exec_runner::EgressEvent where U: core::convert::Into<T>
@@ -52,6 +81,8 @@ impl core::fmt::Debug for nika_exec_runner::EgressDecision
 pub fn nika_exec_runner::EgressDecision::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::StructuralPartialEq for nika_exec_runner::EgressDecision
 impl<D> owo_colors::OwoColorize for nika_exec_runner::EgressDecision
+impl<Q, K> hashbrown::Equivalent<K> for nika_exec_runner::EgressDecision where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_exec_runner::EgressDecision::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_exec_runner::EgressDecision where U: core::convert::From<T>
 pub fn nika_exec_runner::EgressDecision::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_exec_runner::EgressDecision where U: core::convert::Into<T>

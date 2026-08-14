@@ -25,6 +25,9 @@
 #
 # Exit: 0 green (no admitted crate defers Gate 5) · 1 yellow (some do · listed ·
 # informational ratchet, does NOT gate the push) · 2 red (reserved · unused).
+#
+# errexit stays OFF on purpose: this warn-tier vector tolerates the non-zero
+# greps below (a crate with no Gate-5 row is a normal, handled case).
 set -uo pipefail
 
 ENGINE_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
@@ -32,9 +35,6 @@ cd "$ENGINE_ROOT" || exit 2
 
 # shellcheck source=scripts/ci/_lib.sh
 . "$ENGINE_ROOT/scripts/ci/_lib.sh"
-# _lib.sh sets `-e`; re-disable it — this warn-tier vector tolerates the
-# non-zero greps (a crate with no Gate-5 row is a normal, handled case).
-set +e
 
 deferred=""
 declared=""

@@ -65,7 +65,7 @@ counts:
   templates: 10
   error_namespaces: 25
   error_categories: 12
-  error_codes: 103
+  error_codes: 104
   pillars: 5
   # ---- extended v0.2 · 2026-05-27 · lifecycle + diamond + steal + severity
   lifecycle_product: 4
@@ -296,7 +296,7 @@ error_categories:
 # check binds the prose table to it (same row set · same fields).
 # transient · false | engine-assessed
 error_codes:
-  count: 103
+  count: 104
   reference: spec/05-errors.md
   items:
     - { code: NIKA-PARSE-001, category: parse_error, transient: "false", failure: "the YAML itself does not parse (syntax error)" }
@@ -368,6 +368,7 @@ error_codes:
     - { code: NIKA-INFER-001, category: provider_error, transient: "engine-assessed", failure: "provider call failed (HTTP error · provider refusal)" }
     - { code: NIKA-INFER-002, category: validation_error, transient: "false", failure: "structured output failed schema validation (after any engine-internal retries)" }
     - { code: NIKA-INFER-003, category: validation_error, transient: "false", failure: "the provider reported no token usage for a priced model — the ledger cannot bill the call honestly (fail-closed · R3-F1)" }
+    - { code: NIKA-INFER-004, category: validation_error, transient: "false", failure: "the provider spent tokens yet the visible answer is empty — a thinking model ate the budget on its reasoning trace (fail-closed · #651 · raise max_tokens or use a no-think variant)" }
     - { code: NIKA-EXEC-001, category: process_error, transient: "false", failure: "non-zero exit code (default capture modes)" }
     - { code: NIKA-EXEC-002, category: process_error, transient: "false", failure: "spawn failure (command not found · permission)" }
     - { code: NIKA-INVOKE-001, category: validation_error, transient: "false", failure: "unknown tool (unresolvable nika:/mcp: id)" }

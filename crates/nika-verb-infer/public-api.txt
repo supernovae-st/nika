@@ -35,6 +35,10 @@ pub fn nika_verb_infer::InferValue::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_verb_infer::InferValue where T: 'static
 pub fn nika_verb_infer::InferValue::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub enum nika_verb_infer::VerbInferError
+pub nika_verb_infer::VerbInferError::EmptyAnswer
+pub nika_verb_infer::VerbInferError::EmptyAnswer::detail: alloc::string::String
+pub nika_verb_infer::VerbInferError::EmptyAnswer::model: alloc::string::String
+pub nika_verb_infer::VerbInferError::EmptyAnswer::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
 pub nika_verb_infer::VerbInferError::InvalidParam
 pub nika_verb_infer::VerbInferError::InvalidParam::detail: alloc::string::String
 pub nika_verb_infer::VerbInferError::InvalidParam::param: &'static str

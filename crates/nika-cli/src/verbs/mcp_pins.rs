@@ -64,6 +64,12 @@ pub fn mcp_verb(
                 // the token is operator config crossing into a server hold.
                 #[allow(clippy::disallowed_methods)]
                 let token = std::env::var("NIKA_MCP_TOKEN").ok();
+                // #890: a public bind with no bearer refuses to START — the
+                // refusal names both fixes (set the token · bind loopback).
+                if let Err(err) = server.guard_bind_auth(token.as_deref()) {
+                    eprintln!("nika mcp: {err}");
+                    return 1;
+                }
                 let addr = server
                     .addr()
                     .map_or_else(|_| format!("{bind}:{port}"), |a| a.to_string());

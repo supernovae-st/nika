@@ -194,6 +194,9 @@ fn verb_help(num: u16) -> &'static str {
         434 => {
             "The provider returned no token usage for a priced model, so the ledger cannot bill the call honestly — it refuses rather than record $0 for real spend (fail-closed). Use a backend that reports usage, or drop the priced model's budget reliance explicitly."
         }
+        435 => {
+            "The provider spent tokens yet the visible answer is empty — a thinking model ate the whole budget on its reasoning trace. Raise `max_tokens` (the reasoning share lives inside it), set an explicit `thinking.budget_tokens`, or pick a no-think variant."
+        }
         440 => {
             "The command exited non-zero. Inspect stderr, or use capture: structured to branch on the exit code instead of failing."
         }
@@ -396,6 +399,12 @@ fn run_code_help(num: u16) -> &'static str {
         }
         1709 => {
             "The workflow's unavoidable cost floor already exceeds the budget it was launched under (cheapest static path · gates closed · first-try) — raise the budget, trim the workflow, or read the envelope with `nika check`. Under composition the budget is inherited (`min(parent remaining, child declared)` · spec 14 law 6): the parent's remaining at call time was already too small for the child's floor."
+        }
+        1710 => {
+            "The sandbox policy requires OS confinement this host cannot provide: a `permits:`-declaring workflow with `exec:` children refuses to run unjailed. Install the backend (Debian/Ubuntu: `apt install bubblewrap`), or waive explicitly with `NIKA_SANDBOX=off` — the waiver is attested on the journal's opening frame."
+        }
+        1711 => {
+            "`NIKA_SANDBOX` held an unknown word — expected exactly `auto`, `require`, or `off`. A typo'd security knob refuses to start rather than loudly default (fail-closed)."
         }
         _ => "Runtime error. Re-run `nika check`, then `nika explain` the exact code.",
     }

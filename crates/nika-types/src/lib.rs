@@ -50,10 +50,13 @@ pub mod cancel;
 pub mod checkpoint;
 pub mod compression;
 pub mod embedding;
+pub mod exec;
 pub mod extract;
 pub mod memory;
 pub mod net;
+pub mod origins;
 pub mod role;
+pub mod sandbox_policy;
 pub mod suggest;
 pub mod timestamp;
 pub mod token_usage;
@@ -85,7 +88,9 @@ pub mod prelude {
     pub use crate::embedding::{DistanceMetric, EmbeddingDtype, EmbeddingSpec};
     pub use crate::extract::ExtractMode;
     pub use crate::memory::{MemoryDirective, MemoryFrameRef, MemoryId, MemoryLevel};
+    pub use crate::origins::InputOrigin;
     pub use crate::role::Role;
+    pub use crate::sandbox_policy::{SandboxPolicy, SandboxPolicyParseError, SandboxVerdict};
     pub use crate::timestamp::{Timestamp, WallDuration};
     pub use crate::token_usage::TokenUsage;
 }

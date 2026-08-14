@@ -93,6 +93,27 @@ pub struct PricingProbe {
     pub age_days: Option<u32>,
 }
 
+/// The OS-sandbox decision the doctor reports (#891 · #822 P1) — read off
+/// the ONE selection (#888), presence facts only.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct SandboxProbe {
+    /// The stable backend id (`seatbelt` · `landlock` · `noop`).
+    pub backend: &'static str,
+    /// True when the selection confines (anything but the deliberate noop).
+    pub confined: bool,
+}
+
+/// The one sandbox observation (the sidecar precedent): the decision is
+/// read here once so `diagnose` stays pure over its inputs.
+#[must_use]
+pub fn sandbox_probe() -> SandboxProbe {
+    let decision = nika_runtime::sandbox_select::select_command_sandbox();
+    SandboxProbe {
+        backend: decision.backend(),
+        confined: decision.is_confined(),
+    }
+}
+
 /// The TTS-plane environment facts (presence only, never values).
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct TtsProbe {

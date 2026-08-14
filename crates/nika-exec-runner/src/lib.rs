@@ -26,9 +26,12 @@
 //!   (alias/function + expansion/glob/substitution-char refusal · the TOCTOU
 //!   floor for `sh -c`).
 //! - **`shell: false` (argv)** → `check_argv`: the program IDENTITY
-//!   (`DANGEROUS_PROGRAMS`) PLUS the structural re-exec class (interpreter
+//!   (dangerous basenames) PLUS the structural re-exec class (interpreter
 //!   inline-eval `-c`/`-e`, `env`, `nc -e`, `dd if=`) — symmetric with shell
 //!   mode but per-argv-element, so a literal arg is never a false positive.
+//!   The predicate itself is [`nika_types::exec::argv_floor_refusal`] — the
+//!   ONE the static `nika check` finding judges with too (#605 · check ≡
+//!   run by construction, no mirrored table).
 //!
 //! `ShellError::Blocked` on a hit. `pre_validated` is the documented seam for
 //! the policy layer that has already done intent-aware validation. The floor
@@ -66,6 +69,10 @@
 
 mod blocklist;
 mod egress;
+/// The `permits:` → `SandboxSpec` derivation (ADR-095 Layer 6 · descended
+/// from `nika-runtime::dispatch` at the 15k wall, ADR-110 · #889) — `pub`
+/// because the runtime's dispatch still judges through it (L3→L1).
+pub mod sandbox_spec;
 mod scratch;
 
 pub use egress::{EgressDecision, EgressEvent, EgressObserver};

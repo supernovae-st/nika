@@ -1407,9 +1407,9 @@ dependencies = [
 
 [[package]]
 name = "granit-parser"
-version = "0.0.7"
+version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d03f81ad4732830d85cfd417a9f62cde6dadda4354d37d078a6084a19560aa2d"
+checksum = "7c92814c286f45b5ed1498ce9547bc9637b473eba7037f8aee6a4d5a3c1e051c"
 dependencies = [
  "arraydeque",
  "smallvec",
@@ -2247,12 +2247,12 @@ dependencies = [
 
 [[package]]
 name = "minisign"
-version = "0.7.9"
+version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "26541387415a1e829df5d532aad019fb11bc723e2b5bc99edefa4cf5bfad0de7"
+checksum = "aefd422a7a8b5efced01cd7cdf3771e62ebecbc90e3d27695002d3af6af94586"
 dependencies = [
  "ct-codecs",
- "getrandom 0.2.17",
+ "getrandom 0.4.2",
  "rpassword",
  "scrypt",
 ]
@@ -2456,7 +2456,6 @@ dependencies = [
  "nika-types",
  "nix",
  "tokio",
- "unicode-normalization",
 ]
 
 [[package]]
@@ -2715,6 +2714,7 @@ dependencies = [
  "loom",
  "serde",
  "serde_json",
+ "unicode-normalization",
  "uuid",
 ]
 
@@ -3752,16 +3752,14 @@ dependencies = [
 
 [[package]]
 name = "serde-saphyr"
-version = "0.0.29"
+version = "1.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7bd22781911de0ca6debda95f073c8f18bec65d1a94f1fa9573f3102e514cea4"
+checksum = "af2c6921c8ce48fb1b052b457619d008834039d80325992ed3bc55bbe6c155ad"
 dependencies = [
- "ahash",
  "annotate-snippets",
  "base64",
  "encoding_rs_io",
- "getrandom 0.3.4",
- "granit-parser 0.0.7",
+ "granit-parser 1.0.1",
  "miette",
  "nohash-hasher",
  "num-traits",

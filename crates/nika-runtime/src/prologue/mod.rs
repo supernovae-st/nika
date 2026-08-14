@@ -78,6 +78,26 @@ pub(crate) fn permits_banner(wf: &RawWorkflow) -> &'static str {
     }
 }
 
+/// #889 — the policy posture + the witnessed waiver: `sandbox_policy`
+/// names the knob the run was judged under (every composed run — the
+/// `sandbox:` backend field's sibling, always attested); `sandbox_waived`
+/// rides ONLY when the run proceeds unconfined with `permits:` declared
+/// under `NIKA_SANDBOX=off` — a sealed trace SHOWS the choice. Additive:
+/// older readers ignore them, newer say "unrecorded", never guess.
+pub(crate) fn sandbox_policy_fields(
+    policy: Option<&str>,
+    waived: bool,
+) -> Vec<(&'static str, FieldValue)> {
+    let mut fields = Vec::new();
+    if let Some(policy) = policy {
+        fields.push(("sandbox_policy", s(policy)));
+    }
+    if waived {
+        fields.push(("sandbox_waived", s("true")));
+    }
+    fields
+}
+
 /// The NEP-0014 boot-manifest fields (F-P13 · F-P21) — additive, the
 /// `permits_json` posture: older readers ignore unknown fields, newer
 /// readers find them absent where no claim exists.
@@ -205,6 +225,8 @@ pub(crate) fn emit_prologue(
     source_sha256: Option<&str>,
     source_sha256_lf: Option<&str>,
     sandbox_backend: Option<&str>,
+    sandbox_policy: Option<&str>,
+    sandbox_waived: bool,
     input_origins: &BTreeMap<String, InputOrigin>,
     resume_compat: Option<&str>,
     resume_unverified: Option<&crate::resume::ResumeUnverified>,
@@ -241,16 +263,16 @@ pub(crate) fn emit_prologue(
     if let Some(backend) = sandbox_backend {
         opening.push(("sandbox", s(backend)));
     }
+    // #889 · the policy posture + the witnessed waiver (own helper).
+    opening.extend(sandbox_policy_fields(sandbox_policy, sandbox_waived));
     // F-P13 + F-P21 · the NEP-0014 attestation fields (own helper).
     opening.extend(nep_0014_fields(input_origins, resume_compat));
     // ADR-099 trust amendment (2026-08-08) · the unverified-trust
     // attestation (own helper).
     opening.extend(trust_amendment_fields(resume_unverified));
     // The trace-format marker (spec 13 §trace · the graph_format: 2
-    // precedent): format-2 lines carry `outcome: {class, cause}` on
-    // every terminal task event, so the run's opening frame — the
-    // trace's header — names the format it speaks. ONE source:
-    // `TraceFormatVersion::CURRENT` (pack-parity-pinned).
+    // precedent): the run's opening frame — the trace's header — names
+    // the format it speaks. ONE source: `TraceFormatVersion::CURRENT`.
     opening.push((
         "trace_format",
         i(i64::from(nika_types::TraceFormatVersion::CURRENT.version)),

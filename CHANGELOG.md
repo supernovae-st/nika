@@ -28,6 +28,46 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   permits in it: the portability test (D-2026-08-10-N2) keeps the file
   to defaults and gates, never meaning.
 
+- **The sandbox policy: declared `permits:` now require confinement, or
+  the run refuses (#889 · #822's P0 fail-open).** A workflow asserting a
+  `permits:` boundary used to run UNCONFINED with a loud note when the
+  host had no OS sandbox (Linux without bwrap · any platform without the
+  layer) — the contract silently degraded. The severity now derives from
+  the declared contract, never the machine: `NIKA_SANDBOX=auto` (the
+  default) refuses a permits-declaring workflow with `exec:` children
+  the host cannot jail (any block counts — even tools-only jails the
+  exec child to the empty axes; permits without exec keep running),
+  `require` refuses any unconfined start, and `off` is the explicit
+  waiver — parsed ONCE at the composition root
+  (`SandboxPolicy::judge`'s truth table: policy × confined × permits ·
+  no cell yields a silent unconfined-with-permits), and an unparsable
+  value refuses to start (a typo'd security knob loudly defaulting would
+  be the fail-open class). The refusal is the typed NIKA-1710 (the
+  NIKA-1708/1709 launch-refusal precedent — before the prologue, zero
+  events, zero spend), naming the exact per-OS fix. Every waiver is
+  WITNESSED: the journal's opening frame attests `sandbox_policy` +
+  `sandbox_waived`, so a sealed trace SHOWS the operator chose it (the
+  `resume_unverified` trust-amendment precedent). ADR-080 Q4.B amended;
+  platform-gated best-effort stays for permit-less runs.
+
+- **The doctor's sandbox row (#891 · #822 P1).** `nika doctor` was
+  blind to the OS sandbox: a Linux host without `/usr/bin/bwrap` read
+  green while every `exec:` and external MCP spawn ran unconfined. The
+  row rides the ONE selection's `SandboxDecision` (#888 — never a third
+  selector): a confined backend is Ok and names its mechanism (`Linux
+  sandbox (bubblewrap) · backend id: landlock`, the host-granular
+  allowlist residual named as follow-on — never a full-strength claim),
+  and a `noop` WARNS with the exact per-OS fix. `doctor --json` carries
+  the row on the same findings lane.
+
+- **The thinking-budget teaching at check (#651 · leg 3).** A
+  reasoning-capable model (the vendored catalog knows) seated with
+  `max_tokens` but no `thinking:` now draws the `thinking-budget` hint:
+  the reasoning share lives INSIDE that budget, and a heavy think
+  concludes with a paid blank answer — the typed NIKA-INFER-004 failure
+  at run since leg 1. The hint teaches the declaration before a token
+  is spent; a templated seat defers to the run's resolution, a declared
+  `thinking:` or a no-think model stays silent.
 - **The pause is heard — outbound pause delivery (ADR-111).** When the
   operator sets `NIKA_NOTIFY_URL`, a run that pauses on a human gate
   POSTs its pause payload once — a CloudEvents 1.0.2 structured envelope
@@ -89,6 +129,69 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Fixed
 
+- **The argv exec floor is judged at check, with the run's own
+  predicate (#605 · NIKA-SEC-001).** `nika check` audited green an
+  argv-form `exec:` command the runtime's exec floor refuses at spawn
+  (`["bash","-c",…]` — interpreter inline-eval): the static lane was an
+  advisory hint over a hand-mirrored eval table, and a hint cannot fail
+  a file the run refuses — an `on_error: {skip: true}` leg swallowed
+  the refusal as a SKIP and fleets degraded silently. The predicate now
+  lives in `nika-types::exec` (the L0 leaf both sides depend on — the
+  `host_in_allowlist` precedent), the check emits the `NIKA-SEC-001`
+  FINDING (exit 2) for any literal argv the run would refuse, and the
+  advisory hint retires. Honest scope, pinned by tests: the shell form
+  and any `${{ }}`-templated argv make no static claim — the runtime
+  re-judges the resolved argv pre-spawn. `nika explain NIKA-SEC-001`
+  teaches exactly that split, the human render gains the EXEC rung, and
+  a cross-crate agreement test pins check ≡ run on the same argv.
+- **A templated `model:` resolves at run, not just at check (#824).**
+  `infer.model: "${{ config.model }}"` checked green — the MODELS rung
+  judges the declared default through the one shared static resolver —
+  then the run handed the RAW template bytes to the provider, dying
+  NIKA-INFER-001 on a string that was never a model id. The dispatch
+  now renders `model:` (infer AND agent — the same one-line seam each)
+  through the `${{ }}` render path `prompt:`/`system:` already took, so
+  the resolved binding is what reaches the wire and the
+  spec-sanctioned parameterization idiom (03 §model-by-condition ·
+  08 §H20 env targeting) holds end-to-end. A declared-but-valueless
+  ref now fails the task loud (NIKA-1702) instead of leaking the raw
+  island to the provider. Proven red-first at the seam: the issue's
+  repro workflow lands the resolved default in the captured provider
+  request body, and the agent loop's mock records `mock/echo`, never
+  the template.
+- **`check --fix` migrates the pre-0.103 string `command:` (#572 · the
+  D1 codemod).** The refusal taught the migration in prose but answered
+  « no machine-applicable repairs » on the exact finding whose repair IS
+  mechanical. The parser's refusal is now the typed
+  `SchemaError::D1StringCommand` (same wire code — NIKA-PARSE-019 — the
+  variant exists so the ladder can match it), and the D1 codemod joins
+  the ladder: a string command inside an `exec:` block becomes `shell:`
+  VERBATIM (the same decoded string reaches /bin/sh -c — semantics
+  byte-identical) or, for a bare string of provably-inert tokens
+  (no character a shell could reinterpret), the argv flow form the
+  grammar prefers. A `command:` outside an exec block (an `invoke:` arg
+  named `command`) is never touched; a mapping/null value STOPS with an
+  honest note, never a guess. The repair ladder itself descended to
+  `nika-cli-host::fix_ladder` at the 15k wall (ADR-110 · one
+  architectural unit, two members), and nika-migrate's D1 lives in its
+  own `d1.rs` (the 1500-file wall, ADR-023).
+- **An empty `infer` answer settles FAILED, never green (#651).** A
+  thinking model under a tight `max_tokens` can spend the whole budget
+  on its reasoning trace and conclude with a blank visible answer — the
+  run used to finish green (exit 0) over `output: ""`, the only signal
+  a non-fatal console warn every downstream `${{ tasks.X.output }}`
+  silently ignored. The warn is promoted to the typed failure
+  `NIKA-INFER-004` (`VerbInferError::EmptyAnswer` · NIKA-435), raised at
+  the verb on the exact signal the warn keyed off (blank visible answer
+  + token spend — a reported reasoning split OR one undifferentiated
+  output count) and carrying the same max_tokens/no-think teaching.
+  Non-transient: a declared `retry:` never re-asks at the same budget
+  unless the author opts in via `on_codes: [NIKA-INFER-004]`, and the
+  billed round-trip rides the failure's spend. The zero-spend carve-out
+  is preserved (a blank answer with zero tokens is a plain empty
+  completion, not the footgun), and the `schema:` lane is untouched —
+  an empty reply already dies NIKA-INFER-002 at extraction, while a
+  schema-validated empty container stays a legitimate answer.
 - **The resume verifies the chain before trusting the trace (ADR-099
   trust amendment).** `nika run --resume` served a trace's recorded
   successes as cache hits WITHOUT consulting the tamper-evidence chain
@@ -200,6 +303,19 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   with zero secret bytes · the inside link serves byte-exact · the loop
   and the storm refuse coded and RETURN.
 
+### Security
+
+- **`nika mcp --transport http` refuses a non-loopback bind without a
+  bearer token (#890 · #822 P0/P1).** `NIKA_MCP_TOKEN` was optional and
+  the auth gate treated its absence as OK — right for the loopback
+  default, a classic misconfiguration the moment `--bind 0.0.0.0` met a
+  multi-user or VPS host. The refusal is code-enforced before serving
+  (`HttpServer::guard_bind_auth` judges the RESOLVED address, so
+  `localhost` reads as the loopback it bound, never the spelling) and
+  names both fixes: set `NIKA_MCP_TOKEN` to require a bearer, or bind a
+  loopback address. Loopback without a token stays convenient,
+  unchanged.
+
 ## [0.108.0](https://github.com/supernovae-st/nika/compare/v0.107.2..v0.108.0) - 2026-08-05
 
 **The access layer arrives; the check stops trusting what it cannot
@@ -262,6 +378,24 @@ red-first, like everything on this train.
 
 ### Changed
 
+- **A blank answer that burned tokens is a typed failure, not a green
+  task (#651 · NIKA-INFER-004).** A thinking model under a tight
+  `max_tokens` can spend the whole budget on its reasoning trace and
+  conclude with a BLANK visible answer — the task used to settle green
+  over `""` (a warn nobody downstream acts on) while every
+  `${{ tasks.X.output }}` silently resolved to nothing. The OBS-E warn
+  is promoted to the typed `NIKA-INFER-004` failure (engine NIKA-435),
+  fail-closed with the spend attached as ledger evidence. The signal is
+  deliberately narrow: blank visible answer PAIRED with token spend
+  (a reported reasoning split, or an undifferentiated
+  `output_tokens > 0` — the ollama path strips the think block
+  upstream). A blank answer with zero spend stays green (a plain empty
+  completion is not the footgun), the `schema:` lane is untouched (an
+  empty reply already dies NIKA-INFER-002 at extraction; a validated
+  empty container is a legitimate answer), and `on_error:` remains the
+  author's named opt-out. The summary's « 7/7 done » can no longer
+  count an empty paid answer as done — the failure default makes the
+  honesty leg moot.
 - **The anthropic default moves to `claude-sonnet-4-6`.** The catalog sat
   two generations back (`claude-sonnet-4-20250514`) while the spec's
   examples and conformance fixtures standardized on the 4.6 id — the
@@ -1500,7 +1634,6 @@ to sail through.
   the dither pulse that only exists where motion does — every shape
   colour-through-Role only, 2-cell law, zero escapes when colour is
   off.
-||||||| 6207ec234
 - **LSP code actions — the `--fix` engine in every editor**: the language
   server now answers `textDocument/codeAction` with quickfix renames
   built from the checker's typed `offending`/`suggestion` pairs (unknown

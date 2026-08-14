@@ -265,6 +265,15 @@ pub const NIKA_434: NikaCode = NikaCode {
     severity: Severity::Error,
     slug: "infer-usage-unmetered",
 };
+/// NIKA-435: The provider spent tokens yet the visible `infer` answer is
+/// empty — a thinking model ate the budget on its reasoning trace (fail-
+/// closed, wire `NIKA-INFER-004` · #651).
+pub const NIKA_435: NikaCode = NikaCode {
+    num: 435,
+    category: Category::Verb,
+    severity: Severity::Error,
+    slug: "infer-empty-answer",
+};
 /// NIKA-440: Command exited non-zero in a default capture mode.
 pub const NIKA_440: NikaCode = NikaCode {
     num: 440,
@@ -856,6 +865,33 @@ pub const NIKA_1709: NikaCode = NikaCode {
     slug: "runtime-budget-floor",
 };
 
+/// NIKA-1710: The sandbox policy requires OS confinement the host cannot
+/// provide (#889 · ADR-080 Q4.B amended): a workflow declaring `permits:`
+/// under `NIKA_SANDBOX=auto|require` on a host with no Seatbelt/bwrap —
+/// the composition root refuses BEFORE the prologue (zero events, zero
+/// spend), naming the exact per-OS fix and the witnessed opt-out
+/// (`NIKA_SANDBOX=off`, attested on the journal's opening frame). The
+/// launch-refusal class (the NIKA-1708/1709 precedent): run-abort, never
+/// a task failure — no `on_codes` ladder exists for it by design.
+pub const NIKA_1710: NikaCode = NikaCode {
+    num: 1710,
+    category: Category::Runtime,
+    severity: Severity::Error,
+    slug: "runtime-sandbox-required",
+};
+
+/// NIKA-1711: The `NIKA_SANDBOX` knob held anything but
+/// `auto | require | off` (#889) — a typo'd security knob refuses the
+/// launch BEFORE the prologue (fail-closed; a loud default would be the
+/// fail-open class the policy exists to kill). The launch-refusal class
+/// (the NIKA-1708..1710 precedent): run-abort, never a task failure.
+pub const NIKA_1711: NikaCode = NikaCode {
+    num: 1711,
+    category: Category::Runtime,
+    severity: Severity::Error,
+    slug: "runtime-sandbox-policy-invalid",
+};
+
 /// NIKA-1800: No access path survives admission for the requested
 /// model (D-2026-08-04-N1) — every enumerated candidate was rejected,
 /// each with its witness (dimension + layer + teaching line · A-8).
@@ -938,16 +974,16 @@ pub const NIKA_1806: NikaCode = NikaCode {
 /// candidate).
 pub const ALL: &[NikaCode] = &[
     NIKA_001, NIKA_002, NIKA_003, NIKA_010, NIKA_011, NIKA_012, NIKA_013, NIKA_014, NIKA_015,
-    NIKA_234, NIKA_430, NIKA_431, NIKA_432, NIKA_433, NIKA_434, NIKA_440, NIKA_441, NIKA_442,
-    NIKA_450, NIKA_451, NIKA_452, NIKA_460, NIKA_461, NIKA_462, NIKA_463, NIKA_464, NIKA_465,
-    NIKA_466, NIKA_467, NIKA_468, NIKA_469, NIKA_600, NIKA_601, NIKA_602, NIKA_603, NIKA_604,
-    NIKA_605, NIKA_700, NIKA_750, NIKA_800, NIKA_999, NIKA_1000, NIKA_1001, NIKA_1002, NIKA_1003,
-    NIKA_1004, NIKA_1005, NIKA_1006, NIKA_1007, NIKA_1008, NIKA_1009, NIKA_1101, NIKA_1102,
-    NIKA_1103, NIKA_1104, NIKA_1105, NIKA_1106, NIKA_1107, NIKA_1108, NIKA_1109, NIKA_1201,
-    NIKA_1202, NIKA_1203, NIKA_1204, NIKA_1205, NIKA_1206, NIKA_1301, NIKA_1302, NIKA_1303,
-    NIKA_1304, NIKA_1305, NIKA_1401, NIKA_1402, NIKA_1403, NIKA_1404, NIKA_1405, NIKA_1406,
-    NIKA_1501, NIKA_1502, NIKA_1503, NIKA_1504, NIKA_1505, NIKA_1601, NIKA_1602, NIKA_1603,
-    NIKA_1604, NIKA_1605, NIKA_1700, NIKA_1701, NIKA_1702, NIKA_1703, NIKA_1704, NIKA_1705,
-    NIKA_1706, NIKA_1707, NIKA_1708, NIKA_1709, NIKA_1800, NIKA_1801, NIKA_1802, NIKA_1803,
-    NIKA_1804, NIKA_1805, NIKA_1806,
+    NIKA_234, NIKA_430, NIKA_431, NIKA_432, NIKA_433, NIKA_434, NIKA_435, NIKA_440, NIKA_441,
+    NIKA_442, NIKA_450, NIKA_451, NIKA_452, NIKA_460, NIKA_461, NIKA_462, NIKA_463, NIKA_464,
+    NIKA_465, NIKA_466, NIKA_467, NIKA_468, NIKA_469, NIKA_600, NIKA_601, NIKA_602, NIKA_603,
+    NIKA_604, NIKA_605, NIKA_700, NIKA_750, NIKA_800, NIKA_999, NIKA_1000, NIKA_1001, NIKA_1002,
+    NIKA_1003, NIKA_1004, NIKA_1005, NIKA_1006, NIKA_1007, NIKA_1008, NIKA_1009, NIKA_1101,
+    NIKA_1102, NIKA_1103, NIKA_1104, NIKA_1105, NIKA_1106, NIKA_1107, NIKA_1108, NIKA_1109,
+    NIKA_1201, NIKA_1202, NIKA_1203, NIKA_1204, NIKA_1205, NIKA_1206, NIKA_1301, NIKA_1302,
+    NIKA_1303, NIKA_1304, NIKA_1305, NIKA_1401, NIKA_1402, NIKA_1403, NIKA_1404, NIKA_1405,
+    NIKA_1406, NIKA_1501, NIKA_1502, NIKA_1503, NIKA_1504, NIKA_1505, NIKA_1601, NIKA_1602,
+    NIKA_1603, NIKA_1604, NIKA_1605, NIKA_1700, NIKA_1701, NIKA_1702, NIKA_1703, NIKA_1704,
+    NIKA_1705, NIKA_1706, NIKA_1707, NIKA_1708, NIKA_1709, NIKA_1710, NIKA_1711, NIKA_1800,
+    NIKA_1801, NIKA_1802, NIKA_1803, NIKA_1804, NIKA_1805, NIKA_1806,
 ];

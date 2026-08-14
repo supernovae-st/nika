@@ -1,7 +1,17 @@
 # nika-catalog
 
-Compile-time capability vocabulary — 32 LLM providers, 105 MCP servers,
-13 embeddings, 63 builtins, 49 capability rules.
+Compile-time capability vocabulary — 38 LLM providers, 105 MCP servers,
+13 embeddings, 28 builtins, 49 capability rules.
+
+<!-- The five counts above are not typed from memory. Three of them are
+     asserted by this crate's own tests (`src/lib.rs` · `all_providers`,
+     `all_mcp_servers`, `all_builtins`) — the truth sat 15 lines from the
+     lie until 2026-08-12, when the header still read 32 providers and 63
+     builtins against asserts of 38 and 28. The remaining two derive from
+     the TOML data (`data/embeddings.toml` · `data/model-capabilities.toml`,
+     one `[[…]]` per entry) and are guarded by NOTHING — re-derive them
+     before trusting them. -->
+
 
 Layer **L0** crate. Ships TOML-driven catalog data baked into the binary
 via `phf` perfect-hash tables (build-time codegen by `nika-catalog-codegen`).

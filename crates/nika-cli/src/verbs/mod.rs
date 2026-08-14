@@ -120,6 +120,74 @@ pub(crate) fn with_model_override(wf: &RawWorkflow, model: &str) -> RawWorkflow 
 mod tests {
     use super::*;
 
+    /// The `skills:` fs edge lives INSIDE the boundary · the follow-on
+    /// #473 never settled (its "permits question" asked whether a skill
+    /// could WIDEN the inferred boundary, never whether READING it needed
+    /// a grant).
+    ///
+    /// Falsified at 0.108.0, the published binary: under `permits: {}` ·
+    /// the DECLARED ZERO, whose own doc says "this workflow opens no
+    /// file" · a skill path of `/etc/hosts` was READ and the engine
+    /// reported on its CONTENT (`no YAML frontmatter`) while the PERMITS
+    /// and TRIFECTA rungs both stayed green.
+    ///
+    /// Cost of closing it, measured on this tree: 0 of 94 `.nika.yaml`
+    /// files carry `skills:` (92 carry `permits:`, 12 carry `agent:` ·
+    /// the census instrument sees things, so the zero is real).
+    /// ⚠️ The instrument had to be rebuilt once: a first version pointed at
+    /// `/etc/hosts` and went GREEN for the WRONG reason · that file is not a
+    /// valid Agent Skill, so it is READ, then rejected at parse, landing in
+    /// `findings` and never in `texts`. Both assertions were satisfied by the
+    /// MALFORMATION, not by a boundary refusal · a reference that does not
+    /// sit outside the measured function agrees with itself.
+    ///
+    /// The discriminating fixture is a **valid** skill placed outside the
+    /// boundary: only a refusal keeps `texts` empty · a read populates it.
+    #[test]
+    fn skills_read_outside_the_declared_boundary_is_refused() {
+        // A VALID skill, deliberately outside the workflow's tree and outside
+        // any grant the file makes.
+        let dir = std::env::temp_dir().join("nika-skills-boundary-probe");
+        std::fs::create_dir_all(&dir).expect("probe dir");
+        let skill = dir.join("valid-skill.md");
+        std::fs::write(
+            &skill,
+            "---\nname: probe\ndescription: a perfectly valid Agent Skill\n---\nbody\n",
+        )
+        .expect("probe skill");
+        let path = skill.to_string_lossy().into_owned();
+
+        let yaml = format!(
+            concat!(
+                "nika: v1\n",
+                "workflow:\n  id: w\n",
+                "model: mock/echo\n",
+                "permits: {{}}\n",
+                "tasks:\n  t:\n    agent:\n",
+                "      prompt: p\n",
+                "      skills: [\"{}\"]\n",
+            ),
+            path
+        );
+        let wf = nika_schema::parse(&yaml, FileId::new(0), ParseMode::Strict)
+            .expect("the fixture parses");
+
+        let resolved = resolve_workflow_skills(&wf);
+
+        // The whole point: the skill PARSES, so the only thing that can keep
+        // it out of `texts` is the boundary refusing the read.
+        assert!(
+            resolved.texts.is_empty(),
+            "a VALID skill outside the declared boundary was READ · \
+             the fs edge bypasses permits.fs.read · got {} text(s)",
+            resolved.texts.len()
+        );
+        assert!(
+            !resolved.findings.is_empty(),
+            "the refusal must surface as a SKILLS finding, never as silence"
+        );
+    }
+
     /// The pipe-parity pin: with the `links` capability OFF (every sober
     /// register), `linked_path` returns the path VERBATIM — zero escapes.
     /// With it on, the OSC-8 wrapper carries a `file://` URL and keeps

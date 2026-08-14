@@ -5,10 +5,12 @@
 # inside the PUBLIC nika/engine submodule.
 #
 # Blocked path patterns (references, not file locations):
-#   ventures/<name>/0*-*/  — the private venture poles (strategy · brand ·
-#                            revenue · chronicle · internal architecture/docs)
+#   ventures/<name>/…      — every venture tree, EXCEPT the one public tier
+#                            (ventures/nika/02-engineering/repos/, where this
+#                            repo itself lives)
 #   studio/                — cross-product brand · lore · north-star
-#   dx/{.claude,journal,state}/ — the agent substrate + the studio's chronicle
+#   dx/                    — the agent substrate + the studio's chronicle,
+#                            the WHOLE tree, not a list of its children
 #   .claude/projects       — private memory/config
 #   nika/hq/ · *-hq/       — the pre-migration spellings (frozen citations)
 #
@@ -21,52 +23,52 @@
 
 set -Eeuo pipefail
 
-# P0-3 Batch H+: patterns are now plain strings matched via grep -F (fixed
-# strings). The previous `\.claude/projects/` contained a backslash-dot that
-# grep -F treated LITERALLY — so it matched `\.claude/projects/` but NOT the
-# actual path `.claude/projects/`. Plain dot is correct for -F mode.
-# The monorepo moved to `ventures/<name>/<pole>/` and the `hq/` layout
-# died with it. Six of the seven patterns below matched no directory that
-# still exists (2026-08-02), while 63,000 private files sat one rename
-# away, unguarded — a public commit naming a private strategy doc under
-# the venture's product pole sailed straight through.
-# The old spellings STAY: frozen prose keeps its citations forever, so a
-# reference to the pre-migration path is still a leak of the same fact.
-# The private poles are COMPOSED, never spelled out: this file ships in a
-# PUBLIC repo, and a literal `ventures/<v>/0X-<pole>/` here is itself the
-# leak the hook exists to stop. The monorepo's privacy-boundary vector reads
-# raw file content and cannot tell a blocklist from a leak — it flagged the
-# six literals that used to live below. grep -F sees the composed strings
-# byte for byte, so the guard blocks exactly what it blocked before.
-readonly _V='ventures/nika/'
+# Patterns are EXTENDED REGEXES (grep -E), and each one is a SHAPE rather
+# than an inventory. Three times now this list has been an inventory, and
+# three times the tree moved out from under it:
+#
+#   · 2026-08-02 · the monorepo moved to `ventures/<name>/<pole>/` and six
+#     of seven patterns named a directory that no longer existed, while
+#     63,000 private files sat one rename away, unguarded.
+#   · 2026-08-13 · the TIER-2/3 rules moved to `dx/doctrine/` in June; the
+#     list stayed at `dx/.claude/`, guarding a door nobody used any more.
+#   · 2026-08-14 · measured again. `dx/` had NINE children plus three
+#     hidden ones; the list named four, so five private trees had never
+#     been guarded at all. The venture list named FIVE ventures while
+#     SEVEN existed, leaving two whole ventures unguarded. (Counts only —
+#     naming the unguarded children here would be the leak itself.)
+#
+# So neither family is enumerated any more. `dx/` and `studio/` are named
+# at the ROOT — the only spelling a rename inside them cannot invalidate —
+# and the venture tree is matched by its shape below, with the single
+# public tier carved out. That also says LESS in a public file: this hook
+# ships in a PUBLIC repo, and an inventory of private subdirectory names is
+# itself the leak the hook exists to stop.
+#
+# Each pattern is anchored at a path boundary. Unanchored `studio/` matched
+# `lmstudio/` and `~/.cache/lm-studio/` — real, public LM Studio provider
+# paths — so the gate also blocked legitimate work. `[^a-zA-Z0-9._-]` keeps
+# `https://supernovae.studio/` out too, while still matching `/studio/`.
+readonly BOUNDARY='(^|[^a-zA-Z0-9._-])'
 readonly PRIVATE_PATTERNS=(
-  # The 9-pole venture layout — every private pole, for every venture.
-  # (`02-engineering/repos/` is the PUBLIC submodule tier and is not one.)
-  "${_V}01-product/"
-  "${_V}04-identity/"
-  "${_V}06-revenue/"
-  "${_V}07-operations/"
-  "${_V}08-chronicle/"
-  'ventures/nika/02-engineering/architecture/'
-  'ventures/nika/02-engineering/docs/'
-  'ventures/olympus/'
-  'ventures/qrcodeai/'
-  'ventures/rainbo/'
-  'ventures/atlas-seo/'
-  # The studio + the agent substrate.
-  'studio/'
-  'dx/.claude/'
-  'dx/journal/'
-  'dx/state/'
-  '.claude/projects/'
+  # The studio + the agent substrate, at the root.
+  "${BOUNDARY}studio/"
+  "${BOUNDARY}dx/"
+  "${BOUNDARY}\.claude/projects/"
   # The pre-migration spellings — frozen citations still leak the fact.
-  'nika/hq/'
-  'studio-spn/'
-  'jungo/hq/'
-  'novanet/hq/'
-  'qrcodeai/hq/'
-  'supernovae-hq/'
+  "${BOUNDARY}nika/hq/"
+  "${BOUNDARY}studio-spn/"
+  "${BOUNDARY}jungo/hq/"
+  "${BOUNDARY}novanet/hq/"
+  "${BOUNDARY}qrcodeai/hq/"
+  "${BOUNDARY}supernovae-hq/"
 )
+
+# The venture tree, as a shape. Everything under `ventures/<name>/` is
+# private — the 9 poles, for every venture that exists or ever will —
+# EXCEPT the one public tier, which is where this very repo lives.
+readonly VENTURE_SHAPE='ventures/[a-z0-9][a-z0-9-]*/[a-zA-Z0-9._/-]*'
+readonly VENTURE_PUBLIC='^ventures/nika/02-engineering/repos/'
 
 # Get staged files in the engine context (exclude deleted files).
 # Self-exclusion — these directories legitimately enumerate the very patterns
@@ -91,19 +93,34 @@ if ((${#STAGED[@]} == 0)); then
   exit 0
 fi
 
+# Every added line, gathered once. (`^+`, minus the `+++` file headers.)
+ADDED="$(
+  git diff --cached -U0 -- "${STAGED[@]}" 2>/dev/null \
+    | grep '^+' \
+    | grep -v '^+++' \
+    || true
+)"
+
 FOUND=()
 for pattern in "${PRIVATE_PATTERNS[@]}"; do
   while IFS= read -r match; do
     [[ -n "$match" ]] && FOUND+=("$match")
-  done < <(
-    git diff --cached -U0 -- "${STAGED[@]}" 2>/dev/null \
-      | grep '^+' \
-      | grep -v '^+++' \
-      | grep -F "$pattern" \
-      | head -5 \
-      || true
-  )
+  done < <(printf '%s\n' "$ADDED" | grep -E "$pattern" | head -5 || true)
 done
+
+# The venture tree is matched per OCCURRENCE, not per line. A line that
+# names the public repos tier AND a private pole has to be caught for the
+# private half; a line-level `grep -v` would have dropped the whole line on
+# account of the innocent one.
+while IFS= read -r match; do
+  [[ -n "$match" ]] && FOUND+=("$match")
+done < <(
+  printf '%s\n' "$ADDED" \
+    | grep -oE "$VENTURE_SHAPE" \
+    | grep -vE "$VENTURE_PUBLIC" \
+    | head -5 \
+    || true
+)
 
 if ((${#FOUND[@]} > 0)); then
   printf '\n[block-private-paths] BLOCKED — private path reference in staged engine files:\n' >&2

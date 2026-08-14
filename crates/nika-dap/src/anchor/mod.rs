@@ -671,8 +671,7 @@ mod tests {
 
     #[test]
     fn the_key_material_self_check_binds_minisign_and_dalek() {
-        let pair =
-            minisign::KeyPair::generate_encrypted_keypair(Some(String::new())).expect("keypair");
+        let pair = minisign::KeyPair::generate_unencrypted_keypair().expect("keypair");
         let pk_box = pair.pk.to_box().expect("pk box").to_string();
         let material = run_key_material(&pair.sk, &pk_box).expect("material");
         // The Ed25519ph signature verifies against the public half —
@@ -686,8 +685,7 @@ mod tests {
         )
         .expect("the Ed25519ph signature verifies");
         // A custody mix-up (another key's box) is refused, not signed.
-        let other =
-            minisign::KeyPair::generate_encrypted_keypair(Some(String::new())).expect("keypair");
+        let other = minisign::KeyPair::generate_unencrypted_keypair().expect("keypair");
         let other_box = other.pk.to_box().expect("pk box").to_string();
         assert!(run_key_material(&pair.sk, &other_box).is_err());
     }

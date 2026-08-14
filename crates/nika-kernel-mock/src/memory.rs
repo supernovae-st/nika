@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! `NullMemoryStore` + `NullEmbeddingProvider` — no-op Cortex stubs.
+//! `NullMemoryStore` + `NullEmbeddingProvider` — no-op Connectome stubs.
 
 use nika_kernel::memory::{
     EmbeddingProvider, MemoryError, MemoryForget, MemoryFrame, MemoryHit, MemoryId, MemoryRecall,

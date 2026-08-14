@@ -19,6 +19,10 @@ publish                = false  # Foundation crate — never on crates.io. See f
 serde      = { workspace = true, optional = true }
 serde_json = { workspace = true }
 uuid       = { workspace = true }
+# NFKC confusable-bypass defense of the argv exec floor (`exec.rs` — the
+# ONE predicate check ≡ run judge with · #605). no_std-compatible with
+# default-features off, so the `--no-default-features` seam stays intact.
+unicode-normalization = { workspace = true, default-features = false }
 
 [features]
 default = ["std", "serde"]

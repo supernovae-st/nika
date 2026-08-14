@@ -1,8 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The `permits:` → [`SandboxSpec`] derivation (spec 01 §permits · ADR-095
-//! Layer 6): once a workflow declares a capability boundary, every `exec`
+//! The `permits:` → [`SandboxSpec`](nika_kernel::process::SandboxSpec)
+//! derivation (spec 01 §permits · ADR-095
+//! Layer 6 · descended from `nika-runtime::dispatch` at the 15k wall,
+//! ADR-110 · #889 — the spawn-side vocabulary rides its exec-shell home):
+//! once a workflow declares a capability boundary, every `exec`
 //! child is jailed to it — the OS sandbox enforces at spawn what the
 //! builtin/fs gates enforce at their own seams, so an exec that the
 //! blocklist passes can still not TOUCH what the boundary denies.
@@ -15,7 +18,8 @@
 //!   absolute subpaths only (`grant_subpath` fail-closes on a relative
 //!   grant), so the derivation absolutizes HERE — a task-level `cwd:`
 //!   does not re-anchor the boundary, exactly like the builtin gate.
-//! - **Network is a tri-state** ([`NetPolicy`] · the Anthropic
+//! - **Network is a tri-state** ([`NetPolicy`](nika_kernel::process::NetPolicy)
+//!   · the Anthropic
 //!   sandbox-runtime model): `net.http` non-empty maps to `Allowlist`
 //!   (exactly the declared set, via the loopback egress proxy); the bare
 //!   `*` entry maps to `Allow` (the explicit escape hatch, in-file only);
@@ -45,7 +49,7 @@ use nika_schema::types::Permits;
 /// law 2): the judged prefix, the resolved target, and the access class —
 /// the caller refuses the dispatch and attests both paths.
 #[derive(Debug)]
-pub(super) struct PathMismatch {
+pub struct PathMismatch {
     /// The judged (declared · absolutized) literal prefix.
     pub grant: String,
     /// The effective identity the prefix resolves to on the live fs.
@@ -59,7 +63,13 @@ pub(super) struct PathMismatch {
 /// NEP-0009: every fs grant's literal prefix must keep its judged identity
 /// on the live filesystem — an escape refuses the whole derivation (the
 /// task never spawns) and is never rewritten to the resolved form.
-pub(super) fn spec_of(permits: &Permits, root: &Path) -> Result<SandboxSpec, Box<PathMismatch>> {
+///
+/// # Errors
+///
+/// `Err(Box<PathMismatch>)` when a grant's EFFECTIVE identity escapes the
+/// declared set (NEP-0009 law 1+2) — the caller refuses the dispatch and
+/// attests the judged prefix + the resolved target.
+pub fn spec_of(permits: &Permits, root: &Path) -> Result<SandboxSpec, Box<PathMismatch>> {
     let (read, write) = permits
         .fs
         .as_ref()

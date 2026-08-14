@@ -93,7 +93,7 @@ pub enum Tag {
     /// Context window ≥ 200 k tokens.
     LongContext,
     /// Anthropic / `OpenAI` / `Gemini` prompt-cache support (50-90 % cost
-    /// savings on repeated prefix — big impact on Cortex projections).
+    /// savings on repeated prefix · big impact on the Connectome's projections).
     PromptCaching,
     /// Built-in web grounding (Perplexity Sonar, Gemini grounding).
     /// Distinct from `Rag` which is user-provided context.

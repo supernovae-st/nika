@@ -627,8 +627,11 @@ fn check_skills_rung_greens_reds_and_teaches() {
         std::fs::write(
             &path,
             format!(
-                "nika: v1\nworkflow:\n  id: w\nmodel: mock/echo\ntasks:\n  go:\n    agent: {{ prompt: \"hi\", skills: [\"{}\"] }}\n",
-                skill.display()
+                // the skills: fs edge lives INSIDE the boundary (#473) — the
+                // grant is judged BEFORE the reader runs, so every posture
+                // below tests the RUNG, never the boundary refusal.
+                "nika: v1\nworkflow:\n  id: w\npermits:\n  fs:\n    read: [\"{p}\"]\nmodel: mock/echo\ntasks:\n  go:\n    agent: {{ prompt: \"hi\", skills: [\"{p}\"] }}\n",
+                p = skill.display()
             ),
         )
         .expect("workflow fixture");

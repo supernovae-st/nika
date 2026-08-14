@@ -26,6 +26,7 @@ pub(crate) mod detect;
 pub mod doctor;
 pub mod door;
 pub mod experience;
+pub mod fix_ladder;
 pub(crate) mod git;
 pub mod harness;
 pub mod machine_truth;

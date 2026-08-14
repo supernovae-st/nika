@@ -35,6 +35,16 @@ pub struct RuntimeConfig {
     /// composer did not say (older composers — the pack reports it as
     /// unrecorded, never guessed).
     pub sandbox_backend: Option<String>,
+    /// The sandbox policy the composer judged under (`auto` · `require` ·
+    /// `off` — #889 · the ONE knob). Journaled on `workflow_started` so
+    /// the confinement mode reads WITH its posture; `None` = unrecorded
+    /// (older composers), never guessed.
+    pub sandbox_policy: Option<String>,
+    /// True when this run proceeds UNCONFINED with `permits:` declared
+    /// under `NIKA_SANDBOX=off` (#889) — the witnessed waiver: journaled
+    /// on `workflow_started` so a sealed trace SHOWS the operator chose
+    /// it. `false` in every other posture (nothing was waived).
+    pub sandbox_waived: bool,
 }
 
 impl RuntimeConfig {
@@ -47,6 +57,8 @@ impl RuntimeConfig {
             max_cost_usd: None,
             sandbox_root: None,
             sandbox_backend: None,
+            sandbox_policy: None,
+            sandbox_waived: false,
         }
     }
 
@@ -71,6 +83,23 @@ impl RuntimeConfig {
     #[must_use]
     pub fn with_sandbox_backend(mut self, backend: &str) -> Self {
         self.sandbox_backend = Some(backend.to_owned());
+        self
+    }
+
+    /// Record the sandbox policy the composer judged under (builder —
+    /// #889 · the journal attests the posture beside the backend).
+    #[must_use]
+    pub fn with_sandbox_policy(mut self, policy: &str) -> Self {
+        self.sandbox_policy = Some(policy.to_owned());
+        self
+    }
+
+    /// Mark the witnessed waiver (builder — #889: true ONLY when the run
+    /// proceeds unconfined with `permits:` declared under
+    /// `NIKA_SANDBOX=off`; the sealed trace shows the choice).
+    #[must_use]
+    pub fn with_sandbox_waived(mut self, waived: bool) -> Self {
+        self.sandbox_waived = waived;
         self
     }
 }

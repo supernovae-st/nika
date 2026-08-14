@@ -41,6 +41,7 @@ strng      = "strng"
 frist      = "frist"
 titel      = "titel"
 requierd   = "requierd"
+requrie    = "requrie"    # the NIKA-1711 typo-refusal fixture (#889 · the sandbox-policy tests ASSERT the misspelled knob refuses — "fixing" it breaks them)
 filesytem  = "filesytem"
 BUIL       = "BUIL"
 markdwon   = "markdwon"  # extract-mode typo rung fixture (nika-types suggest/extract tests)
@@ -104,6 +105,13 @@ extend-exclude = [
   # blind the gate across 57 crates of public code. The franglais list
   # above stays for words no English reader could mistake (`raison`).
   "docs/plans/2026-07-30-checkpoint-next-session.md",
+  # Catalog data carrying a French editorial header (the bulk-stamp block
+  # explaining what `pricing` is and what the gate will require). Same call
+  # as the line above, for the same reason: the words it trips on (`sur`,
+  # `amont`, `varient`) are plausible English typos of `sure`, `among`,
+  # `variant`, so allowlisting them would blind the gate across 57 crates
+  # of public code. The DATA rows below the header stay English.
+  "crates/nika-catalog/data/mcp-servers.toml",
   # cargo public-api baselines — generated symbol dumps, not prose. Real
   # source typos are still caught in the .rs files they derive from.
   "**/public-api.txt",

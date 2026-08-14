@@ -37,6 +37,37 @@ fn a_structured_capture_nobody_branches_on_names_what_it_swallows() {
 }
 
 #[test]
+fn a_reasoning_model_without_a_thinking_budget_gets_the_teaching() {
+    // #651 leg 3: the reasoning share lives INSIDE `max_tokens` — a
+    // heavy think concludes with a blank visible answer (NIKA-INFER-004
+    // at run). The check names the missing declaration before a token
+    // is spent. o3 is reasoning-capable in the vendored catalog.
+    let hits = hints_of(
+        "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    infer:\n      model: \"openai/o3\"\n      max_tokens: 500\n      prompt: hi\n",
+    );
+    let hit = hits
+        .iter()
+        .find(|h| h.kind == "thinking-budget")
+        .expect("a reasoning seat with a bare cap gets the teaching");
+    assert_eq!(hit.task, "t");
+    assert!(hit.advice.contains("thinking:"), "{}", hit.advice);
+
+    // Declared thinking · a no-think model · a templated seat · no cap:
+    // nothing to teach in any of the four.
+    for yaml in [
+        "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    infer:\n      model: \"openai/o3\"\n      max_tokens: 500\n      thinking: { enabled: true }\n      prompt: hi\n",
+        "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    infer:\n      model: \"openai/gpt-4o-mini\"\n      max_tokens: 500\n      prompt: hi\n",
+        "nika: v1\nworkflow:\n  id: w\nconfig:\n  seat:\n    type: string\n    default: \"openai/o3\"\ntasks:\n  t:\n    infer:\n      model: \"${{ config.seat }}\"\n      max_tokens: 500\n      prompt: hi\n",
+        "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    infer:\n      model: \"openai/o3\"\n      prompt: hi\n",
+    ] {
+        assert!(
+            !hints_of(yaml).iter().any(|h| h.kind == "thinking-budget"),
+            "no hint here: {yaml}"
+        );
+    }
+}
+
+#[test]
 fn a_prompt_without_a_default_names_its_headless_cost() {
     // Reported from Cursor 2026-07-28 (a green audit, then a dead
     // first run) and again live 2026-07-31 (seo-live-review): the

@@ -12,7 +12,20 @@ on:
 
 concurrency:
   group: diamond-${{ github.ref }}
-  cancel-in-progress: true
+  # On a branch the next run REPLACES the previous one — cancelling saves
+  # minutes and loses nothing. On main every commit is its own subject and
+  # must be judged before it is replaced. With a constant `github.ref`, two
+  # merges close together share one group and the first is cancelled unjudged,
+  # so a commit that breaks the build can go unmeasured while the RED surfaces
+  # on the next commit, usually innocent. Measured 2026-08-13: a two-line
+  # SPEC_PIN bump had its run cancelled 4 minutes later; the failure appeared
+  # on a docs commit, which cannot break a Rust suite.
+  # An expression is supported here (GitHub's actions-group-concurrency docs
+  # ship the `release/` example); a path filter is NOT — `concurrency` is
+  # evaluated at workflow level, before any job, with no changed-file context.
+  # No injection surface: this value is compared, never interpolated into a
+  # `run:` shell.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 permissions:
   contents: read
@@ -68,12 +81,12 @@ jobs:
         with:
           toolchain: "1.91"
           components: clippy, rustfmt
-      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+      - uses: Swatinem/rust-cache@a45951ff880207c249adf57334cf2e9bd81d6e1e # v2
         with:
           shared-key: diamond
       - name: Install cargo-nextest (tests leg)
         if: matrix.job == 'tests'
-        uses: taiki-e/install-action@065d6a08a14e61e89fb0a4c10eecdbdef39c7d8e # v2
+        uses: taiki-e/install-action@6c6fd71fe4fb72c3697d269963d0e15df8adedad # v2
         with:
           tool: cargo-nextest
       - name: Install bubblewrap (tests leg · forces the landlock jail proof to RUN not skip)
@@ -125,7 +138,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
         with:
           toolchain: stable
-      - uses: taiki-e/install-action@065d6a08a14e61e89fb0a4c10eecdbdef39c7d8e # cargo-deny
+      - uses: taiki-e/install-action@6c6fd71fe4fb72c3697d269963d0e15df8adedad # cargo-deny
         with:
           tool: cargo-deny
       - run: cargo deny --all-features check
@@ -145,10 +158,10 @@ jobs:
       - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # master
         with:
           toolchain: "1.91"
-      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+      - uses: Swatinem/rust-cache@a45951ff880207c249adf57334cf2e9bd81d6e1e # v2
         with:
           shared-key: diamond
-      - uses: taiki-e/install-action@065d6a08a14e61e89fb0a4c10eecdbdef39c7d8e # cargo-hack
+      - uses: taiki-e/install-action@6c6fd71fe4fb72c3697d269963d0e15df8adedad # cargo-hack
         with:
           tool: cargo-hack
       - name: check feature powerset (no dev deps)
@@ -181,7 +194,7 @@ jobs:
         with:
           toolchain: nightly
           components: miri
-      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+      - uses: Swatinem/rust-cache@a45951ff880207c249adf57334cf2e9bd81d6e1e # v2
         with:
           shared-key: diamond-miri
       - name: miri test — nika-error
@@ -206,7 +219,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: taiki-e/install-action@065d6a08a14e61e89fb0a4c10eecdbdef39c7d8e # cargo-machete
+      - uses: taiki-e/install-action@6c6fd71fe4fb72c3697d269963d0e15df8adedad # cargo-machete
         with:
           tool: cargo-machete
       - name: check for unused dependencies
@@ -226,7 +239,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # master
         with:
           toolchain: "1.91"
-      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+      - uses: Swatinem/rust-cache@a45951ff880207c249adf57334cf2e9bd81d6e1e # v2
         with:
           shared-key: diamond-semver
       - uses: obi1kenobi/cargo-semver-checks-action@6b69fcf40e9b5fb17adeb57e4b6ecd020649a239 # v2
@@ -239,7 +252,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: crate-ci/typos@26e1ab0f398ee2139416a695ba2f7497533e6909 # master
+      - uses: crate-ci/typos@5e38bf262baaf477ca9f241b3a7cd3d277fd7df8 # master
 
   # The declared rust-version is a public contract (consumers pin against
   # it), so it gets its own named gate: the workspace must build with
@@ -258,7 +271,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # master
         with:
           toolchain: ${{ steps.msrv.outputs.version }}
-      - uses: Swatinem/rust-cache@e18b497796c12c097a38f9edb9d0641fb99eee32 # v2
+      - uses: Swatinem/rust-cache@a45951ff880207c249adf57334cf2e9bd81d6e1e # v2
         with:
           shared-key: msrv
       # No --all-features: some features are platform-gated (the Apple-only

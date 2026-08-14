@@ -17,6 +17,10 @@
 //! - **degenerate cap** (`zero-cap`) — a declared `max_tokens: 0` /
 //!   `max_tokens_total: 0`: arithmetically a true $0/0 Wh output
 //!   ceiling, practically a call no provider will honor.
+//! - **thinking budget** (`thinking-budget`) — a reasoning-capable
+//!   model (the catalog knows) seated with `max_tokens` but no
+//!   `thinking:`: the reasoning share lives INSIDE that budget, and a
+//!   heavy think ends in a paid blank answer (NIKA-INFER-004 at run).
 //! - **unconsumed output** (`dead-spend`) — a pure `infer:` task whose
 //!   output no one reads (no task references it · not in `outputs:`):
 //!   every token it spends is dead spend.
@@ -49,13 +53,11 @@
 //!   `check/native_first.rs` pass (the `native-first/001..005` ruleset:
 //!   http/file/data/media/helper commands a builtin or MCP tool
 //!   covers); `nika check --native-strict` promotes them to failures.
-//! - **exec the run will refuse** (`exec-floor`) — emitted by the
-//!   `check/exec_floor.rs` mirror (P0-13): an argv-form command whose
-//!   interpreter inline-eval flag or subcommand the runtime's exec
-//!   floor refuses positionally — the check predicts the refusal the
-//!   run would apply (the script file is the route · N-6: the old
-//!   advice also named `pre_validated`, the kernel's internal wire
-//!   flag no author can write).
+//! - **exec the run will refuse** (`exec-floor`) — RETIRED by #605: the
+//!   argv-form command the runtime's exec floor refuses is the
+//!   `NIKA-SEC-001` FINDING now (`check/exec_floor.rs` judges the SAME
+//!   `nika-types::exec` predicate the run does — an error owns its
+//!   repair, never a hint · the write-conflict precedent, F-P15).
 //! - **unproven human-gate route** (`consent`) — emitted by the
 //!   `check/consent.rs` lane (P0-2 · NEP-0020): an egress-capable
 //!   descendant of a confirm-mode `nika:prompt` sits behind a gate the
@@ -98,16 +100,18 @@ use nika_schema::types::CaptureMode;
 #[non_exhaustive]
 pub struct Hint {
     /// The hint class — the closed set today: `cost` · `zero-cap` ·
-    /// `dead-spend` ·
+    /// `thinking-budget` · `dead-spend` ·
     /// `typing` · `permits` · `strictness` · `schema-portability` ·
     /// `redundant-gate` · `retry-effects` ·
-    /// `secrets-store` · `native-first` · `exec-floor` ·
+    /// `secrets-store` · `native-first` ·
     /// `exec-json-capture` ·
     /// `unwrapped-ref` · `envelope-output` · `policy-soft` · `run-clock`
     /// · `analysis` · `consent` (additive · agents route on it; the
     /// module doc describes each).
     /// `parallel-writers` is RETIRED (F-P15 · promoted to the
     /// NIKA-SEC-012 finding — an error owns its repair, never a hint).
+    /// `exec-floor` is RETIRED (#605 · promoted to the NIKA-SEC-001
+    /// finding — the check judges the SAME predicate the run does).
     pub kind: &'static str,
     /// The task it concerns (`-` for workflow-level hints).
     pub task: String,
@@ -229,6 +233,23 @@ fn push_infer_hints(
     if a.max_tokens.as_ref().is_some_and(|t| t.value == 0) {
         hints.push(hint("zero-cap", id, format!(
             "`max_tokens: 0` on `{id}` forbids all output — the call cannot produce anything (providers refuse a zero budget); set a real cap or remove the task"
+        )));
+    }
+    // The thinking-budget teaching (#651 · leg 3): a reasoning-capable
+    // model with `max_tokens` but no `thinking:` can burn the whole
+    // budget on its reasoning trace and conclude with a blank visible
+    // answer — the typed NIKA-INFER-004 failure at run since leg 1. The
+    // hint teaches the declaration BEFORE a token is spent. A literal
+    // seat only: a templated model defers to the run's resolution.
+    if a.thinking.is_none()
+        && a.max_tokens.is_some()
+        && let Some(m) = &a.model
+        && !m.value.contains("${{")
+        && let Some((provider, name)) = m.value.split_once('/')
+        && nika_catalog::model_capabilities(provider, name).reasoning
+    {
+        hints.push(hint("thinking-budget", id, format!(
+            "`{id}` seats a reasoning-capable model with `max_tokens` but no `thinking:` — the reasoning share lives INSIDE that budget; declare `thinking:` (or a no-think variant) before a heavy think ends NIKA-INFER-004 (a paid blank answer)"
         )));
     }
     if !consumed.contains(id) && !envelope_ids.contains(id) {

@@ -1,8 +1,23 @@
 #!/usr/bin/env bash
 # Shared helpers for diamond CI ratchets.
 # Source, do not execute.
-
-set -euo pipefail
+#
+# This file deliberately sets NO shell options. It is sourced, so `set -euo
+# pipefail` here does not configure this library — it reconfigures the
+# CALLER, at source time, overwriting the options the caller chose a few
+# lines above. Six hygiene vectors declare `set -uo pipefail` with errexit
+# OFF on purpose (they accumulate findings across greps and tools that
+# return non-zero as their normal way of saying "found something"), and
+# every one of them had errexit forced back on by this line.
+#
+# The damage is not a crash, it is a DOWNGRADE. The script dies at the first
+# command that reports a finding, so the `if [ "$red" -ne 0 ]; then echo
+# "...FAILED:"; exit 2; fi` block below it becomes unreachable code and a red
+# verdict surfaces as a bare, unlabelled non-zero. check-gate5-attestation.sh
+# had already found this and re-disabled errexit by hand — one net, in one of
+# six places that needed it.
+#
+# Every caller sets its own options before sourcing this file. Keep it so.
 
 # The filter below decides what four ratchets are allowed to SEE, so it
 # proves itself honest before any of them reads a verdict from it. A
@@ -20,7 +35,16 @@ set -euo pipefail
 _lib_prove_filter() {
   local selftest="${BASH_SOURCE[0]%/*}/test-strip-test-items.sh"
   [ -n "${NIKA_SKIP_FILTER_SELFTEST:-}" ] && return 0
-  [ -x "$selftest" ] || return 0
+  # Fail CLOSED. This read `[ -x "$selftest" ] || return 0`, which skipped the
+  # proof and reported success when the self-test was absent OR merely not
+  # executable — so `chmod -x` on one file disarmed four ratchets at once and
+  # they carried on printing OK. It also tested the wrong bit: the self-test is
+  # run as `bash "$selftest"` below, an invocation that never needs +x. A guard
+  # that cannot prove itself must refuse to render a verdict, not emit a green.
+  if [ ! -f "$selftest" ]; then
+    printf 'FAIL  the shared test-item filter has no self-test at %s — this ratchet cannot be trusted\n' "$selftest" >&2
+    exit 2
+  fi
   if ! NIKA_SKIP_FILTER_SELFTEST=1 bash "$selftest" >/dev/null 2>&1; then
     printf 'FAIL  the shared test-item filter is not honest — this ratchet cannot be trusted:\n' >&2
     NIKA_SKIP_FILTER_SELFTEST=1 bash "$selftest" >&2 || true

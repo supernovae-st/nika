@@ -117,6 +117,9 @@ pub fn diagnose(probe: &Probe) -> Vec<Finding> {
             .to_owned(),
         fix: None,
     });
+    // #891 — the sandbox row rides the ONE selection's decision (#888),
+    // observed once here (the sidecar precedent · diagnose stays pure).
+    out.push(sandbox_finding(&crate::probe::sandbox_probe()));
     out.extend(sidecar_finding());
     out.extend(models_finding(&probe.models));
 
@@ -135,6 +138,47 @@ pub fn diagnose(probe: &Probe) -> Vec<Finding> {
     provider_findings(probe, &mut out);
 
     out
+}
+
+/// The sandbox row (#891 · #822 P1) — the ONE selection's decision,
+/// honestly rendered: a confined backend names its mechanism (and the
+/// Linux residual), a `noop` WARNS with the exact per-OS fix — doctor
+/// never greenwashes an unconfined spawn as "sandboxed".
+fn sandbox_finding(sandbox: &crate::probe::SandboxProbe) -> Finding {
+    if sandbox.confined {
+        let detail = if sandbox.backend == "landlock" {
+            "Linux sandbox (bubblewrap) · backend id: landlock · host-granular net allowlist = \
+             follow-on (exec/MCP confine as allow until it lands · #893)"
+                .to_owned()
+        } else {
+            format!(
+                "{} · exec and external MCP spawns confined to the declared boundary",
+                sandbox.backend
+            )
+        };
+        Finding {
+            level: Level::Ok,
+            label: "sandbox".to_owned(),
+            detail,
+            fix: None,
+        }
+    } else {
+        Finding {
+            level: Level::Warn,
+            label: "sandbox".to_owned(),
+            detail: "no OS sandbox backend — exec and external MCP spawns run UNCONFINED (the \
+                     declared permits still gate at the builtin/fetch seams)"
+                .to_owned(),
+            fix: Some(
+                if cfg!(target_os = "linux") {
+                    "install bubblewrap (apt install bubblewrap) — then re-run `nika doctor`"
+                } else {
+                    "macOS ships sandbox-exec with the OS — a missing launcher means a broken host"
+                }
+                .to_owned(),
+            ),
+        }
+    }
 }
 
 /// The provider rows — display order practices the presentation lock

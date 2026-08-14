@@ -464,8 +464,7 @@ mod tests {
     /// A fresh minisign keypair (the seal.rs test idiom — the box is
     /// trimmed exactly as the custody loaders hand it back).
     fn keypair() -> (String, minisign::SecretKey) {
-        let pair =
-            minisign::KeyPair::generate_encrypted_keypair(Some(String::new())).expect("keypair");
+        let pair = minisign::KeyPair::generate_unencrypted_keypair().expect("keypair");
         (
             pair.pk
                 .to_box()
