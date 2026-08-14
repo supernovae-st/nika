@@ -16,6 +16,7 @@
 
 pub mod action;
 pub mod manage;
+pub mod session;
 pub(crate) use nika_cli_host::retention;
 #[cfg(test)]
 mod retention_tests;

@@ -4925,6 +4925,7 @@ dependencies = [
  "nika-http",
  "nika-runtime",
  "nika-schema",
+ "nika-tui-core",
  "nika-types",
  "serde",
  "serde_json",

@@ -147,6 +147,21 @@ pub enum TraceAction {
         #[arg(long)]
         raw: bool,
     },
+    /// The session digest: waves · the wave holder others waited for ·
+    /// the spend by verb · the wall. The four numbers `nika-tui-core`
+    /// derives — every one of them gated by the predicate that says
+    /// whether it may be claimed (a holder nobody waited for is not
+    /// named; no holder is painted over a failure).
+    ///
+    /// Takes the workflow file for the same reason `flow` does: the
+    /// journal records the workflow's ID and sha256, never its PATH, and
+    /// waves live in the dependency graph the definition carries.
+    Session {
+        /// Trace NDJSON path (one `nika-event` Event per line).
+        trace: PathBuf,
+        /// The workflow file the run executed (`*.nika.yaml`).
+        workflow: String,
+    },
     /// The data waterfall: which output fed which task, with recorded
     /// sizes (plan bindings from the workflow file × sizes from the
     /// trace).

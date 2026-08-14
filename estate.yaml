@@ -18,11 +18,11 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4447
+  classified_files: 4448
   file_rows: 11
   pattern_rows: 22
   by_class:
-    authored: 1511
+    authored: 1512
     authored-pin: 2
     generated: 121
     pinned-copy: 117
@@ -48,7 +48,7 @@ files:
   note: "generated with a human gate — the maintainer may amend the section at PR review"
 - path: "Cargo.lock"
   class: generated
-  sha256: 84d30e507c2eaead4830d63062354275c4be11192fc5a9738fab521b304ed145
+  sha256: 2e7dde94f1a3d9efbe7a2c8ffc44380a1eb9ba6a6f54cfe03520a313fb20c903
   evidence: "cargo's resolver writes it; no human edits a lockfile"
   derivation:
     tool: "cargo (dependency resolution against Cargo.toml + crates/*/Cargo.toml)"
@@ -151,8 +151,8 @@ patterns:
     - "cargo-public-api 0.51.0"
 - glob: "crates/**/src/**"
   class: authored
-  match_count: 762
-  aggregate_sha256: dee7cbf2ef390ea463a0998e19574927a579f1ccefca4aebf92e98b456468f4e
+  match_count: 763
+  aggregate_sha256: 66fd1747478825b3f8257b3b4bfb614378a581fc52832abc867afab139c5a861
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
@@ -162,7 +162,7 @@ patterns:
 - glob: "crates/**"
   class: authored
   match_count: 138
-  aggregate_sha256: 530592d50095c56aec38e98755d461583bb6cbf856650223ea2a453d970015c7
+  aggregate_sha256: bfbb109289770a465317faa1a61f05b8aae96db8f9b34153ae5fb6f286247913
   evidence: "the remaining crate surface — Cargo.toml manifests · build.rs · benches · READMEs · hand-curated data catalogs (llm-providers · mcp-servers · embeddings · model-capabilities, probed daily by catalog-verify.yml); the pricing snapshot is excepted in files:"
   note: "crates/nika-pack/scripts/sync-pack.sh is a DIVERGENT older duplicate of scripts/sync-pack.sh — the pack-resync.yml lane runs the root one"
 - glob: "fuzz/**"
