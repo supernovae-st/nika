@@ -18,11 +18,11 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4448
+  classified_files: 4449
   file_rows: 11
   pattern_rows: 22
   by_class:
-    authored: 1512
+    authored: 1513
     authored-pin: 2
     generated: 121
     pinned-copy: 117
@@ -152,7 +152,7 @@ patterns:
 - glob: "crates/**/src/**"
   class: authored
   match_count: 763
-  aggregate_sha256: ca031e273d391b6eba08844101cf98163f8c6f45095af6eed6187789bd270765
+  aggregate_sha256: cf9c0ad22a53510473deec14016beb509ff1b62210b52b84791ddd071bdb4a06
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
@@ -182,8 +182,8 @@ patterns:
   evidence: "crate-specs · architecture prose · perf notes — no generation markers at file heads"
 - glob: "scripts/**"
   class: authored
-  match_count: 145
-  aggregate_sha256: 38abc4a560f7948f55b03cc776c9503cee448c9f3f4a9ebd5019028bc097ed3b
+  match_count: 146
+  aggregate_sha256: 6a21cfdec5d2cfdd5c313eec1579d5cad4412207b1eac38cc844743ee78d2588
   evidence: "hand-written gates · hooks · hygiene vectors · media lanes; the ratchet baselines (scripts/ci/*-baseline.txt · scripts/hygiene/baselines/) are hand-kept monotonic floors ('Never remove a line by hand')"
 - glob: ".github/workflows/**"
   class: authored
