@@ -1,8 +1,18 @@
 # scripts/hygiene/ — drift detection dashboard
 
-37 drift vectors that keep Nika's ecosystem in sync over 11-12 months of
+Drift vectors that keep Nika's ecosystem in sync over 11-12 months of
 building in public. Zero maintenance required. Runs locally on every
 commit (via Claude Code PostToolUse hook) and nightly via GitHub Action.
+
+The count is not written here. It said 37 while `check-all.sh` said 38
+and the file carried 46 `run_check` calls — three surfaces, three
+numbers. It derives:
+
+```bash
+grep -c '^run_check ' check-all.sh
+```
+
+and `./check-all.sh` prints the tally it actually ran.
 
 ## Quick start
 
@@ -30,7 +40,7 @@ Exits `0`/`1`/`2` to signal green/yellow/red.
 | 2 | `check-crate-count.sh` | Workspace `members = [...]` count = `[workspace.metadata.diamond.layers.*]` count (every crate must be layer-classified) |
 | 3 | `check-loc.sh` | src LOC drift (> 2% = yellow, > 5% = red) |
 | 4 | `check-changelog-dates.sh` | CHANGELOG top entry date reasonable (not future, not > 14 days old without commit) |
-| 5 | `check-roadmap-status.sh` | ROADMAP checkboxes align with admitted crates |
+| 5 | *(killed 2026-08-14)* | was `check-roadmap-status.sh` — grepped ROADMAP.md for `- [ ] <crate>`, a syntax that has **never** existed in that file (`git log -S` over 171 commits: zero). No repo state could make it fire, so it reported OK on every pre-push and nightly run: one of the greens was unearned. The parity it might have been re-aimed at — the ROADMAP census vs `Cargo.toml`'s `wip` list — is already enforced by vector 23, proven by mutation (drop a crate from `wip = [...]`: 23 goes RED, 5 still said "OK (roadmap consistent)"). Kept gap in numbering |
 | 6 | `check-crate-specs.sh` | Every admitted crate has `docs/crate-specs/nika-X.md` · live-anchored `~NNN LOC src (live · …)` numbers stay within ±15% of `scripts/crate-metrics.sh` (no hardcoded drift) |
 | 7 | *(killed 2026-04-17)* | was `check-linear.sh` — no-op stub without `LINEAR_API_KEY`, misleading green. Linear integration lives in its own MCP, not hygiene |
 | 8 | `check-milestones.sh` | GitHub milestone progress sanity |
