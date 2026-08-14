@@ -183,7 +183,7 @@ patterns:
 - glob: "scripts/**"
   class: authored
   match_count: 142
-  aggregate_sha256: 8ed8592c000842f38aa25cd51e603653494cc64e8d88626cf70d3b9bfd40599f
+  aggregate_sha256: 180cd35fdfecbce98f69b633f26eb4d6ee3a00f698a4d4ab970f5e87e3e75c41
   evidence: "hand-written gates · hooks · hygiene vectors · media lanes; the ratchet baselines (scripts/ci/*-baseline.txt · scripts/hygiene/baselines/) are hand-kept monotonic floors ('Never remove a line by hand')"
 - glob: ".github/workflows/**"
   class: authored
@@ -237,7 +237,7 @@ patterns:
 - glob: "*"
   class: authored
   match_count: 28
-  aggregate_sha256: 002375a46669f3ce6db509375d59ab4ae1acafbb8580608cbca23e20ea2d515f
+  aggregate_sha256: 35d9ebca36293102dc1a7a4ef10181e36dff2065b3a496cd8a18c7b4969ee87c
   evidence: "root prose + config surface (README · DIAMOND · LICENSE · llms.txt · Cargo.toml · deny/clippy/cliff/typos toml · lefthook.yml · flake.nix · Dockerfile) — no generation markers at file heads; CHANGELOG.md · Cargo.lock · SPEC_PIN · ROADMAP.md excepted in files:"
 - glob: "**"
   class: authored
