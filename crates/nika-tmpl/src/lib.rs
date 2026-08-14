@@ -120,7 +120,7 @@ pub mod expression;
 /// Scan every REAL (non-`\`-escaped) `${{ … }}` island, left to right.
 ///
 /// - **Quote-aware close**: a `}}` inside a `'…'` / `"…"` body string literal
-///   does NOT close the island (`${{ vars.x == "}}" }}` is one island).
+///   does NOT close the island (`${{ inputs.x == "}}" }}` is one island).
 /// - **Escape**: a `\${{` is a literal, not an island (the opener is skipped;
 ///   the preceding backslash is the author's escape).
 ///

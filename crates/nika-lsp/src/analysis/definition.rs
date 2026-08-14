@@ -748,7 +748,7 @@ mod tests {
         );
     }
 
-    /// `${{ vars.X }}` jumps to the `X:` declaration under `vars:` —
+    /// `${{ inputs.X }}` jumps to the `X:` declaration under `inputs:` —
     /// and the same lane serves `secrets.` / `env.`. An undeclared
     /// member resolves nowhere (no invented target).
     #[test]

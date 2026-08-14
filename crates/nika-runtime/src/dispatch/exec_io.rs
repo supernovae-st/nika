@@ -60,7 +60,7 @@ pub(super) fn build_exec_input(
 ///
 /// Each field may carry `${{ }}` and is resolved against the scope. `env`
 /// keys AND values are both rendered (a value commonly forwards an envelope
-/// var · `env: { API_BASE: "${{ env.API_BASE }}" }` per spec 02 §exec).
+/// input · `env: { API_BASE: "${{ inputs.API_BASE }}" }` per spec 02 §exec).
 pub(super) fn render_exec_io(
     input: &mut ExecInput,
     action: &nika_schema::raw::RawExecAction,

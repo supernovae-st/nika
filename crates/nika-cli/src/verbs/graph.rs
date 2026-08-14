@@ -95,7 +95,7 @@ pub fn to_dot(doc: &GraphDoc) -> String {
 
 /// Escape a label fragment for a Graphviz dot quoted string. A `"` or `\`
 /// in the tool/model would otherwise terminate the `label="…"` and emit
-/// broken dot (e.g. a templated `model: ${{ vars.m }}` or an MCP tool name).
+/// broken dot (e.g. a templated `model: ${{ inputs.m }}` or an MCP tool name).
 fn dot_escape(s: &str) -> String {
     s.replace('\\', "\\\\").replace('"', "\\\"")
 }
@@ -259,7 +259,7 @@ mod tests {
 
     /// A model with chars special to mermaid (`"` `]`) or dot (`"`) must be
     /// ESCAPED — an unescaped quote closed the label early and emitted broken
-    /// markup (a templated `model: ${{ vars.m }}` or an MCP tool name hits this
+    /// markup (a templated `model: ${{ inputs.m }}` or an MCP tool name hits this
     /// too). Regression: graph used to interpolate the model raw.
     #[test]
     fn special_chars_in_model_are_escaped_in_both_renders() {

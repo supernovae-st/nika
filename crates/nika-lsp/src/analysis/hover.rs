@@ -30,7 +30,7 @@ pub fn hover(text: &str, offset: usize) -> Option<Hover> {
         .or_else(|| task_ref_hover(text, offset))
 }
 
-/// Hover on a `${{ vars.X / secrets.X / env.X }}` member — the
+/// Hover on a `${{ inputs.X / const.X / secrets.X }}` member — the
 /// declaration's card, without leaving the line. Same resolver as
 /// go-to-definition; same prose the completion detail teaches.
 fn member_ref_hover(text: &str, offset: usize) -> Option<Hover> {

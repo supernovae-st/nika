@@ -9,7 +9,7 @@
 //! invoke:
 //!   tool: "nika:fetch"
 //!   args:
-//!     url: "${{ vars.site_url }}"
+//!     url: "${{ inputs.site_url }}"
 //!     traverse: { max_pages: 5 }
 //! ```
 //!
