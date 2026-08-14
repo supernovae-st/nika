@@ -72,9 +72,10 @@ the `.nika.yaml` extension. `nika new <slug>` makes one yours;
    `nika new <slug>` (take the lesson — the file is the read) ·
    `nika new <template> <file>.nika.yaml`. An author who writes
    first and reads second pays the measured 7.5 rounds.
-2. **Write the file.** The envelope is `nika: v1` + a `workflow:` OBJECT
-   (`id:` kebab-case · optional `description:`) + a `tasks:` MAP keyed
-   by task id — the key IS the identity, never a `- id:` sequence. Pick
+2. **Write the file.** The envelope is `nika: <id>` (kebab-case — the
+   workflow id lives ON the tag since 2026-08-12; `description:` died
+   with the `workflow:` object) + a `tasks:` MAP keyed by task id —
+   the key IS the identity, never a `- id:` sequence. Pick
    models and builtins from the embedded catalogs — `nika catalog`
    (providers · models · capabilities · which env var each needs) and
    `nika catalog --tools` (the `nika:*` builtins an `invoke` reaches

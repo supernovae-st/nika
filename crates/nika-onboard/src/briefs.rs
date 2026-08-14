@@ -34,9 +34,9 @@ Nika is a sovereign AI workflow engine. Workflows are `*.nika.yaml` files,
 
 ## The loop
 - **Author** · `nika new <template> <file>.nika.yaml` (or write one —
-  the envelope is `nika: v1` + a `workflow:` OBJECT carrying `id:` (kebab-case)
-  + a `tasks:` MAP keyed by task id. A scalar `workflow:` refuses
-  `NIKA-PARSE-020`, a `tasks:` sequence refuses `NIKA-PARSE-022`).
+  the envelope is `nika: <id>` (kebab-case — the id lives ON the tag)
+  + a `tasks:` MAP keyed by task id. A `tasks:` sequence refuses
+  `NIKA-PARSE-022`).
 - **Check** · `nika check <file>` — the static audit BEFORE any run (schema ·
   DAG · CEL · effects · permits · cost). Exit `0` clean · `2` findings.
   `--fix` applies the machine-applicable repairs (typed did-you-mean renames —
@@ -88,7 +88,7 @@ multi-turn ReAct loop).
 - `when:` is a `${{ }}` CEL boolean or the literal `true`/`false` — a bare
   string is rejected. `size()` is the only CEL function.
 - `nika:write` needs `content:` · `nika:done` is valid only inside `agent.tools`.
-- snake_case task ids · kebab-case `workflow:`.
+- snake_case task ids · kebab-case workflow id (on `nika:`).
 
 ## Don't invent structure — route to a skeleton
 `nika new '?'` lists the embedded skeletons · `nika try` /
@@ -185,7 +185,7 @@ repair the rest from the diagnostics (`nika explain NIKA-XXXX`) →
 only a clean file reaches a human.
 
 Rules the validator enforces:
-- Envelope `nika: v1` · one verb per task (`infer` · `exec` · `invoke` ·
+- Envelope `nika: <id>` · one verb per task (`infer` · `exec` · `invoke` ·
   `agent`) · the verb IS the task key.
 - `tasks.X` is read at the boundary only: `with: { alias: ${{ tasks.X.output }} }`
   is the data edge · `after: { X: success }` orders without data · the
@@ -418,6 +418,59 @@ mod tests {
         out
     }
 
+    // Banned in every teaching surface — no exemption, ever.
+    const DEAD_USAGE: &[(&str, &str)] = &[
+        (
+            "${{ vars.",
+            "NIKA-VALUES-001 · dead namespace — read `inputs:` or `const:`",
+        ),
+        (
+            "${{ env.",
+            "NIKA-VALUES-002 · dead namespace — read `config:` or `secrets:`",
+        ),
+        (
+            "capture: text",
+            "capture is stdout · stderr · combined · structured",
+        ),
+        (
+            "workflow: <",
+            "the envelope `workflow:` key died 2026-08-12 — the id lives ON `nika:` (NIKA-PARSE-020/021 RETIRED, never reused)",
+        ),
+        // The SAME dead fact, stated in prose. The literal above
+        // matched a YAML placeholder and sailed straight past
+        // « a `workflow:` OBJECT carrying `id:` » — which is how the
+        // brief kept teaching the dead envelope for two days after
+        // the nuke. A denylist keyed on ONE spelling only ever
+        // catches that spelling.
+        (
+            "`workflow:` OBJECT",
+            "the envelope `workflow:` key died 2026-08-12 — say `nika: <id>`",
+        ),
+    ];
+    // NAMING a retired form is not TEACHING it: a port table whose
+    // left column is « dead form » has to spell the dead form, and a
+    // language surface earns its keep by inoculating a model that
+    // still carries 0.105 priors. So these are banned everywhere the
+    // subject is HOW TO WRITE ONE WORKFLOW (the commands, the
+    // task-shaped skills) and allowed on the surfaces whose subject
+    // is the LANGUAGE ITSELF or the port.
+    const DEAD_NAMING: &[(&str, &str)] = &[
+        (
+            "`vars:`",
+            "NIKA-VALUES-001 · classify into `inputs:`/`const:`",
+        ),
+        ("`depends_on`", "dead edge form — `with:` / `after:`"),
+        (": succeeded", "NIKA-DAG-005 · the predicate is `success`"),
+        (": failed", "NIKA-DAG-005 · the predicate is `failure`"),
+    ];
+    const MAY_NAME_THE_RETIRED: &[&str] = &[
+        "skills/nika-migration/SKILL.md",
+        "agents/nika-migrator.md",
+        "agents/nika-author.md",
+        "skills/nika-authoring/SKILL.md",
+        "rules/nika-workflow-language.mdc",
+    ];
+
     /// The kit may never TEACH a form the live engine refuses.
     ///
     /// Found empirically 2026-07-28: three releases after the engine
@@ -435,48 +488,6 @@ mod tests {
     /// may never USE one. That asymmetry is the whole exemption.
     #[test]
     fn the_kit_never_teaches_a_form_the_engine_refuses() {
-        // Banned in every teaching surface — no exemption, ever.
-        const DEAD_USAGE: &[(&str, &str)] = &[
-            (
-                "${{ vars.",
-                "NIKA-VALUES-001 · dead namespace — read `inputs:` or `const:`",
-            ),
-            (
-                "${{ env.",
-                "NIKA-VALUES-002 · dead namespace — read `config:` or `secrets:`",
-            ),
-            (
-                "capture: text",
-                "capture is stdout · stderr · combined · structured",
-            ),
-            (
-                "workflow: <",
-                "NIKA-PARSE-020 · the envelope is an OBJECT carrying `id:`",
-            ),
-        ];
-        // NAMING a retired form is not TEACHING it: a port table whose
-        // left column is « dead form » has to spell the dead form, and a
-        // language surface earns its keep by inoculating a model that
-        // still carries 0.105 priors. So these are banned everywhere the
-        // subject is HOW TO WRITE ONE WORKFLOW (the commands, the
-        // task-shaped skills) and allowed on the surfaces whose subject
-        // is the LANGUAGE ITSELF or the port.
-        const DEAD_NAMING: &[(&str, &str)] = &[
-            (
-                "`vars:`",
-                "NIKA-VALUES-001 · classify into `inputs:`/`const:`",
-            ),
-            ("`depends_on`", "dead edge form — `with:` / `after:`"),
-            (": succeeded", "NIKA-DAG-005 · the predicate is `success`"),
-            (": failed", "NIKA-DAG-005 · the predicate is `failure`"),
-        ];
-        const MAY_NAME_THE_RETIRED: &[&str] = &[
-            "skills/nika-migration/SKILL.md",
-            "agents/nika-migrator.md",
-            "agents/nika-author.md",
-            "skills/nika-authoring/SKILL.md",
-            "rules/nika-workflow-language.mdc",
-        ];
         let surfaces = kit_teaching_surfaces();
         let mut sins: Vec<String> = Vec::new();
 
@@ -495,9 +506,19 @@ mod tests {
             }
 
             // Every COMPLETE workflow the kit prints audits for real.
+            //
+            // ⚠️ The selector used to be `starts_with("nika: v1")`, which
+            // named the envelope the 2026-08-12 nuke retired. It was not
+            // leaking — the kit prints no complete workflow today, so the
+            // loop had no subject either way — but it was ARMED: the next
+            // workflow the kit gained would have started `nika: <id>`,
+            // been skipped in silence, and this test would have kept
+            // printing a green for an audit it never ran. A selector
+            // keyed on a dead spelling is a gate waiting to stop looking.
             for block in body.split("```").skip(1).step_by(2) {
                 let yaml = block.split_once('\n').map_or("", |(_, rest)| rest);
-                if !yaml.trim_start().starts_with("nika: v1") {
+                let head = yaml.trim_start();
+                if !(head.starts_with("nika:") && yaml.contains("tasks:")) {
                     continue;
                 }
                 match nika_schema::parse(

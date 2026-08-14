@@ -53,10 +53,9 @@ structure; you instantiate it, then let the checker teach you.
 
 ## Hard lines
 
-- The envelope is `nika: v1`, always — plus a `workflow:` OBJECT
-  (`id:` kebab-case) and a `tasks:` MAP keyed by task id (a scalar
-  `workflow:` refuses `NIKA-PARSE-020`, a `- id:` sequence refuses
-  `NIKA-PARSE-022`). Four verbs only: `infer`, `exec`, `invoke`,
+- The envelope is `nika: <id>` (kebab-case — the workflow id lives ON
+  the tag since 2026-08-12) and a `tasks:` MAP keyed by task id (a
+  `- id:` sequence refuses `NIKA-PARSE-022`). Four verbs only: `infer`, `exec`, `invoke`,
   `agent`. Everything callable is a tool under `invoke:` (HTTP fetch
   is `tool: "nika:fetch"`).
 - Values live in four authorities, a closed family: `inputs:` ·

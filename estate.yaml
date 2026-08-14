@@ -152,7 +152,7 @@ patterns:
 - glob: "crates/**/src/**"
   class: authored
   match_count: 763
-  aggregate_sha256: 66fd1747478825b3f8257b3b4bfb614378a581fc52832abc867afab139c5a861
+  aggregate_sha256: ca031e273d391b6eba08844101cf98163f8c6f45095af6eed6187789bd270765
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
@@ -198,7 +198,7 @@ patterns:
 - glob: ".agents/**"
   class: authored
   match_count: 32
-  aggregate_sha256: b20ec81860a76f5e94a615ff5992f45ac92402b0acb5fd320f531c93e3f89c78
+  aggregate_sha256: f8f3dd9eed0d9d3e366693bad3e2d190fb2e6c94326f088a741cb4d8ffbd6212
   evidence: "the agent-plugin pack SOURCE (marketplace.json · plugin manifests · skills · rules · hooks) — authored here, mirrored downstream into supernovae-st/nika-plugins (its plugins/ is a byte-pinned copy healed on releases)"
 - glob: ".claude/**"
   class: authored
