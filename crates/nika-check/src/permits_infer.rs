@@ -103,9 +103,6 @@ pub(super) fn infer(wf: &RawWorkflow) -> InferredPermits {
     for task in &wf.tasks {
         let id = &task.value.id.value;
         collect_action(&mut c, id, &task.value.action);
-        for cleanup in &task.value.on_finally {
-            collect_action(&mut c, &format!("{id} (on_finally)"), &cleanup.value.action);
-        }
     }
 
     let exec = if !c.exec_used {
@@ -141,9 +138,6 @@ pub(crate) fn task_permits(task: &RawTask) -> Vec<String> {
     let mut c = Collector::default();
     let id = &task.id.value;
     collect_action(&mut c, id, &task.action);
-    for cleanup in &task.on_finally {
-        collect_action(&mut c, &format!("{id} (on_finally)"), &cleanup.value.action);
-    }
     let mut out = Vec::new();
     if c.exec_used {
         if c.exec_dynamic {
@@ -407,9 +401,7 @@ mod tests {
     fn chart_and_tts_infer_their_writes() {
         let wf = nika_schema::parser::parse(
             "\
-nika: v1
-workflow:
-  id: t
+nika: t
 model: mock/echo
 tasks:
   c:
@@ -453,9 +445,7 @@ tasks:
     #[test]
     fn task_permits_attributes_each_family_deterministically() {
         let yaml = "\
-nika: v1
-workflow:
-  id: t
+nika: t
 model: mock/echo
 tasks:
   fetcher:
@@ -534,7 +524,7 @@ tasks:
             // build a read on this literal path via a JSON-escaped scalar
             let esc = path.replace('\\', "\\\\").replace('"', "\\\"").replace('\t', "\\t");
             let yaml = format!(
-                "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    invoke: {{ tool: \"nika:read\", args: {{ path: \"{esc}\" }} }}\n"
+                "nika: w\ntasks:\n  t:\n    invoke: {{ tool: \"nika:read\", args: {{ path: \"{esc}\" }} }}\n"
             );
             // only proceed if the SOURCE parses (some byte seqs are not
             // valid scalars — that's the parser's domain, not ours)
@@ -577,7 +567,7 @@ tasks:
     fn pure_compute_workflow_infers_empty_boundary() {
         // infer-only, no effects → exec:false, no fs/net/tools.
         let r = infer_of(
-            "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  t:\n    infer: { prompt: \"hi\", max_tokens: 10 }\n",
+            "nika: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  t:\n    infer: { prompt: \"hi\", max_tokens: 10 }\n",
         );
         assert_eq!(r.permits.exec, Some(ExecPermit::No));
         assert!(r.permits.fs.is_none() && r.permits.net.is_none());
@@ -588,7 +578,7 @@ tasks:
     #[test]
     fn literal_effects_infer_a_tight_boundary() {
         let r = infer_of(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  rd:\n    invoke: { tool: \"nika:read\", args: { path: \"./data/in.json\" } }\n  get:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.x.com/v1\" } }\n  build:\n    exec: { command: [\"cargo\", \"build\"] }\n",
+            "nika: w\ntasks:\n  rd:\n    invoke: { tool: \"nika:read\", args: { path: \"./data/in.json\" } }\n  get:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.x.com/v1\" } }\n  build:\n    exec: { command: [\"cargo\", \"build\"] }\n",
         );
         assert_eq!(
             r.permits.exec,
@@ -610,7 +600,7 @@ tasks:
         // A dynamic SHELL string rides the shell-string arm (the form
         // decides before the head is even looked at).
         let r = infer_of(
-            "nika: v1\nworkflow:\n  id: w\nconst: { c: \"git\" }\ntasks:\n  t:\n    exec: { shell: \"${{ const.c }} status\" }\n",
+            "nika: w\nconst: { c: \"git\" }\ntasks:\n  t:\n    exec: { shell: \"${{ const.c }} status\" }\n",
         );
         assert_eq!(r.permits.exec, Some(ExecPermit::Any), "dynamic → true");
         assert_eq!(r.notes.len(), 1);
@@ -624,9 +614,7 @@ tasks:
         // very task it was inferred from (shell-string under a Programs
         // allowlist is rejected wholesale at dispatch). The sound
         // inference is `exec: true` + a rewrite-to-argv note.
-        let r = infer_of(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    exec: { shell: \"git log\" }\n",
-        );
+        let r = infer_of("nika: w\ntasks:\n  t:\n    exec: { shell: \"git log\" }\n");
         assert_eq!(
             r.permits.exec,
             Some(ExecPermit::Any),
@@ -637,10 +625,10 @@ tasks:
 
     #[test]
     fn dynamic_argv_head_widens_to_any_not_a_garbage_literal() {
-        // `["${{ vars.bin }}"]` must NOT be inferred as a literal program
-        // named `${{ vars.bin }}` — the head is dynamic → exec: true + note.
+        // `["${{ inputs.bin }}"]` must NOT be inferred as a literal program
+        // named `${{ inputs.bin }}` — the head is dynamic → exec: true + note.
         let r = infer_of(
-            "nika: v1\nworkflow:\n  id: w\nconst: { bin: \"git\" }\ntasks:\n  t:\n    exec: { command: [\"${{ const.bin }}\", \"status\"] }\n",
+            "nika: w\nconst: { bin: \"git\" }\ntasks:\n  t:\n    exec: { command: [\"${{ const.bin }}\", \"status\"] }\n",
         );
         assert_eq!(r.permits.exec, Some(ExecPermit::Any));
         assert!(r.notes.iter().any(|n| n.contains("dynamic exec")));
@@ -649,7 +637,7 @@ tasks:
     #[test]
     fn dynamic_fetch_url_notes_review() {
         let r = infer_of(
-            "nika: v1\nworkflow:\n  id: w\nconst: { h: \"x.com\" }\ntasks:\n  t:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://${{ const.h }}/p\" } }\n",
+            "nika: w\nconst: { h: \"x.com\" }\ntasks:\n  t:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://${{ const.h }}/p\" } }\n",
         );
         // host couldn't be pinned → net stays unset, a note flags it
         assert!(r.permits.net.is_none());
@@ -657,28 +645,8 @@ tasks:
     }
 
     #[test]
-    fn on_finally_cleanup_effects_are_collected() {
-        // The review's PROVEN miss: a cleanup that writes a log file MUST
-        // contribute its tool grant + fs.write — it always runs.
-        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  build:\n    exec: { command: [\"cargo\", \"build\"] }\n    on_finally:\n      - invoke: { tool: \"nika:write\", args: { path: \"./out/log.txt\", content: \"done\" } }\n";
-        let r = infer_of(yaml);
-        assert_eq!(
-            r.permits.fs.as_ref().expect("fs").write,
-            vec!["./out/log.txt"]
-        );
-        assert!(
-            r.permits
-                .tools
-                .as_ref()
-                .expect("tools")
-                .contains(&"nika:write".to_owned())
-        );
-        assert_round_trips_clean(yaml);
-    }
-
-    #[test]
     fn edit_grep_and_webhook_notify_are_classified() {
-        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  fix:\n    invoke: { tool: \"nika:edit\", args: { path: \"./README.md\", find: \"a\", replace: \"b\" } }\n  scan:\n    invoke: { tool: \"nika:grep\", args: { pattern: \"TODO\", path: \"./src\" } }\n  ping:\n    invoke: { tool: \"nika:notify\", args: { channel: \"webhook\", target: \"https://hooks.slack.com/x\", message: \"hi\" } }\n";
+        let yaml = "nika: w\ntasks:\n  fix:\n    invoke: { tool: \"nika:edit\", args: { path: \"./README.md\", find: \"a\", replace: \"b\" } }\n  scan:\n    invoke: { tool: \"nika:grep\", args: { pattern: \"TODO\", path: \"./src\" } }\n  ping:\n    invoke: { tool: \"nika:notify\", args: { channel: \"webhook\", target: \"https://hooks.slack.com/x\", message: \"hi\" } }\n";
         let r = infer_of(yaml);
         let fs = r.permits.fs.as_ref().expect("fs");
         // edit reads then rewrites the same path
@@ -698,7 +666,7 @@ tasks:
         // grants `<dir>/**` on fs.write (the grep-recursive analog, write
         // side), and the provider egress is deliberately NOT a net grant
         // (the image plane rides engine transport, like `infer:`).
-        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  og:\n    invoke: { tool: \"nika:image_generate\", args: { prompt: \"hero\", output_dir: \"./assets/og\" } }\n";
+        let yaml = "nika: w\ntasks:\n  og:\n    invoke: { tool: \"nika:image_generate\", args: { prompt: \"hero\", output_dir: \"./assets/og\" } }\n";
         let r = infer_of(yaml);
         let fs = r.permits.fs.as_ref().expect("fs");
         assert!(fs.read.is_empty(), "generation reads nothing");
@@ -738,7 +706,7 @@ tasks:
     /// THE AUTHORITY IS THE BOUNDARY, and this pins it in both directions.
     #[test]
     fn a_const_dir_resolves_and_a_runtime_one_notes_review() {
-        let konst = "nika: v1\nworkflow:\n  id: w\nconst: { dir: \"./assets\" }\ntasks:\n  og:\n    invoke: { tool: \"nika:image_generate\", args: { prompt: \"hero\", output_dir: \"${{ const.dir }}\" } }\n";
+        let konst = "nika: w\nconst: { dir: \"./assets\" }\ntasks:\n  og:\n    invoke: { tool: \"nika:image_generate\", args: { prompt: \"hero\", output_dir: \"${{ const.dir }}\" } }\n";
         let r = infer_of(konst);
         assert!(
             r.permits.fs.is_some(),
@@ -750,7 +718,7 @@ tasks:
         // `inputs:` is genuinely dynamic even WITH a default — the run can
         // supply another value, and a boundary drafted against a value the
         // run may replace is exactly the claim this tool must not make.
-        let runtime = "nika: v1\nworkflow:\n  id: w\ninputs:\n  dir:\n    type: string\n    default: \"./assets\"\ntasks:\n  og:\n    invoke: { tool: \"nika:image_generate\", args: { prompt: \"hero\", output_dir: \"${{ inputs.dir }}\" } }\n";
+        let runtime = "nika: w\ninputs:\n  dir:\n    type: string\n    default: \"./assets\"\ntasks:\n  og:\n    invoke: { tool: \"nika:image_generate\", args: { prompt: \"hero\", output_dir: \"${{ inputs.dir }}\" } }\n";
         let r = infer_of(runtime);
         assert!(r.permits.fs.is_none(), "a runtime dir cannot be pinned");
         assert!(r.notes.iter().any(|n| n.contains("dynamic path")));
@@ -759,7 +727,7 @@ tasks:
     #[test]
     fn non_webhook_notify_is_not_a_net_effect() {
         let r = infer_of(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    invoke: { tool: \"nika:notify\", args: { channel: \"email\", target: \"ops@x.com\", message: \"hi\" } }\n",
+            "nika: w\ntasks:\n  t:\n    invoke: { tool: \"nika:notify\", args: { channel: \"email\", target: \"ops@x.com\", message: \"hi\" } }\n",
         );
         assert!(
             r.permits.net.is_none(),
@@ -771,7 +739,7 @@ tasks:
     fn rendered_yaml_round_trips_through_the_parser() {
         // The inferred block must itself parse AND admit the workflow.
         assert_round_trips_clean(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  rd:\n    invoke: { tool: \"nika:read\", args: { path: \"./data/x\" } }\n  build:\n    exec: { command: [\"cargo\", \"test\"] }\n",
+            "nika: w\ntasks:\n  rd:\n    invoke: { tool: \"nika:read\", args: { path: \"./data/x\" } }\n  build:\n    exec: { command: [\"cargo\", \"test\"] }\n",
         );
     }
 
@@ -779,17 +747,17 @@ tasks:
     fn exec_false_and_exec_true_round_trip() {
         // ExecPermit::No — a pure-invoke workflow renders `exec: false`.
         assert_round_trips_clean(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  rd:\n    invoke: { tool: \"nika:read\", args: { path: \"./x\" } }\n",
+            "nika: w\ntasks:\n  rd:\n    invoke: { tool: \"nika:read\", args: { path: \"./x\" } }\n",
         );
         // ExecPermit::Any — a dynamic command renders `exec: true`.
         assert_round_trips_clean(
-            "nika: v1\nworkflow:\n  id: w\nconst: { c: \"git\" }\ntasks:\n  t:\n    exec: { shell: \"${{ const.c }} status\" }\n",
+            "nika: w\nconst: { c: \"git\" }\ntasks:\n  t:\n    exec: { shell: \"${{ const.c }} status\" }\n",
         );
     }
 
     #[test]
     fn agent_tool_globs_round_trip() {
-        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    agent:\n      prompt: \"go\"\n      tools: [\"nika:fetch\", \"mcp:browser/*\"]\n";
+        let yaml = "nika: w\ntasks:\n  t:\n    agent:\n      prompt: \"go\"\n      tools: [\"nika:fetch\", \"mcp:browser/*\"]\n";
         let r = infer_of(yaml);
         let tools = r.permits.tools.as_ref().expect("tools");
         assert!(tools.contains(&"mcp:browser/*".to_owned()));
@@ -801,7 +769,7 @@ tasks:
     fn quotes_and_backslashes_in_paths_render_valid_yaml() {
         // An unescaped `"` would render a structurally broken block — the
         // review's PROVEN parse failure.
-        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    invoke: { tool: \"nika:read\", args: { path: \"data/he said \\\"hi\\\".json\" } }\n";
+        let yaml = "nika: w\ntasks:\n  t:\n    invoke: { tool: \"nika:read\", args: { path: \"data/he said \\\"hi\\\".json\" } }\n";
         assert_round_trips_clean(yaml);
         let r = infer_of(yaml);
         assert!(r.to_yaml().contains(r#"\"hi\""#), "quote is escaped");
@@ -813,7 +781,7 @@ tasks:
         let rendered = render_yaml(&Permits::new());
         assert_eq!(rendered, "permits: {}\n");
         let full = format!(
-            "nika: v1\nworkflow:\n  id: w\n{rendered}tasks:\n  t:\n    infer: {{ prompt: \"hi\", max_tokens: 5 }}\n"
+            "nika: w\n{rendered}tasks:\n  t:\n    infer: {{ prompt: \"hi\", max_tokens: 5 }}\n"
         );
         assert!(
             parse(&full, FileId::new(0), ParseMode::Strict).is_ok(),
@@ -829,7 +797,7 @@ tasks:
         // inference keeps its hands off and the note TEACHES the opt-in.
         // Public hosts still infer.
         let r = infer_of(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    invoke: { tool: \"nika:fetch\", args: { url: \"http://127.0.0.1:9/x\" } }\n  b:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.example.com/x\" } }\n",
+            "nika: w\ntasks:\n  a:\n    invoke: { tool: \"nika:fetch\", args: { url: \"http://127.0.0.1:9/x\" } }\n  b:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.example.com/x\" } }\n",
         );
         let net = r.permits.net.as_ref().expect("public host infers net");
         assert_eq!(net.http, vec!["api.example.com".to_owned()]);
@@ -848,7 +816,7 @@ tasks:
         // The never-list keeps the pre-#395 wording: no entry can admit a
         // metadata/RFC1918 target, so the note must NOT hint one.
         let r = infer_of(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    invoke: { tool: \"nika:fetch\", args: { url: \"http://169.254.169.254/latest/meta-data/\" } }\n",
+            "nika: w\ntasks:\n  a:\n    invoke: { tool: \"nika:fetch\", args: { url: \"http://169.254.169.254/latest/meta-data/\" } }\n",
         );
         assert_eq!(r.notes.len(), 1, "{:?}", r.notes);
         assert!(

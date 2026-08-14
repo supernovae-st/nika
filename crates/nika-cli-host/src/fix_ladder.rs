@@ -69,13 +69,21 @@ pub fn apply_dead_form_arm(
     stop_notes: &mut StopNotes,
 ) -> Option<bool> {
     match err {
-        // W1 « the map » dead forms (PARSE-020..023): ONE structural
+        // W1 « the map » dead forms (PARSE-022/023): ONE structural
         // repair — the shared migration (comment-preserving ·
         // idempotent). The old form is repairable, never executable.
-        SchemaError::W1WorkflowScalar { .. }
-        | SchemaError::W1TopLevelDescription { .. }
-        | SchemaError::W1TasksSequence { .. }
-        | SchemaError::W1TaskIdField { .. } => Some(apply_w1_map(source, repairs)),
+        //
+        // PARSE-020/021 left this arm with the envelope nuke
+        // (2026-08-12): their teachings pointed at the `workflow:`
+        // object, and repairing a file INTO a form the parser now
+        // refuses would be a fix that breaks its own output. The
+        // `workflow:`/`description:` keys refuse as unknown keys now,
+        // which is not a dead form this ladder can mechanically repair —
+        // the id must be MOVED onto `nika:`, and only the author knows
+        // whether an existing `nika:` line already holds the name.
+        SchemaError::W1TasksSequence { .. } | SchemaError::W1TaskIdField { .. } => {
+            Some(apply_w1_map(source, repairs))
+        }
         // W2 « the flow » dead form (PARSE-024) — the equivalence-or-
         // stop migration (spec 03 §depends_on): data → with: bindings ·
         // provably-strict control → after: {d: success} · every

@@ -250,7 +250,7 @@ fn scaffold_one(
         return ScaffoldStatus::Skipped;
     }
     let stamp_model = model.filter(|_| guided::template_takes_model(body));
-    let mut stamped = guided::stamp(body, id, "", stamp_model);
+    let mut stamped = guided::stamp(body, id, stamp_model);
     // A recipe file lives under `workflows/` and runs from the REPO root
     // — the skeleton's repo-root README default would miss in a freshly
     // founded (empty) directory, so the scaffold points it at the index

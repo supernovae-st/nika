@@ -314,12 +314,11 @@ pub struct Runtime<S, T, H, P, D, C> {
     resume_unverified: Option<resume::ResumeUnverified>,
 }
 
-/// One wave's read-only value scope — (`vars` · `env` · `secrets` ·
+/// One wave's read-only value scope — (`inputs` · `const` · `secrets` ·
 /// `permits` · `types`), a single loan the pipeline fan-out threads
 /// whole (the named-type map is the `returns:` contract environment ·
 /// spec 09 · W3).
 type WaveScope<'a> = (
-    &'a BTreeMap<String, Value>,
     &'a BTreeMap<String, Value>,
     &'a BTreeMap<String, Value>,
     &'a BTreeMap<String, Value>,
@@ -608,8 +607,6 @@ pub(crate) fn i(v: i64) -> FieldValue {
 struct EnvelopeValues {
     /// `inputs.<name>` — typed input defaults + the operator overrides.
     inputs: BTreeMap<String, Value>,
-    /// `config.<name>` — the declared fallbacks (deployment-supplied).
-    config: BTreeMap<String, Value>,
     /// `const.<name>` — the author-fixed constants.
     consts: BTreeMap<String, Value>,
     /// The workflow id (the run's display + ledger name).
@@ -623,7 +620,6 @@ struct EnvelopeValues {
 fn parked_scope<'a>(
     wf: &'a RawWorkflow,
     inputs: &'a BTreeMap<String, Value>,
-    config: &'a BTreeMap<String, Value>,
     consts: &'a BTreeMap<String, Value>,
     secrets: &'a BTreeMap<String, Value>,
     resume_ctx: &'a resume::ResumeContext,
@@ -632,7 +628,6 @@ fn parked_scope<'a>(
     let resolve_scope = recover::ResolveScope {
         wf,
         inputs,
-        config,
         consts,
         secrets,
         resume_ctx,
@@ -656,11 +651,6 @@ fn envelope_values(wf: &RawWorkflow, overrides: &BTreeMap<String, Value>) -> Env
         .filter_map(|(key, decl)| Some((key.value.clone(), declared_value(decl)?)))
         .collect();
     inputs.extend(overrides.iter().map(|(k, v)| (k.clone(), v.clone())));
-    let config = wf
-        .config
-        .iter()
-        .filter_map(|(key, decl)| Some((key.value.clone(), declared_value(decl)?)))
-        .collect();
     let consts = wf
         .consts
         .iter()
@@ -672,7 +662,6 @@ fn envelope_values(wf: &RawWorkflow, overrides: &BTreeMap<String, Value>) -> Env
         .map_or_else(|| "workflow".to_owned(), |w| w.value.clone());
     EnvelopeValues {
         inputs,
-        config,
         consts,
         workflow_name,
     }
@@ -776,7 +765,6 @@ where
         )?;
         let EnvelopeValues {
             inputs,
-            config,
             consts,
             workflow_name,
         } = envelope_values(wf, &self.var_overrides);
@@ -793,10 +781,10 @@ where
         // The declared capability boundary (spec 01 §permits) flows to every
         // task's dispatch scope so the exec sink can enforce it (NIKA-SEC-004).
         let permits = wf.permits.as_ref().map(|spanned| &spanned.value);
-        // The acyclic named types (spec 09 · `types:`) — resolved ONCE
-        // per run through the schema's one projection; every task's
-        // `returns:` contract parses against THIS environment (W3).
-        let types = nika_check::named_types(wf);
+        // The name environment (spec 09) — EMPTY, permanently: a type
+        // expression is self-contained, so there is nothing to resolve
+        // once per run and nothing a task's `returns:` can look up.
+        let types = std::collections::BTreeMap::new();
         self.emit_run_prologue(wf, &workflow_name, stamper, sink);
 
         let mut records: BTreeMap<String, TaskRecord> = BTreeMap::new();
@@ -804,8 +792,7 @@ where
         let mut cache_hits: Vec<String> = Vec::new();
         // The spend ledger (leaf debits) + the `--max-cost-usd` gate.
         let run_ledger = ledger::RunLedger::new(self.config.max_cost_usd);
-        let (mut parked, resolve_scope) =
-            parked_scope(wf, &inputs, &config, &consts, &secrets, &resume_ctx);
+        let (mut parked, resolve_scope) = parked_scope(wf, &inputs, &consts, &secrets, &resume_ctx);
 
         for wave in &report.waves {
             let early = self
@@ -843,7 +830,7 @@ where
         // that breaks its declared `type:` can fail the run — the output half
         // of the callable contract (spec 01 §engine-MUST rule 6 · NIKA-VAR-009 ·
         // symmetric with the typed-`vars:` input validation).
-        let mut outputs = resolve_outputs(wf, &records, &inputs, &config, &consts, &secrets);
+        let mut outputs = resolve_outputs(wf, &records, &inputs, &consts, &secrets);
         // The outputs map is NOT an event, so the redacting sink never
         // saw it: the same bytes were `***` in the trace and in the
         // clear on `--output json` stdout. Scrub before it leaves.
@@ -886,10 +873,9 @@ where
         stamper: &mut dyn Stamper,
         sink: &mut dyn EventSink,
     ) -> Result<Option<RunOutcome>, RuntimeError> {
-        let (wf, inputs, config, consts, secrets) = (
+        let (wf, inputs, consts, secrets) = (
             resolve_scope.wf,
             resolve_scope.inputs,
-            resolve_scope.config,
             resolve_scope.consts,
             resolve_scope.secrets,
         );
@@ -899,7 +885,7 @@ where
                 wave,
                 wf,
                 &frozen,
-                (inputs, config, consts, secrets, permits, types),
+                (inputs, consts, secrets, permits, types),
                 resolve_scope.resume_ctx,
                 run_ledger,
                 (ok, cache_hits),
@@ -991,11 +977,10 @@ where
         stamper: &mut dyn Stamper,
         sink: &mut dyn EventSink,
     ) -> Result<(BTreeMap<String, TaskRecord>, Option<WorkflowPause>), RuntimeError> {
-        let (inputs, config, consts, secrets, permits, types) = scope;
+        let (inputs, consts, secrets, permits, types) = scope;
         let resolve_scope = recover::ResolveScope {
             wf,
             inputs,
-            config,
             consts,
             secrets,
             resume_ctx,
@@ -1020,7 +1005,7 @@ where
             futures_util::stream::iter(members.iter().take_while(|_| !ledger.tripped()).map(
                 |&task| {
                     self.run_task_pipeline(
-                        task, frozen, inputs, config, consts, secrets, permits, types, resume_ctx,
+                        task, wf, frozen, inputs, consts, secrets, permits, types, resume_ctx,
                         ledger,
                     )
                 },
@@ -1035,7 +1020,6 @@ where
                     wf,
                     frozen,
                     inputs,
-                    config,
                     consts,
                     resume_ctx.markers(),
                     &self.approvals,
@@ -1116,11 +1100,10 @@ fn resolve_outputs(
     wf: &RawWorkflow,
     records: &BTreeMap<String, TaskRecord>,
     inputs: &BTreeMap<String, Value>,
-    config: &BTreeMap<String, Value>,
     consts: &BTreeMap<String, Value>,
     secrets: &BTreeMap<String, Value>,
 ) -> BTreeMap<String, Value> {
-    let scope = Scope::workflow_with_value_authorities(records, inputs, config, consts, secrets);
+    let scope = Scope::workflow_with_value_authorities(records, inputs, consts, secrets);
     wf.outputs
         .iter()
         .filter_map(|(key, decl)| {
@@ -1282,8 +1265,8 @@ fn first_output_type_violation(
     wf: &RawWorkflow,
     resolved: &BTreeMap<String, Value>,
 ) -> Option<OutputTypeViolation> {
-    let named = nika_check::named_types(wf);
-    let type_names: std::collections::BTreeSet<String> = named.keys().cloned().collect();
+    let named = std::collections::BTreeMap::new();
+    let type_names = std::collections::BTreeSet::new();
     for (key, decl) in &wf.outputs {
         let OutputDecl::Typed {
             r#type: Some(ty), ..

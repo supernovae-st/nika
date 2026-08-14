@@ -171,11 +171,11 @@ mod tests {
     #[test]
     fn the_classification_matrix_and_the_scope_partition() {
         let e = energy_of(
-            "nika: v1\nworkflow:\n  id: m\ntasks:\n  \
+            "nika: m\ntasks:\n  \
              a:\n    infer: { prompt: hi, max_tokens: 1000, model: \"groq/qwen/qwen3-32b\" }\n  \
              b:\n    infer: { prompt: hi, model: \"groq/qwen/qwen3-32b\" }\n  \
-             c:\n    for_each: ${{ tasks.a.output }}\n    infer: { prompt: hi, max_tokens: 100, model: \"groq/qwen/qwen3-32b\" }\n  \
-             d:\n    for_each: []\n    infer: { prompt: hi, max_tokens: 100, model: \"groq/qwen/qwen3-32b\" }\n  \
+             c:\n    for_each: { items: \"${{ tasks.a.output }}\" }\n    infer: { prompt: hi, max_tokens: 100, model: \"groq/qwen/qwen3-32b\" }\n  \
+             d:\n    for_each: { items: [] }\n    infer: { prompt: hi, max_tokens: 100, model: \"groq/qwen/qwen3-32b\" }\n  \
              e:\n    infer: { prompt: hi, max_tokens: 100, model: \"mock/echo\" }\n  \
              f:\n    infer: { prompt: hi, max_tokens: 100, model: \"ollama/qwen3\" }\n",
         );
@@ -239,7 +239,7 @@ mod tests {
     #[test]
     fn subtotals_sum_within_a_class_and_empty_stays_silent() {
         let e = energy_of(
-            "nika: v1\nworkflow:\n  id: m\ntasks:\n  \
+            "nika: m\ntasks:\n  \
              a:\n    infer: { prompt: hi, max_tokens: 1000, model: \"groq/qwen/qwen3-32b\" }\n  \
              b:\n    infer: { prompt: hi, max_tokens: 2000, model: \"groq/qwen/qwen3-32b\" }\n",
         );
@@ -251,9 +251,7 @@ mod tests {
             "the class subtotal sums its rows"
         );
 
-        let e = energy_of(
-            "nika: v1\nworkflow:\n  id: m\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
-        );
+        let e = energy_of("nika: m\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n");
         assert!(e.tasks.is_empty() && e.scope_subtotals.is_empty());
         assert_eq!(e.counts.total, 0);
     }

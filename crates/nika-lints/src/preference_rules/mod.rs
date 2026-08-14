@@ -184,7 +184,7 @@ fn rule_010_non_tightening_after(tasks: &[&RawTask], lints: &mut Vec<Lint>) {
 /// binding · `break`), anchored at the offending jq island.
 fn rule_009_stream_binding(tasks: &[&RawTask], lints: &mut Vec<Lint>) {
     for task in tasks {
-        for (name, program) in &task.output {
+        for (name, program) in &task.extract {
             if ends_in_bare_iterator(&program.value) {
                 lints.push(Lint::new(
                     "one-obvious-way/009",

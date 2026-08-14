@@ -13,10 +13,7 @@
 #   - `permits: {}` + `max_tokens:` · the declared zero, the bounded call
 #
 # Run · nika run examples/snippets/think.nika.yaml
-nika: v1
-workflow:
-  id: think
-  description: "the infer verb alone · one bounded model call"
+nika: think
 model: ollama/llama3.2:3b
 permits: {}
 tasks:

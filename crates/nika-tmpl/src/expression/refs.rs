@@ -189,7 +189,6 @@ fn classify_root(root: &str, path: &[String]) -> NamespaceRef {
     match root {
         "vars" => NamespaceRef::Vars(first.unwrap_or_default()),
         "inputs" => NamespaceRef::Inputs(first.unwrap_or_default()),
-        "config" => NamespaceRef::Config(first.unwrap_or_default()),
         "const" => NamespaceRef::Const(first.unwrap_or_default()),
         "with" => NamespaceRef::With(first.unwrap_or_default()),
         "env" => NamespaceRef::Env(first.unwrap_or_default()),
@@ -198,6 +197,7 @@ fn classify_root(root: &str, path: &[String]) -> NamespaceRef {
             id: first.unwrap_or_default(),
             field: path.get(1).cloned(),
         },
+        "group" => NamespaceRef::Group(first.unwrap_or_default()),
         "item" => NamespaceRef::Item,
         "index" => NamespaceRef::Index,
         other => NamespaceRef::Unknown(other.to_owned()),

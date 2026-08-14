@@ -137,8 +137,8 @@ diff:
   invoke:
     tool: "nika:json_diff"
     args:
-      base: ${{ vars.original }}
-      patch: ${{ vars.modified }}
+      base: ${{ inputs.original }}
+      patch: ${{ inputs.modified }}
   # output · RFC 6902 JSON Patch array
 ```
 

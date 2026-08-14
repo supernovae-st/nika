@@ -27,7 +27,10 @@ tasks:
       workflow: "./audits/site-audit.nika.yaml"   # a STATIC path …
       args:                                        # … or registry:owner/name@version (pinned)
         url: "${{ inputs.target }}"
-    returns: AuditReport      # the child's typed outputs — composed, not re-declared
+    returns:                  # the child's typed outputs — composed, not re-declared
+      object:
+        score: integer
+        findings: { array: string }
 ```
 
 - `invoke:` is a **tagged union** — exactly one of `tool:` | `workflow:`,
@@ -101,11 +104,20 @@ A composition is well-formed iff **all ten** hold:
 
 ## Agent capability closure (normative · G25)
 
-An `agent:` task's reachable surface has TWO public fields, kept
-separate: `tools:` and `workflows:`. Internally they are one tagged
-`CapabilitySet`; a glob resolves to an EXACT set in the lockfile
-(hashed and shown). An agent can never reach a path-shaped or dynamic
-target — the closure is static, the same law as the top-level form.
+An `agent:` task's reachable surface is **one public field**: `tools:`. A glob
+resolves to an EXACT set in the lockfile (hashed and shown). An agent can never
+reach a path-shaped or dynamic target — the closure is static, the same law as
+the top-level form.
+
+> ⚰️ **This paragraph promised a second field, `workflows:`, and it does not
+> exist** (removed 2026-08-11 · verified against the published schema, whose
+> `agent` object carries `max_tokens_total · max_turns · model · prompt ·
+> schema · skills · system · temperature · tools`, and against the engine,
+> which refuses any other name with `NIKA-PARSE-005`). A normative sentence
+> describing a field nobody can write is worse than silence: a reader builds
+> on it, and an implementer ships it. **The subtraction is the fix** — if
+> workflow-reachability becomes a real capability it comes back as an addition,
+> which a closed vocabulary always permits.
 
 ## Errors (the `NIKA-COMP` namespace · new in this chapter)
 

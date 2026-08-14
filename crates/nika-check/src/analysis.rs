@@ -631,7 +631,7 @@ mod tests {
         read(yaml).analysis.expect("analysis present")
     }
 
-    const HEADER: &str = "nika: v1\nworkflow:\n  id: t\n\nmodel: mock/echo\n\ntasks:\n";
+    const HEADER: &str = "nika: t\n\nmodel: mock/echo\n\ntasks:\n";
 
     fn infer_task(id: &str, deps: &[&str]) -> String {
         let dep_line = if deps.is_empty() {
@@ -803,7 +803,7 @@ mod tests {
 
     #[test]
     fn distinct_or_dynamic_paths_make_no_claim() {
-        let yaml = "nika: v1\nworkflow:\n  id: t\n\nmodel: mock/echo\n\nconst:\n  name: report\n\ntasks:\n  a:\n    invoke:\n      tool: nika:write\n      args:\n        path: out/a.md\n        content: \"a\"\n  b:\n    invoke:\n      tool: nika:write\n      args:\n        path: \"out/${{ const.name }}.md\"\n        content: \"b\"\n";
+        let yaml = "nika: t\n\nmodel: mock/echo\n\nconst:\n  name: report\n\ntasks:\n  a:\n    invoke:\n      tool: nika:write\n      args:\n        path: out/a.md\n        content: \"a\"\n  b:\n    invoke:\n      tool: nika:write\n      args:\n        path: \"out/${{ const.name }}.md\"\n        content: \"b\"\n";
         assert!(read(yaml).conflicts.is_empty());
     }
 
@@ -812,7 +812,7 @@ mod tests {
         // F-P15 · the fan flavor: every iteration overwrites the same
         // file — the task races its own fan-out (`other` is None).
         let yaml = format!(
-            "{HEADER}  fan:\n    for_each: [1, 2, 3]\n    invoke:\n      tool: nika:write\n      args:\n        path: out/same.md\n        content: \"x\"\n"
+            "{HEADER}  fan:\n    for_each: {{ items: [1, 2, 3] }}\n    invoke:\n      tool: nika:write\n      args:\n        path: out/same.md\n        content: \"x\"\n"
         );
         let conflicts = read(&yaml).conflicts;
         assert_eq!(conflicts.len(), 1);
@@ -907,7 +907,7 @@ mod tests {
         // `for_each` same-path flavor — which needs no closure — still
         // refuses above the cap.
         let mut yaml = String::from(HEADER);
-        yaml.push_str("  fan:\n    for_each: [1, 2]\n    invoke:\n      tool: nika:write\n      args:\n        path: out/same.md\n        content: \"x\"\n");
+        yaml.push_str("  fan:\n    for_each: { items: [1, 2] }\n    invoke:\n      tool: nika:write\n      args:\n        path: out/same.md\n        content: \"x\"\n");
         for i in 0..ANALYSIS_TASK_CAP {
             yaml.push_str(&infer_task(&format!("t{i}"), &[]));
         }
@@ -938,7 +938,7 @@ mod tests {
         // (JSON `hints[]` + the console HINTS section carry it), and the
         // fan flavor's refusal lands as the law's finding.
         let mut yaml = String::from(HEADER);
-        yaml.push_str("  fan:\n    for_each: [1, 2]\n    invoke:\n      tool: nika:write\n      args:\n        path: out/same.md\n        content: \"x\"\n");
+        yaml.push_str("  fan:\n    for_each: { items: [1, 2] }\n    invoke:\n      tool: nika:write\n      args:\n        path: out/same.md\n        content: \"x\"\n");
         for i in 0..ANALYSIS_TASK_CAP {
             yaml.push_str(&infer_task(&format!("t{i}"), &[]));
         }
@@ -964,7 +964,7 @@ mod tests {
         // `${{ inputs.f }}` rendered green while the literal twin was
         // refused — inputs bind once per run, so the two provably
         // target the same file even though its value is unknown.
-        let yaml = "nika: v1\nworkflow:\n  id: t\n\nmodel: mock/echo\n\ninputs:\n  f: { type: string, required: true }\n\ntasks:\n  a:\n    invoke:\n      tool: nika:write\n      args:\n        path: \"${{ inputs.f }}\"\n        content: \"a\"\n  b:\n    invoke:\n      tool: nika:write\n      args:\n        path: \"${{ inputs.f }}\"\n        content: \"b\"\n";
+        let yaml = "nika: t\n\nmodel: mock/echo\n\ninputs:\n  f: { type: string, required: true }\n\ntasks:\n  a:\n    invoke:\n      tool: nika:write\n      args:\n        path: \"${{ inputs.f }}\"\n        content: \"a\"\n  b:\n    invoke:\n      tool: nika:write\n      args:\n        path: \"${{ inputs.f }}\"\n        content: \"b\"\n";
         let conflicts = read(yaml).conflicts;
         assert_eq!(conflicts.len(), 1, "{conflicts:?}");
         let c = &conflicts[0];
@@ -976,7 +976,7 @@ mod tests {
     fn a_literal_writer_and_a_resolved_ref_writer_collide() {
         // The shared resolver arm: `${{ const.p }}` declares the SAME
         // literal another task writes directly — one path, two spellings.
-        let yaml = "nika: v1\nworkflow:\n  id: t\n\nmodel: mock/echo\n\nconst:\n  p: out/report.md\n\ntasks:\n  a:\n    invoke:\n      tool: nika:write\n      args:\n        path: out/report.md\n        content: \"a\"\n  b:\n    invoke:\n      tool: nika:write\n      args:\n        path: \"${{ const.p }}\"\n        content: \"b\"\n";
+        let yaml = "nika: t\n\nmodel: mock/echo\n\nconst:\n  p: out/report.md\n\ntasks:\n  a:\n    invoke:\n      tool: nika:write\n      args:\n        path: out/report.md\n        content: \"a\"\n  b:\n    invoke:\n      tool: nika:write\n      args:\n        path: \"${{ const.p }}\"\n        content: \"b\"\n";
         let conflicts = read(yaml).conflicts;
         assert_eq!(conflicts.len(), 1, "{conflicts:?}");
         assert_eq!(
@@ -989,7 +989,7 @@ mod tests {
     fn distinct_immutable_refs_make_no_claim() {
         // Two DIFFERENT bare refs may or may not collide at run — the
         // scan never guesses.
-        let yaml = "nika: v1\nworkflow:\n  id: t\n\nmodel: mock/echo\n\ninputs:\n  f: { type: string, required: true }\n  g: { type: string, required: true }\n\ntasks:\n  a:\n    invoke:\n      tool: nika:write\n      args:\n        path: \"${{ inputs.f }}\"\n        content: \"a\"\n  b:\n    invoke:\n      tool: nika:write\n      args:\n        path: \"${{ inputs.g }}\"\n        content: \"b\"\n";
+        let yaml = "nika: t\n\nmodel: mock/echo\n\ninputs:\n  f: { type: string, required: true }\n  g: { type: string, required: true }\n\ntasks:\n  a:\n    invoke:\n      tool: nika:write\n      args:\n        path: \"${{ inputs.f }}\"\n        content: \"a\"\n  b:\n    invoke:\n      tool: nika:write\n      args:\n        path: \"${{ inputs.g }}\"\n        content: \"b\"\n";
         assert!(read(yaml).conflicts.is_empty());
     }
 
@@ -997,7 +997,7 @@ mod tests {
     fn a_for_each_fan_over_one_immutable_ref_races_itself() {
         // The fan flavor reaches the ref class too: every iteration
         // writes `${{ inputs.f }}` — one file, N writers.
-        let yaml = "nika: v1\nworkflow:\n  id: t\n\nmodel: mock/echo\n\ninputs:\n  f: { type: string, required: true }\n\ntasks:\n  fan:\n    for_each: [1, 2]\n    invoke:\n      tool: nika:write\n      args:\n        path: \"${{ inputs.f }}\"\n        content: \"x\"\n";
+        let yaml = "nika: t\n\nmodel: mock/echo\n\ninputs:\n  f: { type: string, required: true }\n\ntasks:\n  fan:\n    for_each: { items: [1, 2] }\n    invoke:\n      tool: nika:write\n      args:\n        path: \"${{ inputs.f }}\"\n        content: \"x\"\n";
         let conflicts = read(yaml).conflicts;
         assert_eq!(conflicts.len(), 1, "{conflicts:?}");
         assert_eq!(conflicts[0].other, None);
@@ -1007,7 +1007,7 @@ mod tests {
     #[test]
     fn empty_workflow_reads_as_width_zero() {
         let parsed = parse(
-            "nika: v1\nworkflow:\n  id: t\n\nmodel: mock/echo\n\ntasks: []\n",
+            "nika: t\n\nmodel: mock/echo\n\ntasks: []\n",
             FileId::new(0),
             ParseMode::Strict,
         );

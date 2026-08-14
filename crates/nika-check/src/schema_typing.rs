@@ -25,7 +25,6 @@ use std::collections::BTreeMap;
 
 use nika_types::types::{NikaType, assignable, parse_type};
 
-use crate::analyzer::named_types;
 use nika_schema::expression::{Expr, scan_templates, task_output_paths, with_alias_paths};
 use nika_schema::raw::{ForEachValue, RawAction, RawTask, RawWorkflow};
 use nika_schema::types::{VarDecl, type_expr_display};
@@ -117,31 +116,6 @@ pub(super) fn scan_types(wf: &RawWorkflow) -> (Vec<SchemaTypeFinding>, Vec<Unver
                 check_alias_text(id, text, &aliases, &mut unverifiable);
             }
         }
-        for cleanup in &task.value.on_finally {
-            let site = format!("{id} (on_finally)");
-            if let Some(when) = &cleanup.value.when
-                && let Some(expr) = when.value.as_expr()
-            {
-                check_text(
-                    &site,
-                    expr,
-                    &shapes,
-                    &all_tasks,
-                    &mut findings,
-                    &mut unverifiable,
-                );
-            }
-            for text in action_texts(&cleanup.value.action) {
-                check_text(
-                    &site,
-                    text,
-                    &shapes,
-                    &all_tasks,
-                    &mut findings,
-                    &mut unverifiable,
-                );
-            }
-        }
     }
     for (_, decl) in &wf.outputs {
         check_text(
@@ -156,7 +130,7 @@ pub(super) fn scan_types(wf: &RawWorkflow) -> (Vec<SchemaTypeFinding>, Vec<Unver
     (findings, unverifiable)
 }
 
-/// A `for_each:` source that is a BARE `${{ inputs.X }}`/`${{ config.X }}`/
+/// A `for_each:` source that is a BARE `${{ inputs.X }}`/`${{ inputs.X }}`/
 /// `${{ const.X }}` whose declaration is a non-array type can never be an
 /// array — the runtime refuses it (NIKA-VAR-006 « `for_each` collection
 /// must be an array ») and the check must catch that BEFORE the run
@@ -170,8 +144,8 @@ pub(super) fn scan_types(wf: &RawWorkflow) -> (Vec<SchemaTypeFinding>, Vec<Unver
 /// rides the one type core (`assignable` answers « admits an array » ·
 /// a broken expression skips, its refusal is the analyzer's).
 fn scan_for_each_sources(wf: &RawWorkflow, findings: &mut Vec<SchemaTypeFinding>) {
-    let named = named_types(wf);
-    let type_names: std::collections::BTreeSet<String> = named.keys().cloned().collect();
+    let named = std::collections::BTreeMap::new();
+    let type_names = std::collections::BTreeSet::new();
     for task in &wf.tasks {
         let Some(fe) = &task.value.for_each else {
             continue;
@@ -184,7 +158,6 @@ fn scan_for_each_sources(wf: &RawWorkflow, findings: &mut Vec<SchemaTypeFinding>
         };
         let block = match authority.as_str() {
             "inputs" => &wf.inputs,
-            "config" => &wf.config,
             _ => &wf.consts,
         };
         let declared = block.iter().find(|(n, _)| n.value == name);
@@ -198,7 +171,7 @@ fn scan_for_each_sources(wf: &RawWorkflow, findings: &mut Vec<SchemaTypeFinding>
         if !assignable(&any_array, &declared_type, &named) {
             findings.push(SchemaTypeFinding {
                 site: task.value.id.value.clone(),
-                reference: format!("for_each: ${{{{ {authority}.{name} }}}}"),
+                reference: format!("for_each: {{ items: \"${{{{ {authority}.{name} }}}}\" }}"),
                 target: format!("{authority}.{name}"),
                 detail: format!(
                     "`{authority}.{name}` is declared `type: {}` — `for_each` needs an array \
@@ -211,7 +184,7 @@ fn scan_for_each_sources(wf: &RawWorkflow, findings: &mut Vec<SchemaTypeFinding>
 }
 
 /// The `(authority, name)` of a source that is EXACTLY `${{ inputs.X }}` /
-/// `${{ config.X }}` / `${{ const.X }}` (one template island covering the
+/// `${{ inputs.X }}` / `${{ const.X }}` (one template island covering the
 /// whole value, a bare `Member { Ident(authority), X }` with no further
 /// path), else `None`. `for_each` sources carry the raw `${{ … }}`
 /// wrapper, so the island's pre-parsed `expr` is the entry.
@@ -315,10 +288,10 @@ fn declared_shapes<'a>(
     for task in &wf.tasks {
         let t = &task.value;
         let id = t.id.value.as_str();
-        if !t.output.is_empty() {
+        if !t.extract.is_empty() {
             shapes.insert(
                 id,
-                Shape::Bindings(t.output.iter().map(|(n, _)| n.value.as_str()).collect()),
+                Shape::Bindings(t.extract.iter().map(|(n, _)| n.value.as_str()).collect()),
             );
             continue;
         }
@@ -567,8 +540,8 @@ mod tests {
 
     fn for_each_wf(authority: &str, var_decl: &str) -> String {
         format!(
-            "nika: v1\nworkflow:\n  id: w\nmodel: mock/echo\n{authority}:\n  xs: {var_decl}\n\
-             tasks:\n  fan:\n    for_each: ${{{{ {authority}.xs }}}}\n    \
+            "nika: w\nmodel: mock/echo\n{authority}:\n  xs: {var_decl}\n\
+             tasks:\n  fan:\n    for_each: {{ items: \"${{{{ {authority}.xs }}}}\" }}\n    \
              with: {{ it: \"${{{{ item }}}}\" }}\n    infer: {{ prompt: \"do ${{{{ with.it }}}}\" }}\n"
         )
     }
@@ -625,8 +598,8 @@ mod tests {
         assert!(findings_of(&for_each_wf("const", "[\"a\", \"b\"]")).is_empty()); // untyped literal array
         assert!(findings_of(&for_each_wf("const", "\"hello\"")).is_empty()); // untyped literal string
         // An inline list literal source never resolves to a bare authority ref.
-        let inline = "nika: v1\nworkflow:\n  id: w\nmodel: mock/echo\ntasks:\n  fan:\n    \
-                      for_each: [1, 2, 3]\n    with: { it: \"${{ item }}\" }\n    \
+        let inline = "nika: w\nmodel: mock/echo\ntasks:\n  fan:\n    \
+                      for_each: { items: [1, 2, 3] }\n    with: { it: \"${{ item }}\" }\n    \
                       infer: { prompt: \"do ${{ with.it }}\" }\n";
         assert!(findings_of(inline).is_empty());
     }
@@ -652,7 +625,7 @@ mod tests {
     /// through its `with:` boundary (where deep refs live in W2).
     fn schema_wf(consumer_expr: &str) -> String {
         format!(
-            "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  extract:\n    infer:\n      prompt: \"extract\"\n      max_tokens: 100\n      schema:\n        type: object\n        properties:\n          summary: {{ type: string }}\n          tags:\n            type: array\n            items:\n              type: object\n              properties:\n                name: {{ type: string }}\n        required: [summary]\n  use_it:\n    with: {{ src: \"{consumer_expr}\" }}\n    exec: {{ shell: \"echo ${{{{ with.src }}}}\" }}\n"
+            "nika: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  extract:\n    infer:\n      prompt: \"extract\"\n      max_tokens: 100\n      schema:\n        type: object\n        properties:\n          summary: {{ type: string }}\n          tags:\n            type: array\n            items:\n              type: object\n              properties:\n                name: {{ type: string }}\n        required: [summary]\n  use_it:\n    with: {{ src: \"{consumer_expr}\" }}\n    exec: {{ shell: \"echo ${{{{ with.src }}}}\" }}\n"
         )
     }
 
@@ -693,13 +666,13 @@ mod tests {
 
     #[test]
     fn unshaped_task_is_opaque() {
-        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"date\"] }\n  b:\n    with: { w: \"${{ tasks.a.output.whatever }}\" }\n    exec: { command: [\"echo\", \"${{ with.w }}\"] }\n";
+        let yaml = "nika: w\ntasks:\n  a:\n    exec: { command: [\"date\"] }\n  b:\n    with: { w: \"${{ tasks.a.output.whatever }}\" }\n    exec: { command: [\"echo\", \"${{ with.w }}\"] }\n";
         assert!(findings_of(yaml).is_empty(), "no schema → no claim");
     }
 
     #[test]
     fn explicitly_open_schema_is_opaque() {
-        let yaml = "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  a:\n    infer:\n      prompt: \"x\"\n      max_tokens: 10\n      schema:\n        type: object\n        additionalProperties: true\n        properties:\n          known: { type: string }\n  b:\n    with: { u: \"${{ tasks.a.output.unknown_key }}\" }\n    exec: { command: [\"echo\", \"${{ with.u }}\"] }\n";
+        let yaml = "nika: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  a:\n    infer:\n      prompt: \"x\"\n      max_tokens: 10\n      schema:\n        type: object\n        additionalProperties: true\n        properties:\n          known: { type: string }\n  b:\n    with: { u: \"${{ tasks.a.output.unknown_key }}\" }\n    exec: { command: [\"echo\", \"${{ with.u }}\"] }\n";
         assert!(findings_of(yaml).is_empty(), "explicit opt-out honored");
     }
 
@@ -711,7 +684,7 @@ mod tests {
         // unknown key must NOT be flagged. This pins the
         // `Some(Value::Object(_)) => true` arm of `is_open_object`, which
         // the Bool-form test above does not exercise.
-        let yaml = "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  a:\n    infer:\n      prompt: \"x\"\n      max_tokens: 10\n      schema:\n        type: object\n        additionalProperties: { type: string }\n        properties:\n          known: { type: string }\n  b:\n    with: { u: \"${{ tasks.a.output.unknown_key }}\" }\n    exec: { command: [\"echo\", \"${{ with.u }}\"] }\n";
+        let yaml = "nika: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  a:\n    infer:\n      prompt: \"x\"\n      max_tokens: 10\n      schema:\n        type: object\n        additionalProperties: { type: string }\n        properties:\n          known: { type: string }\n  b:\n    with: { u: \"${{ tasks.a.output.unknown_key }}\" }\n    exec: { command: [\"echo\", \"${{ with.u }}\"] }\n";
         assert!(
             findings_of(yaml).is_empty(),
             "a value-schema additionalProperties opens the object → no finding"
@@ -720,7 +693,7 @@ mod tests {
         // Control: with additionalProperties ABSENT, the same unknown key
         // IS flagged — proving the open-object arm is what suppresses it
         // (so deleting that arm becomes observable as a spurious finding).
-        let closed = "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  a:\n    infer:\n      prompt: \"x\"\n      max_tokens: 10\n      schema:\n        type: object\n        properties:\n          known: { type: string }\n  b:\n    with: { u: \"${{ tasks.a.output.unknown_key }}\" }\n    exec: { command: [\"echo\", \"${{ with.u }}\"] }\n";
+        let closed = "nika: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  a:\n    infer:\n      prompt: \"x\"\n      max_tokens: 10\n      schema:\n        type: object\n        properties:\n          known: { type: string }\n  b:\n    with: { u: \"${{ tasks.a.output.unknown_key }}\" }\n    exec: { command: [\"echo\", \"${{ with.u }}\"] }\n";
         let f = findings_of(closed);
         assert_eq!(f.len(), 1, "closed object flags the unknown key");
         assert!(f[0].detail.contains("known"), "lists the real key");
@@ -728,7 +701,7 @@ mod tests {
 
     #[test]
     fn output_bindings_rebind_the_address_space() {
-        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"cat\", \"data.json\"] }\n    output:\n      first: \". | .[0]\"\n  b:\n    with:\n      ok: \"${{ tasks.a.output.first }}\"\n      typo: \"${{ tasks.a.output.frist }}\"\n    exec: { command: [\"echo\", \"${{ with.ok }}\", \"${{ with.typo }}\"] }\n";
+        let yaml = "nika: w\ntasks:\n  a:\n    exec: { command: [\"cat\", \"data.json\"] }\n    extract:\n      first: \". | .[0]\"\n  b:\n    with:\n      ok: \"${{ tasks.a.output.first }}\"\n      typo: \"${{ tasks.a.output.frist }}\"\n    exec: { command: [\"echo\", \"${{ with.ok }}\", \"${{ with.typo }}\"] }\n";
         let f = findings_of(yaml);
         assert_eq!(f.len(), 1, "first ok, frist flagged");
         assert!(f[0].detail.contains("first"), "lists bindings");
@@ -738,24 +711,15 @@ mod tests {
     fn prompt_interpolation_is_checked() {
         // The wow case — a typo'd deep ref feeding an infer PROMPT is
         // caught statically at the boundary that imports it.
-        let yaml = "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  extract:\n    infer:\n      prompt: \"extract\"\n      max_tokens: 100\n      schema:\n        type: object\n        properties:\n          summary: { type: string }\n  report:\n    with: { s: \"${{ tasks.extract.output.sumary }}\" }\n    infer: { prompt: \"report on ${{ with.s }}\", max_tokens: 50 }\n";
+        let yaml = "nika: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  extract:\n    infer:\n      prompt: \"extract\"\n      max_tokens: 100\n      schema:\n        type: object\n        properties:\n          summary: { type: string }\n  report:\n    with: { s: \"${{ tasks.extract.output.sumary }}\" }\n    infer: { prompt: \"report on ${{ with.s }}\", max_tokens: 50 }\n";
         let f = findings_of(yaml);
         assert_eq!(f.len(), 1);
         assert_eq!(f[0].site, "report");
     }
 
     #[test]
-    fn envelope_outputs_and_on_finally_are_checked() {
-        let yaml = "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  extract:\n    infer:\n      prompt: \"x\"\n      max_tokens: 10\n      schema:\n        type: object\n        properties:\n          summary: { type: string }\n    on_finally:\n      - invoke: { tool: \"nika:log\", args: { message: \"${{ tasks.extract.output.sumamry }}\" } }\noutputs:\n  result: ${{ tasks.extract.output.summry }}\n";
-        let f = findings_of(yaml);
-        assert_eq!(f.len(), 2, "both surfaces: {f:?}");
-        assert!(f.iter().any(|x| x.site == "extract (on_finally)"));
-        assert!(f.iter().any(|x| x.site == "outputs"));
-    }
-
-    #[test]
     fn any_of_admits_when_one_branch_matches() {
-        let yaml = "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  a:\n    infer:\n      prompt: \"x\"\n      max_tokens: 10\n      schema:\n        anyOf:\n          - type: object\n            properties:\n              left: { type: string }\n          - type: object\n            properties:\n              right: { type: string }\n  b:\n    with:\n      l: \"${{ tasks.a.output.left }}\"\n      n: \"${{ tasks.a.output.neither }}\"\n    exec: { command: [\"echo\", \"${{ with.l }}\", \"${{ with.n }}\"] }\n";
+        let yaml = "nika: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  a:\n    infer:\n      prompt: \"x\"\n      max_tokens: 10\n      schema:\n        anyOf:\n          - type: object\n            properties:\n              left: { type: string }\n          - type: object\n            properties:\n              right: { type: string }\n  b:\n    with:\n      l: \"${{ tasks.a.output.left }}\"\n      n: \"${{ tasks.a.output.neither }}\"\n    exec: { command: [\"echo\", \"${{ with.l }}\", \"${{ with.n }}\"] }\n";
         let f = findings_of(yaml);
         assert_eq!(f.len(), 1, "left admits, neither fails all branches");
         assert!(f[0].reference.ends_with("neither"));
@@ -770,7 +734,7 @@ mod tests {
     /// this one's.
     #[test]
     fn a_deep_ref_into_a_shapeless_task_is_unverifiable_not_a_finding() {
-        let yaml = "nika: v1\nworkflow:\n  id: w\nmodel: mock/echo\npermits: { tools: [\"nika:inspect\"] }\ntasks:\n  inspect:\n    invoke: { tool: \"nika:inspect\", args: { view: \"cost\" } }\n  report:\n    infer: { prompt: \"total ${{ tasks.inspect.output.total_usd }}\" }\n";
+        let yaml = "nika: w\nmodel: mock/echo\npermits: { tools: [\"nika:inspect\"] }\ntasks:\n  inspect:\n    invoke: { tool: \"nika:inspect\", args: { view: \"cost\" } }\n  report:\n    infer: { prompt: \"total ${{ tasks.inspect.output.total_usd }}\" }\n";
         let findings = findings_of(yaml);
         assert!(
             findings.is_empty(),
@@ -794,7 +758,7 @@ mod tests {
         // The record's own repro (run 5 · F3): the shapeless output is
         // bound WHOLE into `with:` and the deep read happens one hop
         // later, through the alias.
-        let yaml = "nika: v1\nworkflow:\n  id: w\nmodel: mock/echo\npermits: { tools: [\"nika:inspect\"], exec: [\"echo\"] }\ntasks:\n  bill:\n    invoke: { tool: \"nika:inspect\", args: { view: \"cost\" } }\n  report:\n    with: { bill: \"${{ tasks.bill.output }}\" }\n    exec: { command: [\"echo\", \"${{ with.bill.total_usd }}\"] }\n";
+        let yaml = "nika: w\nmodel: mock/echo\npermits: { tools: [\"nika:inspect\"], exec: [\"echo\"] }\ntasks:\n  bill:\n    invoke: { tool: \"nika:inspect\", args: { view: \"cost\" } }\n  report:\n    with: { bill: \"${{ tasks.bill.output }}\" }\n    exec: { command: [\"echo\", \"${{ with.bill.total_usd }}\"] }\n";
         let unverifiable = unverifiable_of(yaml);
         assert_eq!(
             unverifiable.len(),
@@ -811,7 +775,7 @@ mod tests {
     #[test]
     fn a_ref_into_a_missing_task_is_the_dag_lanes_never_this_count() {
         let unverifiable = unverifiable_of(
-            "nika: v1\nworkflow:\n  id: w\nmodel: mock/echo\ntasks:\n  a:\n    infer: { prompt: \"${{ tasks.ghost.output.x }}\" }\n",
+            "nika: w\nmodel: mock/echo\ntasks:\n  a:\n    infer: { prompt: \"${{ tasks.ghost.output.x }}\" }\n",
         );
         assert!(
             unverifiable.is_empty(),

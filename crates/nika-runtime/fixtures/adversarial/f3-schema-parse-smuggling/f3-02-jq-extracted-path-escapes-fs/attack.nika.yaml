@@ -4,9 +4,7 @@
 # time the real builtin's fs confinement resolves the smuggled absolute path
 # and refuses before any write (NIKA-SEC-004). Only two trifecta legs are
 # declared (no fs.read) so the static lane stays out of the way.
-nika: v1
-workflow:
-  id: f3-02-jq-extracted-path-escapes-fs
+nika: f3-02-jq-extracted-path-escapes-fs
 permits:
   fs: { write: ["./out/**"] }
   net: { http: ["news.example"] }

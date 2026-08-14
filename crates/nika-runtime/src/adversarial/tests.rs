@@ -130,7 +130,9 @@ fn check_sidecar(fx: &Fixture, want_family: &str) {
             assert!(
                 matches!(
                     sc.containment,
-                    Containment::TrifectaStatic | Containment::PermitsStatic
+                    Containment::TrifectaStatic
+                        | Containment::PermitsStatic
+                        | Containment::OrderStatic
                 ),
                 "{}: static-deny rides a static containment class",
                 fx.id()
@@ -272,6 +274,11 @@ mod fixtures {
     pub(crate) enum Containment {
         /// The lethal-trifecta realized-flow judge (`NIKA-SEC-009`).
         TrifectaStatic,
+        /// The unconditional order law (`NIKA-SEC-015`) — an `exec:`
+        /// downstream of a net-effecting task. It reaches files the
+        /// trifecta cannot: that judge's first leg wants a non-empty
+        /// `permits.fs.read`, and this one wants nothing at all.
+        OrderStatic,
         /// The static capability-escape scan (`NIKA-SEC-004`/`005`).
         PermitsStatic,
         /// The agent loop's tool whitelist (`NIKA-SEC-002`).
@@ -288,7 +295,7 @@ mod fixtures {
     #[derive(Debug, Deserialize)]
     #[serde(deny_unknown_fields)]
     pub(crate) struct StaticExpect {
-        /// The unified-finding gate (`TRIFECTA` · `PERMITS`).
+        /// The unified-finding gate (`TRIFECTA` · `PERMITS` · `ORDER`).
         pub(crate) gate: String,
         /// The wire code (`NIKA-SEC-009` · `NIKA-SEC-004`).
         pub(crate) code: String,

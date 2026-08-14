@@ -321,25 +321,18 @@ fn clarify(intent: &str, candidates: &[String]) -> Outcome {
     }
 }
 
-/// One line in the entry's OWN words — the yaml `description:`, clipped
-/// at 72 chars (the clarify row must stay a row).
+/// One line in the entry's OWN words — its banner sentence, clipped at
+/// 72 chars (the clarify row must stay a row). Source of truth for the
+/// wording, and WHY it moved there: `banner`.
 fn description_of(name: &str) -> Option<String> {
     let body = nika_pack::template(name).or_else(|| nika_pack::example(name))?;
-    let line = body
-        .lines()
-        .find(|l| l.trim_start().starts_with("description:"))?;
-    let text = line
-        .split_once(':')?
-        .1
-        .trim()
-        .trim_matches('"')
-        .trim_matches('\'');
-    (!text.is_empty()).then(|| {
+    let text = crate::banner::sentence(body)?;
+    Some(if text.chars().count() > 72 {
         let mut short: String = text.chars().take(72).collect();
-        if text.chars().count() > 72 {
-            short.push('…');
-        }
+        short.push('…');
         short
+    } else {
+        text
     })
 }
 
@@ -495,7 +488,7 @@ pub(crate) fn tagline(name: &str, body: &str) -> String {
 // and `nika init`'s hand-off (gh-repo-create shape: bare on a TTY is
 // guided · flags and pipes keep the exact old behavior). The answers
 // land in the SAME file the flag form writes — plus the three slots the
-// wizard can stamp honestly (id · description · model); the remaining
+// wizard can stamp honestly (id · model); the remaining
 // `# SLOT:` lines stay visible so the author fills them deliberately.
 
 /// The wizard's harvest — decoupled from the terminal (answers arrive
@@ -507,7 +500,6 @@ struct Wizard {
     /// `None` = the skeleton carries no top-level `model:` (its models
     /// are per-task) — the wizard neither asked nor stamps one.
     model: Option<String>,
-    intent: String,
 }
 
 /// Whether a template takes the wizard's model answer — a top-level
@@ -725,20 +717,21 @@ pub(crate) fn workflow_id(dest: &str) -> String {
     }
 }
 
-/// Stamp the answers the wizard KNOWS into the template — id ·
-/// description · model (the last only when the wizard asked, i.e. the
-/// skeleton carries a top-level `model:` at column 0 — the stamp's
-/// anchor). Never stamp what wasn't answered. W1 « the map »: the id and
-/// description live INSIDE the workflow object (`  id:` · `  description:`
-/// at indent 2, under the `workflow:` head).
-pub(crate) fn stamp(body: &str, id: &str, description: &str, model: Option<&str>) -> String {
+/// Stamp the answers the wizard KNOWS into the template — id · model
+/// (the second only when the wizard asked, i.e. the skeleton carries a
+/// top-level `model:` at column 0 — the stamp's anchor). Never stamp
+/// what wasn't answered.
+///
+/// The identity rides `nika:` at column 0. There is no description slot
+/// any more: the envelope stopped carrying one, and stamping the human's
+/// intent sentence into a comment would be a promise the file cannot
+/// keep (nothing reads it back).
+pub(crate) fn stamp(body: &str, id: &str, model: Option<&str>) -> String {
     let mut out: String = body
         .lines()
         .map(|line| {
-            if line.starts_with("  id: ") {
-                format!("  id: {id}")
-            } else if line.starts_with("  description: ") && !description.is_empty() {
-                format!("  description: {}", yaml_scalar(description))
+            if line.starts_with("nika: ") {
+                format!("nika: {id}")
             } else if let (true, Some(model)) = (line.starts_with("model: "), model) {
                 format!("model: {}", yaml_scalar(model))
             } else {
@@ -911,7 +904,6 @@ fn read_wizard(
         routed,
         dest,
         model,
-        intent,
     }))
 }
 
@@ -959,8 +951,7 @@ fn materialize(base: &str, w: &Wizard, force: bool, theme: Theme, audit: &Audit<
         };
     }
     let id = workflow_id(&dest);
-    let description = w.intent.as_str();
-    let stamped = stamp(body, &id, description, w.model.as_deref());
+    let stamped = stamp(body, &id, w.model.as_deref());
     if let Err(e) = std::fs::write(&dest, &stamped) {
         return Outcome {
             text: format!("cannot write {dest}: {e}"),

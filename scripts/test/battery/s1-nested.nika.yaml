@@ -3,9 +3,7 @@
 # closed objects. Expected: exit 0 · task success · usage > 0 · output
 # validates against the schema (the engine already enforced it).
 # Model is a placeholder — the runner overrides per manifest row (--model).
-nika: v1
-workflow:
-  id: battery-s1-nested
+nika: battery-s1-nested
 model: mock/echo
 
 permits:

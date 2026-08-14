@@ -21,6 +21,7 @@
 // by the descent).
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 
+mod banner;
 pub mod briefs;
 pub mod fixtures;
 pub mod founding;

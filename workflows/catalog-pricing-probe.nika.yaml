@@ -20,11 +20,8 @@
 #
 #   nika check  workflows/catalog-pricing-probe.nika.yaml
 #   nika run    workflows/catalog-pricing-probe.nika.yaml
-nika: v1
-
-workflow:
-  id: catalog-pricing-probe
-  description: "fetch the upstream price source · hash it · record the provenance"
+# fetch the upstream price source · hash it · record the provenance
+nika: catalog-pricing-probe
 
 const:
   source_url: "https://models.dev/api.json"

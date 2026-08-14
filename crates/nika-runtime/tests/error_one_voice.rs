@@ -109,9 +109,7 @@ async fn a_provider_408_speaks_one_code_on_both_verbs() {
     // e2e · the wire: an agent task whose provider dies mid-loop carries
     // the spec class at `tasks.X.error.code` (what `on_codes:` compares).
     let yaml_fail = r#"
-nika: v1
-workflow:
-  id: agent-408
+nika: agent-408
 model: mock/echo
 tasks:
   stuck:
@@ -133,9 +131,7 @@ tasks:
     // e2e · the unlock: `retry.on_codes: [NIKA-INFER-001]` now catches
     // the agent path's provider failure (non-transient · whitelisted).
     let yaml_retry = r#"
-nika: v1
-workflow:
-  id: agent-408-retry
+nika: agent-408-retry
 model: mock/echo
 tasks:
   flaky:

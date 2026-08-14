@@ -145,7 +145,6 @@ pub fn render(
     writes_rung(&mut out, report, t);
     exec_rung(&mut out, report, t);
     permits(&mut out, report, wf, t);
-    policy_rung(&mut out, report, wf, t);
     trifecta_rung(&mut out, report, wf, t);
     consent_rung(&mut out, report, t);
     crate::check_journey::journey_rung(&mut out, report, t);
@@ -227,33 +226,6 @@ fn narrowed_rungs(out: &mut String, report: &CheckReport, t: Theme) {
         "every builtin invoke arg key is declared + required args present",
         arg_rows(report),
     );
-}
-
-/// POLICY rung (spec 10 · W4) · silent when the file binds no law — the
-/// rows are the ladder's own findings, code first (one voice with
-/// `--json` findings[] and the LSP projection: the code is
-/// [`nika_check::policy_wire_code`], the same mapping the findings fold
-/// reads — `approval.*` speaks NIKA-SEC-010, `endorsement.*`
-/// NIKA-SEC-013).
-fn policy_rung(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Theme) {
-    if wf.policy.is_some() {
-        // DAG-gated at the source (`lib.rs`: the order rules read
-        // ancestors, so an unanalyzable workflow yields NO claim), which
-        // is why this goes through `section_or_skip` — the lane that
-        // yields no claim must not print one.
-        section_or_skip(
-            out,
-            report,
-            t,
-            "POLICY",
-            "every hard policy: rule holds (soft families recorded, not judged)",
-            report
-                .policy_findings
-                .iter()
-                .map(|p| format!("[{}] {}", nika_check::policy_wire_code(p.rule), p.detail))
-                .collect(),
-        );
-    }
 }
 
 /// TRIFECTA rung (NEP-0002) · only when a boundary is declared — without
@@ -748,11 +720,6 @@ fn wf_calls_workflows(wf: &RawWorkflow) -> bool {
                 if matches!(inv.target, nika_schema::raw::RawInvokeTarget::Workflow(_)))
         };
         is_call(&task.value.action)
-            || task
-                .value
-                .on_finally
-                .iter()
-                .any(|m| is_call(&m.value.action))
     })
 }
 

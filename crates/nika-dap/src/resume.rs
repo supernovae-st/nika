@@ -619,7 +619,7 @@ mod tests {
 
     #[test]
     fn from_removes_the_task_and_its_transitive_downstream() {
-        const WF: &str = "nika: v1\nworkflow:\n  id: t\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n  b:\n    after:\n      a: success\n    exec: { command: [\"true\"] }\n  c:\n    with:\n      prev: ${{ tasks.b.output }}\n    exec: { command: [\"echo\", \"${{ with.prev }}\"] }\n  solo:\n    exec: { command: [\"true\"] }\n";
+        const WF: &str = "nika: t\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n  b:\n    after:\n      a: success\n    exec: { command: [\"true\"] }\n  c:\n    with:\n      prev: ${{ tasks.b.output }}\n    exec: { command: [\"echo\", \"${{ with.prev }}\"] }\n  solo:\n    exec: { command: [\"true\"] }\n";
         let wf = nika_schema::parse(
             WF,
             nika_schema::FileId::new(0),
@@ -736,10 +736,9 @@ mod tests {
 
     #[test]
     fn answers_bind_only_known_prompt_tasks() {
-        const WF: &str = "nika: v1\nworkflow:\n  id: t\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"confirm\", message: \"go?\" }\n  build:\n    exec: { command: [\"true\"] }\n";
+        const WF: &str = "nika: t\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"confirm\", message: \"go?\" }\n  build:\n    exec: { command: [\"true\"] }\n";
         // An agent-task fixture (B5 · items live at scope top, the lint law).
-        const AGENT_WF: &str =
-            "nika: v1\nworkflow:\n  id: t\ntasks:\n  fix:\n    agent: { prompt: \"x\" }\n";
+        const AGENT_WF: &str = "nika: t\ntasks:\n  fix:\n    agent: { prompt: \"x\" }\n";
         let wf = nika_schema::parse(
             WF,
             nika_schema::FileId::new(0),

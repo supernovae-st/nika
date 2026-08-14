@@ -4622,6 +4622,7 @@ dependencies = [
  "nika-pack",
  "nika-schema",
  "nika-types",
+ "nika-vocab",
  "proptest",
  "serde",
  "serde_json",
@@ -4725,7 +4726,6 @@ version = "0.108.0"
 dependencies = [
  "blake3",
  "nika-check",
- "nika-schema",
  "serde_json",
 ]
 

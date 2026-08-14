@@ -80,7 +80,7 @@ mod tests {
         parse(yaml, FileId::new(0), ParseMode::Strict).expect("fixture parses")
     }
 
-    const WF: &str = "nika: v1\nworkflow:\n  id: t\ninputs:\n  count: { type: integer, required: true }\n  region: { type: string, default: \"eu\" }\n  note: { type: string }\ntasks:\n  t:\n    exec: { command: [\"true\"] }\n";
+    const WF: &str = "nika: t\ninputs:\n  count: { type: integer, required: true }\n  region: { type: string, default: \"eu\" }\n  note: { type: string }\ntasks:\n  t:\n    exec: { command: [\"true\"] }\n";
 
     #[test]
     fn every_bound_input_carries_its_origin() {

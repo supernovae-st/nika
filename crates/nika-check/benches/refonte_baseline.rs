@@ -50,9 +50,7 @@ use std::time::Instant;
 fn workflow(topology: &str, n: usize) -> String {
     let mut s = String::with_capacity(n * 96);
     let slug = topology.replace('_', "-");
-    s.push_str(&format!(
-        "nika: v1\nworkflow:\n  id: bench-{slug}-{n}\ntasks:\n"
-    ));
+    s.push_str(&format!("nika: bench-{slug}-{n}\ntasks:\n"));
     for i in 0..n {
         let deps: Vec<usize> = match topology {
             "chain" => (i > 0).then(|| vec![i - 1]).unwrap_or_default(),
@@ -160,7 +158,8 @@ fn main() {
 
     // Local vs structural edit — full re-pipeline both ways today (recorded).
     let base = workflow("diamond", 2000);
-    let local = base.replace("  t1000:\n", "  t1000:\n    fail_fast: false\n");
+    // a LEAF edit — one task grows a field that changes no edge
+    let local = base.replace("  t1000:\n", "  t1000:\n    timeout: 30s\n");
     let structural = base.replace(
         "  t1999:\n",
         "  t1999x:\n    exec:\n      command: [\"true\"]\n  t1999:\n",

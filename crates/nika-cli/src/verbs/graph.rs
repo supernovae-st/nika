@@ -3,7 +3,7 @@
 
 //! The ONE graph projector (spec 03 §graph-projection) — `--json` is the canonical
 //! projection; mermaid/dot/ASCII derive from it, never from the workflow
-//! directly. Versioned envelope (`graph_format: 2` · typed edges) · nodes topologically
+//! directly. Versioned envelope (`graph_format: 3` · typed edges) · nodes topologically
 //! sorted (stable order = stable layouts) · `edges.kind` closed enum ·
 //! the static graph NEVER carries run state.
 
@@ -95,7 +95,7 @@ pub fn to_dot(doc: &GraphDoc) -> String {
 
 /// Escape a label fragment for a Graphviz dot quoted string. A `"` or `\`
 /// in the tool/model would otherwise terminate the `label="…"` and emit
-/// broken dot (e.g. a templated `model: ${{ vars.m }}` or an MCP tool name).
+/// broken dot (e.g. a templated `model: ${{ inputs.m }}` or an MCP tool name).
 fn dot_escape(s: &str) -> String {
     s.replace('\\', "\\\\").replace('"', "\\\"")
 }
@@ -128,7 +128,7 @@ pub enum GraphFormat {
 /// the verbs own their arg types).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, clap::ValueEnum)]
 pub enum GraphFormatArg {
-    /// Canonical JSON projection (`graph_format: 2`).
+    /// Canonical JSON projection (`graph_format: 3`).
     Json,
     /// Mermaid flowchart.
     Mermaid,
@@ -244,7 +244,7 @@ mod tests {
     #[test]
     fn mermaid_paints_verb_identity() {
         let (mermaid, _) = renders(
-            "nika: v1\nworkflow:\n  id: paint\nmodel: mock/echo\ntasks:\n  a:\n    infer: { prompt: \"p\", max_tokens: 5 }\n",
+            "nika: paint\nmodel: mock/echo\ntasks:\n  a:\n    infer: { prompt: \"p\", max_tokens: 5 }\n",
         );
         assert!(mermaid.contains(":::infer"), "node classed:\n{mermaid}");
         assert!(
@@ -259,13 +259,13 @@ mod tests {
 
     /// A model with chars special to mermaid (`"` `]`) or dot (`"`) must be
     /// ESCAPED — an unescaped quote closed the label early and emitted broken
-    /// markup (a templated `model: ${{ vars.m }}` or an MCP tool name hits this
+    /// markup (a templated `model: ${{ inputs.m }}` or an MCP tool name hits this
     /// too). Regression: graph used to interpolate the model raw.
     #[test]
     fn special_chars_in_model_are_escaped_in_both_renders() {
         // model value parses to ·  mock/echo"]x
         let (mermaid, dot) = renders(
-            "nika: v1\nworkflow:\n  id: adv\nmodel: \"mock/echo\\\"]x\"\ntasks:\n  a:\n    infer: { prompt: \"p\", max_tokens: 5 }\n",
+            "nika: adv\nmodel: \"mock/echo\\\"]x\"\ntasks:\n  a:\n    infer: { prompt: \"p\", max_tokens: 5 }\n",
         );
         assert!(
             mermaid.contains("#quot;"),
@@ -284,7 +284,7 @@ mod tests {
     /// (`skip_serializing` — no fake defaults).
     #[test]
     fn declared_policy_projects_and_undeclared_stays_absent() {
-        let yaml = "nika: v1\nworkflow:\n  id: policy\nmodel: mock/echo\ntasks:\n  guarded:\n    infer: { prompt: \"p\", max_tokens: 5 }\n    timeout: \"30s\"\n    retry:\n      max_attempts: 3\n    on_error:\n      skip: true\n    output:\n      summary: \".text\"\n      title: \".title\"\n  bare:\n    after:\n      guarded: success\n    infer: { prompt: \"q\", max_tokens: 5 }\n";
+        let yaml = "nika: policy\nmodel: mock/echo\ntasks:\n  guarded:\n    infer: { prompt: \"p\", max_tokens: 5 }\n    timeout: \"30s\"\n    retry:\n      max_attempts: 3\n    on_error:\n      skip: true\n    extract:\n      summary: \".text\"\n      title: \".title\"\n  bare:\n    after:\n      guarded: success\n    infer: { prompt: \"q\", max_tokens: 5 }\n";
         let wf = nika_schema::parse(
             yaml,
             nika_schema::FileId::new(0),

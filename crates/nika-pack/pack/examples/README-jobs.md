@@ -20,7 +20,7 @@ multi-agent swarm without ever leaving validated ground.
 |---|---|---|---|
 | [`standup-digest`](standup-digest.nika.yaml) | engineering | the standup note writes itself from real commits | parallel start · `nika:date` · exec→infer |
 | [`meeting-actions`](meeting-actions.nika.yaml) | every office | transcript → tracker-ready typed action items | `infer.schema:` · input `default:` vs literal permit |
-| [`price-watch`](price-watch.nika.yaml) | e-commerce / personal | a price alert with **zero** model calls | `output:` jq · CEL `when:` · `egress:` **and** `net.http` |
+| [`price-watch`](price-watch.nika.yaml) | e-commerce / personal | a price alert with **zero** model calls | `extract:` jq · CEL `when:` · `egress:` **and** `net.http` |
 | [`social-repurpose`](social-repurpose.nika.yaml) | marketing / creators | one post → thread + LinkedIn + newsletter, in parallel | diamond DAG · `with:` aliasing |
 | [`og-images`](og-images.nika.yaml) | marketing / content | brief in → OG PNG + provenance manifest out, one task | `nika:image_generate` · dir-writing permit |
 | [`image-fx-batch`](image-fx-batch.nika.yaml) | creators / media | a folder of photos → deterministic art, byte-identical forever | `nika:glob` · jq-derived paths · `nika:image_fx` ops chain |
@@ -35,13 +35,13 @@ multi-agent swarm without ever leaving validated ground.
 | [`csv-chart-report`](csv-chart-report.nika.yaml) | data → picture | paste the spreadsheet, get the slide — offline, deterministic | `nika:convert` · jq group_by · `nika:chart` |
 | [`transcript-shownotes`](transcript-shownotes.nika.yaml) | podcasts / meetings | raw transcript → typed show-notes, ONE bounded infer | `infer.schema:` strict · typed→markdown |
 | [`bookmark-triage`](bookmark-triage.nika.yaml) | personal / research | the bookmark pile triaged — dead links survive the batch | `mode: metadata` · resilient `for_each` · recover |
-| [`competitor-radar`](competitor-radar.nika.yaml) | strategy / PMM | everything they shipped last week, one brief | `for_each` · `max_parallel` · retry · fan-in |
+| [`competitor-radar`](competitor-radar.nika.yaml) | strategy / PMM | everything they shipped last week, one brief | `for_each` · `for_each.max_parallel` · retry · fan-in |
 | [`localization-factory`](localization-factory.nika.yaml) | product / i18n | the whole docs tree translated, voice intact | chained fan-outs · jq `transpose` zip |
 | [`config-drift-sentinel`](config-drift-sentinel.nika.yaml) | SRE / platform | only UNSANCTIONED prod drift wakes anyone | RFC 7396 merge + RFC 6902 diff · blake3 |
 | [`pr-review-fanout`](pr-review-fanout.nika.yaml) | engineering | one read-only review agent **per changed file** | `for_each`+`agent:` swarm · default-deny tools |
 | [`resume-screener`](resume-screener.nika.yaml) | HR / recruiting | one local-model rubric per candidate · PII stays home | `ollama/…` · `for_each` · schema enums · jq sort_by |
 | [`deep-research-brief`](deep-research-brief.nika.yaml) | research / VC | plan → budgeted agent → thinking synthesis | plan-then-execute · budgets · `thinking:` |
-| [`incident-war-room`](incident-war-room.nika.yaml) | SRE / on-call | the postmortem drafts itself — after recovery is PROVEN | `nika:wait` settle · assert · `on_finally:` |
+| [`incident-war-room`](incident-war-room.nika.yaml) | SRE / on-call | the postmortem drafts itself — after recovery is PROVEN | `nika:wait` settle · assert · `after: {…: terminal}` always-pattern |
 | [`ceo-monday-brief`](ceo-monday-brief.nika.yaml) | founders / execs | the Monday brief assembles itself — and the human decision sits at the ROOT of the lethal trifecta | 3-branch gather · root `nika:prompt` gate · capped synthesis |
 | [`release-train`](release-train.nika.yaml) | devops / release | gates → human GO → hold until the window → ship · verify | `nika:wait until:` · `nika:date diff` · `nika:prompt` |
 
@@ -72,7 +72,7 @@ rm -rf out                                                                    # 
 - **Offline by default.** Any `infer:` file rehearses with `--model mock/echo`
   — deterministic, zero keys. Files that reach the network carry an
   `on_error: recover:` sample so the run stays green with no network at all;
-  a recovery stands in for the RAW response, so the `output:` jq bindings run
+  a recovery stands in for the RAW response, so the `extract:` jq bindings run
   over it unchanged.
 - **Every job checks green — including `release-radar`.** It crosses the
   lethal trifecta (private read + feed ingress + state-file write), so it

@@ -2140,6 +2140,7 @@ name = "nika-exec-runner"
 version = "0.108.0"
 dependencies = [
  "nika-kernel",
+ "nika-schema",
  "nika-types",
  "nix",
  "tokio",
@@ -2287,7 +2288,6 @@ version = "0.108.0"
 dependencies = [
  "blake3",
  "nika-check",
- "nika-schema",
  "serde_json",
 ]
 

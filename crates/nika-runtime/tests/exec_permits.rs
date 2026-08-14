@@ -60,9 +60,7 @@ async fn run(yaml: &str, shell: MockShell) -> RunOutcome {
 #[tokio::test]
 async fn interpolated_program_outside_allowlist_is_refused() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: permits-deny
+nika: permits-deny
 permits:
   exec: ["git"]
 const:
@@ -88,9 +86,7 @@ tasks:
 #[tokio::test]
 async fn interpolated_program_in_allowlist_runs() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: permits-allow
+nika: permits-allow
 permits:
   exec: ["git"]
 const:
@@ -128,9 +124,7 @@ async fn a_symlinked_fs_grant_escaping_the_boundary_is_refused_before_spawn() {
     let grant = format!("{}/data/**", ws.display());
     let yaml = format!(
         r#"
-nika: v1
-workflow:
-  id: h2-pivot
+nika: h2-pivot
 permits:
   exec: ["cat"]
   fs:

@@ -37,7 +37,7 @@ sub-second pure-shell pipelines with zero AI and zero HTTP (a
 | `if <condition>` | a `when:` gate |
 | `$1` positional parameters | an `inputs:` declaration · supplied with `--var key=value` |
 | a value baked into the script | a `const:` entry · read as `${{ const.x }}` |
-| `$SOME_SETTING` (non-sensitive) | a `config:` declaration · read as `${{ config.KEY }}` |
+| `$SOME_SETTING` (non-sensitive) | an `inputs:` declaration with `required: false` and a `default:` · read as `${{ inputs.KEY }}` |
 | an env var a CHILD process must see | `permits: { env: [NAME] }` — a child inherits nothing |
 | `API_KEY=…` literals | `${{ secrets.X }}` + `secrets:` block with its `egress:` sink |
 | step B reads step A's output | `with: { a: "${{ tasks.A.output }}" }` on B — the binding IS the edge — then `${{ with.a }}` in the body |

@@ -277,7 +277,7 @@ fn init_plain_yes_keeps_the_historical_bytes() {
 #[test]
 fn bare_check_and_run_resolve_the_lazy_way() {
     let base = workspace_tmp_dir("nika-lazy-smoke");
-    let hello = "nika: v1\nworkflow:\n  id: solo\nmodel: mock/echo\ntasks:\n  greet:\n    infer: { prompt: \"hi\", max_tokens: 9 }\n";
+    let hello = "nika: solo\nmodel: mock/echo\ntasks:\n  greet:\n    infer: { prompt: \"hi\", max_tokens: 9 }\n";
 
     // ONE workflow → check runs it and says which (stderr).
     let one = base.join("one");

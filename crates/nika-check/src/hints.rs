@@ -127,19 +127,6 @@ pub(super) fn scan_hints(wf: &RawWorkflow) -> Vec<Hint> {
     let envelope_bound = envelope_bound_outputs(wf);
     let envelope_ids: BTreeSet<&str> = envelope_bound.iter().map(|(_, id)| id.as_str()).collect();
     let mut hints = Vec::new();
-    // SOFT policy families (spec 10) — a constraint that cannot be judged
-    // must never look judged: the hint records them, nothing reads them.
-    if let Some(p) = &wf.policy
-        && p.value.has_soft_families()
-    {
-        hints.push(hint(
-            "policy-soft",
-            "-",
-            "soft policy recorded · not judged (v1) — `prefer:`/`optimize:` record \
-             intent; no v1 judge reads them (spec 10 §policy)"
-                .to_owned(),
-        ));
-    }
     for (name, id) in &envelope_bound {
         hints.push(Hint {
             kind: "envelope-output",
@@ -265,7 +252,7 @@ fn push_infer_hints(
     if deep_referenced.contains(id)
         && a.schema.is_none()
         && t.returns.is_none()
-        && t.output.is_empty()
+        && t.extract.is_empty()
     {
         hints.push(hint("typing", id, format!(
             "deep references into `tasks.{id}.output.<field>` exist but `{id}` declares no output shape — declare `returns:` and `nika check` starts proving those field names"
@@ -456,7 +443,7 @@ fn push_swallowed_exit_hints(hints: &mut Vec<Hint>, wf: &RawWorkflow) {
             corpus.push_str(field);
             corpus.push('\n');
         }
-        for (_, binding) in &task.value.output {
+        for (_, binding) in &task.value.extract {
             corpus.push_str(&binding.value);
             corpus.push('\n');
         }
@@ -518,7 +505,7 @@ fn push_exec_json_capture_hint(
     // The `.stdout | fromjson` chain, whitespace-insensitive — an unrelated
     // field that merely CONTAINS the substrings (`.stderr | fromjson |
     // .stdout_field`) is not the pattern.
-    let parses_stdout_json = task.output.iter().any(|(_, binding)| {
+    let parses_stdout_json = task.extract.iter().any(|(_, binding)| {
         let compact: String = binding
             .value
             .chars()
@@ -528,7 +515,7 @@ fn push_exec_json_capture_hint(
     });
     // Another binding consuming the structured record's OTHER fields means
     // `structured` is the point, not an accident.
-    let reads_record_fields = task.output.iter().any(|(_, binding)| {
+    let reads_record_fields = task.extract.iter().any(|(_, binding)| {
         binding.value.contains(".exit_code") || binding.value.contains(".stderr")
     });
     if parses_stdout_json && !reads_record_fields {

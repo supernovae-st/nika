@@ -79,7 +79,6 @@ pub(crate) struct PendingRecovery {
 pub(crate) struct ResolveScope<'a> {
     pub wf: &'a RawWorkflow,
     pub inputs: &'a BTreeMap<String, Value>,
-    pub config: &'a BTreeMap<String, Value>,
     pub consts: &'a BTreeMap<String, Value>,
     pub secrets: &'a BTreeMap<String, Value>,
     pub resume_ctx: &'a ResumeContext,
@@ -472,7 +471,6 @@ fn resolve_parked(
             let render_scope = Scope {
                 records: view,
                 inputs: scope.inputs,
-                config: scope.config,
                 consts: scope.consts,
                 secrets: scope.secrets,
                 with_ns: Some(&with_ns),

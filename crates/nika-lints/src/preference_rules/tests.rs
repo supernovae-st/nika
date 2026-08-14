@@ -45,9 +45,7 @@ fn islands_of(s: &str) -> Vec<TemplateIsland> {
 fn rule_008_fires_on_interpolated_string_command() {
     // body→() — replacing the whole fn body with `()` emits no lint.
     let yaml = "\
-nika: v1
-workflow:
-  id: interp
+nika: interp
 tasks:
   produce:
     exec: { command: [\"./gen.sh\"] }
@@ -69,9 +67,7 @@ fn rule_008_silent_on_a_plain_literal_command() {
     // `true && false` ⇒ false ⇒ FALL THROUGH ⇒ a spurious /008 on a command
     // that has no interpolation at all. Asserting zero kills the swap.
     let yaml = "\
-nika: v1
-workflow:
-  id: plain
+nika: plain
 tasks:
   build:
     exec: { command: [\"cargo\", \"build\"] }
@@ -88,9 +84,7 @@ fn rule_008_silent_on_a_genuine_pipeline() {
     // parts carry a `|` ⇒ `literal_parts_use_shell` true ⇒ skip. (Also pins
     // the `literal_parts_use_shell` true-branch reachability.)
     let yaml = "\
-nika: v1
-workflow:
-  id: pipe
+nika: pipe
 tasks:
   produce:
     exec: { command: [\"./gen.sh\"] }
@@ -113,13 +107,11 @@ tasks:
 fn rule_009_fires_on_a_bare_iterator_binding() {
     // body→() — replacing the fn body with `()` emits no lint.
     let yaml = "\
-nika: v1
-workflow:
-  id: stream
+nika: stream
 tasks:
   fetch:
     invoke: { tool: \"nika:read\", args: { path: \"u.json\" } }
-    output:
+    extract:
       emails: \".users[]\"
 ";
     let nine = lints_for(yaml, "one-obvious-way/009");
@@ -182,9 +174,7 @@ fn rule_002_fires_for_an_unguarded_dependent() {
     // binding and acknowledges the possible skip neither way (no
     // `after: {a: success}` tightening · no `when:` over the binding).
     let yaml = "\
-nika: v1
-workflow:
-  id: f002
+nika: f002
 tasks:
   a:
     exec: { command: [\"./a.sh\"] }
@@ -211,9 +201,7 @@ fn rule_002_silent_when_the_dependent_tightens_the_gate() {
     // tightened-check mutant (dropping the Control(Succeeded) match)
     // turns this into a spurious /002.
     let yaml = "\
-nika: v1
-workflow:
-  id: f002ok
+nika: f002ok
 tasks:
   a:
     exec: { command: [\"./a.sh\"] }
@@ -238,9 +226,7 @@ fn rule_002_silent_when_the_when_reads_the_binding() {
     // `when_expr`'s Some path + the `NamespaceRef::With` match; dropping
     // either turns this into a spurious /002.
     let yaml = "\
-nika: v1
-workflow:
-  id: f002when
+nika: f002when
 tasks:
   a:
     exec: { command: [\"./a.sh\"] }
@@ -262,9 +248,7 @@ fn rule_002_silent_without_dependents() {
     // A skip producer with NO value-reading dependent changes nobody's
     // contract — silent (the unguarded set is empty).
     let yaml = "\
-nika: v1
-workflow:
-  id: f002leaf
+nika: f002leaf
 tasks:
   a:
     exec: { command: [\"./a.sh\"] }
@@ -288,9 +272,7 @@ fn rule_003_fires_on_a_structural_duplicate() {
     // guarded producer's. The mutant inverts it: identical actions ⇒ no
     // /003 (and the exec body is not a value-producer ⇒ no /004 either).
     let yaml = "\
-nika: v1
-workflow:
-  id: dup
+nika: dup
 tasks:
   build:
     exec: { command: [\"./build.sh\"] }
@@ -308,9 +290,7 @@ fn rule_003_fires_on_an_invoke_duplicate() {
     // The Invoke fingerprint arm end-to-end (mirror of the spec fixture
     // `003-fires-on-failure-guarded-duplicate`) — same tool, same args.
     let yaml = "\
-nika: v1
-workflow:
-  id: f003
+nika: f003
 tasks:
   a:
     invoke:
@@ -337,9 +317,7 @@ fn rule_003_silent_when_bodies_differ() {
     // legitimate use of `after: {a: failure}` — neither /003 (bodies
     // differ) nor /004 (not a mere value) may fire.
     let yaml = "\
-nika: v1
-workflow:
-  id: f003diff
+nika: f003diff
 tasks:
   a:
     invoke:
@@ -366,9 +344,7 @@ fn rule_004_fires_on_an_echo_fallback_task() {
     // A template-free argv `echo` behind `after: {a: failure}` is a mere
     // fallback VALUE — the route belongs in `a`'s `on_error: recover:`.
     let yaml = "\
-nika: v1
-workflow:
-  id: f004echo
+nika: f004echo
 tasks:
   a:
     exec: { command: [\"./a.sh\"] }
@@ -386,9 +362,7 @@ fn rule_004_fires_on_a_literal_jq_fallback_task() {
     // The other conservative « mere value » shape — `nika:jq` with
     // template-free args behind the failure gate.
     let yaml = "\
-nika: v1
-workflow:
-  id: f004
+nika: f004
 tasks:
   a:
     invoke:
@@ -415,9 +389,7 @@ fn rule_004_silent_on_real_failure_work() {
     // duplicate (args differ) and not a value-producer — both rules
     // stay silent.
     let yaml = "\
-nika: v1
-workflow:
-  id: f004real
+nika: f004real
 tasks:
   a:
     invoke:
@@ -446,9 +418,7 @@ fn rule_004_silent_without_a_failure_gate() {
     // mutant). A success-gated value-producer collects no failure
     // check ⇒ no /004 (and no /003).
     let yaml = "\
-nika: v1
-workflow:
-  id: succgate
+nika: succgate
 tasks:
   a:
     exec: { command: [\"echo\", \"hi\"] }
@@ -479,9 +449,7 @@ fn rule_005_fires_on_terminal_after_on_everything() {
     // the expected single /005: a 3-task workflow whose cleanup holds
     // `after: {…: terminal}` on BOTH others fires exactly once.
     let yaml = "\
-nika: v1
-workflow:
-  id: f005
+nika: f005
 tasks:
   a:
     exec: { command: [\"./a.sh\"] }
@@ -503,9 +471,7 @@ fn rule_005_silent_on_a_two_task_workflow() {
     // wrongly fire /005. The correct `<` returns early (a real cleanup
     // needs ≥ 3 tasks). Asserting zero kills the swap.
     let yaml = "\
-nika: v1
-workflow:
-  id: f005two
+nika: f005two
 tasks:
   a:
     exec: { command: [\"./a.sh\"] }
@@ -525,9 +491,7 @@ fn rule_005_silent_when_terminal_after_not_on_everything() {
     // tasks ⇒ `terminal_targets != others` ⇒ no /005. Pins the count and
     // set-equality mutants from the other direction.
     let yaml = "\
-nika: v1
-workflow:
-  id: f005partial
+nika: f005partial
 tasks:
   a:
     exec: { command: [\"./a.sh\"] }
@@ -548,9 +512,7 @@ fn rule_005_silent_on_a_plain_join_task() {
     // A join that reads BOTH producers' values through `with:` bindings
     // (zero `after:` entries) is the canonical fan-in — no /005.
     let yaml = "\
-nika: v1
-workflow:
-  id: f005join
+nika: f005join
 tasks:
   a:
     exec: { command: [\"./a.sh\"] }
@@ -581,9 +543,7 @@ fn rule_010_fires_on_a_non_tightening_after() {
     // `after: {a: terminal}` composes to the value edge's own
     // {success, skipped} — the entry restates, never tightens.
     let yaml = "\
-nika: v1
-workflow:
-  id: f008
+nika: f008
 tasks:
   a:
     exec: { command: [\"./a.sh\"] }
@@ -609,13 +569,11 @@ fn rule_010_fires_on_a_named_binding_edge() {
     // edge too (`role_of_field`'s `_ => Value` arm) — the terminal
     // restatement beside it fires the same /010.
     let yaml = "\
-nika: v1
-workflow:
-  id: f010named
+nika: f010named
 tasks:
   a:
     invoke: { tool: \"nika:read\", args: { path: \"u.json\" } }
-    output:
+    extract:
       summary: \".s\"
   b:
     with:
@@ -635,9 +593,7 @@ fn rule_010_silent_on_a_tightening_after() {
     // flagged. Kills a would-be any-predicate mutant of the Terminal
     // match.
     let yaml = "\
-nika: v1
-workflow:
-  id: f008ok
+nika: f008ok
 tasks:
   a:
     exec: { command: [\"./a.sh\"] }
@@ -658,9 +614,7 @@ fn rule_010_silent_without_a_value_edge() {
     // A pure control dependent (`after: {a: terminal}` · no `with:`)
     // restates nothing — the terminal predicate IS the declared intent.
     let yaml = "\
-nika: v1
-workflow:
-  id: f008noedge
+nika: f008noedge
 tasks:
   a:
     exec: { command: [\"./a.sh\"] }
@@ -681,9 +635,7 @@ fn rule_010_silent_on_an_observation_edge() {
     // beside it restates nothing the rule owns. Pins the
     // `EdgeKind::Value` role discrimination inside the rule.
     let yaml = "\
-nika: v1
-workflow:
-  id: f010obs
+nika: f010obs
 tasks:
   a:
     exec: { command: [\"./a.sh\"] }
@@ -709,12 +661,10 @@ fn rule_006_fires_on_a_timeout_wrapper_in_for_each() {
     // command wrongly `continue`s), and the `||`→`&&` swap on the
     // timeout/gtimeout pair all silence the expected single /006.
     let yaml = "\
-nika: v1
-workflow:
-  id: f006
+nika: f006
 tasks:
   shards:
-    for_each: [1, 2, 3]
+    for_each: { items: [1, 2, 3] }
     exec: { command: [\"timeout\", \"30\", \"./process.sh\"] }
 ";
     let six = lints_for(yaml, "one-obvious-way/006");
@@ -727,12 +677,10 @@ fn rule_006_fires_on_a_gtimeout_wrapper() {
     // The `gtimeout` half of the head pair: with the `&&` mutant the
     // gtimeout line also fails to fire.
     let yaml = "\
-nika: v1
-workflow:
-  id: f006g
+nika: f006g
 tasks:
   shards:
-    for_each: [1, 2, 3]
+    for_each: { items: [1, 2, 3] }
     exec: { command: [\"gtimeout\", \"30\", \"./process.sh\"] }
 ";
     let six = lints_for(yaml, "one-obvious-way/006");
@@ -745,12 +693,10 @@ fn rule_006_silent_on_a_plain_for_each_command() {
     // Negative control · a `for_each` body with no timeout wrapper ⇒ no
     // /006 (pins the head-token precision · low false-positive).
     let yaml = "\
-nika: v1
-workflow:
-  id: f006ok
+nika: f006ok
 tasks:
   shards:
-    for_each: [1, 2, 3]
+    for_each: { items: [1, 2, 3] }
     timeout: 30s
     exec: { command: [\"./process.sh\"] }
 ";
@@ -773,9 +719,7 @@ fn rule_007_fires_on_three_sequential_exec_shards() {
     // swaps: three single-producer exec shards (`after: {…: success}`
     // links) differing in one token fire exactly one /007 on the head.
     let yaml = "\
-nika: v1
-workflow:
-  id: f007
+nika: f007
 tasks:
   shard1:
     exec: { command: [\"./process.sh\", \"part1\"] }
@@ -797,9 +741,7 @@ fn rule_007_fires_on_three_sequential_invoke_shards() {
     // same tool, args differing in one leaf path — end-to-end (in
     // addition to the direct helper tests below).
     let yaml = "\
-nika: v1
-workflow:
-  id: f007invoke
+nika: f007invoke
 tasks:
   page1:
     invoke: { tool: \"nika:fetch\", args: { url: \"https://example.com/page/1\" } }
@@ -822,9 +764,7 @@ fn rule_007_silent_on_a_two_task_chain() {
     // for two single-slot shards) ⇒ a spurious /007. The correct `<`
     // skips chains under 3. Asserting zero kills the swap.
     let yaml = "\
-nika: v1
-workflow:
-  id: f007two
+nika: f007two
 tasks:
   shard1:
     exec: { command: [\"./process.sh\", \"part1\"] }
@@ -844,9 +784,7 @@ fn rule_007_silent_on_a_genuine_pipeline() {
     // (different programs / token counts) ⇒ `is_shard_chain` false ⇒ no
     // /007.
     let yaml = "\
-nika: v1
-workflow:
-  id: f007pipe
+nika: f007pipe
 tasks:
   fetch:
     exec: { command: [\"./fetch.sh\"] }

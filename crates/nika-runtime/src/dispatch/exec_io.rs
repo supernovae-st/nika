@@ -60,7 +60,7 @@ pub(super) fn build_exec_input(
 ///
 /// Each field may carry `${{ }}` and is resolved against the scope. `env`
 /// keys AND values are both rendered (a value commonly forwards an envelope
-/// var · `env: { API_BASE: "${{ env.API_BASE }}" }` per spec 02 §exec).
+/// input · `env: { API_BASE: "${{ inputs.API_BASE }}" }` per spec 02 §exec).
 pub(super) fn render_exec_io(
     input: &mut ExecInput,
     action: &nika_schema::raw::RawExecAction,
@@ -171,26 +171,26 @@ mod tests {
     }
 
     #[test]
-    fn exec_env_can_forward_envelope_env_config() {
-        // The spec has two env layers: envelope `env:` config and
-        // `exec.env` subprocess variables. The latter commonly forwards the
-        // former (`QRCODE_AI_API_BASE: ${{ config.QRCODE_AI_API_BASE }}`); this
-        // must render after a green `nika check`.
+    fn exec_env_forwards_a_deployment_supplied_input() {
+        // `exec.env` subprocess variables commonly forward a
+        // deployment-supplied declaration
+        // (`QRCODE_AI_API_BASE: ${{ inputs.QRCODE_AI_API_BASE }}`); this must
+        // render after a green `nika check`. The envelope `env:` layer this
+        // test once named died at C2, and `config:` after it — an `inputs:`
+        // entry with `required: false` and a `default:` is the supply now.
         let records = BTreeMap::new();
-        let inputs = BTreeMap::new();
-        let config = BTreeMap::from([(
+        let inputs = BTreeMap::from([(
             "QRCODE_AI_API_BASE".to_owned(),
             Value::String("https://odin.qrcode-ai.com".to_owned()),
         )]);
         let consts = BTreeMap::new();
         let secrets = BTreeMap::new();
-        let scope =
-            Scope::workflow_with_value_authorities(&records, &inputs, &config, &consts, &secrets);
+        let scope = Scope::workflow_with_value_authorities(&records, &inputs, &consts, &secrets);
 
         let mut action = RawExecAction::with_command(RawCommand::Shell(spanned("printenv")));
         action.env = vec![(
             spanned("QRCODE_AI_API_BASE"),
-            spanned("${{ config.QRCODE_AI_API_BASE }}"),
+            spanned("${{ inputs.QRCODE_AI_API_BASE }}"),
         )];
 
         let mut input = ExecInput::shell("printenv");
@@ -222,7 +222,7 @@ mod tests {
         let vars = BTreeMap::new();
         let scope = Scope::workflow(&records, &vars);
         let mut action = RawExecAction::with_command(RawCommand::Shell(spanned("true")));
-        action.cwd = Some(spanned("${{ vars.nope }}"));
+        action.cwd = Some(spanned("${{ inputs.nope }}"));
         let mut input = ExecInput::shell("true");
         assert!(render_exec_io(&mut input, &action, &scope).is_err());
     }

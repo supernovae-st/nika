@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The `${{ inputs. / config. / const. / secrets. }}` member lanes — the workflow's
+//! The `${{ inputs. / const. / secrets. }}` member lanes — the workflow's
 //! OWN declarations offered at the island, parse-first with a line-scan
 //! fallback for mid-keystroke documents (the `scan_task_ids` spirit).
 
 use lsp_types::{CompletionItem, CompletionItemKind};
 use nika_schema::{FileId, ParseMode, parse};
 
-/// An open island ending in `inputs.` / `config.` / `const.` / `secrets.` — the member
+/// An open island ending in `inputs.` / `const.` / `secrets.` — the member
 /// position for the workflow's OWN declarations.
 pub(super) fn template_member_root(prefix: &str) -> Option<&'static str> {
     let island = prefix.rfind("${{")?;
@@ -17,7 +17,7 @@ pub(super) fn template_member_root(prefix: &str) -> Option<&'static str> {
         return None;
     }
     let t = after.trim_end();
-    for root in ["inputs", "config", "const", "secrets", "with"] {
+    for root in ["inputs", "const", "secrets", "with"] {
         if t.ends_with(&format!("{root}.")) {
             return Some(root);
         }
@@ -113,7 +113,6 @@ pub(super) fn member_items(text: &str, root: &str) -> Vec<CompletionItem> {
                     &name,
                     match root {
                         "inputs" => "input".to_owned(),
-                        "config" => "config · non-sensitive runtime config".to_owned(),
                         "const" => "const".to_owned(),
                         _ => "secret · masked, never echoed".to_owned(),
                     },
@@ -157,20 +156,6 @@ pub(super) fn member_items(text: &str, root: &str) -> Vec<CompletionItem> {
                 items.push(member_item(&name.value, detail));
             }
         }
-        "config" => {
-            for (name, decl) in &wf.config {
-                let detail = match decl {
-                    nika_schema::VarDecl::Typed { r#type, .. } => {
-                        format!(
-                            "config · {} · non-sensitive runtime config",
-                            nika_schema::types::type_expr_display(&r#type.value)
-                        )
-                    }
-                    nika_schema::VarDecl::Untyped(v) => format!("config · {v}"),
-                };
-                items.push(member_item(&name.value, detail));
-            }
-        }
         "const" => {
             for (name, decl) in &wf.consts {
                 let detail = match decl {
@@ -206,14 +191,14 @@ fn member_item(name: &str, detail: String) -> CompletionItem {
     }
 }
 
-/// The value-authority names by line shape (`inputs:` · `config:` ·
-/// `const:`) — the mid-keystroke fallback the island lanes share (a
+/// The value-authority names by line shape (`inputs:` · `const:`)
+/// — the mid-keystroke fallback the island lanes share (a
 /// `for_each:`/`when:` position often sits in a document that no longer
 /// parses).
 pub(super) fn scan_value_authority_keys(text: &str) -> Vec<String> {
-    // Dotted refs (`inputs.x` · `config.x` · `const.x`) — the mid-keystroke
+    // Dotted refs (`inputs.x` · `const.x`) — the mid-keystroke
     // fallback offers exactly what a valid island would spell.
-    ["inputs", "config", "const"]
+    ["inputs", "const"]
         .into_iter()
         .flat_map(|root| {
             scan_block_keys(text, root)
@@ -223,8 +208,8 @@ pub(super) fn scan_value_authority_keys(text: &str) -> Vec<String> {
         .collect()
 }
 
-/// The immediate child keys of a top-level `inputs:` / `config:` /
-/// `const:` / `secrets:` block, by line shape — the fallback when the
+/// The immediate child keys of a top-level `inputs:` / `const:` /
+/// `secrets:` block, by line shape — the fallback when the
 /// document mid-keystroke no longer parses.
 fn scan_block_keys(text: &str, root: &str) -> Vec<String> {
     let mut keys = Vec::new();
@@ -255,7 +240,7 @@ fn scan_block_keys(text: &str, root: &str) -> Vec<String> {
 
 /// An open island ending in `tasks.<id>.` — the TASK member position:
 /// the per-task facts the spec names (`output` · `status` · `error`) plus
-/// the task's own named `output:` bindings (04-variables: bindings are
+/// the task's own named `extract:` bindings (04-variables: bindings are
 /// addressed as `tasks.<id>.<binding>`).
 pub(super) fn template_task_member(prefix: &str) -> Option<String> {
     let island = prefix.rfind("${{")?;
@@ -273,7 +258,7 @@ pub(super) fn template_task_member(prefix: &str) -> Option<String> {
 }
 
 /// The member items for one task: the three spec facts, verb-aware when
-/// the task is found, plus the task's named `output:` bindings. The open
+/// the task is found, plus the task's named `extract:` bindings. The open
 /// `${{` island makes the document YAML-invalid at the very moment this
 /// lane fires, so the task facts come from a LINE SCAN of its block
 /// (parse-first would be a dead branch here); an unknown id
@@ -301,7 +286,7 @@ pub(super) fn task_member_items(text: &str, task_id: &str) -> Vec<CompletionItem
     ];
     if let Some(t) = scanned {
         for name in t.bindings {
-            items.push(member_item(&name, "named `output:` binding".to_owned()));
+            items.push(member_item(&name, "named `extract:` binding".to_owned()));
         }
     }
     items
@@ -312,7 +297,7 @@ struct ScannedTask {
     bindings: Vec<String>,
 }
 
-/// Line-scan `task_id`'s block: its verb key and its `output:` binding
+/// Line-scan `task_id`'s block: its verb key and its `extract:` binding
 /// names. W1 « the map »: the block runs from the task's map key
 /// (`<task_id>:` at indent 2) to the next key at the same or shallower
 /// indent.
@@ -321,8 +306,8 @@ fn scan_task_block(text: &str, task_id: &str) -> Option<ScannedTask> {
     let mut found: Option<usize> = None; // the task key line's indent
     let mut verb = None;
     let mut bindings = Vec::new();
-    let mut in_output = false;
-    let mut output_indent = 0;
+    let mut in_extract = false;
+    let mut extract_indent = 0;
     for line in text.lines() {
         let trimmed = line.trim_start();
         let indent = line.len() - trimmed.len();
@@ -349,9 +334,9 @@ fn scan_task_block(text: &str, task_id: &str) -> Option<ScannedTask> {
                 {
                     break;
                 }
-                if in_output {
-                    if indent <= output_indent {
-                        in_output = false;
+                if in_extract {
+                    if indent <= extract_indent {
+                        in_extract = false;
                     } else if let Some((name, _)) = trimmed.split_once(':')
                         && !name.is_empty()
                         && name.chars().all(|c| c.is_alphanumeric() || c == '_')
@@ -365,9 +350,9 @@ fn scan_task_block(text: &str, task_id: &str) -> Option<ScannedTask> {
                 {
                     verb = Some(v.trim_end_matches(':').to_owned());
                 }
-                if trimmed.starts_with("output:") {
-                    in_output = true;
-                    output_indent = indent;
+                if trimmed.starts_with("extract:") {
+                    in_extract = true;
+                    extract_indent = indent;
                 }
             }
         }

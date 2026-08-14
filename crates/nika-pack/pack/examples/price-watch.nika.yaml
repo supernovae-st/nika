@@ -9,7 +9,7 @@
 #
 # Demonstrates ·
 #   - `nika:fetch` with `mode: jq` · pull ONE structured field out of an API
-#   - `output:` · named jq bindings → `${{ tasks.check.price }}`
+#   - `extract:` · named jq bindings → `${{ tasks.check.price }}`
 #   - `with:` + `when:` · the price crosses as a value edge and a single CEL
 #     comparison gates the alert task
 #   - `secrets:` + `egress:` + `permits.net.http` · the two-part rule for
@@ -23,10 +23,7 @@
 #   `const.product_api` at a real endpoint (adding that host to
 #   `permits.net.http`) and export ALERTS_WEBHOOK_URL.
 
-nika: v1
-workflow:
-  id: price-watch
-  description: "Watch a product price, ping me when it drops below my target"
+nika: price-watch
 
 const:
   product_api: "https://api.shop.example.com/v1/products/macbook-air"
@@ -63,7 +60,7 @@ tasks:
         url: "${{ const.product_api }}"
         mode: jq
         jq: "."
-    output:                           # named jq bindings over the raw response
+    extract:                           # named jq bindings over the raw response
       price: ".price"
       name: ".name"
     on_error:

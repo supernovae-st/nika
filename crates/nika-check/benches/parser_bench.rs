@@ -27,7 +27,7 @@ use nika_schema::{FileId, ParseMode, parse};
 /// reachability analysis, and the cost + IFC passes at scale. Writes to the
 /// `String` never fail, so the `write!` results are intentionally discarded.
 fn chain_yaml(n: usize) -> String {
-    let mut s = String::from("nika: v1\nworkflow:\n  id: bench\n\nmodel: mock/echo\n\ntasks:\n");
+    let mut s = String::from("nika: bench\n\nmodel: mock/echo\n\ntasks:\n");
     for i in 0..n {
         let _ = writeln!(s, "  t{i}:");
         if i > 0 {

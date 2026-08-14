@@ -24,10 +24,7 @@
 # Run · nika run examples/standup-digest.nika.yaml
 #   Offline rehearsal (zero key, deterministic) · add `--model mock/echo`.
 
-nika: v1
-workflow:
-  id: standup-digest
-  description: "Read yesterday's commits, write today's standup note"
+nika: standup-digest
 
 model: ollama/qwen3.5:4b   # local · zero key · swap for groq/llama-3.3-70b (a fast one-liner job)
 

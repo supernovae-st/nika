@@ -29,9 +29,7 @@ fn a_closed_pipe_dies_clean_with_the_unix_code() {
 
     // Enough streaming frames that the renderer still writes after the
     // reader is gone — the live card redraws per task.
-    let mut yaml = String::from(
-        "nika: v1\nworkflow:\n  id: pipe-drill\nmodel: mock/echo\npermits: {}\ntasks:\n",
-    );
+    let mut yaml = String::from("nika: pipe-drill\nmodel: mock/echo\npermits: {}\ntasks:\n");
     for i in 0..40 {
         let _ = write!(
             yaml,

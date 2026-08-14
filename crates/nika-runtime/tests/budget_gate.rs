@@ -83,7 +83,7 @@ fn terminal_field<'a>(sink: &'a VecSink, kind: EventKind, key: &str) -> Option<&
         .map(|f| &f.value)
 }
 
-const ONE_TOOL: &str = "nika: v1\nworkflow:\n  id: w\ntasks:\n  render:\n    invoke: { tool: \"nika:jq\", args: { input: { x: 1 }, expression: \".\" } }\n";
+const ONE_TOOL: &str = "nika: w\ntasks:\n  render:\n    invoke: { tool: \"nika:jq\", args: { input: { x: 1 }, expression: \".\" } }\n";
 
 #[tokio::test]
 async fn tool_spend_totals_ride_the_terminal_frame() {
@@ -135,7 +135,7 @@ async fn budget_blocks_the_next_wave_and_names_both_numbers() {
     // budget → in-flight completed and counted, the NEXT wave never
     // dispatches: b cancels, the run fails NIKA-1704 with
     // spent-vs-budget (the LiteLLM error shape).
-    let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    invoke: { tool: \"nika:jq\", args: { input: { x: 1 }, expression: \".\" } }\n  b:\n    with: { prev: \"${{ tasks.a.output }}\" }\n    invoke: { tool: \"nika:jq\", args: { input: \"${{ with.prev }}\", expression: \".\" } }\n";
+    let yaml = "nika: w\ntasks:\n  a:\n    invoke: { tool: \"nika:jq\", args: { input: { x: 1 }, expression: \".\" } }\n  b:\n    with: { prev: \"${{ tasks.a.output }}\" }\n    invoke: { tool: \"nika:jq\", args: { input: \"${{ with.prev }}\", expression: \".\" } }\n";
     let tools = MockToolExecutor::new()
         .enqueue_ok(priced_result("c1", 0.06))
         .enqueue_ok(priced_result("c2", 0.06));
@@ -182,7 +182,7 @@ async fn budget_starves_a_serial_fan_out_mid_flight() {
     // `max_parallel: 1` serializes admission: 0.03 + 0.03 crosses
     // the 0.05 budget after the second iteration — the third is
     // never admitted, the task fails NIKA-1704 naming the shortfall.
-    let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  fan:\n    for_each: [1, 2, 3]\n    max_parallel: 1\n    invoke: { tool: \"nika:jq\", args: { input: \"${{ item }}\", expression: \".\" } }\n";
+    let yaml = "nika: w\ntasks:\n  fan:\n    for_each: { items: [1, 2, 3], max_parallel: 1 }\n    invoke: { tool: \"nika:jq\", args: { input: \"${{ item }}\", expression: \".\" } }\n";
     let tools = MockToolExecutor::new()
         .enqueue_ok(priced_result("c1", 0.03))
         .enqueue_ok(priced_result("c2", 0.03))
@@ -213,7 +213,7 @@ async fn unpriced_spend_never_trips_a_budget() {
     // A mock-provider infer reports usage but prices to NOTHING —
     // the budget bounds METERED spend only (said loudly at the
     // preflight), so the run completes and the unpriced count rides.
-    let yaml = "nika: v1\nworkflow:\n  id: w\nmodel: mock/echo\ntasks:\n  ask:\n    infer: { prompt: \"salut\" }\n";
+    let yaml = "nika: w\nmodel: mock/echo\ntasks:\n  ask:\n    infer: { prompt: \"salut\" }\n";
     let (outcome, sink) = run_yaml(yaml, MockToolExecutor::new(), Some(0.0)).await;
     assert!(outcome.ok, "unmetered spend cannot cross a budget");
     assert!(!outcome.budget_exceeded);
@@ -323,7 +323,7 @@ mod billed_then_failed {
         (outcome, sink)
     }
 
-    const DYING_AGENT: &str = "nika: v1\nworkflow:\n  id: w\ntasks:\n  work:\n    agent:\n      prompt: \"burn a paid tool then die\"\n      tools: [\"nika:jq\"]\n";
+    const DYING_AGENT: &str = "nika: w\ntasks:\n  work:\n    agent:\n      prompt: \"burn a paid tool then die\"\n      tools: [\"nika:jq\"]\n";
 
     #[tokio::test]
     async fn failed_task_frame_carries_the_burned_spend() {
@@ -361,7 +361,7 @@ mod billed_then_failed {
     async fn budget_sees_billed_then_failed_spend() {
         // The refuter's exact scenario: without failure-spend threading,
         // a dying loop's dollars were invisible to `--max-cost-usd`.
-        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  work:\n    agent:\n      prompt: \"burn then die\"\n      tools: [\"nika:jq\"]\n  report:\n    with: { done: \"${{ tasks.work.output }}\" }\n    invoke: { tool: \"nika:jq\", args: { input: \"${{ with.done }}\", expression: \".\" } }\n";
+        let yaml = "nika: w\ntasks:\n  work:\n    agent:\n      prompt: \"burn then die\"\n      tools: [\"nika:jq\"]\n  report:\n    with: { done: \"${{ tasks.work.output }}\" }\n    invoke: { tool: \"nika:jq\", args: { input: \"${{ with.done }}\", expression: \".\" } }\n";
         let (provider, tools) = dying_priced_agent();
         let (outcome, _sink) = run_agent_yaml(yaml, provider, tools, Some(0.05)).await;
         assert!(!outcome.ok);

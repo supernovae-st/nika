@@ -274,9 +274,7 @@ mod tests {
     /// writer (`f`), a non-writer invoke (`j`), an exec (`x`), and a
     /// writer that FAILED (`z`) — one of each kind the enumeration meets.
     const WF: &str = r#"
-nika: v1
-workflow:
-  id: quarantine-enum
+nika: quarantine-enum
 permits:
   tools: ["nika:write", "nika:edit", "nika:read"]
   fs: { write: ["**"], read: ["**"] }
@@ -286,7 +284,7 @@ tasks:
   e:
     invoke: { tool: "nika:edit", args: { path: "two.txt" } }
   f:
-    for_each: ["u", "v"]
+    for_each: { items: ["u", "v"] }
     invoke: { tool: "nika:write", args: { path: "${{ item }}.txt", content: "x" } }
   j:
     invoke: { tool: "nika:read", args: { path: "one.txt" } }

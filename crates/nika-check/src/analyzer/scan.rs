@@ -28,6 +28,7 @@ use nika_schema::expression::{
 };
 use nika_schema::raw::{ForEachValue, RawAction, RawTask, RawWorkflow};
 use nika_schema::source::{Span, Spanned};
+use nika_schema::types::AfterPredicate;
 use nika_schema::types::WhenGate;
 
 /// The reserved result-record fields (spec `04-variables.md` §result
@@ -46,10 +47,13 @@ pub(super) const RESERVED_RECORD_FIELDS: &[&str] = &[
 /// Name-resolution index over the whole workflow.
 pub(super) struct WorkflowIndex<'a> {
     inputs: BTreeSet<&'a str>,
-    config: BTreeSet<&'a str>,
     consts: BTreeSet<&'a str>,
     secrets: BTreeSet<&'a str>,
     task_ids: BTreeSet<&'a str>,
+    /// the group names at least one task DECLARES (spec 03 §group ·
+    /// a group exists iff a member declares it · an empty group is
+    /// the same fact as an absent one, so one set answers both).
+    groups: BTreeSet<&'a str>,
     /// task id → declared `output:` binding names.
     bindings: BTreeMap<&'a str, BTreeSet<&'a str>>,
     /// task id → declared structured-output `schema:` (infer/agent ·
@@ -70,7 +74,7 @@ impl<'a> WorkflowIndex<'a> {
             bindings.insert(
                 task.value.id.value.as_str(),
                 task.value
-                    .output
+                    .extract
                     .iter()
                     .map(|(name, _)| name.value.as_str())
                     .collect(),
@@ -94,10 +98,15 @@ impl<'a> WorkflowIndex<'a> {
         }
         Self {
             inputs: wf.inputs.iter().map(|(k, _)| k.value.as_str()).collect(),
-            config: wf.config.iter().map(|(k, _)| k.value.as_str()).collect(),
             consts: wf.consts.iter().map(|(k, _)| k.value.as_str()).collect(),
             secrets: wf.secrets.iter().map(|(k, _)| k.value.as_str()).collect(),
             task_ids: wf.tasks.iter().map(|t| t.value.id.value.as_str()).collect(),
+            groups: wf
+                .tasks
+                .iter()
+                .filter_map(|t| t.value.group.as_ref())
+                .map(|g| g.value.as_str())
+                .collect(),
             bindings,
             schemas,
             lowered: super::types_contract::lowered_returns(wf),
@@ -113,6 +122,54 @@ impl<'a> WorkflowIndex<'a> {
             .get(task_id)
             .copied()
             .or_else(|| self.lowered.get(task_id))
+    }
+}
+
+/// A `${{ group.<name> }}` fold — the plural reader of the `tasks`
+/// namespace (spec 03 §group).
+///
+/// TWO refusals, in order · the reference boundary first (`group.*` is
+/// legal in a `with:` value and NOWHERE else — one door, where `tasks.*`
+/// has five), then existence (`NIKA-DAG-008`). The boundary dominates
+/// for the same reason it does for `tasks.*`: the fix hoists the
+/// reference off this surface entirely, so existence is judged after.
+fn check_group_ref(
+    name: &str,
+    span: Span,
+    ctx: &ScanCtx<'_>,
+    index: &WorkflowIndex<'_>,
+    errors: &mut Vec<SchemaError>,
+) {
+    match ctx.task_rule {
+        TaskRefRule::Body(surface) => {
+            errors.push(SchemaError::RefOutsideBoundary {
+                task: ctx.task_id.to_owned(),
+                surface: surface.to_owned(),
+                reference: format!("group.{name}"),
+                span: Some(span),
+            });
+            return;
+        }
+        // a resolution surface reads settled records, never a fold
+        TaskRefRule::Resolution => {
+            errors.push(SchemaError::RefOutsideBoundary {
+                task: ctx.task_id.to_owned(),
+                surface: "outputs".to_owned(),
+                reference: format!("group.{name}"),
+                span: Some(span),
+            });
+            return;
+        }
+        TaskRefRule::Boundary => {}
+    }
+    // A bare `${{ group }}` names no group (empty name) and lands here
+    // too — same code, same fact: the fold would harvest zero members.
+    if name.is_empty() || !index.groups.contains(name) {
+        errors.push(SchemaError::UnknownGroup {
+            task: ctx.task_id.to_owned(),
+            name: name.to_owned(),
+            span: Some(span),
+        });
     }
 }
 
@@ -132,9 +189,6 @@ enum TaskRefRule {
     /// `on_error.recover`) — existence + record-shape checks apply ·
     /// no edge semantics.
     Resolution,
-    /// An `on_finally:` surface — the PARENT is the only readable task
-    /// (a sibling read would race · `NIKA-VAR-021` otherwise).
-    FinallyParentOnly,
 }
 
 /// Where a scanned string lives — drives the boundary / loop-local /
@@ -155,6 +209,11 @@ struct ScanCtx<'a> {
     with_names: Option<&'a BTreeSet<&'a str>>,
     /// `item` / `index` in scope (the owning task has `for_each:`).
     allow_loop_locals: bool,
+    /// When the owning task is an UNWIND task, the producers it may
+    /// read. Cleanup sees its producer and nothing else: a sibling may
+    /// still be RUNNING, so the read would race (spec 03 §unwind ·
+    /// `NIKA-VAR-021` otherwise). `None` = an ordinary task.
+    unwind_producers: Option<&'a BTreeSet<&'a str>>,
 }
 
 /// Scan every template surface of the workflow · collect all errors.
@@ -175,6 +234,7 @@ pub(super) fn scan_workflow(wf: &RawWorkflow, errors: &mut Vec<SchemaError>) {
         task_rule: TaskRefRule::Resolution,
         with_names: None,
         allow_loop_locals: false,
+        unwind_producers: None,
     };
     let outputs_ctx = envelope_ctx("outputs");
     for (_, decl) in &wf.outputs {
@@ -197,6 +257,7 @@ fn task_ctx<'a>(
     with_names: &'a BTreeSet<&'a str>,
     task_rule: TaskRefRule,
     allow_loop_locals: bool,
+    unwind_producers: Option<&'a BTreeSet<&'a str>>,
 ) -> ScanCtx<'a> {
     ScanCtx {
         location: format!("task `{id}`"),
@@ -204,6 +265,7 @@ fn task_ctx<'a>(
         task_rule,
         with_names: Some(with_names),
         allow_loop_locals,
+        unwind_producers,
     }
 }
 
@@ -212,10 +274,33 @@ fn scan_task(task: &RawTask, index: &WorkflowIndex<'_>, errors: &mut Vec<SchemaE
     let with_names: BTreeSet<&str> = task.with.iter().map(|(k, _)| k.value.as_str()).collect();
     let has_for_each = task.for_each.is_some();
 
+    // An UNWIND task is cleanup: it reads its producer and nothing
+    // else (spec 03 §unwind · a sibling may still be RUNNING).
+    let unwind_producers: BTreeSet<&str> = task
+        .after
+        .iter()
+        .filter(|(_, p)| matches!(p.value, AfterPredicate::Unwind))
+        .map(|(target, _)| target.value.as_str())
+        .collect();
+
+    let unwind: Option<&BTreeSet<&str>> = if unwind_producers.is_empty() {
+        None
+    } else {
+        Some(&unwind_producers)
+    };
+
     // `with:` — the data boundary (the binding IS the edge).
-    let boundary_ctx = task_ctx(id, &with_names, TaskRefRule::Boundary, has_for_each);
+    let boundary_ctx = task_ctx(id, &with_names, TaskRefRule::Boundary, has_for_each, unwind);
     // Body surfaces read LOCAL names only (04 §the reference boundary).
-    let body_ctx = |surface| task_ctx(id, &with_names, TaskRefRule::Body(surface), has_for_each);
+    let body_ctx = |surface| {
+        task_ctx(
+            id,
+            &with_names,
+            TaskRefRule::Body(surface),
+            has_for_each,
+            unwind,
+        )
+    };
     // The two surfaces evaluated BEFORE the fan-out, where the loop
     // locals are simply not bound yet. `when:` decides whether an
     // ADMITTED TASK runs (spec 03 §when · post-gate means after the
@@ -225,7 +310,8 @@ fn scan_task(task: &RawTask, index: &WorkflowIndex<'_>, errors: &mut Vec<SchemaE
     // whenever the task carries a `for_each:` — so `when: ${{ item }}`
     // passed check and then died at run with NIKA-VAR-001, and the
     // audit-before-run promise broke in the one place it is loudest.
-    let pre_fanout_ctx = |surface| task_ctx(id, &with_names, TaskRefRule::Body(surface), false);
+    let pre_fanout_ctx =
+        |surface| task_ctx(id, &with_names, TaskRefRule::Body(surface), false, unwind);
 
     // `when:` — the expression form is a single boolean-shaped island
     // over local namespaces (POST-gate · spec 03 §when) · the YAML
@@ -275,32 +361,12 @@ fn scan_task(task: &RawTask, index: &WorkflowIndex<'_>, errors: &mut Vec<SchemaE
         task_rule: TaskRefRule::Resolution,
         with_names: Some(&with_names),
         allow_loop_locals: has_for_each,
+        unwind_producers: None,
     };
     if let Some(on_error) = &task.on_error
         && let nika_schema::types::OnErrorAction::Recover(value) = &on_error.value.action
     {
         scan_json(value, &no_edge_ctx, index, errors);
-    }
-
-    // `on_finally:` — the PARENT is the only readable task (W2 · a
-    // sibling may still be RUNNING when this cleanup fires — the read
-    // would race · spec 03 §on_finally).
-    let finally_ctx = ScanCtx {
-        location: format!("task `{id}` on_finally"),
-        task_id: id,
-        task_rule: TaskRefRule::FinallyParentOnly,
-        with_names: Some(&with_names),
-        allow_loop_locals: has_for_each,
-    };
-    for cleanup in &task.on_finally {
-        if let Some(when) = &cleanup.value.when
-            && let WhenGate::Expr(expr) = &when.value
-        {
-            let spanned = Spanned::new(expr.clone(), when.span);
-            check_single_island(&spanned, "when", id, true, errors);
-            scan_string(&spanned, &finally_ctx, index, errors);
-        }
-        scan_action(&cleanup.value.action, &finally_ctx, index, errors);
     }
 }
 
@@ -426,7 +492,7 @@ fn check_single_island(
 /// « the two expression layers never nest »).
 fn check_output_bindings(task: &RawTask, errors: &mut Vec<SchemaError>) {
     let id = task.id.value.as_str();
-    for (name, value) in &task.output {
+    for (name, value) in &task.extract {
         if RESERVED_RECORD_FIELDS.contains(&name.value.as_str()) {
             errors.push(SchemaError::ReservedBindingName {
                 name: name.value.clone(),
@@ -554,12 +620,6 @@ fn check_ref(
                 errors.push(unresolved(&format!("inputs.{name}"), ctx, span, hint));
             }
         }
-        NamespaceRef::Config(name) => {
-            if !index.config.contains(name.as_str()) {
-                let hint = suggest_in("config", name, index.config.iter().copied());
-                errors.push(unresolved(&format!("config.{name}"), ctx, span, hint));
-            }
-        }
         NamespaceRef::Const(name) => {
             if !index.consts.contains(name.as_str()) {
                 let hint = suggest_in("const", name, index.consts.iter().copied());
@@ -585,6 +645,9 @@ fn check_ref(
         }
         NamespaceRef::Tasks { id, field } => {
             check_task_ref(id, field.as_deref(), span, ctx, index, errors);
+        }
+        NamespaceRef::Group(name) => {
+            check_group_ref(name, span, ctx, index, errors);
         }
         NamespaceRef::Item | NamespaceRef::Index => {
             if !ctx.allow_loop_locals {
@@ -636,31 +699,52 @@ fn check_task_ref(
     index: &WorkflowIndex<'_>,
     errors: &mut Vec<SchemaError>,
 ) {
-    match ctx.task_rule {
-        TaskRefRule::Body(surface) => {
-            // NIKA-VAR-021 dominates: the fix (hoist into with:) removes
-            // the reference from this surface entirely — existence and
-            // shape are judged at the boundary after the hoist.
+    // An UNWIND task's rule REPLACES the surface rule: cleanup reads its
+    // PRODUCER on any surface (settled by definition when unwind runs),
+    // and no other task at all — a sibling may still be RUNNING, so the
+    // read would race (spec 03 §unwind · what it may read). Hoisting
+    // into `with:` would not help, so the ordinary body refusal — whose
+    // whole teaching IS « hoist it » — must not fire here.
+    if let Some(producers) = ctx.unwind_producers {
+        if !id.is_empty() && !producers.contains(id) {
             errors.push(SchemaError::RefOutsideBoundary {
                 task: ctx.task_id.to_owned(),
-                surface: surface.to_owned(),
+                surface: "an unwind task".to_owned(),
                 reference: id.to_owned(),
                 span: Some(span),
             });
             return;
         }
-        TaskRefRule::FinallyParentOnly => {
-            if id != ctx.task_id {
+    } else {
+        match ctx.task_rule {
+            TaskRefRule::Body(surface) => {
+                // NIKA-VAR-021 dominates: the fix (hoist into with:)
+                // removes the reference from this surface entirely —
+                // existence and shape are judged at the boundary after
+                // the hoist.
                 errors.push(SchemaError::RefOutsideBoundary {
                     task: ctx.task_id.to_owned(),
-                    surface: "on_finally".to_owned(),
+                    surface: surface.to_owned(),
                     reference: id.to_owned(),
                     span: Some(span),
                 });
                 return;
             }
+            TaskRefRule::Boundary | TaskRefRule::Resolution => {}
         }
-        TaskRefRule::Boundary | TaskRefRule::Resolution => {}
+    }
+    // The BARE envelope first · `${{ tasks }}` yields an EMPTY id. It
+    // names no task, so the unknown-task branch below would swallow it
+    // and defer to the DAG layer — which then accuses the author of
+    // depending on a task named ``. The envelope has its own teaching
+    // (`NIKA-VAR-020`) and it must reach it, on every surface.
+    if id.is_empty() {
+        errors.push(SchemaError::BareTaskEnvelope {
+            task: String::new(),
+            location: ctx.location.clone(),
+            span: Some(span),
+        });
+        return;
     }
     if !index.task_ids.contains(id) {
         if matches!(ctx.task_rule, TaskRefRule::Boundary) {
@@ -734,7 +818,7 @@ mod tests {
         analyze(&wf)
     }
 
-    const HEADER: &str = "nika: v1\nworkflow:\n  id: t\n";
+    const HEADER: &str = "nika: t\n";
 
     /// The unresolved-ref reference string carried by the first finding.
     fn sole_unresolved(yaml: &str) -> String {

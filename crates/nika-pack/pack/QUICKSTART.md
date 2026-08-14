@@ -7,7 +7,8 @@
 > **Status** · authoring, static checking AND execution all work TODAY:
 > `brew install supernovae-st/tap/nika`, then `nika check` + `nika run` on
 > any file in this page. The spec text itself is v0.1.0-draft (GA hardening
-> in progress); the language envelope `nika: v1` is already frozen.
+> in progress); the language family v1 is already frozen — there is no
+> `nika: v2`, ever.
 
 ---
 
@@ -16,9 +17,7 @@
 Two header lines + one task ·
 
 ```yaml
-nika: v1
-workflow:
-  id: hello
+nika: hello
 
 model: ollama/qwen3.5:4b
 
@@ -28,10 +27,13 @@ tasks:
       prompt: "Say hello in French"
 ```
 
-- `nika: v1`: the language contract (one line · forever).
-- `workflow:`: a name for this file.
+- `nika:`: the mark that says « this is a nika file » AND the file's name ·
+  kebab-case · one line · forever. It carries no version: the family is v1
+  and there is no `nika: v2`, ever.
 - `model:`: the default model · `<provider>/<name>` (the prefix picks the provider).
-- one task · `infer:` calls the model.
+- one task · `infer:` calls the model. **`tasks:` is what makes this a
+  workflow** — a nika file without it is a project file, and the type is read
+  from the key, never from the filename.
 
 > **Model note** · every step on this page runs local on
 > `ollama/qwen3.5:4b` · zero key, nothing leaves your machine
@@ -49,9 +51,7 @@ Add a second task that uses the first one's output. The `with:` binding IS the
 graph · `${{ tasks.<id>.output }}` reads a prior task's result ·
 
 ```yaml
-nika: v1
-workflow:
-  id: summarize-and-translate
+nika: summarize-and-translate
 
 model: ollama/qwen3.5:4b
 
@@ -79,9 +79,7 @@ Declare inputs once in `inputs:` · reference them anywhere with `${{ inputs.X }
 inside) ·
 
 ```yaml
-nika: v1
-workflow:
-  id: translate-anything
+nika: translate-anything
 
 inputs:
   text:
@@ -110,10 +108,11 @@ A `--var` value overrides the declared default · satisfies a
 [spec/01-envelope.md](./spec/01-envelope.md#inputs--optional--typed-workflow-inputs)) ·
 and an unknown key is refused before anything runs. A fixed value the
 caller never overrides is a `const:` entry instead (a bare literal ·
-`${{ const.X }}`).
+`${{ const.X }}`). A value the **deployment** supplies is an `inputs:` entry
+carrying `required: false` and a `default:` — same namespace, same read.
 
-There are 6 variable namespaces · the four value authorities `inputs` ·
-`config` · `const` · `secrets` plus the runtime `with` · `tasks`.
+There are 5 variable namespaces · the three value authorities `inputs` ·
+`const` · `secrets` plus the runtime `with` · `tasks`.
 See [spec/04-variables.md](./spec/04-variables.md).
 
 ---
@@ -127,9 +126,7 @@ Everything else (fetching a URL, querying a DB, writing a file) is a
 `nika:fetch` builtin), then `infer` summarizes ·
 
 ```yaml
-nika: v1
-workflow:
-  id: fetch-and-summarize
+nika: fetch-and-summarize
 
 model: ollama/qwen3.5:4b
 
@@ -209,9 +206,9 @@ contract, the runtime is an implementation detail.
 
 ## What you just learned
 
-You touched all 5 pillars · the **envelope** (`nika: v1` + `workflow:`) · the
+You touched all 5 pillars · the **envelope** (`nika: <name>` + `tasks:`) · the
 **4 verbs** · the **DAG** (`with:`/`after:` edges + task outputs) · **variables**
-(`${{ }}` · <!-- canon:namespaces -->6<!-- /canon --> namespaces) · and the start of the **error model** (engines
+(`${{ }}` · <!-- canon:namespaces -->5<!-- /canon --> namespaces) · and the start of the **error model** (engines
 return `NIKA-<NS>-<NNN>` codes · see [spec/05-errors.md](./spec/05-errors.md)) ·
 plus the workflow's **`outputs:`** return contract (what `nika run` prints + what
 a caller receives).

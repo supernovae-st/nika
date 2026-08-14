@@ -7,7 +7,7 @@
 //! NEP-0004 law 7's one grammar addition ·
 //! « v1 ships with these task fields · `with` · `after` · `when` ·
 //! `for_each` · `max_parallel` · `fail_fast` · `retry` · `on_error` ·
-//! `timeout` · `on_finally` · `output` · `declassify` · plus the verb
+//! `timeout` · `on_finally` · `extract` · `declassify` · plus the verb
 //! selector. »
 //! The set is CLOSED — strict mode rejects anything else.
 
@@ -18,25 +18,45 @@ use crate::types::{AfterPredicate, OnError, RetryConfig, WhenGate};
 
 use super::action::RawAction;
 
-/// One `declassify:` entry (NEP-0004 law 5 · the ONLY door through the
-/// permit-parameterization taint): raise ONE binding from untrusted to
-/// trusted, authored and check-visible. Lifts the TAINT law only — the
-/// value is still matched against the declared boundary (never a permit
-/// bypass) — and the run receipt records it (taint path · `because` ·
-/// value digest).
+/// WHICH law one `lift:` entry opens (spec `10-authority.md` rule 1 ·
+/// the enum is CLOSED: v1 knows two doors, and 24 error-bearing laws
+/// exist. A law with no door cannot be lifted at all — that is the
+/// default and the common case).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum LiftLaw {
+    /// Raise ONE binding from untrusted to trusted (NEP-0004 ·
+    /// LAW-AUTH-0325). Requires `from:`.
+    Taint,
+    /// Declare this task's fetch a code-bearing artifact it will never
+    /// load or run (NEP-0006 · LAW-AUTH-0327). Forbids `from:`.
+    DataAsCode,
+}
+
+/// One `lift:` entry — the authored door. Each opens exactly ONE named
+/// law, with a mandatory reason, check-visible and receipt-recorded.
+///
+/// A lift is NEVER a permit bypass: the value still sits inside the
+/// declared boundary, it never touches the `net.http` host set, and it
+/// never lowers the SSRF floor. It moves the named law and nothing else.
+///
+/// This replaces the two predecessors — a `declassify:` list and an
+/// `inert:` string — which did the same job in two spellings (spec 10
+/// §the authored doors · « the law is a parameter of `lift:`, not a
+/// field »).
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
-pub struct DeclassifyEntry {
-    /// `from:` — the ONE binding this entry raises (`inputs.p` ·
-    /// `config.region` · `tasks.fetch.output`) — a dotted value-binding
-    /// path, kept verbatim (the taint oracle matches it against the
-    /// canonical dotted form of each reference).
-    pub from: Spanned<String>,
-    /// `to:` — the target integrity label · v1 knows exactly one raise:
-    /// `trusted` (parser-enforced).
-    pub to: Spanned<String>,
+pub struct LiftEntry {
+    /// `law:` — which door (closed enum · parser-enforced).
+    pub law: Spanned<LiftLaw>,
+    /// `from:` — the ONE binding a `taint` entry raises (`inputs.p` ·
+    /// `config.region` · `tasks.fetch.output`), a dotted value-binding
+    /// path kept verbatim (the taint oracle matches it against the
+    /// canonical dotted form of each reference). Law-specific: required
+    /// by `taint`, `None` for every other law (parser-enforced).
+    pub from: Option<Spanned<String>>,
     /// `because:` — the non-empty justification (parser-enforced) ·
-    /// recorded in the run receipt.
+    /// recorded in the run receipt and projected in the certificate.
     pub because: Spanned<String>,
 }
 
@@ -73,20 +93,29 @@ pub struct RawTask {
     pub timeout: Option<Spanned<Duration>>,
     /// `with:` — task-scope variable injection (`${{ with.X }}`).
     pub with: Vec<(Spanned<String>, Spanned<serde_json::Value>)>,
-    /// `output:` — named jq bindings over the verb's raw response.
-    pub output: Vec<(Spanned<String>, Spanned<String>)>,
+    /// `extract:` — named jq bindings over the verb's raw response,
+    /// read downstream as `${{ tasks.X.<name> }}`. The field names the
+    /// OPERATION (run this jq); it does NOT write `output` —
+    /// `${{ tasks.X.output }}` stays the raw response. The old spelling
+    /// `output:` lied twice, measured at 0.108.0: `output: { output: "." }`
+    /// refused its own name, and the field never wrote `output`.
+    pub extract: Vec<(Spanned<String>, Spanned<String>)>,
     /// `returns:` — the task's output contract (spec 09 · a named type
     /// or an inline type expression · RAW here, parsed by the type core
     /// at check time).
     pub returns: Option<Spanned<serde_json::Value>>,
-    /// `on_finally:` — cleanup mini-tasks · ALWAYS run (spec 03).
-    pub on_finally: Vec<Spanned<RawFinallyTask>>,
-    /// `declassify:` — the task-level taint-lift declarations (NEP-0004
-    /// law 5 · the only door through the re-gate · receipt-recorded).
-    pub declassify: Vec<DeclassifyEntry>,
-    /// `inert:` — the declared data-as-code door (NEP-0006 law 2 · one
-    /// non-empty justification · lifts the sink law only).
-    pub inert: Option<Spanned<String>>,
+    /// `lift:` — the authored doors (spec 10 §the authored doors). ONE
+    /// construct for every law; read it through [`RawTask::taint_lifts`]
+    /// and [`RawTask::data_as_code_because`] rather than matching the
+    /// enum at each call site.
+    pub lift: Vec<LiftEntry>,
+    /// `group:` — fan-in MEMBERSHIP (spec 03 §group). This task JOINS
+    /// the named set; a consumer folds the whole set with one
+    /// `${{ group.<name> }}` binding. Membership is DECLARED, never
+    /// matched: a renamed member leaves its group loudly
+    /// (`NIKA-DAG-008` on the reference), where a glob would shrink
+    /// the fold in silence and the run would stay green.
+    pub group: Option<Spanned<String>>,
     /// The verb (exactly one · parser-enforced).
     pub action: RawAction,
 }
@@ -106,13 +135,32 @@ impl RawTask {
             on_error: None,
             timeout: None,
             with: Vec::new(),
-            output: Vec::new(),
+            extract: Vec::new(),
             returns: None,
-            on_finally: Vec::new(),
-            declassify: Vec::new(),
-            inert: None,
+            lift: Vec::new(),
+            group: None,
             action,
         }
+    }
+
+    /// The `taint` doors — each raises the ONE binding its `from:` names
+    /// (NEP-0004). The two laws share one construct; consumers that care
+    /// about a specific law read it through here so the enum match lives
+    /// in ONE place.
+    pub fn taint_lifts(&self) -> impl Iterator<Item = &LiftEntry> {
+        self.lift
+            .iter()
+            .filter(|e| matches!(e.law.value, LiftLaw::Taint))
+    }
+
+    /// The `data-as-code` door's justification, when this task declares
+    /// one (NEP-0006) — the reason the fetch is archived and never run.
+    #[must_use]
+    pub fn data_as_code_because(&self) -> Option<&Spanned<String>> {
+        self.lift
+            .iter()
+            .find(|e| matches!(e.law.value, LiftLaw::DataAsCode))
+            .map(|e| &e.because)
     }
 }
 
@@ -128,33 +176,6 @@ pub enum ForEachValue {
 
 /// One `on_finally:` cleanup mini-task.
 ///
-/// Spec `03-dag.md` §`on_finally` · « **List of mini-tasks** · zero or
-/// more · each with its own verb » · may carry its own `when:` (e.g.
-/// only-on-error notification) and a per-cleanup `timeout:`.
-#[derive(Debug, Clone)]
-#[non_exhaustive]
-pub struct RawFinallyTask {
-    /// `when:` — conditional cleanup (sees the parent's status/error) ·
-    /// same two forms as the task-level gate.
-    pub when: Option<Spanned<WhenGate>>,
-    /// `timeout:` — per-cleanup-task override (default 30s · engine).
-    pub timeout: Option<Spanned<Duration>>,
-    /// The cleanup verb.
-    pub action: RawAction,
-}
-
-impl RawFinallyTask {
-    /// Create a cleanup mini-task with the given action.
-    #[must_use]
-    pub fn new(action: RawAction) -> Self {
-        Self {
-            when: None,
-            timeout: None,
-            action,
-        }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -178,18 +199,7 @@ mod tests {
         assert!(task.on_error.is_none());
         assert!(task.timeout.is_none());
         assert!(task.with.is_empty());
-        assert!(task.output.is_empty());
+        assert!(task.extract.is_empty());
         assert!(task.returns.is_none());
-        assert!(task.on_finally.is_empty());
-    }
-
-    #[test]
-    fn finally_task_new() {
-        let action = RawAction::Exec(super::super::action::RawExecAction::new(span_str(
-            "rm -f x",
-        )));
-        let f = RawFinallyTask::new(action);
-        assert!(f.when.is_none());
-        assert!(f.timeout.is_none());
     }
 }

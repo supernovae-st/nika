@@ -118,6 +118,46 @@ fn is_task_boundary(line: &str) -> bool {
             .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_')
 }
 
+/// The producers this task attaches to as an UNWIND — every `X` in an
+/// `after: { X: unwind }` of the enclosing task. Declaration order. An
+/// unwind task is the one shape whose readable set does NOT follow the
+/// surface: it reads its producer from a verb body too, because the
+/// cleanup runs after that producer settled either way (spec 03 §the
+/// rest of the contract). Empty for every other task.
+pub(super) fn unwind_producers(text: &str, offset: usize) -> Vec<String> {
+    let mut out = Vec::new();
+    let mut seen_boundary = false;
+    for line in lines_upward(text, offset) {
+        if seen_boundary {
+            break;
+        }
+        if is_task_boundary(line) {
+            seen_boundary = true;
+        }
+        let body = line.split('#').next().unwrap_or("");
+        if !body.contains("unwind") {
+            continue;
+        }
+        for chunk in body.split(',') {
+            let Some((lhs, rhs)) = chunk.rsplit_once(':') else {
+                continue;
+            };
+            if rhs.trim().trim_end_matches(&['}', ' '][..]) != "unwind" {
+                continue;
+            }
+            let id = lhs
+                .trim()
+                .trim_start_matches(&['a', 'f', 't', 'e', 'r', ' ', '{'][..]);
+            let id = id.rsplit('{').next().unwrap_or(id).trim();
+            if !id.is_empty() && !out.contains(&id.to_owned()) {
+                out.push(id.to_owned());
+            }
+        }
+    }
+    out.reverse();
+    out
+}
+
 /// The `tool:` value of the invoke block enclosing `offset`, when the
 /// enclosing task declares one — the scan stops at the task boundary
 /// (`- id:`) so a PREVIOUS task's tool never leaks into this one.
@@ -360,7 +400,7 @@ pub(super) fn in_block_list_item(text: &str, offset: usize, key: &str) -> bool {
 mod tests {
     use super::*;
 
-    const DOC: &str = "nika: v1\nworkflow:\n  id: w\ntasks:\n  fetch_article:\n    invoke:\n      tool: nika:fetch\n      args:\n        url: \"https://x\"\n        \n  second:\n    exec:\n      command: [\"ls\"]\n";
+    const DOC: &str = "nika: w\ntasks:\n  fetch_article:\n    invoke:\n      tool: nika:fetch\n      args:\n        url: \"https://x\"\n        \n  second:\n    exec:\n      command: [\"ls\"]\n";
 
     #[test]
     fn current_task_is_the_nearest_id_above() {

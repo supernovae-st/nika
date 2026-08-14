@@ -160,11 +160,6 @@ pub fn skill_refs(wf: &RawWorkflow) -> Vec<(&str, &Spanned<String>)> {
         if let RawAction::Agent(a) = &task.value.action {
             out.extend(a.skills.iter().map(|s| (id, s)));
         }
-        for mini in &task.value.on_finally {
-            if let RawAction::Agent(a) = &mini.value.action {
-                out.extend(a.skills.iter().map(|s| (id, s)));
-            }
-        }
     }
     out
 }
@@ -438,7 +433,7 @@ mod tests {
         ];
         for (permits, label) in cases {
             let yaml = format!(
-                "nika: v1\nworkflow:\n  id: w\nmodel: mock/echo\n{permits}\
+                "nika: w\nmodel: mock/echo\n{permits}\
                  tasks:\n  a:\n    agent: {{ prompt: \"hi\", skills: [\"outside/SKILL.md\"] }}\n"
             );
             let wf = crate::parse(&yaml, crate::FileId::new(0), crate::ParseMode::Strict)
@@ -469,9 +464,7 @@ mod tests {
         // boundary, so it declares what it reaches (see the sibling test
         // `resolve_skills_refuses_a_path_outside_the_boundary`).
         let yaml = "\
-nika: v1
-workflow:
-  id: w
+nika: w
 model: mock/echo
 permits:
   fs:
@@ -539,44 +532,12 @@ tasks:
     #[test]
     fn resolve_skills_is_empty_for_a_skill_less_workflow() {
         let wf = crate::parse(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    exec: { command: [\"echo\", \"hi\"] }\n",
+            "nika: w\ntasks:\n  t:\n    exec: { command: [\"echo\", \"hi\"] }\n",
             crate::FileId::new(0),
             crate::ParseMode::Strict,
         )
         .expect("fixture parses");
         let resolved = resolve_skills(&wf, &mut |_| panic!("no reference → no read"));
         assert!(resolved.texts.is_empty() && resolved.findings.is_empty());
-    }
-
-    #[test]
-    fn skill_refs_walks_main_and_finally_actions() {
-        let yaml = "\
-nika: v1
-workflow:
-  id: w
-tasks:
-  a:
-    agent:
-      prompt: \"go\"
-      skills: [\"s1/SKILL.md\", \"s2/SKILL.md\"]
-  b:
-    exec: { command: [\"echo\", \"hi\"] }
-    on_finally:
-      - agent:
-          prompt: \"wrap up\"
-          skills: [\"s3/SKILL.md\"]
-";
-        let wf = crate::parse(yaml, crate::FileId::new(0), crate::ParseMode::Strict)
-            .expect("fixture parses");
-        let refs = skill_refs(&wf);
-        let flat: Vec<(&str, &str)> = refs.iter().map(|(id, s)| (*id, s.value.as_str())).collect();
-        assert_eq!(
-            flat,
-            vec![
-                ("a", "s1/SKILL.md"),
-                ("a", "s2/SKILL.md"),
-                ("b", "s3/SKILL.md"),
-            ]
-        );
     }
 }

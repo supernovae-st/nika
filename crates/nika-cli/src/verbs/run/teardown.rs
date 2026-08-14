@@ -49,20 +49,11 @@ fn teardown_fold(
     let mut teardown = nika_dap::seal::SealTeardown::new();
     teardown.proves = nika_runtime::proof::ir::semantic_ir_hash(wf).map(|h| h.as_hex().to_owned());
     teardown.certificate = serde_json::to_value(&report.certificate).ok();
-    // The judged-assertions fold mirrors the evidence pack's receipt
-    // (`level(true)` — the journal IS the trace).
-    teardown.assertions = wf
-        .assert
-        .iter()
-        .map(|sp| {
-            let property = sp.value.clone();
-            let level = property.level(true);
-            serde_json::json!({
-                "assert": property.name(),
-                "level": level.as_str(),
-            })
-        })
-        .collect();
+    // The judged-assertions fold is EMPTY by construction since the
+    // `assert:` key died (spec 15 · 2026-08-13): nothing mints an
+    // obligation any more. The field stays in the seal's wire shape —
+    // a reader that indexes it must keep finding it, and an empty array
+    // says exactly what happened: nothing was claimed.
     teardown.outcome = Some(
         if outcome.paused.is_some() {
             "paused"
@@ -159,7 +150,7 @@ mod tests {
     #[test]
     fn budgets_omit_spent_when_nothing_was_metered() {
         let wf = parsed(
-            "nika: v1\nworkflow:\n  id: t\npermits: { exec: [\"echo\"] }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
+            "nika: t\npermits: { exec: [\"echo\"] }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
         );
         let report = nika_check::check(&wf);
         let outcome = RunOutcome::new(true, BTreeMap::new(), BTreeMap::new());
@@ -186,7 +177,7 @@ mod tests {
     #[test]
     fn effects_count_effect_task_attempts_only() {
         let wf = parsed(
-            "nika: v1\nworkflow:\n  id: grain\nmodel: mock/echo\npermits: { exec: [\"echo\"] }\ntasks:\n  e:\n    exec: { command: [\"echo\", \"hi\"] }\n  i:\n    infer: { prompt: \"x\" }\n",
+            "nika: grain\nmodel: mock/echo\npermits: { exec: [\"echo\"] }\ntasks:\n  e:\n    exec: { command: [\"echo\", \"hi\"] }\n  i:\n    infer: { prompt: \"x\" }\n",
         );
         let report = nika_check::check(&wf);
         let mut records = BTreeMap::new();
@@ -221,7 +212,7 @@ mod tests {
     #[test]
     fn the_failure_lanes_quarantine_fold_rides_the_teardown() {
         let wf = parsed(
-            "nika: v1\nworkflow:\n  id: t\npermits: { exec: [\"echo\"] }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
+            "nika: t\npermits: { exec: [\"echo\"] }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
         );
         let report = nika_check::check(&wf);
         let outcome = RunOutcome::new(false, BTreeMap::new(), BTreeMap::new());
@@ -250,7 +241,7 @@ mod tests {
     #[test]
     fn a_clean_run_carries_no_quarantine() {
         let wf = parsed(
-            "nika: v1\nworkflow:\n  id: t\npermits: { exec: [\"echo\"] }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
+            "nika: t\npermits: { exec: [\"echo\"] }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
         );
         let report = nika_check::check(&wf);
         let outcome = RunOutcome::new(true, BTreeMap::new(), BTreeMap::new());
@@ -312,7 +303,7 @@ mod tests {
         assert_eq!(fold["stores"][0]["rejected"], serde_json::json!(1));
 
         let wf = parsed(
-            "nika: v1\nworkflow:\n  id: t\npermits: { exec: [\"echo\"] }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
+            "nika: t\npermits: { exec: [\"echo\"] }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
         );
         let report = nika_check::check(&wf);
         let outcome = RunOutcome::new(true, BTreeMap::new(), BTreeMap::new());

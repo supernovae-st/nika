@@ -28,7 +28,7 @@ analysis:
 - **`nika_check`** — statically audit a `*.nika.yaml` (schema · DAG · CEL ·
   effects · permits · cost) and return the full check report, or a clean
   verdict. Auditable before a token is spent.
-- **`nika_inspect`** — project the DAG as the canonical `graph_format: 2`
+- **`nika_inspect`** — project the DAG as the canonical `graph_format: 3`
   document (`nika-graph::project` VERBATIM — byte-equal with `nika inspect
   --format json` and the LSP's `nika/semanticDocument.graph`, both
   law-pinned). Findings → `{"graph": null, "reason": "findings"}` — never a

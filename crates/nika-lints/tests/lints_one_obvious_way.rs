@@ -117,9 +117,7 @@ fn lint_carries_message_and_suggestion() {
     // surface · the corpus pins rule/task only). W2 scenario: /010 —
     // a non-tightening `after: terminal` beside a value edge.
     let yaml = "\
-nika: v1
-workflow:
-  id: fshape
+nika: fshape
 tasks:
   a:
     exec: { command: [\"./a.sh\"] }
@@ -152,9 +150,7 @@ fn lints_008(yaml: &str) -> Vec<nika_lints::Lint> {
 #[test]
 fn rule_008_flags_interpolated_string_command_needing_no_shell() {
     let yaml = "\
-nika: v1
-workflow:
-  id: interp
+nika: interp
 tasks:
   produce:
     exec: { command: [\"./gen.sh\"] }
@@ -176,9 +172,7 @@ tasks:
 fn rule_008_silent_on_a_genuine_pipeline() {
     // A `|` means the author genuinely needs `/bin/sh -c` — keep the string.
     let yaml = "\
-nika: v1
-workflow:
-  id: pipe
+nika: pipe
 tasks:
   produce:
     exec: { command: [\"./gen.sh\"] }
@@ -192,9 +186,7 @@ tasks:
 #[test]
 fn rule_008_silent_on_the_array_form() {
     let yaml = "\
-nika: v1
-workflow:
-  id: argv
+nika: argv
 tasks:
   produce:
     exec: { command: [\"./gen.sh\"] }
@@ -212,9 +204,7 @@ tasks:
 #[test]
 fn rule_008_silent_without_interpolation() {
     let yaml = "\
-nika: v1
-workflow:
-  id: plain
+nika: plain
 tasks:
   build:
     exec: { command: [\"cargo\", \"build\", \"--release\"] }
@@ -237,13 +227,11 @@ fn lints_009(yaml: &str) -> Vec<nika_lints::Lint> {
 #[test]
 fn rule_009_flags_a_binding_that_ends_in_a_bare_iterator() {
     let yaml = "\
-nika: v1
-workflow:
-  id: stream
+nika: stream
 tasks:
   fetch:
     invoke: { tool: \"nika:read\", args: { path: \"u.json\" } }
-    output:
+    extract:
       emails: \".users[]\"
 ";
     let nine = lints_009(yaml);
@@ -261,13 +249,11 @@ tasks:
 fn rule_009_silent_on_a_collected_stream() {
     // `[.users[]]` collects into one array value — the obvious way.
     let yaml = "\
-nika: v1
-workflow:
-  id: collected
+nika: collected
 tasks:
   fetch:
     invoke: { tool: \"nika:read\", args: { path: \"u.json\" } }
-    output:
+    extract:
       emails: \"[.users[].email]\"
 ";
     assert!(
@@ -279,13 +265,11 @@ tasks:
 #[test]
 fn rule_009_silent_on_an_indexed_take() {
     let yaml = "\
-nika: v1
-workflow:
-  id: indexed
+nika: indexed
 tasks:
   fetch:
     invoke: { tool: \"nika:read\", args: { path: \"u.json\" } }
-    output:
+    extract:
       first_user: \".users[0]\"
 ";
     assert!(
@@ -299,13 +283,11 @@ fn rule_009_silent_on_an_empty_array_literal_default() {
     // `.users // []` ends in `[]` but it is an empty-array LITERAL default,
     // not an iterator — the low-false-positive contract must not flag it.
     let yaml = "\
-nika: v1
-workflow:
-  id: deflt
+nika: deflt
 tasks:
   fetch:
     invoke: { tool: \"nika:read\", args: { path: \"u.json\" } }
-    output:
+    extract:
       users: \".users // []\"
 ";
     assert!(

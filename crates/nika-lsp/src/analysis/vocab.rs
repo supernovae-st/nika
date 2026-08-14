@@ -59,11 +59,7 @@ pub const VERBS: &[Entry] = &[
 pub const TOP_LEVEL_KEYS: &[Entry] = &[
     Entry {
         name: "nika",
-        doc: "The language + contract version. Exactly `v1`. Required.",
-    },
-    Entry {
-        name: "workflow",
-        doc: "The workflow id (kebab-case). Required.",
+        doc: "The mark AND the file's name — kebab-case (`^[a-z][a-z0-9-]*$`). Required.",
     },
     Entry {
         name: "model",
@@ -72,10 +68,6 @@ pub const TOP_LEVEL_KEYS: &[Entry] = &[
     Entry {
         name: "inputs",
         doc: "Typed workflow inputs — caller-supplied declarations (`${{ inputs.X }}`).",
-    },
-    Entry {
-        name: "config",
-        doc: "Non-sensitive runtime config — deployment-supplied (`${{ config.X }}`).",
     },
     Entry {
         name: "const",
@@ -101,20 +93,8 @@ pub const TOP_LEVEL_KEYS: &[Entry] = &[
         doc: "The workflow's return contract — named values the run yields.",
     },
     Entry {
-        name: "policy",
-        doc: "Run-wide policy (retries · timeouts · concurrency) applied to every task.",
-    },
-    Entry {
-        name: "types",
-        doc: "Named schemas reusable by `inputs`, `outputs` and structured infer.",
-    },
-    Entry {
         name: "run",
         doc: "Run-level settings the engine reads before the DAG starts.",
-    },
-    Entry {
-        name: "assert",
-        doc: "Post-run assertions the engine evaluates against the outputs.",
     },
 ];
 
@@ -126,7 +106,8 @@ pub const TASK_FIELD_KEYS: &[Entry] = &[
         name: "after",
         doc: "The CONTROL boundary — `{producer: predicate}` map; each \
               entry is one control edge (success · failure · skipped · \
-              terminal).",
+              terminal) · plus `unwind`, the E_f cleanup attachment that \
+              never enters the precedence graph.",
     },
     Entry {
         name: "when",
@@ -138,14 +119,6 @@ pub const TASK_FIELD_KEYS: &[Entry] = &[
         name: "for_each",
         doc: "Map the task over a literal list or an upstream array output \
               (bounded fan-out).",
-    },
-    Entry {
-        name: "max_parallel",
-        doc: "Cap concurrent `for_each` iterations (≥ 1).",
-    },
-    Entry {
-        name: "fail_fast",
-        doc: "Abort the `for_each` on the first error (default true).",
     },
     Entry {
         name: "retry",
@@ -164,25 +137,26 @@ pub const TASK_FIELD_KEYS: &[Entry] = &[
         doc: "Task-scope variable injection (`${{ with.X }}`).",
     },
     Entry {
-        name: "output",
-        doc: "Named jq bindings over the verb's raw response.",
+        name: "extract",
+        doc: "Named jq bindings over the verb's raw response · read as `${{ tasks.X.<name> }}`.",
     },
     Entry {
-        name: "on_finally",
-        doc: "Cleanup mini-tasks that ALWAYS run after this task.",
+        name: "returns",
+        doc: "The OUTPUT CONTRACT · the type expression, INLINE. Absent = \
+              `Unknown` (gradual and honest). Never together with a \
+              verb-level `schema:` (`NIKA-TYPE-003`).",
     },
     Entry {
-        name: "declassify",
-        doc: "Declare a taint lift (NEP-0004 law 5 · the only door through \
-              the re-gate): `{from, to: trusted, because}` entries — \
-              check-visible and receipt-recorded, never a permit bypass.",
+        name: "group",
+        doc: "Fan-in MEMBERSHIP · this task joins the named set, and a consumer \
+              folds the whole set with one `${{ group.<name> }}` binding in its \
+              `with:`. Membership is DECLARED, never matched.",
     },
     Entry {
-        name: "inert",
-        doc: "Declare this task's fetch a code-bearing artifact it will \
-              never load or run (NEP-0006 · the data-as-code door): one \
-              non-empty justification string — lifts the sink law only, \
-              never the host boundary or the SSRF floor.",
+        name: "lift",
+        doc: "The authored doors · `[{law, from?, because}]` · one entry lifts \
+              exactly ONE named law (taint · data-as-code) with a mandatory \
+              reason. Never a permit bypass.",
     },
 ];
 
@@ -322,6 +296,26 @@ mod tests {
             ours, theirs,
             "the editor's top-level vocabulary must BE the parser's — \
              anything it offers that the parser refuses teaches a broken file"
+        );
+    }
+
+    #[test]
+    fn task_field_keys_mirror_the_parser() {
+        // DERIVED, never retyped — the sister of
+        // `top_level_keys_mirror_the_parser`. This gate was born the
+        // night the task shape moved (`max_parallel`/`fail_fast` went
+        // INSIDE `for_each`, `on_finally` died) and the editor kept
+        // offering all three: three keys the parser refuses outright,
+        // and one it admits (`returns`) that the editor never taught.
+        let mut ours: Vec<&str> = TASK_FIELD_KEYS.iter().map(|e| e.name).collect();
+        let mut theirs: Vec<&str> = nika_vocab::keys::TASK_KEYS.to_vec();
+        ours.sort_unstable();
+        theirs.sort_unstable();
+        assert_eq!(
+            ours, theirs,
+            "the editor's task vocabulary must BE the parser's — a key it \
+             offers that the parser refuses teaches a broken file, and a \
+             key it withholds is a field nobody discovers"
         );
     }
 

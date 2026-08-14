@@ -5,9 +5,10 @@
 //!
 //! The canonical v1 task field set is CLOSED (spec `03-dag.md`
 //! §forward-compat + NEP-0004 law 7's ONE grammar addition) · `with` ·
-//! `after` · `when` · `for_each` · `max_parallel` · `fail_fast` ·
-//! `retry` · `on_error` · `timeout` · `on_finally` · `output` ·
-//! `declassify` · plus exactly one verb key.
+//! `after` · `when` · `for_each` (a BLOCK · `items` + the two knobs) ·
+//! `retry` · `on_error` · `timeout` · `extract` · `lift` · `group` ·
+//! plus exactly one verb key. Cleanup is a TASK joined by an `unwind`
+//! edge now — `on_finally:` was a second grammar for a task body.
 
 use std::time::Duration;
 
@@ -15,7 +16,7 @@ use marked_yaml::types::MarkedMappingNode;
 use nika_vocab::after::predicate_refusal;
 
 use crate::error::SchemaError;
-use crate::raw::{ForEachValue, RawFinallyTask, RawTask};
+use crate::raw::RawTask;
 use crate::source::Spanned;
 use crate::types::{
     AfterPredicate, BackoffStrategy, OnError, OnErrorAction, RetryConfig, WhenGate,
@@ -33,28 +34,10 @@ use super::{Cx, validate_task_id};
 /// sub-workflows. Generous — no hand-written workflow approaches it.
 pub(super) const MAX_TASKS: usize = 10_000;
 
-/// The canonical task-level keys (verbs handled separately).
-const TASK_KEYS: &[&str] = &[
-    "after",
-    "when",
-    "for_each",
-    "max_parallel",
-    "fail_fast",
-    "retry",
-    "on_error",
-    "timeout",
-    "with",
-    "output",
-    "returns",
-    "on_finally",
-    "declassify",
-    "inert",
-];
-
-pub(crate) use nika_vocab::keys::{FINALLY_KEYS, ON_ERROR_KEYS, RETRY_KEYS};
+pub(crate) use nika_vocab::keys::{ON_ERROR_KEYS, RETRY_KEYS, TASK_KEYS};
 
 /// The `on_error:` ACTION keys (mutually exclusive · exactly one).
-const ON_ERROR_ACTION_KEYS: &[&str] = &["recover", "skip", "fail_workflow"];
+const ON_ERROR_ACTION_KEYS: &[&str] = &["recover", "skip"];
 
 /// Parse the top-level `tasks:` sequence into `Vec<Spanned<RawTask>>`.
 ///
@@ -174,18 +157,18 @@ fn parse_task(
 
     task.after = parse_after(cx, mapping, &task_label)?;
     task.when = parse_when(cx, mapping)?;
-    task.for_each = parse_for_each(cx, mapping)?;
-    task.max_parallel = parse_max_parallel(cx, mapping)?;
-    task.fail_fast = parse_bool_field(cx, mapping, "fail_fast")?;
+    let (for_each, max_parallel, fail_fast) = super::for_each::parse_for_each(cx, mapping)?;
+    task.for_each = for_each;
+    task.max_parallel = max_parallel;
+    task.fail_fast = fail_fast;
     task.retry = parse_retry(cx, mapping)?;
     task.on_error = parse_on_error(cx, mapping)?;
     task.timeout = parse_timeout(cx, mapping, "timeout")?;
     task.with = parse_with(cx, mapping)?;
-    task.output = parse_output_bindings(cx, mapping)?;
+    task.extract = parse_extract_bindings(cx, mapping)?;
     task.returns = parse_returns(cx, mapping)?;
-    task.on_finally = parse_on_finally(cx, mapping, &task_label)?;
-    task.declassify = super::declassify::parse_declassify(cx, mapping, &task_label)?;
-    task.inert = super::inert::parse_inert(cx, mapping, &task_label)?;
+    task.lift = super::lift::parse_lift(cx, mapping, &task_label)?;
+    task.group = parse_group(cx, mapping, &task_label)?;
 
     Ok(task)
 }
@@ -317,62 +300,48 @@ pub(super) fn parse_string_list(
     Ok(out)
 }
 
-/// `for_each:` — an expression string OR a literal YAML list (spec
-/// `03-dag.md` §`for_each` · « The collection is either a literal list
-/// or a reference to an upstream task's array output »).
-fn parse_for_each(
+/// `group:` — fan-in MEMBERSHIP (spec 03 §group). One name, matching
+/// `^[a-z][a-z0-9_]*$` like a task key. Membership only: it carries no
+/// predicate, no ordering and no data.
+///
+/// A group name MAY coincide with a task key — the roots disambiguate
+/// structurally (`group.probes` vs `tasks.probes`).
+fn parse_group(
     cx: &Cx<'_>,
     mapping: &MarkedMappingNode,
-) -> Result<Option<Spanned<ForEachValue>>, SchemaError> {
-    let Some(node) = mapping.get_node("for_each") else {
+    task_label: &str,
+) -> Result<Option<Spanned<String>>, SchemaError> {
+    let Some(node) = mapping.get_node("group") else {
         return Ok(None);
     };
-    let span = cx.span_or_zero(node.span());
-    if let Some(scalar) = node.as_scalar() {
-        return Ok(Some(Spanned::new(
-            ForEachValue::Expression(scalar.as_str().to_owned()),
-            span,
-        )));
-    }
-    if node.as_sequence().is_some() {
-        return Ok(Some(Spanned::new(
-            ForEachValue::List(json_value(cx, node)?),
-            span,
-        )));
-    }
-    Err(SchemaError::Validation {
-        message: "`for_each` must be a `${{ … }}` expression or a literal list".to_owned(),
-        span: cx.span(node.span()),
-    })
-}
-
-/// `max_parallel:` — positive integer ≥ 1 (spec 03 §`max_parallel` ·
-/// « **Positive integer** · `1` to `n`. `1` = sequential »).
-fn parse_max_parallel(
-    cx: &Cx<'_>,
-    mapping: &MarkedMappingNode,
-) -> Result<Option<Spanned<u32>>, SchemaError> {
-    let Some(node) = mapping.get_node("max_parallel") else {
-        return Ok(None);
-    };
-    let value = node
-        .as_scalar()
-        .and_then(marked_yaml::types::MarkedScalarNode::as_u32)
-        .ok_or_else(|| SchemaError::Validation {
-            message: "`max_parallel` must be a positive integer".to_owned(),
-            span: cx.span(node.span()),
-        })?;
-    if value == 0 {
+    let Some(scalar) = node.as_scalar() else {
         return Err(SchemaError::Validation {
-            message: "`max_parallel` must be ≥ 1".to_owned(),
+            message: format!("`group` on task `{task_label}` must be one name (a string)"),
+            span: cx.span(node.span()),
+        });
+    };
+    let name = scalar.as_str();
+    let shaped = name.chars().next().is_some_and(|c| c.is_ascii_lowercase())
+        && name
+            .chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_');
+    if !shaped {
+        return Err(SchemaError::Validation {
+            message: format!(
+                "invalid group name `{name}` on task `{task_label}` — must match \
+                 ^[a-z][a-z0-9_]*$ (snake_case, like a task key)"
+            ),
             span: cx.span(node.span()),
         });
     }
-    Ok(Some(Spanned::new(value, cx.span_or_zero(node.span()))))
+    Ok(Some(Spanned::new(
+        name.to_owned(),
+        cx.span_or_zero(node.span()),
+    )))
 }
 
 /// An optional boolean scalar field (`fail_fast:` · `retry.jitter:`).
-fn parse_bool_field(
+pub(super) fn parse_bool_field(
     cx: &Cx<'_>,
     mapping: &MarkedMappingNode,
     key: &str,
@@ -528,7 +497,7 @@ fn parse_retry(
 }
 
 /// `on_error:` — exactly one ACTION (`recover` | `skip: true` |
-/// `fail_workflow: true`) + the optional `on_codes:` filter (spec 05
+/// the optional `on_codes:` filter (spec 05
 /// §`on_error` · the catch-side mirror of `retry.on_codes`).
 fn parse_on_error(
     cx: &Cx<'_>,
@@ -543,7 +512,7 @@ fn parse_on_error(
         // action vocabulary, not just the type mismatch.
         return Err(SchemaError::BadOnError {
             reason: "`on_error` must be a mapping carrying exactly one action — \
-                     `recover:` · `skip: true` · `fail_workflow: true` \
+                     `recover:` · `skip: true` \
                      (e.g. `on_error: { skip: true }`)"
                 .to_owned(),
             span: cx.span(node.span()),
@@ -560,7 +529,7 @@ fn parse_on_error(
         [one] => *one,
         [] => {
             return Err(SchemaError::BadOnError {
-                reason: "exactly one of `recover`, `skip`, `fail_workflow` required (none found \
+                reason: "exactly one of `recover`, `skip` required (none found \
                          — `on_codes` alone is a filter with nothing to filter)"
                     .to_owned(),
                 span: cx.span(on_error_map.span()),
@@ -595,10 +564,15 @@ fn parse_on_error(
             require_true_flag(cx, on_error_map, "skip")?;
             OnErrorAction::Skip
         }
-        _ => {
-            require_true_flag(cx, on_error_map, "fail_workflow")?;
-            OnErrorAction::FailWorkflow
-        }
+        // The set is CLOSED at two: `fail_workflow: true` died with the
+        // spec's 3-modes→2 cut (2026-08-11). It only ever spelled the
+        // DEFAULT out loud, and a keyword whose whole job is to restate
+        // the absence of a keyword is a keyword that teaches nothing.
+        #[allow(
+            clippy::unreachable,
+            reason = "the exactly-one-of check above admits only the two arms"
+        )]
+        other => unreachable!("unknown on_error action: {other}"),
     };
 
     let mut policy = OnError::new(action);
@@ -619,7 +593,7 @@ fn parse_on_error(
     Ok(Some(Spanned::new(policy, cx.span_or_zero(node.span()))))
 }
 
-/// `skip:` / `fail_workflow:` carry the literal `true` (spec 05 syntax ·
+/// `skip:` carries the literal `true` (spec 05 syntax ·
 /// `skip: true`) — anything else is a shape error.
 fn require_true_flag(
     cx: &Cx<'_>,
@@ -670,23 +644,23 @@ fn parse_with(
     Ok(out)
 }
 
-/// `output:` — named jq bindings · key → jq expression string
-/// (spec 04 §output binding).
-fn parse_output_bindings(
+/// `extract:` — named jq bindings · key → jq expression string (spec 04
+/// §binding rules). The reserved-projection refusal is unchanged.
+fn parse_extract_bindings(
     cx: &Cx<'_>,
     mapping: &MarkedMappingNode,
 ) -> Result<super::SpannedEntries<String>, SchemaError> {
-    let Some(node) = mapping.get_node("output") else {
+    let Some(node) = mapping.get_node("extract") else {
         return Ok(Vec::new());
     };
-    let Some(output_map) = node.as_mapping() else {
+    let Some(extract_map) = node.as_mapping() else {
         return Err(SchemaError::Validation {
-            message: "`output` must be a YAML mapping of name → jq expression".to_owned(),
+            message: "`extract` must be a YAML mapping of name → jq expression".to_owned(),
             span: cx.span(node.span()),
         });
     };
-    let mut out = Vec::with_capacity(output_map.len());
-    for (key, value) in output_map.iter() {
+    let mut out = Vec::with_capacity(extract_map.len());
+    for (key, value) in extract_map.iter() {
         let Some(scalar) = value.as_scalar() else {
             return Err(SchemaError::Validation {
                 message: format!(
@@ -700,46 +674,6 @@ fn parse_output_bindings(
             Spanned::new(key.as_str().to_owned(), cx.span_or_zero(key.span())),
             Spanned::new(scalar.as_str().to_owned(), cx.span_or_zero(scalar.span())),
         ));
-    }
-    Ok(out)
-}
-
-/// `on_finally:` — a sequence of cleanup mini-tasks (spec 03 §`on_finally`).
-fn parse_on_finally(
-    cx: &Cx<'_>,
-    mapping: &MarkedMappingNode,
-    task_label: &str,
-) -> Result<Vec<Spanned<RawFinallyTask>>, SchemaError> {
-    let Some(node) = mapping.get_node("on_finally") else {
-        return Ok(Vec::new());
-    };
-    let Some(seq) = node.as_sequence() else {
-        return Err(SchemaError::Validation {
-            message: "`on_finally` must be a YAML sequence of cleanup tasks".to_owned(),
-            span: cx.span(node.span()),
-        });
-    };
-    let mut out = Vec::with_capacity(seq.len());
-    for item in seq.iter() {
-        let Some(cleanup_map) = item.as_mapping() else {
-            return Err(SchemaError::Validation {
-                message: "each `on_finally` entry must be a mapping".to_owned(),
-                span: cx.span(item.span()),
-            });
-        };
-        let mut known: Vec<&str> = FINALLY_KEYS.to_vec();
-        known.extend_from_slice(VERB_KEYS);
-        cx.check_unknown_keys(
-            cleanup_map,
-            &known,
-            &format!("on_finally of task `{task_label}`"),
-        )?;
-
-        let action = parse_verb(cx, cleanup_map, &format!("{task_label}.on_finally"))?;
-        let mut finally = RawFinallyTask::new(action);
-        finally.when = parse_when(cx, cleanup_map)?;
-        finally.timeout = parse_timeout(cx, cleanup_map, "timeout")?;
-        out.push(Spanned::new(finally, cx.span_or_zero(item.span())));
     }
     Ok(out)
 }
@@ -912,37 +846,6 @@ tasks:
     }
 
     #[test]
-    fn shipped_clause_policy_parses_with_the_real_grammar() {
-        // W4 « the authority » shipped the seed clause (spec 10) — the
-        // forward-compat anchor flips to its shipped twin: the REAL
-        // grammar nests rules under families, and a rule floated to the
-        // family level is a closed-set refusal (never a silent no-op).
-        let yaml = "\
-policy:
-  require:
-    human_gate_before: [exec]
-tasks:
-  t:
-    exec: { shell: echo hi }
-";
-        let wf = parse_strict(yaml).expect("policy with the real grammar parses");
-        assert!(wf.policy.is_some());
-
-        let floated = "\
-policy:
-  human_gate_before: [exec]
-tasks:
-  t:
-    exec: { shell: echo hi }
-";
-        let err = parse_strict(floated).expect_err("a rule is not a family");
-        assert!(
-            err.to_string().contains("human_gate_before") && err.to_string().contains("require"),
-            "{err:?}"
-        );
-    }
-
-    #[test]
     fn after_when_for_each() {
         let yaml = "\
 tasks:
@@ -950,8 +853,8 @@ tasks:
     exec: { shell: echo a }
   b:
     after: { a: success }
-    when: ${{ vars.flag == true }}
-    for_each: ${{ vars.items }}
+    when: ${{ inputs.flag == true }}
+    for_each: { items: \"${{ inputs.items }}\" }
     exec: { shell: echo b }
 ";
         let wf = parse_strict(yaml).expect("parse");
@@ -961,11 +864,11 @@ tasks:
         assert_eq!(b.after[0].1.value, AfterPredicate::Success);
         assert_eq!(
             b.when.as_ref().expect("when").value,
-            WhenGate::Expr("${{ vars.flag == true }}".into())
+            WhenGate::Expr("${{ inputs.flag == true }}".into())
         );
         assert_eq!(
             b.for_each.as_ref().expect("for_each").value,
-            crate::raw::ForEachValue::Expression("${{ vars.items }}".into())
+            crate::raw::ForEachValue::Expression("${{ inputs.items }}".into())
         );
     }
 
@@ -1009,7 +912,7 @@ tasks:
         };
         assert!(message.contains("is not a predicate"), "{message}");
         assert!(
-            message.contains("success · failure · skipped · terminal"),
+            message.contains("success · failure · skipped · terminal · unwind"),
             "{message}"
         );
         assert_eq!(err.spec_code().to_string(), "NIKA-DAG-005");
@@ -1020,9 +923,10 @@ tasks:
         let yaml = "\
 tasks:
   scrape_all:
-    for_each: ${{ vars.urls }}
-    max_parallel: 5
-    fail_fast: false
+    for_each:
+      items: \"${{ inputs.urls }}\"
+      max_parallel: 5
+      fail_fast: false
     exec: { command: [echo] }
 ";
         let task = one_task(yaml);
@@ -1032,10 +936,15 @@ tasks:
 
     #[test]
     fn max_parallel_zero_errors() {
+        // the knob only exists inside the block now — a task-level
+        // `max_parallel:` is an unknown field, and a zero inside the
+        // block is still the >= 1 refusal
         let yaml = "\
 tasks:
   x:
-    max_parallel: 0
+    for_each:
+      items: [1]
+      max_parallel: 0
     exec: { command: [echo] }
 ";
         let err = parse_strict(yaml).expect_err("zero");
@@ -1218,25 +1127,27 @@ tasks:
     }
 
     #[test]
-    fn on_error_skip_and_fail_workflow() {
+    fn on_error_skip_parses_and_fail_workflow_is_refused() {
         let yaml = "\
 tasks:
   a:
     exec: { command: [echo] }
     on_error: { skip: true }
-  b:
-    exec: { command: [echo] }
-    on_error: { fail_workflow: true }
 ";
         let wf = parse_strict(yaml).expect("parse");
         assert!(matches!(
             wf.tasks[0].value.on_error.as_ref().expect("a").value.action,
             OnErrorAction::Skip
         ));
-        assert!(matches!(
-            wf.tasks[1].value.on_error.as_ref().expect("b").value.action,
-            OnErrorAction::FailWorkflow
-        ));
+        // The third mode died 2026-08-11 (3 modes → 2): it only ever
+        // spelled the DEFAULT out loud, and the default needs no keyword.
+        let dead = "\
+tasks:
+  b:
+    exec: { command: [echo] }
+    on_error: { fail_workflow: true }
+";
+        assert!(parse_strict(dead).is_err(), "the dead mode is refused");
     }
 
     #[test]
@@ -1269,7 +1180,7 @@ tasks:
     exec: { command: [echo] }
     on_error:
       skip: true
-      fail_workflow: true
+      recover: 0
 ";
         let err = parse_strict(yaml).expect_err("two fields");
         assert!(matches!(err, SchemaError::BadOnError { .. }), "{err:?}");
@@ -1408,44 +1319,14 @@ tasks:
     invoke:
       tool: \"nika:fetch\"
       args: { url: \"https://api.example.com/data\" }
-    output:
+    extract:
       user_count: \".data.users | length\"
       first_user: \".data.users[0]\"
 ";
         let task = one_task(yaml);
-        assert_eq!(task.output.len(), 2);
-        assert_eq!(task.output[0].0.value, "user_count");
-        assert_eq!(task.output[0].1.value, ".data.users | length");
-    }
-
-    #[test]
-    fn on_finally_mini_tasks() {
-        // Spec 03 §on_finally + example 16.
-        let yaml = "\
-tasks:
-  test:
-    timeout: \"5m\"
-    exec:
-      shell: \"cargo test\"
-    on_finally:
-      - exec:
-          shell: \"rm -rf /tmp/x\"
-      - when: ${{ tasks.test.status == 'failed' }}
-        timeout: \"10s\"
-        invoke:
-          tool: nika:emit
-          args: { event: \"done\" }
-";
-        let task = one_task(yaml);
-        assert_eq!(task.on_finally.len(), 2);
-        assert!(task.on_finally[0].value.when.is_none());
-        let second = &task.on_finally[1].value;
-        assert!(second.when.is_some());
-        assert_eq!(
-            second.timeout.as_ref().expect("timeout").value,
-            Duration::from_secs(10)
-        );
-        assert!(matches!(second.action, RawAction::Invoke(_)));
+        assert_eq!(task.extract.len(), 2);
+        assert_eq!(task.extract[0].0.value, "user_count");
+        assert_eq!(task.extract[0].1.value, ".data.users | length");
     }
 
     #[test]

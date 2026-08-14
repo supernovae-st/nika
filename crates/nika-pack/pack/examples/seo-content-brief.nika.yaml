@@ -10,10 +10,10 @@
 # Demonstrates ·
 #   - `mode: sitemap` then `mode: article` · two fetch extractions chained,
 #     the second one reading a URL the first one found
-#   - `output:` jq bindings · `.[:5] | map(.loc)` slices the sitemap's ROOT
+#   - `extract:` jq bindings · `.[:5] | map(.loc)` slices the sitemap's ROOT
 #     ARRAY down to the URLs, so the next task gets a list, not a document
 #   - `on_error: recover:` on BOTH fetches · a recovered value stands in for
-#     the RAW response and the `output:` jq still runs over it, so the sample
+#     the RAW response and the `extract:` jq still runs over it, so the sample
 #     below mirrors a sitemap's shape, not the binding's. Get that backwards
 #     and the recovery itself dies NIKA-VAR-004 · jq runtime error (measured,
 #     while writing this file). Same bindings on both paths — so the file runs
@@ -28,10 +28,7 @@
 #   `--var topic=your-keyword` picks the target (slug-shaped · see `inputs:`).
 #   Offline rehearsal (zero key, deterministic) · add `--model mock/echo`.
 
-nika: v1
-workflow:
-  id: seo-content-brief
-  description: "Competitor sitemap → top page → gap analysis → typed brief"
+nika: seo-content-brief
 
 # A NON-thinking local model, deliberately: a thinking model can spend the
 # whole `max_tokens` budget in its think block and return before the JSON
@@ -71,11 +68,11 @@ tasks:
       args:
         url: "${{ const.competitor_sitemap }}"
         mode: sitemap
-    output:
+    extract:
       top: ".[:5] | map(.loc)"
     on_error:
       # The recovery stands in for the RAW response, so it has the shape a
-      # sitemap fetch returns — a root array of {loc, …} — and the `output:`
+      # sitemap fetch returns — a root array of {loc, …} — and the `extract:`
       # jq above slices it exactly as it would slice the live one. Recover the
       # BINDING's shape instead and the jq runs against the wrong thing and
       # throws NIKA-VAR-004.
@@ -137,11 +134,11 @@ tasks:
     # The topic names the output file, and an input is UNTRUSTED by default —
     # NEP-0004 law 2 re-gates the composed path at check (NIKA-AUTH-008). The
     # authored door says why THIS value is safe: the receipt records the taint
-    # path · this because · the value digest, and the declassified value must
+    # path · this because · the value digest, and the lifted value must
     # STILL fit fs.write ["out/briefs/*.json"] — a door, never a bypass.
-    declassify:
-      - from: inputs.topic
-        to: trusted
+    lift:
+      - law: taint
+        from: inputs.topic
         because: "the operator's own brief subject, typed at launch — it names the output file, nothing else"
 
 outputs:

@@ -128,7 +128,7 @@ mod tests {
         .expect("fixture parses")
     }
 
-    const BASE: &str = "nika: v1\nworkflow:\n  id: demo\ntasks:\n  a:\n    exec: { command: [\"echo\", \"x\"] }\n  b:\n    with: { p: \"${{ tasks.a.output }}\" }\n    exec: { command: [\"echo\", \"${{ with.p }}\"] }\n";
+    const BASE: &str = "nika: demo\ntasks:\n  a:\n    exec: { command: [\"echo\", \"x\"] }\n  b:\n    with: { p: \"${{ tasks.a.output }}\" }\n    exec: { command: [\"echo\", \"${{ with.p }}\"] }\n";
 
     #[test]
     fn the_root_commits_to_every_task_leaf() {
@@ -160,8 +160,8 @@ mod tests {
         // Two files that MEAN the same workflow (authored `with:` order is not
         // behavior · spec 15) lower to the SAME semantic hash — semantic, not
         // textual. This is the property the cache/resume re-key rides.
-        const AB: &str = "nika: v1\nworkflow:\n  id: demo\ntasks:\n  t:\n    with: { a: \"1\", b: \"2\" }\n    exec: { command: [\"echo\", \"${{ with.a }}${{ with.b }}\"] }\n";
-        const BA: &str = "nika: v1\nworkflow:\n  id: demo\ntasks:\n  t:\n    with: { b: \"2\", a: \"1\" }\n    exec: { command: [\"echo\", \"${{ with.a }}${{ with.b }}\"] }\n";
+        const AB: &str = "nika: demo\ntasks:\n  t:\n    with: { a: \"1\", b: \"2\" }\n    exec: { command: [\"echo\", \"${{ with.a }}${{ with.b }}\"] }\n";
+        const BA: &str = "nika: demo\ntasks:\n  t:\n    with: { b: \"2\", a: \"1\" }\n    exec: { command: [\"echo\", \"${{ with.a }}${{ with.b }}\"] }\n";
         let ab = semantic_ir_hash(&parse(AB)).expect("projectable");
         let ba = semantic_ir_hash(&parse(BA)).expect("projectable");
         assert_eq!(ab, ba, "authored map order is not semantic identity");
@@ -169,8 +169,8 @@ mod tests {
 
     #[test]
     fn task_order_does_not_change_the_root() {
-        const AB: &str = "nika: v1\nworkflow:\n  id: demo\ntasks:\n  a:\n    exec: { command: [\"echo\", \"1\"] }\n  b:\n    exec: { command: [\"echo\", \"2\"] }\n";
-        const BA: &str = "nika: v1\nworkflow:\n  id: demo\ntasks:\n  b:\n    exec: { command: [\"echo\", \"2\"] }\n  a:\n    exec: { command: [\"echo\", \"1\"] }\n";
+        const AB: &str = "nika: demo\ntasks:\n  a:\n    exec: { command: [\"echo\", \"1\"] }\n  b:\n    exec: { command: [\"echo\", \"2\"] }\n";
+        const BA: &str = "nika: demo\ntasks:\n  b:\n    exec: { command: [\"echo\", \"2\"] }\n  a:\n    exec: { command: [\"echo\", \"1\"] }\n";
         assert_eq!(
             semantic_ir_hash(&parse(AB)).expect("projectable"),
             semantic_ir_hash(&parse(BA)).expect("projectable"),
@@ -181,7 +181,7 @@ mod tests {
     #[test]
     fn the_workflow_id_participates_in_the_root() {
         let a = semantic_ir_hash(&parse(BASE)).expect("projectable");
-        let renamed = BASE.replace("id: demo", "id: other");
+        let renamed = BASE.replace("nika: demo", "nika: other");
         let b = semantic_ir_hash(&parse(&renamed)).expect("projectable");
         assert_ne!(a, b, "the workflow id is part of the identity");
     }
@@ -196,23 +196,15 @@ mod tests {
     #[test]
     fn a_run_receipt_folds_the_engine_certificate_and_verifies() {
         use nika_proof::receipt::{build_run_receipt, verify};
-        use nika_schema::types::AssertProperty;
         use serde_json::json;
 
-        let wf = parse(
-            "nika: v1\nworkflow:\n  id: pay\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
-        );
+        let wf = parse("nika: pay\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n");
         let report = nika_check::check(&wf);
         let proves = semantic_ir_hash(&wf).expect("projectable");
-
-        // Judge one obligation at its honest level (no_secret_egress is static).
-        let property = AssertProperty::NoSecretEgress;
-        let judged = vec![(property.clone(), property.level(false))];
 
         let receipt = build_run_receipt(
             &proves,
             &report.certificate,
-            &judged,
             json!({ "outcome": "success" }),
             "blake3:lockdigest",
         );
@@ -227,12 +219,9 @@ mod tests {
             receipt["certificate"].is_object(),
             "the RunCertificate is folded, not a placeholder"
         );
-        // The judged assertion rides with its honest level.
-        assert_eq!(
-            receipt["assertions"][0]["assert"],
-            json!("no_secret_egress")
-        );
-        assert_eq!(receipt["assertions"][0]["level"], json!("StaticProof"));
+        // No obligation can be minted since `assert:` died — the array
+        // is present (readers index it) and empty (nothing was claimed).
+        assert_eq!(receipt["assertions"], json!([]));
         assert_eq!(receipt["lock_digest"], json!("blake3:lockdigest"));
         // It does NOT verify against a different workflow's identity.
         assert!(!verify(&receipt, "blake3:someotherworkflow"));
@@ -244,26 +233,22 @@ mod tests {
 
     /// The rich fixture's YAML — one const so the receipt, the proves
     /// and the golden can never drift apart.
-    const RICH_YAML: &str = "nika: v1\nworkflow:\n  id: pay\nmodel: anthropic/claude-sonnet-4-6\npermits:\n  exec: [\"ls\", \"echo\"]\n  tools: [\"nika:log\"]\ntasks:\n  src:\n    exec: { command: [\"ls\"] }\n  fan:\n    with: { items: \"${{ tasks.src.output.files }}\" }\n    for_each: ${{ with.items }}\n    retry: { max_attempts: 2 }\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 200 }\n    on_finally:\n      - invoke: { tool: \"nika:log\", args: { message: \"done\" } }\n";
+    const RICH_YAML: &str = "nika: pay\nmodel: anthropic/claude-sonnet-4-6\npermits:\n  exec: [\"ls\", \"echo\"]\n  tools: [\"nika:log\"]\ntasks:\n  src:\n    exec: { command: [\"ls\"] }\n  fan:\n    with: { items: \"${{ tasks.src.output.files }}\" }\n    for_each: { items: \"${{ with.items }}\" }\n    retry: { max_attempts: 2 }\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 200 }\n  fan_cleanup:\n    after: { fan: unwind }\n    invoke: { tool: \"nika:log\", args: { message: \"done\" } }\n";
 
     /// A receipt whose certificate exercises EVERY field family: a
     /// `for_each` expression (parametric terms) · a retry · a declared
     /// boundary (the effects projection) · an `on_finally` cleanup.
     fn rich_receipt() -> Value {
         use nika_proof::receipt::build_run_receipt;
-        use nika_schema::types::AssertProperty;
         use serde_json::json;
 
         let wf = parse(RICH_YAML);
         let report = nika_check::check(&wf);
         assert!(report.is_clean(), "the fixture is clean: {report:?}");
         let proves = semantic_ir_hash(&wf).expect("projectable");
-        let property = AssertProperty::NoSecretEgress;
-        let judged = vec![(property.clone(), property.level(false))];
         build_run_receipt(
             &proves,
             &report.certificate,
-            &judged,
             json!({
                 "outcome": "completed",
                 "chain": "intact",
@@ -417,12 +402,12 @@ digest       DIGEST — the self-binding digest — verify recomputes it over th
 lock_digest  blake3:lockdigest — the nika.lock digest the run resolved under (unrecorded when the journal never carried it)
 
 certificate — the check-time resource certificate folded into this receipt
-  task_attempts  ≤ 1 + 2·|fan| — upper bound on task-body executions (attempts × fan-out)
+  task_attempts  ≤ 2 + 2·|fan| — upper bound on task-body executions (attempts × fan-out)
   llm_calls      ≤ 0 + 2·|fan| — upper bound on LLM calls (infer + agent turns)
-  effect_calls   ≤ 1 + 1·|fan| — upper bound on effect calls (exec + invoke dispatches)
+  effect_calls   ≤ 2 — upper bound on effect calls (exec + invoke dispatches)
   usd_micros     ≤ 0 + 6000·|fan| — the parametric spend bound in micro-USD (absent when unpriceable)
-  span_attempts  3 — the longest sequential dependency chain, in attempts (the span)
-  derivation     2 witness rows — the per-task witness rows the audit re-checks
+  span_attempts  4 — the longest sequential dependency chain, in attempts (the span)
+  derivation     3 witness rows — the per-task witness rows the audit re-checks
   effects        boundary declared · 0 escapes — the authority projection (spec 10 · re-derived at audit, never trusted)
 
 trace_verdict — the trace-verify result folded into this receipt
@@ -432,8 +417,7 @@ trace_verdict — the trace-verify result folded into this receipt
   head       ab12 — the chain head the verdict names
   sealed     true — whether the journal is sealed (attributable)
 
-assertions  1 judged — the assert: obligations, each judged at its honest level
-  no_secret_egress  StaticProof
+assertions  none — no obligation was claimed (the `assert:` key died 2026-08-13)
 ";
         let normalized = text
             .replace(&rich_proves(), "PROVES")

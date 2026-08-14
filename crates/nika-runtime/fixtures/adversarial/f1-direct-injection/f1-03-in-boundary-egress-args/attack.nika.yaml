@@ -7,9 +7,7 @@
 # egress is a MODEL-CHOSEN arg inside the agent loop, and the permit COVERS
 # its host — a re-gate matches, it cannot judge. In-boundary exfiltration is
 # the confidentiality axis (the trifecta lane · F-O10), declared residual.
-nika: v1
-workflow:
-  id: f1-03-in-boundary-egress-args
+nika: f1-03-in-boundary-egress-args
 model: mock/echo
 permits:
   net: { http: ["news.example", "api.example.com"] }

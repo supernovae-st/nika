@@ -19,10 +19,7 @@
 # Run · nika run examples/meeting-actions.nika.yaml
 #   Offline rehearsal (zero key, deterministic) · add `--model mock/echo`.
 
-nika: v1
-workflow:
-  id: meeting-actions
-  description: "Transcript → typed action items {owner, task, due} · ready to paste into an email or tracker"
+nika: meeting-actions
 
 # A NON-thinking local model, deliberately: a thinking model can spend the
 # whole `max_tokens` budget in its think block and return before the JSON

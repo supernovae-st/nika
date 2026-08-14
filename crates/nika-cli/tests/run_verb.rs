@@ -28,9 +28,7 @@ fn fixture(name: &str, yaml: &str) -> std::path::PathBuf {
 }
 
 const OK_EXEC: &str = r#"
-nika: v1
-workflow:
-  id: run-ok
+nika: run-ok
 permits: { exec: ["echo"] }
 tasks:
   greet:
@@ -42,9 +40,7 @@ tasks:
 "#;
 
 const FAILING: &str = r#"
-nika: v1
-workflow:
-  id: run-fail
+nika: run-fail
 permits: { exec: ["false"] }
 tasks:
   boom:
@@ -52,9 +48,7 @@ tasks:
 "#;
 
 const CYCLE: &str = r#"
-nika: v1
-workflow:
-  id: run-cycle
+nika: run-cycle
 permits: { exec: ["true"] }
 tasks:
   a:
@@ -68,9 +62,7 @@ tasks:
 "#;
 
 const INFER: &str = r#"
-nika: v1
-workflow:
-  id: run-infer
+nika: run-infer
 model: mock/echo
 tasks:
   think:
@@ -267,9 +259,7 @@ fn try_unknown_slug_is_a_finding() {
 /// `needle` is `required: true` with no `default:` — without `--var` the
 /// run must refuse at ADMISSION, before wave 1 spends a task.
 fn required_input_wf(out_path: &std::path::Path) -> String {
-    r#"nika: v1
-workflow:
-  id: req-input-admission
+    r#"nika: req-input-admission
 inputs:
   needle: { type: string, required: true }
 permits:
@@ -369,9 +359,7 @@ fn a_var_override_satisfies_the_required_input() {
 #[test]
 fn a_wait_done_agent_errors_once_then_completes_via_done() {
     const WAIT_DONE: &str = r#"
-nika: v1
-workflow:
-  id: run-agent-mock-done
+nika: run-agent-mock-done
 model: mock/echo
 permits:
   tools: ["nika:wait", "nika:done"]

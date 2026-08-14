@@ -88,7 +88,7 @@ async fn declared_boundary_attaches_the_sandbox_spec_to_exec() {
     };
     use nika_providers::{ProviderRegistry, ProvidersConfig};
 
-    let yaml = "nika: v1\nworkflow:\n  id: jail\npermits:\n  fs: { read: [\"./data/**\"], write: [\"./out/**\"] }\n  exec: [\"echo\"]\ntasks:\n  t:\n    exec: { command: [\"echo\", \"x\"] }\n";
+    let yaml = "nika: jail\npermits:\n  fs: { read: [\"./data/**\"], write: [\"./out/**\"] }\n  exec: [\"echo\"]\ntasks:\n  t:\n    exec: { command: [\"echo\", \"x\"] }\n";
     let wf = nika_schema::parse(
         yaml,
         nika_schema::FileId::new(0),
@@ -146,12 +146,12 @@ async fn code_bearing_fetch_refuses_at_run_and_the_inert_door_opens() {
     };
     use nika_providers::{ProviderRegistry, ProvidersConfig};
 
-    let base = "nika: v1\nworkflow:\n  id: sinkrun\npermits:\n  net: { http: [\"data.example.com\"] }\n  tools: [\"nika:jq\", \"nika:fetch\"]\ntasks:\n  name:\n    invoke:\n      tool: \"nika:jq\"\n      args: { input: \"https://data.example.com/models/legacy.pkl\", expression: \".\" }\n  grab:\n    with: { u: \"${{ tasks.name.output }}\" }\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"${{ with.u }}\" }\n";
+    let base = "nika: sinkrun\npermits:\n  net: { http: [\"data.example.com\"] }\n  tools: [\"nika:jq\", \"nika:fetch\"]\ntasks:\n  name:\n    invoke:\n      tool: \"nika:jq\"\n      args: { input: \"https://data.example.com/models/legacy.pkl\", expression: \".\" }\n  grab:\n    with: { u: \"${{ tasks.name.output }}\" }\n    invoke:\n      tool: \"nika:fetch\"\n      args: { url: \"${{ with.u }}\" }\n";
     for (inert, expect_calls) in [(false, 1_usize), (true, 2_usize)] {
         let yaml = if inert {
             base.replace(
                 "      args: { url: \"${{ with.u }}\" }\n",
-                "      args: { url: \"${{ with.u }}\" }\n    inert: \"archived for provenance · never loaded\"\n",
+                "      args: { url: \"${{ with.u }}\" }\n    lift:\n      - law: data-as-code\n        because: \"archived for provenance · never loaded\"\n",
             )
         } else {
             base.to_owned()
@@ -232,8 +232,8 @@ async fn permit_witness_frames_ride_the_journal() {
     // (allowed, yaml): the allow case is a static echo under its permit;
     // the deny case derives the program from a task output — the static
     // judge DEFERS (dynamic command), the runtime gate refuses `curl`.
-    let allow_yaml = "nika: v1\nworkflow:\n  id: witness\npermits:\n  exec: [\"echo\"]\ntasks:\n  stamp:\n    exec: { command: [\"echo\", \"ok\"] }\n";
-    let deny_yaml = "nika: v1\nworkflow:\n  id: witness\npermits:\n  exec: [\"echo\"]\n  tools: [\"nika:jq\"]\ntasks:\n  name:\n    invoke:\n      tool: \"nika:jq\"\n      args: { input: \"curl ok\", expression: \".\" }\n  stamp:\n    with: { c: \"${{ tasks.name.output }}\" }\n    exec: { command: [\"${{ with.c }}\", \"ok\"] }\n";
+    let allow_yaml = "nika: witness\npermits:\n  exec: [\"echo\"]\ntasks:\n  stamp:\n    exec: { command: [\"echo\", \"ok\"] }\n";
+    let deny_yaml = "nika: witness\npermits:\n  exec: [\"echo\"]\n  tools: [\"nika:jq\"]\ntasks:\n  name:\n    invoke:\n      tool: \"nika:jq\"\n      args: { input: \"curl ok\", expression: \".\" }\n  stamp:\n    with: { c: \"${{ tasks.name.output }}\" }\n    exec: { command: [\"${{ with.c }}\", \"ok\"] }\n";
     for (allowed, yaml) in [(true, allow_yaml), (false, deny_yaml)] {
         let wf = nika_schema::parse(
             yaml,
@@ -325,7 +325,7 @@ async fn declared_env_passthrough_rides_the_exec_command() {
     };
     use nika_providers::{ProviderRegistry, ProvidersConfig};
 
-    let yaml = "nika: v1\nworkflow:\n  id: envpass\npermits:\n  exec: [\"echo\"]\n  env: [\"CI_COMMIT_SHA\", \"CI_JOB_ID\"]\ntasks:\n  t:\n    exec:\n      command: [\"echo\", \"x\"]\n      env:\n        AUTHORED: \"lit\"\n";
+    let yaml = "nika: envpass\npermits:\n  exec: [\"echo\"]\n  env: [\"CI_COMMIT_SHA\", \"CI_JOB_ID\"]\ntasks:\n  t:\n    exec:\n      command: [\"echo\", \"x\"]\n      env:\n        AUTHORED: \"lit\"\n";
     let wf = nika_schema::parse(
         yaml,
         nika_schema::FileId::new(0),
@@ -382,7 +382,7 @@ async fn absent_permits_refuses_the_exec_before_spawn() {
     };
     use nika_providers::{ProviderRegistry, ProvidersConfig};
 
-    let yaml = "nika: v1\nworkflow:\n  id: floor\ntasks:\n  t:\n    exec: { command: [\"echo\", \"x\"] }\n";
+    let yaml = "nika: floor\ntasks:\n  t:\n    exec: { command: [\"echo\", \"x\"] }\n";
     let wf = nika_schema::parse(
         yaml,
         nika_schema::FileId::new(0),
@@ -436,7 +436,7 @@ async fn wave_settles_stream_before_the_join() {
     use nika_providers::{ProviderRegistry, ProvidersConfig};
     use std::sync::atomic::AtomicBool;
 
-    let yaml = "nika: v1\nworkflow:\n  id: stream-settle\npermits: { exec: [\"true\"], tools: [\"nika:jq\"] }\ntasks:\n  fast:\n    exec: { command: [\"true\"] }\n  gate:\n    invoke: { tool: \"nika:jq\", args: { input: [], expression: \".gate\" } }\n";
+    let yaml = "nika: stream-settle\npermits: { exec: [\"true\"], tools: [\"nika:jq\"] }\ntasks:\n  fast:\n    exec: { command: [\"true\"] }\n  gate:\n    invoke: { tool: \"nika:jq\", args: { input: [], expression: \".gate\" } }\n";
     let wf = nika_schema::parse(
         yaml,
         nika_schema::FileId::new(0),
@@ -502,7 +502,7 @@ async fn wave_settles_stream_before_the_join() {
 /// shell mock's OUTPUT is the secret's value, the same bytes a
 /// file-sourced `cat` or an mcp echo would surface. `outputs:` returns
 /// that value, so ONE fixture exercises both lanes it can ride.
-const LEAK_YAML: &str = "nika: v1\nworkflow:\n  id: journal-hygiene\npermits: { exec: [\"echo\"] }\nsecrets:\n  tok: { source: env, key: NIKA_TOK }\ntasks:\n  leak:\n    exec: { command: [\"echo\", \"data\"] }\noutputs:\n  returned: ${{ tasks.leak.output }}\n";
+const LEAK_YAML: &str = "nika: journal-hygiene\npermits: { exec: [\"echo\"] }\nsecrets:\n  tok: { source: env, key: NIKA_TOK }\ntasks:\n  leak:\n    exec: { command: [\"echo\", \"data\"] }\noutputs:\n  returned: ${{ tasks.leak.output }}\n";
 
 /// The FIRST lane: every event the journal, the `--json` trace and the
 /// live fold mirror byte for byte. Extracted so its sibling below has
@@ -661,16 +661,13 @@ fn envelope_values_carries_typed_defaults_and_containers() {
     // The v1 string-only view dropped typed list defaults — the
     // value model must carry them (for_each collections · spec 03).
     let yaml = r#"
-nika: v1
-workflow:
-  id: vals
-config:
-  API_BASE: { type: string, default: "https://api.example.test" }
+nika: vals
+inputs:
+  API_BASE: { type: string, required: false, default: "https://api.example.test" }
+  topic: { type: string, required: false, default: "news" }
 const:
   plain: "text"
   urls: ["a", "b"]
-inputs:
-  topic: { type: string, default: "news" }
 tasks:
   t:
     exec: { command: ["true"] }
@@ -683,13 +680,12 @@ tasks:
     .expect("parses");
     let EnvelopeValues {
         inputs,
-        config,
         consts,
         workflow_name: name,
     } = envelope_values(&wf, &BTreeMap::new());
     assert_eq!(name, "vals");
     assert_eq!(
-        config["API_BASE"],
+        inputs["API_BASE"],
         Value::String("https://api.example.test".into())
     );
     assert_eq!(inputs["topic"], Value::String("news".into()));
@@ -702,9 +698,7 @@ fn typed_output_type_mismatch_is_a_var009() {
     // `outputs.n: { type: string }` — when the resolved value is a number
     // the callable contract is broken (spec 01 §engine-MUST rule 6).
     let yaml = r#"
-nika: v1
-workflow:
-  id: typed-out
+nika: typed-out
 tasks:
   t:
     invoke: { tool: "nika:jq", args: { input: { x: 42 }, expression: ".x" } }
@@ -1236,7 +1230,7 @@ mod tools_permits_tests {
     #[tokio::test]
     async fn invoke_outside_tools_boundary_is_unmasked_at_the_trust_gate() {
         let (wf, report) = forged_clean_report(
-            "nika: v1\nworkflow:\n  id: tools-deny\npermits: { tools: [\"nika:read\"] }\ntasks:\n  danger:\n    invoke: { tool: \"nika:write\", args: { path: \"x\", content: \"y\" } }\n",
+            "nika: tools-deny\npermits: { tools: [\"nika:read\"] }\ntasks:\n  danger:\n    invoke: { tool: \"nika:write\", args: { path: \"x\", content: \"y\" } }\n",
             "permits: { tools: [\"nika:read\", \"nika:write\"], fs: { write: [\"x\"] } }",
         );
         let executor = MockToolExecutor::new(); // EMPTY — any call is a bug
@@ -1264,7 +1258,7 @@ mod tools_permits_tests {
     #[tokio::test]
     async fn declared_block_with_omitted_tools_denies_every_tool() {
         let (wf, report) = forged_clean_report(
-            "nika: v1\nworkflow:\n  id: tools-omitted\npermits: { exec: true }\ntasks:\n  t:\n    invoke: { tool: \"nika:read\", args: { path: \"x\" } }\n",
+            "nika: tools-omitted\npermits: { exec: true }\ntasks:\n  t:\n    invoke: { tool: \"nika:read\", args: { path: \"x\" } }\n",
             "permits: { exec: true, tools: [\"nika:read\"], fs: { read: [\"x\"] } }",
         );
         let executor = MockToolExecutor::new();
@@ -1286,7 +1280,7 @@ mod tools_permits_tests {
     #[tokio::test]
     async fn invoke_inside_tools_boundary_runs_on_the_real_report() {
         let wf = parse(
-            "nika: v1\nworkflow:\n  id: tools-allow\npermits: { tools: [\"nika:read\"], fs: { read: [\"x\"] } }\ntasks:\n  ok:\n    invoke: { tool: \"nika:read\", args: { path: \"x\" } }\n",
+            "nika: tools-allow\npermits: { tools: [\"nika:read\"], fs: { read: [\"x\"] } }\ntasks:\n  ok:\n    invoke: { tool: \"nika:read\", args: { path: \"x\" } }\n",
         );
         let report = nika_check::check(&wf);
         assert!(report.is_clean(), "the fixture fits its boundary");
@@ -1309,7 +1303,7 @@ mod tools_permits_tests {
     #[tokio::test]
     async fn integrity_label_flows_from_ingress_to_the_records_and_frames() {
         let wf = parse(
-            "nika: v1\nworkflow:\n  id: integ-label\ninputs:\n  q: { type: string, default: \"authored-default\" }\npermits: { tools: [\"nika:fetch\", \"nika:jq\"], net: { http: [\"example.com\"] } }\ntasks:\n  dl:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://example.com/page\" } }\n  probe:\n    with: { page: \"${{ tasks.dl.output }}\" }\n    invoke: { tool: \"nika:jq\", args: { expression: \".\", input: \"${{ with.page }}\" } }\n  plain:\n    invoke: { tool: \"nika:jq\", args: { expression: \".\", input: \"authored\" } }\n  inp:\n    invoke: { tool: \"nika:jq\", args: { expression: \".\", input: \"${{ inputs.q }}\" } }\n",
+            "nika: integ-label\ninputs:\n  q: { type: string, required: false, default: \"authored-default\" }\npermits: { tools: [\"nika:fetch\", \"nika:jq\"], net: { http: [\"example.com\"] } }\ntasks:\n  dl:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://example.com/page\" } }\n  probe:\n    with: { page: \"${{ tasks.dl.output }}\" }\n    invoke: { tool: \"nika:jq\", args: { expression: \".\", input: \"${{ with.page }}\" } }\n  plain:\n    invoke: { tool: \"nika:jq\", args: { expression: \".\", input: \"authored\" } }\n  inp:\n    invoke: { tool: \"nika:jq\", args: { expression: \".\", input: \"${{ inputs.q }}\" } }\n",
         );
         let report = nika_check::check(&wf);
         assert!(report.is_clean(), "the fixture fits its boundary");
@@ -1389,7 +1383,7 @@ mod tools_permits_tests {
     #[tokio::test]
     async fn agent_universe_outside_tools_boundary_is_refused() {
         let (wf, report) = forged_clean_report(
-            "nika: v1\nworkflow:\n  id: agent-tools-deny\nmodel: mock/echo\npermits: { tools: [\"nika:read\"] }\ntasks:\n  go:\n    agent:\n      prompt: \"go\"\n      tools: [\"nika:read\", \"nika:write\"]\n",
+            "nika: agent-tools-deny\nmodel: mock/echo\npermits: { tools: [\"nika:read\"] }\ntasks:\n  go:\n    agent:\n      prompt: \"go\"\n      tools: [\"nika:read\", \"nika:write\"]\n",
             "permits: { tools: [\"nika:read\", \"nika:write\"] }",
         );
         let provider = MockProvider::new("mock").enqueue_text("never reached");
@@ -1414,7 +1408,7 @@ mod tools_permits_tests {
     #[tokio::test]
     async fn agent_universe_inside_tools_boundary_runs() {
         let wf = parse(
-            "nika: v1\nworkflow:\n  id: agent-tools-allow\nmodel: mock/echo\npermits: { tools: [\"nika:read\"] }\ntasks:\n  go:\n    agent:\n      prompt: \"go\"\n      tools: [\"nika:read\"]\n",
+            "nika: agent-tools-allow\nmodel: mock/echo\npermits: { tools: [\"nika:read\"] }\ntasks:\n  go:\n    agent:\n      prompt: \"go\"\n      tools: [\"nika:read\"]\n",
         );
         let report = nika_check::check(&wf);
         assert!(report.is_clean(), "the fixture fits its boundary");
@@ -1438,7 +1432,8 @@ mod tools_permits_tests {
 /// always rides (the workspace `SPEC_PIN` carries a hash line).
 #[test]
 fn the_boot_manifest_follows_the_run_declaration() {
-    const HEAD: &str = "nika: v1\nworkflow:\n  id: w\npermits: { exec: [\"x\"] }\ntasks:\n  t:\n    exec: { command: [\"x\"] }\n";
+    const HEAD: &str =
+        "nika: w\npermits: { exec: [\"x\"] }\ntasks:\n  t:\n    exec: { command: [\"x\"] }\n";
     let dump = |yaml: &str| {
         let wf = nika_schema::parse(
             yaml,

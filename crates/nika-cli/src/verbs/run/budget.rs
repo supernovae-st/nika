@@ -85,7 +85,7 @@ mod tests {
     /// BEFORE any spend, exactly like the in-file form.
     #[test]
     fn override_prices_the_effective_model_and_refuses_at_the_gate() {
-        let yaml = "nika: v1\nworkflow:\n  id: m\ntasks:\n  \
+        let yaml = "nika: m\ntasks:\n  \
              a:\n    infer: { prompt: hi, max_tokens: 1000000, model: \"mock/echo\" }\n";
         let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("fixture parses");
         let report = nika_check::check(&wf);
@@ -95,7 +95,7 @@ mod tests {
         );
         // Task-level model wins over the envelope — the override swaps the
         // ENVELOPE default, so the fixture's model must live there instead.
-        let yaml = "nika: v1\nworkflow:\n  id: m\nmodel: \"mock/echo\"\ntasks:\n  \
+        let yaml = "nika: m\nmodel: \"mock/echo\"\ntasks:\n  \
              a:\n    infer: { prompt: hi, max_tokens: 1000000 }\n";
         let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("fixture parses");
         let report = nika_check::check(&wf);
@@ -123,7 +123,7 @@ mod tests {
     /// refuse — the effective floor is zero (offline preview idiom).
     #[test]
     fn override_to_mock_drops_the_floor_and_passes() {
-        let yaml = "nika: v1\nworkflow:\n  id: m\nmodel: \"anthropic/claude-sonnet-5\"\ntasks:\n  \
+        let yaml = "nika: m\nmodel: \"anthropic/claude-sonnet-5\"\ntasks:\n  \
              a:\n    infer: { prompt: hi, max_tokens: 1000000 }\n";
         let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("fixture parses");
         let report = nika_check::check(&wf);
@@ -142,7 +142,7 @@ mod tests {
     /// runtime's precedence, mirrored in the effective envelope).
     #[test]
     fn task_level_model_still_beats_the_override_in_the_effective_floor() {
-        let yaml = "nika: v1\nworkflow:\n  id: m\nmodel: \"mock/echo\"\ntasks:\n  \
+        let yaml = "nika: m\nmodel: \"mock/echo\"\ntasks:\n  \
              a:\n    infer: { prompt: hi, max_tokens: 1000000, model: \"mock/echo\" }\n";
         let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("fixture parses");
         let cost = effective_cost(&wf, "anthropic/claude-sonnet-5");

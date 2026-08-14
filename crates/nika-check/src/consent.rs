@@ -330,27 +330,6 @@ fn carrying_keys(task: &RawTask, prompt: &str, env: &RefusalEnv) -> BTreeSet<Str
     out
 }
 
-/// The task's `when:` PROVES false when this prompt's answer is false:
-/// the gate consumes the output (a `with:` binding carrying exactly
-/// `${{ tasks.<prompt>.output }}`, or the direct reference) and the
-/// whole expression evaluates to [`K3::False`] under output = false.
-/// Shared with the policy lane (`check/policy.rs`) — the ONE evaluator
-/// both the refusal and the hard `require.human_gate_before` judge read
-/// (the pure judge in nika-cap cannot parse expressions; the projection
-/// carries its verdict).
-pub(crate) fn affirmative(task: &RawTask, prompt: &str) -> bool {
-    let Some(when) = task.when.as_ref() else {
-        return false;
-    };
-    let WhenGate::Expr(src) = &when.value else {
-        return false;
-    };
-    let Some(expr) = crate::reach::parse_gate(src) else {
-        return false;
-    };
-    eval_consent(&expr, prompt, &RefusalEnv::of(task)) == K3::False
-}
-
 /// The gate sub-expression reads THIS prompt's answer — the direct
 /// `tasks.<prompt>.output` form or a `with:` binding carrying it.
 fn is_output_ref(e: &Expr, prompt: &str, env: &RefusalEnv) -> bool {
@@ -505,7 +484,7 @@ mod tests {
     /// The P0-2 fixture: a confirm whose `default:` answers false
     /// UNATTENDED — and a bare state edge carries that refusal straight
     /// into the irreversible exec.
-    const BARE: &str = "nika: v1\nworkflow:\n  id: t\npermits:\n  exec: [\"git\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: confirm, message: \"push?\", default: false }\n  push:\n    after: { ask: success }\n    exec: { command: [\"git\", \"push\"] }\n";
+    const BARE: &str = "nika: t\npermits:\n  exec: [\"git\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: confirm, message: \"push?\", default: false }\n  push:\n    after: { ask: success }\n    exec: { command: [\"git\", \"push\"] }\n";
 
     /// NEP-0020 · the closure: the PROVEN non-affirmative route is a
     /// NIKA-SEC-014 refusal (the hint of 2026-07-30 escalates) — the
@@ -570,7 +549,7 @@ mod tests {
     #[test]
     fn an_undecidable_gate_stays_advisory() {
         let r = report(
-            "nika: v1\nworkflow:\n  id: t\npermits:\n  exec: [\"git\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: confirm, message: \"push?\", default: false }\n  push:\n    with: { go: \"answer=${{ tasks.ask.output }}\" }\n    when: ${{ with.go == 'answer=true' }}\n    exec: { command: [\"git\", \"push\"] }\n",
+            "nika: t\npermits:\n  exec: [\"git\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: confirm, message: \"push?\", default: false }\n  push:\n    with: { go: \"answer=${{ tasks.ask.output }}\" }\n    when: ${{ with.go == 'answer=true' }}\n    exec: { command: [\"git\", \"push\"] }\n",
         );
         assert!(r.is_clean(), "unproven is advisory, never a refusal: {r:?}");
         assert!(
@@ -586,7 +565,7 @@ mod tests {
     #[test]
     fn a_failure_only_edge_carries_no_refusal() {
         let r = report(
-            "nika: v1\nworkflow:\n  id: t\npermits:\n  exec: [\"git\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: confirm, message: \"push?\", default: false }\n  push:\n    after: { ask: failure }\n    exec: { command: [\"git\", \"push\"] }\n",
+            "nika: t\npermits:\n  exec: [\"git\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: confirm, message: \"push?\", default: false }\n  push:\n    after: { ask: failure }\n    exec: { command: [\"git\", \"push\"] }\n",
         );
         assert!(
             r.is_clean(),
@@ -618,7 +597,7 @@ mod tests {
     #[test]
     fn affirmative_consumption_silences_the_lane() {
         let r = report(
-            "nika: v1\nworkflow:\n  id: t\npermits:\n  exec: [\"git\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: confirm, message: \"push?\", default: false }\n  push:\n    with: { go: \"${{ tasks.ask.output }}\" }\n    when: ${{ with.go == true }}\n    exec: { command: [\"git\", \"push\"] }\n",
+            "nika: t\npermits:\n  exec: [\"git\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: confirm, message: \"push?\", default: false }\n  push:\n    with: { go: \"${{ tasks.ask.output }}\" }\n    when: ${{ with.go == true }}\n    exec: { command: [\"git\", \"push\"] }\n",
         );
         assert!(r.is_clean(), "the answer is consumed affirmatively: {r:?}");
         assert!(
@@ -640,7 +619,7 @@ mod tests {
     #[test]
     fn a_never_run_task_closes_the_route() {
         let r = report(
-            "nika: v1\nworkflow:\n  id: t\npermits:\n  exec: [\"git\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: confirm, message: \"push?\", default: false }\n  mid:\n    after: { ask: success }\n    when: false\n    infer: { prompt: \"x\", max_tokens: 9 }\n  push:\n    after: { mid: success }\n    exec: { command: [\"git\", \"push\"] }\n",
+            "nika: t\npermits:\n  exec: [\"git\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: confirm, message: \"push?\", default: false }\n  mid:\n    after: { ask: success }\n    when: false\n    infer: { prompt: \"x\", max_tokens: 9 }\n  push:\n    after: { mid: success }\n    exec: { command: [\"git\", \"push\"] }\n",
         );
         assert!(
             r.consent_findings.is_empty(),
@@ -659,7 +638,7 @@ mod tests {
     #[test]
     fn a_bypass_route_refuses_its_own_sink() {
         let r = report(
-            "nika: v1\nworkflow:\n  id: t\npermits:\n  exec: [\"git\", \"curl\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: confirm, message: \"ship?\", default: false }\n  act:\n    with: { go: \"${{ tasks.ask.output }}\" }\n    when: ${{ with.go == true }}\n    exec: { command: [\"git\", \"push\"] }\n  ship:\n    after: { ask: success }\n    exec: { command: [\"curl\", \"-X\", \"POST\", \"https://example.com/hook\"] }\n",
+            "nika: t\npermits:\n  exec: [\"git\", \"curl\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: confirm, message: \"ship?\", default: false }\n  act:\n    with: { go: \"${{ tasks.ask.output }}\" }\n    when: ${{ with.go == true }}\n    exec: { command: [\"git\", \"push\"] }\n  ship:\n    after: { ask: success }\n    exec: { command: [\"curl\", \"-X\", \"POST\", \"https://example.com/hook\"] }\n",
         );
         assert_eq!(
             r.consent_findings.len(),
@@ -677,7 +656,7 @@ mod tests {
     #[test]
     fn a_status_gate_is_proven_open_not_consent() {
         let r = report(
-            "nika: v1\nworkflow:\n  id: t\npermits:\n  exec: [\"git\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: confirm, message: \"push?\", default: false }\n  push:\n    with: { st: \"${{ tasks.ask.status }}\" }\n    when: ${{ with.st == 'success' }}\n    exec: { command: [\"git\", \"push\"] }\n",
+            "nika: t\npermits:\n  exec: [\"git\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: confirm, message: \"push?\", default: false }\n  push:\n    with: { st: \"${{ tasks.ask.status }}\" }\n    when: ${{ with.st == 'success' }}\n    exec: { command: [\"git\", \"push\"] }\n",
         );
         assert!(
             r.consent_findings
@@ -695,7 +674,7 @@ mod tests {
     #[test]
     fn a_status_gate_proven_false_closes_the_route() {
         let r = report(
-            "nika: v1\nworkflow:\n  id: t\npermits:\n  exec: [\"git\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: confirm, message: \"push?\", default: false }\n  push:\n    with: { st: \"${{ tasks.ask.status }}\" }\n    when: ${{ with.st == 'failure' }}\n    exec: { command: [\"git\", \"push\"] }\n",
+            "nika: t\npermits:\n  exec: [\"git\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: confirm, message: \"push?\", default: false }\n  push:\n    with: { st: \"${{ tasks.ask.status }}\" }\n    when: ${{ with.st == 'failure' }}\n    exec: { command: [\"git\", \"push\"] }\n",
         );
         assert!(
             r.consent_findings.is_empty() && !r.hints.iter().any(|h| h.kind == "consent"),
@@ -711,7 +690,7 @@ mod tests {
     #[test]
     fn a_when_true_on_false_is_proven_open() {
         let r = report(
-            "nika: v1\nworkflow:\n  id: t\npermits:\n  exec: [\"git\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: confirm, message: \"push?\", default: false }\n  push:\n    with: { go: \"${{ tasks.ask.output }}\" }\n    when: ${{ with.go == true || with.go == false }}\n    exec: { command: [\"git\", \"push\"] }\n",
+            "nika: t\npermits:\n  exec: [\"git\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: confirm, message: \"push?\", default: false }\n  push:\n    with: { go: \"${{ tasks.ask.output }}\" }\n    when: ${{ with.go == true || with.go == false }}\n    exec: { command: [\"git\", \"push\"] }\n",
         );
         assert!(
             r.consent_findings.iter().any(|f| f.sink == "push"),
@@ -726,7 +705,7 @@ mod tests {
     #[test]
     fn a_transitive_ungated_route_refuses_the_egress_sink() {
         let r = report(
-            "nika: v1\nworkflow:\n  id: t\npermits:\n  exec: [\"git\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: confirm, message: \"push?\", default: false }\n  mid:\n    after: { ask: success }\n    infer: { prompt: \"summarize\", max_tokens: 9 }\n  push:\n    after: { mid: success }\n    exec: { command: [\"git\", \"push\"] }\n",
+            "nika: t\npermits:\n  exec: [\"git\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: confirm, message: \"push?\", default: false }\n  mid:\n    after: { ask: success }\n    infer: { prompt: \"summarize\", max_tokens: 9 }\n  push:\n    after: { mid: success }\n    exec: { command: [\"git\", \"push\"] }\n",
         );
         assert_eq!(
             r.consent_findings.len(),
@@ -743,7 +722,7 @@ mod tests {
     #[test]
     fn a_blocking_confirm_also_refuses_the_bare_route() {
         let r = report(
-            "nika: v1\nworkflow:\n  id: t\npermits:\n  exec: [\"git\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: confirm, message: \"push?\" }\n  push:\n    after: { ask: success }\n    exec: { command: [\"git\", \"push\"] }\n",
+            "nika: t\npermits:\n  exec: [\"git\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: confirm, message: \"push?\" }\n  push:\n    after: { ask: success }\n    exec: { command: [\"git\", \"push\"] }\n",
         );
         assert!(
             r.consent_findings.iter().any(|f| f.sink == "push"),
@@ -758,7 +737,7 @@ mod tests {
     #[test]
     fn the_nearest_gate_owns_its_closure() {
         let r = report(
-            "nika: v1\nworkflow:\n  id: t\npermits:\n  exec: [\"git\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  first:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: confirm, message: \"one?\", default: false }\n  second:\n    after: { first: success }\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: confirm, message: \"two?\", default: false }\n  push:\n    after: { second: success }\n    exec: { command: [\"git\", \"push\"] }\n",
+            "nika: t\npermits:\n  exec: [\"git\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  first:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: confirm, message: \"one?\", default: false }\n  second:\n    after: { first: success }\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: confirm, message: \"two?\", default: false }\n  push:\n    after: { second: success }\n    exec: { command: [\"git\", \"push\"] }\n",
         );
         assert_eq!(
             r.consent_findings.len(),
@@ -778,7 +757,7 @@ mod tests {
     #[test]
     fn a_choice_prompt_is_out_of_scope() {
         let r = report(
-            "nika: v1\nworkflow:\n  id: t\npermits:\n  exec: [\"git\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: choice, message: \"push?\", choices: [\"no\", \"yes\"], default: \"no\" }\n  push:\n    after: { ask: success }\n    exec: { command: [\"git\", \"push\"] }\n",
+            "nika: t\npermits:\n  exec: [\"git\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: choice, message: \"push?\", choices: [\"no\", \"yes\"], default: \"no\" }\n  push:\n    after: { ask: success }\n    exec: { command: [\"git\", \"push\"] }\n",
         );
         assert!(
             r.is_clean(),

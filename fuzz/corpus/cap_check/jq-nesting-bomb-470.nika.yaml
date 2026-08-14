@@ -1,6 +1,4 @@
-nika: v1
-workflow:
-  id: t
+nika: t
 tasks:
   j:
     invoke:

@@ -87,16 +87,12 @@ fn ok_bytes(stdout: &[u8]) -> ShellResult {
 #[tokio::test]
 async fn decode_json_feeds_a_typed_object_downstream() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: w3-json
+nika: w3-json
 permits: { exec: true }
-types:
-  Stats: { object: { count: integer, mean: number } }
 tasks:
   stats:
     exec: { command: ["jq-mock"], decode: json }
-    returns: Stats
+    returns: { object: { count: integer, mean: number } }
   gate:
     with: { c: "${{ tasks.stats.output.count }}" }
     when: ${{ with.c == 3 }}
@@ -118,9 +114,7 @@ tasks:
 #[tokio::test]
 async fn decode_text_is_strict_utf8_and_trims_like_today() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: w3-text
+nika: w3-text
 permits: { exec: true }
 tasks:
   say:
@@ -139,9 +133,7 @@ tasks:
 #[tokio::test]
 async fn decode_jsonl_is_one_value_per_non_empty_line() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: w3-jsonl
+nika: w3-jsonl
 permits: { exec: true }
 tasks:
   rows:
@@ -161,9 +153,7 @@ tasks:
 #[tokio::test]
 async fn decode_bytes_carries_invalid_utf8_as_base64() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: w3-bytes
+nika: w3-bytes
 permits: { exec: true }
 tasks:
   blob:
@@ -189,9 +179,7 @@ tasks:
 #[tokio::test]
 async fn invalid_utf8_under_text_is_a_task_failure_not_a_crash() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: w3-bad-utf8
+nika: w3-bad-utf8
 permits: { exec: true }
 tasks:
   bad:
@@ -219,9 +207,7 @@ tasks:
 #[tokio::test]
 async fn truncated_json_names_the_decode_and_empty_output_is_honest() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: w3-trunc
+nika: w3-trunc
 permits: { exec: true }
 tasks:
   cut:
@@ -252,9 +238,7 @@ tasks:
 async fn empty_output_fits_text_and_jsonl_as_their_empty_values() {
     // text: empty string IS a string · jsonl: zero lines IS [].
     let yaml = r#"
-nika: v1
-workflow:
-  id: w3-empties
+nika: w3-empties
 permits: { exec: true }
 tasks:
   t:
@@ -276,9 +260,7 @@ tasks:
 #[tokio::test]
 async fn a_fit_violation_is_type_101_and_never_echoes_the_value() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: w3-fit
+nika: w3-fit
 permits: { exec: true }
 tasks:
   n:
@@ -310,9 +292,7 @@ tasks:
 #[tokio::test]
 async fn stderr_and_combined_captures_feed_the_decode_pipeline() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: w3-streams
+nika: w3-streams
 permits: { exec: true }
 tasks:
   logs:
@@ -334,9 +314,7 @@ async fn structured_capture_with_returns_types_the_object_directly() {
     // an object — PARSE-025 refuses an explicit decode) and `returns:`
     // types { stdout, stderr, exit_code } directly.
     let yaml = r#"
-nika: v1
-workflow:
-  id: w3-structured
+nika: w3-structured
 permits: { exec: true }
 tasks:
   probe:
@@ -373,9 +351,7 @@ async fn a_large_stream_decodes_whole_through_jsonl() {
         big.extend_from_slice(format!("{{\"i\":{i}}}\n").as_bytes());
     }
     let yaml = r#"
-nika: v1
-workflow:
-  id: w3-big
+nika: w3-big
 permits: { exec: true }
 tasks:
   bulk:
@@ -395,9 +371,7 @@ async fn on_error_skip_scopes_both_refusal_classes() {
     // task failures — `on_error: skip` catches them like any other (spec 05
     // scope), and the run continues.
     let yaml = r#"
-nika: v1
-workflow:
-  id: w3-onerror
+nika: w3-onerror
 permits: { exec: true }
 tasks:
   bad_decode:
@@ -430,9 +404,7 @@ async fn a_dead_process_with_a_declared_contract_settles_cleanly() {
     // decode never reached) — the task settles a plain verb failure, the
     // declared contract stays moot: no fit runs, no panic, no 1705.
     let yaml = r#"
-nika: v1
-workflow:
-  id: w3-dead
+nika: w3-dead
 permits: { exec: true }
 tasks:
   slow:

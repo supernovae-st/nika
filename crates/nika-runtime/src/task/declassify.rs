@@ -34,14 +34,17 @@ pub(crate) struct DeclassifyEvidence {
 pub(crate) fn declassify_evidence(
     task: &RawTask,
     inputs: &BTreeMap<String, Value>,
-    config: &BTreeMap<String, Value>,
     records: &BTreeMap<String, TaskRecord>,
 ) -> Vec<DeclassifyEvidence> {
-    task.declassify
-        .iter()
+    task.taint_lifts()
+        .filter(|entry| entry.from.is_some())
         .map(|entry| {
-            let from = entry.from.value.clone();
-            let value = binding_value(&from, inputs, config, records);
+            // parser-guaranteed on `law: taint` (rule 5), filtered above
+            let from = entry
+                .from
+                .as_ref()
+                .map_or_else(String::new, |f| f.value.clone());
+            let value = binding_value(&from, inputs, records);
             DeclassifyEvidence {
                 from,
                 because: entry.because.value.clone(),
@@ -52,19 +55,15 @@ pub(crate) fn declassify_evidence(
 }
 
 /// The live value of a `declassify.from` binding (`inputs.X` ·
-/// `config.X` · `tasks.<id>.output`) — `None` when the binding names
+/// `tasks.<id>.output`) — `None` when the binding names
 /// anything else (the door is still recorded, digest absent).
 fn binding_value<'a>(
     from: &str,
     inputs: &'a BTreeMap<String, Value>,
-    config: &'a BTreeMap<String, Value>,
     records: &'a BTreeMap<String, TaskRecord>,
 ) -> Option<&'a Value> {
     if let Some(name) = from.strip_prefix("inputs.") {
         return inputs.get(name);
-    }
-    if let Some(name) = from.strip_prefix("config.") {
-        return config.get(name);
     }
     if let Some(rest) = from.strip_prefix("tasks.") {
         let id = rest.strip_suffix(".output")?;

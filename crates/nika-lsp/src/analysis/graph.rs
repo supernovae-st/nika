@@ -61,7 +61,7 @@ mod tests {
     // the diamond: a → {b, c} → d (control edges via `after:` — the
     // W2 boundary; `producer_ids` reads the same derived edge set for
     // `with:` refs too)
-    const DIAMOND: &str = "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"x\"] }\n  b:\n    after: { a: success }\n    exec: { command: [\"x\"] }\n  c:\n    after: { a: success }\n    exec: { command: [\"x\"] }\n  d:\n    after: { b: success, c: success }\n    exec: { command: [\"x\"] }\n";
+    const DIAMOND: &str = "nika: w\ntasks:\n  a:\n    exec: { command: [\"x\"] }\n  b:\n    after: { a: success }\n    exec: { command: [\"x\"] }\n  c:\n    after: { a: success }\n    exec: { command: [\"x\"] }\n  d:\n    after: { b: success, c: success }\n    exec: { command: [\"x\"] }\n";
 
     #[test]
     fn downstream_of_the_root_is_everything_else() {

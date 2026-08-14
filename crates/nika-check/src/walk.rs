@@ -89,14 +89,6 @@ fn for_each_island_text(wf: &RawWorkflow, visit: &mut dyn FnMut(&str)) {
         for (_, v) in &t.with {
             visit_json(&v.value, visit);
         }
-        for cleanup in &t.on_finally {
-            if let Some(when) = &cleanup.value.when
-                && let Some(expr) = when.value.as_expr()
-            {
-                visit(expr);
-            }
-            visit_action(&cleanup.value.action, visit);
-        }
     }
     for (_, decl) in &wf.outputs {
         visit(&decl.value().value);
@@ -179,8 +171,7 @@ pub fn static_literal_of<'w>(wf: &'w RawWorkflow, expr: &str) -> Option<&'w serd
     let (authority, name) = bare_static_ref(expr)?;
     let block = match authority {
         "const." => &wf.consts,
-        "inputs." => &wf.inputs,
-        _ => &wf.config,
+        _ => &wf.inputs,
     };
     let (_, decl) = block.iter().find(|(k, _)| k.value == name)?;
     match decl {
@@ -201,7 +192,7 @@ pub fn static_literal_of<'w>(wf: &'w RawWorkflow, expr: &str) -> Option<&'w serd
 /// `[0]`), operators, or a name outside the identifier grammar → `None`.
 pub(crate) fn bare_static_ref(expr: &str) -> Option<(&'static str, &str)> {
     let inner = expr.trim().strip_prefix("${{")?.strip_suffix("}}")?.trim();
-    let (authority, name) = ["const.", "inputs.", "config."]
+    let (authority, name) = ["const.", "inputs.", "inputs."]
         .into_iter()
         .find_map(|ns| inner.strip_prefix(ns).map(|n| (ns, n)))?;
     if name.is_empty() || !name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_') {

@@ -2,10 +2,8 @@
 # The FIXED half of the full-loop pair (tapes/full-loop.tape) — what the
 # broken fixture becomes after applying the two renames `nika check` named.
 # validate-media.sh keeps this file PASSING check.
-nika: v1
-workflow:
-  id: release-notes
-  description: "git log → typed notes → RELEASE_NOTES.md · checked before it spends"
+# git log → typed notes → RELEASE_NOTES.md · checked before it spends
+nika: release-notes
 
 model: ollama/qwen3.5:4b   # local · zero key · or mistral/mistral-small · mock/echo offline
 

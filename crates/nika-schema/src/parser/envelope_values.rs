@@ -18,9 +18,7 @@ use crate::source::Spanned;
 use crate::types::secret;
 use crate::types::{EgressRule, SecretRef, SecretSource, VarDecl};
 
-use super::envelope::{
-    CONFIG_KEYS, CONST_TYPED_KEYS, EGRESS_KEYS, INPUT_KEYS, SECRET_KEYS, require_mapping,
-};
+use super::envelope::{CONST_TYPED_KEYS, EGRESS_KEYS, INPUT_KEYS, SECRET_KEYS, require_mapping};
 use super::{Cx, value::json_value};
 
 /// Parse `inputs:` — every entry a TYPED declaration (`type:` required ·
@@ -31,15 +29,6 @@ pub(super) fn parse_inputs(
     workflow: &MarkedMappingNode,
 ) -> Result<Vec<(Spanned<String>, VarDecl)>, SchemaError> {
     parse_typed_block(cx, workflow, "inputs", INPUT_KEYS)
-}
-
-/// Parse `config:` — typed declarations (`type:` required · `default:` the
-/// declared fallback the deployment may override · spec 01 §config).
-pub(super) fn parse_config(
-    cx: &Cx<'_>,
-    workflow: &MarkedMappingNode,
-) -> Result<Vec<(Spanned<String>, VarDecl)>, SchemaError> {
-    parse_typed_block(cx, workflow, "config", CONFIG_KEYS)
 }
 
 /// The shared typed-declaration block reader (`inputs:` · `config:`) —

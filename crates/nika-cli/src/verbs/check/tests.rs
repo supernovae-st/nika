@@ -7,8 +7,9 @@ use super::*;
 fn run_many_audits_every_file_and_keeps_the_worst_exit() {
     let dir = std::env::temp_dir().join(format!("nika-check-many-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("tmp dir");
-    let clean = "nika: v1\nworkflow:\n  id: ok\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 10, model: \"mock/echo\" }\n";
-    let broken = "nika: v1\nworkflow:\n  id: bad\ntasks:\n  t:\n    infer: { prompt: \"${{ tasks.ghost.output }}\", max_tokens: 10, model: \"mock/echo\" }\n";
+    let clean =
+        "nika: ok\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 10, model: \"mock/echo\" }\n";
+    let broken = "nika: bad\ntasks:\n  t:\n    infer: { prompt: \"${{ tasks.ghost.output }}\", max_tokens: 10, model: \"mock/echo\" }\n";
     let a = dir.join("many-a.nika.yaml");
     let b = dir.join("many-broken.nika.yaml");
     let c = dir.join("many-c.nika.yaml");
@@ -55,7 +56,8 @@ fn run_many_audits_every_file_and_keeps_the_worst_exit() {
 fn run_many_is_clean_when_every_file_is() {
     let dir = std::env::temp_dir().join(format!("nika-check-many-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("tmp dir");
-    let clean = "nika: v1\nworkflow:\n  id: ok\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 10, model: \"mock/echo\" }\n";
+    let clean =
+        "nika: ok\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 10, model: \"mock/echo\" }\n";
     let a = dir.join("clean-a.nika.yaml");
     let b = dir.join("clean-b.nika.yaml");
     std::fs::write(&a, clean).expect("fixture a");
@@ -81,7 +83,7 @@ fn missing_read_files_flags_static_literal_and_var_default() {
     let present = dir.join("present.txt");
     std::fs::write(&present, "x").expect("fixture");
     let yaml = format!(
-        "nika: v1\nworkflow:\n  id: w\nconst:\n  src: \"{missing}\"\ntasks:\n  a:\n    invoke:\n      tool: \"nika:read\"\n      args: {{ path: \"${{{{ const.src }}}}\" }}\n  b:\n    invoke:\n      tool: \"nika:read\"\n      args: {{ path: \"{present}\" }}\n  c:\n    invoke:\n      tool: \"nika:read\"\n      args: {{ path: \"${{{{ tasks.a.output }}}}\" }}\n",
+        "nika: w\nconst:\n  src: \"{missing}\"\ntasks:\n  a:\n    invoke:\n      tool: \"nika:read\"\n      args: {{ path: \"${{{{ const.src }}}}\" }}\n  b:\n    invoke:\n      tool: \"nika:read\"\n      args: {{ path: \"{present}\" }}\n  c:\n    invoke:\n      tool: \"nika:read\"\n      args: {{ path: \"${{{{ tasks.a.output }}}}\" }}\n",
         missing = dir.join("missing.txt").display(),
         present = present.display(),
     );
@@ -100,7 +102,7 @@ fn missing_read_files_flags_static_literal_and_var_default() {
 #[test]
 fn pricing_section_rates_known_null_unknown() {
     let wf = parse_wf(
-        "nika: v1\nworkflow:\n  id: priced\nmodel: anthropic/claude-opus-4-5\ntasks:\n  think:\n    infer:\n      prompt: hi\n  odd:\n    infer:\n      model: custom/never-heard-of-it\n      prompt: hi\n",
+        "nika: priced\nmodel: anthropic/claude-opus-4-5\ntasks:\n  think:\n    infer:\n      prompt: hi\n  odd:\n    infer:\n      model: custom/never-heard-of-it\n      prompt: hi\n",
     );
     let report = nika_check::check(&wf);
     let section = pricing_section(&report, &unresolvable_models(&report, &wf).findings);
@@ -142,7 +144,7 @@ fn parse_wf(yaml: &str) -> RawWorkflow {
 #[test]
 fn floor_escape_renders_without_a_permits_block() {
     let wf = parse_wf(
-        "nika: v1\nworkflow:\n  id: w\ntasks:\n  probe:\n    invoke: { tool: \"nika:fetch\", args: { url: \"http://127.0.0.1:8971/x\" } }\n",
+        "nika: w\ntasks:\n  probe:\n    invoke: { tool: \"nika:fetch\", args: { url: \"http://127.0.0.1:8971/x\" } }\n",
     );
     let report = nika_check::check(&wf);
     assert!(
@@ -176,7 +178,7 @@ fn floor_escape_renders_without_a_permits_block() {
     // literal URL is statically judged) is the row (the old
     // « no boundary declared » mute is retired).
     let undeclared = parse_wf(
-        "nika: v1\nworkflow:\n  id: w\ntasks:\n  probe:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.example.com/x\" } }\n",
+        "nika: w\ntasks:\n  probe:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.example.com/x\" } }\n",
     );
     let undeclared_report = nika_check::check(&undeclared);
     let mut undeclared_out = String::new();
@@ -188,7 +190,7 @@ fn floor_escape_renders_without_a_permits_block() {
     // …while the TRUE clean case (pure compute · zero authority
     // assumed) renders the F-O8 informational line.
     let clean = parse_wf(
-        "nika: v1\nworkflow:\n  id: w\nmodel: mock/echo\ntasks:\n  probe:\n    infer: { prompt: \"hi\", max_tokens: 5 }\n",
+        "nika: w\nmodel: mock/echo\ntasks:\n  probe:\n    infer: { prompt: \"hi\", max_tokens: 5 }\n",
     );
     let clean_report = nika_check::check(&clean);
     let mut clean_out = String::new();
@@ -203,7 +205,7 @@ fn floor_escape_renders_without_a_permits_block() {
 #[test]
 fn permitted_loopback_literal_renders_green_with_the_teaching_line() {
     let wf = parse_wf(
-        "nika: v1\nworkflow:\n  id: local-watch\npermits:\n  net: { http: [\"127.0.0.1\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  t:\n    invoke: { tool: \"nika:fetch\", args: { url: \"http://127.0.0.1:8971/price.json\" } }\n",
+        "nika: local-watch\npermits:\n  net: { http: [\"127.0.0.1\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  t:\n    invoke: { tool: \"nika:fetch\", args: { url: \"http://127.0.0.1:8971/price.json\" } }\n",
     );
     let report = nika_check::check(&wf);
     assert!(
@@ -224,7 +226,7 @@ fn permitted_loopback_literal_renders_green_with_the_teaching_line() {
     );
     // …and a boundary with no loopback literal renders NO such line.
     let plain = parse_wf(
-        "nika: v1\nworkflow:\n  id: w\npermits:\n  net: { http: [\"api.example.com\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  t:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.example.com/x\" } }\n",
+        "nika: w\npermits:\n  net: { http: [\"api.example.com\"] }\n  tools: [\"nika:fetch\"]\ntasks:\n  t:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.example.com/x\" } }\n",
     );
     let plain_report = nika_check::check(&plain);
     let mut plain_out = String::new();
@@ -241,7 +243,7 @@ fn permitted_loopback_literal_renders_green_with_the_teaching_line() {
 #[test]
 fn required_input_without_default_is_listed() {
     let wf = parse_wf(
-        "nika: v1\nworkflow:\n  id: needs-input\nmodel: mock/echo\ninputs:\n  text:\n    type: string\n    required: true\ntasks:\n  a:\n    infer: { prompt: \"${{ inputs.text }}\" }\n",
+        "nika: needs-input\nmodel: mock/echo\ninputs:\n  text:\n    type: string\n    required: true\ntasks:\n  a:\n    infer: { prompt: \"${{ inputs.text }}\" }\n",
     );
     assert_eq!(required_inputs(&wf), vec!["text"]);
 }
@@ -251,7 +253,7 @@ fn required_input_without_default_is_listed() {
 #[test]
 fn defaulted_or_optional_inputs_are_not_listed() {
     let wf = parse_wf(
-        "nika: v1\nworkflow:\n  id: ok\nmodel: mock/echo\ninputs:\n  b:\n    type: string\n    default: \"d\"\n  c:\n    type: string\n    required: false\nconst:\n  a: \"has default\"\ntasks:\n  t:\n    infer: { prompt: \"${{ const.a }} ${{ inputs.b }} ${{ inputs.c }}\" }\n",
+        "nika: ok\nmodel: mock/echo\ninputs:\n  b:\n    type: string\n    default: \"d\"\n  c:\n    type: string\n    required: false\nconst:\n  a: \"has default\"\ntasks:\n  t:\n    infer: { prompt: \"${{ const.a }} ${{ inputs.b }} ${{ inputs.c }}\" }\n",
     );
     assert!(
         required_inputs(&wf).is_empty(),
@@ -324,7 +326,7 @@ fn checked_output_profile(
 fn models_rung_reds_a_cataloged_but_unresolvable_provider() {
     let out = checked_output(
         "models-azure.nika.yaml",
-        "nika: v1\nworkflow:\n  id: m\ntasks:\n  think:\n    infer: { prompt: hi, max_tokens: 10, model: \"azure/gpt-4o\" }\n",
+        "nika: m\ntasks:\n  think:\n    infer: { prompt: hi, max_tokens: 10, model: \"azure/gpt-4o\" }\n",
         false,
     );
     assert_eq!(
@@ -351,7 +353,7 @@ fn models_rung_reds_a_cataloged_but_unresolvable_provider() {
 fn the_footer_never_contradicts_the_exit_code() {
     let out = checked_output(
         "footer-verdict.nika.yaml",
-        "nika: v1\nworkflow:\n  id: m\ntasks:\n  think:\n    infer: { prompt: hi, max_tokens: 10, model: \"azure/gpt-4o\" }\n",
+        "nika: m\ntasks:\n  think:\n    infer: { prompt: hi, max_tokens: 10, model: \"azure/gpt-4o\" }\n",
         false,
     );
     assert_eq!(out.code, 2, "the MODELS finding fails: {}", out.text);
@@ -377,7 +379,7 @@ fn the_footer_never_contradicts_the_exit_code() {
 /// exit 0.
 #[test]
 fn operational_profile_folds_unbounded_risk_into_the_verdict() {
-    let yaml = "nika: v1\nworkflow:\n  id: loop\nmodel: mock/echo\npermits:\n  tools: [\"nika:*\"]\ntasks:\n  loop:\n    agent: { prompt: \"go\", tools: [\"nika:read\"], max_turns: 100 }\n";
+    let yaml = "nika: loop\nmodel: mock/echo\npermits:\n  tools: [\"nika:*\"]\ntasks:\n  loop:\n    agent: { prompt: \"go\", tools: [\"nika:read\"], max_turns: 100 }\n";
     // Advisory (default): the exit stays 0 — but the card must tell
     // the truth (no green audited line over unbounded rope).
     let advisory = checked_output("risk-advisory.nika.yaml", yaml, false);
@@ -446,7 +448,7 @@ fn operational_profile_folds_unbounded_risk_into_the_verdict() {
 fn the_card_names_the_grade_on_every_rung() {
     let high = checked_output(
         "risk-high.nika.yaml",
-        "nika: v1\nworkflow:\n  id: h\nmodel: anthropic/claude-sonnet-4-6\npermits:\n  tools: [\"nika:*\"]\ntasks:\n  t:\n    infer: { prompt: \"hi\", max_tokens: 10 }\n",
+        "nika: h\nmodel: anthropic/claude-sonnet-4-6\npermits:\n  tools: [\"nika:*\"]\ntasks:\n  t:\n    infer: { prompt: \"hi\", max_tokens: 10 }\n",
         false,
     );
     assert_eq!(high.code, 0, "advisory: {}", high.text);
@@ -457,7 +459,7 @@ fn the_card_names_the_grade_on_every_rung() {
     );
     let low = checked_output(
         "risk-low.nika.yaml",
-        "nika: v1\nworkflow:\n  id: l\nmodel: anthropic/claude-sonnet-4-6\npermits: {}\ntasks:\n  t:\n    infer: { prompt: \"hi\", max_tokens: 10 }\n",
+        "nika: l\nmodel: anthropic/claude-sonnet-4-6\npermits: {}\ntasks:\n  t:\n    infer: { prompt: \"hi\", max_tokens: 10 }\n",
         false,
     );
     assert_eq!(low.code, 0, "{}", low.text);
@@ -474,7 +476,7 @@ fn the_card_names_the_grade_on_every_rung() {
 fn models_rung_reds_a_bare_model_id_and_never_conjures_a_price() {
     let out = checked_output(
         "models-bare.nika.yaml",
-        "nika: v1\nworkflow:\n  id: m\ntasks:\n  think:\n    infer: { prompt: hi, max_tokens: 10, model: \"gpt-5-turbo\" }\n",
+        "nika: m\ntasks:\n  think:\n    infer: { prompt: hi, max_tokens: 10, model: \"gpt-5-turbo\" }\n",
         false,
     );
     assert_eq!(out.code, 2, "bare id is a finding: {}", out.text);
@@ -516,7 +518,7 @@ fn models_rung_reds_a_bare_model_id_and_never_conjures_a_price() {
 fn models_rung_is_green_when_every_model_resolves() {
     let out = checked_output(
         "models-green.nika.yaml",
-        "nika: v1\nworkflow:\n  id: m\ntasks:\n  think:\n    infer: { prompt: hi, max_tokens: 10, model: \"mock/echo\" }\n",
+        "nika: m\ntasks:\n  think:\n    infer: { prompt: hi, max_tokens: 10, model: \"mock/echo\" }\n",
         false,
     );
     assert_eq!(out.code, 0, "{}", out.text);
@@ -542,7 +544,7 @@ fn models_rung_judges_a_templated_models_declared_default() {
     // canonical form.
     let out = checked_output(
         "models-param.nika.yaml",
-        "nika: v1\nworkflow:\n  id: p\nconst:\n  model: \"anthropic/claude-sonnet-4-6\"\ntasks:\n  ask:\n    infer: { prompt: hi, max_tokens: 10, model: \"${{ const.model }}\" }\n",
+        "nika: p\nconst:\n  model: \"anthropic/claude-sonnet-4-6\"\ntasks:\n  ask:\n    infer: { prompt: hi, max_tokens: 10, model: \"${{ const.model }}\" }\n",
         false,
     );
     assert_eq!(
@@ -563,7 +565,7 @@ fn models_rung_judges_a_templated_models_declared_default() {
     // The teeth stay on what IS statically decidable.
     let literal = checked_output(
         "models-param-teeth.nika.yaml",
-        "nika: v1\nworkflow:\n  id: p\ntasks:\n  ask:\n    infer: { prompt: hi, max_tokens: 10, model: \"gpt-5-turbo\" }\n",
+        "nika: p\ntasks:\n  ask:\n    infer: { prompt: hi, max_tokens: 10, model: \"gpt-5-turbo\" }\n",
         false,
     );
     assert_eq!(
@@ -584,7 +586,7 @@ fn models_rung_judges_a_templated_models_declared_default() {
 fn models_rung_reds_a_templated_models_refusable_default() {
     let out = checked_output(
         "models-param-bad.nika.yaml",
-        "nika: v1\nworkflow:\n  id: p\nconst:\n  model: { type: string, value: \"gpt-5-turbo\" }\ntasks:\n  ask:\n    infer: { prompt: hi, max_tokens: 10, model: \"${{ const.model }}\" }\n",
+        "nika: p\nconst:\n  model: { type: string, value: \"gpt-5-turbo\" }\ntasks:\n  ask:\n    infer: { prompt: hi, max_tokens: 10, model: \"${{ const.model }}\" }\n",
         false,
     );
     assert_eq!(
@@ -616,7 +618,7 @@ fn models_rung_reds_a_templated_models_refusable_default() {
 fn models_rung_never_guesses_inside_a_literal_object_const() {
     let out = checked_output(
         "models-param-object.nika.yaml",
-        "nika: v1\nworkflow:\n  id: p\nconst:\n  model: { type: string, default: \"gpt-5-turbo\" }\ntasks:\n  ask:\n    infer: { prompt: hi, max_tokens: 10, model: \"${{ const.model }}\" }\n",
+        "nika: p\nconst:\n  model: { type: string, default: \"gpt-5-turbo\" }\ntasks:\n  ask:\n    infer: { prompt: hi, max_tokens: 10, model: \"${{ const.model }}\" }\n",
         false,
     );
     assert_eq!(
@@ -640,7 +642,7 @@ fn models_rung_never_guesses_inside_a_literal_object_const() {
 fn models_rung_makes_no_claim_over_a_defaultless_run_time_model() {
     let out = checked_output(
         "models-param-runtime.nika.yaml",
-        "nika: v1\nworkflow:\n  id: p\ninputs:\n  model: { type: string, required: true }\ntasks:\n  ask:\n    infer: { prompt: hi, max_tokens: 10, model: \"${{ inputs.model }}\" }\n",
+        "nika: p\ninputs:\n  model: { type: string, required: true }\ntasks:\n  ask:\n    infer: { prompt: hi, max_tokens: 10, model: \"${{ inputs.model }}\" }\n",
         false,
     );
     assert_eq!(out.code, 0, "no claim is not a finding: {}", out.text);
@@ -662,7 +664,7 @@ fn models_rung_makes_no_claim_over_a_defaultless_run_time_model() {
 fn native_strict_json_payload_agrees_with_the_exit_code() {
     // net.http rides along: post-D1 the exec URL is a net USE —
     // undeclared it would be a PERMITS escape, not a hint-only file.
-    let helper = "nika: v1\nworkflow:\n  id: helper\npermits: { exec: [\"curl\"], net: { http: [\"acme.test\"] } }\ntasks:\n  crawl:\n    exec: { command: [\"curl\", \"-s\", \"https://acme.test\"] }\n";
+    let helper = "nika: helper\npermits: { exec: [\"curl\"], net: { http: [\"acme.test\"] } }\ntasks:\n  crawl:\n    exec: { command: [\"curl\", \"-s\", \"https://acme.test\"] }\n";
     // Per-PROCESS dir: two concurrent `cargo test` invocations (a CI
     // matrix · a dev double-run) share the OS tmpdir, and a fixed
     // name let them stomp each other's fixtures mid-read (flaked
@@ -700,7 +702,7 @@ fn native_strict_json_payload_agrees_with_the_exit_code() {
 fn native_strict_fails_on_native_first_hints_only() {
     // net.http rides along: post-D1 the exec URL is a net USE —
     // undeclared it would be a PERMITS escape, not a hint-only file.
-    let helper = "nika: v1\nworkflow:\n  id: helper\npermits: { exec: [\"curl\"], net: { http: [\"acme.test\"] } }\ntasks:\n  crawl:\n    exec: { command: [\"curl\", \"-s\", \"https://acme.test\"] }\n";
+    let helper = "nika: helper\npermits: { exec: [\"curl\"], net: { http: [\"acme.test\"] } }\ntasks:\n  crawl:\n    exec: { command: [\"curl\", \"-s\", \"https://acme.test\"] }\n";
     let default_run = checked_output("native-default.nika.yaml", helper, false);
     assert_eq!(
         default_run.code, 0,
@@ -725,7 +727,7 @@ fn native_strict_fails_on_native_first_hints_only() {
         strict.text
     );
 
-    let native_twin = "nika: v1\nworkflow:\n  id: native\npermits: { tools: [\"nika:fetch\"], net: { http: [\"acme.test\"] } }\ntasks:\n  crawl:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://acme.test\" } }\n";
+    let native_twin = "nika: native\npermits: { tools: [\"nika:fetch\"], net: { http: [\"acme.test\"] } }\ntasks:\n  crawl:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://acme.test\" } }\n";
     let twin = checked_output("native-twin.nika.yaml", native_twin, true);
     assert_eq!(twin.code, 0, "the native twin passes strict: {}", twin.text);
     assert!(!twin.text.contains("native-strict ·"), "{}", twin.text);
@@ -749,7 +751,7 @@ fn the_strict_refusal_does_not_sell_the_ledger_as_an_escape() {
     // end of the module. Measured: this 24-line test reported as 212.
     // net.http rides along: post-D1 the exec URL is a net USE —
     // undeclared it would be a PERMITS escape, not a hint-only file.
-    let ledgered = "# EXEC LEDGER ·\n# | task | command | why no native path | unlock |\n# | crawl | curl | legacy auth | nika:fetch oauth |\nnika: v1\nworkflow:\n  id: ledgered\npermits: { exec: [\"curl\"], net: { http: [\"acme.test\"] } }\ntasks:\n  crawl:\n    exec: { command: [\"curl\", \"-s\", \"https://acme.test\"] }\n";
+    let ledgered = "# EXEC LEDGER ·\n# | task | command | why no native path | unlock |\n# | crawl | curl | legacy auth | nika:fetch oauth |\nnika: ledgered\npermits: { exec: [\"curl\"], net: { http: [\"acme.test\"] } }\ntasks:\n  crawl:\n    exec: { command: [\"curl\", \"-s\", \"https://acme.test\"] }\n";
     let out = checked_output("ledgered.nika.yaml", ledgered, true);
     assert_eq!(
         out.code, 2,
@@ -775,7 +777,7 @@ fn the_strict_refusal_does_not_sell_the_ledger_as_an_escape() {
 fn cost_section_names_each_unbounded_reason() {
     let text = checked_text(
         "cost-reasons.nika.yaml",
-        "nika: v1\nworkflow:\n  id: cost-reasons\ninputs:\n  items: { type: { array: string }, required: true }\ntasks:\n  a:\n    infer: { prompt: \"hi\", model: \"anthropic/claude-opus-4-20250514\" }\n  b:\n    infer: { prompt: \"hi\", model: \"ollama/llama3.1\", max_tokens: 50 }\n  c:\n    for_each: \"${{ inputs.items }}\"\n    infer: { prompt: \"x\", model: \"anthropic/claude-opus-4-20250514\", max_tokens: 10 }\n",
+        "nika: cost-reasons\ninputs:\n  items: { type: { array: string }, required: true }\ntasks:\n  a:\n    infer: { prompt: \"hi\", model: \"anthropic/claude-opus-4-20250514\" }\n  b:\n    infer: { prompt: \"hi\", model: \"ollama/llama3.1\", max_tokens: 50 }\n  c:\n    for_each: { items: \"${{ inputs.items }}\" }\n    infer: { prompt: \"x\", model: \"anthropic/claude-opus-4-20250514\", max_tokens: 10 }\n",
         true,
     );
     assert!(text.contains("no max_tokens declared"), "{text}");
@@ -796,7 +798,7 @@ fn cost_section_names_each_unbounded_reason() {
 fn clean_report_marks_every_section() {
     let text = checked_text(
         "clean-one.nika.yaml",
-        "nika: v1\nworkflow:\n  id: clean-one\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
+        "nika: clean-one\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
         false,
     );
     let ticks = text.matches('✔').count();
@@ -829,7 +831,7 @@ fn clean_report_marks_every_section() {
 /// word that keeps the quoted line from meaning the whole meter.
 #[test]
 fn clean_verdict_is_the_audited_card_line() {
-    let yaml = "nika: v1\nworkflow:\n  id: card\nmodel: mock/echo\npermits: { exec: [\"echo\"] }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n  b:\n    after:\n      a: success\n    exec: { command: [\"echo\", \"bye\"] }\n";
+    let yaml = "nika: card\nmodel: mock/echo\npermits: { exec: [\"echo\"] }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n  b:\n    after:\n      a: success\n    exec: { command: [\"echo\", \"bye\"] }\n";
     let text = checked_text("audited-card.nika.yaml", yaml, false);
     assert!(
             text.contains(
@@ -874,7 +876,7 @@ fn clean_verdict_is_the_audited_card_line() {
 /// instance: no doubled brace anywhere in a rendered report.
 #[test]
 fn the_report_never_teaches_a_doubled_brace() {
-    let pure = "nika: v1\nworkflow:\n  id: pure\ntasks:\n  j:\n    invoke:\n      tool: \"nika:jq\"\n      args:\n        expr: \".n\"\n        input: { n: 1 }\n";
+    let pure = "nika: pure\ntasks:\n  j:\n    invoke:\n      tool: \"nika:jq\"\n      args:\n        expr: \".n\"\n        input: { n: 1 }\n";
     for ascii in [false, true] {
         let text = checked_text("doubled-brace.nika.yaml", pure, ascii);
         assert!(
@@ -895,7 +897,7 @@ fn the_report_never_teaches_a_doubled_brace() {
 fn plan_prints_wave_membership_with_verbs_and_targets() {
     let text = checked_text(
         "plan-membership.nika.yaml",
-        "nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-5\ntasks:\n  think:\n    infer: { prompt: hi }\n  after:\n    after:\n      think: success\n    exec:\n      command: [\"echo\", \"x\"]\n",
+        "nika: w\nmodel: anthropic/claude-sonnet-5\ntasks:\n  think:\n    infer: { prompt: hi }\n  after:\n    after:\n      think: success\n    exec:\n      command: [\"echo\", \"x\"]\n",
         true,
     );
     assert!(text.contains("wave 1"), "membership renders: {text}");
@@ -913,7 +915,7 @@ fn plan_prints_wave_membership_with_verbs_and_targets() {
 fn plan_announces_the_skip_when_conformance_fails() {
     let text = checked_text(
         "plan-skip.nika.yaml",
-        "nika: v1\nworkflow:\n  id: bad-ref\ntasks:\n  a:\n    exec: { command: [\"echo\", \"${{ vars.nope }}\"] }\n",
+        "nika: bad-ref\ntasks:\n  a:\n    exec: { command: [\"echo\", \"${{ inputs.nope }}\"] }\n",
         true,
     );
     assert!(
@@ -938,7 +940,7 @@ fn plan_announces_the_skip_when_conformance_fails() {
 /// silent in both directions.
 #[test]
 fn dag_gated_lanes_announce_the_skip_instead_of_a_verdict() {
-    const LEAK: &str = "nika: v1\nworkflow:\n  id: leak\nsecrets:\n  key: { source: env, key: K }\npermits: { exec: [\"curl\"], net: { http: [\"x.example.com\"] }, fs: { read: [\"data/**\"] } }\npolicy:\n  forbid: []\ntasks:\n  send:\n    with: { k: \"${{ secrets.key }}\" }\n    exec: { command: [\"curl\", \"-d\", \"${{ with.k }}\", \"https://x.example.com\"] }\n";
+    const LEAK: &str = "nika: leak\nsecrets:\n  key: { source: env, key: K }\npermits: { exec: [\"curl\"], net: { http: [\"x.example.com\"] }, fs: { read: [\"data/**\"] } }\ntasks:\n  send:\n    with: { k: \"${{ secrets.key }}\" }\n    exec: { command: [\"curl\", \"-d\", \"${{ with.k }}\", \"https://x.example.com\"] }\n";
     let analyzable = checked_text("lanes-analyzable.nika.yaml", LEAK, false);
     assert!(
         analyzable.contains("leak into exec (task `send`)"),
@@ -950,7 +952,7 @@ fn dag_gated_lanes_announce_the_skip_instead_of_a_verdict() {
         "{LEAK}  ghost:\n    with: {{ z: \"${{{{ tasks.nope.output }}}}\" }}\n    exec: {{ command: [\"curl\", \"${{{{ with.z }}}}\"] }}\n"
     );
     let text = checked_text("lanes-skip.nika.yaml", &broken, false);
-    for lane in ["SECRETS", "GATES", "POLICY", "TRIFECTA"] {
+    for lane in ["SECRETS", "GATES", "TRIFECTA"] {
         // The placeholder makes ONE assert cover both failure shapes:
         // the lane vanished, or it printed a verdict it never computed.
         let line = text
@@ -977,7 +979,8 @@ fn dag_gated_lanes_announce_the_skip_instead_of_a_verdict() {
 /// (`clean_verdict_is_the_audited_card_line`); this is its red twin.
 #[test]
 fn the_failing_verdict_has_an_ascii_twin() {
-    const BAD: &str = "nika: v1\nworkflow:\n  id: typo\ntasks:\n  t:\n    invoke: { tool: \"nika:raed\", args: { path: \"x\" } }\n";
+    const BAD: &str =
+        "nika: typo\ntasks:\n  t:\n    invoke: { tool: \"nika:raed\", args: { path: \"x\" } }\n";
     let uni = checked_text("verdict-unicode.nika.yaml", BAD, false);
     assert!(uni.contains("✖ findings above"), "{uni}");
     let ascii = checked_text("verdict-ascii.nika.yaml", BAD, true);
@@ -995,7 +998,7 @@ fn the_failing_verdict_has_an_ascii_twin() {
 fn unused_declaration_is_hinted_and_the_exit_stays_green() {
     let out = checked_output(
         "drift-unused.nika.yaml",
-        "nika: v1\nworkflow:\n  id: w\nconst:\n  ghost: \"x\"\npermits: { exec: [\"echo\"] }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
+        "nika: w\nconst:\n  ghost: \"x\"\npermits: { exec: [\"echo\"] }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
         false,
     );
     assert_eq!(out.code, 0, "a drift hint never fails: {}", out.text);
@@ -1022,7 +1025,7 @@ fn drift_hint_rides_the_json_projection() {
     let path = dir.join("drift-json.nika.yaml");
     std::fs::write(
             &path,
-            "nika: v1\nworkflow:\n  id: w\nconst:\n  ghost: \"x\"\npermits: { exec: [\"echo\"] }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
+            "nika: w\nconst:\n  ghost: \"x\"\npermits: { exec: [\"echo\"] }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
         )
         .expect("fixture body");
     let out = run(
@@ -1057,7 +1060,7 @@ fn drift_hint_rides_the_json_projection() {
 fn unresolved_reference_never_also_drifts() {
     let out = checked_output(
         "drift-no-dup.nika.yaml",
-        "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    exec: { command: [\"echo\", \"${{ inputs.ghost }}\"] }\n",
+        "nika: w\ntasks:\n  a:\n    exec: { command: [\"echo\", \"${{ inputs.ghost }}\"] }\n",
         false,
     );
     assert_eq!(out.code, 2, "the hard lane fails: {}", out.text);
@@ -1099,9 +1102,7 @@ fn the_welcome_sample_is_a_real_workflow_that_checks_clean() {
 fn access_plan_rows_narrate_the_machine_paths() {
     // mock: keyless, compiled in — deterministic on EVERY machine (the
     // env-independent fixture class this advisory section must test on).
-    let wf = parse_wf(
-        "nika: v1\nworkflow:\n  id: a\ntasks:\n  t:\n    infer: { prompt: hi, model: \"mock/echo\" }\n",
-    );
+    let wf = parse_wf("nika: a\ntasks:\n  t:\n    infer: { prompt: hi, model: \"mock/echo\" }\n");
     let rows = models_rung::access_plan_rows(&nika_check::check(&wf));
     assert_eq!(rows.len(), 1, "{rows:?}");
     let row = &rows[0];
@@ -1114,9 +1115,8 @@ fn access_plan_rows_narrate_the_machine_paths() {
 
     // ollama: keyless local — `configured` holds on every machine, so
     // the chosen class is deterministic (liveness is the RUN's business).
-    let wf = parse_wf(
-        "nika: v1\nworkflow:\n  id: b\ntasks:\n  t:\n    infer: { prompt: hi, model: \"ollama/llama3.2\" }\n",
-    );
+    let wf =
+        parse_wf("nika: b\ntasks:\n  t:\n    infer: { prompt: hi, model: \"ollama/llama3.2\" }\n");
     let rows = models_rung::access_plan_rows(&nika_check::check(&wf));
     assert_eq!(rows[0]["resolved"], true);
     assert_eq!(rows[0]["chosen"], "local");
@@ -1124,7 +1124,7 @@ fn access_plan_rows_narrate_the_machine_paths() {
 
     // A templated `model:` is not a static fact — never judged here.
     let wf = parse_wf(
-        "nika: v1\nworkflow:\n  id: c\nconst:\n  m: { default: \"mock/echo\" }\ntasks:\n  t:\n    infer: { prompt: hi, model: \"${{ const.m }}\" }\n",
+        "nika: c\nconst:\n  m: { default: \"mock/echo\" }\ntasks:\n  t:\n    infer: { prompt: hi, model: \"${{ const.m }}\" }\n",
     );
     assert!(
         models_rung::access_plan_rows(&nika_check::check(&wf)).is_empty(),
@@ -1137,7 +1137,7 @@ fn a_catalog_warning_speaks_exactly_once_per_model() {
     // The duplicated advisory block (pre-2026-08-05) doubled every row —
     // one model with a catalog miss must yield ONE warning.
     let wf = parse_wf(
-        "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    infer: { prompt: hi, model: \"anthropic/claude-never-heard-of-it\" }\n",
+        "nika: w\ntasks:\n  t:\n    infer: { prompt: hi, model: \"anthropic/claude-never-heard-of-it\" }\n",
     );
     let report = nika_check::check(&wf);
     let audit = unresolvable_models(&report, &wf);
@@ -1164,7 +1164,7 @@ fn infer_permits_output_cannot_depend_on_the_disk() {
     std::fs::write(
         &path,
         format!(
-            "nika: v1\nworkflow:\n  id: pin\ntasks:\n  read:\n    invoke:\n      tool: \"nika:read\"\n      args: {{ path: \"{}\" }}\n",
+            "nika: pin\ntasks:\n  read:\n    invoke:\n      tool: \"nika:read\"\n      args: {{ path: \"{}\" }}\n",
             target.display()
         ),
     )
@@ -1202,7 +1202,7 @@ fn check_json_carries_the_build_provenance_pair() {
     let path = dir.join("provenance.nika.yaml");
     std::fs::write(
         &path,
-        "nika: v1\nworkflow:\n  id: w\npermits: { exec: [\"echo\"] }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
+        "nika: w\npermits: { exec: [\"echo\"] }\ntasks:\n  a:\n    exec: { command: [\"echo\", \"hi\"] }\n",
     )
     .expect("fixture body");
     let out = run(

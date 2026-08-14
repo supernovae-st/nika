@@ -94,7 +94,7 @@ fn get<'a>(fields: &'a [(String, String)], key: &str) -> Option<&'a str> {
 /// declared boundary as spec-wire JSON, and the sandbox backend name.
 #[test]
 fn prologue_journals_the_evidence_fields() {
-    let yaml = "nika: v1\nworkflow:\n  id: pay\npermits:\n  fs: { read: [\"./in/**\"], write: [\"./out/**\"] }\n  exec: [\"echo\"]\ntasks:\n  t:\n    exec: { command: [\"echo\", \"x\"] }\n";
+    let yaml = "nika: pay\npermits:\n  fs: { read: [\"./in/**\"], write: [\"./out/**\"] }\n  exec: [\"echo\"]\ntasks:\n  t:\n    exec: { command: [\"echo\", \"x\"] }\n";
     let wf = nika_schema::parse(
         yaml,
         nika_schema::FileId::new(0),
@@ -117,7 +117,7 @@ fn prologue_journals_the_evidence_fields() {
 /// semantic hash rides regardless — it is the workflow's identity.
 #[test]
 fn prologue_omits_absent_boundary_and_backend() {
-    let yaml = "nika: v1\nworkflow:\n  id: floor\ntasks:\n  t:\n    exec: { command: [\"echo\", \"x\"] }\n";
+    let yaml = "nika: floor\ntasks:\n  t:\n    exec: { command: [\"echo\", \"x\"] }\n";
     let fields = started_fields(yaml, None);
     assert_eq!(
         get(&fields, "permits_json"),
@@ -141,7 +141,7 @@ fn prologue_omits_absent_boundary_and_backend() {
 /// leaves them absent (never an invented claim).
 #[test]
 fn the_waiver_is_attested_on_the_opening_frame() {
-    let yaml = "nika: v1\nworkflow:\n  id: pay\npermits:\n  fs: { read: [\"./in/**\"] }\ntasks:\n  t:\n    exec: { command: [\"echo\", \"x\"] }\n";
+    let yaml = "nika: pay\npermits:\n  fs: { read: [\"./in/**\"] }\ntasks:\n  t:\n    exec: { command: [\"echo\", \"x\"] }\n";
     let waived = started_fields_full(
         yaml,
         Some("noop"),
@@ -175,8 +175,7 @@ fn the_waiver_is_attested_on_the_opening_frame() {
 /// without origins carries NO claim (absent is honest).
 #[test]
 fn prologue_journals_the_input_origins() {
-    let yaml =
-        "nika: v1\nworkflow:\n  id: pay\ntasks:\n  t:\n    exec: { command: [\"echo\", \"x\"] }\n";
+    let yaml = "nika: pay\ntasks:\n  t:\n    exec: { command: [\"echo\", \"x\"] }\n";
     let origins = BTreeMap::from([
         ("count".to_owned(), InputOrigin::CiContext),
         ("region".to_owned(), InputOrigin::File),
@@ -201,8 +200,7 @@ fn prologue_journals_the_input_origins() {
 /// `resume_compat: declared`); an exact resume journals no claim.
 #[test]
 fn prologue_attests_the_declared_cross_version_compat() {
-    let yaml =
-        "nika: v1\nworkflow:\n  id: pay\ntasks:\n  t:\n    exec: { command: [\"echo\", \"x\"] }\n";
+    let yaml = "nika: pay\ntasks:\n  t:\n    exec: { command: [\"echo\", \"x\"] }\n";
     let fields = started_fields_full(
         yaml,
         None,
@@ -230,8 +228,7 @@ fn prologue_attests_the_declared_cross_version_compat() {
 /// (or none) journals NO claim — never a flag echo.
 #[test]
 fn prologue_attests_the_resume_unverified_opt_out() {
-    let yaml =
-        "nika: v1\nworkflow:\n  id: pay\ntasks:\n  t:\n    exec: { command: [\"echo\", \"x\"] }\n";
+    let yaml = "nika: pay\ntasks:\n  t:\n    exec: { command: [\"echo\", \"x\"] }\n";
     let fields = started_fields_full(
         yaml,
         None,
@@ -267,8 +264,7 @@ fn prologue_attests_the_resume_unverified_opt_out() {
 /// the journal never claims one.
 #[test]
 fn prologue_attests_the_unchained_resume_compat() {
-    let yaml =
-        "nika: v1\nworkflow:\n  id: pay\ntasks:\n  t:\n    exec: { command: [\"echo\", \"x\"] }\n";
+    let yaml = "nika: pay\ntasks:\n  t:\n    exec: { command: [\"echo\", \"x\"] }\n";
     let fields = started_fields_full(
         yaml,
         None,
@@ -298,8 +294,7 @@ fn prologue_attests_the_unchained_resume_compat() {
 /// rejoué en 2031 se lit contre la table 2026 pinnée ».
 #[test]
 fn prologue_pins_the_pricing_table_identity() {
-    let yaml =
-        "nika: v1\nworkflow:\n  id: pay\ntasks:\n  t:\n    exec: { command: [\"echo\", \"x\"] }\n";
+    let yaml = "nika: pay\ntasks:\n  t:\n    exec: { command: [\"echo\", \"x\"] }\n";
     let fields = started_fields(yaml, None);
     let pin: serde_json::Value = serde_json::from_str(
         get(&fields, "pricing").expect("the pricing pin rides the boot frame"),
@@ -326,8 +321,7 @@ fn prologue_pins_the_pricing_table_identity() {
 /// and a non-finite budget can never reach the journal as `null`.
 #[test]
 fn prologue_journals_the_budget_only_when_bounded() {
-    let yaml =
-        "nika: v1\nworkflow:\n  id: pay\ntasks:\n  t:\n    exec: { command: [\"echo\", \"x\"] }\n";
+    let yaml = "nika: pay\ntasks:\n  t:\n    exec: { command: [\"echo\", \"x\"] }\n";
     let bounded = started_fields_full(
         yaml,
         None,
@@ -377,8 +371,7 @@ fn prologue_journals_the_budget_only_when_bounded() {
 /// never a guess).
 #[test]
 fn prologue_journals_the_model_override_only_when_declared() {
-    let yaml =
-        "nika: v1\nworkflow:\n  id: pay\ntasks:\n  t:\n    exec: { command: [\"echo\", \"x\"] }\n";
+    let yaml = "nika: pay\ntasks:\n  t:\n    exec: { command: [\"echo\", \"x\"] }\n";
     let overridden = started_fields_full(
         yaml,
         None,

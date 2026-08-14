@@ -360,7 +360,7 @@ mod tests {
     /// preflight judges the DECLARATION ⊕ the overrides, never the reads.
     fn fixture(inputs: &str) -> String {
         format!(
-            "nika: v1\nworkflow:\n  id: admit\n{inputs}permits: {{ exec: [\"true\"] }}\ntasks:\n  t:\n    exec: {{ command: [\"true\"] }}\n"
+            "nika: admit\n{inputs}permits: {{ exec: [\"true\"] }}\ntasks:\n  t:\n    exec: {{ command: [\"true\"] }}\n"
         )
     }
 
@@ -494,7 +494,7 @@ mod tests {
     /// · outputs clear (they may read unscoped tasks).
     #[test]
     fn scope_to_task_keeps_the_ancestor_cone() {
-        let yaml = "nika: v1\nworkflow:\n  id: diamond\nmodel: mock/echo\ntasks:\n  discover:\n    invoke: { tool: \"nika:glob\", args: { pattern: \"*.md\" } }\n  stats:\n    with:\n      found: ${{ tasks.discover.output }}\n    infer: { prompt: \"count ${{ with.found }}\" }\n  digest:\n    with:\n      found: ${{ tasks.discover.output }}\n    infer: { prompt: \"sum ${{ with.found }}\" }\n  report:\n    with:\n      stats: ${{ tasks.stats.output }}\n      digest: ${{ tasks.digest.output }}\n    infer: { prompt: \"merge ${{ with.stats }} ${{ with.digest }}\" }\noutputs:\n  all: ${{ tasks.report.output }}\n";
+        let yaml = "nika: diamond\nmodel: mock/echo\ntasks:\n  discover:\n    invoke: { tool: \"nika:glob\", args: { pattern: \"*.md\" } }\n  stats:\n    with:\n      found: ${{ tasks.discover.output }}\n    infer: { prompt: \"count ${{ with.found }}\" }\n  digest:\n    with:\n      found: ${{ tasks.discover.output }}\n    infer: { prompt: \"sum ${{ with.found }}\" }\n  report:\n    with:\n      stats: ${{ tasks.stats.output }}\n      digest: ${{ tasks.digest.output }}\n    infer: { prompt: \"merge ${{ with.stats }} ${{ with.digest }}\" }\noutputs:\n  all: ${{ tasks.report.output }}\n";
         let wf = parse(yaml);
 
         let stats_only = scope_to_task(wf.clone(), "stats").expect("stats scopes");
@@ -524,7 +524,7 @@ mod tests {
     /// run renders describe exactly the cone, not the original file.
     #[test]
     fn scoped_workflow_rechecks_clean() {
-        let yaml = "nika: v1\nworkflow:\n  id: pair\nmodel: mock/echo\ntasks:\n  a:\n    infer: { prompt: \"hi\" }\n  b:\n    with:\n      prev: ${{ tasks.a.output }}\n    infer: { prompt: \"use ${{ with.prev }}\" }\n";
+        let yaml = "nika: pair\nmodel: mock/echo\ntasks:\n  a:\n    infer: { prompt: \"hi\" }\n  b:\n    with:\n      prev: ${{ tasks.a.output }}\n    infer: { prompt: \"use ${{ with.prev }}\" }\n";
         let wf = parse(yaml);
         let sub = scope_to_task(wf, "a").expect("a scopes");
         let report = nika_check::check(&sub);
@@ -563,7 +563,7 @@ mod tests {
     #[test]
     fn budget_floor_refusal_is_the_embedders_gate() {
         let wf = parse(
-            "nika: v1\nworkflow:\n  id: m\ntasks:\n  \
+            "nika: m\ntasks:\n  \
              a:\n    infer: { prompt: hi, max_tokens: 1000000, model: \"anthropic/claude-sonnet-5\" }\n",
         );
         let report = nika_check::check(&wf);
@@ -589,7 +589,7 @@ mod tests {
     /// priced file overridden to mock passes.
     #[test]
     fn the_gate_prices_the_model_the_run_will_use() {
-        let yaml = "nika: v1\nworkflow:\n  id: m\nmodel: \"mock/echo\"\ntasks:\n  \
+        let yaml = "nika: m\nmodel: \"mock/echo\"\ntasks:\n  \
              a:\n    infer: { prompt: hi, max_tokens: 1000000 }\n";
         let wf = parse(yaml);
         let report = nika_check::check(&wf);
@@ -608,7 +608,7 @@ mod tests {
             "the overridden (effective) model's floor trips the gate: {err:?}"
         );
 
-        let yaml = "nika: v1\nworkflow:\n  id: m\nmodel: \"anthropic/claude-sonnet-5\"\ntasks:\n  \
+        let yaml = "nika: m\nmodel: \"anthropic/claude-sonnet-5\"\ntasks:\n  \
              a:\n    infer: { prompt: hi, max_tokens: 1000000 }\n";
         let wf = parse(yaml);
         let report = nika_check::check(&wf);
@@ -623,7 +623,7 @@ mod tests {
     #[test]
     fn gates_fire_the_budget_floor_after_the_input_gate() {
         let wf = parse(
-            "nika: v1\nworkflow:\n  id: m\ninputs:\n  needed: { type: string, required: true }\ntasks:\n  \
+            "nika: m\ninputs:\n  needed: { type: string, required: true }\ntasks:\n  \
              a:\n    infer: { prompt: hi, max_tokens: 1000000, model: \"anthropic/claude-sonnet-5\" }\n",
         );
         let report = nika_check::check(&wf);
@@ -682,7 +682,7 @@ mod tests {
 
     fn mistral_wf() -> (RawWorkflow, CheckReport) {
         let wf = parse(
-            "nika: v1\nworkflow:\n  id: t\ntasks:\n  s:\n    infer: { prompt: \"x\", model: \"mistral/mistral-small-latest\" }\n",
+            "nika: t\ntasks:\n  s:\n    infer: { prompt: \"x\", model: \"mistral/mistral-small-latest\" }\n",
         );
         let report = nika_check::check(&wf);
         (wf, report)
@@ -758,7 +758,7 @@ mod tests {
     #[test]
     fn a_satisfied_pin_admits() {
         let wf = parse(
-            "nika: v1\nworkflow:\n  id: t\ntasks:\n  s:\n    infer: { prompt: \"x\", model: \"ollama/llama3.2\" }\n",
+            "nika: t\ntasks:\n  s:\n    infer: { prompt: \"x\", model: \"ollama/llama3.2\" }\n",
         );
         let report = nika_check::check(&wf);
         let (pin, probes) = (
@@ -775,9 +775,8 @@ mod tests {
 
     #[test]
     fn a_mock_pin_keeps_the_rehearsal_runnable() {
-        let wf = parse(
-            "nika: v1\nworkflow:\n  id: t\ntasks:\n  s:\n    infer: { prompt: \"x\", model: \"mock/echo\" }\n",
-        );
+        let wf =
+            parse("nika: t\ntasks:\n  s:\n    infer: { prompt: \"x\", model: \"mock/echo\" }\n");
         let report = nika_check::check(&wf);
         // Probes exclude the mock backend by design — the gate must
         // synthesize its keyless candidate, or the rehearsal dies.
@@ -792,7 +791,7 @@ mod tests {
         // (#342's law), so it admits. A per-task `model:` would keep
         // winning over the override — hence the envelope-form fixture.
         let wf = parse(
-            "nika: v1\nworkflow:\n  id: t\nmodel: mistral/mistral-small-latest\ntasks:\n  s:\n    infer: { prompt: \"x\" }\n",
+            "nika: t\nmodel: mistral/mistral-small-latest\ntasks:\n  s:\n    infer: { prompt: \"x\" }\n",
         );
         let report = nika_check::check(&wf);
         let (pin, probes) = (
@@ -827,7 +826,7 @@ mod tests {
         // unpriced specimen is a sovereign local (unpriced-never-free);
         // mock stopped qualifying when it became a proven zero (A-02).
         let msg = breakdown_of(
-            "nika: v1\nworkflow:\n  id: m\ntasks:\n  \
+            "nika: m\ntasks:\n  \
              a:\n    infer: { prompt: hi, model: \"anthropic/claude-sonnet-5\" }\n  \
              b:\n    infer: { prompt: hi, max_tokens: 100, model: \"ollama/llama3\" }\n",
         );
@@ -851,7 +850,7 @@ mod tests {
         // NoTokenLimit — proving the unpriced bucket AND both
         // exclusions in one shot.
         let msg = breakdown_of(
-            "nika: v1\nworkflow:\n  id: m\ntasks:\n  \
+            "nika: m\ntasks:\n  \
              a:\n    infer: { prompt: hi, max_tokens: 100, model: \"anthropic/claude-sonnet-5\" }\n  \
              b:\n    infer: { prompt: hi, max_tokens: 100, model: \"ollama/llama3\" }\n  \
              c:\n    infer: { prompt: hi, max_tokens: 100, model: \"mock/echo\" }\n",

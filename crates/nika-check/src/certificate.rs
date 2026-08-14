@@ -207,7 +207,7 @@ fn check_row(t: &nika_schema::raw::RawTask, row: &TaskContribution) -> Result<()
         None => FanOut::Known(1),
         Some(ForEachValue::List(arr)) => FanOut::Known(arr.as_array().map_or(1, Vec::len) as u64),
         // Intentional asymmetry with `cost::static_vars_array_len`: a static
-        // `${{ vars.<name> }}` array stays a `Collection` witness here even
+        // `${{ inputs.<name> }}` array stays a `Collection` witness here even
         // though cost.rs resolves it to a count. The certificate verifies
         // STRUCTURE, not spend — `FanOut::Known` would require the certificate
         // schema to carry the resolved count, which it does not.
@@ -225,14 +225,11 @@ fn check_row(t: &nika_schema::raw::RawTask, row: &TaskContribution) -> Result<()
     if row.main_llm != llm || row.main_effect != effect {
         return Err(format!("`{id}`: main-action call counts mismatch"));
     }
-    let (mut f_llm, mut f_effect) = (0u64, 0u64);
-    for cleanup in &t.on_finally {
-        let (l, e) = action_calls(&cleanup.value.action);
-        f_llm += l;
-        f_effect += e;
-    }
-    if row.finally_llm != f_llm || row.finally_effect != f_effect {
-        return Err(format!("`{id}`: on_finally call counts mismatch"));
+    // Cleanup is a TASK now, counted in ITS OWN row — a row still
+    // claiming nested cleanup calls is describing a shape the grammar
+    // no longer has, so the check survives as a zero-assertion.
+    if row.finally_llm != 0 || row.finally_effect != 0 {
+        return Err(format!("`{id}`: nested cleanup call counts are dead"));
     }
     Ok(())
 }
@@ -414,7 +411,7 @@ fn contribution(t: &nika_schema::raw::RawTask, default_model: Option<&str>) -> T
         None => FanOut::Known(1),
         Some(ForEachValue::List(arr)) => FanOut::Known(arr.as_array().map_or(1, Vec::len) as u64),
         // Intentional asymmetry with `cost::static_vars_array_len`: a static
-        // `${{ vars.<name> }}` array stays a `Collection` witness here even
+        // `${{ inputs.<name> }}` array stays a `Collection` witness here even
         // though cost.rs resolves it to a count. The certificate verifies
         // STRUCTURE, not spend — `FanOut::Known` would require the certificate
         // schema to carry the resolved count, which it does not.
@@ -427,20 +424,11 @@ fn contribution(t: &nika_schema::raw::RawTask, default_model: Option<&str>) -> T
     };
     let (main_llm, main_effect) = action_calls(&t.action);
     let main_spend_micros = action_spend_micros(&t.action, default_model).ok();
-    let (mut finally_llm, mut finally_effect) = (0u64, 0u64);
-    let mut finally_spend_micros = Some(0u64);
-    for cleanup in &t.on_finally {
-        let (l, e) = action_calls(&cleanup.value.action);
-        finally_llm += l;
-        finally_effect += e;
-        match (
-            finally_spend_micros,
-            action_spend_micros(&cleanup.value.action, default_model),
-        ) {
-            (Some(acc), Ok(m)) => finally_spend_micros = Some(acc.saturating_add(m)),
-            _ => finally_spend_micros = None,
-        }
-    }
+    // Cleanup contributes through its OWN row now (it is a task) — the
+    // nested counters stay in the shape at zero until the certificate
+    // wire drops them with its next version.
+    let (finally_llm, finally_effect) = (0u64, 0u64);
+    let finally_spend_micros = Some(0u64);
     TaskContribution {
         task: t.id.value.clone(),
         deps: crate::analyzer::edges::producer_ids(t),
@@ -568,7 +556,7 @@ mod tests {
     }
 
     fn wf(tasks: &str) -> String {
-        format!("nika: v1\nworkflow:\n  id: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n{tasks}")
+        format!("nika: w\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n{tasks}")
     }
 
     fn konst(n: u64) -> Bound {
@@ -592,7 +580,7 @@ mod tests {
         assert_eq!(c.effect_calls, konst(5));
         // a templated spec folds to the runtime cap (+ robots).
         let c = cert(&wf(
-            "  crawl:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://a.test\", traverse: \"${{ vars.spec }}\" } }\n",
+            "  crawl:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://a.test\", traverse: \"${{ inputs.spec }}\" } }\n",
         ));
         assert_eq!(c.effect_calls, konst(MAX_TRAVERSE_PAGES + 1));
         // a plain fetch stays exactly 1 (no traverse key).
@@ -626,7 +614,7 @@ mod tests {
     #[test]
     fn literal_for_each_folds_into_the_constant() {
         let c = cert(&wf(
-            "  a:\n    for_each: [\"x\", \"y\", \"z\"]\n    retry: { max_attempts: 2 }\n    exec: { command: [\"echo\", \"${{ item }}\"] }\n",
+            "  a:\n    for_each: { items: [\"x\", \"y\", \"z\"] }\n    retry: { max_attempts: 2 }\n    exec: { command: [\"echo\", \"${{ item }}\"] }\n",
         ));
         // 3 elements × 2 attempts
         assert_eq!(c.task_attempts, konst(6));
@@ -636,7 +624,7 @@ mod tests {
     #[test]
     fn expression_for_each_yields_a_parametric_term() {
         let c = cert(&wf(
-            "  src:\n    exec: { command: [\"ls\"] }\n  fan:\n    with: { files: \"${{ tasks.src.output.files }}\" }\n    for_each: ${{ with.files }}\n    retry: { max_attempts: 2 }\n    infer: { prompt: \"summarize ${{ item }}\", max_tokens: 10 }\n",
+            "  src:\n    exec: { command: [\"ls\"] }\n  fan:\n    with: { files: \"${{ tasks.src.output.files }}\" }\n    for_each: { items: \"${{ with.files }}\" }\n    retry: { max_attempts: 2 }\n    infer: { prompt: \"summarize ${{ item }}\", max_tokens: 10 }\n",
         ));
         // src: 1 attempt · fan: 2·|fan| body runs
         assert_eq!(c.task_attempts.constant, 1);
@@ -672,20 +660,10 @@ mod tests {
     }
 
     #[test]
-    fn on_finally_counts_once_per_iteration_not_per_attempt() {
-        let c = cert(&wf(
-            "  a:\n    retry: { max_attempts: 5 }\n    exec: { command: [\"true\"] }\n    on_finally:\n      - invoke: { tool: \"nika:log\", args: { message: \"done\" } }\n",
-        ));
-        // body: 5 attempts · cleanup: ONCE (after the terminal attempt)
-        assert_eq!(c.task_attempts, konst(5));
-        assert_eq!(c.effect_calls, konst(5 + 1));
-    }
-
-    #[test]
     fn spend_axis_is_parametric_where_cost_says_unknown_iterations() {
         // the deepening: for_each-expression spend = a degree-1 term
         let c = cert(&wf(
-            "  src:\n    exec: { command: [\"ls\"] }\n  fan:\n    with: { files: \"${{ tasks.src.output.files }}\" }\n    for_each: ${{ with.files }}\n    retry: { max_attempts: 2 }\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 200 }\n",
+            "  src:\n    exec: { command: [\"ls\"] }\n  fan:\n    with: { files: \"${{ tasks.src.output.files }}\" }\n    for_each: { items: \"${{ with.files }}\" }\n    retry: { max_attempts: 2 }\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 200 }\n",
         ));
         let usd = c.usd_micros.expect("priced");
         assert_eq!(usd.constant, 0);
@@ -717,7 +695,7 @@ mod tests {
     #[test]
     fn audit_accepts_honest_and_rejects_tampered_certificates() {
         let yaml = wf(
-            "  a:\n    exec: { command: [\"true\"] }\n  fan:\n    with: { items: \"${{ tasks.a.output.items }}\" }\n    for_each: ${{ with.items }}\n    retry: { max_attempts: 2 }\n    infer: { prompt: \"x\", max_tokens: 50 }\n",
+            "  a:\n    exec: { command: [\"true\"] }\n  fan:\n    with: { items: \"${{ tasks.a.output.items }}\" }\n    for_each: { items: \"${{ with.items }}\" }\n    retry: { max_attempts: 2 }\n    infer: { prompt: \"x\", max_tokens: 50 }\n",
         );
         let parsed = parse(&yaml, FileId::new(0), ParseMode::Strict).expect("parse");
         let honest = certify(&parsed);
@@ -776,7 +754,7 @@ mod tests {
         // a for_each over 4 elements: work ×4, span unchanged (the
         // elements run in parallel — Brent: parallelism = work/span)
         let c = cert(&wf(
-            "  a:\n    exec: { command: [\"true\"] }\n  fan:\n    after: { a: success }\n    for_each: [\"w\", \"x\", \"y\", \"z\"]\n    exec: { command: [\"true\"] }\n",
+            "  a:\n    exec: { command: [\"true\"] }\n  fan:\n    after: { a: success }\n    for_each: { items: [\"w\", \"x\", \"y\", \"z\"] }\n    exec: { command: [\"true\"] }\n",
         ));
         assert_eq!(c.task_attempts, konst(5), "work: 1 + 4");
         assert_eq!(c.span_attempts, 2, "span: 1 + 1 (elements parallel)");
@@ -803,7 +781,7 @@ mod tests {
     #[test]
     fn the_wire_shape_is_pinned() {
         let c = cert(&wf(
-            "  fan:\n    for_each: ${{ vars.items }}\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 5 }\n",
+            "  fan:\n    for_each: { items: \"${{ inputs.items }}\" }\n    infer: { prompt: \"x ${{ item }}\", max_tokens: 5 }\n",
         ));
         let json = serde_json::to_value(&c).expect("serializes");
         assert_eq!(
@@ -848,7 +826,7 @@ mod tests {
         // otherwise NIKA-SEC-009 flags it and the fixture is not clean.
         // NEP-0020: the gate's answer is consumed AFFIRMATIVELY (a bare
         // `after:` would carry the refusal — NIKA-SEC-014).
-        let yaml = "nika: v1\nworkflow:\n  id: w\npermits:\n  fs: { read: [\"./data/**\"] }\n  exec: [\"git\"]\n  tools: [\"nika:read\", \"nika:prompt\"]\ntasks:\n  a:\n    invoke: { tool: \"nika:read\", args: { path: \"./data/in.txt\" } }\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"run git status?\" }\n  b:\n    with: { go: \"${{ tasks.ask.output }}\" }\n    when: ${{ with.go == true }}\n    exec: { command: [\"git\", \"status\"] }\n";
+        let yaml = "nika: w\npermits:\n  fs: { read: [\"./data/**\"] }\n  exec: [\"git\"]\n  tools: [\"nika:read\", \"nika:prompt\"]\ntasks:\n  a:\n    invoke: { tool: \"nika:read\", args: { path: \"./data/in.txt\" } }\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"run git status?\" }\n  b:\n    with: { go: \"${{ tasks.ask.output }}\" }\n    when: ${{ with.go == true }}\n    exec: { command: [\"git\", \"status\"] }\n";
         let parsed = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse");
         let report = crate::check(&parsed);
         assert!(report.is_clean(), "the fixture fits its boundary");
@@ -990,33 +968,6 @@ mod tests {
     // the main-action case, but on the `finally_llm`/`finally_effect`
     // pair. The doctored row's `finally_llm` is wrong while
     // `finally_effect` is right; bounds re-folded to stay consistent.
-    #[test]
-    fn check_row_rejects_a_finally_llm_only_mismatch() {
-        // task whose cleanup is an invoke → finally_effect=1, finally_llm=0
-        let yaml = wf(
-            "  a:\n    exec: { command: [\"true\"] }\n    on_finally:\n      - invoke: { tool: \"nika:log\", args: { message: \"done\" } }\n",
-        );
-        let parsed = parse(&yaml, FileId::new(0), ParseMode::Strict).expect("parse");
-        let honest = certify(&parsed);
-        assert_eq!(honest.derivation[0].finally_effect, 1);
-        assert_eq!(honest.derivation[0].finally_llm, 0);
-
-        let mut doctored = honest;
-        doctored.derivation[0].finally_llm = 7; // wrong; finally_effect right
-        let refolded = fold_rows(&doctored.derivation);
-        doctored.task_attempts = refolded.task_attempts;
-        doctored.llm_calls = refolded.llm_calls;
-        doctored.effect_calls = refolded.effect_calls;
-        doctored.usd_micros = refolded.usd_micros;
-        doctored.span_attempts = refolded.span_attempts;
-
-        assert!(
-            doctored
-                .audit(&parsed)
-                .is_err_and(|e| e.contains("on_finally call counts")),
-            "a finally_llm-only row lie must be caught structurally"
-        );
-    }
 
     // `check_row` on_finally accumulators (certificate.rs:214-215, the
     // `f_llm += l` / `f_effect += e`) AND `contribution`'s `finally_llm +=
@@ -1025,50 +976,12 @@ mod tests {
     // `*=` collapses both accumulators to 0 (≠ the honest row) so an
     // HONEST certificate would FALSELY fail audit; `+=`→`-=` underflows.
     // We pin the certified totals AND that the honest cert audits clean.
-    #[test]
-    fn finally_accumulators_sum_across_multiple_cleanups() {
-        let yaml = wf(
-            "  a:\n    exec: { command: [\"true\"] }\n    on_finally:\n      - infer: { prompt: \"p1\", max_tokens: 10 }\n      - invoke: { tool: \"nika:log\", args: { message: \"m\" } }\n      - infer: { prompt: \"p2\", max_tokens: 10 }\n      - invoke: { tool: \"nika:emit\", args: { event: \"e\" } }\n",
-        );
-        let parsed = parse(&yaml, FileId::new(0), ParseMode::Strict).expect("parse");
-        let honest = certify(&parsed);
-        // contribution's accumulators: two infer cleanups → 2 llm, two
-        // invoke cleanups → 2 effect (kills `finally_llm += l` mutants)
-        assert_eq!(honest.derivation[0].finally_llm, 2);
-        assert_eq!(honest.derivation[0].finally_effect, 2);
-        // check_row recomputes the SAME totals from the workflow; the
-        // honest cert MUST audit clean (kills `f_llm += l` / `f_effect +=
-        // e` mutants — those would recompute 0 and reject the honest row)
-        assert!(
-            honest.audit(&parsed).is_ok(),
-            "honest finally counts must re-verify against the workflow"
-        );
-    }
 
     // `contribution`'s priceable-cleanup fold arm (certificate.rs:363, the
     // `(Some(acc), Ok(m))` match arm). Two PRICEABLE infer cleanups must
     // accumulate their spend; deleting the arm sends every cleanup to the
     // `_ => None` branch, collapsing the whole `usd_micros` axis to None.
     // Asserting a priced finally spend kills the arm deletion.
-    #[test]
-    fn finally_spend_accumulates_for_priceable_cleanups() {
-        // main exec (free) + two priceable infer cleanups (100 tk each ·
-        // $15/M = 1500 µ$ each → finally spend 3000 µ$)
-        let yaml = wf(
-            "  a:\n    exec: { command: [\"true\"] }\n    on_finally:\n      - infer: { prompt: \"p1\", max_tokens: 100 }\n      - infer: { prompt: \"p2\", max_tokens: 100 }\n",
-        );
-        let parsed = parse(&yaml, FileId::new(0), ParseMode::Strict).expect("parse");
-        let honest = certify(&parsed);
-        // the arm must keep `Some(acc + m)`; deletion → None
-        assert_eq!(
-            honest.derivation[0].finally_spend_micros,
-            Some(3000),
-            "two 100-tk infer cleanups · 1500 µ$ each · summed"
-        );
-        // and the rolled-up axis stays priced (free exec main + 3000 fin)
-        assert_eq!(honest.usd_micros, Some(konst(3000)));
-        assert!(honest.audit(&parsed).is_ok());
-    }
 
     // `fold_rows` finally roll-up (certificate.rs:396 `+ row.finally_llm`,
     // 409 `+ fin`). Main is a retried infer (3 attempts → 3 main LLM
@@ -1076,23 +989,6 @@ mod tests {
     // (1 LLM · 1500 µ$). Correct totals: llm_calls=4, usd=10500. `+`→`-`
     // would yield 2 and 7500 — both nonzero, no saturation masking — so
     // the exact-total assertions catch the flip.
-    #[test]
-    fn fold_adds_finally_contributions_to_the_main() {
-        let yaml = wf(
-            "  a:\n    retry: { max_attempts: 3 }\n    infer: { prompt: \"x\", max_tokens: 200 }\n    on_finally:\n      - infer: { prompt: \"cleanup\", max_tokens: 100 }\n",
-        );
-        let parsed = parse(&yaml, FileId::new(0), ParseMode::Strict).expect("parse");
-        let c = certify(&parsed);
-        // 396: main_llm(1)×attempts(3) + finally_llm(1) = 4
-        assert_eq!(c.llm_calls, konst(4), "3 main infer calls + 1 cleanup");
-        // 409: main_spend(3000)×attempts(3) + finally_spend(1500) = 10500
-        assert_eq!(
-            c.usd_micros,
-            Some(konst(10_500)),
-            "9000 µ$ over 3 attempts + 1500 µ$ cleanup"
-        );
-        assert!(c.audit(&parsed).is_ok());
-    }
 
     // `span_of_rows` cursor guard `*cursor < deps.len()` (certificate.rs:
     // 445). Tasks are declared in REVERSE dependency order (c, b, a) so

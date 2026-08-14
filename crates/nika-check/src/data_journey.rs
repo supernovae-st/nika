@@ -209,15 +209,6 @@ pub(crate) fn collect(wf: &RawWorkflow, flow: &FlowFacts) -> DataJourney {
         let id = t.id.value.clone();
         let mut cloud = BTreeSet::new();
         collect_action_effects(&consts, &id, &t.action, &mut endpoints, &mut cloud);
-        for cleanup in &t.on_finally {
-            collect_action_effects(
-                &consts,
-                &id,
-                &cleanup.value.action,
-                &mut endpoints,
-                &mut cloud,
-            );
-        }
         if let Some(ep) = model_endpoint_of(wf, t, envelope.as_deref()) {
             if ep.locus == EndpointLocus::Cloud {
                 cloud.insert(ep.provider.clone());
@@ -425,16 +416,8 @@ fn secret_names_of_task(
     {
         scan(src);
     }
-    for cleanup in &task.on_finally {
-        for text in action_effect_fields(&cleanup.value.action) {
-            scan(text);
-        }
-    }
     // The propagation facts (valid order only — empty facts, never wrong).
     if let Some(trace) = flow.effect_taint(idx) {
-        out.insert(trace.secret.clone());
-    }
-    if let Some((trace, _, _)) = flow.finally_effect_taint(idx) {
         out.insert(trace.secret.clone());
     }
     out
@@ -571,9 +554,7 @@ mod tests {
     fn the_journey_names_source_destination_endpoint_and_secret() {
         let j = journey_of(
             r#"
-nika: v1
-workflow:
-  id: journey-probe
+nika: journey-probe
 model: openai/gpt-4o-mini
 secrets:
   openai_key:
@@ -665,7 +646,7 @@ tasks:
     #[test]
     fn a_pure_mock_workflow_states_the_trivial_journey() {
         let j = journey_of(
-            "nika: v1\nworkflow:\n  id: mock-pure\nmodel: mock/echo\npermits: {}\ntasks:\n  think:\n    infer: { prompt: \"hi\", max_tokens: 5 }\n",
+            "nika: mock-pure\nmodel: mock/echo\npermits: {}\ntasks:\n  think:\n    infer: { prompt: \"hi\", max_tokens: 5 }\n",
         );
         assert_eq!(j.classification, DataClassification::Internal);
         assert!(j.sources.is_empty(), "{:?}", j.sources);
@@ -691,9 +672,7 @@ tasks:
     #[test]
     fn no_secret_value_ever_leaks_into_the_journey() {
         let yaml = r#"
-nika: v1
-workflow:
-  id: canary
+nika: canary
 model: openai/gpt-4o-mini
 secrets:
   canary_named_secret:
@@ -725,7 +704,7 @@ tasks:
     #[test]
     fn a_pii_shaped_path_marks_the_journey_sensitive() {
         let j = journey_of(
-            "nika: v1\nworkflow:\n  id: pii\nmodel: mock/echo\npermits:\n  fs: { read: [\"data/customers.csv\"] }\ntasks:\n  load:\n    invoke: { tool: \"nika:read\", args: { path: \"data/customers.csv\" } }\n",
+            "nika: pii\nmodel: mock/echo\npermits:\n  fs: { read: [\"data/customers.csv\"] }\ntasks:\n  load:\n    invoke: { tool: \"nika:read\", args: { path: \"data/customers.csv\" } }\n",
         );
         assert_eq!(
             j.classification,
@@ -775,7 +754,7 @@ tasks:
     #[test]
     fn the_report_serializes_the_journey_on_the_wire() {
         let wf = parse(
-            "nika: v1\nworkflow:\n  id: wire\nmodel: openai/gpt-4o-mini\npermits: {}\ntasks:\n  t:\n    infer: { prompt: \"x\", max_tokens: 5 }\n",
+            "nika: wire\nmodel: openai/gpt-4o-mini\npermits: {}\ntasks:\n  t:\n    infer: { prompt: \"x\", max_tokens: 5 }\n",
             FileId::new(0),
             ParseMode::Strict,
         )

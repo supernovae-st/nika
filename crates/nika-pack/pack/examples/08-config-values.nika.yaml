@@ -1,32 +1,32 @@
 # SPDX-License-Identifier: Apache-2.0
 # yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
 #
-# 08 · Config — the deployment's authority.
+# 08 · The deployment's knobs — one authority, two roles.
 #
-# Four authorities can put a value in a workflow. The path has shown two:
-# `inputs:` (the caller, per run) and `const:` (the author, fixed in the
-# file). `config:` is the third: non-sensitive knobs that belong to the
-# DEPLOYMENT — a region, a verbosity switch — read as `${{ config.x }}`.
-# The fourth, `secrets:`, needs a real credential and lives with the jobs
-# (CONVENTIONS §3).
+# THREE authorities can put a value in a workflow: `inputs:` (declared once,
+# supplied by the caller OR by its own `default:`) · `const:` (the author,
+# fixed in the file) · `secrets:` (a governed store reference, masked, and it
+# lives with the jobs · CONVENTIONS §3).
+#
+# A deployment knob — a region label, a verbosity switch — is an `inputs:`
+# entry with `required: false` and a `default:`. It used to have a block of
+# its own, `config:`, and that block is dead: it had zero usage in real work,
+# its `default:` was its only possible source, and under the taint lattice
+# `config.p` and `inputs.p` produced the SAME refusal by the same path. Two
+# authorities the checker cannot tell apart are one authority.
 #
 # Demonstrates ·
-#   - `config:` · typed, `default:`-carrying deployment knobs
-#   - declared-only resolution · an undeclared `${{ config.x }}` is
+#   - a knob · typed, `required: false`, `default:`-carrying
+#   - declared-only resolution · an undeclared `${{ inputs.x }}` is
 #     `NIKA-VAR-001` — the engine NEVER falls back to the OS environment
-#     (spec/01-envelope.md §config)
-#   - `when:` on a config flag · a quiet run and a verbose run, one file
-#   - who supplies what · the caller's `--var` reaches `inputs:` ONLY
+#     (spec/01-envelope.md §inputs)
+#   - `when:` on a knob · a quiet run and a verbose run, one file
+#   - who supplies what · `--var` reaches every `inputs:` entry, knob or not
 #
 # Run · nika run examples/08-config-values.nika.yaml
 #   The verbose twin · flip `verbose.default` to true and run again.
-#   Supplying config at launch is an engine-launch concern
-#   (spec/01-envelope.md §config); the reference engine resolves `config:`
-#   from its declared `default:`.
 
-nika: v1
-workflow:
-  id: config-values
+nika: config-values
 
 permits:
   tools: ["nika:jq", "nika:log"]
@@ -37,19 +37,18 @@ inputs:
     default: "atelier"
     required: true
     description: "Whose report this is — the CALLER's value · --var team=…"
-
-config:
-  # The deployment's knobs. `type:` is required; `default:` is what makes
-  # this file runnable everywhere. The caller cannot reach these — measured:
-  # `--var region=us` refuses with `unknown input — the workflow declares:
-  # team`. Never a credential here: config values appear in logs and traces
-  # (spec/01-envelope.md §config-vs-secrets) — a value that must stay
-  # masked belongs to `secrets:`.
+  # The deployment's knobs — `required: false` + a `default:` is what makes
+  # this file runnable everywhere with nobody supplying anything. Never a
+  # credential here: an input's value appears in logs and traces
+  # (spec/01-envelope.md §secrets) — a value that must stay masked belongs
+  # to `secrets:`.
   region:
+    required: false
     type: string
     default: "eu"
     description: "Which region label the report carries"
   verbose:
+    required: false
     type: bool
     default: false
     description: "Emit the debug dump task when true"
@@ -65,19 +64,19 @@ tasks:
       args:
         input:
           team: "${{ inputs.team }}"
-          region: "${{ config.region }}"
+          region: "${{ inputs.region }}"
           window_days: "${{ const.window_days }}"
         expression: '. + {title: "\(.team) · \(.region) · last \(.window_days) days"}'
 
   debug_dump:
     with:
       report: ${{ tasks.report.output }}
-    # A config flag routes WORK — it never stands in for a human decision
-    # (spec/10-authority.md · "a `when:` on a config flag is not a gate").
+    # A knob routes WORK — it never stands in for a human decision
+    # (spec/10-authority.md · "a `when:` on an input flag is not a gate").
     # False by default: this task settles `skipped`, and nothing downstream
     # reads it, so the quiet run stays quiet. The shape rule (cel-subset)
     # wants an explicit relation — `== true`, never the bare flag.
-    when: ${{ config.verbose == true }}
+    when: ${{ inputs.verbose == true }}
     invoke:
       tool: "nika:log"
       args:

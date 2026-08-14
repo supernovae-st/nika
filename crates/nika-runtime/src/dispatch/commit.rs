@@ -619,7 +619,7 @@ mod e2e {
     #[tokio::test]
     async fn a_post_preview_argv_mutation_refuses_the_spawn() {
         let yaml = format!(
-            "nika: v1\nworkflow:\n  id: fp6\npermits:\n  exec: [\"{EXEC_MARKER}\"]\ntasks:\n  fire:\n    exec: {{ command: [\"{EXEC_MARKER}\", \"safe-token\"] }}\n"
+            "nika: fp6\npermits:\n  exec: [\"{EXEC_MARKER}\"]\ntasks:\n  fire:\n    exec: {{ command: [\"{EXEC_MARKER}\", \"safe-token\"] }}\n"
         );
         let (outcome, sink, shell, _) = run(&yaml).await;
         assert!(!outcome.ok, "a divergence fails the run");
@@ -655,7 +655,7 @@ mod e2e {
     #[tokio::test]
     async fn a_zero_arg_tool_ctx_mutation_refuses_the_call() {
         let yaml = format!(
-            "nika: v1\nworkflow:\n  id: fp6\npermits:\n  tools: [\"{INVOKE_MARKER}zero\"]\ntasks:\n  call:\n    invoke: {{ tool: \"{INVOKE_MARKER}zero\" }}\n"
+            "nika: fp6\npermits:\n  tools: [\"{INVOKE_MARKER}zero\"]\ntasks:\n  call:\n    invoke: {{ tool: \"{INVOKE_MARKER}zero\" }}\n"
         );
         let (outcome, sink, _, tools) = run(&yaml).await;
         assert!(!outcome.ok, "a divergence fails the run");

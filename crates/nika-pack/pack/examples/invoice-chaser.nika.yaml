@@ -22,10 +22,7 @@
 #   forever and never silently picks an answer.
 #   Offline rehearsal (zero key, deterministic) · add `--model mock/echo`.
 
-nika: v1
-workflow:
-  id: invoice-chaser
-  description: "chase unpaid invoices · ledger CSV → overdue filter → drafted reminder emails → human gate → drafts file"
+nika: invoice-chaser
 
 model: ollama/qwen3.5:4b   # local · zero key · swap for groq/llama-3.3-70b (drafting is a fast-model job)
 
@@ -39,8 +36,6 @@ permits:
     # exact: no glob, and nothing else on disk is reachable either way.
     read: ["examples/fixtures/invoices.csv"]
     write: ["out/reminders-to-send.md"]
-policy:                              # NEP-0014 · the gate runs under a NAMED endorsement mode
-  endorsement: solo
 
 tasks:
   ledger:

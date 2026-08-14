@@ -24,11 +24,7 @@
 #   then delete the two `on_error:` blocks so a broken daemon is loud.
 #
 # Run · nika run <file> --model mock/echo    # offline rehearsal · no daemon
-nika: v1
-workflow:
-  id: docker-report-template    # SLOT: kebab-case workflow id
-  # SLOT: one honest sentence — `nika new` matches intents against these words
-  description: "read the daemon's state · explain it · keep the report"
+nika: docker-report-template       # SLOT: kebab-case workflow id
 
 # SLOT: local-first · `--model mock/echo` for the offline rehearsal. Measured
 # seat — `ollama/llama3.2:3b` answers this prose prompt in well under a minute.

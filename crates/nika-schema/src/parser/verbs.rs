@@ -726,7 +726,7 @@ tasks:
   analyze:
     infer:
       system: \"You are a precise analyst.\"
-      prompt: \"Analyze ${{ vars.topic }}\"
+      prompt: \"Analyze ${{ inputs.topic }}\"
       model: anthropic/claude-sonnet-4-6
       temperature: 0.2
       max_tokens: 4000
@@ -741,7 +741,7 @@ tasks:
         let RawAction::Infer(action) = one_action(yaml) else {
             panic!("expected Infer");
         };
-        assert_eq!(action.prompt.value, "Analyze ${{ vars.topic }}");
+        assert_eq!(action.prompt.value, "Analyze ${{ inputs.topic }}");
         assert_eq!(
             action.system.expect("system").value,
             "You are a precise analyst."
@@ -909,7 +909,7 @@ tasks:
       cwd: ./engine
       env:
         RUST_LOG: debug
-      stdin: \"${{ vars.input }}\"
+      stdin: \"${{ inputs.input }}\"
       capture: structured
 ";
         let RawAction::Exec(action) = one_action(yaml) else {
@@ -920,7 +920,7 @@ tasks:
         assert_eq!(action.cwd.expect("cwd").value, "./engine");
         assert_eq!(action.env.len(), 1);
         assert_eq!(action.env[0].0.value, "RUST_LOG");
-        assert_eq!(action.stdin.expect("stdin").value, "${{ vars.input }}");
+        assert_eq!(action.stdin.expect("stdin").value, "${{ inputs.input }}");
         assert_eq!(
             action.capture.expect("capture").value,
             CaptureMode::Structured
@@ -1050,7 +1050,7 @@ tasks:
     fn agent_whitelist_rejects_an_unknown_namespace() {
         // The closed-namespace gate (ADR-096 · the compose move): a third
         // namespace fails at parse with a pointer to nika:compose.
-        let yaml = "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    agent:\n      prompt: \"go\"\n      tools: [\"agent:compose\"]\n";
+        let yaml = "nika: w\ntasks:\n  t:\n    agent:\n      prompt: \"go\"\n      tools: [\"agent:compose\"]\n";
         let err = parse(yaml, FileId::new(0), ParseMode::Strict).expect_err("rejected");
         assert!(
             err.to_string().contains("unknown tool namespace")
@@ -1058,15 +1058,15 @@ tasks:
             "{err}"
         );
         // nika: + mcp: globs (incl. negation) + a bare `*` stay legal.
-        let ok = "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    agent:\n      prompt: \"go\"\n      tools: [\"nika:*\", \"mcp:srv/*\", \"!mcp:srv/danger\", \"nika:compose\", \"*\"]\n";
+        let ok = "nika: w\ntasks:\n  t:\n    agent:\n      prompt: \"go\"\n      tools: [\"nika:*\", \"mcp:srv/*\", \"!mcp:srv/danger\", \"nika:compose\", \"*\"]\n";
         assert!(parse(ok, FileId::new(0), ParseMode::Strict).is_ok());
         // A SECOND colon is malformed even in a glob — parity with the
         // invoke `validate_tool_ref` boundary rule.
-        let two_colons = "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    agent:\n      prompt: \"go\"\n      tools: [\"nika:read:typo\"]\n";
+        let two_colons = "nika: w\ntasks:\n  t:\n    agent:\n      prompt: \"go\"\n      tools: [\"nika:read:typo\"]\n";
         let err = parse(two_colons, FileId::new(0), ParseMode::Strict).expect_err("rejected");
         assert!(err.to_string().contains("exactly once"), "{err}");
         // Uppercase namespace is not a v1 namespace.
-        let upper = "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    agent:\n      prompt: \"go\"\n      tools: [\"NIKA:read\"]\n";
+        let upper = "nika: w\ntasks:\n  t:\n    agent:\n      prompt: \"go\"\n      tools: [\"NIKA:read\"]\n";
         assert!(parse(upper, FileId::new(0), ParseMode::Strict).is_err());
     }
 
@@ -1077,7 +1077,7 @@ tasks:
   research:
     agent:
       system: \"You are a research assistant.\"
-      prompt: \"Research ${{ vars.topic }}\"
+      prompt: \"Research ${{ inputs.topic }}\"
       model: anthropic/claude-sonnet-4-6
       tools:
         - \"nika:fetch\"
@@ -1093,7 +1093,7 @@ tasks:
         let RawAction::Agent(action) = one_action(yaml) else {
             panic!("expected Agent");
         };
-        assert_eq!(action.prompt.value, "Research ${{ vars.topic }}");
+        assert_eq!(action.prompt.value, "Research ${{ inputs.topic }}");
         assert_eq!(action.tools.len(), 2);
         assert_eq!(action.tools[1].value, "mcp:browser/*");
         assert_eq!(action.skills.len(), 1, "agent: MAY declare skills:");
@@ -1211,7 +1211,7 @@ tasks:
   t:
     agent:
       prompt: \"go\"
-      skills: [\"${{ vars.skill }}\"]
+      skills: [\"${{ inputs.skill }}\"]
 ";
         let err = parse_strict(templated).expect_err("templated path");
         assert!(
@@ -1300,9 +1300,7 @@ mod argv_command {
 
     #[test]
     fn scalar_command_is_shell() {
-        let c = exec_command(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    exec: { shell: \"a | b\" }\n",
-        );
+        let c = exec_command("nika: w\ntasks:\n  t:\n    exec: { shell: \"a | b\" }\n");
         assert!(matches!(c, RawCommand::Shell(_)));
         assert_eq!(c.shell_str(), Some("a | b"));
         assert_eq!(c.argv_program(), None);
@@ -1310,9 +1308,8 @@ mod argv_command {
 
     #[test]
     fn array_command_is_argv() {
-        let c = exec_command(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    exec: { command: [\"git\", \"status\"] }\n",
-        );
+        let c =
+            exec_command("nika: w\ntasks:\n  t:\n    exec: { command: [\"git\", \"status\"] }\n");
         assert!(matches!(c, RawCommand::Argv(_)));
         assert_eq!(c.argv_program(), Some("git"), "argv[0] is the program");
         assert_eq!(c.shell_str(), None, "argv has no shell string");
@@ -1322,7 +1319,7 @@ mod argv_command {
     #[test]
     fn empty_array_command_is_rejected() {
         let err = parse(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    exec: { command: [] }\n",
+            "nika: w\ntasks:\n  t:\n    exec: { command: [] }\n",
             FileId::new(0),
             ParseMode::Strict,
         )
@@ -1335,7 +1332,7 @@ mod argv_command {
         // A nested mapping is not a scalar (a bare number `42` is a YAML
         // scalar string `"42"` and is fine — argv elements are strings).
         let err = parse(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  t:\n    exec: { command: [\"git\", { a: 1 }] }\n",
+            "nika: w\ntasks:\n  t:\n    exec: { command: [\"git\", { a: 1 }] }\n",
             FileId::new(0),
             ParseMode::Strict,
         )

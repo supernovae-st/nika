@@ -22,13 +22,14 @@ fn bin() -> Command {
 
 /// The clean shape (the same one-task infer the guard's lib matrix
 /// audits) — unpriced, so the allow carries no cap demand.
-const GOOD: &str = "nika: v1\nworkflow:\n  id: good\nmodel: mock/echo\ntasks:\n  a:\n    infer: { prompt: \"x\", max_tokens: 10 }\n";
+const GOOD: &str =
+    "nika: good\nmodel: mock/echo\ntasks:\n  a:\n    infer: { prompt: \"x\", max_tokens: 10 }\n";
 
 /// The consent violation (NEP-0020 · spec conformance
 /// `core/policy/011-consent-bare-after-refused`): a bare `after:` edge
 /// carries a REFUSED confirm straight into the irreversible exec —
 /// NIKA-SEC-014, red.
-const DIRTY: &str = "nika: v1\nworkflow:\n  id: dirty\npermits:\n  exec: [\"git\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: confirm, message: \"push?\", default: false }\n  push:\n    after: { ask: success }\n    exec: { command: [\"git\", \"push\"] }\n";
+const DIRTY: &str = "nika: dirty\npermits:\n  exec: [\"git\"]\n  tools: [\"nika:prompt\"]\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: confirm, message: \"push?\", default: false }\n  push:\n    after: { ask: success }\n    exec: { command: [\"git\", \"push\"] }\n";
 
 /// Pipe `payload` to `guard --stdin`; return (stdout, exit code).
 fn guard_stdin(payload: &str) -> (String, i32) {

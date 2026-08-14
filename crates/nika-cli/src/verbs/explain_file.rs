@@ -102,13 +102,12 @@ pub(crate) fn run_with_traces(
         Ok(triple) => triple,
         Err(out) => return out,
     };
-    let description = wf.description.as_ref().map(|d| d.value.clone());
     let permits_declared = wf.permits.is_some();
     if !report.conformance.is_empty() {
         // No valid DAG order → no wave story. Explain stays useful:
         // name the findings and hand over to the fixer, never invent
         // a story the checker refused to prove.
-        return dirty(path, description.as_deref(), &report, json);
+        return dirty(path, &report, json);
     }
     let doc = project(&wf, &report);
     let traces = traces_glance(traces_dir);
@@ -137,7 +136,6 @@ pub(crate) fn run_with_traces(
     if json {
         return VerbOutput::ok(render_json(
             path,
-            description.as_deref(),
             &doc,
             &report,
             permits_declared,
@@ -147,7 +145,6 @@ pub(crate) fn run_with_traces(
     }
     VerbOutput::ok(render_human(
         path,
-        description.as_deref(),
         &doc,
         &report,
         permits_declared,
@@ -159,12 +156,11 @@ pub(crate) fn run_with_traces(
 
 /// The findings-first partial for a non-conformant file — explain never
 /// narrates a DAG the checker could not order.
-fn dirty(path: &str, description: Option<&str>, report: &CheckReport, json: bool) -> VerbOutput {
+fn dirty(path: &str, report: &CheckReport, json: bool) -> VerbOutput {
     if json {
         let v = serde_json::json!({
             "explain_version": 1,
             "file": path,
-            "description": description,
             "clean": false,
             "findings": report.conformance.len(),
             "fix": format!("nika check {path}"),
@@ -394,7 +390,6 @@ fn str_field<'a>(event: &'a Event, key: &str) -> Option<&'a str> {
 #[allow(clippy::too_many_arguments)] // one render context per beat — the compose seam
 fn render_human(
     path: &str,
-    description: Option<&str>,
     doc: &GraphDoc,
     report: &CheckReport,
     permits_declared: bool,
@@ -409,13 +404,9 @@ fn render_human(
         recovery_section(&mut s, path, f);
         let _ = writeln!(s);
     }
-    let _ = writeln!(
-        s,
-        "{} — {}",
-        doc.workflow,
-        description
-            .unwrap_or("(no description yet — one line under `description:` says what it is for)")
-    );
+    // The name alone: `description:` died with the envelope nuke
+    // (2026-08-12), and the old fallback line taught the dead key.
+    let _ = writeln!(s, "{}", doc.workflow);
     let _ = writeln!(
         s,
         "  {} · {} · checks clean",
@@ -691,9 +682,9 @@ fn touches_section(s: &mut String, doc: &GraphDoc, report: &CheckReport, permits
     needs.extend(
         report
             .requirements
-            .config_reads
+            .inputs_read
             .iter()
-            .map(|e| format!("config.{e}")),
+            .map(|e| format!("inputs.{e}")),
     );
     if !needs.is_empty() {
         let _ = writeln!(
@@ -805,7 +796,6 @@ fn recorder_section(s: &mut String, traces: Option<&(usize, String)>) {
 /// vocabulary so `check --json` and `explain --json` speak one dialect.
 fn render_json(
     path: &str,
-    description: Option<&str>,
     doc: &GraphDoc,
     report: &CheckReport,
     permits_declared: bool,
@@ -843,7 +833,6 @@ fn render_json(
         "explain_version": 1,
         "file": path,
         "workflow": doc.workflow,
-        "description": description,
         "clean": true,
         "tasks": tasks,
         "waves": waves,
@@ -878,7 +867,7 @@ mod tests {
         path
     }
 
-    const DIAMOND: &str = "nika: v1\nworkflow:\n  id: brief-factory\n  description: fetch, summarize twice, join\n\nmodel: mock/echo\n\ntasks:\n  root:\n    infer: { prompt: \"r\", max_tokens: 10 }\n  left:\n    after:\n      root: success\n    infer: { prompt: \"l\", max_tokens: 10 }\n  right:\n    after:\n      root: success\n    infer: { prompt: \"x\", max_tokens: 10 }\n  join:\n    after:\n      left: success\n      right: success\n    infer: { prompt: \"j\", max_tokens: 10 }\noutputs:\n  result: ${{ tasks.join.output }}\n";
+    const DIAMOND: &str = "nika: brief-factory\n\nmodel: mock/echo\n\ntasks:\n  root:\n    infer: { prompt: \"r\", max_tokens: 10 }\n  left:\n    after:\n      root: success\n    infer: { prompt: \"l\", max_tokens: 10 }\n  right:\n    after:\n      root: success\n    infer: { prompt: \"x\", max_tokens: 10 }\n  join:\n    after:\n      left: success\n      right: success\n    infer: { prompt: \"j\", max_tokens: 10 }\noutputs:\n  result: ${{ tasks.join.output }}\n";
 
     #[test]
     fn narrates_the_diamond_with_cost_and_handoff() {
@@ -887,7 +876,7 @@ mod tests {
         std::fs::remove_file(&path).ok();
         assert_eq!(out.code, exit::OK, "{}", out.text);
         for needle in [
-            "brief-factory — fetch, summarize twice, join",
+            "brief-factory",
             "4 tasks · 3 waves · checks clean",
             "the story",
             "wave 2 — 2 in parallel",
@@ -930,7 +919,7 @@ mod tests {
         // fake $0 ceiling nor the word FLOOR.
         let path = tmp(
             "floor",
-            "nika: v1\nworkflow:\n  id: floor-story\ntasks:\n  think:\n    infer: { prompt: \"x\" }\n",
+            "nika: floor-story\ntasks:\n  think:\n    infer: { prompt: \"x\" }\n",
         );
         let out = run(path.to_str().expect("utf8"), false, false);
         std::fs::remove_file(&path).ok();
@@ -986,7 +975,7 @@ mod tests {
         // must refuse to narrate and hand over to check (exit 2).
         let path = tmp(
             "dirty",
-            "nika: v1\nworkflow:\n  id: dirty\ntasks:\n  a:\n    exec: { command: [\"echo\", \"x\"] }\n  b:\n    after:\n      a: success\n    when: maybe\n    exec: { command: [\"echo\", \"y\"] }\n",
+            "nika: dirty\ntasks:\n  a:\n    exec: { command: [\"echo\", \"x\"] }\n  b:\n    after:\n      a: success\n    when: maybe\n    exec: { command: [\"echo\", \"y\"] }\n",
         );
         let out = run(path.to_str().expect("utf8"), false, false);
         std::fs::remove_file(&path).ok();
@@ -1071,7 +1060,7 @@ mod tests {
     use nika_types::resource::Value;
     use std::time::Duration;
 
-    const FC: &str = "nika: v1\nworkflow:\n  id: fc-fix\n  description: forecast fixture\n\nmodel: mock/echo\n\ntasks:\n  fetch:\n    exec: { command: [\"echo\", \"x\"] }\n  think:\n    after:\n      fetch: success\n    infer: { prompt: \"p\", max_tokens: 10 }\n";
+    const FC: &str = "nika: fc-fix\n\nmodel: mock/echo\n\ntasks:\n  fetch:\n    exec: { command: [\"echo\", \"x\"] }\n  think:\n    after:\n      fetch: success\n    infer: { prompt: \"p\", max_tokens: 10 }\n";
 
     /// One completed fc-fix run body: fetch (exec) + think (infer),
     /// distinct durations, optional sha/model/extras.
@@ -1392,7 +1381,7 @@ mod tests {
             .text
             .find("last run failed")
             .expect("the rail opens the render");
-        let header = out.text.find("fc-fix —").expect("the header renders");
+        let header = out.text.find("fc-fix").expect("the header renders");
         assert!(rail < header, "the rail opens:\n{}", out.text);
         // Task + cause + the trace pointer + the chain claim, and the
         // RESUME names THIS workflow's failed trace (never the other

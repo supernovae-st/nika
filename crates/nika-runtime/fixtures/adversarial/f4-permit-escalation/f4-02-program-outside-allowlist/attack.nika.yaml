@@ -6,9 +6,7 @@
 # literal URL stays DECLARED in net.http: post-D1 an undeclared argv URL
 # is a static net escape — orthogonal to this fixture's subject, and the
 # fixture must keep isolating the runtime program gate.)
-nika: v1
-workflow:
-  id: f4-02-program-outside-allowlist
+nika: f4-02-program-outside-allowlist
 permits:
   exec: ["git"]
   net: { http: ["news.example", "evil.example"] }

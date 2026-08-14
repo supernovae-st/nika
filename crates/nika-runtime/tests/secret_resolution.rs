@@ -93,9 +93,7 @@ async fn workflow_secret_resolves_into_a_sanctioned_sink_only() {
     // The secret is sanctioned to `exec` (egress · so check passes) and used
     // in the exec command. The resolver provides its value at run start.
     let yaml = r#"
-nika: v1
-workflow:
-  id: secret-run
+nika: secret-run
 permits: { exec: true }
 secrets:
   token:
@@ -152,9 +150,7 @@ tasks:
 #[tokio::test]
 async fn absent_workflow_secret_is_a_clean_typed_error() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: secret-missing
+nika: secret-missing
 permits: { exec: true }
 secrets:
   token:
@@ -193,9 +189,7 @@ tasks:
 #[tokio::test]
 async fn no_resolver_keeps_secrets_unbound_fail_closed() {
     let yaml = r#"
-nika: v1
-workflow:
-  id: secret-none
+nika: secret-none
 permits: { exec: true }
 secrets:
   token:

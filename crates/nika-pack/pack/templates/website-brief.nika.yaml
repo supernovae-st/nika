@@ -23,11 +23,7 @@
 #
 # Run · nika run <file> --model mock/echo    # rehearsal · green even with no network
 #   (on a networked machine the crawl really fetches const.site_url — it is permitted)
-nika: v1
-workflow:
-  id: website-brief-template    # SLOT: kebab-case workflow id
-  # SLOT: one honest sentence — `nika new` matches intents against these words
-  description: "crawl → brief → persist"
+nika: website-brief-template       # SLOT: kebab-case workflow id
 
 # SLOT: provider/model · local · zero key. The schema below has five required
 # fields, so give it a seat that holds structure — `ollama/qwen2.5:14b` is

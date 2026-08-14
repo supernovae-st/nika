@@ -463,9 +463,7 @@ fn client_cell(theme: Theme, c: &crate::probe::ClientProbe) -> String {
 /// knows). The SAME shape as the embedded `01-hello` example, so the
 /// START block's `nika try 01-hello` runs exactly what the eye
 /// just read — a test pins that the sample checks clean for real.
-pub const SAMPLE: &str = r#"nika: v1
-workflow:
-  id: hello
+pub const SAMPLE: &str = r#"nika: hello
 model: mock/echo
 tasks:
   greet:

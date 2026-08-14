@@ -5,9 +5,7 @@
 # egress tool. Hop count does not erode the runtime boundary. Only two
 # trifecta legs are declared (no fs.read) so the static lane is inert and
 # the runtime layer is what this fixture measures.
-nika: v1
-workflow:
-  id: f5-03-laundered-into-the-agent
+nika: f5-03-laundered-into-the-agent
 model: mock/echo
 permits:
   net: { http: ["news.example"] }

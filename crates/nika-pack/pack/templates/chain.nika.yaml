@@ -21,11 +21,7 @@
 # Needs · nothing. Scaffolds and runs green in an empty directory.
 #
 # Run · nika run <file> --model mock/echo    # offline rehearsal · zero keys
-nika: v1
-workflow:
-  id: chain-template            # SLOT: kebab-case workflow id
-  # SLOT: one honest sentence — `nika new` matches intents against these words
-  description: "gather → think → persist"
+nika: chain-template       # SLOT: kebab-case workflow id
 
 # SLOT: provider/model · local · zero key. Measured seat — `ollama/llama3.2:3b`
 # answers this prompt in ~50s. `--model mock/echo` needs no seat at all and is

@@ -32,6 +32,15 @@ pub enum AfterPredicate {
     /// Admits on ANY settled state — `success` · `failure` · `skipped`
     /// · `cancelled` (the always-pattern · cancelled IS terminal).
     Terminal,
+    /// NOT a settle-state comparison — the `E_f` cleanup attachment
+    /// (spec 03 §unwind). It fires on cancel and on timeout for a
+    /// producer that STARTED, runs BEFORE the producer's failure
+    /// settles outward, and its own failure never propagates. An
+    /// `unwind` edge is never in `G_p`: it does not schedule, does not
+    /// participate in cycle detection, and does not enter wave
+    /// assignment. An engine that puts it in the precedence graph is
+    /// wrong.
+    Unwind,
 }
 
 impl AfterPredicate {
@@ -44,6 +53,7 @@ impl AfterPredicate {
             "failure" => Some(Self::Failure),
             "skipped" => Some(Self::Skipped),
             "terminal" => Some(Self::Terminal),
+            "unwind" => Some(Self::Unwind),
             _ => None,
         }
     }
@@ -56,6 +66,7 @@ impl AfterPredicate {
             Self::Failure => "failure",
             Self::Skipped => "skipped",
             Self::Terminal => "terminal",
+            Self::Unwind => "unwind",
         }
     }
 
@@ -63,7 +74,7 @@ impl AfterPredicate {
     /// completion · the DAG-005 message).
     #[must_use]
     pub fn all() -> &'static [&'static str] {
-        &["success", "failure", "skipped", "terminal"]
+        &["success", "failure", "skipped", "terminal", "unwind"]
     }
 }
 
@@ -96,7 +107,7 @@ pub fn predicate_refusal(task: &str, target: &str, spelling: &str) -> String {
         ),
         None => format!(
             "task `{task}` after.{target}: `{spelling}` is not a predicate — \
-             the set is closed: success · failure · skipped · terminal"
+             the set is closed: success · failure · skipped · terminal · unwind"
         ),
     }
 }
@@ -153,7 +164,10 @@ mod tests {
     fn unknown_spelling_refusal_names_the_closed_set() {
         let m = predicate_refusal("deploy", "tests", "passed");
         assert!(m.contains("is not a predicate"), "{m}");
-        assert!(m.contains("success · failure · skipped · terminal"), "{m}");
+        assert!(
+            m.contains("success · failure · skipped · terminal · unwind"),
+            "{m}"
+        );
         assert!(!m.contains("dead predicate spelling"), "{m}");
     }
 }

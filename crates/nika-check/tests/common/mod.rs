@@ -188,6 +188,12 @@ pub(crate) fn check_core_codes(yaml: &str, mode: ParseMode, dir: &Path) -> Vec<S
                     // consent_errors) and its fixtures live in
                     // core/policy/ — the human-gate family's home tier.
                     || (c.namespace == "SEC" && c.num == 14)
+                    // The unconditional order law (NIKA-SEC-015) is
+                    // Core-visible by construction: it is what SURVIVED
+                    // the `policy:` death, its fixtures live in
+                    // core/order/, and a law no block can disable
+                    // belongs to every tier or to none.
+                    || (c.namespace == "SEC" && c.num == 15)
             })
             .collect()
         }

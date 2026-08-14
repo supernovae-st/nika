@@ -15,6 +15,7 @@ nika-graph = { path = "../nika-graph", version = "0.108.0" }  # the canonical pr
 nika-catalog = { path = "../nika-catalog", version = "0.108.0", features = ["builtins-transforms", "providers"] } # the tool/model vocabulary completions derive from (born-stale law: never hand-tabled)
 nika-types   = { path = "../nika-types", version = "0.108.0" }  # ExtractMode::ALL — the mode: lane derives from the L0 vocabulary
 nika-schema = { path = "../nika-schema", version = "0.108.0" }  # parse + RawWorkflow (the analysis source)
+nika-vocab  = { path = "../nika-vocab", version = "0.108.0" }   # TASK_KEYS — the one task-shape list the parser refuses by and the editor offers by
 nika-check  = { path = "../nika-check", version = "0.108.0" }  # the ADR-092 check ladder the diagnostics surface
 lsp-server  = { workspace = true }                             # sync stdio JSON-RPC message loop
 lsp-types   = { workspace = true }                             # LSP 3.17 protocol types

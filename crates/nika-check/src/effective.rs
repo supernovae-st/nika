@@ -111,7 +111,7 @@ mod tests {
     #[test]
     fn absent_states_the_zero_and_still_derives_the_need() {
         let report = collect(&wf(
-            "nika: v1\nworkflow:\n  id: w\ntasks:\n  a:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.github.com/repos\" } }\n",
+            "nika: w\ntasks:\n  a:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.github.com/repos\" } }\n",
         ));
         assert_eq!(report.source, PermitsSource::Absent);
         assert!(report.declared.is_none());
@@ -132,7 +132,7 @@ mod tests {
     #[test]
     fn declared_boundary_rides_beside_the_derived_need() {
         let report = collect(&wf(
-            "nika: v1\nworkflow:\n  id: w\npermits: { exec: false, net: { http: [\"api.github.com\", \"example.com\"] } }\ntasks:\n  a:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.github.com/repos\" } }\n",
+            "nika: w\npermits: { exec: false, net: { http: [\"api.github.com\", \"example.com\"] } }\ntasks:\n  a:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://api.github.com/repos\" } }\n",
         ));
         assert_eq!(report.source, PermitsSource::Declared);
         let json = serde_json::to_value(&report).expect("serializes");
@@ -152,7 +152,7 @@ mod tests {
     #[test]
     fn dynamic_effects_surface_as_notes() {
         let report = collect(&wf(
-            "nika: v1\nworkflow:\n  id: w\ninputs:\n  host: { type: string, default: \"https://x.dev\" }\ntasks:\n  a:\n    invoke: { tool: \"nika:fetch\", args: { url: \"${{ inputs.host }}\" } }\n",
+            "nika: w\ninputs:\n  host: { type: string, default: \"https://x.dev\" }\ntasks:\n  a:\n    invoke: { tool: \"nika:fetch\", args: { url: \"${{ inputs.host }}\" } }\n",
         ));
         assert!(
             !report.notes.is_empty(),
@@ -167,7 +167,7 @@ mod tests {
     #[test]
     fn loopback_declassification_is_stated_as_a_note() {
         let report = collect(&wf(
-            "nika: v1\nworkflow:\n  id: w\npermits: { net: { http: [\"127.0.0.1\", \"api.x.com\"] }, tools: [\"nika:fetch\"], exec: false }\ntasks:\n  a:\n    invoke: { tool: \"nika:fetch\", args: { url: \"http://127.0.0.1:8971/price.json\" } }\n",
+            "nika: w\npermits: { net: { http: [\"127.0.0.1\", \"api.x.com\"] }, tools: [\"nika:fetch\"], exec: false }\ntasks:\n  a:\n    invoke: { tool: \"nika:fetch\", args: { url: \"http://127.0.0.1:8971/price.json\" } }\n",
         ));
         let loopback: Vec<&String> = report
             .notes
