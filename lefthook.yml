@@ -53,7 +53,13 @@ pre-commit:
 
     shellcheck-engine:
       glob: '**/*.sh'
-      run: shellcheck {staged_files}
+      # `-x` follows `# shellcheck source=` directives into the sourced file.
+      # Without it every `. scripts/ci/_lib.sh` raises SC1091 ("not following")
+      # even where the directive is already correct, AND the helpers defined
+      # there stay invisible — so a typo in a shared function is never caught.
+      # Measured before widening: 105 tracked scripts, 0 error/warning with
+      # `-x` and 0 without, so it opens no backlog and only sees more.
+      run: shellcheck -x {staged_files}
 
     shfmt-engine:
       glob: '**/*.sh'
