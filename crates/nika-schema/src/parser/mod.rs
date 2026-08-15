@@ -434,8 +434,6 @@ impl Cx<'_> {
                          line; it is editor-only)"
                             .to_owned(),
                     )
-                } else if let Some(teaching) = retired_key_teaching(key.as_str(), location) {
-                    Some(teaching.to_owned())
                 } else {
                     nika_types::suggest::did_you_mean(key.as_str(), known.iter().copied())
                         .map(str::to_owned)
@@ -459,6 +457,18 @@ impl Cx<'_> {
                             (known.len() <= 9)
                                 .then(|| format!("the fields here: {}", known.join(" · ")))
                         })
+                };
+                // A RETIRED key leads with its migration and KEEPS the
+                // ordinary teaching behind it — the two answer different
+                // questions and neither replaces the other. The set listing
+                // says what is valid NOW; only this says the key once
+                // existed and where its role went. Composed, not preempted:
+                // an earlier draft returned the migration INSTEAD, and the
+                // sibling law's own test caught it.
+                let suggestion = match (retired_key_teaching(key.as_str(), location), suggestion) {
+                    (Some(retired), Some(ordinary)) => Some(format!("{retired} · {ordinary}")),
+                    (Some(retired), None) => Some(retired.to_owned()),
+                    (None, ordinary) => ordinary,
                 };
                 return Err(SchemaError::UnknownField {
                     field: key.as_str().to_owned(),
@@ -914,10 +924,20 @@ tasks:
             panic!("expected UnknownField, got {err:?}");
         };
         let taught = suggestion.expect("the envelope must teach its set");
-        assert!(taught.starts_with("the fields here:"), "{taught}");
+        // `starts_with` → `contains` (2026-08-15, same day, sibling change):
+        // this fixture is a RETIRED key, so the migration now LEADS and the
+        // set listing follows. The law under test is unchanged — the set is
+        // still taught, whole — and the fixture stays `config:` on purpose,
+        // since it is the case that exposed the silence. The two teachings
+        // compose; neither replaces the other.
+        assert!(taught.contains("the fields here:"), "{taught}");
         for key in TOP_LEVEL_KEYS {
             assert!(taught.contains(key), "`{key}` missing from: {taught}");
         }
+        assert!(
+            taught.contains("`inputs:`"),
+            "a retired key ALSO names where its role went · {taught}"
+        );
 
         // The other side of the threshold, and the reason it exists: a task
         // carries far more keys than a reader can use as a hint, so that set
