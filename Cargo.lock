@@ -5020,6 +5020,7 @@ dependencies = [
  "miette",
  "nika-error",
  "nika-kernel",
+ "nika-vocab",
  "proptest",
  "serde_json",
  "thiserror 2.0.19",

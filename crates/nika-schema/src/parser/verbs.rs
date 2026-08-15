@@ -558,34 +558,29 @@ fn parse_decode(
 /// `agent:compose` left over from before `nika:compose` (the compose
 /// intrinsic moved into the closed `nika:` set · ADR-096).
 fn validate_whitelist_namespace(tool: &Spanned<String>) -> Result<(), SchemaError> {
-    let body = tool.value.strip_prefix('!').unwrap_or(&tool.value);
-    let Some((namespace, path)) = body.split_once(':') else {
-        return Ok(()); // colon-less glob (`*`/`**`) names no namespace
-    };
-    if namespace != "nika" && namespace != "mcp" {
-        return Err(SchemaError::Validation {
-            message: format!(
-                "unknown tool namespace in agent whitelist `{}` — v1 namespaces are \
-                 `nika:` and `mcp:` (the compose intrinsic is `nika:compose`)",
-                tool.value
-            ),
+    // This function used to claim « parity with validate_tool_ref
+    // (invoke) » in a comment. It was NOT true — it refused a second
+    // colon, invoke allowed one. A hand-maintained mirror that asserts a
+    // parity it does not have is worse than no claim, so the parity is
+    // now structural: both call the same L0 grammar.
+    nika_vocab::tool_ref::glob_namespace(&tool.value)
+        .map(|_| ())
+        .map_err(|defect| SchemaError::Validation {
+            message: match defect {
+                nika_vocab::tool_ref::ToolRefDefect::UnknownNamespace => format!(
+                    "unknown tool namespace in agent whitelist `{}` — {} (the compose \
+                     intrinsic is `nika:compose`)",
+                    tool.value,
+                    defect.teaching()
+                ),
+                _ => format!(
+                    "invalid agent whitelist glob `{}` — {}",
+                    tool.value,
+                    defect.teaching()
+                ),
+            },
             span: Some(tool.span),
-        });
-    }
-    // Parity with `validate_tool_ref` (invoke): the colon marks the
-    // namespace boundary EXACTLY once. A second colon (`nika:read:x`) is
-    // malformed even in a glob — `*` separates with `/`, never `:`.
-    if path.contains(':') {
-        return Err(SchemaError::Validation {
-            message: format!(
-                "invalid agent whitelist glob `{}` — the colon marks the namespace \
-                 boundary exactly once",
-                tool.value
-            ),
-            span: Some(tool.span),
-        });
-    }
-    Ok(())
+        })
 }
 
 /// Validate ONE agent `skills:` entry (spec `02-verbs.md` §agent skills ·
@@ -621,47 +616,27 @@ fn validate_skill_path(skill: &Spanned<String>) -> Result<(), SchemaError> {
 /// **slash** separates the path within it » · `nika:<path>` OR
 /// `mcp:<server>/<tool>`).
 fn validate_tool_ref(tool: &Spanned<String>) -> Result<(), SchemaError> {
-    let text = &tool.value;
-    let mut parts = text.splitn(2, ':');
-    let namespace = parts.next().unwrap_or_default();
-    let Some(path) = parts.next() else {
-        return Err(SchemaError::Validation {
-            message: format!(
-                "invalid tool reference `{text}` — expected `nika:<path>` or `mcp:<server>/<tool>`"
-            ),
+    nika_vocab::tool_ref::parse(&tool.value)
+        .map(|_| ())
+        .map_err(|defect| SchemaError::Validation {
+            message: tool_ref_message(&tool.value, defect),
             span: Some(tool.span),
-        });
-    };
-    if path.contains(':') {
-        return Err(SchemaError::Validation {
-            message: format!(
-                "invalid tool reference `{text}` — the colon marks the namespace boundary exactly once"
-            ),
-            span: Some(tool.span),
-        });
-    }
-    match namespace {
-        "nika" if !path.is_empty() => Ok(()),
-        "mcp" => {
-            let mut mcp = path.splitn(2, '/');
-            let server = mcp.next().unwrap_or_default();
-            let tool_name = mcp.next().unwrap_or_default();
-            if server.is_empty() || tool_name.is_empty() {
-                return Err(SchemaError::Validation {
-                    message: format!(
-                        "invalid MCP tool reference `{text}` — expected `mcp:<server>/<tool>`"
-                    ),
-                    span: Some(tool.span),
-                });
-            }
-            Ok(())
+        })
+}
+
+/// The refusal sentence, in the ONE voice `nika-vocab` holds.
+///
+/// The `unknown tool namespace` opening is preserved verbatim — a test
+/// pins that phrase, and an author who searched for it once should find
+/// it again.
+fn tool_ref_message(text: &str, defect: nika_vocab::tool_ref::ToolRefDefect) -> String {
+    use nika_vocab::tool_ref::ToolRefDefect;
+    let teaching = defect.teaching();
+    match defect {
+        ToolRefDefect::UnknownNamespace => {
+            format!("unknown tool namespace in `{text}` — {teaching}")
         }
-        _ => Err(SchemaError::Validation {
-            message: format!(
-                "unknown tool namespace in `{text}` — v1 namespaces are `nika:` and `mcp:`"
-            ),
-            span: Some(tool.span),
-        }),
+        _ => format!("invalid tool reference `{text}` — {teaching}"),
     }
 }
 
@@ -1026,6 +1001,39 @@ tasks:
                 "{bad} → {err:?}"
             );
         }
+    }
+
+    /// ⭐ The id the CHECKER used to wave through and the RUNTIME then
+    /// refused. Measured 2026-08-15 on the tree: `nika:x\u{7f}y` PASSED
+    /// here and was rejected at the verb boundary.
+    ///
+    /// That is the dangerous direction — a control character in a
+    /// forwarded tool name is a log-injection vector (it rides into the
+    /// `ToolCall`, and from there into the log and event fields), and the
+    /// author learned nothing at the one moment they were still reading.
+    /// One grammar now, at L0, so both readers refuse it in the same
+    /// words.
+    #[test]
+    fn a_control_character_in_a_tool_id_is_refused_at_check_time() {
+        for (bad, why) in [
+            ("nika:x\u{7f}y", "DEL"),
+            ("nika:x\u{1}y", "SOH"),
+            ("mcp:srv/a\nb", "newline"),
+            (" nika:read", "leading space"),
+            ("nika:read ", "trailing space"),
+        ] {
+            let yaml = format!("tasks:\n  t:\n    invoke:\n      tool: \"{bad}\"\n");
+            assert!(
+                parse_strict(&yaml).is_err(),
+                "`{}` must refuse — {why}",
+                bad.escape_debug()
+            );
+        }
+        // A space in the MIDDLE is not a control character, and the two
+        // readers always agreed it rides. Pinned so the tightening above
+        // is not read as « refuse anything unusual ».
+        let ok = "tasks:\n  t:\n    invoke:\n      tool: \"nika:re ad\"\n";
+        assert!(parse_strict(ok).is_ok(), "an interior space still rides");
     }
 
     #[test]

@@ -54,6 +54,7 @@ pub mod retry;
 pub mod run;
 pub mod schema_version;
 pub mod secret;
+pub mod tool_ref;
 pub mod type_expr;
 pub mod var_decl;
 pub mod when_gate;

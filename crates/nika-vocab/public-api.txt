@@ -1409,6 +1409,130 @@ pub fn nika_vocab::secret::missing_reference_teaching(name: &str, source: nika_v
 pub fn nika_vocab::secret::missing_source_teaching(name: &str) -> alloc::string::String
 pub fn nika_vocab::secret::unknown_source_teaching(name: &str, source: &str) -> alloc::string::String
 pub fn nika_vocab::secret::wrong_field_teaching(name: &str, source: nika_vocab::secret::SecretSource, want: &str, reject: &str) -> alloc::string::String
+pub mod nika_vocab::tool_ref
+#[non_exhaustive] pub enum nika_vocab::tool_ref::ToolNamespace
+pub nika_vocab::tool_ref::ToolNamespace::Mcp
+pub nika_vocab::tool_ref::ToolNamespace::Nika
+impl nika_vocab::tool_ref::ToolNamespace
+pub const fn nika_vocab::tool_ref::ToolNamespace::as_str(self) -> &'static str
+pub fn nika_vocab::tool_ref::ToolNamespace::from_word(word: &str) -> core::option::Option<Self>
+impl core::clone::Clone for nika_vocab::tool_ref::ToolNamespace
+pub fn nika_vocab::tool_ref::ToolNamespace::clone(&self) -> nika_vocab::tool_ref::ToolNamespace
+impl core::cmp::Eq for nika_vocab::tool_ref::ToolNamespace
+impl core::cmp::PartialEq for nika_vocab::tool_ref::ToolNamespace
+pub fn nika_vocab::tool_ref::ToolNamespace::eq(&self, other: &nika_vocab::tool_ref::ToolNamespace) -> bool
+impl core::fmt::Debug for nika_vocab::tool_ref::ToolNamespace
+pub fn nika_vocab::tool_ref::ToolNamespace::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_vocab::tool_ref::ToolNamespace
+impl core::marker::StructuralPartialEq for nika_vocab::tool_ref::ToolNamespace
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::tool_ref::ToolNamespace where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::tool_ref::ToolNamespace::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_vocab::tool_ref::ToolNamespace where U: core::convert::From<T>
+pub fn nika_vocab::tool_ref::ToolNamespace::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_vocab::tool_ref::ToolNamespace where U: core::convert::Into<T>
+pub type nika_vocab::tool_ref::ToolNamespace::Error = core::convert::Infallible
+pub fn nika_vocab::tool_ref::ToolNamespace::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_vocab::tool_ref::ToolNamespace where U: core::convert::TryFrom<T>
+pub type nika_vocab::tool_ref::ToolNamespace::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_vocab::tool_ref::ToolNamespace::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_vocab::tool_ref::ToolNamespace where T: core::clone::Clone
+pub type nika_vocab::tool_ref::ToolNamespace::Owned = T
+pub fn nika_vocab::tool_ref::ToolNamespace::clone_into(&self, target: &mut T)
+pub fn nika_vocab::tool_ref::ToolNamespace::to_owned(&self) -> T
+impl<T> core::any::Any for nika_vocab::tool_ref::ToolNamespace where T: 'static + ?core::marker::Sized
+pub fn nika_vocab::tool_ref::ToolNamespace::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_vocab::tool_ref::ToolNamespace where T: ?core::marker::Sized
+pub fn nika_vocab::tool_ref::ToolNamespace::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_vocab::tool_ref::ToolNamespace where T: ?core::marker::Sized
+pub fn nika_vocab::tool_ref::ToolNamespace::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_vocab::tool_ref::ToolNamespace where T: core::clone::Clone
+pub unsafe fn nika_vocab::tool_ref::ToolNamespace::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_vocab::tool_ref::ToolNamespace
+pub fn nika_vocab::tool_ref::ToolNamespace::from(t: T) -> T
+#[non_exhaustive] pub enum nika_vocab::tool_ref::ToolRefDefect
+pub nika_vocab::tool_ref::ToolRefDefect::ControlChar
+pub nika_vocab::tool_ref::ToolRefDefect::EmptyPath
+pub nika_vocab::tool_ref::ToolRefDefect::ExtraColon
+pub nika_vocab::tool_ref::ToolRefDefect::McpNeedsSlash
+pub nika_vocab::tool_ref::ToolRefDefect::MissingNamespace
+pub nika_vocab::tool_ref::ToolRefDefect::Padding
+pub nika_vocab::tool_ref::ToolRefDefect::UnknownNamespace
+impl nika_vocab::tool_ref::ToolRefDefect
+pub const fn nika_vocab::tool_ref::ToolRefDefect::teaching(self) -> &'static str
+impl core::clone::Clone for nika_vocab::tool_ref::ToolRefDefect
+pub fn nika_vocab::tool_ref::ToolRefDefect::clone(&self) -> nika_vocab::tool_ref::ToolRefDefect
+impl core::cmp::Eq for nika_vocab::tool_ref::ToolRefDefect
+impl core::cmp::PartialEq for nika_vocab::tool_ref::ToolRefDefect
+pub fn nika_vocab::tool_ref::ToolRefDefect::eq(&self, other: &nika_vocab::tool_ref::ToolRefDefect) -> bool
+impl core::fmt::Debug for nika_vocab::tool_ref::ToolRefDefect
+pub fn nika_vocab::tool_ref::ToolRefDefect::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_vocab::tool_ref::ToolRefDefect
+impl core::marker::StructuralPartialEq for nika_vocab::tool_ref::ToolRefDefect
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::tool_ref::ToolRefDefect where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::tool_ref::ToolRefDefect::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_vocab::tool_ref::ToolRefDefect where U: core::convert::From<T>
+pub fn nika_vocab::tool_ref::ToolRefDefect::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_vocab::tool_ref::ToolRefDefect where U: core::convert::Into<T>
+pub type nika_vocab::tool_ref::ToolRefDefect::Error = core::convert::Infallible
+pub fn nika_vocab::tool_ref::ToolRefDefect::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_vocab::tool_ref::ToolRefDefect where U: core::convert::TryFrom<T>
+pub type nika_vocab::tool_ref::ToolRefDefect::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_vocab::tool_ref::ToolRefDefect::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_vocab::tool_ref::ToolRefDefect where T: core::clone::Clone
+pub type nika_vocab::tool_ref::ToolRefDefect::Owned = T
+pub fn nika_vocab::tool_ref::ToolRefDefect::clone_into(&self, target: &mut T)
+pub fn nika_vocab::tool_ref::ToolRefDefect::to_owned(&self) -> T
+impl<T> core::any::Any for nika_vocab::tool_ref::ToolRefDefect where T: 'static + ?core::marker::Sized
+pub fn nika_vocab::tool_ref::ToolRefDefect::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_vocab::tool_ref::ToolRefDefect where T: ?core::marker::Sized
+pub fn nika_vocab::tool_ref::ToolRefDefect::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_vocab::tool_ref::ToolRefDefect where T: ?core::marker::Sized
+pub fn nika_vocab::tool_ref::ToolRefDefect::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_vocab::tool_ref::ToolRefDefect where T: core::clone::Clone
+pub unsafe fn nika_vocab::tool_ref::ToolRefDefect::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_vocab::tool_ref::ToolRefDefect
+pub fn nika_vocab::tool_ref::ToolRefDefect::from(t: T) -> T
+#[non_exhaustive] pub struct nika_vocab::tool_ref::ToolRef<'a>
+pub nika_vocab::tool_ref::ToolRef::name: core::option::Option<&'a str>
+pub nika_vocab::tool_ref::ToolRef::namespace: nika_vocab::tool_ref::ToolNamespace
+pub nika_vocab::tool_ref::ToolRef::path: &'a str
+pub nika_vocab::tool_ref::ToolRef::server: core::option::Option<&'a str>
+impl<'a> nika_vocab::tool_ref::ToolRef<'a>
+pub const fn nika_vocab::tool_ref::ToolRef<'a>::new(namespace: nika_vocab::tool_ref::ToolNamespace, path: &'a str, server: core::option::Option<&'a str>, name: core::option::Option<&'a str>) -> Self
+impl<'a> core::clone::Clone for nika_vocab::tool_ref::ToolRef<'a>
+pub fn nika_vocab::tool_ref::ToolRef<'a>::clone(&self) -> nika_vocab::tool_ref::ToolRef<'a>
+impl<'a> core::cmp::Eq for nika_vocab::tool_ref::ToolRef<'a>
+impl<'a> core::cmp::PartialEq for nika_vocab::tool_ref::ToolRef<'a>
+pub fn nika_vocab::tool_ref::ToolRef<'a>::eq(&self, other: &nika_vocab::tool_ref::ToolRef<'a>) -> bool
+impl<'a> core::fmt::Debug for nika_vocab::tool_ref::ToolRef<'a>
+pub fn nika_vocab::tool_ref::ToolRef<'a>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'a> core::marker::StructuralPartialEq for nika_vocab::tool_ref::ToolRef<'a>
+impl<Q, K> hashbrown::Equivalent<K> for nika_vocab::tool_ref::ToolRef<'a> where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_vocab::tool_ref::ToolRef<'a>::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_vocab::tool_ref::ToolRef<'a> where U: core::convert::From<T>
+pub fn nika_vocab::tool_ref::ToolRef<'a>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_vocab::tool_ref::ToolRef<'a> where U: core::convert::Into<T>
+pub type nika_vocab::tool_ref::ToolRef<'a>::Error = core::convert::Infallible
+pub fn nika_vocab::tool_ref::ToolRef<'a>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_vocab::tool_ref::ToolRef<'a> where U: core::convert::TryFrom<T>
+pub type nika_vocab::tool_ref::ToolRef<'a>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_vocab::tool_ref::ToolRef<'a>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_vocab::tool_ref::ToolRef<'a> where T: core::clone::Clone
+pub type nika_vocab::tool_ref::ToolRef<'a>::Owned = T
+pub fn nika_vocab::tool_ref::ToolRef<'a>::clone_into(&self, target: &mut T)
+pub fn nika_vocab::tool_ref::ToolRef<'a>::to_owned(&self) -> T
+impl<T> core::any::Any for nika_vocab::tool_ref::ToolRef<'a> where T: 'static + ?core::marker::Sized
+pub fn nika_vocab::tool_ref::ToolRef<'a>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_vocab::tool_ref::ToolRef<'a> where T: ?core::marker::Sized
+pub fn nika_vocab::tool_ref::ToolRef<'a>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_vocab::tool_ref::ToolRef<'a> where T: ?core::marker::Sized
+pub fn nika_vocab::tool_ref::ToolRef<'a>::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_vocab::tool_ref::ToolRef<'a> where T: core::clone::Clone
+pub unsafe fn nika_vocab::tool_ref::ToolRef<'a>::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_vocab::tool_ref::ToolRef<'a>
+pub fn nika_vocab::tool_ref::ToolRef<'a>::from(t: T) -> T
+pub fn nika_vocab::tool_ref::glob_namespace(glob: &str) -> core::result::Result<core::option::Option<nika_vocab::tool_ref::ToolNamespace>, nika_vocab::tool_ref::ToolRefDefect>
+pub fn nika_vocab::tool_ref::parse(tool: &str) -> core::result::Result<nika_vocab::tool_ref::ToolRef<'_>, nika_vocab::tool_ref::ToolRefDefect>
 pub mod nika_vocab::type_expr
 pub fn nika_vocab::type_expr::coerce_declared(type_expr: &serde_json::value::Value, type_names: &alloc::collections::btree::set::BTreeSet<alloc::string::String>, named: &alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_types::types::NikaType>, raw: &str) -> core::result::Result<serde_json::value::Value, alloc::string::String>
 pub fn nika_vocab::type_expr::default_not_conforming_teaching(where_: &str, value: &serde_json::value::Value, type_expr: &serde_json::value::Value) -> alloc::string::String

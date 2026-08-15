@@ -56,8 +56,9 @@ use nika_kernel::tool_executor::{ToolCall, ToolExecuteDyn};
 
 pub use errors::VerbInvokeError;
 
-/// The two closed tool namespaces (spec §invoke · CLOSED at v1).
-const NAMESPACES: [&str; 2] = ["nika", "mcp"];
+// The closed namespace set moved to `nika_vocab::tool_ref::ToolNamespace`
+// with the rest of the grammar — a second copy here is how the two readers
+// drifted apart in the first place.
 
 /// The `invoke` task input — spec fields, already CEL-resolved.
 #[derive(Debug, Clone)]
@@ -193,49 +194,33 @@ where
     }
 }
 
-/// The closed-namespace + `mcp:`-needs-slash semantic check (NIKA-450).
+/// The tool-id grammar at the verb boundary (NIKA-450).
 ///
-/// Grammar SHAPE (single colon, path charset) is the upstream
-/// `nika-schema` `NIKA-PARSE` concern; here we reject only what makes a
-/// tool id semantically unresolvable at the verb boundary. NOTE the path
-/// after the namespace MAY itself contain `:` — that's the tool path's
-/// business (`split_once` claims only the first colon).
+/// The rules live ONCE, at L0 in `nika_vocab::tool_ref`, because the
+/// checker reads the same ids at author time. This function used to
+/// carry its own copy, and the two disagreed in BOTH directions
+/// (measured 2026-08-15):
+///
+/// ```text
+/// nika:a:b         the CHECK refused it · this one accepted it
+/// nika:x\u{7f}y    the CHECK PASSED it  · this one refused it
+/// ```
+///
+/// The second is the half that mattered: a control character in a
+/// forwarded tool name is a log-injection vector, and the checker waved
+/// it through at the only moment an author is still reading.
+///
+/// The prior note here said the path "MAY itself contain `:`". It was
+/// wrong against the spec (`02-verbs.md` §invoke · « the colon marks the
+/// namespace boundary (exactly once) ») and is gone. Nothing checked
+/// could carry a second colon anyway — the checker already refused it.
 fn validate_tool_ref(tool: &str) -> Result<(), VerbInvokeError> {
-    let unresolvable = |detail: &str| VerbInvokeError::UnresolvableTool {
-        tool: tool.to_owned(),
-        detail: detail.to_owned(),
-    };
-    // Reject leading/trailing whitespace + any ASCII control char before the
-    // id flows into a ToolCall (and from there into log/event fields) — a
-    // newline/tab in a forwarded tool name is a log-injection vector
-    // (review lens 3 · P1 · same class as the exec stderr tail).
-    if tool.starts_with(char::is_whitespace)
-        || tool.ends_with(char::is_whitespace)
-        || tool.bytes().any(|b| b < 0x20 || b == 0x7f)
-    {
-        return Err(unresolvable(
-            "tool id must not contain whitespace padding or control characters",
-        ));
-    }
-    let Some((ns, path)) = tool.split_once(':') else {
-        return Err(unresolvable("missing the `namespace:` prefix"));
-    };
-    if !NAMESPACES.contains(&ns) {
-        return Err(unresolvable(
-            "unknown namespace (the set is closed: `nika:` or `mcp:`)",
-        ));
-    }
-    if path.is_empty() {
-        return Err(unresolvable("empty tool path after the namespace"));
-    }
-    // `mcp:` requires `<server>/<tool>` — both segments non-empty.
-    if ns == "mcp" {
-        match path.split_once('/') {
-            Some((server, name)) if !server.is_empty() && !name.is_empty() => {}
-            _ => return Err(unresolvable("`mcp:` requires `<server>/<tool>`")),
-        }
-    }
-    Ok(())
+    nika_vocab::tool_ref::parse(tool)
+        .map(|_| ())
+        .map_err(|defect| VerbInvokeError::UnresolvableTool {
+            tool: tool.to_owned(),
+            detail: defect.teaching().to_owned(),
+        })
 }
 
 /// Process-monotonic disambiguator for derived call ids.
@@ -525,9 +510,16 @@ mod tests {
         assert!(validate_tool_ref("nika:read").is_ok());
         assert!(validate_tool_ref("nika:connectome/recall").is_ok());
         assert!(validate_tool_ref("mcp:db/query").is_ok());
-        // `nika:a:b` — a second colon is the tool path's business (we claim
-        // only the first colon for the namespace).
-        assert!(validate_tool_ref("nika:a:b").is_ok());
+        // ⭐ FLIPPED 2026-08-15. This line used to assert `is_ok()`, with
+        // the comment « a second colon is the tool path's business ». That
+        // was a design ASSERTION, not a requirement from any real tool, and
+        // it contradicted the spec the checker quotes verbatim
+        // (`02-verbs.md` §invoke · « the colon marks the namespace boundary
+        // (exactly once) »). Two readers, two rules, and this one was lax
+        // against its own spec — so the checker refused what the runtime
+        // accepted. Nothing CHECKED could carry a second colon, so the
+        // tightening breaks nothing that exists.
+        assert!(validate_tool_ref("nika:a:b").is_err());
         // A space (0x20) in the MIDDLE is NOT a control char — accepted (only
         // < 0x20 and DEL are rejected; pins the byte-rule boundary exactly).
         assert!(validate_tool_ref("nika:re ad").is_ok());
