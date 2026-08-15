@@ -2461,6 +2461,7 @@ dependencies = [
  "miette",
  "nika-error",
  "nika-kernel",
+ "nika-vocab",
  "serde_json",
  "thiserror",
 ]
