@@ -28,13 +28,26 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$HERE/../.." && pwd)"
 TARGET="$REPO_ROOT/crates/nika-catalog/src"
 
+# Fail CLOSED on a missing subject. This printed "not found — skipping" and
+# returned 0, so a rename of nika-catalog would have turned the vector green
+# forever without a word. That is not hypothetical here: the same shape,
+# `TARGET=crates/<one-crate>/src` plus `[ ! -d ] && exit 0`, is exactly how
+# check-cancel-safety and check-kernel-no-spawn came to guard nothing when
+# nika-kernel was split in June — one guarded 0 of 94 async fn, the other
+# 2% of its layer, both reporting OK. A vector that cannot find its subject
+# has not cleared it.
 if [ ! -d "$TARGET" ]; then
-  echo "check-owned-strings: $TARGET not found — skipping"
-  exit 0
+  echo "RED: $TARGET not found — refusing to report a verdict" >&2
+  echo "  (the crate moved or was renamed; re-aim TARGET, do not skip)" >&2
+  exit 2
 fi
 
-MISSING_FILE=/tmp/owned-strings-missing.txt
-: >"$MISSING_FILE"
+# One scratch file per run. The fixed `/tmp/owned-strings-missing.txt` was
+# truncated at start so it was at least idempotent, but it is shared across
+# every checkout on the machine — two concurrent runs read each other's
+# findings. mktemp costs nothing and removes the race.
+MISSING_FILE="$(mktemp)"
+trap 'rm -f "$MISSING_FILE"' EXIT
 
 # The awk program: walk each line, flag pub-field and pub-fn-return
 # patterns that use non-static string borrows. We keep the previous line
@@ -82,11 +95,13 @@ if [ -s "$MISSING_FILE" ]; then
   echo "RED: $count pub non-static str in nika-catalog public API"
   head -20 "$MISSING_FILE" | sed 's|^|  |'
   if [ "$count" -gt 20 ]; then
-    echo "  ... (truncated; full list at $MISSING_FILE)"
+    # Says how many more, not where to look: the scratch file is per-run and
+    # the trap removes it, so pointing a reader at it would send them to a
+    # path that is already gone.
+    echo "  ... ($((count - 20)) more)"
   fi
   exit 2
 fi
 
-rm -f "$MISSING_FILE"
 echo "OK: nika-catalog public API uses static-str or String exclusively"
 exit 0

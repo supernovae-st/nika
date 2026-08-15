@@ -182,8 +182,8 @@ patterns:
   evidence: "crate-specs · architecture prose · perf notes — no generation markers at file heads"
 - glob: "scripts/**"
   class: authored
-  match_count: 146
-  aggregate_sha256: fed158323b2e8c380be68cc455e245806de7d193bf453aa9892d0e1886f7d570
+  match_count: 147
+  aggregate_sha256: f9268d25aedc6bfda7bd09b099f28bc03f4ccd436e53ac607783c1dd85e6928c
   evidence: "hand-written gates · hooks · hygiene vectors · media lanes; the ratchet baselines (scripts/ci/*-baseline.txt · scripts/hygiene/baselines/) are hand-kept monotonic floors ('Never remove a line by hand')"
 - glob: ".github/workflows/**"
   class: authored
