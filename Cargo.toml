@@ -400,8 +400,8 @@ expectrl    = "0.9"  # PTY e2e — the wizard's TTY-gated conversation (unix-onl
 # Cost · 2× build time at release · `cargo build --release` only · dev builds
 # unaffected. strip=symbols matches ADR-061 SLSA L3 byte-determinism target.
 # panic=unwind KEPT · panic=abort breaks `cargo test` panic-catching + violates
-# security.md §Propagate errors discipline (forbidden at dx/ level · ambiguous
-# at engine/ · default unwind is the conservative choice). debug=line-tables-only
+# the propagate-errors discipline (forbidden for the surrounding tooling ·
+# ambiguous for the engine · default unwind is the conservative choice). debug=line-tables-only
 # preserves enough symbols for `cargo flamegraph` without bloating release binary.
 
 [profile.release]

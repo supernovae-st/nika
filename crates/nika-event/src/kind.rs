@@ -16,8 +16,8 @@ use core::fmt;
 /// The kind of an emitted [`crate::Event`].
 ///
 /// Mirrors the studio journal taxonomy in spirit but scoped to the
-/// **engine runtime** (the studio chronicle lives in `dx/journal/` — a
-/// disjoint domain, per `journal-storage-tiers.md`).
+/// **engine runtime**. The studio keeps its own chronicle, in its own
+/// private tree — a disjoint domain, never conflated with this one.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "snake_case"))]
