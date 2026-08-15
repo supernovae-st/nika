@@ -889,7 +889,7 @@ fn scoped_clean_gate(
         return Err(refuse());
     }
     // `skills:` gate (#473 · pre-effect · the SAME rows check renders).
-    let resolved = crate::verbs::resolve_workflow_skills(&wf);
+    let resolved = crate::verbs::resolve_workflow_skills(&wf, crate::verbs::workflow_base(file));
     if !resolved.findings.is_empty() {
         return Err(refuse());
     }

@@ -296,7 +296,7 @@ pub fn run_with_profile(
     // binary cannot resolve is a FINDING (exit 2), never a green audit.
     let models_audit = unresolvable_models(&report, &wf);
     // SKILLS rung (#473 · MODELS pattern): a bad SKILL.md is a FINDING.
-    let skills = super::resolve_workflow_skills(&wf);
+    let skills = super::resolve_workflow_skills(&wf, super::workflow_base(path));
     let clean = report.is_clean() && models_audit.findings.is_empty() && skills.findings.is_empty();
     // The risk grade (P0-6): a pure projection of the report — uncapped
     // spend or wildcard grants never turn the verdict green by silence.
