@@ -1269,6 +1269,21 @@ pub fn permits(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Them
     // at nothing (the mute-diagnostic the battery re-run caught). The
     // NEP-0004 taint findings (interpolated bound → NIKA-AUTH-007 ·
     // untrusted argument escape → NIKA-AUTH-008) ride the SAME panel.
+    //
+    // …but a CLEAN verdict here is only worth what the analysis behind it
+    // saw, and this lane never got the 2026-07-29 guard the four
+    // `section_or_skip` lanes did (« the green did not mean the leak was
+    // gone. It meant nobody looked. »). Measured 2026-08-15: a body whose
+    // jq program reached for the ambient environment reported
+    // `✖ CONFORM` on one line and « the body is pure compute so nothing
+    // escapes » on the next — a sentence that was false about that body,
+    // printed beside the finding that proved it false. Escapes still
+    // render below (the mute-diagnostic law is untouched); only the CLAIM
+    // is withheld while conformance is red.
+    if !report.conformance.is_empty() {
+        permits_unjudged(out, report, t);
+        return;
+    }
     if wf.permits.is_none() && report.capability_escapes.is_empty() {
         let _ = writeln!(
             out,
@@ -1329,6 +1344,35 @@ pub fn permits(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Them
             )
         );
         loopback_declassification_lines(out, wf, t);
+        return;
+    }
+    permits_escape_rows(out, report, t);
+}
+
+/// The PERMITS panel while conformance is RED — the escapes that WERE found
+/// still render (the mute-diagnostic law: `✖ findings above` must point at
+/// something), but the clean sentence is replaced by the honest one.
+///
+/// The boundary analysis reads a parsed, conformant workflow; when conformance
+/// fails there is no such workflow to read, so « pure compute · nothing
+/// escapes » would be a claim about a body nobody analysed. Same shape as the
+/// four `section_or_skip` lanes, different reason (they are gated on a
+/// computable DAG order; this one on there being a judgeable file at all).
+fn permits_unjudged(out: &mut String, report: &CheckReport, t: Theme) {
+    if report.capability_escapes.is_empty()
+        && report.permit_taints.is_empty()
+        && report.sink_findings.is_empty()
+    {
+        let _ = writeln!(
+            out,
+            " {} {}  {}",
+            t.paint(Role::Dim, "○"),
+            t.paint(Role::Strong, "PERMITS"),
+            t.paint(
+                Role::Dim,
+                "(skipped — the body is not judged while conformance fails)"
+            )
+        );
         return;
     }
     permits_escape_rows(out, report, t);
