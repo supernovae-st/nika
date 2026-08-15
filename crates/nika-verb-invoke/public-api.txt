@@ -94,6 +94,8 @@ impl core::fmt::Debug for nika_verb_invoke::InvokeOutput
 pub fn nika_verb_invoke::InvokeOutput::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::StructuralPartialEq for nika_verb_invoke::InvokeOutput
 impl<D> owo_colors::OwoColorize for nika_verb_invoke::InvokeOutput
+impl<Q, K> hashbrown::Equivalent<K> for nika_verb_invoke::InvokeOutput where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_verb_invoke::InvokeOutput::equivalent(&self, key: &K) -> bool
 impl<T, U> core::convert::Into<U> for nika_verb_invoke::InvokeOutput where U: core::convert::From<T>
 pub fn nika_verb_invoke::InvokeOutput::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_verb_invoke::InvokeOutput where U: core::convert::Into<T>
