@@ -163,23 +163,28 @@ fn no_authority_shape_lets_an_expression_read_the_environment() {
     }
 }
 
-/// The clock and the local timezone are the same subtraction, same law.
+/// THE CLOCK IS STILL OPEN, and it has an owner — pinned at the binary.
+///
+/// `now` reads the host clock today. D-2026-08-11-N27 (active) prescribes a
+/// REBINDING — `now` resolves to the run's start instant, already in the trace,
+/// so a replay yields the same value forever — not the subtraction N26 applies
+/// to the environment. Measured 2026-08-15: zero call sites in a 184-program
+/// corpus, so the cost of either remedy is nil; the CHOICE is N27's.
+///
+/// When N27 ships, this test goes red. That is its whole job: the debt is
+/// named, dated and owned rather than quietly widened into someone else's
+/// decision.
 #[test]
-fn the_clock_and_the_timezone_are_refused_too() {
-    for (program, class) in [
-        ("now", "host clock"),
-        ("0 | localtime", "local timezone"),
-        ("0 | strflocaltime(\"%Y\")", "local timezone"),
-    ] {
-        let dir = tempfile::tempdir().expect("tempdir");
-        let wf = write(dir.path(), "probe.nika.yaml", &workflow_with("", program));
-        let checked = invoke("check", &wf);
-        assert!(
-            !checked.status.success() && text(&checked).contains(class),
-            "`{program}` must be refused naming `{class}`\n{}",
-            text(&checked)
-        );
-    }
+fn the_clock_is_a_named_open_debt_owned_by_n27() {
+    let dir = tempfile::tempdir().expect("tempdir");
+    let wf = write(dir.path(), "probe.nika.yaml", &workflow_with("", "now"));
+    let checked = invoke("check", &wf);
+    assert!(
+        checked.status.success(),
+        "`now` was refused — if D-2026-08-11-N27 shipped, update this test WITH \
+         it (rebound to the run's start instant), never as a drive-by\n{}",
+        text(&checked)
+    );
 }
 
 /// CHECK ⇔ RUN parity, as ONE comparison rather than two separate greens.

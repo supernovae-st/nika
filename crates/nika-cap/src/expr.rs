@@ -59,38 +59,30 @@ impl WithheldNative {
 /// (jaq-core 3.1 · jaq-std 3.0 · jaq-json 2.0) exposes 114 natives, and these
 /// four are the ones whose result depends on the host rather than the input.
 ///
-/// Their cost was measured before removal (2026-08-15 · 410 `.nika.yaml` files
+/// Its cost was measured before removal (2026-08-15 · 410 `.nika.yaml` files
 /// across the engine, spec, plugins, docs, audit-workflow, control-tower and
 /// the atelier's own workflows · 184 jq programs extracted): **zero** call
-/// sites, all four.
+/// sites.
 ///
-/// Deliberately ABSENT and left to their own decision · `debug`/`stderr`
-/// (they EMIT to the host's stderr rather than see) and `halt` (it acts on the
-/// process). A different class, and `jaq-std`'s own `defs.jq` builds on them.
-pub const WITHHELD_JQ_NATIVES: &[WithheldNative] = &[
-    WithheldNative::new(
-        "env",
-        "the ambient process environment",
-        "pass the value in — `inputs:` (the caller), `const:` (the author) or \
-         `secrets:` (a governed store reference); a CHILD process receives its \
-         environment through `permits.env` on an `exec:` task",
-    ),
-    WithheldNative::new(
-        "now",
-        "the host clock",
-        "`nika:date` — the governed clock, whose reading the trace records",
-    ),
-    WithheldNative::new(
-        "localtime",
-        "the host's local timezone",
-        "`gmtime` (a pure function of the timestamp you pass it) or `nika:date`",
-    ),
-    WithheldNative::new(
-        "strflocaltime",
-        "the host's local timezone",
-        "`strftime` (a pure function of the timestamp you pass it) or `nika:date`",
-    ),
-];
+/// # What is deliberately ABSENT, and who owns it
+///
+/// - **The clock family** (`now` · `localtime` · `strflocaltime`) reads the
+///   host too, and measures zero uses as well — but **D-2026-08-11-N27 (active)
+///   prescribes a different remedy**: `now` MUST RESOLVE TO THE RUN'S START
+///   INSTANT, the one already in the trace, so a replay yields the same value
+///   forever. That is a rebinding, not a subtraction, and shipping a removal
+///   here would pre-empt a locked decision with a mechanism it did not choose.
+///   The debt is pinned by a test in `nika-builtin`.
+/// - **`debug` · `stderr` · `halt`** EMIT to the host or act on the process
+///   rather than SEE beyond the input — a different class from N26, and
+///   `jaq-std`'s own `defs.jq` builds on their natives.
+pub const WITHHELD_JQ_NATIVES: &[WithheldNative] = &[WithheldNative::new(
+    "env",
+    "the ambient process environment",
+    "pass the value in — `inputs:` (the caller), `const:` (the author) or \
+     `secrets:` (a governed store reference); a CHILD process receives its \
+     environment through `permits.env` on an `exec:` task",
+)];
 
 /// The withheld row for `name`, when there is one.
 #[must_use]
@@ -135,12 +127,20 @@ mod tests {
         assert!(reason.contains("inputs:"), "{reason}");
     }
 
+    /// The clock family is NOT here, and that is a decision with an owner.
+    ///
+    /// D-2026-08-11-N27 (active) rebinds `now` to the run's start instant
+    /// rather than removing it. When that ships, this test is the reminder
+    /// that the list was left alone on purpose — flip it only WITH N27, never
+    /// as a drive-by.
     #[test]
-    fn the_clock_and_the_timezone_are_withheld_too() {
+    fn the_clock_family_belongs_to_n27_not_to_this_list() {
         for name in ["now", "localtime", "strflocaltime"] {
-            assert!(is_withheld_jq_native(name), "{name}");
-            let reason = withheld_jq_reason(name).expect("withheld");
-            assert!(reason.contains("sees only its input"), "{name} · {reason}");
+            assert!(
+                !is_withheld_jq_native(name),
+                "{name} · N27 prescribes a REBINDING (the run's start instant), \
+                 not a subtraction — removing it here pre-empts a locked decision"
+            );
         }
     }
 

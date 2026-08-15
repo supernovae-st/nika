@@ -239,21 +239,25 @@ mod tests {
         assert!(bare.to_string().contains("ambient process environment"));
     }
 
+    /// THE CLOCK IS STILL OPEN — pinned, not forgotten.
+    ///
+    /// `now` reads the wall clock at this seam today. D-2026-08-11-N27 (active)
+    /// owns it and prescribes a REBINDING — `now` resolves to the run's start
+    /// instant, already in the trace, so a replay yields the same value forever
+    /// — not the subtraction N26 applies to the environment. Measured
+    /// 2026-08-15: zero call sites in a 184-program corpus, so the cost of
+    /// either remedy is nil; the choice of remedy is N27's, not this commit's.
+    ///
+    /// When N27 ships, this test goes red. That is its whole job.
     #[test]
-    fn a_binding_cannot_read_the_clock_or_the_timezone() {
+    fn the_clock_is_a_named_open_debt_owned_by_n27() {
         let input = serde_json::json!({});
-        for (program, class) in [
-            ("now", "host clock"),
-            ("0 | localtime", "local timezone"),
-            ("0 | strflocaltime(\"%Y\")", "local timezone"),
-        ] {
-            let err = eval_binding("leak", program, &input).expect_err(program);
-            assert_eq!(err.spec_code(), "NIKA-VAR-004", "{program}");
-            assert!(
-                err.to_string().contains(class),
-                "{program} · the refusal must name `{class}` · got: {err}"
-            );
-        }
+        let value = eval_binding("t", "now", &input).expect("the clock still reads today");
+        assert!(
+            value.as_f64().is_some_and(|t| t > 1_700_000_000.0),
+            "`now` returned {value} — if this stopped being a wall-clock read, \
+             D-2026-08-11-N27 shipped: rebind the test to the run's start instant"
+        );
     }
 
     #[test]

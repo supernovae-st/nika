@@ -233,9 +233,6 @@ mod tests {
         for (program, class) in [
             ("env.PATH", "ambient process environment"),
             ("env", "ambient process environment"),
-            ("now", "host clock"),
-            ("0 | localtime", "local timezone"),
-            ("0 | strflocaltime(\"%Y\")", "local timezone"),
         ] {
             let reason = jq_compiles(program).expect_err(program);
             assert!(
@@ -245,6 +242,23 @@ mod tests {
             assert!(
                 reason.contains("sees only its input"),
                 "{program} · must state the law · got: {reason}"
+            );
+        }
+    }
+
+    /// THE CLOCK IS STILL OPEN — pinned here too.
+    ///
+    /// D-2026-08-11-N27 (active) owns `now` and prescribes a REBINDING to the
+    /// run's start instant, not the subtraction N26 applies to the environment.
+    /// The static lane therefore still accepts it. When N27 ships, this goes
+    /// red — that is its whole job.
+    #[test]
+    fn the_clock_still_compiles_and_belongs_to_n27() {
+        for still_open in ["now", "0 | localtime", "0 | strflocaltime(\"%Y\")"] {
+            assert!(
+                jq_compiles(still_open).is_ok(),
+                "{still_open} · if this now refuses, D-2026-08-11-N27 shipped — \
+                 update this test WITH it, never as a drive-by"
             );
         }
     }

@@ -680,23 +680,27 @@ mod tests {
         assert!(bare.message.contains("ambient process environment"));
     }
 
+    /// THE CLOCK IS STILL OPEN — pinned, not forgotten.
+    ///
+    /// `now` reads the wall clock here today. D-2026-08-11-N27 (active) owns it
+    /// and prescribes a REBINDING (resolve to the run's start instant, already
+    /// in the trace, so a replay yields the same value forever), not the
+    /// subtraction N26 applies to the environment. Measured 2026-08-15: zero
+    /// call sites in a 184-program corpus — the cost of either remedy is nil;
+    /// the CHOICE of remedy belongs to N27.
+    ///
+    /// When N27 ships, this test goes red. That is its whole job.
     #[test]
-    fn jq_cannot_read_the_clock_or_the_timezone() {
-        for (program, class) in [
-            ("now", "host clock"),
-            ("0 | localtime", "local timezone"),
-            ("0 | strflocaltime(\"%Y\")", "local timezone"),
-        ] {
-            let err = jq(&args(
-                serde_json::json!({ "expression": program, "input": {} }),
-            ))
-            .expect_err(program);
-            assert!(
-                err.message.contains(class),
-                "{program} · must name `{class}` · got: {}",
-                err.message
-            );
-        }
+    fn the_clock_is_a_named_open_debt_owned_by_n27() {
+        let out = jq(&args(
+            serde_json::json!({ "expression": "now", "input": {} }),
+        ))
+        .expect("the clock still reads today");
+        assert!(
+            out.as_f64().is_some_and(|t| t > 1_700_000_000.0),
+            "`now` returned {out} — if this stopped being a wall-clock read, \
+             D-2026-08-11-N27 shipped: rebind the test to the run's start instant"
+        );
     }
 
     #[test]
