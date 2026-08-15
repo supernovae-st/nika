@@ -18,11 +18,11 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4451
+  classified_files: 4452
   file_rows: 11
   pattern_rows: 22
   by_class:
-    authored: 1515
+    authored: 1516
     authored-pin: 2
     generated: 121
     pinned-copy: 117
@@ -172,8 +172,8 @@ patterns:
   evidence: "4 hand-written fuzz targets + the fuzz workspace config (fuzz/Cargo.toml · .gitignore); corpus excepted above, lockfile in files:"
 - glob: "docs/adr/**"
   class: authored
-  match_count: 79
-  aggregate_sha256: 6cfe3c3a2023461ac39668bef545c47f5760b28251cb9b7fda5e9ba177949d56
+  match_count: 80
+  aggregate_sha256: 2fce1a84398f7b708cbe8adb2292e4a6d78f300b33bb1b9003cae673a303bc5b
   evidence: "per-decision records authored at decision time (scripts/adr/new.sh scaffolds · adr-seal-check hook seals); index.toml excepted in files:"
 - glob: "docs/**"
   class: authored
@@ -237,7 +237,7 @@ patterns:
 - glob: "*"
   class: authored
   match_count: 28
-  aggregate_sha256: 044673b4038defc7009a529acb3ee69f0982f262d89d8ddf820c0bde724c9b01
+  aggregate_sha256: cee584a05630876751dd02073fe2d1e998b03e0ffb1f67bb8913715c46f9ea88
   evidence: "root prose + config surface (README · DIAMOND · LICENSE · llms.txt · Cargo.toml · deny/clippy/cliff/typos toml · lefthook.yml · flake.nix · Dockerfile) — no generation markers at file heads; CHANGELOG.md · Cargo.lock · SPEC_PIN · ROADMAP.md excepted in files:"
 - glob: "**"
   class: authored
