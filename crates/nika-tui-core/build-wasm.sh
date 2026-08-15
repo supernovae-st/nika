@@ -19,7 +19,7 @@ cargo test --locked -p nika-tui-core
 
 workspace_root="$(cd ../.. && pwd)"
 RUSTFLAGS="--remap-path-prefix=${CARGO_HOME:-$HOME/.cargo}=/cargo --remap-path-prefix=${workspace_root}=/build" \
-  cargo build --locked -p nika-tui-core --target wasm32-unknown-unknown --profile wasm-release
+  cargo build --locked -p nika-tui-core --features wasm --target wasm32-unknown-unknown --profile wasm-release
 
 # the artifact path is DERIVED, never assumed (CARGO_TARGET_DIR moves it)
 target_root="$(cargo metadata --format-version 1 --no-deps | sed -n 's/.*"target_directory":"\([^"]*\)".*/\1/p')"

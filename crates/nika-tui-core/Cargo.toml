@@ -28,7 +28,18 @@ serde        = { workspace = true }
 # measures nothing.
 serde_json   = { workspace = true, features = ["float_roundtrip"] }
 thiserror    = { workspace = true }
-wasm-bindgen = { workspace = true }
+# OPTIONAL on purpose. `wasm-bindgen` publishes a BLANKET `Upcast` impl, so
+# the moment it enters a dependency graph EVERY public type of EVERY crate
+# downstream acquires it. This crate is not a leaf (its sibling
+# `nika-check-wasm` is) — `nika-trace` depends on it, and `nika-cli` on that,
+# so a non-optional binding dragged 30 blanket-impl lines into two public-api
+# baselines that had gained no item of their own. The doors below stay
+# ordinary Rust under default features; only the FFI attribute is gated.
+wasm-bindgen = { workspace = true, optional = true }
+
+[features]
+# The browser lot. `build-wasm.sh` passes it; nothing else needs to.
+wasm = ["dep:wasm-bindgen"]
 
 [lints]
 workspace = true

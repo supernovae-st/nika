@@ -125,7 +125,18 @@ nika-secret
 # --- 2026-08-14: the two session crates, floored AT admission as the WIP rule
 # above requires (both cleared their 12 gates; neither had a snapshot, which is
 # why vector 38 sat at 62/64). Platform-neutral, verified: zero objc/apple/darwin
-# symbols in either snapshot, and nika-tui-core's #[wasm_bindgen] surface is NOT
-# cfg-gated, so its 26 wasm symbols appear identically on macOS and on linux. ---
+# symbols in either snapshot.
+# --- 2026-08-15 AMENDMENT: the line above used to end "and nika-tui-core's
+# #[wasm_bindgen] surface is NOT cfg-gated, so its 26 wasm symbols appear
+# identically on macOS and on linux". That is no longer true, and the reason
+# matters. wasm-bindgen publishes a BLANKET `Upcast` impl, so once it entered
+# the graph it landed on every public type of every crate DOWNSTREAM — 30 lines
+# in nika-trace's and nika-cli's baselines, neither of which had gained an item
+# of its own. The binding is now optional behind a `wasm` feature and only the
+# FFI ATTRIBUTE is gated (`cfg_attr`), so the five doors stay ordinary public
+# Rust and their native tests still run. The count moves 26 -> 6: the 20 blanket
+# `Upcast` lines are gone, the `pub fn`/`pub mod` doors remain. Platform
+# neutrality is unchanged — a FEATURE gate is not a platform gate, and dropping
+# the binder's glue removes the one part that could have differed. ---
 nika-cadence
 nika-tui-core
