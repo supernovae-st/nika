@@ -330,7 +330,8 @@ fn capture_mock_outputs_carries_the_resolved_skills() {
     let report = nika_check::check(&wf);
     assert!(report.is_clean(), "the pure ladder is fs-free");
 
-    let resolved = crate::verbs::resolve_workflow_skills(&wf);
+    // Absolute fixture path — the base is moot here.
+    let resolved = crate::verbs::resolve_workflow_skills(&wf, std::path::Path::new(""));
     assert!(resolved.findings.is_empty(), "the skill file resolves");
     let theme = Theme::new(false, true, false);
     let (code, _) =
