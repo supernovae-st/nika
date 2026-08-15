@@ -73,8 +73,10 @@ the `.nika.yaml` extension. `nika new <slug>` makes one yours;
    `nika new <template> <file>.nika.yaml`. An author who writes
    first and reads second pays the measured 7.5 rounds.
 2. **Write the file.** The envelope is `nika: <id>` (kebab-case — the
-   workflow id lives ON the tag since 2026-08-12; `description:` died
-   with the `workflow:` object) + a `tasks:` MAP keyed by task id —
+   workflow id lives ON the tag since 2026-08-12; that one key carries
+   BOTH the mark and the name, and `description:` died with the
+   `workflow:` object, which is no longer an envelope key at all) + a
+   `tasks:` MAP keyed by task id —
    the key IS the identity, never a `- id:` sequence. Pick
    models and builtins from the embedded catalogs — `nika catalog`
    (providers · models · capabilities · which env var each needs) and
@@ -121,26 +123,28 @@ the `.nika.yaml` extension. `nika new <slug>` makes one yours;
    `nika trace evidence <trace>` exports the pack an auditor reads without
    trusting you. Cite the trace, never a memory of the run.
 
-## The envelope: four value authorities, one boundary
+## The envelope: three value authorities, one boundary
 
 Every value a workflow depends on is DECLARED, and the family is closed:
 
 | Authority | What it holds |
 |---|---|
-| `inputs:` | typed parameters a caller supplies (`--var key=value`) |
-| `config:` | typed configuration a deployment supplies |
+| `inputs:` | typed parameters a caller supplies (`--var key=value`), and typed configuration a deployment supplies — the latter carries `required: false` and a `default:` |
 | `const:` | fixed values baked into the file |
 | `secrets:` | governed store references (`source: env` + `key:`) |
 
 `vars:` and `env:` are dead envelope fields (`NIKA-VALUES-001` ·
-`NIKA-VALUES-002`); any other namespace is `NIKA-VALUES-003`. Classify
-by ROLE, never bulk-rename: a caller's parameter is an `inputs:` entry,
-a baked value is a `const:`, a credential is a `secrets:` entry, and a
-name a child process must SEE is `permits: { env: [NAME] }`. `config:`
-resolves ONLY against the declared block — the engine never falls back
-to the OS environment, so every value the file depends on is visible in
-the file. `nika check --fix` migrates the `vars:` half mechanically;
-`env:` has no mechanical repair, because that classification is yours.
+`NIKA-VALUES-002`); any other namespace is `NIKA-VALUES-003`. `config:`
+was a fourth authority and is not one now — it is not a field at all,
+so it refuses `NIKA-PARSE-005` rather than teaching a migration.
+Classify by ROLE, never bulk-rename: a caller's parameter is an
+`inputs:` entry, a baked value is a `const:`, a credential is a
+`secrets:` entry, and a name a child process must SEE is
+`permits: { env: [NAME] }`. `inputs:` resolves ONLY against the
+declared block — the engine never falls back to the OS environment, so
+every value the file depends on is visible in the file. `nika check
+--fix` migrates the `vars:` half mechanically; `env:` has no mechanical
+repair, because that classification is yours.
 
 **`permits:` is the boundary, and ABSENT MEANS ZERO AUTHORITY:** any
 effect under no block refuses `NIKA-AUTH-006` at check, before a token
@@ -197,32 +201,28 @@ the child needs must be named.
 
 ## The whole surface (nothing else exists)
 
-Thirteen envelope keys, one verb per task, and a fixed set of modifiers.
+Nine envelope keys, one verb per task, and a fixed set of modifiers.
 `nika spec --schema` is the machine truth; this is the map.
 
-**Envelope** · `nika` · `workflow` · `model` · `types` · `inputs` ·
-`config` · `const` · `secrets` · `permits` · `run` · `policy` ·
-`tasks` · `outputs`. Two are easy to miss:
-
-- `types:` — named type declarations (PascalCase · acyclic), so a shape
-  is declared once and referenced everywhere.
-- `policy:` — named workflow law. The HARD families (`require` ·
-  `forbid` · `allow` · `limits`) are judged at check
-  (`NIKA-POLICY-001`); the SOFT families (`prefer` · `optimize`) are
-  recorded and never judged.
+**Envelope** · `nika` · `model` · `inputs` · `const` · `secrets` ·
+`permits` · `run` · `tasks` · `outputs`. Nothing else parses: a key
+outside this nine refuses `NIKA-PARSE-005`. `workflow:`, `types:`,
+`config:`, `policy:` and `assert:` were envelope keys and are not one
+now — `workflow:` survives only INSIDE `invoke:`, and a
+deployment-supplied value is an `inputs:` entry with `required: false`
+and a `default:`.
 
 **Task modifiers**, beside the one verb:
 
 | Field | What it does |
 |---|---|
 | `with:` | the DATA edge — bind another task's output, body reads `${{ with.alias }}` |
-| `after:` | the CONTROL edge — `success` · `failure` · `skipped` · `terminal` |
+| `after:` | the CONTROL edge — `success` · `failure` · `skipped` · `terminal` · `unwind` |
 | `when:` | a CEL boolean gate (`size()` is the only function) |
-| `for_each:` | fan out over a collection · the body reads the current element as `${{ item }}` and its position as `${{ index }}` (loop-scoped locals, NOT a fifth value authority · `item.field` reaches into an object element) · the task's `.output` is the ARRAY of per-iteration outputs, in input order · `max_parallel:` caps concurrency (1 = sequential) · `fail_fast:` aborts on the first error (default true) |
+| `for_each:` | fan out over a collection · the body reads the current element as `${{ item }}` and its position as `${{ index }}` (loop-scoped locals, NOT a fourth value authority · `item.field` reaches into an object element) · the task's `.output` is the ARRAY of per-iteration outputs, in input order · `max_parallel:` caps concurrency (1 = sequential) · `fail_fast:` aborts on the first error (default true) |
 | `retry:` | `max_attempts` · `backoff_ms` · `backoff_strategy` · `backoff_max_ms` · `jitter` · `on_codes` — transient failures only; a wrong prompt never heals by retry |
 | `on_error:` | exactly ONE action — `recover:` · `skip:` (preserves the original error at `tasks.X.error`) · `fail_workflow:` — with an optional `on_codes:` filter |
-| `on_finally:` | cleanup mini-tasks that ALWAYS run (success · failure · timeout · cancel) · sequential · best-effort |
-| `output:` | named jq bindings → `${{ tasks.X.<name> }}` |
+| `extract:` | named jq bindings → `${{ tasks.X.<name> }}` |
 | `returns:` | the task's output contract — exclusive with a verb-level `schema:` (`NIKA-TYPE-003`) |
 | `timeout:` | a quoted Go duration |
 | `inert:` | declares a `nika:fetch` payload code-bearing but never loaded — the non-empty string IS the justification. Lifts the data-as-code sink law ONLY, never the net boundary |
@@ -245,7 +245,8 @@ otherwise, in this order:
    cannot be known in advance and must be bounded · `exec:` only when
    the first three genuinely cannot.
 4. **Classify every value before writing it.** Caller-supplied →
-   `inputs:` · deployment-supplied → `config:` · fixed here → `const:` ·
+   `inputs:` · deployment-supplied → an `inputs:` entry with
+   `required: false` and a `default:` · fixed here → `const:` ·
    credential → `secrets:`. If you cannot name the class, you do not yet
    know what the value is.
 5. **Bind, never reach.** A task needing another's output binds it in
@@ -265,7 +266,8 @@ otherwise, in this order:
    inference prints and supply the paths it says it cannot compute.
 9. **Fail on purpose.** Transient failure → `retry:` · expected absence
    → `on_error: on_codes + recover:` · cleanup that must always happen →
-   `on_finally:`. Swallowing an error is never the plan.
+   an ordinary task you name, declaring `after: { producer: unwind }`.
+   Swallowing an error is never the plan.
 10. **Prove it before handing it over.** `nika check` clean, then
     `--native-strict`, then a golden pin if the workflow is hermetic.
     Only then does the human get the run line.
@@ -381,9 +383,10 @@ wrote, not for a parent to call a child.
 child's whole `outputs:` map, and `${{ tasks.<id>.output.<name> }}`
 reaches one entry (measured: a child declaring `greeting:` yields
 `{"greeting": …}` and the deep reference passes TYPES). Add `returns:`
-to pin the shape, with two traps: the name must be declared in the
-parent's `types:` block or it is `NIKA-TYPE-001` unknown type name, and
-`types:` is Nika's own grammar, not JSON Schema, so it is
+to pin the shape, with one trap: the shape is written INLINE — there is
+no envelope `types:` block to declare a name in (it refuses
+`NIKA-PARSE-005`) — and the grammar is Nika's own, not JSON Schema, so
+it is
 `{ object: { greeting: string } }` and never `{ type: object,
 properties: … }` (that spelling is `NIKA-TYPE-001` too, on the
 constructor). `schema:` on an `infer:` IS JSON Schema. Two type
@@ -440,7 +443,7 @@ The order is `invoke: nika:*` → `invoke: mcp:<server>/<tool>` →
    The reflexes worth memorising: HTTP (curl/wget/helper fetch) →
    `nika:fetch` · file plumbing (cat/tee/cp/mkdir) →
    `nika:read`/`nika:write` (`create_dirs: true`) · JSON shaping
-   (jq/sed) → `nika:jq` or an `output:` binding · in-place edits →
+   (jq/sed) → `nika:jq` or an `extract:` binding · in-place edits →
    `nika:edit` · finding files (`find`/`ls`) → `nika:glob` · searching
    them (`grep`/`rg`) → `nika:grep` · `date`/`uuidgen`/`shasum` →
    `nika:date`/`nika:uuid`/`nika:hash` · format conversion →

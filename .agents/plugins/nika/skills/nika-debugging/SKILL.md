@@ -77,7 +77,8 @@ exact failing task.
 - **Missing credential**: secrets ride `${{ secrets.X }}`, declared in
   the `secrets:` block (`source: env` + `key:`) — the trace shows the
   task, the shell shows the variable. `nika doctor` audits the machine
-  side. Non-sensitive settings ride `config:`.
+  side. Non-sensitive settings ride an `inputs:` entry with
+  `required: false` and a `default:`.
 - **Timeout too tight**: local providers need `timeout: "300s"` or
   more — thinking models routinely think past 30s.
 - **Permits violation**: the run was blocked by its own declared
