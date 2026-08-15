@@ -25,6 +25,7 @@ mod algebra;
 mod effect;
 mod effect_vocab;
 pub mod env;
+mod expr;
 mod fit;
 mod harness_gate;
 mod integrity;
@@ -49,6 +50,14 @@ pub use effect::{
 };
 pub use env::{
     DANGEROUS_ENV_VARS, RUNNER_FLOOR_ENV_VARS, compose_child_env, is_dangerous_env_name,
+};
+// D-2026-08-11-N26 · the expression boundary — the natives every jq seam
+// withholds, so « an expression sees only its input » is a property of the
+// function set the compiler receives rather than a sentence in a document.
+// NOT a permit route: `env` above governs a CHILD PROCESS, never an expression.
+pub use expr::{
+    WITHHELD_JQ_NATIVES, WithheldNative, is_withheld_jq_native, withheld_jq_native,
+    withheld_jq_reason,
 };
 pub use fit::{glob_admits, lexically_normalize};
 // P3 B5 · the harness permission-bridge judge (the pure half — the

@@ -44,9 +44,15 @@ pub(crate) fn jq(args: &Args) -> BuiltinOutcome {
         .chain(jaq_std::defs())
         .chain(jaq_json::defs())
         .chain(jq_std_corrections()?);
+    // D-2026-08-11-N26 · the withheld natives never enter the function set, so
+    // a program that reaches for the environment or the clock does not compile.
+    // The SAME filter runs at the `extract:` binding seam (`nika-runtime::jq`)
+    // and at the static compile-check (`nika-check::analyzer::jq_lint`) — one
+    // list in `nika_cap`, three seams, no room for a silent divergence.
     let funs = jaq_core::funs()
         .chain(jaq_std::funs())
-        .chain(jaq_json::funs());
+        .chain(jaq_json::funs())
+        .filter(|f| !nika_cap::is_withheld_jq_native(f.0));
     let arena = Arena::default();
     let modules = Loader::new(defs)
         .load(
@@ -150,12 +156,18 @@ fn render_jq_load(errs: &[(File<&str, ()>, JqLoadError<&str>)]) -> String {
     }
 }
 
-/// Render a jaq COMPILE error set (undefined filters/variables) as one line.
+/// Render a jaq COMPILE error set (undefined filters/variables) as one line —
+/// and, when the undefined name is one this engine WITHHELDS, say so and name
+/// the class it would have read (D-2026-08-11-N26) rather than telling the
+/// author that a filter jq really does define is « undefined ».
 #[allow(clippy::type_complexity)] // the shape is jaq's `compile::Errors`, not ours
 fn render_jq_compile<U>(errs: &[(File<&str, ()>, Vec<(&str, U)>)]) -> String {
     errs.first().and_then(|(_, v)| v.first()).map_or_else(
         || "compile error".to_owned(),
-        |(name, _)| format!("undefined filter or variable `{name}`"),
+        |(name, _)| {
+            nika_cap::withheld_jq_reason(name)
+                .unwrap_or_else(|| format!("undefined filter or variable `{name}`"))
+        },
     )
 }
 
@@ -642,6 +654,81 @@ mod tests {
             serde_json::Value::Object(map) => map,
             other => panic!("test arg must be an object, got {other}"),
         }
+    }
+
+    #[test]
+    fn jq_cannot_read_the_ambient_environment() {
+        // D-2026-08-11-N26 · an expression sees only its INPUT. Measured on the
+        // shipped 0.108.0 binary (2026-08-15) this returned the operator's
+        // variable under an ABSENT `permits:` block, and the check certificate
+        // called the body « pure compute · nothing escapes ».
+        let err = jq(&args(serde_json::json!({
+            "expression": "env.PATH",
+            "input": {}
+        })))
+        .expect_err("withheld");
+        assert!(
+            err.message.contains("ambient process environment"),
+            "the refusal must NAME the class · got: {}",
+            err.message
+        );
+        // Bare `env` (the whole map) is the same refusal.
+        let bare = jq(&args(
+            serde_json::json!({ "expression": "env", "input": {} }),
+        ))
+        .expect_err("withheld");
+        assert!(bare.message.contains("ambient process environment"));
+    }
+
+    #[test]
+    fn jq_cannot_read_the_clock_or_the_timezone() {
+        for (program, class) in [
+            ("now", "host clock"),
+            ("0 | localtime", "local timezone"),
+            ("0 | strflocaltime(\"%Y\")", "local timezone"),
+        ] {
+            let err = jq(&args(
+                serde_json::json!({ "expression": program, "input": {} }),
+            ))
+            .expect_err(program);
+            assert!(
+                err.message.contains(class),
+                "{program} · must name `{class}` · got: {}",
+                err.message
+            );
+        }
+    }
+
+    #[test]
+    fn jq_keeps_the_pure_date_family() {
+        // The subtraction is SCOPED: a function of its own argument stays.
+        let out = jq(&args(serde_json::json!({
+            "expression": ".t | gmtime | .[0]",
+            "input": { "t": 0 }
+        })))
+        .expect("gmtime is pure");
+        assert_eq!(out, serde_json::json!(1970));
+        let fmt = jq(&args(serde_json::json!({
+            "expression": ".t | strftime(\"%Y\")",
+            "input": { "t": 0 }
+        })))
+        .expect("strftime is pure");
+        assert_eq!(fmt, serde_json::json!("1970"));
+    }
+
+    #[test]
+    fn jq_keeps_jaqs_wording_for_a_typo() {
+        // A typo is NOT dressed up as a boundary refusal.
+        let err = jq(&args(
+            serde_json::json!({ "expression": "envv", "input": {} }),
+        ))
+        .expect_err("undefined");
+        assert!(
+            err.message.contains("undefined filter or variable `envv`"),
+            "{}",
+            err.message
+        );
+        assert!(!err.message.contains("withheld"), "{}", err.message);
     }
 
     #[test]
@@ -1346,5 +1433,212 @@ mod tests {
             .expect("identity emits exactly one value");
             proptest::prop_assert_eq!(out, value);
         }
+    }
+}
+
+/// The EXPRESSION BOUNDARY at the `nika:jq` seam — the ratchet that survives
+/// the next `jaq` release.
+///
+/// D-2026-08-11-N26 says an expression sees only its input. A blocklist alone
+/// would let a future `jaq` ship a new ambient native and reopen the hole IN
+/// SILENCE, so the guard here is a PINNED INVENTORY: the full native set the
+/// workspace-pinned stack exposes, asserted as a set. Grow it, rename one,
+/// drop one — this goes red and a human triages the newcomer into
+/// `nika_cap::WITHHELD_JQ_NATIVES` or into the pin.
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod expression_boundary {
+    use jaq_core::data::JustLut;
+    use jaq_json::Val;
+
+    /// Every native the pinned stack exposes — jaq-core 3.1 (10) · jaq-std 3.0
+    /// (96) · jaq-json 2.0 (8). Derived by running `funs()` on 2026-08-15, not
+    /// transcribed from upstream docs.
+    ///
+    /// `debug_empty` · `stderr_empty` · `halt` are present ON PURPOSE: they
+    /// EMIT to the host or act on the process rather than SEE beyond the input,
+    /// which is a different class from N26's subtraction, and jaq-std's own
+    /// `defs.jq` builds `debug`/`stderr`/`halt_error` on them. Named here so
+    /// the next reader knows they were considered, not missed.
+    const PINNED_NATIVES: &[&str] = &[
+        // jaq-core
+        "error_empty",
+        "first",
+        "key_values",
+        "keys_unsorted",
+        "last",
+        "limit",
+        "path",
+        "path_value",
+        "range",
+        "skip",
+        // jaq-std
+        "acos",
+        "acosh",
+        "ascii_downcase",
+        "ascii_upcase",
+        "asin",
+        "asinh",
+        "atan",
+        "atan2",
+        "atanh",
+        "cbrt",
+        "ceil",
+        "copysign",
+        "cos",
+        "cosh",
+        "debug_empty",
+        "decode_base64",
+        "decode_uri",
+        "encode_base64",
+        "encode_uri",
+        "endswith",
+        "env",
+        "erf",
+        "erfc",
+        "escape_html",
+        "escape_sh",
+        "exp",
+        "exp10",
+        "exp2",
+        "explode",
+        "expm1",
+        "fabs",
+        "fdim",
+        "floor",
+        "fma",
+        "fmax",
+        "fmin",
+        "fmod",
+        "frexp",
+        "fromdateiso8601",
+        "gmtime",
+        "group_by",
+        "halt",
+        "hypot",
+        "ilogb",
+        "implode",
+        "j0",
+        "j1",
+        "jn",
+        "ldexp",
+        "lgamma",
+        "localtime",
+        "log",
+        "log10",
+        "log1p",
+        "log2",
+        "ltrim",
+        "ltrimstr",
+        "matches",
+        "max_by_or_empty",
+        "min_by_or_empty",
+        "mktime",
+        "modf",
+        "nearbyint",
+        "nextafter",
+        "now",
+        "pow",
+        "remainder",
+        "reverse",
+        "rint",
+        "round",
+        "rtrim",
+        "rtrimstr",
+        "scalbln",
+        "sin",
+        "sinh",
+        "sort",
+        "sort_by",
+        "split_",
+        "split_matches",
+        "sqrt",
+        "startswith",
+        "stderr_empty",
+        "strflocaltime",
+        "strftime",
+        "strptime",
+        "tan",
+        "tanh",
+        "tgamma",
+        "todateiso8601",
+        "trim",
+        "trunc",
+        "unescape_html",
+        "utf8bytelength",
+        "y0",
+        "y1",
+        "yn",
+        // jaq-json
+        "bsearch",
+        "contains",
+        "fromjson",
+        "has",
+        "indices",
+        "length",
+        "tobytes",
+        "tojson",
+    ];
+
+    fn exposed() -> std::collections::BTreeSet<&'static str> {
+        jaq_core::funs::<JustLut<Val>>()
+            .chain(jaq_std::funs())
+            .chain(jaq_json::funs())
+            .map(|f| f.0)
+            .collect()
+    }
+
+    #[test]
+    fn the_native_inventory_is_pinned() {
+        let pinned: std::collections::BTreeSet<&str> = PINNED_NATIVES.iter().copied().collect();
+        assert_eq!(
+            pinned.len(),
+            PINNED_NATIVES.len(),
+            "the pin lists a name twice"
+        );
+        let live = exposed();
+        let added: Vec<_> = live.difference(&pinned).copied().collect();
+        let gone: Vec<_> = pinned.difference(&live).copied().collect();
+        assert!(
+            added.is_empty() && gone.is_empty(),
+            "the jaq native set MOVED · new: {added:?} · gone: {gone:?}\n\
+             Triage every newcomer: does it read the process, the clock, the disk \
+             or the environment? If so it belongs in nika_cap::WITHHELD_JQ_NATIVES \
+             (D-2026-08-11-N26 · an expression sees only its input). Otherwise add \
+             it to PINNED_NATIVES with that judgment recorded in the commit."
+        );
+    }
+
+    #[test]
+    fn every_withheld_name_really_exists_upstream() {
+        // A withheld name that jaq does not define would be a dead entry
+        // pretending to guard something — the list must bite.
+        let live = exposed();
+        for w in nika_cap::WITHHELD_JQ_NATIVES {
+            assert!(
+                live.contains(w.name),
+                "`{}` is withheld but jaq no longer defines it — the row guards nothing",
+                w.name
+            );
+        }
+    }
+
+    #[test]
+    fn the_compiled_function_set_is_the_inventory_minus_the_withheld() {
+        let live = exposed();
+        let withheld: std::collections::BTreeSet<&str> = nika_cap::WITHHELD_JQ_NATIVES
+            .iter()
+            .map(|w| w.name)
+            .collect();
+        let compiled: std::collections::BTreeSet<&str> = jaq_core::funs::<JustLut<Val>>()
+            .chain(jaq_std::funs())
+            .chain(jaq_json::funs())
+            .filter(|f| !nika_cap::is_withheld_jq_native(f.0))
+            .map(|f| f.0)
+            .collect();
+        let expected: std::collections::BTreeSet<&str> =
+            live.difference(&withheld).copied().collect();
+        assert_eq!(compiled, expected, "the filter is not the subtraction");
+        assert!(!compiled.contains("env"), "env reached the compiler");
     }
 }

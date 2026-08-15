@@ -36,9 +36,16 @@ pub(super) fn jq_compiles(program: &str) -> Result<(), String> {
     let defs = jaq_core::defs()
         .chain(jaq_std::defs())
         .chain(jaq_json::defs());
+    // D-2026-08-11-N26 · the withheld natives never enter the function set —
+    // the SAME subtraction the two runtime seams apply (`nika-runtime::jq` for
+    // `extract:` bindings · `nika-builtin::data` for `nika:jq`), from the SAME
+    // list in `nika_cap`. This is what keeps the parity above STRUCTURAL: a
+    // program the runtime refuses is refused here, at the same names, because
+    // both read one list rather than two copies of a judgment.
     let funs = jaq_core::funs::<JustLut<Val>>()
         .chain(jaq_std::funs())
-        .chain(jaq_json::funs());
+        .chain(jaq_json::funs())
+        .filter(|f| !nika_cap::is_withheld_jq_native(f.0));
     let arena = Arena::default();
     let modules = Loader::new(defs)
         .load(
@@ -76,12 +83,18 @@ fn render_load(errs: &[(File<&str, ()>, Error<&str>)]) -> String {
     }
 }
 
-/// Render a jaq COMPILE error set (undefined filters/variables) as one line.
+/// Render a jaq COMPILE error set (undefined filters/variables) as one line —
+/// and, when the undefined name is one this engine WITHHELDS, say so and name
+/// the class it would have read (D-2026-08-11-N26) rather than telling the
+/// author that a filter jq really does define is « undefined ».
 #[allow(clippy::type_complexity)] // the shape is jaq's `compile::Errors`, not ours
 fn render_compile<U>(errs: &[(File<&str, ()>, Vec<(&str, U)>)]) -> String {
     errs.first().and_then(|(_, v)| v.first()).map_or_else(
         || "compile error".to_owned(),
-        |(name, _)| format!("undefined filter or variable `{name}`"),
+        |(name, _)| {
+            nika_cap::withheld_jq_reason(name)
+                .unwrap_or_else(|| format!("undefined filter or variable `{name}`"))
+        },
     )
 }
 
@@ -210,6 +223,85 @@ mod tests {
         ] {
             assert!(jq_compiles(ok).is_ok(), "`{ok}` should compile");
         }
+    }
+
+    #[test]
+    fn a_withheld_native_is_refused_statically_and_names_its_class() {
+        // D-2026-08-11-N26. Before 2026-08-15 every one of these COMPILED
+        // here, so `nika check` handed the run a program that read the
+        // operator's environment and then printed « pure compute ».
+        for (program, class) in [
+            ("env.PATH", "ambient process environment"),
+            ("env", "ambient process environment"),
+            ("now", "host clock"),
+            ("0 | localtime", "local timezone"),
+            ("0 | strflocaltime(\"%Y\")", "local timezone"),
+        ] {
+            let reason = jq_compiles(program).expect_err(program);
+            assert!(
+                reason.contains(class),
+                "{program} · must name `{class}` · got: {reason}"
+            );
+            assert!(
+                reason.contains("sees only its input"),
+                "{program} · must state the law · got: {reason}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_pure_half_of_the_date_family_still_compiles() {
+        // The subtraction is SCOPED — a function of its own argument stays.
+        for ok in [
+            "gmtime",
+            "strftime(\"%Y\")",
+            "strptime(\"%Y\")",
+            "mktime",
+            "todateiso8601",
+            "fromdateiso8601",
+        ] {
+            assert!(
+                jq_compiles(ok).is_ok(),
+                "`{ok}` must survive · {:?}",
+                jq_compiles(ok)
+            );
+        }
+    }
+
+    #[test]
+    fn a_typo_keeps_jaqs_own_wording() {
+        // We never dress an undefined name up as a boundary refusal.
+        let reason = jq_compiles("envv").expect_err("undefined");
+        assert!(
+            reason.contains("undefined filter or variable `envv`"),
+            "{reason}"
+        );
+        assert!(!reason.contains("withheld"), "{reason}");
+    }
+
+    #[test]
+    fn the_static_refusal_reaches_the_report_as_an_expression_violation() {
+        // End of the lane: the withheld native must surface as a FINDING
+        // (NIKA-VAR-005 · static expression violation), not merely as an
+        // `Err` some caller might drop.
+        let wf = wf_of(
+            "nika: withheld-env\n\
+             tasks:\n  \
+               probe:\n    \
+                 invoke:\n      \
+                   tool: \"nika:jq\"\n      \
+                   args:\n        \
+                     input: {}\n        \
+                     expression: 'env.PATH'\n",
+        );
+        let mut errors = Vec::new();
+        scan_jq(&wf, &mut errors);
+        assert_eq!(errors.len(), 1, "{errors:?}");
+        let rendered = format!("{:?}", errors[0]);
+        assert!(
+            rendered.contains("ambient process environment"),
+            "{rendered}"
+        );
     }
 
     #[test]

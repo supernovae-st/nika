@@ -58,9 +58,15 @@ pub(crate) fn eval_binding(
     let defs = jaq_core::defs()
         .chain(jaq_std::defs())
         .chain(jaq_json::defs());
+    // D-2026-08-11-N26 · the withheld natives never enter the function set, so
+    // a program that reaches for the environment or the clock does not compile.
+    // The SAME filter runs at the `nika:jq` builtin (`nika-builtin::data`) and
+    // at the static compile-check (`nika-check::analyzer::jq_lint`) — one list
+    // in `nika_cap`, three seams, no room for a silent divergence.
     let funs = jaq_core::funs()
         .chain(jaq_std::funs())
-        .chain(jaq_json::funs());
+        .chain(jaq_json::funs())
+        .filter(|f| !nika_cap::is_withheld_jq_native(f.0));
     let arena = Arena::default();
     let modules = Loader::new(defs)
         .load(
@@ -74,7 +80,7 @@ pub(crate) fn eval_binding(
     let filter = Compiler::default()
         .with_funs(funs)
         .compile(modules)
-        .map_err(|errs| runtime_err(name, &format!("jq compile error: {errs:?}")))?;
+        .map_err(|errs| runtime_err(name, &render_compile(&errs)))?;
 
     let ctx = Ctx::<jaq_data::JustLut<Val>>::new(&filter.lut, Vars::new([]));
     let mut single: Option<Value> = None;
@@ -109,6 +115,24 @@ pub(crate) fn eval_binding(
             "emitted NO value — a binding needs exactly one (use `// default` or `first(…)`)",
         )
     })
+}
+
+/// Render a jaq COMPILE error set (undefined filters/variables) as ONE clean
+/// line — and, when the undefined name is one this engine WITHHELDS, say so
+/// and name the class it would have read (D-2026-08-11-N26) instead of letting
+/// the author read « undefined filter » about a filter jq really does define.
+///
+/// The same three-line shape is mirrored at the other two jq seams; the shared
+/// half (the list, the sentence) lives in `nika_cap::expr`.
+#[allow(clippy::type_complexity)] // the shape is jaq's `compile::Errors`, not ours
+fn render_compile<U>(errs: &[(File<&str, ()>, Vec<(&str, U)>)]) -> String {
+    errs.first().and_then(|(_, v)| v.first()).map_or_else(
+        || "jq compile error".to_owned(),
+        |(name, _)| {
+            nika_cap::withheld_jq_reason(name)
+                .unwrap_or_else(|| format!("undefined filter or variable `{name}`"))
+        },
+    )
 }
 
 /// A `NIKA-VAR-004` binding runtime error (named for the failing binding).
@@ -195,6 +219,65 @@ mod tests {
             &err,
             RuntimeError::OutputBinding { code, .. } if *code == "NIKA-VAR-004"
         ));
+    }
+
+    #[test]
+    fn a_binding_cannot_read_the_ambient_environment() {
+        // D-2026-08-11-N26 · an expression sees only its INPUT. `env` is not
+        // in the function set this seam compiles with, so the program never
+        // becomes runnable — the refusal is the compiler's, not a scan's.
+        let input = serde_json::json!({});
+        let err = eval_binding("leak", "env.PATH", &input).expect_err("withheld");
+        assert_eq!(err.spec_code(), "NIKA-VAR-004");
+        let msg = err.to_string();
+        assert!(
+            msg.contains("ambient process environment"),
+            "the refusal must NAME the class it withheld · got: {msg}"
+        );
+        // Bare `env` (the whole map) is the same refusal.
+        let bare = eval_binding("leak", "env", &input).expect_err("withheld");
+        assert!(bare.to_string().contains("ambient process environment"));
+    }
+
+    #[test]
+    fn a_binding_cannot_read_the_clock_or_the_timezone() {
+        let input = serde_json::json!({});
+        for (program, class) in [
+            ("now", "host clock"),
+            ("0 | localtime", "local timezone"),
+            ("0 | strflocaltime(\"%Y\")", "local timezone"),
+        ] {
+            let err = eval_binding("leak", program, &input).expect_err(program);
+            assert_eq!(err.spec_code(), "NIKA-VAR-004", "{program}");
+            assert!(
+                err.to_string().contains(class),
+                "{program} · the refusal must name `{class}` · got: {err}"
+            );
+        }
+    }
+
+    #[test]
+    fn the_pure_date_family_still_works() {
+        // The subtraction is SCOPED: a function of its own argument stays.
+        let input = serde_json::json!({ "t": 0 });
+        assert_eq!(
+            eval_binding("y", ".t | gmtime | .[0]", &input).expect("gmtime is pure"),
+            serde_json::json!(1970)
+        );
+        assert_eq!(
+            eval_binding("y", ".t | strftime(\"%Y\")", &input).expect("strftime is pure"),
+            serde_json::json!("1970")
+        );
+    }
+
+    #[test]
+    fn an_undefined_name_keeps_jaqs_own_wording() {
+        // A typo is NOT dressed up as a boundary refusal.
+        let input = serde_json::json!({});
+        let err = eval_binding("typo", "envv", &input).expect_err("undefined");
+        let msg = err.to_string();
+        assert!(msg.contains("undefined filter or variable"), "{msg}");
+        assert!(!msg.contains("withheld"), "{msg}");
     }
 
     #[test]
