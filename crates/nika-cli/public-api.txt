@@ -62,7 +62,6 @@ impl<Q, K> equivalent::Equivalent<K> for nika_cli::verbs::check::Profile where Q
 pub fn nika_cli::verbs::check::Profile::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_cli::verbs::check::Profile where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_cli::verbs::check::Profile::equivalent(&self, key: &K) -> bool
-impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_cli::verbs::check::Profile where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
 impl<T, U> core::convert::Into<U> for nika_cli::verbs::check::Profile where U: core::convert::From<T>
 pub fn nika_cli::verbs::check::Profile::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_cli::verbs::check::Profile where U: core::convert::Into<T>
@@ -119,7 +118,6 @@ pub fn nika_cli::verbs::check::CheckArgs::from_arg_matches_mut(__clap_arg_matche
 pub fn nika_cli::verbs::check::CheckArgs::update_from_arg_matches(&mut self, __clap_arg_matches: &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
 pub fn nika_cli::verbs::check::CheckArgs::update_from_arg_matches_mut(&mut self, __clap_arg_matches: &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
 impl<D> owo_colors::OwoColorize for nika_cli::verbs::check::CheckArgs
-impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_cli::verbs::check::CheckArgs where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
 impl<T, U> core::convert::Into<U> for nika_cli::verbs::check::CheckArgs where U: core::convert::From<T>
 pub fn nika_cli::verbs::check::CheckArgs::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_cli::verbs::check::CheckArgs where U: core::convert::Into<T>
@@ -151,7 +149,6 @@ pub nika_cli::verbs::check::CheckFlags::json: bool
 pub nika_cli::verbs::check::CheckFlags::native_strict: bool
 pub nika_cli::verbs::check::CheckFlags::profile: nika_cli::verbs::check::Profile
 impl<D> owo_colors::OwoColorize for nika_cli::verbs::check::CheckFlags
-impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_cli::verbs::check::CheckFlags where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
 impl<T, U> core::convert::Into<U> for nika_cli::verbs::check::CheckFlags where U: core::convert::From<T>
 pub fn nika_cli::verbs::check::CheckFlags::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_cli::verbs::check::CheckFlags where U: core::convert::Into<T>
@@ -222,7 +219,6 @@ impl<Q, K> equivalent::Equivalent<K> for nika_cli::verbs::graph::GraphFormat whe
 pub fn nika_cli::verbs::graph::GraphFormat::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_cli::verbs::graph::GraphFormat where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_cli::verbs::graph::GraphFormat::equivalent(&self, key: &K) -> bool
-impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_cli::verbs::graph::GraphFormat where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
 impl<T, U> core::convert::Into<U> for nika_cli::verbs::graph::GraphFormat where U: core::convert::From<T>
 pub fn nika_cli::verbs::graph::GraphFormat::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_cli::verbs::graph::GraphFormat where U: core::convert::Into<T>
@@ -282,7 +278,6 @@ impl<Q, K> equivalent::Equivalent<K> for nika_cli::verbs::graph::GraphFormatArg 
 pub fn nika_cli::verbs::graph::GraphFormatArg::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_cli::verbs::graph::GraphFormatArg where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_cli::verbs::graph::GraphFormatArg::equivalent(&self, key: &K) -> bool
-impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_cli::verbs::graph::GraphFormatArg where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
 impl<T, U> core::convert::Into<U> for nika_cli::verbs::graph::GraphFormatArg where U: core::convert::From<T>
 pub fn nika_cli::verbs::graph::GraphFormatArg::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_cli::verbs::graph::GraphFormatArg where U: core::convert::Into<T>
@@ -350,7 +345,6 @@ impl<Q, K> equivalent::Equivalent<K> for nika_cli::verbs::init::CanvasTheme wher
 pub fn nika_cli::verbs::init::CanvasTheme::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_cli::verbs::init::CanvasTheme where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_cli::verbs::init::CanvasTheme::equivalent(&self, key: &K) -> bool
-impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_cli::verbs::init::CanvasTheme where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
 impl<T, U> core::convert::Into<U> for nika_cli::verbs::init::CanvasTheme where U: core::convert::From<T>
 pub fn nika_cli::verbs::init::CanvasTheme::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_cli::verbs::init::CanvasTheme where U: core::convert::Into<T>
@@ -408,7 +402,6 @@ impl core::clone::Clone for nika_cli::verbs::key::KeyAction
 pub fn nika_cli::verbs::key::KeyAction::clone(&self) -> nika_cli::verbs::key::KeyAction
 impl core::marker::Copy for nika_cli::verbs::key::KeyAction
 impl<D> owo_colors::OwoColorize for nika_cli::verbs::key::KeyAction
-impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_cli::verbs::key::KeyAction where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
 impl<T, U> core::convert::Into<U> for nika_cli::verbs::key::KeyAction where U: core::convert::From<T>
 pub fn nika_cli::verbs::key::KeyAction::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_cli::verbs::key::KeyAction where U: core::convert::Into<T>
@@ -461,7 +454,6 @@ pub fn nika_cli::verbs::mcp_pins::McpAction::has_subcommand(__clap_name: &str) -
 impl core::clone::Clone for nika_cli::verbs::mcp_pins::McpAction
 pub fn nika_cli::verbs::mcp_pins::McpAction::clone(&self) -> nika_cli::verbs::mcp_pins::McpAction
 impl<D> owo_colors::OwoColorize for nika_cli::verbs::mcp_pins::McpAction
-impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_cli::verbs::mcp_pins::McpAction where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
 impl<T, U> core::convert::Into<U> for nika_cli::verbs::mcp_pins::McpAction where U: core::convert::From<T>
 pub fn nika_cli::verbs::mcp_pins::McpAction::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_cli::verbs::mcp_pins::McpAction where U: core::convert::Into<T>
@@ -515,7 +507,6 @@ impl<Q, K> equivalent::Equivalent<K> for nika_cli::verbs::mcp_pins::McpTransport
 pub fn nika_cli::verbs::mcp_pins::McpTransportArg::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_cli::verbs::mcp_pins::McpTransportArg where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_cli::verbs::mcp_pins::McpTransportArg::equivalent(&self, key: &K) -> bool
-impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_cli::verbs::mcp_pins::McpTransportArg where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
 impl<T, U> core::convert::Into<U> for nika_cli::verbs::mcp_pins::McpTransportArg where U: core::convert::From<T>
 pub fn nika_cli::verbs::mcp_pins::McpTransportArg::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_cli::verbs::mcp_pins::McpTransportArg where U: core::convert::Into<T>
@@ -590,7 +581,6 @@ impl<Q, K> equivalent::Equivalent<K> for nika_cli::verbs::run::RenderMode where 
 pub fn nika_cli::verbs::run::RenderMode::equivalent(&self, key: &K) -> bool
 impl<Q, K> hashbrown::Equivalent<K> for nika_cli::verbs::run::RenderMode where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_cli::verbs::run::RenderMode::equivalent(&self, key: &K) -> bool
-impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_cli::verbs::run::RenderMode where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
 impl<T, U> core::convert::Into<U> for nika_cli::verbs::run::RenderMode where U: core::convert::From<T>
 pub fn nika_cli::verbs::run::RenderMode::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_cli::verbs::run::RenderMode where U: core::convert::Into<T>
@@ -639,7 +629,6 @@ pub fn nika_cli::verbs::run::FoldSink<W>::view(&self) -> &nika_display::state::R
 impl<W: core::io::write::Write> nika_event::stamp::EventSink for nika_cli::verbs::run::FoldSink<W>
 pub fn nika_cli::verbs::run::FoldSink<W>::emit(&mut self, event: nika_event::event::Event)
 impl<D> owo_colors::OwoColorize for nika_cli::verbs::run::FoldSink<W>
-impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_cli::verbs::run::FoldSink<W> where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
 impl<T, U> core::convert::Into<U> for nika_cli::verbs::run::FoldSink<W> where U: core::convert::From<T>
 pub fn nika_cli::verbs::run::FoldSink<W>::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_cli::verbs::run::FoldSink<W> where U: core::convert::Into<T>
@@ -681,7 +670,6 @@ pub fn nika_cli::verbs::sign::SignArgs::from_arg_matches_mut(__clap_arg_matches:
 pub fn nika_cli::verbs::sign::SignArgs::update_from_arg_matches(&mut self, __clap_arg_matches: &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
 pub fn nika_cli::verbs::sign::SignArgs::update_from_arg_matches_mut(&mut self, __clap_arg_matches: &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
 impl<D> owo_colors::OwoColorize for nika_cli::verbs::sign::SignArgs
-impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_cli::verbs::sign::SignArgs where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
 impl<T, U> core::convert::Into<U> for nika_cli::verbs::sign::SignArgs where U: core::convert::From<T>
 pub fn nika_cli::verbs::sign::SignArgs::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_cli::verbs::sign::SignArgs where U: core::convert::Into<T>

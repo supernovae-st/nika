@@ -64,7 +64,7 @@ pub fn run(file: &str, update: bool, theme: Theme) -> u8 {
         }
     };
     // #473 · a golden pins the run WITH its skills composed, never without.
-    let resolved = crate::verbs::resolve_workflow_skills(&wf);
+    let resolved = crate::verbs::resolve_workflow_skills(&wf, crate::verbs::workflow_base(file));
     if !report.is_clean() || !resolved.findings.is_empty() {
         // The SAME findings `nika check` renders — a dirty file never
         // pins (or judges) a golden.

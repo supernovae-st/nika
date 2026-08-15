@@ -20,7 +20,6 @@ pub fn nika_tui_core::derive::GroupSpan::eq(&self, other: &nika_tui_core::derive
 impl core::fmt::Debug for nika_tui_core::derive::GroupSpan
 pub fn nika_tui_core::derive::GroupSpan::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::StructuralPartialEq for nika_tui_core::derive::GroupSpan
-impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_tui_core::derive::GroupSpan where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
 impl<T, U> core::convert::Into<U> for nika_tui_core::derive::GroupSpan where U: core::convert::From<T>
 pub fn nika_tui_core::derive::GroupSpan::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_tui_core::derive::GroupSpan where U: core::convert::Into<T>
@@ -60,7 +59,6 @@ impl serde_core::ser::Serialize for nika_tui_core::derive::Neck
 pub fn nika_tui_core::derive::Neck::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
 impl<'de> serde_core::de::Deserialize<'de> for nika_tui_core::derive::Neck
 pub fn nika_tui_core::derive::Neck::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
-impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_tui_core::derive::Neck where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
 impl<T, U> core::convert::Into<U> for nika_tui_core::derive::Neck where U: core::convert::From<T>
 pub fn nika_tui_core::derive::Neck::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_tui_core::derive::Neck where U: core::convert::Into<T>
@@ -95,7 +93,6 @@ impl core::clone::Clone for nika_tui_core::derive::Waves
 pub fn nika_tui_core::derive::Waves::clone(&self) -> nika_tui_core::derive::Waves
 impl core::fmt::Debug for nika_tui_core::derive::Waves
 pub fn nika_tui_core::derive::Waves::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_tui_core::derive::Waves where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
 impl<T, U> core::convert::Into<U> for nika_tui_core::derive::Waves where U: core::convert::From<T>
 pub fn nika_tui_core::derive::Waves::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_tui_core::derive::Waves where U: core::convert::Into<T>
@@ -151,7 +148,6 @@ pub fn nika_tui_core::ingress::IngressError::fmt(&self, f: &mut core::fmt::Forma
 impl core::fmt::Display for nika_tui_core::ingress::IngressError
 pub fn nika_tui_core::ingress::IngressError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::StructuralPartialEq for nika_tui_core::ingress::IngressError
-impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_tui_core::ingress::IngressError where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
 impl<T, U> core::convert::Into<U> for nika_tui_core::ingress::IngressError where U: core::convert::From<T>
 pub fn nika_tui_core::ingress::IngressError::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_tui_core::ingress::IngressError where U: core::convert::Into<T>
@@ -196,7 +192,6 @@ impl serde_core::ser::Serialize for nika_tui_core::ingress::Edge
 pub fn nika_tui_core::ingress::Edge::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
 impl<'de> serde_core::de::Deserialize<'de> for nika_tui_core::ingress::Edge
 pub fn nika_tui_core::ingress::Edge::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
-impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_tui_core::ingress::Edge where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
 impl<T, U> core::convert::Into<U> for nika_tui_core::ingress::Edge where U: core::convert::From<T>
 pub fn nika_tui_core::ingress::Edge::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_tui_core::ingress::Edge where U: core::convert::Into<T>
@@ -237,7 +232,6 @@ impl serde_core::ser::Serialize for nika_tui_core::ingress::FanOut
 pub fn nika_tui_core::ingress::FanOut::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
 impl<'de> serde_core::de::Deserialize<'de> for nika_tui_core::ingress::FanOut
 pub fn nika_tui_core::ingress::FanOut::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
-impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_tui_core::ingress::FanOut where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
 impl<T, U> core::convert::Into<U> for nika_tui_core::ingress::FanOut where U: core::convert::From<T>
 pub fn nika_tui_core::ingress::FanOut::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_tui_core::ingress::FanOut where U: core::convert::Into<T>
@@ -280,7 +274,6 @@ impl serde_core::ser::Serialize for nika_tui_core::ingress::GraphDoc
 pub fn nika_tui_core::ingress::GraphDoc::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
 impl<'de> serde_core::de::Deserialize<'de> for nika_tui_core::ingress::GraphDoc
 pub fn nika_tui_core::ingress::GraphDoc::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
-impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_tui_core::ingress::GraphDoc where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
 impl<T, U> core::convert::Into<U> for nika_tui_core::ingress::GraphDoc where U: core::convert::From<T>
 pub fn nika_tui_core::ingress::GraphDoc::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_tui_core::ingress::GraphDoc where U: core::convert::Into<T>
@@ -331,7 +324,6 @@ impl serde_core::ser::Serialize for nika_tui_core::ingress::Node
 pub fn nika_tui_core::ingress::Node::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
 impl<'de> serde_core::de::Deserialize<'de> for nika_tui_core::ingress::Node
 pub fn nika_tui_core::ingress::Node::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
-impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_tui_core::ingress::Node where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
 impl<T, U> core::convert::Into<U> for nika_tui_core::ingress::Node where U: core::convert::From<T>
 pub fn nika_tui_core::ingress::Node::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_tui_core::ingress::Node where U: core::convert::Into<T>
@@ -377,7 +369,6 @@ impl serde_core::ser::Serialize for nika_tui_core::model::Family
 pub fn nika_tui_core::model::Family::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
 impl<'de> serde_core::de::Deserialize<'de> for nika_tui_core::model::Family
 pub fn nika_tui_core::model::Family::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
-impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_tui_core::model::Family where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
 impl<T, U> core::convert::Into<U> for nika_tui_core::model::Family where U: core::convert::From<T>
 pub fn nika_tui_core::model::Family::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_tui_core::model::Family where U: core::convert::Into<T>
@@ -418,7 +409,6 @@ pub fn nika_tui_core::model::Group::fmt(&self, f: &mut core::fmt::Formatter<'_>)
 impl core::marker::StructuralPartialEq for nika_tui_core::model::Group
 impl serde_core::ser::Serialize for nika_tui_core::model::Group
 pub fn nika_tui_core::model::Group::serialize<S: serde_core::ser::Serializer>(&self, ser: S) -> core::result::Result<<S as serde_core::ser::Serializer>::Ok, <S as serde_core::ser::Serializer>::Error>
-impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_tui_core::model::Group where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
 impl<T, U> core::convert::Into<U> for nika_tui_core::model::Group where U: core::convert::From<T>
 pub fn nika_tui_core::model::Group::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_tui_core::model::Group where U: core::convert::Into<T>
@@ -460,7 +450,6 @@ impl serde_core::ser::Serialize for nika_tui_core::model::Origin
 pub fn nika_tui_core::model::Origin::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
 impl<'de> serde_core::de::Deserialize<'de> for nika_tui_core::model::Origin
 pub fn nika_tui_core::model::Origin::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
-impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_tui_core::model::Origin where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
 impl<T, U> core::convert::Into<U> for nika_tui_core::model::Origin where U: core::convert::From<T>
 pub fn nika_tui_core::model::Origin::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_tui_core::model::Origin where U: core::convert::Into<T>
@@ -505,7 +494,6 @@ impl serde_core::ser::Serialize for nika_tui_core::model::Touch
 pub fn nika_tui_core::model::Touch::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
 impl<'de> serde_core::de::Deserialize<'de> for nika_tui_core::model::Touch
 pub fn nika_tui_core::model::Touch::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
-impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_tui_core::model::Touch where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
 impl<T, U> core::convert::Into<U> for nika_tui_core::model::Touch where U: core::convert::From<T>
 pub fn nika_tui_core::model::Touch::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_tui_core::model::Touch where U: core::convert::Into<T>
@@ -549,7 +537,6 @@ impl serde_core::ser::Serialize for nika_tui_core::model::Verb
 pub fn nika_tui_core::model::Verb::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
 impl<'de> serde_core::de::Deserialize<'de> for nika_tui_core::model::Verb
 pub fn nika_tui_core::model::Verb::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
-impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_tui_core::model::Verb where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
 impl<T, U> core::convert::Into<U> for nika_tui_core::model::Verb where U: core::convert::From<T>
 pub fn nika_tui_core::model::Verb::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_tui_core::model::Verb where U: core::convert::Into<T>
@@ -590,7 +577,6 @@ impl serde_core::ser::Serialize for nika_tui_core::model::Failure
 pub fn nika_tui_core::model::Failure::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
 impl<'de> serde_core::de::Deserialize<'de> for nika_tui_core::model::Failure
 pub fn nika_tui_core::model::Failure::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
-impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_tui_core::model::Failure where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
 impl<T, U> core::convert::Into<U> for nika_tui_core::model::Failure where U: core::convert::From<T>
 pub fn nika_tui_core::model::Failure::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_tui_core::model::Failure where U: core::convert::Into<T>
@@ -632,7 +618,6 @@ impl serde_core::ser::Serialize for nika_tui_core::model::Run
 pub fn nika_tui_core::model::Run::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
 impl<'de> serde_core::de::Deserialize<'de> for nika_tui_core::model::Run
 pub fn nika_tui_core::model::Run::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
-impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_tui_core::model::Run where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
 impl<T, U> core::convert::Into<U> for nika_tui_core::model::Run where U: core::convert::From<T>
 pub fn nika_tui_core::model::Run::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_tui_core::model::Run where U: core::convert::Into<T>
@@ -679,7 +664,6 @@ impl serde_core::ser::Serialize for nika_tui_core::model::Step
 pub fn nika_tui_core::model::Step::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
 impl<'de> serde_core::de::Deserialize<'de> for nika_tui_core::model::Step
 pub fn nika_tui_core::model::Step::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
-impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_tui_core::model::Step where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
 impl<T, U> core::convert::Into<U> for nika_tui_core::model::Step where U: core::convert::From<T>
 pub fn nika_tui_core::model::Step::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_tui_core::model::Step where U: core::convert::Into<T>
@@ -726,7 +710,6 @@ impl serde_core::ser::Serialize for nika_tui_core::model::Task
 pub fn nika_tui_core::model::Task::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
 impl<'de> serde_core::de::Deserialize<'de> for nika_tui_core::model::Task
 pub fn nika_tui_core::model::Task::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
-impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_tui_core::model::Task where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
 impl<T, U> core::convert::Into<U> for nika_tui_core::model::Task where U: core::convert::From<T>
 pub fn nika_tui_core::model::Task::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_tui_core::model::Task where U: core::convert::Into<T>
@@ -771,7 +754,6 @@ impl serde_core::ser::Serialize for nika_tui_core::model::Workflow
 pub fn nika_tui_core::model::Workflow::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
 impl<'de> serde_core::de::Deserialize<'de> for nika_tui_core::model::Workflow
 pub fn nika_tui_core::model::Workflow::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
-impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_tui_core::model::Workflow where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
 impl<T, U> core::convert::Into<U> for nika_tui_core::model::Workflow where U: core::convert::From<T>
 pub fn nika_tui_core::model::Workflow::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_tui_core::model::Workflow where U: core::convert::Into<T>
@@ -814,7 +796,6 @@ impl serde_core::ser::Serialize for nika_tui_core::plan::Mark
 pub fn nika_tui_core::plan::Mark::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
 impl<'de> serde_core::de::Deserialize<'de> for nika_tui_core::plan::Mark
 pub fn nika_tui_core::plan::Mark::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
-impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_tui_core::plan::Mark where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
 impl<T, U> core::convert::Into<U> for nika_tui_core::plan::Mark where U: core::convert::From<T>
 pub fn nika_tui_core::plan::Mark::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_tui_core::plan::Mark where U: core::convert::Into<T>
@@ -857,7 +838,6 @@ impl serde_core::ser::Serialize for nika_tui_core::plan::Board
 pub fn nika_tui_core::plan::Board::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
 impl<'de> serde_core::de::Deserialize<'de> for nika_tui_core::plan::Board
 pub fn nika_tui_core::plan::Board::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
-impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_tui_core::plan::Board where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
 impl<T, U> core::convert::Into<U> for nika_tui_core::plan::Board where U: core::convert::From<T>
 pub fn nika_tui_core::plan::Board::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_tui_core::plan::Board where U: core::convert::Into<T>

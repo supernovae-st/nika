@@ -54,13 +54,18 @@ structure; you instantiate it, then let the checker teach you.
 ## Hard lines
 
 - The envelope is `nika: <id>` (kebab-case — the workflow id lives ON
-  the tag since 2026-08-12) and a `tasks:` MAP keyed by task id (a
+  the tag since 2026-08-12; that one key carries BOTH the mark and the
+  name, and there is no `workflow:` envelope key — it refuses
+  `NIKA-PARSE-005`, as do `types:` · `policy:` · `config:` · `assert:`)
+  and a `tasks:` MAP keyed by task id (a
   `- id:` sequence refuses `NIKA-PARSE-022`). Four verbs only: `infer`, `exec`, `invoke`,
   `agent`. Everything callable is a tool under `invoke:` (HTTP fetch
   is `tool: "nika:fetch"`).
-- Values live in four authorities, a closed family: `inputs:` ·
-  `config:` · `const:` · `secrets:`. `vars:` and `env:` are dead
-  envelope fields (`NIKA-VALUES-001` · `NIKA-VALUES-002`).
+- Values live in three authorities, a closed family: `inputs:` ·
+  `const:` · `secrets:`. `vars:` and `env:` are dead envelope fields
+  (`NIKA-VALUES-001` · `NIKA-VALUES-002`); `config:` is not a field at
+  all and refuses `NIKA-PARSE-005` — a deployment-supplied value is an
+  `inputs:` entry with `required: false` and a `default:`.
 - `permits:` is not optional: an effect under no block refuses
   `NIKA-AUTH-006` at check. Paste what `nika check --infer-permits`
   prints; a pure-compute body declares the zero as `permits: {}`.

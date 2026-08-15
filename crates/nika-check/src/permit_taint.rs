@@ -1095,8 +1095,9 @@ tasks:
 
     #[test]
     fn input_defaults_are_an_untrusted_root_too() {
-        // NEP-0004's Integ table: config.* is deployment-supplied, outside
-        // the file — the file cannot vouch for what it does not contain.
+        // NEP-0004's Integ table: a deployment-supplied value comes from
+        // outside the file — the file cannot vouch for what it does not
+        // contain. It rides `inputs:` now; `config:` is gone.
         let y = r#"nika: t
 permits:
   fs: { read: ["datasets/**"] }

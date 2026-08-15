@@ -49,30 +49,31 @@ set -Eeuo pipefail
 # `lmstudio/` and `~/.cache/lm-studio/` — real, public LM Studio provider
 # paths — so the gate also blocked legitimate work. `[^a-zA-Z0-9._-]` keeps
 # `https://supernovae.studio/` out too, while still matching `/studio/`.
-readonly BOUNDARY='(^|[^a-zA-Z0-9._-])'
-readonly PRIVATE_PATTERNS=(
-  # The studio + the agent substrate, at the root.
-  "${BOUNDARY}studio/"
-  "${BOUNDARY}dx/"
-  "${BOUNDARY}\.claude/projects/"
-  # The pre-migration spellings — frozen citations still leak the fact.
-  "${BOUNDARY}nika/hq/"
-  "${BOUNDARY}studio-spn/"
-  "${BOUNDARY}jungo/hq/"
-  "${BOUNDARY}novanet/hq/"
-  "${BOUNDARY}qrcodeai/hq/"
-  "${BOUNDARY}supernovae-hq/"
-)
+# The patterns themselves live in ONE file, shared with the full-tree twin
+# (`scripts/hygiene/check-private-leaks.sh`, vector 14). Measured 2026-08-15:
+# they had drifted to TEN patterns here against ONE there, so the sweep that
+# looks everywhere searched for almost nothing and a private path slept in a
+# user-facing error hint of this PUBLIC engine. Two lists drift; one cannot.
+# Resolved from THIS script's location, never from `git rev-parse
+# --show-toplevel`: the hook's own test harness runs it inside throwaway
+# repos where that root has no scripts/ tree, and the source then failed —
+# turning the gate RED on everything, including the cases it must pass.
+# A script knows where it lives; it does not know whose repo it is in.
+# shellcheck source=scripts/lib/private-patterns.sh
+. "$(cd "$(dirname "${BASH_SOURCE[0]}")/../lib" && pwd)/private-patterns.sh"
 
-# The venture tree, as a shape. Everything under `ventures/<name>/` is
-# private — the 9 poles, for every venture that exists or ever will —
-# EXCEPT the one public tier, which is where this very repo lives.
-readonly VENTURE_SHAPE='ventures/[a-z0-9][a-z0-9-]*/[a-zA-Z0-9._/-]*'
-readonly VENTURE_PUBLIC='^ventures/nika/02-engineering/repos/'
+readonly PRIVATE_PATTERNS=("${NIKA_PRIVATE_PATTERNS[@]}")
+readonly VENTURE_SHAPE="$NIKA_VENTURE_SHAPE"
+readonly VENTURE_PUBLIC="$NIKA_VENTURE_PUBLIC"
 
 # Get staged files in the engine context (exclude deleted files).
 # Self-exclusion — these directories legitimately enumerate the very patterns
 # we guard against, which would cause self-referential false-positives:
+#   scripts/lib/       the shared pattern list itself (added 2026-08-15 · the
+#                      gate blocked the very commit that introduced it, which
+#                      is the correct reflex on a directory it had never been
+#                      told about — a new home for the constants needs the
+#                      same carve-out the old one had, not an obfuscation)
 #   scripts/hooks/     the guarding code + its PRIVATE_PATTERNS constants
 #   scripts/hygiene/   vectors that spot-check privacy (patterns.conf, tests)
 #   scripts/test/      red-team fixtures that describe blocked scenarios
@@ -81,7 +82,7 @@ readonly VENTURE_PUBLIC='^ventures/nika/02-engineering/repos/'
 STAGED=()
 while IFS= read -r _f; do
   case "$_f" in
-    '' | scripts/hooks/* | scripts/hygiene/* | scripts/test/* | scripts/ci/*) ;;
+    '' | scripts/lib/* | scripts/hooks/* | scripts/hygiene/* | scripts/test/* | scripts/ci/*) ;;
     *) STAGED+=("$_f") ;;
   esac
   # ACMR, not ACM: a `git mv` of a private doc into the engine stages as R
