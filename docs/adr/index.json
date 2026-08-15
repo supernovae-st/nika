@@ -1185,5 +1185,21 @@
       "requires": [],
       "enables": []
     }
+    ,
+    {
+      "id": "ADR-114",
+      "title": "`nika-cadence` — the arming registry grammar and the pure next-slot calculator, at L0",
+      "status": "accepted",
+      "date": "2026-08-15",
+      "filename": "adr-114-nika-cadence-admission.md",
+      "tags": ["crate-admission","cadence","arm","grammar","layering","hermeticity"],
+      "affects_crates": ["nika-cadence","nika-cli","nika-tui-core"],
+      "affects_layers": ["L0","L4"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-001","ADR-003"],
+      "requires": [],
+      "enables": []
+    }
   ]
 }
