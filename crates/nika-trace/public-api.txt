@@ -20,7 +20,6 @@ pub fn nika_trace::evidence::EvidenceArgs::from_arg_matches_mut(__clap_arg_match
 pub fn nika_trace::evidence::EvidenceArgs::update_from_arg_matches(&mut self, __clap_arg_matches: &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
 pub fn nika_trace::evidence::EvidenceArgs::update_from_arg_matches_mut(&mut self, __clap_arg_matches: &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
 impl<D> owo_colors::OwoColorize for nika_trace::evidence::EvidenceArgs
-impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_trace::evidence::EvidenceArgs where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
 impl<T, U> core::convert::Into<U> for nika_trace::evidence::EvidenceArgs where U: core::convert::From<T>
 pub fn nika_trace::evidence::EvidenceArgs::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_trace::evidence::EvidenceArgs where U: core::convert::Into<T>
@@ -57,7 +56,6 @@ pub fn nika_trace::forecast::gather::Gathered::default() -> nika_trace::forecast
 impl core::fmt::Debug for nika_trace::forecast::gather::Gathered
 pub fn nika_trace::forecast::gather::Gathered::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<D> owo_colors::OwoColorize for nika_trace::forecast::gather::Gathered
-impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_trace::forecast::gather::Gathered where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
 impl<T, U> core::convert::Into<U> for nika_trace::forecast::gather::Gathered where U: core::convert::From<T>
 pub fn nika_trace::forecast::gather::Gathered::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_trace::forecast::gather::Gathered where U: core::convert::Into<T>
@@ -99,7 +97,6 @@ pub fn nika_trace::forecast::gather::RunSample::clone(&self) -> nika_trace::fore
 impl core::fmt::Debug for nika_trace::forecast::gather::RunSample
 pub fn nika_trace::forecast::gather::RunSample::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<D> owo_colors::OwoColorize for nika_trace::forecast::gather::RunSample
-impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_trace::forecast::gather::RunSample where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
 impl<T, U> core::convert::Into<U> for nika_trace::forecast::gather::RunSample where U: core::convert::From<T>
 pub fn nika_trace::forecast::gather::RunSample::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_trace::forecast::gather::RunSample where U: core::convert::Into<T>
@@ -147,7 +144,6 @@ pub fn nika_trace::forecast::gather::TaskSample::clone(&self) -> nika_trace::for
 impl core::fmt::Debug for nika_trace::forecast::gather::TaskSample
 pub fn nika_trace::forecast::gather::TaskSample::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<D> owo_colors::OwoColorize for nika_trace::forecast::gather::TaskSample
-impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_trace::forecast::gather::TaskSample where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
 impl<T, U> core::convert::Into<U> for nika_trace::forecast::gather::TaskSample where U: core::convert::From<T>
 pub fn nika_trace::forecast::gather::TaskSample::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_trace::forecast::gather::TaskSample where U: core::convert::Into<T>
@@ -198,7 +194,6 @@ pub fn nika_trace::forecast::ForecastReport::fmt(&self, f: &mut core::fmt::Forma
 impl serde_core::ser::Serialize for nika_trace::forecast::ForecastReport
 pub fn nika_trace::forecast::ForecastReport::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
 impl<D> owo_colors::OwoColorize for nika_trace::forecast::ForecastReport
-impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_trace::forecast::ForecastReport where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
 impl<T, U> core::convert::Into<U> for nika_trace::forecast::ForecastReport where U: core::convert::From<T>
 pub fn nika_trace::forecast::ForecastReport::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_trace::forecast::ForecastReport where U: core::convert::Into<T>
@@ -252,7 +247,6 @@ impl core::marker::Copy for nika_trace::forecast::RunCensus
 impl serde_core::ser::Serialize for nika_trace::forecast::RunCensus
 pub fn nika_trace::forecast::RunCensus::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
 impl<D> owo_colors::OwoColorize for nika_trace::forecast::RunCensus
-impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_trace::forecast::RunCensus where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
 impl<T, U> core::convert::Into<U> for nika_trace::forecast::RunCensus where U: core::convert::From<T>
 pub fn nika_trace::forecast::RunCensus::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_trace::forecast::RunCensus where U: core::convert::Into<T>
@@ -308,7 +302,6 @@ pub fn nika_trace::forecast::TaskPrior::fmt(&self, f: &mut core::fmt::Formatter<
 impl serde_core::ser::Serialize for nika_trace::forecast::TaskPrior
 pub fn nika_trace::forecast::TaskPrior::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
 impl<D> owo_colors::OwoColorize for nika_trace::forecast::TaskPrior
-impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_trace::forecast::TaskPrior where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
 impl<T, U> core::convert::Into<U> for nika_trace::forecast::TaskPrior where U: core::convert::From<T>
 pub fn nika_trace::forecast::TaskPrior::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_trace::forecast::TaskPrior where U: core::convert::Into<T>
@@ -360,7 +353,6 @@ impl core::marker::Copy for nika_trace::forecast::Window
 impl serde_core::ser::Serialize for nika_trace::forecast::Window
 pub fn nika_trace::forecast::Window::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
 impl<D> owo_colors::OwoColorize for nika_trace::forecast::Window
-impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_trace::forecast::Window where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
 impl<T, U> core::convert::Into<U> for nika_trace::forecast::Window where U: core::convert::From<T>
 pub fn nika_trace::forecast::Window::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_trace::forecast::Window where U: core::convert::Into<T>
@@ -408,7 +400,6 @@ pub fn nika_trace::forecast::WorkflowIdentity::clone(&self) -> nika_trace::forec
 impl core::fmt::Debug for nika_trace::forecast::WorkflowIdentity
 pub fn nika_trace::forecast::WorkflowIdentity::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<D> owo_colors::OwoColorize for nika_trace::forecast::WorkflowIdentity
-impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_trace::forecast::WorkflowIdentity where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
 impl<T, U> core::convert::Into<U> for nika_trace::forecast::WorkflowIdentity where U: core::convert::From<T>
 pub fn nika_trace::forecast::WorkflowIdentity::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_trace::forecast::WorkflowIdentity where U: core::convert::Into<T>
@@ -458,7 +449,6 @@ pub fn nika_trace::receipt::ReceiptAction::augment_subcommands<'b>(__clap_app: c
 pub fn nika_trace::receipt::ReceiptAction::augment_subcommands_for_update<'b>(__clap_app: clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
 pub fn nika_trace::receipt::ReceiptAction::has_subcommand(__clap_name: &str) -> bool
 impl<D> owo_colors::OwoColorize for nika_trace::receipt::ReceiptAction
-impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_trace::receipt::ReceiptAction where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
 impl<T, U> core::convert::Into<U> for nika_trace::receipt::ReceiptAction where U: core::convert::From<T>
 pub fn nika_trace::receipt::ReceiptAction::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_trace::receipt::ReceiptAction where U: core::convert::Into<T>
@@ -539,7 +529,6 @@ pub fn nika_trace::trace::action::TraceAction::augment_subcommands<'b>(__clap_ap
 pub fn nika_trace::trace::action::TraceAction::augment_subcommands_for_update<'b>(__clap_app: clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
 pub fn nika_trace::trace::action::TraceAction::has_subcommand(__clap_name: &str) -> bool
 impl<D> owo_colors::OwoColorize for nika_trace::trace::action::TraceAction
-impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_trace::trace::action::TraceAction where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
 impl<T, U> core::convert::Into<U> for nika_trace::trace::action::TraceAction where U: core::convert::From<T>
 pub fn nika_trace::trace::action::TraceAction::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_trace::trace::action::TraceAction where U: core::convert::Into<T>
@@ -581,7 +570,6 @@ pub fn nika_trace::trace::action::TraceArgs::from_arg_matches_mut(__clap_arg_mat
 pub fn nika_trace::trace::action::TraceArgs::update_from_arg_matches(&mut self, __clap_arg_matches: &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
 pub fn nika_trace::trace::action::TraceArgs::update_from_arg_matches_mut(&mut self, __clap_arg_matches: &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
 impl<D> owo_colors::OwoColorize for nika_trace::trace::action::TraceArgs
-impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_trace::trace::action::TraceArgs where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
 impl<T, U> core::convert::Into<U> for nika_trace::trace::action::TraceArgs where U: core::convert::From<T>
 pub fn nika_trace::trace::action::TraceArgs::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_trace::trace::action::TraceArgs where U: core::convert::Into<T>
@@ -618,7 +606,6 @@ pub fn nika_trace::trace::manage::RmTarget::clone(&self) -> nika_trace::trace::m
 impl core::fmt::Debug for nika_trace::trace::manage::RmTarget
 pub fn nika_trace::trace::manage::RmTarget::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<D> owo_colors::OwoColorize for nika_trace::trace::manage::RmTarget
-impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_trace::trace::manage::RmTarget where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
 impl<T, U> core::convert::Into<U> for nika_trace::trace::manage::RmTarget where U: core::convert::From<T>
 pub fn nika_trace::trace::manage::RmTarget::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_trace::trace::manage::RmTarget where U: core::convert::Into<T>
@@ -713,7 +700,6 @@ pub fn nika_trace::trace::action::TraceAction::augment_subcommands<'b>(__clap_ap
 pub fn nika_trace::trace::action::TraceAction::augment_subcommands_for_update<'b>(__clap_app: clap_builder::builder::command::Command) -> clap_builder::builder::command::Command
 pub fn nika_trace::trace::action::TraceAction::has_subcommand(__clap_name: &str) -> bool
 impl<D> owo_colors::OwoColorize for nika_trace::trace::action::TraceAction
-impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_trace::trace::action::TraceAction where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
 impl<T, U> core::convert::Into<U> for nika_trace::trace::action::TraceAction where U: core::convert::From<T>
 pub fn nika_trace::trace::action::TraceAction::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_trace::trace::action::TraceAction where U: core::convert::Into<T>
@@ -755,7 +741,6 @@ pub fn nika_trace::trace::action::TraceArgs::from_arg_matches_mut(__clap_arg_mat
 pub fn nika_trace::trace::action::TraceArgs::update_from_arg_matches(&mut self, __clap_arg_matches: &clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
 pub fn nika_trace::trace::action::TraceArgs::update_from_arg_matches_mut(&mut self, __clap_arg_matches: &mut clap_builder::parser::matches::arg_matches::ArgMatches) -> core::result::Result<(), clap_builder::Error>
 impl<D> owo_colors::OwoColorize for nika_trace::trace::action::TraceArgs
-impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_trace::trace::action::TraceArgs where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
 impl<T, U> core::convert::Into<U> for nika_trace::trace::action::TraceArgs where U: core::convert::From<T>
 pub fn nika_trace::trace::action::TraceArgs::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_trace::trace::action::TraceArgs where U: core::convert::Into<T>
@@ -802,7 +787,6 @@ pub fn nika_trace::trace_verify::VerifyOptions::default() -> nika_trace::trace_v
 impl core::fmt::Debug for nika_trace::trace_verify::VerifyOptions
 pub fn nika_trace::trace_verify::VerifyOptions::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<D> owo_colors::OwoColorize for nika_trace::trace_verify::VerifyOptions
-impl<S, T> wasm_bindgen::convert::traits::Upcast<T> for nika_trace::trace_verify::VerifyOptions where T: wasm_bindgen::convert::traits::UpcastFrom<S> + ?core::marker::Sized, S: ?core::marker::Sized
 impl<T, U> core::convert::Into<U> for nika_trace::trace_verify::VerifyOptions where U: core::convert::From<T>
 pub fn nika_trace::trace_verify::VerifyOptions::into(self) -> U
 impl<T, U> core::convert::TryFrom<U> for nika_trace::trace_verify::VerifyOptions where U: core::convert::Into<T>

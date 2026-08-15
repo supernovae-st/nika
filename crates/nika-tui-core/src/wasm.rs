@@ -21,6 +21,7 @@
 //! shim resolves the imported name — a macro-hygiene class). Distinctive
 //! door names are the workaround, and this note is why.
 
+#[cfg(feature = "wasm")]
 use wasm_bindgen::prelude::*;
 
 use crate::claims;
@@ -31,7 +32,7 @@ use crate::plan::{self, Board};
 
 /// The engine version this law speaks for — a consumer pins the artifact's
 /// build the way the sibling's `engine_version()` enables (ADR-107).
-#[wasm_bindgen]
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
 #[must_use]
 pub fn engine_version() -> String {
     env!("CARGO_PKG_VERSION").to_owned()
@@ -84,7 +85,7 @@ fn admit(door: &str, inputs: &[&str]) -> Result<(), String> {
 
 /// The derivation of one (workflow, run) pair — the same block the parity
 /// fixtures pin, so the browser shows exactly what the studio computed.
-#[wasm_bindgen]
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
 #[must_use]
 pub fn derive_run(workflow_json: &str, run_json: &str) -> String {
     if let Err(e) = admit("derive_run", &[workflow_json, run_json]) {
@@ -147,7 +148,7 @@ pub fn derive_run(workflow_json: &str, run_json: &str) -> String {
 }
 
 /// The journal fold — NDJSON bytes to the session's [`Run`].
-#[wasm_bindgen]
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
 #[must_use]
 pub fn fold_journal(ndjson: &str) -> String {
     if let Err(e) = admit("fold_journal", &[ndjson]) {
@@ -163,7 +164,7 @@ pub fn fold_journal(ndjson: &str) -> String {
 }
 
 /// The first seating — every slot born.
-#[wasm_bindgen]
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
 #[must_use]
 pub fn board_first(graph_json: &str) -> String {
     if let Err(e) = admit("board_first", &[graph_json]) {
@@ -181,7 +182,7 @@ pub fn board_first(graph_json: &str) -> String {
 
 /// The next seating — the caller hands the previous board back (the law
 /// keeps no state between revisions; the board IS the state).
-#[wasm_bindgen]
+#[cfg_attr(feature = "wasm", wasm_bindgen)]
 #[must_use]
 pub fn board_next(board_json: &str, graph_json: &str) -> String {
     if let Err(e) = admit("board_next", &[board_json, graph_json]) {
