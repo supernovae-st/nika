@@ -18,11 +18,11 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4453
+  classified_files: 4456
   file_rows: 11
   pattern_rows: 22
   by_class:
-    authored: 1517
+    authored: 1520
     authored-pin: 2
     generated: 121
     pinned-copy: 117
@@ -152,7 +152,7 @@ patterns:
 - glob: "crates/**/src/**"
   class: authored
   match_count: 765
-  aggregate_sha256: 82b0a37792c88dc1e81671b196d3dfb765697abff07285a7a25f86edaf695ad5
+  aggregate_sha256: 25cd775384cfeff36f4d2a2890aaee5a4f3c145968cb2a596199c3736e631481
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
@@ -162,7 +162,7 @@ patterns:
 - glob: "crates/**"
   class: authored
   match_count: 138
-  aggregate_sha256: 88acef3ef864c58e59f731b2d23933b3aa715139376b6a38705ca2ff7c63e316
+  aggregate_sha256: 365325cf03814a61c0039fb5417aed4a484c0d3b7a615e70b23ca5058700a526
   evidence: "the remaining crate surface — Cargo.toml manifests · build.rs · benches · READMEs · hand-curated data catalogs (llm-providers · mcp-servers · embeddings · model-capabilities, probed daily by catalog-verify.yml); the pricing snapshot is excepted in files:"
   note: "crates/nika-pack/scripts/sync-pack.sh is a DIVERGENT older duplicate of scripts/sync-pack.sh — the pack-resync.yml lane runs the root one"
 - glob: "fuzz/**"
@@ -178,12 +178,12 @@ patterns:
 - glob: "docs/**"
   class: authored
   match_count: 105
-  aggregate_sha256: ee86793106270b92cf6a3f4b38d10cc42dd9c14a1627fd3e519afff5b3177fc2
+  aggregate_sha256: ec17ee4f9453691bdf198b63411d4ccc2a1d18d94642b1226ce9afa0c7498eb1
   evidence: "crate-specs · architecture prose · perf notes — no generation markers at file heads"
 - glob: "scripts/**"
   class: authored
-  match_count: 147
-  aggregate_sha256: c4e5c263c42cd2f962d7a0e67720882514cce5ecd9615ebbca23201787a315a4
+  match_count: 150
+  aggregate_sha256: a37bced46e69afacff334299dd0aff4056aa429427bf7f300a7148f67c8cb900
   evidence: "hand-written gates · hooks · hygiene vectors · media lanes; the ratchet baselines (scripts/ci/*-baseline.txt · scripts/hygiene/baselines/) are hand-kept monotonic floors ('Never remove a line by hand')"
 - glob: ".github/workflows/**"
   class: authored
@@ -237,7 +237,7 @@ patterns:
 - glob: "*"
   class: authored
   match_count: 28
-  aggregate_sha256: cee584a05630876751dd02073fe2d1e998b03e0ffb1f67bb8913715c46f9ea88
+  aggregate_sha256: d10f025e02073f78252c534abb78db3f70f9c37f8133bcafad7ed76cf2cdbdbf
   evidence: "root prose + config surface (README · DIAMOND · LICENSE · llms.txt · Cargo.toml · deny/clippy/cliff/typos toml · lefthook.yml · flake.nix · Dockerfile) — no generation markers at file heads; CHANGELOG.md · Cargo.lock · SPEC_PIN · ROADMAP.md excepted in files:"
 - glob: "**"
   class: authored

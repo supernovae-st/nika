@@ -30,7 +30,7 @@ deterministic and trivially testable — the clock is an **L1** effect
 (`nika-clock`), never read here.
 
 **Domain boundary** · this is the *engine* chronicle (runtime events). The
-*studio* chronicle (`dx/journal/`) is a disjoint domain per
+*studio* keeps a separate chronicle in its own private tree, disjoint per
 `journal-storage-tiers.md` — they share the NDJSON serialization spirit but
 have disjoint taxonomies. Do not conflate.
 

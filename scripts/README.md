@@ -68,7 +68,7 @@ Vectors:
 | 11 | unwraps-in-src | Zero `.unwrap()`/`.expect(` outside tests |
 | 12 | file-loc-cap | No src/*.rs file > 1,500 LOC |
 | 13 | claude-coauthor-leak | No `Co-Authored-By: Claude` on diamond branch |
-| 14 | private-path-leak | No `/.claude/projects/…` in tracked code |
+| 14 | private-path-leak | No private monorepo path in tracked code · same patterns as the pre-commit hook (`scripts/lib/private-patterns.sh`) · frozen ADRs exempt |
 | 15 | cargo-audit-rustsec | RustSec advisories |
 
 ## Naming convention

@@ -447,7 +447,16 @@ impl Cx<'_> {
                         // sets (a task's keys) stay silent: a 20-item dump
                         // is noise, not teaching.
                         .or_else(|| {
-                            (known.len() <= 8)
+                            // 9, not 8. Measured 2026-08-15: exactly two sets
+                            // sit at nine — TOP_LEVEL_KEYS (the envelope) and
+                            // AGENT_KEYS — and both were silent for the sake
+                            // of one key over a round number. The envelope is
+                            // the set an author meets first and the one whose
+                            // vocabulary they are least likely to hold; it has
+                            // never taught itself, at fourteen keys or at nine.
+                            // A task's twenty keys still stay silent, which is
+                            // the line this threshold exists to draw.
+                            (known.len() <= 9)
                                 .then(|| format!("the fields here: {}", known.join(" · ")))
                         })
                 };
@@ -882,6 +891,40 @@ tasks:
         let far = "nika: h\ntasks:\n  g:\n    zzzqx:\n      prompt: \"hi\"\n";
         let msg = parse_strict(far).expect_err("unknown key").to_string();
         assert!(!msg.contains("did you mean"), "{msg}");
+    }
+
+    #[test]
+    fn the_envelope_teaches_its_own_vocabulary() {
+        // Measured 2026-08-15. The set-listing fallback fired at `<= 8`, and
+        // the envelope has NINE keys — so the one set an author meets first,
+        // and the one whose vocabulary they are least likely to hold, said
+        // « unknown field » and nothing else. At fourteen keys it was silent
+        // too; the nuke did not cause this, it only brought the envelope
+        // close enough to a round number for the silence to look deliberate.
+        //
+        // `config:` is the case that exposed it: a value authority that
+        // SHIPPED in v0.108.0, so authors hold files carrying it, and its
+        // replacement (an `inputs:` entry) is not guessable from a bare
+        // refusal. It is too far from any envelope key for did-you-mean.
+        let err = parse_strict(
+            "nika: h\nconfig:\n  a: 1\ntasks:\n  g:\n    exec:\n      run: \"true\"\n",
+        )
+        .expect_err("config is not an envelope key");
+        let SchemaError::UnknownField { suggestion, .. } = err else {
+            panic!("expected UnknownField, got {err:?}");
+        };
+        let taught = suggestion.expect("the envelope must teach its set");
+        assert!(taught.starts_with("the fields here:"), "{taught}");
+        for key in TOP_LEVEL_KEYS {
+            assert!(taught.contains(key), "`{key}` missing from: {taught}");
+        }
+
+        // The other side of the threshold, and the reason it exists: a task
+        // carries far more keys than a reader can use as a hint, so that set
+        // stays silent. A dump is not teaching.
+        let far = "nika: h\ntasks:\n  g:\n    zzzqx: 1\n    exec:\n      run: \"true\"\n";
+        let msg = parse_strict(far).expect_err("unknown task key").to_string();
+        assert!(!msg.contains("the fields here"), "{msg}");
     }
 
     #[test]

@@ -31,8 +31,9 @@ assert_eq!(sink.len(), 1);
 
 ## Domain boundary
 
-This is the **engine** chronicle (runtime events). The **studio** chronicle
-(`dx/journal/`) is a disjoint domain — same NDJSON spirit, disjoint taxonomy.
+This is the **engine** chronicle (runtime events). The **studio** keeps a
+separate chronicle in its own private tree — same NDJSON spirit, disjoint
+taxonomy, never conflated.
 
 ## Error codes
 

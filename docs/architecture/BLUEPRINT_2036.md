@@ -498,8 +498,8 @@ later = **singleton in 2030**. Nothing else combines this stack.
 
 ## §4.7 · Guardian AI · anti-Palantir · Nika + Olympus integration (v1.2)
 
-Per `studio/council/research/2026-04-29-ai-2027-trajectory.md` empirical
-research + ai-2027.com modal-year scenario (modal 2027 · median 2029-2032 ·
+Per the studio's own 2026-04-29 AI-trajectory research (private) +
+ai-2027.com modal-year scenario (modal 2027 · median 2029-2032 ·
 METR HCAST doubling 4.5 months · 5-milestone ladder SC → SAR → SIAR → ASI) ·
 Nika's 7-axes structural position (Rust + YAML + Memory native + MCP+Shield
 + AGPL + local-first + BYO-LLM) is **the distributed third path** between
@@ -519,7 +519,7 @@ Nika Diamond is the **structural inverse** ·
 | Inference provider     | Single-vendor       | **14-provider catalog · user picks**           |
 | Threat model           | Surveillance        | Sovereignty + capability-scoped agents        |
 
-**Framing lens-pair** · « unified Rust runtime contract » (per `dx/.claude/rules/naming-memory-subsystem.md` substrate lens · one Rust binary · one ABI · zero runtime fragmentation) + « 7-axes distributed third path » (this §4.7 strategic lens · anti-Palantir surface positioning) are SAME structural commitment from different altitudes · NOT contradictory.
+**Framing lens-pair** · « unified Rust runtime contract » (the substrate lens · one Rust binary · one ABI · zero runtime fragmentation) + « 7-axes distributed third path » (this §4.7 strategic lens · anti-Palantir surface positioning) are SAME structural commitment from different altitudes · NOT contradictory.
 
 Per `olympus-vs-nika-distinction.md` D-2026-05-08-N1 · **Nika engine = public
 moat** (competes with GPT/Claude/Cursor/LangGraph/Temporal) · **Olympus =

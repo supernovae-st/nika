@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | **CANDIDATE** — Gate 1 (this document) authored 2026-07-09. Crafted standalone (89 tests · clippy 0 under workspace pedantic · rustdoc 0) at `ventures/nika/02-engineering/playground/nika-chart/`, moved in whole per CHT master plan W2. |
+| Status | **CANDIDATE** — Gate 1 (this document) authored 2026-07-09. Crafted standalone (89 tests · clippy 0 under workspace pedantic · rustdoc 0) in a private playground tree, moved in whole per CHT master plan W2. |
 | Layer | L0 — pure, zero I/O, zero async |
 | Design | Deterministic chart compiler+renderer: rows + semantic spec → byte-identical artifacts. Two-stage pure pipeline (`compile → render`), 5 chart types, 5 surfaces (SVG · Vega-Lite JSON · TTY · PNG · terminal-inline escapes). The artifact's sha256 is the trace-chain receipt (« your workflow draws its own receipts »). |
 | LOC budget | ≤6,000 src prod (at authoring ~5.3k total incl. cfg(test) — prod well under) · ≤15,000 hard cap |
