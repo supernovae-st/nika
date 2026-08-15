@@ -1082,11 +1082,11 @@ arm:
 ///
 /// Le test au-dessus vérifie que le remède est NON VIDE, jamais qu il est
 /// JUSTE — le remède était donc décoratif. Il a longtemps montré un chemin
-/// pris dans l arbre privé du monorepo · illisible pour qui n est pas nous,
+/// emprunté à l arbre privé du monorepo · illisible pour qui n est pas nous,
 /// et refusé par le garde-fou de confidentialité (`block-private-paths`)
 /// dès qu une ligne le réintroduit.
 ///
-/// La confidentialité reste le travail de ce garde-fou · il voit très bien
+/// La confidentialité demeure le travail de ce garde-fou · il voit très bien
 /// les lignes AJOUTÉES, et une régression en serait une. Ce test couvre ce
 /// que lui ne peut pas voir · que le chemin affiché comme LA réparation
 /// passe la règle qu il prétend enseigner.
