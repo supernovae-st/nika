@@ -102,10 +102,43 @@ pub(crate) fn stamp_judged_semantic(wf: &RawWorkflow, report: &mut CheckReport) 
         nika_runtime::proof::ir::semantic_ir_hash(wf).map(|h| h.as_hex().to_owned());
 }
 
+/// The directory a workflow's relative references resolve against — the
+/// folder holding the file the operator named. An empty parent (a bare
+/// `wf.nika.yaml`) joins to the path itself, which is the CWD-relative
+/// form and stays correct.
+pub(crate) fn workflow_base(path: &str) -> &std::path::Path {
+    std::path::Path::new(path)
+        .parent()
+        .unwrap_or_else(|| std::path::Path::new(""))
+}
+
 /// The `skills:` fs edge (#473) — the ONE reader check · run · test share.
-pub(crate) fn resolve_workflow_skills(wf: &RawWorkflow) -> nika_schema::ResolvedSkills {
+///
+/// `base` is the DIRECTORY of the workflow the operator named. A
+/// `skills:` path is relative to the FILE that names it, exactly like a
+/// composed child target — `check_composed` has taken that base since
+/// spec 14, and this reader, its declared twin, took none. So
+/// `nika check sub/wf.nika.yaml` run from the repo root read `./s.md`
+/// from the ROOT, not from `sub/`.
+///
+/// **What deliberately does NOT move: the permits subject.**
+/// `resolve_skills` judges the grant on the path AS WRITTEN
+/// (`allows_path(key, false)`), and `path_glob_matches` is purely
+/// lexical — it normalizes two strings and walks segments, with no
+/// filesystem and no CWD. That is what makes check ≡ run decidable
+/// without touching a disk, and rebasing the SUBJECT would move a
+/// security boundary. Rebasing the READ moves the opposite way: the file
+/// actually opened now agrees with the grant the author wrote, instead of
+/// depending on where the operator happened to stand. NIKA-SEC-004 was
+/// falsified in this exact zone at 0.108.0; the gate stays where it is.
+pub(crate) fn resolve_workflow_skills(
+    wf: &RawWorkflow,
+    base: &std::path::Path,
+) -> nika_schema::ResolvedSkills {
     nika_schema::resolve_skills(wf, &mut |p| {
-        std::fs::read_to_string(p).map_err(|e| e.to_string())
+        // An ABSOLUTE skill path joins to itself — it keeps naming the
+        // file it names, and the lexical grant still has to admit it.
+        std::fs::read_to_string(base.join(p)).map_err(|e| e.to_string())
     })
 }
 
@@ -142,6 +175,68 @@ mod tests {
     /// MALFORMATION, not by a boundary refusal · a reference that does not
     /// sit outside the measured function agrees with itself.
     ///
+    /// ⭐ A `skills:` path is relative to the FILE that names it, never to
+    /// wherever the operator happens to stand.
+    ///
+    /// `check_composed` has taken the workflow's own path as its base since
+    /// spec 14, and its own comment calls the skills reader « the fs edge
+    /// is the skills reader's twin » — but the twin took NO base, so it
+    /// resolved against the process CWD. `nika check sub/wf.nika.yaml` from
+    /// the repo root looked for `s.md` in the ROOT.
+    ///
+    /// The fixture is discriminating by construction: the skill exists ONLY
+    /// in the workflow's directory, and the test's CWD is not that
+    /// directory. Under the old reader the read misses and `texts` is
+    /// empty; only a correctly based read populates it.
+    ///
+    /// The GRANT is unchanged and still lexical (`s.md` as written) — that
+    /// is the half that must not move.
+    #[test]
+    fn a_skill_path_resolves_against_the_workflow_not_the_cwd() {
+        let dir = std::env::temp_dir().join(format!("nika-skill-base-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("fixture dir");
+        std::fs::write(
+            dir.join("s.md"),
+            "---\nname: probe\ndescription: a valid Agent Skill beside its workflow\n---\nbody\n",
+        )
+        .expect("skill beside the workflow");
+        let wf_path = dir.join("wf.nika.yaml");
+        let yaml = concat!(
+            "nika: w\n",
+            "model: mock/echo\n",
+            "permits:\n  fs:\n    read: [\"s.md\"]\n",
+            "tasks:\n  t:\n    agent:\n",
+            "      prompt: p\n",
+            "      skills: [\"s.md\"]\n",
+        );
+        std::fs::write(&wf_path, yaml).expect("workflow beside its skill");
+
+        let wf = nika_schema::parse(yaml, FileId::new(0), ParseMode::Strict).expect("parses");
+        let named = wf_path.to_string_lossy();
+        let resolved = resolve_workflow_skills(&wf, workflow_base(&named));
+
+        assert!(
+            resolved.findings.is_empty(),
+            "the skill sits beside its workflow and is granted · {:?}",
+            resolved.findings
+        );
+        assert!(
+            resolved.texts.contains_key("s.md"),
+            "the read must resolve against the workflow's directory, not the CWD"
+        );
+
+        // The CWD-based reader is what shipped. Pinned here so the fix is
+        // not silently undone: with no base, the same fixture misses.
+        let cwd_based = resolve_workflow_skills(&wf, std::path::Path::new(""));
+        assert!(
+            cwd_based.texts.is_empty(),
+            "the fixture must be discriminating — if this populates, the \
+             test's CWD happens to hold an `s.md` and proves nothing"
+        );
+
+        std::fs::remove_dir_all(&dir).ok();
+    }
+
     /// The discriminating fixture is a **valid** skill placed outside the
     /// boundary: only a refusal keeps `texts` empty · a read populates it.
     #[test]
@@ -172,7 +267,9 @@ mod tests {
         let wf = nika_schema::parse(&yaml, FileId::new(0), ParseMode::Strict)
             .expect("the fixture parses");
 
-        let resolved = resolve_workflow_skills(&wf);
+        // The fixture names an ABSOLUTE path, so the base is moot (`join`
+        // on an absolute returns it unchanged) — the grant still decides.
+        let resolved = resolve_workflow_skills(&wf, std::path::Path::new(""));
 
         // The whole point: the skill PARSES, so the only thing that can keep
         // it out of `texts` is the boundary refusing the read.

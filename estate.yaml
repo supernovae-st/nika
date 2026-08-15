@@ -152,7 +152,7 @@ patterns:
 - glob: "crates/**/src/**"
   class: authored
   match_count: 765
-  aggregate_sha256: 670802097e67d8a89301cd85de8dc89a1b335098aad1d0ec28c88c34a2b7dc8d
+  aggregate_sha256: 3ca6faea31ff7983178b5740d113f31ab42c72f34f14fb886b5e55ec7fc800ad
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
@@ -188,7 +188,7 @@ patterns:
 - glob: ".github/workflows/**"
   class: authored
   match_count: 22
-  aggregate_sha256: fa49af11da63fe52db069a3881e453631a610d653cc0c29d9916fd355a4e5fbd
+  aggregate_sha256: f3f2f23869cb0866e8e09ea65fb605f95b1468b7342cae58c42f951a97d565b6
   evidence: "hand-written CI rails, comments narrate design decisions; the heal lanes here rewrite OTHER files (spec-pin-heal.yml → SPEC_PIN · pack-resync.yml → the pack · changelog-cliff.yml → CHANGELOG.md), nothing rewrites the workflows themselves"
 - glob: ".github/**"
   class: authored

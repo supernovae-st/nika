@@ -1,9 +1,12 @@
 name: clients-resync
 
-# The vendored client matrix follows the agents SSOT without blocking
-# unrelated pushes: the snapshot at
-# crates/nika-cli-host/data/clients.registry.yaml is a byte-copy of
-# nika-plugins/clients.yaml, and drift used to be judged by a unit test
+# The vendored client matrix AND the vendored plugin tree follow the
+# agents SSOT without blocking unrelated pushes. Two snapshots ride this
+# lane: crates/nika-cli-host/data/clients.registry.yaml is a byte-copy of
+# nika-plugins/clients.yaml, and .agents/ mirrors the sibling's own tree
+# (32 files, added to this lane 2026-08-15 — it had been kept in step BY
+# HAND, which is a coincidence to re-earn on every edit, not a lane).
+# Drift used to be judged by a unit test
 # reading the LIVE sibling checkout on the developer's machine — the
 # wrong-judge class (one test binary, two verdicts, whichever repos
 # happen to sit beside the checkout; it blocked two unrelated engine
@@ -44,14 +47,22 @@ jobs:
       - uses: taiki-e/install-action@6c6fd71fe4fb72c3697d269963d0e15df8adedad # v2
         with:
           tool: cargo-nextest
-      - name: The vendored matrix follows the agents SSOT
+      - name: The vendored matrix AND plugin tree follow the agents SSOT
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
           git clone --depth 1 https://github.com/supernovae-st/nika-plugins ../agents
           cp ../agents/clients.yaml crates/nika-cli-host/data/clients.registry.yaml
-          git add crates/nika-cli-host/data/clients.registry.yaml
+          # The plugin tree is vendored from the SAME sibling and had NO
+          # lane. Measured 2026-08-15: 32 files here, 32 there, zero diff —
+          # but a match held by hand is a coincidence to be re-earned on
+          # every edit, not a guarantee. `--delete` is the point: the
+          # sibling is the SSOT, so a file that exists only here is drift,
+          # never content. Static paths only — no event data reaches this
+          # shell (the header's rule).
+          rsync -a --delete ../agents/.agents/ .agents/
+          git add crates/nika-cli-host/data/clients.registry.yaml .agents
           if git diff --cached --quiet; then echo "matrix current — nothing to resync"; exit 0; fi
           python3 scripts/estate.py --write   # the manifest rides the heal (staged files first — estate.py reads the INDEX)
           git add estate.yaml
@@ -80,5 +91,5 @@ jobs:
           git push -f origin bot/clients-resync
           gh pr create --head bot/clients-resync \
             --title "chore(matrix): the vendored snapshot follows the agents SSOT" \
-            --body "Automated re-vendoring (clients-resync lane · the pack-resync precedent). The drift used to block unrelated pushes via a unit test reading the live sibling checkout — it now surfaces HERE, within 24h, judged by Diamond CI. Manual heal when it cannot wait: cp <agents>/repo/clients.yaml crates/nika-cli-host/data/clients.registry.yaml && python3 scripts/estate.py --write. Merge on green." \
+            --body "Automated re-vendoring (clients-resync lane · the pack-resync precedent). The drift used to block unrelated pushes via a unit test reading the live sibling checkout — it now surfaces HERE, within 24h, judged by Diamond CI. Two snapshots ride this lane: the client matrix and the .agents/ plugin tree. Manual heal when it cannot wait: cp <agents>/repo/clients.yaml crates/nika-cli-host/data/clients.registry.yaml && rsync -a --delete <agents>/repo/.agents/ .agents/ && python3 scripts/estate.py --write. Merge on green." \
             2>/dev/null || echo "PR already open — refreshed"
