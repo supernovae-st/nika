@@ -33,8 +33,8 @@
 //! # Domain boundary
 //!
 //! This is the **engine** chronicle (runtime events). The **studio**
-//! chronicle (`dx/journal/`) is a disjoint domain per
-//! `journal-storage-tiers.md` — do not conflate them.
+//! keeps a separate chronicle in its own private tree: a disjoint
+//! domain, same NDJSON spirit, different taxonomy — never conflated.
 
 #![cfg_attr(
     test,

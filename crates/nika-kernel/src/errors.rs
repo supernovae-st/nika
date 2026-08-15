@@ -20,7 +20,7 @@
 //!   `nika_error::codes::NIKA_234` · the agent-loop tool-definition seam)
 //! - 330–379: Provider (`ProviderError`) — `nika-kernel-ai` (moved from
 //!   380-429 2026-05-11 to free the Shield-reserved 380-389 slot per
-//!   `dx/.claude/rules/security.md` §"Nika Shield" canonical mapping.
+//!   the Shield's canonical code mapping.
 //!   Historical `NIKA_380..389` names dropped per
 //!   `no-legacy-no-back-compat.md` · zero alias · git is archive.)
 //! - 430–479: Verb — impls live in the verb crates · constants in
