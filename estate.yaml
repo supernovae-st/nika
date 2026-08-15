@@ -89,7 +89,7 @@ files:
     - "docs/adr/adr-*.md YAML frontmatter"
 - path: "fuzz/Cargo.lock"
   class: generated
-  sha256: 06fd48fa0bfc5ae98dee9ddbe8c2f4b44a8589db3c1a4759ded0bba7a6232e1b
+  sha256: aac86fb19fd4340b3550300e5e1392af11463248adb179b592ddea61f75bad75
   evidence: "cargo's resolver writes it for the fuzz workspace; no human edits a lockfile"
   derivation:
     tool: "cargo (dependency resolution against fuzz/Cargo.toml)"
@@ -162,7 +162,7 @@ patterns:
 - glob: "crates/**"
   class: authored
   match_count: 138
-  aggregate_sha256: ef26c5edc52b668526485485a9b31dd3225bfa4046825acbfa584c2dd969072e
+  aggregate_sha256: 5f964051d3f2751146b9b76fa10ca33f998f1592a10a002b06d6b9f416b45144
   evidence: "the remaining crate surface — Cargo.toml manifests · build.rs · benches · READMEs · hand-curated data catalogs (llm-providers · mcp-servers · embeddings · model-capabilities, probed daily by catalog-verify.yml); the pricing snapshot is excepted in files:"
   note: "crates/nika-pack/scripts/sync-pack.sh is a DIVERGENT older duplicate of scripts/sync-pack.sh — the pack-resync.yml lane runs the root one"
 - glob: "fuzz/**"
