@@ -347,6 +347,42 @@ pub(super) struct Cx<'a> {
     pub(super) mode: ParseMode,
 }
 
+/// A key that ONCE SHIPPED and no longer exists — not a typo.
+///
+/// The Damerau-Levenshtein guess treats a RETIRED key exactly like a
+/// misspelling, so a key that shipped in v0.108.0's fourteen-key
+/// envelope reads to its author exactly like `zzz:`. `vars:` and `env:`
+/// each got a named tombstone (`NIKA-VALUES-001/002`) carrying a
+/// migration path; this one was published without any.
+///
+/// The path is carried WITHOUT minting a spec code: the error stays
+/// `NIKA-PARSE-005` and only the suggestion clause changes. A real
+/// tombstone (its own `NIKA-VALUES-` number, byte-mirrored from the
+/// spec's oracle like the other two) is the SPEC's to declare, not this
+/// parser's.
+///
+/// Where the role went is MEASURED, not guessed — the engine says it in
+/// three independent places: "a LIVE authority — `inputs:` since
+/// `config:` died" (the check analyzer), "It rides `inputs:` now"
+/// (`permit_taint`), and #909's own diff comment.
+fn retired_key_teaching(key: &str, location: &str) -> Option<&'static str> {
+    // Envelope-scoped on purpose: the same word is a plausible field name
+    // inside a task body or a future block, and teaching the envelope's
+    // migration there would send a repairer the wrong way.
+    if !location.contains("envelope") {
+        return None;
+    }
+    match key {
+        "config" => Some(
+            "this key shipped in the fourteen-key envelope and died with the \
+             nine-key one (2026-08-13) — a deployment-supplied value is now an \
+             `inputs:` entry with `required: false` and a `default:`; a value \
+             baked into the file is a `const:` entry",
+        ),
+        _ => None,
+    }
+}
+
 impl Cx<'_> {
     /// Translate a marked-yaml span.
     pub(super) fn span(&self, span: &YamlSpan) -> Option<Span> {
@@ -421,6 +457,18 @@ impl Cx<'_> {
                             (known.len() <= 9)
                                 .then(|| format!("the fields here: {}", known.join(" · ")))
                         })
+                };
+                // A RETIRED key leads with its migration and KEEPS the
+                // ordinary teaching behind it — the two answer different
+                // questions and neither replaces the other. The set listing
+                // says what is valid NOW; only this says the key once
+                // existed and where its role went. Composed, not preempted:
+                // an earlier draft returned the migration INSTEAD, and the
+                // sibling law's own test caught it.
+                let suggestion = match (retired_key_teaching(key.as_str(), location), suggestion) {
+                    (Some(retired), Some(ordinary)) => Some(format!("{retired} · {ordinary}")),
+                    (Some(retired), None) => Some(retired.to_owned()),
+                    (None, ordinary) => ordinary,
                 };
                 return Err(SchemaError::UnknownField {
                     field: key.as_str().to_owned(),
@@ -876,10 +924,20 @@ tasks:
             panic!("expected UnknownField, got {err:?}");
         };
         let taught = suggestion.expect("the envelope must teach its set");
-        assert!(taught.starts_with("the fields here:"), "{taught}");
+        // `starts_with` → `contains` (2026-08-15, same day, sibling change):
+        // this fixture is a RETIRED key, so the migration now LEADS and the
+        // set listing follows. The law under test is unchanged — the set is
+        // still taught, whole — and the fixture stays `config:` on purpose,
+        // since it is the case that exposed the silence. The two teachings
+        // compose; neither replaces the other.
+        assert!(taught.contains("the fields here:"), "{taught}");
         for key in TOP_LEVEL_KEYS {
             assert!(taught.contains(key), "`{key}` missing from: {taught}");
         }
+        assert!(
+            taught.contains("`inputs:`"),
+            "a retired key ALSO names where its role went · {taught}"
+        );
 
         // The other side of the threshold, and the reason it exists: a task
         // carries far more keys than a reader can use as a hint, so that set
@@ -1215,5 +1273,58 @@ tasks:
         check_source_bounds("nika: w\n").expect("a normal file passes");
         check_source_bounds(&format!("{}k: v", " ".repeat(MAX_INDENT_BYTES - 1)))
             .expect("just under the indent cap passes");
+    }
+
+    /// ⭐ A key that SHIPPED must not read like a typo.
+    ///
+    /// Measured before the fix: `config:` — published in the fourteen-key
+    /// envelope of v0.108.0 — produced a bare `NIKA-PARSE-005 unknown
+    /// field`, byte-identical to what a nonsense key produces. `vars:` and
+    /// `env:` each carry a named tombstone; this one shipped without any,
+    /// so an author who wrote it was told nothing.
+    ///
+    /// The three arms are the whole contract: the retired key teaches, a
+    /// near-miss keeps its spelling guess, and a nonsense key still gets
+    /// silence (a wrong guess is worse than none).
+    #[test]
+    fn a_retired_envelope_key_teaches_its_migration_not_a_spelling_guess() {
+        let sees = |key: &str| {
+            let yaml = format!(
+                "nika: w\n{key}: {{}}\ntasks:\n  t:\n    exec: {{ command: [\"true\"] }}\n"
+            );
+            parse(&yaml, FileId::new(0), ParseMode::Strict)
+                .expect_err("an unknown envelope key refuses")
+                .to_string()
+        };
+
+        let retired = sees("config");
+        assert!(
+            retired.contains("`inputs:`") && retired.contains("`const:`"),
+            "a retired key names where its role WENT · {retired}"
+        );
+        assert!(
+            !retired.contains("did you mean"),
+            "a retired key is not a misspelling · {retired}"
+        );
+
+        assert!(
+            sees("conts").contains("did you mean `const`"),
+            "a near-miss keeps its spelling guess"
+        );
+        let nonsense = sees("zzz");
+        assert!(
+            !nonsense.contains("did you mean") && !nonsense.contains("`inputs:`"),
+            "a nonsense key still gets silence · {nonsense}"
+        );
+    }
+
+    /// The teaching is ENVELOPE-scoped. The same word is a plausible field
+    /// name elsewhere, and teaching the envelope's migration inside a task
+    /// body would send a repairer the wrong way.
+    #[test]
+    fn the_retired_teaching_does_not_leak_out_of_the_envelope() {
+        assert!(retired_key_teaching("config", "the workflow envelope").is_some());
+        assert!(retired_key_teaching("config", "`exec:`").is_none());
+        assert!(retired_key_teaching("config", "task t").is_none());
     }
 }
