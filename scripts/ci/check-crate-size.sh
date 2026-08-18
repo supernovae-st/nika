@@ -22,20 +22,28 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MAX="${CRATE_SIZE_MAX:-15000}"
 violations=0
 
+# The prod-file set is the SHARED one, computed ONCE for the whole workspace.
+#
+# It used to be re-implemented inline here — `git ls-files … | grep -v
+# '/tests\.rs$'` — under a comment claiming to follow "the rs_prod_files
+# convention in _lib.sh". One rule, three readers (this, _lib.sh,
+# check-seam-discipline), and the copies drifted the moment the shared one
+# learned something: on 2026-08-18 `rs_prod_files` started honouring modules
+# declared under `#[cfg(test)]`, and this copy kept charging 951 lines of
+# test-only code to five crates' production budget. The copy is gone; the
+# measure is read from its single source.
+PROD_FILES="$(rs_prod_files)"
+
 while IFS= read -r manifest; do
   [ -z "$manifest" ] && continue
   crate_dir=$(dirname "$manifest")
-  # P1-6 Batch H+: recurse via trailing /. Prod scope: src/ only, minus
-  # in-file #[cfg(test)] regions (counted by the python block below) AND
-  # files whose basename is `tests.rs` (the rs_prod_files convention in
-  # _lib.sh — a `tests.rs` sibling/dir-module is 100% test code, already
-  # honoured by check-expect/check-unwraps). Aligned here so a test module
-  # split out of an oversized file (no in-file #[cfg(test)] marker) is not
-  # miscounted as production.
+  # Prod scope: src/ only, minus in-file #[cfg(test)] regions (counted by the
+  # python block below) — the FILE-level exclusions are already applied by
+  # rs_prod_files (basename `tests.rs` + `#[cfg(test)] mod` declarations).
   # `|| true` keeps an src-less crate from killing the loop under pipefail
   # (grep exits 1 on zero matches); python prints 0 on empty stdin then.
   total=$(
-    { git ls-files -- "$crate_dir/src/" 2>/dev/null | grep '\.rs$' | grep -v '/tests\.rs$' || true; } \
+    { printf '%s\n' "$PROD_FILES" | grep -- "^$crate_dir/src/" || true; } \
       | python3 -c '
 import re, sys
 total = 0
