@@ -4,9 +4,20 @@
 > `2e0386d3a`) shipped the conformance-floor executor the nika-cli
 > rehearsal pinned. v2 is the **v0.1 spec-parity engine**: the full task
 > pipeline of `nika-spec` 03/04/05 (gates · records · `with:` · retry ·
-> timeout · `on_error:` · `for_each:` · `on_finally:`) + bounded
+> timeout · `on_error:` · `for_each:` · the unwind cleanup lane) + bounded
 > intra-wave concurrency with ordered settlement. Research-grounded —
 > every mechanism cites its paper or its spec section (citation law).
+>
+> **Language note (teaches 0.109 · amended 2026-08-19).** This spec was
+> written against the fourteen-key envelope. Two surfaces it names have
+> since left the language and this text follows: the task-level
+> `on_finally:` list is dead (2026-08-11) — cleanup is an ORDINARY task
+> joined by `after: { <parent>: unwind }` (a `finally` node in
+> `graph_format: 3`), and `on_error.fail_workflow` is dead — the default
+> IS failure, `on_error:` is `recover:` or `skip:`. The mechanisms below
+> (sequential best-effort cleanup · swallowed cleanup errors · the
+> parent's record visible to the cleanup gate) are unchanged; only the
+> spelling an author writes moved.
 
 ## 1 · Role
 
@@ -23,7 +34,7 @@ nika_runtime::Runtime::run()             THIS CRATE
         │  waves (CheckReport order) · per-wave bounded concurrency
         │  ordered settlement (deterministic event stream)
         │  task pipeline · gate → with → for_each → retry/timeout →
-        │                  on_error → on_finally → settle
+        │                  on_error → unwind cleanup → settle
         ├──▶ infer  → nika-verb-infer
         ├──▶ exec   → nika-verb-exec
         ├──▶ invoke → nika-verb-invoke
@@ -203,9 +214,10 @@ After retries exhaust: `on_codes:` filter (empty = all) → action:
 `recover: <value>` (render the value — a `${{ }}` ref or literal —
 task becomes **success** with the recovered output) · `skip: true`
 (task becomes **skipped** · the original error STAYS readable at
-`tasks.X.error` — the one status where both coexist) ·
-`fail_workflow: true` (explicit default). Unlisted code falls through
-to fail. v0 recover-ref resolution: against the records at recovery
+`tasks.X.error` — the one status where both coexist). The default IS
+failure and has no keyword (`fail_workflow: true` died 2026-08-11 · an
+author who wants the default omits `on_error:`). Unlisted code falls
+through to fail. v0 recover-ref resolution: against the records at recovery
 time — a ref to a not-yet-terminal task fails the recovery (the task
 fails as if `on_error:` were absent) · the spec's step-3 await
 arrives with eager dispatch (documented divergence · LOUD over
@@ -241,18 +253,20 @@ silent).
   internal · the note carries `for_each · N items`) — the event
   grammar has no per-iteration id space at v0.1.
 
-### 3.8 `on_finally:` (spec 03 · ALWAYS runs)
+### 3.8 the unwind cleanup lane (spec 03 §`unwind` · ALWAYS runs · was `on_finally:` until 2026-08-11)
 
-For a task that **started**: after its terminal status, run the
-cleanup mini-tasks **sequentially in declared order** · each with its
+For a task that **started**: after its terminal status, run its
+cleanup tasks (ordinary tasks declaring `after: { <parent>: unwind }`)
+**sequentially in declaration order** · each with its
 own `when:` (the scope sees the parent's fresh record — status/error
 routing) + `timeout:` (default 30s). Cleanup outcomes are best-effort:
 errors are swallowed (the parent's status reflects ONLY the main
 verb) — consistent with the cross-engine canon (cleanup never masks
 the original error · Sagas '87 lineage · Temporal detached scopes).
-Never-started tasks (skipped gate · cancelled) run NO cleanup. v0
-emits no engine events for mini-tasks (no id grammar) — observability
-via the cleanup's own effects (e.g. `nika:emit`).
+Never-started tasks (skipped gate · cancelled) run NO cleanup. Since
+`graph_format: 3` every cleanup task is a projected node (`kind:
+"finally"` · the author's own task id) — v0's anonymous mini-tasks
+(no id grammar · no engine events) are the shape this lane replaced.
 
 ### 3.9 Settlement + records + terminal
 
@@ -318,9 +332,9 @@ form; the timeout class surfaces the SPEC code `NIKA-TIMEOUT-001`.
     `max_parallel: 1` ordering · `fail_fast` both ways ·
     null-at-index · empty→skipped · `item`/`index`/`with` per
     iteration · non-array loud.
-11. **`on_finally`** · runs on success AND failure · errors swallowed
-    · parent status visible to cleanup `when:` · never-started runs
-    none.
+11. **unwind cleanup** (`after: {x: unwind}`) · runs on success AND
+    failure · errors swallowed · parent status visible to cleanup
+    `when:` · never-started runs none.
 12. **Properties** (proptest) · random DAG schedules: replay
     determinism (run twice ≡) · settle-exactly-once · event
     arithmetic · cap-equivalence over random caps.

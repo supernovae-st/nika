@@ -68,7 +68,7 @@ time — the caller sleeps, never the calculator) · host zone resolution
 - no `HashMap` anywhere (the workspace lint guards a future signature's
   determinism) · no `Vec` in public returns (FCI-014 — accessors hand
   out slices or iterators) · `#[non_exhaustive]` on public-field
-  structs (FCI-016) · wire tag frozen at `nika: v1` (FCI-003)
+  structs (FCI-016) · wire tag frozen at `nika: v1` (FCI-003) <!-- stale-ok: the PROJECT file (nika.yaml) · the engine still freezes v1 here while spec 01 says nika: <name> · engine work owed -->
 - the day walk happens in the BEAT's zone — a Monday slot is Monday in
   Paris, whatever zone `from` rides · horizon 1,500 days (a 29 February
   is never further than 4 years)

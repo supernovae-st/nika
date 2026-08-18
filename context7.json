@@ -6,7 +6,7 @@
   "excludeFolders": ["crates", "fuzz", "media", "scripts"],
   "excludeFiles": [],
   "rules": [
-    "Workflows are .nika.yaml files: envelope `nika: v1`, four verbs (infer, exec, invoke, agent); everything callable is a tool under invoke",
+    "Workflows are .nika.yaml files: a nine-key envelope opening with `nika: <kebab-id>` (the file's name, never `v1`) plus model, inputs, const, secrets, permits, run, tasks, outputs; four verbs (infer, exec, invoke, agent); everything callable is a tool under invoke",
     "Run `nika check <file>` before handing a workflow to anyone — exit 0 is the bar, and the diagnostics name the exact fix",
     "Models are provider/model form (ollama/llama3.2:3b local-first, mock/echo for offline preview); local models are unpriced, never call them free",
     "Never invent nika:* builtins or providers — `nika tools` and `nika catalog` list the canonical sets"

@@ -67,7 +67,7 @@ non-reproducible by default; effects-as-integer-code can be byte-exact.
 `resize · crop · levels · grayscale · palette_map · dither · duotone · pixelate ·
 halftone · grain · vignette · chromatic_aberration · scanlines · glitch · ascii`.
 Dither modes: `bayer2/4/8 · blue_noise · ign · floyd_steinberg · atkinson · jjn`.
-Branching/fan-out is the WORKFLOW's job (`depends_on` · `for_each`) — `ops` is a
+Branching/fan-out is the WORKFLOW's job (`with:`/`after:` edges · `for_each`) — `ops` is a
 linear pipeline by design (never a graph-in-a-builtin · D-2026-05-22-N18).
 
 ## 6. Admission (12 gates · status)

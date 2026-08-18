@@ -56,7 +56,7 @@ reads the advertisement instead of probing blind.
 
 | Method | Params | Result | Capability |
 |---|---|---|---|
-| `nika/semanticDocument` | `{ "uri": … }` (a `TextDocumentIdentifier`) | `{ graph, reason?, spans }` (typed: `SemanticDocument`) — `graph` is the canonical `graph_format: 2` projection VERBATIM (`nika-graph::project` · the same bytes `nika inspect --format json` prints) · `reason` appears ONLY when `graph` is null (`"parse"` · `"findings"` — one word, the diagnostics lane carries the details) · `spans` maps task ids to their declaring token ranges | `experimental.nika.semanticDocument.graphFormat: 2` |
+| `nika/semanticDocument` | `{ "uri": … }` (a `TextDocumentIdentifier`) | `{ graph, reason?, spans }` (typed: `SemanticDocument`) — `graph` is the canonical `graph_format: 3` projection VERBATIM (`nika-graph::project` · the same bytes `nika inspect --format json` prints · format 3 since cleanup units became nodes) · `reason` appears ONLY when `graph` is null (`"parse"` · `"findings"` — one word, the diagnostics lane carries the details) · `spans` maps task ids to their declaring token ranges | `experimental.nika.semanticDocument.graphFormat: 2` |
 
 Measured (debug build · 500-task document · hot): hover 16 ms ·
 completion 15 ms · semanticDocument 33 ms — the <50 ms budget holds
