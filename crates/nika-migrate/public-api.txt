@@ -45,6 +45,40 @@ impl<T> core::borrow::BorrowMut<T> for nika_migrate::EsplitOutcome where T: ?cor
 pub fn nika_migrate::EsplitOutcome::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for nika_migrate::EsplitOutcome
 pub fn nika_migrate::EsplitOutcome::from(t: T) -> T
+pub enum nika_migrate::IdentityOutcome
+pub nika_migrate::IdentityOutcome::Changed(alloc::string::String)
+pub nika_migrate::IdentityOutcome::Clean
+pub nika_migrate::IdentityOutcome::Stop(alloc::vec::Vec<alloc::string::String>)
+impl core::clone::Clone for nika_migrate::IdentityOutcome
+pub fn nika_migrate::IdentityOutcome::clone(&self) -> nika_migrate::IdentityOutcome
+impl core::cmp::Eq for nika_migrate::IdentityOutcome
+impl core::cmp::PartialEq for nika_migrate::IdentityOutcome
+pub fn nika_migrate::IdentityOutcome::eq(&self, other: &nika_migrate::IdentityOutcome) -> bool
+impl core::fmt::Debug for nika_migrate::IdentityOutcome
+pub fn nika_migrate::IdentityOutcome::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_migrate::IdentityOutcome
+impl<T, U> core::convert::Into<U> for nika_migrate::IdentityOutcome where U: core::convert::From<T>
+pub fn nika_migrate::IdentityOutcome::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_migrate::IdentityOutcome where U: core::convert::Into<T>
+pub type nika_migrate::IdentityOutcome::Error = core::convert::Infallible
+pub fn nika_migrate::IdentityOutcome::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_migrate::IdentityOutcome where U: core::convert::TryFrom<T>
+pub type nika_migrate::IdentityOutcome::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_migrate::IdentityOutcome::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_migrate::IdentityOutcome where T: core::clone::Clone
+pub type nika_migrate::IdentityOutcome::Owned = T
+pub fn nika_migrate::IdentityOutcome::clone_into(&self, target: &mut T)
+pub fn nika_migrate::IdentityOutcome::to_owned(&self) -> T
+impl<T> core::any::Any for nika_migrate::IdentityOutcome where T: 'static + ?core::marker::Sized
+pub fn nika_migrate::IdentityOutcome::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_migrate::IdentityOutcome where T: ?core::marker::Sized
+pub fn nika_migrate::IdentityOutcome::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_migrate::IdentityOutcome where T: ?core::marker::Sized
+pub fn nika_migrate::IdentityOutcome::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_migrate::IdentityOutcome where T: core::clone::Clone
+pub unsafe fn nika_migrate::IdentityOutcome::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_migrate::IdentityOutcome
+pub fn nika_migrate::IdentityOutcome::from(t: T) -> T
 pub enum nika_migrate::W2Outcome
 pub nika_migrate::W2Outcome::Changed(alloc::string::String)
 pub nika_migrate::W2Outcome::Stop(alloc::vec::Vec<alloc::string::String>)
@@ -66,6 +100,7 @@ impl<T> core::convert::From<T> for nika_migrate::W2Outcome
 pub fn nika_migrate::W2Outcome::from(t: T) -> T
 pub fn nika_migrate::d1(source: &str) -> nika_migrate::D1Outcome
 pub fn nika_migrate::esplit(source: &str) -> nika_migrate::EsplitOutcome
+pub fn nika_migrate::identity(source: &str) -> nika_migrate::IdentityOutcome
 pub fn nika_migrate::predicates(source: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_migrate::w1(source: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_migrate::w2(source: &str) -> nika_migrate::W2Outcome

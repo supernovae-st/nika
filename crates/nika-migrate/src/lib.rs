@@ -59,11 +59,13 @@
 
 mod d1;
 mod esplit;
+mod identity;
 mod predicates;
 pub mod repair;
 
 pub use d1::{D1Outcome, d1};
 pub use esplit::{EsplitOutcome, esplit};
+pub use identity::{IdentityOutcome, identity};
 pub use predicates::predicates;
 
 /// Apply the W1 migration. `Some(new)` when the document changed,

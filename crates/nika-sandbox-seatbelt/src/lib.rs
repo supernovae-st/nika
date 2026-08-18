@@ -416,6 +416,20 @@ fn sbpl_string(path: &str) -> Result<String, CommandSandboxError> {
 /// confined spawn its OWN per-spawn scratch (the child's `TMPDIR`, granted
 /// via `fs_write` like any other prefix), and an author who genuinely wants
 /// the shared `/tmp` declares it.
+///
+/// `/opt/homebrew` IS here (2026-08-18): it is the interpreter's home on
+/// Apple-Silicon Macs the way `/usr/local` is on Intel Macs, and `(subpath
+/// "/usr")` already covered the latter — one architecture had program space,
+/// the other did not. Without it a Homebrew `bash`/`node`/`python3` first
+/// on PATH aborts at dyld (`Library not loaded … libreadline.8.dylib · file
+/// system sandbox blocked open()`) under ANY `permits:` block, and a
+/// `capture: structured` leg renders that abort as a ✔ with `exit_code:
+/// -1` — measured on the studio's own daily ledger (12 runs · 36 legs · zero
+/// measured). READ only, like `/usr`: the child still cannot read the
+/// workspace, write anywhere, or reach the network without a declared
+/// grant. Other package-manager prefixes (`/nix/store` · `MacPorts`
+/// `/opt/local`) are the same class and are NOT granted here — unmeasured,
+/// they wait for their own probe rather than ride this one.
 const PROFILE_PREAMBLE: &str = r#"(version 1)
 (deny default)
 (allow process-exec*)
@@ -426,6 +440,7 @@ const PROFILE_PREAMBLE: &str = r#"(version 1)
 (allow file-read-metadata)
 (allow file-read* file-read-metadata
     (subpath "/usr")
+    (subpath "/opt/homebrew")
     (subpath "/bin")
     (subpath "/sbin")
     (subpath "/System")
@@ -785,6 +800,72 @@ mod tests {
         assert!(
             p.contains("(subpath \"/private/tmp/nika-x\")"),
             "a declared tmp subpath is granted exactly:\n{p}"
+        );
+    }
+
+    /// The interpreter's home is PROGRAM space, read-only, on both Mac
+    /// architectures. `(subpath "/usr")` already covers `/usr/local` (the
+    /// Intel Homebrew prefix); `/opt/homebrew` (the Apple-Silicon prefix)
+    /// was not in the preamble, so a Homebrew `bash`/`node`/`python3` first
+    /// on PATH died at dyld (`Library not loaded … libreadline.8.dylib ·
+    /// file system sandbox blocked open()`) under any `permits:` block —
+    /// measured 2026-08-18: 12 daily runs of the studio's own ledger rendered
+    /// 36 ✔ legs whose captured `exit_code` was -1, and the same leg exits 0
+    /// once the prefix is readable. Read only · never a write · never a
+    /// declared-grant substitute (the child still cannot read the workspace
+    /// without `fs.read`).
+    #[test]
+    fn the_apple_silicon_homebrew_prefix_is_program_space_like_usr_local() {
+        let p = build_profile(&SandboxSpec::new(), None).expect("profile");
+        let preamble_reads = p
+            .split("(allow file-write-data")
+            .next()
+            .expect("the read block precedes the write block");
+        assert!(
+            preamble_reads.contains("(subpath \"/opt/homebrew\")"),
+            "the Apple-Silicon Homebrew prefix is readable program space:\n{p}"
+        );
+        assert!(
+            preamble_reads.contains("(subpath \"/usr\")"),
+            "the Intel prefix (/usr/local) stays covered by /usr:\n{p}"
+        );
+        assert!(
+            !p.contains("file-write* file-read* (subpath \"/opt/homebrew\")"),
+            "program space is never writable:\n{p}"
+        );
+    }
+
+    /// Live, macOS-only, and honest about its own applicability: if a
+    /// Homebrew bash is installed at the Apple-Silicon prefix and the
+    /// launcher exists, a confined `bash -c true` must START (exit 0). Where
+    /// either is absent the test says so and passes vacuously — a skip that
+    /// names itself, never a green that looked at nothing.
+    #[test]
+    #[cfg(target_os = "macos")]
+    // The launcher IS the seam under test: this test spawns `sandbox-exec`
+    // itself to prove the profile lets a real interpreter start · the
+    // kernel `ShellExecutor` seam sits ABOVE this crate and would hide the
+    // very thing being measured (the nika-cli-host git.rs precedent).
+    #[allow(clippy::disallowed_types)]
+    fn a_homebrew_interpreter_starts_under_the_seatbelt() {
+        let brew_bash = Path::new("/opt/homebrew/bin/bash");
+        if !brew_bash.exists() || !SeatbeltSandbox::available() {
+            // a skip that names itself · never a green that looked at nothing
+            return;
+        }
+        let profile = build_profile(&SandboxSpec::new(), None).expect("profile");
+        let status = std::process::Command::new(LAUNCHER)
+            .arg("-p")
+            .arg(&profile)
+            .arg("--")
+            .arg(brew_bash)
+            .arg("-c")
+            .arg("true")
+            .status()
+            .expect("the launcher spawns");
+        assert!(
+            status.success(),
+            "a Homebrew bash must start under the empty profile · status {status}"
         );
     }
 
