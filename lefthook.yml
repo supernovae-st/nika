@@ -65,6 +65,22 @@ pre-commit:
       glob: '**/*.sh'
       run: shfmt -d -i 2 -ci -bn {staged_files}
 
+    # estate.yaml hashes the tracked tree. CI checks it; nothing local did, so
+    # every miss surfaced only after a push and a CI wait.
+    # Measured 2026-08-13: FOUR round-trips in one evening. The fourth cause was
+    # subtle — the manifest HAD been regenerated, then `shfmt -w` reformatted the
+    # file afterwards and invalidated it. So the right moment is not "when you
+    # think of it", it is "after the last reformatting": a hook knows that, a
+    # human does not.
+    # `--check`, never `--write`: a hook that silently repairs hides the drift
+    # instead of teaching it, and would write a file nobody reviewed.
+    # Order matters — estate.py reads the INDEX: stage the file, THEN derive,
+    # THEN stage the manifest. This hook caught that very mistake on the commit
+    # that installs it, in 0.16 s.
+    estate-manifest:
+      run: python3 scripts/estate.py --check
+      fail_text: 'estate.yaml diverges from the tracked tree. Run: git add <file> && python3 scripts/estate.py --write && git add estate.yaml (estate.py reads the INDEX, so stage first).'
+
     block-private-paths:
       run: bash scripts/hooks/block-private-paths.sh
       fail_text: 'Private path reference in public engine files. Engine is PUBLIC.'
