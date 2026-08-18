@@ -656,8 +656,11 @@ construction · each verified by reading the guarded path):
 
 1. `capabilities.rs check_any_last_in_scope` `skip(i + 1)` → `skip(i)` — the
    only extra element is `rules[i]` itself, which IS `Matcher::Any` (let-else
-   guard) and is excluded by the `!matches!(later, Any)` test.
-2. `pricing.rs validate_pricing` `(i + 1)..` → `i..` — the extra self-pair is
+   guard) and is excluded by the `!matches!(later, Any)` test. (cargo-mutants
+   27 spells this mutant `+` → `*`: `skip(i * 1)` ≡ `skip(i)` — the same
+   equivalence, re-measured 2026-08-18.)
+2. `pricing.rs validate_pricing` `(i + 1)..` → `i..` — (spelled `+` → `*` by
+   cargo-mutants 27: `(i * 1)..` ≡ `i..`, same equivalence) the extra self-pair is
    excluded by the `patterns[j] != patterns[i]` condition.
 3. `tags.rs validate_tags` `w[0] > w[1]` → `>=` — the equality case returns at
    the duplicate-tag check in the SAME loop iteration, so the sorted-order
@@ -675,5 +678,6 @@ construction · each verified by reading the guarded path):
 | Date | Author | Change |
 |---|---|---|
 | 2026-04-17 | Round 3 Gate 1 | Initial spec — extract codegen from `nika-catalog`. |
+| 2026-08-18 | stabilization sweep | Gate 5 re-measured (`cargo mutants -p nika-catalog-codegen -- --lib` · cargo-mutants 27 · 450 mutants · 8 unviable): 8 survivors = the 4 documented equivalents (two of them now spelled `+`→`*` by the newer operator set) + 4 REAL gaps in `is_iso_date` / `is_iso_month` (`\|\|`→`&&` survived because every refused probe broke two clauses at once). Single-broken-clause probes added (one wrong separator · one non-digit segment · a leading `+` that `u8::from_str` accepts · one out-of-range field) → 21/21 caught on the targeted run · budget stays 4 (nightly RED since 08-15 on this crate closes). |
 
 🦋
