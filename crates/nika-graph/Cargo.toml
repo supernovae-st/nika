@@ -9,8 +9,8 @@ description = "nika's canonical graph projection — graph_format: 2, typed edge
 repository  = "https://github.com/supernovae-st/nika"
 
 [dependencies]
-nika-schema = { path = "../nika-schema", version = "0.109.1" } # RawWorkflow — the parsed truth
-nika-check  = { path = "../nika-check", version = "0.109.1" }  # CheckReport · the analyzed truth this projects
+nika-schema = { path = "../nika-schema", version = "0.110.0-dev" } # RawWorkflow — the parsed truth
+nika-check  = { path = "../nika-check", version = "0.110.0-dev" }  # CheckReport · the analyzed truth this projects
 serde       = { workspace = true }                             # the wire shape (GraphDoc → JSON)
 
 
