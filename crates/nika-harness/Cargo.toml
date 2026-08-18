@@ -12,8 +12,8 @@ homepage.workspace     = true
 publish                = false  # Internal L1 effect crate.
 
 [dependencies]
-nika-kernel = { path = "../nika-kernel", version = "0.108.0" }
-nika-types  = { path = "../nika-types", version = "0.108.0" }
+nika-kernel = { path = "../nika-kernel", version = "0.109.0-dev" }
+nika-types  = { path = "../nika-types", version = "0.109.0-dev" }
 serde       = { workspace = true }
 thiserror   = { workspace = true }
 serde_json  = { workspace = true }

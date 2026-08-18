@@ -103,7 +103,7 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 |------------------|------------------------------------------------|
 | branch           | `fix/nika-check-descends-its-analysis-plane`                                      |
 | HEAD             | `7fd5085ad` (`7fd5085adee47f8686c65b5b6ed45f3b351c7403`)             |
-| workspace        | v0.108.0                                  |
+| workspace        | v0.109.0-dev                                  |
 | crates (workspace)| 66                                              |
 | crates (admitted)| 61                                             |
 | crates (WIP)     | 5 — nika-chart nika-fx nika-proof nika-store nika-harness                                  |
