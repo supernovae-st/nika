@@ -196,7 +196,9 @@ def main():
         ("nika-plugins", "release-heal.yml"),
         ("nika-registry", "release-heal.yml"),
         ("nika-vscode", "spec-pin-heal.yml"),
-        ("nika", "pack-resync.yml"),
+        # The pack rides the pin heal since 2026-08-18 (pack-resync.yml,
+        # which followed spec HEAD beside a pin behind it, is retired).
+        ("nika", "spec-pin-heal.yml"),
     ]
     for repo, wf in IMMUNE:
         got = grab(f"{RAW}/supernovae-st/{repo}/main/.github/workflows/{wf}", str,

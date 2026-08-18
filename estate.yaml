@@ -18,11 +18,11 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4472
+  classified_files: 4470
   file_rows: 11
   pattern_rows: 22
   by_class:
-    authored: 1535
+    authored: 1533
     authored-pin: 2
     generated: 122
     pinned-copy: 117
@@ -117,10 +117,10 @@ patterns:
   aggregate_sha256: 182f41db66cbee95baa893891b595b02070a3b3472cf502c95f957451500ac34
   evidence: "crates/nika-pack/src/lib.rs:16 'The snapshot under pack/ is vendored by scripts/sync-pack.sh' — a byte-copy of the spec surface, never edited here"
   derivation:
-    tool: "bash scripts/sync-pack.sh <nika-spec checkout> — healed daily by .github/workflows/pack-resync.yml (branch bot/pack-resync · PR-only, the 12-gate CI judges)"
+    tool: "bash scripts/sync-pack.sh <nika-spec checkout at SPEC_PIN> — the pack and the conformance pin are ONE identity: .github/workflows/spec-pin-heal.yml advances SPEC_PIN and re-vendors the pack in the same PR (bot/spec-pin · judged at the candidate pin before it opens), and the diamond-ci tests leg refuses a pack that differs from spec@SPEC_PIN (2026-08-18 · the daily pack-resync.yml that followed spec HEAD is retired: a pack at HEAD beside a pin behind it was two spec identities in one binary)"
     gate: "cargo test -p nika-pack → tests/pack_integrity.rs re-hashes every workflow (sha256_16 over lean text) against pack/examples/manifest.yaml"
     inputs:
-    - "supernovae-st/nika-spec@main: VERSION · QUICKSTART.md · canon.yaml · conformance/coverage-matrix.tsv · design/{tokens,motion}.yaml · spec/ · schemas/ · examples/ · templates/ · stdlib/*.md"
+    - "supernovae-st/nika-spec@SPEC_PIN: VERSION · QUICKSTART.md · canon.yaml · conformance/coverage-matrix.tsv · design/{tokens,motion}.yaml · spec/ · schemas/ · examples/ · templates/ · stdlib/*.md"
   note: "pack/examples/manifest.yaml is itself GENERATED upstream (spec scripts/showcase-projector.py) — vendored here as part of the copy"
 - glob: "crates/nika-runtime/fixtures/adversarial/**"
   class: testimonial
@@ -152,7 +152,7 @@ patterns:
 - glob: "crates/**/src/**"
   class: authored
   match_count: 772
-  aggregate_sha256: 76359149f0b72adc2af3966b16d8a1565e6b7e6cb76f39f35a5a06a002e1a910
+  aggregate_sha256: 20ad18fe905ff9f71846f8ad70e651cbf9163fcddb376e5e1a348107aa3f70b3
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
@@ -161,10 +161,10 @@ patterns:
   evidence: "crate-owned tests + fixtures under tests/ — written with the crate per gate discipline, no generation markers"
 - glob: "crates/**"
   class: authored
-  match_count: 139
-  aggregate_sha256: 3ebf98294553959d94b96c31bc76cb55d45a3378a082249f2e5d20dcb53c480b
+  match_count: 138
+  aggregate_sha256: 14533a16595aee52cb5cd6b376d8c1dde078bab1ec799b39142105b26f466bb1
   evidence: "the remaining crate surface — Cargo.toml manifests · build.rs · benches · READMEs · hand-curated data catalogs (llm-providers · mcp-servers · embeddings · model-capabilities, probed daily by catalog-verify.yml); the pricing snapshot is excepted in files:"
-  note: "crates/nika-pack/scripts/sync-pack.sh is a DIVERGENT older duplicate of scripts/sync-pack.sh — the pack-resync.yml lane runs the root one"
+  note: "scripts/sync-pack.sh is the ONE vendoring lane (the divergent crate-local duplicate crates/nika-pack/scripts/sync-pack.sh was deleted 2026-08-18)"
 - glob: "fuzz/**"
   class: authored
   match_count: 7
@@ -183,13 +183,13 @@ patterns:
 - glob: "scripts/**"
   class: authored
   match_count: 154
-  aggregate_sha256: 7d1be1fc48bedc0af16ac2f227dfdafcc9b469979dcb8daceabcfc15eb11f8eb
+  aggregate_sha256: be1f2f82aab703325ef54f25eb876d996ef21a8fb9171ce3841029cddceee650
   evidence: "hand-written gates · hooks · hygiene vectors · media lanes; the ratchet baselines (scripts/ci/*-baseline.txt · scripts/hygiene/baselines/) are hand-kept monotonic floors ('Never remove a line by hand')"
 - glob: ".github/workflows/**"
   class: authored
-  match_count: 22
-  aggregate_sha256: cbb728544d431f2a7bf4238984550e89d9b46f14c48cd2c73dd3a70729349a2a
-  evidence: "hand-written CI rails, comments narrate design decisions; the heal lanes here rewrite OTHER files (spec-pin-heal.yml → SPEC_PIN · pack-resync.yml → the pack · changelog-cliff.yml → CHANGELOG.md), nothing rewrites the workflows themselves"
+  match_count: 21
+  aggregate_sha256: 8e8db7f4005d2331d6348d37d460de09be6d4b2dc67095c07cfb09fa66d78c65
+  evidence: "hand-written CI rails, comments narrate design decisions; the heal lanes here rewrite OTHER files (spec-pin-heal.yml → SPEC_PIN + the pack · changelog-cliff.yml → CHANGELOG.md), nothing rewrites the workflows themselves"
 - glob: ".github/**"
   class: authored
   match_count: 10

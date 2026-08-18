@@ -74,7 +74,7 @@ mod tests {
             Some(catalog),
             "embedded canon.yaml `builtins:` count {embedded:?} is out of sync \
              with nika_catalog::all_builtins() ({catalog}) — re-vendor the pack \
-             from the spec SSOT (crates/nika-pack/scripts/sync-pack.sh)"
+             from the spec SSOT (scripts/sync-pack.sh <spec-checkout>)"
         );
     }
 }

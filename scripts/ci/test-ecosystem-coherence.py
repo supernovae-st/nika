@@ -63,7 +63,7 @@ def fixtures(*, tag="0.95.0", age_h=48.0, tap="0.95.0", site="0.95.0",
                             ("nika.sh","spec-resync.yml"),("nika-action","release-heal.yml"),
                             ("nika-actions-starter","release-heal.yml"),("nika-client","release-heal.yml"),
                             ("nika-plugins","release-heal.yml"),("nika-registry","release-heal.yml"),
-                            ("nika-vscode","spec-pin-heal.yml"),("nika","pack-resync.yml"))},
+                            ("nika-vscode","spec-pin-heal.yml"),("nika","spec-pin-heal.yml"))},
     }
 
 
