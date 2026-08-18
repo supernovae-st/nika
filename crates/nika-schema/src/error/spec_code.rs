@@ -258,6 +258,15 @@ impl SchemaError {
             // cleanup never enters G_p, so it can never be folded.
             Self::UnknownGroup { .. } => dag(8),
             Self::UnwindInGroup { .. } => dag(9),
+            // 02 §Agent Skills · a template or a glob can never resolve —
+            // the same AGENT-003 the compose-time read yields for a
+            // missing file (spec fixture verbs-shape/026).
+            Self::SkillPathNotStatic { .. } => SpecCode {
+                namespace: "AGENT",
+                num: 3,
+                category: ValidationError,
+                transient: false,
+            },
 
             // ── NIKA-BUILTIN · arg-shape contracts ─────────────────
             Self::BadBuiltinArgs { tool, .. } => builtin_spec_code(tool),
@@ -396,7 +405,7 @@ mod tests {
                 "{code} is emitted by the checker but NOT registered in the canon \
                  error_codes table — add the row to spec canon.yaml + \
                  spec/05-errors.md (the table is the SSOT · the engine derives), \
-                 then re-run crates/nika-pack/scripts/sync-pack.sh"
+                 then re-run scripts/sync-pack.sh <spec-checkout>"
             );
         }
     }

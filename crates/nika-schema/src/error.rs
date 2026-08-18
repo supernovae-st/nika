@@ -212,6 +212,24 @@ pub enum SchemaError {
         span: Option<Span>,
     },
 
+    /// A `skills:` entry that can never resolve — a `${{ }}` template
+    /// or a glob (spec 02 §Agent Skills · « paths are static » · the same
+    /// explicitness law as `permits:`). The typed `NIKA-AGENT-003` at
+    /// parse: it rode the generic PARSE-019 until 2026-08-18, while the
+    /// spec's fixture (verbs-shape/026) and its reference oracle named
+    /// the code the path deserves.
+    #[error(
+        "`skills` entry `{path}` {why} — skill paths are static (loaded at compose time, before any value exists · the same explicitness law as `permits:`)"
+    )]
+    SkillPathNotStatic {
+        /// The entry as written.
+        path: String,
+        /// Which shape disqualifies it (`carries a ${{ }} template` · `is a glob`).
+        why: &'static str,
+        /// Span of the entry.
+        span: Option<Span>,
+    },
+
     /// W2 · an out-of-set `after:` predicate (03 §after · `NIKA-DAG-005` · R5 dead spellings teach).
     #[error("{message}")]
     UnknownAfterPredicate {
@@ -780,6 +798,7 @@ impl SchemaError {
             | Self::D1StringCommand { span, .. }
             | Self::UnknownGroup { span, .. }
             | Self::UnwindInGroup { span, .. }
+            | Self::SkillPathNotStatic { span, .. }
             | Self::UnknownAfterPredicate { span, .. }
             | Self::RefOutsideBoundary { span, .. }
             | Self::UnresolvedNamespaceRef { span, .. }
@@ -890,6 +909,7 @@ schema_code!(SCHEMA_326, 326, "default-not-conforming");
 schema_code!(SCHEMA_327, 327, "run-contradiction");
 schema_code!(SCHEMA_328, 328, "unknown-group");
 schema_code!(SCHEMA_329, 329, "unwind-in-group");
+schema_code!(SCHEMA_330, 330, "skill-path-not-static");
 
 impl NikaErrorCode for SchemaError {
     fn nika_code(&self) -> NikaCode {
@@ -906,6 +926,7 @@ impl NikaErrorCode for SchemaError {
             Self::UnknownAfterPredicate { .. } => SCHEMA_317,
             Self::UnknownGroup { .. } => SCHEMA_328,
             Self::UnwindInGroup { .. } => SCHEMA_329,
+            Self::SkillPathNotStatic { .. } => SCHEMA_330,
             Self::RefOutsideBoundary { .. } => SCHEMA_318,
             Self::MissingVerb { .. } => SCHEMA_287,
             Self::MultipleVerbs { .. } => SCHEMA_288,

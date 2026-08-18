@@ -221,6 +221,10 @@ pub nika_schema::error::SchemaError::ReservedBindingName::task: alloc::string::S
 pub nika_schema::error::SchemaError::RunContradiction
 pub nika_schema::error::SchemaError::RunContradiction::class: nika_vocab::run::RunContradiction
 pub nika_schema::error::SchemaError::RunContradiction::span: core::option::Option<nika_source::span::Span>
+pub nika_schema::error::SchemaError::SkillPathNotStatic
+pub nika_schema::error::SchemaError::SkillPathNotStatic::path: alloc::string::String
+pub nika_schema::error::SchemaError::SkillPathNotStatic::span: core::option::Option<nika_source::span::Span>
+pub nika_schema::error::SchemaError::SkillPathNotStatic::why: &'static str
 pub nika_schema::error::SchemaError::TemplateSyntax
 pub nika_schema::error::SchemaError::TemplateSyntax::reason: alloc::string::String
 pub nika_schema::error::SchemaError::TemplateSyntax::span: core::option::Option<nika_source::span::Span>
@@ -1885,6 +1889,10 @@ pub nika_schema::SchemaError::ReservedBindingName::task: alloc::string::String
 pub nika_schema::SchemaError::RunContradiction
 pub nika_schema::SchemaError::RunContradiction::class: nika_vocab::run::RunContradiction
 pub nika_schema::SchemaError::RunContradiction::span: core::option::Option<nika_source::span::Span>
+pub nika_schema::SchemaError::SkillPathNotStatic
+pub nika_schema::SchemaError::SkillPathNotStatic::path: alloc::string::String
+pub nika_schema::SchemaError::SkillPathNotStatic::span: core::option::Option<nika_source::span::Span>
+pub nika_schema::SchemaError::SkillPathNotStatic::why: &'static str
 pub nika_schema::SchemaError::TemplateSyntax
 pub nika_schema::SchemaError::TemplateSyntax::reason: alloc::string::String
 pub nika_schema::SchemaError::TemplateSyntax::span: core::option::Option<nika_source::span::Span>
