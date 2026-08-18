@@ -48,7 +48,7 @@ files:
   note: "generated with a human gate — the maintainer may amend the section at PR review"
 - path: "Cargo.lock"
   class: generated
-  sha256: 9a6912dbc51fe09a2a65982041ffef4ed46ab5a0bc4c246660229b3e164286ab
+  sha256: be3dc18d9cdfe321646e6998857d9746525123b736b078c38e56e965e7f02367
   evidence: "cargo's resolver writes it; no human edits a lockfile"
   derivation:
     tool: "cargo (dependency resolution against Cargo.toml + crates/*/Cargo.toml)"
@@ -183,7 +183,7 @@ patterns:
 - glob: "scripts/**"
   class: authored
   match_count: 150
-  aggregate_sha256: a37bced46e69afacff334299dd0aff4056aa429427bf7f300a7148f67c8cb900
+  aggregate_sha256: d1d1c49a7122fc48b76b398867b8749d94e1401f46c2e4b1da4538891400901a
   evidence: "hand-written gates · hooks · hygiene vectors · media lanes; the ratchet baselines (scripts/ci/*-baseline.txt · scripts/hygiene/baselines/) are hand-kept monotonic floors ('Never remove a line by hand')"
 - glob: ".github/workflows/**"
   class: authored
@@ -237,7 +237,7 @@ patterns:
 - glob: "*"
   class: authored
   match_count: 28
-  aggregate_sha256: f3057844970d388911105a16a5f9f3b8c79c42fdc6bf51069a909bcd7716f7cc
+  aggregate_sha256: 548fdc1b250fd02b604725fb1e3215805fb6e152a7c0eb8c2423eb7dab54cf43
   evidence: "root prose + config surface (README · DIAMOND · LICENSE · llms.txt · Cargo.toml · deny/clippy/cliff/typos toml · lefthook.yml · flake.nix · Dockerfile) — no generation markers at file heads; CHANGELOG.md · Cargo.lock · SPEC_PIN · ROADMAP.md excepted in files:"
 - glob: "**"
   class: authored
