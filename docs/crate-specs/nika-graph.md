@@ -25,7 +25,9 @@ typed `{from, to, kind, predicate?, binding?}` — nodes are
 topologically sorted (wave order · stable layouts); `Node` carries the
 static facts only (verb · tool · resolved model · when · fan_out ·
 permits attribution · cost interval · retry/timeout/on_error · declared
-outputs); `edges[].kind` is a closed enum (`depends_on` today).
+outputs); `edges[].kind` is a closed enum (`value` · `terminal-observation` ·
+`failure-observation` · `control` · `recovery` · `finally` reserved — the
+declared `with:`/`after:` edges, spec 03 §graph-projection · format 3).
 
 Evolution law: a NEW field lands in spec 03 first, the format bump is
 additive, and this crate follows — never the reverse.

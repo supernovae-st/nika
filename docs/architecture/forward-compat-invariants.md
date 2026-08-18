@@ -87,16 +87,26 @@ version.
 **Example**:
 ```rust
 #[derive(Deserialize)]
-#[serde(tag = "nika")]               // single version marker · envelope `nika: v1`
-pub enum WorkflowDoc {
-    #[serde(rename = "v1")]
-    V1(WorkflowV1),
-    // v2 reserved · the `nika: v1` envelope is frozen forever · a contract break is effectively never
+#[serde(tag = "schema")]             // a version marker · e.g. `schema: nika/event@1`
+pub enum EventDoc {
+    #[serde(rename = "nika/event@1")]
+    V1(EventV1),
+    // v2 reserved · additive evolution first · a contract break is effectively never
 }
 ```
 
+> **The workflow envelope is the exception that proves the rule (ADR-113 ·
+> 2026-08-12).** Its `nika:` key held the literal `v1` for the whole life of
+> the contract — one legal value is zero bits, not a version — so the slot
+> now carries the file's IDENTITY (`nika: <kebab-id>`) and the envelope is
+> versioned by its CLOSED nine-key set (`nika` · `model` · `inputs` ·
+> `const` · `secrets` · `permits` · `run` · `tasks` · `outputs` · per
+> `nika-spec` 01-envelope · pre-1.0 changes happen inside, additive only
+> after engine 1.0.0). A parser dispatching on `nika: v1` dispatches on a <!-- stale-ok: names the dead value -->
+> value that no longer exists.
+
 **Locked schemas**:
-- `nika: v1` — current workflow envelope (single version marker · frozen forever · per nika-spec · supersedes the K8s `apiVersion:` + `schema: nika/workflow@X` forms)
+- the workflow envelope — nine keys · `nika: <kebab-id>` (ADR-113 · supersedes the single version marker of ADR-082 and the K8s `apiVersion:` + `schema: nika/workflow@X` forms)
 - `nika/pck@1` — pck manifest TOML
 - `nika/event@1` — event log JSON
 - `nika/memory-frame@1` — memory frame JSON (2.0 Connectome era)

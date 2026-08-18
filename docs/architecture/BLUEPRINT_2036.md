@@ -43,8 +43,8 @@ sources:
 > this doc is SUPERSEDED by the **4-verb canon** — `infer · exec · invoke ·
 > agent`. `fetch` is **not** a verb · fetching a URL is *calling a tool*, so
 > it is the `nika:fetch` builtin reached via `invoke`. The count is locked at
-> **4, absolute, forever** (a 5th would require a `nika: v2` LANGUAGE
-> envelope · the `nika: v1` envelope is frozen forever, so effectively
+> **4, absolute, forever** (a 5th would require a new LANGUAGE major ·
+> the nine-key envelope is frozen forever, so effectively
 > never). Public canon · `nika/spec/spec/02-verbs.md`.
 > Prior 5-verb prose preserved below as audit trail per
 > `cross-source-validation.md` §2.7 self-application amendment cascade — the
@@ -57,7 +57,7 @@ sources:
 2. **42-crate target HOLDS** via aggressive cluster-collapse — `nika-effects` merges 5 L1 effect crates · `nika-verbs` merges 4 verb crates · `init+lints+catalog-verify` collapse to `nika-cli` subcommands.
 3. **Memory cluster 1+9** preserves publishable-satellite discipline (per ADR-004 · external open-source value) · only place where fine-grained splits stay justified.
 4. **7-ADR queue** for 2026-2030 milestones — WASM Component Model plugin protocol · CRDT federation adapter · edge subset · multi-protocol gateway · 3 cluster-collapses.
-5. **Structural locks unchanged** — AGPL forever · real semver toward 1.0 (the `nika: v1` language envelope frozen forever · amended D-2026-06-20-N1) · RDF/SPARQL canonical · `Co-Authored-By: Nika 🦋` · 12-gate admission · zero-unwrap.
+5. **Structural locks unchanged** — AGPL forever · real semver toward 1.0 (the nine-key language envelope frozen forever · amended D-2026-06-20-N1) · RDF/SPARQL canonical · `Co-Authored-By: Nika 🦋` · 12-gate admission · zero-unwrap.
 
 ## §1 · 4-verb lock validation · 2036 horizon
 
@@ -134,7 +134,7 @@ Each row · Purpose (1 line) · LOC budget · Key deps · Trait surface · Gate 
 - `nika-error` · error taxonomy `NikaError` enum + NIKA-XXX codes · 3k LOC · `thiserror` `miette` (opt-in) · sealed `NikaError` variant enum · Gate 9 EXEMPT · ADMITTED
 - `nika-catalog` · capability vocabulary (105 MCP · 32 LLM providers · 13 embeddings) · 8-10k LOC · `nika-types` · `Catalog` query API + `ModelPricing` 7-axis · Gate 9 via canary-catalog.yaml fixtures · ADMITTED
 - `nika-catalog-codegen` · build-time codegen of catalog rust types · 2k LOC · `nika-catalog` `quote` · proc-macro (no runtime trait) · Gate 9 EXEMPT (build-tool) · ADMITTED
-- `nika-schema` · workflow YAML parser `nika: v1` envelope · 4-6k LOC · `serde_yaml` `nika-types` · `Workflow` parsed struct · Gate 9 via canary-workflows · WIP (W2 target)
+- `nika-schema` · workflow YAML parser · the nine-key envelope (`nika: <id>`) · 4-6k LOC · `serde_yaml` `nika-types` · `Workflow` parsed struct · Gate 9 via canary-workflows · WIP (W2 target)
 - `nika-event-types` · canonical event envelope shape (cross-product · per `olympus-platform-canonical.md`) · 1k LOC · `nika-types` · `Event` `EventKind` enum sealed · Gate 9 EXEMPT · PLANNED L0
 
 ### L0.5 · kernel (2 crates · monolithic forever per ADR-006)
@@ -567,7 +567,7 @@ Per `time-architecture.md` Layer 1 DECENNIAL · vision immutable in spirit · am
 ## §7 · Anti-fragility · what survives 10-yr stress
 
 Per `time-architecture.md` Layer 2 multi-year horizon · real semver toward 1.0 and beyond (amended D-2026-06-20-N1) ·
-- **`nika: v1` language envelope frozen forever** · the adopter contract survives every engine major · the real "v1" signal authors always saw
+- **the nine-key language envelope frozen forever** (`nika: <id>` since ADR-113 · the `v1` version slot died losslessly 2026-08-12) · the adopter contract survives every engine major
 - **AGPL-3.0-or-later** · forces share-alike on hosted forks · survives vendor capture attempts
 - **RDF/SPARQL canonical** · W3C standard since 2004 · still standard 2036
 - **4 verbs locked** · semantic taxonomy passes 10-yr stress test (§1)

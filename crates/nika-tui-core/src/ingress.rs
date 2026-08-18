@@ -98,7 +98,8 @@ pub struct Node {
     /// `timeout:` as milliseconds, when declared.
     #[serde(default)]
     pub timeout_ms: Option<u64>,
-    /// `on_error:` action — `recover` · `skip` · `fail_workflow`.
+    /// `on_error:` action — `recover` · `skip` (`fail_workflow` died
+    /// 2026-08-11 · the default IS failure and is not projected).
     #[serde(default)]
     pub on_error: Option<String>,
     /// Declared `output:` binding names, in source order.
