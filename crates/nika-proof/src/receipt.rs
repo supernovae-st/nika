@@ -435,8 +435,11 @@ pub fn explain_receipt(receipt: &Value) -> String {
             )
         };
         for entry in assertions {
-            let assert = entry["assert"].as_str().unwrap_or("?");
-            let level = entry["level"].as_str().unwrap_or("?");
+            // ARTIFACT-ORIGINATED · both ride the escape. They did not,
+            // for one seam out of four, while `scalar_text`'s doc declared
+            // the law held for the whole render.
+            let assert = escape_tty(entry["assert"].as_str().unwrap_or("?"));
+            let level = escape_tty(entry["level"].as_str().unwrap_or("?"));
             let _ = writeln!(out, "  {assert}  {level}");
         }
     }
@@ -507,7 +510,10 @@ fn bound_text(bound: Option<&Value>) -> String {
     let mut text = format!("≤ {constant}");
     if let Some(terms) = bound["terms"].as_array() {
         for term in terms {
-            let task = term["task"].as_str().unwrap_or("?");
+            // ARTIFACT-ORIGINATED · the fourth seam. `coeff` is a u64, so
+            // it cannot carry a control byte; `task` is a free string and
+            // could, and did.
+            let task = escape_tty(term["task"].as_str().unwrap_or("?"));
             let coeff = term["coeff"].as_u64().unwrap_or(0);
             let _ = write!(text, " + {coeff}·|{task}|");
         }
@@ -641,5 +647,67 @@ mod tests {
         // And the escape helper's own edges (the nika_dap twin's pin).
         assert_eq!(escape_tty("plain-key_1234"), "plain-key_1234");
         assert_eq!(escape_tty("\u{7f}\u{9b}"), "");
+    }
+
+    /// ⭐ THE SAME LAW, AT EVERY SEAM — the test above states it («no live
+    /// ESC reaches the TTY») and only ever poisons `trace_verdict.outcome`,
+    /// the ONE field that routes through `scalar_text`. Three other
+    /// artifact-originated strings reach `explain_receipt` raw:
+    /// the assertion's `assert` and `level`, and the bound term's `task`.
+    ///
+    /// A receipt is an UNTRUSTED artifact — `nika-trace` reads an arbitrary
+    /// file, `serde_json::from_str`s it with no schema and no control-byte
+    /// rejection, then explains it. So a third-party evidence pack writes
+    /// the operator's clipboard (OSC52) and forges lines with `\n` inside a
+    /// reading that presents itself as stable.
+    ///
+    /// A law applied at one seam out of four is not a law. This test
+    /// poisons EVERY seam, so it cannot pass while one of them leaks.
+    #[test]
+    fn every_artifact_string_reaches_the_tty_escaped() {
+        const OSC52: &str = "\u{1b}]52;;RVZJTA==\u{7}";
+        let poison = |tag: &str| format!("{tag}{OSC52}\nforged-line");
+
+        let mut r = build_receipt(
+            "blake3:fixedsem",
+            json!({"attempts": 1}),
+            json!({"outcome": "success"}),
+            vec![json!({
+                "assert": poison("A"),
+                "level": poison("L"),
+            })],
+            "blake3:lock",
+        );
+        // the bound term's task name — the fourth seam. It hangs under a
+        // BOUND AXIS (`certificate.task_attempts`), never under a bare
+        // `bound` key: the schema projection refuses what it does not name,
+        // and a fixture the schema rejects exercises nothing.
+        r["certificate"]["task_attempts"] =
+            json!({"constant": 1, "terms": [{"task": poison("T"), "coeff": 2}]});
+
+        let out = explain_receipt(&r);
+
+        for (label, byte) in [("ESC", '\u{1b}'), ("BEL", '\u{7}')] {
+            assert!(
+                !out.contains(byte),
+                "a live {label} reached the TTY · the escape covers one seam \
+                 out of four: {out:?}"
+            );
+        }
+        // ⚠️ Une assertion DÉCORATIVE vivait ici · `!out.contains('\n')
+        // .then_some(false).unwrap_or(false)` vaut `true` quoi qu'il arrive.
+        // Écrite par la main qui chasse ce défaut, dans le test qui le
+        // chasse. Retirée · la loi du saut de ligne est portée par la boucle
+        // ci-dessous, qui exige le texte CONTIGU (le `\n` du poison a donc
+        // été mangé, sinon les deux moitiés seraient séparées).
+        // The stripped text SURVIVES — the escape removes control bytes, it
+        // does not mangle. Each tag proves its own seam was covered.
+        for tag in ["A", "L", "T"] {
+            let want = format!("{tag}]52;;RVZJTA==forged-line");
+            assert!(
+                out.contains(&want),
+                "seam {tag} lost its text instead of being escaped: {out:?}"
+            );
+        }
     }
 }
