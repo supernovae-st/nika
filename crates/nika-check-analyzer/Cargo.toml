@@ -17,10 +17,10 @@ publish                = false  # Foundation crate — never on crates.io. See A
 # exemption). nika-schema the AST it analyzes · nika-types the suggest/type
 # relations its findings render · nika-cap the withheld-jq-native list the
 # compile-check refuses on · nika-vocab the dead-form teaching texts.
-nika-schema = { path = "../nika-schema", version = "0.109.1" } # the AST + parser + error voice this analyzes
-nika-types  = { path = "../nika-types", version = "0.109.1" }  # suggest (did-you-mean) · TypeExpr relations
-nika-cap    = { path = "../nika-cap", version = "0.109.1" }    # the withheld jq natives (`env` since 2026-08-15) the compile-check refuses on
-nika-vocab  = { path = "../nika-vocab", version = "0.109.1" }  # the dead-form teaching texts the scan surfaces
+nika-schema = { path = "../nika-schema", version = "0.109.2" } # the AST + parser + error voice this analyzes
+nika-types  = { path = "../nika-types", version = "0.109.2" }  # suggest (did-you-mean) · TypeExpr relations
+nika-cap    = { path = "../nika-cap", version = "0.109.2" }    # the withheld jq natives (`env` since 2026-08-15) the compile-check refuses on
+nika-vocab  = { path = "../nika-vocab", version = "0.109.2" }  # the dead-form teaching texts the scan surfaces
 
 serde_json = { workspace = true }
 # JSON Schema META-check (static · L0-legal: pure/sync · default-features=false

@@ -10,6 +10,29 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+## [0.109.2](https://github.com/supernovae-st/nika/compare/v0.109.1..v0.109.2) - 2026-08-19
+
+**The second refusal, one layer down.** `v0.109.1` fixed the fossil envelope
+in the release gates and died on both Linux builders one leg later:
+`[consent-run] exit=3 want=4` — since #889 (0.109.0) a workflow that
+declares `permits:` refuses to START on a host with no sandbox backend
+(`NIKA-1710`), and a GitHub Linux runner has no bubblewrap. The macOS
+builders, where seatbelt exists, passed both gates confined. No asset
+shipped under `v0.109.1` either; the binaries were fine both times. This
+patch is the same tree plus the second fix and is the version consumers
+install.
+
+### Fixed
+
+- **The Linux release builders install bubblewrap before the gates run
+  (release.yml).** The Diamond CI tests-leg recipe (apt bubblewrap · detach
+  ubuntu-24.04's AppArmor bwrap profile · keep unprivileged userns open) now
+  runs on the two Linux builders, so the funnel e2e and the trust battery
+  run CONFINED there exactly as they do on macOS — never a waiver. A gate
+  that spends an `exec` under `permits:` proves the jail as a side effect;
+  a host that cannot jail says so (`NIKA-1710`) instead of being waved
+  through.
+
 ## [0.109.1](https://github.com/supernovae-st/nika/compare/v0.109.0..v0.109.1) - 2026-08-19
 
 **The release the release gate refused.** `v0.109.0` was tagged from
