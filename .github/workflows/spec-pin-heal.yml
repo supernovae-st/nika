@@ -6,8 +6,9 @@ name: spec-pin-heal
 # identity (2026-08-18: the pack used to follow spec HEAD through its own
 # lane while the pin sat behind it, two spec identities in one binary; the
 # diamond-ci tests leg now refuses a pack that differs from spec@SPEC_PIN).
-# The job judges the candidate itself (nika-check + nika-pack suites at
-# the new pin) before it opens anything. Never a direct push. The healed
+# The job judges the candidate itself (the FULL battery — the same
+# check-tests.sh the tests leg runs — at the new pin) before it opens
+# anything. Never a direct push. The healed
 # files live at the repo root and under crates/, never under
 # .github/workflows/, so GITHUB_TOKEN can push them.
 # SECURITY: no github.event data is interpolated.
@@ -28,7 +29,7 @@ jobs:
       pull-requests: write # open the heal PR
     # Raised from 10: this job now RUNS the conformance suites before it opens
     # anything, instead of delegating that to a CI run that never comes.
-    timeout-minutes: 30
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # master
@@ -76,8 +77,16 @@ jobs:
           git add crates/nika-pack/pack
           python3 scripts/estate.py --write
           git add estate.yaml
-          echo "::group::conformance + pack integrity at the candidate pin"
-          if ! NIKA_SPEC_DIR="$PWD/../spec" cargo nextest run -p nika-check -p nika-pack --no-fail-fast; then
+          # THE SAME BATTERY THE TESTS LEG RUNS — never a crate list. The
+          # heal used to judge `-p nika-check` alone; eight crates read
+          # NIKA_SPEC_DIR (builtin · check · check-wasm · cli · dap · lints ·
+          # runtime · types), and on 2026-08-18 a pin the narrow judge had
+          # blessed reddened the tests leg through nika-cli's trace-witness
+          # suite. A judge that names its subjects misses the next one; the
+          # CI script (`CI=1 ./scripts/ci/check-tests.sh` → nextest workspace)
+          # is the one verdict, here and there.
+          echo "::group::the full battery at the candidate pin"
+          if ! NIKA_SPEC_DIR="$PWD/../spec" CI=1 ./scripts/ci/check-tests.sh; then
             echo "::endgroup::"
             echo "::error::the engine does not implement spec $head — pin NOT advanced, no PR opened"
             exit 1   # loud, not silent: a red cron run is the signal a human sees

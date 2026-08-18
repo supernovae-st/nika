@@ -157,7 +157,7 @@ patterns:
 - glob: "crates/**/tests/**"
   class: authored
   match_count: 154
-  aggregate_sha256: 87e6469e68666717f9d6a2d3a52e224ba284c816b9455225a1feb3ca3aee2ffa
+  aggregate_sha256: f23453effcdafe1e3e6cefd1486e8e5a057079785c5aad13c456e9cbc3e9be17
   evidence: "crate-owned tests + fixtures under tests/ — written with the crate per gate discipline, no generation markers"
 - glob: "crates/**"
   class: authored
@@ -188,7 +188,7 @@ patterns:
 - glob: ".github/workflows/**"
   class: authored
   match_count: 21
-  aggregate_sha256: 8e8db7f4005d2331d6348d37d460de09be6d4b2dc67095c07cfb09fa66d78c65
+  aggregate_sha256: 36dd66f5d11c1d15ebf0321aa0a78657dbcfa75c4226ae60a7853ab59887c799
   evidence: "hand-written CI rails, comments narrate design decisions; the heal lanes here rewrite OTHER files (spec-pin-heal.yml → SPEC_PIN + the pack · changelog-cliff.yml → CHANGELOG.md), nothing rewrites the workflows themselves"
 - glob: ".github/**"
   class: authored

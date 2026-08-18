@@ -83,7 +83,57 @@ fn runtime_trace_fixtures_hold_their_verify_verdict() {
                     out.text
                 );
             }
+            // 17 §the end of the run (NEP-0011 law 3): the chain walks and no
+            // lifecycle-terminal frame is reached — the READER classifies it
+            // `incomplete` (never success, never silently failure, never
+            // forgery) and the exit stays the tier ladder's. Fixture 004
+            // (spec b055676 · 2026-08-13); the harness knew four verdicts and
+            // panicked on the fifth, so the pin could not advance.
+            "incomplete" => {
+                assert_eq!(
+                    out.code, 0,
+                    "{name}: incomplete is not a verification failure: {}",
+                    out.text
+                );
+                assert!(
+                    out.text.contains("INCOMPLETE"),
+                    "{name}: the reader names the missing end: {}",
+                    out.text
+                );
+            }
+            // 15 §the verifier is a fortress (NEP-0012 law 1): a decode bound
+            // fired BEFORE the walk — total refusal, no walk verdict at all,
+            // and it exits nonzero where every walk verdict exits on the
+            // tier ladder. Fixture 005.
+            "refused" => {
+                assert_eq!(
+                    out.code, 2,
+                    "{name}: a refusal exits nonzero, before any walk: {}",
+                    out.text
+                );
+                assert!(
+                    !out.text.contains("chain intact"),
+                    "{name}: a refused journal has no walk verdict: {}",
+                    out.text
+                );
+            }
             other => panic!("{name}: unknown fixture verdict {other}"),
+        }
+        // The optional COST-REPLAY leg (15 §the semantic hash · the pinned
+        // pricing table): three arms, never gating the walk — asserted
+        // only when the fixture claims one (fixtures 001 · 006 · 007).
+        if let Some(cost) = expected["cost_replay"].as_str() {
+            let marker = match cost {
+                "replayed" => "COST-REPLAY — the pinned pricing table is this engine's",
+                "refused" => "COST-REPLAY — REFUSED",
+                "unrecorded" => "COST-REPLAY — unrecorded",
+                other => panic!("{name}: unknown cost_replay claim {other}"),
+            };
+            assert!(
+                out.text.contains(marker),
+                "{name}: cost_replay `{cost}` renders `{marker}`: {}",
+                out.text
+            );
         }
     }
     assert!(
