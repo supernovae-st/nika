@@ -35,10 +35,19 @@ trap 'rm -rf "$WORK"' EXIT
 fails=0
 cases=0
 
-RATCHETS='loc-limits crate-size fn-length unwrap expect dead-code
-no-default-features adr-coverage credential-headers'
+# DERIVED from the runner's own array, never a second copy: the runner's
+# header says a prose list beside the real one is a claim nothing checks,
+# and this fixture WAS that second copy — it listed nine names by hand and
+# went red the day a tenth ratchet (version-uniform · 2026-08-18) joined
+# the array, for no defect of the runner's.
+RATCHETS="$(sed -n '/^readonly RATCHETS=(/,/^)/p' "$ROOT/scripts/hooks/run-ci-ratchets.sh" \
+  | grep -oE "'[a-z-]+'" | tr -d "'" | tr '\n' ' ')"
+[ -n "$RATCHETS" ] || {
+  echo "cannot derive the RATCHETS array from run-ci-ratchets.sh" >&2
+  exit 1
+}
 
-# A tree with all nine declared ratchets present, executable, and green.
+# A tree with every declared ratchet present, executable, and green.
 seed_runner() {
   local dir="$1"
   mkdir -p "$dir/scripts/hooks" "$dir/scripts/ci"
@@ -125,7 +134,7 @@ expect_tests() {
 
 echo "scope-narrowing vectors · mutation proof"
 
-expect_runner GREEN "all nine declared ratchets run" runner_all_green
+expect_runner GREEN "all declared ratchets run" runner_all_green
 expect_runner RED "one ratchet not executable" runner_one_not_executable
 expect_runner RED "one ratchet missing" runner_one_deleted
 expect_runner RED "one ratchet genuinely fails (control)" runner_one_fails

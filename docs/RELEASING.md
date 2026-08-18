@@ -12,6 +12,35 @@ are one command each (they need a token only you hold).
 
 ---
 
+## 0. Stable and next — a version names ONE behavior family
+
+Two trains exist at any moment, and every surface says which one it serves:
+
+| train | identity | who reads it |
+|---|---|---|
+| **stable** | the newest tag (`git tag --sort=-v:refname \| head -1`) · immutable once published | brew · the Registry · nika-action · starters · docs/site "stable" · anyone who installed |
+| **next** | `main` at `<next>.0-dev` (a real semver prerelease) → `<next>.0-rc.N` → `<next>.0` | contributors · the spec/pack/VS Code integration train · docs/site "next" |
+
+`main` never identifies as the published version once its behavior has moved
+past it: the day the tree diverges materially (a language change · a new
+authority · a graph format · a refusal that shipped as an accept), open the
+next train —
+
+```bash
+bash scripts/release/wave-sweep.sh 0.109.0-dev --dev   # every carrier · no changelog fold
+```
+
+`nika --version`, the trace's `engine_version`, every path-dep pin and the
+kit trio then read `0.109.0-dev`; the Dockerfile teaching comment stays on
+the newest PUBLISHED version (it downloads a release tarball). CI's
+`version-uniform` ratchet proves the sweep is whole on every push. The rc
+sweep (`wave-sweep.sh 0.109.0-rc.1`) folds the changelog heading; the tag
+`v0.109.0-rc.1` must spell the workspace version exactly (release.yml refuses
+otherwise) and its assets carry the same string. Stable consumers move only
+when a tag they can install exists — never because `main` moved.
+
+---
+
 ## 1. Cut a binary release (fully automated)
 
 ```bash
@@ -108,7 +137,7 @@ npm publish                          # needs `npm login` (or NPM_TOKEN)
 
 ## Release checklist
 
-- [ ] workspace version bumped (`Cargo.toml`), `CHANGELOG.md` has the section
+- [ ] workspace version bumped (`Cargo.toml` · via `wave-sweep.sh`), `CHANGELOG.md` has the section · `scripts/ci/check-version-uniform.sh` OK
 - [ ] pushed tag matches the Cargo workspace version exactly (`release.yml` enforces it)
 - [ ] `scripts/refresh-status.sh` block + `ROADMAP.md` block in sync (vector 23)
 - [ ] `git tag vX.Y.Z && git push origin vX.Y.Z` → release workflow green
