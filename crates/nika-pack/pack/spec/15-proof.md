@@ -57,6 +57,17 @@ Cache and resume are **re-keyed semantically**: a result is reused iff
 the semantic identity matches — the same law the composition cache
 (14 §law 10) was waiting on.
 
+**The versioned rate table is part of the run's semantic pin**
+(normative) · a cost bound means nothing without the table it was
+computed against, so the table's version rides the pin the way the lock
+digest does. A replay reads cost against the **pinned** table and
+yields the identical budget verdict. A run whose pin lacks the table,
+or names a table version this engine does not know, **refuses the
+cost-meaning replay** — it never silently re-prices against today's
+numbers, which would rewrite yesterday's verdict and call it
+verification. The replay of EFFECTS is untouched: it is the budget
+claim, and only that, which needs the table.
+
 ## `nika.lock` · *the single lock (normative · F7)*
 
 One lockfile pins everything a run resolves, by **digest**:
@@ -213,6 +224,91 @@ receipt = (
 - The receipt is domain-separated (`receipt` domain) and Merkle-linked
   to the semantic hash it proves: given a receipt you can verify it
   proves *this* workflow and no other.
+
+**Every receipt field carries a readable projection** (normative) · the
+schema itself holds, per field, the stable human text that renders it;
+a new field WITHOUT one refuses the schema. The ratchet is the point —
+a proof surface grows only in forms a human can read, so the readable
+half can never fall behind the machine half.
+
+**And the projection is never the evidence.** Reading a receipt and
+verifying one are two acts at two trust levels: the rendered text is a
+convenience, the verification is the proof. A surface that lets the
+first pass for the second has quietly made prose authoritative.
+
+## The verifier is a fortress (normative · reading untrusted proof)
+
+The trace, the receipt and the seal exist to be **verified** — which
+makes the verifier the one component guaranteed to parse bytes an
+attacker chose. Everything it reads is untrusted input, including
+artifacts this engine produced a moment ago: an attacker who can write
+the file is the threat, not the producer.
+
+**The decode bounds are spec constants** — not engine folklore, so a
+second implementation inherits them instead of re-deriving them. Each
+one names **the surface it guards**: the two reading surfaces are the
+JOURNAL (a chained NDJSON walk) and the ARTIFACT (a receipt · a sidecar
+· an anchor token — one JSON document decoded whole), and a bound that
+guards one does not guard the other ·
+
+| Bound | Value | Surface | What it stops |
+|---|---|---|---|
+| line length | 1 MiB | journal, per line | one line beyond this is refused before the JSON parser sees it |
+| file size | 256 MiB | journal, whole | past this it is not a run this engine produced |
+| artifact size | 1 MiB | artifact | a receipt is kilobytes; the rest is a denial of service |
+| JSON nesting depth | 32 | artifact | unbounded recursion at decode |
+| proof-node count | 64 | artifact | a proof flood |
+| identifier length | 256 bytes | artifact | an identifier used to overflow a render |
+
+A THIRD reading surface has its own bounds and is not governed here:
+the workflow file an author writes, capped by the YAML profile
+([01 §YAML profile](./01-envelope.md) · depth and size caps · the
+`NIKA-YAML` namespace). Three readers, three bound sets — the authoring
+parser, the journal walk, the artifact decoder — and none of them
+inherits another's. A bound quoted without its reader is a bound
+enforced somewhere it does not belong.
+
+The split is not an accident of implementation, it is the shape of the
+two readers judged here. A journal is walked **line by line** and each line is
+bounded before it is parsed, so a hostile line costs one bound-check and
+nothing else; the structural bounds (depth · proof nodes · identifier
+length) belong to the reader that decodes a document **whole**, where
+recursion and fan-out are the attack. Stating a bound without its
+surface invites a second implementation to enforce it in the wrong
+place — which is both a false refusal and a real hole.
+
+The law (MUST) ·
+
+1. **Refusal is total.** An artifact past any bound is refused with a
+   **typed** class — `Oversized` · `TooDeep` · `Malformed` ·
+   `ProofFlood` · `IdOverflow` — never truncated, never partially
+   decoded, never repaired-and-continued. The order is fixed (size →
+   depth scan → parse → structural scan) so two implementations refuse
+   the *same* artifact for the *same* reason.
+2. **Bounds are code, on every build profile.** A bound carried by a
+   debug assertion is absent in the build that meets the attacker.
+3. **Recognize, never sanitize.** A malicious artifact is classified
+   and refused. A verifier that repairs hostile input into
+   acceptability becomes the vulnerability it was meant to catch — the
+   shotgun-parser diagnosis. Refusal classes are proven against a
+   golden corpus that lives with the implementation and runs on every
+   change; a crash, a hang or an overflow on that corpus is a defect of
+   the highest class, by definition.
+4. **The terminal is escaped, the machine surface is not.** Every
+   artifact-derived string rendered to a TTY has its C0, C1, DEL and
+   OSC/CSI sequences escaped: a title injection, a clipboard write or
+   hidden text is an attack that lands on the human, not on the
+   pipeline. `--json` and non-TTY output stay **byte-exact** — escaping
+   them would break the exactness the proofs depend on.
+5. **Two decoders, one verdict.** The reference decoder and an engine
+   decoder MUST render the same verdict over the same artifact. A
+   divergence is a defect of this specification until proven otherwise
+   — the discipline `nika.lock` already lives by, applied to the
+   reading side.
+
+Within bounds, nothing changes: an artifact that verified before
+verifies identically. Beyond them, behavior that was never a promise
+becomes a **named** refusal.
 
 ## Distribution (normative note · the local boundary · G35)
 

@@ -14,7 +14,7 @@
 #     NIKA-SEC-009): its one [headless-prompt] hint is the price
 #   - three gated tasks in one parallel wave
 #   - `with:` · value edges into one `infer:` with `retry:`
-#   - `const:` + typed `inputs:` with defaults · two of the three authorities
+#   - `const:` + typed `inputs:` with defaults · the four authorities in use
 #   - `permits:` · fs read/write, one host, one program, four tools
 #
 # Needs · ollama with the model pulled · `ollama pull llama3.2:3b`.

@@ -1623,8 +1623,8 @@ workflow whose conformance report is clean.
       "cost_interval": null, "on_error": "recover"
     },
     {
-      "id": "publish::finally:0", "kind": "finally", "parent": "publish", "ordinal": 0,
-      "verb": "exec", "when": null, "fan_out": null,
+      "id": "drop_temp", "kind": "finally", "verb": "exec",
+      "when": null, "fan_out": null,
       "permits": ["exec: /bin/rm"], "cost_interval": null, "timeout_ms": 30000
     }
   ],
@@ -1632,7 +1632,7 @@ workflow whose conformance report is clean.
     { "from": "gather", "to": "think", "kind": "value", "binding": "readme" },
     { "from": "think", "to": "publish", "kind": "control", "predicate": "success" },
     { "from": "gather", "to": "publish", "kind": "recovery" },
-    { "from": "publish", "to": "publish::finally:0", "kind": "finally" }
+    { "from": "publish", "to": "drop_temp", "kind": "finally" }
   ]
 }
 ```
@@ -1689,19 +1689,22 @@ forever. The window is a courtesy with an end, not a second format.
 
 ### Cleanup units are nodes (normative · new in format 3)
 
-Every `unwind` task is projected as a node. Before format 3 the cleanup units they succeeded
-were executed, they checked permits, and they emitted trace events — but
-they had **no place in the derived graph**, so every graph-shaped judge
+Every `unwind` task is projected as a node. Before format 3 they were
+executed, they checked permits, and they emitted trace events — but they
+had **no place in the derived graph**, so every graph-shaped judge
 (order · consent · flow) was blind to them while the runtime ran them.
 A judge that cannot see an effect carrier cannot govern it, and a green
 from such a judge is a claim about a subset.
 
+A cleanup unit is an ORDINARY task ([§unwind](#unwind--a-settle-state-on-after--cleanup-that-always-runs))
+— author-named, referenceable, described exactly like any other node.
+Only `kind` tells the two populations apart, which is the whole reason
+the field forced the bump.
+
 | Field | Rule |
 |---|---|
-| `id` | `<parent>::finally:<ordinal>` · ordinal is the 0-based declaration index. Not an author-visible name: `tasks.*` never resolves it, and `after:`/`with:` can never reference it. |
+| `id` | the author's task id — the same name `after: {…: unwind}` attaches to, and the same name a later cleanup chains from. Cleanup units are not anonymous. |
 | `kind` | `"finally"` |
-| `parent` | the task id this unit cleans up after |
-| `ordinal` | 0-based position among the tasks unwinding this producer |
 | `verb` · `permits` · `timeout_ms` | as for any node — `permits` is the reason this projection exists · `timeout_ms` defaults to 30000 (§unwind) |
 | `when` · `fan_out` · `cost_interval` | present-as-null · a cleanup unit takes no gate and no fan-out |
 
@@ -1709,9 +1712,9 @@ from such a judge is a claim about a subset.
 above) and never participate in cycle detection or wave assignment. A
 reader that adds them to a precedence graph is wrong. The edges are ·
 
-- parent → `::finally:0` · `kind: "finally"`
-- `::finally:<n>` → `::finally:<n+1>` · `kind: "finally"` (units run
-  sequentially in declared order)
+- producer → its cleanup task · `kind: "finally"`
+- cleanup → cleanup · `kind: "finally"` (a unit that attaches to another
+  unit chains after it, like anything else declaring `after:`)
 
 **Nodes are topologically sorted** in wave order (over G_p), and the order
 is stable across runs of the projector — stable input, stable layout.

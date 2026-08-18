@@ -74,13 +74,14 @@ Because the language is **statically analyzable by construction** (the DAG
 is acyclic, `for_each` is bounded, CEL is non-Turing, and effects are
 declared), a conformant engine can answer « what will this workflow do, cost,
 and touch? » with **zero API calls and zero tokens spent**. `nika check` is
-the canonical CLI surface for that (Core conformance + the four static
+the canonical CLI surface for that (Core conformance + the static
 guarantees below) ·
 
 | Guarantee | What it reports · zero execution | Backed by |
 |---|---|---|
 | **Plan** | the wave topology · which tasks run in parallel · the critical path | DAG waves (Core §2) |
 | **Cost ceiling** | the worst-case spend · `Σ (max_tokens × provider price)` across `infer:`/`agent:` tasks · before one token is spent | the `nika:inspect view: cost` model, run statically |
+| **Energy ceiling** | the worst-case watt-hours over the same tasks, per scope class · the honesty law below | a sourced `Wh` per million OUTPUT tokens, catalog data |
 | **Secret leak** | every `secrets.X` that flows into an `exec` capture or a tool whose output is bound (the masking boundary · [04 §secrets](./04-variables.md)) | reference graph |
 | **Capability escape** | any effect outside a declared `permits:` block: a write outside `fs.write`, a fetch to an unlisted host, an `exec` under `exec: false`, an unlisted tool | `permits:` ([01](./01-envelope.md)) |
 | **Provider parity** | (`--providers`) that the workflow uses zero provider-specific fields → the same `schema:` runs identically on all <!-- canon:providers -->17<!-- /canon --> providers (incl. the 5 local) | the closed verb-field set |
@@ -93,6 +94,65 @@ an engine CLI surface (not a separate conformance level: it composes Core
 validation with the cost/secret/permits/parity reports); the guarantees it
 surfaces ARE normative (they derive from Core conformance + the `permits:`
 and `secrets:` MUSTs), the CLI ergonomics around them are the engine's.
+
+### The spend-honesty law · *normative · cost and energy alike*
+
+The two spend readings are one doctrine in two units. Money is the
+volatile one — it rots with every price change and means nothing on a
+local provider; watt-hours are the durable one. Both speak **the same
+four words**, and neither may print a number that hides what it could
+not bound ·
+
+| Word | What it claims |
+|---|---|
+| **floor** (`≥`) | the provable minimum · the real figure can only be higher |
+| **ceiling** (`≤`) | the provable worst case · a task's declared cap × a sourced rate, summed over the bounded tasks |
+| **UNBOUNDED** | a task with no provable limit, **named** one by one, carrying the why (`no max_tokens declared` · the author can fix it) |
+| **unpriced** | the task will spend, and no sourced rate exists for its model |
+
+The law (MUST) ·
+
+1. **Name the bounded part, name every unbounded task, and never print
+   a total that hides either.** A surface that cannot honor this prints
+   nothing rather than a wrong number. The two rungs MUST read ONE
+   classification of the tasks — the same task has the same shape on
+   both — and an unbounded task is named **once**, not once per rung:
+   the second rung counts it and points at the first. Two adjacent
+   readings that describe one task differently teach the reader to
+   distrust both.
+2. **Unknown stays unknown.** A figure the engine cannot source renders
+   `unpriced`, never zero. A local model is `unpriced` — the operator's
+   watts — never « free ». Absence of a rate is not a rate of zero, and
+   `0` is the one rendering a reader takes as a promise.
+3. **A proven zero is not an unknown.** A task whose `for_each`
+   iterates a literal EMPTY collection provably never runs: it is
+   counted **never-run** and gets no row. A ceiling over a task that
+   cannot execute would be invented, and two adjacent rungs would
+   describe the same task differently. *(Measured residual, 2026-08-13 ·
+   `nika 0.108.0` — the ENERGY rung honours this; the COST rung still
+   prints such a task at `$0.0000`, so the two rungs do disagree about
+   it today. The `never-run` class exists on the energy arm only. The
+   law is the target for both.)*
+4. **Watt-hours sum inside a scope class and never across one.** An
+   energy fact declares what it covers — `gpu` (accelerator only) ·
+   `device` (whole host) · `fleet` (host + idle + datacenter overhead)
+   — and the same model differs by roughly 2× between the ends of that
+   ladder. A mixed workflow reports one subtotal per class: not a
+   refusal, and never a sum that describes nothing.
+5. **A figure carries its origin and its date, or it does not enter.**
+   Every energy rate is stated per million OUTPUT tokens (decode
+   dominates measured inference; a per-total figure would dilute the
+   number with nearly-free prefill), and rides a closed provenance —
+   `measured-local` · `independent-measured` · `vendor-claim` ·
+   `independent-estimate` — with the month it was measured. Modelling
+   may enter, wearing its label; it may never enter as a silent
+   default. Figures rot with hardware generations: a dateless or
+   sourceless one is refused rather than believed.
+
+The rate table itself is engine data, not language surface — as is any
+budget that *enforces* a ceiling (§Observability in
+[08](./08-out-of-scope.md) defers those). What is normative here is the
+reading: what a spend claim is allowed to say.
 
 ### Editor tooling · the canonical JSON Schema
 
@@ -243,6 +303,11 @@ conformance/
 │   │                          # durations · schema-meta · when shape · binding purity
 │   ├── lints/                 # advisory-lint fixtures
 │   ├── runtime/               # verb execution · task fields · events (behavioral half)
+│   │   ├── trace/            #   the journal, judged by the walk (a verdict)
+│   │   ├── receipt/          #   the receipt, judged by its reading (what projects)
+│   │   ├── registry/         #   a cache record × an operator floor, judged by admission
+│   │   ├── energy/           #   a workflow, judged by the energy reading it must report
+│   │   └── resume/           #   a journal × a compat declaration, judged by the version crossing
 │   └── stdlib/                # provider/extract/builtin canonical surface
 │
 ├── runner.py                  # the static oracle · `all` is the CI gate
