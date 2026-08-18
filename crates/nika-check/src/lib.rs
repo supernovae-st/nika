@@ -691,16 +691,15 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
             advice: miss,
         });
     }
+    // Named once: two readers now ask « did the body conform? » — the gated
+    // scans, and the legal-zero hint. Both must answer from the same fact,
+    // and a predicate spelled twice is a place for them to drift apart.
+    let conforms = conformance.is_empty();
     let (trifecta_findings, mut consent_scan, order_findings) =
-        gated_scans(wf, conformance.is_empty(), &edges, &topo_waves);
+        gated_scans(wf, conforms, &edges, &topo_waves);
     hints.extend(std::mem::take(&mut consent_scan.hints));
     let capability_escapes = permits_fit::scan_escapes(wf);
-    legal_zero_hint(
-        wf,
-        capability_escapes.is_empty(),
-        conformance.is_empty(),
-        &mut hints,
-    );
+    legal_zero_hint(wf, capability_escapes.is_empty(), conforms, &mut hints);
     let cost = cost::ceiling(wf);
     let (schema_findings, unverifiable_output_refs) = schema_typing::scan_types(wf);
     let schema_findings = drop_refs_the_coded_walk_refused(schema_findings, &conformance);
