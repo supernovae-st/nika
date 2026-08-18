@@ -11,7 +11,7 @@ homepage.workspace     = true
 publish                = false  # Internal L1.5 transformation layer.
 
 [dependencies]
-nika-types   = { path = "../nika-types", version = "0.109.0" }   # ExtractMode — the ONE closed vocabulary
+nika-types   = { path = "../nika-types", version = "0.110.0-dev" }   # ExtractMode — the ONE closed vocabulary
 htmd         = { workspace = true }   # markdown|article — HTML→Markdown (Apache-2.0)
 dom_smoothie = { workspace = true }   # article — Readability (MIT)
 scraper      = { workspace = true }   # text|selector|metadata|links — CSS-select DOM (ISC)
@@ -25,8 +25,8 @@ miette       = { workspace = true }
 
 [dev-dependencies]
 proptest  = { workspace = true }
-nika-http   = { path = "../nika-http", version = "0.109.0" }   # e2e: extraction over a REAL socket (L1.5→L1 downward)
-nika-kernel = { path = "../nika-kernel", version = "0.109.0" }  # e2e: the http seam types the client implements
+nika-http   = { path = "../nika-http", version = "0.110.0-dev" }   # e2e: extraction over a REAL socket (L1.5→L1 downward)
+nika-kernel = { path = "../nika-kernel", version = "0.110.0-dev" }  # e2e: the http seam types the client implements
 tokio     = { workspace = true, features = ["rt", "macros", "net", "io-util"] }
 
 [package.metadata.lore]
