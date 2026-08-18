@@ -11,20 +11,43 @@ on:
     branches: [main]
 
 concurrency:
-  group: diamond-${{ github.ref }}
+  # THE GROUP IS PER-SHA ON MAIN, PER-REF EVERYWHERE ELSE.
+  #
   # On a branch the next run REPLACES the previous one — cancelling saves
   # minutes and loses nothing. On main every commit is its own subject and
-  # must be judged before it is replaced. With a constant `github.ref`, two
-  # merges close together share one group and the first is cancelled unjudged,
-  # so a commit that breaks the build can go unmeasured while the RED surfaces
-  # on the next commit, usually innocent. Measured 2026-08-13: a two-line
-  # SPEC_PIN bump had its run cancelled 4 minutes later; the failure appeared
-  # on a docs commit, which cannot break a Rust suite.
+  # must be judged before it is replaced.
+  #
+  # `cancel-in-progress: false` was the first attempt at that (2026-08-13)
+  # and it is NOT enough: it protects a run that is RUNNING, never one that
+  # is QUEUED. GitHub keeps exactly one *pending* run per group and cancels
+  # the earlier one when a newer arrives — the flag does not apply, because
+  # that run was never in progress. Merges landing close together therefore
+  # still dropped main commits, which is the very thing the old comment here
+  # claimed to have fixed.
+  #
+  # Measured 2026-08-18 — mechanism, not correlation: FOUR of seven main runs
+  # cancelled in one evening, and the cancelled run 32166885428 (sha
+  # 6946fd36) carries `n_jobs: 0` — it never started a single job. The
+  # trigger is merge RHYTHM, not content: a session landing eight PRs
+  # manufactures its own cancellations. The failure is silent in the worst
+  # direction — no red and no green; an absent verdict reads like nothing to
+  # report.
+  #
+  # A per-sha group on main gives every commit its own queue, so there is
+  # nothing to evict. It costs parallel runs when merges are rapid; that is
+  # the price of judging each commit, and this repo already said that is the
+  # price it wants to pay.
+  #
   # An expression is supported here (GitHub's actions-group-concurrency docs
   # ship the `release/` example); a path filter is NOT — `concurrency` is
-  # evaluated at workflow level, before any job, with no changed-file context.
-  # No injection surface: this value is compared, never interpolated into a
-  # `run:` shell.
+  # evaluated at workflow level, before any job, with no changed-file
+  # context. No injection surface: `github.ref` and `github.sha` are
+  # repo-controlled, compared and concatenated into a GROUP NAME, never
+  # interpolated into a `run:` shell.
+  group: diamond-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
+  # Kept, and redundant on main by construction now (a per-sha group has no
+  # sibling to cancel). It stays because it is the load-bearing half on every
+  # OTHER ref, where the group IS shared across pushes.
   cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 permissions:
