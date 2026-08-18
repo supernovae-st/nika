@@ -15,7 +15,7 @@
 use std::path::{Path, PathBuf};
 
 use nika_check::analyze;
-use nika_schema::{FileId, ParseMode, SchemaError, SpecCode, parse};
+use nika_schema::{FileId, ParseMode, SchemaError, SpecCategory, SpecCode, parse};
 
 /// Resolve the nika-spec checkout (env override · sibling default).
 pub(crate) fn spec_dir() -> PathBuf {
@@ -140,14 +140,44 @@ pub(crate) fn check_extra(yaml: &str, mode: ParseMode, dir: &Path) -> Vec<SpecCo
             // resolve against the fixture directory (sibling files) — the
             // same reader shape the CLI injects.
             let root = dir.join("input.yaml").to_string_lossy().into_owned();
-            nika_check::check_composed(&wf, &root, &mut |p| {
+            let mut codes = nika_check::check_composed(&wf, &root, &mut |p| {
                 std::fs::read_to_string(p).map_err(|e| e.to_string())
             })
-            .extra_conformance_codes()
+            .extra_conformance_codes();
+            codes.extend(skills_codes(&wf, dir));
+            codes
         }
         // A parse error surfaces through `run_engine` (analyze) as a SchemaError.
         Err(_) => Vec::new(),
     }
+}
+
+/// The SKILLS lane (spec 02 §Agent Skills · check≡run): the same
+/// `nika_schema::resolve_skills` the CLI's `check` runs beside
+/// `check_composed`, with the reader rooted at the fixture directory —
+/// the file-relative resolution the spec names. Its findings carry the
+/// four codes of the table: AUTH-006 (absent block) · SEC-004 (declared
+/// boundary that does not admit the path) · AGENT-003 (missing) ·
+/// AGENT-004 (malformed). Until 2026-08-18 the harness never ran this
+/// lane, so the CLI refused verbs-shape/023-025 while the suite reported
+/// « engine accepted » and the spec pin could not advance.
+pub(crate) fn skills_codes(wf: &nika_schema::raw::RawWorkflow, dir: &Path) -> Vec<SpecCode> {
+    let resolved = nika_schema::resolve_skills(wf, &mut |p| {
+        std::fs::read_to_string(dir.join(p)).map_err(|e| e.to_string())
+    });
+    resolved
+        .findings
+        .iter()
+        .map(|f| match f.code {
+            "NIKA-AUTH-006" => SpecCode::new("AUTH", 6, SpecCategory::SecurityError),
+            "NIKA-SEC-004" => SpecCode::new("SEC", 4, SpecCategory::SecurityError),
+            "NIKA-AGENT-004" => SpecCode::new("AGENT", 4, SpecCategory::ValidationError),
+            // AGENT-003 and any future code the lane mints: the missing
+            // file is the default shape (a new code lands here loudly —
+            // the fixture names it and the arm below would mislabel it).
+            _ => SpecCode::new("AGENT", 3, SpecCategory::ValidationError),
+        })
+        .collect()
 }
 
 /// The CORE-tier check-only codes (`policy:` surface of spec 10 · F-O8's
@@ -161,13 +191,28 @@ pub(crate) fn check_core_codes(yaml: &str, mode: ParseMode, dir: &Path) -> Vec<S
     match parse(yaml, FileId::new(0), mode) {
         Ok(wf) => {
             let root = dir.join("input.yaml").to_string_lossy().into_owned();
-            nika_check::check_composed(&wf, &root, &mut |p| {
+            let mut codes = nika_check::check_composed(&wf, &root, &mut |p| {
                 std::fs::read_to_string(p).map_err(|e| e.to_string())
             })
-            .extra_conformance_codes()
-            .into_iter()
-            .filter(|c| {
-                matches!(c.namespace, "POLICY" | "AUTH" | "COMP")
+            .extra_conformance_codes();
+            codes.extend(skills_codes(&wf, dir));
+            codes
+                .into_iter()
+                .filter(|c| {
+                    matches!(c.namespace, "POLICY" | "AUTH" | "COMP")
+                    // 02 §Agent Skills · the skills lane is Core-visible:
+                    // its fixtures live in core/verbs-shape (023-026) and
+                    // core/authority/030, and the reference oracle judges
+                    // it on every tier (deep_static.agent_skills_errors).
+                    // Its SEC-004 (a declared boundary that does not admit
+                    // the path) stays the deep tier's, like every SEC-004.
+                    || c.namespace == "AGENT"
+                    // LAW-TEMPORAL-0435 · entropy: none × a live structural
+                    // randomness source (NIKA-PARSE-028) is Core-visible:
+                    // its fixture is core/envelope/028 and the reference
+                    // oracle judges it on every tier · the CLI's RUN rung
+                    // refused it all along, the harness never counted it.
+                    || (c.namespace == "PARSE" && c.num == 28)
                     // NEP-0006 · the data-as-code sink (NIKA-SEC-008) is a
                     // Core-visible law: the reference oracle judges it on
                     // every tier, so the core verdict must too — the REST
@@ -194,8 +239,8 @@ pub(crate) fn check_core_codes(yaml: &str, mode: ParseMode, dir: &Path) -> Vec<S
                     // core/order/, and a law no block can disable
                     // belongs to every tier or to none.
                     || (c.namespace == "SEC" && c.num == 15)
-            })
-            .collect()
+                })
+                .collect()
         }
         // A parse error (fixture 009's closed-set refusal) surfaces
         // through `run_engine` (analyze) as a SchemaError.
