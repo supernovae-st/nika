@@ -185,6 +185,33 @@ satisfies a `required: true` input · an undeclared key is refused before the
 run. See [01-envelope.md](./01-envelope.md#inputs--optional--typed-workflow-inputs)
 for the launch contract.
 
+**Every bound input carries its ORIGIN** (normative) · a value is not
+only *what* it is, it is *where it came from*, and the run records
+which ·
+
+| Origin | The channel that supplied the value |
+|---|---|
+| `cli-operator` | `--var name=value`, typed by a human at a terminal |
+| `ci-context` | `--var name=value` arriving through a pipeline — the caller is not a human |
+| `env` | `--var name=@env:VAR` · the **declared** environment channel, read through its explicit spelling |
+| `file` | the workflow's own declared `default:` filled the input |
+
+The origin **is journaled at boot** — it rides the prologue manifest
+([17 §the prologue](./17-trace.md)) — and from there rises into the run's
+evidence pack, so a proof answers *who supplied this* and not merely
+*what was supplied*. *(Measured 2026-08-13 · `nika 0.108.0`: `--var
+qui=…` at a terminal journals `inputs: {"qui":"cli-operator"}` and the
+pack reads `inputs.origins` with `source: "journal"`. The run RECEIPT —
+`receipt_format: 1`, whose folded shape is [15 §the one receipt](./15-proof.md)
+— does not carry origins; the claim belongs to the journal and the pack
+it feeds.)* The distinction that carries the
+weight is `env`: an environment value enters through a spelling the
+author wrote, never through an ambient guess — the same law the
+[`permits.env`](./01-envelope.md) passthrough enforces for child
+processes, applied to the launch surface. A pipeline and a person are
+likewise not the same caller, and a receipt that conflated them would
+lose the fact an auditor is looking for.
+
 ### `${{ const.X }}` · named constants
 
 ```yaml

@@ -126,3 +126,15 @@ authority	NIKA-AUTH-011	check-reject	conformance/tests/core/authority/028-lift-t
 authority	NIKA-AUTH-011	check-reject	conformance/tests/core/authority/029-lift-data-as-code-on-inert-refused
 authority	(positive)	positive-check	conformance/tests/core/authority/011-declassify-declared-opens-the-door
 authority	(positive)	positive-check	conformance/tests/core/authority/021-inert-door-declared-passes
+envelope	NIKA-PARSE-026	check-reject	conformance/tests/core/envelope/026-run-ambient-virtual-refused
+envelope	NIKA-PARSE-027	check-reject	conformance/tests/core/envelope/027-run-none-system-refused
+envelope	NIKA-PARSE-027	check-reject	conformance/tests/core/envelope/031-run-seeded-system-refused
+envelope	NIKA-PARSE-028	check-reject	conformance/tests/core/envelope/028-run-none-live-jitter-refused
+envelope	(positive)	positive-check	conformance/tests/core/envelope/025-run-ambient-system-passes
+envelope	(positive)	positive-check	conformance/tests/core/envelope/029-run-clock-virtual-alone-passes
+envelope	(positive)	positive-check	conformance/tests/core/envelope/030-run-none-virtual-passes
+envelope	(positive)	positive-check	conformance/tests/core/envelope/032-run-none-dead-jitter-passes
+verbs	NIKA-AGENT-003	check-reject	conformance/tests/core/verbs-shape/023-agent-skill-missing-refused
+verbs	NIKA-AGENT-003	check-reject	conformance/tests/core/verbs-shape/026-agent-skill-templated-path-refused
+verbs	NIKA-AGENT-004	check-reject	conformance/tests/core/verbs-shape/024-agent-skill-invalid-refused
+verbs	(positive)	positive-check	conformance/tests/core/verbs-shape/025-agent-skill-valid-passes

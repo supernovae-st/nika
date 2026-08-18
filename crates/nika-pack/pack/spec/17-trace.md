@@ -88,6 +88,23 @@ Version-2 fields (the observed set):
 
 An engine MAY add fields (additive law); it MUST NOT drop these.
 
+**The prologue is the run's BOOT MANIFEST** (normative) · beyond the
+identity above it names the CONTRACT the run booted under, so the
+journal self-describes what it ran by rather than leaving a reader to
+infer it ·
+
+| Field | Meaning |
+|---|---|
+| `spec_pin` | the spec commit this engine's conformance was proven at |
+| `stamper_kind` | the event-identity seam the `run:` declaration resolved to · `deterministic` \| `system` |
+| `clock` | the resolved run clock ([01](./01-envelope.md) §`run`) · `virtual` \| `system` |
+| `seed` | present exactly under a determinism demand (`seeded: N` → `N` · `none` → the zero stream); an ambient run carries **no** seed claim |
+
+**A manifest claims only what exists.** Where a fact has no recording
+surface the field is ABSENT and a reader says « unrecorded » — never a
+guessed value, never a fabricated zero. Absence is the honest claim,
+and the additive law above already makes it readable by older readers.
+
 ## The kind vocabulary (normative · closed per minor)
 
 Version 2 names exactly these kinds · additive per minor, never
@@ -133,12 +150,73 @@ the journal's frames speak the same boundary, and the conformance
 differential replays the same inputs through checker and engine and
 FAILS on any verdict divergence.
 
+## The end of the run (normative · the teardown seal and `incomplete`)
+
+The chain proves the sequence; the run's END is a separate claim, and
+it has three parts.
+
+**1 · The seal binds the teardown.** A `run_sealed` frame's `covers`
+object carries the classic four — the chain `head`, the frame `events`
+count, the `workflow` hash, the `engine` — and extends **additively**
+with the teardown facts: `receipt_digest` (the receipt folded at the
+seal instant, over this seal's own pre-seal chain facts), `budgets`
+(the consumed ρ, present only when metered — never a fabricated zero),
+and `effects` (the exercised ε beside the declared bound). A seal
+without teardown facts stays **byte-identical** to the classic
+four-field form and verifies exactly as before; a seal that carries
+them binds them under the same signature. One signature surface, not a
+second artifact.
+
+A failed run owes the same seal an **attested quarantine**: when it
+dies after producing partly-written outputs, the teardown names those
+artifacts and marks them quarantined, and a quarantined artifact
+re-entering as a later run's input is a finding. v1 owes the NAMING and
+the CONTAINMENT — not the undoing. Compensating actions across services
+are a different problem and stay out; what a half-written file must
+never do is pass for a whole one.
+
+**2 · A journal with no terminal frame is `incomplete`.** A chain walk
+that reaches no lifecycle-terminal frame (`workflow_completed` ·
+`workflow_failed` · `workflow_cancelled` · `workflow_paused` ·
+`run_sealed`) classifies the journal **`incomplete`** — and that
+classification is the READER's, never a frame the dying process emits.
+A process killed mid-flight cannot attest its own death: any protocol
+that asks it to is vacuous exactly when it matters, so the verifier —
+the only party guaranteed to exist at reading time — carries the name.
+
+`incomplete` is **never** success and **never** silently equal to
+failure or to forgery: the chain still binds, so the journal is
+honestly what it is — a run whose end is unknown. Before it had a
+name, « no verdict » was routinely read as « fine ».
+
+**3 · Judged ≠ booted is a refusal.** A check report stamped with the
+semantic hash of the workflow it judged must match the workflow the run
+is booting. On mismatch the run REFUSES **before its first frame** —
+zero events, no file (the lazy-open law above) — rather than producing
+a journal a reader must later distrust. The grain is SEMANTIC: a
+cosmetic edit (whitespace · a comment) re-keys nothing and never
+refuses; a content edit does, structure-preserving or not. An
+UNSTAMPED report skips the clause — the stamp is the producer's opt-in,
+and the trust backstops stand either way.
+
 ## The fold law (pointer)
 
 Every proof consumer reads THIS stream: the receipt folds from it
 ([15](./15-proof.md)), `--resume` replans from it, `nika trace
 show|replay` renders it, the verify walk re-hashes it. One stream, no
 side-channel.
+
+**Resuming across engine versions is judged, never assumed**
+(normative) · a journal records the `engine_version` that wrote it. A
+resume under a DIFFERENT engine is either an explicit refusal naming
+both versions, or a compatibility the operator DECLARES — and the
+declaration must name the recorded version exactly (a journal from
+before versioning is named `unrecorded`). A blanket force is not
+available, because a blanket force is precisely the silent degradation
+this law retires: the old implicit fallback quietly replanned an empty
+plan and called it a resume. The declared compatibility is journaled on
+the new run's boot manifest, so the attestation says under whose
+authority the versions were crossed.
 
 ## Conformance
 
@@ -150,6 +228,7 @@ A v1-conformant engine MUST ·
 4. Emit a terminal workflow frame (`workflow_completed` \| `workflow_failed` \| `workflow_cancelled` \| `workflow_paused`) and a terminal task frame per settled task
 5. Emit a `permit_checked` frame for every permit decision, granted and refused alike (NEP-0007 · the witness)
 6. Tolerate unknown members, fields, and kinds when READING a journal (the additive law · report « unrecorded », never guess)
+7. Classify a journal reaching no lifecycle-terminal frame as `incomplete` when READING it — never as success, never as forgery (§the end of the run)
 
 ---
 
