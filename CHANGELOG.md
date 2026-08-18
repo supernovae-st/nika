@@ -257,6 +257,19 @@ Stable consumers move only when a tag they can install exists.
 
 ### Changed
 
+- **`skills:` speaks the boundary's two codes, and a non-static path is
+  the typed `NIKA-AGENT-003`.** Under an absent `permits:` block a skill
+  read now refuses `NIKA-AUTH-006` (the invoke lane's spelling · zero
+  authority), keeping `NIKA-SEC-004` for a declared boundary that does not
+  admit the path (spec 02 §Agent Skills · the table); a `${{ }}` template
+  or a glob in a skill path is `NIKA-AGENT-003` at parse instead of the
+  generic PARSE-019. `SPEC_PIN` and the vendored pack move to nika-spec
+  `f308fa3` together: the pin heal now re-vendors the pack in the same PR
+  and the CI tests leg refuses a pack that differs from `spec@SPEC_PIN`
+  (the daily pack-resync that followed spec HEAD beside a pin behind it is
+  retired). The conformance harness runs the skills lane and counts
+  `NIKA-PARSE-028`, so it judges what `nika check` refuses.
+
 - **Evidence packs redact by default — the auditor gets hashes, not
   payloads.** `nika trace evidence` now builds a REDACTED pack unless
   `--full` is passed: every payload field of the copied journal (task

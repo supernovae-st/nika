@@ -134,6 +134,18 @@ const fn dag(num: u16) -> SpecCode {
     }
 }
 
+/// The `agent:` verb's own namespace (spec 02 §Agent Skills · AGENT-003
+/// « a skills: path does not resolve » — the parse-time half rides here,
+/// the compose-time half is minted by the skills lane as a string code).
+const fn agent(num: u16) -> SpecCode {
+    SpecCode {
+        namespace: "AGENT",
+        num,
+        category: SpecCategory::ValidationError,
+        transient: false,
+    }
+}
+
 const fn var(num: u16, category: SpecCategory) -> SpecCode {
     SpecCode {
         namespace: "VAR",
@@ -258,15 +270,7 @@ impl SchemaError {
             // cleanup never enters G_p, so it can never be folded.
             Self::UnknownGroup { .. } => dag(8),
             Self::UnwindInGroup { .. } => dag(9),
-            // 02 §Agent Skills · a template or a glob can never resolve —
-            // the same AGENT-003 the compose-time read yields for a
-            // missing file (spec fixture verbs-shape/026).
-            Self::SkillPathNotStatic { .. } => SpecCode {
-                namespace: "AGENT",
-                num: 3,
-                category: ValidationError,
-                transient: false,
-            },
+            Self::SkillPathNotStatic { .. } => agent(3), // 02 §Agent Skills · never resolves
 
             // ── NIKA-BUILTIN · arg-shape contracts ─────────────────
             Self::BadBuiltinArgs { tool, .. } => builtin_spec_code(tool),
