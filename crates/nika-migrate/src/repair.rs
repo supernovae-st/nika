@@ -37,11 +37,32 @@ pub fn word_sites(hay: &str, needle: &str) -> Vec<usize> {
     sites
 }
 
+/// Whether `token` has the SHAPE of something a splice may write into a
+/// workflow: a bare identifier · a `nika:` tool id · a dotted reference —
+/// never prose. A rename target that carries whitespace, a backtick or a
+/// `#` is a sentence that leaked out of a teaching, and splicing it makes
+/// a YAML key out of a diagnostic (measured 2026-08-18: `check --fix`
+/// wrote "the fields here: nika · model · …:" as a mapping key and the
+/// file stopped parsing; the shipped 0.108.0 did the same with the
+/// modeline teaching). The typed door upstream is the real fix — this is
+/// the byte-surgery site's own refusal, so no future caller can repeat it.
+#[must_use]
+pub fn is_splice_token(token: &str) -> bool {
+    !token.is_empty()
+        && !token
+            .chars()
+            .any(|c| c.is_whitespace() || c == '`' || c == '#')
+}
+
 /// Splice `old` → `new` in `source` ONLY when `old` occurs EXACTLY ONCE
-/// as a whole word ([`word_sites`] — the unique-site gate). Returns
-/// whether it applied; an ambiguous or absent token leaves the source
-/// untouched.
+/// as a whole word ([`word_sites`] — the unique-site gate) AND `new` has
+/// the shape of a token ([`is_splice_token`] — never prose). Returns
+/// whether it applied; an ambiguous or absent token, or a prose target,
+/// leaves the source untouched.
 pub fn splice_unique(source: &mut String, old: &str, new: &str) -> bool {
+    if !is_splice_token(new) {
+        return false;
+    }
     if let [at] = word_sites(source, old)[..] {
         source.replace_range(at..at + old.len(), new);
         true
@@ -107,6 +128,33 @@ mod tests {
         let mut s2 = "a: { promt: 1 }\nb: { promt: 2 }".to_owned();
         assert!(!splice_unique(&mut s2, "promt", "prompt"));
         assert!(s2.contains("promt: 1"), "ambiguous stays untouched");
+    }
+
+    #[test]
+    fn splice_unique_refuses_a_prose_target() {
+        // The corruption class: a teaching sentence offered as a rename.
+        // The old token is unique — the splice would apply — and the
+        // ONLY thing standing between the sentence and the file is the
+        // token-shape gate. Removing it makes this test fail (the source
+        // would then carry the sentence as a key).
+        let body = "nika: v1\nworkflow:\n  id: hello\ntasks:\n  say:\n    exec: {}\n";
+        let mut s = body.to_owned();
+        let prose = "the fields here: nika · model · inputs · const · secrets · permits · run · tasks · outputs";
+        assert!(!splice_unique(&mut s, "workflow", prose));
+        assert_eq!(s, body, "a prose target never touches the source");
+        let mut s2 = body.to_owned();
+        assert!(!splice_unique(
+            &mut s2,
+            "workflow",
+            "restore the `# ` prefix"
+        ));
+        assert_eq!(s2, body);
+        // The shapes a repair legitimately writes all pass.
+        assert!(is_splice_token("prompt"));
+        assert!(is_splice_token("nika:write"));
+        assert!(is_splice_token("tasks.build"));
+        assert!(!is_splice_token(""));
+        assert!(!is_splice_token("two words"));
     }
 
     #[test]

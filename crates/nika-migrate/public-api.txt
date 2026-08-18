@@ -1,5 +1,6 @@
 pub mod nika_migrate
 pub mod nika_migrate::repair
+pub fn nika_migrate::repair::is_splice_token(token: &str) -> bool
 pub fn nika_migrate::repair::splice_unique(source: &mut alloc::string::String, old: &str, new: &str) -> bool
 pub fn nika_migrate::repair::word_sites(hay: &str, needle: &str) -> alloc::vec::Vec<usize>
 pub fn nika_migrate::repair::write_atomic(path: &str, contents: &str) -> core::io::error::Result<()>
