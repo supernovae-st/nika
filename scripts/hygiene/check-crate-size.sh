@@ -54,8 +54,21 @@ BAND_OUTPUT=$(CRATE_SIZE_MAX="$WARN_AT" bash scripts/ci/check-crate-size.sh 2>&1
 BAND_STATUS=$?
 
 if [ "$BAND_STATUS" -ne 0 ]; then
-  printf "YELLOW: crate(s) in [%d, 15000) LOC range (the descent window):\n" "$WARN_AT"
-  echo "$BAND_OUTPUT" | grep '^FAIL' | sed -E "s/^FAIL  (.*)  ([0-9]+) LOC .*/  \1: \2 LOC (≥ $WARN_AT warn)/"
+  # The dashboard (check-all.sh) shows ONE line per vector — the FIRST one.
+  # A generic band header therefore printed 12001 and 14995 identically, and
+  # the band's whole purpose is that the red is not discovered AT the push.
+  # Measured 2026-08-18 · nika-check sat at 14995/15000 (5 LOC of headroom)
+  # and read, on the dashboard, exactly like a crate with 3000 to spare.
+  # So the header carries the TIGHTEST crate and its remaining headroom.
+  BAND_ROWS=$(echo "$BAND_OUTPUT" | grep '^FAIL' \
+    | sed -E 's/^FAIL  ([^ ]+)  ([0-9]+) LOC .*/\2 \1/' | LC_ALL=C sort -rn)
+  BAND_N=$(printf '%s\n' "$BAND_ROWS" | grep -c .)
+  TIGHT_LOC=$(printf '%s\n' "$BAND_ROWS" | head -1 | cut -d' ' -f1)
+  TIGHT_CRATE=$(printf '%s\n' "$BAND_ROWS" | head -1 | cut -d' ' -f2)
+  printf "YELLOW: %d crate(s) in the descent window · tightest %s at %d/15000 — %d LOC of headroom\n" \
+    "$BAND_N" "$TIGHT_CRATE" "$TIGHT_LOC" "$((15000 - TIGHT_LOC))"
+  printf '%s\n' "$BAND_ROWS" \
+    | awk '{ printf "  %s: %s LOC · %s left before the wall\n", $2, $1, 15000-$1 }'
   echo ""
   echo "Hint: the wall is where a push BLOCKS — plan the descent in a calm"
   echo "window instead: one unit, two members, boundary drawn with an ADR"
