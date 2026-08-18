@@ -33,8 +33,21 @@
 # Set NIKA_SKIP_FILTER_SELFTEST=1 only inside the self-test itself (it
 # sources this file, and must not recurse).
 _lib_prove_filter() {
-  local selftest="${BASH_SOURCE[0]%/*}/test-strip-test-items.sh"
+  # TWO filters ship from this file and both decide what the ratchets see:
+  # `strip_test_items` hides test items INSIDE a file, `rs_prod_files` hides
+  # whole FILES. Each has its own self-test and each must prove itself, or the
+  # ratchets built on it render a verdict they cannot back.
+  local selftest
   [ -n "${NIKA_SKIP_FILTER_SELFTEST:-}" ] && return 0
+  for selftest in \
+    "${BASH_SOURCE[0]%/*}/test-strip-test-items.sh" \
+    "${BASH_SOURCE[0]%/*}/test-rs-prod-files.sh"; do
+    _lib_prove_one "$selftest"
+  done
+}
+
+_lib_prove_one() {
+  local selftest="$1"
   # Fail CLOSED. This read `[ -x "$selftest" ] || return 0`, which skipped the
   # proof and reported success when the self-test was absent OR merely not
   # executable — so `chmod -x` on one file disarmed four ratchets at once and
@@ -58,11 +71,80 @@ rs_src_files() {
   git ls-files '*.rs' | grep -E '(^|/)src/' | grep -vE '(^|/)(tests|benches|examples)/' || true
 }
 
-# Like rs_src_files but also excludes files whose basename is `tests.rs`
-# (convention: `src/tests.rs` and `src/foo/tests.rs` are 100% test code).
+# List src files whose MODULE is declared under `#[cfg(test)]` — test-only by
+# construction: the compiler never builds them outside a test profile, whatever
+# their basename.
+#
+# `rs_prod_files` has always promised to "mirror clippy's `#[cfg(test)]`
+# exclusion" and until 2026-08-18 delivered only the `tests.rs` BASENAME half.
+# The other half leaked: 951 lines of test-only code across five crates were
+# charged to the production budget — nika-providers 638 (`parity_tests.rs` ·
+# `test_support.rs`) · nika-dap 122 (`anchor/fixtures.rs`) · nika-runtime 109
+# (`adversarial/mod.rs`, whose own doc says "Test-only: no public surface, no
+# production code") · nika-trace 58 · nika-verb-infer 24. That is a MISCOUNT,
+# not a budget: the promise was already written above the function.
+#
+# The exemption is TIGHTENED, not merely widened: a module declared under
+# `#[cfg(test)]` in one place AND normally in another stays production. A
+# declaration only counts when `#[cfg(test)]` is the attribute that reaches it
+# (other attributes and comments may sit between), so `#[cfg(test)] use …`
+# never triggers it.
+rs_test_only_files() {
+  rs_src_files | python3 -c '
+import os, re, sys
+
+files = [l.strip() for l in sys.stdin if l.strip()]
+known = set(files)
+
+DECL = re.compile(r"^\s*(?:pub(?:\([^)]*\))?\s+)?mod\s+([a-z_][a-z0-9_]*)\s*;")
+CFG  = re.compile(r"^\s*#\[cfg\(test\)\]\s*$")
+ATTR = re.compile(r"^\s*(#\[|//)")
+
+test_roots, prod_roots = set(), set()
+
+for f in files:
+    try:
+        lines = open(f, encoding="utf-8", errors="replace").read().split("\n")
+    except OSError:
+        continue
+    stem = os.path.basename(f)[:-3]
+    moddir = os.path.dirname(f) if stem in ("mod", "lib", "main") \
+             else os.path.join(os.path.dirname(f), stem)
+    pending = False
+    for ln in lines:
+        if CFG.match(ln):
+            pending = True
+            continue
+        if not ln.strip() or ATTR.match(ln):
+            continue                      # attributes/comments do not break the pairing
+        m = DECL.match(ln)
+        if m:
+            (test_roots if pending else prod_roots).add(os.path.join(moddir, m.group(1)))
+        pending = False
+
+out = set()
+for r in sorted(test_roots - prod_roots):   # declared BOTH ways ⇒ stays production
+    out.add(r + ".rs")
+    out.add(os.path.join(r, "mod.rs"))
+    out.update(f for f in files if f.startswith(r + os.sep))
+
+for f in sorted(out & known):
+    print(f)
+' || true
+}
+
+# Like rs_src_files but also excludes (a) files whose basename is `tests.rs`
+# (convention: `src/tests.rs` and `src/foo/tests.rs` are 100% test code) and
+# (b) files whose module is declared under `#[cfg(test)]` (see above).
 # Use this for ratchets that should mirror clippy's `#[cfg(test)]` exclusion.
 rs_prod_files() {
-  rs_src_files | grep -vE '(^|/)tests\.rs$' || true
+  local excluded
+  excluded="$(rs_test_only_files)"
+  if [ -z "$excluded" ]; then
+    rs_src_files | grep -vE '(^|/)tests\.rs$' || true
+  else
+    rs_src_files | grep -vE '(^|/)tests\.rs$' | grep -vxF "$excluded" || true
+  fi
 }
 
 # List every tracked .rs file (any location).
