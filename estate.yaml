@@ -178,7 +178,7 @@ patterns:
 - glob: "docs/**"
   class: authored
   match_count: 106
-  aggregate_sha256: dab692d83eb321468f3619a6febc520d34c59bced2942a863723385c062d9b43
+  aggregate_sha256: a1f0bf5a1caed2eaf600c59c2400b41f885fb5089c070d4c02f2c407eb176bcf
   evidence: "crate-specs · architecture prose · perf notes — no generation markers at file heads"
 - glob: "scripts/**"
   class: authored
