@@ -22,6 +22,7 @@ pub(crate) mod envelope;
 pub(crate) mod envelope_values;
 pub(crate) mod for_each;
 mod lift;
+mod retired;
 pub(crate) mod tasks;
 mod value;
 pub(crate) mod verbs;
@@ -366,21 +367,19 @@ pub(super) struct Cx<'a> {
 /// `config:` died" (the check analyzer), "It rides `inputs:` now"
 /// (`permit_taint`), and #909's own diff comment.
 fn retired_key_teaching(key: &str, location: &str) -> Option<&'static str> {
-    // Envelope-scoped on purpose: the same word is a plausible field name
-    // inside a task body or a future block, and teaching the envelope's
-    // migration there would send a repairer the wrong way.
-    if !location.contains("envelope") {
-        return None;
+    // Scoped on purpose, and symmetric: the same word is a plausible field
+    // name in another block (`output` reads fine inside `exec:` · `types`
+    // fine in a future block), and teaching one block's migration inside
+    // another would send a repairer the wrong way. Two scopes retired keys
+    // in the 2026-08-11/13 sweep — the envelope and the task body — and
+    // each arm fires in ITS scope only.
+    if location.contains("envelope") {
+        return retired::envelope(key);
     }
-    match key {
-        "config" => Some(
-            "this key shipped in the fourteen-key envelope and died with the \
-             nine-key one (2026-08-13) — a deployment-supplied value is now an \
-             `inputs:` entry with `required: false` and a `default:`; a value \
-             baked into the file is a `const:` entry",
-        ),
-        _ => None,
+    if location.starts_with("task `") {
+        return retired::task(key);
     }
+    None
 }
 
 impl Cx<'_> {
