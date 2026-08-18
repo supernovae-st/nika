@@ -129,9 +129,9 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| branch           | `fix/nika-check-descends-its-analysis-plane`                                      |
-| HEAD             | `7fd5085ad` (`7fd5085adee47f8686c65b5b6ed45f3b351c7403`)             |
-| workspace        | v0.109.0-dev                                  |
+| branch           | `chore/release-0.109.0`                                      |
+| HEAD             | `ca61bf624` (`ca61bf624f7c08a1e0788091ab4701664a4c23e4`)             |
+| workspace        | v0.109.0                                  |
 | crates (workspace)| 66                                              |
 | crates (admitted)| 61                                             |
 | crates (WIP)     | 5 — nika-chart nika-fx nika-proof nika-store nika-harness                                  |
@@ -142,7 +142,7 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 | L2               | 5                                              |
 | L3               | 1                                              |
 | L4               | 12                                              |
-| lib tests        | 5843 passed, 0 failed                              |
+| lib tests        | 5870 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
 
 Narrative context (manually maintained):

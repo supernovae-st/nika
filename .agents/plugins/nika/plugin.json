@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "nika",
-  "version": "0.109.0-dev",
+  "version": "0.109.0",
   "description": "Nika — intent-as-code for AI workflows: author a reviewable DAG in YAML, audit cost and permits before running, keep tamper-evident traces after. This package carries the authoring, debugging, operating and migration skills plus the read-only Nika MCP oracle. Requires the nika binary: brew install supernovae-st/tap/nika",
   "author": {
     "name": "SuperNovae Studio",

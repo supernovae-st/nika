@@ -38,9 +38,10 @@ without an explicit operator decision.
    fuzz/Cargo.lock
    ```
 
-   Then `bash scripts/refresh-status.sh` and paste its block into
-   `ROADMAP.md` and `.claude/CLAUDE.md` · the script PRINTS, it never
-   writes. Vector 23 refuses a tag while those blocks name the old
+   Then `bash scripts/refresh-status.sh --write` · it regenerates the block
+   AND writes it into `ROADMAP.md` and `.claude/CLAUDE.md` (the loop closed
+   2026-08-14 · before that the script only printed and two releases carried
+   a stale HEAD). Vector 23 refuses a tag while those blocks name the old
    version; **vector 47** refuses one while any surface above disagrees.
    Run `bash scripts/hygiene/check-all.sh` before tagging: both fire
    there, and both were earned by a release that shipped without them.

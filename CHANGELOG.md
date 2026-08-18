@@ -10,6 +10,106 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+## [0.109.0](https://github.com/supernovae-st/nika/compare/v0.108.0..v0.109.0) - 2026-08-18
+
+**The nine-key release.** The envelope shrinks from fourteen keys to nine and
+a workflow written for 0.108.0 will not check on 0.109.0 · this is the flag-day
+the 0.106.0 front page announced as possible, and it lands whole. The identity
+moves onto `nika:` itself (`nika: <id>` · a kebab-case name · the `workflow:`
+block, its `id:` and its `description:` are gone), the value authorities are
+exactly three (`inputs` · `const` · `secrets` · `config:` died with the block),
+`types:` · `policy:` · `assert:` leave the envelope, and the task body loses
+its second grammars: cleanup is a real task on an `unwind` edge (`on_finally:`
+is dead · `graph_format: 3` carries the `finally` node), `output:` is spelled
+`extract:`, `declassify:` and `inert:` merge into one door (`lift:`),
+`fail_workflow` is gone (`on_error` is `recover` or `skip`), the two fan-out
+knobs live INSIDE `for_each:`, and `group:` arrives (fan-in · `NIKA-DAG-008`).
+Two P0 close at the surface users install: an expression sees only its INPUT
+(the ambient `env` leaves the jaq function set at the three seams, with a
+pinned inventory of natives that reddens if a future jaq adds one), and a
+third-party receipt can no longer write the operator's clipboard (every field
+rides `escape_tty`). The refusal a 0.108.0 file meets first now TEACHES where
+each retired key's role went, instead of `unknown field`.
+
+### ⚠️ Migration
+
+#### 1 · The envelope · fourteen keys become nine (LOT 2 · ADR-113 · #909 and the sweep of 2026-08-11/13)
+
+The live envelope is `nika` · `model` · `inputs` · `const` · `secrets` ·
+`permits` · `run` · `tasks` · `outputs`. Every other top-level key refuses,
+and the refusal names the destination:
+
+| Dead form | Write instead | The teaching |
+|---|---|---|
+| `nika: v1` + `workflow: { id, description }` | `nika: <id>` (kebab-case) · the description as a `#` comment above it | the identity IS the envelope key · prose is demoted, never dropped |
+| top-level `description:` | a `#` comment above `nika:` | shipped twice (bare · inside `workflow:`) · both dead |
+| `config:` | an `inputs:` entry with `required: false` and a `default:` | a deployment-supplied value is an input with a default · authorities are exactly three |
+| `types:` (`NIKA-TYPE-002` retired) | the verb's `schema:` (structured output) · a task's `returns:` | a shape rides its consumer · the ten primitives stay lowercase (spec 09) |
+| `policy:` | `permits:` (`fs` · `net` · `exec` · `tools`) · `secrets:` · the unconditional laws (spec 10 · `NIKA-SEC-015` net-before-exec) | a vocabulary is not a policy · what survived is the boundary |
+| `assert:` | nothing in the file · `nika trace verify` (spec 15) | obligations are proven on the sealed trace |
+
+#### 2 · The task body · one grammar per thing
+
+| Dead form | Write instead |
+|---|---|
+| `on_finally:` mini-tasks | a task of its own · `after: { <parent>: unwind }` (a `finally` node · `graph_format: 3`) · every graph judge governs it because it walks `wf.tasks` |
+| `output:` | `extract:` (same shape) |
+| `declassify:` list · `inert:` string | `lift:` (the law is a parameter of one door · spec 10 §the authored doors) |
+| `on_error: { fail_workflow: true }` | nothing · the default IS the failure · `on_error` is `recover` or `skip` |
+| task-level `max_parallel:` · `fail_fast:` | inside the block · `for_each: { items: …, max_parallel: N, fail_fast: false }` |
+| `depends_on:` | `with:` bindings (the binding IS the edge) · `after: { x: success }` for control (`NIKA-PARSE-024` · unchanged since W2) |
+| `graph_format: 2` pins (`*.graph.json` goldens) | regenerate · `nika inspect --format json` · never edit a projection by hand |
+
+#### 3 · What `nika check --fix` migrates · and what it does not
+
+The rungs are idempotent and equivalence-or-stop · **r1-identity** (NEW ·
+`nika: v1` + `workflow: {id, description}` · the block, the pre-W1 scalar
+`workflow: <id>`, the one-line flow form, a bare top-level `description:` ·
+become `nika: <id>` with the prose demoted to a `#` comment ABOVE it, never
+dropped · it STOPS, never guesses, when `nika:` already names something else,
+when the block carries a foreign key, when the id is not kebab-case, or when
+there is no id at all) · **w1-map** (a `tasks:` sequence becomes the map ·
+atomic or nothing) · **w2-flow** (`depends_on` + body `tasks.*` reads become
+`with:` bindings and `after:` predicates) · **d1-split** (the pre-0.103 string
+`command:`) · **esplit** (`vars:` → `inputs:` / `const:` · classify-not-rename)
+· **predicates** (`succeeded` → `success`). One `--fix` runs them all in one
+loop, so a 0.108.0 file whose only sins are the identity and the tasks list
+heals to green in one command. Every round is a transaction: a repair whose
+text no longer parses is rolled back and reported, and the file is written
+once, from committed text only.
+
+**Still hand migrations in this release** · the `on_finally:` restructuring
+(cleanup becomes its own task on an unwind edge), `output:` → `extract:`,
+`declassify:`/`inert:` → `lift:`, `config:` → `inputs:` (a classification),
+and the `for_each` re-nesting · the refusal teaches each destination at the
+point of refusal and `--fix` leaves the file untouched rather than write a
+document its own checker would reject. Measured on the pack that ships inside
+this binary: 0.108.0 passes 0/40 of these examples · 0.109.0 passes 40/40 ·
+every existing file outside this repo sits on the 0.108.0 side of that line
+until it is migrated.
+
+#### 4 · Two P0, closed where users install
+
+- **An expression sees only its input (#959).** A `nika:jq` expression could
+  read the ambient environment (`env.PATH`) under an ABSENT permits block
+  while `check` printed « the body is pure compute so nothing escapes ». The
+  retained natives leave the jaq function set at the three seams from ONE
+  list (`nika_cap`), and a pinned inventory of jaq natives reddens if a
+  future jaq adds one. `check` now refuses the escape at the binary users
+  install.
+- **A third-party receipt wrote the operator's clipboard (#958).** Three
+  fields of a proof receipt (`assert` · `level` · `task`) reached the
+  terminal without `escape_tty` while the helper existed in the same file ·
+  a foreign evidence pack could emit OSC52. Every receipt field rides the
+  escape · proven by mutation before publication.
+
+#### 5 · The two trains (RELEASING §0)
+
+`stable` is the newest tag · what brew · the Registry · nika-action and the
+starters install. `next` is `main`, at `<next>.0-dev` between tags · a real
+semver prerelease · `nika --version` and every trace say which one they are.
+Stable consumers move only when a tag they can install exists.
+
 ### Added
 
 - **The project file `nika.yaml` (D-2026-08-11-N5).** An OPTIONAL file at

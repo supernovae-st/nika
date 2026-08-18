@@ -5,6 +5,10 @@ Versions move together across all manifests (the mirror gate pins it).
 
 ## Unreleased
 
+## 0.109.0 — 2026-08-18
+
+Lockstep on the engine wave.
+
 ## 0.108.0 — 2026-08-07
 
 The bundle becomes portable. [Agent Plugins 1.0.0](https://agent-plugins.org)

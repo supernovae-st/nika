@@ -11,9 +11,9 @@ homepage.workspace     = true
 publish                = false  # Foundation crate — never on crates.io. See ADR-017.
 
 [dependencies]
-nika-source = { path = "../nika-source", version = "0.109.0-dev" } # Spanned/Span on declaration values
-nika-cap    = { path = "../nika-cap", version = "0.109.0-dev" }    # permits/policy vocab re-exported at the original module path
-nika-types  = { path = "../nika-types", version = "0.109.0-dev" }  # the ONE type core (parse_type · fits) behind the TypeExpr helpers
+nika-source = { path = "../nika-source", version = "0.109.0" } # Spanned/Span on declaration values
+nika-cap    = { path = "../nika-cap", version = "0.109.0" }    # permits/policy vocab re-exported at the original module path
+nika-types  = { path = "../nika-types", version = "0.109.0" }  # the ONE type core (parse_type · fits) behind the TypeExpr helpers
 serde       = { workspace = true }
 serde_json  = { workspace = true }
 marked-yaml = { workspace = true } # the project-file parser — per-key spans (a refusal names its line · the nika-schema idiom)
