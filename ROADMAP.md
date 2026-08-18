@@ -101,20 +101,20 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| branch           | `feat/trace-cover-doctor-signal`                                      |
-| HEAD             | `fe8a5d3e4` (`fe8a5d3e4a917b0e83ee26276e4d059859f8ed6a`)             |
+| branch           | `fix/nika-check-descends-its-analysis-plane`                                      |
+| HEAD             | `7fd5085ad` (`7fd5085adee47f8686c65b5b6ed45f3b351c7403`)             |
 | workspace        | v0.108.0                                  |
-| crates (workspace)| 65                                              |
-| crates (admitted)| 60                                             |
+| crates (workspace)| 66                                              |
+| crates (admitted)| 61                                             |
 | crates (WIP)     | 5 — nika-chart nika-fx nika-proof nika-store nika-harness                                  |
-| L0               | 20                                              |
+| L0               | 21                                              |
 | L0.5             | 6                                              |
 | L1               | 17                                              |
 | L1.5             | 4                                              |
 | L2               | 5                                              |
 | L3               | 1                                              |
 | L4               | 12                                              |
-| lib tests        | 5805 passed, 0 failed                              |
+| lib tests        | 5843 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
 
 Diamond foundation — orphan branch from scratch. Live counts (admitted ·

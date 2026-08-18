@@ -19,7 +19,11 @@ publish                = false  # Foundation crate — never on crates.io. See f
 # nika-vocab the dead-form teaching texts). All five are dependency-light L0
 # leaves; the fan-in is the same intentional shape nika-schema carries
 # (ADR-027 · marker-based exemption) — the judgment crate is precisely where
-# those vocabularies meet.
+# those vocabularies meet. The sixth, nika-check-analyzer, is NOT a foreign
+# vocabulary: it is this crate's own analysis substrate, descended to a
+# sibling member at the 15k wall (ONE unit, TWO members · D-2026-07-09-N1)
+# and re-exported here at its historical `analyzer` path.
+nika-check-analyzer = { path = "../nika-check-analyzer", version = "0.108.0" } # the analysis substrate this ladder judges on top of (member split, not a new unit)
 nika-schema  = { path = "../nika-schema", version = "0.108.0" }  # the AST + parser + error voice this judges (the blueprint split: parser there, judgment here)
 nika-cap     = { path = "../nika-cap", version = "0.108.0" }     # the permits boundary (PolicyViolation · TrifectaViolation · CertEffects on the public report)
 nika-catalog = { path = "../nika-catalog", version = "0.108.0" } # the closed builtin catalog (all_builtins · find_builtin — the tool lints' one voice)
@@ -29,17 +33,12 @@ nika-vocab   = { path = "../nika-vocab", version = "0.108.0" }   # the dead-form
 serde      = { workspace = true }
 serde_json = { workspace = true }
 url        = { workspace = true }   # permits.net.http host extraction — the SAME WHATWG parse the runtime http effect connects with (no check↔runtime drift · pure/sync)
-# jq COMPILE-check (static · L0-legal: pure/sync · no I/O) — the SAME jaq the
-# runtime nika:jq builtin (nika-builtin) compiles with, workspace-pinned to one
-# version, so a jq that the checker accepts the runtime also accepts (parity-tested · no drift).
-jaq-core   = { workspace = true }
-jaq-std    = { workspace = true }
-jaq-json   = { workspace = true }
-# JSON Schema META-check (static · L0-legal: pure/sync · default-features=false
-# compiles out the http/file retrievers, so no I/O) — the SAME jsonschema crate
-# + the SAME validator_for() the runtime nika-verb-infer compiles a schema: with,
-# workspace-pinned to one version (parity-verified · validator_for == meta).
-jsonschema = { workspace = true }
+# jaq (the jq compile-check) and jsonschema (the schema meta-check) DESCENDED
+# with the analysis substrate to nika-check-analyzer (ADR-115) — they were
+# only ever reached from `analyzer::{jq_lint, schema_lint}`. The judgment
+# ladder sheds four heavy deps by the move; the parity claim they carry (the
+# SAME jaq and the SAME validator_for the runtime uses) travels with them,
+# in the member's own manifest.
 
 [dev-dependencies]
 # the verb-theater example folds REAL engine events (the telemetry truth)

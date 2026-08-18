@@ -4213,12 +4213,9 @@ name = "nika-check"
 version = "0.108.0"
 dependencies = [
  "criterion",
- "jaq-core",
- "jaq-json",
- "jaq-std",
- "jsonschema",
  "nika-cap",
  "nika-catalog",
+ "nika-check-analyzer",
  "nika-event",
  "nika-pack",
  "nika-schema",
@@ -4229,6 +4226,21 @@ dependencies = [
  "serde_json",
  "url",
  "uuid",
+]
+
+[[package]]
+name = "nika-check-analyzer"
+version = "0.108.0"
+dependencies = [
+ "jaq-core",
+ "jaq-json",
+ "jaq-std",
+ "jsonschema",
+ "nika-cap",
+ "nika-schema",
+ "nika-types",
+ "nika-vocab",
+ "serde_json",
 ]
 
 [[package]]

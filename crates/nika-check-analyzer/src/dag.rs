@@ -280,12 +280,12 @@ pub(super) fn topo_waves(task_count: usize, edges: &[Edge]) -> Vec<Vec<usize>> {
 
 #[cfg(test)]
 mod tests {
-    use crate::analyzer::analyze;
+    use crate::analyze;
     use nika_schema::error::SchemaError;
     use nika_schema::parser::{ParseMode, parse};
     use nika_schema::source::FileId;
 
-    fn analyze_yaml(yaml: &str) -> Result<crate::analyzer::AnalyzedWorkflow, Vec<SchemaError>> {
+    fn analyze_yaml(yaml: &str) -> Result<crate::AnalyzedWorkflow, Vec<SchemaError>> {
         let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse");
         analyze(&wf)
     }

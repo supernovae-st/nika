@@ -67,9 +67,12 @@ silently-wrong judgment is the one unacceptable outcome.
 
 ## Metrics (projected — `scripts/crate-metrics.sh nika-check`)
 
-~28954 LOC src (live anchor · total incl. tests — ~14,758 prod per the
-ratchet's `scripts/ci/check-crate-size.sh` scope) · largest file ~1,479
-LOC · ~642 unit + ~38 integration tests (the conformance harness at
+~22,869 LOC src (live anchor · total incl. tests — **12,455 prod** per
+the ratchet's `scripts/ci/check-crate-size.sh` scope, measured
+2026-08-18 after the ADR-115 descent: the analysis substrate left for
+`nika-check-analyzer`, taking 14,995 → 12,455 and the headroom from
+**5** lines to **2,545**) · largest file ~1,445
+LOC · ~485 unit + ~39 integration tests (the conformance harness at
 `tests/common` verdicts the Core + Deep tiers against the nika-spec
 checkout — `NIKA_SPEC_DIR`). Benches: `parser_bench` (parse+check) ·
 `refonte_baseline` (parse/analyze/check across topologies · W0 gate 8).

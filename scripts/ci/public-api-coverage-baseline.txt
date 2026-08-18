@@ -114,6 +114,8 @@ nika-source
 nika-vocab
 # --- 2026-07-21: the static-judgment descent (analyzer + the check ladder out of nika-schema · the 15k wall — nika-graph precedent) ---
 nika-check
+# --- 2026-08-18: the analysis substrate descends out of nika-check (the 15k wall again · 14995/15000 · ADR-115 · one unit, two members) ---
+nika-check-analyzer
 # --- 2026-07-28: the browser half of the checker (ADR-107 · L4 transport · two pub fns, locked like the rest) ---
 nika-check-wasm
 # --- 2026-07-29: the spec-15 proof layer out of nika-runtime (the 15k wall — nika-dap/nika-cap precedent · WIP crate) ---

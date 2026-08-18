@@ -1,0 +1,434 @@
+pub mod nika_check_analyzer
+pub mod nika_check_analyzer::edges
+#[non_exhaustive] pub enum nika_check_analyzer::edges::EdgeKind
+pub nika_check_analyzer::edges::EdgeKind::Control(nika_vocab::after::AfterPredicate)
+pub nika_check_analyzer::edges::EdgeKind::FailureObservation
+pub nika_check_analyzer::edges::EdgeKind::FanIn
+pub nika_check_analyzer::edges::EdgeKind::TerminalObservation
+pub nika_check_analyzer::edges::EdgeKind::Value
+impl nika_check_analyzer::edges::EdgeKind
+pub fn nika_check_analyzer::edges::EdgeKind::admits(self, s: nika_check_analyzer::edges::SettledState) -> bool
+pub fn nika_check_analyzer::edges::EdgeKind::is_scheduling(self) -> bool
+pub fn nika_check_analyzer::edges::EdgeKind::wire_kind(self) -> &'static str
+impl core::clone::Clone for nika_check_analyzer::edges::EdgeKind
+pub fn nika_check_analyzer::edges::EdgeKind::clone(&self) -> nika_check_analyzer::edges::EdgeKind
+impl core::cmp::Eq for nika_check_analyzer::edges::EdgeKind
+impl core::cmp::PartialEq for nika_check_analyzer::edges::EdgeKind
+pub fn nika_check_analyzer::edges::EdgeKind::eq(&self, other: &nika_check_analyzer::edges::EdgeKind) -> bool
+impl core::fmt::Debug for nika_check_analyzer::edges::EdgeKind
+pub fn nika_check_analyzer::edges::EdgeKind::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_check_analyzer::edges::EdgeKind
+impl core::marker::StructuralPartialEq for nika_check_analyzer::edges::EdgeKind
+impl<D> owo_colors::OwoColorize for nika_check_analyzer::edges::EdgeKind
+impl<Q, K> equivalent::Equivalent<K> for nika_check_analyzer::edges::EdgeKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check_analyzer::edges::EdgeKind::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check_analyzer::edges::EdgeKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check_analyzer::edges::EdgeKind::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check_analyzer::edges::EdgeKind where U: core::convert::From<T>
+pub fn nika_check_analyzer::edges::EdgeKind::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check_analyzer::edges::EdgeKind where U: core::convert::Into<T>
+pub type nika_check_analyzer::edges::EdgeKind::Error = core::convert::Infallible
+pub fn nika_check_analyzer::edges::EdgeKind::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check_analyzer::edges::EdgeKind where U: core::convert::TryFrom<T>
+pub type nika_check_analyzer::edges::EdgeKind::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check_analyzer::edges::EdgeKind::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check_analyzer::edges::EdgeKind where T: core::clone::Clone
+pub type nika_check_analyzer::edges::EdgeKind::Owned = T
+pub fn nika_check_analyzer::edges::EdgeKind::clone_into(&self, target: &mut T)
+pub fn nika_check_analyzer::edges::EdgeKind::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check_analyzer::edges::EdgeKind where T: 'static + ?core::marker::Sized
+pub fn nika_check_analyzer::edges::EdgeKind::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check_analyzer::edges::EdgeKind where T: ?core::marker::Sized
+pub fn nika_check_analyzer::edges::EdgeKind::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check_analyzer::edges::EdgeKind where T: ?core::marker::Sized
+pub fn nika_check_analyzer::edges::EdgeKind::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check_analyzer::edges::EdgeKind where T: core::clone::Clone
+pub unsafe fn nika_check_analyzer::edges::EdgeKind::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check_analyzer::edges::EdgeKind
+pub fn nika_check_analyzer::edges::EdgeKind::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check_analyzer::edges::EdgeKind where T: core::clone::Clone
+pub fn nika_check_analyzer::edges::EdgeKind::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check_analyzer::edges::EdgeKind where T: 'static
+pub fn nika_check_analyzer::edges::EdgeKind::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_check_analyzer::edges::EdgeKind where T: core::marker::Copy
+pub fn nika_check_analyzer::edges::EdgeKind::as_out(&mut self) -> outref::Out<'_, T>
+#[non_exhaustive] pub enum nika_check_analyzer::edges::SettledState
+pub nika_check_analyzer::edges::SettledState::Cancelled
+pub nika_check_analyzer::edges::SettledState::Failure
+pub nika_check_analyzer::edges::SettledState::Skipped
+pub nika_check_analyzer::edges::SettledState::Success
+impl core::clone::Clone for nika_check_analyzer::edges::SettledState
+pub fn nika_check_analyzer::edges::SettledState::clone(&self) -> nika_check_analyzer::edges::SettledState
+impl core::cmp::Eq for nika_check_analyzer::edges::SettledState
+impl core::cmp::PartialEq for nika_check_analyzer::edges::SettledState
+pub fn nika_check_analyzer::edges::SettledState::eq(&self, other: &nika_check_analyzer::edges::SettledState) -> bool
+impl core::fmt::Debug for nika_check_analyzer::edges::SettledState
+pub fn nika_check_analyzer::edges::SettledState::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_check_analyzer::edges::SettledState
+impl core::marker::StructuralPartialEq for nika_check_analyzer::edges::SettledState
+impl<D> owo_colors::OwoColorize for nika_check_analyzer::edges::SettledState
+impl<Q, K> equivalent::Equivalent<K> for nika_check_analyzer::edges::SettledState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check_analyzer::edges::SettledState::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check_analyzer::edges::SettledState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check_analyzer::edges::SettledState::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check_analyzer::edges::SettledState where U: core::convert::From<T>
+pub fn nika_check_analyzer::edges::SettledState::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check_analyzer::edges::SettledState where U: core::convert::Into<T>
+pub type nika_check_analyzer::edges::SettledState::Error = core::convert::Infallible
+pub fn nika_check_analyzer::edges::SettledState::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check_analyzer::edges::SettledState where U: core::convert::TryFrom<T>
+pub type nika_check_analyzer::edges::SettledState::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check_analyzer::edges::SettledState::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check_analyzer::edges::SettledState where T: core::clone::Clone
+pub type nika_check_analyzer::edges::SettledState::Owned = T
+pub fn nika_check_analyzer::edges::SettledState::clone_into(&self, target: &mut T)
+pub fn nika_check_analyzer::edges::SettledState::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check_analyzer::edges::SettledState where T: 'static + ?core::marker::Sized
+pub fn nika_check_analyzer::edges::SettledState::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check_analyzer::edges::SettledState where T: ?core::marker::Sized
+pub fn nika_check_analyzer::edges::SettledState::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check_analyzer::edges::SettledState where T: ?core::marker::Sized
+pub fn nika_check_analyzer::edges::SettledState::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check_analyzer::edges::SettledState where T: core::clone::Clone
+pub unsafe fn nika_check_analyzer::edges::SettledState::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check_analyzer::edges::SettledState
+pub fn nika_check_analyzer::edges::SettledState::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check_analyzer::edges::SettledState where T: core::clone::Clone
+pub fn nika_check_analyzer::edges::SettledState::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check_analyzer::edges::SettledState where T: 'static
+pub fn nika_check_analyzer::edges::SettledState::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_check_analyzer::edges::SettledState where T: core::marker::Copy
+pub fn nika_check_analyzer::edges::SettledState::as_out(&mut self) -> outref::Out<'_, T>
+#[non_exhaustive] pub struct nika_check_analyzer::edges::Edge
+pub nika_check_analyzer::edges::Edge::binding: core::option::Option<alloc::string::String>
+pub nika_check_analyzer::edges::Edge::from: usize
+pub nika_check_analyzer::edges::Edge::kind: nika_check_analyzer::edges::EdgeKind
+pub nika_check_analyzer::edges::Edge::span: nika_source::span::Span
+pub nika_check_analyzer::edges::Edge::to: usize
+impl core::clone::Clone for nika_check_analyzer::edges::Edge
+pub fn nika_check_analyzer::edges::Edge::clone(&self) -> nika_check_analyzer::edges::Edge
+impl core::cmp::Eq for nika_check_analyzer::edges::Edge
+impl core::cmp::PartialEq for nika_check_analyzer::edges::Edge
+pub fn nika_check_analyzer::edges::Edge::eq(&self, other: &nika_check_analyzer::edges::Edge) -> bool
+impl core::fmt::Debug for nika_check_analyzer::edges::Edge
+pub fn nika_check_analyzer::edges::Edge::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_check_analyzer::edges::Edge
+impl<D> owo_colors::OwoColorize for nika_check_analyzer::edges::Edge
+impl<Q, K> equivalent::Equivalent<K> for nika_check_analyzer::edges::Edge where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check_analyzer::edges::Edge::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check_analyzer::edges::Edge where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check_analyzer::edges::Edge::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check_analyzer::edges::Edge where U: core::convert::From<T>
+pub fn nika_check_analyzer::edges::Edge::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check_analyzer::edges::Edge where U: core::convert::Into<T>
+pub type nika_check_analyzer::edges::Edge::Error = core::convert::Infallible
+pub fn nika_check_analyzer::edges::Edge::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check_analyzer::edges::Edge where U: core::convert::TryFrom<T>
+pub type nika_check_analyzer::edges::Edge::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check_analyzer::edges::Edge::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check_analyzer::edges::Edge where T: core::clone::Clone
+pub type nika_check_analyzer::edges::Edge::Owned = T
+pub fn nika_check_analyzer::edges::Edge::clone_into(&self, target: &mut T)
+pub fn nika_check_analyzer::edges::Edge::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check_analyzer::edges::Edge where T: 'static + ?core::marker::Sized
+pub fn nika_check_analyzer::edges::Edge::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check_analyzer::edges::Edge where T: ?core::marker::Sized
+pub fn nika_check_analyzer::edges::Edge::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check_analyzer::edges::Edge where T: ?core::marker::Sized
+pub fn nika_check_analyzer::edges::Edge::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check_analyzer::edges::Edge where T: core::clone::Clone
+pub unsafe fn nika_check_analyzer::edges::Edge::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check_analyzer::edges::Edge
+pub fn nika_check_analyzer::edges::Edge::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check_analyzer::edges::Edge where T: core::clone::Clone
+pub fn nika_check_analyzer::edges::Edge::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check_analyzer::edges::Edge where T: 'static
+pub fn nika_check_analyzer::edges::Edge::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_check_analyzer::edges::RecoveryRead
+pub nika_check_analyzer::edges::RecoveryRead::from: usize
+pub nika_check_analyzer::edges::RecoveryRead::to: usize
+impl core::clone::Clone for nika_check_analyzer::edges::RecoveryRead
+pub fn nika_check_analyzer::edges::RecoveryRead::clone(&self) -> nika_check_analyzer::edges::RecoveryRead
+impl core::cmp::Eq for nika_check_analyzer::edges::RecoveryRead
+impl core::cmp::PartialEq for nika_check_analyzer::edges::RecoveryRead
+pub fn nika_check_analyzer::edges::RecoveryRead::eq(&self, other: &nika_check_analyzer::edges::RecoveryRead) -> bool
+impl core::fmt::Debug for nika_check_analyzer::edges::RecoveryRead
+pub fn nika_check_analyzer::edges::RecoveryRead::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_check_analyzer::edges::RecoveryRead
+impl<D> owo_colors::OwoColorize for nika_check_analyzer::edges::RecoveryRead
+impl<Q, K> equivalent::Equivalent<K> for nika_check_analyzer::edges::RecoveryRead where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check_analyzer::edges::RecoveryRead::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check_analyzer::edges::RecoveryRead where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check_analyzer::edges::RecoveryRead::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check_analyzer::edges::RecoveryRead where U: core::convert::From<T>
+pub fn nika_check_analyzer::edges::RecoveryRead::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check_analyzer::edges::RecoveryRead where U: core::convert::Into<T>
+pub type nika_check_analyzer::edges::RecoveryRead::Error = core::convert::Infallible
+pub fn nika_check_analyzer::edges::RecoveryRead::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check_analyzer::edges::RecoveryRead where U: core::convert::TryFrom<T>
+pub type nika_check_analyzer::edges::RecoveryRead::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check_analyzer::edges::RecoveryRead::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check_analyzer::edges::RecoveryRead where T: core::clone::Clone
+pub type nika_check_analyzer::edges::RecoveryRead::Owned = T
+pub fn nika_check_analyzer::edges::RecoveryRead::clone_into(&self, target: &mut T)
+pub fn nika_check_analyzer::edges::RecoveryRead::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check_analyzer::edges::RecoveryRead where T: 'static + ?core::marker::Sized
+pub fn nika_check_analyzer::edges::RecoveryRead::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check_analyzer::edges::RecoveryRead where T: ?core::marker::Sized
+pub fn nika_check_analyzer::edges::RecoveryRead::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check_analyzer::edges::RecoveryRead where T: ?core::marker::Sized
+pub fn nika_check_analyzer::edges::RecoveryRead::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check_analyzer::edges::RecoveryRead where T: core::clone::Clone
+pub unsafe fn nika_check_analyzer::edges::RecoveryRead::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check_analyzer::edges::RecoveryRead
+pub fn nika_check_analyzer::edges::RecoveryRead::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check_analyzer::edges::RecoveryRead where T: core::clone::Clone
+pub fn nika_check_analyzer::edges::RecoveryRead::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check_analyzer::edges::RecoveryRead where T: 'static
+pub fn nika_check_analyzer::edges::RecoveryRead::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub fn nika_check_analyzer::edges::derive_edges(tasks: &[nika_source::span::Spanned<nika_schema::raw::task::RawTask>], ids: &alloc::collections::btree::map::BTreeMap<alloc::string::String, usize>) -> alloc::vec::Vec<nika_check_analyzer::edges::Edge>
+pub fn nika_check_analyzer::edges::derive_recovery_reads(tasks: &[nika_source::span::Spanned<nika_schema::raw::task::RawTask>], ids: &alloc::collections::btree::map::BTreeMap<alloc::string::String, usize>) -> alloc::vec::Vec<nika_check_analyzer::edges::RecoveryRead>
+pub fn nika_check_analyzer::edges::group_members(tasks: &[nika_source::span::Spanned<nika_schema::raw::task::RawTask>]) -> alloc::collections::btree::map::BTreeMap<&str, alloc::vec::Vec<usize>>
+pub fn nika_check_analyzer::edges::group_refs_in_value(value: &serde_json::value::Value, out: &mut alloc::vec::Vec<alloc::string::String>)
+pub fn nika_check_analyzer::edges::incoming_of(task: &nika_schema::raw::task::RawTask) -> alloc::vec::Vec<(alloc::string::String, nika_check_analyzer::edges::EdgeKind)>
+pub fn nika_check_analyzer::edges::producer_ids(task: &nika_schema::raw::task::RawTask) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_check_analyzer::edges::role_of_field(field: core::option::Option<&str>) -> nika_check_analyzer::edges::EdgeKind
+pub fn nika_check_analyzer::edges::task_refs_in_value(value: &serde_json::value::Value, out: &mut alloc::vec::Vec<(alloc::string::String, core::option::Option<alloc::string::String>)>)
+pub mod nika_check_analyzer::types_contract
+pub fn nika_check_analyzer::types_contract::lowered_returns(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>
+pub fn nika_check_analyzer::types_contract::returns_type(task: &nika_schema::raw::task::RawTask, wf: &nika_schema::raw::workflow::RawWorkflow) -> core::option::Option<nika_types::types::NikaType>
+#[non_exhaustive] pub enum nika_check_analyzer::EdgeKind
+pub nika_check_analyzer::EdgeKind::Control(nika_vocab::after::AfterPredicate)
+pub nika_check_analyzer::EdgeKind::FailureObservation
+pub nika_check_analyzer::EdgeKind::FanIn
+pub nika_check_analyzer::EdgeKind::TerminalObservation
+pub nika_check_analyzer::EdgeKind::Value
+impl nika_check_analyzer::edges::EdgeKind
+pub fn nika_check_analyzer::edges::EdgeKind::admits(self, s: nika_check_analyzer::edges::SettledState) -> bool
+pub fn nika_check_analyzer::edges::EdgeKind::is_scheduling(self) -> bool
+pub fn nika_check_analyzer::edges::EdgeKind::wire_kind(self) -> &'static str
+impl core::clone::Clone for nika_check_analyzer::edges::EdgeKind
+pub fn nika_check_analyzer::edges::EdgeKind::clone(&self) -> nika_check_analyzer::edges::EdgeKind
+impl core::cmp::Eq for nika_check_analyzer::edges::EdgeKind
+impl core::cmp::PartialEq for nika_check_analyzer::edges::EdgeKind
+pub fn nika_check_analyzer::edges::EdgeKind::eq(&self, other: &nika_check_analyzer::edges::EdgeKind) -> bool
+impl core::fmt::Debug for nika_check_analyzer::edges::EdgeKind
+pub fn nika_check_analyzer::edges::EdgeKind::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_check_analyzer::edges::EdgeKind
+impl core::marker::StructuralPartialEq for nika_check_analyzer::edges::EdgeKind
+impl<D> owo_colors::OwoColorize for nika_check_analyzer::edges::EdgeKind
+impl<Q, K> equivalent::Equivalent<K> for nika_check_analyzer::edges::EdgeKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check_analyzer::edges::EdgeKind::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check_analyzer::edges::EdgeKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check_analyzer::edges::EdgeKind::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check_analyzer::edges::EdgeKind where U: core::convert::From<T>
+pub fn nika_check_analyzer::edges::EdgeKind::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check_analyzer::edges::EdgeKind where U: core::convert::Into<T>
+pub type nika_check_analyzer::edges::EdgeKind::Error = core::convert::Infallible
+pub fn nika_check_analyzer::edges::EdgeKind::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check_analyzer::edges::EdgeKind where U: core::convert::TryFrom<T>
+pub type nika_check_analyzer::edges::EdgeKind::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check_analyzer::edges::EdgeKind::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check_analyzer::edges::EdgeKind where T: core::clone::Clone
+pub type nika_check_analyzer::edges::EdgeKind::Owned = T
+pub fn nika_check_analyzer::edges::EdgeKind::clone_into(&self, target: &mut T)
+pub fn nika_check_analyzer::edges::EdgeKind::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check_analyzer::edges::EdgeKind where T: 'static + ?core::marker::Sized
+pub fn nika_check_analyzer::edges::EdgeKind::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check_analyzer::edges::EdgeKind where T: ?core::marker::Sized
+pub fn nika_check_analyzer::edges::EdgeKind::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check_analyzer::edges::EdgeKind where T: ?core::marker::Sized
+pub fn nika_check_analyzer::edges::EdgeKind::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check_analyzer::edges::EdgeKind where T: core::clone::Clone
+pub unsafe fn nika_check_analyzer::edges::EdgeKind::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check_analyzer::edges::EdgeKind
+pub fn nika_check_analyzer::edges::EdgeKind::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check_analyzer::edges::EdgeKind where T: core::clone::Clone
+pub fn nika_check_analyzer::edges::EdgeKind::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check_analyzer::edges::EdgeKind where T: 'static
+pub fn nika_check_analyzer::edges::EdgeKind::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_check_analyzer::edges::EdgeKind where T: core::marker::Copy
+pub fn nika_check_analyzer::edges::EdgeKind::as_out(&mut self) -> outref::Out<'_, T>
+#[non_exhaustive] pub enum nika_check_analyzer::SettledState
+pub nika_check_analyzer::SettledState::Cancelled
+pub nika_check_analyzer::SettledState::Failure
+pub nika_check_analyzer::SettledState::Skipped
+pub nika_check_analyzer::SettledState::Success
+impl core::clone::Clone for nika_check_analyzer::edges::SettledState
+pub fn nika_check_analyzer::edges::SettledState::clone(&self) -> nika_check_analyzer::edges::SettledState
+impl core::cmp::Eq for nika_check_analyzer::edges::SettledState
+impl core::cmp::PartialEq for nika_check_analyzer::edges::SettledState
+pub fn nika_check_analyzer::edges::SettledState::eq(&self, other: &nika_check_analyzer::edges::SettledState) -> bool
+impl core::fmt::Debug for nika_check_analyzer::edges::SettledState
+pub fn nika_check_analyzer::edges::SettledState::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_check_analyzer::edges::SettledState
+impl core::marker::StructuralPartialEq for nika_check_analyzer::edges::SettledState
+impl<D> owo_colors::OwoColorize for nika_check_analyzer::edges::SettledState
+impl<Q, K> equivalent::Equivalent<K> for nika_check_analyzer::edges::SettledState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check_analyzer::edges::SettledState::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check_analyzer::edges::SettledState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check_analyzer::edges::SettledState::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check_analyzer::edges::SettledState where U: core::convert::From<T>
+pub fn nika_check_analyzer::edges::SettledState::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check_analyzer::edges::SettledState where U: core::convert::Into<T>
+pub type nika_check_analyzer::edges::SettledState::Error = core::convert::Infallible
+pub fn nika_check_analyzer::edges::SettledState::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check_analyzer::edges::SettledState where U: core::convert::TryFrom<T>
+pub type nika_check_analyzer::edges::SettledState::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check_analyzer::edges::SettledState::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check_analyzer::edges::SettledState where T: core::clone::Clone
+pub type nika_check_analyzer::edges::SettledState::Owned = T
+pub fn nika_check_analyzer::edges::SettledState::clone_into(&self, target: &mut T)
+pub fn nika_check_analyzer::edges::SettledState::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check_analyzer::edges::SettledState where T: 'static + ?core::marker::Sized
+pub fn nika_check_analyzer::edges::SettledState::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check_analyzer::edges::SettledState where T: ?core::marker::Sized
+pub fn nika_check_analyzer::edges::SettledState::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check_analyzer::edges::SettledState where T: ?core::marker::Sized
+pub fn nika_check_analyzer::edges::SettledState::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check_analyzer::edges::SettledState where T: core::clone::Clone
+pub unsafe fn nika_check_analyzer::edges::SettledState::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check_analyzer::edges::SettledState
+pub fn nika_check_analyzer::edges::SettledState::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check_analyzer::edges::SettledState where T: core::clone::Clone
+pub fn nika_check_analyzer::edges::SettledState::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check_analyzer::edges::SettledState where T: 'static
+pub fn nika_check_analyzer::edges::SettledState::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_check_analyzer::edges::SettledState where T: core::marker::Copy
+pub fn nika_check_analyzer::edges::SettledState::as_out(&mut self) -> outref::Out<'_, T>
+#[non_exhaustive] pub struct nika_check_analyzer::AnalyzedWorkflow
+pub nika_check_analyzer::AnalyzedWorkflow::edges: alloc::vec::Vec<nika_check_analyzer::edges::Edge>
+pub nika_check_analyzer::AnalyzedWorkflow::recovery_reads: alloc::vec::Vec<nika_check_analyzer::edges::RecoveryRead>
+pub nika_check_analyzer::AnalyzedWorkflow::topo_waves: alloc::vec::Vec<alloc::vec::Vec<usize>>
+impl nika_check_analyzer::AnalyzedWorkflow
+pub fn nika_check_analyzer::AnalyzedWorkflow::new(edges: alloc::vec::Vec<nika_check_analyzer::edges::Edge>, recovery_reads: alloc::vec::Vec<nika_check_analyzer::edges::RecoveryRead>, topo_waves: alloc::vec::Vec<alloc::vec::Vec<usize>>) -> Self
+impl core::clone::Clone for nika_check_analyzer::AnalyzedWorkflow
+pub fn nika_check_analyzer::AnalyzedWorkflow::clone(&self) -> nika_check_analyzer::AnalyzedWorkflow
+impl core::cmp::Eq for nika_check_analyzer::AnalyzedWorkflow
+impl core::cmp::PartialEq for nika_check_analyzer::AnalyzedWorkflow
+pub fn nika_check_analyzer::AnalyzedWorkflow::eq(&self, other: &nika_check_analyzer::AnalyzedWorkflow) -> bool
+impl core::fmt::Debug for nika_check_analyzer::AnalyzedWorkflow
+pub fn nika_check_analyzer::AnalyzedWorkflow::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_check_analyzer::AnalyzedWorkflow
+impl<D> owo_colors::OwoColorize for nika_check_analyzer::AnalyzedWorkflow
+impl<Q, K> equivalent::Equivalent<K> for nika_check_analyzer::AnalyzedWorkflow where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check_analyzer::AnalyzedWorkflow::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check_analyzer::AnalyzedWorkflow where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check_analyzer::AnalyzedWorkflow::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check_analyzer::AnalyzedWorkflow where U: core::convert::From<T>
+pub fn nika_check_analyzer::AnalyzedWorkflow::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check_analyzer::AnalyzedWorkflow where U: core::convert::Into<T>
+pub type nika_check_analyzer::AnalyzedWorkflow::Error = core::convert::Infallible
+pub fn nika_check_analyzer::AnalyzedWorkflow::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check_analyzer::AnalyzedWorkflow where U: core::convert::TryFrom<T>
+pub type nika_check_analyzer::AnalyzedWorkflow::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check_analyzer::AnalyzedWorkflow::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check_analyzer::AnalyzedWorkflow where T: core::clone::Clone
+pub type nika_check_analyzer::AnalyzedWorkflow::Owned = T
+pub fn nika_check_analyzer::AnalyzedWorkflow::clone_into(&self, target: &mut T)
+pub fn nika_check_analyzer::AnalyzedWorkflow::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check_analyzer::AnalyzedWorkflow where T: 'static + ?core::marker::Sized
+pub fn nika_check_analyzer::AnalyzedWorkflow::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check_analyzer::AnalyzedWorkflow where T: ?core::marker::Sized
+pub fn nika_check_analyzer::AnalyzedWorkflow::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check_analyzer::AnalyzedWorkflow where T: ?core::marker::Sized
+pub fn nika_check_analyzer::AnalyzedWorkflow::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check_analyzer::AnalyzedWorkflow where T: core::clone::Clone
+pub unsafe fn nika_check_analyzer::AnalyzedWorkflow::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check_analyzer::AnalyzedWorkflow
+pub fn nika_check_analyzer::AnalyzedWorkflow::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check_analyzer::AnalyzedWorkflow where T: core::clone::Clone
+pub fn nika_check_analyzer::AnalyzedWorkflow::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check_analyzer::AnalyzedWorkflow where T: 'static
+pub fn nika_check_analyzer::AnalyzedWorkflow::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_check_analyzer::Edge
+pub nika_check_analyzer::Edge::binding: core::option::Option<alloc::string::String>
+pub nika_check_analyzer::Edge::from: usize
+pub nika_check_analyzer::Edge::kind: nika_check_analyzer::edges::EdgeKind
+pub nika_check_analyzer::Edge::span: nika_source::span::Span
+pub nika_check_analyzer::Edge::to: usize
+impl core::clone::Clone for nika_check_analyzer::edges::Edge
+pub fn nika_check_analyzer::edges::Edge::clone(&self) -> nika_check_analyzer::edges::Edge
+impl core::cmp::Eq for nika_check_analyzer::edges::Edge
+impl core::cmp::PartialEq for nika_check_analyzer::edges::Edge
+pub fn nika_check_analyzer::edges::Edge::eq(&self, other: &nika_check_analyzer::edges::Edge) -> bool
+impl core::fmt::Debug for nika_check_analyzer::edges::Edge
+pub fn nika_check_analyzer::edges::Edge::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_check_analyzer::edges::Edge
+impl<D> owo_colors::OwoColorize for nika_check_analyzer::edges::Edge
+impl<Q, K> equivalent::Equivalent<K> for nika_check_analyzer::edges::Edge where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check_analyzer::edges::Edge::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check_analyzer::edges::Edge where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check_analyzer::edges::Edge::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check_analyzer::edges::Edge where U: core::convert::From<T>
+pub fn nika_check_analyzer::edges::Edge::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check_analyzer::edges::Edge where U: core::convert::Into<T>
+pub type nika_check_analyzer::edges::Edge::Error = core::convert::Infallible
+pub fn nika_check_analyzer::edges::Edge::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check_analyzer::edges::Edge where U: core::convert::TryFrom<T>
+pub type nika_check_analyzer::edges::Edge::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check_analyzer::edges::Edge::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check_analyzer::edges::Edge where T: core::clone::Clone
+pub type nika_check_analyzer::edges::Edge::Owned = T
+pub fn nika_check_analyzer::edges::Edge::clone_into(&self, target: &mut T)
+pub fn nika_check_analyzer::edges::Edge::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check_analyzer::edges::Edge where T: 'static + ?core::marker::Sized
+pub fn nika_check_analyzer::edges::Edge::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check_analyzer::edges::Edge where T: ?core::marker::Sized
+pub fn nika_check_analyzer::edges::Edge::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check_analyzer::edges::Edge where T: ?core::marker::Sized
+pub fn nika_check_analyzer::edges::Edge::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check_analyzer::edges::Edge where T: core::clone::Clone
+pub unsafe fn nika_check_analyzer::edges::Edge::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check_analyzer::edges::Edge
+pub fn nika_check_analyzer::edges::Edge::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check_analyzer::edges::Edge where T: core::clone::Clone
+pub fn nika_check_analyzer::edges::Edge::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check_analyzer::edges::Edge where T: 'static
+pub fn nika_check_analyzer::edges::Edge::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_check_analyzer::RecoveryRead
+pub nika_check_analyzer::RecoveryRead::from: usize
+pub nika_check_analyzer::RecoveryRead::to: usize
+impl core::clone::Clone for nika_check_analyzer::edges::RecoveryRead
+pub fn nika_check_analyzer::edges::RecoveryRead::clone(&self) -> nika_check_analyzer::edges::RecoveryRead
+impl core::cmp::Eq for nika_check_analyzer::edges::RecoveryRead
+impl core::cmp::PartialEq for nika_check_analyzer::edges::RecoveryRead
+pub fn nika_check_analyzer::edges::RecoveryRead::eq(&self, other: &nika_check_analyzer::edges::RecoveryRead) -> bool
+impl core::fmt::Debug for nika_check_analyzer::edges::RecoveryRead
+pub fn nika_check_analyzer::edges::RecoveryRead::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_check_analyzer::edges::RecoveryRead
+impl<D> owo_colors::OwoColorize for nika_check_analyzer::edges::RecoveryRead
+impl<Q, K> equivalent::Equivalent<K> for nika_check_analyzer::edges::RecoveryRead where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check_analyzer::edges::RecoveryRead::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check_analyzer::edges::RecoveryRead where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check_analyzer::edges::RecoveryRead::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check_analyzer::edges::RecoveryRead where U: core::convert::From<T>
+pub fn nika_check_analyzer::edges::RecoveryRead::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check_analyzer::edges::RecoveryRead where U: core::convert::Into<T>
+pub type nika_check_analyzer::edges::RecoveryRead::Error = core::convert::Infallible
+pub fn nika_check_analyzer::edges::RecoveryRead::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check_analyzer::edges::RecoveryRead where U: core::convert::TryFrom<T>
+pub type nika_check_analyzer::edges::RecoveryRead::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check_analyzer::edges::RecoveryRead::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check_analyzer::edges::RecoveryRead where T: core::clone::Clone
+pub type nika_check_analyzer::edges::RecoveryRead::Owned = T
+pub fn nika_check_analyzer::edges::RecoveryRead::clone_into(&self, target: &mut T)
+pub fn nika_check_analyzer::edges::RecoveryRead::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check_analyzer::edges::RecoveryRead where T: 'static + ?core::marker::Sized
+pub fn nika_check_analyzer::edges::RecoveryRead::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check_analyzer::edges::RecoveryRead where T: ?core::marker::Sized
+pub fn nika_check_analyzer::edges::RecoveryRead::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check_analyzer::edges::RecoveryRead where T: ?core::marker::Sized
+pub fn nika_check_analyzer::edges::RecoveryRead::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check_analyzer::edges::RecoveryRead where T: core::clone::Clone
+pub unsafe fn nika_check_analyzer::edges::RecoveryRead::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check_analyzer::edges::RecoveryRead
+pub fn nika_check_analyzer::edges::RecoveryRead::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check_analyzer::edges::RecoveryRead where T: core::clone::Clone
+pub fn nika_check_analyzer::edges::RecoveryRead::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check_analyzer::edges::RecoveryRead where T: 'static
+pub fn nika_check_analyzer::edges::RecoveryRead::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub fn nika_check_analyzer::analyze(wf: &nika_schema::raw::workflow::RawWorkflow) -> core::result::Result<nika_check_analyzer::AnalyzedWorkflow, alloc::vec::Vec<nika_schema::error::SchemaError>>
+pub fn nika_check_analyzer::lowered_returns(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>
+pub fn nika_check_analyzer::returns_type(task: &nika_schema::raw::task::RawTask, wf: &nika_schema::raw::workflow::RawWorkflow) -> core::option::Option<nika_types::types::NikaType>
+pub fn nika_check_analyzer::role_of_field(field: core::option::Option<&str>) -> nika_check_analyzer::edges::EdgeKind
