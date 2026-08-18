@@ -612,10 +612,48 @@ pub unsafe fn nika_cap::TrifectaViolation::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cap::TrifectaViolation
 pub fn nika_cap::TrifectaViolation::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_cap::TrifectaViolation where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_cap::WithheldNative
+pub nika_cap::WithheldNative::instead: &'static str
+pub nika_cap::WithheldNative::name: &'static str
+pub nika_cap::WithheldNative::reads: &'static str
+impl nika_cap::WithheldNative
+pub const fn nika_cap::WithheldNative::new(name: &'static str, reads: &'static str, instead: &'static str) -> Self
+impl core::clone::Clone for nika_cap::WithheldNative
+pub fn nika_cap::WithheldNative::clone(&self) -> nika_cap::WithheldNative
+impl core::cmp::Eq for nika_cap::WithheldNative
+impl core::cmp::PartialEq for nika_cap::WithheldNative
+pub fn nika_cap::WithheldNative::eq(&self, other: &nika_cap::WithheldNative) -> bool
+impl core::fmt::Debug for nika_cap::WithheldNative
+pub fn nika_cap::WithheldNative::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cap::WithheldNative
+impl core::marker::StructuralPartialEq for nika_cap::WithheldNative
+impl<T, U> core::convert::Into<U> for nika_cap::WithheldNative where U: core::convert::From<T>
+pub fn nika_cap::WithheldNative::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cap::WithheldNative where U: core::convert::Into<T>
+pub type nika_cap::WithheldNative::Error = core::convert::Infallible
+pub fn nika_cap::WithheldNative::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cap::WithheldNative where U: core::convert::TryFrom<T>
+pub type nika_cap::WithheldNative::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cap::WithheldNative::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cap::WithheldNative where T: core::clone::Clone
+pub type nika_cap::WithheldNative::Owned = T
+pub fn nika_cap::WithheldNative::clone_into(&self, target: &mut T)
+pub fn nika_cap::WithheldNative::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cap::WithheldNative where T: 'static + ?core::marker::Sized
+pub fn nika_cap::WithheldNative::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cap::WithheldNative where T: ?core::marker::Sized
+pub fn nika_cap::WithheldNative::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cap::WithheldNative where T: ?core::marker::Sized
+pub fn nika_cap::WithheldNative::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cap::WithheldNative where T: core::clone::Clone
+pub unsafe fn nika_cap::WithheldNative::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cap::WithheldNative
+pub fn nika_cap::WithheldNative::from(t: T) -> T
 pub const nika_cap::DANGEROUS_ENV_VARS: &[&str]
 pub const nika_cap::HUMAN_GATE_TOOL: &str
 pub const nika_cap::PURE_INTERNAL_TOOLS: &[&str]
 pub const nika_cap::RUNNER_FLOOR_ENV_VARS: &[&str]
+pub const nika_cap::WITHHELD_JQ_NATIVES: &[nika_cap::WithheldNative]
 pub fn nika_cap::builtin_effect(tool: &str, args: core::option::Option<&serde_json::value::Value>) -> core::option::Option<nika_cap::BuiltinEffect>
 pub fn nika_cap::builtin_egresses(tool: &str) -> bool
 pub fn nika_cap::builtin_shape_findings(tool: &str, args: core::option::Option<&serde_json::value::Value>) -> alloc::vec::Vec<alloc::string::String>
@@ -628,7 +666,10 @@ pub fn nika_cap::invoke_tool_is_ingress(tool_id: &str, mcp_content_trusted: bool
 pub fn nika_cap::is_dangerous_env_name(name: &str) -> bool
 pub fn nika_cap::is_pure_internal(tool: &str) -> bool
 pub fn nika_cap::is_pure_internal_call(tool: &str, args: core::option::Option<&serde_json::value::Value>) -> bool
+pub fn nika_cap::is_withheld_jq_native(name: &str) -> bool
 pub fn nika_cap::judge_harness_ask(facts: &nika_cap::HarnessAskFacts, permits: core::option::Option<&nika_cap::Permits>) -> nika_cap::HarnessGate
 pub fn nika_cap::lexically_normalize(path: &str) -> alloc::string::String
 pub fn nika_cap::tool_grant_admits_ingress(grant: &str) -> bool
 pub fn nika_cap::trifecta_violations(permits: &nika_cap::Permits, subjects: &[nika_cap::TrifectaSubject], witnesses: &[nika_cap::TaintWitness], topo_order: &[usize]) -> alloc::vec::Vec<nika_cap::TrifectaViolation>
+pub fn nika_cap::withheld_jq_native(name: &str) -> core::option::Option<&'static nika_cap::WithheldNative>
+pub fn nika_cap::withheld_jq_reason(name: &str) -> core::option::Option<alloc::string::String>

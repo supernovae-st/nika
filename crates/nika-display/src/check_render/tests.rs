@@ -254,3 +254,74 @@ mod models_rung_liveness_tests {
         );
     }
 }
+
+/// The PERMITS panel must not assert a property of a body nobody analysed.
+///
+/// The 2026-07-29 finding — « the green did not mean the leak was gone. It
+/// meant nobody looked. » — gated four lanes behind `section_or_skip` and left
+/// PERMITS ungated. Measured 2026-08-15 on the shipped 0.108.0 binary: a jq
+/// program reaching for the ambient environment printed
+/// `✖ CONFORM [NIKA-VAR-005]` and, three rows later, « pure compute » about
+/// the same body.
+mod permits_panel_under_red_conformance {
+    use nika_schema::parser::{ParseMode, parse};
+    use nika_schema::source::FileId;
+
+    use crate::check_render::*;
+
+    fn console(yaml: &str) -> String {
+        let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parses");
+        let report = nika_check::check(&wf);
+        render(
+            &report,
+            &wf,
+            yaml,
+            "w.nika.yaml",
+            Theme::new(false, false, false),
+            &ModelsAudit::new(Vec::new(), 0, 0),
+            &nika_schema::ResolvedSkills::default(),
+            &[],
+            report.is_clean(),
+        )
+    }
+
+    const REFUSED: &str = "nika: w\ntasks:\n  a:\n    invoke:\n      tool: \"nika:jq\"\n      args:\n        input: {}\n        expression: 'env.PATH'\n";
+    const JUDGED: &str = "nika: w\ntasks:\n  a:\n    invoke:\n      tool: \"nika:jq\"\n      args:\n        input: {}\n        expression: '.'\n";
+
+    /// A refused body: the panel says it did not judge, and never that the
+    /// body is pure.
+    #[test]
+    fn the_panel_states_that_it_did_not_judge() {
+        let out = console(REFUSED);
+        assert!(out.contains("NIKA-VAR-005"), "the refusal renders: {out}");
+        let line = out
+            .lines()
+            .find(|l| l.contains("PERMITS"))
+            .expect("the PERMITS rung renders");
+        assert!(
+            line.contains("not judged while conformance fails"),
+            "the panel must state that it did not look · got: {line}"
+        );
+        assert!(
+            !out.contains("pure compute"),
+            "the certificate claimed « pure compute » about a body it refused:\n{out}"
+        );
+        assert!(
+            !out.contains("nothing escapes"),
+            "the certificate claimed « nothing escapes » about a body it refused:\n{out}"
+        );
+    }
+
+    /// …and the claim is UNCHANGED for a body that really was judged — without
+    /// this, silencing the panel everywhere would pass the test above.
+    #[test]
+    fn a_judged_pure_body_still_states_its_zero() {
+        let out = console(JUDGED);
+        let line = out
+            .lines()
+            .find(|l| l.contains("PERMITS"))
+            .expect("the PERMITS rung renders");
+        assert!(line.contains("zero authority"), "{line}");
+        assert!(line.contains("pure compute"), "{line}");
+    }
+}

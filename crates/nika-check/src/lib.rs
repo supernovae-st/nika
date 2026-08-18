@@ -583,8 +583,16 @@ fn drop_refs_the_coded_walk_refused(
 /// body escapes NOTHING (pure compute) is the LEGAL zero — stated, not
 /// punished: the hint teaches the explicit `permits: {}` form (the
 /// only legal spelling of « I touch nothing »).
-fn legal_zero_hint(wf: &RawWorkflow, escapes_empty: bool, hints: &mut Vec<Hint>) {
-    if wf.permits.is_none() && escapes_empty {
+///
+/// `judged` is false when core conformance failed. The hint asserts a property
+/// OF THE BODY (« pure compute so nothing escapes »), and a body that does not
+/// conform was never analysed, so the sentence would be unearned. Measured
+/// 2026-08-15: a jq program reaching for the ambient environment reported its
+/// `NIKA-VAR-005` refusal and this hint in the same output, one line apart.
+/// Same lesson as `section_or_skip` in the renderer — a green that means
+/// nobody looked is worse than no line at all.
+fn legal_zero_hint(wf: &RawWorkflow, escapes_empty: bool, judged: bool, hints: &mut Vec<Hint>) {
+    if judged && wf.permits.is_none() && escapes_empty {
         hints.push(Hint {
             kind: "permits",
             task: "-".to_owned(),
@@ -683,11 +691,15 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
             advice: miss,
         });
     }
+    // Named once: two readers now ask « did the body conform? » — the gated
+    // scans, and the legal-zero hint. Both must answer from the same fact,
+    // and a predicate spelled twice is a place for them to drift apart.
+    let conforms = conformance.is_empty();
     let (trifecta_findings, mut consent_scan, order_findings) =
-        gated_scans(wf, conformance.is_empty(), &edges, &topo_waves);
+        gated_scans(wf, conforms, &edges, &topo_waves);
     hints.extend(std::mem::take(&mut consent_scan.hints));
     let capability_escapes = permits_fit::scan_escapes(wf);
-    legal_zero_hint(wf, capability_escapes.is_empty(), &mut hints);
+    legal_zero_hint(wf, capability_escapes.is_empty(), conforms, &mut hints);
     let cost = cost::ceiling(wf);
     let (schema_findings, unverifiable_output_refs) = schema_typing::scan_types(wf);
     let schema_findings = drop_refs_the_coded_walk_refused(schema_findings, &conformance);
@@ -946,6 +958,31 @@ tasks:
             !declared.hints.iter().any(|h| h.kind == "permits"),
             "{:?}",
             declared.hints
+        );
+    }
+
+    /// …and the hint is SILENT when conformance failed — it asserts a property
+    /// of a body nobody analysed.
+    ///
+    /// Measured 2026-08-15 on the shipped 0.108.0 binary: a jq program reaching
+    /// for the ambient environment printed its refusal and « the body is pure
+    /// compute so nothing escapes » one line apart. Same class as the
+    /// 2026-07-29 finding the renderer's `section_or_skip` closed for four
+    /// other lanes — a green that means nobody looked.
+    #[test]
+    fn the_legal_zero_hint_is_silent_while_conformance_fails() {
+        let r = check_yaml(
+            "nika: w\ntasks:\n  a:\n    invoke:\n      tool: \"nika:jq\"\n      args:\n        input: {}\n        expression: 'env.PATH'\n",
+        );
+        assert!(
+            !r.conformance.is_empty(),
+            "the withheld native must be a conformance finding: {r:?}"
+        );
+        assert!(
+            !r.hints.iter().any(|h| h.kind == "permits"),
+            "the panel claimed « pure compute so nothing escapes » about a body \
+             it refused one line earlier: {:?}",
+            r.hints
         );
     }
 

@@ -865,6 +865,12 @@ pub(super) fn static_program(command: &RawCommand) -> Option<&str> {
     }
 }
 
+// `permits_fit/tests.rs`, not `permits_fit_tests.rs` behind a `#[path]`.
+// The crate-size counter excludes a file whose basename is `tests.rs` — the
+// convention for « 100% test code », which this file is and says it is. Under
+// the flat name it was PRODUCTION to the counter: 13 lines of SPDX header,
+// module doc and `use super::*` charged against the 15k budget for a file
+// that is 1097 lines of battery. The sibling `hints/tests.rs` was already
+// spelled this way in this same crate.
 #[cfg(test)]
-#[path = "permits_fit_tests.rs"]
 mod tests;
