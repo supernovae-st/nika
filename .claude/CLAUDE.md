@@ -129,9 +129,9 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| branch           | `chore/release-0.109.0`                                      |
-| HEAD             | `ca61bf624` (`ca61bf624f7c08a1e0788091ab4701664a4c23e4`)             |
-| workspace        | v0.109.0                                  |
+| branch           | `chore/release-0.109.1`                                      |
+| HEAD             | `7c60fdfa8` (`7c60fdfa8246395eec09a4924975b6db105c2389`)             |
+| workspace        | v0.109.1                                  |
 | crates (workspace)| 66                                              |
 | crates (admitted)| 61                                             |
 | crates (WIP)     | 5 — nika-chart nika-fx nika-proof nika-store nika-harness                                  |

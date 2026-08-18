@@ -11,7 +11,7 @@ homepage.workspace     = true
 publish                = false  # Foundation crate — never on crates.io. See ADR-022.
 
 [dependencies]
-nika-check  = { path = "../nika-check", version = "0.109.0" }    # RunCertificate — the check certificate the receipt folds
+nika-check  = { path = "../nika-check", version = "0.109.1" }    # RunCertificate — the check certificate the receipt folds
 serde_json  = { workspace = true }
 blake3      = { workspace = true }   # the engine-side digest (the reference's sha256 · parity on the pre-image, never the digest)
 

@@ -11,7 +11,7 @@ homepage.workspace     = true
 publish                = false  # Internal L1 effect crate (not a standalone crates.io satellite).
 
 [dependencies]
-nika-kernel = { path = "../nika-kernel", version = "0.109.0" }
+nika-kernel = { path = "../nika-kernel", version = "0.109.1" }
 tokio       = { workspace = true, features = ["time"] }
 
 [dev-dependencies]

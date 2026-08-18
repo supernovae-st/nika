@@ -5,6 +5,10 @@ Versions move together across all manifests (the mirror gate pins it).
 
 ## Unreleased
 
+## 0.109.1 — 2026-08-19
+
+Lockstep on the engine wave.
+
 ## 0.109.0 — 2026-08-18
 
 Lockstep on the engine wave.

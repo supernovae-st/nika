@@ -10,6 +10,8 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+## [0.109.1](https://github.com/supernovae-st/nika/compare/v0.109.0..v0.109.1) - 2026-08-19
+
 **The release the release gate refused.** `v0.109.0` was tagged from
 `f58a17396` and its own pre-upload gates killed all four builders: the
 funnel e2e and the trust battery still authored their fixtures in the
