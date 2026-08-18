@@ -10,6 +10,26 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+**The second refusal, one layer down.** `v0.109.1` fixed the fossil envelope
+in the release gates and died on both Linux builders one leg later:
+`[consent-run] exit=3 want=4` — since #889 (0.109.0) a workflow that
+declares `permits:` refuses to START on a host with no sandbox backend
+(`NIKA-1710`), and a GitHub Linux runner has no bubblewrap. The macOS
+builders, where seatbelt exists, passed. No asset shipped under `v0.109.1`
+either; the binaries were fine both times. This patch is the same tree plus
+the second gate fix and is the version consumers install.
+
+### Fixed
+
+- **The release gates waive the OS jail explicitly (funnel e2e · trust
+  battery).** They prove the first-run path and the trust path — the
+  scaffold audits, the mock run flows, a default-less confirm PAUSES with
+  its resume line, resume/replay/seal/evidence hold — never confinement,
+  which is proven where it lives (the sandbox crates' tests · the macOS
+  builders run these same gates confined when the variable is unset).
+  `NIKA_SANDBOX=off` rides both gates, explicit and WITNESSED: the trace's
+  opening frame attests `sandbox_waived`.
+
 ## [0.109.1](https://github.com/supernovae-st/nika/compare/v0.109.0..v0.109.1) - 2026-08-19
 
 **The release the release gate refused.** `v0.109.0` was tagged from
