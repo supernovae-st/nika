@@ -101,9 +101,9 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| branch           | `chore/release-0.109.2`                                      |
+| branch           | `chore/release-0.110.0-dev`                                      |
 | HEAD             | `13b77d975` (`13b77d975c3f936f0d51f0acaa242b5d7552ed41`)             |
-| workspace        | v0.109.2                                  |
+| workspace        | v0.110.0-dev                                  |
 | crates (workspace)| 66                                              |
 | crates (admitted)| 61                                             |
 | crates (WIP)     | 5 — nika-chart nika-fx nika-proof nika-store nika-harness                                  |
