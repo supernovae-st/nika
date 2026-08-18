@@ -9,16 +9,23 @@
 //! one architectural unit, two members).
 
 use nika_cli_host::fix_ladder::{
-    MAX_ROUNDS, Repair, StopNotes, apply_dead_form_arm, collect_typed_renames, render_stops,
-    splice, summary, try_w2_hoist,
+    MAX_ROUNDS, Refusal, Repair, StopNotes, apply_dead_form_arm, collect_typed_renames,
+    judge_round, render_refusals, render_stops, splice, summary, try_w2_hoist,
 };
-use nika_schema::{ParseMode, SchemaError};
+use nika_schema::ParseMode;
 
 use crate::display::theme::Theme;
 use crate::verbs::{VerbOutput, exit};
 
 /// The `nika check <file> --fix` verb. Single real file only (the caller
 /// refuses stdin and multi-file — a rewrite needs a place to write).
+///
+/// Every round is a TRANSACTION: it starts from a savepoint, applies its
+/// repairs in memory, and is committed only if the result still parses
+/// as YAML (`judge_round`). A round that breaks the document is rolled
+/// back — repairs and stop notes included — and reported as a typed
+/// refusal; the file is written once, atomically, from committed text
+/// only, and never from text `check` could not read.
 #[must_use]
 pub fn run(path: &str, native_strict: bool, model: Option<&str>, theme: Theme) -> VerbOutput {
     let Ok(original) = std::fs::read_to_string(path) else {
@@ -27,45 +34,69 @@ pub fn run(path: &str, native_strict: bool, model: Option<&str>, theme: Theme) -
     let mut source = original.clone();
     let mut repairs: Vec<Repair> = Vec::new();
     let mut stop_notes = StopNotes(Vec::new());
+    let mut refusals: Vec<Refusal> = Vec::new();
 
     for _ in 0..MAX_ROUNDS {
+        // The savepoint: what this round may be rolled back to.
+        let before = source.clone();
+        let repairs_before = repairs.clone();
+        let stops_before = stop_notes.clone();
         let mut round_applied = false;
         match nika_schema::parse(&source, nika_schema::FileId::new(0), ParseMode::Strict) {
-            Err(SchemaError::UnknownField {
-                field,
-                suggestion: Some(to),
-                ..
-            }) => {
-                round_applied |= splice(&mut source, &field, &to, "field", &mut repairs);
-                // A parse-fatal we cannot splice (ambiguous token): the
-                // loop cannot progress past parse — stop honestly.
-                if !round_applied {
-                    break;
+            Err(e) => {
+                // The ONE typed rename door (`rename_repair`): a near-miss
+                // key splices; a teaching-only refusal offers no rename
+                // and is never scraped (the sentence-as-key corruption).
+                if let Some((old, new)) = e.rename_repair() {
+                    round_applied |= splice(&mut source, &old, &new, "field", &mut repairs);
+                    // A parse-fatal we cannot splice (ambiguous token): the
+                    // loop cannot progress past parse — stop honestly.
+                    if !round_applied {
+                        break;
+                    }
+                } else {
+                    match apply_dead_form_arm(&e, &mut source, &mut repairs, &mut stop_notes) {
+                        Some(true) => {}             // a migration applied — the round restarts
+                        Some(false) | None => break, // STOP, or not rename-shaped — check will tell
+                    }
                 }
             }
-            Err(e) => match apply_dead_form_arm(&e, &mut source, &mut repairs, &mut stop_notes) {
-                Some(true) => {}             // a migration applied — the round restarts
-                Some(false) | None => break, // STOP, or not rename-shaped — check will tell
-            },
             Ok(wf) => {
                 let report = nika_check::check(&wf);
                 if let Some(stop_or_continue) =
                     try_w2_hoist(&report, &mut source, &mut repairs, &mut stop_notes)
                 {
-                    if stop_or_continue {
-                        continue; // re-parse + re-check the hoisted form
+                    if !stop_or_continue {
+                        break;
                     }
-                    break;
-                }
-                // Collect this round's typed renames FIRST (splicing
-                // invalidates nothing — each token is unique by the gate).
-                for (old, new, kind) in collect_typed_renames(&report) {
-                    round_applied |= splice(&mut source, &old, &new, kind, &mut repairs);
-                }
-                if !round_applied {
-                    break; // converged — nothing left this loop can repair
+                } else {
+                    // Collect this round's typed renames FIRST (splicing
+                    // invalidates nothing — each token is unique by the gate).
+                    for (old, new, kind) in collect_typed_renames(&report) {
+                        round_applied |= splice(&mut source, &old, &new, kind, &mut repairs);
+                    }
+                    if !round_applied {
+                        break; // converged — nothing left this loop can repair
+                    }
                 }
             }
+        }
+        // COMMIT or ROLL BACK. Whatever this round announced, if it turned
+        // a document that parsed into one that does not, it was not a
+        // repair — the savepoint wins and the round is reported refused.
+        let savepoint = Savepoint {
+            source: before,
+            repairs: repairs_before,
+            stop_notes: stops_before,
+        };
+        if rollback_if_broken(
+            savepoint,
+            &mut source,
+            &mut repairs,
+            &mut stop_notes,
+            &mut refusals,
+        ) {
+            break;
         }
     }
 
@@ -79,15 +110,53 @@ pub fn run(path: &str, native_strict: bool, model: Option<&str>, theme: Theme) -
     // --fix is check plus a pen, never a different audit.
     let verdict = super::check::run(path, false, native_strict, model, theme);
     let stops = render_stops(&stop_notes, theme);
+    let refused = render_refusals(&refusals, theme);
     VerbOutput {
         text: format!(
-            "{}{}{}",
+            "{}{}{}{}",
             summary(&repairs, applied, theme),
+            refused,
             stops,
             verdict.text
         ),
         code: verdict.code,
     }
+}
+
+/// One round's savepoint — the text and the bookkeeping the round may
+/// be rolled back to.
+struct Savepoint {
+    source: String,
+    repairs: Vec<Repair>,
+    stop_notes: StopNotes,
+}
+
+/// The transaction's judge: when the round's text no longer parses as
+/// YAML although the savepoint's did, restore the savepoint (text ·
+/// repair rows · stop notes), record the typed refusal — naming every
+/// row the round had claimed as applied — and answer `true` (the loop
+/// stops: nothing this round did survives, so nothing is written from
+/// it). Otherwise the round is committed and the answer is `false`.
+fn rollback_if_broken(
+    savepoint: Savepoint,
+    source: &mut String,
+    repairs: &mut Vec<Repair>,
+    stop_notes: &mut StopNotes,
+    refusals: &mut Vec<Refusal>,
+) -> bool {
+    let attempted: Vec<String> = repairs[savepoint.repairs.len()..]
+        .iter()
+        .filter(|r| r.applied)
+        .map(|r| format!("{} `{}` → `{}`", r.kind, r.old, r.new))
+        .collect();
+    let Some(refusal) = judge_round(&savepoint.source, source, attempted) else {
+        return false;
+    };
+    *source = savepoint.source;
+    *repairs = savepoint.repairs;
+    *stop_notes = savepoint.stop_notes;
+    refusals.push(refusal);
+    true
 }
 
 /// The env-shaped refusals for `--fix` combinations the loop cannot
@@ -239,6 +308,140 @@ mod tests {
         assert!(!out.text.contains("skipped"), "no residual skip rows");
         assert_eq!(out.code, exit::OK, "clean after convergence: {}", out.text);
         let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn a_teaching_only_refusal_never_touches_the_file() {
+        // The 2026-08-18 corruption class, both shapes. A dead envelope
+        // key (`workflow:` · retired 2026-08-12) and a de-commented
+        // modeline each refuse with PROSE — the retired-key migration,
+        // the set listing, the modeline fix — and no rename. `--fix` used
+        // to splice that prose in as a key ("the fields here: nika · …:")
+        // and announce one repair applied on a file that no longer parsed;
+        // the shipped 0.108.0 did the same with the modeline sentence.
+        // Now: byte-identical file, the honest note, the check still red.
+        let dir = std::env::temp_dir().join(format!("nika-fix-prose-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("tmpdir");
+        for (name, body) in [
+            (
+                "dead-key.nika.yaml",
+                "nika: v1\nworkflow:\n  id: hello\ntasks:\n  say:\n    exec:\n      command: [echo, hi]\n",
+            ),
+            (
+                "modeline.nika.yaml",
+                "nika: hello\nyaml-language-server: $schema=x\ntasks:\n  say:\n    exec:\n      command: [echo, hi]\n",
+            ),
+        ] {
+            let path = dir.join(name);
+            std::fs::write(&path, body).expect("write fixture");
+            let out = run(
+                path.to_str().expect("utf8 path"),
+                false,
+                None,
+                Theme::new(false, true, false),
+            );
+            let after = std::fs::read_to_string(&path).expect("re-read");
+            assert_eq!(after, body, "{name}: prose is never spliced · {}", out.text);
+            assert!(
+                out.text.contains("no machine-applicable repairs"),
+                "{name}: {}",
+                out.text
+            );
+            assert!(!out.text.contains("repair applied"), "{name}: {}", out.text);
+            assert_ne!(out.code, exit::OK, "{name}: the refusal still reds");
+            let _ = std::fs::remove_file(&path);
+        }
+    }
+
+    #[test]
+    fn a_round_that_breaks_the_document_is_rolled_back_and_refused() {
+        // The transaction contract, at the seam every round passes
+        // through: a round claims two applied repairs, but its text no
+        // longer parses as YAML — the savepoint's text, rows and notes
+        // come back, the refusal names both claimed rows and the YAML
+        // error, and the caller is told to stop. Nothing from that round
+        // can reach the disk (`applied` counts the restored rows only).
+        let good = "nika: w\ntasks:\n  t:\n    exec: { command: [\"true\"] }\n".to_owned();
+        let savepoint = Savepoint {
+            source: good.clone(),
+            repairs: vec![Repair::applied("earlier", "kept", "field")],
+            stop_notes: StopNotes(vec!["an earlier note".to_owned()]),
+        };
+        let mut source = "nika: w\nthe fields here: a · b:\n  t: [unclosed\n".to_owned();
+        let mut repairs = vec![
+            Repair::applied("earlier", "kept", "field"),
+            Repair::applied("workflow", "the fields here: a · b", "field"),
+            Repair::applied("x", "y", "arg"),
+        ];
+        let mut stop_notes = StopNotes(vec![
+            "an earlier note".to_owned(),
+            "a note from the bad round".to_owned(),
+        ]);
+        let mut refusals = Vec::new();
+        assert!(rollback_if_broken(
+            savepoint,
+            &mut source,
+            &mut repairs,
+            &mut stop_notes,
+            &mut refusals
+        ));
+        assert_eq!(source, good, "the savepoint's text is back");
+        assert_eq!(repairs.len(), 1, "the round's rows are gone");
+        assert_eq!(repairs[0].old, "earlier");
+        assert_eq!(stop_notes.0, vec!["an earlier note".to_owned()]);
+        assert_eq!(refusals.len(), 1);
+        assert_eq!(
+            refusals[0].attempted,
+            vec![
+                "field `workflow` → `the fields here: a · b`".to_owned(),
+                "arg `x` → `y`".to_owned()
+            ]
+        );
+        assert!(
+            !refusals[0].reason.is_empty(),
+            "the YAML error rides the refusal"
+        );
+        let rendered = render_refusals(&refusals, Theme::new(false, true, false));
+        assert!(
+            rendered.contains("refused") && rendered.contains("the file is unchanged"),
+            "{rendered}"
+        );
+
+        // The commit half: a round whose text still parses is kept whole,
+        // and a document that was ALREADY unparsable is never judged
+        // (the loop cannot repair what it cannot read).
+        let savepoint = Savepoint {
+            source: good.clone(),
+            repairs: Vec::new(),
+            stop_notes: StopNotes(Vec::new()),
+        };
+        let mut source = good.replace("t:", "task:");
+        let mut repairs = vec![Repair::applied("t", "task", "field")];
+        let mut stop_notes = StopNotes(Vec::new());
+        assert!(!rollback_if_broken(
+            savepoint,
+            &mut source,
+            &mut repairs,
+            &mut stop_notes,
+            &mut refusals
+        ));
+        assert_eq!(repairs.len(), 1, "a committed round keeps its rows");
+        assert_eq!(refusals.len(), 1, "no new refusal");
+        let broken = "nika: [unclosed\n".to_owned();
+        let savepoint = Savepoint {
+            source: broken.clone(),
+            repairs: Vec::new(),
+            stop_notes: StopNotes(Vec::new()),
+        };
+        let mut source = broken;
+        assert!(!rollback_if_broken(
+            savepoint,
+            &mut source,
+            &mut Vec::new(),
+            &mut StopNotes(Vec::new()),
+            &mut refusals
+        ));
+        assert_eq!(refusals.len(), 1);
     }
 
     #[test]

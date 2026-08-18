@@ -26,6 +26,7 @@ use nika_schema::SchemaError;
 use nika_display::theme::{Role, Theme};
 
 /// One applied (or skipped) repair, for the summary.
+#[derive(Clone)]
 pub struct Repair {
     /// The dead form the repair replaces (the summary's left side).
     pub old: String,
@@ -53,7 +54,65 @@ impl Repair {
 }
 
 /// Equivalence-or-stop diagnostics (W2 · D1) — rendered verbatim.
+#[derive(Clone)]
 pub struct StopNotes(pub Vec<String>);
+
+/// A round the loop REFUSED to commit: the transformed text no longer
+/// parsed as YAML although the text it started from did. The round is
+/// rolled back to its savepoint (the file is never written from it) and
+/// this row says what was attempted and why it was refused — a typed
+/// refusal, never a silent write of a document `check` cannot read.
+///
+/// The invariant it enforces (2026-08-18): if `--fix` reports a repair,
+/// the document on disk parses at least as far as the document it
+/// replaced. Measured before the gate: the shipped 0.108.0 spliced a
+/// teaching sentence into a key, announced « 1 repair applied » and
+/// left YAML that no longer parsed.
+#[derive(Clone, Debug)]
+pub struct Refusal {
+    /// The repairs the round would have applied (`kind old → new` rows).
+    pub attempted: Vec<String>,
+    /// The parse failure the transformed text produced.
+    pub reason: String,
+}
+
+/// Judge one round's transformation: `Some(refusal)` when `after` fails
+/// to parse as YAML while `before` did not — the transformation broke
+/// the document and must be rolled back. A document that was already
+/// unparsable stays the author's (the loop cannot repair what it cannot
+/// read; the arms never run on it). Pure: no I/O, the caller rolls back.
+#[must_use]
+pub fn judge_round(before: &str, after: &str, attempted: Vec<String>) -> Option<Refusal> {
+    let yaml_broken = |text: &str| match nika_schema::parse(
+        text,
+        nika_schema::FileId::new(0),
+        nika_schema::ParseMode::Strict,
+    ) {
+        Err(SchemaError::YamlSyntax { message, .. }) => Some(message),
+        _ => None,
+    };
+    if yaml_broken(before).is_some() {
+        return None;
+    }
+    yaml_broken(after).map(|reason| Refusal { attempted, reason })
+}
+
+/// Render the refusal rows (one per rolled-back round · refuse glyph).
+#[must_use]
+pub fn render_refusals(refusals: &[Refusal], theme: Theme) -> String {
+    let mut out = String::new();
+    for r in refusals {
+        let _ = writeln!(
+            out,
+            " {} {}  refused — {} · the repaired text does not parse ({}) · the file is unchanged",
+            theme.paint(Role::Bad, "✗"),
+            theme.paint(Role::Strong, "FIX"),
+            r.attempted.join(" · "),
+            r.reason,
+        );
+    }
+    out
+}
 
 /// Rounds cap — parse aborts at the first defect, so each parse-level
 /// repair costs one round; this bounds pathological inputs.

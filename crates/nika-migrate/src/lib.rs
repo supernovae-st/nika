@@ -98,7 +98,10 @@ pub fn w1(source: &str) -> Option<String> {
                 in_t = l.starts_with("tasks:");
                 continue;
             }
-            if in_t && l.starts_with("  - ") && migrate_task_item(l).is_none() {
+            if in_t
+                && l.starts_with("  - ")
+                && migrate_task_item(l.trim_end_matches('\r')).is_none()
+            {
                 tasks_convertible = false;
                 break;
             }
@@ -109,11 +112,16 @@ pub fn w1(source: &str) -> Option<String> {
         if !l.starts_with(' ') && !l.starts_with('#') && l.contains(':') {
             in_tasks = l.starts_with("tasks:");
         }
+        // A CRLF file stays a CRLF file: the item is rewritten without its
+        // `\r` and every emitted line gets it back (measured 2026-08-18:
+        // the migrated `  a:` lines were LF in a CRLF document — valid
+        // YAML, mixed endings, a diff nobody asked for).
+        let eol = if l.ends_with('\r') { "\r" } else { "" };
         if in_tasks
             && tasks_convertible
-            && let Some(rewritten) = migrate_task_item(l)
+            && let Some(rewritten) = migrate_task_item(l.trim_end_matches('\r'))
         {
-            out.extend(rewritten);
+            out.extend(rewritten.into_iter().map(|line| format!("{line}{eol}")));
             changed = true;
             continue;
         }
@@ -1047,6 +1055,22 @@ mod tests {
 
     const OLD: &str = "# banner\nnika: demo-flow\nmodel: mock/echo\n\ntasks:\n  # fetch first\n  - id: fetch\n    invoke:\n      tool: nika:fetch\n      args: { url: x }\n\n  - id: summarize\n    depends_on: [fetch]\n    with:\n      doc: ${{ tasks.fetch.output }}\n    infer:\n      prompt: go\n";
 
+    #[test]
+    fn w1_keeps_crlf_line_endings_whole() {
+        // Every line CRLF in, every line CRLF out — the rewritten task
+        // lines included (they were LF before this pin: mixed endings).
+        let old = "nika: t\r\ntasks:\r\n  - id: a\r\n    exec:\r\n      command: [\"true\"]\r\n  - id: b  # two\r\n    exec:\r\n      command: [\"true\"]\r\n";
+        let new = w1(old).expect("changed");
+        assert!(new.contains("  a:\r\n    exec:"), "{new:?}");
+        assert!(new.contains("  b:  # two\r\n"), "{new:?}");
+        for line in new.split_inclusive('\n') {
+            assert!(line.ends_with("\r\n"), "an LF crept in: {line:?}");
+        }
+        // and an LF document stays LF (no `\r` invented)
+        let lf = w1("nika: t\ntasks:\n  - id: a\n    exec:\n      command: [\"true\"]\n")
+            .expect("changed");
+        assert!(!lf.contains('\r'), "{lf:?}");
+    }
     #[test]
     fn migrates_the_tasks_shapes_and_preserves_comments() {
         let new = w1(OLD).expect("changes");

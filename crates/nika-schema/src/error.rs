@@ -66,9 +66,22 @@ pub enum SchemaError {
     ///
     /// Spec `02-verbs.md` §forward-compat · « **Reject** with a clear
     /// error (strict mode · default for tests) ».
+    ///
+    /// Two answers ride separately, because two consumers read them:
+    /// [`suggestion`](Self::UnknownField::suggestion) is the TYPED rename
+    /// target (a bare key · what `check --fix` and the editor quickfix
+    /// splice), [`teaching`](Self::UnknownField::teaching) is PROSE for a
+    /// human (the retired-key migration · the modeline fix · the small
+    /// set's own vocabulary). They lived in one field until 2026-08-18,
+    /// and the repairers spliced whichever they found: `check --fix` on
+    /// a file carrying `workflow:` renamed the key to the sentence "the
+    /// fields here: nika · model · …" and reported one repair applied —
+    /// the shipped 0.108.0 did the same on a de-commented modeline. A
+    /// sentence is not a rename; the type now says so.
     #[error(
-        "unknown field `{field}` in {location} (strict mode){}",
-        nika_types::suggest::suggestion_clause(suggestion.as_deref())
+        "unknown field `{field}` in {location} (strict mode){}{}",
+        nika_types::suggest::suggestion_clause(suggestion.as_deref()),
+        teaching.as_deref().map(|t| format!(" — {t}")).unwrap_or_default()
     )]
     UnknownField {
         /// The unknown key.
@@ -80,7 +93,13 @@ pub enum SchemaError {
         /// The nearest known key, when one is close enough to assert
         /// (Damerau-Levenshtein · rustc threshold — the same suggestion
         /// core every check finding shares · silence beats a wrong guess).
+        /// ALWAYS a bare key a splice can apply — never prose (that is
+        /// [`teaching`](Self::UnknownField::teaching)).
         suggestion: Option<String>,
+        /// What a human should know beyond a rename — a retired key's
+        /// migration, the modeline fix, a small closed set's vocabulary.
+        /// Never machine-applied.
+        teaching: Option<String>,
     },
 
     /// Task `id:` is not `snake_case`.
@@ -701,6 +720,15 @@ impl SchemaError {
     #[must_use]
     pub fn rename_repair(&self) -> Option<(String, String)> {
         match self {
+            // The parse-fatal rename: an unknown key with a typed near-miss
+            // (`promt` → `prompt`). `teaching` never rides here — it is
+            // prose, and this door is the ONE place a repairer reads a
+            // rename from (the 2026-08-18 splice-a-sentence corruption).
+            Self::UnknownField {
+                field,
+                suggestion: Some(s),
+                ..
+            } => Some((field.clone(), s.clone())),
             Self::UnknownDependency {
                 to,
                 suggestion: Some(s),
@@ -949,6 +977,7 @@ fn parse_level_variants() -> Vec<SchemaError> {
             location: String::new(),
             span: None,
             suggestion: None,
+            teaching: None,
         },
         SchemaError::BadTaskId {
             id: String::new(),

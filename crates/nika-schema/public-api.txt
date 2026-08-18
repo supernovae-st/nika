@@ -252,6 +252,7 @@ pub nika_schema::error::SchemaError::UnknownField::field: alloc::string::String
 pub nika_schema::error::SchemaError::UnknownField::location: alloc::string::String
 pub nika_schema::error::SchemaError::UnknownField::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::error::SchemaError::UnknownField::suggestion: core::option::Option<alloc::string::String>
+pub nika_schema::error::SchemaError::UnknownField::teaching: core::option::Option<alloc::string::String>
 pub nika_schema::error::SchemaError::UnknownGroup
 pub nika_schema::error::SchemaError::UnknownGroup::name: alloc::string::String
 pub nika_schema::error::SchemaError::UnknownGroup::span: core::option::Option<nika_source::span::Span>
@@ -1915,6 +1916,7 @@ pub nika_schema::SchemaError::UnknownField::field: alloc::string::String
 pub nika_schema::SchemaError::UnknownField::location: alloc::string::String
 pub nika_schema::SchemaError::UnknownField::span: core::option::Option<nika_source::span::Span>
 pub nika_schema::SchemaError::UnknownField::suggestion: core::option::Option<alloc::string::String>
+pub nika_schema::SchemaError::UnknownField::teaching: core::option::Option<alloc::string::String>
 pub nika_schema::SchemaError::UnknownGroup
 pub nika_schema::SchemaError::UnknownGroup::name: alloc::string::String
 pub nika_schema::SchemaError::UnknownGroup::span: core::option::Option<nika_source::span::Span>
