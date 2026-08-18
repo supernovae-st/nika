@@ -18,11 +18,11 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4457
+  classified_files: 4460
   file_rows: 11
   pattern_rows: 22
   by_class:
-    authored: 1521
+    authored: 1524
     authored-pin: 2
     generated: 121
     pinned-copy: 117
@@ -140,7 +140,7 @@ patterns:
 - glob: "crates/*/public-api.txt"
   class: generated
   match_count: 65
-  aggregate_sha256: dae9b870d8144daa3e9bcd7d3ad974e8b71eaf1149d1229e16d25cc4f4364cc5
+  aggregate_sha256: e5283c58aee9fd927a98ddaa025ff3a39cd2582b94df9bcbe8e2417cf3fe0f12
   evidence: ".github/workflows/public-api.yml 'diff each covered lib crate' byte-compares each snapshot against cargo public-api output; macOS renders differently, so snapshots regenerate FROM THE UBUNTU ARTIFACT (workflow comment)"
   derivation:
     tool: "cargo public-api -p <crate> --omit auto-trait-impls > crates/<crate>/public-api.txt (DEFAULT features · the CI job shape — all-features drags platform deps into the render · cargo-public-api 0.51.0 pinned · the public-api-actual CI artifact stays the judge)"
@@ -151,13 +151,13 @@ patterns:
     - "cargo-public-api 0.51.0"
 - glob: "crates/**/src/**"
   class: authored
-  match_count: 766
-  aggregate_sha256: 6d059c15c1d071f4fcf66f8adca6bc7c7bc2edcedb23d19d7277390c14a66e15
+  match_count: 768
+  aggregate_sha256: 5d769ce4e6f912031a8f49fc95a8319927905ba178de3ab4d89f14e573bbc8cb
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
-  match_count: 153
-  aggregate_sha256: 6eac80deb337dfbf79827b2cca27f27ae2fbca3e77dffd82120c93b15d23d500
+  match_count: 154
+  aggregate_sha256: 396ffe947d35b038b7a10a66f5d2cf024dbed9df3edb27fe27a5844947c8504f
   evidence: "crate-owned tests + fixtures under tests/ — written with the crate per gate discipline, no generation markers"
 - glob: "crates/**"
   class: authored
@@ -188,7 +188,7 @@ patterns:
 - glob: ".github/workflows/**"
   class: authored
   match_count: 22
-  aggregate_sha256: bce68e93e48ad1283e612655ee2b3800a127d06b4dced01202389d89273ceafa
+  aggregate_sha256: 5a32de6f670e3e23c2b7f19d596a95ba104a17de09d844aeda7f4ac5fe4f7314
   evidence: "hand-written CI rails, comments narrate design decisions; the heal lanes here rewrite OTHER files (spec-pin-heal.yml → SPEC_PIN · pack-resync.yml → the pack · changelog-cliff.yml → CHANGELOG.md), nothing rewrites the workflows themselves"
 - glob: ".github/**"
   class: authored
