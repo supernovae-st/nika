@@ -237,7 +237,7 @@ patterns:
 - glob: "*"
   class: authored
   match_count: 28
-  aggregate_sha256: a1c93dd441d865e11d6fb75445159951dfac92c4fc4c6d91aef123f920469854
+  aggregate_sha256: 316f105f4f8584a573613e875e20f49e2eeafd39993063db58ce258ac9666844
   evidence: "root prose + config surface (README · DIAMOND · LICENSE · llms.txt · Cargo.toml · deny/clippy/cliff/typos toml · lefthook.yml · flake.nix · Dockerfile) — no generation markers at file heads; CHANGELOG.md · Cargo.lock · SPEC_PIN · ROADMAP.md excepted in files:"
 - glob: "**"
   class: authored
