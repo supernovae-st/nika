@@ -282,13 +282,23 @@ pub fn resolve_skills(
         // an absolute path outside `permits: {}` · whose own doc says the
         // workflow "opens no file" · was read, and the engine reported on
         // its CONTENT while the PERMITS and TRIFECTA rungs stayed green.
-        let granted = wf
-            .permits
-            .as_ref()
-            .is_some_and(|p| p.value.allows_path(key, false));
-        let (code, detail) = match defects.get(key) {
-            Some((code, detail)) => (*code, detail.clone()),
-            None if !granted => {
+        // Two refusals, the same two every fs effect gets (spec 02 §Agent
+        // Skills · the table): an ABSENT block is zero authority — the
+        // invoke lane's `NIKA-AUTH-006` (2026-08-18: this lane said
+        // SEC-004 for both, one voice restored) · a DECLARED block whose
+        // fs.read does not admit the path is `NIKA-SEC-004`.
+        let (code, detail) = match (defects.get(key), wf.permits.as_ref()) {
+            (Some((code, detail)), _) => (*code, detail.clone()),
+            (None, None) => {
+                let d = format!(
+                    "`{key}` is a file read under an absent `permits:` block · absent means \
+                     zero authority (F-O8) · declare `permits: {{ fs: {{ read: [\"{key}\"] }} }}` \
+                     (the skill's text reaches the model, so the read is inside the boundary)"
+                );
+                defects.insert(key.to_owned(), ("NIKA-AUTH-006", d.clone()));
+                ("NIKA-AUTH-006", d)
+            }
+            (None, Some(p)) if !p.value.allows_path(key, false) => {
                 let d = format!(
                     "`{key}` is outside the permits.fs.read boundary · grant the path, \
                      or move the skill inside one the file already grants"
@@ -296,7 +306,7 @@ pub fn resolve_skills(
                 defects.insert(key.to_owned(), ("NIKA-SEC-004", d.clone()));
                 ("NIKA-SEC-004", d)
             }
-            None => match read(key) {
+            (None, Some(_)) => match read(key) {
                 Ok(text) => match parse_skill(&text) {
                     Ok(_) => {
                         resolved.texts.insert(key.to_owned(), text);
@@ -420,18 +430,23 @@ mod tests {
     /// pointed at an invalid file and passed for the wrong reason).
     #[test]
     fn resolve_skills_refuses_a_path_outside_the_boundary() {
+        // Two codes, the same two every fs effect gets (spec 02 §Agent
+        // Skills · the table): an ABSENT block is AUTH-006 (zero
+        // authority · the invoke lane's spelling since F-O8) · a DECLARED
+        // block that does not admit the path is SEC-004.
         let cases = [
             // the DECLARED ZERO · its own doc says "opens no file"
-            ("permits: {}\n", "declared zero"),
-            // absent · zero authority (F-O8)
-            ("", "absent permits"),
+            ("permits: {}\n", "declared zero", "NIKA-SEC-004"),
+            // absent · zero authority (F-O8) · the invoke lane's code
+            ("", "absent permits", "NIKA-AUTH-006"),
             // granted, but ELSEWHERE
             (
                 "permits:\n  fs:\n    read: [\"allowed/SKILL.md\"]\n",
                 "grant elsewhere",
+                "NIKA-SEC-004",
             ),
         ];
-        for (permits, label) in cases {
+        for (permits, label, code) in cases {
             let yaml = format!(
                 "nika: w\nmodel: mock/echo\n{permits}\
                  tasks:\n  a:\n    agent: {{ prompt: \"hi\", skills: [\"outside/SKILL.md\"] }}\n"
@@ -447,8 +462,8 @@ mod tests {
             assert!(resolved.texts.is_empty(), "{label}: nothing may carry");
             assert_eq!(
                 resolved.findings.first().map(|f| f.code),
-                Some("NIKA-SEC-004"),
-                "{label}: the refusal is a boundary escape, not a read defect"
+                Some(code),
+                "{label}: the refusal is a boundary refusal, not a read defect"
             );
         }
     }
