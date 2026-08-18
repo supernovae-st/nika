@@ -27,6 +27,17 @@ if [ -z "$want" ]; then
   exit 1
 fi
 
+# The Dockerfile example downloads a RELEASE tarball, so it names a version
+# that has one. On a `-dev` workspace (main between tags · RELEASING.md §0)
+# no such asset exists for the workspace version, and the honest teaching
+# is the newest published tag; on a release sweep the two coincide (the
+# sweep writes the workspace version and the tag follows).
+docker_want="$want"
+if [[ "$want" == *-dev ]]; then
+  newest_tag="$(git tag --sort=-v:refname 2>/dev/null | grep -m1 -E '^v[0-9]+\.[0-9]+\.[0-9]+$' | cut -c2-)"
+  [ -n "$newest_tag" ] && docker_want="$newest_tag"
+fi
+
 fails=0
 checked=0
 
@@ -55,11 +66,13 @@ for row in "${surfaces[@]}"; do
     *) got="" ;;
   esac
   checked=$((checked + 1))
+  expect="$want"
+  [ "$kind" = docker ] && expect="$docker_want"
   if [ -z "$got" ]; then
     printf 'RED: no version found in %s (%s) — the extraction broke, which is not a pass\n' "$path" "$what" >&2
     fails=$((fails + 1))
-  elif [ "$got" != "$want" ]; then
-    printf 'RED: %s says %s, the workspace says %s (%s)\n' "$path" "$got" "$want" "$what" >&2
+  elif [ "$got" != "$expect" ]; then
+    printf 'RED: %s says %s, the workspace says %s (%s)\n' "$path" "$got" "$expect" "$what" >&2
     fails=$((fails + 1))
   fi
 done
@@ -70,5 +83,9 @@ if [ "$fails" -gt 0 ]; then
   exit 2
 fi
 
-echo "OK: $checked version surface(s) agree with the workspace ($want)"
+if [ "$docker_want" != "$want" ]; then
+  echo "OK: $checked version surface(s) agree — manifests $want · Dockerfile teaches the newest release $docker_want (dev train)"
+else
+  echo "OK: $checked version surface(s) agree with the workspace ($want)"
+fi
 exit 0
