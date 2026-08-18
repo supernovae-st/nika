@@ -422,41 +422,53 @@ impl Cx<'_> {
     ) -> Result<(), SchemaError> {
         for (key, _) in mapping.iter() {
             if !known.contains(&key.as_str()) {
+                // Two answers, two fields (2026-08-18): `suggestion` is the
+                // TYPED rename target — a bare key from did-you-mean, the
+                // one thing `check --fix` and the editor quickfix splice —
+                // and `teaching` is prose for the human. They rode one
+                // field before, and both repairers spliced whichever they
+                // found: a sentence became a YAML key and the file no
+                // longer parsed. A sentence is never a rename.
                 // The modeline class, valid-YAML form (#323): with the `#`
                 // stripped, `yaml-language-server: $schema=…` parses as a
                 // top-level mapping key — the generic unknown-field message
                 // sends the repairer hunting for a workflow field. Teach the
-                // real fix instead of a Levenshtein guess.
-                let suggestion = if key.as_str() == "yaml-language-server" {
+                // real fix instead of a Levenshtein guess (no rename at all).
+                let is_modeline = key.as_str() == "yaml-language-server";
+                let suggestion = if is_modeline {
+                    None
+                } else {
+                    nika_types::suggest::did_you_mean(key.as_str(), known.iter().copied())
+                        .map(str::to_owned)
+                };
+                let ordinary = if is_modeline {
                     Some(
                         "this is a de-commented editor modeline, not a workflow \
                          field — restore the `# ` comment prefix (or delete the \
                          line; it is editor-only)"
                             .to_owned(),
                     )
+                } else if suggestion.is_some() {
+                    None
                 } else {
-                    nika_types::suggest::did_you_mean(key.as_str(), known.iter().copied())
-                        .map(str::to_owned)
-                        // No near-miss to assert: for a small closed set,
-                        // teach the set itself — `env` in a secret is
-                        // nobody's typo for `key`, the author needs the
-                        // vocabulary (the chart-semantics precedent applied
-                        // to parse · use-case battery 2026-07-11). Large
-                        // sets (a task's keys) stay silent: a 20-item dump
-                        // is noise, not teaching.
-                        .or_else(|| {
-                            // 9, not 8. Measured 2026-08-15: exactly two sets
-                            // sit at nine — TOP_LEVEL_KEYS (the envelope) and
-                            // AGENT_KEYS — and both were silent for the sake
-                            // of one key over a round number. The envelope is
-                            // the set an author meets first and the one whose
-                            // vocabulary they are least likely to hold; it has
-                            // never taught itself, at fourteen keys or at nine.
-                            // A task's twenty keys still stay silent, which is
-                            // the line this threshold exists to draw.
-                            (known.len() <= 9)
-                                .then(|| format!("the fields here: {}", known.join(" · ")))
-                        })
+                    // No near-miss to assert: for a small closed set,
+                    // teach the set itself — `env` in a secret is
+                    // nobody's typo for `key`, the author needs the
+                    // vocabulary (the chart-semantics precedent applied
+                    // to parse · use-case battery 2026-07-11). Large
+                    // sets (a task's keys) stay silent: a 20-item dump
+                    // is noise, not teaching.
+                    //
+                    // 9, not 8. Measured 2026-08-15: exactly two sets
+                    // sit at nine — TOP_LEVEL_KEYS (the envelope) and
+                    // AGENT_KEYS — and both were silent for the sake
+                    // of one key over a round number. The envelope is
+                    // the set an author meets first and the one whose
+                    // vocabulary they are least likely to hold; it has
+                    // never taught itself, at fourteen keys or at nine.
+                    // A task's twenty keys still stay silent, which is
+                    // the line this threshold exists to draw.
+                    (known.len() <= 9).then(|| format!("the fields here: {}", known.join(" · ")))
                 };
                 // A RETIRED key leads with its migration and KEEPS the
                 // ordinary teaching behind it — the two answer different
@@ -465,7 +477,7 @@ impl Cx<'_> {
                 // existed and where its role went. Composed, not preempted:
                 // an earlier draft returned the migration INSTEAD, and the
                 // sibling law's own test caught it.
-                let suggestion = match (retired_key_teaching(key.as_str(), location), suggestion) {
+                let teaching = match (retired_key_teaching(key.as_str(), location), ordinary) {
                     (Some(retired), Some(ordinary)) => Some(format!("{retired} · {ordinary}")),
                     (Some(retired), None) => Some(retired.to_owned()),
                     (None, ordinary) => ordinary,
@@ -475,6 +487,7 @@ impl Cx<'_> {
                     location: location.to_owned(),
                     span: self.span(key.span()),
                     suggestion,
+                    teaching,
                 });
             }
         }
@@ -920,10 +933,18 @@ tasks:
             "nika: h\nconfig:\n  a: 1\ntasks:\n  g:\n    exec:\n      run: \"true\"\n",
         )
         .expect_err("config is not an envelope key");
-        let SchemaError::UnknownField { suggestion, .. } = err else {
+        let SchemaError::UnknownField {
+            suggestion,
+            teaching,
+            ..
+        } = err
+        else {
             panic!("expected UnknownField, got {err:?}");
         };
-        let taught = suggestion.expect("the envelope must teach its set");
+        // The set is TAUGHT (prose · the human's field), never SUGGESTED
+        // (the typed rename · what --fix splices): a listing is not a key.
+        assert_eq!(suggestion, None, "a set listing is not a rename target");
+        let taught = teaching.expect("the envelope must teach its set");
         // `starts_with` → `contains` (2026-08-15, same day, sibling change):
         // this fixture is a RETIRED key, so the migration now LEADS and the
         // set listing follows. The law under test is unchanged — the set is
@@ -1058,17 +1079,53 @@ tasks:
                     nika: hello\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n";
         let err = parse_strict(yaml).expect_err("unknown top-level field in strict");
         let SchemaError::UnknownField {
-            field, suggestion, ..
+            field,
+            suggestion,
+            teaching,
+            ..
         } = err
         else {
             panic!("expected UnknownField, got {err:?}");
         };
         assert_eq!(field, "yaml-language-server");
-        let s = suggestion.expect("the modeline teaching replaces did-you-mean");
+        // No rename: the modeline teaching is prose. On the shipped 0.108.0
+        // it rode `suggestion` and `check --fix` renamed the key to the
+        // sentence (measured 2026-08-18) — the type keeps the two apart.
+        assert_eq!(suggestion, None, "the modeline fix is not a rename");
+        let s = teaching.expect("the modeline teaching replaces did-you-mean");
         assert!(
             s.contains("editor modeline") && s.contains("comment prefix"),
             "teaches the real fix: {s}"
         );
+    }
+
+    /// The typed half stays typed: a near-miss key rides `suggestion` as
+    /// the bare key (what a splice applies) and `teaching` stays empty —
+    /// there is nothing to say beyond « did you mean `infer`? ».
+    #[test]
+    fn a_near_miss_is_a_bare_key_and_teaches_nothing_else() {
+        let near = "nika: h\ntasks:\n  g:\n    infr:\n      prompt: \"hi\"\n";
+        let err = parse_strict(near).expect_err("unknown key");
+        let SchemaError::UnknownField {
+            suggestion,
+            teaching,
+            ..
+        } = &err
+        else {
+            panic!("expected UnknownField, got {err:?}");
+        };
+        assert_eq!(suggestion.as_deref(), Some("infer"));
+        assert_eq!(*teaching, None);
+        // The one door every repairer reads: the same pair, typed.
+        assert_eq!(
+            err.rename_repair(),
+            Some(("infr".to_owned(), "infer".to_owned()))
+        );
+        // And a teaching-only refusal offers NO rename through that door.
+        let far = "nika: h\nconfig:\n  a: 1\ntasks:\n  g:\n    exec:\n      run: \"true\"\n";
+        let err = parse_strict(far).expect_err("config is not an envelope key");
+        assert_eq!(err.rename_repair(), None, "prose is never a rename: {err}");
+        assert!(err.to_string().contains("the fields here:"), "{err}");
     }
 
     #[test]
