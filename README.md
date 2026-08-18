@@ -123,10 +123,12 @@ and the fixed half clean.
 
 ```yaml
 # review.nika.yaml: read a PR diff, judge its risk, comment only when it's high.
-nika: v1
-workflow:
-  id: pr-risk-review
+nika: pr-risk-review
 model: ollama/qwen3.5:9b             # local by default. swap to any provider
+
+permits:                              # the blast radius, declared in-file
+  exec: ["git"]
+  tools: ["mcp:github/pr-comment"]
 
 tasks:
   diff:                               # exec: a read-only shell command
@@ -317,8 +319,9 @@ composition."
 | `invoke` | Call a tool or MCP server (an HTTP fetch, GitHub, a builtin…) |
 | `agent` | Run an autonomous loop with tools, until the task is done |
 
-Everything sits under one frozen, versioned envelope, `nika: v1`, that won't
-break. Three properties hold across every workflow:
+Everything sits under one frozen nine-key envelope · `nika` · `model` ·
+`inputs` · `const` · `secrets` · `permits` · `run` · `tasks` · `outputs` ·
+that won't break. Three properties hold across every workflow:
 
 - **Provider-agnostic, local-first.** Local Ollama or LM Studio, any API —
   or no server at all: every release binary serves GGUFs itself
@@ -378,7 +381,7 @@ including when *not* to use Nika.
 
 Nika is built in the open.
 
-The **language** (the `nika: v1` envelope and its four verbs) is stable and
+The **language** (the nine-key envelope and its four verbs) is stable and
 won't break. The **engine** is a strict, modular Rust workspace. The latest
 tagged public release is whatever the badge at the top of this page says:
 always [the releases page](https://github.com/supernovae-st/nika/releases/latest),
@@ -390,7 +393,7 @@ checklist, not by a date. The code, the
 [example workflows](examples/) are all readable, and development happens on
 `main` in the open.
 
-The `nika: v1` language envelope is frozen forever. It is a separate axis from the
+The nine-key language envelope is frozen forever. It is a separate axis from the
 engine version. Every release is complete for its declared scope; no
 half-features parked behind a future version.
 
@@ -451,13 +454,13 @@ Your first workflow runs with **zero setup**: no model, no API key:
 
 ```sh
 cat > hello.nika.yaml <<'YAML'
-nika: v1
-workflow:
-  id: hello
+nika: hello
+permits:
+  exec: ["echo"]
 tasks:
   greet:
     exec:
-      command: "echo hello from nika"
+      command: ["echo", "hello from nika"]
 YAML
 
 nika check hello.nika.yaml   # static audit, before a single token is spent
