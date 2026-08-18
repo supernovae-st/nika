@@ -8,7 +8,7 @@
 # one of the four still executes — it just stops being a contract.
 #
 # Demonstrates ·
-#   - the envelope · `nika: v1` (the contract version) + `workflow.id`
+#   - the envelope · `nika: <id>` · the mark AND the file's name (no version typed)
 #   - `model:` · one local model · no API key, nothing leaves the machine
 #   - `permits: {}` · the DECLARED zero · this workflow may touch nothing
 #   - one task · the `infer:` verb, bounded by `max_tokens:`

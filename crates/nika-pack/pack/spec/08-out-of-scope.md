@@ -327,8 +327,10 @@ checkpoint:
 
 ### Workflow versioning / migration
 
-If a workflow needs to be re-runnable across spec versions · use a version
-pin in the envelope (`nika: v1` already does this for the language contract). Per-workflow stdlib version pinning may land in v0.2.
+A workflow file carries no version pin: `nika:` is the file's name, the
+language family is v1 forever and pre-1.0 breaking changes land INSIDE it,
+announced in the changelog with their `check --fix` rungs ([01 §nika](./01-envelope.md) ·
+[00 §pre-1.0 stability contract](./00-overview.md#pre-10-stability-contract)). Per-workflow stdlib version pinning may land in v0.2.
 
 ### Idempotency keys / step deduplication
 
@@ -529,7 +531,7 @@ or a non-goal, with the line that says whose job it is.
 | H10 | Provenance (claim + evidence + confidence) | **PARTIAL** | The **evidence-first shape** (`{ claim, evidence: { step, path, quote }, confidence }`) is the RECOMMENDED (informative) output convention for audit-class workflows · fully expressible today via `schema:`. A normative, ProofChain-compatible machine run-report schema is deferred with the run-report work (v0.2). |
 | H11 | Observability (OTel) | **OUT (mapping recommended)** | Engine concern (§Observability) · zero telemetry by default · local-first. The canonical mapping when an engine exports · **run = trace · task = span · retry attempts = span events**, recommended so two engines' traces line up · never required. |
 | H12 | Security in-language vs runtime | **WRITTEN** | Language-visible security is now FOUR surfaces · the `exec:` blocklist (MUST · + the argv form as the structural injection fix) · the `agent:` tools whitelist (default-deny MUST) · secrets masking + no-inline-literals (`secrets:` envelope) · and the workflow-level **`permits:`** capability boundary ([01 §permits](./01-envelope.md#permits--optional--the-declared-capability-boundary) · default-deny once present · enforced statically + at runtime · NIKA-SEC-004). Everything else, trust levels · spotlighting · canaries · taint tracking (the reference engine's Shield · NIKA-SEC family), is **runtime-side** and intentionally NOT in YAML v0.1. |
-| H13 | Packaging / distribution (registries · semver · signing) | **OUT** | The envelope pin `nika: v1` is the only versioning surface in the language. Workflow registries · package manifests · signing are ecosystem/engine concerns (the reference engine plans `nika-pck`) · not spec surface. |
+| H13 | Packaging / distribution (registries · semver · signing) | **OUT** | The language has no versioning surface in the file (v1 forever · no slot · [01 §nika](./01-envelope.md)) · machine formats version independently. Workflow registries · package manifests · signing are ecosystem/engine concerns (the reference engine plans `nika-pck`) · not spec surface. |
 | H14 | Testing workflows (dry-run · mocks · goldens) | **IN (pieces)** | The `mock/` provider is one of the <!-- canon:providers -->17<!-- /canon --> (deterministic · no LLM call): `model: mock/echo` per task or via one `inputs.model` swap turns any workflow into a test. Golden runs reuse the conformance fixture pattern. `--dry-run` (parse + plan · execute nothing) is an engine CLI concern · MAY. A workflow without a test story is a script: the test story is · swap to `mock/`, assert with `nika:assert`/`schema:`. |
 | H15 | Concurrency / rate governance | **PARTIAL** | In-language · `for_each.max_parallel` + `for_each.fail_fast` + wave-parallel scheduling (normative · [03 §execution model](./03-dag.md#dag-execution-model)). Per-provider rate limits · engine config (the engine MUST honor declared caps · how it throttles providers is its business). Cross-run/global scheduling · NEVER (§Multi-workflow orchestration). |
 | H16 | Interop (import/export GHA · LangGraph · Temporal) | **PROUD NON-GOAL** | Nika is a source language, not a compatibility layer: no importers/exporters, ever (a translated workflow is a worse workflow). **⚠️ AMENDED 2026-08-11 — the old wording said the interop boundaries are MCP and `exec:` « anything with a CLI ». That sentence manufactured the problem it pretended to solve: everything has a CLI, so it routed the world to the escape hatch.** The reach-for order is now a LADDER, and `exec:` is its last rung — see [§the interop ladder](#the-interop-ladder-normative) below. |

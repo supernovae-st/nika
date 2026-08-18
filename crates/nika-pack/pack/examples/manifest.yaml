@@ -60,23 +60,23 @@ showcase:
     sha256_16: 8dd0a12b1fad12ba
   - file: examples/ceo-monday-brief.nika.yaml
     name: ceo-monday-brief
-    constructs: [extract, local_model, on_error, outputs, secrets, thinking, when, with]
+    constructs: [extract, local_model, on_error, outputs, secrets, thinking, typed_inputs, when, with]
     sha256_16: b63ceb7fe702cbb4
   - file: examples/competitor-radar.nika.yaml
     name: competitor-radar
-    constructs: [fail_fast, for_each, local_model, max_parallel, on_error, outputs, retry, timeout, when, with]
+    constructs: [fail_fast, for_each, local_model, max_parallel, on_error, outputs, retry, timeout, typed_inputs, when, with]
     sha256_16: f3ff5d76a55416bf
   - file: examples/config-drift-sentinel.nika.yaml
     name: config-drift-sentinel
-    constructs: [local_model, on_error, outputs, retry, secrets, when, with]
+    constructs: [local_model, on_error, outputs, retry, secrets, typed_inputs, when, with]
     sha256_16: d2fb87f81941bd90
   - file: examples/contract-guard.nika.yaml
     name: contract-guard
-    constructs: [local_model, outputs, schema, with]
+    constructs: [local_model, outputs, schema, typed_inputs, with]
     sha256_16: 12511bfc77f3f05e
   - file: examples/corpus-digest.nika.yaml
     name: corpus-digest
-    constructs: [fail_fast, for_each, local_model, max_parallel, on_error, outputs, schema, thinking, timeout, when, with]
+    constructs: [fail_fast, for_each, local_model, max_parallel, on_error, outputs, schema, thinking, timeout, typed_inputs, when, with]
     sha256_16: 67dca681be847374
   - file: examples/csv-chart-report.nika.yaml
     name: csv-chart-report
@@ -84,7 +84,7 @@ showcase:
     sha256_16: bef2fcf4d65c86b1
   - file: examples/deep-research-brief.nika.yaml
     name: deep-research-brief
-    constructs: [agent_tools, local_model, outputs, schema, thinking, with]
+    constructs: [agent_tools, local_model, outputs, schema, thinking, typed_inputs, with]
     sha256_16: 280b7214aed44d5b
   - file: examples/etl-quarantine.nika.yaml
     name: etl-quarantine
@@ -96,7 +96,7 @@ showcase:
     sha256_16: 26b9cd07185a5278
   - file: examples/incident-war-room.nika.yaml
     name: incident-war-room
-    constructs: [local_model, on_error, outputs, retry, schema, secrets, thinking, when, with]
+    constructs: [local_model, on_error, outputs, retry, schema, secrets, thinking, typed_inputs, when, with]
     sha256_16: 9f1566cc6f495a36
   - file: examples/invoice-chaser.nika.yaml
     name: invoice-chaser
@@ -108,7 +108,7 @@ showcase:
     sha256_16: 66238df686af3963
   - file: examples/meeting-actions.nika.yaml
     name: meeting-actions
-    constructs: [local_model, outputs, schema, with]
+    constructs: [local_model, outputs, schema, typed_inputs, with]
     sha256_16: 2845951310eb73b0
   - file: examples/model-bench.nika.yaml
     name: model-bench
@@ -128,7 +128,7 @@ showcase:
     sha256_16: 9a16ba306cd0cfc2
   - file: examples/release-notes.nika.yaml
     name: release-notes
-    constructs: [local_model, on_error, outputs, schema, secrets, when, with]
+    constructs: [local_model, on_error, outputs, schema, secrets, typed_inputs, when, with]
     sha256_16: ddf483b2a30f2df0
   - file: examples/release-radar.nika.yaml
     name: release-radar
@@ -136,7 +136,7 @@ showcase:
     sha256_16: 9f50cd4cfcd85f22
   - file: examples/release-train.nika.yaml
     name: release-train
-    constructs: [outputs, retry, timeout, when, with]
+    constructs: [outputs, retry, timeout, typed_inputs, when, with]
     sha256_16: 052afffd8b71dba8
   - file: examples/resume-screener.nika.yaml
     name: resume-screener
@@ -144,7 +144,7 @@ showcase:
     sha256_16: baed1fb536104108
   - file: examples/seo-content-brief.nika.yaml
     name: seo-content-brief
-    constructs: [extract, local_model, on_error, outputs, schema, with]
+    constructs: [extract, local_model, on_error, outputs, schema, typed_inputs, with]
     sha256_16: ce48adbca8489680
   - file: examples/social-repurpose.nika.yaml
     name: social-repurpose

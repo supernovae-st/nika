@@ -124,6 +124,7 @@ composition	NIKA-COMP-003	check-fail	conformance/composition/self-launch-cycle.n
 composition	(positive)	positive-run	conformance/composition/parent-child-acyclic.nika.yaml
 authority	NIKA-AUTH-011	check-reject	conformance/tests/core/authority/028-lift-that-lifts-nothing-refused
 authority	NIKA-AUTH-011	check-reject	conformance/tests/core/authority/029-lift-data-as-code-on-inert-refused
+authority	NIKA-AUTH-006	check-reject	conformance/tests/core/authority/030-skill-read-under-absent-permits-refused
 authority	(positive)	positive-check	conformance/tests/core/authority/011-declassify-declared-opens-the-door
 authority	(positive)	positive-check	conformance/tests/core/authority/021-inert-door-declared-passes
 envelope	NIKA-PARSE-026	check-reject	conformance/tests/core/envelope/026-run-ambient-virtual-refused
@@ -136,5 +137,6 @@ envelope	(positive)	positive-check	conformance/tests/core/envelope/030-run-none-
 envelope	(positive)	positive-check	conformance/tests/core/envelope/032-run-none-dead-jitter-passes
 verbs	NIKA-AGENT-003	check-reject	conformance/tests/core/verbs-shape/023-agent-skill-missing-refused
 verbs	NIKA-AGENT-003	check-reject	conformance/tests/core/verbs-shape/026-agent-skill-templated-path-refused
+verbs	NIKA-SEC-004	check-reject	conformance/tests/deep/029-skill-outside-fs-read-boundary-refused
 verbs	NIKA-AGENT-004	check-reject	conformance/tests/core/verbs-shape/024-agent-skill-invalid-refused
 verbs	(positive)	positive-check	conformance/tests/core/verbs-shape/025-agent-skill-valid-passes

@@ -324,7 +324,7 @@ research:
 | `prompt` | yes | string | Initial user message (same field name as `infer:` · consistent) |
 | `model` | no | string | Override workflow default · `<provider>/<name>` |
 | `tools` | no | array | Tool whitelist · glob patterns · **default-deny** · if absent the agent gets NO tools (pure conversation · least-privilege). Grant explicitly. |
-| `skills` | no | array | [Agent Skill](https://agentskills.io) file paths (each an agentskills.io-shape `SKILL.md`) · **explicit static paths only** — no globs, no `${{ }}` templates (the `permits:` explicitness law) · loaded at **compose time** and injected into the system context (§Agent Skills below) |
+| `skills` | no | array | [Agent Skill](https://agentskills.io) file paths (each an agentskills.io-shape `SKILL.md`) · **explicit static paths only** — no globs, no `${{ }}` templates (the `permits:` explicitness law) · loaded at **compose time**, **inside `permits.fs.read`** (the text reaches the model), and injected into the system context (§Agent Skills below) |
 | `max_turns` | no | integer | Loop limit · default 10 |
 | `max_tokens_total` | no | integer | Cumulative token budget · default engine-configurable |
 | `temperature` | no | number 0-2 | Sampling temperature |
@@ -421,12 +421,39 @@ review:
 
 **Resolution (normative)** · paths are **static** — no globs, no
 `${{ }}` templates (the same explicitness law as `permits:`; a template
-in a skill path is a parse error). Relative paths resolve from the
-working directory, like every other relative path in the language. The
-files are read at **compose time** — before the run starts, by the
-composition layer, never mid-loop by the runtime — so skill reads are
-**outside `permits.fs`** (exactly like the workflow file itself: what
-the agent will carry is fixed and auditable before any effect).
+or a glob in a skill path is a parse-time `NIKA-AGENT-003` — it can
+never resolve). Relative paths resolve from the **directory of the
+workflow file that names them**, exactly like a composed `workflow:`
+child target ([14](./14-composition.md)) — never from the working
+directory (`nika check sub/wf.nika.yaml` run from the repo root reads
+`sub/skills/…`, whatever the operator's cwd). The files are read at
+**compose time** — before the run starts, by the composition layer,
+never mid-loop by the runtime.
+
+**Skill reads are INSIDE `permits.fs.read`.** A skill file is not
+program text the way a composed child is: a child's *effects* are
+re-judged under the parent's boundary and its text goes nowhere, while
+a skill's *text* is carried into the model's context — a file read whose
+bytes reach a destination, the same class as `nika:read`. So the path
+as written must be admitted by the workflow's declared read boundary
+(the lexical `permits.fs.read` match every fs effect uses):
+
+| the workflow declares | a `skills:` entry is | code |
+|---|---|---|
+| no `permits:` block at all | an effect under an absent block · zero authority | `NIKA-AUTH-006` |
+| a `permits:` block whose `fs.read` does not admit the path | outside the declared boundary | `NIKA-SEC-004` |
+| a boundary that admits the path · the file is missing or unreadable | unresolvable at compose time | `NIKA-AGENT-003` |
+| a boundary that admits the path · the file is not a valid Agent Skill | resolvable, malformed | `NIKA-AGENT-004` |
+| a boundary that admits the path · a well-shaped `SKILL.md` | admitted · injected | — |
+
+The boundary is judged **before** the read: an ungranted path is never
+opened, so the refusal cannot leak whether the file exists or how its
+first line is shaped. (Measured on the shipped 0.108.0, 2026-08-12:
+under `permits: {}` — the declared zero — a skill path of `/etc/hosts`
+was read and the engine reported on its content while the permits and
+trifecta rungs stayed green. The earlier text of this paragraph, «
+skill reads are outside `permits.fs` », was the sentence that
+authorized it; it is retired here.)
 
 **Injection (normative)** · the resolved skills join the agent's system
 context as ONE deterministic section, appended after the authored
@@ -448,10 +475,12 @@ context as ONE deterministic section, appended after the authored
 same bytes (provider-cache-friendly · reproducible transcripts).
 
 **check≡run** · `skills:` is fully validated statically. `nika check`
-fails a workflow whose skill paths do not resolve (`NIKA-AGENT-003` ·
-the file is missing/unreadable) or whose files are not valid Agent
-Skills (`NIKA-AGENT-004` · no/unterminated/non-mapping frontmatter ·
-missing/empty `name` or `description`) — see
+fails a workflow whose skill paths lie outside the declared read
+boundary (`NIKA-AUTH-006` under an absent block · `NIKA-SEC-004` under
+one that does not admit the path), do not resolve (`NIKA-AGENT-003` ·
+the file is missing/unreadable · a template or glob) or whose files are
+not valid Agent Skills (`NIKA-AGENT-004` · no/unterminated/non-mapping
+frontmatter · missing/empty `name` or `description`) — see
 [05-errors.md](./05-errors.md). A run refuses on the same findings
 before any token is spent. The skill TEXT also joins the referencing
 task's resume identity: editing a `SKILL.md` re-runs the task (the same
@@ -466,7 +495,7 @@ The engine MUST ·
 - Enforce `max_turns` and `max_tokens_total` budgets · terminate on exhaustion
 - Detect the `nika:done` completion sentinel and exit gracefully
 - Return the final model response as task output
-- Resolve `skills:` at compose time · inject the `## Skills` section in source order exactly as specified above · fail statically (`NIKA-AGENT-003`/`NIKA-AGENT-004`) on a missing or invalid skill file — never start a run with a half-composed context
+- Resolve `skills:` at compose time · judge every path against the declared `permits.fs.read` boundary BEFORE opening it (`NIKA-AUTH-006` under an absent block · `NIKA-SEC-004` outside a declared one) · inject the `## Skills` section in source order exactly as specified above · fail statically (`NIKA-AGENT-003`/`NIKA-AGENT-004`) on a missing or invalid skill file — never start a run with a half-composed context
 
 ---
 

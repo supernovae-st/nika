@@ -48,7 +48,7 @@ The stdlib has **independent versioning** ·
 - `stdlib/extract-modes-v0.1.md`, the <!-- canon:extract_modes -->9<!-- /canon --> canonical extract modes for v0.1
 - `stdlib/builtins-v0.1.md`, the <!-- canon:builtins -->28<!-- /canon --> canonical builtins for v0.1
 
-When the stdlib evolves to v0.2 · those files become `*-v0.2.md` and new versions are published. The core language contract (`nika: v1`) is unchanged.
+When the stdlib evolves to v0.2 · those files become `*-v0.2.md` and new versions are published. The core language contract (v1 · no version typed in the file) is unchanged.
 
 A workflow MAY declare a stdlib version dependency · though v0.1 does not require this. v0.2 may introduce an optional `stdlib:` field in the envelope.
 

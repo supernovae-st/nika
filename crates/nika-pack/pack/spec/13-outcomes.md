@@ -69,14 +69,15 @@ The cause axis changes what a trace line MEANS: a format-1 consumer
 ignoring an additive `cause` field would read `failure(timeout)` and
 `failure(retry_exhausted)` as the same old failure — semantic
 incompatibility under readable JSON, the
-[`graph_format: 2` precedent](./03-dag.md). So the trace format bumps:
+[`graph_format` bump precedent](./03-dag.md#graph-projection-graph_format-3).
+So the trace format bumps:
 
 - format-2 lines carry `outcome: {class, cause}` (+ the payload per
   class) on every terminal task event;
 - format-1 stays what it was — a photograph of the pre-W5 world;
   engines do not emit it past this chapter;
-- machine formats version independently — **the language stays
-  `nika: v1`**, forever.
+- machine formats version independently — **the language stays v1**,
+  forever, and no workflow file types it ([01 §nika](./01-envelope.md)).
 
 ## One obvious way (normative for linters)
 

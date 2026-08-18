@@ -127,7 +127,7 @@ reads another task.
 > the golden-drift trap engine#524 had to teach around. No aliases —
 > one meaning per spelling.
 
-> **`group.<name>` is not a 7th namespace either.** It is the **plural reader
+> **`group.<name>` is not a namespace either.** It is the **plural reader
 > of `tasks`** — same runtime family, one door instead of five (a `with:`
 > value · everywhere else is `NIKA-VAR-021`). It denotes a set of task
 > records, so it belongs beside `tasks` rather than beside the three value
@@ -135,7 +135,7 @@ reads another task.
 > [03 §group](./03-dag.md#group--optional--fan-in-membership--the-plural-of-a-data-edge)
 > for the record shape and the `fan-in` pass-set.
 
-> **Loop-locals are not a 7th namespace.** Inside a `for_each` task body, two
+> **Loop-locals are not a namespace.** Inside a `for_each` task body, two
 > extra identifiers are in scope: `${{ item }}` (the current element) and
 > `${{ index }}` (its 0-based position). They are **loop-scoped locals**, alive
 > only within that task's body, not global namespaces. So the count stays
@@ -607,6 +607,17 @@ arithmetic. Everything above is that set plus its obvious companions.
 > `strftime`. The single production actually refused is `$ENV`, and it is
 > refused by **jaq's own compiler**, not by any gate of ours.
 >
+> **Amended 2026-08-15 · ONE row of that list moved.** `env` — the FUNCTION,
+> not the `$ENV` variable — is now refused by a gate of ours (D-2026-08-11-N26
+> · withheld from the function set the compiler receives, at all three jq
+> seams, with a diagnostic naming the class it reached for). The rest of the
+> paragraph stands unchanged: `sub` · `gsub` · `scan` · `now` · `strftime`
+> still pass, this table still does not fire, and « the grammar is written,
+> the gate is owed » is still the honest sentence for `jq-subset/0.1`. `now`
+> in particular is NOT closed by that gesture — D-2026-08-11-N27 owns the
+> clock and prescribes a rebinding to the run's start instant, which is a
+> different remedy from a subtraction.
+>
 > Saying so here is not a footnote: **a spec that asserts a refusal the
 > engine does not make teaches a boundary that is not there.** Two rows
 > of this table are security-adjacent (`now` is the ambient clock that
@@ -664,6 +675,20 @@ Two consequences, both normative:
   program is a literal in the reviewed file and cannot be interpolated from a
   model's output (`NIKA-VAR-005`) — but a computation that reads the ambient
   environment is not pure, and the certificate said it was.
+  ✅ **ENFORCED since 2026-08-15.** Re-measured that day on the three authority
+  shapes: `env.NAME` is refused at `nika check` with `NIKA-VAR-005` under an
+  absent `permits:` block, under an explicit empty `permits.env`, AND under a
+  granted `permits.env` — a grant does not turn it back on, because
+  `permits.env` passes an environment to a process the workflow SPAWNS and an
+  in-process expression is not that process. The mechanism is the subtraction
+  itself: `env` is withheld from the function set every jq seam hands the
+  compiler, so the refusal belongs to the compiler rather than to a scanner,
+  and the three seams (the `nika:jq` builtin · `extract:` bindings · the static
+  compile-check) read ONE list. `$ENV` was already refused by jaq's own
+  compiler and still is.
+  ⏳ **The clock half of this bullet is still owed** — see the next bullet:
+  `now` reads the wall clock today, and D-2026-08-11-N27 prescribes a
+  REBINDING rather than this subtraction.
 - **The clock is an input, never an ambient** (D-2026-08-11-N27). `now` and
   its relatives MUST resolve to the run's start instant, which is already in
   the trace, so that a replay yields the same value forever. Reading the wall
