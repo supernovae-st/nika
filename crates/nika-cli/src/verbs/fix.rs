@@ -313,19 +313,23 @@ mod tests {
     #[test]
     fn a_teaching_only_refusal_never_touches_the_file() {
         // The 2026-08-18 corruption class, both shapes. A dead envelope
-        // key (`workflow:` · retired 2026-08-12) and a de-commented
-        // modeline each refuse with PROSE — the retired-key migration,
-        // the set listing, the modeline fix — and no rename. `--fix` used
-        // to splice that prose in as a key ("the fields here: nika · …:")
-        // and announce one repair applied on a file that no longer parsed;
-        // the shipped 0.108.0 did the same with the modeline sentence.
-        // Now: byte-identical file, the honest note, the check still red.
+        // key with NO mechanical repair (`policy:` · retired 2026-08-11 ·
+        // a vocabulary is not a policy · nothing to move) and a
+        // de-commented modeline each refuse with PROSE — the retired-key
+        // teaching, the set listing, the modeline fix — and no rename.
+        // `--fix` used to splice that prose in as a key ("the fields
+        // here: nika · …:") and announce one repair applied on a file that
+        // no longer parsed; the shipped 0.108.0 did the same with the
+        // modeline sentence. Now: byte-identical file, the honest note,
+        // the check still red. (`workflow:` left this fixture when the R1
+        // identity rung made it mechanically repairable — see
+        // `identity_moves_the_fourteen_key_envelope_onto_nika_…`.)
         let dir = std::env::temp_dir().join(format!("nika-fix-prose-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("tmpdir");
         for (name, body) in [
             (
                 "dead-key.nika.yaml",
-                "nika: v1\nworkflow:\n  id: hello\ntasks:\n  say:\n    exec:\n      command: [echo, hi]\n",
+                "nika: hello\npolicy: {}\ntasks:\n  say:\n    exec:\n      command: [echo, hi]\n",
             ),
             (
                 "modeline.nika.yaml",
@@ -545,6 +549,68 @@ mod tests {
             "no rewrite without an applicable repair"
         );
         assert_ne!(out.code, exit::OK, "the unknown predicate still reds");
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn identity_moves_the_fourteen_key_envelope_onto_nika_and_converges_green() {
+        // The nine-key flag-day repair loop: a 0.108.0 file (`nika: v1` +
+        // a `workflow:` block) is refused as an unknown envelope key —
+        // --fix moves the id onto `nika:`, demotes the description to a
+        // comment above it, then the ordinary rungs (w1-map for the tasks
+        // list) run in the SAME loop, and the final audit is clean.
+        let dir = std::env::temp_dir().join(format!("nika-fix-identity-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("tmpdir");
+        let path = dir.join("pre-r1.nika.yaml");
+        std::fs::write(
+            &path,
+            "nika: v1\nworkflow:\n  id: hello-world\n  description: \"says hi\"\nmodel: mock/echo\ntasks:\n  - id: t\n    infer: { prompt: \"hi\", max_tokens: 5 }\n",
+        )
+        .expect("write fixture");
+        let out = run(
+            path.to_str().expect("utf8 path"),
+            false,
+            None,
+            Theme::new(false, true, false),
+        );
+        let healed = std::fs::read_to_string(&path).expect("re-read");
+        assert!(
+            healed.starts_with("# says hi\nnika: hello-world\n"),
+            "{healed}"
+        );
+        assert!(!healed.contains("workflow:"), "{healed}");
+        assert!(
+            healed.contains("tasks:\n  t:\n"),
+            "the tasks list migrated in the same loop · {healed}"
+        );
+        assert!(out.text.contains("r1-identity"), "{}", out.text);
+        assert_eq!(
+            out.code,
+            exit::OK,
+            "clean after the identity move: {}",
+            out.text
+        );
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
+    fn identity_stops_and_leaves_the_file_untouched_when_two_names_compete() {
+        let dir =
+            std::env::temp_dir().join(format!("nika-fix-identity-stop-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("tmpdir");
+        let path = dir.join("two-names.nika.yaml");
+        let src = "nika: other-name\nworkflow:\n  id: hello\ntasks:\n  t:\n    exec: { command: [\"true\"] }\n";
+        std::fs::write(&path, src).expect("write fixture");
+        let out = run(
+            path.to_str().expect("utf8 path"),
+            false,
+            None,
+            Theme::new(false, true, false),
+        );
+        let after = std::fs::read_to_string(&path).expect("re-read");
+        assert_eq!(after, src, "a STOP never touches the file");
+        assert!(out.text.contains("two names"), "{}", out.text);
+        assert_ne!(out.code, exit::OK, "the refusal stands: {}", out.text);
         let _ = std::fs::remove_file(&path);
     }
 
