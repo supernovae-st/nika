@@ -1201,5 +1201,21 @@
       "requires": [],
       "enables": []
     }
+    ,
+    {
+      "id": "ADR-115",
+      "title": "nika-check size-cap member split: the analysis substrate descends to nika-check-analyzer",
+      "status": "accepted",
+      "date": "2026-08-18",
+      "filename": "adr-115-nika-check-analyzer-member-split.md",
+      "tags": ["architecture","crates","split","size-cap","static-judgment"],
+      "affects_crates": ["nika-check","nika-check-analyzer"],
+      "affects_layers": ["L0"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-110","ADR-022","ADR-023","ADR-027"],
+      "requires": [],
+      "enables": []
+    }
   ]
 }

@@ -22,6 +22,23 @@
 //!   · declared defaults conform (`NIKA-DEFAULT-001`)
 //! - topological waves over the derived edges (spec `03-dag.md`)
 
+// The test-lint waiver travels WITH the code it waives. It lived in the
+// parent's lib.rs header while these modules were `mod analyzer;` there;
+// carved out, the files kept their `.expect()`-in-test idiom and lost the
+// permission for it — 101 clippy errors, none of them a behaviour change.
+#![cfg_attr(
+    test,
+    allow(
+        clippy::unwrap_used,
+        clippy::expect_used,
+        clippy::used_underscore_items,
+        clippy::float_cmp,
+        clippy::manual_string_new,
+        clippy::panic,
+        clippy::unreachable,
+    )
+)]
+
 mod builtin_shape;
 mod dag;
 pub mod edges;

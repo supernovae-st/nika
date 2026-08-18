@@ -111,7 +111,13 @@
     )
 )]
 
-pub mod analyzer;
+/// The analysis substrate, re-exported at its historical path.
+///
+/// It descended to the `nika-check-analyzer` member at the 15k prod-LOC wall
+/// (ONE architectural unit, TWO workspace members — D-2026-07-09-N1 · the
+/// ADR-110 pattern). Every call site keeps writing `nika_check::analyzer::…`
+/// and `crate::analyzer::…`: the boundary moved, the surface did not.
+pub use nika_check_analyzer as analyzer;
 
 mod analysis;
 mod certificate;

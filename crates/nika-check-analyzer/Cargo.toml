@@ -1,0 +1,49 @@
+[package]
+name          = "nika-check-analyzer"
+description   = "The analysis substrate of the static judgment — Core conformance over a parsed `RawWorkflow` (envelope · duplicate ids · edge-target resolution · cycle detection over G_p · the `tasks.*` reference boundary · namespace resolution · `when:` shape · output binding rules · the full `TypeExpr` on io `type:`) plus the derived DAG edges and topological waves every surface projects. Pure, sync, zero I/O, zero async. Layer L0 — ONE architectural unit with `nika-check` in TWO workspace members (D-2026-07-09-N1), descended at the 15k prod-LOC wall: the substrate everything reads lives here, the judgment ladder stays in `nika-check` and re-exports this crate at its historical `analyzer` path."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false  # Foundation crate — never on crates.io. See ADR-017.
+
+[dependencies]
+# L0-DEP-FANOUT-EXEMPT: the analysis substrate reads the same four L0 leaf
+# vocabularies its parent ladder does — it was carved OUT of that parent at
+# the 15k wall and carries the fan-in it already had (ADR-027 · marker-based
+# exemption). nika-schema the AST it analyzes · nika-types the suggest/type
+# relations its findings render · nika-cap the withheld-jq-native list the
+# compile-check refuses on · nika-vocab the dead-form teaching texts.
+nika-schema = { path = "../nika-schema", version = "0.108.0" } # the AST + parser + error voice this analyzes
+nika-types  = { path = "../nika-types", version = "0.108.0" }  # suggest (did-you-mean) · TypeExpr relations
+nika-cap    = { path = "../nika-cap", version = "0.108.0" }    # the withheld jq natives (`env` since 2026-08-15) the compile-check refuses on
+nika-vocab  = { path = "../nika-vocab", version = "0.108.0" }  # the dead-form teaching texts the scan surfaces
+
+serde_json = { workspace = true }
+# JSON Schema META-check (static · L0-legal: pure/sync · default-features=false
+# compiles out the http/file retrievers, so no I/O) — the SAME jsonschema crate
+# + the SAME validator_for() the runtime compiles a schema: with.
+jsonschema = { workspace = true }
+# jq COMPILE-check (static · L0-legal: pure/sync · no I/O) — the SAME jaq the
+# runtime nika:jq builtin compiles with, workspace-pinned to one version, so a
+# jq the checker accepts the runtime also accepts (parity-tested · no drift).
+jaq-core = { workspace = true }
+jaq-std  = { workspace = true }
+jaq-json = { workspace = true }
+
+[dev-dependencies]
+serde_json = { workspace = true }
+
+[package.metadata.lore]
+daemon        = "juge"
+archetype     = "static-oracle"
+spirit_role   = "lit le workflow et en derive la forme · les aretes, les vagues, la conformance · jamais un verdict de politique"
+voice_pattern = "declarative"
+layer         = "L0"
+err_prefix    = "none"
+
+[lints]
+workspace = true

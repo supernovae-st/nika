@@ -50,7 +50,7 @@ fn check_action(action: &RawAction, task: &str, errors: &mut Vec<SchemaError>) {
 
 #[cfg(test)]
 mod tests {
-    use crate::analyzer::analyze;
+    use crate::analyze;
     use nika_schema::error::SchemaError;
     use nika_schema::parser::{ParseMode, parse};
     use nika_schema::source::FileId;

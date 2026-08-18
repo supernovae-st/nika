@@ -763,7 +763,7 @@ tasks:
             nika_schema::parser::ParseMode::Strict,
         )
         .expect("parse");
-        let errors = crate::analyzer::analyze(&wf).expect_err("provably-invalid path");
+        let errors = crate::analyze(&wf).expect_err("provably-invalid path");
         assert!(
             errors.iter().any(|e| matches!(
                 e,
