@@ -33,12 +33,19 @@ fails=0
 cases=0
 
 # A scratch scripts/ci/ holding _lib.sh, its self-test, and one consumer.
-# selftest: ok | noexec | gone     filter: honest | broken
+# selftest: ok | noexec | gone | gone-files    filter: honest | broken
+#
+# `gone-files` removes the SECOND self-test. `_lib.sh` ships two filters —
+# `strip_test_items` (hides test items inside a file) and `rs_prod_files`
+# (hides whole files) — and since 2026-08-18 it proves BOTH before any ratchet
+# reads a verdict. Seeding only the first one is what this fixture used to do,
+# and it is exactly how a new proof requirement gets silently un-enforced.
 seed() {
   local dir="$1" selftest="$2" filter="$3"
   mkdir -p "$dir/scripts/ci" "$dir/crates/demo/src"
   cp "$ROOT/scripts/ci/_lib.sh" "$dir/scripts/ci/"
   cp "$ROOT/scripts/ci/test-strip-test-items.sh" "$dir/scripts/ci/"
+  cp "$ROOT/scripts/ci/test-rs-prod-files.sh" "$dir/scripts/ci/"
   cp "$ROOT/scripts/ci/check-unwrap.sh" "$dir/scripts/ci/"
   chmod +x "$dir/scripts/ci/"*.sh
   if [ "$filter" = broken ]; then
@@ -52,6 +59,7 @@ BROKEN
   case "$selftest" in
     noexec) chmod -x "$dir/scripts/ci/test-strip-test-items.sh" ;;
     gone) rm -f "$dir/scripts/ci/test-strip-test-items.sh" ;;
+    gone-files) rm -f "$dir/scripts/ci/test-rs-prod-files.sh" ;;
   esac
   printf 'pub fn boom() { let x: Option<u8> = None; let _ = x.unwrap(); }\n' \
     >"$dir/crates/demo/src/lib.rs"
@@ -86,6 +94,10 @@ expect_rc 2 "broken filter, self-test present" ok broken
 expect_rc 2 "broken filter, self-test NOT EXECUTABLE" noexec broken
 expect_rc 2 "broken filter, self-test DELETED" gone broken
 expect_rc 2 "honest filter, self-test DELETED (cannot prove itself)" gone honest
+# The SECOND filter's proof is load-bearing too. `_lib.sh` gained rs_prod_files'
+# self-test on 2026-08-18; without this case, deleting that file would leave
+# every ratchet judging on an unproven file-level filter and still printing OK.
+expect_rc 2 "honest filter, the FILE-level self-test DELETED" gone-files honest
 # Negative control: nothing wrong, and the real .unwrap() is still found.
 expect_rc 1 "honest filter, self-test present — finds the unwrap" ok honest
 

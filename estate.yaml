@@ -18,11 +18,11 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4465
+  classified_files: 4466
   file_rows: 11
   pattern_rows: 22
   by_class:
-    authored: 1528
+    authored: 1529
     authored-pin: 2
     generated: 122
     pinned-copy: 117
@@ -182,8 +182,8 @@ patterns:
   evidence: "crate-specs · architecture prose · perf notes — no generation markers at file heads"
 - glob: "scripts/**"
   class: authored
-  match_count: 151
-  aggregate_sha256: c698724c36139b53caf45ed72f9959d3c22f875f4b8115d1a41cfc6582dc6c72
+  match_count: 152
+  aggregate_sha256: 061db93bad242bf6541c6291ae3a90b3259ba6824113080addeb5daf21588d5c
   evidence: "hand-written gates · hooks · hygiene vectors · media lanes; the ratchet baselines (scripts/ci/*-baseline.txt · scripts/hygiene/baselines/) are hand-kept monotonic floors ('Never remove a line by hand')"
 - glob: ".github/workflows/**"
   class: authored
