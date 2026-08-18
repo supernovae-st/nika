@@ -136,12 +136,23 @@ pub fn apply_dead_form_arm(
         // (2026-08-12): their teachings pointed at the `workflow:`
         // object, and repairing a file INTO a form the parser now
         // refuses would be a fix that breaks its own output. The
-        // `workflow:`/`description:` keys refuse as unknown keys now,
-        // which is not a dead form this ladder can mechanically repair —
-        // the id must be MOVED onto `nika:`, and only the author knows
-        // whether an existing `nika:` line already holds the name.
+        // `workflow:`/`description:` keys refuse as UNKNOWN keys now and
+        // ride the R1 identity arm below (equivalence-or-stop: the id
+        // moves onto `nika:` only when the answer is forced).
         SchemaError::W1TasksSequence { .. } | SchemaError::W1TaskIdField { .. } => {
             Some(apply_w1_map(source, repairs))
+        }
+        // R1 « the identity » (the nine-key envelope · 2026-08-12): a
+        // top-level `workflow:` block (or a bare `description:`) refuses
+        // as an unknown envelope key. The codemod moves `workflow.id`
+        // onto `nika:` and demotes the prose to a `#` comment ABOVE it —
+        // never dropped — and STOPS (never guesses) when `nika:` already
+        // names something else, when the block carries a foreign key,
+        // when the id is not kebab-case, or when there is no id at all.
+        SchemaError::UnknownField {
+            field, location, ..
+        } if (field == "workflow" || field == "description") && location.contains("envelope") => {
+            Some(apply_identity(source, repairs, stop_notes))
         }
         // W2 « the flow » dead form (PARSE-024) — the equivalence-or-
         // stop migration (spec 03 §depends_on): data → with: bindings ·
@@ -215,6 +226,33 @@ pub fn render_stops(stop_notes: &StopNotes, theme: Theme) -> String {
         );
     }
     stops
+}
+
+/// The R1 identity arm — `nika: v1` + `workflow: {id, description}` (or
+/// the scalar / flow forms · a bare `description:`) become `nika: <id>`
+/// with the prose demoted to a `#` comment. `true` = applied (the round
+/// restarts) · `false` = STOP (each note names the case) or Clean.
+fn apply_identity(
+    source: &mut String,
+    repairs: &mut Vec<Repair>,
+    stop_notes: &mut StopNotes,
+) -> bool {
+    match nika_migrate::identity(source) {
+        nika_migrate::IdentityOutcome::Changed(migrated) => {
+            *source = migrated;
+            repairs.push(Repair::applied(
+                "the fourteen-key identity (nika: v1 · workflow: {id, description})",
+                "nika: <id> · the description as a # comment above it",
+                "r1-identity",
+            ));
+            true
+        }
+        nika_migrate::IdentityOutcome::Stop(notes) => {
+            stop_notes.0 = notes;
+            false
+        }
+        nika_migrate::IdentityOutcome::Clean => false,
+    }
 }
 
 /// The W1 dead-form arm — the shared map migration. `true` = applied.
