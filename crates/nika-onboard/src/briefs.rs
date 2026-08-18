@@ -75,12 +75,15 @@ multi-turn ReAct loop).
 
 ## Hard rules (the validator enforces these — they catch ~90% of LLM errors)
 - One verb per task · the verb IS the task key (never a `verb:` field).
-- Values live in FOUR authorities, a closed family: `inputs:` (typed · caller-
-  supplied) · `config:` (typed · deployment-supplied) · `const:` (fixed in the
-  file) · `secrets:` (governed store references). `vars:` and `env:` are dead
-  envelope fields (`NIKA-VALUES-001` · `NIKA-VALUES-002`) and any other
-  namespace is `NIKA-VALUES-003` — classify each entry by the role it plays;
-  `check --fix` migrates the `vars:` half, `env:` is a human classification.
+- Values live in THREE authorities, a closed family: `inputs:` (typed ·
+  caller-supplied · a deployment-supplied value is an input with
+  `required: false` and a `default:`) · `const:` (fixed in the file) ·
+  `secrets:` (governed store references). `vars:` and `env:` are dead
+  envelope fields (`NIKA-VALUES-001` · `NIKA-VALUES-002`), `config:` is not
+  a field at all (it died with the nine-key envelope · `NIKA-PARSE-005`),
+  and any other namespace is `NIKA-VALUES-003` — classify each entry by the
+  role it plays; `check --fix` migrates the `vars:` half, `env:` is a human
+  classification.
 - `tasks.X` crosses a task boundary only through `with:` (the binding IS the
   data edge — the body reads `${{ with.<name> }}`, never `tasks.*` directly)
   or `after: {X: success}` (control · predicates `success` · `failure` ·
@@ -418,6 +421,16 @@ mod tests {
                 ));
             }
         }
+        // The seventeen surfaces `nika init` WRITES into a user's repo
+        // (AGENTS.md · CLAUDE.md · the Cursor rules · Copilot · the
+        // hooks · the skill) are teaching surfaces too — the first ones a
+        // wired agent reads. They rode this walk from 2026-08-18: AGENTS.md
+        // taught the fourteen-key « FOUR authorities · config: » for five
+        // days after the nine-key nuke while this test walked only the
+        // plugin kit and printed green.
+        for (rel, body) in targets() {
+            out.push((format!("init:{rel}"), body.to_owned()));
+        }
         out
     }
 
@@ -429,7 +442,21 @@ mod tests {
         ),
         (
             "${{ env.",
-            "NIKA-VALUES-002 · dead namespace — read `config:` or `secrets:`",
+            "NIKA-VALUES-002 · dead namespace — a governed value is a `secrets:` entry, a runtime knob an `inputs:` entry with a `default:`",
+        ),
+        // The fourteen-key authority sentence. `config:` died with the
+        // nine-key envelope (2026-08-13 · NIKA-PARSE-005 teaches it) and
+        // the family is exactly THREE · inputs · const · secrets. The kit
+        // kept teaching four for five days after the nuke — the same
+        // failure class as the `workflow:` OBJECT entry below: a fact that
+        // changed under the prose nobody re-read.
+        (
+            "FOUR authorities",
+            "the nine-key envelope has THREE value authorities · inputs · const · secrets · `config:` died 2026-08-13",
+        ),
+        (
+            "`config:` (typed",
+            "`config:` is not an envelope field (NIKA-PARSE-005) — a deployment-supplied value is an `inputs:` entry with `required: false` and a `default:`",
         ),
         (
             "capture: text",
@@ -472,6 +499,13 @@ mod tests {
         "agents/nika-author.md",
         "skills/nika-authoring/SKILL.md",
         "rules/nika-workflow-language.mdc",
+        // The init surfaces whose subject IS the language: they name
+        // `vars:` / `depends_on` as dead to inoculate a model with 0.105
+        // priors (AGENTS.md's own hard-rules test asserts the naming).
+        "init:AGENTS.md",
+        "init:.cursor/rules/nika.mdc",
+        "init:.cursor/agents/nika-author.md",
+        "init:.agents/skills/nika-authoring/SKILL.md",
     ];
 
     /// The kit may never TEACH a form the live engine refuses.
