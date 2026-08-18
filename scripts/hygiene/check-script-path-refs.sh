@@ -43,6 +43,17 @@ checked=0
 #      SSOT (ADR-026)", or an "ex <old path>" provenance citation
 #   3. a placeholder — `docs/crate-specs/nika-X.md`, or any glob/brace
 #   4. an OUTPUT — `printf ... > docs/note.md` creates the file it names
+#   5. a SELF-TEST's fixture — `scripts/hygiene/tests/*.test.sh` builds
+#      fake trees to prove a vector, so its paths must NOT exist: the
+#      names are `check-alpha.sh`, `check-beta.sh`, and one called
+#      `check-gone.sh` precisely because the case under test IS a stale
+#      declaration. Measured 2026-08-18 · 6 findings, all fixtures, zero
+#      real. Same shape as the privacy-boundary sweep accusing the
+#      private-path gate's own red examples the same evening: a gate that
+#      reports another gate's fixtures teaches the reader to stop reading
+#      it, which is the exact cost this vector exists to prevent.
+#      File-wide, like the OUTPUT exemption, and no wider — the sweep
+#      keeps judging every non-test script under `scripts/`.
 # A first draft judged one line at a time and produced four false positives
 # out of five hits — including two that pointed at THIS FILE's own comments.
 # Shipping that would have added a sixth face to the very class it ratchets,
@@ -100,7 +111,8 @@ while IFS= read -r script; do
       fi
     done
   done <"$script"
-done < <(find scripts -type f \( -name '*.sh' -o -name '*.py' \) | sort)
+done < <(find scripts -type f \( -name '*.sh' -o -name '*.py' \) \
+  -not -path 'scripts/hygiene/tests/*' | sort)
 
 if [ "$missing" -gt 0 ]; then
   echo "$missing stale path reference(s) in scripts ($checked checked)"
