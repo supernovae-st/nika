@@ -173,7 +173,7 @@ patterns:
 - glob: "docs/adr/**"
   class: authored
   match_count: 80
-  aggregate_sha256: 6ea06b5acaeb1af2a71125e2542bb4c347597ea8a857957b86876f11a0e2e2c8
+  aggregate_sha256: 874a89423c5c679b53eb4c8d5a17e3428c7b5c92986f1e2fa0914d55d94f5b5b
   evidence: "per-decision records authored at decision time (scripts/adr/new.sh scaffolds · adr-seal-check hook seals); index.toml excepted in files:"
 - glob: "docs/**"
   class: authored

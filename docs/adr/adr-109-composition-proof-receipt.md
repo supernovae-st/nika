@@ -166,7 +166,7 @@ those two tiers close, and this ADR is re-issued again.
 - `crates/nika-dap/src/anchor/tier.rs` — `SealTier::Buried` (the
   append-after-seal class) + `SealTier::Unattributable` (an absent key is a
   missing input, never forgery)
-- `crates/nika-cli/src/verbs/trace_verify.rs` — the TAMPERED headline that
+- `crates/nika-trace/src/trace_verify.rs` — the TAMPERED headline that
   replaces the walk's crash reading when a seal is buried
 - `crates/nika-runtime/src/child.rs` — child-workflow execution (the composition seam)
 - `crates/nika-runtime/src/dispatch.rs` — `child_budget` law-6 doc + the workflow-call dispatch
