@@ -179,6 +179,23 @@ jobs:
           tarball="nika-${ASSET_NAME}-${version}.tar.gz"
           tar -czf "${tarball}" -C "${stage}" nika completions
           shasum -a 256 "${tarball}" | tee "${tarball}.sha256"
+      # The funnel's consent leg RUNS a workflow that declares `permits:` with
+      # an `exec:` child. Since 0.109 (#889 · the sandbox policy) the engine
+      # refuses to start such a run unconfined (NIKA-1710 · exit 3) — the
+      # right answer for a user, and exactly what killed v0.109.1's two Linux
+      # builders (run 32193107899): the runner had no bubblewrap, so the
+      # « pause on the human gate » leg (want exit 4) never got past the
+      # jail check. The gate plays the stranger's path on a machine that
+      # HAS the jail — the install the diamond-ci tests leg makes; the
+      # AppArmor detour is 24.04-only (the arm64 runner) and a no-op on 22.04.
+      - name: Install bubblewrap (Linux · the jail the funnel's consent leg runs under)
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends bubblewrap
+          sudo apparmor_parser -R /etc/apparmor.d/bwrap-userns-restrict 2>/dev/null || true
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 2>/dev/null || true
       - name: Funnel e2e (gate before upload)
         # The stranger's first path, played against the TARBALL that is
         # about to ship (untarred into a clean HOME · offline · content
