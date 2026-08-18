@@ -29,6 +29,17 @@ fn at(ts: &str) -> Zoned {
         .to_zoned(TimeZone::UTC)
 }
 
+/// A literal instant INSIDE a beat's zone — resolved from the EMBEDDED
+/// tzdb (trap ③ binds the tests too: never the host's zoneinfo).
+fn zoned(text: &str) -> Zoned {
+    let (civil, zone) = text.split_once('[').expect("civil[fuseau]");
+    let zone = zone.strip_suffix(']').expect("le crochet fermant");
+    let civil: jiff::civil::DateTime = civil.parse().expect("civil ISO");
+    civil
+        .to_zoned(crate::next::bundled_tz(zone).expect("fuseau embarqué"))
+        .expect("un instant qui existe")
+}
+
 /// The instant a candidate landed on, as a UTC string.
 fn utc(z: &Zoned) -> String {
     z.timestamp().to_string()
@@ -636,6 +647,111 @@ fn a_webhook_has_no_calendar() {
     assert_eq!(cadence.next_after(&at("2026-08-11T00:00:00Z")), None);
 }
 
+// ── prev_before · the mirror, literal instants ───────────────────────
+
+#[test]
+fn prev_before_is_the_mirror_of_next_after() {
+    // At-or-before, contre strictly-after: les deux bornent l'intervalle
+    // « (prev, next] ». À 10h00, le créneau qui vient de passer est 03h00.
+    let cad = Cadence::parse("TZ=Europe/Paris 0 3 * * *").expect("cadence");
+    let from = zoned("2026-08-18T10:00:00[Europe/Paris]");
+    let prev = cad.prev_before(&from).expect("a slot exists before");
+    assert_eq!(prev.civil.to_string(), "2026-08-18T03:00:00");
+    let back = cad
+        .next_after(
+            &prev
+                .at
+                .checked_sub(jiff::Span::new().seconds(1))
+                .expect("span"),
+        )
+        .expect("next");
+    assert_eq!(back.at, prev.at, "next_after(prev − 1s) retombe sur prev");
+}
+
+#[test]
+fn prev_before_at_the_slot_returns_the_slot_itself() {
+    // Inclusive: un créneau À l'instant demandé vient de passer — il est dû.
+    let cad = Cadence::parse("TZ=Europe/Paris 0 3 * * *").expect("cadence");
+    let from = zoned("2026-08-18T03:00:00[Europe/Paris]");
+    let prev = cad.prev_before(&from).expect("le créneau même");
+    assert_eq!(prev.civil.to_string(), "2026-08-18T03:00:00");
+}
+
+#[test]
+fn prev_before_walks_the_dst_gap_backwards() {
+    // N1 miroir · 2026-03-29, Paris avance 02:00 → 03:00: le 02:30 du 29
+    // n'a JAMAIS existé — il a tiré à 03:00 (le premier instant valide
+    // APRÈS), et ce tir-là appartient à next_after. Le miroir le saute
+    // et rend le 28.
+    let cad = Cadence::parse("TZ=Europe/Paris 30 2 * * *").expect("cadence");
+    let from = zoned("2026-03-29T12:00:00[Europe/Paris]");
+    let prev = cad.prev_before(&from).expect("slot");
+    assert_eq!(prev.civil.to_string(), "2026-03-28T02:30:00");
+    assert_eq!(prev.shift, Shift::Exact);
+}
+
+#[test]
+fn prev_before_walks_the_dst_fold_backwards() {
+    // N1 miroir · 2026-10-25, Paris recule 03:00 → 02:00: 02:30 existe
+    // DEUX fois, le beat a tiré à la PREMIÈRE (00:30 UTC). Le miroir la
+    // rend — jamais la seconde occurrence, jamais deux fois.
+    let cad = Cadence::parse("TZ=Europe/Paris 30 2 * * *").expect("cadence");
+    let from = zoned("2026-10-25T12:00:00[Europe/Paris]");
+    let prev = cad.prev_before(&from).expect("slot");
+    assert_eq!(prev.civil.to_string(), "2026-10-25T02:30:00");
+    assert_eq!(
+        utc(&prev.at),
+        "2026-10-25T00:30:00Z",
+        "la première occurrence"
+    );
+    assert_eq!(prev.shift, Shift::FoldedFirst, "le repli est DÉCLARÉ");
+    // …et le créneau d'avant est la VEILLE, pas la seconde occurrence.
+    let before = cad
+        .prev_before(
+            &prev
+                .at
+                .checked_sub(jiff::Span::new().seconds(1))
+                .expect("span"),
+        )
+        .expect("la veille");
+    assert_eq!(before.civil.to_string(), "2026-10-24T02:30:00");
+}
+
+#[test]
+fn prev_before_beyond_366_days_is_none() {
+    // La borne: 366 jours — le passé récent du planificateur, jamais une
+    // archéologie. Le 29 février 2024 est hors de portée en août 2026.
+    let cad = Cadence::parse("TZ=Europe/Paris 0 9 29 2 *").expect("cadence");
+    assert_eq!(cad.prev_before(&at("2026-08-18T00:00:00Z")), None);
+    // …mais dans la fenêtre, il répond.
+    let prev = cad
+        .prev_before(&at("2024-03-01T00:00:00Z"))
+        .expect("le 29 février, cette année-là");
+    assert_eq!(prev.civil.to_string(), "2024-02-29T09:00:00");
+}
+
+#[test]
+fn prev_before_a_webhook_has_no_calendar() {
+    assert_eq!(
+        Cadence::Webhook.prev_before(&at("2026-08-11T00:00:00Z")),
+        None
+    );
+}
+
+#[test]
+fn prev_before_crosses_a_month_and_a_year_backwards() {
+    let cad = Cadence::parse("TZ=Europe/Paris 0 9 1 * *").expect("cadence");
+    let prev = cad
+        .prev_before(&at("2026-08-15T00:00:00Z"))
+        .expect("le 1er du mois d'avant");
+    assert_eq!(utc(&prev.at), "2026-08-01T07:00:00Z");
+    let jan = Cadence::parse("TZ=UTC 0 0 1 1 *").expect("cadence");
+    let prev = jan
+        .prev_before(&at("2026-06-15T00:00:00Z"))
+        .expect("le nouvel an");
+    assert_eq!(utc(&prev.at), "2026-01-01T00:00:00Z");
+}
+
 // ── describe · display normalizes to the readable form ─────────────
 
 #[test]
@@ -1209,5 +1325,45 @@ proptest! {
             .expect("un beat quotidien a toujours un prochain créneau");
         prop_assert!(next.at.timestamp() > from_ts, "strictement après");
         prop_assert!(next.at.timestamp().as_second() - secs <= 86_400, "au plus un jour");
+    }
+
+    #[test]
+    fn prev_before_and_next_after_are_mutual_inverses(secs in 0i64..=4_102_444_800) {
+        // La loi miroir, tout instant, toute cadence du corpus:
+        // prev_before(next_after(t) + 1s) == next_after(t). Exception
+        // DÉCLARÉE: le créneau AVANCÉ (gap DST) n'a jamais existé — il
+        // n'appartient pas à prev_before; la loi devient « le miroir rend
+        // l'existant d'avant, dont next_after retombe sur l'avancé ».
+        let corpus = [
+            "TZ=UTC 30 4 * * *",
+            "TZ=Europe/Paris 0 3 * * *",
+            "TZ=Europe/Paris 30 2 * * *", // traverse le gap ET le fold 2026
+            "TZ=Europe/Paris lundi 9h07",
+            "TZ=America/New_York 15 9 * * 1-5",
+        ];
+        let from = Timestamp::from_second(secs)
+            .expect("instant")
+            .to_zoned(TimeZone::UTC);
+        for expr in corpus {
+            let cad = Cadence::parse(expr).expect("cadence");
+            let next = cad.next_after(&from).expect("un prochain créneau");
+            let just_after = next
+                .at
+                .checked_add(jiff::Span::new().seconds(1))
+                .expect("+1s");
+            let prev = cad.prev_before(&just_after).expect("le miroir répond");
+            if next.shift == Shift::AdvancedFirstValid {
+                prop_assert!(prev.at < next.at, "{} · l'avancé n'est jamais RENDU", expr);
+                let round = cad.next_after(&prev.at).expect("next depuis l'existant");
+                prop_assert_eq!(
+                    &round.at,
+                    &next.at,
+                    "{} · next_after de l'existant retombe sur l'avancé",
+                    expr
+                );
+            } else {
+                prop_assert_eq!(&prev.at, &next.at, "{} · le miroir exact", expr);
+            }
+        }
     }
 }

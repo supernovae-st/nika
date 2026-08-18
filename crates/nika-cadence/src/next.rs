@@ -134,6 +134,28 @@ impl Cadence {
             }
         }
     }
+
+    /// The last slot at or before `from` — the mirror of
+    /// [`next_after`](Self::next_after): strictly-after there,
+    /// at-or-before here, so the two bound the half-open interval
+    /// `(prev, next]` a beat is due in. `None` for a webhook (no
+    /// calendar) or when no slot exists within the 366-day walk.
+    ///
+    /// The N1 law in mirror: a slot that never EXISTED (a spring gap) is
+    /// never returned — it fired at the first valid instant AFTER, and
+    /// `next_after` carries that one. A slot that exists twice (an
+    /// autumn fold) fired at its FIRST occurrence — the mirror hands
+    /// that one back, never the second.
+    #[must_use]
+    pub fn prev_before(&self, from: &jiff::Zoned) -> Option<Slot> {
+        match self {
+            Self::Webhook => None,
+            Self::Cron { tz, spec } => {
+                let zone = bundled_tz(tz)?;
+                spec.prev_before(&zone, from)
+            }
+        }
+    }
 }
 
 impl CronSpec {
@@ -189,6 +211,49 @@ impl CronSpec {
                 }
             }
             day = day.tomorrow().ok()?;
+        }
+        None
+    }
+
+    /// Day-by-day BACKWARDS over a 366-day window — the recent past a
+    /// planner asks about (« quel créneau vient de passer ? »), never an
+    /// archaeology: a 29 February three years back answers `None`, and
+    /// the walk still ends rather than spinning, which is what the bound
+    /// is for. Hours and minutes descend inside matching days, in the
+    /// BEAT's zone, so the first candidate at or before `from` IS the
+    /// answer.
+    pub(crate) fn prev_before(&self, tz: &TimeZone, from: &jiff::Zoned) -> Option<Slot> {
+        let from_local = from.with_time_zone(tz.clone());
+        let mut day = from_local.date();
+        for _ in 0..366 {
+            if self.covers(day) {
+                for hour in self.hours().iter().rev() {
+                    for minute in self.minutes().iter().rev() {
+                        // Same per-candidate discipline as the forward
+                        // walk: a failed conversion skips the candidate,
+                        // it never kills the beat.
+                        let (Ok(h), Ok(m)) = (i8::try_from(hour), i8::try_from(minute)) else {
+                            continue;
+                        };
+                        let civil = day.to_datetime(jiff::civil::time(h, m, 0, 0));
+                        let Some(candidate) = resolve(civil, tz) else {
+                            continue;
+                        };
+                        // N1 in mirror: the ADVANCED slot never existed —
+                        // it fired at the first valid instant AFTER, which
+                        // `next_after` already carries. The mirror skips
+                        // it rather than hand back a slot that was never
+                        // a fire of its own.
+                        if candidate.shift == Shift::AdvancedFirstValid {
+                            continue;
+                        }
+                        if &candidate.at <= from {
+                            return Some(candidate);
+                        }
+                    }
+                }
+            }
+            day = day.yesterday().ok()?;
         }
         None
     }
