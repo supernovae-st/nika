@@ -75,6 +75,9 @@ jobs:
           # the hook installed, and every PR from a fork, met no check at
           # all on the credential-header list (2026-08-02).
           - credential-headers
+          # One workspace, one version: every member + path-dep pin + both
+          # locks spell the root version (the 0.109.0-dev opening · 2026-08-18).
+          - version-uniform
     env:
       CHECK: ${{ matrix.check }}
     steps:
