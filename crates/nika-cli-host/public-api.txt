@@ -1134,6 +1134,47 @@ impl<T> typenum::type_operators::Same for nika_cli_host::experience::WorkflowPre
 pub type nika_cli_host::experience::WorkflowPreviewV1::Output = T
 pub fn nika_cli_host::experience::route(state: &nika_cli_host::experience::ExperienceStateV1) -> nika_cli_host::experience::NextActionV1
 pub mod nika_cli_host::fix_ladder
+pub struct nika_cli_host::fix_ladder::Refusal
+pub nika_cli_host::fix_ladder::Refusal::attempted: alloc::vec::Vec<alloc::string::String>
+pub nika_cli_host::fix_ladder::Refusal::reason: alloc::string::String
+impl core::clone::Clone for nika_cli_host::fix_ladder::Refusal
+pub fn nika_cli_host::fix_ladder::Refusal::clone(&self) -> nika_cli_host::fix_ladder::Refusal
+impl core::fmt::Debug for nika_cli_host::fix_ladder::Refusal
+pub fn nika_cli_host::fix_ladder::Refusal::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_cli_host::fix_ladder::Refusal
+impl<T, U> core::convert::Into<U> for nika_cli_host::fix_ladder::Refusal where U: core::convert::From<T>
+pub fn nika_cli_host::fix_ladder::Refusal::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli_host::fix_ladder::Refusal where U: core::convert::Into<T>
+pub type nika_cli_host::fix_ladder::Refusal::Error = core::convert::Infallible
+pub fn nika_cli_host::fix_ladder::Refusal::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli_host::fix_ladder::Refusal where U: core::convert::TryFrom<T>
+pub type nika_cli_host::fix_ladder::Refusal::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli_host::fix_ladder::Refusal::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli_host::fix_ladder::Refusal where T: core::clone::Clone
+pub type nika_cli_host::fix_ladder::Refusal::Owned = T
+pub fn nika_cli_host::fix_ladder::Refusal::clone_into(&self, target: &mut T)
+pub fn nika_cli_host::fix_ladder::Refusal::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli_host::fix_ladder::Refusal where T: 'static + ?core::marker::Sized
+pub fn nika_cli_host::fix_ladder::Refusal::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli_host::fix_ladder::Refusal where T: ?core::marker::Sized
+pub fn nika_cli_host::fix_ladder::Refusal::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli_host::fix_ladder::Refusal where T: ?core::marker::Sized
+pub fn nika_cli_host::fix_ladder::Refusal::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli_host::fix_ladder::Refusal where T: core::clone::Clone
+pub unsafe fn nika_cli_host::fix_ladder::Refusal::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli_host::fix_ladder::Refusal
+pub fn nika_cli_host::fix_ladder::Refusal::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli_host::fix_ladder::Refusal where T: core::clone::Clone
+pub fn nika_cli_host::fix_ladder::Refusal::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli_host::fix_ladder::Refusal where T: 'static
+pub fn nika_cli_host::fix_ladder::Refusal::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::fix_ladder::Refusal where T: ?core::marker::Sized
+pub fn nika_cli_host::fix_ladder::Refusal::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli_host::fix_ladder::Refusal::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli_host::fix_ladder::Refusal
+impl<T> tracing::instrument::WithSubscriber for nika_cli_host::fix_ladder::Refusal
+impl<T> typenum::type_operators::Same for nika_cli_host::fix_ladder::Refusal
+pub type nika_cli_host::fix_ladder::Refusal::Output = T
 pub struct nika_cli_host::fix_ladder::Repair
 pub nika_cli_host::fix_ladder::Repair::applied: bool
 pub nika_cli_host::fix_ladder::Repair::kind: &'static str
@@ -1141,6 +1182,8 @@ pub nika_cli_host::fix_ladder::Repair::new: alloc::string::String
 pub nika_cli_host::fix_ladder::Repair::old: alloc::string::String
 impl nika_cli_host::fix_ladder::Repair
 pub fn nika_cli_host::fix_ladder::Repair::applied(old: &str, new: &str, kind: &'static str) -> Self
+impl core::clone::Clone for nika_cli_host::fix_ladder::Repair
+pub fn nika_cli_host::fix_ladder::Repair::clone(&self) -> nika_cli_host::fix_ladder::Repair
 impl<D> owo_colors::OwoColorize for nika_cli_host::fix_ladder::Repair
 impl<T, U> core::convert::Into<U> for nika_cli_host::fix_ladder::Repair where U: core::convert::From<T>
 pub fn nika_cli_host::fix_ladder::Repair::into(self) -> U
@@ -1150,14 +1193,22 @@ pub fn nika_cli_host::fix_ladder::Repair::try_from(value: U) -> core::result::Re
 impl<T, U> core::convert::TryInto<U> for nika_cli_host::fix_ladder::Repair where U: core::convert::TryFrom<T>
 pub type nika_cli_host::fix_ladder::Repair::Error = <U as core::convert::TryFrom<T>>::Error
 pub fn nika_cli_host::fix_ladder::Repair::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli_host::fix_ladder::Repair where T: core::clone::Clone
+pub type nika_cli_host::fix_ladder::Repair::Owned = T
+pub fn nika_cli_host::fix_ladder::Repair::clone_into(&self, target: &mut T)
+pub fn nika_cli_host::fix_ladder::Repair::to_owned(&self) -> T
 impl<T> core::any::Any for nika_cli_host::fix_ladder::Repair where T: 'static + ?core::marker::Sized
 pub fn nika_cli_host::fix_ladder::Repair::type_id(&self) -> core::any::TypeId
 impl<T> core::borrow::Borrow<T> for nika_cli_host::fix_ladder::Repair where T: ?core::marker::Sized
 pub fn nika_cli_host::fix_ladder::Repair::borrow(&self) -> &T
 impl<T> core::borrow::BorrowMut<T> for nika_cli_host::fix_ladder::Repair where T: ?core::marker::Sized
 pub fn nika_cli_host::fix_ladder::Repair::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli_host::fix_ladder::Repair where T: core::clone::Clone
+pub unsafe fn nika_cli_host::fix_ladder::Repair::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cli_host::fix_ladder::Repair
 pub fn nika_cli_host::fix_ladder::Repair::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli_host::fix_ladder::Repair where T: core::clone::Clone
+pub fn nika_cli_host::fix_ladder::Repair::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_cli_host::fix_ladder::Repair where T: 'static
 pub fn nika_cli_host::fix_ladder::Repair::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::fix_ladder::Repair where T: ?core::marker::Sized
@@ -1168,6 +1219,8 @@ impl<T> tracing::instrument::WithSubscriber for nika_cli_host::fix_ladder::Repai
 impl<T> typenum::type_operators::Same for nika_cli_host::fix_ladder::Repair
 pub type nika_cli_host::fix_ladder::Repair::Output = T
 pub struct nika_cli_host::fix_ladder::StopNotes(pub alloc::vec::Vec<alloc::string::String>)
+impl core::clone::Clone for nika_cli_host::fix_ladder::StopNotes
+pub fn nika_cli_host::fix_ladder::StopNotes::clone(&self) -> nika_cli_host::fix_ladder::StopNotes
 impl<D> owo_colors::OwoColorize for nika_cli_host::fix_ladder::StopNotes
 impl<T, U> core::convert::Into<U> for nika_cli_host::fix_ladder::StopNotes where U: core::convert::From<T>
 pub fn nika_cli_host::fix_ladder::StopNotes::into(self) -> U
@@ -1177,14 +1230,22 @@ pub fn nika_cli_host::fix_ladder::StopNotes::try_from(value: U) -> core::result:
 impl<T, U> core::convert::TryInto<U> for nika_cli_host::fix_ladder::StopNotes where U: core::convert::TryFrom<T>
 pub type nika_cli_host::fix_ladder::StopNotes::Error = <U as core::convert::TryFrom<T>>::Error
 pub fn nika_cli_host::fix_ladder::StopNotes::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli_host::fix_ladder::StopNotes where T: core::clone::Clone
+pub type nika_cli_host::fix_ladder::StopNotes::Owned = T
+pub fn nika_cli_host::fix_ladder::StopNotes::clone_into(&self, target: &mut T)
+pub fn nika_cli_host::fix_ladder::StopNotes::to_owned(&self) -> T
 impl<T> core::any::Any for nika_cli_host::fix_ladder::StopNotes where T: 'static + ?core::marker::Sized
 pub fn nika_cli_host::fix_ladder::StopNotes::type_id(&self) -> core::any::TypeId
 impl<T> core::borrow::Borrow<T> for nika_cli_host::fix_ladder::StopNotes where T: ?core::marker::Sized
 pub fn nika_cli_host::fix_ladder::StopNotes::borrow(&self) -> &T
 impl<T> core::borrow::BorrowMut<T> for nika_cli_host::fix_ladder::StopNotes where T: ?core::marker::Sized
 pub fn nika_cli_host::fix_ladder::StopNotes::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli_host::fix_ladder::StopNotes where T: core::clone::Clone
+pub unsafe fn nika_cli_host::fix_ladder::StopNotes::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cli_host::fix_ladder::StopNotes
 pub fn nika_cli_host::fix_ladder::StopNotes::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli_host::fix_ladder::StopNotes where T: core::clone::Clone
+pub fn nika_cli_host::fix_ladder::StopNotes::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_cli_host::fix_ladder::StopNotes where T: 'static
 pub fn nika_cli_host::fix_ladder::StopNotes::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::fix_ladder::StopNotes where T: ?core::marker::Sized
@@ -1197,6 +1258,8 @@ pub type nika_cli_host::fix_ladder::StopNotes::Output = T
 pub const nika_cli_host::fix_ladder::MAX_ROUNDS: usize
 pub fn nika_cli_host::fix_ladder::apply_dead_form_arm(err: &nika_schema::error::SchemaError, source: &mut alloc::string::String, repairs: &mut alloc::vec::Vec<nika_cli_host::fix_ladder::Repair>, stop_notes: &mut nika_cli_host::fix_ladder::StopNotes) -> core::option::Option<bool>
 pub fn nika_cli_host::fix_ladder::collect_typed_renames(report: &nika_check::CheckReport) -> alloc::vec::Vec<(alloc::string::String, alloc::string::String, &'static str)>
+pub fn nika_cli_host::fix_ladder::judge_round(before: &str, after: &str, attempted: alloc::vec::Vec<alloc::string::String>) -> core::option::Option<nika_cli_host::fix_ladder::Refusal>
+pub fn nika_cli_host::fix_ladder::render_refusals(refusals: &[nika_cli_host::fix_ladder::Refusal], theme: nika_display::theme::Theme) -> alloc::string::String
 pub fn nika_cli_host::fix_ladder::render_stops(stop_notes: &nika_cli_host::fix_ladder::StopNotes, theme: nika_display::theme::Theme) -> alloc::string::String
 pub fn nika_cli_host::fix_ladder::splice(source: &mut alloc::string::String, old: &str, new: &str, kind: &'static str, repairs: &mut alloc::vec::Vec<nika_cli_host::fix_ladder::Repair>) -> bool
 pub fn nika_cli_host::fix_ladder::summary(repairs: &[nika_cli_host::fix_ladder::Repair], applied: usize, theme: nika_display::theme::Theme) -> alloc::string::String

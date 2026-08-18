@@ -129,6 +129,26 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Fixed
 
+- **`nika check --fix` can no longer write a document it cannot read.**
+  Two defects, one class, measured 2026-08-18. (1) `NIKA-PARSE-005`
+  carried its human teaching (a retired key's migration · the modeline
+  fix · a small set's own vocabulary) in the same field as its typed
+  did-you-mean, and both repairers — `--fix` and the editor quickfix —
+  spliced whichever they found: `--fix` on a file carrying `workflow:`
+  renamed the key to the sentence "the fields here: nika · model · …",
+  announced one repair applied, and left YAML that no longer parsed;
+  the shipped 0.108.0 did the same on a de-commented
+  `yaml-language-server:` line. `SchemaError::UnknownField` now carries
+  `suggestion` (a bare key · what a splice applies) and `teaching`
+  (prose · never machine-applied) separately, and every repairer reads
+  renames through the one typed door, `rename_repair()`. (2) The repair
+  loop is transactional: each round starts from a savepoint, and a round
+  whose text no longer parses as YAML is rolled back — rows and notes
+  included — and reported as a typed refusal (`✗ FIX refused — … · the
+  file is unchanged`); the byte-surgery door refuses any target with the
+  shape of prose. Nothing is written except committed text, atomically.
+  W1 also keeps a CRLF file CRLF (its rewritten task lines were LF).
+
 - **The argv exec floor is judged at check, with the run's own
   predicate (#605 · NIKA-SEC-001).** `nika check` audited green an
   argv-form `exec:` command the runtime's exec floor refuses at spawn

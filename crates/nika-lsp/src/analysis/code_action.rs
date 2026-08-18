@@ -22,7 +22,7 @@ use lsp_types::{
     CodeAction, CodeActionKind, CodeActionOrCommand, DocumentChanges, OneOf,
     OptionalVersionedTextDocumentIdentifier, Range, TextDocumentEdit, TextEdit, Uri, WorkspaceEdit,
 };
-use nika_schema::{FileId, ParseMode, SchemaError};
+use nika_schema::{FileId, ParseMode};
 
 use super::position::LineIndex;
 
@@ -52,16 +52,21 @@ pub fn code_actions(
 /// splices, in the same precedence (parse-fatal first, then the report).
 fn renames(text: &str) -> Vec<Rename> {
     match nika_schema::parse(text, FileId::new(0), ParseMode::Strict) {
-        Err(SchemaError::UnknownField {
-            field,
-            suggestion: Some(to),
-            ..
-        }) => vec![Rename {
-            offending: field,
-            suggestion: to,
-            kind: "field",
-        }],
-        Err(_) => Vec::new(),
+        // The ONE typed rename door (`rename_repair`) — the same pair
+        // `--fix` splices. A teaching-only refusal (a retired key's
+        // migration · the modeline fix · a set listing) offers no rename
+        // and lights no bulb: prose spliced into a key is the 2026-08-18
+        // corruption class, and this surface used to read the same
+        // field the CLI did.
+        Err(e) => e
+            .rename_repair()
+            .map(|(offending, suggestion)| Rename {
+                offending,
+                suggestion,
+                kind: "field",
+            })
+            .into_iter()
+            .collect(),
         Ok(wf) => {
             let report = nika_check::check(&wf);
             let mut out = Vec::new();
@@ -223,6 +228,30 @@ mod tests {
         let s = edit.range.start.character as usize;
         let e = edit.range.end.character as usize;
         assert_eq!(&line[s..e], "gathr", "the edit slices the offending token");
+    }
+
+    /// A parse-fatal near-miss key lights the bulb with the bare key —
+    /// and a teaching-only refusal (a dead envelope key · a de-commented
+    /// modeline) lights NOTHING: the teaching is prose, never a rename.
+    /// Before the typed door (2026-08-18) the second case offered to
+    /// rename `workflow` to the sentence "the fields here: nika · …".
+    #[test]
+    fn a_typed_field_rename_lights_and_a_teaching_does_not() {
+        let typo = "nika: t\ntasks:\n  g:\n    infr:\n      prompt: hi\n";
+        let acts = actions(typo);
+        assert_eq!(acts.len(), 1, "one typed rename");
+        assert_eq!(first_edit(&acts[0]).new_text, "infer");
+        let dead_key =
+            "nika: v1\nworkflow:\n  id: hello\ntasks:\n  say:\n    exec: { command: [\"true\"] }\n";
+        assert!(
+            actions(dead_key).is_empty(),
+            "a set listing is not a rename"
+        );
+        let modeline = "nika: hello\nyaml-language-server: $schema=x\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n";
+        assert!(
+            actions(modeline).is_empty(),
+            "the modeline fix is not a rename"
+        );
     }
 
     /// A finding with no suggestion offers NOTHING (silence beats a guess).
