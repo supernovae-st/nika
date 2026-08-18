@@ -10,6 +10,33 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+**The release the release gate refused.** `v0.109.0` was tagged from
+`f58a17396` and its own pre-upload gates killed all four builders: the
+funnel e2e and the trust battery still authored their fixtures in the
+fourteen-key envelope (`nika: v1` + `workflow:`) the nine-key engine
+refuses at parse (`[guard-dirty] missing: NIKA-SEC-014` · `[consent-run]
+exit=2 want=4`). No asset was published under that tag; the binaries were
+fine and the gate was the fossil, exactly as v0.106.0 died on 2026-07-27
+when the battery spent an exec without a `permits:` block. `v0.109.0`
+stays a tag with no release; this patch ships the same tree plus the gate
+fix and is the version consumers install.
+
+### Fixed
+
+- **The release gates speak the live envelope (funnel e2e · trust
+  battery).** Four fixtures move from `nika: v1` + `workflow: {id}` to
+  `nika: <id>`. Nothing else in the gates changes: the consent-dirty leg
+  still expects `NIKA-SEC-014` at `guard` and `check`, the consent-pause
+  leg still expects exit 4 with the resume line, the trust battery still
+  runs its exec under `permits.exec`.
+- **Hygiene vector 50 · `check-release-gate-envelope`.** The two gates run
+  only at tag time, so a language change on main could leave them teaching
+  the previous envelope for weeks with nothing red on any push. The vector
+  greps both scripts for the dead envelope forms (`nika: v1` · `workflow:`
+  · `on_finally:` · `depends_on:` · `${{ vars.` · `${{ env.`) on every
+  push and is RED on any hit — proven by mutation (one restored fixture →
+  red).
+
 ## [0.109.0](https://github.com/supernovae-st/nika/compare/v0.108.0..v0.109.0) - 2026-08-18
 
 **The nine-key release.** The envelope shrinks from fourteen keys to nine and
