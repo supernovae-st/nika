@@ -1136,6 +1136,8 @@ impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::key::KeyAction
 impl<T> typenum::type_operators::Same for nika_cli::verbs::key::KeyAction
 pub type nika_cli::verbs::key::KeyAction::Output = T
 pub fn nika_cli::verbs::key::run(action: nika_cli::verbs::key::KeyAction) -> nika_cli_host::output::VerbOutput
+pub mod nika_cli::verbs::list
+pub fn nika_cli::verbs::list::run(root: &std::path::Path) -> nika_cli_host::output::VerbOutput
 pub mod nika_cli::verbs::mcp_pins
 pub enum nika_cli::verbs::mcp_pins::McpAction
 pub nika_cli::verbs::mcp_pins::McpAction::Approve
