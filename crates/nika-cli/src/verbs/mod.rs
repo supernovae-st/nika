@@ -28,6 +28,7 @@ pub mod model;
 pub mod new;
 pub mod pack_surface;
 pub mod run;
+pub mod serve;
 pub mod sign;
 pub mod test;
 pub mod tools;
