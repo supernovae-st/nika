@@ -10,7 +10,17 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
-<<<<<<< HEAD
+### Added
+
+- **`nika list` names every workflow below the current directory.** Output is
+  stable and root-relative, nested workflows are included, project metadata
+  and hidden/build directories stay out, and an incomplete walk refuses
+  instead of presenting a partial inventory as exhaustive.
+- **Bare `nika` on a terminal opens one continuous thread.** Model turns
+  stream through the existing `agent:` runtime; `/workflow` posts a workflow
+  into the thread, `/run` executes it there, and Ctrl-C interrupts the active
+  turn without closing the outer conversation.
+
 ### Removed
 
 - **BREAKING — `VirtualClock` loses its dead time-mover (`nika-clock`).**
