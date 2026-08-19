@@ -16,6 +16,7 @@ use jiff::Zoned;
 use jiff::tz::TimeZone;
 use proptest::prelude::*;
 
+use crate::due::{DueKind, MISSED_SLOTS_CAP, due, earliest_next};
 use crate::next::next_slots;
 use crate::{
     AfterSkip, ArmRegistry, Cadence, CadenceErrorKind, Locus, MissPolicy, Overlap, Shift,
@@ -750,6 +751,244 @@ fn prev_before_crosses_a_month_and_a_year_backwards() {
         .prev_before(&at("2026-06-15T00:00:00Z"))
         .expect("le nouvel an");
     assert_eq!(utc(&prev.at), "2026-01-01T00:00:00Z");
+}
+
+// ── due · the pure planner, the clock handed in ─────────────────────
+
+const DUE_DAILY: &str = "
+nika: v1
+ceiling: 0.50
+arm:
+  - workflow: workflows/nightly.nika.yaml
+    cadence: TZ=Europe/Paris 0 3 * * *
+    plafond: 0.10
+    manqué: sauter
+";
+
+#[test]
+fn due_an_on_time_slot_is_due_once() {
+    // 03:02, jamais tiré · le créneau de 03:00 est dû, À L'HEURE.
+    let reg = parse_registry(DUE_DAILY).expect("registre");
+    let now = zoned("2026-08-18T03:02:00[Europe/Paris]");
+    let plan: Vec<_> = due(&reg, &now, &|_| None).expect("le plan").collect();
+    assert_eq!(plan.len(), 1);
+    assert_eq!(plan[0].index, 0);
+    assert_eq!(plan[0].kind, DueKind::OnTime);
+    assert_eq!(plan[0].slot.civil.to_string(), "2026-08-18T03:00:00");
+    assert_eq!(plan[0].beat.workflow, "workflows/nightly.nika.yaml");
+}
+
+#[test]
+fn due_a_missed_slot_says_how_many() {
+    // 10:00, dernier tir hier 03:00 · le créneau du jour est dû, RATÉ,
+    // et le silence compte UN créneau.
+    let reg = parse_registry(DUE_DAILY).expect("registre");
+    let now = zoned("2026-08-18T10:00:00[Europe/Paris]");
+    let fired = zoned("2026-08-17T03:00:00[Europe/Paris]");
+    let plan: Vec<_> = due(&reg, &now, &|_| Some(fired.clone()))
+        .expect("le plan")
+        .collect();
+    assert_eq!(plan.len(), 1);
+    assert_eq!(plan[0].kind, DueKind::Missed { slots: 1 });
+}
+
+#[test]
+fn due_an_idle_or_cloud_beat_is_never_due() {
+    let reg = parse_registry(
+        "
+nika: v1
+arm:
+  - workflow: workflows/suspended.nika.yaml
+    cadence: TZ=Europe/Paris 0 3 * * *
+    plafond: 0.10
+    manqué: sauter
+    actif: false
+    raison: pause estivale
+    jusqu_au: 2026-09-01
+  - workflow: workflows/cloud.nika.yaml
+    cadence: TZ=Europe/Paris 0 3 * * *
+    plafond: 0.10
+    manqué: sauter
+    où: cloud
+",
+    )
+    .expect("registre");
+    let now = zoned("2026-08-18T03:02:00[Europe/Paris]");
+    let plan: Vec<_> = due(&reg, &now, &|_| None).expect("le plan").collect();
+    assert!(
+        plan.is_empty(),
+        "ni le suspendu ni le cloud ne sont dus ICI: {plan:?}"
+    );
+    assert_eq!(
+        earliest_next(&reg, &now).expect("le prochain"),
+        None,
+        "rien d'armé ne tire ici"
+    );
+}
+
+#[test]
+fn earliest_next_is_the_soonest_of_the_armed_beats() {
+    let reg = parse_registry(
+        "
+nika: v1
+arm:
+  - workflow: workflows/weekly.nika.yaml
+    cadence: TZ=Europe/Paris lundi 9h07
+    plafond: 0.25
+    manqué: sauter
+  - workflow: workflows/nightly.nika.yaml
+    cadence: TZ=Europe/Paris 0 3 * * *
+    plafond: 0.10
+    manqué: rattraper
+",
+    )
+    .expect("registre");
+    // Mardi 10:00 Paris: l'hebdo vise lundi prochain, le quotidien demain.
+    let now = zoned("2026-08-18T10:00:00[Europe/Paris]");
+    let (index, slot) = earliest_next(&reg, &now)
+        .expect("le plan")
+        .expect("un prochain créneau");
+    assert_eq!(index, 1, "le quotidien tire avant l'hebdo");
+    assert_eq!(slot.civil.to_string(), "2026-08-19T03:00:00");
+}
+
+#[test]
+fn due_an_already_fired_slot_is_not_due_again() {
+    // La borne STRICTE: last_fired == le créneau → déjà tiré, jamais deux fois.
+    let reg = parse_registry(DUE_DAILY).expect("registre");
+    let now = zoned("2026-08-18T03:02:00[Europe/Paris]");
+    let fired = zoned("2026-08-18T03:00:00[Europe/Paris]");
+    let plan: Vec<_> = due(&reg, &now, &|_| Some(fired.clone()))
+        .expect("le plan")
+        .collect();
+    assert!(plan.is_empty(), "un créneau tiré ne se retire pas");
+}
+
+#[test]
+fn due_never_fired_and_outside_the_window_invents_no_backlog() {
+    // N2: pas d'état, pas de rattrapage inventé — seule la fenêtre compte.
+    let reg = parse_registry(DUE_DAILY).expect("registre");
+    let now = zoned("2026-08-18T10:00:00[Europe/Paris]");
+    let plan: Vec<_> = due(&reg, &now, &|_| None).expect("le plan").collect();
+    assert!(plan.is_empty(), "jamais tiré + hors fenêtre = pas dû");
+}
+
+#[test]
+fn the_on_time_window_is_five_minutes_to_the_second() {
+    // La borne de la fenêtre, des deux côtés: 03:05:00 pile est ON TIME,
+    // 03:05:01 est MISSED.
+    let reg = parse_registry(DUE_DAILY).expect("registre");
+    let fired = zoned("2026-08-17T03:00:00[Europe/Paris]");
+    let state = |_: usize| Some(fired.clone());
+    let edge = zoned("2026-08-18T03:05:00[Europe/Paris]");
+    let plan: Vec<_> = due(&reg, &edge, &state).expect("le plan").collect();
+    assert_eq!(
+        plan[0].kind,
+        DueKind::OnTime,
+        "à cinq minutes pile, à l'heure"
+    );
+    let late = zoned("2026-08-18T03:05:01[Europe/Paris]");
+    let plan: Vec<_> = due(&reg, &late, &state).expect("le plan").collect();
+    assert_eq!(
+        plan[0].kind,
+        DueKind::Missed { slots: 1 },
+        "une seconde plus tard, raté"
+    );
+}
+
+#[test]
+fn due_counts_every_slot_of_the_silence() {
+    // Deux jours de silence sur un beat quotidien = DEUX créneaux dus.
+    let reg = parse_registry(DUE_DAILY).expect("registre");
+    let now = zoned("2026-08-18T10:00:00[Europe/Paris]");
+    let fired = zoned("2026-08-16T03:00:00[Europe/Paris]");
+    let plan: Vec<_> = due(&reg, &now, &|_| Some(fired.clone()))
+        .expect("le plan")
+        .collect();
+    assert_eq!(plan[0].kind, DueKind::Missed { slots: 2 }, "le 17 ET le 18");
+}
+
+#[test]
+fn the_missed_count_saturates_at_the_cap() {
+    // Au-delà de dix mille créneaux le compte dit le cap: un silence
+    // plus long est une panne, pas un chiffre.
+    let hourly = DUE_DAILY.replace("0 3 * * *", "0 * * * *");
+    let reg = parse_registry(&hourly).expect("registre");
+    let now = zoned("2026-08-18T03:02:00[Europe/Paris]");
+    let fired = zoned("2025-06-26T00:00:00[Europe/Paris]");
+    let plan: Vec<_> = due(&reg, &now, &|_| Some(fired.clone()))
+        .expect("le plan")
+        .collect();
+    #[allow(clippy::cast_possible_truncation)]
+    let cap = MISSED_SLOTS_CAP as u32;
+    assert_eq!(plan[0].kind, DueKind::Missed { slots: cap });
+}
+
+#[test]
+fn due_the_gap_fire_is_due_like_any_other() {
+    // Le créneau du gap a tiré à 03:00 CEST le 29 mars — un beat dont le
+    // dernier tir est la veille le doit À L'HEURE à 03:02. La vue du
+    // planificateur est le FEU (next_after porte l'avancé), pas le civil
+    // existant — sinon ce tir manqué tomberait dans un trou.
+    let gap = DUE_DAILY.replace("0 3 * * *", "30 2 * * *");
+    let reg = parse_registry(&gap).expect("registre");
+    let fired = zoned("2026-03-28T02:30:00[Europe/Paris]");
+    let now = zoned("2026-03-29T03:02:00[Europe/Paris]");
+    let plan: Vec<_> = due(&reg, &now, &|_| Some(fired.clone()))
+        .expect("le plan")
+        .collect();
+    assert_eq!(plan.len(), 1, "le tir avancé du gap est dû");
+    assert_eq!(plan[0].kind, DueKind::OnTime);
+    assert_eq!(
+        plan[0].slot.shift,
+        Shift::AdvancedFirstValid,
+        "le créneau dû DÉCLARE son déplacement"
+    );
+}
+
+#[test]
+fn a_webhook_beat_is_never_due_nor_next() {
+    let reg = parse_registry(
+        "
+nika: v1
+arm:
+  - workflow: workflows/hooked.nika.yaml
+    cadence: on-webhook
+    plafond: 0.10
+    manqué: sauter
+",
+    )
+    .expect("registre");
+    let now = zoned("2026-08-18T10:00:00[Europe/Paris]");
+    let plan: Vec<_> = due(&reg, &now, &|_| None).expect("le plan").collect();
+    assert!(plan.is_empty(), "un webhook n'a pas de calendrier");
+    assert_eq!(earliest_next(&reg, &now).expect("le prochain"), None);
+}
+
+#[test]
+fn due_a_cadence_that_breaks_the_law_refuses_the_plan() {
+    // Un registre qui a contourné validate (TZ absente) — le planificateur
+    // REFUSE le plan entier, il ne saute pas le beat en silence.
+    let reg = parse_registry(
+        "
+nika: v1
+arm:
+  - workflow: workflows/nightly.nika.yaml
+    cadence: 0 3 * * *
+    plafond: 0.10
+    manqué: sauter
+",
+    )
+    .expect("registre");
+    let now = zoned("2026-08-18T10:00:00[Europe/Paris]");
+    let err = due(&reg, &now, &|_| None)
+        .map(Iterator::count)
+        .expect_err("le refus");
+    assert_eq!(err.kind(), CadenceErrorKind::TzMissing);
+    let err = earliest_next(&reg, &now)
+        .map(|slot| slot.map(|_| ()))
+        .expect_err("le refus");
+    assert_eq!(err.kind(), CadenceErrorKind::TzMissing);
 }
 
 // ── describe · display normalizes to the readable form ─────────────
