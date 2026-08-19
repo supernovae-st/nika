@@ -917,7 +917,7 @@ fn collect_digit_string_enums(node: &serde_json::Value, path: &str, out: &mut Ve
     }
 }
 
-/// `nika:inspect` is catalogued but the runtime injects [`NoWorkflow`]
+/// `nika:inspect` is catalogued but the runtime injects a `NoWorkflow`
 /// today — every view returns `available: false`. Say so at check time
 /// instead of letting an author discover it after a paid infer wave.
 fn push_inspect_unwired_hint(
