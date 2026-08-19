@@ -1,5 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+#![allow(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable
+)]
 
 //! The W1 surface, pinned: `prev_before` (the mirror — at-or-before,
 //! the gap never returned, the fold's FIRST occurrence, the 366-day
