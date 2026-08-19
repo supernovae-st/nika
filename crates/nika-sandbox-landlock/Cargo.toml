@@ -20,7 +20,7 @@ adr = ["ADR-003", "ADR-095"]
 # The trait + ShellCommand + SandboxSpec. NO heavy deps: this crate only builds
 # the bwrap launcher argv and wraps the command (the wrapper model · no unsafe ·
 # no FFI · the runner spawns the result).
-nika-kernel = { path = "../nika-kernel", version = "0.109.2" }
+nika-kernel = { path = "../nika-kernel", version = "0.110.0-dev" }
 
 [package.metadata.lore]
 daemon        = "sentinelle"
