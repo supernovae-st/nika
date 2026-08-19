@@ -9,7 +9,7 @@
 // The OS-lint legs print a one-line SKIP notice when the host lacks the
 // linter (systemd-analyze off Linux · plutil off macOS) — test output, not
 // production logging; no tracing harness lives in this suite.
-#![allow(clippy::disallowed_macros)]
+#![allow(clippy::disallowed_macros, clippy::print_stderr)]
 
 //! `nika arm --emit` end-to-end (W3 · « LE PONT », the OS bridge): a
 //! tempdir project, the real binary, HOME redirected into the tempdir
