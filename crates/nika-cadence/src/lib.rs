@@ -6,11 +6,13 @@
 //! The grammar of the arming registry (the `arm:` block of `nika.yaml`,
 //! D-2026-08-10-N3), the pure slot calculator (`next_after` ·
 //! `prev_before` — the half-open interval `(prev, next]` a beat is due
-//! in), and the pure planner (`due` · `earliest_next`) the firing edges
-//! read. Two L4 consumers read this registry (`nika arm` today ·
-//! `nika serve` at ②), so the shared logic lives at L0 — never in a CLI
-//! crate (the layering precedent: `nika-check`'s Cargo.toml · "THREE L0
-//! consumers make any higher layer an upward-dep violation").
+//! in), the pure planner (`due` · `earliest_next`) the firing edges
+//! read, and the pure OS-unit renderer (`emit` — W3, « LE PONT ») the
+//! `--emit` verb and `serve` read. Two L4 consumers read this registry
+//! (`nika arm` today · `nika serve` at ②), so the shared logic lives
+//! at L0 — never in a CLI crate (the layering precedent: `nika-check`'s
+//! Cargo.toml · "THREE L0 consumers make any higher layer an upward-dep
+//! violation").
 //!
 //! The four locks (D-2026-08-11-N1→N4 · one law at four moments: THE
 //! FILE PROPOSES, THE MACHINE DISPOSES):
@@ -67,6 +69,7 @@
 
 pub mod cron;
 pub mod due;
+pub mod emit;
 pub mod error;
 pub mod next;
 pub mod parse;

@@ -9,6 +9,7 @@
 //!                                    "trace": path|null, "exit": u8,
 //!                                    "kind": "fired|skipped|paused|failed" }
 //! .nika/arm/<label>/history.ndjson one line per decision · append-only
+//!                                    (kind carries « disarmed » too — W3)
 //! ```
 //!
 //! It lives NEXT TO the traces, at the root of the project that arms
@@ -59,6 +60,9 @@ pub enum LockOutcome {
 
 /// The decision kinds — the `kind:` vocabulary of `last.json` and
 /// `history.ndjson`, and the firer's one-line prefixes (D8).
+/// `Disarmed` is the W3 disarm gesture's: history-only (it bears no
+/// slot, so `record` never writes it to `last.json`, and [`ArmState::last`]
+/// reads the word as unreadable — the safe direction).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum FireKind {
     /// The run went and exited clean.
@@ -70,6 +74,8 @@ pub enum FireKind {
     Paused,
     /// The run went and failed (or refused its own file).
     Failed,
+    /// The emitted OS unit was torn down (`arm disarm --write` — W3).
+    Disarmed,
 }
 
 impl FireKind {
@@ -81,6 +87,7 @@ impl FireKind {
             Self::Skipped => "skipped",
             Self::Paused => "paused",
             Self::Failed => "failed",
+            Self::Disarmed => "disarmed",
         }
     }
 }

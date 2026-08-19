@@ -170,34 +170,12 @@ pub fn run(fire: &FireArgs) -> VerbOutput {
 
 /// The beat labels, in file order (D4): the workflow file's radical —
 /// `workflows/doctor.nika.yaml` → `doctor` — a collision taking `-2`,
-/// `-3`. The OS unit names itself `nika.arm.<radical>` from this list.
+/// `-3`. The identity lives at L0 since W3 (`nika_cadence::emit::labels`
+/// — the OS units name themselves from the same source); this shim keeps
+/// the verb's call sites, and its pin below guards the delegation.
 #[must_use]
 pub fn labels(registry: &ArmRegistry) -> Vec<String> {
-    let mut out: Vec<String> = Vec::new();
-    for beat in registry.beats() {
-        let radical = radical_of(&beat.workflow);
-        let mut candidate = radical.clone();
-        let mut n = 1u32;
-        // Uniqueness is the law (`doctor-2.nika.yaml` arming next to
-        // two `doctor` must never hand two beats one label).
-        while out.contains(&candidate) {
-            n += 1;
-            candidate = format!("{radical}-{n}");
-        }
-        out.push(candidate);
-    }
-    out
-}
-
-/// The radical of a workflow path: the basename minus the `.nika.yaml`
-/// the grammar guarantees (a bare `*.yaml` loses its last extension).
-fn radical_of(workflow: &str) -> String {
-    let base = workflow.rsplit('/').next().unwrap_or(workflow);
-    if let Some(radical) = base.strip_suffix(".nika.yaml") {
-        return radical.to_owned();
-    }
-    base.rsplit_once('.')
-        .map_or_else(|| base.to_owned(), |(stem, _)| stem.to_owned())
+    nika_cadence::emit::labels(registry)
 }
 
 /// The decision instant: the hidden `--now` (RFC 3339) or the wall

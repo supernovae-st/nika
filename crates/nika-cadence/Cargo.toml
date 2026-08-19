@@ -28,3 +28,4 @@ jiff-tzdb     = { workspace = true }   # the EMBEDDED IANA tzdb — never the ho
 
 [dev-dependencies]
 proptest = { workspace = true }
+insta    = { workspace = true }   # the emit renderer's unit snapshots (W3 · LE PONT)
