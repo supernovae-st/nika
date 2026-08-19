@@ -4444,7 +4444,6 @@ dependencies = [
  "nika-kernel",
  "nika-schema",
  "nika-types",
- "nix 0.31.3",
  "proptest",
  "tokio",
 ]

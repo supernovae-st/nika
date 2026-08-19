@@ -48,7 +48,7 @@ files:
   note: "generated with a human gate — the maintainer may amend the section at PR review"
 - path: "Cargo.lock"
   class: generated
-  sha256: cb72876318340025718358a2b1ca7eced63bd5a06305953a94107abbaa5efa08
+  sha256: f5323d8bd95dd516ade914f797fe3aae5fa4f6a3609665e43d6601a0dff816f2
   evidence: "cargo's resolver writes it; no human edits a lockfile"
   derivation:
     tool: "cargo (dependency resolution against Cargo.toml + crates/*/Cargo.toml)"
@@ -152,17 +152,17 @@ patterns:
 - glob: "crates/**/src/**"
   class: authored
   match_count: 790
-  aggregate_sha256: 275510ddee74f8506e925a2025a24eeaed66423cbb0096315511659e0db7d9c7
+  aggregate_sha256: b0b0c5d7e6d4239cfb013ec44535909227ab8272aeb51f68acedb728be514659
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
   match_count: 158
-  aggregate_sha256: f28d893c15f56511fc6193a01f59dcce943e4d751e12a7ccc8286c4d6abfd6d6
+  aggregate_sha256: 5d44a80a60d344f4523bf8d6e7c3cc7b042d868780cfad2bcf5fddaa55353625
   evidence: "crate-owned tests + fixtures under tests/ — written with the crate per gate discipline, no generation markers"
 - glob: "crates/**"
   class: authored
   match_count: 139
-  aggregate_sha256: 0b96cf8acb1e288a09724de63783a7c870cb8e330749c1933201cafa6b48fb1d
+  aggregate_sha256: e2398db644941613e36ede9041796ffd41b75b3ce5601fafdccf4a0f3b6bf5e4
   evidence: "the remaining crate surface — Cargo.toml manifests · build.rs · benches · READMEs · hand-curated data catalogs (llm-providers · mcp-servers · embeddings · model-capabilities, probed daily by catalog-verify.yml); the pricing snapshot is excepted in files:"
   note: "crates/nika-pack/scripts/sync-pack.sh is a DIVERGENT older duplicate of scripts/sync-pack.sh — the pack-resync.yml lane runs the root one"
 - glob: "fuzz/**"
