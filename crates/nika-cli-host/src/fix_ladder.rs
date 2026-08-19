@@ -154,6 +154,24 @@ pub fn apply_dead_form_arm(
         } if (field == "workflow" || field == "description") && location.contains("envelope") => {
             Some(apply_identity(source, repairs, stop_notes))
         }
+        // LOT 3 · the task-body rungs (2026-08-11's sweep inside a task):
+        // `output:` → `extract:` (R3) · `on_error.fail_workflow: true`
+        // deleted (R4) · task-level `max_parallel`/`fail_fast` INTO the
+        // `for_each:` block (R2) · `declassify:`/`inert:` → one `lift:`
+        // (R5). Equivalence-or-stop like every rung: `fail_workflow: false`,
+        // knobs with no fan-out, a flow-style for_each, a declassify that
+        // does not lift to `trusted` — each STOPS with its note.
+        SchemaError::UnknownField {
+            field, location, ..
+        } if (location.starts_with("task `")
+            && matches!(
+                field.as_str(),
+                "output" | "declassify" | "inert" | "max_parallel" | "fail_fast"
+            ))
+            || (location == "`on_error:`" && field == "fail_workflow") =>
+        {
+            Some(apply_lot3(source, repairs, stop_notes))
+        }
         // W2 « the flow » dead form (PARSE-024) — the equivalence-or-
         // stop migration (spec 03 §depends_on): data → with: bindings ·
         // provably-strict control → after: {d: success} · every
@@ -252,6 +270,41 @@ fn apply_identity(
             false
         }
         nika_migrate::IdentityOutcome::Clean => false,
+    }
+}
+
+/// The LOT 3 task-body arm — R2 · R3 · R4 · R5 in one pass. `true` =
+/// applied (the round restarts) · `false` = STOP (each note names the
+/// case) or Clean.
+fn apply_lot3(source: &mut String, repairs: &mut Vec<Repair>, stop_notes: &mut StopNotes) -> bool {
+    match nika_migrate::lot3(source) {
+        nika_migrate::Lot3Outcome::Changed {
+            source: migrated,
+            applied,
+        } => {
+            *source = migrated;
+            for rung in applied {
+                let (from, to) = match rung {
+                    "r3-extract" => ("output:", "extract:"),
+                    "r4-fail-workflow" => {
+                        ("on_error.fail_workflow: true", "the default IS the failure")
+                    }
+                    "r2-for-each" => (
+                        "task-level max_parallel / fail_fast",
+                        "inside the for_each: block",
+                    ),
+                    "r5-lift" => ("declassify: / inert:", "lift: [{law, from?, because}]"),
+                    _ => ("a retired task form", "its nine-key shape"),
+                };
+                repairs.push(Repair::applied(from, to, rung));
+            }
+            true
+        }
+        nika_migrate::Lot3Outcome::Stop(notes) => {
+            stop_notes.0 = notes;
+            false
+        }
+        nika_migrate::Lot3Outcome::Clean => false,
     }
 }
 

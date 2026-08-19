@@ -18,11 +18,11 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4473
+  classified_files: 4474
   file_rows: 11
   pattern_rows: 22
   by_class:
-    authored: 1536
+    authored: 1537
     authored-pin: 2
     generated: 122
     pinned-copy: 117
@@ -140,7 +140,7 @@ patterns:
 - glob: "crates/*/public-api.txt"
   class: generated
   match_count: 66
-  aggregate_sha256: b2ea6cab5d6c53780910df9896db5ca38f5cb5983a9fc795f795ea40a4150e16
+  aggregate_sha256: d7593d3293e5cd6c2c2092b1216a05e3ff4d0a9e9fbf7016975a76c30369f497
   evidence: ".github/workflows/public-api.yml 'diff each covered lib crate' byte-compares each snapshot against cargo public-api output; macOS renders differently, so snapshots regenerate FROM THE UBUNTU ARTIFACT (workflow comment)"
   derivation:
     tool: "cargo public-api -p <crate> --omit auto-trait-impls > crates/<crate>/public-api.txt (DEFAULT features · the CI job shape — all-features drags platform deps into the render · cargo-public-api 0.51.0 pinned · the public-api-actual CI artifact stays the judge)"
@@ -151,8 +151,8 @@ patterns:
     - "cargo-public-api 0.51.0"
 - glob: "crates/**/src/**"
   class: authored
-  match_count: 772
-  aggregate_sha256: 18e6754d78e955dd2eeb3157e717cc8fc72698350248c0d400f12067a88237b5
+  match_count: 773
+  aggregate_sha256: 8c554135d456c3d25b9566943bf7138e4b1bded6eae96078397a124392c445d8
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
