@@ -21,6 +21,7 @@
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used))]
 
 mod check_journey;
+mod check_laws;
 mod check_models;
 pub mod check_render;
 pub mod chrome;

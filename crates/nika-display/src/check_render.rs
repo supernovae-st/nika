@@ -144,9 +144,11 @@ pub fn render(
     );
     writes_rung(&mut out, report, t);
     exec_rung(&mut out, report, t);
+    crate::check_laws::order_rung(&mut out, report, t);
     permits(&mut out, report, wf, t);
     trifecta_rung(&mut out, report, wf, t);
     consent_rung(&mut out, report, t);
+    crate::check_laws::lift_rung(&mut out, report, wf, t);
     crate::check_journey::journey_rung(&mut out, report, t);
     run_rung(&mut out, report, wf, t);
     hints_and_verdict(&mut out, report, wf, t, drift_hints, verdict);
@@ -750,7 +752,7 @@ fn secret_rows(report: &CheckReport) -> Vec<String> {
 /// name that does not exist and the same leak reports
 /// `✔ SECRETS no information-flow escapes`. The green did not mean the
 /// leak was gone. It meant nobody looked.
-fn section_or_skip(
+pub(crate) fn section_or_skip(
     out: &mut String,
     report: &CheckReport,
     t: Theme,
@@ -775,7 +777,13 @@ fn section_or_skip(
     );
 }
 
-fn section_list(out: &mut String, t: Theme, label: &str, ok_msg: &str, rows: Vec<String>) {
+pub(crate) fn section_list(
+    out: &mut String,
+    t: Theme,
+    label: &str,
+    ok_msg: &str,
+    rows: Vec<String>,
+) {
     // Pad BEFORE painting — ANSI escapes break `{:<8}` width arithmetic
     // (the format pads bytes, not display columns).
     let padded = format!("{label:<8}");
