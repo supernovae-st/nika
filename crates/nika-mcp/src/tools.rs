@@ -967,7 +967,10 @@ mod tests {
             .cloned()
             .expect("pack has examples");
         let out = execute("nika_examples", &json!({ "slug": slug })).expect("ran");
-        assert!(out.contains("nika: v1"), "a real workflow source: {out}");
+        assert!(
+            out.contains("nika: hello"),
+            "a real workflow source (nine-key identity): {out}"
+        );
     }
 
     #[test]
