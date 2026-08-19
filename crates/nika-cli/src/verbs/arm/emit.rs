@@ -192,7 +192,7 @@ fn write_units(
     }
     let _ = writeln!(
         out,
-        "\n{} posée · rien n'est chargé — la charge demeure ton geste:",
+        "\n{} · rien n'est chargé — la charge demeure ton geste:",
         crate::text::count(units.len(), "unité")
     );
     for command in load_commands(units, target, Some(&dir)) {
