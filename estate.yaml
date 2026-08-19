@@ -198,7 +198,7 @@ patterns:
 - glob: ".agents/**"
   class: authored
   match_count: 32
-  aggregate_sha256: 309bd36f42af445dd1ab36c5af1cbfc09b98bc040f9f27c7f6ccdecca3fd776c
+  aggregate_sha256: ee9acc0cdb7374f683e48098411086cc749ce788f530d7721cc334f97f2c0ff5
   evidence: "the agent-plugin pack SOURCE (marketplace.json · plugin manifests · skills · rules · hooks) — authored here, mirrored downstream into supernovae-st/nika-plugins (its plugins/ is a byte-pinned copy healed on releases)"
 - glob: ".claude/**"
   class: authored
