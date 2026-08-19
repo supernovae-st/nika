@@ -91,7 +91,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        job: [clippy, tests, no-default-features, wasm]
+        job: [clippy, tests, no-default-features, wasm, funnel]
     env:
       JOB: ${{ matrix.job }}
     steps:
@@ -115,8 +115,8 @@ jobs:
         uses: taiki-e/install-action@b20dedce73af6905cdc30d6611090c9b67557c8d # v2
         with:
           tool: cargo-nextest
-      - name: Install bubblewrap (tests leg · forces the landlock jail proof to RUN not skip)
-        if: matrix.job == 'tests'
+      - name: Install bubblewrap (tests + funnel legs · the landlock jail proof RUNS · the funnel's consent leg runs a permits workflow)
+        if: matrix.job == 'tests' || matrix.job == 'funnel'
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends bubblewrap
