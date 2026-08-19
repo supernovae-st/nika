@@ -22,6 +22,7 @@ nika-check       = { path = "../nika-check", version = "0.113.0" }        # agen
 nika-catalog     = { path = "../nika-catalog", version = "0.113.0", features = ["pricing"] } # find_pricing_for — the priced-ness the unmetered gate reads (R3-F1)
 jsonschema       = { workspace = true }                                   # final-message `schema:` validation (NIKA_464)
 serde_json       = { workspace = true }
+bytes            = { workspace = true }                                   # blob put for the spill seam (spill.rs)
 thiserror        = { workspace = true }
 miette           = { workspace = true }
 tokio            = { workspace = true }                                   # spawn_blocking — agent:compose's sync check off the async executor (ADR-096)

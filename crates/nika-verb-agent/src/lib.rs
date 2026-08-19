@@ -99,6 +99,7 @@ mod intrinsic;
 mod io;
 mod router;
 mod shape;
+mod spill;
 
 use std::sync::Arc;
 
@@ -107,6 +108,7 @@ use nika_kernel::ai::provider::{
     ResponseFormat, Role, TokenUsage, ToolDef,
 };
 use nika_kernel::ai::tool_defs::ToolDefinitionProviderDyn;
+use nika_kernel::blob::BlobStoreDyn;
 use nika_kernel::runtime::agent::AgentStopReason;
 use nika_types::blame::BlamePolarity;
 use nika_types::cost::SpendOnFailure;
@@ -169,6 +171,10 @@ pub struct AgentVerb<P, T, D> {
     // embedder signature (Runtime::new already carries the verb generics);
     // the observer is telemetry, never on the data path's hot types.
     observer: Arc<dyn AgentObserver>,
+    // The spill store: OPTIONAL, and `dyn` for the same reason as the
+    // observer. Absent, the loop feeds every result back byte-identical
+    // (the pre-spill behavior is the default — feature-defaults law).
+    spill: Option<Arc<dyn spill::SpillStoreDyn>>,
     // The harness seat (P3 B4): delegates to the user's own harness —
     // same dyn-seam rationale as the observer.
     #[cfg(feature = "access-harness")]
@@ -202,6 +208,7 @@ impl<P, T, D> AgentVerb<P, T, D> {
             config: AgentConfig::new(),
             schema_retry_budget: DEFAULT_SCHEMA_RETRY_BUDGET,
             observer: Arc::new(NoopObserver),
+            spill: None,
             #[cfg(feature = "access-harness")]
             harness: None,
         }
@@ -232,6 +239,19 @@ impl<P, T, D> AgentVerb<P, T, D> {
     #[must_use]
     pub fn with_config(mut self, config: AgentConfig) -> Self {
         self.config = config;
+        self
+    }
+
+    /// Seat the spill store: tool results past the threshold leave the
+    /// conversation for the store (a bounded preview + the blob locator
+    /// stay). Without it the loop is byte-unchanged — the seam is
+    /// optional, the default is the pre-spill behavior.
+    #[must_use]
+    pub fn with_spill<S>(mut self, store: Arc<S>) -> Self
+    where
+        S: BlobStoreDyn + Sync + 'static,
+    {
+        self.spill = Some(store);
         self
     }
 
@@ -706,6 +726,12 @@ where
         // verbatim · a trailing text block after tool results is the
         // documented-legal shape on every wire).
         let mut content = batch.results;
+        // Oversized outputs leave the conversation for the spill store —
+        // the preview + locator stay, the bytes stay addressable. Never a
+        // loss: a store refusal keeps the full text (see spill.rs).
+        if let Some(store) = &self.spill {
+            spill::spill_tool_results(&mut content, store).await;
+        }
         match guard.observe_turn(batch.signature, batch.all_errors) {
             GuardVerdict::Proceed => {}
             GuardVerdict::Nudge(reason, period) => {
@@ -1392,3 +1418,5 @@ fn is_clean_tool_name(name: &str) -> bool {
 
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_spill;
