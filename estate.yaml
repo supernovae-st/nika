@@ -18,14 +18,14 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4499
+  classified_files: 4500
   file_rows: 11
   pattern_rows: 22
   by_class:
     authored: 1560
     authored-pin: 2
     generated: 122
-    pinned-copy: 119
+    pinned-copy: 120
     testimonial: 2696
     foreign: 0
   unverified-default: 7
@@ -62,7 +62,7 @@ files:
   evidence: "its own header: 'Bump deliberately: edit this' · the rev the shared estate tool is mirrored from, and the INPUT the mirror gate compares against"
 - path: "ROADMAP.md"
   class: authored
-  sha256: 2c35bf28f7b61237cfee04e577525193023a3143ef45b8a12118e9dd6eefc1aa
+  sha256: f1b7308d7c1b2bf456f660a788ee9cfb6133c241ad2510b4c955bff7ac348c88
   evidence: "hand-written roadmap prose (real-semver ladder · layer plan)"
   note: "ROADMAP.md:98 carries the same refresh-status.sh AUTO-GENERATED status block — a tool-maintained block inside an authored file"
 - path: "SPEC_PIN"
@@ -113,8 +113,8 @@ files:
 patterns:
 - glob: "crates/nika-pack/pack/**"
   class: pinned-copy
-  match_count: 118
-  aggregate_sha256: d0aeb8c6ca93ea05ce288f68cf80df6b6d34aff081f9433bd9810acf7979ac73
+  match_count: 119
+  aggregate_sha256: 285f5f9fdcd2eb07a27ff70aae52f5af83a12f0a36812df24937e3ba25fb2f64
   evidence: "crates/nika-pack/src/lib.rs:16 'The snapshot under pack/ is vendored by scripts/sync-pack.sh' — a byte-copy of the spec surface, never edited here"
   derivation:
     tool: "bash scripts/sync-pack.sh <nika-spec checkout> — healed daily by .github/workflows/pack-resync.yml (branch bot/pack-resync · PR-only, the 12-gate CI judges)"
@@ -152,7 +152,7 @@ patterns:
 - glob: "crates/**/src/**"
   class: authored
   match_count: 790
-  aggregate_sha256: 58be3e9bada0c9f1161ad73c7bd1bce754d1f9c0e7dbac9e39b396c6d8e0ef96
+  aggregate_sha256: 1e0f631b6691d4e1ac31d3b54c954eec071060916ea51830ac84b800312a3436
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
@@ -178,7 +178,7 @@ patterns:
 - glob: "docs/**"
   class: authored
   match_count: 109
-  aggregate_sha256: 47743dd209e736ec6ac416783a02e47d4160a6506fe074b4a77f2dc832d8328e
+  aggregate_sha256: 95fa27fe7dd8e5de2ac4e9cae3c8d4ec0aee378ccbdfb8630f6d52b9035f538e
   evidence: "crate-specs · architecture prose · perf notes — no generation markers at file heads"
 - glob: "scripts/**"
   class: authored

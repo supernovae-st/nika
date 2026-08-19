@@ -4,7 +4,7 @@
 # Consumers · the reference engine embeds this pack (nika try ·
 # nika spec) · docs + website render projections of the same files.
 pack_version: 0.1.0-draft
-workflow_count: 50
+workflow_count: 51
 foundation:
   - file: examples/01-hello.nika.yaml
     sha256_16: ca6fd74b9c22772a
@@ -36,6 +36,8 @@ foundation:
     sha256_16: 92274753edd5335a
   - file: examples/14-decide-publish.nika.yaml
     sha256_16: 807fe9415700b263
+  - file: examples/15-compose-self-check.nika.yaml
+    sha256_16: 246260ab82f062ea
 templates:
   - file: templates/agent-loop.nika.yaml
     sha256_16: 97cca73d639c1537
@@ -73,7 +75,7 @@ showcase:
   - file: examples/config-drift-sentinel.nika.yaml
     name: config-drift-sentinel
     constructs: [local_model, on_error, outputs, retry, secrets, typed_inputs, when, with]
-    sha256_16: a96790d56290cc71
+    sha256_16: d2fb87f81941bd90
   - file: examples/contract-guard.nika.yaml
     name: contract-guard
     constructs: [local_model, outputs, schema, typed_inputs, with]

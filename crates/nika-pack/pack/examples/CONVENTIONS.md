@@ -429,6 +429,11 @@ The named bundle is [`14-decide-publish`](14-decide-publish.nika.yaml).
    `nika:decide` without a const-fixture `nika:assert` is hint
    `unproven-law` · `paid_ready: false`. Shape: lesson 13 `prove` +
    lesson 14.
+10. **`nika:compose` is loop-only.** Grant it on `agent.tools` after
+    `nika:done`. The model drafts YAML, gets the full `nika check`
+    JSON, iterates until `valid`. A standalone `invoke:` is
+    `NIKA-BUILTIN-COMPOSE-001`. Checking never executes the draft.
+    Shape: lesson 15. Parent→child calls stay lesson 10.
 
 Order that is cheaper: `nika check --json --native-strict` until
 `paid_ready: true` → one-task mock probe of every new builtin → freeze

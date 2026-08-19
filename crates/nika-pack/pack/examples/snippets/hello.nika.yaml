@@ -8,7 +8,7 @@
 # blast radius from the very first command.
 #
 # Demonstrates ·
-#   - the envelope · `nika: hello` (the mark AND the name · nine keys)
+#   - the envelope · `nika: <id>` · the mark AND the file's name
 #   - `permits.exec` · an argv allowlist, no shell anywhere
 #   - one `exec:` task · argv form, never a shell string
 #
