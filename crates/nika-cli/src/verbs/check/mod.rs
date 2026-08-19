@@ -454,11 +454,7 @@ fn json_verdict(
             "models_resolve".to_owned(),
             serde_json::Value::Bool(model_findings.is_empty()),
         );
-        // The machine twin of the narrowed headline (presence-gated like
-        // `model_findings`): `models_resolve: true` beside a non-zero
-        // `models_unjudged` reads as « every JUDGED model resolves » —
-        // without the count, a consumer cannot tell judged-green from
-        // never-judged.
+        // Presence-gated: judged-green ≠ never-judged.
         if models_audit.unjudged > 0 {
             obj.insert(
                 "models_unjudged".to_owned(),
