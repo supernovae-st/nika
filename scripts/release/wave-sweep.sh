@@ -68,12 +68,25 @@ run() { if [ "$DRY" = "--dry" ]; then echo "DRY · $*"; else "$@"; fi; }
 run perl -pi -e "s/^(version\s*=\s*)\"$V\"/\${1}\"$VER\"/" Cargo.toml crates/*/Cargo.toml
 run perl -pi -e "s/(version = )\"$V\"/\${1}\"$VER\"/g" crates/*/Cargo.toml
 
-# 2 · locks — never hand-edited
+# 2 · locks — never hand-edited. THREE, not two: the workspace lock, the
+#     fuzz lock, and the lock of every crate the workspace EXCLUDES but
+#     that path-depends on workspace members (today `crates/nika-acp` — its
+#     own `Cargo.lock` pins the members it builds against, so every version
+#     sweep must move it too). Measured 2026-08-18/19: the 0.109.0 release
+#     commit had to be amended after the pre-push gate rebuilt that lock,
+#     and the 0.109.1 · 0.109.2 · 0.110.0-dev sweeps each bumped it by hand
+#     — a carrier the sweep did not list is a carrier that drifts. `--offline`
+#     because a version sweep must never reach the network for a pin the
+#     tree already holds; the workspace lock above already resolved them.
 if [ "$DRY" != "--dry" ]; then
   cargo update --workspace -q
   cargo update --workspace --manifest-path fuzz/Cargo.toml -q
+  for excluded_lock in crates/*/Cargo.lock; do
+    [ -f "$excluded_lock" ] || continue
+    cargo update --workspace --offline -q --manifest-path "${excluded_lock%Cargo.lock}Cargo.toml"
+  done
 else
-  echo "DRY · cargo update --workspace (both locks)"
+  echo "DRY · cargo update --workspace (the workspace lock · the fuzz lock · every excluded crate's own lock)"
 fi
 
 # 3 · teaching comment + live status rows. The Dockerfile comment teaches
