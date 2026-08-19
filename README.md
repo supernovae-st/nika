@@ -470,6 +470,7 @@ nika run hello.nika.yaml     # execute locally
 Adding an AI step? Point it at a local model and nothing leaves your machine:
 
 ```yaml
+nika: hello
 model: ollama/llama3.2:3b    # local · or mistral/..., anthropic/..., any provider
 tasks:
   greet:
