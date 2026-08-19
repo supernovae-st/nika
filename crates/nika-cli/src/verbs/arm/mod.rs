@@ -47,18 +47,62 @@ use nika_vocab::project;
 
 use super::VerbOutput;
 
+pub mod args;
+
 /// How many upcoming slots each beat shows.
 const SLOTS_SHOWN: usize = 3;
 
-/// `nika arm` — the read-only arming report.
-///
-/// The CWD door. Discovery walks up from the invocation directory,
-/// git-style — the same calm fallback the ceiling ladder takes when the
-/// CWD is unresolvable (a broken CWD must never block a read).
+/// `nika arm` — the verb. Bare (no subcommand, no flag) it is the
+/// read-only arming report below; the subcommands are the machine's
+/// edge, and the `--emit` family is the W3 wave's — declared on the
+/// clap tree now, refused honestly until it lands.
 #[must_use]
-pub fn run() -> VerbOutput {
-    let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
-    run_at(&cwd)
+pub fn run(args: args::ArmArgs) -> VerbOutput {
+    use args::ArmSub;
+    match args.sub {
+        Some(ArmSub::Fire(_)) => VerbOutput::file(
+            "arm fire · le tireur arrive avec la vague W2 de cette branche".to_owned(),
+        ),
+        Some(ArmSub::Disarm { label, write }) => disarm(&label, write),
+        None if emits_requested(&args) => VerbOutput::file(
+            "arm --emit · the OS units arrive with the W3 wave — today the verb READS".to_owned(),
+        ),
+        None => {
+            let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
+            run_at(&cwd)
+        }
+    }
+}
+
+/// Any `--emit`-family flag set? Those flags only make sense WITH the
+/// emission the W3 wave lands — set today, they refuse rather than
+/// silently report (a flag that does nothing is a lie).
+fn emits_requested(args: &args::ArmArgs) -> bool {
+    args.emit.is_some()
+        || args.write
+        || args.out.is_some()
+        || args.mode.is_some()
+        || args.env_file.is_some()
+        || args.nika_bin.is_some()
+}
+
+/// `arm disarm <label>` — the N4 teaching. Removing the line does NOT
+/// disarm (the state would go ORPHAN, and the machine keeps its
+/// record); the gesture is a suspension the file re-reads.
+#[must_use]
+fn disarm(label: &str, write: bool) -> VerbOutput {
+    if write {
+        return VerbOutput::file(
+            "arm disarm --write · the OS-unit teardown arrives with the W3 wave".to_owned(),
+        );
+    }
+    VerbOutput::ok(format!(
+        "disarm `{label}` — law N4: removing the line does NOT disarm\n  \
+         the gesture, in nika.yaml, on the beat's entry:\n  \
+         · actif: false   — the declared intention\n  \
+         · raison: \"…\"    — why it sleeps (a suspension is told)\n  \
+         · jusqu_au: YYYY-MM-DD — when it wakes or is deleted"
+    ))
 }
 
 /// The report at an explicit root — the tempdir-injectable half
@@ -214,6 +258,58 @@ mod tests {
         let out = run_at(dir.path());
         assert_eq!(out.code, exit::OK, "{}", out.text);
         assert!(out.text.contains("nothing armed"), "{}", out.text);
+    }
+
+    /// The bare dispatch: no subcommand, no flag → the report. The
+    /// report half itself is pinned by the `run_at` tests (the
+    /// refactor's zero-behavior-change claim); the CWD door is covered
+    /// end-to-end by the binary tests (`tests/arm_fire.rs`), never by
+    /// moving the test process's own CWD (parallel tests race on it).
+    /// The declared-but-unlanded surfaces refuse honestly — a flag that
+    /// would silently do nothing is a lie.
+    #[test]
+    fn the_w2_and_w3_surfaces_refuse_by_name_until_they_land() {
+        let base = crate::verbs::arm::args::ArmArgs {
+            sub: None,
+            emit: Some(crate::verbs::arm::args::EmitTarget::Launchd),
+            write: false,
+            out: None,
+            mode: None,
+            env_file: None,
+            nika_bin: None,
+        };
+        let out = run(base);
+        assert_eq!(out.code, exit::FILE, "--emit refuses: {}", out.text);
+        assert!(out.text.contains("W3"), "names the wave: {}", out.text);
+
+        let fire = crate::verbs::arm::args::ArmArgs {
+            sub: Some(crate::verbs::arm::args::ArmSub::Fire(
+                crate::verbs::arm::args::FireArgs {
+                    label: "doctor".to_owned(),
+                    now: None,
+                },
+            )),
+            emit: None,
+            write: false,
+            out: None,
+            mode: None,
+            env_file: None,
+            nika_bin: None,
+        };
+        let out = run(fire);
+        assert_eq!(out.code, exit::FILE, "fire refuses pre-W2: {}", out.text);
+        assert!(out.text.contains("W2"), "names the wave: {}", out.text);
+    }
+
+    #[test]
+    fn disarm_teaches_the_n4_gesture_and_refuses_the_unit_teardown() {
+        let teach = disarm("doctor", false);
+        assert_eq!(teach.code, exit::OK, "{}", teach.text);
+        assert!(teach.text.contains("actif: false"), "{}", teach.text);
+        assert!(teach.text.contains("jusqu_au"), "{}", teach.text);
+        let teardown = disarm("doctor", true);
+        assert_eq!(teardown.code, exit::FILE, "{}", teardown.text);
+        assert!(teardown.text.contains("W3"), "{}", teardown.text);
     }
 
     #[test]
