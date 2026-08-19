@@ -27,9 +27,11 @@ mod ask;
 mod child_runner;
 mod inputs;
 mod sink;
+mod thread;
 
 pub use nika_dap::recover::{RecoveredTrace, recover_events};
 pub use sink::{FoldSink, RenderMode};
+pub(crate) use thread::run_in_thread;
 
 /// The voyage carries sensitive or regulated data — the trace line
 /// then carries its plaintext disclosure (PROV-08: the journal keeps
@@ -149,6 +151,10 @@ struct RunVerdict {
     /// terminal ask resumes over. The machine lanes leave it `None` —
     /// their teaching is the envelope + the stderr resume line.
     paused: Option<PausedLeg>,
+    /// Resolved workflow outputs, retained for the interactive thread.
+    outputs: BTreeMap<String, serde_json::Value>,
+    /// The operator cancelled this leg without closing the outer thread.
+    interrupted: bool,
 }
 
 /// A paused fold-lane leg — what the terminal ask needs to continue the
@@ -162,11 +168,23 @@ struct PausedLeg {
 impl RunVerdict {
     /// A verdict that carries no task failure (pre-run refusals · lanes
     /// that never reached the runtime).
-    const fn bare(code: u8) -> Self {
+    fn bare(code: u8) -> Self {
         Self {
             code,
             failure: None,
             paused: None,
+            outputs: BTreeMap::new(),
+            interrupted: false,
+        }
+    }
+
+    fn interrupted() -> Self {
+        Self {
+            code: exit::WORKFLOW,
+            failure: None,
+            paused: None,
+            outputs: BTreeMap::new(),
+            interrupted: true,
         }
     }
 }
@@ -219,6 +237,7 @@ pub fn run(
         max_cost_usd,
         no_gc,
         require_signature,
+        false,
     )
     .code
 }
@@ -269,6 +288,7 @@ fn run_verdict(
     max_cost_usd: Option<f64>,
     no_gc: bool,
     require_signature: bool,
+    interruptible: bool,
 ) -> RunVerdict {
     let (output_json, max_cost_usd) = match preflight(output, max_cost_usd, no_gc, dry_run) {
         Ok(pair) => pair,
@@ -349,6 +369,7 @@ fn run_verdict(
         theme,
         mode,
         (json, output_json, no_trace_file, no_outputs),
+        interruptible,
     )
 }
 
@@ -418,6 +439,7 @@ fn execute_and_ask(
     theme: Theme,
     mode: RenderMode,
     (json, output_json, no_trace_file, no_outputs): (bool, bool, bool, bool),
+    interruptible: bool,
 ) -> RunVerdict {
     let rt = match executor(output_json) {
         Ok(rt) => rt,
@@ -427,7 +449,7 @@ fn execute_and_ask(
     // line re-supplies — a required-input workflow refuses a var-less
     // resume, so a taught line without them failed on paste.
     let carry = epilogue::resume_carry(vars, model_override);
-    let mut verdict = rt.block_on(execute(
+    let future = execute(
         runtime,
         (file, wf),
         report,
@@ -440,7 +462,8 @@ fn execute_and_ask(
         !no_outputs,
         model_override,
         &carry,
-    ));
+    );
+    let mut verdict = thread::block_on_run(&rt, future, interruptible);
     let mut legs = 0usize;
     while verdict.code == exit::PAUSED && !json && !output_json && legs <= wf.tasks.len() {
         let Some(leg) = verdict.paused.take() else {
@@ -1091,6 +1114,8 @@ async fn execute_output_json_lane(
         code,
         failure: first_failure(&outcome),
         paused: None,
+        outputs: outcome.outputs.clone(),
+        interrupted: false,
     }
 }
 
@@ -1145,6 +1170,8 @@ async fn execute_json_lane(
         code,
         failure: first_failure(&outcome),
         paused: None,
+        outputs: outcome.outputs.clone(),
+        interrupted: false,
     }
 }
 
@@ -1274,7 +1301,7 @@ fn fold_lane_verdict(
     let teardown = attended_facts(wf, report, outcome, trace.path());
     let trace_path = surface_trace(
         trace,
-        if mode == RenderMode::Quiet {
+        if matches!(mode, RenderMode::Quiet | RenderMode::Thread) {
             TraceNote::Silent
         } else {
             TraceNote::Stdout
@@ -1310,6 +1337,8 @@ fn fold_lane_verdict(
         code,
         failure: first_failure(outcome),
         paused,
+        outputs: outcome.outputs.clone(),
+        interrupted: false,
     }
 }
 

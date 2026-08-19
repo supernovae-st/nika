@@ -672,6 +672,11 @@ fn real_main() -> std::process::ExitCode {
         link_when,
     );
     let Some(command) = cli.command else {
+        if std::io::stdin().is_terminal() && std::io::stdout().is_terminal() {
+            return std::process::ExitCode::from(verbs::session::run(interactive_theme(
+                plain_theme,
+            )));
+        }
         return concierge(plain_theme);
     };
     let code = dispatch_verb(command, plain_theme, color, link_when, cli.plain, cli.ascii);

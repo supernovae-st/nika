@@ -30,6 +30,7 @@ pub mod new;
 pub mod pack_surface;
 pub mod run;
 pub mod serve;
+pub mod session;
 pub mod sign;
 pub mod test;
 pub mod tools;
