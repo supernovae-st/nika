@@ -72,8 +72,9 @@ pub struct FireVerdict {
 /// The pure decision — the file's own truth, the v0 refusals, the
 /// clock's verdict — GIVEN the beat, the injected instant and the last
 /// decided slot. Locking and running are the impure halves
-/// ([`fire_beat`]).
-enum Decision {
+/// ([`fire_beat`]). Crate-visible so `serve --dry` rehearses the REAL
+/// decision instead of re-deriving it (one law, two edges).
+pub(crate) enum Decision {
     /// A policy said no. `slot` Some ⇒ the decision consumes the slot
     /// (last.json moves); `journal` false ⇒ nothing changed, nothing is
     /// written (a duplicate tick is not a decision).
@@ -223,7 +224,7 @@ fn parse_now(raw: Option<&str>) -> Result<Zoned, String> {
 /// Order matters: the file's own truth first (inactive · cloud ·
 /// expired), then the v0 refusals (they teach even when the beat would
 /// be due), then the clock's verdict.
-fn decide(
+pub(crate) fn decide(
     registry: &ArmRegistry,
     index: usize,
     label: &str,

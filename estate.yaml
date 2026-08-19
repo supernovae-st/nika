@@ -18,11 +18,11 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4480
+  classified_files: 4482
   file_rows: 11
   pattern_rows: 22
   by_class:
-    authored: 1543
+    authored: 1545
     authored-pin: 2
     generated: 122
     pinned-copy: 117
@@ -140,7 +140,7 @@ patterns:
 - glob: "crates/*/public-api.txt"
   class: generated
   match_count: 66
-  aggregate_sha256: c23a0383e1a3db84b3d9c6e28f6c68c07d19471013eb99b23c4ff3292d58ce81
+  aggregate_sha256: f3ebf1ce879a317928bc7f2080b091149922da5120ac382094363ab4605657fa
   evidence: ".github/workflows/public-api.yml 'diff each covered lib crate' byte-compares each snapshot against cargo public-api output; macOS renders differently, so snapshots regenerate FROM THE UBUNTU ARTIFACT (workflow comment)"
   derivation:
     tool: "cargo public-api -p <crate> --omit auto-trait-impls > crates/<crate>/public-api.txt (DEFAULT features · the CI job shape — all-features drags platform deps into the render · cargo-public-api 0.51.0 pinned · the public-api-actual CI artifact stays the judge)"
@@ -151,13 +151,13 @@ patterns:
     - "cargo-public-api 0.51.0"
 - glob: "crates/**/src/**"
   class: authored
-  match_count: 778
-  aggregate_sha256: 5c257268932cae61c194e6570363deb75588aa3a2fe483fbd60336ad1c52abb1
+  match_count: 779
+  aggregate_sha256: 4b1ab39c3076e9068027725da9d73b1544449b3beae31723e16ab9ef49de97cd
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
-  match_count: 155
-  aggregate_sha256: d5e7df3eba3c6307ba69bd391a4089b02737df812378eec01ecfd6bcd5deca5c
+  match_count: 156
+  aggregate_sha256: 647bcbdd7217dedfd4080e8dd8948208b131eb9edc93e448a9989b66d7391f52
   evidence: "crate-owned tests + fixtures under tests/ — written with the crate per gate discipline, no generation markers"
 - glob: "crates/**"
   class: authored
@@ -237,7 +237,7 @@ patterns:
 - glob: "*"
   class: authored
   match_count: 28
-  aggregate_sha256: 19dabcc9a96580b4b26b48d81482768de489e55088142e58249ae387de9b678f
+  aggregate_sha256: 172b6da934bac1e4f0b2ed5c41f87c6211cfe75638aa340625ccb1e9e405127a
   evidence: "root prose + config surface (README · DIAMOND · LICENSE · llms.txt · Cargo.toml · deny/clippy/cliff/typos toml · lefthook.yml · flake.nix · Dockerfile) — no generation markers at file heads; CHANGELOG.md · Cargo.lock · SPEC_PIN · ROADMAP.md excepted in files:"
 - glob: "**"
   class: authored

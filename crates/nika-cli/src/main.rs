@@ -192,6 +192,14 @@ enum Command {
     /// stays one flag away (`--help --all`) and AGENTS.md teaches it.
     #[command(hide = true, display_order = 72)]
     Arm(verbs::arm::args::ArmArgs),
+    /// Fire the armed beats, resident — the long-lived firer (②): the
+    /// file proposes (re-read when it moves), the same firer disposes.
+    /// `--once` probes · `--dry` rehearses. Exit `0` clean stop · `1`
+    /// serve's own fault (a beat's failure lives in ITS history).
+    ///
+    /// RANGED with `arm` (RAMS-13): a resident process is not day one.
+    #[command(hide = true, display_order = 73)]
+    Serve(verbs::serve::ServeArgs),
     /// Sign a workflow file (S3 · author-binding): mint `<file>.minisig` · `--check` verifies.
     #[command(hide = true, display_order = 71)]
     Sign(verbs::sign::SignArgs),
@@ -733,6 +741,10 @@ fn dispatch_verb(
         } => emit(&explain_dispatch(&code, json, forecast, plain_theme)),
         Command::Key { action } => emit(&verbs::key::run(action)),
         Command::Arm(a) => emit(&verbs::arm::run(a)),
+        // The resident firer OWNS its loop — the server exit convention
+        // (0 clean stop · 1 serve's own fault), NOT the verb
+        // FILE/WORKFLOW/ENV taxonomy (the lsp/dap precedent above).
+        Command::Serve(a) => verbs::serve::run(&a),
         Command::Sign(args) => emit(&verbs::sign::run(&args)),
         Command::Doctor(args) => doctor_verb(&args, plain_theme),
         Command::Init(args) => emit(&init_verb(&args, plain_theme)),
