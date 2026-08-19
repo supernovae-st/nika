@@ -10,6 +10,116 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+## [0.110.0](https://github.com/supernovae-st/nika/compare/v0.109.2..v0.110.0) - 2026-08-19
+
+**The arming release.** The project file `nika.yaml` learns to PROPOSE a
+schedule, and the machine learns to keep it — « le fichier propose, la
+machine dispose ». The `arm:` registry carries the team's armed beats
+(thirteen keys, two of them required with no default — `plafond:` and
+`manqué:` — because choosing for you would be choosing who pays), one
+firer computes the due window and spends under the per-tick ceiling, the
+OS bridge hands launchd/systemd the calendar, and `nika serve` keeps the
+same firer resident behind the wall clock. One firer, four doors (D2):
+`nika arm fire`, the emitted OS units, and `serve` all end at the SAME
+fire — a beat the lock, the ceiling, or the miss policy governs is
+governed identically no matter who pulled the trigger.
+
+### Added
+
+- **The project file carries the thirteen beat keys (`arm:` · W1 ·
+  #993).** Each beat spells `workflow` (a repo-relative `*.nika.yaml`
+  path) · `cadence` (a 5-field cron with the zone INSIDE the expression
+  — `TZ=Europe/Paris 0 9 * * 1` — or `on-webhook`, resolved against the
+  embedded tzdb, never the host's) · `où` · `plafond` · `manqué` ·
+  `chevauchement` · `après_saut` · `actif` · `raison` · `jusqu_au` ·
+  `tolérance` · `décalage` · `par`. The grammar is CLOSED
+  (`deny_unknown_fields`): an unknown key fails at parse and the refusal
+  names what is known. `plafond:` (the per-tick USD ceiling) and
+  `manqué:` (what "missed" means: `rattraper` · `rattraper-une-fois` ·
+  `sauter`) are OBLIGATORY with no default — a default `rattraper`
+  spends what nobody asked for, a default `sauter` loses a deliverable
+  in silence. A suspended beat must tell its story: `actif: false`
+  without `raison:` is a suspension nobody narrates, without
+  `jusqu_au:` an oblivion — both refuse by name. Bare `nika arm` READS
+  the registry and reports what is armed, due, suspended, or refused —
+  it fires nothing.
+
+- **`nika arm fire <label>` — the one firer (W2 · #1001).** Computes
+  the planner's silence over `(last, now]`, the on-time window, and the
+  miss policy; takes the project lock; refuses BEFORE spending when the
+  tick would cross the beat's `plafond:`; and writes the firing record
+  to the ledger. Prints exactly one stdout line, always (D8) — a skip
+  is an event, said as such (`skipped <label> · inactive — <raison>`),
+  never a silence.
+
+- **`nika arm --emit launchd|systemd` — the OS bridge (W3 · #1005).**
+  Renders the unit files PURE from the registry (`--write` installs
+  them); per-beat units are labelled `nika.arm.<radical>` (D4 — the
+  labels the firer uses, computed once); the env file rides by PATH
+  only (D7 — provider keys never enter a unit). launchd's
+  `StartCalendarInterval` is the cartesian product of the restricted
+  fields, counted before built — past 500 dicts the emit refuses (a
+  plist of n dicts is a load, not a calendar); systemd writes the sets
+  inline and the zone travels in `OnCalendar=`; `Persistent=` answers
+  `manqué ≠ sauter`. Every refusal teaches: D10 `TzMismatch` (launchd
+  fires in the machine's zone — the remedy names `TZ=` or systemd) ·
+  `Webhook` (no calendar can fire an event) · `TooManyIntervals` · the
+  D6 v0 set below.
+
+- **`nika arm disarm <label>` — the N4 gesture (W3 · #1005).** Removing
+  the line does NOT disarm — the file would simply stop proposing while
+  the OS keeps firing. Disarming is `actif: false` + `raison:` +
+  `jusqu_au:` in the registry; the verb teaches exactly that, and
+  `--tear-down` takes the emitted OS unit down with it.
+
+- **`nika serve` — the same firer, resident (W5 · #1008).** The SAME
+  `fire` as `arm fire` and the OS units (D2), driven by the wall clock
+  in place of launchd/systemd. The loop reads ONLY the registry —
+  judged by vocab + cadence BEFORE any shot — and its own `.nika/arm/`
+  sidecar; it reloads `nika.yaml` when its mtime moves (a broken edit
+  is told, and the last-good registry keeps serving); it fires what
+  `due` returns through the one firer (the per-tick ceiling always
+  passed · every fire is a fresh run); and it sleeps to the earliest
+  next slot (≤ 60 s) racing ctrl-c/SIGTERM — a signal breaks clean
+  (exit 0 · the current fire, synchronous, finishes first · the lock is
+  released). No network input, no environment read, no argument beyond
+  the clap surface.
+
+### What v0 refuses — and when each arrives (D6)
+
+A policy the firer cannot honor REFUSES, never approximates — and the
+refusal names the version the support arrives with:
+
+| Written in the file | v0's answer | Arrives with |
+|---|---|---|
+| `chevauchement: remplacer` | refuses — today: `sauter` (the law-⑥ default) or `file` | serve v0.2 |
+| `après_saut: à-complétion` | refuses — today: `prochain-créneau` (the default) | serve v0.2 |
+| `manqué: rattraper` | refuses — today: `rattraper-une-fois` or `sauter` | serve v0.2 |
+| `décalage:` | refuses — today the slot fires at the instant said | serve v0.2 |
+| `où: cloud` | the local firer SKIPS the beat, journaled — « le cloud exécute, le calendrier demeure au registre » | the cloud rung |
+| `signature:` · `budget:` | refused at validation, by name — round-2 keys: round 1 claims nothing it cannot prove (`traces:`/`registry:` likewise) | round 2 |
+
+### Fixed
+
+- **The ORDER and LIFT findings render in the human lane
+  (`nika-display` · #1002).**
+- **LOT 3 task-body rungs + the sweep's third lock (#999).**
+
+### Documentation
+
+- **In-repo teaching speaks the nine-key envelope of 0.109** — the
+  hello-example comments name the nine-key identity (#995) · the README
+  gifs are rebaked for the envelope (#996) · the docs sweep of 0.109
+  lands in-repo (#992).
+
+### Build & CI
+
+- **The release funnel runs on every push (#985)** — the gate the tag
+  trusts has already run on the commit it tags.
+- **apt gets a deadline (#1000)** — a mirror stall is a five-minute
+  red, not a six-hour hang.
+- **The pack follows the spec (#987).**
+
 ## [0.109.2](https://github.com/supernovae-st/nika/compare/v0.109.1..v0.109.2) - 2026-08-19
 
 **The second refusal, one layer down.** `v0.109.1` fixed the fossil envelope
