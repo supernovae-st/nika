@@ -11,12 +11,12 @@
 //! (theirs is no chain to verify). The walk reads the rotated archives
 //! first (the older truth), the live chain last. One pass rebuilds:
 //!
-//! - the projection ([`Replay::last`]) — the last SLOT-BEARING
+//! - the projection (`Replay.last`) — the last SLOT-BEARING
 //!   decision (`claimed`/`rotated` never bear one, a pre-slot skip
 //!   neither), rendered byte-identical by `render_last`;
 //! - the watermark's truth — the last DECIDED instant (every decision
 //!   kind, `disarmed` included);
-//! - the current lifecycle's events ([`Replay::lifecycle`]) — the
+//! - the current lifecycle's events (`Replay.lifecycle`) — the
 //!   group the last journal line joined (claims and receipts group by
 //!   `slot_id`; a slot-less decision completes its own lifecycle), for
 //!   the report's folded state (D5).
