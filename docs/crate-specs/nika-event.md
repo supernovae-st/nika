@@ -12,7 +12,7 @@
 | License | `AGPL-3.0-or-later` |
 | Edition | 2024 |
 | Publish | `false` — foundation crate (ADR-017) |
-| NIKA codes | NIKA-420..421 (`Category::Observability`) |
+| NIKA codes | NIKA-801..802 (`Category::Observability`) |
 
 ---
 
@@ -81,8 +81,8 @@ pub struct InMemoryEmitter;             // unbounded() | bounded(cap) · len/is_
 
 // error.rs
 #[non_exhaustive] pub enum EventError {
-    SerializationFailed { detail: String },   // NIKA-420 (future I/O emitters)
-    BufferFull { capacity: usize },            // NIKA-421 (bounded InMemory)
+    SerializationFailed { detail: String },   // NIKA-801 (future I/O emitters)
+    BufferFull { capacity: usize },            // NIKA-802 (bounded InMemory)
 }
 ```
 

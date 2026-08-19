@@ -10,6 +10,101 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+### Added
+
+- **`nika list` names every workflow below the current directory.** Output is
+  stable and root-relative, nested workflows are included, project metadata
+  and hidden/build directories stay out, and an incomplete walk refuses
+  instead of presenting a partial inventory as exhaustive.
+- **Bare `nika` on a terminal opens one continuous thread.** Model turns
+  stream through the existing `agent:` runtime; `/workflow` posts a workflow
+  into the thread, `/run` executes it there, and Ctrl-C interrupts the active
+  turn without closing the outer conversation.
+
+### Removed
+
+- **BREAKING — `VirtualClock` loses its dead time-mover (`nika-clock`).**
+  `VirtualClock::advance` and `VirtualClock::elapsed_total` are removed:
+  `advance` documented itself as « the ONLY mover of virtual time » while
+  having zero production callers — virtual time never moved, so under
+  `run: { clock: virtual }` (or `entropy: none | seeded(N)`, which imply
+  it) a task `timeout:` budget raced an instantly-ready timer and every
+  deadline was already settled at dispatch. The clock is now honestly
+  FROZEN by construction (`Copy` bases, no shared offset): an author who
+  needs a real deadline honored against real work must not declare
+  `clock: virtual`. Wiring the task `timeout:` budget to the exec
+  runner's own deadline (`linger: false`) is a follow-up wave.
+- **The exec runner's process-group kill is removed
+  (`nika-exec-runner`).** `terminate_group` (SIGTERM→SIGKILL the whole
+  process group) plus the `process_group(0)` spawn setup were correct
+  and tested but unreachable in production — they fired only on
+  `TimedOut`/`Cancelled`, and the engine never assigns
+  `ShellCommand.timeout` nor invokes `cancel`. Cancellation stays
+  `kill_on_drop` (INV-011 · future-drop, the ADR-016 primary); detached
+  grandchildren are no longer group-killed on the embedder-facing
+  timeout/cancel arms, and the `nix` dependency goes with them.
+
+### Changed
+
+- **BREAKING — the event error codes leave the Shield reservation
+  (`nika-event`).** `NIKA_420/421/422` (serialize failed · buffer full ·
+  lock poisoned) were minted inside the locked Shield band (380-429), so
+  a full event buffer surfaced as « Shield security policy blocked the
+  operation » — a refusal its reader would read as security. They are
+  renumbered into their own Observability band (800-819) as
+  `NIKA_801/802/803`, constants renamed with them.
+
+### Fixed
+
+- **The `nika-error` crate-spec band table matches the one-voice
+  registry.** It still read `330-379 Binding/template · 380-429 Provider`
+  while the registry moved Provider to 330-379 (2026-05-11) and reserves
+  380-429 for Shield. The stale rows invited exactly the collision the
+  reservation exists to prevent.
+
+## [0.111.0](https://github.com/supernovae-st/nika/compare/v0.110.0..v0.111.0) - 2026-08-19
+
+**The authoring-loop release.** `nika check --json` now reports
+`paid_ready`, `compiled` and `next` — a green parse is legal, not
+best. `nika:inspect` is live: the runtime seeds the DAG at run
+start and a workflow can read its own cost, records, dag_info and
+threads. `nika:compose` stays loop-only (grant after `nika:done`;
+checking never executes). The arm lock outlives the shot.
+
+### Added
+
+- **`paid_ready` · `compiled` · `next` on `nika check --json`
+  (#1013).** `paid_ready` is silent only when no paid-run hint
+  remains. `compiled` means the law is proven (const-fixture
+  assert). `next` is the first repair. `nika explain` prints a
+  **before a paid model** panel. MCP `nika_check` hard-fails
+  `infer-as-law` and `digit-string-enum` only.
+
+- **`nika:inspect` is live (#1018).** `LiveInspect` is the same
+  `Arc` the dispatcher and the runtime share. The DAG is seeded at
+  run start — the first task sees `available: true`. Records and
+  spend mirror after each wave. Hint `inspect-unwired` is retired.
+  Teaching shape: `16-inspect-self`.
+
+- **Lesson 15 `nika:compose` on an agent whitelist (#1016).**
+  Grant after `nika:done`. The model drafts YAML, gets the full
+  check JSON, iterates until `valid`. A standalone `invoke:` is
+  `NIKA-BUILTIN-COMPOSE-001`. Checking never executes the draft.
+  Parent→child composition stays lesson 10.
+
+- **The arm lock outlives the shot (#1015).** A fire that is
+  still running keeps the project lock so a second tick cannot
+  overlap the first.
+
+### Fixed
+
+- **Authoring seams from a paid extract wave (#1012).**
+  `nika:hash` serializes structured `content:`. `nika:validate`
+  parses string schemas. Scalar `anyOf` flattens into coerce.
+  `for_each` + `item.field` is resume-eligible (collection is the
+  input identity). Hints: `digit-string-enum` · `glob-readme` ·
+  `jq-as-map` · `assert-quarantine`.
+
 ## [0.110.0](https://github.com/supernovae-st/nika/compare/v0.109.2..v0.110.0) - 2026-08-19
 
 **The arming release.** The project file `nika.yaml` learns to PROPOSE a

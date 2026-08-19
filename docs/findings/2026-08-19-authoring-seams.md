@@ -20,10 +20,10 @@ failures are engine/authoring seams, not domain bugs.
 4. **`nika:validate` `schema:` from `nika:read`.** A `.json` file is a
    string. `validator_for` then said the schema "is not of types
    boolean, object". String schemas are parsed as JSON, then YAML.
-5. **`nika:inspect` is catalogued, unwired.** Every view returns
-   `{ available: false }` (ADR-088: dispatcher composed before the
-   run, no `WorkflowIntrospect`). `nika check` now hints
-   `inspect-unwired`. Read the trace for cost/DAG.
+5. **`nika:inspect` was catalogued, unwired.** Every view used to
+   return `{ available: false }` (ADR-088: dispatcher composed
+   before the run). Live as of this wave (`LiveInspect` seeded at
+   run start). The `inspect-unwired` hint is retired.
 6. **`--resume` + `for_each` infer.** A body that navigates
    `item.field` (`item.stem` · `item.text`) used to drop the stamp
    (`None` — the string stand-in cannot satisfy CEL `.field`). A later
@@ -62,8 +62,8 @@ failures are engine/authoring seams, not domain bugs.
 - `nika-builtin` · hash accepts structured `content:` · validate
   parses string schemas
 - `nika-verb-infer` · scalar `anyOf` flattens into coerce
-- `nika-check` · hints `digit-string-enum` · `inspect-unwired` ·
-  `glob-readme` · `jq-as-map` · `assert-quarantine`
+- `nika-check` · hints `digit-string-enum` · `glob-readme` ·
+  `jq-as-map` · `assert-quarantine` · `inspect-unwired` retired
 - `nika-runtime` · `for_each` + `item.field` is resume-eligible
   (collection is the input identity · shaped stand-in)
 
@@ -72,21 +72,17 @@ failures are engine/authoring seams, not domain bugs.
 - `nika-builtin` ToolDef · `nika:hash` `content:` is no longer
   `type: string`. An object-shaped task output hashes as compact JSON;
   check/tools no longer teach `| tojson`.
-- `nika:inspect` still returns `{ available: false }`. Wiring is not a
-  builtin-only injection (see next patch).
+- `nika:inspect` is live (`LiveInspect` · seeded at run start).
 
 ## Still open
 
 - Per-*iteration* resume keys (ADR-099: a mid-wave crash still
   replays every item; the task-level stamp only skips the whole fan)
-- Runtime injection of `WorkflowIntrospect` into `nika:inspect`
+- ~~Runtime injection of `WorkflowIntrospect` into `nika:inspect`~~ shipped
 
-## Next patch · WorkflowIntrospect
+## Next patch · WorkflowIntrospect — SHIPPED
 
-`BuiltinDispatcher` is composed once before `Runtime::run` and shared
-(`Arc`) across concurrent tasks. Live DAG, settling `records`, and
-running cost exist only inside the settle pass. Next honest patch:
-a `RunState` cell (`Arc<Mutex<…>>` or `RwLock`) the runtime writes as
-tasks settle, inject that as `W: WorkflowIntrospect` at composition,
-drop `NoWorkflow` from `ProdDispatcher`, retire `inspect-unwired`.
+`LiveInspect` (`Arc<RwLock<Snap>>`) is injected at composition.
+The runtime seeds the DAG at run start and mirrors records + spend
+after each wave. `NoWorkflow` stays for isolated dispatcher tests.
 Do not re-compose the dispatcher mid-run and do not serve zeros.

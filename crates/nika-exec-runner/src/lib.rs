@@ -298,14 +298,10 @@ impl ShellRunDyn for TokioShell {
             let _ = std::fs::remove_dir_all(&dir);
         }
 
-        outcome_to_result(outcome, pid, start).await
+        outcome_to_result(outcome, pid, start)
     }
 }
 
-/// Map the `select!` [`Outcome`] to the public `Result` — the cancel/timeout
-/// arms first SIGTERM→SIGKILL the whole process group (detached grandchildren
-/// die too · `terminate_group`) before reporting; a clean exit becomes a
-/// [`ShellResult`] with the captured stdout/stderr.
 /// Wait for the child while draining BOTH output streams (bounded · INV-012)
 /// AND feeding its stdin, all concurrently. Feeding must NOT precede the drain:
 /// a child that echoes a stdin larger than the OS pipe buffer fills its stdout
@@ -336,28 +332,26 @@ async fn wait_drain_feed(
     Ok((status, out_bytes, err_bytes))
 }
 
-async fn outcome_to_result(
+/// Map the `select!` [`Outcome`] to the public `Result` — a clean exit
+/// becomes a [`ShellResult`] with the captured stdout/stderr; the
+/// cancel/timeout arms report the typed error and the spawned child dies
+/// via `kill_on_drop` (INV-011) when the `run()` future drops. Detached
+/// grandchildren (`sh -c "... &"`) are NOT group-killed today: the
+/// process-group kill rode arms the engine never reaches (the task
+/// `timeout:` budget is never assigned to the command, `cancel` is never
+/// invoked), so it was removed rather than kept as a tested-but-dead
+/// promise — it returns with the wave that wires the task deadline into
+/// the command (`linger: false`), where it can actually fire.
+fn outcome_to_result(
     outcome: Outcome,
     pid: Option<u32>,
     start: Instant,
 ) -> Result<ShellResult, ShellError> {
     match outcome {
-        Outcome::Cancelled => {
-            // Kill the WHOLE process group (not just the direct child),
-            // so detached grandchildren die too — before reporting.
-            if let Some(p) = pid {
-                terminate_group(p).await;
-            }
-            Err(ShellError::Cancelled {
-                id: pid.map_or_else(|| "?".to_string(), |p| p.to_string()),
-            })
-        }
-        Outcome::TimedOut(ms) => {
-            if let Some(p) = pid {
-                terminate_group(p).await;
-            }
-            Err(ShellError::Timeout { duration_ms: ms })
-        }
+        Outcome::Cancelled => Err(ShellError::Cancelled {
+            id: pid.map_or_else(|| "?".to_string(), |p| p.to_string()),
+        }),
+        Outcome::TimedOut(ms) => Err(ShellError::Timeout { duration_ms: ms }),
         Outcome::Done(Err(e)) => Err(classify_drain_error(&e)),
         Outcome::Done(Ok((status, stdout, stderr))) => Ok(ShellResult::new(
             status.code().unwrap_or(-1),
@@ -506,16 +500,6 @@ fn build_command(command: &ShellCommand) -> Command {
     if let Some(cwd) = &command.cwd {
         cmd.current_dir(cwd);
     }
-    // New process group (leader = the child · pgid = pid) so a timeout/cancel
-    // can signal the WHOLE group — detached grandchildren (`sh -c "... &"`)
-    // die with the parent instead of being orphaned to init. `process_group(0)`
-    // is the SAFE std equivalent of setpgid(0,0) (stable since 1.64) — no
-    // unsafe pre_exec, so this crate keeps `unsafe_code = forbid`.
-    #[cfg(unix)]
-    {
-        use std::os::unix::process::CommandExt as _;
-        cmd.as_std_mut().process_group(0);
-    }
     cmd
 }
 
@@ -571,39 +555,6 @@ fn map_sandbox_error(e: &CommandSandboxError) -> ShellError {
         reason: format!("sandbox could not confine the command: {e}"),
     }
 }
-
-/// Grace between SIGTERM and SIGKILL when terminating a timed-out / cancelled
-/// process group — lets the members flush and exit cleanly before the hard kill.
-#[cfg(unix)]
-const GROUP_TERM_GRACE: std::time::Duration = std::time::Duration::from_millis(100);
-
-/// Terminate the child's whole process group on timeout/cancel: SIGTERM, a
-/// short [`GROUP_TERM_GRACE`], then SIGKILL — so detached grandchildren (in the
-/// same group via `process_group(0)`) die too, not just the direct child.
-///
-/// The child is its own group leader, so its pid IS the pgid. Best-effort: a
-/// racing natural exit (or an already-empty group) makes the signals harmless
-/// `ESRCH` no-ops. `kill_on_drop` still SIGKILLs the direct child when the
-/// future drops; this catches the rest of the tree.
-#[cfg(unix)]
-async fn terminate_group(pid: u32) {
-    use nix::sys::signal::{Signal, killpg};
-    use nix::unistd::Pid;
-
-    let Ok(raw) = i32::try_from(pid) else {
-        return;
-    };
-    // The child is its own group leader, so its pid IS the pgid.
-    let group = Pid::from_raw(raw);
-    let _ = killpg(group, Signal::SIGTERM);
-    tokio::time::sleep(GROUP_TERM_GRACE).await;
-    let _ = killpg(group, Signal::SIGKILL);
-}
-
-/// Non-unix fallback: process groups are a POSIX concept; `kill_on_drop`
-/// remains the cancellation path. (The crate's contract tests are unix-only.)
-#[cfg(not(unix))]
-async fn terminate_group(_pid: u32) {}
 
 #[cfg(test)]
 mod tests {

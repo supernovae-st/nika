@@ -46,14 +46,15 @@ pub fn nika_clock::declared_clock::DeclaredClock::system_now(&self) -> std::time
 pub mod nika_clock::virtual_clock
 #[non_exhaustive] pub struct nika_clock::virtual_clock::VirtualClock
 impl nika_clock::virtual_clock::VirtualClock
-pub fn nika_clock::virtual_clock::VirtualClock::advance(&self, duration: core::time::Duration)
-pub fn nika_clock::virtual_clock::VirtualClock::elapsed_total(&self) -> core::time::Duration
 pub fn nika_clock::virtual_clock::VirtualClock::new() -> Self
 pub fn nika_clock::virtual_clock::VirtualClock::with_system_base(system_base: std::time::SystemTime) -> Self
 impl core::clone::Clone for nika_clock::virtual_clock::VirtualClock
 pub fn nika_clock::virtual_clock::VirtualClock::clone(&self) -> nika_clock::virtual_clock::VirtualClock
 impl core::default::Default for nika_clock::virtual_clock::VirtualClock
 pub fn nika_clock::virtual_clock::VirtualClock::default() -> Self
+impl core::fmt::Debug for nika_clock::virtual_clock::VirtualClock
+pub fn nika_clock::virtual_clock::VirtualClock::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_clock::virtual_clock::VirtualClock
 impl nika_kernel_core::io::clock::ClockDyn for nika_clock::virtual_clock::VirtualClock
 pub fn nika_clock::virtual_clock::VirtualClock::now(&self) -> std::time::Instant
 pub async fn nika_clock::virtual_clock::VirtualClock::sleep(&self, _duration: core::time::Duration)
@@ -175,14 +176,15 @@ pub async fn nika_clock::SystemClock::sleep(&self, duration: core::time::Duratio
 pub fn nika_clock::SystemClock::system_now(&self) -> std::time::SystemTime
 #[non_exhaustive] pub struct nika_clock::VirtualClock
 impl nika_clock::virtual_clock::VirtualClock
-pub fn nika_clock::virtual_clock::VirtualClock::advance(&self, duration: core::time::Duration)
-pub fn nika_clock::virtual_clock::VirtualClock::elapsed_total(&self) -> core::time::Duration
 pub fn nika_clock::virtual_clock::VirtualClock::new() -> Self
 pub fn nika_clock::virtual_clock::VirtualClock::with_system_base(system_base: std::time::SystemTime) -> Self
 impl core::clone::Clone for nika_clock::virtual_clock::VirtualClock
 pub fn nika_clock::virtual_clock::VirtualClock::clone(&self) -> nika_clock::virtual_clock::VirtualClock
 impl core::default::Default for nika_clock::virtual_clock::VirtualClock
 pub fn nika_clock::virtual_clock::VirtualClock::default() -> Self
+impl core::fmt::Debug for nika_clock::virtual_clock::VirtualClock
+pub fn nika_clock::virtual_clock::VirtualClock::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_clock::virtual_clock::VirtualClock
 impl nika_kernel_core::io::clock::ClockDyn for nika_clock::virtual_clock::VirtualClock
 pub fn nika_clock::virtual_clock::VirtualClock::now(&self) -> std::time::Instant
 pub async fn nika_clock::virtual_clock::VirtualClock::sleep(&self, _duration: core::time::Duration)
