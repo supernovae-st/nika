@@ -23,12 +23,12 @@ publish                = false  # Foundation crate — never on crates.io. See f
 # vocabulary: it is this crate's own analysis substrate, descended to a
 # sibling member at the 15k wall (ONE unit, TWO members · D-2026-07-09-N1)
 # and re-exported here at its historical `analyzer` path.
-nika-check-analyzer = { path = "../nika-check-analyzer", version = "0.110.0-dev" } # the analysis substrate this ladder judges on top of (member split, not a new unit)
-nika-schema  = { path = "../nika-schema", version = "0.110.0-dev" }  # the AST + parser + error voice this judges (the blueprint split: parser there, judgment here)
-nika-cap     = { path = "../nika-cap", version = "0.110.0-dev" }     # the permits boundary (PolicyViolation · TrifectaViolation · CertEffects on the public report)
-nika-catalog = { path = "../nika-catalog", version = "0.110.0-dev" } # the closed builtin catalog (all_builtins · find_builtin — the tool lints' one voice)
-nika-types   = { path = "../nika-types", version = "0.110.0-dev" }   # suggest (did-you-mean) · TypeExpr relations · net primitives (SSRF literals)
-nika-vocab   = { path = "../nika-vocab", version = "0.110.0-dev" }   # the dead-form teaching texts (foreign_namespace_teaching — consumed at home, no re-export hop)
+nika-check-analyzer = { path = "../nika-check-analyzer", version = "0.110.0" } # the analysis substrate this ladder judges on top of (member split, not a new unit)
+nika-schema  = { path = "../nika-schema", version = "0.110.0" }  # the AST + parser + error voice this judges (the blueprint split: parser there, judgment here)
+nika-cap     = { path = "../nika-cap", version = "0.110.0" }     # the permits boundary (PolicyViolation · TrifectaViolation · CertEffects on the public report)
+nika-catalog = { path = "../nika-catalog", version = "0.110.0" } # the closed builtin catalog (all_builtins · find_builtin — the tool lints' one voice)
+nika-types   = { path = "../nika-types", version = "0.110.0" }   # suggest (did-you-mean) · TypeExpr relations · net primitives (SSRF literals)
+nika-vocab   = { path = "../nika-vocab", version = "0.110.0" }   # the dead-form teaching texts (foreign_namespace_teaching — consumed at home, no re-export hop)
 
 serde      = { workspace = true }
 serde_json = { workspace = true }
@@ -42,10 +42,10 @@ url        = { workspace = true }   # permits.net.http host extraction — the S
 
 [dev-dependencies]
 # the verb-theater example folds REAL engine events (the telemetry truth)
-nika-event = { path = "../nika-event", version = "0.110.0-dev" }
+nika-event = { path = "../nika-event", version = "0.110.0" }
 # the emitted⊆registered ratchet cross-checks every statically-emittable
 # spec code against the embedded canon registry (spec/05-errors.md SSOT)
-nika-pack  = { path = "../nika-pack", version = "0.110.0-dev" }
+nika-pack  = { path = "../nika-pack", version = "0.110.0" }
 uuid       = { workspace = true }    # the verb-theater tape's run/event ids
 proptest   = { workspace = true }
 serde      = { workspace = true }    # the conformance harness's expected.json derives
