@@ -18,11 +18,11 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4470
+  classified_files: 4472
   file_rows: 11
   pattern_rows: 22
   by_class:
-    authored: 1533
+    authored: 1535
     authored-pin: 2
     generated: 122
     pinned-copy: 117
@@ -140,7 +140,7 @@ patterns:
 - glob: "crates/*/public-api.txt"
   class: generated
   match_count: 66
-  aggregate_sha256: bf11e999b2702682cfcacb213a6333703d52ced6af06aeae840ff08d41f92c3e
+  aggregate_sha256: b2ea6cab5d6c53780910df9896db5ca38f5cb5983a9fc795f795ea40a4150e16
   evidence: ".github/workflows/public-api.yml 'diff each covered lib crate' byte-compares each snapshot against cargo public-api output; macOS renders differently, so snapshots regenerate FROM THE UBUNTU ARTIFACT (workflow comment)"
   derivation:
     tool: "cargo public-api -p <crate> --omit auto-trait-impls > crates/<crate>/public-api.txt (DEFAULT features · the CI job shape — all-features drags platform deps into the render · cargo-public-api 0.51.0 pinned · the public-api-actual CI artifact stays the judge)"
@@ -151,8 +151,8 @@ patterns:
     - "cargo-public-api 0.51.0"
 - glob: "crates/**/src/**"
   class: authored
-  match_count: 770
-  aggregate_sha256: 1df0cb7f65f94fe0d2455177983f95c4b1527ce72b8273cbb1d4f2e6d3e4bbcb
+  match_count: 772
+  aggregate_sha256: 18e6754d78e955dd2eeb3157e717cc8fc72698350248c0d400f12067a88237b5
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
@@ -178,7 +178,7 @@ patterns:
 - glob: "docs/**"
   class: authored
   match_count: 106
-  aggregate_sha256: a1f0bf5a1caed2eaf600c59c2400b41f885fb5089c070d4c02f2c407eb176bcf
+  aggregate_sha256: 5a98ec363fc90ad4c2f76001015e87acaa1366a53ca12e409586da004298bd43
   evidence: "crate-specs · architecture prose · perf notes — no generation markers at file heads"
 - glob: "scripts/**"
   class: authored

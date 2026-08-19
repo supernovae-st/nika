@@ -47,7 +47,7 @@ impl<const LO: u8, const HI: u8> nika_cadence::cron::Field<LO, HI>
 pub fn nika_cadence::cron::Field<LO, HI>::contains(&self, v: u8) -> bool
 pub fn nika_cadence::cron::Field<LO, HI>::is_empty(&self) -> bool
 pub fn nika_cadence::cron::Field<LO, HI>::is_full(&self) -> bool
-pub fn nika_cadence::cron::Field<LO, HI>::iter(&self) -> impl core::iter::traits::iterator::Iterator<Item = u8>
+pub fn nika_cadence::cron::Field<LO, HI>::iter(&self) -> impl core::iter::traits::double_ended::DoubleEndedIterator<Item = u8>
 pub fn nika_cadence::cron::Field<LO, HI>::len(&self) -> u32
 pub fn nika_cadence::cron::Field<LO, HI>::single(&self) -> core::option::Option<u8>
 impl<const LO: u8, const HI: u8> core::clone::Clone for nika_cadence::cron::Field<LO, HI>
@@ -85,6 +85,81 @@ impl<T> core::clone::CloneToUninit for nika_cadence::cron::Field<LO, HI> where T
 pub unsafe fn nika_cadence::cron::Field<LO, HI>::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::cron::Field<LO, HI>
 pub fn nika_cadence::cron::Field<LO, HI>::from(t: T) -> T
+pub mod nika_cadence::due
+#[non_exhaustive] pub enum nika_cadence::due::DueKind
+pub nika_cadence::due::DueKind::Missed
+pub nika_cadence::due::DueKind::Missed::slots: u32
+pub nika_cadence::due::DueKind::OnTime
+impl core::clone::Clone for nika_cadence::due::DueKind
+pub fn nika_cadence::due::DueKind::clone(&self) -> nika_cadence::due::DueKind
+impl core::cmp::Eq for nika_cadence::due::DueKind
+impl core::cmp::PartialEq for nika_cadence::due::DueKind
+pub fn nika_cadence::due::DueKind::eq(&self, other: &nika_cadence::due::DueKind) -> bool
+impl core::fmt::Debug for nika_cadence::due::DueKind
+pub fn nika_cadence::due::DueKind::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cadence::due::DueKind
+impl core::marker::StructuralPartialEq for nika_cadence::due::DueKind
+impl<Q, K> equivalent::Equivalent<K> for nika_cadence::due::DueKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cadence::due::DueKind::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cadence::due::DueKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cadence::due::DueKind::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cadence::due::DueKind where U: core::convert::From<T>
+pub fn nika_cadence::due::DueKind::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cadence::due::DueKind where U: core::convert::Into<T>
+pub type nika_cadence::due::DueKind::Error = core::convert::Infallible
+pub fn nika_cadence::due::DueKind::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cadence::due::DueKind where U: core::convert::TryFrom<T>
+pub type nika_cadence::due::DueKind::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cadence::due::DueKind::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cadence::due::DueKind where T: core::clone::Clone
+pub type nika_cadence::due::DueKind::Owned = T
+pub fn nika_cadence::due::DueKind::clone_into(&self, target: &mut T)
+pub fn nika_cadence::due::DueKind::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cadence::due::DueKind where T: 'static + ?core::marker::Sized
+pub fn nika_cadence::due::DueKind::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cadence::due::DueKind where T: ?core::marker::Sized
+pub fn nika_cadence::due::DueKind::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cadence::due::DueKind where T: ?core::marker::Sized
+pub fn nika_cadence::due::DueKind::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cadence::due::DueKind where T: core::clone::Clone
+pub unsafe fn nika_cadence::due::DueKind::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cadence::due::DueKind
+pub fn nika_cadence::due::DueKind::from(t: T) -> T
+#[non_exhaustive] pub struct nika_cadence::due::Due<'a>
+pub nika_cadence::due::Due::beat: &'a nika_cadence::registry::Beat
+pub nika_cadence::due::Due::index: usize
+pub nika_cadence::due::Due::kind: nika_cadence::due::DueKind
+pub nika_cadence::due::Due::slot: nika_cadence::next::Slot
+impl<'a> core::clone::Clone for nika_cadence::due::Due<'a>
+pub fn nika_cadence::due::Due<'a>::clone(&self) -> nika_cadence::due::Due<'a>
+impl<'a> core::fmt::Debug for nika_cadence::due::Due<'a>
+pub fn nika_cadence::due::Due<'a>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<T, U> core::convert::Into<U> for nika_cadence::due::Due<'a> where U: core::convert::From<T>
+pub fn nika_cadence::due::Due<'a>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cadence::due::Due<'a> where U: core::convert::Into<T>
+pub type nika_cadence::due::Due<'a>::Error = core::convert::Infallible
+pub fn nika_cadence::due::Due<'a>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cadence::due::Due<'a> where U: core::convert::TryFrom<T>
+pub type nika_cadence::due::Due<'a>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cadence::due::Due<'a>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cadence::due::Due<'a> where T: core::clone::Clone
+pub type nika_cadence::due::Due<'a>::Owned = T
+pub fn nika_cadence::due::Due<'a>::clone_into(&self, target: &mut T)
+pub fn nika_cadence::due::Due<'a>::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cadence::due::Due<'a> where T: 'static + ?core::marker::Sized
+pub fn nika_cadence::due::Due<'a>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cadence::due::Due<'a> where T: ?core::marker::Sized
+pub fn nika_cadence::due::Due<'a>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cadence::due::Due<'a> where T: ?core::marker::Sized
+pub fn nika_cadence::due::Due<'a>::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cadence::due::Due<'a> where T: core::clone::Clone
+pub unsafe fn nika_cadence::due::Due<'a>::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cadence::due::Due<'a>
+pub fn nika_cadence::due::Due<'a>::from(t: T) -> T
+pub const nika_cadence::due::MISSED_SLOTS_CAP: usize
+pub const nika_cadence::due::ON_TIME_WINDOW: jiff::signed_duration::SignedDuration
+pub fn nika_cadence::due::due<'a>(reg: &'a nika_cadence::registry::ArmRegistry, now: &jiff::zoned::Zoned, last_fired: &dyn core::ops::function::Fn(usize) -> core::option::Option<jiff::zoned::Zoned>) -> core::result::Result<impl core::iter::traits::iterator::Iterator<Item = nika_cadence::due::Due<'a>>, nika_cadence::error::CadenceError>
+pub fn nika_cadence::due::earliest_next(reg: &nika_cadence::registry::ArmRegistry, now: &jiff::zoned::Zoned) -> core::result::Result<core::option::Option<(usize, nika_cadence::next::Slot)>, nika_cadence::error::CadenceError>
 pub mod nika_cadence::error
 #[non_exhaustive] pub enum nika_cadence::error::CadenceErrorKind
 pub nika_cadence::error::CadenceErrorKind::ApresSautMisplaced
@@ -330,6 +405,7 @@ impl nika_cadence::registry::Cadence
 pub fn nika_cadence::registry::Cadence::describe(&self) -> alloc::string::String
 impl nika_cadence::registry::Cadence
 pub fn nika_cadence::registry::Cadence::next_after(&self, from: &jiff::zoned::Zoned) -> core::option::Option<nika_cadence::next::Slot>
+pub fn nika_cadence::registry::Cadence::prev_before(&self, from: &jiff::zoned::Zoned) -> core::option::Option<nika_cadence::next::Slot>
 impl nika_cadence::registry::Cadence
 pub fn nika_cadence::registry::Cadence::parse(raw: &str) -> core::result::Result<Self, nika_cadence::error::CadenceError>
 impl core::clone::Clone for nika_cadence::registry::Cadence
@@ -609,6 +685,7 @@ impl nika_cadence::registry::Cadence
 pub fn nika_cadence::registry::Cadence::describe(&self) -> alloc::string::String
 impl nika_cadence::registry::Cadence
 pub fn nika_cadence::registry::Cadence::next_after(&self, from: &jiff::zoned::Zoned) -> core::option::Option<nika_cadence::next::Slot>
+pub fn nika_cadence::registry::Cadence::prev_before(&self, from: &jiff::zoned::Zoned) -> core::option::Option<nika_cadence::next::Slot>
 impl nika_cadence::registry::Cadence
 pub fn nika_cadence::registry::Cadence::parse(raw: &str) -> core::result::Result<Self, nika_cadence::error::CadenceError>
 impl core::clone::Clone for nika_cadence::registry::Cadence
@@ -706,6 +783,45 @@ impl<T> core::clone::CloneToUninit for nika_cadence::error::CadenceErrorKind whe
 pub unsafe fn nika_cadence::error::CadenceErrorKind::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::error::CadenceErrorKind
 pub fn nika_cadence::error::CadenceErrorKind::from(t: T) -> T
+#[non_exhaustive] pub enum nika_cadence::DueKind
+pub nika_cadence::DueKind::Missed
+pub nika_cadence::DueKind::Missed::slots: u32
+pub nika_cadence::DueKind::OnTime
+impl core::clone::Clone for nika_cadence::due::DueKind
+pub fn nika_cadence::due::DueKind::clone(&self) -> nika_cadence::due::DueKind
+impl core::cmp::Eq for nika_cadence::due::DueKind
+impl core::cmp::PartialEq for nika_cadence::due::DueKind
+pub fn nika_cadence::due::DueKind::eq(&self, other: &nika_cadence::due::DueKind) -> bool
+impl core::fmt::Debug for nika_cadence::due::DueKind
+pub fn nika_cadence::due::DueKind::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cadence::due::DueKind
+impl core::marker::StructuralPartialEq for nika_cadence::due::DueKind
+impl<Q, K> equivalent::Equivalent<K> for nika_cadence::due::DueKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cadence::due::DueKind::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cadence::due::DueKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cadence::due::DueKind::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cadence::due::DueKind where U: core::convert::From<T>
+pub fn nika_cadence::due::DueKind::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cadence::due::DueKind where U: core::convert::Into<T>
+pub type nika_cadence::due::DueKind::Error = core::convert::Infallible
+pub fn nika_cadence::due::DueKind::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cadence::due::DueKind where U: core::convert::TryFrom<T>
+pub type nika_cadence::due::DueKind::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cadence::due::DueKind::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cadence::due::DueKind where T: core::clone::Clone
+pub type nika_cadence::due::DueKind::Owned = T
+pub fn nika_cadence::due::DueKind::clone_into(&self, target: &mut T)
+pub fn nika_cadence::due::DueKind::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cadence::due::DueKind where T: 'static + ?core::marker::Sized
+pub fn nika_cadence::due::DueKind::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cadence::due::DueKind where T: ?core::marker::Sized
+pub fn nika_cadence::due::DueKind::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cadence::due::DueKind where T: ?core::marker::Sized
+pub fn nika_cadence::due::DueKind::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cadence::due::DueKind where T: core::clone::Clone
+pub unsafe fn nika_cadence::due::DueKind::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cadence::due::DueKind
+pub fn nika_cadence::due::DueKind::from(t: T) -> T
 #[non_exhaustive] pub enum nika_cadence::Locus
 pub nika_cadence::Locus::Cloud
 pub nika_cadence::Locus::Local
@@ -1029,12 +1145,43 @@ impl<T> core::clone::CloneToUninit for nika_cadence::cron::CronSpec where T: cor
 pub unsafe fn nika_cadence::cron::CronSpec::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::cron::CronSpec
 pub fn nika_cadence::cron::CronSpec::from(t: T) -> T
+#[non_exhaustive] pub struct nika_cadence::Due<'a>
+pub nika_cadence::Due::beat: &'a nika_cadence::registry::Beat
+pub nika_cadence::Due::index: usize
+pub nika_cadence::Due::kind: nika_cadence::due::DueKind
+pub nika_cadence::Due::slot: nika_cadence::next::Slot
+impl<'a> core::clone::Clone for nika_cadence::due::Due<'a>
+pub fn nika_cadence::due::Due<'a>::clone(&self) -> nika_cadence::due::Due<'a>
+impl<'a> core::fmt::Debug for nika_cadence::due::Due<'a>
+pub fn nika_cadence::due::Due<'a>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<T, U> core::convert::Into<U> for nika_cadence::due::Due<'a> where U: core::convert::From<T>
+pub fn nika_cadence::due::Due<'a>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cadence::due::Due<'a> where U: core::convert::Into<T>
+pub type nika_cadence::due::Due<'a>::Error = core::convert::Infallible
+pub fn nika_cadence::due::Due<'a>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cadence::due::Due<'a> where U: core::convert::TryFrom<T>
+pub type nika_cadence::due::Due<'a>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cadence::due::Due<'a>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cadence::due::Due<'a> where T: core::clone::Clone
+pub type nika_cadence::due::Due<'a>::Owned = T
+pub fn nika_cadence::due::Due<'a>::clone_into(&self, target: &mut T)
+pub fn nika_cadence::due::Due<'a>::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cadence::due::Due<'a> where T: 'static + ?core::marker::Sized
+pub fn nika_cadence::due::Due<'a>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cadence::due::Due<'a> where T: ?core::marker::Sized
+pub fn nika_cadence::due::Due<'a>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cadence::due::Due<'a> where T: ?core::marker::Sized
+pub fn nika_cadence::due::Due<'a>::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cadence::due::Due<'a> where T: core::clone::Clone
+pub unsafe fn nika_cadence::due::Due<'a>::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cadence::due::Due<'a>
+pub fn nika_cadence::due::Due<'a>::from(t: T) -> T
 pub struct nika_cadence::Field<const LO: u8, const HI: u8>
 impl<const LO: u8, const HI: u8> nika_cadence::cron::Field<LO, HI>
 pub fn nika_cadence::cron::Field<LO, HI>::contains(&self, v: u8) -> bool
 pub fn nika_cadence::cron::Field<LO, HI>::is_empty(&self) -> bool
 pub fn nika_cadence::cron::Field<LO, HI>::is_full(&self) -> bool
-pub fn nika_cadence::cron::Field<LO, HI>::iter(&self) -> impl core::iter::traits::iterator::Iterator<Item = u8>
+pub fn nika_cadence::cron::Field<LO, HI>::iter(&self) -> impl core::iter::traits::double_ended::DoubleEndedIterator<Item = u8>
 pub fn nika_cadence::cron::Field<LO, HI>::len(&self) -> u32
 pub fn nika_cadence::cron::Field<LO, HI>::single(&self) -> core::option::Option<u8>
 impl<const LO: u8, const HI: u8> core::clone::Clone for nika_cadence::cron::Field<LO, HI>
@@ -1110,6 +1257,10 @@ impl<T> core::clone::CloneToUninit for nika_cadence::next::Slot where T: core::c
 pub unsafe fn nika_cadence::next::Slot::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::next::Slot
 pub fn nika_cadence::next::Slot::from(t: T) -> T
+pub const nika_cadence::MISSED_SLOTS_CAP: usize
+pub const nika_cadence::ON_TIME_WINDOW: jiff::signed_duration::SignedDuration
+pub fn nika_cadence::due<'a>(reg: &'a nika_cadence::registry::ArmRegistry, now: &jiff::zoned::Zoned, last_fired: &dyn core::ops::function::Fn(usize) -> core::option::Option<jiff::zoned::Zoned>) -> core::result::Result<impl core::iter::traits::iterator::Iterator<Item = nika_cadence::due::Due<'a>>, nika_cadence::error::CadenceError>
+pub fn nika_cadence::earliest_next(reg: &nika_cadence::registry::ArmRegistry, now: &jiff::zoned::Zoned) -> core::result::Result<core::option::Option<(usize, nika_cadence::next::Slot)>, nika_cadence::error::CadenceError>
 pub fn nika_cadence::next_slots(cadence: &nika_cadence::registry::Cadence, from: &jiff::zoned::Zoned, count: usize) -> impl core::iter::traits::iterator::Iterator<Item = nika_cadence::next::Slot>
 pub fn nika_cadence::parse_registry(text: &str) -> core::result::Result<nika_cadence::registry::ArmRegistry, nika_cadence::error::CadenceError>
 pub fn nika_cadence::validate(registry: &nika_cadence::registry::ArmRegistry) -> impl core::iter::traits::iterator::Iterator<Item = nika_cadence::error::CadenceError>

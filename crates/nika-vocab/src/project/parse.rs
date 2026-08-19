@@ -25,9 +25,24 @@ use std::time::Duration;
 const TRACES_KEYS: &[&str] = &["keep"];
 /// The closed `registry:` key set.
 const REGISTRY_KEYS: &[&str] = &["floor"];
-/// The closed `arm:` entry key set (the locked example vocabulary —
-/// the cadence arc's wider law pass owns anything beyond it).
-const ARM_ENTRY_KEYS: &[&str] = &["workflow", "cadence", "où", "plafond", "manqué"];
+/// The closed `arm:` entry key set — the registry's THIRTEEN keys
+/// (the cadence arc's `Beat` defines them; this gate accepts them all
+/// and judges only the five that are its own).
+const ARM_ENTRY_KEYS: &[&str] = &[
+    "workflow",
+    "cadence",
+    "où",
+    "plafond",
+    "manqué",
+    "chevauchement",
+    "après_saut",
+    "actif",
+    "raison",
+    "jusqu_au",
+    "tolérance",
+    "décalage",
+    "par",
+];
 
 /// Parse the project file text (syntax + shape laws — no I/O, no
 /// cross-reference). An EMPTY (or whitespace-only) text is an empty
@@ -199,7 +214,10 @@ fn parse_arm(value: &Node) -> Result<Vec<ArmEntry>, ProjectError> {
 
 /// One `arm:` entry. `plafond` and `manqué` are REQUIRED (the pay law
 /// · the run-missed law — a default for either is a silent spend or a
-/// silent loss); the parser refuses their absence by name.
+/// silent loss); the parser refuses their absence by name. The cadence
+/// arc's eight further keys are read WITHOUT their values judged
+/// (verbatim — only `actif` is shape-judged, a bool); a value outside
+/// the cadence law passes here and is refused THERE.
 fn parse_arm_entry(node: &Node) -> Result<ArmEntry, ProjectError> {
     let Node::Mapping(mapping) = node else {
         return Err(wrong_shape("an arm entry", "a mapping", node));
@@ -209,6 +227,14 @@ fn parse_arm_entry(node: &Node) -> Result<ArmEntry, ProjectError> {
     let mut ou = None;
     let mut plafond = None;
     let mut manque = None;
+    let mut chevauchement = None;
+    let mut apres_saut = None;
+    let mut actif = None;
+    let mut raison = None;
+    let mut jusqu_au = None;
+    let mut tolerance = None;
+    let mut decalage = None;
+    let mut par = None;
     for (key, value) in mapping.iter() {
         let name = key.as_str();
         match name {
@@ -217,6 +243,14 @@ fn parse_arm_entry(node: &Node) -> Result<ArmEntry, ProjectError> {
             "où" => ou = Some(locus(value)?),
             "plafond" => plafond = Some(usd(value, "plafond")?),
             "manqué" => manque = Some(miss_policy(value)?),
+            "chevauchement" => chevauchement = Some(verbatim(value, name)?),
+            "après_saut" => apres_saut = Some(verbatim(value, name)?),
+            "actif" => actif = Some(switch(value)?),
+            "raison" => raison = Some(verbatim(value, name)?),
+            "jusqu_au" => jusqu_au = Some(verbatim(value, name)?),
+            "tolérance" => tolerance = Some(verbatim(value, name)?),
+            "décalage" => decalage = Some(verbatim(value, name)?),
+            "par" => par = Some(verbatim(value, name)?),
             _ => return Err(unknown_key(name, ARM_ENTRY_KEYS, key.span())),
         }
     }
@@ -258,6 +292,14 @@ fn parse_arm_entry(node: &Node) -> Result<ArmEntry, ProjectError> {
                 "manqué: rattraper · rattraper-une-fois · sauter",
             )
         })?,
+        chevauchement,
+        apres_saut,
+        actif,
+        raison,
+        jusqu_au,
+        tolerance,
+        decalage,
+        par,
     })
 }
 
@@ -312,6 +354,28 @@ fn miss_policy(value: &Node) -> Result<MissPolicy, ProjectError> {
             ProjectErrorKind::BadValue,
             format!("`manqué: {raw}` — unknown missed-run policy"),
             "manqué: rattraper · rattraper-une-fois · sauter",
+            line_of(value.span()),
+        )
+    })
+}
+
+/// One of the cadence arc's own keys — a scalar, stored VERBATIM. The
+/// value's LAW (the closed enums · the ISO date · the `m/k` form) is
+/// the cadence arc's: deux parseurs, jamais en désaccord — each judges
+/// its own plane, and this plane is the SHAPE.
+fn verbatim(value: &Node, key: &str) -> Result<String, ProjectError> {
+    Ok(scalar(value, key)?.as_str().to_owned())
+}
+
+/// `actif:` — a bool, the one judged shape among the cadence arc's
+/// eight. A quoted `"false"` refuses, the same non-coercion law as
+/// `ceiling:` (a string that silently became a switch is the lie class).
+fn switch(value: &Node) -> Result<bool, ProjectError> {
+    scalar(value, "actif")?.as_bool().ok_or_else(|| {
+        ProjectError::at(
+            ProjectErrorKind::BadValue,
+            "`actif:` must be a bool (`true` · `false`, unquoted)",
+            "actif: false — the suspension itself is told by `raison:` + `jusqu_au:` (the cadence arc's law)",
             line_of(value.span()),
         )
     })

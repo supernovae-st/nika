@@ -4,11 +4,13 @@
 //! `nika-cadence` — L0 · PUR · zéro I/O · zéro async.
 //!
 //! The grammar of the arming registry (the `arm:` block of `nika.yaml`,
-//! D-2026-08-10-N3) and the pure next-slot calculator. Two L4 consumers
-//! will read this registry (`nika arm` today · `nika serve` at ②), so
-//! the shared logic lives at L0 — never in a CLI crate (the layering
-//! precedent: `nika-check`'s Cargo.toml · "THREE L0 consumers make any
-//! higher layer an upward-dep violation").
+//! D-2026-08-10-N3), the pure slot calculator (`next_after` ·
+//! `prev_before` — the half-open interval `(prev, next]` a beat is due
+//! in), and the pure planner (`due` · `earliest_next`) the firing edges
+//! read. Two L4 consumers read this registry (`nika arm` today ·
+//! `nika serve` at ②), so the shared logic lives at L0 — never in a CLI
+//! crate (the layering precedent: `nika-check`'s Cargo.toml · "THREE L0
+//! consumers make any higher layer an upward-dep violation").
 //!
 //! The four locks (D-2026-08-11-N1→N4 · one law at four moments: THE
 //! FILE PROPOSES, THE MACHINE DISPOSES):
@@ -64,6 +66,7 @@
 #![forbid(unsafe_code)]
 
 pub mod cron;
+pub mod due;
 pub mod error;
 pub mod next;
 pub mod parse;
@@ -71,16 +74,11 @@ pub mod phrase;
 pub mod registry;
 
 pub use cron::{CronSpec, Field};
+pub use due::{Due, DueKind, MISSED_SLOTS_CAP, ON_TIME_WINDOW, due, earliest_next};
 pub use error::{CadenceError, CadenceErrorKind};
 pub use next::{Shift, Slot, next_slots};
 pub use parse::{parse_registry, validate};
 pub use registry::{AfterSkip, ArmRegistry, Beat, Cadence, Locus, MissPolicy, Overlap};
 
 #[cfg(test)]
-#[allow(
-    clippy::expect_used,
-    clippy::unwrap_used,
-    clippy::panic,
-    clippy::unreachable
-)]
 mod tests;

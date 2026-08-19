@@ -18,16 +18,22 @@
 //! the text, convert `&[ArmEntry] → Vec<Beat>`, or make cadence a pure
 //! calculator. Writing the verb answered it:
 //!
-//! **The conversion is REFUTED.** `Beat` carries `chevauchement:` and
-//! `après_saut:` — two policies `ArmEntry` does not have. Converting
-//! would drop them silently, which is the worst of the three.
+//! **The conversion is REFUTED.** `Beat` judges the VALUES of the
+//! cadence grammar's thirteen keys; `ArmEntry` carries eight of them
+//! VERBATIM (vocab judges the shape, cadence the law — law 8, deux
+//! parseurs jamais en désaccord). Converting one type into the other
+//! would duplicate the value judgments silently, which is the worst of
+//! the three.
 //!
 //! So the two parsers stay, and they are NOT duplicates: `nika-vocab`
 //! judges the project file's SHAPE (so a broken `arm:` refuses before
 //! any spend, alongside `ceiling:` and `registry:`), `nika-cadence`
 //! owns the cadence GRAMMAR and its policies. What they must never do
 //! is DISAGREE about the same bytes — so this verb checks that they
-//! counted the same beats, and refuses loudly if they did not.
+//! counted the same beats, and refuses loudly if they did not. (Until
+//! 2026-08-19 the vocab set was five keys and cadence's eight others
+//! were unreachable through the file — the divergence the flipped test
+//! below now pins CLOSED.)
 //!
 //! And the walk is not duplicated either: [`project::discover`] hands
 //! back the PATH it found, so the cadence parser reads the file the
@@ -250,64 +256,72 @@ mod tests {
         assert_ne!(out.code, exit::OK, "a lawless registry must refuse");
     }
 
-    /// ⭐ THE DIVERGENCE, PINNED — measured 2026-08-15.
+    /// ⭐ THE DIVERGENCE, CLOSED — measured 2026-08-15, fixed 2026-08-19.
     ///
     /// `nika-cadence::Beat` defines THIRTEEN keys; `nika_vocab::ArmEntry`
-    /// accepts FIVE. And `nika_vocab` runs FIRST (it is what `discover`
-    /// parses), so the other eight are UNREACHABLE through the project
-    /// file: the cadence grammar defines them, validates them, and no
-    /// author can ever write one.
+    /// used to accept FIVE, and `nika_vocab` runs FIRST (it is what
+    /// `discover` parses), so the other eight were UNREACHABLE through
+    /// the project file: the cadence grammar defined them, validated
+    /// them, and no author could write one (measured again 2026-08-18:
+    /// a file carrying `chevauchement:` cost `nika arm` exit 2 and
+    /// `nika run` exit 3, `project.unknown-key`).
     ///
-    /// Among the unreachable: `actif:` — the disarm switch that law N4
-    /// says is the ONLY way to disarm (« removing a line does NOT
+    /// The close keeps the two parsers on their own planes (law 8 —
+    /// deux parseurs, jamais en désaccord): vocab judges the SHAPE and
+    /// carries the cadence arc's eight keys VERBATIM (`actif` alone is
+    /// shape-judged, a bool); the VALUES' law stays cadence's. A
+    /// `chevauchement: nimporte` passes vocab and is refused by
+    /// cadence — the agreement is on the key SET, never on the
+    /// semantics.
+    ///
+    /// Among the newly reachable: `actif:` — the disarm switch that law
+    /// N4 says is the ONLY way to disarm (« removing a line does NOT
     /// disarm ») — and `chevauchement:`/`après_saut:`, the whole of law
-    /// ⑥. The overlap policy this verb reports is a policy nobody can
-    /// set.
+    /// ⑥. The overlap policy this verb reports is a policy an author
+    /// can now set.
     ///
-    /// This test does not FIX the gap (widening `ArmEntry` means
-    /// duplicating cadence's enums at L0, narrowing `Beat` means
-    /// deleting a grammar its crate was built for — an operator's
-    /// arbitration, not a session's). It makes the gap VISIBLE, so
-    /// closing it either way is a deliberate act and not a surprise.
+    /// This test pins the fixed state: the thirteen keys written
+    /// together pass BOTH readers — the report is green, one beat, and
+    /// (suspended as it is) it is REPORTED, never computed.
     #[test]
-    fn eight_cadence_keys_are_unreachable_through_the_project_file() {
-        const CADENCE_ONLY: &[&str] = &[
-            "chevauchement: sauter",
-            "après_saut: prochain-créneau",
-            "actif: false",
-            "raison: \"pause\"",
-            "jusqu_au: \"2026-12-31\"",
-            "tolérance: \"5m\"",
-            "décalage: \"1m\"",
-            "par: \"thibaut\"",
-        ];
-        for key in CADENCE_ONLY {
-            let body = format!(
-                concat!(
-                    "nika: v1\n",
-                    "arm:\n",
-                    "  - workflow: w.nika.yaml\n",
-                    "    cadence: \"TZ=Europe/Paris lundi 9h07\"\n",
-                    "    plafond: 0.25\n",
-                    "    manqué: sauter\n",
-                    "    {}\n",
-                ),
-                key
-            );
-            // The cadence grammar KNOWS it …
-            assert!(
-                nika_cadence::parse::parse_registry(&body).is_ok(),
-                "cadence must accept `{key}` — it is in its closed set"
-            );
-            // … and the project shape refuses it first.
-            let dir = project_at("gap", &body);
-            let out = run_at(dir.path());
-            assert_ne!(
-                out.code,
-                exit::OK,
-                "`{key}` reaches the cadence grammar today — the gap closed, \
-                 update this pin (and say which way it closed)"
-            );
-        }
+    fn every_cadence_key_is_reachable_through_the_project_file() {
+        let body = concat!(
+            "nika: v1\n",
+            "arm:\n",
+            "  - workflow: w.nika.yaml\n",
+            "    cadence: \"TZ=Europe/Paris lundi 9h07\"\n",
+            "    où: local\n",
+            "    plafond: 0.25\n",
+            "    manqué: sauter\n",
+            "    chevauchement: sauter\n",
+            "    après_saut: prochain-créneau\n",
+            "    actif: false\n",
+            "    raison: \"pause estivale\"\n",
+            "    jusqu_au: \"2026-12-31\"\n",
+            "    tolérance: \"3/4\"\n",
+            "    décalage: hash\n",
+            "    par: \"thibaut\"\n",
+        );
+        // The cadence grammar knows all thirteen …
+        assert!(
+            nika_cadence::parse::parse_registry(body).is_ok(),
+            "cadence accepts its own closed set"
+        );
+        // … and so does the project shape, FIRST — the whole file is
+        // lawful to both readers, and the verb's report is green.
+        let dir = project_at("closed", body);
+        let out = run_at(dir.path());
+        assert_eq!(
+            out.code,
+            exit::OK,
+            "the thirteen keys pass both readers: {}",
+            out.text
+        );
+        assert!(out.text.contains("1 beat"), "{}", out.text);
+        assert!(
+            out.text.contains("[idle ]"),
+            "actif: false is REPORTED, never computed: {}",
+            out.text
+        );
     }
 }
