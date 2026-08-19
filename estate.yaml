@@ -152,7 +152,7 @@ patterns:
 - glob: "crates/**/src/**"
   class: authored
   match_count: 790
-  aggregate_sha256: 321595bbae3c5d5cc67a9d269380fa724098a3238a71ab9aff4a2085a54f74e9
+  aggregate_sha256: 8935cff2bc76014cd0f68f0a9c39452a5bf78faad5bae90b86ad4807f9f5819f
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
@@ -203,7 +203,7 @@ patterns:
 - glob: ".claude/**"
   class: authored
   match_count: 15
-  aggregate_sha256: b84499b8a0342cfc5282dcbab2d91fd8c441d59fbe97cd63d920535d2b5868fb
+  aggregate_sha256: 9f2ab101eb9cf2716281e4d6ad54aa668ca54c5abf7b3205e189c509eaea5170
   evidence: "harness rules · skills · commands for the Diamond rebuild — hand-written; .claude/CLAUDE.md excepted in files: (carries the refresh-status.sh auto-block)"
 - glob: ".claude-plugin/**"
   class: authored

@@ -358,4 +358,31 @@ mod tests {
             .expect("some");
         assert_eq!(zoned.timestamp().to_string(), "2026-08-19T03:02:00Z");
     }
+
+    /// Gate 1 (diamond-discipline §5, P0 · closed 2026-08-19): serve reads
+    /// ONLY the registry (through the ONE arm door, judged by vocab +
+    /// cadence BEFORE any shot — the source order pins it) and its own
+    /// sidecar. No network, no environment read, no argument beyond the
+    /// clap surface. A static pin over the prod half of this file.
+    #[test]
+    fn serve_has_no_input_but_the_registry_and_its_state() {
+        let src = include_str!("serve.rs");
+        let prod = src.split("#[cfg(test)]").next().expect("prod half");
+        assert!(prod.contains("arm::load"), "the registry's ONE door");
+        assert!(prod.contains("ArmState"), "its own sidecar");
+        let judged = prod.find("arm::load(").expect("the door's call");
+        let fired = prod.find("fire_beat(").expect("the firer's call");
+        assert!(judged < fired, "vocab + cadence judge BEFORE any shot");
+        for banned in [
+            "reqwest",
+            "std::net",
+            "tokio::net",
+            "TcpStream",
+            "std::env::var",
+            "env::args",
+            "stdin",
+        ] {
+            assert!(!prod.contains(banned), "serve must not read {banned}");
+        }
+    }
 }
