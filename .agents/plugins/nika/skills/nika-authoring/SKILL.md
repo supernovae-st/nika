@@ -119,9 +119,13 @@ the `.nika.yaml` extension. `nika new <slug>` makes one yours;
    `nika:prompt` resumes with
    `nika run <file> --resume <trace> --answer <task>=<value>`
    (confirm gates take booleans: `--answer approve=true`).
-7. Pin it for CI: `nika test <file> --update` writes
-   `<file>.golden.json` from an offline mock run; `nika test <file>`
-   replays and compares — deterministic, zero keys.
+7. Pin it for CI **only when the mock run needs no network, subprocess,
+   or write effect**: `nika test <file> --update` writes
+   `<file>.golden.json`; `nika test <file>` replays and compares —
+   deterministic, zero keys. The simulated test plane refuses those effects
+   deliberately. For an effecting workflow, rehearse with
+   `nika run <file> --model mock/echo` in scratch, inspect the artifacts, and
+   verify its trace; never promise a golden that cannot run.
 8. **Prove a run that mattered**: every run writes a hash-chained
    journal to `.nika/traces/`. `nika trace verify <trace>` climbs a
    four-tier ladder and reports the highest tier honestly attained —
