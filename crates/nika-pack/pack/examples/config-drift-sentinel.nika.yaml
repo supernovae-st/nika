@@ -134,8 +134,8 @@ tasks:
   # Provenance over the exact response bytes, taken BEFORE the parse: two
   # different JSON texts that mean the same thing hash differently, and that
   # is the point — this attests the artifact, not the interpretation.
-  # `nika:hash` accepts an object (compact JSON) — do not pre-`tojson` —
-  # but that would fingerprint the parse. Hash the raw string here.
+  # `nika:hash` requires `content:` to be a string; handing it the parsed
+  # object fails `NIKA-BUILTIN-HASH-001` at run while `check` stays green.
   fingerprint:
     with:
       raw: ${{ tasks.live_raw.output }}

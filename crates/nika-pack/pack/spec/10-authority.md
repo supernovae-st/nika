@@ -234,7 +234,8 @@ and anything derived from them are untrusted, with monotone propagation
 > authority died with the envelope nuke. A `${{ config.X }}` read refuses
 > `NIKA-VALUES-003` — it never reaches a taint judgment. A deployment knob
 > is an `inputs:` entry with `required: false` and a `default:`, untrusted
-> as `inputs.*`.
+> as `inputs.*` ([04 §namespaces](./04-variables.md#the-5-namespaces) ·
+> [01 §inputs](./01-envelope.md#inputs--optional--typed-workflow-inputs)).
 
 Two rules bind
 untrusted values under a `permits:` block (NEP-0004 · LAW-AUTH-0325):

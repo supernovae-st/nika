@@ -601,8 +601,8 @@ Per D-2026-05-22-N18.)
 **Event subsystem, artifact modes, output modes, templatable fields**:
 - Artifact modes: `overwrite | append | unique | fail`, with optional `manifest: true` → `artifacts.json` index
 - Output modes: `text | json | yaml | markdown | binary`
-- 65 typed fields accept `{{...}}` templates (type-coerced after resolution, NIKA-041 on error)
-- Endpoints config in `nika.toml` `[endpoints.<name>]` for self-hosted LLMs + `model: <endpoint>/<name>` slash syntax
+- 65 typed fields accept `${{ }}` CEL (type-coerced after resolution, NIKA-041 on error)
+- Self-hosted LLMs use `model: <provider>/<name>` slash syntax · the provider base URL is operator/engine config, not the project file (`nika.yaml` carries `ceiling` · `arm` · `traces` · `registry`)
 - `nika:decode` builtin: base64 → CAS blob (for APIs returning inline images)
 - `nika:import` builtin: file → CAS blob
 

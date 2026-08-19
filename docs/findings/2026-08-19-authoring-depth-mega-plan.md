@@ -57,10 +57,13 @@ Small. Same four verbs. No new builtin.
 
 Refuse · promoting `unproven-law` to a finding · growing `LAW_PHRASES`.
 
-## Wave 2 · leftover dialect (same session if Wave 1 is green)
+## Wave 2 · leftover dialect (SHIPPED this wave)
 
 Grep-and-kill on **teaching** surfaces (pack · spec examples ·
-guides · SKILL · QUICKSTART). Not a grammar change.
+guides · SKILL · QUICKSTART). Not a grammar change. Live leftover
+was `ROADMAP.md` teaching `nika.toml` + `{{...}}` · now `nika.yaml`
++ `${{ }}`. Detector tests may keep a dead form as the input that
+must hint. Prose and runnable examples must not teach it.
 
 | Dead form | Live form |
 |---|---|
@@ -71,15 +74,14 @@ guides · SKILL · QUICKSTART). Not a grammar change.
 | 5-verb lists | 4 verbs · fetch is a tool |
 | `config:` / `vars:` / `env:` envelope | `inputs:` / `const:` / `secrets:` |
 
-Detector tests may keep a dead form as the **input that must hint**.
-Prose and runnable examples must not teach it.
+## Wave 3 · compose lesson (SHIPPED this wave)
 
-## Wave 3 · compose lesson (after Wave 1)
-
-`nika:compose` is still OWED. It is **loop-served only** (standalone
-`invoke` → `NIKA-BUILTIN-COMPOSE-001`). The lesson is an `agent:`
-whitelist that drafts a child workflow and iterates on the check
-JSON until `valid` — AlphaCodium's tests-first compile, as a file.
+`nika:compose` is **loop-served only** (standalone `invoke` →
+`NIKA-BUILTIN-COMPOSE-001`). Lesson
+`15-compose-self-check.nika.yaml` is an `agent:` whitelist
+(`nika:done` first, then `nika:compose`) that drafts a nine-key
+hello and iterates on the check JSON until `valid`. Mock/echo
+closes at turn one. OWED `compose` struck.
 
 Do **not** fake it with a standalone invoke. Do **not** execute the
 draft inside the same run ("generation is not permission").
@@ -115,8 +117,8 @@ authoring train.
 | RLM (2512.24601) | Nika already | What's missing |
 |---|---|---|
 | file = environment | the `.nika.yaml` *is* the scratchpad | agents write once and hope |
-| recursion | `for_each` · `invoke: { workflow: }` | compose lesson (Wave 3) |
-| verification | jq / decide / assert | `unproven-law` (this ship) + `compiled`/`next` (Wave 1) |
+| recursion | `for_each` · `invoke: { workflow: }` · lesson 15 `nika:compose` | inspect wiring (Wave 4) |
+| verification | jq / decide / assert · `compiled`/`next` | agents still write once and hope — the loop is the product |
 
 The loop we want: write → `nika check --json` → if `next`, repair
 that one task → re-check → handoff only when `paid_ready`.

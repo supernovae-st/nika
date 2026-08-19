@@ -31,6 +31,7 @@
 | [`12-failure-routing`](12-failure-routing.nika.yaml) | routing failure | the `failure` edge predicate — a strictly-failure arm that settles `⊘` on green runs |
 | [`13-extract-then-law`](13-extract-then-law.nika.yaml) | facts, then the law | `infer.schema:` as `type: integer` + numeric `enum` · `for_each` over `item.field` · `nika:jq` scores · const-fixture `nika:assert` (hint `unproven-law`) · the model never names the level |
 | [`14-decide-publish`](14-decide-publish.nika.yaml) | publish or abstain | `nika:decide` over an inline Decision Bundle · `never_automatic` · assert a hand-known `human_required` fixture |
+| [`15-compose-self-check`](15-compose-self-check.nika.yaml) | the loop checks the draft | `nika:compose` on `agent.tools` (after `nika:done`) · mock/echo rehearsal · standalone invoke is `NIKA-BUILTIN-COMPOSE-001` · checking never executes |
 
 All **4 verbs** appear across the path; everything callable is a tool under
 `invoke:`. The per-construct index is derived from the files, never

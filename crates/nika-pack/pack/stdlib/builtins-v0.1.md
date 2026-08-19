@@ -410,8 +410,10 @@ Send notifications · `channel:` enum (`webhook`/`slack`/`email`/`discord`/`sms`
 ```yaml
 agent:
   prompt: "Draft a workflow, then check it before you finish."
-  tools: ["nika:compose"]            # the agent grants itself the self-check
+  tools: ["nika:done", "nika:compose"]   # done first · mock/echo closes at turn one
 ```
+The teaching shape is
+[`examples/15-compose-self-check.nika.yaml`](../examples/15-compose-self-check.nika.yaml).
 The agent loop's self-verification intrinsic · the model passes a workflow
 YAML draft it wrote, and gets the FULL `nika check` verdict back as JSON:
 conformance violations (with codes + repair hints), secret-flow findings,

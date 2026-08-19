@@ -7,7 +7,7 @@
 #   sealed outcome_class enum) · the 15 ledger sections (canon/EXCEPTIONS.md ·
 #   SSOT-1 §18) stay AUTHORED and are carried verbatim — editing those is legal.
 # regenerate: python3 scripts/ssot-compiler.py --emit-canon
-# body-sha256: e37589b28d142270ec5f0f374148d546dfa804444af0e4068c6b14f27694af21
+# body-sha256: 655188ecf8f7b0436c681a10e056af6b709f46fa37c93c4b92daeadc5145d98c
 #   (digest of every byte below the end-of-header line · detached self-hash per PAA-006)
 # ---- end generated header (SSOT-1 §21-23 · the canon flip · C0)
 # nika canonical registry · the single source of truth for Nika canonical facts
@@ -302,7 +302,7 @@ error_codes:
     - { code: NIKA-PARSE-001, category: parse_error, transient: "false", failure: "the YAML itself does not parse (syntax error)" }
     - { code: NIKA-PARSE-002, category: validation_error, transient: "false", failure: "missing envelope field (nika: / non-empty tasks:)" }
     - { code: NIKA-PARSE-003, category: parse_error, transient: "false", failure: "nika: is not a kebab-case id (^[a-z][a-z0-9-]*$)" }
-    - { code: NIKA-PARSE-004, category: validation_error, transient: "false", failure: "workflow: id violates ^[a-z][a-z0-9-]*$" }
+    - { code: NIKA-PARSE-004, category: validation_error, transient: "false", failure: "RESERVED · retired with the nine-key envelope · the id moved onto nika: (NIKA-PARSE-003 judges it)" }
     - { code: NIKA-PARSE-005, category: validation_error, transient: "false", failure: "unknown field — strict mode rejects anything outside the closed v1 set" }
     - { code: NIKA-PARSE-006, category: validation_error, transient: "false", failure: "task id violates ^[a-z][a-z0-9_]*$ (snake_case · CEL-safe · no hyphens)" }
     - { code: NIKA-PARSE-007, category: validation_error, transient: "false", failure: "duplicate task id within the workflow" }

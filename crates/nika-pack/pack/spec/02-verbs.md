@@ -354,7 +354,12 @@ drafting**: pass a `workflow_yaml` string, get the full `nika check` verdict
 back (conformance + secret-flow + permits + the termination/cost certificate)
 as the tool result. It **never executes** the draft: verification yields an
 artifact + its certificate, and running it stays a separate, gated decision.
-See [stdlib/builtins-v0.1.md](../stdlib/builtins-v0.1.md) §`nika:compose`.
+The teaching shape is
+[`examples/15-compose-self-check.nika.yaml`](../examples/15-compose-self-check.nika.yaml)
+(`nika:done` first so `mock/echo` closes at turn one). See
+[stdlib/builtins-v0.1.md](../stdlib/builtins-v0.1.md) §`nika:compose`.
+Do not confuse this loop intrinsic with parent→child composition
+(`invoke: { workflow: }` · [14](./14-composition.md) · lesson 10).
 
 **Termination outcomes (normative)** ·
 
