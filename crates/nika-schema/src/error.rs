@@ -33,12 +33,13 @@ pub enum SchemaError {
 
     /// A required envelope field is missing (or `tasks:` is empty).
     ///
-    /// Spec `01-envelope.md` · « Two required lines (`nika:` +
-    /// `workflow:`) and a non-empty `tasks:`. That's the **whole
-    /// minimum** to be a valid Nika workflow. »
+    /// Spec `01-envelope.md` · « The `nika:` line and a non-empty
+    /// `tasks:` map. That's the **whole minimum** to be a valid Nika
+    /// workflow. » Identity lives on `nika:` — there is no `workflow:`
+    /// envelope key.
     #[error("missing required envelope field: `{field}`")]
     MissingEnvelopeField {
-        /// The missing field (`nika` · `workflow` · `tasks`).
+        /// The missing field (`nika` · `tasks`).
         field: String,
         /// Source span (workflow root when known).
         span: Option<Span>,
@@ -678,7 +679,7 @@ pub enum SchemaError {
         span: Option<Span>,
     },
 
-    /// A declared `default:` (`inputs:` · `config:`) or a typed-const
+    /// A declared `default:` (`inputs:`) or a typed-const
     /// `value:` does not conform to its declared `type:`
     /// (`NIKA-DEFAULT-001` · R3b · LAW-TYPE-0211 — the P0 soundness
     /// hole, a value that passed check and failed at run, is closed;

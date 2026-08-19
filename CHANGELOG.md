@@ -104,6 +104,14 @@ refusal names the version the support arrives with:
 - **The ORDER and LIFT findings render in the human lane
   (`nika-display` · #1002).**
 - **LOT 3 task-body rungs + the sweep's third lock (#999).**
+- **Leftover fourteen-key teaching in `nika explain` and rustdoc
+  (#1007).** `NIKA-PARSE-002` taught `nika: v1` + `workflow:` + a
+  `tasks:` list; `NIKA-PARSE-005` parked custom metadata in
+  `description:`. The `RawWorkflow` fence, the analyzer crate doc,
+  `MissingEnvelopeField`, and the LSP outline still named `workflow:`
+  as a required envelope key. They now speak the live nine-key
+  envelope (identity on `nika: <kebab-id>` · `tasks:` is a map ·
+  prose is a `#` comment above `nika:`).
 
 ### Documentation
 
