@@ -457,7 +457,7 @@ affects_layers = ["L1"]
 [[adr]]
 id = "ADR-082"
 title = "Workflow envelope: single version marker `nika: v1` (supersedes K8s apiVersion form)"
-status = "accepted"
+status = "superseded"
 date = "2026-05-25"
 filename = "adr-082-envelope-nika-v1-single-version-marker.md"
 tags = ["schema", "yaml", "envelope", "version-marker", "spec-alignment"]

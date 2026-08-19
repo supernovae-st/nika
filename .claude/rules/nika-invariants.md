@@ -133,7 +133,8 @@ Real semver toward a **1.0** public launch (amended D-2026-06-20-N1 · was
 CHANGELOG top names (never quote a number here · it rots · `main` carries the
 next dev version); the **1.0.0** launch ships when the 7 shadow zones are green, and
 the remaining crates land additively across the 1.x minors under the ADR-037
-count horizon (50-90 · cap 100 · projected, never a gate · ruled D-2026-07-21-N1). The `nika: v1` LANGUAGE envelope is frozen forever
+count horizon (50-90 · cap 100 · projected, never a gate · ruled D-2026-07-21-N1). The nine-key LANGUAGE envelope (`nika: <id>` ·
+model · inputs · const · secrets · permits · run · tasks · outputs · since 0.109) is frozen forever
 (orthogonal to the engine version).
 
 No hard per-phase deadlines — quality > speed. The pace is self-paced, not a

@@ -28,6 +28,16 @@ use nika_check::CheckReport;
 use nika_schema::raw::{RawAction, RawWorkflow};
 use nika_schema::types::{AfterPredicate, OnErrorAction, WhenGate};
 
+/// The projection's format number (spec 03 §graph-projection · `graph_format: 3`).
+///
+/// ONE constant, three readers: the envelope below stamps it, the LSP
+/// capability advertises it (`nika/semanticDocument` · `graphFormat`), and
+/// the MCP surface names it — a literal in each place drifted once (the
+/// LSP advertised 2 while the document it served said 3 · measured
+/// 2026-08-18: a client that honours the advertisement refused a graph
+/// it could have read, or read one it should have refused).
+pub const GRAPH_FORMAT: u32 = 3;
+
 /// The versioned projection envelope (spec 03 §graph-projection · `graph_format: 3`).
 #[derive(Debug, Serialize)]
 pub struct GraphDoc {
@@ -172,7 +182,7 @@ pub fn project(wf: &RawWorkflow, report: &CheckReport) -> GraphDoc {
     }
 
     GraphDoc {
-        graph_format: 3,
+        graph_format: GRAPH_FORMAT,
         workflow,
         nodes,
         edges: typed_edges(wf),

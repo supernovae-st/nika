@@ -676,7 +676,7 @@ tasks:
     #[test]
     fn foreign_value_namespace_refuses_with_values_003() {
         // C2 · conformance fixture values/invalid/foreign-value-namespace ·
-        // `${{ params.region }}` — outside the four-authority family AND
+        // `${{ params.region }}` — outside the three-authority family AND
         // the runtime namespaces (LAW-SURFACE-0201). The refusal is
         // LAYERED: VAR-001 carries the did-you-mean, VALUES-003 teaches
         // the closed family (the oracle emits both · match-any protocol).
@@ -708,7 +708,7 @@ tasks:
         assert!(
             rendered
                 .iter()
-                .any(|m| m.contains("outside the four-authority family")
+                .any(|m| m.contains("outside the three-authority family")
                     && m.contains("inputs · const · secrets")),
             "the closed-family teaching: {rendered:?}"
         );

@@ -178,20 +178,24 @@ mermaid/dot/ASCII/webview all derive from it. Versioned envelope (`graph_format:
   "graph_format": 3,
   "workflow": "veille-news",
   "nodes": [
-    {"id": "fetch_top", "verb": "invoke", "tool": "nika:fetch",
+    {"id": "fetch_top", "kind": "task", "verb": "invoke", "tool": "nika:fetch",
      "when": null, "fan_out": null,
-     "permits": ["network:read(hn.algolia.com)"],
+     "permits": ["net.http: hn.algolia.com", "tool: nika:fetch"],
      "cost_interval": null}
   ],
   "edges": [
-    {"from": "fetch_top", "to": "extract_ai", "kind": "depends_on"}
+    {"from": "fetch_top", "to": "extract_ai", "kind": "value", "binding": "top"}
   ]
 }
 ```
 
 Rules: topologically sorted `nodes` (stable order = stable layouts · no
-jitter) · `edges.kind` closed enum (`depends_on` today · `on_failure`/
-`on_finally` when the spec grows them) · run overlays (states/durations/
+jitter · `kind: task | finally` since format 3, cleanup units are nodes) ·
+`edges.kind` closed enum (`value` · `terminal-observation` ·
+`failure-observation` · `control` (with its `after:` `predicate`) ·
+`recovery` · `finally` reserved · spec 03 §graph-projection) · the edges are
+the declared `with:`/`after:` bindings, never a restated dependency list ·
+run overlays (states/durations/
 costs) come from the EVENT stream joined on `id` — the static graph never
 carries run state (the two truths stay separate, joined at render).
 

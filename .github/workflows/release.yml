@@ -179,6 +179,23 @@ jobs:
           tarball="nika-${ASSET_NAME}-${version}.tar.gz"
           tar -czf "${tarball}" -C "${stage}" nika completions
           shasum -a 256 "${tarball}" | tee "${tarball}.sha256"
+      - name: Install bubblewrap (Linux gates run CONFINED · the Diamond CI tests-leg recipe)
+        # Since #889 a `permits:`-declaring workflow REFUSES to start where no
+        # sandbox backend exists (NIKA-1710). The funnel's consent-pause leg and
+        # the trust battery both spend an exec under permits — on the Linux
+        # builders without bwrap they died `exit=3 want=4` (v0.109.1 · run
+        # 32193107899) while the macOS builders (seatbelt) passed. Install the
+        # jail so both gates run confined here too, the same way they do on
+        # macOS — never a waiver. ubuntu-24.04's AppArmor bwrap profile grants
+        # userns creation but denies CAP_NET_ADMIN inside it, so bwrap dies
+        # bringing up loopback in the unshared netns; detach the profile and
+        # keep unprivileged userns open (the tests-leg recipe, proven daily).
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends bubblewrap
+          sudo apparmor_parser -R /etc/apparmor.d/bwrap-userns-restrict 2>/dev/null || true
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 2>/dev/null || true  # absent on ubuntu-22.04
       - name: Funnel e2e (gate before upload)
         # The stranger's first path, played against the TARBALL that is
         # about to ship (untarred into a clean HOME · offline · content

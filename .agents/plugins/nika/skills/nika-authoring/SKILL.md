@@ -221,12 +221,11 @@ and a `default:`.
 | `when:` | a CEL boolean gate (`size()` is the only function) |
 | `for_each:` | fan out over a collection · the body reads the current element as `${{ item }}` and its position as `${{ index }}` (loop-scoped locals, NOT a fourth value authority · `item.field` reaches into an object element) · the task's `.output` is the ARRAY of per-iteration outputs, in input order · `max_parallel:` caps concurrency (1 = sequential) · `fail_fast:` aborts on the first error (default true) |
 | `retry:` | `max_attempts` · `backoff_ms` · `backoff_strategy` · `backoff_max_ms` · `jitter` · `on_codes` — transient failures only; a wrong prompt never heals by retry |
-| `on_error:` | exactly ONE action — `recover:` · `skip:` (preserves the original error at `tasks.X.error`) · `fail_workflow:` — with an optional `on_codes:` filter |
+| `on_error:` | exactly ONE action — `recover:` · `skip:` (preserves the original error at `tasks.X.error`) — with an optional `on_codes:` filter · the default (no `on_error:`) IS failure, and there is no keyword for saying so (`fail_workflow:` is dead · a YAML comment says it) |
 | `extract:` | named jq bindings → `${{ tasks.X.<name> }}` |
 | `returns:` | the task's output contract — exclusive with a verb-level `schema:` (`NIKA-TYPE-003`) |
 | `timeout:` | a quoted Go duration |
-| `inert:` | declares a `nika:fetch` payload code-bearing but never loaded — the non-empty string IS the justification. Lifts the data-as-code sink law ONLY, never the net boundary |
-| `declassify:` | the one door through the permit-parameterization taint · raises ONE binding from untrusted to trusted, check-visible and receipt-recorded. Never a permit bypass — the value is still matched against the declared boundary |
+| `lift:` | the ONE authored door, a list · each entry opens exactly one named law with a non-empty `because:` (check-visible · receipt-recorded) · `{law: taint, from: <binding>, because: "…"}` raises ONE binding through the permit-parameterization taint — never a permit bypass, the value is still matched against the declared boundary · `{law: data-as-code, because: "…"}` declares a `nika:fetch` payload code-bearing but never loaded — lifts that sink law ONLY, never the net boundary (`from:` is forbidden here) · a lift that would not have fired refuses `NIKA-AUTH-011` · `declassify:` and `inert:` are dead spellings of the same door |
 
 ## The one way (take the default, and the checker goes quiet)
 
@@ -327,10 +326,15 @@ otherwise, in this order:
 A job too big for one file becomes a parent that calls children. The
 child is a normal workflow; the parent reaches it through the verb it
 already knows. **The form is `workflow:` INSIDE `invoke:`, a sibling of
-`tool:`, never a tool name.** This fragment is a task excerpt, not a
-whole file (it needs the envelope and a `permits:` block around it):
+`tool:`, never a tool name.** This is a complete parent. Check is green
+only when the child sits at that relative path — the next law:
 
 ```yaml
+nika: site-audit-parent
+inputs:
+  target:
+    type: string
+permits: {}
 tasks:
   audit:
     invoke:
@@ -472,23 +476,37 @@ a mandatory run-time re-gate; escaping that re-gate is SEC-004. The
 diagnostic talks about the capability boundary, so the reflex is to
 widen `permits:` — **that reflex is the trap, and it dead-ends.**
 
-**The door is `declassify:`** — a task-level key, the ONLY sanctioned
-lift (spec 10 · NEP-0004 law 5):
+**The door is `lift:`** — a task-level list, the ONLY sanctioned lift
+(spec 10 §the authored doors). One construct, two laws: `taint` and
+`data-as-code`; the law is a PARAMETER of the door, never a second
+spelling (`declassify:` and `inert:` were those spellings, and are dead).
+This is a complete nine-key file (checked on 0.109 · rc=0):
 
 ```yaml
+nika: load-reviewed-path
+inputs:
+  p:
+    type: string
+permits:
+  tools: ["nika:read"]
+  fs:
+    read: ["./reviewed"]
 tasks:
   load:
     invoke: { tool: nika:read, args: { path: "${{ inputs.p }}" } }
-    declassify:
-      - from: inputs.p          # ONE binding
-        to: trusted             # the one raise v1 knows
+    lift:
+      - law: taint              # the law this task opens
+        from: inputs.p          # ONE binding
         because: "deployment-controlled path, reviewed at release time"
 ```
 
-All three fields are required and `because:` must be non-empty — it is
+`law:` and `because:` are required on every entry, `from:` on `taint`
+only (forbidden on `data-as-code`); `because:` must be non-empty — it is
 recorded in the receipt with the taint path and the value digest. It
 lifts the TAINT law only: the value is still matched against the
-declared boundary, so this is never a permit bypass.
+declared boundary, so this is never a permit bypass. A lift that would
+not have fired is refused (`NIKA-AUTH-011`), so dead lifts cannot
+accumulate.
 
 **Why the staging recipe is the wrong first move.** Landing the value
 in a file with `nika:write` and passing the PATH as argv looks safe, and
@@ -496,7 +514,7 @@ it is — until the CLI has to READ that file back. That read adds
 `fs.read`, which completes the lethal trifecta, which makes a dominating
 human gate mandatory. Measured in a real session: the chain runs shim →
 `fs.read` → trifecta → mandatory gate → a gate that cannot be answered
-(see the run notes on `nika:prompt`). Reach for `declassify:` first.
+(see the run notes on `nika:prompt`). Reach for `lift:` first.
 Staging remains correct where the value genuinely must not touch a
 command line AND nothing reads the file back inside the same workflow.
 
@@ -566,11 +584,18 @@ the human at handoff, not to expect a green.
 Hand-writing JSON punctuation around an interpolation is the one way to
 get a green check, a green run, and an unreadable artifact. Both halves
 below were measured on 2026-07-28 with a value containing a quote and a
-newline. These are entries under `tasks:`, not whole files: they need
-the envelope, an `inputs:` declaration for `v`, and a `permits:` block
-granting `nika:jq` · `nika:write` · the write path.
+newline. This is a complete nine-key file (checked on 0.109 · rc=0):
 
 ```yaml
+nika: write-json-value
+inputs:
+  v:
+    type: string
+permits:
+  tools: ["nika:jq", "nika:write"]
+  fs:
+    write: ["./out/**"]
+tasks:
   # ✗ green everywhere, and the artifact does not parse.
   naive:
     with: { v: "${{ inputs.v }}" }

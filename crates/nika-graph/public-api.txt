@@ -119,4 +119,5 @@ impl<T> core::convert::From<T> for nika_graph::Node
 pub fn nika_graph::Node::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_graph::Node where T: 'static
 pub fn nika_graph::Node::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub const nika_graph::GRAPH_FORMAT: u32
 pub fn nika_graph::project(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport) -> nika_graph::GraphDoc

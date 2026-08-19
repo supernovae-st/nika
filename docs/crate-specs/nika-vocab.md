@@ -40,7 +40,7 @@ pub mod on_error;        // OnError + OnErrorAction (retry/recover/fail)
 pub mod output_decl;     // OutputDecl — untyped | typed outputs: entry
 pub mod permits;         // re-export of nika-cap (the original module path)
 pub mod retry;           // RetryConfig + BackoffStrategy + is_valid_error_code
-pub mod schema_version;  // SchemaVersion — the `nika: v1` marker
+pub mod schema_version;  // SchemaVersion — the `nika: v1` marker · stale-ok: dead value type · engine cleanup owed (ADR-113)
 pub mod secret;          // SecretSource + SecretRef + EgressRule (+ the refusal teachings)
 pub mod type_expr;       // the io-decl TypeExpr helpers — display · coerce · DEFAULT-001 teaching
 pub mod var_decl;        // VarDecl — the inputs:/config:/const: declaration forms

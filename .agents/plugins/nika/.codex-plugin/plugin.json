@@ -1,7 +1,7 @@
 {
   "name": "nika",
   "description": "Turn a task you repeat into a workflow you can understand, check and reuse — checked before anything runs, proven after. Requires the nika binary: brew install supernovae-st/tap/nika",
-  "version": "0.109.1",
+  "version": "0.109.2",
   "author": {
     "name": "SuperNovae Studio",
     "url": "https://supernovae.studio"
