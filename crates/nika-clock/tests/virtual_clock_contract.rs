@@ -6,7 +6,7 @@
 //! bound, pinned at the boundary where the runtime races a task's
 //! `timeout:` budget against `clock.sleep(budget)`.
 //!
-//! RED constat (2026-08-19, pre-fix): the same race asserted from the
+//! RED finding (2026-08-19, pre-fix): the same race asserted from the
 //! author's honest expectation — « a `timeout: 5m` budget lets in-flight
 //! work finish » — FAILED instantly (`finished in 0.00s`): under the
 //! virtual clock every deadline is already settled at dispatch. The fix
