@@ -816,6 +816,20 @@ fn digit_string_enum_is_hinted_words_are_silent() {
 }
 
 #[test]
+fn hash_of_an_object_task_output_does_not_hint_tojson() {
+    // Runtime hashes a non-string `content:` as compact JSON. Check must
+    // not push authors toward `| tojson` on an object-shaped binding.
+    let h = hints_of(
+        "nika: w\npermits: { tools: [\"nika:jq\", \"nika:hash\"] }\ntasks:\n  roster:\n    invoke: { tool: nika:jq, args: { input: [{stem: ada}], expression: \".\" } }\n  fp:\n    with: { roster: \"${{ tasks.roster.output }}\" }\n    invoke: { tool: nika:hash, args: { content: \"${{ with.roster }}\" } }\n",
+    );
+    assert!(
+        !h.iter()
+            .any(|x| x.advice.contains("tojson") || x.advice.contains("to_json")),
+        "object-shaped hash content must not be hinted to | tojson: {h:?}"
+    );
+}
+
+#[test]
 fn inspect_invoke_is_hinted_as_unwired() {
     let h = hints_of(
         "nika: w\npermits: { tools: [\"nika:inspect\"] }\ntasks:\n  look:\n    invoke: { tool: \"nika:inspect\", args: { view: cost } }\n",

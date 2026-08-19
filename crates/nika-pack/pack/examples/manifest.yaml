@@ -69,7 +69,7 @@ showcase:
   - file: examples/config-drift-sentinel.nika.yaml
     name: config-drift-sentinel
     constructs: [local_model, on_error, outputs, retry, secrets, typed_inputs, when, with]
-    sha256_16: d2fb87f81941bd90
+    sha256_16: a96790d56290cc71
   - file: examples/contract-guard.nika.yaml
     name: contract-guard
     constructs: [local_model, outputs, schema, typed_inputs, with]
