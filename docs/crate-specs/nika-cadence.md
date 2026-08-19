@@ -172,6 +172,31 @@ verification (②'s, refused by name in round 1).
   la duplication « re-parse + None-impossible » sera prouvée ou
   imaginaire à ce moment-là, pas avant.
 
+### W5 — `nika serve` : les trois questions du brouillon, tranchées (2026-08-19)
+
+Le tireur résident (`crates/nika-cli/src/verbs/serve.rs`) a clos les trois
+questions que le brouillon laissait ouvertes — les réponses vivent ici,
+pas dans le code :
+
+- **`max_retries` au niveau job → NON.** Un beat repart de zéro (N2) :
+  chaque tir est un run NEUF, un run en pause (exit 4) est PARQUÉ avec sa
+  trace, jamais repris. L'ordonnanceur n'a donc rien à quoi un retry
+  s'accrocherait — le retry vit DANS le workflow (`retry:` sur la tâche,
+  plein-jitter et tout), jamais dans le beat.
+- **l'enum d'état de job → c'est `history.ndjson`.** L'état n'est pas un
+  type à inventer : c'est le journal append-only du sidecar
+  (`.nika/arm/<label>/`), dont le vocabulaire `kind` est déjà fermé —
+  `fired` · `skipped` · `paused` · `failed` · `disarmed` (le dernier est
+  history-only : il ne porte pas de slot, donc `record` ne l'écrit jamais
+  dans `last.json`, et `last` le relit comme illisible — la direction
+  sûre).
+- **`serve_tokens` (qui déclenche à distance) → hors v0.** Aucun port,
+  aucune entrée : Gate 1 (diamond-discipline §5, résolu 2026-08-19) —
+  `serve` ne lit QUE `nika.yaml` et son sidecar, jamais le réseau, et le
+  test `serve_has_no_input_but_the_registry_and_its_state` le pinne. Le
+  déclenchement à distance est le problème du cloud (`où: cloud`) : le
+  cloud le portera, pas le résident.
+
 ---
 
 ## 6. Gate status (measured 2026-08-13, not declared)
