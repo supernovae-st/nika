@@ -47,9 +47,7 @@ fixed and unfixed builds give different answers. For the fs-permit lane the
 probe is three lines and takes ten seconds:
 
 ```yaml
-nika: v1
-workflow:
-  id: oracle-cal
+nika: oracle-cal
 permits:
   tools: ["nika:read"]
   fs:

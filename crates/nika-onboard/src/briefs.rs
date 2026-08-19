@@ -476,6 +476,35 @@ mod tests {
             "`workflow:` OBJECT",
             "the envelope `workflow:` key died 2026-08-12 — say `nika: <id>`",
         ),
+        // The 0.109 freeze cohort the kit SHIPPED teaching. The authoring
+        // skill printed a `declassify:` fence with `to: trusted` and listed
+        // `fail_workflow:` among the live `on_error:` actions in the very
+        // release whose engine refuses all three (NIKA-PARSE-005 · merged
+        // into `lift:` 2026-08-11) — and this denylist held none of them,
+        // so it printed green over a fence a user could not run. These
+        // are spelled as USAGE (the key at end of line · the string form ·
+        // the boolean) so a language surface may still NAME the dead
+        // spelling in backticks to inoculate an old prior.
+        (
+            "to: trusted",
+            "`declassify:` died 2026-08-11 — the door is `lift: [{law: taint, from: <binding>, because: \"…\"}]`",
+        ),
+        (
+            "declassify:\n",
+            "`declassify:` died 2026-08-11 — the door is `lift:` (law: taint · one construct, two laws)",
+        ),
+        (
+            "inert: \"",
+            "`inert:` died 2026-08-11 — the door is `lift: [{law: data-as-code, because: \"…\"}]`",
+        ),
+        (
+            "fail_workflow: true",
+            "`on_error.fail_workflow` died 2026-08-11 — the default IS failure; `on_error:` is `recover:` or `skip:`",
+        ),
+        (
+            "on_finally:\n",
+            "`on_finally:` died 2026-08-12 — cleanup is an ordinary task under `after: { parent: unwind }`",
+        ),
     ];
     // NAMING a retired form is not TEACHING it: a port table whose
     // left column is « dead form » has to spell the dead form, and a
@@ -492,6 +521,16 @@ mod tests {
         ("`depends_on`", "dead edge form — `with:` / `after:`"),
         (": succeeded", "NIKA-DAG-005 · the predicate is `success`"),
         (": failed", "NIKA-DAG-005 · the predicate is `failure`"),
+        ("`declassify:`", "dead door — `lift:` (law: taint)"),
+        ("`inert:`", "dead door — `lift:` (law: data-as-code)"),
+        (
+            "`fail_workflow:`",
+            "dead `on_error:` action — omit `on_error:` for the default",
+        ),
+        (
+            "`on_finally:`",
+            "dead hook — a task under `after: { parent: unwind }`",
+        ),
     ];
     const MAY_NAME_THE_RETIRED: &[&str] = &[
         "skills/nika-migration/SKILL.md",
@@ -616,6 +655,17 @@ mod tests {
             assert!(
                 body.contains("permits: {}"),
                 "{name} must teach the legal zero for a pure-compute body"
+            );
+        }
+        // The one authored door must be PRESENT under its live name. The
+        // 0.109.0 kit taught the door as `declassify:` + `to: trusted`
+        // (dead since 2026-08-11) — the denylist above now refuses that
+        // spelling, and this keeps the replacement from vanishing with it:
+        // an author blocked by NIKA-SEC-004 must find `lift:` here.
+        for needle in ["lift:", "law: taint", "law: data-as-code"] {
+            assert!(
+                AGENT_SKILL.contains(needle),
+                "the authoring skill must teach the `{needle}` door"
             );
         }
     }

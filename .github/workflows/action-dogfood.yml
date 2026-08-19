@@ -28,11 +28,8 @@ jobs:
         run: |
           mkdir -p wf
           cat > wf/smoke.nika.yaml <<'YAML'
-          nika: v1
-
-          workflow:
-            id: action-dogfood
-            description: A zero-cost mock run proving the action end-to-end.
+          # A zero-cost mock run proving the action end-to-end.
+          nika: action-dogfood
 
           tasks:
             greet:

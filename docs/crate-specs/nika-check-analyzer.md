@@ -43,7 +43,7 @@ never name this crate; its `public-api.txt` is the split's receipt.
 ## 3. Discipline
 
 - **No verdict of policy here.** Permits fit, capability escape,
-  secret-leak IFC, consent, declassify, the trifecta and the
+  secret-leak IFC, consent, the authored `lift:` doors, the trifecta and the
   `RunCertificate` stay in `nika-check`. This member derives the SHAPE a
   workflow has; it never rules on the authority it takes.
 - The one authority-adjacent read is `jq_lint`'s

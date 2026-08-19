@@ -76,7 +76,7 @@ impl DeadForm {
 pub fn foreign_namespace_teaching(root: &str) -> String {
     format!(
         "${{{{ {root}.X }}}} reads `{root}`, a value namespace outside the \
-         four-authority family (R3a · LAW-SURFACE-0201) · the authorities are \
+         three-authority family (R3a · LAW-SURFACE-0201) · the authorities are \
          exactly inputs · const · secrets"
     )
 }
@@ -111,7 +111,7 @@ mod tests {
     fn foreign_teaching_names_the_root_and_the_closed_family() {
         let f = foreign_namespace_teaching("params");
         assert!(f.contains("${{ params.X }}"), "{f}");
-        assert!(f.contains("outside the four-authority family"), "{f}");
+        assert!(f.contains("outside the three-authority family"), "{f}");
         assert!(f.contains("inputs · const · secrets"), "{f}");
     }
 }

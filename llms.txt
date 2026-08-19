@@ -1,6 +1,6 @@
 # Nika
 
-> Nika is the sovereign workflow engine for AI — 4 verbs (`infer · exec · invoke · agent`), AGPL-3.0-or-later, local-first, multi-provider. Workflows are `.nika.yaml` files carrying the `nika: v1` schema envelope forever. This repository is the "Diamond" rebuild: a layered Rust workspace (L0 primitives → L5 binary) where every crate passes a 12-gate admission protocol. This file is the agent on-ramp — read these in order, then dive into the specific layer you need.
+> Nika is the sovereign workflow engine for AI — 4 verbs (`infer · exec · invoke · agent`), AGPL-3.0-or-later, local-first, multi-provider. Workflows are `.nika.yaml` files carrying the nine-key envelope forever (`nika: <kebab-id>` opens every file · model · inputs · const · secrets · permits · run · tasks · outputs). This repository is the "Diamond" rebuild: a layered Rust workspace (L0 primitives → L5 binary) where every crate passes a 12-gate admission protocol. This file is the agent on-ramp — read these in order, then dive into the specific layer you need.
 
 ## Start here
 
