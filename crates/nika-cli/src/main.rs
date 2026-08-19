@@ -1160,7 +1160,7 @@ mod tests {
     }
     /// THE LAW (RAMS-13 · census over 19 personas: 12 of 23 verbs
     /// reached by <=1 user, yet all 23 hit 11 first-timers in the
-    /// face): the default help shows AT MOST the 12 craft verbs; the
+    /// face): the default help shows AT MOST the 13 craft verbs; the
     /// full tree stays one flag away (`--help --all`) and NOTHING is
     /// removed — visible + hidden is the whole enum, invariant. Ranged,
     /// never deleted: `key`/`sign`/`mcp`/`lsp` serve — just not on day
@@ -1178,12 +1178,12 @@ mod tests {
             .map(clap::Command::get_name)
             .collect();
         assert!(
-            visible.len() <= 12,
+            visible.len() <= 13,
             "the first screen is the craft, not a manifesto: {visible:?}"
         );
         for craft in [
-            "try", "new", "init", "check", "run", "test", "trace", "welcome", "doctor", "model",
-            "wire", "explain",
+            "try", "new", "init", "list", "check", "run", "test", "trace", "welcome", "doctor",
+            "model", "wire", "explain",
         ] {
             assert!(
                 visible.contains(&craft),
