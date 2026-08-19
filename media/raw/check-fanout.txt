@@ -1,15 +1,27 @@
-nika check · t3-pr-review-fanout.nika.yaml
- ✔ PLAN     6 wave(s) · 7 task(s) · max parallelism 2
- ⚠  COST     $0.0000 – $0.0000 FLOOR (unbounded tasks present)
-   reviews  anthropic/claude-sonnet-4-6  UNBOUNDED — for_each over an expression (unknown count)
-   summary  anthropic/claude-sonnet-4-6  UNBOUNDED — no max_tokens declared
- ✔ SECRETS  no information-flow escapes
- ✔ TYPES    every deep output reference fits its declared shape
- ✔ TOOLS    every nika: tool names a canonical builtin
- ✔ ARGS     every invoke arg key is declared + every required arg is present
- ✔ SCHEMA   every authored schema: is satisfiable
- ○ PERMITS  no boundary declared (engine floor only) · `--infer-permits` writes one
- ↳ HINT     [strictness] `reviews`'s schema admits undeclared keys — add `additionalProperties: false` to its object nodes for a deterministic output shape across providers
- ↳ HINT     [cost] declare `max_tokens` on `summary` — the cost report becomes a hard ceiling instead of UNBOUNDED
- ↳ HINT     [permits] no `permits:` boundary declared — run `nika check --infer-permits` to generate the tightest one (default-deny once present)
- ✔ clean — audited before a single token was spent
+nika check · pr-review-fanout.nika.yaml
+ ✔ PLAN     7 waves · 8 tasks · max parallelism 2
+      wave 1 approve (invoke · nika:prompt)
+      wave 2 changed (exec · git) · todo_sweep (invoke · nika:grep)
+      wave 3 files (invoke · nika:jq)
+      wave 4 reviews (agent · ollama/qwen3.5:4b)
+      wave 5 merged (invoke · nika:jq)
+      wave 6 summary (infer · ollama/qwen3.5:4b)
+      wave 7 save (invoke · nika:write)
+ ✔ MODELS   1 model resolves in this binary · local servers not probed (nika doctor --ping)
+ ⚠  COST     bounded portion $0.0000 no total ceiling · 1 uncapped task · 1 unpriced task · prompts, exec + mcp unpriced · prices 2026-07-28
+   reviews  ollama/qwen3.5:4b  UNBOUNDED — for_each over an expression (unknown count)
+   summary  ollama/qwen3.5:4b  UNBOUNDED — no catalog price (local/unknown model)
+ ⚠  ENERGY   no total energy ceiling · 0 of 2 tasks measured · 1 unpriced · 1 uncapped · never 0 Wh (NEP-0018)
+ ✔ SECRETS  no declared secret reaches an effect · model echo untracked
+ ✔ TYPES    deep references fit the shapes tasks declare · builtin output has none
+ ✔ TOOLS    every named nika: tool is canonical · globs + mcp: not checked
+ ✔ ARGS     every builtin invoke arg key is declared + required args present
+ ✔ SCHEMA   no known-unsatisfiable form in an authored schema: · $ref opaque
+ ✔ GATES    no task proven dead · status literals in vocabulary
+ ✔ WRITES   no two unordered tasks write the same static path · computed paths at run
+ ✔ EXEC     no literal argv the exec floor refuses at run · a templated argv is the RUN's verdict
+ ✔ PERMITS  literal + const: args fit the boundary · computed paths + symlinks are the RUN's verdict · exec outside the fs bounds
+ ✔ TRIFECTA no lethal trifecta over the declared permits: without a human gate
+ ✔ JOURNEY internal · 1 source · 2 destinations · 8 model endpoints · no secret reaches a cloud destination
+ ↳ HINT     [headless-prompt] `nika:prompt` on `approve` declares no `default:` — unattended (CI, or an agent handing it over) the run pauses at this gate awaiting a human (exit 4 · the resume line taught on the frame); at a terminal it asks directly. Answer it in one pass with `nika run <file> --answer approve=<value>`, or declare the `default:` the unattended path should take
+ ⚠ audited · 8 tasks · 7 waves · permits declared · est unbounded · 1 uncapped task · 1 unpriced task · 1 hint · risk unbounded — declare max_tokens/ceilings, or cap it on the run: `nika run <file> --max-cost-usd <usd>`

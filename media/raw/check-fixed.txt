@@ -1,11 +1,22 @@
 nika check · fixed-pr-review.nika.yaml
- ✔ PLAN     3 wave(s) · 3 task(s) · max parallelism 1
- ⚠  COST     $0.0000 – $0.0000 FLOOR (unbounded tasks present)
+ ✔ PLAN     3 waves · 3 tasks · max parallelism 1
+      wave 1 diff (exec · git)
+      wave 2 assess (infer · ollama/llama3.1)
+      wave 3 comment (invoke · nika:write)
+ ✔ MODELS   1 model resolves in this binary · local servers not probed (nika doctor --ping)
+ ⚠  COST     bounded portion $0.0000 no total ceiling · 1 unpriced task · prompts, exec + mcp unpriced · prices 2026-07-28
    assess  ollama/llama3.1  UNBOUNDED — no catalog price (local/unknown model)
- ✔ SECRETS  no information-flow escapes
- ✔ TYPES    every deep output reference fits its declared shape
- ✔ TOOLS    every nika: tool names a canonical builtin
- ✔ ARGS     every invoke arg key is declared + every required arg is present
- ✔ SCHEMA   every authored schema: is satisfiable
- ✔ PERMITS  body fits the declared boundary
- ✔ clean — audited before a single token was spent
+ ○ ENERGY   unpriced — no sourced Wh figure for any task model · a local model draws your watts · never 0 Wh (NEP-0018)
+ ✔ SECRETS  no declared secret reaches an effect · model echo untracked
+ ✔ TYPES    deep references fit the shapes tasks declare · 1 ref into unshaped task outputs are unverifiable — the run judges them (tasks.diff.output.stdout)
+ ✔ TOOLS    every named nika: tool is canonical · globs + mcp: not checked
+ ✔ ARGS     every builtin invoke arg key is declared + required args present
+ ✔ SCHEMA   no known-unsatisfiable form in an authored schema: · $ref opaque
+ ✔ GATES    no task proven dead · status literals in vocabulary
+ ✔ WRITES   no two unordered tasks write the same static path · computed paths at run
+ ✔ EXEC     no literal argv the exec floor refuses at run · a templated argv is the RUN's verdict
+ ✔ PERMITS  literal + const: args fit the boundary · computed paths + symlinks are the RUN's verdict · exec outside the fs bounds
+ ✔ TRIFECTA no lethal trifecta over the declared permits: without a human gate
+ ✔ JOURNEY internal · 0 sources · 2 destinations · 3 model endpoints · no secret reaches a cloud destination
+ ↳ HINT     [swallowed-exit] `capture: structured` on `diff` makes a non-zero exit DATA, not a failure — the task reports success whatever the command returns, and nothing in this workflow reads `exit_code`. A command that fails here is invisible until something downstream chokes on its empty output. Read the branch (`${{ tasks.diff.output.exit_code }}`, or a `nika:assert` on it), or use a text capture mode so a non-zero exit fails the task as NIKA-EXEC-001
+ ⚠ audited · 3 tasks · 3 waves · permits declared · est unbounded · 1 unpriced task · 1 hint · risk unbounded — no dollar meter for a local/unknown model · cap a cloud seat on the run: `nika run <file> --max-cost-usd <usd>`

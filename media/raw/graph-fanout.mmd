@@ -1,14 +1,23 @@
 graph TD
-  changed["changed · exec"]
-  todo_sweep["todo_sweep · invoke · nika:grep"]
-  files["files · invoke · nika:jq"]
-  reviews["reviews · agent · anthropic/claude-sonnet-4-6"]
-  merged["merged · invoke · nika:jq"]
-  summary["summary · infer · anthropic/claude-sonnet-4-6"]
-  save["save · invoke · nika:write"]
+  approve["approve · invoke · nika:prompt"]:::invoke
+  changed["changed · exec"]:::exec
+  todo_sweep["todo_sweep · invoke · nika:grep"]:::invoke
+  files["files · invoke · nika:jq"]:::invoke
+  reviews["reviews · agent · ollama/qwen3.5:4b"]:::agent
+  merged["merged · invoke · nika:jq"]:::invoke
+  summary["summary · infer · ollama/qwen3.5:4b"]:::infer
+  save["save · invoke · nika:write"]:::invoke
+  approve --> changed
+  approve --> changed
+  approve --> todo_sweep
+  approve --> todo_sweep
   changed --> files
   files --> reviews
   merged --> summary
   reviews --> merged
   summary --> save
   todo_sweep --> summary
+  classDef infer fill:#5b8cff22,stroke:#5b8cff,color:#5b8cff
+  classDef exec fill:#ff7a3c22,stroke:#ff7a3c,color:#ff7a3c
+  classDef invoke fill:#22d3ee22,stroke:#22d3ee,color:#22d3ee
+  classDef agent fill:#b07bff22,stroke:#b07bff,color:#b07bff

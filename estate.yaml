@@ -183,7 +183,7 @@ patterns:
 - glob: "scripts/**"
   class: authored
   match_count: 154
-  aggregate_sha256: 7002c0bb4c199fc0094aaf2e957506aa9e4c19f947678bd4e64a929c4cee9726
+  aggregate_sha256: 7d1be1fc48bedc0af16ac2f227dfdafcc9b469979dcb8daceabcfc15eb11f8eb
   evidence: "hand-written gates · hooks · hygiene vectors · media lanes; the ratchet baselines (scripts/ci/*-baseline.txt · scripts/hygiene/baselines/) are hand-kept monotonic floors ('Never remove a line by hand')"
 - glob: ".github/workflows/**"
   class: authored
@@ -218,7 +218,7 @@ patterns:
 - glob: "media/**"
   class: generated
   match_count: 51
-  aggregate_sha256: dbba23dce260ebb805ff11a6415caea474060c1f5a8640eeb5a232abdac45cb8
+  aggregate_sha256: 53892036978a25b5c40b9375879821940ccc4269be7e656a320508658e16634c
   evidence: "media/README.md: 'Never edit exports by hand. Edit the motion scene or fixture, then re-render' — gifs/posters/videos/social render from scripts/media/motion/ scenes + tapes; raw/ transcripts are captured from the real binary"
   derivation:
     tool: "scripts/media/render-motion.mjs + render-tape.sh + capture-transcripts.sh (scenes: scripts/media/motion/ · fixtures: scripts/media/fixtures/ · tapes: scripts/media/tapes/)"

@@ -1,12 +1,21 @@
 nika check · meeting-actions.nika.yaml
- ✔ PLAN     3 wave(s) · 3 task(s) · max parallelism 1
- ⚠  COST     $0.0000 – $0.0000 FLOOR (unbounded tasks present)
-   extract  mock/echo  UNBOUNDED — no catalog price (local/unknown model)
- ✔ SECRETS  no information-flow escapes
- ✔ TYPES    every deep output reference fits its declared shape
- ✔ TOOLS    every nika: tool names a canonical builtin
- ✔ ARGS     every invoke arg key is declared + every required arg is present
- ✔ SCHEMA   every authored schema: is satisfiable
- ○ PERMITS  no boundary declared (engine floor only) · `--infer-permits` writes one
- ↳ HINT     [permits] no `permits:` boundary declared — run `nika check --infer-permits` to generate the tightest one (default-deny once present)
- ✔ clean — audited before a single token was spent
+ ✔ PLAN     3 waves · 3 tasks · max parallelism 1
+      wave 1 transcript (invoke · nika:read)
+      wave 2 extract (infer · mock/echo)
+      wave 3 save (invoke · nika:write)
+ ✔ MODELS   1 model resolves in this binary
+ ✔ COST     $0.0000 – $0.0000 worst-case output ceiling · prompts, exec + mcp unpriced · prices 2026-07-28
+   extract  mock/echo  ≤600 tk  $0.0000
+ ○ ENERGY   unpriced — no sourced Wh figure for any task model · never 0 Wh (NEP-0018)
+ ✔ SECRETS  no declared secret reaches an effect · model echo untracked
+ ✔ TYPES    deep references fit the shapes tasks declare · builtin output has none
+ ✔ TOOLS    every named nika: tool is canonical · globs + mcp: not checked
+ ✔ ARGS     every builtin invoke arg key is declared + required args present
+ ✔ SCHEMA   no known-unsatisfiable form in an authored schema: · $ref opaque
+ ✔ GATES    no task proven dead · status literals in vocabulary
+ ✔ WRITES   no two unordered tasks write the same static path · computed paths at run
+ ✔ EXEC     no literal argv the exec floor refuses at run · a templated argv is the RUN's verdict
+ ✔ PERMITS  literal + const: args fit the boundary · computed paths + symlinks are the RUN's verdict
+ ✔ TRIFECTA no lethal trifecta over the declared permits: without a human gate
+ ✔ JOURNEY internal · 1 source · 1 destination · 3 model endpoints · no secret reaches a cloud destination
+ ⚠ audited · 3 tasks · 3 waves · permits declared · est out ≤$0.0000 · 0 hints · risk unbounded — no dollar meter for a local/unknown model · cap a cloud seat on the run: `nika run <file> --max-cost-usd <usd>`
