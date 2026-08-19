@@ -890,3 +890,24 @@ fn assert_after_a_write_names_the_quarantine() {
     assert_eq!(hit.task, "gate");
     assert!(hit.advice.contains("quarantine"), "{}", hit.advice);
 }
+
+#[test]
+fn infer_that_assigns_a_belt_is_the_law_hint() {
+    let h = hints_of(
+        "nika: w\nmodel: mock/echo\ntasks:\n  judge:\n    infer:\n      prompt: |\n        Read the note and assign a belt.\n      max_tokens: 64\noutputs:\n  r: ${{ tasks.judge.output }}\n",
+    );
+    let hit = h
+        .iter()
+        .find(|x| x.kind == "infer-as-law")
+        .expect("infer-as-law");
+    assert_eq!(hit.task, "judge");
+    assert!(hit.advice.contains("13-extract-then-law"), "{}", hit.advice);
+
+    let extract = hints_of(
+        "nika: w\nmodel: mock/echo\ntasks:\n  facts:\n    infer:\n      prompt: |\n        Extract facts only. Never assign a belt.\n      max_tokens: 64\noutputs:\n  r: ${{ tasks.facts.output }}\n",
+    );
+    assert!(
+        !extract.iter().any(|x| x.kind == "infer-as-law"),
+        "a never-assign extract stays silent: {extract:?}"
+    );
+}

@@ -408,6 +408,7 @@ them with tokens. The shape is [`13-extract-then-law`](13-extract-then-law.nika.
 2. **The model never writes the verdict.** Extract facts (`infer.schema:`),
    then `nika:jq` (or `nika:decide`) is the law. A second infer to "pick
    the level" is the expensive mistake this lesson exists to unlearn.
+   Hint `infer-as-law`.
 3. **Probe a new builtin with `mock/echo` first.** `nika:inspect` is
    catalogued and unwired (`available: false`). Hint `inspect-unwired`.
 4. **`nika:hash` accepts an object.** Do not pre-`tojson` a roster.

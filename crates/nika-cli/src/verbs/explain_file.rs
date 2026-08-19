@@ -715,14 +715,14 @@ fn risks_section(s: &mut String, path: &str, report: &CheckReport) {
         return;
     }
     let _ = writeln!(s, "\nworth knowing");
-    for h in report.hints.iter().take(3) {
+    for h in report.hints.iter().take(8) {
         let _ = writeln!(s, "  [{}] {}", h.kind, h.advice);
     }
-    if report.hints.len() > 3 {
+    if report.hints.len() > 8 {
         let _ = writeln!(
             s,
             "  … +{} → nika check {path}",
-            crate::text::count(report.hints.len() - 3, "more hint")
+            crate::text::count(report.hints.len() - 8, "more hint")
         );
     }
     if let Some(a) = report.analysis.as_ref()

@@ -95,6 +95,10 @@
 //!   `($c | map(...))`.
 //! - **assert after a write** (`assert-quarantine`) — a red
 //!   `nika:assert` quarantines `out/` to `.nika/quarantine/<trace>/`.
+//! - **the model names the verdict** (`infer-as-law`) — an `infer:`
+//!   prompt asks the model to assign a belt / pick a level / score
+//!   the grade. Extract integer facts; `nika:jq` (or `nika:decide`)
+//!   is the law. A "never assign a belt" extract stays silent.
 
 use std::collections::BTreeSet;
 
@@ -115,7 +119,7 @@ pub struct Hint {
     /// `exec-json-capture` ·
     /// `unwrapped-ref` · `envelope-output` · `policy-soft` · `run-clock`
     /// · `analysis` · `consent` · `digit-string-enum` · `inspect-unwired`
-    /// · `glob-readme` · `assert-quarantine` · `jq-as-map`
+    /// · `glob-readme` · `assert-quarantine` · `jq-as-map` · `infer-as-law`
     /// (additive · agents route on it; the module doc describes each).
     /// `parallel-writers` is RETIRED (F-P15 · promoted to the
     /// NIKA-SEC-012 finding — an error owns its repair, never a hint).
@@ -163,6 +167,7 @@ pub(super) fn scan_hints(wf: &RawWorkflow) -> Vec<Hint> {
                     &envelope_ids,
                     &deep_referenced,
                 );
+                push_infer_as_law_hint(&mut hints, id, a);
             }
             RawAction::Agent(a) => {
                 if a.max_tokens_total.is_none() {
@@ -1061,6 +1066,57 @@ fn push_assert_quarantine_hint(hints: &mut Vec<Hint>, wf: &RawWorkflow) {
             ),
         ));
     }
+}
+
+/// An `infer:` that asks the model to name the verdict (belt · level ·
+/// score). The cheaper one-way is facts-then-law (`13-extract-then-law`).
+/// A prompt that *forbids* the assignment (`never assign a belt`) is
+/// the extract shape and stays silent.
+fn push_infer_as_law_hint(hints: &mut Vec<Hint>, id: &str, a: &nika_schema::raw::RawInferAction) {
+    let prompt = a.prompt.value.as_str();
+    let system = a.system.as_ref().map_or("", |s| s.value.as_str());
+    if !asks_model_to_name_the_law(prompt) && !asks_model_to_name_the_law(system) {
+        return;
+    }
+    hints.push(hint(
+        "infer-as-law",
+        id,
+        format!(
+            "`{id}` asks the model to name a belt/level/score — that is the law, \
+             not a fact. Extract integer facts (`type: integer` + numeric enum), \
+             then `nika:jq` or `nika:decide`. Shape: `nika try 13-extract-then-law`"
+        ),
+    ));
+}
+
+const LAW_PHRASES: &[&str] = &[
+    "assign the belt",
+    "assign a belt",
+    "assign its belt",
+    "pick the level",
+    "pick a level",
+    "choose the level",
+    "name the belt",
+    "name the level",
+    "score the level",
+    "which belt",
+    "which level",
+    "give it a belt",
+    "give it a level",
+];
+
+fn asks_model_to_name_the_law(text: &str) -> bool {
+    let p = text.to_ascii_lowercase();
+    LAW_PHRASES.iter().any(|ph| {
+        let Some(i) = p.find(ph) else {
+            return false;
+        };
+        let clause = p[..i].rsplit(['.', '\n', ';']).next().unwrap_or(&p[..i]);
+        !clause.contains("never")
+            && !clause.contains("do not")
+            && !clause.contains("don't")
+            && !clause.contains("not ")
+    })
 }
 
 fn hint(kind: &'static str, task: &str, advice: String) -> Hint {

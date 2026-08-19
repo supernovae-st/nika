@@ -194,7 +194,8 @@ The cheapest authoring order, measured on a 40+ task paid extract run:
    facts — never `enum: ["0","1","3"]`) before adding retry, `anyOf`,
    or more infer.
 4. **The model extracts facts. `nika:jq` (or `nika:decide`) is the law.**
-   Do not pay a second infer to pick a level. The shape is
+   Do not pay a second infer to pick a level. Hint `infer-as-law`.
+   The shape is
    [`13-extract-then-law`](./examples/13-extract-then-law.nika.yaml).
 5. **Pin the glob** (`exclude: "**/README.md"`) before a fan-out infer
    classifies the table of contents.

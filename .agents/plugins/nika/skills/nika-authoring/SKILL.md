@@ -297,6 +297,43 @@ replays every item. After `. as $c` in jq, write `($c | map(...))`
 (hint `jq-as-map`). A red last `nika:assert` quarantines `out/`
 (`.nika/quarantine/<trace>/` — hint `assert-quarantine`).
 
+## After valid: is there a better one-way? (not optional)
+
+`nika check --native-strict` green means the file is *legal*. It does
+not mean it is the cheapest, most native, or most honest file. The
+next handoff to a human is refused until this loop is silent. Each
+question has a command or a file. Do not reason from memory.
+
+Zhang, Kraska, Khattab 2026 (arXiv:2512.24601, Recursive Language
+Models): the prompt is an *environment* you inspect and decompose,
+not a blob you swallow. In Nika that environment is the file + two
+examples + `nika catalog --tools`. Recursion is `invoke: { workflow: }`
+or `for_each:` over items — never one giant infer. Verification is
+`nika:jq` / `nika:decide`, never a second infer that names the verdict.
+
+1. **Did I read two examples first?** `nika try` then `nika new <slug>`
+   twice. Skipping this is the measured 7.5-round tax.
+2. **Is every `exec:` a real tool?** `nika check --native-strict`. A
+   `.py`/`.sh` wrapper is not a tool.
+3. **Does any infer name the verdict?** Hint `infer-as-law`. Extract
+   integer facts; `nika:jq` or `nika:decide` is the law
+   (`13-extract-then-law`).
+4. **Is every numeric enum `type: integer`?** Hint `digit-string-enum`.
+5. **Does a markdown glob include README?** Hint `glob-readme`.
+6. **Did I probe every new builtin on `mock/echo`?** One-task file,
+   then wire it. `nika:inspect` is unwired (hint `inspect-unwired`).
+7. **Would a closer template have given this graph?** `nika new "?"`
+   and `nika new "the job in plain words"`. If a skeleton is closer
+   than what I wrote, start over from it.
+8. **Did `nika explain <file>` stay honest?** Waves · cost (FLOOR ≠ $0)
+   · touches · the hints panel. If a hint remains, the file is not
+   done.
+
+A green check with a leftover hint is not a handoff. Repair the hint.
+Re-run 1–8 until both the findings and the hints are empty, or every
+remaining hint has a one-line reason in the file header (the honest
+red class, CONVENTIONS §10).
+
 ## Cost honesty (never hide unknown spend)
 
 - `nika check` prints the cost ceiling BEFORE any token: `≤ $X` is a
