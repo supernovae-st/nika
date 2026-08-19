@@ -428,10 +428,11 @@ mod unit {
     }
 
     /// The fan-out collection participates in the input hash (a changed
-    /// item set re-runs); deep `item.` navigation under the placeholder
-    /// is not resume-eligible (fail-closed, never a wrong skip).
+    /// item set re-runs). Deep `item.field` navigation is eligible: the
+    /// stand-in is shaped from the collection so the render cannot miss,
+    /// and the real values ride in `items` (never a wrong skip).
     #[test]
-    fn fan_out_collection_participates_and_deep_item_nav_is_ineligible() {
+    fn fan_out_collection_participates_and_deep_item_nav_is_eligible() {
         const SHALLOW: &str = "nika: t\nconst:\n  urls: [\"a\", \"b\"]\ntasks:\n  fan:\n    for_each: { items: \"${{ const.urls }}\" }\n    exec: { command: [\"echo\", \"${{ item }}\"] }\n";
         const DEEP: &str = "nika: t\nconst:\n  rows: [{ url: \"a\" }]\ntasks:\n  fan:\n    for_each: { items: \"${{ const.rows }}\" }\n    exec: { command: [\"echo\", \"${{ item.url }}\"] }\n";
         let records = BTreeMap::new();
@@ -441,10 +442,19 @@ mod unit {
         let b = stamp_const_of(SHALLOW, &records, &ac).expect("shallow item is eligible");
         assert_ne!(a.input_hash, b.input_hash, "the item set is an input");
 
-        let rows = BTreeMap::from([("rows".to_owned(), json!([{ "url": "a" }]))]);
-        assert!(
-            stamp_const_of(DEEP, &records, &rows).is_none(),
-            "deep item navigation cannot key deterministically → never skips"
+        let rows_a = BTreeMap::from([("rows".to_owned(), json!([{ "url": "a" }]))]);
+        let rows_b = BTreeMap::from([("rows".to_owned(), json!([{ "url": "b" }]))]);
+        let deep_a = stamp_const_of(DEEP, &records, &rows_a).expect("item.field is eligible");
+        let deep_a2 = stamp_const_of(DEEP, &records, &rows_a).expect("stable");
+        let deep_b = stamp_const_of(DEEP, &records, &rows_b).expect("item.field is eligible");
+        assert_eq!(deep_a, deep_a2, "same collection → same stamp");
+        assert_eq!(
+            deep_a.def_hash, deep_b.def_hash,
+            "the task text is unchanged"
+        );
+        assert_ne!(
+            deep_a.input_hash, deep_b.input_hash,
+            "a changed item field re-keys the fan"
         );
     }
 
@@ -870,6 +880,63 @@ mod trace_carry {
             rerun.cache_hits.is_empty(),
             "hash mismatch → re-run, never skip"
         );
+    }
+
+    /// A `for_each` body that navigates `item.field` stamps and
+    /// cache-hits on `--resume` — the paid-replay class (a prompt of
+    /// `${{ item.stem }}` used to drop the key, so a later `--from`
+    /// downstream re-ran every infer). The collection is the identity.
+    #[tokio::test]
+    async fn for_each_item_field_resume_cache_hits() {
+        const FAN: &str = "nika: fan\nconst:\n  rows:\n    - { url: a }\n    - { url: b }\npermits: { exec: [\"echo\"] }\ntasks:\n  fan:\n    for_each: { items: \"${{ const.rows }}\" }\n    exec: { command: [\"echo\", \"${{ item.url }}\"] }\n  after:\n    with: { prev: \"${{ tasks.fan.output }}\" }\n    exec: { command: [\"echo\", \"done\"] }\n";
+        let (first, sink) = run_yaml(
+            FAN,
+            MockShell::new()
+                .enqueue_ok("a\n")
+                .enqueue_ok("b\n")
+                .enqueue_ok("done\n"),
+            None,
+        )
+        .await;
+        assert!(first.ok, "fresh fan run");
+        assert!(first.cache_hits.is_empty());
+        let completed = sink
+            .events()
+            .iter()
+            .find(|e| e.kind == EventKind::TaskCompleted && str_field(e, "task") == Some("fan"))
+            .expect("fan completed");
+        let def = str_field(completed, crate::resume::fields::DEF_HASH)
+            .expect("item.field fan stamps def_hash");
+        let input = str_field(completed, crate::resume::fields::INPUT_HASH)
+            .expect("item.field fan stamps input_hash");
+        let plan = crate::resume::ResumePlan::from([(
+            "fan".to_owned(),
+            crate::resume::PriorSuccess::new(
+                def.to_owned(),
+                input.to_owned(),
+                serde_json::from_str(
+                    str_field(completed, crate::resume::fields::OUTPUT).expect("output"),
+                )
+                .expect("output parses"),
+            ),
+        )]);
+        let (resumed, sink) =
+            run_yaml(FAN, MockShell::new().enqueue_ok("done\n"), Some(plan)).await;
+        assert!(resumed.ok);
+        assert_eq!(
+            resumed.cache_hits,
+            vec!["fan".to_owned()],
+            "the item.field fan reuses the prior wave"
+        );
+        let kinds: Vec<_> = sink
+            .events()
+            .iter()
+            .filter(|e| str_field(e, "task") == Some("fan"))
+            .map(|e| e.kind)
+            .collect();
+        assert!(kinds.contains(&EventKind::TaskCacheHit));
+        assert!(!kinds.contains(&EventKind::TaskStarted));
+        assert_eq!(resumed.records["fan"].output, first.records["fan"].output);
     }
 
     /// `referenced_upstreams` sees BOTH edge kinds — the boundary

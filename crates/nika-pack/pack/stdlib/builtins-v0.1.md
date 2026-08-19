@@ -229,7 +229,7 @@ JSON diff · returns **RFC 6902** JSON Patch. (jq can't diff.) Throws · `NIKA-B
 invoke: { tool: "nika:validate", args: { data: { ... }, schema: { type: object, ... }, format: json } }
 # format: json (default · validate a value) | yaml (parse a YAML string first, then validate)
 ```
-Validate data against a **JSON Schema** · returns `{ valid: bool, errors: [...] }`. Invalid DATA is a **report, never a task failure** (gate on `.valid` downstream · or `nika:assert` it). Merges the former `json_verify` + `yaml_validate` (`format:` arg · one validator). Throws · `NIKA-BUILTIN-VALIDATE-001` (the `schema:` itself is not a valid JSON Schema · `validation_error`) · `-002` (`format: yaml` and the string does not parse as YAML).
+Validate data against a **JSON Schema** · returns `{ valid: bool, errors: [...] }`. Invalid DATA is a **report, never a task failure** (gate on `.valid` downstream · or `nika:assert` it). Merges the former `json_verify` + `yaml_validate` (`format:` arg · one validator). `schema:` accepts a JSON object **or a string** (`nika:read` of a `.json`/`.yaml` file) — the string is parsed as JSON first, then YAML. Throws · `NIKA-BUILTIN-VALIDATE-001` (the `schema:` itself is not a valid JSON Schema · `validation_error`) · `-002` (`format: yaml` and the string does not parse as YAML).
 
 ### `nika:json_merge_patch`
 ```yaml
@@ -300,7 +300,7 @@ so `op:` exposes it through the builtin that already owns the digest.
 
 | Arg | Ops | Notes |
 |---|---|---|
-| `content` | all | required · the bytes under the operation |
+| `content` | all | required · a string is hashed as-is; any other JSON value is hashed as compact JSON (no `nika:jq tojson` pre-pass) |
 | `algo` | `hash` | `blake3` (default) · `sha256` · `sha512` |
 | `encoding` | `hash` · `sign` | `hex` (default) · `base64` — the output encoding |
 | `key` | `sign` | required · the Ed25519 private key · **MUST be a `${{ secrets.X }}` reference** |

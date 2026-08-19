@@ -36,11 +36,19 @@ fn coerce_node(value: &Value, schema: &Value) -> Value {
     let Some(node) = schema.as_object() else {
         return value.clone();
     };
-    if ["$ref", "anyOf", "oneOf", "allOf"]
-        .iter()
-        .any(|k| node.contains_key(*k))
-    {
+    if node.contains_key("$ref") || node.contains_key("oneOf") || node.contains_key("allOf") {
         return value.clone();
+    }
+    // A scalar `anyOf` (integer | string, optionally with enums) is the
+    // same as `type: [integer, string]` — flattening it lets number→string
+    // and string→integer fire. A nested/object anyOf stays fenced (no
+    // resolver, never a guess). Empirical 2026-08-19: authors wrote
+    // anyOf to accept `3` and `"3"` and the fence disabled EVERY coerce.
+    if node.contains_key("anyOf") {
+        return match flatten_scalar_any_of(node) {
+            Some(flat) => coerce_node(value, &flat),
+            None => value.clone(),
+        };
     }
     let types = declared_types(node);
 
@@ -134,6 +142,65 @@ fn enum_snap(text: &str, node: &serde_json::Map<String, Value>) -> Option<Value>
         return None;
     }
     Some(Value::String(first.to_owned()))
+}
+
+/// Collapse `anyOf: [{type: integer, enum: [...]}, {type: string, enum: [...]}]`
+/// into one scalar node. `None` if any branch is composite or `$ref`.
+fn flatten_scalar_any_of(node: &serde_json::Map<String, Value>) -> Option<Value> {
+    let branches = node.get("anyOf")?.as_array()?;
+    if branches.is_empty() {
+        return None;
+    }
+    let mut types = Vec::new();
+    let mut enums = Vec::new();
+    let mut saw_enum = false;
+    for branch in branches {
+        let obj = branch.as_object()?;
+        if obj.keys().any(|k| {
+            matches!(
+                k.as_str(),
+                "$ref" | "anyOf" | "oneOf" | "allOf" | "properties" | "items"
+            )
+        }) {
+            return None;
+        }
+        match obj.get("type") {
+            Some(Value::String(t)) if is_scalar_type(t) => types.push(t.clone()),
+            Some(Value::Array(list)) => {
+                for t in list {
+                    let name = t.as_str()?;
+                    if !is_scalar_type(name) {
+                        return None;
+                    }
+                    types.push(name.to_owned());
+                }
+            }
+            _ => return None,
+        }
+        if let Some(variants) = obj.get("enum").and_then(Value::as_array) {
+            saw_enum = true;
+            enums.extend(variants.iter().cloned());
+        }
+    }
+    types.sort();
+    types.dedup();
+    let mut flat = serde_json::Map::new();
+    flat.insert(
+        "type".into(),
+        if types.len() == 1 {
+            Value::String(types.remove(0))
+        } else {
+            Value::Array(types.into_iter().map(Value::String).collect())
+        },
+    );
+    if saw_enum {
+        flat.insert("enum".into(), Value::Array(enums));
+    }
+    Some(Value::Object(flat))
+}
+
+fn is_scalar_type(name: &str) -> bool {
+    matches!(name, "string" | "integer" | "number" | "boolean" | "null")
 }
 
 /// The `type:` names a node declares (scalar or union form).
@@ -253,14 +320,45 @@ mod tests {
     #[test]
     fn composition_and_ref_nodes_stay_untouched() {
         let schema = json!({"type": "object", "properties": {
-            "a": {"anyOf": [{"type": "integer"}]},
+            "a": {"anyOf": [{"type": "object", "properties": {"k": {"type": "integer"}}}]},
             "b": {"$ref": "#/$defs/X"}
         }});
         let input = json!({"a": "1", "b": "2"});
         assert_eq!(
             coerce_toward(&input, &schema),
             input,
-            "no resolver, no guess"
+            "no resolver, no guess on composite anyOf or $ref"
+        );
+    }
+
+    #[test]
+    fn scalar_any_of_integer_parses_a_digit_string() {
+        let schema = json!({"type": "object", "properties": {
+            "n": {"anyOf": [{"type": "integer"}]}
+        }});
+        let out = coerce_toward(&json!({"n": "3"}), &schema);
+        assert_eq!(out["n"], 3, "scalar anyOf no longer fences integer coerce");
+    }
+
+    #[test]
+    fn scalar_any_of_integer_or_string_coerces_both_ways() {
+        let schema = json!({"type": "object", "properties": {
+            "n": {"anyOf": [
+                {"type": "integer", "enum": [-1, 0, 1, 3]},
+                {"type": "string", "enum": ["-1", "0", "1", "3"]}
+            ]}
+        }});
+        let from_text = coerce_toward(&json!({"n": "3"}), &schema);
+        assert!(
+            from_text["n"] == json!(3) || from_text["n"] == json!("3"),
+            "string digit matches a branch: {}",
+            from_text["n"]
+        );
+        let from_num = coerce_toward(&json!({"n": 3}), &schema);
+        assert!(
+            from_num["n"] == json!(3) || from_num["n"] == json!("3"),
+            "number 3 matches a branch: {}",
+            from_num["n"]
         );
     }
 
