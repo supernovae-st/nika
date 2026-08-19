@@ -3,33 +3,36 @@
 
 //! Event-subsystem errors implementing [`NikaErrorCode`].
 //!
-//! Codes live in the **NIKA-420..429** band (`Category::Observability` —
-//! events are the engine chronicle surface). The L0 emitters
+//! Codes live in the **NIKA-801..803** slots of the Observability band
+//! (800-819 — events are the engine chronicle surface). They were
+//! minted 420-422 until 2026-08-19, inside the Shield reservation
+//! (380-429): a full event buffer surfaced as « Shield security policy
+//! blocked the operation ». The L0 emitters
 //! ([`crate::NoOpEmitter`], [`crate::InMemoryEmitter`]) only ever raise
 //! [`EventError::BufferFull`]; [`EventError::SerializationFailed`] is the
 //! contract slot for future I/O-backed emitters (higher layers).
 
 use nika_error::prelude::*;
 
-/// NIKA-420: an emitter failed to serialize an event.
-pub const NIKA_420: NikaCode = NikaCode {
-    num: 420,
+/// NIKA-801: an emitter failed to serialize an event.
+pub const NIKA_801: NikaCode = NikaCode {
+    num: 801,
     category: Category::Observability,
     severity: Severity::Error,
     slug: "event-serialization-failed",
 };
 
-/// NIKA-421: a bounded emitter's buffer is full.
-pub const NIKA_421: NikaCode = NikaCode {
-    num: 421,
+/// NIKA-802: a bounded emitter's buffer is full.
+pub const NIKA_802: NikaCode = NikaCode {
+    num: 802,
     category: Category::Observability,
     severity: Severity::Warning,
     slug: "event-buffer-full",
 };
 
-/// NIKA-422: an emitter's internal lock was poisoned by a prior panic.
-pub const NIKA_422: NikaCode = NikaCode {
-    num: 422,
+/// NIKA-803: an emitter's internal lock was poisoned by a prior panic.
+pub const NIKA_803: NikaCode = NikaCode {
+    num: 803,
     category: Category::Observability,
     severity: Severity::Error,
     slug: "event-lock-poisoned",
@@ -67,9 +70,9 @@ impl EventError {
     #[must_use]
     pub fn code(&self) -> NikaCode {
         match self {
-            Self::SerializationFailed { .. } => NIKA_420,
-            Self::BufferFull { .. } => NIKA_421,
-            Self::LockPoisoned => NIKA_422,
+            Self::SerializationFailed { .. } => NIKA_801,
+            Self::BufferFull { .. } => NIKA_802,
+            Self::LockPoisoned => NIKA_803,
         }
     }
 }

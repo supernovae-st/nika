@@ -31,14 +31,6 @@ nika-schema = { path = "../nika-schema", version = "0.111.0" }
 # cancel-by-pid registry; time::timeout enforces the deadline.
 tokio = { workspace = true, features = ["process", "io-util", "sync", "time", "rt", "macros"] }
 
-# Unix-only: safe `killpg` wrapper for process-group termination (catches
-# grandchildren on timeout/cancel). `nix` encapsulates the unsafe signal FFI,
-# so this crate keeps `unsafe_code = forbid` (same pattern as the computer-use
-# crates). The new process group itself is set via the SAFE std
-# `CommandExt::process_group(0)` — no unsafe pre_exec here.
-[target.'cfg(unix)'.dependencies]
-nix = { workspace = true }
-
 [dev-dependencies]
 proptest = { workspace = true }
 tokio    = { workspace = true, features = ["process", "io-util", "sync", "time", "rt", "macros"] }
