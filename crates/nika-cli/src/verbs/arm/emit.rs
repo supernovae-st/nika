@@ -93,7 +93,7 @@ pub fn run(args: &ArmArgs, emit_target: EmitTarget) -> VerbOutput {
 }
 
 /// The binary the units invoke (D9 — ABSOLUTE): `--nika-bin` when
-/// given, else argv[0] when it is absolute (the brew LINK stays stable
+/// given, else `argv[0]` when it is absolute (the brew LINK stays stable
 /// across upgrades), else the resolved exe.
 fn nika_bin(args: &ArmArgs) -> Result<PathBuf, VerbOutput> {
     match &args.nika_bin {
