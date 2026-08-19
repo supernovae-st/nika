@@ -16,7 +16,7 @@ publish                = false  # Internal L1 effect crate (not a standalone cra
 adr = ["ADR-003", "ADR-081"]
 
 [dependencies]
-nika-kernel = { path = "../nika-kernel", version = "0.110.0" }
+nika-kernel = { path = "../nika-kernel", version = "0.111.0-dev" }
 # thiserror + miette removed 2026-06-10: ScreenError + its derives moved to
 # nika-kernel-core (Pattern A migration · FCI-023bis) — nika-screen re-exports it.
 bytes       = { workspace = true }  # Frame RGBA8 zero-copy payload (B.3)
