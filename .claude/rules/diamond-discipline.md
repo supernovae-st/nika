@@ -46,7 +46,14 @@ refaire les fonctionnalités qui ne marchent pas".
 ## Rule 5 — Shadow zones are pre-launch gates
 
 7 shadow zones identified by audit. They are NOT optional :
-- Gate 1 : nika serve input trust (P0)
+- Gate 1 : nika serve input trust (P0) — résolu 2026-08-19 (W5 · ADR-116) :
+  `nika serve` reads ONLY the project's `nika.yaml` (the vocab's shape and the
+  cadence grammar judge it BEFORE any firing) and its own `.nika/arm/`
+  sidecar — no socket, no port, no network read, no external argument
+  (`--once`/`--dry` are the whole public surface; `--now`/`--until` stay
+  hidden replay hooks). Pinned by
+  `serve_has_no_input_but_the_registry_and_its_state`
+  (`crates/nika-cli/tests/serve.rs`).
 - Gate 2 : cross-provider structured output parity (P0)
 - Gate 3 : binding/template/mod.rs 7,243 LOC (auto-résolu Phase 1 nika-binding)
 - Gate 4 : L1 taint runtime

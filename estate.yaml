@@ -203,7 +203,7 @@ patterns:
 - glob: ".claude/**"
   class: authored
   match_count: 15
-  aggregate_sha256: b84499b8a0342cfc5282dcbab2d91fd8c441d59fbe97cd63d920535d2b5868fb
+  aggregate_sha256: 5ca40f7dce01b76e3955bb633b9aef6eae0f21784ea0cf7fbf1166f8580beb6f
   evidence: "harness rules · skills · commands for the Diamond rebuild — hand-written; .claude/CLAUDE.md excepted in files: (carries the refresh-status.sh auto-block)"
 - glob: ".claude-plugin/**"
   class: authored
