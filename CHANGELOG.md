@@ -10,6 +10,37 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+### Removed
+
+- **BREAKING — `VirtualClock` loses its dead time-mover (`nika-clock`).**
+  `VirtualClock::advance` and `VirtualClock::elapsed_total` are removed:
+  `advance` documented itself as « the ONLY mover of virtual time » while
+  having zero production callers — virtual time never moved, so under
+  `run: { clock: virtual }` (or `entropy: none | seeded(N)`, which imply
+  it) a task `timeout:` budget raced an instantly-ready timer and every
+  deadline was already settled at dispatch. The clock is now honestly
+  FROZEN by construction (`Copy` bases, no shared offset): an author who
+  needs a real deadline honored against real work must not declare
+  `clock: virtual`. Wiring the task `timeout:` budget to the exec
+  runner's own deadline (`linger: false`) is a follow-up wave.
+- **The exec runner's process-group kill is removed
+  (`nika-exec-runner`).** `terminate_group` (SIGTERM→SIGKILL the whole
+  process group) plus the `process_group(0)` spawn setup were correct
+  and tested but unreachable in production — they fired only on
+  `TimedOut`/`Cancelled`, and the engine never assigns
+  `ShellCommand.timeout` nor invokes `cancel`. Cancellation stays
+  `kill_on_drop` (INV-011 · future-drop, the ADR-016 primary); detached
+  grandchildren are no longer group-killed on the embedder-facing
+  timeout/cancel arms, and the `nix` dependency goes with them.
+
+### Fixed
+
+- **The `nika-error` crate-spec band table matches the one-voice
+  registry.** It still read `330-379 Binding/template · 380-429 Provider`
+  while the registry moved Provider to 330-379 (2026-05-11) and reserves
+  380-429 for Shield. The stale rows invited exactly the collision the
+  reservation exists to prevent.
+
 ## [0.110.0](https://github.com/supernovae-st/nika/compare/v0.109.2..v0.110.0) - 2026-08-19
 
 **The arming release.** The project file `nika.yaml` learns to PROPOSE a
