@@ -184,12 +184,17 @@ pas dans le code :
   s'accrocherait — le retry vit DANS le workflow (`retry:` sur la tâche,
   plein-jitter et tout), jamais dans le beat.
 - **l'enum d'état de job → c'est `history.ndjson`.** L'état n'est pas un
-  type à inventer : c'est le journal append-only du sidecar
-  (`.nika/arm/<label>/`), dont le vocabulaire `kind` est déjà fermé —
-  `fired` · `skipped` · `paused` · `failed` · `disarmed` (le dernier est
-  history-only : il ne porte pas de slot, donc `record` ne l'écrit jamais
-  dans `last.json`, et `last` le relit comme illisible — la direction
-  sûre).
+  type à inventer : c'est le journal du sidecar (`.nika/arm/<label>/`) —
+  devenu le ledger versionné `nika/arm-event@1` (W5-bis · chaîne sha256
+  vérifiée à chaque append, queue invalide coupée, journal W2 roté sans
+  effacement, chaque append fsync'd). Le vocabulaire `kind` des DÉCISIONS
+  est fermé — `fired` · `skipped` · `paused` · `failed` · `disarmed` (le
+  dernier est history-only : il ne porte pas de slot, donc `record` ne
+  l'écrit jamais dans `last.json`, et `last` le relit comme illisible —
+  la direction sûre) — et deux lignes STRUCTURELLES le complètent :
+  `claimed` (le claim durable, fsync'd AVANT le run · son receipt le
+  settle par fencing) et `rotated` (la preuve d'archive d'un journal
+  d'avant le ledger).
 - **`serve_tokens` (qui déclenche à distance) → hors v0.** Aucun port,
   aucune entrée : Gate 1 (diamond-discipline §5, résolu 2026-08-19) —
   `serve` ne lit QUE `nika.yaml` et son sidecar, jamais le réseau, et le
