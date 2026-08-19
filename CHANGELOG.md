@@ -10,6 +10,7 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+<<<<<<< HEAD
 ### Removed
 
 - **BREAKING — `VirtualClock` loses its dead time-mover (`nika-clock`).**
@@ -50,6 +51,49 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   while the registry moved Provider to 330-379 (2026-05-11) and reserves
   380-429 for Shield. The stale rows invited exactly the collision the
   reservation exists to prevent.
+
+## [0.111.0](https://github.com/supernovae-st/nika/compare/v0.110.0..v0.111.0) - 2026-08-19
+
+**The authoring-loop release.** `nika check --json` now reports
+`paid_ready`, `compiled` and `next` — a green parse is legal, not
+best. `nika:inspect` is live: the runtime seeds the DAG at run
+start and a workflow can read its own cost, records, dag_info and
+threads. `nika:compose` stays loop-only (grant after `nika:done`;
+checking never executes). The arm lock outlives the shot.
+
+### Added
+
+- **`paid_ready` · `compiled` · `next` on `nika check --json`
+  (#1013).** `paid_ready` is silent only when no paid-run hint
+  remains. `compiled` means the law is proven (const-fixture
+  assert). `next` is the first repair. `nika explain` prints a
+  **before a paid model** panel. MCP `nika_check` hard-fails
+  `infer-as-law` and `digit-string-enum` only.
+
+- **`nika:inspect` is live (#1018).** `LiveInspect` is the same
+  `Arc` the dispatcher and the runtime share. The DAG is seeded at
+  run start — the first task sees `available: true`. Records and
+  spend mirror after each wave. Hint `inspect-unwired` is retired.
+  Teaching shape: `16-inspect-self`.
+
+- **Lesson 15 `nika:compose` on an agent whitelist (#1016).**
+  Grant after `nika:done`. The model drafts YAML, gets the full
+  check JSON, iterates until `valid`. A standalone `invoke:` is
+  `NIKA-BUILTIN-COMPOSE-001`. Checking never executes the draft.
+  Parent→child composition stays lesson 10.
+
+- **The arm lock outlives the shot (#1015).** A fire that is
+  still running keeps the project lock so a second tick cannot
+  overlap the first.
+
+### Fixed
+
+- **Authoring seams from a paid extract wave (#1012).**
+  `nika:hash` serializes structured `content:`. `nika:validate`
+  parses string schemas. Scalar `anyOf` flattens into coerce.
+  `for_each` + `item.field` is resume-eligible (collection is the
+  input identity). Hints: `digit-string-enum` · `glob-readme` ·
+  `jq-as-map` · `assert-quarantine`.
 
 ## [0.110.0](https://github.com/supernovae-st/nika/compare/v0.109.2..v0.110.0) - 2026-08-19
 
