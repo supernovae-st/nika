@@ -551,6 +551,8 @@ fn run_and_record(ctx: &FireCtx, slot: &Zoned, slots: Option<u32>) -> FireVerdic
     let workflow = beat.map_or_else(String::new, |b| b.workflow.clone());
     let before = trace_set(&ctx.project_root);
     let Ok(_room) = enter_room(&ctx.project_root) else {
+        // The lock we hold never outlives a door we cannot walk through.
+        let _ = ctx.state.release(&ctx.label);
         return FireVerdict {
             line: format!("failed {} · cannot enter the project root", ctx.label),
             code: exit::ENV,
