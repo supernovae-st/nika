@@ -1217,5 +1217,21 @@
       "requires": [],
       "enables": []
     }
+    ,
+    {
+      "id": "ADR-116",
+      "title": "`nika serve` — the resident firer: one law, two edges, and the three draft answers",
+      "status": "accepted",
+      "date": "2026-08-19",
+      "filename": "adr-116-nika-serve-resident-firer.md",
+      "tags": ["architecture","cadence","arm","serve","input-trust","layering"],
+      "affects_crates": ["nika-cli","nika-cadence"],
+      "affects_layers": ["L0","L4"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-114","ADR-110"],
+      "requires": ["ADR-114"],
+      "enables": []
+    }
   ]
 }
