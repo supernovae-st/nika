@@ -352,12 +352,13 @@ fn the_queue_redecides_after_the_wait() {
                         trace: None,
                         exit: Some(0),
                         slots: None,
-                        slot_id: Some(slot_id(
+                        slot_id: Some(SlotId::derive(
                             "workflows/doctor.nika.yaml",
                             "TZ=UTC 0 3 * * *",
                             &at("2026-08-19T03:00:00Z"),
                         )),
                         fencing: None,
+                        generation: None,
                     },
                 )
                 .expect("the holder's receipt");
@@ -455,6 +456,7 @@ fn a_repaired_ledger_tail_rides_the_decision_line() {
         slots: None,
         slot_id: None,
         fencing: None,
+        generation: None,
     };
     for _ in 0..3 {
         sidecar.record("doctor", &seed).expect("record");

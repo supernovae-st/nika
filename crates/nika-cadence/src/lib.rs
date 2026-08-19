@@ -71,6 +71,7 @@ pub mod cron;
 pub mod due;
 pub mod emit;
 pub mod error;
+pub mod firing;
 pub mod next;
 pub mod parse;
 pub mod phrase;
@@ -79,6 +80,10 @@ pub mod registry;
 pub use cron::{CronSpec, Field};
 pub use due::{Due, DueKind, MISSED_SLOTS_CAP, ON_TIME_WINDOW, due, earliest_next};
 pub use error::{CadenceError, CadenceErrorKind};
+pub use firing::{
+    ArmGeneration, Decision, FencingToken, FiringEvent, FiringPolicy, FiringState, SkipReason,
+    SlotId, decide, fold, transition,
+};
 pub use next::{Shift, Slot, next_slots};
 pub use parse::{parse_registry, validate};
 pub use registry::{AfterSkip, ArmRegistry, Beat, Cadence, Locus, MissPolicy, Overlap};

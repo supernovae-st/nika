@@ -482,6 +482,366 @@ impl<T> core::clone::CloneToUninit for nika_cadence::error::CadenceError where T
 pub unsafe fn nika_cadence::error::CadenceError::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::error::CadenceError
 pub fn nika_cadence::error::CadenceError::from(t: T) -> T
+pub mod nika_cadence::firing
+#[non_exhaustive] pub enum nika_cadence::firing::Decision
+pub nika_cadence::firing::Decision::Become(nika_cadence::firing::FiringState)
+pub nika_cadence::firing::Decision::DeadLetter
+pub nika_cadence::firing::Decision::Fire
+pub nika_cadence::firing::Decision::Ignore
+pub nika_cadence::firing::Decision::JournalClaim
+pub nika_cadence::firing::Decision::JournalClaim::at: jiff::timestamp::Timestamp
+pub nika_cadence::firing::Decision::JournalDefer
+pub nika_cadence::firing::Decision::JournalDefer::at: jiff::timestamp::Timestamp
+pub nika_cadence::firing::Decision::JournalReceipt
+pub nika_cadence::firing::Decision::JournalReceipt::at: jiff::timestamp::Timestamp
+pub nika_cadence::firing::Decision::JournalReceipt::state: nika_cadence::firing::FiringState
+pub nika_cadence::firing::Decision::JournalSkip
+pub nika_cadence::firing::Decision::JournalSkip::at: jiff::timestamp::Timestamp
+pub nika_cadence::firing::Decision::Rearm
+pub nika_cadence::firing::Decision::SurfaceOrphan
+impl core::clone::Clone for nika_cadence::firing::Decision
+pub fn nika_cadence::firing::Decision::clone(&self) -> nika_cadence::firing::Decision
+impl core::cmp::PartialEq for nika_cadence::firing::Decision
+pub fn nika_cadence::firing::Decision::eq(&self, other: &nika_cadence::firing::Decision) -> bool
+impl core::fmt::Debug for nika_cadence::firing::Decision
+pub fn nika_cadence::firing::Decision::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_cadence::firing::Decision
+impl<T, U> core::convert::Into<U> for nika_cadence::firing::Decision where U: core::convert::From<T>
+pub fn nika_cadence::firing::Decision::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cadence::firing::Decision where U: core::convert::Into<T>
+pub type nika_cadence::firing::Decision::Error = core::convert::Infallible
+pub fn nika_cadence::firing::Decision::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cadence::firing::Decision where U: core::convert::TryFrom<T>
+pub type nika_cadence::firing::Decision::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cadence::firing::Decision::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cadence::firing::Decision where T: core::clone::Clone
+pub type nika_cadence::firing::Decision::Owned = T
+pub fn nika_cadence::firing::Decision::clone_into(&self, target: &mut T)
+pub fn nika_cadence::firing::Decision::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cadence::firing::Decision where T: 'static + ?core::marker::Sized
+pub fn nika_cadence::firing::Decision::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cadence::firing::Decision where T: ?core::marker::Sized
+pub fn nika_cadence::firing::Decision::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cadence::firing::Decision where T: ?core::marker::Sized
+pub fn nika_cadence::firing::Decision::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cadence::firing::Decision where T: core::clone::Clone
+pub unsafe fn nika_cadence::firing::Decision::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cadence::firing::Decision
+pub fn nika_cadence::firing::Decision::from(t: T) -> T
+pub enum nika_cadence::firing::FiringEvent
+pub nika_cadence::firing::FiringEvent::AttemptsExhausted
+pub nika_cadence::firing::FiringEvent::AttemptsExhausted::fencing: nika_cadence::firing::FencingToken
+pub nika_cadence::firing::FiringEvent::Cancelled
+pub nika_cadence::firing::FiringEvent::Cancelled::fencing: core::option::Option<nika_cadence::firing::FencingToken>
+pub nika_cadence::firing::FiringEvent::Claimed
+pub nika_cadence::firing::FiringEvent::Claimed::deadline: jiff::timestamp::Timestamp
+pub nika_cadence::firing::FiringEvent::Claimed::fencing: nika_cadence::firing::FencingToken
+pub nika_cadence::firing::FiringEvent::Claimed::generation: core::option::Option<nika_cadence::firing::ArmGeneration>
+pub nika_cadence::firing::FiringEvent::DeadlinePassed
+pub nika_cadence::firing::FiringEvent::DeadlinePassed::fencing: nika_cadence::firing::FencingToken
+pub nika_cadence::firing::FiringEvent::Deferred
+pub nika_cadence::firing::FiringEvent::Due
+pub nika_cadence::firing::FiringEvent::Finished
+pub nika_cadence::firing::FiringEvent::Finished::code: u8
+pub nika_cadence::firing::FiringEvent::Finished::fencing: core::option::Option<nika_cadence::firing::FencingToken>
+pub nika_cadence::firing::FiringEvent::Poisoned
+pub nika_cadence::firing::FiringEvent::Poisoned::fencing: nika_cadence::firing::FencingToken
+pub nika_cadence::firing::FiringEvent::Rescued
+pub nika_cadence::firing::FiringEvent::Rescued::fencing: nika_cadence::firing::FencingToken
+pub nika_cadence::firing::FiringEvent::Skipped
+pub nika_cadence::firing::FiringEvent::Skipped::reason: core::option::Option<nika_cadence::firing::SkipReason>
+pub nika_cadence::firing::FiringEvent::Started
+pub nika_cadence::firing::FiringEvent::Started::fencing: nika_cadence::firing::FencingToken
+impl core::clone::Clone for nika_cadence::firing::FiringEvent
+pub fn nika_cadence::firing::FiringEvent::clone(&self) -> nika_cadence::firing::FiringEvent
+impl core::cmp::PartialEq for nika_cadence::firing::FiringEvent
+pub fn nika_cadence::firing::FiringEvent::eq(&self, other: &nika_cadence::firing::FiringEvent) -> bool
+impl core::fmt::Debug for nika_cadence::firing::FiringEvent
+pub fn nika_cadence::firing::FiringEvent::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_cadence::firing::FiringEvent
+impl<T, U> core::convert::Into<U> for nika_cadence::firing::FiringEvent where U: core::convert::From<T>
+pub fn nika_cadence::firing::FiringEvent::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cadence::firing::FiringEvent where U: core::convert::Into<T>
+pub type nika_cadence::firing::FiringEvent::Error = core::convert::Infallible
+pub fn nika_cadence::firing::FiringEvent::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cadence::firing::FiringEvent where U: core::convert::TryFrom<T>
+pub type nika_cadence::firing::FiringEvent::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cadence::firing::FiringEvent::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cadence::firing::FiringEvent where T: core::clone::Clone
+pub type nika_cadence::firing::FiringEvent::Owned = T
+pub fn nika_cadence::firing::FiringEvent::clone_into(&self, target: &mut T)
+pub fn nika_cadence::firing::FiringEvent::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cadence::firing::FiringEvent where T: 'static + ?core::marker::Sized
+pub fn nika_cadence::firing::FiringEvent::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cadence::firing::FiringEvent where T: ?core::marker::Sized
+pub fn nika_cadence::firing::FiringEvent::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cadence::firing::FiringEvent where T: ?core::marker::Sized
+pub fn nika_cadence::firing::FiringEvent::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cadence::firing::FiringEvent where T: core::clone::Clone
+pub unsafe fn nika_cadence::firing::FiringEvent::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cadence::firing::FiringEvent
+pub fn nika_cadence::firing::FiringEvent::from(t: T) -> T
+#[non_exhaustive] pub enum nika_cadence::firing::FiringState
+pub nika_cadence::firing::FiringState::Ambiguous
+pub nika_cadence::firing::FiringState::Cancelled
+pub nika_cadence::firing::FiringState::Claimed
+pub nika_cadence::firing::FiringState::DeadLettered
+pub nika_cadence::firing::FiringState::Deferred
+pub nika_cadence::firing::FiringState::Due
+pub nika_cadence::firing::FiringState::FailedPermanent
+pub nika_cadence::firing::FiringState::FailedRetryable
+pub nika_cadence::firing::FiringState::Planned
+pub nika_cadence::firing::FiringState::Running
+pub nika_cadence::firing::FiringState::Skipped
+pub nika_cadence::firing::FiringState::Succeeded
+impl nika_cadence::firing::FiringState
+pub const nika_cadence::firing::FiringState::ALL: [Self; 12]
+pub const fn nika_cadence::firing::FiringState::as_str(self) -> &'static str
+impl core::clone::Clone for nika_cadence::firing::FiringState
+pub fn nika_cadence::firing::FiringState::clone(&self) -> nika_cadence::firing::FiringState
+impl core::cmp::Eq for nika_cadence::firing::FiringState
+impl core::cmp::PartialEq for nika_cadence::firing::FiringState
+pub fn nika_cadence::firing::FiringState::eq(&self, other: &nika_cadence::firing::FiringState) -> bool
+impl core::fmt::Debug for nika_cadence::firing::FiringState
+pub fn nika_cadence::firing::FiringState::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cadence::firing::FiringState
+impl core::marker::StructuralPartialEq for nika_cadence::firing::FiringState
+impl<Q, K> equivalent::Equivalent<K> for nika_cadence::firing::FiringState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cadence::firing::FiringState::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cadence::firing::FiringState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cadence::firing::FiringState::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cadence::firing::FiringState where U: core::convert::From<T>
+pub fn nika_cadence::firing::FiringState::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cadence::firing::FiringState where U: core::convert::Into<T>
+pub type nika_cadence::firing::FiringState::Error = core::convert::Infallible
+pub fn nika_cadence::firing::FiringState::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cadence::firing::FiringState where U: core::convert::TryFrom<T>
+pub type nika_cadence::firing::FiringState::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cadence::firing::FiringState::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cadence::firing::FiringState where T: core::clone::Clone
+pub type nika_cadence::firing::FiringState::Owned = T
+pub fn nika_cadence::firing::FiringState::clone_into(&self, target: &mut T)
+pub fn nika_cadence::firing::FiringState::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cadence::firing::FiringState where T: 'static + ?core::marker::Sized
+pub fn nika_cadence::firing::FiringState::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cadence::firing::FiringState where T: ?core::marker::Sized
+pub fn nika_cadence::firing::FiringState::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cadence::firing::FiringState where T: ?core::marker::Sized
+pub fn nika_cadence::firing::FiringState::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cadence::firing::FiringState where T: core::clone::Clone
+pub unsafe fn nika_cadence::firing::FiringState::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cadence::firing::FiringState
+pub fn nika_cadence::firing::FiringState::from(t: T) -> T
+#[non_exhaustive] pub enum nika_cadence::firing::SkipReason
+pub nika_cadence::firing::SkipReason::Already
+pub nika_cadence::firing::SkipReason::Cloud
+pub nika_cadence::firing::SkipReason::Expired
+pub nika_cadence::firing::SkipReason::Inactive
+pub nika_cadence::firing::SkipReason::Missed(u32)
+pub nika_cadence::firing::SkipReason::NotDue
+pub nika_cadence::firing::SkipReason::Overlap
+pub nika_cadence::firing::SkipReason::OverlapTimeout
+pub nika_cadence::firing::SkipReason::ServeStop
+pub nika_cadence::firing::SkipReason::Webhook
+impl nika_cadence::firing::SkipReason
+pub fn nika_cadence::firing::SkipReason::as_str(&self) -> alloc::borrow::Cow<'static, str>
+pub fn nika_cadence::firing::SkipReason::parse(raw: &str) -> core::option::Option<Self>
+impl core::clone::Clone for nika_cadence::firing::SkipReason
+pub fn nika_cadence::firing::SkipReason::clone(&self) -> nika_cadence::firing::SkipReason
+impl core::cmp::Eq for nika_cadence::firing::SkipReason
+impl core::cmp::PartialEq for nika_cadence::firing::SkipReason
+pub fn nika_cadence::firing::SkipReason::eq(&self, other: &nika_cadence::firing::SkipReason) -> bool
+impl core::fmt::Debug for nika_cadence::firing::SkipReason
+pub fn nika_cadence::firing::SkipReason::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cadence::firing::SkipReason
+impl core::marker::StructuralPartialEq for nika_cadence::firing::SkipReason
+impl<Q, K> equivalent::Equivalent<K> for nika_cadence::firing::SkipReason where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cadence::firing::SkipReason::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cadence::firing::SkipReason where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cadence::firing::SkipReason::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cadence::firing::SkipReason where U: core::convert::From<T>
+pub fn nika_cadence::firing::SkipReason::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cadence::firing::SkipReason where U: core::convert::Into<T>
+pub type nika_cadence::firing::SkipReason::Error = core::convert::Infallible
+pub fn nika_cadence::firing::SkipReason::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cadence::firing::SkipReason where U: core::convert::TryFrom<T>
+pub type nika_cadence::firing::SkipReason::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cadence::firing::SkipReason::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cadence::firing::SkipReason where T: core::clone::Clone
+pub type nika_cadence::firing::SkipReason::Owned = T
+pub fn nika_cadence::firing::SkipReason::clone_into(&self, target: &mut T)
+pub fn nika_cadence::firing::SkipReason::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cadence::firing::SkipReason where T: 'static + ?core::marker::Sized
+pub fn nika_cadence::firing::SkipReason::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cadence::firing::SkipReason where T: ?core::marker::Sized
+pub fn nika_cadence::firing::SkipReason::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cadence::firing::SkipReason where T: ?core::marker::Sized
+pub fn nika_cadence::firing::SkipReason::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cadence::firing::SkipReason where T: core::clone::Clone
+pub unsafe fn nika_cadence::firing::SkipReason::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cadence::firing::SkipReason
+pub fn nika_cadence::firing::SkipReason::from(t: T) -> T
+pub struct nika_cadence::firing::ArmGeneration(_)
+impl nika_cadence::firing::ArmGeneration
+pub fn nika_cadence::firing::ArmGeneration::as_str(&self) -> &str
+pub fn nika_cadence::firing::ArmGeneration::compute(beat: &nika_cadence::registry::Beat, workflow_bytes: &[u8]) -> Self
+pub fn nika_cadence::firing::ArmGeneration::from_wire(raw: &str) -> core::option::Option<Self>
+pub fn nika_cadence::firing::ArmGeneration::short(&self) -> &str
+impl core::clone::Clone for nika_cadence::firing::ArmGeneration
+pub fn nika_cadence::firing::ArmGeneration::clone(&self) -> nika_cadence::firing::ArmGeneration
+impl core::cmp::Eq for nika_cadence::firing::ArmGeneration
+impl core::cmp::PartialEq for nika_cadence::firing::ArmGeneration
+pub fn nika_cadence::firing::ArmGeneration::eq(&self, other: &nika_cadence::firing::ArmGeneration) -> bool
+impl core::fmt::Debug for nika_cadence::firing::ArmGeneration
+pub fn nika_cadence::firing::ArmGeneration::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_cadence::firing::ArmGeneration
+impl<Q, K> equivalent::Equivalent<K> for nika_cadence::firing::ArmGeneration where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cadence::firing::ArmGeneration::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cadence::firing::ArmGeneration where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cadence::firing::ArmGeneration::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cadence::firing::ArmGeneration where U: core::convert::From<T>
+pub fn nika_cadence::firing::ArmGeneration::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cadence::firing::ArmGeneration where U: core::convert::Into<T>
+pub type nika_cadence::firing::ArmGeneration::Error = core::convert::Infallible
+pub fn nika_cadence::firing::ArmGeneration::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cadence::firing::ArmGeneration where U: core::convert::TryFrom<T>
+pub type nika_cadence::firing::ArmGeneration::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cadence::firing::ArmGeneration::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cadence::firing::ArmGeneration where T: core::clone::Clone
+pub type nika_cadence::firing::ArmGeneration::Owned = T
+pub fn nika_cadence::firing::ArmGeneration::clone_into(&self, target: &mut T)
+pub fn nika_cadence::firing::ArmGeneration::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cadence::firing::ArmGeneration where T: 'static + ?core::marker::Sized
+pub fn nika_cadence::firing::ArmGeneration::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cadence::firing::ArmGeneration where T: ?core::marker::Sized
+pub fn nika_cadence::firing::ArmGeneration::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cadence::firing::ArmGeneration where T: ?core::marker::Sized
+pub fn nika_cadence::firing::ArmGeneration::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cadence::firing::ArmGeneration where T: core::clone::Clone
+pub unsafe fn nika_cadence::firing::ArmGeneration::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cadence::firing::ArmGeneration
+pub fn nika_cadence::firing::ArmGeneration::from(t: T) -> T
+pub struct nika_cadence::firing::FencingToken(_)
+impl nika_cadence::firing::FencingToken
+pub const fn nika_cadence::firing::FencingToken::get(self) -> u64
+pub const fn nika_cadence::firing::FencingToken::new(seq: u64) -> Self
+impl core::clone::Clone for nika_cadence::firing::FencingToken
+pub fn nika_cadence::firing::FencingToken::clone(&self) -> nika_cadence::firing::FencingToken
+impl core::cmp::Eq for nika_cadence::firing::FencingToken
+impl core::cmp::PartialEq for nika_cadence::firing::FencingToken
+pub fn nika_cadence::firing::FencingToken::eq(&self, other: &nika_cadence::firing::FencingToken) -> bool
+impl core::fmt::Debug for nika_cadence::firing::FencingToken
+pub fn nika_cadence::firing::FencingToken::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cadence::firing::FencingToken
+impl core::marker::StructuralPartialEq for nika_cadence::firing::FencingToken
+impl<Q, K> equivalent::Equivalent<K> for nika_cadence::firing::FencingToken where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cadence::firing::FencingToken::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cadence::firing::FencingToken where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cadence::firing::FencingToken::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cadence::firing::FencingToken where U: core::convert::From<T>
+pub fn nika_cadence::firing::FencingToken::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cadence::firing::FencingToken where U: core::convert::Into<T>
+pub type nika_cadence::firing::FencingToken::Error = core::convert::Infallible
+pub fn nika_cadence::firing::FencingToken::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cadence::firing::FencingToken where U: core::convert::TryFrom<T>
+pub type nika_cadence::firing::FencingToken::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cadence::firing::FencingToken::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cadence::firing::FencingToken where T: core::clone::Clone
+pub type nika_cadence::firing::FencingToken::Owned = T
+pub fn nika_cadence::firing::FencingToken::clone_into(&self, target: &mut T)
+pub fn nika_cadence::firing::FencingToken::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cadence::firing::FencingToken where T: 'static + ?core::marker::Sized
+pub fn nika_cadence::firing::FencingToken::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cadence::firing::FencingToken where T: ?core::marker::Sized
+pub fn nika_cadence::firing::FencingToken::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cadence::firing::FencingToken where T: ?core::marker::Sized
+pub fn nika_cadence::firing::FencingToken::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cadence::firing::FencingToken where T: core::clone::Clone
+pub unsafe fn nika_cadence::firing::FencingToken::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cadence::firing::FencingToken
+pub fn nika_cadence::firing::FencingToken::from(t: T) -> T
+#[non_exhaustive] pub struct nika_cadence::firing::FiringPolicy
+pub nika_cadence::firing::FiringPolicy::max_attempts: u32
+impl nika_cadence::firing::FiringPolicy
+pub const fn nika_cadence::firing::FiringPolicy::single() -> Self
+impl core::clone::Clone for nika_cadence::firing::FiringPolicy
+pub fn nika_cadence::firing::FiringPolicy::clone(&self) -> nika_cadence::firing::FiringPolicy
+impl core::cmp::Eq for nika_cadence::firing::FiringPolicy
+impl core::cmp::PartialEq for nika_cadence::firing::FiringPolicy
+pub fn nika_cadence::firing::FiringPolicy::eq(&self, other: &nika_cadence::firing::FiringPolicy) -> bool
+impl core::fmt::Debug for nika_cadence::firing::FiringPolicy
+pub fn nika_cadence::firing::FiringPolicy::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cadence::firing::FiringPolicy
+impl core::marker::StructuralPartialEq for nika_cadence::firing::FiringPolicy
+impl<Q, K> equivalent::Equivalent<K> for nika_cadence::firing::FiringPolicy where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cadence::firing::FiringPolicy::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cadence::firing::FiringPolicy where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cadence::firing::FiringPolicy::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cadence::firing::FiringPolicy where U: core::convert::From<T>
+pub fn nika_cadence::firing::FiringPolicy::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cadence::firing::FiringPolicy where U: core::convert::Into<T>
+pub type nika_cadence::firing::FiringPolicy::Error = core::convert::Infallible
+pub fn nika_cadence::firing::FiringPolicy::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cadence::firing::FiringPolicy where U: core::convert::TryFrom<T>
+pub type nika_cadence::firing::FiringPolicy::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cadence::firing::FiringPolicy::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cadence::firing::FiringPolicy where T: core::clone::Clone
+pub type nika_cadence::firing::FiringPolicy::Owned = T
+pub fn nika_cadence::firing::FiringPolicy::clone_into(&self, target: &mut T)
+pub fn nika_cadence::firing::FiringPolicy::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cadence::firing::FiringPolicy where T: 'static + ?core::marker::Sized
+pub fn nika_cadence::firing::FiringPolicy::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cadence::firing::FiringPolicy where T: ?core::marker::Sized
+pub fn nika_cadence::firing::FiringPolicy::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cadence::firing::FiringPolicy where T: ?core::marker::Sized
+pub fn nika_cadence::firing::FiringPolicy::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cadence::firing::FiringPolicy where T: core::clone::Clone
+pub unsafe fn nika_cadence::firing::FiringPolicy::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cadence::firing::FiringPolicy
+pub fn nika_cadence::firing::FiringPolicy::from(t: T) -> T
+pub struct nika_cadence::firing::SlotId(_)
+impl nika_cadence::firing::SlotId
+pub fn nika_cadence::firing::SlotId::as_str(&self) -> &str
+pub fn nika_cadence::firing::SlotId::derive(workflow: &str, cadence: &str, slot: &jiff::zoned::Zoned) -> Self
+pub fn nika_cadence::firing::SlotId::from_wire(raw: &str) -> core::option::Option<Self>
+pub fn nika_cadence::firing::SlotId::short(&self) -> &str
+impl core::clone::Clone for nika_cadence::firing::SlotId
+pub fn nika_cadence::firing::SlotId::clone(&self) -> nika_cadence::firing::SlotId
+impl core::cmp::Eq for nika_cadence::firing::SlotId
+impl core::cmp::PartialEq for nika_cadence::firing::SlotId
+pub fn nika_cadence::firing::SlotId::eq(&self, other: &nika_cadence::firing::SlotId) -> bool
+impl core::fmt::Debug for nika_cadence::firing::SlotId
+pub fn nika_cadence::firing::SlotId::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_cadence::firing::SlotId
+impl<Q, K> equivalent::Equivalent<K> for nika_cadence::firing::SlotId where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cadence::firing::SlotId::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cadence::firing::SlotId where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cadence::firing::SlotId::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cadence::firing::SlotId where U: core::convert::From<T>
+pub fn nika_cadence::firing::SlotId::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cadence::firing::SlotId where U: core::convert::Into<T>
+pub type nika_cadence::firing::SlotId::Error = core::convert::Infallible
+pub fn nika_cadence::firing::SlotId::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cadence::firing::SlotId where U: core::convert::TryFrom<T>
+pub type nika_cadence::firing::SlotId::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cadence::firing::SlotId::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cadence::firing::SlotId where T: core::clone::Clone
+pub type nika_cadence::firing::SlotId::Owned = T
+pub fn nika_cadence::firing::SlotId::clone_into(&self, target: &mut T)
+pub fn nika_cadence::firing::SlotId::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cadence::firing::SlotId where T: 'static + ?core::marker::Sized
+pub fn nika_cadence::firing::SlotId::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cadence::firing::SlotId where T: ?core::marker::Sized
+pub fn nika_cadence::firing::SlotId::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cadence::firing::SlotId where T: ?core::marker::Sized
+pub fn nika_cadence::firing::SlotId::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cadence::firing::SlotId where T: core::clone::Clone
+pub unsafe fn nika_cadence::firing::SlotId::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cadence::firing::SlotId
+pub fn nika_cadence::firing::SlotId::from(t: T) -> T
+pub fn nika_cadence::firing::decide(state: nika_cadence::firing::FiringState, event: &nika_cadence::firing::FiringEvent, now: &jiff::timestamp::Timestamp, policy: &nika_cadence::firing::FiringPolicy) -> alloc::vec::Vec<nika_cadence::firing::Decision>
+pub fn nika_cadence::firing::fold(events: &[nika_cadence::firing::FiringEvent]) -> nika_cadence::firing::FiringState
+pub fn nika_cadence::firing::transition(from: nika_cadence::firing::FiringState, event: &nika_cadence::firing::FiringEvent) -> nika_cadence::firing::FiringState
 pub mod nika_cadence::next
 #[non_exhaustive] pub enum nika_cadence::next::Shift
 pub nika_cadence::next::Shift::AdvancedFirstValid
@@ -994,6 +1354,51 @@ impl<T> core::clone::CloneToUninit for nika_cadence::error::CadenceErrorKind whe
 pub unsafe fn nika_cadence::error::CadenceErrorKind::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::error::CadenceErrorKind
 pub fn nika_cadence::error::CadenceErrorKind::from(t: T) -> T
+#[non_exhaustive] pub enum nika_cadence::Decision
+pub nika_cadence::Decision::Become(nika_cadence::firing::FiringState)
+pub nika_cadence::Decision::DeadLetter
+pub nika_cadence::Decision::Fire
+pub nika_cadence::Decision::Ignore
+pub nika_cadence::Decision::JournalClaim
+pub nika_cadence::Decision::JournalClaim::at: jiff::timestamp::Timestamp
+pub nika_cadence::Decision::JournalDefer
+pub nika_cadence::Decision::JournalDefer::at: jiff::timestamp::Timestamp
+pub nika_cadence::Decision::JournalReceipt
+pub nika_cadence::Decision::JournalReceipt::at: jiff::timestamp::Timestamp
+pub nika_cadence::Decision::JournalReceipt::state: nika_cadence::firing::FiringState
+pub nika_cadence::Decision::JournalSkip
+pub nika_cadence::Decision::JournalSkip::at: jiff::timestamp::Timestamp
+pub nika_cadence::Decision::Rearm
+pub nika_cadence::Decision::SurfaceOrphan
+impl core::clone::Clone for nika_cadence::firing::Decision
+pub fn nika_cadence::firing::Decision::clone(&self) -> nika_cadence::firing::Decision
+impl core::cmp::PartialEq for nika_cadence::firing::Decision
+pub fn nika_cadence::firing::Decision::eq(&self, other: &nika_cadence::firing::Decision) -> bool
+impl core::fmt::Debug for nika_cadence::firing::Decision
+pub fn nika_cadence::firing::Decision::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_cadence::firing::Decision
+impl<T, U> core::convert::Into<U> for nika_cadence::firing::Decision where U: core::convert::From<T>
+pub fn nika_cadence::firing::Decision::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cadence::firing::Decision where U: core::convert::Into<T>
+pub type nika_cadence::firing::Decision::Error = core::convert::Infallible
+pub fn nika_cadence::firing::Decision::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cadence::firing::Decision where U: core::convert::TryFrom<T>
+pub type nika_cadence::firing::Decision::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cadence::firing::Decision::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cadence::firing::Decision where T: core::clone::Clone
+pub type nika_cadence::firing::Decision::Owned = T
+pub fn nika_cadence::firing::Decision::clone_into(&self, target: &mut T)
+pub fn nika_cadence::firing::Decision::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cadence::firing::Decision where T: 'static + ?core::marker::Sized
+pub fn nika_cadence::firing::Decision::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cadence::firing::Decision where T: ?core::marker::Sized
+pub fn nika_cadence::firing::Decision::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cadence::firing::Decision where T: ?core::marker::Sized
+pub fn nika_cadence::firing::Decision::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cadence::firing::Decision where T: core::clone::Clone
+pub unsafe fn nika_cadence::firing::Decision::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cadence::firing::Decision
+pub fn nika_cadence::firing::Decision::from(t: T) -> T
 #[non_exhaustive] pub enum nika_cadence::DueKind
 pub nika_cadence::DueKind::Missed
 pub nika_cadence::DueKind::Missed::slots: u32
@@ -1033,6 +1438,110 @@ impl<T> core::clone::CloneToUninit for nika_cadence::due::DueKind where T: core:
 pub unsafe fn nika_cadence::due::DueKind::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::due::DueKind
 pub fn nika_cadence::due::DueKind::from(t: T) -> T
+pub enum nika_cadence::FiringEvent
+pub nika_cadence::FiringEvent::AttemptsExhausted
+pub nika_cadence::FiringEvent::AttemptsExhausted::fencing: nika_cadence::firing::FencingToken
+pub nika_cadence::FiringEvent::Cancelled
+pub nika_cadence::FiringEvent::Cancelled::fencing: core::option::Option<nika_cadence::firing::FencingToken>
+pub nika_cadence::FiringEvent::Claimed
+pub nika_cadence::FiringEvent::Claimed::deadline: jiff::timestamp::Timestamp
+pub nika_cadence::FiringEvent::Claimed::fencing: nika_cadence::firing::FencingToken
+pub nika_cadence::FiringEvent::Claimed::generation: core::option::Option<nika_cadence::firing::ArmGeneration>
+pub nika_cadence::FiringEvent::DeadlinePassed
+pub nika_cadence::FiringEvent::DeadlinePassed::fencing: nika_cadence::firing::FencingToken
+pub nika_cadence::FiringEvent::Deferred
+pub nika_cadence::FiringEvent::Due
+pub nika_cadence::FiringEvent::Finished
+pub nika_cadence::FiringEvent::Finished::code: u8
+pub nika_cadence::FiringEvent::Finished::fencing: core::option::Option<nika_cadence::firing::FencingToken>
+pub nika_cadence::FiringEvent::Poisoned
+pub nika_cadence::FiringEvent::Poisoned::fencing: nika_cadence::firing::FencingToken
+pub nika_cadence::FiringEvent::Rescued
+pub nika_cadence::FiringEvent::Rescued::fencing: nika_cadence::firing::FencingToken
+pub nika_cadence::FiringEvent::Skipped
+pub nika_cadence::FiringEvent::Skipped::reason: core::option::Option<nika_cadence::firing::SkipReason>
+pub nika_cadence::FiringEvent::Started
+pub nika_cadence::FiringEvent::Started::fencing: nika_cadence::firing::FencingToken
+impl core::clone::Clone for nika_cadence::firing::FiringEvent
+pub fn nika_cadence::firing::FiringEvent::clone(&self) -> nika_cadence::firing::FiringEvent
+impl core::cmp::PartialEq for nika_cadence::firing::FiringEvent
+pub fn nika_cadence::firing::FiringEvent::eq(&self, other: &nika_cadence::firing::FiringEvent) -> bool
+impl core::fmt::Debug for nika_cadence::firing::FiringEvent
+pub fn nika_cadence::firing::FiringEvent::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_cadence::firing::FiringEvent
+impl<T, U> core::convert::Into<U> for nika_cadence::firing::FiringEvent where U: core::convert::From<T>
+pub fn nika_cadence::firing::FiringEvent::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cadence::firing::FiringEvent where U: core::convert::Into<T>
+pub type nika_cadence::firing::FiringEvent::Error = core::convert::Infallible
+pub fn nika_cadence::firing::FiringEvent::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cadence::firing::FiringEvent where U: core::convert::TryFrom<T>
+pub type nika_cadence::firing::FiringEvent::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cadence::firing::FiringEvent::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cadence::firing::FiringEvent where T: core::clone::Clone
+pub type nika_cadence::firing::FiringEvent::Owned = T
+pub fn nika_cadence::firing::FiringEvent::clone_into(&self, target: &mut T)
+pub fn nika_cadence::firing::FiringEvent::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cadence::firing::FiringEvent where T: 'static + ?core::marker::Sized
+pub fn nika_cadence::firing::FiringEvent::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cadence::firing::FiringEvent where T: ?core::marker::Sized
+pub fn nika_cadence::firing::FiringEvent::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cadence::firing::FiringEvent where T: ?core::marker::Sized
+pub fn nika_cadence::firing::FiringEvent::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cadence::firing::FiringEvent where T: core::clone::Clone
+pub unsafe fn nika_cadence::firing::FiringEvent::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cadence::firing::FiringEvent
+pub fn nika_cadence::firing::FiringEvent::from(t: T) -> T
+#[non_exhaustive] pub enum nika_cadence::FiringState
+pub nika_cadence::FiringState::Ambiguous
+pub nika_cadence::FiringState::Cancelled
+pub nika_cadence::FiringState::Claimed
+pub nika_cadence::FiringState::DeadLettered
+pub nika_cadence::FiringState::Deferred
+pub nika_cadence::FiringState::Due
+pub nika_cadence::FiringState::FailedPermanent
+pub nika_cadence::FiringState::FailedRetryable
+pub nika_cadence::FiringState::Planned
+pub nika_cadence::FiringState::Running
+pub nika_cadence::FiringState::Skipped
+pub nika_cadence::FiringState::Succeeded
+impl nika_cadence::firing::FiringState
+pub const nika_cadence::firing::FiringState::ALL: [Self; 12]
+pub const fn nika_cadence::firing::FiringState::as_str(self) -> &'static str
+impl core::clone::Clone for nika_cadence::firing::FiringState
+pub fn nika_cadence::firing::FiringState::clone(&self) -> nika_cadence::firing::FiringState
+impl core::cmp::Eq for nika_cadence::firing::FiringState
+impl core::cmp::PartialEq for nika_cadence::firing::FiringState
+pub fn nika_cadence::firing::FiringState::eq(&self, other: &nika_cadence::firing::FiringState) -> bool
+impl core::fmt::Debug for nika_cadence::firing::FiringState
+pub fn nika_cadence::firing::FiringState::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cadence::firing::FiringState
+impl core::marker::StructuralPartialEq for nika_cadence::firing::FiringState
+impl<Q, K> equivalent::Equivalent<K> for nika_cadence::firing::FiringState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cadence::firing::FiringState::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cadence::firing::FiringState where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cadence::firing::FiringState::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cadence::firing::FiringState where U: core::convert::From<T>
+pub fn nika_cadence::firing::FiringState::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cadence::firing::FiringState where U: core::convert::Into<T>
+pub type nika_cadence::firing::FiringState::Error = core::convert::Infallible
+pub fn nika_cadence::firing::FiringState::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cadence::firing::FiringState where U: core::convert::TryFrom<T>
+pub type nika_cadence::firing::FiringState::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cadence::firing::FiringState::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cadence::firing::FiringState where T: core::clone::Clone
+pub type nika_cadence::firing::FiringState::Owned = T
+pub fn nika_cadence::firing::FiringState::clone_into(&self, target: &mut T)
+pub fn nika_cadence::firing::FiringState::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cadence::firing::FiringState where T: 'static + ?core::marker::Sized
+pub fn nika_cadence::firing::FiringState::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cadence::firing::FiringState where T: ?core::marker::Sized
+pub fn nika_cadence::firing::FiringState::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cadence::firing::FiringState where T: ?core::marker::Sized
+pub fn nika_cadence::firing::FiringState::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cadence::firing::FiringState where T: core::clone::Clone
+pub unsafe fn nika_cadence::firing::FiringState::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cadence::firing::FiringState
+pub fn nika_cadence::firing::FiringState::from(t: T) -> T
 #[non_exhaustive] pub enum nika_cadence::Locus
 pub nika_cadence::Locus::Cloud
 pub nika_cadence::Locus::Local
@@ -1197,6 +1706,95 @@ impl<T> core::clone::CloneToUninit for nika_cadence::next::Shift where T: core::
 pub unsafe fn nika_cadence::next::Shift::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::next::Shift
 pub fn nika_cadence::next::Shift::from(t: T) -> T
+#[non_exhaustive] pub enum nika_cadence::SkipReason
+pub nika_cadence::SkipReason::Already
+pub nika_cadence::SkipReason::Cloud
+pub nika_cadence::SkipReason::Expired
+pub nika_cadence::SkipReason::Inactive
+pub nika_cadence::SkipReason::Missed(u32)
+pub nika_cadence::SkipReason::NotDue
+pub nika_cadence::SkipReason::Overlap
+pub nika_cadence::SkipReason::OverlapTimeout
+pub nika_cadence::SkipReason::ServeStop
+pub nika_cadence::SkipReason::Webhook
+impl nika_cadence::firing::SkipReason
+pub fn nika_cadence::firing::SkipReason::as_str(&self) -> alloc::borrow::Cow<'static, str>
+pub fn nika_cadence::firing::SkipReason::parse(raw: &str) -> core::option::Option<Self>
+impl core::clone::Clone for nika_cadence::firing::SkipReason
+pub fn nika_cadence::firing::SkipReason::clone(&self) -> nika_cadence::firing::SkipReason
+impl core::cmp::Eq for nika_cadence::firing::SkipReason
+impl core::cmp::PartialEq for nika_cadence::firing::SkipReason
+pub fn nika_cadence::firing::SkipReason::eq(&self, other: &nika_cadence::firing::SkipReason) -> bool
+impl core::fmt::Debug for nika_cadence::firing::SkipReason
+pub fn nika_cadence::firing::SkipReason::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cadence::firing::SkipReason
+impl core::marker::StructuralPartialEq for nika_cadence::firing::SkipReason
+impl<Q, K> equivalent::Equivalent<K> for nika_cadence::firing::SkipReason where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cadence::firing::SkipReason::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cadence::firing::SkipReason where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cadence::firing::SkipReason::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cadence::firing::SkipReason where U: core::convert::From<T>
+pub fn nika_cadence::firing::SkipReason::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cadence::firing::SkipReason where U: core::convert::Into<T>
+pub type nika_cadence::firing::SkipReason::Error = core::convert::Infallible
+pub fn nika_cadence::firing::SkipReason::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cadence::firing::SkipReason where U: core::convert::TryFrom<T>
+pub type nika_cadence::firing::SkipReason::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cadence::firing::SkipReason::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cadence::firing::SkipReason where T: core::clone::Clone
+pub type nika_cadence::firing::SkipReason::Owned = T
+pub fn nika_cadence::firing::SkipReason::clone_into(&self, target: &mut T)
+pub fn nika_cadence::firing::SkipReason::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cadence::firing::SkipReason where T: 'static + ?core::marker::Sized
+pub fn nika_cadence::firing::SkipReason::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cadence::firing::SkipReason where T: ?core::marker::Sized
+pub fn nika_cadence::firing::SkipReason::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cadence::firing::SkipReason where T: ?core::marker::Sized
+pub fn nika_cadence::firing::SkipReason::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cadence::firing::SkipReason where T: core::clone::Clone
+pub unsafe fn nika_cadence::firing::SkipReason::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cadence::firing::SkipReason
+pub fn nika_cadence::firing::SkipReason::from(t: T) -> T
+pub struct nika_cadence::ArmGeneration(_)
+impl nika_cadence::firing::ArmGeneration
+pub fn nika_cadence::firing::ArmGeneration::as_str(&self) -> &str
+pub fn nika_cadence::firing::ArmGeneration::compute(beat: &nika_cadence::registry::Beat, workflow_bytes: &[u8]) -> Self
+pub fn nika_cadence::firing::ArmGeneration::from_wire(raw: &str) -> core::option::Option<Self>
+pub fn nika_cadence::firing::ArmGeneration::short(&self) -> &str
+impl core::clone::Clone for nika_cadence::firing::ArmGeneration
+pub fn nika_cadence::firing::ArmGeneration::clone(&self) -> nika_cadence::firing::ArmGeneration
+impl core::cmp::Eq for nika_cadence::firing::ArmGeneration
+impl core::cmp::PartialEq for nika_cadence::firing::ArmGeneration
+pub fn nika_cadence::firing::ArmGeneration::eq(&self, other: &nika_cadence::firing::ArmGeneration) -> bool
+impl core::fmt::Debug for nika_cadence::firing::ArmGeneration
+pub fn nika_cadence::firing::ArmGeneration::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_cadence::firing::ArmGeneration
+impl<Q, K> equivalent::Equivalent<K> for nika_cadence::firing::ArmGeneration where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cadence::firing::ArmGeneration::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cadence::firing::ArmGeneration where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cadence::firing::ArmGeneration::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cadence::firing::ArmGeneration where U: core::convert::From<T>
+pub fn nika_cadence::firing::ArmGeneration::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cadence::firing::ArmGeneration where U: core::convert::Into<T>
+pub type nika_cadence::firing::ArmGeneration::Error = core::convert::Infallible
+pub fn nika_cadence::firing::ArmGeneration::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cadence::firing::ArmGeneration where U: core::convert::TryFrom<T>
+pub type nika_cadence::firing::ArmGeneration::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cadence::firing::ArmGeneration::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cadence::firing::ArmGeneration where T: core::clone::Clone
+pub type nika_cadence::firing::ArmGeneration::Owned = T
+pub fn nika_cadence::firing::ArmGeneration::clone_into(&self, target: &mut T)
+pub fn nika_cadence::firing::ArmGeneration::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cadence::firing::ArmGeneration where T: 'static + ?core::marker::Sized
+pub fn nika_cadence::firing::ArmGeneration::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cadence::firing::ArmGeneration where T: ?core::marker::Sized
+pub fn nika_cadence::firing::ArmGeneration::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cadence::firing::ArmGeneration where T: ?core::marker::Sized
+pub fn nika_cadence::firing::ArmGeneration::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cadence::firing::ArmGeneration where T: core::clone::Clone
+pub unsafe fn nika_cadence::firing::ArmGeneration::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cadence::firing::ArmGeneration
+pub fn nika_cadence::firing::ArmGeneration::from(t: T) -> T
 #[non_exhaustive] pub struct nika_cadence::ArmRegistry
 pub nika_cadence::ArmRegistry::ceiling: core::option::Option<f64>
 pub nika_cadence::ArmRegistry::nika: alloc::string::String
@@ -1387,6 +1985,45 @@ impl<T> core::clone::CloneToUninit for nika_cadence::due::Due<'a> where T: core:
 pub unsafe fn nika_cadence::due::Due<'a>::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::due::Due<'a>
 pub fn nika_cadence::due::Due<'a>::from(t: T) -> T
+pub struct nika_cadence::FencingToken(_)
+impl nika_cadence::firing::FencingToken
+pub const fn nika_cadence::firing::FencingToken::get(self) -> u64
+pub const fn nika_cadence::firing::FencingToken::new(seq: u64) -> Self
+impl core::clone::Clone for nika_cadence::firing::FencingToken
+pub fn nika_cadence::firing::FencingToken::clone(&self) -> nika_cadence::firing::FencingToken
+impl core::cmp::Eq for nika_cadence::firing::FencingToken
+impl core::cmp::PartialEq for nika_cadence::firing::FencingToken
+pub fn nika_cadence::firing::FencingToken::eq(&self, other: &nika_cadence::firing::FencingToken) -> bool
+impl core::fmt::Debug for nika_cadence::firing::FencingToken
+pub fn nika_cadence::firing::FencingToken::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cadence::firing::FencingToken
+impl core::marker::StructuralPartialEq for nika_cadence::firing::FencingToken
+impl<Q, K> equivalent::Equivalent<K> for nika_cadence::firing::FencingToken where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cadence::firing::FencingToken::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cadence::firing::FencingToken where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cadence::firing::FencingToken::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cadence::firing::FencingToken where U: core::convert::From<T>
+pub fn nika_cadence::firing::FencingToken::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cadence::firing::FencingToken where U: core::convert::Into<T>
+pub type nika_cadence::firing::FencingToken::Error = core::convert::Infallible
+pub fn nika_cadence::firing::FencingToken::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cadence::firing::FencingToken where U: core::convert::TryFrom<T>
+pub type nika_cadence::firing::FencingToken::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cadence::firing::FencingToken::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cadence::firing::FencingToken where T: core::clone::Clone
+pub type nika_cadence::firing::FencingToken::Owned = T
+pub fn nika_cadence::firing::FencingToken::clone_into(&self, target: &mut T)
+pub fn nika_cadence::firing::FencingToken::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cadence::firing::FencingToken where T: 'static + ?core::marker::Sized
+pub fn nika_cadence::firing::FencingToken::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cadence::firing::FencingToken where T: ?core::marker::Sized
+pub fn nika_cadence::firing::FencingToken::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cadence::firing::FencingToken where T: ?core::marker::Sized
+pub fn nika_cadence::firing::FencingToken::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cadence::firing::FencingToken where T: core::clone::Clone
+pub unsafe fn nika_cadence::firing::FencingToken::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cadence::firing::FencingToken
+pub fn nika_cadence::firing::FencingToken::from(t: T) -> T
 pub struct nika_cadence::Field<const LO: u8, const HI: u8>
 impl<const LO: u8, const HI: u8> nika_cadence::cron::Field<LO, HI>
 pub fn nika_cadence::cron::Field<LO, HI>::contains(&self, v: u8) -> bool
@@ -1430,6 +2067,45 @@ impl<T> core::clone::CloneToUninit for nika_cadence::cron::Field<LO, HI> where T
 pub unsafe fn nika_cadence::cron::Field<LO, HI>::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::cron::Field<LO, HI>
 pub fn nika_cadence::cron::Field<LO, HI>::from(t: T) -> T
+#[non_exhaustive] pub struct nika_cadence::FiringPolicy
+pub nika_cadence::FiringPolicy::max_attempts: u32
+impl nika_cadence::firing::FiringPolicy
+pub const fn nika_cadence::firing::FiringPolicy::single() -> Self
+impl core::clone::Clone for nika_cadence::firing::FiringPolicy
+pub fn nika_cadence::firing::FiringPolicy::clone(&self) -> nika_cadence::firing::FiringPolicy
+impl core::cmp::Eq for nika_cadence::firing::FiringPolicy
+impl core::cmp::PartialEq for nika_cadence::firing::FiringPolicy
+pub fn nika_cadence::firing::FiringPolicy::eq(&self, other: &nika_cadence::firing::FiringPolicy) -> bool
+impl core::fmt::Debug for nika_cadence::firing::FiringPolicy
+pub fn nika_cadence::firing::FiringPolicy::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cadence::firing::FiringPolicy
+impl core::marker::StructuralPartialEq for nika_cadence::firing::FiringPolicy
+impl<Q, K> equivalent::Equivalent<K> for nika_cadence::firing::FiringPolicy where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cadence::firing::FiringPolicy::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cadence::firing::FiringPolicy where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cadence::firing::FiringPolicy::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cadence::firing::FiringPolicy where U: core::convert::From<T>
+pub fn nika_cadence::firing::FiringPolicy::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cadence::firing::FiringPolicy where U: core::convert::Into<T>
+pub type nika_cadence::firing::FiringPolicy::Error = core::convert::Infallible
+pub fn nika_cadence::firing::FiringPolicy::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cadence::firing::FiringPolicy where U: core::convert::TryFrom<T>
+pub type nika_cadence::firing::FiringPolicy::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cadence::firing::FiringPolicy::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cadence::firing::FiringPolicy where T: core::clone::Clone
+pub type nika_cadence::firing::FiringPolicy::Owned = T
+pub fn nika_cadence::firing::FiringPolicy::clone_into(&self, target: &mut T)
+pub fn nika_cadence::firing::FiringPolicy::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cadence::firing::FiringPolicy where T: 'static + ?core::marker::Sized
+pub fn nika_cadence::firing::FiringPolicy::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cadence::firing::FiringPolicy where T: ?core::marker::Sized
+pub fn nika_cadence::firing::FiringPolicy::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cadence::firing::FiringPolicy where T: ?core::marker::Sized
+pub fn nika_cadence::firing::FiringPolicy::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cadence::firing::FiringPolicy where T: core::clone::Clone
+pub unsafe fn nika_cadence::firing::FiringPolicy::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cadence::firing::FiringPolicy
+pub fn nika_cadence::firing::FiringPolicy::from(t: T) -> T
 #[non_exhaustive] pub struct nika_cadence::Slot
 pub nika_cadence::Slot::at: jiff::zoned::Zoned
 pub nika_cadence::Slot::civil: jiff::civil::datetime::DateTime
@@ -1468,10 +2144,53 @@ impl<T> core::clone::CloneToUninit for nika_cadence::next::Slot where T: core::c
 pub unsafe fn nika_cadence::next::Slot::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::next::Slot
 pub fn nika_cadence::next::Slot::from(t: T) -> T
+pub struct nika_cadence::SlotId(_)
+impl nika_cadence::firing::SlotId
+pub fn nika_cadence::firing::SlotId::as_str(&self) -> &str
+pub fn nika_cadence::firing::SlotId::derive(workflow: &str, cadence: &str, slot: &jiff::zoned::Zoned) -> Self
+pub fn nika_cadence::firing::SlotId::from_wire(raw: &str) -> core::option::Option<Self>
+pub fn nika_cadence::firing::SlotId::short(&self) -> &str
+impl core::clone::Clone for nika_cadence::firing::SlotId
+pub fn nika_cadence::firing::SlotId::clone(&self) -> nika_cadence::firing::SlotId
+impl core::cmp::Eq for nika_cadence::firing::SlotId
+impl core::cmp::PartialEq for nika_cadence::firing::SlotId
+pub fn nika_cadence::firing::SlotId::eq(&self, other: &nika_cadence::firing::SlotId) -> bool
+impl core::fmt::Debug for nika_cadence::firing::SlotId
+pub fn nika_cadence::firing::SlotId::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_cadence::firing::SlotId
+impl<Q, K> equivalent::Equivalent<K> for nika_cadence::firing::SlotId where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cadence::firing::SlotId::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cadence::firing::SlotId where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cadence::firing::SlotId::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cadence::firing::SlotId where U: core::convert::From<T>
+pub fn nika_cadence::firing::SlotId::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cadence::firing::SlotId where U: core::convert::Into<T>
+pub type nika_cadence::firing::SlotId::Error = core::convert::Infallible
+pub fn nika_cadence::firing::SlotId::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cadence::firing::SlotId where U: core::convert::TryFrom<T>
+pub type nika_cadence::firing::SlotId::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cadence::firing::SlotId::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cadence::firing::SlotId where T: core::clone::Clone
+pub type nika_cadence::firing::SlotId::Owned = T
+pub fn nika_cadence::firing::SlotId::clone_into(&self, target: &mut T)
+pub fn nika_cadence::firing::SlotId::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cadence::firing::SlotId where T: 'static + ?core::marker::Sized
+pub fn nika_cadence::firing::SlotId::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cadence::firing::SlotId where T: ?core::marker::Sized
+pub fn nika_cadence::firing::SlotId::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cadence::firing::SlotId where T: ?core::marker::Sized
+pub fn nika_cadence::firing::SlotId::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cadence::firing::SlotId where T: core::clone::Clone
+pub unsafe fn nika_cadence::firing::SlotId::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cadence::firing::SlotId
+pub fn nika_cadence::firing::SlotId::from(t: T) -> T
 pub const nika_cadence::MISSED_SLOTS_CAP: usize
 pub const nika_cadence::ON_TIME_WINDOW: jiff::signed_duration::SignedDuration
+pub fn nika_cadence::decide(state: nika_cadence::firing::FiringState, event: &nika_cadence::firing::FiringEvent, now: &jiff::timestamp::Timestamp, policy: &nika_cadence::firing::FiringPolicy) -> alloc::vec::Vec<nika_cadence::firing::Decision>
 pub fn nika_cadence::due<'a>(reg: &'a nika_cadence::registry::ArmRegistry, now: &jiff::zoned::Zoned, last_fired: &dyn core::ops::function::Fn(usize) -> core::option::Option<jiff::zoned::Zoned>) -> core::result::Result<impl core::iter::traits::iterator::Iterator<Item = nika_cadence::due::Due<'a>>, nika_cadence::error::CadenceError>
 pub fn nika_cadence::earliest_next(reg: &nika_cadence::registry::ArmRegistry, now: &jiff::zoned::Zoned) -> core::result::Result<core::option::Option<(usize, nika_cadence::next::Slot)>, nika_cadence::error::CadenceError>
+pub fn nika_cadence::fold(events: &[nika_cadence::firing::FiringEvent]) -> nika_cadence::firing::FiringState
 pub fn nika_cadence::next_slots(cadence: &nika_cadence::registry::Cadence, from: &jiff::zoned::Zoned, count: usize) -> impl core::iter::traits::iterator::Iterator<Item = nika_cadence::next::Slot>
 pub fn nika_cadence::parse_registry(text: &str) -> core::result::Result<nika_cadence::registry::ArmRegistry, nika_cadence::error::CadenceError>
+pub fn nika_cadence::transition(from: nika_cadence::firing::FiringState, event: &nika_cadence::firing::FiringEvent) -> nika_cadence::firing::FiringState
 pub fn nika_cadence::validate(registry: &nika_cadence::registry::ArmRegistry) -> impl core::iter::traits::iterator::Iterator<Item = nika_cadence::error::CadenceError>

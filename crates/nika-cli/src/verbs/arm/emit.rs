@@ -363,6 +363,7 @@ fn journal_disarm(label: &str) -> String {
         slots: None,
         slot_id: None,
         fencing: None,
+        generation: None,
     };
     match state.record(label, &entry) {
         Ok(_) => format!("· journalé: disarmed dans .nika/arm/{label}/history.ndjson\n"),
