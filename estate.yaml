@@ -18,11 +18,11 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4495
+  classified_files: 4496
   file_rows: 11
   pattern_rows: 22
   by_class:
-    authored: 1558
+    authored: 1559
     authored-pin: 2
     generated: 122
     pinned-copy: 117
@@ -140,7 +140,7 @@ patterns:
 - glob: "crates/*/public-api.txt"
   class: generated
   match_count: 66
-  aggregate_sha256: ae02ed555449e0a76b741afd2d11a869f323358eb013361bad28e6af4e373282
+  aggregate_sha256: e1b89b106cd4f192e762e56b10953f7e2f5691a3337c952093ac3768f17668d4
   evidence: ".github/workflows/public-api.yml 'diff each covered lib crate' byte-compares each snapshot against cargo public-api output; macOS renders differently, so snapshots regenerate FROM THE UBUNTU ARTIFACT (workflow comment)"
   derivation:
     tool: "cargo public-api -p <crate> --omit auto-trait-impls > crates/<crate>/public-api.txt (DEFAULT features · the CI job shape — all-features drags platform deps into the render · cargo-public-api 0.51.0 pinned · the public-api-actual CI artifact stays the judge)"
@@ -152,12 +152,12 @@ patterns:
 - glob: "crates/**/src/**"
   class: authored
   match_count: 790
-  aggregate_sha256: e011557d19f6691f20154e52647b16fd0094d56466bfb0cfcb7257104ca73e36
+  aggregate_sha256: 275510ddee74f8506e925a2025a24eeaed66423cbb0096315511659e0db7d9c7
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
-  match_count: 157
-  aggregate_sha256: f5de893a8310cec61852b220d6666282418d398cded8a1050d3518f163ba8550
+  match_count: 158
+  aggregate_sha256: f28d893c15f56511fc6193a01f59dcce943e4d751e12a7ccc8286c4d6abfd6d6
   evidence: "crate-owned tests + fixtures under tests/ — written with the crate per gate discipline, no generation markers"
 - glob: "crates/**"
   class: authored
