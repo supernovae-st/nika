@@ -4,7 +4,7 @@
 # 11 · The lift — the one door through the taint.
 #
 # A permit-relevant argument fed by an UNTRUSTED value (`inputs.*` ·
-# `config.*` · anything fetched) is the parameterisation taint. When the
+# anything fetched) is the parameterisation taint. When the
 # check can resolve the value and it ESCAPES the bound, it refuses with
 # `NIKA-AUTH-008` — and the reflex that refusal provokes (widen the
 # boundary until the message stops) is the wrong door. The right one is
@@ -30,10 +30,10 @@
 #   - a wall with no door at all · a permit BOUND can never interpolate
 #     (`NIKA-AUTH-007` · a bound is a literal you can read)
 #
-# Run · nika run examples/11-declassify-the-door.nika.yaml
+# Run · nika run examples/11-lift-the-door.nika.yaml
 #   another vendor file · --var path=examples/fixtures/orders.csv
 
-nika: declassify-the-door
+nika: lift-the-door
 
 permits:
   tools: ["nika:jq", "nika:read"]

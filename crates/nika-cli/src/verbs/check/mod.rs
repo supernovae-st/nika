@@ -516,6 +516,7 @@ fn json_verdict(
                 serde_json::Value::Bool(strict_clean),
             );
         }
+        nika_check::stamp_paid_ready(obj, &report.hints);
     }
     let text = format!("{payload:#}");
     if strict_clean {

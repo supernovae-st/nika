@@ -114,7 +114,7 @@ patterns:
 - glob: "crates/nika-pack/pack/**"
   class: pinned-copy
   match_count: 117
-  aggregate_sha256: 096ef382c4f7c561d602a402500889e1f5d7c96a348dd9d0cfcaad7c4ea73380
+  aggregate_sha256: 188f3d22250495e14238a33d671601e2b92f29f40966b8586803a56c95dd9050
   evidence: "crates/nika-pack/src/lib.rs:16 'The snapshot under pack/ is vendored by scripts/sync-pack.sh' — a byte-copy of the spec surface, never edited here"
   derivation:
     tool: "bash scripts/sync-pack.sh <nika-spec checkout> — healed daily by .github/workflows/pack-resync.yml (branch bot/pack-resync · PR-only, the 12-gate CI judges)"
@@ -152,7 +152,7 @@ patterns:
 - glob: "crates/**/src/**"
   class: authored
   match_count: 790
-  aggregate_sha256: f691543b18502c8979b06608fc2008e5d2ee3783791afb3bd6773154edec2acd
+  aggregate_sha256: 0872209ccfe663d493585c5978b13ff7cda367cb33e3f79faa20e31568d1e4e7
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
@@ -198,7 +198,7 @@ patterns:
 - glob: ".agents/**"
   class: authored
   match_count: 32
-  aggregate_sha256: 0643861a96481c7a576af7ced371d29bd8eacf4690c50c8b684331d46556db22
+  aggregate_sha256: d2436dfe9b5703bc88845ddb0922aa5d59d5dbe49e4975c1459e06ccb2ee47a7
   evidence: "the agent-plugin pack SOURCE (marketplace.json · plugin manifests · skills · rules · hooks) — authored here, mirrored downstream into supernovae-st/nika-plugins (its plugins/ is a byte-pinned copy healed on releases)"
 - glob: ".claude/**"
   class: authored

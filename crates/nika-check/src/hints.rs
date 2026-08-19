@@ -121,6 +121,8 @@ pub struct Hint {
     /// · `analysis` · `consent` · `digit-string-enum` · `inspect-unwired`
     /// · `glob-readme` · `assert-quarantine` · `jq-as-map` · `infer-as-law`
     /// (additive · agents route on it; the module doc describes each).
+    /// The paid-run family ([`PAID_RUN_KINDS`]) is what [`paid_ready`]
+    /// reads — never `is_clean`.
     /// `parallel-writers` is RETIRED (F-P15 · promoted to the
     /// NIKA-SEC-012 finding — an error owns its repair, never a hint).
     /// `exec-floor` is RETIRED (#605 · promoted to the NIKA-SEC-001
@@ -130,6 +132,60 @@ pub struct Hint {
     pub task: String,
     /// What to change and what it unlocks.
     pub advice: String,
+}
+
+/// Hint kinds that mean the file is legal but must not leave `mock/`.
+/// A green `is_clean` with any of these is the 2026-08-19 paid-run class.
+pub const PAID_RUN_KINDS: &[&str] = &[
+    "digit-string-enum",
+    "glob-readme",
+    "inspect-unwired",
+    "jq-as-map",
+    "infer-as-law",
+];
+
+impl Hint {
+    /// Whether this hint is in the paid-run family.
+    #[must_use]
+    pub fn is_paid_run(&self) -> bool {
+        PAID_RUN_KINDS.contains(&self.kind)
+    }
+}
+
+/// The paid-run hints still on the file, in scan order.
+#[must_use]
+pub fn paid_blockers(hints: &[Hint]) -> Vec<&Hint> {
+    hints.iter().filter(|h| h.is_paid_run()).collect()
+}
+
+/// True iff no paid-run hint fired. Never consults `is_clean`.
+#[must_use]
+pub fn paid_ready(hints: &[Hint]) -> bool {
+    !hints.iter().any(Hint::is_paid_run)
+}
+
+/// Stamp `paid_ready` / `paid_blockers` onto a serialized check report.
+/// Additive · `report_version` stays 1 · `clean` is untouched.
+pub fn stamp_paid_ready(obj: &mut serde_json::Map<String, serde_json::Value>, hints: &[Hint]) {
+    let blockers: Vec<serde_json::Value> = paid_blockers(hints)
+        .into_iter()
+        .map(|h| {
+            serde_json::json!({
+                "kind": h.kind,
+                "task": h.task,
+            })
+        })
+        .collect();
+    obj.insert(
+        "paid_ready".to_owned(),
+        serde_json::Value::Bool(blockers.is_empty()),
+    );
+    if !blockers.is_empty() {
+        obj.insert(
+            "paid_blockers".to_owned(),
+            serde_json::Value::Array(blockers),
+        );
+    }
 }
 
 /// Compute the improvement hints for a workflow.
@@ -1011,14 +1067,7 @@ fn push_jq_as_map_hint(hints: &mut Vec<Hint>, id: &str, a: &nika_schema::raw::Ra
     else {
         return;
     };
-    if !expr.contains(". as $") {
-        return;
-    }
-    let bare_map = expr.lines().any(|line| {
-        let t = line.trim();
-        t.starts_with("map(") || t.starts_with("| map(")
-    });
-    if !bare_map {
+    if !jq_maps_the_current_after_bind(expr) {
         return;
     }
     hints.push(hint(
@@ -1117,6 +1166,57 @@ fn asks_model_to_name_the_law(text: &str) -> bool {
             && !clause.contains("don't")
             && !clause.contains("not ")
     })
+}
+
+/// `. as $c | map(...)` maps the *current* value. `($c | map(...))` is
+/// the one-way. A one-liner used to slip past the line-start detector.
+fn jq_maps_the_current_after_bind(expr: &str) -> bool {
+    let names = bound_jq_names(expr);
+    if names.is_empty() || !expr.contains("map(") {
+        return false;
+    }
+    let mut rest = squash_ws(expr);
+    for name in &names {
+        rest = rest.replace(&format!("(${name} | map("), "");
+        rest = rest.replace(&format!("(${name}|map("), "");
+    }
+    rest.contains("map(")
+}
+
+fn bound_jq_names(expr: &str) -> Vec<String> {
+    let mut names = Vec::new();
+    let mut rest = expr;
+    while let Some(i) = rest.find(". as $") {
+        let after = &rest[i + 6..];
+        let name: String = after
+            .chars()
+            .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
+            .collect();
+        if name.is_empty() {
+            rest = after;
+            continue;
+        }
+        names.push(name.clone());
+        rest = after.get(name.len()..).unwrap_or("");
+    }
+    names
+}
+
+fn squash_ws(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut gap = false;
+    for c in s.chars() {
+        if c.is_whitespace() {
+            gap = true;
+        } else {
+            if gap && !out.is_empty() {
+                out.push(' ');
+            }
+            gap = false;
+            out.push(c);
+        }
+    }
+    out
 }
 
 fn hint(kind: &'static str, task: &str, advice: String) -> Hint {

@@ -876,6 +876,14 @@ fn jq_as_then_bare_map_is_hinted() {
         "nika: w\npermits: { tools: [\"nika:jq\"] }\ntasks:\n  score:\n    invoke:\n      tool: nika:jq\n      args:\n        input: []\n        expression: |\n          . as $c\n          | ($c | map(.n))\n",
     );
     assert!(!ok.iter().any(|x| x.kind == "jq-as-map"), "{ok:?}");
+
+    let oneline = hints_of(
+        "nika: w\npermits: { tools: [\"nika:jq\"] }\ntasks:\n  score:\n    invoke: { tool: nika:jq, args: { input: [], expression: \". as $c | map(.n)\" } }\n",
+    );
+    assert!(
+        oneline.iter().any(|x| x.kind == "jq-as-map"),
+        "one-liner . as $c | map( must hint: {oneline:?}"
+    );
 }
 
 #[test]
@@ -909,5 +917,19 @@ fn infer_that_assigns_a_belt_is_the_law_hint() {
     assert!(
         !extract.iter().any(|x| x.kind == "infer-as-law"),
         "a never-assign extract stays silent: {extract:?}"
+    );
+}
+
+#[test]
+fn a_locale_infer_after_extract_is_not_the_law() {
+    // A second infer + string enum is language-id / sentiment — the
+    // one-way. Phrase list stays the detector (a structural arm
+    // false-reds BCP-47).
+    let h = hints_of(
+        "nika: w\nmodel: mock/echo\ntasks:\n  facts:\n    infer: { prompt: extract, max_tokens: 32 }\n  lang:\n    with: { facts: \"${{ tasks.facts.output }}\" }\n    infer:\n      prompt: Name the BCP-47 language.\n      max_tokens: 16\n      schema: { type: string, enum: [en, fr, de, es] }\noutputs:\n  r: ${{ tasks.lang.output }}\n",
+    );
+    assert!(
+        !h.iter().any(|x| x.kind == "infer-as-law"),
+        "locale id is language, not the law: {h:?}"
     );
 }

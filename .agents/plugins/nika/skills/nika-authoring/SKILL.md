@@ -94,9 +94,12 @@ the `.nika.yaml` extension. `nika new <slug>` makes one yours;
    the diagnostics — they name the exact task, reference and fix.
    Unknown code? `nika explain NIKA-XXXX`.
 5. Repeat 3–4 until clean. **Never hand a file to the human that does
-   not pass `nika check --native-strict`.** That flag is the bar, not an
-   extra: the hooks that check on your behalf and the gate in front of
-   `nika run` both use it, so a file that fails it cannot be run at all.
+   not pass `nika check --native-strict` AND `paid_ready: true`.**
+   `--native-strict` is the run-gate bar (an `exec:` a builtin covers).
+   `.paid_ready` is the paid-infer bar (`nika check --json | jq .paid_ready`).
+   A green exit with leftover `infer-as-law` / `digit-string-enum` /
+   `glob-readme` / `jq-as-map` / `inspect-unwired` is legal, not the
+   one-way. The MCP `nika_check` oracle fails that family by default.
    The exec ledger does NOT buy an exemption (measured: a `.py` wrapper
    fails with a complete ledger) — it documents intent for a reviewer.
    What passes is an `exec:` of a real tool (`git`, `docker`); what
@@ -277,7 +280,8 @@ otherwise, in this order:
 Measured on a 40+ task OpenAI extract → law run. Do not rediscover
 this with a paid seat.
 
-1. `nika check --native-strict` until zero findings and zero hints.
+1. `nika check --json --native-strict` until `clean` and `paid_ready`
+   are both true (zero findings, zero paid-run hints).
 2. Probe every new builtin in a one-task file on `mock/echo` *before*
    wiring it after a paid `infer:` (`nika:inspect` is catalogued and
    unwired — hint `inspect-unwired`).
@@ -300,8 +304,9 @@ replays every item. After `. as $c` in jq, write `($c | map(...))`
 ## After valid: is there a better one-way? (not optional)
 
 `nika check --native-strict` green means the file is *legal*. It does
-not mean it is the cheapest, most native, or most honest file. The
-next handoff to a human is refused until this loop is silent. Each
+not mean it is the cheapest, most native, or most honest file.
+`.paid_ready` is the boolean for "may this file leave mock?". The
+next handoff to a human is refused until that field is true. Each
 question has a command or a file. Do not reason from memory.
 
 Zhang, Kraska, Khattab 2026 (arXiv:2512.24601, Recursive Language
@@ -311,13 +316,16 @@ examples + `nika catalog --tools`. Recursion is `invoke: { workflow: }`
 or `for_each:` over items — never one giant infer. Verification is
 `nika:jq` / `nika:decide`, never a second infer that names the verdict.
 
+0. **Is `.paid_ready` true?** `nika check --json <file> | jq .paid_ready`.
+   `false` → repair `.paid_blockers[]` first. Do not swap off `mock/`.
 1. **Did I read two examples first?** `nika try` then `nika new <slug>`
    twice. Skipping this is the measured 7.5-round tax.
 2. **Is every `exec:` a real tool?** `nika check --native-strict`. A
    `.py`/`.sh` wrapper is not a tool.
 3. **Does any infer name the verdict?** Hint `infer-as-law`. Extract
    integer facts; `nika:jq` or `nika:decide` is the law
-   (`13-extract-then-law`).
+   (`13-extract-then-law`). A second infer whose schema is a language
+   enum (BCP-47 · sentiment) is language, not this hint.
 4. **Is every numeric enum `type: integer`?** Hint `digit-string-enum`.
 5. **Does a markdown glob include README?** Hint `glob-readme`.
 6. **Did I probe every new builtin on `mock/echo`?** One-task file,
@@ -326,13 +334,13 @@ or `for_each:` over items — never one giant infer. Verification is
    and `nika new "the job in plain words"`. If a skeleton is closer
    than what I wrote, start over from it.
 8. **Did `nika explain <file>` stay honest?** Waves · cost (FLOOR ≠ $0)
-   · touches · the hints panel. If a hint remains, the file is not
-   done.
+   · touches · the **before a paid model** panel. If a paid-run hint
+   remains, the file is not done.
 
-A green check with a leftover hint is not a handoff. Repair the hint.
-Re-run 1–8 until both the findings and the hints are empty, or every
-remaining hint has a one-line reason in the file header (the honest
-red class, CONVENTIONS §10).
+A green check with `paid_ready: false` is not a handoff. Repair the
+blocker. Re-run 0–8 until findings are empty and `paid_ready` is true,
+or every remaining *non-paid* hint has a one-line reason in the file
+header (the honest red class, CONVENTIONS §10).
 
 ## Cost honesty (never hide unknown spend)
 

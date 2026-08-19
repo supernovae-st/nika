@@ -796,6 +796,39 @@ fn native_strict_json_payload_agrees_with_the_exit_code() {
     );
 }
 
+/// `--json` always carries `paid_ready`. Hints never fail `clean` or
+/// the exit code — the field is the question an agent reads after
+/// `--native-strict` is green.
+#[test]
+fn json_payload_names_paid_ready_without_failing_clean() {
+    let judge = "nika: w\nmodel: mock/echo\ntasks:\n  judge:\n    infer:\n      prompt: |\n        Read the note and assign a belt.\n      max_tokens: 32\noutputs:\n  r: ${{ tasks.judge.output }}\n";
+    let dir = std::env::temp_dir().join(format!("nika-cli-paidready-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("tmp dir");
+    let path = dir.join("paid-ready.nika.yaml");
+    std::fs::write(&path, judge).expect("fixture body");
+    let theme = Theme::new(false, true, false);
+    let out = run(path.to_str().expect("utf8 path"), true, false, None, theme);
+    assert_eq!(
+        out.code, 0,
+        "paid-run hints stay advisory on the CLI: {}",
+        out.text
+    );
+    let payload: serde_json::Value = serde_json::from_str(&out.text).expect("json");
+    assert_eq!(payload["clean"], serde_json::json!(true), "{payload:#}");
+    assert_eq!(
+        payload["paid_ready"],
+        serde_json::json!(false),
+        "{payload:#}"
+    );
+    let kinds: Vec<&str> = payload["paid_blockers"]
+        .as_array()
+        .expect("paid_blockers")
+        .iter()
+        .filter_map(|r| r["kind"].as_str())
+        .collect();
+    assert!(kinds.contains(&"infer-as-law"), "{payload:#}");
+}
+
 /// `--native-strict` promotes native-first hints to failure: the SAME
 /// spec-valid workflow exits 0 by default and 2 under strict, with the
 /// strict verdict naming the count; a natively-written twin stays exit

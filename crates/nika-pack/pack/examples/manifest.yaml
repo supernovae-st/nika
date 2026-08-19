@@ -28,8 +28,8 @@ foundation:
     sha256_16: ad9919807bcd57cb
   - file: examples/10-compose-pipeline.nika.yaml
     sha256_16: be8561e007018d7f
-  - file: examples/11-declassify-the-door.nika.yaml
-    sha256_16: ca7ff786bf19812c
+  - file: examples/11-lift-the-door.nika.yaml
+    sha256_16: 2218cb468ee87a52
   - file: examples/12-failure-routing.nika.yaml
     sha256_16: dec596bc0ed21038
   - file: examples/13-extract-then-law.nika.yaml

@@ -408,7 +408,9 @@ them with tokens. The shape is [`13-extract-then-law`](13-extract-then-law.nika.
 2. **The model never writes the verdict.** Extract facts (`infer.schema:`),
    then `nika:jq` (or `nika:decide`) is the law. A second infer to "pick
    the level" is the expensive mistake this lesson exists to unlearn.
-   Hint `infer-as-law`.
+   Hint `infer-as-law`. `nika check --json` reports `paid_ready: false`
+   until the paid-run family is gone. The MCP `nika_check` oracle fails
+   `infer-as-law` and `digit-string-enum` by default.
 3. **Probe a new builtin with `mock/echo` first.** `nika:inspect` is
    catalogued and unwired (`available: false`). Hint `inspect-unwired`.
 4. **`nika:hash` accepts an object.** Do not pre-`tojson` a roster.
@@ -423,9 +425,9 @@ them with tokens. The shape is [`13-extract-then-law`](13-extract-then-law.nika.
    now cache-hits** when the collection and definition are unchanged.
    The skip is the *whole fan*, not one item.
 
-Order that is cheaper: `nika check --native-strict` → one-task mock
-probe of every new builtin → freeze the extract schema type → then
-wire paid infer.
+Order that is cheaper: `nika check --json --native-strict` until
+`paid_ready: true` → one-task mock probe of every new builtin → freeze
+the extract schema type → then wire paid infer.
 
 ---
 
