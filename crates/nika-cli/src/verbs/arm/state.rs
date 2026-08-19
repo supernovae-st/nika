@@ -10,7 +10,9 @@
 //!                                      NOT held (the overlap-skip path) · never held
 //!                                      across a run
 //! .nika/arm/<label>/last.json          the PROJECTION { "slot", "fired_at", "trace",
-//!                                      "exit", "kind": "fired|skipped|paused|failed" }
+//!                                      "exit", "kind": "fired|skipped|paused|failed",
+//!                                      "gen" } — a CACHE since W7: rebuilt from the
+//!                                      chain whenever absent or unreadable
 //! .nika/arm/<label>/watermark          the last DECIDED instant (RFC 3339 + newline) ·
 //!                                      the restart reconciliation floor
 //! .nika/arm/<label>/history.ndjson     the versioned ledger (nika/arm-event@1) · one
@@ -33,10 +35,17 @@
 //! stale lock resolve through the atomic `create_new`, the loser
 //! re-judges the winner's live pid.
 //!
-//! N2 rides the read half: a missing OR corrupt `last.json` reads as
-//! « never fired » · the planner then owes the on-time window alone and
-//! invents no backlog, which is the safe failure direction (at most one
-//! on-time re-fire, never a catch-up storm).
+//! The read half (W7's reversal, pinned): never-fired-on-missing dated
+//! from BEFORE the ledger. The chain is the truth since W5-bis, so a
+//! missing OR corrupt `last.json` now REPLAYS the chain — the verified
+//! prefix folds, the invalid tail is refused (a read cuts NOTHING; the
+//! cut stays the append's gesture) — and the projection is rebuilt from
+//! the last slot-bearing decision (`fired|skipped|paused|failed`;
+//! `claimed`/`rotated` never bear slots). An absent CHAIN still reads
+//! as never-fired (N2 — the direction that is truly safe: the planner
+//! then owes the on-time window alone and invents no backlog, at most
+//! one on-time re-fire, never a catch-up storm). `last.json` keeps
+//! being written (fast reads); it is only a cache.
 //!
 //! The ledger law (W5-bis): every append verifies the chain first (seq
 //! continuity from 1 · `prev_hash` linkage · every hash recomputed over
@@ -50,6 +59,12 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 use jiff::{Timestamp, Zoned};
+use nika_cadence::firing::{ArmGeneration, FencingToken, SlotId};
+
+/// The replay half (W7 · D1) — read-only chain verification + the
+/// projection rebuild. `last()` falls back to it; `migrate` rebuilds
+/// with it.
+pub(crate) mod replay;
 
 /// The sidecar root below a project directory (D3 · next to the traces).
 const ARM_DIR: &str = ".nika/arm";
@@ -135,7 +150,8 @@ impl FireKind {
 /// nullable). `slots` carries the silence's count when
 /// `rattraper-une-fois` fires ONE run for n slots. On the ledger the
 /// fields ride the `payload` object and `decided_at` is promoted to
-/// the envelope's `ts`.
+/// the envelope's `ts`. The W7 types ride the cadence newtypes — the
+/// wire keeps their strings.
 #[derive(Debug, Clone)]
 pub struct HistoryEntry {
     /// The slot decided (the absolute instant — zone-free on the wire).
@@ -152,12 +168,16 @@ pub struct HistoryEntry {
     pub exit: Option<u8>,
     /// `rattraper-une-fois`: how many slots the one fire answers for.
     pub slots: Option<u32>,
-    /// The slot's canonical identity ([`slot_id`]) — `None` for the
-    /// pre-slot skips.
-    pub slot_id: Option<String>,
+    /// The slot's canonical identity ([`SlotId::derive`]) — `None` for
+    /// the pre-slot skips.
+    pub slot_id: Option<SlotId>,
     /// A receipt pins the claim it settles (the claim's seq) — `None`
     /// on every line that follows no claim.
-    pub fencing: Option<u64>,
+    pub fencing: Option<FencingToken>,
+    /// The pinned generation (D3 · F17) — the claim's, inherited by the
+    /// receipt; `None` on the skips and when the workflow bytes were
+    /// unreadable at claim time.
+    pub generation: Option<ArmGeneration>,
 }
 
 /// The durable claim (W5-bis): appended + fsync'd BEFORE the run — a
@@ -166,8 +186,12 @@ pub struct HistoryEntry {
 /// guarantee is at-least-once, never exactly-once.
 #[derive(Debug, Clone)]
 pub struct Claim {
-    /// The slot's canonical identity ([`slot_id`]).
-    pub slot_id: String,
+    /// The slot's canonical identity ([`SlotId::derive`]).
+    pub slot_id: SlotId,
+    /// The generation this firing pins (D3 · F17) — `None` only when
+    /// the workflow bytes were unreadable (the run then fails its own
+    /// receipt; the claim pins nothing rather than lying).
+    pub generation: Option<ArmGeneration>,
     /// The crash-detector deadline — the beat's next theoretical slot
     /// (the sweep that reads it is W8's).
     pub deadline: Timestamp,
@@ -185,6 +209,21 @@ pub struct RecordOutcome {
     pub repaired: u64,
 }
 
+/// What migrate's per-beat gesture landed (D2 — the report names each
+/// act, never silent).
+pub(crate) struct HealOutcome {
+    /// The rotation performed on the way in, when one was.
+    pub rotated: Option<Rotation>,
+    /// The invalid tail lines the verify cut.
+    pub repaired: u64,
+    /// The valid chain's length after the gesture.
+    pub lines: u64,
+    /// `last.json` was rebuilt by the replay.
+    pub rebuilt_last: bool,
+    /// The watermark was rebuilt by the replay.
+    pub rebuilt_watermark: bool,
+}
+
 /// A claim no receipt settled — the crash detector's output (W5-bis
 /// detects; the sweep is W8's). In the single-firer world an orphan is
 /// unambiguous: its holder is this process's dead ancestor.
@@ -193,27 +232,11 @@ pub struct Unsettled {
     /// The claim's seq (= its fencing token).
     pub seq: u64,
     /// The claimed slot's canonical identity.
-    pub slot_id: String,
+    pub slot_id: SlotId,
     /// The deadline the claim declared.
     pub deadline: Timestamp,
     /// The claim's instant.
     pub claimed_at: Timestamp,
-}
-
-/// The slot's canonical identity (W5-bis · the dedup unit): sha256 hex
-/// over the domain-separated canonical string — the workflow path
-/// VERBATIM, the cadence string VERBATIM, the slot's instant as UTC
-/// RFC 3339. NEVER the positional label (a `-2`/`-3` permutes at
-/// insertion). Derivable before any write, stable across restarts.
-#[must_use]
-pub fn slot_id(workflow: &str, cadence: &str, slot: &Zoned) -> String {
-    sha256_hex(
-        format!(
-            "nika/arm-slot@1\n{workflow}\n{cadence}\n{}",
-            slot.timestamp()
-        )
-        .as_bytes(),
-    )
 }
 
 /// The parsed `last.json` — the report (PROUVE) and the planner read it.
@@ -229,6 +252,9 @@ pub struct LastRecord {
     pub exit: Option<u8>,
     /// The decision kind.
     pub kind: FireKind,
+    /// The generation the firing pinned (D3 · F17) — `None` on the
+    /// decisions that never claim (the skips) and on W2-era lines.
+    pub generation: Option<ArmGeneration>,
 }
 
 impl ArmState {
@@ -256,34 +282,24 @@ impl ArmState {
             .map(|r| r.slot.to_zoned(jiff::tz::TimeZone::UTC))
     }
 
-    /// The parsed `last.json` of one beat — `None` when absent or
-    /// unreadable (N2's safe direction, see the module doc).
+    /// The parsed `last.json` of one beat. W7's reversal (the module
+    /// doc pins it): absent or unreadable, the projection is REBUILT by
+    /// replaying the chain — the verified prefix folds, the invalid
+    /// tail is refused, the read writes nothing. `None` only when the
+    /// chain itself is absent or decides nothing (N2's safe direction).
     #[must_use]
     pub fn last(&self, label: &str) -> Option<LastRecord> {
-        let text = std::fs::read_to_string(self.root.join(label).join("last.json")).ok()?;
-        let doc: serde_json::Value = serde_json::from_str(&text).ok()?;
-        let slot: Timestamp = doc.get("slot")?.as_str()?.parse().ok()?;
-        let fired_at: Timestamp = doc.get("fired_at")?.as_str()?.parse().ok()?;
-        let kind = match doc.get("kind")?.as_str()? {
-            "fired" => FireKind::Fired,
-            "skipped" => FireKind::Skipped,
-            "paused" => FireKind::Paused,
-            "failed" => FireKind::Failed,
-            _ => return None,
-        };
-        Some(LastRecord {
-            slot,
-            fired_at,
-            trace: doc
-                .get("trace")
-                .and_then(serde_json::Value::as_str)
-                .map(str::to_owned),
-            exit: doc
-                .get("exit")
-                .and_then(serde_json::Value::as_u64)
-                .and_then(|e| u8::try_from(e).ok()),
-            kind,
-        })
+        let dir = self.root.join(label);
+        if let Some(record) = read_last_file(&dir) {
+            Some(record)
+        } else {
+            let record = replay::replay(&dir).ok()?.last?;
+            // The replay is read-only; this caller owns the cache
+            // repair. A read-only filesystem still gets the truth
+            // in memory — the failed cache write never hides it.
+            let _ = write_atomic(&dir.join("last.json"), &render_last(&record));
+            Some(record)
+        }
     }
 
     /// The history's skip/fire tallies (`x sauts / y tirs`) — over the
@@ -420,13 +436,23 @@ impl ArmState {
             seq,
             entry.decided_at,
             entry.kind.as_str(),
-            entry.slot_id.as_deref(),
+            entry.slot_id.as_ref().map(SlotId::as_str),
             &decision_payload(entry),
             head.prev_hash.as_deref(),
         );
         append_line(&dir.join(HISTORY), &line)?;
-        if entry.slot.is_some() {
-            write_atomic(&dir.join("last.json"), &last_json(entry))?;
+        if let Some(slot) = entry.slot {
+            write_atomic(
+                &dir.join("last.json"),
+                &render_last(&LastRecord {
+                    slot,
+                    fired_at: entry.decided_at,
+                    trace: entry.trace.clone(),
+                    exit: entry.exit,
+                    kind: entry.kind,
+                    generation: entry.generation.clone(),
+                }),
+            )?;
         }
         write_atomic(&dir.join("watermark"), &format!("{}\n", entry.decided_at))?;
         Ok(RecordOutcome {
@@ -449,16 +475,21 @@ impl ArmState {
         let head = chain_head(&dir, &claim.decided_at)?;
         let seq = head.seq + 1;
         // The fencing token IS the line's own seq (Kleppmann): the
-        // receipt settles the claim by naming it.
+        // receipt settles the claim by naming it. `gen` pins the
+        // firing's generation (D3 · F17).
+        let generation = claim
+            .generation
+            .as_ref()
+            .map_or("null".to_owned(), |g| json_str(g.as_str()));
         let payload = format!(
-            "{{\"attempt\":1,\"deadline\":\"{}\",\"fencing\":{seq}}}",
+            "{{\"attempt\":1,\"deadline\":\"{}\",\"fencing\":{seq},\"gen\":{generation}}}",
             claim.deadline
         );
         let (line, _) = ledger_line(
             seq,
             claim.decided_at,
             "claimed",
-            Some(&claim.slot_id),
+            Some(claim.slot_id.as_str()),
             &payload,
             head.prev_hash.as_deref(),
         );
@@ -480,7 +511,7 @@ impl ArmState {
             return Vec::new();
         };
         let mut claims: Vec<(usize, Unsettled)> = Vec::new();
-        let mut receipts: Vec<(usize, String, u64)> = Vec::new();
+        let mut receipts: Vec<(usize, SlotId, u64)> = Vec::new();
         for (position, line) in text.lines().enumerate() {
             let Ok(doc) = serde_json::from_str::<serde_json::Value>(line) else {
                 continue;
@@ -488,7 +519,9 @@ impl ArmState {
             if doc.get("kind").and_then(serde_json::Value::as_str) == Some("claimed") {
                 let (Some(seq), Some(identity), Some(deadline), Some(claimed_at)) = (
                     doc.get("seq").and_then(serde_json::Value::as_u64),
-                    doc.get("slot_id").and_then(serde_json::Value::as_str),
+                    doc.get("slot_id")
+                        .and_then(serde_json::Value::as_str)
+                        .and_then(SlotId::from_wire),
                     doc.get("payload")
                         .and_then(|p| p.get("deadline"))
                         .and_then(serde_json::Value::as_str)
@@ -503,7 +536,7 @@ impl ArmState {
                     position,
                     Unsettled {
                         seq,
-                        slot_id: identity.to_owned(),
+                        slot_id: identity,
                         deadline,
                         claimed_at,
                     },
@@ -511,24 +544,83 @@ impl ArmState {
                 continue;
             }
             let receipt = (
-                doc.get("slot_id").and_then(serde_json::Value::as_str),
+                doc.get("slot_id")
+                    .and_then(serde_json::Value::as_str)
+                    .and_then(SlotId::from_wire),
                 doc.get("payload")
                     .and_then(|p| p.get("fencing"))
                     .and_then(serde_json::Value::as_u64),
             );
             if let (Some(identity), Some(fencing)) = receipt {
-                receipts.push((position, identity.to_owned(), fencing));
+                receipts.push((position, identity, fencing));
             }
         }
         claims
             .into_iter()
             .filter(|(position, claim)| {
                 !receipts.iter().any(|(later, identity, fencing)| {
-                    later > position && *identity == claim.slot_id && *fencing == claim.seq
+                    later > position && (identity, *fencing) == (&claim.slot_id, claim.seq)
                 })
             })
             .map(|(_, claim)| claim)
             .collect()
+    }
+
+    /// The sidecar's beat directories, sorted (migrate's walk). An
+    /// absent sidecar is an empty walk, never an error.
+    pub(crate) fn beat_dirs(&self) -> io::Result<Vec<String>> {
+        let entries = match std::fs::read_dir(&self.root) {
+            Ok(entries) => entries,
+            Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
+            Err(e) => return Err(e),
+        };
+        let mut out = Vec::new();
+        for entry in entries {
+            let entry = entry?;
+            if !entry.file_type()?.is_dir() {
+                continue;
+            }
+            let label = entry.file_name().into_string().map_err(|_| {
+                io::Error::new(io::ErrorKind::InvalidData, "arm sidecar label is not UTF-8")
+            })?;
+            out.push(label);
+        }
+        out.sort_unstable();
+        Ok(out)
+    }
+
+    /// migrate's per-beat gesture (D2), the whole of it under the
+    /// ledger lock: verify the chain (a never-appended W2 journal is
+    /// rotated aside, an invalid tail cut), then rebuild the
+    /// projections BY REPLAY — the chain is the truth, a stale
+    /// `last.json` is rewritten, never trusted.
+    pub(crate) fn heal(&self, label: &str, now: &Timestamp) -> io::Result<HealOutcome> {
+        let dir = self.root.join(label);
+        let now_zoned = now.to_zoned(jiff::tz::TimeZone::UTC);
+        let _ledger = self.ledger_guard(&dir, label, &now_zoned)?;
+        let head = chain_head(&dir, now)?;
+        let replayed = replay::replay(&dir)?;
+        if let Some(last) = &replayed.last {
+            write_atomic(&dir.join("last.json"), &render_last(last))?;
+        }
+        if let Some(watermark) = replayed.watermark {
+            write_atomic(&dir.join("watermark"), &format!("{watermark}\n"))?;
+        }
+        Ok(HealOutcome {
+            rotated: head.rotated,
+            repaired: head.repaired,
+            lines: head.seq,
+            rebuilt_last: replayed.last.is_some(),
+            rebuilt_watermark: replayed.watermark.is_some(),
+        })
+    }
+
+    /// The report's folded state (D5): the current lifecycle through
+    /// the cadence machine, the deadline judged against the injected
+    /// `now`. `None` when the journal says nothing.
+    pub(crate) fn folded(&self, label: &str, now: &Timestamp) -> Option<replay::Folded> {
+        let replayed = replay::replay(&self.root.join(label)).ok()?;
+        replay::fold_replay(&replayed, now)
     }
 
     /// The beat's directory, created on demand.
@@ -539,33 +631,83 @@ impl ArmState {
     }
 }
 
-/// The `last.json` document — the locked shape (D3).
-fn last_json(entry: &HistoryEntry) -> String {
-    let slot = entry.slot.map_or(String::new(), |s| s.to_string());
-    let trace = entry
-        .trace
-        .as_deref()
-        .map_or("null".to_owned(), |t| format!("\"{t}\""));
-    let exit = entry.exit.unwrap_or(0);
+/// The `last.json` fast path — the cache read. `None` when absent,
+/// unparseable, or carrying a word the projection never writes (the
+/// replay then speaks, [`ArmState::last`]).
+fn read_last_file(dir: &Path) -> Option<LastRecord> {
+    let text = std::fs::read_to_string(dir.join("last.json")).ok()?;
+    let doc: serde_json::Value = serde_json::from_str(&text).ok()?;
+    let slot: Timestamp = doc.get("slot")?.as_str()?.parse().ok()?;
+    let fired_at: Timestamp = doc.get("fired_at")?.as_str()?.parse().ok()?;
+    Some(LastRecord {
+        slot,
+        fired_at,
+        trace: doc
+            .get("trace")
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_owned),
+        exit: doc
+            .get("exit")
+            .and_then(serde_json::Value::as_u64)
+            .and_then(|e| u8::try_from(e).ok()),
+        kind: fire_kind(doc.get("kind")?.as_str()?)?,
+        generation: doc
+            .get("gen")
+            .and_then(serde_json::Value::as_str)
+            .and_then(ArmGeneration::from_wire),
+    })
+}
+
+/// The decision word — the projection's closed vocabulary (a
+/// `disarmed` never lands here: it bears no slot).
+fn fire_kind(word: &str) -> Option<FireKind> {
+    match word {
+        "fired" => Some(FireKind::Fired),
+        "skipped" => Some(FireKind::Skipped),
+        "paused" => Some(FireKind::Paused),
+        "failed" => Some(FireKind::Failed),
+        _ => None,
+    }
+}
+
+/// The `last.json` document — the locked shape (D3), `gen` joining in
+/// W7 (a pre-W7 cache reads fine: the field parses as absent). The ONE
+/// renderer: `record` writes through it and the replay rebuilds through
+/// it, so a rebuilt projection is byte-identical by construction.
+fn render_last(record: &LastRecord) -> String {
+    let trace = record.trace.as_deref().map_or("null".to_owned(), json_str);
+    let exit = record.exit.unwrap_or(0);
+    let generation = record
+        .generation
+        .as_ref()
+        .map_or("null".to_owned(), |g| format!("\"{}\"", g.as_str()));
     format!(
-        "{{\"slot\":\"{slot}\",\"fired_at\":\"{}\",\"trace\":{trace},\"exit\":{exit},\"kind\":\"{}\"}}\n",
-        entry.decided_at,
-        entry.kind.as_str()
+        "{{\"slot\":\"{}\",\"fired_at\":\"{}\",\"trace\":{trace},\"exit\":{exit},\"kind\":\"{}\",\"gen\":{generation}}}\n",
+        record.slot,
+        record.fired_at,
+        record.kind.as_str()
     )
 }
 
 /// The five decision kinds' payload — the W2 fields verbatim
 /// (`decided_at` is promoted to the envelope's `ts`), plus `fencing`
-/// when the line is a receipt settling a claim.
+/// when the line is a receipt settling a claim, and `gen` when the
+/// firing pinned its generation (D3 — the claim's, inherited).
 fn decision_payload(entry: &HistoryEntry) -> String {
     let slot = entry.slot.map_or("null".to_owned(), |s| format!("\"{s}\""));
     let reason = entry.reason.as_deref().map_or("null".to_owned(), json_str);
     let trace = entry.trace.as_deref().map_or("null".to_owned(), json_str);
     let exit = entry.exit.map_or("null".to_owned(), |e| e.to_string());
     let slots = entry.slots.map_or("null".to_owned(), |s| s.to_string());
-    let fencing = entry.fencing.map_or("null".to_owned(), |f| f.to_string());
+    let fencing = entry
+        .fencing
+        .map_or("null".to_owned(), |f| f.get().to_string());
+    let generation = entry
+        .generation
+        .as_ref()
+        .map_or("null".to_owned(), |g| json_str(g.as_str()));
     format!(
-        "{{\"slot\":{slot},\"reason\":{reason},\"trace\":{trace},\"exit\":{exit},\"slots\":{slots},\"fencing\":{fencing}}}"
+        "{{\"slot\":{slot},\"reason\":{reason},\"trace\":{trace},\"exit\":{exit},\"slots\":{slots},\"fencing\":{fencing},\"gen\":{generation}}}"
     )
 }
 
@@ -615,6 +757,7 @@ fn ledger_line(
 }
 
 /// The chain's head for the next append.
+#[derive(Debug)]
 struct ChainHead {
     /// The last valid line's seq (0 = the chain is empty).
     seq: u64,
@@ -622,6 +765,33 @@ struct ChainHead {
     prev_hash: Option<String>,
     /// How many invalid tail lines the walk cut (0 = a clean chain).
     repaired: u64,
+    /// The rotation performed on the way in (a pre-ledger journal
+    /// moved aside — the archive's name and its line count).
+    rotated: Option<Rotation>,
+}
+
+/// A pre-ledger journal's rotation, reported (migrate names it).
+#[derive(Debug)]
+pub(crate) struct Rotation {
+    /// The archive's name (`history-w2.ndjson`, `-2`…).
+    pub name: String,
+    /// How many lines the archive carries.
+    pub lines: usize,
+}
+
+/// Is the journal's first line a versioned ledger line? (The W2-era
+/// journals carry no `schema` — `chain_head` rotates them, the replay
+/// folds them.)
+fn first_line_is_versioned(text: &str) -> bool {
+    text.lines()
+        .next()
+        .and_then(|first| serde_json::from_str::<serde_json::Value>(first).ok())
+        .and_then(|doc| {
+            doc.get("schema")
+                .and_then(|s| s.as_str())
+                .map(str::to_owned)
+        })
+        .is_some_and(|s| s == LEDGER_SCHEMA)
 }
 
 /// Verify the chain and answer the head: seq continuity from 1,
@@ -639,18 +809,8 @@ fn chain_head(dir: &Path, now: &Timestamp) -> io::Result<ChainHead> {
         Err(e) => return Err(e),
     };
     let lines: Vec<&str> = text.lines().collect();
-    if let Some(first) = lines.first() {
-        let versioned = serde_json::from_str::<serde_json::Value>(first)
-            .ok()
-            .and_then(|doc| {
-                doc.get("schema")
-                    .and_then(|s| s.as_str())
-                    .map(str::to_owned)
-            })
-            .is_some_and(|s| s == LEDGER_SCHEMA);
-        if !versioned {
-            return rotate_legacy(dir, &path, lines.len(), now);
-        }
+    if !lines.is_empty() && !first_line_is_versioned(&text) {
+        return rotate_legacy(dir, &path, lines.len(), now);
     }
     let mut seq = 0u64;
     let mut prev_hash: Option<String> = None;
@@ -677,6 +837,7 @@ fn chain_head(dir: &Path, now: &Timestamp) -> io::Result<ChainHead> {
         seq,
         prev_hash,
         repaired,
+        rotated: None,
     })
 }
 
@@ -733,7 +894,12 @@ fn rotate_legacy(
     let mut n = 2u32;
     while dir.join(&name).exists() {
         name = format!("history-w2-{n}.ndjson");
-        n += 1;
+        n = n.checked_add(1).ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::AlreadyExists,
+                "arm ledger: every W2 archive suffix is occupied",
+            )
+        })?;
     }
     std::fs::rename(path, dir.join(&name))?;
     sync_parent(&dir.join(&name))?;
@@ -744,6 +910,10 @@ fn rotate_legacy(
         seq: 1,
         prev_hash: Some(hash),
         repaired: 0,
+        rotated: Some(Rotation {
+            name,
+            lines: legacy_lines,
+        }),
     })
 }
 
@@ -785,15 +955,7 @@ fn try_named_lock(dir: &Path, name: &str, pid: u32, now: &Zoned) -> io::Result<L
     // the remnant was unparseable) — it rides the StaleTaken
     // verdict once the atomic create lands.
     let mut removed: Option<Option<u32>> = None;
-    let mut passes = 0u32;
-    loop {
-        passes += 1;
-        if passes > MAX_PASSES {
-            return Err(io::Error::new(
-                io::ErrorKind::WouldBlock,
-                "arm lock: contended past the pass bound",
-            ));
-        }
+    for _ in 0..MAX_PASSES {
         match std::fs::OpenOptions::new()
             .write(true)
             .create_new(true)
@@ -828,6 +990,10 @@ fn try_named_lock(dir: &Path, name: &str, pid: u32, now: &Zoned) -> io::Result<L
             Err(e) => return Err(e),
         }
     }
+    Err(io::Error::new(
+        io::ErrorKind::WouldBlock,
+        "arm lock: contended past the pass bound",
+    ))
 }
 
 /// The pid out of a lock file — `None` when the file does not parse
@@ -844,7 +1010,13 @@ fn lock_pid(text: &str) -> Option<u32> {
 fn owner_alive(pid: u32) -> bool {
     use nix::sys::signal::kill;
     use nix::unistd::Pid;
-    let pid = Pid::from_raw(i32::try_from(pid).unwrap_or(-1));
+    let Ok(raw) = i32::try_from(pid) else {
+        return false;
+    };
+    if raw == 0 {
+        return false;
+    }
+    let pid = Pid::from_raw(raw);
     // Ok = the process answered · EPERM = a process exists we may not
     // signal — both are a LIVE holder; ESRCH (and the rest) = dead.
     matches!(kill(pid, None), Ok(()) | Err(nix::errno::Errno::EPERM))
@@ -936,6 +1108,7 @@ mod tests {
             slots: None,
             slot_id: None,
             fencing: None,
+            generation: None,
         }
     }
 
@@ -1062,6 +1235,29 @@ mod tests {
         state.release("doctor").expect("idempotent");
     }
 
+    /// Idempotence covers absence only: a lock path of the wrong kind
+    /// is corruption and must remain loud.
+    #[test]
+    fn release_refuses_a_lock_path_that_is_a_directory() {
+        let (_dir, state) = state("release-dir");
+        std::fs::create_dir_all(state.root().join("doctor/lock")).expect("lock directory");
+        let error = state
+            .release("doctor")
+            .expect_err("a directory is not an absent lock");
+        assert_ne!(error.kind(), io::ErrorKind::NotFound);
+    }
+
+    /// The migration walk distinguishes an absent sidecar from a path
+    /// that exists but cannot be walked.
+    #[test]
+    fn beat_dirs_refuses_a_sidecar_root_that_is_a_file() {
+        let (dir, state) = state("beat-dirs-file");
+        std::fs::create_dir_all(dir.path().join(".nika")).expect(".nika");
+        std::fs::write(state.root(), "not a directory").expect("arm file");
+        let error = state.beat_dirs().expect_err("the walk must refuse");
+        assert_ne!(error.kind(), io::ErrorKind::NotFound);
+    }
+
     /// Restore a directory's mode on drop — the tempdir cleanup needs
     /// the write bit back, panic or not.
     #[cfg(unix)]
@@ -1111,13 +1307,14 @@ mod tests {
     #[test]
     fn an_orphan_claim_is_visible_until_its_receipt_lands() {
         let (_dir, state) = state("unsettled");
-        let identity = slot_id(
+        let identity = SlotId::derive(
             "workflows/doctor.nika.yaml",
             "TZ=UTC 0 3 * * *",
             &at("2026-08-19T03:00:00Z"),
         );
         let claim = Claim {
             slot_id: identity.clone(),
+            generation: None,
             deadline: ts("2026-08-20T03:00:00Z"),
             decided_at: ts("2026-08-19T03:02:00Z"),
         };
@@ -1132,7 +1329,7 @@ mod tests {
         // claim's seq.
         let mut receipt = entry(FireKind::Fired);
         receipt.slot_id = Some(identity);
-        receipt.fencing = Some(claimed.seq);
+        receipt.fencing = Some(FencingToken::new(claimed.seq));
         state.record("doctor", &receipt).expect("receipt");
         assert!(
             state.unsettled("doctor").is_empty(),
@@ -1140,35 +1337,95 @@ mod tests {
         );
     }
 
-    /// R5 · the slot identity's known vector: the domain-separated
-    /// canonical string, hashed — derivable before any write, stable
-    /// across restarts, NEVER the positional label. The test hashes the
-    /// bytes ITSELF (never through the implementation's own helper).
+    /// A receipt settles exactly one claim: it must follow the claim
+    /// and match both its slot identity and its fencing token.
     #[test]
-    fn the_slot_id_is_the_canonical_hash() {
-        use sha2::Digest as _;
-        let expected = format!(
-            "{:x}",
-            sha2::Sha256::digest(
-                b"nika/arm-slot@1\nworkflows/doctor.nika.yaml\nTZ=UTC 0 3 * * *\n2026-08-19T03:00:00Z"
-            )
+    fn a_receipt_with_the_wrong_slot_or_fence_settles_nothing() {
+        let (_dir, state) = state("unsettled-exact");
+        let first = SlotId::derive(
+            "a.nika.yaml",
+            "TZ=UTC 0 3 * * *",
+            &at("2026-08-19T03:00:00Z"),
         );
-        assert_eq!(
-            slot_id(
-                "workflows/doctor.nika.yaml",
-                "TZ=UTC 0 3 * * *",
-                &at("2026-08-19T03:00:00Z")
-            ),
-            expected
+        let other = SlotId::derive(
+            "b.nika.yaml",
+            "TZ=UTC 0 3 * * *",
+            &at("2026-08-19T03:00:00Z"),
         );
-        // The INSTANT is the identity — a zoned view of the same
-        // instant hashes identically (UTC on the wire).
-        let paris: Zoned = "2026-08-19T05:00:00+02:00[Europe/Paris]"
-            .parse()
-            .expect("zoned");
+        let claim = Claim {
+            slot_id: first.clone(),
+            generation: None,
+            deadline: ts("2026-08-20T03:00:00Z"),
+            decided_at: ts("2026-08-19T03:02:00Z"),
+        };
+        let claimed = state.record_claim("doctor", &claim).expect("claim");
+
+        let mut wrong_slot = entry(FireKind::Failed);
+        wrong_slot.slot_id = Some(other);
+        wrong_slot.fencing = Some(FencingToken::new(claimed.seq));
+        state
+            .record("doctor", &wrong_slot)
+            .expect("wrong slot receipt");
+
+        let mut wrong_fence = entry(FireKind::Failed);
+        wrong_fence.slot_id = Some(first.clone());
+        wrong_fence.fencing = Some(FencingToken::new(claimed.seq + 99));
+        state
+            .record("doctor", &wrong_fence)
+            .expect("wrong fence receipt");
+
+        let unsettled = state.unsettled("doctor");
         assert_eq!(
-            slot_id("workflows/doctor.nika.yaml", "TZ=UTC 0 3 * * *", &paris),
-            expected
+            unsettled.len(),
+            1,
+            "neither near-match settles: {unsettled:?}"
+        );
+        assert_eq!(unsettled[0].slot_id, first);
+    }
+
+    /// A receipt that predates a future claim cannot settle it, even
+    /// when its predicted fencing token and slot happen to match.
+    #[test]
+    fn an_earlier_receipt_does_not_settle_a_later_claim() {
+        let (_dir, state) = state("unsettled-order");
+        let identity = SlotId::derive(
+            "a.nika.yaml",
+            "TZ=UTC 0 3 * * *",
+            &at("2026-08-19T03:00:00Z"),
+        );
+        let mut early = entry(FireKind::Failed);
+        early.slot_id = Some(identity.clone());
+        early.fencing = Some(FencingToken::new(2));
+        state.record("doctor", &early).expect("early receipt");
+        let claim = Claim {
+            slot_id: identity,
+            generation: None,
+            deadline: ts("2026-08-20T03:00:00Z"),
+            decided_at: ts("2026-08-19T03:03:00Z"),
+        };
+        let claimed = state.record_claim("doctor", &claim).expect("claim");
+        assert_eq!(claimed.seq, 2, "the receipt predicted this token");
+        assert_eq!(
+            state.unsettled("doctor").len(),
+            1,
+            "order is part of settlement"
+        );
+    }
+
+    /// R5 · the slot identity's known vector RELOCATED to nika-cadence
+    /// in W7 (the machine owns the newtype) — this pin guards the
+    /// delegation: the wire the ledger writes derives there.
+    #[test]
+    fn the_slot_id_derives_in_the_cadence_machine() {
+        let identity = SlotId::derive(
+            "workflows/doctor.nika.yaml",
+            "TZ=UTC 0 3 * * *",
+            &at("2026-08-19T03:00:00Z"),
+        );
+        assert_eq!(identity.as_str().len(), 64);
+        assert_eq!(
+            identity,
+            SlotId::from_wire(identity.as_str()).expect("wire")
         );
     }
 
@@ -1230,6 +1487,52 @@ mod tests {
         let follow: serde_json::Value =
             serde_json::from_str(text.lines().nth(1).expect("line 2")).expect("json");
         assert_eq!(follow["prev_hash"], doc["hash"], "linked to its parent");
+    }
+
+    /// Every projection decision word round-trips, and free text stays
+    /// valid JSON even when it contains quotes, slashes, and controls.
+    #[test]
+    fn projection_kinds_and_free_text_round_trip() {
+        for kind in [
+            FireKind::Fired,
+            FireKind::Skipped,
+            FireKind::Paused,
+            FireKind::Failed,
+        ] {
+            assert_eq!(fire_kind(kind.as_str()), Some(kind));
+        }
+        assert_eq!(fire_kind("disarmed"), None, "history-only kind");
+
+        let (dir, state) = state("escaped-json");
+        let mut decision = entry(FireKind::Failed);
+        decision.reason = Some("line\t\"quoted\"\\tail".to_owned());
+        decision.trace = Some("trace\nnext".to_owned());
+        state.record("doctor", &decision).expect("escaped record");
+        let sidecar = dir.path().join(".nika/arm/doctor");
+        let ledger = std::fs::read_to_string(sidecar.join(HISTORY)).expect("ledger");
+        let line: serde_json::Value =
+            serde_json::from_str(ledger.trim()).expect("valid ledger JSON");
+        assert_eq!(line["payload"]["reason"], "line\t\"quoted\"\\tail");
+        assert_eq!(line["payload"]["trace"], "trace\nnext");
+        assert!(
+            ledger.contains("\\u0009"),
+            "controls use canonical unicode escapes: {ledger}"
+        );
+        let cache = std::fs::read_to_string(sidecar.join("last.json")).expect("cache");
+        let last: serde_json::Value = serde_json::from_str(&cache).expect("valid cache JSON");
+        assert_eq!(last["trace"], "trace\nnext");
+    }
+
+    /// A path error while opening the chain is not mistaken for an
+    /// absent chain.
+    #[test]
+    fn chain_head_refuses_a_history_path_that_is_a_directory() {
+        let (dir, _state) = state("chain-dir");
+        let sidecar = dir.path().join(".nika/arm/doctor");
+        std::fs::create_dir_all(sidecar.join(HISTORY)).expect("history directory");
+        let error = chain_head(&sidecar, &ts("2026-08-19T03:02:00Z"))
+            .expect_err("a directory is not an absent chain");
+        assert_ne!(error.kind(), io::ErrorKind::NotFound);
     }
 
     /// R5 · one tampered byte inside line 2 of 3: the next append CUTS
@@ -1333,5 +1636,63 @@ mod tests {
         assert_eq!(second["prev_hash"], first["hash"], "linked to the rotation");
         // The tallies scan BOTH files: legacy fired + skipped, new skipped.
         assert_eq!(state.tallies("doctor"), Some((2, 1)));
+    }
+
+    /// Rotation never overwrites an earlier archive: collisions walk
+    /// monotonically to the first free suffix.
+    #[test]
+    fn legacy_rotation_skips_every_existing_archive_name() {
+        let (dir, state) = state("rotate-collisions");
+        let sidecar = dir.path().join(".nika/arm/doctor");
+        std::fs::create_dir_all(&sidecar).expect("sidecar");
+        std::fs::write(sidecar.join("history-w2.ndjson"), "archive one\n").expect("archive 1");
+        std::fs::write(sidecar.join("history-w2-2.ndjson"), "archive two\n").expect("archive 2");
+        std::fs::write(
+            sidecar.join(HISTORY),
+            "{\"slot\":\"2026-08-18T03:00:00Z\",\"decided_at\":\"2026-08-18T03:02:00Z\",\"kind\":\"fired\"}\n",
+        )
+        .expect("legacy");
+        state
+            .record("doctor", &entry(FireKind::Fired))
+            .expect("rotate");
+        assert_eq!(
+            std::fs::read_to_string(sidecar.join("history-w2-3.ndjson")).expect("third archive"),
+            "{\"slot\":\"2026-08-18T03:00:00Z\",\"decided_at\":\"2026-08-18T03:02:00Z\",\"kind\":\"fired\"}\n"
+        );
+        assert_eq!(
+            std::fs::read_to_string(sidecar.join("history-w2.ndjson")).expect("one"),
+            "archive one\n"
+        );
+        assert_eq!(
+            std::fs::read_to_string(sidecar.join("history-w2-2.ndjson")).expect("two"),
+            "archive two\n"
+        );
+    }
+
+    /// Lock creation propagates the filesystem's real error instead
+    /// of treating every failure as contention.
+    #[test]
+    fn lock_creation_in_a_missing_directory_preserves_not_found() {
+        let (dir, _state) = state("lock-missing-dir");
+        let missing = dir.path().join("does-not-exist");
+        let error = try_named_lock(
+            &missing,
+            "lock",
+            std::process::id(),
+            &at("2026-08-19T03:02:00Z"),
+        )
+        .expect_err("missing parent");
+        assert_eq!(error.kind(), io::ErrorKind::NotFound);
+    }
+
+    /// An overflowing u32 never aliases a small live process id.
+    #[cfg(unix)]
+    #[test]
+    fn an_unrepresentable_pid_is_not_alive() {
+        assert!(
+            !owner_alive(0),
+            "pid zero addresses a process group, not an owner"
+        );
+        assert!(!owner_alive(u32::MAX));
     }
 }

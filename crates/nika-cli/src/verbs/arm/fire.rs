@@ -41,11 +41,12 @@ use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 use jiff::{SignedDuration, Timestamp, Zoned};
+use nika_cadence::firing::{self, ArmGeneration, FencingToken, FiringEvent, FiringState, SlotId};
 use nika_cadence::registry::{AfterSkip, ArmRegistry, Beat, Cadence, Locus, MissPolicy, Overlap};
 use nika_vocab::project;
 
 use super::args::FireArgs;
-use super::state::{ArmState, Claim, FireKind, HistoryEntry, LockOutcome, slot_id};
+use super::state::{ArmState, Claim, FireKind, HistoryEntry, LockOutcome};
 use crate::verbs::run::RenderMode;
 use crate::verbs::{self, VerbOutput, exit};
 
@@ -635,6 +636,7 @@ fn act_on_skip(
         slots: None,
         slot_id: slot.and_then(|s| slot_id_of(ctx, s)),
         fencing: None,
+        generation: None,
     };
     match ctx.state.record(&ctx.label, &entry) {
         Ok(outcome) => FireVerdict {
@@ -671,7 +673,8 @@ fn claim_run_receipt(ctx: &FireCtx, slot: &Zoned, slots: Option<u32>) -> FireVer
         };
     };
     let claim = Claim {
-        slot_id: slot_id(&beat.workflow, &beat.cadence, slot),
+        slot_id: SlotId::derive(&beat.workflow, &beat.cadence, slot),
+        generation: pin_generation(ctx, beat),
         deadline: next_slot(ctx).map_or_else(
             || {
                 ctx.now
@@ -696,7 +699,31 @@ fn claim_run_receipt(ctx: &FireCtx, slot: &Zoned, slots: Option<u32>) -> FireVer
         workflow: beat.workflow.clone(),
         plafond,
     });
-    let (kind, line) = verdict_line(ctx, slot, slots, upshot.code, upshot.trace.as_deref());
+    // The receipt's kind FOLLOWS the folded state (D5): the machine
+    // classifies the lifecycle, the ledger speaks its word for it.
+    let folded = firing::fold(&[
+        FiringEvent::Due,
+        FiringEvent::Claimed {
+            fencing: FencingToken::new(fencing),
+            generation: claim.generation.clone(),
+            deadline: claim.deadline,
+        },
+        FiringEvent::Started {
+            fencing: FencingToken::new(fencing),
+        },
+        FiringEvent::Finished {
+            fencing: Some(FencingToken::new(fencing)),
+            code: upshot.code,
+        },
+    ]);
+    let (kind, line) = verdict_line(
+        ctx,
+        slot,
+        slots,
+        folded,
+        upshot.code,
+        upshot.trace.as_deref(),
+    );
     let receipt = HistoryEntry {
         slot: Some(slot.timestamp()),
         decided_at: ctx.now.timestamp(),
@@ -706,7 +733,8 @@ fn claim_run_receipt(ctx: &FireCtx, slot: &Zoned, slots: Option<u32>) -> FireVer
         exit: Some(upshot.code),
         slots,
         slot_id: Some(claim.slot_id),
-        fencing: Some(fencing),
+        fencing: Some(FencingToken::new(fencing)),
+        generation: claim.generation,
     };
     match ctx.state.record(&ctx.label, &receipt) {
         Ok(outcome) => repaired += outcome.repaired,
@@ -739,9 +767,19 @@ fn next_slot(ctx: &FireCtx) -> Option<Zoned> {
 
 /// The slot's canonical identity, computed from the beat's own
 /// declaration (the path + the cadence, VERBATIM — never the label).
-fn slot_id_of(ctx: &FireCtx, slot: &Zoned) -> Option<String> {
+/// The derivation lives in the cadence machine since W7 (D4).
+fn slot_id_of(ctx: &FireCtx, slot: &Zoned) -> Option<SlotId> {
     let beat = beat_of(ctx)?;
-    Some(slot_id(&beat.workflow, &beat.cadence, slot))
+    Some(SlotId::derive(&beat.workflow, &beat.cadence, slot))
+}
+
+/// The firing's generation (D3 · F17): the beat's canonical fields +
+/// the workflow's exact bytes (the source-identity convention). `None`
+/// when the workflow cannot be read — the run then fails its own
+/// receipt, and the claim pins nothing rather than lying.
+fn pin_generation(ctx: &FireCtx, beat: &Beat) -> Option<ArmGeneration> {
+    let bytes = std::fs::read(ctx.project_root.join(&beat.workflow)).ok()?;
+    Some(ArmGeneration::compute(beat, &bytes))
 }
 
 /// The repair suffix — the ledger's self-healing is SAID on the
@@ -813,30 +851,41 @@ fn os_wait(span: SignedDuration) -> Wait {
 }
 
 /// The line + the kind for a run that went (rc 0 · 1 · 2 · 3 · 4).
+/// The kind FOLLOWS the machine's fold (D5) — the line's shape is
+/// unchanged (D8 stays byte-identical).
 fn verdict_line(
     ctx: &FireCtx,
     slot: &Zoned,
     slots: Option<u32>,
+    state: FiringState,
     code: u8,
     trace: Option<&str>,
 ) -> (FireKind, String) {
+    let kind = match state {
+        FiringState::Succeeded => FireKind::Fired,
+        FiringState::Cancelled => FireKind::Paused,
+        // FailedRetryable · FailedPermanent — and the defensive floor:
+        // the fold of [due · claimed · started · finished] lands
+        // nowhere else, so this arm doubles as the engine-fault-safe one.
+        _ => FireKind::Failed,
+    };
     let label = ctx.label.as_str();
     let slot_rfc = slot.timestamp().to_string();
     let catchup = slots.map_or(String::new(), |n| format!(" · rattrapage ×{n}"));
     let via_trace = trace.map_or(String::new(), |t| format!(" · trace {t}"));
     match code {
         exit::OK => (
-            FireKind::Fired,
+            kind,
             format!("fired {label} · slot {slot_rfc}{catchup} · exit 0{via_trace}"),
         ),
         exit::PAUSED => (
-            FireKind::Paused,
+            kind,
             format!(
                 "paused {label} · slot {slot_rfc}{via_trace} — garé (N2: jamais repris, jamais répondu)"
             ),
         ),
         _ => (
-            FireKind::Failed,
+            kind,
             format!("failed {label} · slot {slot_rfc} · exit {code}{via_trace}"),
         ),
     }

@@ -25,6 +25,7 @@ serde_yaml_bw = { workspace = true }   # the panic-free vendored fork — the ho
 thiserror     = { workspace = true }
 jiff          = { workspace = true }
 jiff-tzdb     = { workspace = true }   # the EMBEDDED IANA tzdb — never the host's zoneinfo
+sha2          = { workspace = true }   # the firing machine's identities (SlotId · ArmGeneration — W7 · the source-identity convention)
 
 [dev-dependencies]
 proptest = { workspace = true }

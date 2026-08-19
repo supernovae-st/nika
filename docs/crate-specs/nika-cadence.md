@@ -4,7 +4,7 @@
 |---|---|
 | Status | **CANDIDATE** — Gate 1 (this document) authored 2026-08-11. Crafted shim-standalone (50 tests today, 45 at authoring · clippy 0 `-D warnings` · rustfmt clean) · committed with the temporary `[workspace]` shim (`92a0f8497`), then the four pre-freeze corrections of plan §2unvicies (the bitset's ONE encoding · `Slot` declares the DST shift · the field count is the type · the error span). The two items this row used to name (the allowlist row, the shim removal) are BOTH DONE; the row described work already shipped. Remaining before admission, measured 2026-08-13: the Gate 11 P1 below, and Gate 5 at 88 percent against a 90 floor. **W1, measured 2026-08-19**: 79 tests green (`cargo test -p nika-cadence --lib`) · `Cadence::prev_before` (the mirror, 366-day bound) · the `due` planner (`due` · `earliest_next` · `DueKind` · `ON_TIME_WINDOW`) — the pure half the `fire`/`serve` edges read; `emit` lands in W3 (planned, see §3). Gate 5 re-run this wave; the floor holds ≥90. |
 | Layer | L0 — pure, zero I/O, zero async |
-| Design | The arming-registry grammar (the `arm:` block of `nika.yaml`, D-2026-08-10-N3) + the pure next-slot calculator. Hand-counted 5-field cron (zero cron library — the count is validated BEFORE field semantics, scar #6) · IANA zones resolved from the EMBEDDED tzdb only (`jiff-tzdb`, never the host's zoneinfo) · two cadence forms (cron + readable `lundi 9h07`), display normalizing to the readable one. |
+| Design | The arming-registry grammar (the `arm:` block of `nika.yaml`, D-2026-08-10-N3) + the pure next-slot calculator + the W7 typed firing machine. Hand-counted 5-field cron (zero cron library — the count is validated BEFORE field semantics, scar #6) · IANA zones resolved from the EMBEDDED tzdb only (`jiff-tzdb`, never the host's zoneinfo) · two cadence forms (cron + readable `lundi 9h07`), display normalizing to the readable one. The firing machine owns no I/O and reads no clock: callers inject events, policy, and `now`. |
 | LOC budget | ≤2,000 src prod (post-corrections 1,467 prod + 753 cfg(test)) · ≤15,000 hard cap |
 | File cap | ≤1,500 LOC each (max file 690, the tests) |
 | Function cap | ≤100 lines each (max ~60) |
@@ -12,7 +12,7 @@
 | License | `AGPL-3.0-or-later` |
 | Edition | 2024 (workspace-inherited at admission) |
 | Publish | `false` — foundation crate, never on crates.io |
-| Dependencies | `serde` · `serde_yaml_bw` (the panic-free YAML plane) · `thiserror` · `jiff` · `jiff-tzdb` (the embedded IANA tzdb) — dev: `proptest` |
+| Dependencies | `serde` · `serde_yaml_bw` (the panic-free YAML plane) · `thiserror` · `jiff` · `jiff-tzdb` (the embedded IANA tzdb) · `sha2` (W7 domain-separated `SlotId` + `ArmGeneration`) — dev: `proptest` |
 | NIKA codes | **none owed** — `CadenceErrorKind::spec_code()` emits the grammar's OWN slugs (`cadence.*`), never a `NIKA-*` registry code; every refusal is rendered as a taught fix at the L4 verb boundary (`exit 2`, the FILE plane). The `check-error-one-voice.sh` allowlist row is ALREADY in place (class `spec-plane`, the `CelErrorKind` precedent — corrected 2026-08-13 at Gate 11; this row said `wrapped-intermediate`/`ExprError`, which the real TSV and the canonical audit table both contradict). |
 
 ---
@@ -117,6 +117,18 @@ in jiff 0.2). **Planned, not landed**: `emit` (the launchd/systemd
 projection) is W3's — this crate stays the pure half; the OS
 rendering lands with its own spec amendment.
 
+**W7 — the pure firing machine (`firing` module)**:
+`SlotId::derive(workflow, cadence, slot)` freezes the existing
+`nika/arm-slot@1` identity; `ArmGeneration::compute(beat,
+workflow_bytes)` freezes `nika/arm-gen@1` over the beat's declared
+canonical fields and the exact workflow-byte hash; `FencingToken`
+prevents naked sequence integers crossing the boundary.
+`FiringEvent` and `FiringState` carry the closed lifecycle vocabulary;
+`transition` is the table, `fold` applies fencing pairing, and `decide`
+returns typed ordered effects under an injected `FiringPolicy` and
+`Timestamp`. Every public enum/struct is forward-compatible; the three
+identities validate their wire form before construction.
+
 ## 4. Tests
 
 79 today (W1, 2026-08-19 — 50 before the wave; the planner and the
@@ -147,8 +159,14 @@ line may name the host-preferring resolvers) · proptest (parse never
 panics · law pass never panics · a daily slot is strictly later and
 within a day · **the inverse law (W1)**: `prev_before(next_after(t) +
 1s) == next_after(t)` over the corpus, the gap slot's exception
-declared). Mutation floor: run `check-mutation-floor.sh` at
-admission.
+declared). **W7 firing tests**: known-vector `SlotId`; stable generation
+across computations, changed generation on one workflow byte, positional
+label excluded, canonical hash assembled independently; every lifecycle
+transition and terminal; foreign fencing; durable decision ordering;
+typed skip reasons; and proptest over arbitrary event sequences against
+an independently encoded transition table. Mutation floor: run
+`check-mutation-floor.sh` at admission and again for every new semantic
+module.
 
 ## 5. Non-goals / guards
 
