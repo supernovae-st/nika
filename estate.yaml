@@ -18,11 +18,11 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4508
+  classified_files: 4509
   file_rows: 11
   pattern_rows: 22
   by_class:
-    authored: 1566
+    authored: 1567
     authored-pin: 2
     generated: 122
     pinned-copy: 122
@@ -156,8 +156,8 @@ patterns:
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
-  match_count: 158
-  aggregate_sha256: 09237de9df3e97b0e75e2c2ac74cb7abfbcef551f80190c1627bc03916424201
+  match_count: 159
+  aggregate_sha256: ea4f285aa3acd7690bd5716858032dc21b3bab96ddc77a1a6f439fdb794e5f62
   evidence: "crate-owned tests + fixtures under tests/ — written with the crate per gate discipline, no generation markers"
 - glob: "crates/**"
   class: authored
