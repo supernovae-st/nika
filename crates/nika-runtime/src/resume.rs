@@ -35,11 +35,12 @@
 //!   JCS alone serializes numbers as ES6 doubles, which collapses
 //!   distinct int64s beyond 2^53 · the CEL `numeric_cmp` bug class).
 //! - **Fail-closed eligibility**: any form this recipe cannot serialize
-//!   (`#[non_exhaustive]` future variants) or render (deep `item.`
-//!   navigation under the fan-out placeholder), and any payload that
-//!   would carry a resolved secret VALUE (leaked through an upstream
-//!   record), yields NO stamp — the task simply never skips. Honest
-//!   degradation, never a wrong skip, never an error.
+//!   (`#[non_exhaustive]` future variants) or render (a missing upstream
+//!   · a secret leak), yields NO stamp — the task simply never skips.
+//!   Honest degradation, never a wrong skip, never an error. A `for_each`
+//!   body that navigates `item.field` IS eligible: the resolved collection
+//!   carries every per-item value, and the stand-in is shaped from that
+//!   collection so field navigation renders to a marker (never a miss).
 
 use std::collections::BTreeMap;
 
@@ -123,6 +124,70 @@ fn secret_marker(name: &str, source: &str, key: &str) -> Value {
 /// per-item data participates through the resolved collection itself.
 fn item_marker() -> Value {
     Value::String(format!("{MARK}nika:item{MARK}"))
+}
+
+/// A walkable stand-in for `item` during a *task-level* fan-out stamp.
+///
+/// The collection itself is the input identity. This object only has to
+/// satisfy `item.field` / nested navigation so a prompt like
+/// `${{ item.stem }}` does not fail eligibility (the string marker
+/// cannot — CEL's `.field` on a string is `NIKA-VAR-001`). Leaves are
+/// the same marker; keys are the union of every element's shape.
+fn item_stand_in(items: &Value) -> Value {
+    match items {
+        Value::Array(arr) => {
+            let mut shape = Value::Null;
+            for el in arr {
+                shape = merge_item_shape(&shape, el);
+            }
+            mask_item_leaves(&shape)
+        }
+        other => mask_item_leaves(other),
+    }
+}
+
+/// Union of two JSON shapes (objects merge keys · arrays pad to max
+/// length · a container wins over a scalar · first non-null scalar
+/// keeps). Used only to make the stand-in navigable.
+fn merge_item_shape(acc: &Value, next: &Value) -> Value {
+    match (acc, next) {
+        (Value::Null, v) => v.clone(),
+        (Value::Object(a), Value::Object(b)) => {
+            let mut out = a.clone();
+            for (k, bv) in b {
+                let existing = out.get(k).cloned().unwrap_or(Value::Null);
+                out.insert(k.clone(), merge_item_shape(&existing, bv));
+            }
+            Value::Object(out)
+        }
+        (Value::Array(a), Value::Array(b)) => {
+            let n = a.len().max(b.len());
+            let mut out = Vec::with_capacity(n);
+            for i in 0..n {
+                let av = a.get(i).unwrap_or(&Value::Null);
+                let bv = b.get(i).unwrap_or(&Value::Null);
+                out.push(merge_item_shape(av, bv));
+            }
+            Value::Array(out)
+        }
+        (Value::Object(_) | Value::Array(_), _) => acc.clone(),
+        (_, Value::Object(_) | Value::Array(_)) => next.clone(),
+        _ => acc.clone(),
+    }
+}
+
+/// Replace every leaf with [`item_marker`] so rendered action text never
+/// carries a real item value (those already ride in `items`).
+fn mask_item_leaves(v: &Value) -> Value {
+    match v {
+        Value::Object(m) if !m.is_empty() => Value::Object(
+            m.iter()
+                .map(|(k, child)| (k.clone(), mask_item_leaves(child)))
+                .collect(),
+        ),
+        Value::Array(items) => Value::Array(items.iter().map(mask_item_leaves).collect()),
+        _ => item_marker(),
+    }
 }
 
 /// One task's resume identity — the typed key payload (ADR-099 · brief
@@ -632,8 +697,9 @@ fn raw_with_object(with: &[(Spanned<String>, Spanned<Value>)]) -> Value {
 /// the action fields + the `with:` namespace rendered over the run
 /// scope (secrets bound as markers), plus the resolved `for_each`
 /// collection. `None` = a reference does not render here (the task
-/// then runs live and surfaces its real error, or — fan-out deep
-/// `item.` navigation — is simply not resume-eligible).
+/// then runs live and surfaces its real error). A fan-out body's
+/// `item.field` navigation is eligible: the stand-in is shaped from
+/// the collection so the render cannot miss on a real key.
 fn input_value(
     task: &RawTask,
     records: &BTreeMap<String, TaskRecord>,
@@ -661,12 +727,12 @@ fn input_value(
         }
         Some(_) => return None,
     };
-    // Fan-out renders bind `item`/`index` to fixed placeholders: the real
-    // data already rides in `items`; a template the placeholder cannot
-    // satisfy (deep `item.field`) fails the render → not eligible.
-    let item_stand_in = item_marker();
+    // Fan-out renders bind `item`/`index` to a *shaped* stand-in: real
+    // values already ride in `items`; field navigation resolves to the
+    // marker so `${{ item.stem }}` stays stamp-eligible.
+    let stand_in = item_stand_in(&items);
     let (item, index) = if task.for_each.is_some() {
-        (Some(&item_stand_in), Some(0))
+        (Some(&stand_in), Some(0))
     } else {
         (None, None)
     };

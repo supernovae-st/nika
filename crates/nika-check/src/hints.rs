@@ -87,6 +87,14 @@
 //!   rides the ambient system clock (the honest status quo · WARN-dur,
 //!   NEVER a refusal — the existing corpus cannot turn red overnight);
 //!   declare `run: { clock: … }` to pin the choice (F-P3).
+//! - **markdown glob eats README** (`glob-readme`) — `nika:glob` of
+//!   `*.md` without excluding README: the next infer classifies the
+//!   table of contents as a record.
+//! - **bare `map(` after `. as $`** (`jq-as-map`) — `nika:jq` binds
+//!   `. as $c` then `map(`s the *current* value (often a pair). Write
+//!   `($c | map(...))`.
+//! - **assert after a write** (`assert-quarantine`) — a red
+//!   `nika:assert` quarantines `out/` to `.nika/quarantine/<trace>/`.
 
 use std::collections::BTreeSet;
 
@@ -107,6 +115,7 @@ pub struct Hint {
     /// `exec-json-capture` ·
     /// `unwrapped-ref` · `envelope-output` · `policy-soft` · `run-clock`
     /// · `analysis` · `consent` · `digit-string-enum` · `inspect-unwired`
+    /// · `glob-readme` · `assert-quarantine` · `jq-as-map`
     /// (additive · agents route on it; the module doc describes each).
     /// `parallel-writers` is RETIRED (F-P15 · promoted to the
     /// NIKA-SEC-012 finding — an error owns its repair, never a hint).
@@ -177,6 +186,8 @@ pub(super) fn scan_hints(wf: &RawWorkflow) -> Vec<Hint> {
             RawAction::Invoke(a) => {
                 push_headless_prompt_hint(&mut hints, id, a);
                 push_inspect_unwired_hint(&mut hints, id, a);
+                push_glob_readme_hint(&mut hints, id, a);
+                push_jq_as_map_hint(&mut hints, id, a);
             }
             #[allow(
                 clippy::unreachable,
@@ -196,6 +207,7 @@ pub(super) fn scan_hints(wf: &RawWorkflow) -> Vec<Hint> {
     push_unwrapped_output_ref_hints(&mut hints, wf);
     push_swallowed_exit_hints(&mut hints, wf);
     push_run_clock_hint(&mut hints, wf);
+    push_assert_quarantine_hint(&mut hints, wf);
     hints
 }
 
@@ -928,6 +940,127 @@ fn push_inspect_unwired_hint(
              runtime injects WorkflowIntrospect (ADR-088 wiring gap)"
         ),
     ));
+}
+
+/// A markdown glob that will also match a README sitting in the same
+/// tree. Authors then spend a paid infer wave classifying the README.
+fn push_glob_readme_hint(hints: &mut Vec<Hint>, id: &str, a: &nika_schema::raw::RawInvokeAction) {
+    let Some(tool) = a.tool() else {
+        return;
+    };
+    if tool.value != "nika:glob" {
+        return;
+    }
+    let Some(args) = a.args.as_ref() else {
+        return;
+    };
+    let Some(pattern) = args.value.get("pattern").and_then(|v| v.as_str()) else {
+        return;
+    };
+    if pattern.contains("${{") {
+        return;
+    }
+    let md_glob = std::path::Path::new(pattern)
+        .extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("md"));
+    if !md_glob {
+        return;
+    }
+    let excluded = match args.value.get("exclude") {
+        Some(serde_json::Value::String(s)) => s.to_ascii_lowercase().contains("readme"),
+        Some(serde_json::Value::Array(list)) => list.iter().any(|v| {
+            v.as_str()
+                .is_some_and(|s| s.to_ascii_lowercase().contains("readme"))
+        }),
+        _ => false,
+    };
+    if excluded {
+        return;
+    }
+    hints.push(hint(
+        "glob-readme",
+        id,
+        format!(
+            "`nika:glob` on `{id}` matches `{pattern}` — that set includes a README \
+             sitting in the same directory. Pin the notes (`exclude: \"**/README.md\"` \
+             or glob a folder that has no README) before a paid infer classifies the \
+             table of contents as a record"
+        ),
+    ));
+}
+
+/// `. as $c` then a bare `map(` maps the CURRENT value (often a pair),
+/// not `$c`. The jury-jq class: `($c | map(...))`.
+fn push_jq_as_map_hint(hints: &mut Vec<Hint>, id: &str, a: &nika_schema::raw::RawInvokeAction) {
+    let Some(tool) = a.tool() else {
+        return;
+    };
+    if tool.value != "nika:jq" {
+        return;
+    }
+    let Some(expr) = a
+        .args
+        .as_ref()
+        .and_then(|args| args.value.get("expression"))
+        .and_then(|v| v.as_str())
+    else {
+        return;
+    };
+    if !expr.contains(". as $") {
+        return;
+    }
+    let bare_map = expr.lines().any(|line| {
+        let t = line.trim();
+        t.starts_with("map(") || t.starts_with("| map(")
+    });
+    if !bare_map {
+        return;
+    }
+    hints.push(hint(
+        "jq-as-map",
+        id,
+        format!(
+            "`nika:jq` on `{id}` binds `. as $name` then calls `map(` on the current \
+             value — after a later construct the current value is often a pair, not \
+             the bound array. Write `($name | map(...))`"
+        ),
+    ));
+}
+
+/// A failed last `nika:assert` quarantines writes to
+/// `.nika/quarantine/<trace>/`. Say so when the DAG both writes and
+/// asserts — authors hunt an empty `out/` otherwise.
+fn push_assert_quarantine_hint(hints: &mut Vec<Hint>, wf: &RawWorkflow) {
+    let mut asserts = Vec::new();
+    let mut writes = false;
+    for task in &wf.tasks {
+        let RawAction::Invoke(a) = &task.value.action else {
+            continue;
+        };
+        let Some(tool) = a.tool() else {
+            continue;
+        };
+        match tool.value.as_str() {
+            "nika:assert" => asserts.push(task.value.id.value.as_str()),
+            "nika:write" | "nika:edit" | "nika:chart" | "nika:emit" => writes = true,
+            _ => {}
+        }
+    }
+    if !writes {
+        return;
+    }
+    for id in asserts {
+        hints.push(hint(
+            "assert-quarantine",
+            id,
+            format!(
+                "`nika:assert` on `{id}` shares the DAG with a write — a red assert \
+                 moves `out/` into `.nika/quarantine/<trace>/`. Look there before \
+                 assuming the write never happened; keep the assert off the last \
+                 wave if you need the artifacts from a red run"
+            ),
+        ));
+    }
 }
 
 fn hint(kind: &'static str, task: &str, advice: String) -> Hint {

@@ -24,13 +24,25 @@ failures are engine/authoring seams, not domain bugs.
    `{ available: false }` (ADR-088: dispatcher composed before the
    run, no `WorkflowIntrospect`). `nika check` now hints
    `inspect-unwired`. Read the trace for cost/DAG.
-6. **`--resume` + `for_each` infer.** Item records often journal
-   without a usable resume key. A later `--from <downstream>` after a
-   file edit still re-runs the paid infer wave. Do not treat resume as
-   a cost save on `for_each` infer until item keys exist (open).
+6. **`--resume` + `for_each` infer.** A body that navigates
+   `item.field` (`item.stem` · `item.text`) used to drop the stamp
+   (`None` — the string stand-in cannot satisfy CEL `.field`). A later
+   `--from <downstream>` then re-ran the whole paid infer wave. The
+   collection is now the input identity; the stand-in is *shaped* from
+   it so `item.field` stays eligible. Resume still skips the **whole
+   fan** (one task), not a single iteration — a mid-wave crash still
+   replays every item (ADR-099 per-iteration remains open).
 7. **A failed last assert quarantines writes.** `out/` artifacts from
    a red `nika:assert` land in `.nika/quarantine/<trace>/`. Look there
-   before assuming the write never happened.
+   before assuming the write never happened. `nika check` hints
+   `assert-quarantine`.
+8. **A markdown glob eats README.** `held/*.md` also matches
+   `held/README.md`. The extract infer then classifies the table of
+   contents. `nika check` hints `glob-readme` unless `exclude`
+   mentions README.
+9. **jq `. as $c` then bare `map(`.** After `. as $c`, `map(...)`
+   maps the *current* value (often a `[cards, receipt]` pair), not
+   `$c`. Write `($c | map(...))`. `nika check` hints `jq-as-map`.
 
 ## Authoring order that would have been cheaper
 
@@ -39,20 +51,26 @@ failures are engine/authoring seams, not domain bugs.
    wiring it after a paid infer.
 3. Fix the extract schema type (integer vs string) before adding
    retry passes, anyOf, or more infer.
-4. Never put a README in the input glob.
-5. After a file change, do not `--resume` a `for_each` infer expecting
-   a cache hit.
+4. Never put a README in the input glob (`exclude: "**/README.md"`).
+5. After a file change, `--resume` now cache-hits a `for_each` infer
+   whose *collection and definition* did not change (including
+   `item.field` prompts). A definition edit of the infer itself still
+   re-runs — that is the law.
 
 ## Shipped in this arc
 
 - `nika-builtin` · hash accepts structured `content:` · validate
   parses string schemas
 - `nika-verb-infer` · scalar `anyOf` flattens into coerce
-- `nika-check` · hints `digit-string-enum` · `inspect-unwired`
+- `nika-check` · hints `digit-string-enum` · `inspect-unwired` ·
+  `glob-readme` · `jq-as-map` · `assert-quarantine`
+- `nika-runtime` · `for_each` + `item.field` is resume-eligible
+  (collection is the input identity · shaped stand-in)
 
 ## Still open
 
-- Per-item resume keys for `for_each` infer (the paid-replay class)
+- Per-*iteration* resume keys (ADR-099: a mid-wave crash still
+  replays every item; the task-level stamp only skips the whole fan)
 - Runtime injection of `WorkflowIntrospect` into `nika:inspect`
 - Check-time type of `nika:hash` `content:` when the binding is an
   object-shaped task output (the runtime now accepts it)
