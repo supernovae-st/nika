@@ -793,3 +793,86 @@ fn the_run_clock_hint_counts_every_deadline_once() {
     assert_eq!(hits.len(), 1, "one deduped row: {hits:?}");
     assert!(hits[0].advice.contains("2 task(s)"), "{}", hits[0].advice);
 }
+
+#[test]
+fn digit_string_enum_is_hinted_words_are_silent() {
+    let h = hints_of(
+        "nika: w\nmodel: mock/echo\ntasks:\n  t:\n    infer:\n      prompt: x\n      max_tokens: 10\n      schema:\n        type: object\n        properties:\n          n: { type: string, enum: [\"0\", \"1\", \"3\"] }\noutputs:\n  r: ${{ tasks.t.output }}\n",
+    );
+    let hit = h
+        .iter()
+        .find(|x| x.kind == "digit-string-enum")
+        .expect("digit-string-enum");
+    assert_eq!(hit.task, "t");
+    assert!(hit.advice.contains("integer"), "{}", hit.advice);
+
+    let words = hints_of(
+        "nika: w\nmodel: mock/echo\ntasks:\n  t:\n    infer:\n      prompt: x\n      max_tokens: 10\n      schema:\n        type: object\n        properties:\n          n: { type: string, enum: [none, S, M] }\noutputs:\n  r: ${{ tasks.t.output }}\n",
+    );
+    assert!(
+        !words.iter().any(|x| x.kind == "digit-string-enum"),
+        "{words:?}"
+    );
+}
+
+#[test]
+fn inspect_invoke_is_hinted_as_unwired() {
+    let h = hints_of(
+        "nika: w\npermits: { tools: [\"nika:inspect\"] }\ntasks:\n  look:\n    invoke: { tool: \"nika:inspect\", args: { view: cost } }\n",
+    );
+    let hit = h
+        .iter()
+        .find(|x| x.kind == "inspect-unwired")
+        .expect("inspect-unwired");
+    assert_eq!(hit.task, "look");
+    assert!(hit.advice.contains("available: false"), "{}", hit.advice);
+}
+
+#[test]
+fn markdown_glob_without_readme_exclude_is_hinted() {
+    let h = hints_of(
+        "nika: w\npermits: { tools: [\"nika:glob\"], fs: { read: [\"held\"] } }\ntasks:\n  find:\n    invoke: { tool: \"nika:glob\", args: { pattern: \"held/*.md\" } }\n",
+    );
+    let hit = h
+        .iter()
+        .find(|x| x.kind == "glob-readme")
+        .expect("glob-readme");
+    assert_eq!(hit.task, "find");
+    assert!(hit.advice.contains("README"), "{}", hit.advice);
+
+    let excluded = hints_of(
+        "nika: w\npermits: { tools: [\"nika:glob\"], fs: { read: [\"held\"] } }\ntasks:\n  find:\n    invoke: { tool: \"nika:glob\", args: { pattern: \"held/*.md\", exclude: \"**/README.md\" } }\n",
+    );
+    assert!(
+        !excluded.iter().any(|x| x.kind == "glob-readme"),
+        "{excluded:?}"
+    );
+}
+
+#[test]
+fn jq_as_then_bare_map_is_hinted() {
+    let h = hints_of(
+        "nika: w\npermits: { tools: [\"nika:jq\"] }\ntasks:\n  score:\n    invoke:\n      tool: nika:jq\n      args:\n        input: []\n        expression: |\n          . as $c\n          | map(.n)\n",
+    );
+    let hit = h.iter().find(|x| x.kind == "jq-as-map").expect("jq-as-map");
+    assert_eq!(hit.task, "score");
+    assert!(hit.advice.contains("$name | map"), "{}", hit.advice);
+
+    let ok = hints_of(
+        "nika: w\npermits: { tools: [\"nika:jq\"] }\ntasks:\n  score:\n    invoke:\n      tool: nika:jq\n      args:\n        input: []\n        expression: |\n          . as $c\n          | ($c | map(.n))\n",
+    );
+    assert!(!ok.iter().any(|x| x.kind == "jq-as-map"), "{ok:?}");
+}
+
+#[test]
+fn assert_after_a_write_names_the_quarantine() {
+    let h = hints_of(
+        "nika: w\npermits: { tools: [\"nika:write\", \"nika:assert\"], fs: { write: [\"out\"] } }\ntasks:\n  save:\n    invoke: { tool: \"nika:write\", args: { path: out/a.md, content: \"x\" } }\n  gate:\n    invoke: { tool: \"nika:assert\", args: { that: true } }\n",
+    );
+    let hit = h
+        .iter()
+        .find(|x| x.kind == "assert-quarantine")
+        .expect("assert-quarantine");
+    assert_eq!(hit.task, "gate");
+    assert!(hit.advice.contains("quarantine"), "{}", hit.advice);
+}
