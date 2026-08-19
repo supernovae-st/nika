@@ -192,6 +192,9 @@ enum Command {
     /// stays one flag away (`--help --all`) and AGENTS.md teaches it.
     #[command(hide = true, display_order = 72)]
     Arm(verbs::arm::args::ArmArgs),
+    /// The resident firer: the SAME `fire`, the wall clock in place of the OS (W5). Exit `0` clean · `1` otherwise.
+    #[command(hide = true, display_order = 73)]
+    Serve(verbs::serve::ServeArgs),
     /// Sign a workflow file (S3 · author-binding): mint `<file>.minisig` · `--check` verifies.
     #[command(hide = true, display_order = 71)]
     Sign(verbs::sign::SignArgs),
@@ -733,6 +736,7 @@ fn dispatch_verb(
         } => emit(&explain_dispatch(&code, json, forecast, plain_theme)),
         Command::Key { action } => emit(&verbs::key::run(action)),
         Command::Arm(a) => emit(&verbs::arm::run(a)),
+        Command::Serve(a) => emit(&verbs::serve::run(&a)),
         Command::Sign(args) => emit(&verbs::sign::run(&args)),
         Command::Doctor(args) => doctor_verb(&args, plain_theme),
         Command::Init(args) => emit(&init_verb(&args, plain_theme)),

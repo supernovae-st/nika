@@ -18,11 +18,11 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4492
+  classified_files: 4494
   file_rows: 11
   pattern_rows: 22
   by_class:
-    authored: 1555
+    authored: 1557
     authored-pin: 2
     generated: 122
     pinned-copy: 117
@@ -151,13 +151,13 @@ patterns:
     - "cargo-public-api 0.51.0"
 - glob: "crates/**/src/**"
   class: authored
-  match_count: 789
-  aggregate_sha256: b11564789bbe63b3e2c9a5fd66bb314d9dd00c49cf825a8a9ef8e73abf48e28d
+  match_count: 790
+  aggregate_sha256: 321595bbae3c5d5cc67a9d269380fa724098a3238a71ab9aff4a2085a54f74e9
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
-  match_count: 156
-  aggregate_sha256: fc7f92ffacb13e00ab08503f913e1efe98a9e11adac2aa6918666a2fd23a734e
+  match_count: 157
+  aggregate_sha256: f5de893a8310cec61852b220d6666282418d398cded8a1050d3518f163ba8550
   evidence: "crate-owned tests + fixtures under tests/ — written with the crate per gate discipline, no generation markers"
 - glob: "crates/**"
   class: authored
@@ -237,7 +237,7 @@ patterns:
 - glob: "*"
   class: authored
   match_count: 28
-  aggregate_sha256: 19dabcc9a96580b4b26b48d81482768de489e55088142e58249ae387de9b678f
+  aggregate_sha256: c761dc58938690d91261300dd287f76387234e30c443e202d58c831130dffc96
   evidence: "root prose + config surface (README · DIAMOND · LICENSE · llms.txt · Cargo.toml · deny/clippy/cliff/typos toml · lefthook.yml · flake.nix · Dockerfile) — no generation markers at file heads; CHANGELOG.md · Cargo.lock · SPEC_PIN · ROADMAP.md excepted in files:"
 - glob: "**"
   class: authored
