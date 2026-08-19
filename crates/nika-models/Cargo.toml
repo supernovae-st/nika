@@ -12,8 +12,8 @@ homepage.workspace     = true
 publish                = false  # Internal L4 interface crate (the binary ships, the lib doesn't).
 
 [dependencies]
-nika-kernel = { path = "../nika-kernel", version = "0.111.0-dev" } # HttpGetDyn/HttpPostDyn — the injectable transport seam (the whole pull path is mock-proven)
-nika-http   = { path = "../nika-http", version = "0.111.0-dev" }   # ReqwestHttp — the production client (rustls · SSRF floor · per-hop redirect vetting)
+nika-kernel = { path = "../nika-kernel", version = "0.111.0" } # HttpGetDyn/HttpPostDyn — the injectable transport seam (the whole pull path is mock-proven)
+nika-http   = { path = "../nika-http", version = "0.111.0" }   # ReqwestHttp — the production client (rustls · SSRF floor · per-hop redirect vetting)
 tokio       = { workspace = true }                            # the blocking pull seam's current-thread runtime (the registry #452 idiom)
 serde       = { workspace = true }                            # the Hub tree rows
 serde_json  = { workspace = true }                            # tree-listing parse
@@ -23,7 +23,7 @@ sha2        = { workspace = true }                            # the pull integri
 # `serve` boots the candle backend behind the tiny_http sidecar server.
 # Optional so the default binary keeps the lean-core contract (zero
 # inference deps); the default body teaches the build flag.
-nika-infer-local = { path = "../nika-infer-local", version = "0.111.0-dev", optional = true }
+nika-infer-local = { path = "../nika-infer-local", version = "0.111.0", optional = true }
 
 [features]
 # Build the serve body for real: the candle backend + the loopback
