@@ -576,6 +576,24 @@ fn dst_gap_at_the_boundary_also_fires_at_first_valid() {
 }
 
 #[test]
+fn the_widest_gap_the_tzdb_remembers_still_lands() {
+    // Apia skipped a whole DAY (2011-12-30, the dateline jump) — the
+    // widest gap there is, 24 h, and the reason resolve() steps up to
+    // 26 h of minutes. A midnight slot on the 30th never existed: it
+    // fires at the first valid instant, 00:00 on the 31st (+14:00).
+    // The resolve() comment claimed this probe without a test; here it
+    // is, and it kills the `26 * 60` → `26 + 60` survivor (86 minutes
+    // of stepping never reaches the 31st).
+    let cad = Cadence::parse("TZ=Pacific/Apia 0 0 * * *").expect("cadence");
+    let slot = cad
+        .next_after(&at("2011-12-29T12:00:00Z"))
+        .expect("le lendemain existe");
+    assert_eq!(utc(&slot.at), "2011-12-30T10:00:00Z", "00:00 +14:00");
+    assert_eq!(slot.shift, Shift::AdvancedFirstValid);
+    assert_eq!(slot.civil.to_string(), "2011-12-30T00:00:00");
+}
+
+#[test]
 fn dst_fold_fires_once_at_the_first_occurrence() {
     // N1 · 2026-10-25, Paris falls 03:00 → 02:00: 02:30 exists TWICE.
     // The beat fires at the first occurrence (CEST), declares the fold,

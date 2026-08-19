@@ -220,6 +220,34 @@ arm:
 }
 
 #[test]
+fn earliest_next_a_tie_keeps_the_first_beat() {
+    // Deux beats, même cadence, même prochain créneau — le PREMIER du
+    // registre garde l'égalité (un dernier qui l'emporterait rendrait
+    // l'ordre du fichier mensonger). Tue le mutant `< → <=` sur la
+    // comparaison du meilleur.
+    let reg = parse_registry(
+        "
+nika: v1
+arm:
+  - workflow: workflows/a.nika.yaml
+    cadence: TZ=Europe/Paris 0 3 * * *
+    plafond: 0.10
+    manqué: sauter
+  - workflow: workflows/b.nika.yaml
+    cadence: TZ=Europe/Paris 0 3 * * *
+    plafond: 0.20
+    manqué: sauter
+",
+    )
+    .expect("registre");
+    let now = zoned("2026-08-18T10:00:00[Europe/Paris]");
+    let (index, _) = earliest_next(&reg, &now)
+        .expect("le plan")
+        .expect("un prochain créneau");
+    assert_eq!(index, 0, "l'égalité garde le premier du registre");
+}
+
+#[test]
 fn due_an_already_fired_slot_is_not_due_again() {
     // La borne STRICTE: last_fired == le créneau → déjà tiré, jamais deux fois.
     let reg = parse_registry(DUE_DAILY).expect("registre");
