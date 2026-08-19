@@ -14,11 +14,11 @@ description  = "Trait contracts for every side effect in the Nika diamond — L0
 workspace = true
 
 [dependencies]
-nika-error          = { path = "../nika-error", version = "0.111.0-dev" }
-nika-kernel-ai      = { path = "../nika-kernel-ai", version = "0.111.0-dev" }
-nika-kernel-core    = { path = "../nika-kernel-core", version = "0.111.0-dev" }
-nika-kernel-plugin  = { path = "../nika-kernel-plugin", version = "0.111.0-dev" }
-nika-kernel-runtime = { path = "../nika-kernel-runtime", version = "0.111.0-dev" }
+nika-error          = { path = "../nika-error", version = "0.111.0" }
+nika-kernel-ai      = { path = "../nika-kernel-ai", version = "0.111.0" }
+nika-kernel-core    = { path = "../nika-kernel-core", version = "0.111.0" }
+nika-kernel-plugin  = { path = "../nika-kernel-plugin", version = "0.111.0" }
+nika-kernel-runtime = { path = "../nika-kernel-runtime", version = "0.111.0" }
 
 [dev-dependencies]
 serde_json = { workspace = true }
