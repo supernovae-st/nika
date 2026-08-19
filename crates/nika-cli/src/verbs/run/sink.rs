@@ -33,6 +33,9 @@ pub enum RenderMode {
     /// Plain: silent fold, ONE final storyboard frame (no animation · no
     /// cursor escapes) — `--no-progress` and the piped/CI default.
     Plain,
+    /// Interactive thread: stream task settles, then let the outer thread
+    /// place the resolved answer in its conversation.
+    Thread,
     /// Quiet: silent fold, the COMPACT verdict card only (errors always) —
     /// `--quiet`.
     Quiet,
@@ -197,6 +200,7 @@ impl<W: Write> FoldSink<W> {
         }
         let lines = match self.mode {
             RenderMode::Quiet => verdict_frame(&self.view, &self.theme),
+            RenderMode::Thread => Vec::new(),
             // The plain close carries the FRUIT block (A-2): the files
             // the run materialized + the model's last word — composed
             // here (sizes are a stat, the display crate holds no I/O).
@@ -376,7 +380,7 @@ impl<W: Write> EventSink for FoldSink<W> {
         // silently for the compact final card.
         let painted = match self.mode {
             RenderMode::Live => self.repaint(),
-            RenderMode::Plain => self.narrate(&event),
+            RenderMode::Plain | RenderMode::Thread => self.narrate(&event),
             _ => Ok(()),
         };
         if let Err(e) = painted {

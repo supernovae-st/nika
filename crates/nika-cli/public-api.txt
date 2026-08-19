@@ -1136,6 +1136,8 @@ impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::key::KeyAction
 impl<T> typenum::type_operators::Same for nika_cli::verbs::key::KeyAction
 pub type nika_cli::verbs::key::KeyAction::Output = T
 pub fn nika_cli::verbs::key::run(action: nika_cli::verbs::key::KeyAction) -> nika_cli_host::output::VerbOutput
+pub mod nika_cli::verbs::list
+pub fn nika_cli::verbs::list::run(root: &std::path::Path) -> nika_cli_host::output::VerbOutput
 pub mod nika_cli::verbs::mcp_pins
 pub enum nika_cli::verbs::mcp_pins::McpAction
 pub nika_cli::verbs::mcp_pins::McpAction::Approve
@@ -1265,6 +1267,7 @@ pub use nika_cli::verbs::run::recover_events
 pub nika_cli::verbs::run::RenderMode::Live
 pub nika_cli::verbs::run::RenderMode::Plain
 pub nika_cli::verbs::run::RenderMode::Quiet
+pub nika_cli::verbs::run::RenderMode::Thread
 impl core::clone::Clone for nika_cli::verbs::run::RenderMode
 pub fn nika_cli::verbs::run::RenderMode::clone(&self) -> nika_cli::verbs::run::RenderMode
 impl core::cmp::Eq for nika_cli::verbs::run::RenderMode
@@ -1398,6 +1401,8 @@ impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::serve::ServeArg
 impl<T> typenum::type_operators::Same for nika_cli::verbs::serve::ServeArgs
 pub type nika_cli::verbs::serve::ServeArgs::Output = T
 pub fn nika_cli::verbs::serve::run(args: &nika_cli::verbs::serve::ServeArgs) -> nika_cli_host::output::VerbOutput
+pub mod nika_cli::verbs::session
+pub fn nika_cli::verbs::session::run(theme: nika_display::theme::Theme) -> u8
 pub mod nika_cli::verbs::sign
 pub struct nika_cli::verbs::sign::SignArgs
 pub nika_cli::verbs::sign::SignArgs::check: bool

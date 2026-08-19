@@ -45,8 +45,14 @@ Yes.
 brew install supernovae-st/tap/nika    # or: curl -LsSf https://nika.sh/install.sh | sh
 nika try 01-hello                                # zero setup: no key, no model server
 nika try 01-hello --model ollama/llama3.2:3b     # got Ollama? the same run, real + local
+nika list                                        # workflows below this directory
+nika                                             # on a terminal: open one continuous thread
 # (first run loads the model into memory; later runs are much faster)
 ```
+
+Inside the thread, normal text streams through the existing `agent:` runtime.
+`/workflow <path>` posts a workflow card, `/run <path>` runs it in the same
+thread, and Ctrl-C interrupts the active turn while leaving the thread open.
 
 ![nika check audits the workflow (plan, cost, secrets, types), then nika run executes it locally](media/nika-hero.gif)
 
