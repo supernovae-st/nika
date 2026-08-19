@@ -1167,16 +1167,42 @@ fn asks_model_to_name_the_law(text: &str) -> bool {
 /// `. as $c | map(...)` maps the *current* value. `($c | map(...))` is
 /// the one-way. A one-liner used to slip past the line-start detector.
 fn jq_maps_the_current_after_bind(expr: &str) -> bool {
-    let names = bound_jq_names(expr);
-    if names.is_empty() || !expr.contains("map(") {
+    // The DOT binding is what puts the current value in question, so it stays
+    // the trigger: no `. as $name`, no hint.
+    if bound_jq_names(expr).is_empty() || !expr.contains("map(") {
         return false;
     }
+    // But ANY bound name names its input out loud. A law that walks several
+    // bindings (`($entries | map(...)) as $rows | ($rows | map(...))`) already
+    // does exactly what the advice prescribes, and stripping only the
+    // dot-bound name reported it as a defect (measured 2026-08-19).
     let mut rest = squash_ws(expr);
-    for name in &names {
+    for name in &all_bound_jq_names(expr) {
         rest = rest.replace(&format!("(${name} | map("), "");
         rest = rest.replace(&format!("(${name}|map("), "");
     }
     rest.contains("map(")
+}
+
+/// Every `as $NAME` binding, dot-bound or not. A `map(` piped from one of
+/// them is explicit; only a BARE `map(` rides the current value.
+fn all_bound_jq_names(expr: &str) -> Vec<String> {
+    let mut names = Vec::new();
+    let mut rest = expr;
+    while let Some(i) = rest.find(" as $") {
+        let after = &rest[i + 5..];
+        let name: String = after
+            .chars()
+            .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
+            .collect();
+        if name.is_empty() {
+            rest = after;
+            continue;
+        }
+        names.push(name.clone());
+        rest = after.get(name.len()..).unwrap_or("");
+    }
+    names
 }
 
 fn bound_jq_names(expr: &str) -> Vec<String> {
