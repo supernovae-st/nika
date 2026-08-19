@@ -957,3 +957,36 @@ fn a_const_fixture_assert_compiles_the_law() {
         "const-fixture assert compiles the law: {h:?}"
     );
 }
+
+fn stamped(yaml: &str) -> serde_json::Map<String, serde_json::Value> {
+    let mut obj = serde_json::Map::new();
+    stamp_paid_ready(&mut obj, &hints_of(yaml));
+    obj
+}
+
+#[test]
+fn unproven_law_stamps_compiled_false_and_next() {
+    let obj = stamped(
+        "nika: w\nmodel: mock/echo\npermits: { tools: [\"nika:jq\"] }\ntasks:\n  facts:\n    infer: { prompt: extract, max_tokens: 8 }\n  score:\n    with: { facts: \"${{ tasks.facts.output }}\" }\n    invoke: { tool: nika:jq, args: { input: \"${{ with.facts }}\", expression: \".\" } }\noutputs:\n  r: ${{ tasks.score.output }}\n",
+    );
+    assert_eq!(obj.get("compiled"), Some(&serde_json::json!(false)));
+    assert_eq!(obj.get("paid_ready"), Some(&serde_json::json!(false)));
+    let next = obj.get("next").expect("next");
+    assert_eq!(next.get("kind"), Some(&serde_json::json!("unproven-law")));
+    assert_eq!(next.get("task"), Some(&serde_json::json!("score")));
+    assert!(
+        next.get("advice")
+            .and_then(serde_json::Value::as_str)
+            .is_some_and(|a| a.contains("13-extract-then-law")),
+        "{next}"
+    );
+}
+
+#[test]
+fn a_const_fixture_stamps_compiled_true() {
+    let obj = stamped(
+        "nika: w\nmodel: mock/echo\npermits: { tools: [\"nika:jq\", \"nika:assert\"] }\nconst:\n  cases: [null]\ntasks:\n  facts:\n    infer: { prompt: extract, max_tokens: 8 }\n  score:\n    with: { facts: \"${{ tasks.facts.output }}\" }\n    invoke: { tool: nika:jq, args: { input: \"${{ with.facts }}\", expression: \".\" } }\n  prove:\n    invoke: { tool: nika:jq, args: { input: \"${{ const.cases }}\", expression: \".\" } }\n  check:\n    with: { ok: \"${{ tasks.prove.output }}\" }\n    invoke: { tool: nika:assert, args: { condition: \"${{ with.ok != null }}\", message: compiled } }\noutputs:\n  r: ${{ tasks.score.output }}\n",
+    );
+    assert_eq!(obj.get("compiled"), Some(&serde_json::json!(true)));
+    assert!(obj.get("next").is_none(), "{obj:?}");
+}

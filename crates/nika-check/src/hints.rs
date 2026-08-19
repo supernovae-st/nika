@@ -169,26 +169,43 @@ pub fn paid_ready(hints: &[Hint]) -> bool {
     !hints.iter().any(Hint::is_paid_run)
 }
 
-/// Stamp `paid_ready` / `paid_blockers` onto a serialized check report.
-/// Additive · `report_version` stays 1 · `clean` is untouched.
+/// True iff no `unproven-law` hint fired. A file with no law is compiled.
+/// Never consults `is_clean` or `paid_ready`.
+#[must_use]
+pub fn compiled(hints: &[Hint]) -> bool {
+    !hints.iter().any(|h| h.kind == "unproven-law")
+}
+
+/// Stamp `paid_ready` / `paid_blockers` / `compiled` / `next` onto a
+/// serialized check report. Additive · `report_version` stays 1 ·
+/// `clean` is untouched. `next` is the first paid blocker plus its
+/// advice — the one repair an agent should do now.
 pub fn stamp_paid_ready(obj: &mut serde_json::Map<String, serde_json::Value>, hints: &[Hint]) {
-    let blockers: Vec<serde_json::Value> = paid_blockers(hints)
-        .into_iter()
-        .map(|h| {
+    let paid = paid_blockers(hints);
+    obj.insert(
+        "paid_ready".to_owned(),
+        serde_json::Value::Bool(paid.is_empty()),
+    );
+    obj.insert(
+        "compiled".to_owned(),
+        serde_json::Value::Bool(compiled(hints)),
+    );
+    if let Some(h) = paid.first() {
+        obj.insert(
+            "next".to_owned(),
             serde_json::json!({
                 "kind": h.kind,
                 "task": h.task,
-            })
-        })
-        .collect();
-    obj.insert(
-        "paid_ready".to_owned(),
-        serde_json::Value::Bool(blockers.is_empty()),
-    );
-    if !blockers.is_empty() {
+                "advice": h.advice,
+            }),
+        );
         obj.insert(
             "paid_blockers".to_owned(),
-            serde_json::Value::Array(blockers),
+            serde_json::Value::Array(
+                paid.iter()
+                    .map(|b| serde_json::json!({ "kind": b.kind, "task": b.task }))
+                    .collect(),
+            ),
         );
     }
 }

@@ -320,7 +320,9 @@ or `for_each:` over items — never one giant infer. Verification is
 `nika:jq` / `nika:decide`, never a second infer that names the verdict.
 
 0. **Is `.paid_ready` true?** `nika check --json <file> | jq .paid_ready`.
-   `false` → repair `.paid_blockers[]` first. Do not swap off `mock/`.
+   `false` → repair `.next` (kind · task · advice) first, then the rest
+   of `.paid_blockers[]`. `.compiled` is false only when the law is
+   unproven. Do not swap off `mock/`.
 1. **Did I read two examples first?** `nika try` then `nika new <slug>`
    twice. Skipping this is the measured 7.5-round tax.
 2. **Is every `exec:` a real tool?** `nika check --native-strict`. A

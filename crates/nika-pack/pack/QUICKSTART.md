@@ -196,7 +196,8 @@ The cheapest authoring order, measured on a 40+ task paid extract run:
 4. **The model extracts facts. `nika:jq` (or `nika:decide`) is the law.**
    Do not pay a second infer to pick a level. Hint `infer-as-law`.
    `nika check --json` must report `paid_ready: true` before you leave
-   `mock/`.
+   `mock/` (`.next` is the first repair; `.compiled` is the proven-law
+   bit).
    The shape is
    [`13-extract-then-law`](./examples/13-extract-then-law.nika.yaml).
    Prove the law on const fixtures (`unproven-law`). The named bundle

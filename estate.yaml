@@ -114,7 +114,7 @@ patterns:
 - glob: "crates/nika-pack/pack/**"
   class: pinned-copy
   match_count: 118
-  aggregate_sha256: 9692c2ef8d2e58e37502befa4eee3216e75a9e0ce4f1efe856a338a510a5c4f3
+  aggregate_sha256: d0aeb8c6ca93ea05ce288f68cf80df6b6d34aff081f9433bd9810acf7979ac73
   evidence: "crates/nika-pack/src/lib.rs:16 'The snapshot under pack/ is vendored by scripts/sync-pack.sh' — a byte-copy of the spec surface, never edited here"
   derivation:
     tool: "bash scripts/sync-pack.sh <nika-spec checkout> — healed daily by .github/workflows/pack-resync.yml (branch bot/pack-resync · PR-only, the 12-gate CI judges)"
@@ -140,7 +140,7 @@ patterns:
 - glob: "crates/*/public-api.txt"
   class: generated
   match_count: 66
-  aggregate_sha256: 5e37647e5c4dd07f8435cc083bf4251261f192126dac178db0596fee9b2da549
+  aggregate_sha256: 169d8f11511b35c759894dd8fdaff3dc2ad900da3f8662fb753143583c43a930
   evidence: ".github/workflows/public-api.yml 'diff each covered lib crate' byte-compares each snapshot against cargo public-api output; macOS renders differently, so snapshots regenerate FROM THE UBUNTU ARTIFACT (workflow comment)"
   derivation:
     tool: "cargo public-api -p <crate> --omit auto-trait-impls > crates/<crate>/public-api.txt (DEFAULT features · the CI job shape — all-features drags platform deps into the render · cargo-public-api 0.51.0 pinned · the public-api-actual CI artifact stays the judge)"
@@ -152,7 +152,7 @@ patterns:
 - glob: "crates/**/src/**"
   class: authored
   match_count: 790
-  aggregate_sha256: 41aae83bb8bd254f3950aebe21232603af9836b659415bbc45743d8e360e10f9
+  aggregate_sha256: 58be3e9bada0c9f1161ad73c7bd1bce754d1f9c0e7dbac9e39b396c6d8e0ef96
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
@@ -178,7 +178,7 @@ patterns:
 - glob: "docs/**"
   class: authored
   match_count: 109
-  aggregate_sha256: 88136e7ffee15948403f153059a7c512111cd272ad9b0e712287629739fcdaa4
+  aggregate_sha256: 47743dd209e736ec6ac416783a02e47d4160a6506fe074b4a77f2dc832d8328e
   evidence: "crate-specs · architecture prose · perf notes — no generation markers at file heads"
 - glob: "scripts/**"
   class: authored
@@ -198,7 +198,7 @@ patterns:
 - glob: ".agents/**"
   class: authored
   match_count: 32
-  aggregate_sha256: 5f8838829ce07e2aea41ec9cb734006ff30c89a6a75c0b1f87e126645f54b97f
+  aggregate_sha256: 6de051b472291144cb66966efe1b24cbb552846ab045dee34f665275ff0fd898
   evidence: "the agent-plugin pack SOURCE (marketplace.json · plugin manifests · skills · rules · hooks) — authored here, mirrored downstream into supernovae-st/nika-plugins (its plugins/ is a byte-pinned copy healed on releases)"
 - glob: ".claude/**"
   class: authored

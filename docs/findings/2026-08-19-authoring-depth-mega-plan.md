@@ -40,7 +40,7 @@ Marketplace kit (`nika-plugins`) follows **released** `v0.110.0`.
 Teaching in the mirrored `SKILL.md` lands with the next brew tag via
 `release-heal`, not this PR. Docs and engine pack teach now.
 
-## Wave 1 · machine-readable next (implement after this ship)
+## Wave 1 · machine-readable next (this follow-up)
 
 Small. Same four verbs. No new builtin.
 
