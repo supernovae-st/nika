@@ -27,7 +27,7 @@ const VSCODE_SETTINGS: &str = r#"{
 /// 2026-07-05 — the scaffold taught zero of the then-new train). The bin
 /// test `the_scaffolded_agents_md_teaches_the_live_clap_tree` pins the
 /// parity, derived from the tree itself.
-const AGENTS_MD: &str = r"# AGENTS.md — Nika workflows in this repo
+const AGENTS_MD: &str = r#"# AGENTS.md — Nika workflows in this repo
 
 Nika is a sovereign AI workflow engine. Workflows are `*.nika.yaml` files,
 **audited before they run**. (This guide is scaffolded by `nika init`.)
@@ -90,11 +90,56 @@ multi-turn ReAct loop).
   `skipped` · `terminal`). `depends_on` is dead (`check --fix` migrates).
 - Quote any YAML scalar that STARTS with `${{` (an unquoted leading `${{`
   breaks the parse).
-- `invoke` arguments live under `args:` (not `input:` / `params:`).
+- `invoke` nests BOTH its keys: `tool:` and `args:` sit INSIDE `invoke:`,
+  never at task level (`input:` / `params:` are not fields). See the
+  complete task below · a reader who put `args:` beside `invoke:` got
+  `NIKA-PARSE-005` on their first attempt (outside evaluation 2026-08-20).
+- A builtin needs BOTH grants: the tool in `permits.tools` AND whatever it
+  touches in `permits.fs` / `permits.net`. A tool in the whitelist with no
+  matching grant is zero authority, and it refuses at RUN, not at check.
 - `when:` is a `${{ }}` CEL boolean or the literal `true`/`false` — a bare
   string is rejected. `size()` is the only CEL function.
 - `nika:write` needs `content:` · `nika:done` is valid only inside `agent.tools`.
 - snake_case task ids · kebab-case workflow id (on `nika:`).
+
+## One complete task, so nothing has to be inferred from prose
+
+This file checks clean (`clean` · `compiled` · `paid_ready`, zero hints) and is
+pinned by a test that parses it, because instructions are only honest if
+following them works.
+
+```yaml
+nika: daily-note
+model: mock/echo
+
+permits:
+  # A builtin needs BOTH its tool grant and the grant for what it touches.
+  tools: ["nika:read"]
+  fs:
+    read: ["notes/**"]
+
+tasks:
+  today:
+    invoke:
+      tool: nika:read
+      # `args:` nests INSIDE `invoke:`, beside `tool:` — never at task level.
+      args:
+        path: "notes/today.md"
+
+  summary:
+    with:
+      # The binding IS the edge. The body reads `with.`, never `tasks.` .
+      note: ${{ tasks.today.output }}
+    infer:
+      prompt: "Summarise this note in one line · ${{ with.note }}"
+      max_tokens: 120
+
+outputs:
+  line:
+    value: "${{ tasks.summary.output }}"
+    type: string
+    description: "The one-line summary of today's note."
+```
 
 ## Don't invent structure — route to a skeleton
 `nika new '?'` lists the embedded skeletons · `nika try` /
@@ -149,7 +194,7 @@ prints the build recipe).
   a red file or a priced model without `--max-cost-usd` is denied with the
   findings; `guard_unavailable` means the judge could not see, never that
   the check passed.
-";
+"#;
 
 /// `.cursor/rules/nika.mdc` — the agent-facing authoring floor for Cursor.
 /// The kit's own language rule, `include_str!`d like its nine siblings —
@@ -196,8 +241,10 @@ Rules the validator enforces:
 - `tasks.X` is read at the boundary only: `with: { alias: ${{ tasks.X.output }} }`
   is the data edge · `after: { X: success }` orders without data · the
   body reads `${{ with.alias }}`.
-- `invoke` arguments live under `args:` · secrets come from the
-  environment (`${{ secrets.X }}`) — never inline.
+- `invoke` nests BOTH its keys: `tool:` and `args:` sit INSIDE `invoke:`,
+  never at task level · a builtin also needs its `permits.tools` entry
+  beside the `permits.fs`/`permits.net` grant for what it touches.
+- Secrets come from the environment (`${{ secrets.X }}`) — never inline.
 - Never invent syntax: `nika spec --schema` is the JSON Schema · `nika catalog`
   / `nika catalog --tools` name the providers and builtins.
 - Cost honesty: unknown spend is declared, never rounded to $0 · a local
@@ -353,6 +400,16 @@ pub(super) const fn vscode_settings() -> &'static str {
     VSCODE_SETTINGS
 }
 
+/// The first fenced YAML block of a brief · the pin below follows the brief's
+/// own instructions rather than asserting that a sentence exists.
+#[cfg(test)]
+fn first_yaml_fence(brief: &str) -> Option<String> {
+    let start = brief.find("```yaml")? + "```yaml".len();
+    let rest = &brief[start..];
+    let end = rest.find("```")?;
+    Some(rest[..end].trim_start_matches('\n').to_owned())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -363,6 +420,62 @@ mod tests {
     /// env-sourced secrets instead of the declared `secrets:` block, and
     /// naming one extension while the globs match two. These pins keep
     /// the teaching surface honest against the schema.
+    /// The brief is INSTRUCTIONS, and the only honest test of instructions is
+    /// to FOLLOW them. An outside evaluation on 2026-08-20 authored a task from
+    /// this prose and got `NIKA-PARSE-005` on the first attempt: the `args:`
+    /// sentence named the key without its nesting, so a careful reader put it
+    /// beside `invoke:` instead of inside it. The same sentence shipped to a
+    /// second agent surface, and `permits.tools` was never mentioned at all
+    /// though every builtin invoke needs it.
+    ///
+    /// The prior pins in this module assert that certain STRINGS appear. A
+    /// string can be present and still teach a refusal. This one parses the
+    /// brief's own example and puts it through the same checker the reader
+    /// will, which is the only version of "parity-tested against the binary"
+    /// that would have caught the defect.
+    #[test]
+    fn the_briefs_own_example_parses_and_checks_clean() {
+        let yaml = first_yaml_fence(AGENTS_MD).expect(
+            "AGENTS.md must carry ONE complete workflow example · prose alone is not a contract",
+        );
+        let wf = nika_schema::parse(
+            &yaml,
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("the brief's own example must parse under the mode the reader gets");
+        assert!(
+            nika_check::check(&wf).is_clean(),
+            "the brief's own example must CHECK clean, not merely parse"
+        );
+        // The two facts the defect was made of, pinned where they cannot rot
+        // back into prose: `args:` indented under `invoke:`, and a tools grant.
+        assert!(
+            yaml.contains("    invoke:\n      tool:") && yaml.contains("      args:"),
+            "the example must show `args:` nested INSIDE `invoke:`, beside `tool:`"
+        );
+        assert!(
+            yaml.contains("tools: ["),
+            "the example must show the `permits.tools` grant every builtin invoke needs"
+        );
+    }
+
+    /// Both agent-facing briefs carry the nesting, so neither surface can drift
+    /// back to the sentence that produced a refusal.
+    #[test]
+    fn every_agent_brief_teaches_the_nesting_and_the_tools_grant() {
+        for (name, brief) in [("AGENTS.md", AGENTS_MD), ("copilot", COPILOT_INSTRUCTIONS)] {
+            assert!(
+                brief.contains("INSIDE `invoke:`"),
+                "{name} must say the args nest inside invoke, not merely name the key"
+            );
+            assert!(
+                brief.contains("permits.tools"),
+                "{name} must name the tools grant a builtin invoke requires"
+            );
+        }
+    }
+
     #[test]
     fn cursor_rule_teaches_the_shipped_surface() {
         assert!(
