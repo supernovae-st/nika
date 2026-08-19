@@ -106,8 +106,8 @@ pub struct Hint {
     /// `secrets-store` · `native-first` ·
     /// `exec-json-capture` ·
     /// `unwrapped-ref` · `envelope-output` · `policy-soft` · `run-clock`
-    /// · `analysis` · `consent` (additive · agents route on it; the
-    /// module doc describes each).
+    /// · `analysis` · `consent` · `digit-string-enum` · `inspect-unwired`
+    /// (additive · agents route on it; the module doc describes each).
     /// `parallel-writers` is RETIRED (F-P15 · promoted to the
     /// NIKA-SEC-012 finding — an error owns its repair, never a hint).
     /// `exec-floor` is RETIRED (#605 · promoted to the NIKA-SEC-001
@@ -169,11 +169,15 @@ pub(super) fn scan_hints(wf: &RawWorkflow) -> Vec<Hint> {
                 }
                 push_strictness_hint(&mut hints, id, a.schema.as_ref().map(|s| &s.value));
                 push_portability_hint(&mut hints, id, a.schema.as_ref().map(|s| &s.value));
+                push_digit_enum_hint(&mut hints, id, a.schema.as_ref().map(|s| &s.value));
             }
             RawAction::Exec(exec) => {
                 push_exec_json_capture_hint(&mut hints, t, exec);
             }
-            RawAction::Invoke(a) => push_headless_prompt_hint(&mut hints, id, a),
+            RawAction::Invoke(a) => {
+                push_headless_prompt_hint(&mut hints, id, a);
+                push_inspect_unwired_hint(&mut hints, id, a);
+            }
             #[allow(
                 clippy::unreachable,
                 reason = "non_exhaustive future variant — enum and checker ship together; fail loud beats silently-wrong output"
@@ -260,6 +264,7 @@ fn push_infer_hints(
     }
     push_strictness_hint(hints, id, a.schema.as_ref().map(|s| &s.value));
     push_portability_hint(hints, id, a.schema.as_ref().map(|s| &s.value));
+    push_digit_enum_hint(hints, id, a.schema.as_ref().map(|s| &s.value));
 }
 
 /// The deadline-vs-undeclared-clock hint (F-P3 finding (b)): a task
@@ -840,6 +845,89 @@ fn collect_grammar_blind(node: &serde_json::Value, out: &mut BTreeSet<&'static s
         out.extend(cond.then_some("if/then/else"));
         for_each_subschema(obj, &mut |kid| collect_grammar_blind(kid, out));
     }
+}
+
+/// String `enum` of digits only (`"0"|"1"|"3"`). Models emit JSON
+/// numbers; provider grammars may reject the call before Nika coerce
+/// stringifies. Prefer `type: integer`.
+fn push_digit_enum_hint(hints: &mut Vec<Hint>, id: &str, schema: Option<&serde_json::Value>) {
+    let mut paths = Vec::new();
+    if let Some(node) = schema {
+        collect_digit_string_enums(node, "", &mut paths);
+    }
+    if paths.is_empty() {
+        return;
+    }
+    let list = paths.join("` · `");
+    hints.push(hint(
+        "digit-string-enum",
+        id,
+        format!(
+            "`{id}` declares a string enum of digits only at `{list}` — models emit JSON numbers \
+             (`3` not `\"3\"`); constrained decoding can reject the call before Nika's coerce \
+             stringifies. Prefer `type: integer` with a numeric enum"
+        ),
+    ));
+}
+
+fn collect_digit_string_enums(node: &serde_json::Value, path: &str, out: &mut Vec<String>) {
+    let Some(obj) = node.as_object().filter(|o| !o.contains_key("$ref")) else {
+        return;
+    };
+    let types: Vec<&str> = match obj.get("type") {
+        Some(serde_json::Value::String(t)) => vec![t.as_str()],
+        Some(serde_json::Value::Array(list)) => list.iter().filter_map(|t| t.as_str()).collect(),
+        _ => Vec::new(),
+    };
+    let string_only = types == ["string"];
+    if string_only
+        && let Some(variants) = obj.get("enum").and_then(serde_json::Value::as_array)
+        && !variants.is_empty()
+        && variants.iter().all(|v| {
+            v.as_str().is_some_and(|s| {
+                !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit() || b == b'-')
+            })
+        })
+    {
+        out.push(if path.is_empty() {
+            "/".to_owned()
+        } else {
+            path.to_owned()
+        });
+    }
+    if let Some(props) = obj.get("properties").and_then(serde_json::Value::as_object) {
+        for (key, child) in props {
+            collect_digit_string_enums(child, &format!("{path}/properties/{key}"), out);
+        }
+    }
+    if let Some(items) = obj.get("items") {
+        collect_digit_string_enums(items, &format!("{path}/items"), out);
+    }
+}
+
+/// `nika:inspect` is catalogued but the runtime injects [`NoWorkflow`]
+/// today — every view returns `available: false`. Say so at check time
+/// instead of letting an author discover it after a paid infer wave.
+fn push_inspect_unwired_hint(
+    hints: &mut Vec<Hint>,
+    id: &str,
+    a: &nika_schema::raw::RawInvokeAction,
+) {
+    let Some(tool) = a.tool() else {
+        return;
+    };
+    if tool.value != "nika:inspect" {
+        return;
+    }
+    hints.push(hint(
+        "inspect-unwired",
+        id,
+        format!(
+            "`nika:inspect` on `{id}` has no live run context in this engine — every view \
+             returns `available: false`. Read cost/DAG from `nika trace show` until the \
+             runtime injects WorkflowIntrospect (ADR-088 wiring gap)"
+        ),
+    ));
 }
 
 fn hint(kind: &'static str, task: &str, advice: String) -> Hint {

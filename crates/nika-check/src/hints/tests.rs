@@ -793,3 +793,37 @@ fn the_run_clock_hint_counts_every_deadline_once() {
     assert_eq!(hits.len(), 1, "one deduped row: {hits:?}");
     assert!(hits[0].advice.contains("2 task(s)"), "{}", hits[0].advice);
 }
+
+#[test]
+fn digit_string_enum_is_hinted_words_are_silent() {
+    let h = hints_of(
+        "nika: w\nmodel: mock/echo\ntasks:\n  t:\n    infer:\n      prompt: x\n      max_tokens: 10\n      schema:\n        type: object\n        properties:\n          n: { type: string, enum: [\"0\", \"1\", \"3\"] }\noutputs:\n  r: ${{ tasks.t.output }}\n",
+    );
+    let hit = h
+        .iter()
+        .find(|x| x.kind == "digit-string-enum")
+        .expect("digit-string-enum");
+    assert_eq!(hit.task, "t");
+    assert!(hit.advice.contains("integer"), "{}", hit.advice);
+
+    let words = hints_of(
+        "nika: w\nmodel: mock/echo\ntasks:\n  t:\n    infer:\n      prompt: x\n      max_tokens: 10\n      schema:\n        type: object\n        properties:\n          n: { type: string, enum: [none, S, M] }\noutputs:\n  r: ${{ tasks.t.output }}\n",
+    );
+    assert!(
+        !words.iter().any(|x| x.kind == "digit-string-enum"),
+        "{words:?}"
+    );
+}
+
+#[test]
+fn inspect_invoke_is_hinted_as_unwired() {
+    let h = hints_of(
+        "nika: w\npermits: { tools: [\"nika:inspect\"] }\ntasks:\n  look:\n    invoke: { tool: \"nika:inspect\", args: { view: cost } }\n",
+    );
+    let hit = h
+        .iter()
+        .find(|x| x.kind == "inspect-unwired")
+        .expect("inspect-unwired");
+    assert_eq!(hit.task, "look");
+    assert!(hit.advice.contains("available: false"), "{}", hit.advice);
+}

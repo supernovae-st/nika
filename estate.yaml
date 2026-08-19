@@ -18,11 +18,11 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4494
+  classified_files: 4495
   file_rows: 11
   pattern_rows: 22
   by_class:
-    authored: 1557
+    authored: 1558
     authored-pin: 2
     generated: 122
     pinned-copy: 117
@@ -114,7 +114,7 @@ patterns:
 - glob: "crates/nika-pack/pack/**"
   class: pinned-copy
   match_count: 116
-  aggregate_sha256: 182f41db66cbee95baa893891b595b02070a3b3472cf502c95f957451500ac34
+  aggregate_sha256: 7262440ca5d95c9807655b77a4f26a30ed3c9ab79ebd4d287e28fdf2b42a36fd
   evidence: "crates/nika-pack/src/lib.rs:16 'The snapshot under pack/ is vendored by scripts/sync-pack.sh' — a byte-copy of the spec surface, never edited here"
   derivation:
     tool: "bash scripts/sync-pack.sh <nika-spec checkout> — healed daily by .github/workflows/pack-resync.yml (branch bot/pack-resync · PR-only, the 12-gate CI judges)"
@@ -152,7 +152,7 @@ patterns:
 - glob: "crates/**/src/**"
   class: authored
   match_count: 790
-  aggregate_sha256: 0ffec5ddf8a7011110140d280d9b966222a553ce96ce530c493a2cb3dc28e982
+  aggregate_sha256: abf2511cb31a27b143f4f6861256bc64f0a5ce5be07cbf7c9456c59d632cb7e0
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
@@ -177,8 +177,8 @@ patterns:
   evidence: "per-decision records authored at decision time (scripts/adr/new.sh scaffolds · adr-seal-check hook seals); index.toml excepted in files:"
 - glob: "docs/**"
   class: authored
-  match_count: 106
-  aggregate_sha256: 1fb0679e500f6d5e5e1cab1fe19988b4b962948348a416ca3fb495e72b1940ba
+  match_count: 107
+  aggregate_sha256: 2078eec9bd8224f25e5e4d0a25111ac59f88ea6b9f7ad7cddeb281b58f70cb83
   evidence: "crate-specs · architecture prose · perf notes — no generation markers at file heads"
 - glob: "scripts/**"
   class: authored

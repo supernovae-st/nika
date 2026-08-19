@@ -241,9 +241,7 @@ pub(crate) fn json_merge_patch(args: &Args) -> BuiltinOutcome {
 pub(crate) fn validate(args: &Args) -> BuiltinOutcome {
     const C1: &str = "NIKA-BUILTIN-VALIDATE-001";
     const C2: &str = "NIKA-BUILTIN-VALIDATE-002";
-    let schema = args
-        .get("schema")
-        .ok_or_else(|| BuiltinFailure::new(C1, "`schema:` is required"))?;
+    let schema = parse_schema_arg(args, C1)?;
     let format = opt_str(args, "format", C1)?.unwrap_or("json");
 
     let data = match format {
@@ -264,7 +262,7 @@ pub(crate) fn validate(args: &Args) -> BuiltinOutcome {
         }
     };
 
-    let validator = jsonschema::validator_for(schema).map_err(|e| {
+    let validator = jsonschema::validator_for(&schema).map_err(|e| {
         BuiltinFailure::new(C1, format!("`schema:` is not a valid JSON Schema: {e}"))
     })?;
     // Structured error objects, not bare strings — `path` (JSON Pointer
@@ -283,6 +281,33 @@ pub(crate) fn validate(args: &Args) -> BuiltinOutcome {
         })
         .collect();
     Ok(serde_json::json!({ "valid": errors.is_empty(), "errors": errors }))
+}
+
+/// `schema:` may be a JSON object OR a string `nika:read` just handed
+/// over (the 2026-08-19 authoring miss: a `.json` file is text, and
+/// treating that text as the schema value itself fails
+/// `validator_for` with "not of types boolean, object").
+fn parse_schema_arg(args: &Args, code: &'static str) -> Result<serde_json::Value, BuiltinFailure> {
+    match args.get("schema") {
+        None => Err(BuiltinFailure::new(code, "`schema:` is required")),
+        Some(serde_json::Value::String(text)) => serde_json::from_str(text)
+            .or_else(|_| {
+                serde_yaml_bw::from_str(text).map_err(|yaml_err| {
+                    BuiltinFailure::new(
+                        code,
+                        format!("`schema:` is a string that is neither JSON nor YAML: {yaml_err}"),
+                    )
+                })
+            })
+            .and_then(|parsed| match parsed {
+                serde_json::Value::Object(_) | serde_json::Value::Bool(_) => Ok(parsed),
+                other => Err(BuiltinFailure::new(
+                    code,
+                    format!("`schema:` string parsed as {other}, not a JSON Schema object/boolean"),
+                )),
+            }),
+        Some(value) => Ok(value.clone()),
+    }
 }
 
 // ─── nika:convert · universal multi-format conversion ───────────────────
@@ -517,10 +542,28 @@ fn emit_csv(
 
 // ─── nika:hash · content hashing ────────────────────────────────────────
 
+/// Bytes under `content:`. A string is hashed as-is (the receipt of
+/// prose). Any other JSON value is hashed as compact JSON — the 2026-08-19
+/// miss was interpolating a task's object output and getting
+/// `content: (string) is required` instead of a digest.
+fn content_bytes(args: &Args, code: &'static str) -> Result<String, BuiltinFailure> {
+    match args.get("content") {
+        None | Some(serde_json::Value::Null) => {
+            Err(BuiltinFailure::new(code, "`content:` is required"))
+        }
+        Some(serde_json::Value::String(text)) => Ok(text.clone()),
+        Some(serde_json::Value::Number(n)) => Ok(n.to_string()),
+        Some(serde_json::Value::Bool(flag)) => Ok(flag.to_string()),
+        Some(other) => serde_json::to_string(other).map_err(|e| {
+            BuiltinFailure::new(code, format!("`content:` could not be serialized: {e}"))
+        }),
+    }
+}
+
 /// Hash `content:` (blake3 default · sha256/sha512). md5/sha1 refused.
 pub(crate) fn hash(args: &Args) -> BuiltinOutcome {
     const C: &str = "NIKA-BUILTIN-HASH-001";
-    let content = req_str(args, "content", C)?;
+    let content = content_bytes(args, C)?;
     let algo = opt_str(args, "algo", C)?.unwrap_or("blake3");
     let encoding = opt_str(args, "encoding", C)?.unwrap_or("hex");
 
