@@ -37,7 +37,7 @@ taxonomy, never conflated.
 
 ## Error codes
 
-`NIKA-420` serialization failed · `NIKA-421` buffer full
+`NIKA-801` serialization failed · `NIKA-802` buffer full
 (`Category::Observability`).
 
 ---

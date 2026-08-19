@@ -119,9 +119,9 @@ impl<T> nika_error::traits::AsAny for nika_event::error::EventError where T: 'st
 pub fn nika_event::error::EventError::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_event::error::EventError
 pub type nika_event::error::EventError::Output = T
-pub const nika_event::error::NIKA_420: nika_error::codes::NikaCode
-pub const nika_event::error::NIKA_421: nika_error::codes::NikaCode
-pub const nika_event::error::NIKA_422: nika_error::codes::NikaCode
+pub const nika_event::error::NIKA_801: nika_error::codes::NikaCode
+pub const nika_event::error::NIKA_802: nika_error::codes::NikaCode
+pub const nika_event::error::NIKA_803: nika_error::codes::NikaCode
 pub mod nika_event::event
 #[non_exhaustive] pub struct nika_event::event::Event
 pub nika_event::event::Event::correlation: core::option::Option<nika_types::id::CorrelationId>

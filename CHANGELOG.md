@@ -33,6 +33,16 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   grandchildren are no longer group-killed on the embedder-facing
   timeout/cancel arms, and the `nix` dependency goes with them.
 
+### Changed
+
+- **BREAKING — the event error codes leave the Shield reservation
+  (`nika-event`).** `NIKA_420/421/422` (serialize failed · buffer full ·
+  lock poisoned) were minted inside the locked Shield band (380-429), so
+  a full event buffer surfaced as « Shield security policy blocked the
+  operation » — a refusal its reader would read as security. They are
+  renumbered into their own Observability band (800-819) as
+  `NIKA_801/802/803`, constants renamed with them.
+
 ### Fixed
 
 - **The `nika-error` crate-spec band table matches the one-voice
