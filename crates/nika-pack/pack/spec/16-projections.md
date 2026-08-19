@@ -41,10 +41,11 @@ semantic_document = (
 
 - **`semantic_document_format: 1`** — the surface names its **own**
   version, independent of the nested `graph.graph_format`. Until now the
-  document versioned itself *implicitly* through `graph.graph_format: 2`;
-  a projection that will grow additive fields (holes · actions ·
-  capabilities · §the additive arc) needs a version of its own so a
-  consumer can reason about the *surface* without unwrapping the graph.
+  document versioned itself *implicitly* through the nested graph's
+  format integer; a projection that will grow additive fields (holes ·
+  actions · capabilities · §the additive arc) needs a version of its own
+  so a consumer can reason about the *surface* without unwrapping the
+  graph.
 - **`graph`** is the canonical projection of [03](./03-dag.md) *verbatim*
   (`graph_format: 3` · the derived edges · the reference identity). The
   semantic document never re-derives it — it carries it.
