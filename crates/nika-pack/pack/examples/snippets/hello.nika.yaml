@@ -8,7 +8,7 @@
 # blast radius from the very first command.
 #
 # Demonstrates ·
-#   - the envelope · `nika: v1` + `workflow.id`
+#   - the envelope · `nika: hello` (the mark AND the name · nine keys)
 #   - `permits.exec` · an argv allowlist, no shell anywhere
 #   - one `exec:` task · argv form, never a shell string
 #
