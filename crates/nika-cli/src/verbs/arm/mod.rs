@@ -48,6 +48,7 @@ use nika_vocab::project;
 use super::VerbOutput;
 
 pub mod args;
+pub mod state;
 
 /// How many upcoming slots each beat shows.
 const SLOTS_SHOWN: usize = 3;
