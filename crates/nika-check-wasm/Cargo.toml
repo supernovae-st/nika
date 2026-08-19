@@ -14,8 +14,8 @@ publish                = false  # Ships as an npm pack via wasm-bindgen, never o
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-nika-schema = { path = "../nika-schema", version = "0.109.2" } # parse + SchemaError → spec_code()/span() (the one error voice)
-nika-check  = { path = "../nika-check", version = "0.109.2" }  # analyze() + ERROR_DOCS_BASE + REPORT_VERSION (the judgment hub)
+nika-schema = { path = "../nika-schema", version = "0.110.0-dev" } # parse + SchemaError → spec_code()/span() (the one error voice)
+nika-check  = { path = "../nika-check", version = "0.110.0-dev" }  # analyze() + ERROR_DOCS_BASE + REPORT_VERSION (the judgment hub)
 serde_json  = { workspace = true }
 wasm-bindgen = { workspace = true }
 
