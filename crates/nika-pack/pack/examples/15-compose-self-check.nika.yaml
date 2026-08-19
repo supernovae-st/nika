@@ -19,8 +19,8 @@
 #   - the draft is an artifact + its certificate, not a child run
 #
 # Do not confuse with [`10-compose-pipeline`](10-compose-pipeline.nika.yaml).
-# Do not write a follow-up that *calls* the unwired introspection
-# builtin (`inspect-unwired` · `paid_ready: false`).
+# Next door · [`16-inspect-self`](16-inspect-self.nika.yaml) is the run
+# reading its own DAG.
 #
 # Run · nika try 15-compose-self-check
 #   (offline · mock/echo · zero keys)

@@ -446,12 +446,12 @@ Replaces · 4 legacy introspection builtins (`nika:cost` · `nika:records` · `n
 
 Throws · `NIKA-BUILTIN-INSPECT-001` if `view:` value not in the canonical enum.
 
-**Reference-engine honesty (ADR-088 wiring gap).** The builtin is
-catalogued; the runtime still injects a `NoWorkflow` today, so every
-view returns `{ available: false }`. The checker hints `inspect-unwired`.
-Read cost/DAG from `nika trace show` until `WorkflowIntrospect` is
-injected. Probe any new builtin with `mock/echo` *before* wiring it
-after a paid infer.
+The reference engine injects a live cell at composition and writes it
+as tasks settle. `available: true` once the DAG is seeded at run start.
+The teaching shape is
+[`examples/16-inspect-self.nika.yaml`](../examples/16-inspect-self.nika.yaml).
+Probe any new builtin with `mock/echo` *before* wiring it after a paid
+infer.
 
 ---
 

@@ -121,7 +121,7 @@ pub struct Hint {
     /// `secrets-store` · `native-first` ·
     /// `exec-json-capture` ·
     /// `unwrapped-ref` · `envelope-output` · `policy-soft` · `run-clock`
-    /// · `analysis` · `consent` · `digit-string-enum` · `inspect-unwired`
+    /// · `analysis` · `consent` · `digit-string-enum`
     /// · `glob-readme` · `assert-quarantine` · `jq-as-map` · `infer-as-law`
     /// · `unproven-law`
     /// (additive · agents route on it; the module doc describes each).
@@ -143,7 +143,6 @@ pub struct Hint {
 pub const PAID_RUN_KINDS: &[&str] = &[
     "digit-string-enum",
     "glob-readme",
-    "inspect-unwired",
     "jq-as-map",
     "infer-as-law",
     "unproven-law",
@@ -268,7 +267,6 @@ pub(super) fn scan_hints(wf: &RawWorkflow) -> Vec<Hint> {
             }
             RawAction::Invoke(a) => {
                 push_headless_prompt_hint(&mut hints, id, a);
-                push_inspect_unwired_hint(&mut hints, id, a);
                 push_glob_readme_hint(&mut hints, id, a);
                 push_jq_as_map_hint(&mut hints, id, a);
             }
@@ -999,31 +997,6 @@ fn collect_digit_string_enums(node: &serde_json::Value, path: &str, out: &mut Ve
     if let Some(items) = obj.get("items") {
         collect_digit_string_enums(items, &format!("{path}/items"), out);
     }
-}
-
-/// `nika:inspect` is catalogued but the runtime injects a `NoWorkflow`
-/// today — every view returns `available: false`. Say so at check time
-/// instead of letting an author discover it after a paid infer wave.
-fn push_inspect_unwired_hint(
-    hints: &mut Vec<Hint>,
-    id: &str,
-    a: &nika_schema::raw::RawInvokeAction,
-) {
-    let Some(tool) = a.tool() else {
-        return;
-    };
-    if tool.value != "nika:inspect" {
-        return;
-    }
-    hints.push(hint(
-        "inspect-unwired",
-        id,
-        format!(
-            "`nika:inspect` on `{id}` has no live run context in this engine — every view \
-             returns `available: false`. Read cost/DAG from `nika trace show` until the \
-             runtime injects WorkflowIntrospect (ADR-088 wiring gap)"
-        ),
-    ));
 }
 
 /// A markdown glob that will also match a README sitting in the same
