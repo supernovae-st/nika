@@ -278,7 +278,7 @@ fn native_first_verdict(
 /// `infer-as-law` and `digit-string-enum` burned the 2026-08-19 wave.
 /// The rest of [`nika_check::PAID_RUN_KINDS`] still ride `.paid_ready`
 /// (JSON) and the explain panel — they are not fail-set members
-/// (`inspect-unwired` is a wiring gap · `glob-readme` has no FS ·
+/// (`glob-readme` has no FS ·
 /// `jq-as-map` is a style ratchet). This oracle is what an agent reads
 /// before handing a file to a human.
 fn paid_ready_verdict(

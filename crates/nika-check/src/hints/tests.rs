@@ -830,16 +830,15 @@ fn hash_of_an_object_task_output_does_not_hint_tojson() {
 }
 
 #[test]
-fn inspect_invoke_is_hinted_as_unwired() {
+fn inspect_invoke_is_not_hinted_as_unwired() {
+    // LiveInspect is injected at composition — check stays silent.
     let h = hints_of(
         "nika: w\npermits: { tools: [\"nika:inspect\"] }\ntasks:\n  look:\n    invoke: { tool: \"nika:inspect\", args: { view: cost } }\n",
     );
-    let hit = h
-        .iter()
-        .find(|x| x.kind == "inspect-unwired")
-        .expect("inspect-unwired");
-    assert_eq!(hit.task, "look");
-    assert!(hit.advice.contains("available: false"), "{}", hit.advice);
+    assert!(
+        !h.iter().any(|x| x.kind == "inspect-unwired"),
+        "inspect is wired: {h:?}"
+    );
 }
 
 #[test]

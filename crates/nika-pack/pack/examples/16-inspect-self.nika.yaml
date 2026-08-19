@@ -1,0 +1,46 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# 16 · Inspect self — the run reads its own DAG.
+#
+# `nika:inspect` is the one introspection door (ADR-088 · four views).
+# The runtime injects a live cell at composition and writes it as
+# tasks settle. This file is the first task of a two-task DAG: look
+# at `dag_info` before anything has settled, then assert the cell
+# is available (the DAG was seeded at run start).
+#
+# Demonstrates ·
+#   - `invoke: { tool: nika:inspect, args: { view: dag_info } }`
+#   - `available: true` · nodes + waves from the check report
+#   - PURE permits · inspect + assert
+#   - const-fixture assert so `unproven-law` stays silent
+#
+# Other views · `cost` · `records` · `threads` (advisory).
+#
+# Run · nika try 16-inspect-self
+#   (offline · mock/echo · zero keys)
+
+nika: inspect-self
+
+model: mock/echo
+
+permits:
+  tools: ["nika:inspect", "nika:assert"]
+
+tasks:
+  look:
+    invoke:
+      tool: nika:inspect
+      args:
+        view: dag_info
+  compiled:
+    with:
+      shot: ${{ tasks.look.output }}
+    invoke:
+      tool: nika:assert
+      args:
+        condition: ${{ with.shot.available }}
+        message: "inspect must have live run context (DAG seeded at start)"
+
+outputs:
+  dag: ${{ tasks.look.output }}

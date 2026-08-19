@@ -533,23 +533,16 @@ mod tests {
 
     /// The coverage ratchet, builtins leg — the same gate the kit has
     /// (`the_kit_never_teaches_a_form_the_engine_refuses`), pointed the
-    /// other way: the corpus must SHOW what the engine ships. Two ride a
+    /// other way: the corpus must SHOW what the engine ships. One rides a
     /// named debt; a new builtin cannot join silently, and a debt paid
     /// by a new lesson must be struck from the list in the same arc.
     #[test]
     fn every_builtin_is_shown_or_carries_a_named_debt() {
         // Each entry: why the gap is tolerated TODAY + the showcase owed.
-        const OWED: &[(&str, &str)] = &[
-            (
-                "inspect",
-                "cost · records · dag_info · threads behind one door (ADR-088) \
-                 — owes the lesson where a run reads itself",
-            ),
-            (
-                "tts_generate",
-                "the audio graduate — a showcase gap, not a logic gap",
-            ),
-        ];
+        const OWED: &[(&str, &str)] = &[(
+            "tts_generate",
+            "the audio graduate — a showcase gap, not a logic gap",
+        )];
         let mut bodies = String::new();
         for slug in nika_pack::example_slugs() {
             bodies.push_str(nika_pack::example(&slug).unwrap_or_default());

@@ -413,7 +413,7 @@ The named bundle is [`14-decide-publish`](14-decide-publish.nika.yaml).
    until the paid-run family is gone. The MCP `nika_check` oracle fails
    `infer-as-law` and `digit-string-enum` by default.
 3. **Probe a new builtin with `mock/echo` first.** `nika:inspect` is
-   catalogued and unwired (`available: false`). Hint `inspect-unwired`.
+   live (`available: true` once the DAG is seeded). Shape: lesson 16.
 4. **`nika:hash` accepts an object.** Do not pre-`tojson` a roster.
    `nika:validate` parses a string schema from `nika:read`.
 5. **Pin the glob.** `held/*.md` includes `README.md`. `exclude:

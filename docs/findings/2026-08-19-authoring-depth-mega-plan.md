@@ -86,22 +86,13 @@ closes at turn one. OWED `compose` struck.
 Do **not** fake it with a standalone invoke. Do **not** execute the
 draft inside the same run ("generation is not permission").
 
-## Wave 4 · inspect (gated on runtime)
+## Wave 4 · inspect (SHIPPED this wave)
 
-`nika:inspect` is catalogued. The runtime still injects `NoWorkflow`
-→ every view `{ available: false }` → hint `inspect-unwired` →
-`paid_ready: false`. A lesson that *calls* inspect cannot be
-paid_ready today.
-
-Until `WorkflowIntrospect` is injected (ADR-088):
-
-- keep `inspect` on OWED
-- keep the hint
-- teach `nika trace show` as the live cost/DAG door
-- do not write `15-inspect-self`
-
-Wiring inspect is a **runtime** batch (~crate wall). Not this
-authoring train.
+`LiveInspect` is injected at composition (same `Arc` the dispatcher
+holds). The runtime seeds the DAG at run start and mirrors records +
+spend after each wave. Hint `inspect-unwired` retired. Lesson
+`16-inspect-self` asserts `available`. OWED `inspect` struck.
+`NoWorkflow` stays for isolated dispatcher tests.
 
 ## Wave 5 · still open, not this authoring train
 
@@ -117,7 +108,7 @@ authoring train.
 | RLM (2512.24601) | Nika already | What's missing |
 |---|---|---|
 | file = environment | the `.nika.yaml` *is* the scratchpad | agents write once and hope |
-| recursion | `for_each` · `invoke: { workflow: }` · lesson 15 `nika:compose` | inspect wiring (Wave 4) |
+| recursion | `for_each` · `invoke: { workflow: }` · lesson 15 `nika:compose` · lesson 16 `nika:inspect` | per-iteration resume (ADR-099) |
 | verification | jq / decide / assert · `compiled`/`next` | agents still write once and hope — the loop is the product |
 
 The loop we want: write → `nika check --json` → if `next`, repair

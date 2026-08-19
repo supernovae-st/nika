@@ -18,14 +18,14 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4501
+  classified_files: 4503
   file_rows: 11
   pattern_rows: 22
   by_class:
-    authored: 1561
+    authored: 1562
     authored-pin: 2
     generated: 122
-    pinned-copy: 120
+    pinned-copy: 121
     testimonial: 2696
     foreign: 0
   unverified-default: 7
@@ -113,8 +113,8 @@ files:
 patterns:
 - glob: "crates/nika-pack/pack/**"
   class: pinned-copy
-  match_count: 119
-  aggregate_sha256: 285f5f9fdcd2eb07a27ff70aae52f5af83a12f0a36812df24937e3ba25fb2f64
+  match_count: 120
+  aggregate_sha256: db4febad548640a631b90a03b77e28222a8817824084dc4c7f7165793a587fe1
   evidence: "crates/nika-pack/src/lib.rs:16 'The snapshot under pack/ is vendored by scripts/sync-pack.sh' — a byte-copy of the spec surface, never edited here"
   derivation:
     tool: "bash scripts/sync-pack.sh <nika-spec checkout> — healed daily by .github/workflows/pack-resync.yml (branch bot/pack-resync · PR-only, the 12-gate CI judges)"
@@ -151,8 +151,8 @@ patterns:
     - "cargo-public-api 0.51.0"
 - glob: "crates/**/src/**"
   class: authored
-  match_count: 791
-  aggregate_sha256: 5ef765b6a5d2187bd04fa8f487e156c42d3b1b9323af36a34663970e9ca9740c
+  match_count: 792
+  aggregate_sha256: 69345bf564be59b869fb938b2e596b9b5cf5348f802355ee80dbe730821d6166
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
@@ -178,7 +178,7 @@ patterns:
 - glob: "docs/**"
   class: authored
   match_count: 109
-  aggregate_sha256: 1fe039641bda5057cd75b10188797e448d49b5900ecbc0d97c11aa37553d67ff
+  aggregate_sha256: c5261d98d219c717a0fd9af0def0854e3e585789f56111e295078701253cc68e
   evidence: "crate-specs · architecture prose · perf notes — no generation markers at file heads"
 - glob: "scripts/**"
   class: authored
