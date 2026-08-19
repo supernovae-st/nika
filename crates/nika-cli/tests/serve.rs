@@ -126,7 +126,8 @@ fn serve_loop_fires_two_beats_in_slot_order() {
         lines[1].contains("fired doctor · slot 2026-08-19T03:03:00Z"),
         "the second slot second: {stdout}"
     );
-    assert_eq!(history(&dir, "doctor").lines().count(), 2);
+    // Two fires, two lines each (W5-bis): the claim, then the receipt.
+    assert_eq!(history(&dir, "doctor").lines().count(), 4);
 }
 
 #[test]

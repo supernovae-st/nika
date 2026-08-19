@@ -361,9 +361,11 @@ fn journal_disarm(label: &str) -> String {
         trace: None,
         exit: None,
         slots: None,
+        slot_id: None,
+        fencing: None,
     };
     match state.record(label, &entry) {
-        Ok(()) => format!("· journalé: disarmed dans .nika/arm/{label}/history.ndjson\n"),
+        Ok(_) => format!("· journalé: disarmed dans .nika/arm/{label}/history.ndjson\n"),
         Err(e) => format!("· historique NON journalé ({e}) — l'unité, elle, est retirée\n"),
     }
 }

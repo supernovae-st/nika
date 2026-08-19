@@ -158,7 +158,21 @@ fn fire_runs_a_due_beat_and_records_it() {
     assert_eq!(last["slot"], "2026-08-19T03:00:00Z");
     let trace = last["trace"].as_str().expect("a trace path");
     assert!(dir.join(trace).exists(), "{trace}");
-    assert_eq!(history(&dir, "doctor").lines().count(), 1);
+    // The ledger (W5-bis): the claim precedes the run, the receipt
+    // settles it by fencing.
+    let hist = history(&dir, "doctor");
+    let lines: Vec<&str> = hist.lines().collect();
+    assert_eq!(lines.len(), 2, "the claim, then the receipt: {hist}");
+    let claim: serde_json::Value = serde_json::from_str(lines[0]).expect("claim json");
+    let receipt: serde_json::Value = serde_json::from_str(lines[1]).expect("receipt json");
+    assert_eq!(claim["kind"], "claimed", "{hist}");
+    assert_eq!(claim["payload"]["fencing"], claim["seq"], "{hist}");
+    assert_eq!(receipt["kind"], "fired", "{hist}");
+    assert_eq!(
+        receipt["payload"]["fencing"], claim["seq"],
+        "the receipt fences the claim's seq: {hist}"
+    );
+    assert_eq!(receipt["slot_id"], claim["slot_id"], "{hist}");
     assert_eq!(traces(&dir).len(), 1, "one fresh run = one trace (N2)");
 }
 
@@ -232,6 +246,10 @@ fn fire_skips_when_the_lock_is_held_by_a_living_owner() {
         line.starts_with("skipped doctor · overlap · pid "),
         "{line}"
     );
+    assert!(
+        line.ends_with("· slot 2026-08-19T03:00:00Z"),
+        "the slot rides the line (D8's consistency): {line}"
+    );
     let last = last_json(&dir, "doctor").expect("last.json");
     assert_eq!(last["kind"], "skipped");
     // Law ⑥ sauter: the running tick keeps its lock, nothing ran.
@@ -264,6 +282,10 @@ fn fire_with_file_policy_times_out_at_the_next_slot() {
     assert!(
         line.starts_with("skipped doctor · overlap-timeout"),
         "{line}"
+    );
+    assert!(
+        line.ends_with("· slot 2026-08-19T03:02:00Z"),
+        "the slot rides the line (D8's consistency): {line}"
     );
     assert!(traces(&dir).is_empty(), "the queue never ran");
 }

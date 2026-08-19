@@ -398,6 +398,8 @@ mod tests {
             trace: Some(".nika/traces/2026-08-18T07-07-04Z_cafe.ndjson".to_owned()),
             exit: Some(0),
             slots: None,
+            slot_id: None,
+            fencing: None,
         };
         sidecar.record("prouve", &fired).expect("record");
         sidecar.record("prouve", &fired).expect("record");
