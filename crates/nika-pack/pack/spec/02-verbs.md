@@ -91,7 +91,7 @@ research:
 | `model` | no | string | Override workflow default · `<provider>/<name>` · see stdlib/providers-v0.1.md |
 | `temperature` | no | number 0-2 | Sampling temperature |
 | `max_tokens` | no | integer | Max output tokens · provider-dependent default |
-| `schema` | no | object | raw JSON Schema · structured output validation — the **out-of-core hatch**; the typed door is task-level `returns:` ([09](./09-types.md) · both on one task = `NIKA-TYPE-003`) |
+| `schema` | no | object | raw JSON Schema · structured output validation — the **out-of-core hatch**; the typed door is task-level `returns:` ([09](./09-types.md) · both on one task = `NIKA-TYPE-003`). Numeric facts (`0\|1\|3`, counts, coded levels) are `type: integer` with a numeric `enum` — never `enum: ["0","1","3"]`. Models emit JSON numbers; a string-digit enum can reject the call before coerce (reference engine hint `digit-string-enum`). The model extracts facts; `nika:jq` or `nika:decide` is the law ([11](./11-decision.md) · `examples/13-extract-then-law.nika.yaml`) |
 | `thinking` | no | object | Extended thinking · `{ enabled, budget_tokens }` |
 | `vision` | no | array | Image inputs · each `{ source: file|url, path|url, … }` |
 
@@ -354,7 +354,12 @@ drafting**: pass a `workflow_yaml` string, get the full `nika check` verdict
 back (conformance + secret-flow + permits + the termination/cost certificate)
 as the tool result. It **never executes** the draft: verification yields an
 artifact + its certificate, and running it stays a separate, gated decision.
-See [stdlib/builtins-v0.1.md](../stdlib/builtins-v0.1.md) §`nika:compose`.
+The teaching shape is
+[`examples/15-compose-self-check.nika.yaml`](../examples/15-compose-self-check.nika.yaml)
+(`nika:done` first so `mock/echo` closes at turn one). See
+[stdlib/builtins-v0.1.md](../stdlib/builtins-v0.1.md) §`nika:compose`.
+Do not confuse this loop intrinsic with parent→child composition
+(`invoke: { workflow: }` · [14](./14-composition.md) · lesson 10).
 
 **Termination outcomes (normative)** ·
 

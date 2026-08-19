@@ -51,6 +51,8 @@ four are the decisions that cost rounds when guessed instead of copied.
 | fetch a URL and shape what comes back | `05-fetch-chain` |
 | open-ended work, step count unknown up front | `06-code-review` |
 | the same task for every item of a collection | `07-for-each-locales` |
+| extract facts, then score them without a second infer | `13-extract-then-law` |
+| publish or abstain from a Decision Bundle | `14-decide-publish` |
 | land a typed artifact on disk | `t1-meeting-actions` |
 | poll something, act only when a condition holds | `t1-price-watch` |
 | rows in, chart and report out, zero model calls | `t2-csv-chart-report` |
@@ -93,9 +95,13 @@ the `.nika.yaml` extension. `nika new <slug>` makes one yours;
    the diagnostics — they name the exact task, reference and fix.
    Unknown code? `nika explain NIKA-XXXX`.
 5. Repeat 3–4 until clean. **Never hand a file to the human that does
-   not pass `nika check --native-strict`.** That flag is the bar, not an
-   extra: the hooks that check on your behalf and the gate in front of
-   `nika run` both use it, so a file that fails it cannot be run at all.
+   not pass `nika check --native-strict` AND `paid_ready: true`.**
+   `--native-strict` is the run-gate bar (an `exec:` a builtin covers).
+   `.paid_ready` is the paid-infer bar (`nika check --json | jq .paid_ready`).
+   A green exit with leftover `infer-as-law` / `digit-string-enum` /
+   `glob-readme` / `jq-as-map` / `inspect-unwired` / `unproven-law` is
+   legal, not the one-way. The MCP `nika_check` oracle fails
+   `infer-as-law` and `digit-string-enum` by default.
    The exec ledger does NOT buy an exemption (measured: a `.py` wrapper
    fails with a complete ledger) — it documents intent for a reviewer.
    What passes is an `exec:` of a real tool (`git`, `docker`); what
@@ -270,6 +276,78 @@ otherwise, in this order:
 10. **Prove it before handing it over.** `nika check` clean, then
     `--native-strict`, then a golden pin if the workflow is hermetic.
     Only then does the human get the run line.
+
+## Paid infer (the order that is cheaper than tokens)
+
+Measured on a 40+ task OpenAI extract → law run. Do not rediscover
+this with a paid seat.
+
+1. `nika check --json --native-strict` until `clean` and `paid_ready`
+   are both true (zero findings, zero paid-run hints).
+2. Probe every new builtin in a one-task file on `mock/echo` *before*
+   wiring it after a paid `infer:` (`nika:inspect` is catalogued and
+   unwired — hint `inspect-unwired`).
+3. Freeze the extract schema type. Numeric facts are `type: integer`
+   with a numeric `enum`. `enum: ["0","1","3"]` is the shape models do
+   not emit (JSON `3` — hint `digit-string-enum`).
+4. Pin the glob. `held/*.md` includes `README.md`. `exclude:
+   "**/README.md"` (hint `glob-readme`).
+5. **The model extracts facts. `nika:jq` or `nika:decide` is the law.**
+   A second infer to "pick the level" is the expensive mistake.
+   The shape is `13-extract-then-law`. Prove the law on const fixtures
+   (`unproven-law`) — `14-decide-publish` is the named bundle.
+6. Then, and only then, swap `model:` to a paid seat.
+
+`for_each` + `item.field` is resume-eligible as a **whole fan** when
+the collection and definition did not change. A mid-wave crash still
+replays every item. After `. as $c` in jq, write `($c | map(...))`
+(hint `jq-as-map`). A red last `nika:assert` quarantines `out/`
+(`.nika/quarantine/<trace>/` — hint `assert-quarantine`).
+
+## After valid: is there a better one-way? (not optional)
+
+`nika check --native-strict` green means the file is *legal*. It does
+not mean it is the cheapest, most native, or most honest file.
+`.paid_ready` is the boolean for "may this file leave mock?". The
+next handoff to a human is refused until that field is true. Each
+question has a command or a file. Do not reason from memory.
+
+Zhang, Kraska, Khattab 2026 (arXiv:2512.24601, Recursive Language
+Models): the prompt is an *environment* you inspect and decompose,
+not a blob you swallow. In Nika that environment is the file + two
+examples + `nika catalog --tools`. Recursion is `invoke: { workflow: }`
+or `for_each:` over items — never one giant infer. Verification is
+`nika:jq` / `nika:decide`, never a second infer that names the verdict.
+
+0. **Is `.paid_ready` true?** `nika check --json <file> | jq .paid_ready`.
+   `false` → repair `.next` (kind · task · advice) first, then the rest
+   of `.paid_blockers[]`. `.compiled` is false only when the law is
+   unproven. Do not swap off `mock/`.
+1. **Did I read two examples first?** `nika try` then `nika new <slug>`
+   twice. Skipping this is the measured 7.5-round tax.
+2. **Is every `exec:` a real tool?** `nika check --native-strict`. A
+   `.py`/`.sh` wrapper is not a tool.
+3. **Does any infer name the verdict?** Hint `infer-as-law`. Extract
+   integer facts; `nika:jq` or `nika:decide` is the law
+   (`13-extract-then-law`). A second infer whose schema is a language
+   enum (BCP-47 · sentiment) is language, not this hint.
+4. **Is every numeric enum `type: integer`?** Hint `digit-string-enum`.
+5. **Does a markdown glob include README?** Hint `glob-readme`.
+6. **Did I probe every new builtin on `mock/echo`?** One-task file,
+   then wire it. `nika:inspect` is unwired (hint `inspect-unwired`).
+7. **Would a closer template have given this graph?** `nika new "?"`
+   and `nika new "the job in plain words"`. If a skeleton is closer
+   than what I wrote, start over from it.
+8. **Did `nika explain <file>` stay honest?** Waves · cost (FLOOR ≠ $0)
+   · touches · the **before a paid model** panel. If a paid-run hint
+   remains, the file is not done.
+9. **Is the law proven on known answers?** Hint `unproven-law`. A
+   jq/decide that scores an infer needs a const-fixture `nika:assert`.
+
+A green check with `paid_ready: false` is not a handoff. Repair the
+blocker. Re-run 0–8 until findings are empty and `paid_ready` is true,
+or every remaining *non-paid* hint has a one-line reason in the file
+header (the honest red class, CONVENTIONS §10).
 
 ## Cost honesty (never hide unknown spend)
 
@@ -575,6 +653,9 @@ the human at handoff, not to expect a green.
   that still consumes randomness refuses at check.
 - Structured output: give `infer:` a `schema:`; add
   `additionalProperties: false` for a deterministic shape.
+  Numeric facts are `type: integer` + a numeric `enum`. The model
+  extracts facts; `nika:jq` / `nika:decide` is the law
+  (`13-extract-then-law`).
 - Auth rides `headers: { x-api-key: "${{ secrets.KEY }}" }` (masked ·
   declared in `secrets:` with its `egress:` sink) — never `exec: curl`
   for the sake of a header.

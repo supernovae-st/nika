@@ -1,7 +1,7 @@
 # Quickstart · your first Nika workflow (5 minutes)
 
 > Nika is just YAML. If you can read YAML, you can read Nika. This page
-> builds up a real workflow in 5 small steps: copy each block, run it,
+> builds up a real workflow in small steps: copy each block, run it,
 > watch it grow.
 >
 > **Status** · authoring, static checking AND execution all work TODAY:
@@ -183,7 +183,36 @@ Exactly four · `fetch` is not among them (it's the `nika:fetch` tool via
 
 ---
 
-## 5 · Check it · run it
+## 5 · Before you spend a token
+
+The cheapest authoring order, measured on a 40+ task paid extract run:
+
+1. **`nika check --native-strict`** until zero findings and zero hints.
+2. **Probe every new builtin** in a one-task file on `mock/echo` *before*
+   wiring it after a paid `infer:`.
+3. **Freeze the extract schema type** (`type: integer` for numeric
+   facts — never `enum: ["0","1","3"]`) before adding retry, `anyOf`,
+   or more infer.
+4. **The model extracts facts. `nika:jq` (or `nika:decide`) is the law.**
+   Do not pay a second infer to pick a level. Hint `infer-as-law`.
+   `nika check --json` must report `paid_ready: true` before you leave
+   `mock/` (`.next` is the first repair; `.compiled` is the proven-law
+   bit).
+   The shape is
+   [`13-extract-then-law`](./examples/13-extract-then-law.nika.yaml).
+   Prove the law on const fixtures (`unproven-law`). The named bundle
+   is [`14-decide-publish`](./examples/14-decide-publish.nika.yaml).
+5. **An agent that drafts a workflow checks it in the loop.** Grant
+   `nika:compose` on `agent.tools` after `nika:done`. Iterate on the
+   check JSON until `valid`. Never a standalone `invoke:`
+   (`NIKA-BUILTIN-COMPOSE-001`). Checking never executes. Shape:
+   [`15-compose-self-check`](./examples/15-compose-self-check.nika.yaml).
+6. **Pin the glob** (`exclude: "**/README.md"`) before a fan-out infer
+   classifies the table of contents.
+
+Then, and only then, swap `model:` to a paid seat.
+
+## 6 · Check it · run it
 
 With the reference engine installed (`brew install supernovae-st/tap/nika`) ·
 

@@ -15,7 +15,7 @@ use crate::{Theme, VerbOutput, verbs};
 pub(crate) struct TryArgs {
     /// Example slug (bare `nika try` shows the storefront).
     pub(crate) slug: Option<String>,
-    /// The whole shelf — the 13-step path plus every job (bare
+    /// The whole shelf — the numbered path plus every job (bare
     /// `nika try` shows three familiar jobs first).
     #[arg(long)]
     all: bool,

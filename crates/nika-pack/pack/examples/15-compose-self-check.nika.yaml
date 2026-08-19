@@ -1,0 +1,66 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# 15 · Compose self-check — the loop checks the draft, never runs it.
+#
+# 10 taught parent→child composition (`invoke: { workflow: }`). This
+# file is the other compose: `nika:compose` inside an `agent:` whitelist
+# (ADR-096). The model drafts a nine-key workflow as YAML, gets the
+# full `nika check` verdict back as JSON, repairs until `valid`, then
+# calls `nika:done`. Checking never executes the draft (« generation
+# is not permission »).
+#
+# Demonstrates ·
+#   - `nika:compose` is loop-only · a standalone `invoke:` is
+#     `NIKA-BUILTIN-COMPOSE-001`
+#   - `tools: [nika:done, nika:compose]` · `nika:done` FIRST so
+#     `--model mock/echo` closes at turn one (same law as 06)
+#   - PURE permits · those two tools · no fs / net / exec
+#   - the draft is an artifact + its certificate, not a child run
+#
+# Do not confuse with [`10-compose-pipeline`](10-compose-pipeline.nika.yaml).
+# Do not write a follow-up that *calls* the unwired introspection
+# builtin (`inspect-unwired` · `paid_ready: false`).
+#
+# Run · nika try 15-compose-self-check
+#   (offline · mock/echo · zero keys)
+
+nika: compose-self-check
+
+model: mock/echo
+
+permits:
+  tools: ["nika:done", "nika:compose"]
+
+tasks:
+  draft:
+    agent:
+      tools:
+        # `nika:done` first is deliberate: a real model ignores order,
+        # but the offline rehearsal (`--model mock/echo`) invokes the
+        # first granted tool. Done-first closes the loop at turn one.
+        # A synthesized `nika:compose` with an empty `workflow_yaml`
+        # would still return a check JSON, but the mock has nothing to
+        # draft — finish, do not pretend.
+        - "nika:done"
+        - "nika:compose"
+      max_turns: 8
+      max_tokens_total: 8000
+      system: |
+        You draft Nika workflows. The language is the nine-key envelope
+        (`nika: <kebab-id>` plus model, inputs, const, secrets, permits,
+        run, tasks, outputs). Four verbs: infer, exec, invoke, agent.
+        Interpolation is CEL in the dollar-double-brace form (lesson 01).
+        Fetch is the tool `nika:fetch` under invoke.
+
+        After each draft, call nika:compose with workflow_yaml set to
+        the complete YAML. Repair from the JSON verdict until valid is
+        true. Then call nika:done. Checking never runs the draft.
+      prompt: |
+        Draft the smallest complete nine-key hello: one infer that
+        says hello in one short sentence, model mock/echo, permits {}.
+        Check it with nika:compose until valid. Then nika:done.
+        Do not execute the draft.
+
+outputs:
+  draft: ${{ tasks.draft.output }}

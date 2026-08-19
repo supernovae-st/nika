@@ -127,7 +127,7 @@ these from this file alone.
 | `NIKA-PARSE-001` | the YAML itself does not parse (syntax error) | `parse_error` | false |
 | `NIKA-PARSE-002` | missing envelope field (`nika:` · a non-empty `tasks:`) — a file with no `nika:` key is not a nika file; `workflow:` no longer exists to be missing ([01 §envelope](./01-envelope.md)) | `validation_error` | false |
 | `NIKA-PARSE-003` | `nika:` is not a kebab-case id (`^[a-z][a-z0-9-]*$`) — the key carries the file's NAME, not a version; the version slot is gone forever and losslessly (there is no `nika: v2`, ever · [01 §nika](./01-envelope.md)) | `parse_error` | false |
-| `NIKA-PARSE-004` | `workflow:` id violates `^[a-z][a-z0-9-]*$` | `validation_error` | false |
+| `NIKA-PARSE-004` | RESERVED — retired with the nine-key envelope (2026-08-12): the id moved onto `nika:` and `NIKA-PARSE-003` judges it; the number is never reused | `validation_error` | false |
 | `NIKA-PARSE-005` | unknown field — strict mode rejects anything outside the closed v1 set | `validation_error` | false |
 | `NIKA-PARSE-006` | task id violates `^[a-z][a-z0-9_]*$` (snake_case · CEL-safe · no hyphens) | `validation_error` | false |
 | `NIKA-PARSE-007` | duplicate task id within the workflow | `validation_error` | false |

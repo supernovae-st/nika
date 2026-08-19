@@ -16,6 +16,12 @@
 #   - indexing a structured result · `${{ tasks.extract.output.entities }}`
 #   - the long `outputs:` form · `value:` + `type:` + `description:`
 #
+# Numeric facts are the next wall. A closed set of counts or levels is
+# `type: integer` + a numeric `enum` — never `enum: ["0","1","3"]`.
+# Models emit JSON `3`; a string-digit enum can reject the call before
+# coerce (hint `digit-string-enum`). The model extracts facts; scoring
+# is `nika:jq` / the decide builtin — see `13-extract-then-law`.
+#
 # Run · nika run examples/04-schema-retry.nika.yaml
 #   with your own text · nika run examples/04-schema-retry.nika.yaml \
 #     --var text="Marie Curie worked in Paris for the Sorbonne"

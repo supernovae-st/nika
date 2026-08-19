@@ -274,6 +274,61 @@ fn native_first_verdict(
     ))
 }
 
+/// The `is_clean` mirror for the *expensive* paid-run pair.
+/// `infer-as-law` and `digit-string-enum` burned the 2026-08-19 wave.
+/// The rest of [`nika_check::PAID_RUN_KINDS`] still ride `.paid_ready`
+/// (JSON) and the explain panel — they are not fail-set members
+/// (`inspect-unwired` is a wiring gap · `glob-readme` has no FS ·
+/// `jq-as-map` is a style ratchet). This oracle is what an agent reads
+/// before handing a file to a human.
+fn paid_ready_verdict(
+    paid: &[&nika_check::Hint],
+    strict: bool,
+    grade: nika_check::RiskGrade,
+    prefix: &str,
+) -> Result<String, String> {
+    let hard: Vec<&&nika_check::Hint> = paid
+        .iter()
+        .filter(|h| h.kind == "infer-as-law" || h.kind == "digit-string-enum")
+        .collect();
+    let word = grade.as_str();
+    if hard.is_empty() {
+        if paid.is_empty() {
+            return Ok(prefix.to_owned());
+        }
+        let rows = paid
+            .iter()
+            .map(|h| format!("  · [{}] {}", h.kind, h.advice))
+            .collect::<Vec<_>>()
+            .join("\n");
+        return Ok(format!(
+            "{prefix}\npaid_ready: false — {n} paid-run hint(s) remain \
+             (risk {word}); they do not fail this oracle. Repair before \
+             leaving `mock/`:\n{rows}",
+            n = paid.len()
+        ));
+    }
+    let rows = hard
+        .iter()
+        .map(|h| format!("  · [{}] {}", h.kind, h.advice))
+        .collect::<Vec<_>>()
+        .join("\n");
+    let n = hard.len();
+    if strict {
+        return Err(format!(
+            "✖ paid-ready — schema, DAG, effects and permits are clean, but {n} \
+             paid-run hint(s) mean this file is not the one-way. Extract facts; \
+             `nika:jq` / `nika:decide` is the law. Do not leave `mock/` \
+             (risk {word}):\n{rows}"
+        ));
+    }
+    Ok(format!(
+        "{prefix}\n✔ clean (advisory) — paid_ready is false; {n} paid-run \
+         hint(s) are NOT enforced because native_strict=false. The same file \
+         fails this oracle by default (risk {word}):\n{rows}"
+    ))
+}
+
 /// The MODELS cross-check rows for both laws (resolver refusals ·
 /// catalog warnings) — one `model`/`tasks`/`why` shape on every machine
 /// lane (this oracle and the CLI `--json` twin must not disagree). The
@@ -310,11 +365,13 @@ fn model_crosscheck(report: &nika_check::CheckReport) -> (Vec<Value>, Vec<Value>
 /// be seen.
 fn clean_verdict(
     native: &[&str],
+    paid: &[&nika_check::Hint],
     strict: bool,
     grade: nika_check::RiskGrade,
     catalog_warnings: &[Value],
 ) -> Result<String, String> {
     let verdict = native_first_verdict(native, strict, grade)?;
+    let verdict = paid_ready_verdict(paid, strict, grade, &verdict)?;
     if catalog_warnings.is_empty() {
         return Ok(verdict);
     }
@@ -370,8 +427,9 @@ fn check(args: &Value) -> Result<String, String> {
         .filter(|h| h.kind == "native-first")
         .map(|h| h.advice.as_str())
         .collect();
+    let paid = nika_check::paid_blockers(&report.hints);
     if report.is_clean() && model_findings.is_empty() {
-        return clean_verdict(&native, native_strict, grade, &catalog_warnings);
+        return clean_verdict(&native, &paid, native_strict, grade, &catalog_warnings);
     }
     // `is_clean()` checks TEN finding surfaces (conformance · secret leaks +
     // egresses · capability escapes · schema findings + lints · unknown/missing
@@ -404,6 +462,7 @@ fn check(args: &Value) -> Result<String, String> {
                 Value::Array(catalog_warnings),
             );
         }
+        nika_check::stamp_paid_ready(obj, &report.hints);
     }
     let detail = serde_json::to_string_pretty(&payload)
         .map_err(|e| format!("check report serialization failed: {e}"))?;
@@ -738,6 +797,19 @@ mod tests {
     /// the exec URL is a net USE — undeclared it would be a PERMITS
     /// escape, and this test row is about the hint gate, not the escape.)
     const LEAVES_THE_NATIVE_PATH: &str = "nika: t\npermits: { exec: [\"curl\"], net: { http: [\"acme.test\"] } }\ntasks:\n  grab:\n    exec: { command: [\"curl\", \"-s\", \"https://acme.test\"] }\n";
+
+    #[test]
+    fn check_is_strict_about_paid_ready_by_default() {
+        let wf = "nika: t\nmodel: mock/echo\ntasks:\n  judge:\n    infer:\n      prompt: |\n        Read the note and assign a belt.\n      max_tokens: 32\noutputs:\n  r: ${{ tasks.judge.output }}\n";
+        let err = execute("nika_check", &json!({ "workflow": wf }))
+            .expect_err("an infer that names the law is not a green by default");
+        assert!(err.contains("paid-ready"), "{err}");
+        assert!(err.contains("infer-as-law"), "{err}");
+        assert!(
+            err.contains("13-extract-then-law"),
+            "the refusal must name the one-way: {err}"
+        );
+    }
 
     #[test]
     fn check_is_strict_about_the_native_path_by_default() {
