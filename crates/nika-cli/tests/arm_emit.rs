@@ -393,3 +393,120 @@ fn disarm_without_a_unit_says_nothing_was_torn_down() {
         "rien ne s'est passé, rien ne se journalise"
     );
 }
+
+// ── W3 · the OS lints what we emit ─────────────────────────────────
+
+/// Every emitted launchd unit pipes through the OS's own linter —
+/// `plutil -lint -` must answer OK (rc 0). macOS only: the linter
+/// ships with the OS the unit targets.
+#[cfg(target_os = "macos")]
+#[test]
+fn launchd_units_pass_plutil_lint() {
+    let zone = machine_zone();
+    let dir = project("plutil", &registry_in(&zone));
+    let home = home(&dir);
+    let out_dir = dir.join("units");
+    let out = arm(
+        &dir,
+        &home,
+        &[
+            "arm",
+            "--emit",
+            "launchd",
+            "--write",
+            "--out",
+            out_dir.to_str().expect("utf8"),
+        ],
+    );
+    assert_eq!(out.status.code(), Some(0));
+    let mut entries: Vec<PathBuf> = std::fs::read_dir(&out_dir)
+        .expect("units dir")
+        .filter_map(std::result::Result::ok)
+        .map(|e| e.path())
+        .filter(|p| {
+            p.extension()
+                .is_some_and(|e| e.eq_ignore_ascii_case("plist"))
+        })
+        .collect();
+    entries.sort();
+    assert!(!entries.is_empty(), "au moins une unité émise");
+    for path in entries {
+        let body = std::fs::read(&path).expect("unit body");
+        let mut lint = Command::new("plutil")
+            .args(["-lint", "-"])
+            .stdin(std::process::Stdio::piped())
+            .stdout(std::process::Stdio::piped())
+            .spawn()
+            .expect("plutil ships with macOS");
+        lint.stdin
+            .as_mut()
+            .expect("stdin")
+            .write_all(&body)
+            .expect("pipe the unit");
+        let result = lint.wait_with_output().expect("wait");
+        assert!(
+            result.status.success(),
+            "plutil -lint {}: {}",
+            path.display(),
+            String::from_utf8_lossy(&result.stdout)
+        );
+    }
+}
+
+/// The same discipline on linux: `systemd-analyze verify` over the
+/// emitted pair (with an env file — D7's path covered too). When the
+/// tool is absent the test SAYS so (the skip rides its name), it never
+/// passes in silence.
+#[cfg(target_os = "linux")]
+#[test]
+fn systemd_units_verify_or_skip_absent() {
+    if Command::new("systemd-analyze")
+        .arg("--version")
+        .output()
+        .is_err()
+    {
+        eprintln!(
+            "SKIP systemd_units_verify_or_skip_absent · systemd-analyze absent de cette machine"
+        );
+        return;
+    }
+    // A foreign zone on purpose: systemd carries it in OnCalendar=.
+    let dir = project("verify", &registry_in("Asia/Tokyo"));
+    let home = home(&dir);
+    let env_file = dir.join("providers.env");
+    std::fs::write(&env_file, "MISTRAL_API_KEY=redacted\n").expect("env file");
+    let out_dir = dir.join("units");
+    let out = arm(
+        &dir,
+        &home,
+        &[
+            "arm",
+            "--emit",
+            "systemd",
+            "--write",
+            "--out",
+            out_dir.to_str().expect("utf8"),
+            "--env-file",
+            env_file.to_str().expect("utf8"),
+        ],
+    );
+    assert_eq!(out.status.code(), Some(0));
+    let mut entries: Vec<PathBuf> = std::fs::read_dir(&out_dir)
+        .expect("units dir")
+        .filter_map(std::result::Result::ok)
+        .map(|e| e.path())
+        .collect();
+    entries.sort();
+    assert_eq!(entries.len(), 2, "le couple timer/service");
+    let result = Command::new("systemd-analyze")
+        .arg("verify")
+        .args(&entries)
+        .output()
+        .expect("systemd-analyze verify");
+    assert!(
+        result.status.success(),
+        "systemd-analyze verify: {}{}",
+        String::from_utf8_lossy(&result.stdout),
+        String::from_utf8_lossy(&result.stderr)
+    );
+}
