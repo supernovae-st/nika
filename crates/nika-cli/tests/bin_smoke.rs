@@ -88,6 +88,34 @@ fn check_valid_exits_zero() {
 }
 
 #[test]
+fn list_prints_exactly_the_two_workflows_below_cwd() {
+    let dir = workspace_tmp_dir("nika-bin-list-two");
+    std::fs::create_dir_all(dir.join("nested")).expect("nested dir");
+    write_fixture(&dir, "alpha.nika.yaml", "nika: alpha\n");
+    write_fixture(&dir.join("nested"), "beta.nika.yml", "nika: beta\n");
+    write_fixture(&dir, "nika.yaml", "nika: v1\n");
+
+    let out = bin()
+        .arg("list")
+        .current_dir(&dir)
+        .output()
+        .expect("binary runs");
+
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "the workflow inventory exits 0 · stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    assert_eq!(
+        String::from_utf8_lossy(&out.stdout),
+        "alpha.nika.yaml\nnested/beta.nika.yml\n"
+    );
+    assert!(out.stderr.is_empty(), "list stderr must stay empty");
+    let _ = std::fs::remove_dir_all(&dir);
+}
+
+#[test]
 fn run_clean_workflow_exits_zero() {
     // The `run` verb — the most-used one — had ZERO binary-contract
     // coverage. A clean workflow runs through the L3 runtime and exits 0.
