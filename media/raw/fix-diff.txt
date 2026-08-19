@@ -1,24 +1,28 @@
---- scripts/media/fixtures/broken-pr-review.nika.yaml	2026-07-02 20:44:29
-+++ scripts/media/fixtures/fixed-pr-review.nika.yaml	2026-07-02 20:44:29
-@@ -1,7 +1,6 @@
+--- scripts/media/fixtures/broken-pr-review.nika.yaml	2026-08-19 03:11:28
++++ scripts/media/fixtures/fixed-pr-review.nika.yaml	2026-08-19 03:11:28
+@@ -1,8 +1,7 @@
  # SPDX-License-Identifier: Apache-2.0
 -# media fixture · deliberately BROKEN — the static-check-fix demo "before".
--# Two real defects: a task reads another task's output without depending on
--# it, and a typo'd task reference in the `when:` gate.
+-# Two real defects: a task reads another task's output straight from its
+-# verb body (outside the `with:` boundary), and a typo'd task reference in
+-# the `with:` binding that feeds the `when:` gate.
 +# media fixture · the static-check-fix demo "after" — same workflow, fixed:
-+# declared dependencies, fixed typo, cost ceiling, strict schema, permits.
- nika: v1
- workflow: pr-risk-review
++# the diff crosses the `with:` boundary, fixed typo, cost ceiling, strict
++# schema, permits.
+ nika: pr-risk-review
  model: ollama/llama3.1
-@@ -13,20 +12,30 @@
+ 
+@@ -13,19 +12,23 @@
        capture: structured
  
-   - id: assess
-+    depends_on: [diff]
+   assess:
++    with:
++      diff: ${{ tasks.diff.output.stdout }}
      infer:
        prompt: |
          Risk-assess this diff. Be terse.
-         ${{ tasks.diff.output.stdout }}
+-        ${{ tasks.diff.output.stdout }}
++        ${{ with.diff }}
 +      max_tokens: 400
        schema:
          type: object
@@ -27,15 +31,17 @@
          properties:
            risk: { type: string, enum: [low, medium, high] }
  
-   - id: comment
--    when: "${{ tasks.asses.output.risk == 'high' }}"
-+    depends_on: [assess]
-+    when: "${{ tasks.assess.output.risk == 'high' }}"
+   comment:
+     with:
+-      risk: ${{ tasks.asses.output.risk }}
++      risk: ${{ tasks.assess.output.risk }}
+       assessment: ${{ tasks.assess.output }}
+     when: "${{ with.risk == 'high' }}"
      invoke:
-       tool: "nika:write"
+@@ -33,3 +36,9 @@
        args:
          path: "review.md"
-         content: "${{ tasks.assess.output }}"
+         content: "${{ with.assessment }}"
 +
 +permits:
 +  fs:

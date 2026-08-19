@@ -1,11 +1,21 @@
 nika check · permits-fits.nika.yaml
- ✔ PLAN     3 wave(s) · 4 task(s) · max parallelism 2
- ⚠  COST     $0.0000 – $0.0000 FLOOR (unbounded tasks present)
+ ✔ PLAN     3 waves · 4 tasks · max parallelism 2
+      wave 1 release (invoke · nika:fetch) · changelog_page (invoke · nika:fetch)
+      wave 2 brief (infer · ollama/llama3.2:3b)
+      wave 3 save (invoke · nika:write)
+ ✔ MODELS   1 model resolves in this binary · local servers not probed (nika doctor --ping)
+ ⚠  COST     bounded portion $0.0000 no total ceiling · 1 unpriced task · prompts, exec + mcp unpriced · prices 2026-07-28
    brief  ollama/llama3.2:3b  UNBOUNDED — no catalog price (local/unknown model)
- ✔ SECRETS  no information-flow escapes
- ✔ TYPES    every deep output reference fits its declared shape
- ✔ TOOLS    every nika: tool names a canonical builtin
- ✔ ARGS     every invoke arg key is declared + every required arg is present
- ✔ SCHEMA   every authored schema: is satisfiable
- ✔ PERMITS  body fits the declared boundary
- ✔ clean — audited before a single token was spent
+ ○ ENERGY   unpriced — no sourced Wh figure for any task model · a local model draws your watts · never 0 Wh (NEP-0018)
+ ✔ SECRETS  no declared secret reaches an effect · model echo untracked
+ ✔ TYPES    deep references fit the shapes tasks declare · builtin output has none
+ ✔ TOOLS    every named nika: tool is canonical · globs + mcp: not checked
+ ✔ ARGS     every builtin invoke arg key is declared + required args present
+ ✔ SCHEMA   no known-unsatisfiable form in an authored schema: · $ref opaque
+ ✔ GATES    no task proven dead · status literals in vocabulary
+ ✔ WRITES   no two unordered tasks write the same static path · computed paths at run
+ ✔ EXEC     no literal argv the exec floor refuses at run · a templated argv is the RUN's verdict
+ ✔ PERMITS  literal + const: args fit the boundary · computed paths + symlinks are the RUN's verdict
+ ✔ TRIFECTA no lethal trifecta over the declared permits: without a human gate
+ ✔ JOURNEY internal · 0 sources · 3 destinations · 4 model endpoints · no secret reaches a cloud destination
+ ⚠ audited · 4 tasks · 3 waves · permits declared · est unbounded · 1 unpriced task · 0 hints · risk unbounded — no dollar meter for a local/unknown model · cap a cloud seat on the run: `nika run <file> --max-cost-usd <usd>`

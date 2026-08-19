@@ -1,7 +1,9 @@
   🦋 nika · rates-with-fallback · 3 tasks
-     permits ✓ engine floor (no boundary declared)
+     permits ✓ declared boundary · exec outside the fs bounds
 
-  ✔  cache    invoke · nika:jq
-  ✔  live     exec · cat
-  ✔  publish  invoke · nika:write
-  ── 3/3 done · $0.000 · elapsed 0.0s ────────────────────────────
+  ✔  cache    invoke · nika:jq  1ms
+  ✔  live     exec · cat  22ms · recovered
+  ✔  publish  invoke · nika:write  1ms
+  ── 3/3 done · 1 recovered · $0.00 · elapsed 0.0s ───────────────
+    wrote ./out/rates.json (61B)
+    trace: .nika/traces/2026-08-19T01-15-49Z-2ebb.ndjson · 18 events · chain 82f01064be24e7f38ce8185f2dc43c8a67d852b5a82500f5bc3718034732ddc2
