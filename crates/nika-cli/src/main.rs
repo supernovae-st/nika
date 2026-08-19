@@ -189,11 +189,7 @@ enum Command {
     /// What this project has ARMED, and when each beat next fires.
     /// Read-only — it schedules nothing (the file proposes, the machine
     /// disposes). Exit `0` clean · `2` the registry refuses.
-    ///
-    /// RANGED, never deleted (RAMS-13): the first screen is the twelve
-    /// day-one craft verbs, and arming a project is not day one. It
-    /// stays one flag away (`--help --all`) and AGENTS.md teaches it.
-    #[command(hide = true, display_order = 72)]
+    #[command(display_order = 72)]
     Arm(verbs::arm::args::ArmArgs),
     /// The resident firer: the SAME `fire`, the wall clock in place of the OS (W5). Exit `0` clean · `1` otherwise.
     #[command(hide = true, display_order = 73)]
@@ -639,10 +635,11 @@ fn main() -> std::process::ExitCode {
 
 fn real_main() -> std::process::ExitCode {
     // RAMS-13 · the full surface on demand: `--help --all` prints the
-    // SAME tree with nothing hidden (12 craft verbs lead the default
-    // help; protocols · trust cycle · plumbing stay one flag away —
-    // ranged, never removed). Judged before clap parses, and ONLY when
-    // the whole invocation is help words — a named verb keeps its own
+    // SAME tree with nothing hidden (the craft plus the documented
+    // `arm` door lead the default help; protocols · trust cycle ·
+    // plumbing stay one flag away — ranged, never removed). Judged
+    // before clap parses, and ONLY when the whole invocation is help
+    // words — a named verb keeps its own
     // help untouched (`nika trace rm --all --help` is trace's business:
     // `--all` is a REAL flag there, the adversarial pass caught the
     // theft).
@@ -1160,36 +1157,41 @@ mod tests {
     }
     /// THE LAW (RAMS-13 · census over 19 personas: 12 of 23 verbs
     /// reached by <=1 user, yet all 23 hit 11 first-timers in the
-    /// face): the default help shows AT MOST the 13 craft verbs; the
-    /// full tree stays one flag away (`--help --all`) and NOTHING is
-    /// removed — visible + hidden is the whole enum, invariant. Ranged,
-    /// never deleted: `key`/`sign`/`mcp`/`lsp` serve — just not on day
-    /// one.
+    /// face): the default help shows exactly the 13 craft verbs plus
+    /// `arm`; the full tree stays one flag away (`--help --all`) and
+    /// NOTHING is removed — visible + hidden is the whole enum,
+    /// invariant. Ranged, never deleted: `key`/`sign`/`mcp`/`lsp`
+    /// serve — just not on day one.
     #[test]
-    fn the_default_help_shows_the_craft_and_hides_nothing_forever() {
+    fn the_default_help_shows_the_craft_plus_arm_and_hides_nothing_forever() {
         let cmd = <Cli as clap::CommandFactory>::command();
         let total = cmd
             .get_subcommands()
             .filter(|c| c.get_name() != "help")
             .count();
-        let visible: Vec<&str> = cmd
+        let visible: std::collections::BTreeSet<&str> = cmd
             .get_subcommands()
             .filter(|c| !c.is_hide_set() && c.get_name() != "help")
             .map(clap::Command::get_name)
             .collect();
-        assert!(
-            visible.len() <= 13,
-            "the first screen is the craft, not a manifesto: {visible:?}"
-        );
-        for craft in [
+        let expected: std::collections::BTreeSet<&str> = [
             "try", "new", "init", "list", "check", "run", "test", "trace", "welcome", "doctor",
-            "model", "wire", "explain",
-        ] {
-            assert!(
-                visible.contains(&craft),
-                "`{craft}` is the day-one craft and must stay visible: {visible:?}"
-            );
-        }
+            "model", "wire", "explain", "arm",
+        ]
+        .into_iter()
+        .collect();
+        assert_eq!(
+            visible, expected,
+            "the default range is exactly the craft plus the documented `arm` door"
+        );
+        let help = <Cli as clap::CommandFactory>::command()
+            .render_help()
+            .to_string();
+        assert!(
+            help.lines()
+                .any(|line| line.split_whitespace().next() == Some("arm")),
+            "`nika --help` must show the documented `arm` door: {help}"
+        );
         let hidden = cmd
             .get_subcommands()
             .filter(|c| c.is_hide_set() && c.get_name() != "help")
