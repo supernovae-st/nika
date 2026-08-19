@@ -161,6 +161,11 @@ pub fn run_at(start: &std::path::Path) -> VerbOutput {
 }
 
 /// The green report — one block per beat, and the next slots for each.
+///
+/// The block also tells PROUVÉ from DÉCLARÉ (law N3's honesty: the
+/// registry DECLARES, only the sidecar PROVES the machine fired), and
+/// after the beats the ORPHELINS — the sidecar directories no registry
+/// entry names (law N4: reported, NEVER erased).
 fn report(registry: &nika_cadence::registry::ArmRegistry, path: &std::path::Path) -> VerbOutput {
     use std::fmt::Write as _;
 
@@ -171,6 +176,12 @@ fn report(registry: &nika_cadence::registry::ArmRegistry, path: &std::path::Path
         ));
     }
 
+    let root = path.parent().map_or_else(
+        || std::path::PathBuf::from("."),
+        std::path::Path::to_path_buf,
+    );
+    let sidecar = state::ArmState::at_project(&root);
+    let labels = fire::labels(registry);
     let now = jiff::Zoned::now();
     let mut out = String::new();
     let _ = writeln!(
@@ -180,13 +191,19 @@ fn report(registry: &nika_cadence::registry::ArmRegistry, path: &std::path::Path
         path.display()
     );
 
-    for beat in registry.beats() {
+    for (index, beat) in registry.beats().enumerate() {
         let state = if beat.is_active() { "armed" } else { "idle " };
         let _ = writeln!(
             out,
             "\n  [{state}] {} · {}",
             beat.workflow,
             beat.cadence.trim()
+        );
+        proof_line(
+            &sidecar,
+            labels.get(index).map_or("?", String::as_str),
+            beat,
+            &mut out,
         );
         // An inactive beat is REPORTED, never COMPUTED — asking a
         // disarmed beat for its next slot would print a date nobody
@@ -213,12 +230,55 @@ fn report(registry: &nika_cadence::registry::ArmRegistry, path: &std::path::Path
             }
         }
     }
+
+    let orphans = sidecar.orphans(&labels);
+    if !orphans.is_empty() {
+        let _ = writeln!(out, "\norphelins (N4 — rapportés, JAMAIS effacés):");
+        for name in orphans {
+            let _ = writeln!(out, "  · {name} — .nika/arm/{name}/");
+        }
+    }
+
     let _ = write!(
         out,
         "\nnothing was scheduled — `nika arm` READS the file. \
          The machine that fires them is the arming edge."
     );
     VerbOutput::ok(out)
+}
+
+/// The proof line of one beat: `✓ PROUVÉ` when the sidecar attests the
+/// machine fired (last.json), `DÉCLARÉ` when only the registry speaks.
+/// The history's tallies (`x sauts / y tirs`) and the declared
+/// `tolérance: m/k` ride the same line when they exist; `par:` is
+/// shown for what it is — déclaré, non vérifié (N3).
+fn proof_line(sidecar: &state::ArmState, label: &str, beat: &nika_cadence::Beat, out: &mut String) {
+    use std::fmt::Write as _;
+
+    let mut line = match sidecar.last(label) {
+        Some(last) => format!(
+            "✓ PROUVÉ · {} · {} · slot {}",
+            last.kind.as_str(),
+            last.fired_at,
+            last.slot
+        ),
+        None => "· DÉCLARÉ — le registre le dit, la machine ne l'a jamais tiré".to_owned(),
+    };
+    if let Some((skips, fires)) = sidecar.tallies(label) {
+        let _ = write!(
+            line,
+            " · {} / {}",
+            crate::text::count(skips, "saut"),
+            crate::text::count(fires, "tir")
+        );
+    }
+    if let Some(tol) = &beat.tolerance {
+        let _ = write!(line, " · tolérance {tol}");
+    }
+    let _ = writeln!(out, "         {line}");
+    if let Some(par) = &beat.par {
+        let _ = writeln!(out, "         par: {par} — déclaré · non vérifié");
+    }
 }
 
 #[cfg(test)]
@@ -292,6 +352,75 @@ mod tests {
         let teardown = disarm("doctor", true);
         assert_eq!(teardown.code, exit::FILE, "{}", teardown.text);
         assert!(teardown.text.contains("W3"), "{}", teardown.text);
+    }
+
+    /// The report tells PROUVÉ from DÉCLARÉ and names the ORPHELINS —
+    /// the three states in one tempdir, snapshotted. The beats sleep
+    /// (`actif: false`): an idle beat is REPORTED, never computed, so
+    /// the text is deterministic (no next-slot line rides the clock).
+    #[test]
+    fn the_report_tells_proven_from_declared_and_names_the_orphans() {
+        let body = concat!(
+            "nika: v1\n",
+            "arm:\n",
+            "  - workflow: workflows/prouve.nika.yaml\n",
+            "    cadence: \"TZ=Europe/Paris lundi 9h07\"\n",
+            "    plafond: 0.25\n",
+            "    manqué: sauter\n",
+            "    actif: false\n",
+            "    raison: \"pause estivale\"\n",
+            "    jusqu_au: \"2099-12-31\"\n",
+            "    tolérance: \"3/4\"\n",
+            "    par: \"thibaut\"\n",
+            "  - workflow: workflows/declare.nika.yaml\n",
+            "    cadence: \"TZ=Europe/Paris 0 3 * * *\"\n",
+            "    plafond: 1.0\n",
+            "    manqué: rattraper-une-fois\n",
+            "    actif: false\n",
+            "    raison: \"en sommeil\"\n",
+            "    jusqu_au: \"2099-12-31\"\n",
+        );
+        let dir = project_at("proof", body);
+        let sidecar = state::ArmState::at_project(dir.path());
+        // prouve: the machine fired twice, skipped once — the sidecar
+        // attests (last.json + the history's tallies).
+        let fired = state::HistoryEntry {
+            slot: Some("2026-08-18T07:07:00Z".parse().expect("ts")),
+            decided_at: "2026-08-18T07:07:04Z".parse().expect("ts"),
+            kind: state::FireKind::Fired,
+            reason: None,
+            trace: Some(".nika/traces/2026-08-18T07-07-04Z_cafe.ndjson".to_owned()),
+            exit: Some(0),
+            slots: None,
+        };
+        sidecar.record("prouve", &fired).expect("record");
+        sidecar.record("prouve", &fired).expect("record");
+        let mut skipped = fired.clone();
+        skipped.kind = state::FireKind::Skipped;
+        skipped.reason = Some("missed:1".to_owned());
+        skipped.trace = None;
+        sidecar.record("prouve", &skipped).expect("record");
+        // ghost: a sidecar the registry no longer names (N4).
+        sidecar.record("ghost", &fired).expect("record");
+        // The order is the LAST decision's: re-fire so last.json says fired.
+        sidecar.record("prouve", &fired).expect("record");
+
+        let out = run_at(dir.path());
+        assert_eq!(out.code, exit::OK, "{}", out.text);
+        assert!(out.text.contains("✓ PROUVÉ"), "{}", out.text);
+        assert!(out.text.contains("DÉCLARÉ"), "{}", out.text);
+        assert!(
+            out.text.contains("· ghost — .nika/arm/ghost/"),
+            "{}",
+            out.text
+        );
+        // The tmpdir path is the only non-deterministic byte (insta's
+        // `filters` feature is not in the workspace set — a replace is
+        // the same redaction, zero new feature).
+        let shown = out
+            .text
+            .replace(&dir.path().to_string_lossy().into_owned(), "[PROJET]");
+        insta::assert_snapshot!(shown);
     }
 
     #[test]

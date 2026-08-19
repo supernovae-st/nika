@@ -4265,6 +4265,7 @@ dependencies = [
  "clap",
  "clap_complete",
  "expectrl",
+ "insta",
  "jiff",
  "minisign",
  "nika-builtin",
