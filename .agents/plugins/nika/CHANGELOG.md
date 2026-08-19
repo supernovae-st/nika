@@ -7,6 +7,10 @@ Versions move together across all manifests (the mirror gate pins it).
 
 The authoring skill teaches the door the engine has: `lift:` (one
 construct, two laws · `law: taint` with `from:` · `law: data-as-code`).
+Its live yaml fences are complete nine-key files (`nika: <id>` ·
+`inputs` · `permits` · `tasks`). Extracted and fed to the 0.109 oracle
+they check rc=0 (the composition parent needs its child beside it —
+that is the COMP-001 law the same section teaches).
 The 0.109.0 and 0.109.1 bundles still printed a `declassify:` fence with
 `to: trusted` and listed `fail_workflow:` among the live `on_error:`
 actions · three forms the 0.109 engine refuses at parse

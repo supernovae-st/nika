@@ -326,10 +326,15 @@ otherwise, in this order:
 A job too big for one file becomes a parent that calls children. The
 child is a normal workflow; the parent reaches it through the verb it
 already knows. **The form is `workflow:` INSIDE `invoke:`, a sibling of
-`tool:`, never a tool name.** This fragment is a task excerpt, not a
-whole file (it needs the envelope and a `permits:` block around it):
+`tool:`, never a tool name.** This is a complete parent. Check is green
+only when the child sits at that relative path — the next law:
 
 ```yaml
+nika: site-audit-parent
+inputs:
+  target:
+    type: string
+permits: {}
 tasks:
   audit:
     invoke:
@@ -475,11 +480,17 @@ widen `permits:` — **that reflex is the trap, and it dead-ends.**
 (spec 10 §the authored doors). One construct, two laws: `taint` and
 `data-as-code`; the law is a PARAMETER of the door, never a second
 spelling (`declassify:` and `inert:` were those spellings, and are dead).
-This fragment is a task excerpt: the envelope, an `inputs:` declaration
-for `p` and a `permits:` block granting `nika:read` + the read path sit
-around it (checked whole on 0.109 · rc=0):
+This is a complete nine-key file (checked on 0.109 · rc=0):
 
 ```yaml
+nika: load-reviewed-path
+inputs:
+  p:
+    type: string
+permits:
+  tools: ["nika:read"]
+  fs:
+    read: ["./reviewed"]
 tasks:
   load:
     invoke: { tool: nika:read, args: { path: "${{ inputs.p }}" } }
@@ -573,11 +584,18 @@ the human at handoff, not to expect a green.
 Hand-writing JSON punctuation around an interpolation is the one way to
 get a green check, a green run, and an unreadable artifact. Both halves
 below were measured on 2026-07-28 with a value containing a quote and a
-newline. These are entries under `tasks:`, not whole files: they need
-the envelope, an `inputs:` declaration for `v`, and a `permits:` block
-granting `nika:jq` · `nika:write` · the write path.
+newline. This is a complete nine-key file (checked on 0.109 · rc=0):
 
 ```yaml
+nika: write-json-value
+inputs:
+  v:
+    type: string
+permits:
+  tools: ["nika:jq", "nika:write"]
+  fs:
+    write: ["./out/**"]
+tasks:
   # ✗ green everywhere, and the artifact does not parse.
   naive:
     with: { v: "${{ inputs.v }}" }
