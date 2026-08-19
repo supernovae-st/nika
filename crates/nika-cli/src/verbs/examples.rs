@@ -539,10 +539,7 @@ mod tests {
     #[test]
     fn every_builtin_is_shown_or_carries_a_named_debt() {
         // Each entry: why the gap is tolerated TODAY + the showcase owed.
-        const OWED: &[(&str, &str)] = &[(
-            "tts_generate",
-            "the audio graduate — a showcase gap, not a logic gap",
-        )];
+        const OWED: &[(&str, &str)] = &[];
         let mut bodies = String::new();
         for slug in nika_pack::example_slugs() {
             bodies.push_str(nika_pack::example(&slug).unwrap_or_default());

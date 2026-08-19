@@ -94,14 +94,18 @@ spend after each wave. Hint `inspect-unwired` retired. Lesson
 `16-inspect-self` asserts `available`. OWED `inspect` struck.
 `NoWorkflow` stays for isolated dispatcher tests.
 
-## Wave 5 · still open, not this authoring train
+## Wave 5 · tag (SHIPPED) + leftover
+
+`v0.111.0` is tagged (`25f502adb`). Lesson
+`17-tts-self` pays the last named showcase
+debt (`provider: mock` · real WAV). OWED empty.
+
+Still later ·
 
 | Item | Why later |
 |---|---|
 | per-iteration `for_each` resume | runtime · ~15k wall |
-| `tts_generate` showcase | audio graduate · not a logic gap |
 | NEP-0021 | still gated |
-| tag `v0.111.0` | release train after merge to `main` |
 
 ## RLM mapping (why this order)
 

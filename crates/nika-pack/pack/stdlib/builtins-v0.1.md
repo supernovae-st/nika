@@ -731,6 +731,9 @@ narrate:
         output_dir: "./assets/audio"
 ```
 
+Teaching shape · [`17-tts-self`](../examples/17-tts-self.nika.yaml)
+(`provider: mock` · a real WAV · offline).
+
 The image family's contract, applied to audio: ONE audio file lands under
 `output_dir:` (permit-gated per final path BEFORE I/O · atomic write ·
 content-hash-named `{stem}-{provider}-{model}-{sha8}.{ext}` so identical

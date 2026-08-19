@@ -414,6 +414,8 @@ The named bundle is [`14-decide-publish`](14-decide-publish.nika.yaml).
    `infer-as-law` and `digit-string-enum` by default.
 3. **Probe a new builtin with `mock/echo` first.** `nika:inspect` is
    live (`available: true` once the DAG is seeded). Shape: lesson 16.
+   Media: `nika:tts_generate` `provider: mock` writes a real WAV
+   offline. Shape: lesson 17.
 4. **`nika:hash` accepts an object.** Do not pre-`tojson` a roster.
    `nika:validate` parses a string schema from `nika:read`.
 5. **Pin the glob.** `held/*.md` includes `README.md`. `exclude:

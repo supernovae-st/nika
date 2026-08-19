@@ -18,14 +18,14 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4503
+  classified_files: 4504
   file_rows: 11
   pattern_rows: 22
   by_class:
     authored: 1562
     authored-pin: 2
     generated: 122
-    pinned-copy: 121
+    pinned-copy: 122
     testimonial: 2696
     foreign: 0
   unverified-default: 7
@@ -113,8 +113,8 @@ files:
 patterns:
 - glob: "crates/nika-pack/pack/**"
   class: pinned-copy
-  match_count: 120
-  aggregate_sha256: db4febad548640a631b90a03b77e28222a8817824084dc4c7f7165793a587fe1
+  match_count: 121
+  aggregate_sha256: d6b0d4f49b275acc0a2b2aa7d85bb659edf316e240287c651e10379288df9574
   evidence: "crates/nika-pack/src/lib.rs:16 'The snapshot under pack/ is vendored by scripts/sync-pack.sh' — a byte-copy of the spec surface, never edited here"
   derivation:
     tool: "bash scripts/sync-pack.sh <nika-spec checkout> — healed daily by .github/workflows/pack-resync.yml (branch bot/pack-resync · PR-only, the 12-gate CI judges)"
@@ -152,7 +152,7 @@ patterns:
 - glob: "crates/**/src/**"
   class: authored
   match_count: 792
-  aggregate_sha256: 69345bf564be59b869fb938b2e596b9b5cf5348f802355ee80dbe730821d6166
+  aggregate_sha256: 0669cff6fc7dbb123446c1c5c4dd1488972e7db5761f6fafde56395fe97a1afc
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
@@ -178,7 +178,7 @@ patterns:
 - glob: "docs/**"
   class: authored
   match_count: 109
-  aggregate_sha256: c5261d98d219c717a0fd9af0def0854e3e585789f56111e295078701253cc68e
+  aggregate_sha256: 16c36f7d2e34bd1c69a49ca5df5ee7f5cb3a62394487e7d17df09012dae898fc
   evidence: "crate-specs · architecture prose · perf notes — no generation markers at file heads"
 - glob: "scripts/**"
   class: authored
