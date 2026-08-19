@@ -886,6 +886,40 @@ fn jq_as_then_bare_map_is_hinted() {
 }
 
 #[test]
+fn jq_as_map_admits_a_map_from_any_bound_name() {
+    // A map piped from a SECOND bound name is exactly as explicit as one
+    // piped from the dot-bound name: the current value is never in question,
+    // and the hint's own advice (`($name | map(...))`) is satisfied. Measured
+    // 2026-08-19 on four one-task probes; this shape was the false positive.
+    let chained = hints_of(
+        "nika: w\npermits: { tools: [\"nika:jq\"] }\ntasks:\n  score:\n    invoke:\n      tool: nika:jq\n      args:\n        input: []\n        expression: |\n          . as $c\n          | ($c | map(.n)) as $d\n          | ($d | map(. + 1))\n",
+    );
+    assert!(
+        !chained.iter().any(|x| x.kind == "jq-as-map"),
+        "a map piped from a bound name is explicit: {chained:?}"
+    );
+
+    // A law that walks several bound names is the common shape of a ledger.
+    let ledger = hints_of(
+        "nika: w\npermits: { tools: [\"nika:jq\"] }\ntasks:\n  score:\n    invoke:\n      tool: nika:jq\n      args:\n        input: []\n        expression: |\n          . as $c\n          | ($c.legs | to_entries) as $entries\n          | ($entries | map({name: .key})) as $rows\n          | ($rows | map(select(.name != null)) | length)\n",
+    );
+    assert!(
+        !ledger.iter().any(|x| x.kind == "jq-as-map"),
+        "a multi-name law is explicit throughout: {ledger:?}"
+    );
+
+    // The real defect still fires: a bare map( inside a later construct maps
+    // whatever the current value happens to be, which is the whole warning.
+    let bare = hints_of(
+        "nika: w\npermits: { tools: [\"nika:jq\"] }\ntasks:\n  score:\n    invoke:\n      tool: nika:jq\n      args:\n        input: []\n        expression: |\n          . as $c\n          | { out: (map(.n)) }\n",
+    );
+    assert!(
+        bare.iter().any(|x| x.kind == "jq-as-map"),
+        "a bare map after a binding must still hint: {bare:?}"
+    );
+}
+
+#[test]
 fn assert_after_a_write_names_the_quarantine() {
     let h = hints_of(
         "nika: w\npermits: { tools: [\"nika:write\", \"nika:assert\"], fs: { write: [\"out\"] } }\ntasks:\n  save:\n    invoke: { tool: \"nika:write\", args: { path: out/a.md, content: \"x\" } }\n  gate:\n    invoke: { tool: \"nika:assert\", args: { that: true } }\n",
