@@ -816,6 +816,20 @@ fn digit_string_enum_is_hinted_words_are_silent() {
 }
 
 #[test]
+fn hash_of_an_object_task_output_does_not_hint_tojson() {
+    // Runtime hashes a non-string `content:` as compact JSON. Check must
+    // not push authors toward `| tojson` on an object-shaped binding.
+    let h = hints_of(
+        "nika: w\npermits: { tools: [\"nika:jq\", \"nika:hash\"] }\ntasks:\n  roster:\n    invoke: { tool: nika:jq, args: { input: [{stem: ada}], expression: \".\" } }\n  fp:\n    with: { roster: \"${{ tasks.roster.output }}\" }\n    invoke: { tool: nika:hash, args: { content: \"${{ with.roster }}\" } }\n",
+    );
+    assert!(
+        !h.iter()
+            .any(|x| x.advice.contains("tojson") || x.advice.contains("to_json")),
+        "object-shaped hash content must not be hinted to | tojson: {h:?}"
+    );
+}
+
+#[test]
 fn inspect_invoke_is_hinted_as_unwired() {
     let h = hints_of(
         "nika: w\npermits: { tools: [\"nika:inspect\"] }\ntasks:\n  look:\n    invoke: { tool: \"nika:inspect\", args: { view: cost } }\n",
@@ -862,6 +876,14 @@ fn jq_as_then_bare_map_is_hinted() {
         "nika: w\npermits: { tools: [\"nika:jq\"] }\ntasks:\n  score:\n    invoke:\n      tool: nika:jq\n      args:\n        input: []\n        expression: |\n          . as $c\n          | ($c | map(.n))\n",
     );
     assert!(!ok.iter().any(|x| x.kind == "jq-as-map"), "{ok:?}");
+
+    let oneline = hints_of(
+        "nika: w\npermits: { tools: [\"nika:jq\"] }\ntasks:\n  score:\n    invoke: { tool: nika:jq, args: { input: [], expression: \". as $c | map(.n)\" } }\n",
+    );
+    assert!(
+        oneline.iter().any(|x| x.kind == "jq-as-map"),
+        "one-liner . as $c | map( must hint: {oneline:?}"
+    );
 }
 
 #[test]
@@ -875,4 +897,96 @@ fn assert_after_a_write_names_the_quarantine() {
         .expect("assert-quarantine");
     assert_eq!(hit.task, "gate");
     assert!(hit.advice.contains("quarantine"), "{}", hit.advice);
+}
+
+#[test]
+fn infer_that_assigns_a_belt_is_the_law_hint() {
+    let h = hints_of(
+        "nika: w\nmodel: mock/echo\ntasks:\n  judge:\n    infer:\n      prompt: |\n        Read the note and assign a belt.\n      max_tokens: 64\noutputs:\n  r: ${{ tasks.judge.output }}\n",
+    );
+    let hit = h
+        .iter()
+        .find(|x| x.kind == "infer-as-law")
+        .expect("infer-as-law");
+    assert_eq!(hit.task, "judge");
+    assert!(hit.advice.contains("13-extract-then-law"), "{}", hit.advice);
+
+    let extract = hints_of(
+        "nika: w\nmodel: mock/echo\ntasks:\n  facts:\n    infer:\n      prompt: |\n        Extract facts only. Never assign a belt.\n      max_tokens: 64\noutputs:\n  r: ${{ tasks.facts.output }}\n",
+    );
+    assert!(
+        !extract.iter().any(|x| x.kind == "infer-as-law"),
+        "a never-assign extract stays silent: {extract:?}"
+    );
+}
+
+#[test]
+fn a_locale_infer_after_extract_is_not_the_law() {
+    // A second infer + string enum is language-id / sentiment — the
+    // one-way. Phrase list stays the detector (a structural arm
+    // false-reds BCP-47).
+    let h = hints_of(
+        "nika: w\nmodel: mock/echo\ntasks:\n  facts:\n    infer: { prompt: extract, max_tokens: 32 }\n  lang:\n    with: { facts: \"${{ tasks.facts.output }}\" }\n    infer:\n      prompt: Name the BCP-47 language.\n      max_tokens: 16\n      schema: { type: string, enum: [en, fr, de, es] }\noutputs:\n  r: ${{ tasks.lang.output }}\n",
+    );
+    assert!(
+        !h.iter().any(|x| x.kind == "infer-as-law"),
+        "locale id is language, not the law: {h:?}"
+    );
+}
+
+#[test]
+fn infer_then_jq_without_a_const_assert_is_unproven_law() {
+    let h = hints_of(
+        "nika: w\nmodel: mock/echo\npermits: { tools: [\"nika:jq\"] }\ntasks:\n  facts:\n    infer: { prompt: extract, max_tokens: 8 }\n  score:\n    with: { facts: \"${{ tasks.facts.output }}\" }\n    invoke: { tool: nika:jq, args: { input: \"${{ with.facts }}\", expression: \".\" } }\noutputs:\n  r: ${{ tasks.score.output }}\n",
+    );
+    let hit = h
+        .iter()
+        .find(|x| x.kind == "unproven-law")
+        .expect("unproven-law");
+    assert_eq!(hit.task, "score");
+    assert!(!paid_ready(&h), "{h:?}");
+}
+
+#[test]
+fn a_const_fixture_assert_compiles_the_law() {
+    let h = hints_of(
+        "nika: w\nmodel: mock/echo\npermits: { tools: [\"nika:jq\", \"nika:assert\"] }\nconst:\n  cases: [null]\ntasks:\n  facts:\n    infer: { prompt: extract, max_tokens: 8 }\n  score:\n    with: { facts: \"${{ tasks.facts.output }}\" }\n    invoke: { tool: nika:jq, args: { input: \"${{ with.facts }}\", expression: \".\" } }\n  prove:\n    invoke: { tool: nika:jq, args: { input: \"${{ const.cases }}\", expression: \".\" } }\n  check:\n    with: { ok: \"${{ tasks.prove.output }}\" }\n    invoke: { tool: nika:assert, args: { condition: \"${{ with.ok != null }}\", message: compiled } }\noutputs:\n  r: ${{ tasks.score.output }}\n",
+    );
+    assert!(
+        !h.iter().any(|x| x.kind == "unproven-law"),
+        "const-fixture assert compiles the law: {h:?}"
+    );
+}
+
+fn stamped(yaml: &str) -> serde_json::Map<String, serde_json::Value> {
+    let mut obj = serde_json::Map::new();
+    stamp_paid_ready(&mut obj, &hints_of(yaml));
+    obj
+}
+
+#[test]
+fn unproven_law_stamps_compiled_false_and_next() {
+    let obj = stamped(
+        "nika: w\nmodel: mock/echo\npermits: { tools: [\"nika:jq\"] }\ntasks:\n  facts:\n    infer: { prompt: extract, max_tokens: 8 }\n  score:\n    with: { facts: \"${{ tasks.facts.output }}\" }\n    invoke: { tool: nika:jq, args: { input: \"${{ with.facts }}\", expression: \".\" } }\noutputs:\n  r: ${{ tasks.score.output }}\n",
+    );
+    assert_eq!(obj.get("compiled"), Some(&serde_json::json!(false)));
+    assert_eq!(obj.get("paid_ready"), Some(&serde_json::json!(false)));
+    let next = obj.get("next").expect("next");
+    assert_eq!(next.get("kind"), Some(&serde_json::json!("unproven-law")));
+    assert_eq!(next.get("task"), Some(&serde_json::json!("score")));
+    assert!(
+        next.get("advice")
+            .and_then(serde_json::Value::as_str)
+            .is_some_and(|a| a.contains("13-extract-then-law")),
+        "{next}"
+    );
+}
+
+#[test]
+fn a_const_fixture_stamps_compiled_true() {
+    let obj = stamped(
+        "nika: w\nmodel: mock/echo\npermits: { tools: [\"nika:jq\", \"nika:assert\"] }\nconst:\n  cases: [null]\ntasks:\n  facts:\n    infer: { prompt: extract, max_tokens: 8 }\n  score:\n    with: { facts: \"${{ tasks.facts.output }}\" }\n    invoke: { tool: nika:jq, args: { input: \"${{ with.facts }}\", expression: \".\" } }\n  prove:\n    invoke: { tool: nika:jq, args: { input: \"${{ const.cases }}\", expression: \".\" } }\n  check:\n    with: { ok: \"${{ tasks.prove.output }}\" }\n    invoke: { tool: nika:assert, args: { condition: \"${{ with.ok != null }}\", message: compiled } }\noutputs:\n  r: ${{ tasks.score.output }}\n",
+    );
+    assert_eq!(obj.get("compiled"), Some(&serde_json::json!(true)));
+    assert!(obj.get("next").is_none(), "{obj:?}");
 }

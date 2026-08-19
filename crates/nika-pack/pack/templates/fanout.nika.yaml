@@ -21,6 +21,8 @@
 #   - pin the glob · `*.md` also matches README.md (hint `glob-readme`)
 #   - `--resume` cache-hits the whole fan when items + definition match,
 #     including prompts that read `item.field`
+#   - extract facts (`type: integer`), then `nika:jq` is the law —
+#     do not pay a second infer to name the level (`13-extract-then-law`)
 #
 # Needs · nothing. Scaffolds and runs green in an empty directory — an empty
 #   discovery skips the fan-out and the fan-in still returns a value.

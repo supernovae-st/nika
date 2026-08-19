@@ -287,7 +287,12 @@ fn data_defs() -> Vec<ToolDef> {
             "hash",
             "Content hashing · blake3 (default) | sha256 | sha512 · hex (default) or base64.",
             serde_json::json!({
-                "content": s("the content to hash"),
+                // Not `type: string`. Runtime hashes a string as-is and any
+                // other JSON value as compact JSON — a string-only schema
+                // taught authors to `| tojson` a roster (2026-08-19).
+                "content": {
+                    "description": "bytes to hash — a string is hashed as-is; any other JSON value (object · array · number · bool) is compact JSON. Do not pre-pipe | tojson."
+                },
                 "algo": s("blake3 | sha256 | sha512"),
                 "encoding": s("hex | base64")
             }),
@@ -618,5 +623,30 @@ mod tests {
                 "`nika:{name}` required keys drifted: ToolDef vs catalog Builtin::required"
             );
         }
+    }
+
+    #[test]
+    fn hash_content_is_not_typed_as_string_only() {
+        // Check-time / model-facing schema must not contradict the
+        // runtime: an object-shaped task output is valid `content:`.
+        let hash = tool_defs()
+            .into_iter()
+            .find(|d| d.name == "nika:hash")
+            .expect("hash is catalogued");
+        let content = &hash.parameters["properties"]["content"];
+        assert_ne!(
+            content.get("type"),
+            Some(&serde_json::json!("string")),
+            "type:string taught authors to | tojson a roster"
+        );
+        let desc = content["description"].as_str().expect("description");
+        assert!(
+            desc.contains("compact JSON"),
+            "schema must say objects hash: {desc}"
+        );
+        assert!(
+            desc.contains("tojson"),
+            "schema must name the pre-pass not to take: {desc}"
+        );
     }
 }

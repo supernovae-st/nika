@@ -67,10 +67,26 @@ failures are engine/authoring seams, not domain bugs.
 - `nika-runtime` · `for_each` + `item.field` is resume-eligible
   (collection is the input identity · shaped stand-in)
 
+## Follow-up 2026-08-19
+
+- `nika-builtin` ToolDef · `nika:hash` `content:` is no longer
+  `type: string`. An object-shaped task output hashes as compact JSON;
+  check/tools no longer teach `| tojson`.
+- `nika:inspect` still returns `{ available: false }`. Wiring is not a
+  builtin-only injection (see next patch).
+
 ## Still open
 
 - Per-*iteration* resume keys (ADR-099: a mid-wave crash still
   replays every item; the task-level stamp only skips the whole fan)
 - Runtime injection of `WorkflowIntrospect` into `nika:inspect`
-- Check-time type of `nika:hash` `content:` when the binding is an
-  object-shaped task output (the runtime now accepts it)
+
+## Next patch · WorkflowIntrospect
+
+`BuiltinDispatcher` is composed once before `Runtime::run` and shared
+(`Arc`) across concurrent tasks. Live DAG, settling `records`, and
+running cost exist only inside the settle pass. Next honest patch:
+a `RunState` cell (`Arc<Mutex<…>>` or `RwLock`) the runtime writes as
+tasks settle, inject that as `W: WorkflowIntrospect` at composition,
+drop `NoWorkflow` from `ProdDispatcher`, retire `inspect-unwired`.
+Do not re-compose the dispatcher mid-run and do not serve zeros.

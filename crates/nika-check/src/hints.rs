@@ -95,6 +95,13 @@
 //!   `($c | map(...))`.
 //! - **assert after a write** (`assert-quarantine`) — a red
 //!   `nika:assert` quarantines `out/` to `.nika/quarantine/<trace>/`.
+//! - **the model names the verdict** (`infer-as-law`) — an `infer:`
+//!   prompt asks the model to assign a belt / pick a level / score
+//!   the grade. Extract integer facts; `nika:jq` (or `nika:decide`)
+//!   is the law. A "never assign a belt" extract stays silent.
+//! - **the law is unproven** (`unproven-law`) — `nika:jq` / `nika:decide`
+//!   scores an infer extract and no const-fixture `nika:assert` proves
+//!   the law on known answers. `is_clean` does not compile the law.
 
 use std::collections::BTreeSet;
 
@@ -115,8 +122,11 @@ pub struct Hint {
     /// `exec-json-capture` ·
     /// `unwrapped-ref` · `envelope-output` · `policy-soft` · `run-clock`
     /// · `analysis` · `consent` · `digit-string-enum` · `inspect-unwired`
-    /// · `glob-readme` · `assert-quarantine` · `jq-as-map`
+    /// · `glob-readme` · `assert-quarantine` · `jq-as-map` · `infer-as-law`
+    /// · `unproven-law`
     /// (additive · agents route on it; the module doc describes each).
+    /// The paid-run family ([`PAID_RUN_KINDS`]) is what [`paid_ready`]
+    /// reads — never `is_clean`.
     /// `parallel-writers` is RETIRED (F-P15 · promoted to the
     /// NIKA-SEC-012 finding — an error owns its repair, never a hint).
     /// `exec-floor` is RETIRED (#605 · promoted to the NIKA-SEC-001
@@ -126,6 +136,78 @@ pub struct Hint {
     pub task: String,
     /// What to change and what it unlocks.
     pub advice: String,
+}
+
+/// Hint kinds that mean the file is legal but must not leave `mock/`.
+/// A green `is_clean` with any of these is the 2026-08-19 paid-run class.
+pub const PAID_RUN_KINDS: &[&str] = &[
+    "digit-string-enum",
+    "glob-readme",
+    "inspect-unwired",
+    "jq-as-map",
+    "infer-as-law",
+    "unproven-law",
+];
+
+impl Hint {
+    /// Whether this hint is in the paid-run family.
+    #[must_use]
+    pub fn is_paid_run(&self) -> bool {
+        PAID_RUN_KINDS.contains(&self.kind)
+    }
+}
+
+/// The paid-run hints still on the file, in scan order.
+#[must_use]
+pub fn paid_blockers(hints: &[Hint]) -> Vec<&Hint> {
+    hints.iter().filter(|h| h.is_paid_run()).collect()
+}
+
+/// True iff no paid-run hint fired. Never consults `is_clean`.
+#[must_use]
+pub fn paid_ready(hints: &[Hint]) -> bool {
+    !hints.iter().any(Hint::is_paid_run)
+}
+
+/// True iff no `unproven-law` hint fired. A file with no law is compiled.
+/// Never consults `is_clean` or `paid_ready`.
+#[must_use]
+pub fn compiled(hints: &[Hint]) -> bool {
+    !hints.iter().any(|h| h.kind == "unproven-law")
+}
+
+/// Stamp `paid_ready` / `paid_blockers` / `compiled` / `next` onto a
+/// serialized check report. Additive · `report_version` stays 1 ·
+/// `clean` is untouched. `next` is the first paid blocker plus its
+/// advice — the one repair an agent should do now.
+pub fn stamp_paid_ready(obj: &mut serde_json::Map<String, serde_json::Value>, hints: &[Hint]) {
+    let paid = paid_blockers(hints);
+    obj.insert(
+        "paid_ready".to_owned(),
+        serde_json::Value::Bool(paid.is_empty()),
+    );
+    obj.insert(
+        "compiled".to_owned(),
+        serde_json::Value::Bool(compiled(hints)),
+    );
+    if let Some(h) = paid.first() {
+        obj.insert(
+            "next".to_owned(),
+            serde_json::json!({
+                "kind": h.kind,
+                "task": h.task,
+                "advice": h.advice,
+            }),
+        );
+        obj.insert(
+            "paid_blockers".to_owned(),
+            serde_json::Value::Array(
+                paid.iter()
+                    .map(|b| serde_json::json!({ "kind": b.kind, "task": b.task }))
+                    .collect(),
+            ),
+        );
+    }
 }
 
 /// Compute the improvement hints for a workflow.
@@ -163,6 +245,7 @@ pub(super) fn scan_hints(wf: &RawWorkflow) -> Vec<Hint> {
                     &envelope_ids,
                     &deep_referenced,
                 );
+                push_infer_as_law_hint(&mut hints, id, a);
             }
             RawAction::Agent(a) => {
                 if a.max_tokens_total.is_none() {
@@ -208,6 +291,7 @@ pub(super) fn scan_hints(wf: &RawWorkflow) -> Vec<Hint> {
     push_swallowed_exit_hints(&mut hints, wf);
     push_run_clock_hint(&mut hints, wf);
     push_assert_quarantine_hint(&mut hints, wf);
+    push_unproven_law_hints(&mut hints, wf);
     hints
 }
 
@@ -1006,14 +1090,7 @@ fn push_jq_as_map_hint(hints: &mut Vec<Hint>, id: &str, a: &nika_schema::raw::Ra
     else {
         return;
     };
-    if !expr.contains(". as $") {
-        return;
-    }
-    let bare_map = expr.lines().any(|line| {
-        let t = line.trim();
-        t.starts_with("map(") || t.starts_with("| map(")
-    });
-    if !bare_map {
+    if !jq_maps_the_current_after_bind(expr) {
         return;
     }
     hints.push(hint(
@@ -1061,6 +1138,252 @@ fn push_assert_quarantine_hint(hints: &mut Vec<Hint>, wf: &RawWorkflow) {
             ),
         ));
     }
+}
+
+/// An `infer:` that asks the model to name the verdict (belt · level ·
+/// score). The cheaper one-way is facts-then-law (`13-extract-then-law`).
+/// A prompt that *forbids* the assignment (`never assign a belt`) is
+/// the extract shape and stays silent.
+fn push_infer_as_law_hint(hints: &mut Vec<Hint>, id: &str, a: &nika_schema::raw::RawInferAction) {
+    let prompt = a.prompt.value.as_str();
+    let system = a.system.as_ref().map_or("", |s| s.value.as_str());
+    if !asks_model_to_name_the_law(prompt) && !asks_model_to_name_the_law(system) {
+        return;
+    }
+    hints.push(hint(
+        "infer-as-law",
+        id,
+        format!(
+            "`{id}` asks the model to name a belt/level/score — that is the law, \
+             not a fact. Extract integer facts (`type: integer` + numeric enum), \
+             then `nika:jq` or `nika:decide`. Shape: `nika try 13-extract-then-law`"
+        ),
+    ));
+}
+
+const LAW_PHRASES: &[&str] = &[
+    "assign the belt",
+    "assign a belt",
+    "assign its belt",
+    "pick the level",
+    "pick a level",
+    "choose the level",
+    "name the belt",
+    "name the level",
+    "score the level",
+    "which belt",
+    "which level",
+    "give it a belt",
+    "give it a level",
+];
+
+fn asks_model_to_name_the_law(text: &str) -> bool {
+    let p = text.to_ascii_lowercase();
+    LAW_PHRASES.iter().any(|ph| {
+        let Some(i) = p.find(ph) else {
+            return false;
+        };
+        let clause = p[..i].rsplit(['.', '\n', ';']).next().unwrap_or(&p[..i]);
+        !clause.contains("never")
+            && !clause.contains("do not")
+            && !clause.contains("don't")
+            && !clause.contains("not ")
+    })
+}
+
+/// `. as $c | map(...)` maps the *current* value. `($c | map(...))` is
+/// the one-way. A one-liner used to slip past the line-start detector.
+fn jq_maps_the_current_after_bind(expr: &str) -> bool {
+    let names = bound_jq_names(expr);
+    if names.is_empty() || !expr.contains("map(") {
+        return false;
+    }
+    let mut rest = squash_ws(expr);
+    for name in &names {
+        rest = rest.replace(&format!("(${name} | map("), "");
+        rest = rest.replace(&format!("(${name}|map("), "");
+    }
+    rest.contains("map(")
+}
+
+fn bound_jq_names(expr: &str) -> Vec<String> {
+    let mut names = Vec::new();
+    let mut rest = expr;
+    while let Some(i) = rest.find(". as $") {
+        let after = &rest[i + 6..];
+        let name: String = after
+            .chars()
+            .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
+            .collect();
+        if name.is_empty() {
+            rest = after;
+            continue;
+        }
+        names.push(name.clone());
+        rest = after.get(name.len()..).unwrap_or("");
+    }
+    names
+}
+
+/// `infer` → `nika:jq`/`nika:decide` with no const-fixture assert.
+/// `is_clean` does not prove the law (tests-first compile · 2026-08-19).
+fn push_unproven_law_hints(hints: &mut Vec<Hint>, wf: &RawWorkflow) {
+    let infer_ids: BTreeSet<&str> = wf
+        .tasks
+        .iter()
+        .filter_map(|task| match task.value.action {
+            RawAction::Infer(_) => Some(task.value.id.value.as_str()),
+            _ => None,
+        })
+        .collect();
+    if infer_ids.is_empty() {
+        return;
+    }
+    let mut law = Vec::new();
+    let mut prove = Vec::new();
+    for task in &wf.tasks {
+        let t = &task.value;
+        if !is_jq_or_decide(t) {
+            continue;
+        }
+        if task_mentions_infer(t, &infer_ids) {
+            law.push(t.id.value.as_str());
+        } else {
+            prove.push(t.id.value.as_str());
+        }
+    }
+    if law.is_empty() {
+        return;
+    }
+    let asserted = asserted_jq_decide_ids(wf);
+    if prove.iter().any(|id| asserted.contains(id)) {
+        return;
+    }
+    for id in law {
+        if asserted.contains(id) {
+            continue;
+        }
+        hints.push(hint(
+            "unproven-law",
+            id,
+            format!(
+                "`{id}` applies a jq/decide law to an infer extract — `is_clean` \
+                 does not prove the law. Feed known facts through the same law \
+                 and `nika:assert` (`condition` reads `with.`) against a const \
+                 map you computed by hand. Shape: `nika try 13-extract-then-law`"
+            ),
+        ));
+    }
+}
+
+fn is_jq_or_decide(t: &RawTask) -> bool {
+    let RawAction::Invoke(a) = &t.action else {
+        return false;
+    };
+    a.tool()
+        .is_some_and(|tool| tool.value == "nika:jq" || tool.value == "nika:decide")
+}
+
+fn task_mentions_infer(t: &RawTask, infer_ids: &BTreeSet<&str>) -> bool {
+    t.with
+        .iter()
+        .any(|(_, v)| value_mentions_tasks(&v.value, infer_ids))
+        || invoke_args(t).is_some_and(|args| value_mentions_tasks(args, infer_ids))
+}
+
+fn invoke_args(t: &RawTask) -> Option<&serde_json::Value> {
+    match &t.action {
+        RawAction::Invoke(a) => a.args.as_ref().map(|s| &s.value),
+        _ => None,
+    }
+}
+
+fn asserted_jq_decide_ids(wf: &RawWorkflow) -> BTreeSet<&str> {
+    let mut out = BTreeSet::new();
+    let mut jq_decide: BTreeSet<&str> = BTreeSet::new();
+    for task in &wf.tasks {
+        if is_jq_or_decide(&task.value) {
+            jq_decide.insert(task.value.id.value.as_str());
+        }
+    }
+    for task in &wf.tasks {
+        let t = &task.value;
+        let RawAction::Invoke(a) = &t.action else {
+            continue;
+        };
+        let Some(tool) = a.tool() else {
+            continue;
+        };
+        if tool.value != "nika:assert" {
+            continue;
+        }
+        let cond = a
+            .args
+            .as_ref()
+            .and_then(|args| args.value.get("condition"))
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("");
+        if !cond.contains("with.") {
+            continue;
+        }
+        for (_, v) in &t.with {
+            for id in task_ids_in_value(&v.value) {
+                if let Some(&hit) = jq_decide.get(id.as_str()) {
+                    out.insert(hit);
+                }
+            }
+        }
+    }
+    out
+}
+
+fn task_ids_in_value(v: &serde_json::Value) -> Vec<String> {
+    match v {
+        serde_json::Value::String(s) => {
+            let mut out = Vec::new();
+            let mut rest = s.as_str();
+            while let Some(i) = rest.find("tasks.") {
+                let after = &rest[i + 6..];
+                let name: String = after
+                    .chars()
+                    .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
+                    .collect();
+                if name.is_empty() {
+                    rest = after;
+                    continue;
+                }
+                out.push(name.clone());
+                rest = after.get(name.len()..).unwrap_or("");
+            }
+            out
+        }
+        serde_json::Value::Object(map) => map.values().flat_map(task_ids_in_value).collect(),
+        serde_json::Value::Array(arr) => arr.iter().flat_map(task_ids_in_value).collect(),
+        _ => Vec::new(),
+    }
+}
+
+fn value_mentions_tasks(v: &serde_json::Value, ids: &BTreeSet<&str>) -> bool {
+    task_ids_in_value(v)
+        .iter()
+        .any(|id| ids.contains(id.as_str()))
+}
+
+fn squash_ws(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut gap = false;
+    for c in s.chars() {
+        if c.is_whitespace() {
+            gap = true;
+        } else {
+            if gap && !out.is_empty() {
+                out.push(' ');
+            }
+            gap = false;
+            out.push(c);
+        }
+    }
+    out
 }
 
 fn hint(kind: &'static str, task: &str, advice: String) -> Hint {

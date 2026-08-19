@@ -1,0 +1,128 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# 13 · Extract facts, then the law — the model never writes the verdict.
+#
+# 04 taught a typed extract. This lesson is the next wall: once the
+# facts are integers, a `nika:jq` (or the decide builtin, spec 11) is the judge.
+# Paying a second infer to "pick the level" is the expensive mistake
+# this file exists to unlearn (measured 2026-08-19 · a 40+ task
+# extract→law run burned tokens on schema digits, anyOf fences, and
+# infer-before-check).
+#
+# Demonstrates ·
+#   - `infer.schema:` with `type: integer` + a numeric `enum`
+#     (`-1|0|1|3`) — never `enum: ["0","1","3"]`. Models emit JSON `3`.
+#     Hint `digit-string-enum`.
+#   - `for_each:` over OBJECT items · the prompt reads `${{ item.stem }}`
+#     / `${{ item.text }}` (resume-eligible as a WHOLE fan since 0.110).
+#   - `on_error: recover: null` · a bad extract is a hole, not a crash
+#   - `nika:jq` is the law · the model does not name a level
+#   - prove the law on const fixtures + `nika:assert` (hint `unproven-law`)
+#   - probe with `mock/echo` BEFORE a paid model (this file is that probe)
+#
+# Next door · [`14-decide-publish`](14-decide-publish.nika.yaml) is the
+# same law with a named Decision Bundle (`nika:decide`).
+#
+# Run · nika try 13-extract-then-law
+#   (offline · zero keys)
+
+nika: extract-then-law
+
+model: mock/echo
+
+permits:
+  tools: ["nika:jq", "nika:log", "nika:assert"]
+
+const:
+  # Known answers for the jq law — computed by hand, not by a model.
+  # `unproven-law` stays silent when this prove + assert is present.
+  cases:
+    - null
+    - { parallele: -1 }
+    - { parallele: 0 }
+    - { parallele: 1 }
+    - { parallele: 3 }
+  # Two notes as objects so the body must navigate `item.field`.
+  notes:
+    - stem: ada
+      text: "one ticket at a time · CI hook · no human commit after merge"
+    - stem: rumor
+      text: "someone said they use ChatGPT"
+
+tasks:
+  extract:
+    for_each:
+      items: ${{ const.notes }}
+      max_parallel: 2
+      fail_fast: false
+    on_error:
+      recover: null
+    infer:
+      prompt: |
+        Extract facts only. Never write a level or a belt.
+        stem=${{ item.stem }}
+        ${{ item.text }}
+      max_tokens: 256
+      schema:
+        type: object
+        additionalProperties: false
+        required: [parallele]
+        properties:
+          parallele:
+            type: integer
+            enum: [-1, 0, 1, 3]
+            description: "-1 unknown · 0 none · 1 one stream · 3 many"
+
+  score:
+    with:
+      rows: ${{ tasks.extract.output }}
+    invoke:
+      tool: nika:jq
+      args:
+        input: ${{ with.rows }}
+        expression: >-
+          map(
+            if . == null or .parallele == -1 then
+              {level: "unknown", why: "missing facts"}
+            elif .parallele == 3 then
+              {level: "many", why: "parallel streams"}
+            else
+              {level: "one", why: "single stream or none"}
+            end
+          )
+
+  prove:
+    invoke:
+      tool: nika:jq
+      args:
+        input: ${{ const.cases }}
+        expression: >-
+          (map(
+            if . == null or .parallele == -1 then
+              {level: "unknown", why: "missing facts"}
+            elif .parallele == 3 then
+              {level: "many", why: "parallel streams"}
+            else
+              {level: "one", why: "single stream or none"}
+            end
+          ) | map(.level)) == ["unknown", "unknown", "one", "one", "many"]
+  compiled:
+    with:
+      ok: ${{ tasks.prove.output }}
+    invoke:
+      tool: nika:assert
+      args:
+        condition: ${{ with.ok }}
+        message: "jq law drifted from the hand-computed fixture map"
+  show:
+    with:
+      cards: ${{ tasks.score.output }}
+    invoke:
+      tool: nika:log
+      args:
+        level: info
+        message: "law applied · ${{ with.cards }}"
+
+outputs:
+  cards: ${{ tasks.score.output }}

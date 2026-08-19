@@ -171,7 +171,7 @@ pub use energy::{EnergyCounts, EnergyReading, EnergyTask};
 pub use exec_floor::ExecFloorFinding;
 pub use findings::UnifiedFinding;
 pub use flow::{FlowFacts, TaintTrace, action_effect_fields};
-pub use hints::Hint;
+pub use hints::{Hint, PAID_RUN_KINDS, compiled, paid_blockers, paid_ready, stamp_paid_ready};
 pub use lift::LiftFinding;
 pub use order::OrderFinding;
 pub use permit_taint::{PermitTaint, PermitTaintKind};

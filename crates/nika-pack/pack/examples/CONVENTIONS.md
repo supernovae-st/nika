@@ -395,35 +395,48 @@ not verbs.
 (`create_dirs: true`); `jq` is `nika:jq`. The checker says so
 (`native-first/001`, `/002`) and it is right.
 
+---
+
 ## §9 · Authoring seams (paid-run class · 2026-08-19)
 
 Measured on a real OpenAI `nika run` of a 40+ task extract → jq law →
 builtins workflow. The engine now hints or accepts these; do not rediscover
-them with tokens.
+them with tokens. The shape is [`13-extract-then-law`](13-extract-then-law.nika.yaml).
+The named bundle is [`14-decide-publish`](14-decide-publish.nika.yaml).
 
 1. **Integer facts, not digit strings.** `enum: ["0","1","3"]` — models emit
    JSON `3`. Prefer `type: integer`. Hint `digit-string-enum`.
-2. **Probe a new builtin with `mock/echo` first.** `nika:inspect` is
+2. **The model never writes the verdict.** Extract facts (`infer.schema:`),
+   then `nika:jq` (or `nika:decide`) is the law. A second infer to "pick
+   the level" is the expensive mistake this lesson exists to unlearn.
+   Hint `infer-as-law`. `nika check --json` reports `paid_ready: false`
+   until the paid-run family is gone. The MCP `nika_check` oracle fails
+   `infer-as-law` and `digit-string-enum` by default.
+3. **Probe a new builtin with `mock/echo` first.** `nika:inspect` is
    catalogued and unwired (`available: false`). Hint `inspect-unwired`.
-3. **`nika:hash` accepts an object.** Do not pre-`tojson` a roster.
+4. **`nika:hash` accepts an object.** Do not pre-`tojson` a roster.
    `nika:validate` parses a string schema from `nika:read`.
-4. **Pin the glob.** `held/*.md` includes `README.md`. `exclude:
+5. **Pin the glob.** `held/*.md` includes `README.md`. `exclude:
    "**/README.md"`. Hint `glob-readme`.
-5. **jq `. as $c` then `($c | map(...))`.** A bare `map(` after `. as $c`
+6. **jq `. as $c` then `($c | map(...))`.** A bare `map(` after `. as $c`
    maps the current value (often a pair). Hint `jq-as-map`.
-6. **A red last `nika:assert` quarantines `out/`.** Look in
+7. **A red last `nika:assert` quarantines `out/`.** Look in
    `.nika/quarantine/<trace>/`. Hint `assert-quarantine`.
-7. **`--resume` on a `for_each` infer whose prompt uses `item.field`
+8. **`--resume` on a `for_each` infer whose prompt uses `item.field`
    now cache-hits** when the collection and definition are unchanged.
    The skip is the *whole fan*, not one item.
+9. **Prove the law on known answers.** `infer` → `nika:jq` /
+   `nika:decide` without a const-fixture `nika:assert` is hint
+   `unproven-law` · `paid_ready: false`. Shape: lesson 13 `prove` +
+   lesson 14.
 
-Order that is cheaper: `nika check --native-strict` → one-task mock
-probe of every new builtin → freeze the extract schema type → then
-wire paid infer.
+Order that is cheaper: `nika check --json --native-strict` until
+`paid_ready: true` → one-task mock probe of every new builtin → freeze
+the extract schema type → then wire paid infer.
 
 ---
 
-## §9 · The one honest red · NIKA-SEC-009
+## §10 · The one honest red · NIKA-SEC-009
 
 Declaring a truthful boundary can light up `NIKA-SEC-009` (lethal trifecta ·
 private read + untrusted ingress + external egress with no dominating human
@@ -446,7 +459,7 @@ pointing there. A red gate reporting something true is the honest state.
 
 ---
 
-## §10 · Verify a change
+## §11 · Verify a change
 
 ```bash
 # Judge with the binary the WORK targets, not whatever the PATH serves.

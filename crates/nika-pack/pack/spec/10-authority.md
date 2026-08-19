@@ -226,10 +226,17 @@ nothing about the resolved VALUES flowing under a present block. Every
 value carries an integrity label — **Integ ∈ {trusted, untrusted}** —
 orthogonal to Conf (the secrets axis): literals, `const.*`, and
 `secrets.*` are trusted; `inputs.*` (caller-supplied at launch),
-`config.*` (untrusted by DECLARATION, not by provenance — see below),
 fetch/tool results,
 and anything derived from them are untrusted, with monotone propagation
-(one untrusted operand taints the whole interpolation). Two rules bind
+(one untrusted operand taints the whole interpolation).
+
+> **⚰️ `config.*` is not on this lattice (2026-08-12).** The `config:`
+> authority died with the envelope nuke. A `${{ config.X }}` read refuses
+> `NIKA-VALUES-003` — it never reaches a taint judgment. A deployment knob
+> is an `inputs:` entry with `required: false` and a `default:`, untrusted
+> as `inputs.*`.
+
+Two rules bind
 untrusted values under a `permits:` block (NEP-0004 · LAW-AUTH-0325):
 
 | Code | Class | Witness (in the diagnostic) |
