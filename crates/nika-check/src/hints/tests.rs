@@ -933,3 +933,27 @@ fn a_locale_infer_after_extract_is_not_the_law() {
         "locale id is language, not the law: {h:?}"
     );
 }
+
+#[test]
+fn infer_then_jq_without_a_const_assert_is_unproven_law() {
+    let h = hints_of(
+        "nika: w\nmodel: mock/echo\npermits: { tools: [\"nika:jq\"] }\ntasks:\n  facts:\n    infer: { prompt: extract, max_tokens: 8 }\n  score:\n    with: { facts: \"${{ tasks.facts.output }}\" }\n    invoke: { tool: nika:jq, args: { input: \"${{ with.facts }}\", expression: \".\" } }\noutputs:\n  r: ${{ tasks.score.output }}\n",
+    );
+    let hit = h
+        .iter()
+        .find(|x| x.kind == "unproven-law")
+        .expect("unproven-law");
+    assert_eq!(hit.task, "score");
+    assert!(!paid_ready(&h), "{h:?}");
+}
+
+#[test]
+fn a_const_fixture_assert_compiles_the_law() {
+    let h = hints_of(
+        "nika: w\nmodel: mock/echo\npermits: { tools: [\"nika:jq\", \"nika:assert\"] }\nconst:\n  cases: [null]\ntasks:\n  facts:\n    infer: { prompt: extract, max_tokens: 8 }\n  score:\n    with: { facts: \"${{ tasks.facts.output }}\" }\n    invoke: { tool: nika:jq, args: { input: \"${{ with.facts }}\", expression: \".\" } }\n  prove:\n    invoke: { tool: nika:jq, args: { input: \"${{ const.cases }}\", expression: \".\" } }\n  check:\n    with: { ok: \"${{ tasks.prove.output }}\" }\n    invoke: { tool: nika:assert, args: { condition: \"${{ with.ok != null }}\", message: compiled } }\noutputs:\n  r: ${{ tasks.score.output }}\n",
+    );
+    assert!(
+        !h.iter().any(|x| x.kind == "unproven-law"),
+        "const-fixture assert compiles the law: {h:?}"
+    );
+}

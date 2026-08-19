@@ -99,6 +99,9 @@
 //!   prompt asks the model to assign a belt / pick a level / score
 //!   the grade. Extract integer facts; `nika:jq` (or `nika:decide`)
 //!   is the law. A "never assign a belt" extract stays silent.
+//! - **the law is unproven** (`unproven-law`) — `nika:jq` / `nika:decide`
+//!   scores an infer extract and no const-fixture `nika:assert` proves
+//!   the law on known answers. `is_clean` does not compile the law.
 
 use std::collections::BTreeSet;
 
@@ -120,6 +123,7 @@ pub struct Hint {
     /// `unwrapped-ref` · `envelope-output` · `policy-soft` · `run-clock`
     /// · `analysis` · `consent` · `digit-string-enum` · `inspect-unwired`
     /// · `glob-readme` · `assert-quarantine` · `jq-as-map` · `infer-as-law`
+    /// · `unproven-law`
     /// (additive · agents route on it; the module doc describes each).
     /// The paid-run family ([`PAID_RUN_KINDS`]) is what [`paid_ready`]
     /// reads — never `is_clean`.
@@ -142,6 +146,7 @@ pub const PAID_RUN_KINDS: &[&str] = &[
     "inspect-unwired",
     "jq-as-map",
     "infer-as-law",
+    "unproven-law",
 ];
 
 impl Hint {
@@ -269,6 +274,7 @@ pub(super) fn scan_hints(wf: &RawWorkflow) -> Vec<Hint> {
     push_swallowed_exit_hints(&mut hints, wf);
     push_run_clock_hint(&mut hints, wf);
     push_assert_quarantine_hint(&mut hints, wf);
+    push_unproven_law_hints(&mut hints, wf);
     hints
 }
 
@@ -1200,6 +1206,150 @@ fn bound_jq_names(expr: &str) -> Vec<String> {
         rest = after.get(name.len()..).unwrap_or("");
     }
     names
+}
+
+/// `infer` → `nika:jq`/`nika:decide` with no const-fixture assert.
+/// `is_clean` does not prove the law (tests-first compile · 2026-08-19).
+fn push_unproven_law_hints(hints: &mut Vec<Hint>, wf: &RawWorkflow) {
+    let infer_ids: BTreeSet<&str> = wf
+        .tasks
+        .iter()
+        .filter_map(|task| match task.value.action {
+            RawAction::Infer(_) => Some(task.value.id.value.as_str()),
+            _ => None,
+        })
+        .collect();
+    if infer_ids.is_empty() {
+        return;
+    }
+    let mut law = Vec::new();
+    let mut prove = Vec::new();
+    for task in &wf.tasks {
+        let t = &task.value;
+        if !is_jq_or_decide(t) {
+            continue;
+        }
+        if task_mentions_infer(t, &infer_ids) {
+            law.push(t.id.value.as_str());
+        } else {
+            prove.push(t.id.value.as_str());
+        }
+    }
+    if law.is_empty() {
+        return;
+    }
+    let asserted = asserted_jq_decide_ids(wf);
+    if prove.iter().any(|id| asserted.contains(id)) {
+        return;
+    }
+    for id in law {
+        if asserted.contains(id) {
+            continue;
+        }
+        hints.push(hint(
+            "unproven-law",
+            id,
+            format!(
+                "`{id}` applies a jq/decide law to an infer extract — `is_clean` \
+                 does not prove the law. Feed known facts through the same law \
+                 and `nika:assert` (`condition` reads `with.`) against a const \
+                 map you computed by hand. Shape: `nika try 13-extract-then-law`"
+            ),
+        ));
+    }
+}
+
+fn is_jq_or_decide(t: &RawTask) -> bool {
+    let RawAction::Invoke(a) = &t.action else {
+        return false;
+    };
+    a.tool()
+        .is_some_and(|tool| tool.value == "nika:jq" || tool.value == "nika:decide")
+}
+
+fn task_mentions_infer(t: &RawTask, infer_ids: &BTreeSet<&str>) -> bool {
+    t.with
+        .iter()
+        .any(|(_, v)| value_mentions_tasks(&v.value, infer_ids))
+        || invoke_args(t).is_some_and(|args| value_mentions_tasks(args, infer_ids))
+}
+
+fn invoke_args(t: &RawTask) -> Option<&serde_json::Value> {
+    match &t.action {
+        RawAction::Invoke(a) => a.args.as_ref().map(|s| &s.value),
+        _ => None,
+    }
+}
+
+fn asserted_jq_decide_ids(wf: &RawWorkflow) -> BTreeSet<&str> {
+    let mut out = BTreeSet::new();
+    let mut jq_decide: BTreeSet<&str> = BTreeSet::new();
+    for task in &wf.tasks {
+        if is_jq_or_decide(&task.value) {
+            jq_decide.insert(task.value.id.value.as_str());
+        }
+    }
+    for task in &wf.tasks {
+        let t = &task.value;
+        let RawAction::Invoke(a) = &t.action else {
+            continue;
+        };
+        let Some(tool) = a.tool() else {
+            continue;
+        };
+        if tool.value != "nika:assert" {
+            continue;
+        }
+        let cond = a
+            .args
+            .as_ref()
+            .and_then(|args| args.value.get("condition"))
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("");
+        if !cond.contains("with.") {
+            continue;
+        }
+        for (_, v) in &t.with {
+            for id in task_ids_in_value(&v.value) {
+                if let Some(&hit) = jq_decide.get(id.as_str()) {
+                    out.insert(hit);
+                }
+            }
+        }
+    }
+    out
+}
+
+fn task_ids_in_value(v: &serde_json::Value) -> Vec<String> {
+    match v {
+        serde_json::Value::String(s) => {
+            let mut out = Vec::new();
+            let mut rest = s.as_str();
+            while let Some(i) = rest.find("tasks.") {
+                let after = &rest[i + 6..];
+                let name: String = after
+                    .chars()
+                    .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
+                    .collect();
+                if name.is_empty() {
+                    rest = after;
+                    continue;
+                }
+                out.push(name.clone());
+                rest = after.get(name.len()..).unwrap_or("");
+            }
+            out
+        }
+        serde_json::Value::Object(map) => map.values().flat_map(task_ids_in_value).collect(),
+        serde_json::Value::Array(arr) => arr.iter().flat_map(task_ids_in_value).collect(),
+        _ => Vec::new(),
+    }
+}
+
+fn value_mentions_tasks(v: &serde_json::Value, ids: &BTreeSet<&str>) -> bool {
+    task_ids_in_value(v)
+        .iter()
+        .any(|id| ids.contains(id.as_str()))
 }
 
 fn squash_ws(s: &str) -> String {

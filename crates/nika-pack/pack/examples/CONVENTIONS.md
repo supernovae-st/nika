@@ -402,6 +402,7 @@ not verbs.
 Measured on a real OpenAI `nika run` of a 40+ task extract → jq law →
 builtins workflow. The engine now hints or accepts these; do not rediscover
 them with tokens. The shape is [`13-extract-then-law`](13-extract-then-law.nika.yaml).
+The named bundle is [`14-decide-publish`](14-decide-publish.nika.yaml).
 
 1. **Integer facts, not digit strings.** `enum: ["0","1","3"]` — models emit
    JSON `3`. Prefer `type: integer`. Hint `digit-string-enum`.
@@ -424,6 +425,10 @@ them with tokens. The shape is [`13-extract-then-law`](13-extract-then-law.nika.
 8. **`--resume` on a `for_each` infer whose prompt uses `item.field`
    now cache-hits** when the collection and definition are unchanged.
    The skip is the *whole fan*, not one item.
+9. **Prove the law on known answers.** `infer` → `nika:jq` /
+   `nika:decide` without a const-fixture `nika:assert` is hint
+   `unproven-law` · `paid_ready: false`. Shape: lesson 13 `prove` +
+   lesson 14.
 
 Order that is cheaper: `nika check --json --native-strict` until
 `paid_ready: true` → one-task mock probe of every new builtin → freeze

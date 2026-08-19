@@ -18,14 +18,14 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4496
+  classified_files: 4499
   file_rows: 11
   pattern_rows: 22
   by_class:
-    authored: 1558
+    authored: 1560
     authored-pin: 2
     generated: 122
-    pinned-copy: 118
+    pinned-copy: 119
     testimonial: 2696
     foreign: 0
   unverified-default: 7
@@ -113,8 +113,8 @@ files:
 patterns:
 - glob: "crates/nika-pack/pack/**"
   class: pinned-copy
-  match_count: 117
-  aggregate_sha256: 188f3d22250495e14238a33d671601e2b92f29f40966b8586803a56c95dd9050
+  match_count: 118
+  aggregate_sha256: 9692c2ef8d2e58e37502befa4eee3216e75a9e0ce4f1efe856a338a510a5c4f3
   evidence: "crates/nika-pack/src/lib.rs:16 'The snapshot under pack/ is vendored by scripts/sync-pack.sh' — a byte-copy of the spec surface, never edited here"
   derivation:
     tool: "bash scripts/sync-pack.sh <nika-spec checkout> — healed daily by .github/workflows/pack-resync.yml (branch bot/pack-resync · PR-only, the 12-gate CI judges)"
@@ -140,7 +140,7 @@ patterns:
 - glob: "crates/*/public-api.txt"
   class: generated
   match_count: 66
-  aggregate_sha256: ae02ed555449e0a76b741afd2d11a869f323358eb013361bad28e6af4e373282
+  aggregate_sha256: 5e37647e5c4dd07f8435cc083bf4251261f192126dac178db0596fee9b2da549
   evidence: ".github/workflows/public-api.yml 'diff each covered lib crate' byte-compares each snapshot against cargo public-api output; macOS renders differently, so snapshots regenerate FROM THE UBUNTU ARTIFACT (workflow comment)"
   derivation:
     tool: "cargo public-api -p <crate> --omit auto-trait-impls > crates/<crate>/public-api.txt (DEFAULT features · the CI job shape — all-features drags platform deps into the render · cargo-public-api 0.51.0 pinned · the public-api-actual CI artifact stays the judge)"
@@ -152,7 +152,7 @@ patterns:
 - glob: "crates/**/src/**"
   class: authored
   match_count: 790
-  aggregate_sha256: 6af48d83779e41c00a3c628bc66c6375b7d98d0249117eaf7a2dbad190ee72db
+  aggregate_sha256: 41aae83bb8bd254f3950aebe21232603af9836b659415bbc45743d8e360e10f9
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
@@ -177,8 +177,8 @@ patterns:
   evidence: "per-decision records authored at decision time (scripts/adr/new.sh scaffolds · adr-seal-check hook seals); index.toml excepted in files:"
 - glob: "docs/**"
   class: authored
-  match_count: 107
-  aggregate_sha256: 372f0819b19506558d6123a93209dbdc92fb0a65c63e1b4a469350ddd766b581
+  match_count: 109
+  aggregate_sha256: 88136e7ffee15948403f153059a7c512111cd272ad9b0e712287629739fcdaa4
   evidence: "crate-specs · architecture prose · perf notes — no generation markers at file heads"
 - glob: "scripts/**"
   class: authored
@@ -198,7 +198,7 @@ patterns:
 - glob: ".agents/**"
   class: authored
   match_count: 32
-  aggregate_sha256: d2436dfe9b5703bc88845ddb0922aa5d59d5dbe49e4975c1459e06ccb2ee47a7
+  aggregate_sha256: 5f8838829ce07e2aea41ec9cb734006ff30c89a6a75c0b1f87e126645f54b97f
   evidence: "the agent-plugin pack SOURCE (marketplace.json · plugin manifests · skills · rules · hooks) — authored here, mirrored downstream into supernovae-st/nika-plugins (its plugins/ is a byte-pinned copy healed on releases)"
 - glob: ".claude/**"
   class: authored

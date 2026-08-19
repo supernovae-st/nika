@@ -52,6 +52,7 @@ four are the decisions that cost rounds when guessed instead of copied.
 | open-ended work, step count unknown up front | `06-code-review` |
 | the same task for every item of a collection | `07-for-each-locales` |
 | extract facts, then score them without a second infer | `13-extract-then-law` |
+| publish or abstain from a Decision Bundle | `14-decide-publish` |
 | land a typed artifact on disk | `t1-meeting-actions` |
 | poll something, act only when a condition holds | `t1-price-watch` |
 | rows in, chart and report out, zero model calls | `t2-csv-chart-report` |
@@ -98,8 +99,9 @@ the `.nika.yaml` extension. `nika new <slug>` makes one yours;
    `--native-strict` is the run-gate bar (an `exec:` a builtin covers).
    `.paid_ready` is the paid-infer bar (`nika check --json | jq .paid_ready`).
    A green exit with leftover `infer-as-law` / `digit-string-enum` /
-   `glob-readme` / `jq-as-map` / `inspect-unwired` is legal, not the
-   one-way. The MCP `nika_check` oracle fails that family by default.
+   `glob-readme` / `jq-as-map` / `inspect-unwired` / `unproven-law` is
+   legal, not the one-way. The MCP `nika_check` oracle fails
+   `infer-as-law` and `digit-string-enum` by default.
    The exec ledger does NOT buy an exemption (measured: a `.py` wrapper
    fails with a complete ledger) — it documents intent for a reviewer.
    What passes is an `exec:` of a real tool (`git`, `docker`); what
@@ -292,7 +294,8 @@ this with a paid seat.
    "**/README.md"` (hint `glob-readme`).
 5. **The model extracts facts. `nika:jq` or `nika:decide` is the law.**
    A second infer to "pick the level" is the expensive mistake.
-   The shape is `13-extract-then-law`.
+   The shape is `13-extract-then-law`. Prove the law on const fixtures
+   (`unproven-law`) — `14-decide-publish` is the named bundle.
 6. Then, and only then, swap `model:` to a paid seat.
 
 `for_each` + `item.field` is resume-eligible as a **whole fan** when
@@ -336,6 +339,8 @@ or `for_each:` over items — never one giant infer. Verification is
 8. **Did `nika explain <file>` stay honest?** Waves · cost (FLOOR ≠ $0)
    · touches · the **before a paid model** panel. If a paid-run hint
    remains, the file is not done.
+9. **Is the law proven on known answers?** Hint `unproven-law`. A
+   jq/decide that scores an infer needs a const-fixture `nika:assert`.
 
 A green check with `paid_ready: false` is not a handoff. Repair the
 blocker. Re-run 0–8 until findings are empty and `paid_ready` is true,

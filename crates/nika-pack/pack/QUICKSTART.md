@@ -199,6 +199,8 @@ The cheapest authoring order, measured on a 40+ task paid extract run:
    `mock/`.
    The shape is
    [`13-extract-then-law`](./examples/13-extract-then-law.nika.yaml).
+   Prove the law on const fixtures (`unproven-law`). The named bundle
+   is [`14-decide-publish`](./examples/14-decide-publish.nika.yaml).
 5. **Pin the glob** (`exclude: "**/README.md"`) before a fan-out infer
    classifies the table of contents.
 

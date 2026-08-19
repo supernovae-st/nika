@@ -1396,6 +1396,8 @@ pub fn nika_check::GateFinding::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub nika_check::Hint::advice: alloc::string::String
 pub nika_check::Hint::kind: &'static str
 pub nika_check::Hint::task: alloc::string::String
+impl nika_check::Hint
+pub fn nika_check::Hint::is_paid_run(&self) -> bool
 impl core::clone::Clone for nika_check::Hint
 pub fn nika_check::Hint::clone(&self) -> nika_check::Hint
 impl core::cmp::Eq for nika_check::Hint
@@ -2725,13 +2727,17 @@ impl<T> dyn_clone::DynClone for nika_check::WriteConflict where T: core::clone::
 pub fn nika_check::WriteConflict::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_check::WriteConflict where T: 'static
 pub fn nika_check::WriteConflict::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub const nika_check::PAID_RUN_KINDS: &[&str]
 pub const nika_check::REPORT_VERSION: u32
 pub const nika_check::STATUS_VOCAB: [&str; 4]
 pub fn nika_check::action_effect_fields(action: &nika_schema::raw::action::RawAction) -> alloc::vec::Vec<&str>
 pub fn nika_check::check(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_check::CheckReport
 pub fn nika_check::check_composed(wf: &nika_schema::raw::workflow::RawWorkflow, root: &str, read: &mut dyn core::ops::function::FnMut(&str) -> core::result::Result<alloc::string::String, alloc::string::String>) -> nika_check::CheckReport
 pub fn nika_check::infer_permits(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_check::InferredPermits
+pub fn nika_check::paid_blockers(hints: &[nika_check::Hint]) -> alloc::vec::Vec<&nika_check::Hint>
+pub fn nika_check::paid_ready(hints: &[nika_check::Hint]) -> bool
 pub fn nika_check::risk_grade(report: &nika_check::CheckReport) -> nika_check::RiskGrade
+pub fn nika_check::stamp_paid_ready(obj: &mut serde_json::map::Map<alloc::string::String, serde_json::value::Value>, hints: &[nika_check::Hint])
 pub fn nika_check::static_literal_of<'w>(wf: &'w nika_schema::raw::workflow::RawWorkflow, expr: &str) -> core::option::Option<&'w serde_json::value::Value>
 pub fn nika_check::static_read_paths(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
 pub fn nika_check::task_permits(task: &nika_schema::raw::task::RawTask) -> alloc::vec::Vec<alloc::string::String>
