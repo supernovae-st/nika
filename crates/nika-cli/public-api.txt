@@ -273,6 +273,8 @@ impl<T> tracing::instrument::Instrument for nika_cli::verbs::arm::args::FireArgs
 impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::arm::args::FireArgs
 impl<T> typenum::type_operators::Same for nika_cli::verbs::arm::args::FireArgs
 pub type nika_cli::verbs::arm::args::FireArgs::Output = T
+pub mod nika_cli::verbs::arm::emit
+pub fn nika_cli::verbs::arm::emit::run(args: &nika_cli::verbs::arm::args::ArmArgs, emit_target: nika_cli::verbs::arm::args::EmitTarget) -> nika_cli_host::output::VerbOutput
 pub mod nika_cli::verbs::arm::fire
 pub struct nika_cli::verbs::arm::fire::FireCtx
 pub nika_cli::verbs::arm::fire::FireCtx::index: usize

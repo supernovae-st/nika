@@ -48,6 +48,7 @@ use nika_vocab::project;
 use super::VerbOutput;
 
 pub mod args;
+pub mod emit;
 pub mod fire;
 pub mod state;
 
@@ -56,30 +57,34 @@ const SLOTS_SHOWN: usize = 3;
 
 /// `nika arm` — the verb. Bare (no subcommand, no flag) it is the
 /// read-only arming report below; the subcommands are the machine's
-/// edge, and the `--emit` family is the W3 wave's — declared on the
-/// clap tree now, refused honestly until it lands.
+/// edge, and `--emit` is the W3 bridge to the OS ([`mod@emit`]).
 #[must_use]
 pub fn run(args: args::ArmArgs) -> VerbOutput {
     use args::ArmSub;
     match args.sub {
         Some(ArmSub::Fire(f)) => fire::run(&f),
         Some(ArmSub::Disarm { label, write }) => disarm(&label, write),
-        None if emits_requested(&args) => VerbOutput::file(
-            "arm --emit · the OS units arrive with the W3 wave — today the verb READS".to_owned(),
-        ),
         None => {
+            if let Some(target) = args.emit {
+                return emit::run(&args, target);
+            }
+            if emits_requested(&args) {
+                return VerbOutput::file(
+                    "arm --write · --out · --mode · --env-file · --nika-bin vivent avec --emit — `nika arm --emit launchd` (ou systemd)"
+                        .to_owned(),
+                );
+            }
             let cwd = std::env::current_dir().unwrap_or_else(|_| std::path::PathBuf::from("."));
             run_at(&cwd)
         }
     }
 }
 
-/// Any `--emit`-family flag set? Those flags only make sense WITH the
-/// emission the W3 wave lands — set today, they refuse rather than
-/// silently report (a flag that does nothing is a lie).
+/// Any `--emit`-family flag set WITHOUT `--emit`? Those flags only make
+/// sense WITH the emission — set alone they refuse rather than silently
+/// report (a flag that does nothing is a lie).
 fn emits_requested(args: &args::ArmArgs) -> bool {
-    args.emit.is_some()
-        || args.write
+    args.write
         || args.out.is_some()
         || args.mode.is_some()
         || args.env_file.is_some()
@@ -105,41 +110,51 @@ fn disarm(label: &str, write: bool) -> VerbOutput {
     ))
 }
 
-/// The report at an explicit root — the tempdir-injectable half
-/// (the `run::ceiling::ladder` precedent).
-#[must_use]
-pub fn run_at(start: &std::path::Path) -> VerbOutput {
+/// The shared door — every arming edge walks it (the report below ·
+/// the W3 `--emit`): discover the project file the ladder locates, read
+/// it, parse + law-check the cadence grammar, and verify the two
+/// readers AGREE on the beat count (law 8 — deux parseurs, jamais en
+/// désaccord). `Err` carries the output to hand back AS-IS, whatever
+/// its code.
+pub(crate) fn load(
+    start: &std::path::Path,
+) -> Result<(std::path::PathBuf, nika_cadence::registry::ArmRegistry), VerbOutput> {
     let found = match project::discover(start) {
         Ok(found) => found,
-        Err(e) => return VerbOutput::file(format!("PROJECT ✗  {e}")),
+        Err(e) => return Err(VerbOutput::file(format!("PROJECT ✗  {e}"))),
     };
     let Some((path, project)) = found else {
-        return VerbOutput::ok(
+        return Err(VerbOutput::ok(
             "nothing armed — this project has no `nika.yaml`\n  \
              fix: `nika init --project-file` lays a commented starter"
                 .to_owned(),
-        );
+        ));
     };
     // The cadence grammar reads the file the walk already located —
     // never a second discovery.
     let text = match std::fs::read_to_string(&path) {
         Ok(text) => text,
-        Err(e) => return VerbOutput::env(format!("cannot read {}: {e}", path.display())),
+        Err(e) => {
+            return Err(VerbOutput::env(format!(
+                "cannot read {}: {e}",
+                path.display()
+            )));
+        }
     };
     let registry = match parse_registry(&text) {
         Ok(registry) => registry,
-        Err(e) => return VerbOutput::file(format!("ARM ✗  {e}")),
+        Err(e) => return Err(VerbOutput::file(format!("ARM ✗  {e}"))),
     };
 
     // Every law, named. An empty walk IS the green verdict.
     let faults: Vec<String> = validate(&registry).map(|e| format!("  {e}")).collect();
     if !faults.is_empty() {
-        return VerbOutput::file(format!(
+        return Err(VerbOutput::file(format!(
             "ARM ✗  {} in {}\n{}",
             crate::text::count(faults.len(), "refusal"),
             path.display(),
             faults.join("\n")
-        ));
+        )));
     }
 
     // ⭐ The two parsers read the SAME bytes and must agree. They judge
@@ -149,14 +164,24 @@ pub fn run_at(start: &std::path::Path) -> VerbOutput {
     // refuse out loud rather than resolve silently.
     let (shape, grammar) = (project.arm().len(), registry.beat_count());
     if shape != grammar {
-        return VerbOutput::file(format!(
+        return Err(VerbOutput::file(format!(
             "ARM ✗  the two readers of {} disagree · the project shape counts {shape}, \
              the cadence grammar counts {grammar}\n  \
              this is an ENGINE fault, not a file fault — report it with the file",
             path.display()
-        ));
+        )));
     }
+    Ok((path, registry))
+}
 
+/// The report at an explicit root — the tempdir-injectable half
+/// (the `run::ceiling::ladder` precedent).
+#[must_use]
+pub fn run_at(start: &std::path::Path) -> VerbOutput {
+    let (path, registry) = match load(start) {
+        Ok(loaded) => loaded,
+        Err(out) => return out,
+    };
     report(&registry, &path)
 }
 
@@ -323,24 +348,24 @@ mod tests {
     /// The bare dispatch: no subcommand, no flag → the report. The
     /// report half itself is pinned by the `run_at` tests (the
     /// refactor's zero-behavior-change claim); the CWD door is covered
-    /// end-to-end by the binary tests (`tests/arm_fire.rs`), never by
-    /// moving the test process's own CWD (parallel tests race on it).
-    /// The declared-but-unlanded W3 surface refuses honestly — a flag
-    /// that would silently do nothing is a lie.
+    /// end-to-end by the binary tests (`tests/arm_fire.rs` ·
+    /// `tests/arm_emit.rs`), never by moving the test process's own CWD
+    /// (parallel tests race on it). A `--emit`-family flag WITHOUT
+    /// `--emit` refuses honestly — a flag that does nothing is a lie.
     #[test]
-    fn the_w3_surface_refuses_by_name_until_it_lands() {
+    fn emit_flags_without_emit_refuse() {
         let base = crate::verbs::arm::args::ArmArgs {
             sub: None,
-            emit: Some(crate::verbs::arm::args::EmitTarget::Launchd),
-            write: false,
+            emit: None,
+            write: true,
             out: None,
             mode: None,
             env_file: None,
             nika_bin: None,
         };
         let out = run(base);
-        assert_eq!(out.code, exit::FILE, "--emit refuses: {}", out.text);
-        assert!(out.text.contains("W3"), "names the wave: {}", out.text);
+        assert_eq!(out.code, exit::FILE, "--write alone refuses: {}", out.text);
+        assert!(out.text.contains("--emit"), "names the flag: {}", out.text);
     }
 
     #[test]
