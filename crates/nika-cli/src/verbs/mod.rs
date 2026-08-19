@@ -23,6 +23,7 @@ pub mod guard;
 pub mod init;
 pub mod inspect;
 pub mod key;
+pub mod list;
 pub mod mcp_pins;
 pub mod model;
 pub mod new;

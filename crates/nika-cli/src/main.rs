@@ -43,7 +43,7 @@ use lazy::{check_lazy, resolve_lazy_target, run_lazy};
     // The lost-user footer (clig.dev · suggest the next command): a bare
     // `nika` is someone asking where to start, not someone reading a
     // reference. Three commands, zero keys, offline.
-    after_help = "the map (the craft · 12 verbs):\n  begin     try · new · init          # see it work · one file · found a repo\n  prove     check · test              # audit before tokens · goldens\n  run       run · trace               # the living DAG · the flight recorder\n  machine   welcome · doctor · model · wire\n  learn     explain\n\nthe full surface (protocols · trust cycle · plumbing): nika --help --all\n\nstart here:\n  nika                     # the concierge (a terminal greets you)\n  nika try 01-hello        # offline proof · zero keys · zero flags\n  nika init                # found this repo — the wizard"
+    after_help = "the map (the craft · 13 verbs):\n  begin     try · new · init · list   # see it work · one file · found a repo\n  prove     check · test              # audit before tokens · goldens\n  run       run · trace               # the living DAG · the flight recorder\n  machine   welcome · doctor · model · wire\n  learn     explain\n\nthe full surface (protocols · trust cycle · plumbing): nika --help --all\n\nstart here:\n  nika                     # the concierge (a terminal greets you)\n  nika try 01-hello        # offline proof · zero keys · zero flags\n  nika init                # found this repo — the wizard"
 )]
 struct Cli {
     /// When to colour the output (auto = TTY + `TERM != dumb` · honours
@@ -116,6 +116,9 @@ impl ColorWhenArg {
 
 #[derive(Subcommand)]
 enum Command {
+    /// List the workflows below this directory, one relative path per line.
+    #[command(display_order = 11)]
+    List,
     /// The mirror: what Nika is · what this machine already has (editors ·
     /// local models · key presence · this workspace) · the next commands.
     /// Offline · presence-only · always exit 0 — a greeting, not a gate.
@@ -724,6 +727,7 @@ fn dispatch_verb(
     ascii: bool,
 ) -> u8 {
     match command {
+        Command::List => emit(&verbs::list::run(std::path::Path::new("."))),
         Command::Check(args) => check_arm(args, plain_theme),
         Command::Run(args) => run_lazy(args, color, link_when, plain, ascii),
         Command::Test { file, update } => test_arm(file, update, plain_theme),
