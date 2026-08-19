@@ -39,7 +39,7 @@ fn prev_before_is_the_mirror_of_next_after() {
                 .expect("span"),
         )
         .expect("next");
-    assert_eq!(back.at, prev.at, "next_after(prev − 1s) retombe sur prev");
+    assert_eq!(back.at, prev.at, "next_after(prev − 1s) retombe dessus");
 }
 
 #[test]
@@ -53,8 +53,8 @@ fn prev_before_at_the_slot_returns_the_slot_itself() {
 
 #[test]
 fn prev_before_walks_the_dst_gap_backwards() {
-    // N1 miroir · 2026-03-29, Paris avance 02:00 → 03:00: le 02:30 du 29
-    // n'a JAMAIS existé — il a tiré à 03:00 (le premier instant valide
+    // N1 miroir · 2026-03-29, Paris saute 02:00 → 03:00: le 02:30 du 29
+    // n'a JAMAIS existé — il a tiré à 03:00 (le premier instant licite
     // APRÈS), et ce tir-là appartient à next_after. Le miroir le saute
     // et rend le 28.
     let cad = Cadence::parse("TZ=Europe/Paris 30 2 * * *").expect("cadence");
@@ -68,7 +68,7 @@ fn prev_before_walks_the_dst_gap_backwards() {
 fn prev_before_walks_the_dst_fold_backwards() {
     // N1 miroir · 2026-10-25, Paris recule 03:00 → 02:00: 02:30 existe
     // DEUX fois, le beat a tiré à la PREMIÈRE (00:30 UTC). Le miroir la
-    // rend — jamais la seconde occurrence, jamais deux fois.
+    // rend — jamais la 2e occurrence, jamais deux fois.
     let cad = Cadence::parse("TZ=Europe/Paris 30 2 * * *").expect("cadence");
     let from = zoned("2026-10-25T12:00:00[Europe/Paris]");
     let prev = cad.prev_before(&from).expect("slot");
@@ -79,7 +79,7 @@ fn prev_before_walks_the_dst_fold_backwards() {
         "la première occurrence"
     );
     assert_eq!(prev.shift, Shift::FoldedFirst, "le repli est DÉCLARÉ");
-    // …et le créneau d'avant est la VEILLE, pas la seconde occurrence.
+    // …et le créneau d'avant est la VEILLE, pas la 2e occurrence.
     let before = cad
         .prev_before(
             &prev
@@ -229,7 +229,7 @@ arm:
 fn earliest_next_a_tie_keeps_the_first_beat() {
     // Deux beats, même cadence, même prochain créneau — le PREMIER du
     // registre garde l'égalité (un dernier qui l'emporterait rendrait
-    // l'ordre du fichier mensonger). Tue le mutant `< → <=` sur la
+    // l'ordre du fichier mensonger). Tue le mutant `< → <=` dans la
     // comparaison du meilleur.
     let reg = parse_registry(
         "
@@ -293,13 +293,13 @@ fn the_on_time_window_is_five_minutes_to_the_second() {
     assert_eq!(
         plan[0].kind,
         DueKind::Missed { slots: 1 },
-        "une seconde plus tard, raté"
+        "03:05:01 — une respiration de trop, raté"
     );
 }
 
 #[test]
 fn due_counts_every_slot_of_the_silence() {
-    // Deux jours de silence sur un beat quotidien = DEUX créneaux dus.
+    // Deux jours de silence pour un beat quotidien = DEUX créneaux dus.
     let reg = parse_registry(DUE_DAILY).expect("registre");
     let now = zoned("2026-08-18T10:00:00[Europe/Paris]");
     let fired = zoned("2026-08-16T03:00:00[Europe/Paris]");
@@ -330,7 +330,7 @@ fn due_the_gap_fire_is_due_like_any_other() {
     // Le créneau du gap a tiré à 03:00 CEST le 29 mars — un beat dont le
     // dernier tir est la veille le doit À L'HEURE à 03:02. La vue du
     // planificateur est le FEU (next_after porte l'avancé), pas le civil
-    // existant — sinon ce tir manqué tomberait dans un trou.
+    // qui existe — sinon ce tir manqué tomberait dans un trou.
     let gap = DUE_DAILY.replace("0 3 * * *", "30 2 * * *");
     let reg = parse_registry(&gap).expect("registre");
     let fired = zoned("2026-03-28T02:30:00[Europe/Paris]");
@@ -401,7 +401,7 @@ proptest! {
         // prev_before(next_after(t) + 1s) == next_after(t). Exception
         // DÉCLARÉE: le créneau AVANCÉ (gap DST) n'a jamais existé — il
         // n'appartient pas à prev_before; la loi devient « le miroir rend
-        // l'existant d'avant, dont next_after retombe sur l'avancé ».
+        // le réel d'avant, dont next_after retombe dessus ».
         let corpus = [
             "TZ=UTC 30 4 * * *",
             "TZ=Europe/Paris 0 3 * * *",
@@ -422,11 +422,11 @@ proptest! {
             let prev = cad.prev_before(&just_after).expect("le miroir répond");
             if next.shift == Shift::AdvancedFirstValid {
                 prop_assert!(prev.at < next.at, "{} · l'avancé n'est jamais RENDU", expr);
-                let round = cad.next_after(&prev.at).expect("next depuis l'existant");
+                let round = cad.next_after(&prev.at).expect("next depuis le réel");
                 prop_assert_eq!(
                     &round.at,
                     &next.at,
-                    "{} · next_after de l'existant retombe sur l'avancé",
+                    "{} · next_after du réel retombe dessus",
                     expr
                 );
             } else {
