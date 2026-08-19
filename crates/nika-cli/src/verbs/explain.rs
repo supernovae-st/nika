@@ -230,8 +230,9 @@ fn cli_fix_hint(code: &str) -> Option<&'static str> {
              applies it)",
         ),
         "NIKA-PARSE-002" => Some(
-            "every workflow starts with three lines — `nika: v1`, \
-             `workflow: <name>`, and a non-empty `tasks:` list",
+            "every workflow starts with `nika: <kebab-id>` and a non-empty \
+             `tasks:` map (keyed by task id); description is a `#` comment \
+             above `nika:`",
         ),
         "NIKA-PARSE-001" => Some(
             "the YAML itself is broken — check the pointed line for a missing \
@@ -240,9 +241,9 @@ fn cli_fix_hint(code: &str) -> Option<&'static str> {
              `# yaml-language-server:` modeline",
         ),
         "NIKA-PARSE-005" => Some(
-            "the field is not part of the closed v1 envelope — check the \
-             spelling against `nika spec --schema` (the did-you-mean in the finding \
-             usually names it); custom metadata belongs in `description:`",
+            "the field is not in the closed envelope — check the spelling \
+             against `nika spec --schema` (the did-you-mean in the finding \
+             usually names it); custom prose is a `#` comment above `nika:`",
         ),
         "NIKA-PARSE-019" => Some(
             "the field's YAML SHAPE is wrong (a string where a list goes, a \
@@ -433,6 +434,64 @@ mod tests {
         assert!(
             !out.text.contains("errors/NIKA-DAG-003"),
             "never the retired 404:\n{}",
+            out.text
+        );
+    }
+
+    #[test]
+    fn parse_002_teaches_the_nine_key_minimum() {
+        // Leftover fourteen-key teaching (`nika: v1` + `workflow:` + a
+        // `tasks:` list) would send the author back to a dialect this
+        // binary refuses. The minimum is two things: identity on `nika:`
+        // and a non-empty `tasks:` map — never a third required key.
+        let out = run("NIKA-PARSE-002");
+        assert_eq!(out.code, exit::OK, "{}", out.text);
+        assert!(
+            out.text.contains("`nika: <kebab-id>`"),
+            "identity lives on nika:\n{}",
+            out.text
+        );
+        assert!(
+            out.text.contains("`tasks:` map"),
+            "tasks is a map, not a list:\n{}",
+            out.text
+        );
+        assert!(
+            out.text.contains("`#` comment"),
+            "description is a comment, not a key:\n{}",
+            out.text
+        );
+        assert!(
+            !out.text.contains("nika: v1"),
+            "the version slot is gone:\n{}",
+            out.text
+        );
+        assert!(
+            !out.text.contains("workflow: <name>") && !out.text.contains("three lines"),
+            "do not revive the fourteen-key trio:\n{}",
+            out.text
+        );
+    }
+
+    #[test]
+    fn parse_005_teaches_the_closed_envelope_not_description() {
+        // `description:` died with the envelope nuke — unknown fields are
+        // not parked there; custom prose is a `#` comment above `nika:`.
+        let out = run("NIKA-PARSE-005");
+        assert_eq!(out.code, exit::OK, "{}", out.text);
+        assert!(
+            out.text.contains("closed envelope"),
+            "names the closed set:\n{}",
+            out.text
+        );
+        assert!(
+            out.text.contains("`#` comment") && out.text.contains("`nika:`"),
+            "custom prose is a comment above nika:\n{}",
+            out.text
+        );
+        assert!(
+            !out.text.contains("description:"),
+            "description: is dead:\n{}",
             out.text
         );
     }
