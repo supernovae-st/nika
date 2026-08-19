@@ -271,7 +271,16 @@ fn collect_builtin_effect(c: &mut Collector, id: &str, a: &nika_schema::raw::Raw
             reads,
             writes,
             recursive,
-        }) => match judgeable_arg(&c.consts, a, path_arg) {
+            walk_root,
+        }) => match judgeable_arg(&c.consts, a, path_arg).map(|raw| {
+            // Inference must write a boundary the RUNTIME accepts · for a
+            // glob that is the walk root, never the pattern (2026-08-19).
+            if walk_root {
+                nika_cap::glob_walk_root(&raw)
+            } else {
+                raw
+            }
+        }) {
             Some(path) => {
                 // a recursive effect (nika:grep reads descendants ·
                 // nika:image_generate writes into the dir) touches

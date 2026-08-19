@@ -298,8 +298,15 @@ fn collect_action_effects(
                     reads,
                     writes,
                     recursive,
+                    walk_root,
                 }) => {
-                    if let Some(path) = judgeable_arg(consts, a, path_arg) {
+                    if let Some(path) = judgeable_arg(consts, a, path_arg).map(|raw| {
+                        if walk_root {
+                            nika_cap::glob_walk_root(&raw)
+                        } else {
+                            raw
+                        }
+                    }) {
                         let entry = if recursive {
                             format!("{path}/**")
                         } else {
