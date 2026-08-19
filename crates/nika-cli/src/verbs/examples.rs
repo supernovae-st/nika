@@ -95,10 +95,11 @@ const CONSTRUCTS: [(&str, &str); 15] = [
 /// TWO keys need their nesting checked, and getting this wrong is not a
 /// cosmetic miss — it inverts the answer:
 ///
-/// - `workflow:` at column 0 is the ENVELOPE every file carries. Only an
-///   INDENTED one is a call to another workflow. Counted flat, composition
-///   read as « 33 files » when the true answer is zero, and the corpus
-///   would have reported full coverage of the construct it covers least.
+/// - `workflow:` at column 0 is the retired envelope identity (the
+///   name lives on `nika:` since 0.109), not composition. Only an
+///   INDENTED one is a call to another workflow. Counted flat, leftover
+///   fourteen-key files would read as composition coverage they do not
+///   have.
 /// - `inputs:` is the same shape: the top-level authority block, not a
 ///   nested key.
 ///

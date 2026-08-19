@@ -12,11 +12,13 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Fixed
 
-- **Leftover fourteen-key teaching in `nika explain` and the
-  `RawWorkflow` rustdoc fence.** `NIKA-PARSE-002` taught `nika: v1` +
-  `workflow:` + a `tasks:` list; `NIKA-PARSE-005` parked custom metadata
-  in `description:`. Both now speak the live nine-key envelope (identity
-  on `nika: <kebab-id>` · `tasks:` is a map · prose is a `#` comment
+- **Leftover fourteen-key teaching in `nika explain` and rustdoc.**
+  `NIKA-PARSE-002` taught `nika: v1` + `workflow:` + a `tasks:` list;
+  `NIKA-PARSE-005` parked custom metadata in `description:`. The
+  `RawWorkflow` fence, the analyzer crate doc, `MissingEnvelopeField`,
+  and the LSP outline still named `workflow:` as a required envelope
+  key. They now speak the live nine-key envelope (identity on
+  `nika: <kebab-id>` · `tasks:` is a map · prose is a `#` comment
   above `nika:`).
 
 ## [0.109.2](https://github.com/supernovae-st/nika/compare/v0.109.1..v0.109.2) - 2026-08-19
