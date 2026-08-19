@@ -274,6 +274,7 @@ impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::arm::args::Fire
 impl<T> typenum::type_operators::Same for nika_cli::verbs::arm::args::FireArgs
 pub type nika_cli::verbs::arm::args::FireArgs::Output = T
 pub mod nika_cli::verbs::arm::emit
+pub fn nika_cli::verbs::arm::emit::disarm(label: &str, write: bool) -> nika_cli_host::output::VerbOutput
 pub fn nika_cli::verbs::arm::emit::run(args: &nika_cli::verbs::arm::args::ArmArgs, emit_target: nika_cli::verbs::arm::args::EmitTarget) -> nika_cli_host::output::VerbOutput
 pub mod nika_cli::verbs::arm::fire
 pub struct nika_cli::verbs::arm::fire::FireCtx
@@ -343,6 +344,7 @@ pub fn nika_cli::verbs::arm::fire::labels(registry: &nika_cadence::registry::Arm
 pub fn nika_cli::verbs::arm::fire::run(fire: &nika_cli::verbs::arm::args::FireArgs) -> nika_cli_host::output::VerbOutput
 pub mod nika_cli::verbs::arm::state
 pub enum nika_cli::verbs::arm::state::FireKind
+pub nika_cli::verbs::arm::state::FireKind::Disarmed
 pub nika_cli::verbs::arm::state::FireKind::Failed
 pub nika_cli::verbs::arm::state::FireKind::Fired
 pub nika_cli::verbs::arm::state::FireKind::Paused

@@ -63,7 +63,7 @@ pub fn run(args: args::ArmArgs) -> VerbOutput {
     use args::ArmSub;
     match args.sub {
         Some(ArmSub::Fire(f)) => fire::run(&f),
-        Some(ArmSub::Disarm { label, write }) => disarm(&label, write),
+        Some(ArmSub::Disarm { label, write }) => emit::disarm(&label, write),
         None => {
             if let Some(target) = args.emit {
                 return emit::run(&args, target);
@@ -89,25 +89,6 @@ fn emits_requested(args: &args::ArmArgs) -> bool {
         || args.mode.is_some()
         || args.env_file.is_some()
         || args.nika_bin.is_some()
-}
-
-/// `arm disarm <label>` — the N4 teaching. Removing the line does NOT
-/// disarm (the state would go ORPHAN, and the machine keeps its
-/// record); the gesture is a suspension the file re-reads.
-#[must_use]
-fn disarm(label: &str, write: bool) -> VerbOutput {
-    if write {
-        return VerbOutput::file(
-            "arm disarm --write · the OS-unit teardown arrives with the W3 wave".to_owned(),
-        );
-    }
-    VerbOutput::ok(format!(
-        "disarm `{label}` — law N4: removing the line does NOT disarm\n  \
-         the gesture, in nika.yaml, on the beat's entry:\n  \
-         · actif: false   — the declared intention\n  \
-         · raison: \"…\"    — why it sleeps (a suspension is told)\n  \
-         · jusqu_au: YYYY-MM-DD — when it wakes or is deleted"
-    ))
 }
 
 /// The shared door — every arming edge walks it (the report below ·
@@ -368,15 +349,15 @@ mod tests {
         assert!(out.text.contains("--emit"), "names the flag: {}", out.text);
     }
 
+    /// The teaching half (no `--write`) is unit-testable here; the
+    /// teardown half needs a redirected HOME, so it rides
+    /// `tests/arm_emit.rs` in a spawned process.
     #[test]
-    fn disarm_teaches_the_n4_gesture_and_refuses_the_unit_teardown() {
-        let teach = disarm("doctor", false);
+    fn disarm_teaches_the_n4_gesture() {
+        let teach = emit::disarm("doctor", false);
         assert_eq!(teach.code, exit::OK, "{}", teach.text);
         assert!(teach.text.contains("actif: false"), "{}", teach.text);
         assert!(teach.text.contains("jusqu_au"), "{}", teach.text);
-        let teardown = disarm("doctor", true);
-        assert_eq!(teardown.code, exit::FILE, "{}", teardown.text);
-        assert!(teardown.text.contains("W3"), "{}", teardown.text);
     }
 
     /// The report tells PROUVÉ from DÉCLARÉ and names the ORPHELINS —

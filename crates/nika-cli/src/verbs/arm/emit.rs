@@ -246,3 +246,124 @@ fn load_commands(units: &[Unit], target: EmitTarget, dir: Option<&Path>) -> Vec<
     }
     out
 }
+
+/// `arm disarm <label>` — without `--write`, teach the N4 gesture (the
+/// file-side suspension). With `--write`, remove the EMITTED unit only
+/// (recognized by its GENERATED header — a foreign unit is NEVER
+/// touched, and one foreign candidate refuses the WHOLE gesture), print
+/// the bootout command, and journal the disarm in the beat's history.
+/// « Absence never disarms — this does. »
+#[must_use]
+pub fn disarm(label: &str, write: bool) -> VerbOutput {
+    if !write {
+        return VerbOutput::ok(format!(
+            "disarm `{label}` — law N4: removing the line does NOT disarm\n  \
+             the gesture, in nika.yaml, on the beat's entry:\n  \
+             · actif: false   — the declared intention\n  \
+             · raison: \"…\"    — why it sleeps (a suspension is told)\n  \
+             · jusqu_au: YYYY-MM-DD — when it wakes or is deleted"
+        ));
+    }
+    let Some(home) = std::env::home_dir() else {
+        return VerbOutput::env("arm disarm --write · HOME introuvable".to_owned());
+    };
+    // Both OS homes are scanned on ANY host — a checkout can hold units
+    // written for another machine.
+    let candidates = [
+        home.join("Library/LaunchAgents")
+            .join(format!("nika.arm.{label}.plist")),
+        home.join(".config/systemd/user")
+            .join(format!("nika.arm.{label}.timer")),
+        home.join(".config/systemd/user")
+            .join(format!("nika.arm.{label}.service")),
+    ];
+    // First pass, READ ONLY: every candidate that exists must carry the
+    // GENERATED header before anything is removed.
+    let mut present = Vec::new();
+    for path in &candidates {
+        match std::fs::read_to_string(path) {
+            Ok(body) => {
+                if !body.contains(emit::GENERATED_MARK) {
+                    return VerbOutput::file(format!(
+                        "arm disarm {label} · {} ne porte pas la marque GENERATED — une unité étrangère, JAMAIS touchée · retire-la à la main si elle est à toi",
+                        path.display()
+                    ));
+                }
+                present.push(path);
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+            Err(e) => {
+                return VerbOutput::env(format!("arm disarm {label} · {}: {e}", path.display()));
+            }
+        }
+    }
+    if present.is_empty() {
+        return VerbOutput::ok(format!(
+            "arm disarm {label} · aucune unité émise — rien à démonter (le fichier demeure le geste: actif: false · raison: · jusqu_au:)"
+        ));
+    }
+    let mut out = String::new();
+    for path in &present {
+        if let Err(e) = std::fs::remove_file(path) {
+            return VerbOutput::env(format!("arm disarm {label} · {}: {e}", path.display()));
+        }
+        let _ = writeln!(out, "retiré {}", path.display());
+    }
+    let _ = writeln!(out, "décharge:");
+    for command in bootout_commands(label, &present) {
+        let _ = writeln!(out, "  {command}");
+    }
+    out.push_str(&journal_disarm(label));
+    VerbOutput::ok(out)
+}
+
+/// The bootout commands — printed, never run. The `.service` rides its
+/// timer's disable (no `[Install]` there).
+fn bootout_commands(label: &str, removed: &[&PathBuf]) -> Vec<String> {
+    let mut out = Vec::new();
+    for path in removed {
+        let name = path.display().to_string();
+        if std::path::Path::new(&name)
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("plist"))
+        {
+            out.push(format!("launchctl bootout gui/$UID {name}"));
+        } else if std::path::Path::new(&name)
+            .extension()
+            .is_some_and(|ext| ext.eq_ignore_ascii_case("timer"))
+        {
+            out.push(format!(
+                "systemctl --user disable --now nika.arm.{label}.timer"
+            ));
+        }
+    }
+    out
+}
+
+/// Journal the disarm in the beat's history (N4 made machine-real) —
+/// when a project is here to hold the sidecar. The removal already
+/// happened; a missing journal is SAID, never silent.
+fn journal_disarm(label: &str) -> String {
+    let Ok(cwd) = std::env::current_dir() else {
+        return String::new();
+    };
+    let Ok(Some((path, _))) = nika_vocab::project::discover(&cwd) else {
+        return "· historique non journalé — aucun projet ici (le sidecar vit à sa racine)\n"
+            .to_owned();
+    };
+    let root = path.parent().map_or_else(|| cwd.clone(), Path::to_path_buf);
+    let state = super::state::ArmState::at_project(&root);
+    let entry = super::state::HistoryEntry {
+        slot: None,
+        decided_at: jiff::Zoned::now().timestamp(),
+        kind: super::state::FireKind::Disarmed,
+        reason: Some("unité retirée".to_owned()),
+        trace: None,
+        exit: None,
+        slots: None,
+    };
+    match state.record(label, &entry) {
+        Ok(()) => format!("· journalé: disarmed dans .nika/arm/{label}/history.ndjson\n"),
+        Err(e) => format!("· historique NON journalé ({e}) — l'unité, elle, est retirée\n"),
+    }
+}

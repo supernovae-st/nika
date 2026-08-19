@@ -310,3 +310,86 @@ fn emit_flags_without_emit_and_mode_system_refuse_honestly() {
     let stdout = String::from_utf8_lossy(&out.stdout);
     assert!(stdout.contains("system"), "nommé: {stdout}");
 }
+
+// ── W3 · disarm --write (the teardown) ─────────────────────────────
+
+#[test]
+fn disarm_refuses_a_foreign_unit() {
+    // A unit WITHOUT the GENERATED mark is foreign — never touched,
+    // the whole gesture refuses (nothing is ever half-torn down).
+    let zone = machine_zone();
+    let dir = project("foreign", &registry_in(&zone));
+    let home = home(&dir);
+    let foreign = home.join("Library/LaunchAgents/nika.arm.doctor.plist");
+    std::fs::create_dir_all(foreign.parent().expect("parent")).expect("dir");
+    std::fs::write(
+        &foreign,
+        "<?xml version=\"1.0\"?><plist version=\"1.0\"><dict/></plist>\n",
+    )
+    .expect("foreign unit");
+
+    let out = arm(&dir, &home, &["arm", "disarm", "doctor", "--write"]);
+    assert_eq!(out.status.code(), Some(2), "le refus: {out:?}");
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(
+        stdout.contains("GENERATED"),
+        "la marque est nommée: {stdout}"
+    );
+    assert!(
+        stdout.contains(&*foreign.display().to_string()),
+        "le chemin est nommé: {stdout}"
+    );
+    assert!(foreign.exists(), "l'unité étrangère demeure");
+    // … and nothing was journaled (the gesture refused).
+    assert!(!dir.join(".nika/arm/doctor/history.ndjson").exists());
+}
+
+#[test]
+fn disarm_removes_an_emitted_unit_and_journals() {
+    let zone = machine_zone();
+    let dir = project("teardown", &registry_in(&zone));
+    let home = home(&dir);
+    // Emit first (the local gesture), then disarm.
+    let out = arm(&dir, &home, &["arm", "--emit", "launchd", "--write"]);
+    assert_eq!(out.status.code(), Some(0));
+    let plist = home.join("Library/LaunchAgents/nika.arm.doctor.plist");
+    assert!(plist.exists(), "émise");
+
+    let out = arm(&dir, &home, &["arm", "disarm", "doctor", "--write"]);
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(!plist.exists(), "retirée");
+    assert!(
+        stdout.contains(&format!("launchctl bootout gui/$UID {}", plist.display())),
+        "le bootout est imprimé, jamais exécuté: {stdout}"
+    );
+    // The beat's history carries the disarm (N4 made machine-real).
+    let history = std::fs::read_to_string(dir.join(".nika/arm/doctor/history.ndjson"))
+        .expect("history.ndjson");
+    assert!(history.contains("\"kind\":\"disarmed\""), "{history}");
+    assert!(stdout.contains("disarmed"), "le journal est dit: {stdout}");
+}
+
+#[test]
+fn disarm_without_a_unit_says_nothing_was_torn_down() {
+    let zone = machine_zone();
+    let dir = project("absent", &registry_in(&zone));
+    let home = home(&dir);
+    let out = arm(&dir, &home, &["arm", "disarm", "doctor", "--write"]);
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "rien à démonter n'est pas une faute"
+    );
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    assert!(stdout.contains("aucune unité"), "{stdout}");
+    assert!(
+        !dir.join(".nika/arm/doctor/history.ndjson").exists(),
+        "rien ne s'est passé, rien ne se journalise"
+    );
+}
