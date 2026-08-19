@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | **CANDIDATE** — Gate 1 (this document) authored 2026-08-11. Crafted shim-standalone (50 tests today, 45 at authoring · clippy 0 `-D warnings` · rustfmt clean) · committed with the temporary `[workspace]` shim (`92a0f8497`), then the four pre-freeze corrections of plan §2unvicies (the bitset's ONE encoding · `Slot` declares the DST shift · the field count is the type · the error span). The two items this row used to name (the allowlist row, the shim removal) are BOTH DONE; the row described work already shipped. Remaining before admission, measured 2026-08-13: the Gate 11 P1 below, and Gate 5 at 88 percent against a 90 floor. |
+| Status | **CANDIDATE** — Gate 1 (this document) authored 2026-08-11. Crafted shim-standalone (50 tests today, 45 at authoring · clippy 0 `-D warnings` · rustfmt clean) · committed with the temporary `[workspace]` shim (`92a0f8497`), then the four pre-freeze corrections of plan §2unvicies (the bitset's ONE encoding · `Slot` declares the DST shift · the field count is the type · the error span). The two items this row used to name (the allowlist row, the shim removal) are BOTH DONE; the row described work already shipped. Remaining before admission, measured 2026-08-13: the Gate 11 P1 below, and Gate 5 at 88 percent against a 90 floor. **W1, measured 2026-08-19**: 79 tests green (`cargo test -p nika-cadence --lib`) · `Cadence::prev_before` (the mirror, 366-day bound) · the `due` planner (`due` · `earliest_next` · `DueKind` · `ON_TIME_WINDOW`) — the pure half the `fire`/`serve` edges read; `emit` lands in W3 (planned, see §3). Gate 5 re-run this wave; the floor holds ≥90. |
 | Layer | L0 — pure, zero I/O, zero async |
 | Design | The arming-registry grammar (the `arm:` block of `nika.yaml`, D-2026-08-10-N3) + the pure next-slot calculator. Hand-counted 5-field cron (zero cron library — the count is validated BEFORE field semantics, scar #6) · IANA zones resolved from the EMBEDDED tzdb only (`jiff-tzdb`, never the host's zoneinfo) · two cadence forms (cron + readable `lundi 9h07`), display normalizing to the readable one. |
 | LOC budget | ≤2,000 src prod (post-corrections 1,467 prod + 753 cfg(test)) · ≤15,000 hard cap |
@@ -70,8 +70,11 @@ time — the caller sleeps, never the calculator) · host zone resolution
   out slices or iterators) · `#[non_exhaustive]` on public-field
   structs (FCI-016) · wire tag frozen at `nika: v1` (FCI-003) <!-- stale-ok: the PROJECT file (nika.yaml) · the engine still freezes v1 here while spec 01 says nika: <name> · engine work owed -->
 - the day walk happens in the BEAT's zone — a Monday slot is Monday in
-  Paris, whatever zone `from` rides · horizon 1,500 days (a 29 February
-  is never further than 4 years)
+  Paris, whatever zone `from` rides · horizon 3,000 days forward (a
+  century year is leap only when divisible by 400: from 2096-03-01 the
+  next 29 February is 2,920 days out — the 1,500-day horizon died on
+  that, §6.2) · 366 days backward (`prev_before`: the recent past a
+  planner asks about, never an archaeology)
 
 ## 3. Public surface
 
@@ -82,20 +85,42 @@ is the TYPE — `parse_cron_fields(&[&str; 5])`, scar #6 is the
 compiler's) · `Cadence::next_after(&Zoned) -> Option<Slot>` where
 `Slot { at, civil, shift }` DECLARES the DST displacement
 (`Shift::{Exact, AdvancedFirstValid, FoldedFirst}` — N1 at the type
-level; a merged slot says so) · `Cadence::describe() -> String` (the
+level; a merged slot says so) · `Cadence::prev_before(&Zoned) ->
+Option<Slot>` (W1 — the mirror: strictly-after there, at-or-before
+here, the two bound the half-open interval `(prev, next]` a beat is
+due in; 366-day walk; the gap's advanced slot is never RETURNED —
+`next_after` carries it) · `Cadence::describe() -> String` (the
 readable form wins, full fields print `*` — the bitset's one
-encoding) · `phrase::next_slots(&Cadence, &Zoned, usize) -> impl
+encoding) · `next::next_slots(&Cadence, &Zoned, usize) -> impl
 Iterator<Item = Slot>` · `ArmRegistry::{SCHEMA, beats, beat_count}` ·
 `Beat::{locus, overlap, after_skip, is_active}` · `CronSpec` field
 accessors handing out `Field<LO, HI>` (the bitset: `contains` ·
-`iter` · `single` · `is_full` · 8 bytes · `Copy` · zero alloc) ·
+`iter` — double-ended since W1, the backwards walk rides `.rev()` —
+`single` · `is_full` · 8 bytes · `Copy` · zero alloc) ·
 `CadenceError{kind, detail, remedy, on, span}` (the span paints the
 faulty byte, the `CelError` precedent) + `CadenceErrorKind::
 spec_code()`.
 
+**W1 — the pure planner (`due` module), the half both firing edges
+read** (`fire` at W2 · `serve` at W5): `due(&ArmRegistry, &Zoned, &dyn
+Fn(usize) -> Option<Zoned>) -> Result<impl Iterator<Item = Due>,
+CadenceError>` — active · local beats whose previous slot falls in
+`(last_fired, now]`, the firing state arriving as a CALLBACK (N2: the
+crate computes slots, never carries run state) · `earliest_next(
+&ArmRegistry, &Zoned) -> Result<Option<(usize, Slot)>, CadenceError>`
+— what the edge sleeps until · `Due { index, beat, slot, kind }` ·
+`DueKind::{OnTime, Missed { slots }}` (the silence counted whole over
+the FIRE set — the gap's advanced fire included — saturated at
+`MISSED_SLOTS_CAP` = 10,000) · `ON_TIME_WINDOW` = 5 minutes (a
+`SignedDuration`: absolute time, and `Span`'s builders are not `const`
+in jiff 0.2). **Planned, not landed**: `emit` (the launchd/systemd
+projection) is W3's — this crate stays the pure half; the OS
+rendering lands with its own spec amendment.
+
 ## 4. Tests
 
-50 today, 45 at authoring (the four pre-freeze corrections added five that
+79 today (W1, 2026-08-19 — 50 before the wave; the planner and the
+mirror added the rest), 45 at authoring (the four pre-freeze corrections added five that
 were described in prose here without being recounted): parse (both forms ·
 TZ-less refused · 6 fields refused
 by the TYPE · out-of-range · Vixie OR judged on the sets (`1-31` dom is
@@ -105,13 +130,24 @@ every day) · unknown zone · 7-is-dimanche · spans pin the faulty token)
 fires 03:00 CEST with `Shift::AdvancedFirstValid`, the 2026-10-25 fold
 fires once with `Shift::FoldedFirst`, and the gap-day merge
 `0,30 2,3 * * *` is visible in the returned slots — 4 civil slots, 2
-fires, the absorbing fire declared) · the two-encodings regression
+fires, the absorbing fire declared) · **the mirror (W1)**: at-or-before
+· the slot at the instant itself · gap walked backwards (the advanced
+slot is never returned) · fold walked backwards (the first occurrence,
+then the EVE — never the second) · the 366-day bound (a 29 February
+three years back is `None`) · month/year crossing backwards · **the
+planner (W1)**: on-time due once · missed with the silence counted ·
+idle/cloud never due · already-fired never re-due · never-fired invents
+no backlog (N2) · the 5-minute window to the second · the 10,000 cap ·
+the gap fire due like any other (the fire-set read) · a law-breaking
+cadence refuses the whole plan · the two-encodings regression
 (`describe("* * * * *")` stays 5 fields, not 244 chars) · validate
 (every law, every refusal teaching its fix) · the embedded tzdb proven
 twice (behavioral Paris offsets + a static source guard: no non-comment
 line may name the host-preferring resolvers) · proptest (parse never
 panics · law pass never panics · a daily slot is strictly later and
-within a day). Mutation floor: run `check-mutation-floor.sh` at
+within a day · **the inverse law (W1)**: `prev_before(next_after(t) +
+1s) == next_after(t)` over the corpus, the gap slot's exception
+declared). Mutation floor: run `check-mutation-floor.sh` at
 admission.
 
 ## 5. Non-goals / guards
