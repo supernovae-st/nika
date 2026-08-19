@@ -294,7 +294,6 @@ fn run_verdict(
         Ok(pair) => pair,
         Err(verdict) => return *verdict,
     };
-
     // ── Audit BEFORE run (spec §3 · INV the runtime also enforces) ──
     let (source, wf, report) = match crate::verbs::load_checked_with_source(file) {
         Ok(pair) => pair,
