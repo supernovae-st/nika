@@ -906,6 +906,7 @@ pub fn nika_verb_agent::AgentVerb<P, T, D>::new(provider: alloc::sync::Arc<P>, i
 pub fn nika_verb_agent::AgentVerb<P, T, D>::with_config(self, config: nika_verb_agent::config::AgentConfig) -> Self
 pub fn nika_verb_agent::AgentVerb<P, T, D>::with_observer(self, observer: alloc::sync::Arc<dyn nika_verb_agent::observe::AgentObserver>) -> Self
 pub fn nika_verb_agent::AgentVerb<P, T, D>::with_schema_retry_budget(self, budget: u8) -> Self
+pub fn nika_verb_agent::AgentVerb<P, T, D>::with_spill<S>(self, store: alloc::sync::Arc<S>) -> Self where S: nika_kernel_core::io::blob::BlobStoreDyn + core::marker::Sync + 'static
 impl<P, T, D> core::fmt::Debug for nika_verb_agent::AgentVerb<P, T, D>
 pub fn nika_verb_agent::AgentVerb<P, T, D>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<D> owo_colors::OwoColorize for nika_verb_agent::AgentVerb<P, T, D>
