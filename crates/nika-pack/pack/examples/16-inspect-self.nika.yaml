@@ -17,6 +17,9 @@
 #
 # Other views · `cost` · `records` · `threads` (advisory).
 #
+# Next door · [`17-tts-self`](17-tts-self.nika.yaml) is the last
+# named showcase — mock TTS, a real WAV on disk.
+#
 # Run · nika try 16-inspect-self
 #   (offline · mock/echo · zero keys)
 
