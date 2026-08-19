@@ -53,6 +53,9 @@ four are the decisions that cost rounds when guessed instead of copied.
 | the same task for every item of a collection | `07-for-each-locales` |
 | extract facts, then score them without a second infer | `13-extract-then-law` |
 | publish or abstain from a Decision Bundle | `14-decide-publish` |
+| an agent drafts a file and checks it until valid | `15-compose-self-check` |
+| the run reads its own DAG / cost / records | `16-inspect-self` |
+| mock TTS that writes a real WAV | `17-tts-self` |
 | land a typed artifact on disk | `t1-meeting-actions` |
 | poll something, act only when a condition holds | `t1-price-watch` |
 | rows in, chart and report out, zero model calls | `t2-csv-chart-report` |
@@ -99,7 +102,7 @@ the `.nika.yaml` extension. `nika new <slug>` makes one yours;
    `--native-strict` is the run-gate bar (an `exec:` a builtin covers).
    `.paid_ready` is the paid-infer bar (`nika check --json | jq .paid_ready`).
    A green exit with leftover `infer-as-law` / `digit-string-enum` /
-   `glob-readme` / `jq-as-map` / `inspect-unwired` / `unproven-law` is
+   `glob-readme` / `jq-as-map` / `unproven-law` is
    legal, not the one-way. The MCP `nika_check` oracle fails
    `infer-as-law` and `digit-string-enum` by default.
    The exec ledger does NOT buy an exemption (measured: a `.py` wrapper
@@ -285,8 +288,8 @@ this with a paid seat.
 1. `nika check --json --native-strict` until `clean` and `paid_ready`
    are both true (zero findings, zero paid-run hints).
 2. Probe every new builtin in a one-task file on `mock/echo` *before*
-   wiring it after a paid `infer:` (`nika:inspect` is catalogued and
-   unwired — hint `inspect-unwired`).
+   wiring it after a paid `infer:` (`nika:inspect` is live — lesson
+   `16-inspect-self` asserts `available` at run start).
 3. Freeze the extract schema type. Numeric facts are `type: integer`
    with a numeric `enum`. `enum: ["0","1","3"]` is the shape models do
    not emit (JSON `3` — hint `digit-string-enum`).
@@ -334,7 +337,7 @@ or `for_each:` over items — never one giant infer. Verification is
 4. **Is every numeric enum `type: integer`?** Hint `digit-string-enum`.
 5. **Does a markdown glob include README?** Hint `glob-readme`.
 6. **Did I probe every new builtin on `mock/echo`?** One-task file,
-   then wire it. `nika:inspect` is unwired (hint `inspect-unwired`).
+   then wire it. `nika:inspect` is live (`16-inspect-self`).
 7. **Would a closer template have given this graph?** `nika new "?"`
    and `nika new "the job in plain words"`. If a skeleton is closer
    than what I wrote, start over from it.
