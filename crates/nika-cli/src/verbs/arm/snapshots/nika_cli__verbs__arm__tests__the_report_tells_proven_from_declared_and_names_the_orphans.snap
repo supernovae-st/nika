@@ -1,0 +1,17 @@
+---
+source: crates/nika-cli/src/verbs/arm/mod.rs
+expression: shown
+---
+2 beats in [PROJET]/nika.yaml
+
+  [idle ] workflows/prouve.nika.yaml · TZ=Europe/Paris lundi 9h07
+         ✓ PROUVÉ · fired · 2026-08-18T07:07:04Z · slot 2026-08-18T07:07:00Z · 1 saut / 3 tirs · tolérance 3/4
+         par: thibaut — déclaré · non vérifié
+
+  [idle ] workflows/declare.nika.yaml · TZ=Europe/Paris 0 3 * * *
+         · DÉCLARÉ — le registre le dit, la machine ne l'a jamais tiré
+
+orphelins (N4 — rapportés, JAMAIS effacés):
+  · ghost — .nika/arm/ghost/
+
+nothing was scheduled — `nika arm` READS the file. The machine that fires them is the arming edge.
