@@ -1,8 +1,9 @@
 # 01 · Envelope
 
-> Every Nika workflow starts with one header line. That line names the
-> language and pins the contract version. Everything else is the
-> workflow id, optional defaults, and the task graph.
+> Every Nika workflow starts with one header line, `nika: <id>`. That
+> line names the language and names the file · the mark AND the name, no
+> version typed anywhere. Everything else is optional defaults, the
+> declared boundary, and the task graph.
 
 ---
 
@@ -642,6 +643,18 @@ maps, nothing else). That property is checkable BEFORE the run.
 > reviewed file and cannot be interpolated from a model's output
 > (`NIKA-VAR-005`), so this is authority an author takes, not authority an
 > injection steals.
+>
+> ✅ **The environment half shipped 2026-08-15.** Re-measured that day on the
+> three authority shapes (absent block · explicit empty `permits.env` ·
+> granted `permits.env`): a `nika:jq` expression or an `extract:` binding that
+> reaches for `env` is REFUSED at `nika check` with `NIKA-VAR-005`, naming the
+> class. `env` is withheld from the function set every jq seam compiles with,
+> so the program never becomes runnable. **The word `provably` is deliberately
+> NOT restored above** — N26 names four ambient classes and only the
+> environment is closed. The clock is still read (`now`), and its remedy is
+> D-2026-08-11-N27's rebinding to the run's start instant, not this
+> subtraction. When N27 ships, `provably limited to pure compute` becomes
+> earnable; today `limited to compute` remains the accurate phrase.
 
 **The engine MUST enforce `permits:` on BOTH surfaces** ·
 1. **Statically** (`nika check`) · a `nika:write ./etc/x` outside `fs.write`,

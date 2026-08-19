@@ -1027,16 +1027,15 @@ the spelling can state — you cannot name a binding after the raw response —
 where before it was the block forbidding its own name. The reserved list dies
 separately, with the `tasks.X.out.<name>` disjoint tree; until then it stands.
 
-**Status · executed in this repo 2026-08-12 · the engine leg is owed.**
+**Status · executed in this repo 2026-08-12 · the engine leg landed in 0.109.0 (2026-08-18).**
 Measured here at execution · **17 workflow files + 6 spec fences** carry the
 field (the earlier « 12 in this repo » estimate was low). The rename lands in
 the engine parser, this schema, the corpus, the VS Code extension and the
 website; **this repo's leg is done and its own oracle moved with it** (schema
 `$defs/task`, `conformance/deep_static.py`, `conformance/runner.py`,
-`scripts/showcase-projector.py`). The shipped 0.108.0 binary refuses
-`extract:` with `NIKA-PARSE-005` and will until the engine leg lands — the
-same lead the corpus already carries on the envelope (`nika: v1`), not a new
-class of divergence. The migration is `canon/migrations.yaml` row
+`scripts/showcase-projector.py`). The shipped 0.108.0 binary refused
+`extract:` with `NIKA-PARSE-005` until 0.109.0 — the same lead the corpus
+then carried on the envelope, not a new class of divergence. The migration is `canon/migrations.yaml` row
 `mig-r4-task-extract-replaces-output` (`old_form: output` · `new_form:
 extract` · mechanical 1:1, equivalence-or-stop) with a `canon/tombstones.yaml`
 entry for the dead spelling, per the discipline every prior rename followed.

@@ -7,7 +7,7 @@
 #   sealed outcome_class enum) · the 15 ledger sections (canon/EXCEPTIONS.md ·
 #   SSOT-1 §18) stay AUTHORED and are carried verbatim — editing those is legal.
 # regenerate: python3 scripts/ssot-compiler.py --emit-canon
-# body-sha256: 217600dc1ce36a702d8958847d3d560d6ec6299b3d69f51f76b794fa1939a3a8
+# body-sha256: e37589b28d142270ec5f0f374148d546dfa804444af0e4068c6b14f27694af21
 #   (digest of every byte below the end-of-header line · detached self-hash per PAA-006)
 # ---- end generated header (SSOT-1 §21-23 · the canon flip · C0)
 # nika canonical registry · the single source of truth for Nika canonical facts
@@ -111,11 +111,13 @@ verbs:
     - { name: agent,  semantic: "Multi-turn agentic loop · tool calling · guardrails" }
 
 # ---------------------------------------------------------------- namespaces
-# The 6 substitution namespaces · LOCKED at v1 (spec/04-variables.md · the
-# four value authorities inputs/config/const/secrets — the E-split family
-# (R3a · LAW-SURFACE-0201) that succeeded the dead vars/env spellings at C2 —
-# plus the runtime namespaces with/tasks · loop-locals item/index are
-# for_each-scoped locals · NOT a 7th namespace).
+# The 5 substitution namespaces · LOCKED at v1 (spec/04-variables.md · the
+# three value authorities inputs/const/secrets — the E-split family
+# (R3a · LAW-SURFACE-0201) that succeeded the dead vars/env spellings at C2 ·
+# config, the fourth, died at the envelope nuke 2026-08-12 (a deployment knob
+# is an inputs: entry with required: false + default:) — plus the runtime
+# namespaces with/tasks · loop-locals item/index are for_each-scoped locals ·
+# NOT a namespace).
 namespaces:
   count: 5
   immutable: true
@@ -351,7 +353,7 @@ error_codes:
     - { code: NIKA-TYPE-005, category: security_error, transient: "false", failure: "a secret-carrying type in a lowered position (reserved with secret<T> · W4)" }
     - { code: NIKA-TYPE-006, category: validation_error, transient: "false", failure: "regex pattern outside the locked dialect (backreference · lookaround · named group · inline flags · lazy/possessive · word-boundary · unicode-class — spec 09 §the regex dialect)" }
     - { code: NIKA-TYPE-101, category: validation_error, transient: "false", failure: "run-time contract violation — the decoded value does not fit returns: (exec:/invoke: lane)" }
-    - { code: NIKA-VAR-001, category: variable_error, transient: "false", failure: "unresolved reference (unknown namespace entry · undeclared inputs/config/const/secrets/with key)" }
+    - { code: NIKA-VAR-001, category: variable_error, transient: "false", failure: "unresolved reference (unknown namespace entry · undeclared inputs/const/secrets/with key)" }
     - { code: NIKA-VAR-002, category: variable_error, transient: "false", failure: "binding cardinality — a jq binding emitted zero or multiple values" }
     - { code: NIKA-VAR-003, category: validation_error, transient: "false", failure: "provably-invalid path into a declared schema (static walk)" }
     - { code: NIKA-VAR-004, category: variable_error, transient: "false", failure: "jq runtime error while evaluating a binding" }
@@ -415,14 +417,14 @@ error_codes:
     - { code: NIKA-AUTH-011, category: validation_error, transient: "false", failure: "a lift: entry whose named law would not have fired on this task — a trapdoor that lifts nothing is refused, never a silent no-op (10 §the authored doors rule 6)" }
     - { code: NIKA-VALUES-001, category: validation_error, transient: "false", failure: "vars: is a dead envelope field (R3a · the E-split)" }
     - { code: NIKA-VALUES-002, category: validation_error, transient: "false", failure: "env: is a dead envelope field (R3a · the E-split)" }
-    - { code: NIKA-VALUES-003, category: validation_error, transient: "false", failure: "a value-namespace read outside the four-authority family (R3a · LAW-SURFACE-0201)" }
-    - { code: NIKA-DEFAULT-001, category: validation_error, transient: "false", failure: "a declared default (inputs · config) or typed const value does not conform to its declared type (R3b · LAW-TYPE-0211)" }
+    - { code: NIKA-VALUES-003, category: validation_error, transient: "false", failure: "a value-namespace read outside the three-authority family (R3a · LAW-SURFACE-0201)" }
+    - { code: NIKA-DEFAULT-001, category: validation_error, transient: "false", failure: "a declared inputs default or typed const value does not conform to its declared type (R3b · LAW-TYPE-0211)" }
 pillars:
   count: 5
   immutable: true
   reference: spec/00-overview.md
   items:
-    - { order: 1, name: envelope,  semantic: "nika: v1 contract envelope (single-version marker · ADR-082)" }
+    - { order: 1, name: envelope,  semantic: "the nine-key envelope · nika: <id> is the mark AND the name (the version slot died 2026-08-12 · 01 §nika)" }
     - { order: 2, name: verbs,     semantic: "the 4 native execution models" }
     - { order: 3, name: dag,       semantic: "task composition + control flow (for_each · when)" }
     - { order: 4, name: variables, semantic: "scope-bound state threading + binding (CEL + jq)" }
@@ -537,9 +539,9 @@ canonical_phrasing:
     match: "the provider is the prefix"
     home: stdlib/providers-v0.1.md
   envelope_forever:
-    # home text · "names the language and pins the contract version"
-    phrase: "nika: v1 names the language and pins the contract version · v1 is the only value for the lifetime of the v1 contract"
-    match: "pins the contract version"
+    # home text · "names the language and names the file · the mark AND the name"
+    phrase: "nika: <id> names the language and names the file · the mark AND the name · no version is typed anywhere and there is no nika: v2, ever"
+    match: "names the language and names the file"
     home: spec/01-envelope.md
   edges_never_inferred:
     # home text · "the binding IS the edge · no invisible edges" (W2 · the
