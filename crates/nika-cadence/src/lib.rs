@@ -7,7 +7,7 @@
 //! D-2026-08-10-N3), the pure slot calculator (`next_after` ·
 //! `prev_before` — the half-open interval `(prev, next]` a beat is due
 //! in), the pure planner (`due` · `earliest_next`) the firing edges
-//! read, and the pure OS-unit renderer (`emit` — W3, LE PONT) the
+//! read, and the pure OS-unit renderer (`emit` — W3, « LE PONT ») the
 //! `--emit` verb and `serve` read. Two L4 consumers read this registry
 //! (`nika arm` today · `nika serve` at ②), so the shared logic lives
 //! at L0 — never in a CLI crate (the layering precedent: `nika-check`'s

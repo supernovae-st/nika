@@ -6,6 +6,10 @@
 // real `nika-cli` binary (CARGO_BIN_EXE) — the same carve-out class as
 // arm_fire.rs / ascii_contract.rs / bin_smoke.rs.
 #![allow(clippy::disallowed_types)]
+// The OS-lint legs print a one-line SKIP notice when the host lacks the
+// linter (systemd-analyze off Linux · plutil off macOS) — test output, not
+// production logging; no tracing harness lives in this suite.
+#![allow(clippy::disallowed_macros)]
 
 //! `nika arm --emit` end-to-end (W3 · « LE PONT », the OS bridge): a
 //! tempdir project, the real binary, HOME redirected into the tempdir
