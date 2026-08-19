@@ -48,6 +48,7 @@ use nika_vocab::project;
 use super::VerbOutput;
 
 pub mod args;
+pub mod fire;
 pub mod state;
 
 /// How many upcoming slots each beat shows.
@@ -61,9 +62,7 @@ const SLOTS_SHOWN: usize = 3;
 pub fn run(args: args::ArmArgs) -> VerbOutput {
     use args::ArmSub;
     match args.sub {
-        Some(ArmSub::Fire(_)) => VerbOutput::file(
-            "arm fire · le tireur arrive avec la vague W2 de cette branche".to_owned(),
-        ),
+        Some(ArmSub::Fire(f)) => fire::run(&f),
         Some(ArmSub::Disarm { label, write }) => disarm(&label, write),
         None if emits_requested(&args) => VerbOutput::file(
             "arm --emit · the OS units arrive with the W3 wave — today the verb READS".to_owned(),
@@ -266,10 +265,10 @@ mod tests {
     /// refactor's zero-behavior-change claim); the CWD door is covered
     /// end-to-end by the binary tests (`tests/arm_fire.rs`), never by
     /// moving the test process's own CWD (parallel tests race on it).
-    /// The declared-but-unlanded surfaces refuse honestly — a flag that
-    /// would silently do nothing is a lie.
+    /// The declared-but-unlanded W3 surface refuses honestly — a flag
+    /// that would silently do nothing is a lie.
     #[test]
-    fn the_w2_and_w3_surfaces_refuse_by_name_until_they_land() {
+    fn the_w3_surface_refuses_by_name_until_it_lands() {
         let base = crate::verbs::arm::args::ArmArgs {
             sub: None,
             emit: Some(crate::verbs::arm::args::EmitTarget::Launchd),
@@ -282,24 +281,6 @@ mod tests {
         let out = run(base);
         assert_eq!(out.code, exit::FILE, "--emit refuses: {}", out.text);
         assert!(out.text.contains("W3"), "names the wave: {}", out.text);
-
-        let fire = crate::verbs::arm::args::ArmArgs {
-            sub: Some(crate::verbs::arm::args::ArmSub::Fire(
-                crate::verbs::arm::args::FireArgs {
-                    label: "doctor".to_owned(),
-                    now: None,
-                },
-            )),
-            emit: None,
-            write: false,
-            out: None,
-            mode: None,
-            env_file: None,
-            nika_bin: None,
-        };
-        let out = run(fire);
-        assert_eq!(out.code, exit::FILE, "fire refuses pre-W2: {}", out.text);
-        assert!(out.text.contains("W2"), "names the wave: {}", out.text);
     }
 
     #[test]
