@@ -160,6 +160,217 @@ pub const nika_cadence::due::MISSED_SLOTS_CAP: usize
 pub const nika_cadence::due::ON_TIME_WINDOW: jiff::signed_duration::SignedDuration
 pub fn nika_cadence::due::due<'a>(reg: &'a nika_cadence::registry::ArmRegistry, now: &jiff::zoned::Zoned, last_fired: &dyn core::ops::function::Fn(usize) -> core::option::Option<jiff::zoned::Zoned>) -> core::result::Result<impl core::iter::traits::iterator::Iterator<Item = nika_cadence::due::Due<'a>>, nika_cadence::error::CadenceError>
 pub fn nika_cadence::due::earliest_next(reg: &nika_cadence::registry::ArmRegistry, now: &jiff::zoned::Zoned) -> core::result::Result<core::option::Option<(usize, nika_cadence::next::Slot)>, nika_cadence::error::CadenceError>
+pub mod nika_cadence::emit
+#[non_exhaustive] pub enum nika_cadence::emit::EmitRefusal
+pub nika_cadence::emit::EmitRefusal::EngineFault
+pub nika_cadence::emit::EmitRefusal::EngineFault::beat: alloc::string::String
+pub nika_cadence::emit::EmitRefusal::EngineFault::detail: alloc::string::String
+pub nika_cadence::emit::EmitRefusal::TooManyIntervals
+pub nika_cadence::emit::EmitRefusal::TooManyIntervals::beat: alloc::string::String
+pub nika_cadence::emit::EmitRefusal::TooManyIntervals::n: usize
+pub nika_cadence::emit::EmitRefusal::TzMismatch
+pub nika_cadence::emit::EmitRefusal::TzMismatch::beat: alloc::string::String
+pub nika_cadence::emit::EmitRefusal::TzMismatch::cadence_tz: alloc::string::String
+pub nika_cadence::emit::EmitRefusal::TzMismatch::machine_tz: alloc::string::String
+pub nika_cadence::emit::EmitRefusal::UnsupportedInV0
+pub nika_cadence::emit::EmitRefusal::UnsupportedInV0::arrives: alloc::string::String
+pub nika_cadence::emit::EmitRefusal::UnsupportedInV0::beat: alloc::string::String
+pub nika_cadence::emit::EmitRefusal::UnsupportedInV0::what: alloc::string::String
+pub nika_cadence::emit::EmitRefusal::Webhook
+pub nika_cadence::emit::EmitRefusal::Webhook::beat: alloc::string::String
+impl core::clone::Clone for nika_cadence::emit::EmitRefusal
+pub fn nika_cadence::emit::EmitRefusal::clone(&self) -> nika_cadence::emit::EmitRefusal
+impl core::cmp::Eq for nika_cadence::emit::EmitRefusal
+impl core::cmp::PartialEq for nika_cadence::emit::EmitRefusal
+pub fn nika_cadence::emit::EmitRefusal::eq(&self, other: &nika_cadence::emit::EmitRefusal) -> bool
+impl core::error::Error for nika_cadence::emit::EmitRefusal
+impl core::fmt::Debug for nika_cadence::emit::EmitRefusal
+pub fn nika_cadence::emit::EmitRefusal::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_cadence::emit::EmitRefusal
+pub fn nika_cadence::emit::EmitRefusal::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_cadence::emit::EmitRefusal
+impl<Q, K> equivalent::Equivalent<K> for nika_cadence::emit::EmitRefusal where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cadence::emit::EmitRefusal::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cadence::emit::EmitRefusal where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cadence::emit::EmitRefusal::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cadence::emit::EmitRefusal where U: core::convert::From<T>
+pub fn nika_cadence::emit::EmitRefusal::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cadence::emit::EmitRefusal where U: core::convert::Into<T>
+pub type nika_cadence::emit::EmitRefusal::Error = core::convert::Infallible
+pub fn nika_cadence::emit::EmitRefusal::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cadence::emit::EmitRefusal where U: core::convert::TryFrom<T>
+pub type nika_cadence::emit::EmitRefusal::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cadence::emit::EmitRefusal::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cadence::emit::EmitRefusal where T: core::clone::Clone
+pub type nika_cadence::emit::EmitRefusal::Owned = T
+pub fn nika_cadence::emit::EmitRefusal::clone_into(&self, target: &mut T)
+pub fn nika_cadence::emit::EmitRefusal::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_cadence::emit::EmitRefusal where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_cadence::emit::EmitRefusal::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_cadence::emit::EmitRefusal where T: 'static + ?core::marker::Sized
+pub fn nika_cadence::emit::EmitRefusal::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cadence::emit::EmitRefusal where T: ?core::marker::Sized
+pub fn nika_cadence::emit::EmitRefusal::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cadence::emit::EmitRefusal where T: ?core::marker::Sized
+pub fn nika_cadence::emit::EmitRefusal::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cadence::emit::EmitRefusal where T: core::clone::Clone
+pub unsafe fn nika_cadence::emit::EmitRefusal::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cadence::emit::EmitRefusal
+pub fn nika_cadence::emit::EmitRefusal::from(t: T) -> T
+#[non_exhaustive] pub enum nika_cadence::emit::Mode
+pub nika_cadence::emit::Mode::PerBeat
+pub nika_cadence::emit::Mode::Serve
+impl core::clone::Clone for nika_cadence::emit::Mode
+pub fn nika_cadence::emit::Mode::clone(&self) -> nika_cadence::emit::Mode
+impl core::cmp::Eq for nika_cadence::emit::Mode
+impl core::cmp::PartialEq for nika_cadence::emit::Mode
+pub fn nika_cadence::emit::Mode::eq(&self, other: &nika_cadence::emit::Mode) -> bool
+impl core::fmt::Debug for nika_cadence::emit::Mode
+pub fn nika_cadence::emit::Mode::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cadence::emit::Mode
+impl core::marker::StructuralPartialEq for nika_cadence::emit::Mode
+impl<Q, K> equivalent::Equivalent<K> for nika_cadence::emit::Mode where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cadence::emit::Mode::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cadence::emit::Mode where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cadence::emit::Mode::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cadence::emit::Mode where U: core::convert::From<T>
+pub fn nika_cadence::emit::Mode::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cadence::emit::Mode where U: core::convert::Into<T>
+pub type nika_cadence::emit::Mode::Error = core::convert::Infallible
+pub fn nika_cadence::emit::Mode::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cadence::emit::Mode where U: core::convert::TryFrom<T>
+pub type nika_cadence::emit::Mode::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cadence::emit::Mode::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cadence::emit::Mode where T: core::clone::Clone
+pub type nika_cadence::emit::Mode::Owned = T
+pub fn nika_cadence::emit::Mode::clone_into(&self, target: &mut T)
+pub fn nika_cadence::emit::Mode::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cadence::emit::Mode where T: 'static + ?core::marker::Sized
+pub fn nika_cadence::emit::Mode::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cadence::emit::Mode where T: ?core::marker::Sized
+pub fn nika_cadence::emit::Mode::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cadence::emit::Mode where T: ?core::marker::Sized
+pub fn nika_cadence::emit::Mode::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cadence::emit::Mode where T: core::clone::Clone
+pub unsafe fn nika_cadence::emit::Mode::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cadence::emit::Mode
+pub fn nika_cadence::emit::Mode::from(t: T) -> T
+#[non_exhaustive] pub enum nika_cadence::emit::Target
+pub nika_cadence::emit::Target::Launchd
+pub nika_cadence::emit::Target::SystemdUser
+impl nika_cadence::emit::Target
+pub const fn nika_cadence::emit::Target::word(self) -> &'static str
+impl core::clone::Clone for nika_cadence::emit::Target
+pub fn nika_cadence::emit::Target::clone(&self) -> nika_cadence::emit::Target
+impl core::cmp::Eq for nika_cadence::emit::Target
+impl core::cmp::PartialEq for nika_cadence::emit::Target
+pub fn nika_cadence::emit::Target::eq(&self, other: &nika_cadence::emit::Target) -> bool
+impl core::fmt::Debug for nika_cadence::emit::Target
+pub fn nika_cadence::emit::Target::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cadence::emit::Target
+impl core::marker::StructuralPartialEq for nika_cadence::emit::Target
+impl<Q, K> equivalent::Equivalent<K> for nika_cadence::emit::Target where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cadence::emit::Target::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cadence::emit::Target where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cadence::emit::Target::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cadence::emit::Target where U: core::convert::From<T>
+pub fn nika_cadence::emit::Target::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cadence::emit::Target where U: core::convert::Into<T>
+pub type nika_cadence::emit::Target::Error = core::convert::Infallible
+pub fn nika_cadence::emit::Target::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cadence::emit::Target where U: core::convert::TryFrom<T>
+pub type nika_cadence::emit::Target::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cadence::emit::Target::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cadence::emit::Target where T: core::clone::Clone
+pub type nika_cadence::emit::Target::Owned = T
+pub fn nika_cadence::emit::Target::clone_into(&self, target: &mut T)
+pub fn nika_cadence::emit::Target::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cadence::emit::Target where T: 'static + ?core::marker::Sized
+pub fn nika_cadence::emit::Target::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cadence::emit::Target where T: ?core::marker::Sized
+pub fn nika_cadence::emit::Target::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cadence::emit::Target where T: ?core::marker::Sized
+pub fn nika_cadence::emit::Target::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cadence::emit::Target where T: core::clone::Clone
+pub unsafe fn nika_cadence::emit::Target::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cadence::emit::Target
+pub fn nika_cadence::emit::Target::from(t: T) -> T
+#[non_exhaustive] pub struct nika_cadence::emit::EmitCtx
+pub nika_cadence::emit::EmitCtx::env_file: core::option::Option<std::path::PathBuf>
+pub nika_cadence::emit::EmitCtx::log_dir: std::path::PathBuf
+pub nika_cadence::emit::EmitCtx::machine_tz: alloc::string::String
+pub nika_cadence::emit::EmitCtx::nika_bin: std::path::PathBuf
+pub nika_cadence::emit::EmitCtx::project_file: std::path::PathBuf
+pub nika_cadence::emit::EmitCtx::project_root: std::path::PathBuf
+impl nika_cadence::emit::EmitCtx
+pub fn nika_cadence::emit::EmitCtx::new(nika_bin: std::path::PathBuf, project_root: std::path::PathBuf, project_file: std::path::PathBuf, env_file: core::option::Option<std::path::PathBuf>, log_dir: std::path::PathBuf, machine_tz: alloc::string::String) -> Self
+impl core::clone::Clone for nika_cadence::emit::EmitCtx
+pub fn nika_cadence::emit::EmitCtx::clone(&self) -> nika_cadence::emit::EmitCtx
+impl core::fmt::Debug for nika_cadence::emit::EmitCtx
+pub fn nika_cadence::emit::EmitCtx::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<T, U> core::convert::Into<U> for nika_cadence::emit::EmitCtx where U: core::convert::From<T>
+pub fn nika_cadence::emit::EmitCtx::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cadence::emit::EmitCtx where U: core::convert::Into<T>
+pub type nika_cadence::emit::EmitCtx::Error = core::convert::Infallible
+pub fn nika_cadence::emit::EmitCtx::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cadence::emit::EmitCtx where U: core::convert::TryFrom<T>
+pub type nika_cadence::emit::EmitCtx::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cadence::emit::EmitCtx::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cadence::emit::EmitCtx where T: core::clone::Clone
+pub type nika_cadence::emit::EmitCtx::Owned = T
+pub fn nika_cadence::emit::EmitCtx::clone_into(&self, target: &mut T)
+pub fn nika_cadence::emit::EmitCtx::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cadence::emit::EmitCtx where T: 'static + ?core::marker::Sized
+pub fn nika_cadence::emit::EmitCtx::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cadence::emit::EmitCtx where T: ?core::marker::Sized
+pub fn nika_cadence::emit::EmitCtx::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cadence::emit::EmitCtx where T: ?core::marker::Sized
+pub fn nika_cadence::emit::EmitCtx::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cadence::emit::EmitCtx where T: core::clone::Clone
+pub unsafe fn nika_cadence::emit::EmitCtx::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cadence::emit::EmitCtx
+pub fn nika_cadence::emit::EmitCtx::from(t: T) -> T
+#[non_exhaustive] pub struct nika_cadence::emit::Unit
+pub nika_cadence::emit::Unit::body: alloc::string::String
+pub nika_cadence::emit::Unit::file_name: alloc::string::String
+impl core::clone::Clone for nika_cadence::emit::Unit
+pub fn nika_cadence::emit::Unit::clone(&self) -> nika_cadence::emit::Unit
+impl core::cmp::Eq for nika_cadence::emit::Unit
+impl core::cmp::PartialEq for nika_cadence::emit::Unit
+pub fn nika_cadence::emit::Unit::eq(&self, other: &nika_cadence::emit::Unit) -> bool
+impl core::fmt::Debug for nika_cadence::emit::Unit
+pub fn nika_cadence::emit::Unit::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_cadence::emit::Unit
+impl<Q, K> equivalent::Equivalent<K> for nika_cadence::emit::Unit where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cadence::emit::Unit::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cadence::emit::Unit where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cadence::emit::Unit::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cadence::emit::Unit where U: core::convert::From<T>
+pub fn nika_cadence::emit::Unit::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cadence::emit::Unit where U: core::convert::Into<T>
+pub type nika_cadence::emit::Unit::Error = core::convert::Infallible
+pub fn nika_cadence::emit::Unit::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cadence::emit::Unit where U: core::convert::TryFrom<T>
+pub type nika_cadence::emit::Unit::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cadence::emit::Unit::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cadence::emit::Unit where T: core::clone::Clone
+pub type nika_cadence::emit::Unit::Owned = T
+pub fn nika_cadence::emit::Unit::clone_into(&self, target: &mut T)
+pub fn nika_cadence::emit::Unit::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cadence::emit::Unit where T: 'static + ?core::marker::Sized
+pub fn nika_cadence::emit::Unit::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cadence::emit::Unit where T: ?core::marker::Sized
+pub fn nika_cadence::emit::Unit::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cadence::emit::Unit where T: ?core::marker::Sized
+pub fn nika_cadence::emit::Unit::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cadence::emit::Unit where T: core::clone::Clone
+pub unsafe fn nika_cadence::emit::Unit::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cadence::emit::Unit
+pub fn nika_cadence::emit::Unit::from(t: T) -> T
+pub const nika_cadence::emit::GENERATED_MARK: &str
+pub const nika_cadence::emit::MAX_INTERVALS: usize
+pub fn nika_cadence::emit::labels(reg: &nika_cadence::registry::ArmRegistry) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_cadence::emit::render(reg: &nika_cadence::registry::ArmRegistry, ctx: &nika_cadence::emit::EmitCtx, target: nika_cadence::emit::Target, mode: nika_cadence::emit::Mode) -> core::result::Result<alloc::vec::Vec<nika_cadence::emit::Unit>, nika_cadence::emit::EmitRefusal>
 pub mod nika_cadence::error
 #[non_exhaustive] pub enum nika_cadence::error::CadenceErrorKind
 pub nika_cadence::error::CadenceErrorKind::ApresSautMisplaced
