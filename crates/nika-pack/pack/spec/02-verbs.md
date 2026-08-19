@@ -91,7 +91,7 @@ research:
 | `model` | no | string | Override workflow default · `<provider>/<name>` · see stdlib/providers-v0.1.md |
 | `temperature` | no | number 0-2 | Sampling temperature |
 | `max_tokens` | no | integer | Max output tokens · provider-dependent default |
-| `schema` | no | object | raw JSON Schema · structured output validation — the **out-of-core hatch**; the typed door is task-level `returns:` ([09](./09-types.md) · both on one task = `NIKA-TYPE-003`) |
+| `schema` | no | object | raw JSON Schema · structured output validation — the **out-of-core hatch**; the typed door is task-level `returns:` ([09](./09-types.md) · both on one task = `NIKA-TYPE-003`). Numeric facts (`0\|1\|3`, counts, coded levels) are `type: integer` with a numeric `enum` — never `enum: ["0","1","3"]`. Models emit JSON numbers; a string-digit enum can reject the call before coerce (reference engine hint `digit-string-enum`). The model extracts facts; `nika:jq` or `nika:decide` is the law ([11](./11-decision.md) · `examples/13-extract-then-law.nika.yaml`) |
 | `thinking` | no | object | Extended thinking · `{ enabled, budget_tokens }` |
 | `vision` | no | array | Image inputs · each `{ source: file|url, path|url, … }` |
 

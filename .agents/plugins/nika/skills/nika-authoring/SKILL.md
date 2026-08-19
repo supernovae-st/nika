@@ -51,6 +51,7 @@ four are the decisions that cost rounds when guessed instead of copied.
 | fetch a URL and shape what comes back | `05-fetch-chain` |
 | open-ended work, step count unknown up front | `06-code-review` |
 | the same task for every item of a collection | `07-for-each-locales` |
+| extract facts, then score them without a second infer | `13-extract-then-law` |
 | land a typed artifact on disk | `t1-meeting-actions` |
 | poll something, act only when a condition holds | `t1-price-watch` |
 | rows in, chart and report out, zero model calls | `t2-csv-chart-report` |
@@ -270,6 +271,31 @@ otherwise, in this order:
 10. **Prove it before handing it over.** `nika check` clean, then
     `--native-strict`, then a golden pin if the workflow is hermetic.
     Only then does the human get the run line.
+
+## Paid infer (the order that is cheaper than tokens)
+
+Measured on a 40+ task OpenAI extract → law run. Do not rediscover
+this with a paid seat.
+
+1. `nika check --native-strict` until zero findings and zero hints.
+2. Probe every new builtin in a one-task file on `mock/echo` *before*
+   wiring it after a paid `infer:` (`nika:inspect` is catalogued and
+   unwired — hint `inspect-unwired`).
+3. Freeze the extract schema type. Numeric facts are `type: integer`
+   with a numeric `enum`. `enum: ["0","1","3"]` is the shape models do
+   not emit (JSON `3` — hint `digit-string-enum`).
+4. Pin the glob. `held/*.md` includes `README.md`. `exclude:
+   "**/README.md"` (hint `glob-readme`).
+5. **The model extracts facts. `nika:jq` or `nika:decide` is the law.**
+   A second infer to "pick the level" is the expensive mistake.
+   The shape is `13-extract-then-law`.
+6. Then, and only then, swap `model:` to a paid seat.
+
+`for_each` + `item.field` is resume-eligible as a **whole fan** when
+the collection and definition did not change. A mid-wave crash still
+replays every item. After `. as $c` in jq, write `($c | map(...))`
+(hint `jq-as-map`). A red last `nika:assert` quarantines `out/`
+(`.nika/quarantine/<trace>/` — hint `assert-quarantine`).
 
 ## Cost honesty (never hide unknown spend)
 
@@ -575,6 +601,9 @@ the human at handoff, not to expect a green.
   that still consumes randomness refuses at check.
 - Structured output: give `infer:` a `schema:`; add
   `additionalProperties: false` for a deterministic shape.
+  Numeric facts are `type: integer` + a numeric `enum`. The model
+  extracts facts; `nika:jq` / `nika:decide` is the law
+  (`13-extract-then-law`).
 - Auth rides `headers: { x-api-key: "${{ secrets.KEY }}" }` (masked ·
   declared in `secrets:` with its `egress:` sink) — never `exec: curl`
   for the sake of a header.

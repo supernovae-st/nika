@@ -225,7 +225,7 @@ pub fn storefront(theme: Theme) -> VerbOutput {
     }
     let _ = write!(
         text,
-        "\nnext ·\n  nika try support-triage              # watch one work · nothing written\n  nika new support-triage              # make it yours (ingredients included)\n  nika new \"describe your job\"         # route your own words to the closest one\n  nika try --all                       # the whole shelf · the 13-step path + every job\n\n{}",
+        "\nnext ·\n  nika try support-triage              # watch one work · nothing written\n  nika new support-triage              # make it yours (ingredients included)\n  nika new \"describe your job\"         # route your own words to the closest one\n  nika try --all                       # the whole shelf · the numbered path + every job\n\n{}",
         theme.paint(
             Role::Dim,
             "verbs · \u{25c7} infer (ask a model) · \u{25b7} exec (run a command) · \u{25c6} invoke (use a tool) · \u{2726} agent (bounded loop)"

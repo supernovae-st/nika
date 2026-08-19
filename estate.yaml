@@ -18,14 +18,14 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4495
+  classified_files: 4496
   file_rows: 11
   pattern_rows: 22
   by_class:
     authored: 1558
     authored-pin: 2
     generated: 122
-    pinned-copy: 117
+    pinned-copy: 118
     testimonial: 2696
     foreign: 0
   unverified-default: 7
@@ -113,8 +113,8 @@ files:
 patterns:
 - glob: "crates/nika-pack/pack/**"
   class: pinned-copy
-  match_count: 116
-  aggregate_sha256: f42194ba3ca68bfcccabbf08c4bb9f4925b1120e1713d327299c2f8bf0cf96ec
+  match_count: 117
+  aggregate_sha256: ac6e8327f6f8ae7179c8652841ef98354ddc58c0944a2e24365877d9d7a436f4
   evidence: "crates/nika-pack/src/lib.rs:16 'The snapshot under pack/ is vendored by scripts/sync-pack.sh' — a byte-copy of the spec surface, never edited here"
   derivation:
     tool: "bash scripts/sync-pack.sh <nika-spec checkout> — healed daily by .github/workflows/pack-resync.yml (branch bot/pack-resync · PR-only, the 12-gate CI judges)"
@@ -152,7 +152,7 @@ patterns:
 - glob: "crates/**/src/**"
   class: authored
   match_count: 790
-  aggregate_sha256: 011f3df488cba6ce4db95a2a46e7d45e8b419075d5d092d6938e7ea1c8bf24d5
+  aggregate_sha256: aaa749fcee1adf06a207c786514761d5378239a01bb6370f56a4aa9842709a6f
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
@@ -198,7 +198,7 @@ patterns:
 - glob: ".agents/**"
   class: authored
   match_count: 32
-  aggregate_sha256: 5b13ce8a9a07261f5a8841a6e7d503135731723875fd379b185fa8604d15ac69
+  aggregate_sha256: 9a291fc33aecca78aae09e10581feedfab0a6172cabeccad3d6bc5688485e2ea
   evidence: "the agent-plugin pack SOURCE (marketplace.json · plugin manifests · skills · rules · hooks) — authored here, mirrored downstream into supernovae-st/nika-plugins (its plugins/ is a byte-pinned copy healed on releases)"
 - glob: ".claude/**"
   class: authored
@@ -232,7 +232,7 @@ patterns:
 - glob: "examples/**"
   class: authored
   match_count: 1
-  aggregate_sha256: 147d2ffe70ed96b8a5118bd84d45fb2071b37723b993e5c38ba58f4b02a8d258
+  aggregate_sha256: a843bf81b89fb2f04d2a2fd43087c9b7db32c1c4ba81c2cf2fb322f7f6675e7f
   evidence: "examples/README.md — a pointer README (the runnable examples live in the vendored pack + the spec repo)"
 - glob: "*"
   class: authored

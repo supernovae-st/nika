@@ -4,7 +4,7 @@
 # Consumers · the reference engine embeds this pack (nika try ·
 # nika spec) · docs + website render projections of the same files.
 pack_version: 0.1.0-draft
-workflow_count: 48
+workflow_count: 49
 foundation:
   - file: examples/01-hello.nika.yaml
     sha256_16: ca6fd74b9c22772a
@@ -32,6 +32,8 @@ foundation:
     sha256_16: ca7ff786bf19812c
   - file: examples/12-failure-routing.nika.yaml
     sha256_16: dec596bc0ed21038
+  - file: examples/13-extract-then-law.nika.yaml
+    sha256_16: 8eaa2ead0d078eb3
 templates:
   - file: templates/agent-loop.nika.yaml
     sha256_16: 97cca73d639c1537
