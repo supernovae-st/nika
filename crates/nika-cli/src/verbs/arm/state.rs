@@ -231,13 +231,12 @@ impl ArmState {
     }
 
     /// Find claims without a matching later fenced receipt.
-    #[must_use]
-    pub fn unsettled(&self, label: &str) -> Option<Vec<Unsettled>> {
+    #[must_use = "the unsettled result must be consumed"]
+    pub fn unsettled(&self, label: &str) -> Option<impl Iterator<Item = Unsettled> + use<>> {
         let dir = self.safe_dir(label).ok()?;
         let journals = replay::journal_texts(&dir).ok()?;
-        journals.last().map_or(Some(Vec::new()), |(text, _)| {
-            nika_cadence::ledger::unsettled(text)
-        })
+        let text = journals.last().map_or("", |(text, _)| text.as_str());
+        nika_cadence::ledger::unsettled(text)
     }
 
     pub(crate) fn beat_dirs(&self) -> io::Result<Vec<String>> {
@@ -324,10 +323,7 @@ fn append_event(
     }
     dir.append_line(HISTORY, &line)?;
     write_chain_anchor(dir, seq, Some(&hash))?;
-    Ok(RecordOutcome {
-        seq,
-        repaired: head.repaired,
-    })
+    Ok(RecordOutcome::new(seq, head.repaired))
 }
 
 #[derive(Debug)]

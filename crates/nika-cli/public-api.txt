@@ -365,7 +365,7 @@ pub fn nika_cli::verbs::arm::state::ArmState::record(&self, label: &str, entry: 
 pub fn nika_cli::verbs::arm::state::ArmState::record_claim(&self, label: &str, claim: &nika_cadence::ledger::Claim) -> core::io::error::Result<nika_cadence::ledger::RecordOutcome>
 pub fn nika_cli::verbs::arm::state::ArmState::root(&self) -> &std::path::Path
 pub fn nika_cli::verbs::arm::state::ArmState::tallies(&self, label: &str) -> core::option::Option<(usize, usize)>
-pub fn nika_cli::verbs::arm::state::ArmState::unsettled(&self, label: &str) -> core::option::Option<alloc::vec::Vec<nika_cadence::ledger::Unsettled>>
+pub fn nika_cli::verbs::arm::state::ArmState::unsettled(&self, label: &str) -> core::option::Option<impl core::iter::traits::iterator::Iterator<Item = nika_cadence::ledger::Unsettled> + use<>>
 impl<D> owo_colors::OwoColorize for nika_cli::verbs::arm::state::ArmState
 impl<T, U> core::convert::Into<U> for nika_cli::verbs::arm::state::ArmState where U: core::convert::From<T>
 pub fn nika_cli::verbs::arm::state::ArmState::into(self) -> U

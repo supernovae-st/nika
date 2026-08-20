@@ -31,6 +31,7 @@ pub enum JournalFormat {
 
 /// The decision vocabulary shared by projections, receipts, and output.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum DecisionKind {
     /// The run exited cleanly.
     Fired,
@@ -72,6 +73,7 @@ impl DecisionKind {
 
 /// One decision to append to the ledger.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct HistoryEntry {
     /// The decided slot, absent only for pre-slot decisions.
     pub slot: Option<Timestamp>,
@@ -95,8 +97,28 @@ pub struct HistoryEntry {
     pub generation: Option<ArmGeneration>,
 }
 
+impl HistoryEntry {
+    /// Start one decision entry with every optional wire field absent.
+    #[must_use]
+    pub const fn new(slot: Option<Timestamp>, decided_at: Timestamp, kind: DecisionKind) -> Self {
+        Self {
+            slot,
+            decided_at,
+            kind,
+            reason: None,
+            trace: None,
+            exit: None,
+            slots: None,
+            slot_id: None,
+            fencing: None,
+            generation: None,
+        }
+    }
+}
+
 /// A durable pre-run claim.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct Claim {
     /// Stable slot identity.
     pub slot_id: SlotId,
@@ -108,11 +130,25 @@ pub struct Claim {
     pub decided_at: Timestamp,
 }
 
+impl Claim {
+    /// Start a claim without a pinned workflow generation.
+    #[must_use]
+    pub const fn new(slot_id: SlotId, deadline: Timestamp, decided_at: Timestamp) -> Self {
+        Self {
+            slot_id,
+            generation: None,
+            deadline,
+            decided_at,
+        }
+    }
+}
+
 /// A terminal receipt bound to one durable claim.
 ///
 /// Its kind is deliberately not stored: the exit code is the sole source of
 /// truth, so contradictory `fired`/`failed` pairs cannot be constructed.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct Receipt {
     /// The decided slot.
     pub slot: Timestamp,
@@ -186,6 +222,7 @@ impl Receipt {
 
 /// Result of one durable append.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct RecordOutcome {
     /// Appended sequence number.
     pub seq: u64,
@@ -193,8 +230,17 @@ pub struct RecordOutcome {
     pub repaired: u64,
 }
 
+impl RecordOutcome {
+    /// Describe one append and any invalid tail it repaired.
+    #[must_use]
+    pub const fn new(seq: u64, repaired: u64) -> Self {
+        Self { seq, repaired }
+    }
+}
+
 /// A claim for which no later receipt exists.
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct Unsettled {
     /// Claim sequence and fencing token.
     pub seq: u64,
@@ -208,6 +254,7 @@ pub struct Unsettled {
 
 /// The stable `last.json` projection.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct LastRecord {
     /// Last slot-bearing decision.
     pub slot: Timestamp,
@@ -287,12 +334,12 @@ fn fold_replay(replayed: &Replay, now: &Timestamp) -> Option<(FiringState, bool,
 }
 
 /// Find every claim that has no matching later receipt.
-#[must_use]
-pub fn unsettled(text: &str) -> Option<Vec<Unsettled>> {
+#[must_use = "the unsettled result must be consumed"]
+pub fn unsettled(text: &str) -> Option<impl Iterator<Item = Unsettled> + use<>> {
     let mut claims: Vec<(usize, Unsettled)> = Vec::new();
     let mut receipts: Vec<(usize, SlotId, u64)> = Vec::new();
     let versioned = match classify_journal(text)? {
-        JournalFormat::Empty => return Some(Vec::new()),
+        JournalFormat::Empty => return Some(Vec::new().into_iter()),
         JournalFormat::Legacy => false,
         JournalFormat::Versioned => true,
     };
@@ -360,7 +407,8 @@ pub fn unsettled(text: &str) -> Option<Vec<Unsettled>> {
                 })
             })
             .map(|(_, claim)| claim)
-            .collect(),
+            .collect::<Vec<_>>()
+            .into_iter(),
     )
 }
 
@@ -669,11 +717,12 @@ fn decision_kind(word: &str) -> DecisionKind {
     }
 }
 
-/// Classify a journal dialect without accepting ambiguous JSON evidence.
+/// Detect a journal dialect from its genesis without ambiguous fallback.
 ///
-/// `None` means the evidence is malformed. Any ledger-envelope key commits the
-/// journal to the versioned dialect; a broken or unknown version can therefore
-/// never fall back to W2 replay.
+/// A valid versioned genesis is enough to return [`JournalFormat::Versioned`];
+/// later lines are deliberately left to [`scan_chain`] or the replay APIs.
+/// Any ledger-envelope key in genesis commits the journal to the versioned
+/// dialect, so a broken or unknown version can never fall back to W2 replay.
 #[must_use]
 pub fn classify_journal(text: &str) -> Option<JournalFormat> {
     if text.is_empty() {
@@ -696,7 +745,10 @@ pub fn classify_journal(text: &str) -> Option<JournalFormat> {
         .then_some(JournalFormat::Legacy)
 }
 
-/// Whether the complete journal is a valid versioned chain.
+/// Whether genesis identifies the versioned dialect.
+///
+/// This does not validate the complete chain; use [`scan_chain`] or a replay
+/// API when later lines are part of the trust decision.
 #[must_use]
 pub fn first_line_is_versioned(text: &str) -> bool {
     classify_journal(text) == Some(JournalFormat::Versioned)

@@ -440,22 +440,11 @@ mod tests {
     /// Seed a decided slot (a past skip) so the planner counts a silence.
     fn seed_last(root: &Path, label: &str, slot: &str) {
         let slot = slot.parse::<jiff::Timestamp>().expect("slot");
+        let mut entry = HistoryEntry::new(Some(slot), slot, FireKind::Skipped);
+        entry.reason = Some("test-seed".to_owned());
+        entry.exit = Some(0);
         ArmState::at_project(root)
-            .record(
-                label,
-                &HistoryEntry {
-                    slot: Some(slot),
-                    decided_at: slot,
-                    kind: FireKind::Skipped,
-                    reason: Some("test-seed".to_owned()),
-                    trace: None,
-                    exit: Some(0),
-                    slots: None,
-                    slot_id: None,
-                    fencing: None,
-                    generation: None,
-                },
-            )
+            .record(label, &entry)
             .expect("seed ledger truth");
     }
 

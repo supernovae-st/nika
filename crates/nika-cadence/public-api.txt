@@ -552,7 +552,7 @@ impl<T> core::convert::From<T> for nika_cadence::firing::Decision
 pub fn nika_cadence::firing::Decision::from(t: T) -> T
 impl<T> typenum::type_operators::Same for nika_cadence::firing::Decision
 pub type nika_cadence::firing::Decision::Output = T
-pub enum nika_cadence::firing::FiringEvent
+#[non_exhaustive] pub enum nika_cadence::firing::FiringEvent
 pub nika_cadence::firing::FiringEvent::AttemptsExhausted
 pub nika_cadence::firing::FiringEvent::AttemptsExhausted::fencing: nika_cadence::firing::FencingToken
 pub nika_cadence::firing::FiringEvent::Cancelled
@@ -877,11 +877,11 @@ impl<T> core::convert::From<T> for nika_cadence::firing::SlotId
 pub fn nika_cadence::firing::SlotId::from(t: T) -> T
 impl<T> typenum::type_operators::Same for nika_cadence::firing::SlotId
 pub type nika_cadence::firing::SlotId::Output = T
-pub fn nika_cadence::firing::decide(state: nika_cadence::firing::FiringState, event: &nika_cadence::firing::FiringEvent, now: &jiff::timestamp::Timestamp, policy: &nika_cadence::firing::FiringPolicy) -> alloc::vec::Vec<nika_cadence::firing::Decision>
+pub fn nika_cadence::firing::decide(state: nika_cadence::firing::FiringState, event: &nika_cadence::firing::FiringEvent, now: &jiff::timestamp::Timestamp, policy: &nika_cadence::firing::FiringPolicy) -> impl core::iter::traits::iterator::Iterator<Item = nika_cadence::firing::Decision>
 pub fn nika_cadence::firing::fold(events: &[nika_cadence::firing::FiringEvent]) -> nika_cadence::firing::FiringState
 pub fn nika_cadence::firing::transition(from: nika_cadence::firing::FiringState, event: &nika_cadence::firing::FiringEvent) -> nika_cadence::firing::FiringState
 pub mod nika_cadence::ledger
-pub enum nika_cadence::ledger::DecisionKind
+#[non_exhaustive] pub enum nika_cadence::ledger::DecisionKind
 pub nika_cadence::ledger::DecisionKind::Disarmed
 pub nika_cadence::ledger::DecisionKind::Failed
 pub nika_cadence::ledger::DecisionKind::Fired
@@ -968,11 +968,13 @@ impl<T> core::convert::From<T> for nika_cadence::ledger::JournalFormat
 pub fn nika_cadence::ledger::JournalFormat::from(t: T) -> T
 impl<T> typenum::type_operators::Same for nika_cadence::ledger::JournalFormat
 pub type nika_cadence::ledger::JournalFormat::Output = T
-pub struct nika_cadence::ledger::Claim
+#[non_exhaustive] pub struct nika_cadence::ledger::Claim
 pub nika_cadence::ledger::Claim::deadline: jiff::timestamp::Timestamp
 pub nika_cadence::ledger::Claim::decided_at: jiff::timestamp::Timestamp
 pub nika_cadence::ledger::Claim::generation: core::option::Option<nika_cadence::firing::ArmGeneration>
 pub nika_cadence::ledger::Claim::slot_id: nika_cadence::firing::SlotId
+impl nika_cadence::ledger::Claim
+pub const fn nika_cadence::ledger::Claim::new(slot_id: nika_cadence::firing::SlotId, deadline: jiff::timestamp::Timestamp, decided_at: jiff::timestamp::Timestamp) -> Self
 impl core::clone::Clone for nika_cadence::ledger::Claim
 pub fn nika_cadence::ledger::Claim::clone(&self) -> nika_cadence::ledger::Claim
 impl core::fmt::Debug for nika_cadence::ledger::Claim
@@ -1001,7 +1003,7 @@ impl<T> core::convert::From<T> for nika_cadence::ledger::Claim
 pub fn nika_cadence::ledger::Claim::from(t: T) -> T
 impl<T> typenum::type_operators::Same for nika_cadence::ledger::Claim
 pub type nika_cadence::ledger::Claim::Output = T
-pub struct nika_cadence::ledger::HistoryEntry
+#[non_exhaustive] pub struct nika_cadence::ledger::HistoryEntry
 pub nika_cadence::ledger::HistoryEntry::decided_at: jiff::timestamp::Timestamp
 pub nika_cadence::ledger::HistoryEntry::exit: core::option::Option<u8>
 pub nika_cadence::ledger::HistoryEntry::fencing: core::option::Option<nika_cadence::firing::FencingToken>
@@ -1012,6 +1014,8 @@ pub nika_cadence::ledger::HistoryEntry::slot: core::option::Option<jiff::timesta
 pub nika_cadence::ledger::HistoryEntry::slot_id: core::option::Option<nika_cadence::firing::SlotId>
 pub nika_cadence::ledger::HistoryEntry::slots: core::option::Option<u32>
 pub nika_cadence::ledger::HistoryEntry::trace: core::option::Option<alloc::string::String>
+impl nika_cadence::ledger::HistoryEntry
+pub const fn nika_cadence::ledger::HistoryEntry::new(slot: core::option::Option<jiff::timestamp::Timestamp>, decided_at: jiff::timestamp::Timestamp, kind: nika_cadence::ledger::DecisionKind) -> Self
 impl core::clone::Clone for nika_cadence::ledger::HistoryEntry
 pub fn nika_cadence::ledger::HistoryEntry::clone(&self) -> nika_cadence::ledger::HistoryEntry
 impl core::fmt::Debug for nika_cadence::ledger::HistoryEntry
@@ -1040,7 +1044,7 @@ impl<T> core::convert::From<T> for nika_cadence::ledger::HistoryEntry
 pub fn nika_cadence::ledger::HistoryEntry::from(t: T) -> T
 impl<T> typenum::type_operators::Same for nika_cadence::ledger::HistoryEntry
 pub type nika_cadence::ledger::HistoryEntry::Output = T
-pub struct nika_cadence::ledger::LastRecord
+#[non_exhaustive] pub struct nika_cadence::ledger::LastRecord
 pub nika_cadence::ledger::LastRecord::exit: core::option::Option<u8>
 pub nika_cadence::ledger::LastRecord::fired_at: jiff::timestamp::Timestamp
 pub nika_cadence::ledger::LastRecord::generation: core::option::Option<nika_cadence::firing::ArmGeneration>
@@ -1075,7 +1079,7 @@ impl<T> core::convert::From<T> for nika_cadence::ledger::LastRecord
 pub fn nika_cadence::ledger::LastRecord::from(t: T) -> T
 impl<T> typenum::type_operators::Same for nika_cadence::ledger::LastRecord
 pub type nika_cadence::ledger::LastRecord::Output = T
-pub struct nika_cadence::ledger::Receipt
+#[non_exhaustive] pub struct nika_cadence::ledger::Receipt
 pub nika_cadence::ledger::Receipt::decided_at: jiff::timestamp::Timestamp
 pub nika_cadence::ledger::Receipt::exit: u8
 pub nika_cadence::ledger::Receipt::fencing: nika_cadence::firing::FencingToken
@@ -1116,9 +1120,11 @@ impl<T> core::convert::From<T> for nika_cadence::ledger::Receipt
 pub fn nika_cadence::ledger::Receipt::from(t: T) -> T
 impl<T> typenum::type_operators::Same for nika_cadence::ledger::Receipt
 pub type nika_cadence::ledger::Receipt::Output = T
-pub struct nika_cadence::ledger::RecordOutcome
+#[non_exhaustive] pub struct nika_cadence::ledger::RecordOutcome
 pub nika_cadence::ledger::RecordOutcome::repaired: u64
 pub nika_cadence::ledger::RecordOutcome::seq: u64
+impl nika_cadence::ledger::RecordOutcome
+pub const fn nika_cadence::ledger::RecordOutcome::new(seq: u64, repaired: u64) -> Self
 impl core::clone::Clone for nika_cadence::ledger::RecordOutcome
 pub fn nika_cadence::ledger::RecordOutcome::clone(&self) -> nika_cadence::ledger::RecordOutcome
 impl core::cmp::Eq for nika_cadence::ledger::RecordOutcome
@@ -1156,7 +1162,7 @@ impl<T> core::convert::From<T> for nika_cadence::ledger::RecordOutcome
 pub fn nika_cadence::ledger::RecordOutcome::from(t: T) -> T
 impl<T> typenum::type_operators::Same for nika_cadence::ledger::RecordOutcome
 pub type nika_cadence::ledger::RecordOutcome::Output = T
-pub struct nika_cadence::ledger::Unsettled
+#[non_exhaustive] pub struct nika_cadence::ledger::Unsettled
 pub nika_cadence::ledger::Unsettled::claimed_at: jiff::timestamp::Timestamp
 pub nika_cadence::ledger::Unsettled::deadline: jiff::timestamp::Timestamp
 pub nika_cadence::ledger::Unsettled::seq: u64
@@ -1220,7 +1226,7 @@ pub fn nika_cadence::ledger::replay_state<'a>(journals: impl core::iter::traits:
 pub fn nika_cadence::ledger::rotation_payload(archives: &[(&str, &str)]) -> core::option::Option<alloc::string::String>
 pub fn nika_cadence::ledger::scan_chain(text: &str) -> (u64, core::option::Option<alloc::string::String>, usize)
 pub fn nika_cadence::ledger::tallies<'a>(journals: impl core::iter::traits::collect::IntoIterator<Item = (&'a str, bool)>) -> core::option::Option<(usize, usize)>
-pub fn nika_cadence::ledger::unsettled(text: &str) -> core::option::Option<alloc::vec::Vec<nika_cadence::ledger::Unsettled>>
+pub fn nika_cadence::ledger::unsettled(text: &str) -> core::option::Option<impl core::iter::traits::iterator::Iterator<Item = nika_cadence::ledger::Unsettled> + use<>>
 pub fn nika_cadence::ledger::verify_line(line: &str, expected_seq: u64, expected_prev: core::option::Option<&str>) -> core::option::Option<alloc::string::String>
 pub mod nika_cadence::next
 #[non_exhaustive] pub enum nika_cadence::next::Shift
@@ -1805,7 +1811,7 @@ impl<T> core::convert::From<T> for nika_cadence::firing::Decision
 pub fn nika_cadence::firing::Decision::from(t: T) -> T
 impl<T> typenum::type_operators::Same for nika_cadence::firing::Decision
 pub type nika_cadence::firing::Decision::Output = T
-pub enum nika_cadence::DecisionKind
+#[non_exhaustive] pub enum nika_cadence::DecisionKind
 pub nika_cadence::DecisionKind::Disarmed
 pub nika_cadence::DecisionKind::Failed
 pub nika_cadence::DecisionKind::Fired
@@ -1892,7 +1898,7 @@ impl<T> core::convert::From<T> for nika_cadence::due::DueKind
 pub fn nika_cadence::due::DueKind::from(t: T) -> T
 impl<T> typenum::type_operators::Same for nika_cadence::due::DueKind
 pub type nika_cadence::due::DueKind::Output = T
-pub enum nika_cadence::FiringEvent
+#[non_exhaustive] pub enum nika_cadence::FiringEvent
 pub nika_cadence::FiringEvent::AttemptsExhausted
 pub nika_cadence::FiringEvent::AttemptsExhausted::fencing: nika_cadence::firing::FencingToken
 pub nika_cadence::FiringEvent::Cancelled
@@ -2388,11 +2394,13 @@ impl<T> core::convert::From<T> for nika_cadence::error::CadenceError
 pub fn nika_cadence::error::CadenceError::from(t: T) -> T
 impl<T> typenum::type_operators::Same for nika_cadence::error::CadenceError
 pub type nika_cadence::error::CadenceError::Output = T
-pub struct nika_cadence::Claim
+#[non_exhaustive] pub struct nika_cadence::Claim
 pub nika_cadence::Claim::deadline: jiff::timestamp::Timestamp
 pub nika_cadence::Claim::decided_at: jiff::timestamp::Timestamp
 pub nika_cadence::Claim::generation: core::option::Option<nika_cadence::firing::ArmGeneration>
 pub nika_cadence::Claim::slot_id: nika_cadence::firing::SlotId
+impl nika_cadence::ledger::Claim
+pub const fn nika_cadence::ledger::Claim::new(slot_id: nika_cadence::firing::SlotId, deadline: jiff::timestamp::Timestamp, decided_at: jiff::timestamp::Timestamp) -> Self
 impl core::clone::Clone for nika_cadence::ledger::Claim
 pub fn nika_cadence::ledger::Claim::clone(&self) -> nika_cadence::ledger::Claim
 impl core::fmt::Debug for nika_cadence::ledger::Claim
@@ -2625,7 +2633,7 @@ impl<T> core::convert::From<T> for nika_cadence::firing::FiringPolicy
 pub fn nika_cadence::firing::FiringPolicy::from(t: T) -> T
 impl<T> typenum::type_operators::Same for nika_cadence::firing::FiringPolicy
 pub type nika_cadence::firing::FiringPolicy::Output = T
-pub struct nika_cadence::HistoryEntry
+#[non_exhaustive] pub struct nika_cadence::HistoryEntry
 pub nika_cadence::HistoryEntry::decided_at: jiff::timestamp::Timestamp
 pub nika_cadence::HistoryEntry::exit: core::option::Option<u8>
 pub nika_cadence::HistoryEntry::fencing: core::option::Option<nika_cadence::firing::FencingToken>
@@ -2636,6 +2644,8 @@ pub nika_cadence::HistoryEntry::slot: core::option::Option<jiff::timestamp::Time
 pub nika_cadence::HistoryEntry::slot_id: core::option::Option<nika_cadence::firing::SlotId>
 pub nika_cadence::HistoryEntry::slots: core::option::Option<u32>
 pub nika_cadence::HistoryEntry::trace: core::option::Option<alloc::string::String>
+impl nika_cadence::ledger::HistoryEntry
+pub const fn nika_cadence::ledger::HistoryEntry::new(slot: core::option::Option<jiff::timestamp::Timestamp>, decided_at: jiff::timestamp::Timestamp, kind: nika_cadence::ledger::DecisionKind) -> Self
 impl core::clone::Clone for nika_cadence::ledger::HistoryEntry
 pub fn nika_cadence::ledger::HistoryEntry::clone(&self) -> nika_cadence::ledger::HistoryEntry
 impl core::fmt::Debug for nika_cadence::ledger::HistoryEntry
@@ -2664,7 +2674,7 @@ impl<T> core::convert::From<T> for nika_cadence::ledger::HistoryEntry
 pub fn nika_cadence::ledger::HistoryEntry::from(t: T) -> T
 impl<T> typenum::type_operators::Same for nika_cadence::ledger::HistoryEntry
 pub type nika_cadence::ledger::HistoryEntry::Output = T
-pub struct nika_cadence::LastRecord
+#[non_exhaustive] pub struct nika_cadence::LastRecord
 pub nika_cadence::LastRecord::exit: core::option::Option<u8>
 pub nika_cadence::LastRecord::fired_at: jiff::timestamp::Timestamp
 pub nika_cadence::LastRecord::generation: core::option::Option<nika_cadence::firing::ArmGeneration>
@@ -2699,9 +2709,11 @@ impl<T> core::convert::From<T> for nika_cadence::ledger::LastRecord
 pub fn nika_cadence::ledger::LastRecord::from(t: T) -> T
 impl<T> typenum::type_operators::Same for nika_cadence::ledger::LastRecord
 pub type nika_cadence::ledger::LastRecord::Output = T
-pub struct nika_cadence::RecordOutcome
+#[non_exhaustive] pub struct nika_cadence::RecordOutcome
 pub nika_cadence::RecordOutcome::repaired: u64
 pub nika_cadence::RecordOutcome::seq: u64
+impl nika_cadence::ledger::RecordOutcome
+pub const fn nika_cadence::ledger::RecordOutcome::new(seq: u64, repaired: u64) -> Self
 impl core::clone::Clone for nika_cadence::ledger::RecordOutcome
 pub fn nika_cadence::ledger::RecordOutcome::clone(&self) -> nika_cadence::ledger::RecordOutcome
 impl core::cmp::Eq for nika_cadence::ledger::RecordOutcome
@@ -2821,7 +2833,7 @@ impl<T> core::convert::From<T> for nika_cadence::firing::SlotId
 pub fn nika_cadence::firing::SlotId::from(t: T) -> T
 impl<T> typenum::type_operators::Same for nika_cadence::firing::SlotId
 pub type nika_cadence::firing::SlotId::Output = T
-pub struct nika_cadence::Unsettled
+#[non_exhaustive] pub struct nika_cadence::Unsettled
 pub nika_cadence::Unsettled::claimed_at: jiff::timestamp::Timestamp
 pub nika_cadence::Unsettled::deadline: jiff::timestamp::Timestamp
 pub nika_cadence::Unsettled::seq: u64
@@ -2864,7 +2876,7 @@ impl<T> typenum::type_operators::Same for nika_cadence::ledger::Unsettled
 pub type nika_cadence::ledger::Unsettled::Output = T
 pub const nika_cadence::MISSED_SLOTS_CAP: usize
 pub const nika_cadence::ON_TIME_WINDOW: jiff::signed_duration::SignedDuration
-pub fn nika_cadence::decide(state: nika_cadence::firing::FiringState, event: &nika_cadence::firing::FiringEvent, now: &jiff::timestamp::Timestamp, policy: &nika_cadence::firing::FiringPolicy) -> alloc::vec::Vec<nika_cadence::firing::Decision>
+pub fn nika_cadence::decide(state: nika_cadence::firing::FiringState, event: &nika_cadence::firing::FiringEvent, now: &jiff::timestamp::Timestamp, policy: &nika_cadence::firing::FiringPolicy) -> impl core::iter::traits::iterator::Iterator<Item = nika_cadence::firing::Decision>
 pub fn nika_cadence::due<'a>(reg: &'a nika_cadence::registry::ArmRegistry, now: &jiff::zoned::Zoned, last_fired: &dyn core::ops::function::Fn(usize) -> core::option::Option<jiff::zoned::Zoned>) -> core::result::Result<impl core::iter::traits::iterator::Iterator<Item = nika_cadence::due::Due<'a>>, nika_cadence::error::CadenceError>
 pub fn nika_cadence::earliest_next(reg: &nika_cadence::registry::ArmRegistry, now: &jiff::zoned::Zoned) -> core::result::Result<core::option::Option<(usize, nika_cadence::next::Slot)>, nika_cadence::error::CadenceError>
 pub fn nika_cadence::fold(events: &[nika_cadence::firing::FiringEvent]) -> nika_cadence::firing::FiringState

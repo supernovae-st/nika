@@ -339,6 +339,7 @@ impl SkipReason {
 /// slot's identity is the CALLER's context (the ledger walk groups one
 /// lifecycle at a time); the events carry what the transition needs.
 #[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
 pub enum FiringEvent {
     /// The planner judged the slot due (in-memory — never journaled).
     Due,
@@ -600,44 +601,40 @@ impl FiringFold {
 /// runtime owes (W8's sweep drives this; v0 classifies through
 /// [`fold`]). Fencing-blind by design — the caller pairs the event to
 /// its lifecycle before asking. Off the table ⇒ `[Ignore]`.
-#[must_use]
+#[must_use = "iterators are lazy and do nothing unless consumed"]
 pub fn decide(
     state: FiringState,
     event: &FiringEvent,
     now: &Timestamp,
     policy: &FiringPolicy,
-) -> Vec<Decision> {
+) -> impl Iterator<Item = Decision> {
     let next = transition(state, event);
     if !on_table(state, event) {
-        return vec![Decision::Ignore];
+        return [Some(Decision::Ignore), None, None].into_iter().flatten();
     }
-    let mut decisions = vec![Decision::Become(next)];
-    match event {
-        FiringEvent::Due => {
-            if policy.max_attempts > 0 {
-                decisions.push(Decision::Fire);
-            }
-        }
-        FiringEvent::Claimed { .. } => {
-            decisions.push(Decision::JournalClaim { at: *now });
-            if policy.max_attempts > 0 {
-                decisions.push(Decision::Fire);
-            }
-        }
-        FiringEvent::Finished { .. } | FiringEvent::Cancelled { .. } => {
-            decisions.push(Decision::JournalReceipt {
+    let (second, third) = match event {
+        FiringEvent::Due => ((policy.max_attempts > 0).then_some(Decision::Fire), None),
+        FiringEvent::Claimed { .. } => (
+            Some(Decision::JournalClaim { at: *now }),
+            (policy.max_attempts > 0).then_some(Decision::Fire),
+        ),
+        FiringEvent::Finished { .. } | FiringEvent::Cancelled { .. } => (
+            Some(Decision::JournalReceipt {
                 state: next,
                 at: *now,
-            });
-        }
-        FiringEvent::Skipped { .. } => decisions.push(Decision::JournalSkip { at: *now }),
-        FiringEvent::Deferred => decisions.push(Decision::JournalDefer { at: *now }),
-        FiringEvent::DeadlinePassed { .. } => decisions.push(Decision::SurfaceOrphan),
-        FiringEvent::Rescued { .. } => decisions.push(Decision::Rearm),
-        FiringEvent::Poisoned { .. } => decisions.push(Decision::DeadLetter),
-        FiringEvent::Started { .. } | FiringEvent::AttemptsExhausted { .. } => {}
-    }
-    decisions
+            }),
+            None,
+        ),
+        FiringEvent::Skipped { .. } => (Some(Decision::JournalSkip { at: *now }), None),
+        FiringEvent::Deferred => (Some(Decision::JournalDefer { at: *now }), None),
+        FiringEvent::DeadlinePassed { .. } => (Some(Decision::SurfaceOrphan), None),
+        FiringEvent::Rescued { .. } => (Some(Decision::Rearm), None),
+        FiringEvent::Poisoned { .. } => (Some(Decision::DeadLetter), None),
+        FiringEvent::Started { .. } | FiringEvent::AttemptsExhausted { .. } => (None, None),
+    };
+    [Some(Decision::Become(next)), second, third]
+        .into_iter()
+        .flatten()
 }
 
 /// The beat's canonical form: the DECLARED fields, the struct's fixed
@@ -1135,17 +1132,19 @@ mod tests {
     fn decide_pairs_each_transition_with_its_durable_effect() {
         let now = ts("2026-08-19T03:02:00Z");
         let policy = FiringPolicy::single();
-        let decisions = decide(FiringState::Planned, &FiringEvent::Due, &now, &policy);
+        let decisions: Vec<_> =
+            decide(FiringState::Planned, &FiringEvent::Due, &now, &policy).collect();
         assert_eq!(
             decisions,
             vec![Decision::Become(FiringState::Due), Decision::Fire]
         );
         // A zero-attempt policy clears nothing to fire.
         let none = FiringPolicy { max_attempts: 0 };
-        let decisions = decide(FiringState::Planned, &FiringEvent::Due, &now, &none);
+        let decisions: Vec<_> =
+            decide(FiringState::Planned, &FiringEvent::Due, &now, &none).collect();
         assert_eq!(decisions, vec![Decision::Become(FiringState::Due)]);
         // The claim: journal BEFORE anything runs (the order law).
-        let decisions = decide(FiringState::Due, &claimed(), &now, &policy);
+        let decisions: Vec<_> = decide(FiringState::Due, &claimed(), &now, &policy).collect();
         assert_eq!(
             decisions,
             vec![
@@ -1159,7 +1158,7 @@ mod tests {
             fencing: Some(token()),
             code: 0,
         };
-        let decisions = decide(FiringState::Claimed, &finished, &now, &policy);
+        let decisions: Vec<_> = decide(FiringState::Claimed, &finished, &now, &policy).collect();
         assert_eq!(
             decisions,
             vec![
@@ -1172,7 +1171,7 @@ mod tests {
         );
         // The deadline: the orphan SURFACES.
         let passed = FiringEvent::DeadlinePassed { fencing: token() };
-        let decisions = decide(FiringState::Claimed, &passed, &now, &policy);
+        let decisions: Vec<_> = decide(FiringState::Claimed, &passed, &now, &policy).collect();
         assert_eq!(
             decisions,
             vec![
@@ -1181,7 +1180,7 @@ mod tests {
             ]
         );
         // Off-table: a lawful no-op, said as such.
-        let decisions = decide(FiringState::Succeeded, &claimed(), &now, &policy);
+        let decisions: Vec<_> = decide(FiringState::Succeeded, &claimed(), &now, &policy).collect();
         assert_eq!(decisions, vec![Decision::Ignore]);
     }
 
@@ -1194,7 +1193,7 @@ mod tests {
         let skip = FiringEvent::Skipped {
             reason: Some(SkipReason::Overlap),
         };
-        let decisions = decide(FiringState::Due, &skip, &now, &policy);
+        let decisions: Vec<_> = decide(FiringState::Due, &skip, &now, &policy).collect();
         assert_eq!(
             decisions,
             vec![
@@ -1202,7 +1201,8 @@ mod tests {
                 Decision::JournalSkip { at: now },
             ]
         );
-        let decisions = decide(FiringState::Due, &FiringEvent::Deferred, &now, &policy);
+        let decisions: Vec<_> =
+            decide(FiringState::Due, &FiringEvent::Deferred, &now, &policy).collect();
         assert_eq!(
             decisions,
             vec![
@@ -1212,13 +1212,13 @@ mod tests {
         );
         // The W8 doors: rescue re-arms, poison dead-letters.
         let rescued = FiringEvent::Rescued { fencing: token() };
-        let decisions = decide(FiringState::Ambiguous, &rescued, &now, &policy);
+        let decisions: Vec<_> = decide(FiringState::Ambiguous, &rescued, &now, &policy).collect();
         assert_eq!(
             decisions,
             vec![Decision::Become(FiringState::Due), Decision::Rearm]
         );
         let poisoned = FiringEvent::Poisoned { fencing: token() };
-        let decisions = decide(FiringState::Ambiguous, &poisoned, &now, &policy);
+        let decisions: Vec<_> = decide(FiringState::Ambiguous, &poisoned, &now, &policy).collect();
         assert_eq!(
             decisions,
             vec![

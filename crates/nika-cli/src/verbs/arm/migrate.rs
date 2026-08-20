@@ -143,18 +143,9 @@ mod tests {
     }
 
     fn entry(kind: FireKind, slot: &str, decided: &str) -> HistoryEntry {
-        HistoryEntry {
-            slot: Some(ts(slot)),
-            decided_at: ts(decided),
-            kind,
-            reason: None,
-            trace: None,
-            exit: Some(0),
-            slots: None,
-            slot_id: None,
-            fencing: None,
-            generation: None,
-        }
+        let mut entry = HistoryEntry::new(Some(ts(slot)), ts(decided), kind);
+        entry.exit = Some(0);
+        entry
     }
 
     /// A W2-era journal: a fire then a skip, pre-ledger (no `schema`).

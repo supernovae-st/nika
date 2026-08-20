@@ -433,18 +433,14 @@ mod tests {
         let generation_short = generation.short().to_owned();
         // prouve: the machine fired twice, skipped once — the sidecar
         // attests (last.json + the history's tallies).
-        let fired = state::HistoryEntry {
-            slot: Some("2026-08-18T07:07:00Z".parse().expect("ts")),
-            decided_at: "2026-08-18T07:07:04Z".parse().expect("ts"),
-            kind: state::FireKind::Fired,
-            reason: None,
-            trace: Some(".nika/traces/2026-08-18T07-07-04Z_cafe.ndjson".to_owned()),
-            exit: Some(0),
-            slots: None,
-            slot_id: None,
-            fencing: None,
-            generation: Some(generation),
-        };
+        let mut fired = state::HistoryEntry::new(
+            Some("2026-08-18T07:07:00Z".parse().expect("ts")),
+            "2026-08-18T07:07:04Z".parse().expect("ts"),
+            state::FireKind::Fired,
+        );
+        fired.trace = Some(".nika/traces/2026-08-18T07-07-04Z_cafe.ndjson".to_owned());
+        fired.exit = Some(0);
+        fired.generation = Some(generation);
         sidecar.record("prouve", &fired).expect("record");
         sidecar.record("prouve", &fired).expect("record");
         let mut skipped = fired.clone();
@@ -502,18 +498,13 @@ mod tests {
         for mutation in ["tamper", "truncate"] {
             let dir = project_at(mutation, body);
             let sidecar = state::ArmState::at_project(dir.path());
-            let entry = state::HistoryEntry {
-                slot: Some("2026-08-18T03:00:00Z".parse().expect("slot")),
-                decided_at: "2026-08-18T03:01:00Z".parse().expect("decision"),
-                kind: state::FireKind::Skipped,
-                reason: Some("missed:1".to_owned()),
-                trace: None,
-                exit: Some(0),
-                slots: None,
-                slot_id: None,
-                fencing: None,
-                generation: None,
-            };
+            let mut entry = state::HistoryEntry::new(
+                Some("2026-08-18T03:00:00Z".parse().expect("slot")),
+                "2026-08-18T03:01:00Z".parse().expect("decision"),
+                state::FireKind::Skipped,
+            );
+            entry.reason = Some("missed:1".to_owned());
+            entry.exit = Some(0);
             sidecar.record("doctor", &entry).expect("record");
             let history = dir.path().join(".nika/arm/doctor/history.ndjson");
             let text = std::fs::read_to_string(&history).expect("history");
@@ -558,16 +549,13 @@ mod tests {
         let slot_id =
             nika_cadence::SlotId::derive("workflows/doctor.nika.yaml", "TZ=UTC 0 3 * * *", &slot);
         let short = slot_id.short().to_owned();
+        let claim = state::Claim::new(
+            slot_id,
+            "2026-08-19T04:00:00Z".parse().expect("deadline"),
+            "2026-08-19T03:02:00Z".parse().expect("claimed"),
+        );
         state::ArmState::at_project(dir.path())
-            .record_claim(
-                "doctor",
-                &state::Claim {
-                    slot_id,
-                    generation: None,
-                    deadline: "2026-08-19T04:00:00Z".parse().expect("deadline"),
-                    decided_at: "2026-08-19T03:02:00Z".parse().expect("claimed"),
-                },
-            )
+            .record_claim("doctor", &claim)
             .expect("claim");
 
         let out = run_at(dir.path());

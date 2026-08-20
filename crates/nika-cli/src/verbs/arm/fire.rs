@@ -653,18 +653,14 @@ fn act_on_skip(
             code: exit::OK,
         };
     }
-    let entry = HistoryEntry {
-        slot: slot.map(Zoned::timestamp),
-        decided_at: ctx.now.timestamp(),
-        kind: FireKind::Skipped,
-        reason: Some(reason),
-        trace: None,
-        exit: Some(exit::OK),
-        slots: None,
-        slot_id: slot.and_then(|s| slot_id_of(ctx, s)),
-        fencing: None,
-        generation: None,
-    };
+    let mut entry = HistoryEntry::new(
+        slot.map(Zoned::timestamp),
+        ctx.now.timestamp(),
+        FireKind::Skipped,
+    );
+    entry.reason = Some(reason);
+    entry.exit = Some(exit::OK);
+    entry.slot_id = slot.and_then(|s| slot_id_of(ctx, s));
     match ctx.state.record(&ctx.label, &entry) {
         Ok(outcome) => FireVerdict {
             line: with_repair(line, outcome.repaired),
@@ -708,10 +704,9 @@ fn claim_run_receipt(
         Ok(pinned) => pinned,
         Err(error) => return record_refused(ctx, &error),
     };
-    let claim = Claim {
-        slot_id: SlotId::derive(&beat.workflow, &beat.cadence, slot),
-        generation: Some(pinned.generation.clone()),
-        deadline: next_slot(ctx).map_or_else(
+    let mut claim = Claim::new(
+        SlotId::derive(&beat.workflow, &beat.cadence, slot),
+        next_slot(ctx).map_or_else(
             || {
                 ctx.now
                     .timestamp()
@@ -720,8 +715,9 @@ fn claim_run_receipt(
             },
             |next| next.timestamp(),
         ),
-        decided_at: ctx.now.timestamp(),
-    };
+        ctx.now.timestamp(),
+    );
+    claim.generation = Some(pinned.generation.clone());
     let mut repaired = 0u64;
     let fencing = match ArmState::record_claim_with_lease(lease, &claim) {
         Ok(outcome) => {

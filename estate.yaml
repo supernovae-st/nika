@@ -140,7 +140,7 @@ patterns:
 - glob: "crates/*/public-api.txt"
   class: generated
   match_count: 66
-  aggregate_sha256: a2f13539ec909a0edea5b038810bf5f5388f837cb88355b5e73d242b3fa65ac5
+  aggregate_sha256: e4862783331fe7a55446fc4991fb45a91f99815c9226a1a229aa75b36b8f264f
   evidence: ".github/workflows/public-api.yml 'diff each covered lib crate' byte-compares each snapshot against cargo public-api output; macOS renders differently, so snapshots regenerate FROM THE UBUNTU ARTIFACT (workflow comment)"
   derivation:
     tool: "cargo public-api -p <crate> --omit auto-trait-impls > crates/<crate>/public-api.txt (DEFAULT features · the CI job shape — all-features drags platform deps into the render · cargo-public-api 0.51.0 pinned · the public-api-actual CI artifact stays the judge)"
@@ -152,7 +152,7 @@ patterns:
 - glob: "crates/**/src/**"
   class: authored
   match_count: 803
-  aggregate_sha256: 3017f7759d8d0e87054d412cde0c497cad6540c38e506035c30314d1968025d7
+  aggregate_sha256: 52e9e1fdfaf7b79dc0c7a43476b19cd3370b1a928999f539722c2852b584ccf0
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored

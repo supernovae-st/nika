@@ -461,16 +461,15 @@ fn the_queue_redecides_after_the_wait() {
     let holder = RefCell::new(Some((holder, lease)));
     let wait: WaitSeam = Box::new(move |_| {
         if let Some((child, lease)) = holder.borrow_mut().take() {
-            let claim = Claim {
-                slot_id: SlotId::derive(
+            let claim = Claim::new(
+                SlotId::derive(
                     "workflows/doctor.nika.yaml",
                     "TZ=UTC 0 3 * * *",
                     &at("2026-08-19T03:00:00Z"),
                 ),
-                generation: None,
-                deadline: ts("2026-08-20T03:00:00Z"),
-                decided_at: ts("2026-08-19T03:02:00Z"),
-            };
+                ts("2026-08-20T03:00:00Z"),
+                ts("2026-08-19T03:02:00Z"),
+            );
             let claimed =
                 ArmState::record_claim_with_lease(&lease, &claim).expect("the holder's claim");
             let receipt = Receipt::for_claim(
@@ -566,18 +565,13 @@ fn a_truncated_ledger_refuses_before_the_decision() {
     let dir = project("repair");
     let sidecar = ArmState::at_project(dir.path());
     // One anchored decision, then a partial unanchored append left by a crash.
-    let seed = HistoryEntry {
-        slot: Some(ts("2026-08-18T03:00:00Z")),
-        decided_at: ts("2026-08-18T03:01:00Z"),
-        kind: FireKind::Skipped,
-        reason: Some("overlap".to_owned()),
-        trace: None,
-        exit: Some(0),
-        slots: None,
-        slot_id: None,
-        fencing: None,
-        generation: None,
-    };
+    let mut seed = HistoryEntry::new(
+        Some(ts("2026-08-18T03:00:00Z")),
+        ts("2026-08-18T03:01:00Z"),
+        FireKind::Skipped,
+    );
+    seed.reason = Some("overlap".to_owned());
+    seed.exit = Some(0);
     sidecar.record("doctor", &seed).expect("record");
     let ledger = dir.path().join(".nika/arm/doctor/history.ndjson");
     let mut text = std::fs::read_to_string(&ledger).expect("ledger");

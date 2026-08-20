@@ -20,18 +20,13 @@ fn at(text: &str) -> Zoned {
 }
 
 fn entry(kind: FireKind) -> HistoryEntry {
-    HistoryEntry {
-        slot: Some(ts("2026-08-19T03:00:00Z")),
-        decided_at: ts("2026-08-19T03:02:00Z"),
+    let mut entry = HistoryEntry::new(
+        Some(ts("2026-08-19T03:00:00Z")),
+        ts("2026-08-19T03:02:00Z"),
         kind,
-        reason: None,
-        trace: None,
-        exit: Some(0),
-        slots: None,
-        slot_id: None,
-        fencing: None,
-        generation: None,
-    }
+    );
+    entry.exit = Some(0);
+    entry
 }
 
 fn ts(text: &str) -> Timestamp {
@@ -228,12 +223,11 @@ fn claim_and_receipt_stay_on_the_held_directory_after_path_swap() {
         .acquire_beat_lock("doctor", std::process::id(), &now)
         .expect("beat lock");
     let lease = attempt.lease.expect("lease");
-    let claim = Claim {
-        slot_id: SlotId::derive("doctor.nika.yaml", "TZ=UTC 0 3 * * *", &now),
-        generation: None,
-        deadline: ts("2026-08-20T03:00:00Z"),
-        decided_at: ts("2026-08-19T03:02:00Z"),
-    };
+    let claim = Claim::new(
+        SlotId::derive("doctor.nika.yaml", "TZ=UTC 0 3 * * *", &now),
+        ts("2026-08-20T03:00:00Z"),
+        ts("2026-08-19T03:02:00Z"),
+    );
     let claimed = ArmState::record_claim_with_lease(&lease, &claim).expect("claim");
 
     let visible = dir.path().join(".nika/arm/doctor");
@@ -439,15 +433,14 @@ fn an_orphan_claim_is_visible_until_its_receipt_lands() {
         "TZ=UTC 0 3 * * *",
         &at("2026-08-19T03:00:00Z"),
     );
-    let claim = Claim {
-        slot_id: identity.clone(),
-        generation: None,
-        deadline: ts("2026-08-20T03:00:00Z"),
-        decided_at: ts("2026-08-19T03:02:00Z"),
-    };
+    let claim = Claim::new(
+        identity.clone(),
+        ts("2026-08-20T03:00:00Z"),
+        ts("2026-08-19T03:02:00Z"),
+    );
     let claimed = state.record_claim("doctor", &claim).expect("claim");
     assert_eq!(claimed.seq, 1);
-    let orphans = state.unsettled("doctor").expect("valid journal");
+    let orphans: Vec<_> = state.unsettled("doctor").expect("valid journal").collect();
     assert_eq!(orphans.len(), 1, "the orphan is visible: {orphans:?}");
     assert_eq!(orphans[0].seq, 1);
     assert_eq!(orphans[0].slot_id, identity);
@@ -459,7 +452,11 @@ fn an_orphan_claim_is_visible_until_its_receipt_lands() {
     receipt.fencing = Some(FencingToken::new(claimed.seq));
     state.record("doctor", &receipt).expect("receipt");
     assert!(
-        state.unsettled("doctor").expect("valid journal").is_empty(),
+        state
+            .unsettled("doctor")
+            .expect("valid journal")
+            .collect::<Vec<_>>()
+            .is_empty(),
         "settled by the receipt"
     );
 }
@@ -474,18 +471,23 @@ fn a_deleted_anchored_receipt_cannot_forge_an_orphan() {
         "TZ=UTC 0 3 * * *",
         &at("2026-08-19T03:00:00Z"),
     );
-    let claim = Claim {
-        slot_id: identity.clone(),
-        generation: None,
-        deadline: ts("2026-08-20T03:00:00Z"),
-        decided_at: ts("2026-08-19T03:02:00Z"),
-    };
+    let claim = Claim::new(
+        identity.clone(),
+        ts("2026-08-20T03:00:00Z"),
+        ts("2026-08-19T03:02:00Z"),
+    );
     let claimed = state.record_claim("doctor", &claim).expect("claim");
     let mut receipt = entry(FireKind::Fired);
     receipt.slot_id = Some(identity);
     receipt.fencing = Some(FencingToken::new(claimed.seq));
     state.record("doctor", &receipt).expect("receipt");
-    assert!(state.unsettled("doctor").expect("healthy").is_empty());
+    assert!(
+        state
+            .unsettled("doctor")
+            .expect("healthy")
+            .collect::<Vec<_>>()
+            .is_empty()
+    );
 
     let ledger = dir.path().join(".nika/arm/doctor/history.ndjson");
     let text = std::fs::read_to_string(&ledger).expect("ledger");
@@ -507,12 +509,11 @@ fn a_forged_tail_cannot_settle_or_inflate_the_verified_ledger() {
         "TZ=UTC 0 3 * * *",
         &at("2026-08-19T03:00:00Z"),
     );
-    let claim = Claim {
-        slot_id: identity.clone(),
-        generation: None,
-        deadline: ts("2026-08-20T03:00:00Z"),
-        decided_at: ts("2026-08-19T03:02:00Z"),
-    };
+    let claim = Claim::new(
+        identity.clone(),
+        ts("2026-08-20T03:00:00Z"),
+        ts("2026-08-19T03:02:00Z"),
+    );
     state.record_claim("doctor", &claim).expect("claim");
     let path = dir.path().join(".nika/arm/doctor/history.ndjson");
     let mut file = std::fs::OpenOptions::new()
@@ -571,12 +572,11 @@ fn a_receipt_with_the_wrong_slot_or_fence_is_rejected() {
         "TZ=UTC 0 3 * * *",
         &at("2026-08-19T03:00:00Z"),
     );
-    let claim = Claim {
-        slot_id: first.clone(),
-        generation: None,
-        deadline: ts("2026-08-20T03:00:00Z"),
-        decided_at: ts("2026-08-19T03:02:00Z"),
-    };
+    let claim = Claim::new(
+        first.clone(),
+        ts("2026-08-20T03:00:00Z"),
+        ts("2026-08-19T03:02:00Z"),
+    );
     let claimed = state.record_claim("doctor", &claim).expect("claim");
 
     let mut wrong_slot = entry(FireKind::Failed);
@@ -589,7 +589,7 @@ fn a_receipt_with_the_wrong_slot_or_fence_is_rejected() {
     wrong_fence.fencing = Some(FencingToken::new(claimed.seq + 99));
     assert!(state.record("doctor", &wrong_fence).is_err());
 
-    let unsettled = state.unsettled("doctor").expect("valid journal");
+    let unsettled: Vec<_> = state.unsettled("doctor").expect("valid journal").collect();
     assert_eq!(
         unsettled.len(),
         1,
@@ -611,16 +611,19 @@ fn an_earlier_receipt_is_rejected_before_a_later_claim() {
     early.slot_id = Some(identity.clone());
     early.fencing = Some(FencingToken::new(2));
     assert!(state.record("doctor", &early).is_err());
-    let claim = Claim {
-        slot_id: identity,
-        generation: None,
-        deadline: ts("2026-08-20T03:00:00Z"),
-        decided_at: ts("2026-08-19T03:03:00Z"),
-    };
+    let claim = Claim::new(
+        identity,
+        ts("2026-08-20T03:00:00Z"),
+        ts("2026-08-19T03:03:00Z"),
+    );
     let claimed = state.record_claim("doctor", &claim).expect("claim");
     assert_eq!(claimed.seq, 1, "the refused receipt consumed no sequence");
     assert_eq!(
-        state.unsettled("doctor").expect("valid journal").len(),
+        state
+            .unsettled("doctor")
+            .expect("valid journal")
+            .collect::<Vec<_>>()
+            .len(),
         1,
         "order is part of settlement"
     );

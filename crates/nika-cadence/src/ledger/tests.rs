@@ -191,6 +191,20 @@ fn schema_and_line_guards_refuse_each_independent_mismatch() {
 }
 
 #[test]
+fn versioned_dialect_detection_stops_after_valid_genesis() {
+    let (genesis, hash) = line(1, "disarmed", None, r#"{"slot":null}"#, None);
+    let corrupt_tail = format!("{genesis}\nnot-json\n");
+
+    assert_eq!(
+        classify_journal(&corrupt_tail),
+        Some(JournalFormat::Versioned)
+    );
+    assert!(first_line_is_versioned(&corrupt_tail));
+    assert_eq!(scan_chain(&corrupt_tail), (1, Some(hash), 1));
+    assert!(replay_projection([(&*corrupt_tail, true)]).is_none());
+}
+
+#[test]
 fn private_wire_validators_cover_every_acceptance_boundary() {
     let exact = serde_json::json!({"a": null, "b": null});
     let exact = exact.as_object().expect("object");
@@ -461,6 +475,39 @@ fn json_and_decision_payload_are_canonical() {
 }
 
 #[test]
+fn public_constructors_start_with_conservative_defaults() {
+    let slot = ts("2026-08-19T03:00:00Z");
+    let decided_at = ts("2026-08-19T03:02:00Z");
+    let entry = HistoryEntry::new(Some(slot), decided_at, DecisionKind::Fired);
+    assert_eq!(entry.slot, Some(slot));
+    assert_eq!(entry.decided_at, decided_at);
+    assert_eq!(entry.kind, DecisionKind::Fired);
+    assert!(entry.reason.is_none());
+    assert!(entry.trace.is_none());
+    assert!(entry.exit.is_none());
+    assert!(entry.slots.is_none());
+    assert!(entry.slot_id.is_none());
+    assert!(entry.fencing.is_none());
+    assert!(entry.generation.is_none());
+
+    let slot_id = SlotId::from_wire(&"a".repeat(64)).expect("slot id");
+    let deadline = ts("2026-08-20T03:00:00Z");
+    let claim = Claim::new(slot_id.clone(), deadline, decided_at);
+    assert_eq!(claim.slot_id, slot_id);
+    assert_eq!(claim.deadline, deadline);
+    assert_eq!(claim.decided_at, decided_at);
+    assert!(claim.generation.is_none());
+
+    assert_eq!(
+        RecordOutcome::new(7, 2),
+        RecordOutcome {
+            seq: 7,
+            repaired: 2
+        }
+    );
+}
+
+#[test]
 fn legacy_receipt_adapter_accepts_only_consistent_bare_terminals() {
     let entry = |kind, exit| HistoryEntry {
         slot: Some(ts("2026-08-19T03:00:00Z")),
@@ -588,7 +635,12 @@ fn versioned_claim_and_receipt_replay_one_lifecycle() {
             .0,
         FiringState::Succeeded
     );
-    assert!(unsettled(&text).expect("valid journal").is_empty());
+    assert!(
+        unsettled(&text)
+            .expect("valid journal")
+            .collect::<Vec<_>>()
+            .is_empty()
+    );
 }
 
 #[test]
@@ -784,7 +836,7 @@ fn orphan_claim_crosses_only_the_open_deadline_boundary() {
         None,
     );
     let replayed = replay_core([(&*claim, true)]).expect("valid replay");
-    assert_eq!(unsettled(&claim).expect("valid journal").len(), 1);
+    assert_eq!(unsettled(&claim).expect("valid journal").count(), 1);
     assert_eq!(
         fold_replay(&replayed, &ts("2026-08-20T03:00:00Z"))
             .expect("fold")
@@ -841,6 +893,7 @@ fn unsettled_requires_a_later_receipt_with_both_identities() {
     assert!(
         unsettled(&format!("{claim}\n{receipt}\n"))
             .expect("valid journal")
+            .collect::<Vec<_>>()
             .is_empty()
     );
 }

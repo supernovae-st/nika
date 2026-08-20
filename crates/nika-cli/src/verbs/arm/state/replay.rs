@@ -223,18 +223,9 @@ mod tests {
     }
 
     fn entry(kind: FireKind, slot: &str, decided: &str) -> HistoryEntry {
-        HistoryEntry {
-            slot: Some(ts(slot)),
-            decided_at: ts(decided),
-            kind,
-            reason: None,
-            trace: None,
-            exit: Some(0),
-            slots: None,
-            slot_id: None,
-            fencing: None,
-            generation: None,
-        }
+        let mut entry = HistoryEntry::new(Some(ts(slot)), ts(decided), kind);
+        entry.exit = Some(0);
+        entry
     }
 
     /// (a) · the reversal, pinned: `last.json` deleted → the CHAIN
@@ -606,16 +597,15 @@ mod tests {
     #[test]
     fn a_claim_becomes_ambiguous_only_after_its_deadline() {
         let (dir, state) = state("deadline-boundary");
-        let claim = Claim {
-            slot_id: SlotId::derive(
+        let claim = Claim::new(
+            SlotId::derive(
                 "doctor.nika.yaml",
                 "TZ=UTC 0 3 * * *",
                 &ts("2026-08-19T03:00:00Z").to_zoned(jiff::tz::TimeZone::UTC),
             ),
-            generation: None,
-            deadline: ts("2026-08-20T03:00:00Z"),
-            decided_at: ts("2026-08-19T03:02:00Z"),
-        };
+            ts("2026-08-20T03:00:00Z"),
+            ts("2026-08-19T03:02:00Z"),
+        );
         state.record_claim("doctor", &claim).expect("claim");
         let replayed = replay(&dir.path().join(".nika/arm/doctor")).expect("replay");
         assert_eq!(
