@@ -69,6 +69,14 @@ fn shell_quote(path: &str) -> std::borrow::Cow<'_, str> {
     }
 }
 
+fn routing_prefix(contract: Option<&IntentContract>) -> &'static str {
+    if contract.is_some() {
+        "routed intent → "
+    } else {
+        ""
+    }
+}
+
 /// `nika new` — resolve the missing `--from` per clig.dev: a terminal
 /// gets the guided flow (prompt for the missing argument) · a pipe/CI
 /// fails fast naming the flag (never REQUIRE interactivity).
@@ -215,12 +223,11 @@ pub fn run(template: &str, dest: Option<&str>, force: bool) -> Outcome {
             code: codes::ENV,
         };
     }
-    let routed = contract.is_some();
-    let routing = if routed { "routed intent → " } else { "" };
+    let routing = routing_prefix(contract.as_ref());
     // A ROUTED file is a draft by construction (P0-10): the intent was
     // interpreted, not understood — the message says « draft », never
     // « ready », and hands over to `nika check` before any run.
-    let text = if routed {
+    let text = if contract.is_some() {
         format!(
             "{dest} ← {routing}template `{name}` — a DRAFT scaffold · fill the `# SLOT:` lines, then `nika check {q}` before any run",
             q = shell_quote(dest)
