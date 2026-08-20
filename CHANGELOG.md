@@ -10,6 +10,8 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+## [0.112.0](https://github.com/supernovae-st/nika/compare/v0.111.0..v0.112.0) - 2026-08-21
+
 ### Added
 
 - **`nika list` names every workflow below the current directory.** Output is
