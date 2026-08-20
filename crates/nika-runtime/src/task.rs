@@ -664,7 +664,7 @@ where
         let result = fan_out::fan_out_result(
             acc.outputs,
             acc.tokens_sum,
-            acc.first_error,
+            (acc.first_error, acc.first_recovered_from),
             (acc.cost_sum, acc.unpriced),
         );
         let retries = acc.retries;
