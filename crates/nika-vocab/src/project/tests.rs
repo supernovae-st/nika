@@ -12,8 +12,7 @@
 #![allow(clippy::float_cmp)]
 
 use super::{
-    ArmLocus, MissPolicy, Project, ProjectErrorKind, ProvenanceFloor, SCHEMA, STARTER, discover,
-    parse,
+    ArmLocus, MissPolicy, Project, ProjectErrorKind, ProvenanceFloor, STARTER, discover, parse,
 };
 use proptest::strategy::Strategy as _;
 use std::time::Duration;
@@ -21,7 +20,7 @@ use std::time::Duration;
 /// The ratified example, VERBATIM (D-2026-08-11-N5) — comments and
 /// all. If this drifts, the decision and the parser drift together.
 const CANONICAL: &str = r#"
-nika: v1
+nika: proj
 
 ceiling: 0.50          # default max-cost-usd · the per-invocation --max-cost-usd flag ALWAYS wins
 
@@ -70,13 +69,26 @@ fn the_canonical_example_parses_verbatim() {
     assert_eq!(beat.manque, MissPolicy::RattraperUneFois);
 }
 
-/// Absent = defaults, zero ceremony: the bare tag, an empty file, and
-/// a comments-only file all parse to the SAME default — and the
+/// Absent = defaults, zero ceremony: a name and nothing else, an empty
+/// file, and a comments-only file all govern the SAME nothing — and the
 /// wizard's starter is one of them (the example cannot drift).
+///
+/// The NAME is the one field a named file carries that an empty one
+/// cannot: a file that declares nothing owes no name, so `default()`
+/// leaves it `None` and the knobs are what this test compares.
 #[test]
 fn absence_is_the_default() {
     let default = Project::default();
-    assert_eq!(parse("nika: v1\n").expect("bare tag"), default);
+    let named = parse("nika: proj\n").expect("bare name");
+    assert_eq!(named.name.as_deref(), Some("proj"));
+    assert_eq!(
+        Project {
+            name: None,
+            ..named
+        },
+        default,
+        "a name governs nothing else"
+    );
     assert_eq!(parse("").expect("empty"), default);
     assert_eq!(parse("   \n  \n").expect("whitespace"), default);
     assert_eq!(
@@ -84,10 +96,19 @@ fn absence_is_the_default() {
         default,
         "a file that declares nothing governs nothing"
     );
+    let starter = parse(STARTER).expect("the wizard's starter parses");
     assert_eq!(
-        parse(STARTER).expect("the wizard's starter parses"),
+        starter.name.as_deref(),
+        Some("my-project"),
+        "the starter teaches the name, so the example cannot drift from the law"
+    );
+    assert_eq!(
+        Project {
+            name: None,
+            ..starter
+        },
         default,
-        "the starter is all-commented examples — absence IS the defaults"
+        "every other starter line is a commented example — absence IS the defaults"
     );
 }
 
@@ -96,19 +117,19 @@ fn absence_is_the_default() {
 #[test]
 fn unknown_keys_refuse_by_name_with_their_line() {
     // Top level — the typo'd `celing` sits on line 3.
-    let err = parse("nika: v1\nceiling: 0.50\nceling: 0.25\n").unwrap_err();
+    let err = parse("nika: proj\nceiling: 0.50\nceling: 0.25\n").unwrap_err();
     assert_eq!(err.kind(), ProjectErrorKind::UnknownKey);
     assert_eq!(err.line(), Some(3), "the key's own line: {err}");
     assert!(err.detail().contains("celing"), "the key is named: {err}");
     assert!(err.remedy().contains("ceiling"), "the set is taught: {err}");
 
     // `traces:` level.
-    let err = parse("nika: v1\ntraces:\n  keep: 30d\n  budget: 1\n").unwrap_err();
+    let err = parse("nika: proj\ntraces:\n  keep: 30d\n  budget: 1\n").unwrap_err();
     assert_eq!(err.kind(), ProjectErrorKind::UnknownKey);
     assert_eq!(err.line(), Some(4));
 
     // `registry:` level.
-    let err = parse("nika: v1\nregistry:\n  flor: provenanced\n").unwrap_err();
+    let err = parse("nika: proj\nregistry:\n  flor: provenanced\n").unwrap_err();
     assert_eq!(err.kind(), ProjectErrorKind::UnknownKey);
     assert_eq!(err.line(), Some(3));
 
@@ -121,28 +142,54 @@ fn unknown_keys_refuse_by_name_with_their_line() {
 /// operator is never pointed at nothing.
 #[test]
 fn malformed_yaml_refuses_with_a_line() {
-    let err = parse("nika: v1\nceiling: [0.50\n").unwrap_err();
+    let err = parse("nika: proj\nceiling: [0.50\n").unwrap_err();
     assert_eq!(err.kind(), ProjectErrorKind::Grammar);
     assert!(err.line().is_some(), "a line rides the refusal: {err}");
     // A duplicate key is YAML-loud too (never last-wins).
-    let err = parse("nika: v1\nnika: v1\n").unwrap_err();
+    let err = parse("nika: proj\nnika: proj\n").unwrap_err();
     assert_eq!(err.kind(), ProjectErrorKind::Grammar, "{err}");
     // A bare scalar at the top is not a project file.
     let err = parse("just a string\n").unwrap_err();
     assert_eq!(err.kind(), ProjectErrorKind::Grammar);
 }
 
-/// The tag is frozen: absent or non-`v1` refuses by name.
+/// `nika:` names the project: absent, or a value that is not a
+/// kebab-case name, refuses by name.
 #[test]
-fn the_tag_is_frozen() {
+fn the_project_names_itself() {
     let err = parse("ceiling: 0.50\n").unwrap_err();
-    assert_eq!(err.kind(), ProjectErrorKind::TagFrozen, "{err}");
-    let err = parse("nika: v2\n").unwrap_err();
-    assert_eq!(err.kind(), ProjectErrorKind::TagFrozen, "{err}");
-    assert_eq!(
-        parse(&format!("nika: {SCHEMA}\n")).expect("v1"),
-        Project::default()
-    );
+    assert_eq!(err.kind(), ProjectErrorKind::Identity, "{err}");
+    for bad in ["Not_Kebab", "1leading-digit", "", "-leading-dash"] {
+        let err = parse(&format!("nika: {bad}\n")).unwrap_err();
+        assert_eq!(err.kind(), ProjectErrorKind::Identity, "{bad}: {err}");
+    }
+    let p = parse("nika: my-project\n").expect("a name parses");
+    assert_eq!(p.name.as_deref(), Some("my-project"));
+}
+
+/// The retired schema tag refuses HERE, where a workflow lets it pass.
+///
+/// The asymmetry is the point: a pre-nuke workflow carried `workflow:`
+/// beside its `nika: proj` and refuses on that key, so `v1` is free to be
+/// an ordinary workflow NAME. A pre-nuke project file had no companion
+/// key — `nika: proj` + `ceiling:` is well-formed under both readings —
+/// so only a refusal here keeps the same bytes from quietly changing
+/// meaning.
+#[test]
+fn the_retired_schema_tag_refuses_in_a_project_file() {
+    for marker in ["v1", "v2", "v999"] {
+        let err = parse(&format!("nika: {marker}\nceiling: 0.50\n")).unwrap_err();
+        assert_eq!(err.kind(), ProjectErrorKind::Identity, "{marker}: {err}");
+        assert!(
+            err.to_string().contains("retired schema tag"),
+            "the refusal must NAME the reinterpretation: {err}"
+        );
+    }
+    // Only the WHOLE marker. These are ordinary names and stay legal.
+    for name in ["vault", "v2ray", "v1-migration", "victor"] {
+        let p = parse(&format!("nika: {name}\n")).expect("an ordinary name");
+        assert_eq!(p.name.as_deref(), Some(name));
+    }
 }
 
 /// `ceiling:` — a positive finite number, unquoted. The flag-side
@@ -151,7 +198,7 @@ fn the_tag_is_frozen() {
 #[test]
 fn ceiling_values_are_lawful_money() {
     assert_eq!(
-        parse("nika: v1\nceiling: 0.50\n").expect("ok").ceiling,
+        parse("nika: proj\nceiling: 0.50\n").expect("ok").ceiling,
         Some(0.5)
     );
     for bad in [
@@ -160,7 +207,7 @@ fn ceiling_values_are_lawful_money() {
         "ceiling: \"0.50\"",
         "ceiling: soon",
     ] {
-        let err = parse(&format!("nika: v1\n{bad}\n")).unwrap_err();
+        let err = parse(&format!("nika: proj\n{bad}\n")).unwrap_err();
         assert_eq!(err.kind(), ProjectErrorKind::BadValue, "{bad}: {err}");
     }
 }
@@ -169,16 +216,16 @@ fn ceiling_values_are_lawful_money() {
 /// govern nothing.
 #[test]
 fn traces_keep_is_days_grained() {
-    let p = parse("nika: v1\ntraces:\n  keep: 45d\n").expect("ok");
+    let p = parse("nika: proj\ntraces:\n  keep: 45d\n").expect("ok");
     assert_eq!(
         p.traces.map(|t| t.keep),
         Some(Duration::from_secs(45 * 86_400))
     );
     for bad in ["keep: 30", "keep: 30h", "keep: soon", "keep: -1d"] {
-        let err = parse(&format!("nika: v1\ntraces:\n  {bad}\n")).unwrap_err();
+        let err = parse(&format!("nika: proj\ntraces:\n  {bad}\n")).unwrap_err();
         assert_eq!(err.kind(), ProjectErrorKind::BadValue, "{bad}: {err}");
     }
-    let err = parse("nika: v1\ntraces:\n").unwrap_err();
+    let err = parse("nika: proj\ntraces:\n").unwrap_err();
     assert_eq!(
         err.kind(),
         ProjectErrorKind::BadValue,
@@ -191,12 +238,12 @@ fn traces_keep_is_days_grained() {
 #[test]
 fn registry_floor_is_the_closed_ladder() {
     for tier in ProvenanceFloor::ALL {
-        let p = parse(&format!("nika: v1\nregistry:\n  floor: {tier}\n")).expect("tier parses");
+        let p = parse(&format!("nika: proj\nregistry:\n  floor: {tier}\n")).expect("tier parses");
         assert_eq!(p.registry.map(|r| r.floor), Some(tier));
     }
-    let err = parse("nika: v1\nregistry:\n  floor: bogus\n").unwrap_err();
+    let err = parse("nika: proj\nregistry:\n  floor: bogus\n").unwrap_err();
     assert_eq!(err.kind(), ProjectErrorKind::BadValue, "{err}");
-    let err = parse("nika: v1\nregistry:\n").unwrap_err();
+    let err = parse("nika: proj\nregistry:\n").unwrap_err();
     assert_eq!(
         err.kind(),
         ProjectErrorKind::BadValue,
@@ -222,7 +269,7 @@ fn the_floor_spellings_round_trip() {
 /// for the cadence arc to consume.
 #[test]
 fn arm_entries_validate_their_shape() {
-    let ok = "nika: v1\narm:\n  - workflow: workflows/w.nika.yaml\n    cadence: \"TZ=Europe/Paris 0 9 * * 1\"\n    plafond: 0.35\n    manqué: rattraper\n  - workflow: workflows/v.nika.yaml\n    cadence: on-webhook\n    où: cloud\n    plafond: 2.00\n    manqué: rattraper-une-fois\n";
+    let ok = "nika: proj\narm:\n  - workflow: workflows/w.nika.yaml\n    cadence: \"TZ=Europe/Paris 0 9 * * 1\"\n    plafond: 0.35\n    manqué: rattraper\n  - workflow: workflows/v.nika.yaml\n    cadence: on-webhook\n    où: cloud\n    plafond: 2.00\n    manqué: rattraper-une-fois\n";
     let p = parse(ok).expect("two beats parse");
     assert_eq!(p.arm().len(), 2);
     assert_eq!(
@@ -253,7 +300,7 @@ fn arm_entries_validate_their_shape() {
         ),
     ];
     for (entry, missing_key) in cases {
-        let err = parse(&format!("nika: v1\narm:\n  - {entry}\n")).unwrap_err();
+        let err = parse(&format!("nika: proj\narm:\n  - {entry}\n")).unwrap_err();
         assert_eq!(
             err.kind(),
             ProjectErrorKind::BadValue,
@@ -266,7 +313,7 @@ fn arm_entries_validate_their_shape() {
     }
 
     // The shape laws — each broken entry against one full document.
-    let base = "nika: v1\narm:\n  - workflow: w.nika.yaml\n    cadence: \"lundi 9h00\"\n    plafond: 1.0\n    manqué: sauter\n";
+    let base = "nika: proj\narm:\n  - workflow: w.nika.yaml\n    cadence: \"lundi 9h00\"\n    plafond: 1.0\n    manqué: sauter\n";
     let bad_docs = [
         base.replace("workflow: w.nika.yaml", "workflow: w.yaml"), // not *.nika.yaml
         base.replace("workflow: w.nika.yaml", "workflow: ''"),     // empty path
@@ -282,8 +329,8 @@ fn arm_entries_validate_their_shape() {
     }
     // `arm:` that is not a sequence, an entry that is not a mapping.
     for doc in [
-        "nika: v1\narm: yes\n",
-        "nika: v1\narm:\n  - just-a-string\n",
+        "nika: proj\narm: yes\n",
+        "nika: proj\narm:\n  - just-a-string\n",
     ] {
         let err = parse(doc).unwrap_err();
         assert_eq!(err.kind(), ProjectErrorKind::BadValue, "{doc}: {err}");
@@ -301,7 +348,7 @@ fn arm_entries_validate_their_shape() {
 /// parseurs, jamais en désaccord).
 #[test]
 fn the_thirteen_beat_keys_are_reachable_through_the_project_file() {
-    let src = "nika: v1\nceiling: 0.50\narm:\n  - workflow: t.nika.yaml\n    cadence: \"TZ=Europe/Paris 0 3 * * *\"\n    plafond: 0.10\n    manqué: sauter\n    chevauchement: file\n    après_saut: prochain-créneau\n    actif: false\n    raison: pause estivale\n    jusqu_au: 2026-09-01\n    tolérance: 3/4\n    décalage: hash\n    par: thibaut\n    où: local\n";
+    let src = "nika: proj\nceiling: 0.50\narm:\n  - workflow: t.nika.yaml\n    cadence: \"TZ=Europe/Paris 0 3 * * *\"\n    plafond: 0.10\n    manqué: sauter\n    chevauchement: file\n    après_saut: prochain-créneau\n    actif: false\n    raison: pause estivale\n    jusqu_au: 2026-09-01\n    tolérance: 3/4\n    décalage: hash\n    par: thibaut\n    où: local\n";
     let project = parse(src).expect("13 keys are the shape · none is unknown");
     assert_eq!(project.arm().len(), 1);
     let beat = &project.arm()[0];
@@ -336,7 +383,7 @@ fn the_thirteen_beat_keys_are_reachable_through_the_project_file() {
 #[test]
 fn a_fourteenth_key_still_refuses_by_name() {
     let err = parse(
-        "nika: v1\narm:\n  - workflow: w.nika.yaml\n    cadence: \"lundi 9h00\"\n    plafond: 1.00\n    manqué: sauter\n    quatorze: true\n",
+        "nika: proj\narm:\n  - workflow: w.nika.yaml\n    cadence: \"lundi 9h00\"\n    plafond: 1.00\n    manqué: sauter\n    quatorze: true\n",
     )
     .unwrap_err();
     assert_eq!(err.kind(), ProjectErrorKind::UnknownKey);
@@ -354,7 +401,7 @@ fn a_fourteenth_key_still_refuses_by_name() {
 #[test]
 fn discovery_walks_up_first_found_governs() {
     let root = fresh_dir("walk");
-    std::fs::write(root.join("nika.yaml"), "nika: v1\nceiling: 0.50\n").expect("seed");
+    std::fs::write(root.join("nika.yaml"), "nika: proj\nceiling: 0.50\n").expect("seed");
     let nested = root.join("a/b/c");
     std::fs::create_dir_all(&nested).expect("mkdir");
     let (path, project) = discover(&nested)
@@ -368,7 +415,7 @@ fn discovery_walks_up_first_found_governs() {
     assert_eq!(project.ceiling, Some(0.5));
 
     // A closer file shadows the root's (git's exact law).
-    std::fs::write(root.join("a/b/nika.yaml"), "nika: v1\nceiling: 0.25\n").expect("seed2");
+    std::fs::write(root.join("a/b/nika.yaml"), "nika: proj\nceiling: 0.25\n").expect("seed2");
     let (path, project) = discover(&nested).expect("ok").expect("found");
     assert_eq!(path, root.join("a/b/nika.yaml"));
     assert_eq!(project.ceiling, Some(0.25));
@@ -397,7 +444,7 @@ fn an_unreadable_file_is_not_absent() {
 #[test]
 fn discovery_errors_speak_path_and_line() {
     let dir = fresh_dir("speak");
-    std::fs::write(dir.join("nika.yaml"), "nika: v1\nunknown: 1\n").expect("seed");
+    std::fs::write(dir.join("nika.yaml"), "nika: proj\nunknown: 1\n").expect("seed");
     let err = discover(&dir).unwrap_err();
     assert_eq!(err.kind(), ProjectErrorKind::UnknownKey);
     let shown = format!("{err}");
@@ -434,7 +481,7 @@ proptest::proptest! {
         ),
     ) {
         use std::fmt::Write as _;
-        let mut doc = format!("nika: v1\nceiling: {ceiling}\ntraces:\n  keep: {days}d\nregistry:\n  floor: {tier}\n");
+        let mut doc = format!("nika: proj\nceiling: {ceiling}\ntraces:\n  keep: {days}d\nregistry:\n  floor: {tier}\n");
         if !beats.is_empty() {
             doc.push_str("arm:\n");
             for (slug, ou, manque, plafond) in &beats {
@@ -468,7 +515,7 @@ proptest::proptest! {
                 !super::TOP_LEVEL_KEYS.contains(&k.as_str())
             }),
     ) {
-        let doc = format!("nika: v1\n{key}: 1\n");
+        let doc = format!("nika: proj\n{key}: 1\n");
         let err = parse(&doc).unwrap_err();
         proptest::prop_assert_eq!(err.kind(), ProjectErrorKind::UnknownKey);
         proptest::prop_assert_eq!(err.line(), Some(2));

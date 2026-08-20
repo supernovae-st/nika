@@ -340,7 +340,7 @@ mod tests {
     }
 
     const TWO_BEATS: &str = concat!(
-        "nika: v1\n",
+        "nika: proj\n",
         "arm:\n",
         "  - workflow: workflows/weekly.nika.yaml\n",
         "    cadence: \"TZ=Europe/Paris lundi 9h07\"\n",
@@ -404,7 +404,7 @@ mod tests {
     #[test]
     fn the_report_tells_proven_from_declared_and_names_the_orphans() {
         let body = concat!(
-            "nika: v1\n",
+            "nika: proj\n",
             "arm:\n",
             "  - workflow: workflows/prouve.nika.yaml\n",
             "    cadence: \"TZ=Europe/Paris lundi 9h07\"\n",
@@ -485,7 +485,7 @@ mod tests {
     #[test]
     fn the_report_refuses_tampered_or_truncated_history_loudly() {
         let body = concat!(
-            "nika: v1\n",
+            "nika: proj\n",
             "arm:\n",
             "  - workflow: workflows/doctor.nika.yaml\n",
             "    cadence: \"TZ=UTC 0 3 * * *\"\n",
@@ -531,7 +531,7 @@ mod tests {
     #[test]
     fn the_report_surfaces_the_folded_ambiguous_claim() {
         let body = concat!(
-            "nika: v1\n",
+            "nika: proj\n",
             "arm:\n",
             "  - workflow: workflows/doctor.nika.yaml\n",
             "    cadence: \"TZ=UTC 0 3 * * *\"\n",
@@ -597,7 +597,7 @@ mod tests {
         let dir = project_at(
             "nolaw",
             concat!(
-                "nika: v1\n",
+                "nika: proj\n",
                 "arm:\n",
                 "  - workflow: w.nika.yaml\n",
                 "    cadence: \"TZ=Europe/Paris lundi 9h07\"\n",
@@ -638,7 +638,7 @@ mod tests {
     #[test]
     fn every_cadence_key_is_reachable_through_the_project_file() {
         let body = concat!(
-            "nika: v1\n",
+            "nika: proj\n",
             "arm:\n",
             "  - workflow: w.nika.yaml\n",
             "    cadence: \"TZ=Europe/Paris lundi 9h07\"\n",

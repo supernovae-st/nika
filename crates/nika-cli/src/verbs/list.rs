@@ -44,7 +44,7 @@ mod tests {
         std::fs::create_dir_all(dir.path().join(".git")).expect("hidden");
         std::fs::write(dir.path().join("z.nika.yaml"), "nika: z\n").expect("workflow");
         std::fs::write(dir.path().join("nested/a.nika.yml"), "nika: a\n").expect("nested workflow");
-        std::fs::write(dir.path().join("nika.yaml"), "nika: v1\n").expect("project file");
+        std::fs::write(dir.path().join("nika.yaml"), "nika: proj\n").expect("project file");
         std::fs::write(dir.path().join(".git/hidden.nika.yaml"), "nika: hidden\n")
             .expect("hidden workflow");
 

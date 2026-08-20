@@ -423,7 +423,7 @@ mod tests {
     /// ever SKIPS (an in-process run chdirs: the binary tests' ground —
     /// parallel tests race on the process CWD).
     const HOURLY_A: &str = concat!(
-        "nika: v1\n",
+        "nika: proj\n",
         "arm:\n",
         "  - workflow: workflows/doctor.nika.yaml\n",
         "    cadence: \"TZ=UTC 0 * * * *\"\n",
@@ -433,7 +433,7 @@ mod tests {
 
     /// The v2: a second beat appears between two ticks.
     const HOURLY_AB: &str = concat!(
-        "nika: v1\n",
+        "nika: proj\n",
         "arm:\n",
         "  - workflow: workflows/doctor.nika.yaml\n",
         "    cadence: \"TZ=UTC 0 * * * *\"\n",
@@ -518,7 +518,7 @@ mod tests {
     #[test]
     fn a_queued_beat_waits_without_blocking_the_other_beats() {
         let registry_text = concat!(
-            "nika: v1\n",
+            "nika: proj\n",
             "arm:\n",
             "  - workflow: workflows/doctor.nika.yaml\n",
             "    cadence: \"TZ=UTC 0 * * * *\"\n",

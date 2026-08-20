@@ -849,7 +849,7 @@ mod tests {
     /// A one-beat registry (validated green) — the `decide` fixture.
     fn registry_with(body: &str) -> ArmRegistry {
         let text = format!(
-            "nika: v1\narm:\n  - workflow: workflows/doctor.nika.yaml\n    cadence: \"TZ=UTC 0 3 * * *\"\n    plafond: 0.25\n{body}"
+            "nika: proj\narm:\n  - workflow: workflows/doctor.nika.yaml\n    cadence: \"TZ=UTC 0 3 * * *\"\n    plafond: 0.25\n{body}"
         );
         let registry = nika_cadence::parse_registry(&text).expect("parse");
         assert!(
@@ -968,7 +968,7 @@ mod tests {
     #[test]
     fn labels_are_the_radicals_with_collision_suffixes() {
         let text = concat!(
-            "nika: v1\n",
+            "nika: proj\n",
             "arm:\n",
             "  - workflow: a/doctor.nika.yaml\n",
             "    cadence: \"TZ=UTC 0 3 * * *\"\n",

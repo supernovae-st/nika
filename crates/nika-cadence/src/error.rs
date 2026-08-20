@@ -32,8 +32,9 @@ pub enum CadenceErrorKind {
     /// The YAML itself does not parse, or a key is unknown (closed
     /// grammar).
     Grammar,
-    /// `nika:` is not the frozen `v1` tag.
-    TagFrozen,
+    /// `nika:` is absent, not a kebab-case name, or is the retired
+    /// schema tag.
+    Identity,
     /// `ceiling:` present but not a positive finite number.
     CeilingNonPositive,
     /// Round-2+ key present (`traces:` · `registry:` · `signature:` ·
@@ -90,7 +91,7 @@ impl CadenceErrorKind {
     pub const fn spec_code(self) -> &'static str {
         match self {
             Self::Grammar => "cadence.grammar",
-            Self::TagFrozen => "cadence.tag-frozen",
+            Self::Identity => "cadence.identity",
             Self::CeilingNonPositive => "cadence.ceiling-non-positive",
             Self::DeferredKey => "cadence.deferred-key",
             Self::TzMissing => "cadence.tz-missing",

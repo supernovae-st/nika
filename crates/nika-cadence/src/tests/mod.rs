@@ -33,8 +33,8 @@ use proptest::prelude::*;
 
 use crate::next::next_slots;
 use crate::{
-    AfterSkip, ArmRegistry, Cadence, CadenceErrorKind, Locus, MissPolicy, Overlap, Shift,
-    parse_registry, validate,
+    AfterSkip, Cadence, CadenceErrorKind, Locus, MissPolicy, Overlap, Shift, parse_registry,
+    validate,
 };
 
 /// A literal instant (UTC) — the calculator's only input.
@@ -75,7 +75,7 @@ fn kinds(yaml: &str) -> Vec<CadenceErrorKind> {
 }
 
 const HEALTHY: &str = "
-nika: v1
+nika: proj
 ceiling: 0.50
 arm:
   - workflow: workflows/geo-probe.nika.yaml
@@ -85,6 +85,33 @@ arm:
 ";
 
 // ── parse · the two forms, the zone inside ─────────────────────────
+
+/// The retired schema tag refuses in a project file — the second
+/// parser of `nika.yaml` must agree with the first, or the same bytes
+/// get two verdicts depending on which door read them.
+#[test]
+fn le_tag_de_schema_retire_est_refuse() {
+    let reg =
+        parse_registry("nika: v1\nceiling: 0.50\n").expect("la grammaire accepte, la loi refuse");
+    let faults: Vec<_> = validate(&reg).collect();
+    assert!(
+        faults
+            .iter()
+            .any(|f| f.kind() == CadenceErrorKind::Identity),
+        "un tag retire doit refuser ici aussi · {faults:?}"
+    );
+    // Le marqueur ENTIER seulement.
+    for name in ["vault", "v2ray", "v1-migration"] {
+        let reg = parse_registry(&format!("nika: {name}\n")).expect("un nom ordinaire");
+        let faults: Vec<_> = validate(&reg).collect();
+        assert!(
+            !faults
+                .iter()
+                .any(|f| f.kind() == CadenceErrorKind::Identity),
+            "{name} est un nom ordinaire · {faults:?}"
+        );
+    }
+}
 
 #[test]
 fn parse_cron_with_zone_inside() {
@@ -342,7 +369,7 @@ fn every_refusal_class_carries_its_own_distinct_slug() {
     use CadenceErrorKind as K;
     let all = [
         K::Grammar,
-        K::TagFrozen,
+        K::Identity,
         K::CeilingNonPositive,
         K::DeferredKey,
         K::TzMissing,
@@ -369,7 +396,7 @@ fn every_refusal_class_carries_its_own_distinct_slug() {
         #[allow(clippy::match_same_arms)]
         match k {
             K::Grammar
-            | K::TagFrozen
+            | K::Identity
             | K::CeilingNonPositive
             | K::DeferredKey
             | K::TzMissing
@@ -426,7 +453,7 @@ fn the_ceiling_guard_refuses_zero_negative_infinite_and_nan() {
     for value in ["0", "0.0", "-1.0", ".inf", "-.inf", ".nan"] {
         let yaml = format!(
             "
-nika: v1
+nika: proj
 ceiling: 0.50
 arm:
   - workflow: workflows/geo-probe.nika.yaml
@@ -747,7 +774,7 @@ fn a_healthy_registry_validates_clean() {
         0,
         "aucun refus pour un fichier sain"
     );
-    assert_eq!(reg.nika, ArmRegistry::SCHEMA);
+    assert_eq!(reg.nika, "proj");
     assert_eq!(reg.beat_count(), 1);
     let beat = reg.beats().next().expect("un beat");
     assert_eq!(beat.locus(), Locus::Local, "défaut sûr · loi ⑥");
@@ -765,7 +792,7 @@ fn a_healthy_registry_validates_clean() {
 fn manque_and_plafond_are_required_without_default() {
     let faults = kinds(
         "
-nika: v1
+nika: proj
 arm:
   - workflow: workflows/a.nika.yaml
     cadence: on-webhook
@@ -786,7 +813,7 @@ arm:
 fn a_suspension_tells_its_reason_and_its_expiry() {
     let faults = kinds(
         "
-nika: v1
+nika: proj
 arm:
   - workflow: workflows/a.nika.yaml
     cadence: on-webhook
@@ -801,7 +828,7 @@ arm:
 
     let clean = kinds(
         "
-nika: v1
+nika: proj
 arm:
   - workflow: workflows/a.nika.yaml
     cadence: on-webhook
@@ -820,7 +847,7 @@ arm:
 
     let bad_date = kinds(
         "
-nika: v1
+nika: proj
 arm:
   - workflow: workflows/a.nika.yaml
     cadence: on-webhook
@@ -838,7 +865,7 @@ arm:
 fn apres_saut_only_rides_a_sauter_overlap() {
     let faults = kinds(
         "
-nika: v1
+nika: proj
 arm:
   - workflow: workflows/a.nika.yaml
     cadence: on-webhook
@@ -852,7 +879,7 @@ arm:
 
     let clean = kinds(
         "
-nika: v1
+nika: proj
 arm:
   - workflow: workflows/a.nika.yaml
     cadence: on-webhook
@@ -870,7 +897,7 @@ fn round_two_keys_are_refused_by_name() {
     for key in ["signature: \"ed25519:abc\"", "budget: 10.0"] {
         let yaml = format!(
             "
-nika: v1
+nika: proj
 arm:
   - workflow: workflows/a.nika.yaml
     cadence: on-webhook
@@ -886,7 +913,7 @@ arm:
         );
     }
     for key in ["traces: {}", "registry: {}"] {
-        let yaml = format!("nika: v1\n{key}\n");
+        let yaml = format!("nika: proj\n{key}\n");
         let faults = kinds(&yaml);
         assert!(
             faults.contains(&CadenceErrorKind::DeferredKey),
@@ -899,7 +926,7 @@ arm:
 fn a_workflow_armed_twice_is_a_refusal() {
     let faults = kinds(
         "
-nika: v1
+nika: proj
 arm:
   - workflow: workflows/a.nika.yaml
     cadence: on-webhook
@@ -917,16 +944,16 @@ arm:
 #[test]
 fn the_envelope_tag_is_frozen() {
     let faults = kinds("nika: v2\n");
-    assert!(faults.contains(&CadenceErrorKind::TagFrozen));
+    assert!(faults.contains(&CadenceErrorKind::Identity));
 }
 
 #[test]
 fn an_unknown_key_dies_at_parse() {
-    let err = parse_registry("nika: v1\nfoo: bar\n").expect_err("clé inconnue");
+    let err = parse_registry("nika: proj\nfoo: bar\n").expect_err("clé inconnue");
     assert_eq!(err.kind(), CadenceErrorKind::Grammar);
     let err = parse_registry(
         "
-nika: v1
+nika: proj
 arm:
   - workflow: workflows/a.nika.yaml
     cadence: on-webhook
@@ -943,7 +970,7 @@ arm:
 fn tolerance_is_the_m_over_k_firm_form() {
     let faults = kinds(
         "
-nika: v1
+nika: proj
 arm:
   - workflow: workflows/a.nika.yaml
     cadence: on-webhook
@@ -959,7 +986,7 @@ arm:
 
     let clean = kinds(
         "
-nika: v1
+nika: proj
 arm:
   - workflow: workflows/a.nika.yaml
     cadence: on-webhook
@@ -975,7 +1002,7 @@ arm:
 fn only_hash_jitter_exists() {
     let faults = kinds(
         "
-nika: v1
+nika: proj
 arm:
   - workflow: workflows/a.nika.yaml
     cadence: on-webhook
@@ -990,7 +1017,7 @@ arm:
 #[test]
 fn a_ceiling_is_a_positive_finite_number() {
     for ceiling in ["0", "-2"] {
-        let faults = kinds(&format!("nika: v1\nceiling: {ceiling}\n"));
+        let faults = kinds(&format!("nika: proj\nceiling: {ceiling}\n"));
         assert!(faults.contains(&CadenceErrorKind::CeilingNonPositive));
     }
 }
@@ -999,7 +1026,7 @@ fn a_ceiling_is_a_positive_finite_number() {
 fn the_workflow_path_names_a_nika_yaml() {
     let faults = kinds(
         "
-nika: v1
+nika: proj
 arm:
   - workflow: README.md
     cadence: on-webhook
@@ -1016,7 +1043,7 @@ fn the_span_survives_the_law_pass() {
     // authored text keeps its byte span THROUGH validate().
     let reg = parse_registry(
         "
-nika: v1
+nika: proj
 arm:
   - workflow: workflows/a.nika.yaml
     cadence: TZ=UTC 61 9 * * 1
@@ -1080,7 +1107,7 @@ fn the_workflow_path_is_relative_to_the_registry() {
     ] {
         let yaml = format!(
             "
-nika: v1
+nika: proj
 arm:
   - workflow: {path}
     cadence: on-webhook
@@ -1138,7 +1165,7 @@ arm:
 fn the_workflow_remedy_is_itself_a_legal_path() {
     let reg = parse_registry(
         "
-nika: v1
+nika: proj
 arm:
   - workflow: /absolu/interdit.nika.yaml
     cadence: on-webhook
@@ -1159,7 +1186,7 @@ arm:
         .expect("le remède montre un chemin");
     let yaml = format!(
         "
-nika: v1
+nika: proj
 arm:
   - workflow: {montre}
     cadence: on-webhook

@@ -637,7 +637,7 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("nika-retproj-{}", std::process::id()));
         std::fs::remove_dir_all(&dir).ok();
         std::fs::create_dir_all(&dir).expect("mkdir");
-        std::fs::write(dir.join("nika.yaml"), "nika: v1\ntraces:\n  keep: 45d\n").expect("seed");
+        std::fs::write(dir.join("nika.yaml"), "nika: proj\ntraces:\n  keep: 45d\n").expect("seed");
 
         // Env unset → the file rung governs the age cap.
         let (cfg, notes) = RetentionConfig::layered_at(None, None, None, &dir);
@@ -660,7 +660,7 @@ mod tests {
 
         // A BROKEN file → the default PLUS a loud note (fail-open,
         // never silent — the same error closes the budget gate).
-        std::fs::write(dir.join("nika.yaml"), "nika: v1\ntraces:\n  keep: soon\n").expect("bad");
+        std::fs::write(dir.join("nika.yaml"), "nika: proj\ntraces:\n  keep: soon\n").expect("bad");
         let (cfg, notes) = RetentionConfig::layered_at(None, None, None, &dir);
         assert_eq!(
             cfg.max_age,

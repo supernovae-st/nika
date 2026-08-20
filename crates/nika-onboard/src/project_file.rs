@@ -100,12 +100,12 @@ mod tests {
         assert_eq!(laid, STARTER, "the grammar's own starter, verbatim");
 
         // A hand-written file is never touched without --force.
-        std::fs::write(dir.join("nika.yaml"), "nika: v1\nceiling: 9.99\n").expect("seed");
+        std::fs::write(dir.join("nika.yaml"), "nika: proj\nceiling: 9.99\n").expect("seed");
         let (_, outcome) = ensure(d, false);
         assert!(matches!(outcome, Outcome::Skipped), "existing = skip");
         assert_eq!(
             std::fs::read_to_string(dir.join("nika.yaml")).expect("read"),
-            "nika: v1\nceiling: 9.99\n",
+            "nika: proj\nceiling: 9.99\n",
             "the human's bytes survive"
         );
 
@@ -128,7 +128,21 @@ mod tests {
         let parsed = nika_vocab::project::discover(&dir)
             .expect("the laid file parses")
             .map(|(_path, project)| project);
-        assert_eq!(parsed, Some(nika_vocab::project::Project::default()));
+        let parsed = parsed.expect("the laid file is discovered");
+        assert_eq!(
+            parsed.name.as_deref(),
+            Some("my-project"),
+            "the starter lays a NAME — the version rides the $schema line"
+        );
+        // `Project` is `#[non_exhaustive]` (FCI-016), so a sibling crate
+        // compares the knobs rather than rebuilding the struct.
+        assert!(
+            parsed.ceiling.is_none()
+                && parsed.traces.is_none()
+                && parsed.registry.is_none()
+                && parsed.arm().is_empty(),
+            "every other starter line is a commented example: {parsed:?}"
+        );
         std::fs::remove_dir_all(&dir).ok();
     }
 

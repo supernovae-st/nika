@@ -267,8 +267,12 @@ mod tests {
         );
         let laid = std::fs::read_to_string(tmp.join("nika.yaml")).expect("written");
         assert!(
-            laid.starts_with("# nika.yaml — the project file"),
+            laid.contains("# nika.yaml — the project file"),
             "the starter, verbatim: {laid}"
+        );
+        assert!(
+            laid.contains("\nnika: my-project\n"),
+            "the starter teaches the NAME — the version rides the $schema line: {laid}"
         );
 
         // A second run: the skip law (adds-only) — the receipt says so.

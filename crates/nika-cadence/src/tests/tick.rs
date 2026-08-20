@@ -26,7 +26,7 @@ fn at(text: &str) -> Zoned {
 
 fn registry_with(body: &str) -> ArmRegistry {
     let text = format!(
-        "nika: v1\narm:\n  - workflow: workflows/doctor.nika.yaml\n    cadence: \"TZ=UTC 0 3 * * *\"\n    plafond: 0.25\n{body}"
+        "nika: proj\narm:\n  - workflow: workflows/doctor.nika.yaml\n    cadence: \"TZ=UTC 0 3 * * *\"\n    plafond: 0.25\n{body}"
     );
     let registry = crate::parse_registry(&text).expect("parse");
     assert!(
@@ -189,7 +189,7 @@ fn expiry_is_strictly_before_the_decision_date() {
 #[test]
 fn a_webhook_beat_skips_the_clock() {
     let text = concat!(
-        "nika: v1\n",
+        "nika: proj\n",
         "arm:\n",
         "  - workflow: workflows/doctor.nika.yaml\n",
         "    cadence: \"on-webhook\"\n",

@@ -41,7 +41,7 @@ const TRUE: &str =
 
 /// Daily 03:00 UTC, skip the misses.
 const DAILY_3AM: &str = concat!(
-    "nika: v1\n",
+    "nika: proj\n",
     "arm:\n",
     "  - workflow: workflows/doctor.nika.yaml\n",
     "    cadence: \"TZ=UTC 0 3 * * *\"\n",
@@ -51,7 +51,7 @@ const DAILY_3AM: &str = concat!(
 
 /// Every minute — the loop + signal tests' cadence.
 const EVERY_MINUTE: &str = concat!(
-    "nika: v1\n",
+    "nika: proj\n",
     "arm:\n",
     "  - workflow: workflows/doctor.nika.yaml\n",
     "    cadence: \"TZ=UTC * * * * *\"\n",
@@ -133,7 +133,7 @@ fn serve_loop_fires_two_beats_in_slot_order() {
 #[test]
 fn serve_never_fires_a_cloud_beat() {
     let registry = concat!(
-        "nika: v1\n",
+        "nika: proj\n",
         "arm:\n",
         "  - workflow: workflows/doctor.nika.yaml\n",
         "    cadence: \"TZ=UTC * * * * *\"\n",

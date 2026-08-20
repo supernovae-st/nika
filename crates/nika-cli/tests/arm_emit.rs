@@ -62,7 +62,7 @@ fn home(dir: &Path) -> PathBuf {
 /// A one-beat registry in the machine's zone.
 fn registry_in(zone: &str) -> String {
     format!(
-        "nika: v1\narm:\n  - workflow: workflows/doctor.nika.yaml\n    cadence: \"TZ={zone} 0 3 * * *\"\n    plafond: 0.05\n    manqué: sauter\n"
+        "nika: proj\narm:\n  - workflow: workflows/doctor.nika.yaml\n    cadence: \"TZ={zone} 0 3 * * *\"\n    plafond: 0.05\n    manqué: sauter\n"
     )
 }
 

@@ -17,7 +17,7 @@ use marked_yaml::{LoadError, LoaderOptions, Node, Span as YamlSpan, parse_yaml_w
 
 use super::{
     ArmEntry, ArmLocus, MissPolicy, Project, ProjectError, ProjectErrorKind, ProvenanceFloor,
-    RegistryPolicy, SCHEMA, TOP_LEVEL_KEYS, TracesPolicy,
+    RegistryPolicy, TOP_LEVEL_KEYS, TracesPolicy, is_kebab_id,
 };
 use std::time::Duration;
 
@@ -68,8 +68,8 @@ pub fn parse(text: &str) -> Result<Project, ProjectError> {
         }
         return Err(ProjectError::at(
             ProjectErrorKind::Grammar,
-            "the top level must be a mapping (`nika: v1` opens the file)",
-            "open with `nika: v1` — the frozen tag, then the keys you govern",
+            "the top level must be a mapping (`nika: <name>` opens the file)",
+            "open with `nika: <name>` — the project's kebab-case name, then the keys you govern",
             line_of(node.span()),
         ));
     };
@@ -88,7 +88,7 @@ pub fn parse(text: &str) -> Result<Project, ProjectError> {
         match name {
             "nika" => {
                 seen_tag = true;
-                check_tag(value)?;
+                project.name = Some(parse_name(value)?);
             }
             "ceiling" => project.ceiling = Some(usd(value, "ceiling")?),
             "traces" => project.traces = Some(parse_traces(value)?),
@@ -99,9 +99,9 @@ pub fn parse(text: &str) -> Result<Project, ProjectError> {
     }
     if !seen_tag {
         return Err(ProjectError::at(
-            ProjectErrorKind::TagFrozen,
-            "`nika:` absent — the file opens on its frozen tag",
-            "open with `nika: v1` (the tag is frozen forever — the heaviest move in the project)",
+            ProjectErrorKind::Identity,
+            "`nika:` absent — a file that governs keys must name itself",
+            "open with `nika: <name>` (kebab-case · the same grammar a workflow's `nika:` uses)",
             Some(1),
         ));
     }
@@ -109,18 +109,49 @@ pub fn parse(text: &str) -> Result<Project, ProjectError> {
     Ok(project)
 }
 
-/// The `nika:` envelope tag — frozen at `v1` (FCI-003).
-fn check_tag(value: &Node) -> Result<(), ProjectError> {
-    let tag = scalar(value, "nika")?.as_str();
-    if tag != SCHEMA {
+/// The `nika:` value — the project's NAME, kebab-case.
+///
+/// It held the literal `v1` until this file learned the workflow
+/// envelope's own lesson: a field with ONE legal value is not a version.
+/// The slot now carries the project's most necessary field instead, in
+/// the SAME grammar the workflow uses, so `nika:` means one thing across
+/// both artifact classes. The version marker moved to the `$schema` URL,
+/// where an editor already reads it and a fetch can resolve it.
+fn parse_name(value: &Node) -> Result<String, ProjectError> {
+    let name = scalar(value, "nika")?.as_str();
+    // The reinterpretation guard, and it belongs HERE and not in the
+    // workflow envelope. A pre-nuke WORKFLOW always carried a
+    // `workflow:` block beside its `nika: v1`, so the dead form refuses
+    // on that key and `v1` is free to be an ordinary workflow name. A
+    // pre-nuke PROJECT file had no such companion: `nika: v1` +
+    // `ceiling:` + `arm:` is well-formed under BOTH readings, so the
+    // same bytes would silently stop meaning « schema v1 » and start
+    // meaning « a project named v1 ». Nothing else can catch that, so a
+    // retired marker refuses here — a reserved word must refuse, never
+    // glide. `vault` · `v2ray` · `v1-migration` are ordinary names: the
+    // rule is the WHOLE marker, never a prefix.
+    if name
+        .strip_prefix('v')
+        .is_some_and(|rest| !rest.is_empty() && rest.chars().all(|c| c.is_ascii_digit()))
+    {
         return Err(ProjectError::at(
-            ProjectErrorKind::TagFrozen,
-            format!("`nika: {tag}` — the tag is frozen at `{SCHEMA}`"),
-            "the tag is `nika: v1` — touching it is the project's heaviest move",
+            ProjectErrorKind::Identity,
+            format!("`nika: {name}` — that is the retired schema tag, not a project name"),
+            "the tag became the project's NAME (`nika: my-project`); the version moved to the \
+             `$schema` line, where an editor reads it and a fetch resolves it",
             line_of(value.span()),
         ));
     }
-    Ok(())
+    if !is_kebab_id(name) {
+        return Err(ProjectError::at(
+            ProjectErrorKind::Identity,
+            format!("`nika: {name}` — a project name is kebab-case (`^[a-z][a-z0-9-]*$`)"),
+            "name the project (`nika: my-project`) — the version lives on the `$schema` \
+             line, never in the body",
+            line_of(value.span()),
+        ));
+    }
+    Ok(name.to_owned())
 }
 
 /// `traces:` — a mapping over the closed set; `keep` is REQUIRED

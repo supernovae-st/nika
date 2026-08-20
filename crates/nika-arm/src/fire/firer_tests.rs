@@ -22,7 +22,7 @@ type RegistryFixture = (String, ArmRegistry);
 /// suite rides, with the overlap policy as the variable.
 fn registry_with(body: &str) -> RegistryFixture {
     let source = format!(
-        "nika: v1\narm:\n  - workflow: workflows/doctor.nika.yaml\n    cadence: \"TZ=UTC 0 3 * * *\"\n    plafond: 0.25\n{body}"
+        "nika: proj\narm:\n  - workflow: workflows/doctor.nika.yaml\n    cadence: \"TZ=UTC 0 3 * * *\"\n    plafond: 0.25\n{body}"
     );
     let registry = nika_cadence::parse_registry(&source).expect("parse");
     assert!(
@@ -34,7 +34,7 @@ fn registry_with(body: &str) -> RegistryFixture {
 
 fn minutely_registry(body: &str) -> RegistryFixture {
     let source = format!(
-        "nika: v1\narm:\n  - workflow: workflows/doctor.nika.yaml\n    cadence: \"TZ=UTC * * * * *\"\n    plafond: 0.25\n{body}"
+        "nika: proj\narm:\n  - workflow: workflows/doctor.nika.yaml\n    cadence: \"TZ=UTC * * * * *\"\n    plafond: 0.25\n{body}"
     );
     let registry = nika_cadence::parse_registry(&source).expect("parse");
     assert!(nika_cadence::validate(&registry).next().is_none());
