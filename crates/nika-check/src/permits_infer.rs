@@ -34,6 +34,53 @@ use super::permits_fit::{
 use nika_schema::raw::{RawAction, RawCommand, RawTask, RawWorkflow};
 use nika_schema::types::{ExecPermit, FsPermits, NetPermits, Permits};
 
+/// Which faces of the derivation are INCOMPLETE.
+///
+/// The honesty notes have always said this in prose. A consumer that
+/// wants to ACT on it had to sniff those sentences, which is the shape
+/// this codebase already rejected once: `UnknownField` splits a typed
+/// `suggestion` from a prose `teaching` for exactly this reason, because
+/// a repairer that splices prose splices nonsense.
+///
+/// Half of it was already typed — `exec_dynamic` has been a bool on the
+/// collector since the shell-string case. This completes the pattern
+/// rather than inventing one.
+///
+/// Why it matters, measured 2026-08-20: a workflow with ONE static read
+/// and ONE computed read derives `needed.fs.read = ["./data/a.txt"]` and
+/// a note about the dynamic one. A consumer reading `needed` as the
+/// complete answer would offer a boundary that BREAKS the run. With this
+/// flag the same consumer stays silent, by type rather than by care.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, serde::Serialize)]
+#[non_exhaustive]
+#[allow(
+    clippy::struct_excessive_bools,
+    reason = "a flag RECORD, not a parameter list — the four fields ARE the JSON               shape consumers read (`permits.partial.fs`), and a bitmask would               serialize as an opaque number, which is the very flattening this               type exists to undo"
+)]
+pub struct PartialFaces {
+    /// An `exec` effect could not be pinned to a program allowlist
+    /// (a computed argv, or the shell-string form).
+    pub exec: bool,
+    /// A `net.http` host could not be pinned — computed, or refused by
+    /// the always-on SSRF floor so that no entry could admit it.
+    pub net: bool,
+    /// An `fs` path could not be pinned (a computed path).
+    pub fs: bool,
+    /// A composed child workflow owns effects this inference never sees
+    /// (the composition lane resolves them · spec 14 law 3/4).
+    pub composed: bool,
+}
+
+impl PartialFaces {
+    /// True when ANY face is incomplete. `needed` is then a FLOOR, never
+    /// the answer, and no consumer may present it as the tightest
+    /// boundary.
+    #[must_use]
+    pub const fn any(self) -> bool {
+        self.exec || self.net || self.fs || self.composed
+    }
+}
+
 /// The inferred boundary plus the honesty notes (effects too dynamic to
 /// pin statically — the operator must review these).
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -44,7 +91,12 @@ pub struct InferredPermits {
     /// Effects that could not be statically pinned (dynamic path/host/
     /// program). `exec` widened to `true` for its case; `net`/`fs` cannot
     /// widen (no "any" form), so these entries are the operator's todo.
+    ///
+    /// PROSE, for a human. A consumer that needs to decide anything reads
+    /// [`partial`](Self::partial) instead.
     pub notes: Vec<String>,
+    /// The machine-readable half of `notes` — which faces are incomplete.
+    pub partial: PartialFaces,
 }
 
 impl InferredPermits {
@@ -80,6 +132,10 @@ struct Collector {
     consts: ConstStrings,
     exec_used: bool,
     exec_dynamic: bool,
+    /// The faces whose derivation could not be completed. `exec` keeps
+    /// its own field above because the widening decision reads it; the
+    /// rest ride here so the collector gains a record, not three flags.
+    partial: PartialFaces,
     programs: BTreeSet<String>,
     tools: BTreeSet<String>,
     hosts: BTreeSet<String>,
@@ -121,6 +177,10 @@ pub(super) fn infer(wf: &RawWorkflow) -> InferredPermits {
     InferredPermits {
         permits,
         notes: c.notes,
+        partial: PartialFaces {
+            exec: c.exec_dynamic,
+            ..c.partial
+        },
     }
 }
 
@@ -196,6 +256,7 @@ fn collect_action(c: &mut Collector, id: &str, action: &RawAction) {
                 collect_builtin_effect(c, id, a);
             }
             nika_schema::raw::RawInvokeTarget::Workflow(w) => {
+                c.partial.composed = true;
                 c.notes.push(format!(
                     "task `{id}` calls workflow `{}` — the child's effect \
                      boundary is resolved by the composition lane \
@@ -255,15 +316,19 @@ fn collect_builtin_effect(c: &mut Collector, id: &str, a: &nika_schema::raw::Raw
                              inferred (point the task at a public host)"
                         )
                     };
+                    c.partial.net = true;
                     c.notes.push(note);
                 }
                 Some(host) => {
                     c.hosts.insert(host);
                 }
-                None => c.notes.push(format!(
-                    "task `{id}` reaches a dynamic URL — `net.http` cannot express \
-                     'any host'; add the resolved host(s) before running"
-                )),
+                None => {
+                    c.partial.net = true;
+                    c.notes.push(format!(
+                        "task `{id}` reaches a dynamic URL — `net.http` cannot express \
+                         'any host'; add the resolved host(s) before running"
+                    ));
+                }
             }
         }
         Some(BuiltinEffect::Fs {
@@ -272,16 +337,17 @@ fn collect_builtin_effect(c: &mut Collector, id: &str, a: &nika_schema::raw::Raw
             writes,
             recursive,
             walk_root,
-        }) => match judgeable_arg(&c.consts, a, path_arg).map(|raw| {
-            // Inference must write a boundary the RUNTIME accepts · for a
-            // glob that is the walk root, never the pattern (2026-08-19).
-            if walk_root {
-                nika_cap::glob_walk_root(&raw)
-            } else {
-                raw
-            }
-        }) {
-            Some(path) => {
+        }) => {
+            if let Some(path) = judgeable_arg(&c.consts, a, path_arg).map(|raw| {
+                // Inference must write a boundary the RUNTIME accepts · for
+                // a glob that is the walk root, never the pattern
+                // (2026-08-19).
+                if walk_root {
+                    nika_cap::glob_walk_root(&raw)
+                } else {
+                    raw
+                }
+            }) {
                 // a recursive effect (nika:grep reads descendants ·
                 // nika:image_generate writes into the dir) touches
                 // descendants too
@@ -296,12 +362,14 @@ fn collect_builtin_effect(c: &mut Collector, id: &str, a: &nika_schema::raw::Raw
                 if writes {
                     c.writes.insert(entry);
                 }
+            } else {
+                c.partial.fs = true;
+                c.notes.push(format!(
+                    "task `{id}` uses a dynamic path — `fs` cannot express 'any path'; \
+                     add the resolved path(s) before running"
+                ));
             }
-            None => c.notes.push(format!(
-                "task `{id}` uses a dynamic path — `fs` cannot express 'any path'; \
-                 add the resolved path(s) before running"
-            )),
-        },
+        }
         None => {}
     }
     // The chart vega sibling is a SECOND gated write — inferred alongside

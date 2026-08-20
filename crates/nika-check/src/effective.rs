@@ -59,6 +59,10 @@ pub struct EffectivePermits {
     /// loopback literal in the declared `net.http`, stated affirmatively
     /// so a green check TEACHES that the SSRF floor is cleared for it.
     pub notes: Vec<String>,
+    /// The machine-readable half of [`notes`](Self::notes) — which faces
+    /// of the derivation are INCOMPLETE. When any is set, `needed` is a
+    /// FLOOR and no consumer may present it as the tightest boundary.
+    pub partial: crate::permits_infer::PartialFaces,
 }
 
 /// State the affirmative contract for one workflow (total — a
@@ -91,6 +95,7 @@ pub(super) fn collect(wf: &RawWorkflow) -> EffectivePermits {
         declared,
         needed: inferred.permits,
         notes,
+        partial: inferred.partial,
     }
 }
 
