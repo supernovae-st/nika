@@ -10,6 +10,43 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+### Changed
+
+- **BREAKING — the project file names itself (`nika.yaml`).** `nika:` carried a
+  frozen `v1` tag while a workflow's `nika:` names the file: one key, two
+  grammars, and every surface reading both had to know a special rule. It now
+  carries the project's kebab-case **name**, the same grammar the workflow
+  envelope gives its own `nika:`. The reasoning is this repo's own, written
+  when the workflow envelope was nuked — a field with one legal value is not a
+  version, so nothing is traded away, and the project gains a name it never
+  had. The retired tag refuses **here and nowhere else**: a pre-nuke workflow
+  carried a `workflow:` block beside its `nika: v1` and still refuses on that
+  key, so `v1` stays free to be an ordinary workflow name; a pre-nuke project
+  file had no companion key, so without a refusal the same bytes would quietly
+  stop meaning « schema v1 » and start meaning « a project named v1 ». Only a
+  whole marker qualifies — `vault`, `v2ray` and `v1-migration` stay names.
+  Migration is one line: `nika: v1` → `nika: <your-project-name>`.
+
+### Added
+
+- **`nika check` judges a project file as a project.** It applied the nine-key
+  WORKFLOW envelope to every document, so a project file came back
+  `NIKA-PARSE-002 missing required envelope field: tasks` — on a file
+  `nika init --project-file` had just written — and following that finding's
+  own advice converted a correct project file into a broken workflow. The
+  discriminant is the spec's, normative and covering every document
+  (`01-envelope` §The type discriminant): a `tasks:` key means WORKFLOW, its
+  absence means PROJECT. Deliberately not the filename, so it still holds for
+  a registry blob, an HTTP body or a fence pasted into a chat. A project now
+  audits in its own vocabulary — exit 0 clean, 2 on a finding — and says what
+  it governs rather than a count it never stated.
+- **`nika check` notes a file whose name and filename have drifted apart.**
+  Copy `foo.nika.yaml` to `bar.nika.yaml`, forget the header, and every trace
+  and journal event keeps saying `foo`. It is a NOTE and never a finding:
+  divergence is usually deliberate (an ordering prefix such as `01-hello` is
+  stripped before comparing), and the exit code is untouched. The filename is
+  a location `git mv` may change; the name is an identity that rides traces.
+
 ## [0.113.0](https://github.com/supernovae-st/nika/compare/v0.112.0..v0.113.0) - 2026-08-21
 
 **The couture release.** The judge already knew; the agent can now see.
