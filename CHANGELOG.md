@@ -10,6 +10,20 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+## [0.112.0](https://github.com/supernovae-st/nika/compare/v0.111.0..v0.112.0) - 2026-08-20
+
+**The instrument-honesty release.** Three features and sixteen fixes, several
+of which began as a measurement disagreeing with what a surface said. A cargo
+test binary can no longer open the OS keychain — an ACL is bound to the
+requesting binary, and a test binary's hash changes on every compile, so the
+prompt could never be answered once and for all. `nika check`'s JOURNEY rung
+counts model endpoints instead of tasks, ending a card that contradicted
+itself four lines apart: COST read `no infer/agent tasks` while JOURNEY read
+`3 model endpoints`. A fan-out that recovered now says so in its record and
+not only in its prose, which is what spec 13 requires of the pair. And the
+`exec:` fit lane gained an fs arm, so a leg jailed away from its own script
+is refused at check instead of exiting 126 under a green card.
+
 ### Added
 
 - **`nika list` names every workflow below the current directory.** Output is
