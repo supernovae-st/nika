@@ -76,7 +76,7 @@ pub(crate) const ALIASES: &[(&str, &[&str])] = &[
     ("build", &["exec"]),
     ("test", &["exec", "verify"]),
     ("deploy", &["ship", "act", "exec"]),
-    ("release", &["ship", "act"]),
+    ("release", &["ship", "act", "changelog"]),
     ("parallel", &["for_each", "fan", "merge"]),
     ("concurrent", &["for_each", "fan"]),
     ("batch", &["for_each", "items"]),
@@ -1179,6 +1179,18 @@ mod calibration_probe {
 #[cfg(test)]
 mod catalog_routing_laws {
     use super::*;
+
+    #[test]
+    fn release_notes_intent_leads_the_named_job() {
+        match route("write release notes from git commits") {
+            RoutingOutcome::Routed { template, .. } => assert_eq!(template, "release-notes"),
+            RoutingOutcome::NeedsClarification { candidates, .. } => assert_eq!(
+                candidates.first().map(String::as_str),
+                Some("release-notes"),
+                "the named job must lead the clarify list: {candidates:?}"
+            ),
+        }
+    }
 
     /// THE LAW (RAMS-1 · G-16 · entry-doors probes 2026-07-31): the
     /// three probes that each failed on the skeleton-only corpus (« 3
