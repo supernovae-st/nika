@@ -246,7 +246,7 @@ and a `default:`.
 |---|---|
 | `with:` | the DATA edge — bind another task's output, body reads `${{ with.alias }}` |
 | `after:` | the CONTROL edge — `success` · `failure` · `skipped` · `terminal` · `unwind` |
-| `when:` | a CEL boolean gate (`size()` is the only function) |
+| `when:` | a CEL boolean gate · closed callables: `size()` · `has()` · `.size()` · `.contains()` · `.startsWith()` · `.endsWith()` |
 | `for_each:` | fan out over a collection · the body reads the current element as `${{ item }}` and its position as `${{ index }}` (loop-scoped locals, NOT a fourth value authority · `item.field` reaches into an object element) · the task's `.output` is the ARRAY of per-iteration outputs, in input order · `max_parallel:` caps concurrency (1 = sequential) · `fail_fast:` aborts on the first error (default true) |
 | `retry:` | `max_attempts` · `backoff_ms` · `backoff_strategy` · `backoff_max_ms` · `jitter` · `on_codes` — transient failures only; a wrong prompt never heals by retry |
 | `on_error:` | exactly ONE action — `recover:` · `skip:` (preserves the original error at `tasks.X.error`) — with an optional `on_codes:` filter · the default (no `on_error:`) IS failure, and there is no keyword for saying so (`fail_workflow:` is dead · a YAML comment says it) |

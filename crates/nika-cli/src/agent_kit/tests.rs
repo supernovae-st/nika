@@ -158,3 +158,27 @@ fn authoring_reads_local_workflows_before_creating_another() {
         "list must never be mistaken for the oracle"
     );
 }
+
+/// The authoring map must describe the callable set the CEL evaluator
+/// actually serves. A smaller remembered subset makes valid conditions look
+/// forbidden and sends authors toward unnecessary glue.
+#[test]
+fn authoring_names_the_served_cel_callables() {
+    let skill = read("skills/nika-authoring/SKILL.md");
+    for callable in [
+        "size()",
+        "has()",
+        ".contains()",
+        ".startsWith()",
+        ".endsWith()",
+    ] {
+        assert!(
+            skill.contains(callable),
+            "CEL callable `{callable}` missing"
+        );
+    }
+    assert!(
+        !skill.contains("size()` is the only function"),
+        "the retired one-function claim returned"
+    );
+}
