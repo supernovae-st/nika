@@ -459,6 +459,7 @@ pub fn nika_cap::Permits::new() -> Self
 impl nika_cap::Permits
 pub fn nika_cap::Permits::allows_host(&self, host: &str) -> bool
 pub fn nika_cap::Permits::allows_path(&self, path: &str, write: bool) -> bool
+pub fn nika_cap::Permits::jail_admits_read(&self, path: &str) -> bool
 impl nika_cap::Permits
 pub fn nika_cap::Permits::intersect(&self, other: &Self) -> Self
 pub fn nika_cap::Permits::union(&self, other: &Self) -> Self

@@ -23,7 +23,7 @@
 //!   unlisted host). A path/host built from a `${{ }}` value is dynamic and
 //!   stays the runtime `NIKA-SEC-004` check.
 
-use nika_schema::raw::{RawAction, RawCommand, RawInvokeAction, RawWorkflow};
+use nika_schema::raw::{RawAction, RawCommand, RawExecAction, RawInvokeAction, RawWorkflow};
 use nika_schema::types::{ExecPermit, Permits};
 // The `*.`-subdomain allowlist glob lives in `nika_types::net` — the SINGLE
 // canonical matcher shared with the runtime http effect (`nika-http`) so the
@@ -171,7 +171,7 @@ fn check_action(
     }
     let Some(permits) = permits else { return };
     match action {
-        RawAction::Exec(a) => check_exec(id, &a.command, permits, out),
+        RawAction::Exec(a) => check_exec(id, a, permits, out),
         RawAction::Invoke(a) => {
             let Some(tool) = a.tool() else {
                 // A `workflow:` call is not a tool grant — its authority
@@ -385,7 +385,13 @@ fn absent_effect_escape(
 /// sits in the body, whatever the command form — law 3's runtime deferral
 /// owns the dynamic VALUE cases (which program · which host), never the
 /// category question, which ∅ decides.
-fn check_exec(id: &str, command: &RawCommand, permits: &Permits, out: &mut Vec<CapabilityEscape>) {
+fn check_exec(
+    id: &str,
+    action: &RawExecAction,
+    permits: &Permits,
+    out: &mut Vec<CapabilityEscape>,
+) {
+    let command = &action.command;
     if !permits.allows_exec() {
         // NEP-0003 law 1 · the category refusal is statically decidable
         // under the zero boundary (∅ grants nothing — the run is refused
@@ -456,6 +462,108 @@ fn check_exec(id: &str, command: &RawCommand, permits: &Permits, out: &mut Vec<C
         }
     }
     check_exec_net(id, command, permits, out);
+    check_exec_fs(id, action, permits, out);
+}
+
+/// The fs arm of the exec fit — the twin of [`check_exec_net`], written
+/// for the same sentence one boundary over.
+///
+/// The runtime jails every `exec:` child to the DECLARED `permits.fs` set
+/// (`nika-exec-runner::sandbox_spec::spec_of` copies `fs.read` straight
+/// into the sandbox spec). So an interpreter invoked on a script the jail
+/// does not admit cannot OPEN its own script. Measured 2026-08-20 on
+/// seatbelt, every row of this table by running it:
+///
+/// ```text
+/// permits.fs.read   argv                       cwd:    run     check was
+/// ───────────────   ────                       ────    ───     ─────────
+/// []                ["bash","leg.sh"]          —       126     ✔ green
+/// ["leg.sh"]        ["bash","leg.sh"]          —         0     ✔ green
+/// ["data/**"]       ["bash","leg.sh"]          —       126     ✔ green
+/// ["sub"]           ["bash","sub/leg.sh"]      —         0     ✔ green
+/// ["sub/**"]        ["bash","inner.sh"]        sub       0     ✔ green
+/// ["sub/inn*"]      ["bash","sub/leg.sh"]      —         0     ✔ green
+/// ```
+///
+/// Three of those six audited ✔ on all fourteen lanes and then RAN as
+/// `✔ leg` with rc 0 while the leg had exited **126** with empty stdout —
+/// a success rendered over a script that never opened. That is the class
+/// this arm closes, and the last three rows are why it is careful.
+///
+/// The verdict is [`Permits::jail_admits_read`], NOT `allows_path`: the
+/// jail hands a bare directory grant to the launcher as a bind subpath, so
+/// it opens the subtree (row 4), and an arm judging by the stricter
+/// lexical walk would redden files the run executes. See that method for
+/// the divergence in full.
+///
+/// SCOPE — the decidable sub-question, and the ones it deliberately leaves
+/// (a waiver that does not name its decidable half is a defect):
+///
+/// - **DECIDED** · a literal argv whose program is an INTERPRETER, on its
+///   script positional, resolved through a literal `cwd:`. That the
+///   interpreter must read that exact path is a property of the
+///   interpreter, not a guess about the program's semantics —
+///   [`nika_types::exec::interpreter_script_operand`] walks the same table
+///   the exec floor walks, so the two cannot drift.
+/// - **LEFT** · every other argv operand. Whether `cat x` reads `x`, or
+///   `rm -f x` writes it, or `docker ps --format {{.Names}}` names a path
+///   at all, is the PROGRAM's semantics — a per-program effect table the
+///   checker does not have and would be wrong about. Those stay the
+///   runtime jail's verdict, exactly as the PERMITS panel says.
+/// - **LEFT** · a templated `cwd:`. The script's resolved identity is not
+///   knowable, so no claim holds. An earlier draft of this arm ignored
+///   `cwd:` and reddened all seven tasks of a real workflow whose every
+///   `exec:` runs a script relative to a computed working directory.
+/// - **LEFT** · the shell form, per this lane's standing scope law: the
+///   runtime judges an interpolated string, so no positional claim holds.
+/// - **LEFT** · a `${{ }}` program or operand — the run re-judges the
+///   resolved argv.
+fn check_exec_fs(
+    id: &str,
+    action: &RawExecAction,
+    permits: &Permits,
+    out: &mut Vec<CapabilityEscape>,
+) {
+    let RawCommand::Argv(parts) = &action.command else {
+        return; // the shell form makes no positional claim
+    };
+    let mut elements = parts.iter().map(|p| p.value.as_str());
+    let Some(program) = elements.next() else {
+        return;
+    };
+    let args: Vec<&str> = elements.collect();
+    if program.contains("${{") || args.iter().any(|a| a.contains("${{")) {
+        return; // the resolved argv is the RUN's verdict
+    }
+    let Some(script) = nika_types::exec::interpreter_script_operand(program, &args) else {
+        return; // not an interpreter · inline eval · no path named
+    };
+    let cwd = action.cwd.as_ref().map(|c| c.value.as_str());
+    let Some(resolved) = resolve_against_cwd(script, cwd) else {
+        return; // a computed cwd makes the script's identity unknowable
+    };
+    if permits.jail_admits_read(&resolved) {
+        return;
+    }
+    out.push(fs_escape(id, program, &resolved, "fs.read", permits, false));
+}
+
+/// Where the interpreter will look for its script. An ABSOLUTE script
+/// ignores `cwd:` (it is already an identity); a relative one is opened
+/// relative to the subprocess's working directory, so a declared `cwd:`
+/// re-anchors it — while the BOUNDARY stays anchored at the run root
+/// (`sandbox_spec`'s own law: « a task-level `cwd:` does not re-anchor the
+/// boundary »). `None` means the answer is not statically knowable.
+pub(super) fn resolve_against_cwd(script: &str, cwd: Option<&str>) -> Option<String> {
+    if script.starts_with('/') || script.starts_with('~') {
+        return Some(script.to_owned());
+    }
+    match cwd {
+        None => Some(script.to_owned()),
+        Some(c) if c.contains("${{") => None,
+        Some(c) if c == "." || c == "./" => Some(script.to_owned()),
+        Some(c) => Some(format!("{}/{script}", c.trim_end_matches('/'))),
+    }
 }
 
 /// The net arm of the exec fit (the 2026-07-29 audit · run 5 · D1): an

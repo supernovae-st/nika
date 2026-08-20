@@ -17,6 +17,248 @@ mod fit {
         scan_escapes(&parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse"))
     }
 
+    // ── the fs arm of the exec fit (2026-08-20 · the gauntlet's D2) ──
+
+    /// MEASURED 2026-08-20 on nika 0.111.0, both directions, before the
+    /// arm existed · `["bash","leg.sh"]` under `exec: [bash]` with no
+    /// `fs.read` audited ✔ on all fourteen lanes and printed « risk
+    /// supervised », then RAN as `✔ leg`, rc 0 — while the leg had exited
+    /// **126** with empty stdout, because the sandbox derives its read set
+    /// from `permits.fs.read` and bash could never open the script. Adding
+    /// `fs.read: ["leg.sh"]` and changing nothing else returned exit 0 and
+    /// the script's output. One grant, byte-identical check verdict.
+    ///
+    /// The net twin of this arm shipped 2026-07-29 for exactly the same
+    /// sentence (`exec: ["curl", …]` outside `permits.net.http` passed
+    /// check clean and died at the OS sandbox). The fs half was never
+    /// written; this is it.
+    #[test]
+    fn an_interpreter_script_outside_fs_read_escapes_the_boundary() {
+        let escapes = escapes_of(
+            "\
+nika: t
+permits:
+  exec: [\"bash\"]
+tasks:
+  leg:
+    exec: { command: [\"bash\", \"leg.sh\"] }
+",
+        );
+        let fs: Vec<_> = escapes.iter().filter(|e| e.category == "fs").collect();
+        assert_eq!(fs.len(), 1, "one fs escape expected, got {escapes:?}");
+        assert!(
+            fs[0].detail.contains("leg.sh") && fs[0].detail.contains("permits.fs.read"),
+            "the witness must name the script and the grant: {}",
+            fs[0].detail
+        );
+        assert_eq!(fs[0].task, "leg");
+    }
+
+    /// The grant that makes the run work must make the check green — the
+    /// asymmetry the whole arm exists to remove.
+    #[test]
+    fn the_grant_that_makes_the_run_work_makes_the_check_green() {
+        let escapes = escapes_of(
+            "\
+nika: t
+permits:
+  exec: [\"bash\"]
+  fs: { read: [\"leg.sh\"] }
+tasks:
+  leg:
+    exec: { command: [\"bash\", \"leg.sh\"] }
+",
+        );
+        assert!(
+            !escapes.iter().any(|e| e.category == "fs"),
+            "a granted script must not escape: {escapes:?}"
+        );
+    }
+
+    /// The silences where a GRANT covers the script. Each row was RUN;
+    /// each exits 0. A finding here would be the cancelled kind, since it
+    /// would redden a file the run executes.
+    #[test]
+    fn the_exec_fs_arm_is_silent_where_the_jail_admits_the_script() {
+        for yaml in [
+            // a globbed subtree
+            "\
+nika: t
+permits:
+  exec: [\"bash\"]
+  fs: { read: [\"scripts/**\"] }
+tasks:
+  leg:
+    exec: { command: [\"bash\", \"scripts/deploy.sh\"] }
+",
+            // a BARE directory · the launcher binds it as a subpath
+            "\
+nika: t
+permits:
+  exec: [\"bash\"]
+  fs: { read: [\"sub\"] }
+tasks:
+  leg:
+    exec: { command: [\"bash\", \"sub/leg.sh\"] }
+",
+            // a MID-PATH glob · the bound prefix is `sub`, not the pattern
+            "\
+nika: t
+permits:
+  exec: [\"bash\"]
+  fs: { read: [\"sub/inn*\"] }
+tasks:
+  leg:
+    exec: { command: [\"bash\", \"sub/leg.sh\"] }
+",
+            // a `cwd:` re-anchors the interpreter's lookup
+            "\
+nika: t
+permits:
+  exec: [\"bash\"]
+  fs: { read: [\"sub/**\"] }
+tasks:
+  leg:
+    exec: { command: [\"bash\", \"inner.sh\"], cwd: \"sub\" }
+",
+        ] {
+            let escapes = escapes_of(yaml);
+            assert!(
+                !escapes.iter().any(|e| e.category == "fs"),
+                "silence expected for\n{yaml}\ngot {escapes:?}"
+            );
+        }
+    }
+
+    /// The silences where the checker cannot DECIDE. Not one of these is
+    /// safe by inspection: each is a question whose answer belongs to the
+    /// run, and a claim here would be a guess wearing a code.
+    #[test]
+    fn the_exec_fs_arm_claims_nothing_it_cannot_decide() {
+        for yaml in [
+            // not an interpreter · the positional is the program's own business
+            "\
+nika: t
+permits:
+  exec: [\"echo\"]
+tasks:
+  leg:
+    exec: { command: [\"echo\", \"hello.txt\"] }
+",
+            // a templated operand · the run re-judges the resolved argv
+            "\
+nika: t
+inputs:
+  which: { type: string }
+permits:
+  exec: [\"bash\"]
+tasks:
+  leg:
+    exec: { command: [\"bash\", \"${{ inputs.which }}\"] }
+",
+            // `-m module` · resolved by the interpreter, not opened by name
+            "\
+nika: t
+permits:
+  exec: [\"python3\"]
+tasks:
+  leg:
+    exec: { command: [\"python3\", \"-m\", \"unittest\"] }
+",
+            // a COMPUTED cwd · the script's identity is unknowable
+            "\
+nika: t
+const:
+  where: \"sub\"
+permits:
+  exec: [\"bash\"]
+  fs: { read: [\"sub/**\"] }
+tasks:
+  leg:
+    exec: { command: [\"bash\", \"inner.sh\"], cwd: \"${{ const.where }}\" }
+",
+            // the shell form · judged as an interpolated string at run,
+            // never positionally (this lane's standing scope law). MEASURED
+            // exit 126 all the same — a named gap, not an assumed one.
+            "\
+nika: t
+permits:
+  exec: true
+tasks:
+  leg:
+    exec: { shell: \"bash leg.sh\" }
+",
+        ] {
+            let escapes = escapes_of(yaml);
+            assert!(
+                !escapes.iter().any(|e| e.category == "fs"),
+                "silence expected for\n{yaml}\ngot {escapes:?}"
+            );
+        }
+    }
+
+    /// A boundary that grants SOMETHING but not this — measured 126. The
+    /// arm must keep its teeth once it learned to be careful.
+    #[test]
+    fn a_grant_that_does_not_cover_the_script_still_escapes() {
+        let escapes = escapes_of(
+            "\
+nika: t
+permits:
+  exec: [\"bash\"]
+  fs: { read: [\"data/**\"] }
+tasks:
+  leg:
+    exec: { command: [\"bash\", \"leg.sh\"] }
+",
+        );
+        assert_eq!(
+            escapes.iter().filter(|e| e.category == "fs").count(),
+            1,
+            "a non-covering grant must not buy silence: {escapes:?}"
+        );
+    }
+
+    /// Mootness, the same law the net arm states: where the FORM is
+    /// already refused, the fs question never arises. A task that cannot
+    /// spawn at all must not also be told its script is unreadable — it
+    /// has one defect, and one repair.
+    #[test]
+    fn a_refused_exec_form_asks_no_further_fs_question() {
+        // zero authority · the category itself escapes
+        let escapes = escapes_of(
+            "\
+nika: t
+permits: {}
+tasks:
+  leg:
+    exec: { command: [\"bash\", \"leg.sh\"] }
+",
+        );
+        assert_eq!(
+            escapes.iter().filter(|e| e.task == "leg").count(),
+            1,
+            "one defect, one finding: {escapes:?}"
+        );
+        assert_eq!(escapes[0].category, "exec");
+
+        // a shell line under a program allowlist · refused by form
+        let escapes = escapes_of(
+            "\
+nika: t
+permits:
+  exec: [\"bash\"]
+tasks:
+  leg:
+    exec: { shell: \"bash leg.sh\" }
+",
+        );
+        assert!(
+            !escapes.iter().any(|e| e.category == "fs"),
+            "a refused form asks no fs question: {escapes:?}"
+        );
+    }
+
     #[test]
     fn a_globs_walk_root_is_the_read_bound_the_run_needs() {
         // A glob OPENS the directory its pattern roots at. `pattern ⊆

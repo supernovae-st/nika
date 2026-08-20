@@ -56,6 +56,23 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Fixed
 
+- **`nika check` now judges the script an `exec:` interpreter must open.**
+  The runtime jails every `exec:` child to the declared `permits.fs` set, so
+  `exec: ["bash", "leg.sh"]` with no `fs.read` grant could never open its
+  own script — measured on seatbelt, the leg exits **126** with empty
+  stdout. The audit was ✔ on all fourteen lanes and the run rendered it
+  `✔ leg` with rc 0: a leg that did nothing, reported as a success. The
+  `exec:` fit lane gained an fs arm beside its net arm (which shipped
+  2026-07-29 for the same sentence one boundary over), so the escape is a
+  `NIKA-SEC-004` finding at check with the one-line repair. The claim is
+  narrow on purpose — only a literal argv whose program is an interpreter,
+  on its script positional, through a literal `cwd:`; everything else stays
+  the runtime's verdict, and the verdict models the jail (which binds a
+  grant's literal prefix and never globs) rather than the stricter lexical
+  walk. `--infer-permits` learned the same fact in the same change, so the
+  boundary it writes cannot self-refuse the workflow it came from. Swept
+  over the shipped corpus: 63 of 63 unchanged.
+
 - **The `nika-error` crate-spec band table matches the one-voice
   registry.** It still read `330-379 Binding/template · 380-429 Provider`
   while the registry moved Provider to 330-379 (2026-05-11) and reserves
