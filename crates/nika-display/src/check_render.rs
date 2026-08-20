@@ -178,12 +178,13 @@ fn narrowed_rungs(out: &mut String, report: &CheckReport, t: Theme) {
     // `✔ SECRETS no information-flow escapes · 0 hints`. The carve-out is
     // a deliberate soundness trade; the UNIVERSAL sentence over it was
     // not.
+    let secrets_claim = crate::check_journey::secret_flow_summary(report);
     section_or_skip(
         out,
         report,
         t,
         "SECRETS",
-        "no declared secret reaches an effect · model echo untracked",
+        &secrets_claim,
         secret_rows(report),
     );
     section_list(

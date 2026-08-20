@@ -34,14 +34,14 @@ mod journey_rung_tests {
             .expect("the JOURNEY rung renders");
         assert!(line.contains("internal"), "the class: {line}");
         assert!(
-            line.contains("no secret reaches a cloud destination"),
+            line.contains("no secret reaches an external destination"),
             "the honest closure: {line}"
         );
     }
 
     /// A secret flowing to a cloud endpoint is NAMED on an explicit ⚠
     /// row — advisory (the sanctioned egress stays clean; the SECRETS
-    /// lane owns the unsanctioned refusal), with the receipt law riding.
+    /// lane owns the unsanctioned refusal), with the consent review riding.
     #[test]
     fn a_secret_reaching_a_cloud_endpoint_is_named_with_the_receipt_law() {
         let out = console(
@@ -71,8 +71,8 @@ mod journey_rung_tests {
         );
         assert!(row.contains('⚠'), "advisory warn mark: {row}");
         assert!(
-            row.contains("read it before the run"),
-            "the receipt law rides: {row}"
+            row.contains("review consent before the run"),
+            "the review law rides: {row}"
         );
         // Advisory, never a finding: the sanctioned workflow's verdict
         // stays green and no ✖ rides the JOURNEY rung.
@@ -82,6 +82,89 @@ mod journey_rung_tests {
             "no blocking row on the rung:\n{out}"
         );
         assert!(out.contains("audited"), "the verdict stays clean:\n{out}");
+    }
+
+    /// A sanctioned MCP egress is not a leak, but it is still an effect.
+    /// Both SECRETS and JOURNEY must say so before suggesting a run.
+    #[test]
+    fn a_sanctioned_mcp_secret_flow_is_visible_on_both_rungs() {
+        let out = console(
+            r#"
+nika: mcp-secret
+secrets:
+  api_token:
+    source: env
+    key: SERVICE_API_TOKEN
+    egress:
+      - { to: "mcp:service/search" }
+      - { to: outputs }
+permits:
+  tools: ["mcp:service/search"]
+tasks:
+  search:
+    invoke:
+      tool: "mcp:service/search"
+      args: { token: "${{ secrets.api_token }}", query: "nika" }
+outputs:
+  result: "${{ tasks.search.output }}"
+"#,
+        );
+        let secrets = out
+            .lines()
+            .find(|line| line.contains("SECRETS"))
+            .expect("the SECRETS rung renders");
+        assert!(
+            secrets.contains("1 declared-secret flow")
+                && !secrets.contains("no declared secret reaches"),
+            "the clean rung names the observed flow without overstating consent: {secrets}"
+        );
+        let journey = out
+            .lines()
+            .find(|line| line.contains("JOURNEY") && line.contains("flows to"))
+            .expect("the MCP flow row renders");
+        assert!(
+            journey.contains("secret `api_token` flows to mcp:service/search"),
+            "the exact external sink rides the journey: {journey}"
+        );
+    }
+
+    /// The journey observes every direct flow, while the IFC finding lane
+    /// judges consent. The summary must never promote observed flows to
+    /// sanctioned ones on its own.
+    #[test]
+    fn multiple_mcp_secret_flows_do_not_overstate_consent() {
+        let out = console(
+            r#"
+nika: mcp-two-secrets
+secrets:
+  a_cleared:
+    source: env
+    key: CLEARED
+    egress: [{ to: "mcp:service/send" }]
+  z_uncleared: { source: env, key: UNCLEARED }
+permits:
+  tools: ["mcp:service/send"]
+tasks:
+  send:
+    invoke:
+      tool: "mcp:service/send"
+      args:
+        payload: "${{ secrets.a_cleared }}:${{ secrets.z_uncleared }}"
+"#,
+        );
+        let secrets = out
+            .lines()
+            .find(|line| line.contains("SECRETS"))
+            .expect("the SECRETS rung renders");
+        assert!(
+            secrets.contains("2 declared-secret flows") && !secrets.contains("sanctioned"),
+            "an observation is not a consent verdict: {secrets}"
+        );
+        assert!(
+            out.contains("secret `a_cleared` flows to mcp:service/send")
+                && out.contains("secret `z_uncleared` flows to mcp:service/send"),
+            "both direct flows remain visible:\n{out}"
+        );
     }
 
     /// The local→cloud flip is READABLE on the human surface (gauntlet
