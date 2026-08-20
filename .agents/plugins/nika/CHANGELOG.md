@@ -5,6 +5,11 @@ Versions move together across all manifests (the mirror gate pins it).
 
 ## Unreleased
 
+Authoring now reads the workspace before creating another file:
+`nika list` discovers local candidates, then `explain` · `inspect` · `check`
+establish what each one does and whether it is clean. The skill states the
+boundary explicitly: listing is discovery, never certification.
+
 The authoring skill teaches the door the engine has: `lift:` (one
 construct, two laws · `law: taint` with `from:` · `law: data-as-code`).
 Its live yaml fences are complete nine-key files (`nika: <id>` ·

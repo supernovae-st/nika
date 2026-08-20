@@ -9,11 +9,26 @@ Nika turns repeatable AI work into files: one `.nika.yaml`, four verbs,
 audited **before** it runs. You author the file; `nika check` is the
 oracle; the human runs it.
 
-## Read two examples before you write (measured: 8 rounds → 0)
+## Read the workspace, then two examples before you write
 
 **This file is the map. The examples are the territory.** A map this
 detailed is exactly why authors skip the ground, and the ground is where
 the shapes live. Nothing below replaces reading two real files.
+
+Join the workspace before adding to it. A local workflow may already own
+the job, its conventions and its permits boundary:
+
+```
+nika list                       # workflows below this directory
+nika explain <candidate>        # waves · cost · touches · run line
+nika inspect <candidate>        # tasks · verbs · graph anatomy
+nika check <candidate>          # the oracle: clean or an exact repair
+```
+
+`nika list` lists candidates; it does not certify them. Reuse or extend a
+matching local file only after `nika check` is clean. If nothing local fits,
+continue to the embedded shelf; even when one does, the two canonical reads
+below remain the cheapest shape check before a structural edit.
 
 The cost of skipping it was measured on 2026-07-28. Six authors each
 wrote one workflow from a real intention with this skill loaded and
