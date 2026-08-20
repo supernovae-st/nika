@@ -59,7 +59,11 @@ expect "a studio/ path turns it red" 2 "see studio/04-identity/brand/ for the pa
 # A SYNTHETIC pole · the shape is what turns it red, not the document. Naming a
 # real private file here published its path in a public repo, which is the very
 # thing this gate exists to stop (measured 2026-08-20 by the monorepo's
-# vocabulary screen, whose `01-product/strategy` pattern matched this line).
+# vocabulary screen, whose private-PM-pole pattern matched the old line).
+#
+# That screen then matched THIS comment, because the first draft quoted the
+# offending token while explaining it. An explanation of a screened string is
+# not exempt from the screen · describe the pattern, never reproduce it.
 expect "a private venture pole turns it red" 2 "ventures/example/05-growth/campaign-notes.md"
 expect "a pre-migration spelling turns it red" 2 "nika/hq/strategy.md"
 expect "the PUBLIC venture tier stays green" 0 "ventures/nika/02-engineering/repos/engine/README.md"
