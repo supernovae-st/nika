@@ -275,6 +275,99 @@ mod tests {
         std::fs::canonicalize(&base).expect("canonical scratch root")
     }
 
+    // ── check ≡ run on the exec fs bound (the 2026-08-20 D2 harvest) ──
+
+    /// The fs twin of `blocklist::tests::check_and_run_agree_on_the_argv_floor`.
+    ///
+    /// MEASURED on 0.111.0 before this arm existed · `["bash","leg.sh"]`
+    /// under `exec: [bash]` and no `fs.read` audited ✔ on all fourteen
+    /// lanes, then ran as `✔ leg` with rc 0 — while the leg had exited
+    /// **126**, empty stdout, because `spec_of` below copies `fs.read`
+    /// into the jail and bash could never open its own script. Granting
+    /// `fs.read: ["leg.sh"]` and changing nothing else returned exit 0.
+    ///
+    /// Both big pipelines are pinned to ONE reference semantics —
+    /// `Permits::jail_admits_read(script)` — exactly as
+    /// `nika-runtime`'s `boundary_differential` pins the exec CATEGORY to
+    /// `allows_program`:
+    ///
+    /// * **static leg** · `nika_check::check` raises an `fs` escape on the
+    ///   task ⟺ the reference REFUSES the script.
+    /// * **derivation leg** · the jail `spec_of` hands the OS admits the
+    ///   script ⟺ the reference ADMITS it. This is the leg that earns its
+    ///   keep: `spec_of` re-anchors every grant against the run root, so a
+    ///   fold that mangled a glob would open a hole no static lane can see.
+    ///
+    /// Composed · check-flags ⟺ reference-refuses ⟺ jail-refuses.
+    #[test]
+    fn check_and_run_agree_on_the_exec_script_read_bound() {
+        // (grants, script, the reference verdict — admitted?)
+        let cases: &[(&[&str], &str, bool)] = &[
+            (&[], "leg.sh", false),                         // the measured repro
+            (&["leg.sh"], "leg.sh", true),                  // the one grant that fixes it
+            (&["scripts/**"], "scripts/deploy.sh", true),   // a globbed subtree
+            (&["scripts/**"], "other/deploy.sh", false),    // a NEIGHBOURING tree
+            (&["sub"], "sub/leg.sh", true),                 // a BARE dir binds its subtree
+            (&["sub"], "other/leg.sh", false),              // and only its own
+            (&["./scripts/**"], "scripts/deploy.sh", true), // `./` folds on both sides
+            (&["data/**"], "leg.sh", false),                // granted, but not this
+        ];
+        let root = Path::new("/repo");
+        for (grants, script, admitted) in cases {
+            let p = permits(grants, &[], &[]);
+
+            // the reference
+            assert_eq!(
+                p.jail_admits_read(script),
+                *admitted,
+                "reference verdict for {script:?} under {grants:?}"
+            );
+
+            // static leg · the `nika check` finding
+            let list = grants
+                .iter()
+                .map(|g| format!("\"{g}\""))
+                .collect::<Vec<_>>()
+                .join(", ");
+            let yaml = format!(
+                "nika: w\npermits:\n  exec: [\"bash\"]\n  fs: {{ read: [{list}] }}\n\
+                 tasks:\n  t:\n    exec: {{ command: [\"bash\", \"{script}\"] }}\n"
+            );
+            let wf = nika_schema::parser::parse(
+                &yaml,
+                nika_schema::source::FileId::new(0),
+                nika_schema::parser::ParseMode::Strict,
+            )
+            .expect("fixture parses");
+            let report = nika_check::check(&wf);
+            let static_flags = report
+                .capability_escapes
+                .iter()
+                .any(|e| e.category == "fs" && e.task == "t");
+            assert_eq!(
+                static_flags, !*admitted,
+                "static check verdict for {script:?} under {grants:?}"
+            );
+
+            // derivation leg · what the jail would admit
+            let spec = spec_of(&p, root).expect("no symlink on the judged prefixes");
+            let mut jail = Permits::new();
+            jail.fs = Some(nika_schema::types::FsPermits::new(spec.fs_read, vec![]));
+            let jail_admits = jail.jail_admits_read(&absolutize(root, script));
+            assert_eq!(
+                jail_admits, *admitted,
+                "the jail must admit exactly what the reference admits — \
+                 {script:?} under {grants:?}"
+            );
+
+            // the law
+            assert_eq!(
+                static_flags, !jail_admits,
+                "check ≡ run on the exec fs bound — {script:?} under {grants:?}"
+            );
+        }
+    }
+
     #[test]
     fn relative_globs_anchor_at_the_run_root() {
         let spec = spec_of(

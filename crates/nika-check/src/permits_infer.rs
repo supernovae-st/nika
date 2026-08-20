@@ -31,7 +31,7 @@ use super::permits_fit::{
     BuiltinEffect, ConstStrings, builtin_effect, chart_vl_sibling, judgeable_arg, static_program,
     url_host,
 };
-use nika_schema::raw::{RawAction, RawCommand, RawTask, RawWorkflow};
+use nika_schema::raw::{RawAction, RawCommand, RawExecAction, RawTask, RawWorkflow};
 use nika_schema::types::{ExecPermit, FsPermits, NetPermits, Permits};
 
 /// The inferred boundary plus the honesty notes (effects too dynamic to
@@ -153,6 +153,27 @@ pub(crate) fn task_permits(task: &RawTask) -> Vec<String> {
     out
 }
 
+/// The read an argv-form `exec:` needs for its own script — `None` when
+/// the program is not an interpreter, the argv evals, the argv is
+/// templated, or a computed `cwd:` makes the path unknowable.
+///
+/// The SAME resolution the fit lane judges with
+/// ([`super::permits_fit::resolve_against_cwd`]), so an inferred boundary
+/// and the finding that would refuse it cannot disagree.
+fn interpreter_script_read(a: &RawExecAction) -> Option<String> {
+    let RawCommand::Argv(parts) = &a.command else {
+        return None;
+    };
+    let mut elements = parts.iter().map(|p| p.value.as_str());
+    let program = elements.next()?;
+    let args: Vec<&str> = elements.collect();
+    if program.contains("${{") || args.iter().any(|s| s.contains("${{")) {
+        return None;
+    }
+    let script = nika_types::exec::interpreter_script_operand(program, &args)?;
+    super::permits_fit::resolve_against_cwd(script, a.cwd.as_ref().map(|c| c.value.as_str()))
+}
+
 /// Fold one action (a task's main verb OR an `on_finally` cleanup verb)
 /// into the inference state.
 fn collect_action(c: &mut Collector, id: &str, action: &RawAction) {
@@ -164,6 +185,16 @@ fn collect_action(c: &mut Collector, id: &str, action: &RawAction) {
                 RawCommand::Argv(_) => {
                     if let Some(p) = static_program(&a.command) {
                         c.programs.insert(p.to_owned());
+                        // An interpreter must OPEN its script before it
+                        // runs a line, and the jail admits only what the
+                        // boundary declares — so a block that grants the
+                        // program and not the script would self-refuse the
+                        // very workflow it came from (the vega-sibling law
+                        // below, one boundary over). Measured 2026-08-20:
+                        // without the read the leg exits 126, empty.
+                        if let Some(read) = interpreter_script_read(a) {
+                            c.reads.insert(read);
+                        }
                     } else {
                         c.exec_dynamic = true;
                         c.notes.push(format!(
@@ -402,6 +433,98 @@ mod tests {
     use nika_schema::parser::{ParseMode, parse};
     use nika_schema::source::FileId;
     use proptest::prelude::*;
+
+    /// The round trip that keeps the tool's own advice honest: a boundary
+    /// this module WRITES must satisfy the lane that judges it. An
+    /// interpreter needs its script readable, so a block granting the
+    /// program and not the script would self-refuse the very workflow it
+    /// came from — the chart/tts sibling law, one boundary over.
+    ///
+    /// MEASURED 2026-08-20 · without the read the leg exits 126, empty
+    /// stdout, and the run still renders it as a completed task.
+    #[test]
+    fn an_inferred_boundary_grants_the_script_its_interpreter_opens() {
+        let wf = parse(
+            "\
+nika: t
+tasks:
+  leg:
+    exec: { command: [\"bash\", \"scripts/deploy.sh\"] }
+",
+            FileId::new(0),
+            ParseMode::Strict,
+        )
+        .expect("parses");
+        let inferred = infer(&wf);
+        let fs = inferred.permits.fs.as_ref().expect("an fs block");
+        assert!(
+            fs.read.iter().any(|r| r == "scripts/deploy.sh"),
+            "the script must be granted: {:?}",
+            fs.read
+        );
+        // and the boundary it wrote must survive the lane that judges it
+        assert!(
+            inferred.permits.jail_admits_read("scripts/deploy.sh"),
+            "an inferred boundary must not self-refuse"
+        );
+    }
+
+    /// A `cwd:` re-anchors the script; a COMPUTED one makes it unknowable,
+    /// and a guess there would write a grant the author never meant.
+    #[test]
+    fn the_inferred_script_read_follows_a_literal_cwd_and_stops_at_a_computed_one() {
+        let literal = parse(
+            "\
+nika: t
+tasks:
+  leg:
+    exec: { command: [\"bash\", \"inner.sh\"], cwd: \"sub\" }
+",
+            FileId::new(0),
+            ParseMode::Strict,
+        )
+        .expect("parses");
+        let fs = infer(&literal).permits.fs.expect("an fs block");
+        assert!(fs.read.iter().any(|r| r == "sub/inner.sh"), "{:?}", fs.read);
+
+        let computed = parse(
+            "\
+nika: t
+const:
+  where: \"sub\"
+tasks:
+  leg:
+    exec: { command: [\"bash\", \"inner.sh\"], cwd: \"${{ const.where }}\" }
+",
+            FileId::new(0),
+            ParseMode::Strict,
+        )
+        .expect("parses");
+        let reads = infer(&computed)
+            .permits
+            .fs
+            .map(|f| f.read)
+            .unwrap_or_default();
+        assert!(
+            reads.is_empty(),
+            "a computed cwd must pin nothing: {reads:?}"
+        );
+    }
+
+    /// The silences · a non-interpreter positional is the program's own
+    /// business, and inline eval opens no file.
+    #[test]
+    fn the_inferred_script_read_claims_nothing_it_cannot_know() {
+        for yaml in [
+            "nika: t\ntasks:\n  t:\n    exec: { command: [\"echo\", \"hi.txt\"] }\n",
+            "nika: t\ntasks:\n  t:\n    exec: { command: [\"python3\", \"-m\", \"unittest\"] }\n",
+            "nika: t\ntasks:\n  t:\n    exec: { shell: \"bash leg.sh\" }\n",
+        ] {
+            let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parses");
+            let reads = infer(&wf).permits.fs.map(|f| f.read).unwrap_or_default();
+            assert!(reads.is_empty(), "silence expected for {yaml}: {reads:?}");
+        }
+    }
 
     /// The inference covers chart + tts (they were invisible — the
     /// boundary it wrote refused the very run it came from) and the
