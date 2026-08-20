@@ -56,6 +56,18 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Fixed
 
+- **A cargo test binary no longer opens the OS keychain.** A macOS keychain
+  ACL is bound to the requesting BINARY, and a test binary is
+  `target/<profile>/deps/<name>-<hash>` whose hash changes on every
+  recompile — so "Always Allow" grants a binary that will never exist
+  again and the prompt returns forever, on every worktree, with no
+  operator-side gesture that stops it. `NIKA_KEYCHAIN=off` now skips the
+  custody, and a test binary skips it by default whether or not anyone
+  remembers the flag. An installed `nika` and `cargo run` land outside
+  `deps/` and keep their custody unchanged. All eight keyring call sites
+  sit behind the flag, held there by a ratchet that walks the crate's own
+  source.
+
 - **`nika check` now judges the script an `exec:` interpreter must open.**
   The runtime jails every `exec:` child to the declared `permits.fs` set, so
   `exec: ["bash", "leg.sh"]` with no `fs.read` grant could never open its
