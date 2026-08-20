@@ -147,7 +147,7 @@ the `.nika.yaml` extension. `nika new <slug>` makes one yours;
    four-tier ladder and reports the highest tier honestly attained —
    chain OK · **SEALED** (the run signature verifies against a custody
    key) · **ANCHORED** (the detached transparency-log sidecar verifies
-   fully offline) · **REPLAYED** (`--replay` compares a fresh run;
+   fully offline) · **REPLAYED** (`--replay <fresh-trace>` compares a fresh run;
    verify never re-executes). `nika trace show <trace>` reads the card;
    `nika trace evidence <trace>` exports the pack an auditor reads without
    trusting you. Cite the trace, never a memory of the run.
