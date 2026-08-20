@@ -45,6 +45,37 @@ wildcards         = "deny"
 # Extend the `wrappers` list as L1+ effect crates (nika-http, nika-fs,
 # nika-runtime, nika-daemon, verb-*) join the workspace via 12-gate admission.
 
+# ── SUPPLY CHAIN · the 2026-08-20 arrayref lure ──────────────────────────────
+# `arrayref 0.3.9` was YANKED from crates.io. The yank is the pressure, not the
+# accident: a yank turns `cargo deny` red, a red blocks every push, and the
+# obvious unblocking gesture is `cargo update -p arrayref`, which resolves to
+# 0.3.10. Measured that day, on this workspace:
+#
+#   arrayref 0.3.9   ZERO dependencies (a pure macro crate · what we pin)
+#   arrayref 0.3.10  depends on `proc-macro1`
+#   proc-macro2 1.0.106  the legitimate crate · depends on `unicode-ident`
+#   proc-macro1 1.0.107  a typosquat · depends on base64 · rustls · UREQ
+#
+# A proc macro runs at COMPILE time with ambient privileges. An HTTP and TLS
+# stack there is a delivery and exfiltration channel, not a feature, and the
+# version number sits one ahead of the crate it imitates.
+#
+# These two bans are purely ADDITIVE armour: neither name is in the tree today,
+# so nothing changes until something tries to pull one in, at which point it
+# fails closed. They do NOT resolve the yank red on 0.3.9 · that is a posture
+# decision about `[advisories] yanked` and it belongs to the operator.
+# Review when `blake3` moves off `arrayref`, or when a 0.3.11 appears whose
+# dependency set has been READ before it is accepted.
+
+[[bans.deny]]
+name   = "proc-macro1"
+reason = "typosquat of proc-macro2 · a compile-time macro that pulls ureq/rustls · see the note above"
+
+[[bans.deny]]
+name    = "arrayref"
+version = "=0.3.10"
+reason  = "the release that introduced the proc-macro1 edge · pin 0.3.9, whose dependency set is empty"
+
 [[bans.deny]]
 name     = "tokio"
 wrappers = [
@@ -117,6 +148,25 @@ ignore = [
   # short of forking the entire ML ecosystem. Informational advisory, not a
   # vulnerability. Review: 2026-06-22. Upstream: github.com/dtolnay/paste (archived).
   "RUSTSEC-2024-0436",
+  #
+  # arrayref@0.3.9 · YANKED 2026-08-20, and the yank is the pressure rather than
+  # the accident. A yank turns this gate red, the red blocks every push in the
+  # repo, and the obvious unblocking gesture is `cargo update -p arrayref`,
+  # which resolves to 0.3.10. Measured on this workspace that day ·
+  #   arrayref 0.3.9   ZERO dependencies · a pure macro crate · what we pin
+  #   arrayref 0.3.10  depends on `proc-macro1`
+  #   proc-macro2 1.0.106  the legitimate crate · depends on `unicode-ident`
+  #   proc-macro1 1.0.107  a typosquat · depends on base64 · rustls · UREQ
+  # A proc macro runs at COMPILE time with ambient privileges; an HTTP and TLS
+  # stack there is a delivery channel, not a feature, and its version sits one
+  # ahead of the crate it imitates. So we keep 0.3.9, whose checksum is pinned
+  # above and whose dependency set is empty, and the [[bans.deny]] pair below
+  # makes the successor and the typosquat fail closed.
+  # This exception is per-crate AND per-version by design · the yank gate stays
+  # `deny` for everything else. Review: when blake3 moves off arrayref, or when
+  # a 0.3.11 appears whose dependency set has been READ before it is accepted.
+  # Upstream: reported to crates.io security + the arrayref/blake3 maintainers.
+  "arrayref@0.3.9",
   #
   # RUSTSEC-2026-0194 + RUSTSEC-2026-0195 · quick-xml DoS pair (quadratic
   # dup-attr check + unbounded NsReader namespace allocation · fix >=0.41.0).
