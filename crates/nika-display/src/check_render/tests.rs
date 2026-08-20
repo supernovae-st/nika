@@ -1,3 +1,142 @@
+mod trifecta_rung_tests {
+    use nika_schema::parser::{ParseMode, parse};
+    use nika_schema::source::FileId;
+
+    use crate::check_render::*;
+
+    fn console(yaml: &str) -> String {
+        let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parses");
+        let report = nika_check::check(&wf);
+        render(
+            &report,
+            &wf,
+            yaml,
+            "w.nika.yaml",
+            Theme::new(false, false, false),
+            &ModelsAudit::new(Vec::new(), 0, 0),
+            &nika_schema::ResolvedSkills::default(),
+            &[],
+            report.is_clean(),
+        )
+    }
+
+    /// A complete lethal trifecta whose ONLY mitigation is a confirm gate
+    /// on a bare state edge: the refusal settles `success`, the edge
+    /// admits it, the effect fires on 'no'.
+    const RUBBER_STAMP: &str = "\
+nika: t
+permits:
+  fs: { read: [\"./inbox/**\"], write: [\"./out/**\"] }
+  net: { http: [\"api.example.com\"] }
+  tools: [\"nika:fetch\", \"nika:write\", \"nika:prompt\"]
+tasks:
+  ask:
+    invoke:
+      tool: \"nika:prompt\"
+      args: { mode: \"confirm\", message: \"exfiltrate?\" }
+  fetch_page:
+    after: { ask: success }
+    invoke:
+      tool: \"nika:fetch\"
+      args: { url: \"https://api.example.com/data\" }
+  leak:
+    after: { fetch_page: success }
+    with: { body: \"${{ tasks.fetch_page.output }}\" }
+    invoke:
+      tool: \"nika:write\"
+      args: { path: \"./out/leak.txt\", content: \"${{ with.body }}\" }
+";
+
+    /// The same file with the answer BOUND and gated on — the shape the
+    /// consent lane's own fix teaches.
+    const REAL_GATE: &str = "\
+nika: t
+permits:
+  fs: { read: [\"./inbox/**\"], write: [\"./out/**\"] }
+  net: { http: [\"api.example.com\"] }
+  tools: [\"nika:fetch\", \"nika:write\", \"nika:prompt\"]
+tasks:
+  ask:
+    invoke:
+      tool: \"nika:prompt\"
+      args: { mode: \"confirm\", message: \"exfiltrate?\" }
+  fetch_page:
+    with: { go: \"${{ tasks.ask.output }}\" }
+    when: ${{ with.go == true }}
+    invoke:
+      tool: \"nika:fetch\"
+      args: { url: \"https://api.example.com/data\" }
+  leak:
+    with: { go: \"${{ tasks.ask.output }}\", body: \"${{ tasks.fetch_page.output }}\" }
+    when: ${{ with.go == true }}
+    invoke:
+      tool: \"nika:write\"
+      args: { path: \"./out/leak.txt\", content: \"${{ with.body }}\" }
+";
+
+    /// MEASURED 2026-08-20 on the shipped 0.111.0 · one file, one card,
+    /// two lanes with opposite verdicts about the SAME gate ·
+    ///
+    /// ```text
+    /// ✔ TRIFECTA no lethal trifecta over the declared permits: without a human gate
+    /// ✖ CONSENT  [NIKA-SEC-014] task `leak` … the effect fires on 'no'
+    /// ```
+    ///
+    /// A CONTROL run (the same file with the prompt deleted) fires
+    /// `NIKA-SEC-009`, so the trifecta is COMPLETE and the tick was
+    /// bought entirely by the gate the consent row refutes four lines
+    /// lower. The tick is now derived, so it cannot stand there.
+    #[test]
+    fn the_trifecta_tick_never_stands_on_a_gate_consent_refutes() {
+        let out = console(RUBBER_STAMP);
+        assert!(
+            out.contains("NIKA-SEC-014"),
+            "the consent lane must fire on this file:\n{out}"
+        );
+        assert!(
+            !out.contains("✔ TRIFECTA"),
+            "the tick cannot stand on a refuted gate:\n{out}"
+        );
+        assert!(
+            out.contains("NIKA-SEC-014 below") || out.contains("refused below"),
+            "the lane must hand the reader to the code that owns the repair:\n{out}"
+        );
+        assert!(
+            !out.contains("NIKA-SEC-009"),
+            "one defect, one code — consent already owns it:\n{out}"
+        );
+    }
+
+    /// The guard: a gate that really closes keeps its tick. Reddening
+    /// this file would be the cancelled kind of change.
+    #[test]
+    fn a_gate_that_closes_the_route_keeps_its_tick() {
+        let out = console(REAL_GATE);
+        assert!(
+            !out.contains("NIKA-SEC-014"),
+            "the bound-and-gated shape is the consent lane's own fix:\n{out}"
+        );
+        assert!(
+            out.contains("✔ TRIFECTA"),
+            "a real gate must still clear the trifecta:\n{out}"
+        );
+    }
+
+    /// The other silence: a file with no trifecta at all keeps its tick,
+    /// whatever the consent lane says elsewhere. A missing leg and a
+    /// credited gate are different facts and must render differently.
+    #[test]
+    fn a_file_with_no_trifecta_keeps_its_tick() {
+        let out = console(
+            "nika: t\nmodel: mock/echo\npermits: { tools: [\"nika:prompt\"] }\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"confirm\", message: \"go?\" }\n",
+        );
+        assert!(
+            out.contains("✔ TRIFECTA"),
+            "no legs, no trifecta, no reason to withhold:\n{out}"
+        );
+    }
+}
+
 mod journey_rung_tests {
     use nika_schema::parser::{ParseMode, parse};
     use nika_schema::source::FileId;

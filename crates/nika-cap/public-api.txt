@@ -536,6 +536,44 @@ impl<T> core::clone::CloneToUninit for nika_cap::TaintWitness where T: core::clo
 pub unsafe fn nika_cap::TaintWitness::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cap::TaintWitness
 pub fn nika_cap::TaintWitness::from(t: T) -> T
+#[non_exhaustive] pub struct nika_cap::TrifectaMitigation
+pub nika_cap::TrifectaMitigation::gate: alloc::string::String
+pub nika_cap::TrifectaMitigation::sink: alloc::string::String
+impl core::clone::Clone for nika_cap::TrifectaMitigation
+pub fn nika_cap::TrifectaMitigation::clone(&self) -> nika_cap::TrifectaMitigation
+impl core::cmp::Eq for nika_cap::TrifectaMitigation
+impl core::cmp::PartialEq for nika_cap::TrifectaMitigation
+pub fn nika_cap::TrifectaMitigation::eq(&self, other: &nika_cap::TrifectaMitigation) -> bool
+impl core::fmt::Debug for nika_cap::TrifectaMitigation
+pub fn nika_cap::TrifectaMitigation::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_cap::TrifectaMitigation
+impl serde_core::ser::Serialize for nika_cap::TrifectaMitigation
+pub fn nika_cap::TrifectaMitigation::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_cap::TrifectaMitigation
+pub fn nika_cap::TrifectaMitigation::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_cap::TrifectaMitigation where U: core::convert::From<T>
+pub fn nika_cap::TrifectaMitigation::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cap::TrifectaMitigation where U: core::convert::Into<T>
+pub type nika_cap::TrifectaMitigation::Error = core::convert::Infallible
+pub fn nika_cap::TrifectaMitigation::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cap::TrifectaMitigation where U: core::convert::TryFrom<T>
+pub type nika_cap::TrifectaMitigation::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cap::TrifectaMitigation::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cap::TrifectaMitigation where T: core::clone::Clone
+pub type nika_cap::TrifectaMitigation::Owned = T
+pub fn nika_cap::TrifectaMitigation::clone_into(&self, target: &mut T)
+pub fn nika_cap::TrifectaMitigation::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cap::TrifectaMitigation where T: 'static + ?core::marker::Sized
+pub fn nika_cap::TrifectaMitigation::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cap::TrifectaMitigation where T: ?core::marker::Sized
+pub fn nika_cap::TrifectaMitigation::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cap::TrifectaMitigation where T: ?core::marker::Sized
+pub fn nika_cap::TrifectaMitigation::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cap::TrifectaMitigation where T: core::clone::Clone
+pub unsafe fn nika_cap::TrifectaMitigation::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cap::TrifectaMitigation
+pub fn nika_cap::TrifectaMitigation::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_cap::TrifectaMitigation where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub struct nika_cap::TrifectaSubject
 pub nika_cap::TrifectaSubject::egress_capable: bool
 pub nika_cap::TrifectaSubject::human_gate: bool
@@ -575,6 +613,41 @@ impl<T> core::clone::CloneToUninit for nika_cap::TrifectaSubject where T: core::
 pub unsafe fn nika_cap::TrifectaSubject::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cap::TrifectaSubject
 pub fn nika_cap::TrifectaSubject::from(t: T) -> T
+#[non_exhaustive] pub struct nika_cap::TrifectaVerdict
+pub nika_cap::TrifectaVerdict::mitigations: alloc::vec::Vec<nika_cap::TrifectaMitigation>
+pub nika_cap::TrifectaVerdict::violations: alloc::vec::Vec<nika_cap::TrifectaViolation>
+impl core::clone::Clone for nika_cap::TrifectaVerdict
+pub fn nika_cap::TrifectaVerdict::clone(&self) -> nika_cap::TrifectaVerdict
+impl core::cmp::Eq for nika_cap::TrifectaVerdict
+impl core::cmp::PartialEq for nika_cap::TrifectaVerdict
+pub fn nika_cap::TrifectaVerdict::eq(&self, other: &nika_cap::TrifectaVerdict) -> bool
+impl core::default::Default for nika_cap::TrifectaVerdict
+pub fn nika_cap::TrifectaVerdict::default() -> nika_cap::TrifectaVerdict
+impl core::fmt::Debug for nika_cap::TrifectaVerdict
+pub fn nika_cap::TrifectaVerdict::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_cap::TrifectaVerdict
+impl<T, U> core::convert::Into<U> for nika_cap::TrifectaVerdict where U: core::convert::From<T>
+pub fn nika_cap::TrifectaVerdict::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cap::TrifectaVerdict where U: core::convert::Into<T>
+pub type nika_cap::TrifectaVerdict::Error = core::convert::Infallible
+pub fn nika_cap::TrifectaVerdict::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cap::TrifectaVerdict where U: core::convert::TryFrom<T>
+pub type nika_cap::TrifectaVerdict::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cap::TrifectaVerdict::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cap::TrifectaVerdict where T: core::clone::Clone
+pub type nika_cap::TrifectaVerdict::Owned = T
+pub fn nika_cap::TrifectaVerdict::clone_into(&self, target: &mut T)
+pub fn nika_cap::TrifectaVerdict::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cap::TrifectaVerdict where T: 'static + ?core::marker::Sized
+pub fn nika_cap::TrifectaVerdict::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cap::TrifectaVerdict where T: ?core::marker::Sized
+pub fn nika_cap::TrifectaVerdict::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cap::TrifectaVerdict where T: ?core::marker::Sized
+pub fn nika_cap::TrifectaVerdict::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cap::TrifectaVerdict where T: core::clone::Clone
+pub unsafe fn nika_cap::TrifectaVerdict::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cap::TrifectaVerdict
+pub fn nika_cap::TrifectaVerdict::from(t: T) -> T
 #[non_exhaustive] pub struct nika_cap::TrifectaViolation
 pub nika_cap::TrifectaViolation::detail: alloc::string::String
 pub nika_cap::TrifectaViolation::source: core::option::Option<alloc::string::String>
@@ -673,6 +746,6 @@ pub fn nika_cap::is_withheld_jq_native(name: &str) -> bool
 pub fn nika_cap::judge_harness_ask(facts: &nika_cap::HarnessAskFacts, permits: core::option::Option<&nika_cap::Permits>) -> nika_cap::HarnessGate
 pub fn nika_cap::lexically_normalize(path: &str) -> alloc::string::String
 pub fn nika_cap::tool_grant_admits_ingress(grant: &str) -> bool
-pub fn nika_cap::trifecta_violations(permits: &nika_cap::Permits, subjects: &[nika_cap::TrifectaSubject], witnesses: &[nika_cap::TaintWitness], topo_order: &[usize]) -> alloc::vec::Vec<nika_cap::TrifectaViolation>
+pub fn nika_cap::trifecta_verdict(permits: &nika_cap::Permits, subjects: &[nika_cap::TrifectaSubject], witnesses: &[nika_cap::TaintWitness], topo_order: &[usize]) -> nika_cap::TrifectaVerdict
 pub fn nika_cap::withheld_jq_native(name: &str) -> core::option::Option<&'static nika_cap::WithheldNative>
 pub fn nika_cap::withheld_jq_reason(name: &str) -> core::option::Option<alloc::string::String>

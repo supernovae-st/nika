@@ -73,22 +73,29 @@ pub(crate) fn check_report(wf: &RawWorkflow, report: &CheckReport) -> Result<(),
     // DAG-independent and runs unconditionally.
     let trifecta = match nika_check::analyze(wf) {
         Ok(a) => nika_check::trifecta::scan_trifecta(wf, &a.edges, &a.topo_waves),
-        Err(_) => Vec::new(),
+        Err(_) => nika_cap::TrifectaVerdict::default(),
     };
     let escapes = nika_check::permits_fit::scan_escapes(wf);
     // Post-`is_clean` the report's boundary lanes are empty, so an
     // inequality here always means the re-derivation found something the
     // report does not know. The comparison stays symmetric anyway — one
     // truth: the lanes must EQUAL, and gate order is not the proof.
-    if escapes == report.capability_escapes && trifecta == report.trifecta_findings {
+    // Both halves compare, not just the refusals: the CREDIT the lane
+    // hands a gate is what the card's tick now derives from, so a drift
+    // there is a drift in what the run is about to claim.
+    if escapes == report.capability_escapes
+        && trifecta.violations == report.trifecta_findings
+        && trifecta.mitigations == report.trifecta_mitigations
+    {
         return Ok(());
     }
-    let total = escapes.len() + trifecta.len();
+    let total = escapes.len() + trifecta.violations.len();
     let mut named: Vec<String> = escapes
         .iter()
         .map(|e| format!("capability escape · task `{}`", e.task))
         .chain(
             trifecta
+                .violations
                 .iter()
                 .map(|t| format!("trifecta · task `{}`", t.task)),
         )
@@ -245,7 +252,7 @@ mod tests {
         let trifecta =
             nika_check::trifecta::scan_trifecta(&wf, &analyzed.edges, &analyzed.topo_waves);
         assert_eq!(
-            trifecta.len(),
+            trifecta.violations.len(),
             1,
             "the re-derivation sees the realized sink: {trifecta:?}"
         );
