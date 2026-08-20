@@ -305,10 +305,75 @@ fn parse_name(s: &str, names: &BTreeSet<String>, where_: &str) -> Result<NikaTyp
             "{where_} · `{s}` is reserved — lands with {wave}"
         )));
     }
+    if let Some((_, repair)) = RETIRED_SPELLINGS.iter().find(|(r, _)| *r == s) {
+        return Err(ParseTypeError::grammar(format!(
+            "{where_} · `{s}` is not a type — {repair}"
+        )));
+    }
+    // The tail. Never repeat « primitives are lowercase » at a name that
+    // IS lowercase: the reader checks the rule, finds it satisfied, and
+    // learns nothing. The roster is the half that is always true and
+    // always useful, and it invents no mapping the spec never named.
     Err(ParseTypeError::grammar(format!(
-        "{where_} · `{s}` is not a type (primitives are lowercase · declared names are PascalCase)"
+        "{where_} · `{s}` is not a type — the primitives are {}; \
+         containers are forms (`{{ array: <T> }}` · `{{ object: {{ field: <T> }} }}`); \
+         a declared name is PascalCase",
+        PRIMITIVE_NAMES.join(" · "),
     )))
 }
+
+/// Spellings that are not typos but the PREVIOUS grammar, each with the
+/// thing that replaced it.
+///
+/// Levenshtein never reached these and never could · `boolean`→`bool` is
+/// distance 3, past [`closest`]'s ≤2 threshold, and `int`→`integer` is 4.
+/// The did-you-mean machinery already existed and ran only on the
+/// `PascalCase` branch against DECLARED names, so a lowercase near-miss
+/// fell past it into a sentence stating a rule it already obeyed.
+///
+/// Every row is spec-derived, and rows the spec does not name are absent
+/// on purpose · an invented mapping teaches confidently and wrongly.
+///
+/// - the flat 6-enum is retired BY NAME in spec 01 (R3b ·
+///   LAW-GRAMMAR-0211), which names `bool` in the same sentence;
+/// - `array`/`object` are FORMS in spec 09's grammar, not names, so the
+///   refusal teaches the form rather than a primitive that would be a lie;
+/// - the C-family spellings map onto an existing primitive by the obvious
+///   rule an author already had in mind.
+const RETIRED_SPELLINGS: &[(&str, &str)] = &[
+    (
+        "boolean",
+        "did you mean `bool`? (spec 01 · the flat 6-enum is retired and `bool` is the one boolean spelling)",
+    ),
+    ("int", "did you mean `integer`?"),
+    ("float", "did you mean `number`?"),
+    ("double", "did you mean `number`?"),
+    ("str", "did you mean `string`?"),
+    (
+        "array",
+        "`array` is a FORM, not a name — write `{ array: <T> }` (spec 09)",
+    ),
+    (
+        "object",
+        "`object` is a FORM, not a name — write `{ object: { field: <T> } }` (spec 09)",
+    ),
+];
+
+/// The primitive roster, spelled once. [`Primitive::from_name`] is the
+/// authority; this list is what a refusal SHOWS, and the test below walks
+/// every entry through `from_name` so the two cannot drift.
+const PRIMITIVE_NAMES: &[&str] = &[
+    "null",
+    "bool",
+    "integer",
+    "number",
+    "string",
+    "bytes",
+    "uri",
+    "path",
+    "duration",
+    "timestamp",
+];
 
 fn parse_composite(
     map: &serde_json::Map<String, Value>,
@@ -556,6 +621,151 @@ fn lev(a: &str, b: &str) -> usize {
 mod tests {
     #![allow(clippy::panic)] // let-else in tests — the panic IS the assertion
     use super::*;
+
+    // ── a lowercase near-miss is not told a rule it already obeys ──
+
+    /// MEASURED 2026-08-20 on 0.111.0. Eleven lowercase spellings an
+    /// author reaches for, and one message for all of them ·
+    ///
+    /// ```text
+    /// `boolean` is not a type (primitives are lowercase · declared names are PascalCase)
+    /// ```
+    ///
+    /// `boolean` IS lowercase. The reader checks their spelling against
+    /// the stated rule, finds it satisfied, and learns nothing. Spec 01
+    /// names the answer in the same sentence that retires the spelling ·
+    /// « the flat 6-enum … is dead and `bool` is the one boolean
+    /// spelling ».
+    ///
+    /// The did-you-mean machinery was already here. It ran on the
+    /// `PascalCase` branch against DECLARED names, and a lowercase
+    /// near-miss fell past it: a judge governs the collection it walks.
+    /// Levenshtein alone never reached these — `boolean`→`bool` is
+    /// distance 3, past `closest`'s ≤2 — because they are not typos.
+    /// They are the previous grammar.
+    #[test]
+    fn a_retired_spelling_is_told_the_one_that_replaced_it() {
+        for (typo, want) in [
+            ("boolean", "`bool`"),
+            ("int", "`integer`"),
+            ("float", "`number`"),
+            ("double", "`number`"),
+            ("str", "`string`"),
+        ] {
+            let e = parse_name(typo, &BTreeSet::new(), "inputs.x")
+                .expect_err("a retired spelling is refused");
+            let m = e.detail.clone();
+            assert!(m.contains(want), "`{typo}` must name {want}, got: {m}");
+            assert!(
+                !m.contains("primitives are lowercase"),
+                "`{typo}` IS lowercase — never state a rule the input obeys: {m}"
+            );
+        }
+    }
+
+    /// `array` and `object` are FORMS in the grammar (spec 09 · `{ array:
+    /// T }` · `{ object: { field: T } }`), not names. Naming a
+    /// replacement primitive would be a lie; the refusal teaches the
+    /// form instead.
+    #[test]
+    fn a_retired_container_is_told_its_form() {
+        for (typo, want) in [("array", "{ array:"), ("object", "{ object:")] {
+            let e = parse_name(typo, &BTreeSet::new(), "inputs.x")
+                .expect_err("a retired container spelling is refused");
+            let m = e.detail.clone();
+            assert!(m.contains(want), "`{typo}` must teach the form, got: {m}");
+        }
+    }
+
+    /// The tail · a lowercase name with no spec-named replacement. It
+    /// must NOT be handed an invented mapping, and must NOT be told the
+    /// casing rule either. It gets the one thing always true and always
+    /// useful: what the primitives actually are.
+    #[test]
+    fn an_unknown_lowercase_name_is_shown_the_primitives_not_a_casing_rule() {
+        let e = parse_name("wibble", &BTreeSet::new(), "inputs.x")
+            .expect_err("an unknown lowercase name is refused");
+        let m = e.detail.clone();
+        assert!(
+            !m.contains("primitives are lowercase"),
+            "the rule is satisfied and says nothing: {m}"
+        );
+        assert!(
+            m.contains("bool"),
+            "the primitive roster is the useful half: {m}"
+        );
+        assert!(m.contains("string"), "{m}");
+        assert!(
+            !m.contains("did you mean"),
+            "no invented mapping for a name the spec never named: {m}"
+        );
+    }
+
+    /// The roster a refusal SHOWS must be the roster `from_name` ADMITS.
+    /// Two hand-written lists of the same fact drift; this walks one
+    /// through the other so they cannot.
+    #[test]
+    fn the_shown_roster_is_the_admitted_roster() {
+        for p in PRIMITIVE_NAMES {
+            assert!(
+                Primitive::from_name(p).is_some(),
+                "`{p}` is shown to authors but `from_name` refuses it"
+            );
+        }
+        // …and nothing admitted is missing from what we show.
+        for p in [
+            "null",
+            "bool",
+            "integer",
+            "number",
+            "string",
+            "bytes",
+            "uri",
+            "path",
+            "duration",
+            "timestamp",
+        ] {
+            assert!(
+                PRIMITIVE_NAMES.contains(&p),
+                "`{p}` parses but is never shown to an author who guessed wrong"
+            );
+        }
+    }
+
+    /// The guard · a `PascalCase` unknown keeps its OWN arm, which was
+    /// already right. Widening the lowercase arm must not swallow it.
+    #[test]
+    fn a_pascal_case_unknown_keeps_its_own_arm() {
+        let e = parse_name("Widget", &BTreeSet::new(), "inputs.x")
+            .expect_err("an undeclared PascalCase name is refused");
+        let m = e.detail.clone();
+        assert!(m.contains("unknown type name `Widget`"), "{m}");
+        assert!(!m.contains("primitives are lowercase"), "{m}");
+    }
+
+    /// The guard · every VALID primitive still parses. A refusal arm that
+    /// grew teeth on valid input would be the cancelled kind of change.
+    #[test]
+    fn every_primitive_still_parses() {
+        for p in [
+            "null",
+            "bool",
+            "integer",
+            "number",
+            "string",
+            "bytes",
+            "uri",
+            "path",
+            "duration",
+            "timestamp",
+        ] {
+            assert!(
+                parse_name(p, &BTreeSet::new(), "inputs.x").is_ok(),
+                "`{p}` is a primitive and must parse"
+            );
+        }
+    }
+
     use serde_json::json;
 
     fn names(list: &[&str]) -> BTreeSet<String> {
