@@ -2,6 +2,7 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 use super::*;
+use nika_cadence::FencingToken;
 
 fn state(tag: &str) -> (tempfile::TempDir, ArmState) {
     let dir = tempfile::Builder::new()
@@ -419,9 +420,13 @@ fn projection_kinds_and_free_text_round_trip() {
         FireKind::Paused,
         FireKind::Failed,
     ] {
-        assert_eq!(fire_kind(kind.as_str()), Some(kind));
+        assert_eq!(FireKind::parse_projection(kind.as_str()), Some(kind));
     }
-    assert_eq!(fire_kind("disarmed"), None, "history-only kind");
+    assert_eq!(
+        FireKind::parse_projection("disarmed"),
+        None,
+        "history-only kind"
+    );
 
     let (dir, state) = state("escaped-json");
     let mut decision = entry(FireKind::Failed);
