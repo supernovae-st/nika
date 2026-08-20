@@ -429,10 +429,20 @@ fn secret_names_of_task(
             scan(text);
         }
     }
-    if let Some(fe) = &task.for_each
-        && let nika_schema::raw::ForEachValue::Expression(src) = &fe.value
-    {
-        scan(src);
+    if let Some(fe) = &task.for_each {
+        match &fe.value {
+            nika_schema::raw::ForEachValue::Expression(src) => scan(src),
+            nika_schema::raw::ForEachValue::List(list) => {
+                for text in collect_json_strings(list) {
+                    scan(text);
+                }
+            }
+            #[allow(
+                clippy::unreachable,
+                reason = "non_exhaustive future variant — enum and checker ship together; fail loud beats silently-wrong output"
+            )]
+            other => unreachable!("unknown for_each form: {other:?}"),
+        }
     }
     // The propagation facts (valid order only — empty facts, never wrong).
     if let Some(trace) = flow.effect_taint(idx) {
@@ -730,6 +740,37 @@ outputs:
             "the sanctioned external flow stays visible"
         );
         assert_eq!(j.classification, DataClassification::Regulated);
+    }
+
+    #[test]
+    fn list_item_names_every_secret_reaching_the_mcp_sink() {
+        let j = journey_of(
+            r#"
+nika: list-item-journey
+secrets:
+  alpha: { source: env, key: ALPHA }
+  omega: { source: env, key: OMEGA }
+permits:
+  tools: ["mcp:service/send"]
+tasks:
+  send:
+    for_each:
+      items: ["${{ secrets.alpha }}", "${{ secrets.omega }}"]
+    invoke:
+      tool: "mcp:service/send"
+      args: { payload: "${{ item }}" }
+"#,
+        );
+        let names: BTreeSet<&str> = j
+            .secrets_used
+            .iter()
+            .map(|secret| secret.name.as_str())
+            .collect();
+        assert_eq!(names, BTreeSet::from(["alpha", "omega"]));
+        for secret in &j.secrets_used {
+            assert_eq!(secret.tasks, ["send"]);
+            assert_eq!(secret.flows_to, ["mcp:service/send"]);
+        }
     }
 
     /// Law 13: the journey names CLASSES, never values. A canary value
