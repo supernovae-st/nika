@@ -39,7 +39,7 @@ pub fn validate(registry: &ArmRegistry) -> impl Iterator<Item = CadenceError> {
         faults.push(CadenceError::file(
             CadenceErrorKind::Identity,
             format!("nika: {} · c est l ancien tag de schéma, pas un nom de projet", registry.nika),
-            "le tag est devenu le NOM du projet (`nika: mon-projet`) — la version vit sur la ligne `$schema`",
+            "le tag est devenu le NOM du projet (`nika: mon-projet`) — la version vit désormais dans la ligne `$schema`",
         ));
     } else if !ArmRegistry::is_kebab_id(&registry.nika) {
         faults.push(CadenceError::file(
