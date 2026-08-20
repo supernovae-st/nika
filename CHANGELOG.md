@@ -72,6 +72,19 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   walk. `--infer-permits` learned the same fact in the same change, so the
   boundary it writes cannot self-refuse the workflow it came from. Swept
   over the shipped corpus: 63 of 63 unchanged.
+- **The TRIFECTA tick is derived, so it cannot outlive the gate that
+  bought it.** Measured on 0.111.0, one card printed `✔ TRIFECTA … without
+  a human gate` four lines above two `NIKA-SEC-014` rows proving that same
+  gate lets the effect fire on 'no'; a control run with the prompt deleted
+  raised `NIKA-SEC-009`, so the trifecta was complete and the tick was
+  bought entirely by a rubber stamp. The lane credited a *blocking prompt*
+  (one task, one key lookup) while the consent lane ran the full
+  refusal-substitution walk — and the clearance discarded WHICH gate it
+  credited, so a trifecta cleared by a gate and one cleared by a missing
+  leg were the same empty vec. The clearance now publishes its credit and
+  the rung withholds the tick where another lane refutes it, pointing at
+  the code that owns the repair. No second finding: the consent row
+  already names the defect and teaches the fix.
 
 - **The `nika-error` crate-spec band table matches the one-voice
   registry.** It still read `330-379 Binding/template · 380-429 Provider`

@@ -143,6 +143,47 @@ pub struct TrifectaViolation {
     pub detail: String,
 }
 
+/// An egress sink that WOULD have violated NEP-0002 and did not, because
+/// a blocking gate dominates it.
+///
+/// The clearance below has always computed this and returned an empty
+/// vec, so a trifecta cleared by a CREDITED GATE and one cleared by a
+/// MISSING LEG were indistinguishable to every reader. They are not the
+/// same fact: the second is safe by construction, the first is safe only
+/// if the gate is real, and whether a gate is real is a question ANOTHER
+/// lane answers (`nika-check::consent`, NEP-0020 · `NIKA-SEC-014`).
+///
+/// Measured 2026-08-20 on 0.111.0, one card, two lanes ·
+///
+/// ```text
+/// ✔ TRIFECTA no lethal trifecta over the declared permits: without a human gate
+/// ✖ CONSENT  [NIKA-SEC-014] task `leak` … the effect fires on 'no'
+/// ```
+///
+/// Publishing the pair lets the card DERIVE its tick instead of asserting
+/// it: a mitigation whose gate the consent lane refutes on the same sink
+/// is not a mitigation.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[non_exhaustive]
+pub struct TrifectaMitigation {
+    /// The egress-capable task the gate cleared.
+    pub sink: String,
+    /// The blocking gate that dominates it.
+    pub gate: String,
+}
+
+/// Both halves of one clearance pass: what the trifecta REFUSES, and what
+/// it CREDITED to a gate. A reader that sees only the first cannot tell a
+/// safe file from a rubber-stamped one.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct TrifectaVerdict {
+    /// The sinks no blocking gate dominates (`NIKA-SEC-009`).
+    pub violations: Vec<TrifectaViolation>,
+    /// The sinks a blocking gate cleared, each naming its gate.
+    pub mitigations: Vec<TrifectaMitigation>,
+}
+
 /// A declared `fs.write` glob escapes the workspace (leg ③'s write variant):
 /// absolute, home-anchored, or climbing out with a preserved leading `..`
 /// after lexical normalization — a relative escape MUST stay visible (the
@@ -201,42 +242,22 @@ const ROOT: usize = usize::MAX;
 /// claim, the IFC/policy gating precedent). Deterministic: violations
 /// follow task declaration order.
 #[must_use]
-pub fn trifecta_violations(
+pub fn trifecta_verdict(
     permits: &Permits,
     subjects: &[TrifectaSubject],
     witnesses: &[TaintWitness],
     topo_order: &[usize],
-) -> Vec<TrifectaViolation> {
+) -> TrifectaVerdict {
     let (one, two, three) = legs(permits, subjects);
     if !(one && two && three) {
-        return Vec::new();
+        // A leg is absent: nothing to clear, so nothing to credit. The
+        // empty verdict here and the empty `violations` below are now
+        // DIFFERENT values, which is the whole point.
+        return TrifectaVerdict::default();
     }
-    // Dominators over the derived DAG with a virtual root: dom(root)={root},
-    // dom(entry)={root, entry}, dom(n)={n} ∪ ⋂ dom(parents). One pass in
-    // topological order suffices — the DAG is acyclic BY CONSTRUCTION, so
-    // every parent is settled before its child.
-    let mut dom: Vec<BTreeSet<usize>> = vec![BTreeSet::new(); subjects.len()];
-    for &i in topo_order {
-        let Some(subject) = subjects.get(i) else {
-            continue;
-        };
-        let mut d = if subject.parents.is_empty() {
-            BTreeSet::from([ROOT])
-        } else {
-            let mut acc: Option<BTreeSet<usize>> = None;
-            for &p in &subject.parents {
-                let pd = dom[p].clone();
-                acc = Some(match acc {
-                    None => pd,
-                    Some(a) => a.intersection(&pd).copied().collect(),
-                });
-            }
-            acc.unwrap_or_else(|| BTreeSet::from([ROOT]))
-        };
-        d.insert(i);
-        dom[i] = d;
-    }
+    let dom = dominators(subjects, topo_order);
     let mut out = Vec::new();
+    let mut mitigations = Vec::new();
     for (i, s) in subjects.iter().enumerate() {
         if !s.egress_capable {
             continue;
@@ -248,10 +269,19 @@ pub fn trifecta_violations(
         if !witness.is_some_and(|w| w.tainted) {
             continue;
         }
-        let gated = dom[i]
+        // The dominating gate, NAMED. `any()` here answered "is there
+        // one" and dropped WHICH — the card then had no way to ask
+        // whether that gate is real.
+        let gate = dom[i]
             .iter()
-            .any(|&g| subjects.get(g).is_some_and(|t| t.human_gate));
-        if !gated {
+            .find_map(|&g| subjects.get(g).filter(|t| t.human_gate).map(|t| &t.id));
+        if let Some(gate) = gate {
+            mitigations.push(TrifectaMitigation {
+                sink: s.id.clone(),
+                gate: gate.clone(),
+            });
+        }
+        if gate.is_none() {
             let source = witness.and_then(|w| w.source.clone());
             // The dominance rule, EXPLAINED (user gauntlet 2026-07-31 ·
             // G-07: the printed fix applied verbatim returned the finding
@@ -284,7 +314,39 @@ pub fn trifecta_violations(
             });
         }
     }
-    out
+    TrifectaVerdict {
+        violations: out,
+        mitigations,
+    }
+}
+
+/// Dominators over the derived DAG with a virtual root: dom(root)={root},
+/// dom(entry)={root, entry}, dom(n)={n} ∪ ⋂ dom(parents). One pass in
+/// topological order suffices — the DAG is acyclic BY CONSTRUCTION, so
+/// every parent is settled before its child.
+fn dominators(subjects: &[TrifectaSubject], topo_order: &[usize]) -> Vec<BTreeSet<usize>> {
+    let mut dom: Vec<BTreeSet<usize>> = vec![BTreeSet::new(); subjects.len()];
+    for &i in topo_order {
+        let Some(subject) = subjects.get(i) else {
+            continue;
+        };
+        let mut d = if subject.parents.is_empty() {
+            BTreeSet::from([ROOT])
+        } else {
+            let mut acc: Option<BTreeSet<usize>> = None;
+            for &p in &subject.parents {
+                let pd = dom[p].clone();
+                acc = Some(match acc {
+                    None => pd,
+                    Some(a) => a.intersection(&pd).copied().collect(),
+                });
+            }
+            acc.unwrap_or_else(|| BTreeSet::from([ROOT]))
+        };
+        d.insert(i);
+        dom[i] = d;
+    }
+    dom
 }
 
 /// Name WHY an existing gate fails to dominate the sink (the dominance
@@ -313,6 +375,64 @@ fn bypass_note(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The credit half, in isolation: a cleared trifecta must NAME the
+    /// gate that cleared it, and a trifecta with a missing leg must
+    /// credit nothing.
+    ///
+    /// Both used to return the same empty vec, which is how a card could
+    /// print the same tick for "safe by construction" and "safe if this
+    /// prompt is real" without being able to tell them apart.
+    #[test]
+    fn a_cleared_trifecta_names_the_gate_that_cleared_it() {
+        // gate → ingress → egress · every path crosses the gate
+        let mut subjects = vec![
+            TrifectaSubject::new("ask".to_owned(), false, true),
+            TrifectaSubject::new("fetch".to_owned(), false, false).with_ingress_source(true),
+            TrifectaSubject::new("leak".to_owned(), true, false),
+        ];
+        subjects[1].parents = vec![0];
+        subjects[2].parents = vec![1];
+        let witnesses = vec![
+            TaintWitness::new(false, None),
+            TaintWitness::new(false, None),
+            TaintWitness::new(true, Some("fetch".to_owned())),
+        ];
+        let v = trifecta_verdict(&full_boundary(), &subjects, &witnesses, &topo(&subjects));
+        assert!(
+            v.violations.is_empty(),
+            "the gate dominates the sink: {:?}",
+            v.violations
+        );
+        assert_eq!(
+            v.mitigations,
+            vec![TrifectaMitigation {
+                sink: "leak".to_owned(),
+                gate: "ask".to_owned(),
+            }],
+            "the clearance must name its gate"
+        );
+
+        // the SAME shape with a leg removed: nothing to clear, so nothing
+        // to credit — a different fact, and now a different value.
+        let mut p = full_boundary();
+        p.net = None;
+        let v = trifecta_verdict(&p, &subjects, &witnesses, &topo(&subjects));
+        assert!(v.violations.is_empty() && v.mitigations.is_empty());
+    }
+
+    /// The violations half, for batteries whose subject is the refusal.
+    /// The credit half is exercised by its own test below, so neither
+    /// reads through the other's noise.
+    fn trifecta_violations(
+        permits: &Permits,
+        subjects: &[TrifectaSubject],
+        witnesses: &[TaintWitness],
+        topo_order: &[usize],
+    ) -> Vec<TrifectaViolation> {
+        trifecta_verdict(permits, subjects, witnesses, topo_order).violations
+    }
+
     use crate::{ExecPermit, FsPermits, NetPermits};
 
     fn boundary(read: &[&str], write: &[&str], http: &[&str], tools: &[&str]) -> Permits {
