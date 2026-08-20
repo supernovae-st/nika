@@ -723,7 +723,7 @@ outputs:
             .iter()
             .find(|s| s.name == "api_token")
             .expect("the used secret is named");
-        assert_eq!(secret.tasks, ["search"], "{secret:?}");
+        assert_eq!(secret.tasks, ["search"]);
         assert_eq!(
             secret.flows_to,
             ["mcp:service/search"],

@@ -115,8 +115,7 @@ outputs:
             .expect("the SECRETS rung renders");
         assert!(
             secrets.contains("1 declared-secret flow")
-                && !secrets.contains("no declared secret reaches"),
-            "the clean rung names the observed flow without overstating consent: {secrets}"
+                && !secrets.contains("no declared secret reaches")
         );
         let journey = out
             .lines()
@@ -156,10 +155,7 @@ tasks:
             .lines()
             .find(|line| line.contains("SECRETS"))
             .expect("the SECRETS rung renders");
-        assert!(
-            secrets.contains("2 declared-secret flows") && !secrets.contains("sanctioned"),
-            "an observation is not a consent verdict: {secrets}"
-        );
+        assert!(secrets.contains("2 declared-secret flows") && !secrets.contains("sanctioned"));
         assert!(
             out.contains("secret `a_cleared` flows to mcp:service/send")
                 && out.contains("secret `z_uncleared` flows to mcp:service/send"),
