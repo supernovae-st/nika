@@ -971,6 +971,7 @@ fn archives_without_a_committed_live_genesis_fail_closed() {
 fn lock_creation_in_a_missing_directory_preserves_not_found() {
     let (dir, _state) = state("lock-missing-dir");
     let missing = dir.path().join("does-not-exist");
-    let error = SafeDir::open(&missing, "doctor").expect_err("missing project");
+    let error =
+        OwnedDir::create(&missing, &[".nika", "arm", "doctor"]).expect_err("missing project");
     assert_eq!(error.kind(), io::ErrorKind::NotFound);
 }

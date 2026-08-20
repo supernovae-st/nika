@@ -13,8 +13,9 @@ use nika_cadence::ledger::{
     JournalFormat, LastRecord, archive_commitment_matches, classify_journal,
     journal_snapshot_matches,
 };
+use nika_fs::OwnedDir;
 
-use super::{HISTORY, safe_fs::SafeDir};
+use super::HISTORY;
 
 pub(crate) struct Replay {
     pub last: Option<LastRecord>,
@@ -30,7 +31,7 @@ pub(crate) struct Folded {
 
 type JournalSnapshot = (String, String, bool);
 
-pub(super) fn replay_safe(dir: &SafeDir) -> io::Result<Replay> {
+pub(super) fn replay_safe(dir: &OwnedDir) -> io::Result<Replay> {
     let journals = journal_texts(dir)?;
     let (last, watermark) = nika_cadence::ledger::replay_projection(
         journals
@@ -45,11 +46,11 @@ pub(super) fn replay_safe(dir: &SafeDir) -> io::Result<Replay> {
     })
 }
 
-pub(super) fn journal_texts(dir: &SafeDir) -> io::Result<Vec<(String, bool)>> {
+pub(super) fn journal_texts(dir: &OwnedDir) -> io::Result<Vec<(String, bool)>> {
     validate_snapshot_safe(dir, read_snapshot_safe(dir)?)
 }
 
-fn read_snapshot_safe(dir: &SafeDir) -> io::Result<Vec<JournalSnapshot>> {
+fn read_snapshot_safe(dir: &OwnedDir) -> io::Result<Vec<JournalSnapshot>> {
     journal_names(dir)?
         .into_iter()
         .map(|name| {
@@ -60,7 +61,7 @@ fn read_snapshot_safe(dir: &SafeDir) -> io::Result<Vec<JournalSnapshot>> {
 }
 
 fn validate_snapshot_safe(
-    dir: &SafeDir,
+    dir: &OwnedDir,
     snapshot: Vec<JournalSnapshot>,
 ) -> io::Result<Vec<(String, bool)>> {
     let borrowed: Vec<(&str, &str, bool)> = snapshot
@@ -80,7 +81,7 @@ fn validate_snapshot_safe(
         .collect())
 }
 
-pub(super) fn validate_archive_commitment(dir: &SafeDir, live: &str) -> io::Result<()> {
+pub(super) fn validate_archive_commitment(dir: &OwnedDir, live: &str) -> io::Result<()> {
     if !matches!(classify_journal(live), Some(JournalFormat::Versioned)) {
         return Ok(());
     }
@@ -94,7 +95,7 @@ pub(super) fn validate_archive_commitment(dir: &SafeDir, live: &str) -> io::Resu
         .ok_or_else(invalid_journal)
 }
 
-pub(super) fn archive_texts(dir: &SafeDir) -> io::Result<Vec<(String, String)>> {
+pub(super) fn archive_texts(dir: &OwnedDir) -> io::Result<Vec<(String, String)>> {
     read_snapshot_safe(dir)?
         .into_iter()
         .filter(|(_, _, live)| !live)
@@ -121,7 +122,7 @@ pub(crate) fn fold_replay(replayed: &Replay, now: &Timestamp) -> Option<Folded> 
     })
 }
 
-fn journal_names(dir: &SafeDir) -> io::Result<Vec<String>> {
+fn journal_names(dir: &OwnedDir) -> io::Result<Vec<String>> {
     let mut names = Vec::new();
     for name in dir.names()? {
         if nika_cadence::ledger::archive_ordinal(&name).is_some() {
@@ -136,7 +137,7 @@ fn journal_names(dir: &SafeDir) -> io::Result<Vec<String>> {
     Ok(names)
 }
 
-pub(super) fn latest_archive(dir: &SafeDir) -> io::Result<Option<String>> {
+pub(super) fn latest_archive(dir: &OwnedDir) -> io::Result<Option<String>> {
     Ok(journal_names(dir)?
         .into_iter()
         .filter(|name| name != HISTORY)
@@ -144,7 +145,7 @@ pub(super) fn latest_archive(dir: &SafeDir) -> io::Result<Option<String>> {
 }
 
 #[cfg(test)]
-fn test_dir(path: &Path) -> io::Result<SafeDir> {
+fn test_dir(path: &Path) -> io::Result<OwnedDir> {
     let label = path
         .file_name()
         .and_then(|name| name.to_str())
@@ -154,7 +155,7 @@ fn test_dir(path: &Path) -> io::Result<SafeDir> {
         .and_then(Path::parent)
         .and_then(Path::parent)
         .ok_or_else(invalid_journal)?;
-    SafeDir::open(project, label)
+    OwnedDir::create(project, &[".nika", "arm", label])
 }
 
 #[cfg(test)]

@@ -5,7 +5,7 @@
 //! Cadence owns pure ledger semantics; this module owns paths, locks, fsync,
 //! projections, and W2 rotation. Lock order is beat → ledger.
 
-use std::io::{self, Seek as _, Write as _};
+use std::io::{self, Read as _, Seek as _, Write as _};
 use std::path::{Path, PathBuf};
 
 use jiff::{Timestamp, Zoned};
@@ -15,6 +15,7 @@ use nika_cadence::ledger::{
     last_projection, ledger_line, legacy_receipt_payload, parse_migration_intent,
     render_chain_anchor, render_last, render_migration_intent, rotation_payload, scan_chain,
 };
+use nika_fs::OwnedDir;
 use nix::fcntl::{Flock, FlockArg};
 
 pub use nika_cadence::ledger::{
@@ -22,8 +23,6 @@ pub use nika_cadence::ledger::{
 };
 
 pub(crate) mod replay;
-mod safe_fs;
-use safe_fs::SafeDir;
 const ARM_DIR: &str = ".nika/arm";
 const BEAT_LOCK: &str = "lock";
 const LEDGER_LOCK: &str = "ledger.lock";
@@ -129,7 +128,7 @@ impl ArmState {
         acquire_named_lock(dir, BEAT_LOCK, pid, now)
     }
 
-    fn ledger_guard(dir: &SafeDir, now: &Zoned) -> io::Result<LedgerGuard> {
+    fn ledger_guard(dir: &OwnedDir, now: &Zoned) -> io::Result<LedgerGuard> {
         let pid = std::process::id();
         for _ in 0..LEDGER_LOCK_PASSES {
             let attempt = acquire_named_lock(dir.try_clone()?, LEDGER_LOCK, pid, now)?;
@@ -198,7 +197,7 @@ impl ArmState {
         Self::record_claim_in(&lease.dir, claim)
     }
 
-    fn record_claim_in(dir: &SafeDir, claim: &Claim) -> io::Result<RecordOutcome> {
+    fn record_claim_in(dir: &OwnedDir, claim: &Claim) -> io::Result<RecordOutcome> {
         let now = claim.decided_at.to_zoned(jiff::tz::TimeZone::UTC);
         let _ledger = Self::ledger_guard(dir, &now)?;
         append_event(
@@ -300,13 +299,13 @@ impl ArmState {
         Ok(replay::fold_replay(&replayed, now))
     }
 
-    fn safe_dir(&self, label: &str) -> io::Result<SafeDir> {
-        SafeDir::open(&self.project, label)
+    fn safe_dir(&self, label: &str) -> io::Result<OwnedDir> {
+        OwnedDir::create(&self.project, &[".nika", "arm", label])
     }
 }
 
 fn append_event(
-    dir: &SafeDir,
+    dir: &OwnedDir,
     at: Timestamp,
     kind: &str,
     slot_id: Option<&str>,
@@ -346,7 +345,7 @@ pub(crate) struct Rotation {
     pub resumed: bool,
 }
 
-fn chain_head(dir: &SafeDir, now: &Timestamp) -> io::Result<ChainHead> {
+fn chain_head(dir: &OwnedDir, now: &Timestamp) -> io::Result<ChainHead> {
     let resumed = finish_intended_rotation(dir, true)?;
     let text = if let Some(text) = dir.read_optional(HISTORY)? {
         text
@@ -397,7 +396,7 @@ fn chain_head(dir: &SafeDir, now: &Timestamp) -> io::Result<ChainHead> {
     })
 }
 
-fn rotate_legacy(dir: &SafeDir, legacy_lines: usize, now: &Timestamp) -> io::Result<ChainHead> {
+fn rotate_legacy(dir: &OwnedDir, legacy_lines: usize, now: &Timestamp) -> io::Result<ChainHead> {
     let mut name = "history-w2.ndjson".to_owned();
     let mut n = 2u32;
     while dir.exists(&name)? {
@@ -431,7 +430,7 @@ fn rotate_legacy(dir: &SafeDir, legacy_lines: usize, now: &Timestamp) -> io::Res
     })
 }
 
-fn finish_intended_rotation(dir: &SafeDir, resumed: bool) -> io::Result<Option<Rotation>> {
+fn finish_intended_rotation(dir: &OwnedDir, resumed: bool) -> io::Result<Option<Rotation>> {
     let Some(text) = dir.read_optional(MIGRATION_INTENT)? else {
         return Ok(None);
     };
@@ -509,7 +508,7 @@ struct LedgerGuard {
 /// authority and never unlinked by a compliant firer.
 pub(crate) struct LockLease {
     _lock: Flock<std::fs::File>,
-    dir: SafeDir,
+    dir: OwnedDir,
 }
 
 pub(crate) struct LockAttempt {
@@ -517,7 +516,7 @@ pub(crate) struct LockAttempt {
     pub(crate) lease: Option<LockLease>,
 }
 
-fn acquire_named_lock(dir: SafeDir, name: &str, pid: u32, now: &Zoned) -> io::Result<LockAttempt> {
+fn acquire_named_lock(dir: OwnedDir, name: &str, pid: u32, now: &Zoned) -> io::Result<LockAttempt> {
     let file = dir.open_lock(name)?;
     match Flock::lock(file, FlockArg::LockExclusiveNonblock) {
         Ok(mut held) => {
@@ -536,7 +535,7 @@ fn acquire_named_lock(dir: SafeDir, name: &str, pid: u32, now: &Zoned) -> io::Re
             })
         }
         Err((mut file, nix::errno::Errno::EAGAIN)) => {
-            let owner = SafeDir::read_lock_owner(&mut file)
+            let owner = read_lock_owner(&mut file)
                 .ok()
                 .and_then(|text| lock_pid(&text))
                 .unwrap_or(0);
@@ -549,6 +548,13 @@ fn acquire_named_lock(dir: SafeDir, name: &str, pid: u32, now: &Zoned) -> io::Re
     }
 }
 
+fn read_lock_owner(file: &mut std::fs::File) -> io::Result<String> {
+    file.seek(std::io::SeekFrom::Start(0))?;
+    let mut text = String::new();
+    file.read_to_string(&mut text)?;
+    Ok(text)
+}
+
 fn lock_pid(text: &str) -> Option<u32> {
     let doc: serde_json::Value = serde_json::from_str(text).ok()?;
     doc.get("pid")?.as_u64().and_then(|p| u32::try_from(p).ok())
@@ -556,18 +562,18 @@ fn lock_pid(text: &str) -> Option<u32> {
 
 /// Validate the live chain against its last durable high-water mark. An
 /// invalid physical tail remains repairable; a shorter valid chain does not.
-fn validate_chain_anchor(dir: &SafeDir, text: &str) -> io::Result<()> {
+fn validate_chain_anchor(dir: &OwnedDir, text: &str) -> io::Result<()> {
     let anchor = read_chain_anchor(dir)?;
     chain_anchor_matches(text, anchor.as_deref())
         .then_some(())
         .ok_or_else(invalid_chain_anchor)
 }
 
-fn read_chain_anchor(dir: &SafeDir) -> io::Result<Option<String>> {
+fn read_chain_anchor(dir: &OwnedDir) -> io::Result<Option<String>> {
     dir.read_optional(CHAIN_HEAD)
 }
 
-fn write_chain_anchor(dir: &SafeDir, seq: u64, hash: Option<&str>) -> io::Result<()> {
+fn write_chain_anchor(dir: &OwnedDir, seq: u64, hash: Option<&str>) -> io::Result<()> {
     let body = render_chain_anchor(seq, hash).ok_or_else(invalid_chain_anchor)?;
     if dir.read_optional(CHAIN_HEAD)?.as_deref() == Some(body.as_str()) {
         return Ok(());

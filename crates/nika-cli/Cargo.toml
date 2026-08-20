@@ -17,6 +17,7 @@ nika-types  = { path = "../nika-types", version = "0.111.0" }  # Timestamp · Ke
 nika-schema = { path = "../nika-schema", version = "0.111.0" } # parse (check · inspect · graph · run)
 nika-vocab  = { path = "../nika-vocab", version = "0.111.0" }
 nika-cadence = { path = "../nika-cadence", version = "0.111.0" }  # the arm: grammar + the pure next-slot calculator (L4→L0)
+nika-fs      = { path = "../nika-fs", version = "0.111.0" }       # descriptor-rooted sidecar ownership (L4→L1)
 jiff        = { workspace = true }  # the CLOCK — nika-cadence is pure and takes a Zoned; reading one is an L4 act  # the project file (ceiling — the --max-cost-usd flag's default rung · D-2026-08-11-N5)
 nika-check  = { path = "../nika-check", version = "0.111.0" }  # the ADR-092 check ladder (the check verb · run gates · fix loop)
 nika-graph = { path = "../nika-graph", version = "0.111.0" }   # the canonical projection (inspect --format json renders it)
@@ -26,7 +27,7 @@ nika-pack   = { path = "../nika-pack", version = "0.111.0" }   # the embedded la
 clap        = { workspace = true }                             # verb tree (completions + man derive later)
 clap_complete = { workspace = true }                           # `nika completions <shell>` (spec §9)
 serde_json  = { workspace = true }                             # trace NDJSON parse · --json surfaces
-nix         = { workspace = true, features = ["fs", "dir"] }   # descriptor-rooted arm sidecars + kernel advisory leases + stdout→stderr fold
+nix         = { workspace = true, features = ["fs"] }          # kernel advisory leases + stdout→stderr fold
 tempfile    = { workspace = true }                              # immutable arm run snapshot: execute the exact bytes pinned by the claim
 # The `nika run` composer (verbs/run/compose.rs · the verb/agent/effect
 # crates) descended to `nika_runtime::compose` 2026-07-22 (the 15k wall —
