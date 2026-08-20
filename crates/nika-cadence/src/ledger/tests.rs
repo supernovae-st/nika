@@ -405,6 +405,11 @@ fn durable_head_codec_accepts_only_a_matching_verified_prefix() {
         &text,
         Some(&second_head.replace(&second_hash, &"a".repeat(64)))
     ));
+
+    let forged_hash = "b".repeat(64);
+    let forged_head = render_chain_anchor(3, Some(&forged_hash)).expect("forged head shape");
+    let invalid_middle = format!("{first}\nbroken\n{{\"hash\":\"{forged_hash}\"}}\n");
+    assert!(!chain_anchor_matches(&invalid_middle, Some(&forged_head)));
     assert!(render_chain_anchor(0, Some(&first_hash)).is_none());
     assert!(render_chain_anchor(1, None).is_none());
 }
