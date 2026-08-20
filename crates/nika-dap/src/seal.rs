@@ -55,6 +55,41 @@ pub(crate) const KEYRING_SERVICE: &str = "nika";
 const KEYRING_USER: &str = "run-signing-key";
 pub(crate) const KEYRING_USER_PUB: &str = "run-signing-key.pub";
 
+/// Whether the OS keychain may be consulted at all · `NIKA_KEYCHAIN=off` skips it.
+///
+/// WHY THIS OPT-OUT EXISTS · a macOS keychain ACL is bound to the requesting
+/// BINARY. A cargo test binary is `target/debug/deps/<crate>-<hash>` and that
+/// hash changes on every recompile, so approving one with "Always Allow" grants
+/// a binary that will never exist again · the prompt returns on the next build,
+/// and the next, forever, on any machine where these items exist. There is no
+/// operator-side gesture that makes it stop.
+///
+/// It skips ONLY the keychain. The env and file custody paths are untouched, so
+/// a real run on a developer machine loses nothing it had; a machine that keeps
+/// its run-key in the keychain simply must not set this. Accepted values ·
+/// `off` · `0` · `false` · `no` (case-insensitive). Anything else, including
+/// absent, keeps the keychain in play.
+// Env reads are CONFIG paths (a flag, never a secret value · the scoped
+// `env_flag` precedent).
+#[allow(clippy::disallowed_methods)]
+pub(crate) fn keychain_enabled() -> bool {
+    // seam-bypass-ok: build-host flag · no secret crosses here
+    keychain_flag(std::env::var("NIKA_KEYCHAIN").ok().as_deref())
+}
+
+/// The pure half · the testable unit. Env-setting tests race under the default
+/// parallel harness, so the parsing is proven here and the read stays a
+/// one-liner above.
+fn keychain_flag(raw: Option<&str>) -> bool {
+    match raw {
+        Some(v) => !matches!(
+            v.trim().to_ascii_lowercase().as_str(),
+            "off" | "0" | "false" | "no"
+        ),
+        None => true,
+    }
+}
+
 /// The local custody fallback (no session keyring on this host).
 // Env reads are CONFIG paths (HOME only — no secret value crosses here ·
 // the scoped `env_flag`/`link_host` precedent).
@@ -124,7 +159,8 @@ pub fn load_signing_key() -> Option<(minisign::SecretKey, String)> {
     }
     // The keychain holds the minisign secret box as text (custody IS the
     // keychain's own encryption).
-    if let Ok(entry) = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER)
+    if keychain_enabled()
+        && let Ok(entry) = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER)
         && let Ok(text) = entry.get_password()
         && let Ok(boxed) = minisign::SecretKeyBox::from_string(&text)
         && let Some(sk) = open_secret_box(boxed, &key_password())
@@ -218,7 +254,8 @@ pub fn load_public_box() -> Option<String> {
     ) {
         return public_from_files(Path::new(&kf), Path::new(&pf));
     }
-    if let Ok(entry) = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER)
+    if keychain_enabled()
+        && let Ok(entry) = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER)
         && let Ok(text) = entry.get_password()
         && secret_box_parses(&text)
         && let Ok(pub_entry) = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER_PUB)
@@ -338,7 +375,8 @@ fn store_key_boxes(sk_box: &str, pk_box: &str) -> Result<(), String> {
         write_0600(Path::new(&kf), sk_box)?;
         return write_0600(Path::new(&pf), pk_box);
     }
-    if let Ok(entry) = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER)
+    if keychain_enabled()
+        && let Ok(entry) = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER)
         && entry.set_password(sk_box).is_ok()
         && let Ok(pub_entry) = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER_PUB)
         && pub_entry.set_password(pk_box).is_ok()
@@ -676,6 +714,22 @@ fn keys_path(name: &str) -> Option<PathBuf> {
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::unwrap_used)]
 mod tests {
+    /// The keychain opt-out · both directions, and the default that must stay ON.
+    ///
+    /// Absent means ENABLED · a flag that fails closed here would silently
+    /// narrow a real run's trust set, which is not what an ergonomics escape
+    /// hatch is allowed to do.
+    #[test]
+    fn keychain_flag_reads_off_and_defaults_on() {
+        for off in ["off", "OFF", "0", "false", "False", "no", " off "] {
+            assert!(!super::keychain_flag(Some(off)), "{off} must disable");
+        }
+        for on in ["on", "1", "true", "yes", "", "anything"] {
+            assert!(super::keychain_flag(Some(on)), "{on} must keep it enabled");
+        }
+        assert!(super::keychain_flag(None), "absent means enabled");
+    }
+
     use nika_event::EventKind;
     use nika_types::id::EventId;
     use nika_types::timestamp::Timestamp;
