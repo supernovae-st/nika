@@ -47,6 +47,19 @@ chrome ≤30%, zero decorative noise). And the human always keeps the hand.
 Refused (Rams 10): `logs` · `ps` (daemon-shaped — arrives with `serve`, not
 before) · a full-screen TUI app (the live render + webview cover it).
 
+### W7 arm state adapter
+
+The pure firing/ledger judge lives below in `nika-cadence`; this crate owns only
+the filesystem effects. Beat and ledger exclusion use a kernel advisory
+`flock` held by RAII on a stable, never-unlinked regular file. Its PID/epoch JSON
+is diagnostic only; kernel ownership auto-releases on drop or process death.
+Every event is appended and fsynced before an atomic `head.json` (`seq` + hash)
+advance. A missing head on a non-empty versioned chain, a clean suffix rollback,
+or an anchored tamper refuses without rewriting `last.json` or `watermark`.
+Migration binds every canonical W2 archive name and exact bytes into the
+hash-chained `rotated` genesis. Replay, reports, heal, and append validate that
+ordered bundle before consuming it; changed archive history fails closed.
+
 ## 3. The `display` module — the render architecture
 
 **One law: render = a pure fold over the event stream.** The runtime emits

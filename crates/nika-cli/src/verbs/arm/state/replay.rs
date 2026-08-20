@@ -2,51 +2,41 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! Filesystem adapter for the pure cadence ledger replay.
-//!
-//! Archive discovery and UTF-8 reads stay at the CLI effect edge. Chain
-//! verification, lifecycle grouping, projection rebuilding, and the deadline
-//! fold live in `nika_cadence::ledger`.
 
 use std::io;
 use std::path::{Path, PathBuf};
 
 use jiff::Timestamp;
 use nika_cadence::firing::FiringState;
-use nika_cadence::ledger::{LastRecord, first_line_is_versioned};
+use nika_cadence::ledger::{
+    JournalFormat, LastRecord, archive_commitment_matches, classify_journal,
+    journal_snapshot_matches,
+};
 
 use super::HISTORY;
 
-/// Projection plus the borrowed-at-fold journal material.
 pub(crate) struct Replay {
     pub last: Option<LastRecord>,
     pub watermark: Option<Timestamp>,
     journals: Vec<(String, bool)>,
 }
 
-/// The report's folded lifecycle.
 pub(crate) struct Folded {
     pub state: FiringState,
     pub beyond_last: bool,
     pub slot: Option<String>,
 }
 
-/// Read one beat's journals and replay them oldest-first.
+type JournalSnapshot = (String, String, bool);
+
 pub(crate) fn replay(dir: &Path) -> io::Result<Replay> {
-    let paths = journals(dir)?;
-    let mut texts = Vec::with_capacity(paths.len());
-    let mut versioned = Vec::with_capacity(paths.len());
-    for path in paths {
-        let text = std::fs::read_to_string(&path)?;
-        let live = path.file_name().and_then(|name| name.to_str()) == Some(HISTORY);
-        versioned.push(live && first_line_is_versioned(&text));
-        texts.push(text);
-    }
-    let journals: Vec<(String, bool)> = texts.into_iter().zip(versioned).collect();
+    let journals = journal_texts(dir)?;
     let (last, watermark) = nika_cadence::ledger::replay_projection(
         journals
             .iter()
             .map(|(text, versioned)| (text.as_str(), *versioned)),
-    );
+    )
+    .ok_or_else(invalid_journal)?;
     Ok(Replay {
         last,
         watermark,
@@ -54,7 +44,72 @@ pub(crate) fn replay(dir: &Path) -> io::Result<Replay> {
     })
 }
 
-/// Fold the replayed journals through the pure cadence machine.
+pub(super) fn journal_texts(dir: &Path) -> io::Result<Vec<(String, bool)>> {
+    validate_snapshot(dir, read_snapshot(dir)?)
+}
+
+fn read_snapshot(dir: &Path) -> io::Result<Vec<JournalSnapshot>> {
+    journals(dir)?
+        .into_iter()
+        .map(|path| {
+            let name = path
+                .file_name()
+                .and_then(|name| name.to_str())
+                .ok_or_else(invalid_journal)?
+                .to_owned();
+            let live = name == HISTORY;
+            Ok((name, std::fs::read_to_string(path)?, live))
+        })
+        .collect()
+}
+
+fn validate_snapshot(
+    dir: &Path,
+    snapshot: Vec<JournalSnapshot>,
+) -> io::Result<Vec<(String, bool)>> {
+    let borrowed: Vec<(&str, &str, bool)> = snapshot
+        .iter()
+        .map(|(name, text, live)| (name.as_str(), text.as_str(), *live))
+        .collect();
+    let anchor = super::read_chain_anchor(dir)?;
+    if !journal_snapshot_matches(anchor.as_deref(), &borrowed) {
+        return Err(invalid_journal());
+    }
+    Ok(snapshot
+        .into_iter()
+        .map(|(_, text, _)| {
+            let versioned = matches!(classify_journal(&text), Some(JournalFormat::Versioned));
+            (text, versioned)
+        })
+        .collect())
+}
+
+pub(super) fn validate_archive_commitment(dir: &Path, live: &str) -> io::Result<()> {
+    if !matches!(classify_journal(live), Some(JournalFormat::Versioned)) {
+        return Ok(());
+    }
+    let archives = archive_texts(dir)?;
+    let borrowed: Vec<(&str, &str)> = archives
+        .iter()
+        .map(|(name, text)| (name.as_str(), text.as_str()))
+        .collect();
+    archive_commitment_matches(live, &borrowed)
+        .then_some(())
+        .ok_or_else(invalid_journal)
+}
+
+pub(super) fn archive_texts(dir: &Path) -> io::Result<Vec<(String, String)>> {
+    read_snapshot(dir)?
+        .into_iter()
+        .filter(|(_, _, live)| !live)
+        .map(|(name, text, _)| {
+            (classify_journal(&text) == Some(JournalFormat::Legacy))
+                .then_some((name, text))
+                .ok_or_else(invalid_journal)
+        })
+        .collect()
+}
+
 pub(crate) fn fold_replay(replayed: &Replay, now: &Timestamp) -> Option<Folded> {
     let (state, beyond_last, slot) = nika_cadence::ledger::replay_state(
         replayed
@@ -70,28 +125,44 @@ pub(crate) fn fold_replay(replayed: &Replay, now: &Timestamp) -> Option<Folded> 
     })
 }
 
-/// Discover W2 archives then the live journal, oldest first.
 fn journals(dir: &Path) -> io::Result<Vec<PathBuf>> {
     let entries = match std::fs::read_dir(dir) {
         Ok(entries) => entries,
         Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
         Err(error) => return Err(error),
     };
-    let mut paths: Vec<PathBuf> = entries
-        .filter_map(std::result::Result::ok)
-        .map(|entry| entry.path())
-        .filter(|path| {
-            path.file_name()
-                .and_then(|name| name.to_str())
-                .is_some_and(|name| name.starts_with("history-w2") && name.ends_with(".ndjson"))
-        })
-        .collect();
-    paths.sort_unstable();
+    let mut paths = Vec::new();
+    for entry in entries {
+        let entry = entry?;
+        if entry.file_type()?.is_file() && path_archive_ordinal(&entry.path()).is_some() {
+            paths.push(entry.path());
+        }
+    }
+    paths.sort_by_key(|path| path_archive_ordinal(path));
     let live = dir.join(HISTORY);
     if live.exists() {
         paths.push(live);
     }
     Ok(paths)
+}
+
+pub(super) fn latest_archive(dir: &Path) -> io::Result<Option<PathBuf>> {
+    Ok(journals(dir)?
+        .into_iter()
+        .filter(|path| path.file_name().and_then(|name| name.to_str()) != Some(HISTORY))
+        .next_back())
+}
+
+fn path_archive_ordinal(path: &Path) -> Option<u32> {
+    let name = path.file_name()?.to_str()?;
+    nika_cadence::ledger::archive_ordinal(name)
+}
+
+fn invalid_journal() -> io::Error {
+    io::Error::new(
+        io::ErrorKind::InvalidData,
+        "arm ledger: journal dialect or chain is invalid",
+    )
 }
 
 #[cfg(test)]
@@ -100,8 +171,8 @@ mod tests {
     use jiff::Timestamp;
     use nika_cadence::firing::{FiringState, SlotId};
 
-    use super::super::{ArmState, Claim, FireKind, HistoryEntry};
-    use super::{fold_replay, journals, replay};
+    use super::super::{ArmState, Claim, FireKind, HISTORY, HistoryEntry, write_chain_anchor};
+    use super::{fold_replay, journals, read_snapshot, replay, validate_snapshot};
 
     fn state(tag: &str) -> (tempfile::TempDir, ArmState) {
         let dir = tempfile::Builder::new()
@@ -206,13 +277,10 @@ mod tests {
         let text = std::fs::read_to_string(&ledger).expect("ledger");
         std::fs::write(&ledger, text.replacen("\"seq\":2", "\"seq\":9", 1)).expect("tamper");
         std::fs::remove_file(dir.path().join(".nika/arm/doctor/last.json")).expect("delete");
-        let last = state.last("doctor").expect("the valid prefix replays");
-        assert_eq!(
-            last.slot,
-            ts("2026-08-17T03:00:00Z"),
-            "line 1's decision — the tampered tail never folds"
+        assert!(
+            state.last("doctor").is_none(),
+            "the durable head refuses laundering an anchored tamper"
         );
-        assert_eq!(last.kind, FireKind::Fired);
         // The read is READ-ONLY: the tampered bytes survive for the
         // next append's repair.
         let after = std::fs::read_to_string(&ledger).expect("ledger");
@@ -242,11 +310,9 @@ mod tests {
         let swapped = format!("{}\n{}\n{}\n", lines[0], lines[2], lines[1]);
         std::fs::write(&ledger, swapped).expect("swap");
         std::fs::remove_file(dir.path().join(".nika/arm/doctor/last.json")).expect("delete");
-        let last = state.last("doctor").expect("the valid prefix replays");
-        assert_eq!(
-            last.slot,
-            ts("2026-08-17T03:00:00Z"),
-            "the swap refuses at position 2 — line 1's decision stands"
+        assert!(
+            state.last("doctor").is_none(),
+            "the durable head refuses laundering an anchored reorder"
         );
     }
 
@@ -275,13 +341,144 @@ mod tests {
         std::fs::write(&ledger, truncated).expect("truncate final line");
         std::fs::remove_file(dir.path().join(".nika/arm/doctor/last.json")).expect("delete");
 
-        let last = state.last("doctor").expect("the complete prefix replays");
-        assert_eq!(last.slot, ts("2026-08-18T03:00:00Z"));
+        assert!(
+            state.last("doctor").is_none(),
+            "the durable head refuses laundering an anchored truncation"
+        );
         assert_eq!(
             std::fs::read_to_string(&ledger).expect("evidence"),
             truncated,
             "replay never cuts or repairs evidence"
         );
+    }
+
+    /// Removing a complete suffix leaves a self-consistent hash prefix. The
+    /// durable high-water anchor must still make that rollback loud, without
+    /// laundering the older prefix into either projection cache.
+    #[test]
+    fn a_clean_tail_deletion_is_refused_by_the_durable_head() {
+        let (dir, state) = state("clean-tail-deletion");
+        for day in ["17", "18", "19"] {
+            state
+                .record(
+                    "doctor",
+                    &entry(
+                        FireKind::Fired,
+                        &format!("2026-08-{day}T03:00:00Z"),
+                        &format!("2026-08-{day}T03:02:00Z"),
+                    ),
+                )
+                .expect("record");
+        }
+        let sidecar = dir.path().join(".nika/arm/doctor");
+        let ledger = sidecar.join("history.ndjson");
+        let last_before = std::fs::read_to_string(sidecar.join("last.json")).expect("last cache");
+        let watermark_before =
+            std::fs::read_to_string(sidecar.join("watermark")).expect("watermark");
+        let text = std::fs::read_to_string(&ledger).expect("ledger");
+        let mut lines: Vec<&str> = text.lines().collect();
+        lines.pop().expect("tail");
+        std::fs::write(&ledger, format!("{}\n", lines.join("\n"))).expect("clean truncation");
+
+        assert!(
+            replay(&sidecar).is_err(),
+            "rollback must be named as invalid"
+        );
+        assert!(state.last("doctor").is_none(), "no older PROUVÉ cache");
+        assert_eq!(
+            std::fs::read_to_string(sidecar.join("last.json")).expect("last survives"),
+            last_before
+        );
+        assert_eq!(
+            std::fs::read_to_string(sidecar.join("watermark")).expect("watermark survives"),
+            watermark_before
+        );
+        let error = state
+            .record(
+                "doctor",
+                &entry(
+                    FireKind::Fired,
+                    "2026-08-20T03:00:00Z",
+                    "2026-08-20T03:02:00Z",
+                ),
+            )
+            .expect_err("append cannot launder a clean rollback");
+        assert_eq!(error.kind(), std::io::ErrorKind::InvalidData);
+        std::fs::remove_file(sidecar.join("head.json")).expect("delete durable head");
+        assert!(
+            replay(&sidecar).is_err(),
+            "a non-empty versioned chain without its head fails closed"
+        );
+    }
+
+    /// Discovery, validation, and fold consume one immutable snapshot. Live
+    /// deletion and archive mutation after its read cannot select new bytes.
+    #[test]
+    fn snapshot_validation_and_fold_share_exact_buffers() {
+        for delete_archive in [false, true] {
+            let (dir, state) = state(if delete_archive {
+                "snapshot-delete"
+            } else {
+                "snapshot-mutate"
+            });
+            let sidecar = dir.path().join(".nika/arm/doctor");
+            std::fs::create_dir_all(&sidecar).expect("sidecar");
+            let legacy = "{\"slot\":\"2026-08-17T03:00:00Z\",\"decided_at\":\"2026-08-17T03:02:00Z\",\"kind\":\"fired\"}\n";
+            std::fs::write(sidecar.join(HISTORY), legacy).expect("legacy");
+            state
+                .record(
+                    "doctor",
+                    &entry(
+                        FireKind::Fired,
+                        "2026-08-19T03:00:00Z",
+                        "2026-08-19T03:02:00Z",
+                    ),
+                )
+                .expect("migrate and record");
+            let live = std::fs::read_to_string(sidecar.join(HISTORY)).expect("live");
+            let snapshot = read_snapshot(&sidecar).expect("one filesystem snapshot");
+
+            std::fs::remove_file(sidecar.join(HISTORY)).expect("delete live after read");
+            let archive = sidecar.join("history-w2.ndjson");
+            if delete_archive {
+                std::fs::remove_file(archive).expect("delete archive after read");
+            } else {
+                std::fs::write(archive, "tampered\n").expect("mutate archive after read");
+            }
+
+            let journals = validate_snapshot(&sidecar, snapshot)
+                .expect("validation consumes the captured bytes only");
+            assert_eq!(journals, vec![(legacy.to_owned(), false), (live, true)]);
+        }
+    }
+
+    #[test]
+    fn an_anchored_chain_refuses_empty_or_absent_live_history() {
+        let (dir, state) = state("empty-or-absent-live");
+        state
+            .record(
+                "doctor",
+                &entry(
+                    FireKind::Fired,
+                    "2026-08-19T03:00:00Z",
+                    "2026-08-19T03:02:00Z",
+                ),
+            )
+            .expect("anchored event");
+        let sidecar = dir.path().join(".nika/arm/doctor");
+        let ledger = sidecar.join("history.ndjson");
+        let original = std::fs::read_to_string(&ledger).expect("history");
+
+        std::fs::write(&ledger, "").expect("truncate to zero");
+        assert!(replay(&sidecar).is_err(), "empty live cannot bypass head");
+        assert!(state.last("doctor").is_none(), "no false PROUVÉ state");
+        assert!(state.tallies("doctor").is_none(), "no false tally");
+
+        std::fs::write(&ledger, original).expect("restore");
+        std::fs::remove_file(&ledger).expect("delete live");
+        assert!(replay(&sidecar).is_err(), "absent live cannot bypass head");
+        assert!(state.last("doctor").is_none(), "no false PROUVÉ state");
+        assert!(state.tallies("doctor").is_none(), "no false tally");
     }
 
     /// (c) · one altered payload byte breaks the hash: the replay folds
@@ -317,13 +514,10 @@ mod tests {
         let text = std::fs::read_to_string(&ledger).expect("ledger");
         std::fs::write(&ledger, text.replacen("annotated", "Annotated", 1)).expect("alter");
         std::fs::remove_file(dir.path().join(".nika/arm/doctor/last.json")).expect("delete");
-        let last = state.last("doctor").expect("the valid prefix replays");
-        assert_eq!(
-            last.slot,
-            ts("2026-08-18T03:00:00Z"),
-            "the alteration refuses line 3 — line 2's decision stands"
+        assert!(
+            state.last("doctor").is_none(),
+            "the durable head refuses laundering an anchored payload change"
         );
-        assert_eq!(last.kind, FireKind::Skipped);
     }
 
     /// N2 stands: no chain at all still reads as never-fired (the
@@ -415,10 +609,21 @@ mod tests {
         for name in [
             "history-w2.ndjson",
             "history-w2-2.ndjson",
+            "history-w2-02.ndjson",
+            "history-w2-4294967295.ndjson",
             "history-w2.txt",
             "not-history-w2.ndjson",
         ] {
             std::fs::write(sidecar.join(name), "\n").expect("journal candidate");
+        }
+        #[cfg(unix)]
+        {
+            std::fs::write(dir.path().join("outside.ndjson"), "hijack\n").expect("target");
+            std::os::unix::fs::symlink(
+                dir.path().join("outside.ndjson"),
+                sidecar.join("history-w2-3.ndjson"),
+            )
+            .expect("archive symlink");
         }
         let names: Vec<String> = journals(&sidecar)
             .expect("walk")
@@ -430,7 +635,40 @@ mod tests {
                     .into_owned()
             })
             .collect();
-        assert_eq!(names, vec!["history-w2-2.ndjson", "history-w2.ndjson"]);
+        assert_eq!(names, vec!["history-w2.ndjson", "history-w2-2.ndjson"]);
+    }
+
+    /// Repeated W2 recoveries replay by rotation ordinal, not lexical path.
+    /// The suffixed archive is newer and therefore owns the projection.
+    #[test]
+    fn multiple_rotations_replay_the_newest_archive_last() {
+        let (dir, _state) = state("multiple-rotations");
+        let sidecar = dir.path().join(".nika/arm/doctor");
+        std::fs::create_dir_all(&sidecar).expect("sidecar");
+        let old = "{\"slot\":\"2026-08-18T03:00:00Z\",\"decided_at\":\"2026-08-18T03:02:00Z\",\"kind\":\"fired\",\"exit\":0}\n";
+        let new = "{\"slot\":\"2026-08-19T03:00:00Z\",\"decided_at\":\"2026-08-19T03:02:00Z\",\"kind\":\"skipped\",\"reason\":\"missed:1\",\"exit\":0}\n";
+        std::fs::write(sidecar.join("history-w2.ndjson"), old).expect("old archive");
+        std::fs::write(sidecar.join("history-w2-2.ndjson"), new).expect("new archive");
+        let payload = nika_cadence::ledger::rotation_payload(&[
+            ("history-w2.ndjson", old),
+            ("history-w2-2.ndjson", new),
+        ])
+        .expect("commit archives");
+        let (genesis, hash) = nika_cadence::ledger::ledger_line(
+            1,
+            ts("2026-08-19T03:02:01Z"),
+            "rotated",
+            None,
+            &payload,
+            None,
+        )
+        .expect("genesis");
+        std::fs::write(sidecar.join(HISTORY), format!("{genesis}\n")).expect("live");
+        write_chain_anchor(&sidecar, 1, Some(&hash)).expect("head");
+        let replayed = replay(&sidecar).expect("replay");
+        let last = replayed.last.expect("projection");
+        assert_eq!(last.kind, FireKind::Skipped);
+        assert_eq!(last.slot, ts("2026-08-19T03:00:00Z"));
     }
 
     /// A disarm is a decision for the watermark even though it carries

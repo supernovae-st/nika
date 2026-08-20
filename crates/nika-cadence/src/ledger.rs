@@ -17,6 +17,18 @@ use crate::firing::{
 /// The versioned ledger schema tag.
 pub const LEDGER_SCHEMA: &str = "nika/arm-event@1";
 
+/// The only journal shapes the pure replay machine accepts.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum JournalFormat {
+    /// No evidence yet.
+    Empty,
+    /// The strict W2 decision shape, before hash chaining.
+    Legacy,
+    /// A valid `nika/arm-event@1` chain.
+    Versioned,
+}
+
 /// The decision vocabulary shared by projections, receipts, and output.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DecisionKind {
@@ -143,25 +155,29 @@ struct Replay {
     lifecycle_slot: Option<String>,
 }
 
-fn replay_core<'a>(journals: impl IntoIterator<Item = (&'a str, bool)>) -> Replay {
+fn replay_core<'a>(journals: impl IntoIterator<Item = (&'a str, bool)>) -> Option<Replay> {
     let mut walker = Walker::new();
     for (text, versioned) in journals {
+        let format = classify_journal(text)?;
+        if versioned != matches!(format, JournalFormat::Versioned) {
+            return None;
+        }
         if versioned {
             walker.fold_chain(text);
-        } else {
+        } else if matches!(format, JournalFormat::Legacy) {
             walker.fold_legacy(text);
         }
     }
-    walker.finish()
+    Some(walker.finish())
 }
 
 /// Rebuild the last decision and watermark from journals, oldest first.
 #[must_use]
 pub fn replay_projection<'a>(
     journals: impl IntoIterator<Item = (&'a str, bool)>,
-) -> (Option<LastRecord>, Option<Timestamp>) {
-    let replayed = replay_core(journals);
-    (replayed.last, replayed.watermark)
+) -> Option<(Option<LastRecord>, Option<Timestamp>)> {
+    let replayed = replay_core(journals)?;
+    Some((replayed.last, replayed.watermark))
 }
 
 /// Fold the current lifecycle from journals and apply the crash deadline.
@@ -170,7 +186,7 @@ pub fn replay_state<'a>(
     journals: impl IntoIterator<Item = (&'a str, bool)>,
     now: &Timestamp,
 ) -> Option<(FiringState, bool, Option<String>)> {
-    let replayed = replay_core(journals);
+    let replayed = replay_core(journals)?;
     fold_replay(&replayed, now)
 }
 
@@ -194,10 +210,24 @@ fn fold_replay(replayed: &Replay, now: &Timestamp) -> Option<(FiringState, bool,
 
 /// Find every claim that has no matching later receipt.
 #[must_use]
-pub fn unsettled(text: &str) -> Vec<Unsettled> {
+pub fn unsettled(text: &str) -> Option<Vec<Unsettled>> {
     let mut claims: Vec<(usize, Unsettled)> = Vec::new();
     let mut receipts: Vec<(usize, SlotId, u64)> = Vec::new();
+    let versioned = match classify_journal(text)? {
+        JournalFormat::Empty => return Some(Vec::new()),
+        JournalFormat::Legacy => false,
+        JournalFormat::Versioned => true,
+    };
+    let mut seq = 0u64;
+    let mut prev_hash = None;
     for (position, line) in text.lines().enumerate() {
+        if versioned {
+            let Some(hash) = verify_line(line, seq + 1, prev_hash.as_deref()) else {
+                break;
+            };
+            seq += 1;
+            prev_hash = Some(hash);
+        }
         let Ok(doc) = serde_json::from_str::<serde_json::Value>(line) else {
             continue;
         };
@@ -240,24 +270,39 @@ pub fn unsettled(text: &str) -> Vec<Unsettled> {
             receipts.push((position, slot_id, fencing));
         }
     }
-    claims
-        .into_iter()
-        .filter(|(position, claim)| {
-            !receipts.iter().any(|(later, slot_id, fencing)| {
-                later > position && (slot_id, *fencing) == (&claim.slot_id, claim.seq)
+    Some(
+        claims
+            .into_iter()
+            .filter(|(position, claim)| {
+                !receipts.iter().any(|(later, slot_id, fencing)| {
+                    later > position && (slot_id, *fencing) == (&claim.slot_id, claim.seq)
+                })
             })
-        })
-        .map(|(_, claim)| claim)
-        .collect()
+            .map(|(_, claim)| claim)
+            .collect(),
+    )
 }
 
 /// Count skipped and fired decisions across journal texts.
 #[must_use]
-pub fn tallies<'a>(journals: impl IntoIterator<Item = &'a str>) -> (usize, usize) {
+pub fn tallies<'a>(journals: impl IntoIterator<Item = (&'a str, bool)>) -> Option<(usize, usize)> {
     let mut skips = 0usize;
     let mut fires = 0usize;
-    for text in journals {
+    for (text, versioned) in journals {
+        let format = classify_journal(text)?;
+        if versioned != matches!(format, JournalFormat::Versioned) {
+            return None;
+        }
+        let mut seq = 0u64;
+        let mut prev_hash = None;
         for line in text.lines() {
+            if versioned {
+                let Some(hash) = verify_line(line, seq + 1, prev_hash.as_deref()) else {
+                    break;
+                };
+                seq += 1;
+                prev_hash = Some(hash);
+            }
             let Ok(doc) = serde_json::from_str::<serde_json::Value>(line) else {
                 continue;
             };
@@ -268,7 +313,7 @@ pub fn tallies<'a>(journals: impl IntoIterator<Item = &'a str>) -> (usize, usize
             }
         }
     }
-    (skips, fires)
+    Some((skips, fires))
 }
 
 fn last_claim(events: &[FiringEvent]) -> Option<(FencingToken, Timestamp)> {
@@ -533,24 +578,109 @@ fn decision_kind(word: &str) -> DecisionKind {
     }
 }
 
-/// Whether the first line declares the versioned ledger schema.
+/// Classify a journal dialect without accepting ambiguous JSON evidence.
+///
+/// `None` means the evidence is malformed. Any ledger-envelope key commits the
+/// journal to the versioned dialect; a broken or unknown version can therefore
+/// never fall back to W2 replay.
+#[must_use]
+pub fn classify_journal(text: &str) -> Option<JournalFormat> {
+    if text.is_empty() {
+        return Some(JournalFormat::Empty);
+    }
+    let lines: Vec<&str> = text.lines().collect();
+    if lines.is_empty() || lines.iter().any(|line| line.is_empty()) {
+        return None;
+    }
+    let first: serde_json::Value = serde_json::from_str(lines[0]).ok()?;
+    if has_ledger_marker(&first) {
+        return verify_line(lines[0], 1, None).map(|_| JournalFormat::Versioned);
+    }
+    let docs: Vec<serde_json::Value> = lines
+        .iter()
+        .map(|line| serde_json::from_str(line).ok())
+        .collect::<Option<_>>()?;
+    docs.iter()
+        .all(legacy_line_valid)
+        .then_some(JournalFormat::Legacy)
+}
+
+/// Whether the complete journal is a valid versioned chain.
 #[must_use]
 pub fn first_line_is_versioned(text: &str) -> bool {
-    text.lines()
-        .next()
-        .and_then(|line| serde_json::from_str::<serde_json::Value>(line).ok())
-        .and_then(|doc| {
-            doc.get("schema")
-                .and_then(|v| v.as_str())
-                .map(str::to_owned)
-        })
-        .is_some_and(|schema| schema == LEDGER_SCHEMA)
+    classify_journal(text) == Some(JournalFormat::Versioned)
+}
+
+fn has_ledger_marker(doc: &serde_json::Value) -> bool {
+    const KEYS: [&str; 8] = [
+        "schema",
+        "v",
+        "seq",
+        "ts",
+        "slot_id",
+        "payload",
+        "prev_hash",
+        "hash",
+    ];
+    doc.as_object()
+        .is_some_and(|object| KEYS.iter().any(|key| object.contains_key(*key)))
+}
+
+fn legacy_line_valid(doc: &serde_json::Value) -> bool {
+    const KEYS: [&str; 7] = [
+        "slot",
+        "decided_at",
+        "kind",
+        "reason",
+        "trace",
+        "exit",
+        "slots",
+    ];
+    let Some(object) = doc.as_object() else {
+        return false;
+    };
+    if !exact_or_subset_keys(object, &KEYS)
+        || doc
+            .get("slot")
+            .and_then(serde_json::Value::as_str)
+            .and_then(|value| value.parse::<Timestamp>().ok())
+            .is_none()
+        || doc
+            .get("decided_at")
+            .and_then(serde_json::Value::as_str)
+            .and_then(|value| value.parse::<Timestamp>().ok())
+            .is_none()
+        || !doc
+            .get("kind")
+            .and_then(serde_json::Value::as_str)
+            .is_some_and(|kind| matches!(kind, "fired" | "skipped" | "paused" | "failed"))
+    {
+        return false;
+    }
+    nullable_string(doc.get("reason"))
+        && nullable_string(doc.get("trace"))
+        && nullable_u8(doc.get("exit"))
+        && nullable_u32(doc.get("slots"))
 }
 
 /// Verify one exact ledger line and return its own hash.
 #[must_use]
 pub fn verify_line(line: &str, expected_seq: u64, expected_prev: Option<&str>) -> Option<String> {
+    const ENVELOPE_KEYS: [&str; 9] = [
+        "schema",
+        "v",
+        "seq",
+        "ts",
+        "kind",
+        "slot_id",
+        "payload",
+        "prev_hash",
+        "hash",
+    ];
     let doc: serde_json::Value = serde_json::from_str(line).ok()?;
+    if !exact_keys(doc.as_object()?, &ENVELOPE_KEYS) {
+        return None;
+    }
     if doc.get("schema")?.as_str()? != LEDGER_SCHEMA || doc.get("v")?.as_u64()? != 1 {
         return None;
     }
@@ -559,28 +689,163 @@ pub fn verify_line(line: &str, expected_seq: u64, expected_prev: Option<&str>) -
     {
         return None;
     }
-    doc.get("kind")?.as_str()?;
-    doc.get("payload")?.as_object()?;
+    let kind = doc.get("kind")?.as_str()?;
     if !matches!(
-        doc.get("slot_id")?,
-        serde_json::Value::Null | serde_json::Value::String(_)
+        kind,
+        "rotated" | "claimed" | "fired" | "skipped" | "paused" | "failed" | "disarmed"
     ) {
         return None;
     }
+    let slot_id = match doc.get("slot_id")? {
+        serde_json::Value::Null => None,
+        serde_json::Value::String(value) => Some(SlotId::from_wire(value)?),
+        _ => return None,
+    };
+    verify_payload(kind, slot_id.as_ref(), doc.get("payload")?, expected_seq)?;
     let (prev_json, linked) = match doc.get("prev_hash")? {
         serde_json::Value::Null => ("null".to_owned(), expected_prev.is_none()),
-        serde_json::Value::String(value) => {
-            (json_str(value), expected_prev == Some(value.as_str()))
-        }
+        serde_json::Value::String(value) => (
+            json_str(value),
+            hash_is_canonical(value) && expected_prev == Some(value.as_str()),
+        ),
         _ => return None,
     };
     if !linked {
         return None;
     }
     let hash = doc.get("hash")?.as_str()?;
+    if !hash_is_canonical(hash) {
+        return None;
+    }
     let cut = line.rfind(",\"hash\":\"")?;
     let prefix = &line[..cut];
+    let suffix = format!(",\"hash\":\"{hash}\"}}");
+    if line[cut..] != suffix {
+        return None;
+    }
     (sha256_hex(format!("{prev_json}\n{prefix}").as_bytes()) == hash).then(|| hash.to_owned())
+}
+
+fn verify_payload(
+    kind: &str,
+    slot_id: Option<&SlotId>,
+    payload: &serde_json::Value,
+    seq: u64,
+) -> Option<()> {
+    let object = payload.as_object()?;
+    match kind {
+        "rotated" => {
+            const KEYS: [&str; 4] = ["from", "lines", "archives", "archives_sha256"];
+            let from = payload.get("from")?.as_str()?;
+            (slot_id.is_none()
+                && exact_keys(object, &KEYS)
+                && archive_ordinal(from).is_some()
+                && payload
+                    .get("lines")?
+                    .as_u64()
+                    .is_some_and(|lines| lines > 0)
+                && payload
+                    .get("archives")?
+                    .as_u64()
+                    .is_some_and(|archives| archives > 0)
+                && payload
+                    .get("archives_sha256")?
+                    .as_str()
+                    .is_some_and(hash_is_canonical))
+            .then_some(())
+        }
+        "claimed" => {
+            const KEYS: [&str; 4] = ["attempt", "deadline", "fencing", "gen"];
+            (slot_id.is_some()
+                && exact_keys(object, &KEYS)
+                && payload.get("attempt")?.as_u64() == Some(1)
+                && payload
+                    .get("deadline")?
+                    .as_str()?
+                    .parse::<Timestamp>()
+                    .is_ok()
+                && payload.get("fencing")?.as_u64() == Some(seq)
+                && generation_valid(payload.get("gen")))
+            .then_some(())
+        }
+        "fired" | "skipped" | "paused" | "failed" | "disarmed" => {
+            const KEYS: [&str; 7] = ["slot", "reason", "trace", "exit", "slots", "fencing", "gen"];
+            let slot = payload.get("slot")?;
+            let semantic_slot = slot.is_string() || slot_id.is_some();
+            let shape_valid = exact_keys(object, &KEYS)
+                && timestamp_or_null(slot)
+                && nullable_string(payload.get("reason"))
+                && nullable_string(payload.get("trace"))
+                && nullable_u8(payload.get("exit"))
+                && nullable_u32(payload.get("slots"))
+                && nullable_u64(payload.get("fencing"))
+                && generation_valid(payload.get("gen"));
+            (shape_valid && (kind != "disarmed" || !semantic_slot)).then_some(())
+        }
+        _ => None,
+    }
+}
+
+fn exact_keys(object: &serde_json::Map<String, serde_json::Value>, keys: &[&str]) -> bool {
+    object.len() == keys.len() && keys.iter().all(|key| object.contains_key(*key))
+}
+
+fn exact_or_subset_keys(
+    object: &serde_json::Map<String, serde_json::Value>,
+    keys: &[&str],
+) -> bool {
+    object.keys().all(|key| keys.contains(&key.as_str()))
+}
+
+fn nullable_string(value: Option<&serde_json::Value>) -> bool {
+    value.is_none_or(|value| value.is_null() || value.is_string())
+}
+
+fn nullable_u8(value: Option<&serde_json::Value>) -> bool {
+    value.is_none_or(|value| {
+        value.is_null()
+            || value
+                .as_u64()
+                .and_then(|number| u8::try_from(number).ok())
+                .is_some()
+    })
+}
+
+fn nullable_u32(value: Option<&serde_json::Value>) -> bool {
+    value.is_none_or(|value| {
+        value.is_null()
+            || value
+                .as_u64()
+                .and_then(|number| u32::try_from(number).ok())
+                .is_some()
+    })
+}
+
+fn nullable_u64(value: Option<&serde_json::Value>) -> bool {
+    value.is_none_or(|value| value.is_null() || value.as_u64().is_some())
+}
+
+fn timestamp_or_null(value: &serde_json::Value) -> bool {
+    match value {
+        serde_json::Value::Null => true,
+        serde_json::Value::String(value) => value.parse::<Timestamp>().is_ok(),
+        _ => false,
+    }
+}
+
+fn generation_valid(value: Option<&serde_json::Value>) -> bool {
+    value.is_some_and(|value| match value {
+        serde_json::Value::Null => true,
+        serde_json::Value::String(value) => ArmGeneration::from_wire(value).is_some(),
+        _ => false,
+    })
+}
+
+fn hash_is_canonical(value: &str) -> bool {
+    value.len() == 64
+        && value
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
 }
 
 /// Verify a journal until its first invalid line.
@@ -607,6 +872,204 @@ pub fn scan_chain(text: &str) -> (u64, Option<String>, usize) {
 /// Render a canonical ledger line and return the line plus its hash.
 #[must_use]
 pub fn ledger_line(
+    seq: u64,
+    ts: Timestamp,
+    kind: &str,
+    slot_id: Option<&str>,
+    payload: &str,
+    prev_hash: Option<&str>,
+) -> Option<(String, String)> {
+    let rendered = unchecked_ledger_line(seq, ts, kind, slot_id, payload, prev_hash);
+    (verify_line(&rendered.0, seq, prev_hash).as_deref() == Some(rendered.1.as_str()))
+        .then_some(rendered)
+}
+
+/// Parse one canonical W2 archive name into its chronological ordinal.
+#[must_use]
+pub fn archive_ordinal(name: &str) -> Option<u32> {
+    if name == "history-w2.ndjson" {
+        return Some(1);
+    }
+    let suffix = name.strip_prefix("history-w2-")?.strip_suffix(".ndjson")?;
+    let ordinal = suffix.parse::<u32>().ok()?;
+    ((2..u32::MAX).contains(&ordinal) && suffix == ordinal.to_string()).then_some(ordinal)
+}
+
+/// Commit an ordered archive bundle by canonical name and exact bytes.
+#[must_use]
+fn archive_bundle_hash<'a>(archives: impl IntoIterator<Item = (&'a str, &'a str)>) -> String {
+    let mut committed = String::from("nika/arm-archives@1\n");
+    for (name, text) in archives {
+        committed.push_str(&json_str(name));
+        committed.push('\n');
+        committed.push_str(&sha256_hex(text.as_bytes()));
+        committed.push('\n');
+    }
+    sha256_hex(committed.as_bytes())
+}
+
+/// Render the exact W7 rotation payload for an ordered, non-empty archive bundle.
+#[must_use]
+pub fn rotation_payload(archives: &[(&str, &str)]) -> Option<String> {
+    let (from, latest) = archives.last()?;
+    let lines = latest.lines().count();
+    if lines == 0 || archive_ordinal(from).is_none() {
+        return None;
+    }
+    let digest = archive_bundle_hash(archives.iter().copied());
+    Some(format!(
+        "{{\"from\":{},\"lines\":{lines},\"archives\":{},\"archives_sha256\":{}}}",
+        json_str(from),
+        archives.len(),
+        json_str(&digest)
+    ))
+}
+
+/// Verify the W7 genesis commitment over an ordered W2 archive bundle.
+#[must_use]
+pub fn archive_commitment_matches(live: &str, archives: &[(&str, &str)]) -> bool {
+    if classify_journal(live) != Some(JournalFormat::Versioned) {
+        return false;
+    }
+    let Some(first) = live
+        .lines()
+        .next()
+        .and_then(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+    else {
+        return false;
+    };
+    if first.get("kind").and_then(serde_json::Value::as_str) != Some("rotated") {
+        return archives.is_empty();
+    }
+    let Some(payload) = first.get("payload") else {
+        return false;
+    };
+    let actual = archive_bundle_hash(archives.iter().copied());
+    let latest = archives.last();
+    payload.get("archives").and_then(serde_json::Value::as_u64)
+        == u64::try_from(archives.len()).ok()
+        && payload.get("from").and_then(serde_json::Value::as_str) == latest.map(|(name, _)| *name)
+        && payload.get("lines").and_then(serde_json::Value::as_u64)
+            == latest.and_then(|(_, text)| u64::try_from(text.lines().count()).ok())
+        && payload
+            .get("archives_sha256")
+            .and_then(serde_json::Value::as_str)
+            == Some(actual.as_str())
+}
+
+/// Verify a live chain against the exact durable `head.json` bytes.
+#[must_use]
+pub fn chain_anchor_matches(text: &str, anchor: Option<&str>) -> bool {
+    let (verified_seq, _, _) = scan_chain(text);
+    let Some(anchor) = anchor else {
+        return verified_seq == 0;
+    };
+    let Some(doc) = serde_json::from_str::<serde_json::Value>(anchor).ok() else {
+        return false;
+    };
+    let Some(object) = doc.as_object().filter(|object| object.len() == 3) else {
+        return false;
+    };
+    if object.get("schema").and_then(serde_json::Value::as_str) != Some("nika/arm-head@1") {
+        return false;
+    }
+    let Some(seq) = object.get("seq").and_then(serde_json::Value::as_u64) else {
+        return false;
+    };
+    if seq == 0 {
+        return object.get("hash").is_some_and(serde_json::Value::is_null);
+    }
+    let Some(hash) = object.get("hash").and_then(serde_json::Value::as_str) else {
+        return false;
+    };
+    if seq > verified_seq || !hash_is_canonical(hash) {
+        return false;
+    }
+    usize::try_from(seq)
+        .ok()
+        .and_then(|line| line.checked_sub(1))
+        .and_then(|line| text.lines().nth(line))
+        .and_then(|line| serde_json::from_str::<serde_json::Value>(line).ok())
+        .is_some_and(|line| line.get("hash").and_then(serde_json::Value::as_str) == Some(hash))
+}
+
+/// Render canonical durable chain-head bytes when sequence and hash agree.
+#[must_use]
+pub fn render_chain_anchor(seq: u64, hash: Option<&str>) -> Option<String> {
+    if (seq == 0 && hash.is_some()) || (seq > 0 && !hash.is_some_and(hash_is_canonical)) {
+        return None;
+    }
+    let hash = hash.map_or("null".to_owned(), json_str);
+    Some(format!(
+        "{{\"schema\":\"nika/arm-head@1\",\"seq\":{seq},\"hash\":{hash}}}\n"
+    ))
+}
+
+/// Verify one immutable filesystem snapshot before any projection consumes it.
+#[must_use]
+pub fn journal_snapshot_matches(anchor: Option<&str>, journals: &[(&str, &str, bool)]) -> bool {
+    if journals.iter().filter(|(_, _, live)| *live).count() > 1 {
+        return false;
+    }
+    let live = journals
+        .iter()
+        .find(|(_, _, live)| *live)
+        .map_or("", |(_, text, _)| *text);
+    if !chain_anchor_matches(live, anchor) {
+        return false;
+    }
+    let format = classify_journal(live);
+    let archives: Vec<(&str, &str)> = journals
+        .iter()
+        .filter(|(_, _, live)| !*live)
+        .map(|(name, text, _)| (*name, *text))
+        .collect();
+    if format == Some(JournalFormat::Versioned) {
+        if !archive_commitment_matches(live, &archives) {
+            return false;
+        }
+    } else if !archives.is_empty() {
+        return false;
+    }
+    journals.iter().all(|(_, text, live)| {
+        classify_journal(text)
+            .is_some_and(|format| *live || matches!(format, JournalFormat::Legacy))
+    })
+}
+
+/// Render a durable W2 migration intent after validating its archive name.
+#[must_use]
+pub fn render_migration_intent(
+    archive: &str,
+    lines: usize,
+    rotated_at: &Timestamp,
+) -> Option<String> {
+    archive_ordinal(archive)?;
+    Some(format!(
+        "{{\"archive\":{},\"lines\":{lines},\"rotated_at\":\"{rotated_at}\"}}\n",
+        json_str(archive)
+    ))
+}
+
+/// Parse the exact migration-intent shape.
+#[must_use]
+pub fn parse_migration_intent(text: &str) -> Option<(String, usize, Timestamp)> {
+    const KEYS: [&str; 3] = ["archive", "lines", "rotated_at"];
+    let doc: serde_json::Value = serde_json::from_str(text).ok()?;
+    let object = doc.as_object()?;
+    if !exact_keys(object, &KEYS) {
+        return None;
+    }
+    let archive = doc.get("archive")?.as_str()?.to_owned();
+    archive_ordinal(&archive)?;
+    Some((
+        archive,
+        usize::try_from(doc.get("lines")?.as_u64()?).ok()?,
+        doc.get("rotated_at")?.as_str()?.parse().ok()?,
+    ))
+}
+
+fn unchecked_ledger_line(
     seq: u64,
     ts: Timestamp,
     kind: &str,
@@ -710,6 +1173,35 @@ pub fn decision_payload(entry: &HistoryEntry) -> String {
     )
 }
 
+/// Build the slot-bearing `last.json` projection from one decision.
+#[must_use]
+pub fn last_projection(entry: &HistoryEntry) -> Option<LastRecord> {
+    Some(LastRecord {
+        slot: entry.slot?,
+        fired_at: entry.decided_at,
+        trace: entry.trace.clone(),
+        exit: entry.exit,
+        kind: entry.kind,
+        generation: entry.generation.clone(),
+    })
+}
+
+/// Render the canonical claim payload whose sequence is its fencing token.
+#[must_use]
+pub fn claim_payload(claim: &Claim, seq: u64) -> Option<String> {
+    if seq == 0 {
+        return None;
+    }
+    let generation = claim
+        .generation
+        .as_ref()
+        .map_or("null".to_owned(), |value| json_str(value.as_str()));
+    Some(format!(
+        "{{\"attempt\":1,\"deadline\":\"{}\",\"fencing\":{seq},\"gen\":{generation}}}",
+        claim.deadline
+    ))
+}
+
 fn sha256_hex(bytes: &[u8]) -> String {
     use sha2::Digest as _;
     let digest = sha2::Sha256::digest(bytes);
@@ -723,345 +1215,5 @@ fn sha256_hex(bytes: &[u8]) -> String {
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]
-mod tests {
-    use super::*;
-
-    fn ts(value: &str) -> Timestamp {
-        value.parse().expect("timestamp")
-    }
-
-    fn line(
-        seq: u64,
-        kind: &str,
-        slot: Option<&str>,
-        payload: &str,
-        prev: Option<&str>,
-    ) -> (String, String) {
-        line_at(seq, "2026-08-19T03:02:00Z", kind, slot, payload, prev)
-    }
-
-    fn line_at(
-        seq: u64,
-        at: &str,
-        kind: &str,
-        slot: Option<&str>,
-        payload: &str,
-        prev: Option<&str>,
-    ) -> (String, String) {
-        ledger_line(seq, ts(at), kind, slot, payload, prev)
-    }
-
-    #[test]
-    fn canonical_lines_verify_and_one_changed_byte_refuses() {
-        let (first, hash) = line(
-            1,
-            "fired",
-            Some("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
-            r#"{"slot":"2026-08-19T03:00:00Z","exit":0}"#,
-            None,
-        );
-        assert_eq!(verify_line(&first, 1, None), Some(hash));
-        assert!(verify_line(&first.replace("exit\":0", "exit\":1"), 1, None).is_none());
-        assert_eq!(scan_chain(&format!("{first}\nbroken\n")).2, 1);
-    }
-
-    #[test]
-    fn projection_vocabulary_is_exact() {
-        for (word, expected) in [
-            ("fired", DecisionKind::Fired),
-            ("skipped", DecisionKind::Skipped),
-            ("paused", DecisionKind::Paused),
-            ("failed", DecisionKind::Failed),
-        ] {
-            assert_eq!(DecisionKind::parse_projection(word), Some(expected));
-            assert_eq!(expected.as_str(), word);
-        }
-        assert_eq!(DecisionKind::parse_projection("disarmed"), None);
-        assert_eq!(DecisionKind::parse_projection("unknown"), None);
-    }
-
-    #[test]
-    fn schema_and_line_guards_refuse_each_independent_mismatch() {
-        let (valid, hash) = line(1, "fired", None, r#"{"slot":null}"#, None);
-        assert!(first_line_is_versioned(&valid));
-        assert!(!first_line_is_versioned(""));
-        assert!(!first_line_is_versioned(r#"{"schema":"nika/arm-event@2"}"#));
-        assert_eq!(verify_line(&valid, 1, None), Some(hash));
-        assert!(verify_line(&valid.replace(LEDGER_SCHEMA, "nika/arm-event@2"), 1, None).is_none());
-        assert!(verify_line(&valid.replace("\"v\":1", "\"v\":2"), 1, None).is_none());
-        assert!(verify_line(&valid, 2, None).is_none());
-        assert!(
-            verify_line(
-                &valid.replace("2026-08-19T03:02:00Z", "not-a-time"),
-                1,
-                None
-            )
-            .is_none()
-        );
-
-        let wrong_schema_prefix = concat!(
-            r#"{"schema":"nika/arm-event@2","v":1,"seq":1,"#,
-            r#""ts":"2026-08-19T03:02:00Z","kind":"fired","slot_id":null,"#,
-            r#""payload":{"slot":null},"prev_hash":null"#
-        );
-        let wrong_schema_hash = sha256_hex(format!("null\n{wrong_schema_prefix}").as_bytes());
-        let wrong_schema = format!(r#"{wrong_schema_prefix},"hash":"{wrong_schema_hash}"}}"#);
-        assert!(verify_line(&wrong_schema, 1, None).is_none());
-    }
-
-    #[test]
-    fn scan_chain_reports_the_exact_prefix_identity() {
-        let (first, first_hash) = line(1, "fired", None, r#"{"slot":null}"#, None);
-        let (second, second_hash) = line(2, "skipped", None, r#"{"slot":null}"#, Some(&first_hash));
-        let text = format!("{first}\n{second}\nbroken\n");
-        assert_eq!(scan_chain(&text), (2, Some(second_hash), 2));
-    }
-
-    #[test]
-    fn json_and_decision_payload_are_canonical() {
-        assert_eq!(json_str("plain"), r#""plain""#);
-        assert_eq!(json_str("a\"b\\c\n"), "\"a\\\"b\\\\c\\u000a\"");
-
-        let entry = HistoryEntry {
-            slot: Some(ts("2026-08-19T03:00:00Z")),
-            decided_at: ts("2026-08-19T03:02:00Z"),
-            kind: DecisionKind::Fired,
-            reason: Some("quoted \"reason\"".to_owned()),
-            trace: Some("trace\\path".to_owned()),
-            exit: Some(7),
-            slots: Some(2),
-            slot_id: None,
-            fencing: Some(FencingToken::new(9)),
-            generation: ArmGeneration::from_wire(&"a".repeat(64)),
-        };
-        assert_eq!(
-            decision_payload(&entry),
-            r#"{"slot":"2026-08-19T03:00:00Z","reason":"quoted \"reason\"","trace":"trace\\path","exit":7,"slots":2,"fencing":9,"gen":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}"#
-        );
-    }
-
-    #[test]
-    fn versioned_claim_and_receipt_replay_one_lifecycle() {
-        let slot = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-        let (claim, hash) = line(
-            1,
-            "claimed",
-            Some(slot),
-            r#"{"deadline":"2026-08-20T03:00:00Z","fencing":1,"gen":null}"#,
-            None,
-        );
-        let (receipt, _) = line(
-            2,
-            "fired",
-            Some(slot),
-            r#"{"slot":"2026-08-19T03:00:00Z","trace":null,"exit":0,"fencing":1,"gen":null}"#,
-            Some(&hash),
-        );
-        let text = format!("{claim}\n{receipt}\n");
-        let replayed = replay_core([(&*text, true)]);
-        assert_eq!(
-            replayed.last.as_ref().expect("last").kind,
-            DecisionKind::Fired
-        );
-        assert_eq!(
-            fold_replay(&replayed, &ts("2026-08-21T03:00:00Z"))
-                .expect("fold")
-                .0,
-            FiringState::Succeeded
-        );
-        assert!(unsettled(&text).is_empty());
-    }
-
-    #[test]
-    fn public_replay_returns_projection_watermark_and_fold_context() {
-        let slot = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-        let (claim, hash) = line_at(
-            1,
-            "2026-08-19T03:01:00Z",
-            "claimed",
-            Some(slot),
-            r#"{"deadline":"2026-08-20T03:00:00Z","fencing":1,"gen":null}"#,
-            None,
-        );
-        let (receipt, _) = line_at(
-            2,
-            "2026-08-19T03:02:00Z",
-            "fired",
-            Some(slot),
-            r#"{"slot":"2026-08-19T03:00:00Z","trace":null,"exit":0,"fencing":1,"gen":null}"#,
-            Some(&hash),
-        );
-        let text = format!("{claim}\n{receipt}\n");
-        let (last, watermark) = replay_projection([(&*text, true)]);
-        assert_eq!(last.expect("last").kind, DecisionKind::Fired);
-        assert_eq!(watermark, Some(ts("2026-08-19T03:02:00Z")));
-        let (state, beyond_last, lifecycle_slot) =
-            replay_state([(&*text, true)], &ts("2026-08-19T03:03:00Z")).expect("state");
-        assert_eq!(state, FiringState::Succeeded);
-        assert!(!beyond_last);
-        assert_eq!(lifecycle_slot.as_deref(), Some(slot));
-    }
-
-    #[test]
-    fn replay_keeps_interleaved_slot_groups_separate() {
-        let slot_a = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-        let slot_b = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
-        let (claim_a, hash_a) = line(
-            1,
-            "claimed",
-            Some(slot_a),
-            r#"{"deadline":"2026-08-20T03:00:00Z","fencing":1,"gen":null}"#,
-            None,
-        );
-        let (claim_b, hash_b) = line(
-            2,
-            "claimed",
-            Some(slot_b),
-            r#"{"deadline":"2026-08-20T03:00:00Z","fencing":2,"gen":null}"#,
-            Some(&hash_a),
-        );
-        let (receipt_b, _) = line(
-            3,
-            "fired",
-            Some(slot_b),
-            r#"{"slot":"2026-08-19T03:00:00Z","trace":null,"exit":0,"fencing":2,"gen":null}"#,
-            Some(&hash_b),
-        );
-        let text = format!("{claim_a}\n{claim_b}\n{receipt_b}\n");
-        let (state, beyond_last, lifecycle_slot) =
-            replay_state([(&*text, true)], &ts("2026-08-19T03:03:00Z")).expect("state");
-        assert_eq!(state, FiringState::Succeeded);
-        assert!(!beyond_last);
-        assert_eq!(lifecycle_slot.as_deref(), Some(slot_b));
-    }
-
-    #[test]
-    fn a_new_claim_after_the_projection_is_reported_as_beyond_last() {
-        let slot_a = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-        let slot_b = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
-        let (receipt, hash) = line(
-            1,
-            "fired",
-            Some(slot_a),
-            r#"{"slot":"2026-08-19T03:00:00Z","trace":null,"exit":0,"fencing":null,"gen":null}"#,
-            None,
-        );
-        let (claim, _) = line(
-            2,
-            "claimed",
-            Some(slot_b),
-            r#"{"deadline":"2026-08-20T03:00:00Z","fencing":2,"gen":null}"#,
-            Some(&hash),
-        );
-        let text = format!("{receipt}\n{claim}\n");
-        let (state, beyond_last, lifecycle_slot) =
-            replay_state([(&*text, true)], &ts("2026-08-19T03:03:00Z")).expect("state");
-        assert_eq!(state, FiringState::Claimed);
-        assert!(beyond_last);
-        assert_eq!(lifecycle_slot.as_deref(), Some(slot_b));
-    }
-
-    #[test]
-    fn orphan_claim_crosses_only_the_open_deadline_boundary() {
-        let slot = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-        let (claim, _) = line(
-            1,
-            "claimed",
-            Some(slot),
-            r#"{"deadline":"2026-08-20T03:00:00Z","fencing":1,"gen":null}"#,
-            None,
-        );
-        let replayed = replay_core([(&*claim, true)]);
-        assert_eq!(unsettled(&claim).len(), 1);
-        assert_eq!(
-            fold_replay(&replayed, &ts("2026-08-20T03:00:00Z"))
-                .expect("fold")
-                .0,
-            FiringState::Claimed
-        );
-        assert_eq!(
-            fold_replay(&replayed, &ts("2026-08-20T03:00:00.000000001Z"))
-                .expect("fold")
-                .0,
-            FiringState::Ambiguous
-        );
-    }
-
-    #[test]
-    fn unsettled_requires_a_later_receipt_with_both_identities() {
-        let slot_a = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
-        let slot_b = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
-        let claim = format!(
-            r#"{{"seq":1,"ts":"2026-08-19T03:00:00Z","kind":"claimed","slot_id":"{slot_a}","payload":{{"deadline":"2026-08-20T03:00:00Z","fencing":1}}}}"#
-        );
-        let earlier_receipt =
-            format!(r#"{{"kind":"fired","slot_id":"{slot_a}","payload":{{"fencing":1}}}}"#);
-        let wrong_slot =
-            format!(r#"{{"kind":"fired","slot_id":"{slot_b}","payload":{{"fencing":1}}}}"#);
-        let wrong_fence =
-            format!(r#"{{"kind":"fired","slot_id":"{slot_a}","payload":{{"fencing":2}}}}"#);
-        assert_eq!(unsettled(&format!("{earlier_receipt}\n{claim}\n")).len(), 1);
-        assert_eq!(unsettled(&format!("{claim}\n{wrong_slot}\n")).len(), 1);
-        assert_eq!(unsettled(&format!("{claim}\n{wrong_fence}\n")).len(), 1);
-        assert!(unsettled(&format!("{claim}\n{earlier_receipt}\n")).is_empty());
-    }
-
-    #[test]
-    fn tallies_count_each_decision_across_journals() {
-        let first = concat!(
-            "{\"kind\":\"skipped\"}\n",
-            "{\"kind\":\"fired\"}\n",
-            "{\"kind\":\"ignored\"}\n"
-        );
-        let second = "{\"kind\":\"fired\"}\nnot-json\n";
-        assert_eq!(tallies([first, second]), (1, 2));
-    }
-
-    #[test]
-    fn slotless_disarm_advances_only_the_watermark() {
-        let (disarmed, _) = line_at(1, "2026-08-19T04:00:00Z", "disarmed", None, r"{}", None);
-        let (last, watermark) = replay_projection([(&*disarmed, true)]);
-        assert!(last.is_none());
-        assert_eq!(watermark, Some(ts("2026-08-19T04:00:00Z")));
-        assert!(envelope_ts(&serde_json::json!({"ts": "not-a-time"})).is_none());
-        assert!(envelope_ts(&serde_json::json!({})).is_none());
-    }
-
-    #[test]
-    fn versioned_direct_receipt_without_slot_id_still_projects() {
-        let (receipt, _) = line_at(
-            1,
-            "2026-08-19T03:02:00Z",
-            "paused",
-            None,
-            r#"{"slot":"2026-08-19T03:00:00Z","trace":null,"exit":4,"fencing":null,"gen":null}"#,
-            None,
-        );
-        let (last, watermark) = replay_projection([(&*receipt, true)]);
-        let last = last.expect("projection");
-        assert_eq!(last.kind, DecisionKind::Paused);
-        assert_eq!(watermark, Some(ts("2026-08-19T03:02:00Z")));
-        let (state, _, lifecycle_slot) =
-            replay_state([(&*receipt, true)], &ts("2026-08-19T03:03:00Z")).expect("state");
-        assert_eq!(state, FiringState::Cancelled);
-        assert!(lifecycle_slot.is_none());
-    }
-
-    #[test]
-    fn legacy_replay_and_projection_round_trip_stay_byte_stable() {
-        let legacy = r#"{"slot":"2026-08-19T03:00:00Z","decided_at":"2026-08-19T03:02:00Z","kind":"skipped","reason":"overlap","exit":0}"#;
-        let replayed = replay_core([(legacy, false)]);
-        let last = replayed.last.expect("last");
-        let rendered = render_last(&last);
-        let parsed = parse_last(&rendered).expect("projection");
-        assert_eq!(parsed.kind, DecisionKind::Skipped);
-        assert_eq!(parsed.slot, last.slot);
-        assert_eq!(tallies([legacy]), (1, 0));
-        assert_eq!(
-            replay_state([(legacy, false)], &ts("2026-08-19T03:03:00Z"))
-                .expect("state")
-                .0,
-            FiringState::Skipped
-        );
-    }
-}
+#[path = "ledger/tests.rs"]
+mod tests;

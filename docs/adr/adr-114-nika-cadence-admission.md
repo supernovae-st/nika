@@ -72,6 +72,24 @@ renames, W2 archive rotation, and rendering the operator verdict. The L0 crate
 therefore remains deterministic and hermetic even though it now owns the state
 machines that judge persisted evidence.
 
+At L4, W7 uses a stable, never-unlinked advisory `flock`: the kernel lease is
+the authority and the PID/epoch file body is diagnostic only. Dropping the
+guard or losing the process releases the lease atomically, so PID reuse and a
+crash remnant cannot wedge a beat. Each fsynced event is also fenced by the
+local `head.json` high-water mark (`seq` + chain hash): the empty chain first
+writes the `seq:0/hash:null` bootstrap, then append precedes the atomic head
+advance. A non-empty versioned journal without that mark, a shorter valid
+prefix, or a mismatching anchored hash refuses; only a longer verified chain
+whose prefix exactly matches the older mark can close the append→head crash
+window.
+
+W2 archives are part of that evidence rather than unauthenticated prehistory.
+The W7 `rotated` genesis commits their canonical numeric order, count, latest
+name and line count, plus a domain-separated SHA-256 over every canonical
+archive name and the SHA-256 of its exact bytes. Every replay, projection, heal,
+and append validates this bundle first; alteration, reordering, insertion, or
+deletion refuses instead of silently changing the folded past.
+
 This amendment was forced into the open by W7's ledger reversal. Keeping its
 pure codec and fold in `nika-cli` crossed the 15,000-production-LOC hard cap and
 would have made the future `nika serve` consumer depend upward or duplicate the

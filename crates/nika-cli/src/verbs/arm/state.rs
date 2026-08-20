@@ -1,57 +1,33 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! L4 filesystem adapter for the firing sidecar (D3):
-//!
-//! ```text
-//! .nika/arm/<label>/lock              live beat owner
-//! .nika/arm/<label>/ledger.lock       verify + append critical section
-//! .nika/arm/<label>/last.json         rebuildable projection cache
-//! .nika/arm/<label>/watermark         last decided instant
-//! .nika/arm/<label>/history.ndjson    nika/arm-event@1 hash chain (truth)
-//! .nika/arm/<label>/history-w2*.ndjson immutable legacy archives (N4)
-//! ```
-//!
-//! Pure codec, verification, reconciliation, and replay live in
-//! `nika_cadence::ledger`; this module owns paths, locks, fsync, atomic
-//! projection writes, and legacy rotation only. Reads fold the verified prefix
-//! without cutting evidence. Appends may cut an invalid tail, then land the
-//! ledger before projections. Lock order is beat → ledger, never the inverse;
-//! neither ledger lock nor state survives across a run.
+//! L4 filesystem adapter for `.nika/arm/<label>` sidecars (D3).
+//! Cadence owns pure ledger semantics; this module owns paths, locks, fsync,
+//! projections, and W2 rotation. Lock order is beat → ledger.
 
-use std::io;
+use std::io::{self, Seek as _, Write as _};
 use std::path::{Path, PathBuf};
 
 use jiff::{Timestamp, Zoned};
 use nika_cadence::firing::SlotId;
 use nika_cadence::ledger::{
-    decision_payload, first_line_is_versioned, json_str, ledger_line, parse_last, render_last,
-    scan_chain,
+    JournalFormat, chain_anchor_matches, claim_payload, classify_journal, decision_payload,
+    last_projection, ledger_line, parse_migration_intent, render_chain_anchor, render_last,
+    render_migration_intent, rotation_payload, scan_chain,
 };
+use nix::fcntl::{Flock, FlockArg};
 
 pub use nika_cadence::ledger::{
     Claim, DecisionKind as FireKind, HistoryEntry, LastRecord, RecordOutcome, Unsettled,
 };
 
-/// Read-only journal discovery adapter; the pure fold lives in cadence.
 pub(crate) mod replay;
-
-/// The sidecar root below a project directory (D3 · next to the traces).
 const ARM_DIR: &str = ".nika/arm";
-
-/// The beat lock's file name (law ⑥).
 const BEAT_LOCK: &str = "lock";
-
-/// The inner ledger lock's file name · see the module doc for the
-/// lock-ordering law.
 const LEDGER_LOCK: &str = "ledger.lock";
-
-/// The versioned ledger's file name.
 const HISTORY: &str = "history.ndjson";
-
-/// The ledger-lock wait: 100 × 5 ms — an eternity against a
-/// microseconds-long critical section, finite against a wedged holder
-/// (the record then refuses LOUDLY; an eternal block never happens).
+const CHAIN_HEAD: &str = "head.json";
+const MIGRATION_INTENT: &str = "migration-w2.json";
 const LEDGER_LOCK_PASSES: u32 = 100;
 const LEDGER_LOCK_NAP: std::time::Duration = std::time::Duration::from_millis(5);
 
@@ -60,24 +36,11 @@ pub struct ArmState {
     root: PathBuf,
 }
 
-/// What a lock attempt found.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum LockOutcome {
-    /// No live owner — the lock is ours.
+pub(crate) enum LockOutcome {
     Acquired,
-    /// A LIVE process holds it (signal 0 answered) — law ⑥ governs.
-    HeldAlive {
-        /// The holding process.
-        pid: u32,
-    },
-    /// The holder's pid is dead (a crash remnant) — taken over.
-    StaleTaken {
-        /// The dead pid, when the remnant parsed.
-        old_pid: Option<u32>,
-    },
+    HeldAlive { pid: u32 },
 }
-
-/// One audible migration result.
 pub(crate) struct HealOutcome {
     pub rotated: Option<Rotation>,
     pub repaired: u64,
@@ -95,13 +58,11 @@ impl ArmState {
         }
     }
 
-    /// The sidecar root (the report's orphan walk reads it).
     #[must_use]
     pub fn root(&self) -> &Path {
         &self.root
     }
 
-    /// The last decided slot; a skip or park consumes it too.
     #[must_use]
     pub fn last_fired(&self, label: &str) -> Option<Zoned> {
         self.last(label)
@@ -112,47 +73,32 @@ impl ArmState {
     #[must_use]
     pub fn last(&self, label: &str) -> Option<LastRecord> {
         let dir = self.root.join(label);
-        if let Some(record) = read_last_file(&dir) {
-            Some(record)
-        } else {
-            let record = replay::replay(&dir).ok()?.last?;
-            // Cache repair failure never hides replayed truth in memory.
+        let record = replay::replay(&dir).ok()?.last?;
+        let rendered = render_last(&record);
+        if std::fs::read_to_string(dir.join("last.json"))
+            .ok()
+            .as_deref()
+            != Some(rendered.as_str())
+        {
             let _ = write_atomic(&dir.join("last.json"), &render_last(&record));
-            Some(record)
         }
+        Some(record)
     }
 
-    /// Count skips/fires across the live ledger and W2 archives.
     #[must_use]
     pub fn tallies(&self, label: &str) -> Option<(usize, usize)> {
         let dir = self.root.join(label);
-        let mut journals: Vec<PathBuf> = std::fs::read_dir(&dir)
-            .ok()?
-            .filter_map(std::result::Result::ok)
-            .map(|e| e.path())
-            .filter(|p| {
-                p.file_name()
-                    .and_then(|n| n.to_str())
-                    .is_some_and(|n| n == HISTORY || n.starts_with("history-w2"))
-            })
-            .collect();
+        let journals = replay::journal_texts(&dir).ok()?;
         if journals.is_empty() {
             return None;
         }
-        journals.sort_unstable();
-        let mut texts = Vec::with_capacity(journals.len());
-        for journal in journals {
-            let Ok(text) = std::fs::read_to_string(&journal) else {
-                continue;
-            };
-            texts.push(text);
-        }
-        Some(nika_cadence::ledger::tallies(
-            texts.iter().map(String::as_str),
-        ))
+        nika_cadence::ledger::tallies(
+            journals
+                .iter()
+                .map(|(text, versioned)| (text.as_str(), *versioned)),
+        )
     }
 
-    /// Unknown sidecars are reported, never erased (N4).
     #[must_use]
     pub fn orphans(&self, known: &[String]) -> Vec<String> {
         let Ok(entries) = std::fs::read_dir(&self.root) else {
@@ -168,43 +114,26 @@ impl ArmState {
         out
     }
 
-    /// Try the beat's lock. A live holder answers signal 0 — `HeldAlive`
-    /// (law ⑥ then governs: sauter · file). A dead holder's file is a
-    /// crash remnant — taken over (`StaleTaken`). No file: `Acquired`.
-    ///
-    /// # Errors
-    /// I/O on the sidecar directory (unwritable project, …).
-    pub fn try_lock(&self, label: &str, pid: u32, now: &Zoned) -> io::Result<LockOutcome> {
+    pub(crate) fn acquire_beat_lock(
+        &self,
+        label: &str,
+        pid: u32,
+        now: &Zoned,
+    ) -> io::Result<LockAttempt> {
         let dir = self.dir(label)?;
-        try_named_lock(&dir, BEAT_LOCK, pid, now)
+        acquire_named_lock(&dir, BEAT_LOCK, pid, now)
     }
 
-    /// Release the beat's lock. Idempotent: an absent lock is released.
-    ///
-    /// # Errors
-    /// I/O other than `NotFound`.
-    pub fn release(&self, label: &str) -> io::Result<()> {
-        self.release_named(label, BEAT_LOCK)
-    }
-
-    /// Release one lock file by name. Idempotent.
-    fn release_named(&self, label: &str, name: &str) -> io::Result<()> {
-        match std::fs::remove_file(self.root.join(label).join(name)) {
-            Ok(()) => Ok(()),
-            Err(e) if e.kind() == io::ErrorKind::NotFound => Ok(()),
-            Err(e) => Err(e),
-        }
-    }
-
-    /// Bound the ledger critical section; never hold it across a run.
-    fn ledger_guard(&self, dir: &Path, label: &str, now: &Zoned) -> io::Result<LedgerGuard<'_>> {
+    fn ledger_guard(dir: &Path, now: &Zoned) -> io::Result<LedgerGuard> {
         let pid = std::process::id();
         for _ in 0..LEDGER_LOCK_PASSES {
-            match try_named_lock(dir, LEDGER_LOCK, pid, now)? {
-                LockOutcome::Acquired | LockOutcome::StaleTaken { .. } => {
+            let attempt = acquire_named_lock(dir, LEDGER_LOCK, pid, now)?;
+            match attempt.outcome {
+                LockOutcome::Acquired => {
                     return Ok(LedgerGuard {
-                        state: self,
-                        label: label.to_owned(),
+                        _lease: attempt.lease.ok_or_else(|| {
+                            io::Error::other("arm ledger lock: acquired without a lease")
+                        })?,
                     });
                 }
                 LockOutcome::HeldAlive { .. } => std::thread::sleep(LEDGER_LOCK_NAP),
@@ -223,36 +152,19 @@ impl ArmState {
     pub fn record(&self, label: &str, entry: &HistoryEntry) -> io::Result<RecordOutcome> {
         let dir = self.dir(label)?;
         let now = entry.decided_at.to_zoned(jiff::tz::TimeZone::UTC);
-        let _ledger = self.ledger_guard(&dir, label, &now)?;
-        let head = chain_head(&dir, &entry.decided_at)?;
-        let seq = head.seq + 1;
-        let (line, _) = ledger_line(
-            seq,
+        let _ledger = Self::ledger_guard(&dir, &now)?;
+        let outcome = append_event(
+            &dir,
             entry.decided_at,
             entry.kind.as_str(),
             entry.slot_id.as_ref().map(SlotId::as_str),
-            &decision_payload(entry),
-            head.prev_hash.as_deref(),
-        );
-        append_line(&dir.join(HISTORY), &line)?;
-        if let Some(slot) = entry.slot {
-            write_atomic(
-                &dir.join("last.json"),
-                &render_last(&LastRecord {
-                    slot,
-                    fired_at: entry.decided_at,
-                    trace: entry.trace.clone(),
-                    exit: entry.exit,
-                    kind: entry.kind,
-                    generation: entry.generation.clone(),
-                }),
-            )?;
+            |_| Some(decision_payload(entry)),
+        )?;
+        if let Some(last) = last_projection(entry) {
+            write_atomic(&dir.join("last.json"), &render_last(&last))?;
         }
         write_atomic(&dir.join("watermark"), &format!("{}\n", entry.decided_at))?;
-        Ok(RecordOutcome {
-            seq,
-            repaired: head.repaired,
-        })
+        Ok(outcome)
     }
 
     /// Append and fsync the claim before the run; projections do not move.
@@ -262,43 +174,25 @@ impl ArmState {
     pub fn record_claim(&self, label: &str, claim: &Claim) -> io::Result<RecordOutcome> {
         let dir = self.dir(label)?;
         let now = claim.decided_at.to_zoned(jiff::tz::TimeZone::UTC);
-        let _ledger = self.ledger_guard(&dir, label, &now)?;
-        let head = chain_head(&dir, &claim.decided_at)?;
-        let seq = head.seq + 1;
-        // The claim's own sequence is its fencing token.
-        let generation = claim
-            .generation
-            .as_ref()
-            .map_or("null".to_owned(), |g| json_str(g.as_str()));
-        let payload = format!(
-            "{{\"attempt\":1,\"deadline\":\"{}\",\"fencing\":{seq},\"gen\":{generation}}}",
-            claim.deadline
-        );
-        let (line, _) = ledger_line(
-            seq,
+        let _ledger = Self::ledger_guard(&dir, &now)?;
+        append_event(
+            &dir,
             claim.decided_at,
             "claimed",
             Some(claim.slot_id.as_str()),
-            &payload,
-            head.prev_hash.as_deref(),
-        );
-        append_line(&dir.join(HISTORY), &line)?;
-        Ok(RecordOutcome {
-            seq,
-            repaired: head.repaired,
-        })
+            |seq| claim_payload(claim, seq),
+        )
     }
 
     /// Find claims without a matching later fenced receipt.
     #[must_use]
-    pub fn unsettled(&self, label: &str) -> Vec<Unsettled> {
-        let Ok(text) = std::fs::read_to_string(self.root.join(label).join(HISTORY)) else {
-            return Vec::new();
-        };
-        nika_cadence::ledger::unsettled(&text)
+    pub fn unsettled(&self, label: &str) -> Option<Vec<Unsettled>> {
+        let journals = replay::journal_texts(&self.root.join(label)).ok()?;
+        journals.last().map_or(Some(Vec::new()), |(text, _)| {
+            nika_cadence::ledger::unsettled(text)
+        })
     }
 
-    /// List sidecar beat directories in stable order.
     pub(crate) fn beat_dirs(&self) -> io::Result<Vec<String>> {
         let entries = match std::fs::read_dir(&self.root) {
             Ok(entries) => entries,
@@ -320,11 +214,17 @@ impl ArmState {
         Ok(out)
     }
 
-    /// Verify/rotate under lock, then rebuild projections from replay.
+    pub(crate) fn has_journal_evidence(&self, label: &str) -> io::Result<bool> {
+        let dir = self.root.join(label);
+        Ok(dir.join(HISTORY).exists()
+            || dir.join(MIGRATION_INTENT).exists()
+            || replay::latest_archive(&dir)?.is_some())
+    }
+
     pub(crate) fn heal(&self, label: &str, now: &Timestamp) -> io::Result<HealOutcome> {
         let dir = self.root.join(label);
         let now_zoned = now.to_zoned(jiff::tz::TimeZone::UTC);
-        let _ledger = self.ledger_guard(&dir, label, &now_zoned)?;
+        let _ledger = Self::ledger_guard(&dir, &now_zoned)?;
         let head = chain_head(&dir, now)?;
         let replayed = replay::replay(&dir)?;
         if let Some(last) = &replayed.last {
@@ -342,13 +242,11 @@ impl ArmState {
         })
     }
 
-    /// Fold the current lifecycle for the report.
     pub(crate) fn folded(&self, label: &str, now: &Timestamp) -> Option<replay::Folded> {
         let replayed = replay::replay(&self.root.join(label)).ok()?;
         replay::fold_replay(&replayed, now)
     }
 
-    /// The beat's directory, created on demand.
     fn dir(&self, label: &str) -> io::Result<PathBuf> {
         let dir = self.root.join(label);
         std::fs::create_dir_all(&dir)?;
@@ -356,10 +254,24 @@ impl ArmState {
     }
 }
 
-/// Parse the projection cache; replay handles any miss.
-fn read_last_file(dir: &Path) -> Option<LastRecord> {
-    let text = std::fs::read_to_string(dir.join("last.json")).ok()?;
-    parse_last(&text)
+fn append_event(
+    dir: &Path,
+    at: Timestamp,
+    kind: &str,
+    slot_id: Option<&str>,
+    payload: impl FnOnce(u64) -> Option<String>,
+) -> io::Result<RecordOutcome> {
+    let head = chain_head(dir, &at)?;
+    let seq = head.seq + 1;
+    let payload = payload(seq).ok_or_else(invalid_ledger_line)?;
+    let (line, hash) = ledger_line(seq, at, kind, slot_id, &payload, head.prev_hash.as_deref())
+        .ok_or_else(invalid_ledger_line)?;
+    append_line(&dir.join(HISTORY), &line)?;
+    write_chain_anchor(dir, seq, Some(&hash))?;
+    Ok(RecordOutcome {
+        seq,
+        repaired: head.repaired,
+    })
 }
 
 #[derive(Debug)]
@@ -374,22 +286,48 @@ struct ChainHead {
 pub(crate) struct Rotation {
     pub name: String,
     pub lines: usize,
+    pub resumed: bool,
 }
 
-/// Verify the live chain, rotating legacy or cutting only its invalid tail.
 fn chain_head(dir: &Path, now: &Timestamp) -> io::Result<ChainHead> {
     let path = dir.join(HISTORY);
+    let resumed = finish_intended_rotation(dir, &path, true)?;
     let text = match std::fs::read_to_string(&path) {
         Ok(text) => text,
-        Err(e) if e.kind() == io::ErrorKind::NotFound => String::new(),
+        Err(e) if e.kind() == io::ErrorKind::NotFound => {
+            if replay::latest_archive(dir)?.is_some() {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "arm ledger: archive exists without a migration intent or live journal",
+                ));
+            }
+            String::new()
+        }
         Err(e) => return Err(e),
     };
     let lines: Vec<&str> = text.lines().collect();
-    if !lines.is_empty() && !first_line_is_versioned(&text) {
-        return rotate_legacy(dir, &path, lines.len(), now);
+    match classify_journal(&text) {
+        Some(JournalFormat::Empty) => {
+            if replay::latest_archive(dir)?.is_some() {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "arm ledger: empty live journal beside an archive has no migration intent",
+                ));
+            }
+        }
+        Some(JournalFormat::Legacy) => return rotate_legacy(dir, &path, lines.len(), now),
+        Some(JournalFormat::Versioned) => replay::validate_archive_commitment(dir, &text)?,
+        None | Some(_) => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "arm ledger: journal dialect or chain is invalid",
+            ));
+        }
     }
     let (seq, prev_hash, valid_lines) = scan_chain(&text);
     let repaired = u64::try_from(lines.len() - valid_lines).unwrap_or(u64::MAX);
+    validate_chain_anchor(dir, &text)?;
+    write_chain_anchor(dir, seq, prev_hash.as_deref())?;
     if repaired > 0 {
         let mut prefix = lines[..valid_lines].join("\n");
         if valid_lines > 0 {
@@ -401,11 +339,10 @@ fn chain_head(dir: &Path, now: &Timestamp) -> io::Result<ChainHead> {
         seq,
         prev_hash,
         repaired,
-        rotated: None,
+        rotated: resumed,
     })
 }
 
-/// Rotate a W2 journal forever and open the versioned chain with its receipt.
 fn rotate_legacy(
     dir: &Path,
     path: &Path,
@@ -423,109 +360,235 @@ fn rotate_legacy(
             )
         })?;
     }
-    std::fs::rename(path, dir.join(&name))?;
-    sync_parent(&dir.join(&name))?;
-    let payload = format!("{{\"from\":{},\"lines\":{legacy_lines}}}", json_str(&name));
-    let (line, hash) = ledger_line(1, *now, "rotated", None, &payload, None);
-    append_line(path, &line)?;
+    let intent =
+        render_migration_intent(&name, legacy_lines, now).ok_or_else(invalid_migration_state)?;
+    write_atomic(&dir.join(MIGRATION_INTENT), &intent)?;
+    let rotation = finish_intended_rotation(dir, path, false)?
+        .ok_or_else(|| io::Error::other("arm ledger: durable migration intent was not consumed"))?;
+    let text = std::fs::read_to_string(path)?;
+    let (seq, prev_hash, valid_lines) = scan_chain(&text);
+    if valid_lines != text.lines().count() || seq != 1 {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "arm ledger: migrated genesis is invalid",
+        ));
+    }
+    write_chain_anchor(dir, seq, prev_hash.as_deref())?;
     Ok(ChainHead {
-        seq: 1,
-        prev_hash: Some(hash),
+        seq,
+        prev_hash,
         repaired: 0,
-        rotated: Some(Rotation {
-            name,
-            lines: legacy_lines,
-        }),
+        rotated: Some(rotation),
     })
 }
 
-/// Ledger lock released on every critical-section exit.
-struct LedgerGuard<'a> {
-    state: &'a ArmState,
-    label: String,
-}
-
-impl Drop for LedgerGuard<'_> {
-    fn drop(&mut self) {
-        let _ = self.state.release_named(&self.label, LEDGER_LOCK);
+fn finish_intended_rotation(
+    dir: &Path,
+    path: &Path,
+    resumed: bool,
+) -> io::Result<Option<Rotation>> {
+    let marker = dir.join(MIGRATION_INTENT);
+    match std::fs::symlink_metadata(&marker) {
+        Ok(metadata) if !metadata.file_type().is_file() => {
+            return Err(invalid_migration_state());
+        }
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error),
+        Ok(_) => {}
     }
+    let text = std::fs::read_to_string(&marker)?;
+    let (archive_name, legacy_lines, rotated_at) =
+        parse_migration_intent(&text).ok_or_else(|| {
+            io::Error::new(
+                io::ErrorKind::InvalidData,
+                "arm ledger: migration intent is invalid",
+            )
+        })?;
+    let archive = dir.join(&archive_name);
+    if let Ok(metadata) = std::fs::symlink_metadata(&archive)
+        && !metadata.file_type().is_file()
+    {
+        return Err(invalid_migration_state());
+    }
+    if !archive.exists() {
+        let live = std::fs::read_to_string(path)?;
+        if classify_journal(&live) != Some(JournalFormat::Legacy)
+            || live.lines().count() != legacy_lines
+        {
+            return Err(invalid_migration_state());
+        }
+        std::fs::hard_link(path, &archive)?;
+        sync_parent(&archive)?;
+        std::fs::remove_file(path)?;
+        sync_parent(path)?;
+    }
+    let archive_text = std::fs::read_to_string(&archive)?;
+    if classify_journal(&archive_text) != Some(JournalFormat::Legacy)
+        || archive_text.lines().count() != legacy_lines
+    {
+        return Err(invalid_migration_state());
+    }
+    let archives = replay::archive_texts(dir)?;
+    let borrowed: Vec<(&str, &str)> = archives
+        .iter()
+        .map(|(name, text)| (name.as_str(), text.as_str()))
+        .collect();
+    let payload = rotation_payload(&borrowed).ok_or_else(invalid_migration_state)?;
+    let (genesis, genesis_hash) = ledger_line(1, rotated_at, "rotated", None, &payload, None)
+        .ok_or_else(invalid_ledger_line)?;
+    let expected = format!("{genesis}\n");
+    match std::fs::read_to_string(path) {
+        Ok(current) if current == expected => {}
+        Ok(current) if current == archive_text => {
+            std::fs::remove_file(path)?;
+            sync_parent(path)?;
+            write_atomic(path, &expected)?;
+        }
+        Ok(current) if current.is_empty() => write_atomic(path, &expected)?,
+        Err(error) if error.kind() == io::ErrorKind::NotFound => write_atomic(path, &expected)?,
+        Ok(_) => return Err(invalid_migration_state()),
+        Err(error) => return Err(error),
+    }
+    write_chain_anchor(dir, 1, Some(&genesis_hash))?;
+    remove_file_if_exists(&marker)?;
+    sync_parent(&marker)?;
+    Ok(Some(Rotation {
+        name: archive_name,
+        lines: legacy_lines,
+        resumed,
+    }))
 }
 
-/// Atomic lock attempt shared by beat and ledger locks.
-fn try_named_lock(dir: &Path, name: &str, pid: u32, now: &Zoned) -> io::Result<LockOutcome> {
-    const MAX_PASSES: u32 = 8;
+fn invalid_migration_state() -> io::Error {
+    io::Error::new(
+        io::ErrorKind::InvalidData,
+        "arm ledger: migration intent does not match live and archived evidence",
+    )
+}
+
+fn invalid_ledger_line() -> io::Error {
+    io::Error::new(
+        io::ErrorKind::InvalidInput,
+        "arm ledger: event violates the canonical schema",
+    )
+}
+
+struct LedgerGuard {
+    _lease: LockLease,
+}
+
+/// Kernel-owned lease. The stable path is diagnostic metadata, never the lock
+/// authority and never unlinked by a compliant firer.
+pub(crate) struct LockLease {
+    _lock: Flock<std::fs::File>,
+}
+
+pub(crate) struct LockAttempt {
+    pub(crate) outcome: LockOutcome,
+    pub(crate) lease: Option<LockLease>,
+}
+
+fn acquire_named_lock(dir: &Path, name: &str, pid: u32, now: &Zoned) -> io::Result<LockAttempt> {
     let lock = dir.join(name);
-    let body = format!("{{\"pid\":{pid},\"started_at\":\"{}\"}}\n", now.timestamp());
-    // Some(None) records an unparseable remnant we removed.
-    let mut removed: Option<Option<u32>> = None;
-    for _ in 0..MAX_PASSES {
-        match std::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&lock)
-        {
-            Ok(mut f) => {
-                use std::io::Write as _;
-                f.write_all(body.as_bytes())?;
-                return Ok(match removed {
-                    Some(old_pid) => LockOutcome::StaleTaken { old_pid },
-                    None => LockOutcome::Acquired,
-                });
-            }
-            Err(e) if e.kind() == io::ErrorKind::AlreadyExists => {}
-            Err(e) => return Err(e),
-        }
-        let old_pid = std::fs::read_to_string(&lock)
-            .ok()
-            .and_then(|text| lock_pid(&text));
-        if let Some(old) = old_pid
-            && owner_alive(old)
-        {
-            return Ok(LockOutcome::HeldAlive { pid: old });
-        }
-        // No live owner is proven; atomic create resolves any racer.
-        match std::fs::remove_file(&lock) {
-            Ok(()) => removed = Some(old_pid),
-            Err(e) if e.kind() == io::ErrorKind::NotFound => {}
-            Err(e) => return Err(e),
-        }
+    let mut options = std::fs::OpenOptions::new();
+    options.read(true).write(true).create(true).truncate(false);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt as _;
+        options.custom_flags(nix::libc::O_NOFOLLOW | nix::libc::O_NONBLOCK);
     }
-    Err(io::Error::new(
-        io::ErrorKind::WouldBlock,
-        "arm lock: contended past the pass bound",
-    ))
+    let file = options.open(&lock)?;
+    if !file.metadata()?.file_type().is_file() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "arm lock: path is not a regular file",
+        ));
+    }
+    match Flock::lock(file, FlockArg::LockExclusiveNonblock) {
+        Ok(mut held) => {
+            let body = format!(
+                "{{\"pid\":{pid},\"started_at\":\"{}\",\"epoch\":\"{}\"}}\n",
+                now.timestamp(),
+                now.timestamp()
+            );
+            held.set_len(0)?;
+            held.seek(std::io::SeekFrom::Start(0))?;
+            held.write_all(body.as_bytes())?;
+            held.sync_all()?;
+            Ok(LockAttempt {
+                outcome: LockOutcome::Acquired,
+                lease: Some(LockLease { _lock: held }),
+            })
+        }
+        Err((_file, nix::errno::Errno::EAGAIN)) => {
+            let owner = std::fs::read_to_string(&lock)
+                .ok()
+                .and_then(|text| lock_pid(&text))
+                .unwrap_or(0);
+            Ok(LockAttempt {
+                outcome: LockOutcome::HeldAlive { pid: owner },
+                lease: None,
+            })
+        }
+        Err((_file, errno)) => Err(io::Error::from_raw_os_error(errno as i32)),
+    }
 }
 
-/// Parse the pid from a lock file.
+fn remove_file_if_exists(path: &Path) -> io::Result<()> {
+    match std::fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(()),
+        Err(error) => Err(error),
+    }
+}
+
 fn lock_pid(text: &str) -> Option<u32> {
     let doc: serde_json::Value = serde_json::from_str(text).ok()?;
     doc.get("pid")?.as_u64().and_then(|p| u32::try_from(p).ok())
 }
 
-/// Probe a pid without signalling; `EPERM` still proves a live owner.
-#[cfg(unix)]
-fn owner_alive(pid: u32) -> bool {
-    use nix::sys::signal::kill;
-    use nix::unistd::Pid;
-    let Ok(raw) = i32::try_from(pid) else {
-        return false;
-    };
-    if raw == 0 {
-        return false;
+/// Validate the live chain against its last durable high-water mark. An
+/// invalid physical tail remains repairable; a shorter valid chain does not.
+pub(super) fn validate_chain_anchor(dir: &Path, text: &str) -> io::Result<()> {
+    let anchor = read_chain_anchor(dir)?;
+    chain_anchor_matches(text, anchor.as_deref())
+        .then_some(())
+        .ok_or_else(invalid_chain_anchor)
+}
+
+fn read_chain_anchor(dir: &Path) -> io::Result<Option<String>> {
+    let path = dir.join(CHAIN_HEAD);
+    match std::fs::symlink_metadata(&path) {
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+        Err(error) => return Err(error),
+        Ok(metadata) if !metadata.file_type().is_file() => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidData,
+                "arm ledger: durable head is not a regular file",
+            ));
+        }
+        Ok(_) => {}
     }
-    let pid = Pid::from_raw(raw);
-    matches!(kill(pid, None), Ok(()) | Err(nix::errno::Errno::EPERM))
+    std::fs::read_to_string(path).map(Some)
 }
 
-/// Without a signal probe, never steal a lock.
-#[cfg(not(unix))]
-fn owner_alive(_pid: u32) -> bool {
-    true
+fn write_chain_anchor(dir: &Path, seq: u64, hash: Option<&str>) -> io::Result<()> {
+    let body = render_chain_anchor(seq, hash).ok_or_else(invalid_chain_anchor)?;
+    let path = dir.join(CHAIN_HEAD);
+    if std::fs::read_to_string(&path).ok().as_deref() == Some(body.as_str()) {
+        return Ok(());
+    }
+    write_atomic(&path, &body)
 }
 
-/// Atomic durable rewrite: fsync file, rename, then fsync parent.
+fn invalid_chain_anchor() -> io::Error {
+    io::Error::new(
+        io::ErrorKind::InvalidData,
+        "arm ledger: durable head is invalid",
+    )
+}
+
 fn write_atomic(path: &Path, body: &str) -> io::Result<()> {
-    use std::io::Write as _;
     let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("state");
     let tmp = path.with_file_name(format!("{name}.tmp-{}", std::process::id()));
     {
@@ -537,7 +600,6 @@ fn write_atomic(path: &Path, body: &str) -> io::Result<()> {
     sync_parent(path)
 }
 
-/// Fsync the directory that makes the rename durable.
 #[cfg(unix)]
 fn sync_parent(path: &Path) -> io::Result<()> {
     match path.parent() {
@@ -546,15 +608,12 @@ fn sync_parent(path: &Path) -> io::Result<()> {
     }
 }
 
-/// Directory fsync has no portable non-Unix form.
 #[cfg(not(unix))]
 fn sync_parent(_path: &Path) -> io::Result<()> {
     Ok(())
 }
 
-/// Append and fsync one ledger line before the caller's next act.
 fn append_line(path: &Path, line: &str) -> io::Result<()> {
-    use std::io::Write as _;
     let mut f = std::fs::OpenOptions::new()
         .create(true)
         .append(true)

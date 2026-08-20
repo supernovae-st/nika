@@ -455,21 +455,31 @@ fn expiry_passed(beat: &Beat, now: &Zoned) -> Option<String> {
 /// the ONE line (D8).
 #[must_use]
 pub fn fire_beat(ctx: &FireCtx) -> FireVerdict {
-    match ctx.state.try_lock(&ctx.label, ctx.pid, &ctx.now) {
+    match ctx.state.acquire_beat_lock(&ctx.label, ctx.pid, &ctx.now) {
         Err(e) => FireVerdict {
             line: format!("failed {} · the lock refused: {e}", ctx.label),
             code: exit::ENV,
         },
-        Ok(LockOutcome::HeldAlive { pid }) => overlap_held(ctx, pid),
-        Ok(LockOutcome::Acquired | LockOutcome::StaleTaken { .. }) => decide_locked(ctx),
+        Ok(attempt) => match attempt.outcome {
+            LockOutcome::HeldAlive { pid } => overlap_held(ctx, pid),
+            LockOutcome::Acquired => {
+                let Some(lease) = attempt.lease else {
+                    return FireVerdict {
+                        line: format!("failed {} · the lock returned no lease", ctx.label),
+                        code: exit::ENV,
+                    };
+                };
+                decide_locked(ctx, lease)
+            }
+        },
     }
 }
 
 /// The acquired path: the lock is OURS — the decision happens under it
 /// (the law), and the release rides the guard on EVERY exit, engine
 /// fault and record refusal included.
-fn decide_locked(ctx: &FireCtx) -> FireVerdict {
-    let _lock = HeldBeatLock(ctx);
+fn decide_locked(ctx: &FireCtx, lease: super::state::LockLease) -> FireVerdict {
+    let _lock = HeldBeatLock { _lease: lease };
     let last = ctx.state.last_fired(&ctx.label);
     match decide(
         &ctx.registry,
@@ -592,13 +602,19 @@ fn wait_turn(ctx: &FireCtx, slot: &Zoned, holder: u32) -> FireVerdict {
             }
             Wait::Elapsed => waited_ms += step,
         }
-        match ctx.state.try_lock(&ctx.label, ctx.pid, &ctx.now) {
-            Ok(LockOutcome::Acquired | LockOutcome::StaleTaken { .. }) => {
+        match ctx.state.acquire_beat_lock(&ctx.label, ctx.pid, &ctx.now) {
+            Ok(attempt) if matches!(attempt.outcome, LockOutcome::Acquired) => {
                 // The re-decision law: the state may have changed under
                 // the wait — decide again, under the lock.
-                return decide_locked(ctx);
+                let Some(lease) = attempt.lease else {
+                    return FireVerdict {
+                        line: format!("failed {} · the lock returned no lease", ctx.label),
+                        code: exit::ENV,
+                    };
+                };
+                return decide_locked(ctx, lease);
             }
-            Ok(LockOutcome::HeldAlive { .. }) => {}
+            Ok(_) => {}
             Err(e) => {
                 return FireVerdict {
                     line: format!("failed {} · the lock refused: {e}", ctx.label),
@@ -747,13 +763,9 @@ fn claim_run_receipt(ctx: &FireCtx, slot: &Zoned, slots: Option<u32>) -> FireVer
 }
 
 /// The held beat lock, released on EVERY exit of the scope that took
-/// it — a leaked lock would brick the beat until the pid dies.
-struct HeldBeatLock<'a>(&'a FireCtx);
-
-impl Drop for HeldBeatLock<'_> {
-    fn drop(&mut self) {
-        let _ = self.0.state.release(&self.0.label);
-    }
+/// it. The kernel releases the advisory lease even if the process dies.
+struct HeldBeatLock {
+    _lease: super::state::LockLease,
 }
 
 /// The beat's next theoretical slot after the decision instant — the

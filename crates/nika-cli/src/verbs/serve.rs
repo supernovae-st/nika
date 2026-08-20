@@ -381,6 +381,7 @@ fn serve(
 mod tests {
     use super::*;
     use crate::verbs::arm::fire::{RunShot, RunUpshot};
+    use crate::verbs::arm::state::{FireKind, HistoryEntry};
 
     fn at(text: &str) -> Zoned {
         text.parse::<jiff::Timestamp>()
@@ -434,15 +435,24 @@ mod tests {
 
     /// Seed a decided slot (a past skip) so the planner counts a silence.
     fn seed_last(root: &Path, label: &str, slot: &str) {
-        let dir = root.join(".nika/arm").join(label);
-        std::fs::create_dir_all(&dir).expect("sidecar");
-        std::fs::write(
-            dir.join("last.json"),
-            format!(
-                "{{\"slot\":\"{slot}\",\"fired_at\":\"{slot}\",\"trace\":null,\"exit\":0,\"kind\":\"skipped\"}}\n"
-            ),
-        )
-        .expect("seed last.json");
+        let slot = slot.parse::<jiff::Timestamp>().expect("slot");
+        ArmState::at_project(root)
+            .record(
+                label,
+                &HistoryEntry {
+                    slot: Some(slot),
+                    decided_at: slot,
+                    kind: FireKind::Skipped,
+                    reason: Some("test-seed".to_owned()),
+                    trace: None,
+                    exit: Some(0),
+                    slots: None,
+                    slot_id: None,
+                    fencing: None,
+                    generation: None,
+                },
+            )
+            .expect("seed ledger truth");
     }
 
     fn history(root: &Path, label: &str) -> String {
@@ -503,36 +513,6 @@ mod tests {
         (count, seam)
     }
 
-    // The workspace bans std::process::Command (production spawns ride
-    // the kernel ShellExecutor seam). This test's OTHER FIRER is a real
-    // live `sleep` child — the lock-liveness law needs a pid that
-    // answers signal 0, and no kernel seam lends « a borrowed live pid ».
-    /// A live `sleep` child — the other firer holding a beat's lock.
-    /// Killed + reaped on drop.
-    struct LiveChild(std::process::Child);
-
-    impl LiveChild {
-        fn spawn() -> Self {
-            #[allow(clippy::disallowed_types)]
-            let child = std::process::Command::new("sleep")
-                .arg("30")
-                .spawn()
-                .expect("a sleep child");
-            Self(child)
-        }
-
-        fn pid(&self) -> u32 {
-            self.0.id()
-        }
-    }
-
-    impl Drop for LiveChild {
-        fn drop(&mut self) {
-            let _ = self.0.kill();
-            let _ = self.0.wait();
-        }
-    }
-
     /// R7 · `chevauchement: file` under serve: the bounded wait rides
     /// the wait seam (the scripted clock advances — the loop's thread
     /// never blocks), the held beat ends `overlap-timeout`, and the
@@ -559,18 +539,12 @@ mod tests {
         // TIME for the 04:00 slot.
         seed_last(dir.path(), "doctor", "2026-08-19T03:00:00Z");
         seed_last(dir.path(), "nightly", "2026-08-19T03:00:00Z");
-        // doctor's lock: a LIVE other firer, held for the whole test.
-        let holder = LiveChild::spawn();
-        let sidecar = dir.path().join(".nika/arm/doctor");
-        std::fs::create_dir_all(&sidecar).expect("sidecar");
-        std::fs::write(
-            sidecar.join("lock"),
-            format!(
-                "{{\"pid\":{},\"started_at\":\"2026-08-19T04:00:00Z\"}}\n",
-                holder.pid()
-            ),
-        )
-        .expect("the holder's lock");
+        // doctor's lock: a real kernel lease, held for the whole test.
+        let state = ArmState::at_project(dir.path());
+        let held = state
+            .acquire_beat_lock("doctor", std::process::id(), &at("2026-08-19T04:00:00Z"))
+            .expect("kernel lease");
+        let _lease = held.lease.expect("held for the whole test");
         let registry = match arm::load(dir.path()) {
             Ok((_, registry)) => registry,
             Err(out) => panic!("load: {}", out.text),
@@ -588,9 +562,9 @@ mod tests {
         );
         assert!(rc.is_ok(), "{rc:?}");
         // doctor: the wait burned the SCRIPTED clock, bounded by the
-        // next slot — ONE chained line, overlap-timeout.
+        // next slot — seed + ONE overlap-timeout line.
         let doctor = history(dir.path(), "doctor");
-        assert_eq!(doctor.lines().count(), 1, "{doctor}");
+        assert_eq!(doctor.lines().count(), 2, "seed + timeout: {doctor}");
         assert!(
             doctor.contains("\"reason\":\"overlap-timeout\""),
             "{doctor}"
@@ -599,7 +573,11 @@ mod tests {
         // never blocked on doctor's wait (claim + receipt, the stub went
         // exactly once).
         let nightly = history(dir.path(), "nightly");
-        assert_eq!(nightly.lines().count(), 2, "claim + receipt: {nightly}");
+        assert_eq!(
+            nightly.lines().count(),
+            3,
+            "seed + claim + receipt: {nightly}"
+        );
         assert!(nightly.contains("\"kind\":\"claimed\""), "{nightly}");
         assert!(nightly.contains("\"kind\":\"fired\""), "{nightly}");
         assert_eq!(runs.get(), 1, "exactly one run went");
@@ -639,12 +617,12 @@ mod tests {
         assert!(rewritten.get(), "the actor ran");
         // Tick 1 (registry v1): doctor's silence is 3 slots — skipped.
         let doctor = history(dir.path(), "doctor");
-        assert_eq!(doctor.lines().count(), 1, "{doctor}");
+        assert_eq!(doctor.lines().count(), 2, "seed + miss: {doctor}");
         assert!(doctor.contains("\"reason\":\"missed:3\""), "{doctor}");
         // Tick 2 (registry v2): nightly's line is the reload's proof —
         // v1 never named it, and the loop never restarted.
         let nightly = history(dir.path(), "nightly");
-        assert_eq!(nightly.lines().count(), 1, "the reload: {nightly}");
+        assert_eq!(nightly.lines().count(), 2, "seed + reload: {nightly}");
         assert!(nightly.contains("\"reason\":\"missed:3\""), "{nightly}");
     }
 

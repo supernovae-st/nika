@@ -22,6 +22,7 @@ use std::rc::Rc;
 
 use jiff::Timestamp;
 
+use super::super::state::LockLease;
 use super::*;
 
 /// A one-beat registry (validated green) — the same shape the decide
@@ -146,12 +147,11 @@ fn two_firers_one_run() {
     let holder = LiveChild::spawn();
     let now = at("2026-08-19T03:02:00Z");
     // The other firer's lock — its pid lives, the lock is its run's.
-    assert_eq!(
-        sidecar
-            .try_lock("doctor", holder.pid(), &now)
-            .expect("lock"),
-        LockOutcome::Acquired
-    );
+    let attempt = sidecar
+        .acquire_beat_lock("doctor", holder.pid(), &now)
+        .expect("lock");
+    assert_eq!(attempt.outcome, LockOutcome::Acquired);
+    let _lease: LockLease = attempt.lease.expect("lease");
     let (runs, run) = run_counter();
     let ctx = ctx(
         dir.path(),
@@ -267,9 +267,14 @@ fn the_claim_precedes_the_run_and_the_receipt_settles_it() {
         receipt["slot_id"], claim["slot_id"],
         "the same slot identity"
     );
-    // … the release came last: no lock outlives the verdict …
-    assert!(!dir.path().join(".nika/arm/doctor/lock").exists());
-    assert!(!dir.path().join(".nika/arm/doctor/ledger.lock").exists());
+    // … the kernel leases ended before the verdict. Their stable diagnostic
+    // paths remain and a new holder can acquire immediately.
+    assert!(dir.path().join(".nika/arm/doctor/lock").exists());
+    assert!(dir.path().join(".nika/arm/doctor/ledger.lock").exists());
+    let probe = ArmState::at_project(dir.path())
+        .acquire_beat_lock("doctor", std::process::id(), &at("2026-08-19T03:03:00Z"))
+        .expect("released kernel lease");
+    assert_eq!(probe.outcome, LockOutcome::Acquired);
     // … and the projections moved: last.json fired, the watermark = the
     // decided instant.
     let last =
@@ -312,10 +317,10 @@ fn a_refused_record_fails_loudly_and_still_releases() {
         verdict.line
     );
     assert_eq!(runs.get(), 0, "the claim never landed — nothing ran");
-    assert!(
-        !sidecar.join("lock").exists(),
-        "the release happens on the failure path too"
-    );
+    let probe = ArmState::at_project(dir.path())
+        .acquire_beat_lock("doctor", std::process::id(), &at("2026-08-19T03:03:00Z"))
+        .expect("the failure path released its kernel lease");
+    assert_eq!(probe.outcome, LockOutcome::Acquired);
     assert!(!sidecar.join("watermark").exists());
 }
 
@@ -329,18 +334,17 @@ fn the_queue_redecides_after_the_wait() {
     let sidecar = ArmState::at_project(dir.path());
     let holder = LiveChild::spawn();
     let now = at("2026-08-19T03:02:00Z");
-    assert_eq!(
-        sidecar
-            .try_lock("doctor", holder.pid(), &now)
-            .expect("lock"),
-        LockOutcome::Acquired
-    );
+    let attempt = sidecar
+        .acquire_beat_lock("doctor", holder.pid(), &now)
+        .expect("lock");
+    assert_eq!(attempt.outcome, LockOutcome::Acquired);
+    let lease = attempt.lease.expect("lease");
     // The wait's first beat: the holder's fire COMPLETES (its receipt +
     // last.json land, the chain grows) and its process dies.
     let root = dir.path().to_path_buf();
-    let holder = RefCell::new(Some(holder));
+    let holder = RefCell::new(Some((holder, lease)));
     let wait: WaitSeam = Box::new(move |_| {
-        if let Some(child) = holder.borrow_mut().take() {
+        if let Some((child, lease)) = holder.borrow_mut().take() {
             ArmState::at_project(&root)
                 .record(
                     "doctor",
@@ -362,6 +366,7 @@ fn the_queue_redecides_after_the_wait() {
                     },
                 )
                 .expect("the holder's receipt");
+            drop(lease);
             child.die();
         }
         Wait::Elapsed
@@ -389,8 +394,8 @@ fn the_queue_redecides_after_the_wait() {
     let text = history(dir.path(), "doctor");
     assert_eq!(text.lines().count(), 1, "{text}");
     assert!(text.contains("\"kind\":\"fired\""), "{text}");
-    // The lock we briefly took is released.
-    assert!(!dir.path().join(".nika/arm/doctor/lock").exists());
+    // The stable diagnostic path remains; only the kernel lease is released.
+    assert!(dir.path().join(".nika/arm/doctor/lock").exists());
 }
 
 /// R7 (the unit half) · a wait broken by a signal: `serve-stop`,
@@ -402,12 +407,11 @@ fn an_interrupted_wait_skips_serve_stop() {
     let sidecar = ArmState::at_project(dir.path());
     let holder = LiveChild::spawn();
     let now = at("2026-08-19T03:02:00Z");
-    assert_eq!(
-        sidecar
-            .try_lock("doctor", holder.pid(), &now)
-            .expect("lock"),
-        LockOutcome::Acquired
-    );
+    let attempt = sidecar
+        .acquire_beat_lock("doctor", holder.pid(), &now)
+        .expect("lock");
+    assert_eq!(attempt.outcome, LockOutcome::Acquired);
+    let _lease = attempt.lease.expect("kernel lease");
     let (runs, run) = run_counter();
     let ctx = ctx(
         dir.path(),
@@ -444,8 +448,7 @@ fn an_interrupted_wait_skips_serve_stop() {
 fn a_repaired_ledger_tail_rides_the_decision_line() {
     let dir = project("repair");
     let sidecar = ArmState::at_project(dir.path());
-    // Three clean decisions against a past slot, then one byte of
-    // tamper inside line 2 (its seq no longer continues the chain).
+    // One anchored decision, then a partial unanchored append left by a crash.
     let seed = HistoryEntry {
         slot: Some(ts("2026-08-18T03:00:00Z")),
         decided_at: ts("2026-08-18T03:01:00Z"),
@@ -458,13 +461,11 @@ fn a_repaired_ledger_tail_rides_the_decision_line() {
         fencing: None,
         generation: None,
     };
-    for _ in 0..3 {
-        sidecar.record("doctor", &seed).expect("record");
-    }
+    sidecar.record("doctor", &seed).expect("record");
     let ledger = dir.path().join(".nika/arm/doctor/history.ndjson");
-    let text = std::fs::read_to_string(&ledger).expect("ledger");
-    assert_eq!(text.lines().count(), 3, "{text}");
-    std::fs::write(&ledger, text.replacen("\"seq\":2", "\"seq\":9", 1)).expect("tamper");
+    let mut text = std::fs::read_to_string(&ledger).expect("ledger");
+    text.push_str("{\"schema\":\"nika/arm-event@1\",\"seq\":2");
+    std::fs::write(&ledger, text).expect("partial append");
     let (runs, run) = run_counter();
     let ctx = ctx(
         dir.path(),
@@ -483,12 +484,12 @@ fn a_repaired_ledger_tail_rides_the_decision_line() {
         verdict.line
     );
     assert!(
-        verdict.line.ends_with(" · ledger réparé (-2)"),
+        verdict.line.ends_with(" · ledger réparé (-1)"),
         "the repair rides the one line: {}",
         verdict.line
     );
     assert_eq!(runs.get(), 0);
-    // The chain healed: the tampered tail is gone, the append continued
+    // The chain healed: the partial tail is gone, the append continued
     // at seq 2 linked to line 1's hash.
     let healed = std::fs::read_to_string(&ledger).expect("ledger");
     assert_eq!(healed.lines().count(), 2, "{healed}");

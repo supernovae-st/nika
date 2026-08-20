@@ -42,6 +42,8 @@ impl<T> core::clone::CloneToUninit for nika_cadence::cron::CronSpec where T: cor
 pub unsafe fn nika_cadence::cron::CronSpec::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::cron::CronSpec
 pub fn nika_cadence::cron::CronSpec::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::cron::CronSpec
+pub type nika_cadence::cron::CronSpec::Output = T
 pub struct nika_cadence::cron::Field<const LO: u8, const HI: u8>
 impl<const LO: u8, const HI: u8> nika_cadence::cron::Field<LO, HI>
 pub fn nika_cadence::cron::Field<LO, HI>::contains(&self, v: u8) -> bool
@@ -85,6 +87,8 @@ impl<T> core::clone::CloneToUninit for nika_cadence::cron::Field<LO, HI> where T
 pub unsafe fn nika_cadence::cron::Field<LO, HI>::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::cron::Field<LO, HI>
 pub fn nika_cadence::cron::Field<LO, HI>::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::cron::Field<LO, HI>
+pub type nika_cadence::cron::Field<LO, HI>::Output = T
 pub mod nika_cadence::due
 #[non_exhaustive] pub enum nika_cadence::due::DueKind
 pub nika_cadence::due::DueKind::Missed
@@ -125,6 +129,8 @@ impl<T> core::clone::CloneToUninit for nika_cadence::due::DueKind where T: core:
 pub unsafe fn nika_cadence::due::DueKind::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::due::DueKind
 pub fn nika_cadence::due::DueKind::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::due::DueKind
+pub type nika_cadence::due::DueKind::Output = T
 #[non_exhaustive] pub struct nika_cadence::due::Due<'a>
 pub nika_cadence::due::Due::beat: &'a nika_cadence::registry::Beat
 pub nika_cadence::due::Due::index: usize
@@ -156,6 +162,8 @@ impl<T> core::clone::CloneToUninit for nika_cadence::due::Due<'a> where T: core:
 pub unsafe fn nika_cadence::due::Due<'a>::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::due::Due<'a>
 pub fn nika_cadence::due::Due<'a>::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::due::Due<'a>
+pub type nika_cadence::due::Due<'a>::Output = T
 pub const nika_cadence::due::MISSED_SLOTS_CAP: usize
 pub const nika_cadence::due::ON_TIME_WINDOW: jiff::signed_duration::SignedDuration
 pub fn nika_cadence::due::due<'a>(reg: &'a nika_cadence::registry::ArmRegistry, now: &jiff::zoned::Zoned, last_fired: &dyn core::ops::function::Fn(usize) -> core::option::Option<jiff::zoned::Zoned>) -> core::result::Result<impl core::iter::traits::iterator::Iterator<Item = nika_cadence::due::Due<'a>>, nika_cadence::error::CadenceError>
@@ -217,6 +225,8 @@ impl<T> core::clone::CloneToUninit for nika_cadence::emit::EmitRefusal where T: 
 pub unsafe fn nika_cadence::emit::EmitRefusal::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::emit::EmitRefusal
 pub fn nika_cadence::emit::EmitRefusal::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::emit::EmitRefusal
+pub type nika_cadence::emit::EmitRefusal::Output = T
 #[non_exhaustive] pub enum nika_cadence::emit::Mode
 pub nika_cadence::emit::Mode::PerBeat
 pub nika_cadence::emit::Mode::Serve
@@ -255,6 +265,8 @@ impl<T> core::clone::CloneToUninit for nika_cadence::emit::Mode where T: core::c
 pub unsafe fn nika_cadence::emit::Mode::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::emit::Mode
 pub fn nika_cadence::emit::Mode::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::emit::Mode
+pub type nika_cadence::emit::Mode::Output = T
 #[non_exhaustive] pub enum nika_cadence::emit::Target
 pub nika_cadence::emit::Target::Launchd
 pub nika_cadence::emit::Target::SystemdUser
@@ -295,6 +307,8 @@ impl<T> core::clone::CloneToUninit for nika_cadence::emit::Target where T: core:
 pub unsafe fn nika_cadence::emit::Target::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::emit::Target
 pub fn nika_cadence::emit::Target::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::emit::Target
+pub type nika_cadence::emit::Target::Output = T
 #[non_exhaustive] pub struct nika_cadence::emit::EmitCtx
 pub nika_cadence::emit::EmitCtx::env_file: core::option::Option<std::path::PathBuf>
 pub nika_cadence::emit::EmitCtx::log_dir: std::path::PathBuf
@@ -330,6 +344,8 @@ impl<T> core::clone::CloneToUninit for nika_cadence::emit::EmitCtx where T: core
 pub unsafe fn nika_cadence::emit::EmitCtx::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::emit::EmitCtx
 pub fn nika_cadence::emit::EmitCtx::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::emit::EmitCtx
+pub type nika_cadence::emit::EmitCtx::Output = T
 #[non_exhaustive] pub struct nika_cadence::emit::Unit
 pub nika_cadence::emit::Unit::body: alloc::string::String
 pub nika_cadence::emit::Unit::file_name: alloc::string::String
@@ -367,6 +383,8 @@ impl<T> core::clone::CloneToUninit for nika_cadence::emit::Unit where T: core::c
 pub unsafe fn nika_cadence::emit::Unit::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::emit::Unit
 pub fn nika_cadence::emit::Unit::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::emit::Unit
+pub type nika_cadence::emit::Unit::Output = T
 pub const nika_cadence::emit::GENERATED_MARK: &str
 pub const nika_cadence::emit::MAX_INTERVALS: usize
 pub fn nika_cadence::emit::labels(reg: &nika_cadence::registry::ArmRegistry) -> alloc::vec::Vec<alloc::string::String>
@@ -433,6 +451,8 @@ impl<T> core::clone::CloneToUninit for nika_cadence::error::CadenceErrorKind whe
 pub unsafe fn nika_cadence::error::CadenceErrorKind::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::error::CadenceErrorKind
 pub fn nika_cadence::error::CadenceErrorKind::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::error::CadenceErrorKind
+pub type nika_cadence::error::CadenceErrorKind::Output = T
 #[non_exhaustive] pub struct nika_cadence::error::CadenceError
 impl nika_cadence::error::CadenceError
 pub fn nika_cadence::error::CadenceError::beat(workflow: &str, kind: nika_cadence::error::CadenceErrorKind, detail: impl core::convert::Into<alloc::string::String>, remedy: impl core::convert::Into<alloc::string::String>) -> Self
@@ -482,6 +502,8 @@ impl<T> core::clone::CloneToUninit for nika_cadence::error::CadenceError where T
 pub unsafe fn nika_cadence::error::CadenceError::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::error::CadenceError
 pub fn nika_cadence::error::CadenceError::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::error::CadenceError
+pub type nika_cadence::error::CadenceError::Output = T
 pub mod nika_cadence::firing
 #[non_exhaustive] pub enum nika_cadence::firing::Decision
 pub nika_cadence::firing::Decision::Become(nika_cadence::firing::FiringState)
@@ -528,6 +550,8 @@ impl<T> core::clone::CloneToUninit for nika_cadence::firing::Decision where T: c
 pub unsafe fn nika_cadence::firing::Decision::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::firing::Decision
 pub fn nika_cadence::firing::Decision::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::firing::Decision
+pub type nika_cadence::firing::Decision::Output = T
 pub enum nika_cadence::firing::FiringEvent
 pub nika_cadence::firing::FiringEvent::AttemptsExhausted
 pub nika_cadence::firing::FiringEvent::AttemptsExhausted::fencing: nika_cadence::firing::FencingToken
@@ -581,6 +605,8 @@ impl<T> core::clone::CloneToUninit for nika_cadence::firing::FiringEvent where T
 pub unsafe fn nika_cadence::firing::FiringEvent::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::firing::FiringEvent
 pub fn nika_cadence::firing::FiringEvent::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::firing::FiringEvent
+pub type nika_cadence::firing::FiringEvent::Output = T
 #[non_exhaustive] pub enum nika_cadence::firing::FiringState
 pub nika_cadence::firing::FiringState::Ambiguous
 pub nika_cadence::firing::FiringState::Cancelled
@@ -632,6 +658,8 @@ impl<T> core::clone::CloneToUninit for nika_cadence::firing::FiringState where T
 pub unsafe fn nika_cadence::firing::FiringState::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::firing::FiringState
 pub fn nika_cadence::firing::FiringState::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::firing::FiringState
+pub type nika_cadence::firing::FiringState::Output = T
 #[non_exhaustive] pub enum nika_cadence::firing::SkipReason
 pub nika_cadence::firing::SkipReason::Already
 pub nika_cadence::firing::SkipReason::Cloud
@@ -681,6 +709,8 @@ impl<T> core::clone::CloneToUninit for nika_cadence::firing::SkipReason where T:
 pub unsafe fn nika_cadence::firing::SkipReason::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::firing::SkipReason
 pub fn nika_cadence::firing::SkipReason::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::firing::SkipReason
+pub type nika_cadence::firing::SkipReason::Output = T
 pub struct nika_cadence::firing::ArmGeneration(_)
 impl nika_cadence::firing::ArmGeneration
 pub fn nika_cadence::firing::ArmGeneration::as_str(&self) -> &str
@@ -721,6 +751,8 @@ impl<T> core::clone::CloneToUninit for nika_cadence::firing::ArmGeneration where
 pub unsafe fn nika_cadence::firing::ArmGeneration::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::firing::ArmGeneration
 pub fn nika_cadence::firing::ArmGeneration::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::firing::ArmGeneration
+pub type nika_cadence::firing::ArmGeneration::Output = T
 pub struct nika_cadence::firing::FencingToken(_)
 impl nika_cadence::firing::FencingToken
 pub const fn nika_cadence::firing::FencingToken::get(self) -> u64
@@ -760,6 +792,8 @@ impl<T> core::clone::CloneToUninit for nika_cadence::firing::FencingToken where 
 pub unsafe fn nika_cadence::firing::FencingToken::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::firing::FencingToken
 pub fn nika_cadence::firing::FencingToken::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::firing::FencingToken
+pub type nika_cadence::firing::FencingToken::Output = T
 #[non_exhaustive] pub struct nika_cadence::firing::FiringPolicy
 pub nika_cadence::firing::FiringPolicy::max_attempts: u32
 impl nika_cadence::firing::FiringPolicy
@@ -799,6 +833,8 @@ impl<T> core::clone::CloneToUninit for nika_cadence::firing::FiringPolicy where 
 pub unsafe fn nika_cadence::firing::FiringPolicy::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::firing::FiringPolicy
 pub fn nika_cadence::firing::FiringPolicy::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::firing::FiringPolicy
+pub type nika_cadence::firing::FiringPolicy::Output = T
 pub struct nika_cadence::firing::SlotId(_)
 impl nika_cadence::firing::SlotId
 pub fn nika_cadence::firing::SlotId::as_str(&self) -> &str
@@ -839,6 +875,8 @@ impl<T> core::clone::CloneToUninit for nika_cadence::firing::SlotId where T: cor
 pub unsafe fn nika_cadence::firing::SlotId::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::firing::SlotId
 pub fn nika_cadence::firing::SlotId::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::firing::SlotId
+pub type nika_cadence::firing::SlotId::Output = T
 pub fn nika_cadence::firing::decide(state: nika_cadence::firing::FiringState, event: &nika_cadence::firing::FiringEvent, now: &jiff::timestamp::Timestamp, policy: &nika_cadence::firing::FiringPolicy) -> alloc::vec::Vec<nika_cadence::firing::Decision>
 pub fn nika_cadence::firing::fold(events: &[nika_cadence::firing::FiringEvent]) -> nika_cadence::firing::FiringState
 pub fn nika_cadence::firing::transition(from: nika_cadence::firing::FiringState, event: &nika_cadence::firing::FiringEvent) -> nika_cadence::firing::FiringState
@@ -887,6 +925,49 @@ impl<T> core::clone::CloneToUninit for nika_cadence::ledger::DecisionKind where 
 pub unsafe fn nika_cadence::ledger::DecisionKind::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::ledger::DecisionKind
 pub fn nika_cadence::ledger::DecisionKind::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::ledger::DecisionKind
+pub type nika_cadence::ledger::DecisionKind::Output = T
+#[non_exhaustive] pub enum nika_cadence::ledger::JournalFormat
+pub nika_cadence::ledger::JournalFormat::Empty
+pub nika_cadence::ledger::JournalFormat::Legacy
+pub nika_cadence::ledger::JournalFormat::Versioned
+impl core::clone::Clone for nika_cadence::ledger::JournalFormat
+pub fn nika_cadence::ledger::JournalFormat::clone(&self) -> nika_cadence::ledger::JournalFormat
+impl core::cmp::Eq for nika_cadence::ledger::JournalFormat
+impl core::cmp::PartialEq for nika_cadence::ledger::JournalFormat
+pub fn nika_cadence::ledger::JournalFormat::eq(&self, other: &nika_cadence::ledger::JournalFormat) -> bool
+impl core::fmt::Debug for nika_cadence::ledger::JournalFormat
+pub fn nika_cadence::ledger::JournalFormat::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cadence::ledger::JournalFormat
+impl core::marker::StructuralPartialEq for nika_cadence::ledger::JournalFormat
+impl<Q, K> equivalent::Equivalent<K> for nika_cadence::ledger::JournalFormat where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cadence::ledger::JournalFormat::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cadence::ledger::JournalFormat where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cadence::ledger::JournalFormat::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cadence::ledger::JournalFormat where U: core::convert::From<T>
+pub fn nika_cadence::ledger::JournalFormat::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cadence::ledger::JournalFormat where U: core::convert::Into<T>
+pub type nika_cadence::ledger::JournalFormat::Error = core::convert::Infallible
+pub fn nika_cadence::ledger::JournalFormat::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cadence::ledger::JournalFormat where U: core::convert::TryFrom<T>
+pub type nika_cadence::ledger::JournalFormat::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cadence::ledger::JournalFormat::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cadence::ledger::JournalFormat where T: core::clone::Clone
+pub type nika_cadence::ledger::JournalFormat::Owned = T
+pub fn nika_cadence::ledger::JournalFormat::clone_into(&self, target: &mut T)
+pub fn nika_cadence::ledger::JournalFormat::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cadence::ledger::JournalFormat where T: 'static + ?core::marker::Sized
+pub fn nika_cadence::ledger::JournalFormat::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cadence::ledger::JournalFormat where T: ?core::marker::Sized
+pub fn nika_cadence::ledger::JournalFormat::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cadence::ledger::JournalFormat where T: ?core::marker::Sized
+pub fn nika_cadence::ledger::JournalFormat::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cadence::ledger::JournalFormat where T: core::clone::Clone
+pub unsafe fn nika_cadence::ledger::JournalFormat::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cadence::ledger::JournalFormat
+pub fn nika_cadence::ledger::JournalFormat::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::ledger::JournalFormat
+pub type nika_cadence::ledger::JournalFormat::Output = T
 pub struct nika_cadence::ledger::Claim
 pub nika_cadence::ledger::Claim::deadline: jiff::timestamp::Timestamp
 pub nika_cadence::ledger::Claim::decided_at: jiff::timestamp::Timestamp
@@ -918,6 +999,8 @@ impl<T> core::clone::CloneToUninit for nika_cadence::ledger::Claim where T: core
 pub unsafe fn nika_cadence::ledger::Claim::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::ledger::Claim
 pub fn nika_cadence::ledger::Claim::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::ledger::Claim
+pub type nika_cadence::ledger::Claim::Output = T
 pub struct nika_cadence::ledger::HistoryEntry
 pub nika_cadence::ledger::HistoryEntry::decided_at: jiff::timestamp::Timestamp
 pub nika_cadence::ledger::HistoryEntry::exit: core::option::Option<u8>
@@ -955,6 +1038,8 @@ impl<T> core::clone::CloneToUninit for nika_cadence::ledger::HistoryEntry where 
 pub unsafe fn nika_cadence::ledger::HistoryEntry::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::ledger::HistoryEntry
 pub fn nika_cadence::ledger::HistoryEntry::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::ledger::HistoryEntry
+pub type nika_cadence::ledger::HistoryEntry::Output = T
 pub struct nika_cadence::ledger::LastRecord
 pub nika_cadence::ledger::LastRecord::exit: core::option::Option<u8>
 pub nika_cadence::ledger::LastRecord::fired_at: jiff::timestamp::Timestamp
@@ -988,6 +1073,8 @@ impl<T> core::clone::CloneToUninit for nika_cadence::ledger::LastRecord where T:
 pub unsafe fn nika_cadence::ledger::LastRecord::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::ledger::LastRecord
 pub fn nika_cadence::ledger::LastRecord::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::ledger::LastRecord
+pub type nika_cadence::ledger::LastRecord::Output = T
 pub struct nika_cadence::ledger::RecordOutcome
 pub nika_cadence::ledger::RecordOutcome::repaired: u64
 pub nika_cadence::ledger::RecordOutcome::seq: u64
@@ -1026,6 +1113,8 @@ impl<T> core::clone::CloneToUninit for nika_cadence::ledger::RecordOutcome where
 pub unsafe fn nika_cadence::ledger::RecordOutcome::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::ledger::RecordOutcome
 pub fn nika_cadence::ledger::RecordOutcome::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::ledger::RecordOutcome
+pub type nika_cadence::ledger::RecordOutcome::Output = T
 pub struct nika_cadence::ledger::Unsettled
 pub nika_cadence::ledger::Unsettled::claimed_at: jiff::timestamp::Timestamp
 pub nika_cadence::ledger::Unsettled::deadline: jiff::timestamp::Timestamp
@@ -1065,18 +1154,31 @@ impl<T> core::clone::CloneToUninit for nika_cadence::ledger::Unsettled where T: 
 pub unsafe fn nika_cadence::ledger::Unsettled::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::ledger::Unsettled
 pub fn nika_cadence::ledger::Unsettled::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::ledger::Unsettled
+pub type nika_cadence::ledger::Unsettled::Output = T
 pub const nika_cadence::ledger::LEDGER_SCHEMA: &str
+pub fn nika_cadence::ledger::archive_commitment_matches(live: &str, archives: &[(&str, &str)]) -> bool
+pub fn nika_cadence::ledger::archive_ordinal(name: &str) -> core::option::Option<u32>
+pub fn nika_cadence::ledger::chain_anchor_matches(text: &str, anchor: core::option::Option<&str>) -> bool
+pub fn nika_cadence::ledger::claim_payload(claim: &nika_cadence::ledger::Claim, seq: u64) -> core::option::Option<alloc::string::String>
+pub fn nika_cadence::ledger::classify_journal(text: &str) -> core::option::Option<nika_cadence::ledger::JournalFormat>
 pub fn nika_cadence::ledger::decision_payload(entry: &nika_cadence::ledger::HistoryEntry) -> alloc::string::String
 pub fn nika_cadence::ledger::first_line_is_versioned(text: &str) -> bool
+pub fn nika_cadence::ledger::journal_snapshot_matches(anchor: core::option::Option<&str>, journals: &[(&str, &str, bool)]) -> bool
 pub fn nika_cadence::ledger::json_str(raw: &str) -> alloc::string::String
-pub fn nika_cadence::ledger::ledger_line(seq: u64, ts: jiff::timestamp::Timestamp, kind: &str, slot_id: core::option::Option<&str>, payload: &str, prev_hash: core::option::Option<&str>) -> (alloc::string::String, alloc::string::String)
+pub fn nika_cadence::ledger::last_projection(entry: &nika_cadence::ledger::HistoryEntry) -> core::option::Option<nika_cadence::ledger::LastRecord>
+pub fn nika_cadence::ledger::ledger_line(seq: u64, ts: jiff::timestamp::Timestamp, kind: &str, slot_id: core::option::Option<&str>, payload: &str, prev_hash: core::option::Option<&str>) -> core::option::Option<(alloc::string::String, alloc::string::String)>
 pub fn nika_cadence::ledger::parse_last(text: &str) -> core::option::Option<nika_cadence::ledger::LastRecord>
+pub fn nika_cadence::ledger::parse_migration_intent(text: &str) -> core::option::Option<(alloc::string::String, usize, jiff::timestamp::Timestamp)>
+pub fn nika_cadence::ledger::render_chain_anchor(seq: u64, hash: core::option::Option<&str>) -> core::option::Option<alloc::string::String>
 pub fn nika_cadence::ledger::render_last(record: &nika_cadence::ledger::LastRecord) -> alloc::string::String
-pub fn nika_cadence::ledger::replay_projection<'a>(journals: impl core::iter::traits::collect::IntoIterator<Item = (&'a str, bool)>) -> (core::option::Option<nika_cadence::ledger::LastRecord>, core::option::Option<jiff::timestamp::Timestamp>)
+pub fn nika_cadence::ledger::render_migration_intent(archive: &str, lines: usize, rotated_at: &jiff::timestamp::Timestamp) -> core::option::Option<alloc::string::String>
+pub fn nika_cadence::ledger::replay_projection<'a>(journals: impl core::iter::traits::collect::IntoIterator<Item = (&'a str, bool)>) -> core::option::Option<(core::option::Option<nika_cadence::ledger::LastRecord>, core::option::Option<jiff::timestamp::Timestamp>)>
 pub fn nika_cadence::ledger::replay_state<'a>(journals: impl core::iter::traits::collect::IntoIterator<Item = (&'a str, bool)>, now: &jiff::timestamp::Timestamp) -> core::option::Option<(nika_cadence::firing::FiringState, bool, core::option::Option<alloc::string::String>)>
+pub fn nika_cadence::ledger::rotation_payload(archives: &[(&str, &str)]) -> core::option::Option<alloc::string::String>
 pub fn nika_cadence::ledger::scan_chain(text: &str) -> (u64, core::option::Option<alloc::string::String>, usize)
-pub fn nika_cadence::ledger::tallies<'a>(journals: impl core::iter::traits::collect::IntoIterator<Item = &'a str>) -> (usize, usize)
-pub fn nika_cadence::ledger::unsettled(text: &str) -> alloc::vec::Vec<nika_cadence::ledger::Unsettled>
+pub fn nika_cadence::ledger::tallies<'a>(journals: impl core::iter::traits::collect::IntoIterator<Item = (&'a str, bool)>) -> core::option::Option<(usize, usize)>
+pub fn nika_cadence::ledger::unsettled(text: &str) -> core::option::Option<alloc::vec::Vec<nika_cadence::ledger::Unsettled>>
 pub fn nika_cadence::ledger::verify_line(line: &str, expected_seq: u64, expected_prev: core::option::Option<&str>) -> core::option::Option<alloc::string::String>
 pub mod nika_cadence::next
 #[non_exhaustive] pub enum nika_cadence::next::Shift
@@ -1118,6 +1220,8 @@ impl<T> core::clone::CloneToUninit for nika_cadence::next::Shift where T: core::
 pub unsafe fn nika_cadence::next::Shift::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::next::Shift
 pub fn nika_cadence::next::Shift::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::next::Shift
+pub type nika_cadence::next::Shift::Output = T
 #[non_exhaustive] pub struct nika_cadence::next::Slot
 pub nika_cadence::next::Slot::at: jiff::zoned::Zoned
 pub nika_cadence::next::Slot::civil: jiff::civil::datetime::DateTime
@@ -1156,6 +1260,8 @@ impl<T> core::clone::CloneToUninit for nika_cadence::next::Slot where T: core::c
 pub unsafe fn nika_cadence::next::Slot::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::next::Slot
 pub fn nika_cadence::next::Slot::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::next::Slot
+pub type nika_cadence::next::Slot::Output = T
 pub fn nika_cadence::next::next_slots(cadence: &nika_cadence::registry::Cadence, from: &jiff::zoned::Zoned, count: usize) -> impl core::iter::traits::iterator::Iterator<Item = nika_cadence::next::Slot>
 pub mod nika_cadence::parse
 pub fn nika_cadence::parse::parse_registry(text: &str) -> core::result::Result<nika_cadence::registry::ArmRegistry, nika_cadence::error::CadenceError>
@@ -1203,6 +1309,8 @@ pub unsafe fn nika_cadence::registry::AfterSkip::clone_to_uninit(&self, dest: *m
 impl<T> core::convert::From<T> for nika_cadence::registry::AfterSkip
 pub fn nika_cadence::registry::AfterSkip::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_cadence::registry::AfterSkip where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> typenum::type_operators::Same for nika_cadence::registry::AfterSkip
+pub type nika_cadence::registry::AfterSkip::Output = T
 #[non_exhaustive] pub enum nika_cadence::registry::Cadence
 pub nika_cadence::registry::Cadence::Cron
 pub nika_cadence::registry::Cadence::Cron::spec: nika_cadence::cron::CronSpec
@@ -1249,6 +1357,8 @@ impl<T> core::clone::CloneToUninit for nika_cadence::registry::Cadence where T: 
 pub unsafe fn nika_cadence::registry::Cadence::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::registry::Cadence
 pub fn nika_cadence::registry::Cadence::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::registry::Cadence
+pub type nika_cadence::registry::Cadence::Output = T
 #[non_exhaustive] pub enum nika_cadence::registry::Locus
 pub nika_cadence::registry::Locus::Cloud
 pub nika_cadence::registry::Locus::Local
@@ -1290,6 +1400,8 @@ pub unsafe fn nika_cadence::registry::Locus::clone_to_uninit(&self, dest: *mut u
 impl<T> core::convert::From<T> for nika_cadence::registry::Locus
 pub fn nika_cadence::registry::Locus::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_cadence::registry::Locus where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> typenum::type_operators::Same for nika_cadence::registry::Locus
+pub type nika_cadence::registry::Locus::Output = T
 #[non_exhaustive] pub enum nika_cadence::registry::MissPolicy
 pub nika_cadence::registry::MissPolicy::Rattraper
 pub nika_cadence::registry::MissPolicy::RattraperUneFois
@@ -1332,6 +1444,8 @@ pub unsafe fn nika_cadence::registry::MissPolicy::clone_to_uninit(&self, dest: *
 impl<T> core::convert::From<T> for nika_cadence::registry::MissPolicy
 pub fn nika_cadence::registry::MissPolicy::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_cadence::registry::MissPolicy where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> typenum::type_operators::Same for nika_cadence::registry::MissPolicy
+pub type nika_cadence::registry::MissPolicy::Output = T
 #[non_exhaustive] pub enum nika_cadence::registry::Overlap
 pub nika_cadence::registry::Overlap::File
 pub nika_cadence::registry::Overlap::Remplacer
@@ -1374,6 +1488,8 @@ pub unsafe fn nika_cadence::registry::Overlap::clone_to_uninit(&self, dest: *mut
 impl<T> core::convert::From<T> for nika_cadence::registry::Overlap
 pub fn nika_cadence::registry::Overlap::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_cadence::registry::Overlap where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> typenum::type_operators::Same for nika_cadence::registry::Overlap
+pub type nika_cadence::registry::Overlap::Output = T
 #[non_exhaustive] pub struct nika_cadence::registry::ArmRegistry
 pub nika_cadence::registry::ArmRegistry::ceiling: core::option::Option<f64>
 pub nika_cadence::registry::ArmRegistry::nika: alloc::string::String
@@ -1402,6 +1518,8 @@ pub fn nika_cadence::registry::ArmRegistry::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for nika_cadence::registry::ArmRegistry
 pub fn nika_cadence::registry::ArmRegistry::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_cadence::registry::ArmRegistry where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> typenum::type_operators::Same for nika_cadence::registry::ArmRegistry
+pub type nika_cadence::registry::ArmRegistry::Output = T
 #[non_exhaustive] pub struct nika_cadence::registry::Beat
 pub nika_cadence::registry::Beat::actif: core::option::Option<bool>
 pub nika_cadence::registry::Beat::apres_saut: core::option::Option<nika_cadence::registry::AfterSkip>
@@ -1442,6 +1560,8 @@ pub fn nika_cadence::registry::Beat::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for nika_cadence::registry::Beat
 pub fn nika_cadence::registry::Beat::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_cadence::registry::Beat where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> typenum::type_operators::Same for nika_cadence::registry::Beat
+pub type nika_cadence::registry::Beat::Output = T
 #[non_exhaustive] pub enum nika_cadence::AfterSkip
 pub nika_cadence::AfterSkip::ACompletion
 pub nika_cadence::AfterSkip::ProchainCreneau
@@ -1483,6 +1603,8 @@ pub unsafe fn nika_cadence::registry::AfterSkip::clone_to_uninit(&self, dest: *m
 impl<T> core::convert::From<T> for nika_cadence::registry::AfterSkip
 pub fn nika_cadence::registry::AfterSkip::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_cadence::registry::AfterSkip where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> typenum::type_operators::Same for nika_cadence::registry::AfterSkip
+pub type nika_cadence::registry::AfterSkip::Output = T
 #[non_exhaustive] pub enum nika_cadence::Cadence
 pub nika_cadence::Cadence::Cron
 pub nika_cadence::Cadence::Cron::spec: nika_cadence::cron::CronSpec
@@ -1529,6 +1651,8 @@ impl<T> core::clone::CloneToUninit for nika_cadence::registry::Cadence where T: 
 pub unsafe fn nika_cadence::registry::Cadence::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::registry::Cadence
 pub fn nika_cadence::registry::Cadence::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::registry::Cadence
+pub type nika_cadence::registry::Cadence::Output = T
 #[non_exhaustive] pub enum nika_cadence::CadenceErrorKind
 pub nika_cadence::CadenceErrorKind::ApresSautMisplaced
 pub nika_cadence::CadenceErrorKind::CeilingNonPositive
@@ -1590,6 +1714,8 @@ impl<T> core::clone::CloneToUninit for nika_cadence::error::CadenceErrorKind whe
 pub unsafe fn nika_cadence::error::CadenceErrorKind::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::error::CadenceErrorKind
 pub fn nika_cadence::error::CadenceErrorKind::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::error::CadenceErrorKind
+pub type nika_cadence::error::CadenceErrorKind::Output = T
 #[non_exhaustive] pub enum nika_cadence::Decision
 pub nika_cadence::Decision::Become(nika_cadence::firing::FiringState)
 pub nika_cadence::Decision::DeadLetter
@@ -1635,6 +1761,8 @@ impl<T> core::clone::CloneToUninit for nika_cadence::firing::Decision where T: c
 pub unsafe fn nika_cadence::firing::Decision::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::firing::Decision
 pub fn nika_cadence::firing::Decision::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::firing::Decision
+pub type nika_cadence::firing::Decision::Output = T
 pub enum nika_cadence::DecisionKind
 pub nika_cadence::DecisionKind::Disarmed
 pub nika_cadence::DecisionKind::Failed
@@ -1679,6 +1807,8 @@ impl<T> core::clone::CloneToUninit for nika_cadence::ledger::DecisionKind where 
 pub unsafe fn nika_cadence::ledger::DecisionKind::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::ledger::DecisionKind
 pub fn nika_cadence::ledger::DecisionKind::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::ledger::DecisionKind
+pub type nika_cadence::ledger::DecisionKind::Output = T
 #[non_exhaustive] pub enum nika_cadence::DueKind
 pub nika_cadence::DueKind::Missed
 pub nika_cadence::DueKind::Missed::slots: u32
@@ -1718,6 +1848,8 @@ impl<T> core::clone::CloneToUninit for nika_cadence::due::DueKind where T: core:
 pub unsafe fn nika_cadence::due::DueKind::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::due::DueKind
 pub fn nika_cadence::due::DueKind::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::due::DueKind
+pub type nika_cadence::due::DueKind::Output = T
 pub enum nika_cadence::FiringEvent
 pub nika_cadence::FiringEvent::AttemptsExhausted
 pub nika_cadence::FiringEvent::AttemptsExhausted::fencing: nika_cadence::firing::FencingToken
@@ -1771,6 +1903,8 @@ impl<T> core::clone::CloneToUninit for nika_cadence::firing::FiringEvent where T
 pub unsafe fn nika_cadence::firing::FiringEvent::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::firing::FiringEvent
 pub fn nika_cadence::firing::FiringEvent::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::firing::FiringEvent
+pub type nika_cadence::firing::FiringEvent::Output = T
 #[non_exhaustive] pub enum nika_cadence::FiringState
 pub nika_cadence::FiringState::Ambiguous
 pub nika_cadence::FiringState::Cancelled
@@ -1822,6 +1956,8 @@ impl<T> core::clone::CloneToUninit for nika_cadence::firing::FiringState where T
 pub unsafe fn nika_cadence::firing::FiringState::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::firing::FiringState
 pub fn nika_cadence::firing::FiringState::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::firing::FiringState
+pub type nika_cadence::firing::FiringState::Output = T
 #[non_exhaustive] pub enum nika_cadence::Locus
 pub nika_cadence::Locus::Cloud
 pub nika_cadence::Locus::Local
@@ -1863,6 +1999,8 @@ pub unsafe fn nika_cadence::registry::Locus::clone_to_uninit(&self, dest: *mut u
 impl<T> core::convert::From<T> for nika_cadence::registry::Locus
 pub fn nika_cadence::registry::Locus::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_cadence::registry::Locus where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> typenum::type_operators::Same for nika_cadence::registry::Locus
+pub type nika_cadence::registry::Locus::Output = T
 #[non_exhaustive] pub enum nika_cadence::MissPolicy
 pub nika_cadence::MissPolicy::Rattraper
 pub nika_cadence::MissPolicy::RattraperUneFois
@@ -1905,6 +2043,8 @@ pub unsafe fn nika_cadence::registry::MissPolicy::clone_to_uninit(&self, dest: *
 impl<T> core::convert::From<T> for nika_cadence::registry::MissPolicy
 pub fn nika_cadence::registry::MissPolicy::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_cadence::registry::MissPolicy where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> typenum::type_operators::Same for nika_cadence::registry::MissPolicy
+pub type nika_cadence::registry::MissPolicy::Output = T
 #[non_exhaustive] pub enum nika_cadence::Overlap
 pub nika_cadence::Overlap::File
 pub nika_cadence::Overlap::Remplacer
@@ -1947,6 +2087,8 @@ pub unsafe fn nika_cadence::registry::Overlap::clone_to_uninit(&self, dest: *mut
 impl<T> core::convert::From<T> for nika_cadence::registry::Overlap
 pub fn nika_cadence::registry::Overlap::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_cadence::registry::Overlap where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> typenum::type_operators::Same for nika_cadence::registry::Overlap
+pub type nika_cadence::registry::Overlap::Output = T
 #[non_exhaustive] pub enum nika_cadence::Shift
 pub nika_cadence::Shift::AdvancedFirstValid
 pub nika_cadence::Shift::Exact
@@ -1986,6 +2128,8 @@ impl<T> core::clone::CloneToUninit for nika_cadence::next::Shift where T: core::
 pub unsafe fn nika_cadence::next::Shift::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::next::Shift
 pub fn nika_cadence::next::Shift::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::next::Shift
+pub type nika_cadence::next::Shift::Output = T
 #[non_exhaustive] pub enum nika_cadence::SkipReason
 pub nika_cadence::SkipReason::Already
 pub nika_cadence::SkipReason::Cloud
@@ -2035,6 +2179,8 @@ impl<T> core::clone::CloneToUninit for nika_cadence::firing::SkipReason where T:
 pub unsafe fn nika_cadence::firing::SkipReason::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::firing::SkipReason
 pub fn nika_cadence::firing::SkipReason::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::firing::SkipReason
+pub type nika_cadence::firing::SkipReason::Output = T
 pub struct nika_cadence::ArmGeneration(_)
 impl nika_cadence::firing::ArmGeneration
 pub fn nika_cadence::firing::ArmGeneration::as_str(&self) -> &str
@@ -2075,6 +2221,8 @@ impl<T> core::clone::CloneToUninit for nika_cadence::firing::ArmGeneration where
 pub unsafe fn nika_cadence::firing::ArmGeneration::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::firing::ArmGeneration
 pub fn nika_cadence::firing::ArmGeneration::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::firing::ArmGeneration
+pub type nika_cadence::firing::ArmGeneration::Output = T
 #[non_exhaustive] pub struct nika_cadence::ArmRegistry
 pub nika_cadence::ArmRegistry::ceiling: core::option::Option<f64>
 pub nika_cadence::ArmRegistry::nika: alloc::string::String
@@ -2103,6 +2251,8 @@ pub fn nika_cadence::registry::ArmRegistry::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for nika_cadence::registry::ArmRegistry
 pub fn nika_cadence::registry::ArmRegistry::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_cadence::registry::ArmRegistry where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> typenum::type_operators::Same for nika_cadence::registry::ArmRegistry
+pub type nika_cadence::registry::ArmRegistry::Output = T
 #[non_exhaustive] pub struct nika_cadence::Beat
 pub nika_cadence::Beat::actif: core::option::Option<bool>
 pub nika_cadence::Beat::apres_saut: core::option::Option<nika_cadence::registry::AfterSkip>
@@ -2143,6 +2293,8 @@ pub fn nika_cadence::registry::Beat::borrow_mut(&mut self) -> &mut T
 impl<T> core::convert::From<T> for nika_cadence::registry::Beat
 pub fn nika_cadence::registry::Beat::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_cadence::registry::Beat where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> typenum::type_operators::Same for nika_cadence::registry::Beat
+pub type nika_cadence::registry::Beat::Output = T
 #[non_exhaustive] pub struct nika_cadence::CadenceError
 impl nika_cadence::error::CadenceError
 pub fn nika_cadence::error::CadenceError::beat(workflow: &str, kind: nika_cadence::error::CadenceErrorKind, detail: impl core::convert::Into<alloc::string::String>, remedy: impl core::convert::Into<alloc::string::String>) -> Self
@@ -2192,6 +2344,8 @@ impl<T> core::clone::CloneToUninit for nika_cadence::error::CadenceError where T
 pub unsafe fn nika_cadence::error::CadenceError::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::error::CadenceError
 pub fn nika_cadence::error::CadenceError::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::error::CadenceError
+pub type nika_cadence::error::CadenceError::Output = T
 pub struct nika_cadence::Claim
 pub nika_cadence::Claim::deadline: jiff::timestamp::Timestamp
 pub nika_cadence::Claim::decided_at: jiff::timestamp::Timestamp
@@ -2223,6 +2377,8 @@ impl<T> core::clone::CloneToUninit for nika_cadence::ledger::Claim where T: core
 pub unsafe fn nika_cadence::ledger::Claim::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::ledger::Claim
 pub fn nika_cadence::ledger::Claim::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::ledger::Claim
+pub type nika_cadence::ledger::Claim::Output = T
 #[non_exhaustive] pub struct nika_cadence::CronSpec
 impl nika_cadence::cron::CronSpec
 pub fn nika_cadence::cron::CronSpec::dom(&self) -> &nika_cadence::cron::Field<1, 31>
@@ -2265,6 +2421,8 @@ impl<T> core::clone::CloneToUninit for nika_cadence::cron::CronSpec where T: cor
 pub unsafe fn nika_cadence::cron::CronSpec::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::cron::CronSpec
 pub fn nika_cadence::cron::CronSpec::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::cron::CronSpec
+pub type nika_cadence::cron::CronSpec::Output = T
 #[non_exhaustive] pub struct nika_cadence::Due<'a>
 pub nika_cadence::Due::beat: &'a nika_cadence::registry::Beat
 pub nika_cadence::Due::index: usize
@@ -2296,6 +2454,8 @@ impl<T> core::clone::CloneToUninit for nika_cadence::due::Due<'a> where T: core:
 pub unsafe fn nika_cadence::due::Due<'a>::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::due::Due<'a>
 pub fn nika_cadence::due::Due<'a>::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::due::Due<'a>
+pub type nika_cadence::due::Due<'a>::Output = T
 pub struct nika_cadence::FencingToken(_)
 impl nika_cadence::firing::FencingToken
 pub const fn nika_cadence::firing::FencingToken::get(self) -> u64
@@ -2335,6 +2495,8 @@ impl<T> core::clone::CloneToUninit for nika_cadence::firing::FencingToken where 
 pub unsafe fn nika_cadence::firing::FencingToken::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::firing::FencingToken
 pub fn nika_cadence::firing::FencingToken::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::firing::FencingToken
+pub type nika_cadence::firing::FencingToken::Output = T
 pub struct nika_cadence::Field<const LO: u8, const HI: u8>
 impl<const LO: u8, const HI: u8> nika_cadence::cron::Field<LO, HI>
 pub fn nika_cadence::cron::Field<LO, HI>::contains(&self, v: u8) -> bool
@@ -2378,6 +2540,8 @@ impl<T> core::clone::CloneToUninit for nika_cadence::cron::Field<LO, HI> where T
 pub unsafe fn nika_cadence::cron::Field<LO, HI>::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::cron::Field<LO, HI>
 pub fn nika_cadence::cron::Field<LO, HI>::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::cron::Field<LO, HI>
+pub type nika_cadence::cron::Field<LO, HI>::Output = T
 #[non_exhaustive] pub struct nika_cadence::FiringPolicy
 pub nika_cadence::FiringPolicy::max_attempts: u32
 impl nika_cadence::firing::FiringPolicy
@@ -2417,6 +2581,8 @@ impl<T> core::clone::CloneToUninit for nika_cadence::firing::FiringPolicy where 
 pub unsafe fn nika_cadence::firing::FiringPolicy::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::firing::FiringPolicy
 pub fn nika_cadence::firing::FiringPolicy::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::firing::FiringPolicy
+pub type nika_cadence::firing::FiringPolicy::Output = T
 pub struct nika_cadence::HistoryEntry
 pub nika_cadence::HistoryEntry::decided_at: jiff::timestamp::Timestamp
 pub nika_cadence::HistoryEntry::exit: core::option::Option<u8>
@@ -2454,6 +2620,8 @@ impl<T> core::clone::CloneToUninit for nika_cadence::ledger::HistoryEntry where 
 pub unsafe fn nika_cadence::ledger::HistoryEntry::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::ledger::HistoryEntry
 pub fn nika_cadence::ledger::HistoryEntry::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::ledger::HistoryEntry
+pub type nika_cadence::ledger::HistoryEntry::Output = T
 pub struct nika_cadence::LastRecord
 pub nika_cadence::LastRecord::exit: core::option::Option<u8>
 pub nika_cadence::LastRecord::fired_at: jiff::timestamp::Timestamp
@@ -2487,6 +2655,8 @@ impl<T> core::clone::CloneToUninit for nika_cadence::ledger::LastRecord where T:
 pub unsafe fn nika_cadence::ledger::LastRecord::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::ledger::LastRecord
 pub fn nika_cadence::ledger::LastRecord::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::ledger::LastRecord
+pub type nika_cadence::ledger::LastRecord::Output = T
 pub struct nika_cadence::RecordOutcome
 pub nika_cadence::RecordOutcome::repaired: u64
 pub nika_cadence::RecordOutcome::seq: u64
@@ -2525,6 +2695,8 @@ impl<T> core::clone::CloneToUninit for nika_cadence::ledger::RecordOutcome where
 pub unsafe fn nika_cadence::ledger::RecordOutcome::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::ledger::RecordOutcome
 pub fn nika_cadence::ledger::RecordOutcome::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::ledger::RecordOutcome
+pub type nika_cadence::ledger::RecordOutcome::Output = T
 #[non_exhaustive] pub struct nika_cadence::Slot
 pub nika_cadence::Slot::at: jiff::zoned::Zoned
 pub nika_cadence::Slot::civil: jiff::civil::datetime::DateTime
@@ -2563,6 +2735,8 @@ impl<T> core::clone::CloneToUninit for nika_cadence::next::Slot where T: core::c
 pub unsafe fn nika_cadence::next::Slot::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::next::Slot
 pub fn nika_cadence::next::Slot::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::next::Slot
+pub type nika_cadence::next::Slot::Output = T
 pub struct nika_cadence::SlotId(_)
 impl nika_cadence::firing::SlotId
 pub fn nika_cadence::firing::SlotId::as_str(&self) -> &str
@@ -2603,6 +2777,8 @@ impl<T> core::clone::CloneToUninit for nika_cadence::firing::SlotId where T: cor
 pub unsafe fn nika_cadence::firing::SlotId::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::firing::SlotId
 pub fn nika_cadence::firing::SlotId::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::firing::SlotId
+pub type nika_cadence::firing::SlotId::Output = T
 pub struct nika_cadence::Unsettled
 pub nika_cadence::Unsettled::claimed_at: jiff::timestamp::Timestamp
 pub nika_cadence::Unsettled::deadline: jiff::timestamp::Timestamp
@@ -2642,6 +2818,8 @@ impl<T> core::clone::CloneToUninit for nika_cadence::ledger::Unsettled where T: 
 pub unsafe fn nika_cadence::ledger::Unsettled::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::ledger::Unsettled
 pub fn nika_cadence::ledger::Unsettled::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::ledger::Unsettled
+pub type nika_cadence::ledger::Unsettled::Output = T
 pub const nika_cadence::MISSED_SLOTS_CAP: usize
 pub const nika_cadence::ON_TIME_WINDOW: jiff::signed_duration::SignedDuration
 pub fn nika_cadence::decide(state: nika_cadence::firing::FiringState, event: &nika_cadence::firing::FiringEvent, now: &jiff::timestamp::Timestamp, policy: &nika_cadence::firing::FiringPolicy) -> alloc::vec::Vec<nika_cadence::firing::Decision>
