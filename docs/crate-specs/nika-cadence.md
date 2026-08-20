@@ -5,8 +5,8 @@
 | Status | **CANDIDATE** — Gate 1 (this document) authored 2026-08-11. Crafted shim-standalone (50 tests today, 45 at authoring · clippy 0 `-D warnings` · rustfmt clean) · committed with the temporary `[workspace]` shim (`92a0f8497`), then the four pre-freeze corrections of plan §2unvicies (the bitset's ONE encoding · `Slot` declares the DST shift · the field count is the type · the error span). The two items this row used to name (the allowlist row, the shim removal) are BOTH DONE; the row described work already shipped. Remaining before admission, measured 2026-08-13: the Gate 11 P1 below, and Gate 5 at 88 percent against a 90 floor. **W1, measured 2026-08-19**: 79 tests green (`cargo test -p nika-cadence --lib`) · `Cadence::prev_before` (the mirror, 366-day bound) · the `due` planner (`due` · `earliest_next` · `DueKind` · `ON_TIME_WINDOW`) — the pure half the `fire`/`serve` edges read; `emit` lands in W3 (planned, see §3). Gate 5 re-run this wave; the floor holds ≥90. |
 | Layer | L0 — pure, zero I/O, zero async |
 | Design | The arming-registry grammar (the `arm:` block of `nika.yaml`, D-2026-08-10-N3) + the pure next-slot calculator + the W7 typed firing and ledger machines. Hand-counted 5-field cron (zero cron library — the count is validated BEFORE field semantics, scar #6) · IANA zones resolved from the EMBEDDED tzdb only (`jiff-tzdb`, never the host's zoneinfo) · two cadence forms (cron + readable `lundi 9h07`), display normalizing to the readable one. The machines own no I/O and read no clock: callers inject events, policy, `now`, and borrowed journal text; the L4 adapter alone owns files, locks, fsync, and rotation. |
-| LOC budget | ≤4,000 src prod (W7 measured 3,412 after the pure ledger seam) · ≤15,000 hard cap |
-| File cap | ≤1,500 LOC each (W7 max 1,364 in `firing.rs`; `ledger.rs` 852 including tests) |
+| LOC budget | ≤5,000 src prod (W7 measured 4,623 after the complete pure ledger/snapshot seam) · ≤15,000 hard cap |
+| File cap | ≤1,500 LOC each (W7 max 1,364 in `firing.rs`; `ledger.rs` 1,217 after its 550-line test module moved to `ledger/tests.rs`) |
 | Function cap | ≤100 lines each (max ~60) |
 | Crate version | tracks workspace |
 | License | `AGPL-3.0-or-later` |
@@ -138,6 +138,15 @@ the byte-stable projection, watermark, and lifecycle; `fold_replay` applies the
 open deadline boundary; `unsettled` reconciles only a matching later fencing
 receipt. `nika-cli::arm::state` is the filesystem adapter and owns every effect.
 This seam is the ADR-114 amendment: no dependency cycle and no second judge.
+That adapter holds a kernel advisory lease on a stable path (PID/epoch bytes are
+diagnostic, never authority) and advances a local `head.json` seq/hash anchor
+after each fsynced append. The anchor distinguishes a clean suffix deletion
+from a legitimate append→anchor crash: only an older hash that still matches
+the verified prefix may advance; missing or ahead/mismatched evidence refuses.
+The `rotated` genesis also commits the ordered W2 archive bundle by canonical
+name and exact-byte SHA-256. The L4 adapter validates that commitment before
+every fold or write, so archive alteration, reordering, insertion, and deletion
+all fail closed.
 
 ## 4. Tests
 

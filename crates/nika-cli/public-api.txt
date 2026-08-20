@@ -354,61 +354,6 @@ pub use nika_cli::verbs::arm::state::HistoryEntry
 pub use nika_cli::verbs::arm::state::LastRecord
 pub use nika_cli::verbs::arm::state::RecordOutcome
 pub use nika_cli::verbs::arm::state::Unsettled
-pub enum nika_cli::verbs::arm::state::LockOutcome
-pub nika_cli::verbs::arm::state::LockOutcome::Acquired
-pub nika_cli::verbs::arm::state::LockOutcome::HeldAlive
-pub nika_cli::verbs::arm::state::LockOutcome::HeldAlive::pid: u32
-pub nika_cli::verbs::arm::state::LockOutcome::StaleTaken
-pub nika_cli::verbs::arm::state::LockOutcome::StaleTaken::old_pid: core::option::Option<u32>
-impl core::clone::Clone for nika_cli::verbs::arm::state::LockOutcome
-pub fn nika_cli::verbs::arm::state::LockOutcome::clone(&self) -> nika_cli::verbs::arm::state::LockOutcome
-impl core::cmp::Eq for nika_cli::verbs::arm::state::LockOutcome
-impl core::cmp::PartialEq for nika_cli::verbs::arm::state::LockOutcome
-pub fn nika_cli::verbs::arm::state::LockOutcome::eq(&self, other: &nika_cli::verbs::arm::state::LockOutcome) -> bool
-impl core::fmt::Debug for nika_cli::verbs::arm::state::LockOutcome
-pub fn nika_cli::verbs::arm::state::LockOutcome::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::marker::Copy for nika_cli::verbs::arm::state::LockOutcome
-impl core::marker::StructuralPartialEq for nika_cli::verbs::arm::state::LockOutcome
-impl<D> owo_colors::OwoColorize for nika_cli::verbs::arm::state::LockOutcome
-impl<Q, K> equivalent::Equivalent<K> for nika_cli::verbs::arm::state::LockOutcome where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_cli::verbs::arm::state::LockOutcome::equivalent(&self, key: &K) -> bool
-impl<Q, K> hashbrown::Equivalent<K> for nika_cli::verbs::arm::state::LockOutcome where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
-pub fn nika_cli::verbs::arm::state::LockOutcome::equivalent(&self, key: &K) -> bool
-impl<T, U> core::convert::Into<U> for nika_cli::verbs::arm::state::LockOutcome where U: core::convert::From<T>
-pub fn nika_cli::verbs::arm::state::LockOutcome::into(self) -> U
-impl<T, U> core::convert::TryFrom<U> for nika_cli::verbs::arm::state::LockOutcome where U: core::convert::Into<T>
-pub type nika_cli::verbs::arm::state::LockOutcome::Error = core::convert::Infallible
-pub fn nika_cli::verbs::arm::state::LockOutcome::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
-impl<T, U> core::convert::TryInto<U> for nika_cli::verbs::arm::state::LockOutcome where U: core::convert::TryFrom<T>
-pub type nika_cli::verbs::arm::state::LockOutcome::Error = <U as core::convert::TryFrom<T>>::Error
-pub fn nika_cli::verbs::arm::state::LockOutcome::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
-impl<T> alloc::borrow::ToOwned for nika_cli::verbs::arm::state::LockOutcome where T: core::clone::Clone
-pub type nika_cli::verbs::arm::state::LockOutcome::Owned = T
-pub fn nika_cli::verbs::arm::state::LockOutcome::clone_into(&self, target: &mut T)
-pub fn nika_cli::verbs::arm::state::LockOutcome::to_owned(&self) -> T
-impl<T> core::any::Any for nika_cli::verbs::arm::state::LockOutcome where T: 'static + ?core::marker::Sized
-pub fn nika_cli::verbs::arm::state::LockOutcome::type_id(&self) -> core::any::TypeId
-impl<T> core::borrow::Borrow<T> for nika_cli::verbs::arm::state::LockOutcome where T: ?core::marker::Sized
-pub fn nika_cli::verbs::arm::state::LockOutcome::borrow(&self) -> &T
-impl<T> core::borrow::BorrowMut<T> for nika_cli::verbs::arm::state::LockOutcome where T: ?core::marker::Sized
-pub fn nika_cli::verbs::arm::state::LockOutcome::borrow_mut(&mut self) -> &mut T
-impl<T> core::clone::CloneToUninit for nika_cli::verbs::arm::state::LockOutcome where T: core::clone::Clone
-pub unsafe fn nika_cli::verbs::arm::state::LockOutcome::clone_to_uninit(&self, dest: *mut u8)
-impl<T> core::convert::From<T> for nika_cli::verbs::arm::state::LockOutcome
-pub fn nika_cli::verbs::arm::state::LockOutcome::from(t: T) -> T
-impl<T> dyn_clone::DynClone for nika_cli::verbs::arm::state::LockOutcome where T: core::clone::Clone
-pub fn nika_cli::verbs::arm::state::LockOutcome::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
-impl<T> nika_error::traits::AsAny for nika_cli::verbs::arm::state::LockOutcome where T: 'static
-pub fn nika_cli::verbs::arm::state::LockOutcome::as_any(&self) -> &(dyn core::any::Any + 'static)
-impl<T> outref::AsOut<T> for nika_cli::verbs::arm::state::LockOutcome where T: core::marker::Copy
-pub fn nika_cli::verbs::arm::state::LockOutcome::as_out(&mut self) -> outref::Out<'_, T>
-impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::arm::state::LockOutcome where T: ?core::marker::Sized
-pub fn nika_cli::verbs::arm::state::LockOutcome::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-pub fn nika_cli::verbs::arm::state::LockOutcome::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
-impl<T> tracing::instrument::Instrument for nika_cli::verbs::arm::state::LockOutcome
-impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::arm::state::LockOutcome
-impl<T> typenum::type_operators::Same for nika_cli::verbs::arm::state::LockOutcome
-pub type nika_cli::verbs::arm::state::LockOutcome::Output = T
 pub struct nika_cli::verbs::arm::state::ArmState
 impl nika_cli::verbs::arm::state::ArmState
 pub fn nika_cli::verbs::arm::state::ArmState::at_project(project_dir: &std::path::Path) -> Self
@@ -417,11 +362,9 @@ pub fn nika_cli::verbs::arm::state::ArmState::last_fired(&self, label: &str) -> 
 pub fn nika_cli::verbs::arm::state::ArmState::orphans(&self, known: &[alloc::string::String]) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_cli::verbs::arm::state::ArmState::record(&self, label: &str, entry: &nika_cadence::ledger::HistoryEntry) -> core::io::error::Result<nika_cadence::ledger::RecordOutcome>
 pub fn nika_cli::verbs::arm::state::ArmState::record_claim(&self, label: &str, claim: &nika_cadence::ledger::Claim) -> core::io::error::Result<nika_cadence::ledger::RecordOutcome>
-pub fn nika_cli::verbs::arm::state::ArmState::release(&self, label: &str) -> core::io::error::Result<()>
 pub fn nika_cli::verbs::arm::state::ArmState::root(&self) -> &std::path::Path
 pub fn nika_cli::verbs::arm::state::ArmState::tallies(&self, label: &str) -> core::option::Option<(usize, usize)>
-pub fn nika_cli::verbs::arm::state::ArmState::try_lock(&self, label: &str, pid: u32, now: &jiff::zoned::Zoned) -> core::io::error::Result<nika_cli::verbs::arm::state::LockOutcome>
-pub fn nika_cli::verbs::arm::state::ArmState::unsettled(&self, label: &str) -> alloc::vec::Vec<nika_cadence::ledger::Unsettled>
+pub fn nika_cli::verbs::arm::state::ArmState::unsettled(&self, label: &str) -> core::option::Option<alloc::vec::Vec<nika_cadence::ledger::Unsettled>>
 impl<D> owo_colors::OwoColorize for nika_cli::verbs::arm::state::ArmState
 impl<T, U> core::convert::Into<U> for nika_cli::verbs::arm::state::ArmState where U: core::convert::From<T>
 pub fn nika_cli::verbs::arm::state::ArmState::into(self) -> U

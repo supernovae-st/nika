@@ -1,11 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! `nika arm migrate` (W7 · D2) — the explicit one-shot upcast.
-//!
-//! Every beat is named. A W2 journal rotates verbatim, the resulting
-//! chain is verified, and `last.json` + `watermark` are rebuilt by
-//! replay. Running the verb twice performs no second rotation.
+//! `nika arm migrate` — explicit, audible, idempotent W2 upcast.
 
 use std::fmt::Write as _;
 use std::path::Path;
@@ -43,11 +39,15 @@ pub fn run_at(project_root: &Path, now: &Timestamp) -> VerbOutput {
     let mut migrated = 0usize;
     let mut refused = Vec::new();
     for label in labels {
-        let journal = project_root
-            .join(".nika/arm")
-            .join(&label)
-            .join("history.ndjson");
-        if !journal.exists() {
+        let has_evidence = match state.has_journal_evidence(&label) {
+            Ok(value) => value,
+            Err(e) => {
+                refused.push(label.clone());
+                let _ = writeln!(text, "{label} · REFUSÉ — {e}");
+                continue;
+            }
+        };
+        if !has_evidence {
             let _ = writeln!(text, "{label} · aucun journal — ignoré");
             continue;
         }
@@ -82,12 +82,16 @@ pub fn run_at(project_root: &Path, now: &Timestamp) -> VerbOutput {
     }
 }
 
-/// One complete, audible per-beat verdict.
 fn render_outcome(label: &str, outcome: &HealOutcome) -> String {
     let mut parts = Vec::new();
     if let Some(rotation) = &outcome.rotated {
+        let gesture = if rotation.resumed {
+            "resumed rotation"
+        } else {
+            "rotated"
+        };
         parts.push(format!(
-            "rotated {} → {}",
+            "{gesture} {} → {}",
             crate::text::count(rotation.lines, "ligne"),
             rotation.name
         ));
@@ -326,6 +330,84 @@ mod tests {
             ledger,
             "the versioned chain is unchanged"
         );
+    }
+
+    /// Archive-only evidence is ambiguous without a durable migration intent:
+    /// it can also mean a healthy W7 live ledger was deleted. Refuse it.
+    #[test]
+    fn archive_only_without_an_intent_refuses_reconstruction() {
+        let dir = project("rotation-retry");
+        let sidecar = dir.path().join(".nika/arm/doctor");
+        std::fs::create_dir_all(&sidecar).expect("sidecar");
+        std::fs::write(sidecar.join("history-w2.ndjson"), LEGACY).expect("renamed archive");
+
+        let out = run_at(dir.path(), &ts("2026-08-19T12:00:00Z"));
+        assert_eq!(out.code, exit::WORKFLOW, "{}", out.text);
+        assert!(out.text.contains("doctor · REFUSÉ"), "{}", out.text);
+        assert!(!sidecar.join("history.ndjson").exists());
+    }
+
+    /// The marker is the authority to complete either crash window: before
+    /// rename, or after rename with the live file created but still empty.
+    #[test]
+    fn a_durable_intent_resumes_both_migration_crash_windows() {
+        let now = ts("2026-08-19T12:00:00Z");
+        for window in ["before-rename", "after-rename"] {
+            let dir = project(window);
+            seed_legacy(dir.path(), "doctor");
+            let sidecar = dir.path().join(".nika/arm/doctor");
+            std::fs::write(
+                sidecar.join("migration-w2.json"),
+                "{\"archive\":\"history-w2.ndjson\",\"lines\":2,\"rotated_at\":\"2026-08-19T12:00:00Z\"}\n",
+            )
+            .expect("durable intent fixture");
+            if window == "after-rename" {
+                std::fs::rename(
+                    sidecar.join("history.ndjson"),
+                    sidecar.join("history-w2.ndjson"),
+                )
+                .expect("crash after rename");
+                std::fs::write(sidecar.join("history.ndjson"), "").expect("crash after create");
+            }
+
+            let out = run_at(dir.path(), &now);
+            assert_eq!(out.code, exit::OK, "{window}: {}", out.text);
+            assert!(out.text.contains("resumed rotation"), "{}", out.text);
+            assert!(!sidecar.join("migration-w2.json").exists());
+            assert_eq!(
+                std::fs::read_to_string(sidecar.join("history-w2.ndjson")).expect("archive"),
+                LEGACY
+            );
+            let live = std::fs::read_to_string(sidecar.join("history.ndjson")).expect("live");
+            assert_eq!(live.lines().count(), 1);
+            assert!(live.contains("\"kind\":\"rotated\""), "{live}");
+        }
+    }
+
+    /// Deleting a healthy post-migration ledger must never be mistaken for
+    /// the rename/append crash window and rebuilt from an older archive.
+    #[test]
+    fn deleted_live_after_w7_decisions_refuses_archive_fallback() {
+        let dir = project("deleted-live");
+        seed_legacy(dir.path(), "doctor");
+        let now = ts("2026-08-19T12:00:00Z");
+        assert_eq!(run_at(dir.path(), &now).code, exit::OK);
+        let sidecar = dir.path().join(".nika/arm/doctor");
+        let state = ArmState::at_project(dir.path());
+        state
+            .record(
+                "doctor",
+                &entry(
+                    FireKind::Fired,
+                    "2026-08-20T03:00:00Z",
+                    "2026-08-20T03:02:00Z",
+                ),
+            )
+            .expect("post-migration decision");
+        std::fs::remove_file(sidecar.join("history.ndjson")).expect("simulate loss");
+        let retry = run_at(dir.path(), &ts("2026-08-20T12:00:00Z"));
+        assert_eq!(retry.code, exit::WORKFLOW, "{}", retry.text);
+        assert!(!sidecar.join("history.ndjson").exists());
     }
 
     /// A beat whose sidecar refuses the gesture is NAMED, the exit is
