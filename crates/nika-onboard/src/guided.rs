@@ -33,7 +33,7 @@ use std::path::Path;
 
 use nika_display::theme::{Role, Theme};
 
-use crate::intent::RoutingOutcome;
+use crate::intent::{IntentContract, RoutingOutcome};
 use crate::{Audit, Outcome, codes};
 
 /// Emit a value as a SAFE YAML scalar. A plain token (`provider/model`,
@@ -155,10 +155,14 @@ pub fn run(template: &str, dest: Option<&str>, force: bool) -> Outcome {
     if let Some(body) = nika_pack::example(template) {
         return write_example(template, body, dest, force);
     }
-    let (name, body, routed) = match nika_pack::template(template) {
-        Some(body) => (template.to_owned(), body, false),
+    let (name, body, contract) = match nika_pack::template(template) {
+        Some(body) => (template.to_owned(), body, None),
         None => match crate::intent::route(template) {
-            RoutingOutcome::Routed { template: name, .. } => {
+            RoutingOutcome::Routed {
+                template: name,
+                contract,
+                ..
+            } => {
                 // route returns names from the WHOLE catalog (G-16: the
                 // 26 human-worded jobs used to be invisible to the one
                 // surface that takes human words) — a routed EXAMPLE
@@ -166,7 +170,7 @@ pub fn run(template: &str, dest: Option<&str>, force: bool) -> Outcome {
                 // the shared materializer), a routed skeleton
                 // instantiates.
                 if let Some(body) = nika_pack::example(&name) {
-                    return with_cadence_note(write_example(&name, body, dest, force), template);
+                    return with_cadence_note(write_example(&name, body, dest, force), &contract);
                 }
                 // A skeleton name — the lookup is total for the template
                 // set; an empty body would be a pack bug surfaced as the
@@ -174,7 +178,7 @@ pub fn run(template: &str, dest: Option<&str>, force: bool) -> Outcome {
                 let Some(body) = nika_pack::template(&name) else {
                     return unknown(template);
                 };
-                (name, body, true)
+                (name, body, Some(contract))
             }
             RoutingOutcome::NeedsClarification { candidates, .. } => {
                 return clarify(template, &candidates);
@@ -211,6 +215,7 @@ pub fn run(template: &str, dest: Option<&str>, force: bool) -> Outcome {
             code: codes::ENV,
         };
     }
+    let routed = contract.is_some();
     let routing = if routed { "routed intent → " } else { "" };
     // A ROUTED file is a draft by construction (P0-10): the intent was
     // interpreted, not understood — the message says « draft », never
@@ -230,8 +235,8 @@ pub fn run(template: &str, dest: Option<&str>, force: bool) -> Outcome {
         text,
         code: codes::OK,
     };
-    if routed {
-        with_cadence_note(out, template)
+    if let Some(contract) = contract {
+        with_cadence_note(out, &contract)
     } else {
         out
     }
@@ -242,34 +247,19 @@ pub fn run(template: &str, dest: Option<&str>, force: bool) -> Outcome {
 /// a deployed schedule is cron/CI territory, never a YAML side
 /// effect). Half of « Chaque lundi, analyser les tickets » used to
 /// vanish without a word (gauntlet 08-01, Camille) — routing keeps
-/// its focus on the work, and the dropped half is now NAMED. Lexicon
-/// over parsing: a bounded FR/EN keyword sweep, no date grammar.
-fn with_cadence_note(mut out: Outcome, intent: &str) -> Outcome {
+/// its focus on the work, and the dropped half is now NAMED. The
+/// already-extracted contract is the single cadence decision; this
+/// display must not run a second, broader lexicon over the utterance.
+fn with_cadence_note(mut out: Outcome, contract: &IntentContract) -> Outcome {
     if out.code != codes::OK {
         return out;
     }
-    let lower = intent.to_lowercase();
-    let hit = [
-        "chaque ",
-        "tous les ",
-        "toutes les ",
-        "every ",
-        "each ",
-        "daily",
-        "weekly",
-        "monthly",
-        "hebdomadaire",
-        "quotidien",
-    ]
-    .into_iter()
-    .find(|k| lower.contains(k));
-    if let Some(keyword) = hit {
-        // Quote from the lowercased copy: `to_lowercase` may shift
-        // byte offsets (Unicode), so indexing the original with a
-        // `lower` offset could split a char boundary — the workspace
-        // forbids that panic class.
-        let start = lower.find(keyword).unwrap_or(0);
-        let clause: String = lower[start..].chars().take(24).collect();
+    if let Some(cadence) = contract
+        .constraints
+        .iter()
+        .find_map(|constraint| constraint.strip_prefix("cadence:"))
+    {
+        let clause: String = cadence.chars().take(24).collect();
         let clause = clause.trim_end();
         let _ = write!(
             out.text,

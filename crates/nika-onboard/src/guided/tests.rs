@@ -208,6 +208,11 @@ fn parallel_intent_routes_to_fanout() {
         "{}",
         out.text
     );
+    assert!(
+        !out.text.contains("is a schedule"),
+        "per-item fan-out must not be described as cadence: {}",
+        out.text
+    );
     // Own-corpus by construction: the instantiated file IS the
     // embedded template verbatim.
     let written = std::fs::read_to_string(&d).expect("file written");
