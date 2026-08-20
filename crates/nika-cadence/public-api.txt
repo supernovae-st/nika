@@ -403,13 +403,13 @@ pub nika_cadence::error::CadenceErrorKind::FieldCount
 pub nika_cadence::error::CadenceErrorKind::FieldRange
 pub nika_cadence::error::CadenceErrorKind::FieldSyntax
 pub nika_cadence::error::CadenceErrorKind::Grammar
+pub nika_cadence::error::CadenceErrorKind::Identity
 pub nika_cadence::error::CadenceErrorKind::ManqueMissing
 pub nika_cadence::error::CadenceErrorKind::PhraseSyntax
 pub nika_cadence::error::CadenceErrorKind::PlafondMissing
 pub nika_cadence::error::CadenceErrorKind::PlafondNonPositive
 pub nika_cadence::error::CadenceErrorKind::SuspensionSansEcheance
 pub nika_cadence::error::CadenceErrorKind::SuspensionSansRaison
-pub nika_cadence::error::CadenceErrorKind::TagFrozen
 pub nika_cadence::error::CadenceErrorKind::ToleranceSyntaxe
 pub nika_cadence::error::CadenceErrorKind::TzMissing
 pub nika_cadence::error::CadenceErrorKind::TzUnknown
@@ -1542,9 +1542,10 @@ pub type nika_cadence::registry::Overlap::Output = T
 pub nika_cadence::registry::ArmRegistry::ceiling: core::option::Option<f64>
 pub nika_cadence::registry::ArmRegistry::nika: alloc::string::String
 impl nika_cadence::registry::ArmRegistry
-pub const nika_cadence::registry::ArmRegistry::SCHEMA: &'static str
 pub fn nika_cadence::registry::ArmRegistry::beat_count(&self) -> usize
 pub fn nika_cadence::registry::ArmRegistry::beats(&self) -> impl core::iter::traits::iterator::Iterator<Item = &nika_cadence::registry::Beat>
+pub fn nika_cadence::registry::ArmRegistry::is_kebab_id(s: &str) -> bool
+pub fn nika_cadence::registry::ArmRegistry::is_retired_tag(s: &str) -> bool
 impl core::fmt::Debug for nika_cadence::registry::ArmRegistry
 pub fn nika_cadence::registry::ArmRegistry::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<'de> serde_core::de::Deserialize<'de> for nika_cadence::registry::ArmRegistry
@@ -1760,13 +1761,13 @@ pub nika_cadence::CadenceErrorKind::FieldCount
 pub nika_cadence::CadenceErrorKind::FieldRange
 pub nika_cadence::CadenceErrorKind::FieldSyntax
 pub nika_cadence::CadenceErrorKind::Grammar
+pub nika_cadence::CadenceErrorKind::Identity
 pub nika_cadence::CadenceErrorKind::ManqueMissing
 pub nika_cadence::CadenceErrorKind::PhraseSyntax
 pub nika_cadence::CadenceErrorKind::PlafondMissing
 pub nika_cadence::CadenceErrorKind::PlafondNonPositive
 pub nika_cadence::CadenceErrorKind::SuspensionSansEcheance
 pub nika_cadence::CadenceErrorKind::SuspensionSansRaison
-pub nika_cadence::CadenceErrorKind::TagFrozen
 pub nika_cadence::CadenceErrorKind::ToleranceSyntaxe
 pub nika_cadence::CadenceErrorKind::TzMissing
 pub nika_cadence::CadenceErrorKind::TzUnknown
@@ -2363,9 +2364,10 @@ pub type nika_cadence::firing::ArmGeneration::Output = T
 pub nika_cadence::ArmRegistry::ceiling: core::option::Option<f64>
 pub nika_cadence::ArmRegistry::nika: alloc::string::String
 impl nika_cadence::registry::ArmRegistry
-pub const nika_cadence::registry::ArmRegistry::SCHEMA: &'static str
 pub fn nika_cadence::registry::ArmRegistry::beat_count(&self) -> usize
 pub fn nika_cadence::registry::ArmRegistry::beats(&self) -> impl core::iter::traits::iterator::Iterator<Item = &nika_cadence::registry::Beat>
+pub fn nika_cadence::registry::ArmRegistry::is_kebab_id(s: &str) -> bool
+pub fn nika_cadence::registry::ArmRegistry::is_retired_tag(s: &str) -> bool
 impl core::fmt::Debug for nika_cadence::registry::ArmRegistry
 pub fn nika_cadence::registry::ArmRegistry::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<'de> serde_core::de::Deserialize<'de> for nika_cadence::registry::ArmRegistry
