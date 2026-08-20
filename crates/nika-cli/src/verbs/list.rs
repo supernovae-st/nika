@@ -61,4 +61,14 @@ mod tests {
         assert_eq!(out.code, crate::verbs::exit::ENV);
         assert!(out.text.contains("scan incomplete"), "{}", out.text);
     }
+
+    #[test]
+    fn an_empty_directory_is_a_successful_empty_list() {
+        let dir = tempfile::tempdir().expect("scratch");
+
+        let out = run(dir.path());
+
+        assert_eq!(out.code, crate::verbs::exit::OK);
+        assert!(out.text.is_empty(), "script output must stay empty");
+    }
 }
