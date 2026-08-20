@@ -1,424 +1,107 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The replay (W7 · D1) — the chain is the truth, `last.json` a
-//! rebuildable projection.
+//! Filesystem adapter for the pure cadence ledger replay.
 //!
-//! READ-ONLY, always: the versioned chain verifies with the append's
-//! own semantics (seq continuity · `prev_hash` linkage · the hash
-//! recomputed) and the invalid tail is REFUSED — never cut (the cut
-//! stays the append's gesture); the W2-era journals fold best-effort
-//! (theirs is no chain to verify). The walk reads the rotated archives
-//! first (the older truth), the live chain last. One pass rebuilds:
-//!
-//! - the projection (`Replay.last`) — the last SLOT-BEARING
-//!   decision (`claimed`/`rotated` never bear one, a pre-slot skip
-//!   neither), rendered byte-identical by `render_last`;
-//! - the watermark's truth — the last DECIDED instant (every decision
-//!   kind, `disarmed` included);
-//! - the current lifecycle's events (`Replay.lifecycle`) — the
-//!   group the last journal line joined (claims and receipts group by
-//!   `slot_id`; a slot-less decision completes its own lifecycle), for
-//!   the report's folded state (D5).
+//! Archive discovery and UTF-8 reads stay at the CLI effect edge. Chain
+//! verification, lifecycle grouping, projection rebuilding, and the deadline
+//! fold live in `nika_cadence::ledger`.
 
 use std::io;
 use std::path::{Path, PathBuf};
 
 use jiff::Timestamp;
-use nika_cadence::firing::{
-    self, ArmGeneration, FencingToken, FiringEvent, FiringState, SkipReason,
-};
+use nika_cadence::firing::FiringState;
+use nika_cadence::ledger::{LastRecord, first_line_is_versioned};
 
-use super::{FireKind, HISTORY, LastRecord, first_line_is_versioned, verify_line};
+use super::HISTORY;
 
-/// What the replay rebuilt — see the module doc.
+/// Projection plus the borrowed-at-fold journal material.
 pub(crate) struct Replay {
-    /// The rebuilt projection (the last slot-bearing decision).
     pub last: Option<LastRecord>,
-    /// The last DECIDED instant (the watermark's truth).
     pub watermark: Option<Timestamp>,
-    /// The current lifecycle's events (the last journal line's group).
-    lifecycle: Vec<FiringEvent>,
-    /// The current lifecycle is NOT the last decision's own (an
-    /// in-flight or orphaned newer slot) — the report names it then.
-    lifecycle_beyond_last: bool,
-    /// The current lifecycle's slot identity (the wire string).
-    lifecycle_slot: Option<String>,
+    journals: Vec<(String, bool)>,
 }
 
-/// The report's folded state (D5).
+/// The report's folded lifecycle.
 pub(crate) struct Folded {
-    /// The lifecycle's folded state.
     pub state: FiringState,
-    /// The lifecycle is a NEWER slot than the last decision's.
     pub beyond_last: bool,
-    /// Its slot identity (the wire string) when the chain names one.
     pub slot: Option<String>,
 }
 
-/// Replay one beat's journals into the projections' truth.
+/// Read one beat's journals and replay them oldest-first.
 pub(crate) fn replay(dir: &Path) -> io::Result<Replay> {
-    let mut walker = Walker::new();
-    for journal in journals(dir)? {
-        let text = std::fs::read_to_string(&journal)?;
-        let live = journal.file_name().and_then(|n| n.to_str()) == Some(HISTORY);
-        if live && first_line_is_versioned(&text) {
-            walker.fold_chain(&text);
-        } else {
-            walker.fold_legacy(&text);
-        }
+    let paths = journals(dir)?;
+    let mut texts = Vec::with_capacity(paths.len());
+    let mut versioned = Vec::with_capacity(paths.len());
+    for path in paths {
+        let text = std::fs::read_to_string(&path)?;
+        let live = path.file_name().and_then(|name| name.to_str()) == Some(HISTORY);
+        versioned.push(live && first_line_is_versioned(&text));
+        texts.push(text);
     }
-    Ok(walker.finish())
+    let journals: Vec<(String, bool)> = texts.into_iter().zip(versioned).collect();
+    let (last, watermark) = nika_cadence::ledger::replay_projection(
+        journals
+            .iter()
+            .map(|(text, versioned)| (text.as_str(), *versioned)),
+    );
+    Ok(Replay {
+        last,
+        watermark,
+        journals,
+    })
 }
 
-/// Fold the replay's lifecycle through the machine, the crash
-/// detector riding: an outstanding claim whose deadline passed folds
-/// to `Ambiguous` (the run MAY have happened — at-least-once honesty).
+/// Fold the replayed journals through the pure cadence machine.
 pub(crate) fn fold_replay(replayed: &Replay, now: &Timestamp) -> Option<Folded> {
-    if replayed.lifecycle.is_empty() {
-        return None;
-    }
-    let mut state = firing::fold(&replayed.lifecycle);
-    if matches!(state, FiringState::Claimed | FiringState::Running)
-        && let Some((fencing, deadline)) = last_claim(&replayed.lifecycle)
-        && *now > deadline
-    {
-        state = firing::transition(state, &FiringEvent::DeadlinePassed { fencing });
-    }
+    let (state, beyond_last, slot) = nika_cadence::ledger::replay_state(
+        replayed
+            .journals
+            .iter()
+            .map(|(text, versioned)| (text.as_str(), *versioned)),
+        now,
+    )?;
     Some(Folded {
         state,
-        beyond_last: replayed.lifecycle_beyond_last,
-        slot: replayed.lifecycle_slot.clone(),
+        beyond_last,
+        slot,
     })
 }
 
-/// The last claim's token + deadline in the lifecycle.
-fn last_claim(events: &[FiringEvent]) -> Option<(FencingToken, Timestamp)> {
-    events.iter().rev().find_map(|event| match event {
-        FiringEvent::Claimed {
-            fencing, deadline, ..
-        } => Some((*fencing, *deadline)),
-        _ => None,
-    })
-}
-
-/// The journals, oldest first: the rotated W2 archives, then the live
-/// chain (its own classification decides the fold — an unrotated W2
-/// journal folds legacy).
+/// Discover W2 archives then the live journal, oldest first.
 fn journals(dir: &Path) -> io::Result<Vec<PathBuf>> {
     let entries = match std::fs::read_dir(dir) {
         Ok(entries) => entries,
-        Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
-        Err(e) => return Err(e),
+        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
+        Err(error) => return Err(error),
     };
-    let mut journals: Vec<PathBuf> = entries
+    let mut paths: Vec<PathBuf> = entries
         .filter_map(std::result::Result::ok)
-        .map(|e| e.path())
-        .filter(|p| {
-            p.file_name()
-                .and_then(|n| n.to_str())
-                .is_some_and(|n| n.starts_with("history-w2") && n.ends_with(".ndjson"))
+        .map(|entry| entry.path())
+        .filter(|path| {
+            path.file_name()
+                .and_then(|name| name.to_str())
+                .is_some_and(|name| name.starts_with("history-w2") && name.ends_with(".ndjson"))
         })
         .collect();
-    journals.sort_unstable();
+    paths.sort_unstable();
     let live = dir.join(HISTORY);
     if live.exists() {
-        journals.push(live);
+        paths.push(live);
     }
-    Ok(journals)
-}
-
-/// One lifecycle's group: the slot's identity (the wire string — `None`
-/// for a slot-less decision's singleton) and its events in order.
-struct Group {
-    key: Option<String>,
-    events: Vec<FiringEvent>,
-}
-
-/// The walk's fold state.
-struct Walker {
-    last: Option<LastRecord>,
-    watermark: Option<Timestamp>,
-    groups: Vec<Group>,
-    /// The group the last journaled line joined (the current lifecycle).
-    current: Option<usize>,
-    /// The group holding the last slot-bearing DECISION.
-    last_projection: Option<usize>,
-}
-
-impl Walker {
-    fn new() -> Self {
-        Self {
-            last: None,
-            watermark: None,
-            groups: Vec::new(),
-            current: None,
-            last_projection: None,
-        }
-    }
-
-    /// The versioned chain: the append's verification semantics, the
-    /// invalid tail REFUSED (a read cuts nothing).
-    fn fold_chain(&mut self, text: &str) {
-        let mut seq = 0u64;
-        let mut prev: Option<String> = None;
-        for line in text.lines() {
-            match verify_line(line, seq + 1, prev.as_deref()) {
-                Some(hash) => {
-                    seq += 1;
-                    prev = Some(hash);
-                    if let Ok(doc) = serde_json::from_str::<serde_json::Value>(line) {
-                        self.fold_versioned(&doc);
-                    }
-                }
-                // Detection IS the refusal: the tail never folds.
-                None => break,
-            }
-        }
-    }
-
-    /// A W2-era journal: no chain to verify — best-effort, a line
-    /// that does not parse simply folds nothing.
-    fn fold_legacy(&mut self, text: &str) {
-        for line in text.lines() {
-            let Ok(doc) = serde_json::from_str::<serde_json::Value>(line) else {
-                continue;
-            };
-            self.fold_legacy_line(&doc);
-        }
-    }
-
-    /// One versioned line (verified by the caller).
-    fn fold_versioned(&mut self, doc: &serde_json::Value) {
-        let Some(kind) = doc.get("kind").and_then(serde_json::Value::as_str) else {
-            return;
-        };
-        match kind {
-            "claimed" => {
-                if let Some(event) = claim_event(doc) {
-                    let key = doc
-                        .get("slot_id")
-                        .and_then(serde_json::Value::as_str)
-                        .map(str::to_owned);
-                    self.push_event(key, event);
-                }
-            }
-            "fired" | "skipped" | "paused" | "failed" => {
-                if let Some(decided) = envelope_ts(doc) {
-                    self.watermark = Some(decided);
-                }
-                let payload = doc.get("payload");
-                let slot = payload
-                    .and_then(|p| p.get("slot"))
-                    .and_then(serde_json::Value::as_str)
-                    .and_then(|s| s.parse::<Timestamp>().ok());
-                let key = doc
-                    .get("slot_id")
-                    .and_then(serde_json::Value::as_str)
-                    .map(str::to_owned);
-                // A pre-slot skip is a decision (the watermark moves)
-                // but never a lifecycle (it consumed no slot).
-                if slot.is_none() && key.is_none() {
-                    return;
-                }
-                let group = self.push_event(key, receipt_event(kind, payload));
-                if let (Some(slot), Some(decided)) = (slot, envelope_ts(doc)) {
-                    self.last = Some(LastRecord {
-                        slot,
-                        fired_at: decided,
-                        trace: payload
-                            .and_then(|p| p.get("trace"))
-                            .and_then(serde_json::Value::as_str)
-                            .map(str::to_owned),
-                        exit: payload
-                            .and_then(|p| p.get("exit"))
-                            .and_then(serde_json::Value::as_u64)
-                            .and_then(|e| u8::try_from(e).ok()),
-                        kind: fire_kind_of(kind),
-                        generation: payload
-                            .and_then(|p| p.get("gen"))
-                            .and_then(serde_json::Value::as_str)
-                            .and_then(ArmGeneration::from_wire),
-                    });
-                    self.last_projection = Some(group);
-                }
-            }
-            // `disarmed` decides (the watermark moves) but bears no
-            // slot; `rotated` is structural; the unknown folds nothing.
-            "disarmed" => self.watermark = envelope_ts(doc).or(self.watermark),
-            _ => {}
-        }
-    }
-
-    /// One legacy line (the W2 shape: `decided_at` inside, no envelope).
-    fn fold_legacy_line(&mut self, doc: &serde_json::Value) {
-        let Some(kind) = doc.get("kind").and_then(serde_json::Value::as_str) else {
-            return;
-        };
-        if !matches!(kind, "fired" | "skipped" | "paused" | "failed") {
-            return;
-        }
-        let decided = doc
-            .get("decided_at")
-            .and_then(serde_json::Value::as_str)
-            .and_then(|s| s.parse::<Timestamp>().ok());
-        if decided.is_some() {
-            self.watermark = decided;
-        }
-        let slot = doc
-            .get("slot")
-            .and_then(serde_json::Value::as_str)
-            .and_then(|s| s.parse::<Timestamp>().ok());
-        let exit = doc
-            .get("exit")
-            .and_then(serde_json::Value::as_u64)
-            .and_then(|e| u8::try_from(e).ok());
-        let Some(slot) = slot else {
-            return; // a pre-slot decision: the watermark alone
-        };
-        let event = if kind == "skipped" {
-            FiringEvent::Skipped {
-                reason: doc
-                    .get("reason")
-                    .and_then(serde_json::Value::as_str)
-                    .and_then(SkipReason::parse),
-            }
-        } else {
-            FiringEvent::Finished {
-                fencing: None,
-                code: exit.unwrap_or(0),
-            }
-        };
-        let group = self.push_event(None, event);
-        if let Some(decided) = decided {
-            self.last = Some(LastRecord {
-                slot,
-                fired_at: decided,
-                trace: doc
-                    .get("trace")
-                    .and_then(serde_json::Value::as_str)
-                    .map(str::to_owned),
-                exit,
-                kind: fire_kind_of(kind),
-                generation: None,
-            });
-            self.last_projection = Some(group);
-        }
-    }
-
-    /// Join (or open) the event's lifecycle group; the last line's
-    /// group is the current one.
-    fn push_event(&mut self, key: Option<String>, event: FiringEvent) -> usize {
-        let index = match key.as_deref() {
-            Some(identity) => self
-                .groups
-                .iter()
-                .position(|g| g.key.as_deref() == Some(identity))
-                .unwrap_or_else(|| self.open_group(key)),
-            None => self.open_group(None),
-        };
-        self.groups[index].events.push(event);
-        self.current = Some(index);
-        index
-    }
-
-    fn open_group(&mut self, key: Option<String>) -> usize {
-        self.groups.push(Group {
-            key,
-            events: Vec::new(),
-        });
-        self.groups.len() - 1
-    }
-
-    fn finish(self) -> Replay {
-        let (lifecycle, lifecycle_slot) = match self.current {
-            Some(index) => (
-                self.groups[index].events.clone(),
-                self.groups[index].key.clone(),
-            ),
-            None => (Vec::new(), None),
-        };
-        Replay {
-            last: self.last,
-            watermark: self.watermark,
-            lifecycle,
-            lifecycle_beyond_last: self.current.is_some() && self.current != self.last_projection,
-            lifecycle_slot,
-        }
-    }
-}
-
-/// The envelope's `ts`, parsed.
-fn envelope_ts(doc: &serde_json::Value) -> Option<Timestamp> {
-    doc.get("ts")
-        .and_then(serde_json::Value::as_str)
-        .and_then(|s| s.parse::<Timestamp>().ok())
-}
-
-/// The claim line's event (the durable claim: fencing · generation ·
-/// deadline). A line that cannot name its token settles nothing.
-fn claim_event(doc: &serde_json::Value) -> Option<FiringEvent> {
-    let payload = doc.get("payload")?;
-    let fencing = payload.get("fencing").and_then(serde_json::Value::as_u64)?;
-    let deadline = payload
-        .get("deadline")
-        .and_then(serde_json::Value::as_str)
-        .and_then(|s| s.parse::<Timestamp>().ok())?;
-    let generation = payload
-        .get("gen")
-        .and_then(serde_json::Value::as_str)
-        .and_then(ArmGeneration::from_wire);
-    Some(FiringEvent::Claimed {
-        fencing: FencingToken::new(fencing),
-        generation,
-        deadline,
-    })
-}
-
-/// A decision line's event: the receipt's code classifies the
-/// terminal (4 parks, 0 succeeds, the rest fails), the skip's reason
-/// rides typed when known.
-fn receipt_event(kind: &str, payload: Option<&serde_json::Value>) -> FiringEvent {
-    if kind == "skipped" {
-        return FiringEvent::Skipped {
-            reason: payload
-                .and_then(|p| p.get("reason"))
-                .and_then(serde_json::Value::as_str)
-                .and_then(SkipReason::parse),
-        };
-    }
-    let code = payload
-        .and_then(|p| p.get("exit"))
-        .and_then(serde_json::Value::as_u64)
-        .and_then(|e| u8::try_from(e).ok())
-        .unwrap_or(0);
-    let fencing = payload
-        .and_then(|p| p.get("fencing"))
-        .and_then(serde_json::Value::as_u64)
-        .map(FencingToken::new);
-    FiringEvent::Finished { fencing, code }
-}
-
-/// The decision word — never `None` here (the callers match the four
-/// first); a word this machine predates reads as a failure (the
-/// cautious direction), never as a success.
-fn fire_kind_of(word: &str) -> FireKind {
-    match word {
-        "fired" => FireKind::Fired,
-        "skipped" => FireKind::Skipped,
-        "paused" => FireKind::Paused,
-        _ => FireKind::Failed,
-    }
+    Ok(paths)
 }
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
     use jiff::Timestamp;
-    use nika_cadence::firing::{FiringEvent, FiringState, SlotId};
+    use nika_cadence::firing::{FiringState, SlotId};
 
     use super::super::{ArmState, Claim, FireKind, HistoryEntry};
-    use super::{Walker, fire_kind_of, fold_replay, journals, replay};
+    use super::{fold_replay, journals, replay};
 
     fn state(tag: &str) -> (tempfile::TempDir, ArmState) {
         let dir = tempfile::Builder::new()
@@ -784,28 +467,5 @@ mod tests {
             .folded("doctor", &ts("2026-08-19T03:03:00Z"))
             .expect("folded");
         assert_eq!(folded.state, FiringState::Skipped);
-    }
-
-    /// Lifecycle grouping rejoins exactly the matching slot, and a
-    /// group's own projection is not reported as a newer lifecycle.
-    #[test]
-    fn walker_groups_by_exact_slot_and_marks_only_newer_lifecycles() {
-        let mut walker = Walker::new();
-        let event = || FiringEvent::Skipped { reason: None };
-        let first = walker.push_event(Some("slot-a".to_owned()), event());
-        let second = walker.push_event(Some("slot-b".to_owned()), event());
-        let again = walker.push_event(Some("slot-a".to_owned()), event());
-        assert_eq!((first, second, again), (0, 1, 0));
-        assert_eq!(walker.groups.len(), 2);
-        walker.last_projection = Some(first);
-        let replayed = walker.finish();
-        assert!(!replayed.lifecycle_beyond_last);
-        assert_eq!(replayed.lifecycle_slot.as_deref(), Some("slot-a"));
-    }
-
-    /// Paused stays paused in the projection vocabulary.
-    #[test]
-    fn paused_projection_kind_is_not_folded_into_failure() {
-        assert_eq!(fire_kind_of("paused"), FireKind::Paused);
     }
 }

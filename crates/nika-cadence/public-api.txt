@@ -842,6 +842,242 @@ pub fn nika_cadence::firing::SlotId::from(t: T) -> T
 pub fn nika_cadence::firing::decide(state: nika_cadence::firing::FiringState, event: &nika_cadence::firing::FiringEvent, now: &jiff::timestamp::Timestamp, policy: &nika_cadence::firing::FiringPolicy) -> alloc::vec::Vec<nika_cadence::firing::Decision>
 pub fn nika_cadence::firing::fold(events: &[nika_cadence::firing::FiringEvent]) -> nika_cadence::firing::FiringState
 pub fn nika_cadence::firing::transition(from: nika_cadence::firing::FiringState, event: &nika_cadence::firing::FiringEvent) -> nika_cadence::firing::FiringState
+pub mod nika_cadence::ledger
+pub enum nika_cadence::ledger::DecisionKind
+pub nika_cadence::ledger::DecisionKind::Disarmed
+pub nika_cadence::ledger::DecisionKind::Failed
+pub nika_cadence::ledger::DecisionKind::Fired
+pub nika_cadence::ledger::DecisionKind::Paused
+pub nika_cadence::ledger::DecisionKind::Skipped
+impl nika_cadence::ledger::DecisionKind
+pub const fn nika_cadence::ledger::DecisionKind::as_str(self) -> &'static str
+pub fn nika_cadence::ledger::DecisionKind::parse_projection(word: &str) -> core::option::Option<Self>
+impl core::clone::Clone for nika_cadence::ledger::DecisionKind
+pub fn nika_cadence::ledger::DecisionKind::clone(&self) -> nika_cadence::ledger::DecisionKind
+impl core::cmp::Eq for nika_cadence::ledger::DecisionKind
+impl core::cmp::PartialEq for nika_cadence::ledger::DecisionKind
+pub fn nika_cadence::ledger::DecisionKind::eq(&self, other: &nika_cadence::ledger::DecisionKind) -> bool
+impl core::fmt::Debug for nika_cadence::ledger::DecisionKind
+pub fn nika_cadence::ledger::DecisionKind::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cadence::ledger::DecisionKind
+impl core::marker::StructuralPartialEq for nika_cadence::ledger::DecisionKind
+impl<Q, K> equivalent::Equivalent<K> for nika_cadence::ledger::DecisionKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cadence::ledger::DecisionKind::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cadence::ledger::DecisionKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cadence::ledger::DecisionKind::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cadence::ledger::DecisionKind where U: core::convert::From<T>
+pub fn nika_cadence::ledger::DecisionKind::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cadence::ledger::DecisionKind where U: core::convert::Into<T>
+pub type nika_cadence::ledger::DecisionKind::Error = core::convert::Infallible
+pub fn nika_cadence::ledger::DecisionKind::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cadence::ledger::DecisionKind where U: core::convert::TryFrom<T>
+pub type nika_cadence::ledger::DecisionKind::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cadence::ledger::DecisionKind::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cadence::ledger::DecisionKind where T: core::clone::Clone
+pub type nika_cadence::ledger::DecisionKind::Owned = T
+pub fn nika_cadence::ledger::DecisionKind::clone_into(&self, target: &mut T)
+pub fn nika_cadence::ledger::DecisionKind::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cadence::ledger::DecisionKind where T: 'static + ?core::marker::Sized
+pub fn nika_cadence::ledger::DecisionKind::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cadence::ledger::DecisionKind where T: ?core::marker::Sized
+pub fn nika_cadence::ledger::DecisionKind::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cadence::ledger::DecisionKind where T: ?core::marker::Sized
+pub fn nika_cadence::ledger::DecisionKind::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cadence::ledger::DecisionKind where T: core::clone::Clone
+pub unsafe fn nika_cadence::ledger::DecisionKind::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cadence::ledger::DecisionKind
+pub fn nika_cadence::ledger::DecisionKind::from(t: T) -> T
+pub struct nika_cadence::ledger::Claim
+pub nika_cadence::ledger::Claim::deadline: jiff::timestamp::Timestamp
+pub nika_cadence::ledger::Claim::decided_at: jiff::timestamp::Timestamp
+pub nika_cadence::ledger::Claim::generation: core::option::Option<nika_cadence::firing::ArmGeneration>
+pub nika_cadence::ledger::Claim::slot_id: nika_cadence::firing::SlotId
+impl core::clone::Clone for nika_cadence::ledger::Claim
+pub fn nika_cadence::ledger::Claim::clone(&self) -> nika_cadence::ledger::Claim
+impl core::fmt::Debug for nika_cadence::ledger::Claim
+pub fn nika_cadence::ledger::Claim::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<T, U> core::convert::Into<U> for nika_cadence::ledger::Claim where U: core::convert::From<T>
+pub fn nika_cadence::ledger::Claim::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cadence::ledger::Claim where U: core::convert::Into<T>
+pub type nika_cadence::ledger::Claim::Error = core::convert::Infallible
+pub fn nika_cadence::ledger::Claim::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cadence::ledger::Claim where U: core::convert::TryFrom<T>
+pub type nika_cadence::ledger::Claim::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cadence::ledger::Claim::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cadence::ledger::Claim where T: core::clone::Clone
+pub type nika_cadence::ledger::Claim::Owned = T
+pub fn nika_cadence::ledger::Claim::clone_into(&self, target: &mut T)
+pub fn nika_cadence::ledger::Claim::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cadence::ledger::Claim where T: 'static + ?core::marker::Sized
+pub fn nika_cadence::ledger::Claim::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cadence::ledger::Claim where T: ?core::marker::Sized
+pub fn nika_cadence::ledger::Claim::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cadence::ledger::Claim where T: ?core::marker::Sized
+pub fn nika_cadence::ledger::Claim::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cadence::ledger::Claim where T: core::clone::Clone
+pub unsafe fn nika_cadence::ledger::Claim::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cadence::ledger::Claim
+pub fn nika_cadence::ledger::Claim::from(t: T) -> T
+pub struct nika_cadence::ledger::HistoryEntry
+pub nika_cadence::ledger::HistoryEntry::decided_at: jiff::timestamp::Timestamp
+pub nika_cadence::ledger::HistoryEntry::exit: core::option::Option<u8>
+pub nika_cadence::ledger::HistoryEntry::fencing: core::option::Option<nika_cadence::firing::FencingToken>
+pub nika_cadence::ledger::HistoryEntry::generation: core::option::Option<nika_cadence::firing::ArmGeneration>
+pub nika_cadence::ledger::HistoryEntry::kind: nika_cadence::ledger::DecisionKind
+pub nika_cadence::ledger::HistoryEntry::reason: core::option::Option<alloc::string::String>
+pub nika_cadence::ledger::HistoryEntry::slot: core::option::Option<jiff::timestamp::Timestamp>
+pub nika_cadence::ledger::HistoryEntry::slot_id: core::option::Option<nika_cadence::firing::SlotId>
+pub nika_cadence::ledger::HistoryEntry::slots: core::option::Option<u32>
+pub nika_cadence::ledger::HistoryEntry::trace: core::option::Option<alloc::string::String>
+impl core::clone::Clone for nika_cadence::ledger::HistoryEntry
+pub fn nika_cadence::ledger::HistoryEntry::clone(&self) -> nika_cadence::ledger::HistoryEntry
+impl core::fmt::Debug for nika_cadence::ledger::HistoryEntry
+pub fn nika_cadence::ledger::HistoryEntry::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<T, U> core::convert::Into<U> for nika_cadence::ledger::HistoryEntry where U: core::convert::From<T>
+pub fn nika_cadence::ledger::HistoryEntry::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cadence::ledger::HistoryEntry where U: core::convert::Into<T>
+pub type nika_cadence::ledger::HistoryEntry::Error = core::convert::Infallible
+pub fn nika_cadence::ledger::HistoryEntry::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cadence::ledger::HistoryEntry where U: core::convert::TryFrom<T>
+pub type nika_cadence::ledger::HistoryEntry::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cadence::ledger::HistoryEntry::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cadence::ledger::HistoryEntry where T: core::clone::Clone
+pub type nika_cadence::ledger::HistoryEntry::Owned = T
+pub fn nika_cadence::ledger::HistoryEntry::clone_into(&self, target: &mut T)
+pub fn nika_cadence::ledger::HistoryEntry::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cadence::ledger::HistoryEntry where T: 'static + ?core::marker::Sized
+pub fn nika_cadence::ledger::HistoryEntry::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cadence::ledger::HistoryEntry where T: ?core::marker::Sized
+pub fn nika_cadence::ledger::HistoryEntry::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cadence::ledger::HistoryEntry where T: ?core::marker::Sized
+pub fn nika_cadence::ledger::HistoryEntry::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cadence::ledger::HistoryEntry where T: core::clone::Clone
+pub unsafe fn nika_cadence::ledger::HistoryEntry::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cadence::ledger::HistoryEntry
+pub fn nika_cadence::ledger::HistoryEntry::from(t: T) -> T
+pub struct nika_cadence::ledger::LastRecord
+pub nika_cadence::ledger::LastRecord::exit: core::option::Option<u8>
+pub nika_cadence::ledger::LastRecord::fired_at: jiff::timestamp::Timestamp
+pub nika_cadence::ledger::LastRecord::generation: core::option::Option<nika_cadence::firing::ArmGeneration>
+pub nika_cadence::ledger::LastRecord::kind: nika_cadence::ledger::DecisionKind
+pub nika_cadence::ledger::LastRecord::slot: jiff::timestamp::Timestamp
+pub nika_cadence::ledger::LastRecord::trace: core::option::Option<alloc::string::String>
+impl core::clone::Clone for nika_cadence::ledger::LastRecord
+pub fn nika_cadence::ledger::LastRecord::clone(&self) -> nika_cadence::ledger::LastRecord
+impl core::fmt::Debug for nika_cadence::ledger::LastRecord
+pub fn nika_cadence::ledger::LastRecord::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<T, U> core::convert::Into<U> for nika_cadence::ledger::LastRecord where U: core::convert::From<T>
+pub fn nika_cadence::ledger::LastRecord::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cadence::ledger::LastRecord where U: core::convert::Into<T>
+pub type nika_cadence::ledger::LastRecord::Error = core::convert::Infallible
+pub fn nika_cadence::ledger::LastRecord::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cadence::ledger::LastRecord where U: core::convert::TryFrom<T>
+pub type nika_cadence::ledger::LastRecord::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cadence::ledger::LastRecord::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cadence::ledger::LastRecord where T: core::clone::Clone
+pub type nika_cadence::ledger::LastRecord::Owned = T
+pub fn nika_cadence::ledger::LastRecord::clone_into(&self, target: &mut T)
+pub fn nika_cadence::ledger::LastRecord::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cadence::ledger::LastRecord where T: 'static + ?core::marker::Sized
+pub fn nika_cadence::ledger::LastRecord::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cadence::ledger::LastRecord where T: ?core::marker::Sized
+pub fn nika_cadence::ledger::LastRecord::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cadence::ledger::LastRecord where T: ?core::marker::Sized
+pub fn nika_cadence::ledger::LastRecord::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cadence::ledger::LastRecord where T: core::clone::Clone
+pub unsafe fn nika_cadence::ledger::LastRecord::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cadence::ledger::LastRecord
+pub fn nika_cadence::ledger::LastRecord::from(t: T) -> T
+pub struct nika_cadence::ledger::RecordOutcome
+pub nika_cadence::ledger::RecordOutcome::repaired: u64
+pub nika_cadence::ledger::RecordOutcome::seq: u64
+impl core::clone::Clone for nika_cadence::ledger::RecordOutcome
+pub fn nika_cadence::ledger::RecordOutcome::clone(&self) -> nika_cadence::ledger::RecordOutcome
+impl core::cmp::Eq for nika_cadence::ledger::RecordOutcome
+impl core::cmp::PartialEq for nika_cadence::ledger::RecordOutcome
+pub fn nika_cadence::ledger::RecordOutcome::eq(&self, other: &nika_cadence::ledger::RecordOutcome) -> bool
+impl core::fmt::Debug for nika_cadence::ledger::RecordOutcome
+pub fn nika_cadence::ledger::RecordOutcome::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cadence::ledger::RecordOutcome
+impl core::marker::StructuralPartialEq for nika_cadence::ledger::RecordOutcome
+impl<Q, K> equivalent::Equivalent<K> for nika_cadence::ledger::RecordOutcome where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cadence::ledger::RecordOutcome::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cadence::ledger::RecordOutcome where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cadence::ledger::RecordOutcome::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cadence::ledger::RecordOutcome where U: core::convert::From<T>
+pub fn nika_cadence::ledger::RecordOutcome::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cadence::ledger::RecordOutcome where U: core::convert::Into<T>
+pub type nika_cadence::ledger::RecordOutcome::Error = core::convert::Infallible
+pub fn nika_cadence::ledger::RecordOutcome::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cadence::ledger::RecordOutcome where U: core::convert::TryFrom<T>
+pub type nika_cadence::ledger::RecordOutcome::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cadence::ledger::RecordOutcome::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cadence::ledger::RecordOutcome where T: core::clone::Clone
+pub type nika_cadence::ledger::RecordOutcome::Owned = T
+pub fn nika_cadence::ledger::RecordOutcome::clone_into(&self, target: &mut T)
+pub fn nika_cadence::ledger::RecordOutcome::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cadence::ledger::RecordOutcome where T: 'static + ?core::marker::Sized
+pub fn nika_cadence::ledger::RecordOutcome::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cadence::ledger::RecordOutcome where T: ?core::marker::Sized
+pub fn nika_cadence::ledger::RecordOutcome::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cadence::ledger::RecordOutcome where T: ?core::marker::Sized
+pub fn nika_cadence::ledger::RecordOutcome::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cadence::ledger::RecordOutcome where T: core::clone::Clone
+pub unsafe fn nika_cadence::ledger::RecordOutcome::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cadence::ledger::RecordOutcome
+pub fn nika_cadence::ledger::RecordOutcome::from(t: T) -> T
+pub struct nika_cadence::ledger::Unsettled
+pub nika_cadence::ledger::Unsettled::claimed_at: jiff::timestamp::Timestamp
+pub nika_cadence::ledger::Unsettled::deadline: jiff::timestamp::Timestamp
+pub nika_cadence::ledger::Unsettled::seq: u64
+pub nika_cadence::ledger::Unsettled::slot_id: nika_cadence::firing::SlotId
+impl core::clone::Clone for nika_cadence::ledger::Unsettled
+pub fn nika_cadence::ledger::Unsettled::clone(&self) -> nika_cadence::ledger::Unsettled
+impl core::cmp::Eq for nika_cadence::ledger::Unsettled
+impl core::cmp::PartialEq for nika_cadence::ledger::Unsettled
+pub fn nika_cadence::ledger::Unsettled::eq(&self, other: &nika_cadence::ledger::Unsettled) -> bool
+impl core::fmt::Debug for nika_cadence::ledger::Unsettled
+pub fn nika_cadence::ledger::Unsettled::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_cadence::ledger::Unsettled
+impl<Q, K> equivalent::Equivalent<K> for nika_cadence::ledger::Unsettled where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cadence::ledger::Unsettled::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cadence::ledger::Unsettled where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cadence::ledger::Unsettled::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cadence::ledger::Unsettled where U: core::convert::From<T>
+pub fn nika_cadence::ledger::Unsettled::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cadence::ledger::Unsettled where U: core::convert::Into<T>
+pub type nika_cadence::ledger::Unsettled::Error = core::convert::Infallible
+pub fn nika_cadence::ledger::Unsettled::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cadence::ledger::Unsettled where U: core::convert::TryFrom<T>
+pub type nika_cadence::ledger::Unsettled::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cadence::ledger::Unsettled::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cadence::ledger::Unsettled where T: core::clone::Clone
+pub type nika_cadence::ledger::Unsettled::Owned = T
+pub fn nika_cadence::ledger::Unsettled::clone_into(&self, target: &mut T)
+pub fn nika_cadence::ledger::Unsettled::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cadence::ledger::Unsettled where T: 'static + ?core::marker::Sized
+pub fn nika_cadence::ledger::Unsettled::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cadence::ledger::Unsettled where T: ?core::marker::Sized
+pub fn nika_cadence::ledger::Unsettled::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cadence::ledger::Unsettled where T: ?core::marker::Sized
+pub fn nika_cadence::ledger::Unsettled::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cadence::ledger::Unsettled where T: core::clone::Clone
+pub unsafe fn nika_cadence::ledger::Unsettled::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cadence::ledger::Unsettled
+pub fn nika_cadence::ledger::Unsettled::from(t: T) -> T
+pub const nika_cadence::ledger::LEDGER_SCHEMA: &str
+pub fn nika_cadence::ledger::decision_payload(entry: &nika_cadence::ledger::HistoryEntry) -> alloc::string::String
+pub fn nika_cadence::ledger::first_line_is_versioned(text: &str) -> bool
+pub fn nika_cadence::ledger::json_str(raw: &str) -> alloc::string::String
+pub fn nika_cadence::ledger::ledger_line(seq: u64, ts: jiff::timestamp::Timestamp, kind: &str, slot_id: core::option::Option<&str>, payload: &str, prev_hash: core::option::Option<&str>) -> (alloc::string::String, alloc::string::String)
+pub fn nika_cadence::ledger::parse_last(text: &str) -> core::option::Option<nika_cadence::ledger::LastRecord>
+pub fn nika_cadence::ledger::render_last(record: &nika_cadence::ledger::LastRecord) -> alloc::string::String
+pub fn nika_cadence::ledger::replay_projection<'a>(journals: impl core::iter::traits::collect::IntoIterator<Item = (&'a str, bool)>) -> (core::option::Option<nika_cadence::ledger::LastRecord>, core::option::Option<jiff::timestamp::Timestamp>)
+pub fn nika_cadence::ledger::replay_state<'a>(journals: impl core::iter::traits::collect::IntoIterator<Item = (&'a str, bool)>, now: &jiff::timestamp::Timestamp) -> core::option::Option<(nika_cadence::firing::FiringState, bool, core::option::Option<alloc::string::String>)>
+pub fn nika_cadence::ledger::scan_chain(text: &str) -> (u64, core::option::Option<alloc::string::String>, usize)
+pub fn nika_cadence::ledger::tallies<'a>(journals: impl core::iter::traits::collect::IntoIterator<Item = &'a str>) -> (usize, usize)
+pub fn nika_cadence::ledger::unsettled(text: &str) -> alloc::vec::Vec<nika_cadence::ledger::Unsettled>
+pub fn nika_cadence::ledger::verify_line(line: &str, expected_seq: u64, expected_prev: core::option::Option<&str>) -> core::option::Option<alloc::string::String>
 pub mod nika_cadence::next
 #[non_exhaustive] pub enum nika_cadence::next::Shift
 pub nika_cadence::next::Shift::AdvancedFirstValid
@@ -1399,6 +1635,50 @@ impl<T> core::clone::CloneToUninit for nika_cadence::firing::Decision where T: c
 pub unsafe fn nika_cadence::firing::Decision::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::firing::Decision
 pub fn nika_cadence::firing::Decision::from(t: T) -> T
+pub enum nika_cadence::DecisionKind
+pub nika_cadence::DecisionKind::Disarmed
+pub nika_cadence::DecisionKind::Failed
+pub nika_cadence::DecisionKind::Fired
+pub nika_cadence::DecisionKind::Paused
+pub nika_cadence::DecisionKind::Skipped
+impl nika_cadence::ledger::DecisionKind
+pub const fn nika_cadence::ledger::DecisionKind::as_str(self) -> &'static str
+pub fn nika_cadence::ledger::DecisionKind::parse_projection(word: &str) -> core::option::Option<Self>
+impl core::clone::Clone for nika_cadence::ledger::DecisionKind
+pub fn nika_cadence::ledger::DecisionKind::clone(&self) -> nika_cadence::ledger::DecisionKind
+impl core::cmp::Eq for nika_cadence::ledger::DecisionKind
+impl core::cmp::PartialEq for nika_cadence::ledger::DecisionKind
+pub fn nika_cadence::ledger::DecisionKind::eq(&self, other: &nika_cadence::ledger::DecisionKind) -> bool
+impl core::fmt::Debug for nika_cadence::ledger::DecisionKind
+pub fn nika_cadence::ledger::DecisionKind::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cadence::ledger::DecisionKind
+impl core::marker::StructuralPartialEq for nika_cadence::ledger::DecisionKind
+impl<Q, K> equivalent::Equivalent<K> for nika_cadence::ledger::DecisionKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cadence::ledger::DecisionKind::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cadence::ledger::DecisionKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cadence::ledger::DecisionKind::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cadence::ledger::DecisionKind where U: core::convert::From<T>
+pub fn nika_cadence::ledger::DecisionKind::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cadence::ledger::DecisionKind where U: core::convert::Into<T>
+pub type nika_cadence::ledger::DecisionKind::Error = core::convert::Infallible
+pub fn nika_cadence::ledger::DecisionKind::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cadence::ledger::DecisionKind where U: core::convert::TryFrom<T>
+pub type nika_cadence::ledger::DecisionKind::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cadence::ledger::DecisionKind::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cadence::ledger::DecisionKind where T: core::clone::Clone
+pub type nika_cadence::ledger::DecisionKind::Owned = T
+pub fn nika_cadence::ledger::DecisionKind::clone_into(&self, target: &mut T)
+pub fn nika_cadence::ledger::DecisionKind::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cadence::ledger::DecisionKind where T: 'static + ?core::marker::Sized
+pub fn nika_cadence::ledger::DecisionKind::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cadence::ledger::DecisionKind where T: ?core::marker::Sized
+pub fn nika_cadence::ledger::DecisionKind::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cadence::ledger::DecisionKind where T: ?core::marker::Sized
+pub fn nika_cadence::ledger::DecisionKind::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cadence::ledger::DecisionKind where T: core::clone::Clone
+pub unsafe fn nika_cadence::ledger::DecisionKind::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cadence::ledger::DecisionKind
+pub fn nika_cadence::ledger::DecisionKind::from(t: T) -> T
 #[non_exhaustive] pub enum nika_cadence::DueKind
 pub nika_cadence::DueKind::Missed
 pub nika_cadence::DueKind::Missed::slots: u32
@@ -1912,6 +2192,37 @@ impl<T> core::clone::CloneToUninit for nika_cadence::error::CadenceError where T
 pub unsafe fn nika_cadence::error::CadenceError::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::error::CadenceError
 pub fn nika_cadence::error::CadenceError::from(t: T) -> T
+pub struct nika_cadence::Claim
+pub nika_cadence::Claim::deadline: jiff::timestamp::Timestamp
+pub nika_cadence::Claim::decided_at: jiff::timestamp::Timestamp
+pub nika_cadence::Claim::generation: core::option::Option<nika_cadence::firing::ArmGeneration>
+pub nika_cadence::Claim::slot_id: nika_cadence::firing::SlotId
+impl core::clone::Clone for nika_cadence::ledger::Claim
+pub fn nika_cadence::ledger::Claim::clone(&self) -> nika_cadence::ledger::Claim
+impl core::fmt::Debug for nika_cadence::ledger::Claim
+pub fn nika_cadence::ledger::Claim::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<T, U> core::convert::Into<U> for nika_cadence::ledger::Claim where U: core::convert::From<T>
+pub fn nika_cadence::ledger::Claim::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cadence::ledger::Claim where U: core::convert::Into<T>
+pub type nika_cadence::ledger::Claim::Error = core::convert::Infallible
+pub fn nika_cadence::ledger::Claim::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cadence::ledger::Claim where U: core::convert::TryFrom<T>
+pub type nika_cadence::ledger::Claim::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cadence::ledger::Claim::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cadence::ledger::Claim where T: core::clone::Clone
+pub type nika_cadence::ledger::Claim::Owned = T
+pub fn nika_cadence::ledger::Claim::clone_into(&self, target: &mut T)
+pub fn nika_cadence::ledger::Claim::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cadence::ledger::Claim where T: 'static + ?core::marker::Sized
+pub fn nika_cadence::ledger::Claim::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cadence::ledger::Claim where T: ?core::marker::Sized
+pub fn nika_cadence::ledger::Claim::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cadence::ledger::Claim where T: ?core::marker::Sized
+pub fn nika_cadence::ledger::Claim::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cadence::ledger::Claim where T: core::clone::Clone
+pub unsafe fn nika_cadence::ledger::Claim::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cadence::ledger::Claim
+pub fn nika_cadence::ledger::Claim::from(t: T) -> T
 #[non_exhaustive] pub struct nika_cadence::CronSpec
 impl nika_cadence::cron::CronSpec
 pub fn nika_cadence::cron::CronSpec::dom(&self) -> &nika_cadence::cron::Field<1, 31>
@@ -2106,6 +2417,114 @@ impl<T> core::clone::CloneToUninit for nika_cadence::firing::FiringPolicy where 
 pub unsafe fn nika_cadence::firing::FiringPolicy::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::firing::FiringPolicy
 pub fn nika_cadence::firing::FiringPolicy::from(t: T) -> T
+pub struct nika_cadence::HistoryEntry
+pub nika_cadence::HistoryEntry::decided_at: jiff::timestamp::Timestamp
+pub nika_cadence::HistoryEntry::exit: core::option::Option<u8>
+pub nika_cadence::HistoryEntry::fencing: core::option::Option<nika_cadence::firing::FencingToken>
+pub nika_cadence::HistoryEntry::generation: core::option::Option<nika_cadence::firing::ArmGeneration>
+pub nika_cadence::HistoryEntry::kind: nika_cadence::ledger::DecisionKind
+pub nika_cadence::HistoryEntry::reason: core::option::Option<alloc::string::String>
+pub nika_cadence::HistoryEntry::slot: core::option::Option<jiff::timestamp::Timestamp>
+pub nika_cadence::HistoryEntry::slot_id: core::option::Option<nika_cadence::firing::SlotId>
+pub nika_cadence::HistoryEntry::slots: core::option::Option<u32>
+pub nika_cadence::HistoryEntry::trace: core::option::Option<alloc::string::String>
+impl core::clone::Clone for nika_cadence::ledger::HistoryEntry
+pub fn nika_cadence::ledger::HistoryEntry::clone(&self) -> nika_cadence::ledger::HistoryEntry
+impl core::fmt::Debug for nika_cadence::ledger::HistoryEntry
+pub fn nika_cadence::ledger::HistoryEntry::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<T, U> core::convert::Into<U> for nika_cadence::ledger::HistoryEntry where U: core::convert::From<T>
+pub fn nika_cadence::ledger::HistoryEntry::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cadence::ledger::HistoryEntry where U: core::convert::Into<T>
+pub type nika_cadence::ledger::HistoryEntry::Error = core::convert::Infallible
+pub fn nika_cadence::ledger::HistoryEntry::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cadence::ledger::HistoryEntry where U: core::convert::TryFrom<T>
+pub type nika_cadence::ledger::HistoryEntry::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cadence::ledger::HistoryEntry::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cadence::ledger::HistoryEntry where T: core::clone::Clone
+pub type nika_cadence::ledger::HistoryEntry::Owned = T
+pub fn nika_cadence::ledger::HistoryEntry::clone_into(&self, target: &mut T)
+pub fn nika_cadence::ledger::HistoryEntry::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cadence::ledger::HistoryEntry where T: 'static + ?core::marker::Sized
+pub fn nika_cadence::ledger::HistoryEntry::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cadence::ledger::HistoryEntry where T: ?core::marker::Sized
+pub fn nika_cadence::ledger::HistoryEntry::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cadence::ledger::HistoryEntry where T: ?core::marker::Sized
+pub fn nika_cadence::ledger::HistoryEntry::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cadence::ledger::HistoryEntry where T: core::clone::Clone
+pub unsafe fn nika_cadence::ledger::HistoryEntry::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cadence::ledger::HistoryEntry
+pub fn nika_cadence::ledger::HistoryEntry::from(t: T) -> T
+pub struct nika_cadence::LastRecord
+pub nika_cadence::LastRecord::exit: core::option::Option<u8>
+pub nika_cadence::LastRecord::fired_at: jiff::timestamp::Timestamp
+pub nika_cadence::LastRecord::generation: core::option::Option<nika_cadence::firing::ArmGeneration>
+pub nika_cadence::LastRecord::kind: nika_cadence::ledger::DecisionKind
+pub nika_cadence::LastRecord::slot: jiff::timestamp::Timestamp
+pub nika_cadence::LastRecord::trace: core::option::Option<alloc::string::String>
+impl core::clone::Clone for nika_cadence::ledger::LastRecord
+pub fn nika_cadence::ledger::LastRecord::clone(&self) -> nika_cadence::ledger::LastRecord
+impl core::fmt::Debug for nika_cadence::ledger::LastRecord
+pub fn nika_cadence::ledger::LastRecord::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<T, U> core::convert::Into<U> for nika_cadence::ledger::LastRecord where U: core::convert::From<T>
+pub fn nika_cadence::ledger::LastRecord::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cadence::ledger::LastRecord where U: core::convert::Into<T>
+pub type nika_cadence::ledger::LastRecord::Error = core::convert::Infallible
+pub fn nika_cadence::ledger::LastRecord::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cadence::ledger::LastRecord where U: core::convert::TryFrom<T>
+pub type nika_cadence::ledger::LastRecord::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cadence::ledger::LastRecord::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cadence::ledger::LastRecord where T: core::clone::Clone
+pub type nika_cadence::ledger::LastRecord::Owned = T
+pub fn nika_cadence::ledger::LastRecord::clone_into(&self, target: &mut T)
+pub fn nika_cadence::ledger::LastRecord::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cadence::ledger::LastRecord where T: 'static + ?core::marker::Sized
+pub fn nika_cadence::ledger::LastRecord::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cadence::ledger::LastRecord where T: ?core::marker::Sized
+pub fn nika_cadence::ledger::LastRecord::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cadence::ledger::LastRecord where T: ?core::marker::Sized
+pub fn nika_cadence::ledger::LastRecord::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cadence::ledger::LastRecord where T: core::clone::Clone
+pub unsafe fn nika_cadence::ledger::LastRecord::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cadence::ledger::LastRecord
+pub fn nika_cadence::ledger::LastRecord::from(t: T) -> T
+pub struct nika_cadence::RecordOutcome
+pub nika_cadence::RecordOutcome::repaired: u64
+pub nika_cadence::RecordOutcome::seq: u64
+impl core::clone::Clone for nika_cadence::ledger::RecordOutcome
+pub fn nika_cadence::ledger::RecordOutcome::clone(&self) -> nika_cadence::ledger::RecordOutcome
+impl core::cmp::Eq for nika_cadence::ledger::RecordOutcome
+impl core::cmp::PartialEq for nika_cadence::ledger::RecordOutcome
+pub fn nika_cadence::ledger::RecordOutcome::eq(&self, other: &nika_cadence::ledger::RecordOutcome) -> bool
+impl core::fmt::Debug for nika_cadence::ledger::RecordOutcome
+pub fn nika_cadence::ledger::RecordOutcome::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cadence::ledger::RecordOutcome
+impl core::marker::StructuralPartialEq for nika_cadence::ledger::RecordOutcome
+impl<Q, K> equivalent::Equivalent<K> for nika_cadence::ledger::RecordOutcome where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cadence::ledger::RecordOutcome::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cadence::ledger::RecordOutcome where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cadence::ledger::RecordOutcome::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cadence::ledger::RecordOutcome where U: core::convert::From<T>
+pub fn nika_cadence::ledger::RecordOutcome::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cadence::ledger::RecordOutcome where U: core::convert::Into<T>
+pub type nika_cadence::ledger::RecordOutcome::Error = core::convert::Infallible
+pub fn nika_cadence::ledger::RecordOutcome::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cadence::ledger::RecordOutcome where U: core::convert::TryFrom<T>
+pub type nika_cadence::ledger::RecordOutcome::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cadence::ledger::RecordOutcome::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cadence::ledger::RecordOutcome where T: core::clone::Clone
+pub type nika_cadence::ledger::RecordOutcome::Owned = T
+pub fn nika_cadence::ledger::RecordOutcome::clone_into(&self, target: &mut T)
+pub fn nika_cadence::ledger::RecordOutcome::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cadence::ledger::RecordOutcome where T: 'static + ?core::marker::Sized
+pub fn nika_cadence::ledger::RecordOutcome::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cadence::ledger::RecordOutcome where T: ?core::marker::Sized
+pub fn nika_cadence::ledger::RecordOutcome::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cadence::ledger::RecordOutcome where T: ?core::marker::Sized
+pub fn nika_cadence::ledger::RecordOutcome::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cadence::ledger::RecordOutcome where T: core::clone::Clone
+pub unsafe fn nika_cadence::ledger::RecordOutcome::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cadence::ledger::RecordOutcome
+pub fn nika_cadence::ledger::RecordOutcome::from(t: T) -> T
 #[non_exhaustive] pub struct nika_cadence::Slot
 pub nika_cadence::Slot::at: jiff::zoned::Zoned
 pub nika_cadence::Slot::civil: jiff::civil::datetime::DateTime
@@ -2184,6 +2603,45 @@ impl<T> core::clone::CloneToUninit for nika_cadence::firing::SlotId where T: cor
 pub unsafe fn nika_cadence::firing::SlotId::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cadence::firing::SlotId
 pub fn nika_cadence::firing::SlotId::from(t: T) -> T
+pub struct nika_cadence::Unsettled
+pub nika_cadence::Unsettled::claimed_at: jiff::timestamp::Timestamp
+pub nika_cadence::Unsettled::deadline: jiff::timestamp::Timestamp
+pub nika_cadence::Unsettled::seq: u64
+pub nika_cadence::Unsettled::slot_id: nika_cadence::firing::SlotId
+impl core::clone::Clone for nika_cadence::ledger::Unsettled
+pub fn nika_cadence::ledger::Unsettled::clone(&self) -> nika_cadence::ledger::Unsettled
+impl core::cmp::Eq for nika_cadence::ledger::Unsettled
+impl core::cmp::PartialEq for nika_cadence::ledger::Unsettled
+pub fn nika_cadence::ledger::Unsettled::eq(&self, other: &nika_cadence::ledger::Unsettled) -> bool
+impl core::fmt::Debug for nika_cadence::ledger::Unsettled
+pub fn nika_cadence::ledger::Unsettled::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_cadence::ledger::Unsettled
+impl<Q, K> equivalent::Equivalent<K> for nika_cadence::ledger::Unsettled where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cadence::ledger::Unsettled::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cadence::ledger::Unsettled where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cadence::ledger::Unsettled::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cadence::ledger::Unsettled where U: core::convert::From<T>
+pub fn nika_cadence::ledger::Unsettled::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cadence::ledger::Unsettled where U: core::convert::Into<T>
+pub type nika_cadence::ledger::Unsettled::Error = core::convert::Infallible
+pub fn nika_cadence::ledger::Unsettled::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cadence::ledger::Unsettled where U: core::convert::TryFrom<T>
+pub type nika_cadence::ledger::Unsettled::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cadence::ledger::Unsettled::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cadence::ledger::Unsettled where T: core::clone::Clone
+pub type nika_cadence::ledger::Unsettled::Owned = T
+pub fn nika_cadence::ledger::Unsettled::clone_into(&self, target: &mut T)
+pub fn nika_cadence::ledger::Unsettled::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cadence::ledger::Unsettled where T: 'static + ?core::marker::Sized
+pub fn nika_cadence::ledger::Unsettled::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cadence::ledger::Unsettled where T: ?core::marker::Sized
+pub fn nika_cadence::ledger::Unsettled::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cadence::ledger::Unsettled where T: ?core::marker::Sized
+pub fn nika_cadence::ledger::Unsettled::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cadence::ledger::Unsettled where T: core::clone::Clone
+pub unsafe fn nika_cadence::ledger::Unsettled::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cadence::ledger::Unsettled
+pub fn nika_cadence::ledger::Unsettled::from(t: T) -> T
 pub const nika_cadence::MISSED_SLOTS_CAP: usize
 pub const nika_cadence::ON_TIME_WINDOW: jiff::signed_duration::SignedDuration
 pub fn nika_cadence::decide(state: nika_cadence::firing::FiringState, event: &nika_cadence::firing::FiringEvent, now: &jiff::timestamp::Timestamp, policy: &nika_cadence::firing::FiringPolicy) -> alloc::vec::Vec<nika_cadence::firing::Decision>

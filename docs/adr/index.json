@@ -1188,7 +1188,7 @@
     ,
     {
       "id": "ADR-114",
-      "title": "`nika-cadence` — the arming registry grammar and the pure next-slot calculator, at L0",
+      "title": "`nika-cadence` — the pure arming domain, at L0",
       "status": "accepted",
       "date": "2026-08-15",
       "filename": "adr-114-nika-cadence-admission.md",

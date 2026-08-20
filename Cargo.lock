@@ -4133,6 +4133,7 @@ dependencies = [
  "jiff-tzdb",
  "proptest",
  "serde",
+ "serde_json",
  "serde_yaml_bw",
  "sha2 0.10.9",
  "thiserror 2.0.20",

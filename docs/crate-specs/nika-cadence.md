@@ -4,24 +4,25 @@
 |---|---|
 | Status | **CANDIDATE** — Gate 1 (this document) authored 2026-08-11. Crafted shim-standalone (50 tests today, 45 at authoring · clippy 0 `-D warnings` · rustfmt clean) · committed with the temporary `[workspace]` shim (`92a0f8497`), then the four pre-freeze corrections of plan §2unvicies (the bitset's ONE encoding · `Slot` declares the DST shift · the field count is the type · the error span). The two items this row used to name (the allowlist row, the shim removal) are BOTH DONE; the row described work already shipped. Remaining before admission, measured 2026-08-13: the Gate 11 P1 below, and Gate 5 at 88 percent against a 90 floor. **W1, measured 2026-08-19**: 79 tests green (`cargo test -p nika-cadence --lib`) · `Cadence::prev_before` (the mirror, 366-day bound) · the `due` planner (`due` · `earliest_next` · `DueKind` · `ON_TIME_WINDOW`) — the pure half the `fire`/`serve` edges read; `emit` lands in W3 (planned, see §3). Gate 5 re-run this wave; the floor holds ≥90. |
 | Layer | L0 — pure, zero I/O, zero async |
-| Design | The arming-registry grammar (the `arm:` block of `nika.yaml`, D-2026-08-10-N3) + the pure next-slot calculator + the W7 typed firing machine. Hand-counted 5-field cron (zero cron library — the count is validated BEFORE field semantics, scar #6) · IANA zones resolved from the EMBEDDED tzdb only (`jiff-tzdb`, never the host's zoneinfo) · two cadence forms (cron + readable `lundi 9h07`), display normalizing to the readable one. The firing machine owns no I/O and reads no clock: callers inject events, policy, and `now`. |
-| LOC budget | ≤2,000 src prod (post-corrections 1,467 prod + 753 cfg(test)) · ≤15,000 hard cap |
-| File cap | ≤1,500 LOC each (max file 690, the tests) |
+| Design | The arming-registry grammar (the `arm:` block of `nika.yaml`, D-2026-08-10-N3) + the pure next-slot calculator + the W7 typed firing and ledger machines. Hand-counted 5-field cron (zero cron library — the count is validated BEFORE field semantics, scar #6) · IANA zones resolved from the EMBEDDED tzdb only (`jiff-tzdb`, never the host's zoneinfo) · two cadence forms (cron + readable `lundi 9h07`), display normalizing to the readable one. The machines own no I/O and read no clock: callers inject events, policy, `now`, and borrowed journal text; the L4 adapter alone owns files, locks, fsync, and rotation. |
+| LOC budget | ≤4,000 src prod (W7 measured 3,412 after the pure ledger seam) · ≤15,000 hard cap |
+| File cap | ≤1,500 LOC each (W7 max 1,364 in `firing.rs`; `ledger.rs` 852 including tests) |
 | Function cap | ≤100 lines each (max ~60) |
 | Crate version | tracks workspace |
 | License | `AGPL-3.0-or-later` |
 | Edition | 2024 (workspace-inherited at admission) |
 | Publish | `false` — foundation crate, never on crates.io |
-| Dependencies | `serde` · `serde_yaml_bw` (the panic-free YAML plane) · `thiserror` · `jiff` · `jiff-tzdb` (the embedded IANA tzdb) · `sha2` (W7 domain-separated `SlotId` + `ArmGeneration`) — dev: `proptest` |
+| Dependencies | `serde` · `serde_json` (W7 ledger wire fold) · `serde_yaml_bw` (the panic-free YAML plane) · `thiserror` · `jiff` · `jiff-tzdb` (the embedded IANA tzdb) · `sha2` (W7 domain-separated `SlotId` + `ArmGeneration`) — dev: `proptest` |
 | NIKA codes | **none owed** — `CadenceErrorKind::spec_code()` emits the grammar's OWN slugs (`cadence.*`), never a `NIKA-*` registry code; every refusal is rendered as a taught fix at the L4 verb boundary (`exit 2`, the FILE plane). The `check-error-one-voice.sh` allowlist row is ALREADY in place (class `spec-plane`, the `CelErrorKind` precedent — corrected 2026-08-13 at Gate 11; this row said `wrapped-intermediate`/`ExprError`, which the real TSV and the canonical audit table both contradict). |
 
 ---
 
 ## 1. Purpose
 
-`nika-cadence` is the grammar of the arming registry and the calculator
-that answers one question: **given an instant, when does a beat fire
-next?** Two L4 consumers read this registry (`nika arm` today ·
+`nika-cadence` is the pure arming domain: registry grammar, slot calculator,
+firing state machine, and ledger codec/replay fold. It answers when a beat
+fires and what durable evidence means without touching a file. Two L4
+consumers read this registry (`nika arm` today ·
 `nika serve` at ②), so the shared logic lives at L0 — never in a CLI
 crate (the layering precedent: `nika-check`'s Cargo.toml · "THREE L0
 consumers make any higher layer an upward-dep violation").
@@ -34,8 +35,8 @@ PROPOSES, THE MACHINE DISPOSES):
   silent skip) · a slot in an autumn fold fires ONCE, at its first
   occurrence. Implemented as gap-detection (`zoned.datetime() != civil`)
   + minute-stepping, bounded at 26 h.
-- **N2 · no resume** — a beat starts from ZERO; this crate computes
-  slots and never carries run state.
+- **N2 · no resume** — a beat starts from ZERO; the pure fold describes
+  evidence but never resumes or executes a run.
 - **N3 · identity** — `par:` DECLARES the human and proves nothing; the
   machine's key authorizes. A merge arms nothing (`arm --write` is L4).
 - **N4 · absence** — removing a line does NOT disarm; that gesture is
@@ -129,6 +130,15 @@ returns typed ordered effects under an injected `FiringPolicy` and
 `Timestamp`. Every public enum/struct is forward-compatible; the three
 identities validate their wire form before construction.
 
+**W7 — the pure ledger (`ledger` module)**: `DecisionKind`, `Claim`,
+`HistoryEntry`, `Unsettled`, and `LastRecord` are the typed wire vocabulary;
+`ledger_line` and `verify_line` freeze the `nika/arm-event@1` hash chain;
+`scan_chain` returns the verified prefix; `replay` folds borrowed journals into
+the byte-stable projection, watermark, and lifecycle; `fold_replay` applies the
+open deadline boundary; `unsettled` reconciles only a matching later fencing
+receipt. `nika-cli::arm::state` is the filesystem adapter and owns every effect.
+This seam is the ADR-114 amendment: no dependency cycle and no second judge.
+
 ## 4. Tests
 
 79 today (W1, 2026-08-19 — 50 before the wave; the planner and the
@@ -167,6 +177,13 @@ typed skip reasons; and proptest over arbitrary event sequences against
 an independently encoded transition table. Mutation floor: run
 `check-mutation-floor.sh` at admission and again for every new semantic
 module.
+
+**W7 ledger tests** additionally pin canonical-line verification, one-byte
+tamper refusal, verified-prefix truncation, claim/receipt lifecycle folding,
+orphan deadline equality vs strictly-after ambiguity, legacy replay,
+byte-stable projection round-trip, and tallies. The CLI adapter suite keeps the
+filesystem E2E matrix (delete/rebuild, tamper, reorder, truncation, migration,
+idempotence, and audible refusal).
 
 ## 5. Non-goals / guards
 
