@@ -7,8 +7,8 @@
 //! models · the IFC taint facts): the journey names the CLASSES, never
 //! the values (law 13 — no secret value, no file content, ever).
 //!
-//! The closure proof is « aucun sink cloud sensible sans reçu/consentement
-//! visible »: a secret reaching a cloud destination is NAMED on the
+//! The closure proof is « aucun sink externe sensible sans reçu/consentement
+//! visible »: a secret reaching an external destination is NAMED on the
 //! journey (advisory — the blocking refusal for the unsanctioned case
 //! already lives in the IFC leak lane; a sanctioned egress stays a flow
 //! the operator must SEE, receipt-side).
@@ -31,7 +31,7 @@ use super::walk::static_literal_of;
 /// author cannot talk their way down a class). Conservative by law:
 /// `internal` by default, `sensitive` when declared secrets are used or
 /// a PII-shaped path is declared, `regulated` when a secret reaches a
-/// cloud destination. Never an over-claim: an unknown shape stays DOWN.
+/// external destination. Never an over-claim: an unknown shape stays DOWN.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "lowercase")]
 #[non_exhaustive]
@@ -42,7 +42,7 @@ pub enum DataClassification {
     /// A declared secret is used, or a declared path names a
     /// personal-data class (customers · patients · …).
     Sensitive,
-    /// A secret reaches a cloud destination — the receipt law applies.
+    /// A secret reaches an external destination — the receipt law applies.
     Regulated,
 }
 
@@ -115,7 +115,7 @@ pub struct ModelEndpoint {
 }
 
 /// One declared secret the workflow USES — the NAME only (law 13),
-/// the tasks touching it, the cloud destinations it reaches, and the
+/// the tasks touching it, the external destinations it reaches, and the
 /// author's declared clearances (the `egress:` receipts).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize)]
 #[non_exhaustive]
@@ -124,8 +124,8 @@ pub struct SecretUse {
     pub name: String,
     /// The effect tasks referencing it (directly or through the taint).
     pub tasks: Vec<String>,
-    /// The cloud destinations the secret reaches (a provider id · a
-    /// public host) — the rows the JOURNEY rung warns on.
+    /// The external destinations the secret reaches (a provider id · a
+    /// public host · an MCP tool id) — the rows the JOURNEY rung warns on.
     pub flows_to: Vec<String>,
     /// The author's declared clearances (`egress.to:` tokens).
     pub consents: Vec<String>,
@@ -165,7 +165,8 @@ pub struct DataJourney {
     pub classification: DataClassification,
     /// Where data is READ (declared static `fs.read` effects).
     pub sources: Vec<JourneyEndpoint>,
-    /// Where data GOES (`fs.write` · `exec` programs · `net.http` hosts).
+    /// Where data GOES (`fs.write` · `exec` programs · `net.http` hosts ·
+    /// `mcp.tool` ids).
     pub destinations: Vec<JourneyEndpoint>,
     /// The model endpoint each infer/agent task resolves to.
     pub model_endpoints: Vec<ModelEndpoint>,
@@ -199,24 +200,25 @@ pub(crate) fn collect(wf: &RawWorkflow, flow: &FlowFacts) -> DataJourney {
     // (kind, target) → tasks — the endpoint tables, BTree-ordered.
     let mut endpoints: BTreeMap<(&'static str, String), BTreeSet<String>> = BTreeMap::new();
     let mut model_endpoints = Vec::new();
-    // task → the cloud destinations it reaches (provider ids · public hosts).
-    let mut task_cloud: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    // task → the external destinations it reaches (provider ids · public
+    // hosts · MCP tool ids).
+    let mut task_external: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
     // secret name → the tasks using it.
     let mut secret_tasks: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
 
     for (idx, task) in wf.tasks.iter().enumerate() {
         let t = &task.value;
         let id = t.id.value.clone();
-        let mut cloud = BTreeSet::new();
-        collect_action_effects(&consts, &id, &t.action, &mut endpoints, &mut cloud);
+        let mut external = BTreeSet::new();
+        collect_action_effects(&consts, &id, &t.action, &mut endpoints, &mut external);
         if let Some(ep) = model_endpoint_of(wf, t, envelope.as_deref()) {
             if ep.locus == EndpointLocus::Cloud {
-                cloud.insert(ep.provider.clone());
+                external.insert(ep.provider.clone());
             }
             model_endpoints.push(ep);
         }
-        if !cloud.is_empty() {
-            task_cloud.insert(id.clone(), cloud);
+        if !external.is_empty() {
+            task_external.insert(id.clone(), external);
         }
         for name in secret_names_of_task(idx, t, flow, &declared) {
             secret_tasks.entry(name).or_default().insert(id.clone());
@@ -224,7 +226,7 @@ pub(crate) fn collect(wf: &RawWorkflow, flow: &FlowFacts) -> DataJourney {
     }
 
     let sources = endpoints_of(&endpoints, "fs.read");
-    let destinations: Vec<JourneyEndpoint> = ["fs.write", "net.http", "exec"]
+    let destinations: Vec<JourneyEndpoint> = ["fs.write", "net.http", "mcp.tool", "exec"]
         .into_iter()
         .flat_map(|kind| endpoints_of(&endpoints, kind))
         .collect();
@@ -233,7 +235,7 @@ pub(crate) fn collect(wf: &RawWorkflow, flow: &FlowFacts) -> DataJourney {
         .filter(|d| d.kind == "fs.write")
         .map(|d| d.target.clone())
         .collect();
-    let secrets_used = secret_uses(wf, secret_tasks, &task_cloud);
+    let secrets_used = secret_uses(wf, secret_tasks, &task_external);
     let consents = consents_of(wf);
     let trace_retention = retention_facts(&model_endpoints);
     let classification = classify(&sources, &writes, &secrets_used);
@@ -259,7 +261,7 @@ fn collect_action_effects(
     id: &str,
     action: &RawAction,
     endpoints: &mut BTreeMap<(&'static str, String), BTreeSet<String>>,
-    cloud: &mut BTreeSet<String>,
+    external: &mut BTreeSet<String>,
 ) {
     let mut touch = |kind: &'static str, target: String| {
         endpoints
@@ -276,8 +278,17 @@ fn collect_action_effects(
             }
         }
         RawAction::Invoke(a) => {
-            if !matches!(a.target, RawInvokeTarget::Tool(_)) {
+            let RawInvokeTarget::Tool(tool) = &a.target else {
                 return; // a child workflow's boundary: the composition lane's
+            };
+            // MCP is an open namespace, so check cannot derive the remote
+            // host or deployment locus. It CAN still name the exact external
+            // effect the author chose. Omitting it made a sanctioned secret
+            // flow disappear from both the JSON and human journey.
+            if tool.value.starts_with("mcp:") {
+                touch("mcp.tool", tool.value.clone());
+                external.insert(tool.value.clone());
+                return;
             }
             match builtin_effect(a) {
                 Some(BuiltinEffect::Net { url_arg }) => {
@@ -288,7 +299,7 @@ fn collect_action_effects(
                         // A floor-blocked literal (loopback · private) is not
                         // a cloud sink — data to it stays off the wire.
                         if !nika_types::net::host_is_blocked(&host) {
-                            cloud.insert(host.clone());
+                            external.insert(host.clone());
                         }
                         touch("net.http", host);
                     }
@@ -446,19 +457,19 @@ fn endpoints_of(
         .collect()
 }
 
-/// The used secrets with their cloud flows — a secret's `flows_to` is
-/// the union of the cloud destinations of every task touching it.
+/// The used secrets with their external flows — a secret's `flows_to` is
+/// the union of the external destinations of every task touching it.
 fn secret_uses(
     wf: &RawWorkflow,
     secret_tasks: BTreeMap<String, BTreeSet<String>>,
-    task_cloud: &BTreeMap<String, BTreeSet<String>>,
+    task_external: &BTreeMap<String, BTreeSet<String>>,
 ) -> Vec<SecretUse> {
     secret_tasks
         .into_iter()
         .map(|(name, tasks)| {
             let flows_to: BTreeSet<String> = tasks
                 .iter()
-                .filter_map(|t| task_cloud.get(t))
+                .filter_map(|t| task_external.get(t))
                 .flatten()
                 .cloned()
                 .collect();
@@ -515,7 +526,7 @@ fn retention_facts(endpoints: &[ModelEndpoint]) -> Vec<RetentionFact> {
 }
 
 /// The derived class — conservative: `regulated` needs a secret reaching
-/// a cloud sink, `sensitive` needs a used secret or a PII-shaped
+/// an external sink, `sensitive` needs a used secret or a PII-shaped
 /// declared path, everything else stays `internal`.
 fn classify(
     sources: &[JourneyEndpoint],
@@ -671,6 +682,54 @@ tasks:
             "no cloud endpoint → no retention fact: {:?}",
             j.trace_retention
         );
+    }
+
+    /// An MCP tool is an external effect even when its transport and
+    /// deployment locus are discovered only at run time. The journey must
+    /// name that boundary: otherwise a sanctioned secret flow disappears
+    /// from both the human and JSON audit surfaces.
+    #[test]
+    fn an_mcp_sink_and_its_secret_flow_are_named() {
+        let j = journey_of(
+            r#"
+nika: mcp-journey
+secrets:
+  api_token:
+    source: env
+    key: SERVICE_API_TOKEN
+    egress:
+      - { to: "mcp:service/search" }
+      - { to: outputs }
+permits:
+  tools: ["mcp:service/search"]
+tasks:
+  search:
+    invoke:
+      tool: "mcp:service/search"
+      args: { token: "${{ secrets.api_token }}", query: "nika" }
+outputs:
+  result: "${{ tasks.search.output }}"
+"#,
+        );
+        assert!(
+            j.destinations.iter().any(|d| {
+                d.kind == "mcp.tool" && d.target == "mcp:service/search" && d.tasks == ["search"]
+            }),
+            "the MCP sink is a named destination: {:?}",
+            j.destinations
+        );
+        let secret = j
+            .secrets_used
+            .iter()
+            .find(|s| s.name == "api_token")
+            .expect("the used secret is named");
+        assert_eq!(secret.tasks, ["search"]);
+        assert_eq!(
+            secret.flows_to,
+            ["mcp:service/search"],
+            "the sanctioned external flow stays visible"
+        );
+        assert_eq!(j.classification, DataClassification::Regulated);
     }
 
     /// Law 13: the journey names CLASSES, never values. A canary value
