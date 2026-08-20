@@ -68,6 +68,23 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   sit behind the flag, held there by a ratchet that walks the crate's own
   source.
 
+- **The JOURNEY rung counts model endpoints, not tasks.** The envelope
+  `model:` is a fallback for a task that HAS a model · it was applied to
+  every task, so a body of builtin invokes read `3 model endpoints` while
+  the COST rung four lines above read `no infer/agent tasks` — one card
+  contradicting itself. `model_endpoint_of` already typed the task and
+  threw the answer away on the next line. Across the shipped corpus 45 of
+  99 cards carried an inflated count; each is now exactly the number of
+  `infer:`/`agent:` tasks the file declares, and no verdict changed.
+
+- **`nika check` judges every secret sharing one effect independently.** A
+  sink that referenced two secrets previously retained only the first IFC
+  trace, so clearing that first edge could hide an uncleared second edge.
+  Direct references and task-local `with:` / `for_each` item aliases now
+  produce one consent verdict per distinct secret while the existing
+  singular output-propagation trace stays unchanged and bounded. Literal
+  `for_each.items` secret references also appear in the data journey.
+
 - **`nika check` now judges the script an `exec:` interpreter must open.**
   The runtime jails every `exec:` child to the declared `permits.fs` set, so
   `exec: ["bash", "leg.sh"]` with no `fs.read` grant could never open its

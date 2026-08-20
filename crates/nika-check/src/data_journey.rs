@@ -352,10 +352,13 @@ fn model_endpoint_of(
     task: &RawTask,
     envelope: Option<&str>,
 ) -> Option<ModelEndpoint> {
+    // The envelope is a FALLBACK for a model task, never a promotion:
+    // only `infer:` and `agent:` resolve to a model, so a body of
+    // builtin invokes has no endpoint however the envelope is written.
     let declared = match &task.action {
         RawAction::Infer(a) => a.model.as_ref().map(|m| m.value.as_str()),
         RawAction::Agent(a) => a.model.as_ref().map(|m| m.value.as_str()),
-        _ => None,
+        _ => return None,
     };
     let declared = declared.or(envelope)?;
     let model: String = if declared.contains("${{") {
@@ -429,10 +432,20 @@ fn secret_names_of_task(
             scan(text);
         }
     }
-    if let Some(fe) = &task.for_each
-        && let nika_schema::raw::ForEachValue::Expression(src) = &fe.value
-    {
-        scan(src);
+    if let Some(fe) = &task.for_each {
+        match &fe.value {
+            nika_schema::raw::ForEachValue::Expression(src) => scan(src),
+            nika_schema::raw::ForEachValue::List(list) => {
+                for text in collect_json_strings(list) {
+                    scan(text);
+                }
+            }
+            #[allow(
+                clippy::unreachable,
+                reason = "non_exhaustive future variant — enum and checker ship together; fail loud beats silently-wrong output"
+            )]
+            other => unreachable!("unknown for_each form: {other:?}"),
+        }
     }
     // The propagation facts (valid order only — empty facts, never wrong).
     if let Some(trace) = flow.effect_taint(idx) {
@@ -684,6 +697,39 @@ tasks:
         );
     }
 
+    /// The envelope `model:` names the model a MODEL task would use · it
+    /// does not turn every task into one. A body of builtin invokes has
+    /// ZERO model endpoints, and the JOURNEY rung must say so: the COST
+    /// rung four lines above it already says "no infer/agent tasks", and
+    /// a card that contradicts itself four lines apart teaches nobody.
+    #[test]
+    fn builtin_invokes_under_a_model_envelope_are_not_model_endpoints() {
+        let j = journey_of(
+            "nika: no-model-at-all\nmodel: mock/echo\npermits: { tools: [\"nika:read\"] }\ntasks:\n  a:\n    invoke: { tool: \"nika:read\", args: { path: \"data/x.txt\" } }\n  b:\n    invoke: { tool: \"nika:read\", args: { path: \"data/y.txt\" } }\n",
+        );
+        assert!(
+            j.model_endpoints.is_empty(),
+            "an invoke resolves to no model, whatever the envelope names: {:?}",
+            j.model_endpoints
+        );
+    }
+
+    /// The mixed body is where the count is actually READ: one infer
+    /// beside two builtins is ONE endpoint, and the infer task OWNS it.
+    /// A fix that merely counted infer tasks could still misattribute.
+    #[test]
+    fn only_the_model_task_owns_the_endpoint_in_a_mixed_body() {
+        let j = journey_of(
+            "nika: mixed\nmodel: mock/echo\npermits: { tools: [\"nika:read\"] }\ntasks:\n  read_it:\n    invoke: { tool: \"nika:read\", args: { path: \"data/x.txt\" } }\n  think:\n    infer: { prompt: \"hi\", max_tokens: 5 }\n  read_more:\n    invoke: { tool: \"nika:read\", args: { path: \"data/y.txt\" } }\n",
+        );
+        let named: Vec<&str> = j.model_endpoints.iter().map(|e| e.task.as_str()).collect();
+        assert_eq!(
+            named,
+            ["think"],
+            "exactly the infer task, named · not a count of tasks"
+        );
+    }
+
     /// An MCP tool is an external effect even when its transport and
     /// deployment locus are discovered only at run time. The journey must
     /// name that boundary: otherwise a sanctioned secret flow disappears
@@ -730,6 +776,37 @@ outputs:
             "the sanctioned external flow stays visible"
         );
         assert_eq!(j.classification, DataClassification::Regulated);
+    }
+
+    #[test]
+    fn list_item_names_every_secret_reaching_the_mcp_sink() {
+        let j = journey_of(
+            r#"
+nika: list-item-journey
+secrets:
+  alpha: { source: env, key: ALPHA }
+  omega: { source: env, key: OMEGA }
+permits:
+  tools: ["mcp:service/send"]
+tasks:
+  send:
+    for_each:
+      items: ["${{ secrets.alpha }}", "${{ secrets.omega }}"]
+    invoke:
+      tool: "mcp:service/send"
+      args: { payload: "${{ item }}" }
+"#,
+        );
+        let names: BTreeSet<&str> = j
+            .secrets_used
+            .iter()
+            .map(|secret| secret.name.as_str())
+            .collect();
+        assert_eq!(names, BTreeSet::from(["alpha", "omega"]));
+        for secret in &j.secrets_used {
+            assert_eq!(secret.tasks, ["send"]);
+            assert_eq!(secret.flows_to, ["mcp:service/send"]);
+        }
     }
 
     /// Law 13: the journey names CLASSES, never values. A canary value
