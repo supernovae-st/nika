@@ -287,7 +287,7 @@ fn propagate_task(
             clippy::unreachable,
             reason = "non_exhaustive future variant — enum and checker ship together; fail loud beats silently-wrong output"
         )]
-        other => unreachable!("unknown for_each form: {other:?}"),
+        _ => unreachable!("unknown for_each form"),
     });
     let (with_taints, item_taints) = task_local_taints(task, declared, id_of, facts);
 
@@ -367,7 +367,7 @@ fn task_local_taints<'a>(
             clippy::unreachable,
             reason = "non_exhaustive future variant — enum and checker ship together; fail loud beats silently-wrong output"
         )]
-        other => unreachable!("unknown for_each form: {other:?}"),
+        _ => unreachable!("unknown for_each form"),
     });
     let item_taints = item_refs
         .map(|refs| all_taints_of_refs(refs, declared, &with_taints, None, id_of, facts))
