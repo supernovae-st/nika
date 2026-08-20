@@ -55,6 +55,73 @@ pub(crate) const KEYRING_SERVICE: &str = "nika";
 const KEYRING_USER: &str = "run-signing-key";
 pub(crate) const KEYRING_USER_PUB: &str = "run-signing-key.pub";
 
+/// Whether the OS keychain may be consulted at all · `NIKA_KEYCHAIN=off` skips it.
+///
+/// WHY THIS OPT-OUT EXISTS · a macOS keychain ACL is bound to the requesting
+/// BINARY. A cargo test binary is `target/debug/deps/<crate>-<hash>` and that
+/// hash changes on every recompile, so approving one with "Always Allow" grants
+/// a binary that will never exist again · the prompt returns on the next build,
+/// and the next, forever, on any machine where these items exist. There is no
+/// operator-side gesture that makes it stop.
+///
+/// It skips ONLY the keychain. The env and file custody paths are untouched, so
+/// a real run on a developer machine loses nothing it had; a machine that keeps
+/// its run-key in the keychain simply must not set this. Accepted values ·
+/// `off` · `0` · `false` · `no` (case-insensitive). Anything else, including
+/// absent, keeps the keychain in play.
+// Env reads are CONFIG paths (a flag, never a secret value · the scoped
+// `env_flag` precedent).
+#[allow(clippy::disallowed_methods)]
+pub(crate) fn keychain_enabled() -> bool {
+    // seam-bypass-ok: build-host flag · no secret crosses here
+    if !keychain_flag(std::env::var("NIKA_KEYCHAIN").ok().as_deref()) {
+        return false;
+    }
+    // A cargo TEST binary never opens the custody, flag or no flag. The
+    // opt-out above only helps whoever remembers to set it, and every
+    // session that forgets spends the operator's attention on a modal
+    // that cannot be answered once and for all (see the ACL note above).
+    // The default has to be safe, not the escape hatch.
+    !running_as_a_cargo_test_binary(std::env::current_exe().ok().as_deref())
+}
+
+/// Is this process a cargo test binary? Cargo builds them at
+/// `<target>/<profile>/deps/<name>-<16 hex>`, and it is that per-compile
+/// hash which makes a keychain ACL unable to stick. An installed `nika`
+/// (or `cargo run`, which lands beside `deps/`, not inside it) is
+/// unaffected and keeps its custody exactly as before.
+///
+/// Pure over the path so it is provable without spawning anything.
+fn running_as_a_cargo_test_binary(exe: Option<&Path>) -> bool {
+    let Some(exe) = exe else { return false };
+    if exe.parent().and_then(Path::file_name) != Some(std::ffi::OsStr::new("deps")) {
+        return false;
+    }
+    let Some(stem) = exe.file_stem().and_then(|s| s.to_str()) else {
+        return false;
+    };
+    // `<crate>-<hash>` · the hash half is what changes on every compile.
+    match stem.rsplit_once('-') {
+        Some((name, hash)) => {
+            !name.is_empty() && hash.len() >= 8 && hash.chars().all(|c| c.is_ascii_hexdigit())
+        }
+        None => false,
+    }
+}
+
+/// The pure half · the testable unit. Env-setting tests race under the default
+/// parallel harness, so the parsing is proven here and the read stays a
+/// one-liner above.
+fn keychain_flag(raw: Option<&str>) -> bool {
+    match raw {
+        Some(v) => !matches!(
+            v.trim().to_ascii_lowercase().as_str(),
+            "off" | "0" | "false" | "no"
+        ),
+        None => true,
+    }
+}
+
 /// The local custody fallback (no session keyring on this host).
 // Env reads are CONFIG paths (HOME only — no secret value crosses here ·
 // the scoped `env_flag`/`link_host` precedent).
@@ -124,7 +191,8 @@ pub fn load_signing_key() -> Option<(minisign::SecretKey, String)> {
     }
     // The keychain holds the minisign secret box as text (custody IS the
     // keychain's own encryption).
-    if let Ok(entry) = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER)
+    if keychain_enabled()
+        && let Ok(entry) = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER)
         && let Ok(text) = entry.get_password()
         && let Ok(boxed) = minisign::SecretKeyBox::from_string(&text)
         && let Some(sk) = open_secret_box(boxed, &key_password())
@@ -218,7 +286,8 @@ pub fn load_public_box() -> Option<String> {
     ) {
         return public_from_files(Path::new(&kf), Path::new(&pf));
     }
-    if let Ok(entry) = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER)
+    if keychain_enabled()
+        && let Ok(entry) = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER)
         && let Ok(text) = entry.get_password()
         && secret_box_parses(&text)
         && let Ok(pub_entry) = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER_PUB)
@@ -338,7 +407,8 @@ fn store_key_boxes(sk_box: &str, pk_box: &str) -> Result<(), String> {
         write_0600(Path::new(&kf), sk_box)?;
         return write_0600(Path::new(&pf), pk_box);
     }
-    if let Ok(entry) = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER)
+    if keychain_enabled()
+        && let Ok(entry) = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER)
         && entry.set_password(sk_box).is_ok()
         && let Ok(pub_entry) = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER_PUB)
         && pub_entry.set_password(pk_box).is_ok()
@@ -676,6 +746,22 @@ fn keys_path(name: &str) -> Option<PathBuf> {
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::unwrap_used)]
 mod tests {
+    /// The keychain opt-out · both directions, and the default that must stay ON.
+    ///
+    /// Absent means ENABLED · a flag that fails closed here would silently
+    /// narrow a real run's trust set, which is not what an ergonomics escape
+    /// hatch is allowed to do.
+    #[test]
+    fn keychain_flag_reads_off_and_defaults_on() {
+        for off in ["off", "OFF", "0", "false", "False", "no", " off "] {
+            assert!(!super::keychain_flag(Some(off)), "{off} must disable");
+        }
+        for on in ["on", "1", "true", "yes", "", "anything"] {
+            assert!(super::keychain_flag(Some(on)), "{on} must keep it enabled");
+        }
+        assert!(super::keychain_flag(None), "absent means enabled");
+    }
+
     use nika_event::EventKind;
     use nika_types::id::EventId;
     use nika_types::timestamp::Timestamp;
@@ -1168,5 +1254,112 @@ mod tests {
             false,
         )
         .expect("round-trip signature verifies");
+    }
+
+    /// A cargo test binary lives at `<target>/<profile>/deps/<name>-<hash>`
+    /// and that hash is what makes a keychain ACL unable to stick. The
+    /// predicate is pure over the path, so this is provable without
+    /// spawning anything — and without raising a single modal.
+    #[test]
+    fn a_cargo_test_binary_is_recognised_by_its_deps_hash_path() {
+        let yes = PathBuf::from("/w/target/debug/deps/nika_cli-defa282c811870d8");
+        assert!(
+            running_as_a_cargo_test_binary(Some(&yes)),
+            "the deps/<name>-<hash> shape IS a test binary"
+        );
+    }
+
+    /// The installed binary and `cargo run` must keep their custody: this
+    /// fix may not quietly take the keychain away from a real run.
+    #[test]
+    fn an_installed_or_cargo_run_binary_keeps_its_custody() {
+        let installed = PathBuf::from("/Users/x/.local/bin/nika");
+        let cargo_run = PathBuf::from("/w/target/debug/nika-cli");
+        let no_hash = PathBuf::from("/w/target/debug/deps/nika");
+        let not_hex = PathBuf::from("/w/target/debug/deps/nika_cli-zzzzzzzzzzzzzzzz");
+        assert!(
+            !running_as_a_cargo_test_binary(Some(&installed)),
+            "installed"
+        );
+        assert!(
+            !running_as_a_cargo_test_binary(Some(&cargo_run)),
+            "cargo run"
+        );
+        assert!(
+            !running_as_a_cargo_test_binary(Some(&no_hash)),
+            "no hash half"
+        );
+        assert!(!running_as_a_cargo_test_binary(Some(&not_hex)), "not hex");
+        assert!(
+            !running_as_a_cargo_test_binary(None),
+            "unknown exe · keep custody"
+        );
+    }
+
+    /// The wiring, proven by the only witness that cannot be faked: THIS
+    /// process. A hand-written path fixture proves the predicate; it does
+    /// not prove the predicate is plugged in. Replacing the default with
+    /// `true` passes every fixture test and still spams the operator.
+    #[test]
+    fn this_very_test_binary_is_recognised_and_cannot_open_the_custody() {
+        let exe = std::env::current_exe().expect("current exe");
+        assert!(
+            running_as_a_cargo_test_binary(Some(&exe)),
+            "the REAL running path must be recognised, not just fixtures: {exe:?}"
+        );
+        assert!(
+            !keychain_enabled(),
+            "a cargo test binary must never reach the OS custody · {exe:?}"
+        );
+    }
+
+    /// The RATCHET. Guarding seven of eight sites is what a careful pass
+    /// produces, and the eighth is the one that keeps prompting. This
+    /// walks the crate's own source so a NINTH site cannot be added
+    /// without its guard — the invariant stops depending on review.
+    #[test]
+    fn every_keyring_call_site_sits_behind_the_custody_flag() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut sites = 0usize;
+        let mut naked: Vec<String> = Vec::new();
+        let entries = std::fs::read_dir(&dir).expect("the crate's own src/");
+        for e in entries.flatten() {
+            let path = e.path();
+            if path.extension().and_then(|x| x.to_str()) != Some("rs") {
+                continue;
+            }
+            let text = std::fs::read_to_string(&path).expect("readable source");
+            let all: Vec<&str> = text.lines().collect();
+            // Production sites only. A test module MENTIONS the call in a
+            // string literal (this very sweep does), and counting a
+            // mention as a site is how an instrument reports on itself.
+            let end = all
+                .iter()
+                .position(|l| l.trim_start().starts_with("#[cfg(test)]"))
+                .unwrap_or(all.len());
+            let lines: Vec<&str> = all[..end].to_vec();
+            for (i, line) in lines.iter().enumerate() {
+                if !line.contains("keyring::Entry::new") {
+                    continue;
+                }
+                sites += 1;
+                let from = i.saturating_sub(10);
+                if !lines[from..=i]
+                    .iter()
+                    .any(|l| l.contains("keychain_enabled"))
+                {
+                    naked.push(format!("{}:{}", path.display(), i + 1));
+                }
+            }
+        }
+        assert!(
+            sites > 0,
+            "the sweep found no call site — it looked at nothing"
+        );
+        assert!(
+            naked.is_empty(),
+            "{} of {sites} keyring call sites are not behind keychain_enabled(): {naked:?}",
+            naked.len()
+        );
     }
 }
