@@ -18,6 +18,46 @@ mod fit {
     }
 
     #[test]
+    fn a_globs_walk_root_is_the_read_bound_the_run_needs() {
+        // A glob OPENS the directory its pattern roots at. `pattern ⊆
+        // permits-glob` is undecidable and stays unjudged — but the WALK ROOT
+        // is a literal prefix, the runtime gates it (NIKA-SEC-004), the spec
+        // already says the fs read set models it (05-errors · NIKA-DRIFT-001
+        // « the fs read set DOES model the two decidable runtime gates ·
+        // nika:glob's literal walk root »), and the drift scan already derives
+        // it. Only the ONE effect table was missing the entry, so `check`
+        // shipped green on a file the run kills. Measured 2026-08-19 on a
+        // workflow in the wild: a bound written `<dir>/*.yaml` beside a glob
+        // on the same pattern · check GREEN, then run NIKA-SEC-004 on `<dir>`.
+        let refused = escapes_of(
+            "nika: w\npermits:\n  fs: { read: [\"config/env/*.yaml\"] }\n  tools: [\"nika:glob\"]\ntasks:\n  a:\n    invoke: { tool: \"nika:glob\", args: { pattern: \"config/env/*.yaml\" } }\n",
+        );
+        assert!(
+            !refused.is_empty(),
+            "the walk root ./config/env sits outside the declared bound: {refused:?}"
+        );
+
+        // The bound that DOES cover the walk root stays silent.
+        let covered = escapes_of(
+            "nika: w\npermits:\n  fs: { read: [\"config/env/**\"] }\n  tools: [\"nika:glob\"]\ntasks:\n  a:\n    invoke: { tool: \"nika:glob\", args: { pattern: \"config/env/*.yaml\" } }\n",
+        );
+        assert!(
+            covered.is_empty(),
+            "a bound covering the walk root must stay silent: {covered:?}"
+        );
+
+        // A COMPUTED pattern has no literal walk root · the run owns it, and
+        // the checker must not invent a red it cannot prove.
+        let templated = escapes_of(
+            "nika: w\ninputs: { d: { type: string, default: \"x\" } }\npermits:\n  fs: { read: [\"config/env/**\"] }\n  tools: [\"nika:glob\"]\ntasks:\n  a:\n    invoke: { tool: \"nika:glob\", args: { pattern: \"${{ inputs.d }}/*.yaml\" } }\n",
+        );
+        assert!(
+            templated.is_empty(),
+            "a computed pattern is the RUN's verdict, never a static red: {templated:?}"
+        );
+    }
+
+    #[test]
     fn url_host_matches_the_shared_parity_vectors() {
         // The static extractor (`url_host`) MUST agree with the runtime
         // (`nika-http`'s `host_of`) on every shared vector — the no-drift

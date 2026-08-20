@@ -11,6 +11,7 @@ pub nika_cap::BuiltinEffect::Fs
 pub nika_cap::BuiltinEffect::Fs::path_arg: &'static str
 pub nika_cap::BuiltinEffect::Fs::reads: bool
 pub nika_cap::BuiltinEffect::Fs::recursive: bool
+pub nika_cap::BuiltinEffect::Fs::walk_root: bool
 pub nika_cap::BuiltinEffect::Fs::writes: bool
 pub nika_cap::BuiltinEffect::Net
 pub nika_cap::BuiltinEffect::Net::url_arg: &'static str
@@ -662,6 +663,7 @@ pub fn nika_cap::code_bearing_path_class(path: &str) -> core::option::Option<(&'
 pub fn nika_cap::compose_child_env(lookup: impl core::ops::function::Fn(&str) -> core::option::Option<alloc::string::String>, passthrough: &[alloc::string::String], authored: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
 pub fn nika_cap::glob_admits(glob: &str, path: &str) -> bool
 pub fn nika_cap::glob_matches(glob: &str, value: &str) -> bool
+pub fn nika_cap::glob_walk_root(pattern: &str) -> alloc::string::String
 pub fn nika_cap::invoke_tool_is_ingress(tool_id: &str, mcp_content_trusted: bool) -> bool
 pub fn nika_cap::is_dangerous_env_name(name: &str) -> bool
 pub fn nika_cap::is_pure_internal(tool: &str) -> bool

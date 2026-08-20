@@ -46,7 +46,7 @@ mod witness;
 // shape.rs; the coarse policy table (EffectClass) lives beside it.
 pub use effect::{
     BuiltinEffect, PURE_INTERNAL_TOOLS, builtin_effect, builtin_egresses, chart_vl_sibling,
-    is_pure_internal, is_pure_internal_call,
+    glob_walk_root, is_pure_internal, is_pure_internal_call,
 };
 pub use env::{
     DANGEROUS_ENV_VARS, RUNNER_FLOOR_ENV_VARS, compose_child_env, is_dangerous_env_name,

@@ -550,10 +550,19 @@ fn check_builtin_effect(
             path_arg,
             reads,
             writes,
+            walk_root,
             ..
         }) => {
-            let Some(path) = judgeable_arg(consts, a, path_arg) else {
+            let Some(raw) = judgeable_arg(consts, a, path_arg) else {
                 return;
+            };
+            // A glob's arg is a PATTERN · the path the runtime opens is its
+            // walk root. Judging the pattern itself would ask the undecidable
+            // question the table's doc rejects.
+            let path = if walk_root {
+                nika_cap::glob_walk_root(&raw)
+            } else {
+                raw
             };
             for (active, dir_writes, cat) in [(reads, false, "fs.read"), (writes, true, "fs.write")]
             {

@@ -21,9 +21,17 @@
 /// classification table both the escape checker and capability inference
 /// read, so verification and inference cannot drift.
 ///
-/// `nika:glob` is deliberately ABSENT: its arg is itself a glob `pattern:`,
-/// and glob-pattern ⊆ permits-glob inclusion is not soundly decidable
-/// statically — the runtime `NIKA-SEC-004` owns it.
+/// `nika:glob` carries a `pattern:`, not a path, so it declares
+/// `walk_root: true`. The undecidable half stays unjudged — glob-pattern ⊆
+/// permits-glob inclusion is NOT soundly decidable, and no code here tries.
+/// The decidable half is the WALK ROOT: the literal prefix before the first
+/// metacharacter is the directory the runtime must OPEN, and it refuses on
+/// exactly that (`NIKA-SEC-004`). Naming only the undecidable question was
+/// the defect (AGENTS.md · a waiver must name the decidable sub-question it
+/// rejects): spec 05 already states the read set models "`nika:glob`'s
+/// literal walk root", the drift scan already derived it, and the runtime
+/// already gated it — this table was the one place that did not, so a
+/// workflow could pass `check` and die at run.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BuiltinEffect {
     /// An HTTP egress whose host comes from a literal URL-shaped arg.
@@ -45,6 +53,11 @@ pub enum BuiltinEffect {
         /// reader · `nika:image_generate` lands files INSIDE the dir) —
         /// inference grants `<path>/**`, not just the path.
         recursive: bool,
+        /// The arg carries a glob PATTERN, not a path: the effective path is
+        /// [`glob_walk_root`] of it — the directory the runtime opens. Every
+        /// consumer must derive it; reading the arg verbatim would ask the
+        /// undecidable pattern ⊆ permits question instead.
+        walk_root: bool,
     },
 }
 
@@ -136,18 +149,21 @@ pub fn builtin_effect(tool: &str, args: Option<&serde_json::Value>) -> Option<Bu
             reads: true,
             writes: false,
             recursive: false,
+            walk_root: false,
         }),
         "nika:grep" => Some(BuiltinEffect::Fs {
             path_arg: "path",
             reads: true,
             writes: false,
             recursive: true,
+            walk_root: false,
         }),
         "nika:write" => Some(BuiltinEffect::Fs {
             path_arg: "path",
             reads: false,
             writes: true,
             recursive: false,
+            walk_root: false,
         }),
         // in-place find/replace reads the bytes, then rewrites the path
         "nika:edit" => Some(BuiltinEffect::Fs {
@@ -155,6 +171,7 @@ pub fn builtin_effect(tool: &str, args: Option<&serde_json::Value>) -> Option<Bu
             reads: true,
             writes: true,
             recursive: false,
+            walk_root: false,
         }),
         // Media generators: assets (+ manifest) land INSIDE a literal
         // `output_dir:` — a recursive write (stdlib §Media · provider
@@ -165,6 +182,7 @@ pub fn builtin_effect(tool: &str, args: Option<&serde_json::Value>) -> Option<Bu
             reads: false,
             writes: true,
             recursive: true,
+            walk_root: false,
         }),
         // Single-artifact writers: the WRITE side (`out:`) is the
         // statically-checkable effect. image_fx's `input:` read is
@@ -178,6 +196,7 @@ pub fn builtin_effect(tool: &str, args: Option<&serde_json::Value>) -> Option<Bu
             reads: false,
             writes: true,
             recursive: false,
+            walk_root: false,
         }),
         // decide is pure compute (spec 11 §nika:decide); its ONE
         // statically-visible effect is a literal string `bundle:` — a path
@@ -189,8 +208,43 @@ pub fn builtin_effect(tool: &str, args: Option<&serde_json::Value>) -> Option<Bu
             reads: true,
             writes: false,
             recursive: false,
+            walk_root: false,
+        }),
+        // The walk root, never the pattern — see the type's doc. The entry is
+        // UNCONDITIONAL like its `nika:read` siblings: whether the arg is
+        // literal is the CONSUMER's question, and each already asks it. Making
+        // the entry itself conditional made a dynamic pattern vanish from the
+        // table, which silently un-poisoned the drift scan's read set.
+        "nika:glob" => Some(BuiltinEffect::Fs {
+            path_arg: "pattern",
+            reads: true,
+            writes: false,
+            // a pattern descends: the grant inference owes `<root>/**`
+            recursive: true,
+            walk_root: true,
         }),
         _ => None,
+    }
+}
+
+/// The directory a glob PATTERN opens: the literal prefix before the first
+/// metacharacter. The ONE definition — the checker, the capability
+/// inference, the drift scan and the runtime all read this, so check, infer
+/// and run cannot disagree about what a glob touches.
+#[must_use]
+pub fn glob_walk_root(pattern: &str) -> String {
+    if !pattern.starts_with('/') {
+        let p = pattern.strip_prefix("./").unwrap_or(pattern);
+        let first_meta = p.find(['*', '?', '[']).unwrap_or(p.len());
+        return match p[..first_meta].rfind('/') {
+            None => ".".to_owned(),
+            Some(i) => format!("./{}", &p[..i]),
+        };
+    }
+    let first_meta = pattern.find(['*', '?', '[']).unwrap_or(pattern.len());
+    match pattern[..first_meta].rfind('/') {
+        None | Some(0) => "/".to_owned(),
+        Some(i) => pattern[..i].to_owned(),
     }
 }
 
@@ -359,6 +413,52 @@ mod tests {
     }
 
     #[test]
+    fn the_walk_root_is_the_literal_prefix_before_the_first_metacharacter() {
+        // The ONE definition · the checker, the inference, the drift scan and
+        // the runtime all read it, so a glob cannot mean one thing to the
+        // audit and another to the run.
+        for (pattern, root) in [
+            ("config/env/*.yaml", "./config/env"),
+            ("./config/env/*.yaml", "./config/env"),
+            ("reports/**/*summary*", "./reports"),
+            ("a/b/c.md", "./a/b"),   // no metacharacter · the parent
+            ("*.md", "."),           // root-level pattern
+            ("/etc/*.conf", "/etc"), // absolute
+            ("/*.conf", "/"),        // absolute at the root
+        ] {
+            assert_eq!(glob_walk_root(pattern), root, "walk root of {pattern}");
+        }
+    }
+
+    #[test]
+    fn a_glob_declares_its_walk_root_not_its_pattern() {
+        // The table entry that was missing until 2026-08-19 · without it a
+        // workflow passed `check` and died at run on NIKA-SEC-004.
+        let args = json!({ "pattern": "config/env/*.yaml" });
+        assert_eq!(
+            builtin_effect("nika:glob", Some(&args)),
+            Some(BuiltinEffect::Fs {
+                path_arg: "pattern",
+                reads: true,
+                writes: false,
+                recursive: true,
+                walk_root: true,
+            })
+        );
+        // A templated pattern still DECLARES the effect · the consumers ask
+        // whether the arg is literal (and a dynamic one poisons their sets).
+        // Hiding the effect here is what un-poisoned the drift read set.
+        let templated = json!({ "pattern": "${{ inputs.d }}/*.yaml" });
+        assert!(matches!(
+            builtin_effect("nika:glob", Some(&templated)),
+            Some(BuiltinEffect::Fs {
+                walk_root: true,
+                ..
+            })
+        ));
+    }
+
+    #[test]
     fn decide_is_a_read_only_on_the_literal_path_form() {
         // Literal string bundle → a declared fs.read on `bundle:`.
         let path_form = json!({ "bundle": "./triage.bundle.json", "evidence": {} });
@@ -369,6 +469,7 @@ mod tests {
                 reads: true,
                 writes: false,
                 recursive: false,
+                walk_root: false,
             })
         );
         // Inline object bundle → pure compute, no filesystem at all.
@@ -496,6 +597,7 @@ mod tests {
                     reads,
                     writes,
                     recursive,
+                    walk_root: _,
                 }) => {
                     assert_eq!(path_arg, "output_dir", "{tool} writes into output_dir");
                     assert!(writes, "{tool} is a write");
@@ -512,6 +614,7 @@ mod tests {
                     reads,
                     writes,
                     recursive,
+                    walk_root: _,
                 }) => {
                     assert_eq!(path_arg, "out", "{tool} writes a single artifact to out");
                     assert!(writes, "{tool} is a write");
