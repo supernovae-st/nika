@@ -79,31 +79,42 @@ fn history(dir: &std::path::Path, label: &str) -> String {
         .unwrap_or_default()
 }
 
-/// A pre-seeded last.json (a beat that fired a past slot).
-fn seed_last(dir: &std::path::Path, label: &str, slot: &str) {
-    let dir = dir.join(".nika/arm").join(label);
-    std::fs::create_dir_all(&dir).expect("sidecar dir");
-    std::fs::write(
-        dir.join("last.json"),
-        format!(
-            "{{\"slot\":\"{slot}\",\"fired_at\":\"{slot}\",\"trace\":null,\"exit\":0,\"kind\":\"fired\"}}\n"
-        ),
-    )
-    .expect("seed last.json");
+/// Fire a past slot through the real binary so the seed carries the
+/// claim, receipt, durable head, projection, and trace of genuine truth.
+fn seed_fire(dir: &std::path::Path, label: &str, now: &str) {
+    let out = bin()
+        .args(["arm", "fire", label, "--now", now])
+        .current_dir(dir)
+        .output()
+        .expect("spawn seed fire");
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "seed stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let line = assert_one_line(&out);
+    assert!(
+        line.starts_with(&format!("fired {label} · slot ")),
+        "{line}"
+    );
 }
 
-/// A lock held by a LIVE owner (this test process).
-fn seed_lock(dir: &std::path::Path, label: &str) {
+/// A kernel lease held by a LIVE owner (this test process).
+fn seed_lock(dir: &std::path::Path, label: &str) -> nix::fcntl::Flock<std::fs::File> {
     let dir = dir.join(".nika/arm").join(label);
     std::fs::create_dir_all(&dir).expect("sidecar dir");
-    std::fs::write(
-        dir.join("lock"),
-        format!(
-            "{{\"pid\":{},\"started_at\":\"2026-08-19T03:00:00Z\"}}\n",
-            std::process::id()
-        ),
+    let mut file = std::fs::File::create(dir.join("lock")).expect("lock file");
+    writeln!(
+        file,
+        "{{\"pid\":{},\"started_at\":\"2026-08-19T03:00:00Z\"}}",
+        std::process::id()
     )
-    .expect("seed lock");
+    .expect("lock metadata");
+    file.sync_all().expect("lock metadata sync");
+    nix::fcntl::Flock::lock(file, nix::fcntl::FlockArg::LockExclusiveNonblock)
+        .map_err(|(_, error)| error)
+        .expect("kernel lock")
 }
 
 /// The traces under the project.
@@ -179,7 +190,7 @@ fn fire_runs_a_due_beat_and_records_it() {
 #[test]
 fn fire_skips_a_missed_slot_when_manque_is_sauter() {
     let dir = project("missed", DAILY_3AM, &[("doctor.nika.yaml", TRUE)]);
-    seed_last(&dir, "doctor", "2026-08-18T03:00:00Z");
+    seed_fire(&dir, "doctor", "2026-08-18T03:02:00Z");
     let out = bin()
         .args(["arm", "fire", "doctor", "--now", "2026-08-19T10:00:00Z"])
         .current_dir(&dir)
@@ -195,9 +206,9 @@ fn fire_skips_a_missed_slot_when_manque_is_sauter() {
     let last = last_json(&dir, "doctor").expect("last.json");
     assert_eq!(last["kind"], "skipped");
     assert_eq!(last["slot"], "2026-08-19T03:00:00Z");
-    assert_eq!(history(&dir, "doctor").lines().count(), 1);
-    // … and nothing ran (no trace, the workflow never went).
-    assert!(traces(&dir).is_empty());
+    assert_eq!(history(&dir, "doctor").lines().count(), 3);
+    // … and the skip ran nothing: only the seed fire left a trace.
+    assert_eq!(traces(&dir).len(), 1);
 }
 
 #[test]
@@ -234,7 +245,7 @@ fn fire_refuses_an_unknown_label_and_names_the_known_ones() {
 #[test]
 fn fire_skips_when_the_lock_is_held_by_a_living_owner() {
     let dir = project("locked", DAILY_3AM, &[("doctor.nika.yaml", TRUE)]);
-    seed_lock(&dir, "doctor");
+    let _lock = seed_lock(&dir, "doctor");
     let out = bin()
         .args(["arm", "fire", "doctor", "--now", "2026-08-19T03:02:00Z"])
         .current_dir(&dir)
@@ -269,7 +280,7 @@ fn fire_with_file_policy_times_out_at_the_next_slot() {
         "    chevauchement: file\n",
     );
     let dir = project("queue", registry, &[("doctor.nika.yaml", TRUE)]);
-    seed_lock(&dir, "doctor");
+    let _lock = seed_lock(&dir, "doctor");
     // 03:02:59.9 — the 03:02 slot is 59.9s old (on time), the next one
     // lands in 100ms: the queue waits the 100ms, then gives up.
     let out = bin()
@@ -386,7 +397,7 @@ fn rattraper_une_fois_fires_one_run_for_the_whole_silence() {
         "    manqué: rattraper-une-fois\n",
     );
     let dir = project("catchup", registry, &[("doctor.nika.yaml", TRUE)]);
-    seed_last(&dir, "doctor", "2026-08-17T03:00:00Z");
+    seed_fire(&dir, "doctor", "2026-08-17T03:02:00Z");
     let out = bin()
         .args(["arm", "fire", "doctor", "--now", "2026-08-19T03:02:00Z"])
         .current_dir(&dir)
