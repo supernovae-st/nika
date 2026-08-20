@@ -188,6 +188,7 @@ fn drive<R: BufRead, W: Write, T: ThreadRuntime>(
             Some(("/workflow", path)) if !path.trim().is_empty() => {
                 show(output, &runtime.post(path.trim(), theme))?;
             }
+            _ if message == "/run" => writeln!(output, "use /run <path>")?,
             Some(("/run", path)) if !path.trim().is_empty() => {
                 finish_turn(output, &runtime.run_workflow(path.trim(), theme))?;
             }
@@ -335,5 +336,20 @@ mod tests {
             "{shown}"
         );
         assert_eq!(shown.matches("nika ›").count(), 2, "{shown}");
+    }
+
+    #[test]
+    fn bare_run_teaches_its_path_without_dispatching() {
+        let mut input = Cursor::new(b"/run\n/quit\n");
+        let mut output = Vec::new();
+        let mut runtime = FakeRuntime::default();
+
+        let code = drive(&mut input, &mut output, plain(), &mut runtime).expect("thread");
+        let shown = String::from_utf8(output).expect("utf8");
+
+        assert_eq!(code, exit::OK);
+        assert!(shown.contains("use /run <path>"), "{shown}");
+        assert!(!shown.contains("unknown thread command"), "{shown}");
+        assert!(runtime.runs.is_empty());
     }
 }

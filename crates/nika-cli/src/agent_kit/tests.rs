@@ -198,3 +198,18 @@ fn authoring_paid_ready_probe_names_the_workflow() {
         "the pathless paid-readiness probe returned"
     );
 }
+
+/// Replay verification compares two journals, so the authoring map must name
+/// the fresh trace path that the CLI requires instead of presenting a switch.
+#[test]
+fn authoring_replay_names_the_fresh_trace() {
+    let skill = read("skills/nika-authoring/SKILL.md");
+    assert!(
+        skill.contains("`--replay <fresh-trace>`"),
+        "replay verification must name its fresh trace"
+    );
+    assert!(
+        !skill.contains("`--replay` compares"),
+        "the pathless replay form returned"
+    );
+}
