@@ -263,8 +263,9 @@ enum Command {
     Try(try_args::TryArgs),
     /// The ONE creation door: describe the job in plain words (routes),
     /// or name a slug/skeleton (takes it, ingredients included) — the
-    /// destination derives from the slug. Bare `nika new` on a terminal
-    /// is the guided flow; `nika new '?'` lists the skeleton set.
+    /// destination derives from the slug. Plain words route across jobs,
+    /// lessons and skeletons. Bare `nika new` on a terminal is the guided
+    /// flow; `nika new '?'` lists the skeleton set.
     #[command(display_order = 11)]
     New {
         /// Plain-words intent, an example slug, or a skeleton name

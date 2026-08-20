@@ -453,7 +453,7 @@ fn discovery() -> Outcome {
         "\n\nexamples work here too (complete lessons · verbatim) ·\n  nika new 01-hello my-hello.nika.yaml    # any slug from `nika try`",
     );
     text.push_str(
-        "\n\ntry ·\n  nika new chain my-first.nika.yaml\n  nika new \"describe the job in plain words\" my.nika.yaml   # routes to the closest skeleton\n  nika new                                                          # guided (terminal only)",
+        "\n\ntry ·\n  nika new chain my-first.nika.yaml\n  nika new \"describe the job in plain words\" my.nika.yaml   # routes across jobs · lessons · skeletons\n  nika new                                                          # guided (terminal only)",
     );
     Outcome {
         text,

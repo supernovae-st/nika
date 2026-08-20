@@ -9,11 +9,26 @@ Nika turns repeatable AI work into files: one `.nika.yaml`, four verbs,
 audited **before** it runs. You author the file; `nika check` is the
 oracle; the human runs it.
 
-## Read two examples before you write (measured: 8 rounds → 0)
+## Read the workspace, then two examples before you write
 
 **This file is the map. The examples are the territory.** A map this
 detailed is exactly why authors skip the ground, and the ground is where
 the shapes live. Nothing below replaces reading two real files.
+
+Join the workspace before adding to it. A local workflow may already own
+the job, its conventions and its permits boundary:
+
+```
+nika list                       # workflows below this directory
+nika explain <candidate>        # waves · cost · touches · run line
+nika inspect <candidate>        # tasks · verbs · graph anatomy
+nika check <candidate>          # the oracle: clean or an exact repair
+```
+
+`nika list` lists candidates; it does not certify them. Reuse or extend a
+matching local file only after `nika check` is clean. If nothing local fits,
+continue to the embedded shelf; even when one does, the two canonical reads
+below remain the cheapest shape check before a structural edit.
 
 The cost of skipping it was measured on 2026-07-28. Six authors each
 wrote one workflow from a real intention with this skill loaded and
@@ -231,7 +246,7 @@ and a `default:`.
 |---|---|
 | `with:` | the DATA edge — bind another task's output, body reads `${{ with.alias }}` |
 | `after:` | the CONTROL edge — `success` · `failure` · `skipped` · `terminal` · `unwind` |
-| `when:` | a CEL boolean gate (`size()` is the only function) |
+| `when:` | a CEL boolean gate · closed callables: `size()` · `has()` · `.size()` · `.contains()` · `.startsWith()` · `.endsWith()` |
 | `for_each:` | fan out over a collection · the body reads the current element as `${{ item }}` and its position as `${{ index }}` (loop-scoped locals, NOT a fourth value authority · `item.field` reaches into an object element) · the task's `.output` is the ARRAY of per-iteration outputs, in input order · `max_parallel:` caps concurrency (1 = sequential) · `fail_fast:` aborts on the first error (default true) |
 | `retry:` | `max_attempts` · `backoff_ms` · `backoff_strategy` · `backoff_max_ms` · `jitter` · `on_codes` — transient failures only; a wrong prompt never heals by retry |
 | `on_error:` | exactly ONE action — `recover:` · `skip:` (preserves the original error at `tasks.X.error`) — with an optional `on_codes:` filter · the default (no `on_error:`) IS failure, and there is no keyword for saying so (`fail_workflow:` is dead · a YAML comment says it) |

@@ -160,6 +160,17 @@ fn discovery_query_lists_the_set_without_a_dest() {
     let out = run("?", None, false);
     assert_eq!(out.code, codes::OK, "{}", out.text);
     assert!(out.text.contains("embedded set:"), "{}", out.text);
+    assert!(
+        out.text
+            .contains("routes across jobs · lessons · skeletons"),
+        "the discovery surface must name the whole intent-routing corpus: {}",
+        out.text
+    );
+    assert!(
+        !out.text.contains("closest skeleton"),
+        "the router is broader than the skeleton set: {}",
+        out.text
+    );
     for name in nika_pack::template_names() {
         assert!(out.text.contains(&name), "lists `{name}`: {}", out.text);
     }
