@@ -521,3 +521,26 @@ proptest::proptest! {
         proptest::prop_assert_eq!(err.line(), Some(2));
     }
 }
+
+/// The type discriminant is `tasks:`, never the filename — the spec's
+/// rule, and the reason it survives a registry blob, an HTTP body, a
+/// stdin pipe or a chat paste, where `.nika.yaml` is gone.
+#[test]
+fn the_type_discriminant_is_tasks_never_the_filename() {
+    use super::is_project_document as is_project;
+    assert!(is_project("nika: my-project\nceiling: 0.50\n"));
+    assert!(is_project("nika: my-project\n"));
+    assert!(!is_project("nika: wf\ntasks:\n  a:\n    exec: {}\n"));
+    // Comments and blank lines precede the envelope.
+    assert!(is_project("# a comment\n\n# another\nnika: my-project\n"));
+    // A nested `tasks:` is not the envelope's own.
+    assert!(is_project("nika: p\nregistry:\n  tasks: nope\n"));
+    // An indented envelope anchors its own `tasks:`.
+    assert!(is_project("  nika: p\n  ceiling: 0.50\n"));
+    assert!(!is_project(
+        "  nika: wf\n  tasks:\n    a:\n      exec: {}\n"
+    ));
+    // No envelope at all is not a nika file — the workflow lane owns it.
+    assert!(!is_project("ceiling: 0.50\n"));
+    assert!(!is_project("name: something\ntasks: []\n"));
+}

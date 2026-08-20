@@ -1417,3 +1417,35 @@ fn the_long_version_keeps_the_bare_version_first() {
         assert_eq!(long, format!("{} ({sha})", identity.engine_version()));
     }
 }
+
+/// The naming note fires on the ACCIDENT and stays silent on the
+/// deliberate — and it never touches the verdict.
+///
+/// The accidental shape is a copy: `bar.nika.yaml` still carrying
+/// `nika: foo`, so every trace and journal event says `foo` while the
+/// file says `bar`. The deliberate shapes are the ordering prefix (the
+/// numbered teaching path) and plain agreement — 62 of this house's 80
+/// workflow files agree, and all 18 divergences are the prefix.
+#[test]
+fn the_naming_note_fires_on_a_copy_and_not_on_an_ordering_prefix() {
+    let wf = parse_wf(
+        "nika: foo\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 10, model: \"mock/echo\" }\n",
+    );
+    let theme = Theme::new(false, true, false);
+
+    let mut accident = String::new();
+    naming_note(&mut accident, theme, "bar.nika.yaml", &wf);
+    assert!(accident.contains("`bar`"), "the file: {accident}");
+    assert!(accident.contains("`foo`"), "the name: {accident}");
+
+    for deliberate in ["01-foo.nika.yaml", "17_foo.nika.yaml", "foo.nika.yaml"] {
+        let mut out = String::new();
+        naming_note(&mut out, theme, deliberate, &wf);
+        assert!(out.is_empty(), "{deliberate} must stay silent: {out}");
+    }
+
+    // A path that is not a workflow filename at all says nothing.
+    let mut other = String::new();
+    naming_note(&mut other, theme, "-", &wf);
+    assert!(other.is_empty(), "stdin has no stem: {other}");
+}

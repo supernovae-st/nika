@@ -178,6 +178,7 @@ use crate::verbs::{RunSource, VerbOutput, load_checked, load_checked_run_source}
 mod drift;
 pub(crate) mod energy;
 pub(crate) mod models_rung;
+mod project;
 use models_rung::{ModelFinding, ModelsAudit, pricing_section, unresolvable_models};
 
 use nika_display::check_render::render;
@@ -263,6 +264,42 @@ fn strict_footers(
     }
 }
 
+/// How many `native-first` hints survive — the count `--native-strict`
+/// folds into the verdict, and the only hint family that ever does.
+fn native_hint_count(report: &CheckReport) -> usize {
+    report
+        .hints
+        .iter()
+        .filter(|h| h.kind == "native-first")
+        .count()
+}
+
+/// The project-file route, taken BEFORE the workflow envelope is applied.
+///
+/// The envelope cannot describe a project file — it refuses `ceiling:` as
+/// an unknown field and demands a `tasks:` map, which is the destructive
+/// advice this route exists to end. The discriminant is the spec's
+/// (`01-envelope` §The type discriminant): a `tasks:` key means WORKFLOW,
+/// its absence means PROJECT, at full coverage and independent of the
+/// filename.
+fn project_route(path: &str, json: bool) -> Option<VerbOutput> {
+    let yaml = read_source(path)?;
+    nika_vocab::project::is_project_document(&yaml).then(|| project::judge(path, &yaml, json))
+}
+
+/// Read the document once for the discriminant.
+///
+/// `-` (stdin) is deliberately NOT routed: stdin can be consumed only
+/// once, and silently swallowing it here would break the workflow lane
+/// that owns it. A project file piped on stdin still meets the workflow
+/// envelope — a known edge, named rather than half-handled.
+fn read_source(path: &str) -> Option<String> {
+    if path == "-" {
+        return None;
+    }
+    std::fs::read_to_string(path).ok()
+}
+
 /// Like [`run`], with an explicit readiness profile.
 #[must_use]
 pub fn run_with_profile(
@@ -291,6 +328,9 @@ fn run_target_with_profile(
     model_override: Option<&str>,
     theme: Theme,
 ) -> VerbOutput {
+    if let Some(out) = project_route(&target.path, json) {
+        return out;
+    }
     let source = match RunSource::capture_with_repair_target(&target.path, target.repair_target) {
         Ok(source) => source,
         Err(out) if json => return parse_fatal_json(&out),
@@ -317,11 +357,7 @@ pub(crate) fn run_source_with_profile(
     // The declared-vs-used drift family (NIKA-DRIFT-001 · drift.rs) —
     // advisory in both projections, never an exit-code input.
     let drift_hints = drift::scan(&wf);
-    let native_hints = report
-        .hints
-        .iter()
-        .filter(|h| h.kind == "native-first")
-        .count();
+    let native_hints = native_hint_count(&report);
     // The MODELS rung (#320): the ladder validated TOOLS but not MODELS —
     // the exact asymmetry a hallucinating agent hits. A `model:` this
     // binary cannot resolve is a FINDING (exit 2), never a green audit.
@@ -384,6 +420,7 @@ pub(crate) fn run_source_with_profile(
         profile == Profile::Operational && clean && !profile_clean,
         grade,
     );
+    naming_note(&mut text, theme, path, &wf);
     // The `--ascii` byte contract (P1 · audit UX 2026-07-30): the finished
     // report folds through the ONE enforcement seam — the glyph twins stay
     // the primary mechanism, this fold is what makes the emitted bytes
@@ -393,6 +430,49 @@ pub(crate) fn run_source_with_profile(
     } else {
         VerbOutput::file(nika_display::vocab::sober(theme, &text))
     }
+}
+
+/// The accidental-rename note (INFO, never a refusal).
+///
+/// Copy `foo.nika.yaml` to `bar.nika.yaml`, forget the header, and every
+/// trace keeps saying `foo`: the file moved, its identity did not.
+///
+/// A NOTE because divergence is usually deliberate — the spec's own
+/// example is `deploy.nika.yaml` carrying `nika: deploy-to-prod`, and a
+/// numbered path puts curriculum order in the filename. So an ordering
+/// prefix is stripped before comparing; a different WORD is the
+/// accidental shape. The filename is a location `git mv` may change, the
+/// name is an identity that rides traces — renaming one must never
+/// silently re-identify the other.
+fn naming_note(text: &mut String, theme: Theme, path: &str, wf: &nika_schema::raw::RawWorkflow) {
+    let Some(name) = wf.workflow.as_ref().map(|n| n.value.as_str()) else {
+        return;
+    };
+    let Some(stem) = std::path::Path::new(path)
+        .file_name()
+        .and_then(|f| f.to_str())
+        .and_then(|f| {
+            f.strip_suffix(".nika.yaml")
+                .or_else(|| f.strip_suffix(".nika.yml"))
+        })
+    else {
+        return;
+    };
+    // An ordering prefix (`01-`, `02_`) is a deliberate convention.
+    let bare = stem
+        .find(|c: char| !c.is_ascii_digit())
+        .filter(|&i| i > 0 && matches!(stem.as_bytes()[i], b'-' | b'_'))
+        .map_or(stem, |i| &stem[i + 1..]);
+    if bare == name {
+        return;
+    }
+    let _ = write!(
+        text,
+        "\n {} the file is `{stem}` and its name is `{name}` — traces, journal \
+         events and errors will all say `{name}`. Deliberate is fine; a \
+         forgotten header after a copy is not.\n",
+        theme.paint(Role::Dim, "note ·")
+    );
 }
 
 /// `--json` parse-fatal verdict: one findings row, `parse_fatal: true`.

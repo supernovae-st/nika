@@ -59,6 +59,43 @@ pub fn is_kebab_id(s: &str) -> bool {
             .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
 }
 
+/// The envelope line's own indentation, when the document opens on one.
+fn envelope_indent(yaml: &str) -> Option<&str> {
+    for line in yaml.lines() {
+        let stripped = line.trim_start();
+        if stripped.is_empty() || stripped.starts_with('#') {
+            continue;
+        }
+        let indent = &line[..line.len() - stripped.len()];
+        return stripped
+            .strip_prefix("nika:")
+            .filter(|rest| rest.is_empty() || rest.starts_with(char::is_whitespace))
+            .map(|_| indent);
+    }
+    None
+}
+
+/// Does this document declare itself a PROJECT rather than a workflow?
+///
+/// The spec's discriminant (`01-envelope` §The type discriminant),
+/// normative and covering every document · a `tasks:` key means WORKFLOW,
+/// its absence means PROJECT. Deliberately NOT the filename: a document
+/// arrives as a registry blob, an HTTP body, a stdin pipe or a chat
+/// paste, and the bytes must still say what they are. Anchored to the
+/// envelope's own indent, so a nested `tasks:` never qualifies; a
+/// document with no `nika:` envelope is not a nika file and returns
+/// false, leaving the workflow envelope's `NIKA-PARSE-002` to own it.
+#[must_use]
+pub fn is_project_document(yaml: &str) -> bool {
+    let Some(indent) = envelope_indent(yaml) else {
+        return false;
+    };
+    !yaml.lines().any(|line| {
+        line.strip_prefix(indent)
+            .is_some_and(|rest| rest.starts_with("tasks:") && !rest.starts_with("tasks::"))
+    })
+}
+
 /// The closed top-level key set (D-2026-08-11-N5, verbatim) — public
 /// so consumers DERIVE from it instead of retyping it (the
 /// `nika_schema::parser::TOP_LEVEL_KEYS` precedent: a mirror validated
