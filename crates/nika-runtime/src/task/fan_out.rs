@@ -82,6 +82,16 @@ pub(super) struct FanOutAccum {
     /// under `recover: null` and the card said `✔ 3 items · 5/5 done` —
     /// she found out by counting the trace).
     pub(super) recovered: usize,
+    /// The FIRST error an iteration was repaired from — the fan's
+    /// `recovered_from` (spec 13 §payload). Mirrors `first_error`: one
+    /// witness, kept, rather than N discarded.
+    ///
+    /// It used to be counted and dropped. `recovered_from` was
+    /// destructured, tested with `is_some()`, and thrown away for the
+    /// counter below, so the tally survived as prose in the note while
+    /// the machine-readable `cause` reported `normal` on a fan whose
+    /// iterations had died.
+    pub(super) first_recovered_from: Option<TaskErrorRecord>,
 }
 
 /// Drain the buffered iteration stream, reducing it to a [`FanOutAccum`] in
@@ -102,6 +112,7 @@ where
         cost_sum: None,
         unpriced: None,
         recovered: 0,
+        first_recovered_from: None,
     };
 
     while let Some(iter_ran) = stream.next().await {
@@ -123,8 +134,14 @@ where
                 // fallback — the ONE fact distinguishing it from a task
                 // that legitimately produced its value (a bare null
                 // count would misread honest nulls as deaths).
-                if recovered_from.is_some() {
+                if let Some(original) = recovered_from {
                     acc.recovered += 1;
+                    // The witness the fan owes its record. `first_error`
+                    // beside it keeps the first FAILURE the same way; a
+                    // fan has N originals and the payload law names one.
+                    if acc.first_recovered_from.is_none() {
+                        acc.first_recovered_from = Some(original.clone());
+                    }
                 }
                 acc.outputs.push(value);
                 if let Some(n) = tokens {
@@ -215,7 +232,7 @@ fn resolve_collection(
 pub(super) fn fan_out_result(
     outputs: Vec<Value>,
     tokens_sum: Option<i64>,
-    first_error: Option<TaskErrorRecord>,
+    (first_error, first_recovered_from): (Option<TaskErrorRecord>, Option<TaskErrorRecord>),
     spend: (Option<f64>, Option<nika_types::cost::UnpricedReason>),
 ) -> RunResult {
     let (cost_usd, cost_unpriced) = spend;
@@ -223,7 +240,11 @@ pub(super) fn fan_out_result(
         None => RunResult::Success {
             value: Value::Array(outputs),
             tokens: tokens_sum,
-            recovered_from: None,
+            // `settle` reads THIS to choose the cause: `Some` gives
+            // `success/recovered` + the payload's original error, `None`
+            // gives `success/normal`. Hardcoding `None` here is what made
+            // a fan of dead iterations report `normal`.
+            recovered_from: first_recovered_from,
             warning: None,
             // per-iteration child rows stay per-call — no aggregate row
             child: None,

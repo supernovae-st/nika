@@ -31,8 +31,12 @@ pub fn sidecar_path(workflow: &Path) -> PathBuf {
 fn enrolled_pubboxes() -> Vec<String> {
     let current = if let Ok(pf) = key_file_env("NIKA_RUN_PUB_FILE") {
         std::fs::read_to_string(pf).ok() // seam-bypass-ok: CLI custody read (L4 surface)
-    } else if let Ok(entry) = keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER_PUB) {
-        entry.get_password().ok()
+    } else if let Some(pk) = crate::seal::keychain_enabled()
+        .then(|| keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER_PUB).ok())
+        .flatten()
+        .and_then(|entry| entry.get_password().ok())
+    {
+        Some(pk)
     } else {
         fallback_key_path().and_then(|p| std::fs::read_to_string(p.with_extension("pub")).ok()) // seam-bypass-ok: same custody read
     };
