@@ -21,7 +21,7 @@ trait-variant = { workspace = true }   # BackendDyn: Send companion (workspace a
 # `local-infer` feature pulls the pure-Rust candle stack; pinned per-crate (no
 # other workspace member uses them). `metal` adds the Apple-GPU kernels on top.
 candle-core         = { version = "0.10", optional = true }
-candle-transformers = { version = "0.10", optional = true }
+candle-transformers = { version = "0.11", optional = true }
 # 0.22 converges on candle-core 0.10's own tokenizers — ONE copy in the tree
 # (0.23 exists upstream but would re-duplicate until candle bumps).
 tokenizers          = { version = "0.23", optional = true, default-features = false, features = ["onig"] }
