@@ -2,7 +2,7 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! The `native-first` rule set — spec `03-dag.md` §Native-first
-//! (rules 001-005 · « normative for lints »): an `exec:` whose literal
+//! (rules 001-006 · « normative for lints »): an `exec:` whose literal
 //! command a stdlib builtin (or an MCP tool) covers.
 //!
 //! The CLASSIFICATION is `check::native_first::classify_all` — one truth
@@ -16,7 +16,7 @@ use nika_schema::raw::{RawAction, RawWorkflow};
 
 use super::preference_rules::Lint;
 
-/// Run the `native-first/001..005` preference rules over a parsed
+/// Run the `native-first/001..006` preference rules over a parsed
 /// workflow. Output is deterministic — task order, then shell-segment
 /// order; every matched segment keeps its own lint site.
 #[must_use]

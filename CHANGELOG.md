@@ -29,6 +29,14 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Added
 
+- **`nika check` names the exact builtin when a utility is 1:1.** `sleep`,
+  `date`, `uuidgen`, the digest family, `yq`, `grep`/`rg`/`ag` and `find`
+  used to be silent — or, for `date`/`sha256sum`, a family catalogue.
+  Rule `native-first/006` answers with one builtin and its argument shape
+  (`nika:wait` · `duration:`) so the author types the next line, not a
+  menu. It sits at the foot of the ladder and never steals a more specific
+  family. `echo` stays silent on purpose: it is the universal placeholder,
+  not a builtin.
 - **Tool-result spill in the `agent:` loop (opt-in seam).** Past 16 KiB a
   tool result's full text leaves the conversation for the blob store —
   the content hash IS the locator — and the model keeps a 2 KiB preview

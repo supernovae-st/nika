@@ -12,7 +12,7 @@
 //! (curl crawl · node upload helper · shell jq · curl image API) and
 //! checked clean.
 //!
-//! Five deterministic rules, each keyed on LITERAL command fragments
+//! Six deterministic rules, each keyed on LITERAL command fragments
 //! (`RawCommand::argv_program` / leading shell token / fragments — a
 //! templated head makes no claim):
 //!
@@ -25,6 +25,11 @@
 //!   `output:` binding — the same jq engine, zero subprocess).
 //! - `native-first/004 exec-media` — an image/speech provider endpoint
 //!   in the command → `nika:image_generate`/`nika:tts_generate`.
+//! - `native-first/006 exec-utility` — a utility with an EXACT builtin
+//!   (`sleep`→`nika:wait` · `date`→`nika:date` · `uuidgen`→`nika:uuid` ·
+//!   `sha256sum`→`nika:hash` · `yq`→`nika:convert` · `grep`→`nika:grep` ·
+//!   `find`→`nika:glob`) — names the builtin AND its
+//!   argument shape, because the mapping is one to one.
 //! - `native-first/005 exec-helper` — an interpreter running a script
 //!   file → inventory the helper (HTTP→fetch · files→read/write ·
 //!   JSON→jq · product APIs→an MCP server) and keep only a genuine
@@ -34,8 +39,8 @@
 //! posture is the CLI's: `nika check --native-strict` fails on any
 //! `native-first` hint. Every shell segment is judged and a task keeps
 //! every matching hint; within one segment the most specific rule wins
-//! (helper ≻ media ≻ http ≻ file ≻ data). `nika run …` nested invocations
-//! are never flagged (the sanctioned composition path).
+//! (helper ≻ media ≻ http ≻ file ≻ utility ≻ data). `nika run …` nested
+//! invocations are never flagged (the sanctioned composition path).
 
 use nika_schema::raw::{RawAction, RawCommand, RawWorkflow};
 
@@ -52,10 +57,6 @@ const FILE_PROGRAMS: [&str; 9] = [
 ];
 /// Data-transform programs (003).
 const DATA_PROGRAMS: [&str; 3] = ["jq", "sed", "awk"];
-/// Deterministic clock program covered by `nika:date` (003).
-const DATE_PROGRAMS: [&str; 1] = ["date"];
-/// Digest programs covered by `nika:hash` (003).
-const HASH_PROGRAMS: [&str; 4] = ["sha256sum", "shasum", "md5sum", "sha1sum"];
 /// Script interpreters (005 · and the 001 one-liner carve-in).
 const INTERPRETERS: [&str; 12] = [
     "node", "python", "python3", "pythonw", "bash", "sh", "dash", "zsh", "deno", "bun", "ruby",
@@ -63,6 +64,94 @@ const INTERPRETERS: [&str; 12] = [
 ];
 /// Script-file suffixes an interpreter head promotes to 005.
 const SCRIPT_SUFFIXES: [&str; 8] = [".mjs", ".cjs", ".js", ".ts", ".py", ".sh", ".rb", ".pl"];
+/// Utility programs with an EXACT builtin counterpart (006).
+///
+/// The other four program families answer « what KIND of work is this »
+/// and hand back a small catalogue. These rows are 1:1, so the advice
+/// can name the builtin AND its argument shape — an author who typed
+/// `sleep 3` does not need a menu, they need `duration: "3s"`.
+///
+/// Empirical trigger, measured 2026-08-20 against 0.111.0: ten utility
+/// programs put through `nika check`, eight of them silent. Every one
+/// of the eight had an exact builtin. The 005 helper advice, which is
+/// what an author usually lands on, names five builtins and the catalog
+/// holds twenty-eight — so `nika:wait` was unreachable from any hint,
+/// and a three-second `sleep` survived in the studio's own radar beat
+/// for as long as the beat existed, carrying a `permits.exec` grant
+/// that existed for nothing else.
+///
+/// `echo` was in this table for one draft and came out. Its answer is
+/// not a builtin — a literal value belongs in `const:` — and the table's
+/// contract is an EXACT builtin counterpart. It also proved the cost of
+/// breaking that contract immediately: three fixtures in this repo use
+/// `echo` as the canonical harmless command, and under `--native-strict`
+/// a hint is a refusal, so the row turned the placeholder every author
+/// reaches for into a failure. A rule that fires on the universal
+/// do-nothing command is friction, not teaching.
+///
+/// BARE HEAD ONLY, like 001/002/003: `./scripts/date` is the author's
+/// own tool that merely shares a utility's name.
+const UTILITY_PROGRAMS: [(&str, &str); 13] = [
+    (
+        "sleep",
+        "a pause is `nika:wait` (`duration: \"3s\"`, or an absolute `until:`) — and it is \
+         not an exec, so the order law that forbids a shell downstream of a net-effecting \
+         task stops applying and the pause may finally sit where the intent wants it",
+    ),
+    (
+        "date",
+        "a timestamp is `nika:date` (`op: now|add|subtract|format|parse|diff` · strftime \
+         grammar in, ISO 8601 out) — portable across platforms, where `date` is not",
+    ),
+    (
+        "uuidgen",
+        "an identifier is `nika:uuid` (`version: v7` sortable by default, `v4` random)",
+    ),
+    (
+        "sha256sum",
+        "a digest is `nika:hash` (`algo: blake3|sha256|sha512` · hex or base64) — in-process, \
+         no subprocess and no platform-dependent output format",
+    ),
+    (
+        "shasum",
+        "a digest is `nika:hash` (`algo: sha256` · hex or base64)",
+    ),
+    (
+        "md5sum",
+        "a digest is `nika:hash` — and pick `blake3` or `sha256` while you are here",
+    ),
+    (
+        "sha1sum",
+        "a digest is `nika:hash` — and pick `blake3` or `sha256` while you are here",
+    ),
+    (
+        "b3sum",
+        "a digest is `nika:hash` (`algo: blake3` is the default)",
+    ),
+    (
+        "yq",
+        "YAML/TOML/CSV in or out is `nika:convert` (`from:`/`to:`), then `nika:jq` for the \
+         shaping — one data language instead of two",
+    ),
+    (
+        "grep",
+        "a recursive regex search is `nika:grep` — returns `{path,line,match}` sorted, already structured",
+    ),
+    (
+        "rg",
+        "a recursive regex search is `nika:grep` — returns `{path,line,match}` sorted, already structured",
+    ),
+    (
+        "ag",
+        "a recursive regex search is `nika:grep` — returns `{path,line,match}` sorted, already structured",
+    ),
+    (
+        "find",
+        "a path listing is `nika:glob` (lexicographic, with `exclude:`) — for a traversal that \
+         also RUNS something per hit, keep the subprocess and record it in the exec ledger",
+    ),
+];
+
 /// Media provider endpoint markers (004) — endpoint fragments, not
 /// bare words (a prompt mentioning "tts" must not fire).
 const MEDIA_MARKERS: [&str; 4] = [
@@ -202,6 +291,17 @@ fn classify_segment(segment: &CommandSegment) -> Option<(&'static str, String)> 
             ),
         ));
     }
+    // 006 · a utility with an EXACT builtin (bare head only). Sits at
+    // the foot of the ladder because it never competes: none of its
+    // programs appear in 001/002/003, and an interpreter head is 005
+    // before it reaches here. It answers with ONE builtin and its
+    // argument shape rather than a family, because the mapping is 1:1.
+    if !pathed && let Some((_, advice)) = UTILITY_PROGRAMS.iter().find(|(prog, _)| *prog == head) {
+        return Some((
+            "native-first/006",
+            format!("`{head}` has an exact native form — {advice}"),
+        ));
+    }
     // 003 · data transforms (bare head only).
     if !pathed && DATA_PROGRAMS.contains(&head) {
         return Some((
@@ -210,22 +310,6 @@ fn classify_segment(segment: &CommandSegment) -> Option<(&'static str, String)> 
                 "`{head}` reshapes data — `nika:jq` (or an `output:` \
                  jq binding) covers JSON in-process · `nika:edit` covers in-place \
                  literal file edits (one data language · no quoting traps)"
-            ),
-        ));
-    }
-    if !pathed && DATE_PROGRAMS.contains(&head) {
-        return Some((
-            "native-first/003",
-            format!(
-                "`{head}` reads the ambient clock — `nika:date` returns the declared run clock in-process (deterministic · traceable · no subprocess)"
-            ),
-        ));
-    }
-    if !pathed && HASH_PROGRAMS.contains(&head) {
-        return Some((
-            "native-first/003",
-            format!(
-                "`{head}` computes a digest — `nika:hash` covers deterministic hashing in-process (portable · traceable · no subprocess)"
             ),
         ));
     }
@@ -575,6 +659,80 @@ mod tests {
         scan(&parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse"))
     }
 
+    /// Every utility with a 1:1 builtin NAMES it, and names the argument
+    /// shape with it. Measured 2026-08-20 against 0.111.0: these eight
+    /// were silent, every one had an exact builtin, and the advice an
+    /// author usually lands on (005) mentions five of twenty-eight — so
+    /// `nika:wait` was unreachable from any hint and a three-second
+    /// `sleep` outlived the beat that needed it.
+    ///
+    /// The assertions name the BUILTIN, never the sentence: a pin that
+    /// quotes its own prose passes on a reword into nonsense.
+    #[test]
+    fn a_utility_with_an_exact_builtin_names_it() {
+        for (argv, builtin) in [
+            (r#"["sleep", "3"]"#, "nika:wait"),
+            (r#"["date", "+%s"]"#, "nika:date"),
+            (r#"["uuidgen"]"#, "nika:uuid"),
+            (r#"["sha256sum", "f.txt"]"#, "nika:hash"),
+            (r#"["b3sum", "f.txt"]"#, "nika:hash"),
+            (r#"["yq", ".a", "f.yaml"]"#, "nika:convert"),
+            (r#"["grep", "-r", "x", "."]"#, "nika:grep"),
+            (r#"["rg", "x"]"#, "nika:grep"),
+            (r#"["find", ".", "-name", "x"]"#, "nika:glob"),
+        ] {
+            let hints = hints_of(&exec_wf(argv));
+            let advice = &hints.first().expect("a utility fires 006").advice;
+            assert!(
+                advice.starts_with("native-first/006"),
+                "{argv} is rule 006 · {advice}"
+            );
+            assert!(
+                advice.contains(builtin),
+                "{argv} names {builtin} · {advice}"
+            );
+        }
+
+        // `echo` is NOT in the table, on purpose: its answer is `const:`,
+        // not a builtin, and it is the universal harmless placeholder. A
+        // rule that refuses it under `--native-strict` is friction.
+        assert!(
+            hints_of(&exec_wf(r#"["echo", "hello"]"#)).is_empty(),
+            "the canonical do-nothing command gains no hint"
+        );
+    }
+
+    /// 006 sits at the foot of the ladder and never steals a verdict.
+    /// Its program set is disjoint from 001/002/003 by construction, and
+    /// an interpreter head is 005 before it can reach here.
+    #[test]
+    fn the_exact_utility_rule_never_outranks_a_more_specific_one() {
+        for (argv, rule) in [
+            (r#"["curl", "https://example.com"]"#, "native-first/001"),
+            (r#"["cat", "f.txt"]"#, "native-first/002"),
+            (r#"["jq", ".a"]"#, "native-first/003"),
+            (r#"["bash", "helper.sh"]"#, "native-first/005"),
+        ] {
+            let hints = hints_of(&exec_wf(argv));
+            let advice = &hints.first().expect("a known family fires").advice;
+            assert!(advice.starts_with(rule), "{argv} stays {rule} · {advice}");
+        }
+
+        // A PATHED head is the author's own tool that merely shares a
+        // utility's name — the same suppression 001/002/003 already make.
+        assert!(
+            hints_of(&exec_wf(r#"["./scripts/date", "--weekly"]"#)).is_empty(),
+            "a pathed head makes no claim"
+        );
+
+        // And a genuine subprocess with no builtin counterpart stays
+        // silent: a rule that fires on everything advises nothing.
+        assert!(
+            hints_of(&exec_wf(r#"["rsync", "-a", "a/", "b/"]"#)).is_empty(),
+            "a program with no native form gains no hint"
+        );
+    }
+
     fn exec_wf(command_yaml: &str) -> String {
         // D1 (0.103): the string form lives in `shell:`, argv in `command:` —
         // the fixture router mirrors the field split the parser enforces.
@@ -812,7 +970,7 @@ tasks:
         assert_eq!(
             hints
                 .iter()
-                .filter(|h| h.code == Some("native-first/003"))
+                .filter(|h| h.code == Some("native-first/006"))
                 .count(),
             5,
             "each deterministic native path gets its own site: {hints:?}"
@@ -852,10 +1010,7 @@ tasks:
         for (command, expected) in cases {
             let hints = hints_of(&exec_wf(command));
             assert_eq!(
-                hints
-                    .iter()
-                    .filter(|h| h.code == Some("native-first/003"))
-                    .count(),
+                hints.iter().filter(|h| h.kind == "native-first").count(),
                 expected,
                 "{command}: {hints:?}"
             );
