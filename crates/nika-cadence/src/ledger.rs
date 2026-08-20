@@ -108,6 +108,82 @@ pub struct Claim {
     pub decided_at: Timestamp,
 }
 
+/// A terminal receipt bound to one durable claim.
+///
+/// Its kind is deliberately not stored: the exit code is the sole source of
+/// truth, so contradictory `fired`/`failed` pairs cannot be constructed.
+#[derive(Debug, Clone)]
+pub struct Receipt {
+    /// The decided slot.
+    pub slot: Timestamp,
+    /// The receipt instant.
+    pub decided_at: Timestamp,
+    /// Optional trace path.
+    pub trace: Option<String>,
+    /// Process exit code.
+    pub exit: u8,
+    /// Number of slots answered by one catch-up fire.
+    pub slots: Option<u32>,
+    /// Stable slot identity copied from the claim.
+    pub slot_id: SlotId,
+    /// Fencing token returned by the claim append.
+    pub fencing: FencingToken,
+    /// Generation copied from the claim.
+    pub generation: Option<ArmGeneration>,
+}
+
+impl Receipt {
+    /// Bind a terminal result to the exact claim that preceded it.
+    #[must_use]
+    pub fn for_claim(
+        claim: &Claim,
+        fencing: FencingToken,
+        slot: Timestamp,
+        decided_at: Timestamp,
+        trace: Option<String>,
+        exit: u8,
+        slots: Option<u32>,
+    ) -> Self {
+        Self {
+            slot,
+            decided_at,
+            trace,
+            exit,
+            slots,
+            slot_id: claim.slot_id.clone(),
+            fencing,
+            generation: claim.generation.clone(),
+        }
+    }
+
+    /// Derive the terminal vocabulary from the process result.
+    #[must_use]
+    pub const fn kind(&self) -> DecisionKind {
+        match self.exit {
+            0 => DecisionKind::Fired,
+            4 => DecisionKind::Paused,
+            _ => DecisionKind::Failed,
+        }
+    }
+
+    /// Convert to the canonical wire entry after the claim binding is fixed.
+    #[must_use]
+    pub fn history_entry(&self) -> HistoryEntry {
+        HistoryEntry {
+            slot: Some(self.slot),
+            decided_at: self.decided_at,
+            kind: self.kind(),
+            reason: None,
+            trace: self.trace.clone(),
+            exit: Some(self.exit),
+            slots: self.slots,
+            slot_id: Some(self.slot_id.clone()),
+            fencing: Some(self.fencing),
+            generation: self.generation.clone(),
+        }
+    }
+}
+
 /// Result of one durable append.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RecordOutcome {
@@ -163,7 +239,9 @@ fn replay_core<'a>(journals: impl IntoIterator<Item = (&'a str, bool)>) -> Optio
             return None;
         }
         if versioned {
-            walker.fold_chain(text);
+            if !walker.fold_chain(text) {
+                return None;
+            }
         } else if matches!(format, JournalFormat::Legacy) {
             walker.fold_legacy(text);
         }
@@ -218,6 +296,9 @@ pub fn unsettled(text: &str) -> Option<Vec<Unsettled>> {
         JournalFormat::Legacy => false,
         JournalFormat::Versioned => true,
     };
+    if versioned && scan_chain(text).2 != text.lines().count() {
+        return None;
+    }
     let mut seq = 0u64;
     let mut prev_hash = None;
     for (position, line) in text.lines().enumerate() {
@@ -293,6 +374,9 @@ pub fn tallies<'a>(journals: impl IntoIterator<Item = (&'a str, bool)>) -> Optio
         if versioned != matches!(format, JournalFormat::Versioned) {
             return None;
         }
+        if versioned && scan_chain(text).2 != text.lines().count() {
+            return None;
+        }
         let mut seq = 0u64;
         let mut prev_hash = None;
         for line in text.lines() {
@@ -349,21 +433,28 @@ impl Walker {
         }
     }
 
-    fn fold_chain(&mut self, text: &str) {
+    fn fold_chain(&mut self, text: &str) -> bool {
         let mut seq = 0u64;
         let mut prev: Option<String> = None;
+        let mut lifecycle = LifecycleValidator::default();
         for line in text.lines() {
             match verify_line(line, seq + 1, prev.as_deref()) {
                 Some(hash) => {
+                    if let Ok(doc) = serde_json::from_str::<serde_json::Value>(line) {
+                        if !lifecycle.accept(&doc) {
+                            return false;
+                        }
+                        self.fold_versioned(&doc);
+                    } else {
+                        return false;
+                    }
                     seq += 1;
                     prev = Some(hash);
-                    if let Ok(doc) = serde_json::from_str::<serde_json::Value>(line) {
-                        self.fold_versioned(&doc);
-                    }
                 }
-                None => break,
+                None => return false,
             }
         }
+        true
     }
 
     fn fold_legacy(&mut self, text: &str) {
@@ -770,9 +861,17 @@ fn verify_payload(
         }
         "fired" | "skipped" | "paused" | "failed" | "disarmed" => {
             const KEYS: [&str; 7] = ["slot", "reason", "trace", "exit", "slots", "fencing", "gen"];
+            const LEGACY_KEYS: [&str; 8] = [
+                "slot", "reason", "trace", "exit", "slots", "fencing", "gen", "legacy",
+            ];
             let slot = payload.get("slot")?;
             let semantic_slot = slot.is_string() || slot_id.is_some();
-            let shape_valid = exact_keys(object, &KEYS)
+            let explicit_legacy = payload.get("legacy") == Some(&serde_json::Value::Bool(true));
+            let keys_valid = exact_keys(object, &KEYS)
+                || (matches!(kind, "fired" | "paused" | "failed")
+                    && explicit_legacy
+                    && exact_keys(object, &LEGACY_KEYS));
+            let shape_valid = keys_valid
                 && timestamp_or_null(slot)
                 && nullable_string(payload.get("reason"))
                 && nullable_string(payload.get("trace"))
@@ -856,9 +955,16 @@ pub fn scan_chain(text: &str) -> (u64, Option<String>, usize) {
     let mut seq = 0u64;
     let mut prev_hash = None;
     let mut valid_lines = 0usize;
+    let mut lifecycle = LifecycleValidator::default();
     for line in text.lines() {
         match verify_line(line, seq + 1, prev_hash.as_deref()) {
             Some(hash) => {
+                let Ok(doc) = serde_json::from_str::<serde_json::Value>(line) else {
+                    break;
+                };
+                if !lifecycle.accept(&doc) {
+                    break;
+                }
                 seq += 1;
                 prev_hash = Some(hash);
                 valid_lines += 1;
@@ -867,6 +973,81 @@ pub fn scan_chain(text: &str) -> (u64, Option<String>, usize) {
         }
     }
     (seq, prev_hash, valid_lines)
+}
+
+#[derive(Default)]
+struct LifecycleValidator {
+    claims: Vec<ClaimBinding>,
+}
+
+struct ClaimBinding {
+    slot_id: String,
+    fencing: u64,
+    generation: Option<String>,
+    settled: bool,
+}
+
+impl LifecycleValidator {
+    fn accept(&mut self, doc: &serde_json::Value) -> bool {
+        let Some(kind) = doc.get("kind").and_then(serde_json::Value::as_str) else {
+            return false;
+        };
+        let slot_id = doc.get("slot_id").and_then(serde_json::Value::as_str);
+        let Some(payload) = doc.get("payload") else {
+            return false;
+        };
+        let fencing = payload.get("fencing").and_then(serde_json::Value::as_u64);
+        let generation = payload
+            .get("gen")
+            .and_then(serde_json::Value::as_str)
+            .map(str::to_owned);
+        match kind {
+            "claimed" => {
+                let Some(slot_id) = slot_id else { return false };
+                let Some(fencing) = fencing else { return false };
+                self.claims.push(ClaimBinding {
+                    slot_id: slot_id.to_owned(),
+                    fencing,
+                    generation,
+                    settled: false,
+                });
+                true
+            }
+            "fired" | "paused" | "failed" => {
+                let Some(exit) = payload.get("exit").and_then(serde_json::Value::as_u64) else {
+                    return false;
+                };
+                let kind_matches = match kind {
+                    "fired" => exit == 0,
+                    "paused" => exit == 4,
+                    "failed" => exit != 0 && exit != 4 && u8::try_from(exit).is_ok(),
+                    _ => false,
+                };
+                if payload.get("legacy") == Some(&serde_json::Value::Bool(true)) {
+                    return kind_matches && slot_id.is_none() && fencing.is_none();
+                }
+                let (Some(slot_id), Some(fencing)) = (slot_id, fencing) else {
+                    return false;
+                };
+                let Some(claim) = self.claims.iter_mut().find(|claim| {
+                    claim.slot_id == slot_id
+                        && claim.fencing == fencing
+                        && claim.generation == generation
+                }) else {
+                    return false;
+                };
+                if !kind_matches || claim.settled {
+                    return false;
+                }
+                claim.settled = true;
+                true
+            }
+            "skipped" => fencing.is_none() && generation.is_none(),
+            "rotated" => true,
+            "disarmed" => slot_id.is_none() && fencing.is_none() && generation.is_none(),
+            _ => false,
+        }
+    }
 }
 
 /// Render a canonical ledger line and return the line plus its hash.
@@ -1171,6 +1352,29 @@ pub fn decision_payload(entry: &HistoryEntry) -> String {
     format!(
         "{{\"slot\":{slot},\"reason\":{reason},\"trace\":{trace},\"exit\":{exit},\"slots\":{slots},\"fencing\":{fencing},\"gen\":{generation}}}"
     )
+}
+
+/// Render an explicitly marked compatibility receipt.
+///
+/// New firings use [`Receipt`]. This adapter exists only for pre-claim
+/// terminal records; the marker prevents an anonymous receipt from
+/// masquerading as a modern fenced receipt.
+#[must_use]
+pub fn legacy_receipt_payload(entry: &HistoryEntry) -> Option<String> {
+    let kind_matches = matches!(
+        (entry.kind, entry.exit),
+        (DecisionKind::Fired, Some(0)) | (DecisionKind::Paused, Some(4))
+    ) || matches!(entry.kind, DecisionKind::Failed)
+        && entry.exit.is_some_and(|exit| exit != 0 && exit != 4);
+    if entry.slot_id.is_some() || entry.fencing.is_some() || !kind_matches {
+        return None;
+    }
+    let mut payload = decision_payload(entry);
+    if payload.pop()? != '}' {
+        return None;
+    }
+    payload.push_str(",\"legacy\":true}");
+    Some(payload)
 }
 
 /// Build the slot-bearing `last.json` projection from one decision.

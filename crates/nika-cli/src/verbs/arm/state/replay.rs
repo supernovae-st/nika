@@ -4,6 +4,7 @@
 //! Filesystem adapter for the pure cadence ledger replay.
 
 use std::io;
+#[cfg(test)]
 use std::path::{Path, PathBuf};
 
 use jiff::Timestamp;
@@ -13,7 +14,7 @@ use nika_cadence::ledger::{
     journal_snapshot_matches,
 };
 
-use super::HISTORY;
+use super::{HISTORY, safe_fs::SafeDir};
 
 pub(crate) struct Replay {
     pub last: Option<LastRecord>,
@@ -29,7 +30,7 @@ pub(crate) struct Folded {
 
 type JournalSnapshot = (String, String, bool);
 
-pub(crate) fn replay(dir: &Path) -> io::Result<Replay> {
+pub(super) fn replay_safe(dir: &SafeDir) -> io::Result<Replay> {
     let journals = journal_texts(dir)?;
     let (last, watermark) = nika_cadence::ledger::replay_projection(
         journals
@@ -44,27 +45,22 @@ pub(crate) fn replay(dir: &Path) -> io::Result<Replay> {
     })
 }
 
-pub(super) fn journal_texts(dir: &Path) -> io::Result<Vec<(String, bool)>> {
-    validate_snapshot(dir, read_snapshot(dir)?)
+pub(super) fn journal_texts(dir: &SafeDir) -> io::Result<Vec<(String, bool)>> {
+    validate_snapshot_safe(dir, read_snapshot_safe(dir)?)
 }
 
-fn read_snapshot(dir: &Path) -> io::Result<Vec<JournalSnapshot>> {
-    journals(dir)?
+fn read_snapshot_safe(dir: &SafeDir) -> io::Result<Vec<JournalSnapshot>> {
+    journal_names(dir)?
         .into_iter()
-        .map(|path| {
-            let name = path
-                .file_name()
-                .and_then(|name| name.to_str())
-                .ok_or_else(invalid_journal)?
-                .to_owned();
+        .map(|name| {
             let live = name == HISTORY;
-            Ok((name, std::fs::read_to_string(path)?, live))
+            Ok((name.clone(), dir.read(&name)?, live))
         })
         .collect()
 }
 
-fn validate_snapshot(
-    dir: &Path,
+fn validate_snapshot_safe(
+    dir: &SafeDir,
     snapshot: Vec<JournalSnapshot>,
 ) -> io::Result<Vec<(String, bool)>> {
     let borrowed: Vec<(&str, &str, bool)> = snapshot
@@ -84,7 +80,7 @@ fn validate_snapshot(
         .collect())
 }
 
-pub(super) fn validate_archive_commitment(dir: &Path, live: &str) -> io::Result<()> {
+pub(super) fn validate_archive_commitment(dir: &SafeDir, live: &str) -> io::Result<()> {
     if !matches!(classify_journal(live), Some(JournalFormat::Versioned)) {
         return Ok(());
     }
@@ -98,8 +94,8 @@ pub(super) fn validate_archive_commitment(dir: &Path, live: &str) -> io::Result<
         .ok_or_else(invalid_journal)
 }
 
-pub(super) fn archive_texts(dir: &Path) -> io::Result<Vec<(String, String)>> {
-    read_snapshot(dir)?
+pub(super) fn archive_texts(dir: &SafeDir) -> io::Result<Vec<(String, String)>> {
+    read_snapshot_safe(dir)?
         .into_iter()
         .filter(|(_, _, live)| !live)
         .map(|(name, text, _)| {
@@ -125,37 +121,75 @@ pub(crate) fn fold_replay(replayed: &Replay, now: &Timestamp) -> Option<Folded> 
     })
 }
 
-fn journals(dir: &Path) -> io::Result<Vec<PathBuf>> {
-    let entries = match std::fs::read_dir(dir) {
-        Ok(entries) => entries,
-        Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
-        Err(error) => return Err(error),
-    };
-    let mut paths = Vec::new();
-    for entry in entries {
-        let entry = entry?;
-        if entry.file_type()?.is_file() && path_archive_ordinal(&entry.path()).is_some() {
-            paths.push(entry.path());
+fn journal_names(dir: &SafeDir) -> io::Result<Vec<String>> {
+    let mut names = Vec::new();
+    for name in dir.names()? {
+        if nika_cadence::ledger::archive_ordinal(&name).is_some() {
+            let _ = dir.read(&name)?;
+            names.push(name);
         }
     }
-    paths.sort_by_key(|path| path_archive_ordinal(path));
-    let live = dir.join(HISTORY);
-    if live.exists() {
-        paths.push(live);
+    names.sort_by_key(|name| nika_cadence::ledger::archive_ordinal(name));
+    if dir.exists(HISTORY)? {
+        names.push(HISTORY.to_owned());
     }
-    Ok(paths)
+    Ok(names)
 }
 
-pub(super) fn latest_archive(dir: &Path) -> io::Result<Option<PathBuf>> {
-    Ok(journals(dir)?
+pub(super) fn latest_archive(dir: &SafeDir) -> io::Result<Option<String>> {
+    Ok(journal_names(dir)?
         .into_iter()
-        .filter(|path| path.file_name().and_then(|name| name.to_str()) != Some(HISTORY))
+        .filter(|name| name != HISTORY)
         .next_back())
 }
 
-fn path_archive_ordinal(path: &Path) -> Option<u32> {
-    let name = path.file_name()?.to_str()?;
-    nika_cadence::ledger::archive_ordinal(name)
+#[cfg(test)]
+fn test_dir(path: &Path) -> io::Result<SafeDir> {
+    let label = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .ok_or_else(invalid_journal)?;
+    let project = path
+        .parent()
+        .and_then(Path::parent)
+        .and_then(Path::parent)
+        .ok_or_else(invalid_journal)?;
+    SafeDir::open(project, label)
+}
+
+#[cfg(test)]
+pub(super) fn replay(path: &Path) -> io::Result<Replay> {
+    replay_safe(&test_dir(path)?)
+}
+
+#[cfg(test)]
+fn read_snapshot(path: &Path) -> io::Result<Vec<JournalSnapshot>> {
+    read_snapshot_safe(&test_dir(path)?)
+}
+
+#[cfg(test)]
+fn validate_snapshot(
+    path: &Path,
+    snapshot: Vec<JournalSnapshot>,
+) -> io::Result<Vec<(String, bool)>> {
+    validate_snapshot_safe(&test_dir(path)?, snapshot)
+}
+
+#[cfg(test)]
+fn journals(path: &Path) -> io::Result<Vec<PathBuf>> {
+    if !path.exists() {
+        return Ok(Vec::new());
+    }
+    if !path.is_dir() {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "arm ledger: sidecar is not a directory",
+        ));
+    }
+    Ok(journal_names(&test_dir(path)?)?
+        .into_iter()
+        .map(|name| path.join(name))
+        .collect())
 }
 
 fn invalid_journal() -> io::Error {
@@ -172,7 +206,7 @@ mod tests {
     use nika_cadence::firing::{FiringState, SlotId};
 
     use super::super::{ArmState, Claim, FireKind, HISTORY, HistoryEntry, write_chain_anchor};
-    use super::{fold_replay, journals, read_snapshot, replay, validate_snapshot};
+    use super::{fold_replay, journals, read_snapshot, replay, test_dir, validate_snapshot};
 
     fn state(tag: &str) -> (tempfile::TempDir, ArmState) {
         let dir = tempfile::Builder::new()
@@ -218,7 +252,10 @@ mod tests {
         let path = dir.path().join(".nika/arm/doctor/last.json");
         let original = std::fs::read_to_string(&path).expect("last.json");
         std::fs::remove_file(&path).expect("delete the projection");
-        let last = state.last("doctor").expect("W7: the chain replays it");
+        let last = state
+            .last("doctor")
+            .expect("valid replay")
+            .expect("W7: the chain replays it");
         let rendered = format!(
             "{{\"slot\":\"{}\",\"fired_at\":\"{}\",\"trace\":{},\"exit\":{},\"kind\":\"{}\",\"gen\":{}}}\n",
             last.slot,
@@ -278,7 +315,7 @@ mod tests {
         std::fs::write(&ledger, text.replacen("\"seq\":2", "\"seq\":9", 1)).expect("tamper");
         std::fs::remove_file(dir.path().join(".nika/arm/doctor/last.json")).expect("delete");
         assert!(
-            state.last("doctor").is_none(),
+            state.last("doctor").is_err(),
             "the durable head refuses laundering an anchored tamper"
         );
         // The read is READ-ONLY: the tampered bytes survive for the
@@ -311,7 +348,7 @@ mod tests {
         std::fs::write(&ledger, swapped).expect("swap");
         std::fs::remove_file(dir.path().join(".nika/arm/doctor/last.json")).expect("delete");
         assert!(
-            state.last("doctor").is_none(),
+            state.last("doctor").is_err(),
             "the durable head refuses laundering an anchored reorder"
         );
     }
@@ -342,7 +379,7 @@ mod tests {
         std::fs::remove_file(dir.path().join(".nika/arm/doctor/last.json")).expect("delete");
 
         assert!(
-            state.last("doctor").is_none(),
+            state.last("doctor").is_err(),
             "the durable head refuses laundering an anchored truncation"
         );
         assert_eq!(
@@ -384,7 +421,7 @@ mod tests {
             replay(&sidecar).is_err(),
             "rollback must be named as invalid"
         );
-        assert!(state.last("doctor").is_none(), "no older PROUVÉ cache");
+        assert!(state.last("doctor").is_err(), "no older PROUVÉ cache");
         assert_eq!(
             std::fs::read_to_string(sidecar.join("last.json")).expect("last survives"),
             last_before
@@ -471,13 +508,13 @@ mod tests {
 
         std::fs::write(&ledger, "").expect("truncate to zero");
         assert!(replay(&sidecar).is_err(), "empty live cannot bypass head");
-        assert!(state.last("doctor").is_none(), "no false PROUVÉ state");
+        assert!(state.last("doctor").is_err(), "no false PROUVÉ state");
         assert!(state.tallies("doctor").is_none(), "no false tally");
 
         std::fs::write(&ledger, original).expect("restore");
         std::fs::remove_file(&ledger).expect("delete live");
         assert!(replay(&sidecar).is_err(), "absent live cannot bypass head");
-        assert!(state.last("doctor").is_none(), "no false PROUVÉ state");
+        assert!(state.last("doctor").is_err(), "no false PROUVÉ state");
         assert!(state.tallies("doctor").is_none(), "no false tally");
     }
 
@@ -515,7 +552,7 @@ mod tests {
         std::fs::write(&ledger, text.replacen("annotated", "Annotated", 1)).expect("alter");
         std::fs::remove_file(dir.path().join(".nika/arm/doctor/last.json")).expect("delete");
         assert!(
-            state.last("doctor").is_none(),
+            state.last("doctor").is_err(),
             "the durable head refuses laundering an anchored payload change"
         );
     }
@@ -526,7 +563,7 @@ mod tests {
     fn an_absent_chain_still_reads_never_fired() {
         let (_dir, state) = state("absent");
         assert!(
-            state.last("ghost").is_none(),
+            state.last("ghost").expect("absent replay").is_none(),
             "no last.json AND no chain → never fired"
         );
     }
@@ -544,7 +581,10 @@ mod tests {
             "{\"slot\":\"2026-08-19T03:00:00Z\",\"decided_at\":\"2026-08-19T03:02:00Z\",\"kind\":\"skipped\",\"reason\":\"missed:1\",\"trace\":null,\"exit\":0,\"slots\":null}\n",
         );
         std::fs::write(sidecar.join("history.ndjson"), legacy).expect("legacy");
-        let last = state.last("doctor").expect("the legacy journal replays");
+        let last = state
+            .last("doctor")
+            .expect("valid replay")
+            .expect("the legacy journal replays");
         assert_eq!(last.slot, ts("2026-08-19T03:00:00Z"));
         assert_eq!(last.kind, FireKind::Skipped);
         assert_eq!(
@@ -604,7 +644,7 @@ mod tests {
             "a file is not an absent directory"
         );
 
-        let sidecar = dir.path().join("sidecar");
+        let sidecar = dir.path().join(".nika/arm/doctor");
         std::fs::create_dir_all(&sidecar).expect("sidecar");
         for name in [
             "history-w2.ndjson",
@@ -615,15 +655,6 @@ mod tests {
             "not-history-w2.ndjson",
         ] {
             std::fs::write(sidecar.join(name), "\n").expect("journal candidate");
-        }
-        #[cfg(unix)]
-        {
-            std::fs::write(dir.path().join("outside.ndjson"), "hijack\n").expect("target");
-            std::os::unix::fs::symlink(
-                dir.path().join("outside.ndjson"),
-                sidecar.join("history-w2-3.ndjson"),
-            )
-            .expect("archive symlink");
         }
         let names: Vec<String> = journals(&sidecar)
             .expect("walk")
@@ -636,6 +667,16 @@ mod tests {
             })
             .collect();
         assert_eq!(names, vec!["history-w2.ndjson", "history-w2-2.ndjson"]);
+        #[cfg(unix)]
+        {
+            std::fs::write(dir.path().join("outside.ndjson"), "hijack\n").expect("target");
+            std::os::unix::fs::symlink(
+                dir.path().join("outside.ndjson"),
+                sidecar.join("history-w2-3.ndjson"),
+            )
+            .expect("archive symlink");
+            assert!(journals(&sidecar).is_err(), "archive symlinks fail closed");
+        }
     }
 
     /// Repeated W2 recoveries replay by rotation ordinal, not lexical path.
@@ -664,7 +705,8 @@ mod tests {
         )
         .expect("genesis");
         std::fs::write(sidecar.join(HISTORY), format!("{genesis}\n")).expect("live");
-        write_chain_anchor(&sidecar, 1, Some(&hash)).expect("head");
+        write_chain_anchor(&test_dir(&sidecar).expect("safe sidecar"), 1, Some(&hash))
+            .expect("head");
         let replayed = replay(&sidecar).expect("replay");
         let last = replayed.last.expect("projection");
         assert_eq!(last.kind, FireKind::Skipped);
@@ -703,6 +745,7 @@ mod tests {
         .expect("legacy");
         let folded = state
             .folded("doctor", &ts("2026-08-19T03:03:00Z"))
+            .expect("valid replay")
             .expect("folded");
         assert_eq!(folded.state, FiringState::Skipped);
     }

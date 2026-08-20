@@ -20,7 +20,7 @@ shadow_zones: []
 nika_codes: []
 timeline: ""
 follow_ups:
-  - "`nika serve` is the second L4 consumer this crate was placed at L0 for — it does not exist yet, so the layering argument is currently carried by ONE consumer plus an intent"
+  - "`nika serve` is now the second L4 consumer of the pure cadence and ledger judge; keep all filesystem ownership and execution effects in `nika-cli`"
   - "Eight cadence keys are reachable in the registry grammar but unreachable through the project file — pinned by a test in `nika-cli`, not yet resolved either way"
   - "`signature:` and `budget:` are refused BY NAME, waiting on ② and on a measured lack respectively"
 ---
@@ -83,6 +83,14 @@ prefix, or a mismatching anchored hash refuses; only a longer verified chain
 whose prefix exactly matches the older mark can close the append→head crash
 window.
 
+All sidecar traversal is descriptor-rooted. `.nika`, `arm`, and the beat label
+are opened one component at a time with no-follow semantics; journal, archive,
+projection, and lock files are then opened relative to the held directory
+descriptor. A symlink component refuses, and replacing the visible beat path
+between claim and receipt cannot redirect the receipt. The run similarly uses
+a read-only private snapshot of the exact bytes hashed into `ArmGeneration`, so
+an edit or symlink swap after the claim cannot execute a different generation.
+
 W2 archives are part of that evidence rather than unauthenticated prehistory.
 The W7 `rotated` genesis commits their canonical numeric order, count, latest
 name and line count, plus a domain-separated SHA-256 over every canonical
@@ -92,22 +100,18 @@ deletion refuses instead of silently changing the folded past.
 
 This amendment was forced into the open by W7's ledger reversal. Keeping its
 pure codec and fold in `nika-cli` crossed the 15,000-production-LOC hard cap and
-would have made the future `nika serve` consumer depend upward or duplicate the
+would have made the resident `nika serve` consumer depend upward or duplicate the
 judge. Extracting only the pure boundary removed that pressure while leaving
 every effect at L4. The size gate exposed a missing architectural seam; it was
 not solved by hiding or compressing code.
 
 ### Why L0 and not inside a CLI crate
 
-Two L4 consumers are intended to read this registry — `nika arm` today,
-`nika serve` at ②. Shared logic beneath more than one L4 consumer belongs at
+Two L4 consumers read this registry — `nika arm` and the resident
+`nika serve`. Shared logic beneath more than one L4 consumer belongs at
 L0; putting it in a CLI crate would make the second consumer an upward
 dependency. This follows the precedent recorded in `nika-check`'s manifest
 (« THREE L0 consumers make any higher layer an upward-dep violation »).
-
-**Honest state of that argument**: only ONE of the two consumers exists today.
-The layering choice is therefore carried by one consumer plus a stated
-intention, and it is listed as a follow-up rather than presented as settled.
 
 ### The four locks — one law at four moments
 

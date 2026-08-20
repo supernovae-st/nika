@@ -37,6 +37,7 @@
 //! run is PARKED with its trace (`paused … · trace …`), never resumed,
 //! never answered by the firer.
 
+use std::io::{Read as _, Write as _};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
@@ -46,7 +47,7 @@ use nika_cadence::registry::{AfterSkip, ArmRegistry, Beat, Cadence, Locus, MissP
 use nika_vocab::project;
 
 use super::args::FireArgs;
-use super::state::{ArmState, Claim, FireKind, HistoryEntry, LockOutcome};
+use super::state::{ArmState, Claim, FireKind, HistoryEntry, LockOutcome, Receipt};
 use crate::verbs::run::RenderMode;
 use crate::verbs::{self, VerbOutput, exit};
 
@@ -112,6 +113,10 @@ pub(crate) struct RunShot {
     pub root: PathBuf,
     /// The workflow path, registry-verbatim.
     pub workflow: String,
+    /// Immutable temporary path containing the exact bytes pinned by the claim.
+    pub bound_workflow: PathBuf,
+    /// Generation attested by the claim and represented by `bound_workflow`.
+    pub generation: ArmGeneration,
     /// The per-tick ceiling in USD — ALWAYS set (law 7).
     pub plafond: f64,
 }
@@ -479,8 +484,11 @@ pub fn fire_beat(ctx: &FireCtx) -> FireVerdict {
 /// (the law), and the release rides the guard on EVERY exit, engine
 /// fault and record refusal included.
 fn decide_locked(ctx: &FireCtx, lease: super::state::LockLease) -> FireVerdict {
-    let _lock = HeldBeatLock { _lease: lease };
-    let last = ctx.state.last_fired(&ctx.label);
+    let lock = HeldBeatLock { lease };
+    let last = match ctx.state.last_fired(&ctx.label) {
+        Ok(last) => last,
+        Err(error) => return record_refused(ctx, &error),
+    };
     match decide(
         &ctx.registry,
         ctx.index,
@@ -498,7 +506,7 @@ fn decide_locked(ctx: &FireCtx, lease: super::state::LockLease) -> FireVerdict {
             slot,
             journal,
         } => act_on_skip(ctx, line, reason, slot.as_ref(), journal),
-        Decision::Fire { slot, slots } => claim_run_receipt(ctx, &slot, slots),
+        Decision::Fire { slot, slots } => claim_run_receipt(ctx, &lock.lease, &slot, slots),
     }
 }
 
@@ -508,7 +516,10 @@ fn decide_locked(ctx: &FireCtx, lease: super::state::LockLease) -> FireVerdict {
 /// come from a decision made UNDER the lock (the re-decision law) —
 /// the peek alone never runs.
 fn overlap_held(ctx: &FireCtx, holder: u32) -> FireVerdict {
-    let last = ctx.state.last_fired(&ctx.label);
+    let last = match ctx.state.last_fired(&ctx.label) {
+        Ok(last) => last,
+        Err(error) => return record_refused(ctx, &error),
+    };
     match decide(
         &ctx.registry,
         ctx.index,
@@ -669,7 +680,12 @@ fn act_on_skip(
 /// receipt (+ fsync · last.json · watermark) lands AFTER, the release
 /// comes last of all (the caller's guard). The receipt fences the
 /// claim's seq — that link is what makes an orphan unambiguous.
-fn claim_run_receipt(ctx: &FireCtx, slot: &Zoned, slots: Option<u32>) -> FireVerdict {
+fn claim_run_receipt(
+    ctx: &FireCtx,
+    lease: &super::state::LockLease,
+    slot: &Zoned,
+    slots: Option<u32>,
+) -> FireVerdict {
     let Some(beat) = beat_of(ctx) else {
         return FireVerdict {
             line: format!(
@@ -688,9 +704,13 @@ fn claim_run_receipt(ctx: &FireCtx, slot: &Zoned, slots: Option<u32>) -> FireVer
             code: exit::FILE,
         };
     };
+    let pinned = match pin_workflow(ctx, beat) {
+        Ok(pinned) => pinned,
+        Err(error) => return record_refused(ctx, &error),
+    };
     let claim = Claim {
         slot_id: SlotId::derive(&beat.workflow, &beat.cadence, slot),
-        generation: pin_generation(ctx, beat),
+        generation: Some(pinned.generation.clone()),
         deadline: next_slot(ctx).map_or_else(
             || {
                 ctx.now
@@ -703,7 +723,7 @@ fn claim_run_receipt(ctx: &FireCtx, slot: &Zoned, slots: Option<u32>) -> FireVer
         decided_at: ctx.now.timestamp(),
     };
     let mut repaired = 0u64;
-    let fencing = match ctx.state.record_claim(&ctx.label, &claim) {
+    let fencing = match ArmState::record_claim_with_lease(lease, &claim) {
         Ok(outcome) => {
             repaired += outcome.repaired;
             outcome.seq
@@ -713,6 +733,8 @@ fn claim_run_receipt(ctx: &FireCtx, slot: &Zoned, slots: Option<u32>) -> FireVer
     let upshot = (ctx.run)(&RunShot {
         root: ctx.project_root.clone(),
         workflow: beat.workflow.clone(),
+        bound_workflow: pinned.file.path().to_path_buf(),
+        generation: pinned.generation,
         plafond,
     });
     // The receipt's kind FOLLOWS the folded state (D5): the machine
@@ -740,19 +762,17 @@ fn claim_run_receipt(ctx: &FireCtx, slot: &Zoned, slots: Option<u32>) -> FireVer
         upshot.code,
         upshot.trace.as_deref(),
     );
-    let receipt = HistoryEntry {
-        slot: Some(slot.timestamp()),
-        decided_at: ctx.now.timestamp(),
-        kind,
-        reason: None,
-        trace: upshot.trace,
-        exit: Some(upshot.code),
+    let receipt = Receipt::for_claim(
+        &claim,
+        FencingToken::new(fencing),
+        slot.timestamp(),
+        ctx.now.timestamp(),
+        upshot.trace,
+        upshot.code,
         slots,
-        slot_id: Some(claim.slot_id),
-        fencing: Some(FencingToken::new(fencing)),
-        generation: claim.generation,
-    };
-    match ctx.state.record(&ctx.label, &receipt) {
+    );
+    debug_assert_eq!(receipt.kind(), kind);
+    match ArmState::record_receipt_with_lease(lease, &receipt) {
         Ok(outcome) => repaired += outcome.repaired,
         Err(e) => return record_refused(ctx, &e),
     }
@@ -765,7 +785,7 @@ fn claim_run_receipt(ctx: &FireCtx, slot: &Zoned, slots: Option<u32>) -> FireVer
 /// The held beat lock, released on EVERY exit of the scope that took
 /// it. The kernel releases the advisory lease even if the process dies.
 struct HeldBeatLock {
-    _lease: super::state::LockLease,
+    lease: super::state::LockLease,
 }
 
 /// The beat's next theoretical slot after the decision instant — the
@@ -789,9 +809,40 @@ fn slot_id_of(ctx: &FireCtx, slot: &Zoned) -> Option<SlotId> {
 /// the workflow's exact bytes (the source-identity convention). `None`
 /// when the workflow cannot be read — the run then fails its own
 /// receipt, and the claim pins nothing rather than lying.
-fn pin_generation(ctx: &FireCtx, beat: &Beat) -> Option<ArmGeneration> {
-    let bytes = std::fs::read(ctx.project_root.join(&beat.workflow)).ok()?;
-    Some(ArmGeneration::compute(beat, &bytes))
+struct PinnedWorkflow {
+    generation: ArmGeneration,
+    file: tempfile::NamedTempFile,
+}
+
+fn pin_workflow(ctx: &FireCtx, beat: &Beat) -> std::io::Result<PinnedWorkflow> {
+    let path = ctx.project_root.join(&beat.workflow);
+    let mut options = std::fs::OpenOptions::new();
+    options.read(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt as _;
+        options.custom_flags(nix::libc::O_NOFOLLOW | nix::libc::O_CLOEXEC);
+    }
+    let mut source = options.open(&path)?;
+    if !source.metadata()?.file_type().is_file() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "arm workflow: source is not a regular file",
+        ));
+    }
+    let mut bytes = Vec::new();
+    source.read_to_end(&mut bytes)?;
+    let generation = ArmGeneration::compute(beat, &bytes);
+    let mut file = tempfile::Builder::new()
+        .prefix("nika-arm-bound-")
+        .suffix(".nika.yaml")
+        .tempfile()?;
+    file.write_all(&bytes)?;
+    file.as_file().sync_all()?;
+    let mut permissions = file.as_file().metadata()?.permissions();
+    permissions.set_readonly(true);
+    file.as_file().set_permissions(permissions)?;
+    Ok(PinnedWorkflow { generation, file })
 }
 
 /// The repair suffix — the ledger's self-healing is SAID on the
@@ -821,6 +872,8 @@ fn record_refused(ctx: &FireCtx, e: &std::io::Error) -> FireVerdict {
 /// enter is a run that failed before starting: exit ENV, journaled as
 /// such by the caller — the claim still gets its receipt, no orphan.
 pub(crate) fn prod_run(shot: &RunShot) -> RunUpshot {
+    debug_assert!(!shot.workflow.is_empty());
+    debug_assert_eq!(shot.generation.as_str().len(), 64);
     let before = trace_set(&shot.root);
     let Ok(_room) = enter_room(&shot.root) else {
         return RunUpshot {
@@ -830,7 +883,7 @@ pub(crate) fn prod_run(shot: &RunShot) -> RunUpshot {
     };
     let code = run_quietly(|| {
         verbs::run::run(
-            &shot.workflow,
+            &shot.bound_workflow.to_string_lossy(),
             false, // json
             None,  // output
             crate::Theme::new(false, true, false),

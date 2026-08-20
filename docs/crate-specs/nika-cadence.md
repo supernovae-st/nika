@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | **CANDIDATE** — Gate 1 (this document) authored 2026-08-11. Crafted shim-standalone (50 tests today, 45 at authoring · clippy 0 `-D warnings` · rustfmt clean) · committed with the temporary `[workspace]` shim (`92a0f8497`), then the four pre-freeze corrections of plan §2unvicies (the bitset's ONE encoding · `Slot` declares the DST shift · the field count is the type · the error span). The two items this row used to name (the allowlist row, the shim removal) are BOTH DONE; the row described work already shipped. Remaining before admission, measured 2026-08-13: the Gate 11 P1 below, and Gate 5 at 88 percent against a 90 floor. **W1, measured 2026-08-19**: 79 tests green (`cargo test -p nika-cadence --lib`) · `Cadence::prev_before` (the mirror, 366-day bound) · the `due` planner (`due` · `earliest_next` · `DueKind` · `ON_TIME_WINDOW`) — the pure half the `fire`/`serve` edges read; `emit` lands in W3 (planned, see §3). Gate 5 re-run this wave; the floor holds ≥90. |
+| Status | **CANDIDATE** — Gate 1 (this document) authored 2026-08-11. Crafted shim-standalone (50 tests today, 45 at authoring · clippy 0 `-D warnings` · rustfmt clean) · committed with the temporary `[workspace]` shim (`92a0f8497`), then the four pre-freeze corrections of plan §2unvicies (the bitset's ONE encoding · `Slot` declares the DST shift · the field count is the type · the error span). The two items this row used to name (the allowlist row, the shim removal) are BOTH DONE; the row described work already shipped. Remaining before admission, measured 2026-08-13: the Gate 11 P1 below, and Gate 5 at 88 percent against a 90 floor. **W1, measured 2026-08-19**: 79 tests green (`cargo test -p nika-cadence --lib`) · `Cadence::prev_before` (the mirror, 366-day bound) · the `due` planner (`due` · `earliest_next` · `DueKind` · `ON_TIME_WINDOW`) — the pure half the `fire`/`serve` edges read. The L4 `emit` adapter and resident `serve` consumer are now landed (see §3). Gate 5 re-run this wave; the floor holds ≥90. |
 | Layer | L0 — pure, zero I/O, zero async |
 | Design | The arming-registry grammar (the `arm:` block of `nika.yaml`, D-2026-08-10-N3) + the pure next-slot calculator + the W7 typed firing and ledger machines. Hand-counted 5-field cron (zero cron library — the count is validated BEFORE field semantics, scar #6) · IANA zones resolved from the EMBEDDED tzdb only (`jiff-tzdb`, never the host's zoneinfo) · two cadence forms (cron + readable `lundi 9h07`), display normalizing to the readable one. The machines own no I/O and read no clock: callers inject events, policy, `now`, and borrowed journal text; the L4 adapter alone owns files, locks, fsync, and rotation. |
 | LOC budget | ≤5,000 src prod (W7 measured 4,623 after the complete pure ledger/snapshot seam) · ≤15,000 hard cap |
@@ -114,9 +114,8 @@ crate computes slots, never carries run state) · `earliest_next(
 the FIRE set — the gap's advanced fire included — saturated at
 `MISSED_SLOTS_CAP` = 10,000) · `ON_TIME_WINDOW` = 5 minutes (a
 `SignedDuration`: absolute time, and `Span`'s builders are not `const`
-in jiff 0.2). **Planned, not landed**: `emit` (the launchd/systemd
-projection) is W3's — this crate stays the pure half; the OS
-rendering lands with its own spec amendment.
+in jiff 0.2). `emit` is landed at the L4 adapter: cadence supplies the pure
+schedule and label inputs while `nika-cli` renders launchd/systemd units.
 
 **W7 — the pure firing machine (`firing` module)**:
 `SlotId::derive(workflow, cadence, slot)` freezes the existing
@@ -130,8 +129,13 @@ returns typed ordered effects under an injected `FiringPolicy` and
 `Timestamp`. Every public enum/struct is forward-compatible; the three
 identities validate their wire form before construction.
 
-**W7 — the pure ledger (`ledger` module)**: `DecisionKind`, `Claim`,
-`HistoryEntry`, `Unsettled`, and `LastRecord` are the typed wire vocabulary;
+**W7 — the pure ledger (`ledger` module)**: `DecisionKind`, `Claim`, typed
+`Receipt`, `HistoryEntry`, `Unsettled`, and `LastRecord` are the wire
+vocabulary. A `Receipt` copies slot identity and generation from its claim,
+carries the exact fencing token, and derives terminal kind from exit (`0`
+fired, `4` paused, every other accepted code failed). Modern bare, mismatched,
+duplicate, future, or contradictory receipts make the chain invalid; only an
+explicitly marked legacy bare receipt remains readable;
 `ledger_line` and `verify_line` freeze the `nika/arm-event@1` hash chain;
 `scan_chain` returns the verified prefix; `replay` folds borrowed journals into
 the byte-stable projection, watermark, and lifecycle; `fold_replay` applies the

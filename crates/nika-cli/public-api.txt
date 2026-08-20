@@ -352,13 +352,14 @@ pub use nika_cli::verbs::arm::state::Claim
 pub use nika_cli::verbs::arm::state::FireKind
 pub use nika_cli::verbs::arm::state::HistoryEntry
 pub use nika_cli::verbs::arm::state::LastRecord
+pub use nika_cli::verbs::arm::state::Receipt
 pub use nika_cli::verbs::arm::state::RecordOutcome
 pub use nika_cli::verbs::arm::state::Unsettled
 pub struct nika_cli::verbs::arm::state::ArmState
 impl nika_cli::verbs::arm::state::ArmState
 pub fn nika_cli::verbs::arm::state::ArmState::at_project(project_dir: &std::path::Path) -> Self
-pub fn nika_cli::verbs::arm::state::ArmState::last(&self, label: &str) -> core::option::Option<nika_cadence::ledger::LastRecord>
-pub fn nika_cli::verbs::arm::state::ArmState::last_fired(&self, label: &str) -> core::option::Option<jiff::zoned::Zoned>
+pub fn nika_cli::verbs::arm::state::ArmState::last(&self, label: &str) -> core::io::error::Result<core::option::Option<nika_cadence::ledger::LastRecord>>
+pub fn nika_cli::verbs::arm::state::ArmState::last_fired(&self, label: &str) -> core::io::error::Result<core::option::Option<jiff::zoned::Zoned>>
 pub fn nika_cli::verbs::arm::state::ArmState::orphans(&self, known: &[alloc::string::String]) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_cli::verbs::arm::state::ArmState::record(&self, label: &str, entry: &nika_cadence::ledger::HistoryEntry) -> core::io::error::Result<nika_cadence::ledger::RecordOutcome>
 pub fn nika_cli::verbs::arm::state::ArmState::record_claim(&self, label: &str, claim: &nika_cadence::ledger::Claim) -> core::io::error::Result<nika_cadence::ledger::RecordOutcome>

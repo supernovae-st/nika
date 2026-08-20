@@ -1075,6 +1075,47 @@ impl<T> core::convert::From<T> for nika_cadence::ledger::LastRecord
 pub fn nika_cadence::ledger::LastRecord::from(t: T) -> T
 impl<T> typenum::type_operators::Same for nika_cadence::ledger::LastRecord
 pub type nika_cadence::ledger::LastRecord::Output = T
+pub struct nika_cadence::ledger::Receipt
+pub nika_cadence::ledger::Receipt::decided_at: jiff::timestamp::Timestamp
+pub nika_cadence::ledger::Receipt::exit: u8
+pub nika_cadence::ledger::Receipt::fencing: nika_cadence::firing::FencingToken
+pub nika_cadence::ledger::Receipt::generation: core::option::Option<nika_cadence::firing::ArmGeneration>
+pub nika_cadence::ledger::Receipt::slot: jiff::timestamp::Timestamp
+pub nika_cadence::ledger::Receipt::slot_id: nika_cadence::firing::SlotId
+pub nika_cadence::ledger::Receipt::slots: core::option::Option<u32>
+pub nika_cadence::ledger::Receipt::trace: core::option::Option<alloc::string::String>
+impl nika_cadence::ledger::Receipt
+pub fn nika_cadence::ledger::Receipt::for_claim(claim: &nika_cadence::ledger::Claim, fencing: nika_cadence::firing::FencingToken, slot: jiff::timestamp::Timestamp, decided_at: jiff::timestamp::Timestamp, trace: core::option::Option<alloc::string::String>, exit: u8, slots: core::option::Option<u32>) -> Self
+pub fn nika_cadence::ledger::Receipt::history_entry(&self) -> nika_cadence::ledger::HistoryEntry
+pub const fn nika_cadence::ledger::Receipt::kind(&self) -> nika_cadence::ledger::DecisionKind
+impl core::clone::Clone for nika_cadence::ledger::Receipt
+pub fn nika_cadence::ledger::Receipt::clone(&self) -> nika_cadence::ledger::Receipt
+impl core::fmt::Debug for nika_cadence::ledger::Receipt
+pub fn nika_cadence::ledger::Receipt::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<T, U> core::convert::Into<U> for nika_cadence::ledger::Receipt where U: core::convert::From<T>
+pub fn nika_cadence::ledger::Receipt::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cadence::ledger::Receipt where U: core::convert::Into<T>
+pub type nika_cadence::ledger::Receipt::Error = core::convert::Infallible
+pub fn nika_cadence::ledger::Receipt::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cadence::ledger::Receipt where U: core::convert::TryFrom<T>
+pub type nika_cadence::ledger::Receipt::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cadence::ledger::Receipt::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cadence::ledger::Receipt where T: core::clone::Clone
+pub type nika_cadence::ledger::Receipt::Owned = T
+pub fn nika_cadence::ledger::Receipt::clone_into(&self, target: &mut T)
+pub fn nika_cadence::ledger::Receipt::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cadence::ledger::Receipt where T: 'static + ?core::marker::Sized
+pub fn nika_cadence::ledger::Receipt::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cadence::ledger::Receipt where T: ?core::marker::Sized
+pub fn nika_cadence::ledger::Receipt::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cadence::ledger::Receipt where T: ?core::marker::Sized
+pub fn nika_cadence::ledger::Receipt::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cadence::ledger::Receipt where T: core::clone::Clone
+pub unsafe fn nika_cadence::ledger::Receipt::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cadence::ledger::Receipt
+pub fn nika_cadence::ledger::Receipt::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::ledger::Receipt
+pub type nika_cadence::ledger::Receipt::Output = T
 pub struct nika_cadence::ledger::RecordOutcome
 pub nika_cadence::ledger::RecordOutcome::repaired: u64
 pub nika_cadence::ledger::RecordOutcome::seq: u64
@@ -1168,6 +1209,7 @@ pub fn nika_cadence::ledger::journal_snapshot_matches(anchor: core::option::Opti
 pub fn nika_cadence::ledger::json_str(raw: &str) -> alloc::string::String
 pub fn nika_cadence::ledger::last_projection(entry: &nika_cadence::ledger::HistoryEntry) -> core::option::Option<nika_cadence::ledger::LastRecord>
 pub fn nika_cadence::ledger::ledger_line(seq: u64, ts: jiff::timestamp::Timestamp, kind: &str, slot_id: core::option::Option<&str>, payload: &str, prev_hash: core::option::Option<&str>) -> core::option::Option<(alloc::string::String, alloc::string::String)>
+pub fn nika_cadence::ledger::legacy_receipt_payload(entry: &nika_cadence::ledger::HistoryEntry) -> core::option::Option<alloc::string::String>
 pub fn nika_cadence::ledger::parse_last(text: &str) -> core::option::Option<nika_cadence::ledger::LastRecord>
 pub fn nika_cadence::ledger::parse_migration_intent(text: &str) -> core::option::Option<(alloc::string::String, usize, jiff::timestamp::Timestamp)>
 pub fn nika_cadence::ledger::render_chain_anchor(seq: u64, hash: core::option::Option<&str>) -> core::option::Option<alloc::string::String>

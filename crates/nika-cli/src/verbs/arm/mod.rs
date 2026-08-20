@@ -207,13 +207,18 @@ fn report(registry: &nika_cadence::registry::ArmRegistry, path: &std::path::Path
             beat.workflow,
             beat.cadence.trim()
         );
-        proof_line(
+        if let Err(error) = proof_line(
             &sidecar,
             labels.get(index).map_or("?", String::as_str),
             beat,
             &now.timestamp(),
             &mut out,
-        );
+        ) {
+            return VerbOutput::env(format!(
+                "arm report refused · corrupt sidecar for {}: {error}",
+                labels.get(index).map_or("?", String::as_str)
+            ));
+        }
         // An inactive beat is REPORTED, never COMPUTED — asking a
         // disarmed beat for its next slot would print a date nobody
         // will ever see fire.
@@ -267,10 +272,10 @@ fn proof_line(
     beat: &nika_cadence::Beat,
     now: &jiff::Timestamp,
     out: &mut String,
-) {
+) -> std::io::Result<()> {
     use std::fmt::Write as _;
 
-    let mut line = match sidecar.last(label) {
+    let mut line = match sidecar.last(label)? {
         Some(last) => {
             let generation = last
                 .generation
@@ -287,7 +292,7 @@ fn proof_line(
         }
         None => "· DÉCLARÉ — le registre le dit, la machine ne l'a jamais tiré".to_owned(),
     };
-    if let Some(folded) = sidecar.folded(label, now) {
+    if let Some(folded) = sidecar.folded(label, now)? {
         let lifecycle = folded
             .slot
             .as_deref()
@@ -316,6 +321,7 @@ fn proof_line(
     if let Some(par) = &beat.par {
         let _ = writeln!(out, "         par: {par} — déclaré · non vérifié");
     }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -445,6 +451,7 @@ mod tests {
         skipped.kind = state::FireKind::Skipped;
         skipped.reason = Some("missed:1".to_owned());
         skipped.trace = None;
+        skipped.generation = None;
         sidecar.record("prouve", &skipped).expect("record");
         // ghost: a sidecar the registry no longer names (N4).
         sidecar.record("ghost", &fired).expect("record");
@@ -477,6 +484,54 @@ mod tests {
             .text
             .replace(&dir.path().to_string_lossy().into_owned(), "[PROJET]");
         insta::assert_snapshot!(shown);
+    }
+
+    #[test]
+    fn the_report_refuses_tampered_or_truncated_history_loudly() {
+        let body = concat!(
+            "nika: v1\n",
+            "arm:\n",
+            "  - workflow: workflows/doctor.nika.yaml\n",
+            "    cadence: \"TZ=UTC 0 3 * * *\"\n",
+            "    plafond: 0.25\n",
+            "    manqué: sauter\n",
+            "    actif: false\n",
+            "    raison: \"maintenance\"\n",
+            "    jusqu_au: \"2099-12-31\"\n",
+        );
+        for mutation in ["tamper", "truncate"] {
+            let dir = project_at(mutation, body);
+            let sidecar = state::ArmState::at_project(dir.path());
+            let entry = state::HistoryEntry {
+                slot: Some("2026-08-18T03:00:00Z".parse().expect("slot")),
+                decided_at: "2026-08-18T03:01:00Z".parse().expect("decision"),
+                kind: state::FireKind::Skipped,
+                reason: Some("missed:1".to_owned()),
+                trace: None,
+                exit: Some(0),
+                slots: None,
+                slot_id: None,
+                fencing: None,
+                generation: None,
+            };
+            sidecar.record("doctor", &entry).expect("record");
+            let history = dir.path().join(".nika/arm/doctor/history.ndjson");
+            let text = std::fs::read_to_string(&history).expect("history");
+            let corrupt = if mutation == "tamper" {
+                text.replacen("\"seq\":1", "\"seq\":9", 1)
+            } else {
+                text[..text.len() - 12].to_owned()
+            };
+            std::fs::write(&history, corrupt).expect("corrupt evidence");
+            let out = run_at(dir.path());
+            assert_eq!(out.code, exit::ENV, "{mutation}: {}", out.text);
+            assert!(
+                out.text.contains("arm report refused · corrupt sidecar"),
+                "{mutation}: {}",
+                out.text
+            );
+            assert!(!out.text.contains("DÉCLARÉ"), "{mutation}: {}", out.text);
+        }
     }
 
     /// D5: a durable claim without receipt is classified by the pure

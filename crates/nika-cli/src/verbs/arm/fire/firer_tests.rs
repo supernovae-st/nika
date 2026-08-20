@@ -56,10 +56,17 @@ fn ts(text: &str) -> Timestamp {
 
 /// A tempdir project root — the impure firer's ground.
 fn project(tag: &str) -> tempfile::TempDir {
-    tempfile::Builder::new()
+    let dir = tempfile::Builder::new()
         .prefix(&format!("nika-arm-firer-{tag}-"))
         .tempdir()
-        .expect("tmp dir")
+        .expect("tmp dir");
+    std::fs::create_dir_all(dir.path().join("workflows")).expect("workflows dir");
+    std::fs::write(
+        dir.path().join("workflows/doctor.nika.yaml"),
+        "schema: nika/workflow@0.12\ntasks: {}\n",
+    )
+    .expect("workflow source");
+    dir
 }
 
 /// A live `sleep` child — the OTHER firer (its pid answers signal 0,
@@ -285,6 +292,116 @@ fn the_claim_precedes_the_run_and_the_receipt_settles_it() {
     assert_eq!(watermark, "2026-08-19T03:02:00Z\n");
 }
 
+#[test]
+fn source_edit_after_claim_cannot_change_the_pinned_run_bytes() {
+    let dir = project("pin-edit");
+    let source = dir.path().join("workflows/doctor.nika.yaml");
+    let original = std::fs::read(&source).expect("source A");
+    let registry = registry_with(SAUTER);
+    let expected = ArmGeneration::compute(registry.beats().next().expect("beat"), &original);
+    let bound_path = Rc::new(RefCell::new(None::<PathBuf>));
+    let seen_bound = Rc::clone(&bound_path);
+    let seam: RunSeam = Rc::new(move |shot| {
+        std::fs::write(
+            &source,
+            "schema: nika/workflow@0.12\ntasks: {b: {exec: echo B}}\n",
+        )
+        .expect("replace declared source with B");
+        assert_eq!(
+            std::fs::read(&shot.bound_workflow).expect("bound A"),
+            original
+        );
+        assert_eq!(shot.generation, expected);
+        *seen_bound.borrow_mut() = Some(shot.bound_workflow.clone());
+        RunUpshot {
+            code: exit::OK,
+            trace: None,
+        }
+    });
+    let verdict = fire_beat(&ctx(
+        dir.path(),
+        registry,
+        "2026-08-19T03:02:00Z",
+        instant_wait(),
+        seam,
+    ));
+    assert_eq!(verdict.code, exit::OK, "{}", verdict.line);
+    assert!(
+        !bound_path
+            .borrow()
+            .as_ref()
+            .expect("snapshot path")
+            .exists(),
+        "the immutable snapshot is removed after the run"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn source_symlink_swap_after_claim_cannot_change_the_pinned_run_bytes() {
+    use std::os::unix::fs::symlink;
+
+    let dir = project("pin-symlink-swap");
+    let source = dir.path().join("workflows/doctor.nika.yaml");
+    let replacement = dir.path().join("workflows/replacement.nika.yaml");
+    let original = std::fs::read(&source).expect("source A");
+    std::fs::write(
+        &replacement,
+        "schema: nika/workflow@0.12\ntasks: {b: {exec: echo B}}\n",
+    )
+    .expect("source B");
+    let registry = registry_with(SAUTER);
+    let expected = ArmGeneration::compute(registry.beats().next().expect("beat"), &original);
+    let seam: RunSeam = Rc::new(move |shot| {
+        std::fs::remove_file(&source).expect("remove A");
+        symlink(&replacement, &source).expect("swap to symlink B");
+        assert_eq!(
+            std::fs::read(&shot.bound_workflow).expect("bound A"),
+            original
+        );
+        assert_eq!(shot.generation, expected);
+        RunUpshot {
+            code: exit::OK,
+            trace: None,
+        }
+    });
+    let verdict = fire_beat(&ctx(
+        dir.path(),
+        registry,
+        "2026-08-19T03:02:00Z",
+        instant_wait(),
+        seam,
+    ));
+    assert_eq!(verdict.code, exit::OK, "{}", verdict.line);
+}
+
+#[cfg(unix)]
+#[test]
+fn a_symlink_workflow_is_refused_before_claim_or_run() {
+    use std::os::unix::fs::symlink;
+
+    let dir = project("pin-initial-symlink");
+    let source = dir.path().join("workflows/doctor.nika.yaml");
+    let replacement = dir.path().join("workflows/replacement.nika.yaml");
+    std::fs::write(&replacement, "schema: nika/workflow@0.12\ntasks: {}\n").expect("target");
+    std::fs::remove_file(&source).expect("remove source");
+    symlink(&replacement, &source).expect("source symlink");
+    let (runs, run) = run_counter();
+    let verdict = fire_beat(&ctx(
+        dir.path(),
+        registry_with(SAUTER),
+        "2026-08-19T03:02:00Z",
+        instant_wait(),
+        run,
+    ));
+    assert_eq!(verdict.code, exit::ENV, "{}", verdict.line);
+    assert_eq!(runs.get(), 0);
+    assert!(
+        history(dir.path(), "doctor").is_empty(),
+        "no claim was recorded"
+    );
+}
+
 /// R3 · a record that cannot land is said LOUDLY: the failure line
 /// REPLACES the decision's (exit ENV), nothing ran, and the lock is
 /// STILL released — the read-only ledger refuses the claim's append.
@@ -341,31 +458,31 @@ fn the_queue_redecides_after_the_wait() {
     let lease = attempt.lease.expect("lease");
     // The wait's first beat: the holder's fire COMPLETES (its receipt +
     // last.json land, the chain grows) and its process dies.
-    let root = dir.path().to_path_buf();
     let holder = RefCell::new(Some((holder, lease)));
     let wait: WaitSeam = Box::new(move |_| {
         if let Some((child, lease)) = holder.borrow_mut().take() {
-            ArmState::at_project(&root)
-                .record(
-                    "doctor",
-                    &HistoryEntry {
-                        slot: Some(ts("2026-08-19T03:00:00Z")),
-                        decided_at: ts("2026-08-19T03:02:10Z"),
-                        kind: FireKind::Fired,
-                        reason: None,
-                        trace: None,
-                        exit: Some(0),
-                        slots: None,
-                        slot_id: Some(SlotId::derive(
-                            "workflows/doctor.nika.yaml",
-                            "TZ=UTC 0 3 * * *",
-                            &at("2026-08-19T03:00:00Z"),
-                        )),
-                        fencing: None,
-                        generation: None,
-                    },
-                )
-                .expect("the holder's receipt");
+            let claim = Claim {
+                slot_id: SlotId::derive(
+                    "workflows/doctor.nika.yaml",
+                    "TZ=UTC 0 3 * * *",
+                    &at("2026-08-19T03:00:00Z"),
+                ),
+                generation: None,
+                deadline: ts("2026-08-20T03:00:00Z"),
+                decided_at: ts("2026-08-19T03:02:00Z"),
+            };
+            let claimed =
+                ArmState::record_claim_with_lease(&lease, &claim).expect("the holder's claim");
+            let receipt = Receipt::for_claim(
+                &claim,
+                FencingToken::new(claimed.seq),
+                ts("2026-08-19T03:00:00Z"),
+                ts("2026-08-19T03:02:10Z"),
+                None,
+                0,
+                None,
+            );
+            ArmState::record_receipt_with_lease(&lease, &receipt).expect("the holder's receipt");
             drop(lease);
             child.die();
         }
@@ -389,10 +506,10 @@ fn the_queue_redecides_after_the_wait() {
         verdict.line
     );
     assert_eq!(runs.get(), 0, "the pre-wait slot must NOT fire twice");
-    // The chain carries ONLY the holder's receipt — an `already`
+    // The chain carries the holder's claim + receipt — an `already`
     // re-decision journals nothing.
     let text = history(dir.path(), "doctor");
-    assert_eq!(text.lines().count(), 1, "{text}");
+    assert_eq!(text.lines().count(), 2, "{text}");
     assert!(text.contains("\"kind\":\"fired\""), "{text}");
     // The stable diagnostic path remains; only the kernel lease is released.
     assert!(dir.path().join(".nika/arm/doctor/lock").exists());
@@ -442,10 +559,10 @@ fn an_interrupted_wait_skips_serve_stop() {
     assert!(dir.path().join(".nika/arm/doctor/lock").exists());
 }
 
-/// A healed ledger says so ON the decision line — ` · ledger
-/// réparé (-n)` names the truncated tail (D8 stays ONE line).
+/// A truncated ledger refuses before decision: corrupt evidence is never
+/// reported as never-fired or silently healed by a fire.
 #[test]
-fn a_repaired_ledger_tail_rides_the_decision_line() {
+fn a_truncated_ledger_refuses_before_the_decision() {
     let dir = project("repair");
     let sidecar = ArmState::at_project(dir.path());
     // One anchored decision, then a partial unanchored append left by a crash.
@@ -475,27 +592,17 @@ fn a_repaired_ledger_tail_rides_the_decision_line() {
         run,
     );
     let verdict = fire_beat(&ctx);
-    assert_eq!(verdict.code, exit::OK, "{}", verdict.line);
+    assert_eq!(verdict.code, exit::ENV, "{}", verdict.line);
     assert!(
-        verdict
-            .line
-            .starts_with("skipped doctor · missed:1 · slot 2026-08-19T03:00:00Z"),
+        verdict.line.contains("the record refused"),
         "{}",
         verdict.line
     );
-    assert!(
-        verdict.line.ends_with(" · ledger réparé (-1)"),
-        "the repair rides the one line: {}",
-        verdict.line
-    );
     assert_eq!(runs.get(), 0);
-    // The chain healed: the partial tail is gone, the append continued
-    // at seq 2 linked to line 1's hash.
-    let healed = std::fs::read_to_string(&ledger).expect("ledger");
-    assert_eq!(healed.lines().count(), 2, "{healed}");
-    let second: serde_json::Value =
-        serde_json::from_str(healed.lines().nth(1).expect("line 2")).expect("json");
-    assert_eq!(second["seq"], 2, "{healed}");
-    assert_eq!(second["kind"], "skipped", "{healed}");
-    assert_eq!(second["payload"]["reason"], "missed:1", "{healed}");
+    assert!(
+        std::fs::read_to_string(&ledger)
+            .expect("evidence")
+            .ends_with("\"seq\":2"),
+        "the corrupt bytes remain untouched"
+    );
 }

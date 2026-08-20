@@ -339,12 +339,16 @@ fn serve(
         mtime = fresh_mtime;
         let state = ArmState::at_project(root);
         let names = labels(&reg);
-        let dues: Vec<(usize, nika_cadence::Slot)> = nika_cadence::due(&reg, &now, &|i| {
-            names.get(i).and_then(|l| state.last_fired(l))
-        })
-        .map_err(|e| format!("serve · a validated registry refuses: {e}"))?
-        .map(|d| (d.index, d.slot))
-        .collect();
+        let last_fired: Vec<Option<jiff::Zoned>> = names
+            .iter()
+            .map(|label| state.last_fired(label))
+            .collect::<std::io::Result<_>>()
+            .map_err(|error| format!("serve · corrupt arm sidecar refused: {error}"))?;
+        let dues: Vec<(usize, nika_cadence::Slot)> =
+            nika_cadence::due(&reg, &now, &|i| last_fired.get(i).and_then(Clone::clone))
+                .map_err(|e| format!("serve · a validated registry refuses: {e}"))?
+                .map(|d| (d.index, d.slot))
+                .collect();
         for (index, slot) in dues {
             let label = names[index].clone();
             if args.dry {

@@ -59,6 +59,15 @@ or an anchored tamper refuses without rewriting `last.json` or `watermark`.
 Migration binds every canonical W2 archive name and exact bytes into the
 hash-chained `rotated` genesis. Replay, reports, heal, and append validate that
 ordered bundle before consuming it; changed archive history fails closed.
+Every sidecar component and child file is opened no-follow relative to a held
+directory descriptor. Live-history, archive, beat-directory, and lock symlinks
+refuse; a visible path replacement after the claim cannot redirect its receipt.
+Before claiming, the firer reads the workflow once, hashes those exact bytes,
+writes a read-only private snapshot, and runs that snapshot. An unreadable or
+symlink source refuses before any claim; later edits cannot make execution and
+the attested generation disagree. Receipt construction is typed and claim-bound,
+and a corrupt replay is an ENV refusal in reports and `serve`, never
+`DÉCLARÉ`/never-fired fallback.
 
 ## 3. The `display` module — the render architecture
 

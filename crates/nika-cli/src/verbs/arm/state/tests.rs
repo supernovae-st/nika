@@ -43,11 +43,17 @@ fn ts(text: &str) -> Timestamp {
 #[test]
 fn last_fired_is_none_then_the_recorded_slot() {
     let (_dir, state) = state("last");
-    assert!(state.last_fired("doctor").is_none(), "N2: no state");
+    assert!(
+        state.last_fired("doctor").expect("absent replay").is_none(),
+        "N2: no state"
+    );
     state
         .record("doctor", &entry(FireKind::Fired))
         .expect("record");
-    let fired = state.last_fired("doctor").expect("the recorded slot");
+    let fired = state
+        .last_fired("doctor")
+        .expect("valid replay")
+        .expect("the recorded slot");
     let expected: Timestamp = "2026-08-19T03:00:00Z".parse().expect("ts");
     assert_eq!(fired.timestamp(), expected);
 }
@@ -146,6 +152,115 @@ fn lock_paths_refuse_symlinks_and_non_regular_nodes() {
     );
 }
 
+#[cfg(unix)]
+#[test]
+fn live_history_and_sidecar_symlinks_fail_closed() {
+    use std::os::unix::fs::symlink;
+
+    let (dir, history_state) = state("history-symlink");
+    let sidecar = dir.path().join(".nika/arm/doctor");
+    std::fs::create_dir_all(&sidecar).expect("sidecar");
+    let outside = dir.path().join("outside.ndjson");
+    std::fs::write(&outside, "sentinel\n").expect("outside");
+    symlink(&outside, sidecar.join(HISTORY)).expect("live symlink");
+    assert!(
+        history_state
+            .record("doctor", &entry(FireKind::Skipped))
+            .is_err()
+    );
+    assert_eq!(
+        std::fs::read_to_string(&outside).expect("outside"),
+        "sentinel\n"
+    );
+
+    let (dir, sidecar_state) = state("sidecar-symlink");
+    let outside = dir.path().join("outside");
+    std::fs::create_dir_all(&outside).expect("outside dir");
+    std::fs::create_dir_all(dir.path().join(".nika/arm")).expect("arm root");
+    symlink(&outside, dir.path().join(".nika/arm/doctor")).expect("sidecar symlink");
+    assert!(
+        sidecar_state
+            .record("doctor", &entry(FireKind::Skipped))
+            .is_err()
+    );
+    assert!(
+        !outside.join(HISTORY).exists(),
+        "no write escaped the project sidecar"
+    );
+
+    let (dir, state) = state("archive-symlink");
+    let sidecar = dir.path().join(".nika/arm/doctor");
+    std::fs::create_dir_all(&sidecar).expect("sidecar");
+    let outside = dir.path().join("outside-archive.ndjson");
+    std::fs::write(&outside, "sentinel\n").expect("outside archive");
+    symlink(&outside, sidecar.join("history-w2.ndjson")).expect("archive symlink");
+    assert!(
+        state.has_journal_evidence("doctor").is_err(),
+        "an archive symlink is evidence corruption, never history"
+    );
+    assert_eq!(
+        std::fs::read_to_string(outside).expect("outside archive"),
+        "sentinel\n"
+    );
+}
+
+#[test]
+fn sidecar_labels_are_single_contained_components() {
+    let (dir, state) = state("contained-label");
+    for label in ["../escape", "nested/escape", ".", ""] {
+        assert!(
+            state.record(label, &entry(FireKind::Skipped)).is_err(),
+            "accepted non-contained label {label:?}"
+        );
+    }
+    assert!(!dir.path().join(".nika/escape/history.ndjson").exists());
+    assert!(!dir.path().join("escape/history.ndjson").exists());
+}
+
+#[cfg(unix)]
+#[test]
+fn claim_and_receipt_stay_on_the_held_directory_after_path_swap() {
+    use std::os::unix::fs::symlink;
+
+    let (dir, state) = state("sidecar-swap");
+    let now = at("2026-08-19T03:02:00Z");
+    let attempt = state
+        .acquire_beat_lock("doctor", std::process::id(), &now)
+        .expect("beat lock");
+    let lease = attempt.lease.expect("lease");
+    let claim = Claim {
+        slot_id: SlotId::derive("doctor.nika.yaml", "TZ=UTC 0 3 * * *", &now),
+        generation: None,
+        deadline: ts("2026-08-20T03:00:00Z"),
+        decided_at: ts("2026-08-19T03:02:00Z"),
+    };
+    let claimed = ArmState::record_claim_with_lease(&lease, &claim).expect("claim");
+
+    let visible = dir.path().join(".nika/arm/doctor");
+    let held = dir.path().join(".nika/arm/doctor-held");
+    let outside = dir.path().join("outside");
+    std::fs::rename(&visible, &held).expect("swap old sidecar away");
+    std::fs::create_dir_all(&outside).expect("outside");
+    symlink(&outside, &visible).expect("replace visible path");
+
+    let receipt = Receipt::for_claim(
+        &claim,
+        FencingToken::new(claimed.seq),
+        ts("2026-08-19T03:00:00Z"),
+        ts("2026-08-19T03:03:00Z"),
+        None,
+        0,
+        None,
+    );
+    ArmState::record_receipt_with_lease(&lease, &receipt).expect("descriptor-rooted receipt");
+    let history = std::fs::read_to_string(held.join(HISTORY)).expect("held history");
+    assert_eq!(history.lines().count(), 2, "claim + receipt stay together");
+    assert!(
+        !outside.join(HISTORY).exists(),
+        "replacement received no bytes"
+    );
+}
+
 /// (d) Two decisions = two history lines, append-only.
 #[test]
 fn two_records_append_two_history_lines() {
@@ -164,7 +279,10 @@ fn two_records_append_two_history_lines() {
     // The tallies the report prints ride the same journal.
     assert_eq!(state.tallies("doctor"), Some((1, 1)));
     // … and last.json carries the LAST decision.
-    let last = state.last("doctor").expect("last.json");
+    let last = state
+        .last("doctor")
+        .expect("valid replay")
+        .expect("last.json");
     assert_eq!(last.kind, FireKind::Skipped);
 }
 
@@ -236,7 +354,8 @@ fn an_invalid_ledger_schema_is_not_treated_as_legacy() {
     )
     .expect("crafted ledger");
     assert!(state.tallies("doctor").is_none());
-    let error = chain_head(&sidecar, &ts("2026-08-19T03:03:00Z"))
+    let safe = state.safe_dir("doctor").expect("safe sidecar");
+    let error = chain_head(&safe, &ts("2026-08-19T03:03:00Z"))
         .expect_err("invalid schema cannot rotate as legacy");
     assert_eq!(error.kind(), io::ErrorKind::InvalidData);
 }
@@ -406,8 +525,8 @@ fn a_forged_tail_cannot_settle_or_inflate_the_verified_ledger() {
         identity.as_str()
     )
     .expect("forged tail");
-    assert_eq!(state.unsettled("doctor").expect("valid journal").len(), 1);
-    assert_eq!(state.tallies("doctor"), Some((0, 0)));
+    assert!(state.unsettled("doctor").is_none());
+    assert_eq!(state.tallies("doctor"), None);
 }
 
 /// `last.json` is a cache only. Parseable forged bytes never outrank the
@@ -424,7 +543,10 @@ fn a_parseable_forged_last_cache_never_overrides_the_chain() {
         "{\"slot\":\"2026-08-20T03:00:00Z\",\"fired_at\":\"2026-08-20T03:02:00Z\",\"trace\":null,\"exit\":0,\"kind\":\"skipped\",\"gen\":null}\n",
     )
     .expect("forge cache");
-    let last = state.last("doctor").expect("chain truth");
+    let last = state
+        .last("doctor")
+        .expect("valid replay")
+        .expect("chain truth");
     assert_eq!(last.kind, FireKind::Fired);
     assert_eq!(last.slot, ts("2026-08-19T03:00:00Z"));
     assert!(
@@ -434,10 +556,10 @@ fn a_parseable_forged_last_cache_never_overrides_the_chain() {
     );
 }
 
-/// A receipt settles exactly one claim: it must follow the claim
-/// and match both its slot identity and its fencing token.
+/// A receipt settles exactly one claim: wrong identities are rejected before
+/// bytes land, rather than merely remaining unsettled.
 #[test]
-fn a_receipt_with_the_wrong_slot_or_fence_settles_nothing() {
+fn a_receipt_with_the_wrong_slot_or_fence_is_rejected() {
     let (_dir, state) = state("unsettled-exact");
     let first = SlotId::derive(
         "a.nika.yaml",
@@ -460,16 +582,12 @@ fn a_receipt_with_the_wrong_slot_or_fence_settles_nothing() {
     let mut wrong_slot = entry(FireKind::Failed);
     wrong_slot.slot_id = Some(other);
     wrong_slot.fencing = Some(FencingToken::new(claimed.seq));
-    state
-        .record("doctor", &wrong_slot)
-        .expect("wrong slot receipt");
+    assert!(state.record("doctor", &wrong_slot).is_err());
 
     let mut wrong_fence = entry(FireKind::Failed);
     wrong_fence.slot_id = Some(first.clone());
     wrong_fence.fencing = Some(FencingToken::new(claimed.seq + 99));
-    state
-        .record("doctor", &wrong_fence)
-        .expect("wrong fence receipt");
+    assert!(state.record("doctor", &wrong_fence).is_err());
 
     let unsettled = state.unsettled("doctor").expect("valid journal");
     assert_eq!(
@@ -480,10 +598,9 @@ fn a_receipt_with_the_wrong_slot_or_fence_settles_nothing() {
     assert_eq!(unsettled[0].slot_id, first);
 }
 
-/// A receipt that predates a future claim cannot settle it, even
-/// when its predicted fencing token and slot happen to match.
+/// A receipt that predicts a future claim is rejected before append.
 #[test]
-fn an_earlier_receipt_does_not_settle_a_later_claim() {
+fn an_earlier_receipt_is_rejected_before_a_later_claim() {
     let (_dir, state) = state("unsettled-order");
     let identity = SlotId::derive(
         "a.nika.yaml",
@@ -493,7 +610,7 @@ fn an_earlier_receipt_does_not_settle_a_later_claim() {
     let mut early = entry(FireKind::Failed);
     early.slot_id = Some(identity.clone());
     early.fencing = Some(FencingToken::new(2));
-    state.record("doctor", &early).expect("early receipt");
+    assert!(state.record("doctor", &early).is_err());
     let claim = Claim {
         slot_id: identity,
         generation: None,
@@ -501,7 +618,7 @@ fn an_earlier_receipt_does_not_settle_a_later_claim() {
         decided_at: ts("2026-08-19T03:03:00Z"),
     };
     let claimed = state.record_claim("doctor", &claim).expect("claim");
-    assert_eq!(claimed.seq, 2, "the receipt predicted this token");
+    assert_eq!(claimed.seq, 1, "the refused receipt consumed no sequence");
     assert_eq!(
         state.unsettled("doctor").expect("valid journal").len(),
         1,
@@ -606,6 +723,7 @@ fn projection_kinds_and_free_text_round_trip() {
 
     let (dir, state) = state("escaped-json");
     let mut decision = entry(FireKind::Failed);
+    decision.exit = Some(2);
     decision.reason = Some("line\t\"quoted\"\\tail".to_owned());
     decision.trace = Some("trace\nnext".to_owned());
     state.record("doctor", &decision).expect("escaped record");
@@ -627,10 +745,11 @@ fn projection_kinds_and_free_text_round_trip() {
 /// absent chain.
 #[test]
 fn chain_head_refuses_a_history_path_that_is_a_directory() {
-    let (dir, _state) = state("chain-dir");
+    let (dir, state) = state("chain-dir");
     let sidecar = dir.path().join(".nika/arm/doctor");
     std::fs::create_dir_all(sidecar.join(HISTORY)).expect("history directory");
-    let error = chain_head(&sidecar, &ts("2026-08-19T03:02:00Z"))
+    let safe = state.safe_dir("doctor").expect("safe sidecar");
+    let error = chain_head(&safe, &ts("2026-08-19T03:02:00Z"))
         .expect_err("a directory is not an absent chain");
     assert_ne!(error.kind(), io::ErrorKind::NotFound);
 }
@@ -804,7 +923,7 @@ fn migrated_archives_are_bound_to_the_w7_genesis() {
             replay::replay(&sidecar).is_err(),
             "{tag}: replay refuses the changed bundle"
         );
-        assert!(state.last("doctor").is_none(), "{tag}: no false PROUVÉ");
+        assert!(state.last("doctor").is_err(), "{tag}: no false PROUVÉ");
         assert!(state.tallies("doctor").is_none(), "{tag}: no false tally");
         let error = state
             .record("doctor", &entry(FireKind::Skipped))
@@ -829,11 +948,12 @@ fn archives_without_a_committed_live_genesis_fail_closed() {
         std::fs::write(sidecar.join("history-w2.ndjson"), legacy).expect("archive");
         if empty_live {
             std::fs::write(sidecar.join(HISTORY), "").expect("empty live");
-            write_chain_anchor(&sidecar, 0, None).expect("bootstrap head");
+            let safe = state.safe_dir("doctor").expect("safe sidecar");
+            write_chain_anchor(&safe, 0, None).expect("bootstrap head");
         }
 
         assert!(replay::replay(&sidecar).is_err(), "replay refuses");
-        assert!(state.last("doctor").is_none(), "last refuses");
+        assert!(state.last("doctor").is_err(), "last refuses");
         assert!(state.tallies("doctor").is_none(), "tallies refuse");
         assert_eq!(
             state
@@ -851,13 +971,6 @@ fn archives_without_a_committed_live_genesis_fail_closed() {
 fn lock_creation_in_a_missing_directory_preserves_not_found() {
     let (dir, _state) = state("lock-missing-dir");
     let missing = dir.path().join("does-not-exist");
-    let error = acquire_named_lock(
-        &missing,
-        "lock",
-        std::process::id(),
-        &at("2026-08-19T03:02:00Z"),
-    )
-    .err()
-    .expect("missing parent");
+    let error = SafeDir::open(&missing, "doctor").expect_err("missing project");
     assert_eq!(error.kind(), io::ErrorKind::NotFound);
 }
