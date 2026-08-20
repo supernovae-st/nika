@@ -77,6 +77,14 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   99 cards carried an inflated count; each is now exactly the number of
   `infer:`/`agent:` tasks the file declares, and no verdict changed.
 
+- **`nika check` judges every secret sharing one effect independently.** A
+  sink that referenced two secrets previously retained only the first IFC
+  trace, so clearing that first edge could hide an uncleared second edge.
+  Direct references and task-local `with:` / `for_each` item aliases now
+  produce one consent verdict per distinct secret while the existing
+  singular output-propagation trace stays unchanged and bounded. Literal
+  `for_each.items` secret references also appear in the data journey.
+
 - **`nika check` now judges the script an `exec:` interpreter must open.**
   The runtime jails every `exec:` child to the declared `permits.fs` set, so
   `exec: ["bash", "leg.sh"]` with no `fs.read` grant could never open its
