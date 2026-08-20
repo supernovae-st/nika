@@ -182,3 +182,19 @@ fn authoring_names_the_served_cel_callables() {
         "the retired one-function claim returned"
     );
 }
+
+/// The paid-readiness probe must name the workflow it audits. Without a
+/// path, `nika check --json` may fall back to directory discovery and emit a
+/// human diagnostic instead of the JSON the pipe expects.
+#[test]
+fn authoring_paid_ready_probe_names_the_workflow() {
+    let skill = read("skills/nika-authoring/SKILL.md");
+    assert!(
+        skill.contains("`nika check --json <file> | jq .paid_ready`"),
+        "the paid-readiness probe must pass the workflow path"
+    );
+    assert!(
+        !skill.contains("`nika check --json | jq .paid_ready`"),
+        "the pathless paid-readiness probe returned"
+    );
+}
