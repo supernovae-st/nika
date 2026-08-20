@@ -267,8 +267,8 @@ outputs:
     }
 
     /// The journey observes every direct flow, while the IFC finding lane
-    /// judges consent. The summary must never promote observed flows to
-    /// sanctioned ones on its own.
+    /// judges each secret's consent independently. The cleared edge stays
+    /// visible without hiding the uncleared edge beside it.
     #[test]
     fn multiple_mcp_secret_flows_do_not_overstate_consent() {
         let out = console(
@@ -290,11 +290,16 @@ tasks:
         payload: "${{ secrets.a_cleared }}:${{ secrets.z_uncleared }}"
 "#,
         );
-        let secrets = out
+        let secret_rows: Vec<&str> = out
             .lines()
-            .find(|line| line.contains("SECRETS"))
-            .expect("the SECRETS rung renders");
-        assert!(secrets.contains("2 declared-secret flows") && !secrets.contains("sanctioned"));
+            .filter(|line| line.contains("SECRETS"))
+            .collect();
+        assert_eq!(secret_rows.len(), 1, "one uncleared edge:\n{out}");
+        assert!(
+            secret_rows[0].contains("secrets.z_uncleared")
+                && !secret_rows[0].contains("secrets.a_cleared"),
+            "only the uncleared edge refuses:\n{out}"
+        );
         assert!(
             out.contains("secret `a_cleared` flows to mcp:service/send")
                 && out.contains("secret `z_uncleared` flows to mcp:service/send"),
