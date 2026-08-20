@@ -54,10 +54,23 @@ const ASCII_GLYPHS: Glyphs = Glyphs {
 /// verb identity rides the tokens-SSOT glyph chips, chrome stays dim.
 #[must_use]
 pub fn run(path: &str, theme: Theme) -> VerbOutput {
-    let (wf, report) = match load_checked(path) {
-        Ok(pair) => pair,
-        Err(out) => return out,
-    };
+    match load_checked(path) {
+        Ok((wf, report)) => render_pair(&wf, &report, theme),
+        Err(out) => out,
+    }
+}
+
+/// The anatomy render over a pair the caller ALREADY holds.
+///
+/// Split from [`run`] for #1051: `--dry-run` used to render its human
+/// card by calling `run(file, …)`, which re-read and re-checked the file
+/// — so a `--model` swap reached the `plan_version: 1` object and never
+/// the card a person reads. One projection, one pair, both surfaces.
+pub(crate) fn render_pair(
+    wf: &nika_schema::raw::RawWorkflow,
+    report: &nika_check::CheckReport,
+    theme: Theme,
+) -> VerbOutput {
     if !report.conformance.is_empty() {
         let mut text = String::from("cannot inspect: no valid DAG order while conformance fails\n");
         for c in &report.conformance {
@@ -65,7 +78,7 @@ pub fn run(path: &str, theme: Theme) -> VerbOutput {
         }
         return VerbOutput::file(text);
     }
-    let doc = project(&wf, &report);
+    let doc = project(wf, report);
 
     let ceiling = if report.cost.tasks.is_empty() {
         // One voice with the COST rung (`check/render.rs`), narrowed for
@@ -97,7 +110,7 @@ pub fn run(path: &str, theme: Theme) -> VerbOutput {
     // The NEP-0018 §4 aggregate — energy beside cost, same honesty
     // markers, computed by the SAME classification the check ladder's
     // ENERGY rung renders (one classifier · two surfaces).
-    let energy = crate::verbs::check::energy::inspect_fragment(&report, theme.ascii)
+    let energy = crate::verbs::check::energy::inspect_fragment(report, theme.ascii)
         .map(|f| format!(" · {f}"))
         .unwrap_or_default();
 

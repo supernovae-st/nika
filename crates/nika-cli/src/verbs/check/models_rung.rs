@@ -137,7 +137,7 @@ fn rejection_rows(rejected: &[AccessRejection]) -> Vec<serde_json::Value> {
 /// provider set, [`nika_providers::CANONICAL_IDS`]) — never the vendor
 /// catalog, which advertises providers this binary cannot drive (the
 /// azure class: cataloged, unresolvable, green until the run died).
-pub(super) fn unresolvable_models(
+pub(crate) fn unresolvable_models(
     report: &nika_check::CheckReport,
     wf: &nika_schema::raw::RawWorkflow,
 ) -> ModelsAudit {
