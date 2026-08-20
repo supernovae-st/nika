@@ -115,7 +115,8 @@ the `.nika.yaml` extension. `nika new <slug>` makes one yours;
 5. Repeat 3–4 until clean. **Never hand a file to the human that does
    not pass `nika check --native-strict` AND `paid_ready: true`.**
    `--native-strict` is the run-gate bar (an `exec:` a builtin covers).
-   `.paid_ready` is the paid-infer bar (`nika check --json | jq .paid_ready`).
+   `.paid_ready` is the paid-infer bar
+   (`nika check --json <file> | jq .paid_ready`).
    A green exit with leftover `infer-as-law` / `digit-string-enum` /
    `glob-readme` / `jq-as-map` / `unproven-law` is
    legal, not the one-way. The MCP `nika_check` oracle fails
