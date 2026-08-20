@@ -1,14 +1,21 @@
 name: estate
 
-# E0 OBSERVATION — the estate manifest (estate.yaml · schema 2, the glob
-# estate) declares every tracked file's provenance: authored · authored-pin
-# · generated · pinned-copy · testimonial · foreign. This step only
-# OBSERVES: non-blocking (continue-on-error) · read-only permissions ·
-# it enforces nothing. Drift exits 5 (the ssot-compiler convention —
-# distinguishable from the sibling gates' exit 1 in CI logs). The heavy
+# The estate manifest (estate.yaml · schema 2, the glob estate) declares
+# every tracked file's provenance: authored · authored-pin · generated ·
+# pinned-copy · testimonial · foreign. Read-only permissions. The heavy
 # rail (diamond-ci.yml) is deliberately untouched.
 #
-# TWO JOBS, TWO POSTURES. `estate` observes and never blocks, as above.
+# SPLIT BY VERDICT (2026-08-21). COVERAGE — exit 3, a path no rule
+# classifies or a rule matching nothing — BLOCKS here. FRESHNESS — exit 5,
+# the manifest behind the tree — reports and does not block, because
+# requiring a whole-tree projection per commit makes concurrent branches
+# collide on a file neither edited, and because freshness is PROVEN at
+# tag time in release.yml, which is where a true manifest is the
+# deliverable. Until this split, the property the manifest exists to
+# guarantee had no blocking gate anywhere while the pre-commit hook
+# refused every commit over the other half.
+#
+# TWO JOBS, TWO POSTURES. `estate` blocks on coverage, as above.
 # `mirror` DOES block: it proves scripts/estate.py is byte-identical to
 # nika-estate at the rev in ESTATE_PIN. Editing a mirrored file is never an
 # observation, it is a bug, so it fails the run. That is why this workflow
@@ -35,11 +42,23 @@ jobs:
   estate:
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    continue-on-error: true
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: The estate matches the tree (observation — never blocks)
-        run: python3 scripts/estate.py --check
+      # Split by verdict, and the halves land in different places.
+      #
+      # COVERAGE (exit 3 · a path no rule classifies, or a rule matching
+      # nothing) BLOCKS. It never did before: this job carried
+      # `continue-on-error: true`, so the one property the manifest exists
+      # to guarantee had no enforcing gate anywhere, while the pre-commit
+      # hook refused every commit over the other half. The refusal and the
+      # enforcement had swapped places.
+      #
+      # FRESHNESS (exit 5) is reported and does not block here. Requiring
+      # it per-commit is what made four concurrent PRs conflict on a file
+      # none of them edited (2026-08-20). It is PROVEN at tag time instead,
+      # in release.yml, which is where a true manifest is the deliverable.
+      - name: The estate covers the tree (coverage blocks · freshness reports)
+        run: bash scripts/hooks/estate-gate.sh
 
   mirror:
     name: The estate tool is the shared one
