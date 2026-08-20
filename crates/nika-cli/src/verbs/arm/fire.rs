@@ -737,23 +737,7 @@ fn claim_run_receipt(
         generation: pinned.generation,
         plafond,
     });
-    // The receipt's kind FOLLOWS the folded state (D5): the machine
-    // classifies the lifecycle, the ledger speaks its word for it.
-    let folded = firing::fold(&[
-        FiringEvent::Due,
-        FiringEvent::Claimed {
-            fencing: FencingToken::new(fencing),
-            generation: claim.generation.clone(),
-            deadline: claim.deadline,
-        },
-        FiringEvent::Started {
-            fencing: FencingToken::new(fencing),
-        },
-        FiringEvent::Finished {
-            fencing: Some(FencingToken::new(fencing)),
-            code: upshot.code,
-        },
-    ]);
+    let folded = fold_finished_run(&claim, fencing, upshot.code);
     let (kind, line) = verdict_line(
         ctx,
         slot,
@@ -780,6 +764,25 @@ fn claim_run_receipt(
         line: with_repair(line, repaired),
         code: upshot.code,
     }
+}
+
+/// Fold the run's terminal lifecycle before the receipt speaks its kind.
+fn fold_finished_run(claim: &Claim, fencing: u64, code: u8) -> FiringState {
+    firing::fold(&[
+        FiringEvent::Due,
+        FiringEvent::Claimed {
+            fencing: FencingToken::new(fencing),
+            generation: claim.generation.clone(),
+            deadline: claim.deadline,
+        },
+        FiringEvent::Started {
+            fencing: FencingToken::new(fencing),
+        },
+        FiringEvent::Finished {
+            fencing: Some(FencingToken::new(fencing)),
+            code,
+        },
+    ])
 }
 
 /// The held beat lock, released on EVERY exit of the scope that took
