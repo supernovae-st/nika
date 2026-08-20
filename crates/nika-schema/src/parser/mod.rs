@@ -377,7 +377,14 @@ fn retired_key_teaching(key: &str, location: &str) -> Option<&'static str> {
         return retired::envelope(key);
     }
     if location.starts_with("task `") {
-        return retired::task(key);
+        // Three tables, one scope, tried in order of how much the author
+        // already knows. A RETIRED key was ours and moved. A FOREIGN key
+        // is another tool's word for a concept we spell differently. An
+        // ENVELOPE key is our own word at the wrong depth — the author is
+        // not wrong about the vocabulary at all, only about the column.
+        return retired::task(key)
+            .or_else(|| retired::foreign(key))
+            .or_else(|| retired::envelope_key_at_task_level(key));
     }
     None
 }
@@ -465,7 +472,7 @@ impl Cx<'_> {
                     // the set an author meets first and the one whose
                     // vocabulary they are least likely to hold; it has
                     // never taught itself, at fourteen keys or at nine.
-                    // A task's twenty keys still stay silent, which is
+                    // A task's fifteen keys still stay silent, which is
                     // the line this threshold exists to draw.
                     (known.len() <= 9).then(|| format!("the fields here: {}", known.join(" · ")))
                 };
