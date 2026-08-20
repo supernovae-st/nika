@@ -453,6 +453,9 @@ impl<T> tracing::instrument::Instrument for nika_cli::verbs::check::Profile
 impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::check::Profile
 impl<T> typenum::type_operators::Same for nika_cli::verbs::check::Profile
 pub type nika_cli::verbs::check::Profile::Output = T
+impl<T> zvariant::optional::NoneValue for nika_cli::verbs::check::Profile where T: core::default::Default
+pub type nika_cli::verbs::check::Profile::NoneType = T
+pub fn nika_cli::verbs::check::Profile::null_value() -> T
 pub struct nika_cli::verbs::check::CheckArgs
 pub nika_cli::verbs::check::CheckArgs::files: alloc::vec::Vec<alloc::string::String>
 pub nika_cli::verbs::check::CheckArgs::fix: bool
