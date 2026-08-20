@@ -24,10 +24,8 @@ pub(super) fn judge(path: &str, yaml: &str, json: bool) -> VerbOutput {
         Ok(parsed) => {
             let name = parsed.name.as_deref().unwrap_or("<unnamed>");
             if json {
-                return VerbOutput::ok(format!(
-                    "{{\"report_version\":1,\"file\":{path:?},\"kind\":\"project\",\
-                     \"clean\":true,\"name\":{name:?},\"findings\":[]}}"
-                ));
+                let text = nika_display::project_render::json(path, true, Some(name), "", "");
+                return VerbOutput::ok(text);
             }
             let governs = nika_display::project_render::governs(
                 parsed.ceiling,
@@ -40,13 +38,10 @@ pub(super) fn judge(path: &str, yaml: &str, json: bool) -> VerbOutput {
         Err(err) => {
             let slug = err.kind().spec_code();
             if json {
-                let detail = err.detail();
+                let text =
+                    nika_display::project_render::json(path, false, None, slug, err.detail());
                 return VerbOutput {
-                    text: format!(
-                        "{{\"report_version\":1,\"file\":{path:?},\"kind\":\"project\",\
-                         \"clean\":false,\"findings\":[{{\"code\":{slug:?},\
-                         \"message\":{detail:?}}}]}}"
-                    ),
+                    text,
                     code: nika_cli_host::output::exit::FILE,
                 };
             }

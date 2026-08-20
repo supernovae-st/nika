@@ -58,6 +58,22 @@ pub fn governs(ceiling: Option<f64>, traces: bool, registry: bool, beats: usize)
     }
 }
 
+/// The machine verdict · `report_version: 1`, the same envelope the
+/// workflow lane's `--json` speaks, with `kind: "project"` naming which
+/// grammar judged it.
+#[must_use]
+pub fn json(path: &str, clean: bool, name: Option<&str>, code: &str, message: &str) -> String {
+    let head = format!("{{\"report_version\":1,\"file\":{path:?},\"kind\":\"project\"");
+    if clean {
+        let name = name.unwrap_or("<unnamed>");
+        format!("{head},\"clean\":true,\"name\":{name:?},\"findings\":[]}}")
+    } else {
+        format!(
+            "{head},\"clean\":false,\"findings\":[{{\"code\":{code:?},\"message\":{message:?}}}]}}"
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -79,6 +95,29 @@ mod tests {
     #[test]
     fn one_beat_is_singular() {
         assert!(governs(None, false, false, 1).contains("1 beat armed"));
+    }
+
+    #[test]
+    fn the_machine_verdict_is_parseable_json_both_ways() {
+        // A `--json` surface that emits something a parser chokes on is
+        // worse than no `--json`: an agent cannot tell it from a crash.
+        for wire in [
+            json("nika.yaml", true, Some("my-project"), "", ""),
+            json(
+                "nika.yaml",
+                false,
+                None,
+                "project.unknown-key",
+                "unknown field `celing`",
+            ),
+        ] {
+            let parsed: Result<serde_json::Value, _> = serde_json::from_str(&wire);
+            assert!(parsed.is_ok(), "not JSON · {wire}");
+            let v = parsed.unwrap_or_default();
+            assert_eq!(v["report_version"], 1, "{wire}");
+            assert_eq!(v["kind"], "project", "{wire}");
+            assert!(v["findings"].is_array(), "{wire}");
+        }
     }
 
     #[test]
