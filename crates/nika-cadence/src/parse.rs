@@ -35,11 +35,20 @@ pub fn parse_registry(text: &str) -> Result<ArmRegistry, CadenceError> {
 /// (FCI-014: an iterator, not a Vec.)
 pub fn validate(registry: &ArmRegistry) -> impl Iterator<Item = CadenceError> {
     let mut faults = Vec::new();
-    if registry.nika != ArmRegistry::SCHEMA {
+    if ArmRegistry::is_retired_tag(&registry.nika) {
         faults.push(CadenceError::file(
-            CadenceErrorKind::TagFrozen,
-            format!("nika: {} · le tag est gelé à `v1`", registry.nika),
-            "le tag de l enveloppe projet est `nika: v1` — le toucher est le geste le plus lourd du projet",
+            CadenceErrorKind::Identity,
+            format!("nika: {} · c est l ancien tag de schéma, pas un nom de projet", registry.nika),
+            "le tag est devenu le NOM du projet (`nika: mon-projet`) — la version vit désormais dans la ligne `$schema`",
+        ));
+    } else if !ArmRegistry::is_kebab_id(&registry.nika) {
+        faults.push(CadenceError::file(
+            CadenceErrorKind::Identity,
+            format!(
+                "nika: {} · un nom de projet est en kebab-case (`^[a-z][a-z0-9-]*$`)",
+                registry.nika
+            ),
+            "nomme le projet (`nika: mon-projet`) — la même grammaire que le `nika:` d un workflow",
         ));
     }
     if let Some(ceiling) = registry.ceiling

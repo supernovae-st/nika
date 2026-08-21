@@ -956,13 +956,22 @@ mod tests {
         );
         let laid = std::fs::read_to_string(dir.join("nika.yaml")).expect("written");
         assert!(
-            laid.starts_with("# nika.yaml — the project file"),
+            laid.starts_with("# nika.yaml — the project file")
+                && laid.contains("\nnika: my-project\n"),
             "the grammar's starter, verbatim: {laid}"
         );
-        // …and what was laid parses back to the defaults (never a
-        // silently-governing file).
+        // …and what was laid governs nothing but its own name (never a
+        // silently-governing file). `Project` is `#[non_exhaustive]`, so
+        // a sibling crate reads the knobs instead of rebuilding it.
         let parsed = nika_vocab::project::parse(&laid).expect("the laid starter parses");
-        assert_eq!(parsed, nika_vocab::project::Project::default());
+        assert_eq!(parsed.name.as_deref(), Some("my-project"));
+        assert!(
+            parsed.ceiling.is_none()
+                && parsed.traces.is_none()
+                && parsed.registry.is_none()
+                && parsed.arm().is_empty(),
+            "the starter governs nothing: {parsed:?}"
+        );
         std::fs::remove_dir_all(&dir).ok();
     }
 
@@ -1002,7 +1011,7 @@ mod tests {
         // Skip — the human's bytes win over the offer.
         let dir = fresh_dir("offer-exists");
         let d = dir.to_str().expect("utf8");
-        std::fs::write(dir.join("nika.yaml"), "nika: v1\nceiling: 9.99\n").expect("seed");
+        std::fs::write(dir.join("nika.yaml"), "nika: proj\nceiling: 9.99\n").expect("seed");
         let mut input = std::io::Cursor::new(b"5\n\n\ny\n".to_vec());
         let mut out = Vec::new();
         let v = wizard_io(
@@ -1022,7 +1031,7 @@ mod tests {
         );
         assert_eq!(
             std::fs::read_to_string(dir.join("nika.yaml")).expect("read"),
-            "nika: v1\nceiling: 9.99\n",
+            "nika: proj\nceiling: 9.99\n",
             "the human's bytes survive the offer"
         );
         std::fs::remove_dir_all(&dir).ok();
@@ -1030,7 +1039,7 @@ mod tests {
         // Force — the founding law's one override.
         let dir = fresh_dir("offer-force");
         let d = dir.to_str().expect("utf8");
-        std::fs::write(dir.join("nika.yaml"), "nika: v1\nceiling: 9.99\n").expect("seed");
+        std::fs::write(dir.join("nika.yaml"), "nika: proj\nceiling: 9.99\n").expect("seed");
         let mut input = std::io::Cursor::new(b"5\n\n\ny\n".to_vec());
         let mut out = Vec::new();
         let v = wizard_io(
@@ -1047,7 +1056,8 @@ mod tests {
         assert!(shown.contains("created nika.yaml"), "{shown}");
         let laid = std::fs::read_to_string(dir.join("nika.yaml")).expect("read");
         assert!(
-            laid.starts_with("# nika.yaml — the project file"),
+            laid.contains("# nika.yaml — the project file")
+                && laid.contains("\nnika: my-project\n"),
             "the starter replaced the seed: {laid}"
         );
         std::fs::remove_dir_all(&dir).ok();

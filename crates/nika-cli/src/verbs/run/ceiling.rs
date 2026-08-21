@@ -50,7 +50,7 @@ mod tests {
     #[test]
     fn flag_beats_file_beats_default() {
         let dir = fresh_dir("ladder");
-        std::fs::write(dir.join("nika.yaml"), "nika: v1\nceiling: 0.50\n").expect("seed");
+        std::fs::write(dir.join("nika.yaml"), "nika: proj\nceiling: 0.50\n").expect("seed");
 
         assert_eq!(
             ladder(Some(1.25), &dir).expect("ok"),
@@ -84,7 +84,7 @@ mod tests {
     #[test]
     fn a_broken_file_refuses_flag_or_no_flag() {
         let dir = fresh_dir("broken");
-        std::fs::write(dir.join("nika.yaml"), "nika: v1\nceling: 0.50\n").expect("typo");
+        std::fs::write(dir.join("nika.yaml"), "nika: proj\nceling: 0.50\n").expect("typo");
         let err = ladder(None, &dir).unwrap_err();
         assert_eq!(
             err.kind(),

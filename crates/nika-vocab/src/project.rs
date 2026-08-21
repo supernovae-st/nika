@@ -49,9 +49,52 @@ pub use parse::parse;
 /// The one file name, at the discovered root.
 pub const FILE_NAME: &str = "nika.yaml";
 
-/// The frozen schema tag (FCI-003 — touching it is the project's
-/// heaviest move, the same freeze law as the workflow envelope).
-pub const SCHEMA: &str = "v1";
+/// `^[a-z][a-z0-9-]*$` — the kebab-case resource-name shape, the SAME
+/// rule the workflow envelope applies to its own `nika:` (spec 01
+/// §`nika`). One grammar for the key across both artifact classes.
+#[must_use]
+pub fn is_kebab_id(s: &str) -> bool {
+    s.chars().next().is_some_and(|c| c.is_ascii_lowercase())
+        && s.chars()
+            .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+}
+
+/// The envelope line's own indentation, when the document opens on one.
+fn envelope_indent(yaml: &str) -> Option<&str> {
+    for line in yaml.lines() {
+        let stripped = line.trim_start();
+        if stripped.is_empty() || stripped.starts_with('#') {
+            continue;
+        }
+        let indent = &line[..line.len() - stripped.len()];
+        return stripped
+            .strip_prefix("nika:")
+            .filter(|rest| rest.is_empty() || rest.starts_with(char::is_whitespace))
+            .map(|_| indent);
+    }
+    None
+}
+
+/// Does this document declare itself a PROJECT rather than a workflow?
+///
+/// The spec's discriminant (`01-envelope` §The type discriminant),
+/// normative and covering every document · a `tasks:` key means WORKFLOW,
+/// its absence means PROJECT. Deliberately NOT the filename: a document
+/// arrives as a registry blob, an HTTP body, a stdin pipe or a chat
+/// paste, and the bytes must still say what they are. Anchored to the
+/// envelope's own indent, so a nested `tasks:` never qualifies; a
+/// document with no `nika:` envelope is not a nika file and returns
+/// false, leaving the workflow envelope's `NIKA-PARSE-002` to own it.
+#[must_use]
+pub fn is_project_document(yaml: &str) -> bool {
+    let Some(indent) = envelope_indent(yaml) else {
+        return false;
+    };
+    !yaml.lines().any(|line| {
+        line.strip_prefix(indent)
+            .is_some_and(|rest| rest.starts_with("tasks:") && !rest.starts_with("tasks::"))
+    })
+}
 
 /// The closed top-level key set (D-2026-08-11-N5, verbatim) — public
 /// so consumers DERIVE from it instead of retyping it (the
@@ -67,7 +110,7 @@ pub const TOP_LEVEL_KEYS: &[&str] = &["nika", "ceiling", "arm", "traces", "regis
 pub const STARTER: &str = "\
 # nika.yaml — the project file (OPTIONAL · an absent key is its built-in default).
 # Ladder per key: the invocation flag / env var wins · then this file · then the default.
-nika: v1
+nika: my-project
 
 # ceiling: 0.50     # default max-cost-usd for runs of this project · --max-cost-usd always wins
 
@@ -81,6 +124,18 @@ nika: v1
 #[derive(Debug, Clone, PartialEq, Default)]
 #[non_exhaustive]
 pub struct Project {
+    /// `nika:` — the project's NAME, kebab-case. Same grammar as a
+    /// workflow's `nika:`: the key declares « this is a Nika file », the
+    /// value names it. `None` only for a file that declares nothing (a
+    /// comments-only or `{}` mapping governs nothing, so it owes no
+    /// name); any file that carries a key carries this one.
+    ///
+    /// It replaced a frozen `v1` tag. The reasoning is the workflow
+    /// envelope's, verbatim: a field with ONE legal value is not a
+    /// version, so nothing was traded away — and the version marker the
+    /// tag pretended to be now lives where it can be fetched and where
+    /// an editor already reads it, the `$schema` URL.
+    pub name: Option<String>,
     /// `ceiling:` — the default per-run spend ceiling (USD). The flag
     /// wins; this only fills a flag-less invocation.
     pub ceiling: Option<f64>,
@@ -307,8 +362,9 @@ pub enum ProjectErrorKind {
     Grammar,
     /// The file exists but cannot be read (permissions · a directory).
     Unreadable,
-    /// `nika:` is absent or is not the frozen `v1` tag.
-    TagFrozen,
+    /// `nika:` is absent, or carries something that is not a
+    /// kebab-case name.
+    Identity,
     /// A key outside the closed set — top-level, `traces:`,
     /// `registry:`, or an `arm:` entry. Never a silent drop.
     UnknownKey,
@@ -324,7 +380,7 @@ impl ProjectErrorKind {
         match self {
             Self::Grammar => "project.grammar",
             Self::Unreadable => "project.unreadable",
-            Self::TagFrozen => "project.tag-frozen",
+            Self::Identity => "project.identity",
             Self::UnknownKey => "project.unknown-key",
             Self::BadValue => "project.bad-value",
         }

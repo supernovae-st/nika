@@ -31,6 +31,7 @@ pub mod demo;
 pub mod flow;
 pub mod format;
 pub mod fruit;
+pub mod project_render;
 pub mod render;
 pub mod shape;
 pub mod snippet;

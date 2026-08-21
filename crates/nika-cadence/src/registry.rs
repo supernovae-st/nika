@@ -3,8 +3,9 @@
 
 //! The registry types — the parsed shape of `nika.yaml`.
 //!
-//! Discipline (the forward-compat invariants): the wire tag is `nika:
-//! v1`, frozen (FCI-003) · public-field structs are `#[non_exhaustive]`
+//! Discipline (the forward-compat invariants): `nika:` carries the
+//! project's kebab-case NAME, the same grammar the workflow envelope
+//! gives its own `nika:` · public-field structs are `#[non_exhaustive]`
 //! (FCI-016) · no `HashMap` anywhere — the workspace lint
 //! `iter_over_hash_type = "deny"` guards a future signature's
 //! determinism, and this crate simply holds no maps · no `Vec` in
@@ -21,8 +22,10 @@ use crate::cron::CronSpec;
 #[serde(deny_unknown_fields)]
 #[non_exhaustive]
 pub struct ArmRegistry {
-    /// The schema tag — frozen at `v1` (the same freeze law as the
-    /// workflow envelope: touching it is the project's heaviest move).
+    /// The project's NAME, kebab-case — the same grammar the workflow
+    /// envelope gives its own `nika:`. It replaced a frozen `v1` tag: a
+    /// field with one legal value is not a version, and the version now
+    /// rides the `$schema` URL where an editor already reads it.
     pub nika: String,
     /// The project-wide run ceiling (USD) — a default every beat's
     /// `plafond` may exceed EXPLICITLY: the hierarchy stays visible.
@@ -40,8 +43,26 @@ pub struct ArmRegistry {
 }
 
 impl ArmRegistry {
-    /// The wire tag this parser accepts — frozen forever (FCI-003).
-    pub const SCHEMA: &'static str = "v1";
+    /// `^[a-z][a-z0-9-]*$` — the name shape, shared with the workflow
+    /// envelope and with `nika_vocab::project`.
+    #[must_use]
+    pub fn is_kebab_id(s: &str) -> bool {
+        s.chars().next().is_some_and(|c| c.is_ascii_lowercase())
+            && s.chars()
+                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-')
+    }
+
+    /// A retired schema tag (`^v[0-9]+$`). It refuses in a PROJECT file
+    /// and nowhere else: a pre-nuke workflow carried `workflow:` beside
+    /// its `nika: v1` and refuses on that key, while a project file had
+    /// no companion — the same bytes would quietly stop meaning « schema
+    /// v1 » and start meaning « a project named v1 ». Only the WHOLE
+    /// marker: `vault` · `v2ray` · `v1-migration` stay ordinary names.
+    #[must_use]
+    pub fn is_retired_tag(s: &str) -> bool {
+        s.strip_prefix('v')
+            .is_some_and(|rest| !rest.is_empty() && rest.chars().all(|c| c.is_ascii_digit()))
+    }
 
     /// The armed beats, in file order.
     pub fn beats(&self) -> impl Iterator<Item = &Beat> {

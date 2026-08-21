@@ -468,6 +468,11 @@ pub fn nika_display::fruit::last_said(view: &nika_display::state::RunView) -> co
 pub fn nika_display::fruit::rehearsal(view: &nika_display::state::RunView) -> bool
 pub fn nika_display::fruit::rehearsal_note(view: &nika_display::state::RunView) -> core::option::Option<&'static str>
 pub fn nika_display::fruit::written_files(view: &nika_display::state::RunView) -> alloc::vec::Vec<nika_display::fruit::WroteFile>
+pub mod nika_display::project_render
+pub fn nika_display::project_render::governs(ceiling: core::option::Option<f64>, traces: bool, registry: bool, beats: usize) -> alloc::string::String
+pub fn nika_display::project_render::json(path: &str, clean: bool, name: core::option::Option<&str>, code: &str, message: &str) -> alloc::string::String
+pub fn nika_display::project_render::refusal(path: &str, line: core::option::Option<usize>, slug: &str, detail: &str, remedy: &str) -> alloc::string::String
+pub fn nika_display::project_render::verdict(path: &str, name: &str, governs: &str) -> alloc::string::String
 pub mod nika_display::render
 pub fn nika_display::render::frame(view: &nika_display::state::RunView, theme: &nika_display::theme::Theme, tick: usize) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_display::render::frame_with_outputs(view: &nika_display::state::RunView, theme: &nika_display::theme::Theme, tick: usize) -> alloc::vec::Vec<alloc::string::String>

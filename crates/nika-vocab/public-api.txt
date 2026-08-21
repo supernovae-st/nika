@@ -566,7 +566,7 @@ pub fn nika_vocab::project::MissPolicy::from(t: T) -> T
 #[non_exhaustive] pub enum nika_vocab::project::ProjectErrorKind
 pub nika_vocab::project::ProjectErrorKind::BadValue
 pub nika_vocab::project::ProjectErrorKind::Grammar
-pub nika_vocab::project::ProjectErrorKind::TagFrozen
+pub nika_vocab::project::ProjectErrorKind::Identity
 pub nika_vocab::project::ProjectErrorKind::UnknownKey
 pub nika_vocab::project::ProjectErrorKind::Unreadable
 impl nika_vocab::project::ProjectErrorKind
@@ -700,6 +700,7 @@ impl<T> core::convert::From<T> for nika_vocab::project::ArmEntry
 pub fn nika_vocab::project::ArmEntry::from(t: T) -> T
 #[non_exhaustive] pub struct nika_vocab::project::Project
 pub nika_vocab::project::Project::ceiling: core::option::Option<f64>
+pub nika_vocab::project::Project::name: core::option::Option<alloc::string::String>
 pub nika_vocab::project::Project::registry: core::option::Option<nika_vocab::project::RegistryPolicy>
 pub nika_vocab::project::Project::traces: core::option::Option<nika_vocab::project::TracesPolicy>
 impl nika_vocab::project::Project
@@ -850,11 +851,12 @@ pub unsafe fn nika_vocab::project::TracesPolicy::clone_to_uninit(&self, dest: *m
 impl<T> core::convert::From<T> for nika_vocab::project::TracesPolicy
 pub fn nika_vocab::project::TracesPolicy::from(t: T) -> T
 pub const nika_vocab::project::FILE_NAME: &str
-pub const nika_vocab::project::SCHEMA: &str
 pub const nika_vocab::project::STARTER: &str
 pub const nika_vocab::project::TOP_LEVEL_KEYS: &[&str]
 pub fn nika_vocab::project::discover(start: &std::path::Path) -> core::result::Result<core::option::Option<(std::path::PathBuf, nika_vocab::project::Project)>, nika_vocab::project::ProjectError>
 pub fn nika_vocab::project::discover_from_cwd() -> core::result::Result<core::option::Option<(std::path::PathBuf, nika_vocab::project::Project)>, nika_vocab::project::ProjectError>
+pub fn nika_vocab::project::is_kebab_id(s: &str) -> bool
+pub fn nika_vocab::project::is_project_document(yaml: &str) -> bool
 pub fn nika_vocab::project::parse(text: &str) -> core::result::Result<nika_vocab::project::Project, nika_vocab::project::ProjectError>
 pub mod nika_vocab::registry_ref
 #[non_exhaustive] pub enum nika_vocab::registry_ref::RefDefect

@@ -129,7 +129,7 @@ fn prev_before_crosses_a_month_and_a_year_backwards() {
 // ── due · the pure planner, the clock handed in ─────────────────────
 
 const DUE_DAILY: &str = "
-nika: v1
+nika: proj
 ceiling: 0.50
 arm:
   - workflow: workflows/nightly.nika.yaml
@@ -169,7 +169,7 @@ fn due_a_missed_slot_says_how_many() {
 fn due_an_idle_or_cloud_beat_is_never_due() {
     let reg = parse_registry(
         "
-nika: v1
+nika: proj
 arm:
   - workflow: workflows/suspended.nika.yaml
     cadence: TZ=Europe/Paris 0 3 * * *
@@ -203,7 +203,7 @@ arm:
 fn earliest_next_is_the_soonest_of_the_armed_beats() {
     let reg = parse_registry(
         "
-nika: v1
+nika: proj
 arm:
   - workflow: workflows/weekly.nika.yaml
     cadence: TZ=Europe/Paris lundi 9h07
@@ -233,7 +233,7 @@ fn earliest_next_a_tie_keeps_the_first_beat() {
     // comparaison du meilleur.
     let reg = parse_registry(
         "
-nika: v1
+nika: proj
 arm:
   - workflow: workflows/a.nika.yaml
     cadence: TZ=Europe/Paris 0 3 * * *
@@ -351,7 +351,7 @@ fn due_the_gap_fire_is_due_like_any_other() {
 fn a_webhook_beat_is_never_due_nor_next() {
     let reg = parse_registry(
         "
-nika: v1
+nika: proj
 arm:
   - workflow: workflows/hooked.nika.yaml
     cadence: on-webhook
@@ -372,7 +372,7 @@ fn due_a_cadence_that_breaks_the_law_refuses_the_plan() {
     // REFUSE le plan entier, il ne saute pas le beat en silence.
     let reg = parse_registry(
         "
-nika: v1
+nika: proj
 arm:
   - workflow: workflows/nightly.nika.yaml
     cadence: 0 3 * * *

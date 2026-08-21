@@ -1,0 +1,11 @@
+# nika.yaml — this repository, named.
+#
+# It governs nothing: no ceiling, no retention, no armed beat. It exists
+# because `project::discover` walks UP from the invocation directory,
+# git-style, and a checkout nested inside a larger tree would otherwise
+# answer with THAT tree's project file — including in the test suite,
+# which must never read the developer's home directory.
+#
+# So this is the boundary as much as the name. Whoever nests this
+# checkout, the engine's own runs and tests stop here.
+nika: nika-engine

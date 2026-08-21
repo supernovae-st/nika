@@ -260,7 +260,7 @@ mod tests {
         let dir = fresh_dir("max");
         std::fs::write(
             dir.join("nika.yaml"),
-            "nika: v1\nregistry:\n  floor: provenanced\n",
+            "nika: proj\nregistry:\n  floor: provenanced\n",
         )
         .expect("seed");
 
@@ -302,7 +302,7 @@ mod tests {
         .expect("absence never refuses");
         assert_eq!(policy.floor, ProvenanceTier::Provenanced);
 
-        std::fs::write(dir.join("nika.yaml"), "nika: v1\nceiling: 0.50\n").expect("seed");
+        std::fs::write(dir.join("nika.yaml"), "nika: proj\nceiling: 0.50\n").expect("seed");
         let policy = Policy {
             floor: ProvenanceTier::Unprovenanced,
         }
@@ -319,7 +319,7 @@ mod tests {
         let dir = fresh_dir("broken");
         std::fs::write(
             dir.join("nika.yaml"),
-            "nika: v1\nregistry:\n  floor: bogus\n",
+            "nika: proj\nregistry:\n  floor: bogus\n",
         )
         .expect("bad");
         let err = Policy {

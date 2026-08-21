@@ -60,7 +60,7 @@ fn ctx_with_env() -> EmitCtx {
 /// Two Paris beats: the readable weekly (one dict) and a cron monthly
 /// with two minutes (two dicts).
 const TWO_BEATS: &str = concat!(
-    "nika: v1\n",
+    "nika: proj\n",
     "arm:\n",
     "  - workflow: workflows/weekly.nika.yaml\n",
     "    cadence: \"TZ=Europe/Paris lundi 9h07\"\n",
@@ -227,7 +227,7 @@ fn a_beat_in_another_zone_refuses_on_launchd_and_rides_systemd() {
     // differs is refused, naming both zones. systemd carries the zone,
     // so the same beat renders there.
     let reg = registry(concat!(
-        "nika: v1\n",
+        "nika: proj\n",
         "arm:\n",
         "  - workflow: workflows/doctor.nika.yaml\n",
         "    cadence: \"TZ=Asia/Tokyo 0 3 * * *\"\n",
@@ -252,7 +252,7 @@ fn a_beat_in_another_zone_refuses_on_launchd_and_rides_systemd() {
 #[test]
 fn a_webhook_beat_refuses_the_clock_surfaces() {
     let reg = registry(concat!(
-        "nika: v1\n",
+        "nika: proj\n",
         "arm:\n",
         "  - workflow: workflows/hook.nika.yaml\n",
         "    cadence: \"on-webhook\"\n",
@@ -274,7 +274,7 @@ fn a_webhook_beat_refuses_the_clock_surfaces() {
 fn past_the_interval_budget_the_render_refuses_with_the_count() {
     // 30 minutes × 12 heures × 2 jours = 720 dicts — au-delà du budget.
     let reg = registry(concat!(
-        "nika: v1\n",
+        "nika: proj\n",
         "arm:\n",
         "  - workflow: workflows/dense.nika.yaml\n",
         "    cadence: \"TZ=Europe/Paris */2 */2 1,15 * *\"\n",
@@ -302,7 +302,7 @@ fn the_v0_unsupported_policies_refuse_with_their_version() {
         ("    décalage: hash\n", "décalage:"),
     ] {
         let reg = registry(&format!(
-            "nika: v1\narm:\n  - workflow: workflows/doctor.nika.yaml\n    cadence: \"TZ=Europe/Paris 0 3 * * *\"\n    plafond: 0.25\n    manqué: sauter\n{extra}"
+            "nika: proj\narm:\n  - workflow: workflows/doctor.nika.yaml\n    cadence: \"TZ=Europe/Paris 0 3 * * *\"\n    plafond: 0.25\n    manqué: sauter\n{extra}"
         ));
         let refusal =
             emit::render(&reg, &ctx(), Target::Launchd, Mode::PerBeat).expect_err("D6 refuse");
@@ -320,7 +320,7 @@ fn the_v0_unsupported_policies_refuse_with_their_version() {
         }
     }
     let reg = registry(concat!(
-        "nika: v1\n",
+        "nika: proj\n",
         "arm:\n",
         "  - workflow: workflows/doctor.nika.yaml\n",
         "    cadence: \"TZ=Europe/Paris 0 3 * * *\"\n",
@@ -345,7 +345,7 @@ fn deux_beats_meme_workflow_rendent_deux_labels() {
     // Two DIFFERENT paths, one radical: the second takes `-2` (D4), and
     // each gets its own unit file.
     let reg = registry(concat!(
-        "nika: v1\n",
+        "nika: proj\n",
         "arm:\n",
         "  - workflow: a/doctor.nika.yaml\n",
         "    cadence: \"TZ=Europe/Paris 0 3 * * *\"\n",
@@ -369,7 +369,7 @@ fn deux_beats_meme_workflow_rendent_deux_labels() {
 #[test]
 fn suspended_and_cloud_beats_emit_nothing() {
     let reg = registry(concat!(
-        "nika: v1\n",
+        "nika: proj\n",
         "arm:\n",
         "  - workflow: workflows/local.nika.yaml\n",
         "    cadence: \"TZ=Europe/Paris 0 3 * * *\"\n",
@@ -422,7 +422,7 @@ fn check_budget(cadence_text: &str) {
     let cadence = Cadence::parse(cadence_text).expect("le corpus se parse");
     let expected = expected_dicts(&cadence);
     let reg = registry(&format!(
-        "nika: v1\narm:\n  - workflow: w.nika.yaml\n    cadence: \"{cadence_text}\"\n    plafond: 0.25\n    manqué: sauter\n"
+        "nika: proj\narm:\n  - workflow: w.nika.yaml\n    cadence: \"{cadence_text}\"\n    plafond: 0.25\n    manqué: sauter\n"
     ));
     let ctx = EmitCtx::new(
         PathBuf::from("/usr/local/bin/nika"),

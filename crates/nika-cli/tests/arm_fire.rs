@@ -109,7 +109,7 @@ tasks:
 
 /// Daily 03:00 UTC, skip the misses.
 const DAILY_3AM: &str = concat!(
-    "nika: v1\n",
+    "nika: proj\n",
     "arm:\n",
     "  - workflow: workflows/doctor.nika.yaml\n",
     "    cadence: \"TZ=UTC 0 3 * * *\"\n",
@@ -446,7 +446,7 @@ fn fire_resolves_relative_skills_from_the_declared_workflow_path() {
 #[test]
 fn concurrent_labels_record_their_own_exact_trace_paths() {
     let registry = concat!(
-        "nika: v1\n",
+        "nika: proj\n",
         "arm:\n",
         "  - workflow: workflows/alpha.nika.yaml\n",
         "    cadence: \"TZ=UTC 0 3 * * *\"\n",
@@ -524,7 +524,7 @@ fn fire_skips_a_missed_slot_when_manque_is_sauter() {
 #[test]
 fn fire_refuses_an_unknown_label_and_names_the_known_ones() {
     let registry = concat!(
-        "nika: v1\n",
+        "nika: proj\n",
         "arm:\n",
         "  - workflow: workflows/doctor.nika.yaml\n",
         "    cadence: \"TZ=UTC 0 3 * * *\"\n",
@@ -581,7 +581,7 @@ fn fire_skips_when_the_lock_is_held_by_a_living_owner() {
 #[test]
 fn fire_with_file_policy_times_out_at_the_next_slot() {
     let registry = concat!(
-        "nika: v1\n",
+        "nika: proj\n",
         "arm:\n",
         "  - workflow: workflows/doctor.nika.yaml\n",
         "    cadence: \"TZ=UTC * * * * *\"\n",
@@ -641,7 +641,7 @@ fn fire_prints_exactly_one_stdout_line() {
 #[test]
 fn fire_refuses_the_v0_unsupported_policies_with_teaching() {
     let registry = concat!(
-        "nika: v1\n",
+        "nika: proj\n",
         "arm:\n",
         "  - workflow: workflows/doctor.nika.yaml\n",
         "    cadence: \"TZ=UTC 0 3 * * *\"\n",
@@ -699,7 +699,7 @@ fn a_paused_run_is_parked_never_answered() {
 #[test]
 fn rattraper_une_fois_fires_one_run_for_the_whole_silence() {
     let registry = concat!(
-        "nika: v1\n",
+        "nika: proj\n",
         "arm:\n",
         "  - workflow: workflows/doctor.nika.yaml\n",
         "    cadence: \"TZ=UTC 0 3 * * *\"\n",
