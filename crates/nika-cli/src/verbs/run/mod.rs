@@ -49,6 +49,7 @@ use sink::{TraceNote, TraceSurface, surface_trace};
 
 mod budget;
 mod ceiling;
+mod dry_run;
 mod epilogue;
 mod provenance;
 pub use provenance::run_with_repair_target;
@@ -317,7 +318,7 @@ fn run_verdict(
         Err(code) => return RunVerdict::bare(code),
     };
     if dry_run {
-        return RunVerdict::bare(dry_run_verdict(file, &wf, &report, json, theme));
+        return dry_run::lane(file, &wf, &report, model_override, json, theme, output_json);
     }
     if let Err(code) = budget::preflight(&wf, &report, model_override, max_cost_usd, output_json) {
         return RunVerdict::bare(code);
@@ -613,85 +614,6 @@ fn output_mode(output: Option<&str>) -> Result<bool, u8> {
             Err(exit::ENV)
         }
     }
-}
-
-/// `--dry-run` (spec §10 · "plan only · zero effects"): the audit passed —
-/// render the static plan (the same anatomy `nika inspect` renders) without
-/// composing any production seam. No fs, no http, no subprocess, no
-/// provider call — the run is never reached.
-fn render_dry_run(file: &str, theme: Theme) -> u8 {
-    let plan = crate::verbs::inspect::run(file, theme);
-    if !plan.text.is_empty() {
-        println!("{}", plan.text.trim_end());
-    }
-    println!("\n  dry-run · plan only · no effects executed");
-    exit::OK
-}
-
-/// The dry-run fork: the human preview, or the #332 machine plan.
-fn dry_run_verdict(
-    file: &str,
-    wf: &RawWorkflow,
-    report: &nika_check::CheckReport,
-    json: bool,
-    theme: Theme,
-) -> u8 {
-    if json {
-        dry_run_json(file, wf, report)
-    } else {
-        render_dry_run(file, theme)
-    }
-}
-
-/// `--dry-run --json` (#332): ONE versioned plan object on stdout — what
-/// the run WOULD do, projected from the SAME report the audit already
-/// computed (waves resolved to task ids · per-task verb/model · the cost
-/// ceiling · the affirmative permits · the caller requirements). CI and
-/// PR renderers read this instead of composing `check --json` +
-/// `explain --json` and reconstructing the plan client-side.
-/// `plan_version` follows the check-report discipline: additive keys
-/// never bump it.
-fn dry_run_json(file: &str, wf: &RawWorkflow, report: &nika_check::CheckReport) -> u8 {
-    println!("{:#}", dry_run_payload(file, wf, report));
-    exit::OK
-}
-
-/// The pure projection behind [`dry_run_json`] (unit-pinned): waves
-/// resolved from indices to task ids, one `{id, verb}` row per task,
-/// and the report's own cost/permits/requirements objects verbatim.
-fn dry_run_payload(
-    file: &str,
-    wf: &RawWorkflow,
-    report: &nika_check::CheckReport,
-) -> serde_json::Value {
-    let ids: Vec<&str> = wf.tasks.iter().map(|t| t.value.id.value.as_str()).collect();
-    let waves: Vec<Vec<&str>> = report
-        .waves
-        .iter()
-        .map(|w| w.iter().filter_map(|&i| ids.get(i).copied()).collect())
-        .collect();
-    let tasks: Vec<serde_json::Value> = wf
-        .tasks
-        .iter()
-        .map(|t| {
-            serde_json::json!({
-                "id": t.value.id.value,
-                "verb": t.value.action.verb(),
-            })
-        })
-        .collect();
-    serde_json::json!({
-        "plan_version": 1,
-        "workflow": wf.workflow.as_ref().map(|w| w.value.as_str()),
-        "file": file,
-        "dry_run": true,
-        "effects_executed": false,
-        "waves": waves,
-        "tasks": tasks,
-        "cost": report.cost,
-        "permits": report.permits,
-        "requirements": report.requirements,
-    })
 }
 
 /// Compose the production runtime for one run — extracted so `run` stays

@@ -142,6 +142,7 @@ mod order;
 mod permit_taint;
 pub mod permits_fit;
 mod permits_infer;
+pub mod plan;
 mod reach;
 mod requirements;
 mod risk;

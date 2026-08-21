@@ -30,8 +30,9 @@
 //!   informational « deferred re-gates » listing (a SHOULD) is a declared
 //!   v1 gap — the hint rail would fire on every ordinary
 //!   `${{ tasks.x.output }}` workflow.
-//! - **Law 5 (`declassify:`)** — a task-level entry raises its `from:`
-//!   binding to trusted HERE (the static twin never re-gates it); the
+//! - **Law 5 (`lift: [{law: taint, …}]`)** — a task-level entry raises
+//!   its `from:` binding to trusted HERE (the static twin never re-gates
+//!   it); the
 //!   value is still matched like a literal everywhere else (never a
 //!   permit bypass) and the run receipt records the event.
 //! - **F-P5 ([`PermitTaintKind::NetWildcard`] · `NIKA-AUTH-010`)** — a
@@ -484,7 +485,11 @@ fn regate_finding(
             paths.join(" , "),
         ),
         fix: Some(format!(
-            "{repair} · or declare declassify: on the task (the only door)"
+            "{repair} · or open the door on the task: \
+             `lift: [{{law: taint, from: {binding}, because: …}}]`",
+            binding = paths
+                .first()
+                .map_or("<the untrusted binding>", String::as_str),
         )),
     }
 }
@@ -524,7 +529,7 @@ fn resolve_untrusted(
         };
         let binding = format!("{root}.{name}");
         if declassified.contains(&binding.as_str()) {
-            return None; // the declassify: door — trusted HERE (law 5)
+            return None; // the `lift:` taint door — trusted HERE (law 5)
         }
         let default = string_default(wf, root, name)?;
         resolved.push_str(&template[cursor..island.start]);
@@ -855,6 +860,49 @@ tasks:
         );
     }
 
+    /// The remedy a finding teaches must PARSE. NIKA-AUTH-008's fix line
+    /// named `declassify:` long after that key merged into `lift:`
+    /// (2026-08-11) — so the message that exists to teach the repair
+    /// taught a spelling the same binary refuses at NIKA-PARSE-005, while
+    /// the parse error three feet away named `lift:` correctly.
+    ///
+    /// This does not compare strings: it takes the door the fix names,
+    /// writes a workflow that uses it, and requires strict-mode parse. A
+    /// future rename breaks the test at the rename, not at the next
+    /// person who follows the advice.
+    #[test]
+    fn the_regate_fix_teaches_a_door_that_parses() {
+        let y = r#"nika: t
+permits:
+  fs: { read: ["datasets/**"] }
+  tools: ["nika:read"]
+inputs:
+  p: { type: string, required: false, default: "../../etc/passwd" }
+tasks:
+  load:
+    invoke:
+      tool: nika:read
+      args: { path: "${{ inputs.p }}" }
+"#;
+        let taints = taints_of(y);
+        let fix = taints[0].fix.clone().expect("law 2 carries a repair");
+        assert!(
+            fix.contains("lift:") && !fix.contains("declassify"),
+            "the fix must name the door this binary accepts: {fix}"
+        );
+        // It also names the binding at fault, not a placeholder.
+        assert!(fix.contains("inputs.p"), "{fix}");
+        // And the door it names is one the parser admits.
+        let repaired = format!(
+            "{y}    lift:\n      - law: taint\n        from: inputs.p\n        \
+             because: \"the operator vouched for it\"\n"
+        );
+        assert!(
+            parse(&repaired, FileId::new(0), ParseMode::Strict).is_ok(),
+            "the taught remedy must parse in strict mode"
+        );
+    }
+
     #[test]
     fn fixture_008_untrusted_exec_reentry_flag_is_refused() {
         let y = r#"nika: t
@@ -983,7 +1031,7 @@ tasks:
     }
 
     #[test]
-    fn fixture_011_declassify_declared_opens_the_door() {
+    fn fixture_011_a_declared_lift_opens_the_door() {
         let y = r#"nika: t
 permits:
   fs: { read: ["datasets/**", "vendor/**"] }

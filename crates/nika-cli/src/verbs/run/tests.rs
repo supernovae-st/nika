@@ -9,8 +9,9 @@
 
 use std::collections::BTreeMap;
 
+use super::dry_run::swap as dry_run_swap;
 use super::sink::TraceSurface;
-use super::{RenderMode, capture_mock_outputs, dry_run_payload, exit, run, surfaced_trace};
+use super::{RenderMode, capture_mock_outputs, exit, run, surfaced_trace};
 use crate::Theme;
 use serde_json::json;
 
@@ -70,7 +71,7 @@ fn dry_run_payload_projects_the_versioned_plan() {
     )
     .expect("fixture parses");
     let report = nika_check::check(&wf);
-    let p = dry_run_payload("demo.nika.yaml", &wf, &report);
+    let p = nika_check::plan::payload("demo.nika.yaml", &wf, &report);
     assert_eq!(p["plan_version"], 1);
     assert_eq!(p["workflow"], "demo");
     assert_eq!(p["waves"], json!([["a"], ["b"]]));
@@ -559,4 +560,61 @@ fn require_signature_refuses_unsigned_before_execution() {
         false, // unsigned-tolerant default
     );
     assert_eq!(planned, exit::OK, "the workflow itself is runnable");
+}
+
+/// A `.nika.yaml` naming a local seat, so the swap is VISIBLE: whatever
+/// the plan prints, it cannot have come from both models.
+#[cfg(test)]
+fn ollama_fixture() -> (nika_schema::raw::RawWorkflow, nika_check::CheckReport) {
+    let yaml = "nika: hello-ai\nmodel: ollama/llama3.2:3b\npermits: {}\ntasks:\n  greet:\n    infer: { prompt: \"Say hello.\", max_tokens: 64 }\n";
+    let wf = nika_schema::parse(
+        yaml,
+        nika_schema::source::FileId::new(0),
+        nika_schema::ParseMode::Strict,
+    )
+    .expect("fixture parses");
+    let report = nika_check::check(&wf);
+    (wf, report)
+}
+
+/// #1051 · the preview prices and NAMES the model the run would use.
+///
+/// Before the fix this asserted `ollama/llama3.2:3b` — the plan card and
+/// the `plan_version: 1` object both carried the file's model while the
+/// run would have used the flag's. Reproduced against the published
+/// 0.111.0 on `nika new snippets/hello-ai`, unedited.
+#[test]
+fn dry_run_plan_names_the_overridden_model() {
+    let (wf, _) = ollama_fixture();
+    let (wf, report) = dry_run_swap(&wf, "mock/echo").expect("mock/echo resolves in this binary");
+    let p = nika_check::plan::payload("hello-ai.nika.yaml", &wf, &report);
+    let model = p["cost"]["tasks"][0]["model"]
+        .as_str()
+        .expect("the plan prices one task");
+    assert_eq!(
+        model, "mock/echo",
+        "the preview must price the model the RUN will use, not the file's"
+    );
+}
+
+/// #1051, second half · the preview REFUSES a model this binary cannot
+/// resolve, where before it printed a green plan at exit 0 — the only one
+/// of `check` / `run` / `run --dry-run` that could not see the flag.
+#[test]
+fn dry_run_refuses_a_model_that_does_not_resolve() {
+    let (wf, _) = ollama_fixture();
+    let refused = dry_run_swap(&wf, "nonexistent/model");
+    assert!(
+        refused.is_err(),
+        "a swap to an unresolvable provider must not render a plan"
+    );
+}
+
+/// The unflagged preview keeps the file's own seat — the swap is a
+/// transform the lane applies only when asked, never a normalisation.
+#[test]
+fn dry_run_without_the_flag_keeps_the_files_model() {
+    let (wf, report) = ollama_fixture();
+    let p = nika_check::plan::payload("hello-ai.nika.yaml", &wf, &report);
+    assert_eq!(p["cost"]["tasks"][0]["model"], "ollama/llama3.2:3b");
 }
