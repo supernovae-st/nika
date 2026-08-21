@@ -796,6 +796,44 @@ fn native_strict_json_payload_agrees_with_the_exit_code() {
     );
 }
 
+#[test]
+fn json_keeps_each_native_hint_site_with_its_stable_code() {
+    let yaml = "nika: sites\npermits: { exec: [\"curl\"], net: { http: [\"acme.test\"] } }\ntasks:\n  first:\n    exec: { command: [\"curl\", \"https://acme.test/a\"] }\n  second:\n    exec: { command: [\"curl\", \"https://acme.test/b\"] }\n";
+    let dir = std::env::temp_dir().join(format!("nika-cli-hint-sites-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("tmp dir");
+    let path = dir.join("sites.nika.yaml");
+    std::fs::write(&path, yaml).expect("fixture body");
+    let out = run(
+        path.to_str().expect("utf8 path"),
+        true,
+        false,
+        None,
+        Theme::new(false, true, false),
+    );
+    assert_eq!(out.code, 0, "advisory sites stay clean: {}", out.text);
+    let payload: serde_json::Value = serde_json::from_str(&out.text).expect("json");
+    let sites: Vec<(&str, &str)> = payload["hints"]
+        .as_array()
+        .expect("hints")
+        .iter()
+        .filter(|hint| hint["code"] == "native-first/001")
+        .map(|hint| {
+            (
+                hint["task"].as_str().expect("task"),
+                hint["code"].as_str().expect("code"),
+            )
+        })
+        .collect();
+    assert_eq!(
+        sites,
+        vec![
+            ("first", "native-first/001"),
+            ("second", "native-first/001")
+        ],
+        "machine output retains per-site findings: {payload:#}"
+    );
+}
+
 /// `--json` always carries `paid_ready`. Hints never fail `clean` or
 /// the exit code — the field is the question an agent reads after
 /// `--native-strict` is green.
@@ -845,7 +883,7 @@ fn native_strict_fails_on_native_first_hints_only() {
         default_run.text
     );
     assert!(
-        default_run.text.contains("[native-first]"),
+        default_run.text.contains("[native-first/001]"),
         "{}",
         default_run.text
     );

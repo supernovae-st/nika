@@ -1,0 +1,8 @@
+nika: boundary-status-test
+tasks:
+  produce:
+    exec: { command: ["./produce.sh"] }
+  consume:
+    with: { state: "${{ tasks.produce.status }}" }
+    when: ${{ with.state == 'failure' }}
+    exec: { command: ["./consume.sh"] }

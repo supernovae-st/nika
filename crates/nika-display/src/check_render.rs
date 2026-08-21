@@ -10,6 +10,7 @@
 //! the theme seam it paints through. The machine (`--json`) surface
 //! stays in the CLI's `mod.rs`; both speak the one findings contract.
 
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 
 use nika_check::{CheckReport, ConformanceViolation, UnboundedReason};
@@ -20,6 +21,21 @@ use crate::claims::types_claim;
 use crate::theme::{Role, Theme};
 
 pub use crate::check_models::{ModelFinding, ModelsAudit};
+
+/// TOOLS/ARGS share this code with the JSON finding fold (`fold_tools`).
+const BUILTIN_CONTRACT: &str = "NIKA-BUILTIN-001";
+
+/// Whether the checked bytes have a writable source. The CLI resolves a
+/// `registry:` coordinate to a cache path before parsing, so the original
+/// provenance must ride separately: a digest-pinned artifact is never a
+/// repair target even though its cache entry is a filesystem path.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RepairTarget {
+    WorkspaceFile,
+    Stdin,
+    RegistryArtifact,
+    NonRegularSource,
+}
 
 /// Section mark: `✔`-class verdict glyphs through the theme seam.
 #[must_use]
@@ -76,6 +92,7 @@ pub fn render(
     wf: &RawWorkflow,
     source: &str,
     path: &str,
+    repair_target: RepairTarget,
     t: Theme,
     models_audit: &ModelsAudit,
     skills: &nika_schema::ResolvedSkills,
@@ -151,16 +168,29 @@ pub fn render(
     crate::check_laws::lift_rung(&mut out, report, wf, t);
     crate::check_journey::journey_rung(&mut out, report, t);
     run_rung(&mut out, report, wf, t);
-    hints_and_verdict(&mut out, report, wf, t, drift_hints, verdict);
-    // The MAP beside the verdict — the same themed wire art `graph
-    // --format ascii` speaks, so the audit READS as the DAG it judged
-    // (operator ask 2026-07-12: « quand on fait check, voir la dag »).
-    // Interactive surface only; conformance failures skip it (no valid
-    // wave order exists to draw).
+    hints_and_verdict(
+        &mut out,
+        report,
+        wf,
+        path,
+        repair_target,
+        t,
+        drift_hints,
+        verdict,
+    );
+    paint_dag_if_interactive(&mut out, wf, report, t);
+    out
+}
+
+/// The MAP beside the verdict — the same themed wire art `graph
+/// --format ascii` speaks, so the audit READS as the DAG it judged
+/// (operator ask 2026-07-12: « quand on fait check, voir la dag »).
+/// Interactive surface only; conformance failures skip it (no valid
+/// wave order exists to draw).
+fn paint_dag_if_interactive(out: &mut String, wf: &RawWorkflow, report: &CheckReport, t: Theme) {
     if t.accents && report.conformance.is_empty() {
         let _ = write!(out, "\n{}", crate::dag_art::ascii_art(wf, report, t));
     }
-    out
 }
 
 /// The four narrowed rungs — SECRETS · TYPES · TOOLS · ARGS. Each headline
@@ -395,7 +425,7 @@ fn unknown_tool_rows(report: &CheckReport) -> Vec<String> {
         .iter()
         .map(|u| {
             format!(
-                "`{}` (task `{}`) is not a canonical builtin{}",
+                "[{BUILTIN_CONTRACT}] `{}` (task `{}`) is not a canonical builtin{}",
                 u.tool,
                 u.task,
                 fix_clause(u.suggestion.as_deref())
@@ -420,103 +450,63 @@ fn arg_rows(report: &CheckReport) -> Vec<String> {
                 format!(" — declared: {}", u.declared.join(" · "))
             };
             format!(
-                "`{}` (task `{}`) has no `{}` arg{teach}",
+                "[{BUILTIN_CONTRACT}] `{}` (task `{}`) has no `{}` arg{teach}",
                 u.tool, u.task, u.arg,
             )
         })
         .collect();
     rows.extend(report.missing_args.iter().map(|m| {
         format!(
-            "`{}` (task `{}`) is missing required `{}`",
+            "[{BUILTIN_CONTRACT}] `{}` (task `{}`) is missing required `{}`",
             m.tool, m.task, m.arg
         )
     }));
     rows
 }
 
-/// Advisory hints + the one-line verdict (the report's last words).
-/// `verdict` is the caller's ONE verdict (see [`render`]) — this footer
-/// shows it, it never re-decides it.
-fn hints_and_verdict(
+/// Render every distinct `(identity, advice)` body while returning the
+/// smaller set of stable identities used by the verdict count.
+fn render_report_hints<'a>(
     out: &mut String,
-    report: &CheckReport,
-    wf: &RawWorkflow,
+    report: &'a CheckReport,
     t: Theme,
-    drift_hints: &[String],
-    verdict: bool,
-) {
-    let mut hint_count = report.hints.len() + drift_hints.len();
-    for h in &report.hints {
+) -> BTreeSet<&'a str> {
+    let mut grouped: BTreeMap<(&str, &str), (usize, BTreeSet<&str>)> = BTreeMap::new();
+    for hint in &report.hints {
+        let identity = hint.code.unwrap_or(hint.kind);
+        let entry = grouped
+            .entry((identity, hint.advice.as_str()))
+            .or_insert_with(|| (0, BTreeSet::new()));
+        entry.0 += 1;
+        entry.1.insert(hint.task.as_str());
+    }
+    for ((identity, advice), (sites, tasks)) in grouped {
+        let coded_prefix = format!("{identity} · ");
+        let display_advice = advice.strip_prefix(&coded_prefix).unwrap_or(advice);
+        let suffix = if sites > 1 {
+            format!(
+                " · {} across {}",
+                crate::vocab::count(sites, "site"),
+                crate::vocab::count(tasks.len(), "task")
+            )
+        } else {
+            String::new()
+        };
         let _ = writeln!(
             out,
-            " {} {}     [{}] {}",
+            " {} {}     [{}] {}{}",
             t.paint(Role::Accent, "↳"),
             t.paint(Role::Strong, "HINT"),
-            h.kind,
-            h.advice
+            identity,
+            display_advice,
+            suffix,
         );
     }
-    // NIKA-DRIFT-001 rows — the declared-vs-unused family, computed at
-    // this edge (super::drift); the code-first bracket voice matches the
-    // PERMITS rows (`[NIKA-SEC-005 · net]`).
-    for advice in drift_hints {
-        let _ = writeln!(
-            out,
-            " {} {}     [{} · drift] {}",
-            t.paint(Role::Accent, "↳"),
-            t.paint(Role::Strong, "HINT"),
-            nika_dap::drift::DRIFT_CODE,
-            advice
-        );
-    }
-    // The stranger's first trap (V-arc F1): statically-resolvable
-    // `nika:read` paths that do not exist HERE — a hint, never an
-    // error (the file may appear at run time). Analysis is
-    // nika-schema's; only the filesystem question lives at this edge.
-    for (task, path) in nika_check::static_read_paths(wf)
-        .into_iter()
-        .filter(|(_, p)| !std::path::Path::new(p).exists())
-    {
-        hint_count += 1;
-        let _ = writeln!(
-            out,
-            " {} {}     [inputs] `{task}` reads `{path}` which does not exist here — create it (or point its var elsewhere) · the run would fail at that wave",
-            t.paint(Role::Accent, "↳"),
-            t.paint(Role::Strong, "HINT"),
-        );
-    }
-    let inputs = required_inputs(wf);
-    if !inputs.is_empty() {
-        hint_count += 1;
-        let pass = inputs
-            .iter()
-            .map(|n| format!("--var {n}=…"))
-            .collect::<Vec<_>>()
-            .join(" ");
-        let advice = format!("required input(s) with no default · pass at run time: {pass}");
-        let _ = writeln!(
-            out,
-            " {} {}     [inputs] {advice}",
-            t.paint(Role::Accent, "↳"),
-            t.paint(Role::Strong, "HINT"),
-        );
-    }
-    if verdict {
-        let grade = nika_check::risk_grade(report);
-        let _ = writeln!(out, " {}", audited_line(report, wf, hint_count, grade, t));
-    } else {
-        // Through `mark()`, not a hardcoded glyph: this line shipped a
-        // literal `✖` and was the one verdict in the report that leaked
-        // unicode under `--ascii` — the flag exists for terminals that
-        // cannot render it, and the failing verdict was exactly the row
-        // they could not read.
-        let _ = writeln!(
-            out,
-            " {} {}",
-            mark(t, false),
-            t.paint(Role::Bad, "findings above")
-        );
-    }
+    report
+        .hints
+        .iter()
+        .map(|hint| hint.code.unwrap_or(hint.kind))
+        .collect()
 }
 
 /// The unbounded-cost census, split by WHY (probe 2026-07-30: a capped
@@ -570,7 +560,8 @@ fn unbounded_census(report: &CheckReport) -> String {
 fn audited_line(
     report: &CheckReport,
     wf: &RawWorkflow,
-    hints: usize,
+    distinct_hints: usize,
+    hint_sites: usize,
     grade: nika_check::RiskGrade,
     t: Theme,
 ) -> String {
@@ -645,13 +636,22 @@ fn audited_line(
     } else {
         ""
     };
+    let hint_summary = if distinct_hints == hint_sites {
+        crate::vocab::count(hint_sites, "hint")
+    } else {
+        format!(
+            "{} across {}",
+            crate::vocab::count(distinct_hints, "distinct hint"),
+            crate::vocab::count(hint_sites, "site")
+        )
+    };
     t.paint(
         role,
         &format!(
             "{mark} audited · {} · {} · permits {permits} · {est} · {} · risk {}{handle}",
             crate::vocab::count(tasks, "task"),
             crate::vocab::count(report.waves.len(), "wave"),
-            crate::vocab::count(hints, "hint"),
+            hint_summary,
             grade.as_str(),
         ),
     )
@@ -1457,6 +1457,9 @@ fn loopback_declassification_lines(out: &mut String, wf: &RawWorkflow, t: Theme)
         }
     }
 }
+mod footer;
+use footer::hints_and_verdict;
+
 #[cfg(test)]
 mod tests;
 mod trifecta;

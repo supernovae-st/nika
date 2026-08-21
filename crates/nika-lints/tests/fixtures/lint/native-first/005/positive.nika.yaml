@@ -1,0 +1,4 @@
+nika: native-005-positive
+tasks:
+  helper:
+    exec: { command: ["python3", "helper.py"] }

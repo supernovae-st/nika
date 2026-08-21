@@ -156,6 +156,7 @@ fn offer_tightest(permits: &EffectivePermits, hints: &mut Vec<Hint>) {
             .join(", ");
         hints.push(Hint {
             kind: "permits",
+            code: None,
             task: "-".to_owned(),
             advice: format!(
                 "`permits.fs.{face}` is wider than the body needs — the tightest \

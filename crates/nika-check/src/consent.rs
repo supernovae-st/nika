@@ -459,6 +459,7 @@ fn consent_finding(prompt: &str, sink: &str) -> ConsentFinding {
 fn consent_hint(prompt: &str, sink: &str) -> Hint {
     Hint {
         kind: "consent",
+        code: None,
         task: sink.to_owned(),
         advice: format!(
             "`{sink}` sits on a route from `{prompt}` the checker cannot PROVE consumes the \

@@ -295,6 +295,7 @@ pub nika_schema::error::SchemaError::YamlSyntax
 pub nika_schema::error::SchemaError::YamlSyntax::message: alloc::string::String
 pub nika_schema::error::SchemaError::YamlSyntax::span: core::option::Option<nika_source::span::Span>
 impl nika_schema::error::SchemaError
+pub fn nika_schema::error::SchemaError::diagnostic(&self) -> nika_schema::error::SchemaDiagnostic
 pub fn nika_schema::error::SchemaError::rename_repair(&self) -> core::option::Option<(alloc::string::String, alloc::string::String)>
 pub fn nika_schema::error::SchemaError::span(&self) -> core::option::Option<nika_source::span::Span>
 pub fn nika_schema::error::SchemaError::validation(message: impl core::convert::Into<alloc::string::String>) -> Self
@@ -380,6 +381,48 @@ impl<T> core::convert::From<T> for nika_schema::error::spec_code::SpecCategory
 pub fn nika_schema::error::spec_code::SpecCategory::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_schema::error::spec_code::SpecCategory where T: 'static
 pub fn nika_schema::error::spec_code::SpecCategory::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_schema::error::SchemaDiagnostic
+pub nika_schema::error::SchemaDiagnostic::code: nika_schema::error::spec_code::SpecCode
+pub nika_schema::error::SchemaDiagnostic::message: alloc::string::String
+impl core::clone::Clone for nika_schema::error::SchemaDiagnostic
+pub fn nika_schema::error::SchemaDiagnostic::clone(&self) -> nika_schema::error::SchemaDiagnostic
+impl core::cmp::Eq for nika_schema::error::SchemaDiagnostic
+impl core::cmp::PartialEq for nika_schema::error::SchemaDiagnostic
+pub fn nika_schema::error::SchemaDiagnostic::eq(&self, other: &nika_schema::error::SchemaDiagnostic) -> bool
+impl core::fmt::Debug for nika_schema::error::SchemaDiagnostic
+pub fn nika_schema::error::SchemaDiagnostic::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_schema::error::SchemaDiagnostic
+pub fn nika_schema::error::SchemaDiagnostic::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_schema::error::SchemaDiagnostic
+impl<D> owo_colors::OwoColorize for nika_schema::error::SchemaDiagnostic
+impl<Q, K> hashbrown::Equivalent<K> for nika_schema::error::SchemaDiagnostic where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_schema::error::SchemaDiagnostic::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_schema::error::SchemaDiagnostic where U: core::convert::From<T>
+pub fn nika_schema::error::SchemaDiagnostic::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_schema::error::SchemaDiagnostic where U: core::convert::Into<T>
+pub type nika_schema::error::SchemaDiagnostic::Error = core::convert::Infallible
+pub fn nika_schema::error::SchemaDiagnostic::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_schema::error::SchemaDiagnostic where U: core::convert::TryFrom<T>
+pub type nika_schema::error::SchemaDiagnostic::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_schema::error::SchemaDiagnostic::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_schema::error::SchemaDiagnostic where T: core::clone::Clone
+pub type nika_schema::error::SchemaDiagnostic::Owned = T
+pub fn nika_schema::error::SchemaDiagnostic::clone_into(&self, target: &mut T)
+pub fn nika_schema::error::SchemaDiagnostic::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_schema::error::SchemaDiagnostic where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_schema::error::SchemaDiagnostic::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_schema::error::SchemaDiagnostic where T: 'static + ?core::marker::Sized
+pub fn nika_schema::error::SchemaDiagnostic::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_schema::error::SchemaDiagnostic where T: ?core::marker::Sized
+pub fn nika_schema::error::SchemaDiagnostic::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_schema::error::SchemaDiagnostic where T: ?core::marker::Sized
+pub fn nika_schema::error::SchemaDiagnostic::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_schema::error::SchemaDiagnostic where T: core::clone::Clone
+pub unsafe fn nika_schema::error::SchemaDiagnostic::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_schema::error::SchemaDiagnostic
+pub fn nika_schema::error::SchemaDiagnostic::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_schema::error::SchemaDiagnostic where T: 'static
+pub fn nika_schema::error::SchemaDiagnostic::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_schema::error::SpecCode
 pub nika_schema::error::SpecCode::category: nika_schema::error::spec_code::SpecCategory
 pub nika_schema::error::SpecCode::namespace: &'static str
@@ -1963,6 +2006,7 @@ pub nika_schema::SchemaError::YamlSyntax
 pub nika_schema::SchemaError::YamlSyntax::message: alloc::string::String
 pub nika_schema::SchemaError::YamlSyntax::span: core::option::Option<nika_source::span::Span>
 impl nika_schema::error::SchemaError
+pub fn nika_schema::error::SchemaError::diagnostic(&self) -> nika_schema::error::SchemaDiagnostic
 pub fn nika_schema::error::SchemaError::rename_repair(&self) -> core::option::Option<(alloc::string::String, alloc::string::String)>
 pub fn nika_schema::error::SchemaError::span(&self) -> core::option::Option<nika_source::span::Span>
 pub fn nika_schema::error::SchemaError::validation(message: impl core::convert::Into<alloc::string::String>) -> Self

@@ -133,6 +133,12 @@ pub struct Hint {
     /// `exec-floor` is RETIRED (#605 · promoted to the NIKA-SEC-001
     /// finding — the check judges the SAME predicate the run does).
     pub kind: &'static str,
+    /// Stable diagnostic code when this hint belongs to a numbered
+    /// ruleset (`native-first/001`, for example). General improvement
+    /// hints keep `None`; consumers may group by `(code, advice)` without
+    /// parsing prose.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub code: Option<&'static str>,
     /// The task it concerns (`-` for workflow-level hints).
     pub task: String,
     /// What to change and what it unlocks.
@@ -221,6 +227,7 @@ pub(super) fn scan_hints(wf: &RawWorkflow) -> Vec<Hint> {
     for (name, id) in &envelope_bound {
         hints.push(Hint {
             kind: "envelope-output",
+            code: None,
             task: id.clone(),
             advice: format!(
                 "outputs.{name} binds the whole ENVELOPE of `{id}` (status · timestamps · \
@@ -554,6 +561,7 @@ fn push_redundant_gate_hints(hints: &mut Vec<Hint>, t: &RawTask, id: &str) {
         if has_value_edge {
             hints.push(Hint {
                 kind: "redundant-gate",
+                code: None,
                 task: id.to_owned(),
                 advice: format!(
                     "`after: {{{t}: terminal}}` beside a value edge to `{t}` is a non-tightening restatement \u{2014} the composed gate is the value edge's {{success, skipped}} either way (spec 03 \u{a7}one obvious way /010); drop the entry or tighten to `success`",
@@ -1472,6 +1480,7 @@ fn squash_ws(s: &str) -> String {
 fn hint(kind: &'static str, task: &str, advice: String) -> Hint {
     Hint {
         kind,
+        code: None,
         task: task.to_owned(),
         advice,
     }

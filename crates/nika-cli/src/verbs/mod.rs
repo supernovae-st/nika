@@ -48,58 +48,11 @@ pub use nika_trace::{
 
 use nika_check::CheckReport;
 use nika_schema::raw::RawWorkflow;
-use nika_schema::{FileId, ParseMode};
+use nika_schema::{FileId, ParseMode, SchemaError};
 
 pub use nika_cli_host::output::{VerbOutput, exit};
 pub(crate) use nika_cli_host::output::{linked_path, truecolor_env};
-
-#[derive(Clone)]
-pub(crate) struct RunSource {
-    logical_path: std::sync::Arc<str>,
-    source: std::sync::Arc<str>,
-}
-
-impl RunSource {
-    pub(crate) fn capture(path: &str) -> Result<Self, VerbOutput> {
-        let source = if path == "-" {
-            use std::io::Read as _;
-            let mut buf = String::new();
-            std::io::stdin()
-                .read_to_string(&mut buf)
-                .map_err(|e| VerbOutput::env(format!("cannot read stdin: {e}")))?;
-            buf
-        } else {
-            std::fs::read_to_string(path)
-                .map_err(|e| VerbOutput::env(format!("cannot read {path}: {e}")))?
-        };
-        Ok(Self::new(path, source))
-    }
-
-    pub(crate) fn from_bytes(
-        logical_path: impl Into<String>,
-        bytes: Vec<u8>,
-    ) -> std::io::Result<Self> {
-        let source = String::from_utf8(bytes).map_err(|error| {
-            std::io::Error::new(std::io::ErrorKind::InvalidData, error.utf8_error())
-        })?;
-        Ok(Self::new(logical_path, source))
-    }
-
-    fn new(logical_path: impl Into<String>, source: String) -> Self {
-        Self {
-            logical_path: std::sync::Arc::from(logical_path.into()),
-            source: std::sync::Arc::from(source),
-        }
-    }
-
-    pub(crate) fn logical_path(&self) -> &str {
-        &self.logical_path
-    }
-
-    pub(crate) fn source(&self) -> &str {
-        &self.source
-    }
-}
+pub(crate) use nika_cli_host::source::RunSource;
 
 /// Read + strict-parse + ladder-check one workflow file. The Unix dash
 /// (`-`) reads stdin — the editor wire: a dirty buffer pipes straight
@@ -129,7 +82,7 @@ pub(crate) fn load_checked_run_source(
     source: &RunSource,
 ) -> Result<(RawWorkflow, CheckReport), VerbOutput> {
     let wf = nika_schema::parse(source.source(), FileId::new(0), ParseMode::Strict)
-        .map_err(|e| VerbOutput::file(format!("PARSE ✗  [{}] {e}", e.spec_code())))?;
+        .map_err(|error| schema_refusal(&error))?;
     // The composed lane (spec 14): child targets resolve against the
     // file the operator named; the fs edge is the skills reader's twin.
     let mut report = nika_check::check_composed(&wf, source.logical_path(), &mut |p| {
@@ -137,6 +90,12 @@ pub(crate) fn load_checked_run_source(
     });
     stamp_judged_semantic(&wf, &mut report);
     Ok((wf, report))
+}
+
+/// The single CLI sink for every schema-facing refusal, whether acquisition
+/// rejected the encoding or the parser rejected the decoded workflow.
+fn schema_refusal(error: &SchemaError) -> VerbOutput {
+    VerbOutput::file(format!("PARSE ✗  {}", error.diagnostic()))
 }
 
 /// Stamp the judged-vs-booted binding (F-P2): the report records the
@@ -369,7 +328,7 @@ mod tests {
     /// could not `nika explain` the failure (every other finding shows its
     /// code). `load_checked` now formats `e.spec_code()`.
     #[test]
-    fn parse_error_carries_its_spec_code() {
+    fn parse_error_carries_its_code_message_and_next_action_exactly() {
         let path =
             std::env::temp_dir().join(format!("nika-parsecode-{}.nika.yaml", std::process::id(),));
         std::fs::write(
@@ -381,10 +340,42 @@ mod tests {
             .expect_err("a task with two verbs must fail to parse");
         std::fs::remove_file(&path).ok();
         assert_eq!(err.code, exit::FILE, "{}", err.text);
-        assert!(
-            err.text.contains("NIKA-PARSE-009"),
-            "parse error must carry its spec code · got: {}",
-            err.text
+        assert_eq!(
+            err.text,
+            "PARSE ✗  [NIKA-PARSE-009] task `a` has multiple verbs (infer, exec) — exactly one required · → nika explain NIKA-PARSE-009"
         );
+    }
+
+    #[test]
+    fn invalid_utf8_workflow_is_a_coded_schema_refusal_not_an_environment_error() {
+        let path = std::env::temp_dir().join(format!(
+            "nika-invalid-utf8-{}.nika.yaml",
+            std::process::id(),
+        ));
+        std::fs::write(&path, [0xff, 0xfe]).expect("invalid UTF-8 fixture written");
+
+        let err = load_checked(path.to_str().expect("UTF-8 tmp path"))
+            .expect_err("invalid workflow encoding must refuse before parsing");
+        std::fs::remove_file(&path).ok();
+
+        assert_eq!(err.code, exit::FILE, "{}", err.text);
+        assert_eq!(
+            err.text,
+            "PARSE ✗  [NIKA-PARSE-001] YAML parse error: workflow source is not valid UTF-8 · → nika explain NIKA-PARSE-001"
+        );
+    }
+
+    #[test]
+    fn a_missing_workflow_stays_an_environment_error() {
+        let path = std::env::temp_dir().join(format!(
+            "nika-definitely-missing-{}.nika.yaml",
+            std::process::id(),
+        ));
+        std::fs::remove_file(&path).ok();
+
+        let err = load_checked(path.to_str().expect("UTF-8 tmp path"))
+            .expect_err("a missing workflow is an environment failure");
+        assert_eq!(err.code, exit::ENV, "{}", err.text);
+        assert!(err.text.starts_with("cannot read "), "{}", err.text);
     }
 }

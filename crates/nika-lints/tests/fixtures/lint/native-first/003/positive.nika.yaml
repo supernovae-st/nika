@@ -1,0 +1,4 @@
+nika: native-003-positive
+tasks:
+  shape:
+    exec: { command: ["jq", ".", "input.json"] }

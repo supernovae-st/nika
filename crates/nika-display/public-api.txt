@@ -1,5 +1,59 @@
 pub mod nika_display
 pub mod nika_display::check_render
+pub enum nika_display::check_render::RepairTarget
+pub nika_display::check_render::RepairTarget::NonRegularSource
+pub nika_display::check_render::RepairTarget::RegistryArtifact
+pub nika_display::check_render::RepairTarget::Stdin
+pub nika_display::check_render::RepairTarget::WorkspaceFile
+impl core::clone::Clone for nika_display::check_render::RepairTarget
+pub fn nika_display::check_render::RepairTarget::clone(&self) -> nika_display::check_render::RepairTarget
+impl core::cmp::Eq for nika_display::check_render::RepairTarget
+impl core::cmp::PartialEq for nika_display::check_render::RepairTarget
+pub fn nika_display::check_render::RepairTarget::eq(&self, other: &nika_display::check_render::RepairTarget) -> bool
+impl core::fmt::Debug for nika_display::check_render::RepairTarget
+pub fn nika_display::check_render::RepairTarget::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_display::check_render::RepairTarget
+impl core::marker::StructuralPartialEq for nika_display::check_render::RepairTarget
+impl<D> owo_colors::OwoColorize for nika_display::check_render::RepairTarget
+impl<Q, K> equivalent::Equivalent<K> for nika_display::check_render::RepairTarget where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_display::check_render::RepairTarget::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_display::check_render::RepairTarget where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_display::check_render::RepairTarget::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_display::check_render::RepairTarget where U: core::convert::From<T>
+pub fn nika_display::check_render::RepairTarget::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_display::check_render::RepairTarget where U: core::convert::Into<T>
+pub type nika_display::check_render::RepairTarget::Error = core::convert::Infallible
+pub fn nika_display::check_render::RepairTarget::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_display::check_render::RepairTarget where U: core::convert::TryFrom<T>
+pub type nika_display::check_render::RepairTarget::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_display::check_render::RepairTarget::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_display::check_render::RepairTarget where T: core::clone::Clone
+pub type nika_display::check_render::RepairTarget::Owned = T
+pub fn nika_display::check_render::RepairTarget::clone_into(&self, target: &mut T)
+pub fn nika_display::check_render::RepairTarget::to_owned(&self) -> T
+impl<T> core::any::Any for nika_display::check_render::RepairTarget where T: 'static + ?core::marker::Sized
+pub fn nika_display::check_render::RepairTarget::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_display::check_render::RepairTarget where T: ?core::marker::Sized
+pub fn nika_display::check_render::RepairTarget::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_display::check_render::RepairTarget where T: ?core::marker::Sized
+pub fn nika_display::check_render::RepairTarget::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_display::check_render::RepairTarget where T: core::clone::Clone
+pub unsafe fn nika_display::check_render::RepairTarget::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_display::check_render::RepairTarget
+pub fn nika_display::check_render::RepairTarget::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_display::check_render::RepairTarget where T: core::clone::Clone
+pub fn nika_display::check_render::RepairTarget::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_display::check_render::RepairTarget where T: 'static
+pub fn nika_display::check_render::RepairTarget::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_display::check_render::RepairTarget where T: core::marker::Copy
+pub fn nika_display::check_render::RepairTarget::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_display::check_render::RepairTarget where T: ?core::marker::Sized
+pub fn nika_display::check_render::RepairTarget::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_display::check_render::RepairTarget::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_display::check_render::RepairTarget
+impl<T> tracing::instrument::WithSubscriber for nika_display::check_render::RepairTarget
+impl<T> typenum::type_operators::Same for nika_display::check_render::RepairTarget
+pub type nika_display::check_render::RepairTarget::Output = T
 #[non_exhaustive] pub struct nika_display::check_render::ModelFinding
 pub nika_display::check_render::ModelFinding::model: alloc::string::String
 pub nika_display::check_render::ModelFinding::tasks: alloc::vec::Vec<alloc::string::String>
@@ -110,7 +164,7 @@ impl<T> typenum::type_operators::Same for nika_display::check_render::ModelsAudi
 pub type nika_display::check_render::ModelsAudit::Output = T
 pub fn nika_display::check_render::mark(theme: nika_display::theme::Theme, ok: bool) -> alloc::string::String
 pub fn nika_display::check_render::permits(out: &mut alloc::string::String, report: &nika_check::CheckReport, wf: &nika_schema::raw::workflow::RawWorkflow, t: nika_display::theme::Theme)
-pub fn nika_display::check_render::render(report: &nika_check::CheckReport, wf: &nika_schema::raw::workflow::RawWorkflow, source: &str, path: &str, t: nika_display::theme::Theme, models_audit: &nika_display::check_render::ModelsAudit, skills: &nika_schema::skill::ResolvedSkills, drift_hints: &[alloc::string::String], verdict: bool) -> alloc::string::String
+pub fn nika_display::check_render::render(report: &nika_check::CheckReport, wf: &nika_schema::raw::workflow::RawWorkflow, source: &str, path: &str, repair_target: nika_display::check_render::RepairTarget, t: nika_display::theme::Theme, models_audit: &nika_display::check_render::ModelsAudit, skills: &nika_schema::skill::ResolvedSkills, drift_hints: &[alloc::string::String], verdict: bool) -> alloc::string::String
 pub fn nika_display::check_render::required_inputs(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<&str>
 pub mod nika_display::chrome
 pub const nika_display::chrome::PULSE: [char; 3]

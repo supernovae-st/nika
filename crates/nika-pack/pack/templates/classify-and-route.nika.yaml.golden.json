@@ -1,0 +1,43 @@
+{
+  "queue": "standard",
+  "receipt": {
+    "bundle": {
+      "digest": null,
+      "id": "incident-route",
+      "version": "1.0.0"
+    },
+    "conflicts": [],
+    "decision_receipt_format": 1,
+    "determination_provenance": [
+      "no threshold admitted — defer"
+    ],
+    "dimensions": {
+      "incident_priority": {
+        "contributions": [
+          {
+            "contribution": {
+              "hi": 0,
+              "lo": 0
+            },
+            "evidence": "urgency",
+            "known": true,
+            "transform": "urgency_step",
+            "weight_bp": 10000
+          }
+        ],
+        "interval": {
+          "hi": 0,
+          "lo": 0
+        }
+      }
+    },
+    "outcome": "defer",
+    "snapshot": {
+      "digests": [
+        "runtime-urgency"
+      ],
+      "missing": [],
+      "t": "2027-01-01T00:00:00Z"
+    }
+  }
+}

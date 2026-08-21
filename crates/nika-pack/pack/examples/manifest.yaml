@@ -49,10 +49,18 @@ templates:
     sha256_16: 9bf0d6eaca6d18f3
   - file: templates/chain.nika.yaml
     sha256_16: 3872ed6ba11aaef0
+  - file: templates/classify-and-route.nika.yaml
+    sha256_16: ba70b5693762b3ba
+  - file: templates/corpus-qa.nika.yaml
+    sha256_16: 960bffdc710a6cca
   - file: templates/docker-report.nika.yaml
     sha256_16: 72c55f04627c584d
+  - file: templates/document-to-fields.nika.yaml
+    sha256_16: 2cd45edb761e9a4f
   - file: templates/etl-state.nika.yaml
     sha256_16: d7f6795d4124c091
+  - file: templates/evaluate-and-optimize.nika.yaml
+    sha256_16: 6a63cca7a99b7396
   - file: templates/fanout.nika.yaml
     sha256_16: 4faf5c91cb9bc689
   - file: templates/gate-and-act.nika.yaml

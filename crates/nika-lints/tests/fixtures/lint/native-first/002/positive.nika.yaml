@@ -1,0 +1,4 @@
+nika: native-002-positive
+tasks:
+  read:
+    exec: { command: ["cat", "input.txt"] }

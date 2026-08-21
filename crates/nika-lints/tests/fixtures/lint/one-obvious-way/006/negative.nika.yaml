@@ -1,0 +1,6 @@
+nika: lint-006-negative
+tasks:
+  shards:
+    for_each: { items: [1, 2] }
+    timeout: 30s
+    exec: { command: ["./process.sh"] }

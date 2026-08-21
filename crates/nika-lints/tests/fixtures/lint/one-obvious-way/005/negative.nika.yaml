@@ -1,0 +1,9 @@
+nika: lint-005-negative
+tasks:
+  a:
+    exec: { command: ["./a.sh"] }
+  b:
+    exec: { command: ["./b.sh"] }
+  summarize:
+    with: { left: "${{ tasks.a.output }}", right: "${{ tasks.b.output }}" }
+    exec: { command: ["./summarize.sh", "${{ with.left }}", "${{ with.right }}"] }

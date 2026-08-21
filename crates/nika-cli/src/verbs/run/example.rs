@@ -115,6 +115,7 @@ pub fn example(
         false, // examples are engine-staged content — unsigned-tolerant
         false, // examples are one-shot runs, not the outer TTY thread
         None,
+        None,
     );
     // The example's own envelope model — what we suggest overriding when a
     // run fails offline. A parse miss leaves it empty (the infer tip then

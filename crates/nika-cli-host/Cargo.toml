@@ -20,6 +20,8 @@ nika-models    = { path = "../nika-models", version = "0.112.0" }    # model ids
 nika-pack      = { path = "../nika-pack", version = "0.112.0" }      # embedded pack version (kit probes)
 nika-providers = { path = "../nika-providers", version = "0.112.0" } # ProviderRegistry + ExecutionLocus (the probe ladders)
 nika-runtime   = { path = "../nika-runtime", version = "0.112.0" }   # trace-store shapes retention walks + WorkflowPause/Stamper (notify · ADR-111)
+nika-registry-client = { path = "../nika-registry-client", version = "0.112.0" } # canonical registry cache root for --fix provenance
+nix            = { workspace = true, features = ["fs"] }              # FIFO fixtures in repair-target tests
 nika-schema    = { path = "../nika-schema", version = "0.112.0" }    # RawWorkflow (context envelope · glance)
 nika-http      = { path = "../nika-http", version = "0.112.0" }      # ReqwestHttp — the notify webhook client (ADR-111 · SSRF floor)
 nika-event     = { path = "../nika-event", version = "0.112.0" }     # Event + notify_delivered/notify_failed kinds (ADR-111)

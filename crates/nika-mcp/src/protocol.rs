@@ -43,6 +43,11 @@ pub(crate) const SUPPORTED: [&str; 5] = [
 ];
 /// The advertised server name (`serverInfo.name`).
 pub(crate) const SERVER_NAME: &str = "nika";
+/// Portable authoring guidance delivered by the server to every MCP client.
+///
+/// Tool descriptions answer what each call does. This answers orchestration:
+/// order, selection, and the actions the read-only server never takes.
+const SERVER_INSTRUCTIONS: &str = "Author in this order: nika_template → fill every SLOT → nika_check → repair every finding → check again. Use nika_schema for field shape, nika_examples for a precedent, nika_inspect for the derived DAG, and nika_explain for every diagnostic code. Read names from nika_canon, nika_catalog, and nika_tools instead of memory. Never invent a field, provider, model, tool, or permission; never run a workflow through this read-only server — running is an explicit CLI act after a clean check.";
 
 /// Dispatch one INCOMING stdio message — a single request/notification (a JSON
 /// object) OR a JSON-RPC 2.0 BATCH (an array · the 2024-11-05 / 2025-03-26
@@ -107,6 +112,7 @@ fn initialize_result(params: Option<&Value>) -> Value {
         "protocolVersion": version,
         "capabilities": { "tools": {}, "prompts": {} },
         "serverInfo": { "name": SERVER_NAME, "version": env!("CARGO_PKG_VERSION") },
+        "instructions": SERVER_INSTRUCTIONS,
     })
 }
 
@@ -199,6 +205,22 @@ mod tests {
         assert_eq!(resp["result"]["protocolVersion"], PROTOCOL_VERSION);
         assert_eq!(resp["result"]["serverInfo"]["name"], "nika");
         assert!(resp["result"]["capabilities"]["tools"].is_object());
+        assert_eq!(
+            resp["result"]["instructions"],
+            "Author in this order: nika_template → fill every SLOT → nika_check → repair every finding → check again. Use nika_schema for field shape, nika_examples for a precedent, nika_inspect for the derived DAG, and nika_explain for every diagnostic code. Read names from nika_canon, nika_catalog, and nika_tools instead of memory. Never invent a field, provider, model, tool, or permission; never run a workflow through this read-only server — running is an explicit CLI act after a clean check."
+        );
+
+        let instructions = resp["result"]["instructions"]
+            .as_str()
+            .expect("instructions are text");
+        for tool in tools::catalog().as_array().expect("tool catalog") {
+            let description = tool["description"].as_str().expect("description");
+            assert!(
+                !instructions.contains(description),
+                "initialize instructions must not duplicate `{}`'s description",
+                tool["name"]
+            );
+        }
     }
 
     #[test]
@@ -283,6 +305,29 @@ mod tests {
                 .expect("text")
                 .contains("findings"),
             "the findings still ride the content so the model repairs"
+        );
+    }
+
+    #[test]
+    fn tools_call_parse_failure_is_a_visible_actionable_result() {
+        let wf = "nika: t\nentropy: 7\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n";
+        let resp = handle(&json!({
+            "jsonrpc": "2.0", "id": 8, "method": "tools/call",
+            "params": { "name": "nika_check", "arguments": { "workflow": wf } }
+        }))
+        .expect("reply");
+        assert!(resp.get("error").is_none(), "not a protocol error: {resp}");
+        assert_eq!(resp["result"]["isError"], true);
+        let text = resp["result"]["content"][0]["text"]
+            .as_str()
+            .expect("text result");
+        assert!(
+            text.starts_with("PARSE ✗ [NIKA-PARSE-005] unknown field `entropy`"),
+            "the exact code and message ride the result: {text}"
+        );
+        assert!(
+            text.ends_with("· → nika explain NIKA-PARSE-005"),
+            "the refusal names its next action: {text}"
         );
     }
 

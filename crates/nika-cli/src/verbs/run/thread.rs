@@ -33,6 +33,7 @@ pub(crate) fn run_in_thread(file: &str, theme: Theme) -> ThreadRun {
         false,
         true,
         None,
+        None,
     );
     ThreadRun {
         answer: verdict

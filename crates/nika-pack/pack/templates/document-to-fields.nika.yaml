@@ -1,0 +1,92 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# TEMPLATE · document-to-fields · source text → anchored facts → nonempty proof.
+#
+# The source is trimmed and proved nonempty before inference. The extraction
+# is typed, and every value carries the exact source fragment that supports it.
+# An empty extraction is refused before it can look like a successful read.
+#
+# Needs · nothing. Runs offline in an empty directory with mock/echo.
+# Run · nika run <file> --model mock/echo
+nika: document-to-fields
+
+model: mock/echo                     # SLOT: replace with a local or hosted seat
+
+const:
+  document: |                        # SLOT: replace with content from nika:read or nika:fetch
+    Invoice INV-204
+    Supplier: Northwind Tools
+    Total: EUR 84.50
+    Rehearsal marker: mock
+
+permits:
+  tools: ["nika:jq", "nika:assert"]
+
+tasks:
+  normalize_document:
+    invoke:
+      tool: nika:jq
+      args:
+        input: ${{ const.document }}
+        expression: 'gsub("^\\s+|\\s+$"; "")'
+
+  document_nonempty:
+    with:
+      document: ${{ tasks.normalize_document.output }}
+    invoke:
+      tool: nika:assert
+      args:
+        condition: ${{ size(with.document) > 0 }}
+        message: "Document is empty after whitespace is trimmed"
+
+  extract:
+    with:
+      document: ${{ tasks.normalize_document.output }}
+    after:
+      document_nonempty: success
+    infer:
+      max_tokens: 600                # SLOT: extraction spend ceiling
+      prompt: |
+        Extract only facts explicitly present in this document. For every
+        value, copy the shortest exact source fragment that anchors it.
+
+        ${{ with.document }}
+      schema:
+        type: object
+        additionalProperties: false
+        required: [fields]
+        properties:
+          fields:
+            type: array
+            minItems: 1
+            items:
+              type: object
+              additionalProperties: false
+              required: [name, value, anchor]
+              properties:
+                name: { type: string, minLength: 1 }
+                value: { type: string, minLength: 1 }
+                anchor: { type: string, minLength: 1 }
+
+  anchors_present:
+    with:
+      fields: ${{ tasks.extract.output.fields }}
+      document: ${{ tasks.normalize_document.output }}
+    invoke:
+      tool: nika:jq
+      args:
+        input: { fields: "${{ with.fields }}", document: "${{ with.document }}" }
+        expression: '. as $root | ($root.fields | length) > 0 and all($root.fields[]; . as $field | (.name | length) > 0 and (.value | length) > 0 and (.anchor | length) > 0 and ($root.document | contains($field.anchor)))'
+
+  compiled:
+    with:
+      anchors_present: ${{ tasks.anchors_present.output }}
+    invoke:
+      tool: nika:assert
+      args:
+        condition: ${{ with.anchors_present }}
+        message: "Document extraction returned no anchored fields"
+
+outputs:
+  fields: ${{ tasks.extract.output.fields }}

@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: Apache-2.0
+# COUNTEREXAMPLE · a critique cycle has no structural bound.
+# Expected · NIKA-DAG-001.
+nika: evaluate-and-optimize-negative
+permits:
+  tools: ["nika:jq"]
+tasks:
+  evaluate:
+    with:
+      candidate: ${{ tasks.optimize.output }}
+    invoke:
+      tool: nika:jq
+      args: { input: "${{ with.candidate }}", expression: "." }
+  optimize:
+    with:
+      critique: ${{ tasks.evaluate.output }}
+    invoke:
+      tool: nika:jq
+      args: { input: "${{ with.critique }}", expression: "." }

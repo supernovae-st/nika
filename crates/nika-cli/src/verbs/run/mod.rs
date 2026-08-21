@@ -50,6 +50,8 @@ use sink::{TraceNote, TraceSurface, surface_trace};
 mod budget;
 mod ceiling;
 mod epilogue;
+mod provenance;
+pub use provenance::run_with_repair_target;
 mod heartbeat;
 mod resume_setup;
 mod teardown;
@@ -212,6 +214,7 @@ pub fn run(
         require_signature,
         false,
         None,
+        None,
     )
     .code
 }
@@ -241,6 +244,7 @@ pub(crate) fn run_checked_source(
         false,
         false,
         Some(source),
+        None,
     )
 }
 
@@ -266,24 +270,6 @@ fn preflight(
     Ok((output_json, max_cost_usd))
 }
 
-fn capture_checked_source(
-    file: &str,
-    captured: Option<crate::verbs::RunSource>,
-    output_json: bool,
-) -> Result<(crate::verbs::RunSource, RawWorkflow, CheckReport), Box<RunVerdict>> {
-    let source = captured
-        .map_or_else(|| crate::verbs::RunSource::capture(file), Ok)
-        .map_err(|out| {
-            epilogue::emit_diagnostic(&refusal_text(&out), output_json);
-            Box::new(RunVerdict::bare(out.code))
-        })?;
-    let (wf, report) = crate::verbs::load_checked_run_source(&source).map_err(|out| {
-        epilogue::emit_diagnostic(&refusal_text(&out), output_json);
-        Box::new(RunVerdict::bare(out.code))
-    })?;
-    Ok((source, wf, report))
-}
-
 #[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
 #[must_use]
 fn run_verdict(
@@ -305,15 +291,17 @@ fn run_verdict(
     require_signature: bool,
     interruptible: bool,
     captured: Option<crate::verbs::RunSource>,
+    repair_target: Option<nika_display::check_render::RepairTarget>,
 ) -> RunVerdict {
     let (output_json, max_cost_usd) = match preflight(output, max_cost_usd, no_gc, dry_run) {
         Ok(pair) => pair,
         Err(verdict) => return *verdict,
     };
-    let (source, wf, report) = match capture_checked_source(file, captured, output_json) {
-        Ok(checked) => checked,
-        Err(verdict) => return *verdict,
-    };
+    let (source, wf, report) =
+        match provenance::capture_checked_source(file, captured, repair_target, output_json) {
+            Ok(checked) => checked,
+            Err(verdict) => return *verdict,
+        };
     let file = source.logical_path();
     let source_text = source.source();
     if require_signature && let Err(code) = require_signature_gate(file, output_json) {
