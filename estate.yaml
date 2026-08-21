@@ -18,15 +18,15 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4524
+  classified_files: 4518
   file_rows: 11
-  pattern_rows: 23
+  pattern_rows: 22
   by_class:
-    authored: 1577
+    authored: 1576
     authored-pin: 2
     generated: 122
     pinned-copy: 122
-    testimonial: 2701
+    testimonial: 2696
     foreign: 0
   unverified-default: 7
 files:
@@ -175,11 +175,6 @@ patterns:
   match_count: 81
   aggregate_sha256: 9cc86a5fc503bc89cab422596bf9f71480fc2f47dd52c4f285dc410cdde0b881
   evidence: "per-decision records authored at decision time (scripts/adr/new.sh scaffolds · adr-seal-check hook seals); index.toml excepted in files:"
-- glob: "docs/testimonials/**"
-  class: testimonial
-  match_count: 5
-  aggregate_sha256: c989be1a041c13c300b3a37e4fd228f5070715b38dae89e9bf99c8d0fc1ecffd
-  evidence: "privacy-sanitized machine receipts captured from complete verification runs; their validator binds the tested commit, pre-run census, invocation, input blobs, accounting, and artifact hashes"
 - glob: "docs/**"
   class: authored
   match_count: 109
@@ -187,8 +182,8 @@ patterns:
   evidence: "crate-specs · architecture prose · perf notes — no generation markers at file heads"
 - glob: "scripts/**"
   class: authored
-  match_count: 157
-  aggregate_sha256: dc8513d5195ec926759c79e4bd287f74972fe907c47b90677ee7ab9602a43b31
+  match_count: 156
+  aggregate_sha256: 5357323fac217ba8cd2e7ef01f8f01c4ff03757b9e54ad74eaf654ccccd9a139
   evidence: "hand-written gates · hooks · hygiene vectors · media lanes; the ratchet baselines (scripts/ci/*-baseline.txt · scripts/hygiene/baselines/) are hand-kept monotonic floors ('Never remove a line by hand')"
 - glob: ".github/workflows/**"
   class: authored
