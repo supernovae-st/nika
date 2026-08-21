@@ -55,6 +55,22 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   stripped before comparing), and the exit code is untouched. The filename is
   a location `git mv` may change; the name is an identity that rides traces.
 
+### Fixed
+
+- **`nika arm` no longer refuses a project that sets its retention or its
+  provenance floor.** Two readers parse `nika.yaml` — the project reader
+  (`ceiling` · `traces.keep` · `registry.floor` · `arm`) and the cadence
+  grammar. The grammar refused `traces:` and `registry:` by name as
+  « round 2 » keys with a remedy that was false (« retention stays with
+  the env vars ») while the project reader had just accepted them and the
+  retention ladder and the provenance gate consume them — the project
+  starter's own `traces:` line made `nika arm` exit 2. Measured
+  2026-08-18. The grammar now admits the project's other rungs OPAQUE and
+  judges nothing about them (they are judged where they are owned); the
+  cadence domain's own deferred keys (`signature:` · `budget:`) stay
+  refused by name. A test derived from the project reader's closed key
+  set pins the parity: every key it admits, `nika arm` reads green.
+
 ## [0.113.0](https://github.com/supernovae-st/nika/compare/v0.112.0..v0.113.0) - 2026-08-21
 
 **The couture release.** The judge already knew; the agent can now see.

@@ -37,8 +37,10 @@ pub enum CadenceErrorKind {
     Identity,
     /// `ceiling:` present but not a positive finite number.
     CeilingNonPositive,
-    /// Round-2+ key present (`traces:` · `registry:` · `signature:` ·
-    /// `budget:`) — refused by name, never ignored.
+    /// Round-2+ key of the CADENCE domain present (`signature:` ·
+    /// `budget:`) — refused by name, never ignored. The project's other
+    /// rungs (`traces:` · `registry:`) are not this crate's to judge:
+    /// admitted opaque, judged by the project reader.
     DeferredKey,
     /// The cadence carries no `TZ=` prefix (only `on-webhook` may).
     TzMissing,

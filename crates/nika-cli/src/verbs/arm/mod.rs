@@ -352,6 +352,48 @@ mod tests {
         "    manqué: rattraper\n",
     );
 
+    /// ⭐ THE TOP-LEVEL PARITY, PINNED — measured 2026-08-18.
+    ///
+    /// Two readers parse this file: `nika_vocab::project` (first — it is
+    /// what `discover` runs) and `nika-cadence` (the grammar). A key the
+    /// project reader ADMITS must never be a key the grammar REFUSES:
+    /// `traces.keep` and `registry.floor` are shipped rungs (consumed by
+    /// the retention ladder and the provenance gate · the project starter
+    /// writes `traces:` itself), and the grammar refused them as « round
+    /// 2 » with a false remedy — a project that set its retention could
+    /// not run `nika arm` at all.
+    ///
+    /// Derived from the SSOT: every key in
+    /// [`project::TOP_LEVEL_KEYS`] rides ONE file with a valid value and
+    /// the verb must read it green. A project key added without a
+    /// snippet here fails loudly — the parity is a law, not a snapshot.
+    #[test]
+    fn every_key_the_project_reader_admits_the_verb_reads_green() {
+        let arm_block = TWO_BEATS
+            .strip_prefix("nika: proj\n")
+            .expect("TWO_BEATS opens on the project name");
+        let snippets: [(&str, &str); 5] = [
+            ("nika", "nika: proj\n"),
+            ("ceiling", "ceiling: 2.0\n"),
+            ("traces", "traces:\n  keep: 30d\n"),
+            ("registry", "registry:\n  floor: provenanced\n"),
+            ("arm", arm_block),
+        ];
+        let mut keys: Vec<&str> = snippets.iter().map(|(k, _)| *k).collect();
+        keys.sort_unstable();
+        let mut ssot: Vec<&str> = project::TOP_LEVEL_KEYS.to_vec();
+        ssot.sort_unstable();
+        assert_eq!(
+            keys, ssot,
+            "a project key without a snippet here — teach the parity its new key"
+        );
+        let body: String = snippets.iter().map(|(_, s)| *s).collect();
+        let dir = project_at("parity", &body);
+        let out = run_at(dir.path());
+        assert_eq!(out.code, exit::OK, "{}", out.text);
+        assert!(out.text.contains("2 beats"), "{}", out.text);
+    }
+
     #[test]
     fn a_project_with_no_file_says_so_without_failing() {
         let dir = tempfile::Builder::new()
