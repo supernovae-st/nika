@@ -14,7 +14,7 @@ use nika_cli::verbs::{self, VerbOutput};
 
 use crate::{ColorWhenArg, RunArgs, emit, run_verb};
 use nika_cli::display::format::LinkChoice;
-use nika_cli::verbs::check::{CheckFlags, dispatch as check_dispatch};
+use nika_cli::verbs::check::{CheckFlags, CheckTarget, dispatch_targets as check_dispatch};
 
 /// The `check` arm: registry refs resolve first (the `--fix` guard
 /// rides the same seam), then the normal multi-file dispatch.
@@ -61,7 +61,7 @@ pub(crate) fn registry_then_run(
 /// path — non-refs pass untouched. `--fix` refuses refs BEFORE any
 /// network: a digest-pinned artifact stays read-only (rewriting the
 /// cache would poison its record).
-fn resolve_registry_args(files: &[String], fix: bool) -> Result<Vec<String>, VerbOutput> {
+fn resolve_registry_args(files: &[String], fix: bool) -> Result<Vec<CheckTarget>, VerbOutput> {
     if fix && files.iter().any(|f| registry::is_registry_ref(f)) {
         return Err(VerbOutput {
             text: "--fix rewrites a file, and a registry artifact is pinned by its \
@@ -71,7 +71,19 @@ fn resolve_registry_args(files: &[String], fix: bool) -> Result<Vec<String>, Ver
             code: verbs::exit::ENV,
         });
     }
-    files.iter().map(|f| resolve_registry_arg(f)).collect()
+    files
+        .iter()
+        .map(|f| resolve_registry_check_arg(f))
+        .collect()
+}
+
+/// Resolve a check target while retaining the coordinate's immutable
+/// provenance separately from its cache path.
+fn resolve_registry_check_arg(arg: &str) -> Result<CheckTarget, VerbOutput> {
+    if !registry::is_registry_ref(arg) {
+        return Ok(CheckTarget::workspace(arg));
+    }
+    resolve_registry_arg(arg).map(CheckTarget::registry_artifact)
 }
 
 /// One argument through the registry seam. The fetch note goes to
@@ -89,5 +101,25 @@ fn resolve_registry_arg(arg: &str) -> Result<String, VerbOutput> {
             text: e.to_string(),
             code: verbs::exit::ENV,
         }),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn registry_fix_refuses_before_resolution_and_teaches_copy() {
+        let mut refused = false;
+        if let Err(out) = resolve_registry_args(&["registry:acme/report".to_owned()], true) {
+            refused = true;
+            assert_eq!(out.code, verbs::exit::ENV);
+            assert!(
+                out.text
+                    .contains("copy the cached file into your workspace")
+            );
+            assert!(out.text.contains("edit the copy"));
+        }
+        assert!(refused, "registry artifacts are immutable repair inputs");
     }
 }

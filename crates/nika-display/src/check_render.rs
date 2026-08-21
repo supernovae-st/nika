@@ -22,6 +22,17 @@ use crate::theme::{Role, Theme};
 
 pub use crate::check_models::{ModelFinding, ModelsAudit};
 
+/// Whether the checked bytes have a writable source. The CLI resolves a
+/// `registry:` coordinate to a cache path before parsing, so the original
+/// provenance must ride separately: a digest-pinned artifact is never a
+/// repair target even though its cache entry is a filesystem path.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RepairTarget {
+    WorkspaceFile,
+    Stdin,
+    RegistryArtifact,
+}
+
 /// Section mark: `✔`-class verdict glyphs through the theme seam.
 #[must_use]
 pub fn mark(theme: Theme, ok: bool) -> String {
@@ -77,6 +88,7 @@ pub fn render(
     wf: &RawWorkflow,
     source: &str,
     path: &str,
+    repair_target: RepairTarget,
     t: Theme,
     models_audit: &ModelsAudit,
     skills: &nika_schema::ResolvedSkills,
@@ -152,7 +164,16 @@ pub fn render(
     crate::check_laws::lift_rung(&mut out, report, wf, t);
     crate::check_journey::journey_rung(&mut out, report, t);
     run_rung(&mut out, report, wf, t);
-    hints_and_verdict(&mut out, report, wf, path, t, drift_hints, verdict);
+    hints_and_verdict(
+        &mut out,
+        report,
+        wf,
+        path,
+        repair_target,
+        t,
+        drift_hints,
+        verdict,
+    );
     // The MAP beside the verdict — the same themed wire art `graph
     // --format ascii` speaks, so the audit READS as the DAG it judged
     // (operator ask 2026-07-12: « quand on fait check, voir la dag »).
@@ -488,6 +509,7 @@ fn hints_and_verdict(
     report: &CheckReport,
     wf: &RawWorkflow,
     path: &str,
+    repair_target: RepairTarget,
     t: Theme,
     drift_hints: &[String],
     verdict: bool,
@@ -565,14 +587,22 @@ fn hints_and_verdict(
         );
     }
     if hint_sites > 0 {
-        let next = if path == "-" {
-            "save stdin to a file, then run `nika check --fix <file>` to apply safe repairs and re-check"
-                .to_owned()
-        } else {
-            format!(
-                "run `nika check --fix {}` to apply safe repairs, then re-check",
-                shell_quote(path)
-            )
+        let next = match repair_target {
+            RepairTarget::Stdin => {
+                "save stdin to a file, then run `nika check --fix <file>` to apply safe repairs and re-check"
+                    .to_owned()
+            }
+            RepairTarget::RegistryArtifact => {
+                "copy the registry artifact into your workspace, then run `nika check --fix <copy>` — the digest-pinned cache stays read-only"
+                    .to_owned()
+            }
+            RepairTarget::WorkspaceFile => {
+                let end_of_options = if path.starts_with('-') { " --" } else { "" };
+                format!(
+                    "run `nika check --fix{end_of_options} {}` to apply safe repairs, then re-check",
+                    shell_quote(path)
+                )
+            }
         };
         let _ = writeln!(
             out,

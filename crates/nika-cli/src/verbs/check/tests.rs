@@ -1,5 +1,60 @@
 use super::*;
 
+#[test]
+fn registry_cache_provenance_survives_acquisition_into_the_footer() {
+    let dir = std::env::temp_dir().join(format!(
+        "nika-registry-check-provenance-{}",
+        std::process::id()
+    ));
+    std::fs::create_dir_all(&dir).expect("tmp dir");
+    let path = dir.join("cached.nika.yaml");
+    std::fs::write(
+        &path,
+        "nika: cached\npermits: { exec: [date] }\ntasks:\n  clock:\n    exec: { command: [date] }\n",
+    )
+    .expect("registry-cache fixture");
+    let cache_path = path.to_string_lossy().into_owned();
+    let target = CheckTarget::registry_artifact(cache_path.clone());
+    let flags = CheckFlags {
+        json: false,
+        infer_permits: false,
+        native_strict: false,
+        profile: Profile::Advisory,
+    };
+
+    let out = dispatch_targets(
+        std::slice::from_ref(&target),
+        &flags,
+        false,
+        None,
+        Theme::new(false, false, false),
+    );
+    assert_eq!(out.code, 0, "{}", out.text);
+    assert!(
+        out.text
+            .contains("copy the registry artifact into your workspace")
+            && out.text.contains("nika check --fix <copy>"),
+        "{}",
+        out.text
+    );
+    assert!(
+        !out.text.contains(&format!("--fix {cache_path}")),
+        "cache path leaked as a writable target:\n{}",
+        out.text
+    );
+
+    let refused = dispatch_targets(
+        &[target],
+        &flags,
+        true,
+        None,
+        Theme::new(false, false, false),
+    );
+    assert_eq!(refused.code, 3);
+    assert!(refused.text.contains("copy it into your workspace"));
+    assert!(refused.text.contains("fix the copy"));
+}
+
 /// `run_many`: every file audits even after an earlier failure (the
 /// broken file sits in the MIDDLE), each report keeps its own header,
 /// and the worst spec-§4 exit survives.

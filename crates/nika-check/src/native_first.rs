@@ -302,7 +302,7 @@ fn first_program(words: &[String]) -> Option<&str> {
             index += 1;
             continue;
         }
-        if token == "env" && index == 0 {
+        if token == "env" && !env_wrapper {
             env_wrapper = true;
             index += 1;
             continue;
@@ -331,19 +331,13 @@ fn first_program(words: &[String]) -> Option<&str> {
             index += 1;
             continue;
         }
+        if matches!(token, "if" | "elif" | "while" | "until") {
+            index += 1;
+            continue;
+        }
         if matches!(
             token,
-            "if" | "elif"
-                | "while"
-                | "until"
-                | "for"
-                | "case"
-                | "select"
-                | "function"
-                | "fi"
-                | "done"
-                | "esac"
-                | "}"
+            "for" | "case" | "select" | "function" | "fi" | "done" | "esac" | "}"
         ) {
             return None;
         }
@@ -838,6 +832,7 @@ tasks:
             ("\"{ jq '.'; date; }\"", 2),
             ("\"if true; then jq '.'; fi\"", 1),
             ("\"env MODE=x jq '.'\"", 1),
+            ("\"MODE=x env jq '.'\"", 1),
             ("\">/tmp/out jq '.'\"", 1),
             ("\"printf ok\\njq '.'\"", 1),
         ];
@@ -852,6 +847,50 @@ tasks:
                 "{command}: {hints:?}"
             );
         }
+    }
+
+    #[test]
+    fn conditional_test_commands_and_each_branch_head_are_judged() {
+        let cases = [
+            ("\"if jq '.' input.json; then date; fi\"", 2),
+            (
+                "\"if true; then cat a; elif sed s/a/b/ a; else awk '{print}' a; fi\"",
+                3,
+            ),
+            ("\"while jq -e '.more' state.json; do date; done\"", 2),
+            ("\"until jq -e '.done' state.json; do date; done\"", 2),
+        ];
+        for (command, expected) in cases {
+            let hints = hints_of(&exec_wf(command));
+            assert_eq!(
+                hints.iter().filter(|h| h.kind == "native-first").count(),
+                expected,
+                "{command}: {hints:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn prefix_expansion_keeps_comment_heredoc_and_crlf_boundaries() {
+        let comment = hints_of(&exec_wf("\"if true; then echo ok # jq '.'\\ndate; fi\""));
+        assert_eq!(
+            comment.iter().filter(|h| h.kind == "native-first").count(),
+            1,
+            "comment payload stays inert while the next line is judged: {comment:?}"
+        );
+
+        let heredoc = hints_of(&exec_wf("\"if cat <<EOF\\njq '.'\\nEOF\\nthen date\\nfi\""));
+        assert!(
+            heredoc.iter().all(|h| h.kind != "native-first"),
+            "the conservative heredoc backoff still owns the whole shell: {heredoc:?}"
+        );
+
+        let crlf = hints_of(&exec_wf("\"if jq '.' input.json; then\\r\\ndate\\r\\nfi\""));
+        assert_eq!(
+            crlf.iter().filter(|h| h.kind == "native-first").count(),
+            2,
+            "CRLF keeps the same command boundaries: {crlf:?}"
+        );
     }
 
     #[test]

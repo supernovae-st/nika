@@ -12,6 +12,7 @@ mod trifecta_rung_tests {
             &wf,
             yaml,
             "w.nika.yaml",
+            RepairTarget::WorkspaceFile,
             Theme::new(false, false, false),
             &ModelsAudit::new(Vec::new(), 0, 0),
             &nika_schema::ResolvedSkills::default(),
@@ -143,7 +144,7 @@ mod hint_dedup_tests {
 
     use crate::check_render::*;
 
-    fn rendered(yaml: &str, path: &str) -> String {
+    fn rendered_as(yaml: &str, path: &str, repair_target: RepairTarget) -> String {
         let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parses");
         let report = nika_check::check(&wf);
         render(
@@ -151,12 +152,22 @@ mod hint_dedup_tests {
             &wf,
             yaml,
             path,
+            repair_target,
             Theme::new(false, false, false),
             &ModelsAudit::new(Vec::new(), 0, 0),
             &nika_schema::ResolvedSkills::default(),
             &[],
             report.is_clean(),
         )
+    }
+
+    fn rendered(yaml: &str, path: &str) -> String {
+        let repair_target = if path == "-" {
+            RepairTarget::Stdin
+        } else {
+            RepairTarget::WorkspaceFile
+        };
+        rendered_as(yaml, path, repair_target)
     }
 
     #[test]
@@ -227,6 +238,27 @@ tasks:
             stdin.contains("save stdin to a file") && stdin.contains("nika check --fix <file>"),
             "{stdin}"
         );
+
+        let dashed = rendered(yaml, "-workflow.nika.yaml");
+        assert!(
+            dashed.contains("nika check --fix -- -workflow.nika.yaml"),
+            "a positional beginning with '-' needs clap's end-of-options separator:\n{dashed}"
+        );
+
+        let cache = rendered_as(
+            yaml,
+            "/home/operator/.nika/registry/acme/report/1.0.0/workflow.nika.yaml",
+            RepairTarget::RegistryArtifact,
+        );
+        assert!(
+            cache.contains("copy the registry artifact into your workspace")
+                && cache.contains("nika check --fix <copy>"),
+            "{cache}"
+        );
+        assert!(
+            !cache.contains("--fix /home/operator/.nika/registry"),
+            "the resolved cache path is never writable guidance:\n{cache}"
+        );
     }
 }
 
@@ -244,6 +276,7 @@ mod journey_rung_tests {
             &wf,
             yaml,
             "w.nika.yaml",
+            RepairTarget::WorkspaceFile,
             Theme::new(false, false, false),
             &ModelsAudit::new(Vec::new(), 0, 0),
             &nika_schema::ResolvedSkills::default(),
@@ -494,6 +527,7 @@ mod models_rung_tests {
             &wf,
             yaml,
             "w.nika.yaml",
+            RepairTarget::WorkspaceFile,
             Theme::new(false, false, false),
             &audit,
             &nika_schema::ResolvedSkills::default(),
@@ -531,6 +565,7 @@ mod models_rung_liveness_tests {
             &wf,
             yaml,
             "w.nika.yaml",
+            RepairTarget::WorkspaceFile,
             Theme::new(false, false, false),
             audit,
             &nika_schema::ResolvedSkills::default(),
@@ -593,6 +628,7 @@ mod permits_panel_under_red_conformance {
             &wf,
             yaml,
             "w.nika.yaml",
+            RepairTarget::WorkspaceFile,
             Theme::new(false, false, false),
             &ModelsAudit::new(Vec::new(), 0, 0),
             &nika_schema::ResolvedSkills::default(),

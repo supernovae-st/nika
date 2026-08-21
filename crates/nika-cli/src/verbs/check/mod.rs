@@ -88,9 +88,65 @@ pub struct CheckArgs {
     pub model: Option<String>,
 }
 
+/// One acquired check input plus the provenance that governs repair
+/// guidance. Registry coordinates resolve to cache files before parsing;
+/// this typed seam prevents that implementation path from becoming a
+/// writable `--fix` target.
+#[derive(Debug, Clone)]
+pub struct CheckTarget {
+    path: String,
+    repair_target: nika_display::check_render::RepairTarget,
+}
+
+impl CheckTarget {
+    #[must_use]
+    pub fn workspace(path: impl Into<String>) -> Self {
+        let path = path.into();
+        let repair_target = if path == "-" {
+            nika_display::check_render::RepairTarget::Stdin
+        } else {
+            nika_display::check_render::RepairTarget::WorkspaceFile
+        };
+        Self {
+            path,
+            repair_target,
+        }
+    }
+
+    #[must_use]
+    pub fn registry_artifact(cache_path: impl Into<String>) -> Self {
+        Self {
+            path: cache_path.into(),
+            repair_target: nika_display::check_render::RepairTarget::RegistryArtifact,
+        }
+    }
+
+    fn is_stdin(&self) -> bool {
+        self.repair_target == nika_display::check_render::RepairTarget::Stdin
+    }
+
+    fn is_registry_artifact(&self) -> bool {
+        self.repair_target == nika_display::check_render::RepairTarget::RegistryArtifact
+    }
+}
+
 #[must_use]
 pub fn dispatch(
     files: &[String],
+    flags: &CheckFlags,
+    fix: bool,
+    model: Option<&str>,
+    theme: Theme,
+) -> VerbOutput {
+    let targets: Vec<CheckTarget> = files.iter().cloned().map(CheckTarget::workspace).collect();
+    dispatch_targets(&targets, flags, fix, model, theme)
+}
+
+/// [`dispatch`] over already-acquired inputs whose registry provenance has
+/// been retained by the binary's resolution seam.
+#[must_use]
+pub fn dispatch_targets(
+    targets: &[CheckTarget],
     flags: &CheckFlags,
     fix: bool,
     model: Option<&str>,
@@ -112,8 +168,13 @@ pub fn dispatch(
                 "--fix pairs with the plain audit only (not --json / --infer-permits)",
             );
         }
-        return match files {
-            [file] if file != "-" => crate::verbs::fix::run(file, native_strict, model, theme),
+        return match targets {
+            [target] if target.is_registry_artifact() => crate::verbs::fix::refuse(
+                "a registry artifact is digest-pinned — copy it into your workspace, then fix the copy",
+            ),
+            [target] if !target.is_stdin() => {
+                crate::verbs::fix::run(&target.path, native_strict, model, theme)
+            }
             [_] => {
                 crate::verbs::fix::refuse("stdin (`-`) has no file to rewrite — name a real path")
             }
@@ -122,11 +183,11 @@ pub fn dispatch(
             ),
         };
     }
-    if let [file] = files {
+    if let [target] = targets {
         if infer_permits {
-            run_infer_permits(file, json)
+            run_infer_permits(&target.path, json)
         } else {
-            run_with_profile(file, json, native_strict, profile, model, theme)
+            run_target_with_profile(target, json, native_strict, profile, model, theme)
         }
     } else if json || infer_permits {
         VerbOutput {
@@ -136,7 +197,7 @@ pub fn dispatch(
                 .to_owned(),
             code: crate::verbs::exit::ENV,
         }
-    } else if files.iter().any(|f| f == "-") {
+    } else if targets.iter().any(CheckTarget::is_stdin) {
         VerbOutput {
             text: "check: stdin (`-`) cannot join a multi-file audit\n  fix: \
                    pipe one call per stream, or name the files\n"
@@ -144,7 +205,7 @@ pub fn dispatch(
             code: crate::verbs::exit::ENV,
         }
     } else {
-        run_many(files, native_strict, profile, model, theme)
+        run_many_targets(targets, native_strict, profile, model, theme)
     }
 }
 
@@ -273,7 +334,25 @@ pub fn run_with_profile(
     model_override: Option<&str>,
     theme: Theme,
 ) -> VerbOutput {
-    let source = match RunSource::capture(path) {
+    run_target_with_profile(
+        &CheckTarget::workspace(path),
+        json,
+        native_strict,
+        profile,
+        model_override,
+        theme,
+    )
+}
+
+fn run_target_with_profile(
+    target: &CheckTarget,
+    json: bool,
+    native_strict: bool,
+    profile: Profile,
+    model_override: Option<&str>,
+    theme: Theme,
+) -> VerbOutput {
+    let source = match RunSource::capture_with_repair_target(&target.path, target.repair_target) {
         Ok(source) => source,
         Err(out) if json => return parse_fatal_json(&out),
         Err(out) => return out,
@@ -347,6 +426,7 @@ pub(crate) fn run_source_with_profile(
         &wf,
         source.source(),
         path,
+        source.repair_target(),
         theme,
         &models_audit,
         &skills,
@@ -553,10 +633,22 @@ pub fn run_many(
     model_override: Option<&str>,
     theme: Theme,
 ) -> VerbOutput {
-    let mut texts = Vec::with_capacity(paths.len());
+    let targets: Vec<CheckTarget> = paths.iter().cloned().map(CheckTarget::workspace).collect();
+    run_many_targets(&targets, native_strict, profile, model_override, theme)
+}
+
+fn run_many_targets(
+    targets: &[CheckTarget],
+    native_strict: bool,
+    profile: Profile,
+    model_override: Option<&str>,
+    theme: Theme,
+) -> VerbOutput {
+    let mut texts = Vec::with_capacity(targets.len());
     let mut worst = crate::verbs::exit::OK;
-    for path in paths {
-        let out = run_with_profile(path, false, native_strict, profile, model_override, theme);
+    for target in targets {
+        let out =
+            run_target_with_profile(target, false, native_strict, profile, model_override, theme);
         texts.push(out.text);
         worst = worst.max(out.code);
     }
