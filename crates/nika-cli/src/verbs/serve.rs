@@ -12,7 +12,7 @@ use super::arm::{
 };
 use super::{VerbOutput, exit};
 use jiff::{SignedDuration, Zoned};
-use nika_cadence::registry::ArmRegistry;
+use nika_cadence::registry::{ArmRegistry, Locus};
 use std::path::{Path, PathBuf};
 /// `nika serve` — the resident firer's args.
 #[derive(Debug, clap::Args)]
@@ -339,9 +339,16 @@ fn serve(
         mtime = fresh_mtime;
         let state = ArmState::at_project(root);
         let names = labels(&reg);
-        let last_fired: Vec<Option<jiff::Zoned>> = names
-            .iter()
-            .map(|label| state.last_fired(label))
+        let last_fired: Vec<Option<jiff::Zoned>> = reg
+            .beats()
+            .zip(&names)
+            .map(|(beat, label)| {
+                if beat.locus() == Locus::Cloud {
+                    Ok(None)
+                } else {
+                    state.last_fired(label)
+                }
+            })
             .collect::<std::io::Result<_>>()
             .map_err(|error| format!("serve · corrupt arm sidecar refused: {error}"))?;
         let dues: Vec<(usize, nika_cadence::Slot)> =
