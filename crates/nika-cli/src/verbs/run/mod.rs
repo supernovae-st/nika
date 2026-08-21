@@ -45,7 +45,7 @@ fn sensitive_journey(report: &nika_check::CheckReport) -> bool {
 
 mod example;
 pub use example::example;
-use sink::{TraceNote, surface_trace};
+use sink::{TraceNote, TraceSurface, surface_trace};
 
 mod budget;
 mod ceiling;
@@ -85,47 +85,8 @@ use nika_schema::raw::RawWorkflow;
 use crate::Theme;
 use crate::verbs::exit;
 
-/// `nika run <file>` — the verb (spec §4 exit contract).
-///
-/// Streams the run to stdout (live fold · or NDJSON under `--json`) and
-/// returns the exit code: `0` ok · `1` workflow failed · `2` file
-/// findings (audit-before-run · the dirty report never executes) · `3`
-/// environment (unreadable file · TLS init · a system contract breach).
-///
-/// `model_override` — when `Some(m)`, `m` REPLACES the workflow envelope's
-/// `model:` as the resolved default (so `try … --model mock/echo`
-/// previews offline). It travels the SAME composition path as an envelope
-/// model, so a bad id fails loud identically (the registry surfaces its
-/// typed error when an infer/agent task actually resolves it).
-///
-/// `vars` — the repeatable `--var KEY=VALUE` overrides (F4): each key must
-/// be a declared workflow var (unknown keys are refused · exit 3); values
-/// override a `default:` and satisfy a `required: true` var.
-///
-/// `resume` — `--resume <trace>` (ADR-099): fold the prior run's NDJSON
-/// journal into a skip plan; the runtime recomputes each task's identity
-/// and skips iff BOTH hashes match (visible `task_cache_hit` · never
-/// silent). `--from <task_id>` forces a subtree to re-run.
-///
-/// `no_trace_file` — skip the run journal (`.nika/traces/` · spec §3.3):
-/// `--no-trace-file` / `NIKA_NO_TRACE_FILE` opt out; `try`
-/// disables it too (a staged temp-file run is not a workspace run).
-// Ten independent CLI parameters ARE the clap surface — the same idiom
-// as TraceArgs' four bools, not a state machine to encode in a struct.
-/// `no_outputs` — `--no-outputs` (the comprehension pass): suppress the
-/// shape tails on the Live storyboard. Only the interactive TTY surface
-/// ever grows tails — pipes · CI · the machine modes stay byte-unchanged
-/// with or without the flag.
-///
-/// `no_gc` — `--no-gc` (ADR-100 D2): skip the opportunistic trace
-/// collection for this invocation. Retention otherwise rides every run
-/// start (bounded by default · no daemon).
-/// Opportunistic trace GC (ADR-100 D2) — maintenance rides usage. Before
-/// the run · `--no-gc` skips · `--dry-run` never collects (plan only ·
-/// zero effects) · fail-open (a broken collection never blocks a run). A
-/// collection that removed anything speaks EXACTLY ONE stderr line —
-/// silent deletion is forbidden, and stderr keeps the machine surfaces
-/// (`--json` · `--output json` stdout) byte-frozen.
+/// Opportunistic bounded trace collection. Dry-run and explicit opt-out are
+/// effect-free; maintenance failure never blocks workflow execution.
 fn run_start_gc(no_gc: bool, dry_run: bool) {
     if let Some(line) = nika_cli_host::retention::gc_at_run_start(
         std::path::Path::new(nika_dap::store::TRACE_DIR),
@@ -136,31 +97,15 @@ fn run_start_gc(no_gc: bool, dry_run: bool) {
     }
 }
 
-/// The run's verdict: the process exit code PLUS the first failed task's
-/// typed error (spec 05 wire code + message). The exit code alone cannot
-/// say WHY a run failed — the examples wrapper keys its rescue tip on the
-/// failure KIND (#145: a missing program must never earn the mock-model
-/// nudge an infer failure deserves). Module-internal on purpose: the
-/// public verb contract stays the exit code.
-struct RunVerdict {
-    /// The process exit code (the `exit::*` vocabulary).
-    code: u8,
-    /// The first failed task's error record (record order — deterministic).
-    /// `None` on success, pause, and every pre-run refusal.
+pub(crate) struct RunVerdict {
+    pub(crate) code: u8,
     failure: Option<nika_runtime::TaskErrorRecord>,
-    /// A fold-lane pause (ADR-099): the gate's payload + the trace the
-    /// terminal ask resumes over. The machine lanes leave it `None` —
-    /// their teaching is the envelope + the stderr resume line.
     paused: Option<PausedLeg>,
-    /// Resolved workflow outputs, retained for the interactive thread.
     outputs: BTreeMap<String, serde_json::Value>,
-    /// The operator cancelled this leg without closing the outer thread.
     interrupted: bool,
+    pub(crate) trace: Option<std::path::PathBuf>,
 }
 
-/// A paused fold-lane leg — what the terminal ask needs to continue the
-/// run in-process (the pause payload asks · the trace folds the plan +
-/// the F-P4 ticket, the same path a manual `--resume --answer` takes).
 struct PausedLeg {
     pause: nika_runtime::WorkflowPause,
     trace: std::path::PathBuf,
@@ -176,6 +121,7 @@ impl RunVerdict {
             paused: None,
             outputs: BTreeMap::new(),
             interrupted: false,
+            trace: None,
         }
     }
 
@@ -186,12 +132,36 @@ impl RunVerdict {
             paused: None,
             outputs: BTreeMap::new(),
             interrupted: true,
+            trace: None,
+        }
+    }
+
+    fn renderer_failed(trace: Option<std::path::PathBuf>, kind: std::io::ErrorKind) -> Self {
+        let code = if kind == std::io::ErrorKind::BrokenPipe {
+            141
+        } else {
+            exit::ENV
+        };
+        Self {
+            trace,
+            ..Self::bare(code)
         }
     }
 }
 
-/// The first failed task's typed error, in record (task-id) order — the
-/// deterministic pick when several tasks failed in one wave.
+fn surfaced_trace(surface: TraceSurface) -> Result<Option<std::path::PathBuf>, Box<RunVerdict>> {
+    if let Some(error) = surface.note_error {
+        let kind = error.kind();
+        let _ = writeln!(
+            std::io::stderr().lock(),
+            "nika run: trace note failed: {error}"
+        );
+        Err(Box::new(RunVerdict::renderer_failed(surface.path, kind)))
+    } else {
+        Ok(surface.path)
+    }
+}
+
 fn first_failure(outcome: &RunOutcome) -> Option<nika_runtime::TaskErrorRecord> {
     outcome
         .records
@@ -200,7 +170,10 @@ fn first_failure(outcome: &RunOutcome) -> Option<nika_runtime::TaskErrorRecord> 
         .and_then(|r| r.error.clone())
 }
 
-// Fifteen independent CLI parameters ARE the clap surface (the TraceArgs idiom).
+/// Execute one checked workflow through the production runtime and stream its
+/// selected human or machine surface. Returns the spec exit code: success,
+/// workflow failure, file findings, environment refusal, or pause.
+// Fifteen independent parameters are the clap surface (the TraceArgs idiom).
 #[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
 #[must_use]
 pub fn run(
@@ -239,16 +212,40 @@ pub fn run(
         no_gc,
         require_signature,
         false,
+        None,
     )
     .code
 }
 
-/// The first rungs of the run pipeline — the output flag, the project
-/// ceiling rung (D-2026-08-11-N5 · resolved BEFORE the gc hook so a
-/// broken `nika.yaml` speaks ONCE, here, CLOSED — the fail-open note
-/// lane never sees it; the flag ALWAYS wins; an absent file is the
-/// built-in default, zero ceremony), then the gc hook. Extracted under
-/// the 100-line fn law (ADR-023).
+pub(crate) fn run_checked_source(
+    source: crate::verbs::RunSource,
+    theme: Theme,
+    max_cost_usd: f64,
+) -> RunVerdict {
+    let file = source.logical_path().to_owned();
+    run_verdict(
+        &file,
+        false,
+        None,
+        theme,
+        RenderMode::Plain,
+        false,
+        None,
+        None,
+        &[],
+        None,
+        false,
+        None,
+        false,
+        Some(max_cost_usd),
+        false,
+        false,
+        false,
+        Some(source),
+    )
+}
+
+/// Resolve output/ceiling and run the opportunistic trace collection.
 fn preflight(
     output: Option<&str>,
     max_cost_usd: Option<f64>,
@@ -268,6 +265,24 @@ fn preflight(
     };
     run_start_gc(no_gc, dry_run);
     Ok((output_json, max_cost_usd))
+}
+
+fn capture_checked_source(
+    file: &str,
+    captured: Option<crate::verbs::RunSource>,
+    output_json: bool,
+) -> Result<(crate::verbs::RunSource, RawWorkflow, CheckReport), Box<RunVerdict>> {
+    let source = captured
+        .map_or_else(|| crate::verbs::RunSource::capture(file), Ok)
+        .map_err(|out| {
+            epilogue::emit_diagnostic(&refusal_text(&out), output_json);
+            Box::new(RunVerdict::bare(out.code))
+        })?;
+    let (wf, report) = crate::verbs::load_checked_run_source(&source).map_err(|out| {
+        epilogue::emit_diagnostic(&refusal_text(&out), output_json);
+        Box::new(RunVerdict::bare(out.code))
+    })?;
+    Ok((source, wf, report))
 }
 
 #[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
@@ -290,28 +305,23 @@ fn run_verdict(
     no_gc: bool,
     require_signature: bool,
     interruptible: bool,
+    captured: Option<crate::verbs::RunSource>,
 ) -> RunVerdict {
     let (output_json, max_cost_usd) = match preflight(output, max_cost_usd, no_gc, dry_run) {
         Ok(pair) => pair,
         Err(verdict) => return *verdict,
     };
-    // ── Audit BEFORE run (spec §3 · INV the runtime also enforces) ──
-    let (source, wf, report) = match crate::verbs::load_checked_with_source(file) {
-        Ok(pair) => pair,
-        Err(out) => {
-            // Machine mode: diagnostics ride stderr so a `capture: stdout`
-            // consumer never mistakes them for the JSON result.
-            epilogue::emit_diagnostic(&refusal_text(&out), output_json);
-            return RunVerdict::bare(out.code);
-        }
+    let (source, wf, report) = match capture_checked_source(file, captured, output_json) {
+        Ok(checked) => checked,
+        Err(verdict) => return *verdict,
     };
-
+    let file = source.logical_path();
+    let source_text = source.source();
     if require_signature && let Err(code) = require_signature_gate(file, output_json) {
         return RunVerdict::bare(code);
     }
-    // ── `--task` scope + clean/skills gates + `--var` overrides ─────
     let (wf, report, skills) =
-        match scoped_clean_gate(wf, report, task_filter, file, json, theme, output_json) {
+        match scoped_clean_gate(wf, report, task_filter, &source, json, theme, output_json) {
             Ok(triple) => triple,
             Err(code) => return RunVerdict::bare(code),
         };
@@ -319,27 +329,19 @@ fn run_verdict(
         Ok(map) => map,
         Err(code) => return RunVerdict::bare(code),
     };
-
-    // ── Dry-run (spec §10 · "plan only · zero effects") ─────────────
     if dry_run {
         return dry_run::lane(file, &wf, &report, model_override, json, theme, output_json);
     }
-
-    // ── `--max-cost-usd` preflight — BEFORE any spend (budget.rs) ──
     if let Err(code) = budget::preflight(&wf, &report, model_override, max_cost_usd, output_json) {
         return RunVerdict::bare(code);
     }
-
-    // ── `--resume` / `--answer` (ADR-099) — plan + answers up front ──
-    let setup = match resume_setup(resume, &wf, &source, model_override, output_json) {
+    let setup = match resume_setup(resume, &wf, source_text, model_override, output_json) {
         Ok(setup) => setup,
         Err(code) => return RunVerdict::bare(code),
     };
-
-    // ── Compose the production runtime (real seams · env keys) ──────
     let runtime = match composed_runtime(
         &wf,
-        (file, &source),
+        (file, source_text),
         model_override,
         access_pin,
         inputs,
@@ -352,13 +354,10 @@ fn run_verdict(
         Ok(rt) => rt,
         Err(code) => return RunVerdict::bare(code),
     };
-
     announce_access_pin(access_pin, (json, output_json), mode, &report);
-
-    // ── Execute + the terminal ask (extracted · the fn-length wall) ──
     execute_and_ask(
         &runtime,
-        (file, &source),
+        (file, source_text),
         (&wf, &report),
         resume.is_some_and(|r| r.trace.is_some()),
         vars,
@@ -815,13 +814,20 @@ fn scoped_clean_gate(
     wf: RawWorkflow,
     report: CheckReport,
     task_filter: Option<&str>,
-    file: &str,
+    source: &crate::verbs::RunSource,
     json: bool,
     theme: Theme,
     output_json: bool,
 ) -> Result<(RawWorkflow, CheckReport, BTreeMap<String, String>), u8> {
     let refuse = || {
-        let out = crate::verbs::check::run(file, json, false, None, theme);
+        let out = crate::verbs::check::run_source_with_profile(
+            source,
+            json,
+            false,
+            crate::verbs::check::Profile::Advisory,
+            None,
+            theme,
+        );
         epilogue::emit_diagnostic(&out.text, output_json);
         out.code
     };
@@ -833,7 +839,10 @@ fn scoped_clean_gate(
         return Err(refuse());
     }
     // `skills:` gate (#473 · pre-effect · the SAME rows check renders).
-    let resolved = crate::verbs::resolve_workflow_skills(&wf, crate::verbs::workflow_base(file));
+    let resolved = crate::verbs::resolve_workflow_skills(
+        &wf,
+        crate::verbs::workflow_base(source.logical_path()),
+    );
     if !resolved.findings.is_empty() {
         return Err(refuse());
     }
@@ -979,8 +988,7 @@ async fn execute_output_json_lane(
     let (code, outcome) = drive(runtime, wf, report, stamper, &mut tee).await;
     let (mut sink, mut trace) = tee.into_parts();
     sink.print_final();
-    // ADR-111 · the pause is heard — deliver + journal BEFORE the seal
-    // (the notify events must land under the chain the seal covers).
+    // Pause delivery is journaled before the seal (ADR-111).
     if let (Some(p), Some(pause)) = (
         trace.path().map(std::path::Path::to_path_buf),
         outcome.paused.as_ref(),
@@ -989,19 +997,19 @@ async fn execute_output_json_lane(
         let label = notify::workflow_label(wf);
         notify::deliver_paused(&label, pause, &p, &hint, stamper, &mut trace).await;
     }
-    // F-P14 · la dette du run: a FAILED run quarantines its semi-written
-    // outputs BEFORE the seal attests the end (None elsewhere — key OUT).
+    // Quarantine failed outputs before the seal (F-P14).
     let teardown = attended_facts(wf, report, &outcome, trace.path());
-    let trace_path = surface_trace(
+    let trace_path = match surfaced_trace(surface_trace(
         trace,
         TraceNote::Stderr,
         None,
         seal_hash(wf).as_deref(),
         Some(&teardown),
         sensitive_journey(report),
-    );
-    // A paused run teaches its exact resume command on stderr — the
-    // pause sibling of the failure lane's `autopsy:` line.
+    )) {
+        Ok(path) => path,
+        Err(verdict) => return *verdict,
+    };
     if let (Some(p), Some(pause)) = (&trace_path, &outcome.paused) {
         eprintln!(
             "nika run: {}",
@@ -1009,8 +1017,6 @@ async fn execute_output_json_lane(
         );
     }
     epilogue::print_resume_summary(&outcome, resumed, true);
-    // Built BEFORE the sink is consumed — the failure envelope reads
-    // the folded view (the failed row's detail carries the wire code).
     let verdict_line = if code == exit::PAUSED {
         outcome
             .paused
@@ -1025,7 +1031,7 @@ async fn execute_output_json_lane(
         let message = format!("render failed: {e}");
         eprintln!("nika run: {message}");
         println!("{}", epilogue::error_envelope_line(&message));
-        return RunVerdict::bare(exit::ENV);
+        return RunVerdict::renderer_failed(trace_path, e.kind());
     }
     match verdict_line {
         Some(line) => println!("{line}"),
@@ -1037,13 +1043,11 @@ async fn execute_output_json_lane(
         paused: None,
         outputs: outcome.outputs.clone(),
         interrupted: false,
+        trace: trace_path,
     }
 }
 
-/// The NDJSON machine lane (`--json`) — extracted whole (the fold-lane
-/// precedent · the fn-length wall): stdout stays NDJSON verbatim
-/// (byte-identical with or without the journal), the trace note rides
-/// stderr.
+/// NDJSON lane: stdout stays byte-exact; the trace note rides stderr.
 #[allow(clippy::too_many_arguments)] // the clap-surface idiom (execute's own)
 async fn execute_json_lane(
     runtime: &ProdRuntime,
@@ -1057,7 +1061,6 @@ async fn execute_json_lane(
     let mut tee = Tee::new(JsonSink::new(std::io::stdout().lock()), trace);
     let (code, outcome) = drive(runtime, wf, report, stamper, &mut tee).await;
     let (sink, mut trace) = tee.into_parts();
-    // ADR-111 · the pause is heard — deliver + journal BEFORE the seal.
     if let (Some(p), Some(pause)) = (
         trace.path().map(std::path::Path::to_path_buf),
         outcome.paused.as_ref(),
@@ -1066,16 +1069,18 @@ async fn execute_json_lane(
         let label = notify::workflow_label(wf);
         notify::deliver_paused(&label, pause, &p, &hint, stamper, &mut trace).await;
     }
-    // F-P14 · the failure lane's quarantine runs BEFORE the seal.
     let teardown = attended_facts(wf, report, &outcome, trace.path());
-    let trace_path = surface_trace(
+    let trace_path = match surfaced_trace(surface_trace(
         trace,
         TraceNote::Stderr,
         None,
         seal_hash(wf).as_deref(),
         Some(&teardown),
         sensitive_journey(report),
-    );
+    )) {
+        Ok(path) => path,
+        Err(verdict) => return *verdict,
+    };
     if let (Some(p), Some(pause)) = (&trace_path, &outcome.paused) {
         eprintln!(
             "nika run: {}",
@@ -1084,7 +1089,7 @@ async fn execute_json_lane(
     }
     if let Some(e) = sink.into_error() {
         eprintln!("nika run: stream write failed: {e}");
-        return RunVerdict::bare(exit::ENV);
+        return RunVerdict::renderer_failed(trace_path, e.kind());
     }
     epilogue::print_resume_summary(&outcome, resumed, true);
     RunVerdict {
@@ -1093,16 +1098,11 @@ async fn execute_json_lane(
         paused: None,
         outputs: outcome.outputs.clone(),
         interrupted: false,
+        trace: trace_path,
     }
 }
 
-/// The human fold lane (`Live` · `Plain` · `Quiet`) — extracted whole so
-/// `execute` stays a lane DISPATCHER (fn-length ratchet · the three lanes
-/// are peers, not one long body). Storytelling surfaces get the flow
-/// epilogue + the spec §3.3 `trace:` pointer; `--quiet` keeps its
-/// compact-card promise.
-// The mode/resumed/outputs trio rides as one tuple — the same
-// clap-surface idiom as `execute` itself (three independent switches).
+/// Human fold lane (`Live` · `Plain` · `Quiet`).
 #[allow(clippy::too_many_arguments)]
 async fn execute_fold_lane(
     runtime: &ProdRuntime,
@@ -1117,8 +1117,6 @@ async fn execute_fold_lane(
     carry: &str,
 ) -> RunVerdict {
     let plan = plan_waves(wf, report);
-    // The living map's topology — the SAME checked projection graph/
-    // inspect trust; Live+accents only (the sink gates again).
     let map = (mode == RenderMode::Live && theme.accents)
         .then(|| (super::graph::project(wf, report), report.waves.clone()));
     let trace_recorded = !trace.is_disabled();
@@ -1126,15 +1124,8 @@ async fn execute_fold_lane(
     if let Ok(mut f) = fold.lock() {
         f.set_trace_recorded(trace_recorded);
     }
-    // #321 — the plain lane's stderr liveness rider (`still running ·
-    // <task> · <n>s · <model>` every ~10s): a piped local-model run
-    // must never read as a hang. Plain ONLY — Live already repaints ·
-    // Quiet promised compactness · the machine lanes stream NDJSON. An
-    // inert handle keeps one code path (the disabled-journal idiom).
+    // Plain's heartbeat keeps a piped local-model run from reading as a hang.
     let pulse = (mode == RenderMode::Plain).then(|| {
-        // The EFFECTIVE default model (the same substitution
-        // composed_runtime made): the beat's static labels must name
-        // what will actually resolve, `--model` override included.
         let default_model =
             model_override.unwrap_or_else(|| wf.model.as_ref().map_or("", |m| m.value.as_str()));
         heartbeat::shared(plan, heartbeat::task_labels(wf, default_model))
@@ -1146,9 +1137,7 @@ async fn execute_fold_lane(
         trace,
     );
     let (code, outcome) = drive(runtime, wf, report, stamper, &mut tee).await;
-    // The run settled — the riders must not speak over the epilogue.
-    // (Aborted tasks reap at the executor's leisure; the fold lock below
-    // is contention-free regardless — same thread, sync section.)
+    // The run settled: stop riders before the epilogue.
     if let Some(ticker) = &ticker {
         ticker.abort();
     }
@@ -1156,8 +1145,6 @@ async fn execute_fold_lane(
         spinner.abort();
     }
     let (_inner, mut trace) = tee.into_parts();
-    // ADR-111 · the pause is heard — deliver + journal BEFORE the seal
-    // (fold_lane_verdict seals inside; this is the last async point).
     if let (Some(p), Some(pause)) = (
         trace.path().map(std::path::Path::to_path_buf),
         outcome.paused.as_ref(),
@@ -1167,19 +1154,12 @@ async fn execute_fold_lane(
         notify::deliver_paused(&label, pause, &p, &hint, stamper, &mut trace).await;
     }
     let Ok(mut sink) = fold.lock() else {
-        // A poisoned fold = a render-side panic already reported by the
-        // runtime; the verdict must still leave honestly.
         eprintln!("nika run: render state poisoned");
         return RunVerdict::bare(exit::ENV);
     };
-    // `Live` painted in place during the run; `Plain`/`Quiet` folded
-    // silently · print the ONE final frame now.
     if mode != RenderMode::Live {
         sink.print_final();
     }
-    // The Live (TTY) final frame carries the flow epilogue: the wall-
-    // time waterfall + the outputs pointer (design §2c). The sober
-    // registers stay untouched — CI logs never grow chart art.
     if mode == RenderMode::Live {
         epilogue::print_flow_epilogue(sink.view(), &outcome.outputs, theme, file, trace_recorded);
     }
@@ -1220,7 +1200,7 @@ fn fold_lane_verdict(
         .map(|r| r.id.clone());
     // F-P14 · the failure lane's quarantine runs BEFORE the seal.
     let teardown = attended_facts(wf, report, outcome, trace.path());
-    let trace_path = surface_trace(
+    let trace_path = match surfaced_trace(surface_trace(
         trace,
         if matches!(mode, RenderMode::Quiet | RenderMode::Thread) {
             TraceNote::Silent
@@ -1231,7 +1211,10 @@ fn fold_lane_verdict(
         seal_hash(wf).as_deref(),
         Some(&teardown),
         sensitive_journey(report),
-    );
+    )) {
+        Ok(path) => path,
+        Err(verdict) => return *verdict,
+    };
     // A paused HUMAN run teaches its exact resume command too (the same
     // line the machine lanes print on stderr — a text-mode pause with no
     // next move taught was the first-run killer, 2026-07-31). Quiet keeps
@@ -1243,7 +1226,7 @@ fn fold_lane_verdict(
     epilogue::print_resume_summary(outcome, resumed, false);
     if let Some(e) = sink.take_error() {
         eprintln!("nika run: render failed: {e}");
-        return RunVerdict::bare(exit::ENV);
+        return RunVerdict::renderer_failed(trace_path, e.kind());
     }
     // The fold lane hands the pause up: the terminal ask continues the
     // run in-process over this trace.
@@ -1260,6 +1243,7 @@ fn fold_lane_verdict(
         paused,
         outputs: outcome.outputs.clone(),
         interrupted: false,
+        trace: trace_path,
     }
 }
 

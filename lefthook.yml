@@ -78,8 +78,13 @@ pre-commit:
     # THEN stage the manifest. This hook caught that very mistake on the commit
     # that installs it, in 0.16 s.
     estate-manifest:
-      run: python3 scripts/estate.py --check
-      fail_text: 'estate.yaml diverges from the tracked tree. Run: git add <file> && python3 scripts/estate.py --write && git add estate.yaml (estate.py reads the INDEX, so stage first).'
+      # Split by verdict · a COVERAGE hole refuses, FRESHNESS does not.
+      # A whole-tree projection required at commit time makes every pair
+      # of concurrent branches collide on a file neither one edited
+      # (four PRs, four conflicts, 2026-08-20). Freshness is proven where
+      # it is the guarantee — at tag time, in release.yml.
+      run: bash scripts/hooks/estate-gate.sh
+      fail_text: 'estate: a path no rule classifies, or a rule matching nothing. Fix the glob in scripts/estate_rules.py (freshness alone no longer refuses — the tag gate owns it).'
 
     block-private-paths:
       run: bash scripts/hooks/block-private-paths.sh

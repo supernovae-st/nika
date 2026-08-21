@@ -91,5 +91,5 @@ jobs:
           git push -f origin bot/clients-resync
           gh pr create --head bot/clients-resync \
             --title "chore(matrix): the vendored snapshot follows the agents SSOT" \
-            --body "Automated re-vendoring (clients-resync lane · the pack-resync precedent). The drift used to block unrelated pushes via a unit test reading the live sibling checkout — it now surfaces HERE, within 24h, judged by Diamond CI. Two snapshots ride this lane: the client matrix and the .agents/ plugin tree. Manual heal when it cannot wait: cp <agents>/repo/clients.yaml crates/nika-cli-host/data/clients.registry.yaml && rsync -a --delete <agents>/repo/.agents/ .agents/ && python3 scripts/estate.py --write. Merge on green." \
+            --body "Automated re-vendoring (clients-resync lane · the dedicated-heal precedent). The drift used to block unrelated pushes via a unit test reading the live sibling checkout — it now surfaces HERE, within 24h, judged by Diamond CI. Two snapshots ride this lane: the client matrix and the .agents/ plugin tree. Manual heal when it cannot wait: cp <agents>/repo/clients.yaml crates/nika-cli-host/data/clients.registry.yaml && rsync -a --delete <agents>/repo/.agents/ .agents/ && python3 scripts/estate.py --write. Merge on green." \
             2>/dev/null || echo "PR already open — refreshed"

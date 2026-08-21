@@ -10,6 +10,38 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+### Changed
+
+- **The engine carries one compile-time identity for its version, build,
+  language pin and remote API axis.** `nika-runtime` now owns the typed
+  `EngineIdentity` consumed by trace prologues, `nika check --json` and the CLI
+  version surface. The embedded language pack is re-vendored from that exact
+  `SPEC_PIN`, records the same commit in `pack/SPEC_SHA`, and the build refuses
+  split identity.
+
+### Fixed
+
+- **The pinned conformance clock includes Agent Skills and current trace
+  witnesses.** The harness now exercises the spec's skill lane with exact
+  `AGENT`, `AUTH` and `SEC` refusal codes, recognizes the entropy/jitter law,
+  and replays every current runtime-trace verdict. The heal workflow advances
+  the pin and pack together on an immutable PR branch; Diamond CI independently
+  re-vendors every mapped byte.
+
+## [0.112.0](https://github.com/supernovae-st/nika/compare/v0.111.0..v0.112.0) - 2026-08-20
+
+**The instrument-honesty release.** Three features and sixteen fixes, several
+of which began as a measurement disagreeing with what a surface said. A cargo
+test binary can no longer open the OS keychain — an ACL is bound to the
+requesting binary, and a test binary's hash changes on every compile, so the
+prompt could never be answered once and for all. `nika check`'s JOURNEY rung
+counts model endpoints instead of tasks, ending a card that contradicted
+itself four lines apart: COST read `no infer/agent tasks` while JOURNEY read
+`3 model endpoints`. A fan-out that recovered now says so in its record and
+not only in its prose, which is what spec 13 requires of the pair. And the
+`exec:` fit lane gained an fs arm, so a leg jailed away from its own script
+is refused at check instead of exiting 126 under a green card.
+
 ### Added
 
 - **`nika list` names every workflow below the current directory.** Output is
@@ -55,6 +87,35 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   `NIKA_801/802/803`, constants renamed with them.
 
 ### Fixed
+
+- **A cargo test binary no longer opens the OS keychain.** A macOS keychain
+  ACL is bound to the requesting BINARY, and a test binary is
+  `target/<profile>/deps/<name>-<hash>` whose hash changes on every
+  recompile — so "Always Allow" grants a binary that will never exist
+  again and the prompt returns forever, on every worktree, with no
+  operator-side gesture that stops it. `NIKA_KEYCHAIN=off` now skips the
+  custody, and a test binary skips it by default whether or not anyone
+  remembers the flag. An installed `nika` and `cargo run` land outside
+  `deps/` and keep their custody unchanged. All eight keyring call sites
+  sit behind the flag, held there by a ratchet that walks the crate's own
+  source.
+
+- **The JOURNEY rung counts model endpoints, not tasks.** The envelope
+  `model:` is a fallback for a task that HAS a model · it was applied to
+  every task, so a body of builtin invokes read `3 model endpoints` while
+  the COST rung four lines above read `no infer/agent tasks` — one card
+  contradicting itself. `model_endpoint_of` already typed the task and
+  threw the answer away on the next line. Across the shipped corpus 45 of
+  99 cards carried an inflated count; each is now exactly the number of
+  `infer:`/`agent:` tasks the file declares, and no verdict changed.
+
+- **`nika check` judges every secret sharing one effect independently.** A
+  sink that referenced two secrets previously retained only the first IFC
+  trace, so clearing that first edge could hide an uncleared second edge.
+  Direct references and task-local `with:` / `for_each` item aliases now
+  produce one consent verdict per distinct secret while the existing
+  singular output-propagation trace stays unchanged and bounded. Literal
+  `for_each.items` secret references also appear in the data journey.
 
 - **`nika check` now judges the script an `exec:` interpreter must open.**
   The runtime jails every `exec:` child to the declared `permits.fs` set, so

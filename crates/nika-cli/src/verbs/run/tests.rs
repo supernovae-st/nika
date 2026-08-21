@@ -10,7 +10,8 @@
 use std::collections::BTreeMap;
 
 use super::dry_run::{payload as dry_run_payload, swap as dry_run_swap};
-use super::{RenderMode, capture_mock_outputs, exit, run};
+use super::sink::TraceSurface;
+use super::{RenderMode, capture_mock_outputs, exit, run, surfaced_trace};
 use crate::Theme;
 use serde_json::json;
 
@@ -60,6 +61,21 @@ fn refusal_text_teaches_only_the_env_class() {
         code: exit::FILE,
     };
     assert_eq!(super::refusal_text(&findings), findings.text);
+}
+
+#[test]
+fn arbitrary_trace_note_error_is_env_with_the_exact_path() {
+    let path = std::path::PathBuf::from(".nika/traces/exact.ndjson");
+    let surface = TraceSurface {
+        path: Some(path.clone()),
+        note_error: Some(std::io::Error::new(
+            std::io::ErrorKind::PermissionDenied,
+            "injected note refusal",
+        )),
+    };
+    let verdict = surfaced_trace(surface).expect_err("the note refusal must be terminal");
+    assert_eq!(verdict.code, exit::ENV);
+    assert_eq!(verdict.trace, Some(path));
 }
 
 /// A noiseless theme (no colour · no animation) for the run tests — they

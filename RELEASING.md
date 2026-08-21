@@ -46,7 +46,27 @@ without an explicit operator decision.
    Run `bash scripts/hygiene/check-all.sh` before tagging: both fire
    there, and both were earned by a release that shipped without them.
 
-3. **Tag and push.**
+3. **Regenerate the estate manifest.**
+
+   ```sh
+   python3 scripts/estate.py --write && git add estate.yaml
+   ```
+
+   The manifest is a WHOLE-TREE projection, so requiring it per-commit made
+   every pair of concurrent branches collide on a file neither had edited —
+   four pull requests, four conflicts, 2026-08-20, and `git merge-tree`
+   named the projection as the only overlap. It is therefore no longer a
+   commit-time refusal: the pre-commit hook and the `estate` CI job block
+   on COVERAGE (a path no rule classifies) and merely report FRESHNESS.
+
+   Freshness is owned HERE instead, where it is the deliverable rather
+   than a formality: `release.yml` refuses a tag whose tree does not match
+   its manifest, because that tree is the one whose binaries a user will
+   verify. Forget this step and the release stops at the guard — which is
+   the same shape as the version-match guard above, and for the same
+   reason.
+
+4. **Tag and push.**
 
    ```sh
    git tag v<NEXT> && git push origin v<NEXT>
