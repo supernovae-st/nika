@@ -4,6 +4,7 @@
 set -euo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source-path=SCRIPTDIR
 # shellcheck source=./_lib.sh
 . "$HERE/_lib.sh"
 
@@ -12,7 +13,7 @@ violations=0
 
 while IFS= read -r f; do
   [ -z "$f" ] && continue
-  loc=$(wc -l < "$f" | tr -d ' ')
+  loc=$(wc -l <"$f" | tr -d ' ')
   if [ "$loc" -gt "$MAX" ]; then
     printf 'FAIL  %s  %d LOC (max %d)\n' "$f" "$loc" "$MAX"
     violations=$((violations + 1))
