@@ -210,7 +210,7 @@ tasks:
 ";
         let out = rendered(yaml, "heterogeneous.nika.yaml");
         assert_eq!(
-            out.matches("[native-first/003]").count(),
+            out.matches("[native-first/006]").count(),
             2,
             "distinct advice variants both render:\n{out}"
         );
