@@ -174,12 +174,23 @@ fn push_secret_rows(out: &mut Vec<UnifiedFinding>, report: &CheckReport) {
     }
 }
 
+/// Wire `findings[].message` for a CONFORM row. The typed
+/// `conformance[].message` stays `SchemaError` Display so the human
+/// renderer does not double-print the explain hand-off it already
+/// carries on the `fix:` line.
+fn conform_row_message(c: &super::ConformanceViolation) -> String {
+    format!("{} · → nika explain {}", c.message, c.code)
+}
+
 /// Fold every class into the one list — conformance first (the ladder's
 /// own order), then the analysis classes in render order.
 pub(super) fn collect(report: &CheckReport) -> Vec<UnifiedFinding> {
     let mut out = Vec::new();
     for c in &report.conformance {
-        let mut f = UnifiedFinding::new("conformance", "CONFORM", c.message.clone());
+        // Same well as `SchemaDiagnostic` Display minus `[CODE] ` — wasm
+        // `check()` and CLI `--json` PARSE already project this; the
+        // human CONFORM row keeps `c.message` and its own `fix:` line.
+        let mut f = UnifiedFinding::new("conformance", "CONFORM", conform_row_message(c));
         f.code = Some(c.code.clone());
         f.docs_url = Some(c.docs_url.clone());
         f.span = c.span;
@@ -627,6 +638,12 @@ mod tests {
         assert_eq!(row["severity"], "error");
         assert!(row.get("task").is_none(), "absent, not null: {row}");
         assert!(row.get("code").is_some());
+        let code = row["code"].as_str().expect("code");
+        let message = row["message"].as_str().expect("message");
+        assert!(
+            message.ends_with(&format!("· → nika explain {code}")),
+            "CONFORM JSON shares the diagnostic well: {row}"
+        );
     }
 
     /// F-P5 (c) · the `*.` wildcard in `permits.net.http` is a hard

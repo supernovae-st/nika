@@ -1016,16 +1016,26 @@ mod tests {
 
     #[test]
     fn empty_source_names_its_deduplicated_explain_action_exactly() {
-        let (error, payload) = dirty_payload("");
+        let (_, payload) = dirty_payload("");
         assert_eq!(
             payload["next_actions"],
             json!(["nika explain NIKA-PARSE-002"]),
             "{payload:#}"
         );
+        // Two PARSE-002 rows (missing `nika` · missing `tasks`) share one
+        // next action. The row `message` also carries the diagnostic
+        // hand-off (`· → nika explain …`); do not count that phrase in
+        // the serialized report — `next_actions` is the dedup clock.
+        let findings = payload["findings"].as_array().expect("findings[]");
         assert_eq!(
-            error.matches("nika explain NIKA-PARSE-002").count(),
-            1,
-            "duplicate findings must not duplicate the next action: {error}"
+            findings.len(),
+            2,
+            "empty source refuses both envelope fields: {payload:#}"
+        );
+        assert_eq!(
+            payload["next_actions"].as_array().map(Vec::len),
+            Some(1),
+            "duplicate findings must not duplicate the next action: {payload:#}"
         );
     }
 

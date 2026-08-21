@@ -49,13 +49,10 @@ use wasm_bindgen::prelude::*;
 fn finding_row(kind: &str, gate: &str, source: &str, e: &SchemaError) -> serde_json::Value {
     /* the canonical NIKA-<NAMESPACE>-<NNN> form is SpecCode's Display */
     let code = e.spec_code().to_string();
-    // Same well as CLI/MCP: SchemaDiagnostic Display, then strip the
-    // `[CODE] ` prefix the CLI JSON lane also strips from `PARSE ✗  […]`.
-    let diagnostic = e.diagnostic().to_string();
-    let message = diagnostic
-        .split_once("] ")
-        .map(|(_, rest)| rest.to_owned())
-        .unwrap_or(diagnostic);
+    // Same well as `SchemaDiagnostic` Display minus `[CODE] ` (the row
+    // already carries `code`). CLI `--json` PARSE strips the same way
+    // from `PARSE ✗  […]`; CONFORM JSON folds this exact format.
+    let message = format!("{e} · → nika explain {code}");
     let mut row = serde_json::json!({
         "kind": kind,
         "gate": gate,
@@ -359,6 +356,11 @@ mod tests {
         assert!(
             msgs.iter().any(|m| m.contains("dif")),
             "names the missing task: {msgs:?}"
+        );
+        assert!(
+            msgs.iter()
+                .any(|m| m.contains("→ nika explain") && m.contains("NIKA-")),
+            "CONFORM message must project SchemaDiagnostic, not SchemaError Display: {msgs:?}"
         );
     }
 }
