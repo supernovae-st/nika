@@ -358,6 +358,57 @@ fn model_crosscheck(report: &nika_check::CheckReport) -> (Vec<Value>, Vec<Value>
     (findings, warnings)
 }
 
+/// The AFFIRMATIVE contract, rendered on a GREEN check.
+///
+/// `permits` carries this in its own doc comment: consumers should
+/// « render the positive contract on a green check instead of
+/// reconstructing it from graph labels ». The CLI card does. This
+/// oracle did not: it returned one line naming only the risk word,
+/// while the report beside it held the wave plan, the cost ceiling, the
+/// journey and the boundary in force. Measured 2026-08-20 — the JSON
+/// key set is IDENTICAL clean and dirty, so nothing was ever gated;
+/// the facts were computed and dropped at the render.
+///
+/// It matters here more than anywhere. This tool's own description says
+/// it is what an agent consults BEFORE handing a file to a human, and a
+/// green is exactly the moment that agent has something to report: what
+/// the file touches, what it can spend, and whether it may leave mock.
+/// « Valid » is not the question a reviewer is about to be asked.
+///
+/// A pure projection of the report — zero new scan, same source as the
+/// JSON lane, so the two surfaces cannot drift.
+fn affirmative_contract(report: &nika_check::CheckReport) -> String {
+    let tasks: usize = report.waves.iter().map(Vec::len).sum();
+    let waves = report.waves.len();
+    // `PermitsSource` is `#[non_exhaustive]`, so the arm exists. It fails
+    // CLOSED on purpose: a source this build does not know must never
+    // render as a declared boundary, because that sentence is the one a
+    // reviewer trusts. Naming the variant beats inventing a reading.
+    let boundary = match report.permits.source {
+        nika_check::PermitsSource::Declared => "permits declared",
+        nika_check::PermitsSource::Absent => "no permits declared (zero authority)",
+        ref other => {
+            return format!(
+                "  boundary source `{other:?}` is newer than this renderer — \
+                 read the JSON lane, do not trust this line"
+            );
+        }
+    };
+    let spend = if report.cost.has_unbounded {
+        "est out UNBOUNDED (a local or unpriced model is never $0)".to_owned()
+    } else {
+        format!("est out ≤${:.4}", report.cost.bounded_total_usd)
+    };
+    let journey = &report.data_journey;
+    format!(
+        "  {tasks} task(s) · {waves} wave(s) · {boundary} · {spend} ·          {} source(s) → {} destination(s) · {} model endpoint(s) · data {}",
+        journey.sources.len(),
+        journey.destinations.len(),
+        journey.model_endpoints.len(),
+        journey.classification.as_str(),
+    )
+}
+
 /// The clean short-path — split out of `check` under the house function
 /// cap (the `native_first_verdict` precedent). Still carries the catalog
 /// cross-check: the ghost-model specimen IS clean (the provider
@@ -429,7 +480,8 @@ fn check(args: &Value) -> Result<String, String> {
         .collect();
     let paid = nika_check::paid_blockers(&report.hints);
     if report.is_clean() && model_findings.is_empty() {
-        return clean_verdict(&native, &paid, native_strict, grade, &catalog_warnings);
+        let verdict = clean_verdict(&native, &paid, native_strict, grade, &catalog_warnings)?;
+        return Ok(format!("{verdict}\n{}", affirmative_contract(&report)));
     }
     // `is_clean()` checks TEN finding surfaces (conformance · secret leaks +
     // egresses · capability escapes · schema findings + lints · unknown/missing
@@ -775,6 +827,48 @@ mod tests {
             !value["tools"].as_array().expect("tools").is_empty(),
             "the embedded builtin set is never empty",
         );
+    }
+
+    /// A GREEN answer carries the affirmative contract, not just the
+    /// word « clean ».
+    ///
+    /// The oracle used to return one line naming only the risk grade,
+    /// while the report beside it held the wave plan, the boundary in
+    /// force, the cost ceiling and the journey. Measured 2026-08-20: the
+    /// JSON key set is identical clean and dirty, so nothing was gated —
+    /// the facts were computed and dropped at the render. This tool's own
+    /// description says an agent consults it before handing a file to a
+    /// human, and a green is precisely when that agent has something to
+    /// report.
+    ///
+    /// Asserts the FACTS, never the sentence: a pin that quotes its own
+    /// prose passes on a reword into nonsense.
+    #[test]
+    fn a_green_answer_carries_the_affirmative_contract() {
+        let wf = "nika: t\nmodel: mock/echo\npermits:\n  fs:\n    write: [\"./out.md\"]\n  tools: [nika:write]\ntasks:\n  a:\n    invoke:\n      tool: nika:write\n      args: { path: \"./out.md\", content: \"x\" }\n";
+        let out = execute("nika_check", &json!({ "workflow": wf })).expect("ran");
+        assert!(out.contains("clean"), "still a green verdict · {out}");
+        for fact in [
+            "task(s)",
+            "wave(s)",
+            "permits declared",
+            "est out",
+            "destination(s)",
+            "data ",
+        ] {
+            assert!(out.contains(fact), "a green names `{fact}` · {out}");
+        }
+
+        // A file with NO boundary must say so in the same breath, because
+        // absent is zero authority and « clean » alone hides it.
+        let bare = "nika: t\ntasks:\n  a:\n    invoke:\n      tool: nika:log\n      args: { message: hi }\n";
+        let out = execute("nika_check", &json!({ "workflow": bare }));
+        if let Ok(text) = out {
+            assert!(
+                text.contains("no permits declared"),
+                "an absent boundary is named on the green line · {text}"
+            );
+        }
     }
 
     #[test]
