@@ -1094,6 +1094,7 @@ pub fn nika_check::DataJourney::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub nika_check::EffectivePermits::declared: core::option::Option<nika_cap::permits::Permits>
 pub nika_check::EffectivePermits::needed: nika_cap::permits::Permits
 pub nika_check::EffectivePermits::notes: alloc::vec::Vec<alloc::string::String>
+pub nika_check::EffectivePermits::partial: nika_check::permits_infer::PartialFaces
 pub nika_check::EffectivePermits::source: nika_check::PermitsSource
 impl core::clone::Clone for nika_check::EffectivePermits
 pub fn nika_check::EffectivePermits::clone(&self) -> nika_check::EffectivePermits
@@ -1442,6 +1443,7 @@ impl<T> nika_error::traits::AsAny for nika_check::Hint where T: 'static
 pub fn nika_check::Hint::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_check::InferredPermits
 pub nika_check::InferredPermits::notes: alloc::vec::Vec<alloc::string::String>
+pub nika_check::InferredPermits::partial: nika_check::permits_infer::PartialFaces
 pub nika_check::InferredPermits::permits: nika_cap::permits::Permits
 impl nika_check::InferredPermits
 pub fn nika_check::InferredPermits::to_yaml(&self) -> alloc::string::String
