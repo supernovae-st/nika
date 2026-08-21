@@ -1,0 +1,7 @@
+nika: lint-003-positive
+tasks:
+  a:
+    invoke: { tool: "nika:fetch", args: { url: "https://example.com/data" } }
+  retry_a:
+    after: { a: failure }
+    invoke: { tool: "nika:fetch", args: { url: "https://example.com/data" } }

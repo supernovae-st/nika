@@ -10,6 +10,18 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+### Added
+
+- **`nika check` now judges every native shell segment, not only the head.**
+  Pipelines, `env` wrappers, redirections, groups, `if`/`while` prefixes and
+  newlines each surface their own `native-first` hint. Comments stay comments.
+- **Four form-first skeletons join `nika new`.** `classify-and-route`,
+  `corpus-qa`, `document-to-fields` and `evaluate-and-optimize` ship with their
+  golden and their refusing neighbour, pinned to spec `d40fe6ac`.
+- **The MCP oracle now carries `instructions` and a structured example index.**
+  A dirty report keeps its `NIKA-*` code on the agent channel; `nika_examples`
+  without a slug returns recoverable rows instead of a bare list.
+
 ### Changed
 
 - **The engine carries one compile-time identity for its version, build,
@@ -20,6 +32,11 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   split identity.
 
 ### Fixed
+
+- **`--fix` cannot rewrite a digest-pinned registry cache, a symlink into
+  that cache, stdin, or a device/FIFO.** The footer teaches a copy into the
+  workspace; a project path that merely looks like `.nika/registry` stays a
+  normal file.
 
 - **The pinned conformance clock includes Agent Skills and current trace
   witnesses.** The harness now exercises the spec's skill lane with exact

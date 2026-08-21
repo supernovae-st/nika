@@ -7,6 +7,7 @@ pub use nika_check::lowered_returns
 pub use nika_check::returns_type
 pub mod nika_check::native_first
 pub fn nika_check::native_first::classify(command: &nika_schema::raw::action::RawCommand) -> core::option::Option<(&'static str, alloc::string::String)>
+pub fn nika_check::native_first::classify_all(command: &nika_schema::raw::action::RawCommand) -> alloc::vec::Vec<(&'static str, alloc::string::String)>
 pub mod nika_check::permits_fit
 #[non_exhaustive] pub struct nika_check::permits_fit::CapabilityEscape
 pub nika_check::permits_fit::CapabilityEscape::category: &'static str
@@ -1396,6 +1397,7 @@ impl<T> nika_error::traits::AsAny for nika_check::GateFinding where T: 'static
 pub fn nika_check::GateFinding::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_check::Hint
 pub nika_check::Hint::advice: alloc::string::String
+pub nika_check::Hint::code: core::option::Option<&'static str>
 pub nika_check::Hint::kind: &'static str
 pub nika_check::Hint::task: alloc::string::String
 impl nika_check::Hint

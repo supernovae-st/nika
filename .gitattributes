@@ -18,7 +18,24 @@
 # The merge result only has to be a valid EARLIER manifest, never a
 # correct one; correctness is re-established where it is the deliverable.
 #
-# The `ours` driver is registered automatically by
-# scripts/hooks/estate-gate.sh, which already runs on every commit — a
-# fix that needs a per-clone gesture is not a fix.
+# ARMING · read this before trusting the line below.
+#
+# `merge=ours` does NOTHING until `merge.ours.driver` is registered in the
+# clone's config, and git ignores an unregistered driver IN SILENCE: it falls
+# back to a plain three-way merge and hands you the meaningless conflict this
+# mark exists to prevent, naming no cause.
+#
+# scripts/hooks/estate-gate.sh registers it, but it runs from lefthook.yml,
+# which requires `lefthook install`. This file used to claim that made the
+# gesture unnecessary — « a fix that needs a per-clone gesture is not a fix ».
+# The principle is right; the claim was not reachable. Measured 2026-08-21 on
+# a working loose clone: 20 gates declared, ZERO installed, .git/hooks holding
+# only samples, and the driver absent. Git offers no way to ship config into a
+# clone, and no hook runs before the merge machinery reads this file, so a
+# clone cannot arm itself.
+#
+# The honest version of the principle: make the gesture ONE, idempotent, and
+# make its absence LOUD.
+#   arm    · bash scripts/dev/bootstrap.sh
+#   verify · bash scripts/hygiene/check-clone-armed.sh   (hygiene vector 51)
 /estate.yaml merge=ours

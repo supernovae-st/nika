@@ -1,23 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! `nika check` — the ADR-092 static ladder, rendered (spec §2).
-//!
-//! The human surface: grep-stable section keywords (CONFORM/PLAN/COST/
-//! SECRETS/TYPES/TOOLS/SCHEMA/GATES/PERMITS/HINT) through the ONE colour seam
-//! (`display::theme` · semantic-only). The machine surface (`--json`):
-//! the full [`CheckReport`] + a `clean` flag, NEVER coloured — the
-//! contract bytes are the contract. Check is INFALLIBLE past parse
-//! (rustc model): every defect lands in the report, one round-trip.
+//! `nika check` — ADR-092 static ladder. Human report + `--json` machine surface.
 
-/// The `check` arm's routing: single file = the pre-variadic path,
-/// byte-identical (every existing consumer — hooks · agents · CI — sees
-/// exactly what it saw before); several files fan out through
-/// [`run_many`]. The machine modes stay one-file-per-call —
-/// `report_version: 1` and the inferred boundary are per-file contracts —
-/// so `--json`/`--infer-permits` with several files refuse with a teach
-/// line at exit 3 (the INVOCATION is wrong, no file was judged), and
-/// stdin (`-`) cannot join a multi-file audit.
+/// Flags for one check dispatch. Several files use [`run_many`]; `--json` is one-file.
 pub struct CheckFlags {
     pub json: bool,
     pub infer_permits: bool,
@@ -25,16 +11,8 @@ pub struct CheckFlags {
     pub profile: Profile,
 }
 
-/// The readiness posture (`--profile`). `advisory` (the default) DISPLAYS
-/// the [`nika_check::RiskGrade`] on the audited card without gating on
-/// it — the pre-P0-6 behavior, minus the green paint over unbounded
-/// rope. `operational` is the agent/CI readiness gate: a grade of High
-/// or Unbounded (glob grants · true wildcards · uncapped spend) folds
-/// into the exit-2 verdict, the same way `--native-strict` promotes its
-/// hints. The grade itself is a pure projection of the report — it adds
-/// no finding and no `NIKA-*` code.
+/// `--profile`: advisory displays the grade; operational fails at High/Unbounded.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, clap::ValueEnum)]
-
 pub enum Profile {
     /// Grade displayed, never gating (the default).
     #[default]
@@ -43,54 +21,88 @@ pub enum Profile {
     Operational,
 }
 
-/// The `nika check` argument surface (clap payload — descended from the
-/// bin's Command enum at the 1500-line file cap · the `RunArgs` precedent).
-// Four independent CLI flags ARE four bools — the clap-surface idiom
-// (the TraceArgs precedent), not a state machine to encode.
 #[allow(clippy::struct_excessive_bools)]
 #[derive(clap::Args)]
 pub struct CheckArgs {
-    /// Workflow file(s) (`*.nika.yaml`) · `-` reads stdin · or a verified
-    /// `registry:owner/name[@version]` pull (cached + offline; workflow
-    /// `permits:` never govern the fetch) · several files audit in sequence
-    /// (worst exit wins — the CI shape) · `--json`/`--infer-permits` one-file-per-call.
-    /// Omitted with exactly one workflow here → that one is audited.
+    /// Workflow file(s), `-`, or `registry:owner/name[@version]`.
     #[arg(num_args = 0..)]
     pub files: Vec<String>,
-    /// Emit the versioned machine projection (`report_version: 1`).
+    /// Machine projection (`report_version: 1`).
     #[arg(long)]
     pub json: bool,
-    /// Print an inferred `permits:` boundary instead of the report.
+    /// Print an inferred `permits:` boundary.
     #[arg(long)]
     pub infer_permits: bool,
-    /// Apply the machine-applicable rename repairs (typed
-    /// did-you-mean suggestions only: fields · tools · args), rewrite
-    /// the file, and re-audit — the in-binary repair loop
-    /// (`clippy --fix` shape). One real file; ambiguous tokens are
-    /// skipped with a note, never guessed.
+    /// Apply typed rename repairs and re-audit.
     #[arg(long)]
     pub fix: bool,
-    /// Fail (exit 2) when any `native-first` hint remains — an
-    /// `exec:` a builtin or MCP tool probably covers. The agent/CI
-    /// posture; hints stay advisory without it.
+    /// Fail when any `native-first` hint remains.
     #[arg(long)]
     pub native_strict: bool,
-    /// The readiness posture on the audit's risk grade (uncapped
-    /// spend · glob/wildcard grants): `advisory` displays the grade
-    /// on the verdict card, `operational` also fails (exit 2) when
-    /// the grade is high or unbounded — the agent/CI readiness gate.
+    /// Advisory displays the grade; operational fails at High/Unbounded.
     #[arg(long, value_enum, default_value_t = Profile::Advisory)]
     pub profile: Profile,
-    /// Price the static envelope AS IF this `<provider>/<model>`
-    /// replaced the envelope default — the preview of `nika run
-    /// --model` (per-task `model:` still wins, like the runtime).
+    /// Price as if this `<provider>/<model>` replaced the envelope default.
     #[arg(long)]
     pub model: Option<String>,
+}
+
+/// Check input plus `--fix` provenance; a registry cache path is never writable.
+#[derive(Debug, Clone)]
+pub struct CheckTarget {
+    pub(crate) path: String,
+    pub(crate) repair_target: nika_display::check_render::RepairTarget,
+}
+
+impl CheckTarget {
+    #[must_use]
+    pub fn workspace(path: impl Into<String>) -> Self {
+        let path = path.into();
+        let repair_target = crate::registry::repair_target_for_path(&path);
+        Self {
+            path,
+            repair_target,
+        }
+    }
+
+    #[must_use]
+    pub fn registry_artifact(cache_path: impl Into<String>) -> Self {
+        Self {
+            path: cache_path.into(),
+            repair_target: nika_display::check_render::RepairTarget::RegistryArtifact,
+        }
+    }
+
+    fn is_stdin(&self) -> bool {
+        self.repair_target == nika_display::check_render::RepairTarget::Stdin
+    }
+
+    fn is_registry_artifact(&self) -> bool {
+        self.repair_target == nika_display::check_render::RepairTarget::RegistryArtifact
+    }
+
+    fn is_non_regular_source(&self) -> bool {
+        self.repair_target == nika_display::check_render::RepairTarget::NonRegularSource
+    }
 }
 
 #[must_use]
 pub fn dispatch(
     files: &[String],
+    flags: &CheckFlags,
+    fix: bool,
+    model: Option<&str>,
+    theme: Theme,
+) -> VerbOutput {
+    let targets: Vec<CheckTarget> = files.iter().cloned().map(CheckTarget::workspace).collect();
+    dispatch_targets(&targets, flags, fix, model, theme)
+}
+
+/// [`dispatch`] over already-acquired inputs whose registry provenance has
+/// been retained by the binary's resolution seam.
+#[must_use]
+pub fn dispatch_targets(
+    targets: &[CheckTarget],
     flags: &CheckFlags,
     fix: bool,
     model: Option<&str>,
@@ -103,17 +115,22 @@ pub fn dispatch(
         profile,
     } = *flags;
     if fix {
-        // The repair loop rewrites a file: stdin has nothing to rewrite,
-        // --json's report_version is a single immutable audit, several
-        // files would interleave rewrites with one summary, and
-        // --infer-permits is a different output entirely.
+        // --fix rewrites one regular workspace file.
         if json || infer_permits {
             return crate::verbs::fix::refuse(
                 "--fix pairs with the plain audit only (not --json / --infer-permits)",
             );
         }
-        return match files {
-            [file] if file != "-" => crate::verbs::fix::run(file, native_strict, model, theme),
+        return match targets {
+            [target] if target.is_registry_artifact() => crate::verbs::fix::refuse(
+                "a registry artifact is digest-pinned — copy it into your workspace, then fix the copy",
+            ),
+            [target] if target.is_non_regular_source() => crate::verbs::fix::refuse(
+                "a device, FIFO, or other non-regular source cannot be rewritten — save or copy it into a regular workspace file, then fix the copy",
+            ),
+            [target] if !target.is_stdin() => {
+                crate::verbs::fix::run(&target.path, native_strict, model, theme)
+            }
             [_] => {
                 crate::verbs::fix::refuse("stdin (`-`) has no file to rewrite — name a real path")
             }
@@ -122,11 +139,11 @@ pub fn dispatch(
             ),
         };
     }
-    if let [file] = files {
+    if let [target] = targets {
         if infer_permits {
-            run_infer_permits(file, json)
+            run_infer_permits(&target.path, json)
         } else {
-            run_with_profile(file, json, native_strict, profile, model, theme)
+            run_target_with_profile(target, json, native_strict, profile, model, theme)
         }
     } else if json || infer_permits {
         VerbOutput {
@@ -136,7 +153,7 @@ pub fn dispatch(
                 .to_owned(),
             code: crate::verbs::exit::ENV,
         }
-    } else if files.iter().any(|f| f == "-") {
+    } else if targets.iter().any(CheckTarget::is_stdin) {
         VerbOutput {
             text: "check: stdin (`-`) cannot join a multi-file audit\n  fix: \
                    pipe one call per stream, or name the files\n"
@@ -144,7 +161,7 @@ pub fn dispatch(
             code: crate::verbs::exit::ENV,
         }
     } else {
-        run_many(files, native_strict, profile, model, theme)
+        run_many_targets(targets, native_strict, profile, model, theme)
     }
 }
 
@@ -167,14 +184,7 @@ use nika_display::check_render::render;
 #[cfg(test)]
 use nika_display::check_render::{permits, required_inputs};
 
-/// The `nika check <file>` verb. `native_strict` promotes the advisory
-/// `native-first` hints to failures (exit 2) — the agent/CI posture:
-/// spec-validity is unchanged, but an `exec:` with a probable native
-/// path no longer sails through silently.
-///
-/// The pre-profile signature, KEPT byte-stable for the surfaces that
-/// ride it (welcome's mirror · the fix loop): the readiness posture is
-/// advisory here — gating is an explicit ask, via [`run_with_profile`].
+/// `nika check <file>`. `native_strict` promotes native-first hints to exit 2.
 #[must_use]
 pub fn run(
     path: &str,
@@ -193,10 +203,7 @@ pub fn run(
     )
 }
 
-/// `--model m` previews the RUN override's static envelope (#342): the
-/// report is recomputed with `m` as the effective envelope default —
-/// the same substitution the run's budget preflight prices, so what
-/// check shows IS what run will refuse or allow.
+/// Recompute the report as if `nika run --model` overrode the envelope.
 fn overridden(
     wf: nika_schema::raw::RawWorkflow,
     report: nika_check::CheckReport,
@@ -212,11 +219,7 @@ fn overridden(
     }
 }
 
-/// The two red verdict footers (native-strict · operational profile),
-/// rendered only when their gate fired. The native wording is measured:
-/// a ledgered `.py` wrapper still fails that gate (it judges the SHAPE
-/// of the subprocess, not whether it was written down) — the ledger is
-/// for the reviewer; only replacing the call clears the line.
+/// Native-strict and operational-profile footers, only when their gate fired.
 fn strict_footers(
     text: &mut String,
     theme: Theme,
@@ -260,10 +263,7 @@ fn strict_footers(
     }
 }
 
-/// [`run`] with the readiness posture explicit: `profile` gates on the
-/// [`nika_check::RiskGrade`] — `operational` folds a grade ≥ High (glob
-/// grants · true wildcards · uncapped spend) into the same exit-2
-/// verdict, where `advisory` only displays the grade.
+/// Like [`run`], with an explicit readiness profile.
 #[must_use]
 pub fn run_with_profile(
     path: &str,
@@ -273,7 +273,25 @@ pub fn run_with_profile(
     model_override: Option<&str>,
     theme: Theme,
 ) -> VerbOutput {
-    let source = match RunSource::capture(path) {
+    run_target_with_profile(
+        &CheckTarget::workspace(path),
+        json,
+        native_strict,
+        profile,
+        model_override,
+        theme,
+    )
+}
+
+fn run_target_with_profile(
+    target: &CheckTarget,
+    json: bool,
+    native_strict: bool,
+    profile: Profile,
+    model_override: Option<&str>,
+    theme: Theme,
+) -> VerbOutput {
+    let source = match RunSource::capture_with_repair_target(&target.path, target.repair_target) {
         Ok(source) => source,
         Err(out) if json => return parse_fatal_json(&out),
         Err(out) => return out,
@@ -347,6 +365,7 @@ pub(crate) fn run_source_with_profile(
         &wf,
         source.source(),
         path,
+        source.repair_target(),
         theme,
         &models_audit,
         &skills,
@@ -376,11 +395,7 @@ pub(crate) fn run_source_with_profile(
     }
 }
 
-/// The parse-fatal machine verdict (#331): a file the parser refuses
-/// never reaches the report, but a `--json` consumer still gets JSON —
-/// `parse_fatal: true`, `clean: false`, and ONE findings[] row carrying
-/// the spec code the plain-text voice prints (`PARSE ✗ [CODE] …`). The
-/// exit code (2 file · 3 env) rides unchanged.
+/// `--json` parse-fatal verdict: one findings row, `parse_fatal: true`.
 fn parse_fatal_json(out: &VerbOutput) -> VerbOutput {
     let text = out.text.trim();
     // The plain voice is `PARSE ✗  [NIKA-…] message` — recover the code;
@@ -412,8 +427,7 @@ fn parse_fatal_json(out: &VerbOutput) -> VerbOutput {
     }
 }
 
-/// The machine rows both MODELS lists share (resolve findings · catalog
-/// warnings) — one `model`/`tasks`/`why` shape on the `--json` lane.
+/// Shared `--json` MODELS row shape.
 fn model_finding_rows(findings: &[ModelFinding]) -> serde_json::Value {
     serde_json::Value::Array(
         findings
@@ -429,12 +443,7 @@ fn model_finding_rows(findings: &[ModelFinding]) -> serde_json::Value {
     )
 }
 
-/// The `--json` verdict: the full report + the machine keys (`clean` ·
-/// `models_resolve` · `models_unjudged` (presence-gated) ·
-/// `model_findings[]` · `skills_resolve` · `skill_findings[]` ·
-/// `pricing` · `risk_grade` · the strict/posture flags) — never
-/// coloured, the contract bytes are the contract. The drift rows
-/// (NIKA-DRIFT-001) append to `hints[]` in the report's row shape plus
+/// `--json` verdict object. Drift rows append to `hints[]` plus
 /// their `code`.
 #[allow(clippy::too_many_arguments)] // the verdict's seams, one each — the render.rs:427 precedent
 fn json_verdict(
@@ -553,10 +562,22 @@ pub fn run_many(
     model_override: Option<&str>,
     theme: Theme,
 ) -> VerbOutput {
-    let mut texts = Vec::with_capacity(paths.len());
+    let targets: Vec<CheckTarget> = paths.iter().cloned().map(CheckTarget::workspace).collect();
+    run_many_targets(&targets, native_strict, profile, model_override, theme)
+}
+
+fn run_many_targets(
+    targets: &[CheckTarget],
+    native_strict: bool,
+    profile: Profile,
+    model_override: Option<&str>,
+    theme: Theme,
+) -> VerbOutput {
+    let mut texts = Vec::with_capacity(targets.len());
     let mut worst = crate::verbs::exit::OK;
-    for path in paths {
-        let out = run_with_profile(path, false, native_strict, profile, model_override, theme);
+    for target in targets {
+        let out =
+            run_target_with_profile(target, false, native_strict, profile, model_override, theme);
         texts.push(out.text);
         worst = worst.max(out.code);
     }
@@ -591,5 +612,7 @@ pub fn run_infer_permits(path: &str, json: bool) -> VerbOutput {
     VerbOutput::ok(text)
 }
 
+#[cfg(test)]
+mod repair_tests;
 #[cfg(test)]
 mod tests;

@@ -16,6 +16,7 @@ pub mod nika_cli::registry
 pub use nika_cli::registry::RegistryError
 pub use nika_cli::registry::Resolved
 pub use nika_cli::registry::is_registry_ref
+pub use nika_cli::registry::repair_target_for_path
 pub fn nika_cli::registry::resolve_blocking(arg: &str) -> core::result::Result<nika_registry_client::Resolved, nika_registry_client::RegistryError>
 pub mod nika_cli::seal
 pub use nika_cli::seal::<<nika_dap::seal::*>>
@@ -432,7 +433,50 @@ impl<T> tracing::instrument::Instrument for nika_cli::verbs::check::CheckFlags
 impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::check::CheckFlags
 impl<T> typenum::type_operators::Same for nika_cli::verbs::check::CheckFlags
 pub type nika_cli::verbs::check::CheckFlags::Output = T
+pub struct nika_cli::verbs::check::CheckTarget
+impl nika_cli::verbs::check::CheckTarget
+pub fn nika_cli::verbs::check::CheckTarget::registry_artifact(cache_path: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_cli::verbs::check::CheckTarget::workspace(path: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_cli::verbs::check::CheckTarget
+pub fn nika_cli::verbs::check::CheckTarget::clone(&self) -> nika_cli::verbs::check::CheckTarget
+impl core::fmt::Debug for nika_cli::verbs::check::CheckTarget
+pub fn nika_cli::verbs::check::CheckTarget::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_cli::verbs::check::CheckTarget
+impl<T, U> core::convert::Into<U> for nika_cli::verbs::check::CheckTarget where U: core::convert::From<T>
+pub fn nika_cli::verbs::check::CheckTarget::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli::verbs::check::CheckTarget where U: core::convert::Into<T>
+pub type nika_cli::verbs::check::CheckTarget::Error = core::convert::Infallible
+pub fn nika_cli::verbs::check::CheckTarget::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli::verbs::check::CheckTarget where U: core::convert::TryFrom<T>
+pub type nika_cli::verbs::check::CheckTarget::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli::verbs::check::CheckTarget::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli::verbs::check::CheckTarget where T: core::clone::Clone
+pub type nika_cli::verbs::check::CheckTarget::Owned = T
+pub fn nika_cli::verbs::check::CheckTarget::clone_into(&self, target: &mut T)
+pub fn nika_cli::verbs::check::CheckTarget::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli::verbs::check::CheckTarget where T: 'static + ?core::marker::Sized
+pub fn nika_cli::verbs::check::CheckTarget::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli::verbs::check::CheckTarget where T: ?core::marker::Sized
+pub fn nika_cli::verbs::check::CheckTarget::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli::verbs::check::CheckTarget where T: ?core::marker::Sized
+pub fn nika_cli::verbs::check::CheckTarget::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli::verbs::check::CheckTarget where T: core::clone::Clone
+pub unsafe fn nika_cli::verbs::check::CheckTarget::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli::verbs::check::CheckTarget
+pub fn nika_cli::verbs::check::CheckTarget::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli::verbs::check::CheckTarget where T: core::clone::Clone
+pub fn nika_cli::verbs::check::CheckTarget::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli::verbs::check::CheckTarget where T: 'static
+pub fn nika_cli::verbs::check::CheckTarget::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli::verbs::check::CheckTarget where T: ?core::marker::Sized
+pub fn nika_cli::verbs::check::CheckTarget::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli::verbs::check::CheckTarget::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli::verbs::check::CheckTarget
+impl<T> tracing::instrument::WithSubscriber for nika_cli::verbs::check::CheckTarget
+impl<T> typenum::type_operators::Same for nika_cli::verbs::check::CheckTarget
+pub type nika_cli::verbs::check::CheckTarget::Output = T
 pub fn nika_cli::verbs::check::dispatch(files: &[alloc::string::String], flags: &nika_cli::verbs::check::CheckFlags, fix: bool, model: core::option::Option<&str>, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
+pub fn nika_cli::verbs::check::dispatch_targets(targets: &[nika_cli::verbs::check::CheckTarget], flags: &nika_cli::verbs::check::CheckFlags, fix: bool, model: core::option::Option<&str>, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
 pub fn nika_cli::verbs::check::run(path: &str, json: bool, native_strict: bool, model_override: core::option::Option<&str>, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
 pub fn nika_cli::verbs::check::run_infer_permits(path: &str, json: bool) -> nika_cli_host::output::VerbOutput
 pub fn nika_cli::verbs::check::run_many(paths: &[alloc::string::String], native_strict: bool, profile: nika_cli::verbs::check::Profile, model_override: core::option::Option<&str>, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
@@ -917,6 +961,7 @@ impl<T> typenum::type_operators::Same for nika_cli::verbs::run::FoldSink<W>
 pub type nika_cli::verbs::run::FoldSink<W>::Output = T
 pub fn nika_cli::verbs::run::example(slug: &str, model_flag: core::option::Option<&str>, access_pin: core::option::Option<&str>, vars: &[alloc::string::String], (quiet, no_progress): (bool, bool), max_cost_usd: core::option::Option<f64>, theme: nika_display::theme::Theme) -> u8
 pub fn nika_cli::verbs::run::run(file: &str, json: bool, output: core::option::Option<&str>, theme: nika_display::theme::Theme, mode: nika_cli::verbs::run::RenderMode, dry_run: bool, model_override: core::option::Option<&str>, access_pin: core::option::Option<&str>, vars: &[alloc::string::String], resume: core::option::Option<&nika_dap::resume::ResumeRequest>, no_trace_file: bool, task_filter: core::option::Option<&str>, no_outputs: bool, max_cost_usd: core::option::Option<f64>, no_gc: bool, require_signature: bool) -> u8
+pub fn nika_cli::verbs::run::run_with_repair_target(file: &str, json: bool, output: core::option::Option<&str>, theme: nika_display::theme::Theme, mode: nika_cli::verbs::run::RenderMode, dry_run: bool, model_override: core::option::Option<&str>, access_pin: core::option::Option<&str>, vars: &[alloc::string::String], resume: core::option::Option<&nika_dap::resume::ResumeRequest>, no_trace_file: bool, task_filter: core::option::Option<&str>, no_outputs: bool, max_cost_usd: core::option::Option<f64>, no_gc: bool, require_signature: bool, repair_target: nika_display::check_render::RepairTarget) -> u8
 pub mod nika_cli::verbs::serve
 pub struct nika_cli::verbs::serve::ServeArgs
 pub nika_cli::verbs::serve::ServeArgs::dry: bool

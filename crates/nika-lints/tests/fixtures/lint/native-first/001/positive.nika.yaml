@@ -1,0 +1,4 @@
+nika: native-001-positive
+tasks:
+  fetch:
+    exec: { command: ["curl", "https://example.com"] }

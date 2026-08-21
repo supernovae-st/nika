@@ -1,0 +1,4 @@
+nika: native-004-negative
+tasks:
+  custom:
+    exec: { shell: "./deploy.sh --host api.elevenlabs.io" }

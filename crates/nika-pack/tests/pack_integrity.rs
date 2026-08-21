@@ -93,7 +93,23 @@ fn surface_counts_hold() {
     // against the vendored canon in `spec_parity::canon_templates_equal_the_
     // embedded_surface` — a hand-typed equality only ever noticed that a number
     // moved, and had to be edited by hand at 9→10 and again at 10→14.
-    assert!(nika_pack::template_names().len() >= 10);
+    let names = nika_pack::template_names();
+    assert!(names.len() >= 10);
+    // The four form-first skeletons are pinned BY NAME here, and that is not a
+    // duplicate of the parity test: parity proves embedded == canon-declared,
+    // which still passes if a removal takes BOTH sides down together. This is
+    // the floor that refuses that.
+    for required in [
+        "classify-and-route",
+        "corpus-qa",
+        "document-to-fields",
+        "evaluate-and-optimize",
+    ] {
+        assert!(
+            names.iter().any(|n| n == required),
+            "form-first skeleton {required} missing from the vendored pack"
+        );
+    }
     assert!(nika_pack::example_slugs().len() >= 27);
     assert!(nika_pack::doc_paths().len() >= 12, "spec + stdlib pages");
     assert!(nika_pack::schema_json().contains("\"$schema\""));

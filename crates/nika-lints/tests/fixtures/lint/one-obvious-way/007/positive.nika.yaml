@@ -1,0 +1,10 @@
+nika: lint-007-positive
+tasks:
+  shard1:
+    exec: { command: ["./process.sh", "part1"] }
+  shard2:
+    after: { shard1: success }
+    exec: { command: ["./process.sh", "part2"] }
+  shard3:
+    after: { shard2: success }
+    exec: { command: ["./process.sh", "part3"] }

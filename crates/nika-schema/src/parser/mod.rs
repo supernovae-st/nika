@@ -447,35 +447,18 @@ impl Cx<'_> {
                     nika_types::suggest::did_you_mean(key.as_str(), known.iter().copied())
                         .map(str::to_owned)
                 };
-                let ordinary = if is_modeline {
-                    Some(
-                        "this is a de-commented editor modeline, not a workflow \
-                         field — restore the `# ` comment prefix (or delete the \
-                         line; it is editor-only)"
-                            .to_owned(),
-                    )
-                } else if suggestion.is_some() {
-                    None
-                } else {
-                    // No near-miss to assert: for a small closed set,
-                    // teach the set itself — `env` in a secret is
-                    // nobody's typo for `key`, the author needs the
-                    // vocabulary (the chart-semantics precedent applied
-                    // to parse · use-case battery 2026-07-11). Large
-                    // sets (a task's keys) stay silent: a 20-item dump
-                    // is noise, not teaching.
-                    //
-                    // 9, not 8. Measured 2026-08-15: exactly two sets
-                    // sit at nine — TOP_LEVEL_KEYS (the envelope) and
-                    // AGENT_KEYS — and both were silent for the sake
-                    // of one key over a round number. The envelope is
-                    // the set an author meets first and the one whose
-                    // vocabulary they are least likely to hold; it has
-                    // never taught itself, at fourteen keys or at nine.
-                    // A task's fifteen keys still stay silent, which is
-                    // the line this threshold exists to draw.
-                    (known.len() <= 9).then(|| format!("the fields here: {}", known.join(" · ")))
-                };
+                let ordinary = is_modeline.then(|| {
+                    "this is a de-commented editor modeline, not a workflow \
+                     field — restore the `# ` comment prefix (or delete the \
+                     line; it is editor-only)"
+                        .to_owned()
+                });
+                // Every unknown-field context enumerates the keys from the
+                // SAME slice the parser used to reject the key. No threshold,
+                // no mirror, no context-specific hand copy: a large task set
+                // is still more actionable than silence for an agent choosing
+                // among nearby fields.
+                let valid = format!("the fields here: {}", known.join(" · "));
                 // A RETIRED key leads with its migration and KEEPS the
                 // ordinary teaching behind it — the two answer different
                 // questions and neither replaces the other. The set listing
@@ -484,16 +467,19 @@ impl Cx<'_> {
                 // an earlier draft returned the migration INSTEAD, and the
                 // sibling law's own test caught it.
                 let teaching = match (retired_key_teaching(key.as_str(), location), ordinary) {
-                    (Some(retired), Some(ordinary)) => Some(format!("{retired} · {ordinary}")),
-                    (Some(retired), None) => Some(retired.to_owned()),
-                    (None, ordinary) => ordinary,
+                    (Some(retired), Some(ordinary)) => {
+                        format!("{retired} · {ordinary} · {valid}")
+                    }
+                    (Some(retired), None) => format!("{retired} · {valid}"),
+                    (None, Some(ordinary)) => format!("{ordinary} · {valid}"),
+                    (None, None) => valid,
                 };
                 return Err(SchemaError::UnknownField {
                     field: key.as_str().to_owned(),
                     location: location.to_owned(),
                     span: self.span(key.span()),
                     suggestion,
-                    teaching,
+                    teaching: Some(teaching),
                 });
             }
         }
@@ -903,7 +889,7 @@ tasks:
     }
 
     #[test]
-    fn unknown_field_suggests_near_typos_and_stays_silent_far() {
+    fn unknown_field_suggests_near_typos_and_always_lists_valid_keys() {
         // The #1 beginner friction (user-sim punch list 2026-07-06): a
         // typo'd verb key (`infr:`) died as a bare « unknown field » while
         // the closed vocabulary sat RIGHT THERE in the rejection call.
@@ -912,14 +898,27 @@ tasks:
         let near = "nika: h\ntasks:\n  g:\n    infr:\n      prompt: \"hi\"\n";
         let err = parse_strict(near).expect_err("unknown key");
         assert!(err.to_string().contains("did you mean `infer`?"), "{err}");
-        let SchemaError::UnknownField { suggestion, .. } = err else {
+        let SchemaError::UnknownField {
+            suggestion,
+            teaching,
+            ..
+        } = err
+        else {
             panic!("expected UnknownField, got {err:?}");
         };
         assert_eq!(suggestion.as_deref(), Some("infer"));
+        let mut task_keys = tasks::TASK_KEYS.to_vec();
+        task_keys.extend_from_slice(verbs::VERB_KEYS);
+        let exact = format!("the fields here: {}", task_keys.join(" · "));
+        assert_eq!(teaching.as_deref(), Some(exact.as_str()));
 
         let far = "nika: h\ntasks:\n  g:\n    zzzqx:\n      prompt: \"hi\"\n";
-        let msg = parse_strict(far).expect_err("unknown key").to_string();
-        assert!(!msg.contains("did you mean"), "{msg}");
+        let err = parse_strict(far).expect_err("unknown key");
+        assert!(!err.to_string().contains("did you mean"), "{err}");
+        let SchemaError::UnknownField { teaching, .. } = err else {
+            panic!("expected UnknownField, got {err:?}");
+        };
+        assert_eq!(teaching.as_deref(), Some(exact.as_str()));
     }
 
     #[test]
@@ -966,12 +965,18 @@ tasks:
             "a retired key ALSO names where its role went · {taught}"
         );
 
-        // The other side of the threshold, and the reason it exists: a task
-        // carries far more keys than a reader can use as a hint, so that set
-        // stays silent. A dump is not teaching.
+        // The task context derives its list from the shared task + verb keysets.
         let far = "nika: h\ntasks:\n  g:\n    zzzqx: 1\n    exec:\n      run: \"true\"\n";
-        let msg = parse_strict(far).expect_err("unknown task key").to_string();
-        assert!(!msg.contains("the fields here"), "{msg}");
+        let err = parse_strict(far).expect_err("unknown task key");
+        let SchemaError::UnknownField { teaching, .. } = err else {
+            panic!("expected UnknownField, got {err:?}");
+        };
+        let mut valid = tasks::TASK_KEYS.to_vec();
+        valid.extend_from_slice(verbs::VERB_KEYS);
+        assert_eq!(
+            teaching.as_deref(),
+            Some(format!("the fields here: {}", valid.join(" · ")).as_str())
+        );
     }
 
     #[test]
@@ -1106,10 +1111,10 @@ tasks:
     }
 
     /// The typed half stays typed: a near-miss key rides `suggestion` as
-    /// the bare key (what a splice applies) and `teaching` stays empty —
-    /// there is nothing to say beyond « did you mean `infer`? ».
+    /// the bare key (what a splice applies), while the derived valid-key
+    /// list rides the prose-only teaching field.
     #[test]
-    fn a_near_miss_is_a_bare_key_and_teaches_nothing_else() {
+    fn a_near_miss_is_a_bare_key_and_keeps_the_valid_key_index_separate() {
         let near = "nika: h\ntasks:\n  g:\n    infr:\n      prompt: \"hi\"\n";
         let err = parse_strict(near).expect_err("unknown key");
         let SchemaError::UnknownField {
@@ -1121,7 +1126,12 @@ tasks:
             panic!("expected UnknownField, got {err:?}");
         };
         assert_eq!(suggestion.as_deref(), Some("infer"));
-        assert_eq!(*teaching, None);
+        let mut valid = tasks::TASK_KEYS.to_vec();
+        valid.extend_from_slice(verbs::VERB_KEYS);
+        assert_eq!(
+            teaching.as_deref(),
+            Some(format!("the fields here: {}", valid.join(" · ")).as_str())
+        );
         // The one door every repairer reads: the same pair, typed.
         assert_eq!(
             err.rename_repair(),

@@ -1,0 +1,4 @@
+nika: native-002-negative
+tasks:
+  custom:
+    exec: { command: ["./scripts/cat", "input.txt"] }

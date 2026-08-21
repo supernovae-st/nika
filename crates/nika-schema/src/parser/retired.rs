@@ -58,9 +58,9 @@ pub(super) fn envelope(key: &str) -> Option<&'static str> {
     }
 }
 
-/// The task body's dead keys from the same sweep — a task's twenty-key set
-/// stays silent by design (no set listing · no near-miss for these), so
-/// without an arm each reads as `zzz:` to the author who typed it last week.
+/// The task body's dead keys from the same sweep. The shared unknown-field
+/// tail enumerates the task set; these arms preserve migration-specific
+/// teaching ahead of it.
 pub(super) fn task(key: &str) -> Option<&'static str> {
     match key {
         "on_finally" => Some(
@@ -252,10 +252,9 @@ mod tests {
         );
     }
 
-    /// The task body had its own retired keys (the same 2026-08-11 sweep)
-    /// — a task's twenty-key set stays silent by design, so without an
-    /// arm each of these reads as `zzz:` to the author who typed it last
-    /// week.
+    /// The task body had its own retired keys (the same 2026-08-11 sweep).
+    /// The shared tail enumerates the task set; these arms must preserve
+    /// migration-specific teaching ahead of it.
     #[test]
     fn every_retired_task_key_teaches_where_its_role_went() {
         let sees = |key: &str, value: &str| {

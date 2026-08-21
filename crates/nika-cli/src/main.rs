@@ -844,6 +844,7 @@ fn run_verb(
     link_when: LinkChoice,
     plain: bool,
     ascii: bool,
+    repair_target: Option<nika_cli::display::check_render::RepairTarget>,
 ) -> u8 {
     let resume = (args.resume.is_some() || !args.answer.is_empty()).then(|| {
         nika_dap::resume::ResumeRequest {
@@ -866,8 +867,11 @@ fn run_verb(
     // interactive surface only, and the motion opt-out wins (the same
     // env the replay honours).
     theme.animate = theme.accents && !env_flag("NIKA_REDUCED_MOTION");
-    verbs::run::run(
-        args.file.as_deref().unwrap_or_default(),
+    let file = args.file.as_deref().unwrap_or_default();
+    let repair_target =
+        repair_target.unwrap_or_else(|| nika_cli::registry::repair_target_for_path(file));
+    verbs::run::run_with_repair_target(
+        file,
         args.json,
         args.output.as_deref(),
         theme,
@@ -883,6 +887,7 @@ fn run_verb(
         args.max_cost_usd,
         args.no_gc,
         args.require_signature,
+        repair_target,
     )
 }
 

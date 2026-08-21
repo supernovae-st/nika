@@ -2328,6 +2328,9 @@ pub fn nika_cli_host::probe::collect(ping: bool) -> nika_cli_host::probe::Probe
 pub fn nika_cli_host::probe::environment_json(probe: &nika_cli_host::probe::Probe) -> serde_json::value::Value
 pub fn nika_cli_host::probe::sandbox_probe() -> nika_cli_host::probe::SandboxProbe
 pub fn nika_cli_host::probe::train_differs(a: &str, b: &str) -> bool
+pub mod nika_cli_host::repair
+pub fn nika_cli_host::repair::repair_target_for_path(path: &str) -> nika_display::check_render::RepairTarget
+pub fn nika_cli_host::repair::repair_target_for_path_under(path: &str, registry_root: core::option::Option<&std::path::Path>) -> nika_display::check_render::RepairTarget
 pub mod nika_cli_host::retention
 pub use nika_cli_host::retention::GcReport
 pub use nika_cli_host::retention::Reason
@@ -2337,6 +2340,51 @@ pub use nika_cli_host::retention::newest_per_workflow
 pub fn nika_cli_host::retention::fmt_bytes(bytes: u64) -> alloc::string::String
 pub fn nika_cli_host::retention::gc_at_run_start(dir: &std::path::Path, no_gc: bool, dry_run: bool) -> core::option::Option<alloc::string::String>
 pub fn nika_cli_host::retention::gc_line(report: &nika_dap::retention::GcReport) -> alloc::string::String
+pub mod nika_cli_host::source
+pub struct nika_cli_host::source::RunSource
+impl nika_cli_host::source::RunSource
+pub fn nika_cli_host::source::RunSource::capture(path: &str) -> core::result::Result<Self, nika_cli_host::output::VerbOutput>
+pub fn nika_cli_host::source::RunSource::capture_with_repair_target(path: &str, repair_target: nika_display::check_render::RepairTarget) -> core::result::Result<Self, nika_cli_host::output::VerbOutput>
+pub fn nika_cli_host::source::RunSource::from_bytes(logical_path: impl core::convert::Into<alloc::string::String>, bytes: alloc::vec::Vec<u8>) -> core::io::error::Result<Self>
+pub fn nika_cli_host::source::RunSource::logical_path(&self) -> &str
+pub fn nika_cli_host::source::RunSource::repair_target(&self) -> nika_display::check_render::RepairTarget
+pub fn nika_cli_host::source::RunSource::source(&self) -> &str
+impl core::clone::Clone for nika_cli_host::source::RunSource
+pub fn nika_cli_host::source::RunSource::clone(&self) -> nika_cli_host::source::RunSource
+impl<D> owo_colors::OwoColorize for nika_cli_host::source::RunSource
+impl<T, U> core::convert::Into<U> for nika_cli_host::source::RunSource where U: core::convert::From<T>
+pub fn nika_cli_host::source::RunSource::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cli_host::source::RunSource where U: core::convert::Into<T>
+pub type nika_cli_host::source::RunSource::Error = core::convert::Infallible
+pub fn nika_cli_host::source::RunSource::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cli_host::source::RunSource where U: core::convert::TryFrom<T>
+pub type nika_cli_host::source::RunSource::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cli_host::source::RunSource::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cli_host::source::RunSource where T: core::clone::Clone
+pub type nika_cli_host::source::RunSource::Owned = T
+pub fn nika_cli_host::source::RunSource::clone_into(&self, target: &mut T)
+pub fn nika_cli_host::source::RunSource::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cli_host::source::RunSource where T: 'static + ?core::marker::Sized
+pub fn nika_cli_host::source::RunSource::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cli_host::source::RunSource where T: ?core::marker::Sized
+pub fn nika_cli_host::source::RunSource::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cli_host::source::RunSource where T: ?core::marker::Sized
+pub fn nika_cli_host::source::RunSource::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cli_host::source::RunSource where T: core::clone::Clone
+pub unsafe fn nika_cli_host::source::RunSource::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cli_host::source::RunSource
+pub fn nika_cli_host::source::RunSource::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_cli_host::source::RunSource where T: core::clone::Clone
+pub fn nika_cli_host::source::RunSource::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_cli_host::source::RunSource where T: 'static
+pub fn nika_cli_host::source::RunSource::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_cli_host::source::RunSource where T: ?core::marker::Sized
+pub fn nika_cli_host::source::RunSource::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_cli_host::source::RunSource::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_cli_host::source::RunSource
+impl<T> tracing::instrument::WithSubscriber for nika_cli_host::source::RunSource
+impl<T> typenum::type_operators::Same for nika_cli_host::source::RunSource
+pub type nika_cli_host::source::RunSource::Output = T
 pub mod nika_cli_host::text
 pub fn nika_cli_host::text::count(n: usize, noun: &str) -> alloc::string::String
 pub fn nika_cli_host::text::usd(amount: f64) -> alloc::string::String

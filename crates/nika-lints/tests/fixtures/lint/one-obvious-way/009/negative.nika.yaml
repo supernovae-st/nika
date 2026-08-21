@@ -1,0 +1,5 @@
+nika: lint-009-negative
+tasks:
+  users:
+    invoke: { tool: "nika:read", args: { path: "users.json" } }
+    extract: { emails: "[.users[]]" }

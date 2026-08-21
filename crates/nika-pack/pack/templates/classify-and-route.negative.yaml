@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: Apache-2.0
+# COUNTEREXAMPLE · decide needs both a bundle and an EvidenceSnapshot.
+# Expected · NIKA-BUILTIN-001.
+nika: classify-and-route-negative
+permits:
+  tools: ["nika:decide"]
+tasks:
+  decide:
+    invoke:
+      tool: nika:decide
+      args:
+        bundle: { decision_bundle_format: 1 }

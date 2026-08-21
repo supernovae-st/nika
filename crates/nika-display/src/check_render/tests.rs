@@ -12,6 +12,7 @@ mod trifecta_rung_tests {
             &wf,
             yaml,
             "w.nika.yaml",
+            RepairTarget::WorkspaceFile,
             Theme::new(false, false, false),
             &ModelsAudit::new(Vec::new(), 0, 0),
             &nika_schema::ResolvedSkills::default(),
@@ -137,6 +138,141 @@ tasks:
     }
 }
 
+mod hint_dedup_tests {
+    use nika_schema::parser::{ParseMode, parse};
+    use nika_schema::source::FileId;
+
+    use crate::check_render::*;
+
+    fn rendered_as(yaml: &str, path: &str, repair_target: RepairTarget) -> String {
+        let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parses");
+        let report = nika_check::check(&wf);
+        render(
+            &report,
+            &wf,
+            yaml,
+            path,
+            repair_target,
+            Theme::new(false, false, false),
+            &ModelsAudit::new(Vec::new(), 0, 0),
+            &nika_schema::ResolvedSkills::default(),
+            &[],
+            report.is_clean(),
+        )
+    }
+
+    fn rendered(yaml: &str, path: &str) -> String {
+        let repair_target = if path == "-" {
+            RepairTarget::Stdin
+        } else {
+            RepairTarget::WorkspaceFile
+        };
+        rendered_as(yaml, path, repair_target)
+    }
+
+    #[test]
+    fn repeated_hint_code_renders_once_with_site_count_and_next_command() {
+        let yaml = r"
+nika: repeated
+permits:
+  exec: [curl]
+  net: { http: [example.com] }
+tasks:
+  first:
+    exec: { command: [curl, https://example.com/a] }
+  second:
+    exec: { command: [curl, https://example.com/b] }
+";
+        let out = rendered(yaml, "repeated.nika.yaml");
+        assert_eq!(
+            out.matches("[native-first/001]").count(),
+            1,
+            "one diagnostic body per stable code:\n{out}"
+        );
+        assert!(out.contains("2 sites across 2 tasks"), "{out}");
+        assert!(out.contains("1 distinct hint across 2 sites"), "{out}");
+        assert!(
+            out.contains("nika check --fix repeated.nika.yaml"),
+            "the footer gives the next real command:\n{out}"
+        );
+    }
+
+    #[test]
+    fn heterogeneous_advice_keeps_rows_but_footer_counts_distinct_codes() {
+        let yaml = r"
+nika: heterogeneous
+permits: { exec: [date, sha256sum] }
+tasks:
+  clock:
+    exec: { command: [date] }
+  digest:
+    exec: { command: [sha256sum, input.txt] }
+";
+        let out = rendered(yaml, "heterogeneous.nika.yaml");
+        assert_eq!(
+            out.matches("[native-first/003]").count(),
+            2,
+            "distinct advice variants both render:\n{out}"
+        );
+        assert!(out.contains("1 distinct hint across 2 sites"), "{out}");
+        assert!(!out.contains("2 distinct hints"), "{out}");
+    }
+
+    #[test]
+    fn next_command_quotes_paths_and_never_offers_fix_for_stdin() {
+        let yaml =
+            "nika: q\npermits: { exec: [date] }\ntasks:\n  t:\n    exec: { command: [date] }\n";
+        let spaced = rendered(yaml, "my workflow.nika.yaml");
+        assert!(
+            spaced.contains("nika check --fix 'my workflow.nika.yaml'"),
+            "{spaced}"
+        );
+        let apostrophe = rendered(yaml, "it's ready.nika.yaml");
+        assert!(
+            apostrophe.contains("nika check --fix 'it'\"'\"'s ready.nika.yaml'"),
+            "{apostrophe}"
+        );
+        let stdin = rendered(yaml, "-");
+        assert!(!stdin.contains("--fix -"), "{stdin}");
+        assert!(
+            stdin.contains("save stdin to a file") && stdin.contains("nika check --fix <file>"),
+            "{stdin}"
+        );
+
+        let dashed = rendered(yaml, "-workflow.nika.yaml");
+        assert!(
+            dashed.contains("nika check --fix -- -workflow.nika.yaml"),
+            "a positional beginning with '-' needs clap's end-of-options separator:\n{dashed}"
+        );
+
+        let cache = rendered_as(
+            yaml,
+            "/home/operator/.nika/registry/acme/report/1.0.0/workflow.nika.yaml",
+            RepairTarget::RegistryArtifact,
+        );
+        assert!(
+            cache.contains("copy the registry artifact into your workspace")
+                && cache.contains("nika check --fix <copy>"),
+            "{cache}"
+        );
+        assert!(
+            !cache.contains("--fix /home/operator/.nika/registry"),
+            "the resolved cache path is never writable guidance:\n{cache}"
+        );
+
+        let stream = rendered_as(yaml, "/dev/stdin", RepairTarget::NonRegularSource);
+        assert!(
+            stream.contains("save or copy this non-regular source")
+                && stream.contains("nika check --fix <copy>"),
+            "{stream}"
+        );
+        assert!(
+            !stream.contains("--fix /dev/stdin"),
+            "a device path is never writable guidance:\n{stream}"
+        );
+    }
+}
+
 mod journey_rung_tests {
     use nika_schema::parser::{ParseMode, parse};
     use nika_schema::source::FileId;
@@ -151,6 +287,7 @@ mod journey_rung_tests {
             &wf,
             yaml,
             "w.nika.yaml",
+            RepairTarget::WorkspaceFile,
             Theme::new(false, false, false),
             &ModelsAudit::new(Vec::new(), 0, 0),
             &nika_schema::ResolvedSkills::default(),
@@ -401,6 +538,7 @@ mod models_rung_tests {
             &wf,
             yaml,
             "w.nika.yaml",
+            RepairTarget::WorkspaceFile,
             Theme::new(false, false, false),
             &audit,
             &nika_schema::ResolvedSkills::default(),
@@ -438,6 +576,7 @@ mod models_rung_liveness_tests {
             &wf,
             yaml,
             "w.nika.yaml",
+            RepairTarget::WorkspaceFile,
             Theme::new(false, false, false),
             audit,
             &nika_schema::ResolvedSkills::default(),
@@ -500,6 +639,7 @@ mod permits_panel_under_red_conformance {
             &wf,
             yaml,
             "w.nika.yaml",
+            RepairTarget::WorkspaceFile,
             Theme::new(false, false, false),
             &ModelsAudit::new(Vec::new(), 0, 0),
             &nika_schema::ResolvedSkills::default(),
@@ -546,5 +686,49 @@ mod permits_panel_under_red_conformance {
             .expect("the PERMITS rung renders");
         assert!(line.contains("zero authority"), "{line}");
         assert!(line.contains("pure compute"), "{line}");
+    }
+}
+
+mod builtin_contract_code_on_tools_and_args {
+    use nika_schema::parser::{ParseMode, parse};
+    use nika_schema::source::FileId;
+
+    use crate::check_render::*;
+
+    fn console(yaml: &str) -> String {
+        let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parses");
+        let report = nika_check::check(&wf);
+        render(
+            &report,
+            &wf,
+            yaml,
+            "w.nika.yaml",
+            RepairTarget::WorkspaceFile,
+            Theme::new(false, false, false),
+            &ModelsAudit::new(Vec::new(), 0, 0),
+            &nika_schema::ResolvedSkills::default(),
+            &[],
+            report.is_clean(),
+        )
+    }
+
+    #[test]
+    fn tools_and_args_rows_carry_the_json_finding_code() {
+        let unknown_tool =
+            console("nika: w\ntasks:\n  extract:\n    invoke:\n      tool: nika:ocr\n");
+        assert!(
+            unknown_tool.contains("[NIKA-BUILTIN-001]")
+                && unknown_tool.contains("nika:ocr")
+                && unknown_tool.contains("not a canonical builtin"),
+            "TOOLS must name the JSON code:\n{unknown_tool}"
+        );
+        let missing_arg =
+            console("nika: w\ntasks:\n  decide:\n    invoke:\n      tool: nika:decide\n");
+        assert!(
+            missing_arg.contains("[NIKA-BUILTIN-001]")
+                && missing_arg.contains("missing required")
+                && missing_arg.contains("evidence"),
+            "ARGS must name the JSON code:\n{missing_arg}"
+        );
     }
 }

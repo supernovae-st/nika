@@ -28,10 +28,9 @@
 //! the exact discipline the website already applies when it drops
 //! environmental findings from captures (« they describe the machine
 //! check ran against, not the file »). A finding this crate emits is a
-//! finding the binary emits, byte for byte, because both are the same
-//! `SchemaError` rendered by the same `Display` with the same
-//! `spec_code()`. The differential gate proving that equivalence stays
-//! owed and is stated in the crate README — never assumed.
+//! finding the binary emits, byte for byte, because both project
+//! `SchemaError::diagnostic()` (not `SchemaError`'s thiserror Display).
+//! The differential gate proving that equivalence is CI's wasm leg.
 
 use nika_schema::{FileId, ParseMode, SchemaError, parse};
 use wasm_bindgen::prelude::*;
@@ -50,11 +49,15 @@ use wasm_bindgen::prelude::*;
 fn finding_row(kind: &str, gate: &str, source: &str, e: &SchemaError) -> serde_json::Value {
     /* the canonical NIKA-<NAMESPACE>-<NNN> form is SpecCode's Display */
     let code = e.spec_code().to_string();
+    // Same well as `SchemaDiagnostic` Display minus `[CODE] ` (the row
+    // already carries `code`). CLI `--json` PARSE strips the same way
+    // from `PARSE ✗  […]`; CONFORM JSON folds this exact format.
+    let message = format!("{e} · → nika explain {code}");
     let mut row = serde_json::json!({
         "kind": kind,
         "gate": gate,
         "severity": "error",
-        "message": e.to_string(),
+        "message": message,
         "code": code,
         "docs_url": format!("{}/{code}", nika_check::ERROR_DOCS_BASE),
     });
@@ -303,6 +306,11 @@ mod tests {
         assert!(code.starts_with("NIKA-"), "spec code, got {code}");
         let docs = row["docs_url"].as_str().unwrap();
         assert!(docs.ends_with(code), "docs_url ends with the code");
+        let message = row["message"].as_str().unwrap();
+        assert!(
+            message.contains("→ nika explain") && message.contains(code),
+            "PARSE message must project SchemaDiagnostic, not SchemaError Display: {message}"
+        );
     }
 
     #[test]
@@ -348,6 +356,11 @@ mod tests {
         assert!(
             msgs.iter().any(|m| m.contains("dif")),
             "names the missing task: {msgs:?}"
+        );
+        assert!(
+            msgs.iter()
+                .any(|m| m.contains("→ nika explain") && m.contains("NIKA-")),
+            "CONFORM message must project SchemaDiagnostic, not SchemaError Display: {msgs:?}"
         );
     }
 }

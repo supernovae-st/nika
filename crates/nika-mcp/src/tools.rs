@@ -159,8 +159,9 @@ fn learn_tools() -> Value {
         {
             "name": "nika_examples",
             "description": "Browse the embedded runnable examples. Without `slug`: the \
-                            list. With `slug`: that example's full workflow source — read \
-                            the canonical example instead of guessing a construct.",
+                            JSONL metadata index (`slug` · `form` · `one_line` · `cost`). \
+                            With `slug`: that example's full workflow source — read the \
+                            canonical example instead of guessing a construct.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -435,6 +436,25 @@ fn clean_verdict(
     Ok(format!("{verdict}\n{rows}"))
 }
 
+/// Derive the repair hand-offs from the report's serialized finding surface.
+/// A sorted set gives stable order and one action per code even when several
+/// findings share a class (for example both missing envelope fields).
+fn finding_next_actions(payload: &Value) -> Value {
+    let codes = payload
+        .get("findings")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|finding| finding.get("code").and_then(Value::as_str))
+        .collect::<std::collections::BTreeSet<_>>();
+    Value::Array(
+        codes
+            .into_iter()
+            .map(|code| Value::String(format!("nika explain {code}")))
+            .collect(),
+    )
+}
+
 fn check(args: &Value) -> Result<String, String> {
     let yaml = args
         .get("workflow")
@@ -445,7 +465,7 @@ fn check(args: &Value) -> Result<String, String> {
         nika_schema::FileId::new(0),
         nika_schema::ParseMode::Strict,
     )
-    .map_err(|e| format!("PARSE ✗ {e}"))?;
+    .map_err(|e| format!("PARSE ✗ {}", e.diagnostic()))?;
     let report = nika_check::check(&wf);
     // The grade rides EVERY verdict (the CLI card's law, P0-11): « clean »
     // alone never names how much rope the file has. A pure projection of
@@ -490,6 +510,7 @@ fn check(args: &Value) -> Result<String, String> {
     // dropping 9 classes · a model can parse the JSON + repair from it).
     let mut payload = serde_json::to_value(&report)
         .map_err(|e| format!("check report serialization failed: {e}"))?;
+    let next_actions = finding_next_actions(&payload);
     if let Some(obj) = payload.as_object_mut() {
         // The same keys the CLI --json lane carries — the two machine
         // lanes must not disagree (the is_clean mirror law).
@@ -515,6 +536,7 @@ fn check(args: &Value) -> Result<String, String> {
             );
         }
         nika_check::stamp_paid_ready(obj, &report.hints);
+        obj.insert("next_actions".to_owned(), next_actions);
     }
     let detail = serde_json::to_string_pretty(&payload)
         .map_err(|e| format!("check report serialization failed: {e}"))?;
@@ -531,12 +553,12 @@ fn check(args: &Value) -> Result<String, String> {
     ))
 }
 
-/// `nika_examples` — list the embedded example slugs, or return one example's
-/// full workflow source (the LEARNING surface: read the canonical example for
-/// a construct instead of guessing).
+/// `nika_examples` — return the JSONL metadata index (`slug` · `form` ·
+/// `one_line` · `cost`), or one example's full workflow source (the LEARNING
+/// surface: read the canonical example for a construct instead of guessing).
 fn examples(args: &Value) -> Result<String, String> {
     match args.get("slug").and_then(Value::as_str) {
-        None => Ok(nika_pack::example_slugs().join("\n")),
+        None => example_index(),
         Some(slug) => match nika_pack::example(slug) {
             Some(body) => Ok(body.to_owned()),
             // RAMS-11: a PLAIN-WORDS miss routes through the SAME door
@@ -566,6 +588,29 @@ fn examples(args: &Value) -> Result<String, String> {
             },
         },
     }
+}
+
+/// The retrieval-friendly example index: one JSON object per embedded file.
+/// Every field derives from the same source the CLI showroom reads — no second
+/// catalog to drift. Task count is the honest static cost available in-pack.
+fn example_index() -> Result<String, String> {
+    nika_pack::example_slugs()
+        .into_iter()
+        .map(|slug| {
+            let body = nika_pack::example(&slug).ok_or_else(|| {
+                format!("embedded example `{slug}` is listed but cannot be resolved")
+            })?;
+            let meta = nika_pack::meta(&slug, body);
+            Ok(json!({
+                "slug": slug,
+                "form": meta.verbs,
+                "one_line": meta.title,
+                "cost": { "tasks": meta.tasks },
+            })
+            .to_string())
+        })
+        .collect::<Result<Vec<_>, String>>()
+        .map(|rows| rows.join("\n"))
 }
 
 /// `nika_template` — list the canonical skeleton names, or return one
@@ -619,7 +664,7 @@ fn inspect(args: &Value) -> Result<String, String> {
         nika_schema::FileId::new(0),
         nika_schema::ParseMode::Strict,
     )
-    .map_err(|e| format!("PARSE ✗ {e}"))?;
+    .map_err(|e| format!("PARSE ✗ {}", e.diagnostic()))?;
     let report = nika_check::check(&wf);
     if report.is_clean() {
         serde_json::to_string_pretty(&nika_graph::project(&wf, &report))
@@ -961,9 +1006,76 @@ mod tests {
         assert!(err.contains("findings") && err.contains("NIKA-"), "{err}");
     }
 
+    fn dirty_payload(workflow: &str) -> (String, Value) {
+        let error =
+            execute("nika_check", &json!({ "workflow": workflow })).expect_err("fixture is dirty");
+        let json_start = error.find('{').expect("the full report rides the error");
+        let payload = serde_json::from_str(&error[json_start..]).expect("valid report JSON");
+        (error, payload)
+    }
+
+    #[test]
+    fn empty_source_names_its_deduplicated_explain_action_exactly() {
+        let (_, payload) = dirty_payload("");
+        assert_eq!(
+            payload["next_actions"],
+            json!(["nika explain NIKA-PARSE-002"]),
+            "{payload:#}"
+        );
+        // Two PARSE-002 rows (missing `nika` · missing `tasks`) share one
+        // next action. The row `message` also carries the diagnostic
+        // hand-off (`· → nika explain …`); do not count that phrase in
+        // the serialized report — `next_actions` is the dedup clock.
+        let findings = payload["findings"].as_array().expect("findings[]");
+        assert_eq!(
+            findings.len(),
+            2,
+            "empty source refuses both envelope fields: {payload:#}"
+        );
+        assert_eq!(
+            payload["next_actions"].as_array().map(Vec::len),
+            Some(1),
+            "duplicate findings must not duplicate the next action: {payload:#}"
+        );
+    }
+
+    #[test]
+    fn dirty_actions_match_the_distinct_serialized_codes_one_for_one() {
+        let wf = "nika: t\ntasks:\n  a:\n    after: { ghost: success }\n    exec: { command: [\"x\"] }\n  b:\n    with:\n      x: ${{ tasks.ghost.output }}\n      y: ${{ tasks.ghost.output }}\n    exec: { command: [\"x\"] }\n";
+        let (_, payload) = dirty_payload(wf);
+        let mut codes = payload["findings"]
+            .as_array()
+            .expect("aggregated findings")
+            .iter()
+            .filter_map(|finding| finding["code"].as_str())
+            .collect::<Vec<_>>();
+        let finding_count = codes.len();
+        codes.sort_unstable();
+        codes.dedup();
+        let expected = codes
+            .iter()
+            .map(|code| format!("nika explain {code}"))
+            .collect::<Vec<_>>();
+
+        assert!(
+            codes.len() >= 2,
+            "fixture must carry multiple codes: {payload:#}"
+        );
+        assert!(
+            finding_count > codes.len(),
+            "fixture must carry a duplicate code: {payload:#}"
+        );
+        assert_eq!(payload["next_actions"], json!(expected), "{payload:#}");
+    }
+
     #[test]
     fn check_missing_arg_is_a_tool_error() {
-        assert!(execute("nika_check", &json!({})).is_err());
+        let error = execute("nika_check", &json!({})).expect_err("workflow source is required");
+        assert_eq!(error, "missing `workflow` (the *.nika.yaml source)");
+        assert!(
+            !error.contains("nika explain"),
+            "no source means no code: {error}"
+        );
     }
 
     #[test]
@@ -1118,12 +1230,36 @@ mod tests {
     }
 
     #[test]
-    fn examples_without_slug_lists_slugs() {
+    fn examples_without_slug_returns_a_metadata_derived_index() {
         let out = execute("nika_examples", &json!({})).expect("ran");
-        // The list is exactly the pack's slugs, one per line.
-        let listed: Vec<&str> = out.lines().collect();
-        assert_eq!(listed, nika_pack::example_slugs());
-        assert!(!listed.is_empty(), "the pack ships examples");
+        let slugs = nika_pack::example_slugs();
+        let rows: Vec<Value> = out
+            .lines()
+            .map(|line| serde_json::from_str(line).expect("each index row is JSON"))
+            .collect();
+        assert_eq!(rows.len(), slugs.len(), "one row per embedded example");
+        assert!(!rows.is_empty(), "the pack ships examples");
+
+        for (row, slug) in rows.iter().zip(&slugs) {
+            let body = nika_pack::example(slug).expect("a listed slug resolves");
+            let meta = nika_pack::meta(slug, body);
+            assert_eq!(row["slug"], slug.as_str(), "slug derives from the pack");
+            assert_eq!(row["form"], json!(meta.verbs), "form derives from verbs");
+            assert_eq!(
+                row["one_line"], meta.title,
+                "one line derives from the header"
+            );
+            assert_eq!(
+                row["cost"],
+                json!({ "tasks": meta.tasks }),
+                "cost derives from the task count"
+            );
+            assert_eq!(
+                row.as_object().expect("row object").len(),
+                4,
+                "the index contract is exactly slug · form · one_line · cost"
+            );
+        }
     }
 
     #[test]

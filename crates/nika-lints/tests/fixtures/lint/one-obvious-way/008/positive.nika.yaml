@@ -1,0 +1,6 @@
+nika: lint-008-positive
+const: { value: safe }
+tasks:
+  use:
+    with: { value: "${{ const.value }}" }
+    exec: { shell: "process ${{ with.value }}" }

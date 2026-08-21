@@ -74,6 +74,13 @@ fn fixture_inputs() -> Vec<PathBuf> {
     inputs
 }
 
+/// Wire `findings[].message` — `SchemaError` Display plus the explain
+/// hand-off. Same format wasm `finding_row` and the CLI CONFORM JSON
+/// fold emit (`SchemaDiagnostic` Display minus the `[CODE] ` prefix).
+fn library_row_message(err: &SchemaError) -> String {
+    format!("{err} · → nika explain {}", err.spec_code())
+}
+
 /// The library truth for one source — the exact two calls `check()` wraps.
 fn library_errors(yaml: &str) -> (bool, Vec<SchemaError>) {
     match parse(yaml, FileId::new(0), ParseMode::Strict) {
@@ -106,7 +113,9 @@ fn leg_a_the_wasm_assembly_never_diverges_from_the_library() {
         assert_eq!(rows.len(), lib.len(), "row count disagrees at {at}");
 
         for (row, err) in rows.iter().zip(&lib) {
-            // the row is the error's own accessors, byte for byte
+            // the row is the error's own accessors, byte for byte —
+            // except `message`, which projects `SchemaDiagnostic` minus
+            // `[CODE] ` (thiserror Display plus the explain hand-off).
             assert_eq!(
                 row["code"].as_str().unwrap(),
                 err.spec_code().to_string(),
@@ -114,7 +123,7 @@ fn leg_a_the_wasm_assembly_never_diverges_from_the_library() {
             );
             assert_eq!(
                 row["message"].as_str().unwrap(),
-                err.to_string(),
+                library_row_message(err),
                 "message diverges at {at}"
             );
             let expected_gate = if parse_fatal { "PARSE" } else { "CONFORM" };

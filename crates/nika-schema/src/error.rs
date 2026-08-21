@@ -17,6 +17,30 @@ use nika_error::traits::NikaErrorCode;
 
 use crate::source::Span;
 
+/// The shared, actionable rendering of one schema refusal.
+///
+/// CLI and MCP both project this value instead of rebuilding the wire code
+/// from prose. The code stays typed for machine consumers; [`std::fmt::Display`]
+/// supplies the portable repair hand-off every human-facing channel uses.
+#[derive(Clone, Debug, Eq, PartialEq)]
+#[non_exhaustive]
+pub struct SchemaDiagnostic {
+    /// The spec-facing error code.
+    pub code: SpecCode,
+    /// The schema error's human-readable explanation.
+    pub message: String,
+}
+
+impl std::fmt::Display for SchemaDiagnostic {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "[{}] {} · → nika explain {}",
+            self.code, self.message, self.code
+        )
+    }
+}
+
 /// Errors from the schema layer (parser, analyzer, validator).
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
 #[non_exhaustive]
@@ -723,6 +747,15 @@ pub enum SchemaError {
 pub use nika_vocab::DeadForm;
 
 impl SchemaError {
+    /// Project this refusal into the shared CLI/MCP diagnostic contract.
+    #[must_use]
+    pub fn diagnostic(&self) -> SchemaDiagnostic {
+        SchemaDiagnostic {
+            code: self.spec_code(),
+            message: self.to_string(),
+        }
+    }
+
     /// The machine-applicable RENAME this error teaches, as the exact
     /// `(offending source token, replacement)` pair — `Some` only for the
     /// rename-shaped variants whose deterministic did-you-mean asserted a
@@ -1258,5 +1291,23 @@ mod tests {
     #[test]
     fn schema_error_is_send_sync() {
         _assert_send_sync::<SchemaError>();
+    }
+
+    #[test]
+    fn schema_diagnostic_is_typed_and_names_the_next_action_exactly() {
+        let err = SchemaError::UnknownField {
+            field: "entropy".into(),
+            location: "the workflow envelope".into(),
+            span: None,
+            suggestion: None,
+            teaching: Some("the fields here: nika · tasks".into()),
+        };
+        let diagnostic = err.diagnostic();
+        assert_eq!(diagnostic.code.to_string(), "NIKA-PARSE-005");
+        assert_eq!(diagnostic.message, err.to_string());
+        assert_eq!(
+            diagnostic.to_string(),
+            "[NIKA-PARSE-005] unknown field `entropy` in the workflow envelope (strict mode) — the fields here: nika · tasks · → nika explain NIKA-PARSE-005"
+        );
     }
 }
