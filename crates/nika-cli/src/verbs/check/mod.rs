@@ -88,14 +88,11 @@ pub struct CheckArgs {
     pub model: Option<String>,
 }
 
-/// One acquired check input plus the provenance that governs repair
-/// guidance. Registry coordinates resolve to cache files before parsing;
-/// this typed seam prevents that implementation path from becoming a
-/// writable `--fix` target.
+/// Check input plus `--fix` provenance; a registry cache path is never writable.
 #[derive(Debug, Clone)]
 pub struct CheckTarget {
-    path: String,
-    repair_target: nika_display::check_render::RepairTarget,
+    pub(crate) path: String,
+    pub(crate) repair_target: nika_display::check_render::RepairTarget,
 }
 
 impl CheckTarget {
@@ -159,10 +156,7 @@ pub fn dispatch_targets(
         profile,
     } = *flags;
     if fix {
-        // The repair loop rewrites a file: stdin has nothing to rewrite,
-        // --json's report_version is a single immutable audit, several
-        // files would interleave rewrites with one summary, and
-        // --infer-permits is a different output entirely.
+        // --fix rewrites one regular workspace file.
         if json || infer_permits {
             return crate::verbs::fix::refuse(
                 "--fix pairs with the plain audit only (not --json / --infer-permits)",
@@ -686,5 +680,7 @@ pub fn run_infer_permits(path: &str, json: bool) -> VerbOutput {
     VerbOutput::ok(text)
 }
 
+#[cfg(test)]
+mod repair_tests;
 #[cfg(test)]
 mod tests;

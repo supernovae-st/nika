@@ -52,84 +52,7 @@ use nika_schema::{FileId, ParseMode, SchemaError};
 
 pub use nika_cli_host::output::{VerbOutput, exit};
 pub(crate) use nika_cli_host::output::{linked_path, truecolor_env};
-
-#[derive(Clone)]
-pub(crate) struct RunSource {
-    logical_path: std::sync::Arc<str>,
-    source: std::sync::Arc<str>,
-    repair_target: nika_display::check_render::RepairTarget,
-}
-
-impl RunSource {
-    pub(crate) fn capture(path: &str) -> Result<Self, VerbOutput> {
-        let repair_target = crate::registry::repair_target_for_path(path);
-        Self::capture_with_repair_target(path, repair_target)
-    }
-
-    pub(crate) fn capture_with_repair_target(
-        path: &str,
-        repair_target: nika_display::check_render::RepairTarget,
-    ) -> Result<Self, VerbOutput> {
-        let bytes = if path == "-" {
-            use std::io::Read as _;
-            let mut buf = Vec::new();
-            std::io::stdin()
-                .read_to_end(&mut buf)
-                .map_err(|e| VerbOutput::env(format!("cannot read stdin: {e}")))?;
-            buf
-        } else {
-            std::fs::read(path).map_err(|e| VerbOutput::env(format!("cannot read {path}: {e}")))?
-        };
-        Self::from_bytes_with_repair_target(path, bytes, repair_target)
-            .map_err(|_| invalid_utf8_refusal())
-    }
-
-    pub(crate) fn from_bytes(
-        logical_path: impl Into<String>,
-        bytes: Vec<u8>,
-    ) -> std::io::Result<Self> {
-        Self::from_bytes_with_repair_target(
-            logical_path,
-            bytes,
-            nika_display::check_render::RepairTarget::WorkspaceFile,
-        )
-    }
-
-    fn from_bytes_with_repair_target(
-        logical_path: impl Into<String>,
-        bytes: Vec<u8>,
-        repair_target: nika_display::check_render::RepairTarget,
-    ) -> std::io::Result<Self> {
-        let source = String::from_utf8(bytes).map_err(|error| {
-            std::io::Error::new(std::io::ErrorKind::InvalidData, error.utf8_error())
-        })?;
-        Ok(Self::new(logical_path, source, repair_target))
-    }
-
-    fn new(
-        logical_path: impl Into<String>,
-        source: String,
-        repair_target: nika_display::check_render::RepairTarget,
-    ) -> Self {
-        Self {
-            logical_path: std::sync::Arc::from(logical_path.into()),
-            source: std::sync::Arc::from(source),
-            repair_target,
-        }
-    }
-
-    pub(crate) fn logical_path(&self) -> &str {
-        &self.logical_path
-    }
-
-    pub(crate) fn source(&self) -> &str {
-        &self.source
-    }
-
-    pub(crate) fn repair_target(&self) -> nika_display::check_render::RepairTarget {
-        self.repair_target
-    }
-}
+pub(crate) use nika_cli_host::source::RunSource;
 
 /// Read + strict-parse + ladder-check one workflow file. The Unix dash
 /// (`-`) reads stdin — the editor wire: a dirty buffer pipes straight
@@ -173,13 +96,6 @@ pub(crate) fn load_checked_run_source(
 /// rejected the encoding or the parser rejected the decoded workflow.
 fn schema_refusal(error: &SchemaError) -> VerbOutput {
     VerbOutput::file(format!("PARSE ✗  {}", error.diagnostic()))
-}
-
-fn invalid_utf8_refusal() -> VerbOutput {
-    schema_refusal(&SchemaError::YamlSyntax {
-        message: "workflow source is not valid UTF-8".to_owned(),
-        span: None,
-    })
 }
 
 /// Stamp the judged-vs-booted binding (F-P2): the report records the

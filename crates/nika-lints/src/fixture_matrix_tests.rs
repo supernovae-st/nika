@@ -58,12 +58,14 @@ fn discovered_rules() -> BTreeSet<String> {
         for family in
             std::fs::read_dir(&lane_path).unwrap_or_else(|e| panic!("{}: {e}", lane_path.display()))
         {
-            let family = family.expect("fixture family entry");
+            let family = family.unwrap_or_else(|e| panic!("fixture family entry: {e}"));
             if !family.path().is_dir() {
                 continue;
             }
-            for id in std::fs::read_dir(family.path()).expect("rule directories") {
-                let id = id.expect("rule entry");
+            for id in
+                std::fs::read_dir(family.path()).unwrap_or_else(|e| panic!("rule directories: {e}"))
+            {
+                let id = id.unwrap_or_else(|e| panic!("rule entry: {e}"));
                 if id.path().is_dir() {
                     rules.insert(format!(
                         "{}/{}",

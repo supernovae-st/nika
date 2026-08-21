@@ -50,6 +50,8 @@ use sink::{TraceNote, TraceSurface, surface_trace};
 mod budget;
 mod ceiling;
 mod epilogue;
+mod provenance;
+pub use provenance::run_with_repair_target;
 mod heartbeat;
 mod resume_setup;
 mod teardown;
@@ -217,54 +219,6 @@ pub fn run(
     .code
 }
 
-/// [`run`] with acquisition provenance supplied by the registry resolver.
-/// The cache path remains an immutable artifact through the clean-gate
-/// report instead of being reclassified as an ordinary file.
-#[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
-#[must_use]
-pub fn run_with_repair_target(
-    file: &str,
-    json: bool,
-    output: Option<&str>,
-    theme: Theme,
-    mode: RenderMode,
-    dry_run: bool,
-    model_override: Option<&str>,
-    access_pin: Option<&str>,
-    vars: &[String],
-    resume: Option<&ResumeRequest>,
-    no_trace_file: bool,
-    task_filter: Option<&str>,
-    no_outputs: bool,
-    max_cost_usd: Option<f64>,
-    no_gc: bool,
-    require_signature: bool,
-    repair_target: nika_display::check_render::RepairTarget,
-) -> u8 {
-    run_verdict(
-        file,
-        json,
-        output,
-        theme,
-        mode,
-        dry_run,
-        model_override,
-        access_pin,
-        vars,
-        resume,
-        no_trace_file,
-        task_filter,
-        no_outputs,
-        max_cost_usd,
-        no_gc,
-        require_signature,
-        false,
-        None,
-        Some(repair_target),
-    )
-    .code
-}
-
 pub(crate) fn run_checked_source(
     source: crate::verbs::RunSource,
     theme: Theme,
@@ -316,33 +270,6 @@ fn preflight(
     Ok((output_json, max_cost_usd))
 }
 
-fn capture_checked_source(
-    file: &str,
-    captured: Option<crate::verbs::RunSource>,
-    repair_target: Option<nika_display::check_render::RepairTarget>,
-    output_json: bool,
-) -> Result<(crate::verbs::RunSource, RawWorkflow, CheckReport), Box<RunVerdict>> {
-    let source = captured
-        .map_or_else(
-            || {
-                repair_target.map_or_else(
-                    || crate::verbs::RunSource::capture(file),
-                    |target| crate::verbs::RunSource::capture_with_repair_target(file, target),
-                )
-            },
-            Ok,
-        )
-        .map_err(|out| {
-            epilogue::emit_diagnostic(&refusal_text(&out), output_json);
-            Box::new(RunVerdict::bare(out.code))
-        })?;
-    let (wf, report) = crate::verbs::load_checked_run_source(&source).map_err(|out| {
-        epilogue::emit_diagnostic(&refusal_text(&out), output_json);
-        Box::new(RunVerdict::bare(out.code))
-    })?;
-    Ok((source, wf, report))
-}
-
 #[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
 #[must_use]
 fn run_verdict(
@@ -371,7 +298,7 @@ fn run_verdict(
         Err(verdict) => return *verdict,
     };
     let (source, wf, report) =
-        match capture_checked_source(file, captured, repair_target, output_json) {
+        match provenance::capture_checked_source(file, captured, repair_target, output_json) {
             Ok(checked) => checked,
             Err(verdict) => return *verdict,
         };

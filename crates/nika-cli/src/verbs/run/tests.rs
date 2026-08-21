@@ -10,10 +10,7 @@
 use std::collections::BTreeMap;
 
 use super::sink::TraceSurface;
-use super::{
-    RenderMode, capture_checked_source, capture_mock_outputs, dry_run_payload, exit, run,
-    surfaced_trace,
-};
+use super::{RenderMode, capture_mock_outputs, dry_run_payload, exit, run, surfaced_trace};
 use crate::Theme;
 use serde_json::json;
 
@@ -29,7 +26,7 @@ fn registry_run_refusal_keeps_copy_guidance_and_never_names_cache_as_fixable() {
     )
     .expect("dirty registry fixture");
     let cache_path = path.to_string_lossy().into_owned();
-    let (source, _wf, report) = capture_checked_source(
+    let (source, _wf, report) = super::provenance::capture_checked_source(
         &cache_path,
         None,
         Some(nika_display::check_render::RepairTarget::RegistryArtifact),
