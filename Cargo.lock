@@ -5002,6 +5002,7 @@ dependencies = [
 name = "nika-verb-agent"
 version = "0.113.0"
 dependencies = [
+ "bytes",
  "futures-core",
  "futures-util",
  "jsonschema",
