@@ -58,6 +58,8 @@ pub fn nika_check::permits_fit::CapabilityEscape::__clone_box(&self, _: dyn_clon
 impl<T> nika_error::traits::AsAny for nika_check::permits_fit::CapabilityEscape where T: 'static
 pub fn nika_check::permits_fit::CapabilityEscape::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub fn nika_check::permits_fit::scan_escapes(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<nika_check::permits_fit::CapabilityEscape>
+pub mod nika_check::plan
+pub fn nika_check::plan::payload(file: &str, wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport) -> serde_json::value::Value
 pub mod nika_check::trifecta
 pub fn nika_check::trifecta::scan_trifecta(wf: &nika_schema::raw::workflow::RawWorkflow, edges: &[nika_check_analyzer::edges::Edge], topo_waves: &[alloc::vec::Vec<usize>]) -> nika_cap::trifecta::TrifectaVerdict
 #[non_exhaustive] pub enum nika_check::DataClassification
