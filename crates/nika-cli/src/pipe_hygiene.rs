@@ -12,7 +12,14 @@ use std::io::Write as _;
 /// (Cargo.toml pins it for test panic-catching), so the catch always
 /// sees the payload.
 pub(crate) fn guard(real_main: fn() -> std::process::ExitCode) -> std::process::ExitCode {
-    if !stdout_is_open() {
+    guard_with_stdout(real_main, stdout_is_open())
+}
+
+fn guard_with_stdout(
+    real_main: fn() -> std::process::ExitCode,
+    stdout_open: bool,
+) -> std::process::ExitCode {
+    if !stdout_open {
         let _ = writeln!(std::io::stderr().lock(), "nika: stdout is unavailable");
         return std::process::ExitCode::from(crate::verbs::exit::ENV);
     }
@@ -61,4 +68,13 @@ fn install_pipe_panic_silencer() {
             default_hook(info);
         }
     }));
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn unavailable_stdout_refuses_before_main() {
+        let code = super::guard_with_stdout(|| std::process::ExitCode::SUCCESS, false);
+        assert_eq!(code, std::process::ExitCode::from(crate::verbs::exit::ENV));
+    }
 }

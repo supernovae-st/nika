@@ -713,7 +713,8 @@ impl TraceSurface {
 }
 
 /// Surface the finalized journal. Fs failure remains a rider; note failure is
-/// typed so the lane returns ENV with the exact path. `teardown` enters the seal.
+/// typed with the exact path (`BrokenPipe` → 141, other I/O → ENV).
+/// `teardown` enters the seal.
 pub(super) fn surface_trace(
     mut trace: TraceFileSink,
     note: TraceNote,

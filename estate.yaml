@@ -152,17 +152,17 @@ patterns:
 - glob: "crates/**/src/**"
   class: authored
   match_count: 803
-  aggregate_sha256: ec2fd5c1b3a290353f93dc90be85d4b8cfeeb432096547f440efa4c59256564d
+  aggregate_sha256: 95af848fc894e14161813d8d1b5b9cee36ac842a54448698fc0f26a753f126d3
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
   match_count: 159
-  aggregate_sha256: 04589a20734c81cd9b6b0696194922a429eb8b80e8339a2d8486e1b6589078ba
+  aggregate_sha256: 6d4cac6ba6773b0532f2ed65cd5b13098bae6f6a0c260ca7e61e3780e7a24483
   evidence: "crate-owned tests + fixtures under tests/ — written with the crate per gate discipline, no generation markers"
 - glob: "crates/**"
   class: authored
   match_count: 139
-  aggregate_sha256: 90a788eaeb6450bb292c6dea1f5091a10d5aab0907403a0879aa3725aac37aa6
+  aggregate_sha256: 0d438806f3e1912be8e0a05dd976eccf022316961f9f3851fe835e9dd901aa1d
   evidence: "the remaining crate surface — Cargo.toml manifests · build.rs · benches · READMEs · hand-curated data catalogs (llm-providers · mcp-servers · embeddings · model-capabilities, probed daily by catalog-verify.yml); the pricing snapshot is excepted in files:"
   note: "crates/nika-pack/scripts/sync-pack.sh is a DIVERGENT older duplicate of scripts/sync-pack.sh — the pack-resync.yml lane runs the root one"
 - glob: "fuzz/**"
@@ -178,7 +178,7 @@ patterns:
 - glob: "docs/**"
   class: authored
   match_count: 109
-  aggregate_sha256: eec08dbedd9987e48251fbe2a375d6ad4ab81119cf24080ddb23019560d40c92
+  aggregate_sha256: 65b193fc87aa1e62d10f269dad111118aabe781e47da31b4a5c2bd9adffd2da6
   evidence: "crate-specs · architecture prose · perf notes — no generation markers at file heads"
 - glob: "scripts/**"
   class: authored
