@@ -360,18 +360,32 @@ comparison, `CadenceError::remedy` (never asserted), and a `*` in `resolve`.
 
 ### 6.6 W7 firing-ledger mutation proof
 
-After merging `bd1779fc` (the Rust tree carried unchanged by current main
-`838b5051`), cargo-mutants 27.0.0 exercised the complete focused universe for
-`src/firing.rs` and `src/ledger.rs` with:
+The final testimonial binds tested commit `32ebdf3a` and tree `bb7f629d` to
+the committed pre-run receipt `24c89f07`. cargo-mutants 27.0.0 enumerated 486
+unique mutants across `src/firing.rs` and `src/ledger.rs`. Three exact,
+once-matched mutants are excluded with reachable-domain equivalence proofs:
+the `unsettled` `>` to `>=` replacement at `ledger.rs:406`, plus the two
+`LifecycleValidator::accept` `&&` to `||` replacements at lines 1108 and
+1109. Their exact identities, proofs, source binding, and exclusion
+cardinality live in the testimonial manifest and its pre-run receipt.
+
+The remaining 483 mutants ran serially with the exact receipt-bound command:
 
 ```console
-cargo mutants -p nika-cadence \
+<CARGO_BIN> mutants -p nika-cadence \
   -f 'crates/nika-cadence/src/firing.rs' \
   -f 'crates/nika-cadence/src/ledger.rs' \
-  -j 8 --baseline run -- --lib
+  -E '<EXACT_EQUIVALENT_406>' \
+  -E '<EXACT_EQUIVALENT_1108>' \
+  -E '<EXACT_EQUIVALENT_1109>' \
+  -o '<OUTPUT>' -j 1 --baseline run \
+  --timeout 300 --build-timeout 300 -- --lib
 ```
 
-The run enumerated 474 mutants: 465 caught, 9 unviable, 0 missed, and 0 timed
-out. The viable mutation score is therefore **465 / 465 = 100%**, above the
-90% floor. The raw `outcomes.json` proof has SHA-256
-`573abe47f9104f61c870e01855563f1d2dbaf9e375f7510d31e1d1a54b321da3`.
+The complete run settled **442 caught, 41 unviable, 0 missed, and 0 timed
+out**. The viable mutation score is therefore **442 / 442 = 100%**, above
+the 90% floor. The privacy-sanitized `outcomes.json` has SHA-256
+`3b8ffd15eb5ca7ef07b0807067c43c49ebb89d0b3bf840410ece240e4f2e8349`;
+the [machine-verifiable manifest](../testimonials/arm-w7-ledger-salvage/manifest.json)
+binds it to the raw artifact hash, full accounting, invocation, tools,
+inputs, and clean tested tree.
