@@ -1,4 +1,38 @@
 pub mod nika_fs
+pub struct nika_fs::OwnedDir
+impl nika_fs::OwnedDir
+pub fn nika_fs::OwnedDir::append_line(&self, name: &str, line: &str) -> core::io::error::Result<()>
+pub fn nika_fs::OwnedDir::create(root: &std::path::Path, components: &[&str]) -> core::io::error::Result<Self>
+pub fn nika_fs::OwnedDir::exists(&self, name: &str) -> core::io::error::Result<bool>
+pub fn nika_fs::OwnedDir::hard_link(&self, from: &str, to: &str) -> core::io::error::Result<()>
+pub fn nika_fs::OwnedDir::names(&self) -> core::io::error::Result<alloc::vec::Vec<alloc::string::String>>
+pub fn nika_fs::OwnedDir::open_lock(&self, name: &str) -> core::io::error::Result<std::fs::File>
+pub fn nika_fs::OwnedDir::read(&self, name: &str) -> core::io::error::Result<alloc::string::String>
+pub fn nika_fs::OwnedDir::read_optional(&self, name: &str) -> core::io::error::Result<core::option::Option<alloc::string::String>>
+pub fn nika_fs::OwnedDir::remove(&self, name: &str) -> core::io::error::Result<()>
+pub fn nika_fs::OwnedDir::try_clone(&self) -> core::io::error::Result<Self>
+pub fn nika_fs::OwnedDir::write_atomic(&self, name: &str, body: &str) -> core::io::error::Result<()>
+impl core::fmt::Debug for nika_fs::OwnedDir
+pub fn nika_fs::OwnedDir::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_fs::OwnedDir
+impl<T, U> core::convert::Into<U> for nika_fs::OwnedDir where U: core::convert::From<T>
+pub fn nika_fs::OwnedDir::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_fs::OwnedDir where U: core::convert::Into<T>
+pub type nika_fs::OwnedDir::Error = core::convert::Infallible
+pub fn nika_fs::OwnedDir::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_fs::OwnedDir where U: core::convert::TryFrom<T>
+pub type nika_fs::OwnedDir::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_fs::OwnedDir::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_fs::OwnedDir where T: 'static + ?core::marker::Sized
+pub fn nika_fs::OwnedDir::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_fs::OwnedDir where T: ?core::marker::Sized
+pub fn nika_fs::OwnedDir::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_fs::OwnedDir where T: ?core::marker::Sized
+pub fn nika_fs::OwnedDir::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_fs::OwnedDir
+pub fn nika_fs::OwnedDir::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_fs::OwnedDir where T: 'static
+pub fn nika_fs::OwnedDir::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub struct nika_fs::TokioFs
 impl core::clone::Clone for nika_fs::TokioFs
 pub fn nika_fs::TokioFs::clone(&self) -> nika_fs::TokioFs

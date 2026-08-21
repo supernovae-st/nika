@@ -17,6 +17,7 @@ nika-types  = { path = "../nika-types", version = "0.112.0" }  # Timestamp · Ke
 nika-schema = { path = "../nika-schema", version = "0.112.0" } # parse (check · inspect · graph · run)
 nika-vocab  = { path = "../nika-vocab", version = "0.112.0" }
 nika-cadence = { path = "../nika-cadence", version = "0.112.0" }  # the arm: grammar + the pure next-slot calculator (L4→L0)
+nika-fs      = { path = "../nika-fs", version = "0.112.0" }       # descriptor-rooted sidecar ownership (L4→L1)
 jiff        = { workspace = true }  # the CLOCK — nika-cadence is pure and takes a Zoned; reading one is an L4 act  # the project file (ceiling — the --max-cost-usd flag's default rung · D-2026-08-11-N5)
 nika-check  = { path = "../nika-check", version = "0.112.0" }  # the ADR-092 check ladder (the check verb · run gates · fix loop)
 nika-graph = { path = "../nika-graph", version = "0.112.0" }   # the canonical projection (inspect --format json renders it)
@@ -26,7 +27,7 @@ nika-pack   = { path = "../nika-pack", version = "0.112.0" }   # the embedded la
 clap        = { workspace = true }                             # verb tree (completions + man derive later)
 clap_complete = { workspace = true }                           # `nika completions <shell>` (spec §9)
 serde_json  = { workspace = true }                             # trace NDJSON parse · --json surfaces
-nix         = { workspace = true, features = ["fs"] }          # the arm firer's lock liveness (signal 0 probe) + the stdout→stderr fold during the in-process run (unix)
+nix         = { workspace = true, features = ["fs"] }          # kernel advisory leases + stdout→stderr fold
 # The `nika run` composer (verbs/run/compose.rs · the verb/agent/effect
 # crates) descended to `nika_runtime::compose` 2026-07-22 (the 15k wall —
 # compute descends, render stays); what remains below is what the CLI's own
@@ -75,6 +76,7 @@ path = "src/main.rs"
 
 [dev-dependencies]
 # Test-only seams: the mocks the e2e pipeline + the run-verb tests inject.
+tempfile       = { workspace = true }                              # isolated filesystem fixtures across the CLI test estate
 minisign       = { workspace = true }                              # the tier tests' keypair fixtures + the memory-fold teardown test (custody lives in nika-dap)
 blake3         = { workspace = true }                              # the memory e2e's independent set-digest recompute (H13 fold shape)
 nika-store       = { path = "../nika-store", version = "0.112.0" }  # F-P8 signed memory — the teardown fold test + the e2e's seeded store
@@ -89,7 +91,6 @@ nika-verb-exec   = { path = "../nika-verb-exec", version = "0.112.0" }
 nika-verb-invoke = { path = "../nika-verb-invoke", version = "0.112.0" }
 nika-verb-agent  = { path = "../nika-verb-agent", version = "0.112.0" }
 proptest = { workspace = true }   # Gate 6 · the fold's order-independence property (tests/fold_property.rs)
-tempfile = { workspace = true }   # trace-file sink fixtures (`.nika/traces/` journal · sink.rs tests)
 insta    = { workspace = true }   # the arm report's snapshot (PROUVÉ · DÉCLARÉ · orphelins)
 uuid     = { workspace = true }   # test fixtures mint EventIds (the last prod use descended with the journal writer)
 expectrl = { workspace = true }   # PTY e2e · the wizard conversation is TTY-gated — unreachable

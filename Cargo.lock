@@ -4133,7 +4133,9 @@ dependencies = [
  "jiff-tzdb",
  "proptest",
  "serde",
+ "serde_json",
  "serde_yaml_bw",
+ "sha2 0.10.9",
  "thiserror 2.0.20",
 ]
 
@@ -4279,6 +4281,7 @@ dependencies = [
  "nika-display",
  "nika-error",
  "nika-event",
+ "nika-fs",
  "nika-graph",
  "nika-http",
  "nika-kernel",
@@ -4476,6 +4479,7 @@ dependencies = [
  "bytes",
  "globset",
  "nika-kernel",
+ "nix 0.31.3",
  "proptest",
  "tempfile",
  "tokio",
