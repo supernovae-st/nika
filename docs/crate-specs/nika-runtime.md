@@ -82,7 +82,20 @@ pub struct TaskRecord {                          // spec 04 §task reference
     pub started_at / ended_at: Option<Timestamp>,
     pub duration_ms: Option<u64>,
 }
+
+#[non_exhaustive]
+pub struct EngineIdentity { /* private compile-bound fields */ }
+
+pub const fn engine_identity() -> &'static EngineIdentity;
 ```
+
+`EngineIdentity` is the one provenance authority shared by CLI, runtime and
+future network adapters: engine version, build stamp, exact spec commit and
+remote execution API generation. `spec_sha` names the language source;
+`api_version` names the transport protocol and is deliberately a different
+clock. The runtime build refuses unless root `SPEC_PIN` equals the generated
+`nika-pack/pack/SPEC_SHA`, so conformance and embedded documentation cannot
+describe different specs inside one binary.
 
 **Why generic over 6 seams** · the agent tool-defs impl lives in
 `nika-builtin` · the clock impl in `nika-clock`

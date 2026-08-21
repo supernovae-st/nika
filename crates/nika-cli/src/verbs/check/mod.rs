@@ -511,8 +511,10 @@ fn json_verdict(
             "risk_grade".to_owned(),
             serde_json::Value::String(grade.as_str().to_owned()),
         );
-        obj.insert("engine_version".into(), env!("CARGO_PKG_VERSION").into()); // #774
-        obj.insert("build_sha".into(), env!("NIKA_BUILD_SHA").into());
+        let identity = nika_runtime::engine_identity();
+        obj.insert("engine_version".into(), identity.engine_version().into());
+        obj.insert("build_sha".into(), identity.build_sha().into());
+        obj.insert("spec_sha".into(), identity.spec_sha().into());
         if profile == Profile::Operational {
             obj.insert(
                 "operational_clean".to_owned(),

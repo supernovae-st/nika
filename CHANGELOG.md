@@ -10,6 +10,24 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+### Changed
+
+- **The engine carries one compile-time identity for its version, build,
+  language pin and remote API axis.** `nika-runtime` now owns the typed
+  `EngineIdentity` consumed by trace prologues, `nika check --json` and the CLI
+  version surface. The embedded language pack is re-vendored from that exact
+  `SPEC_PIN`, records the same commit in `pack/SPEC_SHA`, and the build refuses
+  split identity.
+
+### Fixed
+
+- **The pinned conformance clock includes Agent Skills and current trace
+  witnesses.** The harness now exercises the spec's skill lane with exact
+  `AGENT`, `AUTH` and `SEC` refusal codes, recognizes the entropy/jitter law,
+  and replays every current runtime-trace verdict. The heal workflow advances
+  the pin and pack together on an immutable PR branch; Diamond CI independently
+  re-vendors every mapped byte.
+
 ## [0.112.0](https://github.com/supernovae-st/nika/compare/v0.111.0..v0.112.0) - 2026-08-20
 
 **The instrument-honesty release.** Three features and sixteen fixes, several

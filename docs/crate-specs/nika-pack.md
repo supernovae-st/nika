@@ -39,7 +39,8 @@ pub fn lean(yaml: &str) -> &str;                    // the hashed/rendered range
 
 ## 3. The snapshot + sync
 
-`pack/` is vendored by `scripts/sync-pack.sh <spec-checkout>` (51 files).
+`pack/` is vendored by `scripts/sync-pack.sh <spec-checkout-at-SPEC_PIN>`;
+the mapping in that script is the complete copy contract.
 Bumping the pack = run the script, commit the diff. The pack version MUST
 equal the spec tag the engine targets — `version_is_nonempty_and_matches_manifest`
 plus the per-file sha tests turn a stale or tampered snapshot into a red

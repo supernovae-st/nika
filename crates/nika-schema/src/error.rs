@@ -181,6 +181,20 @@ pub enum SchemaError {
         span: Option<Span>,
     },
 
+    /// A `skills:` entry that can never resolve — a `${{ }}` template
+    /// or a glob (spec 02 §Agent Skills · « paths are static »).
+    #[error(
+        "`skills` entry `{path}` {why} — skill paths are static (loaded at compose time, before any value exists · the same explicitness law as `permits:`)"
+    )]
+    SkillPathNotStatic {
+        /// The entry as written.
+        path: String,
+        /// Which shape disqualifies it (`carries a ${{ }} template` · `is a glob`).
+        why: &'static str,
+        /// Span of the entry.
+        span: Option<Span>,
+    },
+
     /// A `${{ group.<name> }}` reference to a group NO task declares
     /// (`NIKA-DAG-008`) — an empty group is the same fact as an absent
     /// one, so one code covers both, and a fold can never harvest zero
@@ -779,6 +793,7 @@ impl SchemaError {
             | Self::UnknownDependency { span, .. }
             | Self::W2DependsOnField { span, .. }
             | Self::D1StringCommand { span, .. }
+            | Self::SkillPathNotStatic { span, .. }
             | Self::UnknownGroup { span, .. }
             | Self::UnwindInGroup { span, .. }
             | Self::UnknownAfterPredicate { span, .. }
@@ -922,7 +937,9 @@ impl NikaErrorCode for SchemaError {
             Self::MissingField { .. } => SCHEMA_298,
             // D1 keeps the GENERIC structural code (PARSE-019) — the
             // variant exists for the fix ladder's match, not the wire.
-            Self::Validation { .. } | Self::D1StringCommand { .. } => SCHEMA_299,
+            Self::Validation { .. }
+            | Self::D1StringCommand { .. }
+            | Self::SkillPathNotStatic { .. } => SCHEMA_299,
             Self::RunContradiction { .. } => SCHEMA_327,
             Self::WhenNotBoolean { .. } => SCHEMA_300,
             Self::RecoverAwaitDeadlock { .. } => SCHEMA_308,
