@@ -96,33 +96,37 @@ pub(super) fn hints_and_verdict(
         );
     }
     if hint_sites > 0 {
-        let next = match repair_target {
-            RepairTarget::Stdin => {
-                "save stdin to a file, then run `nika check --fix <file>` to apply safe repairs and re-check"
-                    .to_owned()
-            }
-            RepairTarget::RegistryArtifact => {
-                "copy the registry artifact into your workspace, then run `nika check --fix <copy>` — the digest-pinned cache stays read-only"
-                    .to_owned()
-            }
-            RepairTarget::NonRegularSource => {
-                "save or copy this non-regular source into a regular workspace file, then run `nika check --fix <copy>`"
-                    .to_owned()
-            }
-            RepairTarget::WorkspaceFile => {
-                let end_of_options = if path.starts_with('-') { " --" } else { "" };
-                format!(
-                    "run `nika check --fix{end_of_options} {}` to apply safe repairs, then re-check",
-                    shell_quote(path)
-                )
-            }
-        };
+        let next = next_repair_action(path, repair_target);
         let _ = writeln!(
             out,
             " {} {}     {next} · see `nika explain` for coded findings",
             t.paint(Role::Accent, "↳"),
             t.paint(Role::Strong, "NEXT"),
         );
+    }
+}
+
+fn next_repair_action(path: &str, repair_target: RepairTarget) -> String {
+    match repair_target {
+        RepairTarget::Stdin => {
+            "save stdin to a file, then run `nika check --fix <file>` to apply safe repairs and re-check"
+                .to_owned()
+        }
+        RepairTarget::RegistryArtifact => {
+            "copy the registry artifact into your workspace, then run `nika check --fix <copy>` — the digest-pinned cache stays read-only"
+                .to_owned()
+        }
+        RepairTarget::NonRegularSource => {
+            "save or copy this non-regular source into a regular workspace file, then run `nika check --fix <copy>`"
+                .to_owned()
+        }
+        RepairTarget::WorkspaceFile => {
+            let end_of_options = if path.starts_with('-') { " --" } else { "" };
+            format!(
+                "run `nika check --fix{end_of_options} {}` to apply safe repairs, then re-check",
+                shell_quote(path)
+            )
+        }
     }
 }
 

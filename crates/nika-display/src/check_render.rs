@@ -175,15 +175,19 @@ pub fn render(
         drift_hints,
         verdict,
     );
-    // The MAP beside the verdict — the same themed wire art `graph
-    // --format ascii` speaks, so the audit READS as the DAG it judged
-    // (operator ask 2026-07-12: « quand on fait check, voir la dag »).
-    // Interactive surface only; conformance failures skip it (no valid
-    // wave order exists to draw).
+    paint_dag_if_interactive(&mut out, wf, report, t);
+    out
+}
+
+/// The MAP beside the verdict — the same themed wire art `graph
+/// --format ascii` speaks, so the audit READS as the DAG it judged
+/// (operator ask 2026-07-12: « quand on fait check, voir la dag »).
+/// Interactive surface only; conformance failures skip it (no valid
+/// wave order exists to draw).
+fn paint_dag_if_interactive(out: &mut String, wf: &RawWorkflow, report: &CheckReport, t: Theme) {
     if t.accents && report.conformance.is_empty() {
         let _ = write!(out, "\n{}", crate::dag_art::ascii_art(wf, report, t));
     }
-    out
 }
 
 /// The four narrowed rungs — SECRETS · TYPES · TOOLS · ARGS. Each headline

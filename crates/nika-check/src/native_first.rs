@@ -159,19 +159,7 @@ fn classify_segment(segment: &CommandSegment) -> Option<(&'static str, String)> 
             .iter()
             .any(|f| !f.contains("${{") && SCRIPT_SUFFIXES.iter().any(|suffix| f.ends_with(suffix)))
     {
-        return Some((
-            "native-first/005",
-            format!(
-                "`{head}` runs a helper script — inventory it: \
-                 HTTP calls → `nika:fetch` (uploads: `multipart:` · crawls: `traverse:`) · \
-                 file I/O → `nika:read`/`nika:write` · JSON shaping → `nika:jq` · \
-                 YAML/TOML/CSV in or out → `nika:convert` (then `nika:jq`) · \
-                 a product API → wrap it as an MCP server (`mcp:<server>/<tool>`); \
-                 a helper script is not a genuine subprocess — under `--native-strict` \
-                 this fails, and a row in the exec ledger records the intent \
-                 without clearing it"
-            ),
-        ));
+        return Some(helper_script_hint(head));
     }
     // 004 · a media provider endpoint in the command. Bare head only —
     // a PATHED head (`./deploy.sh …`) is the author's own tool and must
@@ -242,6 +230,22 @@ fn classify_segment(segment: &CommandSegment) -> Option<(&'static str, String)> 
         ));
     }
     None
+}
+
+fn helper_script_hint(head: &str) -> (&'static str, String) {
+    (
+        "native-first/005",
+        format!(
+            "`{head}` runs a helper script — inventory it: \
+             HTTP calls → `nika:fetch` (uploads: `multipart:` · crawls: `traverse:`) · \
+             file I/O → `nika:read`/`nika:write` · JSON shaping → `nika:jq` · \
+             YAML/TOML/CSV in or out → `nika:convert` (then `nika:jq`) · \
+             a product API → wrap it as an MCP server (`mcp:<server>/<tool>`); \
+             a helper script is not a genuine subprocess — under `--native-strict` \
+             this fails, and a row in the exec ledger records the intent \
+             without clearing it"
+        ),
+    )
 }
 
 fn command_segments(command: &RawCommand) -> Vec<CommandSegment> {
