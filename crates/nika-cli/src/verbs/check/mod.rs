@@ -184,14 +184,7 @@ use nika_display::check_render::render;
 #[cfg(test)]
 use nika_display::check_render::{permits, required_inputs};
 
-/// The `nika check <file>` verb. `native_strict` promotes the advisory
-/// `native-first` hints to failures (exit 2) — the agent/CI posture:
-/// spec-validity is unchanged, but an `exec:` with a probable native
-/// path no longer sails through silently.
-///
-/// The pre-profile signature, KEPT byte-stable for the surfaces that
-/// ride it (welcome's mirror · the fix loop): the readiness posture is
-/// advisory here — gating is an explicit ask, via [`run_with_profile`].
+/// `nika check <file>`. `native_strict` promotes native-first hints to exit 2.
 #[must_use]
 pub fn run(
     path: &str,
@@ -210,10 +203,7 @@ pub fn run(
     )
 }
 
-/// `--model m` previews the RUN override's static envelope (#342): the
-/// report is recomputed with `m` as the effective envelope default —
-/// the same substitution the run's budget preflight prices, so what
-/// check shows IS what run will refuse or allow.
+/// Recompute the report as if `nika run --model` overrode the envelope.
 fn overridden(
     wf: nika_schema::raw::RawWorkflow,
     report: nika_check::CheckReport,
@@ -229,11 +219,7 @@ fn overridden(
     }
 }
 
-/// The two red verdict footers (native-strict · operational profile),
-/// rendered only when their gate fired. The native wording is measured:
-/// a ledgered `.py` wrapper still fails that gate (it judges the SHAPE
-/// of the subprocess, not whether it was written down) — the ledger is
-/// for the reviewer; only replacing the call clears the line.
+/// Native-strict and operational-profile footers, only when their gate fired.
 fn strict_footers(
     text: &mut String,
     theme: Theme,
@@ -277,10 +263,7 @@ fn strict_footers(
     }
 }
 
-/// [`run`] with the readiness posture explicit: `profile` gates on the
-/// [`nika_check::RiskGrade`] — `operational` folds a grade ≥ High (glob
-/// grants · true wildcards · uncapped spend) into the same exit-2
-/// verdict, where `advisory` only displays the grade.
+/// Like [`run`], with an explicit readiness profile.
 #[must_use]
 pub fn run_with_profile(
     path: &str,
@@ -412,11 +395,7 @@ pub(crate) fn run_source_with_profile(
     }
 }
 
-/// The parse-fatal machine verdict (#331): a file the parser refuses
-/// never reaches the report, but a `--json` consumer still gets JSON —
-/// `parse_fatal: true`, `clean: false`, and ONE findings[] row carrying
-/// the spec code the plain-text voice prints (`PARSE ✗ [CODE] …`). The
-/// exit code (2 file · 3 env) rides unchanged.
+/// `--json` parse-fatal verdict: one findings row, `parse_fatal: true`.
 fn parse_fatal_json(out: &VerbOutput) -> VerbOutput {
     let text = out.text.trim();
     // The plain voice is `PARSE ✗  [NIKA-…] message` — recover the code;
@@ -448,8 +427,7 @@ fn parse_fatal_json(out: &VerbOutput) -> VerbOutput {
     }
 }
 
-/// The machine rows both MODELS lists share (resolve findings · catalog
-/// warnings) — one `model`/`tasks`/`why` shape on the `--json` lane.
+/// Shared `--json` MODELS row shape.
 fn model_finding_rows(findings: &[ModelFinding]) -> serde_json::Value {
     serde_json::Value::Array(
         findings
@@ -465,12 +443,7 @@ fn model_finding_rows(findings: &[ModelFinding]) -> serde_json::Value {
     )
 }
 
-/// The `--json` verdict: the full report + the machine keys (`clean` ·
-/// `models_resolve` · `models_unjudged` (presence-gated) ·
-/// `model_findings[]` · `skills_resolve` · `skill_findings[]` ·
-/// `pricing` · `risk_grade` · the strict/posture flags) — never
-/// coloured, the contract bytes are the contract. The drift rows
-/// (NIKA-DRIFT-001) append to `hints[]` in the report's row shape plus
+/// `--json` verdict object. Drift rows append to `hints[]` plus
 /// their `code`.
 #[allow(clippy::too_many_arguments)] // the verdict's seams, one each — the render.rs:427 precedent
 fn json_verdict(
