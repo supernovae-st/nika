@@ -24,6 +24,7 @@
 
 mod emit;
 mod planner;
+mod tick;
 
 use jiff::Timestamp;
 use jiff::Zoned;

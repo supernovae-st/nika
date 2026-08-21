@@ -18,11 +18,11 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4592
+  classified_files: 4594
   file_rows: 11
   pattern_rows: 23
   by_class:
-    authored: 1627
+    authored: 1629
     authored-pin: 2
     generated: 123
     pinned-copy: 135
@@ -140,7 +140,7 @@ patterns:
 - glob: "crates/*/public-api.txt"
   class: generated
   match_count: 67
-  aggregate_sha256: c5d7bec8291d5059524b1616ebff91e8bd412693933719a32a7c402d81a1891b
+  aggregate_sha256: 8668a9e921435d0eb6ddea0c7fd3d36e7edabe29d3856b6c5c26bda7b06f861e
   evidence: ".github/workflows/public-api.yml 'diff each covered lib crate' byte-compares each snapshot against cargo public-api output; macOS renders differently, so snapshots regenerate FROM THE UBUNTU ARTIFACT (workflow comment)"
   derivation:
     tool: "cargo public-api -p <crate> --omit auto-trait-impls > crates/<crate>/public-api.txt (DEFAULT features · the CI job shape — all-features drags platform deps into the render · cargo-public-api 0.51.0 pinned · the public-api-actual CI artifact stays the judge)"
@@ -151,8 +151,8 @@ patterns:
     - "cargo-public-api 0.51.0"
 - glob: "crates/**/src/**"
   class: authored
-  match_count: 813
-  aggregate_sha256: 4f9259cb3f7252aee883ed3d81e15101b5d3766bbe4cdaa6afcb66f84b3746d7
+  match_count: 815
+  aggregate_sha256: 73d31e2b8a4f2213544f202d9dbc072b5373b143956ae940bf6e113445ff2f99
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
@@ -173,7 +173,7 @@ patterns:
 - glob: "docs/adr/**"
   class: authored
   match_count: 84
-  aggregate_sha256: 997fe32ce2d79e09ee07f759ab4d1bc89ff774db57dc852d7e954648ed5f948e
+  aggregate_sha256: f33faa141ef70e5a2c2b57ecd830116026d76b61dada77da3e004817439127ec
   evidence: "per-decision records authored at decision time (scripts/adr/new.sh scaffolds · adr-seal-check hook seals); index.toml excepted in files:"
 - glob: "docs/testimonials/**"
   class: testimonial
@@ -183,7 +183,7 @@ patterns:
 - glob: "docs/**"
   class: authored
   match_count: 111
-  aggregate_sha256: fa9f81444a2606fe4b6d5c017ecd82d375e68aa7cc5583048ea11df916aa5d0d
+  aggregate_sha256: 242b02ecba86525f0bdb58b65a81c0c50c7160651fe891dce090063e9b5b9286
   evidence: "crate-specs · architecture prose · perf notes — no generation markers at file heads"
 - glob: "scripts/**"
   class: authored
