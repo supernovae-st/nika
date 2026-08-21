@@ -688,3 +688,47 @@ mod permits_panel_under_red_conformance {
         assert!(line.contains("pure compute"), "{line}");
     }
 }
+
+mod builtin_contract_code_on_tools_and_args {
+    use nika_schema::parser::{ParseMode, parse};
+    use nika_schema::source::FileId;
+
+    use crate::check_render::*;
+
+    fn console(yaml: &str) -> String {
+        let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parses");
+        let report = nika_check::check(&wf);
+        render(
+            &report,
+            &wf,
+            yaml,
+            "w.nika.yaml",
+            RepairTarget::WorkspaceFile,
+            Theme::new(false, false, false),
+            &ModelsAudit::new(Vec::new(), 0, 0),
+            &nika_schema::ResolvedSkills::default(),
+            &[],
+            report.is_clean(),
+        )
+    }
+
+    #[test]
+    fn tools_and_args_rows_carry_the_json_finding_code() {
+        let unknown_tool =
+            console("nika: w\ntasks:\n  extract:\n    invoke:\n      tool: nika:ocr\n");
+        assert!(
+            unknown_tool.contains("[NIKA-BUILTIN-001]")
+                && unknown_tool.contains("nika:ocr")
+                && unknown_tool.contains("not a canonical builtin"),
+            "TOOLS must name the JSON code:\n{unknown_tool}"
+        );
+        let missing_arg =
+            console("nika: w\ntasks:\n  decide:\n    invoke:\n      tool: nika:decide\n");
+        assert!(
+            missing_arg.contains("[NIKA-BUILTIN-001]")
+                && missing_arg.contains("missing required")
+                && missing_arg.contains("evidence"),
+            "ARGS must name the JSON code:\n{missing_arg}"
+        );
+    }
+}

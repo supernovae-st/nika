@@ -22,6 +22,9 @@ use crate::theme::{Role, Theme};
 
 pub use crate::check_models::{ModelFinding, ModelsAudit};
 
+/// TOOLS/ARGS share this code with the JSON finding fold (`fold_tools`).
+const BUILTIN_CONTRACT: &str = "NIKA-BUILTIN-001";
+
 /// Whether the checked bytes have a writable source. The CLI resolves a
 /// `registry:` coordinate to a cache path before parsing, so the original
 /// provenance must ride separately: a digest-pinned artifact is never a
@@ -422,7 +425,7 @@ fn unknown_tool_rows(report: &CheckReport) -> Vec<String> {
         .iter()
         .map(|u| {
             format!(
-                "`{}` (task `{}`) is not a canonical builtin{}",
+                "[{BUILTIN_CONTRACT}] `{}` (task `{}`) is not a canonical builtin{}",
                 u.tool,
                 u.task,
                 fix_clause(u.suggestion.as_deref())
@@ -447,14 +450,14 @@ fn arg_rows(report: &CheckReport) -> Vec<String> {
                 format!(" — declared: {}", u.declared.join(" · "))
             };
             format!(
-                "`{}` (task `{}`) has no `{}` arg{teach}",
+                "[{BUILTIN_CONTRACT}] `{}` (task `{}`) has no `{}` arg{teach}",
                 u.tool, u.task, u.arg,
             )
         })
         .collect();
     rows.extend(report.missing_args.iter().map(|m| {
         format!(
-            "`{}` (task `{}`) is missing required `{}`",
+            "[{BUILTIN_CONTRACT}] `{}` (task `{}`) is missing required `{}`",
             m.tool, m.task, m.arg
         )
     }));
