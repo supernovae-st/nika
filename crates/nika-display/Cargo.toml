@@ -11,13 +11,13 @@ homepage.workspace     = true
 publish                = false  # Internal L4 interface crate (the binary ships, the lib doesn't).
 
 [dependencies]
-nika-event  = { path = "../nika-event", version = "0.111.0" }  # the REAL event taxonomy (the fold input)
-nika-types  = { path = "../nika-types", version = "0.111.0" }  # Timestamp · KeyValue · ids
-nika-check  = { path = "../nika-check", version = "0.111.0" }  # the ByteSpan the snippet painter maps · the report the check renderer reads
-nika-graph  = { path = "../nika-graph", version = "0.111.0" }  # the DAG projection the dag art draws
-nika-schema = { path = "../nika-schema", version = "0.111.0" }  # the RawWorkflow the check renderer walks
-nika-catalog = { path = "../nika-catalog", version = "0.111.0" }  # the pricing snapshot the COST section dates
-nika-dap     = { path = "../nika-dap", version = "0.111.0" }  # the drift scan's one code home
+nika-event  = { path = "../nika-event", version = "0.112.0" }  # the REAL event taxonomy (the fold input)
+nika-types  = { path = "../nika-types", version = "0.112.0" }  # Timestamp · KeyValue · ids
+nika-check  = { path = "../nika-check", version = "0.112.0" }  # the ByteSpan the snippet painter maps · the report the check renderer reads
+nika-graph  = { path = "../nika-graph", version = "0.112.0" }  # the DAG projection the dag art draws
+nika-schema = { path = "../nika-schema", version = "0.112.0" }  # the RawWorkflow the check renderer walks
+nika-catalog = { path = "../nika-catalog", version = "0.112.0" }  # the pricing snapshot the COST section dates
+nika-dap     = { path = "../nika-dap", version = "0.112.0" }  # the drift scan's one code home
 annotate-snippets = { workspace = true }                       # painted spans (rustc-grade frames through the Theme seam)
 anstyle     = { workspace = true }                             # Role→Style mapping for the snippet renderer
 serde_json  = { workspace = true }                             # the shape reader parses task output JSON

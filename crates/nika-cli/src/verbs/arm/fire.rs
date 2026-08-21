@@ -37,16 +37,17 @@
 //! run is PARKED with its trace (`paused … · trace …`), never resumed,
 //! never answered by the firer.
 
+use std::io::Read as _;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 use jiff::{SignedDuration, Timestamp, Zoned};
+use nika_cadence::firing::{self, ArmGeneration, FencingToken, FiringEvent, FiringState, SlotId};
 use nika_cadence::registry::{AfterSkip, ArmRegistry, Beat, Cadence, Locus, MissPolicy, Overlap};
 use nika_vocab::project;
 
 use super::args::FireArgs;
-use super::state::{ArmState, Claim, FireKind, HistoryEntry, LockOutcome, slot_id};
-use crate::verbs::run::RenderMode;
+use super::state::{ArmState, Claim, FireKind, HistoryEntry, LockOutcome, Receipt};
 use crate::verbs::{self, VerbOutput, exit};
 
 #[cfg(test)]
@@ -104,27 +105,19 @@ pub(crate) enum Wait {
 /// The wait seam's shape: a span in, the outcome out.
 pub(crate) type WaitSeam = Box<dyn Fn(SignedDuration) -> Wait>;
 
-/// The shot the run seam takes — the workflow and its per-tick ceiling
-/// (law 7), the project root to enter.
 pub(crate) struct RunShot {
-    /// The project root (traces and workflow-relative paths resolve here).
     pub root: PathBuf,
-    /// The workflow path, registry-verbatim.
     pub workflow: String,
-    /// The per-tick ceiling in USD — ALWAYS set (law 7).
+    pub source: crate::verbs::RunSource,
+    pub generation: ArmGeneration,
     pub plafond: f64,
 }
 
-/// What a run left behind.
 pub(crate) struct RunUpshot {
-    /// The run's exit code (0 · 1 · 2 · 3 · 4).
     pub code: u8,
-    /// The trace the run wrote (repo-relative), when one landed.
     pub trace: Option<String>,
 }
 
-/// The run seam's shape — an `Rc`: `serve` shares ONE seam across the
-/// tick's beats.
 pub(crate) type RunSeam = Rc<dyn Fn(&RunShot) -> RunUpshot>;
 
 /// What a fire leaves: the ONE stdout line (D8) + the process exit.
@@ -454,22 +447,35 @@ fn expiry_passed(beat: &Beat, now: &Zoned) -> Option<String> {
 /// the ONE line (D8).
 #[must_use]
 pub fn fire_beat(ctx: &FireCtx) -> FireVerdict {
-    match ctx.state.try_lock(&ctx.label, ctx.pid, &ctx.now) {
+    match ctx.state.acquire_beat_lock(&ctx.label, ctx.pid, &ctx.now) {
         Err(e) => FireVerdict {
             line: format!("failed {} · the lock refused: {e}", ctx.label),
             code: exit::ENV,
         },
-        Ok(LockOutcome::HeldAlive { pid }) => overlap_held(ctx, pid),
-        Ok(LockOutcome::Acquired | LockOutcome::StaleTaken { .. }) => decide_locked(ctx),
+        Ok(attempt) => match attempt.outcome {
+            LockOutcome::HeldAlive { pid } => overlap_held(ctx, pid),
+            LockOutcome::Acquired => {
+                let Some(lease) = attempt.lease else {
+                    return FireVerdict {
+                        line: format!("failed {} · the lock returned no lease", ctx.label),
+                        code: exit::ENV,
+                    };
+                };
+                decide_locked(ctx, lease)
+            }
+        },
     }
 }
 
 /// The acquired path: the lock is OURS — the decision happens under it
 /// (the law), and the release rides the guard on EVERY exit, engine
 /// fault and record refusal included.
-fn decide_locked(ctx: &FireCtx) -> FireVerdict {
-    let _lock = HeldBeatLock(ctx);
-    let last = ctx.state.last_fired(&ctx.label);
+fn decide_locked(ctx: &FireCtx, lease: super::state::LockLease) -> FireVerdict {
+    let lock = HeldBeatLock { lease };
+    let last = match ctx.state.last_fired(&ctx.label) {
+        Ok(last) => last,
+        Err(error) => return record_refused(ctx, &error),
+    };
     match decide(
         &ctx.registry,
         ctx.index,
@@ -487,7 +493,7 @@ fn decide_locked(ctx: &FireCtx) -> FireVerdict {
             slot,
             journal,
         } => act_on_skip(ctx, line, reason, slot.as_ref(), journal),
-        Decision::Fire { slot, slots } => claim_run_receipt(ctx, &slot, slots),
+        Decision::Fire { slot, slots } => claim_run_receipt(ctx, &lock.lease, &slot, slots),
     }
 }
 
@@ -497,7 +503,10 @@ fn decide_locked(ctx: &FireCtx) -> FireVerdict {
 /// come from a decision made UNDER the lock (the re-decision law) —
 /// the peek alone never runs.
 fn overlap_held(ctx: &FireCtx, holder: u32) -> FireVerdict {
-    let last = ctx.state.last_fired(&ctx.label);
+    let last = match ctx.state.last_fired(&ctx.label) {
+        Ok(last) => last,
+        Err(error) => return record_refused(ctx, &error),
+    };
     match decide(
         &ctx.registry,
         ctx.index,
@@ -591,13 +600,19 @@ fn wait_turn(ctx: &FireCtx, slot: &Zoned, holder: u32) -> FireVerdict {
             }
             Wait::Elapsed => waited_ms += step,
         }
-        match ctx.state.try_lock(&ctx.label, ctx.pid, &ctx.now) {
-            Ok(LockOutcome::Acquired | LockOutcome::StaleTaken { .. }) => {
+        match ctx.state.acquire_beat_lock(&ctx.label, ctx.pid, &ctx.now) {
+            Ok(attempt) if matches!(attempt.outcome, LockOutcome::Acquired) => {
                 // The re-decision law: the state may have changed under
                 // the wait — decide again, under the lock.
-                return decide_locked(ctx);
+                let Some(lease) = attempt.lease else {
+                    return FireVerdict {
+                        line: format!("failed {} · the lock returned no lease", ctx.label),
+                        code: exit::ENV,
+                    };
+                };
+                return decide_locked(ctx, lease);
             }
-            Ok(LockOutcome::HeldAlive { .. }) => {}
+            Ok(_) => {}
             Err(e) => {
                 return FireVerdict {
                     line: format!("failed {} · the lock refused: {e}", ctx.label),
@@ -625,17 +640,14 @@ fn act_on_skip(
             code: exit::OK,
         };
     }
-    let entry = HistoryEntry {
-        slot: slot.map(Zoned::timestamp),
-        decided_at: ctx.now.timestamp(),
-        kind: FireKind::Skipped,
-        reason: Some(reason),
-        trace: None,
-        exit: Some(exit::OK),
-        slots: None,
-        slot_id: slot.and_then(|s| slot_id_of(ctx, s)),
-        fencing: None,
-    };
+    let mut entry = HistoryEntry::new(
+        slot.map(Zoned::timestamp),
+        ctx.now.timestamp(),
+        FireKind::Skipped,
+    );
+    entry.reason = Some(reason);
+    entry.exit = Some(exit::OK);
+    entry.slot_id = slot.and_then(|s| slot_id_of(ctx, s));
     match ctx.state.record(&ctx.label, &entry) {
         Ok(outcome) => FireVerdict {
             line: with_repair(line, outcome.repaired),
@@ -651,7 +663,12 @@ fn act_on_skip(
 /// receipt (+ fsync · last.json · watermark) lands AFTER, the release
 /// comes last of all (the caller's guard). The receipt fences the
 /// claim's seq — that link is what makes an orphan unambiguous.
-fn claim_run_receipt(ctx: &FireCtx, slot: &Zoned, slots: Option<u32>) -> FireVerdict {
+fn claim_run_receipt(
+    ctx: &FireCtx,
+    lease: &super::state::LockLease,
+    slot: &Zoned,
+    slots: Option<u32>,
+) -> FireVerdict {
     let Some(beat) = beat_of(ctx) else {
         return FireVerdict {
             line: format!(
@@ -670,9 +687,13 @@ fn claim_run_receipt(ctx: &FireCtx, slot: &Zoned, slots: Option<u32>) -> FireVer
             code: exit::FILE,
         };
     };
-    let claim = Claim {
-        slot_id: slot_id(&beat.workflow, &beat.cadence, slot),
-        deadline: next_slot(ctx).map_or_else(
+    let pinned = match pin_workflow(ctx, beat) {
+        Ok(pinned) => pinned,
+        Err(error) => return record_refused(ctx, &error),
+    };
+    let mut claim = Claim::new(
+        SlotId::derive(&beat.workflow, &beat.cadence, slot),
+        next_slot(ctx).map_or_else(
             || {
                 ctx.now
                     .timestamp()
@@ -681,10 +702,11 @@ fn claim_run_receipt(ctx: &FireCtx, slot: &Zoned, slots: Option<u32>) -> FireVer
             },
             |next| next.timestamp(),
         ),
-        decided_at: ctx.now.timestamp(),
-    };
+        ctx.now.timestamp(),
+    );
+    claim.generation = Some(pinned.generation.clone());
     let mut repaired = 0u64;
-    let fencing = match ctx.state.record_claim(&ctx.label, &claim) {
+    let fencing = match ArmState::record_claim_with_lease(lease, &claim) {
         Ok(outcome) => {
             repaired += outcome.repaired;
             outcome.seq
@@ -694,21 +716,30 @@ fn claim_run_receipt(ctx: &FireCtx, slot: &Zoned, slots: Option<u32>) -> FireVer
     let upshot = (ctx.run)(&RunShot {
         root: ctx.project_root.clone(),
         workflow: beat.workflow.clone(),
+        source: pinned.source,
+        generation: pinned.generation,
         plafond,
     });
-    let (kind, line) = verdict_line(ctx, slot, slots, upshot.code, upshot.trace.as_deref());
-    let receipt = HistoryEntry {
-        slot: Some(slot.timestamp()),
-        decided_at: ctx.now.timestamp(),
-        kind,
-        reason: None,
-        trace: upshot.trace,
-        exit: Some(upshot.code),
+    let folded = fold_finished_run(&claim, fencing, upshot.code);
+    let (kind, line) = verdict_line(
+        ctx,
+        slot,
         slots,
-        slot_id: Some(claim.slot_id),
-        fencing: Some(fencing),
-    };
-    match ctx.state.record(&ctx.label, &receipt) {
+        folded,
+        upshot.code,
+        upshot.trace.as_deref(),
+    );
+    let receipt = Receipt::for_claim(
+        &claim,
+        FencingToken::new(fencing),
+        slot.timestamp(),
+        ctx.now.timestamp(),
+        upshot.trace,
+        upshot.code,
+        slots,
+    );
+    debug_assert_eq!(receipt.kind(), kind);
+    match ArmState::record_receipt_with_lease(lease, &receipt) {
         Ok(outcome) => repaired += outcome.repaired,
         Err(e) => return record_refused(ctx, &e),
     }
@@ -718,14 +749,29 @@ fn claim_run_receipt(ctx: &FireCtx, slot: &Zoned, slots: Option<u32>) -> FireVer
     }
 }
 
-/// The held beat lock, released on EVERY exit of the scope that took
-/// it — a leaked lock would brick the beat until the pid dies.
-struct HeldBeatLock<'a>(&'a FireCtx);
+/// Fold the run's terminal lifecycle before the receipt speaks its kind.
+fn fold_finished_run(claim: &Claim, fencing: u64, code: u8) -> FiringState {
+    firing::fold(&[
+        FiringEvent::Due,
+        FiringEvent::Claimed {
+            fencing: FencingToken::new(fencing),
+            generation: claim.generation.clone(),
+            deadline: claim.deadline,
+        },
+        FiringEvent::Started {
+            fencing: FencingToken::new(fencing),
+        },
+        FiringEvent::Finished {
+            fencing: Some(FencingToken::new(fencing)),
+            code,
+        },
+    ])
+}
 
-impl Drop for HeldBeatLock<'_> {
-    fn drop(&mut self) {
-        let _ = self.0.state.release(&self.0.label);
-    }
+/// The held beat lock, released on EVERY exit of the scope that took
+/// it. The kernel releases the advisory lease even if the process dies.
+struct HeldBeatLock {
+    lease: super::state::LockLease,
 }
 
 /// The beat's next theoretical slot after the decision instant — the
@@ -739,9 +785,38 @@ fn next_slot(ctx: &FireCtx) -> Option<Zoned> {
 
 /// The slot's canonical identity, computed from the beat's own
 /// declaration (the path + the cadence, VERBATIM — never the label).
-fn slot_id_of(ctx: &FireCtx, slot: &Zoned) -> Option<String> {
+/// The derivation lives in the cadence machine since W7 (D4).
+fn slot_id_of(ctx: &FireCtx, slot: &Zoned) -> Option<SlotId> {
     let beat = beat_of(ctx)?;
-    Some(slot_id(&beat.workflow, &beat.cadence, slot))
+    Some(SlotId::derive(&beat.workflow, &beat.cadence, slot))
+}
+
+struct PinnedWorkflow {
+    generation: ArmGeneration,
+    source: crate::verbs::RunSource,
+}
+
+fn pin_workflow(ctx: &FireCtx, beat: &Beat) -> std::io::Result<PinnedWorkflow> {
+    let path = ctx.project_root.join(&beat.workflow);
+    let mut options = std::fs::OpenOptions::new();
+    options.read(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt as _;
+        options.custom_flags(nix::libc::O_NOFOLLOW | nix::libc::O_CLOEXEC);
+    }
+    let mut source = options.open(&path)?;
+    if !source.metadata()?.file_type().is_file() {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            "arm workflow: source is not a regular file",
+        ));
+    }
+    let mut bytes = Vec::new();
+    source.read_to_end(&mut bytes)?;
+    let generation = ArmGeneration::compute(beat, &bytes);
+    let source = crate::verbs::RunSource::from_bytes(beat.workflow.clone(), bytes)?;
+    Ok(PinnedWorkflow { generation, source })
 }
 
 /// The repair suffix — the ledger's self-healing is SAID on the
@@ -764,43 +839,32 @@ fn record_refused(ctx: &FireCtx, e: &std::io::Error) -> FireVerdict {
     }
 }
 
-/// The real shot: enter the project (traces and workflow-relative
-/// paths resolve at the root), turn stdout onto stderr for the run's
-/// duration (D8), run IN-PROCESS with the `nika run` CLI defaults —
-/// the per-tick ceiling ALWAYS set (law 7). A room the firer cannot
-/// enter is a run that failed before starting: exit ENV, journaled as
-/// such by the caller — the claim still gets its receipt, no orphan.
 pub(crate) fn prod_run(shot: &RunShot) -> RunUpshot {
-    let before = trace_set(&shot.root);
+    debug_assert!(!shot.workflow.is_empty());
+    debug_assert_eq!(shot.generation.as_str().len(), 64);
     let Ok(_room) = enter_room(&shot.root) else {
         return RunUpshot {
             code: exit::ENV,
             trace: None,
         };
     };
-    let code = run_quietly(|| {
-        verbs::run::run(
-            &shot.workflow,
-            false, // json
-            None,  // output
+    let Ok(receipt) = run_quietly(|| {
+        verbs::run::run_checked_source(
+            shot.source.clone(),
             crate::Theme::new(false, true, false),
-            RenderMode::Plain,  // the piped `nika run` defaults
-            false,              // dry_run
-            None,               // model_override
-            None,               // access_pin
-            &[],                // vars
-            None,               // resume — NEVER (law 4 · N2)
-            false,              // no_trace_file — the trace is load-bearing
-            None,               // task_filter
-            false,              // no_outputs
-            Some(shot.plafond), // the per-tick ceiling, ALWAYS (law 7)
-            false,              // no_gc
-            false,              // require_signature — ② (serve) verifies
+            shot.plafond,
         )
-    });
+    }) else {
+        return RunUpshot {
+            code: exit::ENV,
+            trace: None,
+        };
+    };
     RunUpshot {
-        code,
-        trace: new_trace(&shot.root, &before),
+        code: receipt.code,
+        trace: receipt
+            .trace
+            .map(|path| path.to_string_lossy().into_owned()),
     }
 }
 
@@ -813,30 +877,41 @@ fn os_wait(span: SignedDuration) -> Wait {
 }
 
 /// The line + the kind for a run that went (rc 0 · 1 · 2 · 3 · 4).
+/// The kind FOLLOWS the machine's fold (D5) — the line's shape is
+/// unchanged (D8 stays byte-identical).
 fn verdict_line(
     ctx: &FireCtx,
     slot: &Zoned,
     slots: Option<u32>,
+    state: FiringState,
     code: u8,
     trace: Option<&str>,
 ) -> (FireKind, String) {
+    let kind = match state {
+        FiringState::Succeeded => FireKind::Fired,
+        FiringState::Cancelled => FireKind::Paused,
+        // FailedRetryable · FailedPermanent — and the defensive floor:
+        // the fold of [due · claimed · started · finished] lands
+        // nowhere else, so this arm doubles as the engine-fault-safe one.
+        _ => FireKind::Failed,
+    };
     let label = ctx.label.as_str();
     let slot_rfc = slot.timestamp().to_string();
     let catchup = slots.map_or(String::new(), |n| format!(" · rattrapage ×{n}"));
     let via_trace = trace.map_or(String::new(), |t| format!(" · trace {t}"));
     match code {
         exit::OK => (
-            FireKind::Fired,
+            kind,
             format!("fired {label} · slot {slot_rfc}{catchup} · exit 0{via_trace}"),
         ),
         exit::PAUSED => (
-            FireKind::Paused,
+            kind,
             format!(
                 "paused {label} · slot {slot_rfc}{via_trace} — garé (N2: jamais repris, jamais répondu)"
             ),
         ),
         _ => (
-            FireKind::Failed,
+            kind,
             format!("failed {label} · slot {slot_rfc} · exit {code}{via_trace}"),
         ),
     }
@@ -847,36 +922,6 @@ fn beat_of(ctx: &FireCtx) -> Option<&Beat> {
     ctx.registry.beats().nth(ctx.index)
 }
 
-/// The trace files present under the project (`.nika/traces/*.ndjson`).
-fn trace_set(root: &Path) -> Vec<String> {
-    let dir = root.join(nika_dap::store::TRACE_DIR);
-    let Ok(entries) = std::fs::read_dir(&dir) else {
-        return Vec::new();
-    };
-    entries
-        .filter_map(std::result::Result::ok)
-        .filter_map(|e| e.file_name().into_string().ok())
-        .filter(|n| n.ends_with(".ndjson"))
-        .collect()
-}
-
-/// The trace THIS run wrote: the `.ndjson` present now that was not
-/// there before (several = the alphabetically last — the freshest
-/// timestamp wins the name).
-fn new_trace(root: &Path, before: &[String]) -> Option<String> {
-    let mut fresh: Vec<String> = trace_set(root)
-        .into_iter()
-        .filter(|n| !before.contains(n))
-        .collect();
-    fresh.sort_unstable();
-    fresh
-        .last()
-        .map(|name| format!("{}/{name}", nika_dap::store::TRACE_DIR))
-}
-
-/// Enter the project root for the run's duration — the fold's trace
-/// sink (`.nika/traces/`) and the workflow's relative paths read the
-/// CWD (the `try` verb's rehearsal-room precedent).
 struct RoomGuard(Option<PathBuf>);
 
 impl Drop for RoomGuard {
@@ -921,21 +966,15 @@ impl Drop for StdoutGuard {
     }
 }
 
-/// The run behind the stdout guard (unix) — a guard failure degrades
-/// to the unguarded run (the line still prints; the fold may precede
-/// it), never blocks the shot.
 #[cfg(unix)]
-fn run_quietly(f: impl FnOnce() -> u8) -> u8 {
-    match StdoutGuard::enter() {
-        Ok(_guard) => f(),
-        Err(_) => f(),
-    }
+fn run_quietly<T>(f: impl FnOnce() -> T) -> std::io::Result<T> {
+    let _guard = StdoutGuard::enter()?;
+    Ok(f())
 }
 
-/// No fd surface off-unix: the run speaks (the ship targets are unix).
 #[cfg(not(unix))]
-fn run_quietly(f: impl FnOnce() -> u8) -> u8 {
-    f()
+fn run_quietly<T>(f: impl FnOnce() -> T) -> std::io::Result<T> {
+    Ok(f())
 }
 
 #[cfg(test)]

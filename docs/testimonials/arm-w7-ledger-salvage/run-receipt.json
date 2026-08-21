@@ -1,0 +1,398 @@
+{
+  "schema": "nika.mutation-testimonial.run.raw.v1",
+  "guarantee": "Reproducible local testimonial from the committed wrapper; not remote attestation and not a claim against a malicious local operator.",
+  "receipt_commit": "24c89f07162add164a648a50f1cb8c496c556c2a",
+  "tested_commit": "32ebdf3a301a2077887dcc8ff3cd0e7267a665c3",
+  "tested_tree": "bb7f629da770435208edd8e9c6a48cf24cad873b",
+  "run_id": "arm-w7-4b1d5d86-f712-44cd-949d-6c3539dceed6",
+  "settlement": {
+    "write": "same-directory atomic replace",
+    "durability": "fsync scratch-parent entries after root materialization and removal, every bound outcome artifact and its directories, the atomic receipt file and output directory, then the scratch parent before settlement",
+    "pre_settlement_failure": "remove exact output target and temp roots",
+    "post_settlement_failure": "preserve output and durable raw receipt; target is a removed build cache, not evidence authority",
+    "target_authority": "build cache removed before settlement"
+  },
+  "settlement_order": [
+    "scratch-materialized-parent-fsync",
+    "artifact-files-and-directories-fsync",
+    "scratch-removal-parent-fsync",
+    "receipt-atomic-file-output-directory-fsync",
+    "settlement-parent-fsync",
+    "settled"
+  ],
+  "execution_lease": {
+    "path": "/tmp/nika-pr1079-arm-w7-4b1d5d86-f712-44cd-949d-6c3539dceed6-lease",
+    "canonical_path_sha256": "646a546bd33543ee3c89c7b090aac41ec00dbe152c15073d18ed48327836de5d",
+    "mode": "0600",
+    "uid_owned": true,
+    "regular": true,
+    "sha256": "b3eceeeff2897ab7d6577822400a165d25500055e8f338647e16bb42ae260388",
+    "size": 222,
+    "schema": "nika.mutation-testimonial.lease.v1",
+    "receipt_commit": "24c89f07162add164a648a50f1cb8c496c556c2a",
+    "run_id": "arm-w7-4b1d5d86-f712-44cd-949d-6c3539dceed6",
+    "tested_commit": "32ebdf3a301a2077887dcc8ff3cd0e7267a665c3",
+    "file_fsync": true,
+    "scratch_parent": {
+      "stage": "lease-created",
+      "canonical_path_sha256": "11fe14a563f7aed66191800dc08fe0d15049ef7d9dac5f5ab4b0ca20b28e193d",
+      "directory_fsync": true
+    },
+    "inheritable": true,
+    "exclusive_lock": true
+  },
+  "scratch_durability": {
+    "materialized_parent": {
+      "stage": "materialized-output-target",
+      "canonical_path_sha256": "11fe14a563f7aed66191800dc08fe0d15049ef7d9dac5f5ab4b0ca20b28e193d",
+      "directory_fsync": true
+    },
+    "target": {
+      "evidence_authority": false,
+      "cleanup": {
+        "removed_entries": 192848,
+        "fd_safe_no_symlink_follow": true,
+        "removed": true
+      }
+    },
+    "removal_parent": {
+      "stage": "pre-settlement-removal",
+      "canonical_path_sha256": "11fe14a563f7aed66191800dc08fe0d15049ef7d9dac5f5ab4b0ca20b28e193d",
+      "directory_fsync": true
+    },
+    "settlement_parent": {
+      "stage": "after-receipt-before-settled",
+      "canonical_path_sha256": "11fe14a563f7aed66191800dc08fe0d15049ef7d9dac5f5ab4b0ca20b28e193d",
+      "directory_fsync": true
+    }
+  },
+  "artifact_durability": {
+    "files": [
+      {
+        "name": "mutants.json",
+        "relative_path": "mutants.out/mutants.json",
+        "sha256": "38832dcd0f310f2d357d7ad10d41953d48b87658ed1e54259b05646a4cf7e789",
+        "file_fsync": true
+      },
+      {
+        "name": "outcomes.json",
+        "relative_path": "mutants.out/outcomes.json",
+        "sha256": "a7c04c7c1fe4e6095bb4d624a141b510db4ab0a34d431c8506c4cab242409739",
+        "file_fsync": true
+      }
+    ],
+    "directories": [
+      {
+        "relative_path": ".",
+        "canonical_path_sha256": "f884b989a975fdbfe42c6e599866bc5b75b1d06fec4cb1636bff8d200373a5a6",
+        "directory_fsync": true
+      },
+      {
+        "relative_path": "mutants.out",
+        "canonical_path_sha256": "04c55423056d57b8b362476a671408bc3f5b9662b2dfa805adcec2f292a8c47f",
+        "directory_fsync": true
+      }
+    ]
+  },
+  "wrapper": {
+    "argv": [
+      "python3",
+      "docs/testimonials/arm-w7-ledger-salvage/validate.py",
+      "run",
+      "--repo",
+      ".",
+      "--receipt-commit",
+      "HEAD"
+    ],
+    "validator_sha256": "dfa67b3a7c12000dfb2ca315d76335316f9e0d482043fa4224f27b633392d140",
+    "protocol_sha256": "732e277b343c7342bd89917041d53521403e855fce6140e73376720c4772564d"
+  },
+  "process": {
+    "argv": [
+      "<CARGO_BIN>",
+      "mutants",
+      "-p",
+      "nika-cadence",
+      "-f",
+      "crates/nika-cadence/src/firing.rs",
+      "-f",
+      "crates/nika-cadence/src/ledger.rs",
+      "-E",
+      "^crates/nika-cadence/src/ledger\\.rs:406:27: replace > with >= in unsettled$",
+      "-E",
+      "^crates/nika-cadence/src/ledger\\.rs:1108:21: replace && with \\|\\| in LifecycleValidator::accept$",
+      "-E",
+      "^crates/nika-cadence/src/ledger\\.rs:1109:21: replace && with \\|\\| in LifecycleValidator::accept$",
+      "-o",
+      "/tmp/nika-pr1079-arm-w7-4b1d5d86-f712-44cd-949d-6c3539dceed6-output",
+      "-j",
+      "1",
+      "--baseline",
+      "run",
+      "--timeout",
+      "300",
+      "--build-timeout",
+      "300",
+      "--",
+      "--lib"
+    ],
+    "cwd": "/tmp/nika-pr1079-mutants-32ebdf3a",
+    "platform": "darwin",
+    "signal_policy": [
+      "SIGHUP",
+      "SIGINT",
+      "SIGTERM"
+    ],
+    "signal_guard": {
+      "scope": "temp-create-through-process-group-reap-artifact-binding-and-durable-settlement",
+      "parent": "block-before-handler-install-and-spawn; unblock only while owned work runs",
+      "child": "POSIX single-thread preexec sets umask 077 and restores original mask minus SIGHUP SIGINT and SIGTERM",
+      "teardown": "block before group stop; restore prior handlers while blocked; restore prior mask last"
+    },
+    "new_session": true,
+    "process_group": 37314,
+    "returncode": 0,
+    "wall_start": "2026-08-21T08:54:05.416495Z",
+    "wall_end": "2026-08-21T09:34:04.379005Z",
+    "monotonic_start_ns": 227064122341458,
+    "monotonic_end_ns": 229463012994875
+  },
+  "tool_binaries": {
+    "cargo_mutants": {
+      "invoked_path": "<CARGO_MUTANTS_BIN>",
+      "invoked_path_sha256": "850f2d022e530607d46b363226651b73d4f0851160029cf3da56b29b8d0aa2dc",
+      "invoked_kind": "regular",
+      "invoked_size": 8129008,
+      "symlink_target": null,
+      "symlink_target_sha256": null,
+      "proxy_realpath": "<CARGO_MUTANTS_BIN>",
+      "proxy_sha256": "b6d1fbc11b457708885566d7b0a67259e291ae3d105da65ffa9b31219fc0c683",
+      "command_cwd": {
+        "logical": "/tmp/nika-pr1079-mutants-32ebdf3a",
+        "canonical_sha256": "27f4fab60d370bdfe54998581fc5fcc83f39243b41ed4e715f1b7e1b6c01fe9b"
+      },
+      "proxy_version": "cargo-mutants 27.0.0",
+      "selected_toolchain": null
+    },
+    "rustup": {
+      "invoked_path": "<RUSTUP_PROXY_BIN>",
+      "invoked_path_sha256": "44d3617131ee848f191e7471e13af1343162d708f176664019689c98b68dbeb8",
+      "invoked_kind": "regular",
+      "invoked_size": 11053296,
+      "symlink_target": null,
+      "symlink_target_sha256": null,
+      "proxy_realpath": "<RUSTUP_PROXY_BIN>",
+      "proxy_sha256": "aeb4105778ca1bd3c6b0e75768f581c656633cd51368fa61289b6a71696ac7e1",
+      "command_cwd": {
+        "logical": "/tmp/nika-pr1079-mutants-32ebdf3a",
+        "canonical_sha256": "27f4fab60d370bdfe54998581fc5fcc83f39243b41ed4e715f1b7e1b6c01fe9b"
+      },
+      "proxy_version": "rustup 1.29.0 (28d1352db 2026-03-05)",
+      "selected_toolchain": null
+    },
+    "cargo": {
+      "invoked_path": "<CARGO_BIN>",
+      "invoked_path_sha256": "84b2f3a5afbbb393874547acbd07e5700d9d88122ed60aab77de4f25f71f3701",
+      "invoked_kind": "symlink",
+      "invoked_size": 6,
+      "symlink_target": "rustup",
+      "symlink_target_sha256": "4d4240a2162a3fa435078c60eac770175d6179a28dcac8972411336997b361a2",
+      "proxy_realpath": "<RUSTUP_PROXY_BIN>",
+      "proxy_sha256": "aeb4105778ca1bd3c6b0e75768f581c656633cd51368fa61289b6a71696ac7e1",
+      "command_cwd": {
+        "logical": "/tmp/nika-pr1079-mutants-32ebdf3a",
+        "canonical_sha256": "27f4fab60d370bdfe54998581fc5fcc83f39243b41ed4e715f1b7e1b6c01fe9b"
+      },
+      "proxy_version": "cargo 1.91.1 (ea2d97820 2025-10-10)",
+      "selected_toolchain": {
+        "path": "<CARGO_TOOLCHAIN_BIN>",
+        "sha256": "696d29bd6f5a136ef6c7088558e178efcabbd571de90e8169d0f6596c568eea8",
+        "version": "cargo 1.91.1 (ea2d97820 2025-10-10)",
+        "selection_launcher_sha256": "44d3617131ee848f191e7471e13af1343162d708f176664019689c98b68dbeb8"
+      }
+    },
+    "rustc": {
+      "invoked_path": "<RUSTC_BIN>",
+      "invoked_path_sha256": "b8907aafed475ea49f3474080f1c4212f044744cf1481a2d52233fbbc1fd601a",
+      "invoked_kind": "symlink",
+      "invoked_size": 6,
+      "symlink_target": "rustup",
+      "symlink_target_sha256": "4d4240a2162a3fa435078c60eac770175d6179a28dcac8972411336997b361a2",
+      "proxy_realpath": "<RUSTUP_PROXY_BIN>",
+      "proxy_sha256": "aeb4105778ca1bd3c6b0e75768f581c656633cd51368fa61289b6a71696ac7e1",
+      "command_cwd": {
+        "logical": "/tmp/nika-pr1079-mutants-32ebdf3a",
+        "canonical_sha256": "27f4fab60d370bdfe54998581fc5fcc83f39243b41ed4e715f1b7e1b6c01fe9b"
+      },
+      "proxy_version": "rustc 1.91.1 (ed61e7d7e 2025-11-07)",
+      "selected_toolchain": {
+        "path": "<RUSTC_TOOLCHAIN_BIN>",
+        "sha256": "f556cd7caa76d85ff0e777ba8e96552b33b4e0ea0dda8fbe6cde1d23b6c4df27",
+        "version": "rustc 1.91.1 (ed61e7d7e 2025-11-07)",
+        "selection_launcher_sha256": "44d3617131ee848f191e7471e13af1343162d708f176664019689c98b68dbeb8"
+      }
+    }
+  },
+  "environment": [
+    {
+      "name": "PATH",
+      "present": true,
+      "value_sha256": "978ccb439626883d0359f97c0d1f7508a9d5a1725cfc286e85ac6586d323ba6a"
+    },
+    {
+      "name": "HOME",
+      "present": true,
+      "value_sha256": "70c923e3c8819733c9fa10dbf8f98929e58bdcffc20db6b7ce965bd02b5e484e"
+    },
+    {
+      "name": "CARGO_HOME",
+      "present": false,
+      "value_sha256": null
+    },
+    {
+      "name": "RUSTUP_HOME",
+      "present": false,
+      "value_sha256": null
+    },
+    {
+      "name": "RUSTUP_TOOLCHAIN",
+      "present": false,
+      "value_sha256": null
+    },
+    {
+      "name": "TMPDIR",
+      "present": true,
+      "value_sha256": "414ccec47f65fdb895a48826e557b587e593c9192f207eff3f3ca450ddf1c633"
+    },
+    {
+      "name": "LANG",
+      "present": true,
+      "value_sha256": "99fed2d548c2eb1022f4067f97fe838a2c3ea60ee0e0f53086788505c3ababad"
+    },
+    {
+      "name": "LC_ALL",
+      "present": true,
+      "value_sha256": "99fed2d548c2eb1022f4067f97fe838a2c3ea60ee0e0f53086788505c3ababad"
+    },
+    {
+      "name": "SDKROOT",
+      "present": false,
+      "value_sha256": null
+    },
+    {
+      "name": "DEVELOPER_DIR",
+      "present": false,
+      "value_sha256": null
+    },
+    {
+      "name": "MACOSX_DEPLOYMENT_TARGET",
+      "present": false,
+      "value_sha256": null
+    },
+    {
+      "name": "CARGO_TARGET_DIR",
+      "present": true,
+      "value_sha256": "e518912e3fda60a27b80ecd2f305932af67005796bff7508c83d98d65e250e39"
+    }
+  ],
+  "cargo_config": {
+    "workspace": {
+      "source": "tested_worktree",
+      "path": ".cargo/config.toml",
+      "git_blob": "f0f014ae1a9ab88e3c1b54df85e0d6925e680423",
+      "sha256": "c6f378a92bd697c9bad21d36f239324b6cf735cbf19764ff71661ccc83d64db9",
+      "shadowed": false
+    },
+    "user": {
+      "source": "HOME/.cargo",
+      "name": null,
+      "sha256": null,
+      "shadowed": false
+    },
+    "external_ancestors_checked": 3,
+    "temp_hierarchy_checked": 4
+  },
+  "temp_root": {
+    "pre_spawn": {
+      "path": "/tmp/nika-pr1079-arm-w7-4b1d5d86-f712-44cd-949d-6c3539dceed6-tmp",
+      "canonical_path_sha256": "78746499f8a49887ca824e2873e9f36a0bf3c303f7588ba38cbfd4ff82218fa4",
+      "canonical_parent_sha256": "11fe14a563f7aed66191800dc08fe0d15049ef7d9dac5f5ab4b0ca20b28e193d",
+      "mode": "0700",
+      "cargo_hierarchy_checked": 4
+    },
+    "post_process": {
+      "removed_entries": 0,
+      "fd_safe_no_symlink_follow": true,
+      "removed": true,
+      "cargo_hierarchy_checked": 4,
+      "scratch_parent": {
+        "stage": "temp-removal",
+        "canonical_path_sha256": "11fe14a563f7aed66191800dc08fe0d15049ef7d9dac5f5ab4b0ca20b28e193d",
+        "directory_fsync": true
+      }
+    }
+  },
+  "pre_probe": {
+    "head": "32ebdf3a301a2077887dcc8ff3cd0e7267a665c3",
+    "tree": "bb7f629da770435208edd8e9c6a48cf24cad873b",
+    "index_tree": "bb7f629da770435208edd8e9c6a48cf24cad873b",
+    "index_clean": true,
+    "worktree_clean": true,
+    "porcelain_v2": "",
+    "porcelain_v2_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "detached_head": true,
+    "symbolic_ref": null
+  },
+  "monitoring": {
+    "interval_ms": 1000,
+    "probe_count": 2279,
+    "violation": null,
+    "copied_workspace_configs": [
+      {
+        "relative_path_sha256": "862f36f5e7c6c2c9dafccf405d3631f9fafbe91ce6e6403d540371ea0765cb3e",
+        "sha256": "c6f378a92bd697c9bad21d36f239324b6cf735cbf19764ff71661ccc83d64db9"
+      }
+    ]
+  },
+  "post_probe": {
+    "head": "32ebdf3a301a2077887dcc8ff3cd0e7267a665c3",
+    "tree": "bb7f629da770435208edd8e9c6a48cf24cad873b",
+    "index_tree": "bb7f629da770435208edd8e9c6a48cf24cad873b",
+    "index_clean": true,
+    "worktree_clean": true,
+    "porcelain_v2": "",
+    "porcelain_v2_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "detached_head": true,
+    "symbolic_ref": null
+  },
+  "artifacts": {
+    "outcomes.json": {
+      "relative_path": "mutants.out/outcomes.json",
+      "canonical_path_sha256": "4cced622178a4ed3e4f101914c037b82549f63f44807c5189a0c213de2837561",
+      "realpath_under_output": true,
+      "regular": true,
+      "symlink": false,
+      "size": 902429,
+      "sha256": "a7c04c7c1fe4e6095bb4d624a141b510db4ab0a34d431c8506c4cab242409739"
+    },
+    "mutants.json": {
+      "relative_path": "mutants.out/mutants.json",
+      "canonical_path_sha256": "2db8fc0aa69c9b209865257329e922f1cb34d08adbc944c32bcade3aa61241ff",
+      "realpath_under_output": true,
+      "regular": true,
+      "symlink": false,
+      "size": 849881,
+      "sha256": "38832dcd0f310f2d357d7ad10d41953d48b87658ed1e54259b05646a4cf7e789"
+    }
+  },
+  "counts": {
+    "mutants_json": 483,
+    "outcome_mutants": 483,
+    "total_mutants": 483,
+    "caught": 442,
+    "unviable": 41,
+    "missed": 0,
+    "timeout": 0
+  },
+  "written_at": "2026-08-21T09:34:19.885957Z"
+}

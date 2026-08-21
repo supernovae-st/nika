@@ -419,18 +419,16 @@ index access                with.pages[0] · obj['key-with-dash']
 comparison                  == · != · < · <= · > · >=
 boolean                     && · || · !
 membership                  in            (e.g. with.status in ['success','skipped'])
-size                        size(coll) · coll.size()   (collection/string length · the ONE v0.1 function · empty-check idiom)
+callables                   size(coll) · has(ref) · coll.size() · str.contains(s) · str.startsWith(s) · str.endsWith(s)
 literals                    true · false · 42 · 3.14 · 'str' · "str" · null
 grouping                    ( … )
 ```
 
-`size()` (collection/string length) is the ONE function in the v0.1 subset,
-the canonical empty/non-empty-check idiom (`size(items) > 0`). Everything else
-is **reserved** · arithmetic · CEL macros (`has()`, `all()`, `exists()`) · and
-string-manipulation functions (`startsWith`, `matches`, `contains`, …): not in
-the v0.1 subset, addable in a later minor (CEL is a superset, so growth is
-additive and never breaking). If you need richer logic today, compute it in a
-`nika:assert` builtin or an `infer:` task.
+The callable set is closed: `size(x)` · `has(x)` · `x.size()` ·
+`x.contains(s)` · `x.startsWith(s)` · `x.endsWith(s)`. Arithmetic, the
+`all()` / `exists()` macros, `matches()` regex, and every other callable are
+**reserved** for a later additive minor. If you need richer logic today,
+compute it in a `nika:assert` builtin or an `infer:` task.
 
 ##### Formal grammar · CEL v0.1 subset (normative · grammar version `cel-subset/0.1`)
 

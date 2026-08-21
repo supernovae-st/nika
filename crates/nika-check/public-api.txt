@@ -58,7 +58,7 @@ impl<T> nika_error::traits::AsAny for nika_check::permits_fit::CapabilityEscape 
 pub fn nika_check::permits_fit::CapabilityEscape::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub fn nika_check::permits_fit::scan_escapes(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<nika_check::permits_fit::CapabilityEscape>
 pub mod nika_check::trifecta
-pub fn nika_check::trifecta::scan_trifecta(wf: &nika_schema::raw::workflow::RawWorkflow, edges: &[nika_check_analyzer::edges::Edge], topo_waves: &[alloc::vec::Vec<usize>]) -> alloc::vec::Vec<nika_cap::trifecta::TrifectaViolation>
+pub fn nika_check::trifecta::scan_trifecta(wf: &nika_schema::raw::workflow::RawWorkflow, edges: &[nika_check_analyzer::edges::Edge], topo_waves: &[alloc::vec::Vec<usize>]) -> nika_cap::trifecta::TrifectaVerdict
 #[non_exhaustive] pub enum nika_check::DataClassification
 pub nika_check::DataClassification::Internal
 pub nika_check::DataClassification::Regulated
@@ -728,6 +728,7 @@ pub nika_check::CheckReport::secret_egresses: alloc::vec::Vec<nika_check::Secret
 pub nika_check::CheckReport::secret_leaks: alloc::vec::Vec<nika_check::SecretLeak>
 pub nika_check::CheckReport::sink_findings: alloc::vec::Vec<nika_check::SinkFinding>
 pub nika_check::CheckReport::trifecta_findings: alloc::vec::Vec<nika_cap::trifecta::TrifectaViolation>
+pub nika_check::CheckReport::trifecta_mitigations: alloc::vec::Vec<nika_cap::trifecta::TrifectaMitigation>
 pub nika_check::CheckReport::unknown_args: alloc::vec::Vec<nika_check::UnknownArg>
 pub nika_check::CheckReport::unknown_tools: alloc::vec::Vec<nika_check::UnknownTool>
 pub nika_check::CheckReport::unverifiable_output_refs: alloc::vec::Vec<nika_check::UnverifiableOutputRef>

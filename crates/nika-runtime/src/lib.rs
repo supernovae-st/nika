@@ -49,6 +49,9 @@
 mod admit;
 mod agent_events;
 pub mod approval;
+#[cfg(test)]
+#[path = "../build_support.rs"]
+mod build_support;
 pub mod child;
 pub mod compose;
 pub mod config;
@@ -58,6 +61,7 @@ mod emit_task;
 mod errors;
 mod expr;
 pub(crate) mod harness_seat;
+pub mod identity;
 mod integrity;
 mod jq;
 mod ledger;
@@ -125,6 +129,7 @@ pub use compose::{
 };
 pub use config::RuntimeConfig;
 pub use errors::RuntimeError;
+pub use identity::{EngineIdentity, engine_identity};
 pub use origins::{InputOrigin, input_origins};
 pub use pause::WorkflowPause;
 pub use record::{TaskErrorRecord, TaskRecord, TaskStatus, TerminalCause, legal};

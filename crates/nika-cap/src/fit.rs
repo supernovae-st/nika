@@ -37,6 +37,46 @@ impl Permits {
             globs.iter().any(|g| path_glob_matches(g, path))
         })
     }
+
+    /// Whether the OS jail derived from this boundary would let a
+    /// SUBPROCESS open `path` for reading.
+    ///
+    /// This is NOT [`Self::allows_path`]. The jail does not glob: the
+    /// launchers take each grant's LITERAL PREFIX — everything before the
+    /// first `*`/`?`/`[`, trimmed back to a directory boundary — and bind
+    /// that subtree (`nika-sandbox-*::grant_subpath`). So the jail admits
+    /// strictly MORE than the lexical walk, and the difference is
+    /// measured, not assumed (2026-08-20, seatbelt, `nika 0.111.0`):
+    ///
+    /// ```text
+    /// permits.fs.read      script            run    allows_path
+    /// ───────────────      ──────            ───    ───────────
+    /// []                   leg.sh            126    no
+    /// ["leg.sh"]           leg.sh              0    yes
+    /// ["data/**"]          leg.sh            126    no
+    /// ["sub"]              sub/leg.sh          0    NO   ← binds the subtree
+    /// ["sub/inn*"]         sub/leg.sh          0    NO   ← prefix is `sub`
+    /// ```
+    ///
+    /// The looser reading is the one an exec claim must be judged against:
+    /// a checker using the stricter one would redden files the run
+    /// executes happily. The builtin fs gate keeps `allows_path` — its own
+    /// runtime seam enforces that stricter reading, and check refuses
+    /// before a run exists — so the two readings of one grant are a live
+    /// divergence in the authored vocabulary. Naming both here is what
+    /// keeps it from being rediscovered a fourth time.
+    ///
+    /// A grant with no literal prefix (`*` · `**/x`) grants nothing, the
+    /// same `Ok(None)` skip the launchers make. A prefix the launcher
+    /// REFUSES outright (a bare system root) is admitted here: that spawn
+    /// fails loudly with a profile error, which is not the silent class
+    /// this predicate exists to catch.
+    #[must_use]
+    pub fn jail_admits_read(&self, path: &str) -> bool {
+        self.fs
+            .as_ref()
+            .is_some_and(|fs| fs.read.iter().any(|g| bound_subtree_admits(g, path)))
+    }
 }
 
 /// Gitignore-style path glob match · supports a trailing `/**` (any
@@ -60,6 +100,44 @@ pub(crate) fn path_glob_matches(glob: &str, path: &str) -> bool {
         return false;
     }
     glob_admits(&glob, &path)
+}
+
+/// Does the subtree the JAIL binds for `glob` contain `path`?
+///
+/// The launchers do not glob — they bind `glob`'s literal prefix and let
+/// the kernel admit everything under it (`grant_subpath` · `literal_prefix`
+/// in `nika-sandbox-landlock` and its seatbelt sibling). This models that,
+/// lexically, both sides folded. An empty prefix grants nothing, matching
+/// the launchers' `Ok(None)` skip.
+///
+/// NOTE · this is a THIRD copy of the prefix rule (the two launchers carry
+/// byte-identical siblings, so the unification is a named follow-on, not a
+/// regression introduced here). The rule is four lines and pinned by this
+/// module's tests against the launchers' own examples.
+fn bound_subtree_admits(glob: &str, path: &str) -> bool {
+    let cut = glob.find(['*', '?', '[']).unwrap_or(glob.len());
+    let head = &glob[..cut];
+    let prefix = match head.rfind('/') {
+        Some(slash) if cut < glob.len() => &head[..slash],
+        _ => head,
+    };
+    if prefix.is_empty() {
+        return false; // no literal prefix — the launchers skip the grant
+    }
+    let path = lexically_normalize(path);
+    let prefix = lexically_normalize(prefix);
+    if prefix.is_empty() {
+        return false;
+    }
+    // An escaping path must never be admitted by an in-tree grant — the
+    // same guard `path_glob_matches` states, for the same reason.
+    if path.starts_with("..") && !prefix.starts_with("..") {
+        return false;
+    }
+    path == prefix
+        || path
+            .strip_prefix(&prefix)
+            .is_some_and(|tail| tail.starts_with('/'))
 }
 
 /// Whether one path SEGMENT matches one glob segment. `*` matches any run of
@@ -234,6 +312,82 @@ mod tests {
         assert!(p.allows_host("api.github.com"));
         assert!(p.allows_host("github.com"), "*.x matches the bare apex");
         assert!(!p.allows_host("evil.com"));
+    }
+
+    /// The jail binds a grant's LITERAL PREFIX and lets the kernel admit
+    /// the subtree — it never globs. Pinned against the launchers' own
+    /// documented examples (`nika-sandbox-landlock::literal_prefix`:
+    /// `./output/**` → `./output` · `/data/lo*` → `/data` · `/data/x.txt`
+    /// → itself · `**/y` → empty), so a drift on either side shows here.
+    ///
+    /// MEASURED 2026-08-20 on seatbelt · `permits.fs.read: ["sub"]` with
+    /// `["bash","sub/leg.sh"]` exits 0 and prints the script's output.
+    #[test]
+    fn the_jail_binds_a_literal_prefix_where_the_lexical_walk_globs() {
+        let grant = |g: &str| {
+            let mut p = Permits::new();
+            p.fs = Some(FsPermits {
+                read: vec![g.into()],
+                write: vec![],
+            });
+            p
+        };
+
+        // a bare directory · the row that reddened three studio workflows
+        let p = grant("sub");
+        assert!(
+            p.jail_admits_read("sub/leg.sh"),
+            "the jail binds the subtree"
+        );
+        assert!(
+            !p.allows_path("sub/leg.sh", false),
+            "the lexical walk still refuses — the divergence is the point"
+        );
+        assert!(p.jail_admits_read("sub"));
+        assert!(!p.jail_admits_read("other/leg.sh"));
+        assert!(
+            !p.jail_admits_read("subterfuge/leg.sh"),
+            "prefix, not segment"
+        );
+
+        // a MID-PATH glob · the prefix is `data`, so the whole tree is bound
+        let p = grant("data/lo*");
+        assert!(
+            p.jail_admits_read("data/other.txt"),
+            "the launcher binds `data`, not the pattern"
+        );
+        assert!(!p.jail_admits_read("elsewhere/lo.txt"));
+
+        // `**` and an exact file behave as the launcher documents
+        assert!(grant("./output/**").jail_admits_read("output/a/b.txt"));
+        assert!(grant("data/x.txt").jail_admits_read("data/x.txt"));
+        assert!(!grant("data/x.txt").jail_admits_read("data/y.txt"));
+
+        // no literal prefix · the launchers skip the grant, so it grants
+        // nothing here either
+        assert!(!grant("*").jail_admits_read("anything"));
+        assert!(!grant("**/y").jail_admits_read("a/y"));
+    }
+
+    /// A grant is not a licence to climb out of it, on either reading.
+    #[test]
+    fn the_jail_reading_still_refuses_an_escape() {
+        let mut p = Permits::new();
+        p.fs = Some(FsPermits {
+            read: vec!["sub".into(), "data/**".into()],
+            write: vec![],
+        });
+        assert!(!p.jail_admits_read("sub/../secret"));
+        assert!(!p.jail_admits_read("../secret"));
+        assert!(!p.jail_admits_read("leg.sh"), "granted something, not this");
+        assert!(p.jail_admits_read("data/a/b.txt"), "the subtree is bound");
+    }
+
+    /// An omitted `fs:` block is zero authority on this reading too — the
+    /// jail with no grants opens nothing.
+    #[test]
+    fn no_fs_block_admits_no_read_in_the_jail() {
+        assert!(!Permits::new().jail_admits_read("anything"));
     }
 
     #[test]

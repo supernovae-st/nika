@@ -1023,3 +1023,142 @@ fn a_const_fixture_stamps_compiled_true() {
     assert_eq!(obj.get("compiled"), Some(&serde_json::json!(true)));
     assert!(obj.get("next").is_none(), "{obj:?}");
 }
+
+// ── `default:` is a consent decision, not a formatting detail ──────────
+
+#[cfg(test)]
+mod default_is_a_consent_decision {
+    use nika_schema::parser::{ParseMode, parse};
+    use nika_schema::source::FileId;
+
+    fn hints_of(yaml: &str) -> Vec<crate::hints::Hint> {
+        let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parses");
+        crate::check(&wf).hints
+    }
+
+    /// A confirm gate over a real effect. The only thing that varies
+    /// across these fixtures is the `default:` line.
+    fn gate_over_an_effect(default_line: &str) -> String {
+        format!(
+            "\
+nika: t
+permits:
+  exec: [\"echo\"]
+  tools: [\"nika:prompt\"]
+tasks:
+  ask:
+    invoke:
+      tool: \"nika:prompt\"
+      args: {{ mode: \"confirm\", message: \"delete production?\"{default_line} }}
+  act:
+    with: {{ go: \"${{{{ tasks.ask.output }}}}\" }}
+    when: ${{{{ with.go == true }}}}
+    exec: {{ command: [\"echo\", \"done\"] }}
+"
+        )
+    }
+
+    /// MEASURED 2026-08-20 on the shipped 0.111.0. Two files, one key
+    /// apart, RUN unattended ·
+    ///
+    /// ```text
+    ///                  check card                          run
+    /// default: true    ✔ 0 hints · risk supervised   {"answer":true,  "did_it":"success"}
+    /// default: false   ✔ 0 hints · risk supervised   {"answer":false, "did_it":"skipped"}
+    /// ```
+    ///
+    /// The prompt asks « delete production? ». The cards differ by the
+    /// FILENAME and nothing else; one of these fires the irreversible
+    /// action with no human present, and the card calls it supervised.
+    #[test]
+    fn a_fail_open_default_over_an_effect_is_named() {
+        let hints = hints_of(&gate_over_an_effect(", default: true"));
+        let h = hints
+            .iter()
+            .find(|h| h.kind == "fail-open-consent")
+            .unwrap_or_else(|| panic!("no fail-open hint: {hints:?}"));
+        assert!(h.advice.contains("default: false"), "{}", h.advice);
+        assert!(
+            h.advice.contains('`') && h.advice.contains("ask"),
+            "{}",
+            h.advice
+        );
+    }
+
+    /// Fail-CLOSED is the shape an unattended path should declare, and it
+    /// is silent. A hint here would be noise on a correct file.
+    #[test]
+    fn a_fail_closed_default_is_silent() {
+        let hints = hints_of(&gate_over_an_effect(", default: false"));
+        assert!(
+            !hints.iter().any(|h| h.kind == "fail-open-consent"),
+            "fail-closed must not be flagged: {hints:?}"
+        );
+    }
+
+    /// With NO effect in the file there is nothing to auto-approve, so a
+    /// `default: true` is simply an unattended answer. Silence.
+    #[test]
+    fn a_fail_open_default_with_no_effect_is_silent() {
+        let hints = hints_of(
+            "\
+nika: t
+model: mock/echo
+permits: { tools: [\"nika:prompt\"] }
+tasks:
+  ask:
+    invoke:
+      tool: \"nika:prompt\"
+      args: { mode: \"confirm\", message: \"go?\", default: true }
+",
+        );
+        assert!(
+            !hints.iter().any(|h| h.kind == "fail-open-consent"),
+            "no effect, nothing to open: {hints:?}"
+        );
+    }
+
+    /// The headless advice was unconditional · « declare the `default:`
+    /// the unattended path should take ». Over a real effect, following
+    /// it with `true` builds the row above. Name the safe one.
+    #[test]
+    fn the_headless_advice_names_the_fail_closed_default_over_an_effect() {
+        let hints = hints_of(&gate_over_an_effect(""));
+        let h = hints
+            .iter()
+            .find(|h| h.kind == "headless-prompt")
+            .unwrap_or_else(|| panic!("no headless hint: {hints:?}"));
+        assert!(
+            h.advice.contains("default: false"),
+            "over an effect the advice must name the fail-closed default: {}",
+            h.advice
+        );
+    }
+
+    /// The guard · with no effect, the neutral wording is right and must
+    /// survive. Over-teaching is its own defect.
+    #[test]
+    fn the_headless_advice_stays_neutral_with_no_effect() {
+        let hints = hints_of(
+            "\
+nika: t
+model: mock/echo
+permits: { tools: [\"nika:prompt\"] }
+tasks:
+  ask:
+    invoke:
+      tool: \"nika:prompt\"
+      args: { mode: \"confirm\", message: \"go?\" }
+",
+        );
+        let h = hints
+            .iter()
+            .find(|h| h.kind == "headless-prompt")
+            .unwrap_or_else(|| panic!("no headless hint: {hints:?}"));
+        assert!(
+            !h.advice.contains("default: false"),
+            "nothing to fail closed over here: {}",
+            h.advice
+        );
+    }
+}

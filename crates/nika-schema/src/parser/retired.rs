@@ -86,10 +86,124 @@ pub(super) fn task(key: &str) -> Option<&'static str> {
     }
 }
 
+/// Keys an author BRINGS from another tool's dialect. Nothing here was
+/// ever ours, so none of it is retired — but the author is not confused
+/// about spelling, they are confused about which language they are in,
+/// and `unknown field` answers a question they did not ask.
+///
+/// Measured 2026-08-20 · a persona wave put fifteen outside authors
+/// against 0.111.0 with only the binary, the oracle and the public docs.
+/// Two of them, independently, stopped here. One wrote `run:` inside a
+/// task and quit at that line, verbatim: « the error message does not
+/// teach you what the field should be ». The other wrote `uses:` and
+/// `needs:`, reached green only by reading a shipped example, and named
+/// the missing sentence exactly: « dependencies are inferred from data
+/// bindings, there is no `needs:` field ».
+///
+/// That sentence already EXISTS. `depends_on:` gets it one layer up as
+/// its own code (`W2DependsOnField`). `needs:` is the same concept in
+/// another spelling and reached the generic path with nothing. These
+/// arms route to the teaching that is already written; they invent no
+/// new prose.
+pub(super) fn foreign(key: &str) -> Option<&'static str> {
+    match key {
+        "needs" => Some(
+            "a dependency is not declared on the task here — DATA rides a `with:` \
+             binding and the binding IS the edge (`with: { x: \"${{ tasks.a.output }}\" }`), \
+             and pure ORDERING rides `after: { a: success }` (spec 03 §the flow · \
+             `depends_on:` is the same key under its other name)",
+        ),
+        "uses" | "steps" | "jobs" | "script" => Some(
+            "a task body is one of the four verbs — `infer:` · `exec:` · `invoke:` · \
+             `agent:` — and there is no action-reference field; a reusable unit is \
+             another workflow, called with `invoke: { workflow: ./child.nika.yaml }` \
+             (spec 14 §composition)",
+        ),
+        _ => None,
+    }
+}
+
+/// An ENVELOPE key typed one level too deep. Every one of these is valid
+/// at column 0, so the author holds the right word in the wrong place —
+/// and `unknown field` says the word is wrong, which is the one thing it
+/// is not. `run:` is the case that cost an outside author the session:
+/// it is a real envelope key, and inside a task it read as nonsense.
+pub(super) fn envelope_key_at_task_level(key: &str) -> Option<&'static str> {
+    crate::parser::TOP_LEVEL_KEYS.contains(&key).then_some(
+        "this is a workflow ENVELOPE field · it belongs at column 0 beside \
+         `tasks:`, never inside a task. A task body is one of the four verbs \
+         (`infer:` · `exec:` · `invoke:` · `agent:`) plus the task modifiers \
+         (`after` · `when` · `for_each` · `retry` · `on_error` · `timeout` · \
+         `with` · `extract` · `returns` · `lift` · `group`)",
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use crate::parser::{ParseMode, parse};
     use crate::source::FileId;
+
+    /// A key from another dialect, and our own key at the wrong depth,
+    /// both TEACH — because in neither case is the author confused about
+    /// spelling. Measured 2026-08-20: two outside authors in one persona
+    /// wave stopped at exactly these two shapes, one of them for good.
+    ///
+    /// The assertions name MECHANISMS, never whole sentences: a pin that
+    /// quotes its own prose passes on a message that has been reworded
+    /// into nonsense, which is a mirror, not a test.
+    #[test]
+    fn a_task_key_from_another_dialect_or_the_wrong_depth_teaches() {
+        let sees = |body: &str| {
+            let yaml = format!("nika: w\ntasks:\n  t:\n{body}");
+            parse(&yaml, FileId::new(0), ParseMode::Strict)
+                .expect_err("an unknown task key refuses")
+                .to_string()
+        };
+
+        // `run:` is a REAL envelope key. Inside a task it read as nonsense
+        // to the author who typed it, and the message said only "unknown".
+        let run = sees("    run:\n      x: 1\n");
+        assert!(
+            run.contains("ENVELOPE") && run.contains("column 0"),
+            "an envelope key at task level names the depth · {run}"
+        );
+        assert!(
+            run.contains("infer") && run.contains("invoke"),
+            "and names what a task body actually is · {run}"
+        );
+
+        // The GitHub Actions spelling of a concept that already has a
+        // teaching one layer up (`depends_on:` · W2DependsOnField).
+        let needs = sees("    needs: [other]\n    exec: { command: [\"true\"] }\n");
+        assert!(
+            needs.contains("with:") && needs.contains("after:"),
+            "`needs:` routes to the mechanism, both halves · {needs}"
+        );
+        assert!(
+            needs.contains("depends_on"),
+            "and names the same key under its other spelling · {needs}"
+        );
+
+        // An action reference: the shape has no counterpart, so the
+        // teaching has to name the four verbs AND where reuse lives.
+        let uses = sees("    uses: some/action@v4\n");
+        assert!(
+            uses.contains("four verbs") && uses.contains("invoke:"),
+            "`uses:` names the verb set · {uses}"
+        );
+        assert!(
+            uses.contains("workflow:"),
+            "and sends reuse to composition · {uses}"
+        );
+
+        // The silence the threshold exists to keep: a key that is nobody's
+        // envelope word and nobody's import stays a bare unknown field.
+        let noise = sees("    zzqx: 1\n    exec: { command: [\"true\"] }\n");
+        assert!(
+            !noise.contains("ENVELOPE") && !noise.contains("four verbs"),
+            "an ordinary unknown key gains no teaching · {noise}"
+        );
+    }
 
     /// EVERY key the fourteen-key era shipped teaches where its role went
     /// — not a spelling guess, not the bare set listing (that one says

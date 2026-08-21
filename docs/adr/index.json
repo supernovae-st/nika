@@ -1188,7 +1188,7 @@
     ,
     {
       "id": "ADR-114",
-      "title": "`nika-cadence` — the arming registry grammar and the pure next-slot calculator, at L0",
+      "title": "`nika-cadence` — the pure arming domain, at L0",
       "status": "accepted",
       "date": "2026-08-15",
       "filename": "adr-114-nika-cadence-admission.md",
@@ -1215,6 +1215,38 @@
       "superseded_by": [],
       "related": ["ADR-110","ADR-022","ADR-023","ADR-027"],
       "requires": [],
+      "enables": []
+    }
+    ,
+    {
+      "id": "ADR-116",
+      "title": "nika serve v0 was a local-only resident firer",
+      "status": "superseded",
+      "date": "2026-08-19",
+      "filename": "adr-116-nika-serve-resident-firer.md",
+      "tags": ["architecture","cadence","arm","serve","lineage"],
+      "affects_crates": ["nika-cli","nika-cadence"],
+      "affects_layers": ["L0","L4"],
+      "supersedes": [],
+      "superseded_by": ["ADR-117"],
+      "related": [],
+      "requires": ["ADR-114"],
+      "enables": []
+    }
+    ,
+    {
+      "id": "ADR-117",
+      "title": "admit nika serve network access behind explicit authority",
+      "status": "accepted",
+      "date": "2026-08-21",
+      "filename": "adr-117-nika-serve-network-boundary.md",
+      "tags": ["architecture","serve","http","authentication","execution","layering"],
+      "affects_crates": ["nika-arm","nika-cli","nika-runtime","nika-serve"],
+      "affects_layers": ["L3","L4"],
+      "supersedes": ["ADR-116"],
+      "superseded_by": [],
+      "related": [],
+      "requires": ["ADR-114"],
       "enables": []
     }
   ]

@@ -15,8 +15,8 @@ use std::path::PathBuf;
 /// `nika arm` — bare (no subcommand, no flag) it READS the registry
 /// and reports (the file proposes, the machine disposes). The
 /// subcommands are the machine's edge: `fire` is the one firer (D2 —
-/// the OS units and `serve` both end here), `disarm` teaches the N4
-/// gesture.
+/// the OS units and `serve` both end here), `migrate` explicitly
+/// upcasts W2 sidecars, `disarm` teaches the N4 gesture.
 #[derive(Debug, clap::Args)]
 pub struct ArmArgs {
     /// The machine edge (`fire` · `disarm`) — absent: the read-only
@@ -52,6 +52,10 @@ pub enum ArmSub {
     /// window · miss policy · overlap lock · per-tick ceiling · the
     /// firing record. Prints exactly one stdout line, always (D8).
     Fire(FireArgs),
+    /// Explicitly upcast every W2 sidecar into the hash-chained ledger,
+    /// verify each chain, and rebuild its projections. Idempotent and
+    /// never silent: every beat receives a verdict.
+    Migrate,
     /// Teach the disarm gesture (law N4 — removing the line does NOT
     /// disarm; `actif: false` + `raison:` + `jusqu_au:` does).
     Disarm {

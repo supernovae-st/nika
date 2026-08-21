@@ -165,7 +165,7 @@ fn serve_never_fires_a_cloud_beat() {
 }
 
 /// unix: SIGTERM while the resident idles between two slots — it exits
-/// clean (0) and leaves no lock behind.
+/// clean (0) and releases its kernel lease. The stable metadata inode remains.
 #[cfg(unix)]
 #[test]
 fn serve_stops_cleanly_on_sigterm() {
@@ -200,8 +200,13 @@ fn serve_stops_cleanly_on_sigterm() {
         std::thread::sleep(std::time::Duration::from_millis(50));
     };
     assert_eq!(status.code(), Some(0), "SIGTERM = a clean stop");
-    assert!(
-        !dir.join(".nika/arm/doctor/lock").exists(),
-        "the lock is released"
-    );
+    let file = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(dir.join(".nika/arm/doctor/lock"))
+        .expect("stable lock metadata");
+    let lease = nix::fcntl::Flock::lock(file, nix::fcntl::FlockArg::LockExclusiveNonblock)
+        .map_err(|(_, error)| error)
+        .expect("the kernel lease is released");
+    drop(lease);
 }

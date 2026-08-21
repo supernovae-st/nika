@@ -3,8 +3,8 @@
 | | |
 |---|---|
 | Status | **ADMITTED 2026-06-10** (`47825df4a`) · was **L1 admission target** (Phase-B slice step 4 · announce ladder per D-2026-06-10-N6 cascade) |
-| Layer | L1 — effect crate · the only production site touching `tokio::fs` |
-| Design | `TokioFs` ZST impl of the L0.5 `nika_kernel::fs` family via the `*Dyn` (`Send`) companions |
+| Layer | L1 — filesystem effect mechanisms |
+| Design | `TokioFs` ZST impl of the L0.5 `nika_kernel::fs` family via the `*Dyn` (`Send`) companions · `OwnedDir` for descriptor-rooted synchronous ownership |
 | LOC budget | well under the ≤1500/file + ≤15k/crate caps (enforced live by vectors 12+24) · live count · `scripts/crate-metrics.sh nika-fs` |
 | Function cap | ≤100 lines each (largest: `write` ~40) |
 | Crate version | tracks workspace |
@@ -20,7 +20,9 @@
 `nika-fs` is the **production filesystem effect**. It provides `TokioFs`,
 the real-I/O implementation of the four L0.5 kernel traits (`FsRead` ·
 `FsWrite` · `FsMeta` · `FsList`, ISP split — and therefore the blanket
-`Fs` umbrella) using `tokio::fs` + `globset`.
+`Fs` umbrella) using `tokio::fs` + `globset`, and `OwnedDir`, the
+descriptor-rooted mechanism for crash-durable sidecars whose visible path
+may be replaced by another process.
 
 It is the **only** place `tokio::fs` is touched on the production path —
 pure crates (L0) and the kernel (L0.5) stay filesystem-free; tests inject
@@ -37,11 +39,17 @@ reason about ALL filesystem access in one place.
 ```rust
 /// Zero-size production filesystem. Copy + Default.
 pub struct TokioFs;
+pub struct OwnedDir; // held dirfd · contained components · nofollow children
 
 impl FsReadDyn  for TokioFs { read · read_to_string · exists · canonicalize }
 impl FsWriteDyn for TokioFs { write (ATOMIC temp+rename) · create_dir_all · remove_file }
 impl FsMetaDyn  for TokioFs { metadata }
 impl FsListDyn  for TokioFs { list_dir (sorted) · glob (literal_separator · sorted) }
+
+impl OwnedDir {
+  create · try_clone · open_lock · read[_optional] · append_line
+  write_atomic · names · exists · hard_link · remove
+}
 ```
 
 Implementation targets the `*Dyn` trait-variant companions (the
@@ -66,6 +74,10 @@ per the kernel doc, L1 impls fan out via `Arc<T>`, not `Arc<dyn _>`.)
    walks a `Vec` stack (no per-dir alloc, no recursion-depth concern).
 4. **`list_dir`** — new surface (kernel `FsList`), sorted deterministic.
 5. **Native async** — `trait_variant` companions (brouillon: `#[async_trait]`).
+6. **Descriptor-rooted ownership** — every `OwnedDir` operation resolves a
+   single child beneath a held directory descriptor. Directory and file
+   opens use `O_NOFOLLOW`; replacing a visible sidecar between a claim and
+   its receipt cannot redirect later bytes.
 
 ### Glob semantics (brouillon parity · locked by tests)
 
@@ -79,10 +91,10 @@ followed (`file_type` is lstat-like) — cycles terminate. Results sorted.
 | Gate | Status | Evidence |
 |---|---|---|
 | 1 SPEC | ✅ | this file |
-| 2 TDD | ✅ | `tests/fs_contract.rs` authored first · RED captured (E0277 bounds probe → `todo!()` skeleton panics across 30+ tests) → GREEN · final suite 42 tests (37 contract + 4 unit + 1 doctest · +1 linux-gated) |
-| 3 IMPL | ✅ | ~338 LOC src (live · `scripts/crate-metrics.sh nika-fs`) · zero unwrap/expect in src |
+| 2 TDD | ✅ | `tests/fs_contract.rs` + focused `OwnedDir` containment, symlink, and path-replacement tests |
+| 3 IMPL | ✅ | live count · `scripts/crate-metrics.sh nika-fs` · zero unwrap/expect in src |
 | 4 CLIPPY 0 | ✅ | `cargo clippy --workspace --all-targets -- -D warnings` GREEN |
-| 5 MUTATION ≥90% | ✅ | `cargo mutants -p nika-fs --timeout 60` · 21 mutants · **19 caught / 19 viable = 100%** (2 unviable). The pre-review survivor (`write`'s empty-parent match guard) was killed by extracting `tmp_sibling()` as a pure unit-tested helper (rust-pro review fix). |
+| 5 MUTATION ≥90% | ✅ | Existing async effect surface: 19/19 viable caught. `OwnedDir` focused serial run: 70 mutants · 41 caught · 6 unviable · 19 algebraically equivalent OR→XOR flag mutations · **41/45 non-equivalent viable = 91.11%**. |
 | 6 PROPERTY | ✅ | 2 proptest invariants · arbitrary-bytes write→read roundtrip · glob returns exactly the created suffix set (32 cases each) |
 | 7 BENCH | N/A | thin `tokio::fs` wrappers, no algorithmic hot path (justified — same class as nika-clock) |
 | 8 DOCS | ✅ | `RUSTDOCFLAGS=-D warnings cargo doc --no-deps -p nika-fs` 0 warnings · every pub item + per-method CANCEL SAFETY |
@@ -94,7 +106,10 @@ followed (`file_type` is lstat-like) — cycles terminate. Results sorted.
 ## 4. Consumers (downstream)
 
 Every crate needing filesystem access injects the kernel fs traits and
-receives `TokioFs` in production, `MockFs` in tests. First consumers on
+receives `TokioFs` in production, `MockFs` in tests. `nika-cli` also
+consumes `OwnedDir` for the `.nika/arm/<label>` evidence sidecar: the L4
+adapter chooses policy and names while L1 owns the reusable kernel mechanism.
+First consumers on
 the announce ladder: `nika-policy` (step 8 · path capability gating wraps
 these primitives), `nika-builtin` (step 16 · `nika:file.*` builtins),
 `nika-engine` (step 17 · workflow/source loading), `nika-cli` (step 19 ·
@@ -108,4 +123,5 @@ these primitives), `nika-builtin` (step 16 · `nika:file.*` builtins),
 | `tokio` (`fs` feature) | the I/O backend | L1+ effect ✓ |
 | `bytes` | `FsRead::read` zero-copy payload (kernel surface) | ✓ |
 | `globset` | `FsList::glob` matcher · MIT OR Unlicense · cargo-deny GREEN | ✓ |
+| `nix` (`fs`, `dir`) | `openat`/`mkdirat`/`renameat` + `O_NOFOLLOW` ownership | L1 effect ✓ |
 | dev: `proptest` · `tempfile` | Gate 6 + tempdir fixtures | dev-only |

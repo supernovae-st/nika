@@ -50,6 +50,7 @@ use super::VerbOutput;
 pub mod args;
 pub mod emit;
 pub mod fire;
+pub mod migrate;
 pub mod state;
 
 /// How many upcoming slots each beat shows.
@@ -63,6 +64,7 @@ pub fn run(args: args::ArmArgs) -> VerbOutput {
     use args::ArmSub;
     match args.sub {
         Some(ArmSub::Fire(f)) => fire::run(&f),
+        Some(ArmSub::Migrate) => migrate::run(),
         Some(ArmSub::Disarm { label, write }) => emit::disarm(&label, write),
         None => {
             if let Some(target) = args.emit {
@@ -205,12 +207,18 @@ fn report(registry: &nika_cadence::registry::ArmRegistry, path: &std::path::Path
             beat.workflow,
             beat.cadence.trim()
         );
-        proof_line(
+        if let Err(error) = proof_line(
             &sidecar,
             labels.get(index).map_or("?", String::as_str),
             beat,
+            &now.timestamp(),
             &mut out,
-        );
+        ) {
+            return VerbOutput::env(format!(
+                "arm report refused · corrupt sidecar for {}: {error}",
+                labels.get(index).map_or("?", String::as_str)
+            ));
+        }
         // An inactive beat is REPORTED, never COMPUTED — asking a
         // disarmed beat for its next slot would print a date nobody
         // will ever see fire.
@@ -258,18 +266,46 @@ fn report(registry: &nika_cadence::registry::ArmRegistry, path: &std::path::Path
 /// The history's tallies (`x sauts / y tirs`) and the declared
 /// `tolérance: m/k` ride the same line when they exist; `par:` is
 /// shown for what it is — déclaré, non vérifié (N3).
-fn proof_line(sidecar: &state::ArmState, label: &str, beat: &nika_cadence::Beat, out: &mut String) {
+fn proof_line(
+    sidecar: &state::ArmState,
+    label: &str,
+    beat: &nika_cadence::Beat,
+    now: &jiff::Timestamp,
+    out: &mut String,
+) -> std::io::Result<()> {
     use std::fmt::Write as _;
 
-    let mut line = match sidecar.last(label) {
-        Some(last) => format!(
-            "✓ PROUVÉ · {} · {} · slot {}",
-            last.kind.as_str(),
-            last.fired_at,
-            last.slot
-        ),
+    let mut line = match sidecar.last(label)? {
+        Some(last) => {
+            let generation = last
+                .generation
+                .as_ref()
+                .map_or(String::new(), |generation| {
+                    format!(" · gen {}", generation.short())
+                });
+            format!(
+                "✓ PROUVÉ · {} · {} · slot {}{generation}",
+                last.kind.as_str(),
+                last.fired_at,
+                last.slot
+            )
+        }
         None => "· DÉCLARÉ — le registre le dit, la machine ne l'a jamais tiré".to_owned(),
     };
+    if let Some(folded) = sidecar.folded(label, now)? {
+        let lifecycle = folded
+            .slot
+            .as_deref()
+            .and_then(|slot| slot.get(..8))
+            .map_or(String::new(), |slot| {
+                if folded.beyond_last {
+                    format!(" · slot courant {slot}")
+                } else {
+                    String::new()
+                }
+            });
+        let _ = write!(line, " · état {}{lifecycle}", folded.state.as_str());
+    }
     if let Some((skips, fires)) = sidecar.tallies(label) {
         let _ = write!(
             line,
@@ -285,6 +321,7 @@ fn proof_line(sidecar: &state::ArmState, label: &str, beat: &nika_cadence::Beat,
     if let Some(par) = &beat.par {
         let _ = writeln!(out, "         par: {par} — déclaré · non vérifié");
     }
+    Ok(())
 }
 
 #[cfg(test)]
@@ -388,25 +425,29 @@ mod tests {
         );
         let dir = project_at("proof", body);
         let sidecar = state::ArmState::at_project(dir.path());
+        let registry = parse_registry(body).expect("cadence registry");
+        let generation = nika_cadence::ArmGeneration::compute(
+            registry.beats().next().expect("first beat"),
+            b"nika: prouve\n",
+        );
+        let generation_short = generation.short().to_owned();
         // prouve: the machine fired twice, skipped once — the sidecar
         // attests (last.json + the history's tallies).
-        let fired = state::HistoryEntry {
-            slot: Some("2026-08-18T07:07:00Z".parse().expect("ts")),
-            decided_at: "2026-08-18T07:07:04Z".parse().expect("ts"),
-            kind: state::FireKind::Fired,
-            reason: None,
-            trace: Some(".nika/traces/2026-08-18T07-07-04Z_cafe.ndjson".to_owned()),
-            exit: Some(0),
-            slots: None,
-            slot_id: None,
-            fencing: None,
-        };
+        let mut fired = state::HistoryEntry::new(
+            Some("2026-08-18T07:07:00Z".parse().expect("ts")),
+            "2026-08-18T07:07:04Z".parse().expect("ts"),
+            state::FireKind::Fired,
+        );
+        fired.trace = Some(".nika/traces/2026-08-18T07-07-04Z_cafe.ndjson".to_owned());
+        fired.exit = Some(0);
+        fired.generation = Some(generation);
         sidecar.record("prouve", &fired).expect("record");
         sidecar.record("prouve", &fired).expect("record");
         let mut skipped = fired.clone();
         skipped.kind = state::FireKind::Skipped;
         skipped.reason = Some("missed:1".to_owned());
         skipped.trace = None;
+        skipped.generation = None;
         sidecar.record("prouve", &skipped).expect("record");
         // ghost: a sidecar the registry no longer names (N4).
         sidecar.record("ghost", &fired).expect("record");
@@ -416,6 +457,16 @@ mod tests {
         let out = run_at(dir.path());
         assert_eq!(out.code, exit::OK, "{}", out.text);
         assert!(out.text.contains("✓ PROUVÉ"), "{}", out.text);
+        assert!(
+            out.text.contains(&format!("gen {generation_short}")),
+            "the report shows the pinned generation: {}",
+            out.text
+        );
+        assert!(
+            out.text.contains("état succeeded"),
+            "the report shows the folded machine state: {}",
+            out.text
+        );
         assert!(out.text.contains("DÉCLARÉ"), "{}", out.text);
         assert!(
             out.text.contains("· ghost — .nika/arm/ghost/"),
@@ -429,6 +480,92 @@ mod tests {
             .text
             .replace(&dir.path().to_string_lossy().into_owned(), "[PROJET]");
         insta::assert_snapshot!(shown);
+    }
+
+    #[test]
+    fn the_report_refuses_tampered_or_truncated_history_loudly() {
+        let body = concat!(
+            "nika: v1\n",
+            "arm:\n",
+            "  - workflow: workflows/doctor.nika.yaml\n",
+            "    cadence: \"TZ=UTC 0 3 * * *\"\n",
+            "    plafond: 0.25\n",
+            "    manqué: sauter\n",
+            "    actif: false\n",
+            "    raison: \"maintenance\"\n",
+            "    jusqu_au: \"2099-12-31\"\n",
+        );
+        for mutation in ["tamper", "truncate"] {
+            let dir = project_at(mutation, body);
+            let sidecar = state::ArmState::at_project(dir.path());
+            let mut entry = state::HistoryEntry::new(
+                Some("2026-08-18T03:00:00Z".parse().expect("slot")),
+                "2026-08-18T03:01:00Z".parse().expect("decision"),
+                state::FireKind::Skipped,
+            );
+            entry.reason = Some("missed:1".to_owned());
+            entry.exit = Some(0);
+            sidecar.record("doctor", &entry).expect("record");
+            let history = dir.path().join(".nika/arm/doctor/history.ndjson");
+            let text = std::fs::read_to_string(&history).expect("history");
+            let corrupt = if mutation == "tamper" {
+                text.replacen("\"seq\":1", "\"seq\":9", 1)
+            } else {
+                text[..text.len() - 12].to_owned()
+            };
+            std::fs::write(&history, corrupt).expect("corrupt evidence");
+            let out = run_at(dir.path());
+            assert_eq!(out.code, exit::ENV, "{mutation}: {}", out.text);
+            assert!(
+                out.text.contains("arm report refused · corrupt sidecar"),
+                "{mutation}: {}",
+                out.text
+            );
+            assert!(!out.text.contains("DÉCLARÉ"), "{mutation}: {}", out.text);
+        }
+    }
+
+    /// D5: a durable claim without receipt is classified by the pure
+    /// machine. Once its injected deadline is in the past, the report
+    /// says `ambiguous` and names the current slot identity.
+    #[test]
+    fn the_report_surfaces_the_folded_ambiguous_claim() {
+        let body = concat!(
+            "nika: v1\n",
+            "arm:\n",
+            "  - workflow: workflows/doctor.nika.yaml\n",
+            "    cadence: \"TZ=UTC 0 3 * * *\"\n",
+            "    plafond: 0.25\n",
+            "    manqué: sauter\n",
+            "    actif: false\n",
+            "    raison: \"test\"\n",
+            "    jusqu_au: \"2099-12-31\"\n",
+        );
+        let dir = project_at("ambiguous", body);
+        let slot = "2026-08-19T03:00:00Z"
+            .parse::<jiff::Timestamp>()
+            .expect("slot")
+            .to_zoned(jiff::tz::TimeZone::UTC);
+        let slot_id =
+            nika_cadence::SlotId::derive("workflows/doctor.nika.yaml", "TZ=UTC 0 3 * * *", &slot);
+        let short = slot_id.short().to_owned();
+        let claim = state::Claim::new(
+            slot_id,
+            "2026-08-19T04:00:00Z".parse().expect("deadline"),
+            "2026-08-19T03:02:00Z".parse().expect("claimed"),
+        );
+        state::ArmState::at_project(dir.path())
+            .record_claim("doctor", &claim)
+            .expect("claim");
+
+        let out = run_at(dir.path());
+        assert_eq!(out.code, exit::OK, "{}", out.text);
+        assert!(out.text.contains("état ambiguous"), "{}", out.text);
+        assert!(
+            out.text.contains(&format!("slot courant {short}")),
+            "{}",
+            out.text
+        );
     }
 
     #[test]
