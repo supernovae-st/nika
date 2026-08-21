@@ -353,13 +353,12 @@ fn journal_disarm(label: &str) -> String {
     };
     let root = path.parent().map_or_else(|| cwd.clone(), Path::to_path_buf);
     let state = super::state::ArmState::at_project(&root);
-    let mut entry = super::state::HistoryEntry::new(
-        None,
+    match state.record_disarm(
+        label,
         jiff::Zoned::now().timestamp(),
-        super::state::FireKind::Disarmed,
-    );
-    entry.reason = Some("unité retirée".to_owned());
-    match state.record(label, &entry) {
+        std::process::id(),
+        "unité retirée",
+    ) {
         Ok(_) => format!("· journalé: disarmed dans .nika/arm/{label}/history.ndjson\n"),
         Err(e) => format!("· historique NON journalé ({e}) — l'unité, elle, est retirée\n"),
     }

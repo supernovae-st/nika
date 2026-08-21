@@ -20,7 +20,7 @@ shadow_zones: ["gate-serve-network-auth", "gate-serve-execution-authority"]
 nika_codes: []
 timeline: "pre-1.0"
 follow_ups:
-  - "admit nika-arm as the L4 ARM custody library"
+  - "use the admitted nika-arm custody library from every execution interface"
   - "admit the shared L3 owned-byte execution service before the first route"
   - "add typed cancellation and artifact authority before exposing those routes"
 ---

@@ -9,7 +9,7 @@ use std::io::{self, Read as _, Write as _};
 use std::path::{Component, Path, PathBuf};
 
 use nix::dir::Dir;
-use nix::fcntl::{AtFlags, OFlag, openat, renameat};
+use nix::fcntl::{AtFlags, OFlag, open, openat, renameat};
 use nix::sys::stat::{Mode, mkdirat};
 use nix::unistd::{UnlinkatFlags, linkat, unlinkat};
 
@@ -28,20 +28,126 @@ pub struct OwnedDir {
 }
 
 impl OwnedDir {
+    /// Walk every normalized component through held descriptors, refusing
+    /// symlinks. macOS's inherited `/var`, `/tmp`, and `/etc` aliases are
+    /// expanded to their fixed `/private/*` targets before the walk.
+    ///
+    /// # Errors
+    /// The path is inaccessible or any named component is a symlink.
+    pub fn open(path: &Path) -> io::Result<Self> {
+        let named = normalize_named_path(path)?;
+        let anchor = if named.is_absolute() { "/" } else { "." };
+        let fd = open(
+            anchor,
+            OFlag::O_RDONLY | OFlag::O_DIRECTORY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC,
+            Mode::empty(),
+        )
+        .map_err(io_error)?;
+        let mut fd = File::from(fd);
+        let mut absolute_depth = named.is_absolute().then_some(0usize);
+        for component in named.components() {
+            match component {
+                Component::RootDir | Component::CurDir => {}
+                Component::ParentDir => {
+                    fd = open_dir(&fd, OsStr::new(".."))?;
+                    if let Some(depth) = &mut absolute_depth {
+                        *depth = depth.saturating_sub(1);
+                    }
+                }
+                Component::Normal(name) => {
+                    #[cfg(target_os = "macos")]
+                    if absolute_depth == Some(0)
+                        && matches!(name.to_str(), Some("var" | "tmp" | "etc"))
+                    {
+                        fd = open_dir(&fd, OsStr::new("private"))?;
+                        fd = open_dir(&fd, name)?;
+                        absolute_depth = Some(2);
+                        continue;
+                    }
+                    fd = open_dir(&fd, name)?;
+                    if let Some(depth) = &mut absolute_depth {
+                        *depth += 1;
+                    }
+                }
+                Component::Prefix(_) => {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "owned directory: path prefix is not supported",
+                    ));
+                }
+            }
+        }
+        Ok(Self { fd, display: named })
+    }
+
     /// Open the root and create/open each contained directory component below it.
     ///
     /// # Errors
     /// The root is inaccessible, a component is invalid, or a component is not
     /// a real directory owned beneath the previously opened descriptor.
     pub fn create(root: &Path, components: &[&str]) -> io::Result<Self> {
-        let mut fd = File::open(root)?;
-        let mut display = root.to_path_buf();
+        Self::open(root)?.create_below(components)
+    }
+
+    /// Create/open contained directories below this held capability.
+    ///
+    /// # Errors
+    /// A component is invalid or is not a real contained directory.
+    pub fn create_below(&self, components: &[&str]) -> io::Result<Self> {
+        let mut fd = self.fd.try_clone()?;
+        let mut display = self.display.clone();
         for component in components {
             validate_component(component)?;
             fd = open_or_create_dir(&fd, component)?;
             display.push(component);
         }
         Ok(Self { fd, display })
+    }
+
+    /// Open existing contained directories below this held capability.
+    ///
+    /// # Errors
+    /// A component is absent, invalid, or is not a real contained directory.
+    pub fn open_below(&self, components: &[&str]) -> io::Result<Self> {
+        let mut fd = self.fd.try_clone()?;
+        let mut display = self.display.clone();
+        for component in components {
+            validate_component(component)?;
+            fd = open_dir(&fd, OsStr::new(component))?;
+            display.push(component);
+        }
+        Ok(Self { fd, display })
+    }
+
+    /// Open a contained regular file, refusing symlinks at every component.
+    ///
+    /// # Errors
+    /// The relative path is empty, escaping, inaccessible, or redirected.
+    pub fn open_relative(&self, relative: &Path) -> io::Result<File> {
+        let mut parent = self.fd.try_clone()?;
+        let mut components = relative.components().peekable();
+        while let Some(component) = components.next() {
+            let Component::Normal(name) = component else {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "owned directory: relative path is not contained",
+                ));
+            };
+            if components.peek().is_none() {
+                return open_regular_file(&parent, name);
+            }
+            parent = open_dir(&parent, name)?;
+        }
+        Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "owned directory: relative path is empty",
+        ))
+    }
+
+    /// Borrow the held directory descriptor.
+    #[must_use]
+    pub fn as_file(&self) -> &File {
+        &self.fd
     }
 
     /// Duplicate the held directory capability.
@@ -154,12 +260,39 @@ impl OwnedDir {
         let mut names = Vec::new();
         for entry in dir.iter() {
             let entry = entry.map_err(io_error)?;
-            let name = entry.file_name().to_string_lossy();
+            let name = entry.file_name().to_str().map_err(|_| {
+                io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "owned directory: name is not UTF-8",
+                )
+            })?;
             if name != "." && name != ".." {
-                names.push(name.into_owned());
+                names.push(name.to_owned());
             }
         }
         Ok(names)
+    }
+
+    /// List real child directories without following child symlinks.
+    ///
+    /// # Errors
+    /// The held directory cannot be read or contains a non-UTF-8 name.
+    pub fn directory_names(&self) -> io::Result<Vec<String>> {
+        let mut directories = Vec::new();
+        for name in self.names()? {
+            match open_dir(&self.fd, OsStr::new(&name)) {
+                Ok(_) => directories.push(name),
+                Err(error)
+                    if matches!(
+                        error.raw_os_error(),
+                        Some(code)
+                            if code == nix::errno::Errno::ENOTDIR as i32
+                                || code == nix::errno::Errno::ELOOP as i32
+                    ) => {}
+                Err(error) => return Err(error),
+            }
+        }
+        Ok(directories)
     }
 
     /// Test whether a regular child file exists, refusing other node kinds.
@@ -211,11 +344,37 @@ impl OwnedDir {
     }
 }
 
+fn normalize_named_path(path: &Path) -> io::Result<PathBuf> {
+    let mut normalized = PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::RootDir | Component::ParentDir | Component::Normal(_) => {
+                normalized.push(component.as_os_str());
+            }
+            Component::CurDir => {}
+            Component::Prefix(_) => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "owned directory: path is not contained",
+                ));
+            }
+        }
+    }
+    if normalized.as_os_str().is_empty() {
+        normalized.push(".");
+    }
+    Ok(normalized)
+}
+
 fn open_or_create_dir(parent: &File, name: &str) -> io::Result<File> {
     match mkdirat(parent, name, DIR_MODE) {
         Ok(()) | Err(nix::errno::Errno::EEXIST) => {}
         Err(error) => return Err(io_error(error)),
     }
+    open_dir(parent, OsStr::new(name))
+}
+
+fn open_dir(parent: &File, name: &OsStr) -> io::Result<File> {
     let fd = openat(
         parent,
         name,
@@ -224,6 +383,25 @@ fn open_or_create_dir(parent: &File, name: &str) -> io::Result<File> {
     )
     .map_err(io_error)?;
     Ok(File::from(fd))
+}
+
+fn open_regular_file(parent: &File, name: &OsStr) -> io::Result<File> {
+    let fd = openat(
+        parent,
+        name,
+        OFlag::O_RDONLY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC,
+        FILE_MODE,
+    )
+    .map_err(io_error)?;
+    let file = File::from(fd);
+    if file.metadata()?.file_type().is_file() {
+        Ok(file)
+    } else {
+        Err(io::Error::new(
+            io::ErrorKind::InvalidData,
+            "owned directory: child is not a regular file",
+        ))
+    }
 }
 
 fn validate_component(value: &str) -> io::Result<()> {
@@ -316,6 +494,15 @@ mod tests {
 
         std::fs::write(root.path().join("not-a-directory"), "file").expect("regular file");
         assert!(OwnedDir::create(root.path(), &["not-a-directory"]).is_err());
+
+        std::fs::create_dir(root.path().join("sibling")).expect("sibling");
+        let parent_relative = root.path().join("sibling/../held");
+        assert!(OwnedDir::open(&parent_relative).is_ok());
+
+        #[cfg(target_os = "macos")]
+        for alias_after_parent in ["/Users/../tmp", "/../etc"] {
+            assert!(OwnedDir::open(Path::new(alias_after_parent)).is_ok());
+        }
     }
 
     #[cfg(unix)]
@@ -326,8 +513,10 @@ mod tests {
         let root = tempfile::tempdir().expect("root");
         let outside = root.path().join("outside");
         std::fs::create_dir(&outside).expect("outside");
+        std::fs::create_dir(outside.join("project")).expect("outside project");
         symlink(&outside, root.path().join("redirect")).expect("directory symlink");
         assert!(OwnedDir::create(root.path(), &["redirect"]).is_err());
+        assert!(OwnedDir::open(&root.path().join("redirect/project/.")).is_err());
 
         let dir = OwnedDir::create(root.path(), &["held"]).expect("owned");
         let target = root.path().join("outside.txt");
@@ -339,6 +528,45 @@ mod tests {
         symlink(&target, root.path().join("held/ledger.lock")).expect("lock symlink");
         assert!(dir.open_lock("ledger.lock").is_err());
         assert_eq!(std::fs::read_to_string(target).expect("target"), "sentinel");
+
+        symlink(root.path(), root.path().join("root-link")).expect("root symlink");
+        assert!(OwnedDir::open(&root.path().join("root-link")).is_err());
+        assert!(OwnedDir::open(&root.path().join("root-link/.")).is_err());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn contained_file_open_and_directory_listing_refuse_redirects() {
+        use std::io::Read as _;
+        use std::os::unix::fs::symlink;
+
+        let root = tempfile::tempdir().expect("root");
+        let project = OwnedDir::open(root.path()).expect("project");
+        std::fs::create_dir_all(root.path().join("workflows/nested")).expect("directories");
+        std::fs::write(
+            root.path().join("workflows/nested/a.nika.yaml"),
+            "nika: a\n",
+        )
+        .expect("workflow");
+        std::fs::write(root.path().join("plain"), "file").expect("plain file");
+        symlink(root.path().join("workflows"), root.path().join("redirect"))
+            .expect("child symlink");
+
+        let mut source = project
+            .open_relative(Path::new("workflows/nested/a.nika.yaml"))
+            .expect("contained workflow");
+        let mut text = String::new();
+        source.read_to_string(&mut text).expect("read workflow");
+        assert_eq!(text, "nika: a\n");
+        assert!(
+            project
+                .open_relative(Path::new("redirect/nested/a.nika.yaml"))
+                .is_err()
+        );
+        assert_eq!(
+            project.directory_names().expect("directories"),
+            ["workflows"]
+        );
     }
 
     #[cfg(unix)]

@@ -23,10 +23,28 @@ pub(crate) struct Replay {
     journals: Vec<(String, bool)>,
 }
 
-pub(crate) struct Folded {
-    pub state: FiringState,
-    pub beyond_last: bool,
-    pub slot: Option<String>,
+#[non_exhaustive]
+pub struct Folded {
+    state: FiringState,
+    beyond_last: bool,
+    slot: Option<String>,
+}
+
+impl Folded {
+    #[must_use]
+    pub fn state(&self) -> &FiringState {
+        &self.state
+    }
+
+    #[must_use]
+    pub fn is_beyond_last(&self) -> bool {
+        self.beyond_last
+    }
+
+    #[must_use]
+    pub fn slot(&self) -> Option<&str> {
+        self.slot.as_deref()
+    }
 }
 
 type JournalSnapshot = (String, String, bool);
@@ -207,7 +225,9 @@ mod tests {
     use nika_cadence::firing::{FiringState, SlotId};
 
     use super::super::{ArmState, Claim, FireKind, HISTORY, HistoryEntry, write_chain_anchor};
-    use super::{fold_replay, journals, read_snapshot, replay, test_dir, validate_snapshot};
+    use super::{
+        Folded, fold_replay, journals, read_snapshot, replay, test_dir, validate_snapshot,
+    };
 
     fn state(tag: &str) -> (tempfile::TempDir, ArmState) {
         let dir = tempfile::Builder::new()
@@ -738,6 +758,20 @@ mod tests {
             .folded("doctor", &ts("2026-08-19T03:03:00Z"))
             .expect("valid replay")
             .expect("folded");
-        assert_eq!(folded.state, FiringState::Skipped);
+        assert_eq!(folded.state(), &FiringState::Skipped);
+        assert!(!folded.is_beyond_last());
+        assert_eq!(folded.slot(), None);
+    }
+
+    #[test]
+    fn public_folded_projections_preserve_empty_and_beyond_values() {
+        let folded = Folded {
+            state: FiringState::Planned,
+            beyond_last: true,
+            slot: Some("2026-08-19T03:00:00Z".to_owned()),
+        };
+        assert_eq!(folded.state(), &FiringState::Planned);
+        assert!(folded.is_beyond_last());
+        assert_eq!(folded.slot(), Some("2026-08-19T03:00:00Z"));
     }
 }

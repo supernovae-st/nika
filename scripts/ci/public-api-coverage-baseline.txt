@@ -141,4 +141,7 @@ nika-secret
 # neutrality is unchanged — a FEATURE gate is not a platform gate, and dropping
 # the binder's glue removes the one part that could have differed. ---
 nika-cadence
+# --- 2026-08-21: descriptor-rooted ARM custody extracted from nika-cli so
+# CLI and Serve share one firer and one replay authority. ---
+nika-arm
 nika-tui-core

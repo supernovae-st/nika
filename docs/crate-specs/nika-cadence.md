@@ -140,7 +140,7 @@ explicitly marked legacy bare receipt remains readable;
 `scan_chain` returns the verified prefix; `replay` folds borrowed journals into
 the byte-stable projection, watermark, and lifecycle; `fold_replay` applies the
 open deadline boundary; `unsettled` reconciles only a matching later fencing
-receipt. `nika-cli::arm::state` is the filesystem adapter and owns every effect.
+receipt. `nika-arm` is the filesystem adapter and owns every effect.
 This seam is the ADR-114 amendment: no dependency cycle and no second judge.
 That adapter holds a kernel advisory lease on a stable path (PID/epoch bytes are
 diagnostic, never authority) and advances a local `head.json` seq/hash anchor

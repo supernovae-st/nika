@@ -22,7 +22,8 @@ pub use nika_cadence::ledger::{
     Claim, DecisionKind as FireKind, HistoryEntry, LastRecord, Receipt, RecordOutcome, Unsettled,
 };
 
-pub(crate) mod replay;
+mod replay;
+pub use replay::Folded;
 const ARM_DIR: &str = ".nika/arm";
 const BEAT_LOCK: &str = "lock";
 const LEDGER_LOCK: &str = "ledger.lock";
@@ -34,8 +35,13 @@ const LEDGER_LOCK_NAP: std::time::Duration = std::time::Duration::from_millis(5)
 
 /// The firing state, rooted at `<project>/.nika/arm`.
 pub struct ArmState {
-    project: PathBuf,
+    project: ProjectRoot,
     root: PathBuf,
+}
+
+enum ProjectRoot {
+    Open(OwnedDir),
+    Refused { kind: io::ErrorKind, detail: String },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -43,22 +49,68 @@ pub(crate) enum LockOutcome {
     Acquired,
     HeldAlive { pid: u32 },
 }
-pub(crate) struct HealOutcome {
-    pub rotated: Option<Rotation>,
-    pub repaired: u64,
-    pub lines: u64,
-    pub rebuilt_last: bool,
-    pub rebuilt_watermark: bool,
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct HealOutcome {
+    rotated: Option<Rotation>,
+    repaired: u64,
+    lines: u64,
+    rebuilt_last: bool,
+    rebuilt_watermark: bool,
+}
+
+impl HealOutcome {
+    #[must_use]
+    pub fn rotation(&self) -> Option<&Rotation> {
+        self.rotated.as_ref()
+    }
+
+    #[must_use]
+    pub fn repaired_lines(&self) -> u64 {
+        self.repaired
+    }
+
+    #[must_use]
+    pub fn line_count(&self) -> u64 {
+        self.lines
+    }
+
+    #[must_use]
+    pub fn rebuilt_last(&self) -> bool {
+        self.rebuilt_last
+    }
+
+    #[must_use]
+    pub fn rebuilt_watermark(&self) -> bool {
+        self.rebuilt_watermark
+    }
 }
 
 impl ArmState {
     /// The sidecar of the project rooted at `project_dir` (D3).
     #[must_use]
     pub fn at_project(project_dir: &Path) -> Self {
-        Self {
-            project: project_dir.to_path_buf(),
-            root: project_dir.join(ARM_DIR),
+        match Self::open(project_dir) {
+            Ok(state) => state,
+            Err(error) => Self {
+                project: ProjectRoot::Refused {
+                    kind: error.kind(),
+                    detail: error.to_string(),
+                },
+                root: project_dir.join(ARM_DIR),
+            },
         }
+    }
+
+    /// Open one project custody capability without following path symlinks.
+    ///
+    /// # Errors
+    /// The project path is inaccessible, escaping, or redirected.
+    pub fn open(project_dir: &Path) -> io::Result<Self> {
+        Ok(Self {
+            project: ProjectRoot::Open(OwnedDir::open(project_dir)?),
+            root: project_dir.join(ARM_DIR),
+        })
     }
 
     #[must_use]
@@ -79,6 +131,8 @@ impl ArmState {
     /// The sidecar is inaccessible, redirected, or fails verified replay.
     pub fn last(&self, label: &str) -> io::Result<Option<LastRecord>> {
         let dir = self.safe_dir(label)?;
+        let now = Zoned::now();
+        let _ledger = Self::ledger_guard(&dir, &now)?;
         let Some(record) = replay::replay_safe(&dir)?.last else {
             return Ok(None);
         };
@@ -105,13 +159,17 @@ impl ArmState {
 
     #[must_use]
     pub fn orphans(&self, known: &[String]) -> Vec<String> {
-        let Ok(entries) = std::fs::read_dir(&self.root) else {
+        let Ok(arm) = self
+            .project_dir()
+            .and_then(|project| project.open_below(&[".nika", "arm"]))
+        else {
             return Vec::new();
         };
-        let mut out: Vec<String> = entries
-            .filter_map(std::result::Result::ok)
-            .filter(|e| e.file_type().is_ok_and(|t| t.is_dir()))
-            .filter_map(|e| e.file_name().into_string().ok())
+        let Ok(directories) = arm.directory_names() else {
+            return Vec::new();
+        };
+        let mut out: Vec<String> = directories
+            .into_iter()
             .filter(|name| !known.contains(name))
             .collect();
         out.sort_unstable();
@@ -153,16 +211,20 @@ impl ArmState {
     ///
     /// # Errors
     /// I/O on the sidecar.
-    pub fn record(&self, label: &str, entry: &HistoryEntry) -> io::Result<RecordOutcome> {
+    pub(crate) fn record(&self, label: &str, entry: &HistoryEntry) -> io::Result<RecordOutcome> {
         let dir = self.safe_dir(label)?;
+        Self::record_in(&dir, entry)
+    }
+
+    fn record_in(dir: &OwnedDir, entry: &HistoryEntry) -> io::Result<RecordOutcome> {
         let now = entry.decided_at.to_zoned(jiff::tz::TimeZone::UTC);
-        let _ledger = Self::ledger_guard(&dir, &now)?;
+        let _ledger = Self::ledger_guard(dir, &now)?;
         let terminal = matches!(
             entry.kind,
             FireKind::Fired | FireKind::Paused | FireKind::Failed
         );
         let outcome = append_event(
-            &dir,
+            dir,
             entry.decided_at,
             entry.kind.as_str(),
             entry.slot_id.as_ref().map(SlotId::as_str),
@@ -181,13 +243,54 @@ impl ArmState {
         Ok(outcome)
     }
 
+    /// Journal one explicit disarm while owning the beat custody lock.
+    ///
+    /// # Errors
+    /// The beat is firing, or its descriptor-rooted journal refuses the record.
+    pub fn record_disarm(
+        &self,
+        label: &str,
+        decided_at: Timestamp,
+        pid: u32,
+        reason: &str,
+    ) -> io::Result<RecordOutcome> {
+        let now = decided_at.to_zoned(jiff::tz::TimeZone::UTC);
+        let attempt = self.acquire_beat_lock(label, pid, &now)?;
+        let lease = exclusive_lease(attempt, "arm disarm")?;
+        let mut entry = HistoryEntry::new(None, decided_at, FireKind::Disarmed);
+        entry.reason = Some(reason.to_owned());
+        Self::record_in(&lease.dir, &entry)
+    }
+
     /// Append and fsync the claim before the run; projections do not move.
     ///
     /// # Errors
     /// As [`record`](Self::record).
-    pub fn record_claim(&self, label: &str, claim: &Claim) -> io::Result<RecordOutcome> {
+    #[cfg(any(test, feature = "test-support"))]
+    pub(crate) fn record_claim(&self, label: &str, claim: &Claim) -> io::Result<RecordOutcome> {
         let dir = self.safe_dir(label)?;
         Self::record_claim_in(&dir, claim)
+    }
+
+    /// Append a fixture entry for cross-crate tests.
+    ///
+    /// This deliberately bypasses beat custody and exists only behind the
+    /// non-default `test-support` feature.
+    ///
+    /// # Errors
+    /// The fixture sidecar cannot be opened or appended safely.
+    #[cfg(feature = "test-support")]
+    pub fn record_fixture(&self, label: &str, entry: &HistoryEntry) -> io::Result<RecordOutcome> {
+        self.record(label, entry)
+    }
+
+    /// Append a fixture claim for cross-crate tests.
+    ///
+    /// # Errors
+    /// The fixture sidecar cannot be opened or appended safely.
+    #[cfg(feature = "test-support")]
+    pub fn record_claim_fixture(&self, label: &str, claim: &Claim) -> io::Result<RecordOutcome> {
+        self.record_claim(label, claim)
     }
 
     pub(crate) fn record_claim_with_lease(
@@ -239,45 +342,49 @@ impl ArmState {
         nika_cadence::ledger::unsettled(text)
     }
 
-    pub(crate) fn beat_dirs(&self) -> io::Result<Vec<String>> {
-        let entries = match std::fs::read_dir(&self.root) {
-            Ok(entries) => entries,
-            Err(e) if e.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
-            Err(e) => return Err(e),
+    /// Return the sorted labels that already own an ARM sidecar directory.
+    ///
+    /// # Errors
+    /// The sidecar root cannot be inspected or contains a non-UTF-8 label.
+    pub fn beat_dirs(&self) -> io::Result<Vec<String>> {
+        let arm = match self.project_dir()?.open_below(&[".nika", "arm"]) {
+            Ok(arm) => arm,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(Vec::new()),
+            Err(error) => return Err(error),
         };
-        let mut out = Vec::new();
-        for entry in entries {
-            let entry = entry?;
-            if !entry.file_type()?.is_dir() {
-                continue;
-            }
-            let label = entry.file_name().into_string().map_err(|_| {
-                io::Error::new(io::ErrorKind::InvalidData, "arm sidecar label is not UTF-8")
-            })?;
-            out.push(label);
-        }
+        let mut out = arm.directory_names()?;
         out.sort_unstable();
         Ok(out)
     }
 
-    pub(crate) fn has_journal_evidence(&self, label: &str) -> io::Result<bool> {
+    /// Whether a label contains a live journal, migration intent, or archive.
+    ///
+    /// # Errors
+    /// The descriptor-rooted sidecar cannot be inspected safely.
+    pub fn has_journal_evidence(&self, label: &str) -> io::Result<bool> {
         let dir = self.safe_dir(label)?;
         Ok(dir.exists(HISTORY)?
             || dir.exists(MIGRATION_INTENT)?
             || replay::latest_archive(&dir)?.is_some())
     }
 
-    pub(crate) fn heal(&self, label: &str, now: &Timestamp) -> io::Result<HealOutcome> {
-        let dir = self.safe_dir(label)?;
+    /// Verify and heal one sidecar, including legacy rotation and projections.
+    ///
+    /// # Errors
+    /// The journal is invalid or a descriptor-rooted filesystem operation fails.
+    pub fn heal(&self, label: &str, now: &Timestamp) -> io::Result<HealOutcome> {
         let now_zoned = now.to_zoned(jiff::tz::TimeZone::UTC);
-        let _ledger = Self::ledger_guard(&dir, &now_zoned)?;
-        let head = chain_head(&dir, now)?;
-        let replayed = replay::replay_safe(&dir)?;
+        let attempt = self.acquire_beat_lock(label, std::process::id(), &now_zoned)?;
+        let beat = exclusive_lease(attempt, "arm migrate")?;
+        let _ledger = Self::ledger_guard(&beat.dir, &now_zoned)?;
+        let head = chain_head(&beat.dir, now)?;
+        let replayed = replay::replay_safe(&beat.dir)?;
         if let Some(last) = &replayed.last {
-            dir.write_atomic("last.json", &render_last(last))?;
+            beat.dir.write_atomic("last.json", &render_last(last))?;
         }
         if let Some(watermark) = replayed.watermark {
-            dir.write_atomic("watermark", &format!("{watermark}\n"))?;
+            beat.dir
+                .write_atomic("watermark", &format!("{watermark}\n"))?;
         }
         Ok(HealOutcome {
             rotated: head.rotated,
@@ -288,18 +395,46 @@ impl ArmState {
         })
     }
 
-    pub(crate) fn folded(
-        &self,
-        label: &str,
-        now: &Timestamp,
-    ) -> io::Result<Option<replay::Folded>> {
+    /// Fold the verified journal into its lifecycle projection at `now`.
+    ///
+    /// # Errors
+    /// The journal snapshot or its descriptor-rooted reads are invalid.
+    pub fn folded(&self, label: &str, now: &Timestamp) -> io::Result<Option<Folded>> {
         let dir = self.safe_dir(label)?;
         let replayed = replay::replay_safe(&dir)?;
         Ok(replay::fold_replay(&replayed, now))
     }
 
     fn safe_dir(&self, label: &str) -> io::Result<OwnedDir> {
-        OwnedDir::create(&self.project, &[".nika", "arm", label])
+        self.project_dir()?.create_below(&[".nika", "arm", label])
+    }
+
+    pub(crate) fn open_project_file(
+        &self,
+        relative: &Path,
+    ) -> io::Result<(OwnedDir, std::fs::File)> {
+        let project = self.project_dir()?;
+        Ok((project.try_clone()?, project.open_relative(relative)?))
+    }
+
+    fn project_dir(&self) -> io::Result<&OwnedDir> {
+        match &self.project {
+            ProjectRoot::Open(project) => Ok(project),
+            ProjectRoot::Refused { kind, detail } => Err(io::Error::new(*kind, detail.clone())),
+        }
+    }
+}
+
+fn exclusive_lease(attempt: LockAttempt, operation: &str) -> io::Result<LockLease> {
+    match (attempt.outcome, attempt.lease) {
+        (LockOutcome::Acquired, Some(lease)) => Ok(lease),
+        (LockOutcome::Acquired, None) => Err(io::Error::other(format!(
+            "{operation}: acquired without a lease"
+        ))),
+        (LockOutcome::HeldAlive { pid }, _) => Err(io::Error::new(
+            io::ErrorKind::WouldBlock,
+            format!("{operation}: beat held by live pid {pid}"),
+        )),
     }
 }
 
@@ -335,10 +470,28 @@ struct ChainHead {
 }
 
 #[derive(Debug)]
-pub(crate) struct Rotation {
-    pub name: String,
-    pub lines: usize,
-    pub resumed: bool,
+#[non_exhaustive]
+pub struct Rotation {
+    name: String,
+    lines: usize,
+    resumed: bool,
+}
+
+impl Rotation {
+    #[must_use]
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    #[must_use]
+    pub fn line_count(&self) -> usize {
+        self.lines
+    }
+
+    #[must_use]
+    pub fn resumed(&self) -> bool {
+        self.resumed
+    }
 }
 
 fn chain_head(dir: &OwnedDir, now: &Timestamp) -> io::Result<ChainHead> {
@@ -377,11 +530,10 @@ fn chain_head(dir: &OwnedDir, now: &Timestamp) -> io::Result<ChainHead> {
     let repaired = u64::try_from(lines.len() - valid_lines).unwrap_or(u64::MAX);
     validate_chain_anchor(dir, &text)?;
     write_chain_anchor(dir, seq, prev_hash.as_deref())?;
-    if repaired > 0 {
-        let mut prefix = lines[..valid_lines].join("\n");
-        if valid_lines > 0 {
-            prefix.push('\n');
-        }
+    if repaired.checked_sub(1).is_some() {
+        // A versioned journal has a verified genesis, so a repairable
+        // suffix always leaves at least that first line.
+        let prefix = format!("{}\n", lines[..valid_lines].join("\n"));
         dir.write_atomic(HISTORY, &prefix)?;
     }
     Ok(ChainHead {
@@ -411,7 +563,7 @@ fn rotate_legacy(dir: &OwnedDir, legacy_lines: usize, now: &Timestamp) -> io::Re
         .ok_or_else(|| io::Error::other("arm ledger: durable migration intent was not consumed"))?;
     let text = dir.read(HISTORY)?;
     let (seq, prev_hash, valid_lines) = scan_chain(&text);
-    if valid_lines != text.lines().count() || seq != 1 {
+    if !migrated_genesis_is_valid(seq, valid_lines, text.lines().count()) {
         return Err(io::Error::new(
             io::ErrorKind::InvalidData,
             "arm ledger: migrated genesis is invalid",
@@ -424,6 +576,10 @@ fn rotate_legacy(dir: &OwnedDir, legacy_lines: usize, now: &Timestamp) -> io::Re
         repaired: 0,
         rotated: Some(rotation),
     })
+}
+
+fn migrated_genesis_is_valid(seq: u64, valid_lines: usize, total_lines: usize) -> bool {
+    matches!((seq, valid_lines, total_lines), (1, 1, 1))
 }
 
 fn finish_intended_rotation(dir: &OwnedDir, resumed: bool) -> io::Result<Option<Rotation>> {
@@ -447,13 +603,13 @@ fn finish_intended_rotation(dir: &OwnedDir, resumed: bool) -> io::Result<Option<
         dir.hard_link(HISTORY, &archive_name)?;
         dir.remove(HISTORY)?;
     }
-    let archive_text = dir.read(&archive_name)?;
-    if classify_journal(&archive_text) != Some(JournalFormat::Legacy)
-        || archive_text.lines().count() != legacy_lines
-    {
+    let archives = replay::archive_texts(dir)?;
+    let Some((_, archive_text)) = archives.iter().find(|(name, _)| name == &archive_name) else {
+        return Err(invalid_migration_state());
+    };
+    if archive_text.lines().count() != legacy_lines {
         return Err(invalid_migration_state());
     }
-    let archives = replay::archive_texts(dir)?;
     let borrowed: Vec<(&str, &str)> = archives
         .iter()
         .map(|(name, text)| (name.as_str(), text.as_str()))
@@ -464,7 +620,7 @@ fn finish_intended_rotation(dir: &OwnedDir, resumed: bool) -> io::Result<Option<
     let expected = format!("{genesis}\n");
     match dir.read_optional(HISTORY) {
         Ok(Some(current)) if current == expected => {}
-        Ok(Some(current)) if current == archive_text => {
+        Ok(Some(current)) if current == *archive_text => {
             dir.remove(HISTORY)?;
             dir.write_atomic(HISTORY, &expected)?;
         }

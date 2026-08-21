@@ -4045,6 +4045,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "nika-arm"
+version = "0.112.0"
+dependencies = [
+ "jiff",
+ "nika-cadence",
+ "nika-fs",
+ "nix 0.31.3",
+ "serde_json",
+ "sha2 0.10.9",
+ "tempfile",
+]
+
+[[package]]
 name = "nika-blob"
 version = "0.112.0"
 dependencies = [
@@ -4271,6 +4284,7 @@ dependencies = [
  "insta",
  "jiff",
  "minisign",
+ "nika-arm",
  "nika-builtin",
  "nika-cadence",
  "nika-cap",

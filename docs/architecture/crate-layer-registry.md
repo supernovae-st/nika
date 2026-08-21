@@ -137,7 +137,7 @@ Given a crate `nika-<role>`, ask these questions in order:
 ╰──────────────────────────────────────────────────────────────────────────╯
               ▲
 ╭─ L4  (interfaces — libraries) ───────────────────────────────────────────╮
-│ nika-cli (lib)        nika-daemon (lib)    nika-serve (lib)               │
+│ nika-cli (lib)        nika-arm (lib)       nika-serve (lib)               │
 │ nika-mcp (lib)        nika-lsp (lib)       nika-sdk · nika-dap (lib)      │
 │ nika-catalog-verify   (build-only)  nika-check-wasm (browser · WIP)       │
 │                                             └─ xtask (build-only)         │
@@ -168,7 +168,7 @@ flags. They obey the same 12-gate admission as any other crate.
 | L1.5 | Provider wire adapters — between effects and verbs | via L1 http seam | L0, L0.5, L1 | `nika-providers` (14/14 wire · in-crate mock), `nika-infer-local` (candle sidecar · ADR-091) |
 | L2 | Verbs + domain services — orchestrates L1 impls behind kernel traits | via L1 traits only | L0, L0.5, L1, L1.5 | `nika-pck`, `nika-verb-*`, `nika-policy` (s8 · design locked), `nika-connectome` (the Connectome orchestrator), `nika-observability`, `nika-builtin-{github,cloud,workspace}`, `nika-registry-client` (size-cap descent from nika-cli · D-2026-07-09-N1) |
 | L3 | Runtime + policy + sandbox — enforces execution contracts | via L2 | L0..L2 | `nika-runtime`, `nika-shield`, `nika-wasm-host` (v0.100), `nika-sandbox` (v0.100) |
-| L4 | Interfaces — transport/UI surface, libraries only | via L3 | L0..L3 | `nika-cli`, `nika-cli-host` (size-cap member of the nika-cli unit · D-2026-07-09-N1 · ADR-110), `nika-trace` (size-cap member of the nika-cli unit · the flight-recorder reader · D-2026-07-09-N1 · 2026-08-11), `nika-dap`, `nika-display`, `nika-onboard`, `nika-models`, `nika-daemon`, `nika-serve`, `nika-mcp`, `nika-lsp`, `nika-sdk`, `nika-catalog-verify`, `nika-check-wasm` (WIP · ADR-107) |
+| L4 | Interfaces — transport/UI surface, libraries only | via L3 | L0..L3 | `nika-cli`, `nika-arm` (descriptor-rooted ARM custody + the one injected firer shared by CLI and Serve), `nika-cli-host` (size-cap member of the nika-cli unit · D-2026-07-09-N1 · ADR-110), `nika-trace` (size-cap member of the nika-cli unit · the flight-recorder reader · D-2026-07-09-N1 · 2026-08-11), `nika-dap`, `nika-display`, `nika-onboard`, `nika-models`, `nika-daemon`, `nika-serve`, `nika-mcp`, `nika-lsp`, `nika-sdk`, `nika-catalog-verify`, `nika-check-wasm` (WIP · ADR-107) |
 | L5 | The binary — sole `[[bin]]` composition root | via L4 | L0..L4 | `nika` (<500 LOC) |
 
 ### Forward compatibility

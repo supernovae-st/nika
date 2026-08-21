@@ -209,30 +209,32 @@ fn reload_on_change(
 /// One due beat through the one firer: the line prints (D8), the
 /// registry comes back (a reload may have swapped it), and `true` says
 /// a signal broke the beat's overlap wait — the caller stops the loop.
-#[allow(clippy::too_many_arguments)] // the fire's full facts
 fn fire_due(
     root: &Path,
     reg: ArmRegistry,
     index: usize,
-    label: String,
     now: &Zoned,
     wait: WaitSeam,
     run: &RunSeam,
     stop: &std::rc::Rc<std::cell::Cell<bool>>,
 ) -> (ArmRegistry, bool) {
-    let ctx = FireCtx {
-        project_root: root.to_path_buf(),
-        registry: reg,
+    let ctx = match FireCtx::new(
+        root.to_path_buf(),
+        reg,
         index,
-        label,
-        now: now.clone(),
-        state: ArmState::at_project(root),
-        pid: std::process::id(),
-        wait,
-        run: std::rc::Rc::clone(run),
+        now.clone(),
+        std::process::id(),
+        std::rc::Rc::clone(run),
+    ) {
+        Ok(ctx) => ctx.with_wait(wait),
+        Err(error) => {
+            println!("failed serve · {error}");
+            return (error.into_registry(), false);
+        }
     };
-    println!("{}", fire_beat(&ctx).line);
-    (ctx.registry, stop.get())
+    let (line, _) = fire_beat(&ctx).into_parts();
+    println!("{line}");
+    (ctx.into_registry(), stop.get())
 }
 /// The between-fires wait: the span to the next slot races ctrl-c/
 /// SIGTERM on the runtime — `true` says a signal was heard and the
@@ -362,8 +364,7 @@ fn serve(
                 println!("would fire {label} · slot {}", slot.at.timestamp());
                 continue;
             }
-            let (returned, broken) =
-                fire_due(root, reg, index, label, &now, make_wait(), run, &stop);
+            let (returned, broken) = fire_due(root, reg, index, &now, make_wait(), run, &stop);
             reg = returned;
             if broken {
                 return Ok(());
@@ -451,7 +452,7 @@ mod tests {
         entry.reason = Some("test-seed".to_owned());
         entry.exit = Some(0);
         ArmState::at_project(root)
-            .record(label, &entry)
+            .record_fixture(label, &entry)
             .expect("seed ledger truth");
     }
 
@@ -505,10 +506,7 @@ mod tests {
         let seen = std::rc::Rc::clone(&count);
         let seam: RunSeam = std::rc::Rc::new(move |_: &RunShot| {
             seen.set(seen.get() + 1);
-            RunUpshot {
-                code: exit::OK,
-                trace: None,
-            }
+            RunUpshot::new(exit::OK, None)
         });
         (count, seam)
     }
@@ -540,11 +538,25 @@ mod tests {
         seed_last(dir.path(), "doctor", "2026-08-19T03:00:00Z");
         seed_last(dir.path(), "nightly", "2026-08-19T03:00:00Z");
         // doctor's lock: a real kernel lease, held for the whole test.
-        let state = ArmState::at_project(dir.path());
-        let held = state
-            .acquire_beat_lock("doctor", std::process::id(), &at("2026-08-19T04:00:00Z"))
-            .expect("kernel lease");
-        let _lease = held.lease.expect("held for the whole test");
+        let lock_dir = dir.path().join(".nika/arm/doctor");
+        std::fs::create_dir_all(&lock_dir).expect("lock dir");
+        let lock_path = lock_dir.join("lock");
+        std::fs::write(
+            &lock_path,
+            format!(
+                "{{\"pid\":{},\"started_at\":\"2026-08-19T04:00:00Z\"}}\n",
+                std::process::id()
+            ),
+        )
+        .expect("lock metadata");
+        let lock_file = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .open(&lock_path)
+            .expect("lock file");
+        let _lease =
+            nix::fcntl::Flock::lock(lock_file, nix::fcntl::FlockArg::LockExclusiveNonblock)
+                .expect("held for the whole test");
         let registry = match arm::load(dir.path()) {
             Ok((_, registry)) => registry,
             Err(out) => panic!("load: {}", out.text),
