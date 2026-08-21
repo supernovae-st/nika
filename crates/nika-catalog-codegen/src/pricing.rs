@@ -699,6 +699,46 @@ mod tests {
         assert!(!is_iso_date("2026-12-311"));
     }
 
+    /// Mutation sweep 2026-08-18: three `||`→`&&` mutants in
+    /// [`is_iso_date`] survived because every refused probe broke TWO
+    /// clauses at once (`2026/12/31` — both separators). Each probe here
+    /// breaks exactly ONE clause, so a conjunction cannot fake the
+    /// disjunction: one wrong separator · one non-digit segment · one
+    /// out-of-range field.
+    #[test]
+    fn is_iso_date_refuses_on_a_single_broken_clause() {
+        // exactly one separator wrong
+        assert!(!is_iso_date("2026/12-31"));
+        assert!(!is_iso_date("2026-12/31"));
+        // exactly one non-digit segment
+        assert!(!is_iso_date("2O26-12-31"));
+        assert!(!is_iso_date("2026-1x-31"));
+        assert!(!is_iso_date("2026-12-3x"));
+        // a sign is not a digit, yet `u8::from_str` ACCEPTS a leading `+`
+        // — the probe that separates the digit check from the range check
+        // (a mutant that only refuses when BOTH segments are non-digit
+        // lets `+1` through the parse and into range).
+        assert!(!is_iso_date("2026-+1-05"));
+        assert!(!is_iso_date("2026-01-+5"));
+        // exactly one field out of range
+        assert!(!is_iso_date("2026-13-01"));
+        assert!(!is_iso_date("2026-00-01"));
+        assert!(!is_iso_date("2026-01-32"));
+        assert!(!is_iso_date("2026-01-00"));
+    }
+
+    /// Same sweep, [`is_iso_month`]: one non-digit segment at a time.
+    #[test]
+    fn is_iso_month_refuses_on_a_single_broken_clause() {
+        assert!(!is_iso_month("2O25-12"));
+        assert!(!is_iso_month("2025-1x"));
+        assert!(!is_iso_month("2025-+1"));
+        assert!(!is_iso_month("2025/12"));
+        assert!(!is_iso_month("2025-13"));
+        assert!(!is_iso_month("2025-00"));
+        assert!(is_iso_month("2025-01"));
+    }
+
     #[test]
     fn validate_rate_rejects_nan() {
         let e = validate_rate(f64::NAN, "x", "ctx").unwrap_err();
