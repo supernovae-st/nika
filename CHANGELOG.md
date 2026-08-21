@@ -10,6 +10,14 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+## [0.113.0](https://github.com/supernovae-st/nika/compare/v0.112.0..v0.113.0) - 2026-08-21
+
+**The couture release.** The judge already knew; the agent can now see.
+Error codes and `nika explain` ride MCP, CLI JSON and wasm as one well.
+Pipelines are judged per segment. Four missing authoring forms have
+skeletons. Zero breaking changes since v0.112.0, so pre-1.0 real semver
+puts this at a minor bump.
+
 ### Added
 
 - **`nika check` now judges every native shell segment, not only the head.**
@@ -21,6 +29,10 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 - **The MCP oracle now carries `instructions` and a structured example index.**
   A dirty report keeps its `NIKA-*` code on the agent channel; `nika_examples`
   without a slug returns recoverable rows instead of a bare list.
+- **A green MCP check carries the contract, not just the word clean.**
+- **The tightest permits boundary is offered, and only when it is knowable.**
+- **The arm ledger is the firing truth; the workspace admits the arm custody
+  library.**
 
 ### Changed
 
@@ -37,18 +49,22 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   emitted it.** Missing `nika:` / `tasks:` no longer wear the CONFORM
   ladder on `nika check`, `--json` `findings[]`, wasm, or MCP — the spec
   family is the gate the agent explains from.
-
+- **Wasm parse-fatal rows stay PARSE regardless of code**, matching CLI
+  `parse_fatal_json` (a `NIKA-DAG-005` unknown `after` predicate is PARSE
+  on both assemblies).
 - **`--fix` cannot rewrite a digest-pinned registry cache, a symlink into
   that cache, stdin, or a device/FIFO.** The footer teaches a copy into the
   workspace; a project path that merely looks like `.nika/registry` stays a
   normal file.
-
 - **The pinned conformance clock includes Agent Skills and current trace
   witnesses.** The harness now exercises the spec's skill lane with exact
   `AGENT`, `AUTH` and `SEC` refusal codes, recognizes the entropy/jitter law,
   and replays every current runtime-trace verdict. The heal workflow advances
   the pin and pack together on an immutable PR branch; Diamond CI independently
   re-vendors every mapped byte.
+- **Reference dry-run, AUTH advice, repair and mock seats tell the truth.**
+- **The clone says when its own enforcement is not armed.**
+- **The plan projection API is locked.**
 
 ## [0.112.0](https://github.com/supernovae-st/nika/compare/v0.111.0..v0.112.0) - 2026-08-20
 

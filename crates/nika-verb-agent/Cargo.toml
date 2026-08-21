@@ -11,15 +11,15 @@ homepage.workspace     = true
 publish                = false  # Internal L2 verb crate (the binary ships, the lib doesn't).
 
 [dependencies]
-nika-types      = { path = "../nika-types", version = "0.112.0", features = ["serde"] } # SpendOnFailure (billed-then-failed spend · Cost Intelligence)
-nika-kernel      = { path = "../nika-kernel", version = "0.112.0" }       # ai::provider seam · ai::tool_defs seam · runtime agent DTOs
-nika-error       = { path = "../nika-error", version = "0.112.0" }        # NIKA_460..467 registry constants
-nika-verb-invoke = { path = "../nika-verb-invoke", version = "0.112.0" }  # tool dispatch (same-layer L2 · spec §0.5)
-nika-bm25        = { path = "../nika-bm25", version = "0.112.0" }         # deterministic per-turn tool routing (L2→L1 downward · ADR-096)
-nika-schema      = { path = "../nika-schema", version = "0.112.0" }       # agent:compose parse (L2→L0 downward)
-nika-cap         = { path = "../nika-cap", version = "0.112.0" }          # the harness permission bridge's judge (L2→L0 · B5)
-nika-check       = { path = "../nika-check", version = "0.112.0" }        # agent:compose static gate (L2→L0 downward · check-before-permission)
-nika-catalog     = { path = "../nika-catalog", version = "0.112.0", features = ["pricing"] } # find_pricing_for — the priced-ness the unmetered gate reads (R3-F1)
+nika-types      = { path = "../nika-types", version = "0.113.0", features = ["serde"] } # SpendOnFailure (billed-then-failed spend · Cost Intelligence)
+nika-kernel      = { path = "../nika-kernel", version = "0.113.0" }       # ai::provider seam · ai::tool_defs seam · runtime agent DTOs
+nika-error       = { path = "../nika-error", version = "0.113.0" }        # NIKA_460..467 registry constants
+nika-verb-invoke = { path = "../nika-verb-invoke", version = "0.113.0" }  # tool dispatch (same-layer L2 · spec §0.5)
+nika-bm25        = { path = "../nika-bm25", version = "0.113.0" }         # deterministic per-turn tool routing (L2→L1 downward · ADR-096)
+nika-schema      = { path = "../nika-schema", version = "0.113.0" }       # agent:compose parse (L2→L0 downward)
+nika-cap         = { path = "../nika-cap", version = "0.113.0" }          # the harness permission bridge's judge (L2→L0 · B5)
+nika-check       = { path = "../nika-check", version = "0.113.0" }        # agent:compose static gate (L2→L0 downward · check-before-permission)
+nika-catalog     = { path = "../nika-catalog", version = "0.113.0", features = ["pricing"] } # find_pricing_for — the priced-ness the unmetered gate reads (R3-F1)
 jsonschema       = { workspace = true }                                   # final-message `schema:` validation (NIKA_464)
 serde_json       = { workspace = true }
 thiserror        = { workspace = true }
@@ -28,7 +28,7 @@ tokio            = { workspace = true }                                   # spaw
 futures-util     = { workspace = true }                                   # buffered — order-preserving parallel intra-turn dispatch (ADR-097)
 
 [dev-dependencies]
-nika-kernel-mock = { path = "../nika-kernel-mock", version = "0.112.0" }  # MockProvider · MockToolExecutor · MockToolDefinitionProvider
+nika-kernel-mock = { path = "../nika-kernel-mock", version = "0.113.0" }  # MockProvider · MockToolExecutor · MockToolDefinitionProvider
 proptest         = { workspace = true }
 
 [package.metadata.lore]
