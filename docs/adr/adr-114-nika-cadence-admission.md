@@ -1,6 +1,6 @@
 ---
 id: ADR-114
-title: "`nika-cadence` — the arming registry grammar and the pure next-slot calculator, at L0"
+title: "`nika-cadence` — the pure arming domain, at L0"
 status: accepted
 date: 2026-08-15
 phase: ""
@@ -20,12 +20,12 @@ shadow_zones: []
 nika_codes: []
 timeline: ""
 follow_ups:
-  - "`nika serve` is the second L4 consumer this crate was placed at L0 for — it does not exist yet, so the layering argument is currently carried by ONE consumer plus an intent"
+  - "`nika serve` is now the second L4 consumer of the pure cadence and ledger judge; keep all filesystem ownership and execution effects in `nika-cli`"
   - "Eight cadence keys are reachable in the registry grammar but unreachable through the project file — pinned by a test in `nika-cli`, not yet resolved either way"
   - "`signature:` and `budget:` are refused BY NAME, waiting on ② and on a measured lack respectively"
 ---
 
-# ADR-114: `nika-cadence` — the arming registry grammar, at L0
+# ADR-114: `nika-cadence` — the pure arming domain, at L0
 
 ## Context
 
@@ -52,25 +52,66 @@ rationale and adds what has been measured since.
 
 ## Decision
 
-`nika-cadence` is admitted at **L0 · pure · zero I/O · zero async**. It owns two
-things and nothing else:
+`nika-cadence` is admitted at **L0 · pure · zero I/O · zero async**. It owns the
+four pure parts of the arming domain, and no effect adapters:
 
 - the **grammar** of the arming registry (the `arm:` block of `nika.yaml`, per
   D-2026-08-10-N3),
 - the **pure next-slot calculator** (hand-counted 5-field cron, embedded IANA
-  tzdb).
+  tzdb),
+- the **typed firing state machine** (`SlotId`, fencing, generation, transition,
+  fold, and policy decision),
+- the **pure ledger codec and replay fold** (canonical line construction,
+  hash-chain verification, claim/receipt reconciliation, and projection
+  rebuilding from journal texts).
+
+The interface boundary is the byte/text seam: `nika-cadence` accepts timestamps,
+typed events, and borrowed journal text and returns typed decisions and rebuilt
+projections. `nika-cli` alone owns paths, file discovery, locks, fsync, atomic
+renames, W2 archive rotation, and rendering the operator verdict. The L0 crate
+therefore remains deterministic and hermetic even though it now owns the state
+machines that judge persisted evidence.
+
+At L4, W7 uses a stable, never-unlinked advisory `flock`: the kernel lease is
+the authority and the PID/epoch file body is diagnostic only. Dropping the
+guard or losing the process releases the lease atomically, so PID reuse and a
+crash remnant cannot wedge a beat. Each fsynced event is also fenced by the
+local `head.json` high-water mark (`seq` + chain hash): the empty chain first
+writes the `seq:0/hash:null` bootstrap, then append precedes the atomic head
+advance. A non-empty versioned journal without that mark, a shorter valid
+prefix, or a mismatching anchored hash refuses; only a longer verified chain
+whose prefix exactly matches the older mark can close the append→head crash
+window.
+
+All sidecar traversal is descriptor-rooted. `.nika`, `arm`, and the beat label
+are opened one component at a time with no-follow semantics; journal, archive,
+projection, and lock files are then opened relative to the held directory
+descriptor. A symlink component refuses, and replacing the visible beat path
+between claim and receipt cannot redirect the receipt. The run similarly uses
+a read-only private snapshot of the exact bytes hashed into `ArmGeneration`, so
+an edit or symlink swap after the claim cannot execute a different generation.
+
+W2 archives are part of that evidence rather than unauthenticated prehistory.
+The W7 `rotated` genesis commits their canonical numeric order, count, latest
+name and line count, plus a domain-separated SHA-256 over every canonical
+archive name and the SHA-256 of its exact bytes. Every replay, projection, heal,
+and append validates this bundle first; alteration, reordering, insertion, or
+deletion refuses instead of silently changing the folded past.
+
+This amendment was forced into the open by W7's ledger reversal. Keeping its
+pure codec and fold in `nika-cli` crossed the 15,000-production-LOC hard cap and
+would have made the resident `nika serve` consumer depend upward or duplicate the
+judge. Extracting only the pure boundary removed that pressure while leaving
+every effect at L4. The size gate exposed a missing architectural seam; it was
+not solved by hiding or compressing code.
 
 ### Why L0 and not inside a CLI crate
 
-Two L4 consumers are intended to read this registry — `nika arm` today,
-`nika serve` at ②. Shared logic beneath more than one L4 consumer belongs at
+Two L4 consumers read this registry — `nika arm` and the resident
+`nika serve`. Shared logic beneath more than one L4 consumer belongs at
 L0; putting it in a CLI crate would make the second consumer an upward
 dependency. This follows the precedent recorded in `nika-check`'s manifest
 (« THREE L0 consumers make any higher layer an upward-dep violation »).
-
-**Honest state of that argument**: only ONE of the two consumers exists today.
-The layering choice is therefore carried by one consumer plus a stated
-intention, and it is listed as a follow-up rather than presented as settled.
 
 ### The four locks — one law at four moments
 
@@ -80,7 +121,7 @@ The crate encodes D-2026-08-11-N1→N4, which are four faces of a single law ·
 | Lock | Law |
 |---|---|
 | **N1 · DST** | A slot that does not exist fires at the FIRST VALID instant (02:00 absent ⇒ 03:00); a doubled slot fires ONCE, at its first occurrence. Written policy, never a guess. |
-| **N2 · no resume** | A beat starts from ZERO; every tick is a new run. This crate computes slots and never carries run state. |
+| **N2 · no resume** | A beat starts from ZERO; every tick is a new run. The pure firing fold describes a prior lifecycle, but never resumes or executes one. |
 | **N3 · identity** | The MACHINE's key authorizes. `par:` DECLARES the human and proves nothing — a merge arms nothing. |
 | **N4 · absence** | Removing a line does NOT disarm. That gesture is `arm --disarm`, an L4 act this crate knows nothing about. |
 
@@ -110,6 +151,12 @@ unknown key is a refusal, not a shrug — the grammar is closed.
 ## Consequences
 
 Measured consumers today: `nika-cli` (the `nika arm` verb) and `nika-tui-core`.
+
+The ledger extraction makes the dependency direction explicit: the CLI is a
+filesystem adapter over the L0 judge. Deleting the adapter removes all I/O;
+deleting the L0 ledger module leaves the adapter unable to classify or rebuild
+state. No dependency cycle is introduced (`nika-cadence` has no dependency on
+`nika-cli`).
 
 Two findings recorded since the crate landed, both from building its first
 consumer:

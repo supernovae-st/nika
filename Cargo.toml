@@ -15,7 +15,7 @@ exclude = [
 ]
 
 [workspace.package]
-version      = "0.109.2"
+version      = "0.112.0"
 edition      = "2024"
 license      = "AGPL-3.0-or-later"
 authors      = ["Thibaut Melen <thibaut@supernovae.studio>"]
@@ -332,7 +332,7 @@ unicode-normalization = { version = "0.1", default-features = false }   # nika-t
 nix           = { version = "0.31", default-features = false, features = ["signal"] }   # nika-exec-runner L1 (unix) — safe killpg wrapper for process-group kill (encapsulates the unsafe signal FFI → crate stays unsafe_code = forbid · MIT)
 futures-core  = "0.3"
 parking_lot   = "0.12"
-tokio         = { version = "1", features = ["rt", "macros", "time"] }
+tokio         = { version = "1", features = ["rt", "macros", "time", "signal"] }   # signal: nika-cli L4 — `nika serve` (W5) stops clean on ctrl-c/SIGTERM (signal-hook-registry already vendored via the tree)
 globset       = "0.4"   # nika-fs L1 — FsList::glob matcher (literal_separator · MIT OR Unlicense)
 reqwest       = { version = "0.12", default-features = false, features = ["rustls-tls", "gzip", "brotli", "deflate", "http2"] }   # nika-http L1 + nika-catalog-verify L4 — pin once (RUST_ENFORCEMENT §2) · rustls (no openssl) · transparent gzip/br/deflate decode + h2 ALPN (the web compresses · pure-Rust miniz_oxide/brotli-decompressor/h2 · zstd SKIPPED: C dep)
 url           = "2"     # nika-http L1 — SSRF URL parsing (also transitive via reqwest · pinned aligned)

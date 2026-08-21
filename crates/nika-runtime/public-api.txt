@@ -582,8 +582,8 @@ pub fn nika_runtime::compose::net_boundary_of(wf: &nika_schema::raw::workflow::R
 pub fn nika_runtime::compose::net_boundary_of_permits(permits: core::option::Option<&nika_cap::permits::Permits>) -> nika_http::NetBoundary
 pub fn nika_runtime::compose::production_runtime(default_model: &str, caps: nika_runtime::compose::RuntimeCapabilities, run: core::option::Option<&nika_vocab::run::RunDecl>) -> core::result::Result<nika_runtime::compose::ProdRuntime, nika_runtime::sandbox_select::ComposeError>
 pub fn nika_runtime::compose::simulated_runtime(default_model: &str, caps: nika_runtime::compose::RuntimeCapabilities, run: core::option::Option<&nika_vocab::run::RunDecl>) -> core::result::Result<nika_runtime::compose::SimRuntime, nika_kernel_core::io::http::HttpError>
-pub type nika_runtime::compose::ProdRuntime = nika_runtime::Runtime<nika_exec_runner::TokioShell, nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::declared_clock::DeclaredClock, nika_runtime::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::NoWorkflow>, nika_http::ReqwestHttp, nika_runtime::compose::RegistryProvider<nika_http::ReqwestHttp>, nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::declared_clock::DeclaredClock, nika_runtime::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::NoWorkflow>, nika_clock::declared_clock::DeclaredClock>
-pub type nika_runtime::compose::SimRuntime = nika_runtime::Runtime<nika_runtime::simulated::SimulatedShell, nika_runtime::simulated::SimulatedDispatcher<nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::declared_clock::DeclaredClock, nika_runtime::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::NoWorkflow>>, nika_http::ReqwestHttp, nika_runtime::compose::RegistryProvider<nika_http::ReqwestHttp>, nika_runtime::simulated::SimulatedDispatcher<nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::declared_clock::DeclaredClock, nika_runtime::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::NoWorkflow>>, nika_clock::declared_clock::DeclaredClock>
+pub type nika_runtime::compose::ProdRuntime = nika_runtime::Runtime<nika_exec_runner::TokioShell, nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::declared_clock::DeclaredClock, nika_runtime::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::live::LiveInspect>, nika_http::ReqwestHttp, nika_runtime::compose::RegistryProvider<nika_http::ReqwestHttp>, nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::declared_clock::DeclaredClock, nika_runtime::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::live::LiveInspect>, nika_clock::declared_clock::DeclaredClock>
+pub type nika_runtime::compose::SimRuntime = nika_runtime::Runtime<nika_runtime::simulated::SimulatedShell, nika_runtime::simulated::SimulatedDispatcher<nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::declared_clock::DeclaredClock, nika_runtime::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::live::LiveInspect>>, nika_http::ReqwestHttp, nika_runtime::compose::RegistryProvider<nika_http::ReqwestHttp>, nika_runtime::simulated::SimulatedDispatcher<nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::declared_clock::DeclaredClock, nika_runtime::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::live::LiveInspect>>, nika_clock::declared_clock::DeclaredClock>
 pub mod nika_runtime::config
 #[non_exhaustive] pub struct nika_runtime::config::RuntimeConfig
 pub nika_runtime::config::RuntimeConfig::jitter_seed: u64
@@ -640,6 +640,68 @@ impl<T> tracing::instrument::Instrument for nika_runtime::config::RuntimeConfig
 impl<T> tracing::instrument::WithSubscriber for nika_runtime::config::RuntimeConfig
 impl<T> typenum::type_operators::Same for nika_runtime::config::RuntimeConfig
 pub type nika_runtime::config::RuntimeConfig::Output = T
+pub mod nika_runtime::identity
+#[non_exhaustive] pub struct nika_runtime::identity::EngineIdentity
+impl nika_runtime::identity::EngineIdentity
+pub const fn nika_runtime::identity::EngineIdentity::api_version(&self) -> &'static str
+pub const fn nika_runtime::identity::EngineIdentity::build_sha(&self) -> &'static str
+pub const fn nika_runtime::identity::EngineIdentity::engine_version(&self) -> &'static str
+pub const fn nika_runtime::identity::EngineIdentity::spec_sha(&self) -> &'static str
+pub const fn nika_runtime::identity::EngineIdentity::version_long(&self) -> &'static str
+impl core::clone::Clone for nika_runtime::identity::EngineIdentity
+pub fn nika_runtime::identity::EngineIdentity::clone(&self) -> nika_runtime::identity::EngineIdentity
+impl core::cmp::Eq for nika_runtime::identity::EngineIdentity
+impl core::cmp::PartialEq for nika_runtime::identity::EngineIdentity
+pub fn nika_runtime::identity::EngineIdentity::eq(&self, other: &nika_runtime::identity::EngineIdentity) -> bool
+impl core::fmt::Debug for nika_runtime::identity::EngineIdentity
+pub fn nika_runtime::identity::EngineIdentity::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_runtime::identity::EngineIdentity
+pub fn nika_runtime::identity::EngineIdentity::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_runtime::identity::EngineIdentity
+impl core::marker::StructuralPartialEq for nika_runtime::identity::EngineIdentity
+impl serde_core::ser::Serialize for nika_runtime::identity::EngineIdentity
+pub fn nika_runtime::identity::EngineIdentity::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_runtime::identity::EngineIdentity
+impl<Q, K> equivalent::Equivalent<K> for nika_runtime::identity::EngineIdentity where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_runtime::identity::EngineIdentity::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_runtime::identity::EngineIdentity where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_runtime::identity::EngineIdentity::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_runtime::identity::EngineIdentity where U: core::convert::From<T>
+pub fn nika_runtime::identity::EngineIdentity::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_runtime::identity::EngineIdentity where U: core::convert::Into<T>
+pub type nika_runtime::identity::EngineIdentity::Error = core::convert::Infallible
+pub fn nika_runtime::identity::EngineIdentity::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_runtime::identity::EngineIdentity where U: core::convert::TryFrom<T>
+pub type nika_runtime::identity::EngineIdentity::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_runtime::identity::EngineIdentity::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_runtime::identity::EngineIdentity where T: core::clone::Clone
+pub type nika_runtime::identity::EngineIdentity::Owned = T
+pub fn nika_runtime::identity::EngineIdentity::clone_into(&self, target: &mut T)
+pub fn nika_runtime::identity::EngineIdentity::to_owned(&self) -> T
+impl<T> core::any::Any for nika_runtime::identity::EngineIdentity where T: 'static + ?core::marker::Sized
+pub fn nika_runtime::identity::EngineIdentity::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_runtime::identity::EngineIdentity where T: ?core::marker::Sized
+pub fn nika_runtime::identity::EngineIdentity::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_runtime::identity::EngineIdentity where T: ?core::marker::Sized
+pub fn nika_runtime::identity::EngineIdentity::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_runtime::identity::EngineIdentity where T: core::clone::Clone
+pub unsafe fn nika_runtime::identity::EngineIdentity::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_runtime::identity::EngineIdentity
+pub fn nika_runtime::identity::EngineIdentity::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_runtime::identity::EngineIdentity where T: core::clone::Clone
+pub fn nika_runtime::identity::EngineIdentity::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_runtime::identity::EngineIdentity where T: 'static
+pub fn nika_runtime::identity::EngineIdentity::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_runtime::identity::EngineIdentity where T: core::marker::Copy
+pub fn nika_runtime::identity::EngineIdentity::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::identity::EngineIdentity where T: ?core::marker::Sized
+pub fn nika_runtime::identity::EngineIdentity::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_runtime::identity::EngineIdentity::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_runtime::identity::EngineIdentity
+impl<T> tracing::instrument::WithSubscriber for nika_runtime::identity::EngineIdentity
+impl<T> typenum::type_operators::Same for nika_runtime::identity::EngineIdentity
+pub type nika_runtime::identity::EngineIdentity::Output = T
+pub const fn nika_runtime::identity::engine_identity() -> &'static nika_runtime::identity::EngineIdentity
 pub mod nika_runtime::proof
 pub use nika_runtime::proof::FORMAT_VERSION
 pub use nika_runtime::proof::HashDomain
@@ -1277,6 +1339,66 @@ impl<T> tracing::instrument::Instrument for nika_runtime::TerminalCause
 impl<T> tracing::instrument::WithSubscriber for nika_runtime::TerminalCause
 impl<T> typenum::type_operators::Same for nika_runtime::TerminalCause
 pub type nika_runtime::TerminalCause::Output = T
+#[non_exhaustive] pub struct nika_runtime::EngineIdentity
+impl nika_runtime::identity::EngineIdentity
+pub const fn nika_runtime::identity::EngineIdentity::api_version(&self) -> &'static str
+pub const fn nika_runtime::identity::EngineIdentity::build_sha(&self) -> &'static str
+pub const fn nika_runtime::identity::EngineIdentity::engine_version(&self) -> &'static str
+pub const fn nika_runtime::identity::EngineIdentity::spec_sha(&self) -> &'static str
+pub const fn nika_runtime::identity::EngineIdentity::version_long(&self) -> &'static str
+impl core::clone::Clone for nika_runtime::identity::EngineIdentity
+pub fn nika_runtime::identity::EngineIdentity::clone(&self) -> nika_runtime::identity::EngineIdentity
+impl core::cmp::Eq for nika_runtime::identity::EngineIdentity
+impl core::cmp::PartialEq for nika_runtime::identity::EngineIdentity
+pub fn nika_runtime::identity::EngineIdentity::eq(&self, other: &nika_runtime::identity::EngineIdentity) -> bool
+impl core::fmt::Debug for nika_runtime::identity::EngineIdentity
+pub fn nika_runtime::identity::EngineIdentity::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_runtime::identity::EngineIdentity
+pub fn nika_runtime::identity::EngineIdentity::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_runtime::identity::EngineIdentity
+impl core::marker::StructuralPartialEq for nika_runtime::identity::EngineIdentity
+impl serde_core::ser::Serialize for nika_runtime::identity::EngineIdentity
+pub fn nika_runtime::identity::EngineIdentity::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_runtime::identity::EngineIdentity
+impl<Q, K> equivalent::Equivalent<K> for nika_runtime::identity::EngineIdentity where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_runtime::identity::EngineIdentity::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_runtime::identity::EngineIdentity where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_runtime::identity::EngineIdentity::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_runtime::identity::EngineIdentity where U: core::convert::From<T>
+pub fn nika_runtime::identity::EngineIdentity::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_runtime::identity::EngineIdentity where U: core::convert::Into<T>
+pub type nika_runtime::identity::EngineIdentity::Error = core::convert::Infallible
+pub fn nika_runtime::identity::EngineIdentity::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_runtime::identity::EngineIdentity where U: core::convert::TryFrom<T>
+pub type nika_runtime::identity::EngineIdentity::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_runtime::identity::EngineIdentity::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_runtime::identity::EngineIdentity where T: core::clone::Clone
+pub type nika_runtime::identity::EngineIdentity::Owned = T
+pub fn nika_runtime::identity::EngineIdentity::clone_into(&self, target: &mut T)
+pub fn nika_runtime::identity::EngineIdentity::to_owned(&self) -> T
+impl<T> core::any::Any for nika_runtime::identity::EngineIdentity where T: 'static + ?core::marker::Sized
+pub fn nika_runtime::identity::EngineIdentity::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_runtime::identity::EngineIdentity where T: ?core::marker::Sized
+pub fn nika_runtime::identity::EngineIdentity::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_runtime::identity::EngineIdentity where T: ?core::marker::Sized
+pub fn nika_runtime::identity::EngineIdentity::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_runtime::identity::EngineIdentity where T: core::clone::Clone
+pub unsafe fn nika_runtime::identity::EngineIdentity::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_runtime::identity::EngineIdentity
+pub fn nika_runtime::identity::EngineIdentity::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_runtime::identity::EngineIdentity where T: core::clone::Clone
+pub fn nika_runtime::identity::EngineIdentity::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_runtime::identity::EngineIdentity where T: 'static
+pub fn nika_runtime::identity::EngineIdentity::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_runtime::identity::EngineIdentity where T: core::marker::Copy
+pub fn nika_runtime::identity::EngineIdentity::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::identity::EngineIdentity where T: ?core::marker::Sized
+pub fn nika_runtime::identity::EngineIdentity::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_runtime::identity::EngineIdentity::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_runtime::identity::EngineIdentity
+impl<T> tracing::instrument::WithSubscriber for nika_runtime::identity::EngineIdentity
+impl<T> typenum::type_operators::Same for nika_runtime::identity::EngineIdentity
+pub type nika_runtime::identity::EngineIdentity::Output = T
 #[non_exhaustive] pub struct nika_runtime::RunOutcome
 pub nika_runtime::RunOutcome::budget_exceeded: bool
 pub nika_runtime::RunOutcome::cache_hits: alloc::vec::Vec<alloc::string::String>
@@ -1360,6 +1482,7 @@ pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_boot_access_fields(self, fi
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_child_closures(self, closures: alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_harness_seat_id(self, id: core::option::Option<alloc::string::String>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_input_origins(self, origins: alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_types::origins::InputOrigin>) -> Self
+pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_inspect(self, cell: alloc::sync::Arc<nika_builtin::live::LiveInspect>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_max_cost_usd(self, budget: core::option::Option<f64>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_model_override(self, model: core::option::Option<alloc::string::String>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_paused_approval(self, paused: core::option::Option<nika_runtime::approval::PausedApproval>) -> Self
@@ -1643,6 +1766,7 @@ pub type nika_runtime::WorkflowPause::Output = T
 pub fn nika_runtime::access_pin_refusal(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, probes: &[nika_providers::probe::ProviderProbe], access_pin: core::option::Option<&str>, model_override: core::option::Option<&str>) -> core::option::Option<nika_runtime::RuntimeError>
 pub fn nika_runtime::budget_floor_refusal(wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, budget: core::option::Option<f64>, model_override: core::option::Option<&str>) -> core::option::Option<nika_runtime::RuntimeError>
 pub fn nika_runtime::capabilities_of(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_runtime::compose::RuntimeCapabilities
+pub const fn nika_runtime::engine_identity() -> &'static nika_runtime::identity::EngineIdentity
 pub fn nika_runtime::floor_refusal(floor: f64, budget: f64) -> core::option::Option<alloc::string::String>
 pub fn nika_runtime::input_origins(wf: &nika_schema::raw::workflow::RawWorkflow, overrides: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>, env_sourced: &alloc::collections::btree::set::BTreeSet<alloc::string::String>, ci: bool) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_types::origins::InputOrigin>
 pub const fn nika_runtime::legal(class: nika_runtime::TaskStatus, cause: nika_runtime::TerminalCause) -> bool
@@ -1651,5 +1775,5 @@ pub fn nika_runtime::required_inputs_refusal(wf: &nika_schema::raw::workflow::Ra
 pub fn nika_runtime::scope_to_task(wf: nika_schema::raw::workflow::RawWorkflow, target: &str) -> core::result::Result<nika_schema::raw::workflow::RawWorkflow, alloc::string::String>
 pub fn nika_runtime::simulated_runtime(default_model: &str, caps: nika_runtime::compose::RuntimeCapabilities, run: core::option::Option<&nika_vocab::run::RunDecl>) -> core::result::Result<nika_runtime::compose::SimRuntime, nika_kernel_core::io::http::HttpError>
 pub fn nika_runtime::unbounded_breakdown(cost: &nika_check::cost::CostCeiling) -> alloc::string::String
-pub type nika_runtime::ProdRuntime = nika_runtime::Runtime<nika_exec_runner::TokioShell, nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::declared_clock::DeclaredClock, nika_runtime::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::NoWorkflow>, nika_http::ReqwestHttp, nika_runtime::compose::RegistryProvider<nika_http::ReqwestHttp>, nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::declared_clock::DeclaredClock, nika_runtime::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::NoWorkflow>, nika_clock::declared_clock::DeclaredClock>
-pub type nika_runtime::SimRuntime = nika_runtime::Runtime<nika_runtime::simulated::SimulatedShell, nika_runtime::simulated::SimulatedDispatcher<nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::declared_clock::DeclaredClock, nika_runtime::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::NoWorkflow>>, nika_http::ReqwestHttp, nika_runtime::compose::RegistryProvider<nika_http::ReqwestHttp>, nika_runtime::simulated::SimulatedDispatcher<nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::declared_clock::DeclaredClock, nika_runtime::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::NoWorkflow>>, nika_clock::declared_clock::DeclaredClock>
+pub type nika_runtime::ProdRuntime = nika_runtime::Runtime<nika_exec_runner::TokioShell, nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::declared_clock::DeclaredClock, nika_runtime::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::live::LiveInspect>, nika_http::ReqwestHttp, nika_runtime::compose::RegistryProvider<nika_http::ReqwestHttp>, nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::declared_clock::DeclaredClock, nika_runtime::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::live::LiveInspect>, nika_clock::declared_clock::DeclaredClock>
+pub type nika_runtime::SimRuntime = nika_runtime::Runtime<nika_runtime::simulated::SimulatedShell, nika_runtime::simulated::SimulatedDispatcher<nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::declared_clock::DeclaredClock, nika_runtime::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::live::LiveInspect>>, nika_http::ReqwestHttp, nika_runtime::compose::RegistryProvider<nika_http::ReqwestHttp>, nika_runtime::simulated::SimulatedDispatcher<nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::declared_clock::DeclaredClock, nika_runtime::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::live::LiveInspect>>, nika_clock::declared_clock::DeclaredClock>

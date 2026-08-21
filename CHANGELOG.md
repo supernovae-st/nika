@@ -10,6 +10,310 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+### Changed
+
+- **The engine carries one compile-time identity for its version, build,
+  language pin and remote API axis.** `nika-runtime` now owns the typed
+  `EngineIdentity` consumed by trace prologues, `nika check --json` and the CLI
+  version surface. The embedded language pack is re-vendored from that exact
+  `SPEC_PIN`, records the same commit in `pack/SPEC_SHA`, and the build refuses
+  split identity.
+
+### Fixed
+
+- **The pinned conformance clock includes Agent Skills and current trace
+  witnesses.** The harness now exercises the spec's skill lane with exact
+  `AGENT`, `AUTH` and `SEC` refusal codes, recognizes the entropy/jitter law,
+  and replays every current runtime-trace verdict. The heal workflow advances
+  the pin and pack together on an immutable PR branch; Diamond CI independently
+  re-vendors every mapped byte.
+
+## [0.112.0](https://github.com/supernovae-st/nika/compare/v0.111.0..v0.112.0) - 2026-08-20
+
+**The instrument-honesty release.** Three features and sixteen fixes, several
+of which began as a measurement disagreeing with what a surface said. A cargo
+test binary can no longer open the OS keychain — an ACL is bound to the
+requesting binary, and a test binary's hash changes on every compile, so the
+prompt could never be answered once and for all. `nika check`'s JOURNEY rung
+counts model endpoints instead of tasks, ending a card that contradicted
+itself four lines apart: COST read `no infer/agent tasks` while JOURNEY read
+`3 model endpoints`. A fan-out that recovered now says so in its record and
+not only in its prose, which is what spec 13 requires of the pair. And the
+`exec:` fit lane gained an fs arm, so a leg jailed away from its own script
+is refused at check instead of exiting 126 under a green card.
+
+### Added
+
+- **`nika list` names every workflow below the current directory.** Output is
+  stable and root-relative, nested workflows are included, project metadata
+  and hidden/build directories stay out, and an incomplete walk refuses
+  instead of presenting a partial inventory as exhaustive.
+- **Bare `nika` on a terminal opens one continuous thread.** Model turns
+  stream through the existing `agent:` runtime; `/workflow` posts a workflow
+  into the thread, `/run` executes it there, and Ctrl-C interrupts the active
+  turn without closing the outer conversation.
+
+### Removed
+
+- **BREAKING — `VirtualClock` loses its dead time-mover (`nika-clock`).**
+  `VirtualClock::advance` and `VirtualClock::elapsed_total` are removed:
+  `advance` documented itself as « the ONLY mover of virtual time » while
+  having zero production callers — virtual time never moved, so under
+  `run: { clock: virtual }` (or `entropy: none | seeded(N)`, which imply
+  it) a task `timeout:` budget raced an instantly-ready timer and every
+  deadline was already settled at dispatch. The clock is now honestly
+  FROZEN by construction (`Copy` bases, no shared offset): an author who
+  needs a real deadline honored against real work must not declare
+  `clock: virtual`. Wiring the task `timeout:` budget to the exec
+  runner's own deadline (`linger: false`) is a follow-up wave.
+- **The exec runner's process-group kill is removed
+  (`nika-exec-runner`).** `terminate_group` (SIGTERM→SIGKILL the whole
+  process group) plus the `process_group(0)` spawn setup were correct
+  and tested but unreachable in production — they fired only on
+  `TimedOut`/`Cancelled`, and the engine never assigns
+  `ShellCommand.timeout` nor invokes `cancel`. Cancellation stays
+  `kill_on_drop` (INV-011 · future-drop, the ADR-016 primary); detached
+  grandchildren are no longer group-killed on the embedder-facing
+  timeout/cancel arms, and the `nix` dependency goes with them.
+
+### Changed
+
+- **BREAKING — the event error codes leave the Shield reservation
+  (`nika-event`).** `NIKA_420/421/422` (serialize failed · buffer full ·
+  lock poisoned) were minted inside the locked Shield band (380-429), so
+  a full event buffer surfaced as « Shield security policy blocked the
+  operation » — a refusal its reader would read as security. They are
+  renumbered into their own Observability band (800-819) as
+  `NIKA_801/802/803`, constants renamed with them.
+
+### Fixed
+
+- **A cargo test binary no longer opens the OS keychain.** A macOS keychain
+  ACL is bound to the requesting BINARY, and a test binary is
+  `target/<profile>/deps/<name>-<hash>` whose hash changes on every
+  recompile — so "Always Allow" grants a binary that will never exist
+  again and the prompt returns forever, on every worktree, with no
+  operator-side gesture that stops it. `NIKA_KEYCHAIN=off` now skips the
+  custody, and a test binary skips it by default whether or not anyone
+  remembers the flag. An installed `nika` and `cargo run` land outside
+  `deps/` and keep their custody unchanged. All eight keyring call sites
+  sit behind the flag, held there by a ratchet that walks the crate's own
+  source.
+
+- **The JOURNEY rung counts model endpoints, not tasks.** The envelope
+  `model:` is a fallback for a task that HAS a model · it was applied to
+  every task, so a body of builtin invokes read `3 model endpoints` while
+  the COST rung four lines above read `no infer/agent tasks` — one card
+  contradicting itself. `model_endpoint_of` already typed the task and
+  threw the answer away on the next line. Across the shipped corpus 45 of
+  99 cards carried an inflated count; each is now exactly the number of
+  `infer:`/`agent:` tasks the file declares, and no verdict changed.
+
+- **`nika check` judges every secret sharing one effect independently.** A
+  sink that referenced two secrets previously retained only the first IFC
+  trace, so clearing that first edge could hide an uncleared second edge.
+  Direct references and task-local `with:` / `for_each` item aliases now
+  produce one consent verdict per distinct secret while the existing
+  singular output-propagation trace stays unchanged and bounded. Literal
+  `for_each.items` secret references also appear in the data journey.
+
+- **`nika check` now judges the script an `exec:` interpreter must open.**
+  The runtime jails every `exec:` child to the declared `permits.fs` set, so
+  `exec: ["bash", "leg.sh"]` with no `fs.read` grant could never open its
+  own script — measured on seatbelt, the leg exits **126** with empty
+  stdout. The audit was ✔ on all fourteen lanes and the run rendered it
+  `✔ leg` with rc 0: a leg that did nothing, reported as a success. The
+  `exec:` fit lane gained an fs arm beside its net arm (which shipped
+  2026-07-29 for the same sentence one boundary over), so the escape is a
+  `NIKA-SEC-004` finding at check with the one-line repair. The claim is
+  narrow on purpose — only a literal argv whose program is an interpreter,
+  on its script positional, through a literal `cwd:`; everything else stays
+  the runtime's verdict, and the verdict models the jail (which binds a
+  grant's literal prefix and never globs) rather than the stricter lexical
+  walk. `--infer-permits` learned the same fact in the same change, so the
+  boundary it writes cannot self-refuse the workflow it came from. Swept
+  over the shipped corpus: 63 of 63 unchanged.
+- **The TRIFECTA tick is derived, so it cannot outlive the gate that
+  bought it.** Measured on 0.111.0, one card printed `✔ TRIFECTA … without
+  a human gate` four lines above two `NIKA-SEC-014` rows proving that same
+  gate lets the effect fire on 'no'; a control run with the prompt deleted
+  raised `NIKA-SEC-009`, so the trifecta was complete and the tick was
+  bought entirely by a rubber stamp. The lane credited a *blocking prompt*
+  (one task, one key lookup) while the consent lane ran the full
+  refusal-substitution walk — and the clearance discarded WHICH gate it
+  credited, so a trifecta cleared by a gate and one cleared by a missing
+  leg were the same empty vec. The clearance now publishes its credit and
+  the rung withholds the tick where another lane refutes it, pointing at
+  the code that owns the repair. No second finding: the consent row
+  already names the defect and teaches the fix.
+
+- **The `nika-error` crate-spec band table matches the one-voice
+  registry.** It still read `330-379 Binding/template · 380-429 Provider`
+  while the registry moved Provider to 330-379 (2026-05-11) and reserves
+  380-429 for Shield. The stale rows invited exactly the collision the
+  reservation exists to prevent.
+
+## [0.111.0](https://github.com/supernovae-st/nika/compare/v0.110.0..v0.111.0) - 2026-08-19
+
+**The authoring-loop release.** `nika check --json` now reports
+`paid_ready`, `compiled` and `next` — a green parse is legal, not
+best. `nika:inspect` is live: the runtime seeds the DAG at run
+start and a workflow can read its own cost, records, dag_info and
+threads. `nika:compose` stays loop-only (grant after `nika:done`;
+checking never executes). The arm lock outlives the shot.
+
+### Added
+
+- **`paid_ready` · `compiled` · `next` on `nika check --json`
+  (#1013).** `paid_ready` is silent only when no paid-run hint
+  remains. `compiled` means the law is proven (const-fixture
+  assert). `next` is the first repair. `nika explain` prints a
+  **before a paid model** panel. MCP `nika_check` hard-fails
+  `infer-as-law` and `digit-string-enum` only.
+
+- **`nika:inspect` is live (#1018).** `LiveInspect` is the same
+  `Arc` the dispatcher and the runtime share. The DAG is seeded at
+  run start — the first task sees `available: true`. Records and
+  spend mirror after each wave. Hint `inspect-unwired` is retired.
+  Teaching shape: `16-inspect-self`.
+
+- **Lesson 15 `nika:compose` on an agent whitelist (#1016).**
+  Grant after `nika:done`. The model drafts YAML, gets the full
+  check JSON, iterates until `valid`. A standalone `invoke:` is
+  `NIKA-BUILTIN-COMPOSE-001`. Checking never executes the draft.
+  Parent→child composition stays lesson 10.
+
+- **The arm lock outlives the shot (#1015).** A fire that is
+  still running keeps the project lock so a second tick cannot
+  overlap the first.
+
+### Fixed
+
+- **Authoring seams from a paid extract wave (#1012).**
+  `nika:hash` serializes structured `content:`. `nika:validate`
+  parses string schemas. Scalar `anyOf` flattens into coerce.
+  `for_each` + `item.field` is resume-eligible (collection is the
+  input identity). Hints: `digit-string-enum` · `glob-readme` ·
+  `jq-as-map` · `assert-quarantine`.
+
+## [0.110.0](https://github.com/supernovae-st/nika/compare/v0.109.2..v0.110.0) - 2026-08-19
+
+**The arming release.** The project file `nika.yaml` learns to PROPOSE a
+schedule, and the machine learns to keep it — « le fichier propose, la
+machine dispose ». The `arm:` registry carries the team's armed beats
+(thirteen keys, two of them required with no default — `plafond:` and
+`manqué:` — because choosing for you would be choosing who pays), one
+firer computes the due window and spends under the per-tick ceiling, the
+OS bridge hands launchd/systemd the calendar, and `nika serve` keeps the
+same firer resident behind the wall clock. One firer, four doors (D2):
+`nika arm fire`, the emitted OS units, and `serve` all end at the SAME
+fire — a beat the lock, the ceiling, or the miss policy governs is
+governed identically no matter who pulled the trigger.
+
+### Added
+
+- **The project file carries the thirteen beat keys (`arm:` · W1 ·
+  #993).** Each beat spells `workflow` (a repo-relative `*.nika.yaml`
+  path) · `cadence` (a 5-field cron with the zone INSIDE the expression
+  — `TZ=Europe/Paris 0 9 * * 1` — or `on-webhook`, resolved against the
+  embedded tzdb, never the host's) · `où` · `plafond` · `manqué` ·
+  `chevauchement` · `après_saut` · `actif` · `raison` · `jusqu_au` ·
+  `tolérance` · `décalage` · `par`. The grammar is CLOSED
+  (`deny_unknown_fields`): an unknown key fails at parse and the refusal
+  names what is known. `plafond:` (the per-tick USD ceiling) and
+  `manqué:` (what "missed" means: `rattraper` · `rattraper-une-fois` ·
+  `sauter`) are OBLIGATORY with no default — a default `rattraper`
+  spends what nobody asked for, a default `sauter` loses a deliverable
+  in silence. A suspended beat must tell its story: `actif: false`
+  without `raison:` is a suspension nobody narrates, without
+  `jusqu_au:` an oblivion — both refuse by name. Bare `nika arm` READS
+  the registry and reports what is armed, due, suspended, or refused —
+  it fires nothing.
+
+- **`nika arm fire <label>` — the one firer (W2 · #1001).** Computes
+  the planner's silence over `(last, now]`, the on-time window, and the
+  miss policy; takes the project lock; refuses BEFORE spending when the
+  tick would cross the beat's `plafond:`; and writes the firing record
+  to the ledger. Prints exactly one stdout line, always (D8) — a skip
+  is an event, said as such (`skipped <label> · inactive — <raison>`),
+  never a silence.
+
+- **`nika arm --emit launchd|systemd` — the OS bridge (W3 · #1005).**
+  Renders the unit files PURE from the registry (`--write` installs
+  them); per-beat units are labelled `nika.arm.<radical>` (D4 — the
+  labels the firer uses, computed once); the env file rides by PATH
+  only (D7 — provider keys never enter a unit). launchd's
+  `StartCalendarInterval` is the cartesian product of the restricted
+  fields, counted before built — past 500 dicts the emit refuses (a
+  plist of n dicts is a load, not a calendar); systemd writes the sets
+  inline and the zone travels in `OnCalendar=`; `Persistent=` answers
+  `manqué ≠ sauter`. Every refusal teaches: D10 `TzMismatch` (launchd
+  fires in the machine's zone — the remedy names `TZ=` or systemd) ·
+  `Webhook` (no calendar can fire an event) · `TooManyIntervals` · the
+  D6 v0 set below.
+
+- **`nika arm disarm <label>` — the N4 gesture (W3 · #1005).** Removing
+  the line does NOT disarm — the file would simply stop proposing while
+  the OS keeps firing. Disarming is `actif: false` + `raison:` +
+  `jusqu_au:` in the registry; the verb teaches exactly that, and
+  `--tear-down` takes the emitted OS unit down with it.
+
+- **`nika serve` — the same firer, resident (W5 · #1008).** The SAME
+  `fire` as `arm fire` and the OS units (D2), driven by the wall clock
+  in place of launchd/systemd. The loop reads ONLY the registry —
+  judged by vocab + cadence BEFORE any shot — and its own `.nika/arm/`
+  sidecar; it reloads `nika.yaml` when its mtime moves (a broken edit
+  is told, and the last-good registry keeps serving); it fires what
+  `due` returns through the one firer (the per-tick ceiling always
+  passed · every fire is a fresh run); and it sleeps to the earliest
+  next slot (≤ 60 s) racing ctrl-c/SIGTERM — a signal breaks clean
+  (exit 0 · the current fire, synchronous, finishes first · the lock is
+  released). No network input, no environment read, no argument beyond
+  the clap surface.
+
+### What v0 refuses — and when each arrives (D6)
+
+A policy the firer cannot honor REFUSES, never approximates — and the
+refusal names the version the support arrives with:
+
+| Written in the file | v0's answer | Arrives with |
+|---|---|---|
+| `chevauchement: remplacer` | refuses — today: `sauter` (the law-⑥ default) or `file` | serve v0.2 |
+| `après_saut: à-complétion` | refuses — today: `prochain-créneau` (the default) | serve v0.2 |
+| `manqué: rattraper` | refuses — today: `rattraper-une-fois` or `sauter` | serve v0.2 |
+| `décalage:` | refuses — today the slot fires at the instant said | serve v0.2 |
+| `où: cloud` | the local firer SKIPS the beat, journaled — « le cloud exécute, le calendrier demeure au registre » | the cloud rung |
+| `signature:` · `budget:` | refused at validation, by name — round-2 keys: round 1 claims nothing it cannot prove (`traces:`/`registry:` likewise) | round 2 |
+
+### Fixed
+
+- **The ORDER and LIFT findings render in the human lane
+  (`nika-display` · #1002).**
+- **LOT 3 task-body rungs + the sweep's third lock (#999).**
+- **Leftover fourteen-key teaching in `nika explain` and rustdoc
+  (#1007).** `NIKA-PARSE-002` taught `nika: v1` + `workflow:` + a
+  `tasks:` list; `NIKA-PARSE-005` parked custom metadata in
+  `description:`. The `RawWorkflow` fence, the analyzer crate doc,
+  `MissingEnvelopeField`, and the LSP outline still named `workflow:`
+  as a required envelope key. They now speak the live nine-key
+  envelope (identity on `nika: <kebab-id>` · `tasks:` is a map ·
+  prose is a `#` comment above `nika:`).
+
+### Documentation
+
+- **In-repo teaching speaks the nine-key envelope of 0.109** — the
+  hello-example comments name the nine-key identity (#995) · the README
+  gifs are rebaked for the envelope (#996) · the docs sweep of 0.109
+  lands in-repo (#992).
+
+### Build & CI
+
+- **The release funnel runs on every push (#985)** — the gate the tag
+  trusts has already run on the commit it tags.
+- **apt gets a deadline (#1000)** — a mirror stall is a five-minute
+  red, not a six-hour hang.
+- **The pack follows the spec (#987).**
+
 ## [0.109.2](https://github.com/supernovae-st/nika/compare/v0.109.1..v0.109.2) - 2026-08-19
 
 **The second refusal, one layer down.** `v0.109.1` fixed the fossil envelope

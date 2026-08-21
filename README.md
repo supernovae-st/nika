@@ -45,8 +45,14 @@ Yes.
 brew install supernovae-st/tap/nika    # or: curl -LsSf https://nika.sh/install.sh | sh
 nika try 01-hello                                # zero setup: no key, no model server
 nika try 01-hello --model ollama/llama3.2:3b     # got Ollama? the same run, real + local
+nika list                                        # workflows below this directory
+nika                                             # on a terminal: open one continuous thread
 # (first run loads the model into memory; later runs are much faster)
 ```
+
+Inside the thread, normal text streams through the existing `agent:` runtime.
+`/workflow <path>` posts a workflow card, `/run <path>` runs it in the same
+thread, and Ctrl-C interrupts the active turn while leaving the thread open.
 
 ![nika check audits the workflow (plan, cost, secrets, types), then nika run executes it locally](media/nika-hero.gif)
 
@@ -357,7 +363,7 @@ era of private prototypes through summer 2025 · first git commit on
 January 1, 2026 on the branch named `brouillon` · **79 versions in a
 103-day draft era** (public [crates.io trail](https://crates.io/crates/nika/versions)
 from March) · then **rewritten from scratch on April 13, 2026** — the
-Diamond era, an orphan branch, zero code inherited, the version line
+Diamond era, zero code inherited, the version line
 continuing because the language is the continuity. Every dated claim is machine-verified in the spec
 repo's [timeline](https://github.com/supernovae-st/nika-spec/blob/main/timeline/timeline.yaml),
 rendered with the forward gates at [nika.sh/timeline](https://nika.sh/timeline).

@@ -37,13 +37,13 @@ use lazy::{check_lazy, resolve_lazy_target, run_lazy};
     name = "nika",
     bin_name = "nika",
     version,
-    // #774 · the build stamp rides the long form (build.rs): a between-tags build never reads as its tag; gitless ⇒ long IS bare.
-    long_version = env!("NIKA_VERSION_LONG"),
+    // The L3 identity is shared by every adapter; gitless builds keep the bare version.
+    long_version = nika_runtime::engine_identity().version_long(),
     about = "nika · the AI workflow engine — operator surface",
     // The lost-user footer (clig.dev · suggest the next command): a bare
     // `nika` is someone asking where to start, not someone reading a
     // reference. Three commands, zero keys, offline.
-    after_help = "the map (the craft · 12 verbs):\n  begin     try · new · init          # see it work · one file · found a repo\n  prove     check · test              # audit before tokens · goldens\n  run       run · trace               # the living DAG · the flight recorder\n  machine   welcome · doctor · model · wire\n  learn     explain\n\nthe full surface (protocols · trust cycle · plumbing): nika --help --all\n\nstart here:\n  nika                     # the concierge (a terminal greets you)\n  nika try 01-hello        # offline proof · zero keys · zero flags\n  nika init                # found this repo — the wizard"
+    after_help = "the map (the craft · 13 verbs):\n  begin     try · new · init · list   # see it work · one file · found a repo\n  prove     check · test              # audit before tokens · goldens\n  run       run · trace               # the living DAG · the flight recorder\n  machine   welcome · doctor · model · wire\n  learn     explain\n\nthe full surface (protocols · trust cycle · plumbing): nika --help --all\n\nstart here:\n  nika                     # the concierge (a terminal greets you)\n  nika try 01-hello        # offline proof · zero keys · zero flags\n  nika init                # found this repo — the wizard"
 )]
 struct Cli {
     /// When to colour the output (auto = TTY + `TERM != dumb` · honours
@@ -116,6 +116,9 @@ impl ColorWhenArg {
 
 #[derive(Subcommand)]
 enum Command {
+    /// List the workflows below this directory, one relative path per line.
+    #[command(display_order = 11)]
+    List,
     /// The mirror: what Nika is · what this machine already has (editors ·
     /// local models · key presence · this workspace) · the next commands.
     /// Offline · presence-only · always exit 0 — a greeting, not a gate.
@@ -186,12 +189,11 @@ enum Command {
     /// What this project has ARMED, and when each beat next fires.
     /// Read-only — it schedules nothing (the file proposes, the machine
     /// disposes). Exit `0` clean · `2` the registry refuses.
-    ///
-    /// RANGED, never deleted (RAMS-13): the first screen is the twelve
-    /// day-one craft verbs, and arming a project is not day one. It
-    /// stays one flag away (`--help --all`) and AGENTS.md teaches it.
-    #[command(hide = true, display_order = 72)]
-    Arm,
+    #[command(display_order = 72)]
+    Arm(verbs::arm::args::ArmArgs),
+    /// The resident firer: the SAME `fire`, the wall clock in place of the OS (W5). Exit `0` clean · `1` otherwise.
+    #[command(hide = true, display_order = 73)]
+    Serve(verbs::serve::ServeArgs),
     /// Sign a workflow file (S3 · author-binding): mint `<file>.minisig` · `--check` verifies.
     #[command(hide = true, display_order = 71)]
     Sign(verbs::sign::SignArgs),
@@ -261,8 +263,9 @@ enum Command {
     Try(try_args::TryArgs),
     /// The ONE creation door: describe the job in plain words (routes),
     /// or name a slug/skeleton (takes it, ingredients included) — the
-    /// destination derives from the slug. Bare `nika new` on a terminal
-    /// is the guided flow; `nika new '?'` lists the skeleton set.
+    /// destination derives from the slug. Plain words route across jobs,
+    /// lessons and skeletons. Bare `nika new` on a terminal is the guided
+    /// flow; `nika new '?'` lists the skeleton set.
     #[command(display_order = 11)]
     New {
         /// Plain-words intent, an example slug, or a skeleton name
@@ -633,10 +636,11 @@ fn main() -> std::process::ExitCode {
 
 fn real_main() -> std::process::ExitCode {
     // RAMS-13 · the full surface on demand: `--help --all` prints the
-    // SAME tree with nothing hidden (12 craft verbs lead the default
-    // help; protocols · trust cycle · plumbing stay one flag away —
-    // ranged, never removed). Judged before clap parses, and ONLY when
-    // the whole invocation is help words — a named verb keeps its own
+    // SAME tree with nothing hidden (the craft plus the documented
+    // `arm` door lead the default help; protocols · trust cycle ·
+    // plumbing stay one flag away — ranged, never removed). Judged
+    // before clap parses, and ONLY when the whole invocation is help
+    // words — a named verb keeps its own
     // help untouched (`nika trace rm --all --help` is trace's business:
     // `--all` is a REAL flag there, the adversarial pass caught the
     // theft).
@@ -666,6 +670,11 @@ fn real_main() -> std::process::ExitCode {
         link_when,
     );
     let Some(command) = cli.command else {
+        if std::io::stdin().is_terminal() && std::io::stdout().is_terminal() {
+            return std::process::ExitCode::from(verbs::session::run(interactive_theme(
+                plain_theme,
+            )));
+        }
         return concierge(plain_theme);
     };
     let code = dispatch_verb(command, plain_theme, color, link_when, cli.plain, cli.ascii);
@@ -721,6 +730,7 @@ fn dispatch_verb(
     ascii: bool,
 ) -> u8 {
     match command {
+        Command::List => emit(&verbs::list::run(std::path::Path::new("."))),
         Command::Check(args) => check_arm(args, plain_theme),
         Command::Run(args) => run_lazy(args, color, link_when, plain, ascii),
         Command::Test { file, update } => test_arm(file, update, plain_theme),
@@ -732,7 +742,8 @@ fn dispatch_verb(
             forecast,
         } => emit(&explain_dispatch(&code, json, forecast, plain_theme)),
         Command::Key { action } => emit(&verbs::key::run(action)),
-        Command::Arm => emit(&verbs::arm::run()),
+        Command::Arm(a) => emit(&verbs::arm::run(a)),
+        Command::Serve(a) => emit(&verbs::serve::run(&a)),
         Command::Sign(args) => emit(&verbs::sign::run(&args)),
         Command::Doctor(args) => doctor_verb(&args, plain_theme),
         Command::Init(args) => emit(&init_verb(&args, plain_theme)),
@@ -1147,36 +1158,41 @@ mod tests {
     }
     /// THE LAW (RAMS-13 · census over 19 personas: 12 of 23 verbs
     /// reached by <=1 user, yet all 23 hit 11 first-timers in the
-    /// face): the default help shows AT MOST the 12 craft verbs; the
-    /// full tree stays one flag away (`--help --all`) and NOTHING is
-    /// removed — visible + hidden is the whole enum, invariant. Ranged,
-    /// never deleted: `key`/`sign`/`mcp`/`lsp` serve — just not on day
-    /// one.
+    /// face): the default help shows exactly the 13 craft verbs plus
+    /// `arm`; the full tree stays one flag away (`--help --all`) and
+    /// NOTHING is removed — visible + hidden is the whole enum,
+    /// invariant. Ranged, never deleted: `key`/`sign`/`mcp`/`lsp`
+    /// serve — just not on day one.
     #[test]
-    fn the_default_help_shows_the_craft_and_hides_nothing_forever() {
+    fn the_default_help_shows_the_craft_plus_arm_and_hides_nothing_forever() {
         let cmd = <Cli as clap::CommandFactory>::command();
         let total = cmd
             .get_subcommands()
             .filter(|c| c.get_name() != "help")
             .count();
-        let visible: Vec<&str> = cmd
+        let visible: std::collections::BTreeSet<&str> = cmd
             .get_subcommands()
             .filter(|c| !c.is_hide_set() && c.get_name() != "help")
             .map(clap::Command::get_name)
             .collect();
-        assert!(
-            visible.len() <= 12,
-            "the first screen is the craft, not a manifesto: {visible:?}"
+        let expected: std::collections::BTreeSet<&str> = [
+            "try", "new", "init", "list", "check", "run", "test", "trace", "welcome", "doctor",
+            "model", "wire", "explain", "arm",
+        ]
+        .into_iter()
+        .collect();
+        assert_eq!(
+            visible, expected,
+            "the default range is exactly the craft plus the documented `arm` door"
         );
-        for craft in [
-            "try", "new", "init", "check", "run", "test", "trace", "welcome", "doctor", "model",
-            "wire", "explain",
-        ] {
-            assert!(
-                visible.contains(&craft),
-                "`{craft}` is the day-one craft and must stay visible: {visible:?}"
-            );
-        }
+        let help = <Cli as clap::CommandFactory>::command()
+            .render_help()
+            .to_string();
+        assert!(
+            help.lines()
+                .any(|line| line.split_whitespace().next() == Some("arm")),
+            "`nika --help` must show the documented `arm` door: {help}"
+        );
         let hidden = cmd
             .get_subcommands()
             .filter(|c| c.is_hide_set() && c.get_name() != "help")

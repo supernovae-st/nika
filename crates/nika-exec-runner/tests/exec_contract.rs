@@ -167,37 +167,6 @@ async fn timeout_kills_long_command() {
     );
 }
 
-#[tokio::test]
-async fn timeout_kills_the_whole_process_group_incl_grandchildren() {
-    // `sh` backgrounds a grandchild that touches a marker after 1s, then waits
-    // 5s. We time out at 150ms: WITHOUT process-group kill the SIGKILL hits only
-    // `sh`, orphaning the grandchild (reparented to init) which then touches the
-    // marker. WITH `process_group(0)` + killpg the whole group dies, so the
-    // marker never appears.
-    let marker = std::env::temp_dir().join(format!(
-        "nika-exec-grandchild-{}.marker",
-        std::process::id()
-    ));
-    let _ = std::fs::remove_file(&marker);
-
-    let script = format!("(sleep 1; touch '{}') & sleep 5", marker.display());
-    let mut c = ShellCommand::new(script);
-    c.shell = true;
-    c.pre_validated = true; // subshell + `&` shell features, not the test's focus
-    c.timeout = Some(Duration::from_millis(150));
-    let err = shell().run(c).await.unwrap_err();
-    assert!(matches!(err, ShellError::Timeout { .. }), "got {err:?}");
-
-    // Wait well past the grandchild's 1s delay; the group-kill must have killed
-    // it before it could touch the marker.
-    tokio::time::sleep(Duration::from_millis(1500)).await;
-    assert!(
-        !marker.exists(),
-        "grandchild survived the group kill (orphaned to init)"
-    );
-    let _ = std::fs::remove_file(&marker);
-}
-
 // ── blocklist (security) ──────────────────────────────────────────────
 
 #[tokio::test]

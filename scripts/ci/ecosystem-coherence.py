@@ -94,9 +94,19 @@ def main():
         FINDINGS.append(("FAIL", "npm", f"published {npm} != repo {sdk_repo}"))
 
     pack = grab(f"{RAW}/supernovae-st/nika/main/crates/nika-pack/pack/VERSION", str.strip, "pack")
-    spec = grab(f"{RAW}/supernovae-st/nika-spec/main/VERSION", str.strip, "spec")
+    pack_sha = grab(f"{RAW}/supernovae-st/nika/main/crates/nika-pack/pack/SPEC_SHA", str.strip, "pack identity")
+    engine_pin = grab(
+        f"{RAW}/supernovae-st/nika/main/SPEC_PIN",
+        lambda text: next(line.strip() for line in text.splitlines()
+                          if line.strip() and not line.lstrip().startswith("#")),
+        "engine spec pin",
+    )
+    if pack_sha and engine_pin and pack_sha != engine_pin:
+        FINDINGS.append(("FAIL", "pack identity", f"pack {pack_sha[:12]} != SPEC_PIN {engine_pin[:12]}"))
+    spec_ref = pack_sha if pack_sha and len(pack_sha) == 40 else None
+    spec = grab(f"{RAW}/supernovae-st/nika-spec/{spec_ref}/VERSION", str.strip, "spec at pack identity") if spec_ref else None
     if pack and spec and pack != spec:
-        FINDINGS.append(("FAIL", "pack", f"engine pack {pack} != spec {spec} — re-vendor before the next tag"))
+        FINDINGS.append(("FAIL", "pack", f"engine pack {pack} != spec@{spec_ref[:12]} {spec}"))
 
     # The VERSION pin above goes green while CONTENT drifts inside one
     # version (proven 2026-07-09: pack canon said 9 templates, spec said
@@ -105,12 +115,12 @@ def main():
     # wrong granularity is worse than no pin.
     import hashlib
     pack_canon = grab(f"{RAW}/supernovae-st/nika/main/crates/nika-pack/pack/canon.yaml", str, "pack canon")
-    spec_canon = grab(f"{RAW}/supernovae-st/nika-spec/main/canon.yaml", str, "spec canon")
+    spec_canon = grab(f"{RAW}/supernovae-st/nika-spec/{spec_ref}/canon.yaml", str, "spec canon at pack identity") if spec_ref else None
     if pack_canon and spec_canon and pack_canon != spec_canon:
         ph = hashlib.sha256(pack_canon.encode()).hexdigest()[:12]
         sh = hashlib.sha256(spec_canon.encode()).hexdigest()[:12]
         FINDINGS.append(("WARN", "pack content",
-                         f"vendored canon {ph} != spec canon {sh} (same VERSION possible) — sync-pack before the next tag"))
+                         f"vendored canon {ph} != spec@{spec_ref[:12]} canon {sh} (same VERSION possible)"))
 
     # The marketplace mirror (nika-plugins) claims byte-parity with engine
     # main; its own gate only fires on push/PR + a daily cron. This pin
@@ -196,7 +206,7 @@ def main():
         ("nika-plugins", "release-heal.yml"),
         ("nika-registry", "release-heal.yml"),
         ("nika-vscode", "spec-pin-heal.yml"),
-        ("nika", "pack-resync.yml"),
+        ("nika", "spec-pin-heal.yml"),
     ]
     for repo, wf in IMMUNE:
         got = grab(f"{RAW}/supernovae-st/{repo}/main/.github/workflows/{wf}", str,

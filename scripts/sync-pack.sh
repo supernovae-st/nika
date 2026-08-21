@@ -34,6 +34,16 @@ cp "$SPEC/conformance/coverage-matrix.tsv" "$PACK/coverage-matrix.tsv"
 cp "$SPEC/design/tokens.yaml" "$PACK/design-tokens.yaml"
 cp "$SPEC/design/motion.yaml" "$PACK/design-motion.yaml"
 
+# The pack carries the exact source identity beside its bytes. The runtime
+# build refuses a SPEC_PIN/pack marker mismatch, so a binary cannot silently
+# combine two language-spec commits.
+spec_sha="$(git -C "$SPEC" rev-parse HEAD)"
+if [[ ! "$spec_sha" =~ ^[0-9a-f]{40}$ ]]; then
+  echo "sync-pack: source checkout did not resolve to a full commit SHA" >&2
+  exit 2
+fi
+printf '%s\n' "$spec_sha" >"$PACK/SPEC_SHA"
+
 # READMEs are repo navigation, not pack content — the vendored state
 # has never carried them (verified against the #533 tree).
 for d in spec schemas examples templates; do

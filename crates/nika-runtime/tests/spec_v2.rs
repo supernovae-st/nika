@@ -1206,7 +1206,9 @@ tasks:
 async fn builtin_invoke_array_output_lets_for_each_iterate() {
     let yaml = r#"
 nika: glob-fanout
-permits: { tools: ["nika:glob", "nika:read"] }
+# The glob OPENS ./docs · a bound covering the walk root is what the run needs,
+# and since 2026-08-20 the audit says so too (the effect table gained the entry).
+permits: { tools: ["nika:glob", "nika:read"], fs: { read: ["./docs/**"] } }
 tasks:
   files:
     invoke:

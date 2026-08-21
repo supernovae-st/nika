@@ -3,25 +3,26 @@
 
 //! `RawWorkflow` — the top-level AST node from YAML parsing.
 //!
-//! Canonical v1 envelope per spec `01-envelope.md` (post-C2 · the
-//! four-authority family):
+//! Canonical nine-key envelope per spec `01-envelope.md` (identity on
+//! `nika:` · three value authorities · `permits:` · `run:`):
 //!
 //! ```yaml
-//! nika: v1                # required · language + contract version
-//! workflow: my-id         # required · kebab-case
-//! description: "…"        # optional
+//! # optional prose — never a `description:` key
+//! nika: my-id             # required · the mark AND the kebab-case name
 //! model: provider/name    # optional · workflow-level default
 //! inputs: { … }           # optional · typed caller-supplied inputs
-//! config: { … }           # optional · non-sensitive runtime config
 //! const: { … }            # optional · named constants
 //! secrets: { … }          # optional · vault-backed references
+//! permits: { … }          # optional · declared capability boundary
 //! run: { … }              # optional · entropy + clock declaration (F-P3)
-//! tasks: [ … ]            # required · non-empty (analyzer-enforced)
+//! tasks: { … }            # required · non-empty map keyed by task id
 //! outputs: { … }          # optional · the workflow's return contract
 //! ```
 //!
 //! The pre-C2 `vars:`/`env:` fields are DEAD (the E-split · they refuse
-//! `NIKA-VALUES-001`/`NIKA-VALUES-002` at parse).
+//! `NIKA-VALUES-001`/`NIKA-VALUES-002` at parse). `workflow:` /
+//! `description:` / `config:` / `types:` / `policy:` died with the
+//! nine-key envelope.
 
 use crate::source::Spanned;
 use crate::types::{OutputDecl, Permits, RunDecl, SecretRef, VarDecl};
@@ -30,10 +31,12 @@ use super::task::RawTask;
 
 /// A raw workflow — the direct output of YAML parsing.
 ///
-/// `nika:` / `workflow:` stay `Option` here so the analyzer can report
-/// their absence as a collected error (the parser is shape-only).
-/// Mapping blocks are ordered `Vec<(key, value)>` pairs — YAML duplicate
-/// keys are rejected at load time, so order is the only thing to keep.
+/// `nika:` stays `Option` here so the analyzer can report its absence
+/// as a collected error (the parser is shape-only). Identity is only
+/// that key — the value is stored on `workflow` (the file's NAME);
+/// there is no `workflow:` envelope key. Mapping blocks are ordered
+/// `Vec<(key, value)>` pairs — YAML duplicate keys are rejected at
+/// load time, so order is the only thing to keep.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
 pub struct RawWorkflow {

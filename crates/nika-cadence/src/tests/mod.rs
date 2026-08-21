@@ -19,8 +19,10 @@
 //!
 //! Split 2026-08-19 (the 1,500-line file cap): the mirror
 //! (`prev_before`) and the planner (`due`) pins live in
-//! [`mod@planner`].
+//! [`mod@planner`]. The W3 renderer (« LE PONT » — the OS units) is pinned
+//! in [`mod@emit`].
 
+mod emit;
 mod planner;
 
 use jiff::Timestamp;

@@ -35,7 +35,7 @@ use std::sync::Arc;
 use crate::simulated::{SimulatedDispatcher, SimulatedShell};
 use crate::{Runtime, RuntimeConfig, SecretResolveError, WorkflowSecretResolver};
 use nika_builtin::{
-    BuiltinDispatcher, Emitter, FsBoundary, ImageKeys, NoWorkflow, NonInteractive, TtsKeys,
+    BuiltinDispatcher, Emitter, FsBoundary, ImageKeys, LiveInspect, NonInteractive, TtsKeys,
 };
 use nika_clock::DeclaredClock;
 use nika_exec_runner::TokioShell;
@@ -146,7 +146,7 @@ type ProdDispatcher = BuiltinDispatcher<
     DeclaredClock,
     StderrEmitter,
     NonInteractive,
-    NoWorkflow,
+    LiveInspect,
 >;
 
 /// The fully-resolved production runtime spelling (tames the 6 generics
@@ -816,20 +816,18 @@ pub fn production_runtime(
     let provider_http = Arc::new(provider_http()?);
     let config = config_from_env();
 
-    // The builtin tool plane (invoke + the agent's tools) over real
-    // effects · shared by InvokeVerb and the agent's tool-defs seam. The
-    // file builtins enforce the declared permits.fs boundary (NIKA-SEC-004).
+    // Builtin plane over real effects · InvokeVerb + agent tools.
+    // File builtins enforce permits.fs (NIKA-SEC-004). Same Arc as runtime.
+    let inspect = Arc::new(LiveInspect::new());
     let dispatcher: Arc<ProdDispatcher> = Arc::new(
         BuiltinDispatcher::new(
             Arc::new(TokioFs),
             Arc::clone(&http),
             Arc::new(seams.clock.clone()),
-            // log/emit → stderr (observable · NOT a silent no-op). The
-            // `run --json` event-stream integration is the deeper wiring
-            // documented on this fn.
+            // log/emit → stderr (observable · NOT a silent no-op).
             Arc::new(StderrEmitter),
             Arc::new(NonInteractive::default()),
-            Arc::new(NoWorkflow::default()),
+            Arc::clone(&inspect),
         )
         .with_fs_boundary(caps.fs)
         // The IMAGE PLANE (`nika:image_generate`): provider calls ride the
@@ -879,6 +877,7 @@ pub fn production_runtime(
             .with_sandbox_policy(policy.as_str())
             .with_sandbox_waived(verdict == crate::sandbox_select::SandboxVerdict::Waived),
     )
+    .with_inspect(inspect)
     .with_access_probes(access_probes)
     .with_harness_seat_id(crate::harness_seat::declared_id())
     // Resolve `secrets:` from env/file at run start (MINOR-B · the sanctioned
@@ -965,9 +964,8 @@ pub fn simulated_runtime(
     let provider_http = Arc::new(provider_http()?);
     let config = config_from_env();
 
-    // The REAL builtin plane (pure + read tools delegate to it) — the
-    // declared permits.fs boundary enforced exactly as production — then
-    // the simulated gate over it.
+    // Real builtin plane (permits.fs as production) then the simulated gate.
+    let inspect = Arc::new(LiveInspect::new());
     let dispatcher = Arc::new(SimulatedDispatcher::new(Arc::new(
         BuiltinDispatcher::new(
             Arc::new(TokioFs),
@@ -975,7 +973,7 @@ pub fn simulated_runtime(
             Arc::new(seams.clock.clone()),
             Arc::new(StderrEmitter),
             Arc::new(NonInteractive::default()),
-            Arc::new(NoWorkflow::default()),
+            Arc::clone(&inspect),
         )
         .with_fs_boundary(caps.fs),
     )));
@@ -1004,6 +1002,7 @@ pub fn simulated_runtime(
             .with_sandbox_root(std::env::current_dir().unwrap_or_default())
             .with_sandbox_backend("simulated"),
     )
+    .with_inspect(inspect)
     // The SAME secrets boundary as production (env/file at run start ·
     // fail-closed on a miss) — reading the operator's own store is not an
     // external effect, and ${{ secrets.X }} templates resolve identically.

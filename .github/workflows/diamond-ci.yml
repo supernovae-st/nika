@@ -91,7 +91,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        job: [clippy, tests, no-default-features, wasm]
+        job: [clippy, tests, no-default-features, wasm, funnel]
     env:
       JOB: ${{ matrix.job }}
     steps:
@@ -115,11 +115,16 @@ jobs:
         uses: taiki-e/install-action@b20dedce73af6905cdc30d6611090c9b67557c8d # v2
         with:
           tool: cargo-nextest
-      - name: Install bubblewrap (tests leg · forces the landlock jail proof to RUN not skip)
-        if: matrix.job == 'tests'
+      - name: Install bubblewrap (tests + funnel legs · the landlock jail proof RUNS · the funnel's consent leg runs a permits workflow)
+        if: matrix.job == 'tests' || matrix.job == 'funnel'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends bubblewrap
+          # apt has no deadline of its own: measured 2026-08-19 (02:54Z→~03:20Z),
+          # every job entering this step hung on a mirror stall and the 6-hour job
+          # timeout was the only exit — every open PR froze behind it. A 30 s socket
+          # timeout + 3 retries cover the transient half; the 5-minute hard deadline
+          # turns the rest into a clean red the operator can re-run.
+          sudo timeout 300 apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 update
+          sudo timeout 300 apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 install -y --no-install-recommends bubblewrap
           # ubuntu-24.04's AppArmor bwrap profile grants userns creation but
           # denies CAP_NET_ADMIN inside it, so bwrap dies bringing up loopback
           # in the unshared netns ("loopback: Failed RTM_NEWADDR: Operation
@@ -145,6 +150,17 @@ jobs:
           pin="$(grep -v '^#' SPEC_PIN | head -1 | tr -d '[:space:]')"
           git clone --filter=blob:none https://github.com/supernovae-st/nika-spec "$GITHUB_WORKSPACE/nika-spec"
           git -C "$GITHUB_WORKSPACE/nika-spec" checkout --detach "$pin"
+      - name: The pack is spec@SPEC_PIN
+        if: matrix.job == 'tests'
+        run: |
+          set -euo pipefail
+          bash scripts/sync-pack.sh "$GITHUB_WORKSPACE/nika-spec"
+          if [ -n "$(git status --porcelain --untracked-files=all -- crates/nika-pack/pack)" ]; then
+            git --no-pager diff --stat -- crates/nika-pack/pack
+            echo "::error::crates/nika-pack/pack differs from nika-spec@SPEC_PIN — re-vendor with scripts/sync-pack.sh <spec at SPEC_PIN>"
+            exit 1
+          fi
+          echo "pack == spec@$(git -C "$GITHUB_WORKSPACE/nika-spec" rev-parse --short HEAD) · $(git ls-files crates/nika-pack/pack | wc -l | tr -d ' ') files"
       - name: Run rust job
         env:
           NIKA_SPEC_DIR: ${{ github.workspace }}/nika-spec
@@ -176,8 +192,13 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install Linux desktop deps
         run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
+          # apt has no deadline of its own: measured 2026-08-19 (02:54Z→~03:20Z),
+          # every job entering this step hung on a mirror stall and the 6-hour job
+          # timeout was the only exit — every open PR froze behind it. A 30 s socket
+          # timeout + 3 retries cover the transient half; the hard deadline (5 min ·
+          # 10 for the desktop deps) turns the rest into a clean red to re-run.
+          sudo timeout 300 apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 update
+          sudo timeout 600 apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 install -y --no-install-recommends \
             libwayland-dev libxkbcommon-dev libdbus-1-dev libudev-dev \
             libx11-dev libxi-dev libxtst-dev libpipewire-0.3-dev \
             libegl1-mesa-dev libgl1-mesa-dev libgbm-dev pkg-config

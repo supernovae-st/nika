@@ -33,7 +33,7 @@ use std::path::Path;
 
 use nika_display::theme::{Role, Theme};
 
-use crate::intent::RoutingOutcome;
+use crate::intent::{IntentContract, RoutingOutcome};
 use crate::{Audit, Outcome, codes};
 
 /// Emit a value as a SAFE YAML scalar. A plain token (`provider/model`,
@@ -66,6 +66,14 @@ fn shell_quote(path: &str) -> std::borrow::Cow<'_, str> {
         std::borrow::Cow::Borrowed(path)
     } else {
         std::borrow::Cow::Owned(format!("'{}'", path.replace('\'', "'\\''")))
+    }
+}
+
+fn routing_prefix(contract: Option<&IntentContract>) -> &'static str {
+    if contract.is_some() {
+        "routed intent → "
+    } else {
+        ""
     }
 }
 
@@ -155,10 +163,14 @@ pub fn run(template: &str, dest: Option<&str>, force: bool) -> Outcome {
     if let Some(body) = nika_pack::example(template) {
         return write_example(template, body, dest, force);
     }
-    let (name, body, routed) = match nika_pack::template(template) {
-        Some(body) => (template.to_owned(), body, false),
+    let (name, body, contract) = match nika_pack::template(template) {
+        Some(body) => (template.to_owned(), body, None),
         None => match crate::intent::route(template) {
-            RoutingOutcome::Routed { template: name, .. } => {
+            RoutingOutcome::Routed {
+                template: name,
+                contract,
+                ..
+            } => {
                 // route returns names from the WHOLE catalog (G-16: the
                 // 26 human-worded jobs used to be invisible to the one
                 // surface that takes human words) — a routed EXAMPLE
@@ -166,7 +178,7 @@ pub fn run(template: &str, dest: Option<&str>, force: bool) -> Outcome {
                 // the shared materializer), a routed skeleton
                 // instantiates.
                 if let Some(body) = nika_pack::example(&name) {
-                    return with_cadence_note(write_example(&name, body, dest, force), template);
+                    return with_cadence_note(write_example(&name, body, dest, force), &contract);
                 }
                 // A skeleton name — the lookup is total for the template
                 // set; an empty body would be a pack bug surfaced as the
@@ -174,7 +186,7 @@ pub fn run(template: &str, dest: Option<&str>, force: bool) -> Outcome {
                 let Some(body) = nika_pack::template(&name) else {
                     return unknown(template);
                 };
-                (name, body, true)
+                (name, body, Some(contract))
             }
             RoutingOutcome::NeedsClarification { candidates, .. } => {
                 return clarify(template, &candidates);
@@ -211,11 +223,11 @@ pub fn run(template: &str, dest: Option<&str>, force: bool) -> Outcome {
             code: codes::ENV,
         };
     }
-    let routing = if routed { "routed intent → " } else { "" };
+    let routing = routing_prefix(contract.as_ref());
     // A ROUTED file is a draft by construction (P0-10): the intent was
     // interpreted, not understood — the message says « draft », never
     // « ready », and hands over to `nika check` before any run.
-    let text = if routed {
+    let text = if contract.is_some() {
         format!(
             "{dest} ← {routing}template `{name}` — a DRAFT scaffold · fill the `# SLOT:` lines, then `nika check {q}` before any run",
             q = shell_quote(dest)
@@ -230,8 +242,8 @@ pub fn run(template: &str, dest: Option<&str>, force: bool) -> Outcome {
         text,
         code: codes::OK,
     };
-    if routed {
-        with_cadence_note(out, template)
+    if let Some(contract) = contract {
+        with_cadence_note(out, &contract)
     } else {
         out
     }
@@ -242,34 +254,19 @@ pub fn run(template: &str, dest: Option<&str>, force: bool) -> Outcome {
 /// a deployed schedule is cron/CI territory, never a YAML side
 /// effect). Half of « Chaque lundi, analyser les tickets » used to
 /// vanish without a word (gauntlet 08-01, Camille) — routing keeps
-/// its focus on the work, and the dropped half is now NAMED. Lexicon
-/// over parsing: a bounded FR/EN keyword sweep, no date grammar.
-fn with_cadence_note(mut out: Outcome, intent: &str) -> Outcome {
+/// its focus on the work, and the dropped half is now NAMED. The
+/// already-extracted contract is the single cadence decision; this
+/// display must not run a second, broader lexicon over the utterance.
+fn with_cadence_note(mut out: Outcome, contract: &IntentContract) -> Outcome {
     if out.code != codes::OK {
         return out;
     }
-    let lower = intent.to_lowercase();
-    let hit = [
-        "chaque ",
-        "tous les ",
-        "toutes les ",
-        "every ",
-        "each ",
-        "daily",
-        "weekly",
-        "monthly",
-        "hebdomadaire",
-        "quotidien",
-    ]
-    .into_iter()
-    .find(|k| lower.contains(k));
-    if let Some(keyword) = hit {
-        // Quote from the lowercased copy: `to_lowercase` may shift
-        // byte offsets (Unicode), so indexing the original with a
-        // `lower` offset could split a char boundary — the workspace
-        // forbids that panic class.
-        let start = lower.find(keyword).unwrap_or(0);
-        let clause: String = lower[start..].chars().take(24).collect();
+    if let Some(cadence) = contract
+        .constraints
+        .iter()
+        .find_map(|constraint| constraint.strip_prefix("cadence:"))
+    {
+        let clause: String = cadence.chars().take(24).collect();
         let clause = clause.trim_end();
         let _ = write!(
             out.text,
@@ -453,7 +450,7 @@ fn discovery() -> Outcome {
         "\n\nexamples work here too (complete lessons · verbatim) ·\n  nika new 01-hello my-hello.nika.yaml    # any slug from `nika try`",
     );
     text.push_str(
-        "\n\ntry ·\n  nika new chain my-first.nika.yaml\n  nika new \"describe the job in plain words\" my.nika.yaml   # routes to the closest skeleton\n  nika new                                                          # guided (terminal only)",
+        "\n\ntry ·\n  nika new chain my-first.nika.yaml\n  nika new \"describe the job in plain words\" my.nika.yaml   # routes across jobs · lessons · skeletons\n  nika new                                                          # guided (terminal only)",
     );
     Outcome {
         text,

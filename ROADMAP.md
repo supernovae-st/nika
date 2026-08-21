@@ -103,9 +103,9 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| branch           | `chore/release-0.109.2`                                      |
-| HEAD             | `13b77d975` (`13b77d975c3f936f0d51f0acaa242b5d7552ed41`)             |
-| workspace        | v0.109.2                                  |
+| branch           | `chore/release-0-112-0`                                      |
+| HEAD             | `0a4c68a8a` (`0a4c68a8a87e5fb52586f5d445acddec3abc185c`)             |
+| workspace        | v0.112.0                                  |
 | crates (workspace)| 66                                              |
 | crates (admitted)| 61                                             |
 | crates (WIP)     | 5 — nika-chart nika-fx nika-proof nika-store nika-harness                                  |
@@ -116,7 +116,7 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 | L2               | 5                                              |
 | L3               | 1                                              |
 | L4               | 12                                              |
-| lib tests        | 5870 passed, 0 failed                              |
+| lib tests        | 6041 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
 
 Diamond foundation — orphan branch from scratch. Live counts (admitted ·
@@ -601,8 +601,8 @@ Per D-2026-05-22-N18.)
 **Event subsystem, artifact modes, output modes, templatable fields**:
 - Artifact modes: `overwrite | append | unique | fail`, with optional `manifest: true` → `artifacts.json` index
 - Output modes: `text | json | yaml | markdown | binary`
-- 65 typed fields accept `{{...}}` templates (type-coerced after resolution, NIKA-041 on error)
-- Endpoints config in `nika.toml` `[endpoints.<name>]` for self-hosted LLMs + `model: <endpoint>/<name>` slash syntax
+- 65 typed fields accept `${{ }}` CEL (type-coerced after resolution, NIKA-041 on error)
+- Self-hosted LLMs use `model: <provider>/<name>` slash syntax · the provider base URL is operator/engine config, not the project file (`nika.yaml` carries `ceiling` · `arm` · `traces` · `registry`)
 - `nika:decode` builtin: base64 → CAS blob (for APIs returning inline images)
 - `nika:import` builtin: file → CAS blob
 

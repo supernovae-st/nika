@@ -714,15 +714,35 @@ fn risks_section(s: &mut String, path: &str, report: &CheckReport) {
     if !risky {
         return;
     }
+    let paid: Vec<_> = report.hints.iter().filter(|h| h.is_paid_run()).collect();
+    let rest: Vec<_> = report.hints.iter().filter(|h| !h.is_paid_run()).collect();
+    if !paid.is_empty() {
+        let _ = writeln!(s, "\nbefore a paid model");
+        for h in &paid {
+            let _ = writeln!(s, "  [{}] {}", h.kind, h.advice);
+        }
+        let _ = writeln!(
+            s,
+            "  paid_ready: false · nika check --json {path} | jq .paid_ready"
+        );
+    }
+    if rest.is_empty()
+        && report
+            .analysis
+            .as_ref()
+            .is_none_or(|a| a.blast_radius.is_empty())
+    {
+        return;
+    }
     let _ = writeln!(s, "\nworth knowing");
-    for h in report.hints.iter().take(3) {
+    for h in rest.iter().take(8) {
         let _ = writeln!(s, "  [{}] {}", h.kind, h.advice);
     }
-    if report.hints.len() > 3 {
+    if rest.len() > 8 {
         let _ = writeln!(
             s,
             "  … +{} → nika check {path}",
-            crate::text::count(report.hints.len() - 3, "more hint")
+            crate::text::count(rest.len() - 8, "more hint")
         );
     }
     if let Some(a) = report.analysis.as_ref()

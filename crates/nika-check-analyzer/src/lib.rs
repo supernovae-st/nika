@@ -6,8 +6,9 @@
 //! The analyzer COLLECTS every error (not fail-fast) so an author sees
 //! the full diagnosis in one pass ·
 //!
-//! - envelope presence · `nika:` + `workflow:` + non-empty `tasks:`
-//!   (spec `01-envelope.md` · « That's the **whole minimum** »)
+//! - envelope presence · `nika:` (the mark AND the kebab-case name) +
+//!   a non-empty `tasks:` map (spec `01-envelope.md` · « That's the
+//!   **whole minimum** »)
 //! - duplicate task ids
 //! - `NIKA-DAG-002` · `with:`/`after:` edge targets resolve
 //! - `NIKA-DAG-001` · cycle detection over `G_p` = `E_d` ∪ `E_c` (incl.

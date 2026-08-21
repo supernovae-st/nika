@@ -166,9 +166,9 @@ fn error_codes_are_distinct_and_in_observability_band() {
     let buffer_full = EventError::BufferFull { capacity: 1 };
     let serial = EventError::SerializationFailed { detail: "x".into() };
     let poisoned = EventError::LockPoisoned;
-    assert_eq!(buffer_full.code().num, 421);
-    assert_eq!(serial.code().num, 420);
-    assert_eq!(poisoned.code().num, 422);
+    assert_eq!(buffer_full.code().num, 802);
+    assert_eq!(serial.code().num, 801);
+    assert_eq!(poisoned.code().num, 803);
     assert_ne!(buffer_full.code(), serial.code());
     assert_ne!(poisoned.code(), buffer_full.code());
 }

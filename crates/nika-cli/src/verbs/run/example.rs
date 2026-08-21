@@ -113,6 +113,8 @@ pub fn example(
         // workspace's trace store is not this invocation's to collect.
         true,
         false, // examples are engine-staged content — unsigned-tolerant
+        false, // examples are one-shot runs, not the outer TTY thread
+        None,
     );
     // The example's own envelope model — what we suggest overriding when a
     // run fails offline. A parse miss leaves it empty (the infer tip then
@@ -262,6 +264,9 @@ mod tests {
                 transient: false,
             }),
             paused: None,
+            outputs: std::collections::BTreeMap::new(),
+            interrupted: false,
+            trace: None,
         }
     }
 

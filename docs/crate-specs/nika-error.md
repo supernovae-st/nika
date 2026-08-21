@@ -127,11 +127,22 @@ impl NikaErrorCode for HttpError {
 190-229   Auth/vault
 230-279   MCP/tools
 280-329   Schema/parse
-330-379   Binding/template
-380-429   Provider
+330-379   Provider (moved from 380-429 on 2026-05-11)
+380-429   Shield (RESERVED · crate not yet admitted — no code may allocate here)
 430-479   Verb-specific
 480-529   Runtime/dispatch
+600-649   Memory
+700-749   WasmPlugin
+750-799   Sandbox
+800-819   Observability
+1000-1099 Screen · 1100-1199 Ocr · 1200-1299 A11y · 1300-1399 Input · 1400-1499 Browser (ADR-081)
+1800-1849 Access (execution access · D-2026-08-04-N1)
 ```
+
+`Binding` is a reserved category with no allocated range (its original
+330-379 slot was reassigned to Provider on 2026-05-11). The authoritative
+allocation is the `Category` doc comment in `crates/nika-error/src/codes.rs`
+— this table mirrors it; on any drift, the registry wins.
 
 Phase 1 admits only codes 001-003, 999. Other codes ship with their owner crates.
 

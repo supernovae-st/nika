@@ -594,6 +594,56 @@ mod tests {
     }
 
     #[test]
+    fn lot3_migrates_the_task_body_and_converges_green() {
+        // A 0.108.0 task body: `output:` (→ extract), a knob outside its
+        // for_each (→ inside), the dead on_error mode (→ deleted) — one
+        // --fix, three rungs, green.
+        let dir = std::env::temp_dir().join(format!("nika-fix-lot3-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("tmpdir");
+        let path = dir.join("task-body.nika.yaml");
+        std::fs::write(
+            &path,
+            "nika: lot-three\nmodel: mock/echo\npermits:\n  exec: [echo]\ntasks:\n  fan:\n    for_each: ${{ const.items }}\n    max_parallel: 2\n    exec: { command: [echo, \"${{ item }}\"], capture: structured }\n    output:\n      line: \".stdout\"\n    on_error: { fail_workflow: true }\nconst:\n  items: [\"a\", \"b\"]\n",
+        )
+        .expect("write fixture");
+        let out = run(
+            path.to_str().expect("utf8 path"),
+            false,
+            None,
+            Theme::new(false, true, false),
+        );
+        let healed = std::fs::read_to_string(&path).expect("re-read");
+        assert!(
+            healed.contains(
+                "    for_each:\n      items: ${{ const.items }}\n      max_parallel: 2\n"
+            ),
+            "{healed}"
+        );
+        assert!(
+            healed.contains("    extract:\n      line: \".stdout\"\n"),
+            "{healed}"
+        );
+        assert!(
+            !healed.contains("on_error") && !healed.contains("output:"),
+            "{healed}"
+        );
+        assert!(
+            out.text.contains("r3-extract")
+                && out.text.contains("r2-for-each")
+                && out.text.contains("r4-fail-workflow"),
+            "{}",
+            out.text
+        );
+        assert_eq!(
+            out.code,
+            exit::OK,
+            "clean after the task-body rungs: {}",
+            out.text
+        );
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
     fn identity_stops_and_leaves_the_file_untouched_when_two_names_compete() {
         let dir =
             std::env::temp_dir().join(format!("nika-fix-identity-stop-{}", std::process::id()));

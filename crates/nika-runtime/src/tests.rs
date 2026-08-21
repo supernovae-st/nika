@@ -1446,6 +1446,10 @@ fn the_boot_manifest_follows_the_run_declaration() {
     let ambient = dump(HEAD);
     assert!(ambient.contains("spec_pin"), "{ambient}");
     assert!(
+        ambient.contains(crate::engine_identity().spec_sha()),
+        "{ambient}"
+    );
+    assert!(
         ambient.contains("stamper_kind") && ambient.contains("system"),
         "{ambient}"
     );

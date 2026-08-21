@@ -25,6 +25,14 @@ depend on without pulling the CLI:
   `for_each` · non-Turing CEL · declared effects), this answers « what
   will this workflow do, cost, and touch? » with **zero API calls and
   zero tokens spent** (spec `07-conformance.md` §`nika check`).
+- **the conformance harness** (`tests/common`) — the Core, Deep, lint, runtime
+  and stdlib fixture levels from the checkout pinned by `SPEC_PIN`. Core and
+  Deep verdicts now include the Agent Skill resolution lane through the same
+  injected reader shape as composition: an absent file maps to
+  `NIKA-AGENT-003`, invalid skill bytes to `NIKA-AGENT-004`, a path outside a
+  declared fs boundary to `NIKA-SEC-004`, and absent permits to
+  `NIKA-AUTH-006`. Unknown expected codes fail loudly instead of being silently
+  accepted by a generic validation bucket.
 
 `nika-schema` keeps its blueprint shape (THE PARSER: AST + raw + error +
 keysets). The dependency points DOWNWARD-ONLY: `nika-check → nika-schema`,
@@ -67,14 +75,10 @@ silently-wrong judgment is the one unacceptable outcome.
 
 ## Metrics (projected — `scripts/crate-metrics.sh nika-check`)
 
-~22,869 LOC src (live anchor · total incl. tests — **12,455 prod** per
-the ratchet's `scripts/ci/check-crate-size.sh` scope, measured
-2026-08-18 after the ADR-115 descent: the analysis substrate left for
-`nika-check-analyzer`, taking 14,995 → 12,455 and the headroom from
-**5** lines to **2,545**) · largest file ~1,445
-LOC · ~485 unit + ~39 integration tests (the conformance harness at
-`tests/common` verdicts the Core + Deep tiers against the nika-spec
-checkout — `NIKA_SPEC_DIR`). Benches: `parser_bench` (parse+check) ·
+Counts are deliberately not copied here: derive them from
+`scripts/crate-metrics.sh nika-check`, `scripts/ci/check-crate-size.sh` and the
+pinned conformance checkout. The hard limits remain the machine contract;
+prose cannot become a second clock. Benches: `parser_bench` (parse+check) ·
 `refonte_baseline` (parse/analyze/check across topologies · W0 gate 8).
 
 ## The split gates (moved-code admission, per the nika-dap precedent)

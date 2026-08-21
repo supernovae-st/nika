@@ -235,7 +235,8 @@ pub fn candidate_pubkeys() -> Vec<(String, String)> {
             push_unique_pubkey(&mut out, &text);
         }
     }
-    if let Ok(entry) = keyring::Entry::new("nika", "run-signing-key.pub")
+    if crate::seal::keychain_enabled()
+        && let Ok(entry) = keyring::Entry::new("nika", "run-signing-key.pub")
         && let Ok(text) = entry.get_password()
     {
         push_unique_pubkey(&mut out, &text);

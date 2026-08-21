@@ -343,9 +343,21 @@ impl BodyUsage {
                         path_arg,
                         reads,
                         writes,
+                        walk_root,
                         ..
                     }) => {
-                        let path = literal_arg(a, path_arg);
+                        // A glob offers its WALK ROOT · the ONE definition
+                        // lives in nika-cap beside the effect table, so this
+                        // scan, the checker, the inference and the runtime
+                        // cannot disagree (the hand-synced second copy that
+                        // used to live here is gone · 2026-08-19).
+                        let path = literal_arg(a, path_arg).map(|raw| {
+                            if walk_root {
+                                nika_cap::glob_walk_root(&raw)
+                            } else {
+                                raw
+                            }
+                        });
                         if reads {
                             offer(&mut self.reads, path.clone());
                         }
@@ -363,7 +375,6 @@ impl BodyUsage {
                     }
                     None => {}
                 }
-                self.eat_glob_walk_root(a);
                 self.eat_multipart_parts(a);
             }
             RawAction::Agent(a) => {
@@ -397,23 +408,6 @@ impl BodyUsage {
                 offer(&mut self.hosts, None);
             }
         }
-    }
-
-    /// `nika:glob` walks the literal directory prefix of its `pattern:` —
-    /// the runtime gate fences THAT root (`builtin_effect` declines the
-    /// glob ⊆ glob question, but the root is decidable). A literal pattern
-    /// contributes its walk root as a read; a `${{ }}` one poisons the set.
-    fn eat_glob_walk_root(&mut self, a: &RawInvokeAction) {
-        let Some(tool) = a.tool() else {
-            return;
-        };
-        if tool.value != "nika:glob" {
-            return;
-        }
-        offer(
-            &mut self.reads,
-            literal_arg(a, "pattern").map(|p| glob_walk_root(&p)),
-        );
     }
 
     /// A `nika:fetch` `multipart:` file part's `path` is fs.read-gated at
@@ -629,27 +623,6 @@ fn url_host(raw: &str) -> Option<String> {
         url::Host::Domain(d) => Some(d.trim_end_matches('.').to_owned()),
         url::Host::Ipv4(a) => Some(a.to_string()),
         url::Host::Ipv6(a) => Some(a.to_string()),
-    }
-}
-
-/// The directory a `nika:glob` pattern walks FROM — the runtime boundary's
-/// own split (nika-builtin's private `glob_walk_root`, restated here like
-/// `url_host` above): the longest literal directory prefix, `.` when the
-/// pattern has none, `/` for a root-relative one. Both copies must agree
-/// with the gate, or the hint would order a removal the gate requires.
-fn glob_walk_root(pattern: &str) -> String {
-    if !pattern.starts_with('/') {
-        let p = pattern.strip_prefix("./").unwrap_or(pattern);
-        let first_meta = p.find(['*', '?', '[']).unwrap_or(p.len());
-        return match p[..first_meta].rfind('/') {
-            None => ".".to_owned(),
-            Some(i) => format!("./{}", &p[..i]),
-        };
-    }
-    let first_meta = pattern.find(['*', '?', '[']).unwrap_or(pattern.len());
-    match pattern[..first_meta].rfind('/') {
-        None | Some(0) => "/".to_owned(),
-        Some(i) => pattern[..i].to_owned(),
     }
 }
 

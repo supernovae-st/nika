@@ -15,6 +15,10 @@
 > receipts · semantic resume · and reference-model parity. Until that
 > whole receipt exists, « proven » is not a word this contract lets an
 > implementation use.
+>
+> This chapter is **parent→child** composition (`invoke: { workflow: }`
+> · lesson 10). The agent loop's self-check builtin `nika:compose` is a
+> different door (ADR-096 · loop-only · lesson 15). Do not fuse them.
 
 ---
 

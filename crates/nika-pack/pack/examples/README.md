@@ -27,8 +27,13 @@
 | [`09-returns-typed-door`](09-returns-typed-door.nika.yaml) | typed task outputs | `returns:` — the declared shape deep references are proven against |
 | [`10-compose-pipeline`](10-compose-pipeline.nika.yaml) | composition · the caller | `workflow:` under `invoke:` — one workflow calls another, statically resolved |
 | [`10-compose-child`](10-compose-child.nika.yaml) | composition · the callee | the child's contract — typed `inputs:` in, typed `outputs:` out |
-| [`11-declassify-the-door`](11-declassify-the-door.nika.yaml) | the taint's one door | `lift:` (`law: taint` · `from:` · `because:`) — defers the check to the run, never lifts the boundary |
+| [`11-lift-the-door`](11-lift-the-door.nika.yaml) | the taint's one door | `lift:` (`law: taint` · `from:` · `because:`) — defers the check to the run, never lifts the boundary |
 | [`12-failure-routing`](12-failure-routing.nika.yaml) | routing failure | the `failure` edge predicate — a strictly-failure arm that settles `⊘` on green runs |
+| [`13-extract-then-law`](13-extract-then-law.nika.yaml) | facts, then the law | `infer.schema:` as `type: integer` + numeric `enum` · `for_each` over `item.field` · `nika:jq` scores · const-fixture `nika:assert` (hint `unproven-law`) · the model never names the level |
+| [`14-decide-publish`](14-decide-publish.nika.yaml) | publish or abstain | `nika:decide` over an inline Decision Bundle · `never_automatic` · assert a hand-known `human_required` fixture |
+| [`15-compose-self-check`](15-compose-self-check.nika.yaml) | the loop checks the draft | `nika:compose` on `agent.tools` (after `nika:done`) · mock/echo rehearsal · standalone invoke is `NIKA-BUILTIN-COMPOSE-001` · checking never executes |
+| [`16-inspect-self`](16-inspect-self.nika.yaml) | the run reads itself | `nika:inspect` `view: dag_info` · live cell seeded at run start · assert `available` |
+| [`17-tts-self`](17-tts-self.nika.yaml) | mock TTS, real WAV | `nika:tts_generate` `provider: mock` · bytes stay on disk · assert `audio.format == "wav"` |
 
 All **4 verbs** appear across the path; everything callable is a tool under
 `invoke:`. The per-construct index is derived from the files, never

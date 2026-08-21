@@ -4,8 +4,8 @@
 //! Document symbols — the file outline.
 //!
 //! A parsed [`RawWorkflow`] becomes a one-root tree: the workflow node
-//! (named by its `workflow:` id) with one child per DECLARATION — every
-//! `vars:` entry (variable), `env:` entry (constant), `secrets:` entry
+//! (named by its `nika:` id) with one child per DECLARATION — every
+//! `inputs:` entry (variable), `const:` entry (constant), `secrets:` entry
 //! (key), then one per task (method, detailed with its verb `infer ·
 //! exec · invoke · agent`). Each child's selection range is the name's
 //! own span (so « reveal symbol » jumps to the declaring token) — the
@@ -103,7 +103,7 @@ fn workflow_symbol(index: &LineIndex, wf: &RawWorkflow) -> DocumentSymbol {
     )
 }
 
-/// One declaration symbol (a `vars:` / `env:` / `secrets:` entry) —
+/// One declaration symbol (an `inputs:` / `const:` / `secrets:` entry) —
 /// selection range = the declaring name's own span, so the outline
 /// jumps exactly where member go-to-definition lands.
 fn decl_symbol(

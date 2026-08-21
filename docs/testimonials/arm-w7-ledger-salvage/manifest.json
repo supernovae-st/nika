@@ -1,0 +1,326 @@
+{
+  "schema": "nika.mutation-testimonial.final.v3",
+  "claim": "Local reproducible testimonial of a complete serial cargo-mutants run for the ARM W7 firing and ledger surfaces; detects accidental, stale, or mismatched evidence but is neither remote attestation nor protection from malicious local fabrication",
+  "tested_commit": "32ebdf3a301a2077887dcc8ff3cd0e7267a665c3",
+  "tested_tree": "bb7f629da770435208edd8e9c6a48cf24cad873b",
+  "run_id": "arm-w7-4b1d5d86-f712-44cd-949d-6c3539dceed6",
+  "pre_run_receipt_commit": "24c89f07162add164a648a50f1cb8c496c556c2a",
+  "start_receipt_sha256": "c6d4da73b6067af58a5ef09242cda00f294c1319591a0471f008758804e946ad",
+  "run": {
+    "start_time": "2026-08-21T08:54:05.832623Z",
+    "end_time": "2026-08-21T09:34:03.322949Z",
+    "cargo_mutants_version": "27.0.0",
+    "cwd": "/tmp/nika-pr1079-mutants-32ebdf3a",
+    "environment": {
+      "CARGO_TARGET_DIR": "/tmp/nika-pr1079-arm-w7-4b1d5d86-f712-44cd-949d-6c3539dceed6-target",
+      "TMPDIR": "/tmp/nika-pr1079-arm-w7-4b1d5d86-f712-44cd-949d-6c3539dceed6-tmp"
+    },
+    "argv": [
+      "<CARGO_BIN>",
+      "mutants",
+      "-p",
+      "nika-cadence",
+      "-f",
+      "crates/nika-cadence/src/firing.rs",
+      "-f",
+      "crates/nika-cadence/src/ledger.rs",
+      "-E",
+      "^crates/nika-cadence/src/ledger\\.rs:406:27: replace > with >= in unsettled$",
+      "-E",
+      "^crates/nika-cadence/src/ledger\\.rs:1108:21: replace && with \\|\\| in LifecycleValidator::accept$",
+      "-E",
+      "^crates/nika-cadence/src/ledger\\.rs:1109:21: replace && with \\|\\| in LifecycleValidator::accept$",
+      "-o",
+      "/tmp/nika-pr1079-arm-w7-4b1d5d86-f712-44cd-949d-6c3539dceed6-output",
+      "-j",
+      "1",
+      "--baseline",
+      "run",
+      "--timeout",
+      "300",
+      "--build-timeout",
+      "300",
+      "--",
+      "--lib"
+    ]
+  },
+  "artifacts": {
+    "outcomes.json": {
+      "raw_sha256": "a7c04c7c1fe4e6095bb4d624a141b510db4ab0a34d431c8506c4cab242409739",
+      "sanitized_sha256": "3b8ffd15eb5ca7ef07b0807067c43c49ebb89d0b3bf840410ece240e4f2e8349"
+    },
+    "mutants.json": {
+      "raw_sha256": "38832dcd0f310f2d357d7ad10d41953d48b87658ed1e54259b05646a4cf7e789",
+      "sanitized_sha256": "74a35c4b23aafb0bd7186d1eeab02e070578340b015c6f39383fc3ba8d92c6d8"
+    },
+    "run-receipt.json": {
+      "raw_sha256": "d2bf8ca66fb7ff0aa24ef048b3ff8447e7153bd9bed9b8603e5de9ec23d0bffd",
+      "sanitized_sha256": "77562435c2278d4268b6c1d30d032a3456a7ac2a8ff2bac9bbdeab79e48cf4b0"
+    },
+    "census.txt": {
+      "sha256": "206380a977aaa626137880bbbd0cb5ce8203f52e55b624671a8a0354ef9fcf5c"
+    }
+  },
+  "sanitization": {
+    "algorithm": "recursive replacement of only the bound cargo, cargo-mutants, rustup, rustc, and selected-toolchain executable paths, followed by Python 3 indent=2 UTF-8 serialization and one trailing newline",
+    "replacements": {
+      "<CARGO_TOOLCHAIN_BIN>": 928,
+      "<CARGO_BIN>": 2,
+      "<CARGO_MUTANTS_BIN>": 2,
+      "<RUSTUP_PROXY_BIN>": 4,
+      "<RUSTC_BIN>": 1,
+      "<RUSTC_TOOLCHAIN_BIN>": 1
+    },
+    "omitted": [
+      "lock.json",
+      "debug.log",
+      "per-mutant logs",
+      "host identity",
+      "user identity",
+      "private absolute paths"
+    ]
+  },
+  "accounting": {
+    "unfiltered_census": 486,
+    "excluded_equivalent": 3,
+    "executed_mutants": 483,
+    "caught": 442,
+    "unviable": 41,
+    "missed": 0,
+    "timeout": 0,
+    "viable_denominator": 442,
+    "viable_score_percent": 100.0,
+    "complete_bucket_equation": "442 + 41 + 0 + 0 = 483"
+  },
+  "equivalent_exclusions": [
+    {
+      "name": "crates/nika-cadence/src/ledger.rs:406:27: replace > with >= in unsettled",
+      "anchored_regex": "^crates/nika-cadence/src/ledger\\.rs:406:27: replace > with >= in unsettled$",
+      "proof": {
+        "method": "reachable-domain equivalence",
+        "variables": "P=current claim position; L=receipt position",
+        "premises": [
+          "the claimed branch continues before receipt collection",
+          "enumerate assigns one unique position to each immutable line"
+        ],
+        "reachable_domain": "L != P",
+        "conclusion": "L > P iff L >= P"
+      },
+      "same_span_controls": [
+        "crates/nika-cadence/src/ledger.rs:406:27: replace > with == in unsettled",
+        "crates/nika-cadence/src/ledger.rs:406:27: replace > with < in unsettled"
+      ]
+    },
+    {
+      "name": "crates/nika-cadence/src/ledger.rs:1108:21: replace && with || in LifecycleValidator::accept",
+      "anchored_regex": "^crates/nika-cadence/src/ledger\\.rs:1108:21: replace && with \\|\\| in LifecycleValidator::accept$",
+      "proof": {
+        "method": "reachable-domain equivalence",
+        "variables": "A=!seen; B=seq == 1; C=prev_hash == null",
+        "premises": [
+          "the only production callers are Walker::fold_chain and scan_chain",
+          "both callers run verify_line on the same immutable line before accept",
+          "verify_line admits rotated only for sequence 1 with a null predecessor",
+          "LifecycleValidator starts unseen and marks every accepted line seen"
+        ],
+        "reachable_domain": "rotated reaches accept only at (A,B,C)=(true,true,true)",
+        "conclusion": "(A && B) && C equals A || (B && C)"
+      },
+      "same_span_controls": []
+    },
+    {
+      "name": "crates/nika-cadence/src/ledger.rs:1109:21: replace && with || in LifecycleValidator::accept",
+      "anchored_regex": "^crates/nika-cadence/src/ledger\\.rs:1109:21: replace && with \\|\\| in LifecycleValidator::accept$",
+      "proof": {
+        "method": "reachable-domain equivalence",
+        "variables": "A=!seen; B=seq == 1; C=prev_hash == null",
+        "premises": [
+          "the only production callers are Walker::fold_chain and scan_chain",
+          "both callers run verify_line on the same immutable line before accept",
+          "verify_line admits rotated only for sequence 1 with a null predecessor",
+          "LifecycleValidator starts unseen and marks every accepted line seen"
+        ],
+        "reachable_domain": "rotated reaches accept only at (A,B,C)=(true,true,true)",
+        "conclusion": "(A && B) && C equals (A && B) || C"
+      },
+      "same_span_controls": []
+    }
+  ],
+  "equivalence_source_binding": {
+    "source": "crates/nika-cadence/src/ledger.rs",
+    "git_blob": "b5c0885551fe05528db5e31c2e597f9428a4d557",
+    "sha256": "39c3e8a777af5a2aa84ea1af0a50e942d49171efbb21cd1e276a2e67742be404",
+    "production_callers": [
+      "Walker::fold_chain",
+      "scan_chain"
+    ],
+    "caller_count": 2,
+    "rotated_reachable_predicate_tuple": [
+      true,
+      true,
+      true
+    ],
+    "claim_receipt_position_relation": "not equal"
+  },
+  "prior_anomaly_verification": [
+    {
+      "prior_summary": "MissedMutant",
+      "prior_name": "crates/nika-cadence/src/ledger.rs:353:52: replace + with * in unsettled",
+      "current_name": "crates/nika-cadence/src/ledger.rs:353:52: replace + with * in unsettled",
+      "final_summary": "CaughtMutant"
+    },
+    {
+      "prior_summary": "MissedMutant",
+      "prior_name": "crates/nika-cadence/src/ledger.rs:356:17: replace += with *= in unsettled",
+      "current_name": "crates/nika-cadence/src/ledger.rs:356:17: replace += with *= in unsettled",
+      "final_summary": "CaughtMutant"
+    },
+    {
+      "prior_summary": "MissedMutant",
+      "prior_name": "crates/nika-cadence/src/ledger.rs:356:17: replace += with -= in unsettled",
+      "current_name": "crates/nika-cadence/src/ledger.rs:356:17: replace += with -= in unsettled",
+      "final_summary": "CaughtMutant"
+    },
+    {
+      "prior_summary": "MissedMutant",
+      "prior_name": "crates/nika-cadence/src/ledger.rs:362:64: replace == with != in unsettled",
+      "current_name": "crates/nika-cadence/src/ledger.rs:362:64: replace == with != in unsettled",
+      "final_summary": "CaughtMutant"
+    },
+    {
+      "prior_summary": "MissedMutant",
+      "prior_name": "crates/nika-cadence/src/ledger.rs:405:17: delete ! in unsettled",
+      "current_name": "crates/nika-cadence/src/ledger.rs:405:17: delete ! in unsettled",
+      "final_summary": "CaughtMutant"
+    },
+    {
+      "prior_summary": "Timeout",
+      "prior_name": "crates/nika-cadence/src/ledger.rs:754:28: replace == with != in first_line_is_versioned",
+      "current_name": "crates/nika-cadence/src/ledger.rs:757:28: replace == with != in first_line_is_versioned",
+      "final_summary": "CaughtMutant"
+    },
+    {
+      "prior_summary": "Timeout",
+      "prior_name": "crates/nika-cadence/src/ledger.rs:758:5: replace has_ledger_marker -> bool with false",
+      "current_name": "crates/nika-cadence/src/ledger.rs:761:5: replace has_ledger_marker -> bool with false",
+      "final_summary": "CaughtMutant"
+    },
+    {
+      "prior_summary": "Timeout",
+      "prior_name": "crates/nika-cadence/src/ledger.rs:758:5: replace has_ledger_marker -> bool with true",
+      "current_name": "crates/nika-cadence/src/ledger.rs:761:5: replace has_ledger_marker -> bool with true",
+      "final_summary": "CaughtMutant"
+    },
+    {
+      "prior_summary": "Timeout",
+      "prior_name": "crates/nika-cadence/src/ledger.rs:773:5: replace legacy_line_valid -> bool with false",
+      "current_name": "crates/nika-cadence/src/ledger.rs:776:5: replace legacy_line_valid -> bool with false",
+      "final_summary": "CaughtMutant"
+    },
+    {
+      "prior_summary": "Timeout",
+      "prior_name": "crates/nika-cadence/src/ledger.rs:773:5: replace legacy_line_valid -> bool with true",
+      "current_name": "crates/nika-cadence/src/ledger.rs:776:5: replace legacy_line_valid -> bool with true",
+      "final_summary": "CaughtMutant"
+    },
+    {
+      "prior_summary": "Timeout",
+      "prior_name": "crates/nika-cadence/src/ledger.rs:786:9: replace || with && in legacy_line_valid",
+      "current_name": "crates/nika-cadence/src/ledger.rs:789:9: replace || with && in legacy_line_valid",
+      "final_summary": "CaughtMutant"
+    },
+    {
+      "prior_summary": "Timeout",
+      "prior_name": "crates/nika-cadence/src/ledger.rs:791:9: replace || with && in legacy_line_valid",
+      "current_name": "crates/nika-cadence/src/ledger.rs:794:9: replace || with && in legacy_line_valid",
+      "final_summary": "CaughtMutant"
+    },
+    {
+      "prior_summary": "Timeout",
+      "prior_name": "crates/nika-cadence/src/ledger.rs:796:9: replace || with && in legacy_line_valid",
+      "current_name": "crates/nika-cadence/src/ledger.rs:799:9: replace || with && in legacy_line_valid",
+      "final_summary": "CaughtMutant"
+    },
+    {
+      "prior_summary": "Timeout",
+      "prior_name": "crates/nika-cadence/src/ledger.rs:920:50: replace || with && in verify_payload",
+      "current_name": "crates/nika-cadence/src/ledger.rs:927:50: replace || with && in verify_payload",
+      "final_summary": "CaughtMutant"
+    },
+    {
+      "prior_summary": "Timeout",
+      "prior_name": "crates/nika-cadence/src/ledger.rs:921:57: replace == with != in verify_payload",
+      "current_name": "crates/nika-cadence/src/ledger.rs:928:57: replace == with != in verify_payload",
+      "final_summary": "CaughtMutant"
+    },
+    {
+      "prior_summary": "Timeout",
+      "prior_name": "crates/nika-cadence/src/ledger.rs:923:17: replace || with && in verify_payload",
+      "current_name": "crates/nika-cadence/src/ledger.rs:930:17: replace || with && in verify_payload",
+      "final_summary": "CaughtMutant"
+    },
+    {
+      "prior_summary": "Timeout",
+      "prior_name": "crates/nika-cadence/src/ledger.rs:924:21: replace && with || in verify_payload",
+      "current_name": "crates/nika-cadence/src/ledger.rs:931:21: replace && with || in verify_payload",
+      "final_summary": "CaughtMutant"
+    },
+    {
+      "prior_summary": "Timeout",
+      "prior_name": "crates/nika-cadence/src/ledger.rs:925:21: replace && with || in verify_payload",
+      "current_name": "crates/nika-cadence/src/ledger.rs:932:21: replace && with || in verify_payload",
+      "final_summary": "CaughtMutant"
+    },
+    {
+      "prior_summary": "Timeout",
+      "prior_name": "crates/nika-cadence/src/ledger.rs:932:17: replace && with || in verify_payload",
+      "current_name": "crates/nika-cadence/src/ledger.rs:939:17: replace && with || in verify_payload",
+      "final_summary": "CaughtMutant"
+    },
+    {
+      "prior_summary": "Timeout",
+      "prior_name": "crates/nika-cadence/src/ledger.rs:933:17: replace && with || in verify_payload",
+      "current_name": "crates/nika-cadence/src/ledger.rs:940:17: replace && with || in verify_payload",
+      "final_summary": "CaughtMutant"
+    }
+  ],
+  "guard_verification": [
+    {
+      "name": "crates/nika-cadence/src/firing.rs:619:34: replace > with >= in decide",
+      "final_summary": "CaughtMutant"
+    },
+    {
+      "name": "crates/nika-cadence/src/ledger.rs:406:38: replace && with || in unsettled",
+      "final_summary": "CaughtMutant"
+    },
+    {
+      "name": "crates/nika-cadence/src/ledger.rs:543:35: replace && with || in Walker::fold_versioned",
+      "final_summary": "CaughtMutant"
+    },
+    {
+      "name": "crates/nika-cadence/src/ledger.rs:734:25: replace || with && in classify_journal",
+      "final_summary": "CaughtMutant"
+    },
+    {
+      "name": "crates/nika-cadence/src/ledger.rs:889:18: replace == with != in verify_payload",
+      "final_summary": "CaughtMutant"
+    },
+    {
+      "name": "crates/nika-cadence/src/ledger.rs:1107:17: delete ! in LifecycleValidator::accept",
+      "final_summary": "CaughtMutant"
+    },
+    {
+      "name": "crates/nika-cadence/src/ledger.rs:1108:75: replace == with != in LifecycleValidator::accept",
+      "final_summary": "CaughtMutant"
+    },
+    {
+      "name": "crates/nika-cadence/src/ledger.rs:406:27: replace > with == in unsettled",
+      "final_summary": "CaughtMutant"
+    },
+    {
+      "name": "crates/nika-cadence/src/ledger.rs:406:27: replace > with < in unsettled",
+      "final_summary": "CaughtMutant"
+    }
+  ],
+  "scope": "non-runtime testimonial child of the pre-run receipt; the tested Rust, tests, Cargo, and configuration blobs are those of tested_commit"
+}
