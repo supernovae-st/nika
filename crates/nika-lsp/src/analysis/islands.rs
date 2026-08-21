@@ -127,6 +127,19 @@ fn island(label: String, detail: String) -> CompletionItem {
     }
 }
 
+/// A `for_each:` island — the label reads as the collection (`${{ … }}`)
+/// but the INSERTED text is the block the parser admits, `{ items: "…" }`
+/// (spec 03 §`for_each` · `items` + the two knobs). The bare scalar the
+/// label spells was refused at parse (« `for_each` must be a block with
+/// `items:` ») — measured 2026-08-18: this lane offered what `check`
+/// refused. Quoted inside the flow mapping: an unquoted `${{ … }}` in
+/// `{ }` is not YAML.
+fn for_each_island(collection: &str, detail: String) -> CompletionItem {
+    let mut item = island(collection.to_owned(), detail);
+    item.insert_text = Some(format!("{{ items: \"{collection}\" }}"));
+    item
+}
+
 /// `for_each:` — the collection candidates: typed array inputs lead,
 /// the task's OWN bindings follow (the collection is a pre-fan-out
 /// LOCAL surface · spec 03 §`for_each` — an upstream array crosses
@@ -137,26 +150,26 @@ pub(super) fn for_each_items(text: &str, offset: usize) -> Vec<CompletionItem> {
     let view = doc_view(text, offset);
     let mut items = Vec::new();
     for (reference, _) in view.vars.iter().filter(|(_, a)| *a) {
-        items.push(island(
-            format!("${{{{ {reference} }}}}"),
+        items.push(for_each_island(
+            &format!("${{{{ {reference} }}}}"),
             "array value — one run per element".to_owned(),
         ));
     }
     for name in &view.bindings {
-        items.push(island(
-            format!("${{{{ with.{name} }}}}"),
+        items.push(for_each_island(
+            &format!("${{{{ with.{name} }}}}"),
             "a with: binding — the boundary import of the collection".to_owned(),
         ));
     }
     if view.bindings.is_empty() && !view.upstream.is_empty() {
-        items.push(island(
-            "${{ with.items }}".to_owned(),
+        items.push(for_each_island(
+            "${{ with.items }}",
             "bind the upstream array first — with: { items: ${{ tasks.<id>.output }} }".to_owned(),
         ));
     }
     for (reference, _) in view.vars.iter().filter(|(_, a)| !*a) {
-        items.push(island(
-            format!("${{{{ {reference} }}}}"),
+        items.push(for_each_island(
+            &format!("${{{{ {reference} }}}}"),
             "runs if it holds a list at launch".to_owned(),
         ));
     }

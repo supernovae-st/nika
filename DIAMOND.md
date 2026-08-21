@@ -54,17 +54,18 @@ YAML file and executes a DAG of verbs:
 
 ```yaml
 # workflow.nika.yaml
-nika: v1
-workflow:
-  id: summarize-article
+nika: summarize-article
+permits:
+  net: { http: ["example.com"] }
+  tools: ["nika:fetch"]
 tasks:
   fetch:
     invoke:
       tool: "nika:fetch"        # fetch is a builtin tool, not a verb
-      with: { url: "https://example.com/article", extract: article }
+      args: { url: "https://example.com/article", mode: article }
   summarize:
-    with: { text: $fetch }
-    infer: "Summarize in 3 bullets: {{with.text}}"
+    with: { text: "${{ tasks.fetch.output }}" }
+    infer: { prompt: "Summarize in 3 bullets: ${{ with.text }}" }
 ```
 
 Four verbs: `infer`, `exec`, `invoke`, `agent`. (Fetching a URL is
@@ -152,7 +153,7 @@ Real semver toward a **1.0** public launch (was "forever-v0.x" · retired
 D-2026-06-20-N1). Each release is diamond-grade for its declared scope —
 the craft standard, not the scope list. SQLite shipped a 1.0 and kept
 adding WAL, FTS, JSON1, window functions while staying diamond-grade at
-every release — that is the model. The `nika: v1` **LANGUAGE** envelope is
+every release — that is the model. The nine-key **LANGUAGE** envelope is
 frozen forever and is orthogonal to the engine's binary version. See
 [ADR-002](docs/adr/adr-002-forever-v0x.md).
 

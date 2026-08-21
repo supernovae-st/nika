@@ -67,6 +67,19 @@ jobs:
             echo "::error::release tag ${REF_NAME} does not match Cargo workspace version ${cargo_version}"
             exit 1
           fi
+      # The provenance manifest must be TRUE of the tree being released.
+      # It is not required per-commit (a whole-tree projection carried by
+      # every branch makes concurrent PRs collide on a file none of them
+      # edited), so this is the gate that owns it: the tagged tree, the
+      # one whose binaries a user will verify, must match its manifest
+      # exactly. RELEASING.md step 2 regenerates it before the tag.
+      - name: The estate manifest is true of the tagged tree
+        run: |
+          set -euo pipefail
+          if ! python3 scripts/estate.py --check; then
+            echo "::error::the estate manifest does not describe the tagged tree — run python3 scripts/estate.py --write, commit it, and re-tag"
+            exit 1
+          fi
       - name: Add the Rust target
         run: rustup target add ${{ matrix.target }}
       - name: Cache cargo
@@ -179,6 +192,28 @@ jobs:
           tarball="nika-${ASSET_NAME}-${version}.tar.gz"
           tar -czf "${tarball}" -C "${stage}" nika completions
           shasum -a 256 "${tarball}" | tee "${tarball}.sha256"
+      - name: Install bubblewrap (Linux gates run CONFINED · the Diamond CI tests-leg recipe)
+        # Since #889 a `permits:`-declaring workflow REFUSES to start where no
+        # sandbox backend exists (NIKA-1710). The funnel's consent-pause leg and
+        # the trust battery both spend an exec under permits — on the Linux
+        # builders without bwrap they died `exit=3 want=4` (v0.109.1 · run
+        # 32193107899) while the macOS builders (seatbelt) passed. Install the
+        # jail so both gates run confined here too, the same way they do on
+        # macOS — never a waiver. ubuntu-24.04's AppArmor bwrap profile grants
+        # userns creation but denies CAP_NET_ADMIN inside it, so bwrap dies
+        # bringing up loopback in the unshared netns; detach the profile and
+        # keep unprivileged userns open (the tests-leg recipe, proven daily).
+        if: runner.os == 'Linux'
+        run: |
+          # apt has no deadline of its own: measured 2026-08-19 (02:54Z→~03:20Z),
+          # every job entering this step hung on a mirror stall and the 6-hour job
+          # timeout was the only exit — every open PR froze behind it. A 30 s socket
+          # timeout + 3 retries cover the transient half; the 5-minute hard deadline
+          # turns the rest into a clean red the operator can re-run.
+          sudo timeout 300 apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 update
+          sudo timeout 300 apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 install -y --no-install-recommends bubblewrap
+          sudo apparmor_parser -R /etc/apparmor.d/bwrap-userns-restrict 2>/dev/null || true
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 2>/dev/null || true  # absent on ubuntu-22.04
       - name: Funnel e2e (gate before upload)
         # The stranger's first path, played against the TARBALL that is
         # about to ship (untarred into a clean HOME · offline · content

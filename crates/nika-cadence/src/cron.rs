@@ -86,7 +86,10 @@ impl<const LO: u8, const HI: u8> Field<LO, HI> {
     }
 
     /// The values, ascending (FCI-014 — an iterator, never a Vec).
-    pub fn iter(&self) -> impl Iterator<Item = u8> {
+    /// Double-ended by construction (a filtered inclusive range), so the
+    /// backwards walk of `CronSpec::prev_before` rides `.rev()`.
+    #[must_use]
+    pub fn iter(&self) -> impl DoubleEndedIterator<Item = u8> {
         (LO..=HI).filter(move |v| self.contains(*v))
     }
 

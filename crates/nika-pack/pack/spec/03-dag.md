@@ -419,18 +419,16 @@ index access                with.pages[0] · obj['key-with-dash']
 comparison                  == · != · < · <= · > · >=
 boolean                     && · || · !
 membership                  in            (e.g. with.status in ['success','skipped'])
-size                        size(coll) · coll.size()   (collection/string length · the ONE v0.1 function · empty-check idiom)
+callables                   size(coll) · has(ref) · coll.size() · str.contains(s) · str.startsWith(s) · str.endsWith(s)
 literals                    true · false · 42 · 3.14 · 'str' · "str" · null
 grouping                    ( … )
 ```
 
-`size()` (collection/string length) is the ONE function in the v0.1 subset,
-the canonical empty/non-empty-check idiom (`size(items) > 0`). Everything else
-is **reserved** · arithmetic · CEL macros (`has()`, `all()`, `exists()`) · and
-string-manipulation functions (`startsWith`, `matches`, `contains`, …): not in
-the v0.1 subset, addable in a later minor (CEL is a superset, so growth is
-additive and never breaking). If you need richer logic today, compute it in a
-`nika:assert` builtin or an `infer:` task.
+The callable set is closed: `size(x)` · `has(x)` · `x.size()` ·
+`x.contains(s)` · `x.startsWith(s)` · `x.endsWith(s)`. Arithmetic, the
+`all()` / `exists()` macros, `matches()` regex, and every other callable are
+**reserved** for a later additive minor. If you need richer logic today,
+compute it in a `nika:assert` builtin or an `infer:` task.
 
 ##### Formal grammar · CEL v0.1 subset (normative · grammar version `cel-subset/0.1`)
 
@@ -1027,16 +1025,15 @@ the spelling can state — you cannot name a binding after the raw response —
 where before it was the block forbidding its own name. The reserved list dies
 separately, with the `tasks.X.out.<name>` disjoint tree; until then it stands.
 
-**Status · executed in this repo 2026-08-12 · the engine leg is owed.**
+**Status · executed in this repo 2026-08-12 · the engine leg landed in 0.109.0 (2026-08-18).**
 Measured here at execution · **17 workflow files + 6 spec fences** carry the
 field (the earlier « 12 in this repo » estimate was low). The rename lands in
 the engine parser, this schema, the corpus, the VS Code extension and the
 website; **this repo's leg is done and its own oracle moved with it** (schema
 `$defs/task`, `conformance/deep_static.py`, `conformance/runner.py`,
-`scripts/showcase-projector.py`). The shipped 0.108.0 binary refuses
-`extract:` with `NIKA-PARSE-005` and will until the engine leg lands — the
-same lead the corpus already carries on the envelope (`nika: v1`), not a new
-class of divergence. The migration is `canon/migrations.yaml` row
+`scripts/showcase-projector.py`). The shipped 0.108.0 binary refused
+`extract:` with `NIKA-PARSE-005` until 0.109.0 — the same lead the corpus
+then carried on the envelope, not a new class of divergence. The migration is `canon/migrations.yaml` row
 `mig-r4-task-extract-replaces-output` (`old_form: output` · `new_form:
 extract` · mechanical 1:1, equivalence-or-stop) with a `canon/tombstones.yaml`
 entry for the dead spelling, per the discipline every prior rename followed.

@@ -95,10 +95,11 @@ const CONSTRUCTS: [(&str, &str); 15] = [
 /// TWO keys need their nesting checked, and getting this wrong is not a
 /// cosmetic miss — it inverts the answer:
 ///
-/// - `workflow:` at column 0 is the ENVELOPE every file carries. Only an
-///   INDENTED one is a call to another workflow. Counted flat, composition
-///   read as « 33 files » when the true answer is zero, and the corpus
-///   would have reported full coverage of the construct it covers least.
+/// - `workflow:` at column 0 is the retired envelope identity (the
+///   name lives on `nika:` since 0.109), not composition. Only an
+///   INDENTED one is a call to another workflow. Counted flat, leftover
+///   fourteen-key files would read as composition coverage they do not
+///   have.
 /// - `inputs:` is the same shape: the top-level authority block, not a
 ///   nested key.
 ///
@@ -224,7 +225,7 @@ pub fn storefront(theme: Theme) -> VerbOutput {
     }
     let _ = write!(
         text,
-        "\nnext ·\n  nika try support-triage              # watch one work · nothing written\n  nika new support-triage              # make it yours (ingredients included)\n  nika new \"describe your job\"         # route your own words to the closest one\n  nika try --all                       # the whole shelf · the 13-step path + every job\n\n{}",
+        "\nnext ·\n  nika try support-triage              # watch one work · nothing written\n  nika new support-triage              # make it yours (ingredients included)\n  nika new \"describe your job\"         # route your own words to the closest one\n  nika try --all                       # the whole shelf · the numbered path + every job\n\n{}",
         theme.paint(
             Role::Dim,
             "verbs · \u{25c7} infer (ask a model) · \u{25b7} exec (run a command) · \u{25c6} invoke (use a tool) · \u{2726} agent (bounded loop)"
@@ -532,34 +533,13 @@ mod tests {
 
     /// The coverage ratchet, builtins leg — the same gate the kit has
     /// (`the_kit_never_teaches_a_form_the_engine_refuses`), pointed the
-    /// other way: the corpus must SHOW what the engine ships. Four ride a
-    /// named debt; a 29th builtin cannot join silently, and a debt paid
+    /// other way: the corpus must SHOW what the engine ships. One rides a
+    /// named debt; a new builtin cannot join silently, and a debt paid
     /// by a new lesson must be struck from the list in the same arc.
     #[test]
     fn every_builtin_is_shown_or_carries_a_named_debt() {
         // Each entry: why the gap is tolerated TODAY + the showcase owed.
-        const OWED: &[(&str, &str)] = &[
-            (
-                "compose",
-                "the agent loop's self-verification intrinsic (ADR-096) — owes \
-                 the lesson where a loop checks the workflow it just wrote",
-            ),
-            (
-                "decide",
-                "the deterministic decision kernel (spec 11 · W-DEC) — the \
-                 costliest gap: an agent that never sees it pays a model call \
-                 for an `if`",
-            ),
-            (
-                "inspect",
-                "cost · records · dag_info · threads behind one door (ADR-088) \
-                 — owes the lesson where a run reads itself",
-            ),
-            (
-                "tts_generate",
-                "the audio graduate — a showcase gap, not a logic gap",
-            ),
-        ];
+        const OWED: &[(&str, &str)] = &[];
         let mut bodies = String::new();
         for slug in nika_pack::example_slugs() {
             bodies.push_str(nika_pack::example(&slug).unwrap_or_default());

@@ -153,6 +153,7 @@ run_check "46 kit-script-tests     " "check-kit-script-tests.sh"
 run_check "47 version-surfaces     " "check-version-surfaces.sh"
 run_check "48 agent-plugins-1.0.0  " "check-agent-plugins.sh"
 run_check "49 hygiene-self-tests   " "check-hygiene-self-tests.sh"
+run_check "50 release-gate-envelope" "check-release-gate-envelope.sh"
 
 # --- Output ---
 g=0

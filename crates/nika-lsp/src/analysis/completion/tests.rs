@@ -956,6 +956,38 @@ fn for_each_offers_typed_arrays_first_then_the_boundary_import() {
         ],
         "typed array first · the teaching import · other vars honestly"
     );
+    // The INSERTED text is the block the parser admits — the label spells
+    // the collection, the insert wraps it: `{ items: "${{ … }}" }`. The
+    // bare scalar was refused at parse (« for_each must be a block with
+    // items: ») · measured 2026-08-18: this lane offered what check
+    // refused. Every item on the lane inserts the block; the parser
+    // proves the shape below.
+    for item in &items {
+        let inserted = item
+            .insert_text
+            .as_deref()
+            .expect("a for_each island inserts the block");
+        assert_eq!(
+            inserted,
+            format!("{{ items: \"{}\" }}", item.label),
+            "{}",
+            item.label
+        );
+    }
+    let picked = &items[0];
+    let doc = FLOW_DOC.replace(
+        "for_each: { items: \"${{ inputs.urls }}\" }",
+        &format!(
+            "for_each: {}",
+            picked.insert_text.as_deref().expect("insert")
+        ),
+    );
+    nika_schema::parse(
+        &doc,
+        nika_schema::FileId::new(0),
+        nika_schema::ParseMode::Strict,
+    )
+    .expect("what the island inserts, the parser admits");
     assert!(
         !got.iter().any(|l| l.contains("tasks.")),
         "no tasks.* form — the boundary (VAR-021): {got:?}"

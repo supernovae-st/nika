@@ -36,7 +36,7 @@ the registry bytes are verifiable against the release asset).
 import init, { check, engine_version } from '@supernovae-st/nika-check-wasm'
 
 await init() // browser: fetches the .wasm beside the glue
-const verdict = JSON.parse(check('nika: v1\n'))
+const verdict = JSON.parse(check('nika: hello\n'))
 verdict.wasm // true — the browser half names itself
 verdict.legs // ["PARSE", "CONFORM"] — closed, in-band coverage
 verdict.findings // the engine's own rows (code · gate · message · line/col in CHARS)

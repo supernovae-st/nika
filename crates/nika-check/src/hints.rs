@@ -87,6 +87,21 @@
 //!   rides the ambient system clock (the honest status quo · WARN-dur,
 //!   NEVER a refusal — the existing corpus cannot turn red overnight);
 //!   declare `run: { clock: … }` to pin the choice (F-P3).
+//! - **markdown glob eats README** (`glob-readme`) — `nika:glob` of
+//!   `*.md` without excluding README: the next infer classifies the
+//!   table of contents as a record.
+//! - **bare `map(` after `. as $`** (`jq-as-map`) — `nika:jq` binds
+//!   `. as $c` then `map(`s the *current* value (often a pair). Write
+//!   `($c | map(...))`.
+//! - **assert after a write** (`assert-quarantine`) — a red
+//!   `nika:assert` quarantines `out/` to `.nika/quarantine/<trace>/`.
+//! - **the model names the verdict** (`infer-as-law`) — an `infer:`
+//!   prompt asks the model to assign a belt / pick a level / score
+//!   the grade. Extract integer facts; `nika:jq` (or `nika:decide`)
+//!   is the law. A "never assign a belt" extract stays silent.
+//! - **the law is unproven** (`unproven-law`) — `nika:jq` / `nika:decide`
+//!   scores an infer extract and no const-fixture `nika:assert` proves
+//!   the law on known answers. `is_clean` does not compile the law.
 
 use std::collections::BTreeSet;
 
@@ -106,8 +121,13 @@ pub struct Hint {
     /// `secrets-store` · `native-first` ·
     /// `exec-json-capture` ·
     /// `unwrapped-ref` · `envelope-output` · `policy-soft` · `run-clock`
-    /// · `analysis` · `consent` (additive · agents route on it; the
-    /// module doc describes each).
+    /// · `analysis` · `consent` · `digit-string-enum`
+    /// · `glob-readme` · `assert-quarantine` · `jq-as-map` · `infer-as-law`
+    /// · `fail-open-consent`
+    /// · `unproven-law`
+    /// (additive · agents route on it; the module doc describes each).
+    /// The paid-run family ([`PAID_RUN_KINDS`]) is what [`paid_ready`]
+    /// reads — never `is_clean`.
     /// `parallel-writers` is RETIRED (F-P15 · promoted to the
     /// NIKA-SEC-012 finding — an error owns its repair, never a hint).
     /// `exec-floor` is RETIRED (#605 · promoted to the NIKA-SEC-001
@@ -117,6 +137,77 @@ pub struct Hint {
     pub task: String,
     /// What to change and what it unlocks.
     pub advice: String,
+}
+
+/// Hint kinds that mean the file is legal but must not leave `mock/`.
+/// A green `is_clean` with any of these is the 2026-08-19 paid-run class.
+pub const PAID_RUN_KINDS: &[&str] = &[
+    "digit-string-enum",
+    "glob-readme",
+    "jq-as-map",
+    "infer-as-law",
+    "unproven-law",
+];
+
+impl Hint {
+    /// Whether this hint is in the paid-run family.
+    #[must_use]
+    pub fn is_paid_run(&self) -> bool {
+        PAID_RUN_KINDS.contains(&self.kind)
+    }
+}
+
+/// The paid-run hints still on the file, in scan order.
+#[must_use]
+pub fn paid_blockers(hints: &[Hint]) -> Vec<&Hint> {
+    hints.iter().filter(|h| h.is_paid_run()).collect()
+}
+
+/// True iff no paid-run hint fired. Never consults `is_clean`.
+#[must_use]
+pub fn paid_ready(hints: &[Hint]) -> bool {
+    !hints.iter().any(Hint::is_paid_run)
+}
+
+/// True iff no `unproven-law` hint fired. A file with no law is compiled.
+/// Never consults `is_clean` or `paid_ready`.
+#[must_use]
+pub fn compiled(hints: &[Hint]) -> bool {
+    !hints.iter().any(|h| h.kind == "unproven-law")
+}
+
+/// Stamp `paid_ready` / `paid_blockers` / `compiled` / `next` onto a
+/// serialized check report. Additive · `report_version` stays 1 ·
+/// `clean` is untouched. `next` is the first paid blocker plus its
+/// advice — the one repair an agent should do now.
+pub fn stamp_paid_ready(obj: &mut serde_json::Map<String, serde_json::Value>, hints: &[Hint]) {
+    let paid = paid_blockers(hints);
+    obj.insert(
+        "paid_ready".to_owned(),
+        serde_json::Value::Bool(paid.is_empty()),
+    );
+    obj.insert(
+        "compiled".to_owned(),
+        serde_json::Value::Bool(compiled(hints)),
+    );
+    if let Some(h) = paid.first() {
+        obj.insert(
+            "next".to_owned(),
+            serde_json::json!({
+                "kind": h.kind,
+                "task": h.task,
+                "advice": h.advice,
+            }),
+        );
+        obj.insert(
+            "paid_blockers".to_owned(),
+            serde_json::Value::Array(
+                paid.iter()
+                    .map(|b| serde_json::json!({ "kind": b.kind, "task": b.task }))
+                    .collect(),
+            ),
+        );
+    }
 }
 
 /// Compute the improvement hints for a workflow.
@@ -139,6 +230,15 @@ pub(super) fn scan_hints(wf: &RawWorkflow) -> Vec<Hint> {
         });
     }
 
+    // Whether this file can DO anything. A `default:` on a prompt that
+    // gates nothing is an unattended answer; on a prompt over an effect it
+    // is a standing decision about what happens with no human present.
+    // The same predicate the trifecta lane's ② leg reads, so the two
+    // cannot disagree about what counts as an effect.
+    let gates_an_effect = wf
+        .tasks
+        .iter()
+        .any(|t| crate::trifecta::egress_capable(&t.value.action));
     for task in &wf.tasks {
         let t = &task.value;
         let id = t.id.value.as_str();
@@ -154,6 +254,7 @@ pub(super) fn scan_hints(wf: &RawWorkflow) -> Vec<Hint> {
                     &envelope_ids,
                     &deep_referenced,
                 );
+                push_infer_as_law_hint(&mut hints, id, a);
             }
             RawAction::Agent(a) => {
                 if a.max_tokens_total.is_none() {
@@ -169,11 +270,17 @@ pub(super) fn scan_hints(wf: &RawWorkflow) -> Vec<Hint> {
                 }
                 push_strictness_hint(&mut hints, id, a.schema.as_ref().map(|s| &s.value));
                 push_portability_hint(&mut hints, id, a.schema.as_ref().map(|s| &s.value));
+                push_digit_enum_hint(&mut hints, id, a.schema.as_ref().map(|s| &s.value));
             }
             RawAction::Exec(exec) => {
                 push_exec_json_capture_hint(&mut hints, t, exec);
             }
-            RawAction::Invoke(a) => push_headless_prompt_hint(&mut hints, id, a),
+            RawAction::Invoke(a) => {
+                push_headless_prompt_hint(&mut hints, id, a, gates_an_effect);
+                push_fail_open_consent_hint(&mut hints, id, a, gates_an_effect);
+                push_glob_readme_hint(&mut hints, id, a);
+                push_jq_as_map_hint(&mut hints, id, a);
+            }
             #[allow(
                 clippy::unreachable,
                 reason = "non_exhaustive future variant — enum and checker ship together; fail loud beats silently-wrong output"
@@ -192,6 +299,8 @@ pub(super) fn scan_hints(wf: &RawWorkflow) -> Vec<Hint> {
     push_unwrapped_output_ref_hints(&mut hints, wf);
     push_swallowed_exit_hints(&mut hints, wf);
     push_run_clock_hint(&mut hints, wf);
+    push_assert_quarantine_hint(&mut hints, wf);
+    push_unproven_law_hints(&mut hints, wf);
     hints
 }
 
@@ -260,6 +369,7 @@ fn push_infer_hints(
     }
     push_strictness_hint(hints, id, a.schema.as_ref().map(|s| &s.value));
     push_portability_hint(hints, id, a.schema.as_ref().map(|s| &s.value));
+    push_digit_enum_hint(hints, id, a.schema.as_ref().map(|s| &s.value));
 }
 
 /// The deadline-vs-undeclared-clock hint (F-P3 finding (b)): a task
@@ -325,6 +435,7 @@ fn push_headless_prompt_hint(
     hints: &mut Vec<Hint>,
     id: &str,
     a: &nika_schema::raw::RawInvokeAction,
+    gates_an_effect: bool,
 ) {
     let nika_schema::raw::RawInvokeTarget::Tool(tool) = &a.target else {
         return;
@@ -339,6 +450,17 @@ fn push_headless_prompt_hint(
     {
         return;
     }
+    // The closing clause used to be unconditional — « declare the
+    // `default:` the unattended path should take ». Over a real effect,
+    // following that with `true` builds a workflow that answers its own
+    // gate and fires the action with nobody present. Name the safe one.
+    let close = if gates_an_effect {
+        "or declare `default: false` — this file has an effect, and a \
+         defaulted gate ANSWERS ITSELF unattended (spec 06), so `false` is \
+         the choice that refuses rather than approves"
+    } else {
+        "or declare the `default:` the unattended path should take"
+    };
     hints.push(hint(
         "headless-prompt",
         id,
@@ -347,7 +469,68 @@ fn push_headless_prompt_hint(
              agent handing it over) the run pauses at this gate awaiting a human \
              (exit 4 · the resume line taught on the frame); at a terminal it asks \
              directly. Answer it in one pass with `nika run <file> --answer \
-             {id}=<value>`, or declare the `default:` the unattended path should take"
+             {id}=<value>`, {close}"
+        ),
+    ));
+}
+
+/// The `fail-open-consent` hint: a confirm gate carrying `default: true`
+/// in a file that can DO something.
+///
+/// Spec 06 requires the engine to use `default:` unattended, so this is
+/// legal and this hint is advisory — a « continue? » whose safe answer is
+/// yes is a real thing to author. What was missing is that the checker
+/// could not TELL the two apart. Measured 2026-08-20 on 0.111.0, two
+/// files one key apart, each run with no human ·
+///
+/// ```text
+///                  check card                         run
+/// default: true    ✔ 0 hints · risk supervised   answer=true  · the effect FIRED
+/// default: false   ✔ 0 hints · risk supervised   answer=false · the effect skipped
+/// ```
+///
+/// The prompt asked « delete production? ». The cards differed by the
+/// filename and nothing else, and both called the posture supervised.
+///
+/// Hint, not refusal — the affirmative-consent lane's own precedent: it
+/// landed hint-only in 2026-07-30 and escalated to `NIKA-SEC-014` on the
+/// evidence it collected. This is that first half.
+fn push_fail_open_consent_hint(
+    hints: &mut Vec<Hint>,
+    id: &str,
+    a: &nika_schema::raw::RawInvokeAction,
+    gates_an_effect: bool,
+) {
+    if !gates_an_effect {
+        return; // nothing to auto-approve
+    }
+    let nika_schema::raw::RawInvokeTarget::Tool(tool) = &a.target else {
+        return;
+    };
+    if tool.value != "nika:prompt" {
+        return;
+    }
+    let Some(args) = a.args.as_ref().map(|args| &args.value) else {
+        return;
+    };
+    // `mode:` absent means confirm (spec 06 · the default mode).
+    let confirm = args
+        .get("mode")
+        .and_then(serde_json::Value::as_str)
+        .is_none_or(|m| m == "confirm");
+    if !confirm || args.get("default") != Some(&serde_json::Value::Bool(true)) {
+        return;
+    }
+    hints.push(hint(
+        "fail-open-consent",
+        id,
+        format!(
+            "`nika:prompt` on `{id}` carries `default: true` and this file has an \
+             effect — unattended (CI, a cron, an agent) the engine answers this gate \
+             `true` on its own (spec 06) and the effect fires with no human present. \
+             That is legal and sometimes right; it is a decision, not a formatting \
+             detail. `default: false` refuses instead, and omitting `default:` PARKS \
+             the run (exit 4) so a human decides"
         ),
     ));
 }
@@ -840,6 +1023,450 @@ fn collect_grammar_blind(node: &serde_json::Value, out: &mut BTreeSet<&'static s
         out.extend(cond.then_some("if/then/else"));
         for_each_subschema(obj, &mut |kid| collect_grammar_blind(kid, out));
     }
+}
+
+/// String `enum` of digits only (`"0"|"1"|"3"`). Models emit JSON
+/// numbers; provider grammars may reject the call before Nika coerce
+/// stringifies. Prefer `type: integer`.
+fn push_digit_enum_hint(hints: &mut Vec<Hint>, id: &str, schema: Option<&serde_json::Value>) {
+    let mut paths = Vec::new();
+    if let Some(node) = schema {
+        collect_digit_string_enums(node, "", &mut paths);
+    }
+    if paths.is_empty() {
+        return;
+    }
+    let list = paths.join("` · `");
+    hints.push(hint(
+        "digit-string-enum",
+        id,
+        format!(
+            "`{id}` declares a string enum of digits only at `{list}` — models emit JSON numbers \
+             (`3` not `\"3\"`); constrained decoding can reject the call before Nika's coerce \
+             stringifies. Prefer `type: integer` with a numeric enum"
+        ),
+    ));
+}
+
+fn collect_digit_string_enums(node: &serde_json::Value, path: &str, out: &mut Vec<String>) {
+    let Some(obj) = node.as_object().filter(|o| !o.contains_key("$ref")) else {
+        return;
+    };
+    let types: Vec<&str> = match obj.get("type") {
+        Some(serde_json::Value::String(t)) => vec![t.as_str()],
+        Some(serde_json::Value::Array(list)) => list.iter().filter_map(|t| t.as_str()).collect(),
+        _ => Vec::new(),
+    };
+    let string_only = types == ["string"];
+    if string_only
+        && let Some(variants) = obj.get("enum").and_then(serde_json::Value::as_array)
+        && !variants.is_empty()
+        && variants.iter().all(|v| {
+            v.as_str().is_some_and(|s| {
+                !s.is_empty() && s.bytes().all(|b| b.is_ascii_digit() || b == b'-')
+            })
+        })
+    {
+        out.push(if path.is_empty() {
+            "/".to_owned()
+        } else {
+            path.to_owned()
+        });
+    }
+    if let Some(props) = obj.get("properties").and_then(serde_json::Value::as_object) {
+        for (key, child) in props {
+            collect_digit_string_enums(child, &format!("{path}/properties/{key}"), out);
+        }
+    }
+    if let Some(items) = obj.get("items") {
+        collect_digit_string_enums(items, &format!("{path}/items"), out);
+    }
+}
+
+/// A markdown glob that will also match a README sitting in the same
+/// tree. Authors then spend a paid infer wave classifying the README.
+fn push_glob_readme_hint(hints: &mut Vec<Hint>, id: &str, a: &nika_schema::raw::RawInvokeAction) {
+    let Some(tool) = a.tool() else {
+        return;
+    };
+    if tool.value != "nika:glob" {
+        return;
+    }
+    let Some(args) = a.args.as_ref() else {
+        return;
+    };
+    let Some(pattern) = args.value.get("pattern").and_then(|v| v.as_str()) else {
+        return;
+    };
+    if pattern.contains("${{") {
+        return;
+    }
+    let md_glob = std::path::Path::new(pattern)
+        .extension()
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("md"));
+    if !md_glob {
+        return;
+    }
+    let excluded = match args.value.get("exclude") {
+        Some(serde_json::Value::String(s)) => s.to_ascii_lowercase().contains("readme"),
+        Some(serde_json::Value::Array(list)) => list.iter().any(|v| {
+            v.as_str()
+                .is_some_and(|s| s.to_ascii_lowercase().contains("readme"))
+        }),
+        _ => false,
+    };
+    if excluded {
+        return;
+    }
+    hints.push(hint(
+        "glob-readme",
+        id,
+        format!(
+            "`nika:glob` on `{id}` matches `{pattern}` — that set includes a README \
+             sitting in the same directory. Pin the notes (`exclude: \"**/README.md\"` \
+             or glob a folder that has no README) before a paid infer classifies the \
+             table of contents as a record"
+        ),
+    ));
+}
+
+/// `. as $c` then a bare `map(` maps the CURRENT value (often a pair),
+/// not `$c`. The jury-jq class: `($c | map(...))`.
+fn push_jq_as_map_hint(hints: &mut Vec<Hint>, id: &str, a: &nika_schema::raw::RawInvokeAction) {
+    let Some(tool) = a.tool() else {
+        return;
+    };
+    if tool.value != "nika:jq" {
+        return;
+    }
+    let Some(expr) = a
+        .args
+        .as_ref()
+        .and_then(|args| args.value.get("expression"))
+        .and_then(|v| v.as_str())
+    else {
+        return;
+    };
+    if !jq_maps_the_current_after_bind(expr) {
+        return;
+    }
+    hints.push(hint(
+        "jq-as-map",
+        id,
+        format!(
+            "`nika:jq` on `{id}` binds `. as $name` then calls `map(` on the current \
+             value — after a later construct the current value is often a pair, not \
+             the bound array. Write `($name | map(...))`"
+        ),
+    ));
+}
+
+/// A failed last `nika:assert` quarantines writes to
+/// `.nika/quarantine/<trace>/`. Say so when the DAG both writes and
+/// asserts — authors hunt an empty `out/` otherwise.
+fn push_assert_quarantine_hint(hints: &mut Vec<Hint>, wf: &RawWorkflow) {
+    let mut asserts = Vec::new();
+    let mut writes = false;
+    for task in &wf.tasks {
+        let RawAction::Invoke(a) = &task.value.action else {
+            continue;
+        };
+        let Some(tool) = a.tool() else {
+            continue;
+        };
+        match tool.value.as_str() {
+            "nika:assert" => asserts.push(task.value.id.value.as_str()),
+            "nika:write" | "nika:edit" | "nika:chart" | "nika:emit" => writes = true,
+            _ => {}
+        }
+    }
+    if !writes {
+        return;
+    }
+    for id in asserts {
+        hints.push(hint(
+            "assert-quarantine",
+            id,
+            format!(
+                "`nika:assert` on `{id}` shares the DAG with a write — a red assert \
+                 moves `out/` into `.nika/quarantine/<trace>/`. Look there before \
+                 assuming the write never happened; keep the assert off the last \
+                 wave if you need the artifacts from a red run"
+            ),
+        ));
+    }
+}
+
+/// An `infer:` that asks the model to name the verdict (belt · level ·
+/// score). The cheaper one-way is facts-then-law (`13-extract-then-law`).
+/// A prompt that *forbids* the assignment (`never assign a belt`) is
+/// the extract shape and stays silent.
+fn push_infer_as_law_hint(hints: &mut Vec<Hint>, id: &str, a: &nika_schema::raw::RawInferAction) {
+    let prompt = a.prompt.value.as_str();
+    let system = a.system.as_ref().map_or("", |s| s.value.as_str());
+    if !asks_model_to_name_the_law(prompt) && !asks_model_to_name_the_law(system) {
+        return;
+    }
+    hints.push(hint(
+        "infer-as-law",
+        id,
+        format!(
+            "`{id}` asks the model to name a belt/level/score — that is the law, \
+             not a fact. Extract integer facts (`type: integer` + numeric enum), \
+             then `nika:jq` or `nika:decide`. Shape: `nika try 13-extract-then-law`"
+        ),
+    ));
+}
+
+const LAW_PHRASES: &[&str] = &[
+    "assign the belt",
+    "assign a belt",
+    "assign its belt",
+    "pick the level",
+    "pick a level",
+    "choose the level",
+    "name the belt",
+    "name the level",
+    "score the level",
+    "which belt",
+    "which level",
+    "give it a belt",
+    "give it a level",
+];
+
+fn asks_model_to_name_the_law(text: &str) -> bool {
+    let p = text.to_ascii_lowercase();
+    LAW_PHRASES.iter().any(|ph| {
+        let Some(i) = p.find(ph) else {
+            return false;
+        };
+        let clause = p[..i].rsplit(['.', '\n', ';']).next().unwrap_or(&p[..i]);
+        !clause.contains("never")
+            && !clause.contains("do not")
+            && !clause.contains("don't")
+            && !clause.contains("not ")
+    })
+}
+
+/// `. as $c | map(...)` maps the *current* value. `($c | map(...))` is
+/// the one-way. A one-liner used to slip past the line-start detector.
+fn jq_maps_the_current_after_bind(expr: &str) -> bool {
+    // The DOT binding is what puts the current value in question, so it stays
+    // the trigger: no `. as $name`, no hint.
+    if bound_jq_names(expr).is_empty() || !expr.contains("map(") {
+        return false;
+    }
+    // But ANY bound name names its input out loud. A law that walks several
+    // bindings (`($entries | map(...)) as $rows | ($rows | map(...))`) already
+    // does exactly what the advice prescribes, and stripping only the
+    // dot-bound name reported it as a defect (measured 2026-08-19).
+    let mut rest = squash_ws(expr);
+    for name in &all_bound_jq_names(expr) {
+        rest = rest.replace(&format!("(${name} | map("), "");
+        rest = rest.replace(&format!("(${name}|map("), "");
+    }
+    rest.contains("map(")
+}
+
+/// Every `as $NAME` binding, dot-bound or not. A `map(` piped from one of
+/// them is explicit; only a BARE `map(` rides the current value.
+fn all_bound_jq_names(expr: &str) -> Vec<String> {
+    let mut names = Vec::new();
+    let mut rest = expr;
+    while let Some(i) = rest.find(" as $") {
+        let after = &rest[i + 5..];
+        let name: String = after
+            .chars()
+            .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
+            .collect();
+        if name.is_empty() {
+            rest = after;
+            continue;
+        }
+        names.push(name.clone());
+        rest = after.get(name.len()..).unwrap_or("");
+    }
+    names
+}
+
+fn bound_jq_names(expr: &str) -> Vec<String> {
+    let mut names = Vec::new();
+    let mut rest = expr;
+    while let Some(i) = rest.find(". as $") {
+        let after = &rest[i + 6..];
+        let name: String = after
+            .chars()
+            .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
+            .collect();
+        if name.is_empty() {
+            rest = after;
+            continue;
+        }
+        names.push(name.clone());
+        rest = after.get(name.len()..).unwrap_or("");
+    }
+    names
+}
+
+/// `infer` → `nika:jq`/`nika:decide` with no const-fixture assert.
+/// `is_clean` does not prove the law (tests-first compile · 2026-08-19).
+fn push_unproven_law_hints(hints: &mut Vec<Hint>, wf: &RawWorkflow) {
+    let infer_ids: BTreeSet<&str> = wf
+        .tasks
+        .iter()
+        .filter_map(|task| match task.value.action {
+            RawAction::Infer(_) => Some(task.value.id.value.as_str()),
+            _ => None,
+        })
+        .collect();
+    if infer_ids.is_empty() {
+        return;
+    }
+    let mut law = Vec::new();
+    let mut prove = Vec::new();
+    for task in &wf.tasks {
+        let t = &task.value;
+        if !is_jq_or_decide(t) {
+            continue;
+        }
+        if task_mentions_infer(t, &infer_ids) {
+            law.push(t.id.value.as_str());
+        } else {
+            prove.push(t.id.value.as_str());
+        }
+    }
+    if law.is_empty() {
+        return;
+    }
+    let asserted = asserted_jq_decide_ids(wf);
+    if prove.iter().any(|id| asserted.contains(id)) {
+        return;
+    }
+    for id in law {
+        if asserted.contains(id) {
+            continue;
+        }
+        hints.push(hint(
+            "unproven-law",
+            id,
+            format!(
+                "`{id}` applies a jq/decide law to an infer extract — `is_clean` \
+                 does not prove the law. Feed known facts through the same law \
+                 and `nika:assert` (`condition` reads `with.`) against a const \
+                 map you computed by hand. Shape: `nika try 13-extract-then-law`"
+            ),
+        ));
+    }
+}
+
+fn is_jq_or_decide(t: &RawTask) -> bool {
+    let RawAction::Invoke(a) = &t.action else {
+        return false;
+    };
+    a.tool()
+        .is_some_and(|tool| tool.value == "nika:jq" || tool.value == "nika:decide")
+}
+
+fn task_mentions_infer(t: &RawTask, infer_ids: &BTreeSet<&str>) -> bool {
+    t.with
+        .iter()
+        .any(|(_, v)| value_mentions_tasks(&v.value, infer_ids))
+        || invoke_args(t).is_some_and(|args| value_mentions_tasks(args, infer_ids))
+}
+
+fn invoke_args(t: &RawTask) -> Option<&serde_json::Value> {
+    match &t.action {
+        RawAction::Invoke(a) => a.args.as_ref().map(|s| &s.value),
+        _ => None,
+    }
+}
+
+fn asserted_jq_decide_ids(wf: &RawWorkflow) -> BTreeSet<&str> {
+    let mut out = BTreeSet::new();
+    let mut jq_decide: BTreeSet<&str> = BTreeSet::new();
+    for task in &wf.tasks {
+        if is_jq_or_decide(&task.value) {
+            jq_decide.insert(task.value.id.value.as_str());
+        }
+    }
+    for task in &wf.tasks {
+        let t = &task.value;
+        let RawAction::Invoke(a) = &t.action else {
+            continue;
+        };
+        let Some(tool) = a.tool() else {
+            continue;
+        };
+        if tool.value != "nika:assert" {
+            continue;
+        }
+        let cond = a
+            .args
+            .as_ref()
+            .and_then(|args| args.value.get("condition"))
+            .and_then(serde_json::Value::as_str)
+            .unwrap_or("");
+        if !cond.contains("with.") {
+            continue;
+        }
+        for (_, v) in &t.with {
+            for id in task_ids_in_value(&v.value) {
+                if let Some(&hit) = jq_decide.get(id.as_str()) {
+                    out.insert(hit);
+                }
+            }
+        }
+    }
+    out
+}
+
+fn task_ids_in_value(v: &serde_json::Value) -> Vec<String> {
+    match v {
+        serde_json::Value::String(s) => {
+            let mut out = Vec::new();
+            let mut rest = s.as_str();
+            while let Some(i) = rest.find("tasks.") {
+                let after = &rest[i + 6..];
+                let name: String = after
+                    .chars()
+                    .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
+                    .collect();
+                if name.is_empty() {
+                    rest = after;
+                    continue;
+                }
+                out.push(name.clone());
+                rest = after.get(name.len()..).unwrap_or("");
+            }
+            out
+        }
+        serde_json::Value::Object(map) => map.values().flat_map(task_ids_in_value).collect(),
+        serde_json::Value::Array(arr) => arr.iter().flat_map(task_ids_in_value).collect(),
+        _ => Vec::new(),
+    }
+}
+
+fn value_mentions_tasks(v: &serde_json::Value, ids: &BTreeSet<&str>) -> bool {
+    task_ids_in_value(v)
+        .iter()
+        .any(|id| ids.contains(id.as_str()))
+}
+
+fn squash_ws(s: &str) -> String {
+    let mut out = String::with_capacity(s.len());
+    let mut gap = false;
+    for c in s.chars() {
+        if c.is_whitespace() {
+            gap = true;
+        } else {
+            if gap && !out.is_empty() {
+                out.push(' ');
+            }
+            gap = false;
+            out.push(c);
+        }
+    }
+    out
 }
 
 fn hint(kind: &'static str, task: &str, advice: String) -> Hint {

@@ -15,7 +15,7 @@ include_dir = { workspace = true }
 
 [dev-dependencies]
 sha2          = { workspace = true }
-nika-catalog  = { path = "../nika-catalog", version = "0.109.0-dev" }  # spec_parity — the vendored canon's 17 must resolve in the shipped catalog
+nika-catalog  = { path = "../nika-catalog", version = "0.112.0" }  # spec_parity — the vendored canon's 17 must resolve in the shipped catalog
 serde_yaml_bw = { workspace = true }
 
 [lints]

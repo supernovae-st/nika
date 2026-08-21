@@ -134,9 +134,7 @@ jobs:
           # `permits:` block is ZERO authority (F-O8 · NEP-0003), so the
           # exec grant is explicit.
           cat > hello.nika.yaml <<'WORKFLOW'
-          nika: v1
-          workflow:
-            id: hello-smoke
+          nika: hello-smoke
           permits:
             exec: [echo]
           tasks:
@@ -170,9 +168,7 @@ jobs:
         run: |
           set -euo pipefail
           cat > mock-infer.nika.yaml <<'WORKFLOW'
-          nika: v1
-          workflow:
-            id: mock-infer-smoke
+          nika: mock-infer-smoke
           model: mock/echo
           tasks:
             ping:

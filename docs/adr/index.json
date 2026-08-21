@@ -741,15 +741,15 @@
     {
       "id": "ADR-082",
       "title": "Workflow envelope: single version marker `nika: v1` (supersedes K8s apiVersion form)",
-      "status": "accepted",
+      "status": "superseded",
       "date": "2026-05-25",
       "filename": "adr-082-envelope-nika-v1-single-version-marker.md",
       "tags": ["schema","yaml","envelope","version-marker","spec-alignment"],
       "affects_crates": ["nika-schema","nika-schema-ast","nika-binding","nika-catalog","nika-event"],
       "affects_layers": ["L0","L0.5"],
       "supersedes": ["ADR-021"],
-      "superseded_by": [],
-      "related": ["ADR-021","ADR-084","ADR-085","ADR-086","ADR-087","ADR-088"],
+      "superseded_by": ["ADR-113"],
+      "related": ["ADR-021","ADR-084","ADR-085","ADR-086","ADR-087","ADR-088","ADR-113"],
       "requires": [],
       "enables": []
     }
@@ -1179,16 +1179,16 @@
       "tags": ["envelope","grammar","parser","flag-day","spec-alignment"],
       "affects_crates": ["nika-schema","nika-vocab","nika-check","nika-lsp","nika-migrate","nika-cli","nika-cli-host","nika-runtime","nika-display"],
       "affects_layers": ["L0","L4"],
-      "supersedes": [],
+      "supersedes": ["ADR-082"],
       "superseded_by": [],
-      "related": ["ADR-001","ADR-021"],
+      "related": ["ADR-001","ADR-021","ADR-082"],
       "requires": [],
       "enables": []
     }
     ,
     {
       "id": "ADR-114",
-      "title": "`nika-cadence` — the arming registry grammar and the pure next-slot calculator, at L0",
+      "title": "`nika-cadence` — the pure arming domain, at L0",
       "status": "accepted",
       "date": "2026-08-15",
       "filename": "adr-114-nika-cadence-admission.md",
@@ -1215,6 +1215,38 @@
       "superseded_by": [],
       "related": ["ADR-110","ADR-022","ADR-023","ADR-027"],
       "requires": [],
+      "enables": []
+    }
+    ,
+    {
+      "id": "ADR-116",
+      "title": "nika serve v0 was a local-only resident firer",
+      "status": "superseded",
+      "date": "2026-08-19",
+      "filename": "adr-116-nika-serve-resident-firer.md",
+      "tags": ["architecture","cadence","arm","serve","lineage"],
+      "affects_crates": ["nika-cli","nika-cadence"],
+      "affects_layers": ["L0","L4"],
+      "supersedes": [],
+      "superseded_by": ["ADR-117"],
+      "related": [],
+      "requires": ["ADR-114"],
+      "enables": []
+    }
+    ,
+    {
+      "id": "ADR-117",
+      "title": "admit nika serve network access behind explicit authority",
+      "status": "accepted",
+      "date": "2026-08-21",
+      "filename": "adr-117-nika-serve-network-boundary.md",
+      "tags": ["architecture","serve","http","authentication","execution","layering"],
+      "affects_crates": ["nika-arm","nika-cli","nika-runtime","nika-serve"],
+      "affects_layers": ["L3","L4"],
+      "supersedes": ["ADR-116"],
+      "superseded_by": [],
+      "related": [],
+      "requires": ["ADR-114"],
       "enables": []
     }
   ]

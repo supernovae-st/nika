@@ -45,8 +45,14 @@ Yes.
 brew install supernovae-st/tap/nika    # or: curl -LsSf https://nika.sh/install.sh | sh
 nika try 01-hello                                # zero setup: no key, no model server
 nika try 01-hello --model ollama/llama3.2:3b     # got Ollama? the same run, real + local
+nika list                                        # workflows below this directory
+nika                                             # on a terminal: open one continuous thread
 # (first run loads the model into memory; later runs are much faster)
 ```
+
+Inside the thread, normal text streams through the existing `agent:` runtime.
+`/workflow <path>` posts a workflow card, `/run <path>` runs it in the same
+thread, and Ctrl-C interrupts the active turn while leaving the thread open.
 
 ![nika check audits the workflow (plan, cost, secrets, types), then nika run executes it locally](media/nika-hero.gif)
 
@@ -123,10 +129,12 @@ and the fixed half clean.
 
 ```yaml
 # review.nika.yaml: read a PR diff, judge its risk, comment only when it's high.
-nika: v1
-workflow:
-  id: pr-risk-review
+nika: pr-risk-review
 model: ollama/qwen3.5:9b             # local by default. swap to any provider
+
+permits:                              # the blast radius, declared in-file
+  exec: ["git"]
+  tools: ["mcp:github/pr-comment"]
 
 tasks:
   diff:                               # exec: a read-only shell command
@@ -317,8 +325,9 @@ composition."
 | `invoke` | Call a tool or MCP server (an HTTP fetch, GitHub, a builtin…) |
 | `agent` | Run an autonomous loop with tools, until the task is done |
 
-Everything sits under one frozen, versioned envelope, `nika: v1`, that won't
-break. Three properties hold across every workflow:
+Everything sits under one frozen nine-key envelope · `nika` · `model` ·
+`inputs` · `const` · `secrets` · `permits` · `run` · `tasks` · `outputs` ·
+that won't break. Three properties hold across every workflow:
 
 - **Provider-agnostic, local-first.** Local Ollama or LM Studio, any API —
   or no server at all: every release binary serves GGUFs itself
@@ -354,7 +363,7 @@ era of private prototypes through summer 2025 · first git commit on
 January 1, 2026 on the branch named `brouillon` · **79 versions in a
 103-day draft era** (public [crates.io trail](https://crates.io/crates/nika/versions)
 from March) · then **rewritten from scratch on April 13, 2026** — the
-Diamond era, an orphan branch, zero code inherited, the version line
+Diamond era, zero code inherited, the version line
 continuing because the language is the continuity. Every dated claim is machine-verified in the spec
 repo's [timeline](https://github.com/supernovae-st/nika-spec/blob/main/timeline/timeline.yaml),
 rendered with the forward gates at [nika.sh/timeline](https://nika.sh/timeline).
@@ -378,7 +387,7 @@ including when *not* to use Nika.
 
 Nika is built in the open.
 
-The **language** (the `nika: v1` envelope and its four verbs) is stable and
+The **language** (the nine-key envelope and its four verbs) is stable and
 won't break. The **engine** is a strict, modular Rust workspace. The latest
 tagged public release is whatever the badge at the top of this page says:
 always [the releases page](https://github.com/supernovae-st/nika/releases/latest),
@@ -390,7 +399,7 @@ checklist, not by a date. The code, the
 [example workflows](examples/) are all readable, and development happens on
 `main` in the open.
 
-The `nika: v1` language envelope is frozen forever. It is a separate axis from the
+The nine-key language envelope is frozen forever. It is a separate axis from the
 engine version. Every release is complete for its declared scope; no
 half-features parked behind a future version.
 
@@ -451,13 +460,13 @@ Your first workflow runs with **zero setup**: no model, no API key:
 
 ```sh
 cat > hello.nika.yaml <<'YAML'
-nika: v1
-workflow:
-  id: hello
+nika: hello
+permits:
+  exec: ["echo"]
 tasks:
   greet:
     exec:
-      command: "echo hello from nika"
+      command: ["echo", "hello from nika"]
 YAML
 
 nika check hello.nika.yaml   # static audit, before a single token is spent
@@ -467,6 +476,7 @@ nika run hello.nika.yaml     # execute locally
 Adding an AI step? Point it at a local model and nothing leaves your machine:
 
 ```yaml
+nika: hello
 model: ollama/llama3.2:3b    # local · or mistral/..., anthropic/..., any provider
 tasks:
   greet:

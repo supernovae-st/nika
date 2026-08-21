@@ -687,6 +687,46 @@ fn hash_blake3_default_and_rejects_broken() {
 }
 
 #[test]
+fn hash_accepts_structured_content_without_a_tojson_prepass() {
+    // Empirical 2026-08-19: interpolating a roster object into
+    // `content:` used to refuse HASH-001 "`content:` (string) is required".
+    let from_object = hash(&args(serde_json::json!({
+        "content": [{"stem": "ada", "level": "gold"}]
+    })))
+    .expect("object content hashes");
+    let via_json = hash(&args(serde_json::json!({
+        "content": "[{\"level\":\"gold\",\"stem\":\"ada\"}]"
+    })));
+    // Compact serde_json key order is insertion order — the digest is
+    // defined, not compared to a hand-typed string here. A number is
+    // hashed as its decimal digits (same as a string of those digits).
+    assert_eq!(from_object.as_str().expect("hex").len(), 64);
+    let as_number = hash(&args(serde_json::json!({ "content": 3 }))).expect("n");
+    let as_text = hash(&args(serde_json::json!({ "content": "3" }))).expect("s");
+    assert_eq!(as_number, as_text);
+    assert!(via_json.is_ok(), "string content still works: {via_json:?}");
+}
+
+#[test]
+fn validate_parses_a_json_string_schema_from_nika_read() {
+    let schema = "{\n  \"type\": \"object\",\n  \"required\": [\"name\"]\n}\n";
+    let out = validate(&args(serde_json::json!({
+        "data": {"name": "ada"},
+        "schema": schema
+    })))
+    .expect("string schema is a schema");
+    assert_eq!(out["valid"], true);
+    let garbage = validate(&args(serde_json::json!({
+        "data": {},
+        "schema": "not a schema at all"
+    })));
+    assert!(
+        matches!(&garbage, Err(f) if f.code == "NIKA-BUILTIN-VALIDATE-001"),
+        "garbage string schema is VALIDATE-001: {garbage:?}"
+    );
+}
+
+#[test]
 fn base64_encoder_matches_known_vectors() {
     assert_eq!(base64_encode(b""), "");
     assert_eq!(base64_encode(b"f"), "Zg==");

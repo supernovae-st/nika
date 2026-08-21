@@ -35,6 +35,9 @@ use nika_schema::types::{EgressRule, OutputDecl, Permits};
 
 use super::declass;
 
+type Taints = BTreeMap<String, TaintTrace>;
+type WithTaints<'a> = BTreeMap<&'a str, Taints>;
+
 /// One link in a [`TaintTrace`] hop chain — a structurally-shared cons-list.
 /// `via` prepends a link in O(1) (an `Arc` bump of the shared tail), never a
 /// copy, so carrying a length-k trace through k propagation hops stays O(k)
@@ -116,11 +119,11 @@ pub struct FlowFacts {
     /// embed the secret · the sanction clears the SEND, not the capture).
     /// The REPORTABLE leak is [`Self::effect_leak`] (sanction-filtered).
     effect_taint: BTreeMap<usize, TaintTrace>,
-    /// Task index → the UNSANCTIONED effect leak (what `scan_leaks`
-    /// reports). A secret reaching an `exec`/`invoke` effect whose egress
-    /// is NOT author-sanctioned (declass · ADR-092). A sanctioned egress
-    /// is in `effect_taint` (propagation) but absent here (no leak).
-    effect_leak: BTreeMap<usize, TaintTrace>,
+    /// Task index → every UNSANCTIONED secret edge reaching that effect.
+    /// Kept separate from the singular propagation fact: one captured
+    /// output still carries the historical first trace, while the sink
+    /// judge must assess every secret independently.
+    effect_leaks: BTreeMap<usize, Taints>,
     /// Task index → the taint of its OUTPUT (`tasks.<id>.output`).
     output_taint: BTreeMap<usize, TaintTrace>,
     /// Workflow `outputs:` entry name → the taint reaching it (egress).
@@ -135,12 +138,24 @@ impl FlowFacts {
         self.effect_taint.get(&task)
     }
 
-    /// The UNSANCTIONED effect leak of `task`, if any — what `scan_leaks`
-    /// reports. `Some` ⇒ a secret reaches the effect AND its egress is not
-    /// author-sanctioned (declass · ADR-092).
+    /// The first UNSANCTIONED effect leak of `task`, if any. Preserves the
+    /// historical first propagation trace when that edge is uncleared;
+    /// otherwise returns the first independently judged uncleared edge.
     #[must_use]
     pub fn effect_leak(&self, task: usize) -> Option<&TaintTrace> {
-        self.effect_leak.get(&task)
+        let leaks = self.effect_leaks.get(&task)?;
+        self.effect_taint
+            .get(&task)
+            .filter(|trace| leaks.contains_key(trace.secret.as_str()))
+            .or_else(|| leaks.values().next())
+    }
+
+    /// Every independently judged UNSANCTIONED edge at `task`'s effect.
+    pub(crate) fn effect_leaks(&self, task: usize) -> impl Iterator<Item = &TaintTrace> {
+        self.effect_leaks
+            .get(&task)
+            .into_iter()
+            .flat_map(BTreeMap::values)
     }
 
     /// The taint reaching one of `task`'s `on_finally` cleanup effects,
@@ -272,8 +287,9 @@ fn propagate_task(
             clippy::unreachable,
             reason = "non_exhaustive future variant — enum and checker ship together; fail loud beats silently-wrong output"
         )]
-        other => unreachable!("unknown for_each form: {other:?}"),
+        _ => unreachable!("unknown for_each form"),
     });
+    let (with_taints, item_taints) = task_local_taints(task, declared, id_of, facts);
 
     // 3. Effect taint: do this task's effect-carrying fields see a secret?
     let effect = action_effect_fields(&task.action)
@@ -288,17 +304,22 @@ fn propagate_task(
                 facts,
             )
         });
+    let effect_taints = all_taints_of_refs(
+        action_effect_fields(&task.action)
+            .into_iter()
+            .flat_map(refs_in_str)
+            .collect(),
+        declared,
+        &with_taints,
+        Some(&item_taints),
+        id_of,
+        facts,
+    );
     if let Some(trace) = &effect {
         // Propagation fact (always · feeds output taint below).
         facts.effect_taint.insert(idx, trace.clone());
-        // Reportable leak — UNLESS this secret's egress sanctions this sink
-        // (declass · L1∧L2∧L3). A sanctioned egress propagates but is no
-        // leak (the author cleared the SEND; the capture stays tainted).
-        let egress = egress_of.get(trace.secret.as_str()).copied().unwrap_or(&[]);
-        if !declass::is_sanctioned(&trace.secret, egress, &task.action, permits) {
-            facts.effect_leak.insert(idx, trace.clone());
-        }
     }
+    record_effect_leaks(idx, task, effect_taints, egress_of, permits, facts);
 
     // 4. Output taint: an exec/invoke whose effect saw taint can embed it in
     //    the captured output. infer/agent are provider-bound (no output taint).
@@ -311,6 +332,70 @@ fn propagate_task(
 
     // 5. `on_finally` cleanup effects are sinks too (extracted for the
     //    100-LOC fn cap · same env / same declass filter as the main effect).
+}
+
+fn task_local_taints<'a>(
+    task: &'a RawTask,
+    declared: &BTreeSet<&str>,
+    id_of: &BTreeMap<&str, usize>,
+    facts: &FlowFacts,
+) -> (WithTaints<'a>, Taints) {
+    let mut with_taints = WithTaints::new();
+    for (key, value) in &task.with {
+        let taints = all_taints_of_refs(
+            refs_in_json(&value.value),
+            declared,
+            &WithTaints::new(),
+            None,
+            id_of,
+            facts,
+        )
+        .into_iter()
+        .map(|(secret, trace)| {
+            (
+                secret,
+                trace.via(format!("with.{} @ {}", key.value, task.id.value)),
+            )
+        })
+        .collect();
+        with_taints.insert(key.value.as_str(), taints);
+    }
+    let item_refs = task.for_each.as_ref().map(|f| match &f.value {
+        nika_schema::raw::ForEachValue::Expression(src) => refs_in_str(src),
+        nika_schema::raw::ForEachValue::List(list) => refs_in_json(list),
+        #[allow(
+            clippy::unreachable,
+            reason = "non_exhaustive future variant — enum and checker ship together; fail loud beats silently-wrong output"
+        )]
+        _ => unreachable!("unknown for_each form"),
+    });
+    let item_taints = item_refs
+        .map(|refs| all_taints_of_refs(refs, declared, &with_taints, None, id_of, facts))
+        .unwrap_or_default()
+        .into_iter()
+        .map(|(secret, trace)| (secret, trace.via(format!("item @ {}", task.id.value))))
+        .collect();
+    (with_taints, item_taints)
+}
+
+fn record_effect_leaks(
+    idx: usize,
+    task: &RawTask,
+    effect_taints: Taints,
+    egress_of: &BTreeMap<&str, &[EgressRule]>,
+    permits: Option<&Permits>,
+    facts: &mut FlowFacts,
+) {
+    let leaks: Taints = effect_taints
+        .into_iter()
+        .filter(|(_, trace)| {
+            let egress = egress_of.get(trace.secret.as_str()).copied().unwrap_or(&[]);
+            !declass::is_sanctioned(&trace.secret, egress, &task.action, permits)
+        })
+        .collect();
+    if !leaks.is_empty() {
+        facts.effect_leaks.insert(idx, leaks);
+    }
 }
 
 /// Record the FIRST UNSANCTIONED `on_finally` cleanup leak of a task. A
@@ -434,6 +519,61 @@ fn taint_of_refs_full(
     None
 }
 
+/// Resolve every distinct secret reaching one effect-local surface.
+///
+/// Upstream outputs deliberately retain the singular propagation fact;
+/// this function widens only direct refs and task-local `with`/`item`
+/// aliases. Repeated aliases are merged once, bounding work by authored
+/// references plus the distinct secret set instead of their product.
+fn all_taints_of_refs(
+    refs: Vec<NamespaceRef>,
+    declared: &BTreeSet<&str>,
+    with_taints: &WithTaints<'_>,
+    item_taints: Option<&Taints>,
+    id_of: &BTreeMap<&str, usize>,
+    facts: &FlowFacts,
+) -> Taints {
+    let mut out = BTreeMap::new();
+    let mut seen_with = BTreeSet::new();
+    let mut seen_tasks = BTreeSet::new();
+    let mut saw_item = false;
+    for r in refs {
+        match r {
+            NamespaceRef::Secrets(name) if declared.contains(name.as_str()) => {
+                out.entry(name.clone())
+                    .or_insert_with(|| TaintTrace::source(&name));
+            }
+            NamespaceRef::With(key) if seen_with.insert(key.clone()) => {
+                if let Some(taints) = with_taints.get(key.as_str()) {
+                    extend_first(&mut out, taints.values().cloned());
+                }
+            }
+            NamespaceRef::Item if !saw_item => {
+                saw_item = true;
+                if let Some(taints) = item_taints {
+                    extend_first(&mut out, taints.values().cloned());
+                }
+            }
+            NamespaceRef::Tasks { id, .. } if seen_tasks.insert(id.clone()) => {
+                if let Some(&upstream) = id_of.get(id.as_str())
+                    && let Some(trace) = facts.output_taint.get(&upstream)
+                {
+                    out.entry(trace.secret.clone())
+                        .or_insert_with(|| trace.clone());
+                }
+            }
+            _ => {}
+        }
+    }
+    out
+}
+
+fn extend_first(target: &mut Taints, traces: impl Iterator<Item = TaintTrace>) {
+    for trace in traces {
+        target.entry(trace.secret.clone()).or_insert(trace);
+    }
+}
+
 /// The `${{ … }}` references inside a string (via the real extractor — the
 /// same path the analyzer uses, so taint and `NIKA-VAR-001` agree).
 pub(crate) fn refs_in_str(text: &str) -> Vec<NamespaceRef> {
@@ -510,6 +650,56 @@ mod tests {
         );
         let (wf, f) = facts(&y);
         assert!(f.effect_taint(idx(&wf, "t")).is_some());
+    }
+
+    #[test]
+    fn plural_sink_judgment_preserves_the_historical_first_trace() {
+        let (wf, f) = facts(
+            r#"
+nika: first-trace
+secrets:
+  token: { source: env, key: TOKEN }
+permits:
+  exec: [printf]
+tasks:
+  send:
+    with: { alias: "${{ secrets.token }}" }
+    exec:
+      command: [printf, "${{ secrets.token }}"]
+      stdin: "${{ with.alias }}"
+"#,
+        );
+        let task = idx(&wf, "send");
+        assert_eq!(
+            f.effect_taint(task).expect("taint").render(),
+            "secrets.token"
+        );
+        assert_eq!(f.effect_leak(task).expect("leak").render(), "secrets.token");
+        assert_eq!(f.effect_leaks(task).count(), 1);
+    }
+
+    #[test]
+    fn first_leak_accessor_falls_through_a_sanctioned_first_edge() {
+        let (wf, f) = facts(
+            r#"
+nika: first-cleared
+secrets:
+  alpha:
+    source: env
+    key: ALPHA
+    egress: [{ to: exec }]
+  omega: { source: env, key: OMEGA }
+permits:
+  exec: [printf]
+tasks:
+  send:
+    exec:
+      command: [printf, "${{ secrets.alpha }}:${{ secrets.omega }}"]
+"#,
+        );
+        let task = idx(&wf, "send");
+        assert_eq!(f.effect_taint(task).expect("taint").secret, "alpha");
+        assert_eq!(f.effect_leak(task).expect("uncleared edge").secret, "omega");
     }
 
     #[test]

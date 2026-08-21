@@ -57,8 +57,8 @@ horizon 50-90 · cap 100); the intelligence layer is mostly design + seams.
 
 ## §2 · The LSP · authoring `.nika.yaml` at 2040 quality
 
-**Today's seam.** `.nika.yaml` workflows carry `nika: v1` forever (the schema
-envelope). `spec/workflow.schema.json` already gives **free completion** in any
+**Today's seam.** `.nika.yaml` workflows carry the nine-key envelope forever
+(`nika: <id>` opens every file · ADR-113). `spec/workflow.schema.json` already gives **free completion** in any
 editor via `yaml-language-server` (the canonical LSP backbone for VS Code ·
 IntelliJ · Neovim) — per ADR-085, the hand-derived `invoke.tool` `oneOf`
 autocompletes the builtin catalog *today*, zero engine ship required. That is

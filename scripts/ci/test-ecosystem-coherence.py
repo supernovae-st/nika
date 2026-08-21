@@ -34,7 +34,8 @@ def iso(hours_ago: float) -> str:
 def fixtures(*, tag="0.95.0", age_h=48.0, tap="0.95.0", site="0.95.0",
              sdk="0.90.0", npm="0.90.0", pack="0.1.0-draft", spec_v="0.1.0-draft",
              engine="0.95.0", vscode="0.96.0", docs="0.95.0", reg_n=21,
-             action="0.95.0", starter="0.95.0", certeng="0.95.0"):
+             action="0.95.0", starter="0.95.0", certeng="0.95.0",
+             pack_sha="b" * 40, engine_pin=None):
     R = bot.RAW
     return {
         "https://api.github.com/repos/supernovae-st/nika/releases/latest":
@@ -44,7 +45,11 @@ def fixtures(*, tag="0.95.0", age_h=48.0, tap="0.95.0", site="0.95.0",
         f"{R}/supernovae-st/nika-client/main/package.json": json.dumps({"version": sdk}),
         "https://registry.npmjs.org/@supernovae-st%2Fnika-client": json.dumps({"dist-tags": {"latest": npm}}),
         f"{R}/supernovae-st/nika/main/crates/nika-pack/pack/VERSION": pack + "\n",
-        f"{R}/supernovae-st/nika-spec/main/VERSION": spec_v + "\n",
+        f"{R}/supernovae-st/nika/main/crates/nika-pack/pack/SPEC_SHA": pack_sha + "\n",
+        f"{R}/supernovae-st/nika/main/SPEC_PIN": "# pin\n" + (engine_pin or pack_sha) + "\n",
+        f"{R}/supernovae-st/nika-spec/{pack_sha}/VERSION": spec_v + "\n",
+        f"{R}/supernovae-st/nika-spec/{pack_sha}/canon.yaml": "providers: {}\n",
+        f"{R}/supernovae-st/nika/main/crates/nika-pack/pack/canon.yaml": "providers: {}\n",
         f"{R}/supernovae-st/nika-vscode/main/package.json": json.dumps({"version": vscode}),
         "https://open-vsx.org/api/supernovae/nika-lang": json.dumps({"version": vscode}),
         f"{R}/supernovae-st/nika/main/Cargo.toml": f'version      = "{engine}"\n',
@@ -63,7 +68,7 @@ def fixtures(*, tag="0.95.0", age_h=48.0, tap="0.95.0", site="0.95.0",
                             ("nika.sh","spec-resync.yml"),("nika-action","release-heal.yml"),
                             ("nika-actions-starter","release-heal.yml"),("nika-client","release-heal.yml"),
                             ("nika-plugins","release-heal.yml"),("nika-registry","release-heal.yml"),
-                            ("nika-vscode","spec-pin-heal.yml"),("nika","pack-resync.yml"))},
+                            ("nika-vscode","spec-pin-heal.yml"),("nika","spec-pin-heal.yml"))},
     }
 
 
@@ -101,6 +106,11 @@ code, f = run(fixtures(engine="0.96.0", vscode="0.99.0"))
 check("T3a lockstep WARN below 0.97", any(x[0] == "WARN" and "lockstep vscode" == x[1] for x in f), f)
 code, f = run(fixtures(engine="0.97.0", site="0.97.0", tap="0.97.0", tag="0.97.0", docs="0.97.0", vscode="0.99.0"))
 check("T3b lockstep FAIL from 0.97", code == 1 and any(x[0] == "FAIL" and "lockstep vscode" == x[1] for x in f), f)
+
+# T3c · the engine pin and embedded pack marker are one identity.
+code, f = run(fixtures(engine_pin="c" * 40))
+check("T3c split engine/pack identity fails", code == 1 and any(
+    x[0] == "FAIL" and x[1] == "pack identity" for x in f), f)
 
 # T4 · pre-release engine version must not crash
 try:

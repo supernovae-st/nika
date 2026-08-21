@@ -49,6 +49,9 @@
 mod admit;
 mod agent_events;
 pub mod approval;
+#[cfg(test)]
+#[path = "../build_support.rs"]
+mod build_support;
 pub mod child;
 pub mod compose;
 pub mod config;
@@ -58,6 +61,7 @@ mod emit_task;
 mod errors;
 mod expr;
 pub(crate) mod harness_seat;
+pub mod identity;
 mod integrity;
 mod jq;
 mod ledger;
@@ -125,6 +129,7 @@ pub use compose::{
 };
 pub use config::RuntimeConfig;
 pub use errors::RuntimeError;
+pub use identity::{EngineIdentity, engine_identity};
 pub use origins::{InputOrigin, input_origins};
 pub use pause::WorkflowPause;
 pub use record::{TaskErrorRecord, TaskRecord, TaskStatus, TerminalCause, legal};
@@ -258,6 +263,8 @@ pub struct Runtime<S, T, H, P, D, C> {
     /// `harness_seat` so the trace names the execution override beside
     /// the resolver's plan. `None` without a declaration.
     harness_seat_id: Option<String>,
+    /// Live `nika:inspect` cell (ADR-088). Shared with the dispatcher.
+    inspect: Option<Arc<nika_builtin::LiveInspect>>,
     /// The run's SOURCE identity — sha256 hex over the exact bytes the
     /// operator ran (computed by the composer that read the file; the
     /// runtime never re-reads). Stamped on `workflow_started` so every
@@ -367,7 +374,58 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
             access_probes: Vec::new(),
             boot_access_fields: Vec::new(),
             harness_seat_id: None,
+            inspect: None,
         }
+    }
+
+    /// Inject the live inspect cell (same `Arc` the dispatcher holds).
+    #[must_use]
+    pub fn with_inspect(mut self, cell: Arc<nika_builtin::LiveInspect>) -> Self {
+        self.inspect = Some(cell);
+        self
+    }
+
+    /// Seed the static DAG before any task runs.
+    fn seed_inspect(&self, wf: &nika_schema::raw::RawWorkflow, report: &nika_check::CheckReport) {
+        let Some(cell) = &self.inspect else {
+            return;
+        };
+        let nodes: Vec<String> = wf.tasks.iter().map(|t| t.value.id.value.clone()).collect();
+        let edges: Vec<(String, String)> = wf
+            .tasks
+            .iter()
+            .flat_map(|t| {
+                let to = t.value.id.value.clone();
+                t.value
+                    .after
+                    .iter()
+                    .map(move |(from, _)| (from.value.clone(), to.clone()))
+            })
+            .collect();
+        let waves: Vec<Vec<String>> = report
+            .waves
+            .iter()
+            .map(|w| {
+                w.iter()
+                    .filter_map(|&i| wf.tasks.get(i).map(|t| t.value.id.value.clone()))
+                    .collect()
+            })
+            .collect();
+        cell.seed_dag(nodes, edges, waves);
+    }
+
+    /// Mirror settled records + spend after each wave merge.
+    fn publish_inspect(&self, records: &BTreeMap<String, TaskRecord>, ledger: &ledger::RunLedger) {
+        let Some(cell) = &self.inspect else {
+            return;
+        };
+        cell.replace_records(
+            records
+                .iter()
+                .map(|(id, r)| (id.clone(), r.status.as_str().to_owned(), r.duration_ms)),
+        );
+        let snap = ledger.snapshot();
+        cell.set_spend(snap.spent_usd, snap.any_priced, snap.by_source);
     }
 
     /// Declare the composer's `--model` override (#409): it joins the
@@ -786,6 +844,7 @@ where
         // once per run and nothing a task's `returns:` can look up.
         let types = std::collections::BTreeMap::new();
         self.emit_run_prologue(wf, &workflow_name, stamper, sink);
+        self.seed_inspect(wf, report);
 
         let mut records: BTreeMap<String, TaskRecord> = BTreeMap::new();
         let mut ok = true;
@@ -897,6 +956,7 @@ where
         *records = frozen;
         let (wave_records, paused) = streamed?;
         records.extend(wave_records);
+        self.publish_inspect(records, run_ledger);
 
         if let Some(p) = paused {
             emit_paused(workflow_name, &p, stamper, sink);

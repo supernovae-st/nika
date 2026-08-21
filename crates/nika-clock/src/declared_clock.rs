@@ -42,7 +42,8 @@ impl DeclaredClock {
     }
 
     /// The virtual half, when virtual — the composer/fixture surface that
-    /// advances time (never a downcast at a call site).
+    /// inspects the declaration (never a downcast at a call site). The
+    /// clock it returns is frozen: nothing advances virtual time.
     #[must_use]
     pub fn as_virtual(&self) -> Option<&VirtualClock> {
         match self {
@@ -87,13 +88,13 @@ mod tests {
 
         let virtual_clock = DeclaredClock::r#virtual();
         let clock = virtual_clock.as_virtual().expect("the virtual half");
-        clock.advance(Duration::from_secs(3));
-        assert_eq!(clock.elapsed_total(), Duration::from_secs(3));
+        let start = clock.now();
         virtual_clock.sleep(Duration::from_secs(60)).await;
         assert_eq!(
-            virtual_clock.system_now(),
-            SystemTime::UNIX_EPOCH + Duration::from_secs(3),
-            "the sleep did not move virtual time"
+            clock.elapsed(start),
+            Duration::ZERO,
+            "frozen: the sleep did not move virtual time"
         );
+        assert_eq!(virtual_clock.system_now(), SystemTime::UNIX_EPOCH);
     }
 }

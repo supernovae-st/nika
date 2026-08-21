@@ -793,3 +793,372 @@ fn the_run_clock_hint_counts_every_deadline_once() {
     assert_eq!(hits.len(), 1, "one deduped row: {hits:?}");
     assert!(hits[0].advice.contains("2 task(s)"), "{}", hits[0].advice);
 }
+
+#[test]
+fn digit_string_enum_is_hinted_words_are_silent() {
+    let h = hints_of(
+        "nika: w\nmodel: mock/echo\ntasks:\n  t:\n    infer:\n      prompt: x\n      max_tokens: 10\n      schema:\n        type: object\n        properties:\n          n: { type: string, enum: [\"0\", \"1\", \"3\"] }\noutputs:\n  r: ${{ tasks.t.output }}\n",
+    );
+    let hit = h
+        .iter()
+        .find(|x| x.kind == "digit-string-enum")
+        .expect("digit-string-enum");
+    assert_eq!(hit.task, "t");
+    assert!(hit.advice.contains("integer"), "{}", hit.advice);
+
+    let words = hints_of(
+        "nika: w\nmodel: mock/echo\ntasks:\n  t:\n    infer:\n      prompt: x\n      max_tokens: 10\n      schema:\n        type: object\n        properties:\n          n: { type: string, enum: [none, S, M] }\noutputs:\n  r: ${{ tasks.t.output }}\n",
+    );
+    assert!(
+        !words.iter().any(|x| x.kind == "digit-string-enum"),
+        "{words:?}"
+    );
+}
+
+#[test]
+fn hash_of_an_object_task_output_does_not_hint_tojson() {
+    // Runtime hashes a non-string `content:` as compact JSON. Check must
+    // not push authors toward `| tojson` on an object-shaped binding.
+    let h = hints_of(
+        "nika: w\npermits: { tools: [\"nika:jq\", \"nika:hash\"] }\ntasks:\n  roster:\n    invoke: { tool: nika:jq, args: { input: [{stem: ada}], expression: \".\" } }\n  fp:\n    with: { roster: \"${{ tasks.roster.output }}\" }\n    invoke: { tool: nika:hash, args: { content: \"${{ with.roster }}\" } }\n",
+    );
+    assert!(
+        !h.iter()
+            .any(|x| x.advice.contains("tojson") || x.advice.contains("to_json")),
+        "object-shaped hash content must not be hinted to | tojson: {h:?}"
+    );
+}
+
+#[test]
+fn inspect_invoke_is_not_hinted_as_unwired() {
+    // LiveInspect is injected at composition — check stays silent.
+    let h = hints_of(
+        "nika: w\npermits: { tools: [\"nika:inspect\"] }\ntasks:\n  look:\n    invoke: { tool: \"nika:inspect\", args: { view: cost } }\n",
+    );
+    assert!(
+        !h.iter().any(|x| x.kind == "inspect-unwired"),
+        "inspect is wired: {h:?}"
+    );
+}
+
+#[test]
+fn markdown_glob_without_readme_exclude_is_hinted() {
+    let h = hints_of(
+        "nika: w\npermits: { tools: [\"nika:glob\"], fs: { read: [\"held\"] } }\ntasks:\n  find:\n    invoke: { tool: \"nika:glob\", args: { pattern: \"held/*.md\" } }\n",
+    );
+    let hit = h
+        .iter()
+        .find(|x| x.kind == "glob-readme")
+        .expect("glob-readme");
+    assert_eq!(hit.task, "find");
+    assert!(hit.advice.contains("README"), "{}", hit.advice);
+
+    let excluded = hints_of(
+        "nika: w\npermits: { tools: [\"nika:glob\"], fs: { read: [\"held\"] } }\ntasks:\n  find:\n    invoke: { tool: \"nika:glob\", args: { pattern: \"held/*.md\", exclude: \"**/README.md\" } }\n",
+    );
+    assert!(
+        !excluded.iter().any(|x| x.kind == "glob-readme"),
+        "{excluded:?}"
+    );
+}
+
+#[test]
+fn jq_as_then_bare_map_is_hinted() {
+    let h = hints_of(
+        "nika: w\npermits: { tools: [\"nika:jq\"] }\ntasks:\n  score:\n    invoke:\n      tool: nika:jq\n      args:\n        input: []\n        expression: |\n          . as $c\n          | map(.n)\n",
+    );
+    let hit = h.iter().find(|x| x.kind == "jq-as-map").expect("jq-as-map");
+    assert_eq!(hit.task, "score");
+    assert!(hit.advice.contains("$name | map"), "{}", hit.advice);
+
+    let ok = hints_of(
+        "nika: w\npermits: { tools: [\"nika:jq\"] }\ntasks:\n  score:\n    invoke:\n      tool: nika:jq\n      args:\n        input: []\n        expression: |\n          . as $c\n          | ($c | map(.n))\n",
+    );
+    assert!(!ok.iter().any(|x| x.kind == "jq-as-map"), "{ok:?}");
+
+    let oneline = hints_of(
+        "nika: w\npermits: { tools: [\"nika:jq\"] }\ntasks:\n  score:\n    invoke: { tool: nika:jq, args: { input: [], expression: \". as $c | map(.n)\" } }\n",
+    );
+    assert!(
+        oneline.iter().any(|x| x.kind == "jq-as-map"),
+        "one-liner . as $c | map( must hint: {oneline:?}"
+    );
+}
+
+#[test]
+fn jq_as_map_admits_a_map_from_any_bound_name() {
+    // A map piped from a SECOND bound name is exactly as explicit as one
+    // piped from the dot-bound name: the current value is never in question,
+    // and the hint's own advice (`($name | map(...))`) is satisfied. Measured
+    // 2026-08-19 on four one-task probes; this shape was the false positive.
+    let chained = hints_of(
+        "nika: w\npermits: { tools: [\"nika:jq\"] }\ntasks:\n  score:\n    invoke:\n      tool: nika:jq\n      args:\n        input: []\n        expression: |\n          . as $c\n          | ($c | map(.n)) as $d\n          | ($d | map(. + 1))\n",
+    );
+    assert!(
+        !chained.iter().any(|x| x.kind == "jq-as-map"),
+        "a map piped from a bound name is explicit: {chained:?}"
+    );
+
+    // A law that walks several bound names is the common shape of a ledger.
+    let ledger = hints_of(
+        "nika: w\npermits: { tools: [\"nika:jq\"] }\ntasks:\n  score:\n    invoke:\n      tool: nika:jq\n      args:\n        input: []\n        expression: |\n          . as $c\n          | ($c.legs | to_entries) as $entries\n          | ($entries | map({name: .key})) as $rows\n          | ($rows | map(select(.name != null)) | length)\n",
+    );
+    assert!(
+        !ledger.iter().any(|x| x.kind == "jq-as-map"),
+        "a multi-name law is explicit throughout: {ledger:?}"
+    );
+
+    // The real defect still fires: a bare map( inside a later construct maps
+    // whatever the current value happens to be, which is the whole warning.
+    let bare = hints_of(
+        "nika: w\npermits: { tools: [\"nika:jq\"] }\ntasks:\n  score:\n    invoke:\n      tool: nika:jq\n      args:\n        input: []\n        expression: |\n          . as $c\n          | { out: (map(.n)) }\n",
+    );
+    assert!(
+        bare.iter().any(|x| x.kind == "jq-as-map"),
+        "a bare map after a binding must still hint: {bare:?}"
+    );
+}
+
+#[test]
+fn assert_after_a_write_names_the_quarantine() {
+    let h = hints_of(
+        "nika: w\npermits: { tools: [\"nika:write\", \"nika:assert\"], fs: { write: [\"out\"] } }\ntasks:\n  save:\n    invoke: { tool: \"nika:write\", args: { path: out/a.md, content: \"x\" } }\n  gate:\n    invoke: { tool: \"nika:assert\", args: { that: true } }\n",
+    );
+    let hit = h
+        .iter()
+        .find(|x| x.kind == "assert-quarantine")
+        .expect("assert-quarantine");
+    assert_eq!(hit.task, "gate");
+    assert!(hit.advice.contains("quarantine"), "{}", hit.advice);
+}
+
+#[test]
+fn infer_that_assigns_a_belt_is_the_law_hint() {
+    let h = hints_of(
+        "nika: w\nmodel: mock/echo\ntasks:\n  judge:\n    infer:\n      prompt: |\n        Read the note and assign a belt.\n      max_tokens: 64\noutputs:\n  r: ${{ tasks.judge.output }}\n",
+    );
+    let hit = h
+        .iter()
+        .find(|x| x.kind == "infer-as-law")
+        .expect("infer-as-law");
+    assert_eq!(hit.task, "judge");
+    assert!(hit.advice.contains("13-extract-then-law"), "{}", hit.advice);
+
+    let extract = hints_of(
+        "nika: w\nmodel: mock/echo\ntasks:\n  facts:\n    infer:\n      prompt: |\n        Extract facts only. Never assign a belt.\n      max_tokens: 64\noutputs:\n  r: ${{ tasks.facts.output }}\n",
+    );
+    assert!(
+        !extract.iter().any(|x| x.kind == "infer-as-law"),
+        "a never-assign extract stays silent: {extract:?}"
+    );
+}
+
+#[test]
+fn a_locale_infer_after_extract_is_not_the_law() {
+    // A second infer + string enum is language-id / sentiment — the
+    // one-way. Phrase list stays the detector (a structural arm
+    // false-reds BCP-47).
+    let h = hints_of(
+        "nika: w\nmodel: mock/echo\ntasks:\n  facts:\n    infer: { prompt: extract, max_tokens: 32 }\n  lang:\n    with: { facts: \"${{ tasks.facts.output }}\" }\n    infer:\n      prompt: Name the BCP-47 language.\n      max_tokens: 16\n      schema: { type: string, enum: [en, fr, de, es] }\noutputs:\n  r: ${{ tasks.lang.output }}\n",
+    );
+    assert!(
+        !h.iter().any(|x| x.kind == "infer-as-law"),
+        "locale id is language, not the law: {h:?}"
+    );
+}
+
+#[test]
+fn infer_then_jq_without_a_const_assert_is_unproven_law() {
+    let h = hints_of(
+        "nika: w\nmodel: mock/echo\npermits: { tools: [\"nika:jq\"] }\ntasks:\n  facts:\n    infer: { prompt: extract, max_tokens: 8 }\n  score:\n    with: { facts: \"${{ tasks.facts.output }}\" }\n    invoke: { tool: nika:jq, args: { input: \"${{ with.facts }}\", expression: \".\" } }\noutputs:\n  r: ${{ tasks.score.output }}\n",
+    );
+    let hit = h
+        .iter()
+        .find(|x| x.kind == "unproven-law")
+        .expect("unproven-law");
+    assert_eq!(hit.task, "score");
+    assert!(!paid_ready(&h), "{h:?}");
+}
+
+#[test]
+fn a_const_fixture_assert_compiles_the_law() {
+    let h = hints_of(
+        "nika: w\nmodel: mock/echo\npermits: { tools: [\"nika:jq\", \"nika:assert\"] }\nconst:\n  cases: [null]\ntasks:\n  facts:\n    infer: { prompt: extract, max_tokens: 8 }\n  score:\n    with: { facts: \"${{ tasks.facts.output }}\" }\n    invoke: { tool: nika:jq, args: { input: \"${{ with.facts }}\", expression: \".\" } }\n  prove:\n    invoke: { tool: nika:jq, args: { input: \"${{ const.cases }}\", expression: \".\" } }\n  check:\n    with: { ok: \"${{ tasks.prove.output }}\" }\n    invoke: { tool: nika:assert, args: { condition: \"${{ with.ok != null }}\", message: compiled } }\noutputs:\n  r: ${{ tasks.score.output }}\n",
+    );
+    assert!(
+        !h.iter().any(|x| x.kind == "unproven-law"),
+        "const-fixture assert compiles the law: {h:?}"
+    );
+}
+
+fn stamped(yaml: &str) -> serde_json::Map<String, serde_json::Value> {
+    let mut obj = serde_json::Map::new();
+    stamp_paid_ready(&mut obj, &hints_of(yaml));
+    obj
+}
+
+#[test]
+fn unproven_law_stamps_compiled_false_and_next() {
+    let obj = stamped(
+        "nika: w\nmodel: mock/echo\npermits: { tools: [\"nika:jq\"] }\ntasks:\n  facts:\n    infer: { prompt: extract, max_tokens: 8 }\n  score:\n    with: { facts: \"${{ tasks.facts.output }}\" }\n    invoke: { tool: nika:jq, args: { input: \"${{ with.facts }}\", expression: \".\" } }\noutputs:\n  r: ${{ tasks.score.output }}\n",
+    );
+    assert_eq!(obj.get("compiled"), Some(&serde_json::json!(false)));
+    assert_eq!(obj.get("paid_ready"), Some(&serde_json::json!(false)));
+    let next = obj.get("next").expect("next");
+    assert_eq!(next.get("kind"), Some(&serde_json::json!("unproven-law")));
+    assert_eq!(next.get("task"), Some(&serde_json::json!("score")));
+    assert!(
+        next.get("advice")
+            .and_then(serde_json::Value::as_str)
+            .is_some_and(|a| a.contains("13-extract-then-law")),
+        "{next}"
+    );
+}
+
+#[test]
+fn a_const_fixture_stamps_compiled_true() {
+    let obj = stamped(
+        "nika: w\nmodel: mock/echo\npermits: { tools: [\"nika:jq\", \"nika:assert\"] }\nconst:\n  cases: [null]\ntasks:\n  facts:\n    infer: { prompt: extract, max_tokens: 8 }\n  score:\n    with: { facts: \"${{ tasks.facts.output }}\" }\n    invoke: { tool: nika:jq, args: { input: \"${{ with.facts }}\", expression: \".\" } }\n  prove:\n    invoke: { tool: nika:jq, args: { input: \"${{ const.cases }}\", expression: \".\" } }\n  check:\n    with: { ok: \"${{ tasks.prove.output }}\" }\n    invoke: { tool: nika:assert, args: { condition: \"${{ with.ok != null }}\", message: compiled } }\noutputs:\n  r: ${{ tasks.score.output }}\n",
+    );
+    assert_eq!(obj.get("compiled"), Some(&serde_json::json!(true)));
+    assert!(obj.get("next").is_none(), "{obj:?}");
+}
+
+// ── `default:` is a consent decision, not a formatting detail ──────────
+
+#[cfg(test)]
+mod default_is_a_consent_decision {
+    use nika_schema::parser::{ParseMode, parse};
+    use nika_schema::source::FileId;
+
+    fn hints_of(yaml: &str) -> Vec<crate::hints::Hint> {
+        let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parses");
+        crate::check(&wf).hints
+    }
+
+    /// A confirm gate over a real effect. The only thing that varies
+    /// across these fixtures is the `default:` line.
+    fn gate_over_an_effect(default_line: &str) -> String {
+        format!(
+            "\
+nika: t
+permits:
+  exec: [\"echo\"]
+  tools: [\"nika:prompt\"]
+tasks:
+  ask:
+    invoke:
+      tool: \"nika:prompt\"
+      args: {{ mode: \"confirm\", message: \"delete production?\"{default_line} }}
+  act:
+    with: {{ go: \"${{{{ tasks.ask.output }}}}\" }}
+    when: ${{{{ with.go == true }}}}
+    exec: {{ command: [\"echo\", \"done\"] }}
+"
+        )
+    }
+
+    /// MEASURED 2026-08-20 on the shipped 0.111.0. Two files, one key
+    /// apart, RUN unattended ·
+    ///
+    /// ```text
+    ///                  check card                          run
+    /// default: true    ✔ 0 hints · risk supervised   {"answer":true,  "did_it":"success"}
+    /// default: false   ✔ 0 hints · risk supervised   {"answer":false, "did_it":"skipped"}
+    /// ```
+    ///
+    /// The prompt asks « delete production? ». The cards differ by the
+    /// FILENAME and nothing else; one of these fires the irreversible
+    /// action with no human present, and the card calls it supervised.
+    #[test]
+    fn a_fail_open_default_over_an_effect_is_named() {
+        let hints = hints_of(&gate_over_an_effect(", default: true"));
+        let h = hints
+            .iter()
+            .find(|h| h.kind == "fail-open-consent")
+            .unwrap_or_else(|| panic!("no fail-open hint: {hints:?}"));
+        assert!(h.advice.contains("default: false"), "{}", h.advice);
+        assert!(
+            h.advice.contains('`') && h.advice.contains("ask"),
+            "{}",
+            h.advice
+        );
+    }
+
+    /// Fail-CLOSED is the shape an unattended path should declare, and it
+    /// is silent. A hint here would be noise on a correct file.
+    #[test]
+    fn a_fail_closed_default_is_silent() {
+        let hints = hints_of(&gate_over_an_effect(", default: false"));
+        assert!(
+            !hints.iter().any(|h| h.kind == "fail-open-consent"),
+            "fail-closed must not be flagged: {hints:?}"
+        );
+    }
+
+    /// With NO effect in the file there is nothing to auto-approve, so a
+    /// `default: true` is simply an unattended answer. Silence.
+    #[test]
+    fn a_fail_open_default_with_no_effect_is_silent() {
+        let hints = hints_of(
+            "\
+nika: t
+model: mock/echo
+permits: { tools: [\"nika:prompt\"] }
+tasks:
+  ask:
+    invoke:
+      tool: \"nika:prompt\"
+      args: { mode: \"confirm\", message: \"go?\", default: true }
+",
+        );
+        assert!(
+            !hints.iter().any(|h| h.kind == "fail-open-consent"),
+            "no effect, nothing to open: {hints:?}"
+        );
+    }
+
+    /// The headless advice was unconditional · « declare the `default:`
+    /// the unattended path should take ». Over a real effect, following
+    /// it with `true` builds the row above. Name the safe one.
+    #[test]
+    fn the_headless_advice_names_the_fail_closed_default_over_an_effect() {
+        let hints = hints_of(&gate_over_an_effect(""));
+        let h = hints
+            .iter()
+            .find(|h| h.kind == "headless-prompt")
+            .unwrap_or_else(|| panic!("no headless hint: {hints:?}"));
+        assert!(
+            h.advice.contains("default: false"),
+            "over an effect the advice must name the fail-closed default: {}",
+            h.advice
+        );
+    }
+
+    /// The guard · with no effect, the neutral wording is right and must
+    /// survive. Over-teaching is its own defect.
+    #[test]
+    fn the_headless_advice_stays_neutral_with_no_effect() {
+        let hints = hints_of(
+            "\
+nika: t
+model: mock/echo
+permits: { tools: [\"nika:prompt\"] }
+tasks:
+  ask:
+    invoke:
+      tool: \"nika:prompt\"
+      args: { mode: \"confirm\", message: \"go?\" }
+",
+        );
+        let h = hints
+            .iter()
+            .find(|h| h.kind == "headless-prompt")
+            .unwrap_or_else(|| panic!("no headless hint: {hints:?}"));
+        assert!(
+            !h.advice.contains("default: false"),
+            "nothing to fail closed over here: {}",
+            h.advice
+        );
+    }
+}

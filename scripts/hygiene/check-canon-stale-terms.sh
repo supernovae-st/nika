@@ -67,6 +67,12 @@ STALE_TERMS=(
   '\b14 satellites'
   '\b5 verbs'
   'five verbs'
+  # The fourteen-key envelope (dead 2026-08-12 · ADR-113 · nine keys · the
+  # identity rides ON `nika:`). A live doc that still opens a workflow with
+  # `nika: v1` or a top-level `workflow:` teaches a parse refusal
+  # (NIKA-PARSE-003/005 on 0.109). Named-to-refuse lines carry `stale-ok`.
+  'nika: v1'
+  '^workflow:'
 )
 
 is_exempt() {

@@ -9,24 +9,26 @@ Workflow AST + parser — THE PARSER (its blueprint shape) — pure, zero I/O, z
 > (survivors ≤ 300); see the crate spec for the full gate table. Sibling
 > crates depend on it freely.
 
-Layer **L0**. Parses the canonical `nika: v1` envelope
-(per [nika-spec]) into a typed AST and surfaces
+Layer **L0**. Parses the canonical nine-key envelope (`nika: <id>` ·
+`model` · `inputs` · `const` · `secrets` · `permits` · `run` · `tasks` ·
+`outputs` · per [nika-spec]) into a typed AST and surfaces
 diagnostics via [miette] so the CLI can render rich error spans. The
 parser is a two-stage pipeline : `marked-yaml` (source-span preserving) →
 `serde-saphyr` (typed deserialize). The analyzer (DAG checks · the edge
 derivation) and the `check` ladder live in `nika-check` (L0 → this crate).
 
-## Usage (planned · subject to change pre-admission)
+## Usage
 
 ```rust
-use nika_schema::{Workflow, ParseError};
+use nika_schema::{FileId, ParseMode, RawWorkflow, SchemaError};
 
 let yaml = std::fs::read_to_string("hello.nika.yaml")?;
-let workflow: Workflow = nika_schema::parse(&yaml)?;
+let workflow: RawWorkflow = nika_schema::parse(&yaml, FileId::new(0), ParseMode::Strict)?;
 
-// Inspect the DAG
-for task in workflow.tasks() {
-    println!("{} → {:?}", task.id(), task.depends_on());
+// Inspect the DAG · the edges are declared, never restated:
+// `with:` bindings are the data edges, `after:` the control edges.
+for task in &workflow.tasks {
+    println!("{} · after {:?} · with {:?}", task.id.value, task.after, task.with);
 }
 ```
 
@@ -50,7 +52,7 @@ AGPL-3.0-or-later. Co-author `Nika 🦋 <nika@supernovae.studio>`.
 
 ## Related
 
-- `docs/adr/adr-021-yaml-envelope-convention.md` (superseded) + `nika-spec` spec/01-envelope.md — `nika: v1` envelope forever
+- `docs/adr/adr-021-yaml-envelope-convention.md` (superseded) · `docs/adr/adr-113-envelope-identity-on-nika.md` + `nika-spec` spec/01-envelope.md — the nine-key envelope · the identity rides on `nika:`
 - `docs/adr/adr-003-12-gate-admission.md` — admission gates (this crate awaiting)
 - `docs/architecture/forward-compat-invariants.md` — `#[non_exhaustive]` ratchet
 - `docs/architecture/crate-layer-registry.md` — L0 contract

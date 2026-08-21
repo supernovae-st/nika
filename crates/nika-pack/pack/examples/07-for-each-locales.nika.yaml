@@ -11,9 +11,14 @@
 # Demonstrates ·
 #   - `for_each:` · run a task once per element of a collection
 #   - `${{ item }}` + `${{ index }}` · loop-scoped locals, not a namespace
+#   - `item.field` when the collection is objects (this file uses strings)
 #   - `for_each.max_parallel:` · a ceiling on concurrent iterations
 #   - `for_each.fail_fast: false` · finish the batch even when one element fails
 #   - fan-in · the whole array lands in one downstream binding
+#   - `--resume` cache-hits the WHOLE fan when items + definition match
+#     (including `item.field` prompts) — not one iteration
+#
+# Object items + a typed extract + a jq law: `13-extract-then-law`.
 #
 # Run · nika run examples/07-for-each-locales.nika.yaml
 

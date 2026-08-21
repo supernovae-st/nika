@@ -1,16 +1,17 @@
 ---
 id: ADR-082
 title: "Workflow envelope: single version marker `nika: v1` (supersedes K8s apiVersion form)"
-status: accepted
+status: superseded
 date: 2026-05-25
+superseded_date: "2026-08-13"
 phase: "Phase C — foundation lock v0.81"
 deciders: ["@ThibautMelen"]
 tags: ["schema", "yaml", "envelope", "version-marker", "spec-alignment"]
 affects_crates: ["nika-schema", "nika-schema-ast", "nika-binding", "nika-catalog", "nika-event"]
 affects_layers: ["L0", "L0.5"]
 supersedes: ["ADR-021"]
-superseded_by: []
-related: ["ADR-021", "ADR-084", "ADR-085", "ADR-086", "ADR-087", "ADR-088"]
+superseded_by: ["ADR-113"]
+related: ["ADR-021", "ADR-084", "ADR-085", "ADR-086", "ADR-087", "ADR-088", "ADR-113"]
 requires: []
 enables: []
 amends: []
@@ -23,6 +24,13 @@ follow_ups: ["nuke nika-schema parser envelope branch · parse `nika: v1` not `a
 ---
 
 # ADR-082: Workflow envelope — single version marker `nika: v1`
+
+> **⚠️ SUPERSEDED 2026-08-13** · the version slot decided here is gone,
+> losslessly: the envelope is nine keys and the file's identity rides ON
+> `nika:` (`nika: <kebab-id>` · never `v1` · `workflow:` is not an
+> envelope key any more) · see [ADR-113](adr-113-envelope-identity-on-nika.md)
+> and the nine-key envelope decision of 2026-08-11 (D-2026-08-11 · `nika-spec`
+> 01-envelope). The body below is history and is not rewritten.
 
 ## Context
 

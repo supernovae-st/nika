@@ -285,6 +285,108 @@ fn checked_text(name: &str, yaml: &str, ascii: bool) -> String {
     run(path.to_str().expect("utf8 path"), false, false, None, theme).text
 }
 
+/// The one-voice guard · every wire code the `--json` lane stamps in
+/// `findings[]` must appear in the human lane's text for the SAME file.
+/// A finding the wire carries and the terminal hides is the
+/// mute-diagnostic class (`✖ findings above` pointing at nothing) — the
+/// operator who cannot query JSON is the one who gets no reason.
+/// Returns the human text so the caller can assert its rows too.
+fn assert_every_wire_code_renders(name: &str, yaml: &str) -> String {
+    let dir = std::env::temp_dir().join(format!("nika-cli-onevoice-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("tmp dir");
+    let path = dir.join(name);
+    std::fs::write(&path, yaml).expect("fixture body");
+    let path = path.to_str().expect("utf8 path");
+    let theme = Theme::new(false, true, false);
+    let machine = run(path, true, false, None, theme).text;
+    let human = run(path, false, false, None, theme).text;
+    let payload: serde_json::Value = serde_json::from_str(&machine).expect("json lane parses");
+    let codes: Vec<String> = payload["findings"]
+        .as_array()
+        .expect("findings[] is an array")
+        .iter()
+        .filter_map(|f| f["code"].as_str().map(str::to_owned))
+        .collect();
+    assert!(
+        !codes.is_empty(),
+        "the fixture must carry at least one wire code: {machine}"
+    );
+    for code in &codes {
+        assert!(
+            human.contains(code.as_str()),
+            "the wire stamps {code} and the human lane never prints it (mute diagnostic): {human}"
+        );
+    }
+    human
+}
+
+/// The order law (spec 10 · NIKA-SEC-015) refused in the wire and said
+/// NOTHING in the human lane — measured 2026-08-19 on the published
+/// 0.109.2: a beat workflow whose `exec: sleep 3` etiquette gap sat one
+/// `after:` control edge downstream of a `nika:fetch` exited rc=2 with
+/// every row green and `✖ findings above` pointing at nothing;
+/// `check_render.rs` read no `order_findings`. Now an ORDER row, always
+/// present like WRITES (a universal static law reads as one), carries
+/// the code and the route.
+#[test]
+fn order_law_renders_its_row_in_the_human_lane() {
+    const GAP_AFTER_FETCH: &str = "nika: beat\npermits:\n  exec: [\"sleep\"]\n  tools: [\"nika:fetch\"]\n  net:\n    http: [\"export.arxiv.org\"]\ntasks:\n  pull:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://export.arxiv.org/api/query?search_query=nika\", mode: text } }\n  gap:\n    after: { pull: success }\n    exec: { command: [\"sleep\", \"3\"] }\n";
+    // The same file with the gap BESIDE the fetch (no path from a
+    // net-effecting task to the shell) · the row is green and says what
+    // it looked at — the repair the finding teaches, rendered.
+    const GAP_BESIDE_FETCH: &str = "nika: beat\npermits:\n  exec: [\"sleep\"]\n  tools: [\"nika:fetch\"]\n  net:\n    http: [\"export.arxiv.org\"]\ntasks:\n  pull:\n    invoke: { tool: \"nika:fetch\", args: { url: \"https://export.arxiv.org/api/query?search_query=nika\", mode: text } }\n  gap:\n    exec: { command: [\"sleep\", \"3\"] }\n";
+    let text = assert_every_wire_code_renders("order-gap-after-fetch.nika.yaml", GAP_AFTER_FETCH);
+    let row = text
+        .lines()
+        .find(|l| l.contains("ORDER"))
+        .unwrap_or("<ORDER row absent from the report>");
+    assert!(
+        row.contains("[NIKA-SEC-015]") && row.contains("`gap`") && row.contains("`pull`"),
+        "the ORDER row names the code, the sink and the source: `{row}` in: {text}"
+    );
+    assert!(
+        !row.contains("✔"),
+        "a refused route is never a green row: {row}"
+    );
+
+    let text = checked_text("order-gap-beside-fetch.nika.yaml", GAP_BESIDE_FETCH, true);
+    let row = text
+        .lines()
+        .find(|l| l.contains("ORDER"))
+        .unwrap_or("<ORDER row absent from the report>");
+    assert!(
+        row.contains("no exec: sits downstream of a net-effecting task"),
+        "the universal law renders its green like WRITES does: `{row}` in: {text}"
+    );
+}
+
+/// The authored doors rule 6 (spec 10 · NIKA-AUTH-011) had the same gap:
+/// the wire stamped the code, the human lane had no LIFT row to print it
+/// in. The row renders only when a task declares `lift:` — a file with
+/// no door renders unchanged.
+#[test]
+fn idle_door_renders_its_row_in_the_human_lane_and_a_doorless_file_has_no_row() {
+    // `inputs.p` is declared and lifted, but the task never reads it ·
+    // the door guards an empty room.
+    const IDLE_DOOR: &str = "nika: doors\ninputs:\n  p: { type: string, default: \"x\" }\npermits:\n  exec: [\"echo\"]\ntasks:\n  say:\n    lift:\n      - { law: taint, from: inputs.p, because: \"reviewed 2026-08-19\" }\n    exec: { command: [\"echo\", \"hello\"] }\n";
+    const NO_DOOR: &str = "nika: plain\npermits:\n  exec: [\"echo\"]\ntasks:\n  say:\n    exec: { command: [\"echo\", \"hello\"] }\n";
+    let text = assert_every_wire_code_renders("lift-idle-door.nika.yaml", IDLE_DOOR);
+    let row = text
+        .lines()
+        .find(|l| l.contains("LIFT"))
+        .unwrap_or("<LIFT row absent from the report>");
+    assert!(
+        row.contains("[NIKA-AUTH-011]") && row.contains("`say`") && row.contains("fix:"),
+        "the LIFT row names the code, the task and the repair: `{row}` in: {text}"
+    );
+
+    let text = checked_text("lift-no-door.nika.yaml", NO_DOOR, true);
+    assert!(
+        !text.lines().any(|l| l.contains("LIFT")),
+        "a file with no authored door renders no LIFT row: {text}"
+    );
+}
+
 /// Same fixture plumbing, full `VerbOutput` (exit-code assertions) —
 /// the `--native-strict` posture tests read `.code`.
 fn checked_output(name: &str, yaml: &str, native_strict: bool) -> VerbOutput {
@@ -694,6 +796,39 @@ fn native_strict_json_payload_agrees_with_the_exit_code() {
     );
 }
 
+/// `--json` always carries `paid_ready`. Hints never fail `clean` or
+/// the exit code — the field is the question an agent reads after
+/// `--native-strict` is green.
+#[test]
+fn json_payload_names_paid_ready_without_failing_clean() {
+    let judge = "nika: w\nmodel: mock/echo\ntasks:\n  judge:\n    infer:\n      prompt: |\n        Read the note and assign a belt.\n      max_tokens: 32\noutputs:\n  r: ${{ tasks.judge.output }}\n";
+    let dir = std::env::temp_dir().join(format!("nika-cli-paidready-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("tmp dir");
+    let path = dir.join("paid-ready.nika.yaml");
+    std::fs::write(&path, judge).expect("fixture body");
+    let theme = Theme::new(false, true, false);
+    let out = run(path.to_str().expect("utf8 path"), true, false, None, theme);
+    assert_eq!(
+        out.code, 0,
+        "paid-run hints stay advisory on the CLI: {}",
+        out.text
+    );
+    let payload: serde_json::Value = serde_json::from_str(&out.text).expect("json");
+    assert_eq!(payload["clean"], serde_json::json!(true), "{payload:#}");
+    assert_eq!(
+        payload["paid_ready"],
+        serde_json::json!(false),
+        "{payload:#}"
+    );
+    let kinds: Vec<&str> = payload["paid_blockers"]
+        .as_array()
+        .expect("paid_blockers")
+        .iter()
+        .filter_map(|r| r["kind"].as_str())
+        .collect();
+    assert!(kinds.contains(&"infer-as-law"), "{payload:#}");
+}
+
 /// `--native-strict` promotes native-first hints to failure: the SAME
 /// spec-valid workflow exits 0 by default and 2 under strict, with the
 /// strict verdict naming the count; a natively-written twin stays exit
@@ -952,7 +1087,7 @@ fn dag_gated_lanes_announce_the_skip_instead_of_a_verdict() {
         "{LEAK}  ghost:\n    with: {{ z: \"${{{{ tasks.nope.output }}}}\" }}\n    exec: {{ command: [\"curl\", \"${{{{ with.z }}}}\"] }}\n"
     );
     let text = checked_text("lanes-skip.nika.yaml", &broken, false);
-    for lane in ["SECRETS", "GATES", "TRIFECTA"] {
+    for lane in ["SECRETS", "GATES", "TRIFECTA", "ORDER"] {
         // The placeholder makes ONE assert cover both failure shapes:
         // the lane vanished, or it printed a verdict it never computed.
         let line = text
@@ -1191,12 +1326,10 @@ fn infer_permits_output_cannot_depend_on_the_disk() {
     );
 }
 
-/// #774 · the provenance pair rides every `--json` report: the bare
-/// crate version under the run journal's `engine_version` key and the
-/// compile-time commit stamp beside it — additive siblings, the
-/// `report_version: 1` contract untouched.
+/// The typed engine identity rides every `--json` report while the
+/// independent `report_version` schema contract remains untouched.
 #[test]
-fn check_json_carries_the_build_provenance_pair() {
+fn check_json_carries_the_typed_engine_identity() {
     let dir = std::env::temp_dir().join(format!("nika-cli-killtests-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("tmp dir");
     let path = dir.join("provenance.nika.yaml");
@@ -1214,14 +1347,17 @@ fn check_json_carries_the_build_provenance_pair() {
     );
     assert_eq!(out.code, 0, "{}", out.text);
     let payload: serde_json::Value = serde_json::from_str(&out.text).expect("json");
-    assert_eq!(payload["engine_version"], env!("CARGO_PKG_VERSION"));
+    let identity = nika_runtime::engine_identity();
+    assert_eq!(payload["engine_version"], identity.engine_version());
     let sha = payload["build_sha"].as_str().expect("build_sha string");
     assert!(!sha.is_empty(), "a stamp always rides: {payload:#}");
     assert_eq!(
         sha,
-        env!("NIKA_BUILD_SHA"),
+        identity.build_sha(),
         "the payload IS the compile-time stamp: {payload:#}"
     );
+    assert_eq!(payload["spec_sha"], identity.spec_sha());
+    assert_eq!(payload["report_version"], nika_check::REPORT_VERSION);
 }
 
 /// #774 · the `--version` stamp contract: the bare version stays the
@@ -1231,14 +1367,15 @@ fn check_json_carries_the_build_provenance_pair() {
 /// form byte-identical to the bare version.
 #[test]
 fn the_long_version_keeps_the_bare_version_first() {
-    let long = env!("NIKA_VERSION_LONG");
+    let identity = nika_runtime::engine_identity();
+    let long = identity.version_long();
     let first = long.split_whitespace().next().expect("a version token");
-    assert_eq!(first, env!("CARGO_PKG_VERSION"), "{long}");
-    let sha = env!("NIKA_BUILD_SHA");
+    assert_eq!(first, identity.engine_version(), "{long}");
+    let sha = identity.build_sha();
     assert!(!sha.is_empty(), "build.rs always emits a stamp");
     if sha == "unknown" {
-        assert_eq!(long, env!("CARGO_PKG_VERSION"), "{long}");
+        assert_eq!(long, identity.engine_version(), "{long}");
     } else {
-        assert_eq!(long, format!("{} ({sha})", env!("CARGO_PKG_VERSION")));
+        assert_eq!(long, format!("{} ({sha})", identity.engine_version()));
     }
 }

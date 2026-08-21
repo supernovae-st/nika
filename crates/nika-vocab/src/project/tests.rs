@@ -112,16 +112,9 @@ fn unknown_keys_refuse_by_name_with_their_line() {
     assert_eq!(err.kind(), ProjectErrorKind::UnknownKey);
     assert_eq!(err.line(), Some(3));
 
-    // An `arm:` entry — the cadence arc's wider vocabulary
-    // (`chevauchement` and friends) is NOT this file's: refused by
-    // name until the arc widens the set.
-    let err = parse(
-        "nika: v1\narm:\n  - workflow: w.nika.yaml\n    cadence: \"lundi 9h00\"\n    plafond: 1.00\n    manqué: sauter\n    chevauchement: sauter\n",
-    )
-    .unwrap_err();
-    assert_eq!(err.kind(), ProjectErrorKind::UnknownKey);
-    assert_eq!(err.line(), Some(7));
-    assert!(err.detail().contains("chevauchement"), "{err}");
+    // The `arm:` entry level is pinned by
+    // `a_fourteenth_key_still_refuses_by_name` — since 2026-08-19 the
+    // cadence arc's full thirteen-key vocabulary IS this file's.
 }
 
 /// Malformed YAML refuses with the grammar's name AND a line — the
@@ -295,6 +288,64 @@ fn arm_entries_validate_their_shape() {
         let err = parse(doc).unwrap_err();
         assert_eq!(err.kind(), ProjectErrorKind::BadValue, "{doc}: {err}");
     }
+}
+
+/// The cadence arc's THIRTEEN keys all pass the shape gate — measured
+/// 2026-08-18, eight of them were refused as unknown (`project.unknown-key`,
+/// `nika arm` exit 2 · `nika run` exit 3) while the cadence grammar
+/// defined and validated them. The grammar lives in `nika-cadence`
+/// (`registry.rs`); this file judges the SHAPE only, so a project file
+/// carrying the thirteen keys must refuse NEITHER `nika arm` NOR
+/// `nika run` — and a value outside cadence's law (`chevauchement:
+/// nimporte`) still passes HERE and is refused THERE (law 8 — deux
+/// parseurs, jamais en désaccord).
+#[test]
+fn the_thirteen_beat_keys_are_reachable_through_the_project_file() {
+    let src = "nika: v1\nceiling: 0.50\narm:\n  - workflow: t.nika.yaml\n    cadence: \"TZ=Europe/Paris 0 3 * * *\"\n    plafond: 0.10\n    manqué: sauter\n    chevauchement: file\n    après_saut: prochain-créneau\n    actif: false\n    raison: pause estivale\n    jusqu_au: 2026-09-01\n    tolérance: 3/4\n    décalage: hash\n    par: thibaut\n    où: local\n";
+    let project = parse(src).expect("13 keys are the shape · none is unknown");
+    assert_eq!(project.arm().len(), 1);
+    let beat = &project.arm()[0];
+    assert_eq!(beat.actif, Some(false), "the one judged shape: a bool");
+    assert_eq!(beat.chevauchement.as_deref(), Some("file"));
+    assert_eq!(beat.apres_saut.as_deref(), Some("prochain-créneau"));
+    assert_eq!(beat.raison.as_deref(), Some("pause estivale"));
+    assert_eq!(beat.jusqu_au.as_deref(), Some("2026-09-01"));
+    assert_eq!(beat.tolerance.as_deref(), Some("3/4"));
+    assert_eq!(beat.decalage.as_deref(), Some("hash"));
+    assert_eq!(beat.par.as_deref(), Some("thibaut"));
+
+    // A value outside cadence's law passes THIS gate untouched — the
+    // grammar refuses it downstream, never here (law 8).
+    let nimporte = src.replace("chevauchement: file", "chevauchement: nimporte");
+    assert_eq!(
+        parse(&nimporte).expect("shape ok").arm()[0]
+            .chevauchement
+            .as_deref(),
+        Some("nimporte"),
+        "vocab judges the shape, cadence the grammar"
+    );
+    // …but `actif:` non-bool IS a shape refusal here.
+    let quoted = src.replace("actif: false", "actif: \"false\"");
+    let err = parse(&quoted).unwrap_err();
+    assert_eq!(err.kind(), ProjectErrorKind::BadValue, "{err}");
+}
+
+/// The closed set still bites: a FOURTEENTH key, outside the thirteen,
+/// refuses by name with its line — widening the grammar never meant
+/// opening it.
+#[test]
+fn a_fourteenth_key_still_refuses_by_name() {
+    let err = parse(
+        "nika: v1\narm:\n  - workflow: w.nika.yaml\n    cadence: \"lundi 9h00\"\n    plafond: 1.00\n    manqué: sauter\n    quatorze: true\n",
+    )
+    .unwrap_err();
+    assert_eq!(err.kind(), ProjectErrorKind::UnknownKey);
+    assert_eq!(err.line(), Some(7));
+    assert!(err.detail().contains("quatorze"), "{err}");
+    assert!(
+        err.remedy().contains("chevauchement"),
+        "the remedy now names the thirteen: {err}"
+    );
 }
 
 /// Discovery walks UP from a nested dir, the first file found

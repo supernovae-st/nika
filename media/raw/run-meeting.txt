@@ -1,7 +1,10 @@
   🦋 nika · meeting-actions · 3 tasks
-     permits ✓ engine floor (no boundary declared)
+     permits ✓ declared boundary · default-deny
 
-  ✔  transcript  invoke · nika:read
-  ✔  extract     infer · ollama/llama3.2:3b
-  ✔  save        invoke · nika:write
-  ── 3/3 done · $0.000 · elapsed 3.9s ────────────────────────────
+  ✔  transcript  invoke · nika:read  3ms
+still running · extract · 9s · ollama/llama3.2:3b
+  ✔  extract     infer · ollama/llama3.2:3b  12.5s
+  ✔  save        invoke · nika:write  2ms
+  ── 3/3 done · ≥ $0.00 (1 unpriced) · elapsed 12.5s ─────────────
+    wrote ./action-items.json (246B)
+    trace: .nika/traces/2026-08-19T01-15-36Z-2ad9.ndjson · 15 events · chain 66549215b46bd4d6b99d2413a6a65f90722c135a6b73edf4b134272049e18d08

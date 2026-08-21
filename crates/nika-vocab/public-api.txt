@@ -656,10 +656,18 @@ pub unsafe fn nika_vocab::project::ProvenanceFloor::clone_to_uninit(&self, dest:
 impl<T> core::convert::From<T> for nika_vocab::project::ProvenanceFloor
 pub fn nika_vocab::project::ProvenanceFloor::from(t: T) -> T
 #[non_exhaustive] pub struct nika_vocab::project::ArmEntry
+pub nika_vocab::project::ArmEntry::actif: core::option::Option<bool>
+pub nika_vocab::project::ArmEntry::apres_saut: core::option::Option<alloc::string::String>
 pub nika_vocab::project::ArmEntry::cadence: alloc::string::String
+pub nika_vocab::project::ArmEntry::chevauchement: core::option::Option<alloc::string::String>
+pub nika_vocab::project::ArmEntry::decalage: core::option::Option<alloc::string::String>
+pub nika_vocab::project::ArmEntry::jusqu_au: core::option::Option<alloc::string::String>
 pub nika_vocab::project::ArmEntry::manque: nika_vocab::project::MissPolicy
 pub nika_vocab::project::ArmEntry::ou: core::option::Option<nika_vocab::project::ArmLocus>
+pub nika_vocab::project::ArmEntry::par: core::option::Option<alloc::string::String>
 pub nika_vocab::project::ArmEntry::plafond: f64
+pub nika_vocab::project::ArmEntry::raison: core::option::Option<alloc::string::String>
+pub nika_vocab::project::ArmEntry::tolerance: core::option::Option<alloc::string::String>
 pub nika_vocab::project::ArmEntry::workflow: alloc::string::String
 impl core::clone::Clone for nika_vocab::project::ArmEntry
 pub fn nika_vocab::project::ArmEntry::clone(&self) -> nika_vocab::project::ArmEntry

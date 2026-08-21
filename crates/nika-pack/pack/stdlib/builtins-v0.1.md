@@ -85,7 +85,7 @@ invoke: { tool: "nika:assert", args: { condition: "${{ tasks.X.output.count > 0 
 ```
 Fail the task if `condition` (a **CEL `${{ }}` boolean**) is false · else no-op. The **fail-fast guard** (distinct from `when:` which is the **skip-guard**). `condition:` uses the canonical `${{ }}` CEL surface, never a legacy `$task` syntax.
 
-Returns `true` on pass. Throws · `NIKA-BUILTIN-ASSERT-001` (assertion failed · `tool_error` · `transient: false` · `message:` lands in the error message · retryable via `retry.on_codes`, the polling pattern's lever).
+Returns `true` on pass. Throws · `NIKA-BUILTIN-ASSERT-001` (assertion failed · `tool_error` · `transient: false` · `message:` lands in the error message · retryable via `retry.on_codes`, the polling pattern's lever). A red last assert **quarantines** writes from that run (`out/` moves to `.nika/quarantine/<trace>/` in the reference engine — hint `assert-quarantine`). Keep the assert off the last wave if you need the artifacts from a red run.
 
 ### `nika:prompt`
 ```yaml
@@ -178,7 +178,10 @@ nothing is an authoring bug · `tool_error` · also a non-integer `count:`) ·
 invoke: { tool: "nika:glob", args: { pattern: "./src/**/*.rs", exclude: ["**/target/**"] } }
 ```
 Glob match · returns array of paths · **sorted lexicographically**
-(deterministic across engines · filesystems). Throws ·
+(deterministic across engines · filesystems). A markdown glob
+(`held/*.md`) also matches `README.md` in the same directory — pin
+it (`exclude: "**/README.md"`) before a paid infer classifies the
+table of contents (hint `glob-readme`). Throws ·
 `NIKA-BUILTIN-GLOB-001` (invalid pattern · `validation_error`).
 
 ### `nika:grep`
@@ -199,7 +202,7 @@ sorted by `(path, line)`. `pattern:` is a **Rust-regex-class** expression
 ```yaml
 invoke: { tool: "nika:jq", args: { expression: ".items | map(.price) | add", input: "${{ tasks.X.output }}" } }
 ```
-Run a jq expression. **The single data-transform-and-extraction language**: map · filter · select · group_by · reshape · string-interpolation `"\(.x)"` · `@base64`/`@base64d` encoders (the embedded jaq has NO `@csv`/`@tsv` — use `nika:convert to: csv`) · array `flatten` · `leaf_paths`/`getpath`/`setpath`. The same jq used in `extract:` bindings (see `04-variables.md`).
+Run a jq expression. **The single data-transform-and-extraction language**: map · filter · select · group_by · reshape · string-interpolation `"\(.x)"` · `@base64`/`@base64d` encoders (the embedded jaq has NO `@csv`/`@tsv` — use `nika:convert to: csv`) · array `flatten` · `leaf_paths`/`getpath`/`setpath`. The same jq used in `extract:` bindings (see `04-variables.md`). **jq is also the law after an extract**: the model emits facts (`infer.schema:` as `type: integer` for numeric enums); this builtin (or `nika:decide`) names the level. Do not pay a second `infer:` to score. Teaching shape · `examples/13-extract-then-law.nika.yaml`. After `. as $c`, write `($c | map(...))` — a bare `map(` maps the current value (hint `jq-as-map`).
 
 **`input` is any JSON value**: a single ref (`input: "${{ tasks.X.output }}"`) OR a **constructed array for multi-input ops**. Recursive merge of two objects (this is exactly why `json_merge` is NOT a builtin · jaq's `*` does it) ·
 ```yaml
@@ -229,7 +232,7 @@ JSON diff · returns **RFC 6902** JSON Patch. (jq can't diff.) Throws · `NIKA-B
 invoke: { tool: "nika:validate", args: { data: { ... }, schema: { type: object, ... }, format: json } }
 # format: json (default · validate a value) | yaml (parse a YAML string first, then validate)
 ```
-Validate data against a **JSON Schema** · returns `{ valid: bool, errors: [...] }`. Invalid DATA is a **report, never a task failure** (gate on `.valid` downstream · or `nika:assert` it). Merges the former `json_verify` + `yaml_validate` (`format:` arg · one validator). Throws · `NIKA-BUILTIN-VALIDATE-001` (the `schema:` itself is not a valid JSON Schema · `validation_error`) · `-002` (`format: yaml` and the string does not parse as YAML).
+Validate data against a **JSON Schema** · returns `{ valid: bool, errors: [...] }`. Invalid DATA is a **report, never a task failure** (gate on `.valid` downstream · or `nika:assert` it). Merges the former `json_verify` + `yaml_validate` (`format:` arg · one validator). `schema:` may be an object **or** a JSON/YAML string (a `nika:read` of a `.json` file is a string — the builtin parses it). Throws · `NIKA-BUILTIN-VALIDATE-001` (the `schema:` itself is not a valid JSON Schema · `validation_error`) · `-002` (`format: yaml` and the string does not parse as YAML).
 
 ### `nika:json_merge_patch`
 ```yaml
@@ -272,7 +275,7 @@ invoke:
     bundle: "./decisions/pr-triage.bundle.json"   # path OR inline bundle object
     evidence: "${{ tasks.collect.output }}"       # the EvidenceSnapshot { t, evidence: [...] }
 ```
-The deterministic decision kernel (spec [11-decision.md](../spec/11-decision.md)) · evaluates a portable **Decision Bundle** against an **EvidenceSnapshot** and returns the full Decision Receipt (outcome ∈ {recommend · defer · human_required · opted_out · overridden} · per-dimension term-by-term contributions · intervals · conflicts+witnesses · determination provenance). PURE compute — zero required effects (a `bundle:` path reads like any declared `fs.read`; an inline object needs no filesystem) · zero floats (fixed-point basis-points) · same inputs, same bytes, both evaluators (the stdlib-Python reference interpreter is the conformance oracle — byte-equal canonical JSON). **The LLM never decides**: `infer:` produces closed cited facts; this kernel applies the rubric. Throws · `NIKA-DECIDE-001` (the bundle violates its own laws) · `NIKA-DECIDE-002` (the snapshot does not satisfy the evidence schema) · both `validation_error`, deterministic.
+The deterministic decision kernel (spec [11-decision.md](../spec/11-decision.md)) · evaluates a portable **Decision Bundle** against an **EvidenceSnapshot** and returns the full Decision Receipt (outcome ∈ {recommend · defer · human_required · opted_out · overridden} · per-dimension term-by-term contributions · intervals · conflicts+witnesses · determination provenance). PURE compute — zero required effects (a `bundle:` path reads like any declared `fs.read`; an inline object needs no filesystem) · zero floats (fixed-point basis-points) · same inputs, same bytes, both evaluators (the stdlib-Python reference interpreter is the conformance oracle — byte-equal canonical JSON). **The LLM never decides**: `infer:` produces closed cited facts; this kernel applies the rubric. The lighter teaching shape (no bundle) is `nika:jq` after the extract — `examples/13-extract-then-law.nika.yaml`. Throws · `NIKA-DECIDE-001` (the bundle violates its own laws) · `NIKA-DECIDE-002` (the snapshot does not satisfy the evidence schema) · both `validation_error`, deterministic.
 
 ### `nika:date`
 ```yaml
@@ -289,7 +292,7 @@ invoke: { tool: "nika:hash", args: { algo: blake3, content: "${{ tasks.X.output 
 invoke: { tool: "nika:hash", args: { op: sign,   content: "${{ with.manifest }}", key: "${{ secrets.release_key }}" } }
 invoke: { tool: "nika:hash", args: { op: verify, content: "${{ with.manifest }}", public_key: "${{ const.release_pub }}", signature: "${{ with.sig }}" } }
 ```
-Content hashing · default **blake3** (fastest modern cryptographic hash · parallel · secure) · or `sha256`/`sha512`. md5/sha1 NOT supported (cryptographically broken · `NIKA-BUILTIN-HASH-001` `validation_error` on an unsupported algo). `encoding:` `hex` (default) | `base64`. Use cases · cache keys · content addressing · provenance.
+Content hashing · default **blake3** (fastest modern cryptographic hash · parallel · secure) · or `sha256`/`sha512`. md5/sha1 NOT supported (cryptographically broken · `NIKA-BUILTIN-HASH-001` `validation_error` on an unsupported algo). `encoding:` `hex` (default) | `base64`. Use cases · cache keys · content addressing · provenance. `content:` accepts a string **or** a structured value (an object/array is hashed as compact JSON — do not pre-pipe `| tojson`).
 
 **`op:` · `hash` (default) · `sign` · `verify` (normative · v0.1 surface).**
 The engine already signs and verifies Ed25519 — the run seal is one Ed25519
@@ -407,8 +410,10 @@ Send notifications · `channel:` enum (`webhook`/`slack`/`email`/`discord`/`sms`
 ```yaml
 agent:
   prompt: "Draft a workflow, then check it before you finish."
-  tools: ["nika:compose"]            # the agent grants itself the self-check
+  tools: ["nika:done", "nika:compose"]   # done first · mock/echo closes at turn one
 ```
+The teaching shape is
+[`examples/15-compose-self-check.nika.yaml`](../examples/15-compose-self-check.nika.yaml).
 The agent loop's self-verification intrinsic · the model passes a workflow
 YAML draft it wrote, and gets the FULL `nika check` verdict back as JSON:
 conformance violations (with codes + repair hints), secret-flow findings,
@@ -440,6 +445,13 @@ Workflow introspection · 1 builtin · 4 `view:` enum modes (Rams collapse per A
 Replaces · 4 legacy introspection builtins (`nika:cost` · `nika:records` · `nika:dag_info` · `nika:threads`) collapsed per « less but better » Rams sweep · same trust class (PURE) · same query-own-workflow-state semantic family · the split into 4 separate builtins was historical (one-per-shape) not structural · the unified `view:` discriminator + per-shape `args:` is the canonical « one super-powerful builtin · multi-mode args » pattern (matches fetch+extract · jq · convert · wait).
 
 Throws · `NIKA-BUILTIN-INSPECT-001` if `view:` value not in the canonical enum.
+
+The reference engine injects a live cell at composition and writes it
+as tasks settle. `available: true` once the DAG is seeded at run start.
+The teaching shape is
+[`examples/16-inspect-self.nika.yaml`](../examples/16-inspect-self.nika.yaml).
+Probe any new builtin with `mock/echo` *before* wiring it after a paid
+infer.
 
 ---
 
@@ -718,6 +730,9 @@ narrate:
         voice: "alloy"
         output_dir: "./assets/audio"
 ```
+
+Teaching shape · [`17-tts-self`](../examples/17-tts-self.nika.yaml)
+(`provider: mock` · a real WAV · offline).
 
 The image family's contract, applied to audio: ONE audio file lands under
 `output_dir:` (permit-gated per final path BEFORE I/O · atomic write ·

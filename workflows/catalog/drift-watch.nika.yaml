@@ -17,7 +17,8 @@
 # the engine refuses it (NIKA-SEC-009) unless a blocking human prompt
 # dominates the write — which would make a watcher un-runnable unattended
 # (that gate pauses the run at exit 4 and waits for `--resume --answer`).
-# Measured, not assumed: `declassify:` did not lift that taint at any of
+# Measured, not assumed (on the taint door of the day, `declassify:` ·
+# `lift: {law: taint}` since 0.109): it did not lift that taint at any of
 # the three placements tried (ingress consumer · sink · the binding
 # between), and dropping the `fs.read` permit only moves the failure to
 # run time (NIKA-SEC-004 — check goes green on a workflow that cannot

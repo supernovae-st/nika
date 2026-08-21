@@ -1,17 +1,33 @@
 nika check · broken-pr-review.nika.yaml
- ✖ CONFORM  [NIKA-DAG-003] task `assess` references `tasks.diff` without declaring `diff` in depends_on
- ✖ CONFORM  [NIKA-VAR-001] unresolved reference `tasks.asses` in task `comment` — did you mean `tasks.assess`?
- ✖ CONFORM  [NIKA-DAG-003] task `comment` references `tasks.assess` without declaring `assess` in depends_on
+ ✖ CONFORM  [NIKA-DAG-002] unknown dependency: task `comment` depends on `asses`, which does not exist — did you mean `assess`?
+   fix: nika explain NIKA-DAG-002 · https://nika.sh/language/errors/NIKA-DAG-002
+   ╭▸ scripts/media/fixtures/broken-pr-review.nika.yaml:28:13
+   │
+28 │       risk: ${{ tasks.asses.output.risk }}
+   ╰╴            ━
+ ✖ CONFORM  [NIKA-VAR-021] task `assess` a verb field references `tasks.diff` — outside the boundary; hoist it into `with:` and read `${{ with.<name> }}` (`nika check --fix` applies it)
+   fix: nika explain NIKA-VAR-021 · https://nika.sh/language/errors/NIKA-VAR-021
+   ╭▸ scripts/media/fixtures/broken-pr-review.nika.yaml:18:9
+   │
+18 │         Risk-assess this diff. Be terse.
+   ╰╴        ━
  PLAN     (skipped — no valid DAG order while conformance fails)
- ⚠  COST     $0.0000 – $0.0000 FLOOR (unbounded tasks present)
+ ✔ MODELS   1 model resolves in this binary · local servers not probed (nika doctor --ping)
+ ⚠  COST     bounded portion $0.0000 no total ceiling · 1 uncapped task · prompts, exec + mcp unpriced · prices 2026-07-28
    assess  ollama/llama3.1  UNBOUNDED — no max_tokens declared
- ✔ SECRETS  no information-flow escapes
- ✔ TYPES    every deep output reference fits its declared shape
- ✔ TOOLS    every nika: tool names a canonical builtin
- ✔ ARGS     every invoke arg key is declared + every required arg is present
- ✔ SCHEMA   every authored schema: is satisfiable
- ○ PERMITS  no boundary declared (engine floor only) · `--infer-permits` writes one
+ ⚠  ENERGY   no total energy ceiling · 0 of 1 tasks measured · 1 uncapped · never 0 Wh (NEP-0018)
+ ○ SECRETS  (skipped — no valid DAG order while conformance fails)
+ ✔ TYPES    deep references fit the shapes tasks declare · 1 ref into unshaped task outputs are unverifiable — the run judges them (tasks.diff.output.stdout)
+ ✔ TOOLS    every named nika: tool is canonical · globs + mcp: not checked
+ ✔ ARGS     every builtin invoke arg key is declared + required args present
+ ✔ SCHEMA   no known-unsatisfiable form in an authored schema: · $ref opaque
+ ○ GATES    (skipped — no valid DAG order while conformance fails)
+ ✔ WRITES   no two unordered tasks write the same static path · computed paths at run
+ ✔ EXEC     no literal argv the exec floor refuses at run · a templated argv is the RUN's verdict
+ ✖ PERMITS  [NIKA-AUTH-006 · exec] task `diff` · exec task under a boundary that forbids shells · fix: add "git" to permits.exec
+ ✖ PERMITS  [NIKA-AUTH-006 · fs] task `comment` · invoke `nika:write` with a literal path under an absent `permits:` block · fix: add "nika:write" to permits.tools and the path to permits.fs
+ ✔ JOURNEY internal · 0 sources · 2 destinations · 3 model endpoints · no secret reaches a cloud destination
  ↳ HINT     [cost] declare `max_tokens` on `assess` — the cost report becomes a hard ceiling instead of UNBOUNDED
- ↳ HINT     [strictness] `assess`'s schema admits undeclared keys — add `additionalProperties: false` to its object nodes for a deterministic output shape across providers
- ↳ HINT     [permits] no `permits:` boundary declared — run `nika check --infer-permits` to generate the tightest one (default-deny once present)
+ ↳ HINT     [strictness] `assess`'s schema admits undeclared keys — close its object nodes with `additionalProperties: false` for a deterministic output shape across providers
+ ↳ HINT     [swallowed-exit] `capture: structured` on `diff` makes a non-zero exit DATA, not a failure — the task reports success whatever the command returns, and nothing in this workflow reads `exit_code`. A command that fails here is invisible until something downstream chokes on its empty output. Read the branch (`${{ tasks.diff.output.exit_code }}`, or a `nika:assert` on it), or use a text capture mode so a non-zero exit fails the task as NIKA-EXEC-001
  ✖ findings above

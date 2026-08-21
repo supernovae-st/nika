@@ -36,9 +36,7 @@ fail() {
 say() { printf '%s\n' "$*"; }
 
 cat >wf.nika.yaml <<'YAML'
-nika: v1
-workflow:
-  id: trust
+nika: trust
 model: mock/echo
 # F-O8 · absent permits is the EMPTY boundary since 0.106, and this fixture
 # spends an exec. Without this block the battery's very first run refuses

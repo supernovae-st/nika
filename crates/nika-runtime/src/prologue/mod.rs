@@ -146,50 +146,29 @@ pub(crate) fn trust_amendment_fields(
     fields
 }
 
-/// The spec commit this engine's conformance is proven at (F-P2 · the
-/// boot manifest's `spec_pin`) — the workspace-root `SPEC_PIN` file,
-/// baked in at compile time (the `engine_version`/`platform` idiom:
-/// a compile-time constant, no clock, no I/O — determinism intact).
-/// `None` only if the file ever loses its hash line (a comment-only
-/// `SPEC_PIN` pins nothing — absent is honest).
-pub(crate) fn spec_pin() -> Option<&'static str> {
-    const RAW: &str = include_str!("../../../../SPEC_PIN");
-    RAW.lines()
-        .map(str::trim)
-        .filter(|line| !line.is_empty() && !line.starts_with('#'))
-        .next_back()
+/// Compile-time engine and platform identity for the opening frame.
+fn environment_attestation_fields() -> [(&'static str, FieldValue); 2] {
+    let identity = crate::engine_identity();
+    let platform = format!("{}/{}", std::env::consts::OS, std::env::consts::ARCH);
+    [
+        ("engine_version", s(identity.engine_version())),
+        ("platform", s(&platform)),
+    ]
 }
 
-/// The F-P2 boot attestation fields (LOT-1 · the run's life opens with
-/// an attested BOOT frame). Additive to the opening vec — older readers
-/// ignore unknown fields, newer readers find them absent on older
-/// journals and say "unrecorded", never a guess:
+/// The F-P2 boot attestation fields. They are additive: older readers ignore
+/// them and newer readers classify their absence as unrecorded, never guessed.
 ///
-/// - `spec_pin` — the spec commit the engine was proven at (above);
-/// - `stamper_kind` — the event-identity seam the `run:` declaration
-///   resolves to (F-P3 · `RunSeams`): `deterministic` under
-///   `entropy: none | seeded(N)`, `system` otherwise. The composer's
-///   stamper pick rides the SAME resolution (`RunSeams::stamper` is the
-///   one pick site), so the manifest names the seam the journal's own
-///   identities came from;
-/// - `clock` — the resolved clock the run rides (F-P3 ·
-///   [`nika_schema::types::RunDecl::clock_or_default`]): `virtual` when
-///   declared or forced by a determinism demand, `system` otherwise —
-///   the run-level time-source claim, so the journal names the clock
-///   its durations were measured against;
-/// - `seed` — only under a determinism demand: the value that keys the
-///   retry jitter stream (`seeded(N)` → `N` · `none` → the zero
-///   stream). An ambient run carries no seed claim (absent is honest).
+/// - `spec_pin` names the exact spec commit compiled into the engine;
+/// - `stamper_kind` is `deterministic` under `entropy: none | seeded(N)`;
+/// - `clock` is the resolved run clock (`virtual` or `system`);
+/// - `seed` keys retry jitter and exists only for a deterministic run.
 ///
-/// `time_source`/`time_scale` stay the F-N10 RECEIPT enums (out of the
-/// run block by design); the run-level time axis is claimed above as
-/// `clock`. The `nika.lock` digest has no recording surface today (the
-/// `LOCK_UNRECORDED` posture) — the manifest claims only what exists.
+/// `time_source`/`time_scale` remain F-N10 receipt fields. `nika.lock` has no
+/// recording surface yet, so the manifest claims no digest for it.
 pub(crate) fn boot_attestation_fields(wf: &RawWorkflow) -> Vec<(&'static str, FieldValue)> {
     let mut fields = Vec::new();
-    if let Some(pin) = spec_pin() {
-        fields.push(("spec_pin", s(pin)));
-    }
+    fields.push(("spec_pin", s(crate::engine_identity().spec_sha())));
     let decl = wf
         .run
         .as_ref()
@@ -279,9 +258,7 @@ pub(crate) fn emit_prologue(
     ));
     // Environment attestation (Q11): WHICH engine on WHICH platform —
     // compile-time constants only; no clock, no I/O, determinism intact.
-    opening.push(("engine_version", s(env!("CARGO_PKG_VERSION"))));
-    let platform = format!("{}/{}", std::env::consts::OS, std::env::consts::ARCH);
-    opening.push(("platform", s(&platform)));
+    opening.extend(environment_attestation_fields());
     // F-P2 · the boot attestation (spec pin · the declaration-resolved
     // entropy seam · the seed under a determinism demand).
     opening.extend(boot_attestation_fields(wf));

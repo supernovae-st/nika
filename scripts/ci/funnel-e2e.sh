@@ -138,7 +138,7 @@ done
 run guard-clean 0 -- "$BIN" guard --stdin <<<'{"command":"nika run first.nika.yaml","cwd":"."}'
 need guard-clean '"permission":"allow"'
 # shellcheck disable=SC2016 # the workflow must reach the file UNEXPANDED
-printf 'nika: v1\nworkflow:\n  id: consent-dirty\npermits:\n  exec: ["git"]\n  tools: ["nika:prompt"]\ntasks:\n  ask:\n    invoke:\n      tool: "nika:prompt"\n      args: { mode: confirm, message: "push?", default: false }\n  push:\n    after: { ask: success }\n    exec: { command: ["git", "push"] }\n' >consent-dirty.nika.yaml
+printf 'nika: consent-dirty\npermits:\n  exec: ["git"]\n  tools: ["nika:prompt"]\ntasks:\n  ask:\n    invoke:\n      tool: "nika:prompt"\n      args: { mode: confirm, message: "push?", default: false }\n  push:\n    after: { ask: success }\n    exec: { command: ["git", "push"] }\n' >consent-dirty.nika.yaml
 run guard-dirty 2 -- "$BIN" guard --stdin <<<'{"command":"nika run consent-dirty.nika.yaml","cwd":"."}'
 need guard-dirty '"permission":"deny"'
 need guard-dirty 'NIKA-SEC-014'
@@ -149,7 +149,7 @@ need consent-check 'NIKA-SEC-014'
 # first-run-killer class. exit 4 + the taught resume line, never a
 # bare refusal.
 # shellcheck disable=SC2016 # the workflow must reach the file UNEXPANDED
-printf 'nika: v1\nworkflow:\n  id: consent-pause\nmodel: mock/echo\npermits:\n  exec: ["echo"]\n  tools: ["nika:prompt"]\ntasks:\n  ask:\n    invoke:\n      tool: "nika:prompt"\n      args: { mode: confirm, message: "continue?" }\n  go:\n    after: { ask: success }\n    with:\n      ok: ${{ tasks.ask.output }}\n    when: ${{ with.ok == true }}\n    exec: { command: ["echo", "went"] }\n' >consent-pause.nika.yaml
+printf 'nika: consent-pause\nmodel: mock/echo\npermits:\n  exec: ["echo"]\n  tools: ["nika:prompt"]\ntasks:\n  ask:\n    invoke:\n      tool: "nika:prompt"\n      args: { mode: confirm, message: "continue?" }\n  go:\n    after: { ask: success }\n    with:\n      ok: ${{ tasks.ask.output }}\n    when: ${{ with.ok == true }}\n    exec: { command: ["echo", "went"] }\n' >consent-pause.nika.yaml
 run consent-run 4 -- "$BIN" run consent-pause.nika.yaml
 need consent-run '--resume'
 need consent-run '--answer'
@@ -163,7 +163,7 @@ AFTER=$(find "$HOME_DIR" -type f | sort)
 # 6 · doctor diagnoses offline · broken files fail WITH a code
 run doctor 0 -- "$BIN" doctor
 # shellcheck disable=SC2016 # the ${{ }} island must reach the file UNEXPANDED
-printf 'nika: v1\nworkflow:\n  id: broken\nmodel: mock/echo\ntasks:\n  a:\n    exec: { command: ["echo", "${{ tasks.ghost.output }}"] }\n' >broken.nika.yaml
+printf 'nika: broken\nmodel: mock/echo\ntasks:\n  a:\n    exec: { command: ["echo", "${{ tasks.ghost.output }}"] }\n' >broken.nika.yaml
 set +e
 OUT=$(env -i HOME="$HOME_DIR" PATH=/usr/bin:/bin TERM=dumb "$BIN" check broken.nika.yaml 2>&1)
 GOT=$?

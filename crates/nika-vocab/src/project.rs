@@ -24,9 +24,11 @@
 //!   never lower the operator's — the only non-downgrade read).
 //! - `arm:` — parsed + shape-validated ONLY. The cadence/arm RUNTIME
 //!   is another arc (`crates/nika-cadence` owns the law pass); this
-//!   module validates the entry shape against the locked vocabulary
-//!   and exposes the entries so that arc can consume them later. The
-//!   French keys are the registry's own (`où` · `plafond` · `manqué`).
+//!   module validates the entry shape against the registry's THIRTEEN
+//!   keys and exposes the entries so that arc can consume them later.
+//!   Five are judged here (`workflow` · `cadence` · `où` · `plafond` ·
+//!   `manqué`); the cadence arc's eight ride verbatim, their values
+//!   judged THERE (law 8 — deux parseurs, jamais en désaccord).
 //!
 //! NO `seat`, NO `profile`, NO permits here — the portability test
 //! (D-2026-08-10-N2) rejected them; the file carries exactly five
@@ -178,6 +180,13 @@ impl std::fmt::Display for ProvenanceFloor {
 /// REQUIRED in the file (the pay law · the run-missed law — a default
 /// would either spend what nobody asked for or lose a deliverable in
 /// silence); the parser refuses their absence by name.
+///
+/// The cadence arc's eight further keys ride VERBATIM
+/// (`Option<String>` — only `actif` is judged, a bool: the same
+/// non-coercion shape law as `ceiling:`). Their VALUES are never
+/// judged here: the grammar lives in `nika-cadence` (law 8 — deux
+/// parseurs, jamais en désaccord), so a `chevauchement: nimporte`
+/// passes this gate and is refused by the cadence one.
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub struct ArmEntry {
@@ -195,6 +204,29 @@ pub struct ArmEntry {
     pub plafond: f64,
     /// `manqué:` — what « missed » means, REQUIRED, no default.
     pub manque: MissPolicy,
+    /// `chevauchement:` — the overlap policy, verbatim (the closed
+    /// enum is the cadence arc's law).
+    pub chevauchement: Option<String>,
+    /// `après_saut:` — the after-skip policy, verbatim (same law).
+    pub apres_saut: Option<String>,
+    /// `actif:` — the declared INTENTION (`false` = suspended). The
+    /// one judged shape among the eight: a bool, unquoted.
+    pub actif: Option<bool>,
+    /// `raison:` — why the beat is suspended, verbatim (REQUIRED when
+    /// `actif: false` — the cadence arc's law, not this gate's).
+    pub raison: Option<String>,
+    /// `jusqu_au:` — the suspension expiry, verbatim (the ISO-date law
+    /// is the cadence arc's).
+    pub jusqu_au: Option<String>,
+    /// `tolérance:` — the (m,k)-firm form, verbatim (the `m/k` law is
+    /// the cadence arc's).
+    pub tolerance: Option<String>,
+    /// `décalage:` — the jitter form, verbatim (only `hash` exists —
+    /// the cadence arc's law).
+    pub decalage: Option<String>,
+    /// `par:` — DECLARES the human (N3 — proves NOTHING: the machine's
+    /// key is what authorizes).
+    pub par: Option<String>,
 }
 
 /// `où:` — the deployment locus (`local | cloud`). Mirrors the

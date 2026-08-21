@@ -134,11 +134,23 @@ for p in sorted(pathlib.Path("scripts/media/motion").glob("*.html")):
         if re.search(r'invoke\s*:\s*\{(?![^}]*\bargs\s*:)[^}]*\b(url|path|pattern)\s*:', text):
             print(f" x {p.name}: invoke arg outside 'args:' in drawn YAML")
             bad = 1
+    # Dead envelope anywhere a scene paints — not only titled filecards.
+    # poster-keeping used `.hdr` not `.title` and taught `nika: v1` past
+    # a class-scoped scan (the same hole editor-diagnostics taught in July).
+    if re.search(r"^nika\s*:\s*v1\b", body, re.M) or re.search(r"^workflow\s*:", body, re.M):
+        print(f" x {p.name}: draws the dead envelope (nika: v1 / workflow:) — 0.109 refuses it")
+        bad = 1
     # A titled filecard that DRAWS yaml must draw the envelope; a titled
     # card showing terminal output (og-card) has no yaml body to judge.
     if '<div class="yaml">' in t and re.search(r'class="title">[^<]*\.nika\.yaml', t):
-        if "nika: v1" not in body or not re.search(r"workflow\s*:", body):
-            print(f" x {p.name}: filecard misses the envelope (nika: v1 + workflow:)")
+        # The nine-key envelope (0.109): the identity rides ON `nika:` as a
+        # kebab-case id and `tasks:` is the type discriminant. This rule
+        # used to DEMAND `nika: v1` + `workflow:` — the exact spelling the
+        # engine now refuses (PARSE-005) — so a scene teaching the dead
+        # envelope was the only way to pass it.
+        if not re.search(r"^\s*nika\s*:\s*[a-z][a-z0-9-]*\s*$", body, re.M) \
+                or not re.search(r"^\s*tasks\s*:", body, re.M):
+            print(f" x {p.name}: filecard misses the nine-key envelope (nika: <kebab-id> + tasks:)")
             bad = 1
     # Every showroom slug a scene teaches must resolve on the RELEASED
     # binary — membership in the register bare `nika try` prints. Offline,

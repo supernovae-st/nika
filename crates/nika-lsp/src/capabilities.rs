@@ -60,10 +60,13 @@ pub fn server_capabilities() -> ServerCapabilities {
         })),
         // Custom extensions, capability-gated the rust-analyzer way —
         // a client (or agent) reads this to know the oracle surface.
-        // `graphFormat` mirrors the IN-PAYLOAD version of the projection
-        // (spec 03 §graph-projection) — additive, spec-first evolution.
+        // `graphFormat` IS the in-payload version of the projection the
+        // document carries (spec 03 §graph-projection · `nika_graph::
+        // GRAPH_FORMAT`) — derived, never retyped: a literal here said 2
+        // while the served document said 3 (2026-08-18), and a client
+        // that honours the advertisement decides adoption on it.
         experimental: Some(serde_json::json!({
-            "nika": { "semanticDocument": { "graphFormat": 2 } }
+            "nika": { "semanticDocument": { "graphFormat": nika_graph::GRAPH_FORMAT } }
         })),
         ..ServerCapabilities::default()
     }
@@ -126,7 +129,14 @@ mod tests {
     fn experimental_advertises_the_semantic_document() {
         let caps = server_capabilities();
         let exp = caps.experimental.expect("experimental block");
-        assert_eq!(exp["nika"]["semanticDocument"]["graphFormat"], 2);
+        // The advertisement IS the projection's own number — pinned to the
+        // constant AND to the value the spec names, so a bump of either
+        // without the other fails here, not in a client.
+        assert_eq!(
+            exp["nika"]["semanticDocument"]["graphFormat"],
+            nika_graph::GRAPH_FORMAT
+        );
+        assert_eq!(exp["nika"]["semanticDocument"]["graphFormat"], 3);
     }
 
     #[test]

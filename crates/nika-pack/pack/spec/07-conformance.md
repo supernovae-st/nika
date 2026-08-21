@@ -232,7 +232,7 @@ An engine claims « Runtime v0.1-compliant » if it satisfies Core conformance P
 
 3. **Implements security policies**
    - `exec:` blocklist (engine SHOULD ship a sane default · MAY allow override)
-   - `fetch:` SSRF defense for private IP ranges
+   - `invoke: nika:fetch` SSRF defense for private IP ranges
    - `invoke:` capability checks (engine's choice of capability model)
 
 4. **Emits workflow events**

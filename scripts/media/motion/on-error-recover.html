@@ -51,8 +51,7 @@
     <div class="act" id="act0">
       <div class="act-label" id="tease"><span class="warn">live-rates.json does not exist</span> — this task WILL fail</div>
       <div class="yaml">
-<span class="ln"><span class="k">nika</span><span class="d">:</span> <span class="s">v1</span></span>
-<span class="ln"><span class="k">workflow</span><span class="d">:</span> <span class="d">{</span> <span class="k">id</span><span class="d">:</span> <span class="s">rates-with-fallback</span> <span class="d">}</span></span>
+<span class="ln"><span class="k">nika</span><span class="d">:</span> <span class="s">rates-with-fallback</span></span>
 <span class="ln"><span class="k">tasks</span><span class="d">:</span></span>
 <span class="ln">  <span class="k">cache</span><span class="d">:</span><span class="d">          # yesterday's snapshot · the fallback source</span></span>
 <span class="ln">    <span class="k">invoke</span><span class="d">:</span> <span class="d">{</span> <span class="k">tool</span><span class="d">:</span> <span class="s">"nika:jq"</span><span class="d">, … }</span></span>

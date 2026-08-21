@@ -47,6 +47,29 @@ chrome ≤30%, zero decorative noise). And the human always keeps the hand.
 Refused (Rams 10): `logs` · `ps` (daemon-shaped — arrives with `serve`, not
 before) · a full-screen TUI app (the live render + webview cover it).
 
+### W7 arm state adapter
+
+The pure firing/ledger judge lives below in `nika-cadence`; this crate owns only
+the filesystem effects. Beat and ledger exclusion use a kernel advisory
+`flock` held by RAII on a stable, never-unlinked regular file. Its PID/epoch JSON
+is diagnostic only; kernel ownership auto-releases on drop or process death.
+Every event is appended and fsynced before an atomic `head.json` (`seq` + hash)
+advance. A missing head on a non-empty versioned chain, a clean suffix rollback,
+or an anchored tamper refuses without rewriting `last.json` or `watermark`.
+Migration binds every canonical W2 archive name and exact bytes into the
+hash-chained `rotated` genesis. Replay, reports, heal, and append validate that
+ordered bundle before consuming it; changed archive history fails closed.
+Every sidecar component and child file is opened no-follow relative to a held
+directory descriptor. Live-history, archive, beat-directory, and lock symlinks
+refuse; a visible path replacement after the claim cannot redirect its receipt.
+Before claiming, the firer captures the workflow bytes once in memory and hashes
+that immutable source. Check and execution consume those same bytes while the
+declared workflow path remains their logical base for relative children and
+skills. An unreadable or symlink source refuses before any claim; later edits
+cannot make execution and the attested generation disagree. Receipt construction
+is typed and claim-bound, and a corrupt replay is an ENV refusal in reports and
+`serve`, never `DÉCLARÉ`/never-fired fallback.
+
 ## 3. The `display` module — the render architecture
 
 **One law: render = a pure fold over the event stream.** The runtime emits
@@ -178,20 +201,24 @@ mermaid/dot/ASCII/webview all derive from it. Versioned envelope (`graph_format:
   "graph_format": 3,
   "workflow": "veille-news",
   "nodes": [
-    {"id": "fetch_top", "verb": "invoke", "tool": "nika:fetch",
+    {"id": "fetch_top", "kind": "task", "verb": "invoke", "tool": "nika:fetch",
      "when": null, "fan_out": null,
-     "permits": ["network:read(hn.algolia.com)"],
+     "permits": ["net.http: hn.algolia.com", "tool: nika:fetch"],
      "cost_interval": null}
   ],
   "edges": [
-    {"from": "fetch_top", "to": "extract_ai", "kind": "depends_on"}
+    {"from": "fetch_top", "to": "extract_ai", "kind": "value", "binding": "top"}
   ]
 }
 ```
 
 Rules: topologically sorted `nodes` (stable order = stable layouts · no
-jitter) · `edges.kind` closed enum (`depends_on` today · `on_failure`/
-`on_finally` when the spec grows them) · run overlays (states/durations/
+jitter · `kind: task | finally` since format 3, cleanup units are nodes) ·
+`edges.kind` closed enum (`value` · `terminal-observation` ·
+`failure-observation` · `control` (with its `after:` `predicate`) ·
+`recovery` · `finally` reserved · spec 03 §graph-projection) · the edges are
+the declared `with:`/`after:` bindings, never a restated dependency list ·
+run overlays (states/durations/
 costs) come from the EVENT stream joined on `id` — the static graph never
 carries run state (the two truths stay separate, joined at render).
 

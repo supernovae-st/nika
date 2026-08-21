@@ -9,11 +9,26 @@ Nika turns repeatable AI work into files: one `.nika.yaml`, four verbs,
 audited **before** it runs. You author the file; `nika check` is the
 oracle; the human runs it.
 
-## Read two examples before you write (measured: 8 rounds → 0)
+## Read the workspace, then two examples before you write
 
 **This file is the map. The examples are the territory.** A map this
 detailed is exactly why authors skip the ground, and the ground is where
 the shapes live. Nothing below replaces reading two real files.
+
+Join the workspace before adding to it. A local workflow may already own
+the job, its conventions and its permits boundary:
+
+```
+nika list                       # workflows below this directory
+nika explain <candidate>        # waves · cost · touches · run line
+nika inspect <candidate>        # tasks · verbs · graph anatomy
+nika check <candidate>          # the oracle: clean or an exact repair
+```
+
+`nika list` lists candidates; it does not certify them. Reuse or extend a
+matching local file only after `nika check` is clean. If nothing local fits,
+continue to the embedded shelf; even when one does, the two canonical reads
+below remain the cheapest shape check before a structural edit.
 
 The cost of skipping it was measured on 2026-07-28. Six authors each
 wrote one workflow from a real intention with this skill loaded and
@@ -51,6 +66,11 @@ four are the decisions that cost rounds when guessed instead of copied.
 | fetch a URL and shape what comes back | `05-fetch-chain` |
 | open-ended work, step count unknown up front | `06-code-review` |
 | the same task for every item of a collection | `07-for-each-locales` |
+| extract facts, then score them without a second infer | `13-extract-then-law` |
+| publish or abstain from a Decision Bundle | `14-decide-publish` |
+| an agent drafts a file and checks it until valid | `15-compose-self-check` |
+| the run reads its own DAG / cost / records | `16-inspect-self` |
+| mock TTS that writes a real WAV | `17-tts-self` |
 | land a typed artifact on disk | `t1-meeting-actions` |
 | poll something, act only when a condition holds | `t1-price-watch` |
 | rows in, chart and report out, zero model calls | `t2-csv-chart-report` |
@@ -93,9 +113,14 @@ the `.nika.yaml` extension. `nika new <slug>` makes one yours;
    the diagnostics — they name the exact task, reference and fix.
    Unknown code? `nika explain NIKA-XXXX`.
 5. Repeat 3–4 until clean. **Never hand a file to the human that does
-   not pass `nika check --native-strict`.** That flag is the bar, not an
-   extra: the hooks that check on your behalf and the gate in front of
-   `nika run` both use it, so a file that fails it cannot be run at all.
+   not pass `nika check --native-strict` AND `paid_ready: true`.**
+   `--native-strict` is the run-gate bar (an `exec:` a builtin covers).
+   `.paid_ready` is the paid-infer bar
+   (`nika check --json <file> | jq .paid_ready`).
+   A green exit with leftover `infer-as-law` / `digit-string-enum` /
+   `glob-readme` / `jq-as-map` / `unproven-law` is
+   legal, not the one-way. The MCP `nika_check` oracle fails
+   `infer-as-law` and `digit-string-enum` by default.
    The exec ledger does NOT buy an exemption (measured: a `.py` wrapper
    fails with a complete ledger) — it documents intent for a reviewer.
    What passes is an `exec:` of a real tool (`git`, `docker`); what
@@ -110,15 +135,19 @@ the `.nika.yaml` extension. `nika new <slug>` makes one yours;
    `nika:prompt` resumes with
    `nika run <file> --resume <trace> --answer <task>=<value>`
    (confirm gates take booleans: `--answer approve=true`).
-7. Pin it for CI: `nika test <file> --update` writes
-   `<file>.golden.json` from an offline mock run; `nika test <file>`
-   replays and compares — deterministic, zero keys.
+7. Pin it for CI **only when the mock run needs no network, subprocess,
+   or write effect**: `nika test <file> --update` writes
+   `<file>.golden.json`; `nika test <file>` replays and compares —
+   deterministic, zero keys. The simulated test plane refuses those effects
+   deliberately. For an effecting workflow, rehearse with
+   `nika run <file> --model mock/echo` in scratch, inspect the artifacts, and
+   verify its trace; never promise a golden that cannot run.
 8. **Prove a run that mattered**: every run writes a hash-chained
    journal to `.nika/traces/`. `nika trace verify <trace>` climbs a
    four-tier ladder and reports the highest tier honestly attained —
    chain OK · **SEALED** (the run signature verifies against a custody
    key) · **ANCHORED** (the detached transparency-log sidecar verifies
-   fully offline) · **REPLAYED** (`--replay` compares a fresh run;
+   fully offline) · **REPLAYED** (`--replay <fresh-trace>` compares a fresh run;
    verify never re-executes). `nika trace show <trace>` reads the card;
    `nika trace evidence <trace>` exports the pack an auditor reads without
    trusting you. Cite the trace, never a memory of the run.
@@ -218,15 +247,40 @@ and a `default:`.
 |---|---|
 | `with:` | the DATA edge — bind another task's output, body reads `${{ with.alias }}` |
 | `after:` | the CONTROL edge — `success` · `failure` · `skipped` · `terminal` · `unwind` |
-| `when:` | a CEL boolean gate (`size()` is the only function) |
-| `for_each:` | fan out over a collection · the body reads the current element as `${{ item }}` and its position as `${{ index }}` (loop-scoped locals, NOT a fourth value authority · `item.field` reaches into an object element) · the task's `.output` is the ARRAY of per-iteration outputs, in input order · `max_parallel:` caps concurrency (1 = sequential) · `fail_fast:` aborts on the first error (default true) |
+| `when:` | a CEL boolean gate · closed callables: `size()` · `has()` · `.size()` · `.contains()` · `.startsWith()` · `.endsWith()` |
+| `for_each:` | fan out over a collection · a BLOCK, never a scalar — `items:` carries the collection and is required, `max_parallel:` caps concurrency (1 = sequential), `fail_fast:` aborts on the first error (default true), and all three live INSIDE the block · a bare `for_each: <expr>` refuses `NIKA-PARSE-019`, and `max_parallel:`/`fail_fast:` at task level are retired spellings · `items:` reads a prior task through `with:` like every other reference · the body reads the current element as `${{ item }}` and its position as `${{ index }}` (loop-scoped locals, NOT a fourth value authority · `item.field` reaches into an object element) · the task's `.output` is the ARRAY of per-iteration outputs, in input order |
 | `retry:` | `max_attempts` · `backoff_ms` · `backoff_strategy` · `backoff_max_ms` · `jitter` · `on_codes` — transient failures only; a wrong prompt never heals by retry |
-| `on_error:` | exactly ONE action — `recover:` · `skip:` (preserves the original error at `tasks.X.error`) · `fail_workflow:` — with an optional `on_codes:` filter |
+| `on_error:` | exactly ONE action — `recover:` · `skip:` (preserves the original error at `tasks.X.error`) — with an optional `on_codes:` filter · the default (no `on_error:`) IS failure, and there is no keyword for saying so (`fail_workflow:` is dead · a YAML comment says it) |
 | `extract:` | named jq bindings → `${{ tasks.X.<name> }}` |
 | `returns:` | the task's output contract — exclusive with a verb-level `schema:` (`NIKA-TYPE-003`) |
 | `timeout:` | a quoted Go duration |
-| `inert:` | declares a `nika:fetch` payload code-bearing but never loaded — the non-empty string IS the justification. Lifts the data-as-code sink law ONLY, never the net boundary |
-| `declassify:` | the one door through the permit-parameterization taint · raises ONE binding from untrusted to trusted, check-visible and receipt-recorded. Never a permit bypass — the value is still matched against the declared boundary |
+| `lift:` | the ONE authored door, a list · each entry opens exactly one named law with a non-empty `because:` (check-visible · receipt-recorded) · `{law: taint, from: <binding>, because: "…"}` raises ONE binding through the permit-parameterization taint — never a permit bypass, the value is still matched against the declared boundary · `{law: data-as-code, because: "…"}` declares a `nika:fetch` payload code-bearing but never loaded — lifts that sink law ONLY, never the net boundary (`from:` is forbidden here) · a lift that would not have fired refuses `NIKA-AUTH-011` · `declassify:` and `inert:` are dead spellings of the same door |
+
+One shape a table cannot carry, because its whole defect is nesting:
+
+```yaml
+nika: fan-out-shape
+const:
+  targets: ["alpha", "beta"]
+permits:
+  tools: [nika:log]
+tasks:
+  each:
+    for_each:
+      items: ${{ const.targets }}   # REQUIRED · the collection
+      max_parallel: 4               # inside the block · at task level it is refused
+      fail_fast: true               # inside the block · this is the default
+    invoke:
+      tool: nika:log
+      args:
+        message: "${{ item }} at ${{ index }}"
+outputs:
+  lines: .each
+```
+
+Checked and RUN against the shipped binary before it was written here ·
+`clean` · `compiled` · `paid_ready` · zero hints · prints `alpha at 0`
+then `beta at 1`. An example that only checks is half an example.
 
 ## The one way (take the default, and the checker goes quiet)
 
@@ -271,6 +325,78 @@ otherwise, in this order:
 10. **Prove it before handing it over.** `nika check` clean, then
     `--native-strict`, then a golden pin if the workflow is hermetic.
     Only then does the human get the run line.
+
+## Paid infer (the order that is cheaper than tokens)
+
+Measured on a 40+ task OpenAI extract → law run. Do not rediscover
+this with a paid seat.
+
+1. `nika check --json --native-strict` until `clean` and `paid_ready`
+   are both true (zero findings, zero paid-run hints).
+2. Probe every new builtin in a one-task file on `mock/echo` *before*
+   wiring it after a paid `infer:` (`nika:inspect` is live — lesson
+   `16-inspect-self` asserts `available` at run start).
+3. Freeze the extract schema type. Numeric facts are `type: integer`
+   with a numeric `enum`. `enum: ["0","1","3"]` is the shape models do
+   not emit (JSON `3` — hint `digit-string-enum`).
+4. Pin the glob. `held/*.md` includes `README.md`. `exclude:
+   "**/README.md"` (hint `glob-readme`).
+5. **The model extracts facts. `nika:jq` or `nika:decide` is the law.**
+   A second infer to "pick the level" is the expensive mistake.
+   The shape is `13-extract-then-law`. Prove the law on const fixtures
+   (`unproven-law`) — `14-decide-publish` is the named bundle.
+6. Then, and only then, swap `model:` to a paid seat.
+
+`for_each` + `item.field` is resume-eligible as a **whole fan** when
+the collection and definition did not change. A mid-wave crash still
+replays every item. After `. as $c` in jq, write `($c | map(...))`
+(hint `jq-as-map`). A red last `nika:assert` quarantines `out/`
+(`.nika/quarantine/<trace>/` — hint `assert-quarantine`).
+
+## After valid: is there a better one-way? (not optional)
+
+`nika check --native-strict` green means the file is *legal*. It does
+not mean it is the cheapest, most native, or most honest file.
+`.paid_ready` is the boolean for "may this file leave mock?". The
+next handoff to a human is refused until that field is true. Each
+question has a command or a file. Do not reason from memory.
+
+Zhang, Kraska, Khattab 2026 (arXiv:2512.24601, Recursive Language
+Models): the prompt is an *environment* you inspect and decompose,
+not a blob you swallow. In Nika that environment is the file + two
+examples + `nika catalog --tools`. Recursion is `invoke: { workflow: }`
+or `for_each:` over items — never one giant infer. Verification is
+`nika:jq` / `nika:decide`, never a second infer that names the verdict.
+
+0. **Is `.paid_ready` true?** `nika check --json <file> | jq .paid_ready`.
+   `false` → repair `.next` (kind · task · advice) first, then the rest
+   of `.paid_blockers[]`. `.compiled` is false only when the law is
+   unproven. Do not swap off `mock/`.
+1. **Did I read two examples first?** `nika try` then `nika new <slug>`
+   twice. Skipping this is the measured 7.5-round tax.
+2. **Is every `exec:` a real tool?** `nika check --native-strict`. A
+   `.py`/`.sh` wrapper is not a tool.
+3. **Does any infer name the verdict?** Hint `infer-as-law`. Extract
+   integer facts; `nika:jq` or `nika:decide` is the law
+   (`13-extract-then-law`). A second infer whose schema is a language
+   enum (BCP-47 · sentiment) is language, not this hint.
+4. **Is every numeric enum `type: integer`?** Hint `digit-string-enum`.
+5. **Does a markdown glob include README?** Hint `glob-readme`.
+6. **Did I probe every new builtin on `mock/echo`?** One-task file,
+   then wire it. `nika:inspect` is live (`16-inspect-self`).
+7. **Would a closer template have given this graph?** `nika new "?"`
+   and `nika new "the job in plain words"`. If a skeleton is closer
+   than what I wrote, start over from it.
+8. **Did `nika explain <file>` stay honest?** Waves · cost (FLOOR ≠ $0)
+   · touches · the **before a paid model** panel. If a paid-run hint
+   remains, the file is not done.
+9. **Is the law proven on known answers?** Hint `unproven-law`. A
+   jq/decide that scores an infer needs a const-fixture `nika:assert`.
+
+A green check with `paid_ready: false` is not a handoff. Repair the
+blocker. Re-run 0–8 until findings are empty and `paid_ready` is true,
+or every remaining *non-paid* hint has a one-line reason in the file
+header (the honest red class, CONVENTIONS §10).
 
 ## Cost honesty (never hide unknown spend)
 
@@ -327,10 +453,15 @@ otherwise, in this order:
 A job too big for one file becomes a parent that calls children. The
 child is a normal workflow; the parent reaches it through the verb it
 already knows. **The form is `workflow:` INSIDE `invoke:`, a sibling of
-`tool:`, never a tool name.** This fragment is a task excerpt, not a
-whole file (it needs the envelope and a `permits:` block around it):
+`tool:`, never a tool name.** This is a complete parent. Check is green
+only when the child sits at that relative path — the next law:
 
 ```yaml
+nika: site-audit-parent
+inputs:
+  target:
+    type: string
+permits: {}
 tasks:
   audit:
     invoke:
@@ -472,23 +603,37 @@ a mandatory run-time re-gate; escaping that re-gate is SEC-004. The
 diagnostic talks about the capability boundary, so the reflex is to
 widen `permits:` — **that reflex is the trap, and it dead-ends.**
 
-**The door is `declassify:`** — a task-level key, the ONLY sanctioned
-lift (spec 10 · NEP-0004 law 5):
+**The door is `lift:`** — a task-level list, the ONLY sanctioned lift
+(spec 10 §the authored doors). One construct, two laws: `taint` and
+`data-as-code`; the law is a PARAMETER of the door, never a second
+spelling (`declassify:` and `inert:` were those spellings, and are dead).
+This is a complete nine-key file (checked on 0.109 · rc=0):
 
 ```yaml
+nika: load-reviewed-path
+inputs:
+  p:
+    type: string
+permits:
+  tools: ["nika:read"]
+  fs:
+    read: ["./reviewed"]
 tasks:
   load:
     invoke: { tool: nika:read, args: { path: "${{ inputs.p }}" } }
-    declassify:
-      - from: inputs.p          # ONE binding
-        to: trusted             # the one raise v1 knows
+    lift:
+      - law: taint              # the law this task opens
+        from: inputs.p          # ONE binding
         because: "deployment-controlled path, reviewed at release time"
 ```
 
-All three fields are required and `because:` must be non-empty — it is
+`law:` and `because:` are required on every entry, `from:` on `taint`
+only (forbidden on `data-as-code`); `because:` must be non-empty — it is
 recorded in the receipt with the taint path and the value digest. It
 lifts the TAINT law only: the value is still matched against the
-declared boundary, so this is never a permit bypass.
+declared boundary, so this is never a permit bypass. A lift that would
+not have fired is refused (`NIKA-AUTH-011`), so dead lifts cannot
+accumulate.
 
 **Why the staging recipe is the wrong first move.** Landing the value
 in a file with `nika:write` and passing the PATH as argv looks safe, and
@@ -496,7 +641,7 @@ it is — until the CLI has to READ that file back. That read adds
 `fs.read`, which completes the lethal trifecta, which makes a dominating
 human gate mandatory. Measured in a real session: the chain runs shim →
 `fs.read` → trifecta → mandatory gate → a gate that cannot be answered
-(see the run notes on `nika:prompt`). Reach for `declassify:` first.
+(see the run notes on `nika:prompt`). Reach for `lift:` first.
 Staging remains correct where the value genuinely must not touch a
 command line AND nothing reads the file back inside the same workflow.
 
@@ -557,6 +702,9 @@ the human at handoff, not to expect a green.
   that still consumes randomness refuses at check.
 - Structured output: give `infer:` a `schema:`; add
   `additionalProperties: false` for a deterministic shape.
+  Numeric facts are `type: integer` + a numeric `enum`. The model
+  extracts facts; `nika:jq` / `nika:decide` is the law
+  (`13-extract-then-law`).
 - Auth rides `headers: { x-api-key: "${{ secrets.KEY }}" }` (masked ·
   declared in `secrets:` with its `egress:` sink) — never `exec: curl`
   for the sake of a header.
@@ -566,11 +714,18 @@ the human at handoff, not to expect a green.
 Hand-writing JSON punctuation around an interpolation is the one way to
 get a green check, a green run, and an unreadable artifact. Both halves
 below were measured on 2026-07-28 with a value containing a quote and a
-newline. These are entries under `tasks:`, not whole files: they need
-the envelope, an `inputs:` declaration for `v`, and a `permits:` block
-granting `nika:jq` · `nika:write` · the write path.
+newline. This is a complete nine-key file (checked on 0.109 · rc=0):
 
 ```yaml
+nika: write-json-value
+inputs:
+  v:
+    type: string
+permits:
+  tools: ["nika:jq", "nika:write"]
+  fs:
+    write: ["./out/**"]
+tasks:
   # ✗ green everywhere, and the artifact does not parse.
   naive:
     with: { v: "${{ inputs.v }}" }

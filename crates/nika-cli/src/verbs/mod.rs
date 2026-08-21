@@ -23,11 +23,14 @@ pub mod guard;
 pub mod init;
 pub mod inspect;
 pub mod key;
+pub mod list;
 pub mod mcp_pins;
 pub mod model;
 pub mod new;
 pub mod pack_surface;
 pub mod run;
+pub mod serve;
+pub mod session;
 pub mod sign;
 pub mod test;
 pub mod tools;
@@ -50,6 +53,54 @@ use nika_schema::{FileId, ParseMode};
 pub use nika_cli_host::output::{VerbOutput, exit};
 pub(crate) use nika_cli_host::output::{linked_path, truecolor_env};
 
+#[derive(Clone)]
+pub(crate) struct RunSource {
+    logical_path: std::sync::Arc<str>,
+    source: std::sync::Arc<str>,
+}
+
+impl RunSource {
+    pub(crate) fn capture(path: &str) -> Result<Self, VerbOutput> {
+        let source = if path == "-" {
+            use std::io::Read as _;
+            let mut buf = String::new();
+            std::io::stdin()
+                .read_to_string(&mut buf)
+                .map_err(|e| VerbOutput::env(format!("cannot read stdin: {e}")))?;
+            buf
+        } else {
+            std::fs::read_to_string(path)
+                .map_err(|e| VerbOutput::env(format!("cannot read {path}: {e}")))?
+        };
+        Ok(Self::new(path, source))
+    }
+
+    pub(crate) fn from_bytes(
+        logical_path: impl Into<String>,
+        bytes: Vec<u8>,
+    ) -> std::io::Result<Self> {
+        let source = String::from_utf8(bytes).map_err(|error| {
+            std::io::Error::new(std::io::ErrorKind::InvalidData, error.utf8_error())
+        })?;
+        Ok(Self::new(logical_path, source))
+    }
+
+    fn new(logical_path: impl Into<String>, source: String) -> Self {
+        Self {
+            logical_path: std::sync::Arc::from(logical_path.into()),
+            source: std::sync::Arc::from(source),
+        }
+    }
+
+    pub(crate) fn logical_path(&self) -> &str {
+        &self.logical_path
+    }
+
+    pub(crate) fn source(&self) -> &str {
+        &self.source
+    }
+}
+
 /// Read + strict-parse + ladder-check one workflow file. The Unix dash
 /// (`-`) reads stdin — the editor wire: a dirty buffer pipes straight
 /// in, no tmp-file dance; every verb on this seam (check · graph ·
@@ -69,26 +120,23 @@ pub(crate) fn load_checked(path: &str) -> Result<(RawWorkflow, CheckReport), Ver
 pub(crate) fn load_checked_with_source(
     path: &str,
 ) -> Result<(String, RawWorkflow, CheckReport), VerbOutput> {
-    let yaml = if path == "-" {
-        use std::io::Read as _;
-        let mut buf = String::new();
-        std::io::stdin()
-            .read_to_string(&mut buf)
-            .map_err(|e| VerbOutput::env(format!("cannot read stdin: {e}")))?;
-        buf
-    } else {
-        std::fs::read_to_string(path)
-            .map_err(|e| VerbOutput::env(format!("cannot read {path}: {e}")))?
-    };
-    let wf = nika_schema::parse(&yaml, FileId::new(0), ParseMode::Strict)
+    let source = RunSource::capture(path)?;
+    let (wf, report) = load_checked_run_source(&source)?;
+    Ok((source.source().to_owned(), wf, report))
+}
+
+pub(crate) fn load_checked_run_source(
+    source: &RunSource,
+) -> Result<(RawWorkflow, CheckReport), VerbOutput> {
+    let wf = nika_schema::parse(source.source(), FileId::new(0), ParseMode::Strict)
         .map_err(|e| VerbOutput::file(format!("PARSE ✗  [{}] {e}", e.spec_code())))?;
     // The composed lane (spec 14): child targets resolve against the
     // file the operator named; the fs edge is the skills reader's twin.
-    let mut report = nika_check::check_composed(&wf, path, &mut |p| {
+    let mut report = nika_check::check_composed(&wf, source.logical_path(), &mut |p| {
         std::fs::read_to_string(p).map_err(|e| e.to_string())
     });
     stamp_judged_semantic(&wf, &mut report);
-    Ok((yaml, wf, report))
+    Ok((wf, report))
 }
 
 /// Stamp the judged-vs-booted binding (F-P2): the report records the

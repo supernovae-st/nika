@@ -33,12 +33,13 @@ pub enum SchemaError {
 
     /// A required envelope field is missing (or `tasks:` is empty).
     ///
-    /// Spec `01-envelope.md` · « Two required lines (`nika:` +
-    /// `workflow:`) and a non-empty `tasks:`. That's the **whole
-    /// minimum** to be a valid Nika workflow. »
+    /// Spec `01-envelope.md` · « The `nika:` line and a non-empty
+    /// `tasks:` map. That's the **whole minimum** to be a valid Nika
+    /// workflow. » Identity lives on `nika:` — there is no `workflow:`
+    /// envelope key.
     #[error("missing required envelope field: `{field}`")]
     MissingEnvelopeField {
-        /// The missing field (`nika` · `workflow` · `tasks`).
+        /// The missing field (`nika` · `tasks`).
         field: String,
         /// Source span (workflow root when known).
         span: Option<Span>,
@@ -177,6 +178,20 @@ pub enum SchemaError {
     )]
     D1StringCommand {
         /// Span of the string node.
+        span: Option<Span>,
+    },
+
+    /// A `skills:` entry that can never resolve — a `${{ }}` template
+    /// or a glob (spec 02 §Agent Skills · « paths are static »).
+    #[error(
+        "`skills` entry `{path}` {why} — skill paths are static (loaded at compose time, before any value exists · the same explicitness law as `permits:`)"
+    )]
+    SkillPathNotStatic {
+        /// The entry as written.
+        path: String,
+        /// Which shape disqualifies it (`carries a ${{ }} template` · `is a glob`).
+        why: &'static str,
+        /// Span of the entry.
         span: Option<Span>,
     },
 
@@ -678,7 +693,7 @@ pub enum SchemaError {
         span: Option<Span>,
     },
 
-    /// A declared `default:` (`inputs:` · `config:`) or a typed-const
+    /// A declared `default:` (`inputs:`) or a typed-const
     /// `value:` does not conform to its declared `type:`
     /// (`NIKA-DEFAULT-001` · R3b · LAW-TYPE-0211 — the P0 soundness
     /// hole, a value that passed check and failed at run, is closed;
@@ -778,6 +793,7 @@ impl SchemaError {
             | Self::UnknownDependency { span, .. }
             | Self::W2DependsOnField { span, .. }
             | Self::D1StringCommand { span, .. }
+            | Self::SkillPathNotStatic { span, .. }
             | Self::UnknownGroup { span, .. }
             | Self::UnwindInGroup { span, .. }
             | Self::UnknownAfterPredicate { span, .. }
@@ -921,7 +937,9 @@ impl NikaErrorCode for SchemaError {
             Self::MissingField { .. } => SCHEMA_298,
             // D1 keeps the GENERIC structural code (PARSE-019) — the
             // variant exists for the fix ladder's match, not the wire.
-            Self::Validation { .. } | Self::D1StringCommand { .. } => SCHEMA_299,
+            Self::Validation { .. }
+            | Self::D1StringCommand { .. }
+            | Self::SkillPathNotStatic { .. } => SCHEMA_299,
             Self::RunContradiction { .. } => SCHEMA_327,
             Self::WhenNotBoolean { .. } => SCHEMA_300,
             Self::RecoverAwaitDeadlock { .. } => SCHEMA_308,

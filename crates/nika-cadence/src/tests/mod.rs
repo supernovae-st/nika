@@ -1,5 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+#![allow(
+    clippy::expect_used,
+    clippy::unwrap_used,
+    clippy::panic,
+    clippy::unreachable
+)]
 
 //! Two families, never confused (§2sexies):
 //!
@@ -10,6 +16,14 @@
 //!   displaced or merged slot is DECLARED ([`Slot::shift`]).
 //! - **the dispatcher (later, L4)** — that is where `VirtualClock`
 //!   will live, never here.
+//!
+//! Split 2026-08-19 (the 1,500-line file cap): the mirror
+//! (`prev_before`) and the planner (`due`) pins live in
+//! [`mod@planner`]. The W3 renderer (« LE PONT » — the OS units) is pinned
+//! in [`mod@emit`].
+
+mod emit;
+mod planner;
 
 use jiff::Timestamp;
 use jiff::Zoned;
@@ -27,6 +41,17 @@ fn at(ts: &str) -> Zoned {
     ts.parse::<Timestamp>()
         .expect("literal timestamp")
         .to_zoned(TimeZone::UTC)
+}
+
+/// A literal instant INSIDE a beat's zone — resolved from the EMBEDDED
+/// tzdb (trap ③ binds the tests too: never the host's zoneinfo).
+fn zoned(text: &str) -> Zoned {
+    let (civil, zone) = text.split_once('[').expect("civil[fuseau]");
+    let zone = zone.strip_suffix(']').expect("le crochet fermant");
+    let civil: jiff::civil::DateTime = civil.parse().expect("civil ISO");
+    civil
+        .to_zoned(crate::next::bundled_tz(zone).expect("fuseau embarqué"))
+        .expect("un instant qui existe")
 }
 
 /// The instant a candidate landed on, as a UTC string.
@@ -556,6 +581,24 @@ fn dst_gap_at_the_boundary_also_fires_at_first_valid() {
         .expect("le créneau absent tire quand même");
     assert_eq!(utc(&slot.at), "2026-03-29T01:00:00Z");
     assert_eq!(slot.shift, Shift::AdvancedFirstValid);
+}
+
+#[test]
+fn the_widest_gap_the_tzdb_remembers_still_lands() {
+    // Apia skipped a whole DAY (2011-12-30, the dateline jump) — the
+    // widest gap there is, 24 h, and the reason resolve() steps up to
+    // 26 h of minutes. A midnight slot on the 30th never existed: it
+    // fires at the first valid instant, 00:00 on the 31st (+14:00).
+    // The resolve() comment claimed this probe without a test; here it
+    // is, and it kills the `26 * 60` → `26 + 60` survivor (86 minutes
+    // of stepping never reaches the 31st).
+    let cad = Cadence::parse("TZ=Pacific/Apia 0 0 * * *").expect("cadence");
+    let slot = cad
+        .next_after(&at("2011-12-29T12:00:00Z"))
+        .expect("le lendemain existe");
+    assert_eq!(utc(&slot.at), "2011-12-30T10:00:00Z", "00:00 +14:00");
+    assert_eq!(slot.shift, Shift::AdvancedFirstValid);
+    assert_eq!(slot.civil.to_string(), "2011-12-30T00:00:00");
 }
 
 #[test]
@@ -1162,13 +1205,15 @@ fn no_zone_ever_resolves_from_the_host() {
     let dir = env!("CARGO_MANIFEST_DIR");
     for file in [
         "cron.rs",
+        "due.rs",
         "error.rs",
         "lib.rs",
         "next.rs",
         "parse.rs",
         "phrase.rs",
         "registry.rs",
-        "tests.rs",
+        "tests/mod.rs",
+        "tests/planner.rs",
     ] {
         let text = std::fs::read_to_string(format!("{dir}/src/{file}")).expect("la source se lit");
         for (n, line) in text.lines().enumerate() {

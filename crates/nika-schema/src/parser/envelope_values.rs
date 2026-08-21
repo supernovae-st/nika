@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The four value authorities — `inputs:` · `config:` · `const:` ·
-//! `secrets:` (spec `01-envelope.md` · post-C2 the E-split family).
+//! The three value authorities — `inputs:` · `const:` · `secrets:`
+//! (spec `01-envelope.md` · `config:` died with the nine-key envelope).
 //!
 //! Split out of `parser/envelope.rs` at the C2 wall (the 1500-LOC file
 //! ratchet — the value authorities are ONE coherent unit: the typed
@@ -31,7 +31,7 @@ pub(super) fn parse_inputs(
     parse_typed_block(cx, workflow, "inputs", INPUT_KEYS)
 }
 
-/// The shared typed-declaration block reader (`inputs:` · `config:`) —
+/// The shared typed-declaration block reader (`inputs:`) —
 /// same shape as the pre-C2 typed `vars:` form.
 fn parse_typed_block(
     cx: &Cx<'_>,
@@ -127,8 +127,7 @@ fn parse_type_expr(
 }
 
 /// Parse the typed-declaration form (`{ type, required?, default?,
-/// description? }` — the pre-C2 typed `vars:` form, now shared by
-/// `inputs:` and `config:` with per-authority closed key sets).
+/// description? }` — the pre-C2 typed `vars:` form, now `inputs:`).
 fn parse_typed_var(
     cx: &Cx<'_>,
     name: &str,

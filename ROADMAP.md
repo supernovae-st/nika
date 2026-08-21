@@ -12,8 +12,8 @@
 > pre-conditions of the official 1.0 (D-2026-07-22-N1) → design-partner
 > `1.0.0-rc.N` → first public launch **1.0.0**, the culmination → 1.x minors
 > add the remaining crates additively → the next major stays **un-numbered and
-> unnamed**, its content the operator's to declare (D-2026-07-10-N4). The `nika: v1` LANGUAGE
-> envelope is frozen forever and unaffected. The `v0.8X.Y` layer-tag scheme below
+> unnamed**, its content the operator's to declare (D-2026-07-10-N4). The nine-key LANGUAGE
+> envelope (`nika: <id>` · ADR-113) is frozen forever and unaffected. The `v0.8X.Y` layer-tag scheme below
 > is SUPERSEDED (kept for history). See ADR-002 amendment + §Tag scheme.
 > The dated history and the forward gates live in the machine-verified
 > [timeline](https://github.com/supernovae-st/nika-spec/blob/main/timeline/timeline.yaml)
@@ -29,9 +29,11 @@
 > Tag scheme (Q-plan 3b): `v0.8X.Y` where `X` climbs per layer-phase completion
 > and `Y` increments per crate admission. See §Tag scheme below.
 >
-> Schema envelope (Q-R5): `nika: v1` **forever** (single version marker per
-> nika-spec · supersedes the K8s `apiVersion:` form of ADR-021). `x-nika-alpha/beta`
-> annotations gate sub-field maturity within v1. See nika-spec spec/01-envelope.md.
+> Schema envelope (Q-R5 · amended 2026-08-13 by ADR-113): nine keys **forever** ·
+> the identity rides ON `nika:` (`nika: <kebab-id>` · the version slot died
+> losslessly · `workflow:` is not an envelope key) · supersedes the single
+> version marker of ADR-082 and the K8s `apiVersion:` form of ADR-021.
+> See nika-spec spec/01-envelope.md.
 >
 > Crate count: the **Diamond architecture target is 42** (admitted census in
 > the generated status block below); the **long-term** envelope grows to **50-90** (cap 100), driven by the
@@ -101,9 +103,9 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| branch           | `fix/nika-check-descends-its-analysis-plane`                                      |
-| HEAD             | `7fd5085ad` (`7fd5085adee47f8686c65b5b6ed45f3b351c7403`)             |
-| workspace        | v0.109.0-dev                                  |
+| branch           | `chore/release-0-112-0`                                      |
+| HEAD             | `0a4c68a8a` (`0a4c68a8a87e5fb52586f5d445acddec3abc185c`)             |
+| workspace        | v0.112.0                                  |
 | crates (workspace)| 66                                              |
 | crates (admitted)| 61                                             |
 | crates (WIP)     | 5 — nika-chart nika-fx nika-proof nika-store nika-harness                                  |
@@ -114,7 +116,7 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 | L2               | 5                                              |
 | L3               | 1                                              |
 | L4               | 12                                              |
-| lib tests        | 5843 passed, 0 failed                              |
+| lib tests        | 6041 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
 
 Diamond foundation — orphan branch from scratch. Live counts (admitted ·
@@ -152,12 +154,12 @@ notes · key decisions), not a census.
   - `HttpStreamResponse::new()` (4A-stabilize, inv #19)
   - `#[non_exhaustive]` on all 20 mock structs (4A-stabilize)
   - **Q7 prelude hub** (2026-04-16, `d967f4a7a`): `nika_kernel::prelude::*` re-exports `nika_error::prelude::*` so L2+ verb crates depend on `nika-kernel` only (3 lines of impl + 3 regression tests pinning 23 symbols)
-- **nika-schema (ADMITTED · 2026-06-18)** — workflow AST + parser + analyzer + static-check · all 12 gates green (Gate-5 budget 290≤300) · the pre-Diamond rounds below are superseded history (the `nika: v1` rewrite shipped + admitted)
+- **nika-schema (ADMITTED · 2026-06-18)** — workflow AST + parser + analyzer + static-check · all 12 gates green (Gate-5 budget 290≤300) · the pre-Diamond rounds below are superseded history (the `nika: v1` rewrite shipped + admitted) <!-- stale-ok: superseded admission history -->
   - **Round 2c** (`b85b612ca`, 2026-04-16): parser scaffold, top-level scalars (`name`, `description`, `goal`, `provider`, `model`, `schema`)
   - **Round 2d** (`2480822df`): `tasks:` sequence + 5-verb action discriminator (`enum Verb` exhaustive match) + minimum required field per verb
   - **Round 2e-part-1** (`eac346c71`): optional task-level `depends_on`, `condition`, `for_each`
   - 38 parser tests + 100+ across raw/types/guardrails/source/trust/error
-  - **PENDING REWRITE** — Phase D nuke + redo with `nika: v1` + `kind: Workflow` + `metadata` + `spec` envelope (per nika-spec · the `kind` discriminator survives, the version-field shape is `nika: v1` not `apiVersion: nika.sh/v1`)
+  - **PENDING REWRITE** — Phase D nuke + redo with `nika: v1` + `kind: Workflow` + `metadata` + `spec` envelope (per nika-spec · the `kind` discriminator survives, the version-field shape is `nika: v1` not `apiVersion: nika.sh/v1`) <!-- stale-ok: superseded admission history -->
 
 Totals: live numbers (lib tests · clippy · LOC · providers · capability
 rules · ADRs · hygiene vectors) are in the AUTO-GENERATED status block
@@ -211,7 +213,7 @@ Real semver toward a 1.0 launch, then `MAJOR.MINOR.PATCH`:
 
 - **MINOR** within a major = additive (new crates · builtins · providers · polish).
 - **PATCH** = bug fixes, zero contract change.
-- **MAJOR** = an architectural epoch (the language `nika: v1` envelope is frozen,
+- **MAJOR** = an architectural epoch (the nine-key language envelope is frozen,
   so a major is driven by the engine epoch, not by language breaks).
 
 | Tag        | Meaning                                                              |
@@ -236,14 +238,16 @@ Real semver toward a 1.0 launch, then `MAJOR.MINOR.PATCH`:
 > moves to post-1.0 minors (ADR-037 horizon 50-90 · cap 100 · projected,
 > never a gate · ruled D-2026-07-21-N1). Original table preserved in git history.
 
-## Schema envelope — forever v1 (Q-R5 · per nika-spec)
+## Schema envelope — nine keys, forever (Q-R5 · per nika-spec · ADR-113)
 
-Every `.nika.yaml` workflow carries `nika: v1` **forever** — a single
-version marker (the language name as key, the contract version as value).
-The envelope never bumps to v2 (the `nika: v1` language is frozen · a `v2` is effectively
-never). Canonical envelope: `nika-spec` spec/01-envelope.md.
-`https://nika.sh/spec/v1` is the internal RDF/conformance URI only,
-never typed by authors.
+Every `.nika.yaml` workflow opens with `nika: <kebab-id>` **forever** — the
+key says « this is a Nika file », the value is the file's NAME (the `v1`
+version slot died losslessly on 2026-08-12: one legal value is not a
+version · ADR-113). The envelope is exactly nine keys · `nika` · `model` ·
+`inputs` · `const` · `secrets` · `permits` · `run` · `tasks` · `outputs` ·
+and never bumps to a v2 (a `v2` is effectively never). Canonical envelope:
+`nika-spec` spec/01-envelope.md. `https://nika.sh/spec/v1` is the internal
+RDF/conformance URI only, never typed by authors.
 
 Sub-field maturity is annotated inline via `x-nika-alpha` / `x-nika-beta` /
 `x-nika-deprecated` hints that parsers surface as warnings, never errors.
@@ -530,14 +534,14 @@ Per D-2026-05-22-N18.)
 
 **Schema AST (`nika-schema` L0 ~13k LOC)**:
 - Raw AST → analyzed AST with `Spanned<T>` source tracking for `ariadne` diagnostics
-- Parser: YAML → workflow (envelope `nika: v1` · single version marker per nika-spec)
+- Parser: YAML → workflow (the nine-key envelope · `nika: <id>` per nika-spec · ADR-113)
 - Analyzer: DAG construction + cycle detection + unreachable task detection + run-depth enforcement (workflow recursion guard)
 - Validator: type coercion on 65 templatable fields (string → f64/u32/bool/provider enum/etc.)
 - Taint propagation: `Trust::Untrusted` bits flow through `with:` bindings, enforced at verb boundaries
 - Guardrail schema compilation (agent verb)
 - Include partials (workflow composition via `include:` with prefix namespacing)
 - `when:` conditionals (template expression evaluation)
-- `depends_on` explicit ordering
+- `after:` control edges — explicit ordering (`depends_on` died in W2 · `NIKA-PARSE-024`)
 - `for_each` concurrency + `fail_fast` semantics
 
 **Binding / templating (`nika-binding` L0 ~13k LOC)**:
@@ -597,8 +601,8 @@ Per D-2026-05-22-N18.)
 **Event subsystem, artifact modes, output modes, templatable fields**:
 - Artifact modes: `overwrite | append | unique | fail`, with optional `manifest: true` → `artifacts.json` index
 - Output modes: `text | json | yaml | markdown | binary`
-- 65 typed fields accept `{{...}}` templates (type-coerced after resolution, NIKA-041 on error)
-- Endpoints config in `nika.toml` `[endpoints.<name>]` for self-hosted LLMs + `model: <endpoint>/<name>` slash syntax
+- 65 typed fields accept `${{ }}` CEL (type-coerced after resolution, NIKA-041 on error)
+- Self-hosted LLMs use `model: <provider>/<name>` slash syntax · the provider base URL is operator/engine config, not the project file (`nika.yaml` carries `ceiling` · `arm` · `traces` · `registry`)
 - `nika:decode` builtin: base64 → CAS blob (for APIs returning inline images)
 - `nika:import` builtin: file → CAS blob
 
