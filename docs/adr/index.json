@@ -1217,5 +1217,37 @@
       "requires": [],
       "enables": []
     }
+    ,
+    {
+      "id": "ADR-116",
+      "title": "nika serve v0 was a local-only resident firer",
+      "status": "superseded",
+      "date": "2026-08-19",
+      "filename": "adr-116-nika-serve-resident-firer.md",
+      "tags": ["architecture","cadence","arm","serve","lineage"],
+      "affects_crates": ["nika-cli","nika-cadence"],
+      "affects_layers": ["L0","L4"],
+      "supersedes": [],
+      "superseded_by": ["ADR-117"],
+      "related": [],
+      "requires": ["ADR-114"],
+      "enables": []
+    }
+    ,
+    {
+      "id": "ADR-117",
+      "title": "admit nika serve network access behind explicit authority",
+      "status": "accepted",
+      "date": "2026-08-21",
+      "filename": "adr-117-nika-serve-network-boundary.md",
+      "tags": ["architecture","serve","http","authentication","execution","layering"],
+      "affects_crates": ["nika-arm","nika-cli","nika-runtime","nika-serve"],
+      "affects_layers": ["L3","L4"],
+      "supersedes": ["ADR-116"],
+      "superseded_by": [],
+      "related": [],
+      "requires": ["ADR-114"],
+      "enables": []
+    }
   ]
 }
