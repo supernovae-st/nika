@@ -154,6 +154,12 @@ run_check "47 version-surfaces     " "check-version-surfaces.sh"
 run_check "48 agent-plugins-1.0.0  " "check-agent-plugins.sh"
 run_check "49 hygiene-self-tests   " "check-hygiene-self-tests.sh"
 run_check "50 release-gate-envelope" "check-release-gate-envelope.sh"
+# 51 is about THIS CLONE, not the repo. Every other vector asks whether the
+# tree is right; this one asks whether the tree's local enforcement is even
+# reachable — because an unregistered `merge.ours.driver` makes `/estate.yaml
+# merge=ours` a no-op IN SILENCE, and an uninstalled lefthook makes every gate
+# above it inert with no message at all.
+run_check "51 clone-armed          " "check-clone-armed.sh"
 
 # --- Output ---
 g=0
