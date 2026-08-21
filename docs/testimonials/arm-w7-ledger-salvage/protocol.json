@@ -1,0 +1,94 @@
+{
+  "tested_commit": "0203aacdaa953d8e7a9ce182d3aed0a69a4c7f1d",
+  "tested_tree": "bb7f629da770435208edd8e9c6a48cf24cad873b",
+  "run_id": "arm-w7-2fdd0c3f-ecd4-4e97-9777-bba689412cb3",
+  "worktree": "/tmp/nika-pr1079-mutants-0203aacd",
+  "output": "/tmp/nika-pr1079-arm-w7-2fdd0c3f-ecd4-4e97-9777-bba689412cb3-output",
+  "target": "/tmp/nika-pr1079-arm-w7-2fdd0c3f-ecd4-4e97-9777-bba689412cb3-target",
+  "temp_root": "/tmp/nika-pr1079-arm-w7-2fdd0c3f-ecd4-4e97-9777-bba689412cb3-tmp",
+  "signal_guard": {
+    "scope": "temp-create-through-process-group-reap-artifact-binding-and-durable-settlement",
+    "parent": "block-before-handler-install-and-spawn; unblock only while owned work runs",
+    "child": "POSIX single-thread preexec restores original mask minus SIGHUP SIGINT and SIGTERM",
+    "teardown": "block before group stop; restore prior handlers while blocked; restore prior mask last"
+  },
+  "settlement": {
+    "write": "same-directory atomic replace",
+    "durability": "fsync scratch-parent entries after root materialization and removal, every bound outcome artifact and its directories, the atomic receipt file and output directory, then the scratch parent before settlement",
+    "pre_settlement_failure": "remove exact output target and temp roots",
+    "post_settlement_failure": "preserve output and durable raw receipt; target is a removed build cache, not evidence authority",
+    "target_authority": "build cache removed before settlement"
+  },
+  "settlement_order": [
+    "scratch-materialized-parent-fsync",
+    "artifact-files-and-directories-fsync",
+    "scratch-removal-parent-fsync",
+    "receipt-atomic-file-output-directory-fsync",
+    "settlement-parent-fsync",
+    "settled"
+  ],
+  "excluded_name": "crates/nika-cadence/src/ledger.rs:406:27: replace > with >= in unsettled",
+  "excluded_regex": "^crates/nika-cadence/src/ledger\\.rs:406:27: replace > with >= in unsettled$",
+  "run_argv": [
+    "<CARGO_BIN>", "mutants", "-p", "nika-cadence",
+    "-f", "crates/nika-cadence/src/firing.rs",
+    "-f", "crates/nika-cadence/src/ledger.rs",
+    "-E", "^crates/nika-cadence/src/ledger\\.rs:406:27: replace > with >= in unsettled$",
+    "-o", "/tmp/nika-pr1079-arm-w7-2fdd0c3f-ecd4-4e97-9777-bba689412cb3-output",
+    "-j", "1", "--baseline", "run", "--timeout", "300",
+    "--build-timeout", "300", "--", "--lib"
+  ],
+  "list_argv": [
+    "cargo", "mutants", "--list", "--json", "-p", "nika-cadence",
+    "-f", "crates/nika-cadence/src/firing.rs",
+    "-f", "crates/nika-cadence/src/ledger.rs"
+  ],
+  "runner_argv": [
+    "python3", "docs/testimonials/arm-w7-ledger-salvage/validate.py",
+    "run", "--repo", ".", "--receipt-commit", "HEAD"
+  ],
+  "same_span_controls": [
+    "crates/nika-cadence/src/ledger.rs:406:27: replace > with == in unsettled",
+    "crates/nika-cadence/src/ledger.rs:406:27: replace > with < in unsettled"
+  ],
+  "prior_anomalies": [
+    {"prior_summary": "MissedMutant", "prior_name": "crates/nika-cadence/src/ledger.rs:353:52: replace + with * in unsettled", "current_name": "crates/nika-cadence/src/ledger.rs:353:52: replace + with * in unsettled"},
+    {"prior_summary": "MissedMutant", "prior_name": "crates/nika-cadence/src/ledger.rs:356:17: replace += with *= in unsettled", "current_name": "crates/nika-cadence/src/ledger.rs:356:17: replace += with *= in unsettled"},
+    {"prior_summary": "MissedMutant", "prior_name": "crates/nika-cadence/src/ledger.rs:356:17: replace += with -= in unsettled", "current_name": "crates/nika-cadence/src/ledger.rs:356:17: replace += with -= in unsettled"},
+    {"prior_summary": "MissedMutant", "prior_name": "crates/nika-cadence/src/ledger.rs:362:64: replace == with != in unsettled", "current_name": "crates/nika-cadence/src/ledger.rs:362:64: replace == with != in unsettled"},
+    {"prior_summary": "MissedMutant", "prior_name": "crates/nika-cadence/src/ledger.rs:405:17: delete ! in unsettled", "current_name": "crates/nika-cadence/src/ledger.rs:405:17: delete ! in unsettled"},
+    {"prior_summary": "Timeout", "prior_name": "crates/nika-cadence/src/ledger.rs:754:28: replace == with != in first_line_is_versioned", "current_name": "crates/nika-cadence/src/ledger.rs:757:28: replace == with != in first_line_is_versioned"},
+    {"prior_summary": "Timeout", "prior_name": "crates/nika-cadence/src/ledger.rs:758:5: replace has_ledger_marker -> bool with false", "current_name": "crates/nika-cadence/src/ledger.rs:761:5: replace has_ledger_marker -> bool with false"},
+    {"prior_summary": "Timeout", "prior_name": "crates/nika-cadence/src/ledger.rs:758:5: replace has_ledger_marker -> bool with true", "current_name": "crates/nika-cadence/src/ledger.rs:761:5: replace has_ledger_marker -> bool with true"},
+    {"prior_summary": "Timeout", "prior_name": "crates/nika-cadence/src/ledger.rs:773:5: replace legacy_line_valid -> bool with false", "current_name": "crates/nika-cadence/src/ledger.rs:776:5: replace legacy_line_valid -> bool with false"},
+    {"prior_summary": "Timeout", "prior_name": "crates/nika-cadence/src/ledger.rs:773:5: replace legacy_line_valid -> bool with true", "current_name": "crates/nika-cadence/src/ledger.rs:776:5: replace legacy_line_valid -> bool with true"},
+    {"prior_summary": "Timeout", "prior_name": "crates/nika-cadence/src/ledger.rs:786:9: replace || with && in legacy_line_valid", "current_name": "crates/nika-cadence/src/ledger.rs:789:9: replace || with && in legacy_line_valid"},
+    {"prior_summary": "Timeout", "prior_name": "crates/nika-cadence/src/ledger.rs:791:9: replace || with && in legacy_line_valid", "current_name": "crates/nika-cadence/src/ledger.rs:794:9: replace || with && in legacy_line_valid"},
+    {"prior_summary": "Timeout", "prior_name": "crates/nika-cadence/src/ledger.rs:796:9: replace || with && in legacy_line_valid", "current_name": "crates/nika-cadence/src/ledger.rs:799:9: replace || with && in legacy_line_valid"},
+    {"prior_summary": "Timeout", "prior_name": "crates/nika-cadence/src/ledger.rs:920:50: replace || with && in verify_payload", "current_name": "crates/nika-cadence/src/ledger.rs:927:50: replace || with && in verify_payload"},
+    {"prior_summary": "Timeout", "prior_name": "crates/nika-cadence/src/ledger.rs:921:57: replace == with != in verify_payload", "current_name": "crates/nika-cadence/src/ledger.rs:928:57: replace == with != in verify_payload"},
+    {"prior_summary": "Timeout", "prior_name": "crates/nika-cadence/src/ledger.rs:923:17: replace || with && in verify_payload", "current_name": "crates/nika-cadence/src/ledger.rs:930:17: replace || with && in verify_payload"},
+    {"prior_summary": "Timeout", "prior_name": "crates/nika-cadence/src/ledger.rs:924:21: replace && with || in verify_payload", "current_name": "crates/nika-cadence/src/ledger.rs:931:21: replace && with || in verify_payload"},
+    {"prior_summary": "Timeout", "prior_name": "crates/nika-cadence/src/ledger.rs:925:21: replace && with || in verify_payload", "current_name": "crates/nika-cadence/src/ledger.rs:932:21: replace && with || in verify_payload"},
+    {"prior_summary": "Timeout", "prior_name": "crates/nika-cadence/src/ledger.rs:932:17: replace && with || in verify_payload", "current_name": "crates/nika-cadence/src/ledger.rs:939:17: replace && with || in verify_payload"},
+    {"prior_summary": "Timeout", "prior_name": "crates/nika-cadence/src/ledger.rs:933:17: replace && with || in verify_payload", "current_name": "crates/nika-cadence/src/ledger.rs:940:17: replace && with || in verify_payload"}
+  ],
+  "guard_mutants": [
+    "crates/nika-cadence/src/firing.rs:619:34: replace > with >= in decide",
+    "crates/nika-cadence/src/ledger.rs:406:38: replace && with || in unsettled",
+    "crates/nika-cadence/src/ledger.rs:543:35: replace && with || in Walker::fold_versioned",
+    "crates/nika-cadence/src/ledger.rs:734:25: replace || with && in classify_journal",
+    "crates/nika-cadence/src/ledger.rs:889:18: replace == with != in verify_payload",
+    "crates/nika-cadence/src/ledger.rs:1107:17: delete ! in LifecycleValidator::accept",
+    "crates/nika-cadence/src/ledger.rs:1108:75: replace == with != in LifecycleValidator::accept"
+  ],
+  "run_env_allow": [
+    "PATH", "HOME", "CARGO_HOME", "RUSTUP_HOME", "RUSTUP_TOOLCHAIN",
+    "TMPDIR", "LANG", "LC_ALL", "SDKROOT", "DEVELOPER_DIR",
+    "MACOSX_DEPLOYMENT_TARGET", "CARGO_TARGET_DIR"
+  ],
+  "run_env_forbidden": [
+    "RUSTC", "RUSTC_WRAPPER", "RUSTC_WORKSPACE_WRAPPER",
+    "CARGO_BUILD_RUSTC_WRAPPER", "RUSTFLAGS", "CARGO_ENCODED_RUSTFLAGS"
+  ]
+}
