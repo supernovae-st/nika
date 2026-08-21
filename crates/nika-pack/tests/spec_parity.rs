@@ -94,7 +94,11 @@ fn canon_templates() -> (u64, Vec<String>) {
         .expect("templates.items is a list");
     let names = items
         .iter()
-        .map(|v| v.as_str().expect("every template name is a string").to_owned())
+        .map(|v| {
+            v.as_str()
+                .expect("every template name is a string")
+                .to_owned()
+        })
         .collect();
     (count, names)
 }
