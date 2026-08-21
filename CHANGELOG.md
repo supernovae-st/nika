@@ -65,6 +65,18 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Fixed
 
+- **`for_each` over a constant that is not an array is refused at check, not
+  at dispatch.** `const: { items: "x" }` with `for_each: ${{ const.items }}`
+  audited clean, then died at the run with `NIKA-VAR-006` — a linter's answer,
+  not a verifier's, and exactly the gap ADR-092 exists to close. The static
+  lane already caught a *typed* non-array var but exempted every untyped one,
+  on the rationale that « a `--var` override could pass an array ». That rule
+  is inputs-only: `--var` sets an `inputs:` value and refuses unknown keys, and
+  spec 01 §const is normative — a constant is « immutable across the run and
+  never caller-supplied ». An untyped constant's literal IS its run value, so
+  a non-array can never become one. Untyped entries are legal in `const:`
+  alone, arrays and typed declarations are untouched, and all 59 shipped
+  templates and examples still audit clean.
 - **`nika explain` answers the token `nika check` printed in `[brackets]`,
   including a hint.** A HINT row put `jq-as-map` (or `native-first/006`)
   in the same slot as `NIKA-PARSE-019`, so the next gesture was
