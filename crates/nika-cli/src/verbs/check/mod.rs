@@ -1,23 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! `nika check` — the ADR-092 static ladder, rendered (spec §2).
-//!
-//! The human surface: grep-stable section keywords (CONFORM/PLAN/COST/
-//! SECRETS/TYPES/TOOLS/SCHEMA/GATES/PERMITS/HINT) through the ONE colour seam
-//! (`display::theme` · semantic-only). The machine surface (`--json`):
-//! the full [`CheckReport`] + a `clean` flag, NEVER coloured — the
-//! contract bytes are the contract. Check is INFALLIBLE past parse
-//! (rustc model): every defect lands in the report, one round-trip.
+//! `nika check` — ADR-092 static ladder. Human report + `--json` machine surface.
 
-/// The `check` arm's routing: single file = the pre-variadic path,
-/// byte-identical (every existing consumer — hooks · agents · CI — sees
-/// exactly what it saw before); several files fan out through
-/// [`run_many`]. The machine modes stay one-file-per-call —
-/// `report_version: 1` and the inferred boundary are per-file contracts —
-/// so `--json`/`--infer-permits` with several files refuse with a teach
-/// line at exit 3 (the INVOCATION is wrong, no file was judged), and
-/// stdin (`-`) cannot join a multi-file audit.
+/// Flags for one check dispatch. Several files use [`run_many`]; `--json` is one-file.
 pub struct CheckFlags {
     pub json: bool,
     pub infer_permits: bool,
@@ -25,16 +11,8 @@ pub struct CheckFlags {
     pub profile: Profile,
 }
 
-/// The readiness posture (`--profile`). `advisory` (the default) DISPLAYS
-/// the [`nika_check::RiskGrade`] on the audited card without gating on
-/// it — the pre-P0-6 behavior, minus the green paint over unbounded
-/// rope. `operational` is the agent/CI readiness gate: a grade of High
-/// or Unbounded (glob grants · true wildcards · uncapped spend) folds
-/// into the exit-2 verdict, the same way `--native-strict` promotes its
-/// hints. The grade itself is a pure projection of the report — it adds
-/// no finding and no `NIKA-*` code.
+/// `--profile`: advisory displays the grade; operational fails at High/Unbounded.
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, clap::ValueEnum)]
-
 pub enum Profile {
     /// Grade displayed, never gating (the default).
     #[default]
@@ -43,47 +21,28 @@ pub enum Profile {
     Operational,
 }
 
-/// The `nika check` argument surface (clap payload — descended from the
-/// bin's Command enum at the 1500-line file cap · the `RunArgs` precedent).
-// Four independent CLI flags ARE four bools — the clap-surface idiom
-// (the TraceArgs precedent), not a state machine to encode.
 #[allow(clippy::struct_excessive_bools)]
 #[derive(clap::Args)]
 pub struct CheckArgs {
-    /// Workflow file(s) (`*.nika.yaml`) · `-` reads stdin · or a verified
-    /// `registry:owner/name[@version]` pull (cached + offline; workflow
-    /// `permits:` never govern the fetch) · several files audit in sequence
-    /// (worst exit wins — the CI shape) · `--json`/`--infer-permits` one-file-per-call.
-    /// Omitted with exactly one workflow here → that one is audited.
+    /// Workflow file(s), `-`, or `registry:owner/name[@version]`.
     #[arg(num_args = 0..)]
     pub files: Vec<String>,
-    /// Emit the versioned machine projection (`report_version: 1`).
+    /// Machine projection (`report_version: 1`).
     #[arg(long)]
     pub json: bool,
-    /// Print an inferred `permits:` boundary instead of the report.
+    /// Print an inferred `permits:` boundary.
     #[arg(long)]
     pub infer_permits: bool,
-    /// Apply the machine-applicable rename repairs (typed
-    /// did-you-mean suggestions only: fields · tools · args), rewrite
-    /// the file, and re-audit — the in-binary repair loop
-    /// (`clippy --fix` shape). One real file; ambiguous tokens are
-    /// skipped with a note, never guessed.
+    /// Apply typed rename repairs and re-audit.
     #[arg(long)]
     pub fix: bool,
-    /// Fail (exit 2) when any `native-first` hint remains — an
-    /// `exec:` a builtin or MCP tool probably covers. The agent/CI
-    /// posture; hints stay advisory without it.
+    /// Fail when any `native-first` hint remains.
     #[arg(long)]
     pub native_strict: bool,
-    /// The readiness posture on the audit's risk grade (uncapped
-    /// spend · glob/wildcard grants): `advisory` displays the grade
-    /// on the verdict card, `operational` also fails (exit 2) when
-    /// the grade is high or unbounded — the agent/CI readiness gate.
+    /// Advisory displays the grade; operational fails at High/Unbounded.
     #[arg(long, value_enum, default_value_t = Profile::Advisory)]
     pub profile: Profile,
-    /// Price the static envelope AS IF this `<provider>/<model>`
-    /// replaced the envelope default — the preview of `nika run
-    /// --model` (per-task `model:` still wins, like the runtime).
+    /// Price as if this `<provider>/<model>` replaced the envelope default.
     #[arg(long)]
     pub model: Option<String>,
 }
