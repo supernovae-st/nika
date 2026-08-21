@@ -1485,5 +1485,9 @@ fn hint(kind: &'static str, task: &str, advice: String) -> Hint {
         advice,
     }
 }
+
+mod catalog;
+pub use catalog::hint_help;
+
 #[cfg(test)]
 mod tests;

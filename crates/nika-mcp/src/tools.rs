@@ -68,7 +68,7 @@ fn display_title(name: &str) -> &'static str {
     match name {
         "nika_check" => "Audit a workflow",
         "nika_inspect" => "Project the workflow graph",
-        "nika_explain" => "Explain an error code",
+        "nika_explain" => "Explain an error code or hint",
         "nika_schema" => "The workflow JSON Schema",
         "nika_examples" => "Browse runnable examples",
         "nika_template" => "Fetch a template skeleton",
@@ -132,13 +132,13 @@ fn validate_tools() -> Value {
         },
         {
             "name": "nika_explain",
-            "description": "Teach one Nika error code — cause, category, and the fix form.",
+            "description": "Teach one Nika error code or hint identity — cause, category, and the fix form.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "code": {
                         "type": "string",
-                        "description": "A code like `NIKA-VAR-001` or the bare `440`."
+                        "description": "A code like `NIKA-VAR-001`, the bare `440`, or a hint kind `nika check` printed in [brackets] (`jq-as-map` · `native-first/006`)."
                     }
                 },
                 "required": ["code"]
@@ -686,12 +686,19 @@ fn tools_payload() -> Result<String, String> {
         .map_err(|e| format!("tools projection failed: {e}"))
 }
 
-/// `nika_explain` — teach one error code (numeric registry or spec code).
+/// `nika_explain` — teach one error code (numeric registry or spec
+/// code) or a hint identity `nika check` printed in `[brackets]`.
 fn explain(args: &Value) -> Result<String, String> {
     let code = args
         .get("code")
         .and_then(Value::as_str)
         .ok_or("missing `code` (e.g. `NIKA-VAR-001`)")?;
+    // Same slot as the CLI (#1038): a HINT row prints `jq-as-map` /
+    // `native-first/006` where a finding prints `NIKA-PARSE-019`.
+    // Resolve before wrapping `NIKA-`.
+    if let Some(help) = nika_check::hint_help(code) {
+        return Ok(format!("{code} · hint\n\n  {help}"));
+    }
     let normalized = if code.starts_with("NIKA-") {
         code.to_owned()
     } else {
@@ -730,7 +737,8 @@ fn explain(args: &Value) -> Result<String, String> {
     Err(format!(
         "unknown code `{code}` — the registry knows NIKA-001..9999, the spec \
          codes (NIKA-VAR-* · NIKA-DAG-* · …), per-builtin \
-         NIKA-BUILTIN-<NAME>-NNN and per-provider NIKA-PROVIDER-NNN codes; \
+         NIKA-BUILTIN-<NAME>-NNN and per-provider NIKA-PROVIDER-NNN codes, \
+         and the hint kinds `nika check` prints in [brackets]; \
          see docs.nika.sh/errors"
     ))
 }
@@ -1164,6 +1172,16 @@ mod tests {
     #[test]
     fn explain_an_unknown_code_is_a_tool_error() {
         assert!(execute("nika_explain", &json!({ "code": "NIKA-GHOST-999" })).is_err());
+    }
+
+    #[test]
+    fn explain_a_printed_hint_kind_teaches_like_the_cli() {
+        let out = execute("nika_explain", &json!({ "code": "jq-as-map" })).expect("hint kind");
+        assert!(out.contains("jq-as-map · hint"), "{out}");
+        assert!(out.contains("($name | map"), "{out}");
+        let numbered =
+            execute("nika_explain", &json!({ "code": "native-first/006" })).expect("006");
+        assert!(numbered.contains("nika:wait"), "{numbered}");
     }
 
     /// One voice with the CLI (gauntlet 2026-07-12): a failed run's
