@@ -89,8 +89,16 @@ fn every_manifest_entry_resolves_and_hashes_clean() {
 
 #[test]
 fn surface_counts_hold() {
+    // A FLOOR here, never a typed count. The exact surface is asserted by NAME
+    // against the vendored canon in `spec_parity::canon_templates_equal_the_
+    // embedded_surface` — a hand-typed equality only ever noticed that a number
+    // moved, and had to be edited by hand at 9→10 and again at 10→14.
     let names = nika_pack::template_names();
-    assert_eq!(names.len(), 14);
+    assert!(names.len() >= 10);
+    // The four form-first skeletons are pinned BY NAME here, and that is not a
+    // duplicate of the parity test: parity proves embedded == canon-declared,
+    // which still passes if a removal takes BOTH sides down together. This is
+    // the floor that refuses that.
     for required in [
         "classify-and-route",
         "corpus-qa",

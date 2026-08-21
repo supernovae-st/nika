@@ -120,6 +120,7 @@
 pub use nika_check_analyzer as analyzer;
 
 mod analysis;
+mod boundary_offer;
 mod certificate;
 mod composition;
 mod conformance_codes;
@@ -607,7 +608,12 @@ fn drop_refs_the_coded_walk_refused(
 /// `NIKA-VAR-005` refusal and this hint in the same output, one line apart.
 /// Same lesson as `section_or_skip` in the renderer — a green that means
 /// nobody looked is worse than no line at all.
-fn legal_zero_hint(wf: &RawWorkflow, escapes_empty: bool, judged: bool, hints: &mut Vec<Hint>) {
+pub(crate) fn legal_zero_hint(
+    wf: &RawWorkflow,
+    escapes_empty: bool,
+    judged: bool,
+    hints: &mut Vec<Hint>,
+) {
     if judged && wf.permits.is_none() && escapes_empty {
         hints.push(Hint {
             kind: "permits",
@@ -736,7 +742,7 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
         gated_scans(wf, conforms, &edges, &topo_waves);
     hints.extend(std::mem::take(&mut consent_scan.hints));
     let capability_escapes = permits_fit::scan_escapes(wf);
-    legal_zero_hint(wf, capability_escapes.is_empty(), conforms, &mut hints);
+    let effective = boundary_offer::lane(wf, capability_escapes.is_empty(), conforms, &mut hints);
     let cost = cost::ceiling(wf);
     let (schema_findings, unverifiable_output_refs) = schema_typing::scan_types(wf);
     let schema_findings = drop_refs_the_coded_walk_refused(schema_findings, &conformance);
@@ -747,7 +753,7 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
         cost,
         certificate: certificate::certify(wf),
         requirements: requirements::collect(wf),
-        permits: effective::collect(wf),
+        permits: effective,
         data_journey: data_journey::collect(wf, &flow),
         secret_leaks: secrets::scan_leaks(wf, &flow),
         secret_egresses: secrets::scan_egresses(&flow),
