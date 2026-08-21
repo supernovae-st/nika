@@ -18,11 +18,11 @@ classes:
   testimonial: "captured evidence — fixtures, corpora, traces, receipts: proves behavior; neither shipped source nor regenerable output"
   foreign: "pointer to a third-party sovereign source"
 summary:
-  classified_files: 4578
+  classified_files: 4586
   file_rows: 11
   pattern_rows: 23
   by_class:
-    authored: 1614
+    authored: 1622
     authored-pin: 2
     generated: 122
     pinned-copy: 135
@@ -48,7 +48,7 @@ files:
   note: "generated with a human gate — the maintainer may amend the section at PR review"
 - path: "Cargo.lock"
   class: generated
-  sha256: 43e89228dda28e8c0afbc0b5dc6b91934d9cba4119615f225933ffbfa6fe079c
+  sha256: 6125a71e9a533052ecfc93b59d85323b3168c9656816cb8bef4ae4af015668f2
   evidence: "cargo's resolver writes it; no human edits a lockfile"
   derivation:
     tool: "cargo (dependency resolution against Cargo.toml + crates/*/Cargo.toml)"
@@ -140,7 +140,7 @@ patterns:
 - glob: "crates/*/public-api.txt"
   class: generated
   match_count: 66
-  aggregate_sha256: 5c9904769a36f38e1196ceae21c7425ebec7cdb433c3eef7245d38d30cd49ce0
+  aggregate_sha256: 27f548ba816f782040a4cd3ed32e89e1bb9f57997fce851a982e01f6aa2e6481
   evidence: ".github/workflows/public-api.yml 'diff each covered lib crate' byte-compares each snapshot against cargo public-api output; macOS renders differently, so snapshots regenerate FROM THE UBUNTU ARTIFACT (workflow comment)"
   derivation:
     tool: "cargo public-api -p <crate> --omit auto-trait-impls > crates/<crate>/public-api.txt (DEFAULT features · the CI job shape — all-features drags platform deps into the render · cargo-public-api 0.51.0 pinned · the public-api-actual CI artifact stays the judge)"
@@ -151,18 +151,18 @@ patterns:
     - "cargo-public-api 0.51.0"
 - glob: "crates/**/src/**"
   class: authored
-  match_count: 805
-  aggregate_sha256: 9c6b95aef6b4375ac64573a02c37bcac82ed29085468ca178755dc77bb1c0463
+  match_count: 811
+  aggregate_sha256: 75b483af2193ad1acbd06cf40839b55a9bbff3a8f9f390a0a52a3248903de6ab
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
   match_count: 191
-  aggregate_sha256: 8be36c48f170b815acb25b11b20798bdf868224499099d5084583554bfa1eae8
+  aggregate_sha256: 75661cce79aee5f0d1510066bf82b3ca38e241291d84454d2b16a3ed5db99be6
   evidence: "crate-owned tests + fixtures under tests/ — written with the crate per gate discipline, no generation markers"
 - glob: "crates/**"
   class: authored
   match_count: 139
-  aggregate_sha256: fc1c528004613c5b2022c3eb99f60584ee5fd63c9e5796093bccf14a430d6b44
+  aggregate_sha256: 77a6ce67f9800ee8b83898828bb410e7b29d2b688aaef0d8fd20b975d7c26e27
   evidence: "the remaining crate surface — Cargo.toml manifests · build.rs · benches · READMEs · hand-curated data catalogs (llm-providers · mcp-servers · embeddings · model-capabilities, probed daily by catalog-verify.yml); the pricing snapshot is excepted in files:"
   note: "scripts/sync-pack.sh is the ONE vendoring lane; the divergent crate-local duplicate was retired"
 - glob: "fuzz/**"
@@ -183,12 +183,12 @@ patterns:
 - glob: "docs/**"
   class: authored
   match_count: 110
-  aggregate_sha256: 4ddcdc54ef4b971e1a1d7fca145d72de1336a45040b67e4c2bf9e6312f6bb32f
+  aggregate_sha256: ccb8d839f08f6e28f9a13071cf699d7ec241e2a278ec25ea797ff8d746e3965a
   evidence: "crate-specs · architecture prose · perf notes — no generation markers at file heads"
 - glob: "scripts/**"
   class: authored
-  match_count: 157
-  aggregate_sha256: a0aa70f979cc614a5a40fe4d22e52d840ac774f6503d08add0c54e9c4a4fae7f
+  match_count: 159
+  aggregate_sha256: 78da7e085fe22b1e622b8512f78978055fcf245c9d50bd53a74d530d324afd11
   evidence: "hand-written gates · hooks · hygiene vectors · media lanes; the ratchet baselines (scripts/ci/*-baseline.txt · scripts/hygiene/baselines/) are hand-kept monotonic floors ('Never remove a line by hand')"
 - glob: ".github/workflows/**"
   class: authored
@@ -242,7 +242,7 @@ patterns:
 - glob: "*"
   class: authored
   match_count: 29
-  aggregate_sha256: fd4f35cffdcd64f23cad70f9201d1b59e0400e39c14f37965cd5ee37cff0d452
+  aggregate_sha256: 2019e10345e2c1b461c8478332887575a664c933c814a2e7f03f372d33ffba02
   evidence: "root prose + config surface (README · DIAMOND · LICENSE · llms.txt · Cargo.toml · deny/clippy/cliff/typos toml · lefthook.yml · flake.nix · Dockerfile) — no generation markers at file heads; CHANGELOG.md · Cargo.lock · SPEC_PIN · ROADMAP.md excepted in files:"
 - glob: "**"
   class: authored
