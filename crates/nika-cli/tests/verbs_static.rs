@@ -341,10 +341,26 @@ fn check_json_conformance_carries_severity_and_docs_url() {
 
 #[test]
 fn check_parse_error_is_a_file_finding_exit_2() {
-    let path = fixture_path("check-parse.nika.yaml", "nika: v1\nworkflow: [broken");
+    // `tasks:` is the spec's type discriminant: without it this document
+    // is a PROJECT, and the project grammar would own the refusal. The
+    // PARSE lane is the workflow envelope's.
+    let path = fixture_path("check-parse.nika.yaml", "nika: broken\ntasks: [broken");
     let out = check::run(&path, false, false, None, PLAIN);
     assert_eq!(out.code, exit::FILE);
     assert!(out.text.contains("PARSE"), "{}", out.text);
+}
+
+#[test]
+fn a_document_without_tasks_is_judged_as_a_project() {
+    let path = fixture_path("as-project.nika.yaml", "nika: my-project\nceiling: 0.50\n");
+    let out = check::run(&path, false, false, None, PLAIN);
+    assert_eq!(out.code, exit::OK, "{}", out.text);
+    assert!(out.text.contains("PROJECT"), "{}", out.text);
+    assert!(
+        !out.text.contains("PARSE") && !out.text.contains("missing required"),
+        "a project audit must never demand a workflow envelope: {}",
+        out.text
+    );
 }
 
 #[test]
