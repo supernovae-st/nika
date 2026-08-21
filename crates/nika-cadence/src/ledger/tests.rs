@@ -202,6 +202,10 @@ fn versioned_dialect_detection_stops_after_valid_genesis() {
     assert!(first_line_is_versioned(&corrupt_tail));
     assert_eq!(scan_chain(&corrupt_tail), (1, Some(hash), 1));
     assert!(replay_projection([(&*corrupt_tail, true)]).is_none());
+
+    let blank_tail = format!("{genesis}\n\n");
+    assert!(classify_journal(&blank_tail).is_none());
+    assert!(!first_line_is_versioned(&blank_tail));
 }
 
 #[test]
@@ -554,6 +558,23 @@ fn legacy_receipt_adapter_accepts_only_consistent_bare_terminals() {
 }
 
 #[test]
+fn keyless_slotful_explicit_legacy_receipt_projects() {
+    let slot = ts("2026-08-19T03:00:00Z");
+    let decided_at = ts("2026-08-19T03:02:00Z");
+    let mut entry = HistoryEntry::new(Some(slot), decided_at, DecisionKind::Paused);
+    entry.exit = Some(4);
+    let payload = legacy_receipt_payload(&entry).expect("explicit legacy payload");
+    let (receipt, _) =
+        ledger_line(1, decided_at, "paused", None, &payload, None).expect("versioned envelope");
+
+    let (last, watermark) = replay_projection([(&*receipt, true)]).expect("valid replay");
+    let last = last.expect("projected receipt");
+    assert_eq!(last.slot, slot);
+    assert_eq!(last.kind, DecisionKind::Paused);
+    assert_eq!(watermark, Some(decided_at));
+}
+
+#[test]
 fn explicit_legacy_shape_and_terminal_lifecycle_are_both_strict() {
     let payload = |exit: u8, legacy: serde_json::Value| {
         serde_json::json!({
@@ -604,6 +625,22 @@ fn explicit_legacy_shape_and_terminal_lifecycle_are_both_strict() {
         scan_chain(&format!("{}\n", versioned("paused", 4, None, Some(1)))).2,
         0
     );
+
+    for payload in [
+        r#"{"slot":null,"fencing":1,"gen":null}"#,
+        r#"{"slot":null,"fencing":null,"gen":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}"#,
+    ] {
+        let (disarmed, _) = line(1, "disarmed", None, payload, None);
+        assert_eq!(scan_chain(&format!("{disarmed}\n")).2, 0);
+    }
+
+    for payload in [
+        r#"{"slot":null,"fencing":1,"gen":null}"#,
+        r#"{"slot":null,"fencing":null,"gen":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}"#,
+    ] {
+        let (skipped, _) = line(1, "skipped", None, payload, None);
+        assert_eq!(scan_chain(&format!("{skipped}\n")).2, 0);
+    }
 }
 
 #[test]
@@ -641,6 +678,34 @@ fn versioned_claim_and_receipt_replay_one_lifecycle() {
             .collect::<Vec<_>>()
             .is_empty()
     );
+}
+
+#[test]
+fn keyed_slotless_receipt_still_settles_its_claim() {
+    let slot = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    let (claim, hash) = line(
+        1,
+        "claimed",
+        Some(slot),
+        r#"{"deadline":"2026-08-20T03:00:00Z","fencing":1,"gen":null}"#,
+        None,
+    );
+    let (receipt, _) = line(
+        2,
+        "fired",
+        Some(slot),
+        r#"{"slot":null,"trace":null,"exit":0,"fencing":1,"gen":null}"#,
+        Some(&hash),
+    );
+    let text = format!("{claim}\n{receipt}\n");
+    let replayed = replay_core([(&*text, true)]).expect("valid replay");
+    assert_eq!(
+        fold_replay(&replayed, &ts("2026-08-21T03:00:00Z"))
+            .expect("fold")
+            .0,
+        FiringState::Succeeded
+    );
+    assert!(replayed.last.is_none());
 }
 
 #[test]
@@ -896,6 +961,37 @@ fn unsettled_requires_a_later_receipt_with_both_identities() {
             .collect::<Vec<_>>()
             .is_empty()
     );
+}
+
+#[test]
+fn unsettled_keeps_an_earlier_claim_when_only_a_later_claim_settles() {
+    let slot_a = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa";
+    let slot_b = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb";
+    let (claim_a, first_hash) = line(
+        1,
+        "claimed",
+        Some(slot_a),
+        r#"{"deadline":"2026-08-20T03:00:00Z","fencing":1,"gen":null}"#,
+        None,
+    );
+    let (claim_b, second_hash) = line(
+        2,
+        "claimed",
+        Some(slot_b),
+        r#"{"deadline":"2026-08-20T03:00:00Z","fencing":2,"gen":null}"#,
+        Some(&first_hash),
+    );
+    let (receipt_b, _) = line(
+        3,
+        "fired",
+        Some(slot_b),
+        r#"{"slot":null,"exit":0,"fencing":2,"gen":null}"#,
+        Some(&second_hash),
+    );
+    let text = format!("{claim_a}\n{claim_b}\n{receipt_b}\n");
+    let unsettled = unsettled(&text).expect("valid journal").collect::<Vec<_>>();
+    assert_eq!(unsettled.len(), 1);
+    assert_eq!(unsettled[0].slot_id.as_str(), slot_a);
 }
 
 #[test]

@@ -719,10 +719,12 @@ fn decision_kind(word: &str) -> DecisionKind {
 
 /// Detect a journal dialect from its genesis without ambiguous fallback.
 ///
-/// A valid versioned genesis is enough to return [`JournalFormat::Versioned`];
-/// later lines are deliberately left to [`scan_chain`] or the replay APIs.
-/// Any ledger-envelope key in genesis commits the journal to the versioned
-/// dialect, so a broken or unknown version can never fall back to W2 replay.
+/// Empty physical lines anywhere reject the NDJSON framing. Once framing is
+/// established, a valid versioned genesis is enough to return
+/// [`JournalFormat::Versioned`]; non-empty later lines are deliberately left to
+/// [`scan_chain`] or the replay APIs. Any ledger-envelope key in genesis commits
+/// the journal to the versioned dialect, so a broken or unknown version can
+/// never fall back to W2 replay.
 #[must_use]
 pub fn classify_journal(text: &str) -> Option<JournalFormat> {
     if text.is_empty() {
@@ -745,10 +747,11 @@ pub fn classify_journal(text: &str) -> Option<JournalFormat> {
         .then_some(JournalFormat::Legacy)
 }
 
-/// Whether genesis identifies the versioned dialect.
+/// Whether valid NDJSON framing has a versioned genesis.
 ///
-/// This does not validate the complete chain; use [`scan_chain`] or a replay
-/// API when later lines are part of the trust decision.
+/// Empty physical lines anywhere return `false`. Other non-empty later lines do
+/// not affect this dialect predicate and may still be malformed. Use
+/// [`scan_chain`] or a replay API when later lines are part of the trust decision.
 #[must_use]
 pub fn first_line_is_versioned(text: &str) -> bool {
     classify_journal(text) == Some(JournalFormat::Versioned)

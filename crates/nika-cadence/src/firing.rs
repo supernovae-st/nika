@@ -1153,6 +1153,14 @@ mod tests {
                 Decision::Fire,
             ]
         );
+        let decisions: Vec<_> = decide(FiringState::Due, &claimed(), &now, &none).collect();
+        assert_eq!(
+            decisions,
+            vec![
+                Decision::Become(FiringState::Claimed),
+                Decision::JournalClaim { at: now },
+            ]
+        );
         // The receipt: the terminal state + its journal.
         let finished = FiringEvent::Finished {
             fencing: Some(token()),
