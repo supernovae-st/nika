@@ -17,8 +17,8 @@ ignored = ["proptest", "rstest"]  # dev-deps used in #[cfg(test)] blocks
 workspace = true
 
 [dependencies]
-nika-kernel   = { path = "../nika-kernel", version = "0.112.0" }
-nika-error    = { path = "../nika-error", version = "0.112.0" }
+nika-kernel   = { path = "../nika-kernel", version = "0.113.0" }
+nika-error    = { path = "../nika-error", version = "0.113.0" }
 parking_lot   = { workspace = true }
 bytes         = { workspace = true }
 serde_json    = { workspace = true }
