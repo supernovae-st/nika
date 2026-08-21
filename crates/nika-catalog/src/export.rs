@@ -274,4 +274,20 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn mock_catalog_names_the_taught_echo_seat() {
+        let export = catalog_export();
+        let mock = export
+            .providers
+            .iter()
+            .find(|provider| provider.id == "mock")
+            .expect("the embedded catalog carries the mock provider");
+        assert!(
+            mock.models
+                .iter()
+                .any(|model| model.id == "echo" && model.model == "echo"),
+            "mock/echo is taught by examples and must be discoverable in the catalog",
+        );
+    }
 }
