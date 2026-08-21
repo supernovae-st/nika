@@ -311,6 +311,13 @@ fn first_program(words: &[String]) -> Option<&str> {
             index += 1;
             continue;
         }
+        // `env -- NAME=value command` ends env's option scan; the
+        // assignments that follow still belong to the wrapper, not to a
+        // literal program named `--`.
+        if env_wrapper && token == "--" {
+            index += 1;
+            continue;
+        }
         if env_wrapper && matches!(token, "-u" | "--unset") {
             index += 2;
             continue;
@@ -428,7 +435,9 @@ fn split_shell_segments(shell: &str) -> Vec<String> {
             }
             continue;
         }
-        if quote == Quote::None && matches!(c, '|' | '&' | ';' | '\n') {
+        // `>|` is one redirection operator, not a pipeline boundary.
+        let is_clobber_redirection = c == '|' && i > 0 && chars.get(i - 1) == Some(&'>');
+        if quote == Quote::None && !is_clobber_redirection && matches!(c, '|' | '&' | ';' | '\n') {
             let width = match c {
                 '|' if chars.get(i + 1) == Some(&'|') => 2,
                 '&' if chars.get(i + 1) == Some(&'&') => 2,
@@ -891,6 +900,25 @@ tasks:
             2,
             "CRLF keeps the same command boundaries: {crlf:?}"
         );
+    }
+
+    #[test]
+    fn env_and_conditional_prefix_matrix_finds_all_eight_native_sites() {
+        let cases = [
+            ("\"env -i MODE=x jq '.'; date\"", 2),
+            ("\"env -- MODE=x jq '.'; date\"", 2),
+            ("\"if ! jq '.' input.json; then date; fi\"", 2),
+            ("\">|/tmp/out MODE=x jq '.'\"", 1),
+            ("\"2>&1 MODE=x env OTHER=y jq '.'\"", 1),
+        ];
+        let mut total = 0;
+        for (command, expected) in cases {
+            let hints = hints_of(&exec_wf(command));
+            let count = hints.iter().filter(|h| h.kind == "native-first").count();
+            assert_eq!(count, expected, "{command}: {hints:?}");
+            total += count;
+        }
+        assert_eq!(total, 8, "the hostile prefix matrix keeps all eight sites");
     }
 
     #[test]

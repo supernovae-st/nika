@@ -31,6 +31,7 @@ pub enum RepairTarget {
     WorkspaceFile,
     Stdin,
     RegistryArtifact,
+    NonRegularSource,
 }
 
 /// Section mark: `✔`-class verdict glyphs through the theme seam.
@@ -594,6 +595,10 @@ fn hints_and_verdict(
             }
             RepairTarget::RegistryArtifact => {
                 "copy the registry artifact into your workspace, then run `nika check --fix <copy>` — the digest-pinned cache stays read-only"
+                    .to_owned()
+            }
+            RepairTarget::NonRegularSource => {
+                "save or copy this non-regular source into a regular workspace file, then run `nika check --fix <copy>`"
                     .to_owned()
             }
             RepairTarget::WorkspaceFile => {

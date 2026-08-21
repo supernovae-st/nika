@@ -62,11 +62,7 @@ pub(crate) struct RunSource {
 
 impl RunSource {
     pub(crate) fn capture(path: &str) -> Result<Self, VerbOutput> {
-        let repair_target = if path == "-" {
-            nika_display::check_render::RepairTarget::Stdin
-        } else {
-            nika_display::check_render::RepairTarget::WorkspaceFile
-        };
+        let repair_target = crate::registry::repair_target_for_path(path);
         Self::capture_with_repair_target(path, repair_target)
     }
 

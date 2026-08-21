@@ -48,10 +48,12 @@ pub(crate) fn registry_then_run(
             code: nika_cli::verbs::exit::ENV,
         });
     };
+    let repair_target = registry::is_registry_ref(file)
+        .then_some(nika_cli::display::check_render::RepairTarget::RegistryArtifact);
     match resolve_registry_arg(file) {
         Ok(file) => {
             args.file = Some(file);
-            run_verb(&args, color, link_when, plain, ascii)
+            run_verb(&args, color, link_when, plain, ascii, repair_target)
         }
         Err(out) => emit(&out),
     }

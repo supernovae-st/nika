@@ -212,6 +212,55 @@ pub fn run(
         require_signature,
         false,
         None,
+        None,
+    )
+    .code
+}
+
+/// [`run`] with acquisition provenance supplied by the registry resolver.
+/// The cache path remains an immutable artifact through the clean-gate
+/// report instead of being reclassified as an ordinary file.
+#[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
+#[must_use]
+pub fn run_with_repair_target(
+    file: &str,
+    json: bool,
+    output: Option<&str>,
+    theme: Theme,
+    mode: RenderMode,
+    dry_run: bool,
+    model_override: Option<&str>,
+    access_pin: Option<&str>,
+    vars: &[String],
+    resume: Option<&ResumeRequest>,
+    no_trace_file: bool,
+    task_filter: Option<&str>,
+    no_outputs: bool,
+    max_cost_usd: Option<f64>,
+    no_gc: bool,
+    require_signature: bool,
+    repair_target: nika_display::check_render::RepairTarget,
+) -> u8 {
+    run_verdict(
+        file,
+        json,
+        output,
+        theme,
+        mode,
+        dry_run,
+        model_override,
+        access_pin,
+        vars,
+        resume,
+        no_trace_file,
+        task_filter,
+        no_outputs,
+        max_cost_usd,
+        no_gc,
+        require_signature,
+        false,
+        None,
+        Some(repair_target),
     )
     .code
 }
@@ -241,6 +290,7 @@ pub(crate) fn run_checked_source(
         false,
         false,
         Some(source),
+        None,
     )
 }
 
@@ -269,10 +319,19 @@ fn preflight(
 fn capture_checked_source(
     file: &str,
     captured: Option<crate::verbs::RunSource>,
+    repair_target: Option<nika_display::check_render::RepairTarget>,
     output_json: bool,
 ) -> Result<(crate::verbs::RunSource, RawWorkflow, CheckReport), Box<RunVerdict>> {
     let source = captured
-        .map_or_else(|| crate::verbs::RunSource::capture(file), Ok)
+        .map_or_else(
+            || {
+                repair_target.map_or_else(
+                    || crate::verbs::RunSource::capture(file),
+                    |target| crate::verbs::RunSource::capture_with_repair_target(file, target),
+                )
+            },
+            Ok,
+        )
         .map_err(|out| {
             epilogue::emit_diagnostic(&refusal_text(&out), output_json);
             Box::new(RunVerdict::bare(out.code))
@@ -305,15 +364,17 @@ fn run_verdict(
     require_signature: bool,
     interruptible: bool,
     captured: Option<crate::verbs::RunSource>,
+    repair_target: Option<nika_display::check_render::RepairTarget>,
 ) -> RunVerdict {
     let (output_json, max_cost_usd) = match preflight(output, max_cost_usd, no_gc, dry_run) {
         Ok(pair) => pair,
         Err(verdict) => return *verdict,
     };
-    let (source, wf, report) = match capture_checked_source(file, captured, output_json) {
-        Ok(checked) => checked,
-        Err(verdict) => return *verdict,
-    };
+    let (source, wf, report) =
+        match capture_checked_source(file, captured, repair_target, output_json) {
+            Ok(checked) => checked,
+            Err(verdict) => return *verdict,
+        };
     let file = source.logical_path();
     let source_text = source.source();
     if require_signature && let Err(code) = require_signature_gate(file, output_json) {

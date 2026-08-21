@@ -10,9 +10,55 @@
 use std::collections::BTreeMap;
 
 use super::sink::TraceSurface;
-use super::{RenderMode, capture_mock_outputs, dry_run_payload, exit, run, surfaced_trace};
+use super::{
+    RenderMode, capture_checked_source, capture_mock_outputs, dry_run_payload, exit, run,
+    surfaced_trace,
+};
 use crate::Theme;
 use serde_json::json;
+
+#[test]
+fn registry_run_refusal_keeps_copy_guidance_and_never_names_cache_as_fixable() {
+    let dir =
+        std::env::temp_dir().join(format!("nika-registry-run-refusal-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).expect("registry-run arena");
+    let path = dir.join("cached.nika.yaml");
+    std::fs::write(
+        &path,
+        "nika: cached\npermits: { exec: [date] }\ntasks:\n  clock:\n    exec: { command: [date] }\n  broken:\n    infer: { prompt: '${{ tasks.ghost.output }}', model: mock/echo }\n",
+    )
+    .expect("dirty registry fixture");
+    let cache_path = path.to_string_lossy().into_owned();
+    let (source, _wf, report) = capture_checked_source(
+        &cache_path,
+        None,
+        Some(nika_display::check_render::RepairTarget::RegistryArtifact),
+        false,
+    )
+    .ok()
+    .expect("registry acquisition reads the cached bytes");
+    assert!(!report.is_clean(), "the run must stop at its clean gate");
+    assert_eq!(
+        source.repair_target(),
+        nika_display::check_render::RepairTarget::RegistryArtifact
+    );
+
+    let out = crate::verbs::check::run_source_with_profile(
+        &source,
+        false,
+        false,
+        crate::verbs::check::Profile::Advisory,
+        None,
+        Theme::new(false, false, false),
+    );
+    assert_eq!(out.code, exit::FILE);
+    assert!(
+        out.text
+            .contains("copy the registry artifact into your workspace")
+    );
+    assert!(out.text.contains("nika check --fix <copy>"));
+    assert!(!out.text.contains(&format!("--fix {cache_path}")));
+}
 
 /// The #332 plan object: waves resolve indices → task ids, one
 /// `{id, verb}` row per task, the report's cost/permits/requirements

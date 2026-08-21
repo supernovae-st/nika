@@ -259,6 +259,17 @@ tasks:
             !cache.contains("--fix /home/operator/.nika/registry"),
             "the resolved cache path is never writable guidance:\n{cache}"
         );
+
+        let stream = rendered_as(yaml, "/dev/stdin", RepairTarget::NonRegularSource);
+        assert!(
+            stream.contains("save or copy this non-regular source")
+                && stream.contains("nika check --fix <copy>"),
+            "{stream}"
+        );
+        assert!(
+            !stream.contains("--fix /dev/stdin"),
+            "a device path is never writable guidance:\n{stream}"
+        );
     }
 }
 

@@ -102,11 +102,7 @@ impl CheckTarget {
     #[must_use]
     pub fn workspace(path: impl Into<String>) -> Self {
         let path = path.into();
-        let repair_target = if path == "-" {
-            nika_display::check_render::RepairTarget::Stdin
-        } else {
-            nika_display::check_render::RepairTarget::WorkspaceFile
-        };
+        let repair_target = crate::registry::repair_target_for_path(&path);
         Self {
             path,
             repair_target,
@@ -127,6 +123,10 @@ impl CheckTarget {
 
     fn is_registry_artifact(&self) -> bool {
         self.repair_target == nika_display::check_render::RepairTarget::RegistryArtifact
+    }
+
+    fn is_non_regular_source(&self) -> bool {
+        self.repair_target == nika_display::check_render::RepairTarget::NonRegularSource
     }
 }
 
@@ -171,6 +171,9 @@ pub fn dispatch_targets(
         return match targets {
             [target] if target.is_registry_artifact() => crate::verbs::fix::refuse(
                 "a registry artifact is digest-pinned — copy it into your workspace, then fix the copy",
+            ),
+            [target] if target.is_non_regular_source() => crate::verbs::fix::refuse(
+                "a device, FIFO, or other non-regular source cannot be rewritten — save or copy it into a regular workspace file, then fix the copy",
             ),
             [target] if !target.is_stdin() => {
                 crate::verbs::fix::run(&target.path, native_strict, model, theme)
