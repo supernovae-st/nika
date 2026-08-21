@@ -152,7 +152,7 @@ patterns:
 - glob: "crates/**/src/**"
   class: authored
   match_count: 813
-  aggregate_sha256: d9920d83ba5409fe7a32aeb00ecda126e07a6ce4e46364ee11ed5124c1de95c9
+  aggregate_sha256: 4f9259cb3f7252aee883ed3d81e15101b5d3766bbe4cdaa6afcb66f84b3746d7
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
@@ -162,7 +162,7 @@ patterns:
 - glob: "crates/**"
   class: authored
   match_count: 140
-  aggregate_sha256: 52b4bb6e46137ffb4bb61381c7c51861f0e4c1e07741ead7dce78fbdb0b62152
+  aggregate_sha256: 043670182df9dd244fced0d910d08f05ca0fa4881c967435aa3c01d1ede5c38b
   evidence: "the remaining crate surface — Cargo.toml manifests · build.rs · benches · READMEs · hand-curated data catalogs (llm-providers · mcp-servers · embeddings · model-capabilities, probed daily by catalog-verify.yml); the pricing snapshot is excepted in files:"
   note: "scripts/sync-pack.sh is the ONE vendoring lane; the divergent crate-local duplicate was retired"
 - glob: "fuzz/**"

@@ -39,20 +39,22 @@ impl DeadForm {
     /// oracle (`reference/values_core.py`) plus the codemod pointer.
     #[must_use]
     pub fn field_teaching(self) -> String {
-        let (field, classify) = match self {
+        let (field, classify, repair) = match self {
             Self::Vars => (
                 "vars:",
                 "a typed parameter is an `inputs:` declaration, a fixed value is a `const:` entry",
+                "— `nika check --fix` migrates",
             ),
             Self::Env => (
                 "env:",
                 "non-sensitive runtime configuration is an `inputs:` declaration with `required: false` and a `default:`, a governed store reference is a `secrets:` entry",
+                "",
             ),
         };
         format!(
             "{field} is a dead envelope field (R3a · the E-split) · {classify} \
              (classify-not-rename · equivalence-or-stop · never a bulk rename) \
-             — `nika check --fix` migrates"
+             {repair}"
         )
     }
 
@@ -94,6 +96,7 @@ mod tests {
         assert!(v.contains("nika check --fix"), "{v}");
         let e = DeadForm::Env.field_teaching();
         assert!(e.contains("`inputs:`") && e.contains("`secrets:`"), "{e}");
+        assert!(!e.contains("nika check --fix"), "{e}");
         // `config:` died with the 9-key envelope: the env teaching may
         // never send an author to it again.
         assert!(!e.contains("`config:`"), "{e}");
