@@ -103,7 +103,7 @@ fn leg_a_the_wasm_assembly_never_diverges_from_the_library() {
 
     for input in &inputs {
         let yaml = std::fs::read_to_string(input).expect("fixture readable");
-        let (parse_fatal, lib) = library_errors(&yaml);
+        let (_parse_fatal, lib) = library_errors(&yaml);
         let v: serde_json::Value =
             serde_json::from_str(&check(&yaml)).expect("check() emits valid JSON");
         let rows = v["findings"].as_array().expect("findings[]");
@@ -126,7 +126,11 @@ fn leg_a_the_wasm_assembly_never_diverges_from_the_library() {
                 library_row_message(err),
                 "message diverges at {at}"
             );
-            let expected_gate = if parse_fatal { "PARSE" } else { "CONFORM" };
+            let expected_gate = if err.spec_code().to_string().starts_with("NIKA-PARSE-") {
+                "PARSE"
+            } else {
+                "CONFORM"
+            };
             assert_eq!(row["gate"], expected_gate, "gate diverges at {at}");
             // the fields NO gate watched (Gate-11 correctness #2): a mutant
             // flipping severity, swapping the parse/conformance literals, or
@@ -135,7 +139,11 @@ fn leg_a_the_wasm_assembly_never_diverges_from_the_library() {
             assert_eq!(row["severity"], "error", "severity diverges at {at}");
             assert_eq!(
                 row["kind"],
-                if parse_fatal { "parse" } else { "conformance" },
+                if err.spec_code().to_string().starts_with("NIKA-PARSE-") {
+                    "parse"
+                } else {
+                    "conformance"
+                },
                 "kind diverges at {at}"
             );
             assert_eq!(

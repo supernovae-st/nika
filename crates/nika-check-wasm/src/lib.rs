@@ -35,6 +35,14 @@
 use nika_schema::{FileId, ParseMode, SchemaError, parse};
 use wasm_bindgen::prelude::*;
 
+fn kind_and_gate(e: &SchemaError) -> (&'static str, &'static str) {
+    if e.spec_code().to_string().starts_with("NIKA-PARSE-") {
+        ("parse", "PARSE")
+    } else {
+        ("conformance", "CONFORM")
+    }
+}
+
 /// One finding, in the report's own row shape (`findings[]` of
 /// `nika check --json`): kind · gate · severity · message · code ·
 /// `docs_url` · span. The row is assembled from the error's OWN
@@ -152,14 +160,20 @@ pub fn engine_version() -> String {
 pub fn check(source: &str) -> String {
     let wf = match parse(source, FileId::new(0), ParseMode::Strict) {
         Ok(wf) => wf,
-        Err(e) => return verdict(false, &[finding_row("parse", "PARSE", source, &e)]),
+        Err(e) => {
+            let (kind, gate) = kind_and_gate(&e);
+            return verdict(false, &[finding_row(kind, gate, source, &e)]);
+        }
     };
     match nika_check::analyze(&wf) {
         Ok(_) => verdict(true, &[]),
         Err(errors) => {
             let rows: Vec<serde_json::Value> = errors
                 .iter()
-                .map(|e| finding_row("conformance", "CONFORM", source, e))
+                .map(|e| {
+                    let (kind, gate) = kind_and_gate(e);
+                    finding_row(kind, gate, source, e)
+                })
                 .collect();
             verdict(false, &rows)
         }
@@ -311,6 +325,15 @@ mod tests {
             message.contains("→ nika explain") && message.contains(code),
             "PARSE message must project SchemaDiagnostic, not SchemaError Display: {message}"
         );
+    }
+
+    #[test]
+    fn an_analyzer_parse_code_wears_the_parse_gate() {
+        let v: serde_json::Value = serde_json::from_str(&check("nika: w\n")).unwrap();
+        let row = &v["findings"][0];
+        assert_eq!(row["gate"], "PARSE");
+        assert_eq!(row["kind"], "parse");
+        assert_eq!(row["code"], "NIKA-PARSE-002");
     }
 
     #[test]

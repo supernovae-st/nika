@@ -54,11 +54,18 @@ pub fn mark(theme: Theme, ok: bool) -> String {
 /// when the finding carries a span (rustc-grade caret · the CONFORM row
 /// above stays grep-stable).
 fn conformance_row(out: &mut String, c: &ConformanceViolation, source: &str, path: &str, t: Theme) {
+    // Spec family owns the ladder keyword: `NIKA-PARSE-*` is PARSE even
+    // when the analyzer (not `parse()`) emitted the row.
+    let gate = if c.code.starts_with("NIKA-PARSE-") {
+        "PARSE"
+    } else {
+        "CONFORM"
+    };
     let _ = writeln!(
         out,
         " {} {}  [{}] {}",
         mark(t, false),
-        t.paint(Role::Strong, "CONFORM"),
+        t.paint(Role::Strong, gate),
         c.code,
         c.message
     );

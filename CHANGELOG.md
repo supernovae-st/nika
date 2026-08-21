@@ -33,6 +33,11 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Fixed
 
+- **A `NIKA-PARSE-*` finding is a PARSE row, including when the analyzer
+  emitted it.** Missing `nika:` / `tasks:` no longer wear the CONFORM
+  ladder on `nika check`, `--json` `findings[]`, wasm, or MCP — the spec
+  family is the gate the agent explains from.
+
 - **`--fix` cannot rewrite a digest-pinned registry cache, a symlink into
   that cache, stdin, or a device/FIFO.** The footer teaches a copy into the
   workspace; a project path that merely looks like `.nika/registry` stays a

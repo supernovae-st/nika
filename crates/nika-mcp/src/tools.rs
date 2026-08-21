@@ -1032,6 +1032,12 @@ mod tests {
             2,
             "empty source refuses both envelope fields: {payload:#}"
         );
+        assert!(
+            findings
+                .iter()
+                .all(|f| f["gate"] == "PARSE" && f["kind"] == "parse"),
+            "PARSE codes must not wear the CONFORM ladder: {payload:#}"
+        );
         assert_eq!(
             payload["next_actions"].as_array().map(Vec::len),
             Some(1),

@@ -182,6 +182,18 @@ fn conform_row_message(c: &super::ConformanceViolation) -> String {
     format!("{} · → nika explain {}", c.message, c.code)
 }
 
+/// The spec family is the ladder keyword. Envelope refusals are
+/// `NIKA-PARSE-*` even when the analyzer (not `parse()`) emits them —
+/// a `CONFORM` row for a parse code is a second well the agent cannot
+/// explain from.
+fn kind_and_gate(code: &str) -> (&'static str, &'static str) {
+    if code.starts_with("NIKA-PARSE-") {
+        ("parse", "PARSE")
+    } else {
+        ("conformance", "CONFORM")
+    }
+}
+
 /// Fold every class into the one list — conformance first (the ladder's
 /// own order), then the analysis classes in render order.
 pub(super) fn collect(report: &CheckReport) -> Vec<UnifiedFinding> {
@@ -190,7 +202,9 @@ pub(super) fn collect(report: &CheckReport) -> Vec<UnifiedFinding> {
         // Same well as `SchemaDiagnostic` Display minus `[CODE] ` — wasm
         // `check()` and CLI `--json` PARSE already project this; the
         // human CONFORM row keeps `c.message` and its own `fix:` line.
-        let mut f = UnifiedFinding::new("conformance", "CONFORM", conform_row_message(c));
+        // Gate follows the spec family (`NIKA-PARSE-*` → PARSE).
+        let (kind, gate) = kind_and_gate(&c.code);
+        let mut f = UnifiedFinding::new(kind, gate, conform_row_message(c));
         f.code = Some(c.code.clone());
         f.docs_url = Some(c.docs_url.clone());
         f.span = c.span;
@@ -492,6 +506,12 @@ mod tests {
     #[test]
     fn each_dirty_class_lands_in_findings_with_its_gate() {
         let cases: Vec<(&str, &str, &str)> = vec![
+            (
+                // parse family, analyzer-emitted: `nika:` without `tasks:`
+                "nika: w\n",
+                "parse",
+                "PARSE",
+            ),
             (
                 // conformance: unresolved reference
                 "nika: w\ntasks:\n  a:\n    infer: { prompt: \"${{ tasks.ghost.output }}\", max_tokens: 9 }\n",
