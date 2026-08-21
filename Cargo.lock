@@ -4117,7 +4117,7 @@ dependencies = [
  "regex",
  "serde_json",
  "serde_yaml_bw",
- "sha2 0.10.9",
+ "sha2 0.11.0",
  "tokio",
  "toml",
  "url",
@@ -4135,7 +4135,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml_bw",
- "sha2 0.10.9",
+ "sha2 0.11.0",
  "thiserror 2.0.20",
 ]
 
@@ -4307,7 +4307,7 @@ dependencies = [
  "nix 0.31.3",
  "proptest",
  "serde_json",
- "sha2 0.10.9",
+ "sha2 0.11.0",
  "tempfile",
  "tokio",
  "uuid",
@@ -4341,7 +4341,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml_bw",
- "sha2 0.10.9",
+ "sha2 0.11.0",
  "tempfile",
  "toml_edit",
  "url",
@@ -4382,7 +4382,7 @@ dependencies = [
  "proptest",
  "serde",
  "serde_json",
- "sha2 0.10.9",
+ "sha2 0.11.0",
  "tempfile",
  "thiserror 2.0.20",
  "tokio",
@@ -4434,7 +4434,7 @@ dependencies = [
  "rstest",
  "serde",
  "serde_json",
- "sha2 0.10.9",
+ "sha2 0.11.0",
  "thiserror 2.0.20",
  "uuid",
 ]
@@ -4709,7 +4709,7 @@ dependencies = [
  "nika-kernel",
  "serde",
  "serde_json",
- "sha2 0.10.9",
+ "sha2 0.11.0",
  "tokio",
 ]
 
@@ -4747,7 +4747,7 @@ dependencies = [
  "include_dir",
  "nika-catalog",
  "serde_yaml_bw",
- "sha2 0.10.9",
+ "sha2 0.11.0",
 ]
 
 [[package]]
@@ -4795,7 +4795,7 @@ dependencies = [
  "nika-vocab",
  "serde",
  "serde_json",
- "sha2 0.10.9",
+ "sha2 0.11.0",
  "tempfile",
  "tokio",
  "toml_edit",

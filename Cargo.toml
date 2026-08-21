@@ -311,7 +311,7 @@ thiserror  = "2.0"
 minisign   = { version = "0.9", default-features = false }   # the seal/signature primitive (nika-dap custody · nika-store F-P8 envelopes)
 regex      = "1.11"     # nika-builtin L1.5 — nika:grep pattern engine (RE2-class · no backrefs · the portable subset)
 include_dir = "0.7"   # nika-pack L0 · compile-time spec-pack embedding
-sha2 = "0.10"         # nika-pack dev · manifest integrity hashing + nika-event L0 · the source-identity hash
+sha2 = "0.11"         # nika-pack dev · manifest integrity hashing + nika-event L0 · the source-identity hash
 hmac = "0.12"         # nika-cli L4 — ADR-111 Standard Webhooks signature (RustCrypto · pairs with sha2)
 miette     = "7.6"
 serde      = { version = "1.0", features = ["derive"] }
