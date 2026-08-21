@@ -84,35 +84,35 @@ pub fn run_at(project_root: &Path, now: &Timestamp) -> VerbOutput {
 
 fn render_outcome(label: &str, outcome: &HealOutcome) -> String {
     let mut parts = Vec::new();
-    if let Some(rotation) = &outcome.rotated {
-        let gesture = if rotation.resumed {
+    if let Some(rotation) = outcome.rotation() {
+        let gesture = if rotation.resumed() {
             "resumed rotation"
         } else {
             "rotated"
         };
         parts.push(format!(
             "{gesture} {} → {}",
-            crate::text::count(rotation.lines, "ligne"),
-            rotation.name
+            crate::text::count(rotation.line_count(), "ligne"),
+            rotation.name()
         ));
     }
     parts.push(format!(
         "chaîne ok ({})",
         crate::text::count(
-            usize::try_from(outcome.lines).unwrap_or(usize::MAX),
+            usize::try_from(outcome.line_count()).unwrap_or(usize::MAX),
             "ligne",
         )
     ));
-    if outcome.repaired > 0 {
+    if outcome.repaired_lines() > 0 {
         parts.push(format!(
             "réparé (-{})",
             crate::text::count(
-                usize::try_from(outcome.repaired).unwrap_or(usize::MAX),
+                usize::try_from(outcome.repaired_lines()).unwrap_or(usize::MAX),
                 "ligne",
             )
         ));
     }
-    match (outcome.rebuilt_last, outcome.rebuilt_watermark) {
+    match (outcome.rebuilt_last(), outcome.rebuilt_watermark()) {
         (true, true) => parts.push("reconstruit last.json + watermark".to_owned()),
         (true, false) => parts.push("reconstruit last.json".to_owned()),
         (false, true) => parts.push("reconstruit watermark".to_owned()),
@@ -221,7 +221,7 @@ mod tests {
         // … and the migrated chain verifies clean for the next append.
         let state = ArmState::at_project(dir.path());
         let outcome = state
-            .record(
+            .record_fixture(
                 "doctor",
                 &entry(
                     FireKind::Fired,
@@ -241,7 +241,7 @@ mod tests {
         let dir = project("healthy");
         let state = ArmState::at_project(dir.path());
         state
-            .record(
+            .record_fixture(
                 "nightly",
                 &entry(
                     FireKind::Fired,
@@ -251,7 +251,7 @@ mod tests {
             )
             .expect("one");
         state
-            .record(
+            .record_fixture(
                 "nightly",
                 &entry(
                     FireKind::Skipped,
@@ -386,7 +386,7 @@ mod tests {
         let sidecar = dir.path().join(".nika/arm/doctor");
         let state = ArmState::at_project(dir.path());
         state
-            .record(
+            .record_fixture(
                 "doctor",
                 &entry(
                     FireKind::Fired,

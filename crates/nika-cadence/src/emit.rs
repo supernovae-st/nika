@@ -20,17 +20,16 @@
 //! - **D10 · launchd fires in the MACHINE's zone** — a beat whose `TZ=`
 //!   differs refuses ([`EmitRefusal::TzMismatch`]); systemd carries the
 //!   zone in `OnCalendar=`, so the same beat renders there.
-//! - **D6 · v0 refuses what it cannot keep** — the twin of
-//!   `v0_refusal` in `verbs/arm/fire.rs` (nika-cli): one policy set,
-//!   two edges. Emit refuses BEFORE the unit lands; fire refuses AT the
-//!   tick. The two lists must never disagree.
+//! - **D6 · v0 refuses what it cannot keep** — [`crate::v0_unsupported`]
+//!   (one policy set). Emit refuses BEFORE the unit lands; the firer
+//!   refuses AT the tick via [`crate::tick_decision`].
 //!
 //! Split (the ~700-line single-file bar): the private `launchd` and
 //! `systemd` submodules own each target's text.
 
 use std::path::PathBuf;
 
-use crate::registry::{AfterSkip, ArmRegistry, Beat, Cadence, Locus, MissPolicy, Overlap};
+use crate::registry::{ArmRegistry, Cadence, Locus};
 
 mod launchd;
 mod systemd;
@@ -265,7 +264,7 @@ pub fn render(
                 });
             }
         };
-        if let Some((what, arrives)) = v0_unsupported(beat) {
+        if let Some((what, arrives)) = crate::tick::v0_unsupported(beat) {
             return Err(EmitRefusal::UnsupportedInV0 {
                 beat: label.clone(),
                 what: what.to_owned(),
@@ -292,26 +291,6 @@ pub fn render(
         }
     }
     Ok(units)
-}
-
-/// The D6 set — v0 refuses what it cannot keep, naming the version the
-/// support arrives with. The TWIN of `v0_refusal` in
-/// `verbs/arm/fire.rs` (nika-cli): the two must never disagree.
-fn v0_unsupported(beat: &Beat) -> Option<(&'static str, &'static str)> {
-    const SERVE: &str = "serve v0.2";
-    if beat.chevauchement == Some(Overlap::Remplacer) {
-        return Some(("chevauchement: remplacer", SERVE));
-    }
-    if beat.apres_saut == Some(AfterSkip::ACompletion) {
-        return Some(("après_saut: à-complétion", SERVE));
-    }
-    if beat.manque == Some(MissPolicy::Rattraper) {
-        return Some(("manqué: rattraper", SERVE));
-    }
-    if beat.decalage.is_some() {
-        return Some(("décalage:", SERVE));
-    }
-    None
 }
 
 /// The GENERATED header — one sentence behind two comment markers (XML

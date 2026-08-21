@@ -1,0 +1,581 @@
+pub mod nika_arm
+pub use nika_arm::Claim
+pub use nika_arm::FireKind
+pub use nika_arm::HistoryEntry
+pub use nika_arm::LastRecord
+pub use nika_arm::Receipt
+pub use nika_arm::RecordOutcome
+pub use nika_arm::Unsettled
+pub mod nika_arm::fire
+pub enum nika_arm::fire::Wait
+pub nika_arm::fire::Wait::Elapsed
+pub nika_arm::fire::Wait::Interrupted
+impl<D> owo_colors::OwoColorize for nika_arm::fire::Wait
+impl<T, U> core::convert::Into<U> for nika_arm::fire::Wait where U: core::convert::From<T>
+pub fn nika_arm::fire::Wait::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_arm::fire::Wait where U: core::convert::Into<T>
+pub type nika_arm::fire::Wait::Error = core::convert::Infallible
+pub fn nika_arm::fire::Wait::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_arm::fire::Wait where U: core::convert::TryFrom<T>
+pub type nika_arm::fire::Wait::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_arm::fire::Wait::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_arm::fire::Wait where T: 'static + ?core::marker::Sized
+pub fn nika_arm::fire::Wait::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_arm::fire::Wait where T: ?core::marker::Sized
+pub fn nika_arm::fire::Wait::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_arm::fire::Wait where T: ?core::marker::Sized
+pub fn nika_arm::fire::Wait::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_arm::fire::Wait
+pub fn nika_arm::fire::Wait::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_arm::fire::Wait where T: 'static
+pub fn nika_arm::fire::Wait::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_arm::fire::Wait
+pub type nika_arm::fire::Wait::Output = T
+#[non_exhaustive] pub struct nika_arm::fire::FireCtx
+impl nika_arm::fire::FireCtx
+pub fn nika_arm::fire::FireCtx::into_registry(self) -> nika_cadence::registry::ArmRegistry
+pub fn nika_arm::fire::FireCtx::new(project_root: std::path::PathBuf, registry: nika_cadence::registry::ArmRegistry, index: usize, now: jiff::zoned::Zoned, pid: u32, run: nika_arm::fire::RunSeam) -> core::result::Result<Self, nika_arm::fire::FireCtxError>
+pub fn nika_arm::fire::FireCtx::with_wait(self, wait: nika_arm::fire::WaitSeam) -> Self
+impl<D> owo_colors::OwoColorize for nika_arm::fire::FireCtx
+impl<T, U> core::convert::Into<U> for nika_arm::fire::FireCtx where U: core::convert::From<T>
+pub fn nika_arm::fire::FireCtx::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_arm::fire::FireCtx where U: core::convert::Into<T>
+pub type nika_arm::fire::FireCtx::Error = core::convert::Infallible
+pub fn nika_arm::fire::FireCtx::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_arm::fire::FireCtx where U: core::convert::TryFrom<T>
+pub type nika_arm::fire::FireCtx::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_arm::fire::FireCtx::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_arm::fire::FireCtx where T: 'static + ?core::marker::Sized
+pub fn nika_arm::fire::FireCtx::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_arm::fire::FireCtx where T: ?core::marker::Sized
+pub fn nika_arm::fire::FireCtx::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_arm::fire::FireCtx where T: ?core::marker::Sized
+pub fn nika_arm::fire::FireCtx::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_arm::fire::FireCtx
+pub fn nika_arm::fire::FireCtx::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_arm::fire::FireCtx where T: 'static
+pub fn nika_arm::fire::FireCtx::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_arm::fire::FireCtx
+pub type nika_arm::fire::FireCtx::Output = T
+pub struct nika_arm::fire::FireCtxError
+impl nika_arm::fire::FireCtxError
+pub fn nika_arm::fire::FireCtxError::into_registry(self) -> nika_cadence::registry::ArmRegistry
+impl core::error::Error for nika_arm::fire::FireCtxError
+impl core::fmt::Debug for nika_arm::fire::FireCtxError
+pub fn nika_arm::fire::FireCtxError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_arm::fire::FireCtxError
+pub fn nika_arm::fire::FireCtxError::fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_arm::fire::FireCtxError
+impl<T, U> core::convert::Into<U> for nika_arm::fire::FireCtxError where U: core::convert::From<T>
+pub fn nika_arm::fire::FireCtxError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_arm::fire::FireCtxError where U: core::convert::Into<T>
+pub type nika_arm::fire::FireCtxError::Error = core::convert::Infallible
+pub fn nika_arm::fire::FireCtxError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_arm::fire::FireCtxError where U: core::convert::TryFrom<T>
+pub type nika_arm::fire::FireCtxError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_arm::fire::FireCtxError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_arm::fire::FireCtxError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_arm::fire::FireCtxError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_arm::fire::FireCtxError where T: 'static + ?core::marker::Sized
+pub fn nika_arm::fire::FireCtxError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_arm::fire::FireCtxError where T: ?core::marker::Sized
+pub fn nika_arm::fire::FireCtxError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_arm::fire::FireCtxError where T: ?core::marker::Sized
+pub fn nika_arm::fire::FireCtxError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_arm::fire::FireCtxError
+pub fn nika_arm::fire::FireCtxError::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_arm::fire::FireCtxError where T: 'static
+pub fn nika_arm::fire::FireCtxError::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_arm::fire::FireCtxError
+pub type nika_arm::fire::FireCtxError::Output = T
+pub struct nika_arm::fire::FireVerdict
+impl nika_arm::fire::FireVerdict
+pub fn nika_arm::fire::FireVerdict::into_parts(self) -> (alloc::string::String, u8)
+impl<D> owo_colors::OwoColorize for nika_arm::fire::FireVerdict
+impl<T, U> core::convert::Into<U> for nika_arm::fire::FireVerdict where U: core::convert::From<T>
+pub fn nika_arm::fire::FireVerdict::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_arm::fire::FireVerdict where U: core::convert::Into<T>
+pub type nika_arm::fire::FireVerdict::Error = core::convert::Infallible
+pub fn nika_arm::fire::FireVerdict::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_arm::fire::FireVerdict where U: core::convert::TryFrom<T>
+pub type nika_arm::fire::FireVerdict::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_arm::fire::FireVerdict::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_arm::fire::FireVerdict where T: 'static + ?core::marker::Sized
+pub fn nika_arm::fire::FireVerdict::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_arm::fire::FireVerdict where T: ?core::marker::Sized
+pub fn nika_arm::fire::FireVerdict::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_arm::fire::FireVerdict where T: ?core::marker::Sized
+pub fn nika_arm::fire::FireVerdict::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_arm::fire::FireVerdict
+pub fn nika_arm::fire::FireVerdict::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_arm::fire::FireVerdict where T: 'static
+pub fn nika_arm::fire::FireVerdict::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_arm::fire::FireVerdict
+pub type nika_arm::fire::FireVerdict::Output = T
+#[non_exhaustive] pub struct nika_arm::fire::RunShot
+impl nika_arm::fire::RunShot
+pub fn nika_arm::fire::RunShot::ceiling(&self) -> f64
+pub fn nika_arm::fire::RunShot::generation(&self) -> &nika_cadence::firing::ArmGeneration
+pub fn nika_arm::fire::RunShot::project(&self) -> &nika_fs::owned_dir::OwnedDir
+pub fn nika_arm::fire::RunShot::root(&self) -> &std::path::Path
+pub fn nika_arm::fire::RunShot::source(&self) -> &str
+pub fn nika_arm::fire::RunShot::workflow(&self) -> &str
+impl<D> owo_colors::OwoColorize for nika_arm::fire::RunShot
+impl<T, U> core::convert::Into<U> for nika_arm::fire::RunShot where U: core::convert::From<T>
+pub fn nika_arm::fire::RunShot::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_arm::fire::RunShot where U: core::convert::Into<T>
+pub type nika_arm::fire::RunShot::Error = core::convert::Infallible
+pub fn nika_arm::fire::RunShot::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_arm::fire::RunShot where U: core::convert::TryFrom<T>
+pub type nika_arm::fire::RunShot::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_arm::fire::RunShot::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_arm::fire::RunShot where T: 'static + ?core::marker::Sized
+pub fn nika_arm::fire::RunShot::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_arm::fire::RunShot where T: ?core::marker::Sized
+pub fn nika_arm::fire::RunShot::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_arm::fire::RunShot where T: ?core::marker::Sized
+pub fn nika_arm::fire::RunShot::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_arm::fire::RunShot
+pub fn nika_arm::fire::RunShot::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_arm::fire::RunShot where T: 'static
+pub fn nika_arm::fire::RunShot::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_arm::fire::RunShot
+pub type nika_arm::fire::RunShot::Output = T
+#[non_exhaustive] pub struct nika_arm::fire::RunUpshot
+impl nika_arm::fire::RunUpshot
+pub fn nika_arm::fire::RunUpshot::new(code: u8, trace: core::option::Option<alloc::string::String>) -> Self
+impl<D> owo_colors::OwoColorize for nika_arm::fire::RunUpshot
+impl<T, U> core::convert::Into<U> for nika_arm::fire::RunUpshot where U: core::convert::From<T>
+pub fn nika_arm::fire::RunUpshot::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_arm::fire::RunUpshot where U: core::convert::Into<T>
+pub type nika_arm::fire::RunUpshot::Error = core::convert::Infallible
+pub fn nika_arm::fire::RunUpshot::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_arm::fire::RunUpshot where U: core::convert::TryFrom<T>
+pub type nika_arm::fire::RunUpshot::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_arm::fire::RunUpshot::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_arm::fire::RunUpshot where T: 'static + ?core::marker::Sized
+pub fn nika_arm::fire::RunUpshot::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_arm::fire::RunUpshot where T: ?core::marker::Sized
+pub fn nika_arm::fire::RunUpshot::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_arm::fire::RunUpshot where T: ?core::marker::Sized
+pub fn nika_arm::fire::RunUpshot::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_arm::fire::RunUpshot
+pub fn nika_arm::fire::RunUpshot::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_arm::fire::RunUpshot where T: 'static
+pub fn nika_arm::fire::RunUpshot::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_arm::fire::RunUpshot
+pub type nika_arm::fire::RunUpshot::Output = T
+pub fn nika_arm::fire::fire_beat(ctx: &nika_arm::fire::FireCtx) -> nika_arm::fire::FireVerdict
+pub fn nika_arm::fire::labels(registry: &nika_cadence::registry::ArmRegistry) -> alloc::vec::Vec<alloc::string::String>
+pub type nika_arm::fire::RunSeam = alloc::rc::Rc<dyn core::ops::function::Fn(&nika_arm::fire::RunShot) -> nika_arm::fire::RunUpshot>
+pub type nika_arm::fire::WaitSeam = alloc::boxed::Box<dyn core::ops::function::Fn(jiff::signed_duration::SignedDuration) -> nika_arm::fire::Wait>
+pub mod nika_arm::state
+pub use nika_arm::state::Claim
+pub use nika_arm::state::FireKind
+pub use nika_arm::state::HistoryEntry
+pub use nika_arm::state::LastRecord
+pub use nika_arm::state::Receipt
+pub use nika_arm::state::RecordOutcome
+pub use nika_arm::state::Unsettled
+pub struct nika_arm::state::ArmState
+impl nika_arm::state::ArmState
+pub fn nika_arm::state::ArmState::at_project(project_dir: &std::path::Path) -> Self
+pub fn nika_arm::state::ArmState::beat_dirs(&self) -> core::io::error::Result<alloc::vec::Vec<alloc::string::String>>
+pub fn nika_arm::state::ArmState::folded(&self, label: &str, now: &jiff::timestamp::Timestamp) -> core::io::error::Result<core::option::Option<nika_arm::Folded>>
+pub fn nika_arm::state::ArmState::has_journal_evidence(&self, label: &str) -> core::io::error::Result<bool>
+pub fn nika_arm::state::ArmState::heal(&self, label: &str, now: &jiff::timestamp::Timestamp) -> core::io::error::Result<nika_arm::state::HealOutcome>
+pub fn nika_arm::state::ArmState::last(&self, label: &str) -> core::io::error::Result<core::option::Option<nika_cadence::ledger::LastRecord>>
+pub fn nika_arm::state::ArmState::last_fired(&self, label: &str) -> core::io::error::Result<core::option::Option<jiff::zoned::Zoned>>
+pub fn nika_arm::state::ArmState::open(project_dir: &std::path::Path) -> core::io::error::Result<Self>
+pub fn nika_arm::state::ArmState::orphans(&self, known: &[alloc::string::String]) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_arm::state::ArmState::record_disarm(&self, label: &str, decided_at: jiff::timestamp::Timestamp, pid: u32, reason: &str) -> core::io::error::Result<nika_cadence::ledger::RecordOutcome>
+pub fn nika_arm::state::ArmState::root(&self) -> &std::path::Path
+pub fn nika_arm::state::ArmState::tallies(&self, label: &str) -> core::option::Option<(usize, usize)>
+pub fn nika_arm::state::ArmState::unsettled(&self, label: &str) -> core::option::Option<impl core::iter::traits::iterator::Iterator<Item = nika_cadence::ledger::Unsettled> + use<>>
+impl<D> owo_colors::OwoColorize for nika_arm::state::ArmState
+impl<T, U> core::convert::Into<U> for nika_arm::state::ArmState where U: core::convert::From<T>
+pub fn nika_arm::state::ArmState::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_arm::state::ArmState where U: core::convert::Into<T>
+pub type nika_arm::state::ArmState::Error = core::convert::Infallible
+pub fn nika_arm::state::ArmState::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_arm::state::ArmState where U: core::convert::TryFrom<T>
+pub type nika_arm::state::ArmState::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_arm::state::ArmState::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_arm::state::ArmState where T: 'static + ?core::marker::Sized
+pub fn nika_arm::state::ArmState::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_arm::state::ArmState where T: ?core::marker::Sized
+pub fn nika_arm::state::ArmState::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_arm::state::ArmState where T: ?core::marker::Sized
+pub fn nika_arm::state::ArmState::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_arm::state::ArmState
+pub fn nika_arm::state::ArmState::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_arm::state::ArmState where T: 'static
+pub fn nika_arm::state::ArmState::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_arm::state::ArmState
+pub type nika_arm::state::ArmState::Output = T
+#[non_exhaustive] pub struct nika_arm::state::Folded
+impl nika_arm::Folded
+pub fn nika_arm::Folded::is_beyond_last(&self) -> bool
+pub fn nika_arm::Folded::slot(&self) -> core::option::Option<&str>
+pub fn nika_arm::Folded::state(&self) -> &nika_cadence::firing::FiringState
+impl<D> owo_colors::OwoColorize for nika_arm::Folded
+impl<T, U> core::convert::Into<U> for nika_arm::Folded where U: core::convert::From<T>
+pub fn nika_arm::Folded::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_arm::Folded where U: core::convert::Into<T>
+pub type nika_arm::Folded::Error = core::convert::Infallible
+pub fn nika_arm::Folded::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_arm::Folded where U: core::convert::TryFrom<T>
+pub type nika_arm::Folded::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_arm::Folded::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_arm::Folded where T: 'static + ?core::marker::Sized
+pub fn nika_arm::Folded::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_arm::Folded where T: ?core::marker::Sized
+pub fn nika_arm::Folded::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_arm::Folded where T: ?core::marker::Sized
+pub fn nika_arm::Folded::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_arm::Folded
+pub fn nika_arm::Folded::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_arm::Folded where T: 'static
+pub fn nika_arm::Folded::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_arm::Folded
+pub type nika_arm::Folded::Output = T
+#[non_exhaustive] pub struct nika_arm::state::HealOutcome
+impl nika_arm::state::HealOutcome
+pub fn nika_arm::state::HealOutcome::line_count(&self) -> u64
+pub fn nika_arm::state::HealOutcome::rebuilt_last(&self) -> bool
+pub fn nika_arm::state::HealOutcome::rebuilt_watermark(&self) -> bool
+pub fn nika_arm::state::HealOutcome::repaired_lines(&self) -> u64
+pub fn nika_arm::state::HealOutcome::rotation(&self) -> core::option::Option<&nika_arm::state::Rotation>
+impl core::fmt::Debug for nika_arm::state::HealOutcome
+pub fn nika_arm::state::HealOutcome::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_arm::state::HealOutcome
+impl<T, U> core::convert::Into<U> for nika_arm::state::HealOutcome where U: core::convert::From<T>
+pub fn nika_arm::state::HealOutcome::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_arm::state::HealOutcome where U: core::convert::Into<T>
+pub type nika_arm::state::HealOutcome::Error = core::convert::Infallible
+pub fn nika_arm::state::HealOutcome::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_arm::state::HealOutcome where U: core::convert::TryFrom<T>
+pub type nika_arm::state::HealOutcome::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_arm::state::HealOutcome::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_arm::state::HealOutcome where T: 'static + ?core::marker::Sized
+pub fn nika_arm::state::HealOutcome::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_arm::state::HealOutcome where T: ?core::marker::Sized
+pub fn nika_arm::state::HealOutcome::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_arm::state::HealOutcome where T: ?core::marker::Sized
+pub fn nika_arm::state::HealOutcome::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_arm::state::HealOutcome
+pub fn nika_arm::state::HealOutcome::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_arm::state::HealOutcome where T: 'static
+pub fn nika_arm::state::HealOutcome::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_arm::state::HealOutcome
+pub type nika_arm::state::HealOutcome::Output = T
+#[non_exhaustive] pub struct nika_arm::state::Rotation
+impl nika_arm::state::Rotation
+pub fn nika_arm::state::Rotation::line_count(&self) -> usize
+pub fn nika_arm::state::Rotation::name(&self) -> &str
+pub fn nika_arm::state::Rotation::resumed(&self) -> bool
+impl core::fmt::Debug for nika_arm::state::Rotation
+pub fn nika_arm::state::Rotation::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_arm::state::Rotation
+impl<T, U> core::convert::Into<U> for nika_arm::state::Rotation where U: core::convert::From<T>
+pub fn nika_arm::state::Rotation::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_arm::state::Rotation where U: core::convert::Into<T>
+pub type nika_arm::state::Rotation::Error = core::convert::Infallible
+pub fn nika_arm::state::Rotation::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_arm::state::Rotation where U: core::convert::TryFrom<T>
+pub type nika_arm::state::Rotation::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_arm::state::Rotation::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_arm::state::Rotation where T: 'static + ?core::marker::Sized
+pub fn nika_arm::state::Rotation::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_arm::state::Rotation where T: ?core::marker::Sized
+pub fn nika_arm::state::Rotation::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_arm::state::Rotation where T: ?core::marker::Sized
+pub fn nika_arm::state::Rotation::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_arm::state::Rotation
+pub fn nika_arm::state::Rotation::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_arm::state::Rotation where T: 'static
+pub fn nika_arm::state::Rotation::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_arm::state::Rotation
+pub type nika_arm::state::Rotation::Output = T
+pub enum nika_arm::Wait
+pub nika_arm::Wait::Elapsed
+pub nika_arm::Wait::Interrupted
+impl<D> owo_colors::OwoColorize for nika_arm::fire::Wait
+impl<T, U> core::convert::Into<U> for nika_arm::fire::Wait where U: core::convert::From<T>
+pub fn nika_arm::fire::Wait::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_arm::fire::Wait where U: core::convert::Into<T>
+pub type nika_arm::fire::Wait::Error = core::convert::Infallible
+pub fn nika_arm::fire::Wait::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_arm::fire::Wait where U: core::convert::TryFrom<T>
+pub type nika_arm::fire::Wait::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_arm::fire::Wait::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_arm::fire::Wait where T: 'static + ?core::marker::Sized
+pub fn nika_arm::fire::Wait::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_arm::fire::Wait where T: ?core::marker::Sized
+pub fn nika_arm::fire::Wait::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_arm::fire::Wait where T: ?core::marker::Sized
+pub fn nika_arm::fire::Wait::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_arm::fire::Wait
+pub fn nika_arm::fire::Wait::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_arm::fire::Wait where T: 'static
+pub fn nika_arm::fire::Wait::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_arm::fire::Wait
+pub type nika_arm::fire::Wait::Output = T
+pub struct nika_arm::ArmState
+impl nika_arm::state::ArmState
+pub fn nika_arm::state::ArmState::at_project(project_dir: &std::path::Path) -> Self
+pub fn nika_arm::state::ArmState::beat_dirs(&self) -> core::io::error::Result<alloc::vec::Vec<alloc::string::String>>
+pub fn nika_arm::state::ArmState::folded(&self, label: &str, now: &jiff::timestamp::Timestamp) -> core::io::error::Result<core::option::Option<nika_arm::Folded>>
+pub fn nika_arm::state::ArmState::has_journal_evidence(&self, label: &str) -> core::io::error::Result<bool>
+pub fn nika_arm::state::ArmState::heal(&self, label: &str, now: &jiff::timestamp::Timestamp) -> core::io::error::Result<nika_arm::state::HealOutcome>
+pub fn nika_arm::state::ArmState::last(&self, label: &str) -> core::io::error::Result<core::option::Option<nika_cadence::ledger::LastRecord>>
+pub fn nika_arm::state::ArmState::last_fired(&self, label: &str) -> core::io::error::Result<core::option::Option<jiff::zoned::Zoned>>
+pub fn nika_arm::state::ArmState::open(project_dir: &std::path::Path) -> core::io::error::Result<Self>
+pub fn nika_arm::state::ArmState::orphans(&self, known: &[alloc::string::String]) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_arm::state::ArmState::record_disarm(&self, label: &str, decided_at: jiff::timestamp::Timestamp, pid: u32, reason: &str) -> core::io::error::Result<nika_cadence::ledger::RecordOutcome>
+pub fn nika_arm::state::ArmState::root(&self) -> &std::path::Path
+pub fn nika_arm::state::ArmState::tallies(&self, label: &str) -> core::option::Option<(usize, usize)>
+pub fn nika_arm::state::ArmState::unsettled(&self, label: &str) -> core::option::Option<impl core::iter::traits::iterator::Iterator<Item = nika_cadence::ledger::Unsettled> + use<>>
+impl<D> owo_colors::OwoColorize for nika_arm::state::ArmState
+impl<T, U> core::convert::Into<U> for nika_arm::state::ArmState where U: core::convert::From<T>
+pub fn nika_arm::state::ArmState::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_arm::state::ArmState where U: core::convert::Into<T>
+pub type nika_arm::state::ArmState::Error = core::convert::Infallible
+pub fn nika_arm::state::ArmState::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_arm::state::ArmState where U: core::convert::TryFrom<T>
+pub type nika_arm::state::ArmState::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_arm::state::ArmState::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_arm::state::ArmState where T: 'static + ?core::marker::Sized
+pub fn nika_arm::state::ArmState::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_arm::state::ArmState where T: ?core::marker::Sized
+pub fn nika_arm::state::ArmState::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_arm::state::ArmState where T: ?core::marker::Sized
+pub fn nika_arm::state::ArmState::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_arm::state::ArmState
+pub fn nika_arm::state::ArmState::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_arm::state::ArmState where T: 'static
+pub fn nika_arm::state::ArmState::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_arm::state::ArmState
+pub type nika_arm::state::ArmState::Output = T
+#[non_exhaustive] pub struct nika_arm::FireCtx
+impl nika_arm::fire::FireCtx
+pub fn nika_arm::fire::FireCtx::into_registry(self) -> nika_cadence::registry::ArmRegistry
+pub fn nika_arm::fire::FireCtx::new(project_root: std::path::PathBuf, registry: nika_cadence::registry::ArmRegistry, index: usize, now: jiff::zoned::Zoned, pid: u32, run: nika_arm::fire::RunSeam) -> core::result::Result<Self, nika_arm::fire::FireCtxError>
+pub fn nika_arm::fire::FireCtx::with_wait(self, wait: nika_arm::fire::WaitSeam) -> Self
+impl<D> owo_colors::OwoColorize for nika_arm::fire::FireCtx
+impl<T, U> core::convert::Into<U> for nika_arm::fire::FireCtx where U: core::convert::From<T>
+pub fn nika_arm::fire::FireCtx::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_arm::fire::FireCtx where U: core::convert::Into<T>
+pub type nika_arm::fire::FireCtx::Error = core::convert::Infallible
+pub fn nika_arm::fire::FireCtx::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_arm::fire::FireCtx where U: core::convert::TryFrom<T>
+pub type nika_arm::fire::FireCtx::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_arm::fire::FireCtx::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_arm::fire::FireCtx where T: 'static + ?core::marker::Sized
+pub fn nika_arm::fire::FireCtx::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_arm::fire::FireCtx where T: ?core::marker::Sized
+pub fn nika_arm::fire::FireCtx::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_arm::fire::FireCtx where T: ?core::marker::Sized
+pub fn nika_arm::fire::FireCtx::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_arm::fire::FireCtx
+pub fn nika_arm::fire::FireCtx::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_arm::fire::FireCtx where T: 'static
+pub fn nika_arm::fire::FireCtx::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_arm::fire::FireCtx
+pub type nika_arm::fire::FireCtx::Output = T
+pub struct nika_arm::FireCtxError
+impl nika_arm::fire::FireCtxError
+pub fn nika_arm::fire::FireCtxError::into_registry(self) -> nika_cadence::registry::ArmRegistry
+impl core::error::Error for nika_arm::fire::FireCtxError
+impl core::fmt::Debug for nika_arm::fire::FireCtxError
+pub fn nika_arm::fire::FireCtxError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_arm::fire::FireCtxError
+pub fn nika_arm::fire::FireCtxError::fmt(&self, formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_arm::fire::FireCtxError
+impl<T, U> core::convert::Into<U> for nika_arm::fire::FireCtxError where U: core::convert::From<T>
+pub fn nika_arm::fire::FireCtxError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_arm::fire::FireCtxError where U: core::convert::Into<T>
+pub type nika_arm::fire::FireCtxError::Error = core::convert::Infallible
+pub fn nika_arm::fire::FireCtxError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_arm::fire::FireCtxError where U: core::convert::TryFrom<T>
+pub type nika_arm::fire::FireCtxError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_arm::fire::FireCtxError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_arm::fire::FireCtxError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_arm::fire::FireCtxError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_arm::fire::FireCtxError where T: 'static + ?core::marker::Sized
+pub fn nika_arm::fire::FireCtxError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_arm::fire::FireCtxError where T: ?core::marker::Sized
+pub fn nika_arm::fire::FireCtxError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_arm::fire::FireCtxError where T: ?core::marker::Sized
+pub fn nika_arm::fire::FireCtxError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_arm::fire::FireCtxError
+pub fn nika_arm::fire::FireCtxError::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_arm::fire::FireCtxError where T: 'static
+pub fn nika_arm::fire::FireCtxError::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_arm::fire::FireCtxError
+pub type nika_arm::fire::FireCtxError::Output = T
+pub struct nika_arm::FireVerdict
+impl nika_arm::fire::FireVerdict
+pub fn nika_arm::fire::FireVerdict::into_parts(self) -> (alloc::string::String, u8)
+impl<D> owo_colors::OwoColorize for nika_arm::fire::FireVerdict
+impl<T, U> core::convert::Into<U> for nika_arm::fire::FireVerdict where U: core::convert::From<T>
+pub fn nika_arm::fire::FireVerdict::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_arm::fire::FireVerdict where U: core::convert::Into<T>
+pub type nika_arm::fire::FireVerdict::Error = core::convert::Infallible
+pub fn nika_arm::fire::FireVerdict::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_arm::fire::FireVerdict where U: core::convert::TryFrom<T>
+pub type nika_arm::fire::FireVerdict::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_arm::fire::FireVerdict::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_arm::fire::FireVerdict where T: 'static + ?core::marker::Sized
+pub fn nika_arm::fire::FireVerdict::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_arm::fire::FireVerdict where T: ?core::marker::Sized
+pub fn nika_arm::fire::FireVerdict::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_arm::fire::FireVerdict where T: ?core::marker::Sized
+pub fn nika_arm::fire::FireVerdict::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_arm::fire::FireVerdict
+pub fn nika_arm::fire::FireVerdict::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_arm::fire::FireVerdict where T: 'static
+pub fn nika_arm::fire::FireVerdict::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_arm::fire::FireVerdict
+pub type nika_arm::fire::FireVerdict::Output = T
+#[non_exhaustive] pub struct nika_arm::Folded
+impl nika_arm::Folded
+pub fn nika_arm::Folded::is_beyond_last(&self) -> bool
+pub fn nika_arm::Folded::slot(&self) -> core::option::Option<&str>
+pub fn nika_arm::Folded::state(&self) -> &nika_cadence::firing::FiringState
+impl<D> owo_colors::OwoColorize for nika_arm::Folded
+impl<T, U> core::convert::Into<U> for nika_arm::Folded where U: core::convert::From<T>
+pub fn nika_arm::Folded::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_arm::Folded where U: core::convert::Into<T>
+pub type nika_arm::Folded::Error = core::convert::Infallible
+pub fn nika_arm::Folded::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_arm::Folded where U: core::convert::TryFrom<T>
+pub type nika_arm::Folded::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_arm::Folded::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_arm::Folded where T: 'static + ?core::marker::Sized
+pub fn nika_arm::Folded::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_arm::Folded where T: ?core::marker::Sized
+pub fn nika_arm::Folded::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_arm::Folded where T: ?core::marker::Sized
+pub fn nika_arm::Folded::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_arm::Folded
+pub fn nika_arm::Folded::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_arm::Folded where T: 'static
+pub fn nika_arm::Folded::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_arm::Folded
+pub type nika_arm::Folded::Output = T
+#[non_exhaustive] pub struct nika_arm::HealOutcome
+impl nika_arm::state::HealOutcome
+pub fn nika_arm::state::HealOutcome::line_count(&self) -> u64
+pub fn nika_arm::state::HealOutcome::rebuilt_last(&self) -> bool
+pub fn nika_arm::state::HealOutcome::rebuilt_watermark(&self) -> bool
+pub fn nika_arm::state::HealOutcome::repaired_lines(&self) -> u64
+pub fn nika_arm::state::HealOutcome::rotation(&self) -> core::option::Option<&nika_arm::state::Rotation>
+impl core::fmt::Debug for nika_arm::state::HealOutcome
+pub fn nika_arm::state::HealOutcome::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_arm::state::HealOutcome
+impl<T, U> core::convert::Into<U> for nika_arm::state::HealOutcome where U: core::convert::From<T>
+pub fn nika_arm::state::HealOutcome::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_arm::state::HealOutcome where U: core::convert::Into<T>
+pub type nika_arm::state::HealOutcome::Error = core::convert::Infallible
+pub fn nika_arm::state::HealOutcome::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_arm::state::HealOutcome where U: core::convert::TryFrom<T>
+pub type nika_arm::state::HealOutcome::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_arm::state::HealOutcome::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_arm::state::HealOutcome where T: 'static + ?core::marker::Sized
+pub fn nika_arm::state::HealOutcome::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_arm::state::HealOutcome where T: ?core::marker::Sized
+pub fn nika_arm::state::HealOutcome::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_arm::state::HealOutcome where T: ?core::marker::Sized
+pub fn nika_arm::state::HealOutcome::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_arm::state::HealOutcome
+pub fn nika_arm::state::HealOutcome::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_arm::state::HealOutcome where T: 'static
+pub fn nika_arm::state::HealOutcome::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_arm::state::HealOutcome
+pub type nika_arm::state::HealOutcome::Output = T
+#[non_exhaustive] pub struct nika_arm::Rotation
+impl nika_arm::state::Rotation
+pub fn nika_arm::state::Rotation::line_count(&self) -> usize
+pub fn nika_arm::state::Rotation::name(&self) -> &str
+pub fn nika_arm::state::Rotation::resumed(&self) -> bool
+impl core::fmt::Debug for nika_arm::state::Rotation
+pub fn nika_arm::state::Rotation::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_arm::state::Rotation
+impl<T, U> core::convert::Into<U> for nika_arm::state::Rotation where U: core::convert::From<T>
+pub fn nika_arm::state::Rotation::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_arm::state::Rotation where U: core::convert::Into<T>
+pub type nika_arm::state::Rotation::Error = core::convert::Infallible
+pub fn nika_arm::state::Rotation::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_arm::state::Rotation where U: core::convert::TryFrom<T>
+pub type nika_arm::state::Rotation::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_arm::state::Rotation::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_arm::state::Rotation where T: 'static + ?core::marker::Sized
+pub fn nika_arm::state::Rotation::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_arm::state::Rotation where T: ?core::marker::Sized
+pub fn nika_arm::state::Rotation::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_arm::state::Rotation where T: ?core::marker::Sized
+pub fn nika_arm::state::Rotation::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_arm::state::Rotation
+pub fn nika_arm::state::Rotation::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_arm::state::Rotation where T: 'static
+pub fn nika_arm::state::Rotation::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_arm::state::Rotation
+pub type nika_arm::state::Rotation::Output = T
+#[non_exhaustive] pub struct nika_arm::RunShot
+impl nika_arm::fire::RunShot
+pub fn nika_arm::fire::RunShot::ceiling(&self) -> f64
+pub fn nika_arm::fire::RunShot::generation(&self) -> &nika_cadence::firing::ArmGeneration
+pub fn nika_arm::fire::RunShot::project(&self) -> &nika_fs::owned_dir::OwnedDir
+pub fn nika_arm::fire::RunShot::root(&self) -> &std::path::Path
+pub fn nika_arm::fire::RunShot::source(&self) -> &str
+pub fn nika_arm::fire::RunShot::workflow(&self) -> &str
+impl<D> owo_colors::OwoColorize for nika_arm::fire::RunShot
+impl<T, U> core::convert::Into<U> for nika_arm::fire::RunShot where U: core::convert::From<T>
+pub fn nika_arm::fire::RunShot::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_arm::fire::RunShot where U: core::convert::Into<T>
+pub type nika_arm::fire::RunShot::Error = core::convert::Infallible
+pub fn nika_arm::fire::RunShot::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_arm::fire::RunShot where U: core::convert::TryFrom<T>
+pub type nika_arm::fire::RunShot::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_arm::fire::RunShot::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_arm::fire::RunShot where T: 'static + ?core::marker::Sized
+pub fn nika_arm::fire::RunShot::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_arm::fire::RunShot where T: ?core::marker::Sized
+pub fn nika_arm::fire::RunShot::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_arm::fire::RunShot where T: ?core::marker::Sized
+pub fn nika_arm::fire::RunShot::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_arm::fire::RunShot
+pub fn nika_arm::fire::RunShot::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_arm::fire::RunShot where T: 'static
+pub fn nika_arm::fire::RunShot::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_arm::fire::RunShot
+pub type nika_arm::fire::RunShot::Output = T
+#[non_exhaustive] pub struct nika_arm::RunUpshot
+impl nika_arm::fire::RunUpshot
+pub fn nika_arm::fire::RunUpshot::new(code: u8, trace: core::option::Option<alloc::string::String>) -> Self
+impl<D> owo_colors::OwoColorize for nika_arm::fire::RunUpshot
+impl<T, U> core::convert::Into<U> for nika_arm::fire::RunUpshot where U: core::convert::From<T>
+pub fn nika_arm::fire::RunUpshot::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_arm::fire::RunUpshot where U: core::convert::Into<T>
+pub type nika_arm::fire::RunUpshot::Error = core::convert::Infallible
+pub fn nika_arm::fire::RunUpshot::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_arm::fire::RunUpshot where U: core::convert::TryFrom<T>
+pub type nika_arm::fire::RunUpshot::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_arm::fire::RunUpshot::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_arm::fire::RunUpshot where T: 'static + ?core::marker::Sized
+pub fn nika_arm::fire::RunUpshot::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_arm::fire::RunUpshot where T: ?core::marker::Sized
+pub fn nika_arm::fire::RunUpshot::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_arm::fire::RunUpshot where T: ?core::marker::Sized
+pub fn nika_arm::fire::RunUpshot::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_arm::fire::RunUpshot
+pub fn nika_arm::fire::RunUpshot::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_arm::fire::RunUpshot where T: 'static
+pub fn nika_arm::fire::RunUpshot::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_arm::fire::RunUpshot
+pub type nika_arm::fire::RunUpshot::Output = T
+pub fn nika_arm::fire_beat(ctx: &nika_arm::fire::FireCtx) -> nika_arm::fire::FireVerdict
+pub fn nika_arm::labels(registry: &nika_cadence::registry::ArmRegistry) -> alloc::vec::Vec<alloc::string::String>
+pub type nika_arm::RunSeam = alloc::rc::Rc<dyn core::ops::function::Fn(&nika_arm::fire::RunShot) -> nika_arm::fire::RunUpshot>
+pub type nika_arm::WaitSeam = alloc::boxed::Box<dyn core::ops::function::Fn(jiff::signed_duration::SignedDuration) -> nika_arm::fire::Wait>

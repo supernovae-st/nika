@@ -51,7 +51,7 @@ pub mod args;
 pub mod emit;
 pub mod fire;
 pub mod migrate;
-pub mod state;
+pub use nika_arm::state;
 
 /// How many upcoming slots each beat shows.
 const SLOTS_SHOWN: usize = 3;
@@ -293,18 +293,18 @@ fn proof_line(
         None => "· DÉCLARÉ — le registre le dit, la machine ne l'a jamais tiré".to_owned(),
     };
     if let Some(folded) = sidecar.folded(label, now)? {
-        let lifecycle = folded
-            .slot
-            .as_deref()
-            .and_then(|slot| slot.get(..8))
-            .map_or(String::new(), |slot| {
-                if folded.beyond_last {
-                    format!(" · slot courant {slot}")
-                } else {
-                    String::new()
-                }
-            });
-        let _ = write!(line, " · état {}{lifecycle}", folded.state.as_str());
+        let lifecycle =
+            folded
+                .slot()
+                .and_then(|slot| slot.get(..8))
+                .map_or(String::new(), |slot| {
+                    if folded.is_beyond_last() {
+                        format!(" · slot courant {slot}")
+                    } else {
+                        String::new()
+                    }
+                });
+        let _ = write!(line, " · état {}{lifecycle}", folded.state().as_str());
     }
     if let Some((skips, fires)) = sidecar.tallies(label) {
         let _ = write!(
@@ -441,18 +441,18 @@ mod tests {
         fired.trace = Some(".nika/traces/2026-08-18T07-07-04Z_cafe.ndjson".to_owned());
         fired.exit = Some(0);
         fired.generation = Some(generation);
-        sidecar.record("prouve", &fired).expect("record");
-        sidecar.record("prouve", &fired).expect("record");
+        sidecar.record_fixture("prouve", &fired).expect("record");
+        sidecar.record_fixture("prouve", &fired).expect("record");
         let mut skipped = fired.clone();
         skipped.kind = state::FireKind::Skipped;
         skipped.reason = Some("missed:1".to_owned());
         skipped.trace = None;
         skipped.generation = None;
-        sidecar.record("prouve", &skipped).expect("record");
+        sidecar.record_fixture("prouve", &skipped).expect("record");
         // ghost: a sidecar the registry no longer names (N4).
-        sidecar.record("ghost", &fired).expect("record");
+        sidecar.record_fixture("ghost", &fired).expect("record");
         // The order is the LAST decision's: re-fire so last.json says fired.
-        sidecar.record("prouve", &fired).expect("record");
+        sidecar.record_fixture("prouve", &fired).expect("record");
 
         let out = run_at(dir.path());
         assert_eq!(out.code, exit::OK, "{}", out.text);
@@ -505,7 +505,7 @@ mod tests {
             );
             entry.reason = Some("missed:1".to_owned());
             entry.exit = Some(0);
-            sidecar.record("doctor", &entry).expect("record");
+            sidecar.record_fixture("doctor", &entry).expect("record");
             let history = dir.path().join(".nika/arm/doctor/history.ndjson");
             let text = std::fs::read_to_string(&history).expect("history");
             let corrupt = if mutation == "tamper" {
@@ -555,7 +555,7 @@ mod tests {
             "2026-08-19T03:02:00Z".parse().expect("claimed"),
         );
         state::ArmState::at_project(dir.path())
-            .record_claim("doctor", &claim)
+            .record_claim_fixture("doctor", &claim)
             .expect("claim");
 
         let out = run_at(dir.path());

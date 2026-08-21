@@ -33,6 +33,49 @@ fn ts(text: &str) -> Timestamp {
     text.parse::<Timestamp>().expect("ts")
 }
 
+#[test]
+fn public_heal_and_rotation_projections_preserve_every_value() {
+    let rotated = HealOutcome {
+        rotated: Some(Rotation {
+            name: "history-w2-7.ndjson".to_owned(),
+            lines: 42,
+            resumed: true,
+        }),
+        repaired: 3,
+        lines: 11,
+        rebuilt_last: true,
+        rebuilt_watermark: false,
+    };
+    let rotation = rotated.rotation().expect("rotation");
+    assert_eq!(rotation.name(), "history-w2-7.ndjson");
+    assert_eq!(rotation.line_count(), 42);
+    assert!(rotation.resumed());
+    assert_eq!(rotated.repaired_lines(), 3);
+    assert_eq!(rotated.line_count(), 11);
+    assert!(rotated.rebuilt_last());
+    assert!(!rotated.rebuilt_watermark());
+
+    let clean = HealOutcome {
+        rotated: None,
+        repaired: 0,
+        lines: 0,
+        rebuilt_last: false,
+        rebuilt_watermark: true,
+    };
+    assert!(clean.rotation().is_none());
+    assert_eq!(clean.repaired_lines(), 0);
+    assert_eq!(clean.line_count(), 0);
+    assert!(!clean.rebuilt_last());
+    assert!(clean.rebuilt_watermark());
+
+    let fresh = Rotation {
+        name: "history-w2.ndjson".to_owned(),
+        lines: 1,
+        resumed: false,
+    };
+    assert!(!fresh.resumed());
+}
+
 /// (a) No state reads as never-fired (N2); the recorded slot reads
 /// back as the planner's `last_fired`.
 #[test]
@@ -71,6 +114,61 @@ fn a_kernel_lease_refuses_overlap_then_releases_on_drop() {
         .acquire_beat_lock("doctor", me.wrapping_add(1), &now)
         .expect("kernel released on drop");
     assert_eq!(third.outcome, LockOutcome::Acquired);
+}
+
+#[test]
+fn heal_refuses_while_a_fire_owns_the_beat_then_succeeds() {
+    let (_dir, state) = state("heal-lock-order");
+    state
+        .record("doctor", &entry(FireKind::Fired))
+        .expect("seed");
+    let now = at("2026-08-19T03:03:00Z");
+    let held = state
+        .acquire_beat_lock("doctor", std::process::id(), &now)
+        .expect("beat lock")
+        .lease
+        .expect("lease");
+    let error = state
+        .heal("doctor", &now.timestamp())
+        .expect_err("migration cannot cross a live fire");
+    assert_eq!(error.kind(), io::ErrorKind::WouldBlock);
+    drop(held);
+    assert_eq!(
+        state
+            .heal("doctor", &now.timestamp())
+            .expect("heal after release")
+            .line_count(),
+        1
+    );
+}
+
+#[test]
+#[allow(clippy::disallowed_methods)] // synchronous flock API: prove the blocking reader
+fn last_waits_for_the_ledger_snapshot_lock_before_reprojecting() {
+    use std::sync::mpsc;
+    use std::time::Duration;
+
+    let (_dir, state) = state("last-ledger-lock");
+    state
+        .record("doctor", &entry(FireKind::Fired))
+        .expect("seed");
+    let dir = state.safe_dir("doctor").expect("sidecar");
+    let now = at("2026-08-19T03:03:00Z");
+    let held = acquire_named_lock(dir, LEDGER_LOCK, std::process::id(), &now)
+        .expect("ledger lock")
+        .lease
+        .expect("lease");
+    let (tx, rx) = mpsc::channel();
+    let reader = std::thread::spawn(move || {
+        tx.send(state.last("doctor")).expect("result");
+    });
+    assert!(
+        rx.recv_timeout(Duration::from_millis(50)).is_err(),
+        "the projection read cannot overtake the held ledger lock"
+    );
+    drop(held);
+    assert!(rx.recv().expect("completed read").expect("valid").is_some());
+    reader.join().expect("reader joins");
 }
 
 /// PID reuse cannot wedge the beat: stale metadata has no kernel lease.
@@ -378,6 +476,57 @@ fn beat_dirs_refuses_a_sidecar_root_that_is_a_file() {
     std::fs::write(state.root(), "not a directory").expect("arm file");
     let error = state.beat_dirs().expect_err("the walk must refuse");
     assert_ne!(error.kind(), io::ErrorKind::NotFound);
+}
+
+#[test]
+fn beat_dirs_treats_absence_as_empty_and_ignores_non_directories() {
+    let (dir, state) = state("beat-dirs-shapes");
+    assert!(state.beat_dirs().expect("absent root").is_empty());
+    std::fs::create_dir_all(state.root()).expect("arm root");
+    std::fs::create_dir(state.root().join("doctor")).expect("beat dir");
+    std::fs::write(state.root().join("README"), "not a beat").expect("plain file");
+    assert_eq!(state.beat_dirs().expect("walk"), vec!["doctor"]);
+    assert!(dir.path().join(".nika/arm/README").is_file());
+}
+
+#[cfg(unix)]
+#[test]
+fn sidecar_enumeration_refuses_root_redirects_and_ignores_child_symlinks() {
+    use std::os::unix::fs::symlink;
+
+    let (dir, state) = state("beat-dirs-symlinks");
+    let outside = dir.path().join("outside");
+    std::fs::create_dir_all(outside.join("ghost")).expect("outside");
+    std::fs::create_dir_all(dir.path().join(".nika")).expect(".nika");
+    symlink(&outside, state.root()).expect("arm root symlink");
+    assert!(state.beat_dirs().is_err());
+    assert!(state.orphans(&[]).is_empty());
+
+    std::fs::remove_file(state.root()).expect("remove root symlink");
+    std::fs::create_dir_all(state.root().join("doctor")).expect("real beat");
+    symlink(&outside, state.root().join("redirect")).expect("child symlink");
+    assert_eq!(state.beat_dirs().expect("walk"), ["doctor"]);
+    assert!(state.orphans(&["doctor".to_owned()]).is_empty());
+}
+
+#[test]
+fn every_journal_artifact_is_independently_evidence() {
+    for (tag, name, text) in [
+        ("live", HISTORY, "{}\n"),
+        ("intent", MIGRATION_INTENT, "{}\n"),
+        ("archive", "history-w2.ndjson", "{}\n"),
+    ] {
+        let (dir, state) = state(&format!("evidence-{tag}"));
+        let sidecar = dir.path().join(".nika/arm/doctor");
+        std::fs::create_dir_all(&sidecar).expect("sidecar");
+        std::fs::write(sidecar.join(name), text).expect("artifact");
+        assert!(
+            state.has_journal_evidence("doctor").expect("probe"),
+            "{tag}"
+        );
+    }
+    let (_dir, state) = state("evidence-none");
+    assert!(!state.has_journal_evidence("doctor").expect("probe"));
 }
 
 /// Restore a directory's mode on drop — the tempdir cleanup needs
@@ -798,6 +947,35 @@ fn swapped_anchored_lines_refuse_append() {
     assert_eq!(std::fs::read_to_string(ledger).expect("evidence"), swapped);
 }
 
+#[test]
+fn a_well_formed_unanchored_bad_tail_is_cut_at_the_verified_prefix() {
+    let (dir, state) = state("repair-valid-json-tail");
+    state
+        .record("doctor", &entry(FireKind::Fired))
+        .expect("anchored genesis");
+    let sidecar = dir.path().join(".nika/arm/doctor");
+    let history = sidecar.join(HISTORY);
+    let prefix = std::fs::read_to_string(&history).expect("prefix");
+    let (_, hash, _) = scan_chain(&prefix);
+    let payload = decision_payload(&entry(FireKind::Skipped));
+    let (bad_tail, _) = ledger_line(
+        3,
+        ts("2026-08-19T03:03:00Z"),
+        "skipped",
+        None,
+        &payload,
+        hash.as_deref(),
+    )
+    .expect("well-formed but non-successor tail");
+    append_line(&history, &bad_tail).expect("crash tail");
+
+    let safe = state.safe_dir("doctor").expect("safe sidecar");
+    let head = chain_head(&safe, &ts("2026-08-19T03:04:00Z")).expect("heal suffix");
+    assert_eq!(head.seq, 1);
+    assert_eq!(head.repaired, 1);
+    assert_eq!(std::fs::read_to_string(history).expect("healed"), prefix);
+}
+
 /// R5 · a W2-era journal (no `schema` on its first line) is kept
 /// FOREVER under a rotated name (N4); the fresh chain opens with a
 /// `rotated` line naming it; the tallies read BOTH files.
@@ -831,6 +1009,111 @@ fn a_legacy_journal_rotates_and_the_tallies_read_both() {
     assert_eq!(second["prev_hash"], first["hash"], "linked to the rotation");
     // The tallies scan BOTH files: legacy fired + skipped, new skipped.
     assert_eq!(state.tallies("doctor"), Some((2, 1)));
+}
+
+#[test]
+fn rotation_resume_accepts_only_the_four_durable_crash_states() {
+    #[derive(Clone, Copy)]
+    enum Live {
+        Expected,
+        Legacy,
+        Empty,
+        Absent,
+    }
+
+    let legacy = "{\"slot\":\"2026-08-18T03:00:00Z\",\"decided_at\":\"2026-08-18T03:02:00Z\",\"kind\":\"fired\"}\n";
+    let rotated_at = ts("2026-08-19T03:02:00Z");
+    for (tag, live) in [
+        ("expected", Live::Expected),
+        ("legacy", Live::Legacy),
+        ("empty", Live::Empty),
+        ("absent", Live::Absent),
+    ] {
+        let (dir, state) = state(&format!("resume-{tag}"));
+        let sidecar = dir.path().join(".nika/arm/doctor");
+        std::fs::create_dir_all(&sidecar).expect("sidecar");
+        std::fs::write(sidecar.join("history-w2.ndjson"), legacy).expect("archive");
+        let payload = rotation_payload(&[("history-w2.ndjson", legacy)]).expect("payload");
+        let (genesis, _) =
+            ledger_line(1, rotated_at, "rotated", None, &payload, None).expect("rotation genesis");
+        let expected = format!("{genesis}\n");
+        match live {
+            Live::Expected => std::fs::write(sidecar.join(HISTORY), &expected).expect("live"),
+            Live::Legacy => std::fs::write(sidecar.join(HISTORY), legacy).expect("live"),
+            Live::Empty => std::fs::write(sidecar.join(HISTORY), "").expect("live"),
+            Live::Absent => {}
+        }
+        let intent =
+            render_migration_intent("history-w2.ndjson", 1, &rotated_at).expect("migration intent");
+        std::fs::write(sidecar.join(MIGRATION_INTENT), intent).expect("intent");
+        let safe = state.safe_dir("doctor").expect("safe sidecar");
+        let rotation = finish_intended_rotation(&safe, true)
+            .expect("resume")
+            .expect("rotation");
+        assert_eq!(rotation.name(), "history-w2.ndjson");
+        assert_eq!(rotation.line_count(), 1);
+        assert!(rotation.resumed());
+        assert_eq!(
+            std::fs::read_to_string(sidecar.join(HISTORY)).expect("live genesis"),
+            expected,
+            "{tag}"
+        );
+        assert!(!sidecar.join(MIGRATION_INTENT).exists(), "{tag}");
+    }
+
+    let (dir, state) = state("resume-invalid");
+    let sidecar = dir.path().join(".nika/arm/doctor");
+    std::fs::create_dir_all(&sidecar).expect("sidecar");
+    std::fs::write(sidecar.join("history-w2.ndjson"), legacy).expect("archive");
+    std::fs::write(sidecar.join(HISTORY), "different\n").expect("invalid live");
+    let intent = render_migration_intent("history-w2.ndjson", 1, &rotated_at).expect("intent");
+    std::fs::write(sidecar.join(MIGRATION_INTENT), intent).expect("intent");
+    let safe = state.safe_dir("doctor").expect("safe sidecar");
+    assert!(finish_intended_rotation(&safe, true).is_err());
+    assert_eq!(
+        std::fs::read_to_string(sidecar.join(HISTORY)).expect("preserved"),
+        "different\n"
+    );
+}
+
+#[test]
+fn a_new_rotation_refuses_each_live_precondition_before_copying() {
+    let rotated_at = ts("2026-08-19T03:02:00Z");
+    for (tag, live, declared_lines) in [
+        ("dialect", "{\"schema\":\"nika/arm-event@1\"}\n", 1usize),
+        (
+            "line-count",
+            "{\"slot\":\"2026-08-18T03:00:00Z\",\"decided_at\":\"2026-08-18T03:02:00Z\",\"kind\":\"fired\"}\n",
+            2usize,
+        ),
+    ] {
+        let (dir, state) = state(&format!("precopy-{tag}"));
+        let sidecar = dir.path().join(".nika/arm/doctor");
+        std::fs::create_dir_all(&sidecar).expect("sidecar");
+        std::fs::write(sidecar.join(HISTORY), live).expect("live");
+        let intent = render_migration_intent("history-w2.ndjson", declared_lines, &rotated_at)
+            .expect("intent");
+        std::fs::write(sidecar.join(MIGRATION_INTENT), intent).expect("intent");
+        let safe = state.safe_dir("doctor").expect("safe sidecar");
+        assert!(finish_intended_rotation(&safe, false).is_err(), "{tag}");
+        assert!(!sidecar.join("history-w2.ndjson").exists(), "{tag}");
+        assert_eq!(
+            std::fs::read_to_string(sidecar.join(HISTORY)).expect("preserved"),
+            live,
+            "{tag}"
+        );
+    }
+}
+
+#[test]
+fn migrated_genesis_shape_requires_one_verified_line_at_seq_one() {
+    assert!(migrated_genesis_is_valid(1, 1, 1));
+    for shape in [(0, 1, 1), (2, 1, 1), (1, 0, 1), (1, 1, 0), (1, 1, 2)] {
+        assert!(
+            !migrated_genesis_is_valid(shape.0, shape.1, shape.2),
+            "invalid shape accepted: {shape:?}"
+        );
+    }
 }
 
 /// Rotation never overwrites an earlier archive: collisions walk

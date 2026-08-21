@@ -1610,6 +1610,52 @@ pub fn nika_cadence::registry::Beat::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_cadence::registry::Beat where T: for<'de> serde_core::de::Deserialize<'de>
 impl<T> typenum::type_operators::Same for nika_cadence::registry::Beat
 pub type nika_cadence::registry::Beat::Output = T
+pub mod nika_cadence::tick
+#[non_exhaustive] pub enum nika_cadence::tick::TickDecision
+pub nika_cadence::tick::TickDecision::Fire
+pub nika_cadence::tick::TickDecision::Fire::slot: jiff::zoned::Zoned
+pub nika_cadence::tick::TickDecision::Fire::slots: core::option::Option<u32>
+pub nika_cadence::tick::TickDecision::Refuse
+pub nika_cadence::tick::TickDecision::Refuse::line: alloc::string::String
+pub nika_cadence::tick::TickDecision::Skip
+pub nika_cadence::tick::TickDecision::Skip::journal: bool
+pub nika_cadence::tick::TickDecision::Skip::line: alloc::string::String
+pub nika_cadence::tick::TickDecision::Skip::reason: alloc::string::String
+pub nika_cadence::tick::TickDecision::Skip::slot: core::option::Option<jiff::zoned::Zoned>
+impl core::clone::Clone for nika_cadence::tick::TickDecision
+pub fn nika_cadence::tick::TickDecision::clone(&self) -> nika_cadence::tick::TickDecision
+impl core::cmp::PartialEq for nika_cadence::tick::TickDecision
+pub fn nika_cadence::tick::TickDecision::eq(&self, other: &nika_cadence::tick::TickDecision) -> bool
+impl core::fmt::Debug for nika_cadence::tick::TickDecision
+pub fn nika_cadence::tick::TickDecision::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_cadence::tick::TickDecision
+impl<T, U> core::convert::Into<U> for nika_cadence::tick::TickDecision where U: core::convert::From<T>
+pub fn nika_cadence::tick::TickDecision::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cadence::tick::TickDecision where U: core::convert::Into<T>
+pub type nika_cadence::tick::TickDecision::Error = core::convert::Infallible
+pub fn nika_cadence::tick::TickDecision::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cadence::tick::TickDecision where U: core::convert::TryFrom<T>
+pub type nika_cadence::tick::TickDecision::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cadence::tick::TickDecision::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cadence::tick::TickDecision where T: core::clone::Clone
+pub type nika_cadence::tick::TickDecision::Owned = T
+pub fn nika_cadence::tick::TickDecision::clone_into(&self, target: &mut T)
+pub fn nika_cadence::tick::TickDecision::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cadence::tick::TickDecision where T: 'static + ?core::marker::Sized
+pub fn nika_cadence::tick::TickDecision::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cadence::tick::TickDecision where T: ?core::marker::Sized
+pub fn nika_cadence::tick::TickDecision::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cadence::tick::TickDecision where T: ?core::marker::Sized
+pub fn nika_cadence::tick::TickDecision::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cadence::tick::TickDecision where T: core::clone::Clone
+pub unsafe fn nika_cadence::tick::TickDecision::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cadence::tick::TickDecision
+pub fn nika_cadence::tick::TickDecision::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::tick::TickDecision
+pub type nika_cadence::tick::TickDecision::Output = T
+pub fn nika_cadence::tick::expiry_passed(beat: &nika_cadence::registry::Beat, now: &jiff::zoned::Zoned) -> core::option::Option<alloc::string::String>
+pub fn nika_cadence::tick::tick_decision(registry: &nika_cadence::registry::ArmRegistry, index: usize, label: &str, now: &jiff::zoned::Zoned, last: core::option::Option<&jiff::zoned::Zoned>) -> nika_cadence::tick::TickDecision
+pub fn nika_cadence::tick::v0_unsupported(beat: &nika_cadence::registry::Beat) -> core::option::Option<(&'static str, &'static str)>
 #[non_exhaustive] pub enum nika_cadence::AfterSkip
 pub nika_cadence::AfterSkip::ACompletion
 pub nika_cadence::AfterSkip::ProchainCreneau
@@ -2229,6 +2275,48 @@ impl<T> core::convert::From<T> for nika_cadence::firing::SkipReason
 pub fn nika_cadence::firing::SkipReason::from(t: T) -> T
 impl<T> typenum::type_operators::Same for nika_cadence::firing::SkipReason
 pub type nika_cadence::firing::SkipReason::Output = T
+#[non_exhaustive] pub enum nika_cadence::TickDecision
+pub nika_cadence::TickDecision::Fire
+pub nika_cadence::TickDecision::Fire::slot: jiff::zoned::Zoned
+pub nika_cadence::TickDecision::Fire::slots: core::option::Option<u32>
+pub nika_cadence::TickDecision::Refuse
+pub nika_cadence::TickDecision::Refuse::line: alloc::string::String
+pub nika_cadence::TickDecision::Skip
+pub nika_cadence::TickDecision::Skip::journal: bool
+pub nika_cadence::TickDecision::Skip::line: alloc::string::String
+pub nika_cadence::TickDecision::Skip::reason: alloc::string::String
+pub nika_cadence::TickDecision::Skip::slot: core::option::Option<jiff::zoned::Zoned>
+impl core::clone::Clone for nika_cadence::tick::TickDecision
+pub fn nika_cadence::tick::TickDecision::clone(&self) -> nika_cadence::tick::TickDecision
+impl core::cmp::PartialEq for nika_cadence::tick::TickDecision
+pub fn nika_cadence::tick::TickDecision::eq(&self, other: &nika_cadence::tick::TickDecision) -> bool
+impl core::fmt::Debug for nika_cadence::tick::TickDecision
+pub fn nika_cadence::tick::TickDecision::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_cadence::tick::TickDecision
+impl<T, U> core::convert::Into<U> for nika_cadence::tick::TickDecision where U: core::convert::From<T>
+pub fn nika_cadence::tick::TickDecision::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cadence::tick::TickDecision where U: core::convert::Into<T>
+pub type nika_cadence::tick::TickDecision::Error = core::convert::Infallible
+pub fn nika_cadence::tick::TickDecision::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cadence::tick::TickDecision where U: core::convert::TryFrom<T>
+pub type nika_cadence::tick::TickDecision::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cadence::tick::TickDecision::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cadence::tick::TickDecision where T: core::clone::Clone
+pub type nika_cadence::tick::TickDecision::Owned = T
+pub fn nika_cadence::tick::TickDecision::clone_into(&self, target: &mut T)
+pub fn nika_cadence::tick::TickDecision::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cadence::tick::TickDecision where T: 'static + ?core::marker::Sized
+pub fn nika_cadence::tick::TickDecision::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cadence::tick::TickDecision where T: ?core::marker::Sized
+pub fn nika_cadence::tick::TickDecision::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cadence::tick::TickDecision where T: ?core::marker::Sized
+pub fn nika_cadence::tick::TickDecision::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cadence::tick::TickDecision where T: core::clone::Clone
+pub unsafe fn nika_cadence::tick::TickDecision::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cadence::tick::TickDecision
+pub fn nika_cadence::tick::TickDecision::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::tick::TickDecision
+pub type nika_cadence::tick::TickDecision::Output = T
 pub struct nika_cadence::ArmGeneration(_)
 impl nika_cadence::firing::ArmGeneration
 pub fn nika_cadence::firing::ArmGeneration::as_str(&self) -> &str
@@ -2882,5 +2970,7 @@ pub fn nika_cadence::earliest_next(reg: &nika_cadence::registry::ArmRegistry, no
 pub fn nika_cadence::fold(events: &[nika_cadence::firing::FiringEvent]) -> nika_cadence::firing::FiringState
 pub fn nika_cadence::next_slots(cadence: &nika_cadence::registry::Cadence, from: &jiff::zoned::Zoned, count: usize) -> impl core::iter::traits::iterator::Iterator<Item = nika_cadence::next::Slot>
 pub fn nika_cadence::parse_registry(text: &str) -> core::result::Result<nika_cadence::registry::ArmRegistry, nika_cadence::error::CadenceError>
+pub fn nika_cadence::tick_decision(registry: &nika_cadence::registry::ArmRegistry, index: usize, label: &str, now: &jiff::zoned::Zoned, last: core::option::Option<&jiff::zoned::Zoned>) -> nika_cadence::tick::TickDecision
 pub fn nika_cadence::transition(from: nika_cadence::firing::FiringState, event: &nika_cadence::firing::FiringEvent) -> nika_cadence::firing::FiringState
+pub fn nika_cadence::v0_unsupported(beat: &nika_cadence::registry::Beat) -> core::option::Option<(&'static str, &'static str)>
 pub fn nika_cadence::validate(registry: &nika_cadence::registry::ArmRegistry) -> impl core::iter::traits::iterator::Iterator<Item = nika_cadence::error::CadenceError>

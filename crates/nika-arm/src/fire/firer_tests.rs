@@ -1,18 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The W5-bis firer law, pinned end to end: the lock outlives the shot
-//! (the order law), the claim is appended + fsync'd BEFORE the run and
-//! the receipt settles it by fencing, the queue re-decides after ANY
-//! wait, an interrupted wait skips `serve-stop`, and a healed ledger
-//! says so on the ONE line. Every test drives [`fire_beat`] with the
-//! seams injected — the run seam is ALWAYS a stub here (the real
-//! in-process run chdirs, and parallel tests race on the process CWD;
-//! the binary tests under `tests/` own that ground).
-// The workspace bans std::process::Command (production spawns ride the
-// kernel ShellExecutor seam). These tests' OTHER firer is a real live
-// `sleep` child — the lock-liveness law needs a pid that answers
-// signal 0, and no kernel seam lends « a borrowed live pid ».
+//! End-to-end firer law: lock through receipt, re-decision after waits,
+//! deterministic run seams, and live-process overlap leases. Binary tests own
+//! the real in-process run because parallel library tests cannot share CWD.
 #![allow(clippy::disallowed_types)]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -25,18 +16,29 @@ use jiff::Timestamp;
 use super::super::state::LockLease;
 use super::*;
 
+type RegistryFixture = (String, ArmRegistry);
+
 /// A one-beat registry (validated green) — the same shape the decide
 /// suite rides, with the overlap policy as the variable.
-fn registry_with(body: &str) -> ArmRegistry {
-    let text = format!(
+fn registry_with(body: &str) -> RegistryFixture {
+    let source = format!(
         "nika: v1\narm:\n  - workflow: workflows/doctor.nika.yaml\n    cadence: \"TZ=UTC 0 3 * * *\"\n    plafond: 0.25\n{body}"
     );
-    let registry = nika_cadence::parse_registry(&text).expect("parse");
+    let registry = nika_cadence::parse_registry(&source).expect("parse");
     assert!(
         nika_cadence::validate(&registry).next().is_none(),
         "the fixture must be lawful"
     );
-    registry
+    (source, registry)
+}
+
+fn minutely_registry(body: &str) -> RegistryFixture {
+    let source = format!(
+        "nika: v1\narm:\n  - workflow: workflows/doctor.nika.yaml\n    cadence: \"TZ=UTC * * * * *\"\n    plafond: 0.25\n{body}"
+    );
+    let registry = nika_cadence::parse_registry(&source).expect("parse");
+    assert!(nika_cadence::validate(&registry).next().is_none());
+    (source, registry)
 }
 
 /// `manqué: sauter`, the safe default overlap.
@@ -104,18 +106,18 @@ impl Drop for LiveChild {
 
 /// The firer's context with every seam injected: the pid is the test
 /// process's own, the wait is scripted by the test, the run is a stub.
-fn ctx(root: &Path, registry: ArmRegistry, now: &str, wait: WaitSeam, run: RunSeam) -> FireCtx {
-    FireCtx {
-        project_root: root.to_path_buf(),
-        registry,
-        index: 0,
-        label: "doctor".to_owned(),
-        now: at(now),
-        state: ArmState::at_project(root),
-        pid: std::process::id(),
-        wait,
+fn ctx(root: &Path, fixture: RegistryFixture, now: &str, wait: WaitSeam, run: RunSeam) -> FireCtx {
+    std::fs::write(root.join("nika.yaml"), &fixture.0).expect("project registry");
+    FireCtx::new(
+        root.to_path_buf(),
+        fixture.1,
+        0,
+        at(now),
+        std::process::id(),
         run,
-    }
+    )
+    .expect("valid beat index")
+    .with_wait(wait)
 }
 
 /// A run stub that counts its calls and exits clean.
@@ -231,11 +233,10 @@ fn the_claim_precedes_the_run_and_the_receipt_settles_it() {
             lock.contains(&format!("\"pid\":{}", std::process::id())),
             "the lock carries OUR pid: {lock}"
         );
-        assert_eq!(shot.workflow, "workflows/doctor.nika.yaml");
-        RunUpshot {
-            code: exit::OK,
-            trace: None,
-        }
+        assert_eq!(shot.root(), root.as_path());
+        assert_eq!(shot.workflow(), "workflows/doctor.nika.yaml");
+        assert_eq!(shot.ceiling().to_bits(), 0.25f64.to_bits());
+        RunUpshot::new(exit::OK, None)
     };
     let ctx = ctx(
         dir.path(),
@@ -298,7 +299,7 @@ fn source_edit_after_claim_cannot_change_the_pinned_run_bytes() {
     let source = dir.path().join("workflows/doctor.nika.yaml");
     let original = std::fs::read(&source).expect("source A");
     let registry = registry_with(SAUTER);
-    let expected = ArmGeneration::compute(registry.beats().next().expect("beat"), &original);
+    let expected = ArmGeneration::compute(registry.1.beats().next().expect("beat"), &original);
     let logical_path = Rc::new(RefCell::new(None::<String>));
     let seen_path = Rc::clone(&logical_path);
     let seam: RunSeam = Rc::new(move |shot| {
@@ -307,13 +308,10 @@ fn source_edit_after_claim_cannot_change_the_pinned_run_bytes() {
             "schema: nika/workflow@0.12\ntasks: {b: {exec: echo B}}\n",
         )
         .expect("replace declared source with B");
-        assert_eq!(shot.source.source().as_bytes(), original.as_slice());
-        assert_eq!(shot.generation, expected);
-        *seen_path.borrow_mut() = Some(shot.source.logical_path().to_owned());
-        RunUpshot {
-            code: exit::OK,
-            trace: None,
-        }
+        assert_eq!(shot.source().as_bytes(), original.as_slice());
+        assert_eq!(shot.generation(), &expected);
+        *seen_path.borrow_mut() = Some(shot.workflow().to_owned());
+        RunUpshot::new(exit::OK, None)
     });
     let verdict = fire_beat(&ctx(
         dir.path(),
@@ -345,16 +343,13 @@ fn source_symlink_swap_after_claim_cannot_change_the_pinned_run_bytes() {
     )
     .expect("source B");
     let registry = registry_with(SAUTER);
-    let expected = ArmGeneration::compute(registry.beats().next().expect("beat"), &original);
+    let expected = ArmGeneration::compute(registry.1.beats().next().expect("beat"), &original);
     let seam: RunSeam = Rc::new(move |shot| {
         std::fs::remove_file(&source).expect("remove A");
         symlink(&replacement, &source).expect("swap to symlink B");
-        assert_eq!(shot.source.source().as_bytes(), original.as_slice());
-        assert_eq!(shot.generation, expected);
-        RunUpshot {
-            code: exit::OK,
-            trace: None,
-        }
+        assert_eq!(shot.source().as_bytes(), original.as_slice());
+        assert_eq!(shot.generation(), &expected);
+        RunUpshot::new(exit::OK, None)
     });
     let verdict = fire_beat(&ctx(
         dir.path(),
@@ -391,6 +386,146 @@ fn a_symlink_workflow_is_refused_before_claim_or_run() {
         history(dir.path(), "doctor").is_empty(),
         "no claim was recorded"
     );
+}
+
+#[cfg(unix)]
+#[test]
+fn a_symlinked_parent_is_refused_before_claim_or_run() {
+    use std::os::unix::fs::symlink;
+
+    let dir = project("pin-symlinked-parent");
+    let outside = tempfile::tempdir().expect("outside");
+    std::fs::write(
+        outside.path().join("doctor.nika.yaml"),
+        "schema: nika/workflow@0.12\ntasks: {}\n",
+    )
+    .expect("outside workflow");
+    std::fs::remove_dir_all(dir.path().join("workflows")).expect("remove workflows");
+    symlink(outside.path(), dir.path().join("workflows")).expect("symlinked parent");
+    let (runs, run) = run_counter();
+    let verdict = fire_beat(&ctx(
+        dir.path(),
+        registry_with(SAUTER),
+        "2026-08-19T03:02:00Z",
+        instant_wait(),
+        run,
+    ));
+    assert_eq!(verdict.code, exit::ENV, "{}", verdict.line);
+    assert_eq!(runs.get(), 0);
+    assert!(history(dir.path(), "doctor").is_empty());
+}
+
+#[cfg(unix)]
+#[test]
+fn a_symlinked_project_root_is_refused_before_claim_or_run() {
+    use std::os::unix::fs::symlink;
+
+    let project = project("pin-symlinked-root");
+    let links = tempfile::tempdir().expect("links");
+    let linked = links.path().join("project");
+    symlink(project.path(), &linked).expect("project symlink");
+    let (runs, run) = run_counter();
+    let fixture = registry_with(SAUTER);
+    std::fs::write(project.path().join("nika.yaml"), &fixture.0).expect("registry");
+    let error = FireCtx::new(
+        linked,
+        fixture.1,
+        0,
+        at("2026-08-19T03:02:00Z"),
+        std::process::id(),
+        run,
+    )
+    .err()
+    .expect("symlink root refused");
+    assert!(error.to_string().contains("project custody refused"));
+    assert_eq!(runs.get(), 0);
+    assert!(history(project.path(), "doctor").is_empty());
+}
+
+#[cfg(unix)]
+#[test]
+fn a_dot_suffixed_symlinked_project_root_is_refused() {
+    use std::os::unix::fs::symlink;
+
+    let project = project("pin-dot-symlinked-root");
+    let links = tempfile::tempdir().expect("links");
+    let linked = links.path().join("project");
+    symlink(project.path(), &linked).expect("project symlink");
+    let fixture = registry_with(SAUTER);
+    std::fs::write(project.path().join("nika.yaml"), &fixture.0).expect("registry");
+    let error = FireCtx::new(
+        linked.join("."),
+        fixture.1,
+        0,
+        at("2026-08-19T03:02:00Z"),
+        std::process::id(),
+        Rc::new(|_| RunUpshot::new(exit::OK, None)),
+    )
+    .err()
+    .expect("dot-suffixed symlink root refused");
+    assert!(error.to_string().contains("project custody refused"));
+}
+
+#[test]
+fn a_registry_from_another_project_is_refused_at_construction() {
+    let project = project("registry-provenance");
+    let held = registry_with(SAUTER);
+    std::fs::write(project.path().join("nika.yaml"), held.0).expect("held registry");
+    let foreign = registry_with(FILE);
+    let error = FireCtx::new(
+        project.path().to_path_buf(),
+        foreign.1,
+        0,
+        at("2026-08-19T03:02:00Z"),
+        std::process::id(),
+        Rc::new(|_| RunUpshot::new(exit::OK, None)),
+    )
+    .err()
+    .expect("foreign registry refused");
+    assert!(
+        error
+            .to_string()
+            .contains("supplied registry does not belong to the held project")
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn project_path_replacement_cannot_split_workflow_and_state_custody() {
+    let dir = project("pin-root-replacement");
+    let original = std::fs::read_to_string(dir.path().join("workflows/doctor.nika.yaml"))
+        .expect("original workflow");
+    let seen = Rc::new(Cell::new(false));
+    let saw_original = Rc::clone(&seen);
+    let run: RunSeam = Rc::new(move |shot| {
+        assert_eq!(shot.source(), original);
+        saw_original.set(true);
+        RunUpshot::new(exit::OK, None)
+    });
+    let firing = ctx(
+        dir.path(),
+        registry_with(SAUTER),
+        "2026-08-19T03:02:00Z",
+        instant_wait(),
+        run,
+    );
+    let moved = dir.path().with_extension("held-project");
+    std::fs::rename(dir.path(), &moved).expect("move visible root");
+    std::fs::create_dir_all(dir.path().join("workflows")).expect("replacement root");
+    std::fs::write(
+        dir.path().join("workflows/doctor.nika.yaml"),
+        "schema: nika/workflow@0.12\ntasks: {evil: {exec: echo evil}}\n",
+    )
+    .expect("replacement workflow");
+
+    let verdict = fire_beat(&firing);
+    assert_eq!(verdict.code, exit::OK, "{}", verdict.line);
+    assert!(seen.get());
+    assert!(!history(dir.path(), "doctor").contains("\"fired\""));
+    assert!(history(&moved, "doctor").contains("\"fired\""));
+
+    std::fs::remove_dir_all(dir.path()).expect("remove replacement");
+    std::fs::rename(&moved, dir.path()).expect("restore temp project");
 }
 
 /// R3 · a record that cannot land is said LOUDLY: the failure line
@@ -441,7 +576,7 @@ fn the_queue_redecides_after_the_wait() {
     let dir = project("redecide");
     let sidecar = ArmState::at_project(dir.path());
     let holder = LiveChild::spawn();
-    let now = at("2026-08-19T03:02:00Z");
+    let now = at("2026-08-19T03:00:59.500Z");
     let attempt = sidecar
         .acquire_beat_lock("doctor", holder.pid(), &now)
         .expect("lock");
@@ -450,16 +585,19 @@ fn the_queue_redecides_after_the_wait() {
     // The wait's first beat: the holder's fire COMPLETES (its receipt +
     // last.json land, the chain grows) and its process dies.
     let holder = RefCell::new(Some((holder, lease)));
-    let wait: WaitSeam = Box::new(move |_| {
+    let waits = Rc::new(RefCell::new(Vec::new()));
+    let seen_waits = Rc::clone(&waits);
+    let wait: WaitSeam = Box::new(move |span| {
+        seen_waits.borrow_mut().push(span);
         if let Some((child, lease)) = holder.borrow_mut().take() {
             let claim = Claim::new(
                 SlotId::derive(
                     "workflows/doctor.nika.yaml",
-                    "TZ=UTC 0 3 * * *",
+                    "TZ=UTC * * * * *",
                     &at("2026-08-19T03:00:00Z"),
                 ),
-                ts("2026-08-20T03:00:00Z"),
-                ts("2026-08-19T03:02:00Z"),
+                ts("2026-08-19T03:01:00Z"),
+                ts("2026-08-19T03:00:59.500Z"),
             );
             let claimed =
                 ArmState::record_claim_with_lease(&lease, &claim).expect("the holder's claim");
@@ -467,7 +605,7 @@ fn the_queue_redecides_after_the_wait() {
                 &claim,
                 FencingToken::new(claimed.seq),
                 ts("2026-08-19T03:00:00Z"),
-                ts("2026-08-19T03:02:10Z"),
+                ts("2026-08-19T03:00:59.600Z"),
                 None,
                 0,
                 None,
@@ -481,8 +619,8 @@ fn the_queue_redecides_after_the_wait() {
     let (runs, run) = run_counter();
     let ctx = ctx(
         dir.path(),
-        registry_with(FILE),
-        "2026-08-19T03:02:00Z",
+        minutely_registry(FILE),
+        "2026-08-19T03:00:59.500Z",
         wait,
         run,
     );
@@ -496,6 +634,11 @@ fn the_queue_redecides_after_the_wait() {
         verdict.line
     );
     assert_eq!(runs.get(), 0, "the pre-wait slot must NOT fire twice");
+    assert_eq!(
+        waits.borrow().as_slice(),
+        &[SignedDuration::from_millis(500)],
+        "the wait is exactly bounded by the next slot"
+    );
     // The chain carries the holder's claim + receipt — an `already`
     // re-decision journals nothing.
     let text = history(dir.path(), "doctor");
@@ -503,6 +646,38 @@ fn the_queue_redecides_after_the_wait() {
     assert!(text.contains("\"kind\":\"fired\""), "{text}");
     // The stable diagnostic path remains; only the kernel lease is released.
     assert!(dir.path().join(".nika/arm/doctor/lock").exists());
+}
+
+#[test]
+fn the_queue_times_out_after_its_exact_remaining_budget() {
+    let dir = project("queue-budget");
+    let sidecar = ArmState::at_project(dir.path());
+    let holder = LiveChild::spawn();
+    let now = at("2026-08-19T03:00:59.500Z");
+    let attempt = sidecar
+        .acquire_beat_lock("doctor", holder.pid(), &now)
+        .expect("lock");
+    let _lease = attempt.lease.expect("holder lease");
+    let waits = Rc::new(RefCell::new(Vec::new()));
+    let seen_waits = Rc::clone(&waits);
+    let (runs, run) = run_counter();
+    let verdict = fire_beat(&ctx(
+        dir.path(),
+        minutely_registry(FILE),
+        "2026-08-19T03:00:59.500Z",
+        Box::new(move |span| {
+            seen_waits.borrow_mut().push(span);
+            Wait::Elapsed
+        }),
+        run,
+    ));
+    assert_eq!(verdict.code, exit::OK, "{}", verdict.line);
+    assert!(verdict.line.contains("overlap-timeout"), "{}", verdict.line);
+    assert_eq!(runs.get(), 0);
+    assert_eq!(
+        waits.borrow().as_slice(),
+        &[SignedDuration::from_millis(500)]
+    );
 }
 
 /// R7 (the unit half) · a wait broken by a signal: `serve-stop`,

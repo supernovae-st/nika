@@ -17,6 +17,7 @@ nika-types  = { path = "../nika-types", version = "0.112.0" }  # Timestamp · Ke
 nika-schema = { path = "../nika-schema", version = "0.112.0" } # parse (check · inspect · graph · run)
 nika-vocab  = { path = "../nika-vocab", version = "0.112.0" }
 nika-cadence = { path = "../nika-cadence", version = "0.112.0" }  # the arm: grammar + the pure next-slot calculator (L4→L0)
+nika-arm     = { path = "../nika-arm", version = "0.112.0" }      # descriptor-rooted ARM custody + the one firer (L4→L4)
 nika-fs      = { path = "../nika-fs", version = "0.112.0" }       # descriptor-rooted sidecar ownership (L4→L1)
 jiff        = { workspace = true }  # the CLOCK — nika-cadence is pure and takes a Zoned; reading one is an L4 act  # the project file (ceiling — the --max-cost-usd flag's default rung · D-2026-08-11-N5)
 nika-check  = { path = "../nika-check", version = "0.112.0" }  # the ADR-092 check ladder (the check verb · run gates · fix loop)
@@ -42,7 +43,6 @@ nika-providers   = { path = "../nika-providers", version = "0.112.0" }     # Pro
 nika-builtin     = { path = "../nika-builtin", version = "0.112.0" }       # tool_defs/tools_json — the tools + welcome surfaces
 nika-http        = { path = "../nika-http", version = "0.112.0" }          # ReqwestHttp — the registry + trace-anchor clients (notify descended to nika-cli-host · ADR-111)
 # keyring + minisign moved out with the trust plane (nika-dap::seal/sign host the custody + primitives now).
-sha2           = { workspace = true }                              # the arm ledger's hash chain + the slot identity (W5-bis · the source-identity convention)
 nika-catalog     = { path = "../nika-catalog", version = "0.112.0", features = ["providers", "pricing"] }  # env_var ladder + the rates the preflight shows
 nika-lsp         = { path = "../nika-lsp", version = "0.112.0" }           # `nika lsp` — the language server (stdio · drives the editor extension)
 nika-display     = { path = "../nika-display", version = "0.112.0" } # the run-comprehension surface (descended 2026-07-10 · re-exported at display::)
@@ -75,10 +75,12 @@ path = "src/main.rs"
 # composition root; this dev-named bin is the seed it will compose.
 
 [dev-dependencies]
+nika-arm = { path = "../nika-arm", version = "0.112.0", features = ["test-support"] }
 # Test-only seams: the mocks the e2e pipeline + the run-verb tests inject.
 tempfile       = { workspace = true }                              # isolated filesystem fixtures across the CLI test estate
 minisign       = { workspace = true }                              # the tier tests' keypair fixtures + the memory-fold teardown test (custody lives in nika-dap)
 blake3         = { workspace = true }                              # the memory e2e's independent set-digest recompute (H13 fold shape)
+sha2           = { workspace = true }                              # integration fixtures independently recompute composition/resume digests
 nika-store       = { path = "../nika-store", version = "0.112.0" }  # F-P8 signed memory — the teardown fold test + the e2e's seeded store
 nika-kernel-mock = { path = "../nika-kernel-mock", version = "0.112.0" }
 nika-cap         = { path = "../nika-cap", version = "0.112.0" }           # the teardown memory-fold test's Integrity label (F-P8)
