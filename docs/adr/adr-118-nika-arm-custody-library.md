@@ -47,6 +47,12 @@ custody once for every interface, while `nika-cadence` remains the pure
 decision authority and `nika-cli` becomes a rendering and dependency-injection
 adapter.
 
+The named-beat tick classifier (`tick_decision` · `TickDecision` ·
+`v0_unsupported`) stays in `nika-cadence`. `due()` already drops inactive and
+cloud beats; OS units fire a named beat and must journal the skip reason.
+That total function is L0. Emit and the firer share one D6 policy set — they
+must never disagree. The L4 crate locks, claims, pins bytes, and runs.
+
 ### 1. One effectful ARM transaction
 
 `nika-arm` owns:

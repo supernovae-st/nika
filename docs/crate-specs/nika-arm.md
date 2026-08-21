@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | **ADMISSION CANDIDATE** — extracted from the proven ARM custody code in `nika-cli`; behavior remains guarded by 89 library tests plus the real CLI `arm_fire` and Serve tests. |
+| Status | **ADMISSION CANDIDATE** — extracted from the proven ARM custody code in `nika-cli`; named-beat tick policy lives in `nika-cadence`; behavior remains guarded by the `nika-arm` library suite plus the real CLI `arm_fire` and Serve tests. |
 | Layer | L4 — interface-shared custody library |
 | Design | Descriptor-rooted `.nika/arm/` state, verified replay/rotation, kernel leases, and the one injected firing transaction. Interfaces inject execution and waiting; they never reinterpret the ledger or discover a trace globally. |
 | LOC budget | ≤5,000 source lines for this custody unit; ≤15,000 hard crate cap. Admission measurement: 4,999 lines including inline tests. |
@@ -23,7 +23,7 @@ beat's kernel lease from decision through terminal receipt, holds one project
 directory capability across sidecars, workflow capture, and execution, appends and fsyncs the verified
 ledger, rotates legacy evidence without erasure, and derives projections only
 from replay. `nika-cadence` remains the L0 authority for registry grammar,
-slots, firing transitions, hashes, and borrowed-text ledger semantics.
+slots, the named-beat tick classifier (`tick_decision`), firing transitions, hashes, and borrowed-text ledger semantics.
 
 The CLI and resident Serve loop are adapters. They may discover `nika.yaml`,
 render a verdict, supply an execution closure, or replace the default sleep

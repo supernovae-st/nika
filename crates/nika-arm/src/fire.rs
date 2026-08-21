@@ -46,7 +46,8 @@ use crate::state::{ArmState, Claim, FireKind, HistoryEntry, LockOutcome, Receipt
 use jiff::Timestamp;
 use jiff::{SignedDuration, Zoned};
 use nika_cadence::firing::{self, ArmGeneration, FencingToken, FiringEvent, FiringState, SlotId};
-use nika_cadence::registry::{AfterSkip, ArmRegistry, Beat, Cadence, Locus, MissPolicy, Overlap};
+use nika_cadence::registry::{ArmRegistry, Beat, Cadence, Overlap};
+use nika_cadence::{TickDecision, tick_decision};
 use nika_fs::OwnedDir;
 
 mod exit {
@@ -350,39 +351,6 @@ impl FireVerdict {
     }
 }
 
-/// The pure decision — the file's own truth, the v0 refusals, the
-/// clock's verdict — GIVEN the beat, the injected instant and the last
-/// decided slot. Locking and running are the impure halves
-/// ([`fire_beat`]).
-enum Decision {
-    /// A policy said no. `slot` Some ⇒ the decision consumes the slot
-    /// (last.json moves); `journal` false ⇒ nothing changed, nothing is
-    /// written (a duplicate tick is not a decision).
-    Skip {
-        /// The full one-line report (D8).
-        line: String,
-        /// The machine token (`missed:2` · `overlap` · `cloud` · …).
-        reason: String,
-        /// The slot the decision covers.
-        slot: Option<Zoned>,
-        /// Journal the decision (history · maybe last.json).
-        journal: bool,
-    },
-    /// v0 refuses with teaching, naming the version it arrives with.
-    Refuse {
-        /// The teaching line (exit 2).
-        line: String,
-    },
-    /// Fire the slot — `slots` Some(n) is `rattraper-une-fois`: ONE run
-    /// answers for the whole silence.
-    Fire {
-        /// The slot to fire.
-        slot: Zoned,
-        /// The silence's count for `rattraper-une-fois`.
-        slots: Option<u32>,
-    },
-}
-
 /// The beat labels, in file order (D4): the workflow file's radical —
 /// `workflows/doctor.nika.yaml` → `doctor` — a collision taking `-2`,
 /// `-3`. The identity lives at L0 since W3 (`nika_cadence::emit::labels`
@@ -391,190 +359,6 @@ enum Decision {
 #[must_use]
 pub fn labels(registry: &ArmRegistry) -> Vec<String> {
     nika_cadence::emit::labels(registry)
-}
-
-/// The decision instant: the hidden `--now` (RFC 3339) or the wall
-/// clock — the ONE clock read of the verb (D5). A bare RFC 3339 instant
-/// lands on UTC; jiff's zoned form (`…+02:00[Europe/Paris]`) keeps its
-/// zone. Comparisons ride the instant either way.
-/// The decision, pure — every branch pinned by the unit tests below.
-/// Order matters: the file's own truth first (inactive · cloud ·
-/// expired), then the v0 refusals (they teach even when the beat would
-/// be due), then the clock's verdict.
-fn decide(
-    registry: &ArmRegistry,
-    index: usize,
-    label: &str,
-    now: &Zoned,
-    last: Option<&Zoned>,
-) -> Decision {
-    let Some(beat) = registry.beats().nth(index) else {
-        return Decision::Refuse {
-            line: "arm fire · engine fault: the label resolved past the registry".to_owned(),
-        };
-    };
-    if !beat.is_active() {
-        let why = beat.raison.as_deref().unwrap_or("sans raison");
-        return Decision::Skip {
-            line: format!("skipped {label} · inactive — {why}"),
-            reason: "inactive".to_owned(),
-            slot: None,
-            journal: true,
-        };
-    }
-    if beat.locus() == Locus::Cloud {
-        return Decision::Skip {
-            line: format!(
-                "skipped {label} · cloud — le cloud exécute, le calendrier demeure au registre"
-            ),
-            reason: "cloud".to_owned(),
-            slot: None,
-            journal: true,
-        };
-    }
-    if let Some(expired) = expiry_passed(beat, now) {
-        return Decision::Skip {
-            line: format!("skipped {label} · expired · jusqu_au {expired}"),
-            reason: "expired".to_owned(),
-            slot: None,
-            journal: true,
-        };
-    }
-    if let Some(line) = v0_refusal(beat) {
-        return Decision::Refuse { line };
-    }
-    let cadence = match Cadence::parse(&beat.cadence) {
-        Ok(cadence) => cadence,
-        // validate ran first — a cadence that fails here is an ENGINE
-        // fault, said as such (the two-readers law).
-        Err(e) => {
-            return Decision::Refuse {
-                line: format!("arm fire · engine fault: a validated cadence refuses — {e}"),
-            };
-        }
-    };
-    if matches!(cadence, Cadence::Webhook) {
-        return Decision::Skip {
-            line: format!(
-                "skipped {label} · webhook — le beat tire à l'événement, jamais à l'horloge"
-            ),
-            reason: "webhook".to_owned(),
-            slot: None,
-            journal: true,
-        };
-    }
-    decide_by_clock(registry, index, label, now, last, &cadence, beat)
-}
-
-/// The clock half of the decision: the planner's silence over
-/// `(last, now]`, the on-time window, the miss policy.
-fn decide_by_clock(
-    registry: &ArmRegistry,
-    index: usize,
-    label: &str,
-    now: &Zoned,
-    last: Option<&Zoned>,
-    cadence: &Cadence,
-    beat: &Beat,
-) -> Decision {
-    let last_owned = last.cloned();
-    // A named binding: the planner borrows the callback for the call.
-    let last_of = move |i: usize| {
-        if i == index { last_owned.clone() } else { None }
-    };
-    let dues = match nika_cadence::due(registry, now, &last_of) {
-        Ok(dues) => dues,
-        // validate ran first — same engine-fault voice as the cadence.
-        Err(e) => {
-            return Decision::Refuse {
-                line: format!("arm fire · engine fault: a validated registry refuses — {e}"),
-            };
-        }
-    };
-    match dues.into_iter().find(|d| d.index == index) {
-        Some(due) => match (due.kind, beat.manque) {
-            (nika_cadence::DueKind::OnTime, _) => Decision::Fire {
-                slot: due.slot.at,
-                slots: None,
-            },
-            (nika_cadence::DueKind::Missed { slots }, Some(MissPolicy::Sauter)) => Decision::Skip {
-                line: format!(
-                    "skipped {label} · missed:{slots} · slot {}",
-                    due.slot.at.timestamp()
-                ),
-                reason: format!("missed:{slots}"),
-                slot: Some(due.slot.at),
-                journal: true,
-            },
-            (nika_cadence::DueKind::Missed { slots }, Some(MissPolicy::RattraperUneFois)) => {
-                Decision::Fire {
-                    slot: due.slot.at,
-                    slots: Some(slots),
-                }
-            }
-            // `rattraper` is a v0 refusal upstream and a missing
-            // `manqué:` never passes validate — an arrival here is an
-            // engine fault, said as such, never an approximation.
-            _ => Decision::Refuse {
-                line: "arm fire · engine fault: manqué: policy escaped validation".to_owned(),
-            },
-        },
-        // Not due: either this slot was already DECIDED (a duplicate
-        // tick changes nothing — and journals nothing), or there is no
-        // state and the planner invents no backlog (N2).
-        None => match (last, cadence.prev_before(now)) {
-            (Some(fired), Some(prev)) if prev.at == *fired => Decision::Skip {
-                line: format!("skipped {label} · already · slot {}", prev.at.timestamp()),
-                reason: "already".to_owned(),
-                slot: None,
-                journal: false,
-            },
-            _ => Decision::Skip {
-                line: format!(
-                    "skipped {label} · not-due — hors fenêtre, et N2 n'invente pas d'arriéré"
-                ),
-                reason: "not-due".to_owned(),
-                slot: None,
-                journal: false,
-            },
-        },
-    }
-}
-
-/// The v0 refusals (D6) — each names the version it arrives with. A
-/// policy the firer cannot honor must REFUSE, never approximate.
-fn v0_refusal(beat: &Beat) -> Option<String> {
-    let w = beat.workflow.as_str();
-    if beat.chevauchement == Some(Overlap::Remplacer) {
-        return Some(format!(
-            "arm fire {w} · chevauchement: remplacer — arrive avec serve v0.2 · aujourd'hui: sauter (le défaut) ou file"
-        ));
-    }
-    if beat.apres_saut == Some(AfterSkip::ACompletion) {
-        return Some(format!(
-            "arm fire {w} · après_saut: à-complétion — arrive avec serve v0.2 · aujourd'hui: prochain-créneau (le défaut)"
-        ));
-    }
-    if beat.manque == Some(MissPolicy::Rattraper) {
-        return Some(format!(
-            "arm fire {w} · manqué: rattraper — arrive avec serve v0.2 · aujourd'hui: rattraper-une-fois ou sauter"
-        ));
-    }
-    if beat.decalage.is_some() {
-        return Some(format!(
-            "arm fire {w} · décalage: — arrive avec serve v0.2 · aujourd'hui le créneau tire à l'instant dit"
-        ));
-    }
-    None
-}
-
-/// `jusqu_au` strictly before the decision instant's own date ⇒ the
-/// suspension is over. v0 judges on the instant's civil date (a bare
-/// `--now` rides UTC) — the zone-exact expiry lands with serve.
-fn expiry_passed(beat: &Beat, now: &Zoned) -> Option<String> {
-    let raw = beat.jusqu_au.as_deref()?;
-    let date = raw.parse::<jiff::civil::Date>().ok()?;
-    (date < now.date()).then(|| raw.to_owned())
 }
 
 /// The one firer (D2), the order law made code (W5-bis): the beat's
@@ -612,24 +396,28 @@ fn decide_locked(ctx: &FireCtx, lease: super::state::LockLease) -> FireVerdict {
         Ok(last) => last,
         Err(error) => return record_refused(ctx, &error),
     };
-    match decide(
+    match tick_decision(
         &ctx.registry,
         ctx.index,
         &ctx.label,
         &ctx.now,
         last.as_ref(),
     ) {
-        Decision::Refuse { line } => FireVerdict {
+        TickDecision::Refuse { line } => FireVerdict {
             line,
             code: exit::FILE,
         },
-        Decision::Skip {
+        TickDecision::Skip {
             line,
             reason,
             slot,
             journal,
         } => act_on_skip(ctx, line, reason, slot.as_ref(), journal),
-        Decision::Fire { slot, slots } => claim_run_receipt(ctx, &lock.lease, &slot, slots),
+        TickDecision::Fire { slot, slots } => claim_run_receipt(ctx, &lock.lease, &slot, slots),
+        _ => FireVerdict {
+            line: "arm fire · engine fault: unknown tick decision".to_owned(),
+            code: exit::FILE,
+        },
     }
 }
 
@@ -643,7 +431,7 @@ fn overlap_held(ctx: &FireCtx, holder: u32) -> FireVerdict {
         Ok(last) => last,
         Err(error) => return record_refused(ctx, &error),
     };
-    match decide(
+    match tick_decision(
         &ctx.registry,
         ctx.index,
         &ctx.label,
@@ -654,17 +442,17 @@ fn overlap_held(ctx: &FireCtx, holder: u32) -> FireVerdict {
         // judge: the decision's own line, journaled as it would be
         // under the lock (the inner ledger lock alone serializes the
         // append).
-        Decision::Refuse { line } => FireVerdict {
+        TickDecision::Refuse { line } => FireVerdict {
             line,
             code: exit::FILE,
         },
-        Decision::Skip {
+        TickDecision::Skip {
             line,
             reason,
             slot,
             journal,
         } => act_on_skip(ctx, line, reason, slot.as_ref(), journal),
-        Decision::Fire { slot, .. } => match beat_of(ctx).map(Beat::overlap) {
+        TickDecision::Fire { slot, .. } => match beat_of(ctx).map(Beat::overlap) {
             Some(Overlap::Sauter) => act_on_skip(
                 ctx,
                 format!(
@@ -687,6 +475,10 @@ fn overlap_held(ctx: &FireCtx, holder: u32) -> FireVerdict {
                 ),
                 code: exit::FILE,
             },
+        },
+        _ => FireVerdict {
+            line: "arm fire · engine fault: unknown tick decision".to_owned(),
+            code: exit::FILE,
         },
     }
 }
@@ -1089,11 +881,6 @@ mod tests {
             .to_zoned(jiff::tz::TimeZone::UTC)
     }
 
-    fn decide_base(now: &Zoned, last: Option<&Zoned>) -> Decision {
-        let registry = registry_with(BASE);
-        decide(&registry, 0, "doctor", now, last)
-    }
-
     #[test]
     fn public_run_and_verdict_projections_preserve_every_value() {
         let project = tempfile::tempdir().expect("project");
@@ -1148,158 +935,6 @@ mod tests {
         assert_eq!(upshot.trace.as_deref(), Some("first\\r\\nsecond"));
     }
 
-    /// On time, never fired: the window alone decides (N2) — FIRE.
-    #[test]
-    fn an_on_time_slot_without_state_fires() {
-        match decide_base(&at("2026-08-19T03:02:00Z"), None) {
-            Decision::Fire { slot, slots } => {
-                assert_eq!(slot.timestamp().to_string(), "2026-08-19T03:00:00Z");
-                assert_eq!(slots, None);
-            }
-            _ => panic!("on-time without state fires"),
-        }
-    }
-
-    /// Never fired and the window long gone: no state invents no
-    /// backlog (N2) — skipped, journaled NOWHERE.
-    #[test]
-    fn a_first_contact_beyond_the_window_skips_without_a_record() {
-        match decide_base(&at("2026-08-19T10:00:00Z"), None) {
-            Decision::Skip {
-                reason, journal, ..
-            } => {
-                assert_eq!(reason, "not-due");
-                assert!(!journal, "N2 writes nothing");
-            }
-            _ => panic!("hors fenêtre sans état saute"),
-        }
-    }
-
-    /// The slot already DECIDED: a duplicate tick is a no-op.
-    #[test]
-    fn an_already_decided_slot_skips_without_a_record() {
-        let fired = at("2026-08-19T03:00:00Z");
-        match decide_base(&at("2026-08-19T03:01:00Z"), Some(&fired)) {
-            Decision::Skip {
-                reason, journal, ..
-            } => {
-                assert_eq!(reason, "already");
-                assert!(!journal);
-            }
-            _ => panic!("déjà décidé saute"),
-        }
-    }
-
-    #[test]
-    fn a_different_prior_slot_is_not_mislabeled_already() {
-        let older = at("2026-08-17T03:00:00Z");
-        match decide_base(&at("2026-08-19T10:00:00Z"), Some(&older)) {
-            Decision::Skip {
-                reason, journal, ..
-            } => {
-                assert_eq!(reason, "missed:2");
-                assert!(journal);
-            }
-            _ => panic!("the planner owns the two missed slots"),
-        }
-
-        let future = at("2026-08-20T03:00:00Z");
-        match decide_base(&at("2026-08-19T10:00:00Z"), Some(&future)) {
-            Decision::Skip {
-                reason, journal, ..
-            } => {
-                assert_eq!(reason, "not-due");
-                assert!(!journal);
-            }
-            _ => panic!("a non-matching state is never called already"),
-        }
-    }
-
-    /// A missed slot under `manqué: sauter`: skipped, journaled WITH
-    /// the slot (a skip consumes it).
-    #[test]
-    fn a_missed_slot_under_sauter_is_journaled_and_consumed() {
-        let fired = at("2026-08-18T03:00:00Z");
-        match decide_base(&at("2026-08-19T10:00:00Z"), Some(&fired)) {
-            Decision::Skip {
-                reason,
-                slot,
-                journal,
-                line,
-            } => {
-                assert_eq!(reason, "missed:1");
-                assert!(journal);
-                assert_eq!(
-                    slot.expect("the consumed slot").timestamp().to_string(),
-                    "2026-08-19T03:00:00Z"
-                );
-                assert!(line.starts_with("skipped doctor · missed:1"), "{line}");
-            }
-            _ => panic!("un créneau raté saute"),
-        }
-    }
-
-    /// `rattraper-une-fois`: ONE fire answers for the whole silence.
-    #[test]
-    fn rattraper_une_fois_fires_once_for_the_whole_silence() {
-        let registry = registry_with("    manqué: rattraper-une-fois\n");
-        let fired = at("2026-08-17T03:00:00Z");
-        match decide(
-            &registry,
-            0,
-            "doctor",
-            &at("2026-08-19T03:02:00Z"),
-            Some(&fired),
-        ) {
-            Decision::Fire { slot, slots } => {
-                assert_eq!(slot.timestamp().to_string(), "2026-08-19T03:00:00Z");
-                assert_eq!(slots, Some(2), "the 18th AND the 19th");
-            }
-            _ => panic!("un seul tir pour tout le silence"),
-        }
-    }
-
-    /// The file's own truth, judged before the clock.
-    #[test]
-    fn inactive_cloud_and_expired_beats_skip_with_their_reason() {
-        let registry = registry_with(concat!(
-            "    manqué: sauter\n",
-            "    actif: false\n",
-            "    raison: \"pause estivale\"\n",
-            "    jusqu_au: \"2099-12-31\"\n",
-        ));
-        match decide(&registry, 0, "doctor", &at("2026-08-19T03:02:00Z"), None) {
-            Decision::Skip { reason, line, .. } => {
-                assert_eq!(reason, "inactive");
-                assert!(line.contains("pause estivale"), "{line}");
-            }
-            _ => panic!("un beat inactif saute"),
-        }
-
-        let registry = registry_with("    manqué: sauter\n    où: cloud\n");
-        match decide(&registry, 0, "doctor", &at("2026-08-19T03:02:00Z"), None) {
-            Decision::Skip { reason, .. } => assert_eq!(reason, "cloud"),
-            _ => panic!("un beat cloud saute"),
-        }
-
-        let registry = registry_with("    manqué: sauter\n    jusqu_au: \"2026-01-01\"\n");
-        match decide(&registry, 0, "doctor", &at("2026-08-19T03:02:00Z"), None) {
-            Decision::Skip { reason, .. } => assert_eq!(reason, "expired"),
-            _ => panic!("un beat expiré saute"),
-        }
-    }
-
-    #[test]
-    fn expiry_is_strictly_before_the_decision_date() {
-        let registry = registry_with("    manqué: sauter\n    jusqu_au: \"2026-08-19\"\n");
-        let beat = registry.beats().next().expect("beat");
-        assert_eq!(expiry_passed(beat, &at("2026-08-19T23:59:59Z")), None);
-        assert_eq!(
-            expiry_passed(beat, &at("2026-08-20T00:00:00Z")).as_deref(),
-            Some("2026-08-19")
-        );
-    }
-
     #[test]
     fn paused_run_state_projects_a_paused_kind_and_line() {
         let ctx = test_context(BASE, "2026-08-19T03:02:00Z");
@@ -1326,54 +961,6 @@ mod tests {
         assert_eq!(wait_quantum(2_500, 1_000), 1_000);
         assert_eq!(wait_quantum(2_500, 2_000), 500);
         assert_eq!(wait_quantum(500, 500), 0);
-    }
-
-    /// A webhook beat fires on its event, never on the clock.
-    #[test]
-    fn a_webhook_beat_skips_the_clock() {
-        let text = concat!(
-            "nika: v1\n",
-            "arm:\n",
-            "  - workflow: workflows/doctor.nika.yaml\n",
-            "    cadence: \"on-webhook\"\n",
-            "    plafond: 0.25\n",
-            "    manqué: sauter\n",
-        );
-        let registry = nika_cadence::parse_registry(text).expect("parse");
-        match decide(&registry, 0, "doctor", &at("2026-08-19T03:02:00Z"), None) {
-            Decision::Skip { reason, .. } => assert_eq!(reason, "webhook"),
-            _ => panic!("un webhook saute l'horloge"),
-        }
-    }
-
-    /// The v0 refusals (D6) — each names the version it arrives with.
-    #[test]
-    fn the_v0_unsupported_policies_refuse_with_teaching() {
-        for (extra, named) in [
-            ("    chevauchement: remplacer\n", "chevauchement: remplacer"),
-            (
-                "    chevauchement: sauter\n    après_saut: à-complétion\n",
-                "après_saut: à-complétion",
-            ),
-            ("    décalage: hash\n", "décalage:"),
-        ] {
-            let registry = registry_with(&format!("    manqué: sauter\n{extra}"));
-            match decide(&registry, 0, "doctor", &at("2026-08-19T03:02:00Z"), None) {
-                Decision::Refuse { line } => {
-                    assert!(line.contains(named), "{line}");
-                    assert!(line.contains("serve v0.2"), "names the version: {line}");
-                }
-                _ => panic!("{named} doit refuser"),
-            }
-        }
-        let registry = registry_with("    manqué: rattraper\n");
-        match decide(&registry, 0, "doctor", &at("2026-08-19T03:02:00Z"), None) {
-            Decision::Refuse { line } => {
-                assert!(line.contains("manqué: rattraper"), "{line}");
-                assert!(line.contains("serve v0.2"), "{line}");
-            }
-            _ => panic!("rattraper doit refuser"),
-        }
     }
 
     /// D4: the label is the workflow file's radical; a collision takes

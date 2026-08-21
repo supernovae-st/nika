@@ -79,6 +79,7 @@ pub mod next;
 pub mod parse;
 pub mod phrase;
 pub mod registry;
+pub mod tick;
 
 pub use cron::{CronSpec, Field};
 pub use due::{Due, DueKind, MISSED_SLOTS_CAP, ON_TIME_WINDOW, due, earliest_next};
@@ -91,6 +92,7 @@ pub use ledger::{Claim, DecisionKind, HistoryEntry, LastRecord, RecordOutcome, U
 pub use next::{Shift, Slot, next_slots};
 pub use parse::{parse_registry, validate};
 pub use registry::{AfterSkip, ArmRegistry, Beat, Cadence, Locus, MissPolicy, Overlap};
+pub use tick::{TickDecision, tick_decision, v0_unsupported};
 
 #[cfg(test)]
 mod tests;
