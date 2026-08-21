@@ -162,13 +162,15 @@ enum Command {
         #[arg(long, value_enum)]
         format: Option<verbs::graph::GraphFormatArg>,
     },
-    /// Teach one error code (cause · category · fix-form) — or narrate a
-    /// workflow FILE: what it does · the waves · cost before a token is
-    /// spent · what it touches · how to run it.
+    /// Teach one error code (cause · category · fix-form), a hint kind
+    /// `nika check` printed in `[brackets]`, or narrate a workflow FILE:
+    /// what it does · the waves · cost before a token is spent · what
+    /// it touches · how to run it.
     #[command(display_order = 41)]
     Explain {
-        /// An error code (`NIKA-440` · bare `440` · `DAG-003`) or a
-        /// workflow file path (`*.nika.yaml` · `-` reads stdin).
+        /// An error code (`NIKA-440` · bare `440` · `DAG-003`), a hint
+        /// identity (`jq-as-map` · `native-first/006`), or a workflow
+        /// file path (`*.nika.yaml` · `-` reads stdin).
         code: String,
         /// File form only: emit the versioned machine projection
         /// (`explain_version: 1` · the check report's own vocabulary).

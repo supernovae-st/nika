@@ -65,6 +65,14 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Fixed
 
+- **`nika explain` answers the token `nika check` printed in `[brackets]`,
+  including a hint.** A HINT row put `jq-as-map` (or `native-first/006`)
+  in the same slot as `NIKA-PARSE-019`, so the next gesture was
+  `nika explain jq-as-map` and the answer was `unknown code`. A finding
+  carries `code`; a hint carries `kind` — real in the data, invisible
+  in the render. Explain now resolves the printed identity (the kind,
+  or the numbered native-first rule) and teaches the class; MCP
+  `nika_explain` speaks the same text.
 - **`nika check` names the line of a PARSE refusal.** A CONFORM finding
   already carried a rustc-grade frame (`path:line:col` + caret). A PARSE
   finding — `NIKA-PARSE-017` duplicate key, `NIKA-PARSE-005` unknown

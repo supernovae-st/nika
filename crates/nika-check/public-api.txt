@@ -2741,6 +2741,7 @@ pub fn nika_check::action_effect_fields(action: &nika_schema::raw::action::RawAc
 pub fn nika_check::check(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_check::CheckReport
 pub fn nika_check::check_composed(wf: &nika_schema::raw::workflow::RawWorkflow, root: &str, read: &mut dyn core::ops::function::FnMut(&str) -> core::result::Result<alloc::string::String, alloc::string::String>) -> nika_check::CheckReport
 pub fn nika_check::compiled(hints: &[nika_check::Hint]) -> bool
+pub fn nika_check::hint_help(token: &str) -> core::option::Option<&'static str>
 pub fn nika_check::infer_permits(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_check::InferredPermits
 pub fn nika_check::paid_blockers(hints: &[nika_check::Hint]) -> alloc::vec::Vec<&nika_check::Hint>
 pub fn nika_check::paid_ready(hints: &[nika_check::Hint]) -> bool

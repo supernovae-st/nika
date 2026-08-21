@@ -1,15 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! `nika explain NIKA-XXXX` — teach one error code (spec §2).
+//! `nika explain NIKA-XXXX` — teach one error code (spec §2), or the
+//! hint identity `nika check` printed in the same `[brackets]` slot.
 //!
 //! Two registries, ONE voice: the numeric crate registry
 //! (`nika-error::codes` · `NIKA-440`) AND the spec's conformance codes
 //! (`NIKA-DAG-002` · the canon's `error_codes` table) — every code the
 //! checker can emit gets an answer here. Retired codes (`NIKA-DAG-003` ·
 //! `NIKA-PARSE-016`) teach their retirement and point at the successor.
-//! Never invents: a code in no registry is a finding (`exit 2`), not a
-//! guess.
+//! Hint kinds (`jq-as-map` · `native-first/006`) are the other occupant
+//! of that slot (#1038) — `nika-check::hint_help` is the teaching, same
+//! text the MCP tool returns. Never invents: a token in no registry is
+//! a finding (`exit 2`), not a guess.
 
 use nika_error::codes::{code_help, lookup};
 
@@ -30,6 +33,12 @@ pub fn run(wire: &str, theme: Theme) -> VerbOutput {
     // The seam (`Theme::link` → `format::osc8`): text unchanged, escapes
     // only when the links capability resolved on.
     let docs = theme.link(DOCS_ERRORS_URL, DOCS_ERRORS_TEXT);
+    // A HINT row prints `kind` (or a numbered `code`) in the same
+    // bracketed slot as `NIKA-PARSE-019`. Resolve that token before
+    // wrapping `NIKA-` — `jq-as-map` is not `NIKA-jq-as-map` (#1038).
+    if let Some(help) = nika_check::hint_help(wire) {
+        return VerbOutput::ok(format!("{wire} · hint\n\n  {help}\n"));
+    }
     let normalized = if wire.starts_with("NIKA-") {
         wire.to_owned()
     } else {
@@ -59,7 +68,8 @@ pub fn run(wire: &str, theme: Theme) -> VerbOutput {
             "unknown code `{wire}` — the registry knows NIKA-001..NIKA-9999 \
              (allocated ranges), the spec conformance codes \
              (NIKA-DAG-* · NIKA-VAR-* · …), per-builtin NIKA-BUILTIN-<NAME>-NNN \
-             and per-provider NIKA-PROVIDER-NNN codes; see {docs}"
+             and per-provider NIKA-PROVIDER-NNN codes, and the hint kinds \
+             `nika check` prints in [brackets]; see {docs}"
         ));
     };
     // The category/severity labels are the OWNING crate's canonical
@@ -559,6 +569,34 @@ mod tests {
         let out = run("NIKA-ZZZ-999");
         assert_eq!(out.code, exit::FILE);
         assert!(out.text.contains("unknown code"));
+        assert!(
+            out.text.contains("[brackets]"),
+            "the 404 names the other occupant of the slot:\n{}",
+            out.text
+        );
+    }
+
+    #[test]
+    fn a_printed_hint_kind_teaches_instead_of_404() {
+        // #1038 · check prints `[jq-as-map]` in the code slot; explain
+        // used to wrap it as `NIKA-jq-as-map` and refuse.
+        let out = run("jq-as-map");
+        assert_eq!(out.code, exit::OK, "{}", out.text);
+        assert!(out.text.starts_with("jq-as-map · hint"), "{}", out.text);
+        assert!(out.text.contains("($name | map"), "{}", out.text);
+        assert!(out.text.contains("paid_ready"), "{}", out.text);
+    }
+
+    #[test]
+    fn a_numbered_native_first_rule_teaches() {
+        let out = run("native-first/006");
+        assert_eq!(out.code, exit::OK, "{}", out.text);
+        assert!(
+            out.text.starts_with("native-first/006 · hint"),
+            "{}",
+            out.text
+        );
+        assert!(out.text.contains("nika:wait"), "{}", out.text);
     }
 
     #[test]
