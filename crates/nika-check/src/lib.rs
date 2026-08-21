@@ -406,6 +406,16 @@ pub struct CheckReport {
     /// `permits:` block is declared (no claim, never wrong). Additive:
     /// `report_version` stays 1.
     pub trifecta_findings: Vec<nika_cap::TrifectaViolation>,
+    /// The sinks a blocking gate CLEARED, each naming its gate.
+    ///
+    /// Empty means two different things in the violations vec above
+    /// and nowhere else: a trifecta cleared by a credited gate and one
+    /// cleared by a missing leg both leave `trifecta_findings` empty.
+    /// This field tells them apart, so a reader can ask whether the
+    /// gate that bought the clearance is one another lane refutes
+    /// (`consent_findings`, matched on the same gate and sink).
+    #[serde(default)]
+    pub trifecta_mitigations: Vec<nika_cap::TrifectaMitigation>,
     /// Every deep `tasks.X.output.<path>` reference the declared shape
     /// (`schema:` / `output:` bindings) PROVES invalid — typo'd field
     /// names caught before a single token is spent (ADR-092 #4).
@@ -653,12 +663,16 @@ fn gated_scans(
     edges: &[analyzer::Edge],
     topo_waves: &[Vec<usize>],
 ) -> (
-    Vec<nika_cap::TrifectaViolation>,
+    nika_cap::TrifectaVerdict,
     consent::ConsentScan,
     Vec<OrderFinding>,
 ) {
     if !conformance_clean {
-        return (Vec::new(), consent::ConsentScan::default(), Vec::new());
+        return (
+            nika_cap::TrifectaVerdict::default(),
+            consent::ConsentScan::default(),
+            Vec::new(),
+        );
     }
     (
         trifecta::scan_trifecta(wf, edges, topo_waves),
@@ -667,8 +681,18 @@ fn gated_scans(
     )
 }
 
-pub fn check(wf: &RawWorkflow) -> CheckReport {
-    let (conformance, topo_waves, edges) = match analyzer::analyze(wf) {
+/// The DAG's own verdict: the conformance violations, and the order and
+/// edges every gated lane rides. A refusal yields empty collections, so
+/// each caller's « no claim » arm is the same shape as its clean one.
+#[must_use]
+fn dag_facts(
+    wf: &RawWorkflow,
+) -> (
+    Vec<ConformanceViolation>,
+    Vec<Vec<usize>>,
+    Vec<analyzer::Edge>,
+) {
+    match analyzer::analyze(wf) {
         Ok(AnalyzedWorkflow {
             topo_waves, edges, ..
         }) => (Vec::new(), topo_waves, edges),
@@ -677,7 +701,12 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
             Vec::new(),
             Vec::new(),
         ),
-    };
+    }
+}
+
+#[must_use]
+pub fn check(wf: &RawWorkflow) -> CheckReport {
+    let (conformance, topo_waves, edges) = dag_facts(wf);
     // One IFC pass over the DAG — the taint fact base both leak reports
     // read. An empty wave order (conformance failure) taints nothing:
     // the analysis is simply skipped, never wrong.
@@ -707,7 +736,7 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
     // scans, and the legal-zero hint. Both must answer from the same fact,
     // and a predicate spelled twice is a place for them to drift apart.
     let conforms = conformance.is_empty();
-    let (trifecta_findings, mut consent_scan, order_findings) =
+    let (trifecta, mut consent_scan, order_findings) =
         gated_scans(wf, conforms, &edges, &topo_waves);
     hints.extend(std::mem::take(&mut consent_scan.hints));
     let capability_escapes = permits_fit::scan_escapes(wf);
@@ -737,7 +766,8 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
         consent_findings: consent_scan.findings,
         order_findings,
         lift_findings: lift::scan_idle_doors(wf),
-        trifecta_findings,
+        trifecta_findings: trifecta.violations,
+        trifecta_mitigations: trifecta.mitigations,
         schema_findings,
         unverifiable_output_refs,
         unknown_tools: tools::scan_unknown_tools(wf),

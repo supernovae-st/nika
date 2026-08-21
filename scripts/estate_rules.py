@@ -116,9 +116,9 @@ PATTERNS = [
         "class": "pinned-copy",
         "evidence": "crates/nika-pack/src/lib.rs:16 'The snapshot under pack/ is vendored by scripts/sync-pack.sh' — a byte-copy of the spec surface, never edited here",
         "derivation": {
-            "tool": "bash scripts/sync-pack.sh <nika-spec checkout> — healed daily by .github/workflows/pack-resync.yml (branch bot/pack-resync · PR-only, the 12-gate CI judges)",
+            "tool": "bash scripts/sync-pack.sh <nika-spec checkout at SPEC_PIN> — spec-pin-heal.yml advances the pin and pack together, and Diamond CI refuses any pack differing from spec@SPEC_PIN",
             "gate": "cargo test -p nika-pack → tests/pack_integrity.rs re-hashes every workflow (sha256_16 over lean text) against pack/examples/manifest.yaml",
-            "inputs": ["supernovae-st/nika-spec@main: VERSION · QUICKSTART.md · canon.yaml · conformance/coverage-matrix.tsv · design/{tokens,motion}.yaml · spec/ · schemas/ · examples/ · templates/ · stdlib/*.md"],
+            "inputs": ["supernovae-st/nika-spec@SPEC_PIN: VERSION · QUICKSTART.md · canon.yaml · conformance/coverage-matrix.tsv · design/{tokens,motion}.yaml · spec/ · schemas/ · examples/ · templates/ · stdlib/*.md"],
         },
         "note": "pack/examples/manifest.yaml is itself GENERATED upstream (spec scripts/showcase-projector.py) — vendored here as part of the copy",
     },
@@ -161,7 +161,7 @@ PATTERNS = [
         "glob": "crates/**",
         "class": "authored",
         "evidence": "the remaining crate surface — Cargo.toml manifests · build.rs · benches · READMEs · hand-curated data catalogs (llm-providers · mcp-servers · embeddings · model-capabilities, probed daily by catalog-verify.yml); the pricing snapshot is excepted in files:",
-        "note": "crates/nika-pack/scripts/sync-pack.sh is a DIVERGENT older duplicate of scripts/sync-pack.sh — the pack-resync.yml lane runs the root one",
+        "note": "scripts/sync-pack.sh is the ONE vendoring lane; the divergent crate-local duplicate was retired",
     },
     {
         "glob": "fuzz/**",
@@ -172,6 +172,11 @@ PATTERNS = [
         "glob": "docs/adr/**",
         "class": "authored",
         "evidence": "per-decision records authored at decision time (scripts/adr/new.sh scaffolds · adr-seal-check hook seals); index.toml excepted in files:",
+    },
+    {
+        "glob": "docs/testimonials/**",
+        "class": "testimonial",
+        "evidence": "privacy-sanitized machine receipts captured from complete verification runs; their validator binds the tested commit, pre-run census, invocation, input blobs, accounting, and artifact hashes",
     },
     {
         "glob": "docs/**",
@@ -186,7 +191,7 @@ PATTERNS = [
     {
         "glob": ".github/workflows/**",
         "class": "authored",
-        "evidence": "hand-written CI rails, comments narrate design decisions; the heal lanes here rewrite OTHER files (spec-pin-heal.yml → SPEC_PIN · pack-resync.yml → the pack · changelog-cliff.yml → CHANGELOG.md), nothing rewrites the workflows themselves",
+        "evidence": "hand-written CI rails, comments narrate design decisions; the heal lanes here rewrite OTHER files (spec-pin-heal.yml → SPEC_PIN + pack · changelog-cliff.yml → CHANGELOG.md), nothing rewrites the workflows themselves",
     },
     {
         "glob": ".github/**",

@@ -1003,8 +1003,43 @@ impl<T> core::clone::CloneToUninit for nika_types::exec::ArgvFloorRefusal where 
 pub unsafe fn nika_types::exec::ArgvFloorRefusal::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_types::exec::ArgvFloorRefusal
 pub fn nika_types::exec::ArgvFloorRefusal::from(t: T) -> T
+#[non_exhaustive] pub enum nika_types::exec::InterpreterTarget<'a>
+pub nika_types::exec::InterpreterTarget::Eval
+pub nika_types::exec::InterpreterTarget::Script(&'a str)
+impl<'a> core::clone::Clone for nika_types::exec::InterpreterTarget<'a>
+pub fn nika_types::exec::InterpreterTarget<'a>::clone(&self) -> nika_types::exec::InterpreterTarget<'a>
+impl<'a> core::cmp::Eq for nika_types::exec::InterpreterTarget<'a>
+impl<'a> core::cmp::PartialEq for nika_types::exec::InterpreterTarget<'a>
+pub fn nika_types::exec::InterpreterTarget<'a>::eq(&self, other: &nika_types::exec::InterpreterTarget<'a>) -> bool
+impl<'a> core::fmt::Debug for nika_types::exec::InterpreterTarget<'a>
+pub fn nika_types::exec::InterpreterTarget<'a>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'a> core::marker::Copy for nika_types::exec::InterpreterTarget<'a>
+impl<'a> core::marker::StructuralPartialEq for nika_types::exec::InterpreterTarget<'a>
+impl<T, U> core::convert::Into<U> for nika_types::exec::InterpreterTarget<'a> where U: core::convert::From<T>
+pub fn nika_types::exec::InterpreterTarget<'a>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::exec::InterpreterTarget<'a> where U: core::convert::Into<T>
+pub type nika_types::exec::InterpreterTarget<'a>::Error = core::convert::Infallible
+pub fn nika_types::exec::InterpreterTarget<'a>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::exec::InterpreterTarget<'a> where U: core::convert::TryFrom<T>
+pub type nika_types::exec::InterpreterTarget<'a>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::exec::InterpreterTarget<'a>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::exec::InterpreterTarget<'a> where T: core::clone::Clone
+pub type nika_types::exec::InterpreterTarget<'a>::Owned = T
+pub fn nika_types::exec::InterpreterTarget<'a>::clone_into(&self, target: &mut T)
+pub fn nika_types::exec::InterpreterTarget<'a>::to_owned(&self) -> T
+impl<T> core::any::Any for nika_types::exec::InterpreterTarget<'a> where T: 'static + ?core::marker::Sized
+pub fn nika_types::exec::InterpreterTarget<'a>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::exec::InterpreterTarget<'a> where T: ?core::marker::Sized
+pub fn nika_types::exec::InterpreterTarget<'a>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::exec::InterpreterTarget<'a> where T: ?core::marker::Sized
+pub fn nika_types::exec::InterpreterTarget<'a>::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::exec::InterpreterTarget<'a> where T: core::clone::Clone
+pub unsafe fn nika_types::exec::InterpreterTarget<'a>::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::exec::InterpreterTarget<'a>
+pub fn nika_types::exec::InterpreterTarget<'a>::from(t: T) -> T
 pub fn nika_types::exec::argv_floor_refusal<S: core::convert::AsRef<str>>(program: &str, args: &[S]) -> core::option::Option<nika_types::exec::ArgvFloorRefusal>
 pub fn nika_types::exec::argv_program_refusal(program: &str) -> core::option::Option<nika_types::exec::ArgvFloorRefusal>
+pub fn nika_types::exec::interpreter_script_operand<'a>(program: &str, args: &[&'a str]) -> core::option::Option<&'a str>
 pub fn nika_types::exec::normalize_for_blocklist(s: &str) -> alloc::string::String
 pub mod nika_types::extract
 #[non_exhaustive] pub enum nika_types::extract::ExtractMode

@@ -173,14 +173,47 @@ fn eval_spec(base: &str) -> Option<EvalSpec> {
 /// module handoff (`python -m <module>` — the flags after it are the
 /// MODULE's, so `python3 -m unittest discover -p test_*.py` stays allowed).
 fn interpreter_eval_requested(base: &str, args: &[&str]) -> bool {
-    let Some(spec) = eval_spec(base) else {
-        return false;
-    };
+    matches!(
+        interpreter_target(base, args),
+        Some(InterpreterTarget::Eval)
+    )
+}
+
+/// What an argv-form interpreter invocation asks the interpreter to DO —
+/// the structural fact the eval walk below has always computed on its way
+/// to a verdict, published instead of flattened.
+///
+/// The walk that proves "this is not inline eval" has, at that exact
+/// moment, its hand on the script the interpreter will OPEN. Returning a
+/// `bool` threw that away, and the fs boundary never learned of the file:
+/// a `["bash","leg.sh"]` under an empty `permits.fs.read` audited green and
+/// died 126 at the sandbox, reported as a success (measured 2026-08-20).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum InterpreterTarget<'a> {
+    /// An eval flag or subcommand — the code IS the argv. The floor refuses
+    /// it ([`ArgvFloorRefusal::InterpreterEval`]); no file is opened.
+    Eval,
+    /// A script FILE. The interpreter must read it before it runs a line,
+    /// so the sandbox's `fs.read` set has to admit it.
+    Script(&'a str),
+}
+
+/// Walk one interpreter's OWN argv (everything before the script
+/// positional, `--`, or `-m <module>`) and name what it targets.
+///
+/// `None` is the honest silence — not an interpreter, or the target is not
+/// a path the interpreter opens BY NAME (`-` reads stdin · `-m` resolves a
+/// module · `--` hands off without the walk having proven which element is
+/// the script · an argv that ends on flags). A caller may claim nothing
+/// there, which is what keeps the fs arm from reddening a correct file.
+fn interpreter_target<'a>(base: &str, args: &[&'a str]) -> Option<InterpreterTarget<'a>> {
+    let spec = eval_spec(base)?;
     let mut i = 0;
     while i < args.len() {
         let arg = args[i];
         if arg == "--" || Some(arg) == spec.module_flag {
-            return false; // `--` / `-m <module>`: the rest is not the interpreter's
+            return None; // `--` / `-m <module>`: the rest is not the interpreter's
         }
         if spec.value_flags.contains(&arg) {
             i += 2; // the flag's operand is a value, not an option
@@ -188,23 +221,46 @@ fn interpreter_eval_requested(base: &str, args: &[&str]) -> bool {
         }
         if arg.starts_with("--") {
             if spec.long_flags.contains(&arg) {
-                return true;
+                return Some(InterpreterTarget::Eval);
             }
         } else if let Some(bundle) = arg.strip_prefix('-') {
             if bundle.is_empty() {
-                return false; // `-` (stdin handoff): the rest is the script's
+                return None; // `-` (stdin handoff): the rest is the script's
             }
             if bundle.chars().any(|c| spec.short_letters.contains(&c)) {
-                return true;
+                return Some(InterpreterTarget::Eval);
             }
+        } else if spec.eval_subcommands.contains(&arg) {
+            // First positional · an eval subcommand (`deno eval <code>`).
+            return Some(InterpreterTarget::Eval);
         } else {
-            // First positional: an eval subcommand, else the script file —
-            // everything after it belongs to the script.
-            return spec.eval_subcommands.contains(&arg);
+            // First positional · the script file. Everything after it
+            // belongs to the script, so the interpreter's walk ends here.
+            return Some(InterpreterTarget::Script(arg));
         }
         i += 1;
     }
-    false
+    None
+}
+
+/// The script FILE an argv-form interpreter invocation must OPEN and READ
+/// before it can run a line.
+///
+/// The fs half of the exec floor's `check ≡ run` pair, and the twin of
+/// [`argv_floor_refusal`]: that one names an argv the run refuses at the
+/// BLOCKLIST, this one names the read the run needs from the SANDBOX. Both
+/// walk the same interpreter table, so neither can drift from the other.
+///
+/// `None` is a claim of nothing — the program is not an interpreter, the
+/// argv evals instead of opening a file, or the script is not named as a
+/// path (`-` · `-m` · `--` · flags only). Callers MUST treat `None` as
+/// silence, never as "no read needed".
+#[must_use]
+pub fn interpreter_script_operand<'a>(program: &str, args: &[&'a str]) -> Option<&'a str> {
+    match interpreter_target(&program_basename(program), args) {
+        Some(InterpreterTarget::Script(path)) => Some(path),
+        Some(InterpreterTarget::Eval) | None => None,
+    }
 }
 
 /// The normalized lowercase BASENAME of an argv program — NFKC + zero-width
@@ -329,6 +385,53 @@ mod tests {
 
     fn allowed(program: &str, args: &[&str]) -> bool {
         argv_floor_refusal(program, args).is_none()
+    }
+
+    // ── the script operand · the fact the eval walk already computes ──
+
+    /// The interpreter's script positional is the file the RUN must open.
+    /// Today `interpreter_eval_requested` finds it and throws it away, so
+    /// the fs boundary never learns of it and a sandboxed run dies 126 on
+    /// a file `nika check` called green.
+    #[test]
+    fn the_interpreter_script_operand_is_the_file_the_run_must_open() {
+        assert_eq!(
+            interpreter_script_operand("bash", &["leg.sh"]),
+            Some("leg.sh")
+        );
+        assert_eq!(
+            interpreter_script_operand("/bin/sh", &["-e", "deploy.sh"]),
+            Some("deploy.sh")
+        );
+        assert_eq!(
+            interpreter_script_operand("python3", &["-X", "faulthandler", "app.py"]),
+            Some("app.py")
+        );
+        assert_eq!(
+            interpreter_script_operand("node", &["tools/build.js", "--watch"]),
+            Some("tools/build.js")
+        );
+    }
+
+    /// The silences, each for its own reason — a claim here would redden a
+    /// file the run admits.
+    #[test]
+    fn the_script_operand_stays_silent_where_no_file_is_opened_by_name() {
+        // inline eval · the code is the argv, there is no file
+        assert_eq!(interpreter_script_operand("bash", &["-c", "echo hi"]), None);
+        // not an interpreter · positional semantics are the program's own
+        assert_eq!(interpreter_script_operand("echo", &["hi.txt"]), None);
+        // `-m module` · the interpreter resolves a module, not a named path
+        assert_eq!(
+            interpreter_script_operand("python3", &["-m", "unittest"]),
+            None
+        );
+        // `-` · the script arrives on stdin
+        assert_eq!(interpreter_script_operand("sh", &["-", "arg"]), None);
+        // `--` · conservative silence rather than a positional guess
+        assert_eq!(interpreter_script_operand("bash", &["--", "leg.sh"]), None);
+        // no positional at all
+        assert_eq!(interpreter_script_operand("bash", &[]), None);
     }
 
     // ── the program-identity floor (exact basename · no substrings) ──

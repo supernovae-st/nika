@@ -13,9 +13,12 @@
 //!
 //! This crate sits at **L0** (pure data): no I/O, no async, no error
 //! enum — every accessor is a total function over compile-time bytes.
-//! The snapshot under `pack/` is vendored by `scripts/sync-pack.sh`
-//! and verified against the manifest hashes by the integrity tests
-//! (a tampered or drifted pack fails `cargo test`, not a user).
+//! The snapshot under `pack/` is vendored by `scripts/sync-pack.sh` from the
+//! exact nika-spec commit named by the engine root's `SPEC_PIN`; `pack/SPEC_SHA`
+//! records that source identity. The runtime build refuses a pin/marker
+//! mismatch. Manifest integrity tests cover the examples named by the public
+//! manifest, while Diamond CI re-vendors and compares the whole mapped pack so
+//! prose or registry drift fails before merge rather than reaching a user.
 //!
 //! ```rust
 //! assert_eq!(nika_pack::pack_version(), "0.1.0-draft");

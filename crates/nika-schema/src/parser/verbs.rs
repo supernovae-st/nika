@@ -599,12 +599,16 @@ fn validate_skill_path(skill: &Spanned<String>) -> Result<(), SchemaError> {
         });
     }
     if skill.value.contains("${{") {
-        return Err(SchemaError::Validation {
-            message: format!(
-                "`skills` entry `{}` carries a `${{{{ }}}}` template — skill paths are \
-                 static (loaded at compose time, before any value exists)",
-                skill.value
-            ),
+        return Err(SchemaError::SkillPathNotStatic {
+            path: skill.value.clone(),
+            why: "carries a `${{ }}` template",
+            span: Some(skill.span),
+        });
+    }
+    if skill.value.contains(['*', '?', '[']) {
+        return Err(SchemaError::SkillPathNotStatic {
+            path: skill.value.clone(),
+            why: "is a glob",
             span: Some(skill.span),
         });
     }
@@ -1223,9 +1227,24 @@ tasks:
 ";
         let err = parse_strict(templated).expect_err("templated path");
         assert!(
-            matches!(&err, SchemaError::Validation { message, .. } if message.contains("static")),
+            matches!(&err, SchemaError::SkillPathNotStatic { .. }),
             "{err:?}"
         );
+        assert_eq!(err.spec_code().to_string(), "NIKA-AGENT-003");
+        assert!(err.to_string().contains("static"), "{err}");
+        let globbed = "\
+tasks:
+  t:
+    agent:
+      prompt: \"go\"
+      skills: [\"skills/*/SKILL.md\"]
+";
+        let err = parse_strict(globbed).expect_err("glob path");
+        assert!(
+            matches!(&err, SchemaError::SkillPathNotStatic { why, .. } if *why == "is a glob"),
+            "{err:?}"
+        );
+        assert_eq!(err.spec_code().to_string(), "NIKA-AGENT-003");
         let empty = "\
 tasks:
   t:

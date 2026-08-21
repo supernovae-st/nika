@@ -123,6 +123,7 @@ pub struct Hint {
     /// `unwrapped-ref` · `envelope-output` · `policy-soft` · `run-clock`
     /// · `analysis` · `consent` · `digit-string-enum`
     /// · `glob-readme` · `assert-quarantine` · `jq-as-map` · `infer-as-law`
+    /// · `fail-open-consent`
     /// · `unproven-law`
     /// (additive · agents route on it; the module doc describes each).
     /// The paid-run family ([`PAID_RUN_KINDS`]) is what [`paid_ready`]
@@ -229,6 +230,15 @@ pub(super) fn scan_hints(wf: &RawWorkflow) -> Vec<Hint> {
         });
     }
 
+    // Whether this file can DO anything. A `default:` on a prompt that
+    // gates nothing is an unattended answer; on a prompt over an effect it
+    // is a standing decision about what happens with no human present.
+    // The same predicate the trifecta lane's ② leg reads, so the two
+    // cannot disagree about what counts as an effect.
+    let gates_an_effect = wf
+        .tasks
+        .iter()
+        .any(|t| crate::trifecta::egress_capable(&t.value.action));
     for task in &wf.tasks {
         let t = &task.value;
         let id = t.id.value.as_str();
@@ -266,7 +276,8 @@ pub(super) fn scan_hints(wf: &RawWorkflow) -> Vec<Hint> {
                 push_exec_json_capture_hint(&mut hints, t, exec);
             }
             RawAction::Invoke(a) => {
-                push_headless_prompt_hint(&mut hints, id, a);
+                push_headless_prompt_hint(&mut hints, id, a, gates_an_effect);
+                push_fail_open_consent_hint(&mut hints, id, a, gates_an_effect);
                 push_glob_readme_hint(&mut hints, id, a);
                 push_jq_as_map_hint(&mut hints, id, a);
             }
@@ -424,6 +435,7 @@ fn push_headless_prompt_hint(
     hints: &mut Vec<Hint>,
     id: &str,
     a: &nika_schema::raw::RawInvokeAction,
+    gates_an_effect: bool,
 ) {
     let nika_schema::raw::RawInvokeTarget::Tool(tool) = &a.target else {
         return;
@@ -438,6 +450,17 @@ fn push_headless_prompt_hint(
     {
         return;
     }
+    // The closing clause used to be unconditional — « declare the
+    // `default:` the unattended path should take ». Over a real effect,
+    // following that with `true` builds a workflow that answers its own
+    // gate and fires the action with nobody present. Name the safe one.
+    let close = if gates_an_effect {
+        "or declare `default: false` — this file has an effect, and a \
+         defaulted gate ANSWERS ITSELF unattended (spec 06), so `false` is \
+         the choice that refuses rather than approves"
+    } else {
+        "or declare the `default:` the unattended path should take"
+    };
     hints.push(hint(
         "headless-prompt",
         id,
@@ -446,7 +469,68 @@ fn push_headless_prompt_hint(
              agent handing it over) the run pauses at this gate awaiting a human \
              (exit 4 · the resume line taught on the frame); at a terminal it asks \
              directly. Answer it in one pass with `nika run <file> --answer \
-             {id}=<value>`, or declare the `default:` the unattended path should take"
+             {id}=<value>`, {close}"
+        ),
+    ));
+}
+
+/// The `fail-open-consent` hint: a confirm gate carrying `default: true`
+/// in a file that can DO something.
+///
+/// Spec 06 requires the engine to use `default:` unattended, so this is
+/// legal and this hint is advisory — a « continue? » whose safe answer is
+/// yes is a real thing to author. What was missing is that the checker
+/// could not TELL the two apart. Measured 2026-08-20 on 0.111.0, two
+/// files one key apart, each run with no human ·
+///
+/// ```text
+///                  check card                         run
+/// default: true    ✔ 0 hints · risk supervised   answer=true  · the effect FIRED
+/// default: false   ✔ 0 hints · risk supervised   answer=false · the effect skipped
+/// ```
+///
+/// The prompt asked « delete production? ». The cards differed by the
+/// filename and nothing else, and both called the posture supervised.
+///
+/// Hint, not refusal — the affirmative-consent lane's own precedent: it
+/// landed hint-only in 2026-07-30 and escalated to `NIKA-SEC-014` on the
+/// evidence it collected. This is that first half.
+fn push_fail_open_consent_hint(
+    hints: &mut Vec<Hint>,
+    id: &str,
+    a: &nika_schema::raw::RawInvokeAction,
+    gates_an_effect: bool,
+) {
+    if !gates_an_effect {
+        return; // nothing to auto-approve
+    }
+    let nika_schema::raw::RawInvokeTarget::Tool(tool) = &a.target else {
+        return;
+    };
+    if tool.value != "nika:prompt" {
+        return;
+    }
+    let Some(args) = a.args.as_ref().map(|args| &args.value) else {
+        return;
+    };
+    // `mode:` absent means confirm (spec 06 · the default mode).
+    let confirm = args
+        .get("mode")
+        .and_then(serde_json::Value::as_str)
+        .is_none_or(|m| m == "confirm");
+    if !confirm || args.get("default") != Some(&serde_json::Value::Bool(true)) {
+        return;
+    }
+    hints.push(hint(
+        "fail-open-consent",
+        id,
+        format!(
+            "`nika:prompt` on `{id}` carries `default: true` and this file has an \
+             effect — unattended (CI, a cron, an agent) the engine answers this gate \
+             `true` on its own (spec 06) and the effect fires with no human present. \
+             That is legal and sometimes right; it is a decision, not a formatting \
+             detail. `default: false` refuses instead, and omitting `default:` PARKS \
+             the run (exit 4) so a human decides"
         ),
     ));
 }

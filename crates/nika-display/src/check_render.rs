@@ -178,12 +178,13 @@ fn narrowed_rungs(out: &mut String, report: &CheckReport, t: Theme) {
     // `✔ SECRETS no information-flow escapes · 0 hints`. The carve-out is
     // a deliberate soundness trade; the UNIVERSAL sentence over it was
     // not.
+    let secrets_claim = crate::check_journey::secret_flow_summary(report);
     section_or_skip(
         out,
         report,
         t,
         "SECRETS",
-        "no declared secret reaches an effect · model echo untracked",
+        &secrets_claim,
         secret_rows(report),
     );
     section_list(
@@ -228,34 +229,6 @@ fn narrowed_rungs(out: &mut String, report: &CheckReport, t: Theme) {
         "every builtin invoke arg key is declared + required args present",
         arg_rows(report),
     );
-}
-
-/// TRIFECTA rung (NEP-0002) · only when a boundary is declared — without
-/// `permits:` the legs are not decidable as declared and the lane is
-/// inert (the default-deny/floor lanes own that world).
-fn trifecta_rung(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Theme) {
-    if wf.permits.is_some() {
-        // "over the declared permits:" is the honest preposition. The
-        // legs are read off the DECLARATION, not the body — leg ① is
-        // literally `permits.fs.read` non-empty (`nika-cap/trifecta.rs`
-        // `legs()`), and the grant halves of ② and ③ are the `tools` and
-        // `net.http`/`fs.write` blocks. Only the ingress WITNESS comes
-        // from realized flow. So the judge answers "is this DECLARED
-        // boundary a lethal trifecta", and a body that under-declares was
-        // (F8) able to shorten a leg. DAG-gated at the source too.
-        section_or_skip(
-            out,
-            report,
-            t,
-            "TRIFECTA",
-            "no lethal trifecta over the declared permits: without a human gate",
-            report
-                .trifecta_findings
-                .iter()
-                .map(|f| format!("[NIKA-SEC-009] {}", f.detail))
-                .collect(),
-        );
-    }
 }
 
 /// CONSENT rung (NEP-0020 · P0-2) · silent when no confirm guards an
@@ -1486,3 +1459,5 @@ fn loopback_declassification_lines(out: &mut String, wf: &RawWorkflow, t: Theme)
 }
 #[cfg(test)]
 mod tests;
+mod trifecta;
+use trifecta::trifecta_rung;

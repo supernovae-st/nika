@@ -57,6 +57,11 @@
 //! traversal policy) is the job of `nika-policy` (L1.5) — keeping the
 //! effect crate policy-free is what lets the policy layer reason about
 //! ALL filesystem access in one place.
+//!
+//! [`OwnedDir`] is the synchronous crash-durable exception for state machines:
+//! it holds a directory descriptor, admits only contained child components,
+//! and refuses symlinks at every directory and file open. Callers still choose
+//! the root, names, and lifecycle policy.
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -64,6 +69,9 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use bytes::Bytes;
 use globset::GlobMatcher;
 use nika_kernel::fs::{FileMetadata, FsError, FsListDyn, FsMetaDyn, FsReadDyn, FsWriteDyn};
+
+mod owned_dir;
+pub use owned_dir::OwnedDir;
 
 /// Monotonic discriminator for temp-file names: two concurrent writes to
 /// the same destination must never collide on the same temp path.

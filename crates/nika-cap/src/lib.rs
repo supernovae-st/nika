@@ -79,7 +79,10 @@ pub use shape::builtin_shape_findings;
 // NEP-0002 · the lethal-trifecta judge (`NIKA-SEC-009`) — the pure
 // leg-conjunction + path-dominance logic; the projection lives in
 // `nika-schema::check::trifecta` (the PolicySubject / policy_violations split).
-pub use trifecta::{TaintWitness, TrifectaSubject, TrifectaViolation, trifecta_violations};
+pub use trifecta::{
+    TaintWitness, TrifectaMitigation, TrifectaSubject, TrifectaVerdict, TrifectaViolation,
+    trifecta_verdict,
+};
 // NEP-0007 · the permit-decision witness (descended from nika-runtime at
 // the 15k wall · P3 B5 — the decision over a Permits boundary is
 // capability-boundary data).

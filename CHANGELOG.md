@@ -10,6 +10,38 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+### Changed
+
+- **The engine carries one compile-time identity for its version, build,
+  language pin and remote API axis.** `nika-runtime` now owns the typed
+  `EngineIdentity` consumed by trace prologues, `nika check --json` and the CLI
+  version surface. The embedded language pack is re-vendored from that exact
+  `SPEC_PIN`, records the same commit in `pack/SPEC_SHA`, and the build refuses
+  split identity.
+
+### Fixed
+
+- **The pinned conformance clock includes Agent Skills and current trace
+  witnesses.** The harness now exercises the spec's skill lane with exact
+  `AGENT`, `AUTH` and `SEC` refusal codes, recognizes the entropy/jitter law,
+  and replays every current runtime-trace verdict. The heal workflow advances
+  the pin and pack together on an immutable PR branch; Diamond CI independently
+  re-vendors every mapped byte.
+
+## [0.112.0](https://github.com/supernovae-st/nika/compare/v0.111.0..v0.112.0) - 2026-08-20
+
+**The instrument-honesty release.** Three features and sixteen fixes, several
+of which began as a measurement disagreeing with what a surface said. A cargo
+test binary can no longer open the OS keychain — an ACL is bound to the
+requesting binary, and a test binary's hash changes on every compile, so the
+prompt could never be answered once and for all. `nika check`'s JOURNEY rung
+counts model endpoints instead of tasks, ending a card that contradicted
+itself four lines apart: COST read `no infer/agent tasks` while JOURNEY read
+`3 model endpoints`. A fan-out that recovered now says so in its record and
+not only in its prose, which is what spec 13 requires of the pair. And the
+`exec:` fit lane gained an fs arm, so a leg jailed away from its own script
+is refused at check instead of exiting 126 under a green card.
+
 ### Added
 
 - **`nika list` names every workflow below the current directory.** Output is
@@ -55,6 +87,65 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   `NIKA_801/802/803`, constants renamed with them.
 
 ### Fixed
+
+- **A cargo test binary no longer opens the OS keychain.** A macOS keychain
+  ACL is bound to the requesting BINARY, and a test binary is
+  `target/<profile>/deps/<name>-<hash>` whose hash changes on every
+  recompile — so "Always Allow" grants a binary that will never exist
+  again and the prompt returns forever, on every worktree, with no
+  operator-side gesture that stops it. `NIKA_KEYCHAIN=off` now skips the
+  custody, and a test binary skips it by default whether or not anyone
+  remembers the flag. An installed `nika` and `cargo run` land outside
+  `deps/` and keep their custody unchanged. All eight keyring call sites
+  sit behind the flag, held there by a ratchet that walks the crate's own
+  source.
+
+- **The JOURNEY rung counts model endpoints, not tasks.** The envelope
+  `model:` is a fallback for a task that HAS a model · it was applied to
+  every task, so a body of builtin invokes read `3 model endpoints` while
+  the COST rung four lines above read `no infer/agent tasks` — one card
+  contradicting itself. `model_endpoint_of` already typed the task and
+  threw the answer away on the next line. Across the shipped corpus 45 of
+  99 cards carried an inflated count; each is now exactly the number of
+  `infer:`/`agent:` tasks the file declares, and no verdict changed.
+
+- **`nika check` judges every secret sharing one effect independently.** A
+  sink that referenced two secrets previously retained only the first IFC
+  trace, so clearing that first edge could hide an uncleared second edge.
+  Direct references and task-local `with:` / `for_each` item aliases now
+  produce one consent verdict per distinct secret while the existing
+  singular output-propagation trace stays unchanged and bounded. Literal
+  `for_each.items` secret references also appear in the data journey.
+
+- **`nika check` now judges the script an `exec:` interpreter must open.**
+  The runtime jails every `exec:` child to the declared `permits.fs` set, so
+  `exec: ["bash", "leg.sh"]` with no `fs.read` grant could never open its
+  own script — measured on seatbelt, the leg exits **126** with empty
+  stdout. The audit was ✔ on all fourteen lanes and the run rendered it
+  `✔ leg` with rc 0: a leg that did nothing, reported as a success. The
+  `exec:` fit lane gained an fs arm beside its net arm (which shipped
+  2026-07-29 for the same sentence one boundary over), so the escape is a
+  `NIKA-SEC-004` finding at check with the one-line repair. The claim is
+  narrow on purpose — only a literal argv whose program is an interpreter,
+  on its script positional, through a literal `cwd:`; everything else stays
+  the runtime's verdict, and the verdict models the jail (which binds a
+  grant's literal prefix and never globs) rather than the stricter lexical
+  walk. `--infer-permits` learned the same fact in the same change, so the
+  boundary it writes cannot self-refuse the workflow it came from. Swept
+  over the shipped corpus: 63 of 63 unchanged.
+- **The TRIFECTA tick is derived, so it cannot outlive the gate that
+  bought it.** Measured on 0.111.0, one card printed `✔ TRIFECTA … without
+  a human gate` four lines above two `NIKA-SEC-014` rows proving that same
+  gate lets the effect fire on 'no'; a control run with the prompt deleted
+  raised `NIKA-SEC-009`, so the trifecta was complete and the tick was
+  bought entirely by a rubber stamp. The lane credited a *blocking prompt*
+  (one task, one key lookup) while the consent lane ran the full
+  refusal-substitution walk — and the clearance discarded WHICH gate it
+  credited, so a trifecta cleared by a gate and one cleared by a missing
+  leg were the same empty vec. The clearance now publishes its credit and
+  the rung withholds the tick where another lane refutes it, pointing at
+  the code that owns the repair. No second finding: the consent row
+  already names the defect and teaches the fix.
 
 - **The `nika-error` crate-spec band table matches the one-voice
   registry.** It still read `330-379 Binding/template · 380-429 Provider`

@@ -358,6 +358,93 @@ async fn row_success_recovered() {
     assert!(events.iter().any(|e| e.kind == EventKind::TaskRecovered));
 }
 
+/// Row 2, reached through a FAN-OUT — the same row, the other road.
+///
+/// This battery says « one test per ROW ». Row 2 is covered, and it was
+/// covered only for a bare task: a judge governs the collection it walks,
+/// not the row it names. Measured on 0.111.0, a `for_each` whose
+/// iterations recover records ·
+///
+/// ```json
+/// "note":    "for_each · 2/5 ok · 3 recovered",
+/// "outcome": {"cause":"normal","class":"success",
+///             "payload":{"attempts":1,"value":["",null,"",null,null]}}
+/// ```
+///
+/// Three of five checks died and the record says `normal`. Spec 13
+/// assigns `success` × `recovered` to exactly this, and closes the table
+/// with « Any (class, cause) pair outside this table is an engine bug,
+/// never a state ».
+///
+/// The engine KNEW · it wrote « 3 recovered » into `note`, a human string,
+/// while the machine-readable half beside it said `normal`. The
+/// per-iteration `recovered_from` was destructured, tested with
+/// `is_some()`, and dropped for a counter.
+#[tokio::test]
+async fn row_success_recovered_through_a_fan_out() {
+    let yaml = "nika: w\nconst: { items: [1, 2] }\npermits: { exec: true }\ntasks:\n  a:\n    for_each: { items: \"${{ const.items }}\", fail_fast: false }\n    on_error: { recover: \"fallback\" }\n    exec: { command: [\"boom\"] }\n";
+    // DISTINCT errors: the record claims to keep the FIRST, mirroring
+    // , and a claim nothing can tell apart is untested.
+    let shell = MockShell::new()
+        .enqueue_fail(9, "the first one")
+        .enqueue_fail(9, "the second one");
+    let (outcome, events) = run_simple(yaml, shell).await;
+    assert!(outcome.ok, "the recoveries settle the run green");
+
+    let record = &outcome.records["a"];
+    assert_eq!(record.status, TaskStatus::Success);
+    assert_eq!(
+        record.cause,
+        TerminalCause::Recovered,
+        "a fan-out whose iterations were repaired is NOT `normal` — spec 13 \
+         calls that pair an engine bug"
+    );
+    let original = record
+        .recovered_from
+        .as_ref()
+        .expect("the record keeps the original error (spec 13 §payload)");
+
+    let o = outcome_of(&events, "a");
+    judge(&o, &pack_table());
+    assert_eq!(o["cause"], "recovered");
+    assert_eq!(
+        o["payload"]["recovered_from"]["code"],
+        Value::String(original.code.clone()),
+        "the payload carries the original error, not just a tally in prose"
+    );
+    assert!(
+        original.message.contains("the first one"),
+        "the FIRST original is the witness kept, not the last: {}",
+        original.message
+    );
+    assert!(
+        events.iter().any(|e| e.kind == EventKind::TaskRecovered),
+        "the fan-out owes the same prefix frame the bare task emits"
+    );
+}
+
+/// The guard · a fan-out where NOTHING was repaired keeps `normal`. A
+/// cause that fired on every fan would be its own defect, and would make
+/// the row above meaningless.
+#[tokio::test]
+async fn a_clean_fan_out_stays_normal() {
+    let yaml = "nika: w\nconst: { items: [1, 2] }\npermits: { exec: true }\ntasks:\n  a:\n    for_each: { items: \"${{ const.items }}\" }\n    exec: { command: [\"ok\"] }\n";
+    let shell = MockShell::new().enqueue_ok("fine\n").enqueue_ok("fine\n");
+    let (outcome, events) = run_simple(yaml, shell).await;
+    assert!(outcome.ok);
+    let record = &outcome.records["a"];
+    assert_eq!(record.cause, TerminalCause::Normal);
+    assert!(record.recovered_from.is_none());
+    let o = outcome_of(&events, "a");
+    judge(&o, &pack_table());
+    assert_eq!(o["cause"], "normal");
+    assert!(o["payload"].get("recovered_from").is_none());
+    assert!(
+        !events.iter().any(|e| e.kind == EventKind::TaskRecovered),
+        "nothing was repaired, so nothing announces a repair"
+    );
+}
+
 /// Row 3 · `failure(verb_error)` — the verb refused and no retry
 /// remained (attempts = 1 when no `retry:`).
 #[tokio::test]

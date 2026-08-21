@@ -67,6 +67,19 @@ jobs:
             echo "::error::release tag ${REF_NAME} does not match Cargo workspace version ${cargo_version}"
             exit 1
           fi
+      # The provenance manifest must be TRUE of the tree being released.
+      # It is not required per-commit (a whole-tree projection carried by
+      # every branch makes concurrent PRs collide on a file none of them
+      # edited), so this is the gate that owns it: the tagged tree, the
+      # one whose binaries a user will verify, must match its manifest
+      # exactly. RELEASING.md step 2 regenerates it before the tag.
+      - name: The estate manifest is true of the tagged tree
+        run: |
+          set -euo pipefail
+          if ! python3 scripts/estate.py --check; then
+            echo "::error::the estate manifest does not describe the tagged tree — run python3 scripts/estate.py --write, commit it, and re-tag"
+            exit 1
+          fi
       - name: Add the Rust target
         run: rustup target add ${{ matrix.target }}
       - name: Cache cargo

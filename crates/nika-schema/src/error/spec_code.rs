@@ -134,6 +134,16 @@ const fn dag(num: u16) -> SpecCode {
     }
 }
 
+/// The Agent Skill compose-time codes (spec 02 §Agent Skills).
+const fn agent(num: u16) -> SpecCode {
+    SpecCode {
+        namespace: "AGENT",
+        num,
+        category: SpecCategory::ValidationError,
+        transient: false,
+    }
+}
+
 const fn var(num: u16, category: SpecCategory) -> SpecCode {
     SpecCode {
         namespace: "VAR",
@@ -258,6 +268,7 @@ impl SchemaError {
             // cleanup never enters G_p, so it can never be folded.
             Self::UnknownGroup { .. } => dag(8),
             Self::UnwindInGroup { .. } => dag(9),
+            Self::SkillPathNotStatic { .. } => agent(3),
 
             // ── NIKA-BUILTIN · arg-shape contracts ─────────────────
             Self::BadBuiltinArgs { tool, .. } => builtin_spec_code(tool),
@@ -396,7 +407,7 @@ mod tests {
                 "{code} is emitted by the checker but NOT registered in the canon \
                  error_codes table — add the row to spec canon.yaml + \
                  spec/05-errors.md (the table is the SSOT · the engine derives), \
-                 then re-run crates/nika-pack/scripts/sync-pack.sh"
+                 then re-run scripts/sync-pack.sh <spec-checkout>"
             );
         }
     }

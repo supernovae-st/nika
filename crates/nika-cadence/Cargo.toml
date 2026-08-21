@@ -21,10 +21,12 @@ workspace = true
 
 [dependencies]
 serde         = { workspace = true }
+serde_json    = { workspace = true }   # pure arm-ledger wire parsing/replay (W7)
 serde_yaml_bw = { workspace = true }   # the panic-free vendored fork — the house YAML plane
 thiserror     = { workspace = true }
 jiff          = { workspace = true }
 jiff-tzdb     = { workspace = true }   # the EMBEDDED IANA tzdb — never the host's zoneinfo
+sha2          = { workspace = true }   # the firing machine's identities (SlotId · ArmGeneration — W7 · the source-identity convention)
 
 [dev-dependencies]
 proptest = { workspace = true }
