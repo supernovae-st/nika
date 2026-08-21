@@ -912,12 +912,30 @@ arm:
             "{key} · refusé nommément, jamais ignoré"
         );
     }
-    for key in ["traces: {}", "registry: {}"] {
-        let yaml = format!("nika: proj\n{key}\n");
+}
+
+#[test]
+fn the_projects_other_rungs_are_admitted_opaque() {
+    // Measured 2026-08-18: `traces.keep` and `registry.floor` are the
+    // project reader's rungs — shipped, consumed (the retention ladder ·
+    // the provenance gate), and written by the project starter itself.
+    // Refused here as « round 2 », the grammar made `nika arm` refuse a
+    // file the project reader had just accepted, with a remedy that was
+    // false (« retention stays with the env vars »). Two readers of one
+    // file must never disagree about a key only one of them owns: the
+    // grammar ADMITS them and judges nothing about them.
+    for rung in [
+        "traces:\n  keep: 30d\n",
+        "registry:\n  floor: provenanced\n",
+    ] {
+        let yaml = format!(
+            "nika: proj\n{rung}arm:\n  - workflow: workflows/a.nika.yaml\n    \
+             cadence: on-webhook\n    plafond: 0.35\n    manqué: sauter\n"
+        );
         let faults = kinds(&yaml);
         assert!(
-            faults.contains(&CadenceErrorKind::DeferredKey),
-            "{key} · refusé nommément, jamais ignoré"
+            faults.is_empty(),
+            "{rung:?} · une clé d un autre barreau du même fichier passe sans faute ici — vu {faults:?}"
         );
     }
 }

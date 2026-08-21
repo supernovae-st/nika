@@ -51,7 +51,12 @@ zoneless) · `dom`+`dow` restricted together refused (the Vixie OR trap)
 the DEFAULTS (law ⑥): `où: local` · `chevauchement: sauter` ·
 `après_saut: prochain-créneau` · `actif: false` requires `raison:` +
 `jusqu_au:` · round 1 refuses by name: `signature:` · `budget:` ·
-`traces:` · `registry:` · every unknown key (`deny_unknown_fields`).
+every unknown key (`deny_unknown_fields`). The project's other rungs
+(`traces:` · `registry:` — `nika_vocab::project`'s, consumed by the
+retention ladder and the provenance gate) are admitted OPAQUE and judged
+there: two readers of one file must never disagree about a key only one
+of them owns (2026-08-18 — refused here as « round 2 », the starter's
+own `traces:` line made `nika arm` refuse a shipped key).
 
 It does **not** own: filesystem access (the L4 edge reads the bytes,
 this layer reads the text — a workflow's EXISTENCE is judged there,

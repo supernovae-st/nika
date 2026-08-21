@@ -16,8 +16,8 @@ use serde::Deserialize;
 use crate::cron::CronSpec;
 
 /// The one project file (`nika.yaml`) — round 1 carries `ceiling` +
-/// `arm:` only; `traces:`/`registry:` wait for a measured lack and are
-/// refused by name at validation.
+/// `arm:`. The project's other rungs (`traces:` · `registry:`) are
+/// admitted opaque and judged by the project reader.
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
 #[non_exhaustive]
@@ -34,12 +34,21 @@ pub struct ArmRegistry {
     /// The armed beats (`arm:`).
     #[serde(default, rename = "arm")]
     beats: Vec<Beat>,
-    /// Round-2 key — presence-detected, refused by name at validation.
-    #[serde(default)]
-    pub(crate) traces: Option<serde::de::IgnoredAny>,
-    /// Round-2 key — presence-detected, refused by name at validation.
-    #[serde(default)]
-    pub(crate) registry: Option<serde::de::IgnoredAny>,
+    /// Another rung of the SAME file — `traces:` belongs to the project
+    /// reader (`nika_vocab::project` · `traces.keep`, the retention rung
+    /// `nika-dap` consumes). Admitted OPAQUE so the closed grammar accepts
+    /// the file it shares with that reader; judged THERE, never here.
+    /// (2026-08-18: refused as « round 2 » it told operators to remove a
+    /// key that ships and is consumed — the project starter's own
+    /// `traces:` line made `nika arm` refuse. The leading underscore is
+    /// the read: this field exists to be admitted, not consulted.)
+    #[serde(default, rename = "traces")]
+    _traces: Option<serde::de::IgnoredAny>,
+    /// Another rung of the SAME file — `registry:` (`registry.floor`, the
+    /// provenance GATE the registry client max-composes). Admitted opaque
+    /// · judged by the project reader.
+    #[serde(default, rename = "registry")]
+    _registry: Option<serde::de::IgnoredAny>,
 }
 
 impl ArmRegistry {

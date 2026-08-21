@@ -60,20 +60,10 @@ pub fn validate(registry: &ArmRegistry) -> impl Iterator<Item = CadenceError> {
             "ceiling: 0.50 — le défaut de tout run de ce projet",
         ));
     }
-    if registry.traces.is_some() {
-        faults.push(CadenceError::file(
-            CadenceErrorKind::DeferredKey,
-            "traces: · clé du round 2 — elle attend un manque mesuré",
-            "retire-la · la rétention demeure aux 3 variables d env pour l instant",
-        ));
-    }
-    if registry.registry.is_some() {
-        faults.push(CadenceError::file(
-            CadenceErrorKind::DeferredKey,
-            "registry: · clé du round 2 — elle attend un manque mesuré",
-            "retire-la · le plancher de provenance demeure par machine pour l instant",
-        ));
-    }
+    // `traces:` and `registry:` are NOT judged here — they are the project
+    // reader's rungs (`nika_vocab::project`), admitted opaque by the
+    // grammar so the two readers of one file never disagree about a key
+    // only one of them owns.
     let mut seen: Vec<&str> = Vec::new();
     for beat in registry.beats() {
         validate_beat(beat, &mut faults);
