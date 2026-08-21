@@ -65,6 +65,15 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Fixed
 
+- **`nika check` names the line of a PARSE refusal.** A CONFORM finding
+  already carried a rustc-grade frame (`path:line:col` + caret). A PARSE
+  finding — `NIKA-PARSE-017` duplicate key, `NIKA-PARSE-005` unknown
+  field, any span the parser held — printed the code and left the author
+  to find the site. Duplicate keys are the worst of that class: the
+  message says `"a" appears twice`, so grepping `a:` returns both, and
+  neither is wrong on its own. The colliding key's span was in the
+  loader's hand and discarded (`span: None`). It now rides the same
+  frame CONFORM uses, under the same `PARSE ✗` first line.
 - **`nika arm` no longer refuses a project that sets its retention or its
   provenance floor.** Two readers parse `nika.yaml` — the project reader
   (`ceiling` · `traces.keep` · `registry.floor` · `arm`) and the cadence

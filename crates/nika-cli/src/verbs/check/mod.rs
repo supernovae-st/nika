@@ -478,13 +478,17 @@ fn naming_note(text: &mut String, theme: Theme, path: &str, wf: &nika_schema::ra
 /// `--json` parse-fatal verdict: one findings row, `parse_fatal: true`.
 fn parse_fatal_json(out: &VerbOutput) -> VerbOutput {
     let text = out.text.trim();
-    // The plain voice is `PARSE ✗  [NIKA-…] message` — recover the code;
-    // an env-class refusal (unreadable file) has no code and stays codeless.
-    let code = text
+    // The plain voice is `PARSE ✗  [NIKA-…] message` on the FIRST line;
+    // a span-carrying refusal (#1075) appends a rustc-grade frame under
+    // it. Scrape the diagnostic line only — the frame is human, not
+    // the finding's message.
+    // An env-class refusal (unreadable file) has no code and stays codeless.
+    let line = text.lines().next().unwrap_or(text);
+    let code = line
         .split_once('[')
         .and_then(|(_, rest)| rest.split_once(']'))
         .map(|(code, _)| code.to_owned());
-    let message = text.split_once("] ").map_or(text, |(_, m)| m).to_owned();
+    let message = line.split_once("] ").map_or(line, |(_, m)| m).to_owned();
     let mut finding = serde_json::json!({
         "kind": "parse",
         "gate": "PARSE",

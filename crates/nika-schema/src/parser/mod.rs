@@ -93,6 +93,14 @@ pub fn parse(yaml: &str, file_id: FileId, mode: ParseMode) -> Result<RawWorkflow
     // indentation level, so BOTH bounds must precede it.
     check_source_bounds(yaml)?;
 
+    // Char-to-byte translation table: marked-yaml reports character
+    // (code-point) indices, but `ByteOffset` — and every miette
+    // `SourceSpan` downstream — wants byte offsets. Built BEFORE the
+    // loader so a DuplicateKey (which the loader reports with both
+    // keys' spans) can keep the colliding site instead of discarding
+    // it (#1075). Precompute once per parse so each span lookup is O(1).
+    let char_to_byte = CharToByte::new(yaml)?;
+
     // YAML 1.2 forbids duplicate mapping keys from silently last-winning
     // — `error_on_duplicate_keys` turns them into loud errors (covers
     // vars/env/secrets/outputs/with/output duplicate-key detection).
@@ -108,7 +116,10 @@ pub fn parse(yaml: &str, file_id: FileId, mode: ParseMode) -> Result<RawWorkflow
                     "\"{}\" appears twice in the same mapping",
                     inner.key.as_str()
                 ),
-                span: None,
+                // The colliding key (not the first, which was legal
+                // until this one arrived) — grepping the name returns
+                // both sites; the span names the one to delete.
+                span: yaml_span_to_span(file_id, inner.key.span(), &char_to_byte),
             },
             // Pre-parse cause lint (the copy-fidelity class · #323): a weak
             // copier de-comments the editor modeline and YAML reads the bare
@@ -132,12 +143,6 @@ pub fn parse(yaml: &str, file_id: FileId, mode: ParseMode) -> Result<RawWorkflow
                 },
             },
         })?;
-
-    // Char-to-byte translation table: marked-yaml reports character
-    // (code-point) indices, but `ByteOffset` — and every miette
-    // `SourceSpan` downstream — wants byte offsets. Precompute once
-    // per parse so each span lookup is O(1).
-    let char_to_byte = CharToByte::new(yaml)?;
 
     let mapping = node.as_mapping().ok_or_else(|| SchemaError::Validation {
         message: "workflow root must be a YAML mapping".to_owned(),
@@ -996,8 +1001,22 @@ tasks:
     #[test]
     fn duplicate_top_level_keys_error() {
         // YAML 1.2 · duplicate keys never silently last-win.
-        let err = parse_strict("nika: first\nnika: second\n").expect_err("dup");
-        assert!(matches!(err, SchemaError::DuplicateKey { .. }), "{err:?}");
+        // The second site is the one the author can act on — the first is
+        // legal until the collision arrives. A span-less PARSE finding
+        // (#1075) left both keys looking equally wrong, and the layer
+        // that knew the answer discarded it.
+        let yaml = "nika: first\nnika: second\n";
+        let err = parse_strict(yaml).expect_err("dup");
+        let SchemaError::DuplicateKey { message, span } = err else {
+            panic!("expected DuplicateKey, got {err:?}");
+        };
+        assert!(message.contains("\"nika\" appears twice"), "{message}");
+        let span = span.expect("the colliding key carries a span");
+        let second = yaml.rfind("nika:").expect("second key");
+        assert_eq!(
+            span.start.0 as usize, second,
+            "span starts on the colliding key, not the first"
+        );
     }
 
     #[test]

@@ -82,7 +82,7 @@ pub(crate) fn load_checked_run_source(
     source: &RunSource,
 ) -> Result<(RawWorkflow, CheckReport), VerbOutput> {
     let wf = nika_schema::parse(source.source(), FileId::new(0), ParseMode::Strict)
-        .map_err(|error| schema_refusal(&error))?;
+        .map_err(|error| schema_refusal(&error, source))?;
     // The composed lane (spec 14): child targets resolve against the
     // file the operator named; the fs edge is the skills reader's twin.
     let mut report = nika_check::check_composed(&wf, source.logical_path(), &mut |p| {
@@ -94,8 +94,26 @@ pub(crate) fn load_checked_run_source(
 
 /// The single CLI sink for every schema-facing refusal, whether acquisition
 /// rejected the encoding or the parser rejected the decoded workflow.
-fn schema_refusal(error: &SchemaError) -> VerbOutput {
-    VerbOutput::file(format!("PARSE ✗  {}", error.diagnostic()))
+///
+/// When the error carries a span, the same rustc-grade frame CONFORM
+/// findings already print rides under the PARSE line — the parser had
+/// the site; dropping it made PARSE look vaguer than CONFORM (#1075).
+fn schema_refusal(error: &SchemaError, source: &RunSource) -> VerbOutput {
+    let mut text = format!("PARSE ✗  {}", error.diagnostic());
+    if let Some(span) = error.span() {
+        let frame = crate::display::snippet::paint_span(
+            source.source(),
+            source.logical_path(),
+            nika_check::ByteSpan::new(span.start.0, span.end.0),
+            crate::display::theme::Theme::new(false, true, false),
+        );
+        let frame = frame.trim_end();
+        if !frame.is_empty() {
+            text.push('\n');
+            text.push_str(frame);
+        }
+    }
+    VerbOutput::file(text)
 }
 
 /// Stamp the judged-vs-booted binding (F-P2): the report records the
@@ -340,9 +358,76 @@ mod tests {
             .expect_err("a task with two verbs must fail to parse");
         std::fs::remove_file(&path).ok();
         assert_eq!(err.code, exit::FILE, "{}", err.text);
+        let first = err.text.lines().next().expect("a diagnostic line");
         assert_eq!(
-            err.text,
+            first,
             "PARSE ✗  [NIKA-PARSE-009] task `a` has multiple verbs (infer, exec) — exactly one required · → nika explain NIKA-PARSE-009"
+        );
+        let stem = path.file_name().expect("name").to_string_lossy();
+        assert!(
+            err.text.contains(&format!("{stem}:")),
+            "a span-carrying PARSE names the task site:\n{}",
+            err.text
+        );
+    }
+
+    /// #1075 · a PARSE finding that the parser located must name the
+    /// site. Duplicate keys are the worst of the class: the message
+    /// says `"a" appears twice`, so grepping `a:` returns both, and
+    /// neither is wrong on its own. The colliding key is the one the
+    /// author can delete.
+    #[test]
+    fn parse_fatal_duplicate_key_names_the_colliding_site() {
+        let path = std::env::temp_dir().join(format!("nika-dup-{}.nika.yaml", std::process::id(),));
+        std::fs::write(
+            &path,
+            "nika: dup\ntasks:\n  a:\n    exec: { command: [true] }\n  a:\n    exec: { command: [true] }\n",
+        )
+        .expect("fixture written");
+        let display = path.to_str().expect("utf-8 tmp path");
+        let err = load_checked(display).expect_err("duplicate task key must fail to parse");
+        std::fs::remove_file(&path).ok();
+        assert_eq!(err.code, exit::FILE, "{}", err.text);
+        assert!(
+            err.text.starts_with(
+                "PARSE ✗  [NIKA-PARSE-017] duplicate key: \"a\" appears twice in the same mapping"
+            ),
+            "the diagnostic line stays grep-stable:\n{}",
+            err.text
+        );
+        let stem = path.file_name().expect("name").to_string_lossy();
+        assert!(
+            err.text.contains(&format!("{stem}:")),
+            "the colliding site is named as path:line:\n{}",
+            err.text
+        );
+    }
+
+    /// #1075 · PARSE-005 already carries a span on the error. The
+    /// parse-fatal sink used to drop it, so the most common newcomer
+    /// typo (`temperture`) named the field and not the line.
+    #[test]
+    fn parse_fatal_unknown_field_names_the_key() {
+        let path = std::env::temp_dir().join(format!("nika-unk-{}.nika.yaml", std::process::id(),));
+        std::fs::write(
+            &path,
+            "nika: x\ntasks:\n  t:\n    infer:\n      prompt: hi\n      temperture: 0.1\n",
+        )
+        .expect("fixture written");
+        let display = path.to_str().expect("utf-8 tmp path");
+        let err = load_checked(display).expect_err("unknown field must fail to parse");
+        std::fs::remove_file(&path).ok();
+        assert_eq!(err.code, exit::FILE, "{}", err.text);
+        assert!(
+            err.text.contains("[NIKA-PARSE-005]"),
+            "coded:\n{}",
+            err.text
+        );
+        let stem = path.file_name().expect("name").to_string_lossy();
+        assert!(
+            err.text.contains(&format!("{stem}:")),
+            "the unknown key is named as path:line:\n{}",
+            err.text
         );
     }
 
