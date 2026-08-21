@@ -174,11 +174,6 @@ PATTERNS = [
         "evidence": "per-decision records authored at decision time (scripts/adr/new.sh scaffolds · adr-seal-check hook seals); index.toml excepted in files:",
     },
     {
-        "glob": "docs/testimonials/**",
-        "class": "testimonial",
-        "evidence": "privacy-sanitized machine receipts captured from complete verification runs; their validator binds the tested commit, pre-run census, invocation, input blobs, accounting, and artifact hashes",
-    },
-    {
         "glob": "docs/**",
         "class": "authored",
         "evidence": "crate-specs · architecture prose · perf notes — no generation markers at file heads",
