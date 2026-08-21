@@ -1274,7 +1274,9 @@ pub fn journal_snapshot_matches(anchor: Option<&str>, journals: &[(&str, &str, b
         .map(|(name, text, _)| (*name, *text))
         .collect();
     if format == Some(JournalFormat::Versioned) {
-        if !archive_commitment_matches(live, &archives) {
+        if scan_chain(live).2 != live.lines().count()
+            || !archive_commitment_matches(live, &archives)
+        {
             return false;
         }
     } else if !archives.is_empty() {

@@ -62,12 +62,13 @@ ordered bundle before consuming it; changed archive history fails closed.
 Every sidecar component and child file is opened no-follow relative to a held
 directory descriptor. Live-history, archive, beat-directory, and lock symlinks
 refuse; a visible path replacement after the claim cannot redirect its receipt.
-Before claiming, the firer reads the workflow once, hashes those exact bytes,
-writes a read-only private snapshot, and runs that snapshot. An unreadable or
-symlink source refuses before any claim; later edits cannot make execution and
-the attested generation disagree. Receipt construction is typed and claim-bound,
-and a corrupt replay is an ENV refusal in reports and `serve`, never
-`DÉCLARÉ`/never-fired fallback.
+Before claiming, the firer captures the workflow bytes once in memory and hashes
+that immutable source. Check and execution consume those same bytes while the
+declared workflow path remains their logical base for relative children and
+skills. An unreadable or symlink source refuses before any claim; later edits
+cannot make execution and the attested generation disagree. Receipt construction
+is typed and claim-bound, and a corrupt replay is an ENV refusal in reports and
+`serve`, never `DÉCLARÉ`/never-fired fallback.
 
 ## 3. The `display` module — the render architecture
 

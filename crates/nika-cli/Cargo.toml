@@ -28,7 +28,6 @@ clap        = { workspace = true }                             # verb tree (comp
 clap_complete = { workspace = true }                           # `nika completions <shell>` (spec §9)
 serde_json  = { workspace = true }                             # trace NDJSON parse · --json surfaces
 nix         = { workspace = true, features = ["fs"] }          # kernel advisory leases + stdout→stderr fold
-tempfile    = { workspace = true }                              # immutable arm run snapshot: execute the exact bytes pinned by the claim
 # The `nika run` composer (verbs/run/compose.rs · the verb/agent/effect
 # crates) descended to `nika_runtime::compose` 2026-07-22 (the 15k wall —
 # compute descends, render stays); what remains below is what the CLI's own
@@ -77,6 +76,7 @@ path = "src/main.rs"
 
 [dev-dependencies]
 # Test-only seams: the mocks the e2e pipeline + the run-verb tests inject.
+tempfile       = { workspace = true }                              # isolated filesystem fixtures across the CLI test estate
 minisign       = { workspace = true }                              # the tier tests' keypair fixtures + the memory-fold teardown test (custody lives in nika-dap)
 blake3         = { workspace = true }                              # the memory e2e's independent set-digest recompute (H13 fold shape)
 nika-store       = { path = "../nika-store", version = "0.112.0" }  # F-P8 signed memory — the teardown fold test + the e2e's seeded store

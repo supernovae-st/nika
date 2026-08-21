@@ -84,47 +84,8 @@ use nika_schema::raw::RawWorkflow;
 use crate::Theme;
 use crate::verbs::exit;
 
-/// `nika run <file>` — the verb (spec §4 exit contract).
-///
-/// Streams the run to stdout (live fold · or NDJSON under `--json`) and
-/// returns the exit code: `0` ok · `1` workflow failed · `2` file
-/// findings (audit-before-run · the dirty report never executes) · `3`
-/// environment (unreadable file · TLS init · a system contract breach).
-///
-/// `model_override` — when `Some(m)`, `m` REPLACES the workflow envelope's
-/// `model:` as the resolved default (so `try … --model mock/echo`
-/// previews offline). It travels the SAME composition path as an envelope
-/// model, so a bad id fails loud identically (the registry surfaces its
-/// typed error when an infer/agent task actually resolves it).
-///
-/// `vars` — the repeatable `--var KEY=VALUE` overrides (F4): each key must
-/// be a declared workflow var (unknown keys are refused · exit 3); values
-/// override a `default:` and satisfy a `required: true` var.
-///
-/// `resume` — `--resume <trace>` (ADR-099): fold the prior run's NDJSON
-/// journal into a skip plan; the runtime recomputes each task's identity
-/// and skips iff BOTH hashes match (visible `task_cache_hit` · never
-/// silent). `--from <task_id>` forces a subtree to re-run.
-///
-/// `no_trace_file` — skip the run journal (`.nika/traces/` · spec §3.3):
-/// `--no-trace-file` / `NIKA_NO_TRACE_FILE` opt out; `try`
-/// disables it too (a staged temp-file run is not a workspace run).
-// Ten independent CLI parameters ARE the clap surface — the same idiom
-// as TraceArgs' four bools, not a state machine to encode in a struct.
-/// `no_outputs` — `--no-outputs` (the comprehension pass): suppress the
-/// shape tails on the Live storyboard. Only the interactive TTY surface
-/// ever grows tails — pipes · CI · the machine modes stay byte-unchanged
-/// with or without the flag.
-///
-/// `no_gc` — `--no-gc` (ADR-100 D2): skip the opportunistic trace
-/// collection for this invocation. Retention otherwise rides every run
-/// start (bounded by default · no daemon).
-/// Opportunistic trace GC (ADR-100 D2) — maintenance rides usage. Before
-/// the run · `--no-gc` skips · `--dry-run` never collects (plan only ·
-/// zero effects) · fail-open (a broken collection never blocks a run). A
-/// collection that removed anything speaks EXACTLY ONE stderr line —
-/// silent deletion is forbidden, and stderr keeps the machine surfaces
-/// (`--json` · `--output json` stdout) byte-frozen.
+/// Opportunistic bounded trace collection. Dry-run and explicit opt-out are
+/// effect-free; maintenance failure never blocks workflow execution.
 fn run_start_gc(no_gc: bool, dry_run: bool) {
     if let Some(line) = nika_cli_host::retention::gc_at_run_start(
         std::path::Path::new(nika_dap::store::TRACE_DIR),
@@ -173,6 +134,13 @@ impl RunVerdict {
             trace: None,
         }
     }
+
+    fn renderer_failed(trace: Option<std::path::PathBuf>) -> Self {
+        Self {
+            trace,
+            ..Self::bare(exit::ENV)
+        }
+    }
 }
 
 fn first_failure(outcome: &RunOutcome) -> Option<nika_runtime::TaskErrorRecord> {
@@ -183,7 +151,10 @@ fn first_failure(outcome: &RunOutcome) -> Option<nika_runtime::TaskErrorRecord> 
         .and_then(|r| r.error.clone())
 }
 
-// Fifteen independent CLI parameters ARE the clap surface (the TraceArgs idiom).
+/// Execute one checked workflow through the production runtime and stream its
+/// selected human or machine surface. Returns the spec exit code: success,
+/// workflow failure, file findings, environment refusal, or pause.
+// Fifteen independent parameters are the clap surface (the TraceArgs idiom).
 #[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
 #[must_use]
 pub fn run(
@@ -277,6 +248,24 @@ fn preflight(
     Ok((output_json, max_cost_usd))
 }
 
+fn capture_checked_source(
+    file: &str,
+    captured: Option<crate::verbs::RunSource>,
+    output_json: bool,
+) -> Result<(crate::verbs::RunSource, RawWorkflow, CheckReport), Box<RunVerdict>> {
+    let source = captured
+        .map_or_else(|| crate::verbs::RunSource::capture(file), Ok)
+        .map_err(|out| {
+            epilogue::emit_diagnostic(&refusal_text(&out), output_json);
+            Box::new(RunVerdict::bare(out.code))
+        })?;
+    let (wf, report) = crate::verbs::load_checked_run_source(&source).map_err(|out| {
+        epilogue::emit_diagnostic(&refusal_text(&out), output_json);
+        Box::new(RunVerdict::bare(out.code))
+    })?;
+    Ok((source, wf, report))
+}
+
 #[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
 #[must_use]
 fn run_verdict(
@@ -303,30 +292,15 @@ fn run_verdict(
         Ok(pair) => pair,
         Err(verdict) => return *verdict,
     };
-    let source = match captured.map_or_else(|| crate::verbs::RunSource::capture(file), Ok) {
-        Ok(source) => source,
-        Err(out) => {
-            // Machine mode: diagnostics ride stderr so a `capture: stdout`
-            // consumer never mistakes them for the JSON result.
-            epilogue::emit_diagnostic(&refusal_text(&out), output_json);
-            return RunVerdict::bare(out.code);
-        }
+    let (source, wf, report) = match capture_checked_source(file, captured, output_json) {
+        Ok(checked) => checked,
+        Err(verdict) => return *verdict,
     };
     let file = source.logical_path();
-    // ── Audit BEFORE run (spec §3 · INV the runtime also enforces) ──
-    let (wf, report) = match crate::verbs::load_checked_run_source(&source) {
-        Ok(pair) => pair,
-        Err(out) => {
-            epilogue::emit_diagnostic(&refusal_text(&out), output_json);
-            return RunVerdict::bare(out.code);
-        }
-    };
     let source_text = source.source();
-
     if require_signature && let Err(code) = require_signature_gate(file, output_json) {
         return RunVerdict::bare(code);
     }
-    // ── `--task` scope + clean/skills gates + `--var` overrides ─────
     let (wf, report, skills) =
         match scoped_clean_gate(wf, report, task_filter, &source, json, theme, output_json) {
             Ok(triple) => triple,
@@ -336,24 +310,16 @@ fn run_verdict(
         Ok(map) => map,
         Err(code) => return RunVerdict::bare(code),
     };
-
-    // ── Dry-run (spec §10 · "plan only · zero effects") ─────────────
     if dry_run {
         return RunVerdict::bare(dry_run_verdict(file, &wf, &report, json, theme));
     }
-
-    // ── `--max-cost-usd` preflight — BEFORE any spend (budget.rs) ──
     if let Err(code) = budget::preflight(&wf, &report, model_override, max_cost_usd, output_json) {
         return RunVerdict::bare(code);
     }
-
-    // ── `--resume` / `--answer` (ADR-099) — plan + answers up front ──
     let setup = match resume_setup(resume, &wf, source_text, model_override, output_json) {
         Ok(setup) => setup,
         Err(code) => return RunVerdict::bare(code),
     };
-
-    // ── Compose the production runtime (real seams · env keys) ──────
     let runtime = match composed_runtime(
         &wf,
         (file, source_text),
@@ -369,10 +335,7 @@ fn run_verdict(
         Ok(rt) => rt,
         Err(code) => return RunVerdict::bare(code),
     };
-
     announce_access_pin(access_pin, (json, output_json), mode, &report);
-
-    // ── Execute + the terminal ask (extracted · the fn-length wall) ──
     execute_and_ask(
         &runtime,
         (file, source_text),
@@ -1131,7 +1094,7 @@ async fn execute_output_json_lane(
         let message = format!("render failed: {e}");
         eprintln!("nika run: {message}");
         println!("{}", epilogue::error_envelope_line(&message));
-        return RunVerdict::bare(exit::ENV);
+        return RunVerdict::renderer_failed(trace_path);
     }
     match verdict_line {
         Some(line) => println!("{line}"),
@@ -1191,7 +1154,7 @@ async fn execute_json_lane(
     }
     if let Some(e) = sink.into_error() {
         eprintln!("nika run: stream write failed: {e}");
-        return RunVerdict::bare(exit::ENV);
+        return RunVerdict::renderer_failed(trace_path);
     }
     epilogue::print_resume_summary(&outcome, resumed, true);
     RunVerdict {
@@ -1351,7 +1314,7 @@ fn fold_lane_verdict(
     epilogue::print_resume_summary(outcome, resumed, false);
     if let Some(e) = sink.take_error() {
         eprintln!("nika run: render failed: {e}");
-        return RunVerdict::bare(exit::ENV);
+        return RunVerdict::renderer_failed(trace_path);
     }
     // The fold lane hands the pause up: the terminal ask continues the
     // run in-process over this trace.

@@ -442,6 +442,31 @@ fn rotation_is_only_the_first_null_predecessor_lifecycle_event() {
 }
 
 #[test]
+fn snapshot_rejects_an_invalid_suffix_beyond_a_lagging_head() {
+    let (first, first_hash) = line(1, "disarmed", None, r#"{"slot":null}"#, None);
+    let payload = r#"{"from":"history-w2.ndjson","lines":1,"archives":1,"archives_sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}"#;
+    let (invalid_rotation, _) = unchecked_ledger_line(
+        2,
+        ts("2026-08-19T03:03:00Z"),
+        "rotated",
+        None,
+        payload,
+        Some(&first_hash),
+    );
+    let live = format!("{first}\n{invalid_rotation}\n");
+    let lagging_head = render_chain_anchor(1, Some(&first_hash)).expect("head");
+
+    assert!(
+        chain_anchor_matches(&live, Some(&lagging_head)),
+        "a head may intentionally lag a longer fully verified chain"
+    );
+    assert!(
+        !journal_snapshot_matches(Some(&lagging_head), &[("history.ndjson", &live, true)]),
+        "snapshot validation must reject invalid bytes after that head"
+    );
+}
+
+#[test]
 fn sequence_one_rotation_still_requires_a_null_predecessor() {
     let payload = r#"{"from":"history-w2.ndjson","lines":1,"archives":1,"archives_sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}"#;
     let foreign = "b".repeat(64);
