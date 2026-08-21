@@ -25,6 +25,15 @@
 # Exit: 0 the commit may proceed · 1 a coverage hole the author must fix.
 set -uo pipefail
 
+# Self-installing. `.gitattributes` marks estate.yaml `merge=ours`, and
+# that attribute is inert unless a driver by that name exists in git
+# config. Registering it HERE — on a hook that already runs on every
+# commit — means no clone, and no new contributor, has to remember a
+# setup step. A fix that needs a gesture each time is not a fix.
+if [ "$(git config --get merge.ours.driver 2>/dev/null)" != "true" ]; then
+  git config merge.ours.driver true 2>/dev/null || true
+fi
+
 out="$(python3 scripts/estate.py --check 2>&1)"
 rc=$?
 

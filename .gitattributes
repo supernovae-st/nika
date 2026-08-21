@@ -1,0 +1,24 @@
+# estate.yaml is a GENERATED whole-tree projection. It carries 22
+# aggregate sha256 lines, one per glob, and EACH is rewritten by any
+# change to any file inside that glob. Two branches that share no source
+# file therefore rewrite the same lines, which is why every pair of
+# concurrent pull requests collided here — four of them on 2026-08-20,
+# with `git merge-tree` reporting nine source files at zero collisions
+# and this one file as the only overlap.
+#
+# A textual merge of two aggregate hashes is not merely awkward, it is
+# MEANINGLESS: the blend describes a tree that never existed. `merge=ours`
+# keeps one real previous manifest instead of inventing a false one.
+#
+# That is safe because the two properties were split (2026-08-21):
+#   COVERAGE  recomputed fresh, BLOCKS in CI — a stale manifest cannot
+#             hide a path no rule classifies.
+#   FRESHNESS proven at TAG time — release.yml refuses a tag whose tree
+#             does not match its manifest.
+# The merge result only has to be a valid EARLIER manifest, never a
+# correct one; correctness is re-established where it is the deliverable.
+#
+# The `ours` driver is registered automatically by
+# scripts/hooks/estate-gate.sh, which already runs on every commit — a
+# fix that needs a per-clone gesture is not a fix.
+/estate.yaml merge=ours
