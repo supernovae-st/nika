@@ -385,6 +385,25 @@ fn clean_verdict(
     Ok(format!("{verdict}\n{rows}"))
 }
 
+/// Derive the repair hand-offs from the report's serialized finding surface.
+/// A sorted set gives stable order and one action per code even when several
+/// findings share a class (for example both missing envelope fields).
+fn finding_next_actions(payload: &Value) -> Value {
+    let codes = payload
+        .get("findings")
+        .and_then(Value::as_array)
+        .into_iter()
+        .flatten()
+        .filter_map(|finding| finding.get("code").and_then(Value::as_str))
+        .collect::<std::collections::BTreeSet<_>>();
+    Value::Array(
+        codes
+            .into_iter()
+            .map(|code| Value::String(format!("nika explain {code}")))
+            .collect(),
+    )
+}
+
 fn check(args: &Value) -> Result<String, String> {
     let yaml = args
         .get("workflow")
@@ -439,6 +458,7 @@ fn check(args: &Value) -> Result<String, String> {
     // dropping 9 classes · a model can parse the JSON + repair from it).
     let mut payload = serde_json::to_value(&report)
         .map_err(|e| format!("check report serialization failed: {e}"))?;
+    let next_actions = finding_next_actions(&payload);
     if let Some(obj) = payload.as_object_mut() {
         // The same keys the CLI --json lane carries — the two machine
         // lanes must not disagree (the is_clean mirror law).
@@ -464,6 +484,7 @@ fn check(args: &Value) -> Result<String, String> {
             );
         }
         nika_check::stamp_paid_ready(obj, &report.hints);
+        obj.insert("next_actions".to_owned(), next_actions);
     }
     let detail = serde_json::to_string_pretty(&payload)
         .map_err(|e| format!("check report serialization failed: {e}"))?;
@@ -891,9 +912,66 @@ mod tests {
         assert!(err.contains("findings") && err.contains("NIKA-"), "{err}");
     }
 
+    fn dirty_payload(workflow: &str) -> (String, Value) {
+        let error =
+            execute("nika_check", &json!({ "workflow": workflow })).expect_err("fixture is dirty");
+        let json_start = error.find('{').expect("the full report rides the error");
+        let payload = serde_json::from_str(&error[json_start..]).expect("valid report JSON");
+        (error, payload)
+    }
+
+    #[test]
+    fn empty_source_names_its_deduplicated_explain_action_exactly() {
+        let (error, payload) = dirty_payload("");
+        assert_eq!(
+            payload["next_actions"],
+            json!(["nika explain NIKA-PARSE-002"]),
+            "{payload:#}"
+        );
+        assert_eq!(
+            error.matches("nika explain NIKA-PARSE-002").count(),
+            1,
+            "duplicate findings must not duplicate the next action: {error}"
+        );
+    }
+
+    #[test]
+    fn dirty_actions_match_the_distinct_serialized_codes_one_for_one() {
+        let wf = "nika: t\ntasks:\n  a:\n    after: { ghost: success }\n    exec: { command: [\"x\"] }\n  b:\n    with:\n      x: ${{ tasks.ghost.output }}\n      y: ${{ tasks.ghost.output }}\n    exec: { command: [\"x\"] }\n";
+        let (_, payload) = dirty_payload(wf);
+        let mut codes = payload["findings"]
+            .as_array()
+            .expect("aggregated findings")
+            .iter()
+            .filter_map(|finding| finding["code"].as_str())
+            .collect::<Vec<_>>();
+        let finding_count = codes.len();
+        codes.sort_unstable();
+        codes.dedup();
+        let expected = codes
+            .iter()
+            .map(|code| format!("nika explain {code}"))
+            .collect::<Vec<_>>();
+
+        assert!(
+            codes.len() >= 2,
+            "fixture must carry multiple codes: {payload:#}"
+        );
+        assert!(
+            finding_count > codes.len(),
+            "fixture must carry a duplicate code: {payload:#}"
+        );
+        assert_eq!(payload["next_actions"], json!(expected), "{payload:#}");
+    }
+
     #[test]
     fn check_missing_arg_is_a_tool_error() {
-        assert!(execute("nika_check", &json!({})).is_err());
+        let error = execute("nika_check", &json!({})).expect_err("workflow source is required");
+        assert_eq!(error, "missing `workflow` (the *.nika.yaml source)");
+        assert!(
+            !error.contains("nika explain"),
+            "no source means no code: {error}"
+        );
     }
 
     #[test]
