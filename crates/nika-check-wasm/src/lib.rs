@@ -160,10 +160,9 @@ pub fn engine_version() -> String {
 pub fn check(source: &str) -> String {
     let wf = match parse(source, FileId::new(0), ParseMode::Strict) {
         Ok(wf) => wf,
-        Err(e) => {
-            let (kind, gate) = kind_and_gate(&e);
-            return verdict(false, &[finding_row(kind, gate, source, &e)]);
-        }
+        // CLI `parse_fatal_json` always stamps PARSE, even when the
+        // spec code is not `NIKA-PARSE-*` (DAG-005 unknown predicate).
+        Err(e) => return verdict(false, &[finding_row("parse", "PARSE", source, &e)]),
     };
     match nika_check::analyze(&wf) {
         Ok(_) => verdict(true, &[]),
