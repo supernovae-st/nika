@@ -1,0 +1,547 @@
+{
+  "schema": "nika.mutation-testimonial.start.v2",
+  "captured_at": "2026-08-21T06:16:31.452057Z",
+  "tested_commit": "65300b252322199705f46113c6c2d18f1174ed07",
+  "tested_tree": "bb7f629da770435208edd8e9c6a48cf24cad873b",
+  "expected_receipt_parent": "65300b252322199705f46113c6c2d18f1174ed07",
+  "run_id": "arm-w7-5ec59c16-77af-49cc-8168-5f1ff38acf9f",
+  "scope": "non-runtime pre-run evidence infrastructure child: testimonial files, validator, estate classification rule and self-test, and derived estate projection; no crates/**, Rust tests, Cargo manifests/lock/config, .cargo, or rust-toolchain blobs",
+  "baseline": {
+    "origin_main": "b3f71ba18b0d3f47754e025d3d759c8dd43d9967",
+    "remote_pr_head": "06206e699062fc03a0707fd3fdbafb22aa6ef617"
+  },
+  "tools": {
+    "cargo_mutants": {
+      "invoked_path_sha256": "850f2d022e530607d46b363226651b73d4f0851160029cf3da56b29b8d0aa2dc",
+      "invoked_kind": "regular",
+      "invoked_size": 8129008,
+      "symlink_target_sha256": null,
+      "command_cwd": {
+        "logical": "/tmp/nika-pr1079-mutants-65300b25",
+        "canonical_sha256": "9c761db029c58b8cb2f0475148b7c4c7d469bbe232e3d9b8af0de7cab5636461"
+      },
+      "proxy_sha256": "b6d1fbc11b457708885566d7b0a67259e291ae3d105da65ffa9b31219fc0c683",
+      "proxy_version": "cargo-mutants 27.0.0",
+      "selected_sha256": null,
+      "selected_version": null,
+      "selection_launcher_sha256": null
+    },
+    "rustup": {
+      "invoked_path_sha256": "44d3617131ee848f191e7471e13af1343162d708f176664019689c98b68dbeb8",
+      "invoked_kind": "regular",
+      "invoked_size": 11053296,
+      "symlink_target_sha256": null,
+      "command_cwd": {
+        "logical": "/tmp/nika-pr1079-mutants-65300b25",
+        "canonical_sha256": "9c761db029c58b8cb2f0475148b7c4c7d469bbe232e3d9b8af0de7cab5636461"
+      },
+      "proxy_sha256": "aeb4105778ca1bd3c6b0e75768f581c656633cd51368fa61289b6a71696ac7e1",
+      "proxy_version": "rustup 1.29.0 (28d1352db 2026-03-05)",
+      "selected_sha256": null,
+      "selected_version": null,
+      "selection_launcher_sha256": null
+    },
+    "cargo": {
+      "invoked_path_sha256": "84b2f3a5afbbb393874547acbd07e5700d9d88122ed60aab77de4f25f71f3701",
+      "invoked_kind": "symlink",
+      "invoked_size": 6,
+      "symlink_target_sha256": "4d4240a2162a3fa435078c60eac770175d6179a28dcac8972411336997b361a2",
+      "command_cwd": {
+        "logical": "/tmp/nika-pr1079-mutants-65300b25",
+        "canonical_sha256": "9c761db029c58b8cb2f0475148b7c4c7d469bbe232e3d9b8af0de7cab5636461"
+      },
+      "proxy_sha256": "aeb4105778ca1bd3c6b0e75768f581c656633cd51368fa61289b6a71696ac7e1",
+      "proxy_version": "cargo 1.91.1 (ea2d97820 2025-10-10)",
+      "selected_sha256": "696d29bd6f5a136ef6c7088558e178efcabbd571de90e8169d0f6596c568eea8",
+      "selected_version": "cargo 1.91.1 (ea2d97820 2025-10-10)",
+      "selection_launcher_sha256": "44d3617131ee848f191e7471e13af1343162d708f176664019689c98b68dbeb8"
+    },
+    "rustc": {
+      "invoked_path_sha256": "b8907aafed475ea49f3474080f1c4212f044744cf1481a2d52233fbbc1fd601a",
+      "invoked_kind": "symlink",
+      "invoked_size": 6,
+      "symlink_target_sha256": "4d4240a2162a3fa435078c60eac770175d6179a28dcac8972411336997b361a2",
+      "command_cwd": {
+        "logical": "/tmp/nika-pr1079-mutants-65300b25",
+        "canonical_sha256": "9c761db029c58b8cb2f0475148b7c4c7d469bbe232e3d9b8af0de7cab5636461"
+      },
+      "proxy_sha256": "aeb4105778ca1bd3c6b0e75768f581c656633cd51368fa61289b6a71696ac7e1",
+      "proxy_version": "rustc 1.91.1 (ed61e7d7e 2025-11-07)",
+      "selected_sha256": "f556cd7caa76d85ff0e777ba8e96552b33b4e0ea0dda8fbe6cde1d23b6c4df27",
+      "selected_version": "rustc 1.91.1 (ed61e7d7e 2025-11-07)",
+      "selection_launcher_sha256": "44d3617131ee848f191e7471e13af1343162d708f176664019689c98b68dbeb8"
+    },
+    "python": {
+      "version": "Python 3.14.5"
+    }
+  },
+  "run": {
+    "worktree": "/tmp/nika-pr1079-mutants-65300b25",
+    "cwd": "/tmp/nika-pr1079-mutants-65300b25",
+    "output_dir": "/tmp/nika-pr1079-arm-w7-5ec59c16-77af-49cc-8168-5f1ff38acf9f-output",
+    "temp_root": "/tmp/nika-pr1079-arm-w7-5ec59c16-77af-49cc-8168-5f1ff38acf9f-tmp",
+    "platform_policy": [
+      "darwin",
+      "linux"
+    ],
+    "signal_policy": [
+      "SIGINT",
+      "SIGTERM"
+    ],
+    "environment": {
+      "CARGO_TARGET_DIR": "/tmp/nika-pr1079-arm-w7-5ec59c16-77af-49cc-8168-5f1ff38acf9f-target",
+      "TMPDIR": "/tmp/nika-pr1079-arm-w7-5ec59c16-77af-49cc-8168-5f1ff38acf9f-tmp"
+    },
+    "environment_hashes": [
+      {
+        "name": "PATH",
+        "present": true,
+        "value_sha256": "978ccb439626883d0359f97c0d1f7508a9d5a1725cfc286e85ac6586d323ba6a"
+      },
+      {
+        "name": "HOME",
+        "present": true,
+        "value_sha256": "70c923e3c8819733c9fa10dbf8f98929e58bdcffc20db6b7ce965bd02b5e484e"
+      },
+      {
+        "name": "CARGO_HOME",
+        "present": false,
+        "value_sha256": null
+      },
+      {
+        "name": "RUSTUP_HOME",
+        "present": false,
+        "value_sha256": null
+      },
+      {
+        "name": "RUSTUP_TOOLCHAIN",
+        "present": false,
+        "value_sha256": null
+      },
+      {
+        "name": "TMPDIR",
+        "present": true,
+        "value_sha256": "1c1b8a06f64625011df1553ebc12bca7ec58875bad98d79d466f819c3caf6d1f"
+      },
+      {
+        "name": "LANG",
+        "present": true,
+        "value_sha256": "99fed2d548c2eb1022f4067f97fe838a2c3ea60ee0e0f53086788505c3ababad"
+      },
+      {
+        "name": "LC_ALL",
+        "present": true,
+        "value_sha256": "99fed2d548c2eb1022f4067f97fe838a2c3ea60ee0e0f53086788505c3ababad"
+      },
+      {
+        "name": "SDKROOT",
+        "present": false,
+        "value_sha256": null
+      },
+      {
+        "name": "DEVELOPER_DIR",
+        "present": false,
+        "value_sha256": null
+      },
+      {
+        "name": "MACOSX_DEPLOYMENT_TARGET",
+        "present": false,
+        "value_sha256": null
+      },
+      {
+        "name": "CARGO_TARGET_DIR",
+        "present": true,
+        "value_sha256": "971b485e9b112c7af1cb3655a8334ff062a27ce7191ec0d9485b9becd83c864e"
+      }
+    ],
+    "cargo_config": {
+      "workspace": {
+        "source": "tested_worktree",
+        "path": ".cargo/config.toml",
+        "git_blob": "f0f014ae1a9ab88e3c1b54df85e0d6925e680423",
+        "sha256": "c6f378a92bd697c9bad21d36f239324b6cf735cbf19764ff71661ccc83d64db9",
+        "shadowed": false
+      },
+      "user": {
+        "source": "HOME/.cargo",
+        "name": null,
+        "sha256": null,
+        "shadowed": false
+      },
+      "external_ancestors_checked": 3,
+      "temp_hierarchy_checked": 4
+    },
+    "argv": [
+      "<CARGO_BIN>",
+      "mutants",
+      "-p",
+      "nika-cadence",
+      "-f",
+      "crates/nika-cadence/src/firing.rs",
+      "-f",
+      "crates/nika-cadence/src/ledger.rs",
+      "-E",
+      "^crates/nika-cadence/src/ledger\\.rs:406:27: replace > with >= in unsettled$",
+      "-o",
+      "/tmp/nika-pr1079-arm-w7-5ec59c16-77af-49cc-8168-5f1ff38acf9f-output",
+      "-j",
+      "1",
+      "--baseline",
+      "run",
+      "--timeout",
+      "300",
+      "--build-timeout",
+      "300",
+      "--",
+      "--lib"
+    ],
+    "wrapper_argv": [
+      "python3",
+      "docs/testimonials/arm-w7-ledger-salvage/validate.py",
+      "run",
+      "--repo",
+      ".",
+      "--receipt-commit",
+      "HEAD"
+    ],
+    "detached_probe": {
+      "head": "65300b252322199705f46113c6c2d18f1174ed07",
+      "tree": "bb7f629da770435208edd8e9c6a48cf24cad873b",
+      "index_tree": "bb7f629da770435208edd8e9c6a48cf24cad873b",
+      "index_clean": true,
+      "worktree_clean": true,
+      "porcelain_v2": "",
+      "porcelain_v2_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "detached_head": true,
+      "symbolic_ref": null
+    },
+    "path_absence_probe": {
+      "checked_at": "2026-08-21T06:16:31.938466Z",
+      "output": {
+        "path": "/tmp/nika-pr1079-arm-w7-5ec59c16-77af-49cc-8168-5f1ff38acf9f-output",
+        "exists": false
+      },
+      "target": {
+        "path": "/tmp/nika-pr1079-arm-w7-5ec59c16-77af-49cc-8168-5f1ff38acf9f-target",
+        "exists": false
+      },
+      "temp_root": {
+        "path": "/tmp/nika-pr1079-arm-w7-5ec59c16-77af-49cc-8168-5f1ff38acf9f-tmp",
+        "exists": false
+      }
+    }
+  },
+  "census": {
+    "argv": [
+      "cargo",
+      "mutants",
+      "--list",
+      "--json",
+      "-p",
+      "nika-cadence",
+      "-f",
+      "crates/nika-cadence/src/firing.rs",
+      "-f",
+      "crates/nika-cadence/src/ledger.rs"
+    ],
+    "artifact": "docs/testimonials/arm-w7-ledger-salvage/census.txt",
+    "sha256": "206380a977aaa626137880bbbd0cb5ce8203f52e55b624671a8a0354ef9fcf5c",
+    "unfiltered_count": 486,
+    "excluded_count": 1,
+    "expected_executed_count": 485
+  },
+  "equivalent_exclusion": {
+    "name": "crates/nika-cadence/src/ledger.rs:406:27: replace > with >= in unsettled",
+    "anchored_regex": "^crates/nika-cadence/src/ledger\\.rs:406:27: replace > with >= in unsettled$",
+    "proof": "The claimed branch continues before receipt collection. Enumerate assigns one unique position per line, so no receipt tuple can share a claim tuple position. For every reachable pair, later > position and later >= position have the same truth value.",
+    "same_span_controls": [
+      "crates/nika-cadence/src/ledger.rs:406:27: replace > with == in unsettled",
+      "crates/nika-cadence/src/ledger.rs:406:27: replace > with < in unsettled"
+    ]
+  },
+  "prior_anomalies": [
+    {
+      "prior_summary": "MissedMutant",
+      "prior_name": "crates/nika-cadence/src/ledger.rs:353:52: replace + with * in unsettled",
+      "current_name": "crates/nika-cadence/src/ledger.rs:353:52: replace + with * in unsettled"
+    },
+    {
+      "prior_summary": "MissedMutant",
+      "prior_name": "crates/nika-cadence/src/ledger.rs:356:17: replace += with *= in unsettled",
+      "current_name": "crates/nika-cadence/src/ledger.rs:356:17: replace += with *= in unsettled"
+    },
+    {
+      "prior_summary": "MissedMutant",
+      "prior_name": "crates/nika-cadence/src/ledger.rs:356:17: replace += with -= in unsettled",
+      "current_name": "crates/nika-cadence/src/ledger.rs:356:17: replace += with -= in unsettled"
+    },
+    {
+      "prior_summary": "MissedMutant",
+      "prior_name": "crates/nika-cadence/src/ledger.rs:362:64: replace == with != in unsettled",
+      "current_name": "crates/nika-cadence/src/ledger.rs:362:64: replace == with != in unsettled"
+    },
+    {
+      "prior_summary": "MissedMutant",
+      "prior_name": "crates/nika-cadence/src/ledger.rs:405:17: delete ! in unsettled",
+      "current_name": "crates/nika-cadence/src/ledger.rs:405:17: delete ! in unsettled"
+    },
+    {
+      "prior_summary": "Timeout",
+      "prior_name": "crates/nika-cadence/src/ledger.rs:754:28: replace == with != in first_line_is_versioned",
+      "current_name": "crates/nika-cadence/src/ledger.rs:757:28: replace == with != in first_line_is_versioned"
+    },
+    {
+      "prior_summary": "Timeout",
+      "prior_name": "crates/nika-cadence/src/ledger.rs:758:5: replace has_ledger_marker -> bool with false",
+      "current_name": "crates/nika-cadence/src/ledger.rs:761:5: replace has_ledger_marker -> bool with false"
+    },
+    {
+      "prior_summary": "Timeout",
+      "prior_name": "crates/nika-cadence/src/ledger.rs:758:5: replace has_ledger_marker -> bool with true",
+      "current_name": "crates/nika-cadence/src/ledger.rs:761:5: replace has_ledger_marker -> bool with true"
+    },
+    {
+      "prior_summary": "Timeout",
+      "prior_name": "crates/nika-cadence/src/ledger.rs:773:5: replace legacy_line_valid -> bool with false",
+      "current_name": "crates/nika-cadence/src/ledger.rs:776:5: replace legacy_line_valid -> bool with false"
+    },
+    {
+      "prior_summary": "Timeout",
+      "prior_name": "crates/nika-cadence/src/ledger.rs:773:5: replace legacy_line_valid -> bool with true",
+      "current_name": "crates/nika-cadence/src/ledger.rs:776:5: replace legacy_line_valid -> bool with true"
+    },
+    {
+      "prior_summary": "Timeout",
+      "prior_name": "crates/nika-cadence/src/ledger.rs:786:9: replace || with && in legacy_line_valid",
+      "current_name": "crates/nika-cadence/src/ledger.rs:789:9: replace || with && in legacy_line_valid"
+    },
+    {
+      "prior_summary": "Timeout",
+      "prior_name": "crates/nika-cadence/src/ledger.rs:791:9: replace || with && in legacy_line_valid",
+      "current_name": "crates/nika-cadence/src/ledger.rs:794:9: replace || with && in legacy_line_valid"
+    },
+    {
+      "prior_summary": "Timeout",
+      "prior_name": "crates/nika-cadence/src/ledger.rs:796:9: replace || with && in legacy_line_valid",
+      "current_name": "crates/nika-cadence/src/ledger.rs:799:9: replace || with && in legacy_line_valid"
+    },
+    {
+      "prior_summary": "Timeout",
+      "prior_name": "crates/nika-cadence/src/ledger.rs:920:50: replace || with && in verify_payload",
+      "current_name": "crates/nika-cadence/src/ledger.rs:927:50: replace || with && in verify_payload"
+    },
+    {
+      "prior_summary": "Timeout",
+      "prior_name": "crates/nika-cadence/src/ledger.rs:921:57: replace == with != in verify_payload",
+      "current_name": "crates/nika-cadence/src/ledger.rs:928:57: replace == with != in verify_payload"
+    },
+    {
+      "prior_summary": "Timeout",
+      "prior_name": "crates/nika-cadence/src/ledger.rs:923:17: replace || with && in verify_payload",
+      "current_name": "crates/nika-cadence/src/ledger.rs:930:17: replace || with && in verify_payload"
+    },
+    {
+      "prior_summary": "Timeout",
+      "prior_name": "crates/nika-cadence/src/ledger.rs:924:21: replace && with || in verify_payload",
+      "current_name": "crates/nika-cadence/src/ledger.rs:931:21: replace && with || in verify_payload"
+    },
+    {
+      "prior_summary": "Timeout",
+      "prior_name": "crates/nika-cadence/src/ledger.rs:925:21: replace && with || in verify_payload",
+      "current_name": "crates/nika-cadence/src/ledger.rs:932:21: replace && with || in verify_payload"
+    },
+    {
+      "prior_summary": "Timeout",
+      "prior_name": "crates/nika-cadence/src/ledger.rs:932:17: replace && with || in verify_payload",
+      "current_name": "crates/nika-cadence/src/ledger.rs:939:17: replace && with || in verify_payload"
+    },
+    {
+      "prior_summary": "Timeout",
+      "prior_name": "crates/nika-cadence/src/ledger.rs:933:17: replace && with || in verify_payload",
+      "current_name": "crates/nika-cadence/src/ledger.rs:940:17: replace && with || in verify_payload"
+    }
+  ],
+  "guard_mutants": [
+    "crates/nika-cadence/src/firing.rs:619:34: replace > with >= in decide",
+    "crates/nika-cadence/src/ledger.rs:406:38: replace && with || in unsettled",
+    "crates/nika-cadence/src/ledger.rs:543:35: replace && with || in Walker::fold_versioned",
+    "crates/nika-cadence/src/ledger.rs:734:25: replace || with && in classify_journal",
+    "crates/nika-cadence/src/ledger.rs:889:18: replace == with != in verify_payload",
+    "crates/nika-cadence/src/ledger.rs:1107:17: delete ! in LifecycleValidator::accept",
+    "crates/nika-cadence/src/ledger.rs:1108:75: replace == with != in LifecycleValidator::accept"
+  ],
+  "input_selection": [
+    "Cargo.lock",
+    "Cargo.toml",
+    "rust-toolchain.toml",
+    ".cargo/config",
+    ".cargo/*.toml",
+    "crates/nika-cadence/Cargo.toml",
+    "crates/nika-cadence/build.rs if tracked",
+    "crates/nika-cadence/src/**"
+  ],
+  "inputs": [
+    {
+      "path": ".cargo/audit.toml",
+      "git_blob": "db3a3ba463a5ad2a9d3f965867f6aac3514d67a9",
+      "sha256": "7304edd664268682eb42e58813e652536b780e74ead01fe508254e6f26784bd4"
+    },
+    {
+      "path": ".cargo/config.toml",
+      "git_blob": "f0f014ae1a9ab88e3c1b54df85e0d6925e680423",
+      "sha256": "c6f378a92bd697c9bad21d36f239324b6cf735cbf19764ff71661ccc83d64db9"
+    },
+    {
+      "path": ".cargo/mutants.toml",
+      "git_blob": "9e000ea0393b1300f8baa922c5b91be4d4e94e69",
+      "sha256": "4c78166708320f0a21717746742dc5f93c24972daeba7b3d71722e0134443150"
+    },
+    {
+      "path": "Cargo.lock",
+      "git_blob": "7527725077639f1e75b42caf845eb4b89195b022",
+      "sha256": "43e89228dda28e8c0afbc0b5dc6b91934d9cba4119615f225933ffbfa6fe079c"
+    },
+    {
+      "path": "Cargo.toml",
+      "git_blob": "8901aa478ba8a64329c8960ec51a495f27cab526",
+      "sha256": "8a2d913de20c9294c1a9ddc5d92630d9045ce9bdd0ff73551b4929ee099d5f68"
+    },
+    {
+      "path": "crates/nika-cadence/Cargo.toml",
+      "git_blob": "5788d402bc9ae0fe4db9cf6b56f51b3b3653636c",
+      "sha256": "5c56f11ffcb95b815412633237a698e9c5c91497a4c42d8d7790e0833d269300"
+    },
+    {
+      "path": "crates/nika-cadence/src/cron.rs",
+      "git_blob": "17ad7f9f3f54f550e73e4f2fefc80d304d0dc18c",
+      "sha256": "857673b2d5a2b165ac46c3c9741585c96d783abed96ac41021d0e5782db308eb"
+    },
+    {
+      "path": "crates/nika-cadence/src/due.rs",
+      "git_blob": "aebedd49666158d9f9acc8c1a5a3c43d1a4afb71",
+      "sha256": "e947cc21874021a9b32dfcedce1cf0d7daddf10d1d9d40f74855039eeb9d6a8f"
+    },
+    {
+      "path": "crates/nika-cadence/src/emit.rs",
+      "git_blob": "e5c8f0d77cc650f1d0207bbd20679a37fd0b01ff",
+      "sha256": "629366351a0cc3cf55451a4b66f93156188ac105d246e6e2325443bafe704830"
+    },
+    {
+      "path": "crates/nika-cadence/src/emit/launchd.rs",
+      "git_blob": "e8b003d247b832e3b229088c06bdf1938d1f11ad",
+      "sha256": "4fd14b8c4d12ae4ad91896ffa8f6701eb08d7b7935798bf331f6934795715cf8"
+    },
+    {
+      "path": "crates/nika-cadence/src/emit/systemd.rs",
+      "git_blob": "494264c7f2b110c121f64a5ee10ee90d291a2d2d",
+      "sha256": "914a5828d0f40a9db1bfb5b3a332b472b47c445faf2794cf9c424a72291d6b9f"
+    },
+    {
+      "path": "crates/nika-cadence/src/error.rs",
+      "git_blob": "3ee118c6be88ac41846206d7cf6773deb013cbbc",
+      "sha256": "7bc989eefe2f01112e2062a961b194bbea703ccab5624ecda496eefe3cb87a0c"
+    },
+    {
+      "path": "crates/nika-cadence/src/firing.rs",
+      "git_blob": "8ed32313f7886a0e1a2556f73f238bc3feba7fc3",
+      "sha256": "943e9a15b7d2dde900bf29a57f887f5296ac717f78513e2576844e5393d443e2"
+    },
+    {
+      "path": "crates/nika-cadence/src/ledger.rs",
+      "git_blob": "b5c0885551fe05528db5e31c2e597f9428a4d557",
+      "sha256": "39c3e8a777af5a2aa84ea1af0a50e942d49171efbb21cd1e276a2e67742be404"
+    },
+    {
+      "path": "crates/nika-cadence/src/ledger/tests.rs",
+      "git_blob": "3992094e5de7319dc450fc8f7e4e08cbe4a0967c",
+      "sha256": "52072ad99e52dde83bbdb09c790b77b8df7beabecdccc65407a36dee8bf832a6"
+    },
+    {
+      "path": "crates/nika-cadence/src/lib.rs",
+      "git_blob": "7bcb7bb1ff0637c48da89bbfc6eb090745c6dfcc",
+      "sha256": "a01d35ff4faa68a23045ee02aa401f8b17d99e5f183362c46ff535fba4be7752"
+    },
+    {
+      "path": "crates/nika-cadence/src/next.rs",
+      "git_blob": "b2febf6089117108a349153478c7bd571221e6b5",
+      "sha256": "147e5afd3fab7de71e8d322f1046323b73523a5616035f2047355ab115161fea"
+    },
+    {
+      "path": "crates/nika-cadence/src/parse.rs",
+      "git_blob": "ec6f44303be094d0320671e604095f956bf6d91a",
+      "sha256": "21a5088e649bf973e0c8595aec0475df4d46d26740b0ada917f1076375addf6f"
+    },
+    {
+      "path": "crates/nika-cadence/src/phrase.rs",
+      "git_blob": "6933c1e03cfc53d27e5decf0fabce78f91a654c3",
+      "sha256": "b9ce2ac465c0a88b6c1428ef74404805b4ed3081a3d55e1c57c2fba5bfab7954"
+    },
+    {
+      "path": "crates/nika-cadence/src/registry.rs",
+      "git_blob": "eaf7534f79397c2fa8d2de57b10147afab4676dc",
+      "sha256": "90db128c55b4489f12edb74c5383647b27eba1495d57c212d1bc82bb982e2eda"
+    },
+    {
+      "path": "crates/nika-cadence/src/snapshots/nika_cadence__tests__emit__launchd_per_beat.snap",
+      "git_blob": "c70d5d257cdd3d57b6a74cba2a5a21f9322115a2",
+      "sha256": "c46b8004db001bbe27ead881a78693b50f83abaecbb178fcd22647a027a299b1"
+    },
+    {
+      "path": "crates/nika-cadence/src/snapshots/nika_cadence__tests__emit__launchd_per_beat_env.snap",
+      "git_blob": "f572cd6dd6f46c7c211decc2813257e80e084cef",
+      "sha256": "429e3303c7981d7a1cc9915815eba016f3ff9ba9f720dd6180eeecb90985f4f7"
+    },
+    {
+      "path": "crates/nika-cadence/src/snapshots/nika_cadence__tests__emit__launchd_serve.snap",
+      "git_blob": "fc0a5e2dc6661940b5de68add13ceee1cedef041",
+      "sha256": "22aa66885167d751ba0aa4fb8d01ca6c957a609cf731717385ba9a800d0d3a0a"
+    },
+    {
+      "path": "crates/nika-cadence/src/snapshots/nika_cadence__tests__emit__systemd_per_beat.snap",
+      "git_blob": "1e84b4c0256042b22e67f72b2f8dc655124c97bb",
+      "sha256": "b1b3d5f46ed12cdcc64525d7209769b85b3b0be747d1c639c2be6fcc241a853a"
+    },
+    {
+      "path": "crates/nika-cadence/src/snapshots/nika_cadence__tests__emit__systemd_per_beat_env.snap",
+      "git_blob": "66dbcb6e88e24331a642298059181ecaf7e42e5c",
+      "sha256": "9956f45b25d5e66511272a95b0c4066176a5d15b01c30d654c56a13e42c72b77"
+    },
+    {
+      "path": "crates/nika-cadence/src/snapshots/nika_cadence__tests__emit__systemd_serve.snap",
+      "git_blob": "9cce3075b5c3db2859cf89f04ee853a7acd7e983",
+      "sha256": "54e2db62b05b74f69c75e456a620756957305af1e1f5876958b44b75e2934a03"
+    },
+    {
+      "path": "crates/nika-cadence/src/tests/emit.rs",
+      "git_blob": "8202a527fde5701efb97b0c3134c94f504383292",
+      "sha256": "54a6ec064f8e016d32a89db83a473aa87a108181a600f1f90bdea2ee634776da"
+    },
+    {
+      "path": "crates/nika-cadence/src/tests/mod.rs",
+      "git_blob": "5c272af70084a81714e2272ea205e728fd31b3a9",
+      "sha256": "ea9442770c861fb41e56f06306d9b240f56b2700e7191b33f251711f5ab8d750"
+    },
+    {
+      "path": "crates/nika-cadence/src/tests/planner.rs",
+      "git_blob": "6db3a2d0b2d8ad9ffc33797059333a85baa2b9a8",
+      "sha256": "d0943b0c7718ebba25f18538705d6f824eaf37a7d6af36675b2e99937edda255"
+    },
+    {
+      "path": "rust-toolchain.toml",
+      "git_blob": "84d91013d595ed522d45d4835b44e2f80c663a5c",
+      "sha256": "4e9939f80b4ddb164014683f63ad05890a66abb1b1c736871885661746a55139"
+    }
+  ],
+  "validator": {
+    "path": "docs/testimonials/arm-w7-ledger-salvage/validate.py",
+    "sha256": "3709bf831aaa59523d492943d8b0a14d7a96706a8aeac9b26ecc0443e62add7c"
+  },
+  "selftest": {
+    "path": "docs/testimonials/arm-w7-ledger-salvage/selftest.py",
+    "sha256": "e7d9710c93e44a0fb8c50d544f26402fa8aa7c6adc5c70670225615f85e67042"
+  },
+  "protocol": {
+    "path": "docs/testimonials/arm-w7-ledger-salvage/protocol.json",
+    "sha256": "c8b04134b967b4c87b16c5a967575f5512c3f26eb44edfb8f1a855d6e97b05e6"
+  }
+}
