@@ -1,0 +1,5 @@
+nika: lint-006-positive
+tasks:
+  shards:
+    for_each: { items: [1, 2] }
+    exec: { command: ["timeout", "30", "./process.sh"] }

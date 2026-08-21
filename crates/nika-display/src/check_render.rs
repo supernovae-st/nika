@@ -10,6 +10,7 @@
 //! the theme seam it paints through. The machine (`--json`) surface
 //! stays in the CLI's `mod.rs`; both speak the one findings contract.
 
+use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 
 use nika_check::{CheckReport, ConformanceViolation, UnboundedReason};
@@ -151,7 +152,7 @@ pub fn render(
     crate::check_laws::lift_rung(&mut out, report, wf, t);
     crate::check_journey::journey_rung(&mut out, report, t);
     run_rung(&mut out, report, wf, t);
-    hints_and_verdict(&mut out, report, wf, t, drift_hints, verdict);
+    hints_and_verdict(&mut out, report, wf, name, t, drift_hints, verdict);
     // The MAP beside the verdict — the same themed wire art `graph
     // --format ascii` speaks, so the audit READS as the DAG it judged
     // (operator ask 2026-07-12: « quand on fait check, voir la dag »).
@@ -441,19 +442,42 @@ fn hints_and_verdict(
     out: &mut String,
     report: &CheckReport,
     wf: &RawWorkflow,
+    path: &str,
     t: Theme,
     drift_hints: &[String],
     verdict: bool,
 ) {
-    let mut hint_count = report.hints.len() + drift_hints.len();
-    for h in &report.hints {
+    let mut grouped: BTreeMap<(&str, &str), (usize, BTreeSet<&str>)> = BTreeMap::new();
+    for hint in &report.hints {
+        let identity = hint.code.unwrap_or(hint.kind);
+        let entry = grouped
+            .entry((identity, hint.advice.as_str()))
+            .or_insert_with(|| (0, BTreeSet::new()));
+        entry.0 += 1;
+        entry.1.insert(hint.task.as_str());
+    }
+    let mut hint_sites = report.hints.len() + drift_hints.len();
+    let mut distinct_hints = grouped.len() + drift_hints.len();
+    for ((identity, advice), (sites, tasks)) in grouped {
+        let coded_prefix = format!("{identity} · ");
+        let display_advice = advice.strip_prefix(&coded_prefix).unwrap_or(advice);
+        let suffix = if sites > 1 {
+            format!(
+                " · {} across {}",
+                crate::vocab::count(sites, "site"),
+                crate::vocab::count(tasks.len(), "task")
+            )
+        } else {
+            String::new()
+        };
         let _ = writeln!(
             out,
-            " {} {}     [{}] {}",
+            " {} {}     [{}] {}{}",
             t.paint(Role::Accent, "↳"),
             t.paint(Role::Strong, "HINT"),
-            h.kind,
-            h.advice
+            identity,
+            display_advice,
+            suffix,
         );
     }
     // NIKA-DRIFT-001 rows — the declared-vs-unused family, computed at
@@ -477,7 +501,8 @@ fn hints_and_verdict(
         .into_iter()
         .filter(|(_, p)| !std::path::Path::new(p).exists())
     {
-        hint_count += 1;
+        hint_sites += 1;
+        distinct_hints += 1;
         let _ = writeln!(
             out,
             " {} {}     [inputs] `{task}` reads `{path}` which does not exist here — create it (or point its var elsewhere) · the run would fail at that wave",
@@ -487,7 +512,8 @@ fn hints_and_verdict(
     }
     let inputs = required_inputs(wf);
     if !inputs.is_empty() {
-        hint_count += 1;
+        hint_sites += 1;
+        distinct_hints += 1;
         let pass = inputs
             .iter()
             .map(|n| format!("--var {n}=…"))
@@ -503,7 +529,11 @@ fn hints_and_verdict(
     }
     if verdict {
         let grade = nika_check::risk_grade(report);
-        let _ = writeln!(out, " {}", audited_line(report, wf, hint_count, grade, t));
+        let _ = writeln!(
+            out,
+            " {}",
+            audited_line(report, wf, distinct_hints, hint_sites, grade, t)
+        );
     } else {
         // Through `mark()`, not a hardcoded glyph: this line shipped a
         // literal `✖` and was the one verdict in the report that leaked
@@ -515,6 +545,14 @@ fn hints_and_verdict(
             " {} {}",
             mark(t, false),
             t.paint(Role::Bad, "findings above")
+        );
+    }
+    if hint_sites > 0 {
+        let _ = writeln!(
+            out,
+            " {} {}     run `nika check --fix {path}` to apply safe repairs, then re-check · see `nika explain` for coded findings",
+            t.paint(Role::Accent, "↳"),
+            t.paint(Role::Strong, "NEXT"),
         );
     }
 }
@@ -570,7 +608,8 @@ fn unbounded_census(report: &CheckReport) -> String {
 fn audited_line(
     report: &CheckReport,
     wf: &RawWorkflow,
-    hints: usize,
+    distinct_hints: usize,
+    hint_sites: usize,
     grade: nika_check::RiskGrade,
     t: Theme,
 ) -> String {
@@ -645,13 +684,22 @@ fn audited_line(
     } else {
         ""
     };
+    let hint_summary = if distinct_hints == hint_sites {
+        crate::vocab::count(hint_sites, "hint")
+    } else {
+        format!(
+            "{} across {}",
+            crate::vocab::count(distinct_hints, "distinct hint"),
+            crate::vocab::count(hint_sites, "site")
+        )
+    };
     t.paint(
         role,
         &format!(
             "{mark} audited · {} · {} · permits {permits} · {est} · {} · risk {}{handle}",
             crate::vocab::count(tasks, "task"),
             crate::vocab::count(report.waves.len(), "wave"),
-            crate::vocab::count(hints, "hint"),
+            hint_summary,
             grade.as_str(),
         ),
     )

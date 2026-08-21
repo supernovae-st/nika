@@ -1,0 +1,5 @@
+nika: arg-001-negative
+const: { host: example.com }
+tasks:
+  connect:
+    exec: { command: ["ssh", "--", "${{ const.host }}"] }

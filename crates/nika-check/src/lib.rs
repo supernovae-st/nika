@@ -611,6 +611,7 @@ fn legal_zero_hint(wf: &RawWorkflow, escapes_empty: bool, judged: bool, hints: &
     if judged && wf.permits.is_none() && escapes_empty {
         hints.push(Hint {
             kind: "permits",
+            code: None,
             task: "-".to_owned(),
             advice: "no `permits:` block declared · zero authority (F-O8) — the body is \
                      pure compute so nothing escapes; declare `permits: {}` to state the \
@@ -722,6 +723,7 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
     if let Some(miss) = dag_read.stated_miss {
         hints.push(Hint {
             kind: "analysis",
+            code: None,
             task: "-".to_owned(),
             advice: miss,
         });

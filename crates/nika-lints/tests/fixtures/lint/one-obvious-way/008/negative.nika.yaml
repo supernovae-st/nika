@@ -1,0 +1,6 @@
+nika: lint-008-negative
+const: { value: safe }
+tasks:
+  use:
+    with: { value: "${{ const.value }}" }
+    exec: { shell: "process ${{ with.value }} | tee out.txt" }

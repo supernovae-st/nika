@@ -1,0 +1,7 @@
+nika: lint-004-positive
+tasks:
+  a:
+    exec: { command: ["./a.sh"] }
+  fallback:
+    after: { a: failure }
+    exec: { command: ["echo", "default"] }

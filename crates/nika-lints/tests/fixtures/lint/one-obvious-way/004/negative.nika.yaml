@@ -1,0 +1,7 @@
+nika: lint-004-negative
+tasks:
+  a:
+    exec: { command: ["./a.sh"] }
+  recover:
+    after: { a: failure }
+    exec: { command: ["./recover.sh"] }

@@ -137,6 +137,52 @@ tasks:
     }
 }
 
+mod hint_dedup_tests {
+    use nika_schema::parser::{ParseMode, parse};
+    use nika_schema::source::FileId;
+
+    use crate::check_render::*;
+
+    #[test]
+    fn repeated_hint_code_renders_once_with_site_count_and_next_command() {
+        let yaml = r"
+nika: repeated
+permits:
+  exec: [curl]
+  net: { http: [example.com] }
+tasks:
+  first:
+    exec: { command: [curl, https://example.com/a] }
+  second:
+    exec: { command: [curl, https://example.com/b] }
+";
+        let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parses");
+        let report = nika_check::check(&wf);
+        let out = render(
+            &report,
+            &wf,
+            yaml,
+            "repeated.nika.yaml",
+            Theme::new(false, false, false),
+            &ModelsAudit::new(Vec::new(), 0, 0),
+            &nika_schema::ResolvedSkills::default(),
+            &[],
+            report.is_clean(),
+        );
+        assert_eq!(
+            out.matches("[native-first/001]").count(),
+            1,
+            "one diagnostic body per stable code:\n{out}"
+        );
+        assert!(out.contains("2 sites across 2 tasks"), "{out}");
+        assert!(out.contains("1 distinct hint across 2 sites"), "{out}");
+        assert!(
+            out.contains("nika check --fix repeated.nika.yaml"),
+            "the footer gives the next real command:\n{out}"
+        );
+    }
+}
+
 mod journey_rung_tests {
     use nika_schema::parser::{ParseMode, parse};
     use nika_schema::source::FileId;

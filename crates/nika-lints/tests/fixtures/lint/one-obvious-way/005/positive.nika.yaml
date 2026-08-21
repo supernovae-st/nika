@@ -1,0 +1,9 @@
+nika: lint-005-positive
+tasks:
+  a:
+    exec: { command: ["./a.sh"] }
+  b:
+    exec: { command: ["./b.sh"] }
+  cleanup:
+    after: { a: terminal, b: terminal }
+    exec: { command: ["./cleanup.sh"] }

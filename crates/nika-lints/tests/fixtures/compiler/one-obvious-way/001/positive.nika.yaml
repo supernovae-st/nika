@@ -1,0 +1,7 @@
+nika: retired-status-test
+tasks:
+  produce:
+    exec: { command: ["./produce.sh"] }
+  consume:
+    when: ${{ tasks.produce.status == 'failure' }}
+    exec: { command: ["./consume.sh"] }

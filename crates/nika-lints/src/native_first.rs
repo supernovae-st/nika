@@ -5,20 +5,20 @@
 //! (rules 001-005 · « normative for lints »): an `exec:` whose literal
 //! command a stdlib builtin (or an MCP tool) covers.
 //!
-//! The CLASSIFICATION is `check::native_first::classify` — one truth
+//! The CLASSIFICATION is `check::native_first::classify_all` — one truth
 //! shared with the check-report hint (kind `native-first`), so the
 //! linter ruleset and the audit surface can never disagree on what
 //! fires. This module only reshapes the verdict into [`Lint`] records
 //! (rule id · task · span · message · suggestion).
 
-use nika_check::native_first::classify;
+use nika_check::native_first::classify_all;
 use nika_schema::raw::{RawAction, RawWorkflow};
 
 use super::preference_rules::Lint;
 
 /// Run the `native-first/001..005` preference rules over a parsed
-/// workflow. Output is deterministic — task order, main action before
-/// its `on_finally` cleanups, at most one lint per action.
+/// workflow. Output is deterministic — task order, then shell-segment
+/// order; every matched segment keeps its own lint site.
 #[must_use]
 pub fn native_first(wf: &RawWorkflow) -> Vec<Lint> {
     let mut lints = Vec::new();
@@ -33,7 +33,7 @@ fn push(action: &RawAction, id: &str, span: nika_schema::source::Span, lints: &m
     let RawAction::Exec(exec) = action else {
         return;
     };
-    if let Some((rule, advice)) = classify(&exec.command) {
+    for (rule, advice) in classify_all(&exec.command) {
         lints.push(Lint::new(
             rule,
             id.to_owned(),

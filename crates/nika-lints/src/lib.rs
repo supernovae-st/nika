@@ -26,6 +26,8 @@
 //! form (spec `02-verbs.md` §exec Security · the differentiator).
 
 mod arg_injection;
+#[cfg(test)]
+mod fixture_matrix_tests;
 mod native_first;
 mod preference_rules;
 

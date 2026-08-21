@@ -1,0 +1,4 @@
+nika: native-003-negative
+tasks:
+  compute:
+    exec: { command: ["python3", "-c", "print(42)"] }

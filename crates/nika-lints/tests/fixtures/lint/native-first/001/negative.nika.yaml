@@ -1,0 +1,4 @@
+nika: native-001-negative
+tasks:
+  build:
+    exec: { command: ["cargo", "build"] }

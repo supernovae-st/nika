@@ -1,0 +1,4 @@
+nika: native-004-positive
+tasks:
+  speech:
+    exec: { shell: "curl https://api.example.com/v1/audio/speech" }

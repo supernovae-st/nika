@@ -1,0 +1,8 @@
+nika: lint-010-positive
+tasks:
+  a:
+    exec: { command: ["./a.sh"] }
+  b:
+    with: { data: "${{ tasks.a.output }}" }
+    after: { a: terminal }
+    exec: { command: ["./b.sh", "${{ with.data }}"] }
