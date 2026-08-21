@@ -159,8 +159,9 @@ fn learn_tools() -> Value {
         {
             "name": "nika_examples",
             "description": "Browse the embedded runnable examples. Without `slug`: the \
-                            list. With `slug`: that example's full workflow source — read \
-                            the canonical example instead of guessing a construct.",
+                            JSONL metadata index (`slug` · `form` · `one_line` · `cost`). \
+                            With `slug`: that example's full workflow source — read the \
+                            canonical example instead of guessing a construct.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -479,9 +480,9 @@ fn check(args: &Value) -> Result<String, String> {
     ))
 }
 
-/// `nika_examples` — list the embedded example slugs, or return one example's
-/// full workflow source (the LEARNING surface: read the canonical example for
-/// a construct instead of guessing).
+/// `nika_examples` — return the JSONL metadata index (`slug` · `form` ·
+/// `one_line` · `cost`), or one example's full workflow source (the LEARNING
+/// surface: read the canonical example for a construct instead of guessing).
 fn examples(args: &Value) -> Result<String, String> {
     match args.get("slug").and_then(Value::as_str) {
         None => example_index(),
