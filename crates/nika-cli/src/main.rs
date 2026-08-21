@@ -37,8 +37,8 @@ use lazy::{check_lazy, resolve_lazy_target, run_lazy};
     name = "nika",
     bin_name = "nika",
     version,
-    // #774 · the build stamp rides the long form (build.rs): a between-tags build never reads as its tag; gitless ⇒ long IS bare.
-    long_version = env!("NIKA_VERSION_LONG"),
+    // The L3 identity is shared by every adapter; gitless builds keep the bare version.
+    long_version = nika_runtime::engine_identity().version_long(),
     about = "nika · the AI workflow engine — operator surface",
     // The lost-user footer (clig.dev · suggest the next command): a bare
     // `nika` is someone asking where to start, not someone reading a
