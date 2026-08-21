@@ -89,7 +89,11 @@ fn every_manifest_entry_resolves_and_hashes_clean() {
 
 #[test]
 fn surface_counts_hold() {
-    assert_eq!(nika_pack::template_names().len(), 10); // t2-model-bench joined the SSOT (the 9-vs-10 diamond-audit fix)
+    // A FLOOR here, never a typed count. The exact surface is asserted by NAME
+    // against the vendored canon in `spec_parity::canon_templates_equal_the_
+    // embedded_surface` — a hand-typed equality only ever noticed that a number
+    // moved, and had to be edited by hand at 9→10 and again at 10→14.
+    assert!(nika_pack::template_names().len() >= 10);
     assert!(nika_pack::example_slugs().len() >= 27);
     assert!(nika_pack::doc_paths().len() >= 12, "spec + stdlib pages");
     assert!(nika_pack::schema_json().contains("\"$schema\""));
