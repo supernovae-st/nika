@@ -89,7 +89,19 @@ fn every_manifest_entry_resolves_and_hashes_clean() {
 
 #[test]
 fn surface_counts_hold() {
-    assert_eq!(nika_pack::template_names().len(), 10); // t2-model-bench joined the SSOT (the 9-vs-10 diamond-audit fix)
+    let names = nika_pack::template_names();
+    assert_eq!(names.len(), 14);
+    for required in [
+        "classify-and-route",
+        "corpus-qa",
+        "document-to-fields",
+        "evaluate-and-optimize",
+    ] {
+        assert!(
+            names.iter().any(|n| n == required),
+            "form-first skeleton {required} missing from the vendored pack"
+        );
+    }
     assert!(nika_pack::example_slugs().len() >= 27);
     assert!(nika_pack::doc_paths().len() >= 12, "spec + stdlib pages");
     assert!(nika_pack::schema_json().contains("\"$schema\""));

@@ -7,7 +7,7 @@
 #   sealed outcome_class enum) · the 15 ledger sections (canon/EXCEPTIONS.md ·
 #   SSOT-1 §18) stay AUTHORED and are carried verbatim — editing those is legal.
 # regenerate: python3 scripts/ssot-compiler.py --emit-canon
-# body-sha256: 655188ecf8f7b0436c681a10e056af6b709f46fa37c93c4b92daeadc5145d98c
+# body-sha256: 3301cbd8323d3dc2820ba65e384a6311c850a7bca45e64c81583a7a6c8b15edc
 #   (digest of every byte below the end-of-header line · detached self-hash per PAA-006)
 # ---- end generated header (SSOT-1 §21-23 · the canon flip · C0)
 # nika canonical registry · the single source of truth for Nika canonical facts
@@ -62,7 +62,7 @@ counts:
   builtins: 28
   providers: 17
   extract_modes: 9
-  templates: 10
+  templates: 14
   error_namespaces: 24
   error_categories: 12
   error_codes: 103
@@ -223,14 +223,18 @@ extract_modes:
 # recurs across authoring sessions earns one. templates/README.md is
 # the prose home (the routing table).
 templates:
-  count: 10
+  count: 14
   reference: templates/README.md
   items:
     - agent-loop
     - api-upload-and-create
     - chain
+    - classify-and-route
+    - corpus-qa
     - docker-report
+    - document-to-fields
     - etl-state
+    - evaluate-and-optimize
     - fanout
     - gate-and-act
     - human-gated-ship

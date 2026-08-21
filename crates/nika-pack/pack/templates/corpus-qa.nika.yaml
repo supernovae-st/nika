@@ -1,0 +1,118 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# TEMPLATE · corpus-qa · canonicalize corpus → retrieve → answer or abstain.
+#
+# Identical duplicates are idempotent, while one id carrying conflicting text
+# is refused before indexing. An empty retrieval is a valid answer with empty
+# citations, never a fabricated model response.
+#
+# Needs · nothing. Runs offline in an empty directory with mock/echo.
+# Run · nika run <file> --model mock/echo
+nika: corpus-qa
+
+model: mock/echo                     # SLOT: replace with a local or hosted seat
+
+const:
+  query: "What is the holiday carry-over policy?"   # SLOT: the question
+  documents:                         # SLOT: replace with retrieved source chunks
+    - { id: handbook, text: "Support hours are 09:00 to 17:00 UTC." }
+    - { id: security, text: "Security incidents are reported within one hour." }
+    - { id: handbook, text: "Support hours are 09:00 to 17:00 UTC." }
+
+permits:
+  tools: ["nika:jq", "nika:assert"]
+
+tasks:
+  conflicting_ids:
+    invoke:
+      tool: nika:jq
+      args:
+        input: ${{ const.documents }}
+        expression: 'sort_by(.id) | group_by(.id) | map(select((map(.text) | unique | length) > 1) | .[0].id)'
+
+  duplicates_consistent:
+    with:
+      conflicting_ids: ${{ tasks.conflicting_ids.output }}
+    invoke:
+      tool: nika:assert
+      args:
+        condition: ${{ size(with.conflicting_ids) == 0 }}
+        message: "One corpus id names conflicting source text"
+
+  index_once:
+    after:
+      duplicates_consistent: success
+    invoke:
+      tool: nika:jq
+      args:
+        input: ${{ const.documents }}
+        expression: "sort_by(.id) | unique_by(.id)"
+
+  index_twice:
+    with:
+      index: ${{ tasks.index_once.output }}
+    invoke:
+      tool: nika:jq
+      args:
+        input: ${{ with.index }}
+        expression: "sort_by(.id) | unique_by(.id)"
+
+  index_is_idempotent:
+    with:
+      first: ${{ tasks.index_once.output }}
+      second: ${{ tasks.index_twice.output }}
+    invoke:
+      tool: nika:jq
+      args:
+        input: { first: "${{ with.first }}", second: "${{ with.second }}" }
+        expression: ".first == .second"
+
+  compiled:
+    with:
+      idempotent: ${{ tasks.index_is_idempotent.output }}
+    invoke:
+      tool: nika:assert
+      args:
+        condition: ${{ with.idempotent }}
+        message: "Corpus index changed when canonicalized twice"
+
+  retrieve:
+    with:
+      index: ${{ tasks.index_once.output }}
+    invoke:
+      tool: nika:jq
+      args:
+        input: { documents: "${{ with.index }}", query: "${{ const.query }}" }
+        expression: '.documents as $docs | .query as $query | ($docs | map(select((.text | ascii_downcase) | contains($query | ascii_downcase))))'
+
+  answer:
+    with:
+      hits: ${{ tasks.retrieve.output }}
+    when: ${{ size(with.hits) > 0 }}
+    infer:
+      max_tokens: 500                # SLOT: answer spend ceiling
+      prompt: |
+        Answer from these passages only and cite their ids.
+        Question: ${{ const.query }}
+        Passages: ${{ with.hits }}
+      schema:
+        type: object
+        additionalProperties: false
+        required: [answer, citations]
+        properties:
+          answer: { type: string, minLength: 1 }
+          citations: { type: array, minItems: 1, items: { type: string } }
+
+  finalize:
+    with:
+      hits: ${{ tasks.retrieve.output }}
+      answer: ${{ tasks.answer.output }}
+    invoke:
+      tool: nika:jq
+      args:
+        input: { hits: "${{ with.hits }}", answer: "${{ with.answer }}" }
+        expression: 'if (.hits | length) == 0 then {known: false, answer: "I do not know from this corpus.", citations: []} else {known: true, answer: .answer.answer, citations: .answer.citations} end'
+
+outputs:
+  result: ${{ tasks.finalize.output }}

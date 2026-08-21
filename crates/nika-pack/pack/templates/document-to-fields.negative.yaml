@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: Apache-2.0
+# COUNTEREXAMPLE · invented OCR is not a Nika builtin.
+# Expected · NIKA-BUILTIN-001.
+nika: document-to-fields-negative
+permits:
+  tools: ["nika:ocr"]
+tasks:
+  extract:
+    invoke:
+      tool: nika:ocr
+      args: { path: "invoice.pdf" }

@@ -1,0 +1,132 @@
+# SPDX-License-Identifier: Apache-2.0
+# yaml-language-server: $schema=https://nika.sh/spec/v1/workflow.schema.json
+#
+# TEMPLATE · classify-and-route · typed facts → evidence → decision → queue.
+#
+# The model extracts facts. The deterministic nika:decide kernel owns the
+# routing law and emits a receipt. A known fixture proves the law separately.
+#
+# Needs · nothing. Runs offline in an empty directory with mock/echo.
+# Run · nika run <file> --model mock/echo
+nika: classify-and-route
+
+model: mock/echo                     # SLOT: replace with a local or hosted seat
+
+const:
+  request: "Production checkout is unavailable for every customer."   # SLOT
+  bundle:
+    decision_bundle_format: 1
+    manifest:
+      id: incident-route
+      version: "1.0.0"
+      owner: example-org
+      license: Apache-2.0
+      valid_until: "2028-01-01T00:00:00Z"
+    evidence_schema:
+      urgency:
+        type: integer
+        required: true
+        sources: [classifier]
+        integrity: observed
+    transforms:
+      urgency_step:
+        kind: bucket
+        min: 0
+        max: 1
+        edges: [1]
+        values: [0, 10000]
+    rules:
+      dimensions:
+        incident_priority:
+          terms:
+            - { evidence: urgency, transform: urgency_step, weight_bp: 10000, monotonicity: increases }
+      thresholds:
+        - { dimension: incident_priority, recommend_gte_bp: 5000 }
+    governance:
+      never_automatic: [recommend]
+      override: { append_only: true, reason_required: true }
+      appeal: "ask the incident commander"
+      human_required_triggers: [conflict_on_required]
+    fixtures:
+      - { name: urgent, class: positive, evidence: { urgency: 1 } }
+      - { name: routine, class: negative, evidence: { urgency: 0 } }
+      - { name: edge, class: ambiguous, evidence: { urgency: 0 } }
+      - { name: conflict, class: contradictory, evidence: { urgency: 1 } }
+      - { name: probe, class: adversarial, evidence: { urgency: 1 } }
+  urgent_snapshot:
+    t: "2027-01-01T00:00:00Z"
+    evidence:
+      - key: urgency
+        value: 1
+        source: classifier
+        observed_at: "2027-01-01T00:00:00Z"
+        digest: fixture-urgency
+        confidentiality: internal
+        integrity: observed
+        quality: { freshness: fresh, completeness: complete, independence_group: classifier }
+
+permits:
+  tools: ["nika:jq", "nika:decide", "nika:assert"]
+
+tasks:
+  extract_facts:
+    infer:
+      max_tokens: 300                # SLOT: classification spend ceiling
+      prompt: |
+        Extract the urgency fact from this request. Use 1 only for an active
+        widespread outage, otherwise use 0.
+
+        ${{ const.request }}
+      schema:
+        type: object
+        additionalProperties: false
+        required: [urgency]
+        properties:
+          urgency: { type: integer, enum: [0, 1] }
+
+  snapshot:
+    with:
+      facts: ${{ tasks.extract_facts.output }}
+    invoke:
+      tool: nika:jq
+      args:
+        input: ${{ with.facts }}
+        expression: '{t: "2027-01-01T00:00:00Z", evidence: [{key: "urgency", value: .urgency, source: "classifier", observed_at: "2027-01-01T00:00:00Z", digest: "runtime-urgency", confidentiality: "internal", integrity: "observed", quality: {freshness: "fresh", completeness: "complete", independence_group: "classifier"}}]}'
+
+  decide:
+    with:
+      evidence: ${{ tasks.snapshot.output }}
+    invoke:
+      tool: nika:decide
+      args:
+        bundle: ${{ const.bundle }}
+        evidence: ${{ with.evidence }}
+
+  queue:
+    with:
+      receipt: ${{ tasks.decide.output }}
+    invoke:
+      tool: nika:jq
+      args:
+        input: ${{ with.receipt }}
+        expression: 'if .outcome == "human_required" then "manual-review" elif .outcome == "recommend" then "priority" else "standard" end'
+
+  fixture_decide:
+    invoke:
+      tool: nika:decide
+      args:
+        bundle: ${{ const.bundle }}
+        evidence: ${{ const.urgent_snapshot }}
+
+  compiled:
+    with:
+      receipt: ${{ tasks.fixture_decide.output }}
+    invoke:
+      tool: nika:assert
+      args:
+        condition: ${{ with.receipt.outcome == "human_required" }}
+        message: "Urgent fixture must abstain to manual review"
+
+outputs:
+  queue: ${{ tasks.queue.output }}
+  receipt: ${{ tasks.decide.output }}
