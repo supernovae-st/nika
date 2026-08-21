@@ -129,7 +129,7 @@ pub(crate) fn load_checked_run_source(
     source: &RunSource,
 ) -> Result<(RawWorkflow, CheckReport), VerbOutput> {
     let wf = nika_schema::parse(source.source(), FileId::new(0), ParseMode::Strict)
-        .map_err(|e| VerbOutput::file(format!("PARSE ✗  [{}] {e}", e.spec_code())))?;
+        .map_err(|e| VerbOutput::file(format!("PARSE ✗  {}", e.diagnostic())))?;
     // The composed lane (spec 14): child targets resolve against the
     // file the operator named; the fs edge is the skills reader's twin.
     let mut report = nika_check::check_composed(&wf, source.logical_path(), &mut |p| {
@@ -369,7 +369,7 @@ mod tests {
     /// could not `nika explain` the failure (every other finding shows its
     /// code). `load_checked` now formats `e.spec_code()`.
     #[test]
-    fn parse_error_carries_its_spec_code() {
+    fn parse_error_carries_its_code_message_and_next_action_exactly() {
         let path =
             std::env::temp_dir().join(format!("nika-parsecode-{}.nika.yaml", std::process::id(),));
         std::fs::write(
@@ -381,10 +381,9 @@ mod tests {
             .expect_err("a task with two verbs must fail to parse");
         std::fs::remove_file(&path).ok();
         assert_eq!(err.code, exit::FILE, "{}", err.text);
-        assert!(
-            err.text.contains("NIKA-PARSE-009"),
-            "parse error must carry its spec code · got: {}",
-            err.text
+        assert_eq!(
+            err.text,
+            "PARSE ✗  [NIKA-PARSE-009] task `a` has multiple verbs (infer, exec) — exactly one required · → nika explain NIKA-PARSE-009"
         );
     }
 }

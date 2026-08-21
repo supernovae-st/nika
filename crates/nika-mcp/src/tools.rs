@@ -394,7 +394,7 @@ fn check(args: &Value) -> Result<String, String> {
         nika_schema::FileId::new(0),
         nika_schema::ParseMode::Strict,
     )
-    .map_err(|e| format!("PARSE ✗ {e}"))?;
+    .map_err(|e| format!("PARSE ✗ {}", e.diagnostic()))?;
     let report = nika_check::check(&wf);
     // The grade rides EVERY verdict (the CLI card's law, P0-11): « clean »
     // alone never names how much rope the file has. A pure projection of
@@ -484,7 +484,7 @@ fn check(args: &Value) -> Result<String, String> {
 /// a construct instead of guessing).
 fn examples(args: &Value) -> Result<String, String> {
     match args.get("slug").and_then(Value::as_str) {
-        None => Ok(nika_pack::example_slugs().join("\n")),
+        None => example_index(),
         Some(slug) => match nika_pack::example(slug) {
             Some(body) => Ok(body.to_owned()),
             // RAMS-11: a PLAIN-WORDS miss routes through the SAME door
@@ -514,6 +514,29 @@ fn examples(args: &Value) -> Result<String, String> {
             },
         },
     }
+}
+
+/// The retrieval-friendly example index: one JSON object per embedded file.
+/// Every field derives from the same source the CLI showroom reads — no second
+/// catalog to drift. Task count is the honest static cost available in-pack.
+fn example_index() -> Result<String, String> {
+    nika_pack::example_slugs()
+        .into_iter()
+        .map(|slug| {
+            let body = nika_pack::example(&slug).ok_or_else(|| {
+                format!("embedded example `{slug}` is listed but cannot be resolved")
+            })?;
+            let meta = nika_pack::meta(&slug, body);
+            Ok(json!({
+                "slug": slug,
+                "form": meta.verbs,
+                "one_line": meta.title,
+                "cost": { "tasks": meta.tasks },
+            })
+            .to_string())
+        })
+        .collect::<Result<Vec<_>, String>>()
+        .map(|rows| rows.join("\n"))
 }
 
 /// `nika_template` — list the canonical skeleton names, or return one
@@ -567,7 +590,7 @@ fn inspect(args: &Value) -> Result<String, String> {
         nika_schema::FileId::new(0),
         nika_schema::ParseMode::Strict,
     )
-    .map_err(|e| format!("PARSE ✗ {e}"))?;
+    .map_err(|e| format!("PARSE ✗ {}", e.diagnostic()))?;
     let report = nika_check::check(&wf);
     if report.is_clean() {
         serde_json::to_string_pretty(&nika_graph::project(&wf, &report))
@@ -1024,12 +1047,36 @@ mod tests {
     }
 
     #[test]
-    fn examples_without_slug_lists_slugs() {
+    fn examples_without_slug_returns_a_metadata_derived_index() {
         let out = execute("nika_examples", &json!({})).expect("ran");
-        // The list is exactly the pack's slugs, one per line.
-        let listed: Vec<&str> = out.lines().collect();
-        assert_eq!(listed, nika_pack::example_slugs());
-        assert!(!listed.is_empty(), "the pack ships examples");
+        let slugs = nika_pack::example_slugs();
+        let rows: Vec<Value> = out
+            .lines()
+            .map(|line| serde_json::from_str(line).expect("each index row is JSON"))
+            .collect();
+        assert_eq!(rows.len(), slugs.len(), "one row per embedded example");
+        assert!(!rows.is_empty(), "the pack ships examples");
+
+        for (row, slug) in rows.iter().zip(&slugs) {
+            let body = nika_pack::example(slug).expect("a listed slug resolves");
+            let meta = nika_pack::meta(slug, body);
+            assert_eq!(row["slug"], slug.as_str(), "slug derives from the pack");
+            assert_eq!(row["form"], json!(meta.verbs), "form derives from verbs");
+            assert_eq!(
+                row["one_line"], meta.title,
+                "one line derives from the header"
+            );
+            assert_eq!(
+                row["cost"],
+                json!({ "tasks": meta.tasks }),
+                "cost derives from the task count"
+            );
+            assert_eq!(
+                row.as_object().expect("row object").len(),
+                4,
+                "the index contract is exactly slug · form · one_line · cost"
+            );
+        }
     }
 
     #[test]
