@@ -143,6 +143,22 @@ mod hint_dedup_tests {
 
     use crate::check_render::*;
 
+    fn rendered(yaml: &str, path: &str) -> String {
+        let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parses");
+        let report = nika_check::check(&wf);
+        render(
+            &report,
+            &wf,
+            yaml,
+            path,
+            Theme::new(false, false, false),
+            &ModelsAudit::new(Vec::new(), 0, 0),
+            &nika_schema::ResolvedSkills::default(),
+            &[],
+            report.is_clean(),
+        )
+    }
+
     #[test]
     fn repeated_hint_code_renders_once_with_site_count_and_next_command() {
         let yaml = r"
@@ -156,19 +172,7 @@ tasks:
   second:
     exec: { command: [curl, https://example.com/b] }
 ";
-        let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parses");
-        let report = nika_check::check(&wf);
-        let out = render(
-            &report,
-            &wf,
-            yaml,
-            "repeated.nika.yaml",
-            Theme::new(false, false, false),
-            &ModelsAudit::new(Vec::new(), 0, 0),
-            &nika_schema::ResolvedSkills::default(),
-            &[],
-            report.is_clean(),
-        );
+        let out = rendered(yaml, "repeated.nika.yaml");
         assert_eq!(
             out.matches("[native-first/001]").count(),
             1,
@@ -179,6 +183,49 @@ tasks:
         assert!(
             out.contains("nika check --fix repeated.nika.yaml"),
             "the footer gives the next real command:\n{out}"
+        );
+    }
+
+    #[test]
+    fn heterogeneous_advice_keeps_rows_but_footer_counts_distinct_codes() {
+        let yaml = r"
+nika: heterogeneous
+permits: { exec: [date, sha256sum] }
+tasks:
+  clock:
+    exec: { command: [date] }
+  digest:
+    exec: { command: [sha256sum, input.txt] }
+";
+        let out = rendered(yaml, "heterogeneous.nika.yaml");
+        assert_eq!(
+            out.matches("[native-first/003]").count(),
+            2,
+            "distinct advice variants both render:\n{out}"
+        );
+        assert!(out.contains("1 distinct hint across 2 sites"), "{out}");
+        assert!(!out.contains("2 distinct hints"), "{out}");
+    }
+
+    #[test]
+    fn next_command_quotes_paths_and_never_offers_fix_for_stdin() {
+        let yaml =
+            "nika: q\npermits: { exec: [date] }\ntasks:\n  t:\n    exec: { command: [date] }\n";
+        let spaced = rendered(yaml, "my workflow.nika.yaml");
+        assert!(
+            spaced.contains("nika check --fix 'my workflow.nika.yaml'"),
+            "{spaced}"
+        );
+        let apostrophe = rendered(yaml, "it's ready.nika.yaml");
+        assert!(
+            apostrophe.contains("nika check --fix 'it'\"'\"'s ready.nika.yaml'"),
+            "{apostrophe}"
+        );
+        let stdin = rendered(yaml, "-");
+        assert!(!stdin.contains("--fix -"), "{stdin}");
+        assert!(
+            stdin.contains("save stdin to a file") && stdin.contains("nika check --fix <file>"),
+            "{stdin}"
         );
     }
 }

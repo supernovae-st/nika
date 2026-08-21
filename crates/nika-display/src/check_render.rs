@@ -152,7 +152,7 @@ pub fn render(
     crate::check_laws::lift_rung(&mut out, report, wf, t);
     crate::check_journey::journey_rung(&mut out, report, t);
     run_rung(&mut out, report, wf, t);
-    hints_and_verdict(&mut out, report, wf, name, t, drift_hints, verdict);
+    hints_and_verdict(&mut out, report, wf, path, t, drift_hints, verdict);
     // The MAP beside the verdict — the same themed wire art `graph
     // --format ascii` speaks, so the audit READS as the DAG it judged
     // (operator ask 2026-07-12: « quand on fait check, voir la dag »).
@@ -435,18 +435,13 @@ fn arg_rows(report: &CheckReport) -> Vec<String> {
     rows
 }
 
-/// Advisory hints + the one-line verdict (the report's last words).
-/// `verdict` is the caller's ONE verdict (see [`render`]) — this footer
-/// shows it, it never re-decides it.
-fn hints_and_verdict(
+/// Render every distinct `(identity, advice)` body while returning the
+/// smaller set of stable identities used by the verdict count.
+fn render_report_hints<'a>(
     out: &mut String,
-    report: &CheckReport,
-    wf: &RawWorkflow,
-    path: &str,
+    report: &'a CheckReport,
     t: Theme,
-    drift_hints: &[String],
-    verdict: bool,
-) {
+) -> BTreeSet<&'a str> {
     let mut grouped: BTreeMap<(&str, &str), (usize, BTreeSet<&str>)> = BTreeMap::new();
     for hint in &report.hints {
         let identity = hint.code.unwrap_or(hint.kind);
@@ -456,8 +451,6 @@ fn hints_and_verdict(
         entry.0 += 1;
         entry.1.insert(hint.task.as_str());
     }
-    let mut hint_sites = report.hints.len() + drift_hints.len();
-    let mut distinct_hints = grouped.len() + drift_hints.len();
     for ((identity, advice), (sites, tasks)) in grouped {
         let coded_prefix = format!("{identity} · ");
         let display_advice = advice.strip_prefix(&coded_prefix).unwrap_or(advice);
@@ -479,6 +472,30 @@ fn hints_and_verdict(
             display_advice,
             suffix,
         );
+    }
+    report
+        .hints
+        .iter()
+        .map(|hint| hint.code.unwrap_or(hint.kind))
+        .collect()
+}
+
+/// Advisory hints + the one-line verdict (the report's last words).
+/// `verdict` is the caller's ONE verdict (see [`render`]) — this footer
+/// shows it, it never re-decides it.
+fn hints_and_verdict(
+    out: &mut String,
+    report: &CheckReport,
+    wf: &RawWorkflow,
+    path: &str,
+    t: Theme,
+    drift_hints: &[String],
+    verdict: bool,
+) {
+    let mut distinct_identities = render_report_hints(out, report, t);
+    let mut hint_sites = report.hints.len() + drift_hints.len();
+    if !drift_hints.is_empty() {
+        distinct_identities.insert(nika_dap::drift::DRIFT_CODE);
     }
     // NIKA-DRIFT-001 rows — the declared-vs-unused family, computed at
     // this edge (super::drift); the code-first bracket voice matches the
@@ -502,7 +519,7 @@ fn hints_and_verdict(
         .filter(|(_, p)| !std::path::Path::new(p).exists())
     {
         hint_sites += 1;
-        distinct_hints += 1;
+        distinct_identities.insert("inputs");
         let _ = writeln!(
             out,
             " {} {}     [inputs] `{task}` reads `{path}` which does not exist here — create it (or point its var elsewhere) · the run would fail at that wave",
@@ -513,7 +530,7 @@ fn hints_and_verdict(
     let inputs = required_inputs(wf);
     if !inputs.is_empty() {
         hint_sites += 1;
-        distinct_hints += 1;
+        distinct_identities.insert("inputs");
         let pass = inputs
             .iter()
             .map(|n| format!("--var {n}=…"))
@@ -532,7 +549,7 @@ fn hints_and_verdict(
         let _ = writeln!(
             out,
             " {}",
-            audited_line(report, wf, distinct_hints, hint_sites, grade, t)
+            audited_line(report, wf, distinct_identities.len(), hint_sites, grade, t)
         );
     } else {
         // Through `mark()`, not a hardcoded glyph: this line shipped a
@@ -548,13 +565,33 @@ fn hints_and_verdict(
         );
     }
     if hint_sites > 0 {
+        let next = if path == "-" {
+            "save stdin to a file, then run `nika check --fix <file>` to apply safe repairs and re-check"
+                .to_owned()
+        } else {
+            format!(
+                "run `nika check --fix {}` to apply safe repairs, then re-check",
+                shell_quote(path)
+            )
+        };
         let _ = writeln!(
             out,
-            " {} {}     run `nika check --fix {path}` to apply safe repairs, then re-check · see `nika explain` for coded findings",
+            " {} {}     {next} · see `nika explain` for coded findings",
             t.paint(Role::Accent, "↳"),
             t.paint(Role::Strong, "NEXT"),
         );
     }
+}
+
+fn shell_quote(value: &str) -> String {
+    if !value.is_empty()
+        && value
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '_' | '-' | '.' | '/'))
+    {
+        return value.to_owned();
+    }
+    format!("'{}'", value.replace('\'', "'\"'\"'"))
 }
 
 /// The unbounded-cost census, split by WHY (probe 2026-07-30: a capped

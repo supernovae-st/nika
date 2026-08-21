@@ -260,14 +260,19 @@ fn command_segments(command: &RawCommand) -> Vec<CommandSegment> {
             })
             .into_iter()
             .collect(),
-        RawCommand::Shell(shell) => split_shell_segments(&shell.value)
-            .into_iter()
-            .filter_map(|text| {
-                let words = shell_words(&text);
-                let raw = first_program(&words)?.to_owned();
-                segment(&raw, words)
-            })
-            .collect(),
+        RawCommand::Shell(shell) => {
+            if has_unquoted_heredoc(&shell.value) {
+                return Vec::new();
+            }
+            split_shell_segments(&shell.value)
+                .into_iter()
+                .filter_map(|text| {
+                    let words = shell_words(&text);
+                    let raw = first_program(&words)?.to_owned();
+                    segment(&raw, words)
+                })
+                .collect()
+        }
         #[allow(
             clippy::unreachable,
             reason = "non_exhaustive future variant — enum and checker ship together; fail loud beats silently-wrong output"
@@ -290,21 +295,93 @@ fn segment(raw: &str, fragments: Vec<String>) -> Option<CommandSegment> {
 }
 
 fn first_program(words: &[String]) -> Option<&str> {
-    words
-        .iter()
-        .map(String::as_str)
-        .find(|token| !is_assignment(token))
+    let mut index = 0;
+    let mut env_wrapper = false;
+    while let Some(token) = words.get(index).map(String::as_str) {
+        if is_assignment(token) {
+            index += 1;
+            continue;
+        }
+        if token == "env" && index == 0 {
+            env_wrapper = true;
+            index += 1;
+            continue;
+        }
+        if env_wrapper && matches!(token, "-i" | "--ignore-environment") {
+            index += 1;
+            continue;
+        }
+        if env_wrapper && matches!(token, "-u" | "--unset") {
+            index += 2;
+            continue;
+        }
+        if env_wrapper && token.starts_with("--unset=") {
+            index += 1;
+            continue;
+        }
+        if redirection_takes_operand(token) {
+            index += 2;
+            continue;
+        }
+        if is_redirection(token) {
+            index += 1;
+            continue;
+        }
+        if matches!(token, "{" | "then" | "do" | "else" | "!") {
+            index += 1;
+            continue;
+        }
+        if matches!(
+            token,
+            "if" | "elif"
+                | "while"
+                | "until"
+                | "for"
+                | "case"
+                | "select"
+                | "function"
+                | "fi"
+                | "done"
+                | "esac"
+                | "}"
+        ) {
+            return None;
+        }
+        return Some(token);
+    }
+    None
 }
 
 fn is_assignment(token: &str) -> bool {
-    token
-        .split_once('=')
-        .is_some_and(|(name, _)| !name.contains('/') && !name.is_empty())
+    token.split_once('=').is_some_and(|(name, _)| {
+        let mut chars = name.chars();
+        chars
+            .next()
+            .is_some_and(|first| first == '_' || first.is_ascii_alphabetic())
+            && chars.all(|c| c == '_' || c.is_ascii_alphanumeric())
+    })
+}
+
+fn redirection_body(token: &str) -> &str {
+    token.trim_start_matches(|c: char| c.is_ascii_digit())
+}
+
+fn redirection_takes_operand(token: &str) -> bool {
+    matches!(
+        redirection_body(token),
+        ">" | ">>" | ">|" | "<" | "<>" | "<&" | ">&" | "<<<"
+    )
+}
+
+fn is_redirection(token: &str) -> bool {
+    matches!(redirection_body(token).chars().next(), Some('<' | '>'))
 }
 
 /// Split only on unquoted, unescaped shell control operators. This is
-/// intentionally a segmenter, not a shell evaluator: it never expands
-/// variables or executes substitutions.
+/// intentionally a segmenter, not a shell evaluator: it recognizes
+/// physical-line comments/newlines and a small compound-command prefix
+/// vocabulary, but never expands variables or substitutions. Heredocs
+/// make the whole shell command opaque so their bodies cannot false-fire.
 fn split_shell_segments(shell: &str) -> Vec<String> {
     #[derive(Clone, Copy, PartialEq, Eq)]
     enum Quote {
@@ -339,11 +416,29 @@ fn split_shell_segments(shell: &str) -> Vec<String> {
             (Quote::Single, '\'') | (Quote::Double, '"') => quote = Quote::None,
             _ => {}
         }
-        if quote == Quote::None && matches!(c, '|' | '&' | ';') {
+        if quote == Quote::None
+            && c == '#'
+            && current.chars().last().is_none_or(char::is_whitespace)
+        {
+            let trimmed = current.trim();
+            if !trimmed.is_empty() {
+                parts.push(trimmed.to_owned());
+            }
+            current.clear();
+            i += 1;
+            while i < chars.len() && chars[i] != '\n' {
+                i += 1;
+            }
+            if i < chars.len() {
+                i += 1;
+            }
+            continue;
+        }
+        if quote == Quote::None && matches!(c, '|' | '&' | ';' | '\n') {
             let width = match c {
                 '|' if chars.get(i + 1) == Some(&'|') => 2,
                 '&' if chars.get(i + 1) == Some(&'&') => 2,
-                ';' | '|' => 1,
+                ';' | '|' | '\n' => 1,
                 _ => 0,
             };
             if width > 0 {
@@ -364,6 +459,60 @@ fn split_shell_segments(shell: &str) -> Vec<String> {
         parts.push(trimmed.to_owned());
     }
     parts
+}
+
+fn has_unquoted_heredoc(shell: &str) -> bool {
+    #[derive(Clone, Copy, PartialEq, Eq)]
+    enum Quote {
+        None,
+        Single,
+        Double,
+    }
+
+    let chars: Vec<char> = shell.chars().collect();
+    let mut quote = Quote::None;
+    let mut escaped = false;
+    let mut i = 0;
+    while i < chars.len() {
+        let c = chars[i];
+        if escaped {
+            escaped = false;
+            i += 1;
+            continue;
+        }
+        if c == '\\' && quote != Quote::Single {
+            escaped = true;
+            i += 1;
+            continue;
+        }
+        match (quote, c) {
+            (Quote::None, '\'') => quote = Quote::Single,
+            (Quote::None, '"') => quote = Quote::Double,
+            (Quote::Single, '\'') | (Quote::Double, '"') => quote = Quote::None,
+            _ => {}
+        }
+        if quote == Quote::None
+            && c == '#'
+            && (i == 0
+                || chars
+                    .get(i.wrapping_sub(1))
+                    .is_some_and(|c| c.is_whitespace()))
+        {
+            while i < chars.len() && chars[i] != '\n' {
+                i += 1;
+            }
+            continue;
+        }
+        if quote == Quote::None
+            && c == '<'
+            && chars.get(i + 1) == Some(&'<')
+            && chars.get(i + 2) != Some(&'<')
+        {
+            return true;
+        }
+        i += 1;
+    }
+    false
 }
 
 /// Tokenize one already-isolated segment just far enough to find its
@@ -671,6 +820,63 @@ tasks:
         assert!(
             hints[1..].iter().all(|h| h.advice.contains("nika:hash")),
             "{hints:?}"
+        );
+    }
+
+    #[test]
+    fn comments_end_the_physical_line_without_spawning_phantom_commands() {
+        let hints = hints_of(&exec_wf("\"echo ok # ignored ; jq '.'; date\""));
+        assert!(
+            hints.iter().all(|h| h.kind != "native-first"),
+            "comment text is never executable syntax: {hints:?}"
+        );
+    }
+
+    #[test]
+    fn compound_shell_prefixes_reveal_commands_without_guessing_keywords() {
+        let cases = [
+            ("\"{ jq '.'; date; }\"", 2),
+            ("\"if true; then jq '.'; fi\"", 1),
+            ("\"env MODE=x jq '.'\"", 1),
+            ("\">/tmp/out jq '.'\"", 1),
+            ("\"printf ok\\njq '.'\"", 1),
+        ];
+        for (command, expected) in cases {
+            let hints = hints_of(&exec_wf(command));
+            assert_eq!(
+                hints
+                    .iter()
+                    .filter(|h| h.code == Some("native-first/003"))
+                    .count(),
+                expected,
+                "{command}: {hints:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn direct_and_pathed_heads_keep_the_precision_boundary() {
+        let direct = hints_of(&exec_wf("\"jq /tmp/input\""));
+        assert_eq!(
+            direct
+                .iter()
+                .filter(|h| h.code == Some("native-first/003"))
+                .count(),
+            1
+        );
+        let pathed = hints_of(&exec_wf("\"/usr/bin/jq /tmp/input\""));
+        assert!(
+            pathed.iter().all(|h| h.kind != "native-first"),
+            "a pathed head remains author-owned: {pathed:?}"
+        );
+    }
+
+    #[test]
+    fn heredoc_bodies_are_not_reinterpreted_as_command_lines() {
+        let hints = hints_of(&exec_wf("\"cat <<EOF\\njq '.'\\nEOF\""));
+        assert!(
+            hints.iter().all(|h| h.code != Some("native-first/003")),
+            "the deliberately small segmenter backs off on heredocs: {hints:?}"
         );
     }
 }
