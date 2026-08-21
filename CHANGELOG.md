@@ -29,6 +29,14 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Added
 
+- **Tool-result spill in the `agent:` loop (opt-in seam).** Past 16 KiB a
+  tool result's full text leaves the conversation for the blob store —
+  the content hash IS the locator — and the model keeps a 2 KiB preview
+  plus the pointer, so the context window stops re-paying bytes it cannot
+  use. Nothing is discarded, and a store refusal keeps the full text:
+  the spill is an optimization of the model's reading, never a gate on
+  the data. Seat it with `AgentVerb::with_spill`; without the seam the
+  loop is byte-unchanged.
 - **`nika check` judges a project file as a project.** It applied the nine-key
   WORKFLOW envelope to every document, so a project file came back
   `NIKA-PARSE-002 missing required envelope field: tasks` — on a file
