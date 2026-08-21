@@ -109,6 +109,18 @@ const LIFECYCLE_TERMINAL: &[&str] = &[
 /// `serde_json` sees it.
 pub const MAX_LINE_BYTES: usize = crate::bounded::MAX_ARTIFACT_BYTES;
 
+/// Does ANY of these lines carry a `chain` field? The pre-0.96 era is
+/// defined by their total absence, so one chained line refutes it — and
+/// refuting it is what separates an old journal from a stripped header.
+fn any_line_is_chained(lines: &[(usize, &str)]) -> bool {
+    lines.iter().any(|&(_, l)| {
+        serde_json::from_str::<serde_json::Value>(l)
+            .ok()
+            .and_then(|v| v.get("chain").and_then(|c| c.as_str()).map(str::to_owned))
+            .is_some()
+    })
+}
+
 /// The pure walk — recompute the chain over exact line bytes. Line
 /// numbers are FILE lines (blanks skipped, never renumbered — the
 /// recover path counts the same way), each line parses exactly once,
@@ -151,10 +163,15 @@ pub fn walk(raw: &str) -> Verdict {
             return Verdict::Unreadable { line: lineno + 1 };
         };
         let Some(recorded) = value.get("chain").and_then(|c| c.as_str()) else {
-            // The FIRST line decides the era: no chain there = a
-            // pre-chain journal. A chain that starts and then STOPS is
-            // a break, not an era.
-            if pos == 0 {
+            // The first line proposes the era; the REST of the file
+            // decides it. A pre-0.96 journal carries zero chained
+            // lines, so a chainless first line above chained ones is a
+            // STRIPPED HEADER, not an era — and that question is
+            // decidable from the bytes in hand. Answering it from line
+            // 0 alone renders a tampered trace as "nothing to verify,
+            // nothing to distrust", which is the one thing a proof
+            // layer may never say about a file that was edited.
+            if pos == 0 && !any_line_is_chained(&numbered[1..]) {
                 return Verdict::Unchained;
             }
             return Verdict::Broken {
@@ -276,6 +293,47 @@ mod tests {
     fn a_pre_chain_journal_is_unchained_not_broken() {
         let raw = format!("{}\n", ev("workflow_started"));
         assert!(matches!(walk(&raw), Verdict::Unchained));
+    }
+
+    /// A STRIPPED HEADER is not a pre-chain era, and the difference is
+    /// decidable from the file itself: a real pre-0.96 journal carries
+    /// ZERO chained lines, while this one carries every line but the
+    /// first. Deciding the era from line 0 alone resolves the ambiguity
+    /// toward the reassuring reading and renders a TAMPERED trace as
+    /// "nothing to verify, nothing to distrust".
+    #[test]
+    fn a_stripped_header_is_broken_not_a_pre_chain_era() {
+        let raw = chained(&[
+            ev("workflow_started"),
+            ev("task_completed"),
+            ev("workflow_completed"),
+        ]);
+        let mut lines: Vec<String> = raw.lines().map(str::to_owned).collect();
+        // Rename the genesis line's `chain` key — the exact shape an
+        // attacker reaches for to buy a benign verdict.
+        lines[0] = lines[0].replacen("\"chain\"", "\"chbin\"", 1);
+        let tampered = format!("{}\n", lines.join("\n"));
+        assert!(
+            matches!(walk(&tampered), Verdict::Broken { line: 1, .. }),
+            "a header stripped from a chained file is a BREAK, not an era"
+        );
+    }
+
+    /// The other direction, so the fix cannot be bought by calling
+    /// everything broken: a genuine pre-chain journal has no chained
+    /// line anywhere and must stay `Unchained`.
+    #[test]
+    fn a_genuine_pre_chain_journal_with_many_lines_stays_unchained() {
+        let raw = format!(
+            "{}\n{}\n{}\n",
+            ev("workflow_started"),
+            ev("task_completed"),
+            ev("workflow_completed")
+        );
+        assert!(
+            matches!(walk(&raw), Verdict::Unchained),
+            "no line carries a chain · this really is the pre-0.96 era"
+        );
     }
 
     #[test]

@@ -11,22 +11,22 @@ homepage.workspace     = true
 publish                = false  # Internal member of the nika-cli unit (the binary ships, the lib doesn't).
 
 [dependencies]
-nika-builtin   = { path = "../nika-builtin", version = "0.111.0" }   # tool surfaces the welcome glance names
-nika-catalog   = { path = "../nika-catalog", version = "0.111.0" }   # env_var ladder (probe key presence)
-nika-check     = { path = "../nika-check", version = "0.111.0" }     # CheckReport surfaces the doctor/welcome glance reads
-nika-dap       = { path = "../nika-dap", version = "0.111.0" }       # workspace inventory (welcome glance · truncation law)
-nika-display   = { path = "../nika-display", version = "0.111.0" }   # theme (Role · Theme) + display::format::file_url
-nika-models    = { path = "../nika-models", version = "0.111.0" }    # model ids the probe/doctor ladders name
-nika-pack      = { path = "../nika-pack", version = "0.111.0" }      # embedded pack version (kit probes)
-nika-providers = { path = "../nika-providers", version = "0.111.0" } # ProviderRegistry + ExecutionLocus (the probe ladders)
-nika-runtime   = { path = "../nika-runtime", version = "0.111.0" }   # trace-store shapes retention walks + WorkflowPause/Stamper (notify · ADR-111)
-nika-schema    = { path = "../nika-schema", version = "0.111.0" }    # RawWorkflow (context envelope · glance)
-nika-http      = { path = "../nika-http", version = "0.111.0" }      # ReqwestHttp — the notify webhook client (ADR-111 · SSRF floor)
-nika-event     = { path = "../nika-event", version = "0.111.0" }     # Event + notify_delivered/notify_failed kinds (ADR-111)
-nika-types     = { path = "../nika-types", version = "0.111.0" }     # EventId · KeyValue · Timestamp (notify journal fields)
-nika-kernel    = { path = "../nika-kernel", version = "0.111.0" }    # HttpPostDyn seam the notify client posts through
-nika-migrate   = { path = "../nika-migrate", version = "0.111.0" }   # the codemods the fix_ladder arms ride (W1 · W2 · C2 · R5 · D1)
-nika-harness   = { path = "../nika-harness", version = "0.111.0", optional = true } # the adapter registry + probes (P3 B6 · access-harness)
+nika-builtin   = { path = "../nika-builtin", version = "0.112.0" }   # tool surfaces the welcome glance names
+nika-catalog   = { path = "../nika-catalog", version = "0.112.0" }   # env_var ladder (probe key presence)
+nika-check     = { path = "../nika-check", version = "0.112.0" }     # CheckReport surfaces the doctor/welcome glance reads
+nika-dap       = { path = "../nika-dap", version = "0.112.0" }       # workspace inventory (welcome glance · truncation law)
+nika-display   = { path = "../nika-display", version = "0.112.0" }   # theme (Role · Theme) + display::format::file_url
+nika-models    = { path = "../nika-models", version = "0.112.0" }    # model ids the probe/doctor ladders name
+nika-pack      = { path = "../nika-pack", version = "0.112.0" }      # embedded pack version (kit probes)
+nika-providers = { path = "../nika-providers", version = "0.112.0" } # ProviderRegistry + ExecutionLocus (the probe ladders)
+nika-runtime   = { path = "../nika-runtime", version = "0.112.0" }   # trace-store shapes retention walks + WorkflowPause/Stamper (notify · ADR-111)
+nika-schema    = { path = "../nika-schema", version = "0.112.0" }    # RawWorkflow (context envelope · glance)
+nika-http      = { path = "../nika-http", version = "0.112.0" }      # ReqwestHttp — the notify webhook client (ADR-111 · SSRF floor)
+nika-event     = { path = "../nika-event", version = "0.112.0" }     # Event + notify_delivered/notify_failed kinds (ADR-111)
+nika-types     = { path = "../nika-types", version = "0.112.0" }     # EventId · KeyValue · Timestamp (notify journal fields)
+nika-kernel    = { path = "../nika-kernel", version = "0.112.0" }    # HttpPostDyn seam the notify client posts through
+nika-migrate   = { path = "../nika-migrate", version = "0.112.0" }   # the codemods the fix_ladder arms ride (W1 · W2 · C2 · R5 · D1)
+nika-harness   = { path = "../nika-harness", version = "0.112.0", optional = true } # the adapter registry + probes (P3 B6 · access-harness)
 sha2           = { workspace = true }   # ADR-111 — the deterministic CloudEvents id (trace × task)
 hmac           = { workspace = true }   # ADR-111 — Standard Webhooks `v1,` HMAC-SHA256 signature
 base64         = { workspace = true }   # ADR-111 — whsec_ secret decode + signature encoding

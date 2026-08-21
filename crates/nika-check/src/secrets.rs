@@ -98,10 +98,9 @@ pub(super) fn scan_leaks(wf: &RawWorkflow, flow: &FlowFacts) -> Vec<SecretLeak> 
     let permits = wf.permits.as_ref().map(|s| &s.value);
     for (idx, task) in wf.tasks.iter().enumerate() {
         // The flow facts are already sanction-filtered (declass · ADR-092):
-        // `effect_leak` / `finally_effect_taint` hold only UNSANCTIONED
-        // secret→sink edges. A secret whose `egress:` clears this sink does
-        // not appear here.
-        if let Some(trace) = flow.effect_leak(idx) {
+        // `effect_leaks` holds only UNSANCTIONED secret→sink edges. A secret
+        // whose `egress:` clears this sink does not appear here.
+        for trace in flow.effect_leaks(idx) {
             leaks.push(SecretLeak {
                 task: task.value.id.value.clone(),
                 secret: trace.secret.clone(),
@@ -287,12 +286,136 @@ mod declassification {
     use crate::analyzer::analyze;
     use nika_schema::parser::{ParseMode, parse};
     use nika_schema::source::FileId;
+    use std::collections::BTreeSet;
 
     fn leaks_of(yaml: &str) -> Vec<SecretLeak> {
         let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse");
         let a = analyze(&wf).expect("analyze");
         let flow = super::super::flow::analyze_flow(&wf, &a.topo_waves);
         scan_leaks(&wf, &flow)
+    }
+
+    fn report_of(yaml: &str) -> crate::CheckReport {
+        let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse");
+        crate::check(&wf)
+    }
+
+    #[test]
+    fn multi_secret_consent_matrix_judges_every_shared_sink_edge() {
+        for reverse in [false, true] {
+            for clear_alpha in [false, true] {
+                for clear_omega in [false, true] {
+                    let alpha_egress = if clear_alpha {
+                        "    egress: [{ to: \"mcp:service/send\" }]\n"
+                    } else {
+                        ""
+                    };
+                    let omega_egress = if clear_omega {
+                        "    egress: [{ to: \"mcp:service/send\" }]\n"
+                    } else {
+                        ""
+                    };
+                    let payload = if reverse {
+                        "${{ secrets.omega }}:${{ secrets.alpha }}"
+                    } else {
+                        "${{ secrets.alpha }}:${{ secrets.omega }}"
+                    };
+                    let yaml = format!(
+                        "nika: multi-secret\nsecrets:\n  alpha:\n    source: env\n    key: ALPHA\n{alpha_egress}  omega:\n    source: env\n    key: OMEGA\n{omega_egress}permits:\n  tools: [\"mcp:service/send\"]\ntasks:\n  send:\n    invoke:\n      tool: \"mcp:service/send\"\n      args: {{ payload: \"{payload}\" }}\n"
+                    );
+                    let report = report_of(&yaml);
+                    let actual: BTreeSet<&str> = report
+                        .secret_leaks
+                        .iter()
+                        .map(|leak| leak.secret.as_str())
+                        .collect();
+                    let expected: BTreeSet<&str> =
+                        [(!clear_alpha, "alpha"), (!clear_omega, "omega")]
+                            .into_iter()
+                            .filter_map(|(leaks, name)| leaks.then_some(name))
+                            .collect();
+                    assert_eq!(actual, expected, "reverse={reverse} yaml={yaml}");
+                    assert_eq!(
+                        report.is_clean(),
+                        expected.is_empty(),
+                        "the verdict follows the complete edge set: {yaml}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn distinct_exec_fields_each_contribute_their_secret() {
+        let leaks = leaks_of(
+            r#"
+nika: exec-fields
+secrets:
+  command_secret: { source: env, key: COMMAND_SECRET }
+  stdin_secret: { source: env, key: STDIN_SECRET }
+permits:
+  exec: [printf]
+tasks:
+  send:
+    exec:
+      command: [printf, "${{ secrets.command_secret }}"]
+      stdin: "${{ secrets.stdin_secret }}"
+"#,
+        );
+        let actual: BTreeSet<&str> = leaks.iter().map(|leak| leak.secret.as_str()).collect();
+        assert_eq!(actual, BTreeSet::from(["command_secret", "stdin_secret"]));
+    }
+
+    #[test]
+    fn fetch_host_clearance_is_judged_per_secret() {
+        let report = report_of(
+            r#"
+nika: fetch-edges
+secrets:
+  cleared:
+    source: env
+    key: CLEARED
+    egress: [{ to: "nika:fetch", host: "api.example.com" }]
+  uncleared: { source: env, key: UNCLEARED }
+permits:
+  tools: ["nika:fetch"]
+  net: { http: ["api.example.com"] }
+tasks:
+  send:
+    invoke:
+      tool: "nika:fetch"
+      args:
+        url: "https://api.example.com/send"
+        headers:
+          Authorization: "Bearer ${{ secrets.cleared }}"
+          X-Other: "${{ secrets.uncleared }}"
+"#,
+        );
+        assert_eq!(report.secret_leaks.len(), 1, "{report:?}");
+        assert_eq!(report.secret_leaks[0].secret, "uncleared");
+    }
+
+    #[test]
+    fn list_item_carries_every_secret_to_the_sink() {
+        let leaks = leaks_of(
+            r#"
+nika: list-item
+secrets:
+  alpha: { source: env, key: ALPHA }
+  omega: { source: env, key: OMEGA }
+permits:
+  tools: ["mcp:service/send"]
+tasks:
+  send:
+    for_each:
+      items: ["${{ secrets.alpha }}", "${{ secrets.omega }}"]
+    invoke:
+      tool: "mcp:service/send"
+      args: { payload: "${{ item }}" }
+"#,
+        );
+        let actual: BTreeSet<&str> = leaks.iter().map(|leak| leak.secret.as_str()).collect();
+        assert_eq!(actual, BTreeSet::from(["alpha", "omega"]));
     }
 
     #[test]

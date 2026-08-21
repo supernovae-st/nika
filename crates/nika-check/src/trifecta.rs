@@ -28,9 +28,9 @@ pub fn scan_trifecta(
     wf: &RawWorkflow,
     edges: &[Edge],
     topo_waves: &[Vec<usize>],
-) -> Vec<nika_cap::TrifectaViolation> {
+) -> nika_cap::TrifectaVerdict {
     let Some(permits) = wf.permits.as_ref() else {
-        return Vec::new();
+        return nika_cap::TrifectaVerdict::default();
     };
     // The realized-flow facts (v2.0). The MCP trust closure is the
     // catalog mark's seam — until it lands, every server is untrusted.
@@ -55,7 +55,7 @@ pub fn scan_trifecta(
         }
     }
     let topo_flat: Vec<usize> = topo_waves.iter().flatten().copied().collect();
-    nika_cap::trifecta_violations(&permits.value, &subjects, &witnesses, &topo_flat)
+    nika_cap::trifecta_verdict(&permits.value, &subjects, &witnesses, &topo_flat)
 }
 
 /// The task's egress capability (see the module doc for the table).

@@ -11,8 +11,8 @@ homepage.workspace     = true
 publish                = false  # Foundation crate — never on crates.io. See ADR-022.
 
 [dependencies]
-nika-schema = { path = "../nika-schema", version = "0.111.0" } # RawWorkflow + spans
-nika-check  = { path = "../nika-check", version = "0.111.0" }  # the native-first classifier + the DAG edge truth the preference rules read
+nika-schema = { path = "../nika-schema", version = "0.112.0" } # RawWorkflow + spans
+nika-check  = { path = "../nika-check", version = "0.112.0" }  # the native-first classifier + the DAG edge truth the preference rules read
 serde_json  = { workspace = true }                             # rule-table payload shapes
 
 [dev-dependencies]

@@ -1326,12 +1326,10 @@ fn infer_permits_output_cannot_depend_on_the_disk() {
     );
 }
 
-/// #774 · the provenance pair rides every `--json` report: the bare
-/// crate version under the run journal's `engine_version` key and the
-/// compile-time commit stamp beside it — additive siblings, the
-/// `report_version: 1` contract untouched.
+/// The typed engine identity rides every `--json` report while the
+/// independent `report_version` schema contract remains untouched.
 #[test]
-fn check_json_carries_the_build_provenance_pair() {
+fn check_json_carries_the_typed_engine_identity() {
     let dir = std::env::temp_dir().join(format!("nika-cli-killtests-{}", std::process::id()));
     std::fs::create_dir_all(&dir).expect("tmp dir");
     let path = dir.join("provenance.nika.yaml");
@@ -1349,14 +1347,17 @@ fn check_json_carries_the_build_provenance_pair() {
     );
     assert_eq!(out.code, 0, "{}", out.text);
     let payload: serde_json::Value = serde_json::from_str(&out.text).expect("json");
-    assert_eq!(payload["engine_version"], env!("CARGO_PKG_VERSION"));
+    let identity = nika_runtime::engine_identity();
+    assert_eq!(payload["engine_version"], identity.engine_version());
     let sha = payload["build_sha"].as_str().expect("build_sha string");
     assert!(!sha.is_empty(), "a stamp always rides: {payload:#}");
     assert_eq!(
         sha,
-        env!("NIKA_BUILD_SHA"),
+        identity.build_sha(),
         "the payload IS the compile-time stamp: {payload:#}"
     );
+    assert_eq!(payload["spec_sha"], identity.spec_sha());
+    assert_eq!(payload["report_version"], nika_check::REPORT_VERSION);
 }
 
 /// #774 · the `--version` stamp contract: the bare version stays the
@@ -1366,14 +1367,15 @@ fn check_json_carries_the_build_provenance_pair() {
 /// form byte-identical to the bare version.
 #[test]
 fn the_long_version_keeps_the_bare_version_first() {
-    let long = env!("NIKA_VERSION_LONG");
+    let identity = nika_runtime::engine_identity();
+    let long = identity.version_long();
     let first = long.split_whitespace().next().expect("a version token");
-    assert_eq!(first, env!("CARGO_PKG_VERSION"), "{long}");
-    let sha = env!("NIKA_BUILD_SHA");
+    assert_eq!(first, identity.engine_version(), "{long}");
+    let sha = identity.build_sha();
     assert!(!sha.is_empty(), "build.rs always emits a stamp");
     if sha == "unknown" {
-        assert_eq!(long, env!("CARGO_PKG_VERSION"), "{long}");
+        assert_eq!(long, identity.engine_version(), "{long}");
     } else {
-        assert_eq!(long, format!("{} ({sha})", env!("CARGO_PKG_VERSION")));
+        assert_eq!(long, format!("{} ({sha})", identity.engine_version()));
     }
 }

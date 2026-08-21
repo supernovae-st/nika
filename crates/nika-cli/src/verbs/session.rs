@@ -137,6 +137,14 @@ fn show<W: Write>(output: &mut W, value: &VerbOutput) -> std::io::Result<()> {
     Ok(())
 }
 
+fn show_list<W: Write>(output: &mut W, value: &VerbOutput) -> std::io::Result<()> {
+    if value.code == exit::OK && value.text.is_empty() {
+        writeln!(output, "no workflows below here · create one: nika new")
+    } else {
+        show(output, value)
+    }
+}
+
 fn finish_turn<W: Write>(output: &mut W, turn: &Turn) -> std::io::Result<()> {
     if turn.interrupted {
         writeln!(output, "interrupted · thread stays open")
@@ -170,7 +178,7 @@ fn drive<R: BufRead, W: Write, T: ThreadRuntime>(
         match message.split_once(' ') {
             _ if matches!(message, "/quit" | "/exit") => return Ok(exit::OK),
             _ if message == "/help" => write!(output, "{HELP}")?,
-            _ if message == "/list" => show(output, &runtime.list())?,
+            _ if message == "/list" => show_list(output, &runtime.list())?,
             Some(("/model", model)) if model.contains('/') => {
                 model.trim().clone_into(&mut thread.model);
                 writeln!(output, "model {}", thread.model)?;
@@ -180,6 +188,7 @@ fn drive<R: BufRead, W: Write, T: ThreadRuntime>(
             Some(("/workflow", path)) if !path.trim().is_empty() => {
                 show(output, &runtime.post(path.trim(), theme))?;
             }
+            _ if message == "/run" => writeln!(output, "use /run <path>")?,
             Some(("/run", path)) if !path.trim().is_empty() => {
                 finish_turn(output, &runtime.run_workflow(path.trim(), theme))?;
             }
@@ -226,6 +235,7 @@ mod tests {
         posted: Vec<String>,
         runs: Vec<String>,
         interrupt_first: bool,
+        empty_list: bool,
     }
 
     impl ThreadRuntime for FakeRuntime {
@@ -249,7 +259,11 @@ mod tests {
         }
 
         fn list(&mut self) -> VerbOutput {
-            VerbOutput::ok("a.nika.yaml\nnested/b.nika.yaml\n".to_owned())
+            if self.empty_list {
+                VerbOutput::ok(String::new())
+            } else {
+                VerbOutput::ok("a.nika.yaml\nnested/b.nika.yaml\n".to_owned())
+            }
         }
     }
 
@@ -302,5 +316,40 @@ mod tests {
         assert_eq!(runtime.prompts[0].1, "xai/grok-4");
         assert!(shown.contains("interrupted · thread stays open"));
         assert!(shown.contains("answer-2"));
+    }
+
+    #[test]
+    fn empty_list_in_thread_teaches_creation() {
+        let mut input = Cursor::new(b"/list\n/quit\n");
+        let mut output = Vec::new();
+        let mut runtime = FakeRuntime {
+            empty_list: true,
+            ..FakeRuntime::default()
+        };
+
+        let code = drive(&mut input, &mut output, plain(), &mut runtime).expect("thread");
+        let shown = String::from_utf8(output).expect("utf8");
+
+        assert_eq!(code, exit::OK);
+        assert!(
+            shown.contains("no workflows below here · create one: nika new"),
+            "{shown}"
+        );
+        assert_eq!(shown.matches("nika ›").count(), 2, "{shown}");
+    }
+
+    #[test]
+    fn bare_run_teaches_its_path_without_dispatching() {
+        let mut input = Cursor::new(b"/run\n/quit\n");
+        let mut output = Vec::new();
+        let mut runtime = FakeRuntime::default();
+
+        let code = drive(&mut input, &mut output, plain(), &mut runtime).expect("thread");
+        let shown = String::from_utf8(output).expect("utf8");
+
+        assert_eq!(code, exit::OK);
+        assert!(shown.contains("use /run <path>"), "{shown}");
+        assert!(!shown.contains("unknown thread command"), "{shown}");
+        assert!(runtime.runs.is_empty());
     }
 }

@@ -136,3 +136,80 @@ fn the_oracle_gains_no_run_tool_and_the_gate_stays_human() {
         "the delegation rule must ban the spontaneous run"
     );
 }
+
+/// An author joins the workspace that already exists before reaching for
+/// the embedded shelf. Discovery is not validation: the skill must keep
+/// `nika check` as the oracle after it names a local candidate.
+#[test]
+fn authoring_reads_local_workflows_before_creating_another() {
+    let skill = read("skills/nika-authoring/SKILL.md");
+    let list = skill.find("nika list").expect("local discovery is taught");
+    let explain = skill[list..]
+        .find("nika explain")
+        .map(|offset| list + offset)
+        .expect("the local candidate is narrated");
+    let shelf = skill
+        .find("nika try")
+        .expect("the embedded shelf stays taught");
+    assert!(list < explain, "discovery comes before narration");
+    assert!(explain < shelf, "the workspace is read before the shelf");
+    assert!(
+        skill.contains("lists candidates; it does not certify them"),
+        "list must never be mistaken for the oracle"
+    );
+}
+
+/// The authoring map must describe the callable set the CEL evaluator
+/// actually serves. A smaller remembered subset makes valid conditions look
+/// forbidden and sends authors toward unnecessary glue.
+#[test]
+fn authoring_names_the_served_cel_callables() {
+    let skill = read("skills/nika-authoring/SKILL.md");
+    for callable in [
+        "size()",
+        "has()",
+        ".contains()",
+        ".startsWith()",
+        ".endsWith()",
+    ] {
+        assert!(
+            skill.contains(callable),
+            "CEL callable `{callable}` missing"
+        );
+    }
+    assert!(
+        !skill.contains("size()` is the only function"),
+        "the retired one-function claim returned"
+    );
+}
+
+/// The paid-readiness probe must name the workflow it audits. Without a
+/// path, `nika check --json` may fall back to directory discovery and emit a
+/// human diagnostic instead of the JSON the pipe expects.
+#[test]
+fn authoring_paid_ready_probe_names_the_workflow() {
+    let skill = read("skills/nika-authoring/SKILL.md");
+    assert!(
+        skill.contains("`nika check --json <file> | jq .paid_ready`"),
+        "the paid-readiness probe must pass the workflow path"
+    );
+    assert!(
+        !skill.contains("`nika check --json | jq .paid_ready`"),
+        "the pathless paid-readiness probe returned"
+    );
+}
+
+/// Replay verification compares two journals, so the authoring map must name
+/// the fresh trace path that the CLI requires instead of presenting a switch.
+#[test]
+fn authoring_replay_names_the_fresh_trace() {
+    let skill = read("skills/nika-authoring/SKILL.md");
+    assert!(
+        skill.contains("`--replay <fresh-trace>`"),
+        "replay verification must name its fresh trace"
+    );
+    assert!(
+        !skill.contains("`--replay` compares"),
+        "the pathless replay form returned"
+    );
+}
