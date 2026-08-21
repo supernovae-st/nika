@@ -80,7 +80,8 @@ fn discovered_rules() -> BTreeSet<String> {
 }
 
 fn rules_for(yaml: &str, family: &str) -> Vec<&'static str> {
-    let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("lint fixture parses");
+    let wf = parse(yaml, FileId::new(0), ParseMode::Strict)
+        .unwrap_or_else(|e| panic!("lint fixture parses: {e}"));
     match family {
         "one-obvious-way" => one_obvious_way(&wf),
         "native-first" => native_first(&wf),

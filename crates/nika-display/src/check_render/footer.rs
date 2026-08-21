@@ -11,8 +11,8 @@ use nika_schema::raw::RawWorkflow;
 use super::{RepairTarget, Role, Theme, audited_line, mark, render_report_hints, required_inputs};
 
 /// Advisory hints + the one-line verdict (the report's last words).
-/// `verdict` is the caller's ONE verdict (see [`render`]) — this footer
-/// shows it, it never re-decides it.
+/// `verdict` is the caller's ONE verdict (see [`super::render`]) — this
+/// footer shows it, it never re-decides it.
 pub(super) fn hints_and_verdict(
     out: &mut String,
     report: &CheckReport,
