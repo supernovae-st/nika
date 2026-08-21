@@ -1,17 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The live TTY fold ([`FoldSink`] · `RunView` repaint per event) and
-//! the run journal's EPILOGUE ([`surface_trace`] · the spec §3.3
-//! `trace:` pointer). The journal's WRITE half — [`TraceFileSink`] ·
-//! the `--json` NDJSON lane · the `Tee` combinator — descended to
-//! `nika_dap::journal` 2026-07-22 (compute descends, render stays ·
-//! one format, one home beside the chain walk that verifies it).
-//!
-//! The fold is a consumer of the SAME stream as every other lane (the
-//! fold law · spec §3): the sink shape decides the surface, never the
-//! runtime. The sink contract is INFALLIBLE (a write error never
-//! changes the run's verdict — it is buffered and surfaced at the end).
+//! Live TTY folding and the finalized trace epilogue. Journal writing lives in
+//! `nika_dap::journal`; every lane consumes the same typed runtime stream.
 
 use std::io::Write;
 
@@ -41,30 +32,18 @@ pub enum RenderMode {
     Quiet,
 }
 
-/// Folds each event into a [`RunView`] and repaints the frame (the live
-/// TTY lane · spec §3). Repaints are event-driven PLUS the spinner
-/// ticks: a timer rider (`spawn_spinner`) advances `tick` while a
-/// task is running, so a long `infer`/`agent` wait breathes instead of
-/// freezing between settles (braille frames only ever render on the
-/// animated unicode Live surface — every sober register is tick-blind
-/// by the glyph law).
+/// Fold events into the live [`RunView`]; spinner ticks repaint only Live.
 pub struct FoldSink<W: Write> {
     writer: W,
     theme: Theme,
     view: RunView,
-    /// The surface this sink paints (spec §3.5) — `Live` repaints in place
-    /// (TTY only · cursor control), `Plain`/`Quiet` fold silently and the
-    /// caller prints ONE final frame (no escape noise in a captured log).
+    /// Selected render surface (spec §3.5).
     mode: RenderMode,
     /// Paint the shape tails (`→ {…} · 312B · 90 tok`) on completed rows.
     /// The interactive-TTY comprehension surface — the run verb enables it
     /// for `Live` only (pipes · CI · `--no-outputs` stay byte-unchanged).
     outputs: bool,
-    /// Whether this run records a trace journal — gates the taught
-    /// `see it whole: nika trace outputs` door (a door taught toward a
-    /// disabled journal fails in the exact context where it is taught ·
-    /// Elliot · wave 3). `true` by default: only the deliberate opt-out
-    /// (`examples run` temp staging · `--no-trace-file`) turns it off.
+    /// Gates trace-only teaching when journaling is disabled.
     trace_recorded: bool,
     /// Lines painted by the previous frame (to clear before the redraw).
     last_lines: usize,
@@ -670,28 +649,71 @@ mod tests {
         fold.spin();
         assert_eq!(fold.writer.len(), before, "Plain stays event-driven");
     }
+
+    struct RefusingWriter(std::io::ErrorKind);
+
+    impl Write for RefusingWriter {
+        fn write(&mut self, _: &[u8]) -> std::io::Result<usize> {
+            Err(std::io::Error::new(self.0, "injected note refusal"))
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+
+    #[test]
+    fn trace_note_errors_keep_the_finalized_path_on_both_streams() {
+        let path = std::path::PathBuf::from(".nika/traces/exact.ndjson");
+        for note in [TraceNote::Stdout, TraceNote::Stderr] {
+            let mut stdout = RefusingWriter(std::io::ErrorKind::PermissionDenied);
+            let mut stderr = RefusingWriter(std::io::ErrorKind::PermissionDenied);
+            let write = write_trace_note(
+                note,
+                &mut stdout,
+                &mut stderr,
+                &path,
+                "trace: exact",
+                false,
+                None,
+            );
+            let surfaced = TraceSurface::noted(Some(path.clone()), write);
+            assert_eq!(surfaced.path, Some(path.clone()));
+            assert_eq!(
+                surfaced.note_error.map(|error| error.kind()),
+                Some(std::io::ErrorKind::PermissionDenied)
+            );
+        }
+    }
 }
 
 /// Where the run journal's `trace:` pointer lands (per lane).
 #[derive(Clone, Copy)]
 pub(super) enum TraceNote {
-    /// The human storytelling surfaces (`Live` · `Plain`) — the spec §3.3
-    /// final-frame pointer, printed under the frame.
+    /// Human storytelling surfaces (`Live` · `Plain`).
     Stdout,
-    /// The machine lanes (`--json` · `--output json`) — their stdout is a
-    /// byte-exact contract, so the pointer rides the diagnostic stream.
+    /// Machine lanes whose stdout is a byte-exact contract.
     Stderr,
-    /// `--quiet` — the compact-card promise holds (no pointer · the
-    /// journal is still written · an fs error still reaches stderr).
+    /// Quiet keeps the compact-card promise.
     Silent,
 }
+#[derive(Default)]
+pub(super) struct TraceSurface {
+    pub(super) path: Option<std::path::PathBuf>,
+    pub(super) note_error: Option<std::io::Error>,
+}
 
-/// Surface the run journal AFTER the run — NEVER the exit code (the sink
-/// contract: journaling is a rider, a broken rider is a note, not a
-/// failure). An fs error goes to stderr with the path when one was opened;
-/// a written journal prints its `trace:` pointer per [`TraceNote`].
-/// `teardown` folds the run's F-P2 teardown facts into the seal's
-/// `covers` (the receipt digest · budgets ρ · effects ε).
+impl TraceSurface {
+    fn noted(path: Option<std::path::PathBuf>, note: std::io::Result<()>) -> Self {
+        Self {
+            path,
+            note_error: note.err(),
+        }
+    }
+}
+
+/// Surface the finalized journal. Fs failure remains a rider; note failure is
+/// typed so the lane returns ENV with the exact path. `teardown` enters the seal.
 pub(super) fn surface_trace(
     mut trace: TraceFileSink,
     note: TraceNote,
@@ -699,76 +721,86 @@ pub(super) fn surface_trace(
     workflow_hash: Option<&str>,
     teardown: Option<&nika_dap::seal::SealTeardown>,
     sensitive: bool,
-) -> Option<std::path::PathBuf> {
-    // The run seal (S2 · verifiable runs): when a run-key exists on this
-    // machine, the journal's LAST line is the signature that binds the
-    // whole chain (head · count · workflow hash) to it. Sealed BEFORE
-    // the durability point so the seal's own bytes are covered by the
-    // fsync; additive — an absent key leaves the journal as today. The
-    // sealing itself lives in `nika_dap::journal` (the journal's home).
+) -> TraceSurface {
+    // Seal before fsync so the signature is part of the durable chain.
     let sealed = nika_dap::journal::seal_journal_with(&mut trace, workflow_hash, teardown);
-    // Durability BEFORE advertisement: the anchor must describe bytes
-    // that survive a power loss (flush reaches the page cache only).
     trace.finalize();
     let path = trace.path().map(std::path::Path::to_path_buf);
-    // Read the anchor parts BEFORE into_error consumes the sink — they
-    // are only ADVERTISED after the error gate below passes.
     let head = trace.chain_head().to_owned();
     let count = trace.chain_len();
     if let Some(e) = trace.into_error() {
-        // Name the file when the failure struck AFTER the open (a partial
-        // journal on disk) — the operator sees exactly what to distrust.
-        match &path {
-            Some(p) => eprintln!(
+        let mut stderr = std::io::stderr().lock();
+        let note = match &path {
+            Some(p) => writeln!(
+                stderr,
                 "nika run: trace file {}: {e} — the run itself is unaffected",
                 p.display()
             ),
-            None => eprintln!("nika run: trace file: {e} — the run itself is unaffected"),
-        }
-        return None;
+            None => writeln!(
+                stderr,
+                "nika run: trace file: {e} — the run itself is unaffected"
+            ),
+        };
+        return TraceSurface::noted(None, note);
     }
-    let path = path?; // disabled · or a run that emitted zero events
+    let Some(path) = path else {
+        return TraceSurface::default();
+    };
     let anchor = anchor_line(&path, count, &head, sealed);
+    let mut stdout = std::io::stdout().lock();
+    let mut stderr = std::io::stderr().lock();
+    let written = write_trace_note(
+        note,
+        &mut stdout,
+        &mut stderr,
+        &path,
+        &anchor,
+        sensitive,
+        autopsy,
+    );
+    TraceSurface::noted(Some(path), written)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn write_trace_note(
+    note: TraceNote,
+    stdout: &mut dyn Write,
+    stderr: &mut dyn Write,
+    path: &std::path::Path,
+    anchor: &str,
+    sensitive: bool,
+    autopsy: Option<&str>,
+) -> std::io::Result<()> {
     match note {
         TraceNote::Stdout => {
-            println!("    {anchor}");
-            // PROV-08 (gauntlet 08-01, Aïcha): a sensitive-classified
-            // voyage wrote its task outputs — CRM rows, emails — into
-            // a plaintext journal, and only `doctor` ever said so. The
-            // disclosure now rides the trace line itself, once, with
-            // the removal handle beside it.
+            writeln!(stdout, "    {anchor}")?;
             if sensitive {
-                println!(
+                writeln!(
+                    stdout,
                     "    note: this trace keeps full task outputs in plaintext (sensitive data included) · retention is doctor's `traces` line · remove: nika trace rm {}",
                     path.display()
-                );
+                )?;
             }
-            // The autopsy line — a FAILED run teaches its own forensics:
-            // the journal it just wrote replays, peeks and time-travels.
             if let Some(task) = autopsy {
-                println!(
+                writeln!(
+                    stdout,
                     "    autopsy: nika trace peek {} {task} · replay: nika trace replay {} · or F5 in VS Code",
                     path.display(),
                     path.display()
-                );
+                )?;
             }
+            stdout.flush()?;
         }
         TraceNote::Stderr => {
-            eprintln!("nika run: {anchor}");
+            writeln!(stderr, "nika run: {anchor}")?;
+            stderr.flush()?;
         }
         TraceNote::Silent => {}
     }
-    // The published path rides back so a PAUSED machine lane can teach
-    // the exact resume command over it (the pause sibling of `autopsy:`).
-    Some(path)
+    Ok(())
 }
 
-/// The advertised anchor: the FULL 64-hex chain head — byte-exact parity
-/// with what `nika trace verify` prints, so the taught loop (compare the
-/// two heads) closes with `==`, never a prefix match (#333). The scrollback
-/// head is the ONE thing a whole-file rewrite cannot touch (the writer-side
-/// review's M4 — 32 hex was already unforgeable; full width costs only
-/// line length and buys equality).
+/// Full chain head, byte-exact with `nika trace verify` (#333).
 fn anchor_line(path: &std::path::Path, count: usize, head: &str, sealed: bool) -> String {
     let proof = if sealed { " · sealed" } else { "" };
     format!(

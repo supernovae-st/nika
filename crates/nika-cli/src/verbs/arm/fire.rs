@@ -848,13 +848,18 @@ pub(crate) fn prod_run(shot: &RunShot) -> RunUpshot {
             trace: None,
         };
     };
-    let receipt = run_quietly(|| {
+    let Ok(receipt) = run_quietly(|| {
         verbs::run::run_checked_source(
             shot.source.clone(),
             crate::Theme::new(false, true, false),
             shot.plafond,
         )
-    });
+    }) else {
+        return RunUpshot {
+            code: exit::ENV,
+            trace: None,
+        };
+    };
     RunUpshot {
         code: receipt.code,
         trace: receipt
@@ -962,16 +967,14 @@ impl Drop for StdoutGuard {
 }
 
 #[cfg(unix)]
-fn run_quietly<T>(f: impl FnOnce() -> T) -> T {
-    match StdoutGuard::enter() {
-        Ok(_guard) => f(),
-        Err(_) => f(),
-    }
+fn run_quietly<T>(f: impl FnOnce() -> T) -> std::io::Result<T> {
+    let _guard = StdoutGuard::enter()?;
+    Ok(f())
 }
 
 #[cfg(not(unix))]
-fn run_quietly<T>(f: impl FnOnce() -> T) -> T {
-    f()
+fn run_quietly<T>(f: impl FnOnce() -> T) -> std::io::Result<T> {
+    Ok(f())
 }
 
 #[cfg(test)]

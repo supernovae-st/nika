@@ -29,6 +29,20 @@ fn bin() -> Command {
     cmd
 }
 
+#[cfg(unix)]
+fn bin_with_stream_setup(setup: &str) -> Command {
+    let mut cmd = Command::new("/bin/sh");
+    cmd.args([
+        "-c",
+        setup,
+        "nika-stdout-setup",
+        env!("CARGO_BIN_EXE_nika-cli"),
+    ]);
+    cmd.stdin(std::process::Stdio::null());
+    cmd.env("NIKA_KEYCHAIN", "off");
+    cmd
+}
+
 /// A tempdir project: the registry + the workflow shelf.
 fn project(tag: &str, registry: &str, workflows: &[(&str, &str)]) -> std::path::PathBuf {
     let dir = std::env::temp_dir().join(format!("nika-arm-fire-{tag}-{}", std::process::id()));
@@ -45,6 +59,8 @@ fn project(tag: &str, registry: &str, workflows: &[(&str, &str)]) -> std::path::
 /// The trivial beat — exits 0, no provider, no key.
 const TRUE: &str =
     "nika: armed-true\npermits: { exec: true }\ntasks:\n  ok:\n    exec: { shell: \"true\" }\n";
+
+const CLOSED_STDOUT: &str = "nika: closed-stdout\npermits:\n  exec: true\ntasks:\n  ok:\n    exec:\n      command: [\"true\"]\n";
 
 /// The gated beat — a default-less `nika:prompt` pauses a
 /// non-interactive run (exit 4).
@@ -241,6 +257,114 @@ fn fire_runs_a_due_beat_and_records_it() {
     );
     assert_eq!(receipt["slot_id"], claim["slot_id"], "{hist}");
     assert_eq!(traces(&dir).len(), 1, "one fresh run = one trace (N2)");
+}
+
+#[cfg(unix)]
+#[test]
+fn direct_run_with_broken_output_pipe_returns_141_with_finalized_trace() {
+    for (tag, extra) in [
+        ("plain", &[][..]),
+        ("ndjson", &["--json"][..]),
+        ("output-json", &["--output", "json"][..]),
+    ] {
+        let dir =
+            std::env::temp_dir().join(format!("nika-direct-pipe-{tag}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("workflows")).expect("workflows dir");
+        std::fs::write(dir.join("workflows/doctor.nika.yaml"), CLOSED_STDOUT)
+            .expect("workflow file");
+        let mut cmd = bin();
+        cmd.args(["run", "workflows/doctor.nika.yaml"])
+            .args(extra)
+            .current_dir(&dir)
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped());
+        let mut child = cmd.spawn().expect("spawn direct run with output pipe");
+        drop(child.stdout.take());
+        let out = child.wait_with_output().expect("broken-pipe run settles");
+        assert_eq!(out.status.code(), Some(141), "{tag}: BrokenPipe stays 141");
+        let journals = traces(&dir);
+        assert_eq!(journals.len(), 1, "{tag}: finalized trace survives");
+        let trace = format!(".nika/traces/{}", journals[0]);
+        let raw = std::fs::read_to_string(dir.join(&trace)).expect("trace journal");
+        nika_dap::recover::recover_events(&raw, &trace).expect("finalized typed trace");
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn closed_stdout_never_corrupts_trace_or_orphans_claim() {
+    let dir = project(
+        "closed-stdout-preflight",
+        DAILY_3AM,
+        &[("doctor.nika.yaml", CLOSED_STDOUT)],
+    );
+    let out = bin_with_stream_setup("exec 1>&-; exec \"$@\"")
+        .args(["arm", "fire", "doctor", "--now", "2026-08-19T03:02:00Z"])
+        .current_dir(&dir)
+        .output()
+        .expect("spawn arm fire with stdout closed");
+    assert_ne!(out.status.code(), Some(101), "closed stdout never panics");
+    let hist = history(&dir, "doctor");
+    if !hist.is_empty() {
+        assert_eq!(
+            nika_cadence::ledger::unsettled(&hist)
+                .expect("valid ledger")
+                .count(),
+            0,
+            "no orphan claim: {hist}"
+        );
+    }
+    for trace in traces(&dir) {
+        let path = format!(".nika/traces/{trace}");
+        let raw = std::fs::read_to_string(dir.join(&path)).expect("trace journal");
+        nika_dap::recover::recover_events(&raw, &path).expect("uncorrupted trace");
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn arm_fire_with_broken_run_pipe_settles_exact_trace() {
+    let dir = project(
+        "arm-broken-run-pipe",
+        DAILY_3AM,
+        &[("doctor.nika.yaml", CLOSED_STDOUT)],
+    );
+    let mut child = bin()
+        .args(["arm", "fire", "doctor", "--now", "2026-08-19T03:02:00Z"])
+        .current_dir(&dir)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("spawn arm fire with diagnostic pipe");
+    drop(child.stderr.take());
+    let out = child.wait_with_output().expect("broken-pipe fire settles");
+    assert_eq!(
+        out.status.code(),
+        Some(141),
+        "the BrokenPipe receipt settles honestly: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let hist = history(&dir, "doctor");
+    let lines: Vec<&str> = hist.lines().collect();
+    assert_eq!(lines.len(), 2, "claim then terminal receipt: {hist}");
+    let claim: serde_json::Value = serde_json::from_str(lines[0]).expect("claim json");
+    let receipt: serde_json::Value = serde_json::from_str(lines[1]).expect("receipt json");
+    assert_eq!(claim["kind"], "claimed", "{hist}");
+    assert_eq!(receipt["kind"], "failed", "{hist}");
+    assert_eq!(receipt["payload"]["exit"], 141, "{hist}");
+    assert_eq!(receipt["payload"]["fencing"], claim["seq"], "{hist}");
+    let trace = receipt["payload"]["trace"]
+        .as_str()
+        .expect("receipt retains the exact trace");
+    assert!(dir.join(trace).exists(), "receipt trace exists: {trace}");
+    assert_eq!(
+        nika_cadence::ledger::unsettled(&hist)
+            .expect("valid ledger")
+            .count(),
+        0,
+        "the claim is terminally settled"
+    );
 }
 
 #[test]

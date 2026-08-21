@@ -1,16 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! Pipe hygiene (A-4 · F-08): `nika run … | head` used to spill a raw
-//! Rust panic (`failed printing to stdout: Broken pipe`) and exit 101
-//! once the reader closed. The workspace forbids unsafe code, so the
-//! unix reset (`SIGPIPE` → `SIG_DFL`) is out of reach; the equivalent safe
-//! seam is the panic plane: the hook keeps the screen clean, the catch
-//! in [`guard`] turns the death into 141 — the exact code a
-//! SIGPIPE-killed process reports, which is what every unix tool in a
-//! pipeline says. Scope is honest: the std print macros on the MAIN
-//! thread (the renderer's thread — measured, the F-08 panic lives
-//! there). Any other panic re-raises untouched.
+//! Pipe hygiene (A-4 · F-08): main-thread print `BrokenPipe` becomes the
+//! standard Unix 141; all other panics re-raise.
+
+use std::io::Write as _;
 
 /// Run the real entry under the pipe guard: install the silencer, turn
 /// a broken-pipe print death into the honest unix exit, re-raise
@@ -18,6 +12,10 @@
 /// (Cargo.toml pins it for test panic-catching), so the catch always
 /// sees the payload.
 pub(crate) fn guard(real_main: fn() -> std::process::ExitCode) -> std::process::ExitCode {
+    if !stdout_is_open() {
+        let _ = writeln!(std::io::stderr().lock(), "nika: stdout is unavailable");
+        return std::process::ExitCode::from(crate::verbs::exit::ENV);
+    }
     install_pipe_panic_silencer();
     match std::panic::catch_unwind(real_main) {
         Ok(code) => code,
@@ -29,6 +27,17 @@ pub(crate) fn guard(real_main: fn() -> std::process::ExitCode) -> std::process::
             }
         }
     }
+}
+
+#[cfg(unix)]
+fn stdout_is_open() -> bool {
+    let stdout = std::io::stdout();
+    nix::fcntl::fcntl(&stdout, nix::fcntl::FcntlArg::F_GETFL).is_ok()
+}
+
+#[cfg(not(unix))]
+fn stdout_is_open() -> bool {
+    true
 }
 
 /// The std print-macro panic for a closed pipe, and nothing else — the

@@ -45,7 +45,7 @@ fn sensitive_journey(report: &nika_check::CheckReport) -> bool {
 
 mod example;
 pub use example::example;
-use sink::{TraceNote, surface_trace};
+use sink::{TraceNote, TraceSurface, surface_trace};
 
 mod budget;
 mod ceiling;
@@ -135,11 +135,29 @@ impl RunVerdict {
         }
     }
 
-    fn renderer_failed(trace: Option<std::path::PathBuf>) -> Self {
+    fn renderer_failed(trace: Option<std::path::PathBuf>, kind: std::io::ErrorKind) -> Self {
+        let code = if kind == std::io::ErrorKind::BrokenPipe {
+            141
+        } else {
+            exit::ENV
+        };
         Self {
             trace,
-            ..Self::bare(exit::ENV)
+            ..Self::bare(code)
         }
+    }
+}
+
+fn surfaced_trace(surface: TraceSurface) -> Result<Option<std::path::PathBuf>, Box<RunVerdict>> {
+    if let Some(error) = surface.note_error {
+        let kind = error.kind();
+        let _ = writeln!(
+            std::io::stderr().lock(),
+            "nika run: trace note failed: {error}"
+        );
+        Err(Box::new(RunVerdict::renderer_failed(surface.path, kind)))
+    } else {
+        Ok(surface.path)
     }
 }
 
@@ -1048,8 +1066,7 @@ async fn execute_output_json_lane(
     let (code, outcome) = drive(runtime, wf, report, stamper, &mut tee).await;
     let (mut sink, mut trace) = tee.into_parts();
     sink.print_final();
-    // ADR-111 · the pause is heard — deliver + journal BEFORE the seal
-    // (the notify events must land under the chain the seal covers).
+    // Pause delivery is journaled before the seal (ADR-111).
     if let (Some(p), Some(pause)) = (
         trace.path().map(std::path::Path::to_path_buf),
         outcome.paused.as_ref(),
@@ -1058,19 +1075,19 @@ async fn execute_output_json_lane(
         let label = notify::workflow_label(wf);
         notify::deliver_paused(&label, pause, &p, &hint, stamper, &mut trace).await;
     }
-    // F-P14 · la dette du run: a FAILED run quarantines its semi-written
-    // outputs BEFORE the seal attests the end (None elsewhere — key OUT).
+    // Quarantine failed outputs before the seal (F-P14).
     let teardown = attended_facts(wf, report, &outcome, trace.path());
-    let trace_path = surface_trace(
+    let trace_path = match surfaced_trace(surface_trace(
         trace,
         TraceNote::Stderr,
         None,
         seal_hash(wf).as_deref(),
         Some(&teardown),
         sensitive_journey(report),
-    );
-    // A paused run teaches its exact resume command on stderr — the
-    // pause sibling of the failure lane's `autopsy:` line.
+    )) {
+        Ok(path) => path,
+        Err(verdict) => return *verdict,
+    };
     if let (Some(p), Some(pause)) = (&trace_path, &outcome.paused) {
         eprintln!(
             "nika run: {}",
@@ -1078,8 +1095,6 @@ async fn execute_output_json_lane(
         );
     }
     epilogue::print_resume_summary(&outcome, resumed, true);
-    // Built BEFORE the sink is consumed — the failure envelope reads
-    // the folded view (the failed row's detail carries the wire code).
     let verdict_line = if code == exit::PAUSED {
         outcome
             .paused
@@ -1094,7 +1109,7 @@ async fn execute_output_json_lane(
         let message = format!("render failed: {e}");
         eprintln!("nika run: {message}");
         println!("{}", epilogue::error_envelope_line(&message));
-        return RunVerdict::renderer_failed(trace_path);
+        return RunVerdict::renderer_failed(trace_path, e.kind());
     }
     match verdict_line {
         Some(line) => println!("{line}"),
@@ -1110,10 +1125,7 @@ async fn execute_output_json_lane(
     }
 }
 
-/// The NDJSON machine lane (`--json`) — extracted whole (the fold-lane
-/// precedent · the fn-length wall): stdout stays NDJSON verbatim
-/// (byte-identical with or without the journal), the trace note rides
-/// stderr.
+/// NDJSON lane: stdout stays byte-exact; the trace note rides stderr.
 #[allow(clippy::too_many_arguments)] // the clap-surface idiom (execute's own)
 async fn execute_json_lane(
     runtime: &ProdRuntime,
@@ -1127,7 +1139,6 @@ async fn execute_json_lane(
     let mut tee = Tee::new(JsonSink::new(std::io::stdout().lock()), trace);
     let (code, outcome) = drive(runtime, wf, report, stamper, &mut tee).await;
     let (sink, mut trace) = tee.into_parts();
-    // ADR-111 · the pause is heard — deliver + journal BEFORE the seal.
     if let (Some(p), Some(pause)) = (
         trace.path().map(std::path::Path::to_path_buf),
         outcome.paused.as_ref(),
@@ -1136,16 +1147,18 @@ async fn execute_json_lane(
         let label = notify::workflow_label(wf);
         notify::deliver_paused(&label, pause, &p, &hint, stamper, &mut trace).await;
     }
-    // F-P14 · the failure lane's quarantine runs BEFORE the seal.
     let teardown = attended_facts(wf, report, &outcome, trace.path());
-    let trace_path = surface_trace(
+    let trace_path = match surfaced_trace(surface_trace(
         trace,
         TraceNote::Stderr,
         None,
         seal_hash(wf).as_deref(),
         Some(&teardown),
         sensitive_journey(report),
-    );
+    )) {
+        Ok(path) => path,
+        Err(verdict) => return *verdict,
+    };
     if let (Some(p), Some(pause)) = (&trace_path, &outcome.paused) {
         eprintln!(
             "nika run: {}",
@@ -1154,7 +1167,7 @@ async fn execute_json_lane(
     }
     if let Some(e) = sink.into_error() {
         eprintln!("nika run: stream write failed: {e}");
-        return RunVerdict::renderer_failed(trace_path);
+        return RunVerdict::renderer_failed(trace_path, e.kind());
     }
     epilogue::print_resume_summary(&outcome, resumed, true);
     RunVerdict {
@@ -1167,13 +1180,7 @@ async fn execute_json_lane(
     }
 }
 
-/// The human fold lane (`Live` · `Plain` · `Quiet`) — extracted whole so
-/// `execute` stays a lane DISPATCHER (fn-length ratchet · the three lanes
-/// are peers, not one long body). Storytelling surfaces get the flow
-/// epilogue + the spec §3.3 `trace:` pointer; `--quiet` keeps its
-/// compact-card promise.
-// The mode/resumed/outputs trio rides as one tuple — the same
-// clap-surface idiom as `execute` itself (three independent switches).
+/// Human fold lane (`Live` · `Plain` · `Quiet`).
 #[allow(clippy::too_many_arguments)]
 async fn execute_fold_lane(
     runtime: &ProdRuntime,
@@ -1188,8 +1195,6 @@ async fn execute_fold_lane(
     carry: &str,
 ) -> RunVerdict {
     let plan = plan_waves(wf, report);
-    // The living map's topology — the SAME checked projection graph/
-    // inspect trust; Live+accents only (the sink gates again).
     let map = (mode == RenderMode::Live && theme.accents)
         .then(|| (super::graph::project(wf, report), report.waves.clone()));
     let trace_recorded = !trace.is_disabled();
@@ -1197,15 +1202,8 @@ async fn execute_fold_lane(
     if let Ok(mut f) = fold.lock() {
         f.set_trace_recorded(trace_recorded);
     }
-    // #321 — the plain lane's stderr liveness rider (`still running ·
-    // <task> · <n>s · <model>` every ~10s): a piped local-model run
-    // must never read as a hang. Plain ONLY — Live already repaints ·
-    // Quiet promised compactness · the machine lanes stream NDJSON. An
-    // inert handle keeps one code path (the disabled-journal idiom).
+    // Plain's heartbeat keeps a piped local-model run from reading as a hang.
     let pulse = (mode == RenderMode::Plain).then(|| {
-        // The EFFECTIVE default model (the same substitution
-        // composed_runtime made): the beat's static labels must name
-        // what will actually resolve, `--model` override included.
         let default_model =
             model_override.unwrap_or_else(|| wf.model.as_ref().map_or("", |m| m.value.as_str()));
         heartbeat::shared(plan, heartbeat::task_labels(wf, default_model))
@@ -1217,9 +1215,7 @@ async fn execute_fold_lane(
         trace,
     );
     let (code, outcome) = drive(runtime, wf, report, stamper, &mut tee).await;
-    // The run settled — the riders must not speak over the epilogue.
-    // (Aborted tasks reap at the executor's leisure; the fold lock below
-    // is contention-free regardless — same thread, sync section.)
+    // The run settled: stop riders before the epilogue.
     if let Some(ticker) = &ticker {
         ticker.abort();
     }
@@ -1227,8 +1223,6 @@ async fn execute_fold_lane(
         spinner.abort();
     }
     let (_inner, mut trace) = tee.into_parts();
-    // ADR-111 · the pause is heard — deliver + journal BEFORE the seal
-    // (fold_lane_verdict seals inside; this is the last async point).
     if let (Some(p), Some(pause)) = (
         trace.path().map(std::path::Path::to_path_buf),
         outcome.paused.as_ref(),
@@ -1238,19 +1232,12 @@ async fn execute_fold_lane(
         notify::deliver_paused(&label, pause, &p, &hint, stamper, &mut trace).await;
     }
     let Ok(mut sink) = fold.lock() else {
-        // A poisoned fold = a render-side panic already reported by the
-        // runtime; the verdict must still leave honestly.
         eprintln!("nika run: render state poisoned");
         return RunVerdict::bare(exit::ENV);
     };
-    // `Live` painted in place during the run; `Plain`/`Quiet` folded
-    // silently · print the ONE final frame now.
     if mode != RenderMode::Live {
         sink.print_final();
     }
-    // The Live (TTY) final frame carries the flow epilogue: the wall-
-    // time waterfall + the outputs pointer (design §2c). The sober
-    // registers stay untouched — CI logs never grow chart art.
     if mode == RenderMode::Live {
         epilogue::print_flow_epilogue(sink.view(), &outcome.outputs, theme, file, trace_recorded);
     }
@@ -1291,7 +1278,7 @@ fn fold_lane_verdict(
         .map(|r| r.id.clone());
     // F-P14 · the failure lane's quarantine runs BEFORE the seal.
     let teardown = attended_facts(wf, report, outcome, trace.path());
-    let trace_path = surface_trace(
+    let trace_path = match surfaced_trace(surface_trace(
         trace,
         if matches!(mode, RenderMode::Quiet | RenderMode::Thread) {
             TraceNote::Silent
@@ -1302,7 +1289,10 @@ fn fold_lane_verdict(
         seal_hash(wf).as_deref(),
         Some(&teardown),
         sensitive_journey(report),
-    );
+    )) {
+        Ok(path) => path,
+        Err(verdict) => return *verdict,
+    };
     // A paused HUMAN run teaches its exact resume command too (the same
     // line the machine lanes print on stderr — a text-mode pause with no
     // next move taught was the first-run killer, 2026-07-31). Quiet keeps
@@ -1314,7 +1304,7 @@ fn fold_lane_verdict(
     epilogue::print_resume_summary(outcome, resumed, false);
     if let Some(e) = sink.take_error() {
         eprintln!("nika run: render failed: {e}");
-        return RunVerdict::renderer_failed(trace_path);
+        return RunVerdict::renderer_failed(trace_path, e.kind());
     }
     // The fold lane hands the pause up: the terminal ask continues the
     // run in-process over this trace.
