@@ -299,20 +299,17 @@ fn source_edit_after_claim_cannot_change_the_pinned_run_bytes() {
     let original = std::fs::read(&source).expect("source A");
     let registry = registry_with(SAUTER);
     let expected = ArmGeneration::compute(registry.beats().next().expect("beat"), &original);
-    let bound_path = Rc::new(RefCell::new(None::<PathBuf>));
-    let seen_bound = Rc::clone(&bound_path);
+    let logical_path = Rc::new(RefCell::new(None::<String>));
+    let seen_path = Rc::clone(&logical_path);
     let seam: RunSeam = Rc::new(move |shot| {
         std::fs::write(
             &source,
             "schema: nika/workflow@0.12\ntasks: {b: {exec: echo B}}\n",
         )
         .expect("replace declared source with B");
-        assert_eq!(
-            std::fs::read(&shot.bound_workflow).expect("bound A"),
-            original
-        );
+        assert_eq!(shot.source.source().as_bytes(), original.as_slice());
         assert_eq!(shot.generation, expected);
-        *seen_bound.borrow_mut() = Some(shot.bound_workflow.clone());
+        *seen_path.borrow_mut() = Some(shot.source.logical_path().to_owned());
         RunUpshot {
             code: exit::OK,
             trace: None,
@@ -326,13 +323,10 @@ fn source_edit_after_claim_cannot_change_the_pinned_run_bytes() {
         seam,
     ));
     assert_eq!(verdict.code, exit::OK, "{}", verdict.line);
-    assert!(
-        !bound_path
-            .borrow()
-            .as_ref()
-            .expect("snapshot path")
-            .exists(),
-        "the immutable snapshot is removed after the run"
+    assert_eq!(
+        logical_path.borrow().as_deref(),
+        Some("workflows/doctor.nika.yaml"),
+        "the captured bytes retain their declared resolution base"
     );
 }
 
@@ -355,10 +349,7 @@ fn source_symlink_swap_after_claim_cannot_change_the_pinned_run_bytes() {
     let seam: RunSeam = Rc::new(move |shot| {
         std::fs::remove_file(&source).expect("remove A");
         symlink(&replacement, &source).expect("swap to symlink B");
-        assert_eq!(
-            std::fs::read(&shot.bound_workflow).expect("bound A"),
-            original
-        );
+        assert_eq!(shot.source.source().as_bytes(), original.as_slice());
         assert_eq!(shot.generation, expected);
         RunUpshot {
             code: exit::OK,

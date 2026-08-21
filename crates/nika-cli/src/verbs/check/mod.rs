@@ -156,7 +156,7 @@ use nika_check::infer_permits;
 use nika_schema::raw::RawWorkflow;
 
 use crate::display::theme::{Role, Theme};
-use crate::verbs::{VerbOutput, load_checked, load_checked_with_source};
+use crate::verbs::{RunSource, VerbOutput, load_checked, load_checked_run_source};
 
 mod drift;
 pub(crate) mod energy;
@@ -273,15 +273,28 @@ pub fn run_with_profile(
     model_override: Option<&str>,
     theme: Theme,
 ) -> VerbOutput {
-    let (source, wf, report) = match load_checked_with_source(path) {
-        Ok(triple) => triple,
-        // Parse-fatal + `--json` (#331's papercut): the machine mode
-        // stays machine-parseable — ONE JSON error object on stdout
-        // (parse_fatal + a findings[] row shaped like the report's own),
-        // never the plain-text refusal an agent's json parse chokes on.
+    let source = match RunSource::capture(path) {
+        Ok(source) => source,
         Err(out) if json => return parse_fatal_json(&out),
         Err(out) => return out,
     };
+    run_source_with_profile(&source, json, native_strict, profile, model_override, theme)
+}
+
+pub(crate) fn run_source_with_profile(
+    source: &RunSource,
+    json: bool,
+    native_strict: bool,
+    profile: Profile,
+    model_override: Option<&str>,
+    theme: Theme,
+) -> VerbOutput {
+    let (wf, report) = match load_checked_run_source(source) {
+        Ok(pair) => pair,
+        Err(out) if json => return parse_fatal_json(&out),
+        Err(out) => return out,
+    };
+    let path = source.logical_path();
     let (wf, report) = overridden(wf, report, model_override);
     // The declared-vs-used drift family (NIKA-DRIFT-001 · drift.rs) —
     // advisory in both projections, never an exit-code input.
@@ -332,7 +345,7 @@ pub fn run_with_profile(
     let mut text = render(
         &report,
         &wf,
-        &source,
+        source.source(),
         path,
         theme,
         &models_audit,

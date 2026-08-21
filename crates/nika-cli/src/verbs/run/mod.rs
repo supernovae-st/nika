@@ -135,31 +135,15 @@ fn run_start_gc(no_gc: bool, dry_run: bool) {
     }
 }
 
-/// The run's verdict: the process exit code PLUS the first failed task's
-/// typed error (spec 05 wire code + message). The exit code alone cannot
-/// say WHY a run failed — the examples wrapper keys its rescue tip on the
-/// failure KIND (#145: a missing program must never earn the mock-model
-/// nudge an infer failure deserves). Module-internal on purpose: the
-/// public verb contract stays the exit code.
-struct RunVerdict {
-    /// The process exit code (the `exit::*` vocabulary).
-    code: u8,
-    /// The first failed task's error record (record order — deterministic).
-    /// `None` on success, pause, and every pre-run refusal.
+pub(crate) struct RunVerdict {
+    pub(crate) code: u8,
     failure: Option<nika_runtime::TaskErrorRecord>,
-    /// A fold-lane pause (ADR-099): the gate's payload + the trace the
-    /// terminal ask resumes over. The machine lanes leave it `None` —
-    /// their teaching is the envelope + the stderr resume line.
     paused: Option<PausedLeg>,
-    /// Resolved workflow outputs, retained for the interactive thread.
     outputs: BTreeMap<String, serde_json::Value>,
-    /// The operator cancelled this leg without closing the outer thread.
     interrupted: bool,
+    pub(crate) trace: Option<std::path::PathBuf>,
 }
 
-/// A paused fold-lane leg — what the terminal ask needs to continue the
-/// run in-process (the pause payload asks · the trace folds the plan +
-/// the F-P4 ticket, the same path a manual `--resume --answer` takes).
 struct PausedLeg {
     pause: nika_runtime::WorkflowPause,
     trace: std::path::PathBuf,
@@ -175,6 +159,7 @@ impl RunVerdict {
             paused: None,
             outputs: BTreeMap::new(),
             interrupted: false,
+            trace: None,
         }
     }
 
@@ -185,12 +170,11 @@ impl RunVerdict {
             paused: None,
             outputs: BTreeMap::new(),
             interrupted: true,
+            trace: None,
         }
     }
 }
 
-/// The first failed task's typed error, in record (task-id) order — the
-/// deterministic pick when several tasks failed in one wave.
 fn first_failure(outcome: &RunOutcome) -> Option<nika_runtime::TaskErrorRecord> {
     outcome
         .records
@@ -238,16 +222,40 @@ pub fn run(
         no_gc,
         require_signature,
         false,
+        None,
     )
     .code
 }
 
-/// The first rungs of the run pipeline — the output flag, the project
-/// ceiling rung (D-2026-08-11-N5 · resolved BEFORE the gc hook so a
-/// broken `nika.yaml` speaks ONCE, here, CLOSED — the fail-open note
-/// lane never sees it; the flag ALWAYS wins; an absent file is the
-/// built-in default, zero ceremony), then the gc hook. Extracted under
-/// the 100-line fn law (ADR-023).
+pub(crate) fn run_checked_source(
+    source: crate::verbs::RunSource,
+    theme: Theme,
+    max_cost_usd: f64,
+) -> RunVerdict {
+    let file = source.logical_path().to_owned();
+    run_verdict(
+        &file,
+        false,
+        None,
+        theme,
+        RenderMode::Plain,
+        false,
+        None,
+        None,
+        &[],
+        None,
+        false,
+        None,
+        false,
+        Some(max_cost_usd),
+        false,
+        false,
+        false,
+        Some(source),
+    )
+}
+
+/// Resolve output/ceiling and run the opportunistic trace collection.
 fn preflight(
     output: Option<&str>,
     max_cost_usd: Option<f64>,
@@ -289,14 +297,14 @@ fn run_verdict(
     no_gc: bool,
     require_signature: bool,
     interruptible: bool,
+    captured: Option<crate::verbs::RunSource>,
 ) -> RunVerdict {
     let (output_json, max_cost_usd) = match preflight(output, max_cost_usd, no_gc, dry_run) {
         Ok(pair) => pair,
         Err(verdict) => return *verdict,
     };
-    // ── Audit BEFORE run (spec §3 · INV the runtime also enforces) ──
-    let (source, wf, report) = match crate::verbs::load_checked_with_source(file) {
-        Ok(pair) => pair,
+    let source = match captured.map_or_else(|| crate::verbs::RunSource::capture(file), Ok) {
+        Ok(source) => source,
         Err(out) => {
             // Machine mode: diagnostics ride stderr so a `capture: stdout`
             // consumer never mistakes them for the JSON result.
@@ -304,13 +312,23 @@ fn run_verdict(
             return RunVerdict::bare(out.code);
         }
     };
+    let file = source.logical_path();
+    // ── Audit BEFORE run (spec §3 · INV the runtime also enforces) ──
+    let (wf, report) = match crate::verbs::load_checked_run_source(&source) {
+        Ok(pair) => pair,
+        Err(out) => {
+            epilogue::emit_diagnostic(&refusal_text(&out), output_json);
+            return RunVerdict::bare(out.code);
+        }
+    };
+    let source_text = source.source();
 
     if require_signature && let Err(code) = require_signature_gate(file, output_json) {
         return RunVerdict::bare(code);
     }
     // ── `--task` scope + clean/skills gates + `--var` overrides ─────
     let (wf, report, skills) =
-        match scoped_clean_gate(wf, report, task_filter, file, json, theme, output_json) {
+        match scoped_clean_gate(wf, report, task_filter, &source, json, theme, output_json) {
             Ok(triple) => triple,
             Err(code) => return RunVerdict::bare(code),
         };
@@ -330,7 +348,7 @@ fn run_verdict(
     }
 
     // ── `--resume` / `--answer` (ADR-099) — plan + answers up front ──
-    let setup = match resume_setup(resume, &wf, &source, model_override, output_json) {
+    let setup = match resume_setup(resume, &wf, source_text, model_override, output_json) {
         Ok(setup) => setup,
         Err(code) => return RunVerdict::bare(code),
     };
@@ -338,7 +356,7 @@ fn run_verdict(
     // ── Compose the production runtime (real seams · env keys) ──────
     let runtime = match composed_runtime(
         &wf,
-        (file, &source),
+        (file, source_text),
         model_override,
         access_pin,
         inputs,
@@ -357,7 +375,7 @@ fn run_verdict(
     // ── Execute + the terminal ask (extracted · the fn-length wall) ──
     execute_and_ask(
         &runtime,
-        (file, &source),
+        (file, source_text),
         (&wf, &report),
         resume.is_some_and(|r| r.trace.is_some()),
         vars,
@@ -893,13 +911,20 @@ fn scoped_clean_gate(
     wf: RawWorkflow,
     report: CheckReport,
     task_filter: Option<&str>,
-    file: &str,
+    source: &crate::verbs::RunSource,
     json: bool,
     theme: Theme,
     output_json: bool,
 ) -> Result<(RawWorkflow, CheckReport, BTreeMap<String, String>), u8> {
     let refuse = || {
-        let out = crate::verbs::check::run(file, json, false, None, theme);
+        let out = crate::verbs::check::run_source_with_profile(
+            source,
+            json,
+            false,
+            crate::verbs::check::Profile::Advisory,
+            None,
+            theme,
+        );
         epilogue::emit_diagnostic(&out.text, output_json);
         out.code
     };
@@ -911,7 +936,10 @@ fn scoped_clean_gate(
         return Err(refuse());
     }
     // `skills:` gate (#473 · pre-effect · the SAME rows check renders).
-    let resolved = crate::verbs::resolve_workflow_skills(&wf, crate::verbs::workflow_base(file));
+    let resolved = crate::verbs::resolve_workflow_skills(
+        &wf,
+        crate::verbs::workflow_base(source.logical_path()),
+    );
     if !resolved.findings.is_empty() {
         return Err(refuse());
     }
@@ -1115,6 +1143,7 @@ async fn execute_output_json_lane(
         paused: None,
         outputs: outcome.outputs.clone(),
         interrupted: false,
+        trace: trace_path,
     }
 }
 
@@ -1171,6 +1200,7 @@ async fn execute_json_lane(
         paused: None,
         outputs: outcome.outputs.clone(),
         interrupted: false,
+        trace: trace_path,
     }
 }
 
@@ -1338,6 +1368,7 @@ fn fold_lane_verdict(
         paused,
         outputs: outcome.outputs.clone(),
         interrupted: false,
+        trace: trace_path,
     }
 }
 

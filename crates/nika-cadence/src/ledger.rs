@@ -848,6 +848,9 @@ pub fn verify_line(line: &str, expected_seq: u64, expected_prev: Option<&str>) -
         _ => return None,
     };
     verify_payload(kind, slot_id.as_ref(), doc.get("payload")?, expected_seq)?;
+    if kind == "rotated" && (expected_seq != 1 || expected_prev.is_some()) {
+        return None;
+    }
     let (prev_json, linked) = match doc.get("prev_hash")? {
         serde_json::Value::Null => ("null".to_owned(), expected_prev.is_none()),
         serde_json::Value::String(value) => (
@@ -883,7 +886,8 @@ fn verify_payload(
         "rotated" => {
             const KEYS: [&str; 4] = ["from", "lines", "archives", "archives_sha256"];
             let from = payload.get("from")?.as_str()?;
-            (slot_id.is_none()
+            (seq == 1
+                && slot_id.is_none()
                 && exact_keys(object, &KEYS)
                 && archive_ordinal(from).is_some()
                 && payload
@@ -1033,6 +1037,7 @@ pub fn scan_chain(text: &str) -> (u64, Option<String>, usize) {
 #[derive(Default)]
 struct LifecycleValidator {
     claims: Vec<ClaimBinding>,
+    seen: bool,
 }
 
 struct ClaimBinding {
@@ -1056,7 +1061,7 @@ impl LifecycleValidator {
             .get("gen")
             .and_then(serde_json::Value::as_str)
             .map(str::to_owned);
-        match kind {
+        let accepted = match kind {
             "claimed" => {
                 let Some(slot_id) = slot_id else { return false };
                 let Some(fencing) = fencing else { return false };
@@ -1098,10 +1103,18 @@ impl LifecycleValidator {
                 true
             }
             "skipped" => fencing.is_none() && generation.is_none(),
-            "rotated" => true,
+            "rotated" => {
+                !self.seen
+                    && doc.get("seq").and_then(serde_json::Value::as_u64) == Some(1)
+                    && doc.get("prev_hash").is_some_and(serde_json::Value::is_null)
+            }
             "disarmed" => slot_id.is_none() && fencing.is_none() && generation.is_none(),
             _ => false,
+        };
+        if accepted {
+            self.seen = true;
         }
+        accepted
     }
 }
 

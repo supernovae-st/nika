@@ -6,7 +6,7 @@
 | Layer | L0 — pure, zero I/O, zero async |
 | Design | The arming-registry grammar (the `arm:` block of `nika.yaml`, D-2026-08-10-N3) + the pure next-slot calculator + the W7 typed firing and ledger machines. Hand-counted 5-field cron (zero cron library — the count is validated BEFORE field semantics, scar #6) · IANA zones resolved from the EMBEDDED tzdb only (`jiff-tzdb`, never the host's zoneinfo) · two cadence forms (cron + readable `lundi 9h07`), display normalizing to the readable one. The machines own no I/O and read no clock: callers inject events, policy, `now`, and borrowed journal text; the L4 adapter alone owns files, locks, fsync, and rotation. |
 | LOC budget | ≤5,000 src prod (W7 measured 4,623 after the complete pure ledger/snapshot seam) · ≤15,000 hard cap |
-| File cap | ≤1,500 LOC each (W7 max 1,364 in `firing.rs`; `ledger.rs` 1,217 after its 550-line test module moved to `ledger/tests.rs`) |
+| File cap | ≤1,500 LOC each (W7 max 1,491 in `ledger.rs`; `firing.rs` 1,372) |
 | Function cap | ≤100 lines each (max ~60) |
 | Crate version | tracks workspace |
 | License | `AGPL-3.0-or-later` |

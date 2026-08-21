@@ -152,12 +152,12 @@ patterns:
 - glob: "crates/**/src/**"
   class: authored
   match_count: 803
-  aggregate_sha256: e78c50724e3fd7aaa6df81a8bc811c55a02592f0dc80f77d0dec22f158ca2093
+  aggregate_sha256: ec2fd5c1b3a290353f93dc90be85d4b8cfeeb432096547f440efa4c59256564d
   evidence: "the code — SPDX AGPL-3.0-or-later headers · 12-gate admission (ADR-003) · zero-unwrap discipline; spot-checked file heads carry no generation marker (grep hits for 'generated' are prose mentions, not markers)"
 - glob: "crates/**/tests/**"
   class: authored
   match_count: 159
-  aggregate_sha256: 74db38dc0f98894770537ed6f0897708becd3c6ff0789602d16912547f185e4f
+  aggregate_sha256: 04589a20734c81cd9b6b0696194922a429eb8b80e8339a2d8486e1b6589078ba
   evidence: "crate-owned tests + fixtures under tests/ — written with the crate per gate discipline, no generation markers"
 - glob: "crates/**"
   class: authored
@@ -178,7 +178,7 @@ patterns:
 - glob: "docs/**"
   class: authored
   match_count: 109
-  aggregate_sha256: fe48f9c4e4a48ff4b64619598c9d64821e8f3e96136060bb9fb89725b53d5d44
+  aggregate_sha256: eec08dbedd9987e48251fbe2a375d6ad4ab81119cf24080ddb23019560d40c92
   evidence: "crate-specs · architecture prose · perf notes — no generation markers at file heads"
 - glob: "scripts/**"
   class: authored

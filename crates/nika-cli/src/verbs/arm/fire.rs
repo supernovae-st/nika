@@ -37,7 +37,7 @@
 //! run is PARKED with its trace (`paused … · trace …`), never resumed,
 //! never answered by the firer.
 
-use std::io::{Read as _, Write as _};
+use std::io::Read as _;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
@@ -48,7 +48,6 @@ use nika_vocab::project;
 
 use super::args::FireArgs;
 use super::state::{ArmState, Claim, FireKind, HistoryEntry, LockOutcome, Receipt};
-use crate::verbs::run::RenderMode;
 use crate::verbs::{self, VerbOutput, exit};
 
 #[cfg(test)]
@@ -106,31 +105,19 @@ pub(crate) enum Wait {
 /// The wait seam's shape: a span in, the outcome out.
 pub(crate) type WaitSeam = Box<dyn Fn(SignedDuration) -> Wait>;
 
-/// The shot the run seam takes — the workflow and its per-tick ceiling
-/// (law 7), the project root to enter.
 pub(crate) struct RunShot {
-    /// The project root (traces and workflow-relative paths resolve here).
     pub root: PathBuf,
-    /// The workflow path, registry-verbatim.
     pub workflow: String,
-    /// Immutable temporary path containing the exact bytes pinned by the claim.
-    pub bound_workflow: PathBuf,
-    /// Generation attested by the claim and represented by `bound_workflow`.
+    pub source: crate::verbs::RunSource,
     pub generation: ArmGeneration,
-    /// The per-tick ceiling in USD — ALWAYS set (law 7).
     pub plafond: f64,
 }
 
-/// What a run left behind.
 pub(crate) struct RunUpshot {
-    /// The run's exit code (0 · 1 · 2 · 3 · 4).
     pub code: u8,
-    /// The trace the run wrote (repo-relative), when one landed.
     pub trace: Option<String>,
 }
 
-/// The run seam's shape — an `Rc`: `serve` shares ONE seam across the
-/// tick's beats.
 pub(crate) type RunSeam = Rc<dyn Fn(&RunShot) -> RunUpshot>;
 
 /// What a fire leaves: the ONE stdout line (D8) + the process exit.
@@ -729,7 +716,7 @@ fn claim_run_receipt(
     let upshot = (ctx.run)(&RunShot {
         root: ctx.project_root.clone(),
         workflow: beat.workflow.clone(),
-        bound_workflow: pinned.file.path().to_path_buf(),
+        source: pinned.source,
         generation: pinned.generation,
         plafond,
     });
@@ -804,13 +791,9 @@ fn slot_id_of(ctx: &FireCtx, slot: &Zoned) -> Option<SlotId> {
     Some(SlotId::derive(&beat.workflow, &beat.cadence, slot))
 }
 
-/// The firing's generation (D3 · F17): the beat's canonical fields +
-/// the workflow's exact bytes (the source-identity convention). `None`
-/// when the workflow cannot be read — the run then fails its own
-/// receipt, and the claim pins nothing rather than lying.
 struct PinnedWorkflow {
     generation: ArmGeneration,
-    file: tempfile::NamedTempFile,
+    source: crate::verbs::RunSource,
 }
 
 fn pin_workflow(ctx: &FireCtx, beat: &Beat) -> std::io::Result<PinnedWorkflow> {
@@ -832,16 +815,8 @@ fn pin_workflow(ctx: &FireCtx, beat: &Beat) -> std::io::Result<PinnedWorkflow> {
     let mut bytes = Vec::new();
     source.read_to_end(&mut bytes)?;
     let generation = ArmGeneration::compute(beat, &bytes);
-    let mut file = tempfile::Builder::new()
-        .prefix("nika-arm-bound-")
-        .suffix(".nika.yaml")
-        .tempfile()?;
-    file.write_all(&bytes)?;
-    file.as_file().sync_all()?;
-    let mut permissions = file.as_file().metadata()?.permissions();
-    permissions.set_readonly(true);
-    file.as_file().set_permissions(permissions)?;
-    Ok(PinnedWorkflow { generation, file })
+    let source = crate::verbs::RunSource::from_bytes(beat.workflow.clone(), bytes)?;
+    Ok(PinnedWorkflow { generation, source })
 }
 
 /// The repair suffix — the ledger's self-healing is SAID on the
@@ -864,45 +839,27 @@ fn record_refused(ctx: &FireCtx, e: &std::io::Error) -> FireVerdict {
     }
 }
 
-/// The real shot: enter the project (traces and workflow-relative
-/// paths resolve at the root), turn stdout onto stderr for the run's
-/// duration (D8), run IN-PROCESS with the `nika run` CLI defaults —
-/// the per-tick ceiling ALWAYS set (law 7). A room the firer cannot
-/// enter is a run that failed before starting: exit ENV, journaled as
-/// such by the caller — the claim still gets its receipt, no orphan.
 pub(crate) fn prod_run(shot: &RunShot) -> RunUpshot {
     debug_assert!(!shot.workflow.is_empty());
     debug_assert_eq!(shot.generation.as_str().len(), 64);
-    let before = trace_set(&shot.root);
     let Ok(_room) = enter_room(&shot.root) else {
         return RunUpshot {
             code: exit::ENV,
             trace: None,
         };
     };
-    let code = run_quietly(|| {
-        verbs::run::run(
-            &shot.bound_workflow.to_string_lossy(),
-            false, // json
-            None,  // output
+    let receipt = run_quietly(|| {
+        verbs::run::run_checked_source(
+            shot.source.clone(),
             crate::Theme::new(false, true, false),
-            RenderMode::Plain,  // the piped `nika run` defaults
-            false,              // dry_run
-            None,               // model_override
-            None,               // access_pin
-            &[],                // vars
-            None,               // resume — NEVER (law 4 · N2)
-            false,              // no_trace_file — the trace is load-bearing
-            None,               // task_filter
-            false,              // no_outputs
-            Some(shot.plafond), // the per-tick ceiling, ALWAYS (law 7)
-            false,              // no_gc
-            false,              // require_signature — ② (serve) verifies
+            shot.plafond,
         )
     });
     RunUpshot {
-        code,
-        trace: new_trace(&shot.root, &before),
+        code: receipt.code,
+        trace: receipt
+            .trace
+            .map(|path| path.to_string_lossy().into_owned()),
     }
 }
 
@@ -960,36 +917,6 @@ fn beat_of(ctx: &FireCtx) -> Option<&Beat> {
     ctx.registry.beats().nth(ctx.index)
 }
 
-/// The trace files present under the project (`.nika/traces/*.ndjson`).
-fn trace_set(root: &Path) -> Vec<String> {
-    let dir = root.join(nika_dap::store::TRACE_DIR);
-    let Ok(entries) = std::fs::read_dir(&dir) else {
-        return Vec::new();
-    };
-    entries
-        .filter_map(std::result::Result::ok)
-        .filter_map(|e| e.file_name().into_string().ok())
-        .filter(|n| n.ends_with(".ndjson"))
-        .collect()
-}
-
-/// The trace THIS run wrote: the `.ndjson` present now that was not
-/// there before (several = the alphabetically last — the freshest
-/// timestamp wins the name).
-fn new_trace(root: &Path, before: &[String]) -> Option<String> {
-    let mut fresh: Vec<String> = trace_set(root)
-        .into_iter()
-        .filter(|n| !before.contains(n))
-        .collect();
-    fresh.sort_unstable();
-    fresh
-        .last()
-        .map(|name| format!("{}/{name}", nika_dap::store::TRACE_DIR))
-}
-
-/// Enter the project root for the run's duration — the fold's trace
-/// sink (`.nika/traces/`) and the workflow's relative paths read the
-/// CWD (the `try` verb's rehearsal-room precedent).
 struct RoomGuard(Option<PathBuf>);
 
 impl Drop for RoomGuard {
@@ -1034,20 +961,16 @@ impl Drop for StdoutGuard {
     }
 }
 
-/// The run behind the stdout guard (unix) — a guard failure degrades
-/// to the unguarded run (the line still prints; the fold may precede
-/// it), never blocks the shot.
 #[cfg(unix)]
-fn run_quietly(f: impl FnOnce() -> u8) -> u8 {
+fn run_quietly<T>(f: impl FnOnce() -> T) -> T {
     match StdoutGuard::enter() {
         Ok(_guard) => f(),
         Err(_) => f(),
     }
 }
 
-/// No fd surface off-unix: the run speaks (the ship targets are unix).
 #[cfg(not(unix))]
-fn run_quietly(f: impl FnOnce() -> u8) -> u8 {
+fn run_quietly<T>(f: impl FnOnce() -> T) -> T {
     f()
 }
 

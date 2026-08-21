@@ -25,6 +25,7 @@ fn bin() -> Command {
     // A pause must PARK, never ask (the TTY ask would block a developer
     // machine): stdin stays closed, so the gate goes durable.
     cmd.stdin(std::process::Stdio::null());
+    cmd.env("NIKA_KEYCHAIN", "off");
     cmd
 }
 
@@ -55,6 +56,39 @@ tasks:
     invoke:
       tool: "nika:prompt"
       args: { mode: "input", message: "ship it?" }
+"#;
+
+/// The parent deliberately stays alive long enough for its declared source to
+/// be replaced after the claim. Its relative child must still resolve beside
+/// the original logical path while the pinned parent bytes remain authoritative.
+const RELATIVE_CHILD_PARENT: &str = r#"
+nika: pinned-parent
+permits: { exec: true }
+tasks:
+  hold:
+    exec: { shell: "sleep 1" }
+  call:
+    after: { hold: success }
+    invoke: { workflow: "./child.nika.yaml" }
+"#;
+
+const RELATIVE_CHILD: &str = r#"
+nika: relative-child
+permits: { exec: true }
+tasks:
+  ok:
+    exec: { shell: "true" }
+"#;
+
+const RELATIVE_SKILL: &str = r#"
+nika: relative-skill
+model: mock/echo
+permits:
+  fs:
+    read: ["skill.md"]
+tasks:
+  answer:
+    agent: { prompt: "apply the skill", skills: ["skill.md"] }
 "#;
 
 /// Daily 03:00 UTC, skip the misses.
@@ -130,6 +164,28 @@ fn traces(dir: &std::path::Path) -> Vec<String> {
         .collect()
 }
 
+fn traced_workflow(dir: &std::path::Path, trace: &str) -> String {
+    let raw = std::fs::read_to_string(dir.join(trace)).expect("trace journal");
+    let recovered = nika_dap::recover::recover_events(&raw, trace).expect("typed trace events");
+    recovered
+        .events
+        .iter()
+        .find(|event| event.kind == nika_event::EventKind::WorkflowStarted)
+        .and_then(|event| {
+            event.fields.iter().find_map(|field| {
+                if field.key == "workflow" {
+                    match &field.value {
+                        nika_types::resource::Value::String(value) => Some(value.clone()),
+                        _ => None,
+                    }
+                } else {
+                    None
+                }
+            })
+        })
+        .expect("workflow_started.workflow")
+}
+
 /// D8: stdout is EXACTLY one line, always.
 fn assert_one_line(what: &std::process::Output) -> String {
     let stdout = String::from_utf8_lossy(&what.stdout);
@@ -185,6 +241,136 @@ fn fire_runs_a_due_beat_and_records_it() {
     );
     assert_eq!(receipt["slot_id"], claim["slot_id"], "{hist}");
     assert_eq!(traces(&dir).len(), 1, "one fresh run = one trace (N2)");
+}
+
+#[test]
+fn fire_keeps_pinned_parent_bytes_and_their_original_relative_child_base() {
+    let registry = DAILY_3AM.replace("doctor.nika.yaml", "parent.nika.yaml");
+    let dir = project(
+        "relative-child-source-replacement",
+        &registry,
+        &[
+            ("parent.nika.yaml", RELATIVE_CHILD_PARENT),
+            ("child.nika.yaml", RELATIVE_CHILD),
+        ],
+    );
+    let child = bin()
+        .args(["arm", "fire", "parent", "--now", "2026-08-19T03:02:00Z"])
+        .current_dir(&dir)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("spawn fire");
+    let history_path = dir.join(".nika/arm/parent/history.ndjson");
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    loop {
+        let claimed = std::fs::read_to_string(&history_path)
+            .is_ok_and(|text| text.contains("\"kind\":\"claimed\""));
+        if claimed {
+            break;
+        }
+        assert!(std::time::Instant::now() < deadline, "claim did not land");
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    let replacement = "nika: replacement\npermits: { exec: true }\ntasks:\n  fail:\n    exec: { shell: \"false\" }\n";
+    std::fs::write(dir.join("workflows/parent.nika.yaml"), replacement)
+        .expect("replace source after claim");
+    let out = child.wait_with_output().expect("fire settles");
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "the pinned parent and relative child run: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let line = assert_one_line(&out);
+    assert!(line.starts_with("fired parent ·"), "{line}");
+    assert_eq!(
+        std::fs::read_to_string(dir.join("workflows/parent.nika.yaml")).expect("replacement"),
+        replacement,
+        "the successful run came from the captured bytes, not a second file read"
+    );
+}
+
+#[test]
+fn fire_resolves_relative_skills_from_the_declared_workflow_path() {
+    let registry = DAILY_3AM.replace("doctor.nika.yaml", "skilled.nika.yaml");
+    let dir = project(
+        "relative-skill",
+        &registry,
+        &[("skilled.nika.yaml", RELATIVE_SKILL)],
+    );
+    std::fs::write(
+        dir.join("workflows/skill.md"),
+        "---\nname: careful\ndescription: relative fixture\n---\nBe exact.\n",
+    )
+    .expect("relative skill");
+    let out = bin()
+        .args(["arm", "fire", "skilled", "--now", "2026-08-19T03:02:00Z"])
+        .current_dir(&dir)
+        .output()
+        .expect("spawn fire");
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "relative skill resolves: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let line = assert_one_line(&out);
+    assert!(line.starts_with("fired skilled ·"), "{line}");
+}
+
+#[test]
+fn concurrent_labels_record_their_own_exact_trace_paths() {
+    let registry = concat!(
+        "nika: v1\n",
+        "arm:\n",
+        "  - workflow: workflows/alpha.nika.yaml\n",
+        "    cadence: \"TZ=UTC 0 3 * * *\"\n",
+        "    plafond: 0.05\n",
+        "    manqué: sauter\n",
+        "  - workflow: workflows/beta.nika.yaml\n",
+        "    cadence: \"TZ=UTC 0 3 * * *\"\n",
+        "    plafond: 0.05\n",
+        "    manqué: sauter\n",
+    );
+    let alpha = "nika: alpha-sleeper\npermits: { exec: true }\ntasks:\n  wait:\n    exec: { shell: \"sleep 1\" }\n";
+    let beta = "nika: beta-sleeper\npermits: { exec: true }\ntasks:\n  wait:\n    exec: { shell: \"sleep 1\" }\n";
+    let dir = project(
+        "concurrent-trace-identity",
+        registry,
+        &[("alpha.nika.yaml", alpha), ("beta.nika.yaml", beta)],
+    );
+    let spawn = |label: &str| {
+        bin()
+            .args(["arm", "fire", label, "--now", "2026-08-19T03:02:00Z"])
+            .current_dir(&dir)
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .expect("spawn concurrent fire")
+    };
+    let alpha = spawn("alpha");
+    let beta = spawn("beta");
+    let alpha = alpha.wait_with_output().expect("alpha settles");
+    let beta = beta.wait_with_output().expect("beta settles");
+    assert_eq!(alpha.status.code(), Some(0));
+    assert_eq!(beta.status.code(), Some(0));
+    assert_one_line(&alpha);
+    assert_one_line(&beta);
+    let alpha_trace = last_json(&dir, "alpha")
+        .and_then(|doc| doc["trace"].as_str().map(str::to_owned))
+        .expect("alpha trace");
+    let beta_trace = last_json(&dir, "beta")
+        .and_then(|doc| doc["trace"].as_str().map(str::to_owned))
+        .expect("beta trace");
+    assert_ne!(
+        alpha_trace, beta_trace,
+        "concurrent receipts must not select one global newest trace"
+    );
+    assert!(dir.join(&alpha_trace).exists());
+    assert!(dir.join(&beta_trace).exists());
+    assert_eq!(traced_workflow(&dir, &alpha_trace), "alpha-sleeper");
+    assert_eq!(traced_workflow(&dir, &beta_trace), "beta-sleeper");
 }
 
 #[test]

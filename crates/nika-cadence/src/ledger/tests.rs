@@ -406,6 +406,57 @@ fn archive_bundle_commitment_covers_names_order_and_exact_bytes() {
 }
 
 #[test]
+fn rotation_is_only_the_first_null_predecessor_lifecycle_event() {
+    let (first, first_hash) = line(1, "disarmed", None, r#"{"slot":null}"#, None);
+    let forged_payload = r#"{"from":"history-w2.ndjson","lines":1,"archives":1,"archives_sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}"#;
+    let (rotated, rotated_hash) = unchecked_ledger_line(
+        2,
+        ts("2026-08-19T03:03:00Z"),
+        "rotated",
+        None,
+        forged_payload,
+        Some(&first_hash),
+    );
+    let live = format!("{first}\n{rotated}\n");
+    let forged_head = render_chain_anchor(2, Some(&rotated_hash)).expect("shape-valid head");
+
+    assert!(
+        verify_line(&rotated, 2, Some(&first_hash)).is_none(),
+        "a rotation cannot appear after another lifecycle event"
+    );
+    assert_eq!(scan_chain(&live), (1, Some(first_hash), 1));
+    assert!(replay_projection([(&*live, true)]).is_none());
+    assert!(!journal_snapshot_matches(
+        Some(&forged_head),
+        &[("history.ndjson", &live, true)]
+    ));
+
+    let mut lifecycle = LifecycleValidator::default();
+    let first_doc: serde_json::Value = serde_json::from_str(&first).expect("first doc");
+    let rotated_doc: serde_json::Value = serde_json::from_str(&rotated).expect("rotation doc");
+    assert!(lifecycle.accept(&first_doc));
+    assert!(
+        !lifecycle.accept(&rotated_doc),
+        "the typed lifecycle authority rejects a non-first rotation"
+    );
+}
+
+#[test]
+fn sequence_one_rotation_still_requires_a_null_predecessor() {
+    let payload = r#"{"from":"history-w2.ndjson","lines":1,"archives":1,"archives_sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}"#;
+    let foreign = "b".repeat(64);
+    let (linked_genesis, _) = unchecked_ledger_line(
+        1,
+        ts("2026-08-19T03:02:00Z"),
+        "rotated",
+        None,
+        payload,
+        Some(&foreign),
+    );
+    assert!(verify_line(&linked_genesis, 1, Some(&foreign)).is_none());
+}
+
+#[test]
 fn durable_head_codec_accepts_only_a_matching_verified_prefix() {
     let (first, first_hash) = line(1, "skipped", None, r#"{"slot":null}"#, None);
     let (second, second_hash) = line(2, "skipped", None, r#"{"slot":null}"#, Some(&first_hash));
