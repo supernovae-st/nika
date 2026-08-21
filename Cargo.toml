@@ -338,7 +338,7 @@ reqwest       = { version = "0.12", default-features = false, features = ["rustl
 url           = "2"     # nika-http L1 — SSRF URL parsing (also transitive via reqwest · pinned aligned)
 base64        = "0.23"  # nika-cli L4 — the trace anchor's Rekor/RFC 3161 wire encoding (also transitive via minisign · pinned aligned)
 ed25519-dalek = { version = "2", default-features = false, features = ["alloc", "digest", "hazmat"] }   # nika-cli L4 — raw RFC 8032 sign/verify for the Rekor v2 entry signature (Ed25519ph — the server refuses pure ed25519) + checkpoint verification (BSD-3-Clause · pure Rust)
-der           = { version = "0.7", default-features = false, features = ["alloc", "derive", "oid"] }   # nika-cli L4 — RFC 3161 TimeStampReq build + TimeStampResp/TSTInfo parse (RustCrypto · Apache-2.0 OR MIT)
+der           = { version = "0.8", default-features = false, features = ["alloc", "derive", "oid"] }   # nika-cli L4 — RFC 3161 TimeStampReq build + TimeStampResp/TSTInfo parse (RustCrypto · Apache-2.0 OR MIT)
 cms           = { version = "0.2", default-features = false, features = ["alloc"] }   # nika-cli L4 — the TSA token's CMS SignedData verification (RustCrypto · Apache-2.0 OR MIT)
 p384          = { version = "0.14", default-features = false, features = ["ecdsa", "sha384"] }   # nika-cli L4 — the Sigstore TSA leaf is ECDSA P-384/SHA-384 (RustCrypto · Apache-2.0 OR MIT)
 
