@@ -13,13 +13,13 @@ use std::collections::{BTreeMap, BTreeSet};
 use nika_schema::Spanned;
 use nika_schema::raw::{
     ForEachValue, RawAction, RawAgentAction, RawCommand, RawExecAction, RawInferAction,
-    RawInvokeAction, RawTask, VisionInput,
+    RawInvokeAction, RawTask, RawWorkflow, VisionInput,
 };
-use nika_schema::types::{OnErrorAction, WhenGate};
+use nika_schema::types::{AfterPredicate, OnErrorAction, WhenGate};
 use serde_json::{Value, json};
 
 /// Key recipe version. A changed recipe never matches an older trace.
-pub const KEY_VERSION: u32 = 2;
+pub const KEY_VERSION: u32 = 3;
 
 /// Private-use sentinel bracketing recipe markers.
 pub const MARK: char = '\u{f8ff}';
@@ -286,6 +286,30 @@ pub fn skill_paths(task: &RawTask) -> Vec<&str> {
             .collect(),
         _ => Vec::new(),
     }
+}
+
+/// Whether a task resolves its model from the run default.
+#[must_use]
+pub fn reads_default_model(task: &RawTask) -> bool {
+    match &task.action {
+        RawAction::Infer(action) => action.model.is_none(),
+        RawAction::Agent(action) => action.model.is_none(),
+        _ => false,
+    }
+}
+
+/// Cleanup tasks attached to `producer`, in declaration order.
+#[must_use]
+pub fn unwind_tasks_of<'a>(wf: &'a RawWorkflow, producer: &str) -> Vec<&'a RawTask> {
+    wf.tasks
+        .iter()
+        .map(|task| &task.value)
+        .filter(|task| {
+            task.after.iter().any(|(target, predicate)| {
+                target.value == producer && matches!(predicate.value, AfterPredicate::Unwind)
+            })
+        })
+        .collect()
 }
 
 /// Span-free, behavior-bearing task definition used by resume and proof.

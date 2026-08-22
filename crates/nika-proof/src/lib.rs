@@ -40,8 +40,8 @@ mod resume;
 
 pub use resume::{
     KEY_VERSION, MARK, PriorSuccess, ResumeKey, ResumePlan, ResumeUnverified, definition_value,
-    fields, item_stand_in, jcs_blake3_hex, referenced_upstreams, secret_marker, skill_paths,
-    touches_intelligence, workflow_targets,
+    fields, item_stand_in, jcs_blake3_hex, reads_default_model, referenced_upstreams,
+    secret_marker, skill_paths, touches_intelligence, unwind_tasks_of, workflow_targets,
 };
 
 /// The v1 pre-image format version — participates in every pre-image so a

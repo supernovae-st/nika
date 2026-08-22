@@ -213,6 +213,73 @@ mod tests {
         Ok(())
     }
 
+    #[tokio::test]
+    async fn changed_unwind_cleanup_rekeys_the_producer_resume() -> Result<(), String> {
+        const FIRST: &str = "nika: cleanup-resume\npermits: { exec: [echo] }\ntasks:\n  main:\n    exec: { command: [echo, ok] }\n  cleanup:\n    after: { main: unwind }\n    agent: { model: anthropic/claude-sonnet-4-6, prompt: first }\n";
+        let calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let backend = || {
+            Arc::new(CountingCompletedBackend {
+                calls: Arc::clone(&calls),
+            })
+        };
+        let first_runtime = harness_runtime(
+            MockShell::new().enqueue_ok("ok\n"),
+            backend(),
+            Arc::new(MockProvider::new("mock")),
+        );
+        let (_, first_events) = drive(&first_runtime, FIRST).await?;
+        let completed = first_events
+            .iter()
+            .find(|event| {
+                event.kind == EventKind::TaskCompleted
+                    && field(event, "task").as_deref() == Some("main")
+            })
+            .ok_or_else(|| "the producer has no completed frame".to_owned())?;
+        let output = serde_json::from_str(
+            &field(completed, crate::resume::fields::OUTPUT)
+                .ok_or_else(|| "the producer has no resume output".to_owned())?,
+        )
+        .map_err(|error| error.to_string())?;
+        let prior = crate::resume::PriorSuccess::new(
+            field(completed, crate::resume::fields::DEF_HASH)
+                .ok_or_else(|| "the producer has no definition hash".to_owned())?,
+            field(completed, crate::resume::fields::INPUT_HASH)
+                .ok_or_else(|| "the producer has no input hash".to_owned())?,
+            output,
+        );
+        let resumed_runtime = harness_runtime(
+            MockShell::new().enqueue_ok("ok\n"),
+            backend(),
+            Arc::new(MockProvider::new("mock")),
+        )
+        .with_resume_plan(BTreeMap::from([("main".to_owned(), prior)]));
+        let (resumed, events) = drive(
+            &resumed_runtime,
+            &FIRST.replace("prompt: first", "prompt: second"),
+        )
+        .await?;
+
+        assert!(resumed.ok);
+        assert!(
+            resumed.cache_hits.is_empty(),
+            "an edited cleanup invalidates its producer"
+        );
+        assert_eq!(
+            calls.load(std::sync::atomic::Ordering::Relaxed),
+            2,
+            "the changed cleanup executes under a fresh route receipt"
+        );
+        let completed = events
+            .iter()
+            .find(|event| event.kind == EventKind::TaskCompleted)
+            .ok_or_else(|| "the rerun has no completed frame".to_owned())?;
+        assert_eq!(
+            field(completed, "adapter").as_deref(),
+            Some("claude-agent-acp")
+        );
+        Ok(())
+    }
+
     fn probe(id: &str, class: AccessClass, serves: &[&str]) -> ProviderProbe {
         ProviderProbe::new(
             id,

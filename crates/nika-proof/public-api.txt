@@ -300,10 +300,12 @@ pub fn nika_proof::hash_in_domain(domain: nika_proof::HashDomain, format_version
 pub fn nika_proof::item_stand_in(items: &serde_json::value::Value) -> serde_json::value::Value
 pub fn nika_proof::jcs_blake3_hex(payload: &serde_json::value::Value) -> core::option::Option<alloc::string::String>
 pub fn nika_proof::preimage(domain: nika_proof::HashDomain, format_version: u32, ir: &serde_json::value::Value) -> alloc::string::String
+pub fn nika_proof::reads_default_model(task: &nika_schema::raw::task::RawTask) -> bool
 pub fn nika_proof::referenced_upstreams(task: &nika_schema::raw::task::RawTask) -> alloc::collections::btree::set::BTreeSet<alloc::string::String>
 pub fn nika_proof::secret_marker(name: &str, source: &str, key: &str) -> serde_json::value::Value
 pub fn nika_proof::semantic_hash(ir: &serde_json::value::Value, format_version: u32) -> nika_proof::SemanticHash
 pub fn nika_proof::skill_paths(task: &nika_schema::raw::task::RawTask) -> alloc::vec::Vec<&str>
 pub fn nika_proof::touches_intelligence(task: &nika_schema::raw::task::RawTask) -> bool
+pub fn nika_proof::unwind_tasks_of<'a>(wf: &'a nika_schema::raw::workflow::RawWorkflow, producer: &str) -> alloc::vec::Vec<&'a nika_schema::raw::task::RawTask>
 pub fn nika_proof::workflow_targets(task: &nika_schema::raw::task::RawTask) -> alloc::vec::Vec<&str>
 pub type nika_proof::ResumePlan = alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_proof::PriorSuccess>

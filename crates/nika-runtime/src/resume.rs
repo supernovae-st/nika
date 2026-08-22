@@ -184,23 +184,21 @@ impl ResumeContext {
     }
 }
 
-/// Compute one task's [`ResumeStamp`] — `None` means the task is not
-/// resume-eligible this run (future form · render miss · secret leak):
-/// it records no key and never skips. Never an error (ADR-099).
-pub(crate) fn stamp(
+/// Resolve one task definition and its rendered inputs under this run.
+fn task_identity(
     task: &RawTask,
     records: &BTreeMap<String, TaskRecord>,
     inputs: &BTreeMap<String, Value>,
     consts: &BTreeMap<String, Value>,
     ctx: &ResumeContext,
-) -> Option<ResumeStamp> {
+) -> Option<(Value, Value)> {
     let mut definition = definition_value(task)?;
     // #409 · a model-less infer/agent task RUNS on the effective default
     // model, so that model joins its DEFINITION identity — swapping the
     // envelope `model:` (or `--model`) re-runs it instead of cache-hitting
     // the old model's output. Tasks that pin their own `model:` already
     // carry it in the definition; the envelope cannot affect them.
-    if reads_default_model(task)
+    if nika_proof::reads_default_model(task)
         && let Some(model) = ctx.default_model.as_deref()
         && let Some(obj) = definition.as_object_mut()
     {
@@ -266,11 +264,47 @@ pub(crate) fn stamp(
         }
         SelectedAccessIdentity::Ineligible => return None,
     }
+    Some((definition, inputs))
+}
+
+/// Compute one task's [`ResumeStamp`] including its ordered unwind closure.
+/// `None` means this run cannot prove the complete identity, so it records
+/// no key and never skips (ADR-099's fail-closed direction).
+pub(crate) fn stamp(
+    task: &RawTask,
+    wf: &RawWorkflow,
+    records: &BTreeMap<String, TaskRecord>,
+    inputs: &BTreeMap<String, Value>,
+    consts: &BTreeMap<String, Value>,
+    ctx: &ResumeContext,
+) -> Option<ResumeStamp> {
+    let (mut definition, mut resolved_inputs) = task_identity(task, records, inputs, consts, ctx)?;
+    let cleanups = nika_proof::unwind_tasks_of(wf, task.id.value.as_str());
+    if !cleanups.is_empty() {
+        let mut definitions = Vec::with_capacity(cleanups.len());
+        let mut cleanup_inputs = Vec::with_capacity(cleanups.len());
+        for cleanup in cleanups {
+            let (cleanup_definition, resolved) =
+                task_identity(cleanup, records, inputs, consts, ctx)?;
+            definitions.push(json!({
+                "task": cleanup.id.value,
+                "verb": cleanup.action.verb(),
+                "definition": cleanup_definition,
+            }));
+            cleanup_inputs.push(json!({ "task": cleanup.id.value, "inputs": resolved }));
+        }
+        definition
+            .as_object_mut()?
+            .insert("unwind".to_owned(), Value::Array(definitions));
+        resolved_inputs
+            .as_object_mut()?
+            .insert("unwind".to_owned(), Value::Array(cleanup_inputs));
+    }
     let key = ResumeKey::new(
         task.id.value.clone(),
         task.action.verb().to_owned(),
         definition,
-        inputs,
+        resolved_inputs,
     );
     // A secret value that flowed into a rendered input (through an
     // upstream record) would make the input hash an oracle — refuse.
@@ -348,20 +382,6 @@ fn selected_access_identity(
     }))
 }
 
-/// Does this task's behavior depend on the run's DEFAULT model? True
-/// when its action is
-/// an infer/agent WITHOUT its own `model:` — those resolve against the
-/// envelope/`--model` default at dispatch, so that default is part of
-/// their behavior (#409).
-fn reads_default_model(task: &RawTask) -> bool {
-    let action_reads = |action: &RawAction| match action {
-        RawAction::Infer(a) => a.model.is_none(),
-        RawAction::Agent(a) => a.model.is_none(),
-        _ => false,
-    };
-    action_reads(&task.action)
-}
-
 // ─── the input payload (rendered · what the references resolved to) ─────
 
 /// The values the task's `${{ }}` references resolve to RIGHT NOW —
@@ -428,10 +448,17 @@ fn input_value(
         with_ns: Some(&with_ns),
         ..base
     };
+    let when = task
+        .when
+        .as_ref()
+        .map(|gate| crate::task::eval_gate(&gate.value, &action_scope))
+        .transpose()
+        .ok()?;
     Some(json!({
         "action": action_value(&task.action, &action_scope)?,
         "with": with_ns,
         "items": items,
+        "when": when,
     }))
 }
 

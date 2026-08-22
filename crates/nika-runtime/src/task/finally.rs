@@ -14,7 +14,6 @@ use nika_kernel::http::HttpPostDyn;
 use nika_kernel::process::ShellRunDyn;
 use nika_kernel::tool_executor::ToolExecuteDyn;
 use nika_schema::raw::{RawTask, RawWorkflow};
-use nika_schema::types::AfterPredicate;
 
 use crate::Runtime;
 use crate::expr::Scope;
@@ -78,24 +77,6 @@ fn preview_record(ran: &RanTask) -> TaskRecord {
     record
 }
 
-/// The cleanup tasks attached to `producer` by an `unwind` edge, in
-/// DECLARATION order (the source order of `tasks:`).
-///
-/// Membership is read off the task's own `after:` — the same place the
-/// checker reads it — so the runtime and the graph can never disagree
-/// about what cleanup exists.
-fn unwind_tasks_of<'a>(wf: &'a RawWorkflow, producer: &str) -> Vec<&'a RawTask> {
-    wf.tasks
-        .iter()
-        .map(|t| &t.value)
-        .filter(|t| {
-            t.after.iter().any(|(target, pred)| {
-                target.value == producer && matches!(pred.value, AfterPredicate::Unwind)
-            })
-        })
-        .collect()
-}
-
 impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C>
 where
     S: ShellRunDyn + Sync,
@@ -119,7 +100,7 @@ where
         // The cleanup bodies are TASKS now, joined by an `unwind` edge
         // (spec 03 §unwind). They run in DECLARATION order — the source
         // order of `tasks:` — so the sequence is stable across re-runs.
-        let cleanups = unwind_tasks_of(wf, task.id.value.as_str());
+        let cleanups = nika_proof::unwind_tasks_of(wf, task.id.value.as_str());
         if cleanups.is_empty() {
             return None;
         }

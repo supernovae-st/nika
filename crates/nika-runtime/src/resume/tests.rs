@@ -41,7 +41,14 @@ mod unit {
     ) -> Option<ResumeStamp> {
         let wf = parse(yaml);
         let ctx = no_secrets();
-        stamp(&wf.tasks[0].value, records, vars, &BTreeMap::new(), &ctx)
+        stamp(
+            &wf.tasks[0].value,
+            &wf,
+            records,
+            vars,
+            &BTreeMap::new(),
+            &ctx,
+        )
     }
 
     /// The `const:`-riding twin — the map lands in the consts slot (the
@@ -53,7 +60,14 @@ mod unit {
     ) -> Option<ResumeStamp> {
         let wf = parse(yaml);
         let ctx = no_secrets();
-        stamp(&wf.tasks[0].value, records, &BTreeMap::new(), consts, &ctx)
+        stamp(
+            &wf.tasks[0].value,
+            &wf,
+            records,
+            &BTreeMap::new(),
+            consts,
+            &ctx,
+        )
     }
 
     fn success_record(output: Value) -> TaskRecord {
@@ -142,6 +156,7 @@ mod unit {
         );
         let a = stamp(
             &wf.tasks[0].value,
+            &wf,
             &records,
             &vars,
             &BTreeMap::new(),
@@ -150,6 +165,7 @@ mod unit {
         .expect("eligible");
         let b = stamp(
             &wf.tasks[0].value,
+            &wf,
             &records,
             &vars,
             &BTreeMap::new(),
@@ -171,6 +187,7 @@ mod unit {
         );
         let c = stamp(
             &wf2.tasks[0].value,
+            &wf2,
             &records,
             &vars,
             &BTreeMap::new(),
@@ -203,7 +220,15 @@ mod unit {
                 &BTreeMap::new(),
                 None,
             );
-            stamp(&wf.tasks[0].value, &records, &vars, &BTreeMap::new(), &ctx).expect("eligible")
+            stamp(
+                &wf.tasks[0].value,
+                &wf,
+                &records,
+                &vars,
+                &BTreeMap::new(),
+                &ctx,
+            )
+            .expect("eligible")
         };
 
         // The issue's exact repro: edit ONLY the envelope `model:` line.
@@ -268,7 +293,15 @@ mod unit {
                 &BTreeMap::new(),
                 pin,
             );
-            stamp(&wf.tasks[0].value, &records, &vars, &BTreeMap::new(), &ctx).expect("eligible")
+            stamp(
+                &wf.tasks[0].value,
+                &wf,
+                &records,
+                &vars,
+                &BTreeMap::new(),
+                &ctx,
+            )
+            .expect("eligible")
         };
         let unpinned = stamp_with(AGENT, None);
         let pinned = stamp_with(AGENT, Some("codex-acp"));
@@ -339,6 +372,7 @@ mod unit {
             .with_access_probes(probes);
             stamp(
                 &wf.tasks[0].value,
+                &wf,
                 &BTreeMap::new(),
                 &BTreeMap::new(),
                 &BTreeMap::new(),
@@ -399,6 +433,7 @@ mod unit {
             .with_access_probes(probes);
             stamp(
                 &wf.tasks[0].value,
+                &wf,
                 &BTreeMap::new(),
                 &BTreeMap::new(),
                 &BTreeMap::new(),
@@ -435,7 +470,14 @@ mod unit {
             let wf = parse(yaml);
             let ctx =
                 ResumeContext::of(&wf, &BTreeMap::new(), None, skills, &BTreeMap::new(), None);
-            stamp(&wf.tasks[0].value, &records, &vars, &BTreeMap::new(), &ctx)
+            stamp(
+                &wf.tasks[0].value,
+                &wf,
+                &records,
+                &vars,
+                &BTreeMap::new(),
+                &ctx,
+            )
         };
         let v1 = BTreeMap::from([(
             "s/SKILL.md".to_owned(),
@@ -498,12 +540,28 @@ mod unit {
             success_record(json!("prefix hunter2-secret suffix")),
         )]);
         assert!(
-            stamp(&wf.tasks[0].value, &leaked, &vars, &BTreeMap::new(), &ctx,).is_none(),
+            stamp(
+                &wf.tasks[0].value,
+                &wf,
+                &leaked,
+                &vars,
+                &BTreeMap::new(),
+                &ctx,
+            )
+            .is_none(),
             "a secret value in the rendered inputs → not resume-eligible"
         );
         let clean = BTreeMap::from([("up".to_owned(), success_record(json!("safe")))]);
         assert!(
-            stamp(&wf.tasks[0].value, &clean, &vars, &BTreeMap::new(), &ctx,).is_some(),
+            stamp(
+                &wf.tasks[0].value,
+                &wf,
+                &clean,
+                &vars,
+                &BTreeMap::new(),
+                &ctx,
+            )
+            .is_some(),
             "the same task without the leak stays eligible"
         );
     }
@@ -603,7 +661,14 @@ mod unit {
                 closures,
                 None,
             );
-            stamp(&wf.tasks[0].value, &records, &vars, &BTreeMap::new(), &ctx)
+            stamp(
+                &wf.tasks[0].value,
+                &wf,
+                &records,
+                &vars,
+                &BTreeMap::new(),
+                &ctx,
+            )
         };
         let d1 = BTreeMap::from([("./child.nika.yaml".to_owned(), "digest-one".to_owned())]);
         let d2 = BTreeMap::from([("./child.nika.yaml".to_owned(), "digest-two".to_owned())]);
@@ -624,6 +689,44 @@ mod unit {
         let t1 = stamp_with(TOOL, &BTreeMap::new()).expect("eligible");
         let t2 = stamp_with(TOOL, &d1).expect("eligible");
         assert_eq!(t1, t2, "tool invokes never consult the closure map");
+    }
+
+    #[test]
+    fn cleanup_reading_the_unsettled_producer_disables_resume() {
+        const WORKFLOW: &str = "nika: cleanup-input\ntasks:\n  main:\n    exec: { command: [echo, ok] }\n  cleanup:\n    after: { main: unwind }\n    agent: { model: mock/echo, prompt: \"${{ tasks.main.output }}\" }\n";
+        let wf = parse(WORKFLOW);
+        let ctx = no_secrets();
+        assert!(
+            stamp(
+                &wf.tasks[0].value,
+                &wf,
+                &BTreeMap::new(),
+                &BTreeMap::new(),
+                &BTreeMap::new(),
+                &ctx,
+            )
+            .is_none(),
+            "an unwind input unavailable before settle must never wrong-skip"
+        );
+    }
+
+    #[test]
+    fn cleanup_gate_inputs_participate_in_the_producer_key() {
+        const WORKFLOW: &str = "nika: cleanup-gate\ninputs:\n  enabled: { type: boolean, default: true }\ntasks:\n  main:\n    exec: { command: [echo, ok] }\n  cleanup:\n    after: { main: unwind }\n    when: ${{ inputs.enabled == true }}\n    exec: { command: [echo, cleanup] }\n";
+        let wf = parse(WORKFLOW);
+        let ctx = no_secrets();
+        let key_for = |enabled| {
+            stamp(
+                &wf.tasks[0].value,
+                &wf,
+                &BTreeMap::new(),
+                &BTreeMap::from([("enabled".to_owned(), json!(enabled))]),
+                &BTreeMap::new(),
+                &ctx,
+            )
+            .expect("the static cleanup is eligible")
+        };
+        assert_ne!(key_for(true).input_hash, key_for(false).input_hash);
     }
 }
 
@@ -722,6 +825,7 @@ mod trace_carry {
         );
         let stamp = crate::resume::stamp(
             &wf.tasks[0].value,
+            &wf,
             &BTreeMap::new(),
             &BTreeMap::new(),
             &BTreeMap::new(),

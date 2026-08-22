@@ -365,8 +365,9 @@ where
 
         // ── ADR-099 resume identity + the skip verdict — extracted
         //    (the 100-line fn ratchet · semantics unchanged) ──
-        let (resume, skip) =
-            self.resume_skip_finish(task, &id, records, inputs, consts, resume_ctx, &integrity);
+        let (resume, skip) = self.resume_skip_finish(
+            task, wf, &id, records, inputs, consts, resume_ctx, &integrity,
+        );
         if let Some(finish) = skip {
             return finish;
         }
@@ -417,6 +418,7 @@ where
     fn resume_skip_finish(
         &self,
         task: &RawTask,
+        wf: &RawWorkflow,
         id: &String,
         records: &BTreeMap<String, TaskRecord>,
         inputs: &BTreeMap<String, Value>,
@@ -424,7 +426,7 @@ where
         resume_ctx: &crate::resume::ResumeContext,
         integrity: &nika_cap::Integrity,
     ) -> (Option<crate::resume::ResumeStamp>, Option<Finish>) {
-        let resume = crate::resume::stamp(task, records, inputs, consts, resume_ctx);
+        let resume = crate::resume::stamp(task, wf, records, inputs, consts, resume_ctx);
         let skip = if self.prompt_answers.contains_key(id) {
             None
         } else {
@@ -1302,7 +1304,7 @@ fn when_finish(
 }
 
 /// Evaluate a `when:` gate value (shared by tasks + cleanup mini-tasks).
-fn eval_gate(gate: &WhenGate, scope: &Scope<'_>) -> Result<bool, RuntimeError> {
+pub(crate) fn eval_gate(gate: &WhenGate, scope: &Scope<'_>) -> Result<bool, RuntimeError> {
     match gate {
         // CLOSED vocabulary (nika-vocab) — a future gate form is a spec
         // change that must land HERE explicitly, never silently closed.
