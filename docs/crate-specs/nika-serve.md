@@ -102,6 +102,8 @@ Inline library tests cover:
 - illegal transition with unchanged durable status;
 - durable empty initialization plus truncated, deleted, renamed-away, and
   unknown-future snapshot refusal without rewrite;
+- typed I/O refusal with path-bearing source context erased before the public
+  boundary, including `Display` and error-chain non-disclosure;
 - `paused` round-trip across restart;
 - symlinked roots, a planted `jobs` child, and visible-root replacement after
   descriptor admission;

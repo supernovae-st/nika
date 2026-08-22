@@ -226,6 +226,25 @@ fn truncated_state_fails_closed() {
 }
 
 #[test]
+fn public_io_error_does_not_disclose_the_durable_root() {
+    let root = tempfile::tempdir().expect("root");
+    let jobs = root.path().join("jobs");
+    std::fs::create_dir(&jobs).expect("jobs");
+    std::fs::create_dir(jobs.join("state.json")).expect("state directory");
+
+    let error = JobStore::open(root.path()).expect_err("directory state must refuse");
+    let rendered = error.to_string();
+
+    assert!(matches!(
+        &error,
+        JobStoreError::Io(kind) if *kind == std::io::ErrorKind::InvalidData
+    ));
+    assert_eq!(rendered, "job store I/O failed: invalid data");
+    assert!(!rendered.contains(root.path().to_string_lossy().as_ref()));
+    assert!(std::error::Error::source(&error).is_none());
+}
+
+#[test]
 fn unknown_persisted_fields_fail_closed_without_rewrite() {
     let root = tempfile::tempdir().expect("root");
     let store = JobStore::open(root.path()).expect("store");

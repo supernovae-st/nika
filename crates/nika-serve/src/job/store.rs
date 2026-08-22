@@ -219,7 +219,7 @@ impl JobStore {
     pub(super) fn kernel_lease(&self) -> Result<Flock<std::fs::File>, JobStoreError> {
         let file = self.dir.open_lock(LOCK_FILE)?;
         Flock::lock(file, FlockArg::LockExclusive).map_err(|(_file, errno)| {
-            JobStoreError::Io(std::io::Error::from_raw_os_error(errno as i32))
+            JobStoreError::from(std::io::Error::from_raw_os_error(errno as i32))
         })
     }
 
@@ -229,7 +229,7 @@ impl JobStore {
         match Flock::lock(file, FlockArg::LockExclusiveNonblock) {
             Ok(lease) => Ok(Some(lease)),
             Err((_file, nix::errno::Errno::EAGAIN)) => Ok(None),
-            Err((_file, errno)) => Err(JobStoreError::Io(std::io::Error::from_raw_os_error(
+            Err((_file, errno)) => Err(JobStoreError::from(std::io::Error::from_raw_os_error(
                 errno as i32,
             ))),
         }

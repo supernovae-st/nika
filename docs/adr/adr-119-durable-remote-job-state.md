@@ -158,6 +158,10 @@ closes the full twelve-gate ledger.
   interface events; later route schemas decide their public wire shapes.
 - The store tracks the workspace version and is not published independently.
 - `Conflict` is an admission verdict, not a storage error.
+- `JobStoreError::Io` retains only `std::io::ErrorKind`; path-bearing source
+  context is erased at the public state-plane boundary. The W06 HTTP adapter
+  must still map every variant to its own bounded response class rather than
+  expose `Display`.
 
 ## Required evidence
 
@@ -168,15 +172,16 @@ closes the full twelve-gate ledger.
 4. Illegal lifecycle edges preserve the prior durable status.
 5. Truncated, deleted, renamed-away, and unknown-future initialized state
    refuses at startup without rewrite.
-6. `paused` survives restart, while the new server incarnation atomically
+6. Rendering or chaining a typed I/O refusal cannot disclose the durable root.
+7. `paused` survives restart, while the new server incarnation atomically
    settles ownerless `running` as terminal `interrupted` before exposure.
-7. Root symlinks, a planted `jobs` child, and visible-root replacement cannot
+8. Root symlinks, a planted `jobs` child, and visible-root replacement cannot
    redirect state.
-8. Event ids remain contiguous, `events_after` resumes strictly after its
+9. Event ids remain contiguous, `events_after` resumes strictly after its
    cursor, and a cursor above the latest sequence returns a typed error.
-9. Digest boundary cases reject uppercase, mixed-case, wrong-length, and
+10. Digest boundary cases reject uppercase, mixed-case, wrong-length, and
    non-hexadecimal forms.
-10. Focused library tests, all-target clippy, and workspace formatting pass.
+11. Focused library tests, all-target clippy, and workspace formatting pass.
 
 ## Alternatives considered
 

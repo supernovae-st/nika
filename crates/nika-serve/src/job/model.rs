@@ -253,8 +253,12 @@ impl Admission {
 #[non_exhaustive]
 pub enum JobStoreError {
     /// Descriptor-rooted filesystem operation failed.
+    ///
+    /// Only the error kind crosses this public boundary. Path-bearing source
+    /// context is discarded so rendering or chaining the typed error cannot
+    /// disclose the operator's durable root.
     #[error("job store I/O failed: {0}")]
-    Io(#[from] io::Error),
+    Io(io::ErrorKind),
     /// An idempotency key violated its bounded wire contract.
     #[error("idempotency key must contain 1 to 255 visible ASCII bytes")]
     InvalidIdempotencyKey,
@@ -291,6 +295,12 @@ pub enum JobStoreError {
     /// A panic occurred while another thread held the in-process lock.
     #[error("job store local lock is poisoned")]
     LockPoisoned,
+}
+
+impl From<io::Error> for JobStoreError {
+    fn from(error: io::Error) -> Self {
+        Self::Io(error.kind())
+    }
 }
 
 fn validate_idempotency_key(value: &str) -> Result<(), JobStoreError> {
