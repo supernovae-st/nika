@@ -228,13 +228,21 @@ impl Dispatched {
         access_receipt: Option<AccessReceipt>,
     ) -> Self {
         let (cost_usd, cost_source, cost_unpriced) = spend;
+        // A selected harness may have completed an external effect before
+        // its ACP terminal beat died. The provider-family source can still
+        // call a transport failure transient, but this routed execution is
+        // terminal: only a fresh operator run may repeat it.
+        let transient = err.is_transient()
+            && !access_receipt
+                .as_ref()
+                .is_some_and(AccessReceipt::selected_harness);
         Self {
             note,
             result: Err(FailedDispatch {
                 record: TaskErrorRecord {
                     code: err.spec_code(),
                     message: err.to_string(),
-                    transient: err.is_transient(),
+                    transient,
                 },
                 cost_usd,
                 cost_source,

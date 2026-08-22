@@ -359,4 +359,118 @@ mod tests {
         );
         Ok(())
     }
+
+    struct CountingSessionBackend {
+        calls: Arc<std::sync::atomic::AtomicUsize>,
+    }
+
+    impl DynAgentBackend for CountingSessionBackend {
+        fn run_agent_boxed(
+            &self,
+            _request: HarnessRequest,
+        ) -> Pin<Box<dyn Future<Output = Result<HarnessEventStream, HarnessError>> + Send + '_>>
+        {
+            self.calls
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            Box::pin(async {
+                Err(HarnessError::Session {
+                    reason: "AUTH_REQUIRED after session start".to_owned(),
+                })
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn a_started_harness_route_is_terminal_even_under_explicit_retry() -> Result<(), String> {
+        let calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let provider = Arc::new(MockProvider::new("mock").enqueue_text("must not fall through"));
+        let tools = Arc::new(MockToolExecutor::new());
+        let invoke = Arc::new(InvokeVerb::new(Arc::clone(&tools)));
+        let seat = HarnessSeat::new(
+            Arc::new(CountingSessionBackend {
+                calls: Arc::clone(&calls),
+            }),
+            "/tmp",
+        )
+        .with_access_id("claude-agent-acp");
+        let runtime = Runtime::new(
+            ExecVerb::new(Arc::new(MockShell::new())),
+            Arc::clone(&invoke),
+            InferVerb::new(
+                Arc::new(nika_providers::ProviderRegistry::without_http(
+                    nika_providers::ProvidersConfig::new(),
+                )),
+                "anthropic/claude-sonnet-4-6",
+            ),
+            AgentVerb::new(
+                Arc::clone(&provider),
+                invoke,
+                Arc::new(MockToolDefinitionProvider::new()),
+                "anthropic/claude-sonnet-4-6",
+            )
+            .with_harness_seat(seat),
+            MockClock::new(),
+            RuntimeConfig::default(),
+        )
+        .with_access_probes(vec![probe(
+            "claude-agent-acp",
+            AccessClass::Harness,
+            &["anthropic"],
+        )]);
+        let wf = nika_schema::parse(
+            "nika: terminal-harness\ntasks:\n  delegated:\n    retry: { max_attempts: 2, backoff_ms: 1, backoff_strategy: fixed, jitter: false, on_codes: [NIKA-INFER-001] }\n    agent: { model: anthropic/claude-sonnet-4-6, prompt: fail-once }\n",
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .map_err(|err| err.to_string())?;
+        let report = nika_check::check(&wf);
+        assert!(report.is_clean(), "fixture checks clean: {report:?}");
+        let mut stamper = DeterministicStamper::new();
+        let mut sink = VecSink::new();
+        let outcome = runtime
+            .run(&wf, &report, &mut stamper, &mut sink)
+            .await
+            .map_err(|err| err.to_string())?;
+
+        assert!(!outcome.ok, "the ACP session failure is terminal");
+        assert_eq!(
+            calls.load(std::sync::atomic::Ordering::Relaxed),
+            1,
+            "workflow retry must not replay a started harness effect"
+        );
+        assert!(
+            provider.captured_requests().is_empty(),
+            "a selected harness route never falls through to the native provider"
+        );
+        assert!(
+            sink.events()
+                .iter()
+                .all(|event| event.kind != EventKind::TaskRetrying),
+            "a terminal harness failure emits no retry frame"
+        );
+        let failed = sink
+            .events()
+            .iter()
+            .find(|event| event.kind == EventKind::TaskFailed)
+            .ok_or_else(|| "the failed harness task has no terminal frame".to_owned())?;
+        assert_eq!(
+            field(failed, "requested_model").as_deref(),
+            Some("anthropic/claude-sonnet-4-6")
+        );
+        assert_eq!(field(failed, "provider").as_deref(), Some("anthropic"));
+        assert_eq!(field(failed, "access").as_deref(), Some("harness"));
+        assert_eq!(
+            field(failed, "adapter").as_deref(),
+            Some("claude-agent-acp")
+        );
+        assert!(
+            field(failed, "observed_model").is_none(),
+            "an ACP failure must not forge an unreported observed identity"
+        );
+        assert!(
+            field(failed, "outcome").is_some_and(|outcome| outcome.contains("\"transient\":false")),
+            "the terminal receipt must not advertise the ACP effect as retryable"
+        );
+        Ok(())
+    }
 }

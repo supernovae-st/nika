@@ -176,8 +176,24 @@ where
         // consumes the dispatch (a divergence is never transient).
         let evidence = failed.evidence.clone();
         let access_receipt = failed.access_receipt.clone();
+        let selected_harness = access_receipt
+            .as_ref()
+            .is_some_and(crate::dispatch::AccessReceipt::selected_harness);
         // Debits PER ATTEMPT — a retry storm is never invisible.
         let error = failed.debit_and_fold(ledger, failed_cost, failed_unpriced);
+        // `on_codes:` may opt a permanent provider error into retry, but it
+        // cannot replay an effectful ACP route. Route identity outranks the
+        // shared inference error code; API/provider transports keep their
+        // existing typed retry behavior.
+        if selected_harness {
+            return Err(FailedOutcome::new(
+                error,
+                *failed_cost,
+                *failed_unpriced,
+                access_receipt,
+                evidence,
+            ));
+        }
         // Retry iff attempts remain AND the policy admits (spec 05).
         let Some(delay) = self.retry_delay(task, &error, attempt, max_attempts, jitter_key) else {
             return Err(FailedOutcome::new(

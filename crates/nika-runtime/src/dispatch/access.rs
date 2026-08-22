@@ -43,6 +43,14 @@ impl AccessReceipt {
             adapter: None,
         }
     }
+
+    /// A selected harness may already have performed external effects
+    /// before its terminal beat is lost. Replaying that route is unsafe;
+    /// the runtime retry seam uses this typed fact instead of guessing
+    /// from an inference-family error code.
+    pub(crate) fn selected_harness(&self) -> bool {
+        self.access == Some(nika_types::access::AccessClass::Harness)
+    }
 }
 
 impl Dispatched {
