@@ -288,6 +288,22 @@ fn race_sleep_or_signal(
 /// the span races ctrl-c/SIGTERM on the runtime — the loop's thread
 /// never blocks, and a broken wait sets the stop flag the loop checks
 /// after each fire.
+fn signal_runtime() -> Result<std::rc::Rc<tokio::runtime::Runtime>, String> {
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .map(std::rc::Rc::new)
+        .map_err(|error| format!("serve · the signal runtime refused: {error}"))
+}
+
+fn next_sleep_seconds(registry: &ArmRegistry, now: &Zoned) -> Result<i64, String> {
+    let next = nika_cadence::earliest_next(registry, now)
+        .map_err(|error| format!("serve · a validated registry refuses: {error}"))?;
+    Ok(next.map_or(60, |(_, slot)| {
+        (slot.at.timestamp().as_second() - now.timestamp().as_second()).clamp(1, 60)
+    }))
+}
+
 fn serve(
     root: &Path,
     mut reg: ArmRegistry,
@@ -296,12 +312,7 @@ fn serve(
     clock: &Clock,
     run: &ExecutionRunSeam,
 ) -> Result<(), String> {
-    let rt = std::rc::Rc::new(
-        tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .map_err(|e| format!("serve · the signal runtime refused: {e}"))?,
-    );
+    let rt = signal_runtime()?;
     #[cfg(unix)]
     let term: TermCell = std::rc::Rc::new(std::cell::RefCell::new(rt.block_on(async {
         tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()).ok()
@@ -375,11 +386,7 @@ fn serve(
         if args.once {
             return Ok(());
         }
-        let next = nika_cadence::earliest_next(&reg, &now)
-            .map_err(|e| format!("serve · a validated registry refuses: {e}"))?;
-        let secs = next.map_or(60, |(_, s)| {
-            (s.at.timestamp().as_second() - now.timestamp().as_second()).clamp(1, 60)
-        });
+        let secs = next_sleep_seconds(&reg, &now)?;
         #[cfg(unix)]
         let heard = race_sleep_or_signal(&rt, clock, &term, secs);
         #[cfg(not(unix))]

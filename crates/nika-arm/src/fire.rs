@@ -643,6 +643,18 @@ fn wait_quantum(budget_ms: i64, waited_ms: i64) -> i64 {
     budget_ms.saturating_sub(waited_ms).min(POLL_MS)
 }
 
+fn claim_deadline(ctx: &FireCtx) -> jiff::Timestamp {
+    next_slot(ctx).map_or_else(
+        || {
+            ctx.now
+                .timestamp()
+                .checked_add(CLAIM_DEADLINE_FALLBACK)
+                .unwrap_or_else(|_| ctx.now.timestamp())
+        },
+        |next| next.timestamp(),
+    )
+}
+
 /// Act on a Skip decision: journal it when it bears one (the inner
 /// ledger lock serializes the append; the caller's beat lock, when it
 /// holds one, outlives this), then the ONE line — the ledger's repair
@@ -689,39 +701,13 @@ fn claim_run_receipt(
     slot: &Zoned,
     slots: Option<u32>,
 ) -> FireVerdict {
-    let Some(beat) = beat_of(ctx) else {
-        return FireVerdict {
-            line: format!(
-                "failed {} · engine fault: the label resolved past the registry",
-                ctx.label
-            ),
-            code: exit::FILE,
-        };
-    };
-    let Some(plafond) = beat.plafond else {
-        return FireVerdict {
-            line: format!(
-                "failed {} · engine fault: plafond absent après validation — à reporter avec le fichier",
-                ctx.label
-            ),
-            code: exit::FILE,
-        };
-    };
-    let pinned = match admit_workflow(ctx, beat) {
-        Ok(pinned) => pinned,
-        Err(error) => return record_refused(ctx, &error),
+    let (beat, plafond, pinned) = match admit_due_workflow(ctx) {
+        Ok(admitted) => admitted,
+        Err(verdict) => return verdict,
     };
     let mut claim = Claim::new(
         SlotId::derive(&beat.workflow, &beat.cadence, slot),
-        next_slot(ctx).map_or_else(
-            || {
-                ctx.now
-                    .timestamp()
-                    .checked_add(CLAIM_DEADLINE_FALLBACK)
-                    .unwrap_or_else(|_| ctx.now.timestamp())
-            },
-            |next| next.timestamp(),
-        ),
+        claim_deadline(ctx),
         ctx.now.timestamp(),
     );
     claim.generation = Some(pinned.generation.clone());
@@ -788,6 +774,32 @@ fn claim_run_receipt(
         line: with_repair(line, repaired),
         code: upshot.code,
     }
+}
+
+fn admit_due_workflow(ctx: &FireCtx) -> Result<(&Beat, f64, PinnedExecution), FireVerdict> {
+    let Some(beat) = beat_of(ctx) else {
+        return Err(FireVerdict {
+            line: format!(
+                "failed {} · engine fault: the label resolved past the registry",
+                ctx.label
+            ),
+            code: exit::FILE,
+        });
+    };
+    let Some(plafond) = beat.plafond else {
+        return Err(FireVerdict {
+            line: format!(
+                "failed {} · engine fault: plafond absent après validation — à reporter avec le fichier",
+                ctx.label
+            ),
+            code: exit::FILE,
+        });
+    };
+    let pinned = match admit_workflow(ctx, beat) {
+        Ok(pinned) => pinned,
+        Err(error) => return Err(record_refused(ctx, &error)),
+    };
+    Ok((beat, plafond, pinned))
 }
 
 /// Fold the run's terminal lifecycle before the receipt speaks its kind.
