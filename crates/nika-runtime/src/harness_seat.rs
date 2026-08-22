@@ -829,7 +829,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn parent_retry_replays_child_harness_fanout() -> Result<(), String> {
+    async fn parent_retry_does_not_replay_child_harness_fanout() -> Result<(), String> {
         let calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
         let provider = Arc::new(MockProvider::new("mock").enqueue_text("must not fall through"));
         let runtime = harness_runtime(
