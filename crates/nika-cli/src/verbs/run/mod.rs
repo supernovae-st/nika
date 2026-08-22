@@ -672,18 +672,15 @@ fn composed_runtime(
     let default_model = model_override.unwrap_or(envelope_model);
     let caps = capabilities_of(wf);
     let access_probes = nika_cli_host::probe::access_probes_with_harness();
-    // R-2 · the boot-manifest access stamps, composer-computed (P3 B5).
     let boot_access = crate::verbs::check::models_rung::boot_access_fields_with_probes(
         report,
         access_pin,
         &access_probes,
     );
-    // F-P3 · the run: declaration rides the SAME composition path (clock ·
-    // jitter seed — the stamper half is picked at the drive site).
+    // F-P3 · declaration rides this composition path; the driver picks the stamper.
     match production_runtime(default_model, caps, wf.run.as_ref().map(|s| &s.value)) {
         Ok(rt) => {
             let rt = rt
-                // The child seam (spec 14) — children resolve against THIS file.
                 .with_child_runner(std::sync::Arc::new(child_runner::ProdChildRunner::new(
                     file,
                     !no_trace_file,
@@ -691,48 +688,27 @@ fn composed_runtime(
                     access_probes.clone(),
                 )))
                 .with_var_overrides(overrides)
-                // F-P13 · the input origins (NEP-0014 law 2) — the boot
-                // manifest journals where every bound input came from.
                 .with_input_origins(origins)
                 .with_max_cost_usd(max_cost_usd)
-                // ADR-099 rider — ALWAYS armed: a blocked `nika:prompt`
-                // pauses durably on EVERY lane; the old `json ||
-                // output_json` proxy left a headless TEXT run dying at
-                // its own gate.
+                // ADR-099 · prompt pause is armed on every output lane.
                 .with_prompt_pause(true)
                 .with_prompt_answers(answers)
-                // F-P4 · the folded resume authority (NEP-0013) — the
-                // `--answer` validates against the shown ticket.
                 .with_paused_approval(paused)
-                // F-P21 · the declared cross-version compat (NEP-0014
-                // law 4) — attested on the boot manifest.
                 .with_resume_compat(compat)
-                // ADR-099 trust amendment · the unverified-trust
-                // posture, attested on the boot manifest.
                 .with_resume_unverified(unverified)
-                // #473 · composer-resolved SKILL.md texts (`## Skills`
-                // injection + the referencing tasks' resume identity).
                 .with_skills(skills)
-                // Spec 14 law 10 (def_hash tier) · the child closure
-                // digests join the caller's resume identity — an edited
-                // child re-runs instead of serving the old cached output.
+                // Child closure digests join the caller's resume identity.
                 .with_child_closures(child_runner::closure_digests(
                     wf,
                     std::path::Path::new(file),
                 ))
-                // #409 · the override joins the resume identity of every
-                // model-less infer/agent task (the model they RUN on).
                 .with_model_override(model_override.map(ToOwned::to_owned))
-                // D-2026-08-04-N1 · the `--access` pin: unsatisfied refuses BEFORE the prologue.
+                // An unsatisfied access pin refuses before the prologue.
                 .with_access_pin(access_pin.map(ToOwned::to_owned))
                 .with_boot_access_fields(boot_access)
                 .with_access_probes(access_probes)
-                // The run's identity: the journal names the definition it
-                // recorded (sha256 of the exact bytes this composer read).
                 .with_source_sha256(sha256_hex(source.as_bytes()));
-            // A CRLF/BOM source ALSO records its LF normal form, so drift
-            // checks can tell a re-encode from an edit. LF sources skip
-            // the field (the forms coincide — the journal stays lean).
+            // Record a distinct LF digest only when encoding differs.
             let raw_sha = sha256_hex(source.as_bytes());
             let lf_sha = sha256_hex(lf_normal_form(source).as_bytes());
             let rt = if lf_sha == raw_sha {

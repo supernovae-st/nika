@@ -289,9 +289,7 @@ fn try_park(
         );
         return None;
     }
-    // An awaited root that is NOT a declared task can never reach a
-    // terminal state — the recovery fails NOW, exactly as if nothing
-    // had parked (spec 05).
+    // An undeclared awaited root can never settle; fail now (spec 05).
     let PendingRecovery {
         failed,
         render_error,
@@ -302,7 +300,6 @@ fn try_park(
         retries,
         agent_events,
         decisions,
-        // F-P6 · the parked failure's evidence rides back out.
         evidence: failed.evidence,
         duration_ms,
         result: RunResult::Failed {

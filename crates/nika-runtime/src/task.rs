@@ -621,8 +621,7 @@ where
         ledger: &crate::ledger::RunLedger,
         integrity: &nika_cap::Integrity,
     ) -> SettleAs {
-        // The collection resolves on the PRE-fan-out surface (the
-        // item-free boundary bindings) · empty settles `skipped`.
+        // Resolve on the item-free boundary; empty settles `skipped`.
         let items = match fan_out::resolve_fan_out_items(
             collection,
             boundary_with,
@@ -641,15 +640,10 @@ where
             .as_ref()
             .map_or(items.len(), |m| (m.value as usize).max(1));
         let total = items.len();
-        // Shared parent witness: an iteration dropped by fail-fast may
-        // already have started an ACP effect. Its own future cannot
-        // return a receipt after cancellation, so selection also stamps
-        // this aggregate-owned observer before the effect begins.
+        // The parent observer retains ACP selection across cancellation.
         let access_observer = crate::dispatch::AccessObserver::default();
 
-        // Iterations dispatch concurrently (cap = `max_parallel`) ·
-        // settle in INPUT order (the same ordered-settlement law as
-        // waves · positions stay aligned · spec 03 §null-at-index).
+        // Dispatch concurrently, settle in input order (spec 03).
         // Budget gate at ADMISSION (`take_while` runs at `buffered` PULL):
         // in-flight complete and count · unpulled never start · with
         // `max_parallel` ≥ items, only a capped fan-out starves mid-run.
@@ -678,9 +672,7 @@ where
         drop(stream);
         fan_out::retain_effect_receipt(&mut acc.access_receipt, access_observer.receipt());
 
-        // Budget starvation: iterations that were never admitted leave
-        // the accumulation short — the task fails with the budget code
-        // (same class as `fail_fast`'s early stop · partial array).
+        // A short accumulation after a tripped ledger is budget starvation.
         if acc.outputs.len() < total && ledger.tripped() && acc.first_error.is_none() {
             acc.first_error = Some(fan_out::budget_stop_record(total - acc.outputs.len()));
         }
@@ -698,13 +690,11 @@ where
             retries,
             agent_events,
             decisions: acc.decisions,
-            // F-P6 · no pair aggregates N iterations (the `child: None` precedent).
             evidence: None,
             duration_ms: 0,
             result,
         };
-        // `on_finally:` runs ONCE after all iterations (spec 03 ·
-        // `item`/`index` are NOT in scope there).
+        // `on_finally:` runs once, without `item`/`index` (spec 03).
         let finally_scope =
             Self::fan_out_finally_scope(records, (inputs, consts, secrets), permits);
         let finally_witness = std::sync::Arc::new(PermitWitness::new());
@@ -842,17 +832,12 @@ where
         let jitter_key = jitter_key(task, scope);
         let mut note = String::new();
         let mut retries: Vec<RetryStamp> = Vec::new();
-        // Outside the timeout-cancellable region — survives the attempt's drop (review F1).
         let agent_buffer = crate::agent_events::BufferingObserver::new();
         let mut attempt_marks: Vec<usize> = Vec::new();
         let outcome = {
-            // `budget` = the task's ONE `timeout:` — enforced below AND at dispatch (F1).
             let budget = task.timeout.as_ref().map(|t| t.value);
-            // The `returns:` contract, resolved ONCE (spec 09 · W3) — `None` = gradual.
             let contract = crate::contract::TaskContract::of(task, types);
-            // F-O1 PR-2 · the re-gate's per-template oracle — computed ONCE, used per attempt.
             let value_taint = crate::integrity::ValueTaint::of_task(task, scope.records);
-            // law 6 · the child budget reads the ledger AT CALL TIME (per attempt).
             let ctx = || {
                 self.task_ctx(
                     task,
@@ -864,7 +849,6 @@ where
             };
             let attempts = async {
                 let mut attempt = 1_u32;
-                // Spend of FAILED attempts — folded onto the terminal frame.
                 let mut failed_cost: Option<f64> = None;
                 let mut failed_unpriced: Option<nika_types::cost::UnpricedReason> = None;
                 loop {
@@ -882,8 +866,6 @@ where
                     attempt_marks.push(agent_buffer.len());
                     match dispatched.result {
                         Ok(mut ok) => {
-                            // THE leaf debit site (its OWN spend — failed
-                            // attempts debited theirs; frame reports all).
                             ledger.debit_ok(&ok);
                             ok.fold_failed_spend(failed_cost, failed_unpriced);
                             return Ok(ok);
@@ -910,15 +892,12 @@ where
                     }
                 }
             };
-
             self.race_budget(attempts, budget, &access_observer).await
         };
-
         let duration_ms = self.since_ms(started);
         if note.is_empty() {
             verb_note_prefix(&task.action).clone_into(&mut note); // timed out pre-dispatch
         }
-
         let (result, evidence) = dispatch_result(task, scope, outcome);
         RanTask {
             note,

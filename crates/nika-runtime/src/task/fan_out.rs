@@ -125,8 +125,7 @@ where
         acc.agent_events.extend(iter_ran.agent_events);
         acc.decisions.extend(iter_ran.decisions);
         match iter_ran.result {
-            // OBS-E `warning` is per-call · a fan-out element's diagnostic
-            // is not aggregated up (only `value` + `tokens` fold).
+            // Per-call warnings do not aggregate into the fan-out.
             RunResult::Success {
                 value,
                 tokens,
@@ -137,15 +136,10 @@ where
                 ..
             } => {
                 retain_effect_receipt(&mut acc.access_receipt, access_receipt);
-                // A repaired iteration is a Success whose value is the
-                // fallback — the ONE fact distinguishing it from a task
-                // that legitimately produced its value (a bare null
-                // count would misread honest nulls as deaths).
+                // `recovered_from` distinguishes a fallback from honest output.
                 if let Some(original) = recovered_from {
                     acc.recovered += 1;
-                    // The witness the fan owes its record. `first_error`
-                    // beside it keeps the first FAILURE the same way; a
-                    // fan has N originals and the payload law names one.
+                    // The payload names the first recovery witness.
                     if acc.first_recovered_from.is_none() {
                         acc.first_recovered_from = Some(original.clone());
                     }
@@ -161,10 +155,7 @@ where
                     acc.unpriced = cost_unpriced;
                 }
             }
-            // Per-iteration `on_error: skip` contributes null at its
-            // index — positional alignment survives (spec 03). Silent by
-            // declaration, counted all the same: the fan's note owes the
-            // reader the tally either way.
+            // `on_error: skip` contributes null and retains alignment.
             RunResult::SkippedWithError { access_receipt, .. } => {
                 retain_effect_receipt(&mut acc.access_receipt, access_receipt);
                 acc.recovered += 1;
@@ -184,9 +175,7 @@ where
                     break;
                 }
             }
-            // An ITERATION never parks — the fan-out settles as ONE task,
-            // so a pending recovery downgrades to its immediate render
-            // failure (the recover-await boundary · pinned by tests).
+            // An iteration never parks; pending recovery becomes failure.
             RunResult::PendingRecovery(pending) => {
                 retain_effect_receipt(
                     &mut acc.access_receipt,

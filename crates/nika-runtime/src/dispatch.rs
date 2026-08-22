@@ -19,7 +19,7 @@ use nika_kernel::process::ShellRunDyn;
 use nika_kernel::tool_executor::ToolExecuteDyn;
 use nika_schema::raw::{RawAction, RawCommand};
 use nika_types::cost::UnpricedReason;
-use nika_verb_agent::{AgentInput, AgentValue};
+use nika_verb_agent::{AgentInput, AgentOutput, AgentValue};
 use nika_verb_exec::{CaptureMode, ExecCommand, ExecValue};
 use nika_verb_infer::{InferInput, InferValue};
 use nika_verb_invoke::InvokeInput;
@@ -813,9 +813,7 @@ where
         ctx: &DispatchCtx<'_>,
         contract: Option<&crate::contract::TaskContract<'_>>,
     ) -> Dispatched {
-        // NIKA-SEC-004: the declared `tools:` universe must FIT
-        // `permits.tools` — refused before any render or provider call,
-        // one refusal for the whole task.
+        // Refuse a `tools:` universe outside `permits.tools` before render/provider.
         if let Some(denial) =
             permits::check_agent_tools_permits(scope.permits, &action.tools, ctx.witness)
         {
@@ -856,8 +854,7 @@ where
             Err(refusal) => return Dispatched::access_refused("agent · ?", &refusal),
         };
         let planned_receipt = AccessReceipt::planned(&access_plan);
-        // The harness request must carry the effective model even when it
-        // came from the workflow envelope rather than a per-task override.
+        // Harness requests carry the effective envelope-or-task model.
         input.model = Some(model);
         input.access_plan = Some(access_plan);
         input.tools = action.tools.iter().map(|t| t.value.clone()).collect();
@@ -866,59 +863,11 @@ where
         input.max_tokens_total = action.max_tokens_total.as_ref().map(|t| t.value);
         input.temperature = temp_f32(action.temperature.as_ref());
         input.schema = task_schema(action.schema.as_ref(), contract);
-        // The caller owns the per-task buffer outside the cancellable
-        // region, preserving a timed-out attempt's telemetry (review F1).
+        // The caller-owned buffer survives cancellation (review F1).
         ctx.access_observer.record(&planned_receipt);
         let ran = self.agent.run_observed(input, agent_buffer).await;
         match ran {
-            Ok(out) => {
-                let note = format!("agent · {} turns", out.turns);
-                let value = match out.output {
-                    AgentValue::Text(text) => Value::String(text),
-                    AgentValue::Structured(value) => value,
-                    // #[non_exhaustive] · a future value form fails loudly.
-                    other => {
-                        return Dispatched::unwired(
-                            &note,
-                            format!("agent value form not wired yet: {other:?}"),
-                        );
-                    }
-                };
-                let tokens = Some(i64::try_from(out.total_tokens).unwrap_or(i64::MAX));
-                // BOTH spend channels: the loop's TOOL spend (exact ·
-                // tool-reported — an agent-driven $0.02 render must never
-                // show as $0.00) PLUS the LLM turns priced from the loop's
-                // absorbed usage split via the same resolver `infer` uses
-                // (the seam closed 2026-07-08). Either alone still rides;
-                // an unpriced LLM leg names its reason next to whatever
-                // tool spend DID meter.
-                let (llm_cost, llm_unpriced) = match out.model_resolved.as_deref() {
-                    Some(model) => spend_for_model(model, &out.usage),
-                    // Harness-built (B7): the subscription absorbs it —
-                    // named, NEVER a fabricated $0 (the ledger law).
-                    None => (None, Some(UnpricedReason::SubscriptionQuota)),
-                };
-                let cost_usd = match (llm_cost, out.tools_cost_usd) {
-                    (None, None) => None,
-                    (llm, tools) => Some(llm.unwrap_or(0.0) + tools.unwrap_or(0.0)),
-                };
-                let receipt = planned_receipt.with_optional_observed_model(
-                    out.observed_model.or_else(|| out.model_resolved.clone()),
-                );
-                let mut dispatched = Dispatched::ok_metered(
-                    note,
-                    value,
-                    tokens,
-                    None,
-                    cost_usd,
-                    out.model_resolved.clone(),
-                    llm_unpriced,
-                );
-                if let Ok(ok) = &mut dispatched.result {
-                    ok.access_receipt = Some(receipt);
-                }
-                dispatched
-            }
+            Ok(out) => agent_success(out, planned_receipt),
             Err(err) => {
                 let spend = price_failed_spend(err.spend());
                 Dispatched::verb_err_spent(
@@ -980,6 +929,48 @@ where
         }
         Ok(docs)
     }
+}
+
+/// Normalize one completed agent run, including both spend channels and
+/// the observed access route, outside the dispatch composition path.
+fn agent_success(out: AgentOutput, planned_receipt: AccessReceipt) -> Dispatched {
+    let note = format!("agent · {} turns", out.turns);
+    let value = match out.output {
+        AgentValue::Text(text) => Value::String(text),
+        AgentValue::Structured(value) => value,
+        // #[non_exhaustive] · a future value form fails loudly.
+        other => {
+            return Dispatched::unwired(
+                &note,
+                format!("agent value form not wired yet: {other:?}"),
+            );
+        }
+    };
+    let tokens = Some(i64::try_from(out.total_tokens).unwrap_or(i64::MAX));
+    let (llm_cost, llm_unpriced) = match out.model_resolved.as_deref() {
+        Some(model) => spend_for_model(model, &out.usage),
+        // Harness subscriptions are named, never fabricated as zero cost.
+        None => (None, Some(UnpricedReason::SubscriptionQuota)),
+    };
+    let cost_usd = match (llm_cost, out.tools_cost_usd) {
+        (None, None) => None,
+        (llm, tools) => Some(llm.unwrap_or(0.0) + tools.unwrap_or(0.0)),
+    };
+    let receipt = planned_receipt
+        .with_optional_observed_model(out.observed_model.or_else(|| out.model_resolved.clone()));
+    let mut dispatched = Dispatched::ok_metered(
+        note,
+        value,
+        tokens,
+        None,
+        cost_usd,
+        out.model_resolved,
+        llm_unpriced,
+    );
+    if let Ok(ok) = &mut dispatched.result {
+        ok.access_receipt = Some(receipt);
+    }
+    dispatched
 }
 
 /// Price the spend a FAILED verb had already incurred (decorated on

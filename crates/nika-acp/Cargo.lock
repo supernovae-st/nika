@@ -2300,7 +2300,9 @@ version = "0.113.0"
 dependencies = [
  "blake3",
  "nika-check",
+ "nika-schema",
  "serde_json",
+ "serde_json_canonicalizer",
 ]
 
 [[package]]
@@ -2319,7 +2321,6 @@ dependencies = [
 name = "nika-runtime"
 version = "0.113.0"
 dependencies = [
- "blake3",
  "futures-util",
  "jaq-core",
  "jaq-json",
@@ -2352,7 +2353,6 @@ dependencies = [
  "nika-verb-invoke",
  "serde",
  "serde_json",
- "serde_json_canonicalizer",
  "thiserror",
  "url",
  "uuid",

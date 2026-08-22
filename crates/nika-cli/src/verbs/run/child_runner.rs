@@ -40,7 +40,9 @@ use nika_event::source_id::sha256_hex;
 
 use nika_dap::journal::TraceFileSink;
 use nika_runtime::RunSeams;
-use nika_runtime::compose::{RuntimeCapabilities, fs_boundary_of_permits, net_boundary_of_permits};
+use nika_runtime::compose::{
+    ProdRuntime, RuntimeCapabilities, fs_boundary_of_permits, net_boundary_of_permits,
+};
 
 /// The production runner — one per composed runtime, rooted at the file
 /// whose tasks it serves.
@@ -118,6 +120,63 @@ impl ProdChildRunner {
             ));
         }
         Ok((path, source, wf, report))
+    }
+
+    /// Compose the child's security and access boundaries before execution.
+    fn child_runtime(
+        &self,
+        call: &ChildCall,
+        path: &Path,
+        source: &str,
+        wf: &RawWorkflow,
+        report: &nika_check::CheckReport,
+    ) -> Result<ProdRuntime, ChildRunRefusal> {
+        // The child's OWN model runs inside `child ∩ parent` (laws 3/4).
+        let child_permits = effective_permits(
+            wf.permits.as_ref().map(|spanned| &spanned.value),
+            call.parent_permits.as_ref(),
+        );
+        let caps = RuntimeCapabilities {
+            fs: fs_boundary_of_permits(Some(&child_permits)),
+            net: net_boundary_of_permits(Some(&child_permits)),
+            exec_tasks: wf
+                .tasks
+                .iter()
+                .any(|task| matches!(task.value.action, nika_schema::raw::RawAction::Exec(_))),
+            // The parent's declaration binds the child too.
+            permits_declared: wf.permits.is_some() || call.parent_permits.is_some(),
+        };
+        let boot_access = crate::verbs::check::models_rung::boot_access_fields_with_probes(
+            report,
+            self.access_pin.as_deref(),
+            &self.access_probes,
+        );
+        let model = wf.model.as_ref().map_or("", |model| model.value.as_str());
+        nika_runtime::compose::production_runtime(
+            model,
+            caps,
+            wf.run.as_ref().map(|run| &run.value),
+        )
+        .map_err(|error| refusal("NIKA-COMP-001", format!("child runtime: {error}")))
+        .map(|runtime| {
+            runtime
+                .with_var_overrides(call.args.clone().into_iter().collect())
+                // Law 6: the inherited budget is the parent's remaining budget.
+                .with_max_cost_usd(call.remaining_budget_usd)
+                .with_source_sha256(sha256_hex(source.as_bytes()))
+                // NIKA-SEC-003: depth reaches the child dispatch gate.
+                .with_run_depth(call.depth)
+                .with_access_pin(self.access_pin.clone())
+                .with_boot_access_fields(boot_access)
+                .with_access_probes(self.access_probes.clone())
+                // Grandchildren resolve against the child's path.
+                .with_child_runner(Arc::new(ProdChildRunner::new(
+                    path,
+                    self.trace,
+                    self.access_pin.clone(),
+                    self.access_probes.clone(),
+                )))
+        })
     }
 }
 
@@ -318,54 +377,7 @@ impl ChildRunner for ProdChildRunner {
     ) -> Pin<Box<dyn Future<Output = Result<ChildOutcome, ChildRunRefusal>> + 'a>> {
         Box::pin(async move {
             let (path, source, wf, report) = self.load_child(&call)?;
-            // Compose the child runtime — the child's OWN envelope model;
-            // capabilities from the INTERSECTED boundary (laws 3/4).
-            let child_permits = effective_permits(
-                wf.permits.as_ref().map(|s| &s.value),
-                call.parent_permits.as_ref(),
-            );
-            let caps = RuntimeCapabilities {
-                fs: fs_boundary_of_permits(Some(&child_permits)),
-                net: net_boundary_of_permits(Some(&child_permits)),
-                exec_tasks: wf
-                    .tasks
-                    .iter()
-                    .any(|t| matches!(t.value.action, nika_schema::raw::RawAction::Exec(_))),
-                // spec 14's intersection: the boundary is DECLARED over the
-                // child when either side named one (the parent's binds too).
-                permits_declared: wf.permits.is_some() || call.parent_permits.is_some(),
-            };
-            let model = wf.model.as_ref().map_or("", |m| m.value.as_str());
-            let boot_access = crate::verbs::check::models_rung::boot_access_fields_with_probes(
-                &report,
-                self.access_pin.as_deref(),
-                &self.access_probes,
-            );
-            // F-P3 · the CHILD's own run: declaration governs its seams
-            // (one run = one clock · each file declares for itself).
-            let runtime = nika_runtime::compose::production_runtime(
-                model,
-                caps,
-                wf.run.as_ref().map(|s| &s.value),
-            )
-            .map_err(|e| refusal("NIKA-COMP-001", format!("child runtime: {e}")))?
-            .with_var_overrides(call.args.clone().into_iter().collect())
-            // law 6 — the inherited budget IS the parent's remaining.
-            .with_max_cost_usd(call.remaining_budget_usd)
-            .with_source_sha256(sha256_hex(source.as_bytes()))
-            // depth rides to the child so ITS dispatch gate sees the
-            // truth (NIKA-SEC-003 · fail-closed).
-            .with_run_depth(call.depth)
-            .with_access_pin(self.access_pin.clone())
-            .with_boot_access_fields(boot_access)
-            .with_access_probes(self.access_probes.clone())
-            // grandchildren resolve against the CHILD's path.
-            .with_child_runner(Arc::new(ProdChildRunner::new(
-                &path,
-                self.trace,
-                self.access_pin.clone(),
-                self.access_probes.clone(),
-            )));
+            let runtime = self.child_runtime(&call, &path, &source, &wf, &report)?;
             let mut sink = if self.trace {
                 TraceFileSink::new(nika_dap::store::TRACE_DIR)
             } else {
@@ -376,8 +388,7 @@ impl ChildRunner for ProdChildRunner {
             let run = runtime.run(&wf, &report, stamper.as_mut(), &mut sink).await;
             let (ok, outputs, cost, failure, access_receipt) = match &run {
                 Ok(outcome) => {
-                    // A paused child cannot be answered through a call
-                    // boundary — surfaced as the prompt contract failure.
+                    // A paused child cannot be answered through a call boundary.
                     let ok = outcome.ok && outcome.paused.is_none() && !outcome.budget_exceeded;
                     let (failure, access_receipt) = if ok {
                         (None, representative_access_receipt(outcome))
