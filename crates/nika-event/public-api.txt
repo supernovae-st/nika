@@ -125,6 +125,7 @@ pub const nika_event::error::NIKA_803: nika_error::codes::NikaCode
 pub mod nika_event::event
 #[non_exhaustive] pub struct nika_event::event::Event
 pub nika_event::event::Event::correlation: core::option::Option<nika_types::id::CorrelationId>
+pub nika_event::event::Event::execution: core::option::Option<nika_types::id::ExecutionId>
 pub nika_event::event::Event::fields: alloc::vec::Vec<nika_types::resource::KeyValue>
 pub nika_event::event::Event::id: nika_types::id::EventId
 pub nika_event::event::Event::kind: nika_event::kind::EventKind
@@ -134,6 +135,7 @@ impl nika_event::event::Event
 pub const fn nika_event::event::Event::is_terminal(&self) -> bool
 pub fn nika_event::event::Event::new(id: nika_types::id::EventId, timestamp: nika_types::timestamp::Timestamp, kind: nika_event::kind::EventKind) -> Self
 pub fn nika_event::event::Event::with_correlation(self, correlation: nika_types::id::CorrelationId) -> Self
+pub fn nika_event::event::Event::with_execution(self, execution: nika_types::id::ExecutionId) -> Self
 pub fn nika_event::event::Event::with_field(self, field: nika_types::resource::KeyValue) -> Self
 pub fn nika_event::event::Event::with_fields(self, fields: alloc::vec::Vec<nika_types::resource::KeyValue>) -> Self
 pub fn nika_event::event::Event::with_run(self, run: nika_types::id::RunId) -> Self
@@ -537,6 +539,7 @@ impl<T> typenum::type_operators::Same for nika_event::kind::EventKind
 pub type nika_event::kind::EventKind::Output = T
 #[non_exhaustive] pub struct nika_event::prelude::Event
 pub nika_event::prelude::Event::correlation: core::option::Option<nika_types::id::CorrelationId>
+pub nika_event::prelude::Event::execution: core::option::Option<nika_types::id::ExecutionId>
 pub nika_event::prelude::Event::fields: alloc::vec::Vec<nika_types::resource::KeyValue>
 pub nika_event::prelude::Event::id: nika_types::id::EventId
 pub nika_event::prelude::Event::kind: nika_event::kind::EventKind
@@ -546,6 +549,7 @@ impl nika_event::event::Event
 pub const fn nika_event::event::Event::is_terminal(&self) -> bool
 pub fn nika_event::event::Event::new(id: nika_types::id::EventId, timestamp: nika_types::timestamp::Timestamp, kind: nika_event::kind::EventKind) -> Self
 pub fn nika_event::event::Event::with_correlation(self, correlation: nika_types::id::CorrelationId) -> Self
+pub fn nika_event::event::Event::with_execution(self, execution: nika_types::id::ExecutionId) -> Self
 pub fn nika_event::event::Event::with_field(self, field: nika_types::resource::KeyValue) -> Self
 pub fn nika_event::event::Event::with_fields(self, fields: alloc::vec::Vec<nika_types::resource::KeyValue>) -> Self
 pub fn nika_event::event::Event::with_run(self, run: nika_types::id::RunId) -> Self
@@ -951,6 +955,7 @@ impl<T> typenum::type_operators::Same for nika_event::kind::EventKind
 pub type nika_event::kind::EventKind::Output = T
 #[non_exhaustive] pub struct nika_event::Event
 pub nika_event::Event::correlation: core::option::Option<nika_types::id::CorrelationId>
+pub nika_event::Event::execution: core::option::Option<nika_types::id::ExecutionId>
 pub nika_event::Event::fields: alloc::vec::Vec<nika_types::resource::KeyValue>
 pub nika_event::Event::id: nika_types::id::EventId
 pub nika_event::Event::kind: nika_event::kind::EventKind
@@ -960,6 +965,7 @@ impl nika_event::event::Event
 pub const fn nika_event::event::Event::is_terminal(&self) -> bool
 pub fn nika_event::event::Event::new(id: nika_types::id::EventId, timestamp: nika_types::timestamp::Timestamp, kind: nika_event::kind::EventKind) -> Self
 pub fn nika_event::event::Event::with_correlation(self, correlation: nika_types::id::CorrelationId) -> Self
+pub fn nika_event::event::Event::with_execution(self, execution: nika_types::id::ExecutionId) -> Self
 pub fn nika_event::event::Event::with_field(self, field: nika_types::resource::KeyValue) -> Self
 pub fn nika_event::event::Event::with_fields(self, fields: alloc::vec::Vec<nika_types::resource::KeyValue>) -> Self
 pub fn nika_event::event::Event::with_run(self, run: nika_types::id::RunId) -> Self

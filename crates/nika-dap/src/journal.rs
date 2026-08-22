@@ -282,12 +282,11 @@ impl TraceFileSink {
     /// Create the directory + the journal file, named from the first
     /// event's identity.
     ///
-    /// The runtime does not stamp `event.run` today, so the first
-    /// event's own id IS the run-unique mint (`SystemStamper` `UUIDv7` ·
-    /// ADR-033); `run` is preferred whenever a future runtime sets it.
+    /// Execution identity names the journal directly. Legacy events fall
+    /// back to run identity, then event identity, without a timestamp scan.
     fn open(&mut self, first: &Event) -> std::io::Result<()> {
         std::fs::create_dir_all(&self.dir)?;
-        let id = first.run.as_ref().map_or(first.id.uuid, |r| r.uuid);
+        let id = journal_identity(first);
         let path = self.dir.join(trace_file_name(first.timestamp, id));
         // `create_new` refuses to clobber: two runs in the same SECOND can
         // share the 4-hex short id (16 random bits — a real risk under a
@@ -322,6 +321,13 @@ impl TraceFileSink {
         self.path = Some(path);
         Ok(())
     }
+}
+
+fn journal_identity(first: &Event) -> Uuid {
+    first.execution.map_or_else(
+        || first.run.map_or(first.id.uuid, |run| run.uuid),
+        |id| id.uuid,
+    )
 }
 
 impl EventSink for TraceFileSink {
@@ -499,6 +505,7 @@ pub(crate) fn now_millis() -> u64 {
 mod tests {
     use super::*;
     use nika_display::demo;
+    use nika_types::id::{ExecutionId, RunId};
 
     #[test]
     fn json_sink_writes_one_ndjson_line_per_event() {
@@ -549,6 +556,17 @@ mod tests {
             trace_file_name(Timestamp::from_unix_ms(1500), id),
             "1970-01-01T00-00-01Z-a3f2.ndjson"
         );
+    }
+
+    #[test]
+    fn execution_identity_names_the_trace_without_a_scan() {
+        let event = demo::success()
+            .into_iter()
+            .next()
+            .expect("demo event")
+            .with_run(RunId::from_bytes([2; 16]))
+            .with_execution(ExecutionId::from_bytes([3; 16]));
+        assert_eq!(journal_identity(&event), Uuid::from_bytes([3; 16]));
     }
 
     /// Lazy open: a sink that never receives an event leaves ZERO fs

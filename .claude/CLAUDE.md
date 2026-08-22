@@ -129,21 +129,21 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| branch           | `chore/release-0.113.0`                                      |
-| HEAD             | `09d69f695` (`09d69f695a30c0f56acf31e682125d457ce8d050`)             |
+| branch           | `feat/execution-service-v4`                                      |
+| HEAD             | `bee294252` (`bee29425234132c8138f47744758675384259cdb`)             |
 | workspace        | v0.113.0                                  |
-| crates (workspace)| 67                                              |
+| crates (workspace)| 68                                              |
 | crates (admitted)| 62                                             |
-| crates (WIP)     | 5 — nika-chart nika-fx nika-proof nika-store nika-harness                                  |
+| crates (WIP)     | 6 — nika-chart nika-fx nika-proof nika-store nika-harness nika-execution                                  |
 | L0               | 21                                              |
 | L0.5             | 6                                              |
 | L1               | 17                                              |
 | L1.5             | 4                                              |
 | L2               | 5                                              |
-| L3               | 1                                              |
+| L3               | 2                                              |
 | L4               | 13                                              |
-| lib tests        | 6224 passed, 0 failed                              |
-| clippy           | 0 warnings                              |
+| lib tests        | (skipped — pass --no-quick to compute)                              |
+| clippy           | (skipped)                              |
 
 Narrative context (manually maintained):
 
