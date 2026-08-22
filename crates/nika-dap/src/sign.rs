@@ -78,15 +78,31 @@ pub fn sign_workflow_with(
 /// `sign --check` / the `--require-signature` gate (`verify_sidecar`).
 #[must_use]
 pub fn check_workflow(path: &Path) -> WorkflowSig {
-    let text = std::fs::read_to_string(sidecar_path(path)); // seam-bypass-ok: CLI reads the sidecar beside the named file
+    let text = std::fs::read_to_string(sidecar_path(path)); // seam-bypass-ok: `nika sign --check` reads the sidecar beside the named file
     let Ok(text) = text else {
         return WorkflowSig::MissingSidecar;
     };
-    let data = std::fs::read(path); // seam-bypass-ok: CLI reads the named workflow file
+    let data = std::fs::read(path); // seam-bypass-ok: `nika sign --check` reads the named workflow file
     let Ok(data) = data else {
         return WorkflowSig::Invalid(format!("cannot read {}", path.display()));
     };
     verify_sidecar(&data, &text, &enrolled_pubboxes())
+}
+
+/// Verify the sidecar beside `path` against bytes already captured by the
+/// caller. `nika run --require-signature` uses this form so the signature
+/// judges the exact execution candidate, never a second pathname read.
+#[must_use]
+pub fn check_workflow_bytes(path: &Path, data: &[u8]) -> WorkflowSig {
+    check_workflow_bytes_against(path, data, &enrolled_pubboxes())
+}
+
+fn check_workflow_bytes_against(path: &Path, data: &[u8], candidates: &[String]) -> WorkflowSig {
+    let text = std::fs::read_to_string(sidecar_path(path)); // seam-bypass-ok: CLI reads the sidecar beside the named file
+    let Ok(text) = text else {
+        return WorkflowSig::MissingSidecar;
+    };
+    verify_sidecar(data, &text, candidates)
 }
 /// The pure half of `sign --check`: 16-hex key-id match, then minisign-verify.
 fn verify_sidecar(data: &[u8], sig_text: &str, candidates: &[String]) -> WorkflowSig {
@@ -128,6 +144,7 @@ fn hex_lower(bytes: &[u8]) -> String {
 #[allow(clippy::expect_used, clippy::unwrap_used)]
 mod tests {
     use super::*;
+    use std::sync::{Arc, Barrier};
 
     fn keypair() -> (String, minisign::SecretKey) {
         let pair = minisign::KeyPair::generate_unencrypted_keypair().expect("keypair");
@@ -181,6 +198,45 @@ mod tests {
             unreachable!("a tampered workflow must not verify")
         };
         assert!(why.contains("bad signature"), "{why}");
+    }
+
+    #[test]
+    #[allow(
+        clippy::disallowed_methods,
+        reason = "the signature TOCTOU fixture uses an OS thread held at exact barriers"
+    )]
+    fn signature_gate_verifies_captured_b_not_reread_pathname_a() {
+        let dir = tempfile::tempdir().expect("tempdir");
+        let (pk, sk) = keypair();
+        let wf = dir.path().join("flow.nika.yaml");
+        let captured = Arc::new(Barrier::new(2));
+        let replaced = Arc::new(Barrier::new(2));
+        std::fs::write(&wf, b"nika: B\n").expect("write B");
+
+        let reader_path = wf.clone();
+        let reader_captured = Arc::clone(&captured);
+        let reader_replaced = Arc::clone(&replaced);
+        let reader = std::thread::spawn(move || {
+            let bytes = std::fs::read(reader_path).expect("capture B");
+            reader_captured.wait();
+            reader_replaced.wait();
+            bytes
+        });
+
+        captured.wait();
+        std::fs::write(&wf, b"nika: A\n").expect("replace pathname with A");
+        sign_workflow_with(&wf, &sk, pk.trim()).expect("sign pathname A");
+        replaced.wait();
+        let bytes_b = reader.join().expect("reader");
+
+        assert!(matches!(
+            check_workflow_bytes_against(&wf, &bytes_b, &[pk.trim().to_owned()]),
+            WorkflowSig::Invalid(why) if why.contains("bad signature")
+        ));
+        assert!(matches!(
+            check_workflow_bytes_against(&wf, b"nika: A\n", &[pk.trim().to_owned()]),
+            WorkflowSig::Valid(_)
+        ));
     }
 
     /// A sidecar minted by a key this machine does not enroll names the

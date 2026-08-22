@@ -36,7 +36,13 @@ use std::io::Write as _;
 use std::process::Command;
 
 fn bin() -> Command {
-    Command::new(env!("CARGO_BIN_EXE_nika-cli"))
+    let home = std::env::temp_dir()
+        .join("nika-resume-e2e")
+        .join(format!("home-{}", std::process::id()));
+    std::fs::create_dir_all(&home).expect("isolated home");
+    let mut command = Command::new(env!("CARGO_BIN_EXE_nika-cli"));
+    command.env("HOME", home);
+    command
 }
 
 fn fixture(name: &str, yaml: &str) -> std::path::PathBuf {
@@ -82,6 +88,38 @@ fn field_str(line: &str, key: &str) -> String {
         .find(|kv| kv["key"] == key)
         .and_then(|kv| kv["value"].as_str().map(str::to_owned))
         .unwrap_or_else(|| panic!("the frame carries {key}: {line}"))
+}
+
+fn assert_approval_replay_refused(wf: &std::path::Path, trace: &std::path::Path) {
+    let replay = bin()
+        .args([
+            "run",
+            &wf.to_string_lossy(),
+            "--resume",
+            &trace.to_string_lossy(),
+            "--answer",
+            "approve=yes",
+            "--json",
+            "--color",
+            "never",
+        ])
+        .output()
+        .expect("binary runs");
+    let stdout = String::from_utf8(replay.stdout).expect("utf8");
+    let stderr = String::from_utf8(replay.stderr).expect("utf8");
+    assert_ne!(
+        replay.status.code(),
+        Some(0),
+        "a consumed answer fails closed"
+    );
+    assert!(
+        stdout.contains("NIKA-SEC-010") && stdout.contains("approval.replayed"),
+        "the second process emits the stable refusal:\n{stdout}\n{stderr}"
+    );
+    assert!(
+        events_for(&stdout, "task_started", "ship").is_empty(),
+        "the replay reaches no downstream effect:\n{stdout}"
+    );
 }
 
 // ─── (a) kill-midrun → resume completes the remainder ───────────────────
@@ -395,10 +433,7 @@ fn paused_prompt_rearms_and_an_answer_completes_the_run() {
         frame.contains("\"decision\",\"value\":\"allow\""),
         "{frame}"
     );
-    assert!(
-        frame.contains("\"source\",\"value\":\"resumed\""),
-        "{frame}"
-    );
+    assert!(frame.contains("\"source\",\"value\":\"resume\""), "{frame}");
     assert!(
         frame.contains(&format!("\"digest\",\"value\":\"{shown_digest}\"")),
         "the signed digest equals the shown digest:\n{frame}\nvs {shown_digest}"
@@ -407,6 +442,11 @@ fn paused_prompt_rearms_and_an_answer_completes_the_run() {
         frame.contains(&format!("\"shown_hash\",\"value\":\"{shown_hash}\"")),
         "the signed content equals the shown content:\n{frame}"
     );
+
+    // The durable ticket claim is scoped by the trace/ticket digest. A
+    // second process cannot replay the same answer before TTL: the prompt
+    // effect and its downstream exec happened exactly once.
+    assert_approval_replay_refused(&wf, &trace);
 }
 
 // ─── the TEXT lane pauses too (the first-run gate · 2026-07-31) ─────────

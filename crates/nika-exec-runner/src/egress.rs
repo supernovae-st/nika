@@ -575,6 +575,12 @@ pub(crate) fn conflicting_boundary(proxy: &EgressProxy, spec: &EgressAllowlist) 
 /// The runner-side wiring of the allowlist arm (kept here so `lib.rs` stays
 /// a lean process-lifecycle surface — this module owns the whole egress
 /// concern, proxy AND confinement hand-off).
+type AppliedSandbox = (
+    nika_kernel::ShellCommand,
+    Option<std::path::PathBuf>,
+    Option<std::sync::Arc<dyn nika_kernel::command_sandbox::CommandSandbox>>,
+);
+
 impl crate::TokioShell {
     /// Apply the injected OS sandbox to a command that requests one. No spec =
     /// unchanged (today's behavior); spec + backend = confined; spec but NO
@@ -598,11 +604,10 @@ impl crate::TokioShell {
     pub(super) fn apply_sandbox(
         &self,
         mut command: nika_kernel::ShellCommand,
-    ) -> Result<(nika_kernel::ShellCommand, Option<std::path::PathBuf>), nika_kernel::ShellError>
-    {
+    ) -> Result<AppliedSandbox, nika_kernel::ShellError> {
         use nika_kernel::{ShellError, process::NetPolicy};
         let Some(mut spec) = command.sandbox.take() else {
-            return Ok((command, None));
+            return Ok((command, None, None));
         };
         let Some(backend) = &self.sandbox else {
             return Err(ShellError::Blocked {
@@ -636,7 +641,7 @@ impl crate::TokioShell {
         let confined = backend
             .confine(&spec, command)
             .map_err(|e| crate::map_sandbox_error(&e))?;
-        Ok((confined, scratch))
+        Ok((confined, scratch, Some(std::sync::Arc::clone(backend))))
     }
 
     /// Secure the per-run loopback egress proxy for the allowlist arm:
@@ -1285,7 +1290,9 @@ mod tests {
         let _ = confined(&shell, allowlisted(&["a.test"]));
         let mut cmd = ShellCommand::new("echo");
         cmd.sandbox = Some(allowlisted(&["b.test"]));
-        let err = shell.apply_sandbox(cmd).unwrap_err();
+        let Err(err) = shell.apply_sandbox(cmd) else {
+            panic!("conflicting egress boundaries must refuse");
+        };
         assert!(
             matches!(err, ShellError::Blocked { .. }),
             "a second boundary must not widen the per-run proxy: {err}"
@@ -1336,7 +1343,7 @@ mod tests {
 
         let mut cmd = ShellCommand::new("echo");
         cmd.sandbox = Some(SandboxSpec::new());
-        let (out, scratch) = shell.apply_sandbox(cmd).expect("confined");
+        let (out, scratch, _classifier) = shell.apply_sandbox(cmd).expect("confined");
         let dir = scratch.expect("the seatbelt arm mints a scratch");
         assert!(dir.is_dir(), "the scratch exists before the spawn");
         let tmpdir = out.env.get("TMPDIR").expect("TMPDIR is set").clone();
@@ -1360,7 +1367,7 @@ mod tests {
         cmd.sandbox = Some(SandboxSpec::new());
         cmd.env
             .insert("TMPDIR".to_owned(), "/authored/tmp".to_owned());
-        let (out, scratch) = shell.apply_sandbox(cmd).expect("confined");
+        let (out, scratch, _classifier) = shell.apply_sandbox(cmd).expect("confined");
         assert_eq!(
             out.env.get("TMPDIR").map(String::as_str),
             Some("/authored/tmp"),

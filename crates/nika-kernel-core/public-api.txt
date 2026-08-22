@@ -967,6 +967,7 @@ pub fn nika_kernel_core::io::command_sandbox::NoopSandbox::fmt(&self, f: &mut co
 impl core::marker::Copy for nika_kernel_core::io::command_sandbox::NoopSandbox
 impl nika_kernel_core::io::command_sandbox::CommandSandbox for nika_kernel_core::io::command_sandbox::NoopSandbox
 pub fn nika_kernel_core::io::command_sandbox::NoopSandbox::backend(&self) -> &'static str
+pub fn nika_kernel_core::io::command_sandbox::NoopSandbox::classify_outcome(&self, _status: i32, _stderr: &str) -> nika_kernel_core::io::process::ShellAdapterOutcome
 pub fn nika_kernel_core::io::command_sandbox::NoopSandbox::confine(&self, _spec: &nika_kernel_core::io::process::SandboxSpec, command: nika_kernel_core::io::process::ShellCommand) -> core::result::Result<nika_kernel_core::io::process::ShellCommand, nika_kernel_core::io::command_sandbox::CommandSandboxError>
 impl<D> owo_colors::OwoColorize for nika_kernel_core::io::command_sandbox::NoopSandbox
 impl<T, U> core::convert::Into<U> for nika_kernel_core::io::command_sandbox::NoopSandbox where U: core::convert::From<T>
@@ -995,9 +996,11 @@ impl<T> nika_error::traits::AsAny for nika_kernel_core::io::command_sandbox::Noo
 pub fn nika_kernel_core::io::command_sandbox::NoopSandbox::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub trait nika_kernel_core::io::command_sandbox::CommandSandbox: core::marker::Send + core::marker::Sync
 pub fn nika_kernel_core::io::command_sandbox::CommandSandbox::backend(&self) -> &'static str
+pub fn nika_kernel_core::io::command_sandbox::CommandSandbox::classify_outcome(&self, status: i32, _stderr: &str) -> nika_kernel_core::io::process::ShellAdapterOutcome
 pub fn nika_kernel_core::io::command_sandbox::CommandSandbox::confine(&self, spec: &nika_kernel_core::io::process::SandboxSpec, command: nika_kernel_core::io::process::ShellCommand) -> core::result::Result<nika_kernel_core::io::process::ShellCommand, nika_kernel_core::io::command_sandbox::CommandSandboxError>
 impl nika_kernel_core::io::command_sandbox::CommandSandbox for nika_kernel_core::io::command_sandbox::NoopSandbox
 pub fn nika_kernel_core::io::command_sandbox::NoopSandbox::backend(&self) -> &'static str
+pub fn nika_kernel_core::io::command_sandbox::NoopSandbox::classify_outcome(&self, _status: i32, _stderr: &str) -> nika_kernel_core::io::process::ShellAdapterOutcome
 pub fn nika_kernel_core::io::command_sandbox::NoopSandbox::confine(&self, _spec: &nika_kernel_core::io::process::SandboxSpec, command: nika_kernel_core::io::process::ShellCommand) -> core::result::Result<nika_kernel_core::io::process::ShellCommand, nika_kernel_core::io::command_sandbox::CommandSandboxError>
 pub fn nika_kernel_core::io::command_sandbox::fold_sandbox_prefix(prefix: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_kernel_core::io::command_sandbox::names_system_root(folded: &str, roots: &[&str]) -> bool
@@ -2062,6 +2065,41 @@ impl<T> core::convert::From<T> for nika_kernel_core::io::process::SandboxSpec
 pub fn nika_kernel_core::io::process::SandboxSpec::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_kernel_core::io::process::SandboxSpec where T: 'static
 pub fn nika_kernel_core::io::process::SandboxSpec::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_kernel_core::io::process::ShellAdapterOutcome
+impl nika_kernel_core::io::process::ShellAdapterOutcome
+pub fn nika_kernel_core::io::process::ShellAdapterOutcome::authority_refusal(reason: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_kernel_core::io::process::ShellAdapterOutcome::missing_terminal_receipt(adapter: &'static str) -> Self
+pub fn nika_kernel_core::io::process::ShellAdapterOutcome::process() -> Self
+pub fn nika_kernel_core::io::process::ShellAdapterOutcome::transport_failure(reason: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_kernel_core::io::process::ShellAdapterOutcome
+pub fn nika_kernel_core::io::process::ShellAdapterOutcome::clone(&self) -> nika_kernel_core::io::process::ShellAdapterOutcome
+impl core::fmt::Debug for nika_kernel_core::io::process::ShellAdapterOutcome
+pub fn nika_kernel_core::io::process::ShellAdapterOutcome::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_kernel_core::io::process::ShellAdapterOutcome
+impl<T, U> core::convert::Into<U> for nika_kernel_core::io::process::ShellAdapterOutcome where U: core::convert::From<T>
+pub fn nika_kernel_core::io::process::ShellAdapterOutcome::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_core::io::process::ShellAdapterOutcome where U: core::convert::Into<T>
+pub type nika_kernel_core::io::process::ShellAdapterOutcome::Error = core::convert::Infallible
+pub fn nika_kernel_core::io::process::ShellAdapterOutcome::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_core::io::process::ShellAdapterOutcome where U: core::convert::TryFrom<T>
+pub type nika_kernel_core::io::process::ShellAdapterOutcome::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_core::io::process::ShellAdapterOutcome::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_core::io::process::ShellAdapterOutcome where T: core::clone::Clone
+pub type nika_kernel_core::io::process::ShellAdapterOutcome::Owned = T
+pub fn nika_kernel_core::io::process::ShellAdapterOutcome::clone_into(&self, target: &mut T)
+pub fn nika_kernel_core::io::process::ShellAdapterOutcome::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_core::io::process::ShellAdapterOutcome where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_core::io::process::ShellAdapterOutcome::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_core::io::process::ShellAdapterOutcome where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::process::ShellAdapterOutcome::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_core::io::process::ShellAdapterOutcome where T: ?core::marker::Sized
+pub fn nika_kernel_core::io::process::ShellAdapterOutcome::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_core::io::process::ShellAdapterOutcome where T: core::clone::Clone
+pub unsafe fn nika_kernel_core::io::process::ShellAdapterOutcome::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_core::io::process::ShellAdapterOutcome
+pub fn nika_kernel_core::io::process::ShellAdapterOutcome::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_core::io::process::ShellAdapterOutcome where T: 'static
+pub fn nika_kernel_core::io::process::ShellAdapterOutcome::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_kernel_core::io::process::ShellCommand
 pub nika_kernel_core::io::process::ShellCommand::args: alloc::vec::Vec<alloc::string::String>
 pub nika_kernel_core::io::process::ShellCommand::cwd: core::option::Option<std::path::PathBuf>
@@ -2113,11 +2151,15 @@ pub nika_kernel_core::io::process::ShellResult::stderr_raw: core::option::Option
 pub nika_kernel_core::io::process::ShellResult::stdout: alloc::string::String
 pub nika_kernel_core::io::process::ShellResult::stdout_raw: core::option::Option<alloc::vec::Vec<u8>>
 impl nika_kernel_core::io::process::ShellResult
+pub fn nika_kernel_core::io::process::ShellResult::into_process_result(self) -> core::result::Result<Self, nika_kernel_core::io::process::ShellError>
 pub fn nika_kernel_core::io::process::ShellResult::new(status: i32, stdout: impl core::convert::Into<alloc::string::String>, stderr: impl core::convert::Into<alloc::string::String>, duration: core::time::Duration) -> Self
 pub fn nika_kernel_core::io::process::ShellResult::stderr_octets(&self) -> &[u8]
 pub fn nika_kernel_core::io::process::ShellResult::stdout_octets(&self) -> &[u8]
 pub fn nika_kernel_core::io::process::ShellResult::success(&self) -> bool
+pub fn nika_kernel_core::io::process::ShellResult::with_adapter_outcome(self, outcome: nika_kernel_core::io::process::ShellAdapterOutcome) -> Self
+pub fn nika_kernel_core::io::process::ShellResult::with_authority_refusal(self, reason: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_kernel_core::io::process::ShellResult::with_raw(self, stdout_raw: alloc::vec::Vec<u8>, stderr_raw: alloc::vec::Vec<u8>) -> Self
+pub fn nika_kernel_core::io::process::ShellResult::with_transport_failure(self, reason: impl core::convert::Into<alloc::string::String>) -> Self
 impl core::clone::Clone for nika_kernel_core::io::process::ShellResult
 pub fn nika_kernel_core::io::process::ShellResult::clone(&self) -> nika_kernel_core::io::process::ShellResult
 impl core::fmt::Debug for nika_kernel_core::io::process::ShellResult

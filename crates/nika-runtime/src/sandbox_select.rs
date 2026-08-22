@@ -189,6 +189,22 @@ mod tests {
         assert!(parse_policy_env(Some("requrie")).is_err());
     }
 
+    #[test]
+    fn noop_and_unsupported_hosts_refuse_unless_the_operator_waives() {
+        for policy in [SandboxPolicy::Auto, SandboxPolicy::Require] {
+            assert_eq!(
+                policy.judge(false, true),
+                SandboxVerdict::Refused,
+                "a permits-bearing run cannot compose a noop/unsupported backend"
+            );
+        }
+        assert_eq!(
+            SandboxPolicy::Off.judge(false, true),
+            SandboxVerdict::Waived,
+            "only the explicit, journalled off posture reaches Noop"
+        );
+    }
+
     /// The refusal names the code, the reason, and BOTH exits (#889 ·
     /// NIKA-1710).
     #[test]

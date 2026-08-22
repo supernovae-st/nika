@@ -64,7 +64,7 @@ use std::path::Path;
 use nika_kernel::command_sandbox::{
     CommandSandbox, CommandSandboxError, fold_sandbox_prefix, names_system_root,
 };
-use nika_kernel::process::{NetPolicy, SandboxSpec, ShellCommand};
+use nika_kernel::process::{NetPolicy, SandboxSpec, ShellAdapterOutcome, ShellCommand};
 
 /// The bubblewrap launcher. A fixed absolute path (not `$PATH`) so a hijacked
 /// `PATH` cannot point the sandbox at an impostor launcher.
@@ -120,6 +120,26 @@ impl CommandSandbox for LandlockSandbox {
 
     fn backend(&self) -> &'static str {
         "landlock"
+    }
+
+    fn classify_outcome(&self, status: i32, stderr: &str) -> ShellAdapterOutcome {
+        classify_terminal_outcome(status, stderr)
+    }
+}
+
+/// Bubblewrap's wrapper-status table, kept pure so every host can verify the
+/// Linux decision without pretending to execute a Linux jail locally.
+fn classify_terminal_outcome(status: i32, stderr: &str) -> ShellAdapterOutcome {
+    let launcher_diagnostic = stderr
+        .lines()
+        .map(str::trim_start)
+        .any(|line| line.starts_with("bwrap:"));
+    if status == 126 || launcher_diagnostic {
+        ShellAdapterOutcome::authority_refusal(format!(
+            "landlock/bwrap refused the confined process (status {status})"
+        ))
+    } else {
+        ShellAdapterOutcome::process()
     }
 }
 
@@ -320,6 +340,29 @@ const SYSTEM_ROOTS: &[&str] = &[
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn apply(outcome: ShellAdapterOutcome) -> Result<(), nika_kernel::ShellError> {
+        nika_kernel::ShellResult::new(126, r#"{"ok":true}"#, "", std::time::Duration::ZERO)
+            .with_adapter_outcome(outcome)
+            .into_process_result()
+            .map(|_| ())
+    }
+
+    #[test]
+    fn terminal_outcome_table_is_platform_independent_and_fail_closed() {
+        assert!(matches!(
+            apply(classify_terminal_outcome(126, r#"{"ok":true}"#)),
+            Err(nika_kernel::ShellError::Blocked { .. })
+        ));
+        assert!(matches!(
+            apply(classify_terminal_outcome(
+                1,
+                "bwrap: setting up uid map: Permission denied"
+            )),
+            Err(nika_kernel::ShellError::Blocked { .. })
+        ));
+        assert!(apply(classify_terminal_outcome(7, "business validation failed")).is_ok());
+    }
 
     /// The availability truth table — all four rows, platform-free.
     /// Kills Gate 5's three survivors: `-> true` (row 4 fails), `-> false`

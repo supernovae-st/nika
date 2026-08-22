@@ -14,6 +14,7 @@
 use std::sync::Arc;
 
 use nika_check::check;
+use nika_kernel::process::ShellResult;
 use nika_kernel_mock::{
     MockClock, MockProvider, MockShell, MockToolDefinitionProvider, MockToolExecutor,
 };
@@ -24,6 +25,7 @@ use nika_verb_agent::AgentVerb;
 use nika_verb_exec::ExecVerb;
 use nika_verb_infer::InferVerb;
 use nika_verb_invoke::InvokeVerb;
+use std::time::Duration;
 
 async fn run(yaml: &str, shell: MockShell) -> RunOutcome {
     let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("fixture parses");
@@ -69,11 +71,24 @@ tasks:
   danger:
     exec:
       command: ["${{ const.prog }}", "-rf", "/tmp/x"]
+      capture: structured
 "#;
-    // The MockShell is EMPTY — the security gate must fire before any spawn
-    // (an `enqueue`-less mock would panic if `run` were ever called).
-    let outcome = run(yaml, MockShell::new()).await;
+    // Plant a plausible structured result behind the authority boundary.
+    // If capture/process output were ever allowed to outrank the permit
+    // refusal this would look like a successful task despite exit 23.
+    let shell = MockShell::new().enqueue_result(ShellResult::new(
+        23,
+        "{\"status\":\"ok\"}\n",
+        "denied by sandbox\n",
+        Duration::from_millis(1),
+    ));
+    let witness = shell.clone();
+    let outcome = run(yaml, shell).await;
     assert!(!outcome.ok, "a denied capability fails the run");
+    assert!(
+        witness.executed_commands().is_empty(),
+        "authority denial wins before plausible process/capture output"
+    );
     let rec = &outcome.records["danger"];
     assert_eq!(rec.status, TaskStatus::Failure);
     assert_eq!(

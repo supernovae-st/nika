@@ -12,6 +12,7 @@ pub fn nika_sandbox_seatbelt::SeatbeltSandbox::fmt(&self, f: &mut core::fmt::For
 impl core::marker::Copy for nika_sandbox_seatbelt::SeatbeltSandbox
 impl nika_kernel_core::io::command_sandbox::CommandSandbox for nika_sandbox_seatbelt::SeatbeltSandbox
 pub fn nika_sandbox_seatbelt::SeatbeltSandbox::backend(&self) -> &'static str
+pub fn nika_sandbox_seatbelt::SeatbeltSandbox::classify_outcome(&self, status: i32, stderr: &str) -> nika_kernel_core::io::process::ShellAdapterOutcome
 pub fn nika_sandbox_seatbelt::SeatbeltSandbox::confine(&self, spec: &nika_kernel_core::io::process::SandboxSpec, command: nika_kernel_core::io::process::ShellCommand) -> core::result::Result<nika_kernel_core::io::process::ShellCommand, nika_kernel_core::io::command_sandbox::CommandSandboxError>
 impl<D> owo_colors::OwoColorize for nika_sandbox_seatbelt::SeatbeltSandbox
 impl<T, U> core::convert::Into<U> for nika_sandbox_seatbelt::SeatbeltSandbox where U: core::convert::From<T>

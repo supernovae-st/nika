@@ -305,7 +305,7 @@ fn run_verdict(
         };
     let file = source.logical_path();
     let source_text = source.source();
-    if require_signature && let Err(code) = require_signature_gate(file, output_json) {
+    if require_signature && let Err(code) = require_signature_gate(&source, output_json) {
         return RunVerdict::bare(code);
     }
     let (wf, report, skills) =
@@ -571,9 +571,12 @@ fn executor(output_json: bool) -> Result<tokio::runtime::Runtime, u8> {
 
 /// The `--require-signature` trust gate: verify against an enrolled key
 /// before anything executes (exit 2 FILE · already printed + enveloped).
-fn require_signature_gate(file: &str, output_json: bool) -> Result<(), u8> {
+fn require_signature_gate(source: &crate::verbs::RunSource, output_json: bool) -> Result<(), u8> {
     use crate::seal::WorkflowSig;
-    let reason = match crate::seal::check_workflow(std::path::Path::new(file)) {
+    let reason = match crate::seal::check_workflow_bytes(
+        std::path::Path::new(source.logical_path()),
+        source.source().as_bytes(),
+    ) {
         WorkflowSig::Valid(_) => return Ok(()),
         WorkflowSig::MissingSidecar => "missing sidecar — `nika sign <file>` mints one".to_owned(),
         WorkflowSig::NoEnrolledKey => "unknown key — nothing enrolled on this machine".to_owned(),

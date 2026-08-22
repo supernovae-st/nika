@@ -1,45 +1,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! F-P4 · the human approval is a BOUNDED CAPABILITY (NEP-0013 · the 6th
-//! invariant) — the `nika:prompt` gate, ticketed.
-//!
-//! The gate today is a bare call (the `Prompter` seam in nika-builtin):
-//! nothing binds what was SHOWN to what was SIGNED, nothing bounds the
-//! prompt storm, nothing attests the decision in the journal. This
-//! module wraps the seam — never edits it, the builtin stays a pure
-//! call — with the five laws:
-//!
-//! 1. **Content-bound (WYSIWYS)** — the ticket hashes the CANONICAL
-//!    render of the shown content (mode · message · choices over the
-//!    secret-marker scope, the pause payload's own discipline) + the
-//!    action's identity + the effect classes the yes unleashes (JCS +
-//!    blake3 · never an LLM summary). A resumed `--answer` whose
-//!    recomputed hash ≠ the shown hash is refused
-//!    (`approval.content_mismatch`).
-//! 2. **Scope + TTL** — the ticket lives for THIS run (the nonce is the
-//!    `workflow_started` event id) × THIS step × THIS hash · TTL
-//!    [`APPROVAL_TTL_SECONDS`] · expired = re-prompt · a cross-run
-//!    replay is refused (the nonce names another run).
-//! 3. **Anti-fatigue** — at most [`APPROVAL_MAX_TICKETS_PER_RUN`]
-//!    distinct tickets mint per run; identical content dedups to ONE
-//!    ticket (the second ask is attested `dedup`, never re-questioned);
-//!    the N+1ᵗʰ distinct mint is the typed refusal
-//!    ([`APPROVAL_CODE`] · `approval.rate_limited`) — never a queue.
-//! 4. **Attestation** — every decision lands as a hash-chained
-//!    `approval_decided` frame (digest · shown-hash · decision · TTL ·
-//!    scope) beside the task's terminal frame; a blocking prompt that
-//!    pauses the run serializes its mint on the `workflow_paused`
-//!    frame, and the resumed run validates the `--answer` against it
-//!    BEFORE binding.
-//! 5. **Revocation** — before execution only: the pause IS the
-//!    pre-execution window (a ticket is revoked by never answering it);
-//!    the journal is append-only, nothing rewrites retroactively.
-//!
-//! The ticket attests what happened — it never promises.
+//! Human approval as a bounded capability (NEP-0013): shown content is
+//! hash-bound to one run and step, tickets expire and are single-use, each
+//! run has a mint limit, and every decision is journaled. A resumed answer is
+//! validated before binding; refusing or abandoning it grants no authority.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::sync::Mutex;
+use std::io;
+use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 
 use nika_schema::raw::{RawAction, RawTask, RawWorkflow};
 use serde_json::{Value, json};
@@ -47,27 +18,17 @@ use serde_json::{Value, json};
 use crate::expr::{self, Scope};
 use crate::record::TaskRecord;
 
-/// NEP-0013 law 2 — the ticket's time-to-live: the fresh-consent window
-/// (the sudo timestamp precedent). The named engine constant · v1 fixes
-/// it (a `policy:` knob is the named owe if a deployment ever proves it
-/// needs another).
+/// Fresh-consent window (NEP-0013 law 2).
 pub const APPROVAL_TTL_SECONDS: u32 = 15 * 60;
 
-/// NEP-0013 law 3 — the per-run prompt-storm bound: at most this many
-/// DISTINCT tickets mint per run. The next distinct mint is the typed
-/// refusal, never a queue.
+/// Per-run prompt-storm bound (NEP-0013 law 3).
 pub const APPROVAL_MAX_TICKETS_PER_RUN: u32 = 5;
 
-/// The wire code every approval-capability refusal speaks — the
-/// `security_error` family, the NEP-0013 row after `NIKA-SEC-009`
-/// (trifecta). Catchable by `on_error.on_codes:` like every spec-plane
-/// security stop; never transient.
+/// Wire code for non-transient approval-capability refusals.
 pub const APPROVAL_CODE: &str = "NIKA-SEC-010";
 
-/// The canonical-content recipe version (the resume `KEY_VERSION`
-/// precedent): bump on any shape change — older tickets simply mismatch
-/// and re-ask, honest, never a wrong bind.
-const CONTENT_RECIPE_VERSION: u32 = 1;
+/// Bump when the canonical shown-content shape changes.
+const CONTENT_RECIPE_VERSION: u32 = 2;
 
 /// What a ticket resolved to (NEP-0013 law 4 · the wire vocabulary).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -81,8 +42,7 @@ pub enum ApprovalDecision {
     /// The gate resolved to refuse (a confirm answered false · an
     /// engine refusal — the event's `why` names the law applied).
     Deny,
-    /// An identical earlier ticket's decision replayed (the human was
-    /// NOT re-questioned · law 3).
+    /// Legacy wire value retained for historical trace readers.
     Dedup,
 }
 
@@ -99,9 +59,7 @@ impl ApprovalDecision {
     }
 }
 
-/// One bounded-approval capability (NEP-0013 · law 1+2). Minted BEFORE
-/// the ask, inside the runtime layer — the prompter seam itself stays a
-/// pure call and never sees it.
+/// One bounded-approval capability, minted before the prompt runs.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct ApprovalTicket {
@@ -109,11 +67,9 @@ pub struct ApprovalTicket {
     pub content_hash: String,
     /// The run's identity — its `workflow_started` event id (law 2).
     pub run_nonce: String,
-    /// The prompt task this ticket was minted at (law 2 · the journal's
-    /// `task` on the frames it rides).
+    /// The prompt task this ticket was minted at.
     pub step: String,
-    /// Mint time — wall-clock unix ms from the run's injected clock seam
-    /// (a determinism demand resolves a deterministic clock · F-P3).
+    /// Mint time from the run's injected clock, in Unix milliseconds.
     pub minted_at_ms: i64,
     /// The TTL the mint carries ([`APPROVAL_TTL_SECONDS`] today).
     pub ttl_seconds: u32,
@@ -141,13 +97,7 @@ impl ApprovalTicket {
         }
     }
 
-    /// The ticket's own digest — JCS + blake3 over the MINT fields (the
-    /// capability's identity). The decision is excluded on purpose: the
-    /// digest names the capability, the `approval_decided` frame names
-    /// its use — so the digest the pause showed equals the digest the
-    /// answer signs. `None` only if the payload cannot canonicalize
-    /// (string/int fields by construction — the honest-absent door,
-    /// never a fabricated digest).
+    /// JCS + blake3 over the mint fields; the later decision is excluded.
     #[must_use]
     pub fn digest(&self) -> Option<String> {
         crate::resume::jcs_blake3_hex(&json!({
@@ -178,18 +128,15 @@ impl ApprovalTicket {
     }
 }
 
-/// The folded resume authority (NEP-0013 law 1+2) — what the composer
-/// reads back from a paused trace: the journaled ticket plus the run
-/// identity of the trace it came from (its `workflow_started` event id).
-/// The cross-run check is self-contained in the trace bytes: a ticket
-/// whose `run_nonce` names another run is a replay, refused.
-#[derive(Debug, Clone, PartialEq, Eq)]
+/// A journaled ticket folded from a paused trace with that trace's run nonce.
+#[derive(Clone)]
 #[non_exhaustive]
 pub struct PausedApproval {
     /// The ticket the paused run journaled on its `workflow_paused` frame.
     pub ticket: ApprovalTicket,
     /// The run identity of the trace the ticket was folded FROM.
     pub trace_nonce: String,
+    claim: Arc<ApprovalClaim>,
 }
 
 impl PausedApproval {
@@ -199,32 +146,93 @@ impl PausedApproval {
         Self {
             ticket,
             trace_nonce,
+            claim: Arc::new(ApprovalClaim::ephemeral()),
+        }
+    }
+
+    /// Bind the ticket to a descriptor-held, create-once claim store.
+    ///
+    /// # Errors
+    /// Returns an error when the owned claim directory cannot be opened.
+    pub fn with_durable_claim_root(mut self, root: &Path) -> io::Result<Self> {
+        let store = nika_fs::OwnedDir::create(root, &[".nika", "approval-claims"])?;
+        self.claim = Arc::new(ApprovalClaim::durable(store));
+        Ok(self)
+    }
+
+    fn consume(&self) -> Result<(), ClaimError> {
+        if self.claim.consumed.swap(true, Ordering::AcqRel) {
+            return Err(ClaimError::Consumed);
+        }
+        let Some(dir) = &self.claim.dir else {
+            return Ok(());
+        };
+        let digest = self.ticket.digest().ok_or(ClaimError::Unavailable)?;
+        let name = format!(".nika-approval-{digest}.claimed");
+        match dir.write_once(&name, &format!("{digest}\n")) {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => Err(ClaimError::Consumed),
+            Err(_) => Err(ClaimError::Unavailable),
         }
     }
 }
 
-/// The `approval_decided` payload, assembled at the pipeline and emitted
-/// by the settle spine (the pens stay in ONE site — the declassify
-/// precedent). `task` on the wire IS the ticket's `step` (the journal
-/// joins per-task frames on it; the dossier's scope word is `step`).
+impl std::fmt::Debug for PausedApproval {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PausedApproval")
+            .field("ticket", &self.ticket)
+            .field("trace_nonce", &self.trace_nonce)
+            .finish_non_exhaustive()
+    }
+}
+
+impl PartialEq for PausedApproval {
+    fn eq(&self, other: &Self) -> bool {
+        self.ticket == other.ticket && self.trace_nonce == other.trace_nonce
+    }
+}
+
+impl Eq for PausedApproval {}
+
+struct ApprovalClaim {
+    consumed: AtomicBool,
+    dir: Option<nika_fs::OwnedDir>,
+}
+
+impl ApprovalClaim {
+    fn ephemeral() -> Self {
+        Self {
+            consumed: AtomicBool::new(false),
+            dir: None,
+        }
+    }
+
+    fn durable(dir: nika_fs::OwnedDir) -> Self {
+        Self {
+            consumed: AtomicBool::new(false),
+            dir: Some(dir),
+        }
+    }
+}
+
+enum ClaimError {
+    Consumed,
+    Unavailable,
+}
+
+/// Payload for the settle spine's `approval_decided` frame.
 pub(crate) struct ApprovalAttestation {
     pub task: String,
     pub mode: String,
     pub decision: &'static str,
-    /// WHO answered, honestly scoped to what this layer can know:
-    /// `resumed` (a validated paused-ticket `--answer`) · `answer` (a
-    /// fresh-run `--answer`) · `dedup` (an in-run replay) · `builtin`
-    /// (the builtin resolved it — a TTY answer or an authored `default:`,
-    /// the seam cannot split them and never guesses) · `engine` (an
-    /// engine refusal).
+    /// Provenance: `resume`, `cli`, `policy`, `builtin`, or `engine`.
     pub source: &'static str,
     pub shown_hash: String,
     pub digest: Option<String>,
     pub run_nonce: String,
     pub ttl_seconds: u32,
     pub ttl_remaining_seconds: i64,
-    /// The law applied on an engine refusal (`approval.rate_limited` ·
-    /// `approval.content_mismatch` · `approval.scope_mismatch`).
+    /// The law applied on an engine refusal.
     pub why: Option<&'static str>,
 }
 
@@ -258,12 +266,9 @@ impl ApprovalAttestation {
 pub(crate) enum Gate {
     /// Not a direct `invoke: nika:prompt` — the pipeline runs unchanged.
     NotPrompt,
-    /// Run the (possibly answer/dedup-bound) task. Boxed: the enum
-    /// stays slim on every path (the `RawTask` is the heavy arm).
+    /// Run the possibly answer-bound task.
     Run(Box<RawTask>),
-    /// The capability was refused (`NIKA-SEC-010`) — the task never
-    /// starts; the attestation rides the Finish to the settle spine.
-    /// Boxed: the happy path stays slim (the `Run` variant's size law).
+    /// Refuse before the task starts and retain the attestation.
     Refused(Box<Refusal>),
 }
 
@@ -273,37 +278,35 @@ pub(crate) struct Refusal {
     pub attestation: ApprovalAttestation,
 }
 
-/// One gated action in a prompt's unleashed closure (the content's
-/// `gated` entries).
+/// One action in a prompt's unleashed closure.
 #[derive(Debug, Clone)]
 struct GatedAction {
     task: String,
     classes: Vec<&'static str>,
 }
 
-/// The book's per-content record (the dedup state · law 3).
+/// Per-content mint state.
 struct MintedApproval {
     ticket: ApprovalTicket,
     decided: Option<(ApprovalDecision, Value)>,
 }
 
-/// The book's per-step line (the pause payload + the attestation read it).
+/// Per-step state read by pause and attestation paths.
 struct StepEntry {
     ticket: ApprovalTicket,
     mode: String,
     source: &'static str,
-    dedup: bool,
 }
 
 #[derive(Default)]
 struct BookInner {
-    /// THIS run's identity (the `workflow_started` event id).
+    /// This run's `workflow_started` event id.
     nonce: String,
     /// Prompt step → its unleashed closure (computed once per run).
     gated: BTreeMap<String, Vec<GatedAction>>,
-    /// Content hash → the minted ticket + its decision (the dedup map).
+    /// Content hash → mint state.
     minted: BTreeMap<String, MintedApproval>,
-    /// Prompt step → its entry (one prompt task mints at most once a run).
+    /// Prompt step → its entry.
     steps: BTreeMap<String, StepEntry>,
     /// The anti-fatigue counter (law 3) — DISTINCT mints this run.
     mints: u32,
@@ -311,17 +314,14 @@ struct BookInner {
     paused: Option<PausedApproval>,
 }
 
-/// The per-run approval state. Shared `&self` across the wave's
-/// concurrent pipelines — a Mutex over the tiny maps is the whole story
-/// (the `RunLedger` precedent: short synchronous critical sections,
-/// never held across an await).
+/// Per-run approval state shared across concurrent task pipelines.
 pub(crate) struct ApprovalBook {
     inner: Mutex<BookInner>,
 }
 
 /// The book's answer to the gate.
 enum Admit {
-    /// Run — binding this answer (a `--answer` · a dedup replay) when set.
+    /// Run — binding this answer (a validated CLI/resume answer) when set.
     Run { bind: Option<Value> },
     /// Refuse — the typed detail + the attestation.
     Refused(Refusal),
@@ -334,10 +334,7 @@ impl ApprovalBook {
         }
     }
 
-    /// A poisoned lock = a sibling panicked mid-fold (test-harness
-    /// class): the maps are plain accumulators with no invariant a
-    /// partial write could break — recover and keep the law (the
-    /// `RunLedger` idiom, verbatim).
+    /// Recover the plain accumulator maps after a test-harness panic.
     fn lock(&self) -> std::sync::MutexGuard<'_, BookInner> {
         match self.inner.lock() {
             Ok(inner) => inner,
@@ -345,18 +342,14 @@ impl ApprovalBook {
         }
     }
 
-    /// Open the run: stamp the nonce + precompute every prompt's
-    /// unleashed closure (static over the workflow bytes — identical on
-    /// the paused and the resumed run, which is what makes the shown
-    /// hash recomputable at resume).
+    /// Stamp the nonce and precompute each prompt's static closure.
     pub(crate) fn begin_run(&self, wf: &RawWorkflow, nonce: String) {
         let mut inner = self.lock();
         inner.nonce = nonce;
         inner.gated = gated_closures(wf);
     }
 
-    /// Inject the composer's folded resume authority (ADR-099 rider ·
-    /// `None` on a fresh run).
+    /// Inject folded resume authority (`None` for a fresh run).
     pub(crate) fn set_paused(&self, paused: Option<PausedApproval>) {
         self.lock().paused = paused;
     }
@@ -371,9 +364,7 @@ impl ApprovalBook {
         self.lock().gated.get(step).cloned().unwrap_or_default()
     }
 
-    /// The gate's state machine (laws 1–3). `answer` is the operator's
-    /// `--answer` for this step when present. Every path either names
-    /// the ticket to run under or refuses — never a queue.
+    /// Admit or refuse this step under the ticket state machine.
     fn admit(
         &self,
         step: &str,
@@ -381,65 +372,55 @@ impl ApprovalBook {
         shown_hash: &str,
         now_ms: i64,
         answer: Option<&Value>,
+        source: &'static str,
     ) -> Admit {
         let mut inner = self.lock();
-        if let Some(verdict) = admit_resumed(&mut inner, step, mode, shown_hash, now_ms, answer) {
+        if let Some(verdict) =
+            admit_resumed(&mut inner, step, mode, shown_hash, now_ms, answer, source)
+        {
             return verdict;
         }
-        admit_live(&mut inner, step, mode, shown_hash, now_ms, answer)
+        admit_live(&mut inner, step, mode, shown_hash, now_ms, answer, source)
     }
 
-    /// Assemble the `approval_decided` payload for a Ran task — `Some`
-    /// only when the ask RESOLVED (a success): a blocked prompt carries
-    /// its mint on the `workflow_paused` frame instead, and a failed one
-    /// attests nothing beyond its `task_failed`. Records the decision
-    /// for the run's later dedup (law 3).
+    /// Attest a resolved prompt; blocked and failed prompts attest elsewhere.
     pub(crate) fn attest_outcome(
         &self,
         task: &str,
-        settle: &crate::task::SettleAs,
+        settle: &mut crate::task::SettleAs,
         now_ms: i64,
     ) -> Option<ApprovalAttestation> {
-        let crate::task::SettleAs::Ran(ran) = settle else {
-            return None;
-        };
-        let crate::task::RunResult::Success { value, .. } = &ran.result else {
-            return None;
+        let value = match settle {
+            crate::task::SettleAs::Ran(ran) => match &ran.result {
+                crate::task::RunResult::Success { value, .. } => value.clone(),
+                _ => return None,
+            },
+            _ => return None,
         };
         let mut inner = self.lock();
         let entry = inner.steps.get(task)?;
-        let (ticket, mode, source, dedup) = (
-            entry.ticket.clone(),
-            entry.mode.clone(),
-            entry.source,
-            entry.dedup,
-        );
-        let decision: &'static str = if dedup {
-            ApprovalDecision::Dedup.as_str()
-        } else if mode == "confirm" && matches!(value, Value::Bool(false)) {
-            ApprovalDecision::Deny.as_str()
+        let (ticket, mode, source) = (entry.ticket.clone(), entry.mode.clone(), entry.source);
+        let proposed = if mode == "confirm" && matches!(value, Value::Bool(false)) {
+            ApprovalDecision::Deny
         } else {
-            ApprovalDecision::Allow.as_str()
+            ApprovalDecision::Allow
         };
-        if !dedup && let Some(minted) = inner.minted.get_mut(&ticket.content_hash) {
-            minted.decided = Some((
-                if decision == ApprovalDecision::Deny.as_str() {
-                    ApprovalDecision::Deny
-                } else {
-                    ApprovalDecision::Allow
-                },
-                value.clone(),
-            ));
-            minted.ticket.decision = if decision == ApprovalDecision::Deny.as_str() {
-                ApprovalDecision::Deny
+        // First terminal wins; a racing terminal cannot rewrite it.
+        let decision = if let Some(minted) = inner.minted.get_mut(&ticket.content_hash) {
+            if let Some((settled, _)) = &minted.decided {
+                *settled
             } else {
-                ApprovalDecision::Allow
-            };
-        }
+                minted.decided = Some((proposed, value));
+                minted.ticket.decision = proposed;
+                proposed
+            }
+        } else {
+            proposed
+        };
         Some(ApprovalAttestation {
             task: task.to_owned(),
             mode,
-            decision,
+            decision: decision.as_str(),
             source,
             shown_hash: ticket.content_hash.clone(),
             digest: ticket.digest(),
@@ -451,10 +432,7 @@ impl ApprovalBook {
     }
 }
 
-/// Law 1+2 — the resumed ticket validates BEFORE anything binds.
-/// `Some(verdict)` when a paused ticket covers this answered step
-/// (refused · re-minted · or bound against the SHOWN ticket); `None`
-/// hands the step to the live state machine. The caller holds the lock.
+/// Validate a matching paused ticket before binding its answer.
 fn admit_resumed(
     inner: &mut BookInner,
     step: &str,
@@ -462,15 +440,17 @@ fn admit_resumed(
     shown_hash: &str,
     now_ms: i64,
     answer: Option<&Value>,
+    source: &'static str,
 ) -> Option<Admit> {
-    // (cloned up front — the expiry path consumes the slot, so the
-    // borrow cannot live across the state machine.)
+    // Clone because the expiry path consumes the paused slot.
     let paused = inner
         .paused
         .as_ref()
         .filter(|p| p.ticket.step == step)
-        .map(|p| (p.ticket.clone(), p.trace_nonce.clone()));
-    let (ticket, trace_nonce) = paused?;
+        .cloned();
+    let paused = paused?;
+    let ticket = paused.ticket.clone();
+    let trace_nonce = paused.trace_nonce.clone();
     let answer = answer?;
     if ticket.run_nonce != trace_nonce {
         return Some(Admit::Refused(refusal(
@@ -507,32 +487,45 @@ fn admit_resumed(
         )));
     }
     if ticket.is_expired(now_ms) {
-        // Law 2 — expired = re-prompt: the stale answer does NOT bind;
-        // the authority is consumed and a fresh ticket mints (a
-        // non-interactive surface pauses again).
+        // Expired authority re-mints without binding the stale answer.
         inner.paused = None;
-        return Some(mint(inner, step, mode, shown_hash, now_ms, None));
+        return Some(mint(inner, step, mode, shown_hash, now_ms, None, source));
     }
-    // Valid — the answer binds against the SHOWN ticket. No new mint,
-    // no count: the capability was issued by the paused run.
-    inner.steps.insert(
-        step.to_owned(),
-        StepEntry {
-            ticket,
-            mode: mode.to_owned(),
-            source: "resumed",
-            dedup: false,
-        },
-    );
+    if let Err(error) = paused.consume() {
+        let (why, detail) = match error {
+            ClaimError::Consumed => (
+                "approval.replayed",
+                format!(
+                    "task '{step}' · approval.replayed — this paused approval was already consumed; a resume answer is single-use ({APPROVAL_CODE})"
+                ),
+            ),
+            ClaimError::Unavailable => (
+                "approval.claim_unavailable",
+                format!(
+                    "task '{step}' · approval.claim_unavailable — the engine could not durably consume this paused approval and refused to run ({APPROVAL_CODE})"
+                ),
+            ),
+        };
+        return Some(Admit::Refused(refusal(
+            inner,
+            step,
+            mode,
+            shown_hash,
+            ticket.digest(),
+            ticket.ttl_remaining_seconds(now_ms),
+            why,
+            detail,
+        )));
+    }
+    // This capability was issued by the paused run, so no new mint counts.
+    inner.paused = None;
+    remember_step(inner, step, ticket, mode, "resume");
     Some(Admit::Run {
         bind: Some(answer.clone()),
     })
 }
 
-/// The live state machine (no resumed ticket in play): dedup a DECIDED
-/// ticket for the same content (law 3 — the human is never re-questioned
-/// inside the TTL), re-mint a stale one, share an in-flight twin's, or
-/// mint a new distinct content. The caller holds the lock.
+/// Admit a live ticket; decided tickets re-mint, in-flight twins may share.
 fn admit_live(
     inner: &mut BookInner,
     step: &str,
@@ -540,61 +533,26 @@ fn admit_live(
     shown_hash: &str,
     now_ms: i64,
     answer: Option<&Value>,
+    source: &'static str,
 ) -> Admit {
-    let prior = inner.minted.get(shown_hash).map(|m| {
-        (
-            m.ticket.clone(),
-            m.decided.clone(),
-            m.ticket.is_expired(now_ms),
-        )
-    });
-    if let Some((ticket, decided, expired)) = prior {
-        match decided {
-            Some((_decision, value)) if !expired => {
-                inner.steps.insert(
-                    step.to_owned(),
-                    StepEntry {
-                        ticket,
-                        mode: mode.to_owned(),
-                        source: "dedup",
-                        dedup: true,
-                    },
-                );
-                return Admit::Run { bind: Some(value) };
-            }
-            // A decided-but-stale ticket re-mints (fresh consent) · an
-            // undecided one is an in-flight twin (same-wave fan-out):
-            // same ticket, no new mint, no count.
-            Some(_) => {
-                inner.minted.remove(shown_hash);
-                return mint(inner, step, mode, shown_hash, now_ms, answer);
-            }
-            None => {
-                inner.steps.insert(
-                    step.to_owned(),
-                    StepEntry {
-                        ticket,
-                        mode: mode.to_owned(),
-                        source: if answer.is_some() {
-                            "answer"
-                        } else {
-                            "builtin"
-                        },
-                        dedup: false,
-                    },
-                );
-                return Admit::Run {
-                    bind: answer.cloned(),
-                };
-            }
+    let prior = inner
+        .minted
+        .get(shown_hash)
+        .map(|m| (m.ticket.clone(), m.decided.clone()));
+    if let Some((ticket, decided)) = prior {
+        if decided.is_some() {
+            inner.minted.remove(shown_hash);
+            return mint(inner, step, mode, shown_hash, now_ms, answer, source);
         }
+        remember_step(inner, step, ticket, mode, source);
+        return Admit::Run {
+            bind: answer.cloned(),
+        };
     }
-    mint(inner, step, mode, shown_hash, now_ms, answer)
+    mint(inner, step, mode, shown_hash, now_ms, answer, source)
 }
 
-/// Mint a fresh ticket for a new distinct content — the N+1ᵗʰ distinct
-/// mint of the run is the typed refusal (law 3 · never a queue). The
-/// caller holds the lock.
+/// Mint a ticket or refuse the first mint above the per-run bound.
 fn mint(
     inner: &mut BookInner,
     step: &str,
@@ -602,6 +560,7 @@ fn mint(
     shown_hash: &str,
     now_ms: i64,
     answer: Option<&Value>,
+    source: &'static str,
 ) -> Admit {
     if inner.mints >= APPROVAL_MAX_TICKETS_PER_RUN {
         return Admit::Refused(refusal(
@@ -635,26 +594,30 @@ fn mint(
             decided: None,
         },
     );
-    inner.steps.insert(
-        step.to_owned(),
-        StepEntry {
-            ticket,
-            mode: mode.to_owned(),
-            source: if answer.is_some() {
-                "answer"
-            } else {
-                "builtin"
-            },
-            dedup: false,
-        },
-    );
+    remember_step(inner, step, ticket, mode, source);
     Admit::Run {
         bind: answer.cloned(),
     }
 }
 
-/// Build a refusal with its attestation (the deny event the settle
-/// spine journals before the task's failure frame).
+fn remember_step(
+    inner: &mut BookInner,
+    step: &str,
+    ticket: ApprovalTicket,
+    mode: &str,
+    source: &'static str,
+) {
+    inner.steps.insert(
+        step.to_owned(),
+        StepEntry {
+            ticket,
+            mode: mode.to_owned(),
+            source,
+        },
+    );
+}
+
+/// Build the deny attestation journaled before task failure.
 fn refusal(
     inner: &BookInner,
     step: &str,
@@ -691,26 +654,19 @@ pub(crate) fn is_prompt_task(task: &RawTask) -> bool {
     )
 }
 
-/// Bind an answer to a `nika:prompt` task as its `default:` (the
-/// answered branch of the stdlib contract — the builtin validates the
-/// TYPE per mode, so a bad answer fails with the same honest
-/// PROMPT-001/002 diagnostics). The gate owns every CALL (it validates
-/// the ticket BEFORE binding · NEP-0013); this is the mechanical
-/// binder — dispatch-only, never the resume identity.
+/// Bind an answer as `default:` after the gate has validated its ticket.
 pub(crate) fn prompt_task_with_default(task: &RawTask, answer: &Value) -> RawTask {
     let mut bound = task.clone();
     let RawAction::Invoke(invoke) = &mut bound.action else {
         return bound; // unreachable — the gate only calls for a prompt
     };
     if let Some(args) = invoke.args.as_mut() {
-        // Non-object args fail the builtin's own validation — never
-        // silently rewritten here.
+        // Preserve non-object args for the builtin's own validation.
         if let Value::Object(map) = &mut args.value {
             map.insert("default".to_owned(), answer.clone());
         }
     } else {
-        // No args at all (message missing → the builtin refuses
-        // loudly anyway) — still bind, one behavior.
+        // Bind even without args; the builtin still validates required fields.
         let span = task.id.span;
         invoke.args = Some(nika_schema::Spanned::new(
             serde_json::json!({ "default": answer }),
@@ -720,9 +676,7 @@ pub(crate) fn prompt_task_with_default(task: &RawTask, answer: &Value) -> RawTas
     bound
 }
 
-/// The task's coarse effect classes, sorted by name (the canonical
-/// content's `effects` · nika-cap's policy projection — one vocabulary
-/// for the shown content and the check's batch rule).
+/// The task's coarse effect classes, sorted for canonical content.
 fn effect_classes_of(task: &RawTask) -> Vec<&'static str> {
     let tool = match &task.action {
         RawAction::Invoke(invoke) => invoke.tool().map(|t| t.value.as_str()),
@@ -736,11 +690,7 @@ fn effect_classes_of(task: &RawTask) -> Vec<&'static str> {
     names
 }
 
-/// Every prompt step's unleashed closure: the descendants its yes
-/// unleashes BEFORE any other human question, with their effect classes.
-/// The walk never traverses THROUGH another `nika:prompt` — the nearest
-/// gate owns what it re-asks for (the check's batch rule reads the same
-/// closure law).
+/// Effectful descendants unleashed before another prompt boundary.
 fn gated_closures(wf: &RawWorkflow) -> BTreeMap<String, Vec<GatedAction>> {
     let mut downstream: BTreeMap<String, Vec<String>> = BTreeMap::new();
     for task in &wf.tasks {
@@ -790,16 +740,10 @@ fn gated_closures(wf: &RawWorkflow) -> BTreeMap<String, Vec<GatedAction>> {
     out
 }
 
-/// The canonical shown content (NEP-0013 law 1): the rendered mode ·
-/// message · choices over the SECRET-MARKER scope (the pause payload's
-/// discipline — a resolved secret value never enters the hash, a render
-/// miss falls back to the raw authored text), the action's identity,
-/// its effect classes, and the unleashed closure. JCS + blake3 — never
-/// a summary, never a float (the recipe is strings/arrays/ints only).
+/// Canonical shown content over the secret-marker scope (NEP-0013 law 1).
 fn canonical_content(task: &RawTask, gated: &[GatedAction], scope: &Scope<'_>) -> (String, Value) {
     let RawAction::Invoke(invoke) = &task.action else {
-        // The gate guards this (is_prompt_task) — a non-invoke never
-        // reaches here; the fallback keeps the function total.
+        // The gate guarantees invoke; keep this helper total regardless.
         return ("confirm".to_owned(), Value::Null);
     };
     let raw = invoke
@@ -840,6 +784,7 @@ fn canonical_content(task: &RawTask, gated: &[GatedAction], scope: &Scope<'_>) -
             "gated": gated_json,
             "message": message,
             "mode": mode,
+            "step": task.id.value,
         },
     });
     (mode, content)
@@ -849,9 +794,7 @@ impl<S, T, H, P, D, C> crate::Runtime<S, T, H, P, D, C>
 where
     C: nika_kernel::clock::ClockDyn + Sync,
 {
-    /// The wall-clock unix ms from the run's injected clock seam (never
-    /// a direct `SystemTime` read — a determinism demand resolves a
-    /// deterministic clock · F-P3).
+    /// Unix milliseconds from the injected clock seam.
     pub(crate) fn now_unix_ms(&self) -> i64 {
         self.clock
             .system_now()
@@ -860,10 +803,7 @@ where
             .unwrap_or(0)
     }
 
-    /// The F-P4 gate, applied to every task BEFORE it runs: a direct
-    /// `invoke: nika:prompt` mints its ticket first (rate-limit + dedup
-    /// enforced · the resumed `--answer` validated against the shown
-    /// hash), everything else passes through untouched.
+    /// Apply the bounded approval gate before a prompt runs.
     pub(crate) fn approval_gate(
         &self,
         task: &RawTask,
@@ -876,13 +816,7 @@ where
             return Gate::NotPrompt;
         }
         let step = task.id.value.as_str();
-        // The content renders over the SECRET-MARKER scope — the pause
-        // payload's own discipline (never a resolved secret value in the
-        // hash · markers only — a low-entropy secret inside a hash is an
-        // oracle, the resume-identity law). The task's `with:` namespace
-        // materializes over the SAME marker scope (upstream data reaches
-        // a prompt only through `with:` · NIKA-VAR-021), so the hash
-        // binds the RESOLVED question the human actually read.
+        // Hash the resolved question, but keep secrets as markers.
         let base = Scope {
             records,
             inputs,
@@ -900,8 +834,7 @@ where
                     with_ns.insert(key.value.clone(), v);
                     true
                 }
-                // A `with:` miss degrades to the raw authored args (the
-                // pause payload's fallback) — the hash still binds.
+                // A miss falls back to authored args; the hash still binds.
                 Err(_) => false,
             }
         });
@@ -912,9 +845,7 @@ where
         let gated = self.approvals.gated_for(step);
         let (mode, content) = canonical_content(task, &gated, &scope);
         let Some(shown_hash) = crate::resume::jcs_blake3_hex(&content) else {
-            // Strings/arrays/ints by construction — unreachable in
-            // practice; the law stays fail-closed anyway: an unhashable
-            // ask is never an unbounded one.
+            // The content shape is canonicalizable; still fail closed.
             let inner = self.approvals.lock();
             return Gate::Refused(Box::new(refusal(
                 &inner,
@@ -931,9 +862,25 @@ where
             )));
         };
         let answer = self.prompt_answers.get(step);
+        let source = if answer.is_some() {
+            "cli"
+        } else if matches!(
+            &task.action,
+            RawAction::Invoke(invoke)
+                if invoke
+                    .args
+                    .as_ref()
+                    .and_then(|args| args.value.get("default"))
+                    .is_some()
+        ) {
+            "policy"
+        } else {
+            // The generic tool seam cannot prove a human answered.
+            "builtin"
+        };
         match self
             .approvals
-            .admit(step, &mode, &shown_hash, self.now_unix_ms(), answer)
+            .admit(step, &mode, &shown_hash, self.now_unix_ms(), answer, source)
         {
             Admit::Run { bind } => match bind {
                 Some(value) => Gate::Run(Box::new(prompt_task_with_default(task, &value))),

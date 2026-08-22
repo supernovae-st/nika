@@ -375,7 +375,7 @@ where
         let task = &*gated;
 
         // ── `for_each:` fan-out or the single lane ──────────────────
-        let settle = self
+        let mut settle = self
             .run_lanes(
                 task,
                 wf,
@@ -392,7 +392,7 @@ where
         // here and the settle spine journals it (`approval_decided`).
         let approval = self
             .approvals
-            .attest_outcome(&id, &settle, self.now_unix_ms());
+            .attest_outcome(&id, &mut settle, self.now_unix_ms());
         assemble_ran_finish(
             task, id, settle, resume, resume_ctx, inputs, records, integrity, approval,
         )

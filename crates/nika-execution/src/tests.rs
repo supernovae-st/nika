@@ -1,5 +1,6 @@
 use std::fs;
 use std::path::Path;
+use std::sync::{Arc, Barrier};
 
 use nika_fs::OwnedDir;
 
@@ -32,17 +33,84 @@ fn project(files: &[(&str, &str)]) -> (tempfile::TempDir, OwnedDir) {
     (tmp, owned)
 }
 
-#[test]
-fn child_mutation_after_capture_cannot_change_admitted_bytes() {
-    let parent = parent("child.nika.yaml");
-    let (tmp, owned) = project(&[("root.nika.yaml", &parent), ("child.nika.yaml", CHILD)]);
-    let snapshot = ExecutionSnapshot::capture(
-        &owned,
-        Path::new("root.nika.yaml"),
+struct InterleavingSource {
+    project: OwnedDir,
+    target: &'static str,
+    captured: Arc<Barrier>,
+    replaced: Arc<Barrier>,
+}
+
+impl crate::snapshot::ByteSource for InterleavingSource {
+    fn read(&self, logical_path: &str, limit: usize) -> Result<Vec<u8>, ExecutionError> {
+        let bytes =
+            <OwnedDir as crate::snapshot::ByteSource>::read(&self.project, logical_path, limit)?;
+        if logical_path == self.target {
+            self.captured.wait();
+            self.replaced.wait();
+        }
+        Ok(bytes)
+    }
+}
+
+fn interleaving_source(
+    project: &OwnedDir,
+    target: &'static str,
+) -> (InterleavingSource, Arc<Barrier>, Arc<Barrier>) {
+    let captured = Arc::new(Barrier::new(2));
+    let replaced = Arc::new(Barrier::new(2));
+    (
+        InterleavingSource {
+            project: project.try_clone().expect("source clone"),
+            target,
+            captured: Arc::clone(&captured),
+            replaced: Arc::clone(&replaced),
+        },
+        captured,
+        replaced,
+    )
+}
+
+#[allow(
+    clippy::disallowed_methods,
+    reason = "the synchronous ByteSource race needs an OS thread held at explicit barriers"
+)]
+fn capture_while_replacing<F>(
+    project: &OwnedDir,
+    root: &Path,
+    target: &'static str,
+    replace: F,
+) -> ExecutionSnapshot
+where
+    F: FnOnce() + Send + 'static,
+{
+    let (source, captured, replaced) = interleaving_source(project, target);
+    let attacker = std::thread::spawn(move || {
+        captured.wait();
+        replace();
+        replaced.wait();
+    });
+    let snapshot = ExecutionSnapshot::capture_from(
+        &source,
+        root,
+        std::iter::empty::<&Path>(),
         SnapshotLimits::default(),
     )
-    .expect("capture");
-    fs::write(tmp.path().join("child.nika.yaml"), b"nika: replaced\n").expect("mutate");
+    .expect("capture owns the target read before replacement");
+    attacker.join().expect("attacker");
+    snapshot
+}
+
+#[test]
+fn child_replacement_interleaved_after_read_cannot_change_admitted_bytes() {
+    let parent = parent("child.nika.yaml");
+    let (tmp, owned) = project(&[("root.nika.yaml", &parent), ("child.nika.yaml", CHILD)]);
+    let child = tmp.path().join("child.nika.yaml");
+    let snapshot = capture_while_replacing(
+        &owned,
+        Path::new("root.nika.yaml"),
+        "child.nika.yaml",
+        move || fs::write(child, b"nika: replaced\n").expect("replace child"),
+    );
     assert_eq!(snapshot.text("child.nika.yaml"), Some(CHILD));
 }
 
@@ -67,24 +135,122 @@ fn skill_mutation_after_capture_cannot_change_admitted_bytes() {
     );
 }
 
+#[test]
+fn nested_child_replacement_interleaved_after_read_cannot_change_admitted_bytes() {
+    let root = parent("nested/middle.nika.yaml");
+    let middle = "nika: middle\ninputs:\n  url: { type: string, required: true }\npermits:\n  exec: [\"echo\"]\ntasks:\n  leaf:\n    invoke:\n      workflow: \"leaf.nika.yaml\"\n      args: { url: \"${{ inputs.url }}\" }\n    returns: { object: { report: string } }\noutputs:\n  report: { value: \"${{ tasks.leaf.output.report }}\", type: string }\n";
+    let (tmp, owned) = project(&[
+        ("root.nika.yaml", &root),
+        ("nested/middle.nika.yaml", middle),
+        ("nested/leaf.nika.yaml", CHILD),
+    ]);
+    let child = tmp.path().join("nested/leaf.nika.yaml");
+    let snapshot = capture_while_replacing(
+        &owned,
+        Path::new("root.nika.yaml"),
+        "nested/leaf.nika.yaml",
+        move || fs::write(child, b"nika: attacker\n").expect("replace nested child"),
+    );
+    assert_eq!(snapshot.text("nested/leaf.nika.yaml"), Some(CHILD));
+}
+
 #[cfg(unix)]
 #[test]
-fn symlink_swap_after_capture_cannot_redirect_execution() {
+fn symlink_swap_interleaved_after_read_cannot_redirect_execution() {
     use std::os::unix::fs::symlink;
 
     let parent = parent("child.nika.yaml");
     let (tmp, owned) = project(&[("root.nika.yaml", &parent), ("child.nika.yaml", CHILD)]);
-    let snapshot = ExecutionSnapshot::capture(
-        &owned,
-        Path::new("root.nika.yaml"),
-        SnapshotLimits::default(),
-    )
-    .expect("capture");
+    let child = tmp.path().join("child.nika.yaml");
     let outside = tempfile::NamedTempFile::new().expect("outside");
     fs::write(outside.path(), b"nika: attacker\n").expect("outside write");
-    fs::remove_file(tmp.path().join("child.nika.yaml")).expect("remove child");
-    symlink(outside.path(), tmp.path().join("child.nika.yaml")).expect("swap");
+    let outside_path = outside.path().to_owned();
+    let snapshot = capture_while_replacing(
+        &owned,
+        Path::new("root.nika.yaml"),
+        "child.nika.yaml",
+        move || {
+            fs::remove_file(&child).expect("remove child");
+            symlink(outside_path, child).expect("swap");
+        },
+    );
     assert_eq!(snapshot.text("child.nika.yaml"), Some(CHILD));
+}
+
+#[test]
+fn directory_replacement_interleaved_after_read_cannot_redirect_execution() {
+    let root = parent("world/child.nika.yaml");
+    let (tmp, owned) = project(&[("root.nika.yaml", &root), ("world/child.nika.yaml", CHILD)]);
+    let world = tmp.path().join("world");
+    let original_world = tmp.path().join("original-world");
+    let snapshot = capture_while_replacing(
+        &owned,
+        Path::new("root.nika.yaml"),
+        "world/child.nika.yaml",
+        move || {
+            fs::rename(&world, original_world).expect("rename original directory");
+            fs::create_dir(&world).expect("replacement directory");
+            fs::write(world.join("child.nika.yaml"), b"nika: attacker\n")
+                .expect("replacement child");
+        },
+    );
+    assert_eq!(snapshot.text("world/child.nika.yaml"), Some(CHILD));
+}
+
+#[test]
+#[allow(
+    clippy::disallowed_methods,
+    reason = "the synchronous ByteSource race needs an OS thread held at explicit barriers"
+)]
+fn root_replacement_interleaved_after_read_cannot_change_admitted_bytes() {
+    let (tmp, owned) = project(&[("root.nika.yaml", pure_root())]);
+    let (source, captured, replaced) = interleaving_source(&owned, "root.nika.yaml");
+    let root = tmp.path().join("root.nika.yaml");
+    let attacker = std::thread::spawn(move || {
+        captured.wait();
+        fs::write(root, b"nika: attacker\n").expect("replace root");
+        replaced.wait();
+    });
+    let snapshot = ExecutionSnapshot::capture_from(
+        &source,
+        Path::new("root.nika.yaml"),
+        std::iter::empty::<&Path>(),
+        SnapshotLimits::default(),
+    )
+    .expect("capture owns the already-read root");
+    attacker.join().expect("attacker");
+    assert_eq!(snapshot.text("root.nika.yaml"), Some(pure_root()));
+}
+
+#[test]
+#[allow(
+    clippy::disallowed_methods,
+    reason = "the synchronous ByteSource race needs an OS thread held at explicit barriers"
+)]
+fn skill_registry_reload_interleaved_after_read_cannot_change_admission() {
+    const ROOT: &str = "nika: root\nmodel: mock/echo\npermits:\n  fs:\n    read: [\"skills/review/SKILL.md\"]\ntasks:\n  review:\n    agent: { prompt: \"review\", skills: [\"skills/review/SKILL.md\"] }\n";
+    const SKILL: &str = "---\nname: review\ndescription: Review code.\n---\nOriginal.\n";
+    let (tmp, owned) = project(&[("root.nika.yaml", ROOT), ("skills/review/SKILL.md", SKILL)]);
+    let (source, captured, replaced) = interleaving_source(&owned, "skills/review/SKILL.md");
+    let skill = tmp.path().join("skills/review/SKILL.md");
+    let attacker = std::thread::spawn(move || {
+        captured.wait();
+        fs::write(skill, b"attacker registry reload").expect("replace skill");
+        replaced.wait();
+    });
+    let snapshot = ExecutionSnapshot::capture_from(
+        &source,
+        Path::new("root.nika.yaml"),
+        std::iter::empty::<&Path>(),
+        SnapshotLimits::default(),
+    )
+    .expect("capture owns the already-read skill");
+    attacker.join().expect("attacker");
+    let admitted = ExecutionService::admit_snapshot(snapshot).expect("snapshot admits");
+    assert_eq!(
+        admitted.snapshot().text("skills/review/SKILL.md"),
+        Some(SKILL)
+    );
 }
 
 #[test]
@@ -235,7 +401,50 @@ fn execute_performs_zero_opens_after_admission() {
     assert_eq!(verdict.trace_id(), verdict.execution_id().into());
 }
 
+#[test]
+fn debug_surfaces_do_not_disclose_captured_or_outcome_payloads() {
+    const SECRET_SHAPED: &str = "sk-live-w02-must-never-reach-debug";
+    let root = format!("{}# {SECRET_SHAPED}\n", pure_root());
+    let (_tmp, owned) = project(&[("root.nika.yaml", &root)]);
+    let service = ExecutionService::default();
+    let admitted = service
+        .admit(&owned, Path::new("root.nika.yaml"))
+        .expect("admit");
+
+    let snapshot_debug = format!("{:?}", admitted.snapshot());
+    let unit_debug = format!(
+        "{:?}",
+        admitted
+            .snapshot()
+            .unit("root.nika.yaml")
+            .expect("root unit")
+    );
+    let admitted_debug = format!("{admitted:?}");
+    assert!(!snapshot_debug.contains(SECRET_SHAPED));
+    assert!(!unit_debug.contains(SECRET_SHAPED));
+    assert!(!admitted_debug.contains(SECRET_SHAPED));
+
+    let context_debug = service.execute(admitted, debug_execution_context);
+    assert!(!context_debug.outcome().contains(SECRET_SHAPED));
+
+    let admitted = service
+        .admit(&owned, Path::new("root.nika.yaml"))
+        .expect("readmit");
+    let verdict = service.execute(admitted, secret_shaped_outcome);
+    let verdict_debug = format!("{verdict:?}");
+    assert!(!verdict_debug.contains(SECRET_SHAPED));
+    assert_eq!(*verdict.outcome(), SECRET_SHAPED);
+}
+
 fn snapshot_digest(cx: crate::ExecutionContext<'_>) -> String {
     assert_eq!(cx.snapshot().text("root.nika.yaml"), Some(pure_root()));
     cx.snapshot().digest().to_owned()
+}
+
+fn secret_shaped_outcome(_cx: crate::ExecutionContext<'_>) -> &'static str {
+    "sk-live-w02-must-never-reach-debug"
+}
+
+fn debug_execution_context(cx: crate::ExecutionContext<'_>) -> String {
+    format!("{cx:?}")
 }

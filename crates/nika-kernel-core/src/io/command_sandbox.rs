@@ -25,7 +25,7 @@
 //! the wrapped form (`sandbox-exec -p … -- <real command>`) is spawned
 //! directly. Confining first would hide the real command behind the launcher.
 
-use super::process::{SandboxSpec, ShellCommand};
+use super::process::{SandboxSpec, ShellAdapterOutcome, ShellCommand};
 
 /// Confine a spawned command to an OS sandbox derived from the spec.
 ///
@@ -53,6 +53,24 @@ pub trait CommandSandbox: Send + Sync {
     /// A short, stable name of the backend (`"seatbelt"` · `"landlock"` ·
     /// `"noop"`) for diagnostics + the capability report.
     fn backend(&self) -> &'static str;
+
+    /// Classify a drained launcher result before capture policy sees it.
+    ///
+    /// A sandbox wrapper and its inner process share one OS exit-status
+    /// channel. Backends therefore own the conservative table that
+    /// distinguishes a launcher/authority refusal from a business-process
+    /// exit. Unknown backends fail closed on non-zero rather than allowing
+    /// `capture: structured` to reinterpret an unclassified refusal.
+    fn classify_outcome(&self, status: i32, _stderr: &str) -> ShellAdapterOutcome {
+        if status == 0 {
+            ShellAdapterOutcome::process()
+        } else {
+            ShellAdapterOutcome::authority_refusal(format!(
+                "unclassified `{}` sandbox outcome (status {status}) was refused",
+                self.backend()
+            ))
+        }
+    }
 }
 
 /// Errors from confining a command.
@@ -96,6 +114,13 @@ impl CommandSandbox for NoopSandbox {
 
     fn backend(&self) -> &'static str {
         "noop"
+    }
+
+    fn classify_outcome(&self, _status: i32, _stderr: &str) -> ShellAdapterOutcome {
+        // Reaching Noop is the composition layer's explicit
+        // NIKA_SANDBOX=off waiver. It has no launcher whose status could be
+        // an authority refusal, so every status is the process status.
+        ShellAdapterOutcome::process()
     }
 }
 
@@ -188,6 +213,13 @@ pub fn fold_sandbox_prefix(prefix: &str) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::io::process::{ShellError, ShellResult};
+
+    fn apply(outcome: ShellAdapterOutcome) -> Result<ShellResult, ShellError> {
+        ShellResult::new(126, r#"{"ok":true}"#, "", std::time::Duration::ZERO)
+            .with_adapter_outcome(outcome)
+            .into_process_result()
+    }
 
     fn _assert_send_sync<T: Send + Sync>() {}
 
@@ -207,6 +239,39 @@ mod tests {
         assert_eq!(out.program, "echo");
         assert_eq!(out.args, vec!["hi".to_owned()]);
         assert_eq!(NoopSandbox.backend(), "noop");
+        assert!(
+            apply(NoopSandbox.classify_outcome(126, r#"{"ok":true}"#)).is_ok(),
+            "the explicit waiver has no launcher status to reinterpret"
+        );
+    }
+
+    #[derive(Debug)]
+    struct UnsupportedSandbox;
+
+    impl CommandSandbox for UnsupportedSandbox {
+        fn confine(
+            &self,
+            _spec: &SandboxSpec,
+            command: ShellCommand,
+        ) -> Result<ShellCommand, CommandSandboxError> {
+            Ok(command)
+        }
+
+        fn backend(&self) -> &'static str {
+            "unsupported"
+        }
+    }
+
+    #[test]
+    fn an_unknown_sandbox_adapter_fails_closed_on_nonzero() {
+        assert!(matches!(
+            apply(UnsupportedSandbox.classify_outcome(126, r#"{"ok":true}"#)),
+            Err(ShellError::Blocked { .. })
+        ));
+        let zero = ShellResult::new(0, "", "", std::time::Duration::ZERO)
+            .with_adapter_outcome(UnsupportedSandbox.classify_outcome(0, ""))
+            .into_process_result();
+        assert!(zero.is_ok());
     }
 
     #[test]

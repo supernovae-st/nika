@@ -229,7 +229,7 @@ impl ShellRunDyn for TokioShell {
         // the blocklist so the floor inspected the REAL command, not the
         // launcher wrapper. `scratch` is the per-spawn private TMPDIR the
         // seatbelt arm minted (issue 754) — removed when the spawn settles.
-        let (command, scratch) = self.apply_sandbox(command)?;
+        let (command, scratch, sandbox_classifier) = self.apply_sandbox(command)?;
 
         let start = Instant::now();
         let mut cmd = build_command(&command);
@@ -298,7 +298,7 @@ impl ShellRunDyn for TokioShell {
             let _ = std::fs::remove_dir_all(&dir);
         }
 
-        outcome_to_result(outcome, pid, start)
+        outcome_to_result(outcome, pid, start, sandbox_classifier.as_deref())
     }
 }
 
@@ -346,6 +346,7 @@ fn outcome_to_result(
     outcome: Outcome,
     pid: Option<u32>,
     start: Instant,
+    sandbox: Option<&dyn CommandSandbox>,
 ) -> Result<ShellResult, ShellError> {
     match outcome {
         Outcome::Cancelled => Err(ShellError::Cancelled {
@@ -353,16 +354,30 @@ fn outcome_to_result(
         }),
         Outcome::TimedOut(ms) => Err(ShellError::Timeout { duration_ms: ms }),
         Outcome::Done(Err(e)) => Err(classify_drain_error(&e)),
-        Outcome::Done(Ok((status, stdout, stderr))) => Ok(ShellResult::new(
-            status.code().unwrap_or(-1),
-            String::from_utf8_lossy(&stdout),
-            String::from_utf8_lossy(&stderr),
-            start.elapsed(),
-        )
-        // The raw octets ride alongside the lossy text projections —
-        // the `decode:` pipeline (spec 09 §decode) reads bytes, never
-        // a lossy string.
-        .with_raw(stdout, stderr)),
+        Outcome::Done(Ok((status, stdout, stderr))) => {
+            let status = status.code().unwrap_or(-1);
+            let stderr_text = String::from_utf8_lossy(&stderr);
+            let classification = sandbox.map(|backend| {
+                // The backend owns this conservative table: the runner has
+                // drained the real launcher result and keeps its classifier
+                // alive until this exact point.
+                backend.classify_outcome(status, &stderr_text)
+            });
+            let result = ShellResult::new(
+                status,
+                String::from_utf8_lossy(&stdout),
+                stderr_text,
+                start.elapsed(),
+            )
+            // The raw octets ride alongside the lossy text projections —
+            // the `decode:` pipeline (spec 09 §decode) reads bytes, never
+            // a lossy string.
+            .with_raw(stdout, stderr);
+            Ok(match classification {
+                Some(receipt) => result.with_adapter_outcome(receipt),
+                None => result,
+            })
+        }
     }
 }
 
@@ -658,6 +673,43 @@ mod tests {
             .expect("echo runs");
         assert_eq!(res.stdout.trim(), "hello");
         assert!(res.success());
+    }
+
+    /// Real macOS production path: Seatbelt wraps the command, the child
+    /// encounters an undeclared read, drains plausible structured output,
+    /// and exits in the launcher/refusal class. The runner must retain the
+    /// Seatbelt classifier until after drain so the JSON cannot become data.
+    #[cfg(target_os = "macos")]
+    #[tokio::test]
+    async fn seatbelt_status_126_with_json_is_typed_authority() {
+        use nika_kernel::process::SandboxSpec;
+        use nika_sandbox_seatbelt::SeatbeltSandbox;
+
+        assert!(SeatbeltSandbox::available(), "macOS must ship sandbox-exec");
+        let denied =
+            std::env::temp_dir().join(format!("nika-w02-seatbelt-denied-{}", std::process::id()));
+        std::fs::write(&denied, b"authority boundary").expect("denied fixture");
+        let quoted = denied.to_string_lossy().replace('\'', "'\\''");
+        let line = format!(
+            "if /bin/cat '{quoted}' >/dev/null 2>&1; then exit 42; \
+             else /usr/bin/printf '{{\"ok\":true}}\\n'; exit 126; fi"
+        );
+        let mut command = ShellCommand::new(line);
+        command.shell = true;
+        command.pre_validated = true;
+        command.sandbox = Some(SandboxSpec::new());
+        let result = TokioShell::with_sandbox(Arc::new(SeatbeltSandbox::new()))
+            .run(command)
+            .await
+            .expect("the drained refusal is represented as ShellResult");
+        let _ = std::fs::remove_file(denied);
+
+        assert_eq!(result.status, 126, "the fixture reached the refusal arm");
+        assert_eq!(result.stdout.trim(), r#"{"ok":true}"#);
+        assert!(matches!(
+            result.into_process_result(),
+            Err(ShellError::Blocked { .. })
+        ));
     }
 
     #[tokio::test]

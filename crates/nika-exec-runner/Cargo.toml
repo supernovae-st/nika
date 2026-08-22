@@ -39,6 +39,7 @@ tokio    = { workspace = true, features = ["process", "io-util", "sync", "time",
 # L0 leaves, downward-only. (nika-schema rides [dependencies] — the
 # sandbox_spec derivation speaks Permits in prod.)
 nika-check  = { path = "../nika-check", version = "0.113.0" }
+nika-sandbox-seatbelt = { path = "../nika-sandbox-seatbelt", version = "0.113.0" }
 
 [package.metadata.lore]
 daemon        = "timonier"

@@ -4461,6 +4461,7 @@ version = "0.113.0"
 dependencies = [
  "nika-check",
  "nika-kernel",
+ "nika-sandbox-seatbelt",
  "nika-schema",
  "nika-types",
  "proptest",
@@ -5042,9 +5043,12 @@ version = "0.113.0"
 dependencies = [
  "miette",
  "nika-error",
+ "nika-exec-runner",
  "nika-kernel",
  "nika-kernel-mock",
+ "nika-sandbox-seatbelt",
  "proptest",
+ "tempfile",
  "thiserror 2.0.20",
  "tokio",
 ]

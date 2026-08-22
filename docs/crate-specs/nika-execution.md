@@ -80,6 +80,8 @@ false.
 Inline `--lib` tests cover:
 
 - child, skill, and import mutation after capture;
+- barrier-interleaved root replacement and skill-registry reload after their
+  reads but before admission;
 - child pathname replacement with an out-of-root symlink after capture;
 - workflow cycles and normalized-path duplicates;
 - depth, unit-count, per-unit-size, and aggregate-size ceilings;
@@ -93,6 +95,42 @@ Inline `--lib` tests cover:
 
 The tests use no sleeps and inspect the bytes presented to the runner, not only
 an announced digest.
+
+## 4bis. Executable-input reader census (W02.D)
+
+This is the source-level census at `2026-08-22` for bytes that can define an
+execution. State/evidence readers in `nika-arm` are excluded: they do not parse
+workflow, child, skill, or import bytes. `follow` says whether the current read
+can follow a replaced link; `owned` says whether the exact bytes survive into
+all later phases.
+
+| reader | root | follow | owned | phase | consumer | disposition |
+|---|---|---:|---:|---|---|---|
+| `nika-execution::ByteSource for OwnedDir` | held project descriptor | no | yes | capture | `ExecutionService` check + runner | canonical; W03 carrier |
+| `nika-cli::verbs::RunSource::capture` | caller pathname/stdin | yes for file | primary only | CLI pre-check | current CLI runtime | migrate to `ExecutionService` in W04; its owned bytes already feed the signature gate |
+| `nika-cli::verbs::load_checked_run_source` composed reader | caller pathname | yes | no | static check | CLI checker | migrate to snapshot reader in W04 |
+| `nika-cli::verbs::resolve_workflow_skills` | workflow parent pathname | yes | no | pre-run | CLI agent skills | P0 legacy reader; remove in W04 |
+| `nika-cli::verbs::run::child_runner::load_child` | parent pathname | yes | no | dispatch | child runtime | P0 legacy reader; remove in W04 |
+| `nika-cli::verbs::run::child_runner::closure_digest` | canonicalized pathname | yes | digest only | resume-key build | CLI resume | replace with snapshot unit digests in W04 |
+| `nika-arm::RunShot` primary source | held project descriptor | no | yes | claim/firing | ARM adapter | primary safe; W04 must route its children/skills through the service |
+| `nika-cli::run::resume_setup` trace reader | held trace-parent descriptor | no | yes | pre-compose evidence fold | CLI resume | closed in W02; not executable source |
+| `nika-dap::sign::check_workflow_bytes` | sidecar beside logical workflow path | yes for sidecar only | workflow yes, sidecar used once | pre-effect trust gate | `run --require-signature` | closed in W02: verifies `RunSource` bytes and never reopens the workflow pathname |
+| `nika-dap::sign::check_workflow` | workflow + adjacent sidecar pathnames | yes | no | standalone `sign --check` | signing operator | allowed non-execution reader; cannot feed `nika run` |
+| `nika-dap::sign::sign_workflow_with` | workflow + adjacent sidecar pathnames | yes | signs that read only | standalone `nika sign` | signing operator | allowed minting reader; cannot feed `nika run` |
+| `nika-runtime::EnvFileSecretResolver` | authored secret pathname | yes | value only | composition | provider/tool secret namespace | separate secret-store boundary; remote disclosure is governed by W02.E/W06 |
+
+The structural gate is three-layered rather than a textual search: (1)
+`ExecutionSnapshot::capture_from` is the only `ByteSource` consumer, (2)
+`ExecutionService::admit_snapshot` is crate-private and `execute` accepts a bare
+function over `ExecutionContext` with no root or reader capability, and (3)
+`digest_check_skills_and_run_read_zero_sources_after_capture` injects a reader
+spy and proves the read count cannot change during parse, composed check, skill
+resolution, digest, or run. The committed `public-api.txt` additionally locks
+the absence of a reader/root accessor from `ExecutionContext`. The DAP
+`signature_gate_verifies_captured_b_not_reread_pathname_a` barrier proves a
+pathname replaced with signed bytes A cannot authorize already captured bytes
+B. Any W04 adapter that keeps one of the executable pathname readers above has
+not completed migration.
 
 ## 5. Admission gates
 
