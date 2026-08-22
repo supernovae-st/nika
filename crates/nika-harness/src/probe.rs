@@ -17,7 +17,7 @@
 //! What the probe is NOT: a credential read, a network call, or a
 //! session. It spawns the same confined child shape the session does
 //! (composed env · no shell · bounded output). Auth-store probes read
-//! path metadata only, never credential contents.
+//! path metadata plus a zero-read readability handle, never credential contents.
 
 use nika_kernel::ai::harness::HarnessError;
 
@@ -224,10 +224,13 @@ fn provider_credential_directory_ready(path: &std::path::Path) -> bool {
         if stem.is_empty() || stem.starts_with('.') {
             continue;
         }
-        let Ok(metadata) = entry.metadata() else {
+        let Ok(metadata) = std::fs::symlink_metadata(&entry_path) else {
             return false;
         };
-        if metadata.len() == 0 || !owner_readable(&metadata) {
+        if metadata.file_type().is_symlink()
+            || metadata.len() == 0
+            || !readable_same_file(&entry_path, &metadata)
+        {
             continue;
         }
         return true;
@@ -235,16 +238,46 @@ fn provider_credential_directory_ready(path: &std::path::Path) -> bool {
     false
 }
 
-#[cfg(unix)]
-fn owner_readable(metadata: &std::fs::Metadata) -> bool {
-    use std::os::unix::fs::PermissionsExt;
-
-    metadata.permissions().mode() & 0o400 != 0
+/// Open only to let the OS apply UID/ACL readability, then compare the opened
+/// object with the lstat witness. No byte is read; a pathname swap can only
+/// make the identity comparison refuse.
+fn readable_same_file(path: &std::path::Path, witnessed: &std::fs::Metadata) -> bool {
+    let Ok(file) = std::fs::File::open(path) else {
+        return false;
+    };
+    let Ok(opened) = file.metadata() else {
+        return false;
+    };
+    opened.is_file() && opened.len() > 0 && same_file_identity(witnessed, &opened)
 }
 
-#[cfg(not(unix))]
-fn owner_readable(_metadata: &std::fs::Metadata) -> bool {
-    true
+#[cfg(unix)]
+fn same_file_identity(left: &std::fs::Metadata, right: &std::fs::Metadata) -> bool {
+    use std::os::unix::fs::MetadataExt;
+
+    left.dev() == right.dev() && left.ino() == right.ino()
+}
+
+#[cfg(windows)]
+fn same_file_identity(left: &std::fs::Metadata, right: &std::fs::Metadata) -> bool {
+    use std::os::windows::fs::MetadataExt;
+
+    match (
+        left.volume_serial_number(),
+        left.file_index(),
+        right.volume_serial_number(),
+        right.file_index(),
+    ) {
+        (Some(left_volume), Some(left_index), Some(right_volume), Some(right_index)) => {
+            left_volume == right_volume && left_index == right_index
+        }
+        _ => false,
+    }
+}
+
+#[cfg(not(any(unix, windows)))]
+fn same_file_identity(_left: &std::fs::Metadata, _right: &std::fs::Metadata) -> bool {
+    false
 }
 
 /// The inclusive version range an adapter is pinned to — the
@@ -700,6 +733,29 @@ mod tests {
             std::fs::set_permissions(&credential, std::fs::Permissions::from_mode(0o600))
                 .expect("restore fixture permissions");
         }
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn kimi_auth_readability_refuses_a_path_swap_to_a_symlink() {
+        let root = std::fs::canonicalize(std::env::temp_dir())
+            .expect("the test temp root canonicalizes")
+            .join(format!("nika-kimi-auth-race-{}", std::process::id()));
+        std::fs::create_dir_all(&root).expect("fixture directory");
+        let candidate = root.join("account.json");
+        let replacement = root.join("other.json");
+        std::fs::write(&candidate, b"original-provider-fixture").expect("candidate fixture");
+        std::fs::write(&replacement, b"replacement-fixture").expect("replacement fixture");
+        let witnessed = std::fs::symlink_metadata(&candidate).expect("lstat witness");
+
+        std::fs::remove_file(&candidate).expect("swap candidate");
+        std::os::unix::fs::symlink(&replacement, &candidate).expect("symlink replacement");
+        assert!(
+            !readable_same_file(&candidate, &witnessed),
+            "opening a swapped pathname must not validate a different inode"
+        );
 
         let _ = std::fs::remove_dir_all(&root);
     }

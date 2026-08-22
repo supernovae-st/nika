@@ -162,8 +162,8 @@ fn rows() -> Result<Vec<AdapterRow>, HarnessError> {
             serves: &["moonshot"],
             // Official store (data-locations.md): `$KIMI_CODE_HOME/credentials/`
             // (default `~/.kimi-code/credentials/`). The probe reads
-            // path metadata + directory non-emptiness only; it never
-            // opens a credential. No `login status` command exists.
+            // path metadata plus a zero-read readability handle; it
+            // never reads a credential. No `login status` command exists.
             auth: AuthProbe::HomeFile(".kimi-code/credentials"),
             directory_auth: Some(DirectoryAuthProbe {
                 override_env: "KIMI_CODE_HOME",
