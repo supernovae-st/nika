@@ -11,7 +11,9 @@ mod service;
 mod snapshot;
 
 pub use error::ExecutionError;
-pub use service::{AdmittedExecution, ExecutionContext, ExecutionService, ExecutionVerdict};
+pub use service::{
+    AdmittedExecution, ExecutionContext, ExecutionService, ExecutionSession, ExecutionVerdict,
+};
 pub use snapshot::{
     CapturedUnit, ExecutionSnapshot, SNAPSHOT_FORMAT_VERSION, SnapshotLimits, SnapshotUnitKind,
 };

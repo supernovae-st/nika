@@ -755,9 +755,9 @@ fn claim_run_receipt(
         generation: pinned.generation,
         ceiling: plafond,
     };
-    let executed = ctx.service.execute_with(pinned.admitted, |execution| {
-        ctx.run.run(execution, &request)
-    });
+    let session = ctx.service.begin(pinned.admitted);
+    let upshot = ctx.run.run(session.context(), &request);
+    let executed = session.complete(upshot);
     debug_assert_eq!(executed.execution_id(), execution_id);
     debug_assert_eq!(executed.trace_id(), trace_id);
     let upshot = executed.into_outcome();

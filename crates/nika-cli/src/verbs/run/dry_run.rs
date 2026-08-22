@@ -13,7 +13,7 @@ use crate::Theme;
 pub(super) fn swap(
     wf: &RawWorkflow,
     model: &str,
-) -> Result<(RawWorkflow, CheckReport), Box<CheckReport>> {
+) -> Result<(RawWorkflow, CheckReport), Box<(RawWorkflow, CheckReport)>> {
     let swapped = crate::verbs::with_model_override(wf, model);
     let mut report = nika_check::check(&swapped);
     crate::verbs::stamp_judged_semantic(&swapped, &mut report);
@@ -21,28 +21,45 @@ pub(super) fn swap(
     if report.is_clean() && models.findings.is_empty() {
         Ok((swapped, report))
     } else {
-        Err(Box::new(report))
+        Err(Box::new((swapped, report)))
     }
 }
 
 /// Preview the overridden pair, or emit the same refusal as `nika check`.
-#[allow(clippy::fn_params_excessive_bools)]
+#[allow(clippy::fn_params_excessive_bools, clippy::too_many_arguments)]
 pub(super) fn lane(
     file: &str,
+    source: &str,
     wf: &RawWorkflow,
     report: &CheckReport,
+    skills: &nika_schema::ResolvedSkills,
+    repair_target: nika_display::check_render::RepairTarget,
     model_override: Option<&str>,
     json: bool,
     theme: Theme,
     output_json: bool,
 ) -> RunVerdict {
     if let Some(model) = model_override {
-        if let Ok((wf, report)) = swap(wf, model) {
-            return RunVerdict::bare(verdict(file, &wf, &report, json, theme));
+        match swap(wf, model) {
+            Ok((wf, report)) => {
+                return RunVerdict::bare(verdict(file, &wf, &report, json, theme));
+            }
+            Err(refused) => {
+                let (wf, report) = *refused;
+                let out = crate::verbs::check::run_admitted_pair(
+                    source,
+                    file,
+                    repair_target,
+                    &wf,
+                    &report,
+                    skills,
+                    json,
+                    theme,
+                );
+                super::epilogue::emit_diagnostic(&out.text, output_json);
+                return RunVerdict::bare(out.code);
+            }
         }
-        let out = crate::verbs::check::run(file, json, false, Some(model), theme);
-        super::epilogue::emit_diagnostic(&out.text, output_json);
-        return RunVerdict::bare(out.code);
     }
     RunVerdict::bare(verdict(file, wf, report, json, theme))
 }

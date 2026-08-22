@@ -5,10 +5,12 @@
 
 const RUN: &str = include_str!("mod.rs");
 const EXECUTION_ADAPTER: &str = include_str!("execution_adapter.rs");
+const DRY_RUN: &str = include_str!("dry_run.rs");
 const PROVENANCE: &str = include_str!("provenance.rs");
 const CHILD_RUNNER: &str = include_str!("child_runner.rs");
 const CLI_CARGO: &str = include_str!("../../../Cargo.toml");
 const EXECUTION_CARGO: &str = include_str!("../../../../nika-execution/Cargo.toml");
+const EXECUTION_SERVICE: &str = include_str!("../../../../nika-execution/src/service.rs");
 const ARM_CARGO: &str = include_str!("../../../../nika-arm/Cargo.toml");
 const ARM_FIRE: &str = include_str!("../../../../nika-arm/src/fire.rs");
 
@@ -21,6 +23,20 @@ fn every_production_run_uses_the_execution_service_world() {
         assert!(!source.contains("has_captured_source"));
         assert!(!source.contains("world: Option<&AdmittedWorld>"));
     }
+}
+
+#[test]
+fn execution_service_does_not_accept_a_capability_capturing_runner() {
+    assert!(!EXECUTION_SERVICE.contains("execute_with"));
+    assert!(!EXECUTION_SERVICE.contains("FnOnce"));
+    assert!(EXECUTION_SERVICE.contains("It is not a process sandbox"));
+}
+
+#[test]
+fn dry_run_refusals_render_the_admitted_pair_without_path_reentry() {
+    assert!(!DRY_RUN.contains("check::run("));
+    assert!(DRY_RUN.contains("check::run_admitted_pair"));
+    assert!(EXECUTION_ADAPTER.contains("admitted_root_source(&world.snapshot)"));
 }
 
 #[test]

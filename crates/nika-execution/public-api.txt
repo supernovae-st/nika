@@ -242,8 +242,8 @@ impl nika_execution::ExecutionService
 pub fn nika_execution::ExecutionService::admit(&self, project: &nika_fs::owned_dir::OwnedDir, root: &std::path::Path) -> core::result::Result<nika_execution::AdmittedExecution, nika_execution::ExecutionError>
 pub fn nika_execution::ExecutionService::admit_root_bytes(&self, project: &nika_fs::owned_dir::OwnedDir, root: &std::path::Path, root_bytes: &[u8]) -> core::result::Result<nika_execution::AdmittedExecution, nika_execution::ExecutionError>
 pub fn nika_execution::ExecutionService::admit_with_imports<I, P>(&self, project: &nika_fs::owned_dir::OwnedDir, root: &std::path::Path, imports: I) -> core::result::Result<nika_execution::AdmittedExecution, nika_execution::ExecutionError> where I: core::iter::traits::collect::IntoIterator<Item = P>, P: core::convert::AsRef<std::path::Path>
+pub fn nika_execution::ExecutionService::begin(&self, admitted: nika_execution::AdmittedExecution) -> nika_execution::ExecutionSession
 pub fn nika_execution::ExecutionService::execute<T>(&self, admitted: nika_execution::AdmittedExecution, runner: for<'a> fn(nika_execution::ExecutionContext<'a>) -> T) -> nika_execution::ExecutionVerdict<T>
-pub fn nika_execution::ExecutionService::execute_with<T, F>(&self, admitted: nika_execution::AdmittedExecution, runner: F) -> nika_execution::ExecutionVerdict<T> where F: for<'a> core::ops::function::FnOnce(nika_execution::ExecutionContext<'a>) -> T
 pub const fn nika_execution::ExecutionService::new(limits: nika_execution::SnapshotLimits) -> Self
 impl core::clone::Clone for nika_execution::ExecutionService
 pub fn nika_execution::ExecutionService::clone(&self) -> nika_execution::ExecutionService
@@ -283,6 +283,33 @@ impl<T> outref::AsOut<T> for nika_execution::ExecutionService where T: core::mar
 pub fn nika_execution::ExecutionService::as_out(&mut self) -> outref::Out<'_, T>
 impl<T> typenum::type_operators::Same for nika_execution::ExecutionService
 pub type nika_execution::ExecutionService::Output = T
+#[non_exhaustive] pub struct nika_execution::ExecutionSession
+impl nika_execution::ExecutionSession
+pub fn nika_execution::ExecutionSession::complete<T>(self, outcome: T) -> nika_execution::ExecutionVerdict<T>
+pub const fn nika_execution::ExecutionSession::context(&self) -> nika_execution::ExecutionContext<'_>
+impl core::fmt::Debug for nika_execution::ExecutionSession
+pub fn nika_execution::ExecutionSession::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_execution::ExecutionSession
+impl<T, U> core::convert::Into<U> for nika_execution::ExecutionSession where U: core::convert::From<T>
+pub fn nika_execution::ExecutionSession::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_execution::ExecutionSession where U: core::convert::Into<T>
+pub type nika_execution::ExecutionSession::Error = core::convert::Infallible
+pub fn nika_execution::ExecutionSession::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_execution::ExecutionSession where U: core::convert::TryFrom<T>
+pub type nika_execution::ExecutionSession::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_execution::ExecutionSession::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_execution::ExecutionSession where T: 'static + ?core::marker::Sized
+pub fn nika_execution::ExecutionSession::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_execution::ExecutionSession where T: ?core::marker::Sized
+pub fn nika_execution::ExecutionSession::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_execution::ExecutionSession where T: ?core::marker::Sized
+pub fn nika_execution::ExecutionSession::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_execution::ExecutionSession
+pub fn nika_execution::ExecutionSession::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_execution::ExecutionSession where T: 'static
+pub fn nika_execution::ExecutionSession::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_execution::ExecutionSession
+pub type nika_execution::ExecutionSession::Output = T
 #[non_exhaustive] pub struct nika_execution::ExecutionSnapshot
 impl nika_execution::ExecutionSnapshot
 pub fn nika_execution::ExecutionSnapshot::bytes(&self, logical_path: &str) -> core::option::Option<&[u8]>

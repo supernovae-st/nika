@@ -27,17 +27,19 @@ digest, and format version.
 interface-acquired root such as stdin, `admit_root_bytes` places those exact
 bytes in the same world while dependencies remain descriptor-relative to the
 held project. Skill resolution
-uses the same in-memory map. `ExecutionService::execute` consumes the admitted
-value and gives the injected runner an `ExecutionContext` containing no
-`OwnedDir`, absolute path, or reader callback. Filesystem reopening after
-admission is therefore absent by construction and guarded by a counted-reader
-test.
+uses the same in-memory map. `ExecutionService::begin` consumes the admitted
+value and returns an `ExecutionSession`. Its borrowed `ExecutionContext`
+contains no `OwnedDir`, absolute path, or reader callback. Interface adapters
+keep their private request and effect capabilities outside that session, then
+bind the typed outcome with `ExecutionSession::complete`.
 
-The injected runner is a one-shot closure so an interface adapter may capture
-its private request (CLI flags, transport metadata, or an ARM claim) without a
-global or thread-local side channel. Those adapter fields stay outside
-`ExecutionContext`: the context remains capability-free and exposes only the
-admitted IDs, snapshot, workflow, check report, and resolved skills.
+This is an execution-definition custody boundary, not an in-process operating
+system sandbox. The service supplies no mutable workflow locator after
+admission; trusted adapters can still use ambient APIs or their explicit effect
+capabilities. The permanent reader census and adapter tests therefore prove
+the production CLI/ARM paths consume workflow, child, and skill definitions
+only from the snapshot rather than claiming arbitrary Rust code cannot open a
+file.
 
 This crate does not own HTTP, UI rendering, durable jobs, ARM cadence, provider
 selection, sandbox implementation, runtime verb semantics, or trace storage.
@@ -58,9 +60,12 @@ their L4 adapters; later Serve/jobs work must use the same boundary.
 - `ExecutionService::admit` and `admit_root_bytes` mint one `ExecutionId`, derive its root `TraceId`
   directly from the same 128 bits, and returns `AdmittedExecution` only after
   parser, composed checker, and skill resolution are clean.
-- `ExecutionService::execute` consumes that admission and returns a generic
-  `ExecutionVerdict<T>` carrying execution ID, trace ID, snapshot digest, and
-  the injected runner's typed outcome.
+- `ExecutionService::begin` consumes that admission and returns an owned
+  `ExecutionSession`; `context` borrows the admitted definition world and
+  `complete` returns a generic `ExecutionVerdict<T>` carrying execution ID,
+  trace ID, snapshot digest, and the adapter's typed outcome.
+- `ExecutionService::execute` remains the function-pointer convenience surface
+  for adapters that need no request state.
 
 All public structs and enums are non-exhaustive. Response fields remain private
 behind constructors or accessors.

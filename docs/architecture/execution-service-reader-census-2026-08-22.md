@@ -43,3 +43,9 @@ Measured structural facts:
 The reader count after `ExecutionSnapshot` capture is therefore exactly zero
 for workflow definitions. Counted-source tests guard admission and execution;
 CLI structural tests guard the adapter and child-runner shape.
+
+This is not an OS-sandbox claim about arbitrary injected Rust. CLI and ARM
+retain explicit effect/output capabilities outside `ExecutionSession`; the
+claim measured here is narrower and falsifiable: neither production adapter
+uses those capabilities to reopen a workflow, child, or skill definition after
+admission.

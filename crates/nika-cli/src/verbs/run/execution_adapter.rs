@@ -32,6 +32,7 @@ impl AdmittedWorld {
 #[allow(clippy::struct_excessive_bools)]
 struct CliExecutionRequest<'a> {
     file: &'a str,
+    repair_target: nika_display::check_render::RepairTarget,
     json: bool,
     output_json: bool,
     theme: Theme,
@@ -59,6 +60,7 @@ pub(crate) fn run_arm_context(
     run_start_gc(false, false);
     let request = CliExecutionRequest {
         file,
+        repair_target: nika_display::check_render::RepairTarget::WorkspaceFile,
         json: false,
         output_json: false,
         theme: Theme::new(false, true, false),
@@ -116,6 +118,7 @@ pub(super) fn run_admitted(
     }
     let request = CliExecutionRequest {
         file,
+        repair_target: preview.repair_target(),
         json,
         output_json,
         theme,
@@ -131,9 +134,9 @@ pub(super) fn run_admitted(
         max_cost_usd,
         interruptible,
     };
-    let verdict = service.execute_with(admitted, move |context| {
-        run_admitted_context(context, &request, display_root)
-    });
+    let session = service.begin(admitted);
+    let outcome = run_admitted_context(session.context(), &request, display_root);
+    let verdict = session.complete(outcome);
     verdict.into_outcome()
 }
 
@@ -164,11 +167,17 @@ fn run_admitted_context(
         Ok(map) => map,
         Err(code) => return RunVerdict::bare(code),
     };
+    let Some(source) = admitted_root_source(&world.snapshot) else {
+        return admitted_root_refusal(request.output_json);
+    };
     if request.dry_run {
         return dry_run::lane(
             request.file,
+            source,
             &wf,
             &report,
+            context.skills(),
+            request.repair_target,
             request.model_override,
             request.json,
             request.theme,
@@ -184,9 +193,6 @@ fn run_admitted_context(
     ) {
         return RunVerdict::bare(code);
     }
-    let Some(source) = admitted_root_source(&world.snapshot) else {
-        return admitted_root_refusal(request.output_json);
-    };
     let setup = match resume_setup(
         request.resume,
         &wf,
@@ -362,4 +368,53 @@ fn admission_refusal(error: &nika_execution::ExecutionError, output_json: bool) 
         output_json,
     );
     RunVerdict::bare(code)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn invalid_dry_run_override_does_not_reopen_root() {
+        let directory = tempfile::tempdir().expect("execution project");
+        let root = directory.path().join("root.nika.yaml");
+        std::fs::write(
+            &root,
+            "nika: root\nmodel: mock/echo\npermits: {}\ntasks:\n  greet:\n    infer: { prompt: hi }\n",
+        )
+        .expect("original workflow");
+        let project = nika_fs::OwnedDir::open(directory.path()).expect("held project");
+        let service = nika_execution::ExecutionService::default();
+        let admitted = service
+            .admit(&project, std::path::Path::new("root.nika.yaml"))
+            .expect("original world admits");
+
+        std::fs::write(&root, "nika: replacement\nceiling: 0.50\n")
+            .expect("replace visible pathname after admission");
+        let file = root.to_string_lossy();
+        let request = CliExecutionRequest {
+            file: &file,
+            repair_target: nika_display::check_render::RepairTarget::WorkspaceFile,
+            json: false,
+            output_json: false,
+            theme: Theme::new(false, true, false),
+            mode: RenderMode::Plain,
+            dry_run: true,
+            model_override: Some("nonexistent/model"),
+            access_pin: None,
+            vars: &[],
+            resume: None,
+            no_trace_file: true,
+            task_filter: None,
+            no_outputs: false,
+            max_cost_usd: None,
+            interruptible: false,
+        };
+        let session = service.begin(admitted);
+        let outcome =
+            run_admitted_context(session.context(), &request, directory.path().to_path_buf());
+        let verdict = session.complete(outcome);
+
+        assert_eq!(verdict.into_outcome().code, exit::FILE);
+    }
 }
