@@ -451,6 +451,11 @@ pub fn seal_journal_with(
     workflow_hash: Option<&str>,
     teardown: Option<&crate::seal::SealTeardown>,
 ) -> bool {
+    // A disabled journal (`nika try` · `--no-trace-file`) has nothing to
+    // sign. Consulting the keychain anyway is a hang after a green card.
+    if trace.is_disabled() {
+        return false;
+    }
     // F-P8 · the law's third leg: the named memory rejections land in the
     // journal BEFORE the seal mints, so the chain the seal signs covers
     // the evidence its `covers["memory"]` counts (the seal commits to

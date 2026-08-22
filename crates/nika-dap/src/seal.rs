@@ -74,15 +74,22 @@ pub(crate) const KEYRING_USER_PUB: &str = "run-signing-key.pub";
 #[allow(clippy::disallowed_methods)]
 pub(crate) fn keychain_enabled() -> bool {
     // seam-bypass-ok: build-host flag · no secret crosses here
-    if !keychain_flag(std::env::var("NIKA_KEYCHAIN").ok().as_deref()) {
-        return false;
-    }
-    // A cargo TEST binary never opens the custody, flag or no flag. The
-    // opt-out above only helps whoever remembers to set it, and every
-    // session that forgets spends the operator's attention on a modal
-    // that cannot be answered once and for all (see the ACL note above).
-    // The default has to be safe, not the escape hatch.
-    !running_as_a_cargo_test_binary(std::env::current_exe().ok().as_deref())
+    keychain_consults(
+        keychain_flag(std::env::var("NIKA_KEYCHAIN").ok().as_deref()),
+        running_as_a_cargo_test_binary(std::env::current_exe().ok().as_deref()),
+        std::io::IsTerminal::is_terminal(&std::io::stderr()),
+    )
+}
+
+/// Whether the OS keychain may be opened for this process. Pure so the
+/// pipe/ACL hang is a fixture, not a session reproduction.
+///
+/// A captured stderr (pipe · CI · an agent `Popen`) cannot complete a
+/// macOS keychain ACL prompt. Asking anyway is a hang after a green
+/// card (`nika try 01-hello` piped · sampled 2026-08-22 on
+/// `SecKeychainFindGenericPassword`). File and env custody stay.
+fn keychain_consults(flag: bool, test_bin: bool, stderr_tty: bool) -> bool {
+    flag && !test_bin && stderr_tty
 }
 
 /// Is this process a cargo test binary? Cargo builds them at
@@ -1293,6 +1300,25 @@ mod tests {
         assert!(
             !running_as_a_cargo_test_binary(None),
             "unknown exe · keep custody"
+        );
+    }
+
+    /// A pipe cannot complete a keychain ACL. Asking is the hang after
+    /// the card (sampled `nika try 01-hello` 2026-08-22).
+    #[test]
+    fn a_pipe_does_not_consult_the_keychain() {
+        assert!(
+            !keychain_consults(true, false, false),
+            "piped stderr · skip custody"
+        );
+        assert!(keychain_consults(true, false, true), "a TTY still consults");
+        assert!(
+            !keychain_consults(true, true, true),
+            "a cargo test binary never consults, TTY or not"
+        );
+        assert!(
+            !keychain_consults(false, false, true),
+            "NIKA_KEYCHAIN=off still wins"
         );
     }
 
