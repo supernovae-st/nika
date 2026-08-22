@@ -35,13 +35,17 @@ becomes a child name.
   snapshot, never a filename.
 - `RequestDigest` is a canonical 32-byte digest encoded as lowercase hex.
   Uppercase and mixed-case strings are rejected, never normalized.
-- `JobStatus` is exactly `queued | running | paused | succeeded | failed`.
+- `JobStatus` is exactly `queued | running | interrupted | paused | succeeded |
+  failed`.
 - `JobRecord` binds id, key, request digest, and status.
 - `JobEvent` carries one JSON payload and a store-assigned per-job sequence.
 - `Admission` returns `Created`, `Existing`, or `Conflict`, each with the
   durable record that decides the verdict.
+- `ServerIncarnation` is the unforgeable capability the later server bootstrap
+  constructs after proving exclusive startup authority.
 - `JobStore` exposes `create_or_replay`, `get`, `transition`, `append_events`,
-  and `events_after` after construction with `JobStore::open`.
+  `events_after`, and authority-gated `settle_interrupted_jobs` after
+  construction with `JobStore::open`.
 
 No public mutation accepts a filesystem path.
 
@@ -72,15 +76,18 @@ No public mutation accepts a filesystem path.
    paused  -> running | failed
    ```
 
-   `succeeded` and `failed` are terminal. Every other edge refuses before the
-   snapshot changes.
+   `interrupted`, `succeeded`, and `failed` are terminal. `interrupted` has no
+   public incoming edge; only the crate-internal startup settlement may assign
+   it after the higher layer establishes a new exclusive server incarnation.
+   Every other edge refuses before the snapshot changes.
 7. Event sequences start at one and increase contiguously per job. An overflow
    refuses before durable mutation. `events_after` is the future SSE resume
    cursor; a cursor greater than the latest persisted sequence returns typed
    `CursorBeyondLatest`. It is not a streaming implementation.
-8. `running` and `paused` survive restart unchanged. Replaying an interrupted
-   request returns the existing job instead of manufacturing another runnable
-   job.
+8. `paused` survives restart unchanged. After the new server incarnation owns
+   startup, it atomically settles ownerless `running` as terminal
+   `interrupted`; plain store opening cannot interrupt a live owner. Replay
+   returns the existing job instead of manufacturing another runnable job.
 
 ## 4. W05 verification
 
@@ -93,13 +100,14 @@ Inline library tests cover:
 - nonblocking cross-open proof that separate stores contend on the same kernel
   lease;
 - illegal transition with unchanged durable status;
-- durable empty initialization plus truncated, deleted, and renamed-away
-  snapshot refusal;
+- durable empty initialization plus truncated, deleted, renamed-away, and
+  unknown-future snapshot refusal without rewrite;
 - `paused` round-trip across restart;
 - symlinked roots, a planted `jobs` child, and visible-root replacement after
   descriptor admission;
 - monotone event append, resume cursor, and typed future-cursor refusal;
-- interrupted `running` replay with exactly one stored job;
+- explicit interrupted `running` settlement and replay with exactly one stored
+  job, plus a concurrent-open proof that a live owner is not interrupted;
 - digest boundary-table rejection for uppercase, mixed-case, wrong-length, and
   non-hexadecimal inputs.
 
@@ -129,14 +137,17 @@ admission wave closes the gates whose authority does not exist in W05.
 | 9 CANARY | pending the shared execution service and route projection |
 | 10 PARITY | not applicable; this is a new authority required by ADR-117 |
 | 11 REVIEW | pending full crate admission |
-| 12 ATOMIC | W05 ships as one scoped state-plane commit |
+| 12 ATOMIC | W05 is one scoped state-plane diff; full crate admission remains pending |
 
 ## 6. Explicit non-goals
 
 No `ExecutionService` integration · no HTTP · no SSE · no authentication · no
 listener · no CLI wiring · no workflow registry · no cancellation · no
-artifact authority · no automatic retry of interrupted execution. Those
-capabilities require their own typed authorities and tests before projection.
+artifact authority · no automatic retry of interrupted execution. The store
+records the lost ownership but cannot prove whether an effect committed before
+the crash. W06 must establish its exclusive server incarnation and call the
+crate-internal settlement before binding the listener. Those capabilities
+require their own typed authorities and tests before projection.
 
 ## 7. Related decisions
 

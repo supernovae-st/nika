@@ -9,6 +9,7 @@ use serde_json::Value;
 
 use super::{
     Admission, IdempotencyKey, JobEvent, JobId, JobRecord, JobStatus, JobStoreError, RequestDigest,
+    ServerIncarnation,
 };
 
 const JOBS_DIR: &str = "jobs";
@@ -257,6 +258,35 @@ impl JobStore {
         }
     }
 
+    /// Settle ownerless running jobs for a new exclusive server incarnation.
+    ///
+    /// The capability argument cannot be constructed outside `nika-serve`.
+    /// W06's server bootstrap owns it after proving exclusivity and must call
+    /// this method before exposing the store.
+    ///
+    /// # Errors
+    /// Returns an error when locking, loading, validation, or durable writing
+    /// fails.
+    pub fn settle_interrupted_jobs(
+        &self,
+        _incarnation: &ServerIncarnation,
+    ) -> Result<usize, JobStoreError> {
+        let _local = self.local_guard()?;
+        let _lease = self.kernel_lease()?;
+        let mut state = self.load_state()?;
+        let mut settled = 0;
+        for job in &mut state.jobs {
+            if job.record.status == JobStatus::Running {
+                job.record.status = JobStatus::Interrupted;
+                settled += 1;
+            }
+        }
+        if settled != 0 {
+            self.persist(&state)?;
+        }
+        Ok(settled)
+    }
+
     pub(super) fn load_state(&self) -> Result<PersistedState, JobStoreError> {
         let marker = self
             .dir
@@ -281,6 +311,7 @@ impl JobStore {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(super) struct PersistedState {
     version: u32,
     pub(super) jobs: Vec<StoredJob>,
@@ -321,6 +352,7 @@ impl PersistedState {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub(super) struct StoredJob {
     record: JobRecord,
     events: Vec<JobEvent>,

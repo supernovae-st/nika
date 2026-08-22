@@ -3,6 +3,7 @@ mod store;
 
 pub use model::{
     Admission, IdempotencyKey, JobEvent, JobId, JobRecord, JobStatus, JobStoreError, RequestDigest,
+    ServerIncarnation,
 };
 pub use store::JobStore;
 

@@ -32,6 +32,37 @@ fn request_digest_accepts_only_canonical_lowercase_hex() {
     }
 }
 
+#[test]
+fn lifecycle_transition_table_is_exhaustive() {
+    let statuses = [
+        JobStatus::Queued,
+        JobStatus::Running,
+        JobStatus::Interrupted,
+        JobStatus::Paused,
+        JobStatus::Succeeded,
+        JobStatus::Failed,
+    ];
+    let legal = [
+        (JobStatus::Queued, JobStatus::Running),
+        (JobStatus::Queued, JobStatus::Failed),
+        (JobStatus::Running, JobStatus::Paused),
+        (JobStatus::Running, JobStatus::Succeeded),
+        (JobStatus::Running, JobStatus::Failed),
+        (JobStatus::Paused, JobStatus::Running),
+        (JobStatus::Paused, JobStatus::Failed),
+    ];
+
+    for current in statuses {
+        for next in statuses {
+            assert_eq!(
+                current.allows(next),
+                legal.contains(&(current, next)),
+                "transition {current} -> {next}"
+            );
+        }
+    }
+}
+
 fn admitted_record(admission: Admission) -> JobRecord {
     match admission {
         Admission::Created(record) | Admission::Existing(record) | Admission::Conflict(record) => {
@@ -195,6 +226,26 @@ fn truncated_state_fails_closed() {
 }
 
 #[test]
+fn unknown_persisted_fields_fail_closed_without_rewrite() {
+    let root = tempfile::tempdir().expect("root");
+    let store = JobStore::open(root.path()).expect("store");
+    drop(store);
+    let state_path = root.path().join("jobs/state.json");
+    let future = b"{\"version\":1,\"jobs\":[],\"future_authority\":\"must-survive\"}\n";
+    std::fs::write(&state_path, future).expect("write future state");
+
+    assert!(matches!(
+        JobStore::open(root.path()),
+        Err(JobStoreError::Corrupt(_))
+    ));
+    assert_eq!(
+        std::fs::read(state_path).expect("read refused state"),
+        future,
+        "refusing an unknown field must not erase future authority"
+    );
+}
+
+#[test]
 fn deleted_state_after_empty_initialization_fails_closed_on_restart() {
     let root = tempfile::tempdir().expect("root");
     let store = JobStore::open(root.path()).expect("store");
@@ -334,7 +385,7 @@ fn event_sequences_are_monotone_and_resumable() {
 }
 
 #[test]
-fn interrupted_running_job_replays_instead_of_creating_a_second_runnable_job() {
+fn interrupted_running_job_is_settled_before_replay() {
     let root = tempfile::tempdir().expect("root");
     let store = JobStore::open(root.path()).expect("store");
     let record = admitted_record(
@@ -342,16 +393,87 @@ fn interrupted_running_job_replays_instead_of_creating_a_second_runnable_job() {
             .create_or_replay(key("request-interrupted"), digest(10))
             .expect("create"),
     );
-    let running = store
+    store
         .transition(record.id(), JobStatus::Running)
         .expect("running");
     drop(store);
 
     let restarted = JobStore::open(root.path()).expect("restart");
+    assert_eq!(
+        restarted
+            .get(record.id())
+            .expect("get unresolved job")
+            .expect("unresolved job exists")
+            .status(),
+        JobStatus::Running
+    );
+    assert!(matches!(
+        restarted
+            .transition(record.id(), JobStatus::Interrupted)
+            .expect_err("public transition cannot claim restart authority"),
+        JobStoreError::IllegalTransition {
+            from: JobStatus::Running,
+            to: JobStatus::Interrupted,
+        }
+    ));
+    let incarnation = ServerIncarnation { _private: () };
+    assert_eq!(
+        restarted
+            .settle_interrupted_jobs(&incarnation)
+            .expect("settle interrupted jobs"),
+        1
+    );
     let replay = restarted
         .create_or_replay(key("request-interrupted"), digest(10))
         .expect("replay");
 
-    assert_eq!(replay, Admission::Existing(running));
+    let replayed = admitted_record(replay);
+    assert_eq!(replayed.id(), record.id());
+    assert_eq!(replayed.status(), JobStatus::Interrupted);
     assert_eq!(restarted.load_state().expect("state").jobs.len(), 1);
+
+    drop(restarted);
+    let reopened = JobStore::open(root.path()).expect("second restart");
+    let settled = reopened
+        .get(record.id())
+        .expect("get settled job")
+        .expect("settled job exists");
+    assert_eq!(settled.status(), JobStatus::Interrupted);
+    assert_eq!(
+        reopened
+            .settle_interrupted_jobs(&incarnation)
+            .expect("settlement is idempotent"),
+        0
+    );
+    assert!(matches!(
+        reopened
+            .transition(record.id(), JobStatus::Running)
+            .expect_err("interrupted job cannot silently resume"),
+        JobStoreError::IllegalTransition {
+            from: JobStatus::Interrupted,
+            to: JobStatus::Running,
+        }
+    ));
+}
+
+#[test]
+fn opening_another_handle_does_not_interrupt_a_live_owner() {
+    let root = tempfile::tempdir().expect("root");
+    let owner = JobStore::open(root.path()).expect("owner store");
+    let record = admitted_record(
+        owner
+            .create_or_replay(key("request-live-owner"), digest(11))
+            .expect("create"),
+    );
+    owner
+        .transition(record.id(), JobStatus::Running)
+        .expect("running");
+
+    let second = JobStore::open(root.path()).expect("observer store");
+    let observed = second
+        .get(record.id())
+        .expect("get running job")
+        .expect("running job exists");
+
+    assert_eq!(observed.status(), JobStatus::Running);
 }

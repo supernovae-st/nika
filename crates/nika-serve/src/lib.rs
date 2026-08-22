@@ -10,5 +10,5 @@ pub mod job;
 
 pub use job::{
     Admission, IdempotencyKey, JobEvent, JobId, JobRecord, JobStatus, JobStore, JobStoreError,
-    RequestDigest,
+    RequestDigest, ServerIncarnation,
 };

@@ -91,8 +91,8 @@ the same key with a different digest returns `Conflict` without mutation.
 
 ### 3. Status and events are persisted contracts
 
-The status vocabulary is exactly `queued | running | paused | succeeded |
-failed`. The legal edges are:
+The status vocabulary is exactly `queued | running | interrupted | paused |
+succeeded | failed`. The public legal edges are:
 
 ```text
 queued  -> running | failed
@@ -100,11 +100,15 @@ running -> paused | succeeded | failed
 paused  -> running | failed
 ```
 
-Terminal states do not reopen. An illegal edge refuses before writing.
-`running` and `paused` survive restart exactly as recorded; W05 does not invent
-automatic retry or recovery authority. Replaying an interrupted request
-returns the existing job, so a restart cannot create a second runnable job for
-the same admitted request.
+Terminal states do not reopen. `interrupted` is also terminal and has no public
+incoming edge: only the crate-internal startup settlement may assign it after
+the higher layer establishes a new exclusive server incarnation. The public
+settlement method requires a `ServerIncarnation` capability that external
+callers cannot construct. An illegal edge refuses before writing. `paused`
+survives restart exactly as recorded;
+plain opening preserves `running` until that settlement authority acts.
+Replaying an interrupted request returns the existing job, so a restart cannot
+create a second runnable job for the same admitted request.
 
 Each `JobEvent` receives a contiguous per-job sequence starting at one.
 `append_events` assigns and persists those numbers under the same lease;
@@ -141,8 +145,12 @@ closes the full twelve-gate ledger.
 - Advisory locking requires every compliant writer to use `JobStore`; raw
   external edits are detected as corruption only when they break validated
   invariants.
-- Interrupted `running` jobs remain explicitly unresolved. Automatic recovery
-  waits for typed execution settlement authority.
+- After a new exclusive server incarnation is established, its startup path
+  atomically settles every ownerless `running` job as `interrupted` before
+  exposure. Plain `JobStore::open` does not make that liveness judgment, so a
+  concurrent handle cannot interrupt a live owner. The terminal ambiguity
+  prevents automatic replay; explicit retry still waits for typed execution
+  settlement authority.
 
 ### Neutral
 
@@ -158,8 +166,10 @@ closes the full twelve-gate ledger.
 3. Independently opened stores contend on one kernel lease, and concurrent
    duplicate admissions create exactly one runnable record.
 4. Illegal lifecycle edges preserve the prior durable status.
-5. Truncated, deleted, and renamed-away initialized state refuses at startup.
-6. `paused` and interrupted `running` records survive restart.
+5. Truncated, deleted, renamed-away, and unknown-future initialized state
+   refuses at startup without rewrite.
+6. `paused` survives restart, while the new server incarnation atomically
+   settles ownerless `running` as terminal `interrupted` before exposure.
 7. Root symlinks, a planted `jobs` child, and visible-root replacement cannot
    redirect state.
 8. Event ids remain contiguous, `events_after` resumes strictly after its

@@ -113,6 +113,17 @@ impl RequestDigest {
     }
 }
 
+/// Proof that the server bootstrap established a new exclusive incarnation.
+///
+/// The type is public so it can guard the recovery API, but only `nika-serve`
+/// can construct a value. The HTTP bootstrap introduced in W06 owns that
+/// construction after it proves exclusivity and before it exposes the store.
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct ServerIncarnation {
+    pub(crate) _private: (),
+}
+
 /// Durable execution lifecycle exposed by the job state plane.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -120,8 +131,10 @@ impl RequestDigest {
 pub enum JobStatus {
     /// Admitted but not yet executing.
     Queued,
-    /// Execution owns the job.
+    /// Execution owns the job in the active server incarnation.
     Running,
+    /// Execution ownership was lost and effect settlement is unknown.
+    Interrupted,
     /// Execution paused with resumable state.
     Paused,
     /// Execution completed successfully.
@@ -145,6 +158,7 @@ impl fmt::Display for JobStatus {
         formatter.write_str(match self {
             Self::Queued => "queued",
             Self::Running => "running",
+            Self::Interrupted => "interrupted",
             Self::Paused => "paused",
             Self::Succeeded => "succeeded",
             Self::Failed => "failed",
@@ -154,6 +168,7 @@ impl fmt::Display for JobStatus {
 
 /// Durable identity and status for one request admission.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 #[non_exhaustive]
 pub struct JobRecord {
     pub(crate) id: JobId,
@@ -190,6 +205,7 @@ impl JobRecord {
 
 /// One sequenced payload in a job's durable event stream.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 #[non_exhaustive]
 pub struct JobEvent {
     pub(crate) sequence: u64,
