@@ -142,7 +142,8 @@ design, not a leak; the model response is not a verbatim echo).
   `additionalProperties: true` honored as opaque · typo'd fields caught with zero tokens)
 - `crates/nika-tmpl/src/expression/refs.rs` -- `walk_chains` shared chain-flattening
   core (`expr_refs` + `task_output_paths` consume one walker — no drift)
-- `crates/nika-check/src/analyzer/dag.rs:104` -- `topo_waves`, reused for the fixpoint order
+- `crates/nika-check-analyzer/src/dag.rs:235` -- `topo_waves`, reused for the fixpoint
+  order (ex `crates/nika-check/src/analyzer/dag.rs` -- the analyzer became its own crate)
 - `crates/nika-tmpl/src/expression/refs.rs` -- `expr_refs`/`NamespaceRef`, the taint extractor
 - `crates/nika-types/src/suggest.rs` -- deterministic did-you-mean core (moved out of `check/` when the analyzer adopted it)
   (Damerau-Levenshtein · rustc threshold · lexicographic tie-break — the diagnostic

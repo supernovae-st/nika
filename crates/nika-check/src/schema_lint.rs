@@ -326,7 +326,7 @@ fn finding(task: &str, path: &str, detail: String) -> SchemaLintFinding {
 }
 
 /// A short JSON kind name for diagnostics.
-fn kind(v: &Value) -> &'static str {
+pub(crate) fn kind(v: &Value) -> &'static str {
     match v {
         Value::Null => "null",
         Value::Bool(_) => "a boolean",

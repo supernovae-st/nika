@@ -160,8 +160,34 @@ fn scan_for_each_sources(wf: &RawWorkflow, findings: &mut Vec<SchemaTypeFinding>
             "inputs" => &wf.inputs,
             _ => &wf.consts,
         };
-        let declared = block.iter().find(|(n, _)| n.value == name);
-        let Some((_, VarDecl::Typed { r#type, .. })) = declared else {
+        let Some((_, decl)) = block.iter().find(|(n, _)| n.value == name) else {
+            continue;
+        };
+        // An UNTYPED entry is legal in `const:` alone (the parser refuses
+        // one for `inputs:`), and spec 01 §const is normative: a constant
+        // is « immutable across the run and never caller-supplied ». The
+        // `--var` override that spares an untyped input therefore cannot
+        // reach it — the literal IS the run value, so a non-array can
+        // never become an array. Without this arm the run refuses what
+        // the check just cleared (NIKA-VAR-006 at dispatch), which is the
+        // linter-not-verifier gap ADR-092 exists to close.
+        if let VarDecl::Untyped(literal) = decl
+            && authority == "const"
+            && !literal.is_array()
+        {
+            findings.push(SchemaTypeFinding {
+                site: task.value.id.value.clone(),
+                reference: format!("for_each: {{ items: \"${{{{ {authority}.{name} }}}}\" }}"),
+                target: format!("{authority}.{name}"),
+                detail: format!(
+                    "`const.{name}` is {} — `for_each` needs an array (a constant is \
+                     never caller-supplied · the run rejects it · NIKA-VAR-006)",
+                    crate::schema_lint::kind(literal)
+                ),
+            });
+            continue;
+        }
+        let VarDecl::Typed { r#type, .. } = decl else {
             continue;
         };
         let Ok(declared_type) = parse_type(&r#type.value, &type_names, &name) else {
@@ -547,6 +573,34 @@ mod tests {
     }
 
     #[test]
+    fn for_each_over_an_untyped_non_array_const_is_caught_before_run() {
+        // A constant is baked into the file: spec 01 §const is normative —
+        // « immutable across the run and never caller-supplied ». The
+        // `--var` override that spares an UNTYPED entry reaches `inputs:`
+        // only (and an untyped entry is legal in `const:` alone), so an
+        // untyped constant's literal IS its run value. A non-array can
+        // therefore never become one: the run refuses it (NIKA-VAR-006)
+        // and the check must say so first, or `nika check` is a linter.
+        for literal in [
+            "\"not-an-array\"",
+            "3",
+            "true",
+            // Missing `type:` → a bare literal OBJECT constant, per the
+            // spec 01 discriminator (BOTH keys make a typed constant).
+            "{ value: [\"x\"] }",
+        ] {
+            let f = findings_of(&for_each_wf("const", literal));
+            assert_eq!(f.len(), 1, "literal {literal} flagged: {f:?}");
+            assert!(f[0].detail.contains("for_each"), "{:?}", f[0]);
+        }
+        // An array literal is exactly what `for_each` wants.
+        assert!(
+            findings_of(&for_each_wf("const", "[\"x\", \"y\"]")).is_empty(),
+            "an array constant is the legal case"
+        );
+    }
+
+    #[test]
     fn for_each_over_a_typed_non_array_var_is_caught_before_run() {
         // The runtime refuses a non-array for_each collection (NIKA-VAR-006);
         // a var DECLARED type:string can NEVER be an array, so the check
@@ -585,9 +639,19 @@ mod tests {
 
     #[test]
     fn for_each_over_a_valid_or_unknown_source_is_never_flagged() {
-        // Zero false positives: a typed ARRAY var, an UNTYPED var (a --var
-        // override could pass an array), an inline list, and a `tasks.*`
-        // source are all left alone.
+        // Zero false positives: a typed ARRAY var, an untyped literal that
+        // IS an array, an inline list, and a `tasks.*` source are all left
+        // alone.
+        //
+        // The « an UNTYPED var (a --var override could pass an array) »
+        // exemption that once covered `const: xs: "hello"` here was an
+        // inputs-only rule generalised one authority too far: `--var` sets
+        // an `inputs:` value and refuses unknown keys, and spec 01 §const
+        // is normative — a constant is « immutable across the run and
+        // never caller-supplied ». The run proved it, refusing at dispatch
+        // (NIKA-VAR-006) a workflow this check had just cleared. That case
+        // is now asserted flagged in
+        // `for_each_over_an_untyped_non_array_const_is_caught_before_run`.
         assert!(
             findings_of(&for_each_wf(
                 "inputs",
@@ -596,7 +660,6 @@ mod tests {
             .is_empty()
         );
         assert!(findings_of(&for_each_wf("const", "[\"a\", \"b\"]")).is_empty()); // untyped literal array
-        assert!(findings_of(&for_each_wf("const", "\"hello\"")).is_empty()); // untyped literal string
         // An inline list literal source never resolves to a bare authority ref.
         let inline = "nika: w\nmodel: mock/echo\ntasks:\n  fan:\n    \
                       for_each: { items: [1, 2, 3] }\n    with: { it: \"${{ item }}\" }\n    \

@@ -956,6 +956,16 @@ tasks:
 
 /// An empty collection skips the task (spec 03) · a non-array
 /// collection fails it loudly (`NIKA-VAR-006` class).
+///
+/// The bad lane sources from a TASK OUTPUT, not a `const:`. Defence in
+/// depth is the point: the runtime owns this refusal on its own, and the
+/// fixture must stay clean for `run_to_events` to reach the run at all.
+/// A `const:` scalar no longer survives the ladder — the check refuses it
+/// statically now (a constant is never caller-supplied, so its literal IS
+/// its run value), and that static arm is covered in
+/// `nika-check`'s `for_each_over_an_untyped_non_array_const_is_caught_before_run`.
+/// A `tasks.*` source is left alone there by construction, so it is the
+/// honest way to hand the runtime a non-array at dispatch.
 #[tokio::test]
 async fn for_each_empty_skips_and_non_array_fails() {
     let yaml = r#"
@@ -963,18 +973,20 @@ nika: fan-edges
 permits: { exec: true }
 const:
   none: []
-  scalar: "not a list"
 tasks:
+  emit_scalar:
+    exec: { command: ["echo", "not a list"] }
   empty_lane:
     for_each: { items: "${{ const.none }}" }
     exec: { command: ["never", "${{ item }}"] }
   bad_lane:
-    for_each: { items: "${{ const.scalar }}" }
+    with: { items: "${{ tasks.emit_scalar.output }}" }
+    for_each: { items: "${{ with.items }}" }
     exec: { command: ["never", "${{ item }}"] }
 "#;
     let (outcome, events) = run_to_events(
         yaml,
-        MockShell::new(),
+        MockShell::new().enqueue_ok("not a list"),
         MockToolExecutor::new(),
         MockProvider::new("mock"),
         RuntimeConfig::default(),
@@ -1109,19 +1121,24 @@ tasks:
         .code
         .clone();
 
-    // Shape 2 · the expression-type class (non-array for_each).
+    // Shape 2 · the expression-type class (non-array for_each). The
+    // collection rides a TASK OUTPUT: a `const:` scalar is now refused
+    // statically (a constant is never caller-supplied, so its literal IS
+    // its run value) and would never reach the run this shape pins.
     let var_yaml = r#"
 nika: pin-var
 permits: { exec: true }
-const: { scalar: "not a list" }
 tasks:
+  emit_scalar:
+    exec: { command: ["echo", "not a list"] }
   bad:
-    for_each: { items: "${{ const.scalar }}" }
+    with: { items: "${{ tasks.emit_scalar.output }}" }
+    for_each: { items: "${{ with.items }}" }
     exec: { command: ["never", "${{ item }}"] }
 "#;
     let (outcome2, _) = run_to_events(
         var_yaml,
-        MockShell::new(),
+        MockShell::new().enqueue_ok("not a list"),
         MockToolExecutor::new(),
         MockProvider::new("mock"),
         RuntimeConfig::default(),
