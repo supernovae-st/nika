@@ -7,7 +7,7 @@
 #![allow(clippy::disallowed_macros, clippy::print_stdout, clippy::print_stderr)]
 use super::arm::{
     self,
-    fire::{FireCtx, RunSeam, Wait, WaitSeam, fire_beat, labels},
+    fire::{ExecutionRunSeam, FireCtx, Wait, WaitSeam, fire_beat, labels},
     state::ArmState,
 };
 use super::{VerbOutput, exit};
@@ -72,7 +72,7 @@ fn go(args: &ServeArgs) -> Result<VerbOutput, VerbOutput> {
     let root = path
         .parent()
         .map_or_else(|| PathBuf::from("."), Path::to_path_buf);
-    let run: RunSeam = std::rc::Rc::new(arm::fire::prod_run);
+    let run: ExecutionRunSeam = std::rc::Rc::new(arm::fire::prod_run);
     serve(&root, registry, args, until.as_ref(), &clock(now), &run).map_err(fail)?;
     Ok(VerbOutput::ok(String::new()))
 }
@@ -215,10 +215,10 @@ fn fire_due(
     index: usize,
     now: &Zoned,
     wait: WaitSeam,
-    run: &RunSeam,
+    run: &ExecutionRunSeam,
     stop: &std::rc::Rc<std::cell::Cell<bool>>,
 ) -> (ArmRegistry, bool) {
-    let ctx = match FireCtx::new(
+    let ctx = match FireCtx::new_with_execution(
         root.to_path_buf(),
         reg,
         index,
@@ -288,20 +288,31 @@ fn race_sleep_or_signal(
 /// the span races ctrl-c/SIGTERM on the runtime — the loop's thread
 /// never blocks, and a broken wait sets the stop flag the loop checks
 /// after each fire.
+fn signal_runtime() -> Result<std::rc::Rc<tokio::runtime::Runtime>, String> {
+    tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .map(std::rc::Rc::new)
+        .map_err(|error| format!("serve · the signal runtime refused: {error}"))
+}
+
+fn next_sleep_seconds(registry: &ArmRegistry, now: &Zoned) -> Result<i64, String> {
+    let next = nika_cadence::earliest_next(registry, now)
+        .map_err(|error| format!("serve · a validated registry refuses: {error}"))?;
+    Ok(next.map_or(60, |(_, slot)| {
+        (slot.at.timestamp().as_second() - now.timestamp().as_second()).clamp(1, 60)
+    }))
+}
+
 fn serve(
     root: &Path,
     mut reg: ArmRegistry,
     args: &ServeArgs,
     until: Option<&Zoned>,
     clock: &Clock,
-    run: &RunSeam,
+    run: &ExecutionRunSeam,
 ) -> Result<(), String> {
-    let rt = std::rc::Rc::new(
-        tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .map_err(|e| format!("serve · the signal runtime refused: {e}"))?,
-    );
+    let rt = signal_runtime()?;
     #[cfg(unix)]
     let term: TermCell = std::rc::Rc::new(std::cell::RefCell::new(rt.block_on(async {
         tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()).ok()
@@ -347,6 +358,8 @@ fn serve(
             .map(|(beat, label)| {
                 if beat.locus() == Locus::Cloud {
                     Ok(None)
+                } else if args.dry {
+                    state.peek_last_fired(label)
                 } else {
                     state.last_fired(label)
                 }
@@ -373,11 +386,7 @@ fn serve(
         if args.once {
             return Ok(());
         }
-        let next = nika_cadence::earliest_next(&reg, &now)
-            .map_err(|e| format!("serve · a validated registry refuses: {e}"))?;
-        let secs = next.map_or(60, |(_, s)| {
-            (s.at.timestamp().as_second() - now.timestamp().as_second()).clamp(1, 60)
-        });
+        let secs = next_sleep_seconds(&reg, &now)?;
         #[cfg(unix)]
         let heard = race_sleep_or_signal(&rt, clock, &term, secs);
         #[cfg(not(unix))]
@@ -413,8 +422,9 @@ mod tests {
     }
 
     fn write_workflow(root: &Path, name: &str) {
+        let id = name.strip_suffix(".nika.yaml").unwrap_or(name);
         let body = format!(
-            "nika: {name}\npermits: {{ exec: true }}\ntasks:\n  ok:\n    exec: {{ shell: \"true\" }}\n"
+            "nika: {id}\npermits: {{ exec: true }}\ntasks:\n  ok:\n    exec: {{ shell: \"true\" }}\n"
         );
         std::fs::write(root.join("workflows").join(name), body).expect("workflow");
     }
@@ -494,17 +504,17 @@ mod tests {
 
     /// The run seam that must NEVER fire — the skip-only ticks (the
     /// reload + refusal tests) prove their point by never calling it.
-    fn never_run() -> RunSeam {
-        std::rc::Rc::new(|_| panic!("this tick runs nothing"))
+    fn never_run() -> ExecutionRunSeam {
+        std::rc::Rc::new(|_, _| panic!("this tick runs nothing"))
     }
 
     /// A run stub that counts its shots (the real in-process run
     /// chdirs — parallel tests race on the process CWD, so the seam is
     /// stubbed; the binary tests own the real ground).
-    fn stub_run() -> (std::rc::Rc<std::cell::Cell<u32>>, RunSeam) {
+    fn stub_run() -> (std::rc::Rc<std::cell::Cell<u32>>, ExecutionRunSeam) {
         let count = std::rc::Rc::new(std::cell::Cell::new(0u32));
         let seen = std::rc::Rc::clone(&count);
-        let seam: RunSeam = std::rc::Rc::new(move |_: &RunShot| {
+        let seam: ExecutionRunSeam = std::rc::Rc::new(move |_, _: &RunShot| {
             seen.set(seen.get() + 1);
             RunUpshot::new(exit::OK, None)
         });

@@ -16,10 +16,10 @@ pub mod fire;
 pub mod state;
 
 pub use fire::{
-    FireCtx, FireCtxError, FireVerdict, RunSeam, RunShot, RunUpshot, Wait, WaitSeam, fire_beat,
-    labels,
+    ExecutionRunSeam, FireCtx, FireCtxError, FireVerdict, RunSeam, RunShot, RunUpshot, Wait,
+    WaitSeam, fire_beat, labels,
 };
 pub use state::{
-    ArmState, Claim, FireKind, Folded, HealOutcome, HistoryEntry, LastRecord, Receipt,
-    RecordOutcome, Rotation, Unsettled,
+    ArmState, Claim, ExecutionLink, FireKind, Folded, HealOutcome, HistoryEntry, LastRecord,
+    Receipt, RecordOutcome, Rotation, Unsettled,
 };

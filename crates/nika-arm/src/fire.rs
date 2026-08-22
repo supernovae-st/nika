@@ -41,13 +41,14 @@ use std::io::Read as _;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
-use crate::state::{ArmState, Claim, FireKind, HistoryEntry, LockOutcome, Receipt};
+use crate::state::{ArmState, Claim, ExecutionLink, FireKind, HistoryEntry, LockOutcome, Receipt};
 #[cfg(test)]
 use jiff::Timestamp;
 use jiff::{SignedDuration, Zoned};
 use nika_cadence::firing::{self, ArmGeneration, FencingToken, FiringEvent, FiringState, SlotId};
 use nika_cadence::registry::{ArmRegistry, Beat, Cadence, Overlap};
 use nika_cadence::{TickDecision, tick_decision};
+use nika_execution::{AdmittedExecution, ExecutionContext, ExecutionService};
 use nika_fs::OwnedDir;
 
 mod exit {
@@ -98,7 +99,9 @@ pub struct FireCtx {
     wait: WaitSeam,
     /// The run seam — interfaces adapt their execution service here; tests and
     /// simulations can inject a deterministic substitute.
-    run: RunSeam,
+    run: RunAdapter,
+    /// The one shared owned-byte admission/execution boundary.
+    service: ExecutionService,
 }
 
 /// A firing context could not bind its registry position to one beat.
@@ -149,6 +152,51 @@ impl FireCtx {
         pid: u32,
         run: RunSeam,
     ) -> Result<Self, FireCtxError> {
+        Self::build(
+            project_root,
+            registry,
+            index,
+            now,
+            pid,
+            RunAdapter::Legacy(run),
+        )
+    }
+
+    /// Build one firing transaction with the typed execution context seam.
+    ///
+    /// This additive constructor preserves [`Self::new`] and the original
+    /// [`RunSeam`] while allowing in-process adapters to consume the immutable
+    /// world admitted by [`ExecutionService`].
+    ///
+    /// # Errors
+    /// The same custody and registry conditions as [`Self::new`].
+    #[must_use = "an invalid registry index must be handled"]
+    pub fn new_with_execution(
+        project_root: PathBuf,
+        registry: ArmRegistry,
+        index: usize,
+        now: Zoned,
+        pid: u32,
+        run: ExecutionRunSeam,
+    ) -> Result<Self, FireCtxError> {
+        Self::build(
+            project_root,
+            registry,
+            index,
+            now,
+            pid,
+            RunAdapter::Execution(run),
+        )
+    }
+
+    fn build(
+        project_root: PathBuf,
+        registry: ArmRegistry,
+        index: usize,
+        now: Zoned,
+        pid: u32,
+        run: RunAdapter,
+    ) -> Result<Self, FireCtxError> {
         let Some(label) = labels(&registry).get(index).cloned() else {
             return Err(FireCtxError {
                 registry,
@@ -183,6 +231,7 @@ impl FireCtx {
             pid,
             wait: Box::new(os_wait),
             run,
+            service: ExecutionService::default(),
         })
     }
 
@@ -190,6 +239,13 @@ impl FireCtx {
     #[must_use]
     pub fn with_wait(mut self, wait: WaitSeam) -> Self {
         self.wait = wait;
+        self
+    }
+
+    /// Replace the default immutable-world limits for this firing adapter.
+    #[must_use]
+    pub fn with_execution_service(mut self, service: ExecutionService) -> Self {
+        self.service = service;
         self
     }
 
@@ -299,6 +355,7 @@ impl RunShot {
         &self.workflow
     }
 
+    /// The exact root bytes admitted for this firing.
     #[must_use]
     pub fn source(&self) -> &str {
         &self.source
@@ -331,7 +388,25 @@ impl RunUpshot {
     }
 }
 
+/// Original ARM runner seam, retained for source and binary compatibility.
 pub type RunSeam = Rc<dyn Fn(&RunShot) -> RunUpshot>;
+
+/// Typed runner seam for adapters consuming the service-admitted world.
+pub type ExecutionRunSeam = Rc<dyn for<'a> Fn(ExecutionContext<'a>, &RunShot) -> RunUpshot>;
+
+enum RunAdapter {
+    Legacy(RunSeam),
+    Execution(ExecutionRunSeam),
+}
+
+impl RunAdapter {
+    fn run(&self, execution: ExecutionContext<'_>, shot: &RunShot) -> RunUpshot {
+        match self {
+            Self::Legacy(run) => run(shot),
+            Self::Execution(run) => run(execution, shot),
+        }
+    }
+}
 
 /// What a fire leaves: the ONE stdout line (D8) + the process exit.
 pub struct FireVerdict {
@@ -568,6 +643,18 @@ fn wait_quantum(budget_ms: i64, waited_ms: i64) -> i64 {
     budget_ms.saturating_sub(waited_ms).min(POLL_MS)
 }
 
+fn claim_deadline(ctx: &FireCtx) -> jiff::Timestamp {
+    next_slot(ctx).map_or_else(
+        || {
+            ctx.now
+                .timestamp()
+                .checked_add(CLAIM_DEADLINE_FALLBACK)
+                .unwrap_or_else(|_| ctx.now.timestamp())
+        },
+        |next| next.timestamp(),
+    )
+}
+
 /// Act on a Skip decision: journal it when it bears one (the inner
 /// ledger lock serializes the append; the caller's beat lock, when it
 /// holds one, outlives this), then the ONE line — the ledger's repair
@@ -614,42 +701,30 @@ fn claim_run_receipt(
     slot: &Zoned,
     slots: Option<u32>,
 ) -> FireVerdict {
-    let Some(beat) = beat_of(ctx) else {
-        return FireVerdict {
-            line: format!(
-                "failed {} · engine fault: the label resolved past the registry",
-                ctx.label
-            ),
-            code: exit::FILE,
-        };
-    };
-    let Some(plafond) = beat.plafond else {
-        return FireVerdict {
-            line: format!(
-                "failed {} · engine fault: plafond absent après validation — à reporter avec le fichier",
-                ctx.label
-            ),
-            code: exit::FILE,
-        };
-    };
-    let pinned = match pin_workflow(ctx, beat) {
-        Ok(pinned) => pinned,
-        Err(error) => return record_refused(ctx, &error),
+    let (beat, plafond, pinned) = match admit_due_workflow(ctx) {
+        Ok(admitted) => admitted,
+        Err(verdict) => return verdict,
     };
     let mut claim = Claim::new(
         SlotId::derive(&beat.workflow, &beat.cadence, slot),
-        next_slot(ctx).map_or_else(
-            || {
-                ctx.now
-                    .timestamp()
-                    .checked_add(CLAIM_DEADLINE_FALLBACK)
-                    .unwrap_or_else(|_| ctx.now.timestamp())
-            },
-            |next| next.timestamp(),
-        ),
+        claim_deadline(ctx),
         ctx.now.timestamp(),
     );
     claim.generation = Some(pinned.generation.clone());
+    let execution_id = pinned.admitted.execution_id();
+    let trace_id = pinned.admitted.trace_id();
+    let Some(source) = pinned
+        .admitted
+        .snapshot()
+        .text(pinned.admitted.snapshot().root())
+        .map(str::to_owned)
+    else {
+        return invalid_execution_identity(ctx);
+    };
+    let Some(execution) = direct_execution_link(&pinned.admitted) else {
+        return invalid_execution_identity(ctx);
+    };
+    claim.execution = Some(execution);
     let mut repaired = 0u64;
     let fencing = match ArmState::record_claim_with_lease(lease, &claim) {
         Ok(outcome) => {
@@ -658,14 +733,20 @@ fn claim_run_receipt(
         }
         Err(e) => return record_refused(ctx, &e),
     };
-    let upshot = (ctx.run)(&RunShot {
+    let request = RunShot {
         project: pinned.project,
         root: ctx.project_root.clone(),
         workflow: beat.workflow.clone(),
-        source: pinned.source,
+        source,
         generation: pinned.generation,
         ceiling: plafond,
-    });
+    };
+    let session = ctx.service.begin(pinned.admitted);
+    let upshot = ctx.run.run(session.context(), &request);
+    let executed = session.complete(upshot);
+    debug_assert_eq!(executed.execution_id(), execution_id);
+    debug_assert_eq!(executed.trace_id(), trace_id);
+    let upshot = executed.into_outcome();
     let folded = fold_finished_run(&claim, fencing, upshot.code);
     let (kind, line) = verdict_line(
         ctx,
@@ -693,6 +774,32 @@ fn claim_run_receipt(
         line: with_repair(line, repaired),
         code: upshot.code,
     }
+}
+
+fn admit_due_workflow(ctx: &FireCtx) -> Result<(&Beat, f64, PinnedExecution), FireVerdict> {
+    let Some(beat) = beat_of(ctx) else {
+        return Err(FireVerdict {
+            line: format!(
+                "failed {} · engine fault: the label resolved past the registry",
+                ctx.label
+            ),
+            code: exit::FILE,
+        });
+    };
+    let Some(plafond) = beat.plafond else {
+        return Err(FireVerdict {
+            line: format!(
+                "failed {} · engine fault: plafond absent après validation — à reporter avec le fichier",
+                ctx.label
+            ),
+            code: exit::FILE,
+        });
+    };
+    let pinned = match admit_workflow(ctx, beat) {
+        Ok(pinned) => pinned,
+        Err(error) => return Err(record_refused(ctx, &error)),
+    };
+    Ok((beat, plafond, pinned))
 }
 
 /// Fold the run's terminal lifecycle before the receipt speaks its kind.
@@ -737,33 +844,49 @@ fn slot_id_of(ctx: &FireCtx, slot: &Zoned) -> Option<SlotId> {
     Some(SlotId::derive(&beat.workflow, &beat.cadence, slot))
 }
 
-struct PinnedWorkflow {
+struct PinnedExecution {
     project: OwnedDir,
     generation: ArmGeneration,
-    source: String,
+    admitted: AdmittedExecution,
 }
 
-fn pin_workflow(ctx: &FireCtx, beat: &Beat) -> std::io::Result<PinnedWorkflow> {
-    let (project, mut source) = ctx.state.open_project_file(Path::new(&beat.workflow))?;
-    if !source.metadata()?.file_type().is_file() {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            "arm workflow: source is not a regular file",
-        ));
+fn direct_execution_link(admitted: &AdmittedExecution) -> Option<ExecutionLink> {
+    ExecutionLink::new(
+        admitted.execution_id().to_string(),
+        admitted.trace_id().to_string(),
+    )
+}
+
+fn invalid_execution_identity(ctx: &FireCtx) -> FireVerdict {
+    FireVerdict {
+        line: format!(
+            "failed {} · engine fault: execution identity is not canonical",
+            ctx.label
+        ),
+        code: exit::FILE,
     }
-    let mut bytes = Vec::new();
-    source.read_to_end(&mut bytes)?;
-    let generation = ArmGeneration::compute(beat, &bytes);
-    let source = String::from_utf8(bytes).map_err(|error| {
-        std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            format!("arm workflow: source is not UTF-8: {error}"),
-        )
-    })?;
-    Ok(PinnedWorkflow {
+}
+
+fn admit_workflow(ctx: &FireCtx, beat: &Beat) -> std::io::Result<PinnedExecution> {
+    let project = ctx.state.held_project()?;
+    let admitted = ctx
+        .service
+        .admit(&project, Path::new(&beat.workflow))
+        .map_err(|error| {
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!("arm workflow admission refused: {error}"),
+            )
+        })?;
+    let source = admitted
+        .snapshot()
+        .unit(admitted.snapshot().root())
+        .ok_or_else(|| std::io::Error::other("arm workflow admission lost its root unit"))?;
+    let generation = ArmGeneration::compute(beat, source.bytes());
+    Ok(PinnedExecution {
         project,
         generation,
-        source,
+        admitted,
     })
 }
 
@@ -869,7 +992,8 @@ mod tests {
             state: ArmState::at_project(Path::new("/project")),
             pid: 7,
             wait: Box::new(os_wait),
-            run: Rc::new(|_| RunUpshot::new(exit::OK, None)),
+            run: RunAdapter::Execution(Rc::new(|_, _| RunUpshot::new(exit::OK, None))),
+            service: ExecutionService::default(),
         }
     }
 
@@ -893,13 +1017,13 @@ mod tests {
             project: OwnedDir::open(project.path()).expect("project capability"),
             root: project.path().to_path_buf(),
             workflow: "workflows/doctor.nika.yaml".to_owned(),
-            source: "schema: nika/workflow@0.12\ntasks: {}\n".to_owned(),
+            source: "nika: doctor\ntasks: {}\n".to_owned(),
             generation: generation.clone(),
             ceiling: 0.25,
         };
         assert_eq!(shot.root(), project.path());
         assert_eq!(shot.workflow(), "workflows/doctor.nika.yaml");
-        assert_eq!(shot.source(), "schema: nika/workflow@0.12\ntasks: {}\n");
+        assert_eq!(shot.source(), "nika: doctor\ntasks: {}\n");
         assert_eq!(shot.generation(), &generation);
         assert_eq!(shot.ceiling().to_bits(), 0.25f64.to_bits());
 
@@ -915,13 +1039,13 @@ mod tests {
     #[test]
     fn context_derives_the_label_and_rejects_an_invalid_index() {
         let registry = registry_with(BASE);
-        let Err(error) = FireCtx::new(
+        let Err(error) = FireCtx::new_with_execution(
             PathBuf::from("/project"),
             registry,
             1,
             at("2026-08-19T03:02:00Z"),
             7,
-            Rc::new(|_| RunUpshot::new(exit::OK, None)),
+            Rc::new(|_, _| RunUpshot::new(exit::OK, None)),
         ) else {
             panic!("one-beat registry has no index one");
         };

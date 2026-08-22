@@ -65,7 +65,7 @@ fn project(tag: &str) -> tempfile::TempDir {
     std::fs::create_dir_all(dir.path().join("workflows")).expect("workflows dir");
     std::fs::write(
         dir.path().join("workflows/doctor.nika.yaml"),
-        "schema: nika/workflow@0.12\ntasks: {}\n",
+        "nika: doctor\npermits: {}\ntasks:\n  answer:\n    infer: { prompt: \"admitted\" }\n",
     )
     .expect("workflow source");
     dir
@@ -106,9 +106,15 @@ impl Drop for LiveChild {
 
 /// The firer's context with every seam injected: the pid is the test
 /// process's own, the wait is scripted by the test, the run is a stub.
-fn ctx(root: &Path, fixture: RegistryFixture, now: &str, wait: WaitSeam, run: RunSeam) -> FireCtx {
+fn ctx(
+    root: &Path,
+    fixture: RegistryFixture,
+    now: &str,
+    wait: WaitSeam,
+    run: ExecutionRunSeam,
+) -> FireCtx {
     std::fs::write(root.join("nika.yaml"), &fixture.0).expect("project registry");
-    FireCtx::new(
+    FireCtx::new_with_execution(
         root.to_path_buf(),
         fixture.1,
         0,
@@ -121,10 +127,10 @@ fn ctx(root: &Path, fixture: RegistryFixture, now: &str, wait: WaitSeam, run: Ru
 }
 
 /// A run stub that counts its calls and exits clean.
-fn run_counter() -> (Rc<Cell<u32>>, RunSeam) {
+fn run_counter() -> (Rc<Cell<u32>>, ExecutionRunSeam) {
     let count = Rc::new(Cell::new(0u32));
     let seen = Rc::clone(&count);
-    let seam: RunSeam = Rc::new(move |_: &RunShot| {
+    let seam: ExecutionRunSeam = Rc::new(move |_, _: &RunShot| {
         seen.set(seen.get() + 1);
         RunUpshot {
             code: exit::OK,
@@ -132,6 +138,35 @@ fn run_counter() -> (Rc<Cell<u32>>, RunSeam) {
         }
     });
     (count, seam)
+}
+
+#[test]
+fn legacy_run_seam_receives_the_exact_admitted_root_source() {
+    let dir = project("legacy-run-seam");
+    let fixture = registry_with(SAUTER);
+    std::fs::write(dir.path().join("nika.yaml"), &fixture.0).expect("project registry");
+    let original = std::fs::read_to_string(dir.path().join("workflows/doctor.nika.yaml"))
+        .expect("root source");
+    let seen = Rc::new(Cell::new(false));
+    let observed = Rc::clone(&seen);
+    let run: RunSeam = Rc::new(move |shot| {
+        assert_eq!(shot.source(), original);
+        observed.set(true);
+        RunUpshot::new(exit::OK, None)
+    });
+    let ctx = FireCtx::new(
+        dir.path().to_path_buf(),
+        fixture.1,
+        0,
+        at("2026-08-19T03:02:00Z"),
+        std::process::id(),
+        run,
+    )
+    .expect("legacy context");
+
+    let verdict = fire_beat(&ctx);
+    assert_eq!(verdict.code, exit::OK, "{}", verdict.line);
+    assert!(seen.get(), "the compatibility adapter ran");
 }
 
 /// The wait that elapses at once (no signal, no scripted clock).
@@ -210,7 +245,7 @@ fn two_firers_one_run() {
 fn the_claim_precedes_the_run_and_the_receipt_settles_it() {
     let dir = project("ordering");
     let root = dir.path().to_path_buf();
-    let during = move |shot: &RunShot| {
+    let during = move |execution: nika_execution::ExecutionContext<'_>, shot: &RunShot| {
         // DURING the run: the chain's last line is the claim …
         let text = std::fs::read_to_string(root.join(".nika/arm/doctor/history.ndjson"))
             .expect("the claim lands BEFORE the run");
@@ -222,6 +257,11 @@ fn the_claim_precedes_the_run_and_the_receipt_settles_it() {
             "the claim fences its own seq: {text}"
         );
         assert_eq!(doc["payload"]["attempt"], 1, "one attempt — v0: {text}");
+        assert_eq!(
+            doc["payload"]["execution_id"],
+            execution.execution_id().to_string()
+        );
+        assert_eq!(doc["payload"]["trace_id"], execution.trace_id().to_string());
         assert_eq!(
             doc["payload"]["deadline"], "2026-08-20T03:00:00Z",
             "the deadline is the beat's next theoretical slot: {text}"
@@ -293,6 +333,45 @@ fn the_claim_precedes_the_run_and_the_receipt_settles_it() {
     assert_eq!(watermark, "2026-08-19T03:02:00Z\n");
 }
 
+/// W04.B: admission mints the execution identity before the durable claim.
+/// The receipt copies that exact identity pair from the service verdict, so a
+/// crash leaves a replayable claim-to-execution association instead of an
+/// anonymous attempt or a guessed latest trace.
+#[test]
+fn claim_and_receipt_carry_the_same_service_execution_identity() {
+    let dir = project("execution-identity");
+    let seen = Rc::new(RefCell::new(None::<(String, String)>));
+    let observed = Rc::clone(&seen);
+    let run: ExecutionRunSeam = Rc::new(move |execution, _shot| {
+        let execution_id = execution.execution_id().to_string();
+        let trace_id = execution.trace_id().to_string();
+        *observed.borrow_mut() = Some((execution_id, trace_id));
+        RunUpshot::new(exit::OK, Some(".nika/traces/exact.ndjson".to_owned()))
+    });
+
+    let verdict = fire_beat(&ctx(
+        dir.path(),
+        registry_with(SAUTER),
+        "2026-08-19T03:02:00Z",
+        instant_wait(),
+        run,
+    ));
+    assert_eq!(verdict.code, exit::OK, "{}", verdict.line);
+
+    let text = history(dir.path(), "doctor");
+    let docs = text
+        .lines()
+        .map(|line| serde_json::from_str::<serde_json::Value>(line).expect("ledger json"))
+        .collect::<Vec<_>>();
+    let (execution_id, trace_id) = seen.borrow().clone().expect("service context observed");
+    assert_eq!(docs[0]["kind"], "claimed");
+    assert_eq!(docs[0]["payload"]["execution_id"], execution_id);
+    assert_eq!(docs[0]["payload"]["trace_id"], trace_id);
+    assert_eq!(docs[1]["payload"]["execution_id"], execution_id);
+    assert_eq!(docs[1]["payload"]["trace_id"], trace_id);
+    assert_eq!(docs[1]["payload"]["trace"], ".nika/traces/exact.ndjson");
+}
+
 #[test]
 fn source_edit_after_claim_cannot_change_the_pinned_run_bytes() {
     let dir = project("pin-edit");
@@ -302,13 +381,20 @@ fn source_edit_after_claim_cannot_change_the_pinned_run_bytes() {
     let expected = ArmGeneration::compute(registry.1.beats().next().expect("beat"), &original);
     let logical_path = Rc::new(RefCell::new(None::<String>));
     let seen_path = Rc::clone(&logical_path);
-    let seam: RunSeam = Rc::new(move |shot| {
+    let seam: ExecutionRunSeam = Rc::new(move |execution, shot| {
         std::fs::write(
             &source,
-            "schema: nika/workflow@0.12\ntasks: {b: {exec: echo B}}\n",
+            "nika: changed\npermits: {}\ntasks:\n  b:\n    infer: { prompt: \"changed\" }\n",
         )
         .expect("replace declared source with B");
-        assert_eq!(shot.source().as_bytes(), original.as_slice());
+        assert_eq!(
+            execution
+                .snapshot()
+                .unit(execution.snapshot().root())
+                .expect("admitted root")
+                .bytes(),
+            original.as_slice()
+        );
         assert_eq!(shot.generation(), &expected);
         *seen_path.borrow_mut() = Some(shot.workflow().to_owned());
         RunUpshot::new(exit::OK, None)
@@ -328,6 +414,52 @@ fn source_edit_after_claim_cannot_change_the_pinned_run_bytes() {
     );
 }
 
+#[test]
+fn child_and_skill_edits_after_claim_cannot_change_the_admitted_world() {
+    let dir = project("closure-pin-edit");
+    let root = "nika: doctor\nmodel: mock/echo\npermits:\n  exec: [\"echo\"]\n  fs:\n    read: [\"skills/review/SKILL.md\"]\ntasks:\n  child:\n    invoke:\n      workflow: \"child.nika.yaml\"\n      args: { url: \"https://example.com\" }\n    returns: { object: { report: string } }\n  review:\n    agent: { prompt: \"review\", skills: [\"skills/review/SKILL.md\"] }\n";
+    let child = "nika: child\ninputs:\n  url: { type: string, required: true }\npermits:\n  exec: [\"echo\"]\ntasks:\n  fetch:\n    exec: { command: [\"echo\", \"${{ inputs.url }}\"] }\noutputs:\n  report: { value: \"${{ tasks.fetch.output }}\", type: string }\n";
+    let skill = "---\nname: review\ndescription: Review code.\n---\nOriginal.\n";
+    std::fs::write(dir.path().join("workflows/doctor.nika.yaml"), root).expect("root");
+    std::fs::write(dir.path().join("workflows/child.nika.yaml"), child).expect("child");
+    std::fs::create_dir_all(dir.path().join("workflows/skills/review")).expect("skill dir");
+    std::fs::write(dir.path().join("workflows/skills/review/SKILL.md"), skill).expect("skill");
+    let child_path = dir.path().join("workflows/child.nika.yaml");
+    let skill_path = dir.path().join("workflows/skills/review/SKILL.md");
+    let run: ExecutionRunSeam = Rc::new(move |execution, _shot| {
+        std::fs::write(&child_path, "nika: replacement\ntasks: {}\n").expect("mutate child");
+        std::fs::write(&skill_path, "replacement").expect("mutate skill");
+        assert_eq!(
+            execution.snapshot().text("workflows/child.nika.yaml"),
+            Some(child)
+        );
+        assert_eq!(
+            execution
+                .snapshot()
+                .text("workflows/skills/review/SKILL.md"),
+            Some(skill)
+        );
+        assert_eq!(
+            execution
+                .skills()
+                .texts
+                .get("skills/review/SKILL.md")
+                .map(String::as_str),
+            Some(skill)
+        );
+        RunUpshot::new(exit::OK, None)
+    });
+
+    let verdict = fire_beat(&ctx(
+        dir.path(),
+        registry_with(SAUTER),
+        "2026-08-19T03:02:00Z",
+        instant_wait(),
+        run,
+    ));
+    assert_eq!(verdict.code, exit::OK, "{}", verdict.line);
+}
+
 #[cfg(unix)]
 #[test]
 fn source_symlink_swap_after_claim_cannot_change_the_pinned_run_bytes() {
@@ -339,15 +471,22 @@ fn source_symlink_swap_after_claim_cannot_change_the_pinned_run_bytes() {
     let original = std::fs::read(&source).expect("source A");
     std::fs::write(
         &replacement,
-        "schema: nika/workflow@0.12\ntasks: {b: {exec: echo B}}\n",
+        "nika: replacement\npermits: {}\ntasks:\n  b:\n    infer: { prompt: \"replacement\" }\n",
     )
     .expect("source B");
     let registry = registry_with(SAUTER);
     let expected = ArmGeneration::compute(registry.1.beats().next().expect("beat"), &original);
-    let seam: RunSeam = Rc::new(move |shot| {
+    let seam: ExecutionRunSeam = Rc::new(move |execution, shot| {
         std::fs::remove_file(&source).expect("remove A");
         symlink(&replacement, &source).expect("swap to symlink B");
-        assert_eq!(shot.source().as_bytes(), original.as_slice());
+        assert_eq!(
+            execution
+                .snapshot()
+                .unit(execution.snapshot().root())
+                .expect("admitted root")
+                .bytes(),
+            original.as_slice()
+        );
         assert_eq!(shot.generation(), &expected);
         RunUpshot::new(exit::OK, None)
     });
@@ -369,7 +508,7 @@ fn a_symlink_workflow_is_refused_before_claim_or_run() {
     let dir = project("pin-initial-symlink");
     let source = dir.path().join("workflows/doctor.nika.yaml");
     let replacement = dir.path().join("workflows/replacement.nika.yaml");
-    std::fs::write(&replacement, "schema: nika/workflow@0.12\ntasks: {}\n").expect("target");
+    std::fs::write(&replacement, "nika: replacement\npermits: {}\ntasks: {}\n").expect("target");
     std::fs::remove_file(&source).expect("remove source");
     symlink(&replacement, &source).expect("source symlink");
     let (runs, run) = run_counter();
@@ -427,7 +566,7 @@ fn a_symlinked_project_root_is_refused_before_claim_or_run() {
     let (runs, run) = run_counter();
     let fixture = registry_with(SAUTER);
     std::fs::write(project.path().join("nika.yaml"), &fixture.0).expect("registry");
-    let error = FireCtx::new(
+    let error = FireCtx::new_with_execution(
         linked,
         fixture.1,
         0,
@@ -453,13 +592,13 @@ fn a_dot_suffixed_symlinked_project_root_is_refused() {
     symlink(project.path(), &linked).expect("project symlink");
     let fixture = registry_with(SAUTER);
     std::fs::write(project.path().join("nika.yaml"), &fixture.0).expect("registry");
-    let error = FireCtx::new(
+    let error = FireCtx::new_with_execution(
         linked.join("."),
         fixture.1,
         0,
         at("2026-08-19T03:02:00Z"),
         std::process::id(),
-        Rc::new(|_| RunUpshot::new(exit::OK, None)),
+        Rc::new(|_, _| RunUpshot::new(exit::OK, None)),
     )
     .err()
     .expect("dot-suffixed symlink root refused");
@@ -472,13 +611,13 @@ fn a_registry_from_another_project_is_refused_at_construction() {
     let held = registry_with(SAUTER);
     std::fs::write(project.path().join("nika.yaml"), held.0).expect("held registry");
     let foreign = registry_with(FILE);
-    let error = FireCtx::new(
+    let error = FireCtx::new_with_execution(
         project.path().to_path_buf(),
         foreign.1,
         0,
         at("2026-08-19T03:02:00Z"),
         std::process::id(),
-        Rc::new(|_| RunUpshot::new(exit::OK, None)),
+        Rc::new(|_, _| RunUpshot::new(exit::OK, None)),
     )
     .err()
     .expect("foreign registry refused");
@@ -497,8 +636,14 @@ fn project_path_replacement_cannot_split_workflow_and_state_custody() {
         .expect("original workflow");
     let seen = Rc::new(Cell::new(false));
     let saw_original = Rc::clone(&seen);
-    let run: RunSeam = Rc::new(move |shot| {
-        assert_eq!(shot.source(), original);
+    let run: ExecutionRunSeam = Rc::new(move |execution, _shot| {
+        assert_eq!(
+            execution
+                .snapshot()
+                .text(execution.snapshot().root())
+                .expect("admitted root"),
+            original
+        );
         saw_original.set(true);
         RunUpshot::new(exit::OK, None)
     });
@@ -514,7 +659,7 @@ fn project_path_replacement_cannot_split_workflow_and_state_custody() {
     std::fs::create_dir_all(dir.path().join("workflows")).expect("replacement root");
     std::fs::write(
         dir.path().join("workflows/doctor.nika.yaml"),
-        "schema: nika/workflow@0.12\ntasks: {evil: {exec: echo evil}}\n",
+        "nika: evil\npermits: {}\ntasks:\n  evil:\n    infer: { prompt: \"evil\" }\n",
     )
     .expect("replacement workflow");
 

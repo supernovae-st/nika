@@ -971,6 +971,7 @@ pub type nika_cadence::ledger::JournalFormat::Output = T
 #[non_exhaustive] pub struct nika_cadence::ledger::Claim
 pub nika_cadence::ledger::Claim::deadline: jiff::timestamp::Timestamp
 pub nika_cadence::ledger::Claim::decided_at: jiff::timestamp::Timestamp
+pub nika_cadence::ledger::Claim::execution: core::option::Option<nika_cadence::ExecutionLink>
 pub nika_cadence::ledger::Claim::generation: core::option::Option<nika_cadence::firing::ArmGeneration>
 pub nika_cadence::ledger::Claim::slot_id: nika_cadence::firing::SlotId
 impl nika_cadence::ledger::Claim
@@ -1003,8 +1004,50 @@ impl<T> core::convert::From<T> for nika_cadence::ledger::Claim
 pub fn nika_cadence::ledger::Claim::from(t: T) -> T
 impl<T> typenum::type_operators::Same for nika_cadence::ledger::Claim
 pub type nika_cadence::ledger::Claim::Output = T
+#[non_exhaustive] pub struct nika_cadence::ledger::ExecutionLink
+impl nika_cadence::ExecutionLink
+pub fn nika_cadence::ExecutionLink::execution_id(&self) -> &str
+pub fn nika_cadence::ExecutionLink::new(execution_id: impl core::convert::Into<alloc::string::String>, trace_id: impl core::convert::Into<alloc::string::String>) -> core::option::Option<Self>
+pub fn nika_cadence::ExecutionLink::trace_id(&self) -> &str
+impl core::clone::Clone for nika_cadence::ExecutionLink
+pub fn nika_cadence::ExecutionLink::clone(&self) -> nika_cadence::ExecutionLink
+impl core::cmp::Eq for nika_cadence::ExecutionLink
+impl core::cmp::PartialEq for nika_cadence::ExecutionLink
+pub fn nika_cadence::ExecutionLink::eq(&self, other: &nika_cadence::ExecutionLink) -> bool
+impl core::fmt::Debug for nika_cadence::ExecutionLink
+pub fn nika_cadence::ExecutionLink::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_cadence::ExecutionLink
+impl<Q, K> equivalent::Equivalent<K> for nika_cadence::ExecutionLink where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cadence::ExecutionLink::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cadence::ExecutionLink where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cadence::ExecutionLink::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cadence::ExecutionLink where U: core::convert::From<T>
+pub fn nika_cadence::ExecutionLink::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cadence::ExecutionLink where U: core::convert::Into<T>
+pub type nika_cadence::ExecutionLink::Error = core::convert::Infallible
+pub fn nika_cadence::ExecutionLink::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cadence::ExecutionLink where U: core::convert::TryFrom<T>
+pub type nika_cadence::ExecutionLink::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cadence::ExecutionLink::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cadence::ExecutionLink where T: core::clone::Clone
+pub type nika_cadence::ExecutionLink::Owned = T
+pub fn nika_cadence::ExecutionLink::clone_into(&self, target: &mut T)
+pub fn nika_cadence::ExecutionLink::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cadence::ExecutionLink where T: 'static + ?core::marker::Sized
+pub fn nika_cadence::ExecutionLink::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cadence::ExecutionLink where T: ?core::marker::Sized
+pub fn nika_cadence::ExecutionLink::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cadence::ExecutionLink where T: ?core::marker::Sized
+pub fn nika_cadence::ExecutionLink::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cadence::ExecutionLink where T: core::clone::Clone
+pub unsafe fn nika_cadence::ExecutionLink::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cadence::ExecutionLink
+pub fn nika_cadence::ExecutionLink::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::ExecutionLink
+pub type nika_cadence::ExecutionLink::Output = T
 #[non_exhaustive] pub struct nika_cadence::ledger::HistoryEntry
 pub nika_cadence::ledger::HistoryEntry::decided_at: jiff::timestamp::Timestamp
+pub nika_cadence::ledger::HistoryEntry::execution: core::option::Option<nika_cadence::ExecutionLink>
 pub nika_cadence::ledger::HistoryEntry::exit: core::option::Option<u8>
 pub nika_cadence::ledger::HistoryEntry::fencing: core::option::Option<nika_cadence::firing::FencingToken>
 pub nika_cadence::ledger::HistoryEntry::generation: core::option::Option<nika_cadence::firing::ArmGeneration>
@@ -1045,6 +1088,7 @@ pub fn nika_cadence::ledger::HistoryEntry::from(t: T) -> T
 impl<T> typenum::type_operators::Same for nika_cadence::ledger::HistoryEntry
 pub type nika_cadence::ledger::HistoryEntry::Output = T
 #[non_exhaustive] pub struct nika_cadence::ledger::LastRecord
+pub nika_cadence::ledger::LastRecord::execution: core::option::Option<nika_cadence::ExecutionLink>
 pub nika_cadence::ledger::LastRecord::exit: core::option::Option<u8>
 pub nika_cadence::ledger::LastRecord::fired_at: jiff::timestamp::Timestamp
 pub nika_cadence::ledger::LastRecord::generation: core::option::Option<nika_cadence::firing::ArmGeneration>
@@ -1081,6 +1125,7 @@ impl<T> typenum::type_operators::Same for nika_cadence::ledger::LastRecord
 pub type nika_cadence::ledger::LastRecord::Output = T
 #[non_exhaustive] pub struct nika_cadence::ledger::Receipt
 pub nika_cadence::ledger::Receipt::decided_at: jiff::timestamp::Timestamp
+pub nika_cadence::ledger::Receipt::execution: core::option::Option<nika_cadence::ExecutionLink>
 pub nika_cadence::ledger::Receipt::exit: u8
 pub nika_cadence::ledger::Receipt::fencing: nika_cadence::firing::FencingToken
 pub nika_cadence::ledger::Receipt::generation: core::option::Option<nika_cadence::firing::ArmGeneration>
@@ -1165,6 +1210,7 @@ pub type nika_cadence::ledger::RecordOutcome::Output = T
 #[non_exhaustive] pub struct nika_cadence::ledger::Unsettled
 pub nika_cadence::ledger::Unsettled::claimed_at: jiff::timestamp::Timestamp
 pub nika_cadence::ledger::Unsettled::deadline: jiff::timestamp::Timestamp
+pub nika_cadence::ledger::Unsettled::execution: core::option::Option<nika_cadence::ExecutionLink>
 pub nika_cadence::ledger::Unsettled::seq: u64
 pub nika_cadence::ledger::Unsettled::slot_id: nika_cadence::firing::SlotId
 impl core::clone::Clone for nika_cadence::ledger::Unsettled
@@ -2487,6 +2533,7 @@ pub type nika_cadence::error::CadenceError::Output = T
 #[non_exhaustive] pub struct nika_cadence::Claim
 pub nika_cadence::Claim::deadline: jiff::timestamp::Timestamp
 pub nika_cadence::Claim::decided_at: jiff::timestamp::Timestamp
+pub nika_cadence::Claim::execution: core::option::Option<nika_cadence::ExecutionLink>
 pub nika_cadence::Claim::generation: core::option::Option<nika_cadence::firing::ArmGeneration>
 pub nika_cadence::Claim::slot_id: nika_cadence::firing::SlotId
 impl nika_cadence::ledger::Claim
@@ -2596,6 +2643,47 @@ impl<T> core::convert::From<T> for nika_cadence::due::Due<'a>
 pub fn nika_cadence::due::Due<'a>::from(t: T) -> T
 impl<T> typenum::type_operators::Same for nika_cadence::due::Due<'a>
 pub type nika_cadence::due::Due<'a>::Output = T
+#[non_exhaustive] pub struct nika_cadence::ExecutionLink
+impl nika_cadence::ExecutionLink
+pub fn nika_cadence::ExecutionLink::execution_id(&self) -> &str
+pub fn nika_cadence::ExecutionLink::new(execution_id: impl core::convert::Into<alloc::string::String>, trace_id: impl core::convert::Into<alloc::string::String>) -> core::option::Option<Self>
+pub fn nika_cadence::ExecutionLink::trace_id(&self) -> &str
+impl core::clone::Clone for nika_cadence::ExecutionLink
+pub fn nika_cadence::ExecutionLink::clone(&self) -> nika_cadence::ExecutionLink
+impl core::cmp::Eq for nika_cadence::ExecutionLink
+impl core::cmp::PartialEq for nika_cadence::ExecutionLink
+pub fn nika_cadence::ExecutionLink::eq(&self, other: &nika_cadence::ExecutionLink) -> bool
+impl core::fmt::Debug for nika_cadence::ExecutionLink
+pub fn nika_cadence::ExecutionLink::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_cadence::ExecutionLink
+impl<Q, K> equivalent::Equivalent<K> for nika_cadence::ExecutionLink where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cadence::ExecutionLink::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_cadence::ExecutionLink where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_cadence::ExecutionLink::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_cadence::ExecutionLink where U: core::convert::From<T>
+pub fn nika_cadence::ExecutionLink::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cadence::ExecutionLink where U: core::convert::Into<T>
+pub type nika_cadence::ExecutionLink::Error = core::convert::Infallible
+pub fn nika_cadence::ExecutionLink::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cadence::ExecutionLink where U: core::convert::TryFrom<T>
+pub type nika_cadence::ExecutionLink::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cadence::ExecutionLink::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cadence::ExecutionLink where T: core::clone::Clone
+pub type nika_cadence::ExecutionLink::Owned = T
+pub fn nika_cadence::ExecutionLink::clone_into(&self, target: &mut T)
+pub fn nika_cadence::ExecutionLink::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cadence::ExecutionLink where T: 'static + ?core::marker::Sized
+pub fn nika_cadence::ExecutionLink::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cadence::ExecutionLink where T: ?core::marker::Sized
+pub fn nika_cadence::ExecutionLink::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cadence::ExecutionLink where T: ?core::marker::Sized
+pub fn nika_cadence::ExecutionLink::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cadence::ExecutionLink where T: core::clone::Clone
+pub unsafe fn nika_cadence::ExecutionLink::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cadence::ExecutionLink
+pub fn nika_cadence::ExecutionLink::from(t: T) -> T
+impl<T> typenum::type_operators::Same for nika_cadence::ExecutionLink
+pub type nika_cadence::ExecutionLink::Output = T
 pub struct nika_cadence::FencingToken(_)
 impl nika_cadence::firing::FencingToken
 pub const fn nika_cadence::firing::FencingToken::get(self) -> u64
@@ -2725,6 +2813,7 @@ impl<T> typenum::type_operators::Same for nika_cadence::firing::FiringPolicy
 pub type nika_cadence::firing::FiringPolicy::Output = T
 #[non_exhaustive] pub struct nika_cadence::HistoryEntry
 pub nika_cadence::HistoryEntry::decided_at: jiff::timestamp::Timestamp
+pub nika_cadence::HistoryEntry::execution: core::option::Option<nika_cadence::ExecutionLink>
 pub nika_cadence::HistoryEntry::exit: core::option::Option<u8>
 pub nika_cadence::HistoryEntry::fencing: core::option::Option<nika_cadence::firing::FencingToken>
 pub nika_cadence::HistoryEntry::generation: core::option::Option<nika_cadence::firing::ArmGeneration>
@@ -2765,6 +2854,7 @@ pub fn nika_cadence::ledger::HistoryEntry::from(t: T) -> T
 impl<T> typenum::type_operators::Same for nika_cadence::ledger::HistoryEntry
 pub type nika_cadence::ledger::HistoryEntry::Output = T
 #[non_exhaustive] pub struct nika_cadence::LastRecord
+pub nika_cadence::LastRecord::execution: core::option::Option<nika_cadence::ExecutionLink>
 pub nika_cadence::LastRecord::exit: core::option::Option<u8>
 pub nika_cadence::LastRecord::fired_at: jiff::timestamp::Timestamp
 pub nika_cadence::LastRecord::generation: core::option::Option<nika_cadence::firing::ArmGeneration>
@@ -2926,6 +3016,7 @@ pub type nika_cadence::firing::SlotId::Output = T
 #[non_exhaustive] pub struct nika_cadence::Unsettled
 pub nika_cadence::Unsettled::claimed_at: jiff::timestamp::Timestamp
 pub nika_cadence::Unsettled::deadline: jiff::timestamp::Timestamp
+pub nika_cadence::Unsettled::execution: core::option::Option<nika_cadence::ExecutionLink>
 pub nika_cadence::Unsettled::seq: u64
 pub nika_cadence::Unsettled::slot_id: nika_cadence::firing::SlotId
 impl core::clone::Clone for nika_cadence::ledger::Unsettled

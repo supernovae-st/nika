@@ -40,6 +40,24 @@ impl ExecutionService {
         Self::admit_snapshot(snapshot)
     }
 
+    /// Admit root bytes already captured by an interface, with transitive
+    /// dependencies resolved from the held project directory.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ExecutionError`] under the same fail-closed conditions as
+    /// [`Self::admit`].
+    pub fn admit_root_bytes(
+        &self,
+        project: &OwnedDir,
+        root: &Path,
+        root_bytes: &[u8],
+    ) -> Result<AdmittedExecution, ExecutionError> {
+        let snapshot =
+            ExecutionSnapshot::capture_root_bytes(project, root, root_bytes, self.limits)?;
+        Self::admit_snapshot(snapshot)
+    }
+
     /// Admit a workflow world with explicit project-level imports.
     ///
     /// # Errors
@@ -61,16 +79,32 @@ impl ExecutionService {
         Self::admit_snapshot(snapshot)
     }
 
-    /// Execute through a runner that can observe only the admitted world.
+    /// Execute through the original function-pointer runner seam.
     ///
-    /// The runner receives no root capability and no mutable pathname. Its
-    /// outcome may itself be a `Result`, preserving the caller's typed runtime
-    /// verdict without widening this infrastructure boundary.
+    /// This convenience surface supplies only [`ExecutionContext`] to the
+    /// runner. It is not a process sandbox: the runner remains trusted code
+    /// and can use ambient capabilities it obtains elsewhere.
     pub fn execute<T>(
         &self,
         admitted: AdmittedExecution,
         runner: for<'a> fn(ExecutionContext<'a>) -> T,
     ) -> ExecutionVerdict<T> {
+        let session = self.begin(admitted);
+        let outcome = runner(session.context());
+        session.complete(outcome)
+    }
+
+    /// Begin one execution session over an admitted immutable world.
+    ///
+    /// Interface adapters keep their request state outside this boundary,
+    /// borrow the capability-free [`ExecutionContext`] through
+    /// [`ExecutionSession::context`], then return their typed result through
+    /// [`ExecutionSession::complete`]. The split makes the service's custody
+    /// claim precise: it supplies no filesystem capability or mutable
+    /// workflow pathname. It does not claim to sandbox trusted in-process
+    /// adapter code from ambient operating-system APIs.
+    #[must_use]
+    pub fn begin(&self, admitted: AdmittedExecution) -> ExecutionSession {
         let AdmittedExecution {
             execution_id,
             trace_id,
@@ -79,19 +113,13 @@ impl ExecutionService {
             check,
             skills,
         } = admitted;
-        let outcome = runner(ExecutionContext {
+        ExecutionSession {
             execution_id,
             trace_id,
-            snapshot: &snapshot,
-            workflow: &workflow,
-            check: &check,
-            skills: &skills,
-        });
-        ExecutionVerdict {
-            execution_id,
-            trace_id,
-            snapshot_digest: snapshot.digest().to_owned(),
-            outcome,
+            snapshot,
+            workflow,
+            check,
+            skills,
         }
     }
 
@@ -253,6 +281,58 @@ impl<'a> ExecutionContext<'a> {
     #[must_use]
     pub const fn skills(self) -> &'a ResolvedSkills {
         self.skills
+    }
+}
+
+/// Owned execution session held between admission and a typed verdict.
+///
+/// The session owns the immutable definition world. Interface-specific
+/// request state and effect capabilities deliberately remain outside it.
+#[non_exhaustive]
+pub struct ExecutionSession {
+    execution_id: ExecutionId,
+    trace_id: TraceId,
+    snapshot: ExecutionSnapshot,
+    workflow: RawWorkflow,
+    check: CheckReport,
+    skills: ResolvedSkills,
+}
+
+impl std::fmt::Debug for ExecutionSession {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ExecutionSession")
+            .field("execution_id", &self.execution_id)
+            .field("trace_id", &self.trace_id)
+            .field("snapshot_digest", &self.snapshot.digest())
+            .finish_non_exhaustive()
+    }
+}
+
+impl ExecutionSession {
+    /// Borrow the complete admitted definition world without a filesystem
+    /// capability, root path, or reader callback.
+    #[must_use]
+    pub const fn context(&self) -> ExecutionContext<'_> {
+        ExecutionContext {
+            execution_id: self.execution_id,
+            trace_id: self.trace_id,
+            snapshot: &self.snapshot,
+            workflow: &self.workflow,
+            check: &self.check,
+            skills: &self.skills,
+        }
+    }
+
+    /// Consume the session and bind one typed adapter result to its exact
+    /// execution, trace, and snapshot identities.
+    #[must_use]
+    pub fn complete<T>(self, outcome: T) -> ExecutionVerdict<T> {
+        ExecutionVerdict {
+            execution_id: self.execution_id,
+            trace_id: self.trace_id,
+            snapshot_digest: self.snapshot.digest().to_owned(),
+            outcome,
+        }
     }
 }
 
@@ -464,5 +544,37 @@ mod tests {
         .into_iter()
         .filter_map(|path| cx.snapshot().text(path).map(str::to_owned))
         .collect()
+    }
+
+    #[test]
+    fn execution_session_keeps_adapter_request_outside_the_context() {
+        let workflow = b"nika: root\npermits:\n  tools: [\"nika:jq\"]\ntasks:\n  value:\n    invoke:\n      tool: nika:jq\n      args: { input: 1, expression: \".\" }\n";
+        let source = CountingSource {
+            reads: RefCell::new(Vec::new()),
+            files: BTreeMap::from([("root.nika.yaml".to_owned(), workflow.to_vec())]),
+        };
+        let snapshot = ExecutionSnapshot::capture_from(
+            &source,
+            Path::new("root.nika.yaml"),
+            std::iter::empty::<&Path>(),
+            SnapshotLimits::default(),
+        )
+        .expect("capture");
+        let admitted = ExecutionService::admit_snapshot(snapshot).expect("admit captured world");
+        let execution_id = admitted.execution_id();
+        let trace_id = admitted.trace_id();
+        let digest = admitted.snapshot().digest().to_owned();
+        let adapter_request = String::from("model=mock/echo;max_cost_usd=0");
+        let session = ExecutionService::default().begin(admitted);
+        let context = session.context();
+        assert_eq!(context.execution_id(), execution_id);
+        assert_eq!(context.trace_id(), trace_id);
+        assert_eq!(context.snapshot().digest(), digest);
+        let verdict = session.complete(adapter_request);
+
+        assert_eq!(verdict.execution_id(), execution_id);
+        assert_eq!(verdict.trace_id(), trace_id);
+        assert_eq!(verdict.snapshot_digest(), digest);
+        assert_eq!(verdict.outcome(), "model=mock/echo;max_cost_usd=0");
     }
 }

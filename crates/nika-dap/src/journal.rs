@@ -27,7 +27,7 @@ use std::path::{Path, PathBuf};
 
 use nika_event::Event;
 use nika_runtime::EventSink;
-use nika_types::id::EventId;
+use nika_types::id::{EventId, ExecutionId, TraceId};
 use nika_types::timestamp::Timestamp;
 use uuid::Uuid;
 
@@ -150,9 +150,9 @@ enum Lane {
     /// (`try` stages a temp file) — emit is a no-op by design,
     /// so the caller keeps ONE code path whether journaling or not.
     Disabled,
-    /// Enabled but not yet on disk — the file is NAMED from the first
-    /// event's identity (its `UUIDv7` id carries the run's mint time),
-    /// so nothing can open before the stream starts.
+    /// Enabled but not yet on disk — the file is named lazily from the
+    /// service trace identity when bound, or the first event's identity for
+    /// legacy callers, so nothing can open before the stream starts.
     Pending,
     /// Open and appending one NDJSON line per event.
     Open(BufWriter<File>),
@@ -166,10 +166,10 @@ enum Lane {
 /// only the ones piped through `--json`.
 ///
 /// Three constraints shape it:
-/// - **Lazy open** — file creation waits for the FIRST emit: the name
-///   needs the first event's `UUIDv7` id + wall timestamp, and a run
-///   that never starts (audit refusal · composition failure) must not
-///   litter an empty file.
+/// - **Lazy open** — file creation waits for the FIRST emit: the name uses
+///   the bound typed trace ID (legacy callers fall back to event identity)
+///   plus the event timestamp, and a run that never starts (audit refusal ·
+///   composition failure) must not litter an empty file.
 /// - **Infallible** (the [`EventSink`] contract) — an fs error (read-only
 ///   checkout · disk full) is buffered, never panics, never changes the
 ///   run's verdict or its primary bytes; the caller surfaces it AFTER
@@ -182,6 +182,12 @@ pub struct TraceFileSink {
     /// `TRACE_DIR` in production · a temp dir under test). Meaningless
     /// when disabled.
     dir: PathBuf,
+    /// Service-minted root identity. When present, every journaled event is
+    /// stamped with this execution and the physical journal is named from
+    /// the corresponding typed trace identity rather than inferred from an
+    /// arbitrary first event.
+    execution: Option<ExecutionId>,
+    trace: Option<TraceId>,
     lane: Lane,
     /// The opened file's path (`None` until the lazy open · stays `None`
     /// when disabled or when the open itself failed).
@@ -201,6 +207,8 @@ impl TraceFileSink {
     pub fn new(dir: impl Into<PathBuf>) -> Self {
         Self {
             dir: dir.into(),
+            execution: None,
+            trace: None,
             lane: Lane::Pending,
             path: None,
             error: None,
@@ -215,12 +223,27 @@ impl TraceFileSink {
     pub fn disabled() -> Self {
         Self {
             dir: PathBuf::new(),
+            execution: None,
+            trace: None,
             lane: Lane::Disabled,
             path: None,
             error: None,
             chain: ChainState::genesis(),
             written: 0,
         }
+    }
+
+    /// Bind this journal to one service-admitted root execution.
+    ///
+    /// The two IDs stay distinct types even though the execution UUID bytes
+    /// deterministically seed the W3C root trace ID. The trace ID addresses
+    /// the file; the execution ID annotates every event written to it.
+    #[must_use]
+    pub fn for_execution(mut self, execution: ExecutionId, trace: TraceId) -> Self {
+        debug_assert_eq!(TraceId::from(execution), trace);
+        self.execution = Some(execution);
+        self.trace = Some(trace);
+        self
     }
 
     /// The journal file's path, once the lazy open happened.
@@ -279,14 +302,17 @@ impl TraceFileSink {
         }
     }
 
-    /// Create the directory + the journal file, named from the first
-    /// event's identity.
+    /// Create the directory + the journal file, addressed by the bound trace
+    /// identity or, for a legacy caller, the first event's identity.
     ///
     /// Execution identity names the journal directly. Legacy events fall
     /// back to run identity, then event identity, without a timestamp scan.
     fn open(&mut self, first: &Event) -> std::io::Result<()> {
         std::fs::create_dir_all(&self.dir)?;
-        let id = journal_identity(first);
+        let id = self.trace.map_or_else(
+            || journal_identity(first),
+            |trace| Uuid::from_bytes(trace.bytes),
+        );
         let path = self.dir.join(trace_file_name(first.timestamp, id));
         // `create_new` refuses to clobber: two runs in the same SECOND can
         // share the 4-hex short id (16 random bits — a real risk under a
@@ -331,7 +357,10 @@ fn journal_identity(first: &Event) -> Uuid {
 }
 
 impl EventSink for TraceFileSink {
-    fn emit(&mut self, event: Event) {
+    fn emit(&mut self, mut event: Event) {
+        if let Some(execution) = self.execution {
+            event.execution = Some(execution);
+        }
         if self.error.is_some() {
             return; // already broken · stop touching a dead lane
         }
@@ -567,6 +596,30 @@ mod tests {
             .with_run(RunId::from_bytes([2; 16]))
             .with_execution(ExecutionId::from_bytes([3; 16]));
         assert_eq!(journal_identity(&event), Uuid::from_bytes([3; 16]));
+    }
+
+    #[test]
+    fn bound_trace_identity_names_and_stamps_the_journal() {
+        let tmp = tempfile::tempdir().expect("tempdir");
+        let execution = ExecutionId::from_bytes([0x3a; 16]);
+        let trace = TraceId::from(execution);
+        let mut sink = TraceFileSink::new(tmp.path()).for_execution(execution, trace);
+        let event = demo::success().into_iter().next().expect("demo event");
+
+        sink.emit(event);
+
+        let path = sink.path().expect("bound journal path");
+        assert!(
+            path.file_name()
+                .and_then(std::ffi::OsStr::to_str)
+                .is_some_and(|name| name.ends_with("-3a3a.ndjson")),
+            "the typed trace identity addresses the physical journal: {}",
+            path.display()
+        );
+        let raw = std::fs::read_to_string(path).expect("journal bytes");
+        let recovered = crate::recover::recover_events(&raw, &path.display().to_string())
+            .expect("typed event stream");
+        assert_eq!(recovered.events[0].execution, Some(execution));
     }
 
     /// Lazy open: a sink that never receives an event leaves ZERO fs

@@ -4,15 +4,23 @@
 //! Pure vocabulary and fold for the durable arm ledger.
 //!
 //! This module knows JSON bytes and firing semantics, never paths, locks, or
-//! files. The CLI adapter supplies journal texts oldest-first and owns every
-//! effect. Keeping the wire judge beside the firing machine makes replay
-//! available to every future firer without depending upward on `nika-cli`.
+//! files. Its replay judge stays available without depending on `nika-cli`.
 
 use jiff::Timestamp;
 
 use crate::firing::{
     self, ArmGeneration, FencingToken, FiringEvent, FiringState, SkipReason, SlotId,
 };
+
+mod execution;
+mod projection;
+
+pub use execution::ExecutionLink;
+use execution::{
+    parse as execution_link, parse_optional as optional_link,
+    render_fields as render_execution_fields,
+};
+pub use projection::{last_projection, parse_last, render_last};
 
 /// The versioned ledger schema tag.
 pub const LEDGER_SCHEMA: &str = "nika/arm-event@1";
@@ -95,6 +103,8 @@ pub struct HistoryEntry {
     pub fencing: Option<FencingToken>,
     /// Generation pinned by the firing.
     pub generation: Option<ArmGeneration>,
+    /// Shared execution-service identity, present on W04+ claims/receipts.
+    pub execution: Option<ExecutionLink>,
 }
 
 impl HistoryEntry {
@@ -112,6 +122,7 @@ impl HistoryEntry {
             slot_id: None,
             fencing: None,
             generation: None,
+            execution: None,
         }
     }
 }
@@ -128,6 +139,8 @@ pub struct Claim {
     pub deadline: Timestamp,
     /// Claim instant.
     pub decided_at: Timestamp,
+    /// Execution identity allocated before this claim became durable.
+    pub execution: Option<ExecutionLink>,
 }
 
 impl Claim {
@@ -139,6 +152,7 @@ impl Claim {
             generation: None,
             deadline,
             decided_at,
+            execution: None,
         }
     }
 }
@@ -166,6 +180,8 @@ pub struct Receipt {
     pub fencing: FencingToken,
     /// Generation copied from the claim.
     pub generation: Option<ArmGeneration>,
+    /// Execution identity copied from the claim.
+    pub execution: Option<ExecutionLink>,
 }
 
 impl Receipt {
@@ -189,6 +205,7 @@ impl Receipt {
             slot_id: claim.slot_id.clone(),
             fencing,
             generation: claim.generation.clone(),
+            execution: claim.execution.clone(),
         }
     }
 
@@ -216,6 +233,7 @@ impl Receipt {
             slot_id: Some(self.slot_id.clone()),
             fencing: Some(self.fencing),
             generation: self.generation.clone(),
+            execution: self.execution.clone(),
         }
     }
 }
@@ -250,6 +268,8 @@ pub struct Unsettled {
     pub deadline: Timestamp,
     /// Claim instant.
     pub claimed_at: Timestamp,
+    /// Execution that may have started before the crash.
+    pub execution: Option<ExecutionLink>,
 }
 
 /// The stable `last.json` projection.
@@ -268,6 +288,8 @@ pub struct LastRecord {
     pub kind: DecisionKind,
     /// Optional pinned generation.
     pub generation: Option<ArmGeneration>,
+    /// Exact execution and root trace identity of the terminal run.
+    pub execution: Option<ExecutionLink>,
 }
 
 struct Replay {
@@ -382,6 +404,7 @@ pub fn unsettled(text: &str) -> Option<impl Iterator<Item = Unsettled> + use<>> 
                     slot_id,
                     deadline,
                     claimed_at,
+                    execution: doc.get("payload").and_then(execution_link),
                 },
             ));
             continue;
@@ -561,6 +584,7 @@ impl Walker {
                             .and_then(|p| p.get("gen"))
                             .and_then(serde_json::Value::as_str)
                             .and_then(ArmGeneration::from_wire),
+                        execution: payload.and_then(execution_link),
                     });
                     self.last_projection = Some(group);
                 }
@@ -618,6 +642,7 @@ impl Walker {
                 exit,
                 kind: decision_kind(kind),
                 generation: None,
+                execution: None,
             });
             self.last_projection = Some(group);
         }
@@ -906,8 +931,18 @@ fn verify_payload(
         }
         "claimed" => {
             const KEYS: [&str; 4] = ["attempt", "deadline", "fencing", "gen"];
+            const EXECUTION_KEYS: [&str; 6] = [
+                "attempt",
+                "deadline",
+                "fencing",
+                "gen",
+                "execution_id",
+                "trace_id",
+            ];
+            let keys_valid = exact_keys(object, &KEYS)
+                || (exact_keys(object, &EXECUTION_KEYS) && execution_link(payload).is_some());
             (slot_id.is_some()
-                && exact_keys(object, &KEYS)
+                && keys_valid
                 && payload.get("attempt")?.as_u64() == Some(1)
                 && payload
                     .get("deadline")?
@@ -920,6 +955,17 @@ fn verify_payload(
         }
         "fired" | "skipped" | "paused" | "failed" | "disarmed" => {
             const KEYS: [&str; 7] = ["slot", "reason", "trace", "exit", "slots", "fencing", "gen"];
+            const EXECUTION_KEYS: [&str; 9] = [
+                "slot",
+                "reason",
+                "trace",
+                "exit",
+                "slots",
+                "fencing",
+                "gen",
+                "execution_id",
+                "trace_id",
+            ];
             const LEGACY_KEYS: [&str; 8] = [
                 "slot", "reason", "trace", "exit", "slots", "fencing", "gen", "legacy",
             ];
@@ -927,6 +973,9 @@ fn verify_payload(
             let semantic_slot = slot.is_string() || slot_id.is_some();
             let explicit_legacy = payload.get("legacy") == Some(&serde_json::Value::Bool(true));
             let keys_valid = exact_keys(object, &KEYS)
+                || (matches!(kind, "fired" | "paused" | "failed")
+                    && exact_keys(object, &EXECUTION_KEYS)
+                    && execution_link(payload).is_some())
                 || (matches!(kind, "fired" | "paused" | "failed")
                     && explicit_legacy
                     && exact_keys(object, &LEGACY_KEYS));
@@ -1044,6 +1093,7 @@ struct ClaimBinding {
     slot_id: String,
     fencing: u64,
     generation: Option<String>,
+    execution: Option<ExecutionLink>,
     settled: bool,
 }
 
@@ -1061,6 +1111,7 @@ impl LifecycleValidator {
             .get("gen")
             .and_then(serde_json::Value::as_str)
             .map(str::to_owned);
+        let execution = execution_link(payload);
         let accepted = match kind {
             "claimed" => {
                 let Some(slot_id) = slot_id else { return false };
@@ -1069,6 +1120,7 @@ impl LifecycleValidator {
                     slot_id: slot_id.to_owned(),
                     fencing,
                     generation,
+                    execution,
                     settled: false,
                 });
                 true
@@ -1093,6 +1145,7 @@ impl LifecycleValidator {
                     claim.slot_id == slot_id
                         && claim.fencing == fencing
                         && claim.generation == generation
+                        && claim.execution == execution
                 }) else {
                     return false;
                 };
@@ -1358,46 +1411,6 @@ pub fn json_str(raw: &str) -> String {
     out
 }
 
-/// Render the byte-stable `last.json` projection.
-#[must_use]
-pub fn render_last(record: &LastRecord) -> String {
-    let trace = record.trace.as_deref().map_or("null".to_owned(), json_str);
-    let exit = record.exit.unwrap_or(0);
-    let generation = record
-        .generation
-        .as_ref()
-        .map_or("null".to_owned(), |value| json_str(value.as_str()));
-    format!(
-        "{{\"slot\":\"{}\",\"fired_at\":\"{}\",\"trace\":{trace},\"exit\":{exit},\"kind\":\"{}\",\"gen\":{generation}}}\n",
-        record.slot,
-        record.fired_at,
-        record.kind.as_str()
-    )
-}
-
-/// Parse the byte-stable `last.json` projection.
-#[must_use]
-pub fn parse_last(text: &str) -> Option<LastRecord> {
-    let doc: serde_json::Value = serde_json::from_str(text).ok()?;
-    Some(LastRecord {
-        slot: doc.get("slot")?.as_str()?.parse().ok()?,
-        fired_at: doc.get("fired_at")?.as_str()?.parse().ok()?,
-        trace: doc
-            .get("trace")
-            .and_then(serde_json::Value::as_str)
-            .map(str::to_owned),
-        exit: doc
-            .get("exit")
-            .and_then(serde_json::Value::as_u64)
-            .and_then(|value| u8::try_from(value).ok()),
-        kind: DecisionKind::parse_projection(doc.get("kind")?.as_str()?)?,
-        generation: doc
-            .get("gen")
-            .and_then(serde_json::Value::as_str)
-            .and_then(ArmGeneration::from_wire),
-    })
-}
-
 /// Render the decision payload inside a versioned ledger envelope.
 #[must_use]
 pub fn decision_payload(entry: &HistoryEntry) -> String {
@@ -1419,8 +1432,9 @@ pub fn decision_payload(entry: &HistoryEntry) -> String {
         .generation
         .as_ref()
         .map_or("null".to_owned(), |value| json_str(value.as_str()));
+    let execution = render_execution_fields(entry.execution.as_ref());
     format!(
-        "{{\"slot\":{slot},\"reason\":{reason},\"trace\":{trace},\"exit\":{exit},\"slots\":{slots},\"fencing\":{fencing},\"gen\":{generation}}}"
+        "{{\"slot\":{slot},\"reason\":{reason},\"trace\":{trace},\"exit\":{exit},\"slots\":{slots},\"fencing\":{fencing},\"gen\":{generation}{execution}}}"
     )
 }
 
@@ -1436,7 +1450,11 @@ pub fn legacy_receipt_payload(entry: &HistoryEntry) -> Option<String> {
         (DecisionKind::Fired, Some(0)) | (DecisionKind::Paused, Some(4))
     ) || matches!(entry.kind, DecisionKind::Failed)
         && entry.exit.is_some_and(|exit| exit != 0 && exit != 4);
-    if entry.slot_id.is_some() || entry.fencing.is_some() || !kind_matches {
+    if entry.slot_id.is_some()
+        || entry.fencing.is_some()
+        || entry.execution.is_some()
+        || !kind_matches
+    {
         return None;
     }
     let mut payload = decision_payload(entry);
@@ -1445,19 +1463,6 @@ pub fn legacy_receipt_payload(entry: &HistoryEntry) -> Option<String> {
     }
     payload.push_str(",\"legacy\":true}");
     Some(payload)
-}
-
-/// Build the slot-bearing `last.json` projection from one decision.
-#[must_use]
-pub fn last_projection(entry: &HistoryEntry) -> Option<LastRecord> {
-    Some(LastRecord {
-        slot: entry.slot?,
-        fired_at: entry.decided_at,
-        trace: entry.trace.clone(),
-        exit: entry.exit,
-        kind: entry.kind,
-        generation: entry.generation.clone(),
-    })
 }
 
 /// Render the canonical claim payload whose sequence is its fencing token.
@@ -1470,8 +1475,9 @@ pub fn claim_payload(claim: &Claim, seq: u64) -> Option<String> {
         .generation
         .as_ref()
         .map_or("null".to_owned(), |value| json_str(value.as_str()));
+    let execution = render_execution_fields(claim.execution.as_ref());
     Some(format!(
-        "{{\"attempt\":1,\"deadline\":\"{}\",\"fencing\":{seq},\"gen\":{generation}}}",
+        "{{\"attempt\":1,\"deadline\":\"{}\",\"fencing\":{seq},\"gen\":{generation}{execution}}}",
         claim.deadline
     ))
 }

@@ -37,6 +37,7 @@ use nika_schema::types::Permits;
 use nika_schema::{FileId, ParseMode};
 
 use nika_event::source_id::sha256_hex;
+use nika_execution::ExecutionSnapshot;
 
 use nika_dap::journal::TraceFileSink;
 use nika_runtime::RunSeams;
@@ -45,16 +46,27 @@ use nika_runtime::compose::{RuntimeCapabilities, fs_boundary_of_permits, net_bou
 /// The production runner — one per composed runtime, rooted at the file
 /// whose tasks it serves.
 pub(crate) struct ProdChildRunner {
-    /// The CALLING workflow's own path (targets resolve against its dir).
-    parent_path: PathBuf,
+    /// The complete immutable world admitted before the root run started.
+    snapshot: ExecutionSnapshot,
+    /// The CALLING workflow's logical path inside that world.
+    parent_logical: String,
+    /// Presentation-only root used to preserve existing diagnostic paths.
+    display_root: PathBuf,
     /// Whether child runs keep trace files (`--no-trace-file` inherits).
     trace: bool,
 }
 
 impl ProdChildRunner {
-    pub(crate) fn new(parent_path: impl Into<PathBuf>, trace: bool) -> Self {
+    pub(crate) fn admitted(
+        snapshot: ExecutionSnapshot,
+        parent_logical: impl Into<String>,
+        display_root: impl Into<PathBuf>,
+        trace: bool,
+    ) -> Self {
         Self {
-            parent_path: parent_path.into(),
+            snapshot,
+            parent_logical: parent_logical.into(),
+            display_root: display_root.into(),
             trace,
         }
     }
@@ -66,7 +78,7 @@ impl ProdChildRunner {
     fn load_child(
         &self,
         call: &ChildCall,
-    ) -> Result<(PathBuf, String, RawWorkflow, nika_check::CheckReport), ChildRunRefusal> {
+    ) -> Result<(String, String, RawWorkflow, nika_check::CheckReport), ChildRunRefusal> {
         if call.target.starts_with("registry:") {
             return Err(refusal(
                 "NIKA-COMP-001",
@@ -77,13 +89,20 @@ impl ProdChildRunner {
                 ),
             ));
         }
-        let path = resolve_against(&self.parent_path, &call.target);
-        let source = std::fs::read_to_string(&path).map_err(|e| {
+        let logical = resolve_logical(&self.parent_logical, &call.target).map_err(|detail| {
             refusal(
                 "NIKA-COMP-001",
-                format!("cannot read child `{}`: {e}", path.display()),
+                format!("cannot resolve child `{}`: {detail}", call.target),
             )
         })?;
+        let path = self.display_root.join(&logical);
+        let source = self.snapshot.text(&logical).ok_or_else(|| {
+            refusal(
+                "NIKA-COMP-001",
+                format!("captured world has no child `{}`", path.display()),
+            )
+        })?;
+        let source = source.to_owned();
         let wf = nika_schema::parse(&source, FileId::new(0), ParseMode::Strict).map_err(|e| {
             refusal(
                 "NIKA-COMP-001",
@@ -92,9 +111,11 @@ impl ProdChildRunner {
         })?;
         // The child clears the SAME gate a standalone run clears — its
         // own composed check (grandchildren judged from ITS root).
-        let root = path.to_string_lossy().into_owned();
-        let report = nika_check::check_composed(&wf, &root, &mut |p| {
-            std::fs::read_to_string(p).map_err(|e| e.to_string())
+        let report = nika_check::check_composed(&wf, &logical, &mut |p| {
+            self.snapshot
+                .text(p)
+                .map(str::to_owned)
+                .ok_or_else(|| format!("captured world has no unit `{p}`"))
         });
         if !report.is_clean() {
             let (code, detail) = first_finding(&report);
@@ -103,8 +124,51 @@ impl ProdChildRunner {
                 format!("child `{}` fails its own check: {detail}", path.display()),
             ));
         }
-        Ok((path, source, wf, report))
+        Ok((logical, source, wf, report))
     }
+}
+
+fn resolve_logical(parent: &str, target: &str) -> Result<String, String> {
+    let target = Path::new(target);
+    if target.is_absolute() {
+        return Err("absolute paths are outside the admitted project".to_owned());
+    }
+    let mut parts: Vec<String> = Path::new(parent)
+        .parent()
+        .into_iter()
+        .flat_map(Path::components)
+        .filter_map(|component| match component {
+            std::path::Component::Normal(part) => part.to_str().map(ToOwned::to_owned),
+            _ => None,
+        })
+        .collect();
+    for component in target.components() {
+        match component {
+            std::path::Component::Normal(part) => {
+                let part = part
+                    .to_str()
+                    .ok_or_else(|| "path is not valid UTF-8".to_owned())?;
+                parts.push(part.to_owned());
+            }
+            std::path::Component::CurDir => {}
+            std::path::Component::ParentDir => {
+                parts
+                    .pop()
+                    .ok_or_else(|| "path escapes the admitted project".to_owned())?;
+            }
+            std::path::Component::RootDir | std::path::Component::Prefix(_) => {
+                return Err("path escapes the admitted project".to_owned());
+            }
+        }
+    }
+    if parts.is_empty() {
+        return Err("path resolves to the project root".to_owned());
+    }
+    Ok(parts.join("/"))
+}
+
+pub(super) fn resolve_admitted(parent: &str, target: &str) -> Result<String, String> {
+    resolve_logical(parent, target)
 }
 
 /// The child's effective capability boundary — `child ∩ parent` (laws
@@ -152,12 +216,18 @@ fn refusal(code: &str, message: String) -> ChildRunRefusal {
 /// bound (cycle · depth · registry) simply gets NO entry — the
 /// referencing task is then not resume-eligible: it re-runs live,
 /// never wrong-skips (the honest direction, the skills #473 law).
-pub(crate) fn closure_digests(wf: &RawWorkflow, file: &Path) -> BTreeMap<String, String> {
+pub(crate) fn admitted_closure_digests(
+    wf: &RawWorkflow,
+    snapshot: &ExecutionSnapshot,
+    parent_logical: &str,
+) -> BTreeMap<String, String> {
     let mut out = BTreeMap::new();
     for target in workflow_targets_of(wf) {
-        let resolved = resolve_against(file, &target);
+        let Ok(resolved) = resolve_logical(parent_logical, &target) else {
+            continue;
+        };
         let mut stack = Vec::new();
-        if let Some(digest) = closure_digest(&resolved, &mut stack, 1) {
+        if let Some(digest) = closure_digest(snapshot, &resolved, &mut stack, 1) {
             out.insert(target, digest);
         }
     }
@@ -165,7 +235,8 @@ pub(crate) fn closure_digests(wf: &RawWorkflow, file: &Path) -> BTreeMap<String,
 }
 
 /// Every static `workflow:` target `wf`'s tasks carry (main verbs +
-/// `on_finally` minis) — the resolution roots of [`closure_digests`].
+/// `on_finally` minis) — the resolution roots of
+/// [`admitted_closure_digests`].
 fn workflow_targets_of(wf: &RawWorkflow) -> Vec<String> {
     fn of(action: &nika_schema::raw::RawAction) -> Option<String> {
         match action {
@@ -190,24 +261,32 @@ fn workflow_targets_of(wf: &RawWorkflow) -> Vec<String> {
 /// `def_hash` (sha256 of the child's exact bytes). `None` = the
 /// closure cannot be drawn honestly (unreadable · unparseable · a
 /// registry target · a cycle · past the run depth bound).
-fn closure_digest(path: &Path, stack: &mut Vec<PathBuf>, depth: u32) -> Option<String> {
+fn closure_digest(
+    snapshot: &ExecutionSnapshot,
+    logical: &str,
+    stack: &mut Vec<String>,
+    depth: u32,
+) -> Option<String> {
     if depth > nika_runtime::child::MAX_RUN_DEPTH {
         return None;
     }
-    let identity = path.canonicalize().unwrap_or_else(|_| path.to_path_buf());
-    if stack.contains(&identity) {
+    if stack.iter().any(|identity| identity == logical) {
         return None;
     }
-    let source = std::fs::read_to_string(path).ok()?;
-    let wf = nika_schema::parse(&source, FileId::new(0), ParseMode::Strict).ok()?;
-    stack.push(identity);
+    let source = snapshot.text(logical)?;
+    let wf = nika_schema::parse(source, FileId::new(0), ParseMode::Strict).ok()?;
+    stack.push(logical.to_owned());
     let mut children = BTreeMap::new();
     for target in workflow_targets_of(&wf) {
         if target.starts_with("registry:") {
             stack.pop();
             return None;
         }
-        let digest = closure_digest(&resolve_against(path, &target), stack, depth + 1);
+        let Ok(resolved) = resolve_logical(logical, &target) else {
+            stack.pop();
+            return None;
+        };
+        let digest = closure_digest(snapshot, &resolved, stack, depth + 1);
         let Some(digest) = digest else {
             stack.pop();
             return None;
@@ -224,16 +303,6 @@ fn closure_digest(path: &Path, stack: &mut Vec<PathBuf>, depth: u32) -> Option<S
         fold.push_str(digest);
     }
     Some(sha256_hex(fold.as_bytes()))
-}
-
-/// Resolve `target` against the DIRECTORY of `parent` (the same law the
-/// static lane applies lexically — here on the real filesystem path).
-fn resolve_against(parent: &Path, target: &str) -> PathBuf {
-    let t = Path::new(target);
-    if t.is_absolute() {
-        return t.to_path_buf();
-    }
-    parent.parent().unwrap_or_else(|| Path::new("")).join(t)
 }
 
 /// The first failed task's error of a settled child run — the honest
@@ -264,7 +333,7 @@ impl ChildRunner for ProdChildRunner {
         call: ChildCall,
     ) -> Pin<Box<dyn Future<Output = Result<ChildOutcome, ChildRunRefusal>> + 'a>> {
         Box::pin(async move {
-            let (path, source, wf, report) = self.load_child(&call)?;
+            let (logical, source, wf, report) = self.load_child(&call)?;
             // Compose the child runtime — the child's OWN envelope model;
             // capabilities from the INTERSECTED boundary (laws 3/4).
             let child_permits = effective_permits(
@@ -297,9 +366,23 @@ impl ChildRunner for ProdChildRunner {
             .with_source_sha256(sha256_hex(source.as_bytes()))
             // depth rides to the child so ITS dispatch gate sees the
             // truth (NIKA-SEC-003 · fail-closed).
-            .with_run_depth(call.depth)
-            // grandchildren resolve against the CHILD's path.
-            .with_child_runner(Arc::new(ProdChildRunner::new(&path, self.trace)));
+            .with_run_depth(call.depth);
+            let mut reader = |authored: &str| {
+                let skill = resolve_logical(&logical, authored)?;
+                self.snapshot
+                    .text(&skill)
+                    .map(str::to_owned)
+                    .ok_or_else(|| format!("captured world has no unit `{skill}`"))
+            };
+            let runtime = runtime
+                .with_skills(nika_schema::resolve_skills(&wf, &mut reader).texts)
+                .with_child_runner(Arc::new(ProdChildRunner::admitted(
+                    self.snapshot.clone(),
+                    &logical,
+                    &self.display_root,
+                    self.trace,
+                )))
+                .with_child_closures(admitted_closure_digests(&wf, &self.snapshot, &logical));
             let mut sink = if self.trace {
                 TraceFileSink::new(nika_dap::store::TRACE_DIR)
             } else {
@@ -351,6 +434,47 @@ mod tests {
     //! ABSENT parent block caps at ∅ (EPERM-style: the refusal is proven,
     //! not supposed).
     use super::*;
+
+    #[test]
+    fn admitted_runner_keeps_the_captured_child_after_disk_mutation() {
+        let dir = tempfile::tempdir().expect("temp project");
+        let root = dir.path().join("root.nika.yaml");
+        let child = dir.path().join("child.nika.yaml");
+        std::fs::write(
+            &root,
+            "nika: root\nmodel: mock/echo\npermits: {}\ntasks:\n  call:\n    invoke: { workflow: \"./child.nika.yaml\" }\n",
+        )
+        .expect("root fixture");
+        let admitted_child = "nika: child\nmodel: mock/echo\npermits: {}\ntasks:\n  answer:\n    infer: { prompt: \"admitted\" }\noutputs:\n  answer: ${{ tasks.answer.output }}\n";
+        std::fs::write(&child, admitted_child).expect("child fixture");
+        let project = nika_fs::OwnedDir::open(dir.path()).expect("held project");
+        let admitted = nika_execution::ExecutionService::default()
+            .admit(&project, Path::new("root.nika.yaml"))
+            .expect("admitted world");
+
+        std::fs::write(
+            &child,
+            "nika: changed\nmodel: mock/echo\npermits: {}\ntasks:\n  answer:\n    infer: { prompt: \"mutated\" }\n",
+        )
+        .expect("mutated child");
+        let runner = ProdChildRunner::admitted(
+            admitted.snapshot().clone(),
+            "root.nika.yaml",
+            dir.path(),
+            false,
+        );
+        let call = ChildCall {
+            target: "./child.nika.yaml".to_owned(),
+            args: BTreeMap::new(),
+            depth: 1,
+            remaining_budget_usd: None,
+            deadline: None,
+            parent_permits: None,
+        };
+
+        let (_, source, _, _) = runner.load_child(&call).expect("captured child");
+        assert_eq!(source, admitted_child);
+    }
 
     #[test]
     fn absent_parent_caps_every_child_at_zero() {

@@ -182,7 +182,7 @@ pub(crate) mod models_rung;
 mod project;
 use models_rung::{ModelFinding, ModelsAudit, pricing_section, unresolvable_models};
 
-use nika_display::check_render::render;
+use nika_display::check_render::{RepairTarget, render};
 #[cfg(test)]
 use nika_display::check_render::{permits, required_inputs};
 
@@ -355,22 +355,76 @@ pub(crate) fn run_source_with_profile(
     };
     let path = source.logical_path();
     let (wf, report) = overridden(wf, report, model_override);
+    let skills = super::resolve_workflow_skills(&wf, super::workflow_base(path));
+    render_checked_with_profile(
+        source.source(),
+        path,
+        source.repair_target(),
+        &wf,
+        &report,
+        &skills,
+        json,
+        native_strict,
+        profile,
+        theme,
+    )
+}
+
+/// Render a check verdict from bytes and semantic products already admitted by
+/// the execution service. This path never reopens `path` or resolves skills
+/// from the filesystem.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn run_admitted_pair(
+    source: &str,
+    path: &str,
+    repair_target: RepairTarget,
+    wf: &nika_schema::raw::RawWorkflow,
+    report: &nika_check::CheckReport,
+    skills: &nika_schema::ResolvedSkills,
+    json: bool,
+    theme: Theme,
+) -> VerbOutput {
+    render_checked_with_profile(
+        source,
+        path,
+        repair_target,
+        wf,
+        report,
+        skills,
+        json,
+        false,
+        Profile::Advisory,
+        theme,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn render_checked_with_profile(
+    source: &str,
+    path: &str,
+    repair_target: RepairTarget,
+    wf: &nika_schema::raw::RawWorkflow,
+    report: &nika_check::CheckReport,
+    skills: &nika_schema::ResolvedSkills,
+    json: bool,
+    native_strict: bool,
+    profile: Profile,
+    theme: Theme,
+) -> VerbOutput {
     // The declared-vs-used drift family (NIKA-DRIFT-001 · drift.rs) —
     // advisory in both projections, never an exit-code input.
-    let drift_hints = drift::scan(&wf);
-    let native_hints = native_hint_count(&report);
+    let drift_hints = drift::scan(wf);
+    let native_hints = native_hint_count(report);
     // The MODELS rung (#320): the ladder validated TOOLS but not MODELS —
     // the exact asymmetry a hallucinating agent hits. A `model:` this
     // binary cannot resolve is a FINDING (exit 2), never a green audit.
-    let models_audit = unresolvable_models(&report, &wf);
-    // SKILLS rung (#473 · MODELS pattern): a bad SKILL.md is a FINDING.
-    let skills = super::resolve_workflow_skills(&wf, super::workflow_base(path));
+    let models_audit = unresolvable_models(report, wf);
     let clean = report.is_clean() && models_audit.findings.is_empty() && skills.findings.is_empty();
     // The risk grade (P0-6): a pure projection of the report — uncapped
     // spend or wildcard grants never turn the verdict green by silence.
     // Advisory by default; the operational profile folds grade ≥ High
     // into the exit-2 verdict (the readiness gate).
-    let grade = nika_check::risk_grade(&report);
+    let grade = nika_check::risk_grade(report);
     let profile_clean = profile != Profile::Operational || grade < nika_check::RiskGrade::High;
     let strict_clean = clean && profile_clean && (!native_strict || native_hints == 0);
 
@@ -385,9 +439,9 @@ pub(crate) fn run_source_with_profile(
 
     if json {
         return json_verdict(
-            &report,
+            report,
             &models_audit,
-            &skills,
+            skills,
             &drift_hints,
             clean,
             strict_clean,
@@ -398,14 +452,14 @@ pub(crate) fn run_source_with_profile(
     }
 
     let mut text = render(
-        &report,
-        &wf,
-        source.source(),
+        report,
+        wf,
+        source,
         path,
-        source.repair_target(),
+        repair_target,
         theme,
         &models_audit,
-        &skills,
+        skills,
         &drift_hints,
         // THE verdict, computed once above — the footer shows it, the
         // exit code rides it, `--json` serializes it (P0-11: the human
@@ -421,7 +475,7 @@ pub(crate) fn run_source_with_profile(
         profile == Profile::Operational && clean && !profile_clean,
         grade,
     );
-    naming_note(&mut text, theme, path, &wf);
+    naming_note(&mut text, theme, path, wf);
     budget::footnote(&mut text, theme);
     // The `--ascii` byte contract (P1 · audit UX 2026-07-30): the finished
     // report folds through the ONE enforcement seam — the glyph twins stay

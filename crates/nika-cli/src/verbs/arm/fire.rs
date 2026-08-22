@@ -11,8 +11,8 @@ use jiff::{Timestamp, Zoned};
 use nika_vocab::project;
 
 pub use nika_arm::fire::{
-    FireCtx, FireCtxError, FireVerdict, RunSeam, RunShot, RunUpshot, Wait, WaitSeam, fire_beat,
-    labels,
+    ExecutionRunSeam, FireCtx, FireCtxError, FireVerdict, RunSeam, RunShot, RunUpshot, Wait,
+    WaitSeam, fire_beat, labels,
 };
 
 use super::args::FireArgs;
@@ -70,7 +70,7 @@ pub fn run(fire: &FireArgs) -> VerbOutput {
     let root = path
         .parent()
         .map_or_else(|| PathBuf::from("."), Path::to_path_buf);
-    let ctx = match FireCtx::new(
+    let ctx = match FireCtx::new_with_execution(
         root.clone(),
         registry,
         index,
@@ -101,22 +101,20 @@ fn parse_now(raw: Option<&str>) -> Result<Zoned, String> {
     }
 }
 
-pub(crate) fn prod_run(shot: &RunShot) -> RunUpshot {
+pub(crate) fn prod_run(
+    execution: nika_execution::ExecutionContext<'_>,
+    shot: &RunShot,
+) -> RunUpshot {
     debug_assert!(!shot.workflow().is_empty());
     debug_assert_eq!(shot.generation().as_str().len(), 64);
     let Ok(_room) = enter_room(shot.project(), shot.root()) else {
         return RunUpshot::new(exit::ENV, None);
     };
-    let Ok(source) = crate::verbs::RunSource::from_bytes(
-        shot.workflow().to_owned(),
-        shot.source().as_bytes().to_vec(),
-    ) else {
-        return RunUpshot::new(exit::ENV, None);
-    };
     let Ok(receipt) = run_quietly(|| {
-        verbs::run::run_checked_source(
-            source,
-            crate::Theme::new(false, true, false),
+        verbs::run::run_arm_context(
+            execution,
+            shot.workflow(),
+            shot.root().to_path_buf(),
             shot.ceiling(),
         )
     }) else {

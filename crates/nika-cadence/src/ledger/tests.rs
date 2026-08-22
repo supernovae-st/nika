@@ -532,6 +532,7 @@ fn json_and_decision_payload_are_canonical() {
         slot_id: None,
         fencing: Some(FencingToken::new(9)),
         generation: ArmGeneration::from_wire(&"a".repeat(64)),
+        execution: None,
     };
     assert_eq!(
         decision_payload(&entry),
@@ -546,6 +547,7 @@ fn json_and_decision_payload_are_canonical() {
         generation: entry.generation.clone(),
         deadline: ts("2026-08-20T03:00:00Z"),
         decided_at: ts("2026-08-19T03:02:00Z"),
+        execution: None,
     };
     assert_eq!(
         claim_payload(&claim, 9).expect("claim payload"),
@@ -600,6 +602,7 @@ fn legacy_receipt_adapter_accepts_only_consistent_bare_terminals() {
         slot_id: None,
         fencing: None,
         generation: None,
+        execution: None,
     };
     for (kind, exit, word) in [
         (DecisionKind::Fired, Some(0), "fired"),
@@ -630,6 +633,12 @@ fn legacy_receipt_adapter_accepts_only_consistent_bare_terminals() {
     assert!(legacy_receipt_payload(&named).is_none());
     named.slot_id = None;
     named.fencing = Some(FencingToken::new(1));
+    assert!(legacy_receipt_payload(&named).is_none());
+    named.fencing = None;
+    named.execution = ExecutionLink::new(
+        "exe-018f1f6e-7b8c-7d9e-8fab-0123456789ab",
+        "018f1f6e7b8c7d9e8fab0123456789ab",
+    );
     assert!(legacy_receipt_payload(&named).is_none());
 }
 
@@ -791,6 +800,7 @@ fn typed_receipt_derives_kind_and_binds_the_claim() {
         generation: ArmGeneration::from_wire(&"b".repeat(64)),
         deadline: ts("2026-08-20T03:00:00Z"),
         decided_at: ts("2026-08-19T03:01:00Z"),
+        execution: None,
     };
     for (exit, kind) in [
         (0, DecisionKind::Fired),
@@ -813,6 +823,82 @@ fn typed_receipt_derives_kind_and_binds_the_claim() {
         assert_eq!(entry.fencing, Some(FencingToken::new(7)));
         assert_eq!(entry.generation, claim.generation);
     }
+}
+
+#[test]
+fn execution_link_is_direct_strict_and_survives_claim_replay() {
+    let execution_id = "exe-018f1f6e-7b8c-7d9e-8fab-0123456789ab";
+    let trace_id = "018f1f6e7b8c7d9e8fab0123456789ab";
+    let link = ExecutionLink::new(execution_id, trace_id).expect("direct identity pair");
+    assert_eq!(link.execution_id(), execution_id);
+    assert_eq!(link.trace_id(), trace_id);
+    assert!(ExecutionLink::new(execution_id, "0".repeat(32)).is_none());
+    assert!(ExecutionLink::new("job-not-an-execution", trace_id).is_none());
+    assert!(
+        parse_last(
+            r#"{"slot":"2026-08-19T03:00:00Z","fired_at":"2026-08-19T03:02:00Z","trace":null,"exit":0,"kind":"fired","gen":null,"execution_id":"exe-018f1f6e-7b8c-7d9e-8fab-0123456789ab"}"#,
+        )
+        .is_none()
+    );
+
+    let mut claim = Claim::new(
+        SlotId::from_wire(&"a".repeat(64)).expect("slot id"),
+        ts("2026-08-20T03:00:00Z"),
+        ts("2026-08-19T03:01:00Z"),
+    );
+    claim.execution = Some(link.clone());
+    let claim_payload = claim_payload(&claim, 1).expect("claim payload");
+    let (claim_line, claim_hash) = ledger_line(
+        1,
+        claim.decided_at,
+        "claimed",
+        Some(claim.slot_id.as_str()),
+        &claim_payload,
+        None,
+    )
+    .expect("claim line");
+    let unsettled_claim = unsettled(&format!("{claim_line}\n"))
+        .expect("valid claim")
+        .next()
+        .expect("unsettled");
+    assert_eq!(unsettled_claim.execution, Some(link.clone()));
+
+    let receipt = Receipt::for_claim(
+        &claim,
+        FencingToken::new(1),
+        ts("2026-08-19T03:00:00Z"),
+        ts("2026-08-19T03:02:00Z"),
+        Some(".nika/traces/exact.ndjson".to_owned()),
+        0,
+        None,
+    );
+    let receipt_entry = receipt.history_entry();
+    let receipt_payload = decision_payload(&receipt_entry);
+    let (receipt_line, _) = ledger_line(
+        2,
+        receipt_entry.decided_at,
+        "fired",
+        Some(claim.slot_id.as_str()),
+        &receipt_payload,
+        Some(&claim_hash),
+    )
+    .expect("receipt line");
+    let text = format!("{claim_line}\n{receipt_line}\n");
+    assert_eq!(scan_chain(&text).2, 2);
+    assert!(unsettled(&text).expect("valid chain").next().is_none());
+
+    let forged = receipt_payload.replace(trace_id, &"0".repeat(32));
+    assert!(
+        ledger_line(
+            2,
+            receipt_entry.decided_at,
+            "fired",
+            Some(claim.slot_id.as_str()),
+            &forged,
+            Some(&claim_hash),
+        )
+        .is_none()
+    );
 }
 
 #[test]

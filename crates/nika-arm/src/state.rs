@@ -19,7 +19,8 @@ use nika_fs::OwnedDir;
 use nix::fcntl::{Flock, FlockArg};
 
 pub use nika_cadence::ledger::{
-    Claim, DecisionKind as FireKind, HistoryEntry, LastRecord, Receipt, RecordOutcome, Unsettled,
+    Claim, DecisionKind as FireKind, ExecutionLink, HistoryEntry, LastRecord, Receipt,
+    RecordOutcome, Unsettled,
 };
 
 mod replay;
@@ -124,6 +125,26 @@ impl ArmState {
         Ok(self
             .last(label)?
             .map(|r| r.slot.to_zoned(jiff::tz::TimeZone::UTC)))
+    }
+
+    /// Read the last fired slot without creating, locking, repairing, or
+    /// projecting any sidecar state.
+    ///
+    /// This is the planning/dry-run surface: all traversal remains beneath
+    /// the held project descriptor, an absent path means never fired, and an
+    /// existing journal is verified from its bytes without rewriting caches.
+    ///
+    /// # Errors
+    /// An existing sidecar is unsafe, inaccessible, or fails verified replay.
+    pub fn peek_last_fired(&self, label: &str) -> io::Result<Option<Zoned>> {
+        let dir = match self.project_dir()?.open_below(&[".nika", "arm", label]) {
+            Ok(dir) => dir,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+            Err(error) => return Err(error),
+        };
+        Ok(replay::replay_safe(&dir)?
+            .last
+            .map(|record| record.slot.to_zoned(jiff::tz::TimeZone::UTC)))
     }
 
     /// Read the projection cache, rebuilding it from the verified chain on miss.
@@ -415,6 +436,10 @@ impl ArmState {
     ) -> io::Result<(OwnedDir, std::fs::File)> {
         let project = self.project_dir()?;
         Ok((project.try_clone()?, project.open_relative(relative)?))
+    }
+
+    pub(crate) fn held_project(&self) -> io::Result<OwnedDir> {
+        self.project_dir()?.try_clone()
     }
 
     fn project_dir(&self) -> io::Result<&OwnedDir> {

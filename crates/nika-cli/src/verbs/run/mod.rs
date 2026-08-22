@@ -45,12 +45,15 @@ fn sensitive_journey(report: &nika_check::CheckReport) -> bool {
 
 mod example;
 pub use example::example;
-use sink::{TraceNote, TraceSurface, surface_trace};
+use sink::{ExecutionSink, TraceNote, TraceSurface, surface_trace};
 
 mod budget;
 mod ceiling;
 mod dry_run;
 mod epilogue;
+mod execution_adapter;
+#[cfg(test)]
+mod extinction_tests;
 mod provenance;
 pub use provenance::run_with_repair_target;
 mod heartbeat;
@@ -86,6 +89,8 @@ use nika_schema::raw::RawWorkflow;
 
 use crate::Theme;
 use crate::verbs::exit;
+pub(crate) use execution_adapter::run_arm_context;
+use execution_adapter::{AdmittedWorld, run_admitted};
 
 /// Opportunistic bounded trace collection. Dry-run and explicit opt-out are
 /// effect-free; maintenance failure never blocks workflow execution.
@@ -215,38 +220,8 @@ pub fn run(
         require_signature,
         false,
         None,
-        None,
     )
     .code
-}
-
-pub(crate) fn run_checked_source(
-    source: crate::verbs::RunSource,
-    theme: Theme,
-    max_cost_usd: f64,
-) -> RunVerdict {
-    let file = source.logical_path().to_owned();
-    run_verdict(
-        &file,
-        false,
-        None,
-        theme,
-        RenderMode::Plain,
-        false,
-        None,
-        None,
-        &[],
-        None,
-        false,
-        None,
-        false,
-        Some(max_cost_usd),
-        false,
-        false,
-        false,
-        Some(source),
-        None,
-    )
 }
 
 /// Resolve output/ceiling and run the opportunistic trace collection.
@@ -291,7 +266,6 @@ fn run_verdict(
     no_gc: bool,
     require_signature: bool,
     interruptible: bool,
-    captured: Option<crate::verbs::RunSource>,
     repair_target: Option<nika_display::check_render::RepairTarget>,
 ) -> RunVerdict {
     let (output_json, max_cost_usd) = match preflight(output, max_cost_usd, no_gc, dry_run) {
@@ -299,63 +273,35 @@ fn run_verdict(
         Err(verdict) => return *verdict,
     };
     let (source, wf, report) =
-        match provenance::capture_checked_source(file, captured, repair_target, output_json) {
+        match provenance::capture_checked_source(file, repair_target, output_json) {
             Ok(checked) => checked,
             Err(verdict) => return *verdict,
         };
-    let file = source.logical_path();
-    let source_text = source.source();
+    let file_owned = source.logical_path().to_owned();
+    let file = file_owned.as_str();
     if require_signature && let Err(code) = require_signature_gate(&source, output_json) {
         return RunVerdict::bare(code);
     }
-    let (wf, report, skills) =
+    let (_wf, _report, _skills) =
         match scoped_clean_gate(wf, report, task_filter, &source, json, theme, output_json) {
             Ok(triple) => triple,
             Err(code) => return RunVerdict::bare(code),
         };
-    let inputs = match inputs::validated_var_overrides(vars, &wf, output_json) {
-        Ok(map) => map,
-        Err(code) => return RunVerdict::bare(code),
-    };
-    if dry_run {
-        return dry_run::lane(file, &wf, &report, model_override, json, theme, output_json);
-    }
-    if let Err(code) = budget::preflight(&wf, &report, model_override, max_cost_usd, output_json) {
-        return RunVerdict::bare(code);
-    }
-    let setup = match resume_setup(resume, &wf, source_text, model_override, output_json) {
-        Ok(setup) => setup,
-        Err(code) => return RunVerdict::bare(code),
-    };
-    let runtime = match composed_runtime(
-        &wf,
-        (file, source_text),
-        model_override,
-        access_pin,
-        inputs,
-        setup,
-        max_cost_usd,
-        skills.clone(),
-        (no_trace_file, output_json),
-        &report,
-    ) {
-        Ok(rt) => rt,
-        Err(code) => return RunVerdict::bare(code),
-    };
-    announce_access_pin(access_pin, (json, output_json), mode, &report);
-    execute_and_ask(
-        &runtime,
-        (file, source_text),
-        (&wf, &report),
-        resume.is_some_and(|r| r.trace.is_some()),
-        vars,
-        model_override,
-        access_pin,
-        max_cost_usd,
-        &skills,
+    run_admitted(
+        file,
+        &source,
+        (json, output_json),
         theme,
         mode,
-        (json, output_json, no_trace_file, no_outputs),
+        dry_run,
+        model_override,
+        access_pin,
+        vars,
+        resume,
+        no_trace_file,
+        task_filter,
+        no_outputs,
+        max_cost_usd,
         interruptible,
     )
 }
@@ -427,6 +373,7 @@ fn execute_and_ask(
     mode: RenderMode,
     (json, output_json, no_trace_file, no_outputs): (bool, bool, bool, bool),
     interruptible: bool,
+    world: &AdmittedWorld,
 ) -> RunVerdict {
     let rt = match executor(output_json) {
         Ok(rt) => rt,
@@ -445,7 +392,8 @@ fn execute_and_ask(
         theme,
         mode,
         resumed,
-        trace_sink(no_trace_file),
+        trace_sink(no_trace_file, world.execution_id, world.trace_id),
+        world.execution_id,
         !no_outputs,
         model_override,
         &carry,
@@ -486,6 +434,7 @@ fn execute_and_ask(
             mode,
             (json, output_json, no_trace_file, !no_outputs),
             &rt,
+            world,
         );
     }
     verdict
@@ -510,6 +459,7 @@ fn answered_leg(
     mode: RenderMode,
     (json, output_json, no_trace_file, outputs): (bool, bool, bool, bool),
     rt: &tokio::runtime::Runtime,
+    world: &AdmittedWorld,
 ) -> RunVerdict {
     let inputs = match inputs::validated_var_overrides(vars, wf, output_json) {
         Ok(map) => map,
@@ -521,7 +471,7 @@ fn answered_leg(
     };
     let runtime = match composed_runtime(
         wf,
-        (file, source),
+        source,
         model_override,
         access_pin,
         inputs,
@@ -530,6 +480,7 @@ fn answered_leg(
         skills.clone(),
         (no_trace_file, output_json),
         report,
+        world,
     ) {
         Ok(rt) => rt,
         Err(code) => return RunVerdict::bare(code),
@@ -544,7 +495,8 @@ fn answered_leg(
         theme,
         mode,
         true,
-        trace_sink(no_trace_file),
+        trace_sink(no_trace_file, world.execution_id, world.trace_id),
+        world.execution_id,
         outputs,
         model_override,
         &carry,
@@ -647,7 +599,7 @@ fn output_mode(output: Option<&str>) -> Result<bool, u8> {
 #[allow(clippy::too_many_arguments)]
 fn composed_runtime(
     wf: &RawWorkflow,
-    (file, source): (&str, &str),
+    source: &str,
     model_override: Option<&str>,
     access_pin: Option<&str>,
     inputs: inputs::ValidatedInputs,
@@ -656,6 +608,7 @@ fn composed_runtime(
     skills: BTreeMap<String, String>,
     (no_trace_file, output_json): (bool, bool),
     report: &nika_check::CheckReport,
+    world: &AdmittedWorld,
 ) -> Result<ProdRuntime, u8> {
     let ResumeSetup {
         plan: resume_plan,
@@ -678,11 +631,19 @@ fn composed_runtime(
     match production_runtime(default_model, caps, wf.run.as_ref().map(|s| &s.value)) {
         Ok(rt) => {
             let rt = rt
-                // The child seam (spec 14) — children resolve against THIS file.
-                .with_child_runner(std::sync::Arc::new(child_runner::ProdChildRunner::new(
-                    file,
-                    !no_trace_file,
-                )))
+                .with_child_runner(std::sync::Arc::new(
+                    child_runner::ProdChildRunner::admitted(
+                        world.snapshot.clone(),
+                        world.snapshot.root(),
+                        &world.display_root,
+                        !no_trace_file,
+                    ),
+                ))
+                .with_child_closures(child_runner::admitted_closure_digests(
+                    wf,
+                    &world.snapshot,
+                    world.snapshot.root(),
+                ))
                 .with_var_overrides(overrides)
                 // F-P13 · the input origins (NEP-0014 law 2) — the boot
                 // manifest journals where every bound input came from.
@@ -706,13 +667,6 @@ fn composed_runtime(
                 // #473 · composer-resolved SKILL.md texts (`## Skills`
                 // injection + the referencing tasks' resume identity).
                 .with_skills(skills)
-                // Spec 14 law 10 (def_hash tier) · the child closure
-                // digests join the caller's resume identity — an edited
-                // child re-runs instead of serving the old cached output.
-                .with_child_closures(child_runner::closure_digests(
-                    wf,
-                    std::path::Path::new(file),
-                ))
                 // #409 · the override joins the resume identity of every
                 // model-less infer/agent task (the model they RUN on).
                 .with_model_override(model_override.map(ToOwned::to_owned))
@@ -720,8 +674,7 @@ fn composed_runtime(
                 .with_access_pin(access_pin.map(ToOwned::to_owned))
                 .with_boot_access_fields(boot_access)
                 .with_access_probes(nika_cli_host::probe::access_probes_with_harness())
-                // The run's identity: the journal names the definition it
-                // recorded (sha256 of the exact bytes this composer read).
+                // The journal names the exact definition bytes this composer read.
                 .with_source_sha256(sha256_hex(source.as_bytes()));
             // A CRLF/BOM source ALSO records its LF normal form, so drift
             // checks can tell a re-encode from an edit. LF sources skip
@@ -906,6 +859,7 @@ async fn execute(
     mode: RenderMode,
     resumed: bool,
     trace: TraceFileSink,
+    execution: nika_types::id::ExecutionId,
     outputs: bool,
     model_override: Option<&str>,
     carry: &str,
@@ -923,6 +877,7 @@ async fn execute(
             theme,
             resumed,
             trace,
+            execution,
             carry,
         )
         .await
@@ -934,6 +889,7 @@ async fn execute(
             stamper.as_mut(),
             resumed,
             trace,
+            execution,
             carry,
         )
         .await
@@ -947,6 +903,7 @@ async fn execute(
             theme,
             (mode, resumed, outputs),
             trace,
+            execution,
             model_override,
             carry,
         )
@@ -970,14 +927,16 @@ async fn execute_output_json_lane(
     theme: Theme,
     resumed: bool,
     trace: TraceFileSink,
+    execution: nika_types::id::ExecutionId,
     carry: &str,
 ) -> RunVerdict {
     let mut fold = FoldSink::new(std::io::stderr().lock(), theme, RenderMode::Plain);
     fold.set_plan(plan_waves(wf, report));
     fold.set_trace_recorded(!trace.is_disabled());
-    let mut tee = Tee::new(fold, trace);
-    let (code, outcome) = drive(runtime, wf, report, stamper, &mut tee).await;
-    let (mut sink, mut trace) = tee.into_parts();
+    let tee = Tee::new(fold, trace);
+    let mut events = ExecutionSink::new(tee, execution);
+    let (code, outcome) = drive(runtime, wf, report, stamper, &mut events).await;
+    let (mut sink, mut trace) = events.into_inner().into_parts();
     sink.print_final();
     // Pause delivery is journaled before the seal (ADR-111).
     if let (Some(p), Some(pause)) = (
@@ -1047,11 +1006,13 @@ async fn execute_json_lane(
     stamper: &mut dyn Stamper,
     resumed: bool,
     trace: TraceFileSink,
+    execution: nika_types::id::ExecutionId,
     carry: &str,
 ) -> RunVerdict {
-    let mut tee = Tee::new(JsonSink::new(std::io::stdout().lock()), trace);
-    let (code, outcome) = drive(runtime, wf, report, stamper, &mut tee).await;
-    let (sink, mut trace) = tee.into_parts();
+    let tee = Tee::new(JsonSink::new(std::io::stdout().lock()), trace);
+    let mut events = ExecutionSink::new(tee, execution);
+    let (code, outcome) = drive(runtime, wf, report, stamper, &mut events).await;
+    let (sink, mut trace) = events.into_inner().into_parts();
     if let (Some(p), Some(pause)) = (
         trace.path().map(std::path::Path::to_path_buf),
         outcome.paused.as_ref(),
@@ -1104,6 +1065,7 @@ async fn execute_fold_lane(
     theme: Theme,
     (mode, resumed, outputs): (RenderMode, bool, bool),
     trace: TraceFileSink,
+    execution: nika_types::id::ExecutionId,
     model_override: Option<&str>,
     carry: &str,
 ) -> RunVerdict {
@@ -1123,11 +1085,12 @@ async fn execute_fold_lane(
     });
     let ticker = pulse.clone().map(heartbeat::spawn_ticker);
     let beat = heartbeat::HeartbeatSink::new(pulse);
-    let mut tee = Tee::new(
+    let tee = Tee::new(
         Tee::new(sink::FoldHandle(std::sync::Arc::clone(&fold)), beat),
         trace,
     );
-    let (code, outcome) = drive(runtime, wf, report, stamper, &mut tee).await;
+    let mut events = ExecutionSink::new(tee, execution);
+    let (code, outcome) = drive(runtime, wf, report, stamper, &mut events).await;
     // The run settled: stop riders before the epilogue.
     if let Some(ticker) = &ticker {
         ticker.abort();
@@ -1135,7 +1098,7 @@ async fn execute_fold_lane(
     if let Some(spinner) = &spinner {
         spinner.abort();
     }
-    let (_inner, mut trace) = tee.into_parts();
+    let (_inner, mut trace) = events.into_inner().into_parts();
     if let (Some(p), Some(pause)) = (
         trace.path().map(std::path::Path::to_path_buf),
         outcome.paused.as_ref(),
@@ -1346,12 +1309,17 @@ where
 /// The run journal (spec §3.3) — composed like the other seams;
 /// `execute` receives the sink, never a flag. The directory constant
 /// is the store scan's (one constant, one home).
-fn trace_sink(no_trace_file: bool) -> TraceFileSink {
-    if no_trace_file {
+fn trace_sink(
+    no_trace_file: bool,
+    execution: nika_types::id::ExecutionId,
+    trace: nika_types::id::TraceId,
+) -> TraceFileSink {
+    let sink = if no_trace_file {
         TraceFileSink::disabled()
     } else {
         TraceFileSink::new(nika_dap::store::TRACE_DIR)
-    }
+    };
+    sink.for_execution(execution, trace)
 }
 
 #[cfg(test)]

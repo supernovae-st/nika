@@ -8,6 +8,7 @@ use std::io::Write;
 
 use nika_event::Event;
 use nika_runtime::EventSink;
+use nika_types::id::ExecutionId;
 
 use nika_dap::journal::TraceFileSink;
 
@@ -70,6 +71,32 @@ pub(super) type SharedFold<W> = std::sync::Arc<std::sync::Mutex<FoldSink<W>>>;
 /// poisoned lock (another holder panicked) goes silent: the render is
 /// best-effort by contract, the verdict never rides here.
 pub(super) struct FoldHandle<W: Write>(pub(super) SharedFold<W>);
+
+/// Root-execution decorator for every projection of the runtime stream.
+///
+/// Event IDs remain minted by the runtime stamper. This seam only attaches
+/// the already-admitted execution identity before the event fans out to the
+/// human, JSON, and journal lanes.
+pub(super) struct ExecutionSink<S> {
+    inner: S,
+    execution: ExecutionId,
+}
+
+impl<S> ExecutionSink<S> {
+    pub(super) const fn new(inner: S, execution: ExecutionId) -> Self {
+        Self { inner, execution }
+    }
+
+    pub(super) fn into_inner(self) -> S {
+        self.inner
+    }
+}
+
+impl<S: EventSink> EventSink for ExecutionSink<S> {
+    fn emit(&mut self, event: Event) {
+        self.inner.emit(event.with_execution(self.execution));
+    }
+}
 
 impl<W: Write> EventSink for FoldHandle<W> {
     fn emit(&mut self, event: Event) {
