@@ -15,6 +15,31 @@
 
 use std::path::Path;
 
+/// Relative `workflow: "./foo.nika.yaml"` children a body invokes.
+/// `nika try 10-compose-pipeline` staged the parent alone and check
+/// died on NIKA-COMP-001 (the child is an ingredient, same class as a
+/// fixture file). Only `./` static pack slugs — templated targets
+/// cannot be staged.
+#[must_use]
+fn composition_siblings(body: &str) -> Vec<String> {
+    let mut out: Vec<String> = Vec::new();
+    for (i, _) in body.match_indices("workflow:") {
+        let rest = body[i + "workflow:".len()..].trim_start();
+        let rest = rest.trim_start_matches(['\'', '"']);
+        let Some(name) = rest.strip_prefix("./") else {
+            continue;
+        };
+        let name: String = name
+            .chars()
+            .take_while(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '_' | '-'))
+            .collect();
+        if name.ends_with(".nika.yaml") && !out.iter().any(|p| p == &name) {
+            out.push(name);
+        }
+    }
+    out
+}
+
 /// The `examples/fixtures/<tail>` references a body reads, each tail
 /// cut at its first glob star (a `photos/**` read pulls the whole
 /// `photos/` dir) and stripped of a trailing `/`.
@@ -47,11 +72,31 @@ pub fn fixture_prefixes(body: &str) -> Vec<String> {
 /// file — the door reports it and refuses to pretend the take is whole.
 pub fn materialize(body: &str, dest: &Path) -> std::io::Result<(usize, usize)> {
     let prefixes = fixture_prefixes(body);
-    if prefixes.is_empty() {
+    let siblings = composition_siblings(body);
+    if prefixes.is_empty() && siblings.is_empty() {
         return Ok((0, 0));
     }
     let base = dest.parent().unwrap_or_else(|| Path::new(""));
     let (mut written, mut kept) = (0, 0);
+    for name in &siblings {
+        let slug = name.strip_suffix(".nika.yaml").unwrap_or(name);
+        let Some(child) = nika_pack::example(slug) else {
+            continue;
+        };
+        let target = base.join(name);
+        if target.exists() {
+            kept += 1;
+            continue;
+        }
+        std::fs::write(&target, child)?;
+        written += 1;
+        let (w, k) = materialize(child, &target)?;
+        written += w;
+        kept += k;
+    }
+    if prefixes.is_empty() {
+        return Ok((written, kept));
+    }
     for (tail, bytes) in nika_pack::example_fixture_files() {
         let wanted = prefixes
             .iter()
@@ -116,6 +161,31 @@ mod tests {
             covered >= 3,
             "the corpus carries fixture-reading jobs; the law must bite: {covered}"
         );
+    }
+
+    /// `nika try 10-compose-pipeline` must stage the child it invokes
+    /// (`./10-compose-child.nika.yaml`) or check dies NIKA-COMP-001 in
+    /// the rehearsal room (measured 2026-08-22 · e2e S2 17/18).
+    #[test]
+    fn a_compose_parent_takes_its_child_along() {
+        let body = nika_pack::example("10-compose-pipeline").expect("pack");
+        let siblings = composition_siblings(body);
+        assert!(
+            siblings.iter().any(|s| s == "10-compose-child.nika.yaml"),
+            "the parent names the child: {siblings:?}"
+        );
+        let dir = std::env::temp_dir().join(format!("nika-compose-sib-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).expect("tmpdir");
+        let dest = dir.join("10-compose-pipeline.nika.yaml");
+        std::fs::write(&dest, body).expect("parent");
+        let (written, _) = materialize(body, &dest).expect("child follows");
+        assert!(written >= 1, "wrote the child");
+        assert!(
+            dir.join("10-compose-child.nika.yaml").exists(),
+            "the rehearsal room has the sibling"
+        );
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// A body with no fixture reads materializes nothing — and a
