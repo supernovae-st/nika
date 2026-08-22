@@ -1138,37 +1138,6 @@ fn push_glob_readme_hint(hints: &mut Vec<Hint>, id: &str, a: &nika_schema::raw::
     ));
 }
 
-/// `. as $c` then a bare `map(` maps the CURRENT value (often a pair),
-/// not `$c`. The jury-jq class: `($c | map(...))`.
-fn push_jq_as_map_hint(hints: &mut Vec<Hint>, id: &str, a: &nika_schema::raw::RawInvokeAction) {
-    let Some(tool) = a.tool() else {
-        return;
-    };
-    if tool.value != "nika:jq" {
-        return;
-    }
-    let Some(expr) = a
-        .args
-        .as_ref()
-        .and_then(|args| args.value.get("expression"))
-        .and_then(|v| v.as_str())
-    else {
-        return;
-    };
-    if !jq_maps_the_current_after_bind(expr) {
-        return;
-    }
-    hints.push(hint(
-        "jq-as-map",
-        id,
-        format!(
-            "`nika:jq` on `{id}` binds `. as $name` then calls `map(` on the current \
-             value — after a later construct the current value is often a pair, not \
-             the bound array. Write `($name | map(...))`"
-        ),
-    ));
-}
-
 /// A failed last `nika:assert` quarantines writes to
 /// `.nika/quarantine/<trace>/`. Say so when the DAG both writes and
 /// asserts — authors hunt an empty `out/` otherwise.
@@ -1254,66 +1223,6 @@ fn asks_model_to_name_the_law(text: &str) -> bool {
             && !clause.contains("don't")
             && !clause.contains("not ")
     })
-}
-
-/// `. as $c | map(...)` maps the *current* value. `($c | map(...))` is
-/// the one-way. A one-liner used to slip past the line-start detector.
-fn jq_maps_the_current_after_bind(expr: &str) -> bool {
-    // The DOT binding is what puts the current value in question, so it stays
-    // the trigger: no `. as $name`, no hint.
-    if bound_jq_names(expr).is_empty() || !expr.contains("map(") {
-        return false;
-    }
-    // But ANY bound name names its input out loud. A law that walks several
-    // bindings (`($entries | map(...)) as $rows | ($rows | map(...))`) already
-    // does exactly what the advice prescribes, and stripping only the
-    // dot-bound name reported it as a defect (measured 2026-08-19).
-    let mut rest = squash_ws(expr);
-    for name in &all_bound_jq_names(expr) {
-        rest = rest.replace(&format!("(${name} | map("), "");
-        rest = rest.replace(&format!("(${name}|map("), "");
-    }
-    rest.contains("map(")
-}
-
-/// Every `as $NAME` binding, dot-bound or not. A `map(` piped from one of
-/// them is explicit; only a BARE `map(` rides the current value.
-fn all_bound_jq_names(expr: &str) -> Vec<String> {
-    let mut names = Vec::new();
-    let mut rest = expr;
-    while let Some(i) = rest.find(" as $") {
-        let after = &rest[i + 5..];
-        let name: String = after
-            .chars()
-            .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
-            .collect();
-        if name.is_empty() {
-            rest = after;
-            continue;
-        }
-        names.push(name.clone());
-        rest = after.get(name.len()..).unwrap_or("");
-    }
-    names
-}
-
-fn bound_jq_names(expr: &str) -> Vec<String> {
-    let mut names = Vec::new();
-    let mut rest = expr;
-    while let Some(i) = rest.find(". as $") {
-        let after = &rest[i + 6..];
-        let name: String = after
-            .chars()
-            .take_while(|c| c.is_ascii_alphanumeric() || *c == '_')
-            .collect();
-        if name.is_empty() {
-            rest = after;
-            continue;
-        }
-        names.push(name.clone());
-        rest = after.get(name.len()..).unwrap_or("");
-    }
-    names
 }
 
 /// `infer` → `nika:jq`/`nika:decide` with no const-fixture assert.
@@ -1460,24 +1369,7 @@ fn value_mentions_tasks(v: &serde_json::Value, ids: &BTreeSet<&str>) -> bool {
         .any(|id| ids.contains(id.as_str()))
 }
 
-fn squash_ws(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    let mut gap = false;
-    for c in s.chars() {
-        if c.is_whitespace() {
-            gap = true;
-        } else {
-            if gap && !out.is_empty() {
-                out.push(' ');
-            }
-            gap = false;
-            out.push(c);
-        }
-    }
-    out
-}
-
-fn hint(kind: &'static str, task: &str, advice: String) -> Hint {
+pub(super) fn hint(kind: &'static str, task: &str, advice: String) -> Hint {
     Hint {
         kind,
         code: None,
@@ -1487,7 +1379,9 @@ fn hint(kind: &'static str, task: &str, advice: String) -> Hint {
 }
 
 mod catalog;
+mod jq_as_map;
 pub use catalog::hint_help;
+use jq_as_map::push_jq_as_map_hint;
 
 #[cfg(test)]
 mod tests;
