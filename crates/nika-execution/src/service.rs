@@ -95,7 +95,9 @@ impl ExecutionService {
         }
     }
 
-    fn admit_snapshot(snapshot: ExecutionSnapshot) -> Result<AdmittedExecution, ExecutionError> {
+    pub(crate) fn admit_snapshot(
+        snapshot: ExecutionSnapshot,
+    ) -> Result<AdmittedExecution, ExecutionError> {
         let root = snapshot.root().to_owned();
         let root_text = snapshot
             .text(&root)

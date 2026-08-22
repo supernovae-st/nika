@@ -1,5 +1,6 @@
 use std::fs;
 use std::path::Path;
+use std::sync::{Arc, Barrier};
 
 use nika_fs::OwnedDir;
 
@@ -30,6 +31,43 @@ fn project(files: &[(&str, &str)]) -> (tempfile::TempDir, OwnedDir) {
     }
     let owned = OwnedDir::open(tmp.path()).expect("owned project");
     (tmp, owned)
+}
+
+struct InterleavingSource {
+    project: OwnedDir,
+    target: &'static str,
+    captured: Arc<Barrier>,
+    replaced: Arc<Barrier>,
+}
+
+impl crate::snapshot::ByteSource for InterleavingSource {
+    fn read(&self, logical_path: &str, limit: usize) -> Result<Vec<u8>, ExecutionError> {
+        let bytes =
+            <OwnedDir as crate::snapshot::ByteSource>::read(&self.project, logical_path, limit)?;
+        if logical_path == self.target {
+            self.captured.wait();
+            self.replaced.wait();
+        }
+        Ok(bytes)
+    }
+}
+
+fn interleaving_source(
+    project: &OwnedDir,
+    target: &'static str,
+) -> (InterleavingSource, Arc<Barrier>, Arc<Barrier>) {
+    let captured = Arc::new(Barrier::new(2));
+    let replaced = Arc::new(Barrier::new(2));
+    (
+        InterleavingSource {
+            project: project.try_clone().expect("source clone"),
+            target,
+            captured: Arc::clone(&captured),
+            replaced: Arc::clone(&replaced),
+        },
+        captured,
+        replaced,
+    )
 }
 
 #[test]
@@ -129,6 +167,62 @@ fn directory_replacement_after_capture_cannot_redirect_execution() {
     )
     .expect("replacement child");
     assert_eq!(snapshot.text("world/child.nika.yaml"), Some(CHILD));
+}
+
+#[test]
+#[allow(
+    clippy::disallowed_methods,
+    reason = "the synchronous ByteSource race needs an OS thread held at explicit barriers"
+)]
+fn root_replacement_interleaved_after_read_cannot_change_admitted_bytes() {
+    let (tmp, owned) = project(&[("root.nika.yaml", pure_root())]);
+    let (source, captured, replaced) = interleaving_source(&owned, "root.nika.yaml");
+    let root = tmp.path().join("root.nika.yaml");
+    let attacker = std::thread::spawn(move || {
+        captured.wait();
+        fs::write(root, b"nika: attacker\n").expect("replace root");
+        replaced.wait();
+    });
+    let snapshot = ExecutionSnapshot::capture_from(
+        &source,
+        Path::new("root.nika.yaml"),
+        std::iter::empty::<&Path>(),
+        SnapshotLimits::default(),
+    )
+    .expect("capture owns the already-read root");
+    attacker.join().expect("attacker");
+    assert_eq!(snapshot.text("root.nika.yaml"), Some(pure_root()));
+}
+
+#[test]
+#[allow(
+    clippy::disallowed_methods,
+    reason = "the synchronous ByteSource race needs an OS thread held at explicit barriers"
+)]
+fn skill_registry_reload_interleaved_after_read_cannot_change_admission() {
+    const ROOT: &str = "nika: root\nmodel: mock/echo\npermits:\n  fs:\n    read: [\"skills/review/SKILL.md\"]\ntasks:\n  review:\n    agent: { prompt: \"review\", skills: [\"skills/review/SKILL.md\"] }\n";
+    const SKILL: &str = "---\nname: review\ndescription: Review code.\n---\nOriginal.\n";
+    let (tmp, owned) = project(&[("root.nika.yaml", ROOT), ("skills/review/SKILL.md", SKILL)]);
+    let (source, captured, replaced) = interleaving_source(&owned, "skills/review/SKILL.md");
+    let skill = tmp.path().join("skills/review/SKILL.md");
+    let attacker = std::thread::spawn(move || {
+        captured.wait();
+        fs::write(skill, b"attacker registry reload").expect("replace skill");
+        replaced.wait();
+    });
+    let snapshot = ExecutionSnapshot::capture_from(
+        &source,
+        Path::new("root.nika.yaml"),
+        std::iter::empty::<&Path>(),
+        SnapshotLimits::default(),
+    )
+    .expect("capture owns the already-read skill");
+    attacker.join().expect("attacker");
+    let admitted = ExecutionService::admit_snapshot(snapshot).expect("snapshot admits");
+    assert_eq!(
+        admitted.snapshot().text("skills/review/SKILL.md"),
+        Some(SKILL)
+    );
 }
 
 #[test]
