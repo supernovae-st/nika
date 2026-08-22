@@ -83,7 +83,7 @@ $ nika check brief.nika.yaml
  ✔ PERMITS  literal + const: args fit the boundary · computed + symlinks at run
  ✔ TRIFECTA no lethal trifecta over the declared permits: without a human gate
  ✔ JOURNEY  internal · 1 source · 0 destinations · 2 model endpoints · no secret reaches a cloud destination
- ⚠ audited · 2 tasks · 2 waves · permits declared · est unbounded · 1 uncapped task · 0 hints · risk unbounded
+ ⚠ audited · 2 tasks · 2 waves · permits tools:nika:read · est unbounded · 1 uncapped task · 0 hints · risk unbounded
 
 $ nika run brief.nika.yaml
   🦋 nika · daily-brief · 2 tasks
