@@ -85,7 +85,7 @@ impl RequestDigest {
     /// # Errors
     /// Returns [`JobStoreError::InvalidRequestDigest`] for any other shape.
     pub fn new(value: impl Into<String>) -> Result<Self, JobStoreError> {
-        let value = value.into().to_ascii_lowercase();
+        let value = value.into();
         validate_digest(&value)?;
         Ok(Self(value))
     }
@@ -243,7 +243,7 @@ pub enum JobStoreError {
     #[error("idempotency key must contain 1 to 255 visible ASCII bytes")]
     InvalidIdempotencyKey,
     /// A request digest was not canonical lowercase hexadecimal.
-    #[error("request digest must contain exactly 64 hexadecimal characters")]
+    #[error("request digest must contain exactly 64 lowercase hexadecimal characters")]
     InvalidRequestDigest,
     /// Durable state was unreadable or violated an invariant.
     #[error("job store state is corrupt: {0}")]
@@ -262,6 +262,16 @@ pub enum JobStoreError {
     /// The event sequence cannot advance without wrapping.
     #[error("job {0} exhausted its event sequence")]
     SequenceExhausted(JobId),
+    /// A resume cursor names an event that has not been persisted.
+    #[error("job {job} event cursor {after} is beyond latest sequence {latest}")]
+    CursorBeyondLatest {
+        /// Job whose event journal was queried.
+        job: JobId,
+        /// Caller-supplied exclusive resume cursor.
+        after: u64,
+        /// Latest sequence currently persisted, or zero for an empty journal.
+        latest: u64,
+    },
     /// A panic occurred while another thread held the in-process lock.
     #[error("job store local lock is poisoned")]
     LockPoisoned,

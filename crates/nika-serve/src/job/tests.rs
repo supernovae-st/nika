@@ -12,6 +12,26 @@ fn digest(byte: u8) -> RequestDigest {
     RequestDigest::from_bytes([byte; 32])
 }
 
+#[test]
+fn request_digest_accepts_only_canonical_lowercase_hex() {
+    let cases = [
+        ("lowercase", "ab".repeat(32), true),
+        ("uppercase", "AB".repeat(32), false),
+        ("mixed case", "aB".repeat(32), false),
+        ("too short", "ab".repeat(31), false),
+        ("too long", format!("{}0", "ab".repeat(32)), false),
+        ("non-hex", format!("{}g", "ab".repeat(31)), false),
+    ];
+
+    for (name, value, accepted) in cases {
+        assert_eq!(
+            RequestDigest::new(value).is_ok(),
+            accepted,
+            "boundary case: {name}"
+        );
+    }
+}
+
 fn admitted_record(admission: Admission) -> JobRecord {
     match admission {
         Admission::Created(record) | Admission::Existing(record) | Admission::Conflict(record) => {
@@ -60,20 +80,16 @@ fn conflicting_key_reuse_does_not_mutate_the_job() {
 #[test]
 fn concurrent_duplicates_create_exactly_one_job() {
     let root = tempfile::tempdir().expect("root");
-    let store = Arc::new(JobStore::open(root.path()).expect("store"));
+    let stores = (0..8)
+        .map(|_| JobStore::open(root.path()).expect("independent store"))
+        .collect::<Vec<_>>();
     let barrier = Arc::new(Barrier::new(8));
-    let mut workers = Vec::new();
-
-    for _ in 0..8 {
-        let store = Arc::clone(&store);
-        let barrier = Arc::clone(&barrier);
-        workers.push((store, barrier));
-    }
 
     let admissions = std::thread::scope(|scope| {
-        workers
+        stores
             .into_iter()
-            .map(|(store, barrier)| {
+            .map(|store| {
+                let barrier = Arc::clone(&barrier);
                 scope.spawn(move || {
                     barrier.wait();
                     store
@@ -97,6 +113,39 @@ fn concurrent_duplicates_create_exactly_one_job() {
 
     assert_eq!(created, 1);
     assert!(ids.windows(2).all(|pair| pair[0] == pair[1]));
+    assert_eq!(
+        JobStore::open(root.path())
+            .expect("verification store")
+            .load_state()
+            .expect("state")
+            .jobs
+            .len(),
+        1,
+        "duplicate admission must not leave a second runnable record"
+    );
+}
+
+#[test]
+fn independently_opened_stores_share_one_kernel_lease() {
+    let root = tempfile::tempdir().expect("root");
+    let first = JobStore::open(root.path()).expect("first store");
+    let second = JobStore::open(root.path()).expect("second store");
+    let held = first.kernel_lease().expect("first lease");
+
+    assert!(
+        second
+            .try_kernel_lease()
+            .expect("nonblocking second lease")
+            .is_none(),
+        "a separately opened store must contend on the same kernel lease"
+    );
+    drop(held);
+    assert!(
+        second
+            .try_kernel_lease()
+            .expect("lease after release")
+            .is_some()
+    );
 }
 
 #[test]
@@ -138,6 +187,37 @@ fn truncated_state_fails_closed() {
         b"{\"version\":1,\"jobs\":[",
     )
     .expect("truncate state");
+
+    assert!(matches!(
+        JobStore::open(root.path()),
+        Err(JobStoreError::Corrupt(_))
+    ));
+}
+
+#[test]
+fn deleted_state_after_empty_initialization_fails_closed_on_restart() {
+    let root = tempfile::tempdir().expect("root");
+    let store = JobStore::open(root.path()).expect("store");
+    drop(store);
+    let jobs = root.path().join("jobs");
+
+    assert!(jobs.join("initialized.json").is_file());
+    assert!(jobs.join("state.json").is_file());
+    std::fs::remove_file(jobs.join("state.json")).expect("delete state");
+
+    assert!(matches!(
+        JobStore::open(root.path()),
+        Err(JobStoreError::Corrupt(_))
+    ));
+}
+
+#[test]
+fn renamed_away_state_fails_closed_on_restart() {
+    let root = tempfile::tempdir().expect("root");
+    let store = JobStore::open(root.path()).expect("store");
+    drop(store);
+    let jobs = root.path().join("jobs");
+    std::fs::rename(jobs.join("state.json"), jobs.join("state.lost")).expect("rename state away");
 
     assert!(matches!(
         JobStore::open(root.path()),
@@ -241,6 +321,16 @@ fn event_sequences_are_monotone_and_resumable() {
             .collect::<Vec<_>>(),
         [2, 3]
     );
+    assert!(matches!(
+        store
+            .events_after(record.id(), 4)
+            .expect_err("cursor beyond latest sequence"),
+        JobStoreError::CursorBeyondLatest {
+            after: 4,
+            latest: 3,
+            ..
+        }
+    ));
 }
 
 #[test]

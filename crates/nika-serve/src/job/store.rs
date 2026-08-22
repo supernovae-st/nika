@@ -12,6 +12,8 @@ use super::{
 };
 
 const JOBS_DIR: &str = "jobs";
+const INITIALIZED_FILE: &str = "initialized.json";
+const INITIALIZED_BODY: &str = "{\"schema\":\"nika/job-store-init@1\"}\n";
 const LOCK_FILE: &str = "store.lock";
 const STATE_FILE: &str = "state.json";
 const STATE_VERSION: u32 = 1;
@@ -45,7 +47,7 @@ impl JobStore {
         {
             let _local = store.local_guard()?;
             let _lease = store.kernel_lease()?;
-            store.load_state()?;
+            store.initialize_or_load()?;
         }
         Ok(store)
     }
@@ -182,8 +184,8 @@ impl JobStore {
     /// Return events whose sequence is greater than the supplied cursor.
     ///
     /// # Errors
-    /// Returns an error for an unknown job or a store that cannot be locked and
-    /// validated.
+    /// Returns an error for an unknown job, a cursor beyond the latest durable
+    /// sequence, or a store that cannot be locked and validated.
     pub fn events_after(&self, id: &JobId, after: u64) -> Result<Vec<JobEvent>, JobStoreError> {
         let _local = self.local_guard()?;
         let _lease = self.kernel_lease()?;
@@ -193,6 +195,14 @@ impl JobStore {
             .iter()
             .find(|job| job.record.id == *id)
             .ok_or_else(|| JobStoreError::JobNotFound(id.clone()))?;
+        let latest = job.events.last().map_or(0, |event| event.sequence);
+        if after > latest {
+            return Err(JobStoreError::CursorBeyondLatest {
+                job: id.clone(),
+                after,
+                latest,
+            });
+        }
         Ok(job
             .events
             .iter()
@@ -205,21 +215,59 @@ impl JobStore {
         self.local.lock().map_err(|_| JobStoreError::LockPoisoned)
     }
 
-    fn kernel_lease(&self) -> Result<Flock<std::fs::File>, JobStoreError> {
+    pub(super) fn kernel_lease(&self) -> Result<Flock<std::fs::File>, JobStoreError> {
         let file = self.dir.open_lock(LOCK_FILE)?;
         Flock::lock(file, FlockArg::LockExclusive).map_err(|(_file, errno)| {
             JobStoreError::Io(std::io::Error::from_raw_os_error(errno as i32))
         })
     }
 
+    #[cfg(test)]
+    pub(super) fn try_kernel_lease(&self) -> Result<Option<Flock<std::fs::File>>, JobStoreError> {
+        let file = self.dir.open_lock(LOCK_FILE)?;
+        match Flock::lock(file, FlockArg::LockExclusiveNonblock) {
+            Ok(lease) => Ok(Some(lease)),
+            Err((_file, nix::errno::Errno::EAGAIN)) => Ok(None),
+            Err((_file, errno)) => Err(JobStoreError::Io(std::io::Error::from_raw_os_error(
+                errno as i32,
+            ))),
+        }
+    }
+
+    fn initialize_or_load(&self) -> Result<(), JobStoreError> {
+        let marker = self.dir.read_optional(INITIALIZED_FILE)?;
+        let state = self.dir.read_optional(STATE_FILE)?;
+        match (marker.as_deref(), state.as_deref()) {
+            (None, None) => {
+                self.persist(&PersistedState::new())?;
+                self.dir.write_atomic(INITIALIZED_FILE, INITIALIZED_BODY)?;
+                Ok(())
+            }
+            (Some(marker), Some(state)) => {
+                validate_initialization_marker(marker)?;
+                decode_state(state).map(|_| ())
+            }
+            (Some(marker), None) => {
+                validate_initialization_marker(marker)?;
+                Err(missing_state_error())
+            }
+            (None, Some(_)) => Err(JobStoreError::Corrupt(
+                "initialization marker is missing".to_owned(),
+            )),
+        }
+    }
+
     pub(super) fn load_state(&self) -> Result<PersistedState, JobStoreError> {
-        let Some(text) = self.dir.read_optional(STATE_FILE)? else {
-            return Ok(PersistedState::new());
-        };
-        let state: PersistedState = serde_json::from_str(&text)
-            .map_err(|_| JobStoreError::Corrupt("state is not valid JSON".to_owned()))?;
-        state.validate()?;
-        Ok(state)
+        let marker = self
+            .dir
+            .read_optional(INITIALIZED_FILE)?
+            .ok_or_else(|| JobStoreError::Corrupt("initialization marker is missing".to_owned()))?;
+        validate_initialization_marker(&marker)?;
+        let text = self
+            .dir
+            .read_optional(STATE_FILE)?
+            .ok_or_else(missing_state_error)?;
+        decode_state(&text)
     }
 
     fn persist(&self, state: &PersistedState) -> Result<(), JobStoreError> {
@@ -300,4 +348,24 @@ fn validate_events(events: &[JobEvent]) -> Result<(), JobStoreError> {
         }
     }
     Ok(())
+}
+
+fn validate_initialization_marker(marker: &str) -> Result<(), JobStoreError> {
+    if marker != INITIALIZED_BODY {
+        return Err(JobStoreError::Corrupt(
+            "initialization marker is invalid".to_owned(),
+        ));
+    }
+    Ok(())
+}
+
+fn decode_state(text: &str) -> Result<PersistedState, JobStoreError> {
+    let state: PersistedState = serde_json::from_str(text)
+        .map_err(|_| JobStoreError::Corrupt("state is not valid JSON".to_owned()))?;
+    state.validate()?;
+    Ok(state)
+}
+
+fn missing_state_error() -> JobStoreError {
+    JobStoreError::Corrupt("state file is missing after initialization".to_owned())
 }
