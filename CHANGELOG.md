@@ -87,6 +87,14 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Fixed
 
+- **`nika check` no longer panics on a decorative verb glyph.** Copying
+  `⛨permits:` / `◇infer:` from nika.sh into a file, then running the
+  advertised `nika check`, dumped `annotate-snippets` (`byte index N is
+  not a char boundary`) with no NIKA code and no `--fix` hint. The
+  snippet painter widened a point span by one BYTE into a 3-byte glyph;
+  it now snaps to a char boundary and widens by one CHAR. MCP already
+  taught `did you mean permits?` — the CLI default path matches that
+  calm.
 - **`nika try 10-compose-pipeline` stages the child it invokes.** The
   rehearsal room used to hold only the parent; check then died
   `NIKA-COMP-001` on `./10-compose-child.nika.yaml` (e2e S2 17/18 on

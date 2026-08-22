@@ -52,6 +52,36 @@ fn renderer(theme: Theme) -> Renderer {
     })
 }
 
+/// Floor a byte offset onto a UTF-8 char boundary. A parser span that
+/// lands inside a decorative glyph (`⛨` · `◇`) must not be handed to
+/// annotate-snippets — that crate panics (`byte index N is not a char
+/// boundary`) instead of painting the line (persona 8 · 2026-08-22).
+fn floor_char(s: &str, i: usize) -> usize {
+    let mut i = i.min(s.len());
+    while i > 0 && !s.is_char_boundary(i) {
+        i -= 1;
+    }
+    i
+}
+
+fn ceil_char(s: &str, i: usize) -> usize {
+    let mut i = i.min(s.len());
+    while i < s.len() && !s.is_char_boundary(i) {
+        i += 1;
+    }
+    i
+}
+
+/// Widen a point span by one CHAR, not one BYTE. `start + 1` walked
+/// into the middle of `⛨` (3 bytes) and the renderer panicked at
+/// byte 1 of `⛨permits: {}`.
+fn char_end_after(s: &str, start: usize) -> usize {
+    s[start..]
+        .chars()
+        .next()
+        .map_or(start, |c| start + c.len_utf8())
+}
+
 /// Paint one span-carrying finding as a source frame: the offending
 /// line(s) with a caret run under the exact byte range, rustc-style.
 /// The caller has already printed the `CONFORM [CODE] message` row + the
@@ -60,12 +90,13 @@ fn renderer(theme: Theme) -> Renderer {
 /// the caret run — nothing duplicated.
 #[must_use]
 pub fn paint_span(source: &str, path: &str, span: ByteSpan, theme: Theme) -> String {
-    let start = (span.start as usize).min(source.len());
+    let start = floor_char(source, span.start as usize);
+    let mut end = ceil_char(source, span.end as usize);
     // A point span (start == end — flow-scalar tokens) still deserves a
-    // visible caret: widen to one byte, clamped to the source end.
-    let end = (span.end as usize)
-        .clamp(start, source.len())
-        .max(start.saturating_add(1).min(source.len()));
+    // visible caret: widen to one char, clamped to the source end.
+    if end <= start {
+        end = char_end_after(source, start);
+    }
     let group = Group::with_title(Level::ERROR.no_name().primary_title("")).element(
         Snippet::source(source)
             .path(path)
@@ -142,5 +173,52 @@ mod tests {
             !out.contains('\u{1b}'),
             "colour OFF emits zero ANSI:\n{out}"
         );
+    }
+
+    /// Copied from nika.sh: `⛨permits: {}`. A point span at byte 0
+    /// used to widen to `0..1` and panic inside the 3-byte glyph.
+    #[test]
+    fn a_shield_glyph_point_span_does_not_panic() {
+        let yaml = "⛨permits: {}\n";
+        let out = paint_span(
+            yaml,
+            "hello.nika.yaml",
+            ByteSpan::new(0, 0),
+            Theme::new(false, true, false),
+        );
+        assert!(
+            out.contains('^'),
+            "a caret survives a multibyte glyph:\n{out}"
+        );
+        assert!(out.contains("permits"), "the line is still painted:\n{out}");
+    }
+
+    /// Copied from nika.sh: `    ◇infer:`. Span at the diamond (byte 4);
+    /// widen-by-one-byte landed at byte 5, inside the glyph.
+    #[test]
+    fn a_diamond_infer_point_span_does_not_panic() {
+        let yaml = "    ◇infer:\n";
+        let start = u32::try_from(yaml.find('◇').expect("diamond")).expect("small");
+        let out = paint_span(
+            yaml,
+            "hello.nika.yaml",
+            ByteSpan::new(start, start),
+            Theme::new(false, true, false),
+        );
+        assert!(out.contains('^'), "a caret survives the diamond:\n{out}");
+    }
+
+    /// A parser that reports a mid-glyph span (byte 1 of `⛨`) must
+    /// snap, not crash the operator's `nika check`.
+    #[test]
+    fn a_mid_glyph_span_snaps_to_a_char_boundary() {
+        let yaml = "⛨permits: {}\n";
+        let out = paint_span(
+            yaml,
+            "hello.nika.yaml",
+            ByteSpan::new(1, 2),
+            Theme::new(false, true, false),
+        );
+        assert!(out.contains('^'), "mid-char span still paints:\n{out}");
     }
 }
