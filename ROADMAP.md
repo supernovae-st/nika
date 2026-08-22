@@ -103,21 +103,21 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| branch           | `feat/execution-service-v4`                                      |
-| HEAD             | `bee294252` (`bee29425234132c8138f47744758675384259cdb`)             |
+| branch           | `feat/remote-job-store-v5`                                      |
+| HEAD             | `fc516af05` (`fc516af05deabaedb0232f675cabadf8e5ba18bd`)             |
 | workspace        | v0.113.0                                  |
-| crates (workspace)| 68                                              |
+| crates (workspace)| 69                                              |
 | crates (admitted)| 62                                             |
-| crates (WIP)     | 6 — nika-chart nika-fx nika-proof nika-store nika-harness nika-execution                                  |
+| crates (WIP)     | 7 — nika-chart nika-fx nika-proof nika-store nika-harness nika-execution nika-serve                                  |
 | L0               | 21                                              |
 | L0.5             | 6                                              |
 | L1               | 17                                              |
 | L1.5             | 4                                              |
 | L2               | 5                                              |
 | L3               | 2                                              |
-| L4               | 13                                              |
-| lib tests        | (skipped — pass --no-quick to compute)                              |
-| clippy           | (skipped)                              |
+| L4               | 14                                              |
+| lib tests        | 6352 passed, 0 failed                              |
+| clippy           | 0 warnings                              |
 
 Diamond foundation — orphan branch from scratch. Live counts (admitted ·
 WIP · per-layer) are in the AUTO-GENERATED status block above (the
