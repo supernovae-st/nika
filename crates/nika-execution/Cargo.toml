@@ -1,0 +1,33 @@
+[package]
+name          = "nika-execution"
+description   = "Owned-byte execution admission shared by Nika interfaces. Layer L3."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false
+
+[dependencies]
+nika-types  = { path = "../nika-types", version = "0.113.0" }
+nika-fs     = { path = "../nika-fs", version = "0.113.0" }
+nika-schema = { path = "../nika-schema", version = "0.113.0" }
+nika-check  = { path = "../nika-check", version = "0.113.0" }
+sha2        = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+proptest = { workspace = true }
+
+[package.metadata.lore]
+daemon        = "gardien"
+archetype     = "kodama-gardien"
+spirit_role   = "ferme le monde executable avant le premier effet"
+voice_pattern = "silent"
+layer         = "L3"
+err_prefix    = "none"
+
+[lints]
+workspace = true
