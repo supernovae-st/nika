@@ -566,18 +566,14 @@ fn unbounded_census(report: &CheckReport) -> String {
 /// Supervised earn the green mark.
 fn audited_line(
     report: &CheckReport,
-    wf: &RawWorkflow,
+    _wf: &RawWorkflow,
     distinct_hints: usize,
     hint_sites: usize,
     grade: nika_check::RiskGrade,
     t: Theme,
 ) -> String {
     let tasks: usize = report.waves.iter().map(Vec::len).sum();
-    let permits = if wf.permits.is_some() {
-        "declared"
-    } else {
-        "none"
-    };
+    let permits = permits_glance::permits_glance(report);
     // The green mark is EARNED, never defaulted: grade ≥ High (glob
     // grants · true wildcards · uncapped spend) renders the warn mark
     // and Role::Warn — the audit completed, the readiness did not.
@@ -1465,6 +1461,7 @@ fn loopback_declassification_lines(out: &mut String, wf: &RawWorkflow, t: Theme)
     }
 }
 mod footer;
+mod permits_glance;
 use footer::hints_and_verdict;
 
 #[cfg(test)]
