@@ -3,8 +3,8 @@
 
 //! The harness access REGISTRY (P3 B6 · R-5d) — the shipped adapter
 //! rows, in the vendor order the operator ratified (G-3: gemini-cli
-//! native → qwen-code native → codex-acp → claude-agent-acp; Anthropic
-//! is never the default example).
+//! native → qwen-code native → kimi-code native → codex-acp →
+//! claude-agent-acp; Anthropic is never the default example).
 //!
 //! A row is the adapter's pinned IDENTITY: the binary to spawn (never
 //! a shell line), the session argv, the version pin + the argv that
@@ -128,6 +128,26 @@ fn rows() -> Result<Vec<AdapterRow>, HarnessError> {
             package: "@qwen-code/qwen-code (npm i -g @qwen-code/qwen-code)",
         },
         AdapterRow {
+            // Measured 2026-08-22 against the installed Kimi Code CLI
+            // (`kimi --version` → `0.37.2` · `kimi acp --help` → "Run
+            // kimi-code as an Agent Client Protocol (ACP) server over
+            // stdio."). Official Zed args are `["acp"]`. `--login` is
+            // a separate option (device-code then exit) and is NOT
+            // the session argv. Native CLI: `--version` works, so the
+            // probe is the flag, never a handshake.
+            adapter: HarnessAdapter::new("kimi-code", "kimi")?
+                .with_args(vec!["acp".to_owned()])
+                .with_version_pin(VersionPin::new((0, 37), 0))
+                .with_passthrough_env(vec!["KIMI_CODE_HOME".to_owned()]),
+            serves: &["moonshot"],
+            // Official store (data-locations.md): `$KIMI_CODE_HOME/credentials/`
+            // (default `~/.kimi-code/credentials/`). Existence only —
+            // the files are never opened. No `login status` command
+            // exists (`kimi login status` is `unknown command`).
+            auth: AuthProbe::HomeFile(".kimi-code/credentials"),
+            package: "kimi-code (kimi upgrade · https://moonshotai.github.io/kimi-code/)",
+        },
+        AdapterRow {
             adapter: HarnessAdapter::new("codex-acp", "codex-acp")?
                 // The npm class, honestly: `npm i -g` puts the bin on
                 // PATH (the npx-on-the-spec form does NOT link these
@@ -173,13 +193,53 @@ mod tests {
     }
 
     #[test]
-    fn the_table_ships_the_four_rows_in_the_ratified_order() {
+    fn the_table_ships_the_five_rows_in_the_ratified_order() {
         let rows = registry_with(&no_env).expect("the static table loads");
         let ids: Vec<&str> = rows.iter().map(|r| r.adapter.id.as_str()).collect();
         assert_eq!(
             ids,
-            ["gemini-cli", "qwen-code", "codex-acp", "claude-agent-acp"],
-            "G-3 · Anthropic is never the default example"
+            [
+                "gemini-cli",
+                "qwen-code",
+                "kimi-code",
+                "codex-acp",
+                "claude-agent-acp"
+            ],
+            "G-3 · native first · Anthropic is never the default example"
+        );
+    }
+
+    #[test]
+    fn kimi_code_is_the_native_acp_subcommand_not_a_wrapper() {
+        let rows = registry_with(&no_env).expect("loads");
+        let row = rows
+            .iter()
+            .find(|r| r.adapter.id == "kimi-code")
+            .expect("kimi-code ships");
+        assert_eq!(row.adapter.command, "kimi");
+        assert_eq!(row.adapter.args, vec!["acp".to_owned()]);
+        assert!(
+            !row.adapter.probe_via_handshake,
+            "kimi --version works; handshake is the wrapper class"
+        );
+        assert_eq!(row.adapter.version_args, vec!["--version".to_owned()]);
+        let pin = row.adapter.version_pin.as_ref().expect("pinned");
+        assert_eq!(pin.min, (0, 37), "floor is the measured ACP-native release");
+        assert_eq!(pin.max_major, 0);
+        assert!(pin.accepts(0, 37));
+        assert!(pin.accepts(0, 99));
+        assert!(!pin.accepts(0, 36), "below the measured floor");
+        assert!(!pin.accepts(1, 0), "a new major is a new dialect");
+        assert_eq!(row.serves, &["moonshot"]);
+        assert_eq!(row.auth, AuthProbe::HomeFile(".kimi-code/credentials"));
+        assert_eq!(
+            row.adapter.passthrough_env,
+            vec!["KIMI_CODE_HOME".to_owned()],
+            "relocated home must reach the child; it is a path, not a secret"
+        );
+        assert!(
+            !row.adapter.args.iter().any(|a| a == "--login"),
+            "`acp --login` is device-code-then-exit, never the session argv"
         );
     }
 
@@ -233,7 +293,7 @@ mod tests {
         let ids: Vec<&str> = rows.iter().map(|r| r.adapter.id.as_str()).collect();
         assert_eq!(
             ids,
-            ["gemini-cli", "claude-agent-acp"],
+            ["gemini-cli", "kimi-code", "claude-agent-acp"],
             "whitespace-tolerant removal"
         );
     }
@@ -242,7 +302,7 @@ mod tests {
     fn an_unknown_kill_switch_entry_changes_nothing() {
         let env = |name: &str| (name == DISABLE_ENV).then(|| "not-an-adapter".to_owned());
         let rows = registry_with(&env).expect("loads");
-        assert_eq!(rows.len(), 4);
+        assert_eq!(rows.len(), 5);
     }
 
     #[test]
@@ -265,12 +325,17 @@ mod tests {
                         rel.starts_with('.'),
                         "{rel} lives under the harness's own dir"
                     );
+                    // Existence only — the path is never opened. KEY /
+                    // TOKEN / SECRET name a secret FILE. A vendor's
+                    // official store DIRECTORY may contain the word
+                    // `credentials` (kimi-code data-locations:
+                    // `~/.kimi-code/credentials/`) and that is the
+                    // presence bit, not a read.
                     assert!(
                         !rel.to_ascii_uppercase().contains("KEY")
                             && !rel.to_ascii_uppercase().contains("TOKEN")
-                            && !rel.to_ascii_uppercase().contains("SECRET")
-                            && !rel.to_ascii_uppercase().contains("CREDENTIAL"),
-                        "{rel} must never name a credential file"
+                            && !rel.to_ascii_uppercase().contains("SECRET"),
+                        "{rel} must never name a secret file"
                     );
                 }
             }

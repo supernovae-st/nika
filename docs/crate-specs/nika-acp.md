@@ -4,7 +4,7 @@
 |---|---|
 | Status | **SPEC** (P3.1 · D-2026-08-04-N1) — Gate 1 authored 2026-08-05; implementation is P3.2, behind the `access-harness` cargo feature (default OFF). |
 | Layer | **L1 effect** — async · one effect family (drive an external agent harness over ACP) · every OS reach behind the confined-spawn seam. |
-| Design | The **harness access class** made real: `agent:` tasks execute on the user's OWN authenticated agent harness (gemini-cli · qwen-code · codex-acp · claude-agent-acp), driven through the official Agent Client Protocol — under nika authority (permits bridge), billed honestly (subscription ≠ free), behind an explicit opt-in. The harness owns auth; nika never holds a credential (A-3). |
+| Design | The **harness access class** made real: `agent:` tasks execute on the user's OWN authenticated agent harness (gemini-cli · qwen-code · kimi-code · codex-acp · claude-agent-acp), driven through the official Agent Client Protocol — under nika authority (permits bridge), billed honestly (subscription ≠ free), behind an explicit opt-in. The harness owns auth; nika never holds a credential (A-3). |
 | Name | `nika-acp` (the protocol is the crate's whole surface — the `nika-mcp` naming precedent). |
 | LOC budget | ≤6k src (est. ~3.5k). ≤1500/file, ≤100/fn. |
 | Deps | `agent-client-protocol = "2"` (pinned · see §2) · `nika-kernel` (hub) · `nika-types` · tokio (workspace). dev: the mock agent fixture (§5). |
