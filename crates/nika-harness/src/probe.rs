@@ -185,6 +185,14 @@ async fn probe_auth_with(
 /// a distinct authority and must not make the model seat look authenticated.
 /// Every ambiguity fails closed without reading a credential byte.
 fn provider_credential_directory_ready(path: &std::path::Path, credential_files: &[&str]) -> bool {
+    provider_credential_directory_ready_with(path, credential_files, |_| {})
+}
+
+fn provider_credential_directory_ready_with(
+    path: &std::path::Path,
+    credential_files: &[&str],
+    mut after_open: impl FnMut(&std::path::Path),
+) -> bool {
     let Some(path_witnesses) = path_component_witnesses(path) else {
         return false;
     };
@@ -195,11 +203,18 @@ fn provider_credential_directory_ready(path: &std::path::Path, credential_files:
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
             Err(_) => return false,
         };
-        if metadata.file_type().is_symlink()
-            || !metadata.is_file()
-            || metadata.len() == 0
-            || !readable_same_file(&entry_path, &metadata)
-            || !path_witnesses_unchanged(&path_witnesses)
+        if metadata.file_type().is_symlink() || !metadata.is_file() || metadata.len() == 0 {
+            continue;
+        }
+        let Some(opened) = open_witnessed_file(&entry_path, &metadata) else {
+            continue;
+        };
+        if !pathname_names_open_file(&entry_path, &opened) {
+            continue;
+        }
+        after_open(&entry_path);
+        if !path_witnesses_unchanged(&path_witnesses)
+            || !pathname_names_open_file(&entry_path, &opened)
         {
             continue;
         }
@@ -244,17 +259,35 @@ fn path_witnesses_unchanged(witnesses: &[(std::path::PathBuf, std::fs::Metadata)
     })
 }
 
-/// Open only to let the OS apply UID/ACL readability, then compare the opened
-/// object with the lstat witness. No byte is read; a pathname swap can only
-/// make the identity comparison refuse.
-fn readable_same_file(path: &std::path::Path, witnessed: &std::fs::Metadata) -> bool {
+/// Open only to let the OS apply UID/ACL readability, then retain the handle
+/// through every pathname witness. No credential byte is ever read.
+fn open_witnessed_file(
+    path: &std::path::Path,
+    witnessed: &std::fs::Metadata,
+) -> Option<std::fs::File> {
     let Ok(file) = std::fs::File::open(path) else {
-        return false;
+        return None;
     };
     let Ok(opened) = file.metadata() else {
+        return None;
+    };
+    (opened.is_file() && opened.len() > 0 && same_file_identity(witnessed, &opened)).then_some(file)
+}
+
+/// Re-lstat the live pathname and prove that it still names the held handle.
+/// This runs once immediately after open and again after directory witnesses,
+/// closing the entry-swap seam without reading credential contents.
+fn pathname_names_open_file(path: &std::path::Path, opened: &std::fs::File) -> bool {
+    let Ok(handle_metadata) = opened.metadata() else {
         return false;
     };
-    opened.is_file() && opened.len() > 0 && same_file_identity(witnessed, &opened)
+    let Ok(current) = std::fs::symlink_metadata(path) else {
+        return false;
+    };
+    !current.file_type().is_symlink()
+        && current.is_file()
+        && current.len() > 0
+        && same_file_identity(&handle_metadata, &current)
 }
 
 #[cfg(unix)]
@@ -594,7 +627,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn kimi_auth_uses_its_override_and_refuses_empty_or_symlinked_stores() {
+    async fn kimi_auth_uses_its_override_and_detects_provider() {
         let root = std::fs::canonicalize(std::env::temp_dir())
             .expect("the test temp root canonicalizes")
             .join(format!("nika-kimi-auth-{}", std::process::id()));
@@ -666,6 +699,24 @@ mod tests {
             .await,
             Some(true)
         );
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[tokio::test]
+    async fn kimi_auth_refuses_relative_or_symlinked_override() {
+        let root = std::fs::canonicalize(std::env::temp_dir())
+            .expect("the test temp root canonicalizes")
+            .join(format!("nika-kimi-auth-roots-{}", std::process::id()));
+        let home = root.join("home");
+        let relocated = root.join("relocated");
+        std::fs::create_dir_all(relocated.join("credentials")).expect("relocated credentials");
+        let rows = crate::registry_with(&|_| None).expect("registry loads");
+        let row = rows
+            .iter()
+            .find(|row| row.adapter.id == "kimi-code")
+            .expect("kimi row");
+        let policy = row.directory_auth.expect("secure directory policy");
 
         assert_eq!(
             probe_auth_with(
@@ -767,8 +818,41 @@ mod tests {
         std::fs::remove_file(&candidate).expect("swap candidate");
         std::os::unix::fs::symlink(&replacement, &candidate).expect("symlink replacement");
         assert!(
-            !readable_same_file(&candidate, &witnessed),
+            open_witnessed_file(&candidate, &witnessed).is_none(),
             "opening a swapped pathname must not validate a different inode"
+        );
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn kimi_auth_refuses_an_entry_swap_after_open_before_return() {
+        let root = std::fs::canonicalize(std::env::temp_dir())
+            .expect("the test temp root canonicalizes")
+            .join(format!(
+                "nika-kimi-auth-post-open-race-{}",
+                std::process::id()
+            ));
+        let credentials = root.join("credentials");
+        let replacement = root.join("replacement.json");
+        std::fs::create_dir_all(&credentials).expect("credential directory");
+        std::fs::write(
+            credentials.join("kimi-code.json"),
+            b"original-provider-fixture",
+        )
+        .expect("provider fixture");
+        std::fs::write(&replacement, b"replacement-provider-fixture").expect("replacement fixture");
+
+        let ready =
+            provider_credential_directory_ready_with(&credentials, &["kimi-code.json"], |entry| {
+                std::fs::remove_file(entry).expect("remove opened pathname");
+                std::os::unix::fs::symlink(&replacement, entry)
+                    .expect("replace opened pathname with symlink");
+            });
+        assert!(
+            !ready,
+            "the final pathname witness must reject a swap after File::open"
         );
 
         let _ = std::fs::remove_dir_all(&root);
