@@ -19,7 +19,8 @@ use nika_fs::OwnedDir;
 use nix::fcntl::{Flock, FlockArg};
 
 pub use nika_cadence::ledger::{
-    Claim, DecisionKind as FireKind, HistoryEntry, LastRecord, Receipt, RecordOutcome, Unsettled,
+    Claim, DecisionKind as FireKind, ExecutionLink, HistoryEntry, LastRecord, Receipt,
+    RecordOutcome, Unsettled,
 };
 
 mod replay;
@@ -415,6 +416,10 @@ impl ArmState {
     ) -> io::Result<(OwnedDir, std::fs::File)> {
         let project = self.project_dir()?;
         Ok((project.try_clone()?, project.open_relative(relative)?))
+    }
+
+    pub(crate) fn held_project(&self) -> io::Result<OwnedDir> {
+        self.project_dir()?.try_clone()
     }
 
     fn project_dir(&self) -> io::Result<&OwnedDir> {

@@ -4050,6 +4050,7 @@ version = "0.113.0"
 dependencies = [
  "jiff",
  "nika-cadence",
+ "nika-execution",
  "nika-fs",
  "nix 0.31.3",
  "serde_json",

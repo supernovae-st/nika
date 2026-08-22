@@ -257,33 +257,33 @@ pub fn run(
     .code
 }
 
-pub(crate) fn run_checked_source(
-    source: crate::verbs::RunSource,
-    theme: Theme,
+/// ARM's in-process adapter over exact service-admitted bytes; it never reopens
+/// workflows, scans a latest trace, shells to the CLI, or crosses HTTP.
+pub(crate) fn run_arm_context(
+    context: nika_execution::ExecutionContext<'_>,
+    file: &str,
+    display_root: std::path::PathBuf,
     max_cost_usd: f64,
 ) -> RunVerdict {
-    let file = source.logical_path().to_owned();
-    run_verdict(
-        &file,
-        false,
-        None,
-        theme,
-        RenderMode::Plain,
-        false,
-        None,
-        None,
-        &[],
-        None,
-        false,
-        None,
-        false,
-        Some(max_cost_usd),
-        false,
-        false,
-        false,
-        Some(source),
-        None,
-    )
+    run_start_gc(false, false);
+    let request = CliExecutionRequest {
+        file,
+        json: false,
+        output_json: false,
+        theme: Theme::new(false, true, false),
+        mode: RenderMode::Plain,
+        dry_run: false,
+        model_override: None,
+        access_pin: None,
+        vars: &[],
+        resume: None,
+        no_trace_file: false,
+        task_filter: None,
+        no_outputs: false,
+        max_cost_usd: Some(max_cost_usd),
+        interruptible: false,
+    };
+    run_admitted_context(context, &request, display_root)
 }
 
 /// Resolve output/ceiling and run the opportunistic trace collection.

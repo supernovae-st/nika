@@ -6,7 +6,7 @@
 | Layer | L0 — pure, zero I/O, zero async |
 | Design | The arming-registry grammar (the `arm:` block of `nika.yaml`, D-2026-08-10-N3) + the pure next-slot calculator + the W7 typed firing and ledger machines + the named-beat tick classifier (`tick_decision` · `TickDecision` · `v0_unsupported`). Hand-counted 5-field cron (zero cron library — the count is validated BEFORE field semantics, scar #6) · IANA zones resolved from the EMBEDDED tzdb only (`jiff-tzdb`, never the host's zoneinfo) · two cadence forms (cron + readable `lundi 9h07`), display normalizing to the readable one. The machines own no I/O and read no clock: callers inject events, policy, `now`, and borrowed journal text; the L4 adapter alone owns files, locks, fsync, and rotation. |
 | LOC budget | ≤5,000 src prod (W7 measured 4,623 after the complete pure ledger/snapshot seam) · ≤15,000 hard cap |
-| File cap | ≤1,500 LOC each (W7 max 1,493 in `ledger.rs`; `firing.rs` 1,372) |
+| File cap | ≤1,500 LOC each (`ledger.rs` remains below 1,500 after W04 identity wiring; execution-link and projection codecs are split into focused submodules; `firing.rs` 1,372) |
 | Function cap | ≤100 lines each (max ~60) |
 | Crate version | tracks workspace |
 | License | `AGPL-3.0-or-later` |
@@ -134,10 +134,11 @@ returns typed ordered effects under an injected `FiringPolicy` and
 `Timestamp`. Every public enum/struct is forward-compatible; the three
 identities validate their wire form before construction.
 
-**W7 — the pure ledger (`ledger` module)**: `DecisionKind`, `Claim`, typed
-`Receipt`, `HistoryEntry`, `Unsettled`, and `LastRecord` are the wire
-vocabulary. A `Receipt` copies slot identity and generation from its claim,
-carries the exact fencing token, and derives terminal kind from exit (`0`
+**W7/W04 — the pure ledger (`ledger` module)**: `DecisionKind`, `Claim`, typed
+`Receipt`, `HistoryEntry`, `Unsettled`, `LastRecord`, and `ExecutionLink` are the
+wire vocabulary. `ExecutionLink` accepts only a direct `exe-<uuid>` / 32-lower-hex
+trace pair. A `Receipt` copies slot identity, generation, and execution link from
+its claim, carries the exact fencing token, and derives terminal kind from exit (`0`
 fired, `4` paused, every other accepted code failed). Modern bare, mismatched,
 duplicate, future, or contradictory receipts make the chain invalid; only an
 explicitly marked legacy bare receipt remains readable;
@@ -196,12 +197,13 @@ an independently encoded transition table. Mutation floor: run
 `check-mutation-floor.sh` at admission and again for every new semantic
 module.
 
-**W7 ledger tests** additionally pin canonical-line verification, one-byte
+**W7/W04 ledger tests** additionally pin canonical-line verification, one-byte
 tamper refusal, verified-prefix truncation, claim/receipt lifecycle folding,
 orphan deadline equality vs strictly-after ambiguity, legacy replay,
-byte-stable projection round-trip, and tallies. The CLI adapter suite keeps the
-filesystem E2E matrix (delete/rebuild, tamper, reorder, truncation, migration,
-idempotence, and audible refusal).
+byte-stable projection round-trip, direct execution/trace identity, forged or
+one-sided identity refusal, replay preservation, and tallies. The CLI adapter
+suite keeps the filesystem E2E matrix (delete/rebuild, tamper, reorder,
+truncation, migration, idempotence, and audible refusal).
 
 ## 5. Non-goals / guards
 

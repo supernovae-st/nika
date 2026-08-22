@@ -88,7 +88,9 @@ pub use firing::{
     ArmGeneration, Decision, FencingToken, FiringEvent, FiringPolicy, FiringState, SkipReason,
     SlotId, decide, fold, transition,
 };
-pub use ledger::{Claim, DecisionKind, HistoryEntry, LastRecord, RecordOutcome, Unsettled};
+pub use ledger::{
+    Claim, DecisionKind, ExecutionLink, HistoryEntry, LastRecord, RecordOutcome, Unsettled,
+};
 pub use next::{Shift, Slot, next_slots};
 pub use parse::{parse_registry, validate};
 pub use registry::{AfterSkip, ArmRegistry, Beat, Cadence, Locus, MissPolicy, Overlap};

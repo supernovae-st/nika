@@ -413,8 +413,9 @@ mod tests {
     }
 
     fn write_workflow(root: &Path, name: &str) {
+        let id = name.strip_suffix(".nika.yaml").unwrap_or(name);
         let body = format!(
-            "nika: {name}\npermits: {{ exec: true }}\ntasks:\n  ok:\n    exec: {{ shell: \"true\" }}\n"
+            "nika: {id}\npermits: {{ exec: true }}\ntasks:\n  ok:\n    exec: {{ shell: \"true\" }}\n"
         );
         std::fs::write(root.join("workflows").join(name), body).expect("workflow");
     }
@@ -495,7 +496,7 @@ mod tests {
     /// The run seam that must NEVER fire — the skip-only ticks (the
     /// reload + refusal tests) prove their point by never calling it.
     fn never_run() -> RunSeam {
-        std::rc::Rc::new(|_| panic!("this tick runs nothing"))
+        std::rc::Rc::new(|_, _| panic!("this tick runs nothing"))
     }
 
     /// A run stub that counts its shots (the real in-process run
@@ -504,7 +505,7 @@ mod tests {
     fn stub_run() -> (std::rc::Rc<std::cell::Cell<u32>>, RunSeam) {
         let count = std::rc::Rc::new(std::cell::Cell::new(0u32));
         let seen = std::rc::Rc::clone(&count);
-        let seam: RunSeam = std::rc::Rc::new(move |_: &RunShot| {
+        let seam: RunSeam = std::rc::Rc::new(move |_, _: &RunShot| {
             seen.set(seen.get() + 1);
             RunUpshot::new(exit::OK, None)
         });

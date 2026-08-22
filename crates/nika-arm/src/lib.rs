@@ -20,6 +20,6 @@ pub use fire::{
     labels,
 };
 pub use state::{
-    ArmState, Claim, FireKind, Folded, HealOutcome, HistoryEntry, LastRecord, Receipt,
-    RecordOutcome, Rotation, Unsettled,
+    ArmState, Claim, ExecutionLink, FireKind, Folded, HealOutcome, HistoryEntry, LastRecord,
+    Receipt, RecordOutcome, Rotation, Unsettled,
 };
