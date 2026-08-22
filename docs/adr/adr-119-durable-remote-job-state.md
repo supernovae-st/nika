@@ -60,6 +60,13 @@ succeeds. Once the marker exists, a missing or renamed-away `state.json` is
 corruption rather than an empty store. A state file without its marker also
 refuses, so an interrupted first initialization cannot be silently adopted.
 
+The witness is scoped to the admitted `jobs` directory. An actor able to remove
+that directory, or both marker and snapshot together, has already crossed the
+operator-owned storage boundary; the next open cannot distinguish that event
+from intentional provisioning of a new store. W10 operations must protect and
+back up the root. W05 detects partial loss and corruption, not total estate
+destruction by an actor with host filesystem authority.
+
 Every mutation writes and syncs a temporary regular file, renames it
 descriptor-relatively, then syncs the held directory. A missing, malformed,
 truncated, unsupported, or invariant-breaking initialized snapshot refuses at

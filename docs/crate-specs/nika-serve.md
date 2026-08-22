@@ -55,6 +55,10 @@ No public mutation accepts a filesystem path.
    `initialized.json` marker under the kernel lease. After that marker exists,
    missing or renamed-away state is corruption, not a new empty store. A state
    file without its marker also refuses.
+   This guarantee assumes the admitted `jobs` directory or at least one witness
+   survives. Coordinated removal of the directory, marker, and snapshot is
+   host-authority destruction and is indistinguishable from intentional fresh
+   provisioning; W10 owns root protection and backup.
 4. Startup and every later operation reject malformed JSON, an unknown state
    version, invalid identifiers, duplicate ids or keys, and non-contiguous
    event sequences. Corrupt state is never interpreted partially.
