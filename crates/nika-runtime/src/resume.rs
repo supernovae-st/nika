@@ -44,321 +44,30 @@
 
 use std::collections::BTreeMap;
 
+use nika_proof::{MARK, item_stand_in, secret_marker};
 use nika_schema::Spanned;
 use nika_schema::raw::{
     ForEachValue, RawAction, RawAgentAction, RawCommand, RawExecAction, RawInferAction,
     RawInvokeAction, RawTask, RawWorkflow, VisionInput,
 };
-use nika_schema::types::{OnErrorAction, WhenGate};
 use serde_json::{Value, json};
 
 use crate::expr::{self, Scope};
 use crate::record::TaskRecord;
 
-/// The key-recipe version — bumped when the payload shape changes, so a
-/// trace stamped by an older recipe simply never matches (re-runs ·
-/// honest) instead of matching wrongly.
-pub const KEY_VERSION: u32 = 2;
-
-/// The additive `task_completed` / `task_cache_hit` trace field names
-/// (ADR-099 · the compatibility surface: these evolve additively).
-pub mod fields {
-    /// The task-definition hash (blake3 hex over the JCS definition payload).
-    pub const DEF_HASH: &str = "def_hash";
-    /// The resolved-input hash (blake3 hex over the JCS input payload).
-    pub const INPUT_HASH: &str = "input_hash";
-    /// The task's output as ONE compact JSON text (rehydration source).
-    pub const OUTPUT: &str = "output";
-}
-
-/// The resume's chain-trust posture when the run proceeded WITHOUT a
-/// verified chain (ADR-099 trust amendment · 2026-08-08) — attested on
-/// the boot manifest as `resume_unverified: <posture>` +
-/// `resume_unverified_finding`, so no unverified ancestor launders
-/// silently into a journal claiming a clean one.
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[non_exhaustive]
-pub enum ResumeUnverified {
-    /// The operator named `--resume-unverified` past a BROKEN chain —
-    /// the finding carries the walk's one-line evidence (sanitized).
-    Declared(String),
-    /// The trace carries NO chain (a `--json` stream capture · a
-    /// pre-0.96 journal): the chainless-capture compat — and the
-    /// strip-the-chain forgery (delete every `chain` field) lands
-    /// exactly here; attested, never silent.
-    Unchained(String),
-}
-
-impl ResumeUnverified {
-    /// The boot-manifest posture token (`declared` · `unchained`).
-    #[must_use]
-    pub fn posture(&self) -> &'static str {
-        match self {
-            Self::Declared(_) => "declared",
-            Self::Unchained(_) => "unchained",
-        }
-    }
-
-    /// The one-line finding the manifest journals.
-    #[must_use]
-    pub fn finding(&self) -> &str {
-        match self {
-            Self::Declared(finding) | Self::Unchained(finding) => finding,
-        }
-    }
-}
-
-/// Private-use sentinel bracketing the marker vocabulary below — a real
-/// workflow string colliding with a marker requires deliberately crafted
-/// `U+F8FF` data (documented, adversarial-self-harm class).
-const MARK: char = '\u{f8ff}';
-
-/// The `secrets.<name>` stand-in bound during key rendering — the secret
-/// participates by declared reference identity (name · source · key),
-/// never by value (ADR-099 §1).
-fn secret_marker(name: &str, source: &str, key: &str) -> Value {
-    Value::String(format!("{MARK}nika:secret:{name}:{source}:{key}{MARK}"))
-}
-
-/// The `item` stand-in bound during a fan-out key render — the real
-/// per-item data participates through the resolved collection itself.
-fn item_marker() -> Value {
-    Value::String(format!("{MARK}nika:item{MARK}"))
-}
-
-/// A walkable stand-in for `item` during a *task-level* fan-out stamp.
-///
-/// The collection itself is the input identity. This object only has to
-/// satisfy `item.field` / nested navigation so a prompt like
-/// `${{ item.stem }}` does not fail eligibility (the string marker
-/// cannot — CEL's `.field` on a string is `NIKA-VAR-001`). Leaves are
-/// the same marker; keys are the union of every element's shape.
-fn item_stand_in(items: &Value) -> Value {
-    match items {
-        Value::Array(arr) => {
-            let mut shape = Value::Null;
-            for el in arr {
-                shape = merge_item_shape(&shape, el);
-            }
-            mask_item_leaves(&shape)
-        }
-        other => mask_item_leaves(other),
-    }
-}
-
-/// Union of two JSON shapes (objects merge keys · arrays pad to max
-/// length · a container wins over a scalar · first non-null scalar
-/// keeps). Used only to make the stand-in navigable.
-fn merge_item_shape(acc: &Value, next: &Value) -> Value {
-    match (acc, next) {
-        (Value::Null, v) => v.clone(),
-        (Value::Object(a), Value::Object(b)) => {
-            let mut out = a.clone();
-            for (k, bv) in b {
-                let existing = out.get(k).cloned().unwrap_or(Value::Null);
-                out.insert(k.clone(), merge_item_shape(&existing, bv));
-            }
-            Value::Object(out)
-        }
-        (Value::Array(a), Value::Array(b)) => {
-            let n = a.len().max(b.len());
-            let mut out = Vec::with_capacity(n);
-            for i in 0..n {
-                let av = a.get(i).unwrap_or(&Value::Null);
-                let bv = b.get(i).unwrap_or(&Value::Null);
-                out.push(merge_item_shape(av, bv));
-            }
-            Value::Array(out)
-        }
-        (Value::Object(_) | Value::Array(_), _) => acc.clone(),
-        (_, Value::Object(_) | Value::Array(_)) => next.clone(),
-        _ => acc.clone(),
-    }
-}
-
-/// Replace every leaf with [`item_marker`] so rendered action text never
-/// carries a real item value (those already ride in `items`).
-fn mask_item_leaves(v: &Value) -> Value {
-    match v {
-        Value::Object(m) if !m.is_empty() => Value::Object(
-            m.iter()
-                .map(|(k, child)| (k.clone(), mask_item_leaves(child)))
-                .collect(),
-        ),
-        Value::Array(items) => Value::Array(items.iter().map(mask_item_leaves).collect()),
-        _ => item_marker(),
-    }
-}
-
-/// One task's resume identity — the typed key payload (ADR-099 · brief
-/// §4: a dedicated struct, JCS + blake3, no float fields).
-///
-/// Fields are private on purpose: the shape IS the compatibility surface
-/// (`KEY_VERSION` guards it) — construct via [`ResumeKey::new`], read via
-/// the two hash accessors.
-#[derive(Debug, Clone)]
-pub struct ResumeKey {
-    /// Key-recipe version (participates in both hashes).
-    v: u32,
-    /// The task id (a renamed task is a new identity).
-    task: String,
-    /// The verb kind (`infer` · `exec` · `invoke` · `agent`).
-    verb: String,
-    /// The behavior-bearing fields as WRITTEN (raw template strings).
-    definition: Value,
-    /// The values the task's references RESOLVED to (secrets as markers).
-    inputs: Value,
-}
-
-impl ResumeKey {
-    /// Assemble a key from its typed parts (the builders below produce
-    /// `definition` / `inputs`; tests may hand-build payloads).
-    #[must_use]
-    pub fn new(task: String, verb: String, definition: Value, inputs: Value) -> Self {
-        Self {
-            v: KEY_VERSION,
-            task,
-            verb,
-            definition,
-            inputs,
-        }
-    }
-
-    /// The task-definition hash — blake3 hex over the JCS bytes of
-    /// `{v, task, verb, definition}`. `None` = the payload cannot
-    /// canonicalize (the task is then not resume-eligible).
-    #[must_use]
-    pub fn definition_hash(&self) -> Option<String> {
-        jcs_blake3(&json!({
-            "v": self.v,
-            "task": self.task,
-            "verb": self.verb,
-            "definition": self.definition,
-        }))
-    }
-
-    /// The resolved-input hash — blake3 hex over the JCS bytes of
-    /// `{v, inputs}`.
-    #[must_use]
-    pub fn input_hash(&self) -> Option<String> {
-        jcs_blake3(&json!({ "v": self.v, "inputs": self.inputs }))
-    }
-
-    /// The canonical input bytes as text — the secret-material scan
-    /// surface (a resolved secret value that leaked into a rendered
-    /// input must disqualify the stamp, not ride into a hash oracle).
-    fn input_jcs_text(&self) -> Option<String> {
-        let folded = fold_numbers(&json!({ "v": self.v, "inputs": self.inputs }));
-        serde_json_canonicalizer::to_vec(&folded)
-            .ok()
-            .and_then(|bytes| String::from_utf8(bytes).ok())
-    }
-}
-
-/// JCS-canonicalize (numbers pre-folded to tagged literals) then blake3.
-fn jcs_blake3(payload: &Value) -> Option<String> {
-    let folded = fold_numbers(payload);
-    let bytes = serde_json_canonicalizer::to_vec(&folded).ok()?;
-    Some(blake3::hash(&bytes).to_hex().to_string())
-}
-
-/// The shared digest door (F-O1 PR-3 · the `declassify` receipt's value
-/// digest reads the SAME canonical fold as the resume identity hashes —
-/// one digest law per receipt).
-pub(crate) fn jcs_blake3_hex(payload: &Value) -> Option<String> {
-    jcs_blake3(payload)
-}
-
-/// Replace every JSON number with a tagged string of its `serde_json`
-/// literal — full int64/float fidelity under JCS (RFC 8785 alone
-/// serializes numbers as ES6 doubles: two int64s beyond 2^53 would
-/// canonicalize identically and could WRONG-SKIP · the one unforgivable
-/// failure mode).
-fn fold_numbers(value: &Value) -> Value {
-    match value {
-        Value::Number(n) => Value::String(format!("{MARK}num:{n}{MARK}")),
-        Value::Array(items) => Value::Array(items.iter().map(fold_numbers).collect()),
-        Value::Object(map) => Value::Object(
-            map.iter()
-                .map(|(k, v)| (k.clone(), fold_numbers(v)))
-                .collect(),
-        ),
-        scalar => scalar.clone(),
-    }
-}
+pub use nika_proof::{
+    KEY_VERSION, PriorSuccess, ResumeKey, ResumePlan, ResumeUnverified, fields,
+    referenced_upstreams,
+};
+pub(crate) use nika_proof::{
+    definition_value, jcs_blake3_hex, skill_paths, touches_intelligence, workflow_targets,
+};
 
 /// The two hex hashes a settled success stamps onto its trace record.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct ResumeStamp {
     pub def_hash: String,
     pub input_hash: String,
-}
-
-/// One journaled success read back from a trace — the skip candidate
-/// `--resume` folds per task id (ADR-099 §1: a task skips iff BOTH
-/// hashes match what THIS run recomputes).
-#[derive(Debug, Clone)]
-#[non_exhaustive]
-pub struct PriorSuccess {
-    /// The journaled task-definition hash.
-    pub def_hash: String,
-    /// The journaled resolved-input hash.
-    pub input_hash: String,
-    /// The journaled output (rehydrated on a hit — downstream observes
-    /// `status: success` and this value exactly as if it ran live).
-    pub output: Value,
-}
-
-impl PriorSuccess {
-    /// Construct (INV-019 · `new()` on every `#[non_exhaustive]` struct).
-    #[must_use]
-    pub fn new(def_hash: String, input_hash: String, output: Value) -> Self {
-        Self {
-            def_hash,
-            input_hash,
-            output,
-        }
-    }
-}
-
-/// The fold of a prior trace — task id → its journaled success identity.
-/// Built by the composer (the CLI reads the NDJSON trace); consumed via
-/// [`crate::Runtime::with_resume_plan`].
-pub type ResumePlan = BTreeMap<String, PriorSuccess>;
-
-/// The task ids a task's definition can observe — its incoming edges
-/// (`with:` refs + `after:` targets · the boundary) plus every
-/// `tasks.<id>` token in its raw template text. The `--from <task_id>`
-/// override walks this REVERSED to force the transitive downstream to
-/// re-run even on a hash match (ADR-099 §3). Over-collection is the safe
-/// direction (more re-runs, never a wrong skip).
-#[must_use]
-pub fn referenced_upstreams(task: &RawTask) -> std::collections::BTreeSet<String> {
-    let mut out: std::collections::BTreeSet<String> =
-        nika_check::analyzer::edges::producer_ids(task)
-            .into_iter()
-            .collect();
-    if let Some(def) = definition_value(task) {
-        scan_task_refs(&def.to_string(), &mut out);
-    }
-    out
-}
-
-/// Collect every `tasks.<snake_case_id>` token in `text` (task ids are
-/// checker-enforced `snake_case`, so the boundary scan is exact enough —
-/// and a false positive only ever forces an extra re-run).
-fn scan_task_refs(text: &str, out: &mut std::collections::BTreeSet<String>) {
-    let mut rest = text;
-    while let Some(at) = rest.find("tasks.") {
-        let after = &rest[at + "tasks.".len()..];
-        let end = after
-            .find(|c: char| !(c.is_ascii_lowercase() || c.is_ascii_digit() || c == '_'))
-            .unwrap_or(after.len());
-        if end > 0 {
-            out.insert(after[..end].to_owned());
-        }
-        rest = &after[end..];
-    }
 }
 
 /// Per-run resume context — derived ONCE at run start from the envelope.
@@ -653,139 +362,6 @@ fn reads_default_model(task: &RawTask) -> bool {
     action_reads(&task.action)
 }
 
-/// The R-1 detector (P3): does this task run an infer/agent action
-/// (main verb or any `on_finally` mini)? Those tasks' identities carry
-/// the access pin; every other action kind never reads it.
-fn touches_intelligence(task: &RawTask) -> bool {
-    let is_ai = |a: &RawAction| matches!(a, RawAction::Infer(_) | RawAction::Agent(_));
-    is_ai(&task.action)
-}
-
-/// Every STATIC child-workflow target this task carries (the main verb
-/// plus every `on_finally` mini) — the `skill_paths` twin for spec 14.
-/// A `tool:` invoke never lands here: its identity is the tool ref plus
-/// its args alone, unchanged.
-fn workflow_targets(task: &RawTask) -> Vec<&str> {
-    fn of(action: &RawAction) -> Option<&str> {
-        match action {
-            RawAction::Invoke(a) => match &a.target {
-                nika_schema::raw::RawInvokeTarget::Workflow(w) => Some(w.value.as_str()),
-                nika_schema::raw::RawInvokeTarget::Tool(_) => None,
-            },
-            _ => None,
-        }
-    }
-    of(&task.action).into_iter().collect()
-}
-
-/// Every `skills:` path this task carries — declaration order ·
-/// duplicates deduped by the map they land in. The per-task twin of
-/// `nika_schema::skill_refs`.
-fn skill_paths(task: &RawTask) -> Vec<&str> {
-    fn of(action: &RawAction) -> Vec<&str> {
-        match action {
-            RawAction::Agent(a) => a.skills.iter().map(|s| s.value.as_str()).collect(),
-            _ => Vec::new(),
-        }
-    }
-    of(&task.action)
-}
-
-// ─── the definition payload (raw · behavior-bearing fields as written) ──
-
-/// The behavior-bearing fields as WRITTEN (ADR-099 §1: the verb body ·
-/// `with:` · `output:` · `retry:`/`on_error:`/`on_finally:` · `when:` ·
-/// `for_each:` — plus the scheduling knobs that change behavior). `None`
-/// on any `#[non_exhaustive]` form this recipe does not know. (W2
-/// re-keyed the definition — `after:` replaced `depends_on` · prior
-/// resume caches re-run one-shot, the assumed pre-1.0 cost.)
-///
-/// `pub(crate)` because the W6 semantic hash ([`crate::proof::ir`]) reuses
-/// THIS span-free desugared projection as a task's semantic subtree — one
-/// canonicalization discipline for both the resume identity and the
-/// semantic hash it generalizes (spec 15 · "seed: the `ResumeKey`'s
-/// JCS+blake3 definition hash, generalized").
-pub(crate) fn definition_value(task: &RawTask) -> Option<Value> {
-    Some(json!({
-        "after": task.after.iter()
-            .map(|(target, pred)| json!([target.value, pred.value.as_str()]))
-            .collect::<Vec<_>>(),
-        "when": when_value(task.when.as_ref()),
-        "for_each": for_each_raw(task.for_each.as_ref())?,
-        "max_parallel": task.max_parallel.as_ref().map(|m| m.value),
-        "fail_fast": task.fail_fast.as_ref().map(|f| f.value),
-        "retry": retry_value(task),
-        "on_error": on_error_value(task)?,
-        "timeout_ms": task.timeout.as_ref().map(duration_ms),
-        "with": raw_with_object(&task.with),
-        "output": task.extract.iter()
-            .map(|(name, program)| (name.value.clone(), Value::String(program.value.clone())))
-            .collect::<serde_json::Map<_, _>>(),
-        "action": action_value(&task.action, None)?,
-    }))
-}
-
-fn when_value(when: Option<&Spanned<WhenGate>>) -> Value {
-    match when.map(|w| &w.value) {
-        None => Value::Null,
-        // CLOSED vocabulary (nika-vocab) — both gate forms named.
-        Some(WhenGate::Literal(b)) => json!({ "literal": b }),
-        Some(WhenGate::Expr(e)) => json!({ "expr": e }),
-    }
-}
-
-fn for_each_raw(for_each: Option<&Spanned<ForEachValue>>) -> Option<Value> {
-    Some(match for_each.map(|f| &f.value) {
-        None => Value::Null,
-        Some(ForEachValue::Expression(e)) => json!({ "expr": e }),
-        Some(ForEachValue::List(v)) => json!({ "list": v }),
-        Some(_) => return None,
-    })
-}
-
-fn retry_value(task: &RawTask) -> Value {
-    match task.retry.as_ref().map(|r| &r.value) {
-        None => Value::Null,
-        Some(retry) => json!({
-            "max_attempts": retry.max_attempts,
-            "backoff_ms": retry.backoff_ms,
-            "backoff_strategy": retry.backoff_strategy.to_string(),
-            "backoff_max_ms": retry.backoff_max_ms,
-            "jitter": retry.jitter,
-            "on_codes": retry.on_codes,
-        }),
-    }
-}
-
-fn on_error_value(task: &RawTask) -> Option<Value> {
-    let Some(on_error) = task.on_error.as_ref().map(|o| &o.value) else {
-        return Some(Value::Null);
-    };
-    let action = match &on_error.action {
-        OnErrorAction::Recover(v) => json!({ "recover": v.value }),
-        OnErrorAction::Skip => json!("skip"),
-        _ => return None,
-    };
-    Some(json!({
-        "action": action,
-        "on_codes": on_error.on_codes.iter().map(|c| c.value.clone()).collect::<Vec<_>>(),
-    }))
-}
-
-fn duration_ms(d: &Spanned<std::time::Duration>) -> u64 {
-    u64::try_from(d.value.as_millis()).unwrap_or(u64::MAX)
-}
-
-/// The raw `with:` pairs as an object — JCS sorts the keys, so authored
-/// order never leaks into the hash (trap 3/5 · never completion order).
-fn raw_with_object(with: &[(Spanned<String>, Spanned<Value>)]) -> Value {
-    Value::Object(
-        with.iter()
-            .map(|(k, v)| (k.value.clone(), v.value.clone()))
-            .collect(),
-    )
-}
-
 // ─── the input payload (rendered · what the references resolved to) ─────
 
 /// The values the task's `${{ }}` references resolve to RIGHT NOW —
@@ -853,19 +429,15 @@ fn input_value(
         ..base
     };
     Some(json!({
-        "action": action_value(&task.action, Some(&action_scope))?,
+        "action": action_value(&task.action, &action_scope)?,
         "with": with_ns,
         "items": items,
     }))
 }
 
-// ─── the action payload (shared walk · raw when scope is None) ──────────
+// ─── rendered action payload ────────────────────────────────────────────
 
-/// One verb body as a canonical payload. `scope: None` = the RAW template
-/// strings (definition side) · `Some` = every templated field rendered to
-/// the value it resolves to (input side). ONE walk for both sides, so a
-/// field can never be covered by one hash and missed by the other.
-fn action_value(action: &RawAction, scope: Option<&Scope<'_>>) -> Option<Value> {
+fn action_value(action: &RawAction, scope: &Scope<'_>) -> Option<Value> {
     Some(match action {
         RawAction::Infer(a) => json!({ "infer": infer_value(a, scope)? }),
         RawAction::Exec(a) => json!({ "exec": exec_value(a, scope)? }),
@@ -877,15 +449,12 @@ fn action_value(action: &RawAction, scope: Option<&Scope<'_>>) -> Option<Value> 
 }
 
 /// A templated string field — raw, or rendered to its resolved value.
-fn text(s: &Spanned<String>, scope: Option<&Scope<'_>>) -> Option<Value> {
-    match scope {
-        None => Some(Value::String(s.value.clone())),
-        Some(sc) => expr::render_json(&Value::String(s.value.clone()), sc).ok(),
-    }
+fn text(s: &Spanned<String>, scope: &Scope<'_>) -> Option<Value> {
+    expr::render_json(&Value::String(s.value.clone()), scope).ok()
 }
 
 /// An optional templated string field (`Null` when absent).
-fn opt_text(s: Option<&Spanned<String>>, scope: Option<&Scope<'_>>) -> Option<Value> {
+fn opt_text(s: Option<&Spanned<String>>, scope: &Scope<'_>) -> Option<Value> {
     match s {
         None => Some(Value::Null),
         Some(s) => text(s, scope),
@@ -893,15 +462,14 @@ fn opt_text(s: Option<&Spanned<String>>, scope: Option<&Scope<'_>>) -> Option<Va
 }
 
 /// A templated JSON field (`args:` · `schema:`) — raw, or deep-rendered.
-fn json_field(v: Option<&Spanned<Value>>, scope: Option<&Scope<'_>>) -> Option<Value> {
-    match (v, scope) {
-        (None, _) => Some(Value::Null),
-        (Some(v), None) => Some(v.value.clone()),
-        (Some(v), Some(sc)) => expr::render_json(&v.value, sc).ok(),
+fn json_field(v: Option<&Spanned<Value>>, scope: &Scope<'_>) -> Option<Value> {
+    match v {
+        None => Some(Value::Null),
+        Some(v) => expr::render_json(&v.value, scope).ok(),
     }
 }
 
-fn infer_value(a: &RawInferAction, scope: Option<&Scope<'_>>) -> Option<Value> {
+fn infer_value(a: &RawInferAction, scope: &Scope<'_>) -> Option<Value> {
     let vision = a
         .vision
         .iter()
@@ -928,7 +496,7 @@ fn infer_value(a: &RawInferAction, scope: Option<&Scope<'_>>) -> Option<Value> {
     }))
 }
 
-fn exec_value(a: &RawExecAction, scope: Option<&Scope<'_>>) -> Option<Value> {
+fn exec_value(a: &RawExecAction, scope: &Scope<'_>) -> Option<Value> {
     let command = match &a.command {
         RawCommand::Shell(s) => json!({ "shell": text(s, scope)? }),
         RawCommand::Argv(parts) => json!({
@@ -963,7 +531,7 @@ fn exec_value(a: &RawExecAction, scope: Option<&Scope<'_>>) -> Option<Value> {
     }))
 }
 
-fn invoke_value(a: &RawInvokeAction, scope: Option<&Scope<'_>>) -> Option<Value> {
+fn invoke_value(a: &RawInvokeAction, scope: &Scope<'_>) -> Option<Value> {
     Some(match &a.target {
         nika_schema::raw::RawInvokeTarget::Tool(t) => json!({
             "tool": text(t, scope)?,
@@ -979,7 +547,7 @@ fn invoke_value(a: &RawInvokeAction, scope: Option<&Scope<'_>>) -> Option<Value>
     })
 }
 
-fn agent_value(a: &RawAgentAction, scope: Option<&Scope<'_>>) -> Option<Value> {
+fn agent_value(a: &RawAgentAction, scope: &Scope<'_>) -> Option<Value> {
     Some(json!({
         "prompt": text(&a.prompt, scope)?,
         "system": opt_text(a.system.as_ref(), scope)?,

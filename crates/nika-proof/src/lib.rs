@@ -36,6 +36,13 @@
 use serde_json::Value;
 
 pub mod receipt;
+mod resume;
+
+pub use resume::{
+    KEY_VERSION, MARK, PriorSuccess, ResumeKey, ResumePlan, ResumeUnverified, definition_value,
+    fields, item_stand_in, jcs_blake3_hex, referenced_upstreams, secret_marker, skill_paths,
+    touches_intelligence, workflow_targets,
+};
 
 /// The v1 pre-image format version — participates in every pre-image so a
 /// value hashed under one shape can never be reused under another (spec 15 ·

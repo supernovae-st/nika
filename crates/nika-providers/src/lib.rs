@@ -39,6 +39,7 @@
 
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 
+mod access_receipt;
 #[cfg(test)]
 mod parity_tests;
 pub mod probe;
@@ -50,6 +51,7 @@ mod sse;
 mod test_support;
 pub mod wire;
 
+pub use access_receipt::{AccessObserver, AccessReceipt};
 pub use profile::{
     CANONICAL_IDS, Profile, WireFormat, catalog_warning, resolve_refusal, seed, server_backed_local,
 };

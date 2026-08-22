@@ -49,8 +49,6 @@ jaq-std          = { workspace = true }   # jq stdlib filters (map · select · 
 jaq-json         = { workspace = true }   # jq Val ↔ serde_json bridge for output: bindings
 serde            = { workspace = true }   # TerminalCause wire form (snake_case · spec 13) — FCI-003-pinned against as_str()
 serde_json       = { workspace = true }
-blake3           = { workspace = true }   # ADR-099 resume keys — hash of the JCS key payloads (content, never mtimes)
-serde_json_canonicalizer = { workspace = true }   # ADR-099 resume keys — RFC 8785 canonical bytes (trap 5 · map order + whitespace)
 thiserror        = { workspace = true }
 url              = { workspace = true }   # the re-gate's host extraction — the SAME WHATWG parse the check + the http effect read (no check⇄run drift)
 miette           = { workspace = true }
@@ -61,8 +59,10 @@ nika-harness = { path = "../nika-harness", version = "0.113.0" }
 nika-kernel-mock = { path = "../nika-kernel-mock", version = "0.113.0" }  # MockClock · MockShell · MockToolExecutor · MockToolDefinitionProvider
 nika-pack        = { path = "../nika-pack", version = "0.113.0" }          # error_codes() — the spec-plane codes the runtime emits pin to the embedded canon
 bytes            = { workspace = true }   # canned HttpResponse bodies (the F1 capturing http seam)
+blake3           = { workspace = true }   # preview-commit parity fixture
 insta            = { workspace = true }
 proptest         = { workspace = true }
+serde_json_canonicalizer = { workspace = true } # preview-commit parity fixture
 tokio            = { workspace = true }
 
 [package.metadata.lore]

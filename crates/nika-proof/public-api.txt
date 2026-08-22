@@ -1,4 +1,8 @@
 pub mod nika_proof
+pub mod nika_proof::fields
+pub const nika_proof::fields::DEF_HASH: &str
+pub const nika_proof::fields::INPUT_HASH: &str
+pub const nika_proof::fields::OUTPUT: &str
 pub mod nika_proof::receipt
 pub const nika_proof::receipt::RECEIPT_FORMAT: u32
 pub fn nika_proof::receipt::build_receipt(proves: &str, certificate: serde_json::value::Value, trace_verdict: serde_json::value::Value, assertions: alloc::vec::Vec<serde_json::value::Value>, lock_digest: &str) -> serde_json::value::Value
@@ -69,6 +73,125 @@ impl<T> nika_error::traits::AsAny for nika_proof::HashDomain where T: 'static
 pub fn nika_proof::HashDomain::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> outref::AsOut<T> for nika_proof::HashDomain where T: core::marker::Copy
 pub fn nika_proof::HashDomain::as_out(&mut self) -> outref::Out<'_, T>
+#[non_exhaustive] pub enum nika_proof::ResumeUnverified
+pub nika_proof::ResumeUnverified::Declared(alloc::string::String)
+pub nika_proof::ResumeUnverified::Unchained(alloc::string::String)
+impl nika_proof::ResumeUnverified
+pub fn nika_proof::ResumeUnverified::finding(&self) -> &str
+pub fn nika_proof::ResumeUnverified::posture(&self) -> &'static str
+impl core::clone::Clone for nika_proof::ResumeUnverified
+pub fn nika_proof::ResumeUnverified::clone(&self) -> nika_proof::ResumeUnverified
+impl core::cmp::Eq for nika_proof::ResumeUnverified
+impl core::cmp::PartialEq for nika_proof::ResumeUnverified
+pub fn nika_proof::ResumeUnverified::eq(&self, other: &nika_proof::ResumeUnverified) -> bool
+impl core::fmt::Debug for nika_proof::ResumeUnverified
+pub fn nika_proof::ResumeUnverified::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_proof::ResumeUnverified
+impl<D> owo_colors::OwoColorize for nika_proof::ResumeUnverified
+impl<Q, K> equivalent::Equivalent<K> for nika_proof::ResumeUnverified where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_proof::ResumeUnverified::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_proof::ResumeUnverified where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_proof::ResumeUnverified::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_proof::ResumeUnverified where U: core::convert::From<T>
+pub fn nika_proof::ResumeUnverified::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_proof::ResumeUnverified where U: core::convert::Into<T>
+pub type nika_proof::ResumeUnverified::Error = core::convert::Infallible
+pub fn nika_proof::ResumeUnverified::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_proof::ResumeUnverified where U: core::convert::TryFrom<T>
+pub type nika_proof::ResumeUnverified::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_proof::ResumeUnverified::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_proof::ResumeUnverified where T: core::clone::Clone
+pub type nika_proof::ResumeUnverified::Owned = T
+pub fn nika_proof::ResumeUnverified::clone_into(&self, target: &mut T)
+pub fn nika_proof::ResumeUnverified::to_owned(&self) -> T
+impl<T> core::any::Any for nika_proof::ResumeUnverified where T: 'static + ?core::marker::Sized
+pub fn nika_proof::ResumeUnverified::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_proof::ResumeUnverified where T: ?core::marker::Sized
+pub fn nika_proof::ResumeUnverified::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_proof::ResumeUnverified where T: ?core::marker::Sized
+pub fn nika_proof::ResumeUnverified::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_proof::ResumeUnverified where T: core::clone::Clone
+pub unsafe fn nika_proof::ResumeUnverified::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_proof::ResumeUnverified
+pub fn nika_proof::ResumeUnverified::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_proof::ResumeUnverified where T: core::clone::Clone
+pub fn nika_proof::ResumeUnverified::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_proof::ResumeUnverified where T: 'static
+pub fn nika_proof::ResumeUnverified::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_proof::PriorSuccess
+pub nika_proof::PriorSuccess::def_hash: alloc::string::String
+pub nika_proof::PriorSuccess::input_hash: alloc::string::String
+pub nika_proof::PriorSuccess::output: serde_json::value::Value
+impl nika_proof::PriorSuccess
+pub fn nika_proof::PriorSuccess::new(def_hash: alloc::string::String, input_hash: alloc::string::String, output: serde_json::value::Value) -> Self
+impl core::clone::Clone for nika_proof::PriorSuccess
+pub fn nika_proof::PriorSuccess::clone(&self) -> nika_proof::PriorSuccess
+impl core::fmt::Debug for nika_proof::PriorSuccess
+pub fn nika_proof::PriorSuccess::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_proof::PriorSuccess
+impl<T, U> core::convert::Into<U> for nika_proof::PriorSuccess where U: core::convert::From<T>
+pub fn nika_proof::PriorSuccess::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_proof::PriorSuccess where U: core::convert::Into<T>
+pub type nika_proof::PriorSuccess::Error = core::convert::Infallible
+pub fn nika_proof::PriorSuccess::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_proof::PriorSuccess where U: core::convert::TryFrom<T>
+pub type nika_proof::PriorSuccess::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_proof::PriorSuccess::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_proof::PriorSuccess where T: core::clone::Clone
+pub type nika_proof::PriorSuccess::Owned = T
+pub fn nika_proof::PriorSuccess::clone_into(&self, target: &mut T)
+pub fn nika_proof::PriorSuccess::to_owned(&self) -> T
+impl<T> core::any::Any for nika_proof::PriorSuccess where T: 'static + ?core::marker::Sized
+pub fn nika_proof::PriorSuccess::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_proof::PriorSuccess where T: ?core::marker::Sized
+pub fn nika_proof::PriorSuccess::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_proof::PriorSuccess where T: ?core::marker::Sized
+pub fn nika_proof::PriorSuccess::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_proof::PriorSuccess where T: core::clone::Clone
+pub unsafe fn nika_proof::PriorSuccess::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_proof::PriorSuccess
+pub fn nika_proof::PriorSuccess::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_proof::PriorSuccess where T: core::clone::Clone
+pub fn nika_proof::PriorSuccess::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_proof::PriorSuccess where T: 'static
+pub fn nika_proof::PriorSuccess::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub struct nika_proof::ResumeKey
+impl nika_proof::ResumeKey
+pub fn nika_proof::ResumeKey::definition_hash(&self) -> core::option::Option<alloc::string::String>
+pub fn nika_proof::ResumeKey::input_hash(&self) -> core::option::Option<alloc::string::String>
+pub fn nika_proof::ResumeKey::input_jcs_text(&self) -> core::option::Option<alloc::string::String>
+pub fn nika_proof::ResumeKey::new(task: alloc::string::String, verb: alloc::string::String, definition: serde_json::value::Value, inputs: serde_json::value::Value) -> Self
+impl core::clone::Clone for nika_proof::ResumeKey
+pub fn nika_proof::ResumeKey::clone(&self) -> nika_proof::ResumeKey
+impl core::fmt::Debug for nika_proof::ResumeKey
+pub fn nika_proof::ResumeKey::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_proof::ResumeKey
+impl<T, U> core::convert::Into<U> for nika_proof::ResumeKey where U: core::convert::From<T>
+pub fn nika_proof::ResumeKey::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_proof::ResumeKey where U: core::convert::Into<T>
+pub type nika_proof::ResumeKey::Error = core::convert::Infallible
+pub fn nika_proof::ResumeKey::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_proof::ResumeKey where U: core::convert::TryFrom<T>
+pub type nika_proof::ResumeKey::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_proof::ResumeKey::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_proof::ResumeKey where T: core::clone::Clone
+pub type nika_proof::ResumeKey::Owned = T
+pub fn nika_proof::ResumeKey::clone_into(&self, target: &mut T)
+pub fn nika_proof::ResumeKey::to_owned(&self) -> T
+impl<T> core::any::Any for nika_proof::ResumeKey where T: 'static + ?core::marker::Sized
+pub fn nika_proof::ResumeKey::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_proof::ResumeKey where T: ?core::marker::Sized
+pub fn nika_proof::ResumeKey::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_proof::ResumeKey where T: ?core::marker::Sized
+pub fn nika_proof::ResumeKey::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_proof::ResumeKey where T: core::clone::Clone
+pub unsafe fn nika_proof::ResumeKey::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_proof::ResumeKey
+pub fn nika_proof::ResumeKey::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_proof::ResumeKey where T: core::clone::Clone
+pub fn nika_proof::ResumeKey::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_proof::ResumeKey where T: 'static
+pub fn nika_proof::ResumeKey::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub struct nika_proof::SemanticHash(_)
 impl nika_proof::SemanticHash
 pub fn nika_proof::SemanticHash::as_hex(&self) -> &str
@@ -169,7 +292,18 @@ pub fn nika_proof::UnknownDomain::__clone_box(&self, _: dyn_clone::sealed::Priva
 impl<T> nika_error::traits::AsAny for nika_proof::UnknownDomain where T: 'static
 pub fn nika_proof::UnknownDomain::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub const nika_proof::FORMAT_VERSION: u32
+pub const nika_proof::KEY_VERSION: u32
+pub const nika_proof::MARK: char
 pub fn nika_proof::canonical(value: &serde_json::value::Value) -> alloc::string::String
+pub fn nika_proof::definition_value(task: &nika_schema::raw::task::RawTask) -> core::option::Option<serde_json::value::Value>
 pub fn nika_proof::hash_in_domain(domain: nika_proof::HashDomain, format_version: u32, ir: &serde_json::value::Value) -> alloc::string::String
+pub fn nika_proof::item_stand_in(items: &serde_json::value::Value) -> serde_json::value::Value
+pub fn nika_proof::jcs_blake3_hex(payload: &serde_json::value::Value) -> core::option::Option<alloc::string::String>
 pub fn nika_proof::preimage(domain: nika_proof::HashDomain, format_version: u32, ir: &serde_json::value::Value) -> alloc::string::String
+pub fn nika_proof::referenced_upstreams(task: &nika_schema::raw::task::RawTask) -> alloc::collections::btree::set::BTreeSet<alloc::string::String>
+pub fn nika_proof::secret_marker(name: &str, source: &str, key: &str) -> serde_json::value::Value
 pub fn nika_proof::semantic_hash(ir: &serde_json::value::Value, format_version: u32) -> nika_proof::SemanticHash
+pub fn nika_proof::skill_paths(task: &nika_schema::raw::task::RawTask) -> alloc::vec::Vec<&str>
+pub fn nika_proof::touches_intelligence(task: &nika_schema::raw::task::RawTask) -> bool
+pub fn nika_proof::workflow_targets(task: &nika_schema::raw::task::RawTask) -> alloc::vec::Vec<&str>
+pub type nika_proof::ResumePlan = alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_proof::PriorSuccess>

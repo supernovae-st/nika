@@ -701,6 +701,81 @@ impl<T> core::convert::From<T> for nika_providers::resolve_access::AccessCandida
 pub fn nika_providers::resolve_access::AccessCandidate::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::resolve_access::AccessCandidate where T: 'static
 pub fn nika_providers::resolve_access::AccessCandidate::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub struct nika_providers::AccessObserver
+impl nika_providers::AccessObserver
+pub fn nika_providers::AccessObserver::child(&self) -> Self
+pub fn nika_providers::AccessObserver::receipt(&self) -> core::option::Option<nika_providers::AccessReceipt>
+pub fn nika_providers::AccessObserver::record(&self, receipt: &nika_providers::AccessReceipt)
+impl core::default::Default for nika_providers::AccessObserver
+pub fn nika_providers::AccessObserver::default() -> nika_providers::AccessObserver
+impl<D> owo_colors::OwoColorize for nika_providers::AccessObserver
+impl<T, U> core::convert::Into<U> for nika_providers::AccessObserver where U: core::convert::From<T>
+pub fn nika_providers::AccessObserver::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::AccessObserver where U: core::convert::Into<T>
+pub type nika_providers::AccessObserver::Error = core::convert::Infallible
+pub fn nika_providers::AccessObserver::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::AccessObserver where U: core::convert::TryFrom<T>
+pub type nika_providers::AccessObserver::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::AccessObserver::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_providers::AccessObserver where T: 'static + ?core::marker::Sized
+pub fn nika_providers::AccessObserver::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::AccessObserver where T: ?core::marker::Sized
+pub fn nika_providers::AccessObserver::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::AccessObserver where T: ?core::marker::Sized
+pub fn nika_providers::AccessObserver::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_providers::AccessObserver
+pub fn nika_providers::AccessObserver::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::AccessObserver where T: 'static
+pub fn nika_providers::AccessObserver::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_providers::AccessReceipt
+impl nika_providers::AccessReceipt
+pub const fn nika_providers::AccessReceipt::access(&self) -> core::option::Option<nika_types::access::AccessClass>
+pub fn nika_providers::AccessReceipt::adapter(&self) -> core::option::Option<&str>
+pub const fn nika_providers::AccessReceipt::billing(&self) -> core::option::Option<nika_types::access::BillingClass>
+pub fn nika_providers::AccessReceipt::harness(requested_model: impl core::convert::Into<alloc::string::String>, provider: impl core::convert::Into<alloc::string::String>, adapter: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_providers::AccessReceipt::into_representative(self) -> Self
+pub const fn nika_providers::AccessReceipt::is_representative(&self) -> bool
+pub fn nika_providers::AccessReceipt::observed_model(&self) -> core::option::Option<&str>
+pub fn nika_providers::AccessReceipt::planned(plan: &nika_types::access::AccessPlan) -> Self
+pub fn nika_providers::AccessReceipt::provider(&self) -> &str
+pub fn nika_providers::AccessReceipt::refused(refusal: &nika_providers::resolve_access::AccessRefusal) -> Self
+pub fn nika_providers::AccessReceipt::requested_model(&self) -> &str
+pub fn nika_providers::AccessReceipt::selected_harness(&self) -> bool
+pub fn nika_providers::AccessReceipt::with_observed_model(self, observed_model: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_providers::AccessReceipt::with_optional_observed_model(self, observed_model: core::option::Option<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_providers::AccessReceipt
+pub fn nika_providers::AccessReceipt::clone(&self) -> nika_providers::AccessReceipt
+impl core::cmp::Eq for nika_providers::AccessReceipt
+impl core::cmp::PartialEq for nika_providers::AccessReceipt
+pub fn nika_providers::AccessReceipt::eq(&self, other: &nika_providers::AccessReceipt) -> bool
+impl core::fmt::Debug for nika_providers::AccessReceipt
+pub fn nika_providers::AccessReceipt::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_providers::AccessReceipt
+impl<D> owo_colors::OwoColorize for nika_providers::AccessReceipt
+impl<T, U> core::convert::Into<U> for nika_providers::AccessReceipt where U: core::convert::From<T>
+pub fn nika_providers::AccessReceipt::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::AccessReceipt where U: core::convert::Into<T>
+pub type nika_providers::AccessReceipt::Error = core::convert::Infallible
+pub fn nika_providers::AccessReceipt::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::AccessReceipt where U: core::convert::TryFrom<T>
+pub type nika_providers::AccessReceipt::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::AccessReceipt::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers::AccessReceipt where T: core::clone::Clone
+pub type nika_providers::AccessReceipt::Owned = T
+pub fn nika_providers::AccessReceipt::clone_into(&self, target: &mut T)
+pub fn nika_providers::AccessReceipt::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers::AccessReceipt where T: 'static + ?core::marker::Sized
+pub fn nika_providers::AccessReceipt::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::AccessReceipt where T: ?core::marker::Sized
+pub fn nika_providers::AccessReceipt::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::AccessReceipt where T: ?core::marker::Sized
+pub fn nika_providers::AccessReceipt::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers::AccessReceipt where T: core::clone::Clone
+pub unsafe fn nika_providers::AccessReceipt::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers::AccessReceipt
+pub fn nika_providers::AccessReceipt::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::AccessReceipt where T: 'static
+pub fn nika_providers::AccessReceipt::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_providers::AccessRefusal
 pub nika_providers::AccessRefusal::model: alloc::string::String
 pub nika_providers::AccessRefusal::provider: alloc::string::String

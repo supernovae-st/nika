@@ -581,30 +581,6 @@ mod unit {
         );
     }
 
-    /// The recipe version participates: a bumped `KEY_VERSION` re-keys
-    /// everything (old traces re-run · honest · never a wrong match).
-    #[test]
-    fn key_version_participates_in_both_hashes() {
-        let base = ResumeKey::new("t".into(), "exec".into(), json!({}), json!({}));
-        let mut bumped = base.clone();
-        bumped.v = KEY_VERSION + 1;
-        assert_ne!(base.definition_hash(), bumped.definition_hash());
-        assert_ne!(base.input_hash(), bumped.input_hash());
-    }
-
-    /// The number fold is total + structural (arrays/objects recurse).
-    #[test]
-    fn fold_numbers_tags_every_number_at_every_depth() {
-        let folded = fold_numbers(&json!({ "a": [1, { "b": 2.5 }], "c": "s" }));
-        assert_eq!(
-            folded,
-            json!({
-                "a": [format!("{MARK}num:1{MARK}"), { "b": format!("{MARK}num:2.5{MARK}") }],
-                "c": "s"
-            })
-        );
-    }
-
     /// Spec 14 law 10 (`def_hash` tier) · a `workflow:` call's DEFINITION
     /// identity covers the composer-resolved child closure digest: a
     /// changed digest re-keys the call (an edited child re-runs) · the

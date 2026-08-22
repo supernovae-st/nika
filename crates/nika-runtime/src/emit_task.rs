@@ -146,22 +146,22 @@ pub(crate) fn push_access_fields(
     fields: &mut Vec<(&'static str, FieldValue)>,
     receipt: &crate::dispatch::AccessReceipt,
 ) {
-    fields.push(("model", s(&receipt.requested_model)));
-    fields.push(("requested_model", s(&receipt.requested_model)));
-    fields.push(("provider", s(&receipt.provider)));
-    if let Some(observed) = &receipt.observed_model {
+    fields.push(("model", s(receipt.requested_model())));
+    fields.push(("requested_model", s(receipt.requested_model())));
+    fields.push(("provider", s(receipt.provider())));
+    if let Some(observed) = receipt.observed_model() {
         fields.push(("observed_model", s(observed)));
     }
-    if let Some(access) = receipt.access {
+    if let Some(access) = receipt.access() {
         fields.push(("access", s(access.as_str())));
     }
-    if let Some(billing) = receipt.billing {
+    if let Some(billing) = receipt.billing() {
         fields.push(("billing", s(billing.as_str())));
     }
-    if let Some(adapter) = &receipt.adapter {
+    if let Some(adapter) = receipt.adapter() {
         fields.push(("adapter", s(adapter)));
     }
-    if receipt.representative {
+    if receipt.is_representative() {
         // One route is enough to close aggregate replay, but it is not a
         // complete list of every child/fan-out/cleanup effect.
         fields.push(("access_receipt_scope", s("representative")));

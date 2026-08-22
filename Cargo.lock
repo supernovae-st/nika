@@ -4798,7 +4798,9 @@ version = "0.113.0"
 dependencies = [
  "blake3",
  "nika-check",
+ "nika-schema",
  "serde_json",
+ "serde_json_canonicalizer",
 ]
 
 [[package]]

@@ -902,8 +902,9 @@ where
                     (None, None) => None,
                     (llm, tools) => Some(llm.unwrap_or(0.0) + tools.unwrap_or(0.0)),
                 };
-                let mut receipt = planned_receipt;
-                receipt.observed_model = out.observed_model.or_else(|| out.model_resolved.clone());
+                let receipt = planned_receipt.with_optional_observed_model(
+                    out.observed_model.or_else(|| out.model_resolved.clone()),
+                );
                 let mut dispatched = Dispatched::ok_metered(
                     note,
                     value,
