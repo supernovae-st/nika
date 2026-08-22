@@ -87,6 +87,12 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Fixed
 
+- **`nika try 10-compose-pipeline` stages the child it invokes.** The
+  rehearsal room used to hold only the parent; check then died
+  `NIKA-COMP-001` on `./10-compose-child.nika.yaml` (e2e S2 17/18 on
+  81c1138f). Fixture materialize already carried `examples/fixtures/`
+  ingredients; a relative `workflow: "./….nika.yaml"` pack sibling is
+  the same class.
 - **`for_each` over a constant that is not an array is refused at check, not
   at dispatch.** `const: { items: "x" }` with `for_each: ${{ const.items }}`
   audited clean, then died at the run with `NIKA-VAR-006` — a linter's answer,
