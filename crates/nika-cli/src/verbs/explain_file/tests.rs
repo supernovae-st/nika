@@ -712,3 +712,61 @@ fn a_clean_latest_run_keeps_the_naked_cta_and_no_rail() {
     std::fs::remove_file(&path).ok();
     let _ = std::fs::remove_dir_all(dir);
 }
+
+fn plain_theme() -> crate::display::theme::Theme {
+    crate::display::theme::Theme::new(false, true, false)
+}
+
+/// #1106 taught `nika explain native-first/006` (the token check prints
+/// in `[brackets]`). The library `explain::run` already answers. The CLI
+/// dispatch used to treat any `/` as a file path, so the taught form
+/// 404'd as `cannot read native-first/006`. A test on `dispatch` is the
+/// one that would have caught it — `explain::run` alone is blind to the
+/// router.
+#[test]
+fn a_numbered_native_first_hint_is_not_a_file_path() {
+    let out = dispatch("native-first/006", false, false, plain_theme());
+    assert_eq!(out.code, exit::OK, "{}", out.text);
+    assert!(
+        out.text.starts_with("native-first/006 · hint"),
+        "slash-containing hint ids teach, they are not paths:\n{}",
+        out.text
+    );
+    assert!(out.text.contains("nika:wait"), "{}", out.text);
+    assert!(
+        !out.text.contains("cannot read"),
+        "must not fall through to the file form:\n{}",
+        out.text
+    );
+}
+
+#[test]
+fn every_numbered_native_first_rule_teaches_through_dispatch() {
+    for n in 1..=6 {
+        let id = format!("native-first/{n:03}");
+        let out = dispatch(&id, false, false, plain_theme());
+        assert_eq!(out.code, exit::OK, "{id} → {}", out.text);
+        assert!(
+            out.text.starts_with(&format!("{id} · hint")),
+            "{id} must teach:\n{}",
+            out.text
+        );
+    }
+}
+
+#[test]
+fn jq_as_map_still_teaches_through_dispatch() {
+    let out = dispatch("jq-as-map", false, false, plain_theme());
+    assert_eq!(out.code, exit::OK, "{}", out.text);
+    assert!(out.text.starts_with("jq-as-map · hint"), "{}", out.text);
+}
+
+#[test]
+fn an_existing_yaml_path_still_narrates_as_a_file() {
+    let path = tmp("still-a-file", DIAMOND);
+    let out = dispatch(path.to_str().expect("utf8"), false, false, plain_theme());
+    std::fs::remove_file(&path).ok();
+    assert_eq!(out.code, exit::OK, "{}", out.text);
+    assert!(out.text.contains("brief-factory"), "{}", out.text);
+    assert!(out.text.contains("the story"), "{}", out.text);
+}

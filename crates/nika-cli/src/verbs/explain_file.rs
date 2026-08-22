@@ -37,9 +37,12 @@ use nika_dap::store::{TraceState, fold_facts};
 
 /// Route `explain`'s positional: an existing path or a path-shaped string
 /// (`/` · `.yaml`/`.yml` · `-`) narrates the FILE; everything else teaches
-/// the CODE (`NIKA-440` · `DAG-003` · bare `440`). A file literally named
-/// like a code still routes as a file when it exists on disk — the
-/// pathological tie goes to the thing that provably exists.
+/// the CODE (`NIKA-440` · `DAG-003` · bare `440`). Hint identities that
+/// themselves contain a slash (`native-first/006` · the token `nika check`
+/// prints in `[brackets]`) are CODE, not a path — unless a file of that
+/// name actually exists on disk. A file literally named like a code still
+/// routes as a file when it exists — the pathological tie goes to the
+/// thing that provably exists.
 #[must_use]
 pub fn dispatch(
     query: &str,
@@ -50,11 +53,14 @@ pub fn dispatch(
     let yaml_ext = Path::new(query)
         .extension()
         .is_some_and(|e| e.eq_ignore_ascii_case("yaml") || e.eq_ignore_ascii_case("yml"));
-    let file_shaped = query == "-"
-        || query.contains('/')
-        || query.contains('\\')
-        || yaml_ext
-        || Path::new(query).exists();
+    let exists = Path::new(query).exists();
+    let slash = query.contains('/') || query.contains('\\');
+    // A slash used to mean FILE unconditionally, so `nika explain
+    // native-first/006` (the taught next-gesture after a HINT row) 404'd
+    // as a missing path. Known hint identities keep the code form; a
+    // file that actually exists still wins the tie.
+    let file_shaped =
+        query == "-" || yaml_ext || exists || (slash && nika_check::hint_help(query).is_none());
     if file_shaped {
         return run(query, json, forecast);
     }
