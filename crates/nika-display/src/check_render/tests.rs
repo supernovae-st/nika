@@ -625,6 +625,62 @@ mod models_rung_liveness_tests {
 /// program reaching for the ambient environment printed
 /// `✖ CONFORM [NIKA-VAR-005]` and, three rows later, « pure compute » about
 /// the same body.
+mod audited_line_names_the_blast_radius {
+    use super::super::*;
+    use nika_schema::parser::{ParseMode, parse};
+    use nika_schema::source::FileId;
+
+    fn console(yaml: &str) -> String {
+        let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parses");
+        let report = nika_check::check(&wf);
+        render(
+            &report,
+            &wf,
+            yaml,
+            "w.nika.yaml",
+            RepairTarget::WorkspaceFile,
+            Theme::new(false, false, false),
+            &ModelsAudit::new(Vec::new(), 0, 0),
+            &nika_schema::ResolvedSkills::default(),
+            &[],
+            true,
+        )
+    }
+
+    /// Persona 4 · gauntlet g2: cost was on the default card, the named
+    /// blast radius lived behind `--infer-permits` / `--json`.
+    #[test]
+    fn the_audited_line_names_the_declared_grants() {
+        let out = console(
+            "nika: w\npermits:\n  exec: [\"docker\"]\n  tools: [\"nika:write\"]\n  fs:\n    write: [\"./out.md\"]\ntasks:\n  t:\n    exec: { command: [\"docker\", \"ps\"] }\n",
+        );
+        let line = out
+            .lines()
+            .find(|l| l.contains("audited"))
+            .expect("audited card");
+        assert!(
+            line.contains("permits exec:docker tools:nika:write write:./out.md"),
+            "named radius on the default card: {line}"
+        );
+        assert!(
+            !line.contains("permits declared"),
+            "the opaque word is gone: {line}"
+        );
+    }
+
+    #[test]
+    fn absent_permits_still_say_none() {
+        let out = console(
+            "nika: w\nmodel: mock/echo\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 1 }\n",
+        );
+        let line = out
+            .lines()
+            .find(|l| l.contains("audited"))
+            .expect("audited card");
+        assert!(line.contains("permits none"), "{line}");
+    }
+}
+
 mod permits_panel_under_red_conformance {
     use nika_schema::parser::{ParseMode, parse};
     use nika_schema::source::FileId;

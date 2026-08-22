@@ -1008,7 +1008,7 @@ fn clean_verdict_is_the_audited_card_line() {
     let text = checked_text("audited-card.nika.yaml", yaml, false);
     assert!(
             text.contains(
-                "✔ audited · 2 tasks · 2 waves · permits declared · est out ≤$0.0000 · 0 hints · risk supervised"
+                "✔ audited · 2 tasks · 2 waves · permits exec:echo · est out ≤$0.0000 · 0 hints · risk supervised"
             ),
             "the audited card line: {text}"
         );

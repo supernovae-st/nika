@@ -87,6 +87,11 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Fixed
 
+- **`nika check`'s audited line names the declared blast radius.** The
+  default card said `permits declared`; the grants themselves lived
+  behind `--infer-permits` and `--json` (persona 4). Cost was already
+  on the card. The cell now lists the exec / tools / fs / net / env
+  grants (an explicit empty block is `{}`, absent is still `none`).
 - **A recovered run is no longer a green tick at a glance.** `--quiet`
   and the shareable card titled `✔` / `✓` on a run that repaired a
   task (`task_recovered` then Ok). Exit 0 is still correct — recovered

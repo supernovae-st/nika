@@ -386,8 +386,10 @@ fn affirmative_contract(report: &nika_check::CheckReport) -> String {
     // render as a declared boundary, because that sentence is the one a
     // reviewer trusts. Naming the variant beats inventing a reading.
     let boundary = match report.permits.source {
-        nika_check::PermitsSource::Declared => "permits declared",
-        nika_check::PermitsSource::Absent => "no permits declared (zero authority)",
+        nika_check::PermitsSource::Declared => {
+            format!("permits {}", report.permits.glance())
+        }
+        nika_check::PermitsSource::Absent => "no permits declared (zero authority)".to_owned(),
         ref other => {
             return format!(
                 "  boundary source `{other:?}` is newer than this renderer — \
@@ -904,7 +906,7 @@ mod tests {
         for fact in [
             "task(s)",
             "wave(s)",
-            "permits declared",
+            "permits tools:nika:write write:./out.md",
             "est out",
             "destination(s)",
             "data ",

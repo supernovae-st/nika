@@ -18,7 +18,7 @@ use serde::Serialize;
 
 use super::permits_infer;
 use nika_schema::raw::RawWorkflow;
-use nika_schema::types::Permits;
+use nika_schema::types::{ExecPermit, Permits};
 
 /// Where the effective boundary comes from. `lowercase` on the wire.
 /// Additive: `report_version` stays 1.
@@ -63,6 +63,59 @@ pub struct EffectivePermits {
     /// of the derivation are INCOMPLETE. When any is set, `needed` is a
     /// FLOOR and no consumer may present it as the tightest boundary.
     pub partial: crate::permits_infer::PartialFaces,
+}
+
+impl EffectivePermits {
+    /// Compact grant list for a first-glance card. Absent is `none`;
+    /// an explicit empty block is `{}` (the legal zero). Persona 4 ·
+    /// gauntlet g2: the default card said `declared` while `--json`
+    /// already named the grants.
+    #[must_use]
+    pub fn glance(&self) -> String {
+        match self.declared.as_ref() {
+            None => "none".to_owned(),
+            Some(p) => format_grants(p),
+        }
+    }
+}
+
+fn format_grants(p: &Permits) -> String {
+    let mut cells = Vec::new();
+    match &p.exec {
+        Some(ExecPermit::Any) => cells.push("exec:any".to_owned()),
+        Some(ExecPermit::Programs(ps)) if !ps.is_empty() => {
+            cells.push(format!("exec:{}", ps.join(",")));
+        }
+        _ => {}
+    }
+    if let Some(tools) = &p.tools
+        && !tools.is_empty()
+    {
+        cells.push(format!("tools:{}", tools.join(",")));
+    }
+    if let Some(fs) = &p.fs {
+        if !fs.read.is_empty() {
+            cells.push(format!("read:{}", fs.read.join(",")));
+        }
+        if !fs.write.is_empty() {
+            cells.push(format!("write:{}", fs.write.join(",")));
+        }
+    }
+    if let Some(net) = &p.net
+        && !net.http.is_empty()
+    {
+        cells.push(format!("http:{}", net.http.join(",")));
+    }
+    if let Some(env) = &p.env
+        && !env.is_empty()
+    {
+        cells.push(format!("env:{}", env.join(",")));
+    }
+    if cells.is_empty() {
+        "{}".to_owned()
+    } else {
+        cells.join(" ")
+    }
 }
 
 /// State the affirmative contract for one workflow (total — a
