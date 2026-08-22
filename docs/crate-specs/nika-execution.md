@@ -30,6 +30,12 @@ value and gives the injected runner an `ExecutionContext` containing no
 admission is therefore absent by construction and guarded by a counted-reader
 test.
 
+The injected runner is a one-shot closure so an interface adapter may capture
+its private request (CLI flags, transport metadata, or an ARM claim) without a
+global or thread-local side channel. Those adapter fields stay outside
+`ExecutionContext`: the context remains capability-free and exposes only the
+admitted IDs, snapshot, workflow, check report, and resolved skills.
+
 This crate does not own HTTP, UI rendering, durable jobs, ARM cadence, provider
 selection, sandbox implementation, runtime verb semantics, or trace storage.
 Those remain in their existing layers and will consume this service through

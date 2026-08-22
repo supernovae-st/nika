@@ -66,11 +66,10 @@ impl ExecutionService {
     /// The runner receives no root capability and no mutable pathname. Its
     /// outcome may itself be a `Result`, preserving the caller's typed runtime
     /// verdict without widening this infrastructure boundary.
-    pub fn execute<T>(
-        &self,
-        admitted: AdmittedExecution,
-        runner: for<'a> fn(ExecutionContext<'a>) -> T,
-    ) -> ExecutionVerdict<T> {
+    pub fn execute<T, F>(&self, admitted: AdmittedExecution, runner: F) -> ExecutionVerdict<T>
+    where
+        F: for<'a> FnOnce(ExecutionContext<'a>) -> T,
+    {
         let AdmittedExecution {
             execution_id,
             trace_id,
@@ -464,5 +463,39 @@ mod tests {
         .into_iter()
         .filter_map(|path| cx.snapshot().text(path).map(str::to_owned))
         .collect()
+    }
+
+    #[test]
+    fn execution_runner_captures_an_adapter_request_without_widening_context() {
+        let workflow = b"nika: root\npermits:\n  tools: [\"nika:jq\"]\ntasks:\n  value:\n    invoke:\n      tool: nika:jq\n      args: { input: 1, expression: \".\" }\n";
+        let source = CountingSource {
+            reads: RefCell::new(Vec::new()),
+            files: BTreeMap::from([("root.nika.yaml".to_owned(), workflow.to_vec())]),
+        };
+        let snapshot = ExecutionSnapshot::capture_from(
+            &source,
+            Path::new("root.nika.yaml"),
+            std::iter::empty::<&Path>(),
+            SnapshotLimits::default(),
+        )
+        .expect("capture");
+        let admitted = ExecutionService::admit_snapshot(snapshot).expect("admit captured world");
+        let execution_id = admitted.execution_id();
+        let trace_id = admitted.trace_id();
+        let digest = admitted.snapshot().digest().to_owned();
+        let captured_digest = digest.clone();
+        let adapter_request = String::from("model=mock/echo;max_cost_usd=0");
+
+        let verdict = ExecutionService::default().execute(admitted, move |context| {
+            assert_eq!(context.execution_id(), execution_id);
+            assert_eq!(context.trace_id(), trace_id);
+            assert_eq!(context.snapshot().digest(), captured_digest);
+            adapter_request
+        });
+
+        assert_eq!(verdict.execution_id(), execution_id);
+        assert_eq!(verdict.trace_id(), trace_id);
+        assert_eq!(verdict.snapshot_digest(), digest);
+        assert_eq!(verdict.outcome(), "model=mock/echo;max_cost_usd=0");
     }
 }

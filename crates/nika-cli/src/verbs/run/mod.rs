@@ -113,6 +113,43 @@ struct PausedLeg {
     trace: std::path::PathBuf,
 }
 
+#[derive(Clone)]
+struct AdmittedWorld {
+    snapshot: nika_execution::ExecutionSnapshot,
+    display_root: std::path::PathBuf,
+}
+
+impl AdmittedWorld {
+    fn from_context(
+        context: nika_execution::ExecutionContext<'_>,
+        display_root: std::path::PathBuf,
+    ) -> Self {
+        Self {
+            snapshot: context.snapshot().clone(),
+            display_root,
+        }
+    }
+}
+
+#[allow(clippy::struct_excessive_bools)]
+struct CliExecutionRequest<'a> {
+    file: &'a str,
+    json: bool,
+    output_json: bool,
+    theme: Theme,
+    mode: RenderMode,
+    dry_run: bool,
+    model_override: Option<&'a str>,
+    access_pin: Option<&'a str>,
+    vars: &'a [String],
+    resume: Option<&'a ResumeRequest>,
+    no_trace_file: bool,
+    task_filter: Option<&'a str>,
+    no_outputs: bool,
+    max_cost_usd: Option<f64>,
+    interruptible: bool,
+}
+
 impl RunVerdict {
     /// A verdict that carries no task failure (pre-run refusals · lanes
     /// that never reached the runtime).
@@ -298,12 +335,14 @@ fn run_verdict(
         Ok(pair) => pair,
         Err(verdict) => return *verdict,
     };
+    let has_captured_source = captured.is_some();
     let (source, wf, report) =
         match provenance::capture_checked_source(file, captured, repair_target, output_json) {
             Ok(checked) => checked,
             Err(verdict) => return *verdict,
         };
-    let file = source.logical_path();
+    let file_owned = source.logical_path().to_owned();
+    let file = file_owned.as_str();
     let source_text = source.source();
     if require_signature && let Err(code) = require_signature_gate(&source, output_json) {
         return RunVerdict::bare(code);
@@ -313,6 +352,25 @@ fn run_verdict(
             Ok(triple) => triple,
             Err(code) => return RunVerdict::bare(code),
         };
+    if !has_captured_source && file != "-" {
+        return run_admitted(
+            file,
+            &source,
+            (json, output_json),
+            theme,
+            mode,
+            dry_run,
+            model_override,
+            access_pin,
+            vars,
+            resume,
+            no_trace_file,
+            task_filter,
+            no_outputs,
+            max_cost_usd,
+            interruptible,
+        );
+    }
     let inputs = match inputs::validated_var_overrides(vars, &wf, output_json) {
         Ok(map) => map,
         Err(code) => return RunVerdict::bare(code),
@@ -338,6 +396,7 @@ fn run_verdict(
         skills.clone(),
         (no_trace_file, output_json),
         &report,
+        None,
     ) {
         Ok(rt) => rt,
         Err(code) => return RunVerdict::bare(code),
@@ -357,7 +416,270 @@ fn run_verdict(
         mode,
         (json, output_json, no_trace_file, no_outputs),
         interruptible,
+        None,
     )
+}
+
+#[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
+fn run_admitted(
+    file: &str,
+    preview: &crate::verbs::RunSource,
+    (json, output_json): (bool, bool),
+    theme: Theme,
+    mode: RenderMode,
+    dry_run: bool,
+    model_override: Option<&str>,
+    access_pin: Option<&str>,
+    vars: &[String],
+    resume: Option<&ResumeRequest>,
+    no_trace_file: bool,
+    task_filter: Option<&str>,
+    no_outputs: bool,
+    max_cost_usd: Option<f64>,
+    interruptible: bool,
+) -> RunVerdict {
+    let (project, root, display_root) = match execution_project(file) {
+        Ok(parts) => parts,
+        Err(error) => {
+            epilogue::emit_diagnostic(&format!("nika run: environment: {error}"), output_json);
+            return RunVerdict::bare(exit::ENV);
+        }
+    };
+    let service = nika_execution::ExecutionService::default();
+    let admitted = match service.admit(&project, &root) {
+        Ok(admitted) => admitted,
+        Err(error) => return admission_refusal(&error, output_json),
+    };
+    if admitted.snapshot().text(admitted.snapshot().root()) != Some(preview.source()) {
+        epilogue::emit_diagnostic(
+            "nika run: execution admission: workflow changed during admission; retry the run",
+            output_json,
+        );
+        return RunVerdict::bare(exit::ENV);
+    }
+    let request = CliExecutionRequest {
+        file,
+        json,
+        output_json,
+        theme,
+        mode,
+        dry_run,
+        model_override,
+        access_pin,
+        vars,
+        resume,
+        no_trace_file,
+        task_filter,
+        no_outputs,
+        max_cost_usd,
+        interruptible,
+    };
+    let verdict = service.execute(admitted, move |context| {
+        run_admitted_context(context, &request, display_root)
+    });
+    verdict.into_outcome()
+}
+
+fn run_admitted_context(
+    context: nika_execution::ExecutionContext<'_>,
+    request: &CliExecutionRequest<'_>,
+    display_root: std::path::PathBuf,
+) -> RunVerdict {
+    let world = AdmittedWorld::from_context(context, display_root);
+    let mut report = context.check().clone();
+    crate::verbs::stamp_judged_semantic(context.workflow(), &mut report);
+    let (wf, report) = match apply_task_scope(
+        context.workflow().clone(),
+        report,
+        request.task_filter,
+        request.output_json,
+    ) {
+        Ok(pair) => pair,
+        Err(code) => return RunVerdict::bare(code),
+    };
+    let skills = match admitted_skills(&wf, &world.snapshot) {
+        Ok(skills) => skills,
+        Err(error) => {
+            epilogue::emit_diagnostic(&format!("nika run: {error}"), request.output_json);
+            return RunVerdict::bare(exit::FILE);
+        }
+    };
+    let inputs = match inputs::validated_var_overrides(request.vars, &wf, request.output_json) {
+        Ok(map) => map,
+        Err(code) => return RunVerdict::bare(code),
+    };
+    if request.dry_run {
+        return dry_run::lane(
+            request.file,
+            &wf,
+            &report,
+            request.model_override,
+            request.json,
+            request.theme,
+            request.output_json,
+        );
+    }
+    if let Err(code) = budget::preflight(
+        &wf,
+        &report,
+        request.model_override,
+        request.max_cost_usd,
+        request.output_json,
+    ) {
+        return RunVerdict::bare(code);
+    }
+    let Some(source) = admitted_root_source(&world.snapshot) else {
+        return admitted_root_refusal(request.output_json);
+    };
+    let setup = match resume_setup(
+        request.resume,
+        &wf,
+        source,
+        request.model_override,
+        request.output_json,
+    ) {
+        Ok(setup) => setup,
+        Err(code) => return RunVerdict::bare(code),
+    };
+    let runtime = match composed_runtime(
+        &wf,
+        (request.file, source),
+        request.model_override,
+        request.access_pin,
+        inputs,
+        setup,
+        request.max_cost_usd,
+        skills.clone(),
+        (request.no_trace_file, request.output_json),
+        &report,
+        Some(&world),
+    ) {
+        Ok(runtime) => runtime,
+        Err(code) => return RunVerdict::bare(code),
+    };
+    announce_access_pin(
+        request.access_pin,
+        (request.json, request.output_json),
+        request.mode,
+        &report,
+    );
+    execute_and_ask(
+        &runtime,
+        (request.file, source),
+        (&wf, &report),
+        request.resume.is_some_and(|resume| resume.trace.is_some()),
+        request.vars,
+        request.model_override,
+        request.access_pin,
+        request.max_cost_usd,
+        &skills,
+        request.theme,
+        request.mode,
+        (
+            request.json,
+            request.output_json,
+            request.no_trace_file,
+            request.no_outputs,
+        ),
+        request.interruptible,
+        Some(&world),
+    )
+}
+
+fn admitted_root_source(snapshot: &nika_execution::ExecutionSnapshot) -> Option<&str> {
+    snapshot.text(snapshot.root())
+}
+
+fn admitted_root_refusal(output_json: bool) -> RunVerdict {
+    epilogue::emit_diagnostic(
+        "nika run: execution admission lost its root unit",
+        output_json,
+    );
+    RunVerdict::bare(exit::ENV)
+}
+
+fn execution_project(
+    file: &str,
+) -> Result<(nika_fs::OwnedDir, std::path::PathBuf, std::path::PathBuf), String> {
+    let cwd = std::env::current_dir().map_err(|error| error.to_string())?;
+    let path = std::path::Path::new(file);
+    let absolute = if path.is_absolute() {
+        path.to_path_buf()
+    } else {
+        cwd.join(path)
+    };
+    let absolute = lexical_path(&absolute);
+    let (display_root, root) = absolute.strip_prefix(&cwd).map_or_else(
+        |_| {
+            let parent = absolute
+                .parent()
+                .ok_or_else(|| format!("`{file}` has no project directory"))?;
+            let name = absolute
+                .file_name()
+                .ok_or_else(|| format!("`{file}` has no workflow filename"))?;
+            Ok::<_, String>((parent.to_path_buf(), std::path::PathBuf::from(name)))
+        },
+        |relative| Ok((cwd.clone(), relative.to_path_buf())),
+    )?;
+    let project = nika_fs::OwnedDir::open(&display_root)
+        .map_err(|error| format!("cannot hold project `{}`: {error}", display_root.display()))?;
+    Ok((project, root, display_root))
+}
+
+fn lexical_path(path: &std::path::Path) -> std::path::PathBuf {
+    let mut normalized = std::path::PathBuf::new();
+    for component in path.components() {
+        match component {
+            std::path::Component::Prefix(prefix) => normalized.push(prefix.as_os_str()),
+            std::path::Component::RootDir => {
+                normalized.push(std::path::Path::new(std::path::MAIN_SEPARATOR_STR));
+            }
+            std::path::Component::CurDir => {}
+            std::path::Component::ParentDir => {
+                normalized.pop();
+            }
+            std::path::Component::Normal(part) => normalized.push(part),
+        }
+    }
+    normalized
+}
+
+fn admitted_skills(
+    workflow: &RawWorkflow,
+    snapshot: &nika_execution::ExecutionSnapshot,
+) -> Result<BTreeMap<String, String>, String> {
+    let owner = snapshot.root();
+    let mut reader = |authored: &str| {
+        let logical = child_runner::resolve_admitted(owner, authored)?;
+        snapshot
+            .text(&logical)
+            .map(str::to_owned)
+            .ok_or_else(|| format!("captured world has no unit `{logical}`"))
+    };
+    let resolved = nika_schema::resolve_skills(workflow, &mut reader);
+    if resolved.findings.is_empty() {
+        Ok(resolved.texts)
+    } else {
+        Err(resolved
+            .findings
+            .iter()
+            .map(nika_schema::SkillFinding::row)
+            .collect::<Vec<_>>()
+            .join(" | "))
+    }
+}
+
+fn admission_refusal(error: &nika_execution::ExecutionError, output_json: bool) -> RunVerdict {
+    let code = if matches!(error, nika_execution::ExecutionError::Io { .. }) {
+        exit::ENV
+    } else {
+        exit::FILE
+    };
+    epilogue::emit_diagnostic(
+        &format!("nika run: execution admission: {error}"),
+        output_json,
+    );
+    RunVerdict::bare(code)
 }
 
 /// The access announce (D-2026-08-04-N1 · P2.6 + R-4): a pinned path is
@@ -427,6 +749,7 @@ fn execute_and_ask(
     mode: RenderMode,
     (json, output_json, no_trace_file, no_outputs): (bool, bool, bool, bool),
     interruptible: bool,
+    world: Option<&AdmittedWorld>,
 ) -> RunVerdict {
     let rt = match executor(output_json) {
         Ok(rt) => rt,
@@ -486,6 +809,7 @@ fn execute_and_ask(
             mode,
             (json, output_json, no_trace_file, !no_outputs),
             &rt,
+            world,
         );
     }
     verdict
@@ -510,6 +834,7 @@ fn answered_leg(
     mode: RenderMode,
     (json, output_json, no_trace_file, outputs): (bool, bool, bool, bool),
     rt: &tokio::runtime::Runtime,
+    world: Option<&AdmittedWorld>,
 ) -> RunVerdict {
     let inputs = match inputs::validated_var_overrides(vars, wf, output_json) {
         Ok(map) => map,
@@ -530,6 +855,7 @@ fn answered_leg(
         skills.clone(),
         (no_trace_file, output_json),
         report,
+        world,
     ) {
         Ok(rt) => rt,
         Err(code) => return RunVerdict::bare(code),
@@ -656,6 +982,7 @@ fn composed_runtime(
     skills: BTreeMap<String, String>,
     (no_trace_file, output_json): (bool, bool),
     report: &nika_check::CheckReport,
+    world: Option<&AdmittedWorld>,
 ) -> Result<ProdRuntime, u8> {
     let ResumeSetup {
         plan: resume_plan,
@@ -677,12 +1004,31 @@ fn composed_runtime(
     // jitter seed — the stamper half is picked at the drive site).
     match production_runtime(default_model, caps, wf.run.as_ref().map(|s| &s.value)) {
         Ok(rt) => {
-            let rt = rt
-                // The child seam (spec 14) — children resolve against THIS file.
-                .with_child_runner(std::sync::Arc::new(child_runner::ProdChildRunner::new(
+            let rt = if let Some(world) = world {
+                rt.with_child_runner(std::sync::Arc::new(
+                    child_runner::ProdChildRunner::admitted(
+                        world.snapshot.clone(),
+                        world.snapshot.root(),
+                        &world.display_root,
+                        !no_trace_file,
+                    ),
+                ))
+                .with_child_closures(child_runner::admitted_closure_digests(
+                    wf,
+                    &world.snapshot,
+                    world.snapshot.root(),
+                ))
+            } else {
+                rt.with_child_runner(std::sync::Arc::new(child_runner::ProdChildRunner::new(
                     file,
                     !no_trace_file,
                 )))
+                .with_child_closures(child_runner::closure_digests(
+                    wf,
+                    std::path::Path::new(file),
+                ))
+            };
+            let rt = rt
                 .with_var_overrides(overrides)
                 // F-P13 · the input origins (NEP-0014 law 2) — the boot
                 // manifest journals where every bound input came from.
@@ -706,13 +1052,6 @@ fn composed_runtime(
                 // #473 · composer-resolved SKILL.md texts (`## Skills`
                 // injection + the referencing tasks' resume identity).
                 .with_skills(skills)
-                // Spec 14 law 10 (def_hash tier) · the child closure
-                // digests join the caller's resume identity — an edited
-                // child re-runs instead of serving the old cached output.
-                .with_child_closures(child_runner::closure_digests(
-                    wf,
-                    std::path::Path::new(file),
-                ))
                 // #409 · the override joins the resume identity of every
                 // model-less infer/agent task (the model they RUN on).
                 .with_model_override(model_override.map(ToOwned::to_owned))

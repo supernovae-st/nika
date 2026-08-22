@@ -4295,6 +4295,7 @@ dependencies = [
  "nika-display",
  "nika-error",
  "nika-event",
+ "nika-execution",
  "nika-fs",
  "nika-graph",
  "nika-http",

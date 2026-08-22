@@ -16,6 +16,15 @@ The human surface of the engine. One binary, self-contained (spec + examples
 for everything below: **the animation IS the data** (semantic rendering,
 chrome ≤30%, zero decorative noise). And the human always keeps the hand.
 
+`nika run <file>` is an adapter over `nika-execution`: it builds a private CLI
+request from flags, acquires the project through `OwnedDir`, admits one
+transitive `ExecutionSnapshot`, then captures that request in the service's
+one-shot runner. Runtime composition consumes the admitted workflow, check,
+skills, child bytes, and child-closure digests; rendering and exit-code mapping
+remain here. The stdin and ARM-captured-source lanes keep their prior adapter
+until their dedicated migration carriers can supply an owned-byte world without
+writing a temporary file.
+
 ## 2. Verb surface
 
 ### 1.0 launch floor (locked · D-2026-06-10-N6 · amended D-2026-06-20-N1 — was "v0.81")
