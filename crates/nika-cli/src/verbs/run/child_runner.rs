@@ -250,6 +250,29 @@ fn resolve_against(parent: &Path, target: &str) -> PathBuf {
     parent.parent().unwrap_or_else(|| Path::new("")).join(t)
 }
 
+/// One deterministic replay guard for a settled child. This receipt is
+/// intentionally representative, not exhaustive: `BTreeMap` task-id order
+/// supplies the first harness route, or the first other route when no
+/// harness ran. Harness wins because replaying any one ACP effect is unsafe.
+fn representative_access_receipt(
+    outcome: &nika_runtime::RunOutcome,
+) -> Option<nika_runtime::AccessReceipt> {
+    let mut first = None;
+    for receipt in outcome
+        .records
+        .values()
+        .filter_map(nika_runtime::TaskRecord::access_receipt)
+    {
+        if receipt.access() == Some(nika_types::access::AccessClass::Harness) {
+            return Some(receipt.clone());
+        }
+        if first.is_none() {
+            first = Some(receipt.clone());
+        }
+    }
+    first
+}
+
 /// The first failed task's error of a settled child run — the honest
 /// failure surface the parent's task error carries.
 fn first_failure(
@@ -259,17 +282,12 @@ fn first_failure(
     // therefore guards the whole call even when a lexicographically
     // earlier sibling supplies the failure message (or the harness
     // sibling itself completed successfully).
-    let harness_effect = outcome
-        .records
-        .values()
-        .filter_map(nika_runtime::TaskRecord::access_receipt)
-        .find(|receipt| receipt.access() == Some(nika_types::access::AccessClass::Harness))
-        .cloned();
+    let replay_guard = representative_access_receipt(outcome);
     for (id, rec) in &outcome.records {
         if let Some(err) = &rec.error {
             return (
                 (err.code.clone(), format!("task `{id}`: {}", err.message)),
-                harness_effect.or_else(|| rec.access_receipt().cloned()),
+                replay_guard.or_else(|| rec.access_receipt().cloned()),
             );
         }
     }
@@ -281,7 +299,7 @@ fn first_failure(
                  min(parent remaining, child declared))"
                     .to_owned(),
             ),
-            harness_effect,
+            replay_guard,
         );
     }
     (
@@ -289,7 +307,7 @@ fn first_failure(
             "NIKA-COMP-001".to_owned(),
             "child run failed without a task error".to_owned(),
         ),
-        harness_effect,
+        replay_guard,
     )
 }
 
@@ -362,7 +380,7 @@ impl ChildRunner for ProdChildRunner {
                     // boundary — surfaced as the prompt contract failure.
                     let ok = outcome.ok && outcome.paused.is_none() && !outcome.budget_exceeded;
                     let (failure, access_receipt) = if ok {
-                        (None, None)
+                        (None, representative_access_receipt(outcome))
                     } else {
                         let (failure, receipt) = first_failure(outcome);
                         (Some(failure), receipt)
@@ -614,5 +632,78 @@ mod tests {
         );
         assert_eq!(receipt.adapter(), Some("claude-agent-acp"));
         assert_eq!(receipt.observed_model(), Some("anthropic/claude-observed"));
+    }
+
+    #[cfg(feature = "access-harness")]
+    #[tokio::test]
+    async fn successful_child_uses_a_deterministic_representative_receipt() {
+        use nika_kernel_mock::{
+            MockClock, MockProvider, MockShell, MockToolDefinitionProvider, MockToolExecutor,
+        };
+        use nika_verb_agent::{AgentVerb, harness_path::HarnessSeat};
+        use nika_verb_exec::ExecVerb;
+        use nika_verb_infer::InferVerb;
+        use nika_verb_invoke::InvokeVerb;
+
+        let tools = Arc::new(MockToolExecutor::new());
+        let invoke = Arc::new(InvokeVerb::new(Arc::clone(&tools)));
+        let seat = HarnessSeat::new(Arc::new(CompletedHarnessBackend), "/tmp")
+            .with_access_id("claude-agent-acp");
+        let runtime = nika_runtime::Runtime::new(
+            ExecVerb::new(Arc::new(MockShell::new())),
+            Arc::clone(&invoke),
+            InferVerb::new(
+                Arc::new(nika_providers::ProviderRegistry::without_http(
+                    nika_providers::ProvidersConfig::new(),
+                )),
+                "anthropic/claude-sonnet-4-6",
+            ),
+            AgentVerb::new(
+                Arc::new(MockProvider::new("mock")),
+                invoke,
+                Arc::new(MockToolDefinitionProvider::new()),
+                "anthropic/claude-sonnet-4-6",
+            )
+            .with_harness_seat(seat),
+            MockClock::new(),
+            nika_runtime::RuntimeConfig::default(),
+        )
+        .with_access_probes(vec![
+            harness_probe("claude-agent-acp", "anthropic")
+                .with_serves(vec!["anthropic".to_owned(), "openai".to_owned()]),
+        ]);
+        let wf = nika_schema::parse(
+            "nika: representative\ntasks:\n  a_anthropic:\n    agent: { model: anthropic/claude-sonnet-4-6, prompt: one }\n  z_openai:\n    agent: { model: openai/gpt-5, prompt: two }\n",
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("fixture parses");
+        let report = nika_check::check(&wf);
+        assert!(report.is_clean(), "fixture checks clean: {report:?}");
+        let mut stamper = nika_runtime::DeterministicStamper::new();
+        let mut sink = nika_runtime::VecSink::new();
+        let outcome = runtime
+            .run(&wf, &report, &mut stamper, &mut sink)
+            .await
+            .expect("child run settles");
+        assert!(outcome.ok);
+        assert_eq!(
+            outcome
+                .records
+                .values()
+                .filter_map(nika_runtime::TaskRecord::access_receipt)
+                .count(),
+            2,
+            "the child really contains multiple harness effects"
+        );
+
+        let receipt = representative_access_receipt(&outcome)
+            .expect("the successful child exposes one replay guard");
+        assert_eq!(
+            receipt.requested_model(),
+            "anthropic/claude-sonnet-4-6",
+            "task-id order deterministically selects the representative"
+        );
+        assert_eq!(receipt.adapter(), Some("claude-agent-acp"));
     }
 }

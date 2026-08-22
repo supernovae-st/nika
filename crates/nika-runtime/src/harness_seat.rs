@@ -168,6 +168,11 @@ mod tests {
             field(failed, "adapter").as_deref(),
             Some("claude-agent-acp")
         );
+        assert_eq!(
+            field(failed, "access_receipt_scope").as_deref(),
+            Some("representative"),
+            "one nested receipt is a replay guard, not a complete effect list"
+        );
         Ok(())
     }
 
@@ -666,6 +671,161 @@ mod tests {
                 ))
             })
         }
+    }
+
+    struct SuccessfulHarnessGrandchildRunner {
+        calls: Arc<std::sync::atomic::AtomicUsize>,
+        provider: Arc<MockProvider>,
+    }
+
+    impl ChildRunner for SuccessfulHarnessGrandchildRunner {
+        fn run_child<'a>(
+            &'a self,
+            _call: ChildCall,
+        ) -> Pin<Box<dyn Future<Output = Result<ChildOutcome, ChildRunRefusal>> + 'a>> {
+            Box::pin(async move {
+                let runtime = harness_runtime(
+                    MockShell::new(),
+                    Arc::new(CountingCompletedBackend {
+                        calls: Arc::clone(&self.calls),
+                    }),
+                    Arc::clone(&self.provider),
+                );
+                let (outcome, _events) = drive(
+                    &runtime,
+                    "nika: grandchild\ntasks:\n  delegated:\n    agent: { model: anthropic/claude-sonnet-4-6, prompt: done }\n",
+                )
+                .await
+                .map_err(|message| ChildRunRefusal {
+                    code: "NIKA-COMP-001".to_owned(),
+                    message,
+                })?;
+                let receipt = outcome
+                    .records
+                    .get("delegated")
+                    .and_then(crate::TaskRecord::access_receipt)
+                    .cloned();
+                Ok(ChildOutcome::new(
+                    outcome.ok,
+                    outcome.outputs,
+                    outcome.total_cost_usd,
+                    None,
+                    None,
+                    receipt,
+                ))
+            })
+        }
+    }
+
+    struct SameWaveNestedRunner {
+        harness_calls: Arc<std::sync::atomic::AtomicUsize>,
+        provider: Arc<MockProvider>,
+    }
+
+    impl ChildRunner for SameWaveNestedRunner {
+        fn run_child<'a>(
+            &'a self,
+            _call: ChildCall,
+        ) -> Pin<Box<dyn Future<Output = Result<ChildOutcome, ChildRunRefusal>> + 'a>> {
+            Box::pin(async move {
+                let grandchild = Arc::new(SuccessfulHarnessGrandchildRunner {
+                    calls: Arc::clone(&self.harness_calls),
+                    provider: Arc::clone(&self.provider),
+                });
+                let runtime = harness_runtime(
+                    MockShell::new().enqueue_fail(7, "ordinary failure"),
+                    Arc::new(CompletedBackend),
+                    Arc::new(MockProvider::new("mock")),
+                )
+                .with_child_runner(grandchild);
+                let (outcome, _events) = drive(
+                    &runtime,
+                    "nika: child\npermits: { exec: [false] }\ntasks:\n  a_failure:\n    exec: { command: [false] }\n  z_nested:\n    invoke: { workflow: grandchild.nika.yaml }\n",
+                )
+                .await
+                .map_err(|message| ChildRunRefusal {
+                    code: "NIKA-COMP-001".to_owned(),
+                    message,
+                })?;
+                let error = outcome
+                    .records
+                    .get("a_failure")
+                    .and_then(|record| record.error.as_ref())
+                    .ok_or_else(|| ChildRunRefusal {
+                        code: "NIKA-COMP-001".to_owned(),
+                        message: "nested child produced no ordinary failure".to_owned(),
+                    })?;
+                let receipt = outcome
+                    .records
+                    .values()
+                    .filter_map(crate::TaskRecord::access_receipt)
+                    .find(|receipt| receipt.selected_harness())
+                    .cloned();
+                Ok(ChildOutcome::new(
+                    false,
+                    BTreeMap::new(),
+                    outcome.total_cost_usd,
+                    None,
+                    Some((error.code.clone(), error.message.clone())),
+                    receipt,
+                ))
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn successful_grandchild_harness_is_not_replayed_by_parent_retry() -> Result<(), String> {
+        let calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let provider = Arc::new(MockProvider::new("mock").enqueue_text("must not fall through"));
+        let runtime = harness_runtime(
+            MockShell::new(),
+            Arc::new(CompletedBackend),
+            Arc::new(MockProvider::new("mock")),
+        )
+        .with_child_runner(Arc::new(SameWaveNestedRunner {
+            harness_calls: Arc::clone(&calls),
+            provider: Arc::clone(&provider),
+        }));
+        let (outcome, events) = drive(
+            &runtime,
+            "nika: root\ntasks:\n  nested:\n    retry: { max_attempts: 2, backoff_ms: 1, backoff_strategy: fixed, jitter: false, on_codes: [NIKA-EXEC-001] }\n    invoke: { workflow: child.nika.yaml }\n",
+        )
+        .await?;
+
+        assert!(!outcome.ok);
+        assert_eq!(
+            calls.load(std::sync::atomic::Ordering::Relaxed),
+            1,
+            "the root must not replay a successful grandchild ACP effect"
+        );
+        assert!(
+            provider.captured_requests().is_empty(),
+            "the selected harness never falls through to the native provider"
+        );
+        assert!(
+            events
+                .iter()
+                .all(|event| event.kind != EventKind::TaskRetrying),
+            "the root emits no retry frame"
+        );
+        let failed = events
+            .iter()
+            .find(|event| event.kind == EventKind::TaskFailed)
+            .ok_or_else(|| "the root has no terminal failure".to_owned())?;
+        assert_eq!(
+            field(failed, "requested_model").as_deref(),
+            Some("anthropic/claude-sonnet-4-6")
+        );
+        assert_eq!(
+            field(failed, "observed_model").as_deref(),
+            Some("anthropic/claude-observed")
+        );
+        assert_eq!(field(failed, "access").as_deref(), Some("harness"));
+        assert_eq!(
+            field(failed, "adapter").as_deref(),
+            Some("claude-agent-acp")
+        );
+        Ok(())
     }
 
     #[tokio::test]

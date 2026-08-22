@@ -123,6 +123,12 @@ where
         contract: Option<&crate::contract::TaskContract<'_>>,
     ) -> Dispatched {
         let cost_source = out.cost_usd.is_some().then(|| format!("workflow:{target}"));
+        // A workflow receipt is one deterministic replay guard selected
+        // from the child's task set. It is intentionally representative,
+        // never an assertion that the child performed only one effect.
+        let access_receipt = out
+            .access_receipt
+            .map(crate::dispatch::AccessReceipt::into_representative);
         if out.ok {
             let value = Value::Object(out.outputs.into_iter().collect());
             // Law 2, run half — the child's outputs fit the parent's
@@ -132,7 +138,7 @@ where
             if let Some(c) = contract
                 && let Err(err) = c.check_fit(note, &value)
             {
-                return Dispatched::template_err(note, &err);
+                return Dispatched::template_err_with_access(note, &err, access_receipt);
             }
             let mut ok = DispatchOk {
                 value,
@@ -142,7 +148,7 @@ where
                 cost_usd: out.cost_usd,
                 cost_source,
                 cost_unpriced: None,
-                access_receipt: None,
+                access_receipt,
                 // F-P6 · the child's OWN trace attests its steps (spec 14
                 // law 9) — the call itself fires no exec/tool bytes.
                 commit: None,
@@ -192,7 +198,7 @@ where
                 // The child already selected and exercised this route.
                 // Preserve it so the parent's retry seam cannot replay an
                 // ACP effect under an explicit `on_codes:` policy.
-                access_receipt: out.access_receipt,
+                access_receipt,
                 // F-P6 · the child's own trace attests its steps.
                 evidence: None,
             }),

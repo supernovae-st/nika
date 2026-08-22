@@ -212,7 +212,7 @@ pub(super) fn retain_effect_receipt(
     retained: &mut Option<crate::dispatch::AccessReceipt>,
     candidate: Option<crate::dispatch::AccessReceipt>,
 ) {
-    let Some(candidate) = candidate else {
+    let Some(candidate) = candidate.map(crate::dispatch::AccessReceipt::into_representative) else {
         return;
     };
     let replace = retained.is_none()

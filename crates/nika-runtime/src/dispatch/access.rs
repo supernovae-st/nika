@@ -57,7 +57,9 @@ impl AccessObserver {
 /// Typed execution-route receipt. Cost attribution remains separate: this
 /// records what was requested, which path was selected, and what model the
 /// executor actually observed. A total resolver refusal has no selected
-/// path, but still preserves the requested model and provider.
+/// path, but still preserves the requested model and provider. Aggregate
+/// tasks retain one deterministic replay guard rather than pretending to
+/// enumerate every effect; [`Self::is_representative`] exposes that scope.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct AccessReceipt {
@@ -67,6 +69,7 @@ pub struct AccessReceipt {
     pub(crate) access: Option<nika_types::access::AccessClass>,
     pub(crate) billing: Option<nika_types::access::BillingClass>,
     pub(crate) adapter: Option<String>,
+    pub(crate) representative: bool,
 }
 
 impl AccessReceipt {
@@ -86,6 +89,7 @@ impl AccessReceipt {
             access: Some(nika_types::access::AccessClass::Harness),
             billing: Some(nika_types::access::BillingClass::Unknown),
             adapter: Some(adapter.into()),
+            representative: false,
         }
     }
 
@@ -132,6 +136,18 @@ impl AccessReceipt {
         self.adapter.as_deref()
     }
 
+    /// Whether this is one deterministic replay guard selected from an
+    /// aggregate task or nested run, rather than a complete effect list.
+    #[must_use]
+    pub const fn is_representative(&self) -> bool {
+        self.representative
+    }
+
+    pub(crate) fn into_representative(mut self) -> Self {
+        self.representative = true;
+        self
+    }
+
     pub(super) fn planned(plan: &nika_types::access::AccessPlan) -> Self {
         Self {
             requested_model: plan.model.clone(),
@@ -141,6 +157,7 @@ impl AccessReceipt {
             billing: Some(plan.billing),
             adapter: (plan.chosen == nika_types::access::AccessClass::Harness)
                 .then(|| plan.access.clone()),
+            representative: false,
         }
     }
 
@@ -152,6 +169,7 @@ impl AccessReceipt {
             access: None,
             billing: None,
             adapter: None,
+            representative: false,
         }
     }
 

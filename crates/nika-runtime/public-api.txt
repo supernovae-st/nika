@@ -1348,6 +1348,7 @@ pub const fn nika_runtime::AccessReceipt::access(&self) -> core::option::Option<
 pub fn nika_runtime::AccessReceipt::adapter(&self) -> core::option::Option<&str>
 pub const fn nika_runtime::AccessReceipt::billing(&self) -> core::option::Option<nika_types::access::BillingClass>
 pub fn nika_runtime::AccessReceipt::harness(requested_model: impl core::convert::Into<alloc::string::String>, provider: impl core::convert::Into<alloc::string::String>, adapter: impl core::convert::Into<alloc::string::String>) -> Self
+pub const fn nika_runtime::AccessReceipt::is_representative(&self) -> bool
 pub fn nika_runtime::AccessReceipt::observed_model(&self) -> core::option::Option<&str>
 pub fn nika_runtime::AccessReceipt::provider(&self) -> &str
 pub fn nika_runtime::AccessReceipt::requested_model(&self) -> &str

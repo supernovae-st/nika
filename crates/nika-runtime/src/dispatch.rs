@@ -255,18 +255,33 @@ impl Dispatched {
     }
 
     pub(crate) fn template_err(note: &str, err: &RuntimeError) -> Self {
+        Self::template_err_with_access(note, err, None)
+    }
+
+    pub(crate) fn template_err_with_access(
+        note: &str,
+        err: &RuntimeError,
+        access_receipt: Option<AccessReceipt>,
+    ) -> Self {
         Self {
             note: note.to_owned(),
-            result: Err(FailedDispatch::unspent(TaskErrorRecord {
-                // The SPEC-PLANE wire code (`NIKA-VAR-001` unresolved ·
-                // `NIKA-VAR-005` out-of-subset) the author filters on — never
-                // the engine-internal `nika_code()` (spec 05 §142 · the
-                // `tasks.X.error.code` leak this closed). The message is
-                // code-less (`wire_message`) · the code rides its own field.
-                code: err.spec_code(),
-                message: err.wire_message(),
-                transient: false, // static expression class · retry never helps
-            })),
+            result: Err(FailedDispatch {
+                record: TaskErrorRecord {
+                    // The SPEC-PLANE wire code (`NIKA-VAR-001` unresolved ·
+                    // `NIKA-VAR-005` out-of-subset) the author filters on — never
+                    // the engine-internal `nika_code()` (spec 05 §142 · the
+                    // `tasks.X.error.code` leak this closed). The message is
+                    // code-less (`wire_message`) · the code rides its own field.
+                    code: err.spec_code(),
+                    message: err.wire_message(),
+                    transient: false, // static expression class · retry never helps
+                },
+                cost_usd: None,
+                cost_source: None,
+                cost_unpriced: None,
+                access_receipt,
+                evidence: None,
+            }),
         }
     }
 

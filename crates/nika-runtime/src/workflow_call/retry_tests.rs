@@ -60,9 +60,23 @@ fn runtime(
     MockToolDefinitionProvider,
     MockClock,
 > {
+    runtime_with_shell(runner, MockShell::new())
+}
+
+fn runtime_with_shell(
+    runner: Arc<dyn ChildRunner>,
+    shell: MockShell,
+) -> Runtime<
+    MockShell,
+    MockToolExecutor,
+    nika_providers::NoHttp,
+    MockProvider,
+    MockToolDefinitionProvider,
+    MockClock,
+> {
     let invoke = Arc::new(InvokeVerb::new(Arc::new(MockToolExecutor::new())));
     Runtime::new(
-        ExecVerb::new(Arc::new(MockShell::new())),
+        ExecVerb::new(Arc::new(shell)),
         Arc::clone(&invoke),
         nika_verb_infer::InferVerb::new(
             Arc::new(nika_providers::ProviderRegistry::without_http(
@@ -150,6 +164,10 @@ async fn parent_on_codes_cannot_replay_a_child_harness_effect() {
     );
     assert_eq!(field(failed, "access"), Some("harness"));
     assert_eq!(field(failed, "adapter"), Some("claude-agent-acp"));
+    assert_eq!(
+        field(failed, "access_receipt_scope"),
+        Some("representative")
+    );
 }
 
 #[tokio::test]
@@ -163,4 +181,107 @@ async fn parent_on_codes_still_retries_an_ordinary_child_failure() {
             .count(),
         1
     );
+}
+
+struct SuccessfulReceiptRunner {
+    calls: Arc<AtomicUsize>,
+}
+
+impl ChildRunner for SuccessfulReceiptRunner {
+    fn run_child<'a>(
+        &'a self,
+        _call: ChildCall,
+    ) -> Pin<Box<dyn Future<Output = Result<ChildOutcome, ChildRunRefusal>> + 'a>> {
+        self.calls.fetch_add(1, Ordering::Relaxed);
+        Box::pin(async {
+            Ok(ChildOutcome::new(
+                true,
+                BTreeMap::from([("answer".to_owned(), serde_json::json!(42))]),
+                None,
+                None,
+                None,
+                Some(
+                    AccessReceipt::harness(
+                        "anthropic/claude-sonnet-4-6",
+                        "anthropic",
+                        "claude-agent-acp",
+                    )
+                    .with_observed_model("anthropic/claude-observed"),
+                ),
+            ))
+        })
+    }
+}
+
+#[tokio::test]
+async fn successful_child_receipt_survives_returns_failure() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let runner = Arc::new(SuccessfulReceiptRunner {
+        calls: Arc::clone(&calls),
+    });
+    let wf = nika_schema::parse(
+        "nika: returns-boundary\ntasks:\n  nested:\n    invoke: { workflow: child.nika.yaml }\n    returns: string\n    retry: { max_attempts: 2, backoff_ms: 1, backoff_strategy: fixed, jitter: false, on_codes: [NIKA-TYPE-101] }\n",
+        nika_schema::FileId::new(0),
+        nika_schema::ParseMode::Strict,
+    )
+    .expect("fixture parses");
+    let report = nika_check::check(&wf);
+    assert!(report.is_clean(), "fixture checks clean: {report:?}");
+    let mut stamper = DeterministicStamper::new();
+    let mut sink = VecSink::new();
+    let outcome = runtime(runner)
+        .run(&wf, &report, &mut stamper, &mut sink)
+        .await
+        .expect("parent run settles");
+
+    assert!(!outcome.ok);
+    assert_eq!(calls.load(Ordering::Relaxed), 1);
+    assert!(
+        sink.events()
+            .iter()
+            .all(|event| event.kind != EventKind::TaskRetrying)
+    );
+    let failed = sink
+        .events()
+        .iter()
+        .find(|event| event.kind == EventKind::TaskFailed)
+        .expect("parent terminal failure");
+    assert_eq!(field(failed, "access"), Some("harness"));
+    assert_eq!(field(failed, "adapter"), Some("claude-agent-acp"));
+    assert_eq!(
+        field(failed, "access_receipt_scope"),
+        Some("representative")
+    );
+}
+
+#[tokio::test]
+async fn successful_workflow_cleanup_receipt_guards_the_failed_task() {
+    let calls = Arc::new(AtomicUsize::new(0));
+    let runner = Arc::new(SuccessfulReceiptRunner {
+        calls: Arc::clone(&calls),
+    });
+    let wf = nika_schema::parse(
+        "nika: cleanup-boundary\npermits: { exec: [false] }\ntasks:\n  main:\n    exec: { command: [false] }\n  cleanup:\n    after: { main: unwind }\n    invoke: { workflow: cleanup.nika.yaml }\n",
+        nika_schema::FileId::new(0),
+        nika_schema::ParseMode::Strict,
+    )
+    .expect("fixture parses");
+    let report = nika_check::check(&wf);
+    assert!(report.is_clean(), "fixture checks clean: {report:?}");
+    let mut stamper = DeterministicStamper::new();
+    let mut sink = VecSink::new();
+    let outcome = runtime_with_shell(runner, MockShell::new().enqueue_fail(7, "main failed"))
+        .run(&wf, &report, &mut stamper, &mut sink)
+        .await
+        .expect("parent run settles");
+
+    assert!(!outcome.ok);
+    assert_eq!(calls.load(Ordering::Relaxed), 1);
+    let failed = sink
+        .events()
+        .iter()
+        .find(|event| event.kind == EventKind::TaskFailed && field(event, "task") == Some("main"))
+        .expect("producer terminal failure");
+    assert_eq!(field(failed, "access"), Some("harness"));
+    assert_eq!(field(failed, "adapter"), Some("claude-agent-acp"));
 }

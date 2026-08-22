@@ -130,9 +130,10 @@ pub struct ChildOutcome {
     /// The child's failure surface when `ok == false` — `(code, message)`
     /// of the FIRST terminal failure (the child's own spec-plane code).
     pub failure: Option<(String, String)>,
-    /// The selected access route of the child's terminal task, when one
-    /// exists. A parent retry must preserve this receipt instead of
-    /// reclassifying the child failure as an ordinary provider error.
+    /// One deterministic selected route from the child run, when one
+    /// exists. This is a replay guard, not an exhaustive list: a child
+    /// with multiple effects prefers its first harness receipt in task-id
+    /// order. A parent retry must preserve it on success and failure.
     pub access_receipt: Option<crate::AccessReceipt>,
 }
 

@@ -161,4 +161,9 @@ pub(crate) fn push_access_fields(
     if let Some(adapter) = &receipt.adapter {
         fields.push(("adapter", s(adapter)));
     }
+    if receipt.representative {
+        // One route is enough to close aggregate replay, but it is not a
+        // complete list of every child/fan-out/cleanup effect.
+        fields.push(("access_receipt_scope", s("representative")));
+    }
 }
