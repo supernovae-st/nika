@@ -162,6 +162,34 @@ pub fn failure() -> Vec<Event> {
     events
 }
 
+/// A completed run that repaired a task (`task_recovered` then Ok).
+/// Persona 14 · gauntlet g2: the first glance (`--quiet` headline · the
+/// shareable card title) must not look like an unblemished success.
+#[must_use]
+pub fn recovered() -> Vec<Event> {
+    vec![
+        at(100, 0, EventKind::WorkflowStarted).with_field(s("workflow", "recovered")),
+        at(101, 10, EventKind::TaskScheduled).with_field(s("task", "risky")),
+        at(102, 11, EventKind::TaskScheduled).with_field(s("task", "greet")),
+        at(103, 20, EventKind::TaskStarted)
+            .with_field(s("task", "risky"))
+            .with_field(s("note", "invoke · nika:assert")),
+        at(104, 25, EventKind::TaskRecovered)
+            .with_field(s("task", "risky"))
+            .with_field(s("note", "on_error recover")),
+        at(105, 30, EventKind::TaskCompleted)
+            .with_field(s("task", "risky"))
+            .with_field(s("note", "recovered")),
+        at(106, 40, EventKind::TaskStarted)
+            .with_field(s("task", "greet"))
+            .with_field(s("note", "infer · mock/echo")),
+        at(107, 80, EventKind::TaskCompleted)
+            .with_field(s("task", "greet"))
+            .with_field(s("note", "mocked")),
+        at(108, 90, EventKind::WorkflowCompleted).with_field(s("workflow", "recovered")),
+    ]
+}
+
 /// The paused storyboard (ADR-099 rider · ends `workflow_paused`): the
 /// run parked at a human gate — no verdict, the gate row left awaiting.
 #[must_use]
@@ -183,7 +211,9 @@ mod tests {
         assert_eq!(success(), success());
         assert_eq!(failure(), failure());
         assert_eq!(paused(), paused());
+        assert_eq!(recovered(), recovered());
         assert_ne!(success(), failure());
+        assert_ne!(success(), recovered());
     }
 
     #[test]

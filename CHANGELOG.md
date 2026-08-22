@@ -87,6 +87,12 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Fixed
 
+- **A recovered run is no longer a green tick at a glance.** `--quiet`
+  and the shareable card titled `✔` / `✓` on a run that repaired a
+  task (`task_recovered` then Ok). Exit 0 is still correct — recovered
+  is a success cause. The headline and the card title now carry the
+  warn mark; the storyboard already named `N recovered` (persona 14).
+  `trace ls` still says `completed` (no new `TraceState` this cut).
 - **`--infer-permits` no longer pastes a host-file grant.** A
   `nika:read` of `/etc/passwd` (or `~/.ssh/…`) under an absent
   `permits:` block printed `fs.read: ["/etc/passwd"]`; applying that

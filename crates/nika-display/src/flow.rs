@@ -302,11 +302,13 @@ pub fn verdict_card(view: &RunView, theme: &Theme, notes: &[String]) -> Vec<Stri
     } else {
         ('╭', '╮', '╰', '╯', '─', '│')
     };
-    let mark_raw = match (ok, theme.ascii) {
-        (true, false) => "✓",
-        (true, true) => "OK",
-        (false, false) => "✖",
-        (false, true) => "X",
+    let mark_raw = match (ok, crate::fruit::recovered_ok(view), theme.ascii) {
+        (true, true, false) => "⚠",
+        (true, true, true) => "!",
+        (true, false, false) => "✓",
+        (true, false, true) => "OK",
+        (false, _, false) => "✖",
+        (false, _, true) => "X",
     };
     let title_raw = format!("{h} nika {mark_raw} {} ", view.workflow);
 
@@ -740,6 +742,34 @@ mod tests {
                 "unicode {glyph} leaked into --ascii: {ascii:?}"
             );
         }
+    }
+
+    /// Persona 14 · gauntlet g2: the shareable card titled `nika ✓`
+    /// on a recovered run. Exit 0 stays; the title mark does not.
+    #[test]
+    fn verdict_card_recovered_is_not_a_green_tick() {
+        let mut view = RunView::new();
+        for e in demo::recovered() {
+            view.apply(&e);
+        }
+        let uni = verdict_card(&view, &PLAIN, &[]);
+        assert!(
+            uni[0].contains("nika ⚠ recovered"),
+            "recovered title is not a green tick: {uni:?}"
+        );
+        assert!(
+            !uni[0].contains('✓'),
+            "recovered title keeps no tick: {uni:?}"
+        );
+        let ascii = verdict_card(&view, &ASCII, &[]);
+        assert!(
+            ascii[0].contains("nika ! recovered"),
+            "ascii twin: {ascii:?}"
+        );
+        assert!(
+            !ascii[0].contains("OK"),
+            "ascii recovered is not OK: {ascii:?}"
+        );
     }
 
     /// Verdict-count discipline (cargo school): `0 retries` renders
