@@ -390,14 +390,9 @@ impl ApprovalBook {
         settle: &mut crate::task::SettleAs,
         now_ms: i64,
     ) -> Option<ApprovalAttestation> {
-        let (value, costs) = match settle {
+        let value = match settle {
             crate::task::SettleAs::Ran(ran) => match &ran.result {
-                crate::task::RunResult::Success {
-                    value,
-                    cost_usd,
-                    cost_unpriced,
-                    ..
-                } => (value.clone(), (*cost_usd, *cost_unpriced)),
+                crate::task::RunResult::Success { value, .. } => value.clone(),
                 _ => return None,
             },
             _ => return None,
@@ -422,7 +417,7 @@ impl ApprovalBook {
         } else {
             proposed
         };
-        let attestation = ApprovalAttestation {
+        Some(ApprovalAttestation {
             task: task.to_owned(),
             mode,
             decision: decision.as_str(),
@@ -433,26 +428,7 @@ impl ApprovalBook {
             ttl_seconds: ticket.ttl_seconds,
             ttl_remaining_seconds: ticket.ttl_remaining_seconds(now_ms),
             why: None,
-        };
-        drop(inner);
-
-        // A false confirmation is an authority denial, not successful data.
-        if decision == ApprovalDecision::Deny
-            && let crate::task::SettleAs::Ran(ran) = settle
-        {
-            ran.result = crate::task::RunResult::Failed {
-                error: crate::record::TaskErrorRecord {
-                    code: APPROVAL_CODE.to_owned(),
-                    message: format!(
-                        "task '{task}' · approval.denied — the confirmation refused authority ({APPROVAL_CODE})"
-                    ),
-                    transient: false,
-                },
-                cost_usd: costs.0,
-                cost_unpriced: costs.1,
-            };
-        }
-        Some(attestation)
+        })
     }
 }
 
