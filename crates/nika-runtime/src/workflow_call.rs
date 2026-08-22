@@ -189,7 +189,10 @@ where
                 cost_usd: out.cost_usd,
                 cost_source,
                 cost_unpriced: None,
-                access_receipt: None,
+                // The child already selected and exercised this route.
+                // Preserve it so the parent's retry seam cannot replay an
+                // ACP effect under an explicit `on_codes:` policy.
+                access_receipt: out.access_receipt,
                 // F-P6 · the child's own trace attests its steps.
                 evidence: None,
             }),
@@ -222,5 +225,7 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
     }
 }
 
+#[cfg(test)]
+mod retry_tests;
 #[cfg(test)]
 mod tests;

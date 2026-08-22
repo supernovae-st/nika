@@ -11,16 +11,79 @@ use crate::record::TaskErrorRecord;
 /// executor actually observed. A total resolver refusal has no selected
 /// path, but still preserves the requested model and provider.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct AccessReceipt {
-    pub requested_model: String,
-    pub observed_model: Option<String>,
-    pub provider: String,
-    pub access: Option<nika_types::access::AccessClass>,
-    pub billing: Option<nika_types::access::BillingClass>,
-    pub adapter: Option<String>,
+#[non_exhaustive]
+pub struct AccessReceipt {
+    pub(crate) requested_model: String,
+    pub(crate) observed_model: Option<String>,
+    pub(crate) provider: String,
+    pub(crate) access: Option<nika_types::access::AccessClass>,
+    pub(crate) billing: Option<nika_types::access::BillingClass>,
+    pub(crate) adapter: Option<String>,
 }
 
 impl AccessReceipt {
+    /// Construct the route receipt a child runner returns when its nested
+    /// execution selected a harness. The observed identity stays separate
+    /// because an ACP failure often reports none.
+    #[must_use]
+    pub fn harness(
+        requested_model: impl Into<String>,
+        provider: impl Into<String>,
+        adapter: impl Into<String>,
+    ) -> Self {
+        Self {
+            requested_model: requested_model.into(),
+            observed_model: None,
+            provider: provider.into(),
+            access: Some(nika_types::access::AccessClass::Harness),
+            billing: Some(nika_types::access::BillingClass::Unknown),
+            adapter: Some(adapter.into()),
+        }
+    }
+
+    /// Attach the model identity the selected executor actually reported.
+    #[must_use]
+    pub fn with_observed_model(mut self, observed_model: impl Into<String>) -> Self {
+        self.observed_model = Some(observed_model.into());
+        self
+    }
+
+    /// The model identity requested by the workflow.
+    #[must_use]
+    pub fn requested_model(&self) -> &str {
+        &self.requested_model
+    }
+
+    /// The executor-reported model identity, when observable.
+    #[must_use]
+    pub fn observed_model(&self) -> Option<&str> {
+        self.observed_model.as_deref()
+    }
+
+    /// The requested model's provider namespace.
+    #[must_use]
+    pub fn provider(&self) -> &str {
+        &self.provider
+    }
+
+    /// The selected access class, absent on total resolver refusal.
+    #[must_use]
+    pub const fn access(&self) -> Option<nika_types::access::AccessClass> {
+        self.access
+    }
+
+    /// The selected billing class, absent on total resolver refusal.
+    #[must_use]
+    pub const fn billing(&self) -> Option<nika_types::access::BillingClass> {
+        self.billing
+    }
+
+    /// The selected harness adapter id, when the route uses a harness.
+    #[must_use]
+    pub fn adapter(&self) -> Option<&str> {
+        self.adapter.as_deref()
+    }
+
     pub(super) fn planned(plan: &nika_types::access::AccessPlan) -> Self {
         Self {
             requested_model: plan.model.clone(),

@@ -85,11 +85,11 @@ impl ChildRunner for MockChildRunner {
 /// A green child: `{report: "done"}` outputs · optional cost · a trace row.
 fn green_child(cost_usd: Option<f64>) -> Respond {
     Box::new(move |call| {
-        Ok(ChildOutcome {
-            ok: true,
-            outputs: BTreeMap::from([("report".to_owned(), json!("done"))]),
+        Ok(ChildOutcome::new(
+            true,
+            BTreeMap::from([("report".to_owned(), json!("done"))]),
             cost_usd,
-            trace: Some(ChildRunSummary::new(
+            Some(ChildRunSummary::new(
                 call.target.clone(),
                 true,
                 (
@@ -98,8 +98,9 @@ fn green_child(cost_usd: Option<f64>) -> Respond {
                     Some("childdef456".to_owned()),
                 ),
             )),
-            failure: None,
-        })
+            None,
+            None,
+        ))
     })
 }
 
@@ -368,17 +369,18 @@ tasks:
 #[tokio::test]
 async fn child_failure_surfaces_the_child_code() {
     let (runner, _) = MockChildRunner::new(Box::new(|call| {
-        Ok(ChildOutcome {
-            ok: false,
-            outputs: BTreeMap::new(),
-            cost_usd: Some(0.1),
-            trace: Some(ChildRunSummary::new(
+        Ok(ChildOutcome::new(
+            false,
+            BTreeMap::new(),
+            Some(0.1),
+            Some(ChildRunSummary::new(
                 call.target.clone(),
                 false,
                 (Some("t-9".to_owned()), Some("headxyz".to_owned()), None),
             )),
-            failure: Some(("NIKA-EXEC-002".to_owned(), "exit 3".to_owned())),
-        })
+            Some(("NIKA-EXEC-002".to_owned(), "exit 3".to_owned())),
+            None,
+        ))
     }));
     let rt =
         runtime(RuntimeConfig::default().with_max_cost_usd(Some(5.0))).with_child_runner(runner);

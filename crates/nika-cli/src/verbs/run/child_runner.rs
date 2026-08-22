@@ -252,23 +252,34 @@ fn resolve_against(parent: &Path, target: &str) -> PathBuf {
 
 /// The first failed task's error of a settled child run — the honest
 /// failure surface the parent's task error carries.
-fn first_failure(outcome: &nika_runtime::RunOutcome) -> (String, String) {
+fn first_failure(
+    outcome: &nika_runtime::RunOutcome,
+) -> ((String, String), Option<nika_runtime::AccessReceipt>) {
     for (id, rec) in &outcome.records {
         if let Some(err) = &rec.error {
-            return (err.code.clone(), format!("task `{id}`: {}", err.message));
+            return (
+                (err.code.clone(), format!("task `{id}`: {}", err.message)),
+                rec.access_receipt().cloned(),
+            );
         }
     }
     if outcome.budget_exceeded {
         return (
-            "NIKA-1704".to_owned(),
-            "the inherited cost budget was exceeded (spec 14 law 6 · \
-             min(parent remaining, child declared))"
-                .to_owned(),
+            (
+                "NIKA-1704".to_owned(),
+                "the inherited cost budget was exceeded (spec 14 law 6 · \
+                 min(parent remaining, child declared))"
+                    .to_owned(),
+            ),
+            None,
         );
     }
     (
-        "NIKA-COMP-001".to_owned(),
-        "child run failed without a task error".to_owned(),
+        (
+            "NIKA-COMP-001".to_owned(),
+            "child run failed without a task error".to_owned(),
+        ),
+        None,
     )
 }
 
@@ -335,19 +346,31 @@ impl ChildRunner for ProdChildRunner {
             let def_hash = sha256_hex(source.as_bytes());
             let mut stamper = RunSeams::of(wf.run.as_ref().map(|s| &s.value)).stamper();
             let run = runtime.run(&wf, &report, stamper.as_mut(), &mut sink).await;
-            let (ok, outputs, cost, failure) = match &run {
+            let (ok, outputs, cost, failure, access_receipt) = match &run {
                 Ok(outcome) => {
                     // A paused child cannot be answered through a call
                     // boundary — surfaced as the prompt contract failure.
                     let ok = outcome.ok && outcome.paused.is_none() && !outcome.budget_exceeded;
-                    let failure = (!ok).then(|| first_failure(outcome));
-                    (ok, outcome.outputs.clone(), outcome.total_cost_usd, failure)
+                    let (failure, access_receipt) = if ok {
+                        (None, None)
+                    } else {
+                        let (failure, receipt) = first_failure(outcome);
+                        (Some(failure), receipt)
+                    };
+                    (
+                        ok,
+                        outcome.outputs.clone(),
+                        outcome.total_cost_usd,
+                        failure,
+                        access_receipt,
+                    )
                 }
                 Err(err) => (
                     false,
                     BTreeMap::new(),
                     None,
                     Some((err.spec_code(), err.to_string())),
+                    None,
                 ),
             };
             let trace = Some(ChildRunSummary::new(
@@ -361,13 +384,14 @@ impl ChildRunner for ProdChildRunner {
                     Some(def_hash),
                 ),
             ));
-            Ok(ChildOutcome {
+            Ok(ChildOutcome::new(
                 ok,
                 outputs,
-                cost_usd: cost,
+                cost,
                 trace,
                 failure,
-            })
+                access_receipt,
+            ))
         })
     }
 }
@@ -477,5 +501,14 @@ mod tests {
                 && message.contains("no harness seat is available"),
             "the child selected the inherited harness route before refusing: {message}"
         );
+        let receipt = outcome
+            .access_receipt
+            .expect("the child propagates its selected harness route");
+        assert_eq!(
+            receipt.access(),
+            Some(nika_types::access::AccessClass::Harness)
+        );
+        assert_eq!(receipt.adapter(), Some("claude-agent-acp"));
+        assert_eq!(receipt.requested_model(), "anthropic/claude-sonnet-4-6");
     }
 }

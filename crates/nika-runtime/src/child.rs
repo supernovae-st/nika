@@ -114,6 +114,7 @@ impl ChildRunSummary {
 
 /// A finished child run, as the runner reports it.
 #[derive(Debug, Clone)]
+#[non_exhaustive]
 pub struct ChildOutcome {
     /// Whether the child run settled green.
     pub ok: bool,
@@ -129,6 +130,33 @@ pub struct ChildOutcome {
     /// The child's failure surface when `ok == false` — `(code, message)`
     /// of the FIRST terminal failure (the child's own spec-plane code).
     pub failure: Option<(String, String)>,
+    /// The selected access route of the child's terminal task, when one
+    /// exists. A parent retry must preserve this receipt instead of
+    /// reclassifying the child failure as an ordinary provider error.
+    pub access_receipt: Option<crate::AccessReceipt>,
+}
+
+impl ChildOutcome {
+    /// Construct a child terminal result, including its execution-route
+    /// receipt when the nested run selected one.
+    #[must_use]
+    pub fn new(
+        ok: bool,
+        outputs: BTreeMap<String, Value>,
+        cost_usd: Option<f64>,
+        trace: Option<ChildRunSummary>,
+        failure: Option<(String, String)>,
+        access_receipt: Option<crate::AccessReceipt>,
+    ) -> Self {
+        Self {
+            ok,
+            outputs,
+            cost_usd,
+            trace,
+            failure,
+            access_receipt,
+        }
+    }
 }
 
 /// A composition refusal from the runner — the run-side voice of the

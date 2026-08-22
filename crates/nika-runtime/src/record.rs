@@ -196,6 +196,10 @@ pub struct TaskRecord {
     /// state where status is `skipped` AND the original error stays
     /// readable (spec 05 · the one coexist state).
     pub error: Option<TaskErrorRecord>,
+    /// Execution-route receipt retained outside the expression namespace.
+    /// Child runners read it to propagate a selected ACP route through
+    /// their wrapper; workflow authors still see the receipt on events.
+    pub(crate) access_receipt: Option<crate::AccessReceipt>,
     /// Attempts made, counting every attempt including the settling one
     /// (spec 13 §payload · ≥ 1). Present exactly on the classes whose
     /// payload law carries it (`success` · `failure`); `None` on
@@ -239,6 +243,7 @@ impl TaskRecord {
             output: Value::Null,
             integrity: nika_cap::Integrity::trusted(),
             error: None,
+            access_receipt: None,
             attempts: None,
             recovered_from: None,
             started_at: None,
@@ -278,6 +283,12 @@ impl TaskRecord {
             // the map is therefore neither reserved nor declared → None.
             other => return self.named.get(other).cloned(),
         })
+    }
+
+    /// The selected execution route of this task, when recorded.
+    #[must_use]
+    pub fn access_receipt(&self) -> Option<&crate::AccessReceipt> {
+        self.access_receipt.as_ref()
     }
 }
 

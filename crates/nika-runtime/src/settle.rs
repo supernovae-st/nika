@@ -586,6 +586,7 @@ fn settle_success_terminal(
         sink,
     );
     record.ended_at = Some(ended);
+    record.access_receipt = access_receipt;
 }
 
 // REASON: the terminal frame's field surface + the settle pens — the
@@ -615,6 +616,7 @@ fn settle_failed_terminal(
     record.attempts = Some(attempts);
     let detail = format!("{} · {}", error.code, error.message);
     record.error = Some(error);
+    record.access_receipt = spend.2.cloned();
     let mut fields = vec![
         ("task", s(id)),
         ("note", s(note)),
@@ -657,6 +659,7 @@ fn settle_skip_with_error(
     record.cause = TerminalCause::ErrorSkip;
     let detail = format!("{} · {}", error.code, error.message);
     record.error = Some(error);
+    record.access_receipt = spend.2.cloned();
     let mut fields = vec![
         ("task", s(id)),
         ("note", s("on_error · skip")),

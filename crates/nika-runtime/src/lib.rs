@@ -128,6 +128,7 @@ pub use compose::{
     simulated_runtime,
 };
 pub use config::RuntimeConfig;
+pub use dispatch::AccessReceipt;
 pub use errors::RuntimeError;
 pub use identity::{EngineIdentity, engine_identity};
 pub use origins::{InputOrigin, input_origins};

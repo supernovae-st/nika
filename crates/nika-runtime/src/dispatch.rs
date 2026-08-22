@@ -35,7 +35,7 @@ mod permits;
 mod regate;
 use crate::expr::{self, Scope};
 use crate::record::TaskErrorRecord;
-pub(crate) use access::AccessReceipt;
+pub use access::AccessReceipt;
 use exec_io::{build_exec_input, capture_mode, render_exec_io};
 
 /// One dispatch's outcome — the display note + value-or-error.
