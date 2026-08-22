@@ -580,6 +580,69 @@ mod tests {
     }
 
     #[test]
+    fn kimi_code_home_crosses_and_kimi_api_key_never_does() {
+        let parent: BTreeMap<String, String> = [
+            ("PATH", "/usr/bin"),
+            ("HOME", "/home/u"),
+            ("KIMI_CODE_HOME", "/tmp/relocated-kimi"),
+            ("KIMI_API_KEY", "sk-never"),
+            ("MOONSHOT_API_KEY", "sk-never-too"),
+        ]
+        .into_iter()
+        .map(|(k, v)| (k.to_owned(), v.to_owned()))
+        .collect();
+        let env = compose_env(
+            &parent,
+            &[
+                "KIMI_CODE_HOME".to_owned(),
+                "KIMI_API_KEY".to_owned(), // config mistake — refused
+            ],
+        );
+        assert_eq!(
+            env.get("KIMI_CODE_HOME").map(String::as_str),
+            Some("/tmp/relocated-kimi")
+        );
+        assert!(!env.contains_key("KIMI_API_KEY"));
+        assert!(!env.contains_key("MOONSHOT_API_KEY"));
+    }
+
+    #[tokio::test]
+    async fn kimi_code_version_probe_judges_the_bare_triple_without_launching_kimi() {
+        let dir = std::env::temp_dir().join(format!("nika-kimi-probe-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("dir");
+        let script = dir.join("fake-kimi.py");
+        std::fs::write(&script, "print('0.37.2')\n").expect("script");
+        let path = script.to_string_lossy().into_owned();
+        let in_pin = HarnessAdapter::new("kimi-code", "python3")
+            .expect("id is no class token")
+            .with_args(vec!["acp".to_owned()])
+            .with_version_args(vec![path.clone()])
+            .with_version_pin(crate::probe::VersionPin::new((0, 37), 0));
+        assert_eq!(in_pin.args, vec!["acp".to_owned()]);
+        assert!(!in_pin.probe_via_handshake);
+        let seen = SpawnedHarness::new(in_pin)
+            .probe_version()
+            .await
+            .expect("in pin");
+        assert_eq!(seen, Some((0, 37)));
+
+        std::fs::write(&script, "print('0.36.0')\n").expect("old");
+        let old = HarnessAdapter::new("kimi-code", "python3")
+            .expect("id is fine")
+            .with_args(vec!["acp".to_owned()])
+            .with_version_args(vec![path])
+            .with_version_pin(crate::probe::VersionPin::new((0, 37), 0));
+        let err = SpawnedHarness::new(old)
+            .probe_version()
+            .await
+            .expect_err("below the floor");
+        let msg = err.to_string();
+        assert!(msg.contains("kimi-code"), "{msg}");
+        assert!(msg.contains("0.36"), "{msg}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn an_adapter_id_never_shadows_a_class_token() {
         for token in ["local", "api", "harness", "oauth", "mock"] {
             let err = HarnessAdapter::new(token, "/bin/true")

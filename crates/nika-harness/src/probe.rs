@@ -56,7 +56,7 @@ impl AdapterProbeRow {
 /// Probe every registry row (B6) — version BEFORE dialect (spec §4),
 /// then the auth surface. Rows the kill-switch removed never probe.
 /// Each probe is deadlined (a hung wrapper is a `None`, never a hang);
-/// the rows probe CONCURRENTLY (four cold npx resolves must not add).
+/// the rows probe CONCURRENTLY (cold npx resolves must not add).
 pub async fn probe_adapters(rows: Vec<AdapterRow>) -> Vec<AdapterProbeRow> {
     let mut set = tokio::task::JoinSet::new();
     for (idx, row) in rows.into_iter().enumerate() {
@@ -266,6 +266,9 @@ mod tests {
         assert_eq!(parse_version("gemini-cli version 0.9.1"), Some((0, 9)));
         assert_eq!(parse_version("v2.11.3"), Some((2, 11)));
         assert_eq!(parse_version("qwen-code 12.0"), Some((12, 0)));
+        // Measured 2026-08-22: `kimi --version` / `kimi -V` print a
+        // bare triple, no prose.
+        assert_eq!(parse_version("0.37.2"), Some((0, 37)));
         // Prose without a version parses to nothing — never a guess.
         assert_eq!(parse_version("no version here"), None);
         assert_eq!(parse_version(""), None);
@@ -318,7 +321,7 @@ mod tests {
     fn the_env_registry_wrapper_delegates_and_reads_the_switch() {
         // NIKA_HARNESS_DISABLE is unset in this process → the full table.
         let rows = crate::registry().expect("the live env loads");
-        assert_eq!(rows.len(), 4, "registry() reads the real env boundary");
+        assert_eq!(rows.len(), 5, "registry() reads the real env boundary");
     }
 
     /// The sync façade is FOR sync callers (doctor) — so the test is
@@ -384,6 +387,19 @@ mod tests {
     }
 
     #[test]
+    fn kimi_code_pin_accepts_the_measured_line_and_refuses_below_the_floor() {
+        let pin = VersionPin::new((0, 37), 0);
+        let seen = judge_version("kimi-code", "0.37.2\n", &pin).expect("measured line");
+        assert_eq!(seen, (0, 37));
+        let err = judge_version("kimi-code", "0.36.9\n", &pin).expect_err("below the floor");
+        let msg = err.to_string();
+        assert!(msg.contains("kimi-code"), "{msg}");
+        assert!(msg.contains("0.36"), "{msg}");
+        let major = judge_version("kimi-code", "1.0.0\n", &pin).expect_err("new major");
+        assert!(major.to_string().contains("major <= 0"), "{major}");
+    }
+
+    #[test]
     fn the_version_rides_the_first_line_that_carries_one() {
         // A CLI that greets before versioning: the probe scans lines,
         // it does not assume line 1 (a real-world shape).
@@ -425,6 +441,19 @@ mod tests {
         let missing = AuthProbe::HomeFile(".qwen");
         assert_eq!(probe_auth_with(Some(home), &present).await, Some(true));
         assert_eq!(probe_auth_with(Some(home), &missing).await, Some(false));
+        // kimi-code: the official store directory, existence only —
+        // no file is written, so no secret is ever opened.
+        std::fs::create_dir_all(dir.join(".kimi-code/credentials")).expect("kimi store");
+        let kimi = AuthProbe::HomeFile(".kimi-code/credentials");
+        assert_eq!(probe_auth_with(Some(home), &kimi).await, Some(true));
+        let kimi_absent = AuthProbe::HomeFile(".kimi-code/credentials");
+        let empty = std::env::temp_dir().join(format!("nika-auth-empty-{}", std::process::id()));
+        std::fs::create_dir_all(&empty).expect("empty home");
+        assert_eq!(
+            probe_auth_with(Some(empty.as_os_str()), &kimi_absent).await,
+            Some(false)
+        );
+        let _ = std::fs::remove_dir_all(&empty);
         // No home at all: unreadable, never a guess.
         assert_eq!(probe_auth_with(None, &present).await, None);
         let _ = std::fs::remove_dir_all(&dir);
