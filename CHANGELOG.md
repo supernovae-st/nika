@@ -12,6 +12,12 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Changed
 
+- **A piped `nika try` / `nika run` no longer waits on the macOS keychain
+  after a green card.** The card printed, then `SecKeychainFindGenericPassword`
+  blocked the main thread: a pipe cannot complete an ACL prompt. The
+  keychain is skipped when stderr is not a TTY (file/env custody stay);
+  a disabled journal (`nika try` · `--no-trace-file`) does not consult it
+  at all.
 - **The README says the trace inherits what the run read.** A `nika:read`
   of a file puts those bytes into `.nika/traces/` in the clear — correct
   for a replayable journal, unnamed until an auditor derived it (issue
