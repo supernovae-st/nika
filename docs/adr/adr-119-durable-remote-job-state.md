@@ -173,15 +173,17 @@ closes the full twelve-gate ledger.
 5. Truncated, deleted, renamed-away, and unknown-future initialized state
    refuses at startup without rewrite.
 6. Rendering or chaining a typed I/O refusal cannot disclose the durable root.
-7. `paused` survives restart, while the new server incarnation atomically
+7. Public Serde construction cannot forge an invalid job id, idempotency key,
+   or request digest.
+8. `paused` survives restart, while the new server incarnation atomically
    settles ownerless `running` as terminal `interrupted` before exposure.
-8. Root symlinks, a planted `jobs` child, and visible-root replacement cannot
+9. Root symlinks, a planted `jobs` child, and visible-root replacement cannot
    redirect state.
-9. Event ids remain contiguous, `events_after` resumes strictly after its
+10. Event ids remain contiguous, `events_after` resumes strictly after its
    cursor, and a cursor above the latest sequence returns a typed error.
-10. Digest boundary cases reject uppercase, mixed-case, wrong-length, and
+11. Digest boundary cases reject uppercase, mixed-case, wrong-length, and
    non-hexadecimal forms.
-11. Focused library tests, all-target clippy, and workspace formatting pass.
+12. Focused library tests, all-target clippy, and workspace formatting pass.
 
 ## Alternatives considered
 

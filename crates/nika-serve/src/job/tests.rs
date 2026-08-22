@@ -33,6 +33,22 @@ fn request_digest_accepts_only_canonical_lowercase_hex() {
 }
 
 #[test]
+fn opaque_wire_types_refuse_forged_deserialization() {
+    let id = JobId::random();
+    let encoded = serde_json::to_string(&id).expect("encode job id");
+    assert_eq!(
+        serde_json::from_str::<JobId>(&encoded).expect("decode canonical job id"),
+        id
+    );
+
+    assert!(serde_json::from_str::<JobId>(r#""not-a-uuid\nFORGED""#).is_err());
+    assert!(serde_json::from_str::<JobId>(r#""00000000-0000-4000-0000-000000000000""#).is_err());
+    assert!(serde_json::from_str::<JobId>(r#""00000000-0000-1000-8000-000000000000""#).is_err());
+    assert!(serde_json::from_str::<IdempotencyKey>(r#""bad\nkey""#).is_err());
+    assert!(serde_json::from_str::<RequestDigest>(&format!("\"{}\"", "AB".repeat(32))).is_err());
+}
+
+#[test]
 fn lifecycle_transition_table_is_exhaustive() {
     let statuses = [
         JobStatus::Queued,

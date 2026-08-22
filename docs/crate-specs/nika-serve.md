@@ -30,7 +30,8 @@ becomes a child name.
 ## 2. Public surface
 
 - `JobId` is an opaque random UUID. It is non-sequential and carries no path or
-  workflow name.
+  workflow name. Its public Serde decoder rejects every non-canonical UUID v4,
+  so deserialization is not a second constructor.
 - `IdempotencyKey` accepts 1–255 visible ASCII bytes. It is data inside the
   snapshot, never a filename.
 - `RequestDigest` is a canonical 32-byte digest encoded as lowercase hex.
@@ -112,6 +113,8 @@ Inline library tests cover:
   job, plus a concurrent-open proof that a live owner is not interrupted;
 - digest boundary-table rejection for uppercase, mixed-case, wrong-length, and
   non-hexadecimal inputs.
+- public Serde forgery rejection for job ids, idempotency keys, and request
+  digests, including control-character input.
 
 The W05 command contract is:
 

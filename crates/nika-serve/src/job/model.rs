@@ -1,7 +1,7 @@
 use std::fmt;
 use std::io;
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use thiserror::Error;
 use uuid::Uuid;
@@ -10,7 +10,7 @@ const DIGEST_HEX_LEN: usize = 64;
 const MAX_IDEMPOTENCY_KEY_BYTES: usize = 255;
 
 /// Opaque, non-sequential identifier for one durable job.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 #[serde(transparent)]
 pub struct JobId(String);
 
@@ -22,7 +22,10 @@ impl JobId {
     pub(crate) fn validate(&self) -> Result<(), JobStoreError> {
         let parsed = Uuid::parse_str(&self.0)
             .map_err(|_| JobStoreError::Corrupt("job id is not a UUID".to_owned()))?;
-        if parsed.get_version_num() != 4 || parsed.to_string() != self.0 {
+        if parsed.get_version_num() != 4
+            || parsed.get_variant() != uuid::Variant::RFC4122
+            || parsed.to_string() != self.0
+        {
             return Err(JobStoreError::Corrupt(
                 "job id is not a canonical random UUID".to_owned(),
             ));
@@ -37,6 +40,17 @@ impl JobId {
     }
 }
 
+impl<'de> Deserialize<'de> for JobId {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let id = Self(String::deserialize(deserializer)?);
+        id.validate().map_err(serde::de::Error::custom)?;
+        Ok(id)
+    }
+}
+
 impl fmt::Display for JobId {
     fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
         formatter.write_str(&self.0)
@@ -44,7 +58,7 @@ impl fmt::Display for JobId {
 }
 
 /// Bounded caller-supplied key that identifies retries of one request.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 #[serde(transparent)]
 pub struct IdempotencyKey(String);
 
@@ -74,8 +88,18 @@ impl IdempotencyKey {
     }
 }
 
+impl<'de> Deserialize<'de> for IdempotencyKey {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        Self::new(value).map_err(serde::de::Error::custom)
+    }
+}
+
 /// Stable digest of the admitted request bytes.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
 #[serde(transparent)]
 pub struct RequestDigest(String);
 
@@ -110,6 +134,16 @@ impl RequestDigest {
     #[must_use]
     pub fn as_str(&self) -> &str {
         &self.0
+    }
+}
+
+impl<'de> Deserialize<'de> for RequestDigest {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let value = String::deserialize(deserializer)?;
+        Self::new(value).map_err(serde::de::Error::custom)
     }
 }
 
