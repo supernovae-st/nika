@@ -152,7 +152,7 @@ async fn probe_auth_with(
                         None => return Some(false),
                     },
                 };
-                return Some(nonempty_directory_without_symlinks(&path));
+                return Some(provider_credential_directory_ready(&path));
             }
             Some(std::path::Path::new(home?).join(rel).exists())
         }
@@ -177,10 +177,11 @@ async fn probe_auth_with(
     }
 }
 
-/// Metadata-only proof that a credentials directory is usable. Every
-/// ambiguity fails closed: relative paths, missing/unreadable entries,
-/// special files, and symlinks in either the path or its first level.
-fn nonempty_directory_without_symlinks(path: &std::path::Path) -> bool {
+/// Metadata-only proof that a provider credential is present. Kimi Code stores
+/// provider seats as top-level `credentials/<name>.json`; the `mcp/` subtree is
+/// a distinct authority and must not make the model seat look authenticated.
+/// Every ambiguity fails closed without opening a credential file.
+fn provider_credential_directory_ready(path: &std::path::Path) -> bool {
     if !path.is_absolute() {
         return false;
     }
@@ -203,7 +204,6 @@ fn nonempty_directory_without_symlinks(path: &std::path::Path) -> bool {
     let Ok(entries) = std::fs::read_dir(path) else {
         return false;
     };
-    let mut nonempty = false;
     for entry in entries {
         let Ok(entry) = entry else {
             return false;
@@ -211,12 +211,40 @@ fn nonempty_directory_without_symlinks(path: &std::path::Path) -> bool {
         let Ok(kind) = entry.file_type() else {
             return false;
         };
-        if kind.is_symlink() || (!kind.is_file() && !kind.is_dir()) {
+        if kind.is_symlink() {
             return false;
         }
-        nonempty = true;
+        let entry_path = entry.path();
+        if !kind.is_file() || entry_path.extension() != Some(std::ffi::OsStr::new("json")) {
+            continue;
+        }
+        let Some(stem) = entry_path.file_stem().and_then(std::ffi::OsStr::to_str) else {
+            continue;
+        };
+        if stem.is_empty() || stem.starts_with('.') {
+            continue;
+        }
+        let Ok(metadata) = entry.metadata() else {
+            return false;
+        };
+        if metadata.len() == 0 || !owner_readable(&metadata) {
+            continue;
+        }
+        return true;
     }
-    nonempty
+    false
+}
+
+#[cfg(unix)]
+fn owner_readable(metadata: &std::fs::Metadata) -> bool {
+    use std::os::unix::fs::PermissionsExt;
+
+    metadata.permissions().mode() & 0o400 != 0
+}
+
+#[cfg(not(unix))]
+fn owner_readable(_metadata: &std::fs::Metadata) -> bool {
+    true
 }
 
 /// The inclusive version range an adapter is pinned to — the
@@ -552,7 +580,7 @@ mod tests {
         assert_eq!(
             probe_auth_with(Some(home.as_os_str()), None, &row.auth, Some(policy)).await,
             Some(true),
-            "only metadata and non-emptiness are needed"
+            "a non-empty top-level provider JSON is the metadata-only proxy"
         );
 
         let relocated = root.join("relocated");
@@ -596,6 +624,7 @@ mod tests {
             .await,
             Some(true)
         );
+
         assert_eq!(
             probe_auth_with(
                 Some(home.as_os_str()),
@@ -623,6 +652,53 @@ mod tests {
                 Some(false),
                 "a symlinked credentials root fails closed"
             );
+        }
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[tokio::test]
+    async fn kimi_auth_refuses_noise_mcp_only_and_unreadable_credentials() {
+        let root = std::fs::canonicalize(std::env::temp_dir())
+            .expect("the test temp root canonicalizes")
+            .join(format!("nika-kimi-auth-shape-{}", std::process::id()));
+        let credentials = root.join("credentials");
+        std::fs::create_dir_all(credentials.join("mcp")).expect("credential directories");
+        std::fs::write(credentials.join(".DS_Store"), b"finder metadata").expect("metadata");
+        std::fs::write(credentials.join("README"), b"not a credential").expect("prose");
+        std::fs::write(credentials.join("mcp/server.json"), b"opaque-mcp-fixture")
+            .expect("mcp fixture");
+
+        let rows = crate::registry_with(&|_| None).expect("registry loads");
+        let row = rows
+            .iter()
+            .find(|row| row.adapter.id == "kimi-code")
+            .expect("kimi row");
+        let policy = row.directory_auth.expect("secure directory policy");
+        let probe = || probe_auth_with(None, Some(root.as_os_str()), &row.auth, Some(policy));
+        assert_eq!(
+            probe().await,
+            Some(false),
+            "filesystem noise and MCP-only credentials do not authenticate a model seat"
+        );
+
+        let credential = credentials.join("account.json");
+        std::fs::write(&credential, b"opaque-provider-fixture").expect("provider fixture");
+        assert_eq!(probe().await, Some(true));
+
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+
+            std::fs::set_permissions(&credential, std::fs::Permissions::from_mode(0o000))
+                .expect("make credential unreadable");
+            assert_eq!(
+                probe().await,
+                Some(false),
+                "an unreadable provider credential fails closed"
+            );
+            std::fs::set_permissions(&credential, std::fs::Permissions::from_mode(0o600))
+                .expect("restore fixture permissions");
         }
 
         let _ = std::fs::remove_dir_all(&root);

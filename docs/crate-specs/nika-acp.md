@@ -106,9 +106,10 @@ store — the harness MUST read its own credentials; scrubbing its env would
 break the whole legitimacy model. The child env is: the runner floor ∪ the
 adapter's declared passthrough ∪ nothing of nika's secrets. Documented at the
 spawn site; a negative test proves nika's own `NIKA_*_API_KEY` vars never
-cross. Auth readiness opens no credential: it reads path metadata and directory
-non-emptiness only, honors an adapter-home override (`KIMI_CODE_HOME`), and
-fails closed on absent, empty, ambiguous, unreadable, or symlinked stores.
+cross. Auth readiness opens no credential: it reads path metadata and requires a
+top-level provider shape (`credentials/<name>.json`, never the distinct `mcp/`
+subtree), honors an adapter-home override (`KIMI_CODE_HOME`), and fails closed
+on absent, empty, ambiguous, unreadable, or symlinked stores.
 
 ## 5 · The mock ACP agent (P3.3 · the load-bearing instrument)
 
