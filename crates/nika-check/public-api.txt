@@ -1099,6 +1099,8 @@ pub nika_check::EffectivePermits::needed: nika_cap::permits::Permits
 pub nika_check::EffectivePermits::notes: alloc::vec::Vec<alloc::string::String>
 pub nika_check::EffectivePermits::partial: nika_check::permits_infer::PartialFaces
 pub nika_check::EffectivePermits::source: nika_check::PermitsSource
+impl nika_check::EffectivePermits
+pub fn nika_check::EffectivePermits::glance(&self) -> alloc::string::String
 impl core::clone::Clone for nika_check::EffectivePermits
 pub fn nika_check::EffectivePermits::clone(&self) -> nika_check::EffectivePermits
 impl core::fmt::Debug for nika_check::EffectivePermits
