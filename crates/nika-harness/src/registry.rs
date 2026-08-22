@@ -55,6 +55,8 @@ pub(crate) struct DirectoryAuthProbe {
     pub(crate) override_env: &'static str,
     /// The directory below the overridden application home.
     pub(crate) override_relative: &'static str,
+    /// Exact top-level credential witnesses accepted for this seat.
+    pub(crate) credential_files: &'static [&'static str],
 }
 
 /// One shipped adapter row.
@@ -168,6 +170,7 @@ fn rows() -> Result<Vec<AdapterRow>, HarnessError> {
             directory_auth: Some(DirectoryAuthProbe {
                 override_env: "KIMI_CODE_HOME",
                 override_relative: "credentials",
+                credential_files: &["kimi-code.json"],
             }),
             package: "kimi-code (kimi upgrade · https://moonshotai.github.io/kimi-code/)",
         },
@@ -258,6 +261,7 @@ mod tests {
             Some(DirectoryAuthProbe {
                 override_env: "KIMI_CODE_HOME",
                 override_relative: "credentials",
+                credential_files: &["kimi-code.json"],
             })
         );
         let pin = row.adapter.version_pin.as_ref().expect("pinned");

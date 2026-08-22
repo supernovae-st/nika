@@ -34,9 +34,9 @@ pub struct AdapterProbeRow {
     /// The version the probe read, inside the pin (None = binary
     /// absent or outside the pin — `note` names which).
     pub version: Option<(u32, u32)>,
-    /// The auth surface's verdict: `Some(true)` an auth exists,
-    /// `Some(false)` the surface says none, `None` the surface itself
-    /// is unreadable here (absent is honest — never a guess).
+    /// The auth surface's verdict: `Some(true)` a configured auth witness
+    /// exists, `Some(false)` the surface says none, `None` the surface itself
+    /// is unreadable here. Token validity is judged by the harness session.
     pub authenticated: Option<bool>,
     /// The install pointer (the registry row's package line).
     pub package: String,
@@ -152,7 +152,10 @@ async fn probe_auth_with(
                         None => return Some(false),
                     },
                 };
-                return Some(provider_credential_directory_ready(&path));
+                return Some(provider_credential_directory_ready(
+                    &path,
+                    probe.credential_files,
+                ));
             }
             Some(std::path::Path::new(home?).join(rel).exists())
         }
@@ -181,7 +184,7 @@ async fn probe_auth_with(
 /// provider seats as top-level `credentials/<name>.json`; the `mcp/` subtree is
 /// a distinct authority and must not make the model seat look authenticated.
 /// Every ambiguity fails closed without opening a credential file.
-fn provider_credential_directory_ready(path: &std::path::Path) -> bool {
+fn provider_credential_directory_ready(path: &std::path::Path, credential_files: &[&str]) -> bool {
     if !path.is_absolute() {
         return false;
     }
@@ -201,33 +204,15 @@ fn provider_credential_directory_ready(path: &std::path::Path) -> bool {
             return false;
         }
     }
-    let Ok(entries) = std::fs::read_dir(path) else {
-        return false;
-    };
-    for entry in entries {
-        let Ok(entry) = entry else {
-            return false;
-        };
-        let Ok(kind) = entry.file_type() else {
-            return false;
-        };
-        if kind.is_symlink() {
-            return false;
-        }
-        let entry_path = entry.path();
-        if !kind.is_file() || entry_path.extension() != Some(std::ffi::OsStr::new("json")) {
-            continue;
-        }
-        let Some(stem) = entry_path.file_stem().and_then(std::ffi::OsStr::to_str) else {
-            continue;
-        };
-        if stem.is_empty() || stem.starts_with('.') {
-            continue;
-        }
-        let Ok(metadata) = std::fs::symlink_metadata(&entry_path) else {
-            return false;
+    for file_name in credential_files {
+        let entry_path = path.join(file_name);
+        let metadata = match std::fs::symlink_metadata(&entry_path) {
+            Ok(metadata) => metadata,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => continue,
+            Err(_) => return false,
         };
         if metadata.file_type().is_symlink()
+            || !metadata.is_file()
             || metadata.len() == 0
             || !readable_same_file(&entry_path, &metadata)
         {
@@ -608,8 +593,11 @@ mod tests {
             Some(false),
             "an empty default store is not authentication"
         );
-        std::fs::write(default_credentials.join("account.json"), b"opaque-fixture")
-            .expect("opaque fixture");
+        std::fs::write(
+            default_credentials.join("kimi-code.json"),
+            b"opaque-fixture",
+        )
+        .expect("opaque fixture");
         assert_eq!(
             probe_auth_with(Some(home.as_os_str()), None, &row.auth, Some(policy)).await,
             Some(true),
@@ -643,7 +631,7 @@ mod tests {
             "an empty relocated store is not authentication"
         );
         std::fs::write(
-            relocated_credentials.join("account.json"),
+            relocated_credentials.join("kimi-code.json"),
             b"opaque-fixture",
         )
         .expect("opaque relocated fixture");
@@ -701,6 +689,11 @@ mod tests {
         std::fs::write(credentials.join("README"), b"not a credential").expect("prose");
         std::fs::write(credentials.join("mcp/server.json"), b"opaque-mcp-fixture")
             .expect("mcp fixture");
+        std::fs::write(
+            credentials.join("unrelated-provider.json"),
+            b"opaque-unrelated-fixture",
+        )
+        .expect("unrelated provider fixture");
 
         let rows = crate::registry_with(&|_| None).expect("registry loads");
         let row = rows
@@ -712,10 +705,10 @@ mod tests {
         assert_eq!(
             probe().await,
             Some(false),
-            "filesystem noise and MCP-only credentials do not authenticate a model seat"
+            "filesystem noise, MCP-only, and unrelated providers do not witness the managed seat"
         );
 
-        let credential = credentials.join("account.json");
+        let credential = credentials.join("kimi-code.json");
         std::fs::write(&credential, b"opaque-provider-fixture").expect("provider fixture");
         assert_eq!(probe().await, Some(true));
 

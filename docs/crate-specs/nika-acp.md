@@ -107,10 +107,12 @@ break the whole legitimacy model. The child env is: the runner floor ∪ the
 adapter's declared passthrough ∪ nothing of nika's secrets. Documented at the
 spawn site; a negative test proves nika's own `NIKA_*_API_KEY` vars never
 cross. Auth readiness reads no credential byte: it checks path metadata, obtains
-a zero-read read-only handle so the OS applies UID/ACL policy, and requires a
-top-level provider shape (`credentials/<name>.json`, never the distinct `mcp/`
-subtree). It honors `KIMI_CODE_HOME` and fails closed on absent, empty,
-ambiguous, unreadable, swapped, or symlinked stores.
+a zero-read read-only handle so the OS applies UID/ACL policy, and requires the
+managed-seat witness `credentials/kimi-code.json` (never another provider or
+the distinct `mcp/` subtree). It honors `KIMI_CODE_HOME` and fails closed on
+absent, empty, ambiguous, unreadable, swapped, or symlinked stores. This is a
+configuration witness, not a token-validity claim: the first ACP session owns
+expiry/parse judgment and must fail without any native-provider fallback.
 
 ## 5 · The mock ACP agent (P3.3 · the load-bearing instrument)
 
