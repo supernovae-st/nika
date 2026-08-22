@@ -5,8 +5,8 @@
 | Status | **ADMISSION CANDIDATE** — extracted from the proven ARM custody code in `nika-cli`; named-beat tick policy lives in `nika-cadence`; behavior remains guarded by the `nika-arm` library suite plus the real CLI `arm_fire` and Serve tests. |
 | Layer | L4 — interface-shared custody library |
 | Design | Descriptor-rooted `.nika/arm/` state, verified replay/rotation, kernel leases, and the one injected firing transaction. Interfaces inject execution and waiting; they never reinterpret the ledger or discover a trace globally. |
-| LOC budget | ≤5,000 source lines for this custody unit; ≤15,000 hard crate cap. Admission measurement: 4,999 lines including inline tests. |
-| File cap | ≤1,500 lines; admission maximum 1,409 in `fire.rs`. |
+| LOC budget | ≤5,000 source lines for this custody unit; ≤15,000 hard crate cap. W04 measurement: 4,732 lines including inline tests. |
+| File cap | ≤1,500 lines; W04 maximum 1,263 in `state/tests.rs`. |
 | Function cap | ≤100 lines. |
 | Crate version | tracks workspace |
 | License | `AGPL-3.0-or-later` |
@@ -91,8 +91,7 @@ that surface is absent from normal builds and the committed public API snapshot.
 
 ## 4. Tests and parity
 
-The 65 inline library tests moved with their production owners, then 24
-admission regressions closed the measured mutation and review gaps. Together they cover kernel
+The 81 targeted library tests observed after W04.B cover kernel
 lease overlap/release, descriptor and symlink refusals, source replacement,
 captured relative bases, claim-before-run ordering, fencing, orphan settlement,
 tamper/reorder/truncation refusal, archive commitment, crash-window migration,
@@ -144,7 +143,7 @@ general cancellation · no artifact authority · no resume · no exactly-once
 claim. Those contracts belong respectively to `nika-cadence`, the shared L3
 execution service, and the separately threat-modeled Serve boundary.
 
-## 7. W04 security carry
+## 7. W04 migration closure
 
 W04.B closes transitive ARM custody: the registry, primary workflow, child
 workflows, and skill files are captured through one held project capability and
@@ -152,8 +151,10 @@ the ARM adapter executes only the admitted `ExecutionContext`. Mutation after
 the durable claim, including a child or skill pathname swap, cannot change the
 bytes executed. The claim-to-receipt execution identity is replay-verifiable.
 
-W04.C remains the explicit broader-extinction pass: delete any compatibility
-composition or reopen path that is no longer reached by another interface,
-prove the stdin compatibility lane independently, refresh corpus diagrams, and
-run the full cross-interface refutation. It must not weaken resident Serve's
-once/dry/reload/signal semantics.
+W04.C removes the broader compatibility composition path: the production child
+runner has one snapshot constructor, no pathname reader, and no optional world.
+CLI stdin enters `ExecutionService` through owned root bytes, so file, stdin, and
+ARM execution share the same admitted closure. Structural ratchets keep ARM free
+of CLI dependency, subprocess/localhost bridging, and latest-trace discovery.
+Resident Serve's once/dry/reload/signal behavior remains owned by its existing
+adapter and is not changed by this extinction pass.

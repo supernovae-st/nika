@@ -200,6 +200,37 @@ impl ExecutionSnapshot {
         Self::capture_from(project, root, std::iter::empty::<&Path>(), limits)
     }
 
+    /// Capture a root already acquired by an interface, plus every dependency
+    /// from the held project directory.
+    ///
+    /// This is the stdin/adaptor admission seam: `root_bytes` become the root
+    /// unit without a temporary file or a second read, while children and
+    /// skills remain descriptor-relative to `project`.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ExecutionError`] under the same fail-closed conditions as
+    /// [`Self::capture`], including limits applied to the supplied root bytes.
+    pub fn capture_root_bytes(
+        project: &OwnedDir,
+        root: &Path,
+        root_bytes: &[u8],
+        limits: SnapshotLimits,
+    ) -> Result<Self, ExecutionError> {
+        let root = normalize_logical(root)?;
+        let source = CapturedRoot {
+            project,
+            logical_path: &root,
+            bytes: root_bytes,
+        };
+        Self::capture_from(
+            &source,
+            Path::new(&root),
+            std::iter::empty::<&Path>(),
+            limits,
+        )
+    }
+
     /// Capture the workflow closure plus caller-declared opaque imports.
     ///
     /// The current workflow grammar has no `import:` key. This explicit seam
@@ -311,6 +342,21 @@ impl ExecutionSnapshot {
 
 pub(crate) trait ByteSource {
     fn read(&self, logical_path: &str, limit: usize) -> Result<Vec<u8>, ExecutionError>;
+}
+
+struct CapturedRoot<'a> {
+    project: &'a OwnedDir,
+    logical_path: &'a str,
+    bytes: &'a [u8],
+}
+
+impl ByteSource for CapturedRoot<'_> {
+    fn read(&self, logical_path: &str, limit: usize) -> Result<Vec<u8>, ExecutionError> {
+        if logical_path == self.logical_path {
+            return Ok(self.bytes.to_vec());
+        }
+        ByteSource::read(self.project, logical_path, limit)
+    }
 }
 
 impl ByteSource for OwnedDir {

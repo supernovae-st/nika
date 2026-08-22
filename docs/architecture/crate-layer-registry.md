@@ -133,6 +133,7 @@ Given a crate `nika-<role>`, ask these questions in order:
               ▲
 ╭─ L3  (runtime + policy + sandbox) ────────────────────────────────────────╮
 │ nika-runtime          nika-execution       nika-shield                    │
+│                       owned world ↑ file · stdin · ARM                    │
 │ nika-wasm-host (v0.100)                    nika-sandbox   (v0.100)        │
 ╰──────────────────────────────────────────────────────────────────────────╯
               ▲
@@ -167,7 +168,7 @@ flags. They obey the same 12-gate admission as any other crate.
 | L1 | Effect implementations — async, per-crate capability axis | declared axes only (fs/net/exec/env · +computer-use axes from M2) | L0, L0.5 | `nika-clock`, `nika-fs`, `nika-http`, `nika-blob`, `nika-exec-runner`, `nika-screen`, `nika-ocr`, `nika-a11y`, `nika-input`, `nika-browser` (ADR-081 guards), `nika-bm25` ✅, `nika-store` (F-P8 signed memory · SMSR) + the Connectome satellites (`nika-hnsw`, `nika-rrf`, `nika-rerank`, …), `nika-git`, `nika-keys-*`, `nika-pck-registry`, `nika-pck-store`, `nika-catalog-sync` |
 | L1.5 | Provider wire adapters — between effects and verbs | via L1 http seam | L0, L0.5, L1 | `nika-providers` (14/14 wire · in-crate mock), `nika-infer-local` (candle sidecar · ADR-091) |
 | L2 | Verbs + domain services — orchestrates L1 impls behind kernel traits | via L1 traits only | L0, L0.5, L1, L1.5 | `nika-pck`, `nika-verb-*`, `nika-policy` (s8 · design locked), `nika-connectome` (the Connectome orchestrator), `nika-observability`, `nika-builtin-{github,cloud,workspace}`, `nika-registry-client` (size-cap descent from nika-cli · D-2026-07-09-N1) |
-| L3 | Runtime + policy + sandbox — enforces execution contracts | via L2 | L0..L2 | `nika-runtime`, `nika-execution` (descriptor-rooted immutable-world admission), `nika-shield`, `nika-wasm-host` (v0.100), `nika-sandbox` (v0.100) |
+| L3 | Runtime + policy + sandbox — enforces execution contracts | via L2 | L0..L2 | `nika-runtime`, `nika-execution` (descriptor-rooted immutable-world admission; owned-root overlay for stdin/adapters), `nika-shield`, `nika-wasm-host` (v0.100), `nika-sandbox` (v0.100) |
 | L4 | Interfaces — transport/UI surface, libraries only | via L3 | L0..L3 | `nika-cli`, `nika-arm` (descriptor-rooted ARM custody + the one injected firer shared by CLI and Serve), `nika-cli-host` (size-cap member of the nika-cli unit · D-2026-07-09-N1 · ADR-110), `nika-trace` (size-cap member of the nika-cli unit · the flight-recorder reader · D-2026-07-09-N1 · 2026-08-11), `nika-dap`, `nika-display`, `nika-onboard`, `nika-models`, `nika-daemon`, `nika-serve`, `nika-mcp`, `nika-lsp`, `nika-sdk`, `nika-catalog-verify`, `nika-check-wasm` (WIP · ADR-107) |
 | L5 | The binary — sole `[[bin]]` composition root | via L4 | L0..L4 | `nika` (<500 LOC) |
 

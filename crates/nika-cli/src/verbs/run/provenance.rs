@@ -46,7 +46,6 @@ pub fn run_with_repair_target(
         no_gc,
         require_signature,
         false,
-        None,
         Some(repair_target),
     )
     .code
@@ -54,19 +53,13 @@ pub fn run_with_repair_target(
 
 pub(super) fn capture_checked_source(
     file: &str,
-    captured: Option<crate::verbs::RunSource>,
     repair_target: Option<nika_display::check_render::RepairTarget>,
     output_json: bool,
 ) -> Result<(crate::verbs::RunSource, RawWorkflow, CheckReport), Box<RunVerdict>> {
-    let source = captured
+    let source = repair_target
         .map_or_else(
-            || {
-                repair_target.map_or_else(
-                    || crate::verbs::RunSource::capture(file),
-                    |target| crate::verbs::RunSource::capture_with_repair_target(file, target),
-                )
-            },
-            Ok,
+            || crate::verbs::RunSource::capture(file),
+            |target| crate::verbs::RunSource::capture_with_repair_target(file, target),
         )
         .map_err(|out| {
             epilogue::emit_diagnostic(&refusal_text(&out), output_json);

@@ -6,7 +6,7 @@ date: "2026-08-21"
 phase: "pre-1.0 · ARM custody"
 deciders: ["@ThibautMelen"]
 tags: ["architecture", "crate-admission", "arm", "filesystem", "layering"]
-affects_crates: ["nika-arm", "nika-cadence", "nika-cli", "nika-fs"]
+affects_crates: ["nika-arm", "nika-cadence", "nika-cli", "nika-execution", "nika-fs"]
 affects_layers: ["L4"]
 supersedes: []
 superseded_by: []
@@ -16,12 +16,11 @@ enables: []
 amends: []
 fci: []
 inv: []
-shadow_zones: ["transitive-workflow-input-custody", "serve-network-boundary"]
+shadow_zones: ["serve-network-boundary"]
 nika_codes: []
 timeline: "pre-1.0"
 follow_ups:
-  - "move child-workflow and skill reads behind one shared owned-byte execution service"
-  - "keep networked Serve behind ADR-117 until that execution service and its security gates are admitted"
+  - "keep networked Serve behind ADR-117 until its separate security gates are admitted"
 ---
 
 # ADR-118: admit `nika-arm` as the shared ARM custody library
@@ -96,13 +95,18 @@ The extraction introduces no HTTP listener, authentication scheme, job API,
 cancellation contract, artifact authority, or runtime implementation. Those
 are separate decisions and remain outside this admission.
 
-### 4. Security carry is named, not hidden
+### 4. W04 amendment: transitive custody is closed
 
-This boundary pins the ARM registry, state, and primary workflow. It does not
-yet pin every transitive workflow input. The current composition adapter can
-still reopen child workflows and skill files by pathname. Closing that gap
-requires one shared owned-byte execution service used by every interface; it
-is a required follow-up and a prerequisite to ADR-117's first network route.
+W04 adds `nika-execution` as the shared owned-byte boundary used by CLI and
+ARM. The firer admits the primary workflow, every transitive child, and every
+skill through one held project capability before the claim. Runtime composition
+receives only the immutable snapshot; the production child runner has no path
+reader or optional compatibility world. Stdin joins the same boundary through
+an owned-root-byte overlay without a temporary file.
+
+This closes the transitive workflow-input shadow named by the original
+decision. It does not admit a network listener: ADR-117's authentication and
+transport gates remain separate.
 
 ## Consequences
 
@@ -119,8 +123,8 @@ is a required follow-up and a prerequisite to ADR-117's first network route.
 
 - `nika-arm` is an L4 library rather than a generally reusable low-level crate.
 - Interface tests must cover adapter parity in addition to the library suite.
-- Transitive child and skill custody remains an explicit security carry until
-  the shared execution service lands.
+- The execution service becomes a required dependency of both CLI and ARM;
+  changes to its admission contract require cross-interface proof.
 
 ### Neutral
 
@@ -139,6 +143,9 @@ is a required follow-up and a prerequisite to ADR-117's first network route.
 4. Mutation testing kills at least 90% of viable `nika-arm` mutants.
 5. The admission commit contains the crate spec, API snapshot, layer registry,
    estate update, and this ADR.
+6. W04 additionally proves file, stdin, and ARM use `ExecutionService`, child
+   recursion performs zero definition reads after capture, and ARM has no
+   subprocess/localhost/latest-trace bridge.
 
 ## Alternatives considered
 

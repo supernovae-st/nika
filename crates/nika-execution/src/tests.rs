@@ -436,6 +436,43 @@ fn debug_surfaces_do_not_disclose_captured_or_outcome_payloads() {
     assert_eq!(*verdict.outcome(), SECRET_SHAPED);
 }
 
+#[test]
+fn owned_root_bytes_capture_stdin_world_without_a_dash_file() {
+    let root = "nika: stdin\nmodel: mock/echo\npermits:\n  exec: [\"echo\"]\n  fs:\n    read: [\"skills/review/SKILL.md\"]\ntasks:\n  audit:\n    invoke:\n      workflow: \"child.nika.yaml\"\n      args: { url: \"https://example.com\" }\n    returns: { object: { report: string } }\n  review:\n    agent: { prompt: \"review\", skills: [\"skills/review/SKILL.md\"] }\n";
+    let skill = "---\nname: review\ndescription: Review code.\n---\nOriginal.\n";
+    let (tmp, owned) = project(&[
+        ("child.nika.yaml", CHILD),
+        ("skills/review/SKILL.md", skill),
+    ]);
+    let service = ExecutionService::default();
+    let admitted = service
+        .admit_root_bytes(&owned, Path::new("-"), root.as_bytes())
+        .expect("admit stdin world");
+
+    fs::write(tmp.path().join("child.nika.yaml"), b"nika: replaced\n").expect("mutate child");
+    fs::write(tmp.path().join("skills/review/SKILL.md"), b"replacement").expect("mutate skill");
+
+    assert!(!tmp.path().join("-").exists());
+    assert_eq!(admitted.snapshot().root(), "-");
+    assert_eq!(admitted.snapshot().text("-"), Some(root));
+    assert_eq!(admitted.snapshot().text("child.nika.yaml"), Some(CHILD));
+    assert_eq!(
+        admitted.snapshot().text("skills/review/SKILL.md"),
+        Some(skill)
+    );
+}
+
+#[test]
+fn owned_root_bytes_obey_the_same_size_ceiling() {
+    let (_tmp, owned) = project(&[]);
+    let limits = SnapshotLimits::new(8, 8, 16, 16_384);
+    let service = ExecutionService::new(limits);
+    let error = service
+        .admit_root_bytes(&owned, Path::new("-"), pure_root().as_bytes())
+        .expect_err("oversized stdin root");
+    assert!(matches!(error, ExecutionError::UnitSizeLimit { .. }));
+}
+
 fn snapshot_digest(cx: crate::ExecutionContext<'_>) -> String {
     assert_eq!(cx.snapshot().text("root.nika.yaml"), Some(pure_root()));
     cx.snapshot().digest().to_owned()

@@ -40,6 +40,24 @@ impl ExecutionService {
         Self::admit_snapshot(snapshot)
     }
 
+    /// Admit root bytes already captured by an interface, with transitive
+    /// dependencies resolved from the held project directory.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ExecutionError`] under the same fail-closed conditions as
+    /// [`Self::admit`].
+    pub fn admit_root_bytes(
+        &self,
+        project: &OwnedDir,
+        root: &Path,
+        root_bytes: &[u8],
+    ) -> Result<AdmittedExecution, ExecutionError> {
+        let snapshot =
+            ExecutionSnapshot::capture_root_bytes(project, root, root_bytes, self.limits)?;
+        Self::admit_snapshot(snapshot)
+    }
+
     /// Admit a workflow world with explicit project-level imports.
     ///
     /// # Errors

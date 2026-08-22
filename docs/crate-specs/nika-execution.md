@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | **WORKSPACE WIP · ADMISSION CANDIDATE** — the C0/C1 owned-byte carrier is callable and reviewed, but remains in the canonical `wip` set until the full admission ceremony closes. CLI and ARM migration are later consumer waves. |
+| Status | **WORKSPACE WIP · ADMISSION CANDIDATE** — the owned-byte carrier is callable and both CLI and ARM use it; the crate remains in the canonical `wip` set until the full admission ceremony closes. |
 | Layer | L3 — execution admission and orchestration boundary |
 | Design | Descriptor-rooted transitive capture into one immutable snapshot; parser, checker, skill resolver, and injected runner all consume that same owned world. |
 | LOC budget | ≤5,000 source lines; ≤15,000 hard crate cap. |
@@ -23,7 +23,10 @@ Skills, and explicitly declared project imports descriptor-relatively with
 `ExecutionSnapshot` owns every byte, logical path, unit digest, aggregate
 digest, and format version.
 
-`ExecutionService::admit` parses and checks only snapshot text. Skill resolution
+`ExecutionService::admit` parses and checks only snapshot text. For an
+interface-acquired root such as stdin, `admit_root_bytes` places those exact
+bytes in the same world while dependencies remain descriptor-relative to the
+held project. Skill resolution
 uses the same in-memory map. `ExecutionService::execute` consumes the admitted
 value and gives the injected runner an `ExecutionContext` containing no
 `OwnedDir`, absolute path, or reader callback. Filesystem reopening after
@@ -38,19 +41,21 @@ admitted IDs, snapshot, workflow, check report, and resolved skills.
 
 This crate does not own HTTP, UI rendering, durable jobs, ARM cadence, provider
 selection, sandbox implementation, runtime verb semantics, or trace storage.
-Those remain in their existing layers and will consume this service through
-later adapters.
+Those remain in their existing layers. CLI and ARM consume this service through
+their L4 adapters; later Serve/jobs work must use the same boundary.
 
 ## 2. Public surface
 
 - `SnapshotLimits` bounds child depth, unit count, per-unit bytes, and aggregate
   bytes before admission.
 - `ExecutionSnapshot::capture` owns the workflow/child/skill closure.
+  `capture_root_bytes` overlays interface-owned root bytes on the same held
+  project reader without a temporary file or a second root read.
   `capture_with_imports` adds opaque project-level imports without inventing an
   `import:` workflow key; the current language grammar has no such field.
 - `CapturedUnit` exposes kind, contained logical path, exact bytes, UTF-8 view,
   and SHA-256 digest through read-only accessors.
-- `ExecutionService::admit` mints one `ExecutionId`, derives its root `TraceId`
+- `ExecutionService::admit` and `admit_root_bytes` mint one `ExecutionId`, derive its root `TraceId`
   directly from the same 128 bits, and returns `AdmittedExecution` only after
   parser, composed checker, and skill resolution are clean.
 - `ExecutionService::execute` consumes that admission and returns a generic
@@ -97,6 +102,8 @@ Inline `--lib` tests cover:
   capture boundary;
 - deletion of the admitted root before execution, proving the runner still
   observes the exact admitted bytes;
+- stdin-style root bytes with transitive child/skill capture and the same
+  per-unit size ceiling, without creating a `-` file;
 - property tests for digest order independence and dot-segment normalization.
 
 The tests use no sleeps and inspect the bytes presented to the runner, not only
@@ -157,14 +164,14 @@ the workspace metadata keeps this crate WIP.
 | 6 PROPERTY | `snapshot::tests` exercises digest ordering and path normalization with `proptest` |
 | 7 BENCHMARKS | exempt: admission is bounded, one-shot filesystem I/O; no throughput contract or hot loop |
 | 8 DOCS | `RUSTDOCFLAGS='-D warnings' cargo doc -p nika-execution --no-deps` |
-| 9 CANARY E2E | exempt in C0/C1: no interface consumer is changed in this carrier; migration owns its real-binary canary |
+| 9 CANARY E2E | CLI and ARM adapters own their behavior canaries; the service suite proves root-byte and descriptor-rooted admission |
 | 10 PARITY | exempt: no predecessor service exists; existing CLI behavior remains untouched |
 | 11 REVIEW | independent architecture, security, and adversarial review findings resolved before commit |
 | 12 ATOMIC | one lowercase commit with the Nika co-author trailer |
 
 ## 6. Non-goals and next consumers
 
-No CLI/ARM migration · no Serve route · no durable job/event store · no
+No Serve route · no durable job/event store · no
 cancellation state machine · no registry fetch · no artifact custody · no
 runtime provider/sandbox construction. Those surfaces can only consume the
 admitted snapshot; they may not recreate a parallel composition reader.

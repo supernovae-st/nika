@@ -21,9 +21,10 @@ request from flags, acquires the project through `OwnedDir`, admits one
 transitive `ExecutionSnapshot`, then captures that request in the service's
 one-shot runner. Runtime composition consumes the admitted workflow, check,
 skills, child bytes, and child-closure digests; rendering and exit-code mapping
-remain here. The stdin and ARM-captured-source lanes keep their prior adapter
-until their dedicated migration carriers can supply an owned-byte world without
-writing a temporary file.
+remain here. File runs, stdin, and the ARM in-process adapter all converge on
+this service. Stdin supplies its already acquired root bytes through
+`admit_root_bytes`; dependencies still resolve from the held current project,
+without a temporary file or a world-less compatibility path.
 
 ## 2. Verb surface
 
@@ -71,11 +72,11 @@ ordered bundle before consuming it; changed archive history fails closed.
 Every sidecar component and child file is opened no-follow relative to a held
 directory descriptor. Live-history, archive, beat-directory, and lock symlinks
 refuse; a visible path replacement after the claim cannot redirect its receipt.
-Before claiming, the firer captures the workflow bytes once in memory and hashes
-that immutable source. Check and execution consume those same bytes while the
-declared workflow path remains their logical base for relative children and
-skills. An unreadable or symlink source refuses before any claim; later edits
-cannot make execution and the attested generation disagree. Receipt construction
+Before claiming, the firer admits the complete workflow, child, and skill world
+once and hashes the immutable root source. Check and execution consume that same
+snapshot while the declared workflow path remains the logical base for relative
+children and skills. An unreadable or symlink source refuses before any claim;
+later edits cannot make execution and the attested generation disagree. Receipt construction
 is typed and claim-bound, and a corrupt replay is an ENV refusal in reports and
 `serve`, never `DÉCLARÉ`/never-fired fallback.
 
