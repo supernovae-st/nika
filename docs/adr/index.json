@@ -1265,5 +1265,21 @@
       "requires": ["ADR-114"],
       "enables": []
     }
+    ,
+    {
+      "id": "ADR-119",
+      "title": "make remote job admission durable before transport",
+      "status": "accepted",
+      "date": "2026-08-22",
+      "filename": "adr-119-durable-remote-job-state.md",
+      "tags": ["architecture","serve","durability","idempotency","filesystem"],
+      "affects_crates": ["nika-serve","nika-fs"],
+      "affects_layers": ["L4"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": [],
+      "requires": ["ADR-117"],
+      "enables": []
+    }
   ]
 }
