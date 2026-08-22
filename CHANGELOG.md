@@ -12,6 +12,14 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Changed
 
+- **`nika check` names the ancestor `nika.yaml` spend cap.** `nika run`
+  already filled `--max-cost-usd` from that file; check printed « no
+  total ceiling » and advised adding the flag, on a tree that already
+  had one (issue 1050). The COST line still prices the workflow; a
+  `BUDGET` footnote (and a presence-gated `run_budget` object on
+  `--json`) now says the number and `nika.yaml:line`. `--max-cost-usd`
+  still wins. `run --dry-run` and `--help` stay silent — this is the
+  surface that contradicted the file.
 - **A piped `nika try` / `nika run` no longer waits on the macOS keychain
   after a green card.** The card printed, then `SecKeychainFindGenericPassword`
   blocked the main thread: a pipe cannot complete an ACL prompt. The
