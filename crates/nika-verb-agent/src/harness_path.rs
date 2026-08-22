@@ -2,14 +2,15 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! The EXTERNAL execution path (D-2026-08-04-N1 · P3 B4 · feature
-//! `access-harness`, default OFF) — the `agent:` task delegated to the
-//! user's own authenticated harness through the kernel's
-//! [`DynAgentBackend`] seam.
+//! `access-harness`, default OFF) — an `agent:` task whose access plan
+//! selects a harness adapter is delegated to the user's own
+//! authenticated harness through the kernel's [`DynAgentBackend`] seam.
 //!
 //! The native loop is untouched: without the feature this module does
-//! not compile; with it but no seat configured, `run` still takes the
-//! native loop. What this path never does (B4 honesty · refusals with
-//! witnesses, not silent degradation):
+//! not compile; API/local plans and calls without a plan stay native.
+//! A harness plan executes only the seat whose id it names. What this
+//! path never does (B4 honesty · refusals with witnesses, not silent
+//! degradation):
 //!
 //! - a task `schema:` refuses — structured output on a harness is P4's
 //!   capability attestation, never assumed;
@@ -47,11 +48,15 @@ pub struct HarnessSeat {
     /// The session's working directory (absolute · the composer's
     /// sandbox root in production).
     pub cwd: std::path::PathBuf,
+    /// The resolver-visible adapter id. An unnamed seat is never
+    /// executable from an [`nika_types::access::AccessPlan`].
+    access_id: Option<String>,
 }
 
 impl std::fmt::Debug for HarnessSeat {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("HarnessSeat")
+            .field("access_id", &self.access_id)
             .field("cwd", &self.cwd)
             .finish_non_exhaustive()
     }
@@ -75,7 +80,21 @@ impl HarnessSeat {
         Self {
             backend,
             cwd: cwd.into(),
+            access_id: None,
         }
+    }
+
+    /// Name this seat with the adapter id the access resolver emits.
+    #[must_use]
+    pub fn with_access_id(mut self, id: impl Into<String>) -> Self {
+        self.access_id = Some(id.into());
+        self
+    }
+
+    /// The resolver-visible adapter id, when this seat is named.
+    #[must_use]
+    pub fn access_id(&self) -> Option<&str> {
+        self.access_id.as_deref()
     }
 }
 
@@ -326,6 +345,7 @@ mod tests {
     /// verdicts are recorded by the reply closures the tape carries).
     struct TapeBackend {
         tape: Mutex<Vec<HarnessEvent>>,
+        runs: Arc<std::sync::atomic::AtomicUsize>,
     }
 
     struct TapeStream {
@@ -349,6 +369,7 @@ mod tests {
             _request: HarnessRequest,
         ) -> Pin<Box<dyn Future<Output = Result<HarnessEventStream, HarnessError>> + Send + '_>>
         {
+            self.runs.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             let tape = std::mem::take(&mut *self.tape.lock().expect("tape lock"));
             Box::pin(async move { Ok(Box::pin(TapeStream { tape }) as HarnessEventStream) })
         }
@@ -367,10 +388,65 @@ mod tests {
     }
 
     fn seat_with(tape: Vec<HarnessEvent>) -> HarnessSeat {
+        seat_with_id(tape, "test-harness").0
+    }
+
+    fn seat_with_id(
+        tape: Vec<HarnessEvent>,
+        id: &str,
+    ) -> (HarnessSeat, Arc<std::sync::atomic::AtomicUsize>) {
+        let runs = Arc::new(std::sync::atomic::AtomicUsize::new(0));
         let backend = TapeBackend {
             tape: Mutex::new(tape),
+            runs: Arc::clone(&runs),
         };
-        HarnessSeat::new(Arc::new(backend), "/tmp")
+        (
+            HarnessSeat::new(Arc::new(backend), "/tmp").with_access_id(id),
+            runs,
+        )
+    }
+
+    fn plan(
+        model: &str,
+        access: &str,
+        chosen: nika_types::access::AccessClass,
+    ) -> nika_types::access::AccessPlan {
+        nika_types::access::AccessPlan::new(
+            model,
+            model
+                .split_once('/')
+                .map_or(model, |(provider, _)| provider),
+            access,
+            chosen,
+            chosen.default_billing(),
+            false,
+            Vec::new(),
+        )
+    }
+
+    fn verb_with(
+        seat: HarnessSeat,
+        provider: nika_kernel_mock::MockProvider,
+    ) -> (
+        crate::AgentVerb<
+            nika_kernel_mock::MockProvider,
+            nika_kernel_mock::MockToolExecutor,
+            nika_kernel_mock::MockToolDefinitionProvider,
+        >,
+        Arc<nika_kernel_mock::MockProvider>,
+    ) {
+        let provider = Arc::new(provider);
+        let invoke = Arc::new(nika_verb_invoke::InvokeVerb::new(Arc::new(
+            nika_kernel_mock::MockToolExecutor::new(),
+        )));
+        let verb = crate::AgentVerb::new(
+            Arc::clone(&provider),
+            invoke,
+            Arc::new(nika_kernel_mock::MockToolDefinitionProvider::new()),
+            "openai/gpt-5",
+        )
+        .with_harness_seat(seat);
+        (verb, provider)
     }
 
     /// The witness label names WHAT was judged (mutation-killers for
@@ -704,6 +780,64 @@ mod tests {
             .expect("completes");
         assert_eq!(out.total_tokens, 140);
         assert_eq!(out.usage.input_tokens, 100);
+    }
+
+    #[tokio::test]
+    async fn an_api_plan_stays_native_even_when_a_seat_is_declared() {
+        let (seat, runs) = seat_with_id(vec![completed("wrong route")], "claude-agent-acp");
+        let (verb, provider) = verb_with(
+            seat,
+            nika_kernel_mock::MockProvider::new("mock").enqueue_text("native route"),
+        );
+        let mut input = AgentInput::new("route me");
+        input.access_plan = Some(plan(
+            "openai/gpt-5",
+            "openai",
+            nika_types::access::AccessClass::Api,
+        ));
+
+        let out = verb.run(input).await.expect("the native provider runs");
+        assert_eq!(out.output, AgentValue::Text("native route".to_owned()));
+        assert_eq!(provider.captured_requests().len(), 1);
+        assert_eq!(runs.load(std::sync::atomic::Ordering::Relaxed), 0);
+    }
+
+    #[tokio::test]
+    async fn a_harness_plan_refuses_a_different_seat_before_any_effect() {
+        let (seat, runs) = seat_with_id(vec![completed("must not run")], "claude-agent-acp");
+        let (verb, provider) = verb_with(
+            seat,
+            nika_kernel_mock::MockProvider::new("mock").enqueue_text("must not run"),
+        );
+        let mut input = AgentInput::new("route me");
+        input.access_plan = Some(plan(
+            "openai/gpt-5",
+            "codex-acp",
+            nika_types::access::AccessClass::Harness,
+        ));
+
+        let err = verb.run(input).await.expect_err("seat ids must match");
+        assert!(err.to_string().contains("codex-acp"), "{err}");
+        assert!(err.to_string().contains("claude-agent-acp"), "{err}");
+        assert!(provider.captured_requests().is_empty());
+        assert_eq!(runs.load(std::sync::atomic::Ordering::Relaxed), 0);
+    }
+
+    #[tokio::test]
+    async fn no_plan_never_promotes_the_declared_seat() {
+        let (seat, runs) = seat_with_id(vec![completed("wrong route")], "claude-agent-acp");
+        let (verb, provider) = verb_with(
+            seat,
+            nika_kernel_mock::MockProvider::new("mock").enqueue_text("native route"),
+        );
+
+        let out = verb
+            .run(AgentInput::new("route me"))
+            .await
+            .expect("absence of a plan keeps the native path");
+        assert_eq!(out.output, AgentValue::Text("native route".to_owned()));
+        assert_eq!(provider.captured_requests().len(), 1);
+        assert_eq!(runs.load(std::sync::atomic::Ordering::Relaxed), 0);
     }
 }
 

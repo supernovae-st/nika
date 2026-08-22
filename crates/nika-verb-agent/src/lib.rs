@@ -175,8 +175,8 @@ pub struct AgentVerb<P, T, D> {
     // observer. Absent, the loop feeds every result back byte-identical
     // (the pre-spill behavior is the default — feature-defaults law).
     spill: Option<Arc<dyn spill::SpillStoreDyn>>,
-    // The harness seat (P3 B4): delegates to the user's own harness —
-    // same dyn-seam rationale as the observer.
+    // The harness seat (P3 B4): available to an AccessPlan naming its
+    // adapter — same dyn-seam rationale as the observer.
     #[cfg(feature = "access-harness")]
     harness: Option<harness_path::HarnessSeat>,
 }
@@ -214,9 +214,9 @@ impl<P, T, D> AgentVerb<P, T, D> {
         }
     }
 
-    /// Seat the harness backend (P3 B4): every run then delegates to
-    /// the user's own harness (one verb instance per access plan · the
-    /// resolver never re-selects).
+    /// Make a harness backend available (P3 B4). Only a harness
+    /// [`nika_types::access::AccessPlan`] naming this seat delegates;
+    /// API/local plans and calls without a plan remain native.
     #[cfg(feature = "access-harness")]
     #[must_use]
     pub fn with_harness_seat(mut self, seat: harness_path::HarnessSeat) -> Self {
@@ -224,8 +224,8 @@ impl<P, T, D> AgentVerb<P, T, D> {
         self
     }
 
-    /// Seat an OPTIONAL harness — the composer's shape (a machine that
-    /// declares none keeps the native loop).
+    /// Make an OPTIONAL harness available — the composer's shape. A
+    /// machine that declares none can execute only native plans.
     #[cfg(feature = "access-harness")]
     #[must_use]
     pub fn seated(self, seat: Option<harness_path::HarnessSeat>) -> Self {
@@ -233,6 +233,13 @@ impl<P, T, D> AgentVerb<P, T, D> {
             Some(seat) => self.with_harness_seat(seat),
             None => self,
         }
+    }
+
+    /// The model this call will execute after the task override falls
+    /// back to the verb's composed default.
+    #[must_use]
+    pub fn effective_model<'a>(&'a self, input: &'a AgentInput) -> &'a str {
+        input.model.as_deref().unwrap_or(&self.default_model)
     }
 
     /// Override the intelligence-layer tuning (ADR-096).
@@ -325,12 +332,62 @@ where
         input: AgentInput,
         observer: &dyn AgentObserver,
     ) -> Result<AgentOutput, VerbAgentError> {
-        // The harness seat wins when configured (P3 B4) — the native
-        // loop's arm/whitelist/budget machinery governs the native
-        // path only; the harness boundary is the permission bridge.
+        let access_plan = input.access_plan.clone();
+        // A harness plan names the ONLY seat allowed to execute. A
+        // globally declared seat is availability, never authority: API,
+        // local and absent plans stay on the native loop.
         #[cfg(feature = "access-harness")]
-        if let Some(seat) = &self.harness {
-            return harness_path::run_on_harness(seat, input, observer).await;
+        if let Some(plan) = access_plan
+            .as_ref()
+            .filter(|plan| plan.chosen == nika_types::access::AccessClass::Harness)
+        {
+            let seat = self
+                .harness
+                .as_ref()
+                .ok_or_else(|| VerbAgentError::InvalidParam {
+                    param: "access",
+                    detail: format!(
+                        "AccessPlan chose harness adapter `{}` but no harness seat is available",
+                        plan.access
+                    ),
+                })?;
+            let seated = seat.access_id().unwrap_or("<unnamed>");
+            if seated != plan.access {
+                return Err(VerbAgentError::InvalidParam {
+                    param: "access",
+                    detail: format!(
+                        "AccessPlan chose harness adapter `{}` but the available seat is `{seated}`",
+                        plan.access
+                    ),
+                });
+            }
+            let adapter = seated.to_owned();
+            let receipt_source = format!(
+                "{}\u{1e}{}\u{1f}{seated}",
+                plan.model,
+                plan.billing.as_str()
+            );
+            return harness_path::run_on_harness(seat, input, observer)
+                .await
+                .map(|mut output| {
+                    output.access_plan = access_plan;
+                    output.adapter = Some(adapter);
+                    output.receipt_source = Some(receipt_source);
+                    output
+                });
+        }
+        #[cfg(not(feature = "access-harness"))]
+        if let Some(plan) = access_plan
+            .as_ref()
+            .filter(|plan| plan.chosen == nika_types::access::AccessClass::Harness)
+        {
+            return Err(VerbAgentError::InvalidParam {
+                param: "access",
+                detail: format!(
+                    "AccessPlan chose harness adapter `{}` but harness access is not compiled in",
+                    plan.access
+                ),
+            });
         }
         // arm_run failures precede any billed call — no spend to decorate.
         let (whitelist, defs, model, budget) = self.arm_run(&input).await?;
@@ -349,7 +406,11 @@ where
                 &mut tools_cost_usd,
             )
             .await;
-        out.map_err(|e| {
+        out.map(|mut output| {
+            output.access_plan = access_plan;
+            output
+        })
+        .map_err(|e| {
             e.with_spend(SpendOnFailure::new(
                 usage_total,
                 (tools_cost_usd > 0.0).then_some(tools_cost_usd),

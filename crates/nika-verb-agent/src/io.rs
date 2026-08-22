@@ -40,6 +40,10 @@ pub struct AgentInput {
     /// (P3 B5) — the harness gate's human verdict. `None` on a fresh
     /// run (an out-of-grants ask then pauses for the operator).
     pub gate_answer: Option<serde_json::Value>,
+    /// The resolver's admission-time route for the effective model.
+    /// `None` never authorizes a harness seat: the native loop keeps
+    /// the task unless a named harness plan matches a named seat.
+    pub access_plan: Option<nika_types::access::AccessPlan>,
 }
 
 impl AgentInput {
@@ -57,6 +61,7 @@ impl AgentInput {
             schema: None,
             permits: None,
             gate_answer: None,
+            access_plan: None,
         }
     }
 }
@@ -115,6 +120,13 @@ pub struct AgentOutput {
     /// The model the loop resolved and ran (`provider/name`) — the
     /// pricing/attribution key. `None` on harness-built outputs.
     pub model_resolved: Option<String>,
+    /// The access plan that actually governed this execution.
+    pub access_plan: Option<nika_types::access::AccessPlan>,
+    /// The harness adapter that executed the task. `None` on the native
+    /// provider loop (including when a seat was merely declared).
+    pub adapter: Option<String>,
+    /// Opaque event bridge carrying the harness plan's receipt fields.
+    pub receipt_source: Option<String>,
 }
 
 impl AgentOutput {
@@ -135,6 +147,9 @@ impl AgentOutput {
             tools_cost_usd: None,
             usage: TokenUsage::default(),
             model_resolved: None,
+            access_plan: None,
+            adapter: None,
+            receipt_source: None,
         }
     }
 

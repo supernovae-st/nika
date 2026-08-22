@@ -86,26 +86,36 @@ pub(crate) fn emit_completed(
     if let Some(reason) = cost_unpriced {
         fields.push(("cost_unpriced", s(reason.as_str())));
     }
-    // D-2026-08-04-N1 · the access facts — structured provenance for
-    // infer/agent terminals (`model` = the resolved provider/name ·
-    // `provider` = its prefix · `access` = HOW it was reached ·
-    // `billing` = the economic lane). Additive fields; the note keeps
-    // its historical `infer · <model>` form, now a render, not a
-    // carrier — readers of pre-access traces still parse it.
+    // D-2026-08-04-N1 · access provenance. The note keeps its historical
+    // render; the harness receipt suffix stays inside this emission seam.
     if let Some(m) = model {
+        let (m, billing, adapter) = m
+            .split_once('\u{1e}')
+            .and_then(|(model, receipt)| {
+                receipt
+                    .split_once('\u{1f}')
+                    .map(|(billing, adapter)| (model, Some(billing), Some(adapter)))
+            })
+            .unwrap_or((m, None, None));
         fields.push(("model", s(m)));
         if let Some((provider, _)) = m.split_once('/') {
             fields.push(("provider", s(provider)));
-            let access = nika_providers::profile::access_class_for(provider);
+            let access = adapter.map_or_else(
+                || nika_providers::profile::access_class_for(provider),
+                |_| nika_types::access::AccessClass::Harness,
+            );
             fields.push(("access", s(access.as_str())));
-            fields.push(("billing", s(access.default_billing().as_str())));
+            fields.push((
+                "billing",
+                s(billing.unwrap_or_else(|| access.default_billing().as_str())),
+            ));
+            if let Some(adapter) = adapter {
+                fields.push(("adapter", s(adapter)));
+            }
         }
     } else if cost_unpriced == Some(nika_types::cost::UnpricedReason::SubscriptionQuota) {
-        // P3 B7 · the harness row: the task ran on the operator's own
-        // harness (the SubscriptionQuota arm in dispatch is only ever
-        // set there), so the receipt says so — `access: harness`, and
-        // the billing lane stays `unknown` until an adapter's own
-        // surface attests included/extra usage (P5). Never a fake $0.
+        // P3 B7 · legacy harness outputs receipt harness + unknown billing,
+        // never a fake $0 before the adapter attests usage (P5).
         fields.push(("access", s("harness")));
         fields.push((
             "billing",
