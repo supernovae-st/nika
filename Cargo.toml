@@ -35,7 +35,7 @@ homepage     = "https://supernovae.studio"
 # is the projector that reads this; refresh-status.sh + check-crate-specs.sh
 # query the projector (never re-hardcode the list). When a crate is admitted,
 # remove it from this array — one edit, here, period.
-wip = ["nika-chart", "nika-fx", "nika-proof", "nika-store", "nika-harness"]
+wip = ["nika-chart", "nika-fx", "nika-proof", "nika-store", "nika-harness", "nika-execution"]
 # nika-pack · the embedded language pack (spec snapshot + manifest hashes ·
 # proposal branch feat/nika-pack · pure data · include_dir · zero I/O).
 layers.nika-chart = "L0"

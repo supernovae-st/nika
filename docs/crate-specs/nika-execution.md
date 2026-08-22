@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | **ADMISSION CANDIDATE** — the C0/C1 owned-byte carrier for the shared execution boundary. CLI and ARM migration is a later consumer wave. |
+| Status | **WORKSPACE WIP · ADMISSION CANDIDATE** — the C0/C1 owned-byte carrier is callable and reviewed, but remains in the canonical `wip` set until the full admission ceremony closes. CLI and ARM migration are later consumer waves. |
 | Layer | L3 — execution admission and orchestration boundary |
 | Design | Descriptor-rooted transitive capture into one immutable snapshot; parser, checker, skill resolver, and injected runner all consume that same owned world. |
 | LOC budget | ≤5,000 source lines; ≤15,000 hard crate cap. |
@@ -95,6 +95,13 @@ The tests use no sleeps and inspect the bytes presented to the runner, not only
 an announced digest.
 
 ## 5. Admission gates
+
+The pre-admission readout on 2026-08-22 reported gates 1, 2, 3, 4, 6, and 8
+passing. The full workspace run observed 6,294 library tests passing with zero
+failures and clippy with zero warnings. Gates 5, 11, and 12 remain ceremony
+work; gates 7, 9, and 10 carry the scoped exemptions below but are not promoted
+to an admission claim by the heuristic reporter. Until those receipts close,
+the workspace metadata keeps this crate WIP.
 
 | Gate | Evidence |
 |---|---|
