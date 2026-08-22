@@ -67,6 +67,29 @@ fn skill_mutation_after_capture_cannot_change_admitted_bytes() {
     );
 }
 
+#[test]
+fn nested_child_mutation_after_capture_cannot_change_admitted_bytes() {
+    let root = parent("nested/middle.nika.yaml");
+    let middle = "nika: middle\ninputs:\n  url: { type: string, required: true }\npermits:\n  exec: [\"echo\"]\ntasks:\n  leaf:\n    invoke:\n      workflow: \"leaf.nika.yaml\"\n      args: { url: \"${{ inputs.url }}\" }\n    returns: { object: { report: string } }\noutputs:\n  report: { value: \"${{ tasks.leaf.output.report }}\", type: string }\n";
+    let (tmp, owned) = project(&[
+        ("root.nika.yaml", &root),
+        ("nested/middle.nika.yaml", middle),
+        ("nested/leaf.nika.yaml", CHILD),
+    ]);
+    let snapshot = ExecutionSnapshot::capture(
+        &owned,
+        Path::new("root.nika.yaml"),
+        SnapshotLimits::default(),
+    )
+    .expect("capture");
+    fs::write(
+        tmp.path().join("nested/leaf.nika.yaml"),
+        b"nika: attacker\n",
+    )
+    .expect("mutate nested child");
+    assert_eq!(snapshot.text("nested/leaf.nika.yaml"), Some(CHILD));
+}
+
 #[cfg(unix)]
 #[test]
 fn symlink_swap_after_capture_cannot_redirect_execution() {
@@ -85,6 +108,27 @@ fn symlink_swap_after_capture_cannot_redirect_execution() {
     fs::remove_file(tmp.path().join("child.nika.yaml")).expect("remove child");
     symlink(outside.path(), tmp.path().join("child.nika.yaml")).expect("swap");
     assert_eq!(snapshot.text("child.nika.yaml"), Some(CHILD));
+}
+
+#[test]
+fn directory_replacement_after_capture_cannot_redirect_execution() {
+    let root = parent("world/child.nika.yaml");
+    let (tmp, owned) = project(&[("root.nika.yaml", &root), ("world/child.nika.yaml", CHILD)]);
+    let snapshot = ExecutionSnapshot::capture(
+        &owned,
+        Path::new("root.nika.yaml"),
+        SnapshotLimits::default(),
+    )
+    .expect("capture");
+    fs::rename(tmp.path().join("world"), tmp.path().join("original-world"))
+        .expect("rename original directory");
+    fs::create_dir(tmp.path().join("world")).expect("replacement directory");
+    fs::write(
+        tmp.path().join("world/child.nika.yaml"),
+        b"nika: attacker\n",
+    )
+    .expect("replacement child");
+    assert_eq!(snapshot.text("world/child.nika.yaml"), Some(CHILD));
 }
 
 #[test]
@@ -235,7 +279,50 @@ fn execute_performs_zero_opens_after_admission() {
     assert_eq!(verdict.trace_id(), verdict.execution_id().into());
 }
 
+#[test]
+fn debug_surfaces_do_not_disclose_captured_or_outcome_payloads() {
+    const SECRET_SHAPED: &str = "sk-live-w02-must-never-reach-debug";
+    let root = format!("{}# {SECRET_SHAPED}\n", pure_root());
+    let (_tmp, owned) = project(&[("root.nika.yaml", &root)]);
+    let service = ExecutionService::default();
+    let admitted = service
+        .admit(&owned, Path::new("root.nika.yaml"))
+        .expect("admit");
+
+    let snapshot_debug = format!("{:?}", admitted.snapshot());
+    let unit_debug = format!(
+        "{:?}",
+        admitted
+            .snapshot()
+            .unit("root.nika.yaml")
+            .expect("root unit")
+    );
+    let admitted_debug = format!("{admitted:?}");
+    assert!(!snapshot_debug.contains(SECRET_SHAPED));
+    assert!(!unit_debug.contains(SECRET_SHAPED));
+    assert!(!admitted_debug.contains(SECRET_SHAPED));
+
+    let context_debug = service.execute(admitted, debug_execution_context);
+    assert!(!context_debug.outcome().contains(SECRET_SHAPED));
+
+    let admitted = service
+        .admit(&owned, Path::new("root.nika.yaml"))
+        .expect("readmit");
+    let verdict = service.execute(admitted, secret_shaped_outcome);
+    let verdict_debug = format!("{verdict:?}");
+    assert!(!verdict_debug.contains(SECRET_SHAPED));
+    assert_eq!(*verdict.outcome(), SECRET_SHAPED);
+}
+
 fn snapshot_digest(cx: crate::ExecutionContext<'_>) -> String {
     assert_eq!(cx.snapshot().text("root.nika.yaml"), Some(pure_root()));
     cx.snapshot().digest().to_owned()
+}
+
+fn secret_shaped_outcome(_cx: crate::ExecutionContext<'_>) -> &'static str {
+    "sk-live-w02-must-never-reach-debug"
+}
+
+fn debug_execution_context(cx: crate::ExecutionContext<'_>) -> String {
+    format!("{cx:?}")
 }

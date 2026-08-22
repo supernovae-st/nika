@@ -135,7 +135,6 @@ impl Default for ExecutionService {
 }
 
 /// A checked execution world. It deliberately owns no filesystem capability.
-#[derive(Debug)]
 #[non_exhaustive]
 pub struct AdmittedExecution {
     execution_id: ExecutionId,
@@ -144,6 +143,16 @@ pub struct AdmittedExecution {
     workflow: RawWorkflow,
     check: CheckReport,
     skills: ResolvedSkills,
+}
+
+impl std::fmt::Debug for AdmittedExecution {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AdmittedExecution")
+            .field("execution_id", &self.execution_id)
+            .field("trace_id", &self.trace_id)
+            .field("snapshot_digest", &self.snapshot.digest())
+            .finish_non_exhaustive()
+    }
 }
 
 impl AdmittedExecution {
@@ -185,7 +194,7 @@ impl AdmittedExecution {
 }
 
 /// Read-only execution input handed to an injected runtime runner.
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 #[non_exhaustive]
 pub struct ExecutionContext<'a> {
     execution_id: ExecutionId,
@@ -194,6 +203,17 @@ pub struct ExecutionContext<'a> {
     workflow: &'a RawWorkflow,
     check: &'a CheckReport,
     skills: &'a ResolvedSkills,
+}
+
+#[allow(clippy::elidable_lifetime_names)] // Preserve the locked public trait shape.
+impl<'a> std::fmt::Debug for ExecutionContext<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ExecutionContext")
+            .field("execution_id", &self.execution_id)
+            .field("trace_id", &self.trace_id)
+            .field("snapshot_digest", &self.snapshot.digest())
+            .finish_non_exhaustive()
+    }
 }
 
 impl<'a> ExecutionContext<'a> {
@@ -235,13 +255,22 @@ impl<'a> ExecutionContext<'a> {
 }
 
 /// Typed result envelope returned by the shared execution boundary.
-#[derive(Debug)]
 #[non_exhaustive]
 pub struct ExecutionVerdict<T> {
     execution_id: ExecutionId,
     trace_id: TraceId,
     snapshot_digest: String,
     outcome: T,
+}
+
+impl<T: std::fmt::Debug> std::fmt::Debug for ExecutionVerdict<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ExecutionVerdict")
+            .field("execution_id", &self.execution_id)
+            .field("trace_id", &self.trace_id)
+            .field("snapshot_digest", &self.snapshot_digest)
+            .finish_non_exhaustive()
+    }
 }
 
 impl<T> ExecutionVerdict<T> {
@@ -344,7 +373,7 @@ fn report_findings(logical_path: &str, report: &CheckReport) -> Vec<String> {
 
 #[cfg(test)]
 mod tests {
-    use std::cell::Cell;
+    use std::cell::RefCell;
     use std::collections::BTreeMap;
     use std::path::Path;
 
@@ -352,13 +381,13 @@ mod tests {
     use crate::snapshot::ByteSource;
 
     struct CountingSource {
-        reads: Cell<usize>,
+        reads: RefCell<Vec<String>>,
         files: BTreeMap<String, Vec<u8>>,
     }
 
     impl ByteSource for CountingSource {
         fn read(&self, logical_path: &str, _limit: usize) -> Result<Vec<u8>, ExecutionError> {
-            self.reads.set(self.reads.get() + 1);
+            self.reads.borrow_mut().push(logical_path.to_owned());
             self.files
                 .get(logical_path)
                 .cloned()
@@ -369,31 +398,69 @@ mod tests {
     }
 
     #[test]
-    fn admission_and_execution_read_zero_sources_after_capture() {
-        let workflow = b"nika: root\npermits:\n  tools: [\"nika:jq\"]\ntasks:\n  value:\n    invoke:\n      tool: nika:jq\n      args: { input: 1, expression: \".\" }\n";
+    fn digest_check_skills_and_run_read_zero_sources_after_capture() {
+        let workflow = b"nika: root\nmodel: mock/echo\npermits:\n  fs:\n    read: [\"skills/review/SKILL.md\"]\ntasks:\n  review:\n    agent: { prompt: \"review\", skills: [\"skills/review/SKILL.md\"] }\n";
+        let skill = b"---\nname: review\ndescription: Review code.\n---\nOriginal.\n";
+        let import = b"policy-v1";
         let source = CountingSource {
-            reads: Cell::new(0),
-            files: BTreeMap::from([("root.nika.yaml".to_owned(), workflow.to_vec())]),
+            reads: RefCell::new(Vec::new()),
+            files: BTreeMap::from([
+                ("root.nika.yaml".to_owned(), workflow.to_vec()),
+                ("imports/policy.bin".to_owned(), import.to_vec()),
+                ("skills/review/SKILL.md".to_owned(), skill.to_vec()),
+            ]),
         };
         let snapshot = ExecutionSnapshot::capture_from(
             &source,
             Path::new("root.nika.yaml"),
-            std::iter::empty::<&Path>(),
+            [Path::new("imports/policy.bin")],
             SnapshotLimits::default(),
         )
         .expect("capture");
-        let reads_at_boundary = source.reads.get();
-        let admitted = ExecutionService::admit_snapshot(snapshot).expect("admit captured world");
-        assert_eq!(source.reads.get(), reads_at_boundary, "check never reopens");
-        let verdict = ExecutionService::default().execute(admitted, read_root);
-        assert_eq!(source.reads.get(), reads_at_boundary, "run never reopens");
+        let reads_at_boundary = source.reads.borrow().clone();
         assert_eq!(
-            verdict.outcome().as_deref(),
-            Some(std::str::from_utf8(workflow).expect("utf8"))
+            reads_at_boundary,
+            [
+                "root.nika.yaml",
+                "imports/policy.bin",
+                "skills/review/SKILL.md"
+            ]
+        );
+        let digest = snapshot.digest().to_owned();
+        assert_eq!(source.reads.borrow().as_slice(), reads_at_boundary);
+        let admitted = ExecutionService::admit_snapshot(snapshot).expect("admit captured world");
+        assert_eq!(
+            source.reads.borrow().as_slice(),
+            reads_at_boundary,
+            "parse, composed check, and skill resolution never reopen"
+        );
+        let verdict = ExecutionService::default().execute(admitted, read_owned_world);
+        assert_eq!(
+            source.reads.borrow().as_slice(),
+            reads_at_boundary,
+            "run never reopens"
+        );
+        assert_eq!(verdict.snapshot_digest(), digest);
+        assert_eq!(
+            verdict.outcome(),
+            &[
+                std::str::from_utf8(workflow)
+                    .expect("workflow utf8")
+                    .to_owned(),
+                std::str::from_utf8(skill).expect("skill utf8").to_owned(),
+                String::from_utf8(import.to_vec()).expect("import utf8"),
+            ]
         );
     }
 
-    fn read_root(cx: ExecutionContext<'_>) -> Option<String> {
-        cx.snapshot().text("root.nika.yaml").map(str::to_owned)
+    fn read_owned_world(cx: ExecutionContext<'_>) -> Vec<String> {
+        [
+            "root.nika.yaml",
+            "skills/review/SKILL.md",
+            "imports/policy.bin",
+        ]
+        .into_iter()
+        .filter_map(|path| cx.snapshot().text(path).map(str::to_owned))
+        .collect()
     }
 }

@@ -41,13 +41,24 @@ impl SnapshotUnitKind {
 }
 
 /// One logical unit and the exact bytes admitted for execution.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 #[non_exhaustive]
 pub struct CapturedUnit {
     logical_path: String,
     kind: SnapshotUnitKind,
     bytes: Arc<[u8]>,
     digest: String,
+}
+
+impl std::fmt::Debug for CapturedUnit {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("CapturedUnit")
+            .field("logical_path", &self.logical_path)
+            .field("kind", &self.kind)
+            .field("bytes_len", &self.bytes.len())
+            .field("digest", &self.digest)
+            .finish()
+    }
 }
 
 impl CapturedUnit {
@@ -151,13 +162,24 @@ impl Default for SnapshotLimits {
 }
 
 /// Immutable closure of every byte the admitted program may compose from.
-#[derive(Debug, Clone)]
+#[derive(Clone)]
 #[non_exhaustive]
 pub struct ExecutionSnapshot {
     format_version: u32,
     root: String,
     units: BTreeMap<String, CapturedUnit>,
     digest: String,
+}
+
+impl std::fmt::Debug for ExecutionSnapshot {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ExecutionSnapshot")
+            .field("format_version", &self.format_version)
+            .field("root", &self.root)
+            .field("unit_count", &self.units.len())
+            .field("digest", &self.digest)
+            .finish()
+    }
 }
 
 impl ExecutionSnapshot {
