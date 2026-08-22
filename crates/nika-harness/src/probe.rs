@@ -183,27 +183,11 @@ async fn probe_auth_with(
 /// Metadata-only proof that a provider credential is present. Kimi Code stores
 /// provider seats as top-level `credentials/<name>.json`; the `mcp/` subtree is
 /// a distinct authority and must not make the model seat look authenticated.
-/// Every ambiguity fails closed without opening a credential file.
+/// Every ambiguity fails closed without reading a credential byte.
 fn provider_credential_directory_ready(path: &std::path::Path, credential_files: &[&str]) -> bool {
-    if !path.is_absolute() {
+    let Some(path_witnesses) = path_component_witnesses(path) else {
         return false;
-    }
-    let mut cursor = std::path::PathBuf::new();
-    for component in path.components() {
-        if matches!(
-            component,
-            std::path::Component::CurDir | std::path::Component::ParentDir
-        ) {
-            return false;
-        }
-        cursor.push(component.as_os_str());
-        let Ok(metadata) = std::fs::symlink_metadata(&cursor) else {
-            return false;
-        };
-        if metadata.file_type().is_symlink() {
-            return false;
-        }
-    }
+    };
     for file_name in credential_files {
         let entry_path = path.join(file_name);
         let metadata = match std::fs::symlink_metadata(&entry_path) {
@@ -215,12 +199,49 @@ fn provider_credential_directory_ready(path: &std::path::Path, credential_files:
             || !metadata.is_file()
             || metadata.len() == 0
             || !readable_same_file(&entry_path, &metadata)
+            || !path_witnesses_unchanged(&path_witnesses)
         {
             continue;
         }
         return true;
     }
     false
+}
+
+fn path_component_witnesses(
+    path: &std::path::Path,
+) -> Option<Vec<(std::path::PathBuf, std::fs::Metadata)>> {
+    if !path.is_absolute() {
+        return None;
+    }
+    let mut cursor = std::path::PathBuf::new();
+    let mut witnesses = Vec::new();
+    for component in path.components() {
+        if matches!(
+            component,
+            std::path::Component::CurDir | std::path::Component::ParentDir
+        ) {
+            return None;
+        }
+        cursor.push(component.as_os_str());
+        let Ok(metadata) = std::fs::symlink_metadata(&cursor) else {
+            return None;
+        };
+        if metadata.file_type().is_symlink() {
+            return None;
+        }
+        witnesses.push((cursor.clone(), metadata));
+    }
+    Some(witnesses)
+}
+
+fn path_witnesses_unchanged(witnesses: &[(std::path::PathBuf, std::fs::Metadata)]) -> bool {
+    witnesses.iter().all(|(path, witnessed)| {
+        let Ok(current) = std::fs::symlink_metadata(path) else {
+            return false;
+        };
+        !current.file_type().is_symlink() && same_file_identity(witnessed, &current)
+    })
 }
 
 /// Open only to let the OS apply UID/ACL readability, then compare the opened
@@ -748,6 +769,31 @@ mod tests {
         assert!(
             !readable_same_file(&candidate, &witnessed),
             "opening a swapped pathname must not validate a different inode"
+        );
+
+        let _ = std::fs::remove_dir_all(&root);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn kimi_auth_refuses_a_credentials_directory_swap() {
+        let root = std::fs::canonicalize(std::env::temp_dir())
+            .expect("the test temp root canonicalizes")
+            .join(format!("nika-kimi-auth-dir-race-{}", std::process::id()));
+        let credentials = root.join("credentials");
+        let original = root.join("credentials-original");
+        let replacement = root.join("credentials-replacement");
+        std::fs::create_dir_all(&credentials).expect("credential directory");
+        std::fs::create_dir_all(&replacement).expect("replacement directory");
+        std::fs::write(replacement.join("kimi-code.json"), b"replacement-fixture")
+            .expect("replacement fixture");
+        let witnesses = path_component_witnesses(&credentials).expect("component witnesses");
+
+        std::fs::rename(&credentials, &original).expect("move witnessed directory");
+        std::os::unix::fs::symlink(&replacement, &credentials).expect("replace with symlink");
+        assert!(
+            !path_witnesses_unchanged(&witnesses),
+            "a replaced credentials component must not survive its identity witness"
         );
 
         let _ = std::fs::remove_dir_all(&root);
