@@ -81,12 +81,20 @@ mod tests {
     impl DynAgentBackend for CompletedBackend {
         fn run_agent_boxed(
             &self,
-            _request: HarnessRequest,
+            request: HarnessRequest,
         ) -> Pin<Box<dyn Future<Output = Result<HarnessEventStream, HarnessError>> + Send + '_>>
         {
+            assert_eq!(
+                request.requested_model.as_deref(),
+                Some("anthropic/claude-sonnet-4-6"),
+                "the envelope default rides to the harness request"
+            );
             Box::pin(async {
                 let event = HarnessEvent::Completed {
-                    outcome: Box::new(HarnessOutcome::new("harness route")),
+                    outcome: Box::new(
+                        HarnessOutcome::new("harness route")
+                            .with_observed_model("anthropic/claude-observed"),
+                    ),
                 };
                 Ok(Box::pin(futures_util::stream::iter([Ok(event)])) as HarnessEventStream)
             })
@@ -146,7 +154,7 @@ mod tests {
                 Arc::clone(&provider),
                 invoke,
                 Arc::new(MockToolDefinitionProvider::new()),
-                "openai/gpt-5",
+                "anthropic/claude-sonnet-4-6",
             )
             .with_harness_seat(seat),
             MockClock::new(),
@@ -157,7 +165,7 @@ mod tests {
             probe("claude-agent-acp", AccessClass::Harness, &["anthropic"]),
         ]);
         let wf = nika_schema::parse(
-            "nika: access-route\ntasks:\n  api:\n    agent: { model: openai/gpt-5, prompt: native }\n  harness:\n    agent: { model: anthropic/claude-sonnet-4-6, prompt: delegated }\n",
+            "nika: access-route\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  api:\n    agent: { model: openai/gpt-5, prompt: native }\n  harness:\n    agent: { prompt: delegated }\n",
             nika_schema::FileId::new(0),
             nika_schema::ParseMode::Strict,
         )
@@ -170,7 +178,7 @@ mod tests {
             .run(&wf, &report, &mut stamper, &mut sink)
             .await
             .map_err(|err| err.to_string())?;
-        assert!(outcome.ok);
+        assert!(outcome.ok, "terminal events: {:#?}", sink.events());
         assert_eq!(provider.captured_requests().len(), 1, "only api is native");
 
         let completed = |task: &str| {
@@ -190,11 +198,163 @@ mod tests {
             field(harness, "model").as_deref(),
             Some("anthropic/claude-sonnet-4-6")
         );
+        assert_eq!(
+            field(harness, "requested_model").as_deref(),
+            Some("anthropic/claude-sonnet-4-6")
+        );
+        assert_eq!(
+            field(harness, "observed_model").as_deref(),
+            Some("anthropic/claude-observed"),
+            "the harness observation never overwrites the requested model"
+        );
         assert_eq!(field(harness, "provider").as_deref(), Some("anthropic"));
         assert_eq!(field(harness, "access").as_deref(), Some("harness"));
         assert_eq!(field(harness, "billing").as_deref(), Some("unknown"));
         assert_eq!(
             field(harness, "adapter").as_deref(),
+            Some("claude-agent-acp")
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn a_templated_model_with_an_unsatisfied_pin_refuses_before_native_effects()
+    -> Result<(), String> {
+        let provider = Arc::new(MockProvider::new("mock").enqueue_text("must not run"));
+        let tools = Arc::new(MockToolExecutor::new());
+        let invoke = Arc::new(InvokeVerb::new(Arc::clone(&tools)));
+        let runtime = Runtime::new(
+            ExecVerb::new(Arc::new(MockShell::new())),
+            Arc::clone(&invoke),
+            InferVerb::new(
+                Arc::new(nika_providers::ProviderRegistry::without_http(
+                    nika_providers::ProvidersConfig::new(),
+                )),
+                "openai/gpt-5",
+            ),
+            AgentVerb::new(
+                Arc::clone(&provider),
+                invoke,
+                Arc::new(MockToolDefinitionProvider::new()),
+                "openai/gpt-5",
+            ),
+            MockClock::new(),
+            RuntimeConfig::default(),
+        )
+        .with_access_pin(Some("harness".to_owned()))
+        .with_access_probes(vec![probe("openai", AccessClass::Api, &[])]);
+        let wf = nika_schema::parse(
+            "nika: dynamic-access\ninputs:\n  wanted: { type: string, default: openai/gpt-5 }\ntasks:\n  denied:\n    agent: { model: \"${{ inputs.wanted }}\", prompt: never-run }\n",
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .map_err(|err| err.to_string())?;
+        let report = nika_check::check(&wf);
+        assert!(
+            report.is_clean(),
+            "templated model is judged at dispatch: {report:?}"
+        );
+        let mut stamper = DeterministicStamper::new();
+        let mut sink = VecSink::new();
+        let outcome = runtime
+            .run(&wf, &report, &mut stamper, &mut sink)
+            .await
+            .map_err(|err| err.to_string())?;
+        assert!(!outcome.ok, "the access refusal fails the task");
+        assert_eq!(
+            provider.captured_requests().len(),
+            0,
+            "a refused access plan performs zero native provider calls"
+        );
+        let failed = sink
+            .events()
+            .iter()
+            .find(|event| event.kind == EventKind::TaskFailed)
+            .ok_or_else(|| "the refused task has no terminal frame".to_owned())?;
+        assert_eq!(
+            field(failed, "requested_model").as_deref(),
+            Some("openai/gpt-5")
+        );
+        assert_eq!(field(failed, "provider").as_deref(), Some("openai"));
+        assert!(field(failed, "access").is_none(), "no path was selected");
+        Ok(())
+    }
+
+    struct RefusingBackend;
+
+    impl DynAgentBackend for RefusingBackend {
+        fn run_agent_boxed(
+            &self,
+            _request: HarnessRequest,
+        ) -> Pin<Box<dyn Future<Output = Result<HarnessEventStream, HarnessError>> + Send + '_>>
+        {
+            Box::pin(async {
+                Err(HarnessError::Refused {
+                    reason: "scripted refusal".to_owned(),
+                })
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn a_failed_harness_call_keeps_its_route_receipt() -> Result<(), String> {
+        let provider = Arc::new(MockProvider::new("mock"));
+        let tools = Arc::new(MockToolExecutor::new());
+        let invoke = Arc::new(InvokeVerb::new(Arc::clone(&tools)));
+        let seat =
+            HarnessSeat::new(Arc::new(RefusingBackend), "/tmp").with_access_id("claude-agent-acp");
+        let runtime = Runtime::new(
+            ExecVerb::new(Arc::new(MockShell::new())),
+            Arc::clone(&invoke),
+            InferVerb::new(
+                Arc::new(nika_providers::ProviderRegistry::without_http(
+                    nika_providers::ProvidersConfig::new(),
+                )),
+                "anthropic/claude-sonnet-4-6",
+            ),
+            AgentVerb::new(
+                provider,
+                invoke,
+                Arc::new(MockToolDefinitionProvider::new()),
+                "anthropic/claude-sonnet-4-6",
+            )
+            .with_harness_seat(seat),
+            MockClock::new(),
+            RuntimeConfig::default(),
+        )
+        .with_access_probes(vec![probe(
+            "claude-agent-acp",
+            AccessClass::Harness,
+            &["anthropic"],
+        )]);
+        let wf = nika_schema::parse(
+            "nika: failed-receipt\ntasks:\n  delegated:\n    agent: { model: anthropic/claude-sonnet-4-6, prompt: fail }\n",
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .map_err(|err| err.to_string())?;
+        let report = nika_check::check(&wf);
+        assert!(report.is_clean(), "fixture checks clean: {report:?}");
+        let mut stamper = DeterministicStamper::new();
+        let mut sink = VecSink::new();
+        let outcome = runtime
+            .run(&wf, &report, &mut stamper, &mut sink)
+            .await
+            .map_err(|err| err.to_string())?;
+        assert!(!outcome.ok);
+        let failed = sink
+            .events()
+            .iter()
+            .find(|event| event.kind == EventKind::TaskFailed)
+            .ok_or_else(|| "the failed harness task has no terminal frame".to_owned())?;
+        assert_eq!(
+            field(failed, "requested_model").as_deref(),
+            Some("anthropic/claude-sonnet-4-6")
+        );
+        assert_eq!(field(failed, "access").as_deref(), Some("harness"));
+        assert_eq!(field(failed, "billing").as_deref(), Some("unknown"));
+        assert_eq!(
+            field(failed, "adapter").as_deref(),
             Some("claude-agent-acp")
         );
         Ok(())

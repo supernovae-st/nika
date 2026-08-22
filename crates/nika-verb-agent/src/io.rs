@@ -120,13 +120,15 @@ pub struct AgentOutput {
     /// The model the loop resolved and ran (`provider/name`) — the
     /// pricing/attribution key. `None` on harness-built outputs.
     pub model_resolved: Option<String>,
+    /// The model identity the harness reported, when observable. This
+    /// never replaces the requested model carried by [`Self::access_plan`]:
+    /// both facts remain distinct in the execution receipt.
+    pub observed_model: Option<String>,
     /// The access plan that actually governed this execution.
     pub access_plan: Option<nika_types::access::AccessPlan>,
     /// The harness adapter that executed the task. `None` on the native
     /// provider loop (including when a seat was merely declared).
     pub adapter: Option<String>,
-    /// Opaque event bridge carrying the harness plan's receipt fields.
-    pub receipt_source: Option<String>,
 }
 
 impl AgentOutput {
@@ -147,9 +149,9 @@ impl AgentOutput {
             tools_cost_usd: None,
             usage: TokenUsage::default(),
             model_resolved: None,
+            observed_model: None,
             access_plan: None,
             adapter: None,
-            receipt_source: None,
         }
     }
 

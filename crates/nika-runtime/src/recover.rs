@@ -309,6 +309,7 @@ fn try_park(
             error: render_error,
             cost_usd: failed.cost_usd,
             cost_unpriced: failed.cost_unpriced,
+            access_receipt: failed.access_receipt.map(|receipt| *receipt),
         },
     };
     let settle = SettleAs::Ran(Box::new(ran));
@@ -464,8 +465,10 @@ fn resolve_parked(
         record,
         cost_usd,
         cost_unpriced,
+        access_receipt,
         evidence,
     } = failed;
+    let access_receipt = access_receipt.map(|receipt| *receipt);
     let result = match recover_template(scope.wf, task_index) {
         Some(template) => {
             let render_scope = Scope {
@@ -479,11 +482,14 @@ fn resolve_parked(
                 permits: None, // rendering performs no effect (no exec sink)
             };
             match expr::render_json(template, &render_scope) {
-                Ok(value) => RunResult::recovered(value, record, cost_usd, cost_unpriced),
+                Ok(value) => {
+                    RunResult::recovered(value, record, cost_usd, cost_unpriced, access_receipt)
+                }
                 Err(err) => RunResult::Failed {
                     error: runtime_error_record(&err),
                     cost_usd,
                     cost_unpriced,
+                    access_receipt,
                 },
             }
         }
@@ -493,6 +499,7 @@ fn resolve_parked(
             error: render_error,
             cost_usd,
             cost_unpriced,
+            access_receipt,
         },
     };
     let mut settled_as = SettleAs::Ran(Box::new(RanTask {

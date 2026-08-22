@@ -869,8 +869,8 @@ pub fn nika_verb_agent::AgentInput::as_any(&self) -> &(dyn core::any::Any + 'sta
 pub nika_verb_agent::AgentOutput::access_plan: core::option::Option<nika_types::access::AccessPlan>
 pub nika_verb_agent::AgentOutput::adapter: core::option::Option<alloc::string::String>
 pub nika_verb_agent::AgentOutput::model_resolved: core::option::Option<alloc::string::String>
+pub nika_verb_agent::AgentOutput::observed_model: core::option::Option<alloc::string::String>
 pub nika_verb_agent::AgentOutput::output: nika_verb_agent::AgentValue
-pub nika_verb_agent::AgentOutput::receipt_source: core::option::Option<alloc::string::String>
 pub nika_verb_agent::AgentOutput::stop_reason: nika_kernel_runtime::agent::AgentStopReason
 pub nika_verb_agent::AgentOutput::tools_cost_usd: core::option::Option<f64>
 pub nika_verb_agent::AgentOutput::total_tokens: u64

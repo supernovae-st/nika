@@ -362,17 +362,11 @@ where
                 });
             }
             let adapter = seated.to_owned();
-            let receipt_source = format!(
-                "{}\u{1e}{}\u{1f}{seated}",
-                plan.model,
-                plan.billing.as_str()
-            );
             return harness_path::run_on_harness(seat, input, observer)
                 .await
                 .map(|mut output| {
                     output.access_plan = access_plan;
                     output.adapter = Some(adapter);
-                    output.receipt_source = Some(receipt_source);
                     output
                 });
         }

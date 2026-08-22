@@ -388,13 +388,14 @@ pub(crate) fn settle_ran(
             cost_usd,
             cost_unpriced,
             model,
+            access_receipt,
         } => settle_success_terminal(
             id,
             &run.note,
             duration,
             (value, tokens, recovered_from, warning),
             child.as_deref(),
-            (cost_usd, cost_unpriced, model),
+            (cost_usd, cost_unpriced, model, access_receipt),
             attempts,
             resume,
             evidence.as_ref(),
@@ -406,10 +407,11 @@ pub(crate) fn settle_ran(
             error,
             cost_usd,
             cost_unpriced,
+            access_receipt,
         } => settle_skip_with_error(
             id,
             error,
-            (cost_usd, cost_unpriced),
+            (cost_usd, cost_unpriced, access_receipt.as_ref()),
             evidence.as_ref(),
             &mut record,
             stamper,
@@ -419,12 +421,13 @@ pub(crate) fn settle_ran(
             error,
             cost_usd,
             cost_unpriced,
+            access_receipt,
         } => settle_failed_terminal(
             id,
             &run.note,
             duration,
             error,
-            (cost_usd, cost_unpriced),
+            (cost_usd, cost_unpriced, access_receipt.as_ref()),
             attempts,
             evidence.as_ref(),
             &mut record,
@@ -494,12 +497,21 @@ fn settle_pending_backstop(
     stamper: &mut dyn Stamper,
     sink: &mut dyn EventSink,
 ) {
+    let crate::recover::PendingRecovery {
+        failed,
+        render_error,
+        ..
+    } = pending;
     settle_failed_terminal(
         id,
         note,
         duration,
-        pending.render_error,
-        (pending.failed.cost_usd, pending.failed.cost_unpriced),
+        render_error,
+        (
+            failed.cost_usd,
+            failed.cost_unpriced,
+            failed.access_receipt.as_deref(),
+        ),
         attempts,
         evidence,
         record,
@@ -532,10 +544,11 @@ fn settle_success_terminal(
         Option<String>,
     ),
     child: Option<&child::ChildRunSummary>,
-    (cost_usd, cost_unpriced, model): (
+    (cost_usd, cost_unpriced, model, access_receipt): (
         Option<f64>,
         Option<nika_types::cost::UnpricedReason>,
         Option<String>,
+        Option<crate::dispatch::AccessReceipt>,
     ),
     attempts: u32,
     resume: Option<&resume::ResumeStamp>,
@@ -563,6 +576,7 @@ fn settle_success_terminal(
         cost_usd,
         cost_unpriced,
         model.as_deref(),
+        access_receipt.as_ref(),
         warning.as_deref(),
         child,
         resume,
@@ -582,7 +596,11 @@ fn settle_failed_terminal(
     note: &str,
     duration: i64,
     error: TaskErrorRecord,
-    spend: (Option<f64>, Option<nika_types::cost::UnpricedReason>),
+    spend: (
+        Option<f64>,
+        Option<nika_types::cost::UnpricedReason>,
+        Option<&crate::dispatch::AccessReceipt>,
+    ),
     attempts: u32,
     evidence: Option<&crate::dispatch::commit::CommitEvidence>,
     record: &mut TaskRecord,
@@ -604,6 +622,9 @@ fn settle_failed_terminal(
         ("duration_ms", i(duration)),
     ];
     push_spend_fields(&mut fields, spend.0, spend.1);
+    if let Some(receipt) = spend.2 {
+        emit_task::push_access_fields(&mut fields, receipt);
+    }
     // F-P6 · a divergence refusal carries its finding HERE (never a warn);
     // a post-gate verb failure attests the fired ≡ judged digests.
     push_commit_fields(&mut fields, evidence);
@@ -622,7 +643,11 @@ fn settle_failed_terminal(
 fn settle_skip_with_error(
     id: &str,
     error: TaskErrorRecord,
-    spend: (Option<f64>, Option<nika_types::cost::UnpricedReason>),
+    spend: (
+        Option<f64>,
+        Option<nika_types::cost::UnpricedReason>,
+        Option<&crate::dispatch::AccessReceipt>,
+    ),
     evidence: Option<&crate::dispatch::commit::CommitEvidence>,
     record: &mut TaskRecord,
     stamper: &mut dyn Stamper,
@@ -638,6 +663,9 @@ fn settle_skip_with_error(
         ("detail", s(&detail)),
     ];
     push_spend_fields(&mut fields, spend.0, spend.1);
+    if let Some(receipt) = spend.2 {
+        emit_task::push_access_fields(&mut fields, receipt);
+    }
     // F-P6 · a skipped divergence refusal keeps its finding (never a warn).
     push_commit_fields(&mut fields, evidence);
     fields.push(("outcome", s(&record::outcome_json(record))));

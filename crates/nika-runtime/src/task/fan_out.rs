@@ -253,11 +253,13 @@ pub(super) fn fan_out_result(
             // the aggregate is N calls · per-iteration models stay
             // per-call — no single model names the fold
             model: None,
+            access_receipt: None,
         },
         Some(error) => RunResult::Failed {
             error,
             cost_usd,
             cost_unpriced,
+            access_receipt: None,
         },
     }
 }

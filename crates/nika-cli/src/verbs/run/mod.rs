@@ -671,8 +671,13 @@ fn composed_runtime(
     let envelope_model = wf.model.as_ref().map_or("", |m| m.value.as_str());
     let default_model = model_override.unwrap_or(envelope_model);
     let caps = capabilities_of(wf);
+    let access_probes = nika_cli_host::probe::access_probes_with_harness();
     // R-2 · the boot-manifest access stamps, composer-computed (P3 B5).
-    let boot_access = crate::verbs::check::models_rung::boot_access_fields(report, access_pin);
+    let boot_access = crate::verbs::check::models_rung::boot_access_fields_with_probes(
+        report,
+        access_pin,
+        &access_probes,
+    );
     // F-P3 · the run: declaration rides the SAME composition path (clock ·
     // jitter seed — the stamper half is picked at the drive site).
     match production_runtime(default_model, caps, wf.run.as_ref().map(|s| &s.value)) {
@@ -682,6 +687,8 @@ fn composed_runtime(
                 .with_child_runner(std::sync::Arc::new(child_runner::ProdChildRunner::new(
                     file,
                     !no_trace_file,
+                    access_pin.map(ToOwned::to_owned),
+                    access_probes.clone(),
                 )))
                 .with_var_overrides(overrides)
                 // F-P13 · the input origins (NEP-0014 law 2) — the boot
@@ -719,7 +726,7 @@ fn composed_runtime(
                 // D-2026-08-04-N1 · the `--access` pin: unsatisfied refuses BEFORE the prologue.
                 .with_access_pin(access_pin.map(ToOwned::to_owned))
                 .with_boot_access_fields(boot_access)
-                .with_access_probes(nika_cli_host::probe::access_probes_with_harness())
+                .with_access_probes(access_probes)
                 // The run's identity: the journal names the definition it
                 // recorded (sha256 of the exact bytes this composer read).
                 .with_source_sha256(sha256_hex(source.as_bytes()));

@@ -59,6 +59,7 @@ pub(crate) fn emit_completed(
     cost_usd: Option<f64>,
     cost_unpriced: Option<nika_types::cost::UnpricedReason>,
     model: Option<&str>,
+    access_receipt: Option<&crate::dispatch::AccessReceipt>,
     warning: Option<&str>,
     child: Option<&crate::child::ChildRunSummary>,
     resume: Option<&resume::ResumeStamp>,
@@ -75,56 +76,36 @@ pub(crate) fn emit_completed(
     if let Some(n) = tokens {
         fields.push(("tokens", i(n)));
     }
-    // Real spend rides next to the tokens it prices · absent = unpriced
-    // (mock · local) — the render layer already treats absent as honest.
+    // Real spend rides beside its tokens; absent stays honestly unpriced.
     if let Some(c) = cost_usd {
         fields.push(("cost_usd", FieldValue::Float(c)));
     }
-    // …and WHY it is absent (or partial), when it is — `unknown` is
-    // never masked: `local_model` · `mock_provider` ·
-    // `missing_catalog_price` · `provider_did_not_report_usage`.
+    // WHY spend is absent/partial; `unknown` is never masked (`local_model` ·
+    // `mock_provider` · `missing_catalog_price` · `provider_did_not_report_usage`).
     if let Some(reason) = cost_unpriced {
         fields.push(("cost_unpriced", s(reason.as_str())));
     }
-    // D-2026-08-04-N1 · access provenance. The note keeps its historical
-    // render; the harness receipt suffix stays inside this emission seam.
-    if let Some(m) = model {
-        let (m, billing, adapter) = m
-            .split_once('\u{1e}')
-            .and_then(|(model, receipt)| {
-                receipt
-                    .split_once('\u{1f}')
-                    .map(|(billing, adapter)| (model, Some(billing), Some(adapter)))
-            })
-            .unwrap_or((m, None, None));
+    // D-2026-08-04-N1 · agent access provenance is typed end-to-end;
+    // infer keeps the historical model-derived route.
+    if let Some(receipt) = access_receipt {
+        push_access_fields(&mut fields, receipt);
+    } else if let Some(m) = model {
         fields.push(("model", s(m)));
         if let Some((provider, _)) = m.split_once('/') {
             fields.push(("provider", s(provider)));
-            let access = adapter.map_or_else(
-                || nika_providers::profile::access_class_for(provider),
-                |_| nika_types::access::AccessClass::Harness,
-            );
+            let access = nika_providers::profile::access_class_for(provider);
             fields.push(("access", s(access.as_str())));
-            fields.push((
-                "billing",
-                s(billing.unwrap_or_else(|| access.default_billing().as_str())),
-            ));
-            if let Some(adapter) = adapter {
-                fields.push(("adapter", s(adapter)));
-            }
+            fields.push(("billing", s(access.default_billing().as_str())));
         }
     } else if cost_unpriced == Some(nika_types::cost::UnpricedReason::SubscriptionQuota) {
-        // P3 B7 · legacy harness outputs receipt harness + unknown billing,
-        // never a fake $0 before the adapter attests usage (P5).
+        // P3 B7 · legacy harness receipt, never fake $0 before attestation.
         fields.push(("access", s("harness")));
         fields.push((
             "billing",
             s(nika_types::access::BillingClass::Unknown.as_str()),
         ));
     }
-    // OBS-E · a non-fatal diagnostic rides the success frame as a
-    // `warning` field (the reasoning-model blank-answer footgun) · the
-    // task still completes.
+    // OBS-E · a non-fatal `warning` rides success; the task still completes.
     if let Some(msg) = warning {
         fields.push(("warning", s(msg)));
     }
@@ -155,4 +136,29 @@ pub(crate) fn emit_completed(
     // F-O1 · the additive integrity label (present only when untrusted).
     push_integrity_fields(&mut fields, record);
     emit(stamper, sink, EventKind::TaskCompleted, &fields)
+}
+
+/// Add one access receipt to a terminal frame. Success and failure use
+/// this same writer, so a dying harness call cannot erase its selected
+/// route. The requested and observed model identities never overwrite one
+/// another; `model` remains the compatible requested-model projection.
+pub(crate) fn push_access_fields(
+    fields: &mut Vec<(&'static str, FieldValue)>,
+    receipt: &crate::dispatch::AccessReceipt,
+) {
+    fields.push(("model", s(&receipt.requested_model)));
+    fields.push(("requested_model", s(&receipt.requested_model)));
+    fields.push(("provider", s(&receipt.provider)));
+    if let Some(observed) = &receipt.observed_model {
+        fields.push(("observed_model", s(observed)));
+    }
+    if let Some(access) = receipt.access {
+        fields.push(("access", s(access.as_str())));
+    }
+    if let Some(billing) = receipt.billing {
+        fields.push(("billing", s(billing.as_str())));
+    }
+    if let Some(adapter) = &receipt.adapter {
+        fields.push(("adapter", s(adapter)));
+    }
 }

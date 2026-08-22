@@ -18,6 +18,7 @@ impl crate::task::RunResult {
         original: TaskErrorRecord,
         cost_usd: Option<f64>,
         cost_unpriced: Option<nika_types::cost::UnpricedReason>,
+        access_receipt: Option<crate::dispatch::AccessReceipt>,
     ) -> Self {
         Self::Success {
             value,
@@ -28,6 +29,7 @@ impl crate::task::RunResult {
             cost_usd,
             cost_unpriced,
             model: None,
+            access_receipt,
         }
     }
 }
@@ -39,6 +41,7 @@ pub(crate) struct FailedOutcome {
     pub record: TaskErrorRecord,
     pub cost_usd: Option<f64>,
     pub cost_unpriced: Option<nika_types::cost::UnpricedReason>,
+    pub access_receipt: Option<Box<crate::dispatch::AccessReceipt>>,
     /// F-P6 · the commit gate's binding evidence (`Fired` — a verb error
     /// after a passed gate · `Refused` — the finding; never transient).
     pub evidence: Option<crate::dispatch::commit::CommitEvidence>,
@@ -49,12 +52,14 @@ impl FailedOutcome {
         record: TaskErrorRecord,
         cost_usd: Option<f64>,
         cost_unpriced: Option<nika_types::cost::UnpricedReason>,
+        access_receipt: Option<crate::dispatch::AccessReceipt>,
         evidence: Option<crate::dispatch::commit::CommitEvidence>,
     ) -> Self {
         Self {
             record,
             cost_usd,
             cost_unpriced,
+            access_receipt: access_receipt.map(Box::new),
             evidence,
         }
     }

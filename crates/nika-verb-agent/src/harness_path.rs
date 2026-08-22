@@ -219,6 +219,7 @@ fn gate_label(facts: &HarnessAskFacts) -> String {
 /// model; an observed identity is the trace's fact, never reconciled
 /// here (A-2/A-7).
 fn completed_output(outcome: nika_kernel::ai::harness::HarnessOutcome) -> AgentOutput {
+    let observed_model = outcome.observed_model.clone();
     let mut out = AgentOutput::new(
         AgentValue::Text(outcome.output.clone()),
         AgentStopReason::Completed,
@@ -231,6 +232,7 @@ fn completed_output(outcome: nika_kernel::ai::harness::HarnessOutcome) -> AgentO
     if let Some(usage) = outcome.usage {
         out.usage = usage;
     }
+    out.observed_model = observed_model;
     out
 }
 

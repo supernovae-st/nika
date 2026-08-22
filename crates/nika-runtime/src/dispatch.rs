@@ -28,12 +28,14 @@ use serde_json::Value;
 use crate::Runtime;
 use crate::errors::RuntimeError;
 
+mod access;
 pub(crate) mod commit;
 mod exec_io;
 mod permits;
 mod regate;
 use crate::expr::{self, Scope};
 use crate::record::TaskErrorRecord;
+pub(crate) use access::AccessReceipt;
 use exec_io::{build_exec_input, capture_mode, render_exec_io};
 
 /// One dispatch's outcome — the display note + value-or-error.
@@ -59,6 +61,8 @@ pub(crate) struct FailedDispatch {
     pub cost_source: Option<String>,
     /// Why (part of) the incurred spend is NOT in `cost_usd`.
     pub cost_unpriced: Option<UnpricedReason>,
+    /// The selected access route (or requested route on total refusal).
+    pub access_receipt: Option<AccessReceipt>,
     /// F-P6 · the commit gate's binding evidence — `Fired` when the
     /// failure fired AFTER a passed gate (the judged bytes DID fire) ·
     /// `Refused` when the gate refused the fire (the finding). One field,
@@ -75,6 +79,7 @@ impl FailedDispatch {
             cost_usd: None,
             cost_source: None,
             cost_unpriced: None,
+            access_receipt: None,
             evidence: None,
         }
     }
@@ -126,6 +131,8 @@ pub(crate) struct DispatchOk {
     /// Why (part of) this leaf's spend is NOT in `cost_usd` — the
     /// honest-absence WHY channel (`cost_unpriced` on the trace frame).
     pub cost_unpriced: Option<UnpricedReason>,
+    /// The selected access route, independent from cost attribution.
+    pub access_receipt: Option<AccessReceipt>,
     /// F-P6 · the binding evidence of a FIRED exec/invoke step (the
     /// judged digest ≡ the fired digest) — `None` for the un-gated verbs
     /// (infer · agent) and for a `workflow:` call (the child's own trace
@@ -162,6 +169,7 @@ impl Dispatched {
                 cost_usd: None,
                 cost_source: None,
                 cost_unpriced: None,
+                access_receipt: None,
                 commit: None,
             }),
         }
@@ -188,6 +196,7 @@ impl Dispatched {
                 cost_usd,
                 cost_source,
                 cost_unpriced,
+                access_receipt: None,
                 commit: None,
             }),
         }
@@ -216,6 +225,7 @@ impl Dispatched {
         note: String,
         err: &dyn NikaErrorCode,
         spend: (Option<f64>, Option<String>, Option<UnpricedReason>),
+        access_receipt: Option<AccessReceipt>,
     ) -> Self {
         let (cost_usd, cost_source, cost_unpriced) = spend;
         Self {
@@ -229,6 +239,7 @@ impl Dispatched {
                 cost_usd,
                 cost_source,
                 cost_unpriced,
+                access_receipt,
                 evidence: None,
             }),
         }
@@ -761,7 +772,7 @@ where
             }
             Err(err) => {
                 let spend = price_failed_spend(err.spend());
-                Dispatched::verb_err_spent("infer · ?".to_owned(), &err, spend)
+                Dispatched::verb_err_spent("infer · ?".to_owned(), &err, spend, None)
             }
         }
     }
@@ -791,35 +802,44 @@ where
             Ok(v) => v,
             Err(err) => return Dispatched::template_err("agent · ?", &err),
         };
-        // `skills:` — the composer-resolved Agent Skill texts join the
-        // system context as ONE `## Skills` section (spec 02 §agent skills).
+        // `skills:` join the system context as one `## Skills` section.
         if !action.skills.is_empty() {
             match self.skill_docs(action) {
                 Ok(docs) => input.system = Some(system_with_skills(input.system.take(), &docs)),
                 Err(refused) => return *refused,
             }
         }
-        // `model:` — the SAME render seam as infer's (#824 · one law).
         input.model = match render_opt(action.model.as_ref(), scope) {
             Ok(v) => v,
             Err(err) => return Dispatched::template_err("agent · ?", &err),
         };
-        let model = self.agent.effective_model(&input);
-        let candidates =
-            nika_providers::candidates_for(&self.access_probes, nika_providers::provider_of(model));
-        input.access_plan =
-            nika_providers::resolve_access(model, &candidates, None, self.access_pin.as_deref())
-                .ok();
+        let model = self.agent.effective_model(&input).to_owned();
+        let candidates = nika_providers::candidates_for(
+            &self.access_probes,
+            nika_providers::provider_of(&model),
+        );
+        let access_plan = match nika_providers::resolve_access(
+            &model,
+            &candidates,
+            None,
+            self.access_pin.as_deref(),
+        ) {
+            Ok(plan) => plan,
+            Err(refusal) => return Dispatched::access_refused("agent · ?", &refusal),
+        };
+        let planned_receipt = AccessReceipt::planned(&access_plan);
+        // The harness request must carry the effective model even when it
+        // came from the workflow envelope rather than a per-task override.
+        input.model = Some(model);
+        input.access_plan = Some(access_plan);
         input.tools = action.tools.iter().map(|t| t.value.clone()).collect();
         Self::bridge_inputs(&mut input, scope, ctx);
         input.max_turns = action.max_turns.as_ref().map(|t| t.value);
         input.max_tokens_total = action.max_tokens_total.as_ref().map(|t| t.value);
         input.temperature = temp_f32(action.temperature.as_ref());
         input.schema = task_schema(action.schema.as_ref(), contract);
-        // The buffer is the CALLER's (per task-attempt-loop · still
-        // per-dispatch-isolated since a wave's tasks each own one):
-        // owning it here would put it inside the timeout-cancellable
-        // region and lose a timed-out attempt's telemetry (review F1).
+        // The caller owns the per-task buffer outside the cancellable
+        // region, preserving a timed-out attempt's telemetry (review F1).
         let ran = self.agent.run_observed(input, agent_buffer).await;
         match ran {
             Ok(out) => {
@@ -853,19 +873,30 @@ where
                     (None, None) => None,
                     (llm, tools) => Some(llm.unwrap_or(0.0) + tools.unwrap_or(0.0)),
                 };
-                Dispatched::ok_metered(
+                let mut receipt = planned_receipt;
+                receipt.observed_model = out.observed_model.or_else(|| out.model_resolved.clone());
+                let mut dispatched = Dispatched::ok_metered(
                     note,
                     value,
                     tokens,
                     None,
                     cost_usd,
-                    out.receipt_source.or_else(|| out.model_resolved.clone()),
+                    out.model_resolved.clone(),
                     llm_unpriced,
-                )
+                );
+                if let Ok(ok) = &mut dispatched.result {
+                    ok.access_receipt = Some(receipt);
+                }
+                dispatched
             }
             Err(err) => {
                 let spend = price_failed_spend(err.spend());
-                Dispatched::verb_err_spent("agent · ?".to_owned(), &err, spend)
+                Dispatched::verb_err_spent(
+                    "agent · ?".to_owned(),
+                    &err,
+                    spend,
+                    Some(planned_receipt),
+                )
             }
         }
     }

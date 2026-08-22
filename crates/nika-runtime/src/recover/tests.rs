@@ -353,6 +353,7 @@ fn undeclared_awaited_root_fails_fast_at_the_park_site() {
             record: error("NIKA-EXEC-001", "exit 1"),
             cost_usd: None,
             cost_unpriced: None,
+            access_receipt: None,
             evidence: None,
         },
         render_error: error("NIKA-VAR-001", "unresolved reference `tasks.ghost.output`"),

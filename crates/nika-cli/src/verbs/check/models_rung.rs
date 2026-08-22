@@ -53,9 +53,13 @@ pub(crate) fn access_decisions(
 /// runtime journals the fields verbatim (`with_boot_access_fields` ·
 /// the F-P13 composer-derives-runtime-journals posture). A model the
 /// resolver refuses is absent from the plan — never a guessed row.
-pub(crate) fn boot_access_fields(
+/// The injected-probe half used by composition. A child inherits the
+/// parent's frozen machine view rather than probing a second, potentially
+/// different route set between the parent and child admissions.
+pub(crate) fn boot_access_fields_with_probes(
     report: &nika_check::CheckReport,
     access_pin: Option<&str>,
+    probes: &[nika_providers::probe::ProviderProbe],
 ) -> Vec<(&'static str, nika_types::resource::Value)> {
     use nika_types::resource::Value as FieldValue;
     let mut fields = Vec::new();
@@ -68,10 +72,8 @@ pub(crate) fn boot_access_fields(
         .iter()
         .map(|m| m.model.clone())
         .collect();
-    // P3 B6 · one channel (provider + harness rows, feature-on).
-    let probes = nika_cli_host::probe::access_probes_with_harness();
     let plan: serde_json::Map<String, serde_json::Value> =
-        nika_providers::access_plan_map(&models, &probes, access_pin)
+        nika_providers::access_plan_map(&models, probes, access_pin)
             .into_iter()
             .map(|(model, plan)| {
                 (

@@ -49,13 +49,27 @@ pub(crate) struct ProdChildRunner {
     parent_path: PathBuf,
     /// Whether child runs keep trace files (`--no-trace-file` inherits).
     trace: bool,
+    /// The parent's explicit route constraint. Composition does not widen
+    /// access authority: every descendant resolves under the same pin.
+    access_pin: Option<String>,
+    /// The parent composer's harness-aware machine view. Reusing this
+    /// frozen probe set prevents child runs from silently falling back to
+    /// the provider-only probes inside `production_runtime`.
+    access_probes: Vec<nika_providers::probe::ProviderProbe>,
 }
 
 impl ProdChildRunner {
-    pub(crate) fn new(parent_path: impl Into<PathBuf>, trace: bool) -> Self {
+    pub(crate) fn new(
+        parent_path: impl Into<PathBuf>,
+        trace: bool,
+        access_pin: Option<String>,
+        access_probes: Vec<nika_providers::probe::ProviderProbe>,
+    ) -> Self {
         Self {
             parent_path: parent_path.into(),
             trace,
+            access_pin,
+            access_probes,
         }
     }
 
@@ -283,6 +297,11 @@ impl ChildRunner for ProdChildRunner {
                 permits_declared: wf.permits.is_some() || call.parent_permits.is_some(),
             };
             let model = wf.model.as_ref().map_or("", |m| m.value.as_str());
+            let boot_access = crate::verbs::check::models_rung::boot_access_fields_with_probes(
+                &report,
+                self.access_pin.as_deref(),
+                &self.access_probes,
+            );
             // F-P3 · the CHILD's own run: declaration governs its seams
             // (one run = one clock · each file declares for itself).
             let runtime = nika_runtime::compose::production_runtime(
@@ -298,8 +317,16 @@ impl ChildRunner for ProdChildRunner {
             // depth rides to the child so ITS dispatch gate sees the
             // truth (NIKA-SEC-003 · fail-closed).
             .with_run_depth(call.depth)
+            .with_access_pin(self.access_pin.clone())
+            .with_boot_access_fields(boot_access)
+            .with_access_probes(self.access_probes.clone())
             // grandchildren resolve against the CHILD's path.
-            .with_child_runner(Arc::new(ProdChildRunner::new(&path, self.trace)));
+            .with_child_runner(Arc::new(ProdChildRunner::new(
+                &path,
+                self.trace,
+                self.access_pin.clone(),
+                self.access_probes.clone(),
+            )));
             let mut sink = if self.trace {
                 TraceFileSink::new(nika_dap::store::TRACE_DIR)
             } else {
@@ -352,6 +379,29 @@ mod tests {
     //! not supposed).
     use super::*;
 
+    #[cfg(feature = "access-harness")]
+    fn harness_probe(id: &str, provider: &str) -> nika_providers::probe::ProviderProbe {
+        use nika_providers::probe::{ExecutionLocus, ProviderReadiness};
+        nika_providers::probe::ProviderProbe::new(
+            id,
+            false,
+            true,
+            "",
+            false,
+            ProviderReadiness::new(
+                true,
+                true,
+                None,
+                None,
+                false,
+                ExecutionLocus::Loopback,
+                nika_types::access::AccessClass::Harness,
+            ),
+            "",
+        )
+        .with_serves(vec![provider.to_owned()])
+    }
+
     #[test]
     fn absent_parent_caps_every_child_at_zero() {
         // (None, None) — the pre-F-O8 « no wall » arm: now the EMPTY
@@ -381,5 +431,51 @@ mod tests {
         // (Some, Some) — unchanged: the meet.
         let eff = effective_permits(Some(&child), Some(&parent));
         assert!(eff.allows_exec(), "both declare exec → the meet keeps it");
+    }
+
+    /// A composed workflow resolves against the same harness-aware rows as
+    /// its parent. With no actual seat configured, it therefore reaches the
+    /// selected-harness refusal; it must not be reclassified against the
+    /// provider-only probes (or fall through to a native API call).
+    #[cfg(feature = "access-harness")]
+    #[tokio::test]
+    async fn child_invoke_inherits_the_parent_access_resolution() {
+        let dir = tempfile::tempdir().expect("temp dir");
+        let parent = dir.path().join("parent.nika.yaml");
+        let child = dir.path().join("child.nika.yaml");
+        std::fs::write(&parent, "nika: parent\ntasks: {}\n").expect("parent fixture");
+        std::fs::write(
+            &child,
+            "nika: child\ntasks:\n  delegated:\n    agent: { model: anthropic/claude-sonnet-4-6, prompt: child }\n",
+        )
+        .expect("child fixture");
+        let runner = ProdChildRunner::new(
+            &parent,
+            false,
+            Some("harness".to_owned()),
+            vec![harness_probe("claude-agent-acp", "anthropic")],
+        );
+        let outcome = runner
+            .run_child(ChildCall {
+                target: "child.nika.yaml".to_owned(),
+                args: BTreeMap::new(),
+                depth: 1,
+                remaining_budget_usd: None,
+                deadline: None,
+                parent_permits: Some(Permits::new()),
+            })
+            .await
+            .expect("the child runner returns a settled outcome");
+        assert!(!outcome.ok, "no real harness seat is configured");
+        let (code, message) = outcome.failure.expect("the child failure is surfaced");
+        assert_ne!(
+            code, "NIKA-1801",
+            "the harness-aware probe survives composition"
+        );
+        assert!(
+            message.contains("AccessPlan chose harness adapter `claude-agent-acp`")
+                && message.contains("no harness seat is available"),
+            "the child selected the inherited harness route before refusing: {message}"
+        );
     }
 }

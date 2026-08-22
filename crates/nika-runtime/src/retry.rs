@@ -175,6 +175,7 @@ where
         // F-P6 · the binding evidence is lifted BEFORE the spend fold
         // consumes the dispatch (a divergence is never transient).
         let evidence = failed.evidence.clone();
+        let access_receipt = failed.access_receipt.clone();
         // Debits PER ATTEMPT — a retry storm is never invisible.
         let error = failed.debit_and_fold(ledger, failed_cost, failed_unpriced);
         // Retry iff attempts remain AND the policy admits (spec 05).
@@ -183,6 +184,7 @@ where
                 error,
                 *failed_cost,
                 *failed_unpriced,
+                access_receipt,
                 evidence,
             ));
         };

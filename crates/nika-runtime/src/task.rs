@@ -270,6 +270,10 @@ pub(crate) enum RunResult {
         /// the note-string parse. `None` on verbs that name no model
         /// (exec · invoke) and on recovered author-supplied values.
         model: Option<String>,
+        /// The execution access receipt. Unlike `model` (the ledger's
+        /// attribution key), this preserves requested and observed model
+        /// identities plus the chosen access route.
+        access_receipt: Option<crate::dispatch::AccessReceipt>,
     },
     /// `on_error: skip` — skipped with the original error readable
     /// (spec 05 · the one coexist state). The billed-then-skipped spend
@@ -278,6 +282,7 @@ pub(crate) enum RunResult {
         error: TaskErrorRecord,
         cost_usd: Option<f64>,
         cost_unpriced: Option<nika_types::cost::UnpricedReason>,
+        access_receipt: Option<crate::dispatch::AccessReceipt>,
     },
     /// Failed after retries with no recovery — with the spend the
     /// billed attempts incurred (already ledger-debited per attempt).
@@ -285,6 +290,7 @@ pub(crate) enum RunResult {
         error: TaskErrorRecord,
         cost_usd: Option<f64>,
         cost_unpriced: Option<nika_types::cost::UnpricedReason>,
+        access_receipt: Option<crate::dispatch::AccessReceipt>,
     },
     /// `on_error: recover` whose reference awaits not-yet-terminal
     /// referents (spec 05 §recover step 3 · a recover ref is NOT an
@@ -749,6 +755,7 @@ where
                         error: runtime_error_record(&err),
                         cost_usd: None,
                         cost_unpriced: None,
+                        access_receipt: None,
                     },
                 };
             }
@@ -926,6 +933,7 @@ where
                             // timeout-cancellation class).
                             cost_usd: None,
                             cost_unpriced: None,
+                            access_receipt: None,
                             // The dropped attempt's binding evidence dies
                             // with it (futures-cancellation — the gate
                             // verdict was never journaled either).
@@ -1125,18 +1133,20 @@ fn replace_success_with_failure(settle: &mut SettleAs, error: TaskErrorRecord) {
         SettleAs::Ran(ran) if matches!(ran.result, RunResult::Success { .. }) => {
             // The dispatch DID run and may have billed — its spend stays
             // on the failed frame (the binding failure is downstream).
-            let (cost_usd, cost_unpriced) = match &ran.result {
+            let (cost_usd, cost_unpriced, access_receipt) = match &ran.result {
                 RunResult::Success {
                     cost_usd,
                     cost_unpriced,
+                    access_receipt,
                     ..
-                } => (*cost_usd, *cost_unpriced),
-                _ => (None, None),
+                } => (*cost_usd, *cost_unpriced, access_receipt.clone()),
+                _ => (None, None, None),
             };
             ran.result = RunResult::Failed {
                 error,
                 cost_usd,
                 cost_unpriced,
+                access_receipt,
             };
         }
         // A binding that fails over a REHYDRATED output fails the task
@@ -1292,6 +1302,7 @@ fn dispatch_result(
             cost_usd,
             cost_source,
             cost_unpriced,
+            access_receipt,
             commit: _,
         }) => RunResult::Success {
             value,
@@ -1304,6 +1315,7 @@ fn dispatch_result(
             // The by-source key IS the resolved model (`provider/name`)
             // — the same fact, now a structured frame field too.
             model: cost_source,
+            access_receipt,
         },
         Err(failed) => apply_on_error(task, scope, failed),
     };
@@ -1316,13 +1328,16 @@ fn apply_on_error(task: &RawTask, scope: &Scope<'_>, failed: FailedOutcome) -> R
         record: error,
         cost_usd,
         cost_unpriced,
+        access_receipt,
         evidence,
     } = failed;
+    let access_receipt = access_receipt.map(|receipt| *receipt);
     let Some(on_error) = task.on_error.as_ref() else {
         return RunResult::Failed {
             error,
             cost_usd,
             cost_unpriced,
+            access_receipt,
         };
     };
     if !on_error_applies(&on_error.value, &error) {
@@ -1331,11 +1346,14 @@ fn apply_on_error(task: &RawTask, scope: &Scope<'_>, failed: FailedOutcome) -> R
             error,
             cost_usd,
             cost_unpriced,
+            access_receipt,
         };
     }
     match &on_error.value.action {
         OnErrorAction::Recover(value) => match expr::render_json(&value.value, scope) {
-            Ok(recovered) => RunResult::recovered(recovered, error, cost_usd, cost_unpriced),
+            Ok(recovered) => {
+                RunResult::recovered(recovered, error, cost_usd, cost_unpriced, access_receipt)
+            }
             // A render failure explained ONLY by not-yet-terminal task
             // referents AWAITS them (spec 05 §recover step 3 · a recover
             // ref is not an edge): the settle spine decides the outcome
@@ -1348,7 +1366,13 @@ fn apply_on_error(task: &RawTask, scope: &Scope<'_>, failed: FailedOutcome) -> R
                         RunResult::PendingRecovery(Box::new(crate::recover::PendingRecovery {
                             // F-P6 · the evidence parks WITH the failure —
                             // a recovered divergence keeps its finding.
-                            failed: FailedOutcome::new(error, cost_usd, cost_unpriced, evidence),
+                            failed: FailedOutcome::new(
+                                error,
+                                cost_usd,
+                                cost_unpriced,
+                                access_receipt,
+                                evidence,
+                            ),
                             render_error,
                             awaiting,
                             with_ns: scope.with_ns.cloned().unwrap_or_default(),
@@ -1358,6 +1382,7 @@ fn apply_on_error(task: &RawTask, scope: &Scope<'_>, failed: FailedOutcome) -> R
                         error: render_error,
                         cost_usd,
                         cost_unpriced,
+                        access_receipt,
                     },
                 }
             }
@@ -1366,6 +1391,7 @@ fn apply_on_error(task: &RawTask, scope: &Scope<'_>, failed: FailedOutcome) -> R
             error,
             cost_usd,
             cost_unpriced,
+            access_receipt,
         },
         // #[non_exhaustive] · refuse loudly.
         other => RunResult::Failed {
@@ -1376,6 +1402,7 @@ fn apply_on_error(task: &RawTask, scope: &Scope<'_>, failed: FailedOutcome) -> R
             },
             cost_usd,
             cost_unpriced,
+            access_receipt,
         },
     }
 }

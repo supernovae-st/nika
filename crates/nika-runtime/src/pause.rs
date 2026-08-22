@@ -274,6 +274,7 @@ mod tests {
                     },
                     cost_usd: None,
                     cost_unpriced: None,
+                    access_receipt: None,
                 },
             })),
             named: BTreeMap::new(),
