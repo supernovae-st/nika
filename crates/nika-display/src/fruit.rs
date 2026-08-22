@@ -114,6 +114,15 @@ pub fn last_said(view: &RunView) -> Option<(&str, &str)> {
     })
 }
 
+/// A completed run that repaired at least one task. Exit 0 is still
+/// correct (recovered is a success cause); the first-glance glyph is
+/// not. Persona 14 · gauntlet g2 on 81c1138f: `--quiet` printed `✔`
+/// and `trace ls` said `completed`.
+#[must_use]
+pub fn recovered_ok(view: &RunView) -> bool {
+    view.verdict == Some(true) && view.recovered_count() > 0
+}
+
 /// Every model the stream named is a mock — the run was a REHEARSAL and
 /// the closing surface must say so (Zoe and Ben read the echo as the
 /// product). `false` when no model spoke at all (nothing to announce).
@@ -533,6 +542,26 @@ mod tests {
             &[("task", "solo"), ("output", "\"hi\"")],
         ));
         assert_eq!(inputs_all_recovered(&bare), None);
+    }
+
+    #[test]
+    fn recovered_ok_is_completed_with_a_repair() {
+        let mut view = RunView::new();
+        for e in demo::recovered() {
+            view.apply(&e);
+        }
+        assert_eq!(view.verdict, Some(true));
+        assert!(recovered_ok(&view));
+        let mut clean = RunView::new();
+        for e in demo::success() {
+            clean.apply(&e);
+        }
+        assert!(!recovered_ok(&clean));
+        let mut failed = RunView::new();
+        for e in demo::failure() {
+            failed.apply(&e);
+        }
+        assert!(!recovered_ok(&failed));
     }
 
     /// The caution set: ask-back fires with the task named · an empty

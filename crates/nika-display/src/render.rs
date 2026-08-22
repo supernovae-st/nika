@@ -601,6 +601,11 @@ fn duration_cell(theme: &Theme, time: Option<&str>, time_w: usize) -> String {
 pub fn verdict_frame(view: &RunView, theme: &Theme) -> Vec<String> {
     let mut lines = Vec::with_capacity(4);
     let glyph = match view.verdict {
+        Some(true) if crate::fruit::recovered_ok(view) => {
+            // Recovered is a success cause (exit 0) but not an unblemished
+            // tick — persona 14 grepped the quiet headline and saw ✔.
+            theme.paint(Role::Warn, if theme.ascii { "! " } else { "⚠ " })
+        }
         Some(true) => theme.glyph(TaskState::Ok, 0),
         Some(false) => theme.glyph(TaskState::Failed, 0),
         None => theme.glyph(TaskState::Pending, 0),

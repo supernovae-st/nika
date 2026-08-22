@@ -379,6 +379,32 @@ fn verdict_frame_ascii_theme() {
     assert!(lines[0].starts_with("  ok veille-news · "), "{}", lines[0]);
 }
 
+/// Persona 14 · gauntlet g2: `--quiet` on a recovered run printed `✔`
+/// (exit 0, which is correct) so the first glance looked like success.
+#[test]
+fn verdict_frame_recovered_is_not_a_green_tick() {
+    let view = fold(&demo::recovered());
+    assert_eq!(view.verdict, Some(true));
+    assert!(crate::fruit::recovered_ok(&view));
+    let uni = verdict_frame(&view, &UNICODE);
+    assert!(
+        uni[0].starts_with("  ⚠  recovered ·"),
+        "quiet headline names the repair: {}",
+        uni[0]
+    );
+    assert!(
+        !uni[0].contains('✔'),
+        "a recovered success is not a green tick: {}",
+        uni[0]
+    );
+    let ascii = verdict_frame(&view, &ASCII);
+    assert!(
+        ascii[0].starts_with("  !  recovered ·"),
+        "ascii twin: {}",
+        ascii[0]
+    );
+}
+
 /// The verdict line carries elapsed time as SECONDS (`ms / 1000`): a
 /// mutated divisor (`* 1000` → `4_700_000s` · `% 1000` → `700s`) renders a
 /// wildly wrong duration, so the exact `4.7s` pins the conversion.
