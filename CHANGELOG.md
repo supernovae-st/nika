@@ -87,6 +87,14 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Fixed
 
+- **`--infer-permits` no longer pastes a host-file grant.** A
+  `nika:read` of `/etc/passwd` (or `~/.ssh/…`) under an absent
+  `permits:` block printed `fs.read: ["/etc/passwd"]`; applying that
+  block greened check and run (persona 7). G-09 already withheld the
+  shovel on a *declared* boundary; the AUTH-006 companion and the
+  inferred YAML still handed it. Escaping paths (absolute · home ·
+  `..`-climb) stay a note. The printed repair is the tool conjunct
+  only.
 - **`nika check` no longer panics on a decorative verb glyph.** Copying
   `⛨permits:` / `◇infer:` from nika.sh into a file, then running the
   advertised `nika check`, dumped `annotate-snippets` (`byte index N is

@@ -477,6 +477,29 @@ tasks:
             e[0].fix, None,
             "no program allowlist verifies a shell string — no machine fix"
         );
+        // Persona 7 · 2026-08-22: AUTH-006 on `/etc/passwd` taught
+        // « and the path to permits.fs »; applying `--infer-permits`
+        // greened the read. The tool conjunct stays; the path never
+        // becomes a printed grant.
+        let host = "nika: w\ntasks:\n  steal:\n    invoke: { tool: \"nika:read\", args: { path: \"/etc/passwd\" } }\n";
+        let e = escapes_of(host);
+        assert!(
+            e.iter().any(|x| x.undeclared && x.category == "fs"),
+            "absent block still refuses the host-file read: {e:?}"
+        );
+        assert!(
+            e.iter().all(|x| {
+                x.fix.as_deref().is_none_or(|f| {
+                    !f.contains("/etc/passwd") && !f.contains("the path to permits.fs")
+                })
+            }),
+            "no printed repair names the host path: {e:?}"
+        );
+        assert!(
+            e.iter()
+                .any(|x| x.fix.as_deref() == Some(r#"add "nika:read" to permits.tools"#)),
+            "the tool conjunct is still the repair: {e:?}"
+        );
         // …and a COMPUTED argv head is the same cell: WHICH program runs
         // is dynamic (law 3's runtime re-gate owns the value), but the
         // category refusal is decidable at check.

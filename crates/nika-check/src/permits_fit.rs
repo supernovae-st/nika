@@ -354,20 +354,45 @@ fn absent_effect_escape(
                 undeclared: false,
             });
         }
-        Some(BuiltinEffect::Fs { path_arg, .. }) => {
-            if judgeable_arg(consts, a, path_arg).is_none() {
+        Some(BuiltinEffect::Fs {
+            path_arg,
+            walk_root,
+            ..
+        }) => {
+            let Some(raw) = judgeable_arg(consts, a, path_arg) else {
                 escapes_tool(id, "invoke", tool, out); // the decidable conjunct
                 return;
-            }
+            };
+            let path = if walk_root {
+                nika_cap::glob_walk_root(&raw)
+            } else {
+                raw
+            };
+            // G-09 (declared boundary) already withholds the grant-this-path
+            // shovel for a workspace escape. The ABSENT-block AUTH-006
+            // companion still said « and the path to permits.fs », and
+            // `--infer-permits` wrote `/etc/passwd` into the paste block
+            // (persona 7 · 2026-08-22 · applying the printed repair
+            // greened a host-file read). The tool conjunct stays; the
+            // path never does.
+            let escaping = path_escapes_workspace(&path);
             out.push(CapabilityEscape {
                 task: id.to_owned(),
                 category: "fs",
-                detail: format!(
-                    "invoke `{tool}` with a literal path under an absent `permits:` block"
-                ),
-                fix: Some(format!(
-                    "add \"{tool}\" to permits.tools and the path to permits.fs"
-                )),
+                detail: if escaping {
+                    format!(
+                        "invoke `{tool}` with a literal path under an absent `permits:` \
+                         block — `{path}` escapes the workspace, so the repair is never \
+                         a grant of that path"
+                    )
+                } else {
+                    format!("invoke `{tool}` with a literal path under an absent `permits:` block")
+                },
+                fix: Some(if escaping {
+                    format!("add \"{tool}\" to permits.tools")
+                } else {
+                    format!("add \"{tool}\" to permits.tools and the path to permits.fs")
+                }),
                 floor: false,
                 undeclared: false,
             });
@@ -747,12 +772,18 @@ fn fs_escape(
     }
 }
 
-/// Lexically, does the path leave the workflow's root? Absolute paths
-/// and `..`-traversals that climb past the anchor do; `a/../b` does
-/// not. Purely textual (the check has no filesystem) — symlink escapes
-/// stay the runtime gate's, as the PERMITS verdict already states.
-fn path_escapes_workspace(path: &str) -> bool {
-    if path.starts_with('/') || path.starts_with('\\') {
+/// Lexically, does the path leave the workflow's root? Absolute paths,
+/// home-relative paths (`~` · `$HOME`), and `..`-traversals that climb
+/// past the anchor do; `a/../b` does not. Purely textual (the check has
+/// no filesystem) — symlink escapes stay the runtime gate's, as the
+/// PERMITS verdict already states.
+pub(super) fn path_escapes_workspace(path: &str) -> bool {
+    if path.starts_with('/')
+        || path.starts_with('\\')
+        || path.starts_with('~')
+        || path.starts_with("$HOME")
+        || path.starts_with("${HOME}")
+    {
         return true;
     }
     let mut depth: i32 = 0;

@@ -28,8 +28,8 @@
 use std::collections::BTreeSet;
 
 use super::permits_fit::{
-    BuiltinEffect, ConstStrings, builtin_effect, chart_vl_sibling, judgeable_arg, static_program,
-    url_host,
+    BuiltinEffect, ConstStrings, builtin_effect, chart_vl_sibling, judgeable_arg,
+    path_escapes_workspace, static_program, url_host,
 };
 use nika_schema::raw::{RawAction, RawCommand, RawExecAction, RawTask, RawWorkflow};
 use nika_schema::types::{ExecPermit, FsPermits, NetPermits, Permits};
@@ -362,45 +362,7 @@ fn collect_builtin_effect(c: &mut Collector, id: &str, a: &nika_schema::raw::Raw
                 }
             }
         }
-        Some(BuiltinEffect::Fs {
-            path_arg,
-            reads,
-            writes,
-            recursive,
-            walk_root,
-        }) => {
-            if let Some(path) = judgeable_arg(&c.consts, a, path_arg).map(|raw| {
-                // Inference must write a boundary the RUNTIME accepts · for
-                // a glob that is the walk root, never the pattern
-                // (2026-08-19).
-                if walk_root {
-                    nika_cap::glob_walk_root(&raw)
-                } else {
-                    raw
-                }
-            }) {
-                // a recursive effect (nika:grep reads descendants ·
-                // nika:image_generate writes into the dir) touches
-                // descendants too
-                let entry = if recursive {
-                    format!("{path}/**")
-                } else {
-                    path
-                };
-                if reads {
-                    c.reads.insert(entry.clone());
-                }
-                if writes {
-                    c.writes.insert(entry);
-                }
-            } else {
-                c.partial.fs = true;
-                c.notes.push(format!(
-                    "task `{id}` uses a dynamic path — `fs` cannot express 'any path'; \
-                     add the resolved path(s) before running"
-                ));
-            }
-        }
+        Some(effect @ BuiltinEffect::Fs { .. }) => collect_fs_effect(c, id, a, &effect),
         None => {}
     }
     // The chart vega sibling is a SECOND gated write — inferred alongside
@@ -408,6 +370,68 @@ fn collect_builtin_effect(c: &mut Collector, id: &str, a: &nika_schema::raw::Raw
     // its `.vl.json` would self-refuse the very workflow it came from).
     if let Some(vl) = chart_vl_sibling(a) {
         c.writes.insert(vl);
+    }
+}
+
+/// Record a builtin fs effect, or an honesty note if the path is dynamic
+/// or escapes the workspace (G-09 / persona 7 — never paste a host-file
+/// grant the author would apply verbatim).
+fn collect_fs_effect(
+    c: &mut Collector,
+    id: &str,
+    a: &nika_schema::raw::RawInvokeAction,
+    effect: &BuiltinEffect,
+) {
+    let BuiltinEffect::Fs {
+        path_arg,
+        reads,
+        writes,
+        recursive,
+        walk_root,
+    } = effect
+    else {
+        return;
+    };
+    let Some(path) = judgeable_arg(&c.consts, a, path_arg).map(|raw| {
+        // Inference must write a boundary the RUNTIME accepts · for
+        // a glob that is the walk root, never the pattern (2026-08-19).
+        if *walk_root {
+            nika_cap::glob_walk_root(&raw)
+        } else {
+            raw
+        }
+    }) else {
+        c.partial.fs = true;
+        c.notes.push(format!(
+            "task `{id}` uses a dynamic path — `fs` cannot express 'any path'; \
+             add the resolved path(s) before running"
+        ));
+        return;
+    };
+    // a recursive effect (nika:grep reads descendants ·
+    // nika:image_generate writes into the dir) touches descendants too
+    let entry = if *recursive {
+        format!("{path}/**")
+    } else {
+        path
+    };
+    if path_escapes_workspace(&entry) {
+        c.partial.fs = true;
+        c.notes.push(format!(
+            "task `{id}` reads or writes `{entry}` — that path \
+             escapes the workspace, so no `permits.fs` entry is \
+             inferred (point the task at a workspace-relative \
+             path; widening the boundary toward a host file is \
+             a deliberate operator choice, never the printed \
+             repair)"
+        ));
+        return;
+    }
+    if *reads {
+        c.reads.insert(entry.clone());
+    }
+    if *writes {
+        c.writes.insert(entry);
     }
 }
 
@@ -731,6 +755,11 @@ tasks:
             let Ok(src_wf) = parse(&yaml, FileId::new(0), ParseMode::Strict) else {
                 return Ok(());
             };
+            // Escaping paths are never inferred (persona 7 · G-09 shovel);
+            // the round-trip claim is for workspace-relative grants.
+            if path_escapes_workspace(&path) {
+                return Ok(());
+            }
             let r = infer(&src_wf);
             // the rendered block must itself parse + admit the workflow
             let (head, tail) = yaml.split_once("tasks:").expect("has tasks");
@@ -1009,6 +1038,40 @@ tasks:
             "the loopback note teaches the opt-in: {}",
             r.notes[0]
         );
+    }
+
+    #[test]
+    fn an_escaping_host_path_is_never_inferred_into_the_grants() {
+        // Persona 7 · 2026-08-22: `--infer-permits` printed
+        // `fs.read: ["/etc/passwd"]`, the author pasted it, check+run
+        // greened. Absolute / home-relative paths stay a note.
+        let r = infer_of(
+            "nika: w\ntasks:\n  a:\n    invoke: { tool: \"nika:read\", args: { path: \"/etc/passwd\" } }\n  b:\n    invoke: { tool: \"nika:read\", args: { path: \"./notes.md\" } }\n",
+        );
+        let fs = r.permits.fs.as_ref().expect("workspace path infers fs");
+        assert_eq!(fs.read, vec!["./notes.md".to_owned()]);
+        assert!(
+            !fs.read.iter().any(|p| p.contains("passwd")),
+            "host file must not be in the paste block: {:?}",
+            fs.read
+        );
+        assert!(r.partial.fs, "the escaping face is incomplete");
+        assert!(
+            r.notes
+                .iter()
+                .any(|n| n.contains("/etc/passwd") && n.contains("never the printed repair")),
+            "{:?}",
+            r.notes
+        );
+        let home = infer_of(
+            "nika: w\ntasks:\n  t:\n    invoke: { tool: \"nika:read\", args: { path: \"~/.ssh/id_rsa\" } }\n",
+        );
+        assert!(
+            home.permits.fs.as_ref().is_none_or(|f| f.read.is_empty()),
+            "home-relative secrets are not inferred: {:?}",
+            home.permits.fs
+        );
+        assert!(home.partial.fs);
     }
 
     #[test]
