@@ -4468,6 +4468,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "nika-execution"
+version = "0.113.0"
+dependencies = [
+ "nika-check",
+ "nika-fs",
+ "nika-schema",
+ "nika-types",
+ "proptest",
+ "sha2 0.10.9",
+ "tempfile",
+]
+
+[[package]]
 name = "nika-extract"
 version = "0.113.0"
 dependencies = [
