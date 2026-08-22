@@ -12,6 +12,10 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Changed
 
+- **The README says the trace inherits what the run read.** A `nika:read`
+  of a file puts those bytes into `.nika/traces/` in the clear — correct
+  for a replayable journal, unnamed until an auditor derived it (issue
+  1047). The receipt paragraph now says hash-chained is not confidential.
 - **`nika spec --canon` says the error-code count is the floor.** An agent
   read `count: 103` plus two `NIKA-BUILTIN-*` rows as the builtin-code
   family. The spec now carries a `scope:` sibling (nika-spec 282); this pin

@@ -257,4 +257,22 @@ mod tests {
         assert_eq!(mark, '✖');
         assert!(msg.contains("denied"), "{msg}");
     }
+
+    /// Issue 1047 · an auditor had to derive that a hash-chained journal
+    /// is not confidential. The README is the first surface that names
+    /// `.nika/traces/`; it must say the directory inherits what the run
+    /// read. The `.gitignore` section above already names file contents;
+    /// this pins the public intro to the same fact.
+    #[test]
+    fn the_readme_says_the_trace_inherits_what_the_run_read() {
+        let readme = include_str!("../../../README.md");
+        assert!(
+            readme.contains("inherits the sensitivity"),
+            "README must say .nika/traces/ inherits what the run read"
+        );
+        assert!(
+            readme.contains("data-at-rest"),
+            "README must name the directory as a data-at-rest surface"
+        );
+    }
 }

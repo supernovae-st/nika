@@ -119,6 +119,10 @@ carries its `NIKA-XXXX` code, the exact source span, and the fix:
 After the run, the receipt: every run journals to `.nika/traces/` as an
 append-only, hash-chained record. The run prints its chain head;
 `nika trace verify` recomputes it. Tamper-evident, local, zero services.
+The journal keeps task outputs verbatim so a run can be replayed — so
+`.nika/traces/` inherits the sensitivity of whatever the workflow read.
+On a shared or CI machine that directory is a second data-at-rest
+surface; treat it like the files the run opened.
 
 The capture above is honesty-gated like every asset here: its
 [fixtures + tape](scripts/media/) are committed, and
