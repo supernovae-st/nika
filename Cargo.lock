@@ -4935,6 +4935,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "nika-serve"
+version = "0.113.0"
+dependencies = [
+ "nika-fs",
+ "nix 0.31.3",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.20",
+ "uuid",
+]
+
+[[package]]
 name = "nika-source"
 version = "0.113.0"
 dependencies = [

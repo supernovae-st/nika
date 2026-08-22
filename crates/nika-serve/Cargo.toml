@@ -1,0 +1,25 @@
+[package]
+name          = "nika-serve"
+description   = "The L4 remote execution projection: durable job state now, transport after its authorities land."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false
+
+[dependencies]
+nika-fs   = { path = "../nika-fs", version = "0.113.0" }
+nix       = { workspace = true, features = ["fs"] }
+serde     = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+uuid      = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+
+[lints]
+workspace = true
