@@ -183,7 +183,8 @@ fn the_version_door_answers() {
 /// whole time, just slowly. This one is the guard the fix needed.
 ///
 /// Quadruple the input · linear answers ~4× · quadratic answers ~16×.
-/// The ceiling sits at 8: far above the honest answer, far below the trap.
+/// The ceiling sits at 12: far above the honest answer, far below the trap
+/// (was 8 · GHA 2026-08-22 measured 8.4× under load).
 #[test]
 fn the_wave_walk_scales_with_the_chain_not_its_square() {
     fn chain(n: usize) -> Workflow {
@@ -229,8 +230,12 @@ fn the_wave_walk_scales_with_the_chain_not_its_square() {
     );
 
     let ratio = t_large.as_secs_f64() / t_small.as_secs_f64();
+    // 8 was "2× linear". GHA rust (tests) 2026-08-22 measured 8.4× on a
+    // loaded runner (12.6ms → 105.9ms) — still far from quadratic 16×,
+    // but enough to fail the stall-fix PR. 12 keeps the trap and admits
+    // scheduler noise.
     assert!(
-        ratio < 8.0,
+        ratio < 12.0,
         "×4 the chain cost ×{ratio:.1} the time ({t_small:?} → {t_large:?}) — \
          linear costs ~4×, quadratic ~16×. The per-root memo is back."
     );
