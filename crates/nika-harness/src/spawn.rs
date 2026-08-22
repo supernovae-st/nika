@@ -3,8 +3,8 @@
 
 //! The confined spawn (B3.2 · spec §4) — the adapter process is engine
 //! INFRASTRUCTURE, strictly bounded: pinned binary identity · version
-//! handshake BEFORE any session · controlled argv · composed env · no
-//! shell · kill-on-drop.
+//! handshake + declared command-shape proof BEFORE any session ·
+//! controlled argv · composed env · no shell · kill-on-drop.
 //!
 //! **The ONE deliberate difference from the `nika-mcp` spawn
 //! discipline (A-3):** no env scrub of the harness's own auth store.
@@ -21,6 +21,7 @@ use std::collections::BTreeMap;
 use std::process::Stdio;
 
 use nika_kernel::ai::harness::{AgentBackendDyn, HarnessError, HarnessEventStream, HarnessRequest};
+use tokio::io::AsyncReadExt;
 
 use crate::client::drive;
 
@@ -30,6 +31,93 @@ use crate::client::drive;
 /// unavailable — a `--version` is a millisecond operation; ten seconds
 /// is already generous for a cold npx resolve.
 const PROBE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(10);
+/// Combined stdout + stderr retained by an identity probe. Public version and
+/// help surfaces are tiny; anything larger is ambiguity or a hostile wrapper.
+const PROBE_OUTPUT_LIMIT: usize = 64 * 1024;
+
+struct ProbeOutput {
+    status: std::process::ExitStatus,
+    stdout: Vec<u8>,
+    stderr: Vec<u8>,
+}
+
+#[derive(Debug)]
+enum ProbeReadError {
+    Io(std::io::Error),
+    Overflow,
+}
+
+async fn read_probe_streams(
+    mut stdout: tokio::process::ChildStdout,
+    mut stderr: tokio::process::ChildStderr,
+) -> Result<(Vec<u8>, Vec<u8>), ProbeReadError> {
+    let mut stdout_bytes = Vec::new();
+    let mut stderr_bytes = Vec::new();
+    let mut stdout_open = true;
+    let mut stderr_open = true;
+    let mut retained = 0_usize;
+    let mut stdout_chunk = [0_u8; 4096];
+    let mut stderr_chunk = [0_u8; 4096];
+    while stdout_open || stderr_open {
+        tokio::select! {
+            read = stdout.read(&mut stdout_chunk), if stdout_open => {
+                let count = read.map_err(ProbeReadError::Io)?;
+                if count == 0 {
+                    stdout_open = false;
+                } else {
+                    retain_probe_chunk(&mut stdout_bytes, &stdout_chunk[..count], &mut retained)?;
+                }
+            }
+            read = stderr.read(&mut stderr_chunk), if stderr_open => {
+                let count = read.map_err(ProbeReadError::Io)?;
+                if count == 0 {
+                    stderr_open = false;
+                } else {
+                    retain_probe_chunk(&mut stderr_bytes, &stderr_chunk[..count], &mut retained)?;
+                }
+            }
+        }
+    }
+    Ok((stdout_bytes, stderr_bytes))
+}
+
+fn retain_probe_chunk(
+    destination: &mut Vec<u8>,
+    chunk: &[u8],
+    retained: &mut usize,
+) -> Result<(), ProbeReadError> {
+    if chunk.len() > PROBE_OUTPUT_LIMIT.saturating_sub(*retained) {
+        return Err(ProbeReadError::Overflow);
+    }
+    destination.extend_from_slice(chunk);
+    *retained += chunk.len();
+    Ok(())
+}
+
+async fn stop_probe(child: &mut tokio::process::Child) {
+    let _ = child.start_kill();
+    let _ = child.wait().await;
+}
+
+fn take_probe_pipes(
+    child: &mut tokio::process::Child,
+    adapter_id: &str,
+    purpose: &str,
+) -> Result<(tokio::process::ChildStdout, tokio::process::ChildStderr), HarnessError> {
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| HarnessError::Unavailable {
+            reason: format!("adapter `{adapter_id}`: {purpose} has no stdout pipe"),
+        })?;
+    let stderr = child
+        .stderr
+        .take()
+        .ok_or_else(|| HarnessError::Unavailable {
+            reason: format!("adapter `{adapter_id}`: {purpose} has no stderr pipe"),
+        })?;
+    Ok((stdout, stderr))
+}
 
 const ENV_FLOOR: [&str; 7] = ["HOME", "PATH", "TERM", "LANG", "LC_ALL", "USER", "TMPDIR"];
 
@@ -104,6 +192,15 @@ pub fn compose_env(
     env
 }
 
+/// One adapter-specific command-shape proof. Version equality is not
+/// enough when two unrelated packages install the same binary name and
+/// version line (the legacy `kimi-cli` / Kimi Code collision).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct CommandShapeProbe {
+    args: Vec<String>,
+    marker: String,
+}
+
 /// One configured harness adapter — the pinned identity of a binary
 /// this machine may drive (`#[non_exhaustive]` · registry rows arrive
 /// at B6 with the probe surface).
@@ -140,6 +237,10 @@ pub struct HarnessAdapter {
     /// self-report (`agentInfo.name` + `agentInfo.version` · the
     /// protocol version). When set, this supersedes `version_args`.
     pub probe_via_handshake: bool,
+    /// An additional command-shape proof for colliding binary names.
+    /// Kept crate-private: registry rows own this evidence; local-dev
+    /// declarations remain honest without inventing a vendor dialect.
+    pub(crate) command_shape_probe: Option<CommandShapeProbe>,
 }
 
 impl HarnessAdapter {
@@ -171,6 +272,7 @@ impl HarnessAdapter {
             version_pin: None,
             version_args: vec!["--version".to_owned()],
             probe_via_handshake: false,
+            command_shape_probe: None,
         })
     }
 
@@ -214,6 +316,20 @@ impl HarnessAdapter {
         self.probe_via_handshake = true;
         self
     }
+
+    /// Require a successful help surface carrying a stable protocol marker.
+    #[must_use]
+    pub(crate) fn with_command_shape_probe(
+        mut self,
+        args: Vec<String>,
+        marker: impl Into<String>,
+    ) -> Self {
+        self.command_shape_probe = Some(CommandShapeProbe {
+            args,
+            marker: marker.into(),
+        });
+        self
+    }
 }
 
 /// A spawned, session-ready harness — `AgentBackend` over the
@@ -225,6 +341,92 @@ pub struct SpawnedHarness {
 }
 
 impl SpawnedHarness {
+    async fn run_bounded_probe(
+        &self,
+        args: &[String],
+        purpose: &str,
+    ) -> Result<ProbeOutput, HarnessError> {
+        let parent: BTreeMap<String, String> = std::env::vars().collect();
+        let env = compose_env(&parent, &self.adapter.passthrough_env);
+        let command_line = format!("{} {}", self.adapter.command, args.join(" "));
+        let mut child = tokio::process::Command::new(&self.adapter.command)
+            .args(args)
+            .env_clear()
+            .envs(&env)
+            .stdin(Stdio::null())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .kill_on_drop(true)
+            .spawn()
+            .map_err(|error| HarnessError::Unavailable {
+                reason: format!(
+                    "adapter `{}`: cannot start {purpose} `{command_line}`: {error}",
+                    self.adapter.id
+                ),
+            })?;
+        let (stdout, stderr) = take_probe_pipes(&mut child, &self.adapter.id, purpose)?;
+        let deadline = tokio::time::Instant::now() + PROBE_TIMEOUT;
+        let captured = tokio::time::timeout_at(deadline, read_probe_streams(stdout, stderr)).await;
+        let (stdout, stderr) = match captured {
+            Err(_) => {
+                stop_probe(&mut child).await;
+                return Err(HarnessError::Unavailable {
+                    reason: format!(
+                        "adapter `{}`: {purpose} `{command_line}` did not answer in {}s",
+                        self.adapter.id,
+                        PROBE_TIMEOUT.as_secs()
+                    ),
+                });
+            }
+            Ok(Err(ProbeReadError::Overflow)) => {
+                stop_probe(&mut child).await;
+                return Err(HarnessError::Unavailable {
+                    reason: format!(
+                        "adapter `{}`: {purpose} output exceeded the {PROBE_OUTPUT_LIMIT}-byte \
+                         combined stdout/stderr limit; child terminated",
+                        self.adapter.id
+                    ),
+                });
+            }
+            Ok(Err(ProbeReadError::Io(error))) => {
+                stop_probe(&mut child).await;
+                return Err(HarnessError::Unavailable {
+                    reason: format!(
+                        "adapter `{}`: cannot read {purpose} `{command_line}`: {error}",
+                        self.adapter.id
+                    ),
+                });
+            }
+            Ok(Ok(captured)) => captured,
+        };
+        let status = match tokio::time::timeout_at(deadline, child.wait()).await {
+            Ok(Ok(status)) => status,
+            Ok(Err(error)) => {
+                return Err(HarnessError::Unavailable {
+                    reason: format!(
+                        "adapter `{}`: cannot wait for {purpose} `{command_line}`: {error}",
+                        self.adapter.id
+                    ),
+                });
+            }
+            Err(_) => {
+                stop_probe(&mut child).await;
+                return Err(HarnessError::Unavailable {
+                    reason: format!(
+                        "adapter `{}`: {purpose} `{command_line}` did not exit in {}s",
+                        self.adapter.id,
+                        PROBE_TIMEOUT.as_secs()
+                    ),
+                });
+            }
+        };
+        Ok(ProbeOutput {
+            status,
+            stdout,
+            stderr,
+        })
+    }
+
     /// Construct (INV-019).
     #[must_use]
     pub fn new(adapter: HarnessAdapter) -> Self {
@@ -271,43 +473,17 @@ impl SpawnedHarness {
     /// adapter.
     pub async fn probe_version(&self) -> Result<Option<(u32, u32)>, HarnessError> {
         if self.adapter.probe_via_handshake {
-            return self.probe_handshake().await;
+            let seen = self.probe_handshake().await?;
+            self.probe_command_shape().await?;
+            return Ok(seen);
         }
         let Some(pin) = &self.adapter.version_pin else {
+            self.probe_command_shape().await?;
             return Ok(None);
         };
-        let parent: BTreeMap<String, String> = std::env::vars().collect();
-        let env = compose_env(&parent, &self.adapter.passthrough_env);
-        let out = tokio::process::Command::new(&self.adapter.command)
-            .args(&self.adapter.version_args)
-            .env_clear()
-            .envs(&env)
-            .stdin(Stdio::null())
-            .kill_on_drop(true)
-            .output();
-        // A `--version` that never answers (a TTY prompt · a licence
-        // check on the network) hung the verb before a driver existed
-        // (review 2026-08-06): the probe is bounded like every other
-        // wait, and kill-on-drop reaps the stalled child.
-        let out = tokio::time::timeout(PROBE_TIMEOUT, out)
-            .await
-            .map_err(|_| HarnessError::Unavailable {
-                reason: format!(
-                    "adapter `{}`: `{} {}` did not answer in {}s",
-                    self.adapter.id,
-                    self.adapter.command,
-                    self.adapter.version_args.join(" "),
-                    PROBE_TIMEOUT.as_secs()
-                ),
-            })?
-            .map_err(|e| HarnessError::Unavailable {
-                reason: format!(
-                    "adapter `{}`: cannot probe `{} {}`: {e}",
-                    self.adapter.id,
-                    self.adapter.command,
-                    self.adapter.version_args.join(" ")
-                ),
-            })?;
+        let out = self
+            .run_bounded_probe(&self.adapter.version_args, "version probe")
+            .await?;
         // Some CLIs print their version on stderr — judge both, in
         // stdout-first order (never a guess about which one it is).
         let text = format!(
@@ -315,7 +491,47 @@ impl SpawnedHarness {
             String::from_utf8_lossy(&out.stdout),
             String::from_utf8_lossy(&out.stderr)
         );
-        crate::probe::judge_version(&self.adapter.id, &text, pin).map(Some)
+        let seen = crate::probe::judge_version(&self.adapter.id, &text, pin)?;
+        self.probe_command_shape().await?;
+        Ok(Some(seen))
+    }
+
+    /// Prove a registry-declared command shape after identity/version.
+    /// Output is inspected only for a public help marker and is never
+    /// copied into an error, log, or doctor row.
+    async fn probe_command_shape(&self) -> Result<(), HarnessError> {
+        let Some(probe) = &self.adapter.command_shape_probe else {
+            return Ok(());
+        };
+        let out = self
+            .run_bounded_probe(&probe.args, "command shape probe")
+            .await?;
+        if !out.status.success() {
+            return Err(HarnessError::Unavailable {
+                reason: format!(
+                    "adapter `{}`: command shape `{} {}` was rejected ({})",
+                    self.adapter.id,
+                    self.adapter.command,
+                    probe.args.join(" "),
+                    out.status
+                ),
+            });
+        }
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        if stdout.contains(&probe.marker) || stderr.contains(&probe.marker) {
+            return Ok(());
+        }
+        Err(HarnessError::Unavailable {
+            reason: format!(
+                "adapter `{}`: command shape `{} {}` did not identify `{}` support — \
+                 refusing an ambiguous binary",
+                self.adapter.id,
+                self.adapter.command,
+                probe.args.join(" "),
+                probe.marker
+            ),
+        })
     }
 
     /// The npm-wrapper class's probe (B6): spawn the SESSION argv, send
@@ -607,38 +823,154 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn kimi_code_version_probe_judges_the_bare_triple_without_launching_kimi() {
+    async fn kimi_code_shape_probe_rejects_legacy_flag_cli_and_accepts_subcommand_cli() {
         let dir = std::env::temp_dir().join(format!("nika-kimi-probe-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("dir");
         let script = dir.join("fake-kimi.py");
-        std::fs::write(&script, "print('0.37.2')\n").expect("script");
+        std::fs::write(
+            &script,
+            r#"import sys
+mode, args = sys.argv[1], sys.argv[2:]
+if args == ["--version"]:
+    print("0.37.2")
+elif mode == "legacy" and args == ["--acp"]:
+    sys.exit(0)
+elif mode == "real" and args == ["acp", "--help"]:
+    print("Run kimi-code as an Agent Client Protocol (ACP) server over stdio.")
+elif mode == "ambiguous" and args == ["acp", "--help"]:
+    print("Usage: kimi [OPTIONS] [PROMPT]")
+else:
+    print("unknown command", file=sys.stderr)
+    sys.exit(2)
+"#,
+        )
+        .expect("script");
         let path = script.to_string_lossy().into_owned();
-        let in_pin = HarnessAdapter::new("kimi-code", "python3")
-            .expect("id is no class token")
-            .with_args(vec!["acp".to_owned()])
-            .with_version_args(vec![path.clone()])
-            .with_version_pin(crate::probe::VersionPin::new((0, 37), 0));
-        assert_eq!(in_pin.args, vec!["acp".to_owned()]);
-        assert!(!in_pin.probe_via_handshake);
-        let seen = SpawnedHarness::new(in_pin)
+
+        let legacy_flag = tokio::process::Command::new("python3")
+            .args([&path, "legacy", "--acp"])
+            .status()
+            .await
+            .expect("legacy fixture runs");
+        assert!(
+            legacy_flag.success(),
+            "the fixture really supports `kimi --acp`"
+        );
+
+        let adapter = |mode: &str| {
+            HarnessAdapter::new("kimi-code", "python3")
+                .expect("id is no class token")
+                .with_args(vec![path.clone(), mode.to_owned(), "acp".to_owned()])
+                .with_version_args(vec![path.clone(), mode.to_owned(), "--version".to_owned()])
+                .with_version_pin(crate::probe::VersionPin::new((0, 37), 0))
+                .with_command_shape_probe(
+                    vec![
+                        path.clone(),
+                        mode.to_owned(),
+                        "acp".to_owned(),
+                        "--help".to_owned(),
+                    ],
+                    "Agent Client Protocol",
+                )
+        };
+
+        let seen = SpawnedHarness::new(adapter("real"))
             .probe_version()
             .await
-            .expect("in pin");
+            .expect("the Kimi Code subcommand shape is accepted");
         assert_eq!(seen, Some((0, 37)));
 
-        std::fs::write(&script, "print('0.36.0')\n").expect("old");
-        let old = HarnessAdapter::new("kimi-code", "python3")
-            .expect("id is fine")
-            .with_args(vec!["acp".to_owned()])
-            .with_version_args(vec![path])
-            .with_version_pin(crate::probe::VersionPin::new((0, 37), 0));
-        let err = SpawnedHarness::new(old)
+        let ambiguous = SpawnedHarness::new(adapter("ambiguous"))
             .probe_version()
             .await
-            .expect_err("below the floor");
+            .expect_err("a successful generic help page proves no ACP dialect");
+        assert!(
+            ambiguous.to_string().contains("did not identify"),
+            "{ambiguous}"
+        );
+
+        let err = SpawnedHarness::new(adapter("legacy"))
+            .probe_version()
+            .await
+            .expect_err("legacy kimi-cli has only the flag, never the subcommand");
         let msg = err.to_string();
         assert!(msg.contains("kimi-code"), "{msg}");
-        assert!(msg.contains("0.36"), "{msg}");
+        assert!(msg.contains("command shape"), "{msg}");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn probe_capture_never_retains_past_its_combined_limit() {
+        let mut bytes = Vec::new();
+        let mut retained = 0;
+        let exact = vec![b'x'; PROBE_OUTPUT_LIMIT];
+        retain_probe_chunk(&mut bytes, &exact, &mut retained).expect("the exact cap fits");
+        let error = retain_probe_chunk(&mut bytes, b"x", &mut retained);
+        assert!(matches!(error, Err(ProbeReadError::Overflow)));
+        assert_eq!(bytes.len(), PROBE_OUTPUT_LIMIT);
+        assert_eq!(retained, PROBE_OUTPUT_LIMIT);
+    }
+
+    #[cfg(unix)]
+    #[tokio::test]
+    async fn kimi_shape_probe_caps_infinite_output_and_reaps_the_child() {
+        let dir =
+            std::env::temp_dir().join(format!("nika-kimi-oversize-probe-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("fixture directory");
+        let script = dir.join("infinite-kimi.py");
+        let pid_file = dir.join("pid");
+        std::fs::write(
+            &script,
+            r#"import os, sys
+pid_file, args = sys.argv[1], sys.argv[2:]
+if args == ["--version"]:
+    print("0.37.2")
+elif args == ["acp", "--help"]:
+    with open(pid_file, "w") as handle:
+        handle.write(str(os.getpid()))
+    while True:
+        os.write(sys.stdout.fileno(), b"x" * 4096)
+        os.write(sys.stderr.fileno(), b"y" * 4096)
+else:
+    sys.exit(2)
+"#,
+        )
+        .expect("fixture script");
+        let script = script.to_string_lossy().into_owned();
+        let pid_file_arg = pid_file.to_string_lossy().into_owned();
+        let adapter = HarnessAdapter::new("kimi-code", "python3")
+            .expect("id is no class token")
+            .with_version_args(vec![
+                script.clone(),
+                pid_file_arg.clone(),
+                "--version".to_owned(),
+            ])
+            .with_version_pin(crate::probe::VersionPin::new((0, 37), 0))
+            .with_command_shape_probe(
+                vec![script, pid_file_arg, "acp".to_owned(), "--help".to_owned()],
+                "Agent Client Protocol",
+            );
+
+        let error = SpawnedHarness::new(adapter)
+            .probe_version()
+            .await
+            .expect_err("infinite public help must refuse at the byte cap");
+        let message = error.to_string();
+        assert!(message.contains("output exceeded"), "{message}");
+        assert!(
+            message.contains(&format!("{PROBE_OUTPUT_LIMIT}-byte")),
+            "{message}"
+        );
+        let pid = std::fs::read_to_string(&pid_file).expect("fixture published its pid");
+        let alive = tokio::process::Command::new("kill")
+            .args(["-0", pid.trim()])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .await
+            .expect("the process liveness probe runs");
+        assert!(!alive.success(), "the overflowing probe child was reaped");
+
         let _ = std::fs::remove_dir_all(&dir);
     }
 

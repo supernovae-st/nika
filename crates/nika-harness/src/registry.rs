@@ -10,7 +10,8 @@
 //! a shell line), the session argv, the version pin + the argv that
 //! makes the ADAPTER print its version (the wrapper class's lesson —
 //! `npx …` probed bare reports the wrapper, not the adapter), the
-//! provider ids it can serve, and the AUTH SURFACE — how `doctor`
+//! optional command-shape evidence needed when binary names collide,
+//! the provider ids it can serve, and the AUTH SURFACE — how `doctor`
 //! reads the auth state, which is never a credential read.
 //!
 //! The kill-switch is the operator's: `NIKA_HARNESS_DISABLE=codex-acp,…`
@@ -46,6 +47,18 @@ pub enum AuthProbe {
     HomeFile(&'static str),
 }
 
+/// Stronger metadata-only policy for an auth store directory whose
+/// application home can be relocated independently of `$HOME`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct DirectoryAuthProbe {
+    /// The variable that overrides the application's default home.
+    pub(crate) override_env: &'static str,
+    /// The directory below the overridden application home.
+    pub(crate) override_relative: &'static str,
+    /// Exact top-level credential witnesses accepted for this seat.
+    pub(crate) credential_files: &'static [&'static str],
+}
+
 /// One shipped adapter row.
 #[derive(Debug, Clone)]
 #[non_exhaustive]
@@ -56,6 +69,8 @@ pub struct AdapterRow {
     pub serves: &'static [&'static str],
     /// The auth surface (never a credential read).
     pub auth: AuthProbe,
+    /// Stronger directory semantics for auth stores that need them.
+    pub(crate) directory_auth: Option<DirectoryAuthProbe>,
     /// The install pointer the fix line names.
     pub package: &'static str,
 }
@@ -117,6 +132,7 @@ fn rows() -> Result<Vec<AdapterRow>, HarnessError> {
                 .with_version_pin(VersionPin::new((0, 37), 0)),
             serves: &["gemini"],
             auth: AuthProbe::HomeFile(".gemini/google_accounts.json"),
+            directory_auth: None,
             package: "@google/gemini-cli (brew install gemini-cli)",
         },
         AdapterRow {
@@ -125,6 +141,7 @@ fn rows() -> Result<Vec<AdapterRow>, HarnessError> {
                 .with_version_pin(VersionPin::new((0, 21), 0)),
             serves: &["qwen"],
             auth: AuthProbe::HomeFile(".qwen"),
+            directory_auth: None,
             package: "@qwen-code/qwen-code (npm i -g @qwen-code/qwen-code)",
         },
         AdapterRow {
@@ -134,17 +151,27 @@ fn rows() -> Result<Vec<AdapterRow>, HarnessError> {
             // stdio."). Official Zed args are `["acp"]`. `--login` is
             // a separate option (device-code then exit) and is NOT
             // the session argv. Native CLI: `--version` works, so the
-            // probe is the flag, never a handshake.
+            // identity probe is the flag plus the ACP help shape,
+            // never a session handshake.
             adapter: HarnessAdapter::new("kimi-code", "kimi")?
                 .with_args(vec!["acp".to_owned()])
                 .with_version_pin(VersionPin::new((0, 37), 0))
+                .with_command_shape_probe(
+                    vec!["acp".to_owned(), "--help".to_owned()],
+                    "Agent Client Protocol",
+                )
                 .with_passthrough_env(vec!["KIMI_CODE_HOME".to_owned()]),
             serves: &["moonshot"],
             // Official store (data-locations.md): `$KIMI_CODE_HOME/credentials/`
-            // (default `~/.kimi-code/credentials/`). Existence only —
-            // the files are never opened. No `login status` command
-            // exists (`kimi login status` is `unknown command`).
+            // (default `~/.kimi-code/credentials/`). The probe reads
+            // path metadata plus a zero-read readability handle; it
+            // never reads a credential. No `login status` command exists.
             auth: AuthProbe::HomeFile(".kimi-code/credentials"),
+            directory_auth: Some(DirectoryAuthProbe {
+                override_env: "KIMI_CODE_HOME",
+                override_relative: "credentials",
+                credential_files: &["kimi-code.json"],
+            }),
             package: "kimi-code (kimi upgrade · https://moonshotai.github.io/kimi-code/)",
         },
         AdapterRow {
@@ -166,6 +193,7 @@ fn rows() -> Result<Vec<AdapterRow>, HarnessError> {
                 command: "codex",
                 args: &["login", "status"],
             },
+            directory_auth: None,
             package: "@zed-industries/codex-acp@0.16.0 (npm i -g · wraps the codex CLI's own auth)",
         },
         AdapterRow {
@@ -177,6 +205,7 @@ fn rows() -> Result<Vec<AdapterRow>, HarnessError> {
                 command: "claude",
                 args: &["auth", "status"],
             },
+            directory_auth: None,
             package: "@zed-industries/claude-agent-acp@0.23.1 (npm i -g · wraps the claude CLI's own auth)",
         },
     ])
@@ -222,7 +251,19 @@ mod tests {
             !row.adapter.probe_via_handshake,
             "kimi --version works; handshake is the wrapper class"
         );
+        assert!(
+            row.adapter.command_shape_probe.is_some(),
+            "the shared binary name needs evidence beyond its version"
+        );
         assert_eq!(row.adapter.version_args, vec!["--version".to_owned()]);
+        assert_eq!(
+            row.directory_auth,
+            Some(DirectoryAuthProbe {
+                override_env: "KIMI_CODE_HOME",
+                override_relative: "credentials",
+                credential_files: &["kimi-code.json"],
+            })
+        );
         let pin = row.adapter.version_pin.as_ref().expect("pinned");
         assert_eq!(pin.min, (0, 37), "floor is the measured ACP-native release");
         assert_eq!(pin.max_major, 0);
