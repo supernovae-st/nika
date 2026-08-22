@@ -238,7 +238,8 @@ fn the_first_terminal_decision_is_immutable() {
     assert!(matches!(
         denied,
         crate::task::SettleAs::Ran(ref ran)
-            if matches!(ran.result, crate::task::RunResult::Failed { .. })
+            if matches!(ran.result, crate::task::RunResult::Success { ref value, .. }
+                if value == &Value::Bool(false))
     ));
 
     // A duplicate/racing success cannot rewrite the already terminal deny.
@@ -250,7 +251,8 @@ fn the_first_terminal_decision_is_immutable() {
     assert!(matches!(
         late_allow,
         crate::task::SettleAs::Ran(ref ran)
-            if matches!(ran.result, crate::task::RunResult::Failed { .. })
+            if matches!(ran.result, crate::task::RunResult::Success { ref value, .. }
+                if value == &Value::Bool(true))
     ));
 }
 
@@ -833,11 +835,11 @@ async fn fixture_e_identical_prompts_require_fresh_consent() {
     );
 }
 
-/// A confirm refusal is an authority failure, not successful boolean data.
+/// A confirm refusal is successful `false` data; Deny lives in its attestation.
 /// A later identical gate reached through `terminal` must ask independently;
-/// the first denial can never be replayed as approval (or as a green task).
+/// the first denial can never be replayed as approval.
 #[tokio::test]
-async fn a_refusal_fails_the_task_and_cannot_authorize_the_next_gate() {
+async fn a_refusal_succeeds_false_and_cannot_authorize_the_next_gate() {
     const WF: &str = "nika: deny-is-terminal\npermits: { tools: [\"nika:prompt\"] }\ntasks:\n  denied:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"confirm\", message: \"ship?\" }\n  independent:\n    after: { denied: terminal }\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"confirm\", message: \"ship?\" }\n";
     let (outcome, sink) = run_gated(
         WF,
@@ -855,16 +857,9 @@ async fn a_refusal_fails_the_task_and_cannot_authorize_the_next_gate() {
     )
     .await;
 
-    assert!(!outcome.ok, "one authority denial keeps the workflow red");
-    assert_eq!(outcome.records["denied"].status, crate::TaskStatus::Failure);
-    assert_eq!(
-        outcome.records["denied"]
-            .error
-            .as_ref()
-            .expect("typed authority failure")
-            .code,
-        APPROVAL_CODE
-    );
+    assert!(outcome.ok, "a refusal is a decision, never a task failure");
+    assert_eq!(outcome.records["denied"].status, crate::TaskStatus::Success);
+    assert_eq!(outcome.records["denied"].output, Value::Bool(false));
     assert_eq!(
         outcome.records["independent"].status,
         crate::TaskStatus::Success,
