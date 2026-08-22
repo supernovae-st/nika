@@ -175,6 +175,7 @@ use nika_schema::raw::RawWorkflow;
 use crate::display::theme::{Role, Theme};
 use crate::verbs::{RunSource, VerbOutput, load_checked, load_checked_run_source};
 
+mod budget;
 mod drift;
 pub(crate) mod energy;
 pub(crate) mod models_rung;
@@ -421,6 +422,7 @@ pub(crate) fn run_source_with_profile(
         grade,
     );
     naming_note(&mut text, theme, path, &wf);
+    budget::footnote(&mut text, theme);
     // The `--ascii` byte contract (P1 · audit UX 2026-07-30): the finished
     // report folds through the ONE enforcement seam — the glyph twins stay
     // the primary mechanism, this fold is what makes the emitted bytes
@@ -594,6 +596,7 @@ fn json_verdict(
             );
         }
         skills.extend_check_json(obj);
+        budget::stamp_json(obj);
         obj.insert(
             "pricing".to_owned(),
             pricing_section(report, model_findings),
