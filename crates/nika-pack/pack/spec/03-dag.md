@@ -1575,6 +1575,7 @@ linter (the reference `native-first` rule set) warns on each class ·
 | `native-first/003 exec-data` | `jq` · `sed` · `awk` | `nika:jq` (or an `extract:` binding) for JSON · `nika:edit` for in-place literal file edits |
 | `native-first/004 exec-media` | an image/speech provider endpoint in the command (`images/generations` · `/v1/audio/speech` · …) | `nika:image_generate` / `nika:tts_generate` |
 | `native-first/005 exec-helper` | an interpreter (`node` · `python` · `sh` · …) running a script file | inventory the helper · HTTP→`nika:fetch` · files→`nika:read`/`nika:write` · JSON→`nika:jq` · YAML/TOML/CSV in or out→`nika:convert` (then `nika:jq`) · a product API→an MCP server (`mcp:<server>/<tool>`) · a helper script is not one of the genuine subprocesses that stay silent below, so a ledger row records the intent without clearing this rule |
+| `native-first/006 exec-utility` | a utility with an EXACT builtin · `sleep` · `date` · `uuidgen` · `sha256sum`/`shasum`/`md5sum`/`b3sum` · `yq` · `grep`/`rg`/`ag` · `find` | the one builtin AND its argument shape, not a family · `nika:wait` (`duration:`) · `nika:date` (`op:`) · `nika:uuid` · `nika:hash` (`algo:`) · `nika:convert` (`from:`/`to:`) · `nika:grep` · `nika:glob` |
 
 Rules are DETERMINISTIC on literal fragments (a templated command head
 makes no claim) · at most one warning per task, most specific first

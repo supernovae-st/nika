@@ -202,3 +202,23 @@ fn error_codes_registry_parses_typed_and_complete() {
     codes.dedup();
     assert_eq!(codes.len(), rows.len(), "duplicate codes in the registry");
 }
+
+/// Issue 1040 · an agent read `count: 103` plus two `NIKA-BUILTIN-*` rows
+/// as the whole builtin-code family. The family lives in `nika explain`.
+/// The count must say so on the same surface (`nika spec --canon`).
+#[test]
+fn error_codes_count_says_the_floor_is_not_the_family() {
+    let canon = nika_pack::canon();
+    let section: String = canon
+        .lines()
+        .skip_while(|l| !l.starts_with("error_codes:"))
+        .take_while(|l| {
+            l.starts_with([' ', '#']) || l.starts_with("error_codes:") || l.trim().is_empty()
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        section.contains("not enumerated here"),
+        "the error_codes count must say per-builtin codes resolve through explain:\n{section}"
+    );
+}
