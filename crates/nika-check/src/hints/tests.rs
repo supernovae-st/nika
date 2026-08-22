@@ -919,6 +919,43 @@ fn jq_as_map_admits_a_map_from_any_bound_name() {
     );
 }
 
+/// Issue 1038 remainder · five probes against 0.111.0. A map piped from
+/// a field access on the current value (`.paths | map(`) is as explicit
+/// as one piped from a bound name. Only that shape still fired.
+#[test]
+fn jq_as_map_admits_a_map_piped_from_a_field() {
+    let cases: &[(&str, bool)] = &[
+        (
+            ".paths as $p | ($p | map(. as $r | ($r | length)) | length)",
+            false,
+        ),
+        (
+            ".paths as $p | (.[0] | . as $ex | ($p | map(length) | length))",
+            false,
+        ),
+        (". as $d | (.paths | map(length) | length)", false),
+        (
+            ".paths as $p | [ $p[] | . as $x | ($p | map(length)) ] | length",
+            false,
+        ),
+        (
+            ".paths as $p | [ $p[] | . as $x | ($x | length) ] | length",
+            false,
+        ),
+    ];
+    for (expr, want_hint) in cases {
+        let yaml = format!(
+            "nika: w\npermits: {{ tools: [\"nika:jq\"] }}\ntasks:\n  score:\n    invoke: {{ tool: nika:jq, args: {{ input: [], expression: {expr:?} }} }}\n"
+        );
+        let h = hints_of(&yaml);
+        let fired = h.iter().any(|x| x.kind == "jq-as-map");
+        assert_eq!(
+            fired, *want_hint,
+            "shape `{expr}` want_hint={want_hint} hints={h:?}"
+        );
+    }
+}
+
 #[test]
 fn assert_after_a_write_names_the_quarantine() {
     let h = hints_of(
