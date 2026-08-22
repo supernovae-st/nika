@@ -12,6 +12,7 @@ pub fn nika_sandbox_landlock::LandlockSandbox::fmt(&self, f: &mut core::fmt::For
 impl core::marker::Copy for nika_sandbox_landlock::LandlockSandbox
 impl nika_kernel_core::io::command_sandbox::CommandSandbox for nika_sandbox_landlock::LandlockSandbox
 pub fn nika_sandbox_landlock::LandlockSandbox::backend(&self) -> &'static str
+pub fn nika_sandbox_landlock::LandlockSandbox::classify_outcome(&self, status: i32, stderr: &str) -> nika_kernel_core::io::process::ShellAdapterOutcome
 pub fn nika_sandbox_landlock::LandlockSandbox::confine(&self, spec: &nika_kernel_core::io::process::SandboxSpec, command: nika_kernel_core::io::process::ShellCommand) -> core::result::Result<nika_kernel_core::io::process::ShellCommand, nika_kernel_core::io::command_sandbox::CommandSandboxError>
 impl<D> owo_colors::OwoColorize for nika_sandbox_landlock::LandlockSandbox
 impl<T, U> core::convert::Into<U> for nika_sandbox_landlock::LandlockSandbox where U: core::convert::From<T>

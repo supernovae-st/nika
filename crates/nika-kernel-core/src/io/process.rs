@@ -211,6 +211,58 @@ enum ShellResultFailure {
     Transport(String),
 }
 
+/// Typed terminal receipt produced by a local sandbox or remote adapter.
+///
+/// Captured bytes alone never prove that a remote or wrapped process reached
+/// a business exit. Adapters must attach one of these receipts; an absent or
+/// unsupported receipt is a transport failure, never structured data.
+#[derive(Debug, Clone)]
+#[non_exhaustive]
+pub struct ShellAdapterOutcome {
+    kind: ShellAdapterOutcomeKind,
+}
+
+#[derive(Debug, Clone)]
+enum ShellAdapterOutcomeKind {
+    Process,
+    Authority(String),
+    Transport(String),
+}
+
+impl ShellAdapterOutcome {
+    /// The status belongs to the authored business process.
+    #[must_use]
+    pub fn process() -> Self {
+        Self {
+            kind: ShellAdapterOutcomeKind::Process,
+        }
+    }
+
+    /// A permit, sandbox, or remote authority refused the operation.
+    #[must_use]
+    pub fn authority_refusal(reason: impl Into<String>) -> Self {
+        Self {
+            kind: ShellAdapterOutcomeKind::Authority(reason.into()),
+        }
+    }
+
+    /// The adapter did not deliver a trustworthy process outcome.
+    #[must_use]
+    pub fn transport_failure(reason: impl Into<String>) -> Self {
+        Self {
+            kind: ShellAdapterOutcomeKind::Transport(reason.into()),
+        }
+    }
+
+    /// A remote/adapter envelope carried bytes without a terminal receipt.
+    #[must_use]
+    pub fn missing_terminal_receipt(adapter: &'static str) -> Self {
+        Self::transport_failure(format!(
+            "{adapter} returned captured bytes without a terminal receipt"
+        ))
+    }
+}
+
 impl ShellResult {
     /// Create a new shell result.
     #[must_use]
@@ -259,6 +311,26 @@ impl ShellResult {
     #[must_use]
     pub fn with_transport_failure(mut self, reason: impl Into<String>) -> Self {
         self.failure = Some(ShellResultFailure::Transport(reason.into()));
+        self
+    }
+
+    /// Attach a typed adapter receipt to captured bytes.
+    ///
+    /// This is the production hand-off for both sandbox wrappers and future
+    /// remote workers. `MissingTerminalReceipt` fails closed so a remote
+    /// adapter cannot turn plausible output into a process result merely by
+    /// omitting its terminal authority receipt.
+    #[must_use]
+    pub fn with_adapter_outcome(mut self, outcome: ShellAdapterOutcome) -> Self {
+        self.failure = match outcome.kind {
+            ShellAdapterOutcomeKind::Process => self.failure,
+            ShellAdapterOutcomeKind::Authority(reason) => {
+                Some(ShellResultFailure::Authority(reason))
+            }
+            ShellAdapterOutcomeKind::Transport(reason) => {
+                Some(ShellResultFailure::Transport(reason))
+            }
+        };
         self
     }
 
@@ -422,6 +494,33 @@ mod tests {
             .with_transport_failure("remote disconnected")
             .into_process_result();
         assert!(matches!(transport, Err(ShellError::Other { .. })));
+    }
+
+    #[test]
+    fn remote_terminal_receipt_table_is_fail_closed() {
+        let process = ShellResult::new(7, r#"{"ok":true}"#, "", Duration::ZERO)
+            .with_adapter_outcome(ShellAdapterOutcome::process())
+            .into_process_result();
+        assert!(matches!(process, Ok(result) if result.status == 7));
+
+        let authority = ShellResult::new(126, r#"{"ok":true}"#, "", Duration::ZERO)
+            .with_adapter_outcome(ShellAdapterOutcome::authority_refusal(
+                "remote permit refused",
+            ))
+            .into_process_result();
+        assert!(matches!(authority, Err(ShellError::Blocked { .. })));
+
+        let disconnected = ShellResult::new(0, "partial", "", Duration::ZERO)
+            .with_adapter_outcome(ShellAdapterOutcome::transport_failure(
+                "remote stream disconnected",
+            ))
+            .into_process_result();
+        assert!(matches!(disconnected, Err(ShellError::Other { .. })));
+
+        let unsupported = ShellResult::new(0, r#"{"ok":true}"#, "", Duration::ZERO)
+            .with_adapter_outcome(ShellAdapterOutcome::missing_terminal_receipt("remote"))
+            .into_process_result();
+        assert!(matches!(unsupported, Err(ShellError::Other { .. })));
     }
 
     #[test]

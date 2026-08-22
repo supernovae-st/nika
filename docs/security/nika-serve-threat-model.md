@@ -147,8 +147,10 @@ HTTP surface that has not landed.
 | provider/tool secret-shaped payload | P0 | runtime events redact known secret provenance; arbitrary raw provider/tool bodies remain unfit for remote serialization | Serve projection / W06, SSE projection / W07 |
 | prompt injection versus permits | P0 | runtime `dispatch::regate`, `permit_regate`, and adversarial F1–F4 fixtures keep model/tool text as data and re-check effect arguments | runtime / W02 closed; W11 refutes end-to-end |
 | remote workflow projection | P0 | deny-by-default: `AdmittedExecution` fields are private and its debug view has no bytes; there is no remote serializer | Serve / W06 must add an explicit field allowlist, never `Serialize` the admitted world |
-| sandbox/permit refusal under structured capture | P0 | closed: a typed authority/transport result fails before structured interpretation; business-process nonzero remains data | exec/runtime / W02 |
-| approval replay across processes | P0 | closed: ticket-digest marker is atomically create-once in local `~/.nika/approval-claims`; process clones share an atomic claim | runtime + CLI / W02 |
+| sandbox/permit refusal under structured capture | P0 | closed: the production runner retains the Seatbelt/landlock classifier through drain and attaches its typed receipt before structured interpretation; status 126 and launcher diagnostics refuse, while an unmarked business nonzero remains data | exec/runtime / W02 |
+| remote terminal classification | P0 | no remote process adapter exists; the kernel receipt table maps authority to blocked, transport to error, and missing/unsupported remote terminal receipts to fail-closed transport error | Serve worker adapter / W06 must attach a receipt on every terminal envelope |
+| approval replay across processes | P0 | closed against concurrent/repeated use: ticket-digest marker is atomically create-once in local `~/.nika/approval-claims`; process clones share an atomic claim | runtime + CLI / W02 |
+| approval marker rollback/deletion | P1 | the local marker assumes its owned state directory is not rolled back or deleted by the same OS principal; create-once does not make deletion evident | durable job ledger / W05 must bind claim state into its tamper-evident chain before W06 |
 | network composition | P1 | runtime maps absent/empty net grants to deny and refuses an unavailable declared sandbox; listener auth, bind acknowledgement, proxy and egress composition are still absent | Serve / W06 and VPS / W10 |
 | public health metadata | P1 | no route exists; the allowed future projection is `EngineIdentity` only | Serve / W06 |
 
@@ -157,6 +159,12 @@ adapter yet. The future P0/P1 rows are explicit entry gates for W06/W07, not
 permission to ship a partial listener. Secret redaction is defense in depth;
 the primary remote rule is still field allowlisting, so a value that was never
 approved for projection cannot rely on a string scrubber to become safe.
+
+The reviewer-v2 counterexamples were identified on `0d5c744c`: the production
+runner discarded the sandbox backend before constructing `ShellResult`, and
+`run --require-signature` reopened the workflow pathname after `RunSource`
+capture. The barrier regressions landed with the fixes; no historical RED test
+transcript is claimed where no such test existed on that SHA.
 
 ### Deployment
 
@@ -178,8 +186,9 @@ approved for projection cannot rely on a string scrubber to become safe.
 - [ ] absolute, traversal, separator-confused, extension-confused, and symlink
   workflow names refuse;
 - [x] source replacement after capture cannot change checked/executed bytes
-  (`nika-execution` includes deterministic root, child, skill, symlink,
-  directory, and barrier-interleaving fixtures);
+  (`nika-execution` includes deterministic barrier-interleaved root, child,
+  nested-child, skill, symlink, and directory fixtures; DAP separately binds
+  workflow signatures to captured bytes);
 - [ ] identical idempotent replay returns one job across restart;
 - [ ] conflicting key reuse and simultaneous duplicates refuse without a second
   effect;

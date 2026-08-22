@@ -2785,6 +2785,7 @@ impl<T> tracing::instrument::WithSubscriber for nika_dap::sign::WorkflowSig
 impl<T> typenum::type_operators::Same for nika_dap::sign::WorkflowSig
 pub type nika_dap::sign::WorkflowSig::Output = T
 pub fn nika_dap::sign::check_workflow(path: &std::path::Path) -> nika_dap::sign::WorkflowSig
+pub fn nika_dap::sign::check_workflow_bytes(path: &std::path::Path, data: &[u8]) -> nika_dap::sign::WorkflowSig
 pub fn nika_dap::sign::sidecar_path(workflow: &std::path::Path) -> std::path::PathBuf
 pub fn nika_dap::sign::sign_workflow_with(path: &std::path::Path, sk: &minisign::secret_key::SecretKey, pk_box: &str) -> core::result::Result<alloc::string::String, alloc::string::String>
 pub mod nika_dap::stats

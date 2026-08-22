@@ -73,7 +73,7 @@ use std::path::{Path, PathBuf};
 use nika_kernel::command_sandbox::{
     CommandSandbox, CommandSandboxError, fold_sandbox_prefix, names_system_root,
 };
-use nika_kernel::process::{NetPolicy, SandboxSpec, ShellCommand};
+use nika_kernel::process::{NetPolicy, SandboxSpec, ShellAdapterOutcome, ShellCommand};
 
 /// The OS-shipped Seatbelt launcher. A fixed absolute path (not `$PATH`) so a
 /// hijacked `PATH` cannot point the sandbox at an impostor launcher.
@@ -115,6 +115,29 @@ impl CommandSandbox for SeatbeltSandbox {
 
     fn backend(&self) -> &'static str {
         "seatbelt"
+    }
+
+    fn classify_outcome(&self, status: i32, stderr: &str) -> ShellAdapterOutcome {
+        classify_terminal_outcome(status, stderr)
+    }
+}
+
+/// Seatbelt's wrapper-status table. Status 126 is reserved fail-closed at
+/// this boundary because it is the launcher/exec refusal class and cannot be
+/// distinguished safely from an inner program deliberately choosing 126.
+/// A launcher diagnostic is likewise authority, regardless of its numeric
+/// status. Other non-zero statuses remain authored process outcomes.
+fn classify_terminal_outcome(status: i32, stderr: &str) -> ShellAdapterOutcome {
+    let launcher_diagnostic = stderr
+        .lines()
+        .map(str::trim_start)
+        .any(|line| line.starts_with("sandbox-exec:") || line.contains("Operation not permitted"));
+    if status == 126 || launcher_diagnostic {
+        ShellAdapterOutcome::authority_refusal(format!(
+            "seatbelt refused the confined process (status {status})"
+        ))
+    } else {
+        ShellAdapterOutcome::process()
     }
 }
 
@@ -462,6 +485,32 @@ const PROFILE_PREAMBLE: &str = r#"(version 1)
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn apply(outcome: ShellAdapterOutcome) -> Result<(), nika_kernel::ShellError> {
+        nika_kernel::ShellResult::new(126, r#"{"ok":true}"#, "", std::time::Duration::ZERO)
+            .with_adapter_outcome(outcome)
+            .into_process_result()
+            .map(|_| ())
+    }
+
+    #[test]
+    fn terminal_outcome_table_keeps_authority_ahead_of_capture() {
+        assert!(matches!(
+            apply(classify_terminal_outcome(126, r#"{"ok":true}"#)),
+            Err(nika_kernel::ShellError::Blocked { .. })
+        ));
+        assert!(matches!(
+            apply(classify_terminal_outcome(
+                1,
+                "sandbox-exec: deny(1) file-read-data"
+            )),
+            Err(nika_kernel::ShellError::Blocked { .. })
+        ));
+        assert!(
+            apply(classify_terminal_outcome(7, "business validation failed")).is_ok(),
+            "an ordinary non-zero remains business data"
+        );
+    }
 
     /// The availability truth table — all four rows, platform-free.
     /// Kills Gate 5's three survivors: `-> true` (row 4 fails), `->

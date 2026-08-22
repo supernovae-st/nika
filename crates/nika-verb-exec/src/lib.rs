@@ -579,6 +579,53 @@ mod tests {
         ));
     }
 
+    #[cfg(target_os = "macos")]
+    #[tokio::test]
+    async fn production_seatbelt_refusal_precedes_structured_capture() {
+        use std::os::unix::fs::PermissionsExt as _;
+
+        use nika_error::traits::NikaErrorCode as _;
+        use nika_exec_runner::TokioShell;
+        use nika_sandbox_seatbelt::SeatbeltSandbox;
+
+        assert!(SeatbeltSandbox::available(), "macOS must ship sandbox-exec");
+        let dir = tempfile::tempdir().expect("fixture dir");
+        let script = dir.path().join("refuse.sh");
+        let denied = dir.path().join("denied.txt");
+        std::fs::write(&denied, b"must stay outside the exact script grant")
+            .expect("denied fixture");
+        let quoted = denied.to_string_lossy().replace('\'', "'\\''");
+        std::fs::write(
+            &script,
+            format!(
+                "#!/bin/sh\nif /bin/cat '{quoted}' >/dev/null 2>&1; then exit 42; \
+                 else /usr/bin/printf '{{\"ok\":true}}\\n'; exit 126; fi\n"
+            ),
+        )
+        .expect("script");
+        std::fs::set_permissions(&script, std::fs::Permissions::from_mode(0o700))
+            .expect("executable script");
+
+        let shell = Arc::new(TokioShell::with_sandbox(Arc::new(SeatbeltSandbox::new())));
+        let mut input = ExecInput::argv([script.to_string_lossy().into_owned()]);
+        input.capture = CaptureMode::Structured;
+        let mut spec = nika_kernel::process::SandboxSpec::new();
+        spec.fs_read.push(script.to_string_lossy().into_owned());
+        input.sandbox = Some(spec);
+        let error = ExecVerb::new(shell)
+            .run(input)
+            .await
+            .expect_err("Seatbelt authority cannot become structured data");
+
+        assert_eq!(error.spec_code(), "NIKA-SEC-001");
+        assert!(matches!(
+            error,
+            VerbExecError::Shell {
+                source: nika_kernel::process::ShellError::Blocked { .. }
+            }
+        ));
+    }
+
     #[tokio::test]
     async fn structured_mode_cannot_declassify_a_transport_failure() {
         use nika_error::traits::NikaErrorCode as _;

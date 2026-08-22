@@ -19,8 +19,11 @@ miette      = { workspace = true }
 thiserror   = { workspace = true }
 
 [dev-dependencies]
+nika-exec-runner = { path = "../nika-exec-runner", version = "0.113.0" }
 nika-kernel-mock = { path = "../nika-kernel-mock", version = "0.113.0" }
+nika-sandbox-seatbelt = { path = "../nika-sandbox-seatbelt", version = "0.113.0" }
 proptest = { workspace = true }
+tempfile = { workspace = true }
 tokio    = { workspace = true }
 
 [package.metadata.lore]
