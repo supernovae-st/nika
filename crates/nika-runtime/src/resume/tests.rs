@@ -30,6 +30,7 @@ mod unit {
             skills: BTreeMap::new(),
             child_closures: BTreeMap::new(),
             access_pin: None,
+            access_probes: Vec::new(),
         }
     }
 
@@ -244,12 +245,11 @@ mod unit {
         assert_eq!(e1.def_hash, e2.def_hash, "exec ignores the model line");
     }
 
-    /// R-1 (P3 · the #409 precedent's ACCESS twin — pin half): a run
+    /// R-1 (P3 · the #409 precedent's ACCESS twin): a run
     /// pinned `codex-acp` resumed under `api` must RE-RUN the infer/agent
     /// task (envelope fidelity differs by access class — never serve the
     /// other path's cached output). An exec task's identity never reads
-    /// the pin. (The chosen-access half lands with the B6 registry — its
-    /// trigger, >1 access per provider, is unreachable before it.)
+    /// the pin.
     #[test]
     fn the_access_pin_rekeys_infer_and_agent_only() {
         const AGENT: &str =
@@ -292,6 +292,129 @@ mod unit {
             stamp_with(EXEC, None).def_hash,
             stamp_with(EXEC, Some("codex-acp")).def_hash,
             "an exec task's identity ignores the pin"
+        );
+    }
+
+    /// R-1 chosen-access half: an unpinned run that selected the local
+    /// ACP adapter must not cache-hit after the machine snapshot changes
+    /// to the provider API. The selected id, not only its class, joins
+    /// the definition identity before the cache-hit gate.
+    #[test]
+    fn the_selected_access_id_rekeys_an_unpinned_agent() {
+        use nika_providers::probe::{ExecutionLocus, ProviderProbe, ProviderReadiness};
+        use nika_types::access::AccessClass;
+
+        const AGENT: &str =
+            "nika: t\ntasks:\n  go:\n    agent: { model: openai/gpt-5.5, prompt: \"hi\" }\n";
+        let probe = |id: &str, class: AccessClass, serves: &[&str]| {
+            ProviderProbe::new(
+                id,
+                false,
+                true,
+                "",
+                false,
+                ProviderReadiness::new(
+                    true,
+                    true,
+                    None,
+                    None,
+                    false,
+                    ExecutionLocus::Loopback,
+                    class,
+                ),
+                "",
+            )
+            .with_serves(serves.iter().map(|s| (*s).to_owned()).collect())
+        };
+        let wf = parse(AGENT);
+        let stamp_with = |probes: &[ProviderProbe]| {
+            let ctx = ResumeContext::of(
+                &wf,
+                &BTreeMap::new(),
+                None,
+                &BTreeMap::new(),
+                &BTreeMap::new(),
+                None,
+            )
+            .with_access_probes(probes);
+            stamp(
+                &wf.tasks[0].value,
+                &BTreeMap::new(),
+                &BTreeMap::new(),
+                &BTreeMap::new(),
+                &ctx,
+            )
+            .expect("eligible")
+        };
+        let api = probe("openai", AccessClass::Api, &[]);
+        let codex = probe("codex-acp", AccessClass::Harness, &["openai"]);
+        let via_codex = stamp_with(&[api.clone(), codex]);
+        let via_api = stamp_with(&[api]);
+        assert_ne!(
+            via_codex.def_hash, via_api.def_hash,
+            "changing the selected seat must defeat the old cache hit"
+        );
+    }
+
+    /// `infer` executes on its native provider path; ACP candidates are
+    /// agent-only until infer dispatch itself learns that route. Resume
+    /// identity must describe the path that really executes.
+    #[test]
+    fn infer_resume_identity_never_claims_an_agent_harness() {
+        use nika_providers::probe::{ExecutionLocus, ProviderProbe, ProviderReadiness};
+        use nika_types::access::AccessClass;
+
+        const INFER: &str =
+            "nika: t\ntasks:\n  go:\n    infer: { model: openai/gpt-5.5, prompt: \"hi\" }\n";
+        let probe = |id: &str, class: AccessClass, serves: &[&str]| {
+            ProviderProbe::new(
+                id,
+                false,
+                true,
+                "",
+                false,
+                ProviderReadiness::new(
+                    true,
+                    true,
+                    None,
+                    None,
+                    false,
+                    ExecutionLocus::Loopback,
+                    class,
+                ),
+                "",
+            )
+            .with_serves(serves.iter().map(|s| (*s).to_owned()).collect())
+        };
+        let wf = parse(INFER);
+        let stamp_with = |probes: &[ProviderProbe]| {
+            let ctx = ResumeContext::of(
+                &wf,
+                &BTreeMap::new(),
+                None,
+                &BTreeMap::new(),
+                &BTreeMap::new(),
+                None,
+            )
+            .with_access_probes(probes);
+            stamp(
+                &wf.tasks[0].value,
+                &BTreeMap::new(),
+                &BTreeMap::new(),
+                &BTreeMap::new(),
+                &ctx,
+            )
+        };
+        let api = probe("openai", AccessClass::Api, &[]);
+        let codex = probe("codex-acp", AccessClass::Harness, &["openai"]);
+        assert_eq!(
+            stamp_with(&[api.clone(), codex]),
+            stamp_with(&[api]),
+            "an optional ACP agent seat cannot rewrite infer identity"
+        );
+        assert!(
+            stamp_with(&[probe("codex-acp", AccessClass::Harness, &["openai"])]).is_none(),
+            "without the native provider route infer makes no resume claim"
         );
     }
 

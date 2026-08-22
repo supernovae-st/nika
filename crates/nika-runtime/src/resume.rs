@@ -58,7 +58,7 @@ use crate::record::TaskRecord;
 /// The key-recipe version — bumped when the payload shape changes, so a
 /// trace stamped by an older recipe simply never matches (re-runs ·
 /// honest) instead of matching wrongly.
-pub const KEY_VERSION: u32 = 1;
+pub const KEY_VERSION: u32 = 2;
 
 /// The additive `task_completed` / `task_cache_hit` trace field names
 /// (ADR-099 · the compatibility surface: these evolve additively).
@@ -393,11 +393,15 @@ pub(crate) struct ResumeContext {
     /// The operator's `--access` pin (R-1 · P3) — behavior-bearing like
     /// the model: a run pinned `codex-acp` resumed under `api` must
     /// RE-RUN, never serve the other path's cached output (envelope
-    /// fidelity differs by access class). The CHOSEN-access half lands
-    /// with the B6 registry — the rider's own trigger (« the moment >1
-    /// access can serve one provider ») is unreachable while every
-    /// provider carries exactly one row.
+    /// fidelity differs by access class). The chosen route is bound
+    /// independently from the frozen probe snapshot below.
     access_pin: Option<String>,
+    /// The composer-frozen access candidates for this run. Resume keys
+    /// resolve through this SAME snapshot as dispatch, so changing the
+    /// selected adapter/profile cannot reuse output from another access
+    /// envelope. Empty preserves the env-free embedded-runtime posture:
+    /// no route claim is made when the embedder supplied no probes.
+    access_probes: Vec<nika_providers::probe::ProviderProbe>,
 }
 
 impl ResumeContext {
@@ -406,6 +410,8 @@ impl ResumeContext {
     /// (the effective default model falls back to the envelope's) + the
     /// composer-resolved skill texts + the composer-resolved child
     /// closure digests (spec 14 · the composition resume identity).
+    /// Access probes attach separately through [`Self::with_access_probes`]
+    /// because env-free embedders may intentionally provide none.
     pub(crate) fn of(
         wf: &RawWorkflow,
         resolved: &BTreeMap<String, Value>,
@@ -443,7 +449,17 @@ impl ResumeContext {
             skills: skills.clone(),
             child_closures: child_closures.clone(),
             access_pin: access_pin.filter(|p| !p.is_empty()).map(ToOwned::to_owned),
+            access_probes: Vec::new(),
         }
+    }
+
+    /// Bind the composer-frozen route candidates to resume identity.
+    pub(crate) fn with_access_probes(
+        mut self,
+        probes: &[nika_providers::probe::ProviderProbe],
+    ) -> Self {
+        self.access_probes = probes.to_vec();
+        self
     }
 
     /// Does `text` carry any resolved secret value? (The trace MUST NOT
@@ -481,10 +497,10 @@ pub(crate) fn stamp(
     {
         obj.insert("default_model".to_owned(), json!(model));
     }
-    // R-1 (P3 · the #409 precedent's ACCESS twin — pin half): the pin an
+    // R-1 (P3 · the #409 precedent's ACCESS twin): the pin an
     // infer/agent task runs under is behavior-bearing — a run pinned
     // `codex-acp` resumed under `api` RE-RUNS, never serves the other
-    // path's cached output. The chosen-access half lands with B6.
+    // path's cached output.
     if touches_intelligence(task)
         && let Some(pin) = ctx.access_pin.as_deref()
         && let Some(obj) = definition.as_object_mut()
@@ -527,6 +543,20 @@ pub(crate) fn stamp(
             .insert("child_closure".to_owned(), Value::Object(closures));
     }
     let inputs = input_value(task, records, inputs, consts, &ctx.markers)?;
+    // R-1 chosen-access half: resolve over the SAME frozen probes and
+    // rendered model dispatch will consume. A changed adapter/profile id
+    // re-keys before the cache-hit gate. If probes were supplied but a
+    // templated model cannot resolve here, the task becomes ineligible —
+    // re-running is the fail-closed direction, never a cross-seat hit.
+    match selected_access_identity(task, &inputs, ctx) {
+        SelectedAccessIdentity::Absent => {}
+        SelectedAccessIdentity::Present(access) => {
+            definition
+                .as_object_mut()?
+                .insert("selected_access".to_owned(), access);
+        }
+        SelectedAccessIdentity::Ineligible => return None,
+    }
     let key = ResumeKey::new(
         task.id.value.clone(),
         task.action.verb().to_owned(),
@@ -542,6 +572,71 @@ pub(crate) fn stamp(
         def_hash: key.definition_hash()?,
         input_hash: key.input_hash()?,
     })
+}
+
+/// Whether the resume recipe can bind the route dispatch will consume.
+enum SelectedAccessIdentity {
+    /// This task/path has no access identity to bind.
+    Absent,
+    /// The exact selected route, ready for the definition payload.
+    Present(Value),
+    /// A route exists at dispatch time but cannot be named safely here.
+    Ineligible,
+}
+
+/// The route identity dispatch will consume, or no claim for a
+/// non-intelligence task / an embedder that supplied no probe snapshot.
+fn selected_access_identity(
+    task: &RawTask,
+    resolved_inputs: &Value,
+    ctx: &ResumeContext,
+) -> SelectedAccessIdentity {
+    if !touches_intelligence(task) || ctx.access_probes.is_empty() {
+        return SelectedAccessIdentity::Absent;
+    }
+    let (kind, authored_model, routes_through_harness) = match &task.action {
+        RawAction::Infer(action) => ("infer", action.model.as_ref(), false),
+        RawAction::Agent(action) => ("agent", action.model.as_ref(), true),
+        _ => return SelectedAccessIdentity::Absent,
+    };
+    let model = if authored_model.is_some() {
+        let Some(model) = resolved_inputs
+            .pointer(&format!("/action/{kind}/model"))
+            .and_then(Value::as_str)
+        else {
+            return SelectedAccessIdentity::Ineligible;
+        };
+        model
+    } else {
+        let Some(model) = ctx.default_model.as_deref() else {
+            return SelectedAccessIdentity::Ineligible;
+        };
+        model
+    };
+    // A fan-out stand-in in a templated model is deliberately not a
+    // guessed provider. No stamp means no stale cache hit.
+    if model.contains(MARK) {
+        return SelectedAccessIdentity::Ineligible;
+    }
+    let mut candidates =
+        nika_providers::candidates_for(&ctx.access_probes, nika_providers::provider_of(model));
+    // `infer` still dispatches through `InferVerb`'s native provider
+    // registry. Only `agent` consumes an ACP seat today; stamping an
+    // infer with the resolver's preferred harness would attest a path it
+    // never executes and could preserve a cross-path cache hit.
+    if !routes_through_harness {
+        candidates.retain(|candidate| candidate.class != nika_types::access::AccessClass::Harness);
+    }
+    let Ok(plan) =
+        nika_providers::resolve_access(model, &candidates, None, ctx.access_pin.as_deref())
+    else {
+        return SelectedAccessIdentity::Ineligible;
+    };
+    SelectedAccessIdentity::Present(json!({
+        "id": plan.access,
+        "class": plan.chosen.as_str(),
+        "billing": plan.billing.as_str(),
+    }))
 }
 
 /// Does this task's behavior depend on the run's DEFAULT model? True

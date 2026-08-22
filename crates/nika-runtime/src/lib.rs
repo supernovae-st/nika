@@ -752,6 +752,7 @@ where
             &self.child_closures,
             self.access_pin.as_deref(),
         )
+        .with_access_probes(&self.access_probes)
     }
 
     /// The prologue emission (extracted under the fn-length law — the
