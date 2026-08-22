@@ -12,6 +12,10 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Changed
 
+- **`nika spec --canon` says the error-code count is the floor.** An agent
+  read `count: 103` plus two `NIKA-BUILTIN-*` rows as the builtin-code
+  family. The spec now carries a `scope:` sibling (nika-spec 282); this pin
+  vendors it. Per-builtin and per-provider codes still live in `nika explain`.
 - **BREAKING — the project file names itself (`nika.yaml`).** `nika:` carried a
   frozen `v1` tag while a workflow's `nika:` names the file: one key, two
   grammars, and every surface reading both had to know a special rule. It now
