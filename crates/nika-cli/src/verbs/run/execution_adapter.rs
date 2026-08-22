@@ -11,6 +11,8 @@ use super::*;
 pub(super) struct AdmittedWorld {
     pub(super) snapshot: nika_execution::ExecutionSnapshot,
     pub(super) display_root: std::path::PathBuf,
+    pub(super) execution_id: nika_types::id::ExecutionId,
+    pub(super) trace_id: nika_types::id::TraceId,
 }
 
 impl AdmittedWorld {
@@ -21,6 +23,8 @@ impl AdmittedWorld {
         Self {
             snapshot: context.snapshot().clone(),
             display_root,
+            execution_id: context.execution_id(),
+            trace_id: context.trace_id(),
         }
     }
 }

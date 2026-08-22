@@ -45,7 +45,7 @@ fn sensitive_journey(report: &nika_check::CheckReport) -> bool {
 
 mod example;
 pub use example::example;
-use sink::{TraceNote, TraceSurface, surface_trace};
+use sink::{ExecutionSink, TraceNote, TraceSurface, surface_trace};
 
 mod budget;
 mod ceiling;
@@ -392,7 +392,8 @@ fn execute_and_ask(
         theme,
         mode,
         resumed,
-        trace_sink(no_trace_file),
+        trace_sink(no_trace_file, world.execution_id, world.trace_id),
+        world.execution_id,
         !no_outputs,
         model_override,
         &carry,
@@ -494,7 +495,8 @@ fn answered_leg(
         theme,
         mode,
         true,
-        trace_sink(no_trace_file),
+        trace_sink(no_trace_file, world.execution_id, world.trace_id),
+        world.execution_id,
         outputs,
         model_override,
         &carry,
@@ -857,6 +859,7 @@ async fn execute(
     mode: RenderMode,
     resumed: bool,
     trace: TraceFileSink,
+    execution: nika_types::id::ExecutionId,
     outputs: bool,
     model_override: Option<&str>,
     carry: &str,
@@ -874,6 +877,7 @@ async fn execute(
             theme,
             resumed,
             trace,
+            execution,
             carry,
         )
         .await
@@ -885,6 +889,7 @@ async fn execute(
             stamper.as_mut(),
             resumed,
             trace,
+            execution,
             carry,
         )
         .await
@@ -898,6 +903,7 @@ async fn execute(
             theme,
             (mode, resumed, outputs),
             trace,
+            execution,
             model_override,
             carry,
         )
@@ -921,14 +927,16 @@ async fn execute_output_json_lane(
     theme: Theme,
     resumed: bool,
     trace: TraceFileSink,
+    execution: nika_types::id::ExecutionId,
     carry: &str,
 ) -> RunVerdict {
     let mut fold = FoldSink::new(std::io::stderr().lock(), theme, RenderMode::Plain);
     fold.set_plan(plan_waves(wf, report));
     fold.set_trace_recorded(!trace.is_disabled());
-    let mut tee = Tee::new(fold, trace);
-    let (code, outcome) = drive(runtime, wf, report, stamper, &mut tee).await;
-    let (mut sink, mut trace) = tee.into_parts();
+    let tee = Tee::new(fold, trace);
+    let mut events = ExecutionSink::new(tee, execution);
+    let (code, outcome) = drive(runtime, wf, report, stamper, &mut events).await;
+    let (mut sink, mut trace) = events.into_inner().into_parts();
     sink.print_final();
     // Pause delivery is journaled before the seal (ADR-111).
     if let (Some(p), Some(pause)) = (
@@ -998,11 +1006,13 @@ async fn execute_json_lane(
     stamper: &mut dyn Stamper,
     resumed: bool,
     trace: TraceFileSink,
+    execution: nika_types::id::ExecutionId,
     carry: &str,
 ) -> RunVerdict {
-    let mut tee = Tee::new(JsonSink::new(std::io::stdout().lock()), trace);
-    let (code, outcome) = drive(runtime, wf, report, stamper, &mut tee).await;
-    let (sink, mut trace) = tee.into_parts();
+    let tee = Tee::new(JsonSink::new(std::io::stdout().lock()), trace);
+    let mut events = ExecutionSink::new(tee, execution);
+    let (code, outcome) = drive(runtime, wf, report, stamper, &mut events).await;
+    let (sink, mut trace) = events.into_inner().into_parts();
     if let (Some(p), Some(pause)) = (
         trace.path().map(std::path::Path::to_path_buf),
         outcome.paused.as_ref(),
@@ -1055,6 +1065,7 @@ async fn execute_fold_lane(
     theme: Theme,
     (mode, resumed, outputs): (RenderMode, bool, bool),
     trace: TraceFileSink,
+    execution: nika_types::id::ExecutionId,
     model_override: Option<&str>,
     carry: &str,
 ) -> RunVerdict {
@@ -1074,11 +1085,12 @@ async fn execute_fold_lane(
     });
     let ticker = pulse.clone().map(heartbeat::spawn_ticker);
     let beat = heartbeat::HeartbeatSink::new(pulse);
-    let mut tee = Tee::new(
+    let tee = Tee::new(
         Tee::new(sink::FoldHandle(std::sync::Arc::clone(&fold)), beat),
         trace,
     );
-    let (code, outcome) = drive(runtime, wf, report, stamper, &mut tee).await;
+    let mut events = ExecutionSink::new(tee, execution);
+    let (code, outcome) = drive(runtime, wf, report, stamper, &mut events).await;
     // The run settled: stop riders before the epilogue.
     if let Some(ticker) = &ticker {
         ticker.abort();
@@ -1086,7 +1098,7 @@ async fn execute_fold_lane(
     if let Some(spinner) = &spinner {
         spinner.abort();
     }
-    let (_inner, mut trace) = tee.into_parts();
+    let (_inner, mut trace) = events.into_inner().into_parts();
     if let (Some(p), Some(pause)) = (
         trace.path().map(std::path::Path::to_path_buf),
         outcome.paused.as_ref(),
@@ -1297,12 +1309,17 @@ where
 /// The run journal (spec §3.3) — composed like the other seams;
 /// `execute` receives the sink, never a flag. The directory constant
 /// is the store scan's (one constant, one home).
-fn trace_sink(no_trace_file: bool) -> TraceFileSink {
-    if no_trace_file {
+fn trace_sink(
+    no_trace_file: bool,
+    execution: nika_types::id::ExecutionId,
+    trace: nika_types::id::TraceId,
+) -> TraceFileSink {
+    let sink = if no_trace_file {
         TraceFileSink::disabled()
     } else {
         TraceFileSink::new(nika_dap::store::TRACE_DIR)
-    }
+    };
+    sink.for_execution(execution, trace)
 }
 
 #[cfg(test)]

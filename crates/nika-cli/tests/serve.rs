@@ -39,6 +39,8 @@ fn project(tag: &str, registry: &str, workflows: &[(&str, &str)]) -> std::path::
 const TRUE: &str =
     "nika: armed-true\npermits: { exec: true }\ntasks:\n  ok:\n    exec: { shell: \"true\" }\n";
 
+const TOUCH: &str = "nika: dry-only\npermits: { exec: true }\ntasks:\n  effect:\n    exec: { shell: \"touch should-not-exist\" }\n";
+
 /// Daily 03:00 UTC, skip the misses.
 const DAILY_3AM: &str = concat!(
     "nika: proj\n",
@@ -93,6 +95,24 @@ fn serve_once_fires_what_is_due_and_exits_zero() {
     let last = last_json(&dir, "doctor").expect("last.json");
     assert_eq!(last["kind"], "fired");
     assert_eq!(last["slot"], "2026-08-19T03:00:00Z");
+}
+
+#[test]
+fn serve_once_dry_reports_due_beat_without_state_trace_or_effect() {
+    let dir = project("once-dry", DAILY_3AM, &[("doctor.nika.yaml", TOUCH)]);
+    let out = bin()
+        .args(["serve", "--once", "--dry", "--now", "2026-08-19T03:02:00Z"])
+        .current_dir(&dir)
+        .output()
+        .expect("spawn dry serve");
+    assert_eq!(out.status.code(), Some(0));
+    assert_eq!(
+        String::from_utf8_lossy(&out.stdout),
+        "would fire doctor · slot 2026-08-19T03:00:00Z\n"
+    );
+    assert!(history(&dir, "doctor").is_empty(), "zero ledger rows");
+    assert!(!dir.join(".nika/traces").exists(), "zero trace directory");
+    assert!(!dir.join("should-not-exist").exists(), "zero effects");
 }
 
 #[test]

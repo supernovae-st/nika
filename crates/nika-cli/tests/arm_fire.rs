@@ -107,6 +107,44 @@ tasks:
     agent: { prompt: "apply the skill", skills: ["skill.md"] }
 "#;
 
+/// A dynamically-computed write target passes static audit but is refused at
+/// the real fs boundary because it is outside the declared write set.
+const FORBIDDEN_WRITE: &str = r#"
+nika: forbidden-write
+permits:
+  fs:
+    write: ["./allowed.txt"]
+  tools: ["nika:jq", "nika:write"]
+tasks:
+  target:
+    invoke:
+      tool: "nika:jq"
+      args: { input: {}, expression: '"./forbidden.txt"' }
+  write:
+    with: { path: "${{ tasks.target.output }}" }
+    invoke:
+      tool: "nika:write"
+      args: { path: "${{ with.path }}", content: "must-not-land" }
+"#;
+
+const CAPTURED_WORLD_PARENT: &str = r#"
+nika: captured-world-parent
+model: mock/echo
+permits:
+  exec: true
+  fs:
+    read: ["skill.md"]
+tasks:
+  hold:
+    exec: { shell: "sleep 1" }
+  child:
+    after: { hold: success }
+    invoke: { workflow: "./child.nika.yaml" }
+  review:
+    after: { child: success }
+    agent: { prompt: "apply captured guidance", skills: ["skill.md"] }
+"#;
+
 /// Daily 03:00 UTC, skip the misses.
 const DAILY_3AM: &str = concat!(
     "nika: proj\n",
@@ -256,7 +294,152 @@ fn fire_runs_a_due_beat_and_records_it() {
         "the receipt fences the claim's seq: {hist}"
     );
     assert_eq!(receipt["slot_id"], claim["slot_id"], "{hist}");
+    let execution = claim["payload"]["execution_id"]
+        .as_str()
+        .expect("claim execution id");
+    let trace_id = claim["payload"]["trace_id"]
+        .as_str()
+        .expect("claim trace id");
+    assert_eq!(receipt["payload"]["execution_id"], execution);
+    assert_eq!(receipt["payload"]["trace_id"], trace_id);
+    let raw = std::fs::read_to_string(dir.join(trace)).expect("physical journal");
+    let recovered = nika_dap::recover::recover_events(&raw, trace).expect("typed trace events");
+    let first_execution = recovered.events[0]
+        .execution
+        .expect("the first root event carries service execution identity");
+    assert_eq!(first_execution.to_string(), execution);
+    let execution_uuid = execution
+        .strip_prefix("exe-")
+        .expect("typed execution prefix");
+    assert_eq!(trace_id, execution_uuid.replace('-', ""));
+    let trace_suffix = &trace_id[trace_id.len() - 4..];
+    assert!(
+        trace.ends_with(&format!("-{trace_suffix}.ndjson")),
+        "the typed trace ID addresses the physical journal: {trace}"
+    );
+    assert!(
+        recovered
+            .events
+            .iter()
+            .all(|event| event.execution == Some(first_execution)),
+        "every root event carries the admitted execution identity"
+    );
     assert_eq!(traces(&dir).len(), 1, "one fresh run = one trace (N2)");
+}
+
+#[test]
+fn direct_cli_projects_one_execution_identity_to_json_and_physical_trace() {
+    let dir = project(
+        "direct-execution-identity",
+        DAILY_3AM,
+        &[("doctor.nika.yaml", TRUE)],
+    );
+    let out = bin()
+        .args([
+            "run",
+            "workflows/doctor.nika.yaml",
+            "--json",
+            "--color",
+            "never",
+        ])
+        .current_dir(&dir)
+        .output()
+        .expect("spawn direct run");
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "direct run: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let frames = String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .map(|line| serde_json::from_str::<serde_json::Value>(line).expect("json event"))
+        .collect::<Vec<_>>();
+    let projected = frames[0]["execution"].clone();
+    assert!(
+        !projected.is_null(),
+        "the direct CLI projects execution identity"
+    );
+    assert!(
+        frames.iter().all(|frame| frame["execution"] == projected),
+        "every JSON projection carries the same execution"
+    );
+
+    let journals = traces(&dir);
+    assert_eq!(journals.len(), 1);
+    let trace = format!(".nika/traces/{}", journals[0]);
+    let raw = std::fs::read_to_string(dir.join(&trace)).expect("physical trace");
+    let recovered = nika_dap::recover::recover_events(&raw, &trace).expect("typed trace");
+    let execution = recovered.events[0].execution.expect("journal execution");
+    assert!(
+        recovered
+            .events
+            .iter()
+            .all(|event| event.execution == Some(execution))
+    );
+    let simple = execution.uuid.as_simple().to_string();
+    assert!(trace.ends_with(&format!("-{}.ndjson", &simple[simple.len() - 4..])));
+}
+
+#[test]
+fn forbidden_effect_fails_without_side_effect_and_keeps_exact_trace_identity() {
+    let dir = project(
+        "forbidden-effect",
+        DAILY_3AM,
+        &[("doctor.nika.yaml", FORBIDDEN_WRITE)],
+    );
+    let out = bin()
+        .args(["arm", "fire", "doctor", "--now", "2026-08-19T03:02:00Z"])
+        .current_dir(&dir)
+        .output()
+        .expect("spawn forbidden fire");
+    assert_eq!(out.status.code(), Some(1), "runtime denial maps to exit 1");
+    let line = assert_one_line(&out);
+    assert!(line.starts_with("failed doctor ·"), "{line}");
+    assert!(
+        !dir.join("forbidden.txt").exists(),
+        "the denied effect leaves zero bytes"
+    );
+
+    let hist = history(&dir, "doctor");
+    let docs = hist
+        .lines()
+        .map(|line| serde_json::from_str::<serde_json::Value>(line).expect("ledger json"))
+        .collect::<Vec<_>>();
+    assert_eq!(docs.len(), 2, "durable claim then terminal receipt: {hist}");
+    assert_eq!(docs[1]["kind"], "failed");
+    assert_eq!(docs[1]["payload"]["exit"], 1);
+    assert_eq!(
+        docs[1]["payload"]["execution_id"],
+        docs[0]["payload"]["execution_id"]
+    );
+    assert_eq!(
+        docs[1]["payload"]["trace_id"],
+        docs[0]["payload"]["trace_id"]
+    );
+    let trace = docs[1]["payload"]["trace"]
+        .as_str()
+        .expect("failed receipt trace");
+    let raw = std::fs::read_to_string(dir.join(trace)).expect("failed trace exists");
+    let recovered = nika_dap::recover::recover_events(&raw, trace).expect("typed failed trace");
+    let execution = docs[0]["payload"]["execution_id"]
+        .as_str()
+        .expect("claim execution");
+    assert!(recovered.events.iter().all(|event| {
+        event
+            .execution
+            .is_some_and(|id| id.to_string() == execution)
+    }));
+    assert!(
+        recovered.events.iter().any(|event| {
+            event.kind == nika_event::EventKind::PermitChecked
+                && event.fields.iter().any(|field| {
+                    field.key == "decision"
+                        && field.value == nika_types::resource::Value::String("deny".to_owned())
+                })
+        }),
+        "the real denial is journaled"
+    );
 }
 
 #[cfg(unix)]
@@ -413,6 +596,57 @@ fn fire_keeps_pinned_parent_bytes_and_their_original_relative_child_base() {
         replacement,
         "the successful run came from the captured bytes, not a second file read"
     );
+}
+
+#[test]
+fn actual_arm_runner_uses_captured_child_and_skill_after_durable_claim() {
+    let registry = DAILY_3AM.replace("doctor.nika.yaml", "parent.nika.yaml");
+    let dir = project(
+        "captured-child-skill-mutation",
+        &registry,
+        &[
+            ("parent.nika.yaml", CAPTURED_WORLD_PARENT),
+            ("child.nika.yaml", RELATIVE_CHILD),
+            (
+                "skill.md",
+                "---\nname: captured\ndescription: captured guidance\n---\nOriginal.\n",
+            ),
+        ],
+    );
+    let child = bin()
+        .args(["arm", "fire", "parent", "--now", "2026-08-19T03:02:00Z"])
+        .current_dir(&dir)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("spawn captured-world fire");
+    let history_path = dir.join(".nika/arm/parent/history.ndjson");
+    let deadline = std::time::Instant::now() + std::time::Duration::from_secs(5);
+    while !std::fs::read_to_string(&history_path)
+        .is_ok_and(|text| text.contains("\"kind\":\"claimed\""))
+    {
+        assert!(std::time::Instant::now() < deadline, "claim did not land");
+        std::thread::sleep(std::time::Duration::from_millis(5));
+    }
+    std::fs::write(
+        dir.join("workflows/child.nika.yaml"),
+        "not: a valid nika workflow\n",
+    )
+    .expect("mutate child after claim");
+    std::fs::write(dir.join("workflows/skill.md"), "invalid replacement")
+        .expect("mutate skill after claim");
+
+    let out = child
+        .wait_with_output()
+        .expect("captured-world fire settles");
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "only the admitted child+skill bytes may run: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let line = assert_one_line(&out);
+    assert!(line.starts_with("fired parent ·"), "{line}");
 }
 
 #[test]
