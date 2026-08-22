@@ -103,8 +103,8 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| branch           | `feat/remote-job-store-v4`                                      |
-| HEAD             | `9459a6071` (`9459a60713ecf4246c0d29964fd2cccf3de15255`)             |
+| branch           | `feat/remote-job-store-v5`                                      |
+| HEAD             | `fc516af05` (`fc516af05deabaedb0232f675cabadf8e5ba18bd`)             |
 | workspace        | v0.113.0                                  |
 | crates (workspace)| 69                                              |
 | crates (admitted)| 62                                             |
@@ -116,8 +116,8 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 | L2               | 5                                              |
 | L3               | 2                                              |
 | L4               | 14                                              |
-| lib tests        | (skipped — pass --no-quick to compute)                              |
-| clippy           | (skipped)                              |
+| lib tests        | 6352 passed, 0 failed                              |
+| clippy           | 0 warnings                              |
 
 Diamond foundation — orphan branch from scratch. Live counts (admitted ·
 WIP · per-layer) are in the AUTO-GENERATED status block above (the
