@@ -62,6 +62,12 @@ pub fn written_files(view: &RunView) -> Vec<WroteFile> {
         if row.state != TaskState::Ok {
             continue;
         }
+        // A recovered write is Ok because the recover arm supplied a
+        // substitute, not because the effect landed. Prefixing `wrote`
+        // to that substitute is the lie (issue 1045).
+        if row.recovered {
+            continue;
+        }
         let Some(verb) = write_verb(row) else {
             continue;
         };
@@ -330,6 +336,35 @@ mod tests {
             &[("task", "odd"), ("output", "42")],
         ));
         assert!(written_files(&view).is_empty());
+    }
+
+    /// A recovered write is Ok in the fold (the recover arm supplied a
+    /// substitute) but nothing landed on disk. Prefixing `wrote` to that
+    /// substitute is the lie issue 1045 measured: `wrote NOTHING WAS
+    /// WRITTEN` · rc=0 · empty tree.
+    #[test]
+    fn written_files_ignore_a_recovered_write() {
+        let mut view = RunView::new();
+        view.apply(&ev(
+            EventKind::TaskStarted,
+            0,
+            &[("task", "persist"), ("note", "invoke · nika:write")],
+        ));
+        view.apply(&ev(EventKind::TaskRecovered, 1, &[("task", "persist")]));
+        view.apply(&ev(
+            EventKind::TaskCompleted,
+            2,
+            &[("task", "persist"), ("output", "\"NOTHING WAS WRITTEN\"")],
+        ));
+        assert!(
+            view.rows()[0].recovered,
+            "the repair fact must fold or this test is blind"
+        );
+        assert!(
+            written_files(&view).is_empty(),
+            "a recovered write is not fruit: {:?}",
+            written_files(&view)
+        );
     }
 
     /// The last word: the LAST settled inference row with a non-empty
