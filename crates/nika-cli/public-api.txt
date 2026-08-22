@@ -280,6 +280,7 @@ pub mod nika_cli::verbs::arm::emit
 pub fn nika_cli::verbs::arm::emit::disarm(label: &str, write: bool) -> nika_cli_host::output::VerbOutput
 pub fn nika_cli::verbs::arm::emit::run(args: &nika_cli::verbs::arm::args::ArmArgs, emit_target: nika_cli::verbs::arm::args::EmitTarget) -> nika_cli_host::output::VerbOutput
 pub mod nika_cli::verbs::arm::fire
+pub use nika_cli::verbs::arm::fire::ExecutionRunSeam
 pub use nika_cli::verbs::arm::fire::FireCtx
 pub use nika_cli::verbs::arm::fire::FireCtxError
 pub use nika_cli::verbs::arm::fire::FireVerdict
