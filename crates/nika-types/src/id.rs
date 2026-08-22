@@ -72,6 +72,55 @@ impl fmt::Display for RunId {
     }
 }
 
+/// Identifier for one admitted execution (`UUIDv7`).
+///
+/// An execution is distinct from an interface request, durable job, workflow
+/// run, and trace. Its UUID bytes deterministically seed the execution's root
+/// [`TraceId`], keeping that relationship direct and typed.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[non_exhaustive]
+pub struct ExecutionId {
+    /// The underlying UUID.
+    pub uuid: Uuid,
+}
+
+impl ExecutionId {
+    /// Create an execution ID from a UUID.
+    #[must_use]
+    pub fn new(uuid: Uuid) -> Self {
+        Self { uuid }
+    }
+
+    /// Generate a new time-ordered execution ID.
+    #[must_use]
+    pub fn generate() -> Self {
+        Self {
+            uuid: Uuid::now_v7(),
+        }
+    }
+
+    /// Create an execution ID from raw UUID bytes.
+    #[must_use]
+    pub fn from_bytes(bytes: [u8; 16]) -> Self {
+        Self {
+            uuid: Uuid::from_bytes(bytes),
+        }
+    }
+
+    /// Nil (zero) execution ID.
+    #[must_use]
+    pub fn nil() -> Self {
+        Self { uuid: Uuid::nil() }
+    }
+}
+
+impl fmt::Display for ExecutionId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "exe-{}", self.uuid)
+    }
+}
+
 /// Event identifier (`UUIDv7`).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -188,6 +237,12 @@ impl fmt::Display for TraceId {
             write!(f, "{byte:02x}")?;
         }
         Ok(())
+    }
+}
+
+impl From<ExecutionId> for TraceId {
+    fn from(execution: ExecutionId) -> Self {
+        Self::new(*execution.uuid.as_bytes())
     }
 }
 
@@ -412,6 +467,32 @@ mod tests {
         assert_eq!(id, back);
     }
 
+    // ─── ExecutionId ──────────────────────────────────
+
+    #[test]
+    fn execution_id_generate_is_unique() {
+        let a = ExecutionId::generate();
+        let b = ExecutionId::generate();
+        assert_ne!(a, b);
+    }
+
+    #[test]
+    fn execution_id_is_the_trace_identity() {
+        let bytes = [7u8; 16];
+        let execution = ExecutionId::from_bytes(bytes);
+        let trace = TraceId::from(execution);
+        assert_eq!(trace.bytes, bytes);
+    }
+
+    #[test]
+    fn execution_id_display_and_serde_are_stable() {
+        let id = ExecutionId::nil();
+        assert!(id.to_string().starts_with("exe-"));
+        let json = serde_json::to_string(&id).expect("serialize");
+        let back: ExecutionId = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(id, back);
+    }
+
     // ─── EventId ────────────────────────────────────────────────────
 
     #[test]
@@ -599,6 +680,7 @@ mod tests {
     #[test]
     fn id_types_are_send_sync() {
         _assert_send_sync::<RunId>();
+        _assert_send_sync::<ExecutionId>();
         _assert_send_sync::<EventId>();
         _assert_send_sync::<CorrelationId>();
         _assert_send_sync::<TraceId>();

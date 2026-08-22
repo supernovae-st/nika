@@ -1379,6 +1379,57 @@ pub unsafe fn nika_types::id::EventId::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_types::id::EventId
 pub fn nika_types::id::EventId::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::id::EventId where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_types::id::ExecutionId
+pub nika_types::id::ExecutionId::uuid: uuid::Uuid
+impl nika_types::id::ExecutionId
+pub fn nika_types::id::ExecutionId::from_bytes(bytes: [u8; 16]) -> Self
+pub fn nika_types::id::ExecutionId::generate() -> Self
+pub fn nika_types::id::ExecutionId::new(uuid: uuid::Uuid) -> Self
+pub fn nika_types::id::ExecutionId::nil() -> Self
+impl core::clone::Clone for nika_types::id::ExecutionId
+pub fn nika_types::id::ExecutionId::clone(&self) -> nika_types::id::ExecutionId
+impl core::cmp::Eq for nika_types::id::ExecutionId
+impl core::cmp::PartialEq for nika_types::id::ExecutionId
+pub fn nika_types::id::ExecutionId::eq(&self, other: &nika_types::id::ExecutionId) -> bool
+impl core::convert::From<nika_types::id::ExecutionId> for nika_types::id::TraceId
+pub fn nika_types::id::TraceId::from(execution: nika_types::id::ExecutionId) -> Self
+impl core::fmt::Debug for nika_types::id::ExecutionId
+pub fn nika_types::id::ExecutionId::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_types::id::ExecutionId
+pub fn nika_types::id::ExecutionId::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_types::id::ExecutionId
+pub fn nika_types::id::ExecutionId::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_types::id::ExecutionId
+impl core::marker::StructuralPartialEq for nika_types::id::ExecutionId
+impl serde_core::ser::Serialize for nika_types::id::ExecutionId
+pub fn nika_types::id::ExecutionId::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_types::id::ExecutionId
+pub fn nika_types::id::ExecutionId::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<T, U> core::convert::Into<U> for nika_types::id::ExecutionId where U: core::convert::From<T>
+pub fn nika_types::id::ExecutionId::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::id::ExecutionId where U: core::convert::Into<T>
+pub type nika_types::id::ExecutionId::Error = core::convert::Infallible
+pub fn nika_types::id::ExecutionId::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::id::ExecutionId where U: core::convert::TryFrom<T>
+pub type nika_types::id::ExecutionId::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::id::ExecutionId::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::id::ExecutionId where T: core::clone::Clone
+pub type nika_types::id::ExecutionId::Owned = T
+pub fn nika_types::id::ExecutionId::clone_into(&self, target: &mut T)
+pub fn nika_types::id::ExecutionId::to_owned(&self) -> T
+impl<T> alloc::string::ToString for nika_types::id::ExecutionId where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_types::id::ExecutionId::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_types::id::ExecutionId where T: 'static + ?core::marker::Sized
+pub fn nika_types::id::ExecutionId::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::id::ExecutionId where T: ?core::marker::Sized
+pub fn nika_types::id::ExecutionId::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::id::ExecutionId where T: ?core::marker::Sized
+pub fn nika_types::id::ExecutionId::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::id::ExecutionId where T: core::clone::Clone
+pub unsafe fn nika_types::id::ExecutionId::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::id::ExecutionId
+pub fn nika_types::id::ExecutionId::from(t: T) -> T
+impl<T> serde_core::de::DeserializeOwned for nika_types::id::ExecutionId where T: for<'de> serde_core::de::Deserialize<'de>
 #[non_exhaustive] pub struct nika_types::id::ModelId
 impl nika_types::id::ModelId
 pub fn nika_types::id::ModelId::as_str(&self) -> &str
@@ -1672,6 +1723,8 @@ pub fn nika_types::id::TraceId::clone(&self) -> nika_types::id::TraceId
 impl core::cmp::Eq for nika_types::id::TraceId
 impl core::cmp::PartialEq for nika_types::id::TraceId
 pub fn nika_types::id::TraceId::eq(&self, other: &nika_types::id::TraceId) -> bool
+impl core::convert::From<nika_types::id::ExecutionId> for nika_types::id::TraceId
+pub fn nika_types::id::TraceId::from(execution: nika_types::id::ExecutionId) -> Self
 impl core::fmt::Debug for nika_types::id::TraceId
 pub fn nika_types::id::TraceId::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::fmt::Display for nika_types::id::TraceId
@@ -4034,6 +4087,8 @@ pub fn nika_types::id::TraceId::clone(&self) -> nika_types::id::TraceId
 impl core::cmp::Eq for nika_types::id::TraceId
 impl core::cmp::PartialEq for nika_types::id::TraceId
 pub fn nika_types::id::TraceId::eq(&self, other: &nika_types::id::TraceId) -> bool
+impl core::convert::From<nika_types::id::ExecutionId> for nika_types::id::TraceId
+pub fn nika_types::id::TraceId::from(execution: nika_types::id::ExecutionId) -> Self
 impl core::fmt::Debug for nika_types::id::TraceId
 pub fn nika_types::id::TraceId::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::fmt::Display for nika_types::id::TraceId
@@ -7290,6 +7345,8 @@ pub fn nika_types::id::TraceId::clone(&self) -> nika_types::id::TraceId
 impl core::cmp::Eq for nika_types::id::TraceId
 impl core::cmp::PartialEq for nika_types::id::TraceId
 pub fn nika_types::id::TraceId::eq(&self, other: &nika_types::id::TraceId) -> bool
+impl core::convert::From<nika_types::id::ExecutionId> for nika_types::id::TraceId
+pub fn nika_types::id::TraceId::from(execution: nika_types::id::ExecutionId) -> Self
 impl core::fmt::Debug for nika_types::id::TraceId
 pub fn nika_types::id::TraceId::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::fmt::Display for nika_types::id::TraceId
