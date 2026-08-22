@@ -580,7 +580,14 @@ where
         };
         let started = self.clock.now();
         let witness = std::sync::Arc::new(PermitWitness::new());
-        let attempt = self.attempt_loop(task, &scope, types, ledger, &witness);
+        let attempt = self.attempt_loop(
+            task,
+            &scope,
+            types,
+            ledger,
+            &witness,
+            crate::dispatch::AccessObserver::default(),
+        );
         let mut ran = nika_builtin::witness::scope_attempt_witness(witness.clone(), attempt).await;
         // `on_finally:` — the task STARTED (spec 03 · success AND
         // failure · before the failure propagates in the DAG). The
@@ -588,7 +595,9 @@ where
         // parent's is already drained by attempt_loop) merged right after.
         let finally_witness = std::sync::Arc::new(PermitWitness::new());
         let finally = self.run_finally(task, wf, &scope, &ran, integrity, &finally_witness);
-        nika_builtin::witness::scope_attempt_witness(finally_witness.clone(), finally).await;
+        let finally_receipt =
+            nika_builtin::witness::scope_attempt_witness(finally_witness.clone(), finally).await;
+        ran.result.retain_access_receipt(finally_receipt);
         ran.decisions.extend(finally_witness.take());
         ran.duration_ms = self.since_ms(started);
         SettleAs::Ran(Box::new(ran))
@@ -630,6 +639,11 @@ where
             .as_ref()
             .map_or(items.len(), |m| (m.value as usize).max(1));
         let total = items.len();
+        // Shared parent witness: an iteration dropped by fail-fast may
+        // already have started an ACP effect. Its own future cannot
+        // return a receipt after cancellation, so selection also stamps
+        // this aggregate-owned observer before the effect begins.
+        let access_observer = crate::dispatch::AccessObserver::default();
 
         // Iterations dispatch concurrently (cap = `max_parallel`) ·
         // settle in INPUT order (the same ordered-settlement law as
@@ -652,6 +666,7 @@ where
                         permits,
                         types,
                         ledger,
+                        &access_observer,
                     )
                 }),
         )
@@ -659,6 +674,7 @@ where
 
         let mut acc = fan_out::collect_fan_out(&mut stream, total, fail_fast).await;
         drop(stream);
+        fan_out::retain_effect_receipt(&mut acc.access_receipt, access_observer.receipt());
 
         // Budget starvation: iterations that were never admitted leave
         // the accumulation short — the task fails with the budget code
@@ -671,7 +687,7 @@ where
             acc.outputs,
             acc.tokens_sum,
             (acc.first_error, acc.first_recovered_from),
-            (acc.cost_sum, acc.unpriced),
+            (acc.cost_sum, acc.unpriced, acc.access_receipt),
         );
         let retries = acc.retries;
         let agent_events = acc.agent_events;
@@ -691,7 +707,9 @@ where
             Self::fan_out_finally_scope(records, (inputs, consts, secrets), permits);
         let finally_witness = std::sync::Arc::new(PermitWitness::new());
         let finally = self.run_finally(task, wf, &finally_scope, &ran, integrity, &finally_witness);
-        nika_builtin::witness::scope_attempt_witness(finally_witness.clone(), finally).await;
+        let finally_receipt =
+            nika_builtin::witness::scope_attempt_witness(finally_witness.clone(), finally).await;
+        ran.result.retain_access_receipt(finally_receipt);
         ran.decisions.extend(finally_witness.take());
         ran.duration_ms = self.since_ms(started);
         SettleAs::Ran(Box::new(ran))
@@ -732,6 +750,7 @@ where
         permits: Option<&Permits>,
         types: &BTreeMap<String, nika_types::types::NikaType>,
         ledger: &crate::ledger::RunLedger,
+        fan_out_access: &crate::dispatch::AccessObserver,
     ) -> RanTask {
         let with_ns = match render_with(
             task,
@@ -771,7 +790,14 @@ where
             permits,
         };
         let witness = std::sync::Arc::new(PermitWitness::new());
-        let attempt = self.attempt_loop(task, &scope, types, ledger, &witness);
+        let attempt = self.attempt_loop(
+            task,
+            &scope,
+            types,
+            ledger,
+            &witness,
+            fan_out_access.child(),
+        );
         let mut ran = nika_builtin::witness::scope_attempt_witness(witness.clone(), attempt).await;
         // Stamp the lane: without it a 2-iteration fan-out and a retried
         // single lane produce indistinguishable flat streams (review F3).
@@ -790,8 +816,9 @@ where
         deadline: Option<std::time::Duration>,
         child_budget: Option<f64>,
         witness: &'a PermitWitness,
+        access_observer: &'a crate::dispatch::AccessObserver,
     ) -> DispatchCtx<'a> {
-        let mut ctx = DispatchCtx::of_task(task, deadline, child_budget, witness);
+        let mut ctx = DispatchCtx::of_task(task, deadline, child_budget, witness, access_observer);
         ctx.gate_answer = self.prompt_answers.get(&task.id.value).cloned();
         ctx
     }
@@ -803,6 +830,7 @@ where
         types: &BTreeMap<String, nika_types::types::NikaType>,
         ledger: &crate::ledger::RunLedger,
         witness: &PermitWitness,
+        access_observer: crate::dispatch::AccessObserver,
     ) -> RanTask {
         let started = self.clock.now();
         let max_attempts = task
@@ -823,7 +851,15 @@ where
             // F-O1 PR-2 · the re-gate's per-template oracle — computed ONCE, used per attempt.
             let value_taint = crate::integrity::ValueTaint::of_task(task, scope.records);
             // law 6 · the child budget reads the ledger AT CALL TIME (per attempt).
-            let ctx = || self.task_ctx(task, budget, ledger.remaining_usd(), witness);
+            let ctx = || {
+                self.task_ctx(
+                    task,
+                    budget,
+                    ledger.remaining_usd(),
+                    witness,
+                    &access_observer,
+                )
+            };
             let attempts = async {
                 let mut attempt = 1_u32;
                 // Spend of FAILED attempts — folded onto the terminal frame.
@@ -873,7 +909,7 @@ where
                 }
             };
 
-            self.race_budget(attempts, budget).await
+            self.race_budget(attempts, budget, &access_observer).await
         };
 
         let duration_ms = self.since_ms(started);
@@ -902,6 +938,7 @@ where
         &self,
         attempts: F,
         budget: Option<Duration>,
+        access_observer: &crate::dispatch::AccessObserver,
     ) -> Result<DispatchOk, FailedOutcome>
     where
         F: Future<Output = Result<DispatchOk, FailedOutcome>>,
@@ -933,7 +970,7 @@ where
                             // timeout-cancellation class).
                             cost_usd: None,
                             cost_unpriced: None,
-                            access_receipt: None,
+                            access_receipt: access_observer.receipt().map(Box::new),
                             // The dropped attempt's binding evidence dies
                             // with it (futures-cancellation — the gate
                             // verdict was never journaled either).

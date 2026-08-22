@@ -92,6 +92,7 @@ nika-verb-infer  = { path = "../nika-verb-infer", version = "0.113.0" }
 nika-verb-exec   = { path = "../nika-verb-exec", version = "0.113.0" }
 nika-verb-invoke = { path = "../nika-verb-invoke", version = "0.113.0" }
 nika-verb-agent  = { path = "../nika-verb-agent", version = "0.113.0" }
+futures-util     = { workspace = true }
 proptest = { workspace = true }   # Gate 6 · the fold's order-independence property (tests/fold_property.rs)
 insta    = { workspace = true }   # the arm report's snapshot (PROUVÉ · DÉCLARÉ · orphelins)
 uuid     = { workspace = true }   # test fixtures mint EventIds (the last prod use descended with the journal writer)

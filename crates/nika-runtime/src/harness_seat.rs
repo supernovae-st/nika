@@ -57,6 +57,7 @@ pub(crate) const fn declared_id() -> Option<String> {
 
 #[cfg(all(test, feature = "access-harness"))]
 mod tests {
+    use std::collections::BTreeMap;
     use std::pin::Pin;
     use std::sync::Arc;
 
@@ -74,6 +75,7 @@ mod tests {
     use nika_verb_infer::InferVerb;
     use nika_verb_invoke::InvokeVerb;
 
+    use crate::child::{ChildCall, ChildOutcome, ChildRunRefusal, ChildRunner};
     use crate::{DeterministicStamper, EventKind, Runtime, RuntimeConfig, VecSink};
 
     struct CompletedBackend;
@@ -101,6 +103,111 @@ mod tests {
         }
     }
 
+    struct CountingCompletedBackend {
+        calls: Arc<std::sync::atomic::AtomicUsize>,
+    }
+
+    impl DynAgentBackend for CountingCompletedBackend {
+        fn run_agent_boxed(
+            &self,
+            _request: HarnessRequest,
+        ) -> Pin<Box<dyn Future<Output = Result<HarnessEventStream, HarnessError>> + Send + '_>>
+        {
+            self.calls
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            Box::pin(async {
+                let event = HarnessEvent::Completed {
+                    outcome: Box::new(
+                        HarnessOutcome::new("harness route")
+                            .with_observed_model("anthropic/claude-observed"),
+                    ),
+                };
+                Ok(Box::pin(futures_util::stream::iter([Ok(event)])) as HarnessEventStream)
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn fan_out_keeps_a_successful_harness_route_when_a_later_lane_fails() -> Result<(), String>
+    {
+        let calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+
+        let runtime = harness_runtime(
+            MockShell::new(),
+            Arc::new(CountingCompletedBackend {
+                calls: Arc::clone(&calls),
+            }),
+            Arc::new(MockProvider::new("mock")),
+        );
+        let (outcome, events) = drive(
+            &runtime,
+            "nika: fanout-sibling\ntasks:\n  delegated:\n    for_each:\n      items: [{ prompt: ok }, {}]\n      max_parallel: 1\n      fail_fast: false\n    agent: { model: anthropic/claude-sonnet-4-6, prompt: \"${{ item.prompt }}\" }\n",
+        )
+        .await?;
+
+        assert!(!outcome.ok, "the second lane fails before dispatch");
+        assert_eq!(
+            calls.load(std::sync::atomic::Ordering::Relaxed),
+            1,
+            "only the first lane starts a harness effect"
+        );
+        let failed = events
+            .iter()
+            .find(|event| event.kind == EventKind::TaskFailed)
+            .ok_or_else(|| "the fan-out has no terminal failure".to_owned())?;
+        assert_eq!(
+            field(failed, "requested_model").as_deref(),
+            Some("anthropic/claude-sonnet-4-6")
+        );
+        assert_eq!(
+            field(failed, "observed_model").as_deref(),
+            Some("anthropic/claude-observed")
+        );
+        assert_eq!(field(failed, "access").as_deref(), Some("harness"));
+        assert_eq!(
+            field(failed, "adapter").as_deref(),
+            Some("claude-agent-acp")
+        );
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn failed_task_keeps_the_harness_route_selected_by_its_cleanup() -> Result<(), String> {
+        let runtime = harness_runtime(
+            MockShell::new().enqueue_fail(7, "main failed"),
+            Arc::new(CompletedBackend),
+            Arc::new(MockProvider::new("mock")),
+        );
+        let (outcome, events) = drive(
+            &runtime,
+            "nika: cleanup-route\npermits: { exec: [false] }\ntasks:\n  main:\n    exec: { command: [false] }\n  main_cleanup:\n    after: { main: unwind }\n    agent: { model: anthropic/claude-sonnet-4-6, prompt: cleanup }\n",
+        )
+        .await?;
+
+        assert!(!outcome.ok);
+        let failed = events
+            .iter()
+            .find(|event| {
+                event.kind == EventKind::TaskFailed
+                    && field(event, "task").as_deref() == Some("main")
+            })
+            .ok_or_else(|| "the producer has no terminal failure".to_owned())?;
+        assert_eq!(
+            field(failed, "requested_model").as_deref(),
+            Some("anthropic/claude-sonnet-4-6")
+        );
+        assert_eq!(
+            field(failed, "observed_model").as_deref(),
+            Some("anthropic/claude-observed")
+        );
+        assert_eq!(field(failed, "access").as_deref(), Some("harness"));
+        assert_eq!(
+            field(failed, "adapter").as_deref(),
+            Some("claude-agent-acp")
+        );
+        Ok(())
+    }
+
     fn probe(id: &str, class: AccessClass, serves: &[&str]) -> ProviderProbe {
         ProviderProbe::new(
             id,
@@ -120,6 +227,70 @@ mod tests {
             "",
         )
         .with_serves(serves.iter().map(|s| (*s).to_owned()).collect())
+    }
+
+    type HarnessRuntime = Runtime<
+        MockShell,
+        MockToolExecutor,
+        nika_providers::NoHttp,
+        MockProvider,
+        MockToolDefinitionProvider,
+        MockClock,
+    >;
+
+    fn harness_runtime(
+        shell: MockShell,
+        backend: Arc<dyn DynAgentBackend>,
+        provider: Arc<MockProvider>,
+    ) -> HarnessRuntime {
+        let tools = Arc::new(MockToolExecutor::new());
+        let invoke = Arc::new(InvokeVerb::new(Arc::clone(&tools)));
+        let seat = HarnessSeat::new(backend, "/tmp").with_access_id("claude-agent-acp");
+        Runtime::new(
+            ExecVerb::new(Arc::new(shell)),
+            Arc::clone(&invoke),
+            InferVerb::new(
+                Arc::new(nika_providers::ProviderRegistry::without_http(
+                    nika_providers::ProvidersConfig::new(),
+                )),
+                "anthropic/claude-sonnet-4-6",
+            ),
+            AgentVerb::new(
+                provider,
+                invoke,
+                Arc::new(MockToolDefinitionProvider::new()),
+                "anthropic/claude-sonnet-4-6",
+            )
+            .with_harness_seat(seat),
+            MockClock::new(),
+            RuntimeConfig::default(),
+        )
+        .with_access_probes(vec![probe(
+            "claude-agent-acp",
+            AccessClass::Harness,
+            &["anthropic"],
+        )])
+    }
+
+    async fn drive(
+        runtime: &HarnessRuntime,
+        yaml: &str,
+    ) -> Result<(crate::RunOutcome, Vec<nika_event::Event>), String> {
+        let wf = nika_schema::parse(
+            yaml,
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .map_err(|err| err.to_string())?;
+        let report = nika_check::check(&wf);
+        assert!(report.is_clean(), "fixture checks clean: {report:?}");
+        let mut stamper = DeterministicStamper::new();
+        let mut sink = VecSink::new();
+        let outcome = runtime
+            .run(&wf, &report, &mut stamper, &mut sink)
+            .await
+            .map_err(|err| err.to_string())?;
+        Ok((outcome, sink.into_events()))
     }
 
     fn field(event: &nika_event::Event, key: &str) -> Option<String> {
@@ -378,6 +549,180 @@ mod tests {
                 })
             })
         }
+    }
+
+    struct HangingBackend {
+        calls: Arc<std::sync::atomic::AtomicUsize>,
+    }
+
+    impl DynAgentBackend for HangingBackend {
+        fn run_agent_boxed(
+            &self,
+            _request: HarnessRequest,
+        ) -> Pin<Box<dyn Future<Output = Result<HarnessEventStream, HarnessError>> + Send + '_>>
+        {
+            self.calls
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            Box::pin(std::future::pending())
+        }
+    }
+
+    #[tokio::test]
+    async fn timeout_after_harness_start_keeps_the_selected_route() -> Result<(), String> {
+        let calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let runtime = harness_runtime(
+            MockShell::new(),
+            Arc::new(HangingBackend {
+                calls: Arc::clone(&calls),
+            }),
+            Arc::new(MockProvider::new("mock")),
+        );
+        let (outcome, events) = drive(
+            &runtime,
+            "nika: timeout-route\ntasks:\n  delegated:\n    timeout: \"50ms\"\n    agent: { model: anthropic/claude-sonnet-4-6, prompt: hang }\n",
+        )
+        .await?;
+
+        assert!(!outcome.ok);
+        assert_eq!(
+            calls.load(std::sync::atomic::Ordering::Relaxed),
+            1,
+            "the harness effect started before the timeout won"
+        );
+        assert_eq!(
+            outcome.records["delegated"]
+                .error
+                .as_ref()
+                .map(|error| error.code.as_str()),
+            Some("NIKA-TIMEOUT-001")
+        );
+        let failed = events
+            .iter()
+            .find(|event| event.kind == EventKind::TaskFailed)
+            .ok_or_else(|| "the timed-out task has no terminal frame".to_owned())?;
+        assert_eq!(
+            field(failed, "requested_model").as_deref(),
+            Some("anthropic/claude-sonnet-4-6")
+        );
+        assert_eq!(field(failed, "provider").as_deref(), Some("anthropic"));
+        assert_eq!(field(failed, "access").as_deref(), Some("harness"));
+        assert_eq!(field(failed, "billing").as_deref(), Some("unknown"));
+        assert_eq!(
+            field(failed, "adapter").as_deref(),
+            Some("claude-agent-acp")
+        );
+        assert!(
+            field(failed, "observed_model").is_none(),
+            "the failed ACP session reported no observed identity"
+        );
+        Ok(())
+    }
+
+    struct HarnessFanoutChildRunner {
+        calls: Arc<std::sync::atomic::AtomicUsize>,
+        provider: Arc<MockProvider>,
+    }
+
+    impl ChildRunner for HarnessFanoutChildRunner {
+        fn run_child<'a>(
+            &'a self,
+            _call: ChildCall,
+        ) -> Pin<Box<dyn Future<Output = Result<ChildOutcome, ChildRunRefusal>> + 'a>> {
+            Box::pin(async move {
+                let runtime = harness_runtime(
+                    MockShell::new(),
+                    Arc::new(CountingSessionBackend {
+                        calls: Arc::clone(&self.calls),
+                    }),
+                    Arc::clone(&self.provider),
+                );
+                let (outcome, _events) = drive(
+                    &runtime,
+                    "nika: child\ntasks:\n  delegated:\n    for_each: { items: [one], max_parallel: 1 }\n    agent: { model: anthropic/claude-sonnet-4-6, prompt: fail }\n",
+                )
+                .await
+                .map_err(|message| ChildRunRefusal {
+                    code: "NIKA-COMP-001".to_owned(),
+                    message,
+                })?;
+                let record = outcome
+                    .records
+                    .get("delegated")
+                    .ok_or_else(|| ChildRunRefusal {
+                        code: "NIKA-COMP-001".to_owned(),
+                        message: "child fan-out produced no task record".to_owned(),
+                    })?;
+                let error = record.error.as_ref().ok_or_else(|| ChildRunRefusal {
+                    code: "NIKA-COMP-001".to_owned(),
+                    message: "child fan-out produced no failure".to_owned(),
+                })?;
+                Ok(ChildOutcome::new(
+                    false,
+                    BTreeMap::new(),
+                    outcome.total_cost_usd,
+                    None,
+                    Some((error.code.clone(), error.message.clone())),
+                    record.access_receipt().cloned(),
+                ))
+            })
+        }
+    }
+
+    #[tokio::test]
+    async fn parent_retry_replays_child_harness_fanout() -> Result<(), String> {
+        let calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let provider = Arc::new(MockProvider::new("mock").enqueue_text("must not fall through"));
+        let runtime = harness_runtime(
+            MockShell::new(),
+            Arc::new(CompletedBackend),
+            Arc::new(MockProvider::new("mock")),
+        )
+        .with_child_runner(Arc::new(HarnessFanoutChildRunner {
+            calls: Arc::clone(&calls),
+            provider: Arc::clone(&provider),
+        }));
+        let (outcome, events) = drive(
+            &runtime,
+            "nika: parent\ntasks:\n  nested:\n    retry: { max_attempts: 2, backoff_ms: 1, backoff_strategy: fixed, jitter: false, on_codes: [NIKA-INFER-001] }\n    invoke: { workflow: child.nika.yaml }\n",
+        )
+        .await?;
+
+        assert!(!outcome.ok);
+        assert_eq!(
+            calls.load(std::sync::atomic::Ordering::Relaxed),
+            1,
+            "the parent must not replay a harness effect hidden by child fan-out"
+        );
+        assert!(
+            provider.captured_requests().is_empty(),
+            "the selected harness never falls through to the native provider"
+        );
+        assert!(
+            events
+                .iter()
+                .all(|event| event.kind != EventKind::TaskRetrying),
+            "the parent emits no retry frame"
+        );
+        let failed = events
+            .iter()
+            .find(|event| event.kind == EventKind::TaskFailed)
+            .ok_or_else(|| "the parent has no terminal failure".to_owned())?;
+        assert_eq!(
+            field(failed, "requested_model").as_deref(),
+            Some("anthropic/claude-sonnet-4-6")
+        );
+        assert_eq!(field(failed, "provider").as_deref(), Some("anthropic"));
+        assert_eq!(field(failed, "access").as_deref(), Some("harness"));
+        assert_eq!(field(failed, "billing").as_deref(), Some("unknown"));
+        assert_eq!(
+            field(failed, "adapter").as_deref(),
+            Some("claude-agent-acp")
+        );
+        assert!(
+            field(failed, "observed_model").is_none(),
+            "the failed ACP session reported no observed identity"
+        );
+        Ok(())
     }
 
     #[tokio::test]

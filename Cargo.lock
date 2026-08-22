@@ -4281,6 +4281,7 @@ dependencies = [
  "clap",
  "clap_complete",
  "expectrl",
+ "futures-util",
  "insta",
  "jiff",
  "minisign",

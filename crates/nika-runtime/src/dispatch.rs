@@ -35,6 +35,7 @@ mod permits;
 mod regate;
 use crate::expr::{self, Scope};
 use crate::record::TaskErrorRecord;
+pub(crate) use access::AccessObserver;
 pub use access::AccessReceipt;
 use exec_io::{build_exec_input, capture_mode, render_exec_io};
 
@@ -403,6 +404,8 @@ pub(crate) struct DispatchCtx<'a> {
     /// P3 B5 · the operator's bound `--answer` for THIS task (the
     /// harness gate's human verdict on a resumed run).
     pub gate_answer: Option<serde_json::Value>,
+    /// Route selection witness outside the cancellable dispatch future.
+    pub access_observer: &'a AccessObserver,
 }
 
 impl<'a> DispatchCtx<'a> {
@@ -415,6 +418,7 @@ impl<'a> DispatchCtx<'a> {
         deadline: Option<std::time::Duration>,
         child_budget: Option<f64>,
         witness: &'a crate::witness::PermitWitness,
+        access_observer: &'a AccessObserver,
     ) -> Self {
         Self {
             deadline,
@@ -422,6 +426,7 @@ impl<'a> DispatchCtx<'a> {
             inert: task.data_as_code_because().map(|s| s.value.as_str()),
             witness,
             gate_answer: None,
+            access_observer,
         }
     }
 }
@@ -848,6 +853,7 @@ where
         input.schema = task_schema(action.schema.as_ref(), contract);
         // The caller owns the per-task buffer outside the cancellable
         // region, preserving a timed-out attempt's telemetry (review F1).
+        ctx.access_observer.record(&planned_receipt);
         let ran = self.agent.run_observed(input, agent_buffer).await;
         match ran {
             Ok(out) => {

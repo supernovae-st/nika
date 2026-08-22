@@ -66,6 +66,10 @@ pub(super) struct FanOutAccum {
     pub(super) decisions: Vec<crate::witness::PermitDecision>,
     /// The FIRST iteration error (the one the task reports on failure).
     pub(super) first_error: Option<TaskErrorRecord>,
+    /// A selected execution route from any iteration. Harness receipts
+    /// take precedence because replaying the aggregate would repeat an
+    /// effect even when another iteration supplied the reported error.
+    pub(super) access_receipt: Option<crate::dispatch::AccessReceipt>,
     /// Per-iteration token spend SUMMED onto the parent (a 50-infer fan-out
     /// must never report zero to the cost meter) · None until any reports.
     pub(super) tokens_sum: Option<i64>,
@@ -108,6 +112,7 @@ where
         agent_events: Vec::new(),
         decisions: Vec::new(),
         first_error: None,
+        access_receipt: None,
         tokens_sum: None,
         cost_sum: None,
         unpriced: None,
@@ -128,8 +133,10 @@ where
                 cost_usd,
                 cost_unpriced,
                 ref recovered_from,
+                access_receipt,
                 ..
             } => {
+                retain_effect_receipt(&mut acc.access_receipt, access_receipt);
                 // A repaired iteration is a Success whose value is the
                 // fallback — the ONE fact distinguishing it from a task
                 // that legitimately produced its value (a bare null
@@ -158,11 +165,17 @@ where
             // index — positional alignment survives (spec 03). Silent by
             // declaration, counted all the same: the fan's note owes the
             // reader the tally either way.
-            RunResult::SkippedWithError { .. } => {
+            RunResult::SkippedWithError { access_receipt, .. } => {
+                retain_effect_receipt(&mut acc.access_receipt, access_receipt);
                 acc.recovered += 1;
                 acc.outputs.push(Value::Null);
             }
-            RunResult::Failed { error, .. } => {
+            RunResult::Failed {
+                error,
+                access_receipt,
+                ..
+            } => {
+                retain_effect_receipt(&mut acc.access_receipt, access_receipt);
                 acc.outputs.push(Value::Null);
                 if acc.first_error.is_none() {
                     acc.first_error = Some(error);
@@ -175,6 +188,10 @@ where
             // so a pending recovery downgrades to its immediate render
             // failure (the recover-await boundary · pinned by tests).
             RunResult::PendingRecovery(pending) => {
+                retain_effect_receipt(
+                    &mut acc.access_receipt,
+                    pending.failed.access_receipt.map(|receipt| *receipt),
+                );
                 acc.outputs.push(Value::Null);
                 if acc.first_error.is_none() {
                     acc.first_error = Some(pending.render_error);
@@ -186,6 +203,26 @@ where
         }
     }
     acc
+}
+
+/// Retain one typed witness that makes replaying the whole aggregate
+/// unsafe. A harness receipt outranks an API/local receipt even when it
+/// came from a later iteration or a successful sibling.
+pub(super) fn retain_effect_receipt(
+    retained: &mut Option<crate::dispatch::AccessReceipt>,
+    candidate: Option<crate::dispatch::AccessReceipt>,
+) {
+    let Some(candidate) = candidate else {
+        return;
+    };
+    let replace = retained.is_none()
+        || (!retained
+            .as_ref()
+            .is_some_and(crate::dispatch::AccessReceipt::selected_harness)
+            && candidate.selected_harness());
+    if replace {
+        *retained = Some(candidate);
+    }
 }
 
 /// Resolve the `for_each:` collection (the ONLY once-evaluated body
@@ -233,9 +270,13 @@ pub(super) fn fan_out_result(
     outputs: Vec<Value>,
     tokens_sum: Option<i64>,
     (first_error, first_recovered_from): (Option<TaskErrorRecord>, Option<TaskErrorRecord>),
-    spend: (Option<f64>, Option<nika_types::cost::UnpricedReason>),
+    spend: (
+        Option<f64>,
+        Option<nika_types::cost::UnpricedReason>,
+        Option<crate::dispatch::AccessReceipt>,
+    ),
 ) -> RunResult {
-    let (cost_usd, cost_unpriced) = spend;
+    let (cost_usd, cost_unpriced, access_receipt) = spend;
     match first_error {
         None => RunResult::Success {
             value: Value::Array(outputs),
@@ -253,13 +294,13 @@ pub(super) fn fan_out_result(
             // the aggregate is N calls · per-iteration models stay
             // per-call — no single model names the fold
             model: None,
-            access_receipt: None,
+            access_receipt,
         },
         Some(error) => RunResult::Failed {
             error,
             cost_usd,
             cost_unpriced,
-            access_receipt: None,
+            access_receipt,
         },
     }
 }

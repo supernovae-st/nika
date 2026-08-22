@@ -115,13 +115,13 @@ where
         ran: &RanTask,
         integrity: &nika_cap::Integrity,
         witness: &crate::witness::PermitWitness,
-    ) {
+    ) -> Option<crate::dispatch::AccessReceipt> {
         // The cleanup bodies are TASKS now, joined by an `unwind` edge
         // (spec 03 §unwind). They run in DECLARATION order — the source
         // order of `tasks:` — so the sequence is stable across re-runs.
         let cleanups = unwind_tasks_of(wf, task.id.value.as_str());
         if cleanups.is_empty() {
-            return;
+            return None;
         }
         // The cleanup scope sees the PARENT's fresh status/error via a
         // one-record overlay (spec 03 · status/error routing).
@@ -148,10 +148,14 @@ where
             index: None,
             permits: scope.permits, // on_finally exec stays within the boundary
         };
+        let mut access_receipt = None;
         for (index, cleanup) in cleanups.iter().enumerate() {
-            self.run_one_cleanup(cleanup, &cleanup_scope, witness, index)
+            let selected = self
+                .run_one_cleanup(cleanup, &cleanup_scope, witness, index)
                 .await;
+            super::fan_out::retain_effect_receipt(&mut access_receipt, selected);
         }
+        access_receipt
     }
 
     /// One cleanup TASK · its own `when:` + `timeout:` · outcome
@@ -163,13 +167,13 @@ where
         scope: &Scope<'_>,
         witness: &crate::witness::PermitWitness,
         index: usize,
-    ) {
+    ) -> Option<crate::dispatch::AccessReceipt> {
         if let Some(gate) = cleanup.when.as_ref() {
             match eval_gate(&gate.value, scope) {
                 Ok(true) => {}
                 // Closed gate OR eval error → the cleanup is skipped
                 // (a cleanup error never propagates).
-                _ => return,
+                _ => return None,
             }
         }
         let limit = cleanup
@@ -185,6 +189,7 @@ where
         // `with:`/`for_each` — the records + inputs lookups still label
         // a tainted cleanup argv/arg · F-O1 PR-2).
         let value_taint = crate::integrity::ValueTaint::bare();
+        let access_observer = crate::dispatch::AccessObserver::default();
         // NEP-0007 law 2 (the final review's catch · 2026-07-23): the
         // cleanup lane's decisions are recorded into the PARENT's
         // witness — they settle with it as `permit_checked` frames (the
@@ -214,12 +219,19 @@ where
                 witness,
                 // a cleanup mini-task never carries a gate answer (B5).
                 gate_answer: None,
+                access_observer: &access_observer,
             },
             None,
         ));
         let timer = std::pin::pin!(self.clock.sleep(limit));
         // Either way the outcome is dropped — cleanup observability is
         // the cleanup's own effects (e.g. `nika:emit` · spec 03).
-        let _ = futures_util::future::select(attempt, timer).await;
+        match futures_util::future::select(attempt, timer).await {
+            futures_util::future::Either::Left((dispatched, _)) => match dispatched.result {
+                Ok(ok) => ok.access_receipt,
+                Err(failed) => failed.access_receipt,
+            },
+            futures_util::future::Either::Right(((), _)) => access_observer.receipt(),
+        }
     }
 }

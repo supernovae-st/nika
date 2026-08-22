@@ -7,6 +7,27 @@
 use crate::record::TaskErrorRecord;
 
 impl crate::task::RunResult {
+    /// Merge a route selected by an aggregate side lane (fan-out
+    /// cancellation or `on_finally`) into the task-level replay guard.
+    /// Harness authority wins because retrying the task would repeat it.
+    pub(crate) fn retain_access_receipt(
+        &mut self,
+        candidate: Option<crate::dispatch::AccessReceipt>,
+    ) {
+        let retained = match self {
+            Self::Success { access_receipt, .. }
+            | Self::SkippedWithError { access_receipt, .. }
+            | Self::Failed { access_receipt, .. } => access_receipt,
+            Self::PendingRecovery(pending) => {
+                let mut retained = pending.failed.access_receipt.take().map(|receipt| *receipt);
+                super::fan_out::retain_effect_receipt(&mut retained, candidate);
+                pending.failed.access_receipt = retained.map(Box::new);
+                return;
+            }
+        };
+        super::fan_out::retain_effect_receipt(retained, candidate);
+    }
+
     /// An `on_error: recover` repair — the ONE constructor both recover
     /// paths share: author-supplied value, the WHOLE original error
     /// riding as `recovered_from` (spec 13 §payload), the failed

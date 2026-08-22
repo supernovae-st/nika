@@ -6,6 +6,54 @@
 use super::{Dispatched, FailedDispatch};
 use crate::record::TaskErrorRecord;
 
+/// Per-attempt route witness owned outside the timeout-cancellable
+/// dispatch future. Selection records here immediately before an agent
+/// effect starts, so a timeout cannot erase the authority already used.
+#[derive(Default)]
+pub(crate) struct AccessObserver {
+    receipt: std::sync::Arc<std::sync::Mutex<Option<AccessReceipt>>>,
+    parent: Option<std::sync::Arc<std::sync::Mutex<Option<AccessReceipt>>>>,
+}
+
+impl AccessObserver {
+    pub(crate) fn record(&self, receipt: &AccessReceipt) {
+        Self::retain(&self.receipt, receipt);
+        if let Some(parent) = &self.parent {
+            Self::retain(parent, receipt);
+        }
+    }
+
+    pub(crate) fn child(&self) -> Self {
+        Self {
+            receipt: std::sync::Arc::new(std::sync::Mutex::new(None)),
+            parent: Some(std::sync::Arc::clone(&self.receipt)),
+        }
+    }
+
+    fn retain(slot: &std::sync::Mutex<Option<AccessReceipt>>, receipt: &AccessReceipt) {
+        let mut retained = match slot.lock() {
+            Ok(retained) => retained,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        let replace = retained.is_none()
+            || (!retained
+                .as_ref()
+                .is_some_and(AccessReceipt::selected_harness)
+                && receipt.selected_harness());
+        if replace {
+            *retained = Some(receipt.clone());
+        }
+    }
+
+    pub(crate) fn receipt(&self) -> Option<AccessReceipt> {
+        let retained = match self.receipt.lock() {
+            Ok(retained) => retained,
+            Err(poisoned) => poisoned.into_inner(),
+        };
+        retained.clone()
+    }
+}
+
 /// Typed execution-route receipt. Cost attribution remains separate: this
 /// records what was requested, which path was selected, and what model the
 /// executor actually observed. A total resolver refusal has no selected
@@ -149,5 +197,29 @@ impl Dispatched {
                 evidence: None,
             }),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn cancelled_child_observer_leaves_harness_route_with_aggregate_parent() -> Result<(), String> {
+        let parent = AccessObserver::default();
+        let child = parent.child();
+        child.record(&AccessReceipt::harness(
+            "anthropic/claude-sonnet-4-6",
+            "anthropic",
+            "claude-agent-acp",
+        ));
+        drop(child);
+
+        let receipt = parent
+            .receipt()
+            .ok_or_else(|| "the aggregate lost a cancelled child's route".to_owned())?;
+        assert!(receipt.selected_harness());
+        assert_eq!(receipt.adapter(), Some("claude-agent-acp"));
+        Ok(())
     }
 }

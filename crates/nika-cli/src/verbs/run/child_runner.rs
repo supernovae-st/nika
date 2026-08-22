@@ -255,11 +255,21 @@ fn resolve_against(parent: &Path, target: &str) -> PathBuf {
 fn first_failure(
     outcome: &nika_runtime::RunOutcome,
 ) -> ((String, String), Option<nika_runtime::AccessReceipt>) {
+    // Retrying the child replays every task in it. A selected harness
+    // therefore guards the whole call even when a lexicographically
+    // earlier sibling supplies the failure message (or the harness
+    // sibling itself completed successfully).
+    let harness_effect = outcome
+        .records
+        .values()
+        .filter_map(nika_runtime::TaskRecord::access_receipt)
+        .find(|receipt| receipt.access() == Some(nika_types::access::AccessClass::Harness))
+        .cloned();
     for (id, rec) in &outcome.records {
         if let Some(err) = &rec.error {
             return (
                 (err.code.clone(), format!("task `{id}`: {}", err.message)),
-                rec.access_receipt().cloned(),
+                harness_effect.or_else(|| rec.access_receipt().cloned()),
             );
         }
     }
@@ -271,7 +281,7 @@ fn first_failure(
                  min(parent remaining, child declared))"
                     .to_owned(),
             ),
-            None,
+            harness_effect,
         );
     }
     (
@@ -279,7 +289,7 @@ fn first_failure(
             "NIKA-COMP-001".to_owned(),
             "child run failed without a task error".to_owned(),
         ),
-        None,
+        harness_effect,
     )
 }
 
@@ -404,6 +414,38 @@ mod tests {
     use super::*;
 
     #[cfg(feature = "access-harness")]
+    struct CompletedHarnessBackend;
+
+    #[cfg(feature = "access-harness")]
+    impl nika_kernel::ai::harness::DynAgentBackend for CompletedHarnessBackend {
+        fn run_agent_boxed(
+            &self,
+            _request: nika_kernel::ai::harness::HarnessRequest,
+        ) -> Pin<
+            Box<
+                dyn Future<
+                        Output = Result<
+                            nika_kernel::ai::harness::HarnessEventStream,
+                            nika_kernel::ai::harness::HarnessError,
+                        >,
+                    > + Send
+                    + '_,
+            >,
+        > {
+            Box::pin(async {
+                let completed = nika_kernel::ai::harness::HarnessEvent::Completed {
+                    outcome: Box::new(
+                        nika_kernel::ai::harness::HarnessOutcome::new("done")
+                            .with_observed_model("anthropic/claude-observed"),
+                    ),
+                };
+                Ok(Box::pin(futures_util::stream::iter([Ok(completed)]))
+                    as nika_kernel::ai::harness::HarnessEventStream)
+            })
+        }
+    }
+
+    #[cfg(feature = "access-harness")]
     fn harness_probe(id: &str, provider: &str) -> nika_providers::probe::ProviderProbe {
         use nika_providers::probe::{ExecutionLocus, ProviderReadiness};
         nika_providers::probe::ProviderProbe::new(
@@ -470,7 +512,7 @@ mod tests {
         std::fs::write(&parent, "nika: parent\ntasks: {}\n").expect("parent fixture");
         std::fs::write(
             &child,
-            "nika: child\ntasks:\n  delegated:\n    agent: { model: anthropic/claude-sonnet-4-6, prompt: child }\n",
+            "nika: child\ntasks:\n  delegated:\n    for_each: { items: [one], max_parallel: 1 }\n    agent: { model: anthropic/claude-sonnet-4-6, prompt: child }\n",
         )
         .expect("child fixture");
         let runner = ProdChildRunner::new(
@@ -510,5 +552,67 @@ mod tests {
         );
         assert_eq!(receipt.adapter(), Some("claude-agent-acp"));
         assert_eq!(receipt.requested_model(), "anthropic/claude-sonnet-4-6");
+    }
+
+    #[cfg(feature = "access-harness")]
+    #[tokio::test]
+    async fn a_sibling_harness_effect_guards_an_earlier_child_failure() {
+        use nika_kernel_mock::{
+            MockClock, MockProvider, MockShell, MockToolDefinitionProvider, MockToolExecutor,
+        };
+        use nika_verb_agent::{AgentVerb, harness_path::HarnessSeat};
+        use nika_verb_exec::ExecVerb;
+        use nika_verb_infer::InferVerb;
+        use nika_verb_invoke::InvokeVerb;
+
+        let tools = Arc::new(MockToolExecutor::new());
+        let invoke = Arc::new(InvokeVerb::new(Arc::clone(&tools)));
+        let seat = HarnessSeat::new(Arc::new(CompletedHarnessBackend), "/tmp")
+            .with_access_id("claude-agent-acp");
+        let runtime = nika_runtime::Runtime::new(
+            ExecVerb::new(Arc::new(MockShell::new().enqueue_fail(7, "first failure"))),
+            Arc::clone(&invoke),
+            InferVerb::new(
+                Arc::new(nika_providers::ProviderRegistry::without_http(
+                    nika_providers::ProvidersConfig::new(),
+                )),
+                "anthropic/claude-sonnet-4-6",
+            ),
+            AgentVerb::new(
+                Arc::new(MockProvider::new("mock")),
+                invoke,
+                Arc::new(MockToolDefinitionProvider::new()),
+                "anthropic/claude-sonnet-4-6",
+            )
+            .with_harness_seat(seat),
+            MockClock::new(),
+            nika_runtime::RuntimeConfig::default(),
+        )
+        .with_access_probes(vec![harness_probe("claude-agent-acp", "anthropic")]);
+        let wf = nika_schema::parse(
+            "nika: sibling-effects\npermits: { exec: [false] }\ntasks:\n  a_failure:\n    exec: { command: [false] }\n  z_harness:\n    agent: { model: anthropic/claude-sonnet-4-6, prompt: done }\n",
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("fixture parses");
+        let report = nika_check::check(&wf);
+        assert!(report.is_clean(), "fixture checks clean: {report:?}");
+        let mut stamper = nika_runtime::DeterministicStamper::new();
+        let mut sink = nika_runtime::VecSink::new();
+        let outcome = runtime
+            .run(&wf, &report, &mut stamper, &mut sink)
+            .await
+            .expect("child run settles");
+        assert!(!outcome.ok);
+
+        let ((code, _), receipt) = first_failure(&outcome);
+        assert_eq!(code, "NIKA-EXEC-001", "the first error stays the voice");
+        let receipt = receipt.expect("the sibling harness effect guards child replay");
+        assert_eq!(
+            receipt.access(),
+            Some(nika_types::access::AccessClass::Harness)
+        );
+        assert_eq!(receipt.adapter(), Some("claude-agent-acp"));
+        assert_eq!(receipt.observed_model(), Some("anthropic/claude-observed"));
     }
 }
