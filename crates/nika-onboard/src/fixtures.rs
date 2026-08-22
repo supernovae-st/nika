@@ -21,7 +21,7 @@ use std::path::Path;
 /// fixture file). Only `./` static pack slugs — templated targets
 /// cannot be staged.
 #[must_use]
-pub fn composition_siblings(body: &str) -> Vec<String> {
+fn composition_siblings(body: &str) -> Vec<String> {
     let mut out: Vec<String> = Vec::new();
     for (i, _) in body.match_indices("workflow:") {
         let rest = body[i + "workflow:".len()..].trim_start();
