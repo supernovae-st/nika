@@ -142,23 +142,7 @@ fn load_resume_plan(
         epilogue::emit_error_envelope(&message, output_json);
         exit::ENV
     };
-    let trace_parent = trace
-        .parent()
-        .filter(|parent| !parent.as_os_str().is_empty());
-    let trace_name = trace
-        .file_name()
-        .and_then(std::ffi::OsStr::to_str)
-        .ok_or_else(|| refuse(format!("--resume: invalid trace path {label}")))?;
-    let trace_dir =
-        nika_fs::OwnedDir::open(trace_parent.unwrap_or_else(|| std::path::Path::new(".")))
-            .map_err(|e| {
-                refuse(format!(
-                    "--resume: cannot open the trace directory for {label}: {e}"
-                ))
-            })?;
-    let raw = trace_dir
-        .read(trace_name)
-        .map_err(|e| refuse(format!("--resume: cannot read {label}: {e}")))?;
+    let raw = read_trace(trace, &label, output_json)?;
     // ADR-099 trust amendment — the chain verdict BEFORE the fold (own
     // fn: the 100-line wall, and the judgment belongs to itself).
     let unverified = gate_trust(&raw, &label, req.allow_unverified, output_json)?;
@@ -236,6 +220,31 @@ fn load_resume_plan(
         compat,
         unverified,
     })
+}
+
+fn read_trace(trace: &std::path::Path, label: &str, output_json: bool) -> Result<String, u8> {
+    let refuse = |message: String| {
+        eprintln!("nika run: {message}");
+        epilogue::emit_error_envelope(&message, output_json);
+        exit::ENV
+    };
+    let trace_parent = trace
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty());
+    let trace_name = trace
+        .file_name()
+        .and_then(std::ffi::OsStr::to_str)
+        .ok_or_else(|| refuse(format!("--resume: invalid trace path {label}")))?;
+    let trace_dir =
+        nika_fs::OwnedDir::open(trace_parent.unwrap_or_else(|| std::path::Path::new(".")))
+            .map_err(|error| {
+                refuse(format!(
+                    "--resume: cannot open the trace directory for {label}: {error}"
+                ))
+            })?;
+    trace_dir
+        .read(trace_name)
+        .map_err(|error| refuse(format!("--resume: cannot read {label}: {error}")))
 }
 
 /// The ADR-099 trust gate — the chain verdict BEFORE the fold (the same
