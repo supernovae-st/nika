@@ -18,6 +18,7 @@ pub fn nika_fs::OwnedDir::read_optional(&self, name: &str) -> core::io::error::R
 pub fn nika_fs::OwnedDir::remove(&self, name: &str) -> core::io::error::Result<()>
 pub fn nika_fs::OwnedDir::try_clone(&self) -> core::io::error::Result<Self>
 pub fn nika_fs::OwnedDir::write_atomic(&self, name: &str, body: &str) -> core::io::error::Result<()>
+pub fn nika_fs::OwnedDir::write_once(&self, name: &str, body: &str) -> core::io::error::Result<()>
 impl core::fmt::Debug for nika_fs::OwnedDir
 pub fn nika_fs::OwnedDir::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<D> owo_colors::OwoColorize for nika_fs::OwnedDir

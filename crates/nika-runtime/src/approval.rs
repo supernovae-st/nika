@@ -39,7 +39,10 @@
 //! The ticket attests what happened — it never promises.
 
 use std::collections::{BTreeMap, BTreeSet};
-use std::sync::Mutex;
+use std::io;
+use std::path::Path;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 
 use nika_schema::raw::{RawAction, RawTask, RawWorkflow};
 use serde_json::{Value, json};
@@ -184,13 +187,14 @@ impl ApprovalTicket {
 /// identity of the trace it came from (its `workflow_started` event id).
 /// The cross-run check is self-contained in the trace bytes: a ticket
 /// whose `run_nonce` names another run is a replay, refused.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Clone)]
 #[non_exhaustive]
 pub struct PausedApproval {
     /// The ticket the paused run journaled on its `workflow_paused` frame.
     pub ticket: ApprovalTicket,
     /// The run identity of the trace the ticket was folded FROM.
     pub trace_nonce: String,
+    claim: Arc<ApprovalClaim>,
 }
 
 impl PausedApproval {
@@ -200,8 +204,85 @@ impl PausedApproval {
         Self {
             ticket,
             trace_nonce,
+            claim: Arc::new(ApprovalClaim::ephemeral()),
         }
     }
+
+    /// Bind this folded ticket to a descriptor-held, durable claim store.
+    ///
+    /// The runtime consumes the ticket through an atomic create-once marker
+    /// immediately before admitting the answer. Clones share the in-process
+    /// atomic, while independently folded CLI resumes converge on the same
+    /// ticket-digest marker below the caller's local Nika state root.
+    ///
+    /// # Errors
+    /// The claim directory cannot be opened or created without following a
+    /// symlink. Callers must fail closed rather than resume without it.
+    pub fn with_durable_claim_root(mut self, root: &Path) -> io::Result<Self> {
+        let store = nika_fs::OwnedDir::create(root, &[".nika", "approval-claims"])?;
+        self.claim = Arc::new(ApprovalClaim {
+            consumed: AtomicBool::new(false),
+            dir: Some(store),
+        });
+        Ok(self)
+    }
+
+    fn consume(&self) -> Result<(), ClaimError> {
+        if self
+            .claim
+            .consumed
+            .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
+            .is_err()
+        {
+            return Err(ClaimError::Consumed);
+        }
+        let Some(dir) = &self.claim.dir else {
+            return Ok(());
+        };
+        let digest = self.ticket.digest().ok_or(ClaimError::Unavailable)?;
+        let name = format!(".nika-approval-{digest}.claimed");
+        match dir.write_once(&name, &format!("{digest}\n")) {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == io::ErrorKind::AlreadyExists => Err(ClaimError::Consumed),
+            Err(_) => Err(ClaimError::Unavailable),
+        }
+    }
+}
+
+impl std::fmt::Debug for PausedApproval {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PausedApproval")
+            .field("ticket", &self.ticket)
+            .field("trace_nonce", &self.trace_nonce)
+            .finish_non_exhaustive()
+    }
+}
+
+impl PartialEq for PausedApproval {
+    fn eq(&self, other: &Self) -> bool {
+        self.ticket == other.ticket && self.trace_nonce == other.trace_nonce
+    }
+}
+
+impl Eq for PausedApproval {}
+
+struct ApprovalClaim {
+    consumed: AtomicBool,
+    dir: Option<nika_fs::OwnedDir>,
+}
+
+impl ApprovalClaim {
+    fn ephemeral() -> Self {
+        Self {
+            consumed: AtomicBool::new(false),
+            dir: None,
+        }
+    }
+}
+
+enum ClaimError {
+    Consumed,
+    Unavailable,
 }
 
 /// The `approval_decided` payload, assembled at the pipeline and emitted
@@ -492,8 +573,10 @@ fn admit_resumed(
         .paused
         .as_ref()
         .filter(|p| p.ticket.step == step)
-        .map(|p| (p.ticket.clone(), p.trace_nonce.clone()));
-    let (ticket, trace_nonce) = paused?;
+        .cloned();
+    let paused = paused?;
+    let ticket = paused.ticket.clone();
+    let trace_nonce = paused.trace_nonce.clone();
     let answer = answer?;
     if ticket.run_nonce != trace_nonce {
         return Some(Admit::Refused(refusal(
@@ -536,8 +619,35 @@ fn admit_resumed(
         inner.paused = None;
         return Some(mint(inner, step, mode, shown_hash, now_ms, None, source));
     }
+    if let Err(error) = paused.consume() {
+        let (why, detail) = match error {
+            ClaimError::Consumed => (
+                "approval.replayed",
+                format!(
+                    "task '{step}' · approval.replayed — this paused approval was already consumed; a resume answer is single-use ({APPROVAL_CODE})"
+                ),
+            ),
+            ClaimError::Unavailable => (
+                "approval.claim_unavailable",
+                format!(
+                    "task '{step}' · approval.claim_unavailable — the engine could not durably consume this paused approval and refused to run ({APPROVAL_CODE})"
+                ),
+            ),
+        };
+        return Some(Admit::Refused(refusal(
+            inner,
+            step,
+            mode,
+            shown_hash,
+            ticket.digest(),
+            ticket.ttl_remaining_seconds(now_ms),
+            why,
+            detail,
+        )));
+    }
     // Valid — the answer binds against the SHOWN ticket. No new mint,
     // no count: the capability was issued by the paused run.
+    inner.paused = None;
     inner.steps.insert(
         step.to_owned(),
         StepEntry {

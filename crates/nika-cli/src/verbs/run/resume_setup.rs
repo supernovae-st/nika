@@ -142,7 +142,22 @@ fn load_resume_plan(
         epilogue::emit_error_envelope(&message, output_json);
         exit::ENV
     };
-    let raw = std::fs::read_to_string(trace)
+    let trace_parent = trace
+        .parent()
+        .filter(|parent| !parent.as_os_str().is_empty());
+    let trace_name = trace
+        .file_name()
+        .and_then(std::ffi::OsStr::to_str)
+        .ok_or_else(|| refuse(format!("--resume: invalid trace path {label}")))?;
+    let trace_dir =
+        nika_fs::OwnedDir::open(trace_parent.unwrap_or_else(|| std::path::Path::new(".")))
+            .map_err(|e| {
+                refuse(format!(
+                    "--resume: cannot open the trace directory for {label}: {e}"
+                ))
+            })?;
+    let raw = trace_dir
+        .read(trace_name)
         .map_err(|e| refuse(format!("--resume: cannot read {label}: {e}")))?;
     // ADR-099 trust amendment — the chain verdict BEFORE the fold (own
     // fn: the 100-line wall, and the judgment belongs to itself).
@@ -199,9 +214,25 @@ fn load_resume_plan(
         nika_dap::resume::apply_from(&mut plan, wf, from)
             .map_err(|message| refuse(format!("--resume: {message}")))?;
     }
+    let paused = fold
+        .paused
+        .map(|approval| {
+            let home = std::env::home_dir().ok_or_else(|| {
+                    refuse(
+                        "--resume: HOME is unavailable; the durable approval claim store cannot be opened"
+                            .to_owned(),
+                    )
+                })?;
+            approval.with_durable_claim_root(&home).map_err(|error| {
+                refuse(format!(
+                    "--resume: cannot open the durable approval claim store: {error}"
+                ))
+            })
+        })
+        .transpose()?;
     Ok(LoadedResume {
         plan,
-        paused: fold.paused,
+        paused,
         compat,
         unverified,
     })

@@ -245,6 +245,27 @@ impl OwnedDir {
         result
     }
 
+    /// Create one regular file exactly once and synchronize both the file
+    /// and its containing directory.
+    ///
+    /// This is the durable compare-and-set primitive for consumed
+    /// capabilities: concurrent callers race on `O_EXCL`, so exactly one
+    /// can publish the marker. Existing files and symlinks are refused.
+    ///
+    /// # Errors
+    /// Returns [`io::ErrorKind::AlreadyExists`] when the name was already
+    /// claimed, or another I/O error when the contained file cannot be
+    /// created, written, or synchronized safely.
+    pub fn write_once(&self, name: &str, body: &str) -> io::Result<()> {
+        let mut file = self.open_file(
+            name,
+            OFlag::O_CREAT | OFlag::O_EXCL | OFlag::O_WRONLY | OFlag::O_NOFOLLOW | OFlag::O_CLOEXEC,
+        )?;
+        file.write_all(body.as_bytes())?;
+        file.sync_all()?;
+        self.fd.sync_all()
+    }
+
     /// List child names relative to the held directory.
     ///
     /// # Errors
@@ -480,6 +501,49 @@ mod tests {
 
         std::fs::create_dir(root.path().join("arm/daily/nested")).expect("nested child");
         assert!(dir.read("nested").is_err());
+    }
+
+    #[test]
+    #[allow(
+        clippy::disallowed_methods,
+        reason = "the synchronous O_EXCL race needs two OS threads at one deterministic barrier"
+    )]
+    fn write_once_is_an_atomic_single_winner() {
+        use std::sync::{Arc, Barrier};
+
+        let root = tempfile::tempdir().expect("tempdir");
+        let owned = Arc::new(OwnedDir::open(root.path()).expect("owned"));
+        let barrier = Arc::new(Barrier::new(3));
+        let mut threads = Vec::new();
+        for body in ["first", "second"] {
+            let owned = Arc::clone(&owned);
+            let barrier = Arc::clone(&barrier);
+            threads.push(std::thread::spawn(move || {
+                barrier.wait();
+                owned.write_once("claim", body)
+            }));
+        }
+        barrier.wait();
+        let results: Vec<_> = threads
+            .into_iter()
+            .map(|thread| thread.join().expect("thread"))
+            .collect();
+        assert_eq!(results.iter().filter(|result| result.is_ok()).count(), 1);
+        assert_eq!(
+            results
+                .iter()
+                .filter(|result| {
+                    result
+                        .as_ref()
+                        .is_err_and(|error| error.kind() == io::ErrorKind::AlreadyExists)
+                })
+                .count(),
+            1
+        );
+        assert!(matches!(
+            owned.read("claim").as_deref(),
+            Ok("first" | "second")
+        ));
     }
 
     #[test]

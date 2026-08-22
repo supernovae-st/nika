@@ -202,6 +202,13 @@ pub struct ShellResult {
     pub stdout_raw: Option<Vec<u8>>,
     /// The RAW captured stderr octets (see `stdout_raw`).
     pub stderr_raw: Option<Vec<u8>>,
+    failure: Option<ShellResultFailure>,
+}
+
+#[derive(Debug, Clone)]
+enum ShellResultFailure {
+    Authority(String),
+    Transport(String),
 }
 
 impl ShellResult {
@@ -220,6 +227,7 @@ impl ShellResult {
             duration,
             stdout_raw: None,
             stderr_raw: None,
+            failure: None,
         }
     }
 
@@ -230,6 +238,42 @@ impl ShellResult {
         self.stdout_raw = Some(stdout_raw);
         self.stderr_raw = Some(stderr_raw);
         self
+    }
+
+    /// Mark a captured adapter result as an authority refusal.
+    ///
+    /// Some sandbox, permit, and remote-process adapters must drain output
+    /// before they can classify the terminal status. This tag keeps that
+    /// refusal typed so `capture: structured` cannot reinterpret the drained
+    /// bytes as successful business data.
+    #[must_use]
+    pub fn with_authority_refusal(mut self, reason: impl Into<String>) -> Self {
+        self.failure = Some(ShellResultFailure::Authority(reason.into()));
+        self
+    }
+
+    /// Mark a captured adapter result as a transport failure.
+    ///
+    /// The output may have been drained for cleanup or diagnostics, but it is
+    /// never a process outcome that capture policy may declassify.
+    #[must_use]
+    pub fn with_transport_failure(mut self, reason: impl Into<String>) -> Self {
+        self.failure = Some(ShellResultFailure::Transport(reason.into()));
+        self
+    }
+
+    /// Consume the captured envelope and recover only a business-process
+    /// result. Typed authority/transport failures take precedence.
+    ///
+    /// # Errors
+    /// Returns [`ShellError::Blocked`] for an authority refusal and
+    /// [`ShellError::Other`] for a transport failure.
+    pub fn into_process_result(self) -> Result<Self, ShellError> {
+        match self.failure {
+            None => Ok(self),
+            Some(ShellResultFailure::Authority(reason)) => Err(ShellError::Blocked { reason }),
+            Some(ShellResultFailure::Transport(reason)) => Err(ShellError::Other { reason }),
+        }
     }
 
     /// The exact captured stdout octets — the recorded raw stream when
@@ -366,6 +410,18 @@ mod tests {
     fn shell_result_failure() {
         let result = ShellResult::new(1, "", "error", Duration::from_millis(50));
         assert!(!result.success());
+    }
+
+    #[test]
+    fn shell_result_typed_failures_precede_process_interpretation() {
+        let authority = ShellResult::new(126, "plausible", "", Duration::ZERO)
+            .with_authority_refusal("permit refused")
+            .into_process_result();
+        assert!(matches!(authority, Err(ShellError::Blocked { .. })));
+        let transport = ShellResult::new(1, "partial", "", Duration::ZERO)
+            .with_transport_failure("remote disconnected")
+            .into_process_result();
+        assert!(matches!(transport, Err(ShellError::Other { .. })));
     }
 
     #[test]

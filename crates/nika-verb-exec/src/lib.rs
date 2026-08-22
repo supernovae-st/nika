@@ -268,10 +268,12 @@ where
             .shell
             .run(build_command(input))
             .await
+            .and_then(ShellResult::into_process_result)
             .map_err(|source| VerbExecError::Shell { source })?;
 
-        // The capture one-obvious-way split: default modes fail on a
-        // non-zero exit; `structured` carries the exit code as data.
+        // Typed adapter refusals were consumed above, before this capture
+        // split. Only an actual business-process status can reach structured
+        // interpretation.
         if capture != CaptureMode::Structured && result.status != 0 {
             return Err(VerbExecError::non_zero(result.status, &result.stderr));
         }
@@ -541,6 +543,69 @@ mod tests {
                 exit_code: 1,
             }
         );
+    }
+
+    #[tokio::test]
+    async fn structured_mode_cannot_declassify_a_sandbox_refusal() {
+        use nika_error::traits::NikaErrorCode as _;
+
+        let mock = MockShell::new().enqueue_result(
+            nika_kernel::process::ShellResult::new(
+                126,
+                r#"{"ok":true}"#,
+                "sandbox launcher refused authority",
+                Duration::from_millis(1),
+            )
+            .with_authority_refusal("sandbox launcher refused authority"),
+        );
+        let mut input = ExecInput::new("sandboxed-command");
+        input.capture = CaptureMode::Structured;
+        input.sandbox = Some(nika_kernel::process::SandboxSpec::new());
+        let err = verb(mock.clone())
+            .run(input)
+            .await
+            .expect_err("a sandbox refusal is authority failure, never structured success");
+        assert_eq!(
+            mock.executed_commands().len(),
+            1,
+            "the ShellResult was consumed"
+        );
+        assert_eq!(err.spec_code(), "NIKA-SEC-001");
+        assert!(matches!(
+            err,
+            VerbExecError::Shell {
+                source: nika_kernel::process::ShellError::Blocked { .. }
+            }
+        ));
+    }
+
+    #[tokio::test]
+    async fn structured_mode_cannot_declassify_a_transport_failure() {
+        use nika_error::traits::NikaErrorCode as _;
+
+        let mock = MockShell::new().enqueue_result(
+            nika_kernel::process::ShellResult::new(
+                1,
+                r#"{"ok":true}"#,
+                "partial",
+                Duration::from_millis(1),
+            )
+            .with_transport_failure("remote worker disconnected"),
+        );
+        let mut input = ExecInput::new("remote-command");
+        input.capture = CaptureMode::Structured;
+        let err = verb(mock.clone())
+            .run(input)
+            .await
+            .expect_err("a transport failure is never structured success");
+        assert_eq!(mock.executed_commands().len(), 1, "the result was consumed");
+        assert_eq!(err.spec_code(), "NIKA-EXEC-002");
+        assert!(matches!(
+            err,
+            VerbExecError::Shell {
+                source: nika_kernel::process::ShellError::Other { .. }
+            }
+        ));
     }
 
     #[tokio::test]

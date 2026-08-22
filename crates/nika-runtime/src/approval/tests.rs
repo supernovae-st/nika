@@ -345,6 +345,51 @@ fn the_book_validates_the_resumed_ticket_laws() {
 }
 
 #[test]
+fn a_paused_capability_clone_admits_exactly_one_runtime() {
+    let workflow = nika_schema::parse(
+        "nika: t\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n",
+        nika_schema::FileId::new(0),
+        nika_schema::ParseMode::Strict,
+    )
+    .expect("parses");
+    let hash = "e".repeat(64);
+    let paused = PausedApproval::new(
+        ApprovalTicket::new(hash.clone(), "nonce-a".to_owned(), "ask".to_owned(), 0, 900),
+        "nonce-a".to_owned(),
+    );
+    let first = ApprovalBook::new();
+    first.begin_run(&workflow, "nonce-a".to_owned());
+    first.set_paused(Some(paused.clone()));
+    let second = ApprovalBook::new();
+    second.begin_run(&workflow, "nonce-a".to_owned());
+    second.set_paused(Some(paused));
+
+    assert!(matches!(
+        first.admit(
+            "ask",
+            "confirm",
+            &hash,
+            1_000,
+            Some(&Value::Bool(true)),
+            "cli",
+        ),
+        Admit::Run { .. }
+    ));
+    let Admit::Refused(refusal) = second.admit(
+        "ask",
+        "confirm",
+        &hash,
+        1_000,
+        Some(&Value::Bool(true)),
+        "cli",
+    ) else {
+        panic!("the cloned capability must be single-use across runtimes");
+    };
+    assert_eq!(refusal.attestation.why, Some("approval.replayed"));
+    assert!(refusal.detail.contains(APPROVAL_CODE));
+}
+
+#[test]
 fn the_closure_stops_at_the_nearest_gate() {
     let wf = nika_schema::parse(
         "nika: t\npermits: { exec: [\"echo\"], tools: [\"nika:prompt\"] }\ntasks:\n  first:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"one?\" }\n  second:\n    after: { first: success }\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"two?\" }\n  act:\n    after: { second: success }\n    exec: { command: [\"echo\", \"x\"] }\n",

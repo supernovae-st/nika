@@ -129,14 +129,14 @@ pub nika_runtime::approval::PausedApproval::ticket: nika_runtime::approval::Appr
 pub nika_runtime::approval::PausedApproval::trace_nonce: alloc::string::String
 impl nika_runtime::approval::PausedApproval
 pub fn nika_runtime::approval::PausedApproval::new(ticket: nika_runtime::approval::ApprovalTicket, trace_nonce: alloc::string::String) -> Self
+pub fn nika_runtime::approval::PausedApproval::with_durable_claim_root(self, root: &std::path::Path) -> core::io::error::Result<Self>
 impl core::clone::Clone for nika_runtime::approval::PausedApproval
 pub fn nika_runtime::approval::PausedApproval::clone(&self) -> nika_runtime::approval::PausedApproval
 impl core::cmp::Eq for nika_runtime::approval::PausedApproval
 impl core::cmp::PartialEq for nika_runtime::approval::PausedApproval
-pub fn nika_runtime::approval::PausedApproval::eq(&self, other: &nika_runtime::approval::PausedApproval) -> bool
+pub fn nika_runtime::approval::PausedApproval::eq(&self, other: &Self) -> bool
 impl core::fmt::Debug for nika_runtime::approval::PausedApproval
 pub fn nika_runtime::approval::PausedApproval::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
-impl core::marker::StructuralPartialEq for nika_runtime::approval::PausedApproval
 impl<D> owo_colors::OwoColorize for nika_runtime::approval::PausedApproval
 impl<Q, K> equivalent::Equivalent<K> for nika_runtime::approval::PausedApproval where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
 pub fn nika_runtime::approval::PausedApproval::equivalent(&self, key: &K) -> bool
