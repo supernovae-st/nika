@@ -96,15 +96,19 @@ Lifted from `nika-mcp/src/client.rs:559-604` (the confined-spawn seam):
   a refusal is terminal · the receipt line prints once on live spawn.
 - `KillOnDrop` child · piped stdio · bounded line reads (update-overflow
   refuses, never OOMs).
-- Version handshake: binary present + `--version` inside the adapter's pin
-  range BEFORE initialize · controlled argv · no shell.
+- Identity handshake: binary present + `--version` inside the adapter's pin
+  range BEFORE initialize; a colliding binary name also proves its exact
+  session subcommand through a bounded public help marker (`kimi acp --help`,
+  not legacy `kimi --acp`) · controlled argv · no shell.
 
 **The difference (A-3):** NO `apply_env_scrub` of the harness's own auth
 store — the harness MUST read its own credentials; scrubbing its env would
 break the whole legitimacy model. The child env is: the runner floor ∪ the
 adapter's declared passthrough ∪ nothing of nika's secrets. Documented at the
 spawn site; a negative test proves nika's own `NIKA_*_API_KEY` vars never
-cross.
+cross. Auth readiness opens no credential: it reads path metadata and directory
+non-emptiness only, honors an adapter-home override (`KIMI_CODE_HOME`), and
+fails closed on absent, empty, ambiguous, unreadable, or symlinked stores.
 
 ## 5 · The mock ACP agent (P3.3 · the load-bearing instrument)
 

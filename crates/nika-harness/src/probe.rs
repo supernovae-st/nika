@@ -1,25 +1,27 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The adapter VERSION probe (spec §4 · the promise B3.2 owed) — the
-//! binary's identity is judged BEFORE a session, never discovered
-//! mid-run.
+//! The adapter IDENTITY probe (spec §4 · the promise B3.2 owed) — the
+//! binary's version and any registry-declared command shape are judged
+//! BEFORE a session, never discovered mid-run.
 //!
 //! Why before: an adapter outside its pin range speaks a dialect this
 //! client did not read. Learning that at `initialize` wastes a spawn
 //! and reports a protocol confusion where the truth is a VERSION
 //! mismatch. The probe runs `<command> --version`, parses the first
-//! semver-ish token out of whatever the CLI prints (every harness
-//! prints its own prose around it), and judges it against the
-//! adapter's declared range.
+//! semver-ish token out of whatever the CLI prints, and judges it
+//! against the adapter's declared range. A row whose binary name can
+//! collide then proves its exact subcommand through a bounded public
+//! help surface; version equality alone cannot admit it.
 //!
 //! What the probe is NOT: a credential read, a network call, or a
 //! session. It spawns the same confined child shape the session does
-//! (composed env · no shell · bounded output) and reads one line.
+//! (composed env · no shell · bounded output). Auth-store probes read
+//! path metadata only, never credential contents.
 
 use nika_kernel::ai::harness::HarnessError;
 
-use crate::registry::{AdapterRow, AuthProbe};
+use crate::registry::{AdapterRow, AuthProbe, DirectoryAuthProbe};
 use crate::spawn::{SpawnedHarness, compose_env};
 
 /// One adapter's probe row (P3 B6 · the doctor surface's facts) —
@@ -45,8 +47,9 @@ pub struct AdapterProbeRow {
 
 impl AdapterProbeRow {
     /// Whether the adapter can serve a session NOW (detected AND inside
-    /// the pin). Auth stays a separate column — a harness without auth
-    /// is detected-but-refusing, a truth the row keeps distinct.
+    /// the pin, with its command-shape proof satisfied when declared).
+    /// Auth stays a separate column — a harness without auth is
+    /// detected-but-refusing, a truth the row keeps distinct.
     #[must_use]
     pub fn usable(&self) -> bool {
         self.version.is_some()
@@ -102,7 +105,7 @@ async fn probe_one(row: AdapterRow) -> AdapterProbeRow {
         Ok(seen) => (seen, String::new()),
         Err(e) => (None, e.to_string()),
     };
-    let authenticated = probe_auth(&row.auth).await;
+    let authenticated = probe_auth(&row.auth, row.directory_auth).await;
     AdapterProbeRow {
         id: row.adapter.id.clone(),
         version,
@@ -114,17 +117,45 @@ async fn probe_one(row: AdapterRow) -> AdapterProbeRow {
 
 /// The auth surface probe — an exit code or a presence bit, bounded
 /// like every spawn (a hung status command is `None`, not a hang).
-async fn probe_auth(surface: &AuthProbe) -> Option<bool> {
+async fn probe_auth(
+    surface: &AuthProbe,
+    directory_auth: Option<DirectoryAuthProbe>,
+) -> Option<bool> {
     #[allow(clippy::disallowed_methods)] // the sanctioned env boundary ($HOME presence)
     let home = std::env::var_os("HOME");
-    probe_auth_with(home.as_deref(), surface).await
+    #[allow(clippy::disallowed_methods)] // sanctioned adapter-home boundary
+    let override_home = directory_auth.and_then(|probe| std::env::var_os(probe.override_env));
+    probe_auth_with(
+        home.as_deref(),
+        override_home.as_deref(),
+        surface,
+        directory_auth,
+    )
+    .await
 }
 
 /// [`probe_auth`] with the home dir injected — the pure half tests
 /// drive (writing `$HOME` would need `unsafe` under Rust 2024).
-async fn probe_auth_with(home: Option<&std::ffi::OsStr>, surface: &AuthProbe) -> Option<bool> {
+async fn probe_auth_with(
+    home: Option<&std::ffi::OsStr>,
+    override_home: Option<&std::ffi::OsStr>,
+    surface: &AuthProbe,
+    directory_auth: Option<DirectoryAuthProbe>,
+) -> Option<bool> {
     match surface {
-        AuthProbe::HomeFile(rel) => Some(std::path::Path::new(home?).join(rel).exists()),
+        AuthProbe::HomeFile(rel) => {
+            if let Some(probe) = directory_auth {
+                let path = match override_home {
+                    Some(root) => std::path::Path::new(root).join(probe.override_relative),
+                    None => match home {
+                        Some(root) => std::path::Path::new(root).join(rel),
+                        None => return Some(false),
+                    },
+                };
+                return Some(nonempty_directory_without_symlinks(&path));
+            }
+            Some(std::path::Path::new(home?).join(rel).exists())
+        }
         AuthProbe::Command { command, args } => {
             let parent: std::collections::BTreeMap<String, String> = std::env::vars().collect();
             let env = compose_env(&parent, &[]);
@@ -144,6 +175,48 @@ async fn probe_auth_with(home: Option<&std::ffi::OsStr>, surface: &AuthProbe) ->
             Some(status.success())
         }
     }
+}
+
+/// Metadata-only proof that a credentials directory is usable. Every
+/// ambiguity fails closed: relative paths, missing/unreadable entries,
+/// special files, and symlinks in either the path or its first level.
+fn nonempty_directory_without_symlinks(path: &std::path::Path) -> bool {
+    if !path.is_absolute() {
+        return false;
+    }
+    let mut cursor = std::path::PathBuf::new();
+    for component in path.components() {
+        if matches!(
+            component,
+            std::path::Component::CurDir | std::path::Component::ParentDir
+        ) {
+            return false;
+        }
+        cursor.push(component.as_os_str());
+        let Ok(metadata) = std::fs::symlink_metadata(&cursor) else {
+            return false;
+        };
+        if metadata.file_type().is_symlink() {
+            return false;
+        }
+    }
+    let Ok(entries) = std::fs::read_dir(path) else {
+        return false;
+    };
+    let mut nonempty = false;
+    for entry in entries {
+        let Ok(entry) = entry else {
+            return false;
+        };
+        let Ok(kind) = entry.file_type() else {
+            return false;
+        };
+        if kind.is_symlink() || (!kind.is_file() && !kind.is_dir()) {
+            return false;
+        }
+        nonempty = true;
+    }
+    nonempty
 }
 
 /// The inclusive version range an adapter is pinned to — the
@@ -335,6 +408,7 @@ mod tests {
                 .with_version_pin(VersionPin::new((1, 0), 1)),
             serves: &["mock"],
             auth: crate::registry::AuthProbe::HomeFile(".definitely-absent-nika-test"),
+            directory_auth: None,
             package: "test-only",
         };
         let out = probe_adapters_sync(vec![mk("sync-a"), mk("sync-b")]);
@@ -423,14 +497,14 @@ mod tests {
             command: "false",
             args: &[],
         };
-        assert_eq!(probe_auth(&yes).await, Some(true));
-        assert_eq!(probe_auth(&no).await, Some(false));
+        assert_eq!(probe_auth(&yes, None).await, Some(true));
+        assert_eq!(probe_auth(&no, None).await, Some(false));
         // An absent binary is unreadable, never a guess.
         let absent = AuthProbe::Command {
             command: "nika-no-such-binary- anywhere",
             args: &[],
         };
-        assert_eq!(probe_auth(&absent).await, None);
+        assert_eq!(probe_auth(&absent, None).await, None);
 
         // HomeFile: presence against the INJECTED home.
         let dir = std::env::temp_dir().join(format!("nika-auth-probe-{}", std::process::id()));
@@ -439,24 +513,119 @@ mod tests {
         let home = dir.as_os_str();
         let present = AuthProbe::HomeFile(".gemini/google_accounts.json");
         let missing = AuthProbe::HomeFile(".qwen");
-        assert_eq!(probe_auth_with(Some(home), &present).await, Some(true));
-        assert_eq!(probe_auth_with(Some(home), &missing).await, Some(false));
-        // kimi-code: the official store directory, existence only —
-        // no file is written, so no secret is ever opened.
-        std::fs::create_dir_all(dir.join(".kimi-code/credentials")).expect("kimi store");
-        let kimi = AuthProbe::HomeFile(".kimi-code/credentials");
-        assert_eq!(probe_auth_with(Some(home), &kimi).await, Some(true));
-        let kimi_absent = AuthProbe::HomeFile(".kimi-code/credentials");
-        let empty = std::env::temp_dir().join(format!("nika-auth-empty-{}", std::process::id()));
-        std::fs::create_dir_all(&empty).expect("empty home");
         assert_eq!(
-            probe_auth_with(Some(empty.as_os_str()), &kimi_absent).await,
+            probe_auth_with(Some(home), None, &present, None).await,
+            Some(true)
+        );
+        assert_eq!(
+            probe_auth_with(Some(home), None, &missing, None).await,
             Some(false)
         );
-        let _ = std::fs::remove_dir_all(&empty);
         // No home at all: unreadable, never a guess.
-        assert_eq!(probe_auth_with(None, &present).await, None);
+        assert_eq!(probe_auth_with(None, None, &present, None).await, None);
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[tokio::test]
+    async fn kimi_auth_uses_its_override_and_refuses_empty_or_symlinked_stores() {
+        let root = std::fs::canonicalize(std::env::temp_dir())
+            .expect("the test temp root canonicalizes")
+            .join(format!("nika-kimi-auth-{}", std::process::id()));
+        let home = root.join("home");
+        let default_credentials = home.join(".kimi-code/credentials");
+        std::fs::create_dir_all(&default_credentials).expect("default credentials dir");
+
+        let rows = crate::registry_with(&|_| None).expect("registry loads");
+        let row = rows
+            .iter()
+            .find(|row| row.adapter.id == "kimi-code")
+            .expect("kimi row");
+        let policy = row.directory_auth.expect("secure directory policy");
+
+        assert_eq!(
+            probe_auth_with(Some(home.as_os_str()), None, &row.auth, Some(policy)).await,
+            Some(false),
+            "an empty default store is not authentication"
+        );
+        std::fs::write(default_credentials.join("account.json"), b"opaque-fixture")
+            .expect("opaque fixture");
+        assert_eq!(
+            probe_auth_with(Some(home.as_os_str()), None, &row.auth, Some(policy)).await,
+            Some(true),
+            "only metadata and non-emptiness are needed"
+        );
+
+        let relocated = root.join("relocated");
+        std::fs::create_dir_all(&relocated).expect("relocated root");
+        assert_eq!(
+            probe_auth_with(
+                Some(home.as_os_str()),
+                Some(relocated.as_os_str()),
+                &row.auth,
+                Some(policy),
+            )
+            .await,
+            Some(false),
+            "KIMI_CODE_HOME wins even when the default store is populated"
+        );
+        let relocated_credentials = relocated.join("credentials");
+        std::fs::create_dir_all(&relocated_credentials).expect("relocated credentials");
+        assert_eq!(
+            probe_auth_with(
+                Some(home.as_os_str()),
+                Some(relocated.as_os_str()),
+                &row.auth,
+                Some(policy),
+            )
+            .await,
+            Some(false),
+            "an empty relocated store is not authentication"
+        );
+        std::fs::write(
+            relocated_credentials.join("account.json"),
+            b"opaque-fixture",
+        )
+        .expect("opaque relocated fixture");
+        assert_eq!(
+            probe_auth_with(
+                Some(home.as_os_str()),
+                Some(relocated.as_os_str()),
+                &row.auth,
+                Some(policy),
+            )
+            .await,
+            Some(true)
+        );
+        assert_eq!(
+            probe_auth_with(
+                Some(home.as_os_str()),
+                Some(std::ffi::OsStr::new("relative-kimi-home")),
+                &row.auth,
+                Some(policy),
+            )
+            .await,
+            Some(false),
+            "a relative override is ambiguous"
+        );
+
+        #[cfg(unix)]
+        {
+            let linked = root.join("linked");
+            std::os::unix::fs::symlink(&relocated, &linked).expect("symlink fixture");
+            assert_eq!(
+                probe_auth_with(
+                    Some(home.as_os_str()),
+                    Some(linked.as_os_str()),
+                    &row.auth,
+                    Some(policy),
+                )
+                .await,
+                Some(false),
+                "a symlinked credentials root fails closed"
+            );
+        }
+
+        let _ = std::fs::remove_dir_all(&root);
     }
 
     #[tokio::test]
@@ -477,6 +646,7 @@ mod tests {
                 command: "true",
                 args: &[],
             },
+            directory_auth: None,
             package: "test-only",
         };
         let probed = probe_one(row).await;
@@ -495,6 +665,7 @@ mod tests {
                 .with_version_pin(VersionPin::new((1, 0), 1)),
             serves: &["mock"],
             auth: AuthProbe::HomeFile(".definitely-absent-nika-test"),
+            directory_auth: None,
             package: "test-only",
         };
         let rows = vec![mk("zzz-first"), mk("aaa-second")];

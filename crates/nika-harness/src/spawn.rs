@@ -3,8 +3,8 @@
 
 //! The confined spawn (B3.2 · spec §4) — the adapter process is engine
 //! INFRASTRUCTURE, strictly bounded: pinned binary identity · version
-//! handshake BEFORE any session · controlled argv · composed env · no
-//! shell · kill-on-drop.
+//! handshake + declared command-shape proof BEFORE any session ·
+//! controlled argv · composed env · no shell · kill-on-drop.
 //!
 //! **The ONE deliberate difference from the `nika-mcp` spawn
 //! discipline (A-3):** no env scrub of the harness's own auth store.
@@ -104,6 +104,15 @@ pub fn compose_env(
     env
 }
 
+/// One adapter-specific command-shape proof. Version equality is not
+/// enough when two unrelated packages install the same binary name and
+/// version line (the legacy `kimi-cli` / Kimi Code collision).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct CommandShapeProbe {
+    args: Vec<String>,
+    marker: String,
+}
+
 /// One configured harness adapter — the pinned identity of a binary
 /// this machine may drive (`#[non_exhaustive]` · registry rows arrive
 /// at B6 with the probe surface).
@@ -140,6 +149,10 @@ pub struct HarnessAdapter {
     /// self-report (`agentInfo.name` + `agentInfo.version` · the
     /// protocol version). When set, this supersedes `version_args`.
     pub probe_via_handshake: bool,
+    /// An additional command-shape proof for colliding binary names.
+    /// Kept crate-private: registry rows own this evidence; local-dev
+    /// declarations remain honest without inventing a vendor dialect.
+    pub(crate) command_shape_probe: Option<CommandShapeProbe>,
 }
 
 impl HarnessAdapter {
@@ -171,6 +184,7 @@ impl HarnessAdapter {
             version_pin: None,
             version_args: vec!["--version".to_owned()],
             probe_via_handshake: false,
+            command_shape_probe: None,
         })
     }
 
@@ -212,6 +226,20 @@ impl HarnessAdapter {
     #[must_use]
     pub fn with_handshake_probe(mut self) -> Self {
         self.probe_via_handshake = true;
+        self
+    }
+
+    /// Require a successful help surface carrying a stable protocol marker.
+    #[must_use]
+    pub(crate) fn with_command_shape_probe(
+        mut self,
+        args: Vec<String>,
+        marker: impl Into<String>,
+    ) -> Self {
+        self.command_shape_probe = Some(CommandShapeProbe {
+            args,
+            marker: marker.into(),
+        });
         self
     }
 }
@@ -271,9 +299,12 @@ impl SpawnedHarness {
     /// adapter.
     pub async fn probe_version(&self) -> Result<Option<(u32, u32)>, HarnessError> {
         if self.adapter.probe_via_handshake {
-            return self.probe_handshake().await;
+            let seen = self.probe_handshake().await?;
+            self.probe_command_shape().await?;
+            return Ok(seen);
         }
         let Some(pin) = &self.adapter.version_pin else {
+            self.probe_command_shape().await?;
             return Ok(None);
         };
         let parent: BTreeMap<String, String> = std::env::vars().collect();
@@ -315,7 +346,72 @@ impl SpawnedHarness {
             String::from_utf8_lossy(&out.stdout),
             String::from_utf8_lossy(&out.stderr)
         );
-        crate::probe::judge_version(&self.adapter.id, &text, pin).map(Some)
+        let seen = crate::probe::judge_version(&self.adapter.id, &text, pin)?;
+        self.probe_command_shape().await?;
+        Ok(Some(seen))
+    }
+
+    /// Prove a registry-declared command shape after identity/version.
+    /// Output is inspected only for a public help marker and is never
+    /// copied into an error, log, or doctor row.
+    async fn probe_command_shape(&self) -> Result<(), HarnessError> {
+        let Some(probe) = &self.adapter.command_shape_probe else {
+            return Ok(());
+        };
+        let parent: BTreeMap<String, String> = std::env::vars().collect();
+        let env = compose_env(&parent, &self.adapter.passthrough_env);
+        let out = tokio::process::Command::new(&self.adapter.command)
+            .args(&probe.args)
+            .env_clear()
+            .envs(&env)
+            .stdin(Stdio::null())
+            .kill_on_drop(true)
+            .output();
+        let out = tokio::time::timeout(PROBE_TIMEOUT, out)
+            .await
+            .map_err(|_| HarnessError::Unavailable {
+                reason: format!(
+                    "adapter `{}`: command shape `{} {}` did not answer in {}s",
+                    self.adapter.id,
+                    self.adapter.command,
+                    probe.args.join(" "),
+                    PROBE_TIMEOUT.as_secs()
+                ),
+            })?
+            .map_err(|e| HarnessError::Unavailable {
+                reason: format!(
+                    "adapter `{}`: cannot probe command shape `{} {}`: {e}",
+                    self.adapter.id,
+                    self.adapter.command,
+                    probe.args.join(" ")
+                ),
+            })?;
+        if !out.status.success() {
+            return Err(HarnessError::Unavailable {
+                reason: format!(
+                    "adapter `{}`: command shape `{} {}` was rejected ({})",
+                    self.adapter.id,
+                    self.adapter.command,
+                    probe.args.join(" "),
+                    out.status
+                ),
+            });
+        }
+        let stdout = String::from_utf8_lossy(&out.stdout);
+        let stderr = String::from_utf8_lossy(&out.stderr);
+        if stdout.contains(&probe.marker) || stderr.contains(&probe.marker) {
+            return Ok(());
+        }
+        Err(HarnessError::Unavailable {
+            reason: format!(
+                "adapter `{}`: command shape `{} {}` did not identify `{}` support — \
+                 refusing an ambiguous binary",
+                self.adapter.id,
+                self.adapter.command,
+                probe.args.join(" "),
+                probe.marker
+            ),
+        })
     }
 
     /// The npm-wrapper class's probe (B6): spawn the SESSION argv, send
@@ -607,38 +703,79 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn kimi_code_version_probe_judges_the_bare_triple_without_launching_kimi() {
+    async fn kimi_code_shape_probe_rejects_legacy_flag_cli_and_accepts_subcommand_cli() {
         let dir = std::env::temp_dir().join(format!("nika-kimi-probe-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("dir");
         let script = dir.join("fake-kimi.py");
-        std::fs::write(&script, "print('0.37.2')\n").expect("script");
+        std::fs::write(
+            &script,
+            r#"import sys
+mode, args = sys.argv[1], sys.argv[2:]
+if args == ["--version"]:
+    print("0.37.2")
+elif mode == "legacy" and args == ["--acp"]:
+    sys.exit(0)
+elif mode == "real" and args == ["acp", "--help"]:
+    print("Run kimi-code as an Agent Client Protocol (ACP) server over stdio.")
+elif mode == "ambiguous" and args == ["acp", "--help"]:
+    print("Usage: kimi [OPTIONS] [PROMPT]")
+else:
+    print("unknown command", file=sys.stderr)
+    sys.exit(2)
+"#,
+        )
+        .expect("script");
         let path = script.to_string_lossy().into_owned();
-        let in_pin = HarnessAdapter::new("kimi-code", "python3")
-            .expect("id is no class token")
-            .with_args(vec!["acp".to_owned()])
-            .with_version_args(vec![path.clone()])
-            .with_version_pin(crate::probe::VersionPin::new((0, 37), 0));
-        assert_eq!(in_pin.args, vec!["acp".to_owned()]);
-        assert!(!in_pin.probe_via_handshake);
-        let seen = SpawnedHarness::new(in_pin)
+
+        let legacy_flag = tokio::process::Command::new("python3")
+            .args([&path, "legacy", "--acp"])
+            .status()
+            .await
+            .expect("legacy fixture runs");
+        assert!(
+            legacy_flag.success(),
+            "the fixture really supports `kimi --acp`"
+        );
+
+        let adapter = |mode: &str| {
+            HarnessAdapter::new("kimi-code", "python3")
+                .expect("id is no class token")
+                .with_args(vec![path.clone(), mode.to_owned(), "acp".to_owned()])
+                .with_version_args(vec![path.clone(), mode.to_owned(), "--version".to_owned()])
+                .with_version_pin(crate::probe::VersionPin::new((0, 37), 0))
+                .with_command_shape_probe(
+                    vec![
+                        path.clone(),
+                        mode.to_owned(),
+                        "acp".to_owned(),
+                        "--help".to_owned(),
+                    ],
+                    "Agent Client Protocol",
+                )
+        };
+
+        let seen = SpawnedHarness::new(adapter("real"))
             .probe_version()
             .await
-            .expect("in pin");
+            .expect("the Kimi Code subcommand shape is accepted");
         assert_eq!(seen, Some((0, 37)));
 
-        std::fs::write(&script, "print('0.36.0')\n").expect("old");
-        let old = HarnessAdapter::new("kimi-code", "python3")
-            .expect("id is fine")
-            .with_args(vec!["acp".to_owned()])
-            .with_version_args(vec![path])
-            .with_version_pin(crate::probe::VersionPin::new((0, 37), 0));
-        let err = SpawnedHarness::new(old)
+        let ambiguous = SpawnedHarness::new(adapter("ambiguous"))
             .probe_version()
             .await
-            .expect_err("below the floor");
+            .expect_err("a successful generic help page proves no ACP dialect");
+        assert!(
+            ambiguous.to_string().contains("did not identify"),
+            "{ambiguous}"
+        );
+
+        let err = SpawnedHarness::new(adapter("legacy"))
+            .probe_version()
+            .await
+            .expect_err("legacy kimi-cli has only the flag, never the subcommand");
         let msg = err.to_string();
         assert!(msg.contains("kimi-code"), "{msg}");
-        assert!(msg.contains("0.36"), "{msg}");
+        assert!(msg.contains("command shape"), "{msg}");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
