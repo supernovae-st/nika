@@ -791,29 +791,31 @@ where
             Ok(v) => v,
             Err(err) => return Dispatched::template_err("agent · ?", &err),
         };
-        // `skills:` — the composer-resolved Agent Skill texts join the
-        // system context as ONE `## Skills` section (spec 02 §agent skills).
+        // `skills:` join the system context as one `## Skills` section.
         if !action.skills.is_empty() {
             match self.skill_docs(action) {
                 Ok(docs) => input.system = Some(system_with_skills(input.system.take(), &docs)),
                 Err(refused) => return *refused,
             }
         }
-        // `model:` — the SAME render seam as infer's (#824 · one law).
         input.model = match render_opt(action.model.as_ref(), scope) {
             Ok(v) => v,
             Err(err) => return Dispatched::template_err("agent · ?", &err),
         };
+        let model = self.agent.effective_model(&input);
+        let candidates =
+            nika_providers::candidates_for(&self.access_probes, nika_providers::provider_of(model));
+        input.access_plan =
+            nika_providers::resolve_access(model, &candidates, None, self.access_pin.as_deref())
+                .ok();
         input.tools = action.tools.iter().map(|t| t.value.clone()).collect();
         Self::bridge_inputs(&mut input, scope, ctx);
         input.max_turns = action.max_turns.as_ref().map(|t| t.value);
         input.max_tokens_total = action.max_tokens_total.as_ref().map(|t| t.value);
         input.temperature = temp_f32(action.temperature.as_ref());
         input.schema = task_schema(action.schema.as_ref(), contract);
-        // The buffer is the CALLER's (per task-attempt-loop · still
-        // per-dispatch-isolated since a wave's tasks each own one):
-        // owning it here would put it inside the timeout-cancellable
-        // region and lose a timed-out attempt's telemetry (review F1).
+        // The caller owns the per-task buffer outside the cancellable
+        // region, preserving a timed-out attempt's telemetry (review F1).
         let ran = self.agent.run_observed(input, agent_buffer).await;
         match ran {
             Ok(out) => {
@@ -853,7 +855,7 @@ where
                     tokens,
                     None,
                     cost_usd,
-                    out.model_resolved.clone(),
+                    out.receipt_source.or_else(|| out.model_resolved.clone()),
                     llm_unpriced,
                 )
             }

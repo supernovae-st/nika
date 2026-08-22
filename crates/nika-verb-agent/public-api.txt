@@ -821,6 +821,7 @@ pub fn nika_verb_agent::config::AgentConfig::__clone_box(&self, _: dyn_clone::se
 impl<T> nika_error::traits::AsAny for nika_verb_agent::config::AgentConfig where T: 'static
 pub fn nika_verb_agent::config::AgentConfig::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_verb_agent::AgentInput
+pub nika_verb_agent::AgentInput::access_plan: core::option::Option<nika_types::access::AccessPlan>
 pub nika_verb_agent::AgentInput::gate_answer: core::option::Option<serde_json::value::Value>
 pub nika_verb_agent::AgentInput::max_tokens_total: core::option::Option<u64>
 pub nika_verb_agent::AgentInput::max_turns: core::option::Option<u32>
@@ -865,8 +866,11 @@ pub fn nika_verb_agent::AgentInput::__clone_box(&self, _: dyn_clone::sealed::Pri
 impl<T> nika_error::traits::AsAny for nika_verb_agent::AgentInput where T: 'static
 pub fn nika_verb_agent::AgentInput::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_verb_agent::AgentOutput
+pub nika_verb_agent::AgentOutput::access_plan: core::option::Option<nika_types::access::AccessPlan>
+pub nika_verb_agent::AgentOutput::adapter: core::option::Option<alloc::string::String>
 pub nika_verb_agent::AgentOutput::model_resolved: core::option::Option<alloc::string::String>
 pub nika_verb_agent::AgentOutput::output: nika_verb_agent::AgentValue
+pub nika_verb_agent::AgentOutput::receipt_source: core::option::Option<alloc::string::String>
 pub nika_verb_agent::AgentOutput::stop_reason: nika_kernel_runtime::agent::AgentStopReason
 pub nika_verb_agent::AgentOutput::tools_cost_usd: core::option::Option<f64>
 pub nika_verb_agent::AgentOutput::total_tokens: u64
@@ -902,6 +906,7 @@ impl<P, T, D> nika_verb_agent::AgentVerb<P, T, D> where P: nika_kernel_ai::provi
 pub async fn nika_verb_agent::AgentVerb<P, T, D>::run(&self, input: nika_verb_agent::AgentInput) -> core::result::Result<nika_verb_agent::AgentOutput, nika_verb_agent::errors::VerbAgentError>
 pub async fn nika_verb_agent::AgentVerb<P, T, D>::run_observed(&self, input: nika_verb_agent::AgentInput, observer: &dyn nika_verb_agent::observe::AgentObserver) -> core::result::Result<nika_verb_agent::AgentOutput, nika_verb_agent::errors::VerbAgentError>
 impl<P, T, D> nika_verb_agent::AgentVerb<P, T, D>
+pub fn nika_verb_agent::AgentVerb<P, T, D>::effective_model<'a>(&'a self, input: &'a nika_verb_agent::AgentInput) -> &'a str
 pub fn nika_verb_agent::AgentVerb<P, T, D>::new(provider: alloc::sync::Arc<P>, invoke: alloc::sync::Arc<nika_verb_invoke::InvokeVerb<T>>, tool_defs: alloc::sync::Arc<D>, default_model: impl core::convert::Into<alloc::string::String>) -> Self
 pub fn nika_verb_agent::AgentVerb<P, T, D>::with_config(self, config: nika_verb_agent::config::AgentConfig) -> Self
 pub fn nika_verb_agent::AgentVerb<P, T, D>::with_observer(self, observer: alloc::sync::Arc<dyn nika_verb_agent::observe::AgentObserver>) -> Self

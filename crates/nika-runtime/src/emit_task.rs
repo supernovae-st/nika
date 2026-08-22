@@ -75,46 +75,50 @@ pub(crate) fn emit_completed(
     if let Some(n) = tokens {
         fields.push(("tokens", i(n)));
     }
-    // Real spend rides next to the tokens it prices · absent = unpriced
-    // (mock · local) — the render layer already treats absent as honest.
+    // Real spend rides beside its tokens; absent stays honestly unpriced.
     if let Some(c) = cost_usd {
         fields.push(("cost_usd", FieldValue::Float(c)));
     }
-    // …and WHY it is absent (or partial), when it is — `unknown` is
-    // never masked: `local_model` · `mock_provider` ·
-    // `missing_catalog_price` · `provider_did_not_report_usage`.
+    // WHY spend is absent/partial; `unknown` is never masked (`local_model` ·
+    // `mock_provider` · `missing_catalog_price` · `provider_did_not_report_usage`).
     if let Some(reason) = cost_unpriced {
         fields.push(("cost_unpriced", s(reason.as_str())));
     }
-    // D-2026-08-04-N1 · the access facts — structured provenance for
-    // infer/agent terminals (`model` = the resolved provider/name ·
-    // `provider` = its prefix · `access` = HOW it was reached ·
-    // `billing` = the economic lane). Additive fields; the note keeps
-    // its historical `infer · <model>` form, now a render, not a
-    // carrier — readers of pre-access traces still parse it.
+    // D-2026-08-04-N1 · access provenance; receipt suffix stays internal.
     if let Some(m) = model {
+        let (m, billing, adapter) = m
+            .split_once('\u{1e}')
+            .and_then(|(model, receipt)| {
+                receipt
+                    .split_once('\u{1f}')
+                    .map(|(billing, adapter)| (model, Some(billing), Some(adapter)))
+            })
+            .unwrap_or((m, None, None));
         fields.push(("model", s(m)));
         if let Some((provider, _)) = m.split_once('/') {
             fields.push(("provider", s(provider)));
-            let access = nika_providers::profile::access_class_for(provider);
+            let access = adapter.map_or_else(
+                || nika_providers::profile::access_class_for(provider),
+                |_| nika_types::access::AccessClass::Harness,
+            );
             fields.push(("access", s(access.as_str())));
-            fields.push(("billing", s(access.default_billing().as_str())));
+            fields.push((
+                "billing",
+                s(billing.unwrap_or_else(|| access.default_billing().as_str())),
+            ));
+            if let Some(adapter) = adapter {
+                fields.push(("adapter", s(adapter)));
+            }
         }
     } else if cost_unpriced == Some(nika_types::cost::UnpricedReason::SubscriptionQuota) {
-        // P3 B7 · the harness row: the task ran on the operator's own
-        // harness (the SubscriptionQuota arm in dispatch is only ever
-        // set there), so the receipt says so — `access: harness`, and
-        // the billing lane stays `unknown` until an adapter's own
-        // surface attests included/extra usage (P5). Never a fake $0.
+        // P3 B7 · legacy harness receipt, never fake $0 before attestation.
         fields.push(("access", s("harness")));
         fields.push((
             "billing",
             s(nika_types::access::BillingClass::Unknown.as_str()),
         ));
     }
-    // OBS-E · a non-fatal diagnostic rides the success frame as a
-    // `warning` field (the reasoning-model blank-answer footgun) · the
-    // task still completes.
+    // OBS-E · a non-fatal `warning` rides success; the task still completes.
     if let Some(msg) = warning {
         fields.push(("warning", s(msg)));
     }
