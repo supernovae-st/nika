@@ -1,0 +1,413 @@
+pub mod nika_execution
+#[non_exhaustive] pub enum nika_execution::ExecutionError
+#[non_exhaustive] pub nika_execution::ExecutionError::CheckFailed
+pub nika_execution::ExecutionError::CheckFailed::findings: alloc::vec::Vec<alloc::string::String>
+#[non_exhaustive] pub nika_execution::ExecutionError::DependencyCycle
+pub nika_execution::ExecutionError::DependencyCycle::chain: alloc::vec::Vec<alloc::string::String>
+#[non_exhaustive] pub nika_execution::ExecutionError::DepthLimit
+pub nika_execution::ExecutionError::DepthLimit::limit: usize
+pub nika_execution::ExecutionError::DepthLimit::logical_path: alloc::string::String
+#[non_exhaustive] pub nika_execution::ExecutionError::DuplicateLogicalIdentity
+pub nika_execution::ExecutionError::DuplicateLogicalIdentity::first: alloc::string::String
+pub nika_execution::ExecutionError::DuplicateLogicalIdentity::logical_path: alloc::string::String
+pub nika_execution::ExecutionError::DuplicateLogicalIdentity::second: alloc::string::String
+#[non_exhaustive] pub nika_execution::ExecutionError::InvalidLogicalPath
+pub nika_execution::ExecutionError::InvalidLogicalPath::path: alloc::string::String
+#[non_exhaustive] pub nika_execution::ExecutionError::Io
+pub nika_execution::ExecutionError::Io::logical_path: alloc::string::String
+pub nika_execution::ExecutionError::Io::source: core::io::error::Error
+#[non_exhaustive] pub nika_execution::ExecutionError::MissingUnit
+pub nika_execution::ExecutionError::MissingUnit::logical_path: alloc::string::String
+#[non_exhaustive] pub nika_execution::ExecutionError::NonUtf8
+pub nika_execution::ExecutionError::NonUtf8::logical_path: alloc::string::String
+#[non_exhaustive] pub nika_execution::ExecutionError::Parse
+pub nika_execution::ExecutionError::Parse::detail: alloc::string::String
+pub nika_execution::ExecutionError::Parse::logical_path: alloc::string::String
+#[non_exhaustive] pub nika_execution::ExecutionError::RegistryDependency
+pub nika_execution::ExecutionError::RegistryDependency::reference: alloc::string::String
+#[non_exhaustive] pub nika_execution::ExecutionError::SkillCheckFailed
+pub nika_execution::ExecutionError::SkillCheckFailed::findings: alloc::vec::Vec<alloc::string::String>
+pub nika_execution::ExecutionError::SkillCheckFailed::workflow: alloc::string::String
+#[non_exhaustive] pub nika_execution::ExecutionError::SkillNotAuthorized
+pub nika_execution::ExecutionError::SkillNotAuthorized::skill: alloc::string::String
+pub nika_execution::ExecutionError::SkillNotAuthorized::workflow: alloc::string::String
+#[non_exhaustive] pub nika_execution::ExecutionError::TotalSizeLimit
+pub nika_execution::ExecutionError::TotalSizeLimit::limit: usize
+#[non_exhaustive] pub nika_execution::ExecutionError::UnitCountLimit
+pub nika_execution::ExecutionError::UnitCountLimit::limit: usize
+#[non_exhaustive] pub nika_execution::ExecutionError::UnitSizeLimit
+pub nika_execution::ExecutionError::UnitSizeLimit::limit: usize
+pub nika_execution::ExecutionError::UnitSizeLimit::logical_path: alloc::string::String
+impl core::error::Error for nika_execution::ExecutionError
+pub fn nika_execution::ExecutionError::source(&self) -> core::option::Option<&(dyn core::error::Error + 'static)>
+impl core::fmt::Debug for nika_execution::ExecutionError
+pub fn nika_execution::ExecutionError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_execution::ExecutionError
+pub fn nika_execution::ExecutionError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_execution::ExecutionError
+impl<T, U> core::convert::Into<U> for nika_execution::ExecutionError where U: core::convert::From<T>
+pub fn nika_execution::ExecutionError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_execution::ExecutionError where U: core::convert::Into<T>
+pub type nika_execution::ExecutionError::Error = core::convert::Infallible
+pub fn nika_execution::ExecutionError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_execution::ExecutionError where U: core::convert::TryFrom<T>
+pub type nika_execution::ExecutionError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_execution::ExecutionError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_execution::ExecutionError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_execution::ExecutionError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_execution::ExecutionError where T: 'static + ?core::marker::Sized
+pub fn nika_execution::ExecutionError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_execution::ExecutionError where T: ?core::marker::Sized
+pub fn nika_execution::ExecutionError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_execution::ExecutionError where T: ?core::marker::Sized
+pub fn nika_execution::ExecutionError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_execution::ExecutionError
+pub fn nika_execution::ExecutionError::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_execution::ExecutionError where T: 'static
+pub fn nika_execution::ExecutionError::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_execution::ExecutionError
+pub type nika_execution::ExecutionError::Output = T
+#[non_exhaustive] pub enum nika_execution::SnapshotUnitKind
+pub nika_execution::SnapshotUnitKind::Child
+pub nika_execution::SnapshotUnitKind::Import
+pub nika_execution::SnapshotUnitKind::Root
+pub nika_execution::SnapshotUnitKind::Skill
+impl core::clone::Clone for nika_execution::SnapshotUnitKind
+pub fn nika_execution::SnapshotUnitKind::clone(&self) -> nika_execution::SnapshotUnitKind
+impl core::cmp::Eq for nika_execution::SnapshotUnitKind
+impl core::cmp::Ord for nika_execution::SnapshotUnitKind
+pub fn nika_execution::SnapshotUnitKind::cmp(&self, other: &nika_execution::SnapshotUnitKind) -> core::cmp::Ordering
+impl core::cmp::PartialEq for nika_execution::SnapshotUnitKind
+pub fn nika_execution::SnapshotUnitKind::eq(&self, other: &nika_execution::SnapshotUnitKind) -> bool
+impl core::cmp::PartialOrd for nika_execution::SnapshotUnitKind
+pub fn nika_execution::SnapshotUnitKind::partial_cmp(&self, other: &nika_execution::SnapshotUnitKind) -> core::option::Option<core::cmp::Ordering>
+impl core::fmt::Debug for nika_execution::SnapshotUnitKind
+pub fn nika_execution::SnapshotUnitKind::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_execution::SnapshotUnitKind
+impl core::marker::StructuralPartialEq for nika_execution::SnapshotUnitKind
+impl<D> owo_colors::OwoColorize for nika_execution::SnapshotUnitKind
+impl<Q, K> equivalent::Comparable<K> for nika_execution::SnapshotUnitKind where Q: core::cmp::Ord + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_execution::SnapshotUnitKind::compare(&self, key: &K) -> core::cmp::Ordering
+impl<Q, K> equivalent::Equivalent<K> for nika_execution::SnapshotUnitKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_execution::SnapshotUnitKind::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_execution::SnapshotUnitKind where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_execution::SnapshotUnitKind::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_execution::SnapshotUnitKind where U: core::convert::From<T>
+pub fn nika_execution::SnapshotUnitKind::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_execution::SnapshotUnitKind where U: core::convert::Into<T>
+pub type nika_execution::SnapshotUnitKind::Error = core::convert::Infallible
+pub fn nika_execution::SnapshotUnitKind::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_execution::SnapshotUnitKind where U: core::convert::TryFrom<T>
+pub type nika_execution::SnapshotUnitKind::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_execution::SnapshotUnitKind::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_execution::SnapshotUnitKind where T: core::clone::Clone
+pub type nika_execution::SnapshotUnitKind::Owned = T
+pub fn nika_execution::SnapshotUnitKind::clone_into(&self, target: &mut T)
+pub fn nika_execution::SnapshotUnitKind::to_owned(&self) -> T
+impl<T> core::any::Any for nika_execution::SnapshotUnitKind where T: 'static + ?core::marker::Sized
+pub fn nika_execution::SnapshotUnitKind::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_execution::SnapshotUnitKind where T: ?core::marker::Sized
+pub fn nika_execution::SnapshotUnitKind::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_execution::SnapshotUnitKind where T: ?core::marker::Sized
+pub fn nika_execution::SnapshotUnitKind::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_execution::SnapshotUnitKind where T: core::clone::Clone
+pub unsafe fn nika_execution::SnapshotUnitKind::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_execution::SnapshotUnitKind
+pub fn nika_execution::SnapshotUnitKind::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_execution::SnapshotUnitKind where T: core::clone::Clone
+pub fn nika_execution::SnapshotUnitKind::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_execution::SnapshotUnitKind where T: 'static
+pub fn nika_execution::SnapshotUnitKind::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_execution::SnapshotUnitKind where T: core::marker::Copy
+pub fn nika_execution::SnapshotUnitKind::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> typenum::type_operators::Same for nika_execution::SnapshotUnitKind
+pub type nika_execution::SnapshotUnitKind::Output = T
+#[non_exhaustive] pub struct nika_execution::AdmittedExecution
+impl nika_execution::AdmittedExecution
+pub const fn nika_execution::AdmittedExecution::check(&self) -> &nika_check::CheckReport
+pub const fn nika_execution::AdmittedExecution::execution_id(&self) -> nika_types::id::ExecutionId
+pub const fn nika_execution::AdmittedExecution::skills(&self) -> &nika_schema::skill::ResolvedSkills
+pub const fn nika_execution::AdmittedExecution::snapshot(&self) -> &nika_execution::ExecutionSnapshot
+pub const fn nika_execution::AdmittedExecution::trace_id(&self) -> nika_types::id::TraceId
+pub const fn nika_execution::AdmittedExecution::workflow(&self) -> &nika_schema::raw::workflow::RawWorkflow
+impl core::fmt::Debug for nika_execution::AdmittedExecution
+pub fn nika_execution::AdmittedExecution::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_execution::AdmittedExecution
+impl<T, U> core::convert::Into<U> for nika_execution::AdmittedExecution where U: core::convert::From<T>
+pub fn nika_execution::AdmittedExecution::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_execution::AdmittedExecution where U: core::convert::Into<T>
+pub type nika_execution::AdmittedExecution::Error = core::convert::Infallible
+pub fn nika_execution::AdmittedExecution::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_execution::AdmittedExecution where U: core::convert::TryFrom<T>
+pub type nika_execution::AdmittedExecution::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_execution::AdmittedExecution::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_execution::AdmittedExecution where T: 'static + ?core::marker::Sized
+pub fn nika_execution::AdmittedExecution::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_execution::AdmittedExecution where T: ?core::marker::Sized
+pub fn nika_execution::AdmittedExecution::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_execution::AdmittedExecution where T: ?core::marker::Sized
+pub fn nika_execution::AdmittedExecution::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_execution::AdmittedExecution
+pub fn nika_execution::AdmittedExecution::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_execution::AdmittedExecution where T: 'static
+pub fn nika_execution::AdmittedExecution::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_execution::AdmittedExecution
+pub type nika_execution::AdmittedExecution::Output = T
+#[non_exhaustive] pub struct nika_execution::CapturedUnit
+impl nika_execution::CapturedUnit
+pub fn nika_execution::CapturedUnit::bytes(&self) -> &[u8]
+pub fn nika_execution::CapturedUnit::digest(&self) -> &str
+pub fn nika_execution::CapturedUnit::kind(&self) -> nika_execution::SnapshotUnitKind
+pub fn nika_execution::CapturedUnit::logical_path(&self) -> &str
+pub fn nika_execution::CapturedUnit::text(&self) -> core::option::Option<&str>
+impl core::clone::Clone for nika_execution::CapturedUnit
+pub fn nika_execution::CapturedUnit::clone(&self) -> nika_execution::CapturedUnit
+impl core::fmt::Debug for nika_execution::CapturedUnit
+pub fn nika_execution::CapturedUnit::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_execution::CapturedUnit
+impl<T, U> core::convert::Into<U> for nika_execution::CapturedUnit where U: core::convert::From<T>
+pub fn nika_execution::CapturedUnit::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_execution::CapturedUnit where U: core::convert::Into<T>
+pub type nika_execution::CapturedUnit::Error = core::convert::Infallible
+pub fn nika_execution::CapturedUnit::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_execution::CapturedUnit where U: core::convert::TryFrom<T>
+pub type nika_execution::CapturedUnit::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_execution::CapturedUnit::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_execution::CapturedUnit where T: core::clone::Clone
+pub type nika_execution::CapturedUnit::Owned = T
+pub fn nika_execution::CapturedUnit::clone_into(&self, target: &mut T)
+pub fn nika_execution::CapturedUnit::to_owned(&self) -> T
+impl<T> core::any::Any for nika_execution::CapturedUnit where T: 'static + ?core::marker::Sized
+pub fn nika_execution::CapturedUnit::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_execution::CapturedUnit where T: ?core::marker::Sized
+pub fn nika_execution::CapturedUnit::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_execution::CapturedUnit where T: ?core::marker::Sized
+pub fn nika_execution::CapturedUnit::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_execution::CapturedUnit where T: core::clone::Clone
+pub unsafe fn nika_execution::CapturedUnit::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_execution::CapturedUnit
+pub fn nika_execution::CapturedUnit::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_execution::CapturedUnit where T: core::clone::Clone
+pub fn nika_execution::CapturedUnit::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_execution::CapturedUnit where T: 'static
+pub fn nika_execution::CapturedUnit::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_execution::CapturedUnit
+pub type nika_execution::CapturedUnit::Output = T
+#[non_exhaustive] pub struct nika_execution::ExecutionContext<'a>
+impl<'a> nika_execution::ExecutionContext<'a>
+pub const fn nika_execution::ExecutionContext<'a>::check(self) -> &'a nika_check::CheckReport
+pub const fn nika_execution::ExecutionContext<'a>::execution_id(self) -> nika_types::id::ExecutionId
+pub const fn nika_execution::ExecutionContext<'a>::skills(self) -> &'a nika_schema::skill::ResolvedSkills
+pub const fn nika_execution::ExecutionContext<'a>::snapshot(self) -> &'a nika_execution::ExecutionSnapshot
+pub const fn nika_execution::ExecutionContext<'a>::trace_id(self) -> nika_types::id::TraceId
+pub const fn nika_execution::ExecutionContext<'a>::workflow(self) -> &'a nika_schema::raw::workflow::RawWorkflow
+impl<'a> core::clone::Clone for nika_execution::ExecutionContext<'a>
+pub fn nika_execution::ExecutionContext<'a>::clone(&self) -> nika_execution::ExecutionContext<'a>
+impl<'a> core::fmt::Debug for nika_execution::ExecutionContext<'a>
+pub fn nika_execution::ExecutionContext<'a>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<'a> core::marker::Copy for nika_execution::ExecutionContext<'a>
+impl<D> owo_colors::OwoColorize for nika_execution::ExecutionContext<'a>
+impl<T, U> core::convert::Into<U> for nika_execution::ExecutionContext<'a> where U: core::convert::From<T>
+pub fn nika_execution::ExecutionContext<'a>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_execution::ExecutionContext<'a> where U: core::convert::Into<T>
+pub type nika_execution::ExecutionContext<'a>::Error = core::convert::Infallible
+pub fn nika_execution::ExecutionContext<'a>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_execution::ExecutionContext<'a> where U: core::convert::TryFrom<T>
+pub type nika_execution::ExecutionContext<'a>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_execution::ExecutionContext<'a>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_execution::ExecutionContext<'a> where T: core::clone::Clone
+pub type nika_execution::ExecutionContext<'a>::Owned = T
+pub fn nika_execution::ExecutionContext<'a>::clone_into(&self, target: &mut T)
+pub fn nika_execution::ExecutionContext<'a>::to_owned(&self) -> T
+impl<T> core::any::Any for nika_execution::ExecutionContext<'a> where T: 'static + ?core::marker::Sized
+pub fn nika_execution::ExecutionContext<'a>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_execution::ExecutionContext<'a> where T: ?core::marker::Sized
+pub fn nika_execution::ExecutionContext<'a>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_execution::ExecutionContext<'a> where T: ?core::marker::Sized
+pub fn nika_execution::ExecutionContext<'a>::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_execution::ExecutionContext<'a> where T: core::clone::Clone
+pub unsafe fn nika_execution::ExecutionContext<'a>::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_execution::ExecutionContext<'a>
+pub fn nika_execution::ExecutionContext<'a>::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_execution::ExecutionContext<'a> where T: core::clone::Clone
+pub fn nika_execution::ExecutionContext<'a>::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_execution::ExecutionContext<'a> where T: 'static
+pub fn nika_execution::ExecutionContext<'a>::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_execution::ExecutionContext<'a> where T: core::marker::Copy
+pub fn nika_execution::ExecutionContext<'a>::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> typenum::type_operators::Same for nika_execution::ExecutionContext<'a>
+pub type nika_execution::ExecutionContext<'a>::Output = T
+#[non_exhaustive] pub struct nika_execution::ExecutionService
+impl nika_execution::ExecutionService
+pub fn nika_execution::ExecutionService::admit(&self, project: &nika_fs::owned_dir::OwnedDir, root: &std::path::Path) -> core::result::Result<nika_execution::AdmittedExecution, nika_execution::ExecutionError>
+pub fn nika_execution::ExecutionService::admit_with_imports<I, P>(&self, project: &nika_fs::owned_dir::OwnedDir, root: &std::path::Path, imports: I) -> core::result::Result<nika_execution::AdmittedExecution, nika_execution::ExecutionError> where I: core::iter::traits::collect::IntoIterator<Item = P>, P: core::convert::AsRef<std::path::Path>
+pub fn nika_execution::ExecutionService::execute<T>(&self, admitted: nika_execution::AdmittedExecution, runner: for<'a> fn(nika_execution::ExecutionContext<'a>) -> T) -> nika_execution::ExecutionVerdict<T>
+pub const fn nika_execution::ExecutionService::new(limits: nika_execution::SnapshotLimits) -> Self
+impl core::clone::Clone for nika_execution::ExecutionService
+pub fn nika_execution::ExecutionService::clone(&self) -> nika_execution::ExecutionService
+impl core::default::Default for nika_execution::ExecutionService
+pub fn nika_execution::ExecutionService::default() -> Self
+impl core::fmt::Debug for nika_execution::ExecutionService
+pub fn nika_execution::ExecutionService::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_execution::ExecutionService
+impl<D> owo_colors::OwoColorize for nika_execution::ExecutionService
+impl<T, U> core::convert::Into<U> for nika_execution::ExecutionService where U: core::convert::From<T>
+pub fn nika_execution::ExecutionService::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_execution::ExecutionService where U: core::convert::Into<T>
+pub type nika_execution::ExecutionService::Error = core::convert::Infallible
+pub fn nika_execution::ExecutionService::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_execution::ExecutionService where U: core::convert::TryFrom<T>
+pub type nika_execution::ExecutionService::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_execution::ExecutionService::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_execution::ExecutionService where T: core::clone::Clone
+pub type nika_execution::ExecutionService::Owned = T
+pub fn nika_execution::ExecutionService::clone_into(&self, target: &mut T)
+pub fn nika_execution::ExecutionService::to_owned(&self) -> T
+impl<T> core::any::Any for nika_execution::ExecutionService where T: 'static + ?core::marker::Sized
+pub fn nika_execution::ExecutionService::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_execution::ExecutionService where T: ?core::marker::Sized
+pub fn nika_execution::ExecutionService::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_execution::ExecutionService where T: ?core::marker::Sized
+pub fn nika_execution::ExecutionService::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_execution::ExecutionService where T: core::clone::Clone
+pub unsafe fn nika_execution::ExecutionService::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_execution::ExecutionService
+pub fn nika_execution::ExecutionService::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_execution::ExecutionService where T: core::clone::Clone
+pub fn nika_execution::ExecutionService::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_execution::ExecutionService where T: 'static
+pub fn nika_execution::ExecutionService::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_execution::ExecutionService where T: core::marker::Copy
+pub fn nika_execution::ExecutionService::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> typenum::type_operators::Same for nika_execution::ExecutionService
+pub type nika_execution::ExecutionService::Output = T
+#[non_exhaustive] pub struct nika_execution::ExecutionSnapshot
+impl nika_execution::ExecutionSnapshot
+pub fn nika_execution::ExecutionSnapshot::bytes(&self, logical_path: &str) -> core::option::Option<&[u8]>
+pub fn nika_execution::ExecutionSnapshot::capture(project: &nika_fs::owned_dir::OwnedDir, root: &std::path::Path, limits: nika_execution::SnapshotLimits) -> core::result::Result<Self, nika_execution::ExecutionError>
+pub fn nika_execution::ExecutionSnapshot::capture_with_imports<I, P>(project: &nika_fs::owned_dir::OwnedDir, root: &std::path::Path, imports: I, limits: nika_execution::SnapshotLimits) -> core::result::Result<Self, nika_execution::ExecutionError> where I: core::iter::traits::collect::IntoIterator<Item = P>, P: core::convert::AsRef<std::path::Path>
+pub fn nika_execution::ExecutionSnapshot::digest(&self) -> &str
+pub const fn nika_execution::ExecutionSnapshot::format_version(&self) -> u32
+pub fn nika_execution::ExecutionSnapshot::is_empty(&self) -> bool
+pub fn nika_execution::ExecutionSnapshot::len(&self) -> usize
+pub fn nika_execution::ExecutionSnapshot::root(&self) -> &str
+pub fn nika_execution::ExecutionSnapshot::text(&self, logical_path: &str) -> core::option::Option<&str>
+pub fn nika_execution::ExecutionSnapshot::unit(&self, logical_path: &str) -> core::option::Option<&nika_execution::CapturedUnit>
+pub fn nika_execution::ExecutionSnapshot::units(&self) -> impl core::iter::traits::exact_size::ExactSizeIterator<Item = &nika_execution::CapturedUnit>
+impl core::clone::Clone for nika_execution::ExecutionSnapshot
+pub fn nika_execution::ExecutionSnapshot::clone(&self) -> nika_execution::ExecutionSnapshot
+impl core::fmt::Debug for nika_execution::ExecutionSnapshot
+pub fn nika_execution::ExecutionSnapshot::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_execution::ExecutionSnapshot
+impl<T, U> core::convert::Into<U> for nika_execution::ExecutionSnapshot where U: core::convert::From<T>
+pub fn nika_execution::ExecutionSnapshot::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_execution::ExecutionSnapshot where U: core::convert::Into<T>
+pub type nika_execution::ExecutionSnapshot::Error = core::convert::Infallible
+pub fn nika_execution::ExecutionSnapshot::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_execution::ExecutionSnapshot where U: core::convert::TryFrom<T>
+pub type nika_execution::ExecutionSnapshot::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_execution::ExecutionSnapshot::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_execution::ExecutionSnapshot where T: core::clone::Clone
+pub type nika_execution::ExecutionSnapshot::Owned = T
+pub fn nika_execution::ExecutionSnapshot::clone_into(&self, target: &mut T)
+pub fn nika_execution::ExecutionSnapshot::to_owned(&self) -> T
+impl<T> core::any::Any for nika_execution::ExecutionSnapshot where T: 'static + ?core::marker::Sized
+pub fn nika_execution::ExecutionSnapshot::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_execution::ExecutionSnapshot where T: ?core::marker::Sized
+pub fn nika_execution::ExecutionSnapshot::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_execution::ExecutionSnapshot where T: ?core::marker::Sized
+pub fn nika_execution::ExecutionSnapshot::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_execution::ExecutionSnapshot where T: core::clone::Clone
+pub unsafe fn nika_execution::ExecutionSnapshot::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_execution::ExecutionSnapshot
+pub fn nika_execution::ExecutionSnapshot::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_execution::ExecutionSnapshot where T: core::clone::Clone
+pub fn nika_execution::ExecutionSnapshot::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_execution::ExecutionSnapshot where T: 'static
+pub fn nika_execution::ExecutionSnapshot::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_execution::ExecutionSnapshot
+pub type nika_execution::ExecutionSnapshot::Output = T
+#[non_exhaustive] pub struct nika_execution::ExecutionVerdict<T>
+impl<T> nika_execution::ExecutionVerdict<T>
+pub const fn nika_execution::ExecutionVerdict<T>::execution_id(&self) -> nika_types::id::ExecutionId
+pub fn nika_execution::ExecutionVerdict<T>::into_outcome(self) -> T
+pub const fn nika_execution::ExecutionVerdict<T>::outcome(&self) -> &T
+pub fn nika_execution::ExecutionVerdict<T>::snapshot_digest(&self) -> &str
+pub const fn nika_execution::ExecutionVerdict<T>::trace_id(&self) -> nika_types::id::TraceId
+impl<T: core::fmt::Debug> core::fmt::Debug for nika_execution::ExecutionVerdict<T>
+pub fn nika_execution::ExecutionVerdict<T>::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_execution::ExecutionVerdict<T>
+impl<T, U> core::convert::Into<U> for nika_execution::ExecutionVerdict<T> where U: core::convert::From<T>
+pub fn nika_execution::ExecutionVerdict<T>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_execution::ExecutionVerdict<T> where U: core::convert::Into<T>
+pub type nika_execution::ExecutionVerdict<T>::Error = core::convert::Infallible
+pub fn nika_execution::ExecutionVerdict<T>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_execution::ExecutionVerdict<T> where U: core::convert::TryFrom<T>
+pub type nika_execution::ExecutionVerdict<T>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_execution::ExecutionVerdict<T>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_execution::ExecutionVerdict<T> where T: 'static + ?core::marker::Sized
+pub fn nika_execution::ExecutionVerdict<T>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_execution::ExecutionVerdict<T> where T: ?core::marker::Sized
+pub fn nika_execution::ExecutionVerdict<T>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_execution::ExecutionVerdict<T> where T: ?core::marker::Sized
+pub fn nika_execution::ExecutionVerdict<T>::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_execution::ExecutionVerdict<T>
+pub fn nika_execution::ExecutionVerdict<T>::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_execution::ExecutionVerdict<T> where T: 'static
+pub fn nika_execution::ExecutionVerdict<T>::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> typenum::type_operators::Same for nika_execution::ExecutionVerdict<T>
+pub type nika_execution::ExecutionVerdict<T>::Output = T
+#[non_exhaustive] pub struct nika_execution::SnapshotLimits
+impl nika_execution::SnapshotLimits
+pub const fn nika_execution::SnapshotLimits::max_depth(self) -> usize
+pub const fn nika_execution::SnapshotLimits::max_total_bytes(self) -> usize
+pub const fn nika_execution::SnapshotLimits::max_unit_bytes(self) -> usize
+pub const fn nika_execution::SnapshotLimits::max_units(self) -> usize
+pub const fn nika_execution::SnapshotLimits::new(max_depth: usize, max_units: usize, max_unit_bytes: usize, max_total_bytes: usize) -> Self
+impl core::clone::Clone for nika_execution::SnapshotLimits
+pub fn nika_execution::SnapshotLimits::clone(&self) -> nika_execution::SnapshotLimits
+impl core::cmp::Eq for nika_execution::SnapshotLimits
+impl core::cmp::PartialEq for nika_execution::SnapshotLimits
+pub fn nika_execution::SnapshotLimits::eq(&self, other: &nika_execution::SnapshotLimits) -> bool
+impl core::default::Default for nika_execution::SnapshotLimits
+pub fn nika_execution::SnapshotLimits::default() -> Self
+impl core::fmt::Debug for nika_execution::SnapshotLimits
+pub fn nika_execution::SnapshotLimits::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_execution::SnapshotLimits
+impl core::marker::StructuralPartialEq for nika_execution::SnapshotLimits
+impl<D> owo_colors::OwoColorize for nika_execution::SnapshotLimits
+impl<Q, K> equivalent::Equivalent<K> for nika_execution::SnapshotLimits where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_execution::SnapshotLimits::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_execution::SnapshotLimits where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_execution::SnapshotLimits::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_execution::SnapshotLimits where U: core::convert::From<T>
+pub fn nika_execution::SnapshotLimits::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_execution::SnapshotLimits where U: core::convert::Into<T>
+pub type nika_execution::SnapshotLimits::Error = core::convert::Infallible
+pub fn nika_execution::SnapshotLimits::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_execution::SnapshotLimits where U: core::convert::TryFrom<T>
+pub type nika_execution::SnapshotLimits::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_execution::SnapshotLimits::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_execution::SnapshotLimits where T: core::clone::Clone
+pub type nika_execution::SnapshotLimits::Owned = T
+pub fn nika_execution::SnapshotLimits::clone_into(&self, target: &mut T)
+pub fn nika_execution::SnapshotLimits::to_owned(&self) -> T
+impl<T> core::any::Any for nika_execution::SnapshotLimits where T: 'static + ?core::marker::Sized
+pub fn nika_execution::SnapshotLimits::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_execution::SnapshotLimits where T: ?core::marker::Sized
+pub fn nika_execution::SnapshotLimits::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_execution::SnapshotLimits where T: ?core::marker::Sized
+pub fn nika_execution::SnapshotLimits::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_execution::SnapshotLimits where T: core::clone::Clone
+pub unsafe fn nika_execution::SnapshotLimits::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_execution::SnapshotLimits
+pub fn nika_execution::SnapshotLimits::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_execution::SnapshotLimits where T: core::clone::Clone
+pub fn nika_execution::SnapshotLimits::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_execution::SnapshotLimits where T: 'static
+pub fn nika_execution::SnapshotLimits::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_execution::SnapshotLimits where T: core::marker::Copy
+pub fn nika_execution::SnapshotLimits::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> typenum::type_operators::Same for nika_execution::SnapshotLimits
+pub type nika_execution::SnapshotLimits::Output = T
+pub const nika_execution::SNAPSHOT_FORMAT_VERSION: u32
