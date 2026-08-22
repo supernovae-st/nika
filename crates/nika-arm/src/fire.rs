@@ -99,7 +99,7 @@ pub struct FireCtx {
     wait: WaitSeam,
     /// The run seam — interfaces adapt their execution service here; tests and
     /// simulations can inject a deterministic substitute.
-    run: RunSeam,
+    run: RunAdapter,
     /// The one shared owned-byte admission/execution boundary.
     service: ExecutionService,
 }
@@ -151,6 +151,51 @@ impl FireCtx {
         now: Zoned,
         pid: u32,
         run: RunSeam,
+    ) -> Result<Self, FireCtxError> {
+        Self::build(
+            project_root,
+            registry,
+            index,
+            now,
+            pid,
+            RunAdapter::Legacy(run),
+        )
+    }
+
+    /// Build one firing transaction with the typed execution context seam.
+    ///
+    /// This additive constructor preserves [`Self::new`] and the original
+    /// [`RunSeam`] while allowing in-process adapters to consume the immutable
+    /// world admitted by [`ExecutionService`].
+    ///
+    /// # Errors
+    /// The same custody and registry conditions as [`Self::new`].
+    #[must_use = "an invalid registry index must be handled"]
+    pub fn new_with_execution(
+        project_root: PathBuf,
+        registry: ArmRegistry,
+        index: usize,
+        now: Zoned,
+        pid: u32,
+        run: ExecutionRunSeam,
+    ) -> Result<Self, FireCtxError> {
+        Self::build(
+            project_root,
+            registry,
+            index,
+            now,
+            pid,
+            RunAdapter::Execution(run),
+        )
+    }
+
+    fn build(
+        project_root: PathBuf,
+        registry: ArmRegistry,
+        index: usize,
+        now: Zoned,
+        pid: u32,
+        run: RunAdapter,
     ) -> Result<Self, FireCtxError> {
         let Some(label) = labels(&registry).get(index).cloned() else {
             return Err(FireCtxError {
@@ -288,6 +333,7 @@ pub struct RunShot {
     project: OwnedDir,
     root: PathBuf,
     workflow: String,
+    source: String,
     generation: ArmGeneration,
     ceiling: f64,
 }
@@ -307,6 +353,12 @@ impl RunShot {
     #[must_use]
     pub fn workflow(&self) -> &str {
         &self.workflow
+    }
+
+    /// The exact root bytes admitted for this firing.
+    #[must_use]
+    pub fn source(&self) -> &str {
+        &self.source
     }
 
     #[must_use]
@@ -336,7 +388,25 @@ impl RunUpshot {
     }
 }
 
-pub type RunSeam = Rc<dyn for<'a> Fn(ExecutionContext<'a>, &RunShot) -> RunUpshot>;
+/// Original ARM runner seam, retained for source and binary compatibility.
+pub type RunSeam = Rc<dyn Fn(&RunShot) -> RunUpshot>;
+
+/// Typed runner seam for adapters consuming the service-admitted world.
+pub type ExecutionRunSeam = Rc<dyn for<'a> Fn(ExecutionContext<'a>, &RunShot) -> RunUpshot>;
+
+enum RunAdapter {
+    Legacy(RunSeam),
+    Execution(ExecutionRunSeam),
+}
+
+impl RunAdapter {
+    fn run(&self, execution: ExecutionContext<'_>, shot: &RunShot) -> RunUpshot {
+        match self {
+            Self::Legacy(run) => run(shot),
+            Self::Execution(run) => run(execution, shot),
+        }
+    }
+}
 
 /// What a fire leaves: the ONE stdout line (D8) + the process exit.
 pub struct FireVerdict {
@@ -657,6 +727,14 @@ fn claim_run_receipt(
     claim.generation = Some(pinned.generation.clone());
     let execution_id = pinned.admitted.execution_id();
     let trace_id = pinned.admitted.trace_id();
+    let Some(source) = pinned
+        .admitted
+        .snapshot()
+        .text(pinned.admitted.snapshot().root())
+        .map(str::to_owned)
+    else {
+        return invalid_execution_identity(ctx);
+    };
     let Some(execution) = direct_execution_link(&pinned.admitted) else {
         return invalid_execution_identity(ctx);
     };
@@ -673,12 +751,13 @@ fn claim_run_receipt(
         project: pinned.project,
         root: ctx.project_root.clone(),
         workflow: beat.workflow.clone(),
+        source,
         generation: pinned.generation,
         ceiling: plafond,
     };
-    let executed = ctx
-        .service
-        .execute(pinned.admitted, |execution| (ctx.run)(execution, &request));
+    let executed = ctx.service.execute_with(pinned.admitted, |execution| {
+        ctx.run.run(execution, &request)
+    });
     debug_assert_eq!(executed.execution_id(), execution_id);
     debug_assert_eq!(executed.trace_id(), trace_id);
     let upshot = executed.into_outcome();
@@ -901,7 +980,7 @@ mod tests {
             state: ArmState::at_project(Path::new("/project")),
             pid: 7,
             wait: Box::new(os_wait),
-            run: Rc::new(|_, _| RunUpshot::new(exit::OK, None)),
+            run: RunAdapter::Execution(Rc::new(|_, _| RunUpshot::new(exit::OK, None))),
             service: ExecutionService::default(),
         }
     }
@@ -926,11 +1005,13 @@ mod tests {
             project: OwnedDir::open(project.path()).expect("project capability"),
             root: project.path().to_path_buf(),
             workflow: "workflows/doctor.nika.yaml".to_owned(),
+            source: "nika: doctor\ntasks: {}\n".to_owned(),
             generation: generation.clone(),
             ceiling: 0.25,
         };
         assert_eq!(shot.root(), project.path());
         assert_eq!(shot.workflow(), "workflows/doctor.nika.yaml");
+        assert_eq!(shot.source(), "nika: doctor\ntasks: {}\n");
         assert_eq!(shot.generation(), &generation);
         assert_eq!(shot.ceiling().to_bits(), 0.25f64.to_bits());
 
@@ -946,7 +1027,7 @@ mod tests {
     #[test]
     fn context_derives_the_label_and_rejects_an_invalid_index() {
         let registry = registry_with(BASE);
-        let Err(error) = FireCtx::new(
+        let Err(error) = FireCtx::new_with_execution(
             PathBuf::from("/project"),
             registry,
             1,

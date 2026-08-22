@@ -79,12 +79,25 @@ impl ExecutionService {
         Self::admit_snapshot(snapshot)
     }
 
-    /// Execute through a runner that can observe only the admitted world.
+    /// Execute through the original function-pointer runner seam.
+    ///
+    /// Kept as the stable compatibility surface. Adapters that need to move
+    /// request state into the runner use [`Self::execute_with`].
+    pub fn execute<T>(
+        &self,
+        admitted: AdmittedExecution,
+        runner: for<'a> fn(ExecutionContext<'a>) -> T,
+    ) -> ExecutionVerdict<T> {
+        self.execute_with(admitted, runner)
+    }
+
+    /// Execute through a runner that can observe only the admitted world and
+    /// can own adapter request state.
     ///
     /// The runner receives no root capability and no mutable pathname. Its
     /// outcome may itself be a `Result`, preserving the caller's typed runtime
     /// verdict without widening this infrastructure boundary.
-    pub fn execute<T, F>(&self, admitted: AdmittedExecution, runner: F) -> ExecutionVerdict<T>
+    pub fn execute_with<T, F>(&self, admitted: AdmittedExecution, runner: F) -> ExecutionVerdict<T>
     where
         F: for<'a> FnOnce(ExecutionContext<'a>) -> T,
     {
@@ -504,7 +517,7 @@ mod tests {
         let captured_digest = digest.clone();
         let adapter_request = String::from("model=mock/echo;max_cost_usd=0");
 
-        let verdict = ExecutionService::default().execute(admitted, move |context| {
+        let verdict = ExecutionService::default().execute_with(admitted, move |context| {
             assert_eq!(context.execution_id(), execution_id);
             assert_eq!(context.trace_id(), trace_id);
             assert_eq!(context.snapshot().digest(), captured_digest);

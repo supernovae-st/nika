@@ -242,7 +242,8 @@ impl nika_execution::ExecutionService
 pub fn nika_execution::ExecutionService::admit(&self, project: &nika_fs::owned_dir::OwnedDir, root: &std::path::Path) -> core::result::Result<nika_execution::AdmittedExecution, nika_execution::ExecutionError>
 pub fn nika_execution::ExecutionService::admit_root_bytes(&self, project: &nika_fs::owned_dir::OwnedDir, root: &std::path::Path, root_bytes: &[u8]) -> core::result::Result<nika_execution::AdmittedExecution, nika_execution::ExecutionError>
 pub fn nika_execution::ExecutionService::admit_with_imports<I, P>(&self, project: &nika_fs::owned_dir::OwnedDir, root: &std::path::Path, imports: I) -> core::result::Result<nika_execution::AdmittedExecution, nika_execution::ExecutionError> where I: core::iter::traits::collect::IntoIterator<Item = P>, P: core::convert::AsRef<std::path::Path>
-pub fn nika_execution::ExecutionService::execute<T, F>(&self, admitted: nika_execution::AdmittedExecution, runner: F) -> nika_execution::ExecutionVerdict<T> where F: for<'a> core::ops::function::FnOnce(nika_execution::ExecutionContext<'a>) -> T
+pub fn nika_execution::ExecutionService::execute<T>(&self, admitted: nika_execution::AdmittedExecution, runner: for<'a> fn(nika_execution::ExecutionContext<'a>) -> T) -> nika_execution::ExecutionVerdict<T>
+pub fn nika_execution::ExecutionService::execute_with<T, F>(&self, admitted: nika_execution::AdmittedExecution, runner: F) -> nika_execution::ExecutionVerdict<T> where F: for<'a> core::ops::function::FnOnce(nika_execution::ExecutionContext<'a>) -> T
 pub const fn nika_execution::ExecutionService::new(limits: nika_execution::SnapshotLimits) -> Self
 impl core::clone::Clone for nika_execution::ExecutionService
 pub fn nika_execution::ExecutionService::clone(&self) -> nika_execution::ExecutionService

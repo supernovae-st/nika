@@ -131,7 +131,7 @@ pub(super) fn run_admitted(
         max_cost_usd,
         interruptible,
     };
-    let verdict = service.execute(admitted, move |context| {
+    let verdict = service.execute_with(admitted, move |context| {
         run_admitted_context(context, &request, display_root)
     });
     verdict.into_outcome()

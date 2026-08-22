@@ -96,6 +96,34 @@ fn last_fired_is_none_then_the_recorded_slot() {
     assert_eq!(fired.timestamp(), expected);
 }
 
+#[test]
+fn peek_last_fired_never_creates_or_repairs_sidecar_state() {
+    let (dir, state) = state("peek-last");
+    assert!(
+        state
+            .peek_last_fired("doctor")
+            .expect("fresh peek")
+            .is_none()
+    );
+    assert!(!dir.path().join(".nika").exists(), "fresh peek is inert");
+
+    state
+        .record("doctor", &entry(FireKind::Fired))
+        .expect("seed record");
+    let last = dir.path().join(".nika/arm/doctor/last.json");
+    std::fs::remove_file(&last).expect("remove projection cache");
+    let fired = state
+        .peek_last_fired("doctor")
+        .expect("verified read")
+        .expect("recorded slot");
+    let expected: Timestamp = "2026-08-19T03:00:00Z".parse().expect("ts");
+    assert_eq!(fired.timestamp(), expected);
+    assert!(
+        !last.exists(),
+        "peek never repairs a missing projection cache"
+    );
+}
+
 /// (b) The kernel lease, not PID metadata, is the lock authority.
 #[test]
 fn a_kernel_lease_refuses_overlap_then_releases_on_drop() {

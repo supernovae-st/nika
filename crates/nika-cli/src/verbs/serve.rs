@@ -7,7 +7,7 @@
 #![allow(clippy::disallowed_macros, clippy::print_stdout, clippy::print_stderr)]
 use super::arm::{
     self,
-    fire::{FireCtx, RunSeam, Wait, WaitSeam, fire_beat, labels},
+    fire::{ExecutionRunSeam, FireCtx, Wait, WaitSeam, fire_beat, labels},
     state::ArmState,
 };
 use super::{VerbOutput, exit};
@@ -72,7 +72,7 @@ fn go(args: &ServeArgs) -> Result<VerbOutput, VerbOutput> {
     let root = path
         .parent()
         .map_or_else(|| PathBuf::from("."), Path::to_path_buf);
-    let run: RunSeam = std::rc::Rc::new(arm::fire::prod_run);
+    let run: ExecutionRunSeam = std::rc::Rc::new(arm::fire::prod_run);
     serve(&root, registry, args, until.as_ref(), &clock(now), &run).map_err(fail)?;
     Ok(VerbOutput::ok(String::new()))
 }
@@ -215,10 +215,10 @@ fn fire_due(
     index: usize,
     now: &Zoned,
     wait: WaitSeam,
-    run: &RunSeam,
+    run: &ExecutionRunSeam,
     stop: &std::rc::Rc<std::cell::Cell<bool>>,
 ) -> (ArmRegistry, bool) {
-    let ctx = match FireCtx::new(
+    let ctx = match FireCtx::new_with_execution(
         root.to_path_buf(),
         reg,
         index,
@@ -294,7 +294,7 @@ fn serve(
     args: &ServeArgs,
     until: Option<&Zoned>,
     clock: &Clock,
-    run: &RunSeam,
+    run: &ExecutionRunSeam,
 ) -> Result<(), String> {
     let rt = std::rc::Rc::new(
         tokio::runtime::Builder::new_current_thread()
@@ -347,6 +347,8 @@ fn serve(
             .map(|(beat, label)| {
                 if beat.locus() == Locus::Cloud {
                     Ok(None)
+                } else if args.dry {
+                    state.peek_last_fired(label)
                 } else {
                     state.last_fired(label)
                 }
@@ -495,17 +497,17 @@ mod tests {
 
     /// The run seam that must NEVER fire — the skip-only ticks (the
     /// reload + refusal tests) prove their point by never calling it.
-    fn never_run() -> RunSeam {
+    fn never_run() -> ExecutionRunSeam {
         std::rc::Rc::new(|_, _| panic!("this tick runs nothing"))
     }
 
     /// A run stub that counts its shots (the real in-process run
     /// chdirs — parallel tests race on the process CWD, so the seam is
     /// stubbed; the binary tests own the real ground).
-    fn stub_run() -> (std::rc::Rc<std::cell::Cell<u32>>, RunSeam) {
+    fn stub_run() -> (std::rc::Rc<std::cell::Cell<u32>>, ExecutionRunSeam) {
         let count = std::rc::Rc::new(std::cell::Cell::new(0u32));
         let seen = std::rc::Rc::clone(&count);
-        let seam: RunSeam = std::rc::Rc::new(move |_, _: &RunShot| {
+        let seam: ExecutionRunSeam = std::rc::Rc::new(move |_, _: &RunShot| {
             seen.set(seen.get() + 1);
             RunUpshot::new(exit::OK, None)
         });

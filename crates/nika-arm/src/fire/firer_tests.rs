@@ -106,9 +106,15 @@ impl Drop for LiveChild {
 
 /// The firer's context with every seam injected: the pid is the test
 /// process's own, the wait is scripted by the test, the run is a stub.
-fn ctx(root: &Path, fixture: RegistryFixture, now: &str, wait: WaitSeam, run: RunSeam) -> FireCtx {
+fn ctx(
+    root: &Path,
+    fixture: RegistryFixture,
+    now: &str,
+    wait: WaitSeam,
+    run: ExecutionRunSeam,
+) -> FireCtx {
     std::fs::write(root.join("nika.yaml"), &fixture.0).expect("project registry");
-    FireCtx::new(
+    FireCtx::new_with_execution(
         root.to_path_buf(),
         fixture.1,
         0,
@@ -121,10 +127,10 @@ fn ctx(root: &Path, fixture: RegistryFixture, now: &str, wait: WaitSeam, run: Ru
 }
 
 /// A run stub that counts its calls and exits clean.
-fn run_counter() -> (Rc<Cell<u32>>, RunSeam) {
+fn run_counter() -> (Rc<Cell<u32>>, ExecutionRunSeam) {
     let count = Rc::new(Cell::new(0u32));
     let seen = Rc::clone(&count);
-    let seam: RunSeam = Rc::new(move |_, _: &RunShot| {
+    let seam: ExecutionRunSeam = Rc::new(move |_, _: &RunShot| {
         seen.set(seen.get() + 1);
         RunUpshot {
             code: exit::OK,
@@ -132,6 +138,35 @@ fn run_counter() -> (Rc<Cell<u32>>, RunSeam) {
         }
     });
     (count, seam)
+}
+
+#[test]
+fn legacy_run_seam_receives_the_exact_admitted_root_source() {
+    let dir = project("legacy-run-seam");
+    let fixture = registry_with(SAUTER);
+    std::fs::write(dir.path().join("nika.yaml"), &fixture.0).expect("project registry");
+    let original = std::fs::read_to_string(dir.path().join("workflows/doctor.nika.yaml"))
+        .expect("root source");
+    let seen = Rc::new(Cell::new(false));
+    let observed = Rc::clone(&seen);
+    let run: RunSeam = Rc::new(move |shot| {
+        assert_eq!(shot.source(), original);
+        observed.set(true);
+        RunUpshot::new(exit::OK, None)
+    });
+    let ctx = FireCtx::new(
+        dir.path().to_path_buf(),
+        fixture.1,
+        0,
+        at("2026-08-19T03:02:00Z"),
+        std::process::id(),
+        run,
+    )
+    .expect("legacy context");
+
+    let verdict = fire_beat(&ctx);
+    assert_eq!(verdict.code, exit::OK, "{}", verdict.line);
+    assert!(seen.get(), "the compatibility adapter ran");
 }
 
 /// The wait that elapses at once (no signal, no scripted clock).
@@ -307,7 +342,7 @@ fn claim_and_receipt_carry_the_same_service_execution_identity() {
     let dir = project("execution-identity");
     let seen = Rc::new(RefCell::new(None::<(String, String)>));
     let observed = Rc::clone(&seen);
-    let run: RunSeam = Rc::new(move |execution, _shot| {
+    let run: ExecutionRunSeam = Rc::new(move |execution, _shot| {
         let execution_id = execution.execution_id().to_string();
         let trace_id = execution.trace_id().to_string();
         *observed.borrow_mut() = Some((execution_id, trace_id));
@@ -346,7 +381,7 @@ fn source_edit_after_claim_cannot_change_the_pinned_run_bytes() {
     let expected = ArmGeneration::compute(registry.1.beats().next().expect("beat"), &original);
     let logical_path = Rc::new(RefCell::new(None::<String>));
     let seen_path = Rc::clone(&logical_path);
-    let seam: RunSeam = Rc::new(move |execution, shot| {
+    let seam: ExecutionRunSeam = Rc::new(move |execution, shot| {
         std::fs::write(
             &source,
             "nika: changed\npermits: {}\ntasks:\n  b:\n    infer: { prompt: \"changed\" }\n",
@@ -391,7 +426,7 @@ fn child_and_skill_edits_after_claim_cannot_change_the_admitted_world() {
     std::fs::write(dir.path().join("workflows/skills/review/SKILL.md"), skill).expect("skill");
     let child_path = dir.path().join("workflows/child.nika.yaml");
     let skill_path = dir.path().join("workflows/skills/review/SKILL.md");
-    let run: RunSeam = Rc::new(move |execution, _shot| {
+    let run: ExecutionRunSeam = Rc::new(move |execution, _shot| {
         std::fs::write(&child_path, "nika: replacement\ntasks: {}\n").expect("mutate child");
         std::fs::write(&skill_path, "replacement").expect("mutate skill");
         assert_eq!(
@@ -441,7 +476,7 @@ fn source_symlink_swap_after_claim_cannot_change_the_pinned_run_bytes() {
     .expect("source B");
     let registry = registry_with(SAUTER);
     let expected = ArmGeneration::compute(registry.1.beats().next().expect("beat"), &original);
-    let seam: RunSeam = Rc::new(move |execution, shot| {
+    let seam: ExecutionRunSeam = Rc::new(move |execution, shot| {
         std::fs::remove_file(&source).expect("remove A");
         symlink(&replacement, &source).expect("swap to symlink B");
         assert_eq!(
@@ -531,7 +566,7 @@ fn a_symlinked_project_root_is_refused_before_claim_or_run() {
     let (runs, run) = run_counter();
     let fixture = registry_with(SAUTER);
     std::fs::write(project.path().join("nika.yaml"), &fixture.0).expect("registry");
-    let error = FireCtx::new(
+    let error = FireCtx::new_with_execution(
         linked,
         fixture.1,
         0,
@@ -557,7 +592,7 @@ fn a_dot_suffixed_symlinked_project_root_is_refused() {
     symlink(project.path(), &linked).expect("project symlink");
     let fixture = registry_with(SAUTER);
     std::fs::write(project.path().join("nika.yaml"), &fixture.0).expect("registry");
-    let error = FireCtx::new(
+    let error = FireCtx::new_with_execution(
         linked.join("."),
         fixture.1,
         0,
@@ -576,7 +611,7 @@ fn a_registry_from_another_project_is_refused_at_construction() {
     let held = registry_with(SAUTER);
     std::fs::write(project.path().join("nika.yaml"), held.0).expect("held registry");
     let foreign = registry_with(FILE);
-    let error = FireCtx::new(
+    let error = FireCtx::new_with_execution(
         project.path().to_path_buf(),
         foreign.1,
         0,
@@ -601,7 +636,7 @@ fn project_path_replacement_cannot_split_workflow_and_state_custody() {
         .expect("original workflow");
     let seen = Rc::new(Cell::new(false));
     let saw_original = Rc::clone(&seen);
-    let run: RunSeam = Rc::new(move |execution, _shot| {
+    let run: ExecutionRunSeam = Rc::new(move |execution, _shot| {
         assert_eq!(
             execution
                 .snapshot()

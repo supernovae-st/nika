@@ -36,6 +36,7 @@ pub type nika_arm::fire::Wait::Output = T
 impl nika_arm::fire::FireCtx
 pub fn nika_arm::fire::FireCtx::into_registry(self) -> nika_cadence::registry::ArmRegistry
 pub fn nika_arm::fire::FireCtx::new(project_root: std::path::PathBuf, registry: nika_cadence::registry::ArmRegistry, index: usize, now: jiff::zoned::Zoned, pid: u32, run: nika_arm::fire::RunSeam) -> core::result::Result<Self, nika_arm::fire::FireCtxError>
+pub fn nika_arm::fire::FireCtx::new_with_execution(project_root: std::path::PathBuf, registry: nika_cadence::registry::ArmRegistry, index: usize, now: jiff::zoned::Zoned, pid: u32, run: nika_arm::fire::ExecutionRunSeam) -> core::result::Result<Self, nika_arm::fire::FireCtxError>
 pub fn nika_arm::fire::FireCtx::with_execution_service(self, service: nika_execution::service::ExecutionService) -> Self
 pub fn nika_arm::fire::FireCtx::with_wait(self, wait: nika_arm::fire::WaitSeam) -> Self
 impl<D> owo_colors::OwoColorize for nika_arm::fire::FireCtx
@@ -120,6 +121,7 @@ pub fn nika_arm::fire::RunShot::ceiling(&self) -> f64
 pub fn nika_arm::fire::RunShot::generation(&self) -> &nika_cadence::firing::ArmGeneration
 pub fn nika_arm::fire::RunShot::project(&self) -> &nika_fs::owned_dir::OwnedDir
 pub fn nika_arm::fire::RunShot::root(&self) -> &std::path::Path
+pub fn nika_arm::fire::RunShot::source(&self) -> &str
 pub fn nika_arm::fire::RunShot::workflow(&self) -> &str
 impl<D> owo_colors::OwoColorize for nika_arm::fire::RunShot
 impl<T, U> core::convert::Into<U> for nika_arm::fire::RunShot where U: core::convert::From<T>
@@ -168,7 +170,8 @@ impl<T> typenum::type_operators::Same for nika_arm::fire::RunUpshot
 pub type nika_arm::fire::RunUpshot::Output = T
 pub fn nika_arm::fire::fire_beat(ctx: &nika_arm::fire::FireCtx) -> nika_arm::fire::FireVerdict
 pub fn nika_arm::fire::labels(registry: &nika_cadence::registry::ArmRegistry) -> alloc::vec::Vec<alloc::string::String>
-pub type nika_arm::fire::RunSeam = alloc::rc::Rc<dyn for<'a> core::ops::function::Fn(nika_execution::service::ExecutionContext<'a>, &nika_arm::fire::RunShot) -> nika_arm::fire::RunUpshot>
+pub type nika_arm::fire::ExecutionRunSeam = alloc::rc::Rc<dyn for<'a> core::ops::function::Fn(nika_execution::service::ExecutionContext<'a>, &nika_arm::fire::RunShot) -> nika_arm::fire::RunUpshot>
+pub type nika_arm::fire::RunSeam = alloc::rc::Rc<dyn core::ops::function::Fn(&nika_arm::fire::RunShot) -> nika_arm::fire::RunUpshot>
 pub type nika_arm::fire::WaitSeam = alloc::boxed::Box<dyn core::ops::function::Fn(jiff::signed_duration::SignedDuration) -> nika_arm::fire::Wait>
 pub mod nika_arm::state
 pub use nika_arm::state::Claim
@@ -190,6 +193,7 @@ pub fn nika_arm::state::ArmState::last(&self, label: &str) -> core::io::error::R
 pub fn nika_arm::state::ArmState::last_fired(&self, label: &str) -> core::io::error::Result<core::option::Option<jiff::zoned::Zoned>>
 pub fn nika_arm::state::ArmState::open(project_dir: &std::path::Path) -> core::io::error::Result<Self>
 pub fn nika_arm::state::ArmState::orphans(&self, known: &[alloc::string::String]) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_arm::state::ArmState::peek_last_fired(&self, label: &str) -> core::io::error::Result<core::option::Option<jiff::zoned::Zoned>>
 pub fn nika_arm::state::ArmState::record_disarm(&self, label: &str, decided_at: jiff::timestamp::Timestamp, pid: u32, reason: &str) -> core::io::error::Result<nika_cadence::ledger::RecordOutcome>
 pub fn nika_arm::state::ArmState::root(&self) -> &std::path::Path
 pub fn nika_arm::state::ArmState::tallies(&self, label: &str) -> core::option::Option<(usize, usize)>
@@ -334,6 +338,7 @@ pub fn nika_arm::state::ArmState::last(&self, label: &str) -> core::io::error::R
 pub fn nika_arm::state::ArmState::last_fired(&self, label: &str) -> core::io::error::Result<core::option::Option<jiff::zoned::Zoned>>
 pub fn nika_arm::state::ArmState::open(project_dir: &std::path::Path) -> core::io::error::Result<Self>
 pub fn nika_arm::state::ArmState::orphans(&self, known: &[alloc::string::String]) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_arm::state::ArmState::peek_last_fired(&self, label: &str) -> core::io::error::Result<core::option::Option<jiff::zoned::Zoned>>
 pub fn nika_arm::state::ArmState::record_disarm(&self, label: &str, decided_at: jiff::timestamp::Timestamp, pid: u32, reason: &str) -> core::io::error::Result<nika_cadence::ledger::RecordOutcome>
 pub fn nika_arm::state::ArmState::root(&self) -> &std::path::Path
 pub fn nika_arm::state::ArmState::tallies(&self, label: &str) -> core::option::Option<(usize, usize)>
@@ -363,6 +368,7 @@ pub type nika_arm::state::ArmState::Output = T
 impl nika_arm::fire::FireCtx
 pub fn nika_arm::fire::FireCtx::into_registry(self) -> nika_cadence::registry::ArmRegistry
 pub fn nika_arm::fire::FireCtx::new(project_root: std::path::PathBuf, registry: nika_cadence::registry::ArmRegistry, index: usize, now: jiff::zoned::Zoned, pid: u32, run: nika_arm::fire::RunSeam) -> core::result::Result<Self, nika_arm::fire::FireCtxError>
+pub fn nika_arm::fire::FireCtx::new_with_execution(project_root: std::path::PathBuf, registry: nika_cadence::registry::ArmRegistry, index: usize, now: jiff::zoned::Zoned, pid: u32, run: nika_arm::fire::ExecutionRunSeam) -> core::result::Result<Self, nika_arm::fire::FireCtxError>
 pub fn nika_arm::fire::FireCtx::with_execution_service(self, service: nika_execution::service::ExecutionService) -> Self
 pub fn nika_arm::fire::FireCtx::with_wait(self, wait: nika_arm::fire::WaitSeam) -> Self
 impl<D> owo_colors::OwoColorize for nika_arm::fire::FireCtx
@@ -531,6 +537,7 @@ pub fn nika_arm::fire::RunShot::ceiling(&self) -> f64
 pub fn nika_arm::fire::RunShot::generation(&self) -> &nika_cadence::firing::ArmGeneration
 pub fn nika_arm::fire::RunShot::project(&self) -> &nika_fs::owned_dir::OwnedDir
 pub fn nika_arm::fire::RunShot::root(&self) -> &std::path::Path
+pub fn nika_arm::fire::RunShot::source(&self) -> &str
 pub fn nika_arm::fire::RunShot::workflow(&self) -> &str
 impl<D> owo_colors::OwoColorize for nika_arm::fire::RunShot
 impl<T, U> core::convert::Into<U> for nika_arm::fire::RunShot where U: core::convert::From<T>
@@ -579,5 +586,6 @@ impl<T> typenum::type_operators::Same for nika_arm::fire::RunUpshot
 pub type nika_arm::fire::RunUpshot::Output = T
 pub fn nika_arm::fire_beat(ctx: &nika_arm::fire::FireCtx) -> nika_arm::fire::FireVerdict
 pub fn nika_arm::labels(registry: &nika_cadence::registry::ArmRegistry) -> alloc::vec::Vec<alloc::string::String>
-pub type nika_arm::RunSeam = alloc::rc::Rc<dyn for<'a> core::ops::function::Fn(nika_execution::service::ExecutionContext<'a>, &nika_arm::fire::RunShot) -> nika_arm::fire::RunUpshot>
+pub type nika_arm::ExecutionRunSeam = alloc::rc::Rc<dyn for<'a> core::ops::function::Fn(nika_execution::service::ExecutionContext<'a>, &nika_arm::fire::RunShot) -> nika_arm::fire::RunUpshot>
+pub type nika_arm::RunSeam = alloc::rc::Rc<dyn core::ops::function::Fn(&nika_arm::fire::RunShot) -> nika_arm::fire::RunUpshot>
 pub type nika_arm::WaitSeam = alloc::boxed::Box<dyn core::ops::function::Fn(jiff::signed_duration::SignedDuration) -> nika_arm::fire::Wait>

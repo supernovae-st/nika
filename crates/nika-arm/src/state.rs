@@ -127,6 +127,26 @@ impl ArmState {
             .map(|r| r.slot.to_zoned(jiff::tz::TimeZone::UTC)))
     }
 
+    /// Read the last fired slot without creating, locking, repairing, or
+    /// projecting any sidecar state.
+    ///
+    /// This is the planning/dry-run surface: all traversal remains beneath
+    /// the held project descriptor, an absent path means never fired, and an
+    /// existing journal is verified from its bytes without rewriting caches.
+    ///
+    /// # Errors
+    /// An existing sidecar is unsafe, inaccessible, or fails verified replay.
+    pub fn peek_last_fired(&self, label: &str) -> io::Result<Option<Zoned>> {
+        let dir = match self.project_dir()?.open_below(&[".nika", "arm", label]) {
+            Ok(dir) => dir,
+            Err(error) if error.kind() == io::ErrorKind::NotFound => return Ok(None),
+            Err(error) => return Err(error),
+        };
+        Ok(replay::replay_safe(&dir)?
+            .last
+            .map(|record| record.slot.to_zoned(jiff::tz::TimeZone::UTC)))
+    }
+
     /// Read the projection cache, rebuilding it from the verified chain on miss.
     /// # Errors
     /// The sidecar is inaccessible, redirected, or fails verified replay.

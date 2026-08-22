@@ -73,6 +73,40 @@ fn history(dir: &std::path::Path, label: &str) -> String {
         .unwrap_or_default()
 }
 
+fn tree_snapshot(root: &std::path::Path) -> Vec<(std::path::PathBuf, Option<Vec<u8>>)> {
+    fn walk(
+        base: &std::path::Path,
+        at: &std::path::Path,
+        out: &mut Vec<(std::path::PathBuf, Option<Vec<u8>>)>,
+    ) {
+        let mut entries = std::fs::read_dir(at)
+            .expect("snapshot directory")
+            .collect::<Result<Vec<_>, _>>()
+            .expect("snapshot entries");
+        entries.sort_by_key(std::fs::DirEntry::file_name);
+        for entry in entries {
+            let path = entry.path();
+            let relative = path
+                .strip_prefix(base)
+                .expect("snapshot relative")
+                .to_owned();
+            if entry.file_type().expect("snapshot type").is_dir() {
+                out.push((relative, None));
+                walk(base, &path, out);
+            } else {
+                out.push((
+                    relative,
+                    Some(std::fs::read(&path).expect("snapshot bytes")),
+                ));
+            }
+        }
+    }
+
+    let mut out = Vec::new();
+    walk(root, root, &mut out);
+    out
+}
+
 #[test]
 fn serve_once_fires_what_is_due_and_exits_zero() {
     let dir = project("once", DAILY_3AM, &[("doctor.nika.yaml", TRUE)]);
@@ -111,8 +145,48 @@ fn serve_once_dry_reports_due_beat_without_state_trace_or_effect() {
         "would fire doctor · slot 2026-08-19T03:00:00Z\n"
     );
     assert!(history(&dir, "doctor").is_empty(), "zero ledger rows");
-    assert!(!dir.join(".nika/traces").exists(), "zero trace directory");
+    assert!(
+        !dir.join(".nika").exists(),
+        "a fresh dry project stays byte-for-byte absent"
+    );
     assert!(!dir.join("should-not-exist").exists(), "zero effects");
+}
+
+#[test]
+fn serve_once_dry_keeps_an_existing_sidecar_byte_identical() {
+    let dir = project(
+        "once-dry-existing",
+        DAILY_3AM,
+        &[("doctor.nika.yaml", TRUE)],
+    );
+    let seed = bin()
+        .args(["arm", "fire", "doctor", "--now", "2026-08-18T03:02:00Z"])
+        .current_dir(&dir)
+        .output()
+        .expect("seed real firing");
+    assert_eq!(
+        seed.status.code(),
+        Some(0),
+        "seed stderr: {}",
+        String::from_utf8_lossy(&seed.stderr)
+    );
+    let before = tree_snapshot(&dir.join(".nika"));
+
+    let dry = bin()
+        .args(["serve", "--once", "--dry", "--now", "2026-08-19T03:02:00Z"])
+        .current_dir(&dir)
+        .output()
+        .expect("dry serve over existing state");
+    assert_eq!(dry.status.code(), Some(0));
+    assert_eq!(
+        String::from_utf8_lossy(&dry.stdout),
+        "would fire doctor · slot 2026-08-19T03:00:00Z\n"
+    );
+    assert_eq!(
+        tree_snapshot(&dir.join(".nika")),
+        before,
+        "dry-run does not create a lock, repair a cache, or alter one byte"
+    );
 }
 
 #[test]

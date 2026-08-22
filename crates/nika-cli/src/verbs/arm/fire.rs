@@ -11,8 +11,8 @@ use jiff::{Timestamp, Zoned};
 use nika_vocab::project;
 
 pub use nika_arm::fire::{
-    FireCtx, FireCtxError, FireVerdict, RunSeam, RunShot, RunUpshot, Wait, WaitSeam, fire_beat,
-    labels,
+    ExecutionRunSeam, FireCtx, FireCtxError, FireVerdict, RunSeam, RunShot, RunUpshot, Wait,
+    WaitSeam, fire_beat, labels,
 };
 
 use super::args::FireArgs;
@@ -70,7 +70,7 @@ pub fn run(fire: &FireArgs) -> VerbOutput {
     let root = path
         .parent()
         .map_or_else(|| PathBuf::from("."), Path::to_path_buf);
-    let ctx = match FireCtx::new(
+    let ctx = match FireCtx::new_with_execution(
         root.clone(),
         registry,
         index,
