@@ -12,6 +12,7 @@
 | License | `AGPL-3.0-or-later` |
 | Publish | `false` — engine-internal interface crate |
 | Dependencies | `nika-fs` (`OwnedDir`) · `nix` (kernel advisory lease) · `serde`/`serde_json` · `thiserror` · `uuid` |
+| NIKA codes | **none** — `JobStoreError` is an L4 transport-surface error, never a workflow/verb error; the future HTTP adapter maps it to bounded response classes. |
 
 ## 1. Boundary
 
@@ -23,7 +24,8 @@ composition, cancellation, or artifact path.
 The store accepts one existing operator-owned root, opens it once through
 `nika_fs::OwnedDir`, creates the contained `jobs` directory through held
 descriptors, and never trusts the visible root path again. Its fixed children
-are `store.lock` and `state.json`; caller input never becomes a child name.
+are `store.lock`, `initialized.json`, and `state.json`; caller input never
+becomes a child name.
 
 ## 2. Public surface
 
@@ -32,6 +34,7 @@ are `store.lock` and `state.json`; caller input never becomes a child name.
 - `IdempotencyKey` accepts 1–255 visible ASCII bytes. It is data inside the
   snapshot, never a filename.
 - `RequestDigest` is a canonical 32-byte digest encoded as lowercase hex.
+  Uppercase and mixed-case strings are rejected, never normalized.
 - `JobStatus` is exactly `queued | running | paused | succeeded | failed`.
 - `JobRecord` binds id, key, request digest, and status.
 - `JobEvent` carries one JSON payload and a store-assigned per-job sequence.
@@ -48,12 +51,16 @@ No public mutation accepts a filesystem path.
    lease, then reloads and validates durable state.
 2. A mutation becomes visible only through `OwnedDir::write_atomic`: synced
    temporary file, descriptor-relative rename, then directory sync.
-3. Startup and every later operation reject malformed JSON, an unknown state
+3. The first open persists an empty `state.json` plus an explicit
+   `initialized.json` marker under the kernel lease. After that marker exists,
+   missing or renamed-away state is corruption, not a new empty store. A state
+   file without its marker also refuses.
+4. Startup and every later operation reject malformed JSON, an unknown state
    version, invalid identifiers, duplicate ids or keys, and non-contiguous
    event sequences. Corrupt state is never interpreted partially.
-4. The same idempotency key plus the same digest returns the same record. The
+5. The same idempotency key plus the same digest returns the same record. The
    same key plus another digest returns `Conflict` without mutation.
-5. A new record starts `queued`. Legal edges are:
+6. A new record starts `queued`. Legal edges are:
 
    ```text
    queued  -> running | failed
@@ -63,10 +70,11 @@ No public mutation accepts a filesystem path.
 
    `succeeded` and `failed` are terminal. Every other edge refuses before the
    snapshot changes.
-6. Event sequences start at one and increase contiguously per job. An overflow
+7. Event sequences start at one and increase contiguously per job. An overflow
    refuses before durable mutation. `events_after` is the future SSE resume
-   cursor; it is not a streaming implementation.
-7. `running` and `paused` survive restart unchanged. Replaying an interrupted
+   cursor; a cursor greater than the latest persisted sequence returns typed
+   `CursorBeyondLatest`. It is not a streaming implementation.
+8. `running` and `paused` survive restart unchanged. Replaying an interrupted
    request returns the existing job instead of manufacturing another runnable
    job.
 
@@ -76,14 +84,20 @@ Inline library tests cover:
 
 - restart plus identical replay;
 - conflicting key reuse;
-- concurrent duplicate admission;
+- duplicate admission raced through independently opened stores, with exactly
+  one `Created` verdict and one durable runnable record;
+- nonblocking cross-open proof that separate stores contend on the same kernel
+  lease;
 - illegal transition with unchanged durable status;
-- truncated snapshot refusal;
+- durable empty initialization plus truncated, deleted, and renamed-away
+  snapshot refusal;
 - `paused` round-trip across restart;
 - symlinked roots, a planted `jobs` child, and visible-root replacement after
   descriptor admission;
-- monotone event append and resume cursor;
-- interrupted `running` replay with exactly one stored job.
+- monotone event append, resume cursor, and typed future-cursor refusal;
+- interrupted `running` replay with exactly one stored job;
+- digest boundary-table rejection for uppercase, mixed-case, wrong-length, and
+  non-hexadecimal inputs.
 
 The W05 command contract is:
 

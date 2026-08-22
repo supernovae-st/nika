@@ -53,21 +53,32 @@ transport-free `JobStore`.
 admission, all reads, locks, temporary writes, renames, and directory syncs are
 relative to held descriptors. Caller data is never used as a child pathname.
 
-The store keeps one versioned JSON snapshot in `state.json`. Every mutation
-writes and syncs a temporary regular file, renames it descriptor-relatively,
-then syncs the held directory. A malformed, truncated, unsupported, or
-invariant-breaking snapshot refuses at startup and before every later
-operation; there is no partial recovery or lossy default.
+The store keeps an explicit `initialized.json` marker beside one versioned JSON
+snapshot in `state.json`. Under the first kernel lease, a pristine store with
+neither file persists an empty snapshot and then the marker before opening
+succeeds. Once the marker exists, a missing or renamed-away `state.json` is
+corruption rather than an empty store. A state file without its marker also
+refuses, so an interrupted first initialization cannot be silently adopted.
+
+Every mutation writes and syncs a temporary regular file, renames it
+descriptor-relatively, then syncs the held directory. A missing, malformed,
+truncated, unsupported, or invariant-breaking initialized snapshot refuses at
+startup and before every later operation; there is no partial recovery or
+lossy default.
 
 ### 2. Concurrency precedes idempotency
 
 Every operation holds both an in-process mutex and a kernel advisory exclusive
 lease. Under that lease it reloads the durable snapshot before deciding. This
-makes two threads, store instances, or processes observe one key-binding
-decision rather than race independent in-memory maps.
+makes two threads, independently opened store instances, or processes observe
+one key-binding decision rather than race independent in-memory maps. The
+focused proof opens separate `JobStore` values on one root, verifies their
+nonblocking leases contend on the same kernel lock, then races their admission
+calls.
 
 An `IdempotencyKey` contains bounded visible ASCII and is stored as data. A
-`RequestDigest` is canonical lowercase hexadecimal for 32 digest bytes. The
+`RequestDigest` accepts only canonical lowercase hexadecimal for 32 digest
+bytes; uppercase or mixed-case input is rejected rather than normalized. The
 first pair creates an opaque random `JobId`; the same pair returns that record;
 the same key with a different digest returns `Conflict` without mutation.
 
@@ -90,8 +101,10 @@ the same admitted request.
 
 Each `JobEvent` receives a contiguous per-job sequence starting at one.
 `append_events` assigns and persists those numbers under the same lease;
-`events_after` returns the suffix strictly after a caller cursor. This is the
-durable resume substrate required by future SSE, not an SSE implementation.
+`events_after` returns the suffix strictly after a caller cursor. A cursor above
+the latest durable sequence returns typed `CursorBeyondLatest` instead of
+pretending an unknown future position is an empty suffix. This is the durable
+resume substrate required by future SSE, not an SSE implementation.
 
 ### 4. The first boundary is intentionally smaller than Serve
 
@@ -106,6 +119,8 @@ closes the full twelve-gate ledger.
 
 - Process restart cannot erase an idempotency binding, `paused`, or an event
   resume cursor.
+- Empty first initialization is durable, while later `state.json` loss fails
+  closed instead of manufacturing a pristine store.
 - Conflict and transition verdicts are decided from validated durable state
   while both local and kernel exclusion are held.
 - Visible root replacement and planted symlinks cannot redirect admitted I/O.
@@ -133,15 +148,18 @@ closes the full twelve-gate ledger.
 
 1. Restart plus replay returns the original `JobId`.
 2. Conflicting key reuse refuses without mutation.
-3. Concurrent duplicate admissions create exactly one job.
+3. Independently opened stores contend on one kernel lease, and concurrent
+   duplicate admissions create exactly one runnable record.
 4. Illegal lifecycle edges preserve the prior durable status.
-5. Truncated state refuses at startup.
+5. Truncated, deleted, and renamed-away initialized state refuses at startup.
 6. `paused` and interrupted `running` records survive restart.
 7. Root symlinks, a planted `jobs` child, and visible-root replacement cannot
    redirect state.
-8. Event ids remain contiguous and `events_after` resumes strictly after its
-   cursor.
-9. Focused library tests, all-target clippy, and workspace formatting pass.
+8. Event ids remain contiguous, `events_after` resumes strictly after its
+   cursor, and a cursor above the latest sequence returns a typed error.
+9. Digest boundary cases reject uppercase, mixed-case, wrong-length, and
+   non-hexadecimal forms.
+10. Focused library tests, all-target clippy, and workspace formatting pass.
 
 ## Alternatives considered
 
