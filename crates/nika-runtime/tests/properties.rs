@@ -18,7 +18,10 @@
 //! Every task is `infer` over the mock/echo provider (echo = pure
 //! function of the prompt · no mock queues ⇒ no dequeue-order coupling
 //! under concurrency) · runtime failures are injected via `for_each`
-//! over a scalar var (statically clean · NIKA-VAR-006 at run time).
+//! over a task output that is a scalar (statically clean · NIKA-VAR-006 at
+//! run time). The collection rides `scalar_src`, not a `const:`: a constant
+//! is never caller-supplied, so its literal IS its run value and the check
+//! now refuses a non-array one outright.
 
 use std::num::NonZeroUsize;
 use std::sync::Arc;
@@ -43,7 +46,7 @@ enum Kind {
     /// Explicit `when:` over publish=no — always skipped (the gate
     /// REPLACES the default · evaluated even over dead deps).
     Gated,
-    /// `for_each` over a scalar var — statically clean · fails at run
+    /// `for_each` over a scalar TASK OUTPUT — statically clean · fails at run
     /// time (`NIKA-VAR-006` · `FailedBeforeStart` · cascades).
     Fails,
     /// `agent:` over the echo provider (one text turn · no tools) —
@@ -85,7 +88,8 @@ fn dag_strategy() -> impl Strategy<Value = Vec<TaskSpec>> {
 fn yaml_of(specs: &[TaskSpec]) -> String {
     use std::fmt::Write as _;
     let mut y = String::from(
-        "nika: prop\nmodel: mock/echo\nconst:\n  publish: \"no\"\n  scalar: \"not a list\"\ntasks:\n",
+        "nika: prop\nmodel: mock/echo\nconst:\n  publish: \"no\"\ntasks:\n  \
+         scalar_src:\n    infer: { prompt: \"not a list\" }\n",
     );
     for (i, spec) in specs.iter().enumerate() {
         let _ = writeln!(y, "  t{i}:");
@@ -109,7 +113,11 @@ fn yaml_of(specs: &[TaskSpec]) -> String {
                 let _ = writeln!(y, "    infer: {{ prompt: \"gated {i}\" }}");
             }
             Kind::Fails => {
-                let _ = writeln!(y, "    for_each: {{ items: \"${{{{ const.scalar }}}}\" }}");
+                let _ = writeln!(
+                    y,
+                    "    with: {{ src: \"${{{{ tasks.scalar_src.output }}}}\" }}"
+                );
+                let _ = writeln!(y, "    for_each: {{ items: \"${{{{ with.src }}}}\" }}");
                 let _ = writeln!(y, "    infer: {{ prompt: \"iter ${{{{ item }}}}\" }}");
             }
             Kind::Normal => {
@@ -210,7 +218,13 @@ proptest! {
     #[test]
     fn random_dags_uphold_the_determinism_theorems(specs in dag_strategy()) {
         let yaml = yaml_of(&specs);
-        let n = specs.len();
+        // The generated ids are `t0..t{specs.len()}`; the workflow also
+        // carries `scalar_src`, the fixed preamble task whose scalar
+        // output a `Fails` lane fans over. It is a real task with a real
+        // record, so WHOLE-WORKFLOW counts include it while the per-id
+        // sweeps below stay over the generated ids alone.
+        let generated = specs.len();
+        let n = generated + 1;
         // Identical queued turns ⇒ dequeue order is inconsequential ·
         // a generous count covers the live agents (dead ones never draw).
         let agents = specs.iter().filter(|s| matches!(s.kind, Kind::Agent)).count();
@@ -235,7 +249,7 @@ proptest! {
             matches!(last, EventKind::WorkflowCompleted | EventKind::WorkflowFailed),
             "stream ends on the terminal frame"
         );
-        for i in 0..n {
+        for i in 0..generated {
             let id = format!("t{i}");
             let terminals = events_a
                 .iter()
