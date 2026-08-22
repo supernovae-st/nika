@@ -103,19 +103,19 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| branch           | `feat/execution-service-v4`                                      |
-| HEAD             | `bee294252` (`bee29425234132c8138f47744758675384259cdb`)             |
+| branch           | `feat/remote-job-store-v4`                                      |
+| HEAD             | `9459a6071` (`9459a60713ecf4246c0d29964fd2cccf3de15255`)             |
 | workspace        | v0.113.0                                  |
-| crates (workspace)| 68                                              |
+| crates (workspace)| 69                                              |
 | crates (admitted)| 62                                             |
-| crates (WIP)     | 6 — nika-chart nika-fx nika-proof nika-store nika-harness nika-execution                                  |
+| crates (WIP)     | 7 — nika-chart nika-fx nika-proof nika-store nika-harness nika-execution nika-serve                                  |
 | L0               | 21                                              |
 | L0.5             | 6                                              |
 | L1               | 17                                              |
 | L1.5             | 4                                              |
 | L2               | 5                                              |
 | L3               | 2                                              |
-| L4               | 13                                              |
+| L4               | 14                                              |
 | lib tests        | (skipped — pass --no-quick to compute)                              |
 | clippy           | (skipped)                              |
 
