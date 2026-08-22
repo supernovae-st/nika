@@ -395,10 +395,7 @@ fn paused_prompt_rearms_and_an_answer_completes_the_run() {
         frame.contains("\"decision\",\"value\":\"allow\""),
         "{frame}"
     );
-    assert!(
-        frame.contains("\"source\",\"value\":\"resumed\""),
-        "{frame}"
-    );
+    assert!(frame.contains("\"source\",\"value\":\"resume\""), "{frame}");
     assert!(
         frame.contains(&format!("\"digest\",\"value\":\"{shown_digest}\"")),
         "the signed digest equals the shown digest:\n{frame}\nvs {shown_digest}"

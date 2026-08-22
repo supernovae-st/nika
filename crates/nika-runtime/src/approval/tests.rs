@@ -42,6 +42,27 @@ fn ticket(step: &str) -> ApprovalTicket {
     )
 }
 
+fn resolved(value: Value) -> crate::task::SettleAs {
+    crate::task::SettleAs::Ran(Box::new(crate::task::RanTask {
+        decisions: Vec::new(),
+        note: "invoke · nika:prompt".to_owned(),
+        retries: Vec::new(),
+        agent_events: Vec::new(),
+        evidence: None,
+        duration_ms: 0,
+        result: crate::task::RunResult::Success {
+            value,
+            tokens: None,
+            recovered_from: None,
+            warning: None,
+            child: None,
+            cost_usd: None,
+            cost_unpriced: None,
+            model: None,
+        },
+    }))
+}
+
 #[test]
 fn the_digest_binds_the_mint_fields_and_ignores_the_decision() {
     let mut a = ticket("ask");
@@ -124,10 +145,10 @@ fn the_book_mints_counts_and_refuses_the_sixth_distinct() {
     );
     for i in 0..APPROVAL_MAX_TICKETS_PER_RUN {
         let hash = format!("{i:064x}");
-        let admit = book.admit("ask", "confirm", &hash, 0, None);
+        let admit = book.admit("ask", "confirm", &hash, 0, None, "builtin");
         assert!(matches!(admit, Admit::Run { .. }), "mint {i} runs");
     }
-    let admit = book.admit("ask", "confirm", &"f".repeat(64), 0, None);
+    let admit = book.admit("ask", "confirm", &"f".repeat(64), 0, None, "builtin");
     let Admit::Refused(r) = admit else {
         panic!("the sixth distinct mint is refused");
     };
@@ -136,12 +157,12 @@ fn the_book_mints_counts_and_refuses_the_sixth_distinct() {
     assert!(r.detail.contains(APPROVAL_CODE), "{}", r.detail);
     // A SIXTH distinct step is refused; a SIXTH mint of KNOWN content
     // still passes (the dedup path is not the storm).
-    let admit = book.admit("ask", "confirm", &format!("{:064x}", 0), 0, None);
+    let admit = book.admit("ask", "confirm", &format!("{:064x}", 0), 0, None, "builtin");
     assert!(matches!(admit, Admit::Run { .. }), "known content re-runs");
 }
 
 #[test]
-fn the_book_dedups_a_decided_ticket_and_re_mints_a_stale_one() {
+fn the_book_consumes_a_decided_ticket_instead_of_replaying_it() {
     let book = ApprovalBook::new();
     book.begin_run(
         &nika_schema::parse(
@@ -154,57 +175,83 @@ fn the_book_dedups_a_decided_ticket_and_re_mints_a_stale_one() {
     );
     let hash = "a".repeat(64);
     // Mint + decide (the attest path records the answer for dedup).
-    let Admit::Run { .. } = book.admit("one", "confirm", &hash, 0, None) else {
+    let Admit::Run { .. } = book.admit("one", "confirm", &hash, 0, None, "builtin") else {
         panic!("the first mint runs");
     };
-    let settle = crate::task::SettleAs::Ran(Box::new(crate::task::RanTask {
-        decisions: Vec::new(),
-        note: "invoke · nika:prompt".to_owned(),
-        retries: Vec::new(),
-        agent_events: Vec::new(),
-        evidence: None,
-        duration_ms: 0,
-        result: crate::task::RunResult::Success {
-            value: Value::Bool(true),
-            tokens: None,
-            recovered_from: None,
-            warning: None,
-            child: None,
-            cost_usd: None,
-            cost_unpriced: None,
-            model: None,
-        },
-    }));
+    let mut settle = resolved(Value::Bool(true));
     let att = book
-        .attest_outcome("one", &settle, 1_000)
+        .attest_outcome("one", &mut settle, 1_000)
         .expect("a resolved ask attests");
     assert_eq!(att.decision, "allow");
     assert_eq!(att.source, "builtin");
-    // The second task with IDENTICAL content dedups — the recorded
-    // answer binds, the ticket is the same, the source is `dedup`.
-    let Admit::Run { bind } = book.admit("two", "confirm", &hash, 2_000, None) else {
-        panic!("the dedup runs");
+    // A decision consumes the capability. Even if a caller presents the
+    // same content hash again inside the TTL, the recorded answer cannot
+    // bind a second task: fresh consent and a fresh ticket are required.
+    let Admit::Run { bind } = book.admit("two", "confirm", &hash, 2_000, None, "builtin") else {
+        panic!("the second ask re-mints");
     };
-    assert_eq!(bind, Some(Value::Bool(true)), "the recorded answer binds");
+    assert_eq!(bind, None, "the consumed answer never replays");
     let entry_digest = book
         .ticket_for("two")
         .and_then(|t| t.digest())
-        .expect("the dedup ticket");
-    assert_eq!(entry_digest, att.digest.clone().expect("digest"));
-    // …and its attestation says `dedup`, never `allow` twice.
+        .expect("the fresh ticket");
+    assert_ne!(entry_digest, att.digest.clone().expect("digest"));
+    // The second ask resolves independently, never as `dedup`.
     let att2 = book
-        .attest_outcome("two", &settle, 3_000)
-        .expect("the dedup attests");
-    assert_eq!(att2.decision, "dedup");
-    assert_eq!(att2.source, "dedup");
-    // A STALE decided ticket re-mints (fresh consent · it counts).
+        .attest_outcome("two", &mut settle, 3_000)
+        .expect("the fresh decision attests");
+    assert_eq!(att2.decision, "allow");
+    assert_eq!(att2.source, "builtin");
+    // A later use also re-mints (fresh consent · it counts).
     let stale_at = 1_000_000 + 901_000;
-    let Admit::Run { bind } = book.admit("three", "confirm", &hash, stale_at, None) else {
+    let Admit::Run { bind } = book.admit("three", "confirm", &hash, stale_at, None, "builtin")
+    else {
         panic!("the stale ticket re-mints");
     };
     assert_eq!(bind, None, "the stale answer never replays");
     let fresh = book.ticket_for("three").expect("the fresh ticket");
     assert_eq!(fresh.minted_at_ms, stale_at, "a NEW capability issued");
+}
+
+#[test]
+fn the_first_terminal_decision_is_immutable() {
+    let book = ApprovalBook::new();
+    book.begin_run(
+        &nika_schema::parse(
+            "nika: t\ntasks:\n  a:\n    exec: { command: [\"true\"] }\n",
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .expect("parses"),
+        "nonce".to_owned(),
+    );
+    let hash = "e".repeat(64);
+    let Admit::Run { .. } = book.admit("ask", "confirm", &hash, 0, None, "builtin") else {
+        panic!("the ticket mints");
+    };
+
+    let mut denied = resolved(Value::Bool(false));
+    let first = book
+        .attest_outcome("ask", &mut denied, 1)
+        .expect("the refusal settles");
+    assert_eq!(first.decision, "deny");
+    assert!(matches!(
+        denied,
+        crate::task::SettleAs::Ran(ref ran)
+            if matches!(ran.result, crate::task::RunResult::Failed { .. })
+    ));
+
+    // A duplicate/racing success cannot rewrite the already terminal deny.
+    let mut late_allow = resolved(Value::Bool(true));
+    let second = book
+        .attest_outcome("ask", &mut late_allow, 2)
+        .expect("the duplicate observes the terminal");
+    assert_eq!(second.decision, "deny");
+    assert!(matches!(
+        late_allow,
+        crate::task::SettleAs::Ran(ref ran)
+            if matches!(ran.result, crate::task::RunResult::Failed { .. })
+    ));
 }
 
 #[test]
@@ -225,7 +272,14 @@ fn the_book_validates_the_resumed_ticket_laws() {
         ApprovalTicket::new(hash.clone(), "nonce-a".to_owned(), "ask".to_owned(), 0, 900),
         "nonce-else".to_owned(),
     )));
-    let admit = book.admit("ask", "confirm", &hash, 1_000, Some(&Value::Bool(true)));
+    let admit = book.admit(
+        "ask",
+        "confirm",
+        &hash,
+        1_000,
+        Some(&Value::Bool(true)),
+        "cli",
+    );
     let Admit::Refused(r) = admit else {
         panic!("a cross-run replay is refused");
     };
@@ -241,6 +295,7 @@ fn the_book_validates_the_resumed_ticket_laws() {
         &"d".repeat(64),
         1_000,
         Some(&Value::Bool(true)),
+        "cli",
     );
     let Admit::Refused(r) = admit else {
         panic!("a content mismatch is refused");
@@ -255,7 +310,14 @@ fn the_book_validates_the_resumed_ticket_laws() {
         ApprovalTicket::new(hash.clone(), "nonce-a".to_owned(), "ask".to_owned(), 0, 900),
         "nonce-a".to_owned(),
     )));
-    let admit = book.admit("ask", "confirm", &hash, 901_000, Some(&Value::Bool(true)));
+    let admit = book.admit(
+        "ask",
+        "confirm",
+        &hash,
+        901_000,
+        Some(&Value::Bool(true)),
+        "cli",
+    );
     let Admit::Run { bind } = admit else {
         panic!("the expired ticket re-mints");
     };
@@ -265,7 +327,14 @@ fn the_book_validates_the_resumed_ticket_laws() {
         ApprovalTicket::new(hash.clone(), "nonce-a".to_owned(), "ask".to_owned(), 0, 900),
         "nonce-a".to_owned(),
     )));
-    let admit = book.admit("ask", "confirm", &hash, 60_000, Some(&Value::Bool(true)));
+    let admit = book.admit(
+        "ask",
+        "confirm",
+        &hash,
+        60_000,
+        Some(&Value::Bool(true)),
+        "cli",
+    );
     let Admit::Run { bind } = admit else {
         panic!("the valid ticket binds");
     };
@@ -681,10 +750,10 @@ async fn fixture_c_an_expired_ticket_re_prompts_and_a_cross_run_replay_is_refuse
     assert_eq!(ds[0].why.as_deref(), Some("approval.scope_mismatch"));
 }
 
-// ─── (e) dedup — the same hash ×2 is ONE ticket, attested `dedup` ───
+// ─── (e) single-use — identical asks consume distinct tickets ───────
 
 #[tokio::test]
-async fn fixture_e_identical_prompts_share_one_ticket() {
+async fn fixture_e_identical_prompts_require_fresh_consent() {
     const WF: &str = "nika: dedup\npermits: { tools: [\"nika:prompt\"] }\ntasks:\n  one:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"confirm\", message: \"same question?\" }\n  two:\n    after: { one: success }\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"confirm\", message: \"same question?\" }\n";
     let (outcome, sink) = run_gated(
         WF,
@@ -701,19 +770,106 @@ async fn fixture_e_identical_prompts_share_one_ticket() {
         },
     )
     .await;
-    assert!(outcome.ok, "the dedup run completes");
+    assert!(outcome.ok, "both independently approved asks complete");
     let ds = decisions(&sink);
     assert_eq!(ds.len(), 2, "{ds:?}");
     assert_eq!(ds[0].task, "one");
     assert_eq!(ds[0].decision, "allow");
     assert_eq!(ds[1].task, "two");
-    assert_eq!(ds[1].decision, "dedup", "the twin is attested dedup");
-    assert_eq!(ds[1].source, "dedup");
-    assert_eq!(ds[0].shown_hash, ds[1].shown_hash, "one shown hash");
-    assert_eq!(
-        ds[0].digest, ds[1].digest,
-        "one ticket digest — never re-questioned"
+    assert_eq!(ds[1].decision, "allow", "the twin was re-approved");
+    assert_eq!(ds[1].source, "builtin");
+    assert_ne!(
+        ds[0].shown_hash, ds[1].shown_hash,
+        "step identity binds the ask"
     );
+    assert_ne!(
+        ds[0].digest, ds[1].digest,
+        "a consumed ticket is single-use"
+    );
+}
+
+/// A confirm refusal is an authority failure, not successful boolean data.
+/// A later identical gate reached through `terminal` must ask independently;
+/// the first denial can never be replayed as approval (or as a green task).
+#[tokio::test]
+async fn a_refusal_fails_the_task_and_cannot_authorize_the_next_gate() {
+    const WF: &str = "nika: deny-is-terminal\npermits: { tools: [\"nika:prompt\"] }\ntasks:\n  denied:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"confirm\", message: \"ship?\" }\n  independent:\n    after: { denied: terminal }\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"confirm\", message: \"ship?\" }\n";
+    let (outcome, sink) = run_gated(
+        WF,
+        Seams {
+            shell: vec![],
+            tool: vec![
+                ToolResult::success("tc1", "false").with_structured(Value::Bool(false)),
+                ToolResult::success("tc2", "true").with_structured(Value::Bool(true)),
+            ],
+            pause: true,
+            plan: None,
+            answers: BTreeMap::new(),
+            paused: None,
+        },
+    )
+    .await;
+
+    assert!(!outcome.ok, "one authority denial keeps the workflow red");
+    assert_eq!(outcome.records["denied"].status, crate::TaskStatus::Failure);
+    assert_eq!(
+        outcome.records["denied"]
+            .error
+            .as_ref()
+            .expect("typed authority failure")
+            .code,
+        APPROVAL_CODE
+    );
+    assert_eq!(
+        outcome.records["independent"].status,
+        crate::TaskStatus::Success,
+        "terminal reaches a new independently answered gate"
+    );
+    let ds = decisions(&sink);
+    assert_eq!(ds.len(), 2, "{ds:?}");
+    assert_eq!(ds[0].decision, "deny");
+    assert_eq!(ds[1].decision, "allow");
+    assert_ne!(ds[0].digest, ds[1].digest, "the denial was consumed");
+}
+
+#[tokio::test]
+async fn automated_answers_never_claim_human_provenance() {
+    let cases = [
+        (
+            "nika: policy\npermits: { tools: [\"nika:prompt\"] }\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"confirm\", message: \"ship?\", default: true }\n",
+            BTreeMap::new(),
+            "policy",
+        ),
+        (
+            "nika: cli\npermits: { tools: [\"nika:prompt\"] }\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"confirm\", message: \"ship?\" }\n",
+            BTreeMap::from([("ask".to_owned(), Value::Bool(true))]),
+            "cli",
+        ),
+        (
+            "nika: unverified-adapter\npermits: { tools: [\"nika:prompt\"] }\ntasks:\n  ask:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { mode: \"confirm\", message: \"ship?\" }\n",
+            BTreeMap::new(),
+            "builtin",
+        ),
+    ];
+    for (yaml, answers, expected) in cases {
+        let (outcome, sink) = run_gated(
+            yaml,
+            Seams {
+                shell: vec![],
+                tool: vec![ToolResult::success("tc", "true").with_structured(Value::Bool(true))],
+                pause: true,
+                plan: None,
+                answers,
+                paused: None,
+            },
+        )
+        .await;
+        assert!(outcome.ok, "{expected} answer completes");
+        let ds = decisions(&sink);
+        assert_eq!(ds.len(), 1, "{ds:?}");
+        assert_eq!(ds[0].source, expected);
+        assert_ne!(ds[0].source, "human", "unverified automation is not human");
+    }
 }
 
 // ─── (f) green — the honest gate, end to end, attested ──────────────
@@ -777,10 +933,7 @@ async fn fixture_f_the_honest_gate_binds_and_attests() {
     let allow = &ds[0];
     assert_eq!(allow.task, "ask");
     assert_eq!(allow.decision, "allow");
-    assert_eq!(
-        allow.source, "resumed",
-        "the authority is the paused ticket"
-    );
+    assert_eq!(allow.source, "resume", "the authority is the paused ticket");
     assert_eq!(allow.shown_hash, shown, "montré = signé");
     assert_eq!(
         allow.digest.as_deref(),

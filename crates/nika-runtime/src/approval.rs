@@ -21,10 +21,10 @@
 //!    `workflow_started` event id) × THIS step × THIS hash · TTL
 //!    [`APPROVAL_TTL_SECONDS`] · expired = re-prompt · a cross-run
 //!    replay is refused (the nonce names another run).
-//! 3. **Anti-fatigue** — at most [`APPROVAL_MAX_TICKETS_PER_RUN`]
-//!    distinct tickets mint per run; identical content dedups to ONE
-//!    ticket (the second ask is attested `dedup`, never re-questioned);
-//!    the N+1ᵗʰ distinct mint is the typed refusal
+//! 3. **Anti-fatigue + single-use** — at most
+//!    [`APPROVAL_MAX_TICKETS_PER_RUN`] tickets mint per run; the task id
+//!    binds the shown content, and a decided ticket is consumed rather
+//!    than replayed. The N+1ᵗʰ mint is the typed refusal
 //!    ([`APPROVAL_CODE`] · `approval.rate_limited`) — never a queue.
 //! 4. **Attestation** — every decision lands as a hash-chained
 //!    `approval_decided` frame (digest · shown-hash · decision · TTL ·
@@ -67,7 +67,7 @@ pub const APPROVAL_CODE: &str = "NIKA-SEC-010";
 /// The canonical-content recipe version (the resume `KEY_VERSION`
 /// precedent): bump on any shape change — older tickets simply mismatch
 /// and re-ask, honest, never a wrong bind.
-const CONTENT_RECIPE_VERSION: u32 = 1;
+const CONTENT_RECIPE_VERSION: u32 = 2;
 
 /// What a ticket resolved to (NEP-0013 law 4 · the wire vocabulary).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -81,8 +81,9 @@ pub enum ApprovalDecision {
     /// The gate resolved to refuse (a confirm answered false · an
     /// engine refusal — the event's `why` names the law applied).
     Deny,
-    /// An identical earlier ticket's decision replayed (the human was
-    /// NOT re-questioned · law 3).
+    /// Legacy wire value from the pre-single-use implementation. New
+    /// decisions never emit it; retained so older journal readers can
+    /// still deserialize historical traces.
     Dedup,
 }
 
@@ -212,11 +213,11 @@ pub(crate) struct ApprovalAttestation {
     pub mode: String,
     pub decision: &'static str,
     /// WHO answered, honestly scoped to what this layer can know:
-    /// `resumed` (a validated paused-ticket `--answer`) · `answer` (a
-    /// fresh-run `--answer`) · `dedup` (an in-run replay) · `builtin`
-    /// (the builtin resolved it — a TTY answer or an authored `default:`,
-    /// the seam cannot split them and never guesses) · `engine` (an
-    /// engine refusal).
+    /// `resume` (a validated paused-ticket answer) · `cli` (a fresh-run
+    /// `--answer`) · `policy` (an authored `default:`) · `builtin`
+    /// (the builtin resolved an answer without claiming a human identity)
+    /// · `engine` (an engine refusal). API principal provenance is added
+    /// by the remote adapter rather than guessed at this local seam.
     pub source: &'static str,
     pub shown_hash: String,
     pub digest: Option<String>,
@@ -292,7 +293,6 @@ struct StepEntry {
     ticket: ApprovalTicket,
     mode: String,
     source: &'static str,
-    dedup: bool,
 }
 
 #[derive(Default)]
@@ -321,7 +321,7 @@ pub(crate) struct ApprovalBook {
 
 /// The book's answer to the gate.
 enum Admit {
-    /// Run — binding this answer (a `--answer` · a dedup replay) when set.
+    /// Run — binding this answer (a validated CLI/resume answer) when set.
     Run { bind: Option<Value> },
     /// Refuse — the typed detail + the attestation.
     Refused(Refusal),
@@ -381,12 +381,15 @@ impl ApprovalBook {
         shown_hash: &str,
         now_ms: i64,
         answer: Option<&Value>,
+        source: &'static str,
     ) -> Admit {
         let mut inner = self.lock();
-        if let Some(verdict) = admit_resumed(&mut inner, step, mode, shown_hash, now_ms, answer) {
+        if let Some(verdict) =
+            admit_resumed(&mut inner, step, mode, shown_hash, now_ms, answer, source)
+        {
             return verdict;
         }
-        admit_live(&mut inner, step, mode, shown_hash, now_ms, answer)
+        admit_live(&mut inner, step, mode, shown_hash, now_ms, answer, source)
     }
 
     /// Assemble the `approval_decided` payload for a Ran task — `Some`
@@ -397,49 +400,46 @@ impl ApprovalBook {
     pub(crate) fn attest_outcome(
         &self,
         task: &str,
-        settle: &crate::task::SettleAs,
+        settle: &mut crate::task::SettleAs,
         now_ms: i64,
     ) -> Option<ApprovalAttestation> {
-        let crate::task::SettleAs::Ran(ran) = settle else {
-            return None;
-        };
-        let crate::task::RunResult::Success { value, .. } = &ran.result else {
-            return None;
+        let (value, costs) = match settle {
+            crate::task::SettleAs::Ran(ran) => match &ran.result {
+                crate::task::RunResult::Success {
+                    value,
+                    cost_usd,
+                    cost_unpriced,
+                    ..
+                } => (value.clone(), (*cost_usd, *cost_unpriced)),
+                _ => return None,
+            },
+            _ => return None,
         };
         let mut inner = self.lock();
         let entry = inner.steps.get(task)?;
-        let (ticket, mode, source, dedup) = (
-            entry.ticket.clone(),
-            entry.mode.clone(),
-            entry.source,
-            entry.dedup,
-        );
-        let decision: &'static str = if dedup {
-            ApprovalDecision::Dedup.as_str()
-        } else if mode == "confirm" && matches!(value, Value::Bool(false)) {
-            ApprovalDecision::Deny.as_str()
+        let (ticket, mode, source) = (entry.ticket.clone(), entry.mode.clone(), entry.source);
+        let proposed = if mode == "confirm" && matches!(value, Value::Bool(false)) {
+            ApprovalDecision::Deny
         } else {
-            ApprovalDecision::Allow.as_str()
+            ApprovalDecision::Allow
         };
-        if !dedup && let Some(minted) = inner.minted.get_mut(&ticket.content_hash) {
-            minted.decided = Some((
-                if decision == ApprovalDecision::Deny.as_str() {
-                    ApprovalDecision::Deny
-                } else {
-                    ApprovalDecision::Allow
-                },
-                value.clone(),
-            ));
-            minted.ticket.decision = if decision == ApprovalDecision::Deny.as_str() {
-                ApprovalDecision::Deny
+        // First terminal wins. A duplicate/racing terminal can observe the
+        // settled decision, but it can never rewrite a deny into an allow.
+        let decision = if let Some(minted) = inner.minted.get_mut(&ticket.content_hash) {
+            if let Some((settled, _)) = &minted.decided {
+                *settled
             } else {
-                ApprovalDecision::Allow
-            };
-        }
-        Some(ApprovalAttestation {
+                minted.decided = Some((proposed, value));
+                minted.ticket.decision = proposed;
+                proposed
+            }
+        } else {
+            proposed
+        };
+        let attestation = ApprovalAttestation {
             task: task.to_owned(),
             mode,
-            decision,
+            decision: decision.as_str(),
             source,
             shown_hash: ticket.content_hash.clone(),
             digest: ticket.digest(),
@@ -447,7 +447,29 @@ impl ApprovalBook {
             ttl_seconds: ticket.ttl_seconds,
             ttl_remaining_seconds: ticket.ttl_remaining_seconds(now_ms),
             why: None,
-        })
+        };
+        drop(inner);
+
+        // `false` in confirm mode is an authority denial, not successful
+        // boolean data. It settles after dispatch (the prompt did run) but
+        // before output binding and DAG admission, and bypasses `on_error`
+        // recovery so authored policy cannot convert the denial to green.
+        if decision == ApprovalDecision::Deny
+            && let crate::task::SettleAs::Ran(ran) = settle
+        {
+            ran.result = crate::task::RunResult::Failed {
+                error: crate::record::TaskErrorRecord {
+                    code: APPROVAL_CODE.to_owned(),
+                    message: format!(
+                        "task '{task}' · approval.denied — the confirmation refused authority ({APPROVAL_CODE})"
+                    ),
+                    transient: false,
+                },
+                cost_usd: costs.0,
+                cost_unpriced: costs.1,
+            };
+        }
+        Some(attestation)
     }
 }
 
@@ -462,6 +484,7 @@ fn admit_resumed(
     shown_hash: &str,
     now_ms: i64,
     answer: Option<&Value>,
+    source: &'static str,
 ) -> Option<Admit> {
     // (cloned up front — the expiry path consumes the slot, so the
     // borrow cannot live across the state machine.)
@@ -511,7 +534,7 @@ fn admit_resumed(
         // the authority is consumed and a fresh ticket mints (a
         // non-interactive surface pauses again).
         inner.paused = None;
-        return Some(mint(inner, step, mode, shown_hash, now_ms, None));
+        return Some(mint(inner, step, mode, shown_hash, now_ms, None, source));
     }
     // Valid — the answer binds against the SHOWN ticket. No new mint,
     // no count: the capability was issued by the paused run.
@@ -520,8 +543,7 @@ fn admit_resumed(
         StepEntry {
             ticket,
             mode: mode.to_owned(),
-            source: "resumed",
-            dedup: false,
+            source: "resume",
         },
     );
     Some(Admit::Run {
@@ -529,10 +551,10 @@ fn admit_resumed(
     })
 }
 
-/// The live state machine (no resumed ticket in play): dedup a DECIDED
-/// ticket for the same content (law 3 — the human is never re-questioned
-/// inside the TTL), re-mint a stale one, share an in-flight twin's, or
-/// mint a new distinct content. The caller holds the lock.
+/// The live state machine (no resumed ticket in play): a DECIDED ticket is
+/// consumed and always re-mints; only an undecided in-flight twin can share
+/// its mint. Canonical content includes the step identity, so normal tasks
+/// cannot share that in-flight capability. The caller holds the lock.
 fn admit_live(
     inner: &mut BookInner,
     step: &str,
@@ -540,56 +562,30 @@ fn admit_live(
     shown_hash: &str,
     now_ms: i64,
     answer: Option<&Value>,
+    source: &'static str,
 ) -> Admit {
-    let prior = inner.minted.get(shown_hash).map(|m| {
-        (
-            m.ticket.clone(),
-            m.decided.clone(),
-            m.ticket.is_expired(now_ms),
-        )
-    });
-    if let Some((ticket, decided, expired)) = prior {
-        match decided {
-            Some((_decision, value)) if !expired => {
-                inner.steps.insert(
-                    step.to_owned(),
-                    StepEntry {
-                        ticket,
-                        mode: mode.to_owned(),
-                        source: "dedup",
-                        dedup: true,
-                    },
-                );
-                return Admit::Run { bind: Some(value) };
-            }
-            // A decided-but-stale ticket re-mints (fresh consent) · an
-            // undecided one is an in-flight twin (same-wave fan-out):
-            // same ticket, no new mint, no count.
-            Some(_) => {
-                inner.minted.remove(shown_hash);
-                return mint(inner, step, mode, shown_hash, now_ms, answer);
-            }
-            None => {
-                inner.steps.insert(
-                    step.to_owned(),
-                    StepEntry {
-                        ticket,
-                        mode: mode.to_owned(),
-                        source: if answer.is_some() {
-                            "answer"
-                        } else {
-                            "builtin"
-                        },
-                        dedup: false,
-                    },
-                );
-                return Admit::Run {
-                    bind: answer.cloned(),
-                };
-            }
+    let prior = inner
+        .minted
+        .get(shown_hash)
+        .map(|m| (m.ticket.clone(), m.decided.clone()));
+    if let Some((ticket, decided)) = prior {
+        if decided.is_some() {
+            inner.minted.remove(shown_hash);
+            return mint(inner, step, mode, shown_hash, now_ms, answer, source);
         }
+        inner.steps.insert(
+            step.to_owned(),
+            StepEntry {
+                ticket,
+                mode: mode.to_owned(),
+                source,
+            },
+        );
+        return Admit::Run {
+            bind: answer.cloned(),
+        };
     }
-    mint(inner, step, mode, shown_hash, now_ms, answer)
+    mint(inner, step, mode, shown_hash, now_ms, answer, source)
 }
 
 /// Mint a fresh ticket for a new distinct content — the N+1ᵗʰ distinct
@@ -602,6 +598,7 @@ fn mint(
     shown_hash: &str,
     now_ms: i64,
     answer: Option<&Value>,
+    source: &'static str,
 ) -> Admit {
     if inner.mints >= APPROVAL_MAX_TICKETS_PER_RUN {
         return Admit::Refused(refusal(
@@ -640,12 +637,7 @@ fn mint(
         StepEntry {
             ticket,
             mode: mode.to_owned(),
-            source: if answer.is_some() {
-                "answer"
-            } else {
-                "builtin"
-            },
-            dedup: false,
+            source,
         },
     );
     Admit::Run {
@@ -840,6 +832,7 @@ fn canonical_content(task: &RawTask, gated: &[GatedAction], scope: &Scope<'_>) -
             "gated": gated_json,
             "message": message,
             "mode": mode,
+            "step": task.id.value,
         },
     });
     (mode, content)
@@ -931,9 +924,27 @@ where
             )));
         };
         let answer = self.prompt_answers.get(step);
+        let source = if answer.is_some() {
+            "cli"
+        } else if matches!(
+            &task.action,
+            RawAction::Invoke(invoke)
+                if invoke
+                    .args
+                    .as_ref()
+                    .and_then(|args| args.value.get("default"))
+                    .is_some()
+        ) {
+            "policy"
+        } else {
+            // The generic tool-result seam carries no proof that the
+            // builtin answer came from a TTY. Stay honest: never elevate an
+            // unverified automated adapter to `human` provenance.
+            "builtin"
+        };
         match self
             .approvals
-            .admit(step, &mode, &shown_hash, self.now_unix_ms(), answer)
+            .admit(step, &mode, &shown_hash, self.now_unix_ms(), answer, source)
         {
             Admit::Run { bind } => match bind {
                 Some(value) => Gate::Run(Box::new(prompt_task_with_default(task, &value))),
