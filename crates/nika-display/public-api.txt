@@ -186,6 +186,7 @@ pub mod nika_display::demo
 pub fn nika_display::demo::bare_event(kind: nika_event::kind::EventKind, ms: u64) -> nika_event::event::Event
 pub fn nika_display::demo::failure() -> alloc::vec::Vec<nika_event::event::Event>
 pub fn nika_display::demo::paused() -> alloc::vec::Vec<nika_event::event::Event>
+pub fn nika_display::demo::recovered() -> alloc::vec::Vec<nika_event::event::Event>
 pub fn nika_display::demo::retrying() -> alloc::vec::Vec<nika_event::event::Event>
 pub fn nika_display::demo::success() -> alloc::vec::Vec<nika_event::event::Event>
 pub mod nika_display::flow
@@ -465,6 +466,7 @@ pub fn nika_display::fruit::asks_inputs_back(text: &str) -> bool
 pub fn nika_display::fruit::cautions(view: &nika_display::state::RunView, ascii: bool) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_display::fruit::inputs_all_recovered(view: &nika_display::state::RunView) -> core::option::Option<usize>
 pub fn nika_display::fruit::last_said(view: &nika_display::state::RunView) -> core::option::Option<(&str, &str)>
+pub fn nika_display::fruit::recovered_ok(view: &nika_display::state::RunView) -> bool
 pub fn nika_display::fruit::rehearsal(view: &nika_display::state::RunView) -> bool
 pub fn nika_display::fruit::rehearsal_note(view: &nika_display::state::RunView) -> core::option::Option<&'static str>
 pub fn nika_display::fruit::written_files(view: &nika_display::state::RunView) -> alloc::vec::Vec<nika_display::fruit::WroteFile>
