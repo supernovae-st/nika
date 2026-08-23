@@ -96,7 +96,11 @@ jobs:
         # purpose, darwin included: candle 0.10's quantized rms-norm Metal
         # kernel is broken, so `--features metal` ships a lane that dies
         # at first token. Revisit when candle fixes the kernel.
-        run: cargo build --release --locked --bin nika-cli --target ${{ matrix.target }} --features local-infer
+        # `access-harness` (D-2026-08-04-N1 · P3): the class has been on
+        # main, API-frozen, since 2026-08-08, and was never in this line.
+        # A downloadable binary that cannot `--access` a seat is a lie
+        # the wiring gate now catches. metal stays off (tombstone).
+        run: cargo build --release --locked --bin nika-cli --target ${{ matrix.target }} --features local-infer,access-harness
       - name: Sign + notarize (macOS)
         # Gatekeeper-trust the binary so browser-downloads do not show
         # "unidentified developer". SAFETY: continue-on-error is MANDATORY —

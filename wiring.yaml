@@ -1,0 +1,67 @@
+# wiring.yaml · DECLARED capabilities of this engine
+# A wiring gate reads this file. in_release_build and status are
+# DERIVED by the gate. Never type them.
+
+schema: 1
+
+# A cargo feature that governs user-visible behaviour must appear on a
+# release build line, or live here with a reason and a date.
+
+tombstones:
+  - id: nika-cli:metal
+    reason: >-
+      candle 0.10 quantized rms-norm Metal kernel dies at first token.
+      release.yml keeps it off on purpose. Revisit when candle ships a
+      working kernel.
+    date: 2026-08-23
+
+# An excluded crate that is a deliberate quarantine (own lockfile, own
+# feature graph) is not an orphan IF a named CI job is its judge.
+# NEVER lift the nika-acp exclude (nika-harness/src/lib.rs · spec §2bis).
+
+quarantine:
+  - id: crates/nika-acp
+    reason: >-
+      Official ACP SDK requires serde_json/preserve_order. Unification
+      would flip byte-attested goldens. The SDK judges nika-harness
+      over a process boundary from this workspace.
+    date: 2026-08-23
+    proven_by: acp-quarantine
+
+capabilities:
+  - id: access.harness
+    kind: cargo-feature
+    declared_at: crates/nika-cli/Cargo.toml:72
+    shipped_when: "--features access-harness"
+    reachable_by: "nika run F --access <seat>"
+    proven_by: access-harness
+  - id: access.seat.gemini-cli
+    kind: access-seat
+    declared_at: crates/nika-harness/src/registry.rs:130
+    shipped_when: "--features access-harness"
+    reachable_by: "nika run F --access gemini-cli"
+    proven_by: acp-quarantine
+  - id: access.seat.qwen-code
+    kind: access-seat
+    declared_at: crates/nika-harness/src/registry.rs:139
+    shipped_when: "--features access-harness"
+    reachable_by: "nika run F --access qwen-code"
+    proven_by: acp-quarantine
+  - id: access.seat.kimi-code
+    kind: access-seat
+    declared_at: crates/nika-harness/src/registry.rs:156
+    shipped_when: "--features access-harness"
+    reachable_by: "nika run F --access kimi-code"
+    proven_by: acp-quarantine
+  - id: access.seat.codex-acp
+    kind: access-seat
+    declared_at: crates/nika-harness/src/registry.rs:178
+    shipped_when: "--features access-harness"
+    reachable_by: "nika run F --access codex-acp"
+    proven_by: acp-quarantine
+  - id: access.seat.claude-agent-acp
+    kind: access-seat
+    declared_at: crates/nika-harness/src/registry.rs:200
+    shipped_when: "--features access-harness"
+    reachable_by: "nika run F --access claude-agent-acp"
+    proven_by: acp-quarantine
