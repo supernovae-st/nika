@@ -10,6 +10,25 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+### Changed
+
+- **`nika serve --bind` prints the token mint instead of an opaque
+  credential refusal.** Missing `--token-file`, a short secret, or a
+  group/world-readable file all teach
+  `umask 077 && openssl rand -hex 24 > .nika/serve.token && chmod 600
+  .nika/serve.token` and never echo the bytes. The HTTP door still
+  refuses to mint a secret on its own.
+- **The listen line names the next hop.** After bind it prints
+  `GET /health`, authenticated `GET /v1/openapi.json`, and
+  `POST /v1/jobs` with Bearer plus Idempotency-Key. A non-loopback
+  bind adds that the blast radius is every workflow in `--workflows`.
+  `GET /health` JSON stays the ADR-117 identity allowlist.
+- **Action dogfood no longer runs on tags.** `install.sh` resolves the
+  latest published binary, which lags the tagged tree until release.yml
+  finishes. The smoke workflow now lives outside the checkout so project
+  discovery cannot walk into this engine's `nika.yaml`. An additive
+  `working-directory` input on the composite action is the seam.
+
 ## [0.114.0](https://github.com/supernovae-st/nika/compare/v0.113.0..v0.114.0) - 2026-08-23
 
 **Remote execution as a loopback door.** Default `nika serve` stays the

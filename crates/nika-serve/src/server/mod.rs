@@ -4,6 +4,7 @@
 mod auth;
 mod config;
 mod error;
+mod listen;
 mod model;
 mod openapi;
 mod registry;
@@ -32,6 +33,7 @@ use crate::{EventPageLimit, JobId, JobStatus, JobStore, MAX_EVENT_PAGE_LEN};
 use auth::BearerToken;
 pub use config::{ServerConfig, ServerLimits};
 pub use error::ServerError;
+use listen::listen_line;
 use store::{StoreActor, StoreHandle};
 
 /// Backend-owned terminal class projected onto the durable job lifecycle.
@@ -198,7 +200,8 @@ pub async fn serve_http(
     let server = BoundServer::bind(config, backend).await?;
     let addr = server.local_addr()?;
     // Operator-facing: `--bind …:0` is useless without the chosen port.
-    eprintln!("nika serve · listening http://{addr} · GET /health");
+    // Next hops live here, not on GET /health (ADR-117 identity allowlist).
+    eprintln!("{}", listen_line(addr));
     server.serve_until(shutdown).await
 }
 

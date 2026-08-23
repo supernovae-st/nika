@@ -25,6 +25,10 @@ inputs:
     description: "Nika version to install (default: latest release)"
     required: false
     default: ""
+  working-directory:
+    description: "Directory nika check/run execute from. Project discovery walks up from here; leave empty to use the job workspace."
+    required: false
+    default: ""
 
 outputs:
   trace:
@@ -46,16 +50,27 @@ runs:
 
     - name: Check (audit before run)
       shell: bash
-      run: nika check "${{ inputs.file }}"
+      run: |
+        if [ -n "${{ inputs.working-directory }}" ]; then
+          cd "${{ inputs.working-directory }}"
+        fi
+        nika check "${{ inputs.file }}"
 
     - name: Run (cost-capped · traced)
       id: run
       shell: bash
       run: |
+        if [ -n "${{ inputs.working-directory }}" ]; then
+          cd "${{ inputs.working-directory }}"
+        fi
         rc=0
         nika run "${{ inputs.file }}" --max-cost-usd "${{ inputs.max-cost-usd }}" --json ${{ inputs.args }} || rc=$?
         # The newest trace is this run's journal — name it for upload.
+        # Absolute: a working-directory input must not strand the caller.
         trace=$(ls -t .nika/traces/*.ndjson 2>/dev/null | head -1 || true)
+        if [ -n "$trace" ]; then
+          trace="$(realpath "$trace")"
+        fi
         echo "trace=$trace" >> "$GITHUB_OUTPUT"
         # Exit 4 = paused on a human gate: a real state, not a failure —
         # but CI has no human, so surface it loudly and stop the job.
