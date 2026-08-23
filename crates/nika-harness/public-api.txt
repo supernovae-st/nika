@@ -52,6 +52,45 @@ impl<T> core::convert::From<T> for nika_harness::probe::AdapterProbeRow
 pub fn nika_harness::probe::AdapterProbeRow::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_harness::probe::AdapterProbeRow where T: 'static
 pub fn nika_harness::probe::AdapterProbeRow::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_harness::probe::PresenceFact
+pub nika_harness::probe::PresenceFact::acp_present: bool
+pub nika_harness::probe::PresenceFact::configured: bool
+pub nika_harness::probe::PresenceFact::id: alloc::string::String
+pub nika_harness::probe::PresenceFact::product_present: bool
+pub nika_harness::probe::PresenceFact::serves: alloc::vec::Vec<alloc::string::String>
+impl core::clone::Clone for nika_harness::probe::PresenceFact
+pub fn nika_harness::probe::PresenceFact::clone(&self) -> nika_harness::probe::PresenceFact
+impl core::cmp::Eq for nika_harness::probe::PresenceFact
+impl core::cmp::PartialEq for nika_harness::probe::PresenceFact
+pub fn nika_harness::probe::PresenceFact::eq(&self, other: &nika_harness::probe::PresenceFact) -> bool
+impl core::fmt::Debug for nika_harness::probe::PresenceFact
+pub fn nika_harness::probe::PresenceFact::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_harness::probe::PresenceFact
+impl<D> owo_colors::OwoColorize for nika_harness::probe::PresenceFact
+impl<T, U> core::convert::Into<U> for nika_harness::probe::PresenceFact where U: core::convert::From<T>
+pub fn nika_harness::probe::PresenceFact::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::probe::PresenceFact where U: core::convert::Into<T>
+pub type nika_harness::probe::PresenceFact::Error = core::convert::Infallible
+pub fn nika_harness::probe::PresenceFact::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::probe::PresenceFact where U: core::convert::TryFrom<T>
+pub type nika_harness::probe::PresenceFact::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::probe::PresenceFact::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::probe::PresenceFact where T: core::clone::Clone
+pub type nika_harness::probe::PresenceFact::Owned = T
+pub fn nika_harness::probe::PresenceFact::clone_into(&self, target: &mut T)
+pub fn nika_harness::probe::PresenceFact::to_owned(&self) -> T
+impl<T> core::any::Any for nika_harness::probe::PresenceFact where T: 'static + ?core::marker::Sized
+pub fn nika_harness::probe::PresenceFact::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::probe::PresenceFact where T: ?core::marker::Sized
+pub fn nika_harness::probe::PresenceFact::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::probe::PresenceFact where T: ?core::marker::Sized
+pub fn nika_harness::probe::PresenceFact::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::probe::PresenceFact where T: core::clone::Clone
+pub unsafe fn nika_harness::probe::PresenceFact::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::probe::PresenceFact
+pub fn nika_harness::probe::PresenceFact::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::probe::PresenceFact where T: 'static
+pub fn nika_harness::probe::PresenceFact::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_harness::probe::VersionPin
 pub nika_harness::probe::VersionPin::max_major: u32
 pub nika_harness::probe::VersionPin::min: (u32, u32)
@@ -93,6 +132,7 @@ impl<T> nika_error::traits::AsAny for nika_harness::probe::VersionPin where T: '
 pub fn nika_harness::probe::VersionPin::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub fn nika_harness::probe::judge_version(adapter_id: &str, output: &str, pin: &nika_harness::probe::VersionPin) -> core::result::Result<(u32, u32), nika_kernel_ai::harness::HarnessError>
 pub fn nika_harness::probe::parse_version(line: &str) -> core::option::Option<(u32, u32)>
+pub fn nika_harness::probe::presence_facts(rows: alloc::vec::Vec<nika_harness::registry::AdapterRow>) -> alloc::vec::Vec<nika_harness::probe::PresenceFact>
 pub async fn nika_harness::probe::probe_adapters(rows: alloc::vec::Vec<nika_harness::registry::AdapterRow>) -> alloc::vec::Vec<nika_harness::probe::AdapterProbeRow>
 pub fn nika_harness::probe::probe_adapters_sync(rows: alloc::vec::Vec<nika_harness::registry::AdapterRow>) -> alloc::vec::Vec<nika_harness::probe::AdapterProbeRow>
 pub mod nika_harness::registry
@@ -843,6 +883,45 @@ impl<T> core::convert::From<T> for nika_harness::spawn::HarnessAdapter
 pub fn nika_harness::spawn::HarnessAdapter::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_harness::spawn::HarnessAdapter where T: 'static
 pub fn nika_harness::spawn::HarnessAdapter::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_harness::PresenceFact
+pub nika_harness::PresenceFact::acp_present: bool
+pub nika_harness::PresenceFact::configured: bool
+pub nika_harness::PresenceFact::id: alloc::string::String
+pub nika_harness::PresenceFact::product_present: bool
+pub nika_harness::PresenceFact::serves: alloc::vec::Vec<alloc::string::String>
+impl core::clone::Clone for nika_harness::probe::PresenceFact
+pub fn nika_harness::probe::PresenceFact::clone(&self) -> nika_harness::probe::PresenceFact
+impl core::cmp::Eq for nika_harness::probe::PresenceFact
+impl core::cmp::PartialEq for nika_harness::probe::PresenceFact
+pub fn nika_harness::probe::PresenceFact::eq(&self, other: &nika_harness::probe::PresenceFact) -> bool
+impl core::fmt::Debug for nika_harness::probe::PresenceFact
+pub fn nika_harness::probe::PresenceFact::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_harness::probe::PresenceFact
+impl<D> owo_colors::OwoColorize for nika_harness::probe::PresenceFact
+impl<T, U> core::convert::Into<U> for nika_harness::probe::PresenceFact where U: core::convert::From<T>
+pub fn nika_harness::probe::PresenceFact::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::probe::PresenceFact where U: core::convert::Into<T>
+pub type nika_harness::probe::PresenceFact::Error = core::convert::Infallible
+pub fn nika_harness::probe::PresenceFact::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::probe::PresenceFact where U: core::convert::TryFrom<T>
+pub type nika_harness::probe::PresenceFact::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::probe::PresenceFact::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::probe::PresenceFact where T: core::clone::Clone
+pub type nika_harness::probe::PresenceFact::Owned = T
+pub fn nika_harness::probe::PresenceFact::clone_into(&self, target: &mut T)
+pub fn nika_harness::probe::PresenceFact::to_owned(&self) -> T
+impl<T> core::any::Any for nika_harness::probe::PresenceFact where T: 'static + ?core::marker::Sized
+pub fn nika_harness::probe::PresenceFact::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::probe::PresenceFact where T: ?core::marker::Sized
+pub fn nika_harness::probe::PresenceFact::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::probe::PresenceFact where T: ?core::marker::Sized
+pub fn nika_harness::probe::PresenceFact::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::probe::PresenceFact where T: core::clone::Clone
+pub unsafe fn nika_harness::probe::PresenceFact::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::probe::PresenceFact
+pub fn nika_harness::probe::PresenceFact::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::probe::PresenceFact where T: 'static
+pub fn nika_harness::probe::PresenceFact::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub struct nika_harness::SpawnedHarness
 impl nika_harness::spawn::SpawnedHarness
 pub fn nika_harness::spawn::SpawnedHarness::new(adapter: nika_harness::spawn::HarnessAdapter) -> Self
@@ -931,6 +1010,7 @@ pub fn nika_harness::drive<R, W>(reader: R, writer: W, request: nika_kernel_ai::
 pub fn nika_harness::drive_with_idle<R, W>(reader: R, writer: W, request: nika_kernel_ai::harness::HarnessRequest, idle: core::time::Duration) -> nika_kernel_ai::harness::HarnessEventStream where R: tokio::io::async_read::AsyncRead + core::marker::Unpin + core::marker::Send + 'static, W: tokio::io::async_write::AsyncWrite + core::marker::Unpin + core::marker::Send + 'static
 pub fn nika_harness::judge_version(adapter_id: &str, output: &str, pin: &nika_harness::probe::VersionPin) -> core::result::Result<(u32, u32), nika_kernel_ai::harness::HarnessError>
 pub fn nika_harness::parse_version(line: &str) -> core::option::Option<(u32, u32)>
+pub fn nika_harness::presence_facts(rows: alloc::vec::Vec<nika_harness::registry::AdapterRow>) -> alloc::vec::Vec<nika_harness::probe::PresenceFact>
 pub async fn nika_harness::probe_adapters(rows: alloc::vec::Vec<nika_harness::registry::AdapterRow>) -> alloc::vec::Vec<nika_harness::probe::AdapterProbeRow>
 pub fn nika_harness::probe_adapters_sync(rows: alloc::vec::Vec<nika_harness::registry::AdapterRow>) -> alloc::vec::Vec<nika_harness::probe::AdapterProbeRow>
 pub fn nika_harness::registry() -> core::result::Result<alloc::vec::Vec<nika_harness::registry::AdapterRow>, nika_kernel_ai::harness::HarnessError>
