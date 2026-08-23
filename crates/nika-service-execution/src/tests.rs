@@ -13,9 +13,9 @@ use nika_types::resource::{KeyValue, Value as FieldValue};
 /// (`GRANTS_SHELL(&permits)`) rather than as a bare accessor.
 const GRANTS_SHELL: fn(&Permits) -> bool = Permits::allows_exec;
 
-fn admitted_driver(
-    files: &[(&str, &str)],
-) -> Result<ServiceExecutionDriver, Box<dyn std::error::Error>> {
+type TestResult<T> = Result<T, Box<dyn std::error::Error>>; // box-dyn-ok(test-harness): cfg(test) fixtures use heterogeneous setup and execution failures
+
+fn admitted_driver(files: &[(&str, &str)]) -> TestResult<ServiceExecutionDriver> {
     let directory = tempfile::tempdir()?;
     for (path, source) in files {
         let path = directory.path().join(path);
@@ -76,8 +76,7 @@ fn absent_parent_caps_every_child_at_zero() {
 }
 
 #[tokio::test]
-async fn service_driver_runs_a_child_from_the_owned_snapshot()
--> Result<(), Box<dyn std::error::Error>> {
+async fn service_driver_runs_a_child_from_the_owned_snapshot() -> TestResult<()> {
     let root = "nika: root\npermits:\n  tools: [\"nika:jq\"]\ntasks:\n  call:\n    invoke: { workflow: \"./child.nika.yaml\" }\noutputs:\n  value: ${{ tasks.call.output.value }}\n";
     let child = "nika: child\npermits:\n  tools: [\"nika:jq\"]\ntasks:\n  value:\n    invoke:\n      tool: nika:jq\n      args: { input: 7, expression: \".\" }\noutputs:\n  value: ${{ tasks.value.output }}\n";
     let driver = admitted_driver(&[("root.nika.yaml", root), ("child.nika.yaml", child)])?;
@@ -97,7 +96,7 @@ async fn service_driver_runs_a_child_from_the_owned_snapshot()
 
 #[tokio::test]
 async fn independently_parsed_workflow_and_report_cannot_replace_the_admitted_pair()
--> Result<(), Box<dyn std::error::Error>> {
+-> TestResult<()> {
     let admitted = "nika: admitted\npermits: { tools: [\"nika:jq\"] }\ntasks:\n  value:\n    invoke: { tool: \"nika:jq\", args: { input: 7, expression: \".\" } }\n";
     let independent = "nika: independent\ntasks:\n  broken:\n    after: { missing: success }\n    invoke: { tool: \"nika:jq\", args: { input: 9, expression: \".\" } }\n";
     let independent_workflow = nika_schema::parse(independent, FileId::new(0), ParseMode::Strict)?;
@@ -121,8 +120,7 @@ async fn independently_parsed_workflow_and_report_cannot_replace_the_admitted_pa
 }
 
 #[tokio::test]
-async fn service_result_never_exposes_secret_shaped_output_material()
--> Result<(), Box<dyn std::error::Error>> {
+async fn service_result_never_exposes_secret_shaped_output_material() -> TestResult<()> {
     const SECRET: &str = "sk-live-service-output-must-stay-redacted";
     let root = format!(
         "nika: output-redaction\npermits: {{ tools: [\"nika:jq\"] }}\ntasks:\n  value:\n    invoke: {{ tool: \"nika:jq\", args: {{ input: \"{SECRET}\", expression: \".\" }} }}\noutputs:\n  value: ${{{{ tasks.value.output }}}}\n"
@@ -142,7 +140,7 @@ async fn service_result_never_exposes_secret_shaped_output_material()
 }
 
 #[tokio::test]
-async fn service_result_never_exposes_pause_material() -> Result<(), Box<dyn std::error::Error>> {
+async fn service_result_never_exposes_pause_material() -> TestResult<()> {
     const SECRET_QUESTION: &str = "pause-with-sk-live-question-material";
     let root = format!(
         "nika: pause-redaction\npermits: {{ tools: [\"nika:prompt\"] }}\ntasks:\n  ask:\n    invoke: {{ tool: \"nika:prompt\", args: {{ mode: \"input\", message: \"{SECRET_QUESTION}\" }} }}\n"
