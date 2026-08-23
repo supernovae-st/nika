@@ -75,12 +75,13 @@ alone.
 | `/v1/workflows/{name}` | no | no | Bearer auth; contained relative name metadata; no source bytes |
 | `/v1/jobs/{opaque-id}` | no | no | Bearer auth before lookup; uniform unknown-id response |
 | `/v1/jobs/{opaque-id}/events` | no | no | Bearer auth; bounded SSE buffer; monotonic `Last-Event-ID`; redaction |
+| `GET /v1/openapi.json` | no | no | Bearer auth; live-route document; no credential examples; no cancel/artifact paths |
 | effecting `/v1/*` POST | no | yes | auth before parse; body limit; content type; idempotency before execution |
 | cancel routes | absent | — | remain absent until typed runtime cancellation settles terminal state |
 | artifact routes | absent | — | remain absent until a held typed artifact manifest exists |
 
-The exact route spelling beyond `/health` and the `/v1` authority prefix is
-owned by the later OpenAPI carrier. Adding a route cannot weaken this table.
+Adding a route cannot weaken this table. The OpenAPI document is a projection
+of the live routes, never a second authority.
 
 ## Required controls
 

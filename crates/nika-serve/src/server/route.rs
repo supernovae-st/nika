@@ -76,6 +76,9 @@ async fn route_authenticated(
     let path = request.uri().path().to_owned();
     match (request.method(), path.as_str()) {
         (&Method::POST, "/v1/jobs") => create_job(request, state).await,
+        (&Method::GET, "/v1/openapi.json") => {
+            json_response(StatusCode::OK, &super::openapi::document())
+        }
         (&Method::GET, "/v1/workflows") => list_registry(&state).await,
         (&Method::GET, path) if path.starts_with("/v1/workflows/") => {
             workflow_metadata(path, &state).await
