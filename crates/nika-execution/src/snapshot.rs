@@ -278,6 +278,50 @@ impl ExecutionSnapshot {
         Ok(builder.finish(root))
     }
 
+    /// Revalidate a previously captured world entirely from its owned bytes.
+    ///
+    /// No filesystem capability participates: the snapshot itself is the
+    /// [`ByteSource`]. Rebuilding the rooted closure re-applies path, graph,
+    /// role, UTF-8, resource, parser, checker, and skill laws before comparing
+    /// every byte and identity with the supplied value.
+    pub(crate) fn revalidate(&self, limits: SnapshotLimits) -> Result<(), ExecutionError> {
+        if self.format_version != SNAPSHOT_FORMAT_VERSION {
+            return Err(ExecutionError::UnsupportedSnapshotFormat {
+                found: self.format_version,
+                expected: SNAPSHOT_FORMAT_VERSION,
+            });
+        }
+        if normalize_logical(Path::new(&self.root))? != self.root {
+            return Err(ExecutionError::SnapshotStructureMismatch);
+        }
+        for (key, unit) in &self.units {
+            if key != unit.logical_path()
+                || normalize_logical(Path::new(unit.logical_path()))? != unit.logical_path()
+            {
+                return Err(ExecutionError::SnapshotStructureMismatch);
+            }
+            if sha256_hex(unit.bytes()) != unit.digest() {
+                return Err(ExecutionError::UnitDigestMismatch {
+                    logical_path: unit.logical_path().to_owned(),
+                });
+            }
+        }
+        if snapshot_digest(&self.root, &self.units) != self.digest {
+            return Err(ExecutionError::SnapshotDigestMismatch);
+        }
+
+        let imports = self
+            .units()
+            .filter(|unit| unit.kind() == SnapshotUnitKind::Import)
+            .map(|unit| PathBuf::from(unit.logical_path()))
+            .collect::<Vec<_>>();
+        let rebuilt = Self::capture_from(self, Path::new(&self.root), &imports, limits)?;
+        if !same_snapshot(self, &rebuilt) {
+            return Err(ExecutionError::SnapshotStructureMismatch);
+        }
+        Ok(())
+    }
+
     /// Snapshot format version.
     #[must_use]
     pub const fn format_version(&self) -> u32 {
@@ -377,6 +421,23 @@ impl ByteSource for OwnedDir {
                 source,
             })?;
         Ok(bytes)
+    }
+}
+
+impl ByteSource for ExecutionSnapshot {
+    fn read(&self, logical_path: &str, limit: usize) -> Result<Vec<u8>, ExecutionError> {
+        let bytes = self
+            .bytes(logical_path)
+            .ok_or_else(|| ExecutionError::MissingUnit {
+                logical_path: logical_path.to_owned(),
+            })?;
+        if bytes.len() > limit {
+            return Err(ExecutionError::UnitSizeLimit {
+                logical_path: logical_path.to_owned(),
+                limit,
+            });
+        }
+        Ok(bytes.to_vec())
     }
 }
 
@@ -722,6 +783,21 @@ fn snapshot_digest(root: &str, units: &BTreeMap<String, CapturedUnit>) -> String
     sha256_finish(hasher)
 }
 
+fn same_snapshot(left: &ExecutionSnapshot, right: &ExecutionSnapshot) -> bool {
+    left.format_version == right.format_version
+        && left.root == right.root
+        && left.digest == right.digest
+        && left.units.len() == right.units.len()
+        && left.units.iter().all(|(logical, unit)| {
+            right.units.get(logical).is_some_and(|other| {
+                unit.logical_path == other.logical_path
+                    && unit.kind == other.kind
+                    && unit.bytes() == other.bytes()
+                    && unit.digest == other.digest
+            })
+        })
+}
+
 fn hash_field(hasher: &mut Sha256, bytes: &[u8]) {
     hasher.update(u64::try_from(bytes.len()).unwrap_or(u64::MAX).to_be_bytes());
     hasher.update(bytes);
@@ -746,6 +822,87 @@ fn sha256_finish(hasher: Sha256) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn valid_snapshot() -> ExecutionSnapshot {
+        let root = "root.nika.yaml".to_owned();
+        let unit = CapturedUnit::new(
+            root.clone(),
+            SnapshotUnitKind::Root,
+            b"nika: root\npermits:\n  tools: [\"nika:jq\"]\ntasks:\n  value:\n    invoke:\n      tool: nika:jq\n      args: { input: 1, expression: \".\" }\n"
+                .to_vec(),
+        );
+        let units = BTreeMap::from([(root.clone(), unit)]);
+        let digest = snapshot_digest(&root, &units);
+        ExecutionSnapshot {
+            format_version: SNAPSHOT_FORMAT_VERSION,
+            root,
+            units,
+            digest,
+        }
+    }
+
+    #[test]
+    fn public_readmission_revalidates_owned_bytes_without_a_reader() {
+        let snapshot = valid_snapshot();
+        let digest = snapshot.digest().to_owned();
+        let admitted = crate::ExecutionService::default()
+            .readmit_snapshot(snapshot)
+            .expect("owned snapshot readmits");
+
+        assert_eq!(admitted.snapshot().digest(), digest);
+        assert_eq!(admitted.snapshot().root(), "root.nika.yaml");
+    }
+
+    #[test]
+    fn readmission_refuses_stale_unit_and_aggregate_identities() {
+        let mut stale_unit = valid_snapshot();
+        stale_unit
+            .units
+            .get_mut("root.nika.yaml")
+            .expect("root")
+            .digest = "0".repeat(64);
+        assert!(matches!(
+            crate::ExecutionService::default().readmit_snapshot(stale_unit),
+            Err(ExecutionError::UnitDigestMismatch { .. })
+        ));
+
+        let mut stale_world = valid_snapshot();
+        stale_world.digest = "f".repeat(64);
+        assert!(matches!(
+            crate::ExecutionService::default().readmit_snapshot(stale_world),
+            Err(ExecutionError::SnapshotDigestMismatch)
+        ));
+    }
+
+    #[test]
+    fn readmission_refuses_an_owned_but_unreachable_unit() {
+        let mut snapshot = valid_snapshot();
+        let orphan = CapturedUnit::new(
+            "orphan.nika.yaml".to_owned(),
+            SnapshotUnitKind::Child,
+            b"nika: orphan\npermits: {}\ntasks: {}\n".to_vec(),
+        );
+        snapshot
+            .units
+            .insert(orphan.logical_path().to_owned(), orphan);
+        snapshot.digest = snapshot_digest(&snapshot.root, &snapshot.units);
+
+        assert!(matches!(
+            crate::ExecutionService::default().readmit_snapshot(snapshot),
+            Err(ExecutionError::SnapshotStructureMismatch)
+        ));
+    }
+
+    #[test]
+    fn readmission_refuses_an_unknown_snapshot_format() {
+        let mut snapshot = valid_snapshot();
+        snapshot.format_version = SNAPSHOT_FORMAT_VERSION + 1;
+
+        assert!(matches!(
+            crate::ExecutionService::default().readmit_snapshot(snapshot),
+            Err(ExecutionError::UnsupportedSnapshotFormat { .. })
+        ));
+    }
 
     proptest::proptest! {
         #[test]

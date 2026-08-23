@@ -31,13 +31,20 @@ pub nika_execution::ExecutionError::SkillCheckFailed::workflow: alloc::string::S
 #[non_exhaustive] pub nika_execution::ExecutionError::SkillNotAuthorized
 pub nika_execution::ExecutionError::SkillNotAuthorized::skill: alloc::string::String
 pub nika_execution::ExecutionError::SkillNotAuthorized::workflow: alloc::string::String
+pub nika_execution::ExecutionError::SnapshotDigestMismatch
+pub nika_execution::ExecutionError::SnapshotStructureMismatch
 #[non_exhaustive] pub nika_execution::ExecutionError::TotalSizeLimit
 pub nika_execution::ExecutionError::TotalSizeLimit::limit: usize
 #[non_exhaustive] pub nika_execution::ExecutionError::UnitCountLimit
 pub nika_execution::ExecutionError::UnitCountLimit::limit: usize
+#[non_exhaustive] pub nika_execution::ExecutionError::UnitDigestMismatch
+pub nika_execution::ExecutionError::UnitDigestMismatch::logical_path: alloc::string::String
 #[non_exhaustive] pub nika_execution::ExecutionError::UnitSizeLimit
 pub nika_execution::ExecutionError::UnitSizeLimit::limit: usize
 pub nika_execution::ExecutionError::UnitSizeLimit::logical_path: alloc::string::String
+#[non_exhaustive] pub nika_execution::ExecutionError::UnsupportedSnapshotFormat
+pub nika_execution::ExecutionError::UnsupportedSnapshotFormat::expected: u32
+pub nika_execution::ExecutionError::UnsupportedSnapshotFormat::found: u32
 impl core::error::Error for nika_execution::ExecutionError
 pub fn nika_execution::ExecutionError::source(&self) -> core::option::Option<&(dyn core::error::Error + 'static)>
 impl core::fmt::Debug for nika_execution::ExecutionError
@@ -245,6 +252,7 @@ pub fn nika_execution::ExecutionService::admit_with_imports<I, P>(&self, project
 pub fn nika_execution::ExecutionService::begin(&self, admitted: nika_execution::AdmittedExecution) -> nika_execution::ExecutionSession
 pub fn nika_execution::ExecutionService::execute<T>(&self, admitted: nika_execution::AdmittedExecution, runner: for<'a> fn(nika_execution::ExecutionContext<'a>) -> T) -> nika_execution::ExecutionVerdict<T>
 pub const fn nika_execution::ExecutionService::new(limits: nika_execution::SnapshotLimits) -> Self
+pub fn nika_execution::ExecutionService::readmit_snapshot(&self, snapshot: nika_execution::ExecutionSnapshot) -> core::result::Result<nika_execution::AdmittedExecution, nika_execution::ExecutionError>
 impl core::clone::Clone for nika_execution::ExecutionService
 pub fn nika_execution::ExecutionService::clone(&self) -> nika_execution::ExecutionService
 impl core::default::Default for nika_execution::ExecutionService

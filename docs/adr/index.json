@@ -1257,7 +1257,7 @@
       "date": "2026-08-21",
       "filename": "adr-118-nika-arm-custody-library.md",
       "tags": ["architecture","crate-admission","arm","filesystem","layering"],
-      "affects_crates": ["nika-arm","nika-cadence","nika-cli","nika-fs"],
+      "affects_crates": ["nika-arm","nika-cadence","nika-cli","nika-execution","nika-fs"],
       "affects_layers": ["L4"],
       "supersedes": [],
       "superseded_by": [],
@@ -1279,6 +1279,22 @@
       "superseded_by": [],
       "related": [],
       "requires": ["ADR-117"],
+      "enables": []
+    }
+    ,
+    {
+      "id": "ADR-120",
+      "title": "descend the shared service execution driver out of nika-runtime",
+      "status": "accepted",
+      "date": "2026-08-23",
+      "filename": "adr-120-service-execution-driver-split.md",
+      "tags": ["architecture","runtime","execution","crate-size","diamond","split"],
+      "affects_crates": ["nika-runtime","nika-execution","nika-service-execution","nika-cli"],
+      "affects_layers": ["L3","L4"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": [],
+      "requires": [],
       "enables": []
     }
   ]
