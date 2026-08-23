@@ -1,17 +1,23 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
+use std::convert::Infallible;
 use std::io;
 
 use bytes::Bytes;
-use http_body_util::Full;
+use http_body_util::combinators::UnsyncBoxBody;
+use http_body_util::{BodyExt as _, Full};
 use hyper::header::{CONTENT_TYPE, WWW_AUTHENTICATE};
 use hyper::{Response, StatusCode};
 use thiserror::Error;
 
 use crate::JobStoreError;
 
-pub(crate) type ResponseBody = Full<Bytes>;
+pub(crate) type ResponseBody = UnsyncBoxBody<Bytes, Infallible>;
+
+pub(crate) fn once_body(bytes: impl Into<Bytes>) -> ResponseBody {
+    Full::new(bytes.into()).boxed_unsync()
+}
 
 /// Typed startup and lifecycle failures from the HTTP server.
 #[derive(Debug, Error)]
@@ -73,12 +79,56 @@ impl ApiError {
         }
     }
 
+    pub(crate) const fn job_not_found() -> Self {
+        Self::new(StatusCode::NOT_FOUND, "job_not_found", "job not found")
+    }
+
+    pub(crate) const fn internal() -> Self {
+        Self::new(
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "internal_error",
+            "request could not be completed",
+        )
+    }
+
+    pub(crate) const fn store_busy() -> Self {
+        Self::new(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "store_busy",
+            "durable job state is temporarily unavailable",
+        )
+    }
+
+    pub(crate) const fn invalid_cursor() -> Self {
+        Self::new(
+            StatusCode::BAD_REQUEST,
+            "invalid_cursor",
+            "last-event-id must be a decimal event sequence",
+        )
+    }
+
+    pub(crate) const fn cursor_beyond_latest() -> Self {
+        Self::new(
+            StatusCode::BAD_REQUEST,
+            "cursor_beyond_latest",
+            "last-event-id is beyond the latest persisted event",
+        )
+    }
+
+    pub(crate) const fn sse_capacity() -> Self {
+        Self::new(
+            StatusCode::SERVICE_UNAVAILABLE,
+            "sse_capacity",
+            "event stream capacity is exhausted",
+        )
+    }
+
     pub(crate) fn into_response(self) -> Response<ResponseBody> {
         let body = serde_json::json!({
             "error": {"code": self.code, "message": self.message}
         });
         let bytes = serde_json::to_vec(&body).unwrap_or_else(|_| b"{}".to_vec());
-        let mut response = Response::new(Full::new(Bytes::from(bytes)));
+        let mut response = Response::new(once_body(bytes));
         *response.status_mut() = self.status;
         response.headers_mut().insert(
             CONTENT_TYPE,

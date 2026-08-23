@@ -1021,6 +1021,214 @@ async fn wait_for_calls(backend: &TestBackend, expected: usize) -> Result<(), St
     Err(format!("backend never reached {expected} calls"))
 }
 
+fn one_sse_limits() -> ServerLimits {
+    limits().with_max_sse_clients(1)
+}
+
+fn live_sse_limits() -> ServerLimits {
+    ServerLimits::new(
+        1024,
+        Duration::from_millis(80),
+        Duration::from_secs(2),
+        Duration::from_millis(200),
+        2,
+        8,
+        64,
+        32,
+    )
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn job_events_are_authenticated_allowlisted_and_resumable() {
+    let world = TestWorld::new();
+    let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
+    let server = world.start(backend, limits()).await;
+    let created = server
+        .request(&post_request(
+            r#"{"workflow":"root.nika.yaml"}"#,
+            "sse-complete",
+            &auth_header(),
+        ))
+        .await;
+    let id = created.json()["id"].as_str().expect("id").to_owned();
+    wait_for_status(&server, &id, "succeeded")
+        .await
+        .expect("succeeded");
+
+    let unauth = server
+        .request(&format!(
+            "GET /v1/jobs/{id}/events HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n"
+        ))
+        .await;
+    assert_eq!(unauth.status, 401, "{}", unauth.body);
+    assert!(!unauth.body.contains(TOKEN));
+
+    let streamed = server.request(&events_request(&id, None)).await;
+    assert_eq!(streamed.status, 200, "{}", streamed.body);
+    assert!(
+        streamed
+            .headers
+            .to_ascii_lowercase()
+            .contains("content-type: text/event-stream")
+    );
+    let events = parse_sse_data(&streamed.body);
+    assert!(!events.is_empty(), "{}", streamed.body);
+    for event in &events {
+        assert_allowlisted(event);
+    }
+    assert_eq!(events[0]["sequence"], 1);
+
+    let resumed = server.request(&events_request(&id, Some("1"))).await;
+    let resumed_events = parse_sse_data(&resumed.body);
+    assert!(
+        resumed_events.iter().all(|event| event["sequence"] != 1),
+        "{}",
+        resumed.body
+    );
+
+    let future = server.request(&events_request(&id, Some("99"))).await;
+    assert_eq!(future.status, 400, "{}", future.body);
+    assert_eq!(future.json()["error"]["code"], "cursor_beyond_latest");
+
+    for cursor in ["nope", "01", "+1", "1.5", ""] {
+        let invalid = server.request(&events_request(&id, Some(cursor))).await;
+        assert_eq!(invalid.status, 400, "{cursor}: {}", invalid.body);
+        assert_eq!(invalid.json()["error"]["code"], "invalid_cursor");
+    }
+    let duplicate = format!(
+        "GET /v1/jobs/{id}/events HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n{}Last-Event-ID: 1\r\nLast-Event-ID: 1\r\n\r\n",
+        auth_header()
+    );
+    let duplicate = server.request(&duplicate).await;
+    assert_eq!(duplicate.status, 400);
+    assert_eq!(duplicate.json()["error"]["code"], "invalid_cursor");
+
+    let cancel = server
+        .request(&get_request(&format!("/v1/jobs/{id}/cancel")))
+        .await;
+    let artifacts = server
+        .request(&get_request(&format!("/v1/jobs/{id}/artifacts")))
+        .await;
+    assert_eq!(cancel.status, 404);
+    assert_eq!(artifacts.status, 404);
+    server.stop().await.expect("clean stop");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn sse_outlives_request_timeout_and_disconnect_does_not_block_execution() {
+    let world = TestWorld::new();
+    let backend = Arc::new(GatedBackend::new());
+    let server = world.start(backend.clone(), live_sse_limits()).await;
+    let created = server
+        .request(&post_request(
+            r#"{"workflow":"root.nika.yaml"}"#,
+            "sse-live",
+            &auth_header(),
+        ))
+        .await;
+    assert_eq!(created.status, 202, "{}", created.body);
+    let id = created.json()["id"].as_str().expect("id").to_owned();
+    wait_for_status(&server, &id, "running")
+        .await
+        .expect("running");
+
+    let (mut stream, headers) = open_sse(server.address, &events_request(&id, None)).await;
+    assert_eq!(headers.status, 200, "{}", headers.body);
+    tokio::time::sleep(Duration::from_millis(200)).await;
+    let events = collect_sse(&mut stream, headers.body, 1).await;
+    assert_eq!(events[0]["kind"], "execution.started");
+    assert_allowlisted(&events[0]);
+    drop(stream);
+
+    backend.release(1);
+    wait_for_status(&server, &id, "succeeded")
+        .await
+        .expect("execution continued after sse drop");
+    server.stop().await.expect("clean stop");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn sse_client_ceiling_refuses_the_next_stream() {
+    let world = TestWorld::new();
+    let backend = Arc::new(GatedBackend::new());
+    let server = world.start(backend.clone(), one_sse_limits()).await;
+    let created = server
+        .request(&post_request(
+            r#"{"workflow":"root.nika.yaml"}"#,
+            "sse-cap",
+            &auth_header(),
+        ))
+        .await;
+    let id = created.json()["id"].as_str().expect("id").to_owned();
+    wait_for_status(&server, &id, "running")
+        .await
+        .expect("running");
+
+    let (stream, first) = open_sse(server.address, &events_request(&id, None)).await;
+    assert_eq!(first.status, 200, "{}", first.body);
+    let second = server.request(&events_request(&id, None)).await;
+    assert_eq!(second.status, 503, "{}", second.body);
+    assert_eq!(second.json()["error"]["code"], "sse_capacity");
+    let status = server
+        .request(&get_request(&format!("/v1/jobs/{id}/status")))
+        .await;
+    assert_eq!(status.status, 200);
+
+    drop(stream);
+    tokio::time::sleep(Duration::from_millis(30)).await;
+    let (replacement, recovered) = open_sse(server.address, &events_request(&id, None)).await;
+    assert_eq!(recovered.status, 200, "{}", recovered.body);
+    drop(replacement);
+    backend.release(1);
+    wait_for_status(&server, &id, "succeeded")
+        .await
+        .expect("settled");
+    server.stop().await.expect("clean stop");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn interrupted_event_stream_redacts_payload_fields() {
+    let world = TestWorld::new();
+    let hanging = Arc::new(TestBackend::hangs());
+    let first = world.start(hanging.clone(), short_shutdown_limits()).await;
+    let created = first
+        .request(&post_request(
+            r#"{"workflow":"root.nika.yaml"}"#,
+            "sse-redact",
+            &auth_header(),
+        ))
+        .await;
+    let id = created.json()["id"].as_str().expect("id").to_owned();
+    wait_for_status(&first, &id, "running")
+        .await
+        .expect("running");
+    wait_for_calls(hanging.as_ref(), 1)
+        .await
+        .expect("hanging backend entered execute");
+    assert!(matches!(
+        first.stop().await,
+        Err(ServerError::ShutdownTimeout)
+    ));
+
+    let replacement = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
+    let second = world.start(replacement, limits()).await;
+    wait_for_status(&second, &id, "interrupted")
+        .await
+        .expect("interrupted");
+    let streamed = second.request(&events_request(&id, None)).await;
+    assert_eq!(streamed.status, 200, "{}", streamed.body);
+    let events = parse_sse_data(&streamed.body);
+    assert!(!events.is_empty(), "{}", streamed.body);
+    for event in &events {
+        assert_allowlisted(event);
+        assert!(event.get("incarnation_generation").is_none());
+        assert!(event.get("previous_incarnation_generation").is_none());
+        assert!(!streamed.body.contains(TOKEN));
+        assert!(!streamed.body.contains("/jobs"));
+    }
+    second.stop().await.expect("clean stop");
+}
+
 async fn wait_for_status(server: &TestServer, id: &str, expected: &str) -> Result<(), String> {
     for _ in 0..200 {
         let response = server
@@ -1056,6 +1264,71 @@ fn get_request(path: &str) -> String {
         "GET {path} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n{}\r\n",
         auth_header()
     )
+}
+
+fn events_request(id: &str, last_event_id: Option<&str>) -> String {
+    let last = last_event_id
+        .map(|cursor| format!("Last-Event-ID: {cursor}\r\n"))
+        .unwrap_or_default();
+    format!(
+        "GET /v1/jobs/{id}/events HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n{}{last}\r\n",
+        auth_header()
+    )
+}
+
+fn parse_sse_data(body: &str) -> Vec<Value> {
+    let mut events = Vec::new();
+    for block in body.split("\n\n") {
+        for line in block.lines() {
+            if let Some(data) = line.strip_prefix("data: ") {
+                events.push(serde_json::from_str(data).expect("sse json"));
+            }
+        }
+    }
+    events
+}
+
+fn assert_allowlisted(event: &Value) {
+    let object = event.as_object().expect("event object");
+    assert_eq!(object.len(), 3, "{event}");
+    assert!(object.contains_key("sequence"), "{event}");
+    assert!(object.contains_key("kind"), "{event}");
+    assert!(object.contains_key("status"), "{event}");
+}
+
+async fn open_sse(address: SocketAddr, request: &str) -> (tokio::net::TcpStream, WireResponse) {
+    let mut stream = tokio::net::TcpStream::connect(address)
+        .await
+        .expect("connect");
+    stream.write_all(request.as_bytes()).await.expect("write");
+    let mut buf = Vec::new();
+    while !buf.windows(4).any(|window| window == b"\r\n\r\n") {
+        let mut chunk = [0; 512];
+        let n = stream.read(&mut chunk).await.expect("header read");
+        assert!(n > 0, "eof before headers");
+        buf.extend_from_slice(&chunk[..n]);
+    }
+    (stream, WireResponse::parse(&buf))
+}
+
+async fn collect_sse(
+    stream: &mut tokio::net::TcpStream,
+    mut body: String,
+    min: usize,
+) -> Vec<Value> {
+    for _ in 0..200 {
+        let events = parse_sse_data(&body);
+        if events.len() >= min {
+            return events;
+        }
+        let mut chunk = [0; 512];
+        match tokio::time::timeout(Duration::from_millis(20), stream.read(&mut chunk)).await {
+            Ok(Ok(0)) => break,
+            Ok(Ok(n)) => body.push_str(std::str::from_utf8(&chunk[..n]).expect("utf8")),
+            _ => {}
+        }
+    }
+    parse_sse_data(&body)
 }
 
 fn auth_header() -> String {

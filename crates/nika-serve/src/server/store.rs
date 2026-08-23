@@ -5,16 +5,21 @@ use std::sync::Arc;
 use std::thread::JoinHandle;
 
 use serde_json::Value;
-use tokio::sync::oneshot;
+use tokio::sync::{Notify, oneshot};
 
 use crate::{
-    Admission, IdempotencyKey, JobId, JobRecord, JobStatus, JobStore, JobStoreError, RequestDigest,
-    ServerIncarnation,
+    Admission, EventPageLimit, IdempotencyKey, JobEvent, JobId, JobRecord, JobStatus, JobStore,
+    JobStoreError, RequestDigest, ServerIncarnation,
 };
 
 use super::ServerError;
 
 type Reply<T> = oneshot::Sender<Result<T, JobStoreError>>;
+
+pub(super) struct EventPage {
+    pub events: Vec<JobEvent>,
+    pub status: JobStatus,
+}
 
 enum RequestCommand {
     Create {
@@ -26,6 +31,12 @@ enum RequestCommand {
     Get {
         id: JobId,
         reply: Reply<Option<JobRecord>>,
+    },
+    EventsAfter {
+        id: JobId,
+        after: u64,
+        limit: EventPageLimit,
+        reply: Reply<EventPage>,
     },
 }
 
@@ -53,6 +64,7 @@ enum ControlCommand {
 pub(super) struct StoreHandle {
     requests: std::sync::mpsc::SyncSender<RequestCommand>,
     controls: std::sync::mpsc::SyncSender<ControlCommand>,
+    events: Arc<Notify>,
 }
 
 impl StoreHandle {
@@ -76,6 +88,26 @@ impl StoreHandle {
         let (reply, answer) = oneshot::channel();
         self.send_request(RequestCommand::Get { id, reply })?;
         receive(answer).await
+    }
+
+    pub(super) async fn events_after(
+        &self,
+        id: JobId,
+        after: u64,
+        limit: EventPageLimit,
+    ) -> Result<EventPage, ServerError> {
+        let (reply, answer) = oneshot::channel();
+        self.send_request(RequestCommand::EventsAfter {
+            id,
+            after,
+            limit,
+            reply,
+        })?;
+        receive(answer).await
+    }
+
+    pub(super) fn event_notify(&self) -> Arc<Notify> {
+        Arc::clone(&self.events)
     }
 
     pub(super) async fn transition_with_events(
@@ -154,14 +186,26 @@ impl StoreActor {
     ) -> Result<Self, ServerError> {
         let (requests, request_receiver) = std::sync::mpsc::sync_channel(request_capacity);
         let (controls, control_receiver) = std::sync::mpsc::sync_channel(control_capacity);
+        let events = Arc::new(Notify::new());
+        let thread_events = Arc::clone(&events);
         let thread = std::thread::Builder::new()
             .name("nika-serve-store".to_owned())
             .spawn(move || {
-                serve_store(&request_receiver, &control_receiver, &store, &incarnation);
+                serve_store(
+                    &request_receiver,
+                    &control_receiver,
+                    &store,
+                    &incarnation,
+                    &thread_events,
+                );
             })
             .map_err(|_| ServerError::BlockingTask)?;
         Ok(Self {
-            handle: StoreHandle { requests, controls },
+            handle: StoreHandle {
+                requests,
+                controls,
+                events,
+            },
             thread: Some(thread),
         })
     }
@@ -188,10 +232,11 @@ fn serve_store(
     controls: &std::sync::mpsc::Receiver<ControlCommand>,
     store: &JobStore,
     incarnation: &ServerIncarnation,
+    events: &Notify,
 ) {
     loop {
         if let Ok(command) = controls.try_recv() {
-            if !serve_control(command, store, incarnation) {
+            if !serve_control(command, store, incarnation, events) {
                 break;
             }
             continue;
@@ -201,7 +246,7 @@ fn serve_store(
             Err(std::sync::mpsc::RecvTimeoutError::Timeout) => continue,
             Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => match controls.recv() {
                 Ok(command) => {
-                    if !serve_control(command, store, incarnation) {
+                    if !serve_control(command, store, incarnation, events) {
                         break;
                     }
                     continue;
@@ -227,6 +272,29 @@ fn dispatch_request(command: RequestCommand, store: &JobStore) {
         RequestCommand::Get { id, reply } => {
             let _result = reply.send(store.get(&id));
         }
+        RequestCommand::EventsAfter {
+            id,
+            after,
+            limit,
+            reply,
+        } => {
+            let result = store.events_after(&id, after, limit).and_then(|events| {
+                store
+                    .get(&id)?
+                    .ok_or(JobStoreError::JobNotFound(id))
+                    .map(|record| EventPage {
+                        events,
+                        status: record.status(),
+                    })
+            });
+            let _result = reply.send(result);
+        }
+    }
+}
+
+fn notify_persisted<T>(result: &Result<T, JobStoreError>, events: &Notify) {
+    if result.is_ok() {
+        events.notify_waiters();
     }
 }
 
@@ -234,6 +302,7 @@ fn serve_control(
     command: ControlCommand,
     store: &JobStore,
     incarnation: &ServerIncarnation,
+    events: &Notify,
 ) -> bool {
     match command {
         ControlCommand::Transition {
@@ -245,6 +314,7 @@ fn serve_control(
             let result = store
                 .transition_with_events(&id, status, std::slice::from_ref(&event))
                 .map(|mutation| mutation.record().clone());
+            notify_persisted(&result, events);
             let _result = reply.send(result);
         }
         ControlCommand::Interrupt { id, reply } => {
@@ -253,12 +323,15 @@ fn serve_control(
                 "status": "interrupted"
             });
             let result = store.interrupt_running(&id, incarnation, &payload);
+            notify_persisted(&result, events);
             if let Some(reply) = reply {
                 let _result = reply.send(result);
             }
         }
         ControlCommand::SettleInterrupted { reply } => {
-            let _result = reply.send(store.settle_interrupted_jobs(incarnation));
+            let result = store.settle_interrupted_jobs(incarnation);
+            notify_persisted(&result, events);
+            let _result = reply.send(result);
         }
         ControlCommand::Shutdown { reply } => {
             let _result = reply.send(());

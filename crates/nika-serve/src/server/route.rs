@@ -5,7 +5,7 @@ use std::convert::Infallible;
 use std::sync::Arc;
 
 use bytes::Bytes;
-use http_body_util::{BodyExt as _, Full, Limited};
+use http_body_util::{BodyExt as _, Limited};
 use hyper::body::Incoming;
 use hyper::header::{CONTENT_ENCODING, CONTENT_LENGTH, CONTENT_TYPE};
 use hyper::{Method, Request, Response, StatusCode};
@@ -13,12 +13,13 @@ use sha2::{Digest as _, Sha256};
 
 use crate::{Admission, IdempotencyKey, JobId, RequestDigest};
 
-use super::error::{ApiError, ResponseBody};
+use super::error::{ApiError, ResponseBody, once_body};
 use super::model::{
     CreateJobRequest, HealthResponse, JobResponse, JobStatusResponse, WorkflowListResponse,
     WorkflowMetadataResponse,
 };
 use super::registry::{list_workflows, valid_workflow_name, workflow_exists};
+use super::sse;
 use super::{AppState, ExecutionTask};
 
 const IDEMPOTENCY_KEY: &str = "idempotency-key";
@@ -48,6 +49,9 @@ async fn protected(request: Request<Incoming>, state: Arc<AppState>) -> Response
             "request body exceeds the configured limit",
         )
         .into_response();
+    }
+    if request.method() == Method::GET && sse::is_events_path(request.uri().path()) {
+        return sse::handle(request, state).await;
     }
     match tokio::time::timeout(
         state.limits.request_timeout(),
@@ -340,7 +344,7 @@ fn is_json(headers: &hyper::HeaderMap) -> bool {
 
 fn json_response<T: serde::Serialize>(status: StatusCode, value: &T) -> Response<ResponseBody> {
     let bytes = serde_json::to_vec(value).unwrap_or_else(|_| b"{}".to_vec());
-    let mut response = Response::new(Full::new(Bytes::from(bytes)));
+    let mut response = Response::new(once_body(bytes));
     *response.status_mut() = status;
     response.headers_mut().insert(
         CONTENT_TYPE,
@@ -350,16 +354,11 @@ fn json_response<T: serde::Serialize>(status: StatusCode, value: &T) -> Response
 }
 
 fn job_not_found() -> Response<ResponseBody> {
-    ApiError::new(StatusCode::NOT_FOUND, "job_not_found", "job not found").into_response()
+    ApiError::job_not_found().into_response()
 }
 
 fn internal_error() -> Response<ResponseBody> {
-    ApiError::new(
-        StatusCode::INTERNAL_SERVER_ERROR,
-        "internal_error",
-        "request could not be completed",
-    )
-    .into_response()
+    ApiError::internal().into_response()
 }
 
 fn queue_full() -> Response<ResponseBody> {
@@ -381,10 +380,5 @@ fn job_capacity() -> Response<ResponseBody> {
 }
 
 fn store_busy() -> Response<ResponseBody> {
-    ApiError::new(
-        StatusCode::SERVICE_UNAVAILABLE,
-        "store_busy",
-        "durable job state is temporarily unavailable",
-    )
-    .into_response()
+    ApiError::store_busy().into_response()
 }

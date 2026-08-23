@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | **WORKSPACE WIP — W06 AUTHENTICATED HTTP**. Durable jobs plus bounded loopback HTTP are present; SSE, OpenAPI/SDK, and full 12-gate admission remain later carriers. |
+| Status | **WORKSPACE WIP — W07 SSE**. Durable jobs plus bounded loopback HTTP and an authenticated job-event SSE projection are present; OpenAPI/SDK and full 12-gate admission remain later carriers. |
 | Layer | L4 — remote execution interface projection |
 | Purpose | Persist request admission, lifecycle status, and resumable event cursors, and project the first authenticated HTTP routes over that state. |
 | LOC budget | ≤5,000 source lines for the state plane; ≤15,000 hard crate cap. |
@@ -20,7 +20,8 @@
 authority required by ADR-117. W05 established its state plane. W06 adds a
 real Hyper/Tokio TCP listener, deny-by-default Bearer authentication, a
 held `.nika.yaml` registry, `ExecutionService` admission, an injected
-`ExecutionBackend` seam, and the first job/workflow routes. It does not
+`ExecutionBackend` seam, and the first job/workflow routes. W07 projects
+the durable job journal over `GET /v1/jobs/{id}/events` as SSE. It does not
 import `nika-cli`. Default `nika serve` remains the resident ARM firer.
 The CLI admits the `--bind` + `--workflows` + `--token-file` pair (and
 refuses `--once`/`--dry` with bind); `nika_serve::serve_http` is the
@@ -69,7 +70,7 @@ becomes a child name.
   adapters parse opaque ids with `JobId::parse`.
 - `ServerConfig` requires bind, workflow root, state root, and token-file
   source. `ServerLimits` names body, request, execution, shutdown,
-  active-job, queue, connection, header, and durable-job ceilings.
+  active-job, queue, connection, SSE-client, header, and durable-job ceilings.
 - `BoundServer::bind` validates and acquires all authority before listening;
   `serve_until` stops admission and gives active jobs a bounded grace period.
 - `ExecutionBackend` receives only `ExecutionContext` over the immutable
@@ -89,10 +90,16 @@ No public job mutation accepts a filesystem path. Startup paths live only in
 | `POST` | `/v1/jobs` | exactly one Bearer + `Idempotency-Key` | opaque id + status |
 | `GET` | `/v1/jobs/{id}` | exactly one Bearer | opaque id + status |
 | `GET` | `/v1/jobs/{id}/status` | exactly one Bearer | status only |
+| `GET` | `/v1/jobs/{id}/events` | exactly one Bearer | SSE `text/event-stream`; `id:` sequence; `data:` `{sequence,kind,status}` |
 
 Cancel and artifact routes return 404. No route returns source bytes,
 idempotency keys, request digests, event payloads, provider/tool data, paths,
 token material, or internal error text. CORS headers are not emitted.
+`Last-Event-ID` resumes after that sequence. An invalid cursor is 400; a
+cursor beyond the latest persisted sequence is a typed 400. The request
+timeout does not bound an open event stream. Events become visible only
+after durable persist. A slow client is dropped rather than stalling
+execution.
 
 On Unix, the token file must be opened no-follow/nonblocking as a regular
 owner-only file. It contains 32–512 visible ASCII bytes (one trailing line
@@ -197,7 +204,7 @@ Inline library tests cover:
 - sentinel-root debug non-disclosure;
 - payload, batch, snapshot, and page boundary refusals without durable mutation.
 - real loopback HTTP health, workflow list/metadata, job-create, job-read,
-  and status requests;
+  status, and job-event SSE requests;
 - valid authentication plus uniform missing, duplicate, malformed, wrong, and
   oversized credential refusal;
 - auth-before-parse, invalid JSON/content type, coarse and streaming body
@@ -211,8 +218,12 @@ Inline library tests cover:
 - exact active-run and queued-job boundaries, durable job capacity, exact and
   excess header counts, connection saturation, credential FIFO refusal, and
   fail-fast store contention followed by clean incarnation release.
+- SSE Bearer-before-lookup, allowlisted `{sequence,kind,status}` frames,
+  `Last-Event-ID` resume, invalid and future cursors, request-timeout bypass,
+  slow-client drop, disconnect without blocking execution, SSE client ceiling,
+  and redaction of payload extras including interrupted incarnation fields.
 
-The W05/W06 focused command contract is:
+The W05/W07 focused command contract is:
 
 ```bash
 cargo test -p nika-serve --lib
@@ -243,7 +254,7 @@ admission wave closes the gates whose authority does not exist in W05.
 
 ## 6. Explicit non-goals
 
-No SSE · no TLS · no OpenAPI/SDK projection · no workflow upload · no
+No TLS · no OpenAPI/SDK projection · no workflow upload · no
 cancellation · no artifact authority · no automatic retry of interrupted
 execution. The store records the lost ownership but cannot prove whether an
 effect committed before the crash. W05 also provides no concrete durable
