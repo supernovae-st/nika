@@ -564,7 +564,15 @@ where
             .clone()
             .or_else(|| std::env::current_dir().ok())
             .unwrap_or_default();
-        match nika_exec_runner::sandbox_spec::spec_of(permits, &root) {
+        // Operator HOME is read HERE, at the runtime seam — never inside
+        // the L1 expander, which is env-blind by clippy law. A missing or
+        // non-absolute HOME leaves `~/` grants unexpanded (jail fail-close).
+        #[allow(clippy::disallowed_methods)] // operator HOME for portable ~/ grants (#1025)
+        let home = std::env::var("HOME")
+            .ok()
+            .map(|h| h.trim_end_matches('/').to_owned())
+            .filter(|h| h.starts_with('/'));
+        match nika_exec_runner::sandbox_spec::spec_of_with_home(permits, &root, home.as_deref()) {
             Ok(spec) => {
                 for grant in spec.fs_read.iter().chain(spec.fs_write.iter()) {
                     witness.record(
