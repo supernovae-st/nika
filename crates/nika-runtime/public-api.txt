@@ -531,7 +531,7 @@ pub struct nika_runtime::compose::StderrEmitter
 impl core::clone::Clone for nika_runtime::compose::StderrEmitter
 pub fn nika_runtime::compose::StderrEmitter::clone(&self) -> nika_runtime::compose::StderrEmitter
 impl core::default::Default for nika_runtime::compose::StderrEmitter
-pub fn nika_runtime::compose::StderrEmitter::default() -> nika_runtime::compose::StderrEmitter
+pub fn nika_runtime::compose::StderrEmitter::default() -> Self
 impl core::fmt::Debug for nika_runtime::compose::StderrEmitter
 pub fn nika_runtime::compose::StderrEmitter::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::marker::Copy for nika_runtime::compose::StderrEmitter
@@ -581,6 +581,7 @@ pub fn nika_runtime::compose::fs_boundary_of_permits(permits: core::option::Opti
 pub fn nika_runtime::compose::net_boundary_of(wf: &nika_schema::raw::workflow::RawWorkflow) -> nika_http::NetBoundary
 pub fn nika_runtime::compose::net_boundary_of_permits(permits: core::option::Option<&nika_cap::permits::Permits>) -> nika_http::NetBoundary
 pub fn nika_runtime::compose::production_runtime(default_model: &str, caps: nika_runtime::compose::RuntimeCapabilities, run: core::option::Option<&nika_vocab::run::RunDecl>) -> core::result::Result<nika_runtime::compose::ProdRuntime, nika_runtime::sandbox_select::ComposeError>
+pub fn nika_runtime::compose::service_runtime(default_model: &str, caps: nika_runtime::compose::RuntimeCapabilities, run: core::option::Option<&nika_vocab::run::RunDecl>) -> core::result::Result<nika_runtime::compose::ProdRuntime, nika_runtime::sandbox_select::ComposeError>
 pub fn nika_runtime::compose::simulated_runtime(default_model: &str, caps: nika_runtime::compose::RuntimeCapabilities, run: core::option::Option<&nika_vocab::run::RunDecl>) -> core::result::Result<nika_runtime::compose::SimRuntime, nika_kernel_core::io::http::HttpError>
 pub type nika_runtime::compose::ProdRuntime = nika_runtime::Runtime<nika_exec_runner::TokioShell, nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::declared_clock::DeclaredClock, nika_runtime::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::live::LiveInspect>, nika_http::ReqwestHttp, nika_runtime::compose::RegistryProvider<nika_http::ReqwestHttp>, nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::declared_clock::DeclaredClock, nika_runtime::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::live::LiveInspect>, nika_clock::declared_clock::DeclaredClock>
 pub type nika_runtime::compose::SimRuntime = nika_runtime::Runtime<nika_runtime::simulated::SimulatedShell, nika_runtime::simulated::SimulatedDispatcher<nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::declared_clock::DeclaredClock, nika_runtime::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::live::LiveInspect>>, nika_http::ReqwestHttp, nika_runtime::compose::RegistryProvider<nika_http::ReqwestHttp>, nika_runtime::simulated::SimulatedDispatcher<nika_builtin::BuiltinDispatcher<nika_fs::TokioFs, nika_http::ReqwestHttp, nika_clock::declared_clock::DeclaredClock, nika_runtime::compose::StderrEmitter, nika_builtin::NonInteractive, nika_builtin::live::LiveInspect>>, nika_clock::declared_clock::DeclaredClock>

@@ -133,6 +133,9 @@ pub use identity::{EngineIdentity, engine_identity};
 pub use origins::{InputOrigin, input_origins};
 pub use pause::WorkflowPause;
 pub use record::{TaskErrorRecord, TaskRecord, TaskStatus, TerminalCause, legal};
+// The shared execution driver (`ServiceExecutionDriver` + `AuthorizedRuntime`
+// + the `ChildTrace*`/`Service*` family) descended to `nika-service-execution`
+// at the 15k wall; `compose::service_runtime` is the one seam it reads back.
 // Descended to `nika-secret` at the 15k wall — paths preserved.
 pub use nika_secret::{
     NoSecrets, SecretResolveError, WorkflowSecretResolver, source_is_runtime_resolvable,

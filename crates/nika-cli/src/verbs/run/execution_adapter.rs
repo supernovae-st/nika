@@ -7,10 +7,8 @@
 
 use super::*;
 
-#[derive(Clone)]
 pub(super) struct AdmittedWorld {
-    pub(super) snapshot: nika_execution::ExecutionSnapshot,
-    pub(super) display_root: std::path::PathBuf,
+    pub(super) driver: nika_service_execution::ServiceExecutionDriver,
     pub(super) execution_id: nika_types::id::ExecutionId,
     pub(super) trace_id: nika_types::id::TraceId,
 }
@@ -19,13 +17,22 @@ impl AdmittedWorld {
     fn from_context(
         context: nika_execution::ExecutionContext<'_>,
         display_root: std::path::PathBuf,
-    ) -> Self {
-        Self {
-            snapshot: context.snapshot().clone(),
+        trace: bool,
+    ) -> Option<Self> {
+        let execution_id = context.execution_id();
+        let trace_id = context.trace_id();
+        let driver = nika_service_execution::ServiceExecutionDriver::for_local_interface(
+            context,
             display_root,
-            execution_id: context.execution_id(),
-            trace_id: context.trace_id(),
-        }
+        )?
+        .with_child_trace_factory(std::sync::Arc::new(
+            child_runner::CliChildTraceFactory::new(trace),
+        ));
+        Some(Self {
+            driver,
+            execution_id,
+            trace_id,
+        })
     }
 }
 
@@ -158,25 +165,28 @@ fn run_admitted_context(
     request: &CliExecutionRequest<'_>,
     display_root: std::path::PathBuf,
 ) -> RunVerdict {
-    let world = AdmittedWorld::from_context(context, display_root);
-    let (wf, report, skills) = match admitted_program(context, request, &world.snapshot) {
-        Ok(program) => program,
+    let Some(world) = AdmittedWorld::from_context(context, display_root, !request.no_trace_file)
+    else {
+        return admitted_root_refusal(request.output_json);
+    };
+    let world = match admitted_program(world, request) {
+        Ok(world) => world,
         Err(verdict) => return *verdict,
     };
+    let wf = world.driver.workflow().clone();
+    let report = world.driver.report().clone();
     let inputs = match inputs::validated_var_overrides(request.vars, &wf, request.output_json) {
         Ok(map) => map,
         Err(code) => return RunVerdict::bare(code),
     };
-    let Some(source) = admitted_root_source(&world.snapshot) else {
-        return admitted_root_refusal(request.output_json);
-    };
+    let source = world.driver.root_source();
     if request.dry_run {
         return dry_run::lane(
             request.file,
             source,
             &wf,
             &report,
-            context.skills(),
+            world.driver.skills(),
             request.repair_target,
             request.model_override,
             request.json,
@@ -204,16 +214,12 @@ fn run_admitted_context(
         Err(code) => return RunVerdict::bare(code),
     };
     let runtime = match composed_runtime(
-        &wf,
-        source,
         request.model_override,
         request.access_pin,
         inputs,
         setup,
         request.max_cost_usd,
-        skills.clone(),
         (request.no_trace_file, request.output_json),
-        &report,
         &world,
     ) {
         Ok(runtime) => runtime,
@@ -234,7 +240,6 @@ fn run_admitted_context(
         request.model_override,
         request.access_pin,
         request.max_cost_usd,
-        &skills,
         request.theme,
         request.mode,
         (
@@ -249,33 +254,17 @@ fn run_admitted_context(
 }
 
 fn admitted_program(
-    context: nika_execution::ExecutionContext<'_>,
+    mut world: AdmittedWorld,
     request: &CliExecutionRequest<'_>,
-    snapshot: &nika_execution::ExecutionSnapshot,
-) -> Result<(RawWorkflow, CheckReport, BTreeMap<String, String>), Box<RunVerdict>> {
-    let mut report = context.check().clone();
-    crate::verbs::stamp_judged_semantic(context.workflow(), &mut report);
-    let (wf, report) = match apply_task_scope(
-        context.workflow().clone(),
-        report,
-        request.task_filter,
-        request.output_json,
-    ) {
-        Ok(pair) => pair,
-        Err(code) => return Err(Box::new(RunVerdict::bare(code))),
-    };
-    let skills = match admitted_skills(&wf, snapshot) {
-        Ok(skills) => skills,
-        Err(error) => {
-            epilogue::emit_diagnostic(&format!("nika run: {error}"), request.output_json);
-            return Err(Box::new(RunVerdict::bare(exit::FILE)));
-        }
-    };
-    Ok((wf, report, skills))
-}
-
-fn admitted_root_source(snapshot: &nika_execution::ExecutionSnapshot) -> Option<&str> {
-    snapshot.text(snapshot.root())
+) -> Result<AdmittedWorld, Box<RunVerdict>> {
+    world.driver = world
+        .driver
+        .with_task_scope(request.task_filter)
+        .map_err(|message| {
+            epilogue::emit_diagnostic(&message, request.output_json);
+            Box::new(RunVerdict::bare(exit::ENV))
+        })?;
+    Ok(world)
 }
 
 fn admitted_root_refusal(output_json: bool) -> RunVerdict {
@@ -330,31 +319,6 @@ fn lexical_path(path: &std::path::Path) -> std::path::PathBuf {
         }
     }
     normalized
-}
-
-fn admitted_skills(
-    workflow: &RawWorkflow,
-    snapshot: &nika_execution::ExecutionSnapshot,
-) -> Result<BTreeMap<String, String>, String> {
-    let owner = snapshot.root();
-    let mut reader = |authored: &str| {
-        let logical = child_runner::resolve_admitted(owner, authored)?;
-        snapshot
-            .text(&logical)
-            .map(str::to_owned)
-            .ok_or_else(|| format!("captured world has no unit `{logical}`"))
-    };
-    let resolved = nika_schema::resolve_skills(workflow, &mut reader);
-    if resolved.findings.is_empty() {
-        Ok(resolved.texts)
-    } else {
-        Err(resolved
-            .findings
-            .iter()
-            .map(nika_schema::SkillFinding::row)
-            .collect::<Vec<_>>()
-            .join(" | "))
-    }
 }
 
 fn admission_refusal(error: &nika_execution::ExecutionError, output_json: bool) -> RunVerdict {

@@ -8,6 +8,7 @@ const EXECUTION_ADAPTER: &str = include_str!("execution_adapter.rs");
 const DRY_RUN: &str = include_str!("dry_run.rs");
 const PROVENANCE: &str = include_str!("provenance.rs");
 const CHILD_RUNNER: &str = include_str!("child_runner.rs");
+const RUNTIME_DRIVER: &str = include_str!("../../../../nika-service-execution/src/lib.rs");
 const CLI_CARGO: &str = include_str!("../../../Cargo.toml");
 const EXECUTION_CARGO: &str = include_str!("../../../../nika-execution/Cargo.toml");
 const EXECUTION_SERVICE: &str = include_str!("../../../../nika-execution/src/service.rs");
@@ -36,7 +37,7 @@ fn execution_service_does_not_accept_a_capability_capturing_runner() {
 fn dry_run_refusals_render_the_admitted_pair_without_path_reentry() {
     assert!(!DRY_RUN.contains("check::run("));
     assert!(DRY_RUN.contains("check::run_admitted_pair"));
-    assert!(EXECUTION_ADAPTER.contains("admitted_root_source(&world.snapshot)"));
+    assert!(EXECUTION_ADAPTER.contains("world.driver.root_source()"));
 }
 
 #[test]
@@ -46,6 +47,17 @@ fn child_execution_has_no_post_admission_filesystem_reader() {
     assert!(!CHILD_RUNNER.contains("ProdChildRunner::new"));
     assert!(!CHILD_RUNNER.contains("closure_digest_fs"));
     assert!(!CHILD_RUNNER.contains("fn resolve_against"));
+    assert!(!CHILD_RUNNER.contains("struct ProdChildRunner"));
+    assert!(EXECUTION_ADAPTER.contains("ServiceExecutionDriver::for_local_interface"));
+    assert!(RUNTIME_DRIVER.contains("impl ChildRunner for ServiceExecutionDriver"));
+    assert!(!RUNTIME_DRIVER.contains("pub trait CapturedSnapshot"));
+    assert!(!RUNTIME_DRIVER.contains("workflow: &RawWorkflow,\n        report:"));
+    for forbidden in ["std::fs::read(", "read_to_string(", "nika_fs::OwnedDir"] {
+        assert!(
+            !RUNTIME_DRIVER.contains(forbidden),
+            "L3 execution driver contains forbidden reader `{forbidden}`"
+        );
+    }
 }
 
 #[test]

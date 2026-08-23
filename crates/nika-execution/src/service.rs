@@ -37,7 +37,7 @@ impl ExecutionService {
         root: &Path,
     ) -> Result<AdmittedExecution, ExecutionError> {
         let snapshot = ExecutionSnapshot::capture(project, root, self.limits)?;
-        Self::admit_snapshot(snapshot)
+        self.readmit_snapshot(snapshot)
     }
 
     /// Admit root bytes already captured by an interface, with transitive
@@ -55,7 +55,7 @@ impl ExecutionService {
     ) -> Result<AdmittedExecution, ExecutionError> {
         let snapshot =
             ExecutionSnapshot::capture_root_bytes(project, root, root_bytes, self.limits)?;
-        Self::admit_snapshot(snapshot)
+        self.readmit_snapshot(snapshot)
     }
 
     /// Admit a workflow world with explicit project-level imports.
@@ -76,7 +76,7 @@ impl ExecutionService {
     {
         let snapshot =
             ExecutionSnapshot::capture_with_imports(project, root, imports, self.limits)?;
-        Self::admit_snapshot(snapshot)
+        self.readmit_snapshot(snapshot)
     }
 
     /// Execute through the original function-pointer runner seam.
@@ -123,9 +123,23 @@ impl ExecutionService {
         }
     }
 
-    pub(crate) fn admit_snapshot(
+    /// Readmit a captured snapshot after revalidating its complete owned world.
+    ///
+    /// This is the service/queue boundary: callers may retain or transport an
+    /// [`ExecutionSnapshot`], but a new execution identity is minted only
+    /// after the current engine re-applies format, digest, rooted-closure,
+    /// parser, checker, and skill validation to those exact bytes. The method
+    /// performs no filesystem reads.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ExecutionError`] when any stored identity, resource ceiling,
+    /// dependency role, workflow, check finding, or skill no longer validates.
+    pub fn readmit_snapshot(
+        &self,
         snapshot: ExecutionSnapshot,
     ) -> Result<AdmittedExecution, ExecutionError> {
+        snapshot.revalidate(self.limits)?;
         let root = snapshot.root().to_owned();
         let root_text = snapshot
             .text(&root)
@@ -510,7 +524,9 @@ mod tests {
         );
         let digest = snapshot.digest().to_owned();
         assert_eq!(source.reads.borrow().as_slice(), reads_at_boundary);
-        let admitted = ExecutionService::admit_snapshot(snapshot).expect("admit captured world");
+        let admitted = ExecutionService::default()
+            .readmit_snapshot(snapshot)
+            .expect("admit captured world");
         assert_eq!(
             source.reads.borrow().as_slice(),
             reads_at_boundary,
@@ -560,7 +576,9 @@ mod tests {
             SnapshotLimits::default(),
         )
         .expect("capture");
-        let admitted = ExecutionService::admit_snapshot(snapshot).expect("admit captured world");
+        let admitted = ExecutionService::default()
+            .readmit_snapshot(snapshot)
+            .expect("admit captured world");
         let execution_id = admitted.execution_id();
         let trace_id = admitted.trace_id();
         let digest = admitted.snapshot().digest().to_owned();

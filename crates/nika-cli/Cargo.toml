@@ -20,6 +20,7 @@ nika-cadence = { path = "../nika-cadence", version = "0.113.0" }  # the arm: gra
 nika-arm     = { path = "../nika-arm", version = "0.113.0" }      # descriptor-rooted ARM custody + the one firer (L4→L4)
 nika-fs      = { path = "../nika-fs", version = "0.113.0" }       # descriptor-rooted sidecar ownership (L4→L1)
 nika-execution = { path = "../nika-execution", version = "0.113.0" } # shared owned-byte admission/execution boundary (L4→L3)
+nika-service-execution = { path = "../nika-service-execution", version = "0.113.0" } # the ONE shared production execution driver over an admitted world (L4→L3)
 jiff        = { workspace = true }  # the CLOCK — nika-cadence is pure and takes a Zoned; reading one is an L4 act  # the project file (ceiling — the --max-cost-usd flag's default rung · D-2026-08-11-N5)
 nika-check  = { path = "../nika-check", version = "0.113.0" }  # the ADR-092 check ladder (the check verb · run gates · fix loop)
 nika-graph = { path = "../nika-graph", version = "0.113.0" }   # the canonical projection (inspect --format json renders it)

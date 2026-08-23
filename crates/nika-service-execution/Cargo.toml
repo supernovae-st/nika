@@ -1,0 +1,37 @@
+[package]
+name          = "nika-service-execution"
+description   = "The ONE shared production execution driver over an admitted, byte-owned world. Composes the root runtime and every nested `workflow:` call through the same production composition root, for the local CLI/ARM surface and the service surface alike. Layer L3. Spec: docs/crate-specs/nika-service-execution.md."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false  # Internal L3 orchestration crate.
+
+[dependencies]
+nika-runtime     = { path = "../nika-runtime", version = "0.113.0" }      # the composition root + child seam this driver drives (same-layer L3)
+nika-execution   = { path = "../nika-execution", version = "0.113.0" }    # sealed owned-byte admission authority (ExecutionContext · ExecutionSnapshot)
+nika-check       = { path = "../nika-check", version = "0.113.0" }        # CheckReport — the audit-before-run pair sealed to the snapshot
+nika-event       = { path = "../nika-event", version = "0.113.0" }        # Event + the source-identity hash (lf_normal_form · sha256_hex)
+nika-schema      = { path = "../nika-schema", version = "0.113.0" }       # RawWorkflow · RawAction · Permits · ResolvedSkills
+nika-types       = { path = "../nika-types", version = "0.113.0" }        # ExecutionId · RunId · CorrelationId · EventId · Timestamp
+nika-providers   = { path = "../nika-providers", version = "0.113.0" }    # ProviderProbe — the access candidates the run gate judges
+serde_json       = { workspace = true }
+
+[dev-dependencies]
+nika-fs  = { path = "../nika-fs", version = "0.113.0" }   # OwnedDir — the admission input the tests capture from
+tempfile = { workspace = true }
+tokio    = { workspace = true }
+
+[package.metadata.lore]
+daemon        = "timonier"
+archetype     = "kodama-timonier"
+spirit_role   = "conduit le monde scellé · une seule route pour la barre locale et la barre distante"
+voice_pattern = "silent"
+layer         = "L3"
+err_prefix    = "none"
+
+[lints]
+workspace = true

@@ -68,8 +68,9 @@ use teardown::attended_facts;
 
 use nika_dap::journal::{JsonSink, Tee, TraceFileSink};
 use nika_dap::resume::ResumeRequest;
-use nika_runtime::compose::{ProdRuntime, capabilities_of, production_runtime, simulated_runtime};
+use nika_runtime::compose::{capabilities_of, simulated_runtime};
 use nika_runtime::scope_to_task;
+use nika_service_execution::AuthorizedRuntime;
 
 /// The workflow's semantic hash for the run seal (the proof layer's
 /// Merkle commitment over the task leaves — `None` when any task is
@@ -360,7 +361,7 @@ fn announce_access_pin(
 /// more gates than tasks. Machine lanes never ask.
 #[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
 fn execute_and_ask(
-    runtime: &ProdRuntime,
+    runtime: &AuthorizedRuntime,
     (file, source): (&str, &str),
     (wf, report): (&RawWorkflow, &CheckReport),
     resumed: bool,
@@ -368,7 +369,6 @@ fn execute_and_ask(
     model_override: Option<&str>,
     access_pin: Option<&str>,
     max_cost_usd: Option<f64>,
-    skills: &BTreeMap<String, String>,
     theme: Theme,
     mode: RenderMode,
     (json, output_json, no_trace_file, no_outputs): (bool, bool, bool, bool),
@@ -429,7 +429,6 @@ fn execute_and_ask(
             model_override,
             access_pin,
             max_cost_usd,
-            skills,
             theme,
             mode,
             (json, output_json, no_trace_file, !no_outputs),
@@ -454,7 +453,6 @@ fn answered_leg(
     model_override: Option<&str>,
     access_pin: Option<&str>,
     max_cost_usd: Option<f64>,
-    skills: &BTreeMap<String, String>,
     theme: Theme,
     mode: RenderMode,
     (json, output_json, no_trace_file, outputs): (bool, bool, bool, bool),
@@ -470,16 +468,12 @@ fn answered_leg(
         Err(code) => return RunVerdict::bare(code),
     };
     let runtime = match composed_runtime(
-        wf,
-        source,
         model_override,
         access_pin,
         inputs,
         setup,
         max_cost_usd,
-        skills.clone(),
         (no_trace_file, output_json),
-        report,
         world,
     ) {
         Ok(rt) => rt,
@@ -598,18 +592,14 @@ fn output_mode(output: Option<&str>) -> Result<bool, u8> {
 // as `run` itself.
 #[allow(clippy::too_many_arguments)]
 fn composed_runtime(
-    wf: &RawWorkflow,
-    source: &str,
     model_override: Option<&str>,
     access_pin: Option<&str>,
     inputs: inputs::ValidatedInputs,
     setup: ResumeSetup,
     max_cost_usd: Option<f64>,
-    skills: BTreeMap<String, String>,
-    (no_trace_file, output_json): (bool, bool),
-    report: &nika_check::CheckReport,
+    (_no_trace_file, output_json): (bool, bool),
     world: &AdmittedWorld,
-) -> Result<ProdRuntime, u8> {
+) -> Result<AuthorizedRuntime, u8> {
     let ResumeSetup {
         plan: resume_plan,
         answers,
@@ -621,29 +611,18 @@ fn composed_runtime(
         values: overrides,
         origins,
     } = inputs;
+    let wf = world.driver.workflow();
+    let report = world.driver.report();
     let envelope_model = wf.model.as_ref().map_or("", |m| m.value.as_str());
     let default_model = model_override.unwrap_or(envelope_model);
-    let caps = capabilities_of(wf);
     // R-2 · the boot-manifest access stamps, composer-computed (P3 B5).
     let boot_access = crate::verbs::check::models_rung::boot_access_fields(report, access_pin);
     // F-P3 · the run: declaration rides the SAME composition path (clock ·
-    // jitter seed — the stamper half is picked at the drive site).
-    match production_runtime(default_model, caps, wf.run.as_ref().map(|s| &s.value)) {
+    // jitter seed — the stamper half is picked at the drive site). The driver
+    // already owns the exact workflow/report/skills admitted with its bytes.
+    match world.driver.compose(default_model) {
         Ok(rt) => {
             let rt = rt
-                .with_child_runner(std::sync::Arc::new(
-                    child_runner::ProdChildRunner::admitted(
-                        world.snapshot.clone(),
-                        world.snapshot.root(),
-                        &world.display_root,
-                        !no_trace_file,
-                    ),
-                ))
-                .with_child_closures(child_runner::admitted_closure_digests(
-                    wf,
-                    &world.snapshot,
-                    world.snapshot.root(),
-                ))
                 .with_var_overrides(overrides)
                 // F-P13 · the input origins (NEP-0014 law 2) — the boot
                 // manifest journals where every bound input came from.
@@ -664,28 +643,13 @@ fn composed_runtime(
                 // ADR-099 trust amendment · the unverified-trust
                 // posture, attested on the boot manifest.
                 .with_resume_unverified(unverified)
-                // #473 · composer-resolved SKILL.md texts (`## Skills`
-                // injection + the referencing tasks' resume identity).
-                .with_skills(skills)
                 // #409 · the override joins the resume identity of every
                 // model-less infer/agent task (the model they RUN on).
                 .with_model_override(model_override.map(ToOwned::to_owned))
                 // D-2026-08-04-N1 · the `--access` pin: unsatisfied refuses BEFORE the prologue.
                 .with_access_pin(access_pin.map(ToOwned::to_owned))
                 .with_boot_access_fields(boot_access)
-                .with_access_probes(nika_cli_host::probe::access_probes_with_harness())
-                // The journal names the exact definition bytes this composer read.
-                .with_source_sha256(sha256_hex(source.as_bytes()));
-            // A CRLF/BOM source ALSO records its LF normal form, so drift
-            // checks can tell a re-encode from an edit. LF sources skip
-            // the field (the forms coincide — the journal stays lean).
-            let raw_sha = sha256_hex(source.as_bytes());
-            let lf_sha = sha256_hex(lf_normal_form(source).as_bytes());
-            let rt = if lf_sha == raw_sha {
-                rt
-            } else {
-                rt.with_source_sha256_lf(lf_sha)
-            };
+                .with_access_probes(nika_cli_host::probe::access_probes_with_harness());
             Ok(match resume_plan {
                 Some(plan) => rt.with_resume_plan(plan),
                 None => rt,
@@ -730,7 +694,7 @@ pub(crate) fn capture_mock_outputs(
         // deterministic stamps — the test goldens stop drifting).
         let mut stamper = nika_runtime::RunSeams::of(wf.run.as_ref().map(|s| &s.value)).stamper();
         let mut sink = FoldSink::new(std::io::stderr().lock(), theme, RenderMode::Quiet);
-        let (code, outcome) = drive(&runtime, wf, report, stamper.as_mut(), &mut sink).await;
+        let (code, outcome) = drive_raw(&runtime, wf, report, stamper.as_mut(), &mut sink).await;
         // Success is silent (the caller prints the test verdict); a failed
         // mock run surfaces its compact verdict card so the operator sees
         // WHY before the caller's exit.
@@ -850,7 +814,7 @@ fn plan_waves(wf: &RawWorkflow, report: &CheckReport) -> Vec<Vec<String>> {
 // epilogue hint teaches a command over the SAME file just run.
 #[allow(clippy::too_many_arguments, clippy::fn_params_excessive_bools)]
 async fn execute(
-    runtime: &ProdRuntime,
+    runtime: &AuthorizedRuntime,
     (file, wf): (&str, &RawWorkflow),
     report: &CheckReport,
     json: bool,
@@ -920,7 +884,7 @@ async fn execute(
 /// `{"paused":{…}}` envelope on a human-gate pause (ADR-099 rider).
 #[allow(clippy::too_many_arguments)] // the clap-surface idiom (execute's own)
 async fn execute_output_json_lane(
-    runtime: &ProdRuntime,
+    runtime: &AuthorizedRuntime,
     (file, wf): (&str, &RawWorkflow),
     report: &CheckReport,
     stamper: &mut dyn Stamper,
@@ -935,7 +899,7 @@ async fn execute_output_json_lane(
     fold.set_trace_recorded(!trace.is_disabled());
     let tee = Tee::new(fold, trace);
     let mut events = ExecutionSink::new(tee, execution);
-    let (code, outcome) = drive(runtime, wf, report, stamper, &mut events).await;
+    let (code, outcome) = drive(runtime, stamper, &mut events).await;
     let (mut sink, mut trace) = events.into_inner().into_parts();
     sink.print_final();
     // Pause delivery is journaled before the seal (ADR-111).
@@ -1000,7 +964,7 @@ async fn execute_output_json_lane(
 /// NDJSON lane: stdout stays byte-exact; the trace note rides stderr.
 #[allow(clippy::too_many_arguments)] // the clap-surface idiom (execute's own)
 async fn execute_json_lane(
-    runtime: &ProdRuntime,
+    runtime: &AuthorizedRuntime,
     (file, wf): (&str, &RawWorkflow),
     report: &CheckReport,
     stamper: &mut dyn Stamper,
@@ -1011,7 +975,7 @@ async fn execute_json_lane(
 ) -> RunVerdict {
     let tee = Tee::new(JsonSink::new(std::io::stdout().lock()), trace);
     let mut events = ExecutionSink::new(tee, execution);
-    let (code, outcome) = drive(runtime, wf, report, stamper, &mut events).await;
+    let (code, outcome) = drive(runtime, stamper, &mut events).await;
     let (sink, mut trace) = events.into_inner().into_parts();
     if let (Some(p), Some(pause)) = (
         trace.path().map(std::path::Path::to_path_buf),
@@ -1057,7 +1021,7 @@ async fn execute_json_lane(
 /// Human fold lane (`Live` · `Plain` · `Quiet`).
 #[allow(clippy::too_many_arguments)]
 async fn execute_fold_lane(
-    runtime: &ProdRuntime,
+    runtime: &AuthorizedRuntime,
     wf: &RawWorkflow,
     report: &CheckReport,
     stamper: &mut dyn Stamper,
@@ -1090,7 +1054,7 @@ async fn execute_fold_lane(
         trace,
     );
     let mut events = ExecutionSink::new(tee, execution);
-    let (code, outcome) = drive(runtime, wf, report, stamper, &mut events).await;
+    let (code, outcome) = drive(runtime, stamper, &mut events).await;
     // The run settled: stop riders before the epilogue.
     if let Some(ticker) = &ticker {
         ticker.abort();
@@ -1237,7 +1201,7 @@ fn shared_fold(
 ///
 /// A `RuntimeError` out of `run` is exit 3, never a panic: NIKA-1708 (the
 /// admission refusal · an OPERATOR miss) prints its text — any other class is a SYSTEM breach and says so.
-async fn drive<S, T, H, P, D, C>(
+async fn drive_raw<S, T, H, P, D, C>(
     runtime: &Runtime<S, T, H, P, D, C>,
     wf: &RawWorkflow,
     report: &CheckReport,
@@ -1252,7 +1216,19 @@ where
     D: nika_kernel::ai::tool_defs::ToolDefinitionProviderDyn,
     C: nika_kernel::clock::ClockDyn + Sync,
 {
-    match runtime.run(wf, report, stamper, sink).await {
+    map_run_result(runtime.run(wf, report, stamper, sink).await)
+}
+
+async fn drive(
+    runtime: &AuthorizedRuntime,
+    stamper: &mut dyn Stamper,
+    sink: &mut dyn EventSink,
+) -> (u8, RunOutcome) {
+    map_run_result(runtime.run(stamper, sink).await)
+}
+
+fn map_run_result(result: Result<RunOutcome, RuntimeError>) -> (u8, RunOutcome) {
+    match result {
         Ok(outcome) => {
             // Paused wins the mapping (ADR-099 rider): non-zero on purpose
             // (`&& next` must not proceed past an unanswered human gate),

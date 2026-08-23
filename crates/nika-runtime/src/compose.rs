@@ -32,8 +32,12 @@
 
 use std::sync::Arc;
 
+mod secret_resolver;
+
+#[cfg(test)]
+use crate::WorkflowSecretResolver;
 use crate::simulated::{SimulatedDispatcher, SimulatedShell};
-use crate::{Runtime, RuntimeConfig, SecretResolveError, WorkflowSecretResolver};
+use crate::{Runtime, RuntimeConfig};
 use nika_builtin::{
     BuiltinDispatcher, Emitter, FsBoundary, ImageKeys, LiveInspect, NonInteractive, TtsKeys,
 };
@@ -45,11 +49,14 @@ use nika_kernel::ai::provider::ProviderInferDyn;
 use nika_kernel::provider::{InferRequest, InferResponse, ProviderError};
 use nika_kernel::secret::Secret;
 use nika_providers::{ProviderRegistry, ProvidersConfig};
-use nika_schema::types::{RunDecl, SecretRef, SecretSource};
+use nika_schema::types::RunDecl;
+#[cfg(test)]
+use nika_schema::types::{SecretRef, SecretSource};
 use nika_verb_agent::AgentVerb;
 use nika_verb_exec::ExecVerb;
 use nika_verb_infer::InferVerb;
 use nika_verb_invoke::InvokeVerb;
+use secret_resolver::EnvFileSecretResolver;
 
 /// Surfaces `nika:log` / `nika:emit` onto STDERR (the operator's
 /// diagnostic channel · NEVER stdout, which carries the `--json` event
@@ -72,11 +79,32 @@ use nika_verb_invoke::InvokeVerb;
 ///
 /// `pub` only because it appears in the public [`ProdRuntime`] type
 /// spelling (the emitter generic) — not a re-export surface.
-#[derive(Debug, Clone, Copy, Default)]
-pub struct StderrEmitter;
+#[derive(Debug, Clone, Copy)]
+pub struct StderrEmitter {
+    project_payloads: bool,
+}
+
+impl StderrEmitter {
+    const fn metadata_only() -> Self {
+        Self {
+            project_payloads: false,
+        }
+    }
+}
+
+impl Default for StderrEmitter {
+    fn default() -> Self {
+        Self {
+            project_payloads: true,
+        }
+    }
+}
 
 impl Emitter for StderrEmitter {
     fn emit(&self, kind: &str, payload: serde_json::Value) {
+        if !self.project_payloads {
+            return;
+        }
         // Best-effort (spec §log/§emit): `eprintln!` swallows any write
         // error · observability never changes the run's verdict.
         eprintln!("{}", format_emit(kind, &payload));
@@ -436,66 +464,6 @@ fn tts_keys_from_env() -> TtsKeys {
     keys
 }
 
-/// The production workflow-`secrets:` resolver — the `env` + `file` stores
-/// (MINOR-B). This is the COMPOSITION ROOT's sanctioned secret-store
-/// boundary (the same justification as [`config_from_env`] · the runtime L3
-/// never reads env/files itself).
-///
-/// - `source: env` → reads the OS env var named by the secret's `key`.
-/// - `source: file` → reads the file at the secret's `key` path
-///   (trailing newline trimmed · the common `cat secret > file` shape).
-/// - `source: vault` → NOT yet wired · returns a typed miss so the
-///   reference fails closed (NIKA-1702) rather than silently reading null.
-///   The checker WARNs about this ahead of run (see `nika check`).
-///
-/// A resolved value is NEVER logged here (the resolver returns it straight
-/// to the runtime's in-memory `secrets` namespace · the IFC governs where it
-/// then flows · it is never emitted to the event stream).
-///
-/// Not `pub` — it is injected as `Arc<dyn WorkflowSecretResolver>` (it never
-/// appears in a public type spelling, unlike [`ProdRuntime`]'s generics).
-#[derive(Debug, Clone, Copy, Default)]
-struct EnvFileSecretResolver;
-
-impl WorkflowSecretResolver for EnvFileSecretResolver {
-    fn resolve(&self, name: &str, reference: &SecretRef) -> Result<String, SecretResolveError> {
-        let miss = |reason: &str| SecretResolveError {
-            name: name.to_owned(),
-            reason: reason.to_owned(),
-        };
-        match reference.source {
-            SecretSource::Env => {
-                // The sanctioned env→secret boundary (the registry never reads
-                // env · same `disallowed_methods` carve-out as config_from_env).
-                #[allow(clippy::disallowed_methods)]
-                let value = std::env::var(&reference.key)
-                    .map_err(|_| miss(&format!("env var `{}` is not set", reference.key)))?;
-                if value.is_empty() {
-                    return Err(miss(&format!("env var `{}` is empty", reference.key)));
-                }
-                Ok(value)
-            }
-            SecretSource::File => {
-                // The composition root's sanctioned secret-store boundary
-                // (MINOR-B) — the runtime L3 never reads env/files itself;
-                // the resolver is INJECTED, so the read lives exactly where
-                // the embedder owns the boundary (the config_from_env
-                // justification).
-                let raw = std::fs::read_to_string(&reference.key) // seam-bypass-ok: the injected resolver IS the sanctioned store boundary (MINOR-B · runtime cores never read files)
-                    .map_err(|e| miss(&format!("file `{}` unreadable: {e}", reference.key)))?;
-                let value = raw.trim_end_matches(['\n', '\r']).to_owned();
-                if value.is_empty() {
-                    return Err(miss(&format!("file `{}` is empty", reference.key)));
-                }
-                Ok(value)
-            }
-            // vault is not yet runtime-resolvable (the checker WARNs · the
-            // reference then fails closed at NIKA-1702 · never a leak).
-            SecretSource::Vault => Err(miss("`vault` secrets are not yet runtime-resolvable")),
-        }
-    }
-}
-
 /// Derive the runtime `permits.fs` boundary from a parsed workflow.
 ///
 /// No `permits:` block → a DECLARED boundary with empty glob lists
@@ -792,6 +760,40 @@ pub fn production_runtime(
     caps: RuntimeCapabilities,
     run: Option<&RunDecl>,
 ) -> Result<ProdRuntime, ComposeError> {
+    production_runtime_with_emitter(default_model, caps, run, StderrEmitter::default())
+}
+
+/// Service-safe sibling of [`production_runtime`]. Every production effect,
+/// provider, sandbox, clock, and policy seam is identical; only the local
+/// stderr projection of caller-controlled `nika:log`/`nika:emit` payloads is
+/// absent. The service event stream is projected separately by the shared
+/// driver.
+///
+/// `pub` for exactly one consumer: the same-layer `nika-service-execution`
+/// crate, which owns the driver this composer feeds. It is the ONE seam the
+/// runtime publishes for that descent (the driver's own types stay in the
+/// driver's crate).
+///
+/// # Errors
+/// The same three as [`production_runtime`], which this delegates to:
+/// [`ComposeError::Http`] when the fetch/provider plane cannot build ·
+/// [`ComposeError::Sandbox`] when the policy requires confinement the
+/// host cannot provide (#889 · NIKA-1710) · [`ComposeError::Policy`]
+/// when `NIKA_SANDBOX` holds an unknown word.
+pub fn service_runtime(
+    default_model: &str,
+    caps: RuntimeCapabilities,
+    run: Option<&RunDecl>,
+) -> Result<ProdRuntime, ComposeError> {
+    production_runtime_with_emitter(default_model, caps, run, StderrEmitter::metadata_only())
+}
+
+fn production_runtime_with_emitter(
+    default_model: &str,
+    caps: RuntimeCapabilities,
+    run: Option<&RunDecl>,
+    emitter: StderrEmitter,
+) -> Result<ProdRuntime, ComposeError> {
     // F-P3 · the run: declaration picks the run's seams (clock · jitter
     // stream) ONCE; every injection below reads the same resolution.
     let seams = RunSeams::of(run);
@@ -825,7 +827,7 @@ pub fn production_runtime(
             Arc::clone(&http),
             Arc::new(seams.clock.clone()),
             // log/emit → stderr (observable · NOT a silent no-op).
-            Arc::new(StderrEmitter),
+            Arc::new(emitter),
             Arc::new(NonInteractive::default()),
             Arc::clone(&inspect),
         )
@@ -971,7 +973,7 @@ pub fn simulated_runtime(
             Arc::new(TokioFs),
             http,
             Arc::new(seams.clock.clone()),
-            Arc::new(StderrEmitter),
+            Arc::new(StderrEmitter::default()),
             Arc::new(NonInteractive::default()),
             Arc::clone(&inspect),
         )
