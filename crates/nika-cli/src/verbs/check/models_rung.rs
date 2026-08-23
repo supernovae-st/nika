@@ -171,18 +171,19 @@ pub(crate) fn unresolvable_models(
         // The ONE law, shared with the MCP lane (#320 follow-up: the two
         // machine surfaces consult the same fn beside the resolver —
         // they cannot drift apart again).
-        if let Some(why) = nika_providers::resolve_refusal(judged) {
-            audit.findings.push(ModelFinding::new(
-                m.model.clone(),
-                m.tasks.clone(),
-                // A via-default refusal names BOTH halves: the template
-                // the author wrote and the default that was judged.
-                if via_default {
-                    format!("declared default `{judged}` — {why}")
-                } else {
-                    why
-                },
-            ));
+        if let Some(refusal) = nika_providers::resolve_refusal(judged) {
+            // A via-default refusal names BOTH halves: the template
+            // the author wrote and the default that was judged.
+            let why = if via_default {
+                format!("declared default `{judged}` — {}", refusal.why)
+            } else {
+                refusal.why
+            };
+            let mut finding = ModelFinding::new(m.model.clone(), m.tasks.clone(), why);
+            if let Some(code) = refusal.code {
+                finding = finding.with_code(code);
+            }
+            audit.findings.push(finding);
         } else {
             // B-5's sibling: a resolvable model on a server-backed
             // keyless engine earns the green line's liveness nuance —
