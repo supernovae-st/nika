@@ -38,6 +38,7 @@ pub struct ServeArgs {
     #[arg(long, value_name = "DIR")]
     pub workflows: Option<PathBuf>,
     /// Acknowledge a non-loopback `--bind`. Authentication is unchanged.
+    /// TLS is a reverse proxy — this process does not terminate it.
     #[arg(long)]
     pub allow_remote: bool,
     /// Owner-only Bearer file (32–512 visible ASCII bytes, mode 0600). Never argv.

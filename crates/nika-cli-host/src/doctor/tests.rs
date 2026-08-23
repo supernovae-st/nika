@@ -1446,3 +1446,47 @@ fn serve_row_ok_names_tls_as_the_proxy_and_hides_the_secret() {
     assert!(rows[0].detail.contains("does not terminate TLS"));
     assert!(!rows[0].detail.contains("s3cret"));
 }
+
+#[cfg(unix)]
+#[test]
+fn serve_row_fails_when_the_token_is_too_short_and_does_not_echo_it() {
+    use std::os::unix::fs::PermissionsExt as _;
+    let dir = temp_dir("serve-short");
+    let nika = dir.join(".nika");
+    std::fs::create_dir(&nika).expect("nika dir");
+    let token = nika.join("serve.token");
+    let secret = "too-short-secret";
+    std::fs::write(&token, secret).expect("token");
+    std::fs::set_permissions(&token, std::fs::Permissions::from_mode(0o600)).expect("mode");
+    let rows = serve_http_door(&dir);
+    assert_eq!(rows[0].level, Level::Fail);
+    assert!(
+        rows[0]
+            .fix
+            .as_deref()
+            .is_some_and(|f| f.contains("openssl rand -hex 24"))
+    );
+    assert!(!format!("{rows:?}").contains(secret));
+}
+
+#[cfg(unix)]
+#[test]
+fn serve_row_fails_when_the_token_is_a_symlink() {
+    use std::os::unix::fs::PermissionsExt as _;
+    let dir = temp_dir("serve-symlink");
+    let nika = dir.join(".nika");
+    std::fs::create_dir(&nika).expect("nika dir");
+    let target = dir.join("real.token");
+    std::fs::write(&target, "a".repeat(32)).expect("target");
+    std::fs::set_permissions(&target, std::fs::Permissions::from_mode(0o600)).expect("mode");
+    std::os::unix::fs::symlink(&target, nika.join("serve.token")).expect("symlink");
+    let rows = serve_http_door(&dir);
+    assert_eq!(rows[0].level, Level::Fail);
+    assert!(rows[0].detail.contains("symlink"));
+    assert!(
+        rows[0]
+            .fix
+            .as_deref()
+            .is_some_and(|f| f.contains("openssl rand -hex 24"))
+    );
+}
