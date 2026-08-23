@@ -277,6 +277,17 @@ jobs:
       - uses: Swatinem/rust-cache@258712b0b7b1ddf8bddc9fc3b0faca682b2736c3 # v2
         with:
           shared-key: diamond-access-harness
+      # Same install as the rust tests/funnel legs. This job runs nika-cli
+      # --lib, which includes permits+exec workflows (measured 2026-08-23 on
+      # PR #1157: answer_without_resume_preseeds_the_gate → NIKA-1710 exit 3
+      # on ubuntu-latest with no bubblewrap). A waiver (NIKA_SANDBOX=off)
+      # would green the job without proving the release config.
+      - name: Install bubblewrap (permits+exec lib tests refuse without a backend)
+        run: |
+          sudo timeout 300 apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 update
+          sudo timeout 300 apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 install -y --no-install-recommends bubblewrap
+          sudo apparmor_parser -R /etc/apparmor.d/bwrap-userns-restrict 2>/dev/null || true
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - name: test the harness feature (the release config)
         env:
           NIKA_KEYCHAIN: "off"
