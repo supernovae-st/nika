@@ -28,7 +28,7 @@ nika: docker-report-template       # SLOT: kebab-case workflow id
 
 # SLOT: local-first · `--model mock/echo` for the offline rehearsal. Measured
 # seat — `ollama/llama3.2:3b` answers this prose prompt in well under a minute.
-model: ollama/llama3.2:3b
+model: mock/echo   # SLOT · `nika new` stamps this machine's cascade choice
 
 permits:                            # the blast radius · default-deny once present
   exec:

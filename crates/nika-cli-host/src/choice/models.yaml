@@ -1,0 +1,52 @@
+# Inference cascade · DATA, not architecture.
+# Changing the featured local model is one line. Zero release, zero refactor.
+# `nika/gear-one` is an alias resolved against this table at collect-time.
+featured: gear-one
+slogan: "Local first. Cloud when you want it."
+gear_one:
+  - tier: workstation
+    min_ram_gb: 64
+    download_gb: 40.0
+    pull: unsloth/Qwen3.8-27B-GGUF:UD-Q5_K_M
+    verified: false
+  - tier: default
+    min_ram_gb: 24
+    download_gb: 16.5
+    pull: unsloth/Qwen3.8-27B-GGUF:UD-Q4_K_M
+    verified: false
+  - tier: standard
+    min_ram_gb: 16
+    download_gb: 7.4
+    pull: unsloth/gemma-3-12b-it-GGUF:Q4_K_M
+    verified: false
+  - tier: lite
+    min_ram_gb: 8
+    download_gb: 5.5
+    pull: unsloth/Qwen3-4B-Instruct-2507-GGUF:Q4_K_M
+    verified: false
+keys:
+  - env: MISTRAL_API_KEY
+    name: Your Mistral key
+    model: mistral/mistral-small-latest
+  - env: HF_TOKEN
+    name: Your Hugging Face key
+    model: huggingface/Qwen/Qwen2.5-7B-Instruct
+  - env: OPENAI_API_KEY
+    name: Your OpenAI key
+    model: openai/gpt-4o-mini
+  - env: XAI_API_KEY
+    name: Your xAI key
+    model: xai/grok-3
+  - env: ANTHROPIC_API_KEY
+    name: Your Anthropic key
+    model: anthropic/claude-sonnet-4-6
+harness_names:
+  gemini-cli: Gemini CLI
+  qwen-code: Qwen Code
+  kimi-code: Kimi
+  codex-acp: Codex
+  claude-agent-acp: Claude Code
+  claude: Claude Code
+  codex: Codex
+  gemini: Gemini CLI
+  kimi: Kimi

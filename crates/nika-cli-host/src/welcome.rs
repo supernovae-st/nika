@@ -250,12 +250,77 @@ fn under_home(path: &str) -> String {
 /// the human mirror renders through the ONE colour seam (`Theme` ·
 /// semantic never decorative — the same law every other surface obeys).
 ///
-/// The CLI's folder evidence is the directory the operator LAUNCHED in —
-/// the surface names it explicitly; `resolve` never invents one.
+/// Stamp the cascade's `model:` onto a file `nika new` just wrote.
+///
+/// # Errors
+/// Returns when the file cannot be read or rewritten.
+pub fn stamp_cascade_model(path: &Path) -> std::io::Result<()> {
+    crate::choice::stamp_model_file(path)
+}
+
+/// Write the first-wow workflow (`nika new hello`).
+#[must_use]
+pub fn write_first_wow(dest: &Path, force: bool) -> VerbOutput {
+    crate::choice::write_first_wow(dest, force)
+}
+
+/// `nika new hello` / `hello.nika.yaml` — the one-shot first file.
+#[must_use]
+pub fn is_first_wow(from: Option<&str>, dest: Option<&str>) -> bool {
+    crate::choice::is_first_wow(from, dest)
+}
+
+/// Destination `nika new hello` writes. The slug `hello` still lands a
+/// workflow file, not a bare path.
+#[must_use]
+pub fn first_wow_dest(dest: Option<&str>) -> &str {
+    crate::choice::first_wow_dest(dest)
+}
+
 #[must_use]
 pub fn run(json: bool, theme: Theme) -> VerbOutput {
+    let choice = crate::choice::collect();
     let candidate = std::env::current_dir().ok();
-    run_in(json, theme, candidate.as_deref())
+    if json {
+        let out = run_in(true, theme, candidate.as_deref());
+        return merge_choice_json(out, &choice);
+    }
+    let facts = EnvFacts {
+        evidence: candidate
+            .as_deref()
+            .map_or(EvidenceSource::None, |_| EvidenceSource::ExplicitCwd),
+        ..EnvFacts::detect()
+    };
+    let envelope = context_envelope::resolve(candidate.as_deref(), &facts);
+    crate::metrics::record_if_enabled(
+        crate::metrics::EventKind::ContextResolved,
+        crate::metrics::Facts {
+            session: Some(match envelope.mode {
+                ContextMode::ChatOnly => crate::metrics::Session::ChatOnly,
+                ContextMode::Workspace => crate::metrics::Session::Workspace,
+            }),
+            ..crate::metrics::Facts::none()
+        },
+    );
+    crate::metrics::record_if_enabled(
+        crate::metrics::EventKind::CtaImpression,
+        crate::metrics::Facts {
+            cta: Some(crate::metrics::Cta::Create),
+            ..crate::metrics::Facts::none()
+        },
+    );
+    VerbOutput::ok(crate::display::vocab::sober(
+        theme,
+        &choice.render_human(theme),
+    ))
+}
+
+fn merge_choice_json(mut out: VerbOutput, choice: &crate::choice::InferenceChoice) -> VerbOutput {
+    if let Ok(mut v) = serde_json::from_str::<serde_json::Value>(&out.text) {
+        v["inference_choice"] = choice.welcome_json();
+        out.text = v.to_string();
+    }
+    out
 }
 
 /// The envelope-first verb body (P0-14 binary-side): resolve the session
@@ -907,6 +972,17 @@ pub fn taught_start_commands() -> Vec<String> {
     for (command, _) in chat_only_moves() {
         if !commands.contains(&command) {
             commands.push(command);
+        }
+    }
+    for command in [
+        "nika new",
+        "nika new hello",
+        "nika run",
+        "nika check",
+        "nika doctor",
+    ] {
+        if !commands.iter().any(|c| c == command) {
+            commands.push((*command).to_owned());
         }
     }
     commands

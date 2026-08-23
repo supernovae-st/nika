@@ -24,7 +24,7 @@ nika: media-asset-pack-template       # SLOT: kebab-case workflow id
 
 # SLOT: provider/model · local · zero key. Measured seat — `ollama/qwen2.5:14b`
 # holds the small schema below. `--model mock/echo` needs no seat at all.
-model: ollama/qwen2.5:14b
+model: mock/echo   # SLOT · `nika new` stamps this machine's cascade choice
 
 const:
   subject: "a calm cosmic landing hero"   # SLOT: what the asset is about

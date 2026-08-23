@@ -4363,6 +4363,7 @@ dependencies = [
  "serde_json",
  "serde_yaml_bw",
  "sha2 0.10.9",
+ "sysctl",
  "tempfile",
  "toml_edit",
  "url",

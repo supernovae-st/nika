@@ -375,7 +375,10 @@ fn models_finding(models: &ModelsProbe) -> Vec<Finding> {
             level: Level::Warn,
             label: "models".to_owned(),
             detail: "none pulled yet — the sidecar has nothing to serve".to_owned(),
-            fix: Some("nika model pull Qwen/Qwen3-4B-Instruct-2507-GGUF".to_owned()),
+            fix: Some(format!(
+                "nika model pull {}",
+                crate::choice::featured_pull()
+            )),
         }]
     }
     #[cfg(not(feature = "local-infer"))]
@@ -759,6 +762,14 @@ pub fn render_json(
     format!("{payload:#}")
 }
 
+fn with_cascade(raw: String) -> String {
+    let Ok(mut v) = serde_json::from_str::<serde_json::Value>(&raw) else {
+        return raw;
+    };
+    v["cascade"] = crate::choice::collect().doctor_cascade_json();
+    format!("{v:#}")
+}
+
 /// The fixed label column (nextest school: one grid, computed on RAW text).
 /// Every label `diagnose` can emit fits STRICTLY inside it (pinned by
 /// `every_label_fits_the_fixed_column`) so the detail column never shears.
@@ -1027,11 +1038,11 @@ pub fn run(ping: bool, json: bool, verbose: bool, theme: Theme) -> VerbOutput {
     let code = exit_code(&findings);
     VerbOutput {
         text: if json {
-            render_json(
+            with_cascade(render_json(
                 &findings,
                 crate::probe::adoption_state(&probe),
                 &crate::probe::capability_receipts(&probe),
-            )
+            ))
         } else {
             // The same sobriety seam the concierge rides: `--plain`
             // promises ASCII glyph twins, and doctor's ✔/⚠/· column

@@ -926,10 +926,12 @@ fn welcome_is_always_a_success() {
     // routes (doctor owns the gate semantics, welcome never gates).
     let out = run(false, plain());
     assert_eq!(out.code, exit::OK, "{}", out.text);
-    assert!(out.text.contains("start here"), "{}", out.text);
+    assert!(out.text.contains("Next:"), "{}", out.text);
+    assert!(out.text.contains("Local first"), "{}", out.text);
     let json = run(true, plain());
     assert_eq!(json.code, exit::OK);
     assert!(json.text.contains("\"welcome_version\":1"), "{}", json.text);
+    assert!(json.text.contains("inference_choice"), "{}", json.text);
 }
 
 #[test]
