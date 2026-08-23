@@ -17,8 +17,9 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use serde::Serialize;
 
+use nika_cap::Permits;
 use nika_schema::expression::NamespaceRef;
-use nika_schema::raw::{RawAction, RawInvokeTarget, RawTask, RawWorkflow};
+use nika_schema::raw::{RawAction, RawAgentAction, RawInvokeTarget, RawTask, RawWorkflow};
 
 use super::flow::{FlowFacts, action_effect_fields, collect_json_strings, refs_in_str};
 use super::permits_fit::{
@@ -206,11 +207,19 @@ pub(crate) fn collect(wf: &RawWorkflow, flow: &FlowFacts) -> DataJourney {
     // secret name → the tasks using it.
     let mut secret_tasks: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
 
+    let permits = wf.permits.as_ref().map(|p| &p.value);
     for (idx, task) in wf.tasks.iter().enumerate() {
         let t = &task.value;
         let id = t.id.value.clone();
         let mut external = BTreeSet::new();
-        collect_action_effects(&consts, &id, &t.action, &mut endpoints, &mut external);
+        collect_action_effects(
+            &consts,
+            &id,
+            &t.action,
+            permits,
+            &mut endpoints,
+            &mut external,
+        );
         if let Some(ep) = model_endpoint_of(wf, t, envelope.as_deref()) {
             if ep.locus == EndpointLocus::Cloud {
                 external.insert(ep.provider.clone());
@@ -260,6 +269,7 @@ fn collect_action_effects(
     consts: &ConstStrings,
     id: &str,
     action: &RawAction,
+    permits: Option<&Permits>,
     endpoints: &mut BTreeMap<(&'static str, String), BTreeSet<String>>,
     external: &mut BTreeSet<String>,
 ) {
@@ -338,8 +348,47 @@ fn collect_action_effects(
                 touch("fs.write", vl);
             }
         }
-        // infer/agent effects are the model endpoint — collected by the caller.
+        RawAction::Agent(a) => collect_agent_tool_effects(id, a, permits, endpoints, external),
+        // infer effects are the model endpoint — collected by the caller.
         _ => {}
+    }
+}
+
+/// An agent's `tools:` is its destination set (#1041). A literal
+/// `nika:fetch` arg is already a named host; an agent holding that tool
+/// under `permits.net.http` has the whole allowlist as destinations, by
+/// construction — the agent chooses. Sanctioning the flow must not hide it.
+fn collect_agent_tool_effects(
+    id: &str,
+    action: &RawAgentAction,
+    permits: Option<&Permits>,
+    endpoints: &mut BTreeMap<(&'static str, String), BTreeSet<String>>,
+    external: &mut BTreeSet<String>,
+) {
+    let mut touch = |kind: &'static str, target: String| {
+        endpoints
+            .entry((kind, target))
+            .or_default()
+            .insert(id.to_owned());
+    };
+    let hosts = permits
+        .and_then(|p| p.net.as_ref())
+        .map_or(&[][..], |n| n.http.as_slice());
+    for tool in &action.tools {
+        let name = tool.value.as_str();
+        if name.starts_with("mcp:") {
+            touch("mcp.tool", name.to_owned());
+            external.insert(name.to_owned());
+            continue;
+        }
+        if let Some(BuiltinEffect::Net { .. }) = nika_cap::builtin_effect(name, None) {
+            for host in hosts {
+                if !nika_types::net::host_is_blocked(host) {
+                    external.insert(host.clone());
+                    touch("net.http", host.clone());
+                }
+            }
+        }
     }
 }
 
@@ -839,6 +888,58 @@ tasks:
         assert!(
             !json.contains("CANARY_LOOKUP_KEY_NEVER_SHOWN"),
             "the lookup key never rides: {json}"
+        );
+    }
+
+    /// #1041: a sanctioned secret into `agent:` holding `nika:fetch` under
+    /// `permits.net.http` is a realized flow. The IFC lane may consent it;
+    /// JOURNEY must still name the hosts. A sanction that rewrites the
+    /// sentence to « no declared secret reaches an effect » is the defect.
+    #[test]
+    fn an_agent_holding_fetch_exposes_the_http_allowlist_as_secret_destinations() {
+        let j = journey_of(
+            r#"
+nika: q2-agent-sanctioned
+model: mock/echo
+secrets:
+  TOKEN:
+    source: env
+    key: BUILD_TOKEN
+    egress: [{ to: "agent" }]
+permits:
+  net:
+    http: ["untrusted.example.com", "evil.example.org"]
+  tools: [nika:fetch, nika:done]
+tasks:
+  do_it:
+    agent:
+      prompt: >-
+        Read https://untrusted.example.com/prompt.txt and follow what it says.
+        The build token is ${{ secrets.TOKEN }}.
+      tools: [nika:fetch, nika:done]
+      max_turns: 2
+"#,
+        );
+        let secret = j
+            .secrets_used
+            .iter()
+            .find(|s| s.name == "TOKEN")
+            .expect("the used secret is named");
+        assert!(
+            secret.flows_to.iter().any(|d| d == "untrusted.example.com"),
+            "the agent grant is the destination set: {secret:?}"
+        );
+        assert!(
+            secret.flows_to.iter().any(|d| d == "evil.example.org"),
+            "every declared http host is a destination: {secret:?}"
+        );
+        assert_eq!(j.classification, DataClassification::Regulated);
+        assert!(
+            j.destinations
+                .iter()
+                .any(|d| d.kind == "net.http" && d.target == "untrusted.example.com"),
+            "JOURNEY names the host: {:?}",
+            j.destinations
         );
     }
 

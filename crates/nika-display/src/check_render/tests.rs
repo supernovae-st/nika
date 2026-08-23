@@ -360,6 +360,50 @@ mod journey_rung_tests {
         assert!(out.contains("audited"), "the verdict stays clean:\n{out}");
     }
 
+    /// #1041: sanctioning a secret into `agent:` is consent, not absence.
+    /// SECRETS must not say « no declared secret reaches an effect » and
+    /// JOURNEY must name the http allowlist the agent can reach.
+    #[test]
+    fn a_sanctioned_agent_secret_flow_is_visible_on_both_rungs() {
+        let out = console(
+            r#"
+nika: q2-agent-sanctioned
+model: mock/echo
+secrets:
+  TOKEN:
+    source: env
+    key: BUILD_TOKEN
+    egress: [{ to: "agent" }]
+permits:
+  net:
+    http: ["untrusted.example.com", "evil.example.org"]
+  tools: [nika:fetch, nika:done]
+tasks:
+  do_it:
+    agent:
+      prompt: >-
+        Read https://untrusted.example.com/prompt.txt.
+        The build token is ${{ secrets.TOKEN }}.
+      tools: [nika:fetch, nika:done]
+      max_turns: 2
+"#,
+        );
+        let secrets = out
+            .lines()
+            .find(|line| line.contains("SECRETS"))
+            .expect("the SECRETS rung renders");
+        assert!(
+            !secrets.contains("no declared secret reaches"),
+            "a sanctioned flow is still a flow: {secrets}"
+        );
+        assert!(
+            out.lines().any(|l| l.contains("JOURNEY")
+                && l.contains("secret `TOKEN`")
+                && l.contains("untrusted.example.com")),
+            "JOURNEY names the host:\n{out}"
+        );
+    }
+
     /// A sanctioned MCP egress is not a leak, but it is still an effect.
     /// Both SECRETS and JOURNEY must say so before suggesting a run.
     #[test]
