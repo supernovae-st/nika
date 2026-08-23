@@ -123,3 +123,32 @@ async fn parse_fatal_post_names_the_nika_parse_code() {
     assert!(response.json().get("id").is_none(), "{}", response.body);
     server.stop().await.expect("clean stop");
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn check_fatal_post_names_the_nika_analysis_code() {
+    let world = TestWorld::new();
+    std::fs::write(
+        world.workflows.join("boom.nika.yaml"),
+        "nika: boom\ntasks:\n  t:\n    exec: { command: [\"true\"] }\n",
+    )
+    .expect("check-fatal fixture");
+    let server = world.start(Arc::new(SucceedingBackend), limits()).await;
+    let response = server
+        .request(&post_request(
+            r#"{"workflow":"boom.nika.yaml"}"#,
+            "check-fatal",
+            &auth_header(),
+        ))
+        .await;
+    assert_eq!(response.status, 422, "{}", response.body);
+    let body = response.json();
+    let code = body["error"]["code"].as_str().expect("code");
+    assert!(
+        code.starts_with("NIKA-AUTH-") || code.starts_with("NIKA-SEC-"),
+        "{code} {}",
+        response.body
+    );
+    assert!(!response.body.contains("/tmp"), "{}", response.body);
+    assert!(response.json().get("id").is_none(), "{}", response.body);
+    server.stop().await.expect("clean stop");
+}

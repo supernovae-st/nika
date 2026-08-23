@@ -677,12 +677,9 @@ impl<'a, S: ByteSource> SnapshotBuilder<'a, S> {
             };
             let report = nika_check::check_composed(&workflow, &logical_path, &mut reader);
             if !report.is_clean() {
-                let findings = report
-                    .findings
-                    .iter()
-                    .map(|finding| format!("{logical_path}: {}", finding.message))
-                    .collect();
-                return Err(ExecutionError::CheckFailed { findings });
+                return Err(ExecutionError::CheckFailed {
+                    findings: report_findings(&logical_path, &report),
+                });
             }
         }
         Ok(())
@@ -951,6 +948,17 @@ fn sha256_finish(hasher: Sha256) -> String {
         let _ = write!(output, "{byte:02x}");
     }
     output
+}
+
+pub(crate) fn report_findings(logical_path: &str, report: &nika_check::CheckReport) -> Vec<String> {
+    report
+        .findings
+        .iter()
+        .map(|finding| match finding.code.as_deref() {
+            Some(code) => format!("{code} {logical_path}: {}", finding.message),
+            None => format!("{logical_path}: {}", finding.message),
+        })
+        .collect()
 }
 
 #[cfg(test)]

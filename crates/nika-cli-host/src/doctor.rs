@@ -256,12 +256,12 @@ pub(crate) fn serve_http_door(root: &std::path::Path) -> Vec<Finding> {
     };
     if meta.file_type().is_symlink() {
         return vec![serve_token_refused(
-            "token file is a symlink — `nika serve` will refuse it",
+            "token file is a symlink · `nika serve` will refuse it",
         )];
     }
     if !meta.is_file() {
         return vec![serve_token_refused(
-            "token path is not a regular file — `nika serve` will refuse it",
+            "token path is not a regular file · `nika serve` will refuse it",
         )];
     }
     if let Some(finding) = serve_token_group_readable(&token) {
@@ -300,7 +300,7 @@ fn serve_token_bytes_refused(path: &std::path::Path) -> Option<Finding> {
         return None;
     }
     Some(serve_token_refused(
-        "token file is not 32–512 visible ASCII bytes — `nika serve` will refuse it",
+        "token file is not 32–512 visible ASCII bytes · `nika serve` will refuse it",
     ))
 }
 
@@ -316,7 +316,7 @@ fn serve_token_group_readable(path: &std::path::Path) -> Option<Finding> {
     Some(Finding {
         level: Level::Fail,
         label: "serve".to_owned(),
-        detail: "token file is group/world-readable — `nika serve` will refuse it".to_owned(),
+        detail: "token file is group/world-readable · `nika serve` will refuse it".to_owned(),
         fix: Some("umask 077 && chmod 600 .nika/serve.token".to_owned()),
     })
 }
