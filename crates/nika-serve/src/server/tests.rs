@@ -433,7 +433,12 @@ async fn create_read_and_status_use_real_loopback_and_execution_service() {
         .request(&get_request(&format!("/v1/jobs/{id}/status")))
         .await;
     assert_eq!(job.status, 200);
-    assert_eq!(job.json()["id"], id);
+    let job_body = job.json();
+    assert_eq!(job_body["id"], id);
+    let execution_id = job_body["execution_id"].as_str().expect("execution_id");
+    let trace_id = job_body["trace_id"].as_str().expect("trace_id");
+    assert!(execution_id.starts_with("exe-"), "{execution_id}");
+    assert_eq!(trace_id.len(), 32, "{trace_id}");
     assert_eq!(status.json(), json!({"status": "succeeded"}));
     assert_eq!(backend.calls(), 1);
     server.stop().await.expect("clean stop");
@@ -503,6 +508,7 @@ async fn traversal_extension_confusion_and_oversize_never_execute() {
         "root.nika.yml",
         "nested\\root.nika.yaml",
         "root.nika.yaml%2fchild.nika.yaml",
+        "ghost.nika.yaml",
     ]
     .into_iter()
     .enumerate()
@@ -544,11 +550,9 @@ async fn symlinked_workflow_refuses_before_backend_execution() {
             &auth_header(),
         ))
         .await;
-    let id = response.json()["id"].as_str().expect("id").to_owned();
-
-    wait_for_status(&server, &id, "failed")
-        .await
-        .expect("failed status");
+    assert_eq!(response.status, 422, "{}", response.body);
+    assert_eq!(response.json()["error"]["code"], "admission_refused");
+    assert!(response.json().get("id").is_none());
     assert_eq!(backend.calls(), 0);
     server.stop().await.expect("clean stop");
 }
@@ -1032,7 +1036,7 @@ fn one_sse_limits() -> ServerLimits {
 fn live_sse_limits() -> ServerLimits {
     ServerLimits::new(
         1024,
-        Duration::from_millis(80),
+        Duration::from_millis(500),
         Duration::from_secs(2),
         Duration::from_millis(200),
         2,
@@ -1138,7 +1142,7 @@ async fn sse_outlives_request_timeout_and_disconnect_does_not_block_execution() 
 
     let (mut stream, headers) = open_sse(server.address, &events_request(&id, None)).await;
     assert_eq!(headers.status, 200, "{}", headers.body);
-    tokio::time::sleep(Duration::from_millis(200)).await;
+    tokio::time::sleep(Duration::from_millis(600)).await;
     let events = collect_sse(&mut stream, headers.body, 1).await;
     assert_eq!(events[0]["kind"], "execution.started");
     assert_allowlisted(&events[0]);
@@ -1423,6 +1427,8 @@ async fn restart_reschedules_durable_queued_jobs() {
         first.stop().await,
         Err(ServerError::ShutdownTimeout)
     ));
+    std::fs::write(world.workflows.join("root.nika.yaml"), "not-a-workflow")
+        .expect("mutate live bytes after POST capture");
     let replacement = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
     let second = world.start(replacement.clone(), limits()).await;
     wait_for_calls(replacement.as_ref(), 2)

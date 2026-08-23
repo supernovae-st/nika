@@ -326,7 +326,9 @@ impl ServiceExecutionDriver {
         run: Option<&nika_schema::types::RunDecl>,
     ) -> Result<ProdRuntime, ComposeError> {
         match self.surface {
-            DriverSurface::Service => service_runtime(default_model, caps, run),
+            DriverSurface::Service => {
+                service_runtime(default_model, caps, run, self.display_root.clone())
+            }
             DriverSurface::Local => production_runtime(default_model, caps, run),
         }
     }

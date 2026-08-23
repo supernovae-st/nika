@@ -27,11 +27,16 @@ enum RequestCommand {
         digest: RequestDigest,
         max_jobs: usize,
         workflow: String,
+        world: String,
         reply: Reply<Admission>,
     },
     Get {
         id: JobId,
         reply: Reply<Option<JobRecord>>,
+    },
+    LoadWorld {
+        id: JobId,
+        reply: Reply<String>,
     },
     Queued {
         reply: Reply<Vec<(JobId, String)>>,
@@ -49,6 +54,12 @@ enum ControlCommand {
         id: JobId,
         status: JobStatus,
         event: Value,
+        reply: Reply<JobRecord>,
+    },
+    StampIdentity {
+        id: JobId,
+        execution_id: String,
+        trace_id: String,
         reply: Reply<JobRecord>,
     },
     Interrupt {
@@ -78,6 +89,7 @@ impl StoreHandle {
         digest: RequestDigest,
         max_jobs: usize,
         workflow: String,
+        world: String,
     ) -> Result<Admission, ServerError> {
         let (reply, answer) = oneshot::channel();
         self.send_request(RequestCommand::Create {
@@ -85,6 +97,29 @@ impl StoreHandle {
             digest,
             max_jobs,
             workflow,
+            world,
+            reply,
+        })?;
+        receive(answer).await
+    }
+
+    pub(super) async fn load_world(&self, id: JobId) -> Result<String, ServerError> {
+        let (reply, answer) = oneshot::channel();
+        self.send_request(RequestCommand::LoadWorld { id, reply })?;
+        receive(answer).await
+    }
+
+    pub(super) async fn stamp_identity(
+        &self,
+        id: JobId,
+        execution_id: String,
+        trace_id: String,
+    ) -> Result<JobRecord, ServerError> {
+        let (reply, answer) = oneshot::channel();
+        self.send_control(ControlCommand::StampIdentity {
+            id,
+            execution_id,
+            trace_id,
             reply,
         })?;
         receive(answer).await
@@ -277,13 +312,17 @@ fn dispatch_request(command: RequestCommand, store: &JobStore) {
             digest,
             max_jobs,
             workflow,
+            world,
             reply,
         } => {
-            let result = store.create_or_replay_named(key, digest, max_jobs, workflow);
+            let result = store.create_or_replay_captured(key, digest, max_jobs, workflow, &world);
             let _result = reply.send(result);
         }
         RequestCommand::Get { id, reply } => {
             let _result = reply.send(store.get(&id));
+        }
+        RequestCommand::LoadWorld { id, reply } => {
+            let _result = reply.send(store.load_world(&id));
         }
         RequestCommand::Queued { reply } => {
             let _result = reply.send(store.queued_jobs());
@@ -330,6 +369,16 @@ fn serve_control(
             let result = store
                 .transition_with_events(&id, status, std::slice::from_ref(&event))
                 .map(|mutation| mutation.record().clone());
+            notify_persisted(&result, events);
+            let _result = reply.send(result);
+        }
+        ControlCommand::StampIdentity {
+            id,
+            execution_id,
+            trace_id,
+            reply,
+        } => {
+            let result = store.stamp_identity(&id, execution_id, trace_id);
             notify_persisted(&result, events);
             let _result = reply.send(result);
         }

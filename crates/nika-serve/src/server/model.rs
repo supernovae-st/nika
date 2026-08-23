@@ -15,6 +15,10 @@ pub(crate) struct CreateJobRequest {
 pub(crate) struct JobResponse<'a> {
     id: &'a str,
     status: JobStatus,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    execution_id: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    trace_id: Option<&'a str>,
 }
 
 impl<'a> From<&'a JobRecord> for JobResponse<'a> {
@@ -22,6 +26,8 @@ impl<'a> From<&'a JobRecord> for JobResponse<'a> {
         Self {
             id: record.id().as_str(),
             status: record.status(),
+            execution_id: record.execution_id(),
+            trace_id: record.trace_id(),
         }
     }
 }

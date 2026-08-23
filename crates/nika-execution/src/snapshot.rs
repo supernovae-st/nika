@@ -38,6 +38,19 @@ impl SnapshotUnitKind {
             Self::Import => 3,
         }
     }
+
+    fn from_tag(tag: u8) -> Result<Self, ExecutionError> {
+        match tag {
+            0 => Ok(Self::Root),
+            1 => Ok(Self::Child),
+            2 => Ok(Self::Skill),
+            3 => Ok(Self::Import),
+            found => Err(ExecutionError::UnsupportedSnapshotFormat {
+                found: u32::from(found),
+                expected: SNAPSHOT_FORMAT_VERSION,
+            }),
+        }
+    }
 }
 
 /// One logical unit and the exact bytes admitted for execution.
@@ -374,6 +387,82 @@ impl ExecutionSnapshot {
     #[must_use]
     pub fn units(&self) -> impl ExactSizeIterator<Item = &CapturedUnit> {
         self.units.values()
+    }
+
+    /// Encode this world as UTF-8 JSON with hexadecimal unit bytes.
+    ///
+    /// The payload is the durable transport for a service queue: `write_atomic`
+    /// accepts UTF-8, and hexadecimal keeps arbitrary unit bytes inside that
+    /// contract. Decode plus [`crate::ExecutionService::readmit_snapshot`]
+    /// reconstitutes the world without rereading the filesystem.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ExecutionError::SnapshotStructureMismatch`] if JSON encoding
+    /// fails. A well-formed in-memory snapshot always encodes.
+    pub fn encode(&self) -> Result<String, ExecutionError> {
+        let wire = WireSnapshot {
+            format_version: self.format_version,
+            root: self.root.clone(),
+            digest: self.digest.clone(),
+            units: self
+                .units
+                .values()
+                .map(|unit| WireUnit {
+                    path: unit.logical_path.clone(),
+                    kind: unit.kind.tag(),
+                    digest: unit.digest.clone(),
+                    bytes_hex: encode_hex_bytes(unit.bytes()),
+                })
+                .collect(),
+        };
+        serde_json::to_string(&wire).map_err(|_| ExecutionError::SnapshotStructureMismatch)
+    }
+
+    /// Rebuild a snapshot from [`Self::encode`] output without filesystem I/O.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ExecutionError::UnsupportedSnapshotFormat`] for an unknown
+    /// version, or [`ExecutionError::SnapshotStructureMismatch`] /
+    /// [`ExecutionError::UnitDigestMismatch`] / [`ExecutionError::SnapshotDigestMismatch`]
+    /// when the payload is truncated, mis-typed, or tampered.
+    pub fn decode(text: &str) -> Result<Self, ExecutionError> {
+        let wire: WireSnapshot =
+            serde_json::from_str(text).map_err(|_| ExecutionError::SnapshotStructureMismatch)?;
+        if wire.format_version != SNAPSHOT_FORMAT_VERSION {
+            return Err(ExecutionError::UnsupportedSnapshotFormat {
+                found: wire.format_version,
+                expected: SNAPSHOT_FORMAT_VERSION,
+            });
+        }
+        let mut units = BTreeMap::new();
+        for unit in wire.units {
+            let kind = SnapshotUnitKind::from_tag(unit.kind)?;
+            let bytes = decode_hex_bytes(&unit.bytes_hex)?;
+            let captured = CapturedUnit::new(unit.path, kind, bytes);
+            if captured.digest != unit.digest {
+                return Err(ExecutionError::UnitDigestMismatch {
+                    logical_path: captured.logical_path.clone(),
+                });
+            }
+            if units
+                .insert(captured.logical_path.clone(), captured)
+                .is_some()
+            {
+                return Err(ExecutionError::SnapshotStructureMismatch);
+            }
+        }
+        let snapshot = Self {
+            format_version: wire.format_version,
+            root: wire.root,
+            units,
+            digest: wire.digest,
+        };
+        if snapshot_digest(&snapshot.root, &snapshot.units) != snapshot.digest {
+            return Err(ExecutionError::SnapshotDigestMismatch);
+        }
+        Ok(snapshot)
     }
 
     pub(crate) fn resolve_text(&self, owner: &str, authored: &str) -> Result<String, String> {
@@ -770,6 +859,51 @@ fn normalize_logical(path: &Path) -> Result<String, ExecutionError> {
     Ok(parts.join("/"))
 }
 
+#[derive(serde::Serialize, serde::Deserialize)]
+struct WireSnapshot {
+    format_version: u32,
+    root: String,
+    digest: String,
+    units: Vec<WireUnit>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+struct WireUnit {
+    path: String,
+    kind: u8,
+    digest: String,
+    bytes_hex: String,
+}
+
+fn encode_hex_bytes(bytes: &[u8]) -> String {
+    let mut output = String::with_capacity(bytes.len().saturating_mul(2));
+    for byte in bytes {
+        use std::fmt::Write as _;
+        let _ = write!(output, "{byte:02x}");
+    }
+    output
+}
+
+fn decode_hex_bytes(hex: &str) -> Result<Vec<u8>, ExecutionError> {
+    if !hex.len().is_multiple_of(2)
+        || !hex
+            .bytes()
+            .all(|byte| byte.is_ascii_hexdigit() && !byte.is_ascii_uppercase())
+    {
+        return Err(ExecutionError::SnapshotStructureMismatch);
+    }
+    let mut bytes = Vec::with_capacity(hex.len() / 2);
+    let chars = hex.as_bytes();
+    for chunk in chars.chunks_exact(2) {
+        let text =
+            std::str::from_utf8(chunk).map_err(|_| ExecutionError::SnapshotStructureMismatch)?;
+        let byte =
+            u8::from_str_radix(text, 16).map_err(|_| ExecutionError::SnapshotStructureMismatch)?;
+        bytes.push(byte);
+    }
+    Ok(bytes)
+}
+
 fn snapshot_digest(root: &str, units: &BTreeMap<String, CapturedUnit>) -> String {
     let mut hasher = Sha256::new();
     hasher.update(b"nika-execution-snapshot\0");
@@ -902,6 +1036,24 @@ mod tests {
             crate::ExecutionService::default().readmit_snapshot(snapshot),
             Err(ExecutionError::UnsupportedSnapshotFormat { .. })
         ));
+    }
+
+    #[test]
+    fn encode_round_trip_preserves_owned_bytes_and_refuses_tampering() {
+        let snapshot = valid_snapshot();
+        let encoded = snapshot.encode().expect("encode");
+        let decoded = ExecutionSnapshot::decode(&encoded).expect("decode");
+        assert!(same_snapshot(&snapshot, &decoded));
+        crate::ExecutionService::default()
+            .readmit_snapshot(decoded)
+            .expect("readmit encoded world");
+
+        let tampered = encoded.replace(&snapshot.digest, &"a".repeat(64));
+        assert!(matches!(
+            ExecutionSnapshot::decode(&tampered),
+            Err(ExecutionError::SnapshotDigestMismatch)
+        ));
+        assert!(ExecutionSnapshot::decode("{").is_err());
     }
 
     proptest::proptest! {

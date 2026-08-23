@@ -108,6 +108,30 @@ async fn create_job(request: Request<Incoming>, state: Arc<AppState>) -> Respons
     admit_job(state, key, digest, payload.workflow).await
 }
 
+async fn capture_world(state: &AppState, workflow: &str) -> Result<String, ApiError> {
+    let service = state.service;
+    let limits = state.snapshot_limits;
+    let project = Arc::clone(&state.project);
+    let workflow = std::path::PathBuf::from(workflow);
+    let captured = tokio::task::spawn_blocking(move || {
+        let snapshot = nika_execution::ExecutionSnapshot::capture(&project, &workflow, limits)?;
+        let encoded = snapshot.encode()?;
+        service.readmit_snapshot(snapshot)?;
+        Ok::<String, nika_execution::ExecutionError>(encoded)
+    })
+    .await
+    .map_err(|_| admission_refused())?;
+    captured.map_err(|_| admission_refused())
+}
+
+fn admission_refused() -> ApiError {
+    ApiError::new(
+        StatusCode::UNPROCESSABLE_ENTITY,
+        "admission_refused",
+        "workflow world could not be captured",
+    )
+}
+
 fn refuse_job_envelope(request: &Request<Incoming>) -> Option<ApiError> {
     if !is_json(request.headers()) {
         return Some(ApiError::new(
@@ -151,12 +175,22 @@ async fn admit_job(
     digest: RequestDigest,
     workflow: String,
 ) -> Response<ResponseBody> {
+    let world = match capture_world(&state, &workflow).await {
+        Ok(world) => world,
+        Err(error) => return error.into_response(),
+    };
     let Ok(permit) = state.jobs.try_reserve() else {
         return queue_full();
     };
     let admission = match state
         .store
-        .create_or_replay(key, digest, state.limits.max_jobs(), workflow.clone())
+        .create_or_replay(
+            key,
+            digest,
+            state.limits.max_jobs(),
+            workflow.clone(),
+            world,
+        )
         .await
     {
         Ok(admission) => admission,
@@ -169,13 +203,12 @@ async fn admit_job(
         ) => return store_busy(),
         Err(_) => return internal_error(),
     };
-    enqueue_admission(permit, admission, workflow)
+    enqueue_admission(permit, admission)
 }
 
 fn enqueue_admission(
     permit: tokio::sync::mpsc::Permit<'_, ExecutionTask>,
     admission: Admission,
-    workflow: String,
 ) -> Response<ResponseBody> {
     match admission {
         Admission::Conflict(_) => ApiError::new(
@@ -185,20 +218,19 @@ fn enqueue_admission(
         )
         .into_response(),
         Admission::Created(record) => {
-            permit.send(ExecutionTask::new(record.id().clone(), workflow));
+            permit.send(ExecutionTask::new(record.id().clone()));
             json_response(StatusCode::ACCEPTED, &JobResponse::from(&record))
         }
-        Admission::Existing(record) => replay_existing(permit, &record, workflow),
+        Admission::Existing(record) => replay_existing(permit, &record),
     }
 }
 
 fn replay_existing(
     permit: tokio::sync::mpsc::Permit<'_, ExecutionTask>,
     record: &crate::JobRecord,
-    workflow: String,
 ) -> Response<ResponseBody> {
     if record.status() == crate::JobStatus::Queued {
-        permit.send(ExecutionTask::new(record.id().clone(), workflow));
+        permit.send(ExecutionTask::new(record.id().clone()));
     }
     json_response(StatusCode::OK, &JobResponse::from(record))
 }
