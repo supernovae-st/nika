@@ -114,6 +114,36 @@ fn build_edit_request(
             bytes: &input.bytes,
         });
     }
+    // #1136 · the generate JSON path already sent these; the edit
+    // multipart builder dropped them (and the provenance still recorded
+    // them as sent). Same fields, same names as `/v1/images/generations`.
+    let quality = quality_on_wire(args.quality, &mut warnings);
+    let format = args.format.name();
+    let compression = args.compression.map(|c| c.to_string());
+    let background =
+        (args.background != super::types::Background::Auto).then(|| args.background.name());
+    if let Some(q) = quality {
+        parts.push(Part::Text {
+            name: "quality",
+            value: q,
+        });
+    }
+    parts.push(Part::Text {
+        name: "output_format",
+        value: format,
+    });
+    if let Some(ref c) = compression {
+        parts.push(Part::Text {
+            name: "output_compression",
+            value: c,
+        });
+    }
+    if let Some(bg) = background {
+        parts.push(Part::Text {
+            name: "background",
+            value: bg,
+        });
+    }
     let (body, content_type) =
         wire::multipart(&parts).map_err(|e| BuiltinFailure::new(C_ARGS, e))?;
 
@@ -144,18 +174,8 @@ fn build_request(
     if let Some(size) = resolve_size(args, &mut warnings)? {
         body.insert("size".into(), size.into());
     }
-    match args.quality {
-        Quality::Auto => {}
-        Quality::Ultra => {
-            warnings.push(
-                "quality_folded: openai's ladder tops at `high` — `ultra` sent as `high`"
-                    .to_owned(),
-            );
-            body.insert("quality".into(), "high".into());
-        }
-        other => {
-            body.insert("quality".into(), other.name().into());
-        }
+    if let Some(quality) = quality_on_wire(args.quality, &mut warnings) {
+        body.insert("quality".into(), quality.into());
     }
     body.insert("output_format".into(), args.format.name().into());
     if let Some(compression) = args.compression {
@@ -186,6 +206,22 @@ fn build_request(
             .into(),
     );
     Ok((request, warnings))
+}
+
+/// Map `quality:` onto the openai ladder. `auto` is omitted (the API
+/// default); `ultra` folds to `high` with a warning.
+fn quality_on_wire(quality: Quality, warnings: &mut Vec<String>) -> Option<&'static str> {
+    match quality {
+        Quality::Auto => None,
+        Quality::Ultra => {
+            warnings.push(
+                "quality_folded: openai's ladder tops at `high` — `ultra` sent as `high`"
+                    .to_owned(),
+            );
+            Some("high")
+        }
+        other => Some(other.name()),
+    }
 }
 
 /// Resolve the wire `size` string. `gpt-image-2` accepts arbitrary
@@ -502,6 +538,62 @@ mod tests {
         );
         // input_fidelity is deliberately absent (gpt-image-2 rejects it).
         assert!(!s.contains("input_fidelity"));
+    }
+
+    #[test]
+    fn edit_request_sends_background_quality_and_output_format_when_set() {
+        let args = edit_args(serde_json::json!({
+            "model": "gpt-image-1.5",
+            "background": "transparent",
+            "quality": "high",
+            "format": "webp",
+            "compression": 85,
+        }));
+        let inputs = vec![input(b"\x89PNG-source-bytes")];
+        let (request, _) = build_edit_request(&args, &inputs, &key()).expect("builds");
+        let s = String::from_utf8_lossy(request.body.as_ref().expect("body"));
+        assert!(
+            s.contains("name=\"background\"\r\n\r\ntransparent"),
+            "background rides the edit multipart: {s}"
+        );
+        assert!(
+            s.contains("name=\"quality\"\r\n\r\nhigh"),
+            "quality rides the edit multipart: {s}"
+        );
+        assert!(
+            s.contains("name=\"output_format\"\r\n\r\nwebp"),
+            "output_format rides the edit multipart: {s}"
+        );
+        assert!(
+            s.contains("name=\"output_compression\"\r\n\r\n85"),
+            "output_compression rides the edit multipart: {s}"
+        );
+    }
+
+    #[test]
+    fn generate_and_edit_both_put_transparent_background_on_the_wire() {
+        let generate_args = parsed(serde_json::json!({
+            "model": "gpt-image-1.5",
+            "background": "transparent",
+            "format": "png",
+        }));
+        let (generate_req, _) = build_request(&generate_args, &key()).expect("generate builds");
+        let generate_body: serde_json::Value =
+            serde_json::from_slice(generate_req.body.as_ref().expect("body")).expect("json");
+        assert_eq!(generate_body["background"], "transparent");
+
+        let edit = edit_args(serde_json::json!({
+            "model": "gpt-image-1.5",
+            "background": "transparent",
+            "format": "png",
+        }));
+        let (edit_req, _) =
+            build_edit_request(&edit, &[input(b"src-bytes")], &key()).expect("edit builds");
+        let s = String::from_utf8_lossy(edit_req.body.as_ref().expect("body"));
+        assert!(
+            s.contains("name=\"background\"\r\n\r\ntransparent"),
+            "edit sends the same background the generate JSON does: {s}"
+        );
     }
 
     #[test]

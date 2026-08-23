@@ -372,9 +372,18 @@ fn content_block(
         ContentBlock::Image { source, .. } => {
             if source.starts_with("http://") || source.starts_with("https://") {
                 Some(json!({ "type": "image", "source": { "type": "url", "url": source } }))
+            } else if let Some(data) = super::parse_data_image(source) {
+                Some(json!({
+                    "type": "image",
+                    "source": {
+                        "type": "base64",
+                        "media_type": data.media_type,
+                        "data": data.data,
+                    }
+                }))
             } else {
                 return Err(ProviderError::Other {
-                    reason: "image source must be a URL at v0.1 (CAS sources land with nika-media)"
+                    reason: "image source must be an http(s) or data: URL at v0.1 (CAS sources land with nika-media)"
                         .to_owned(),
                 });
             }
@@ -1023,6 +1032,19 @@ mod tests {
             .is_err(),
             "CAS source rejected at v0.1"
         );
+        let data = content_block(
+            &ContentBlock::Image {
+                source: "data:image/png;base64,QUJD".into(),
+                detail: None,
+            },
+            &names,
+        )
+        .expect("data URL accepted")
+        .expect("emitted");
+        assert_eq!(data["type"], "image");
+        assert_eq!(data["source"]["type"], "base64");
+        assert_eq!(data["source"]["media_type"], "image/png");
+        assert_eq!(data["source"]["data"], "QUJD");
     }
 
     #[test]

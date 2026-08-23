@@ -17,11 +17,11 @@ use nika_kernel::ai::tool_defs::ToolDefinitionProviderDyn;
 use nika_kernel::http::HttpPostDyn;
 use nika_kernel::process::ShellRunDyn;
 use nika_kernel::tool_executor::ToolExecuteDyn;
-use nika_schema::raw::{RawAction, RawCommand};
+use nika_schema::raw::{RawAction, RawCommand, VisionInput};
 use nika_types::cost::UnpricedReason;
 use nika_verb_agent::{AgentInput, AgentValue};
 use nika_verb_exec::{CaptureMode, ExecCommand, ExecValue};
-use nika_verb_infer::{InferInput, InferValue};
+use nika_verb_infer::{InferInput, InferValue, VisionPart};
 use nika_verb_invoke::InvokeInput;
 use serde_json::Value;
 
@@ -718,6 +718,22 @@ where
         input.temperature = temp_f32(action.temperature.as_ref());
         input.max_tokens = action.max_tokens.as_ref().map(|t| t.value);
         input.schema = task_schema(action.schema.as_ref(), contract);
+        // #1135 sibling: `thinking.budget_tokens` parsed and priced then
+        // vanished before InferInput. Copy only when thinking is enabled.
+        if let Some(thinking) = action.thinking.as_ref()
+            && thinking.value.enabled
+        {
+            input.thinking_budget = thinking.value.budget_tokens;
+        }
+        input.vision = match collect_vision(&action.vision, scope) {
+            Ok(v) => v,
+            Err(CollectVisionErr::Template(err)) => {
+                return Dispatched::template_err("infer · ?", &err);
+            }
+            Err(CollectVisionErr::Unwired(detail)) => {
+                return Dispatched::unwired("infer · ?", detail);
+            }
+        };
         match self.infer.run(input).await {
             Ok(out) => {
                 let note = format!("infer · {}", out.model_resolved);
@@ -996,6 +1012,40 @@ fn unpriced_reason_for(model: &str) -> UnpricedReason {
     }
 }
 
+/// Render every `infer.vision:` entry through the SAME `${{ }}` seam as
+/// prompt/system. Unknown source forms fail loud (never a silent drop).
+fn collect_vision(
+    items: &[nika_schema::Spanned<VisionInput>],
+    scope: &Scope<'_>,
+) -> Result<Vec<VisionPart>, CollectVisionErr> {
+    let mut out = Vec::with_capacity(items.len());
+    for item in items {
+        match &item.value {
+            VisionInput::File { path } => match expr::render(&path.value, scope) {
+                Ok(path) => out.push(VisionPart::file(path)),
+                Err(err) => return Err(CollectVisionErr::Template(err)),
+            },
+            VisionInput::Url { url } => match expr::render(&url.value, scope) {
+                Ok(url) => out.push(VisionPart::url(url)),
+                Err(err) => return Err(CollectVisionErr::Template(err)),
+            },
+            other => {
+                return Err(CollectVisionErr::Unwired(format!(
+                    "vision source form not wired yet: {other:?}"
+                )));
+            }
+        }
+    }
+    Ok(out)
+}
+
+/// Template vs future-variant split — kept small so `collect_vision` does
+/// not return [`Dispatched`] (clippy `result_large_err`).
+enum CollectVisionErr {
+    Template(RuntimeError),
+    Unwired(String),
+}
+
 /// Render an optional spanned string field.
 fn render_opt(
     field: Option<&nika_schema::Spanned<String>>,
@@ -1062,6 +1112,7 @@ mod infer_deadline_tests {
     use nika_kernel::http::{
         HttpError, HttpPostDyn, HttpRequest, HttpResponse, HttpStreamResponse,
     };
+    use nika_kernel::secret::Secret;
     use nika_kernel_mock::{
         MockClock, MockProvider, MockShell, MockToolDefinitionProvider, MockToolExecutor,
     };
@@ -1089,16 +1140,25 @@ mod infer_deadline_tests {
         "choices":[{"message":{"content":"ok"},"finish_reason":"stop"}],
         "usage":{"prompt_tokens":1,"completion_tokens":1}}"#;
 
+    const ANTHROPIC_OK: &str = r#"{"id":"msg_1","model":"claude-x","stop_reason":"end_turn",
+        "content":[{"type":"text","text":"ok"}],
+        "usage":{"input_tokens":1,"output_tokens":1}}"#;
+
     impl HttpPostDyn for CapturingHttp {
         async fn post(&self, request: HttpRequest) -> Result<HttpResponse, HttpError> {
             self.captured
                 .lock()
                 .expect("test mutex")
                 .push(request.clone());
+            let body = if request.url.contains("anthropic") {
+                ANTHROPIC_OK
+            } else {
+                OPENAI_OK
+            };
             Ok(HttpResponse::new(
                 200,
                 BTreeMap::new(),
-                Bytes::from_static(OPENAI_OK.as_bytes()),
+                Bytes::from_static(body.as_bytes()),
                 request.url,
             ))
         }
@@ -1115,6 +1175,14 @@ mod infer_deadline_tests {
 
     /// `pub(super)`: the `model_template_tests` sibling runs the same rig.
     pub(super) async fn run_and_capture(yaml: &str) -> Vec<HttpRequest> {
+        let (outcome, captured) = run_capture(yaml).await;
+        assert!(outcome.ok, "the canned success settles green");
+        captured
+    }
+
+    /// Same rig as [`run_and_capture`], but a failed task is data (the
+    /// #1135 missing-file catching test).
+    pub(super) async fn run_capture(yaml: &str) -> (crate::RunOutcome, Vec<HttpRequest>) {
         let wf = nika_schema::parse(
             yaml,
             nika_schema::FileId::new(0),
@@ -1122,7 +1190,7 @@ mod infer_deadline_tests {
         )
         .expect("fixture parses");
         let report = nika_check::check(&wf);
-        assert!(report.is_clean(), "fixture passes the ladder");
+        assert!(report.is_clean(), "fixture passes the ladder: {report:?}");
 
         let http = Arc::new(CapturingHttp::default());
         // The B-5 liveness gate dials the local endpoint with a REAL
@@ -1147,7 +1215,9 @@ mod infer_deadline_tests {
         };
         let registry = Arc::new(ProviderRegistry::new(
             Arc::clone(&http),
-            ProvidersConfig::new().with_base_url("ollama", format!("http://127.0.0.1:{stub}")),
+            ProvidersConfig::new()
+                .with_base_url("ollama", format!("http://127.0.0.1:{stub}"))
+                .with_key("anthropic", Secret::new("sk-ant-test")),
         ));
         let invoke = Arc::new(InvokeVerb::new(Arc::new(MockToolExecutor::new())));
         let runtime = Runtime::new(
@@ -1168,9 +1238,8 @@ mod infer_deadline_tests {
         let outcome = runtime
             .run(&wf, &report, &mut stamper, &mut sink)
             .await
-            .expect("clean run");
-        assert!(outcome.ok, "the canned success settles green");
-        http.captured()
+            .expect("the run completes (a workflow failure is data)");
+        (outcome, http.captured())
     }
 
     #[tokio::test]

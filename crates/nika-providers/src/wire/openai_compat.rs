@@ -298,10 +298,10 @@ fn push_message(
                 parts.push(json!({ "type": "text", "text": text }));
             }
             ContentBlock::Image { source, .. } => {
-                if !(source.starts_with("http://") || source.starts_with("https://")) {
+                if !super::image_source_is_url(source) {
                     return Err(ProviderError::Other {
                         reason:
-                            "image source must be a URL at v0.1 (CAS sources land with nika-media)"
+                            "image source must be an http(s) or data: URL at v0.1 (CAS sources land with nika-media)"
                                 .to_owned(),
                     });
                 }
@@ -897,6 +897,24 @@ mod tests {
             .as_array()
             .expect("multimodal parts array");
         assert!(parts.iter().any(|p| p["type"] == "image_url"));
+
+        let data = Message::new(
+            Role::User,
+            vec![ContentBlock::Image {
+                source: "data:image/png;base64,QUJD".into(),
+                detail: None,
+            }],
+        );
+        let data_body = body_of("m", &req(vec![data]), false, true, "openai").expect("data URL");
+        let data_parts = data_body["messages"][0]["content"]
+            .as_array()
+            .expect("multimodal parts array");
+        assert!(
+            data_parts.iter().any(|p| {
+                p["type"] == "image_url" && p["image_url"]["url"] == "data:image/png;base64,QUJD"
+            }),
+            "data: URLs ride as image_url: {data_parts:?}"
+        );
 
         let bad = Message::new(
             Role::User,

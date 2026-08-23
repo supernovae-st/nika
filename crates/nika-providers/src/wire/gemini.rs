@@ -296,12 +296,21 @@ fn push_content(
                     "functionResponse": { "name": name, "response": response }
                 }));
             }
-            ContentBlock::Image { .. } => {
-                return Err(ProviderError::Other {
-                    reason: "gemini image input lands with nika-media (inlineData) · \
-                             use anthropic/… or openai/… for URL images at v0.1"
-                        .to_owned(),
-                });
+            ContentBlock::Image { source, .. } => {
+                if let Some(data) = super::parse_data_image(source) {
+                    parts.push(json!({
+                        "inlineData": {
+                            "mimeType": data.media_type,
+                            "data": data.data,
+                        }
+                    }));
+                } else {
+                    return Err(ProviderError::Other {
+                        reason: "gemini image input needs a data: URL (inlineData) · \
+                                 http(s) URL images are openai/anthropic at v0.1"
+                            .to_owned(),
+                    });
+                }
             }
             _ => {}
         }
@@ -792,6 +801,23 @@ mod tests {
             }],
         );
         assert!(request_body(&req(vec![bad]), "gemini-2.5-flash").is_err());
+
+        let data = Message::new(
+            Role::User,
+            vec![ContentBlock::Image {
+                source: "data:image/png;base64,QUJD".into(),
+                detail: None,
+            }],
+        );
+        let body = request_body(&req(vec![data]), "gemini-2.5-flash").expect("data URL");
+        assert_eq!(
+            body["contents"][0]["parts"][0]["inlineData"]["mimeType"],
+            "image/png"
+        );
+        assert_eq!(
+            body["contents"][0]["parts"][0]["inlineData"]["data"],
+            "QUJD"
+        );
 
         assert!(matches!(
             map_finish(Some("STOP"), false),
