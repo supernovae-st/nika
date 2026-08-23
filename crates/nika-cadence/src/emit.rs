@@ -293,6 +293,80 @@ pub fn render(
     Ok(units)
 }
 
+/// The env-file path a unit names, if it sources one (D7).
+///
+/// Launchd carries `. '<path>' && exec …` (XML-escaped in the plist);
+/// systemd carries `EnvironmentFile=`. The VALUES never appear — only
+/// the path. `None` is the short argv (`nika arm fire <label>`), the
+/// form that silently strips provider keys if it replaces a wrapped
+/// unit.
+#[must_use]
+pub fn env_file_named_in_unit(body: &str) -> Option<String> {
+    let text = xml_unescape(body);
+    if let Some(path) = launchd_sourced_env(&text) {
+        return Some(path);
+    }
+    systemd_sourced_env(&text)
+}
+
+/// `. '<path>' && exec …` — the launchd wrap. Scans every `. ` so a
+/// `WorkingDirectory` that happens to contain that pair cannot steal the
+/// match: only a POSIX-quoted path followed by ` && exec ` counts.
+fn launchd_sourced_env(text: &str) -> Option<String> {
+    let mut search = text;
+    while let Some(at) = search.find(". ") {
+        let rest = search.get(at + 2..)?;
+        if let Some((path, after)) = split_sh_quoted(rest)
+            && after.starts_with(" && exec ")
+            && !path.is_empty()
+        {
+            return Some(path);
+        }
+        search = rest;
+    }
+    None
+}
+
+/// `EnvironmentFile=` on the service — systemd's native D7 form.
+fn systemd_sourced_env(text: &str) -> Option<String> {
+    for line in text.lines() {
+        let Some(path) = line.strip_prefix("EnvironmentFile=") else {
+            continue;
+        };
+        let path = path.trim().replace("%%", "%");
+        if !path.is_empty() {
+            return Some(path);
+        }
+    }
+    None
+}
+
+/// Inverse of POSIX single-quoting for a prefix: `'…'` with `'\''` inside.
+fn split_sh_quoted(text: &str) -> Option<(String, &str)> {
+    let mut rest = text.strip_prefix('\'')?;
+    let mut out = String::new();
+    loop {
+        let i = rest.find('\'')?;
+        out.push_str(&rest[..i]);
+        rest = rest.get(i + 1..)?;
+        if let Some(after) = rest.strip_prefix("\\''") {
+            out.push('\'');
+            rest = after;
+            continue;
+        }
+        return Some((out, rest));
+    }
+}
+
+/// Inverse of the five XML escapes (`&amp;` last — it introduces the rest).
+fn xml_unescape(text: &str) -> String {
+    text.replace("&apos;", "'")
+        .replace("&quot;", "\"")
+        .replace("&lt;", "<")
+        .replace("&gt;", ">")
+        .replace("&amp;", "&")
+}
+
 /// The GENERATED header — one sentence behind two comment markers (XML
 /// for the plist, `#` for systemd). The exact flag spelling stays OUT:
 /// `--` is illegal inside an XML comment (the OS-lint gate proves it),

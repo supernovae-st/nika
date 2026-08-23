@@ -225,6 +225,221 @@ fn emit_never_carries_a_secret_value() {
     assert!(!body.contains("hunter2-live-zz"), "D7: {body}");
 }
 
+/// #1069 — a flag-less re-emit must keep the wrap once `--env-file`
+/// has been named (the sidecar remembers it). The projection gate
+/// teaches re-emit without the flag; forgetting the wrap was the
+/// destructive path.
+#[test]
+fn flagless_reemit_keeps_the_env_wrap_from_the_sidecar() {
+    let zone = machine_zone();
+    let dir = project("persist", &registry_in(&zone));
+    let home = home(&dir);
+    let env_file = dir.join("providers.env");
+    std::fs::write(&env_file, "MISTRAL_API_KEY=hunter2-live-zz\n").expect("env file");
+    let env_arg = env_file.to_str().expect("utf8").to_owned();
+    let first = dir.join("first");
+    let out = arm(
+        &dir,
+        &home,
+        &[
+            "arm",
+            "--emit",
+            "launchd",
+            "--write",
+            "--out",
+            first.to_str().expect("utf8"),
+            "--env-file",
+            &env_arg,
+        ],
+    );
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let sidecar = std::fs::read_to_string(dir.join(".nika/arm/env-file")).expect("sidecar");
+    assert!(
+        sidecar.contains("providers.env"),
+        "le chemin, persisté: {sidecar}"
+    );
+
+    let second = dir.join("second");
+    let out = arm(
+        &dir,
+        &home,
+        &[
+            "arm",
+            "--emit",
+            "launchd",
+            "--write",
+            "--out",
+            second.to_str().expect("utf8"),
+        ],
+    );
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let body = std::fs::read_to_string(second.join("nika.arm.doctor.plist")).expect("plist");
+    assert!(
+        body.contains("/bin/sh"),
+        "le wrap demeure sans --env-file: {body}"
+    );
+    assert!(
+        body.contains(". ") && (body.contains("&amp;&amp; exec") || body.contains(" && exec ")),
+        "`. env && exec` n'est pas strippé: {body}"
+    );
+    assert!(body.contains("providers.env"), "{body}");
+    assert!(!body.contains("hunter2-live-zz"), "D7: {body}");
+}
+
+/// #1069 — a dest that already carries `. env && exec` is recovered,
+/// not replaced by the short argv, even when the sidecar is gone.
+#[test]
+fn reemit_does_not_strip_an_existing_env_wrap() {
+    let zone = machine_zone();
+    let dir = project("keepwrap", &registry_in(&zone));
+    let home = home(&dir);
+    let env_file = dir.join("providers.env");
+    std::fs::write(&env_file, "MISTRAL_API_KEY=hunter2-live-zz\n").expect("env file");
+    let env_arg = env_file.to_str().expect("utf8").to_owned();
+    let dest = dir.join("units");
+    let out = arm(
+        &dir,
+        &home,
+        &[
+            "arm",
+            "--emit",
+            "launchd",
+            "--write",
+            "--out",
+            dest.to_str().expect("utf8"),
+            "--env-file",
+            &env_arg,
+        ],
+    );
+    assert_eq!(out.status.code(), Some(0));
+    std::fs::remove_file(dir.join(".nika/arm/env-file")).expect("drop sidecar");
+
+    let out = arm(
+        &dir,
+        &home,
+        &[
+            "arm",
+            "--emit",
+            "launchd",
+            "--write",
+            "--out",
+            dest.to_str().expect("utf8"),
+        ],
+    );
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "stderr: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let body = std::fs::read_to_string(dest.join("nika.arm.doctor.plist")).expect("plist");
+    assert!(
+        body.contains("/bin/sh") && body.contains("providers.env"),
+        "l'unité existante n'est pas strippée: {body}"
+    );
+    assert!(
+        body.contains("&amp;&amp; exec") || body.contains(" && exec "),
+        "`. env && exec` demeure: {body}"
+    );
+}
+
+/// #1069 refuter — a dest wrap without the GENERATED header is still
+/// a wrap. Sidecar gone, env file gone: `--write` must refuse and
+/// leave `. env && exec` intact.
+#[test]
+fn reemit_refuses_a_wrap_without_generated_mark() {
+    let zone = machine_zone();
+    let dir = project("nogenerated", &registry_in(&zone));
+    let home = home(&dir);
+    let env_file = dir.join("providers.env");
+    std::fs::write(&env_file, "MISTRAL_API_KEY=hunter2-live-zz\n").expect("env file");
+    let env_arg = env_file.to_str().expect("utf8").to_owned();
+    let dest = dir.join("units");
+    let out = arm(
+        &dir,
+        &home,
+        &[
+            "arm",
+            "--emit",
+            "launchd",
+            "--write",
+            "--out",
+            dest.to_str().expect("utf8"),
+            "--env-file",
+            &env_arg,
+        ],
+    );
+    assert_eq!(out.status.code(), Some(0));
+    let plist = dest.join("nika.arm.doctor.plist");
+    let body = std::fs::read_to_string(&plist).expect("plist");
+    std::fs::write(&plist, body.replace("GENERATED from", "hand-kept from")).expect("strip mark");
+    std::fs::remove_file(dir.join(".nika/arm/env-file")).expect("drop sidecar");
+    std::fs::remove_file(&env_file).expect("drop env");
+
+    let before = std::fs::read_to_string(&plist).expect("before");
+    let out = arm(
+        &dir,
+        &home,
+        &[
+            "arm",
+            "--emit",
+            "launchd",
+            "--write",
+            "--out",
+            dest.to_str().expect("utf8"),
+        ],
+    );
+    assert_eq!(out.status.code(), Some(3), "le refus: {out:?}");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("--env-file"),
+        "le remède nomme le drapeau: {stderr}"
+    );
+    let after = std::fs::read_to_string(&plist).expect("after");
+    assert_eq!(after, before, "l'unité n'est pas écrasée");
+    assert!(
+        after.contains("/bin/sh")
+            && (after.contains("&amp;&amp; exec") || after.contains(" && exec ")),
+        "`. env && exec` demeure: {after}"
+    );
+}
+
+/// A sidecar that names a gone file refuses — never a weaker unit.
+#[test]
+fn stale_env_sidecar_refuses_instead_of_stripping() {
+    let zone = machine_zone();
+    let dir = project("stale", &registry_in(&zone));
+    let home = home(&dir);
+    std::fs::create_dir_all(dir.join(".nika/arm")).expect("sidecar dir");
+    std::fs::write(
+        dir.join(".nika/arm/env-file"),
+        dir.join("gone.env").display().to_string(),
+    )
+    .expect("stale sidecar");
+
+    let out = arm(&dir, &home, &["arm", "--emit", "launchd"]);
+    assert_eq!(out.status.code(), Some(3), "le refus: {out:?}");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("--env-file"),
+        "le remède nomme le drapeau: {stderr}"
+    );
+    assert!(
+        stderr.contains("gone.env"),
+        "le chemin disparu est nommé: {stderr}"
+    );
+}
+
 #[test]
 fn emit_renders_arm_fire_never_run() {
     // D2: the firer is ONE. Every emitted unit calls `arm fire <label>`

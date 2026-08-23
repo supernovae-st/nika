@@ -18,6 +18,11 @@ use nika_cadence::registry::Locus;
 use super::VerbOutput;
 use super::args::{ArmArgs, EmitMode, EmitTarget};
 
+/// Project-arm sidecar remembering `--env-file` so a flag-less re-emit
+/// keeps the D7 wrap (a short argv over a `. env && exec` unit strips
+/// every provider key).
+const ENV_FILE_SIDECAR: &str = ".nika/arm/env-file";
+
 /// `arm --emit <OS>` — render the registry's units, print them (the
 /// default) or write them (`--write`).
 #[must_use]
@@ -46,16 +51,24 @@ pub fn run(args: &ArmArgs, emit_target: EmitTarget) -> VerbOutput {
         Ok(bin) => bin,
         Err(out) => return out,
     };
-    let env_file = match env_file(args, &cwd) {
-        Ok(file) => file,
-        Err(out) => return out,
-    };
     let path = if path.is_absolute() {
         path
     } else {
         cwd.join(path)
     };
     let root = path.parent().map_or_else(|| cwd.clone(), Path::to_path_buf);
+    let dest = if args.write {
+        match dest_dir(args, emit_target) {
+            Ok(dir) => Some(dir),
+            Err(out) => return out,
+        }
+    } else {
+        None
+    };
+    let env_file = match resolve_env_file(args, &cwd, &root, dest.as_deref()) {
+        Ok(file) => file,
+        Err(out) => return out,
+    };
     let target = match emit_target {
         EmitTarget::Launchd => Target::Launchd,
         EmitTarget::Systemd => Target::SystemdUser,
@@ -85,10 +98,15 @@ pub fn run(args: &ArmArgs, emit_target: EmitTarget) -> VerbOutput {
         })
         .collect();
 
-    if args.write {
-        write_units(args, emit_target, &units, &skips, &ctx.log_dir)
-    } else {
-        print_units(&units, &skips, emit_target)
+    if let Some(file) = &ctx.env_file
+        && (args.write || args.env_file.is_some())
+        && let Err(out) = persist_env_file(&root, file)
+    {
+        return out;
+    }
+    match dest {
+        Some(dir) => write_units(&dir, emit_target, &units, &skips, &ctx.log_dir),
+        None => print_units(&units, &skips, emit_target),
     }
 }
 
@@ -111,24 +129,163 @@ fn nika_bin(args: &ArmArgs) -> Result<PathBuf, VerbOutput> {
     }
 }
 
-/// The env file, made absolute and proven readable — D7: the provider
-/// keys live THERE (the unit names the path, the values never cross),
-/// so the file must exist before any unit does.
-fn env_file(args: &ArmArgs, cwd: &Path) -> Result<Option<PathBuf>, VerbOutput> {
-    let Some(file) = &args.env_file else {
-        return Ok(None);
-    };
-    let file = if file.is_absolute() {
-        file.clone()
+/// Flag, then the project-arm sidecar, then an existing unit's wrap.
+/// A named path that cannot be read refuses — never a weaker unit.
+fn resolve_env_file(
+    args: &ArmArgs,
+    cwd: &Path,
+    root: &Path,
+    dest: Option<&Path>,
+) -> Result<Option<PathBuf>, VerbOutput> {
+    if let Some(file) = &args.env_file {
+        let file = absolute(file, cwd);
+        return match std::fs::metadata(&file) {
+            Ok(meta) if meta.is_file() => Ok(Some(file)),
+            _ => Err(VerbOutput::env(format!(
+                "arm --emit --env-file {} · illisible — les clés y vivent, il doit exister avant l'unité",
+                file.display()
+            ))),
+        };
+    }
+    if let Some(file) = persisted_env_file(root)? {
+        return Ok(Some(file));
+    }
+    match dest {
+        Some(dir) => env_file_from_existing_units(dir),
+        None => Ok(None),
+    }
+}
+
+fn absolute(file: &Path, cwd: &Path) -> PathBuf {
+    if file.is_absolute() {
+        file.to_path_buf()
     } else {
         cwd.join(file)
-    };
+    }
+}
+
+fn prove_readable(file: PathBuf) -> Result<PathBuf, VerbOutput> {
     match std::fs::metadata(&file) {
-        Ok(meta) if meta.is_file() => Ok(Some(file)),
-        _ => Err(VerbOutput::env(format!(
-            "arm --emit --env-file {} · illisible — les clés y vivent, il doit exister avant l'unité",
+        Ok(meta) if meta.is_file() => Ok(file),
+        _ => Err(weaker_refusal(Some(&file))),
+    }
+}
+
+fn persisted_env_file(root: &Path) -> Result<Option<PathBuf>, VerbOutput> {
+    let sidecar = root.join(ENV_FILE_SIDECAR);
+    let text = match std::fs::read_to_string(&sidecar) {
+        Ok(text) => text,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(e) => {
+            return Err(VerbOutput::env(format!(
+                "arm --emit · {}: {e}",
+                sidecar.display()
+            )));
+        }
+    };
+    let line = text.trim();
+    if line.is_empty() {
+        return Ok(None);
+    }
+    let file = PathBuf::from(line);
+    let file = if file.is_absolute() {
+        file
+    } else {
+        root.join(file)
+    };
+    prove_readable(file).map(Some)
+}
+
+fn persist_env_file(root: &Path, file: &Path) -> Result<(), VerbOutput> {
+    let sidecar = root.join(ENV_FILE_SIDECAR);
+    let parent = root.join(".nika/arm");
+    if let Err(e) = std::fs::create_dir_all(&parent) {
+        return Err(VerbOutput::env(format!(
+            "arm --emit · {}: {e}",
+            parent.display()
+        )));
+    }
+    std::fs::write(&sidecar, format!("{}\n", file.display()))
+        .map_err(|e| VerbOutput::env(format!("arm --emit · {}: {e}", sidecar.display())))
+}
+
+/// Read a dest that already carries the wrap — recovering the path is
+/// what makes `--write` over field units non-destructive. The wrap is
+/// the env-exec pattern itself (GENERATED header optional — stripping
+/// the comment must not reopen a weaker overwrite). Two named paths
+/// refuse rather than pick. A named path that is gone refuses rather
+/// than emit the short argv over the wrap.
+fn env_file_from_existing_units(dir: &Path) -> Result<Option<PathBuf>, VerbOutput> {
+    let entries = match std::fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+        Err(e) => {
+            return Err(VerbOutput::env(format!(
+                "arm --emit · {}: {e}",
+                dir.display()
+            )));
+        }
+    };
+    let mut named: Option<PathBuf> = None;
+    for entry in entries {
+        let path = match entry {
+            Ok(entry) => entry.path(),
+            Err(e) => {
+                return Err(VerbOutput::env(format!(
+                    "arm --emit · {}: {e}",
+                    dir.display()
+                )));
+            }
+        };
+        let Some(body) = unit_text(&path) else {
+            continue;
+        };
+        match emit::env_file_named_in_unit(&body) {
+            Some(raw) => {
+                let candidate = PathBuf::from(raw);
+                match &named {
+                    None => named = Some(candidate),
+                    Some(existing) if existing == &candidate => {}
+                    Some(existing) => {
+                        return Err(VerbOutput::file(format!(
+                            "arm --emit · unités existantes nomment des --env-file différents ({} vs {}) — refuse d'en choisir un · remède: `nika arm --emit launchd --env-file <fichier>`",
+                            existing.display(),
+                            candidate.display()
+                        )));
+                    }
+                }
+            }
+            None if body.contains(" && exec ") || body.contains("&amp;&amp; exec") => {
+                return Err(weaker_refusal(None));
+            }
+            None => {}
+        }
+    }
+    match named {
+        None => Ok(None),
+        Some(file) => prove_readable(file).map(Some),
+    }
+}
+
+/// Bytes, then lossy UTF-8 — a binary plist still carries the wrap as
+/// ASCII; `read_to_string` would skip it and reopen the strip.
+fn unit_text(path: &Path) -> Option<String> {
+    let bytes = std::fs::read(path).ok()?;
+    Some(String::from_utf8_lossy(&bytes).into_owned())
+}
+
+/// Fail closed: never emit a short argv over a unit that sources keys.
+fn weaker_refusal(file: Option<&Path>) -> VerbOutput {
+    match file {
+        Some(file) => VerbOutput::env(format!(
+            "arm --emit · --env-file {} · illisible — un emit sans le drapeau enlèverait le wrap `. env && exec` (plus de clés) · remède: `nika arm --emit launchd --env-file {}`",
+            file.display(),
             file.display()
-        ))),
+        )),
+        None => VerbOutput::env(
+            "arm --emit · une unité source déjà un env file (`. env && exec`) · un emit sans --env-file l'enlèverait (plus de clés) · remède: `nika arm --emit launchd --env-file <fichier>`"
+                .to_owned(),
+        ),
     }
 }
 
@@ -166,17 +323,13 @@ fn print_units(units: &[Unit], skips: &[String], target: EmitTarget) -> VerbOutp
 /// them (or `--out`), the log dir is created (launchd creates no
 /// parent), and the load commands carry the real paths.
 fn write_units(
-    args: &ArmArgs,
+    dir: &Path,
     target: EmitTarget,
     units: &[Unit],
     skips: &[String],
     log_dir: &Path,
 ) -> VerbOutput {
-    let dir = match dest_dir(args, target) {
-        Ok(dir) => dir,
-        Err(out) => return out,
-    };
-    if let Err(e) = std::fs::create_dir_all(&dir).and_then(|()| std::fs::create_dir_all(log_dir)) {
+    if let Err(e) = std::fs::create_dir_all(dir).and_then(|()| std::fs::create_dir_all(log_dir)) {
         return VerbOutput::env(format!("arm --emit --write · {}: {e}", dir.display()));
     }
     let mut out = String::new();
@@ -195,7 +348,7 @@ fn write_units(
         "\n{} · rien n'est chargé — la charge demeure ton geste:",
         crate::text::count(units.len(), "unité")
     );
-    for command in load_commands(units, target, Some(&dir)) {
+    for command in load_commands(units, target, Some(dir)) {
         let _ = writeln!(out, "  {command}");
     }
     VerbOutput::ok(out)

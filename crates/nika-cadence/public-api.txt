@@ -387,6 +387,7 @@ impl<T> typenum::type_operators::Same for nika_cadence::emit::Unit
 pub type nika_cadence::emit::Unit::Output = T
 pub const nika_cadence::emit::GENERATED_MARK: &str
 pub const nika_cadence::emit::MAX_INTERVALS: usize
+pub fn nika_cadence::emit::env_file_named_in_unit(body: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_cadence::emit::labels(reg: &nika_cadence::registry::ArmRegistry) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_cadence::emit::render(reg: &nika_cadence::registry::ArmRegistry, ctx: &nika_cadence::emit::EmitCtx, target: nika_cadence::emit::Target, mode: nika_cadence::emit::Mode) -> core::result::Result<alloc::vec::Vec<nika_cadence::emit::Unit>, nika_cadence::emit::EmitRefusal>
 pub mod nika_cadence::error
