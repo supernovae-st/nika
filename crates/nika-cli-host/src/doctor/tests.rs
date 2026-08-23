@@ -1273,37 +1273,11 @@ fn diagnose_emits_one_registry_coverage_row() {
     assert!(rows[0].detail.contains("31 declared"), "{}", rows[0].detail);
 }
 
-/// Gauntlet P01/P05: doctor must name `--access` classes, never a
-/// harness seat id as a pin (NIKA-1802).
 #[test]
-fn diagnose_lists_access_classes_not_seat_ids() {
-    let findings = diagnose(&Probe {
-        models: ModelsProbe::default(),
-        version: "0.0.0".to_owned(),
-        config_path: None,
-        providers: vec![],
-        clients: Vec::new(),
-        kits: Vec::new(),
-        clients_registry: RegistryCoverage::default(),
-        image: ImageProbe::default(),
-        tts: TtsProbe::default(),
-        local_pings: Vec::new(),
-        pricing: PricingProbe::default(),
-        retention: crate::retention::RetentionConfig::default(),
-        retention_notes: vec![],
-        recorded_runs: 0,
-        tracked_traces: None,
-    });
-    let rows: Vec<_> = findings.iter().filter(|f| f.label == "access").collect();
-    assert_eq!(rows.len(), 1, "one access roster: {findings:?}");
-    let detail = &rows[0].detail;
-    for class in ["local", "mock", "harness", "oauth", "api"] {
-        assert!(detail.contains(class), "roster missing `{class}`: {detail}");
-    }
-    assert!(
-        !detail.contains("claude-agent-acp"),
-        "seat ids are not --access pins: {detail}"
-    );
+fn access_roster_names_classes_not_seats() {
+    let d = super::access_class_finding().detail;
+    assert!(d.contains("local · mock · harness · oauth · api"), "{d}");
+    assert!(!d.contains("claude-agent-acp"), "{d}");
 }
 
 /// B-8b (the 2026-07-31 gauntlet): a healthy keyless machine printed

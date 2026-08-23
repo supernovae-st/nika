@@ -551,7 +551,7 @@ impl InferenceChoice {
             let _ = writeln!(s, "{arrow}{name:<22} {}", rung.reason);
         }
         let _ = writeln!(s);
-        let next = front_door_next(self, cwd);
+        let next = front_door_next(cwd);
         let _ = writeln!(s, "Next:");
         let _ = writeln!(s, "  {}", theme.paint(Role::Strong, &next));
         let _ = writeln!(s);
@@ -697,8 +697,8 @@ pub(crate) fn first_wow_dest(dest: Option<&str>) -> &str {
     }
 }
 
-/// Write the cascade's first workflow. Harness → `agent:` (the seat can
-/// sit). Key/local → `infer:` with the chosen model.
+/// Write the cascade's first workflow. Key → `infer:` with that model.
+/// Anything else → `infer:` on `mock/echo` so the printed Next runs.
 #[must_use]
 pub(crate) fn write_first_wow(dest: &Path, force: bool) -> crate::output::VerbOutput {
     write_first_wow_from(dest, force, &collect())
@@ -721,36 +721,32 @@ pub(crate) fn write_first_wow_from(
         Ok(()) => crate::output::VerbOutput::ok(format!(
             "wrote {} · {}",
             dest.display(),
-            first_wow_next(choice, dest)
+            first_wow_next(dest)
         )),
         Err(e) => crate::output::VerbOutput::env(format!("cannot write {}: {e}", dest.display())),
     }
 }
 
-fn first_wow_next(choice: &InferenceChoice, dest: &Path) -> String {
-    // `--access` accepts a CLASS (`harness`) or a probe id this machine
-    // offers. Seat ids like `claude-agent-acp` are NIKA-1802 — the
-    // receipt must be a command that runs (gauntlet P05).
-    if choice.arrow == "harness" && choice.chosen_access.is_some() {
-        format!("nika run {} --access harness", dest.display())
-    } else {
-        format!("nika run {}", dest.display())
-    }
+fn first_wow_next(dest: &Path) -> String {
+    // Gauntlet W2 (P01 P02 P04 P05 P07 P12 P15): `--access harness` on
+    // an `agent:` file with no `model:` is NIKA-INFER-001. The Next
+    // line is a copy-paste that must exit 0 on a keyless machine.
+    format!("nika run {}", dest.display())
 }
 
 /// `Next:` after the user already has a file. Teaching `nika new hello`
 /// again is a dead end (`exists — pass --force`) — gulf of execution,
 /// and the tool's own advice caused it (gauntlet P15).
-fn front_door_next(choice: &InferenceChoice, cwd: Option<&Path>) -> String {
+fn front_door_next(cwd: Option<&Path>) -> String {
     let Some(dir) = cwd else {
         return "nika new hello".to_owned();
     };
     let files = cwd_workflows(dir);
     match files.as_slice() {
         [] => "nika new hello".to_owned(),
-        [one] => first_wow_next(choice, Path::new(one)),
+        [one] => first_wow_next(Path::new(one)),
         many if many.iter().any(|n| n == FIRST_WOW_DEST) => {
-            first_wow_next(choice, Path::new(FIRST_WOW_DEST))
+            first_wow_next(Path::new(FIRST_WOW_DEST))
         }
         _ => "nika run".to_owned(),
     }
@@ -777,10 +773,6 @@ fn cwd_workflows(cwd: &Path) -> Vec<String> {
         .collect();
     names.sort();
     names
-}
-
-fn harness_ready(choice: &InferenceChoice) -> bool {
-    choice.arrow == "harness" && choice.rungs.iter().any(|r| r.id == "harness" && r.ready)
 }
 
 fn local_ready(choice: &InferenceChoice) -> bool {
@@ -810,17 +802,14 @@ pub(crate) fn first_wow_yaml(choice: &InferenceChoice) -> String {
     // Spaces after `\n` must live on the SAME string fragment. A `\`
     // line-continuation eats the next line's indent and the YAML collapses
     // (`tasks.reply` and `outputs.reply` then collide at the top level).
-    if harness_ready(choice) {
-        format!(
-            "{FIRST_WOW_MODELINE}nika: hello\npermits: {{}}\ntasks:\n  reply:\n    agent:\n      prompt: \"{FIRST_WOW_PROMPT}\"\n      max_turns: 2\n      max_tokens_total: 512\noutputs:\n  reply: ${{{{ tasks.reply.output }}}}\n"
-        )
-    } else {
-        let (model, note) = first_wow_infer_model(choice);
-        let model = yaml_scalar(&model);
-        format!(
-            "{FIRST_WOW_MODELINE}{note}nika: hello\nmodel: {model}\npermits: {{}}\ntasks:\n  reply:\n    infer:\n      prompt: \"{FIRST_WOW_PROMPT}\"\n      max_tokens: 64\noutputs:\n  reply: ${{{{ tasks.reply.output }}}}\n"
-        )
-    }
+    // Harness-ready used to stamp `agent:` with no `model:` and print
+    // `--access harness` — that Next is NIKA-INFER-001 (gauntlet W2).
+    // The file a new user pastes must run on a keyless machine.
+    let (model, note) = first_wow_infer_model(choice);
+    let model = yaml_scalar(&model);
+    format!(
+        "{FIRST_WOW_MODELINE}{note}nika: hello\nmodel: {model}\npermits: {{}}\ntasks:\n  reply:\n    infer:\n      prompt: \"{FIRST_WOW_PROMPT}\"\n      max_tokens: 64\noutputs:\n  reply: ${{{{ tasks.reply.output }}}}\n"
+    )
 }
 
 /// Pack skeletons — the cascade stamps them at `nika new`.

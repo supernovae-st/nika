@@ -322,11 +322,13 @@ fn seven_gb_does_not_claim_lite() {
 }
 
 #[test]
-fn harness_first_wow_is_agent_without_vendor_model() {
+fn harness_first_wow_is_infer_mock_so_the_printed_next_runs() {
     let choice = collect_from(&machine(Some(18), vec![claude()], false, &[], true));
+    assert_eq!(choice.arrow, "harness");
     let yaml = first_wow_yaml(&choice);
-    assert!(yaml.contains("agent:"), "{yaml}");
-    assert!(!yaml.contains("infer:"), "{yaml}");
+    assert!(yaml.contains("infer:"), "{yaml}");
+    assert!(yaml.contains("model: mock/echo"), "{yaml}");
+    assert!(!yaml.contains("agent:"), "{yaml}");
     assert!(!yaml.contains("ollama/"), "{yaml}");
     assert!(!yaml.contains("xai/grok-4"), "{yaml}");
     assert!(!yaml.contains("harness/claude"), "{yaml}");
@@ -399,8 +401,8 @@ fn write_first_wow_lands_a_file_and_names_run() {
     assert!(dest.is_file());
     assert!(out.text.contains("wrote"), "{}", out.text);
     assert!(
-        out.text.contains("nika run") && out.text.contains("--access harness"),
-        "receipt must pin a class this binary accepts, not a seat id: {}",
+        out.text.contains("nika run") && !out.text.contains("--access harness"),
+        "receipt must be a command that exits 0 on a keyless machine: {}",
         out.text
     );
     assert!(
@@ -409,7 +411,9 @@ fn write_first_wow_lands_a_file_and_names_run() {
         out.text
     );
     let body = std::fs::read_to_string(&dest).expect("body");
-    assert!(body.contains("agent:"));
+    assert!(body.contains("infer:"));
+    assert!(body.contains("model: mock/echo"));
+    assert!(!body.contains("agent:"));
     assert!(!body.contains("xai/grok-4"));
     assert!(!body.contains("ollama/"));
 }
@@ -519,15 +523,19 @@ fn next_after_hello_exists_is_run_not_new() {
 }
 
 #[test]
-fn next_after_hello_with_harness_pins_the_class_not_the_seat() {
+fn next_after_hello_with_harness_is_run_not_a_pin() {
     let choice = collect_from(&machine(Some(18), vec![claude()], false, &[], true));
     let dir = tempfile::tempdir().expect("tmp");
     std::fs::write(dir.path().join("hello.nika.yaml"), "nika: hello\n").expect("seed");
     let human = choice.render_human_at(Theme::new(false, false, false), Some(dir.path()));
     let after = next_block(&human);
     assert!(
-        after.contains("nika run hello.nika.yaml --access harness"),
-        "harness Next is a class this binary accepts:\n{human}"
+        after.contains("nika run hello.nika.yaml"),
+        "a file already here is the next door:\n{human}"
+    );
+    assert!(
+        !after.contains("--access harness"),
+        "harness pin on an unmodeled agent was NIKA-INFER-001:\n{human}"
     );
     assert!(
         !after.contains("claude-agent-acp"),
