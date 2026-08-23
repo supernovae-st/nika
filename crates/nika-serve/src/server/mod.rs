@@ -5,6 +5,7 @@ mod auth;
 mod config;
 mod error;
 mod model;
+mod openapi;
 mod registry;
 mod route;
 mod sse;

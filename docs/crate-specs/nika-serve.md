@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | **WORKSPACE WIP — W07 SSE**. Durable jobs plus bounded loopback HTTP and an authenticated job-event SSE projection are present; OpenAPI/SDK and full 12-gate admission remain later carriers. |
+| Status | **WORKSPACE WIP — W09 OPENAPI**. Durable jobs, loopback HTTP, SSE, and an authenticated OpenAPI 3.1 document of the live routes. SDK retarget and 12-gate admission remain later. |
 | Layer | L4 — remote execution interface projection |
 | Purpose | Persist request admission, lifecycle status, and resumable event cursors, and project the first authenticated HTTP routes over that state. |
 | LOC budget | ≤5,000 source lines for the state plane; ≤15,000 hard crate cap. |
@@ -91,6 +91,7 @@ No public job mutation accepts a filesystem path. Startup paths live only in
 | `GET` | `/v1/jobs/{id}` | exactly one Bearer | opaque id + status |
 | `GET` | `/v1/jobs/{id}/status` | exactly one Bearer | status only |
 | `GET` | `/v1/jobs/{id}/events` | exactly one Bearer | SSE `text/event-stream`; `id:` sequence; `data:` `{sequence,kind,status}` |
+| `GET` | `/v1/openapi.json` | exactly one Bearer | OpenAPI 3.1 document of the live routes |
 
 Cancel and artifact routes return 404. No route returns source bytes,
 idempotency keys, request digests, event payloads, provider/tool data, paths,

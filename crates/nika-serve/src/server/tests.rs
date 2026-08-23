@@ -1372,6 +1372,28 @@ impl WireResponse {
     }
 }
 
+#[tokio::test(flavor = "multi_thread")]
+async fn openapi_is_authenticated_and_omits_absent_authorities() {
+    let world = TestWorld::new();
+    let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
+    let server = world.start(backend, limits()).await;
+    let unauth = server
+        .request("GET /v1/openapi.json HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n\r\n")
+        .await;
+    assert_eq!(unauth.status, 401);
+    assert!(!unauth.body.contains(TOKEN));
+    let spec = server.request(&get_request("/v1/openapi.json")).await;
+    assert_eq!(spec.status, 200, "{}", spec.body);
+    let body = spec.json();
+    assert_eq!(body, super::openapi::document());
+    assert_eq!(body["openapi"], "3.1.0");
+    assert!(body["paths"].get("/v1/jobs").is_some());
+    assert!(body["paths"].get("/v1/jobs/{id}/events").is_some());
+    assert!(body["paths"].get("/v1/jobs/{id}/cancel").is_none());
+    assert!(body["paths"].get("/v1/jobs/{id}/artifacts").is_none());
+    server.stop().await.expect("clean stop");
+}
+
 #[cfg(unix)]
 fn secure_file(path: &std::path::Path) {
     use std::os::unix::fs::PermissionsExt as _;
