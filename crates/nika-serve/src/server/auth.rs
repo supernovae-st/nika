@@ -16,7 +16,11 @@ use sha2::{Digest as _, Sha256};
 use subtle::ConstantTimeEq as _;
 use zeroize::Zeroizing;
 
-use super::ServerError;
+use super::{CredentialRefuse, ServerError};
+
+const fn refused(kind: CredentialRefuse) -> ServerError {
+    ServerError::Credential(kind)
+}
 
 const MIN_TOKEN_BYTES: usize = 32;
 const MAX_TOKEN_BYTES: usize = 512;
@@ -32,9 +36,9 @@ impl BearerToken {
         let mut bytes = Zeroizing::new(Vec::new());
         file.take((MAX_TOKEN_BYTES + 3) as u64)
             .read_to_end(&mut bytes)
-            .map_err(|_| ServerError::Credential)?;
+            .map_err(|_| refused(CredentialRefuse::Unreadable))?;
         if bytes.len() > MAX_TOKEN_BYTES + 2 {
-            return Err(ServerError::Credential);
+            return Err(refused(CredentialRefuse::InvalidMaterial));
         }
         if bytes.ends_with(b"\r\n") {
             let body_len = bytes.len() - 2;
@@ -46,7 +50,7 @@ impl BearerToken {
             || bytes.len() > MAX_TOKEN_BYTES
             || !bytes.iter().all(u8::is_ascii_graphic)
         {
-            return Err(ServerError::Credential);
+            return Err(refused(CredentialRefuse::InvalidMaterial));
         }
         Ok(Self {
             digest: Sha256::digest(&bytes).into(),
@@ -92,21 +96,32 @@ fn open_secret(path: &Path) -> Result<File, ServerError> {
         Mode::empty(),
     )
     .map(File::from)
-    .map_err(|_| ServerError::Credential)
+    .map_err(|errno| {
+        if errno == nix::errno::Errno::ELOOP {
+            refused(CredentialRefuse::FollowRefused)
+        } else {
+            refused(CredentialRefuse::Unreadable)
+        }
+    })
 }
 
 #[cfg(not(unix))]
 fn open_secret(path: &Path) -> Result<File, ServerError> {
-    File::open(path).map_err(|_| ServerError::Credential)
+    File::open(path).map_err(|_| refused(CredentialRefuse::Unreadable))
 }
 
 #[cfg(unix)]
 fn validate_file_mode(file: &File) -> Result<(), ServerError> {
     use std::os::unix::fs::MetadataExt as _;
 
-    let metadata = file.metadata().map_err(|_| ServerError::Credential)?;
-    if metadata.mode() & 0o077 != 0 || !metadata.is_file() {
-        return Err(ServerError::Credential);
+    let metadata = file
+        .metadata()
+        .map_err(|_| refused(CredentialRefuse::Unreadable))?;
+    if !metadata.is_file() {
+        return Err(refused(CredentialRefuse::FollowRefused));
+    }
+    if metadata.mode() & 0o077 != 0 {
+        return Err(refused(CredentialRefuse::InsecureMode));
     }
     Ok(())
 }
@@ -116,6 +131,6 @@ fn validate_file_mode(file: &File) -> Result<(), ServerError> {
     if file.metadata().is_ok_and(|meta| meta.is_file()) {
         Ok(())
     } else {
-        Err(ServerError::Credential)
+        Err(refused(CredentialRefuse::FollowRefused))
     }
 }

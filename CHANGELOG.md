@@ -20,6 +20,10 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   check-fatal world returns `{error:{code,message}}` with the NIKA code
   when the engine stamped one. Symlink and other capture refuses stay
   `admission_refused`. Paths stay dropped.
+- **Token-file refusal is typed.** `ServerError::Credential` now names
+  unreadable, not a regular file, insecure mode, or invalid material.
+  `nika serve --bind` still prints the openssl mint and never echoes
+  bytes. Missing `--token-file` is unchanged. Paths stay dropped.
 
 
 

@@ -2,6 +2,7 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 use std::convert::Infallible;
+use std::fmt;
 use std::io;
 
 use bytes::Bytes;
@@ -12,6 +13,31 @@ use hyper::{Response, StatusCode};
 use thiserror::Error;
 
 use crate::JobStoreError;
+
+/// Why a credential source was refused. Never carries a path or secret bytes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum CredentialRefuse {
+    /// The file could not be opened or read.
+    Unreadable,
+    /// The path is a symlink, FIFO, or other non-regular file.
+    FollowRefused,
+    /// Group or world bits are set; owner-only mode 0600 is required.
+    InsecureMode,
+    /// Length is outside 32–512 or a byte is not ASCII graphic.
+    InvalidMaterial,
+}
+
+impl fmt::Display for CredentialRefuse {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(match self {
+            Self::Unreadable => "unreadable",
+            Self::FollowRefused => "not a regular file",
+            Self::InsecureMode => "insecure mode",
+            Self::InvalidMaterial => "invalid material",
+        })
+    }
+}
 
 pub(crate) type ResponseBody = UnsyncBoxBody<Bytes, Infallible>;
 
@@ -27,8 +53,8 @@ pub enum ServerError {
     #[error("server configuration refused: {0}")]
     InvalidConfig(&'static str),
     /// The credential source could not be acquired safely.
-    #[error("server credential source refused")]
-    Credential,
+    #[error("server credential source refused: {0}")]
+    Credential(CredentialRefuse),
     /// The held workflow registry could not be opened.
     #[error("workflow registry could not be opened: {0}")]
     WorkflowRoot(io::ErrorKind),

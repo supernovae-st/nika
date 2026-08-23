@@ -116,6 +116,18 @@ fn token_file_refused(prefix: &str) -> String {
     format!("serve · {prefix} ({TOKEN_FILE_RULE})\n  {TOKEN_FILE_MINT}")
 }
 
+fn credential_prefix(kind: nika_serve::CredentialRefuse) -> &'static str {
+    match kind {
+        nika_serve::CredentialRefuse::Unreadable => "token file unreadable",
+        nika_serve::CredentialRefuse::FollowRefused => {
+            "token file must be a regular file, not a symlink"
+        }
+        nika_serve::CredentialRefuse::InsecureMode => "token file must be mode 0600",
+        nika_serve::CredentialRefuse::InvalidMaterial => "token file must be 32–512 visible ASCII",
+        _ => "token file refused",
+    }
+}
+
 fn serve_http_mode(args: &ServeArgs) -> Result<VerbOutput, String> {
     let bind = args
         .bind
@@ -154,7 +166,7 @@ fn serve_http_mode(args: &ServeArgs) -> Result<VerbOutput, String> {
         http_shutdown(),
     ))
     .map_err(|error| match error {
-        nika_serve::ServerError::Credential => token_file_refused("token file refused"),
+        nika_serve::ServerError::Credential(kind) => token_file_refused(credential_prefix(kind)),
         other => format!("serve · {other}"),
     })?;
     Ok(VerbOutput::ok(String::new()))
@@ -968,6 +980,7 @@ mod tests {
         args.token_file = Some(token);
         let out = run(&args);
         assert_eq!(out.code, exit::WORKFLOW, "{}", out.text);
+        assert!(out.text.contains("32–512 visible ASCII"), "{}", out.text);
         assert!(out.text.contains("openssl rand -hex 24"), "{}", out.text);
         assert!(!out.text.contains("too-short"), "{}", out.text);
     }
@@ -989,7 +1002,49 @@ mod tests {
         args.token_file = Some(token);
         let out = run(&args);
         assert_eq!(out.code, exit::WORKFLOW, "{}", out.text);
+        assert!(out.text.contains("mode 0600"), "{}", out.text);
         assert!(out.text.contains("openssl rand -hex 24"), "{}", out.text);
         assert!(!out.text.contains(&secret), "{}", out.text);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_symlink_token_file_teaches_regular_file_and_does_not_echo_the_secret() {
+        let tmp = tempfile::tempdir().expect("tmp");
+        let workflows = tmp.path().join("wf");
+        std::fs::create_dir(&workflows).expect("wf");
+        let real = tmp.path().join("real.token");
+        let secret = "a".repeat(32);
+        std::fs::write(&real, &secret).expect("token");
+        {
+            use std::os::unix::fs::PermissionsExt as _;
+            std::fs::set_permissions(&real, std::fs::Permissions::from_mode(0o600)).expect("mode");
+        }
+        let linked = tmp.path().join("linked.token");
+        std::os::unix::fs::symlink(&real, &linked).expect("symlink");
+        let mut args = serve_args();
+        args.bind = Some("127.0.0.1:0".to_owned());
+        args.workflows = Some(workflows);
+        args.token_file = Some(linked);
+        let out = run(&args);
+        assert_eq!(out.code, exit::WORKFLOW, "{}", out.text);
+        assert!(out.text.contains("regular file"), "{}", out.text);
+        assert!(out.text.contains("openssl rand -hex 24"), "{}", out.text);
+        assert!(!out.text.contains(&secret), "{}", out.text);
+    }
+
+    #[test]
+    fn a_missing_token_file_teaches_unreadable_and_the_mint() {
+        let tmp = tempfile::tempdir().expect("tmp");
+        let workflows = tmp.path().join("wf");
+        std::fs::create_dir(&workflows).expect("wf");
+        let mut args = serve_args();
+        args.bind = Some("127.0.0.1:0".to_owned());
+        args.workflows = Some(workflows);
+        args.token_file = Some(tmp.path().join("absent.token"));
+        let out = run(&args);
+        assert_eq!(out.code, exit::WORKFLOW, "{}", out.text);
+        assert!(out.text.contains("unreadable"), "{}", out.text);
+        assert!(out.text.contains("openssl rand -hex 24"), "{}", out.text);
     }
 }
