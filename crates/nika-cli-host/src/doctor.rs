@@ -117,6 +117,7 @@ pub fn diagnose(probe: &Probe) -> Vec<Finding> {
             .to_owned(),
         fix: None,
     });
+    out.push(access_class_finding());
     // #891 — the sandbox row rides the ONE selection's decision (#888),
     // observed once here (the sidecar precedent · diagnose stays pure).
     out.push(sandbox_finding(&crate::probe::sandbox_probe()));
@@ -141,6 +142,20 @@ pub fn diagnose(probe: &Probe) -> Vec<Finding> {
     provider_findings(probe, &mut out);
 
     out
+}
+
+/// `--access` vocabulary (NIKA-1802). Classes, never a harness seat id.
+/// Gauntlet P01/P05: copying `claude-agent-acp` from a doctor row dies.
+fn access_class_finding() -> Finding {
+    let vocabulary = nika_types::access::AccessClass::ALL
+        .map(nika_types::access::AccessClass::as_str)
+        .join(" · ");
+    Finding {
+        level: Level::Ok,
+        label: "access".to_owned(),
+        detail: format!("--access classes: {vocabulary} (not a seat id)"),
+        fix: None,
+    }
 }
 
 /// The sandbox row (#891 · #822 P1) — the ONE selection's decision,

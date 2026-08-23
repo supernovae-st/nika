@@ -434,10 +434,11 @@ struct RunArgs {
     #[arg(long, value_name = "PROVIDER/NAME")]
     model: Option<String>,
     /// Pin the ACCESS path (`model:` picks the intelligence; access
-    /// picks the path) — an access class (`local` · `api` · `harness` ·
-    /// `oauth` · `mock`) or an access id `nika doctor` lists. A pin is
-    /// a pin: unsatisfied refuses before the prologue with a witness,
-    /// never substitutes another path or model (D-2026-08-04-N1).
+    /// picks the path) — a class: `local` · `mock` · `harness` ·
+    /// `oauth` · `api`. A harness seat id (`claude-agent-acp`) is not a
+    /// class (NIKA-1802). A pin is a pin: unsatisfied refuses before
+    /// the prologue with a witness, never substitutes another path or
+    /// model (D-2026-08-04-N1).
     #[arg(long, value_name = "PATH")]
     access: Option<String>,
     /// Set a workflow `inputs:` value (repeatable). Overrides a declared
@@ -1254,6 +1255,24 @@ mod tests {
         let expected: std::collections::BTreeSet<&str> =
             ["new", "run", "check", "doctor"].into_iter().collect();
         assert_eq!(visible, expected, "day-one verbs: new run check doctor");
+        let run = cmd.find_subcommand("run").expect("run");
+        let access = run
+            .get_arguments()
+            .find(|a| a.get_long() == Some("access"))
+            .expect("--access");
+        let help = access
+            .get_help()
+            .map(std::string::ToString::to_string)
+            .unwrap_or_default();
+        assert!(help.contains("harness") && help.contains("local"), "{help}");
+        assert!(
+            !help.contains("nika doctor lists"),
+            "doctor listing seat ids as pins caused NIKA-1802: {help}"
+        );
+        assert!(
+            help.contains("claude-agent-acp") && help.contains("not a class"),
+            "the help must name the trap: {help}"
+        );
         let hidden = cmd
             .get_subcommands()
             .filter(|c| c.is_hide_set() && c.get_name() != "help")

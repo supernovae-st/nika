@@ -1485,3 +1485,68 @@ fn new_hello_writes_the_first_wow_file() {
     );
     let _ = std::fs::remove_dir_all(&dir);
 }
+
+/// Gauntlet P15: after the file exists, Next is run, not another
+/// `nika new hello` that dies on `--force`.
+#[test]
+fn welcome_next_after_hello_is_run_not_new() {
+    let dir = workspace_tmp_dir("nika-welcome-next-after");
+    let mut empty = bin();
+    empty
+        .arg("welcome")
+        .current_dir(&dir)
+        .env("HOME", &dir)
+        .env_remove("ANTHROPIC_API_KEY")
+        .env_remove("OPENAI_API_KEY")
+        .env_remove("XAI_API_KEY")
+        .stdin(std::process::Stdio::null());
+    let empty_out = empty.output().expect("welcome empty");
+    let vacant = String::from_utf8_lossy(&empty_out.stdout);
+    assert_eq!(empty_out.status.code(), Some(0), "{vacant}");
+    let vacant_door = vacant.split("Next:").nth(1).unwrap_or("");
+    assert!(
+        vacant_door.contains("nika new hello"),
+        "empty dir first door:\n{vacant}"
+    );
+
+    let wrote = bin()
+        .args(["new", "hello"])
+        .current_dir(&dir)
+        .env("HOME", &dir)
+        .env_remove("ANTHROPIC_API_KEY")
+        .env_remove("OPENAI_API_KEY")
+        .env_remove("XAI_API_KEY")
+        .stdin(std::process::Stdio::null())
+        .output()
+        .expect("new hello");
+    assert_eq!(
+        wrote.status.code(),
+        Some(0),
+        "{}{}",
+        String::from_utf8_lossy(&wrote.stdout),
+        String::from_utf8_lossy(&wrote.stderr)
+    );
+
+    let again = bin()
+        .arg("welcome")
+        .current_dir(&dir)
+        .env("HOME", &dir)
+        .env_remove("ANTHROPIC_API_KEY")
+        .env_remove("OPENAI_API_KEY")
+        .env_remove("XAI_API_KEY")
+        .stdin(std::process::Stdio::null())
+        .output()
+        .expect("welcome after");
+    let again_text = String::from_utf8_lossy(&again.stdout);
+    assert_eq!(again.status.code(), Some(0), "{again_text}");
+    let after = again_text.split("Next:").nth(1).unwrap_or("");
+    assert!(
+        after.contains("nika run hello.nika.yaml"),
+        "file here → run it:\n{again_text}"
+    );
+    assert!(
+        !after.contains("nika new hello"),
+        "new hello after a file is the --force dead end:\n{again_text}"
+    );
+    let _ = std::fs::remove_dir_all(&dir);
+}

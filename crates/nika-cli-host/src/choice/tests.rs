@@ -104,7 +104,8 @@ fn authenticated_harness_takes_the_arrow_with_zero_key_zero_download() {
             .is_some_and(|r| r.ready),
         "{choice:?}"
     );
-    let human = choice.render_human(Theme::new(false, false, false));
+    let dir = tempfile::tempdir().expect("tmp");
+    let human = choice.render_human_at(Theme::new(false, false, false), Some(dir.path()));
     assert!(human.contains("Claude Code"), "{human}");
     assert!(human.contains("nika new hello"), "{human}");
     assert!(!human.contains("xai/grok-4"), "{human}");
@@ -252,8 +253,9 @@ fn stamp_falls_back_to_mock_when_the_cascade_id_is_not_runnable() {
 #[test]
 fn tty_and_pipe_project_the_same_product() {
     let choice = collect_from(&machine(Some(8), vec![], false, &[], false));
-    let a = choice.render_human(Theme::new(false, false, false));
-    let b = choice.render_human(Theme::new(false, true, false));
+    let dir = tempfile::tempdir().expect("tmp");
+    let a = choice.render_human_at(Theme::new(false, false, false), Some(dir.path()));
+    let b = choice.render_human_at(Theme::new(false, true, false), Some(dir.path()));
     assert!(a.contains("Local first"));
     assert!(b.contains("Local first"));
     assert!(a.contains("Next:"));
@@ -468,7 +470,8 @@ fn chosen_access_is_the_seat_when_harness_has_the_arrow() {
 #[test]
 fn next_for_a_ready_harness_is_new_hello() {
     let choice = collect_from(&machine(Some(18), vec![claude()], false, &[], true));
-    let human = choice.render_human(Theme::new(false, false, false));
+    let dir = tempfile::tempdir().expect("tmp");
+    let human = choice.render_human_at(Theme::new(false, false, false), Some(dir.path()));
     assert!(human.contains("nika new hello"), "{human}");
     assert!(human.contains("this machine · 18 GB"), "{human}");
 }
@@ -477,7 +480,8 @@ fn next_for_a_ready_harness_is_new_hello() {
 fn unready_local_next_is_new_hello_not_a_seven_gb_pull() {
     let choice = collect_from(&machine(Some(18), vec![], false, &[], true));
     assert_eq!(choice.arrow, "local");
-    let human = choice.render_human(Theme::new(false, false, false));
+    let dir = tempfile::tempdir().expect("tmp");
+    let human = choice.render_human_at(Theme::new(false, false, false), Some(dir.path()));
     let after = human.split("Next:").nth(1).expect("Next: block");
     assert!(
         after.contains("nika new hello"),
@@ -491,4 +495,72 @@ fn unready_local_next_is_new_hello_not_a_seven_gb_pull() {
         human.contains("to pull"),
         "the local rung still names the download:\n{human}"
     );
+}
+
+fn next_block(human: &str) -> &str {
+    human.split("Next:").nth(1).expect("Next: block")
+}
+
+#[test]
+fn next_after_hello_exists_is_run_not_new() {
+    let choice = collect_from(&machine(Some(18), vec![], false, &[], true));
+    let dir = tempfile::tempdir().expect("tmp");
+    std::fs::write(dir.path().join("hello.nika.yaml"), "nika: hello\n").expect("seed");
+    let human = choice.render_human_at(Theme::new(false, false, false), Some(dir.path()));
+    let after = next_block(&human);
+    assert!(
+        after.contains("nika run hello.nika.yaml"),
+        "a file already here is the next door:\n{human}"
+    );
+    assert!(
+        !after.contains("nika new hello"),
+        "new hello after a file exists is the --force dead end:\n{human}"
+    );
+}
+
+#[test]
+fn next_after_hello_with_harness_pins_the_class_not_the_seat() {
+    let choice = collect_from(&machine(Some(18), vec![claude()], false, &[], true));
+    let dir = tempfile::tempdir().expect("tmp");
+    std::fs::write(dir.path().join("hello.nika.yaml"), "nika: hello\n").expect("seed");
+    let human = choice.render_human_at(Theme::new(false, false, false), Some(dir.path()));
+    let after = next_block(&human);
+    assert!(
+        after.contains("nika run hello.nika.yaml --access harness"),
+        "harness Next is a class this binary accepts:\n{human}"
+    );
+    assert!(
+        !after.contains("claude-agent-acp"),
+        "seat ids are NIKA-1802 as --access pins:\n{human}"
+    );
+    assert!(!after.contains("nika new hello"), "{human}");
+}
+
+#[test]
+fn next_prefers_hello_when_other_workflows_sit_beside_it() {
+    let choice = collect_from(&machine(Some(18), vec![], false, &[], true));
+    let dir = tempfile::tempdir().expect("tmp");
+    std::fs::write(dir.path().join("hello.nika.yaml"), "nika: hello\n").expect("hello");
+    std::fs::write(dir.path().join("other.nika.yaml"), "nika: other\n").expect("other");
+    let human = choice.render_human_at(Theme::new(false, false, false), Some(dir.path()));
+    let after = next_block(&human);
+    assert!(
+        after.contains("nika run hello.nika.yaml"),
+        "first-wow stays the one Next when it is here:\n{human}"
+    );
+}
+
+#[test]
+fn next_with_two_non_hello_files_is_bare_run() {
+    let choice = collect_from(&machine(Some(18), vec![], false, &[], true));
+    let dir = tempfile::tempdir().expect("tmp");
+    std::fs::write(dir.path().join("a.nika.yaml"), "nika: a\n").expect("a");
+    std::fs::write(dir.path().join("b.nika.yaml"), "nika: b\n").expect("b");
+    let human = choice.render_human_at(Theme::new(false, false, false), Some(dir.path()));
+    let after = next_block(&human);
+    assert!(
+        after.contains("nika run"),
+        "several files → the lazy door, not another scaffold:\n{human}"
+    );
+    assert!(!after.contains("nika new hello"), "{human}");
 }

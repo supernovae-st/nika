@@ -510,6 +510,13 @@ impl InferenceChoice {
     /// Human projection — TTY and pipe render this same product.
     #[must_use]
     pub(crate) fn render_human(&self, theme: Theme) -> String {
+        self.render_human_at(theme, std::env::current_dir().ok().as_deref())
+    }
+
+    /// Test seam — `Next:` keys on the files in `cwd`, never the crate
+    /// that compiled the binary (gauntlet P15).
+    #[must_use]
+    pub(crate) fn render_human_at(&self, theme: Theme, cwd: Option<&Path>) -> String {
         let mut s = String::new();
         let _ = writeln!(s, "{}", theme.paint(Role::Strong, &self.slogan));
         let _ = writeln!(s);
@@ -544,13 +551,9 @@ impl InferenceChoice {
             let _ = writeln!(s, "{arrow}{name:<22} {}", rung.reason);
         }
         let _ = writeln!(s);
-        let next = self
-            .rungs
-            .iter()
-            .find(|r| r.id == self.arrow)
-            .map_or("nika new", |r| r.next.as_str());
+        let next = front_door_next(self, cwd);
         let _ = writeln!(s, "Next:");
-        let _ = writeln!(s, "  {}", theme.paint(Role::Strong, next));
+        let _ = writeln!(s, "  {}", theme.paint(Role::Strong, &next));
         let _ = writeln!(s);
         let _ = writeln!(
             s,
@@ -733,6 +736,47 @@ fn first_wow_next(choice: &InferenceChoice, dest: &Path) -> String {
     } else {
         format!("nika run {}", dest.display())
     }
+}
+
+/// `Next:` after the user already has a file. Teaching `nika new hello`
+/// again is a dead end (`exists — pass --force`) — gulf of execution,
+/// and the tool's own advice caused it (gauntlet P15).
+fn front_door_next(choice: &InferenceChoice, cwd: Option<&Path>) -> String {
+    let Some(dir) = cwd else {
+        return "nika new hello".to_owned();
+    };
+    let files = cwd_workflows(dir);
+    match files.as_slice() {
+        [] => "nika new hello".to_owned(),
+        [one] => first_wow_next(choice, Path::new(one)),
+        many if many.iter().any(|n| n == FIRST_WOW_DEST) => {
+            first_wow_next(choice, Path::new(FIRST_WOW_DEST))
+        }
+        _ => "nika run".to_owned(),
+    }
+}
+
+/// Workflow files sitting in THIS directory. Greeting stays instant —
+/// no walk into `node_modules` / a monorepo.
+fn cwd_workflows(cwd: &Path) -> Vec<String> {
+    let Ok(entries) = std::fs::read_dir(cwd) else {
+        return Vec::new();
+    };
+    let mut names: Vec<String> = entries
+        .filter_map(Result::ok)
+        .filter(|e| e.path().is_file())
+        .filter_map(|e| {
+            let name = e.file_name();
+            let name = name.to_string_lossy();
+            if name.ends_with(".nika.yaml") || name.ends_with(".nika.yml") {
+                Some(name.into_owned())
+            } else {
+                None
+            }
+        })
+        .collect();
+    names.sort();
+    names
 }
 
 fn harness_ready(choice: &InferenceChoice) -> bool {
