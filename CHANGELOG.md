@@ -18,15 +18,13 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   fields stay dropped. Succeeded jobs omit `error`.
 - **POST `/v1/jobs` 422 names the capture diagnosis.** A parse-fatal or
   check-fatal world returns `{error:{code,message}}` with the NIKA code
-  when the engine stamped one. Symlink and other capture refuses stay
+  when the engine stamped one, including analysis codes (AUTH/SEC)
+  that live on `finding.code`. Symlink and other capture refuses stay
   `admission_refused`. Paths stay dropped.
 - **Token-file refusal is typed.** `ServerError::Credential` now names
   unreadable, not a regular file, insecure mode, or invalid material.
   `nika serve --bind` still prints the openssl mint and never echoes
   bytes. Missing `--token-file` is unchanged. Paths stay dropped.
-
-
-
 - **`nika doctor` uses the same token-file policy as `nika serve`.** A
   short, non-graphic, or symlink `.nika/serve.token` is a fail with the
   openssl mint, not an owner-only green. Group/world-readable still

@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | **WORKSPACE WIP — W10 OPS**. Durable jobs, loopback HTTP, SSE, OpenAPI 3.1, SIGTERM drain, and an honest doctor row for the token file. Cancel/artifacts stay absent. |
+| Status | **WORKSPACE WIP**. Durable jobs, loopback HTTP, SSE, OpenAPI 3.1, SIGTERM drain, typed token-file refusal, failed-job NIKA codes, and 422 capture diagnosis. Cancel/artifacts/`POST /v1/run` stay absent. 12-gate crate admission still pending. |
 | Layer | L4 — remote execution interface projection |
 | Purpose | Persist request admission, lifecycle status, and resumable event cursors, and project the first authenticated HTTP routes over that state. |
 | LOC budget | ≤5,000 source lines for the state plane; ≤15,000 hard crate cap. |
@@ -87,10 +87,10 @@ No public job mutation accepts a filesystem path. Startup paths live only in
 | `GET` | `/health` | public | status, service, four `EngineIdentity` fields |
 | `GET` | `/v1/workflows` | exactly one Bearer | contained `.nika.yaml` relative names |
 | `GET` | `/v1/workflows/{name}` | exactly one Bearer | `{ "workflow": "<contained name>" }` |
-| `POST` | `/v1/jobs` | exactly one Bearer + `Idempotency-Key` | opaque id + status |
-| `GET` | `/v1/jobs/{id}` | exactly one Bearer | opaque id + status |
+| `POST` | `/v1/jobs` | exactly one Bearer + `Idempotency-Key` | opaque id + status · 422 `{error:{code,message}}` names the capture NIKA code when stamped |
+| `GET` | `/v1/jobs/{id}` | exactly one Bearer | opaque id + status · optional `{error:{code,message}}` on `failed` |
 | `GET` | `/v1/jobs/{id}/status` | exactly one Bearer | status only |
-| `GET` | `/v1/jobs/{id}/events` | exactly one Bearer | SSE `text/event-stream`; `id:` sequence; `data:` `{sequence,kind,status}` |
+| `GET` | `/v1/jobs/{id}/events` | exactly one Bearer | SSE `text/event-stream`; `id:` sequence; `data:` `{sequence,kind,status}` plus optional redacted `{code,message}` |
 | `GET` | `/v1/openapi.json` | exactly one Bearer | OpenAPI 3.1 document of the live routes |
 
 Cancel and artifact routes return 404. No route returns source bytes,
@@ -255,9 +255,10 @@ admission wave closes the gates whose authority does not exist in W05.
 
 ## 6. Explicit non-goals
 
-No TLS · no OpenAPI/SDK projection · no workflow upload · no
-cancellation · no artifact authority · no automatic retry of interrupted
-execution. The store records the lost ownership but cannot prove whether an
+No TLS · no workflow upload · no cancellation route · no artifact
+authority · no `POST /v1/run` · no automatic retry of interrupted
+execution. OpenAPI 3.1 is the live authenticated route table
+(`GET /v1/openapi.json`) and omits cancel, artifacts, and `/v1/run`. The store records the lost ownership but cannot prove whether an
 effect committed before the crash. W05 also provides no concrete durable
 `ApprovalHistory`; an in-process or same-filesystem sidecar that the state
 writer can roll back does not meet the contract. W06's HTTP adapter
