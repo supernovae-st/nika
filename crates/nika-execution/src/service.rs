@@ -409,7 +409,7 @@ fn parse(logical_path: &str, text: &str) -> Result<RawWorkflow, ExecutionError> 
     )
     .map_err(|error| ExecutionError::Parse {
         logical_path: logical_path.to_owned(),
-        detail: error.to_string(),
+        detail: error.diagnostic().to_string(),
     })
 }
 
@@ -463,7 +463,10 @@ fn report_findings(logical_path: &str, report: &CheckReport) -> Vec<String> {
     report
         .findings
         .iter()
-        .map(|finding| format!("{logical_path}: {}", finding.message))
+        .map(|finding| match finding.code.as_deref() {
+            Some(code) => format!("{code} {logical_path}: {}", finding.message),
+            None => format!("{logical_path}: {}", finding.message),
+        })
         .collect()
 }
 

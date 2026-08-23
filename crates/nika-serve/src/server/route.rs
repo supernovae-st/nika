@@ -13,7 +13,7 @@ use sha2::{Digest as _, Sha256};
 
 use crate::{Admission, IdempotencyKey, JobId, RequestDigest};
 
-use super::error::{ApiError, ResponseBody, once_body};
+use super::error::{ApiError, ResponseBody, capture_refused, once_body};
 use super::model::{
     CreateJobRequest, HealthResponse, JobResponse, JobStatusResponse, WorkflowListResponse,
     WorkflowMetadataResponse,
@@ -108,7 +108,7 @@ async fn create_job(request: Request<Incoming>, state: Arc<AppState>) -> Respons
     admit_job(state, key, digest, payload.workflow).await
 }
 
-async fn capture_world(state: &AppState, workflow: &str) -> Result<String, ApiError> {
+async fn capture_world(state: &AppState, workflow: &str) -> Result<String, Response<ResponseBody>> {
     let service = state.service;
     let limits = state.snapshot_limits;
     let project = Arc::clone(&state.project);
@@ -120,8 +120,8 @@ async fn capture_world(state: &AppState, workflow: &str) -> Result<String, ApiEr
         Ok::<String, nika_execution::ExecutionError>(encoded)
     })
     .await
-    .map_err(|_| admission_refused())?;
-    captured.map_err(|_| admission_refused())
+    .map_err(|_| admission_refused().into_response())?;
+    captured.map_err(|error| capture_refused(&error))
 }
 
 fn admission_refused() -> ApiError {
@@ -177,7 +177,7 @@ async fn admit_job(
 ) -> Response<ResponseBody> {
     let world = match capture_world(&state, &workflow).await {
         Ok(world) => world,
-        Err(error) => return error.into_response(),
+        Err(response) => return response,
     };
     let Ok(permit) = state.jobs.try_reserve() else {
         return queue_full();

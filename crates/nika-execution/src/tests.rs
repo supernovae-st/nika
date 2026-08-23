@@ -322,6 +322,19 @@ fn child_local_static_defects_are_refused() {
 }
 
 #[test]
+fn parse_refuse_stamps_the_spec_code_in_the_detail() {
+    let (_tmp, owned) = project(&[("bad.nika.yaml", "nika: v1\nworkflow: nope\n")]);
+    let error = ExecutionService::default()
+        .admit(&owned, Path::new("bad.nika.yaml"))
+        .expect_err("fourteen-key parse");
+    let text = error.to_string();
+    assert!(
+        text.contains("NIKA-PARSE-"),
+        "parse refuse must name a spec code: {text}"
+    );
+}
+
+#[test]
 fn depth_count_and_size_limits_fail_closed() {
     let root = parent("child.nika.yaml");
     let (_tmp, owned) = project(&[("root.nika.yaml", &root), ("child.nika.yaml", CHILD)]);

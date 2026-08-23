@@ -124,16 +124,7 @@ impl ApiError {
     }
 
     pub(crate) fn into_response(self) -> Response<ResponseBody> {
-        let body = serde_json::json!({
-            "error": {"code": self.code, "message": self.message}
-        });
-        let bytes = serde_json::to_vec(&body).unwrap_or_else(|_| b"{}".to_vec());
-        let mut response = Response::new(once_body(bytes));
-        *response.status_mut() = self.status;
-        response.headers_mut().insert(
-            CONTENT_TYPE,
-            hyper::header::HeaderValue::from_static("application/json"),
-        );
+        let mut response = json_error(self.status, self.code, self.message);
         if self.challenge {
             response.headers_mut().insert(
                 WWW_AUTHENTICATE,
@@ -142,4 +133,67 @@ impl ApiError {
         }
         response
     }
+}
+
+pub(crate) fn json_error(status: StatusCode, code: &str, message: &str) -> Response<ResponseBody> {
+    let body = serde_json::json!({
+        "error": {"code": code, "message": message}
+    });
+    let bytes = serde_json::to_vec(&body).unwrap_or_else(|_| b"{}".to_vec());
+    let mut response = Response::new(once_body(bytes));
+    *response.status_mut() = status;
+    response.headers_mut().insert(
+        CONTENT_TYPE,
+        hyper::header::HeaderValue::from_static("application/json"),
+    );
+    response
+}
+
+pub(crate) fn capture_refused(error: &nika_execution::ExecutionError) -> Response<ResponseBody> {
+    let (code, message) = diagnose_capture(error);
+    json_error(StatusCode::UNPROCESSABLE_ENTITY, &code, &message)
+}
+
+pub(crate) fn diagnose_capture(error: &nika_execution::ExecutionError) -> (String, String) {
+    let raw = error.to_string();
+    let code = first_nika_code(&raw).unwrap_or("admission_refused");
+    (bound_token(code, 64), bound_message(&raw))
+}
+
+fn first_nika_code(raw: &str) -> Option<&str> {
+    let start = raw.find("NIKA-")?;
+    let rest = &raw[start..];
+    let end = rest
+        .find(|ch: char| !(ch.is_ascii_uppercase() || ch.is_ascii_digit() || ch == '-'))
+        .unwrap_or(rest.len());
+    let token = rest.get(..end).filter(|value| !value.is_empty())?;
+    token
+        .contains('-')
+        .then_some(token)
+        .filter(|value| value.bytes().any(|byte| byte.is_ascii_digit()))
+}
+
+fn bound_token(raw: &str, max: usize) -> String {
+    raw.chars()
+        .filter(char::is_ascii_graphic)
+        .take(max)
+        .collect()
+}
+
+fn bound_message(raw: &str) -> String {
+    let mut out = String::new();
+    for token in raw.split_whitespace() {
+        if token.starts_with('/') || token.contains(":\\") {
+            continue;
+        }
+        if !out.is_empty() {
+            out.push(' ');
+        }
+        out.push_str(token);
+        if out.len() >= 240 {
+            out.truncate(240);
+            break;
+        }
+    }
+    out
 }

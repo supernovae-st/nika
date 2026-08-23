@@ -22,7 +22,7 @@ const WORKFLOW: &str = "nika: root\npermits:\n  tools: [\"nika:jq\"]\ntasks:\n  
 
 pub(super) struct TestWorld {
     root: tempfile::TempDir,
-    workflows: PathBuf,
+    pub(super) workflows: PathBuf,
     state: PathBuf,
     token: PathBuf,
 }
