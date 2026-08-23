@@ -172,6 +172,23 @@ impl JobStore {
         digest: RequestDigest,
         max_jobs: usize,
     ) -> Result<Admission, JobStoreError> {
+        self.create_or_replay_named(key, digest, max_jobs, String::new())
+    }
+
+    /// Create or replay while recording the contained workflow name.
+    ///
+    /// The name is the restart schedule: queued jobs with a non-empty
+    /// workflow are re-enqueued when the next listener incarnation starts.
+    ///
+    /// # Errors
+    /// Returns the same typed failures as [`Self::create_or_replay_bounded`].
+    pub fn create_or_replay_named(
+        &self,
+        key: IdempotencyKey,
+        digest: RequestDigest,
+        max_jobs: usize,
+        workflow: String,
+    ) -> Result<Admission, JobStoreError> {
         key.validate()?;
         digest.validate()?;
         let _local = self.local_guard()?;
@@ -199,6 +216,7 @@ impl JobStore {
             idempotency_key: key,
             request_digest: digest,
             status: JobStatus::Queued,
+            workflow,
         };
         state.jobs.push(StoredJob {
             record: record.clone(),
@@ -223,6 +241,22 @@ impl JobStore {
             .iter()
             .find(|job| job.record.id == *id)
             .map(|job| job.record.clone()))
+    }
+
+    /// Return queued jobs that still name a workflow to reschedule.
+    ///
+    /// # Errors
+    /// Returns an error when the store cannot be locked or validated.
+    pub fn queued_jobs(&self) -> Result<Vec<(JobId, String)>, JobStoreError> {
+        let _local = self.local_guard()?;
+        let _lease = self.kernel_lease()?;
+        let state = self.load_state()?;
+        Ok(state
+            .jobs
+            .iter()
+            .filter(|job| job.record.status == JobStatus::Queued && !job.record.workflow.is_empty())
+            .map(|job| (job.record.id.clone(), job.record.workflow.clone()))
+            .collect())
     }
 
     /// Apply one legal lifecycle transition and its events in one replacement.

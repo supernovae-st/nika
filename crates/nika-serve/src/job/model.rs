@@ -283,6 +283,11 @@ pub struct JobRecord {
     pub(crate) idempotency_key: IdempotencyKey,
     pub(crate) request_digest: RequestDigest,
     pub(crate) status: JobStatus,
+    /// Contained `.nika.yaml` name captured at admission. Empty on stores
+    /// written before this field existed; those queued rows cannot be
+    /// rescheduled after a crash.
+    #[serde(default)]
+    pub(crate) workflow: String,
 }
 
 impl JobRecord {
@@ -308,6 +313,12 @@ impl JobRecord {
     #[must_use]
     pub fn status(&self) -> JobStatus {
         self.status
+    }
+
+    /// Return the contained workflow name captured at admission.
+    #[must_use]
+    pub fn workflow(&self) -> &str {
+        &self.workflow
     }
 }
 

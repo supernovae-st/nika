@@ -151,9 +151,12 @@ async fn admit_job(
     digest: RequestDigest,
     workflow: String,
 ) -> Response<ResponseBody> {
+    let Ok(permit) = state.jobs.try_reserve() else {
+        return queue_full();
+    };
     let admission = match state
         .store
-        .create_or_replay(key, digest, state.limits.max_jobs())
+        .create_or_replay(key, digest, state.limits.max_jobs(), workflow.clone())
         .await
     {
         Ok(admission) => admission,
@@ -166,11 +169,11 @@ async fn admit_job(
         ) => return store_busy(),
         Err(_) => return internal_error(),
     };
-    enqueue_admission(&state, admission, workflow)
+    enqueue_admission(permit, admission, workflow)
 }
 
 fn enqueue_admission(
-    state: &AppState,
+    permit: tokio::sync::mpsc::Permit<'_, ExecutionTask>,
     admission: Admission,
     workflow: String,
 ) -> Response<ResponseBody> {
@@ -182,31 +185,20 @@ fn enqueue_admission(
         )
         .into_response(),
         Admission::Created(record) => {
-            if state
-                .jobs
-                .try_send(ExecutionTask::new(record.id().clone(), workflow))
-                .is_err()
-            {
-                return queue_full();
-            }
+            permit.send(ExecutionTask::new(record.id().clone(), workflow));
             json_response(StatusCode::ACCEPTED, &JobResponse::from(&record))
         }
-        Admission::Existing(record) => replay_existing(state, &record, workflow),
+        Admission::Existing(record) => replay_existing(permit, &record, workflow),
     }
 }
 
 fn replay_existing(
-    state: &AppState,
+    permit: tokio::sync::mpsc::Permit<'_, ExecutionTask>,
     record: &crate::JobRecord,
     workflow: String,
 ) -> Response<ResponseBody> {
-    if record.status() == crate::JobStatus::Queued
-        && state
-            .jobs
-            .try_send(ExecutionTask::new(record.id().clone(), workflow))
-            .is_err()
-    {
-        return queue_full();
+    if record.status() == crate::JobStatus::Queued {
+        permit.send(ExecutionTask::new(record.id().clone(), workflow));
     }
     json_response(StatusCode::OK, &JobResponse::from(record))
 }
