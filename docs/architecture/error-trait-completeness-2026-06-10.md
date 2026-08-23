@@ -77,6 +77,7 @@ timeout boundary (spec 03 · catchable · never retryable).
 | `CommandSandboxError` (nika-kernel-core) §cmd-sandbox | **wrapped-intermediate** · OS command-confinement seam error (ADR-095 Layer 6 · `io/command_sandbox.rs`). Its ONLY consumer (`nika-exec-runner` `map_sandbox_error`) flattens both variants (`Unavailable`/`Profile`) onto `ShellError::Blocked` at the runner boundary · the Shell range 050-099 wrapper carries the code |
 | `JobStoreError` (nika-serve) | **transport-surface** · L4 durable job-state refusal that never crosses into the workflow/verb plane. The W06 HTTP adapter MUST map variants to bounded stable response classes and MUST NOT expose `Display`; zero NIKA registry range is owed (nika-serve crate spec §header). |
 | `ApprovalHistoryError` (nika-serve) | **transport-surface** · L4 monotonic approval-history authority refusal converted immediately into `JobStoreError` at the durable server boundary. It never crosses into the workflow/verb plane; zero NIKA registry range is owed. |
+| `ServerError` (nika-serve) | **transport-surface** · L4 HTTP listener lifecycle refusal mapped to bounded status/code JSON at the socket. It never crosses into the workflow/verb plane; zero NIKA registry range is owed (W06). |
 
 ## Open follow-ups (deferred-with-trigger)
 
