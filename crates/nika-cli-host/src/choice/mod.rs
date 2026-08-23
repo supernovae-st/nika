@@ -161,11 +161,10 @@ fn collect_from(machine: &Machine) -> InferenceChoice {
         available: true,
         ready: local_ready,
         reason: local_reason(local_ready, ram, &download),
-        next: if local_ready {
-            "nika new hello".to_owned()
-        } else {
-            format!("nika model pull {pull}")
-        },
+        // First door is always the file that runs. Pull is on the rung
+        // reason — putting it in Next made an empty machine download 7 GB
+        // before seeing anything work (gulf of execution).
+        next: "nika new hello".to_owned(),
     };
 
     let cloud = Rung {
@@ -726,9 +725,13 @@ pub(crate) fn write_first_wow_from(
 }
 
 fn first_wow_next(choice: &InferenceChoice, dest: &Path) -> String {
-    match choice.chosen_access.as_deref() {
-        Some(id) => format!("nika run {} --access {id}", dest.display()),
-        None => format!("nika run {}", dest.display()),
+    // `--access` accepts a CLASS (`harness`) or a probe id this machine
+    // offers. Seat ids like `claude-agent-acp` are NIKA-1802 — the
+    // receipt must be a command that runs (gauntlet P05).
+    if choice.arrow == "harness" && choice.chosen_access.is_some() {
+        format!("nika run {} --access harness", dest.display())
+    } else {
+        format!("nika run {}", dest.display())
     }
 }
 

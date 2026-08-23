@@ -397,8 +397,13 @@ fn write_first_wow_lands_a_file_and_names_run() {
     assert!(dest.is_file());
     assert!(out.text.contains("wrote"), "{}", out.text);
     assert!(
-        out.text.contains("nika run") && out.text.contains("--access claude-agent-acp"),
-        "{}",
+        out.text.contains("nika run") && out.text.contains("--access harness"),
+        "receipt must pin a class this binary accepts, not a seat id: {}",
+        out.text
+    );
+    assert!(
+        !out.text.contains("claude-agent-acp"),
+        "seat ids are NIKA-1802 as --access pins: {}",
         out.text
     );
     let body = std::fs::read_to_string(&dest).expect("body");
@@ -466,4 +471,24 @@ fn next_for_a_ready_harness_is_new_hello() {
     let human = choice.render_human(Theme::new(false, false, false));
     assert!(human.contains("nika new hello"), "{human}");
     assert!(human.contains("this machine · 18 GB"), "{human}");
+}
+
+#[test]
+fn unready_local_next_is_new_hello_not_a_seven_gb_pull() {
+    let choice = collect_from(&machine(Some(18), vec![], false, &[], true));
+    assert_eq!(choice.arrow, "local");
+    let human = choice.render_human(Theme::new(false, false, false));
+    let after = human.split("Next:").nth(1).expect("Next: block");
+    assert!(
+        after.contains("nika new hello"),
+        "empty machine first door is the file that runs:\n{human}"
+    );
+    assert!(
+        !after.contains("nika model pull"),
+        "pull belongs on the rung, not as Next:\n{human}"
+    );
+    assert!(
+        human.contains("to pull"),
+        "the local rung still names the download:\n{human}"
+    );
 }

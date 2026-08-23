@@ -132,7 +132,7 @@ pub fn dispatch(
         }
         None => Outcome {
             text: format!(
-                "nothing to scaffold — pass an intent or a template name (`nika new '?'` lists the set)\nembedded set: {}",
+                "nika new hello   # one file that runs\nnothing to scaffold — pass an intent or a template name (`nika new '?'` lists the set)\nembedded set: {}",
                 nika_pack::template_names().join(" · ")
             ),
             code: codes::FILE,

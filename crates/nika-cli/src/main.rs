@@ -39,7 +39,7 @@ use lazy::{check_lazy, resolve_lazy_target, run_lazy};
     version,
     // The L3 identity is shared by every adapter; gitless builds keep the bare version.
     long_version = nika_runtime::engine_identity().version_long(),
-    about = "nika · pick a model, then what to do next",
+    about = "nika · a plan from a file",
     after_help = "nika --help --all  the rest of the surface"
 )]
 struct Cli {
@@ -632,11 +632,11 @@ fn concierge_json(plain_theme: Theme) -> std::process::ExitCode {
 
 /// Human default help · B67 · ≤ 6 lines. The rest lives on `--help --all`.
 fn human_help() -> &'static str {
-    "nika          pick a model, then what to do next\n\
-     nika new      write one workflow file\n\
-     nika run      run a file\n\
-     nika check    audit a file before it runs\n\
-     nika doctor   PATH, model, sandbox\n"
+    "nika             a plan from a file\n\
+     nika new hello   one file that runs on this machine\n\
+     nika run         run a file\n\
+     nika check       audit a file before it runs\n\
+     nika doctor      PATH, model, sandbox\n"
 }
 
 /// Bare `nika`, `nika --json`, `nika version`, `nika thread` — decided
@@ -1234,6 +1234,11 @@ mod tests {
         assert!(
             lines <= 6,
             "human default help is ≤ 6 lines, got {lines}:\n{}",
+            human_help()
+        );
+        assert!(
+            human_help().contains("nika new hello"),
+            "day-one help names the first-wow file:\n{}",
             human_help()
         );
         let cmd = <Cli as clap::CommandFactory>::command();
