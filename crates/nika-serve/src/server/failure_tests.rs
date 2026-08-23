@@ -98,3 +98,28 @@ async fn succeeded_job_omits_error_object() {
     assert!(job.json().get("error").is_none(), "{}", job.body);
     server.stop().await.expect("clean stop");
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn parse_fatal_post_names_the_nika_parse_code() {
+    let world = TestWorld::new();
+    std::fs::write(
+        world.workflows.join("bad.nika.yaml"),
+        "nika: v1\nworkflow: nope\n",
+    )
+    .expect("parse-fatal fixture");
+    let server = world.start(Arc::new(SucceedingBackend), limits()).await;
+    let response = server
+        .request(&post_request(
+            r#"{"workflow":"bad.nika.yaml"}"#,
+            "parse-fatal",
+            &auth_header(),
+        ))
+        .await;
+    assert_eq!(response.status, 422, "{}", response.body);
+    let body = response.json();
+    let code = body["error"]["code"].as_str().expect("code");
+    assert!(code.starts_with("NIKA-PARSE-"), "{code} {}", response.body);
+    assert!(!response.body.contains("/tmp"), "{}", response.body);
+    assert!(response.json().get("id").is_none(), "{}", response.body);
+    server.stop().await.expect("clean stop");
+}

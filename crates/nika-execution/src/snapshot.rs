@@ -810,7 +810,7 @@ fn parse_workflow(logical_path: &str, text: &str) -> Result<RawWorkflow, Executi
     )
     .map_err(|error| ExecutionError::Parse {
         logical_path: logical_path.to_owned(),
-        detail: error.to_string(),
+        detail: error.diagnostic().to_string(),
     })
 }
 

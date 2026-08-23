@@ -147,7 +147,8 @@ fn paths() -> Value {
                 "responses": {
                     "202": {"description": "Created", "content": json_job()},
                     "200": {"description": "Idempotent replay", "content": json_job()},
-                    "401": error_ref()
+                    "401": error_ref(),
+                    "422": error_ref()
                 }
             }
         },
@@ -239,5 +240,11 @@ mod tests {
         assert!(!rendered.contains("s3cret"));
         assert!(!rendered.contains("Bearer token-value"));
         assert!(!rendered.contains("/v1/run"));
+        assert!(
+            spec["paths"]["/v1/jobs"]["post"]["responses"]
+                .as_object()
+                .expect("post responses")
+                .contains_key("422")
+        );
     }
 }

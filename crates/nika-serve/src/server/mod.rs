@@ -33,6 +33,7 @@ use crate::{EventPageLimit, JobId, JobStatus, JobStore, MAX_EVENT_PAGE_LEN};
 use auth::BearerToken;
 pub use config::{ServerConfig, ServerLimits};
 pub use error::ServerError;
+use error::diagnose_capture;
 use listen::listen_line;
 use store::{StoreActor, StoreHandle};
 
@@ -423,20 +424,29 @@ async fn run_job(state: Arc<AppState>, task: ExecutionTask) -> Result<(), Server
     if !start_running(&mut guard).await? {
         return Ok(());
     }
-    let admitted = admit_workflow(&state, &task).await;
-    let Ok(admitted) = admitted else {
-        guard
-            .settle(
-                JobStatus::Failed,
-                json!({
-                    "kind": "execution.refused",
-                    "status": "failed",
-                    "code": "admission_refused",
-                    "message": "workflow world could not be readmitted"
-                }),
-            )
-            .await?;
-        return Ok(());
+    let admitted = match admit_workflow(&state, &task).await {
+        Ok(admitted) => admitted,
+        Err(error) => {
+            let (code, message) = match &error {
+                Some(error) => diagnose_capture(error),
+                None => (
+                    "admission_refused".to_owned(),
+                    "workflow world could not be readmitted".to_owned(),
+                ),
+            };
+            guard
+                .settle(
+                    JobStatus::Failed,
+                    json!({
+                        "kind": "execution.refused",
+                        "status": "failed",
+                        "code": code,
+                        "message": message
+                    }),
+                )
+                .await?;
+            return Ok(());
+        }
     };
     settle_disposition(&state, &mut guard, admitted).await
 }
@@ -463,12 +473,12 @@ async fn start_running(guard: &mut RunningGuard) -> Result<bool, ServerError> {
 async fn admit_workflow(
     state: &AppState,
     task: &ExecutionTask,
-) -> Result<nika_execution::AdmittedExecution, ()> {
+) -> Result<nika_execution::AdmittedExecution, Option<nika_execution::ExecutionError>> {
     let encoded = state
         .store
         .load_world(task.id.clone())
         .await
-        .map_err(|_| ())?;
+        .map_err(|_| None)?;
     let service = state.service;
     let store = state.store.clone();
     let id = task.id.clone();
@@ -476,16 +486,15 @@ async fn admit_workflow(
         let snapshot = nika_execution::ExecutionSnapshot::decode(&encoded)?;
         service.readmit_snapshot(snapshot)
     })
-    .await;
-    let Ok(Ok(admitted)) = admission else {
-        return Err(());
-    };
+    .await
+    .map_err(|_| None)?;
+    let admitted = admission.map_err(Some)?;
     let execution_id = admitted.execution_id().to_string();
     let trace_id = admitted.trace_id().to_string();
     store
         .stamp_identity(id, execution_id, trace_id)
         .await
-        .map_err(|_| ())?;
+        .map_err(|_| None)?;
     Ok(admitted)
 }
 

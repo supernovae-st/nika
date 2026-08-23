@@ -16,6 +16,10 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   optional `{error:{code,message}}` on `failed`. SSE settled/refused
   frames may carry the same redacted pair. Paths and secret-shaped
   fields stay dropped. Succeeded jobs omit `error`.
+- **POST `/v1/jobs` 422 names the capture diagnosis.** A parse-fatal or
+  check-fatal world returns `{error:{code,message}}` with the NIKA code
+  when the engine stamped one. Symlink and other capture refuses stay
+  `admission_refused`. Paths stay dropped.
 
 
 
