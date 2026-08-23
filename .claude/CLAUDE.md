@@ -129,20 +129,20 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| branch           | `feat/remote-job-store-v5`                                      |
-| HEAD             | `fc516af05` (`fc516af05deabaedb0232f675cabadf8e5ba18bd`)             |
+| branch           | `nika-remote-integration-1`                                      |
+| HEAD             | `8e6eec0c5` (`8e6eec0c5724452d3b4f1df8456453b5c1218ecf`)             |
 | workspace        | v0.113.0                                  |
-| crates (workspace)| 69                                              |
+| crates (workspace)| 70                                              |
 | crates (admitted)| 62                                             |
-| crates (WIP)     | 7 — nika-chart nika-fx nika-proof nika-store nika-harness nika-execution nika-serve                                  |
+| crates (WIP)     | 8 — nika-chart nika-fx nika-proof nika-store nika-harness nika-execution nika-service-execution nika-serve                                  |
 | L0               | 21                                              |
 | L0.5             | 6                                              |
 | L1               | 17                                              |
 | L1.5             | 4                                              |
 | L2               | 5                                              |
-| L3               | 2                                              |
+| L3               | 3                                              |
 | L4               | 14                                              |
-| lib tests        | 6352 passed, 0 failed                              |
+| lib tests        | 6391 passed, 0 failed                              |
 | clippy           | 0 warnings                              |
 
 Narrative context (manually maintained):
