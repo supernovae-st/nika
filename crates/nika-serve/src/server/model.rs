@@ -19,15 +19,28 @@ pub(crate) struct JobResponse<'a> {
     execution_id: Option<&'a str>,
     #[serde(skip_serializing_if = "Option::is_none")]
     trace_id: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    error: Option<JobErrorBody<'a>>,
+}
+
+#[derive(Debug, Serialize)]
+struct JobErrorBody<'a> {
+    code: &'a str,
+    message: &'a str,
 }
 
 impl<'a> From<&'a JobRecord> for JobResponse<'a> {
     fn from(record: &'a JobRecord) -> Self {
+        let error = matches!(record.status(), JobStatus::Failed)
+            .then(|| record.error())
+            .flatten()
+            .map(|(code, message)| JobErrorBody { code, message });
         Self {
             id: record.id().as_str(),
             status: record.status(),
             execution_id: record.execution_id(),
             trace_id: record.trace_id(),
+            error,
         }
     }
 }

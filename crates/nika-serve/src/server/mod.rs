@@ -48,6 +48,59 @@ pub enum ExecutionDisposition {
     Failed,
 }
 
+/// Disposition plus an optional redacted diagnosis (NIKA code + message).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExecutionOutcome {
+    disposition: ExecutionDisposition,
+    error_code: Option<String>,
+    error_message: Option<String>,
+}
+
+impl From<ExecutionDisposition> for ExecutionOutcome {
+    fn from(disposition: ExecutionDisposition) -> Self {
+        Self {
+            disposition,
+            error_code: None,
+            error_message: None,
+        }
+    }
+}
+
+impl ExecutionOutcome {
+    /// Failed execution with a redacted operator-visible diagnosis.
+    #[must_use]
+    pub fn failed(code: impl Into<String>, message: impl Into<String>) -> Self {
+        Self {
+            disposition: ExecutionDisposition::Failed,
+            error_code: Some(code.into()),
+            error_message: Some(message.into()),
+        }
+    }
+
+    /// Terminal class.
+    #[must_use]
+    pub const fn disposition(&self) -> ExecutionDisposition {
+        self.disposition
+    }
+
+    /// Redacted `(code, message)` when the backend supplied one.
+    #[must_use]
+    pub fn error(&self) -> Option<(&str, &str)> {
+        Some((self.error_code.as_deref()?, self.error_message.as_deref()?))
+    }
+
+    /// Attach a diagnosis. Ignored unless this outcome is
+    /// [`ExecutionDisposition::Failed`].
+    #[must_use]
+    pub fn with_error(mut self, code: impl Into<String>, message: impl Into<String>) -> Self {
+        if self.disposition == ExecutionDisposition::Failed {
+            self.error_code = Some(code.into());
+            self.error_message = Some(message.into());
+        }
+        self
+    }
+}
+
 /// Effecting execution seam used after [`ExecutionService`] admission.
 pub trait ExecutionBackend: Send + Sync + 'static {
     /// Execute the exact immutable world in `context`.
@@ -59,7 +112,7 @@ pub trait ExecutionBackend: Send + Sync + 'static {
     fn execute<'a>(
         &'a self,
         context: ExecutionContext<'a>,
-    ) -> Pin<Box<dyn Future<Output = ExecutionDisposition> + Send + 'a>>;
+    ) -> Pin<Box<dyn Future<Output = ExecutionOutcome> + Send + 'a>>;
 }
 
 struct AppState {
@@ -375,7 +428,12 @@ async fn run_job(state: Arc<AppState>, task: ExecutionTask) -> Result<(), Server
         guard
             .settle(
                 JobStatus::Failed,
-                json!({"kind": "execution.refused", "status": "failed"}),
+                json!({
+                    "kind": "execution.refused",
+                    "status": "failed",
+                    "code": "admission_refused",
+                    "message": "workflow world could not be readmitted"
+                }),
             )
             .await?;
         return Ok(());
@@ -437,27 +495,27 @@ async fn settle_disposition(
     admitted: nika_execution::AdmittedExecution,
 ) -> Result<(), ServerError> {
     let session = state.service.begin(admitted);
-    let disposition = tokio::time::timeout(
+    let outcome = tokio::time::timeout(
         state.limits.execution_timeout(),
         state.backend.execute(session.context()),
     )
     .await;
-    let Ok(disposition) = disposition else {
+    let Ok(outcome) = outcome else {
         guard.interrupt().await?;
         return Ok(());
     };
-    let verdict = session.complete(disposition);
+    let verdict = session.complete(outcome.disposition());
     let status = match *verdict.outcome() {
         ExecutionDisposition::Succeeded => JobStatus::Succeeded,
         ExecutionDisposition::Paused => JobStatus::Paused,
         ExecutionDisposition::Failed => JobStatus::Failed,
     };
-    guard
-        .settle(
-            status,
-            json!({"kind": "execution.settled", "status": status}),
-        )
-        .await?;
+    let mut event = json!({"kind": "execution.settled", "status": status});
+    if let Some((code, message)) = outcome.error() {
+        event["code"] = json!(code);
+        event["message"] = json!(message);
+    }
+    guard.settle(status, event).await?;
     Ok(())
 }
 
@@ -531,5 +589,9 @@ fn execution_result(
     }
 }
 
+#[cfg(test)]
+mod failure_tests;
+#[cfg(test)]
+mod test_support;
 #[cfg(test)]
 mod tests;

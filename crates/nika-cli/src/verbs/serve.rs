@@ -191,7 +191,7 @@ impl nika_serve::ExecutionBackend for HttpBackend {
         &'a self,
         context: nika_execution::ExecutionContext<'a>,
     ) -> std::pin::Pin<
-        Box<dyn std::future::Future<Output = nika_serve::ExecutionDisposition> + Send + 'a>,
+        Box<dyn std::future::Future<Output = nika_serve::ExecutionOutcome> + Send + 'a>,
     > {
         let display_root = self.display_root.clone();
         Box::pin(async move { drive_http_execution(display_root, context).await })
@@ -212,45 +212,63 @@ impl Drop for CancelOnDrop {
 async fn drive_http_execution(
     display_root: PathBuf,
     context: nika_execution::ExecutionContext<'_>,
-) -> nika_serve::ExecutionDisposition {
+) -> nika_serve::ExecutionOutcome {
     use nika_service_execution::ServiceExecutionDriver;
 
     let Some(driver) = ServiceExecutionDriver::new(context, display_root) else {
-        return nika_serve::ExecutionDisposition::Failed;
+        return nika_serve::ExecutionOutcome::failed(
+            "admission_refused",
+            "workflow world could not be composed",
+        );
     };
     let (cancel_tx, cancel_rx) = tokio::sync::oneshot::channel();
     let _cancel = CancelOnDrop(Some(cancel_tx));
     match tokio::task::spawn_blocking(move || run_admitted_http_job(driver, cancel_rx)).await {
-        Ok(disposition) => disposition,
-        Err(_) => nika_serve::ExecutionDisposition::Failed,
+        Ok(outcome) => outcome,
+        Err(_) => {
+            nika_serve::ExecutionOutcome::failed("NIKA-COMP-001", "execution worker did not finish")
+        }
     }
 }
 
 fn run_admitted_http_job(
     driver: nika_service_execution::ServiceExecutionDriver,
     cancel: tokio::sync::oneshot::Receiver<()>,
-) -> nika_serve::ExecutionDisposition {
+) -> nika_serve::ExecutionOutcome {
     use nika_service_execution::{ServiceExecutionOptions, ServiceExecutionStatus};
 
     let Ok(rt) = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
     else {
-        return nika_serve::ExecutionDisposition::Failed;
+        return nika_serve::ExecutionOutcome::failed(
+            "NIKA-COMP-001",
+            "execution runtime could not start",
+        );
     };
     rt.block_on(async move {
         tokio::select! {
             result = driver.execute(ServiceExecutionOptions::new()) => match result {
-                Ok(outcome) => match outcome.status() {
-                    ServiceExecutionStatus::Succeeded => {
-                        nika_serve::ExecutionDisposition::Succeeded
+                Ok(outcome) => {
+                    let disposition = match outcome.status() {
+                        ServiceExecutionStatus::Succeeded => {
+                            nika_serve::ExecutionDisposition::Succeeded
+                        }
+                        ServiceExecutionStatus::Paused => nika_serve::ExecutionDisposition::Paused,
+                        _ => nika_serve::ExecutionDisposition::Failed,
+                    };
+                    let mut mapped = nika_serve::ExecutionOutcome::from(disposition);
+                    if let Some((code, message)) = outcome.error() {
+                        mapped = mapped.with_error(code, message);
                     }
-                    ServiceExecutionStatus::Paused => nika_serve::ExecutionDisposition::Paused,
-                    _ => nika_serve::ExecutionDisposition::Failed,
-                },
-                Err(_) => nika_serve::ExecutionDisposition::Failed,
+                    mapped
+                }
+                Err(_) => nika_serve::ExecutionOutcome::failed(
+                    "NIKA-COMP-001",
+                    "service runtime could not be composed",
+                ),
             },
-            _ = cancel => nika_serve::ExecutionDisposition::Failed,
+            _ = cancel => nika_serve::ExecutionDisposition::Failed.into(),
         }
     })
 }

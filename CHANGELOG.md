@@ -12,6 +12,13 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Changed
 
+- **Failed HTTP jobs name a NIKA code.** `GET /v1/jobs/{id}` grows an
+  optional `{error:{code,message}}` on `failed`. SSE settled/refused
+  frames may carry the same redacted pair. Paths and secret-shaped
+  fields stay dropped. Succeeded jobs omit `error`.
+
+
+
 - **`nika doctor` uses the same token-file policy as `nika serve`.** A
   short, non-graphic, or symlink `.nika/serve.token` is a fail with the
   openssl mint, not an owner-only green. Group/world-readable still

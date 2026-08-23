@@ -16,6 +16,6 @@ pub use job::{
     ServerIncarnation,
 };
 pub use server::{
-    BoundServer, ExecutionBackend, ExecutionDisposition, ServerConfig, ServerError, ServerLimits,
-    serve_http,
+    BoundServer, ExecutionBackend, ExecutionDisposition, ExecutionOutcome, ServerConfig,
+    ServerError, ServerLimits, serve_http,
 };
