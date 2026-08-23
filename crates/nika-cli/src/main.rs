@@ -1168,10 +1168,10 @@ mod tests {
     /// THE LAW (RAMS-13 · census over 19 personas: 12 of 23 verbs
     /// reached by <=1 user, yet all 23 hit 11 first-timers in the
     /// face): the default help shows exactly the 13 craft verbs plus
-    /// `arm`; the full tree stays one flag away (`--help --all`) and
-    /// NOTHING is removed — visible + hidden is the whole enum,
-    /// invariant. Ranged, never deleted: `key`/`sign`/`mcp`/`lsp`
-    /// serve — just not on day one.
+    /// the documented doors `arm` and `serve`; the full tree stays one
+    /// flag away (`--help --all`) and NOTHING is removed — visible +
+    /// hidden is the whole enum, invariant. Ranged, never deleted:
+    /// `key`/`sign`/`mcp`/`lsp` — just not on day one.
     #[test]
     fn the_default_help_shows_the_craft_plus_arm_and_hides_nothing_forever() {
         let cmd = <Cli as clap::CommandFactory>::command();
@@ -1186,22 +1186,24 @@ mod tests {
             .collect();
         let expected: std::collections::BTreeSet<&str> = [
             "try", "new", "init", "list", "check", "run", "test", "trace", "welcome", "doctor",
-            "model", "wire", "explain", "arm",
+            "model", "wire", "explain", "arm", "serve",
         ]
         .into_iter()
         .collect();
         assert_eq!(
             visible, expected,
-            "the default range is exactly the craft plus the documented `arm` door"
+            "the default range is exactly the craft plus the documented `arm` and `serve` doors"
         );
         let help = <Cli as clap::CommandFactory>::command()
             .render_help()
             .to_string();
-        assert!(
-            help.lines()
-                .any(|line| line.split_whitespace().next() == Some("arm")),
-            "`nika --help` must show the documented `arm` door: {help}"
-        );
+        for door in ["arm", "serve"] {
+            assert!(
+                help.lines()
+                    .any(|line| line.split_whitespace().next() == Some(door)),
+                "`nika --help` must show the documented `{door}` door: {help}"
+            );
+        }
         let hidden = cmd
             .get_subcommands()
             .filter(|c| c.is_hide_set() && c.get_name() != "help")
