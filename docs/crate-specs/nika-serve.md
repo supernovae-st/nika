@@ -11,7 +11,7 @@
 | Crate version | tracks workspace |
 | License | `AGPL-3.0-or-later` |
 | Publish | `false` — engine-internal interface crate |
-| Dependencies | `nika-fs` (`OwnedDir`) · `nix` (kernel advisory lease) · `serde`/`serde_json` · `thiserror` · `uuid` |
+| Dependencies | `nika-fs` (`OwnedDir`) · `nix` (kernel advisory lease) · `serde`/`serde_json` · `sha2` · `thiserror` · `uuid` |
 | NIKA codes | **none** — `JobStoreError` is an L4 transport-surface error, never a workflow/verb error; the future HTTP adapter maps it to bounded response classes. |
 
 ## 1. Boundary
@@ -24,7 +24,7 @@ composition, cancellation, or artifact path.
 The store accepts one existing operator-owned root, opens it once through
 `nika_fs::OwnedDir`, creates the contained `jobs` directory through held
 descriptors, and never trusts the visible root path again. Its fixed children
-are `store.lock`, `initialized.json`, and `state.json`; caller input never
+are `store.lock`, `server.lock`, `initialized.json`, and `state.json`; caller input never
 becomes a child name.
 
 ## 2. Public surface
@@ -39,14 +39,27 @@ becomes a child name.
 - `JobStatus` is exactly `queued | running | interrupted | paused | succeeded |
   failed`.
 - `JobRecord` binds id, key, request digest, and status.
-- `JobEvent` carries one JSON payload and a store-assigned per-job sequence.
+- `JobEvent` carries one JSON payload, a store-assigned per-job sequence, and
+  its previous/current chain hashes.
+- `EventPageLimit` admits 1–256 events; callers cannot request an unbounded
+  durable suffix.
+- `JobMutation` returns a status and the events committed with it in one
+  snapshot replacement.
 - `Admission` returns `Created`, `Existing`, or `Conflict`, each with the
   durable record that decides the verdict.
-- `ServerIncarnation` is the unforgeable capability the later server bootstrap
-  constructs after proving exclusive startup authority.
-- `JobStore` exposes `create_or_replay`, `get`, `transition`, `append_events`,
-  `events_after`, and authority-gated `settle_interrupted_jobs` after
-  construction with `JobStore::open`.
+- `ServerIncarnation` is an unforgeable, generation-bound capability that owns
+  the lifetime `server.lock` lease.
+- `ApprovalHistory` is the injected monotonic authority for approval digests.
+  Its implementation must atomically record a batch outside the job
+  snapshot's rollback domain and verify that every journaled digest is already
+  anchored. It anchors one-shot digest retention and reuse refusal only; it
+  authenticates neither a decision payload nor the journal.
+  `ApprovalHistoryError` exposes only bounded refusal classes.
+- `JobStore` exposes `create_or_replay`, `get`, `transition_with_events`,
+  `append_events`, `events_after`, and authority-gated
+  `settle_interrupted_jobs`. `JobStore::open` refuses approval appends and
+  existing approval history; `open_with_approval_history` is required for
+  those operations.
 
 No public mutation accepts a filesystem path.
 
@@ -80,15 +93,37 @@ No public mutation accepts a filesystem path.
    `interrupted`, `succeeded`, and `failed` are terminal. `interrupted` has no
    public incoming edge; only the crate-internal startup settlement may assign
    it after the higher layer establishes a new exclusive server incarnation.
-   Every other edge refuses before the snapshot changes.
+   Every other edge refuses before the snapshot changes. A legal transition
+   requires at least one event and persists status plus events atomically.
+   Startup settlement likewise appends a chained `interrupted` event with
+   incarnation metadata in the same replacement as the status.
 7. Event sequences start at one and increase contiguously per job. An overflow
-   refuses before durable mutation. `events_after` is the future SSE resume
-   cursor; a cursor greater than the latest persisted sequence returns typed
-   `CursorBeyondLatest`. It is not a streaming implementation.
+   refuses before durable mutation. Payloads are at most 64 KiB encoded, append
+   batches contain at most 64 events, the complete snapshot is at most 4 MiB,
+   and `events_after` requires a 1–256 event `EventPageLimit`.
 8. `paused` survives restart unchanged. After the new server incarnation owns
-   startup, it atomically settles ownerless `running` as terminal
-   `interrupted`; plain store opening cannot interrupt a live owner. Replay
-   returns the existing job instead of manufacturing another runnable job.
+   the lifetime lease, its persisted generation settles ownerless `running` as
+   terminal `interrupted` exactly once. Another process cannot claim the root
+   until that capability drops; reusing a consumed capability is inert.
+9. Event hashes use a versioned, domain-separated canonical preimage over job
+   id, request digest, sequence, predecessor, and payload. Head/count plus each
+   link are validated on every load. The chain is unkeyed and every preimage
+   input lives inside the snapshot, so this is an internal-consistency check: it
+   detects accidental or non-coherent corruption — partial writes, inconsistent
+   truncation, and edits by a writer that does not recompute the links. It does
+   not detect a coherent rewrite, which can delete, reorder, graft, or edit
+   payloads — including deny to allow — and recompute a chain that validates.
+10. `approval_decided` requires a canonical `digest`, placing the runtime claim
+    identity inside the chain. Before snapshot persistence, the injected
+    `ApprovalHistory` atomically burns the digest in a retention domain that
+    the job-state writer cannot coherently roll back. That authority anchors
+    one-shot retention and reuse refusal only; it does not authenticate the
+    decision payload or the journal, so a coherent rewrite can still restate a
+    decision. The history may be ahead after a failed snapshot write; reuse
+    still refuses. A same-authority sidecar file is not sufficient. W06 supplies
+    the real adapter and durable anchor; until then approval operations fail
+    closed.
+11. `Debug` for `JobStore` is opaque and cannot expose its held root.
 
 ## 4. W05 verification
 
@@ -108,20 +143,30 @@ Inline library tests cover:
 - `paused` round-trip across restart;
 - symlinked roots, a planted `jobs` child, and visible-root replacement after
   descriptor admission;
-- monotone event append, resume cursor, and typed future-cursor refusal;
+- monotone hash-chained event append, hard-capped resume pagination, and typed
+  future-cursor refusal;
 - explicit interrupted `running` settlement and replay with exactly one stored
-  job, plus a concurrent-open proof that a live owner is not interrupted;
+  job, lifetime server-lease exclusion, and persisted one-shot generation;
 - digest boundary-table rejection for uppercase, mixed-case, wrong-length, and
   non-hexadecimal inputs.
 - public Serde forgery rejection for job ids, idempotency keys, and request
   digests, including control-character input.
+- atomic status-plus-event refusal/success across reopen;
+- non-recomputed modification, interior deletion, permutation, and cross-job
+  event graft refusal — the unkeyed chain cannot refuse a recomputed rewrite,
+  and no test claims it does;
+- approval-digest chain binding, fail-closed missing/mismatched authority, and
+  coordinated approval-tail rollback with consistent count/head mutation whose
+  later digest reuse the retained authority refuses;
+- sentinel-root debug non-disclosure;
+- payload, batch, snapshot, and page boundary refusals without durable mutation.
 
 The W05 command contract is:
 
 ```bash
 cargo test -p nika-serve --lib
 cargo clippy -p nika-serve --all-targets -- -D warnings
-cargo fmt --all --check
+cargo fmt -p nika-serve -- --check
 ```
 
 ## 5. Admission ledger
@@ -150,9 +195,13 @@ No `ExecutionService` integration · no HTTP · no SSE · no authentication · n
 listener · no CLI wiring · no workflow registry · no cancellation · no
 artifact authority · no automatic retry of interrupted execution. The store
 records the lost ownership but cannot prove whether an effect committed before
-the crash. W06 must establish its exclusive server incarnation and call the
-crate-internal settlement before binding the listener. Those capabilities
-require their own typed authorities and tests before projection.
+the crash. W05 also provides no concrete durable `ApprovalHistory`; an
+in-process or same-filesystem sidecar that the state writer can roll back does
+not meet the contract. W06 must supply that adapter, establish its exclusive
+server incarnation, and call the crate-internal settlement before binding the
+listener. Operational retention of that external anchor is a deployment
+responsibility this spec does not assign to a wave. Those capabilities require
+their own typed authorities and tests before projection.
 
 ## 7. Related decisions
 

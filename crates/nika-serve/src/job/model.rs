@@ -1,6 +1,8 @@
 use std::fmt;
+use std::fs::File;
 use std::io;
 
+use nix::fcntl::Flock;
 use serde::{Deserialize, Deserializer, Serialize};
 use serde_json::Value;
 use thiserror::Error;
@@ -8,6 +10,15 @@ use uuid::Uuid;
 
 const DIGEST_HEX_LEN: usize = 64;
 const MAX_IDEMPOTENCY_KEY_BYTES: usize = 255;
+
+/// Maximum encoded size of one durable event payload.
+pub const MAX_EVENT_PAYLOAD_BYTES: usize = 64 * 1024;
+/// Maximum number of event payloads admitted by one append operation.
+pub const MAX_EVENT_BATCH_LEN: usize = 64;
+/// Maximum encoded size of the complete durable job snapshot.
+pub const MAX_JOB_SNAPSHOT_BYTES: usize = 4 * 1024 * 1024;
+/// Maximum number of events returned by one resume page.
+pub const MAX_EVENT_PAGE_LEN: usize = 256;
 
 /// Opaque, non-sequential identifier for one durable job.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize)]
@@ -117,13 +128,7 @@ impl RequestDigest {
     /// Encode raw digest bytes using lowercase hexadecimal.
     #[must_use]
     pub fn from_bytes(bytes: [u8; 32]) -> Self {
-        const HEX: &[u8; 16] = b"0123456789abcdef";
-        let mut encoded = String::with_capacity(DIGEST_HEX_LEN);
-        for byte in bytes {
-            encoded.push(char::from(HEX[usize::from(byte >> 4)]));
-            encoded.push(char::from(HEX[usize::from(byte & 0x0f)]));
-        }
-        Self(encoded)
+        Self(encode_hex(bytes))
     }
 
     pub(crate) fn validate(&self) -> Result<(), JobStoreError> {
@@ -152,10 +157,64 @@ impl<'de> Deserialize<'de> for RequestDigest {
 /// The type is public so it can guard the recovery API, but only `nika-serve`
 /// can construct a value. The HTTP bootstrap introduced in W06 owns that
 /// construction after it proves exclusivity and before it exposes the store.
-#[derive(Debug)]
 #[non_exhaustive]
 pub struct ServerIncarnation {
-    pub(crate) _private: (),
+    pub(crate) generation: IncarnationGeneration,
+    pub(crate) _lease: Flock<File>,
+}
+
+impl fmt::Debug for ServerIncarnation {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("ServerIncarnation")
+            .field("generation", &self.generation.get())
+            .field("lease", &"<held>")
+            .finish_non_exhaustive()
+    }
+}
+
+/// Persisted monotone identity for one exclusive server startup.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
+#[serde(transparent)]
+pub(crate) struct IncarnationGeneration(u64);
+
+impl IncarnationGeneration {
+    pub(crate) const INITIAL: Self = Self(0);
+
+    pub(crate) fn next(self) -> Option<Self> {
+        self.0.checked_add(1).map(Self)
+    }
+
+    pub(crate) fn get(self) -> u64 {
+        self.0
+    }
+}
+
+/// Validated hard limit for one durable event resume page.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct EventPageLimit(usize);
+
+impl EventPageLimit {
+    /// Construct a non-zero page limit within the server hard cap.
+    ///
+    /// # Errors
+    /// Returns [`JobStoreError::InvalidEventPageLimit`] for zero or a value
+    /// greater than [`MAX_EVENT_PAGE_LEN`].
+    pub fn new(value: usize) -> Result<Self, JobStoreError> {
+        if value == 0 || value > MAX_EVENT_PAGE_LEN {
+            return Err(JobStoreError::InvalidEventPageLimit {
+                requested: value,
+                maximum: MAX_EVENT_PAGE_LEN,
+            });
+        }
+        Ok(Self(value))
+    }
+
+    /// Return the validated page length.
+    #[must_use]
+    pub fn get(self) -> usize {
+        self.0
+    }
 }
 
 /// Durable execution lifecycle exposed by the job state plane.
@@ -244,6 +303,8 @@ impl JobRecord {
 pub struct JobEvent {
     pub(crate) sequence: u64,
     pub(crate) payload: Value,
+    pub(crate) previous_hash: Option<EventHash>,
+    pub(crate) hash: EventHash,
 }
 
 impl JobEvent {
@@ -257,6 +318,70 @@ impl JobEvent {
     #[must_use]
     pub fn payload(&self) -> &Value {
         &self.payload
+    }
+
+    /// Return the prior event hash, or `None` for the first event.
+    #[must_use]
+    pub fn previous_hash(&self) -> Option<&str> {
+        self.previous_hash.as_ref().map(EventHash::as_str)
+    }
+
+    /// Return this event's lowercase SHA-256 chain hash.
+    #[must_use]
+    pub fn hash(&self) -> &str {
+        self.hash.as_str()
+    }
+}
+
+/// Lowercase SHA-256 identity for one domain-separated durable event.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(transparent)]
+pub(crate) struct EventHash(String);
+
+impl EventHash {
+    pub(crate) fn from_bytes(bytes: [u8; 32]) -> Self {
+        Self(encode_hex(bytes))
+    }
+
+    pub(crate) fn validate(&self) -> Result<(), JobStoreError> {
+        validate_digest(&self.0)
+            .map_err(|_| JobStoreError::Corrupt("event hash is invalid".to_owned()))
+    }
+
+    pub(crate) fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl<'de> Deserialize<'de> for EventHash {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let hash = Self(String::deserialize(deserializer)?);
+        hash.validate().map_err(serde::de::Error::custom)?;
+        Ok(hash)
+    }
+}
+
+/// One atomically persisted lifecycle transition and its event batch.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct JobMutation {
+    pub(crate) record: JobRecord,
+    pub(crate) events: Vec<JobEvent>,
+}
+
+impl JobMutation {
+    /// Return the durable record after the transition.
+    #[must_use]
+    pub fn record(&self) -> &JobRecord {
+        &self.record
+    }
+
+    /// Return the events committed in the same snapshot replacement.
+    #[must_use]
+    pub fn events(&self) -> &[JobEvent] {
+        &self.events
     }
 }
 
@@ -280,6 +405,21 @@ impl Admission {
             Self::Created(record) | Self::Existing(record) | Self::Conflict(record) => record,
         }
     }
+}
+
+/// Typed failures from a monotonic approval-history authority.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Error)]
+#[non_exhaustive]
+pub enum ApprovalHistoryError {
+    /// At least one digest was already present in the monotonic history.
+    #[error("approval digest was already recorded")]
+    AlreadyRecorded,
+    /// The job snapshot names a digest absent from the monotonic history.
+    #[error("approval digest is absent from the authoritative history")]
+    MissingRecord,
+    /// The authoritative history could not make a durable decision.
+    #[error("approval history is unavailable")]
+    Unavailable,
 }
 
 /// Typed failures from the durable job store.
@@ -316,6 +456,67 @@ pub enum JobStoreError {
     /// The event sequence cannot advance without wrapping.
     #[error("job {0} exhausted its event sequence")]
     SequenceExhausted(JobId),
+    /// One append request exceeded the bounded event batch contract.
+    #[error("event batch contains {count} payloads; maximum is {maximum}")]
+    EventBatchTooLarge {
+        /// Number of payloads supplied by the caller.
+        count: usize,
+        /// Maximum payload count admitted in one append.
+        maximum: usize,
+    },
+    /// A lifecycle transition omitted its mandatory durable event.
+    #[error("a lifecycle transition requires at least one event")]
+    TransitionEventRequired,
+    /// An approval event omitted its canonical claim digest.
+    #[error("approval_decided event requires a canonical digest")]
+    InvalidApprovalEvent,
+    /// A durable approval claim digest was already recorded.
+    #[error("approval_decided digest was already consumed")]
+    ApprovalClaimAlreadyRecorded,
+    /// An approval event was attempted without a monotonic history authority.
+    #[error("approval_decided event requires an approval history authority")]
+    ApprovalHistoryRequired,
+    /// The monotonic approval history could not make a durable decision.
+    #[error("approval history is unavailable")]
+    ApprovalHistoryUnavailable,
+    /// The job snapshot names an approval absent from its authoritative history.
+    #[error("job approval history does not match its authority")]
+    ApprovalHistoryMismatch,
+    /// One encoded event payload exceeded the durable payload ceiling.
+    #[error("event payload {index} is {bytes} bytes; maximum is {maximum}")]
+    EventPayloadTooLarge {
+        /// Zero-based index of the refused payload in the append batch.
+        index: usize,
+        /// Encoded payload size.
+        bytes: usize,
+        /// Maximum encoded payload size.
+        maximum: usize,
+    },
+    /// The complete encoded state exceeded its bounded snapshot contract.
+    #[error("job store snapshot is {bytes} bytes; maximum is {maximum}")]
+    SnapshotTooLarge {
+        /// Encoded or on-disk snapshot size.
+        bytes: u64,
+        /// Maximum snapshot size.
+        maximum: usize,
+    },
+    /// A requested event page was zero or exceeded the hard cap.
+    #[error("event page limit {requested} is invalid; maximum is {maximum}")]
+    InvalidEventPageLimit {
+        /// Caller-supplied page limit.
+        requested: usize,
+        /// Maximum admitted page length.
+        maximum: usize,
+    },
+    /// The persisted incarnation generation cannot advance without wrapping.
+    #[error("server incarnation generation is exhausted")]
+    IncarnationGenerationExhausted,
+    /// A superseded incarnation attempted to settle current job ownership.
+    #[error("server incarnation is stale")]
+    StaleServerIncarnation,
+    /// Another live server owns the durable root.
+    #[error("server incarnation lease is already held")]
+    ServerLeaseHeld,
     /// A resume cursor names an event that has not been persisted.
     #[error("job {job} event cursor {after} is beyond latest sequence {latest}")]
     CursorBeyondLatest {
@@ -334,6 +535,16 @@ pub enum JobStoreError {
 impl From<io::Error> for JobStoreError {
     fn from(error: io::Error) -> Self {
         Self::Io(error.kind())
+    }
+}
+
+impl From<ApprovalHistoryError> for JobStoreError {
+    fn from(error: ApprovalHistoryError) -> Self {
+        match error {
+            ApprovalHistoryError::AlreadyRecorded => Self::ApprovalClaimAlreadyRecorded,
+            ApprovalHistoryError::MissingRecord => Self::ApprovalHistoryMismatch,
+            ApprovalHistoryError::Unavailable => Self::ApprovalHistoryUnavailable,
+        }
     }
 }
 
@@ -356,4 +567,14 @@ fn validate_digest(value: &str) -> Result<(), JobStoreError> {
         return Err(JobStoreError::InvalidRequestDigest);
     }
     Ok(())
+}
+
+fn encode_hex(bytes: [u8; 32]) -> String {
+    const HEX: &[u8; 16] = b"0123456789abcdef";
+    let mut encoded = String::with_capacity(DIGEST_HEX_LEN);
+    for byte in bytes {
+        encoded.push(char::from(HEX[usize::from(byte >> 4)]));
+        encoded.push(char::from(HEX[usize::from(byte & 0x0f)]));
+    }
+    encoded
 }
