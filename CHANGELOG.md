@@ -17,6 +17,11 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   Default `nika serve` is still the resident ARM firer. The verb is on
   `nika --help`. Listen line prints the bound address, including port 0.
   Job cancel and artifacts stay 404 until those authorities exist.
+- **`nika doctor` names the HTTP door when a token file is present.**
+  Owner-only mode is OK; group/world-readable is a fail with the umask
+  077 fix. The row never claims TLS — that is the reverse proxy.
+  Silent when the cwd has no `.nika/serve.token` (the door is opt-in).
+  systemd and Caddy examples live in `docs/ops/`.
 
 ### Changed
 

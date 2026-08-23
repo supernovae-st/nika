@@ -1403,3 +1403,46 @@ fn a_noop_backend_warns_with_the_exact_fix() {
         assert!(fix.contains("sandbox-exec"), "{fix}");
     }
 }
+
+#[test]
+fn serve_row_is_silent_without_a_token_file() {
+    let dir = temp_dir("serve-absent");
+    assert!(serve_http_door(&dir).is_empty());
+}
+
+#[cfg(unix)]
+#[test]
+fn serve_row_fails_when_the_token_is_world_readable() {
+    use std::os::unix::fs::PermissionsExt as _;
+    let dir = temp_dir("serve-mode");
+    let nika = dir.join(".nika");
+    std::fs::create_dir(&nika).expect("nika dir");
+    let token = nika.join("serve.token");
+    std::fs::write(&token, "x".repeat(40)).expect("token");
+    std::fs::set_permissions(&token, std::fs::Permissions::from_mode(0o644)).expect("mode");
+    let rows = serve_http_door(&dir);
+    assert_eq!(rows[0].level, Level::Fail);
+    assert!(
+        rows[0]
+            .fix
+            .as_deref()
+            .is_some_and(|f| f.contains("chmod 600"))
+    );
+    assert!(!format!("{rows:?}").contains("xxxx"));
+}
+
+#[cfg(unix)]
+#[test]
+fn serve_row_ok_names_tls_as_the_proxy_and_hides_the_secret() {
+    use std::os::unix::fs::PermissionsExt as _;
+    let dir = temp_dir("serve-ok");
+    let nika = dir.join(".nika");
+    std::fs::create_dir(&nika).expect("nika dir");
+    let token = nika.join("serve.token");
+    std::fs::write(&token, "s3cret-token-value-never-printed!!").expect("token");
+    std::fs::set_permissions(&token, std::fs::Permissions::from_mode(0o600)).expect("mode");
+    let rows = serve_http_door(&dir);
+    assert_eq!(rows[0].level, Level::Ok);
+    assert!(rows[0].detail.contains("does not terminate TLS"));
+    assert!(!rows[0].detail.contains("s3cret"));
+}

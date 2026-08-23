@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| Status | **WORKSPACE WIP — W09 OPENAPI**. Durable jobs, loopback HTTP, SSE, and an authenticated OpenAPI 3.1 document of the live routes. SDK retarget and 12-gate admission remain later. |
+| Status | **WORKSPACE WIP — W10 OPS**. Durable jobs, loopback HTTP, SSE, OpenAPI 3.1, SIGTERM drain, and an honest doctor row for the token file. Cancel/artifacts stay absent. |
 | Layer | L4 — remote execution interface projection |
 | Purpose | Persist request admission, lifecycle status, and resumable event cursors, and project the first authenticated HTTP routes over that state. |
 | LOC budget | ≤5,000 source lines for the state plane; ≤15,000 hard crate cap. |
