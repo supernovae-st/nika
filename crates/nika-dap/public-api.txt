@@ -2514,6 +2514,7 @@ pub fn nika_dap::resume::judge_resume(judgment: &nika_dap::resume::ResumeVersion
 pub fn nika_dap::resume::judge_trust(raw: &str) -> nika_dap::resume::TrustVerdict
 pub fn nika_dap::resume::judge_version(events: &[nika_event::event::Event], current: &str) -> nika_dap::resume::ResumeVersion
 pub fn nika_dap::resume::parse_answers(pairs: &[alloc::string::String], wf: &nika_schema::raw::workflow::RawWorkflow) -> core::result::Result<alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>, alloc::string::String>
+pub fn nika_dap::resume::refuse_reopened_settled_gates(plan: &nika_runtime::resume::ResumePlan, answers: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>) -> core::result::Result<(), alloc::string::String>
 pub fn nika_dap::resume::source_drifted(yaml: &str, events: &[nika_event::event::Event]) -> core::option::Option<bool>
 pub fn nika_dap::resume::summary_line(cache_hits: usize, ran_live: usize) -> alloc::string::String
 pub fn nika_dap::resume::trace_engine_version(events: &[nika_event::event::Event]) -> core::option::Option<alloc::string::String>
