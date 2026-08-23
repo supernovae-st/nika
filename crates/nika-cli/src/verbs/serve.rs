@@ -106,15 +106,15 @@ fn http_requested(args: &ServeArgs) -> bool {
 }
 
 fn serve_http_mode(args: &ServeArgs) -> Result<VerbOutput, String> {
-    let _bind = args
+    let bind = args
         .bind
         .as_deref()
         .ok_or_else(|| "serve · --bind and --workflows are an inseparable pair".to_owned())?;
-    let _workflows = args
+    let workflows = args
         .workflows
         .as_deref()
         .ok_or_else(|| "serve · --bind and --workflows are an inseparable pair".to_owned())?;
-    let _token_file = args.token_file.as_deref().ok_or_else(|| {
+    let token_file = args.token_file.as_deref().ok_or_else(|| {
         "serve · --bind requires --token-file (credential bytes never enter argv)".to_owned()
     })?;
     if args.once || args.dry {
@@ -123,13 +123,112 @@ fn serve_http_mode(args: &ServeArgs) -> Result<VerbOutput, String> {
     if args.now.is_some() || args.until.is_some() {
         return Err("serve · scripted clock is the resident firer harness, not HTTP".to_owned());
     }
-    // Gate 1 forbids sockets in this file. The listener lives in `nika-serve`
-    // (`serve_http`). Wiring that crate from `nika-cli/Cargo.toml` is outside
-    // this worker's claimed pathspec, so a complete flag set fails closed
-    // rather than opening a socket here.
-    let _ = args.allow_remote;
-    let _ = args.state_root.as_ref();
-    Err("serve · --bind is admitted on nika-serve; the CLI crate cannot take that dependency in this pathspec".to_owned())
+    let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+    let state_root = args
+        .state_root
+        .clone()
+        .unwrap_or_else(|| cwd.join(".nika/serve"));
+    let backend = std::sync::Arc::new(HttpBackend {
+        display_root: workflows.to_path_buf(),
+    });
+    let rt = signal_runtime()?;
+    rt.block_on(nika_serve::serve_http(
+        bind,
+        workflows,
+        &state_root,
+        token_file,
+        args.allow_remote,
+        backend,
+        http_shutdown(),
+    ))
+    .map_err(|error| format!("serve · {error}"))?;
+    Ok(VerbOutput::ok(String::new()))
+}
+
+async fn http_shutdown() {
+    #[cfg(unix)]
+    {
+        let mut term =
+            tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()).ok();
+        tokio::select! {
+            _ = tokio::signal::ctrl_c() => {}
+            () = async {
+                if let Some(s) = term.as_mut() {
+                    s.recv().await;
+                } else {
+                    std::future::pending::<()>().await;
+                }
+            } => {}
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = tokio::signal::ctrl_c().await;
+    }
+}
+
+struct HttpBackend {
+    display_root: PathBuf,
+}
+
+impl nika_serve::ExecutionBackend for HttpBackend {
+    fn execute<'a>(
+        &'a self,
+        context: nika_execution::ExecutionContext<'a>,
+    ) -> std::pin::Pin<
+        Box<dyn std::future::Future<Output = nika_serve::ExecutionDisposition> + Send + 'a>,
+    > {
+        let display_root = self.display_root.clone();
+        Box::pin(async move { drive_http_execution(display_root, context).await })
+    }
+}
+
+async fn drive_http_execution(
+    display_root: PathBuf,
+    context: nika_execution::ExecutionContext<'_>,
+) -> nika_serve::ExecutionDisposition {
+    use nika_service_execution::ServiceExecutionDriver;
+
+    let Some(driver) = ServiceExecutionDriver::new(context, display_root) else {
+        return nika_serve::ExecutionDisposition::Failed;
+    };
+    match tokio::task::spawn_blocking(move || run_admitted_http_job(&driver)).await {
+        Ok(disposition) => disposition,
+        Err(_) => nika_serve::ExecutionDisposition::Failed,
+    }
+}
+
+fn run_admitted_http_job(
+    driver: &nika_service_execution::ServiceExecutionDriver,
+) -> nika_serve::ExecutionDisposition {
+    use nika_runtime::{SystemStamper, VecSink};
+
+    let default_model = driver
+        .workflow()
+        .model
+        .as_ref()
+        .map_or("", |model| model.value.as_str());
+    let Ok(runtime) = driver.compose(default_model) else {
+        return nika_serve::ExecutionDisposition::Failed;
+    };
+    let runtime = runtime.with_prompt_pause(true);
+    let Ok(rt) = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+    else {
+        return nika_serve::ExecutionDisposition::Failed;
+    };
+    rt.block_on(async move {
+        let mut stamper = SystemStamper::new();
+        let mut sink = VecSink::new();
+        match runtime.run(&mut stamper, &mut sink).await {
+            Ok(outcome) if outcome.paused.is_some() => nika_serve::ExecutionDisposition::Paused,
+            Ok(outcome) if outcome.ok && !outcome.budget_exceeded => {
+                nika_serve::ExecutionDisposition::Succeeded
+            }
+            _ => nika_serve::ExecutionDisposition::Failed,
+        }
+    })
 }
 /// An RFC 3339 instant — the zoned form keeps its zone, a bare one rides
 /// UTC (the arm fire `--now` precedent).
@@ -750,7 +849,7 @@ mod tests {
         let fired = prod.find("fire_beat(").expect("the firer's call");
         assert!(judged < fired, "vocab + cadence judge BEFORE any shot");
         assert!(
-            prod.contains("serve_http_mode"),
+            prod.contains("nika_serve::serve_http"),
             "HTTP is an explicit second door"
         );
         for banned in [
@@ -790,5 +889,11 @@ mod tests {
         let out = run(&args);
         assert_eq!(out.code, exit::WORKFLOW, "{}", out.text);
         assert!(out.text.contains("--dry"), "{}", out.text);
+
+        args.dry = false;
+        args.bind = Some("not-a-bind".to_owned());
+        let out = run(&args);
+        assert_eq!(out.code, exit::WORKFLOW, "{}", out.text);
+        assert!(out.text.contains("bind address is invalid"), "{}", out.text);
     }
 }
