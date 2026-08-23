@@ -1,6 +1,6 @@
 [package]
 name          = "nika-serve"
-description   = "The L4 remote execution projection: durable job state now, transport after its authorities land."
+description   = "The L4 remote execution projection: durable jobs plus authenticated loopback HTTP."
 version.workspace      = true
 edition.workspace      = true
 license.workspace      = true
@@ -11,16 +11,26 @@ homepage.workspace     = true
 publish                = false
 
 [dependencies]
-nika-fs   = { path = "../nika-fs", version = "0.113.0" }
-nix       = { workspace = true, features = ["fs"] }
-serde     = { workspace = true }
+bytes      = { workspace = true }
+http-body-util = { workspace = true }
+hyper      = { workspace = true }
+hyper-util = { workspace = true }
+nika-execution = { path = "../nika-execution", version = "0.113.0" }
+nika-fs    = { path = "../nika-fs", version = "0.113.0" }
+nika-runtime = { path = "../nika-runtime", version = "0.113.0" }
+nix        = { workspace = true, features = ["fs"] }
+serde      = { workspace = true }
 serde_json = { workspace = true }
-sha2      = { workspace = true }
-thiserror = { workspace = true }
-uuid      = { workspace = true }
+sha2       = { workspace = true }
+subtle     = { workspace = true }
+thiserror  = { workspace = true }
+tokio      = { workspace = true, features = ["io-util", "net", "rt-multi-thread", "sync"] }
+uuid       = { workspace = true }
+zeroize    = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
 
 [lints]
 workspace = true
+

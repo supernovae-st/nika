@@ -44,6 +44,21 @@ impl JobId {
         Ok(())
     }
 
+    /// Parse a canonical opaque job identifier received from a wire adapter.
+    ///
+    /// Snapshot validation still reports [`JobStoreError::Corrupt`]. Wire
+    /// adapters use this constructor so an unknown or malformed id cannot be
+    /// distinguished from a missing job.
+    ///
+    /// # Errors
+    /// Returns [`JobStoreError::InvalidJobId`] unless the value is a lowercase
+    /// hyphenated RFC 4122 UUID v4.
+    pub fn parse(value: impl Into<String>) -> Result<Self, JobStoreError> {
+        let id = Self(value.into());
+        id.validate().map_err(|_| JobStoreError::InvalidJobId)?;
+        Ok(id)
+    }
+
     /// Return the opaque identifier string.
     #[must_use]
     pub fn as_str(&self) -> &str {
@@ -436,6 +451,9 @@ pub enum JobStoreError {
     /// An idempotency key violated its bounded wire contract.
     #[error("idempotency key must contain 1 to 255 visible ASCII bytes")]
     InvalidIdempotencyKey,
+    /// A wire job id was not a canonical random UUID.
+    #[error("job id must be a canonical random UUID")]
+    InvalidJobId,
     /// A request digest was not canonical lowercase hexadecimal.
     #[error("request digest must contain exactly 64 lowercase hexadecimal characters")]
     InvalidRequestDigest,
@@ -530,6 +548,12 @@ pub enum JobStoreError {
     /// A panic occurred while another thread held the in-process lock.
     #[error("job store local lock is poisoned")]
     LockPoisoned,
+    /// A bounded transport cannot admit another durable job.
+    #[error("job store capacity is exhausted")]
+    CapacityExceeded,
+    /// Another writer currently owns the kernel lease.
+    #[error("job store is busy")]
+    Busy,
 }
 
 impl From<io::Error> for JobStoreError {

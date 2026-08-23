@@ -65,8 +65,9 @@ layers.nika-cli-host = "L4"
 # nika-arm · the descriptor-rooted ARM custody and one firer shared by
 # the CLI and every later execution interface (ADR-114/117).
 layers.nika-arm = "L4"
-# nika-serve · the L4 remote execution projection. W05 admits only its durable
-# descriptor-rooted job state plane; HTTP, SSE, auth, and runtime wiring defer.
+# nika-serve · the L4 remote execution projection. W05 admitted its durable
+# descriptor-rooted state plane; W06 stages authenticated loopback HTTP.
+# SSE, OpenAPI/SDK, and full crate admission remain later carriers.
 layers.nika-serve = "L4"
 # nika-trace · the flight-recorder reader (the trace verbs · evidence ·
 # receipt · the learned-truth forecast · the bin's trace arm) · split from
@@ -343,6 +344,10 @@ unicase    = "2.9"
 
 trait-variant = "0.1"
 bytes         = { version = "1", features = ["serde"] }
+http-body-util = "0.1"  # nika-serve L4 — bounded HTTP body collection for the W06 listener
+hyper         = { version = "1", features = ["http1", "server"] }  # nika-serve L4 — HTTP/1.1 loopback listener (no TLS)
+hyper-util    = { version = "0.1", features = ["tokio"] }  # nika-serve L4 — Tokio IO adapter for Hyper
+subtle        = "2.6"   # nika-serve L4 — constant-time Bearer digest compare
 blake3        = "1"     # nika-blob L1 — content-addressed hashing (CC0-1.0 OR Apache-2.0 · allowlisted)
 serde_json_canonicalizer = "0.3"   # nika-runtime L3 — RFC 8785 JCS bytes under the ADR-099 resume keys (MIT · rides the existing serde_json/ryu stack)
 annotate-snippets = "0.12"          # nika-cli L4 — rustc-grade painted diagnostics (rust-lang org · cargo depends on it · MIT OR Apache-2.0)

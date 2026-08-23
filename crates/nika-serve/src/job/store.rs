@@ -66,6 +66,7 @@ pub struct JobStore {
     dir: OwnedDir,
     approval_history: Option<Arc<dyn ApprovalHistory>>,
     local: Mutex<()>,
+    fail_fast_lease: bool,
     #[cfg(test)]
     fail_next_persist: AtomicBool,
 }
@@ -88,7 +89,19 @@ impl JobStore {
     /// is unreadable, truncated, violates a persisted invariant, or already
     /// contains approvals that require an external history authority.
     pub fn open(root: &Path) -> Result<Self, JobStoreError> {
-        Self::open_inner(root, None)
+        Self::open_inner(root, None, false)
+    }
+
+    /// Open a store whose kernel lease fails fast as [`JobStoreError::Busy`].
+    ///
+    /// HTTP's dedicated blocking owner uses this so lock contention cannot pin
+    /// a request or shutdown behind an unbounded flock wait. Ordinary callers
+    /// keep the blocking [`Self::open`] contract.
+    ///
+    /// # Errors
+    /// Returns the same typed failures as [`Self::open`].
+    pub(crate) fn open_fail_fast(root: &Path) -> Result<Self, JobStoreError> {
+        Self::open_inner(root, None, true)
     }
 
     /// Open a durable job store with an external monotonic approval history.
@@ -105,17 +118,19 @@ impl JobStore {
         root: &Path,
         approval_history: Arc<dyn ApprovalHistory>,
     ) -> Result<Self, JobStoreError> {
-        Self::open_inner(root, Some(approval_history))
+        Self::open_inner(root, Some(approval_history), false)
     }
 
     fn open_inner(
         root: &Path,
         approval_history: Option<Arc<dyn ApprovalHistory>>,
+        fail_fast_lease: bool,
     ) -> Result<Self, JobStoreError> {
         let store = Self {
             dir: OwnedDir::create(root, &[JOBS_DIR])?,
             approval_history,
             local: Mutex::new(()),
+            fail_fast_lease,
             #[cfg(test)]
             fail_next_persist: AtomicBool::new(false),
         };
@@ -140,6 +155,23 @@ impl JobStore {
         key: IdempotencyKey,
         digest: RequestDigest,
     ) -> Result<Admission, JobStoreError> {
+        self.create_or_replay_bounded(key, digest, usize::MAX)
+    }
+
+    /// Create or replay while refusing a new record above `max_jobs`.
+    ///
+    /// Existing identical and conflicting bindings remain observable at the
+    /// ceiling. Only creation of another durable identity is refused.
+    ///
+    /// # Errors
+    /// Returns [`JobStoreError::CapacityExceeded`] when a new key would make
+    /// the durable record count exceed the configured ceiling.
+    pub fn create_or_replay_bounded(
+        &self,
+        key: IdempotencyKey,
+        digest: RequestDigest,
+        max_jobs: usize,
+    ) -> Result<Admission, JobStoreError> {
         key.validate()?;
         digest.validate()?;
         let _local = self.local_guard()?;
@@ -156,6 +188,10 @@ impl JobStore {
             } else {
                 Admission::Conflict(existing.record.clone())
             });
+        }
+
+        if state.jobs.len() >= max_jobs {
+            return Err(JobStoreError::CapacityExceeded);
         }
 
         let record = JobRecord {
@@ -294,8 +330,19 @@ impl JobStore {
 
     pub(super) fn kernel_lease(&self) -> Result<Flock<std::fs::File>, JobStoreError> {
         let file = self.dir.open_lock(LOCK_FILE)?;
-        Flock::lock(file, FlockArg::LockExclusive).map_err(|(_file, errno)| {
-            JobStoreError::from(std::io::Error::from_raw_os_error(errno as i32))
+        let mode = if self.fail_fast_lease {
+            FlockArg::LockExclusiveNonblock
+        } else {
+            FlockArg::LockExclusive
+        };
+        Flock::lock(file, mode).map_err(|(_file, errno)| {
+            if self.fail_fast_lease
+                && (errno == nix::errno::Errno::EAGAIN || errno == nix::errno::Errno::EWOULDBLOCK)
+            {
+                JobStoreError::Busy
+            } else {
+                JobStoreError::from(std::io::Error::from_raw_os_error(errno as i32))
+            }
         })
     }
 
@@ -398,6 +445,46 @@ impl JobStore {
         state.incarnation.settled = Some(incarnation.generation);
         self.persist(&state)?;
         Ok(settled)
+    }
+
+    /// Mark one running job interrupted under the live server incarnation.
+    ///
+    /// This is the crate-internal live-timeout edge. Public
+    /// [`Self::transition_with_events`] still refuses `running -> interrupted`.
+    ///
+    /// # Errors
+    /// Returns a stale-incarnation, missing-job, illegal-status, or storage
+    /// failure. Forbidden edges do not mutate the snapshot.
+    pub(crate) fn interrupt_running(
+        &self,
+        id: &JobId,
+        incarnation: &ServerIncarnation,
+        payload: &Value,
+    ) -> Result<JobRecord, JobStoreError> {
+        let batch = ValidatedEventBatch::for_transition(std::slice::from_ref(payload))?;
+        let _local = self.local_guard()?;
+        let _lease = self.kernel_lease()?;
+        let mut state = self.load_state()?;
+        if state.incarnation.current != incarnation.generation {
+            return Err(JobStoreError::StaleServerIncarnation);
+        }
+        ensure_approval_claims_unused(&state, &batch)?;
+        let job = state
+            .jobs
+            .iter_mut()
+            .find(|job| job.record.id == *id)
+            .ok_or_else(|| JobStoreError::JobNotFound(id.clone()))?;
+        if job.record.status != JobStatus::Running {
+            return Err(JobStoreError::IllegalTransition {
+                from: job.record.status,
+                to: JobStatus::Interrupted,
+            });
+        }
+        job.append_payloads(&batch)?;
+        job.record.status = JobStatus::Interrupted;
+        let record = job.record.clone();
+        self.persist_event_mutation(&state, &batch)?;
+        Ok(record)
     }
 
     fn server_lease(&self) -> Result<Flock<std::fs::File>, JobStoreError> {

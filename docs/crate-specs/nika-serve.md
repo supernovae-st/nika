@@ -2,24 +2,30 @@
 
 | | |
 |---|---|
-| Status | **WORKSPACE WIP — W05 STATE PLANE**. The durable job API is present; transport and full 12-gate admission remain separate waves. |
+| Status | **WORKSPACE WIP — W06 AUTHENTICATED HTTP**. Durable jobs plus bounded loopback HTTP are present; SSE, OpenAPI/SDK, and full 12-gate admission remain later carriers. |
 | Layer | L4 — remote execution interface projection |
-| Purpose | Persist request admission, lifecycle status, and resumable event cursors before any HTTP route exists. |
+| Purpose | Persist request admission, lifecycle status, and resumable event cursors, and project the first authenticated HTTP routes over that state. |
 | LOC budget | ≤5,000 source lines for the state plane; ≤15,000 hard crate cap. |
 | File cap | ≤1,500 lines. |
 | Function cap | ≤100 lines. |
 | Crate version | tracks workspace |
 | License | `AGPL-3.0-or-later` |
 | Publish | `false` — engine-internal interface crate |
-| Dependencies | `nika-fs` (`OwnedDir`) · `nix` (kernel advisory lease) · `serde`/`serde_json` · `sha2` · `thiserror` · `uuid` |
-| NIKA codes | **none** — `JobStoreError` is an L4 transport-surface error, never a workflow/verb error; the future HTTP adapter maps it to bounded response classes. |
+| Dependencies | `nika-execution` · `nika-runtime` identity · `nika-fs` · Hyper/Tokio · `http-body-util` · SHA-256 + `subtle` · `zeroize` · `nix` · Serde · `thiserror` · `uuid` |
+| NIKA codes | **none** — `JobStoreError` is an L4 transport-surface error, never a workflow/verb error; the HTTP adapter maps it to bounded response classes. |
 
 ## 1. Boundary
 
-`nika-serve` is the future L4 network projection over the shared execution
-authority required by ADR-117. W05 implements only its state plane. It owns no
-listener, route, authentication, SSE stream, workflow lookup, execution
-composition, cancellation, or artifact path.
+`nika-serve` is the L4 network projection over the shared execution
+authority required by ADR-117. W05 established its state plane. W06 adds a
+real Hyper/Tokio TCP listener, deny-by-default Bearer authentication, a
+held `.nika.yaml` registry, `ExecutionService` admission, an injected
+`ExecutionBackend` seam, and the first job/workflow routes. It does not
+import `nika-cli`. Default `nika serve` remains the resident ARM firer.
+The CLI admits the `--bind` + `--workflows` + `--token-file` pair (and
+refuses `--once`/`--dry` with bind); `nika_serve::serve_http` is the
+listener entry. Wiring `nika-serve` as a `nika-cli` dependency is a
+follow-up pathspec: this file must not mention sockets (Gate 1).
 
 The store accepts one existing operator-owned root, opens it once through
 `nika_fs::OwnedDir`, creates the contained `jobs` directory through held
@@ -55,13 +61,43 @@ becomes a child name.
   anchored. It anchors one-shot digest retention and reuse refusal only; it
   authenticates neither a decision payload nor the journal.
   `ApprovalHistoryError` exposes only bounded refusal classes.
-- `JobStore` exposes `create_or_replay`, `get`, `transition_with_events`,
-  `append_events`, `events_after`, and authority-gated
-  `settle_interrupted_jobs`. `JobStore::open` refuses approval appends and
-  existing approval history; `open_with_approval_history` is required for
-  those operations.
+- `JobStore` exposes `create_or_replay`, `create_or_replay_bounded`, `get`,
+  `transition_with_events`, `append_events`, `events_after`, and
+  authority-gated `settle_interrupted_jobs`. `JobStore::open` refuses
+  approval appends and existing approval history;
+  `open_with_approval_history` is required for those operations. Wire
+  adapters parse opaque ids with `JobId::parse`.
+- `ServerConfig` requires bind, workflow root, state root, and token-file
+  source. `ServerLimits` names body, request, execution, shutdown,
+  active-job, queue, connection, header, and durable-job ceilings.
+- `BoundServer::bind` validates and acquires all authority before listening;
+  `serve_until` stops admission and gives active jobs a bounded grace period.
+- `ExecutionBackend` receives only `ExecutionContext` over the immutable
+  world admitted by `ExecutionService`. It is asynchronous, cancellable by
+  drop, and maps only `Succeeded | Paused | Failed` onto durable status.
 
-No public mutation accepts a filesystem path.
+No public job mutation accepts a filesystem path. Startup paths live only in
+`ServerConfig`; its `Debug` view deliberately omits them and the token source.
+
+### W06 HTTP contract
+
+| method | route | authority | response allowlist |
+|---|---|---|---|
+| `GET` | `/health` | public | status, service, four `EngineIdentity` fields |
+| `GET` | `/v1/workflows` | exactly one Bearer | contained `.nika.yaml` relative names |
+| `GET` | `/v1/workflows/{name}` | exactly one Bearer | `{ "workflow": "<contained name>" }` |
+| `POST` | `/v1/jobs` | exactly one Bearer + `Idempotency-Key` | opaque id + status |
+| `GET` | `/v1/jobs/{id}` | exactly one Bearer | opaque id + status |
+| `GET` | `/v1/jobs/{id}/status` | exactly one Bearer | status only |
+
+Cancel and artifact routes return 404. No route returns source bytes,
+idempotency keys, request digests, event payloads, provider/tool data, paths,
+token material, or internal error text. CORS headers are not emitted.
+
+On Unix, the token file must be opened no-follow/nonblocking as a regular
+owner-only file. It contains 32–512 visible ASCII bytes (one trailing line
+ending is accepted); raw bytes are zeroized after hashing. Comparisons use
+fixed-size constant-time equality. Compressed request bodies are refused.
 
 ## 3. Durability and idempotence laws
 
@@ -125,7 +161,7 @@ No public mutation accepts a filesystem path.
     closed.
 11. `Debug` for `JobStore` is opaque and cannot expose its held root.
 
-## 4. W05 verification
+## 4. W05 + W06 verification
 
 Inline library tests cover:
 
@@ -160,11 +196,27 @@ Inline library tests cover:
   later digest reuse the retained authority refuses;
 - sentinel-root debug non-disclosure;
 - payload, batch, snapshot, and page boundary refusals without durable mutation.
+- real loopback HTTP health, workflow list/metadata, job-create, job-read,
+  and status requests;
+- valid authentication plus uniform missing, duplicate, malformed, wrong, and
+  oversized credential refusal;
+- auth-before-parse, invalid JSON/content type, coarse and streaming body
+  limits, slow-body timeout, contained-path refusal, and absent authority
+  routes including cancel/artifacts;
+- twelve concurrent identical POSTs producing one backend call and one id;
+- `paused` through both public response types;
+- bounded execution timeout and bounded graceful shutdown;
+- restart settlement of a live job to `interrupted`, followed by identical
+  replay with zero calls into the replacement backend;
+- exact active-run and queued-job boundaries, durable job capacity, exact and
+  excess header counts, connection saturation, credential FIFO refusal, and
+  fail-fast store contention followed by clean incarnation release.
 
-The W05 command contract is:
+The W05/W06 focused command contract is:
 
 ```bash
 cargo test -p nika-serve --lib
+cargo test -p nika-cli --lib -- serve
 cargo clippy -p nika-serve --all-targets -- -D warnings
 cargo fmt -p nika-serve -- --check
 ```
@@ -191,17 +243,17 @@ admission wave closes the gates whose authority does not exist in W05.
 
 ## 6. Explicit non-goals
 
-No `ExecutionService` integration · no HTTP · no SSE · no authentication · no
-listener · no CLI wiring · no workflow registry · no cancellation · no
-artifact authority · no automatic retry of interrupted execution. The store
-records the lost ownership but cannot prove whether an effect committed before
-the crash. W05 also provides no concrete durable `ApprovalHistory`; an
-in-process or same-filesystem sidecar that the state writer can roll back does
-not meet the contract. W06 must supply that adapter, establish its exclusive
-server incarnation, and call the crate-internal settlement before binding the
-listener. Operational retention of that external anchor is a deployment
-responsibility this spec does not assign to a wave. Those capabilities require
-their own typed authorities and tests before projection.
+No SSE · no TLS · no OpenAPI/SDK projection · no workflow upload · no
+cancellation · no artifact authority · no automatic retry of interrupted
+execution. The store records the lost ownership but cannot prove whether an
+effect committed before the crash. W05 also provides no concrete durable
+`ApprovalHistory`; an in-process or same-filesystem sidecar that the state
+writer can roll back does not meet the contract. W06's HTTP adapter
+establishes the exclusive server incarnation and calls crate-internal
+settlement before binding the listener; it does not replace the approval
+history authority. Operational retention of that external anchor is a
+deployment responsibility this spec does not assign to a wave. Those
+capabilities require their own typed authorities and tests before projection.
 
 ## 7. Related decisions
 

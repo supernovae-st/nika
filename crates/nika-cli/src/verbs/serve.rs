@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
-//! `nika serve` — LE TIREUR RÉSIDENT (W5): the SAME `fire` (D2), the wall
-//! clock in place of the OS. Gate 1: reads ONLY `nika.yaml` (vocab +
-//! cadence judge it before any shot) and its own sidecar. Exit 0 · 1 else.
+//! `nika serve` — LE TIREUR RÉSIDENT (W5) plus loopback HTTP (W06).
+//! Default: the SAME `fire` (D2), the wall clock in place of the OS.
+//! Gate 1: the resident firer reads ONLY `nika.yaml` (vocab + cadence
+//! judge it before any shot) and its own sidecar. HTTP is a second door
+//! opened only by `--bind` + `--workflows`. Exit 0 · 1 else.
 // A server's whole job is its log lines (the run/mod.rs precedent).
 #![allow(clippy::disallowed_macros, clippy::print_stdout, clippy::print_stderr)]
 use super::arm::{
@@ -14,7 +16,7 @@ use super::{VerbOutput, exit};
 use jiff::{SignedDuration, Zoned};
 use nika_cadence::registry::{ArmRegistry, Locus};
 use std::path::{Path, PathBuf};
-/// `nika serve` — the resident firer's args.
+/// `nika serve` — the resident firer's args, plus the explicit HTTP pair.
 #[derive(Debug, clap::Args)]
 pub struct ServeArgs {
     /// Fire what is due once, then exit — the rehearsal.
@@ -29,6 +31,21 @@ pub struct ServeArgs {
     /// Stop the loop at this instant (RFC 3339) — the harness.
     #[arg(long, hide = true, value_name = "RFC3339")]
     pub until: Option<String>,
+    /// Bind an authenticated HTTP listener. Requires `--workflows` and `--token-file`.
+    #[arg(long, value_name = "ADDR")]
+    pub bind: Option<String>,
+    /// Held registry root of `.nika.yaml` workflows. Requires `--bind`.
+    #[arg(long, value_name = "DIR")]
+    pub workflows: Option<PathBuf>,
+    /// Acknowledge a non-loopback `--bind`. Authentication is unchanged.
+    #[arg(long)]
+    pub allow_remote: bool,
+    /// Owner-only file holding the Bearer secret. Bytes never enter argv.
+    #[arg(long, value_name = "FILE")]
+    pub token_file: Option<PathBuf>,
+    /// Durable job-state root. Defaults to `<cwd>/.nika/serve`.
+    #[arg(long, value_name = "DIR")]
+    pub state_root: Option<PathBuf>,
 }
 /// The injected edges — `Zoned::now` + `tokio::time::sleep`, or the
 /// harness's scripted clock whose sleep ADVANCES it (trap ② avoided).
@@ -59,6 +76,9 @@ fn go(args: &ServeArgs) -> Result<VerbOutput, VerbOutput> {
         text,
         code: exit::WORKFLOW,
     };
+    if http_requested(args) {
+        return serve_http_mode(args).map_err(fail);
+    }
     let now = instant(args.now.as_deref()).map_err(&fail)?;
     let until = instant(args.until.as_deref()).map_err(&fail)?;
     if now.is_some() && !args.once && until.is_none() {
@@ -75,6 +95,41 @@ fn go(args: &ServeArgs) -> Result<VerbOutput, VerbOutput> {
     let run: ExecutionRunSeam = std::rc::Rc::new(arm::fire::prod_run);
     serve(&root, registry, args, until.as_ref(), &clock(now), &run).map_err(fail)?;
     Ok(VerbOutput::ok(String::new()))
+}
+
+fn http_requested(args: &ServeArgs) -> bool {
+    args.bind.is_some()
+        || args.workflows.is_some()
+        || args.token_file.is_some()
+        || args.state_root.is_some()
+        || args.allow_remote
+}
+
+fn serve_http_mode(args: &ServeArgs) -> Result<VerbOutput, String> {
+    let _bind = args
+        .bind
+        .as_deref()
+        .ok_or_else(|| "serve · --bind and --workflows are an inseparable pair".to_owned())?;
+    let _workflows = args
+        .workflows
+        .as_deref()
+        .ok_or_else(|| "serve · --bind and --workflows are an inseparable pair".to_owned())?;
+    let _token_file = args.token_file.as_deref().ok_or_else(|| {
+        "serve · --bind requires --token-file (credential bytes never enter argv)".to_owned()
+    })?;
+    if args.once || args.dry {
+        return Err("serve · --once/--dry cannot bind a listener".to_owned());
+    }
+    if args.now.is_some() || args.until.is_some() {
+        return Err("serve · scripted clock is the resident firer harness, not HTTP".to_owned());
+    }
+    // Gate 1 forbids sockets in this file. The listener lives in `nika-serve`
+    // (`serve_http`). Wiring that crate from `nika-cli/Cargo.toml` is outside
+    // this worker's claimed pathspec, so a complete flag set fails closed
+    // rather than opening a socket here.
+    let _ = args.allow_remote;
+    let _ = args.state_root.as_ref();
+    Err("serve · --bind is admitted on nika-serve; the CLI crate cannot take that dependency in this pathspec".to_owned())
 }
 /// An RFC 3339 instant — the zoned form keeps its zone, a bare one rides
 /// UTC (the arm fire `--now` precedent).
@@ -499,6 +554,11 @@ mod tests {
             dry: false,
             now: None,
             until: None,
+            bind: None,
+            workflows: None,
+            allow_remote: false,
+            token_file: None,
+            state_root: None,
         }
     }
 
@@ -655,6 +715,11 @@ mod tests {
             dry: false,
             now: Some("2026-08-19T03:02:00Z".to_owned()),
             until: None,
+            bind: None,
+            workflows: None,
+            allow_remote: false,
+            token_file: None,
+            state_root: None,
         };
         let out = run(&args);
         assert_eq!(out.code, exit::WORKFLOW, "{}", out.text);
@@ -670,11 +735,11 @@ mod tests {
         assert_eq!(zoned.timestamp().to_string(), "2026-08-19T03:02:00Z");
     }
 
-    /// Gate 1 (diamond-discipline §5, P0 · closed 2026-08-19): serve reads
-    /// ONLY the registry (through the ONE arm door, judged by vocab +
-    /// cadence BEFORE any shot — the source order pins it) and its own
-    /// sidecar. No network, no environment read, no argument beyond the
-    /// clap surface. A static pin over the prod half of this file.
+    /// Gate 1 (diamond-discipline §5, P0 · closed 2026-08-19): the resident
+    /// firer reads ONLY the registry (through the ONE arm door, judged by
+    /// vocab + cadence BEFORE any shot) and its own sidecar. HTTP is a
+    /// second clap-gated door (`nika_serve::serve_http`) and must not
+    /// mention sockets in this file. A static pin over the prod half.
     #[test]
     fn serve_has_no_input_but_the_registry_and_its_state() {
         let src = include_str!("serve.rs");
@@ -684,6 +749,10 @@ mod tests {
         let judged = prod.find("arm::load(").expect("the door's call");
         let fired = prod.find("fire_beat(").expect("the firer's call");
         assert!(judged < fired, "vocab + cadence judge BEFORE any shot");
+        assert!(
+            prod.contains("serve_http_mode"),
+            "HTTP is an explicit second door"
+        );
         for banned in [
             "reqwest",
             "std::net",
@@ -695,5 +764,31 @@ mod tests {
         ] {
             assert!(!prod.contains(banned), "serve must not read {banned}");
         }
+    }
+
+    #[test]
+    fn http_flags_are_an_inseparable_pair_and_refuse_the_firer_harness() {
+        let mut args = serve_args();
+        args.bind = Some("127.0.0.1:0".to_owned());
+        let out = run(&args);
+        assert_eq!(out.code, exit::WORKFLOW, "{}", out.text);
+        assert!(out.text.contains("--workflows"), "{}", out.text);
+
+        args.workflows = Some(PathBuf::from("workflows"));
+        let out = run(&args);
+        assert_eq!(out.code, exit::WORKFLOW, "{}", out.text);
+        assert!(out.text.contains("--token-file"), "{}", out.text);
+
+        args.token_file = Some(PathBuf::from("serve.token"));
+        args.once = true;
+        let out = run(&args);
+        assert_eq!(out.code, exit::WORKFLOW, "{}", out.text);
+        assert!(out.text.contains("--once"), "{}", out.text);
+
+        args.once = false;
+        args.dry = true;
+        let out = run(&args);
+        assert_eq!(out.code, exit::WORKFLOW, "{}", out.text);
+        assert!(out.text.contains("--dry"), "{}", out.text);
     }
 }

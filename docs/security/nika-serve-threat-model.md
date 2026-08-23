@@ -1,8 +1,8 @@
 # `nika serve` network threat model
 
-**Status:** binding design boundary for ADR-117; HTTP implementation is not yet
-present. A checked box in this document means the implementation and its test
-exist, not merely that the design mentions them.
+**Status:** binding design boundary for ADR-117; W06 admits authenticated
+loopback HTTP. A checked box in this document means the implementation and
+its test exist, not merely that the design mentions them.
 
 ## Security objective
 
@@ -70,6 +70,8 @@ alone.
 | route class | public? | effects? | mandatory controls |
 |---|---:|---:|---|
 | `GET /health` | yes | no | fixed response schema; EngineIdentity only |
+| `/v1/workflows` | no | no | Bearer auth before listing; `.nika.yaml` names only |
+| `/v1/workflows/{name}` | no | no | Bearer auth; contained relative name metadata; no source bytes |
 | `/v1/jobs/{opaque-id}` | no | no | Bearer auth before lookup; uniform unknown-id response |
 | `/v1/jobs/{opaque-id}/events` | no | no | Bearer auth; bounded SSE buffer; monotonic `Last-Event-ID`; redaction |
 | effecting `/v1/*` POST | no | yes | auth before parse; body limit; content type; idempotency before execution |
@@ -183,21 +185,21 @@ transcript is claimed where no such test existed on that SHA.
 
 ## Mandatory adversarial tests
 
-- [ ] no flags means no listener;
-- [ ] incomplete flag pairs and `--once`/`--dry` combinations refuse;
-- [ ] non-loopback without `--allow-remote` refuses before bind;
-- [ ] missing, duplicate, malformed, wrong, and oversized credentials share one
+- [x] no flags means no listener;
+- [x] incomplete flag pairs and `--once`/`--dry` combinations refuse;
+- [x] non-loopback without `--allow-remote` refuses before bind;
+- [x] missing, duplicate, malformed, wrong, and oversized credentials share one
   bounded 401 shape;
-- [ ] a parser sentinel proves unauthenticated bodies are never decoded;
-- [ ] oversized, slow, invalid, and wrong-content-type bodies never execute;
-- [ ] absolute, traversal, separator-confused, extension-confused, and symlink
+- [x] a parser sentinel proves unauthenticated bodies are never decoded;
+- [x] oversized, slow, invalid, and wrong-content-type bodies never execute;
+- [x] absolute, traversal, separator-confused, extension-confused, and symlink
   workflow names refuse;
 - [x] source replacement after capture cannot change checked/executed bytes
   (`nika-execution` includes deterministic barrier-interleaved root, child,
   nested-child, skill, symlink, and directory fixtures; DAP separately binds
   workflow signatures to captured bytes);
-- [ ] identical idempotent replay returns one job across restart;
-- [ ] conflicting key reuse and simultaneous duplicates refuse without a second
+- [x] identical idempotent replay returns one job across restart;
+- [x] conflicting key reuse and simultaneous duplicates refuse without a second
   effect;
 - [x] durable event-chain modification, interior deletion, permutation, and
   cross-job graft refuse **when the mutation does not recompute the chain**;
@@ -206,13 +208,14 @@ transcript is claimed where no such test existed on that SHA.
   external authority survives. No box here claims detection of a coherent
   rewrite: the chain is unkeyed, so authenticating the journal or an approval
   payload would need a key or signature that W05 does not introduce;
-- [ ] opaque job guessing and unknown ids disclose no registry membership;
-- [ ] `paused` round-trips through Rust, OpenAPI, fixtures, and TypeScript;
+- [x] opaque job guessing and unknown ids disclose no registry membership;
+- [ ] `paused` round-trips through Rust, OpenAPI, fixtures, and TypeScript
+  (Rust HTTP projection is proven; OpenAPI/TypeScript remain a later carrier);
 - [ ] SSE auth, resume, stale/future cursors, lag overflow, disconnect, and
   redaction are deterministic;
 - [ ] protected responses/logs contain no credential, private path, provider raw
   payload, workflow bytes, or secret-shaped fixture;
-- [ ] cancellation and artifact routes are absent until their typed authorities
+- [x] cancellation and artifact routes are absent until their typed authorities
   are admitted;
 - [ ] SIGINT/SIGTERM stop admission, settle in-flight authority, and leave no
   duplicate-runnable idempotency record.
