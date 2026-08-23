@@ -1,8 +1,9 @@
 # `nika serve` network threat model
 
 **Status:** binding design boundary for ADR-117; W06 admits authenticated
-loopback HTTP. A checked box in this document means the implementation and
-its test exist, not merely that the design mentions them.
+loopback HTTP and W07 projects the durable job journal over SSE. A checked
+box in this document means the implementation and its test exist, not
+merely that the design mentions them.
 
 ## Security objective
 
@@ -211,7 +212,7 @@ transcript is claimed where no such test existed on that SHA.
 - [x] opaque job guessing and unknown ids disclose no registry membership;
 - [ ] `paused` round-trips through Rust, OpenAPI, fixtures, and TypeScript
   (Rust HTTP projection is proven; OpenAPI/TypeScript remain a later carrier);
-- [ ] SSE auth, resume, stale/future cursors, lag overflow, disconnect, and
+- [x] SSE auth, resume, stale/future cursors, lag overflow, disconnect, and
   redaction are deterministic;
 - [ ] protected responses/logs contain no credential, private path, provider raw
   payload, workflow bytes, or secret-shaped fixture;

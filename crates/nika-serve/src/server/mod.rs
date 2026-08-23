@@ -7,6 +7,7 @@ mod error;
 mod model;
 mod registry;
 mod route;
+mod sse;
 mod store;
 
 use std::future::Future;
@@ -22,10 +23,10 @@ use nika_execution::{ExecutionContext, ExecutionService, SnapshotLimits};
 use nika_fs::OwnedDir;
 use serde_json::json;
 use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::mpsc;
+use tokio::sync::{Semaphore, mpsc};
 use tokio::task::JoinSet;
 
-use crate::{JobId, JobStatus, JobStore};
+use crate::{EventPageLimit, JobId, JobStatus, JobStore, MAX_EVENT_PAGE_LEN};
 
 use auth::BearerToken;
 pub use config::{ServerConfig, ServerLimits};
@@ -67,6 +68,8 @@ struct AppState {
     jobs: mpsc::Sender<ExecutionTask>,
     limits: ServerLimits,
     snapshot_limits: SnapshotLimits,
+    sse_slots: Arc<Semaphore>,
+    event_page_limit: EventPageLimit,
 }
 
 #[derive(Debug)]
@@ -104,6 +107,9 @@ impl BoundServer {
         backend: Arc<dyn ExecutionBackend>,
     ) -> Result<Self, ServerError> {
         validate_config(&config)?;
+        let event_page_limit = EventPageLimit::new(MAX_EVENT_PAGE_LEN).map_err(|_| {
+            ServerError::InvalidConfig("SSE event page limit must be within the store cap")
+        })?;
         let prepared = prepare_authority(&config).await?;
         let listener = TcpListener::bind(config.bind())
             .await
@@ -128,6 +134,8 @@ impl BoundServer {
             jobs,
             limits: config.limits(),
             snapshot_limits: config.snapshot_limits(),
+            sse_slots: Arc::new(Semaphore::new(config.limits().max_sse_clients())),
+            event_page_limit,
         });
         Ok(Self {
             listener,
@@ -226,7 +234,7 @@ async fn prepare_authority(config: &ServerConfig) -> Result<PreparedAuthority, S
 fn validate_config(config: &ServerConfig) -> Result<(), ServerError> {
     if !config.limits().valid() {
         return Err(ServerError::InvalidConfig(
-            "all size, timeout, concurrency, queue, connection, and header ceilings must be non-zero",
+            "all size, timeout, concurrency, queue, connection, sse, and header ceilings must be non-zero",
         ));
     }
     if !config.bind().ip().is_loopback() && !config.allow_remote() {

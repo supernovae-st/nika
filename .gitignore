@@ -52,7 +52,7 @@ Cargo.lock.bak
 /crates/nika-policy/
 /crates/nika-sdk/
 /crates/nika-security/
-/crates/nika-serve/
+# /crates/nika-serve/  -- W06 admitted loopback HTTP (new files must not need -f)
 /crates/nika-storage/
 /crates/nika-vault/
 # /crates/nika-verb-infer/  -- s9 L2 crate (ADMITTED 2026-06-11)

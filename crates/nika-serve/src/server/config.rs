@@ -21,6 +21,7 @@ pub struct ServerLimits {
     max_connections: usize,
     max_headers: usize,
     max_jobs: usize,
+    max_sse_clients: usize,
 }
 
 impl ServerLimits {
@@ -47,6 +48,7 @@ impl ServerLimits {
             max_connections,
             max_headers,
             max_jobs: 10_000,
+            max_sse_clients: max_connections,
         }
     }
 
@@ -54,6 +56,13 @@ impl ServerLimits {
     #[must_use]
     pub const fn with_max_jobs(mut self, max_jobs: usize) -> Self {
         self.max_jobs = max_jobs;
+        self
+    }
+
+    /// Replace the concurrent SSE client ceiling.
+    #[must_use]
+    pub const fn with_max_sse_clients(mut self, max_sse_clients: usize) -> Self {
+        self.max_sse_clients = max_sse_clients;
         self
     }
 
@@ -67,6 +76,7 @@ impl ServerLimits {
             && self.max_connections != 0
             && self.max_headers != 0
             && self.max_jobs != 0
+            && self.max_sse_clients != 0
     }
 
     pub(crate) const fn max_body_bytes(self) -> usize {
@@ -103,6 +113,10 @@ impl ServerLimits {
 
     pub(crate) const fn max_jobs(self) -> usize {
         self.max_jobs
+    }
+
+    pub(crate) const fn max_sse_clients(self) -> usize {
+        self.max_sse_clients
     }
 }
 
