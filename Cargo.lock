@@ -4339,7 +4339,7 @@ dependencies = [
  "base64 0.23.1",
  "bytes",
  "clap",
- "hmac 0.12.1",
+ "hmac 0.13.0",
  "jiff",
  "nika-builtin",
  "nika-catalog",

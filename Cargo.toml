@@ -332,7 +332,7 @@ minisign   = { version = "0.9", default-features = false }   # the seal/signatur
 regex      = "1.11"     # nika-builtin L1.5 — nika:grep pattern engine (RE2-class · no backrefs · the portable subset)
 include_dir = "0.7"   # nika-pack L0 · compile-time spec-pack embedding
 sha2 = "0.10"         # nika-pack dev · manifest integrity hashing + nika-event L0 · the source-identity hash
-hmac = "0.12"         # nika-cli L4 — ADR-111 Standard Webhooks signature (RustCrypto · pairs with sha2)
+hmac = "0.13"         # nika-cli L4 — ADR-111 Standard Webhooks signature (RustCrypto · pairs with sha2)
 miette     = "7.6"
 serde      = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
