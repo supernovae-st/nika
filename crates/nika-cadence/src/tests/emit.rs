@@ -178,7 +178,7 @@ fn a_wrapped_unit_names_its_env_file_and_a_bare_unit_does_not() {
     assert_eq!(
         emit::env_file_named_in_unit(&systemd[1].body).as_deref(),
         Some("/projet/.env"),
-        "EnvironmentFile= sur le service: {}",
+        "EnvironmentFile= on the service unit: {}",
         systemd[1].body
     );
 }
