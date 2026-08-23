@@ -193,8 +193,10 @@ enum Command {
     /// disposes). Exit `0` clean · `2` the registry refuses.
     #[command(display_order = 72)]
     Arm(verbs::arm::args::ArmArgs),
-    /// The resident firer: the SAME `fire`, the wall clock in place of the OS (W5). Exit `0` clean · `1` otherwise.
-    #[command(hide = true, display_order = 73)]
+    /// Resident ARM firer by default (the SAME `fire`, wall clock in place of the OS).
+    /// `--bind` + `--workflows` + `--token-file` opens authenticated loopback HTTP.
+    /// Exit `0` clean · `1` otherwise.
+    #[command(display_order = 73)]
     Serve(verbs::serve::ServeArgs),
     /// Sign a workflow file (S3 · author-binding): mint `<file>.minisig` · `--check` verifies.
     #[command(hide = true, display_order = 71)]

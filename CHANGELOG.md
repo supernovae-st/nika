@@ -10,6 +10,14 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+### Added
+
+- **`nika serve --bind` is authenticated loopback HTTP.** Pair it with
+  `--workflows` and `--token-file` (credential bytes never enter argv).
+  Default `nika serve` is still the resident ARM firer. The verb is on
+  `nika --help`. Listen line prints the bound address, including port 0.
+  Job cancel and artifacts stay 404 until those authorities exist.
+
 ### Changed
 
 - **`nika check` names the ancestor `nika.yaml` spend cap.** `nika run`
