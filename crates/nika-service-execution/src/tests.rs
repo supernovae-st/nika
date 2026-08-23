@@ -95,6 +95,18 @@ async fn service_driver_runs_a_child_from_the_owned_snapshot() -> TestResult<()>
 }
 
 #[tokio::test]
+async fn failed_root_run_projects_a_nika_code_without_paths() -> TestResult<()> {
+    let root = "nika: root\npermits:\n  tools: [\"nika:jq\"]\ntasks:\n  boom:\n    invoke:\n      tool: nika:jq\n      args: { input: 1, expression: \"error(\\\"gauntlet\\\")\" }\n";
+    let driver = admitted_driver(&[("root.nika.yaml", root)])?;
+    let result = driver.execute(ServiceExecutionOptions::new()).await?;
+    assert_eq!(result.status(), ServiceExecutionStatus::Failed);
+    let (code, message) = result.error().expect("failed run diagnosis");
+    assert!(code.starts_with("NIKA-"), "{code} {message}");
+    assert!(!message.contains('/'), "{message}");
+    Ok(())
+}
+
+#[tokio::test]
 async fn independently_parsed_workflow_and_report_cannot_replace_the_admitted_pair()
 -> TestResult<()> {
     let admitted = "nika: admitted\npermits: { tools: [\"nika:jq\"] }\ntasks:\n  value:\n    invoke: { tool: \"nika:jq\", args: { input: 7, expression: \".\" } }\n";

@@ -249,6 +249,8 @@ impl JobStore {
             workflow,
             execution_id: String::new(),
             trace_id: String::new(),
+            error_code: String::new(),
+            error_message: String::new(),
         };
         if let Some(world) = world {
             self.dir.write_atomic(&world_file(&record.id), world)?;
@@ -368,6 +370,7 @@ impl JobStore {
         }
         let events = job.append_payloads(&batch)?;
         job.record.status = next;
+        copy_error_from_payloads(&mut job.record, payloads);
         let record = job.record.clone();
         self.persist_event_mutation(&state, &batch)?;
         Ok(JobMutation { record, events })
@@ -1083,4 +1086,48 @@ fn snapshot_too_large(bytes: u64) -> JobStoreError {
         bytes,
         maximum: MAX_JOB_SNAPSHOT_BYTES,
     }
+}
+
+fn copy_error_from_payloads(record: &mut JobRecord, payloads: &[Value]) {
+    if !record.error_code.is_empty() {
+        return;
+    }
+    for payload in payloads {
+        let Some(code) = payload
+            .get("code")
+            .and_then(Value::as_str)
+            .filter(|code| !code.is_empty())
+        else {
+            continue;
+        };
+        let message = payload.get("message").and_then(Value::as_str).unwrap_or("");
+        record.error_code = bound_token(code, 64);
+        record.error_message = bound_message(message);
+        return;
+    }
+}
+
+fn bound_token(raw: &str, max: usize) -> String {
+    raw.chars()
+        .filter(char::is_ascii_graphic)
+        .take(max)
+        .collect()
+}
+
+fn bound_message(raw: &str) -> String {
+    let mut out = String::new();
+    for token in raw.split_whitespace() {
+        if token.starts_with('/') || token.contains(":\\") {
+            continue;
+        }
+        if !out.is_empty() {
+            out.push(' ');
+        }
+        out.push_str(token);
+        if out.len() >= 240 {
+            out.truncate(240);
+            break;
+        }
+    }
+    out
 }

@@ -14,12 +14,13 @@ use tokio::io::{AsyncReadExt as _, AsyncWriteExt as _};
 use tokio::sync::oneshot;
 use tokio::task::JoinSet;
 
+use super::test_support::assert_allowlisted;
 use super::*;
 
-const TOKEN: &str = "remote-test-token-012345678901234567890123456789";
+pub(super) const TOKEN: &str = "remote-test-token-012345678901234567890123456789";
 const WORKFLOW: &str = "nika: root\npermits:\n  tools: [\"nika:jq\"]\ntasks:\n  value:\n    invoke:\n      tool: nika:jq\n      args: { input: 1, expression: \".\" }\n";
 
-struct TestWorld {
+pub(super) struct TestWorld {
     root: tempfile::TempDir,
     workflows: PathBuf,
     state: PathBuf,
@@ -27,7 +28,7 @@ struct TestWorld {
 }
 
 impl TestWorld {
-    fn new() -> Self {
+    pub(super) fn new() -> Self {
         let root = tempfile::tempdir().expect("test root");
         let workflows = root.path().join("workflows");
         let state = root.path().join("state");
@@ -45,7 +46,8 @@ impl TestWorld {
         }
     }
 
-    async fn start(&self, backend: Arc<dyn ExecutionBackend>, limits: ServerLimits) -> TestServer {
+    #[rustfmt::skip]
+    pub(super) async fn start(&self, backend: Arc<dyn ExecutionBackend>, limits: ServerLimits) -> TestServer {
         let config = ServerConfig::new(
             SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0),
             &self.workflows,
@@ -67,18 +69,18 @@ impl TestWorld {
     }
 }
 
-struct TestServer {
+pub(super) struct TestServer {
     address: SocketAddr,
     shutdown: Option<oneshot::Sender<()>>,
     join: tokio::task::JoinHandle<Result<(), ServerError>>,
 }
 
 impl TestServer {
-    async fn request(&self, request: &str) -> WireResponse {
+    pub(super) async fn request(&self, request: &str) -> WireResponse {
         wire_request(self.address, request).await
     }
 
-    async fn stop(mut self) -> Result<(), ServerError> {
+    pub(super) async fn stop(mut self) -> Result<(), ServerError> {
         self.shutdown.take().expect("shutdown sender").send(()).ok();
         self.join.await.expect("server join")
     }
@@ -126,7 +128,7 @@ impl ExecutionBackend for GatedBackend {
     fn execute<'a>(
         &'a self,
         _context: nika_execution::ExecutionContext<'a>,
-    ) -> Pin<Box<dyn Future<Output = ExecutionDisposition> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = ExecutionOutcome> + Send + 'a>> {
         Box::pin(async move {
             self.calls.fetch_add(1, Ordering::SeqCst);
             let active = self.active.fetch_add(1, Ordering::SeqCst) + 1;
@@ -134,7 +136,7 @@ impl ExecutionBackend for GatedBackend {
             let permit = self.permits.acquire().await.expect("gate remains open");
             permit.forget();
             self.active.fetch_sub(1, Ordering::SeqCst);
-            ExecutionDisposition::Succeeded
+            ExecutionDisposition::Succeeded.into()
         })
     }
 }
@@ -165,7 +167,7 @@ impl ExecutionBackend for TestBackend {
     fn execute<'a>(
         &'a self,
         context: nika_execution::ExecutionContext<'a>,
-    ) -> Pin<Box<dyn Future<Output = ExecutionDisposition> + Send + 'a>> {
+    ) -> Pin<Box<dyn Future<Output = ExecutionOutcome> + Send + 'a>> {
         Box::pin(async move {
             self.calls.fetch_add(1, Ordering::SeqCst);
             assert_eq!(
@@ -176,15 +178,15 @@ impl ExecutionBackend for TestBackend {
                 WORKFLOW
             );
             if self.hang {
-                pending::<ExecutionDisposition>().await
+                pending::<ExecutionOutcome>().await
             } else {
-                self.disposition
+                self.disposition.into()
             }
         })
     }
 }
 
-fn limits() -> ServerLimits {
+pub(super) fn limits() -> ServerLimits {
     ServerLimits::new(
         1024,
         Duration::from_secs(2),
@@ -1237,7 +1239,11 @@ async fn interrupted_event_stream_redacts_payload_fields() {
     second.stop().await.expect("clean stop");
 }
 
-async fn wait_for_status(server: &TestServer, id: &str, expected: &str) -> Result<(), String> {
+pub(super) async fn wait_for_status(
+    server: &TestServer,
+    id: &str,
+    expected: &str,
+) -> Result<(), String> {
     for _ in 0..200 {
         let response = server
             .request(&get_request(&format!("/v1/jobs/{id}/status")))
@@ -1260,21 +1266,21 @@ async fn wire_request(address: SocketAddr, request: &str) -> WireResponse {
     WireResponse::parse(&response)
 }
 
-fn post_request(body: &str, key: &str, authorization: &str) -> String {
+pub(super) fn post_request(body: &str, key: &str, authorization: &str) -> String {
     format!(
         "POST /v1/jobs HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\nContent-Type: application/json\r\nContent-Length: {}\r\nIdempotency-Key: {key}\r\n{authorization}\r\n{body}",
         body.len()
     )
 }
 
-fn get_request(path: &str) -> String {
+pub(super) fn get_request(path: &str) -> String {
     format!(
         "GET {path} HTTP/1.1\r\nHost: localhost\r\nConnection: close\r\n{}\r\n",
         auth_header()
     )
 }
 
-fn events_request(id: &str, last_event_id: Option<&str>) -> String {
+pub(super) fn events_request(id: &str, last_event_id: Option<&str>) -> String {
     let last = last_event_id
         .map(|cursor| format!("Last-Event-ID: {cursor}\r\n"))
         .unwrap_or_default();
@@ -1284,7 +1290,7 @@ fn events_request(id: &str, last_event_id: Option<&str>) -> String {
     )
 }
 
-fn parse_sse_data(body: &str) -> Vec<Value> {
+pub(super) fn parse_sse_data(body: &str) -> Vec<Value> {
     let mut events = Vec::new();
     for block in body.split("\n\n") {
         for line in block.lines() {
@@ -1294,14 +1300,6 @@ fn parse_sse_data(body: &str) -> Vec<Value> {
         }
     }
     events
-}
-
-fn assert_allowlisted(event: &Value) {
-    let object = event.as_object().expect("event object");
-    assert_eq!(object.len(), 3, "{event}");
-    assert!(object.contains_key("sequence"), "{event}");
-    assert!(object.contains_key("kind"), "{event}");
-    assert!(object.contains_key("status"), "{event}");
 }
 
 async fn open_sse(address: SocketAddr, request: &str) -> (tokio::net::TcpStream, WireResponse) {
@@ -1339,15 +1337,15 @@ async fn collect_sse(
     parse_sse_data(&body)
 }
 
-fn auth_header() -> String {
+pub(super) fn auth_header() -> String {
     format!("Authorization: Bearer {TOKEN}\r\n")
 }
 
 #[derive(Debug)]
-struct WireResponse {
-    status: u16,
+pub(super) struct WireResponse {
+    pub(super) status: u16,
     headers: String,
-    body: String,
+    pub(super) body: String,
 }
 
 impl WireResponse {
@@ -1369,7 +1367,7 @@ impl WireResponse {
         }
     }
 
-    fn json(&self) -> Value {
+    pub(super) fn json(&self) -> Value {
         serde_json::from_str(&self.body).expect("JSON response")
     }
 

@@ -149,6 +149,41 @@ fn restart_replays_the_same_job() {
 }
 
 #[test]
+fn failed_transition_persists_redacted_error_and_drops_paths() {
+    let root = tempfile::tempdir().expect("root");
+    let store = JobStore::open(root.path()).expect("store");
+    let created = admitted_record(
+        store
+            .create_or_replay(key("request-error"), digest(40))
+            .expect("create"),
+    );
+    store
+        .transition_with_events(
+            created.id(),
+            JobStatus::Running,
+            &[json!({"kind": "execution.started", "status": "running"})],
+        )
+        .expect("running");
+    let failed = store
+        .transition_with_events(
+            created.id(),
+            JobStatus::Failed,
+            &[json!({
+                "kind": "execution.settled",
+                "status": "failed",
+                "code": "NIKA-ASSERT-001",
+                "message": "task boom: expected true /tmp/secret.json",
+                "path": "/tmp/secret.json"
+            })],
+        )
+        .expect("failed");
+    let (code, message) = failed.record().error().expect("diagnosis");
+    assert_eq!(code, "NIKA-ASSERT-001");
+    assert!(message.contains("task boom"));
+    assert!(!message.contains("/tmp"), "{message}");
+}
+
+#[test]
 fn conflicting_key_reuse_does_not_mutate_the_job() {
     let root = tempfile::tempdir().expect("root");
     let store = JobStore::open(root.path()).expect("store");

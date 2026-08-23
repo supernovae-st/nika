@@ -295,6 +295,12 @@ pub struct JobRecord {
     /// Trace identity derived from [`Self::execution_id`]. Empty until readmit.
     #[serde(default)]
     pub(crate) trace_id: String,
+    /// Redacted NIKA / admission code. Empty until a failed settlement.
+    #[serde(default)]
+    pub(crate) error_code: String,
+    /// Redacted operator message. Empty until a failed settlement.
+    #[serde(default)]
+    pub(crate) error_message: String,
 }
 
 impl JobRecord {
@@ -338,6 +344,13 @@ impl JobRecord {
     #[must_use]
     pub fn trace_id(&self) -> Option<&str> {
         (!self.trace_id.is_empty()).then_some(self.trace_id.as_str())
+    }
+
+    /// Return the redacted failure diagnosis after a failed settlement.
+    #[must_use]
+    pub fn error(&self) -> Option<(&str, &str)> {
+        (!self.error_code.is_empty())
+            .then_some((self.error_code.as_str(), self.error_message.as_str()))
     }
 }
 

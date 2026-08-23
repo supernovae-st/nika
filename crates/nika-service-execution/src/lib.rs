@@ -755,6 +755,8 @@ pub enum ServiceExecutionStatus {
 pub struct ServiceExecutionResult {
     status: ServiceExecutionStatus,
     events: Vec<ServiceEvent>,
+    error_code: Option<String>,
+    error_message: Option<String>,
 }
 
 impl std::fmt::Debug for ServiceExecutionResult {
@@ -770,19 +772,32 @@ impl ServiceExecutionResult {
     /// Construct a redacted status and metadata-only event projection.
     #[must_use]
     pub fn new(status: ServiceExecutionStatus, events: Vec<ServiceEvent>) -> Self {
-        Self { status, events }
+        Self {
+            status,
+            events,
+            error_code: None,
+            error_message: None,
+        }
     }
 
     fn from_runtime(outcome: &Result<RunOutcome, RuntimeError>, events: Vec<ServiceEvent>) -> Self {
-        let status = match outcome {
-            Err(_) => ServiceExecutionStatus::Refused,
-            Ok(outcome) if outcome.paused.is_some() => ServiceExecutionStatus::Paused,
+        let (status, error) = match outcome {
+            Err(error) => (
+                ServiceExecutionStatus::Refused,
+                Some((error.spec_code(), error.wire_message())),
+            ),
+            Ok(outcome) if outcome.paused.is_some() => (ServiceExecutionStatus::Paused, None),
             Ok(outcome) if outcome.ok && !outcome.budget_exceeded => {
-                ServiceExecutionStatus::Succeeded
+                (ServiceExecutionStatus::Succeeded, None)
             }
-            Ok(_) => ServiceExecutionStatus::Failed,
+            Ok(outcome) => (ServiceExecutionStatus::Failed, Some(first_failure(outcome))),
         };
-        Self::new(status, events)
+        let mut result = Self::new(status, events);
+        if let Some((code, message)) = error {
+            result.error_code = Some(code);
+            result.error_message = Some(redact_service_message(&message));
+        }
+        result
     }
 
     /// Redacted terminal status.
@@ -795,6 +810,12 @@ impl ServiceExecutionResult {
     #[must_use]
     pub fn events(&self) -> &[ServiceEvent] {
         &self.events
+    }
+
+    /// Redacted `(code, message)` for a refused or failed run.
+    #[must_use]
+    pub fn error(&self) -> Option<(&str, &str)> {
+        Some((self.error_code.as_deref()?, self.error_message.as_deref()?))
     }
 
     /// Consume the result into its redacted status and event projection.
@@ -969,6 +990,24 @@ fn refusal(code: &str, message: String) -> ChildRunRefusal {
         code: code.to_owned(),
         message,
     }
+}
+
+fn redact_service_message(raw: &str) -> String {
+    let mut out = String::new();
+    for token in raw.split_whitespace() {
+        if token.starts_with('/') || token.contains(":\\") {
+            continue;
+        }
+        if !out.is_empty() {
+            out.push(' ');
+        }
+        out.push_str(token);
+        if out.len() >= 240 {
+            out.truncate(240);
+            break;
+        }
+    }
+    out
 }
 
 fn first_failure(outcome: &RunOutcome) -> (String, String) {

@@ -57,7 +57,16 @@ fn components() -> Value {
                     "id": {"type": "string", "format": "uuid"},
                     "status": {"$ref": "#/components/schemas/JobStatus"},
                     "execution_id": {"type": "string"},
-                    "trace_id": {"type": "string"}
+                    "trace_id": {"type": "string"},
+                    "error": {
+                        "type": "object",
+                        "additionalProperties": false,
+                        "required": ["code", "message"],
+                        "properties": {
+                            "code": {"type": "string"},
+                            "message": {"type": "string"}
+                        }
+                    }
                 }
             },
             "JobStatusOnly": {
@@ -172,7 +181,7 @@ fn paths() -> Value {
                     {"$ref": "#/components/parameters/LastEventId"}
                 ],
                 "responses": {
-                    "200": {"description": "text/event-stream; data is {sequence,kind,status}"},
+                    "200": {"description": "text/event-stream; data is {sequence,kind,status} plus optional redacted error {code,message}"},
                     "400": error_ref(),
                     "401": error_ref(),
                     "404": error_ref()

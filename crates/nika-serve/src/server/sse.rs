@@ -146,6 +146,10 @@ struct ProjectedEvent<'a> {
     sequence: u64,
     kind: Option<&'a str>,
     status: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    code: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    message: Option<&'a str>,
 }
 
 fn projected(event: &JobEvent) -> ProjectedEvent<'_> {
@@ -153,6 +157,8 @@ fn projected(event: &JobEvent) -> ProjectedEvent<'_> {
         sequence: event.sequence(),
         kind: string_field(event.payload(), "kind"),
         status: string_field(event.payload(), "status"),
+        code: string_field(event.payload(), "code"),
+        message: string_field(event.payload(), "message"),
     }
 }
 
@@ -296,12 +302,7 @@ mod tests {
             "path": "/tmp/job.json",
             "incarnation_generation": 3
         });
-        let json = serde_json::to_value(ProjectedEvent {
-            sequence: 4,
-            kind: string_field(&payload, "kind"),
-            status: string_field(&payload, "status"),
-        })
-        .expect("projected json");
+        let json = serde_json::to_value(projected_from(&payload, 4)).expect("projected json");
         let object = json.as_object().expect("object");
         let mut keys = object.keys().cloned().collect::<Vec<_>>();
         keys.sort();
@@ -312,6 +313,33 @@ mod tests {
         assert!(json.get("secret").is_none());
         assert!(json.get("path").is_none());
         assert!(json.get("incarnation_generation").is_none());
+    }
+
+    #[test]
+    fn projection_forwards_redacted_failure_code_and_drops_paths() {
+        let payload = json!({
+            "kind": "execution.settled",
+            "status": "failed",
+            "code": "NIKA-ASSERT-001",
+            "message": "task boom: expected true",
+            "secret": "s3cret",
+            "path": "/tmp/job.json"
+        });
+        let json = serde_json::to_value(projected_from(&payload, 2)).expect("projected json");
+        assert_eq!(json["code"], "NIKA-ASSERT-001");
+        assert_eq!(json["message"], "task boom: expected true");
+        assert!(json.get("secret").is_none());
+        assert!(json.get("path").is_none());
+    }
+
+    fn projected_from(payload: &serde_json::Value, sequence: u64) -> ProjectedEvent<'_> {
+        ProjectedEvent {
+            sequence,
+            kind: string_field(payload, "kind"),
+            status: string_field(payload, "status"),
+            code: string_field(payload, "code"),
+            message: string_field(payload, "message"),
+        }
     }
 
     #[tokio::test]
