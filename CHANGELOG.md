@@ -26,6 +26,11 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Changed
 
+- **OpenAPI lists the live POST statuses.** `GET /v1/openapi.json` names
+  400, 408, 409, 413, 415, 503, and 507 on `POST /v1/jobs` next to
+  200/202/401/422. `info.description` names that `POST /v1/run` is
+  absent. `GET /v1/jobs/{id}/status` stays `{status}` only; diagnosis
+  lives on `GET /v1/jobs/{id}` and SSE.
 - **Failed HTTP jobs name a NIKA code.** `GET /v1/jobs/{id}` grows an
   optional `{error:{code,message}}` on `failed`. SSE settled/refused
   frames may carry the same redacted pair. Paths and secret-shaped
