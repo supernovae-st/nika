@@ -1,0 +1,36 @@
+# systemd user/system unit for the HTTP door.
+# Loopback only. Put TLS on the reverse proxy, never in this process.
+# Copy, then set User, WorkingDirectory, and the three Environment= paths.
+#
+#   umask 077
+#   printf '…32+ ascii…\n' > /var/lib/nika/serve.token
+#   chmod 600 /var/lib/nika/serve.token
+#
+# nika serve without --bind remains the resident ARM firer. This unit is
+# the HTTP pair only.
+
+[Unit]
+Description=nika serve HTTP (loopback)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=nika
+Group=nika
+WorkingDirectory=/var/lib/nika
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/nika
+StateDirectory=nika
+UMask=0077
+ExecStart=/usr/local/bin/nika serve --bind 127.0.0.1:8787 --workflows /var/lib/nika/workflows --token-file /var/lib/nika/serve.token --state-root /var/lib/nika/serve
+Restart=on-failure
+RestartSec=2
+TimeoutStopSec=30
+KillSignal=SIGTERM
+
+[Install]
+WantedBy=multi-user.target

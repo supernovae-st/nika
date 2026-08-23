@@ -1,0 +1,14 @@
+# Reverse proxy in front of loopback nika serve.
+# This process terminates TLS. nika serve does not.
+# SSE must not be buffered. Auth stays on the Bearer token —
+# forwarded headers never grant admission.
+
+nika.example.test {
+	reverse_proxy 127.0.0.1:8787 {
+		flush_interval -1
+		transport http {
+			read_timeout 0
+			write_timeout 0
+		}
+	}
+}

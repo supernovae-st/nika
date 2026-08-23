@@ -122,6 +122,9 @@ pub fn diagnose(probe: &Probe) -> Vec<Finding> {
     out.push(sandbox_finding(&crate::probe::sandbox_probe()));
     out.extend(sidecar_finding());
     out.extend(models_finding(&probe.models));
+    if let Ok(cwd) = std::env::current_dir() {
+        out.extend(serve_http_door(&cwd));
+    }
 
     for client in &probe.clients {
         out.push(client_finding(client, &probe.kits));
@@ -236,6 +239,48 @@ fn provider_findings(probe: &Probe, out: &mut Vec<Finding>) {
             ),
         });
     }
+}
+
+/// HTTP door readiness. Silent when the cwd has no token file — the
+/// door is opt-in. Never claims TLS: this process does not terminate it.
+pub(crate) fn serve_http_door(root: &std::path::Path) -> Vec<Finding> {
+    let token = root.join(".nika/serve.token");
+    if !token.is_file() {
+        return Vec::new();
+    }
+    if let Some(finding) = serve_token_group_readable(&token) {
+        return vec![finding];
+    }
+    vec![Finding {
+        level: Level::Ok,
+        label: "serve".to_owned(),
+        detail: "token owner-only · TLS is the reverse proxy's job \
+                 (this process does not terminate TLS)"
+            .to_owned(),
+        fix: None,
+    }]
+}
+
+#[cfg(unix)]
+fn serve_token_group_readable(path: &std::path::Path) -> Option<Finding> {
+    use std::os::unix::fs::PermissionsExt as _;
+    let mode = std::fs::metadata(path).ok()?.permissions().mode();
+    // Unix other/group bits; same mask as nika-serve BearerToken.
+    #[allow(clippy::verbose_bit_mask)]
+    if mode & 0o077 == 0 {
+        return None;
+    }
+    Some(Finding {
+        level: Level::Fail,
+        label: "serve".to_owned(),
+        detail: "token file is group/world-readable — `nika serve` will refuse it".to_owned(),
+        fix: Some("umask 077 && chmod 600 .nika/serve.token".to_owned()),
+    })
+}
+
+#[cfg(not(unix))]
+fn serve_token_group_readable(_path: &std::path::Path) -> Option<Finding> {
+    None
 }
 
 /// The sovereign sidecar lane (ADR-091) — a row ONLY when this binary was

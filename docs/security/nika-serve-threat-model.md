@@ -219,7 +219,7 @@ transcript is claimed where no such test existed on that SHA.
   payload, workflow bytes, or secret-shaped fixture;
 - [x] cancellation and artifact routes are absent until their typed authorities
   are admitted;
-- [ ] SIGINT/SIGTERM stop admission, settle in-flight authority, and leave no
+- [x] SIGINT/SIGTERM stop admission, settle in-flight authority, and leave no
   duplicate-runnable idempotency record.
 
 ## Review triggers
