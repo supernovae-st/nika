@@ -181,6 +181,11 @@ fn skeletons_name_only_the_cascade_alias_or_are_stamped() {
     let dir = pack_template_dir();
     assert!(dir.is_dir(), "pack templates: {}", dir.display());
     let choice = collect_from(&machine(Some(18), vec![claude()], false, &[], true));
+    let want = runnable_stamp_model(&choice);
+    assert!(
+        nika_providers::resolve_refusal(&want).is_none(),
+        "stamp must be a runnable provider/model, got {want}"
+    );
     let mut scanned = 0;
     for entry in std::fs::read_dir(&dir).expect("templates") {
         let path = entry.expect("entry").path();
@@ -197,19 +202,51 @@ fn skeletons_name_only_the_cascade_alias_or_are_stamped() {
             continue;
         };
         scanned += 1;
-        let stamped = stamp_body(&body, &choice.chosen_model);
+        let stamped = stamp_body(&body, &want);
         let model = stamped
             .lines()
             .find(|l| l.starts_with("model: "))
             .map(|l| l.trim_start_matches("model: ").trim().trim_matches('\''));
         assert_eq!(
             model,
-            Some(choice.chosen_model.as_str()),
-            "{} kept a model the cascade did not choose",
+            Some(want.as_str()),
+            "{} kept a model the cascade did not stamp",
+            path.display()
+        );
+        assert!(
+            !stamped
+                .lines()
+                .any(|l| l.starts_with("model: ") && l.contains("unsloth/")),
+            "{} stamped a Hub id: {stamped}",
             path.display()
         );
     }
     assert!(scanned >= 8, "scanned {scanned} skeletons");
+}
+
+#[test]
+fn stamp_falls_back_to_mock_when_the_cascade_id_is_not_runnable() {
+    let local = collect_from(&machine(Some(18), vec![], false, &[], true));
+    assert!(
+        nika_providers::resolve_refusal(&local.chosen_model).is_some(),
+        "local chosen_model is a Hub pull id: {}",
+        local.chosen_model
+    );
+    assert_eq!(runnable_stamp_model(&local), "mock/echo");
+
+    let harness = collect_from(&machine(Some(18), vec![claude()], false, &[], true));
+    assert!(harness.chosen_model.starts_with("harness/"));
+    assert_eq!(runnable_stamp_model(&harness), "mock/echo");
+
+    let keyed = collect_from(&machine(
+        Some(18),
+        vec![],
+        false,
+        &["ANTHROPIC_API_KEY"],
+        true,
+    ));
+    assert_eq!(runnable_stamp_model(&keyed), keyed.chosen_model);
+    assert!(nika_providers::resolve_refusal(&keyed.chosen_model).is_none());
 }
 
 #[test]

@@ -604,11 +604,25 @@ fn persist(choice: &InferenceChoice) -> std::io::Result<()> {
     std::fs::write(path, body)
 }
 
-/// Replace the top-level `model:` of a scaffold with the cascade's choice.
+/// Replace the top-level `model:` of a scaffold with a model THIS
+/// binary can sit on. Hub ids (`unsloth/…`) and harness seat ids are
+/// pull / `--access` targets — MODELS refuses them as `model:`.
 pub(crate) fn stamp_model_file(path: &Path) -> std::io::Result<()> {
     let body = std::fs::read_to_string(path)?;
-    let model = collect().chosen_model;
+    let model = runnable_stamp_model(&collect());
     std::fs::write(path, stamp_body(&body, &model))
+}
+
+/// The `model:` a scaffold may carry. `chosen_model` stays the cascade
+/// identity (what we'd pull, which seat we'd pin); the file that runs
+/// must resolve in this binary.
+#[must_use]
+pub(crate) fn runnable_stamp_model(choice: &InferenceChoice) -> String {
+    if nika_providers::resolve_refusal(&choice.chosen_model).is_none() {
+        choice.chosen_model.clone()
+    } else {
+        "mock/echo".to_owned()
+    }
 }
 
 /// Stamp `model:` on a template body. Inserts one if the skeleton has none.
