@@ -553,6 +553,44 @@ mod tests {
     }
 
     #[test]
+    fn a_block_scalar_description_fix_never_writes_unparseable_yaml() {
+        // The filed #905 shape, 7 lines. `--fix` used to announce
+        // « 1 repair applied » and leave `description: |` whose body
+        // stayed at the old indent — the next `check` was PARSE-001.
+        // After this run the file on disk MUST still parse as YAML
+        // (a dialect refusal is fine; a syntax error is the defect).
+        let dir = std::env::temp_dir().join(format!("nika-fix-905-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("tmpdir");
+        let path = dir.join("m.nika.yaml");
+        let body = "workflow: demo\ndescription: |\n  une premiere ligne\n  une seconde ligne\ntasks:\n  - id: t\n    run: echo hi\n";
+        std::fs::write(&path, body).expect("write fixture");
+        let out = run(
+            path.to_str().expect("utf8 path"),
+            false,
+            None,
+            Theme::new(false, true, false),
+        );
+        let after = std::fs::read_to_string(&path).expect("re-read");
+        let yaml_syntax = matches!(
+            nika_schema::parse(&after, nika_schema::FileId::new(0), ParseMode::Strict),
+            Err(nika_schema::SchemaError::YamlSyntax { .. })
+        );
+        assert!(
+            !yaml_syntax,
+            "#905: --fix must not write broken YAML\ntext:\n{}\nfile:\n{after}",
+            out.text
+        );
+        if after == body {
+            assert!(
+                !out.text.contains("repair applied"),
+                "an unchanged file cannot claim a repair: {}",
+                out.text
+            );
+        }
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[test]
     fn identity_moves_the_fourteen_key_envelope_onto_nika_and_converges_green() {
         // The nine-key flag-day repair loop: a 0.108.0 file (`nika: v1` +
         // a `workflow:` block) is refused as an unknown envelope key —

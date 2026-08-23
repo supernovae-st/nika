@@ -542,3 +542,46 @@ pub fn splice(
     }
     applied
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The filed #905 corruption: `--fix` nested `description: |` one level
+    /// deeper and left the block body at the old indent, so YAML died
+    /// (`simple key expect ':'`). The round judge must refuse that write.
+    #[test]
+    fn judge_round_refuses_the_underindented_block_scalar() {
+        let before = "workflow: demo\ndescription: |\n  une premiere ligne\n  une seconde ligne\ntasks:\n  - id: t\n    run: echo hi\n";
+        let after = "workflow:\n  id: demo\n  description: |\n  une premiere ligne\n  une seconde ligne\ntasks:\n  t:\n    run: echo hi\n";
+        let refusal = judge_round(before, after, vec!["w1-map `envelope` → `map`".to_owned()])
+            .expect("the under-indented block scalar is broken YAML");
+        assert!(
+            !refusal.reason.is_empty(),
+            "the YAML error rides the refusal"
+        );
+        assert_eq!(
+            refusal.attempted,
+            vec!["w1-map `envelope` → `map`".to_owned()]
+        );
+    }
+
+    #[test]
+    fn judge_round_commits_a_document_that_still_parses() {
+        let before = "nika: w\ntasks:\n  t:\n    exec: { command: [\"true\"] }\n";
+        let after = "nika: w\ntasks:\n  task:\n    exec: { command: [\"true\"] }\n";
+        assert!(
+            judge_round(before, after, vec!["field `t` → `task`".to_owned()]).is_none(),
+            "a still-YAML document is not a refusal"
+        );
+    }
+
+    #[test]
+    fn judge_round_does_not_judge_an_already_unparsable_source() {
+        let broken = "nika: [unclosed\n";
+        assert!(
+            judge_round(broken, "also: [broken\n", vec!["x → y".to_owned()]).is_none(),
+            "the loop cannot repair what it cannot read"
+        );
+    }
+}
