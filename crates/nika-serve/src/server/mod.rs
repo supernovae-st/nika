@@ -165,6 +165,7 @@ impl BoundServer {
 /// # Errors
 /// Returns the same typed failures as [`BoundServer::bind`] and
 /// [`BoundServer::serve_until`].
+#[allow(clippy::disallowed_macros, clippy::print_stderr)]
 pub async fn serve_http(
     bind: &str,
     workflow_root: impl AsRef<Path>,
@@ -184,10 +185,11 @@ pub async fn serve_http(
         token_file.as_ref(),
     )
     .with_allow_remote(allow_remote);
-    BoundServer::bind(config, backend)
-        .await?
-        .serve_until(shutdown)
-        .await
+    let server = BoundServer::bind(config, backend).await?;
+    let addr = server.local_addr()?;
+    // Operator-facing: `--bind …:0` is useless without the chosen port.
+    eprintln!("nika serve · listening http://{addr} · GET /health");
+    server.serve_until(shutdown).await
 }
 
 struct PreparedAuthority {
