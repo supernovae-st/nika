@@ -16,7 +16,7 @@
 # RUNS a `permits:` + `exec:` workflow, which the 0.109 sandbox policy
 # refuses unconfined (NIKA-1710 · what killed v0.109.1's Linux builders):
 # the CI job installs bubblewrap before this script, exactly as the
-# release builders now do.
+# release builders now do. Feature set = release.yml (local-infer,access-harness).
 set -euo pipefail
 
 if grep -qE '^\s*members\s*=\s*\[\s*\]\s*$' Cargo.toml; then
@@ -24,7 +24,10 @@ if grep -qE '^\s*members\s*=\s*\[\s*\]\s*$' Cargo.toml; then
   exit 0
 fi
 
-cargo build -p nika-cli --bin nika-cli --features local-infer
+# Same feature set as release.yml:99. A funnel that builds a thinner
+# binary than the tarball is the 2026-08-08 ACCESS lie (E2E receipt on
+# a local-only shape). metal stays off (tombstone in wiring.yaml).
+cargo build -p nika-cli --bin nika-cli --features local-infer,access-harness
 bin="${CARGO_TARGET_DIR:-target}/debug/nika-cli"
 # Both tag-time gates, in the order release.yml plays them: the stranger's
 # first path, then the operator's trust path (resume · reproduce · chain
