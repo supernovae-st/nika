@@ -1,0 +1,217 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
+
+use std::fmt;
+use std::net::SocketAddr;
+use std::path::{Path, PathBuf};
+use std::time::Duration;
+
+use nika_execution::SnapshotLimits;
+
+/// Explicit ceilings for the remote HTTP and execution boundary.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct ServerLimits {
+    max_body_bytes: usize,
+    request_timeout: Duration,
+    execution_timeout: Duration,
+    shutdown_grace: Duration,
+    max_concurrent_jobs: usize,
+    queue_capacity: usize,
+    max_connections: usize,
+    max_headers: usize,
+    max_jobs: usize,
+}
+
+impl ServerLimits {
+    /// Construct every server ceiling explicitly.
+    #[must_use]
+    #[allow(clippy::too_many_arguments)]
+    pub const fn new(
+        max_body_bytes: usize,
+        request_timeout: Duration,
+        execution_timeout: Duration,
+        shutdown_grace: Duration,
+        max_concurrent_jobs: usize,
+        queue_capacity: usize,
+        max_connections: usize,
+        max_headers: usize,
+    ) -> Self {
+        Self {
+            max_body_bytes,
+            request_timeout,
+            execution_timeout,
+            shutdown_grace,
+            max_concurrent_jobs,
+            queue_capacity,
+            max_connections,
+            max_headers,
+            max_jobs: 10_000,
+        }
+    }
+
+    /// Replace the durable job-record ceiling.
+    #[must_use]
+    pub const fn with_max_jobs(mut self, max_jobs: usize) -> Self {
+        self.max_jobs = max_jobs;
+        self
+    }
+
+    pub(crate) const fn valid(self) -> bool {
+        self.max_body_bytes != 0
+            && !self.request_timeout.is_zero()
+            && !self.execution_timeout.is_zero()
+            && !self.shutdown_grace.is_zero()
+            && self.max_concurrent_jobs != 0
+            && self.queue_capacity != 0
+            && self.max_connections != 0
+            && self.max_headers != 0
+            && self.max_jobs != 0
+    }
+
+    pub(crate) const fn max_body_bytes(self) -> usize {
+        self.max_body_bytes
+    }
+
+    pub(crate) const fn request_timeout(self) -> Duration {
+        self.request_timeout
+    }
+
+    pub(crate) const fn execution_timeout(self) -> Duration {
+        self.execution_timeout
+    }
+
+    pub(crate) const fn shutdown_grace(self) -> Duration {
+        self.shutdown_grace
+    }
+
+    pub(crate) const fn max_concurrent_jobs(self) -> usize {
+        self.max_concurrent_jobs
+    }
+
+    pub(crate) const fn queue_capacity(self) -> usize {
+        self.queue_capacity
+    }
+
+    pub(crate) const fn max_connections(self) -> usize {
+        self.max_connections
+    }
+
+    pub(crate) const fn max_headers(self) -> usize {
+        self.max_headers
+    }
+
+    pub(crate) const fn max_jobs(self) -> usize {
+        self.max_jobs
+    }
+}
+
+impl Default for ServerLimits {
+    fn default() -> Self {
+        Self::new(
+            64 * 1024,
+            Duration::from_secs(5),
+            Duration::from_secs(15 * 60),
+            Duration::from_secs(30),
+            4,
+            64,
+            128,
+            32,
+        )
+    }
+}
+
+/// Complete startup authority for one HTTP server.
+#[derive(Clone)]
+#[non_exhaustive]
+pub struct ServerConfig {
+    bind: SocketAddr,
+    workflow_root: PathBuf,
+    state_root: PathBuf,
+    token_file: PathBuf,
+    allow_remote: bool,
+    limits: ServerLimits,
+    snapshot_limits: SnapshotLimits,
+}
+
+impl ServerConfig {
+    /// Build a deny-by-default configuration with explicit bind, registry,
+    /// durable-state, and secret-source paths.
+    #[must_use]
+    pub fn new(
+        bind: SocketAddr,
+        workflow_root: impl Into<PathBuf>,
+        state_root: impl Into<PathBuf>,
+        token_file: impl Into<PathBuf>,
+    ) -> Self {
+        Self {
+            bind,
+            workflow_root: workflow_root.into(),
+            state_root: state_root.into(),
+            token_file: token_file.into(),
+            allow_remote: false,
+            limits: ServerLimits::default(),
+            snapshot_limits: SnapshotLimits::default(),
+        }
+    }
+
+    /// Acknowledge a non-loopback listener without weakening authentication.
+    #[must_use]
+    pub const fn with_allow_remote(mut self, allow: bool) -> Self {
+        self.allow_remote = allow;
+        self
+    }
+
+    /// Replace the HTTP and execution ceilings.
+    #[must_use]
+    pub const fn with_limits(mut self, limits: ServerLimits) -> Self {
+        self.limits = limits;
+        self
+    }
+
+    /// Replace immutable workflow snapshot ceilings.
+    #[must_use]
+    pub const fn with_snapshot_limits(mut self, limits: SnapshotLimits) -> Self {
+        self.snapshot_limits = limits;
+        self
+    }
+
+    pub(crate) const fn bind(&self) -> SocketAddr {
+        self.bind
+    }
+
+    pub(crate) fn workflow_root(&self) -> &Path {
+        &self.workflow_root
+    }
+
+    pub(crate) fn state_root(&self) -> &Path {
+        &self.state_root
+    }
+
+    pub(crate) fn token_file(&self) -> &Path {
+        &self.token_file
+    }
+
+    pub(crate) const fn allow_remote(&self) -> bool {
+        self.allow_remote
+    }
+
+    pub(crate) const fn limits(&self) -> ServerLimits {
+        self.limits
+    }
+
+    pub(crate) const fn snapshot_limits(&self) -> SnapshotLimits {
+        self.snapshot_limits
+    }
+}
+
+impl fmt::Debug for ServerConfig {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("ServerConfig")
+            .field("bind", &self.bind)
+            .field("allow_remote", &self.allow_remote)
+            .field("limits", &self.limits)
+            .finish_non_exhaustive()
+    }
+}

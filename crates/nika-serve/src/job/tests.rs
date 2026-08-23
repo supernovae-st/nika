@@ -1187,3 +1187,62 @@ fn assert_tamper_refused(
     ));
     std::fs::write(state_path, pristine).expect("restore pristine state");
 }
+
+#[test]
+fn wire_job_id_parse_accepts_only_canonical_uuid_v4() {
+    let id = JobId::random();
+    assert_eq!(
+        JobId::parse(id.as_str()).expect("canonical").as_str(),
+        id.as_str()
+    );
+    assert!(matches!(
+        JobId::parse("not-a-job-id"),
+        Err(JobStoreError::InvalidJobId)
+    ));
+    assert!(JobId::parse("00000000-0000-4000-8000-000000000000").is_ok());
+    assert!(matches!(
+        JobId::parse("00000000-0000-1000-8000-000000000000"),
+        Err(JobStoreError::InvalidJobId)
+    ));
+}
+
+#[test]
+fn bounded_create_refuses_a_new_identity_and_keeps_replay() {
+    let root = tempfile::tempdir().expect("root");
+    let store = JobStore::open(root.path()).expect("store");
+    let first = admitted_record(
+        store
+            .create_or_replay_bounded(key("capacity-first"), digest(30), 1)
+            .expect("create"),
+    );
+    let replay = store
+        .create_or_replay_bounded(key("capacity-first"), digest(30), 1)
+        .expect("replay");
+    assert_eq!(replay, Admission::Existing(first));
+    assert!(matches!(
+        store.create_or_replay_bounded(key("capacity-second"), digest(31), 1),
+        Err(JobStoreError::CapacityExceeded)
+    ));
+}
+
+#[test]
+fn live_interrupt_requires_running_and_the_current_incarnation() {
+    let root = tempfile::tempdir().expect("root");
+    let store = JobStore::open(root.path()).expect("store");
+    let created = admitted_record(
+        store
+            .create_or_replay(key("request-live-interrupt"), digest(32))
+            .expect("create"),
+    );
+    let running = transition(&store, created.id(), JobStatus::Running);
+    let incarnation = store.claim_server_incarnation().expect("incarnation");
+    let payload = json!({"kind": "execution.interrupted", "status": "interrupted"});
+    let interrupted = store
+        .interrupt_running(running.record().id(), &incarnation, &payload)
+        .expect("interrupt");
+    assert_eq!(interrupted.status(), JobStatus::Interrupted);
+    assert!(matches!(
+        store.interrupt_running(interrupted.id(), &incarnation, &payload),
+        Err(JobStoreError::IllegalTransition { .. })
+    ));
+}
