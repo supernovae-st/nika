@@ -155,7 +155,7 @@ impl ExecutionService {
         };
         let check = nika_check::check_composed(&workflow, &root, &mut reader);
         if !check.is_clean() {
-            let findings = report_findings(&root, &check);
+            let findings = crate::snapshot::report_findings(&root, &check);
             return Err(ExecutionError::CheckFailed { findings });
         }
         let skills = validate_skills(&snapshot, &root, &workflow)?;
@@ -451,23 +451,12 @@ fn validate_child_worlds(snapshot: &ExecutionSnapshot, root: &str) -> Result<(),
         let report = nika_check::check_composed(&workflow, unit.logical_path(), &mut reader);
         if !report.is_clean() {
             return Err(ExecutionError::CheckFailed {
-                findings: report_findings(unit.logical_path(), &report),
+                findings: crate::snapshot::report_findings(unit.logical_path(), &report),
             });
         }
         validate_skills(snapshot, unit.logical_path(), &workflow)?;
     }
     Ok(())
-}
-
-fn report_findings(logical_path: &str, report: &CheckReport) -> Vec<String> {
-    report
-        .findings
-        .iter()
-        .map(|finding| match finding.code.as_deref() {
-            Some(code) => format!("{code} {logical_path}: {}", finding.message),
-            None => format!("{logical_path}: {}", finding.message),
-        })
-        .collect()
 }
 
 #[cfg(test)]

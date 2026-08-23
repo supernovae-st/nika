@@ -10,6 +10,20 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+### Added
+
+- **The next tagged binary includes the harness access class.**
+  `release.yml` builds `--features local-infer,access-harness`. The
+  160 KB `nika-harness` crate has been on main, API-frozen, since
+  2026-08-08, and was compiled out of every downloadable binary.
+  `agent:` tasks can sit on a detected harness via `--access <seat>`
+  once that tag ships. Infer-grade harness (P4 · `infer:` on a seat)
+  stays parked. `crates/nika-acp` stays a quarantined workspace (the
+  official SDK's `preserve_order` must never unify into the engine);
+  Diamond CI now runs its five batteries against `nika-harness` over
+  a process boundary. `metal` stays off (candle 0.10 kernel dies at
+  first token).
+
 ### Security
 
 - **A decided human gate stays decided.** `--resume` of a trace that
@@ -27,15 +41,13 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   fields stay dropped. Succeeded jobs omit `error`.
 - **POST `/v1/jobs` 422 names the capture diagnosis.** A parse-fatal or
   check-fatal world returns `{error:{code,message}}` with the NIKA code
-  when the engine stamped one. Symlink and other capture refuses stay
+  when the engine stamped one, including analysis codes (AUTH/SEC)
+  that live on `finding.code`. Symlink and other capture refuses stay
   `admission_refused`. Paths stay dropped.
 - **Token-file refusal is typed.** `ServerError::Credential` now names
   unreadable, not a regular file, insecure mode, or invalid material.
   `nika serve --bind` still prints the openssl mint and never echoes
   bytes. Missing `--token-file` is unchanged. Paths stay dropped.
-
-
-
 - **`nika doctor` uses the same token-file policy as `nika serve`.** A
   short, non-graphic, or symlink `.nika/serve.token` is a fail with the
   openssl mint, not an owner-only green. Group/world-readable still

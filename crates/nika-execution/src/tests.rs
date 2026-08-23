@@ -335,6 +335,23 @@ fn parse_refuse_stamps_the_spec_code_in_the_detail() {
 }
 
 #[test]
+fn check_refuse_stamps_the_analysis_code_in_the_detail() {
+    let body = "nika: boom\ntasks:\n  t:\n    exec: { command: [\"true\"] }\n";
+    let (_tmp, owned) = project(&[("boom.nika.yaml", body)]);
+    let error = ExecutionSnapshot::capture(
+        &owned,
+        Path::new("boom.nika.yaml"),
+        SnapshotLimits::default(),
+    )
+    .expect_err("undeclared exec");
+    let text = error.to_string();
+    assert!(
+        text.contains("NIKA-AUTH-006") || text.contains("NIKA-SEC-"),
+        "check refuse must name a spec code: {text}"
+    );
+}
+
+#[test]
 fn depth_count_and_size_limits_fail_closed() {
     let root = parent("child.nika.yaml");
     let (_tmp, owned) = project(&[("root.nika.yaml", &root), ("child.nika.yaml", CHILD)]);
