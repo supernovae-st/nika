@@ -17,7 +17,7 @@ publish                = false  # Internal L1 effect crate (not a standalone cra
 adr = ["ADR-003", "ADR-081", "ADR-083"]
 
 [dependencies]
-nika-kernel = { path = "../nika-kernel", version = "0.113.0" }
+nika-kernel = { path = "../nika-kernel", version = "0.114.0" }
 # InputError + its derives live in nika-kernel-core (Pattern A · FCI-023bis) —
 # nika-input re-exports it; no thiserror/miette dep here.
 # tokio `rt` for spawn_blocking (the synchronous `enigo` calls run off the async

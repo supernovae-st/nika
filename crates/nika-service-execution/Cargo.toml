@@ -11,17 +11,17 @@ homepage.workspace     = true
 publish                = false  # Internal L3 orchestration crate.
 
 [dependencies]
-nika-runtime     = { path = "../nika-runtime", version = "0.113.0" }      # the composition root + child seam this driver drives (same-layer L3)
-nika-execution   = { path = "../nika-execution", version = "0.113.0" }    # sealed owned-byte admission authority (ExecutionContext · ExecutionSnapshot)
-nika-check       = { path = "../nika-check", version = "0.113.0" }        # CheckReport — the audit-before-run pair sealed to the snapshot
-nika-event       = { path = "../nika-event", version = "0.113.0" }        # Event + the source-identity hash (lf_normal_form · sha256_hex)
-nika-schema      = { path = "../nika-schema", version = "0.113.0" }       # RawWorkflow · RawAction · Permits · ResolvedSkills
-nika-types       = { path = "../nika-types", version = "0.113.0" }        # ExecutionId · RunId · CorrelationId · EventId · Timestamp
-nika-providers   = { path = "../nika-providers", version = "0.113.0" }    # ProviderProbe — the access candidates the run gate judges
+nika-runtime     = { path = "../nika-runtime", version = "0.114.0" }      # the composition root + child seam this driver drives (same-layer L3)
+nika-execution   = { path = "../nika-execution", version = "0.114.0" }    # sealed owned-byte admission authority (ExecutionContext · ExecutionSnapshot)
+nika-check       = { path = "../nika-check", version = "0.114.0" }        # CheckReport — the audit-before-run pair sealed to the snapshot
+nika-event       = { path = "../nika-event", version = "0.114.0" }        # Event + the source-identity hash (lf_normal_form · sha256_hex)
+nika-schema      = { path = "../nika-schema", version = "0.114.0" }       # RawWorkflow · RawAction · Permits · ResolvedSkills
+nika-types       = { path = "../nika-types", version = "0.114.0" }        # ExecutionId · RunId · CorrelationId · EventId · Timestamp
+nika-providers   = { path = "../nika-providers", version = "0.114.0" }    # ProviderProbe — the access candidates the run gate judges
 serde_json       = { workspace = true }
 
 [dev-dependencies]
-nika-fs  = { path = "../nika-fs", version = "0.113.0" }   # OwnedDir — the admission input the tests capture from
+nika-fs  = { path = "../nika-fs", version = "0.114.0" }   # OwnedDir — the admission input the tests capture from
 tempfile = { workspace = true }
 tokio    = { workspace = true }
 

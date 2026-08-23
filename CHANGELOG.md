@@ -10,6 +10,16 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+## [0.114.0](https://github.com/supernovae-st/nika/compare/v0.113.0..v0.114.0) - 2026-08-23
+
+**Remote execution as a loopback door.** Default `nika serve` stays the
+resident ARM firer. `--bind` + `--workflows` + `--token-file` opens
+authenticated HTTP: jobs, SSE, OpenAPI. The worker runs the POST-time
+snapshot, not live files. Cancel, artifacts and `/v1/run` stay 404.
+The workflow envelope is unchanged since v0.113.0. The project file's
+retired `nika: v1` tag now refuses. Pre-1.0 real semver puts this at a
+minor bump.
+
 ### Added
 
 - **`nika serve --bind` is authenticated loopback HTTP.** Pair it with
@@ -17,6 +27,9 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   Default `nika serve` is still the resident ARM firer. The verb is on
   `nika --help`. Listen line prints the bound address, including port 0.
   Job cancel and artifacts stay 404 until those authorities exist.
+- **Job events project over SSE** at `GET /v1/jobs/{id}/events`. Frames
+  are `{sequence,kind,status}` only. `GET /v1/openapi.json` is the live
+  route table; cancel, artifacts and `/v1/run` are omitted.
 - **`nika doctor` names the HTTP door when a token file is present.**
   Owner-only mode is OK; group/world-readable is a fail with the umask
   077 fix. The row never claims TLS — that is the reverse proxy.
@@ -61,6 +74,15 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   stop meaning « schema v1 » and start meaning « a project named v1 ». Only a
   whole marker qualifies — `vault`, `v2ray` and `v1-migration` stay names.
   Migration is one line: `nika: v1` → `nika: <your-project-name>`.
+
+### Fixed
+
+- **HTTP cancel now reaches the blocking worker.** Timeout and SIGTERM
+  no longer mark interrupted while effects continue. Queued jobs persist
+  their workflow name and are re-enqueued on the next incarnation.
+- **POST captures the execution world.** A symlink or rewrite after 202
+  cannot run bytes the client never admitted. GET names `execution_id`
+  and `trace_id` after readmit. The service sandbox is the workflow root.
 
 ### Added
 

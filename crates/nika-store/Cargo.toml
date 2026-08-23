@@ -14,9 +14,9 @@ publish                = true  # L1 memory satellite — publishable on crates.i
 # Gates 2/4-11 are GREEN. See `docs/crate-specs/nika-store.md`.
 
 [dependencies]
-nika-cap    = { path = "../nika-cap", version = "0.113.0" }      # the Integrity label (F-O1 lattice) riding INSIDE the signature
-nika-kernel = { path = "../nika-kernel", version = "0.113.0" }   # the memory traits (MemoryRemember/Recall/Forget + Sealed · ADR-078)
-nika-error  = { path = "../nika-error", version = "0.113.0" }    # NikaErrorCode + the NIKA-605 registry row (error one-voice)
+nika-cap    = { path = "../nika-cap", version = "0.114.0" }      # the Integrity label (F-O1 lattice) riding INSIDE the signature
+nika-kernel = { path = "../nika-kernel", version = "0.114.0" }   # the memory traits (MemoryRemember/Recall/Forget + Sealed · ADR-078)
+nika-error  = { path = "../nika-error", version = "0.114.0" }    # NikaErrorCode + the NIKA-605 registry row (error one-voice)
 serde_json  = { workspace = true }   # the envelope Value + the JCS canonical idiom (sorted keys · compact · raw UTF-8)
 thiserror   = { workspace = true }
 miette      = { workspace = true }
