@@ -456,7 +456,7 @@ fn pack_surface_round_trips_the_embedded_pack() {
 // ─── new · template instantiation (the own-corpus law) ──────────────────
 
 #[test]
-fn new_writes_a_template_that_passes_its_own_check() {
+fn new_writes_a_template_that_names_its_slots() {
     let dir = std::env::temp_dir().join("nika-cli-verbs-static");
     std::fs::create_dir_all(&dir).expect("temp dir");
     let dest = dir.join("from-template.nika.yaml");
@@ -478,12 +478,17 @@ fn new_writes_a_template_that_passes_its_own_check() {
         out.text
     );
 
-    // The own-corpus law: what we scaffold must pass our own ladder.
+    // #1066 · a scaffold with unfilled SLOT comments is not a workflow.
     let checked = check::run(&dest_str, false, false, None, PLAIN);
     assert_eq!(
         checked.code,
-        exit::OK,
-        "the shipped template must be check-clean: {}",
+        exit::FILE,
+        "an unfilled SLOT scaffold must refuse: {}",
+        checked.text
+    );
+    assert!(
+        checked.text.contains("SLOT"),
+        "check names the markers: {}",
         checked.text
     );
 

@@ -1462,7 +1462,9 @@ fn loopback_declassification_lines(out: &mut String, wf: &RawWorkflow, t: Theme)
 }
 mod footer;
 mod permits_glance;
+mod slots;
 use footer::hints_and_verdict;
+pub use slots::stamp_unfilled_slots;
 
 #[cfg(test)]
 mod tests;

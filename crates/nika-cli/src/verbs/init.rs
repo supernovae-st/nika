@@ -223,10 +223,12 @@ mod tests {
             false,
             PLAIN,
         );
-        assert_eq!(out.code, exit::OK, "{}", out.text);
+        // #1066 · the REAL ladder now refuses unfilled SLOT scaffolds
+        // (exit 2). Init still laid the files; check names the markers.
+        assert_eq!(out.code, exit::FILE, "{}", out.text);
         assert!(
-            out.text.matches("audited").count() >= 2,
-            "the REAL check ladder spoke through the injected seam: {}",
+            out.text.contains("SLOT") && out.text.matches("scaffold").count() >= 2,
+            "the REAL check ladder names unfilled SLOTs through the injected seam: {}",
             out.text
         );
         let settings = std::fs::read_to_string(tmp.join(".vscode/settings.json")).expect("written");
@@ -257,7 +259,7 @@ mod tests {
             true,
             PLAIN,
         );
-        assert_eq!(out.code, exit::OK, "{}", out.text);
+        assert_eq!(out.code, exit::FILE, "{}", out.text);
         assert!(
             out.text
                 .lines()

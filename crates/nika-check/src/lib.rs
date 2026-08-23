@@ -150,6 +150,7 @@ mod run_decl;
 mod schema_lint;
 mod schema_typing;
 mod secrets;
+mod slots;
 mod tools;
 pub mod trifecta;
 mod walk;
@@ -188,6 +189,7 @@ pub use run_decl::RunDeclFinding;
 pub use schema_lint::SchemaLintFinding;
 pub use schema_typing::{SchemaTypeFinding, UnverifiableOutputRef};
 pub use secrets::{SecretEgress, SecretLeak};
+pub use slots::{SlotMarker, scan_unfilled_slots, slot_refusal_message};
 pub use tools::{MissingArg, UnknownArg, UnknownTool};
 pub use walk::{static_literal_of, static_read_paths};
 

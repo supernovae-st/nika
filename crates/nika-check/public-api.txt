@@ -2384,6 +2384,54 @@ impl<T> dyn_clone::DynClone for nika_check::SinkFinding where T: core::clone::Cl
 pub fn nika_check::SinkFinding::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_check::SinkFinding where T: 'static
 pub fn nika_check::SinkFinding::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_check::SlotMarker
+pub nika_check::SlotMarker::body: alloc::string::String
+pub nika_check::SlotMarker::line: u32
+pub nika_check::SlotMarker::span: nika_check::ByteSpan
+impl nika_check::SlotMarker
+pub fn nika_check::SlotMarker::label(&self) -> &str
+pub fn nika_check::SlotMarker::new(line: u32, body: alloc::string::String, span: nika_check::ByteSpan) -> Self
+impl core::clone::Clone for nika_check::SlotMarker
+pub fn nika_check::SlotMarker::clone(&self) -> nika_check::SlotMarker
+impl core::cmp::Eq for nika_check::SlotMarker
+impl core::cmp::PartialEq for nika_check::SlotMarker
+pub fn nika_check::SlotMarker::eq(&self, other: &nika_check::SlotMarker) -> bool
+impl core::fmt::Debug for nika_check::SlotMarker
+pub fn nika_check::SlotMarker::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_check::SlotMarker
+impl serde_core::ser::Serialize for nika_check::SlotMarker
+pub fn nika_check::SlotMarker::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_check::SlotMarker
+impl<Q, K> equivalent::Equivalent<K> for nika_check::SlotMarker where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::SlotMarker::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::SlotMarker where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::SlotMarker::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check::SlotMarker where U: core::convert::From<T>
+pub fn nika_check::SlotMarker::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::SlotMarker where U: core::convert::Into<T>
+pub type nika_check::SlotMarker::Error = core::convert::Infallible
+pub fn nika_check::SlotMarker::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::SlotMarker where U: core::convert::TryFrom<T>
+pub type nika_check::SlotMarker::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::SlotMarker::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::SlotMarker where T: core::clone::Clone
+pub type nika_check::SlotMarker::Owned = T
+pub fn nika_check::SlotMarker::clone_into(&self, target: &mut T)
+pub fn nika_check::SlotMarker::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::SlotMarker where T: 'static + ?core::marker::Sized
+pub fn nika_check::SlotMarker::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::SlotMarker where T: ?core::marker::Sized
+pub fn nika_check::SlotMarker::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::SlotMarker where T: ?core::marker::Sized
+pub fn nika_check::SlotMarker::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::SlotMarker where T: core::clone::Clone
+pub unsafe fn nika_check::SlotMarker::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::SlotMarker
+pub fn nika_check::SlotMarker::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::SlotMarker where T: core::clone::Clone
+pub fn nika_check::SlotMarker::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::SlotMarker where T: 'static
+pub fn nika_check::SlotMarker::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_check::TaintTrace
 pub nika_check::TaintTrace::secret: alloc::string::String
 impl nika_check::TaintTrace
@@ -2748,6 +2796,8 @@ pub fn nika_check::infer_permits(wf: &nika_schema::raw::workflow::RawWorkflow) -
 pub fn nika_check::paid_blockers(hints: &[nika_check::Hint]) -> alloc::vec::Vec<&nika_check::Hint>
 pub fn nika_check::paid_ready(hints: &[nika_check::Hint]) -> bool
 pub fn nika_check::risk_grade(report: &nika_check::CheckReport) -> nika_check::RiskGrade
+pub fn nika_check::scan_unfilled_slots(source: &str) -> alloc::vec::Vec<nika_check::SlotMarker>
+pub fn nika_check::slot_refusal_message(slots: &[nika_check::SlotMarker]) -> alloc::string::String
 pub fn nika_check::stamp_paid_ready(obj: &mut serde_json::map::Map<alloc::string::String, serde_json::value::Value>, hints: &[nika_check::Hint])
 pub fn nika_check::static_literal_of<'w>(wf: &'w nika_schema::raw::workflow::RawWorkflow, expr: &str) -> core::option::Option<&'w serde_json::value::Value>
 pub fn nika_check::static_read_paths(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<(alloc::string::String, alloc::string::String)>

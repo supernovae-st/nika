@@ -182,7 +182,7 @@ pub(crate) mod models_rung;
 mod project;
 use models_rung::{ModelFinding, ModelsAudit, pricing_section, unresolvable_models};
 
-use nika_display::check_render::{RepairTarget, render};
+use nika_display::check_render::{RepairTarget, render, stamp_unfilled_slots};
 #[cfg(test)]
 use nika_display::check_render::{permits, required_inputs};
 
@@ -419,7 +419,14 @@ fn render_checked_with_profile(
     // the exact asymmetry a hallucinating agent hits. A `model:` this
     // binary cannot resolve is a FINDING (exit 2), never a green audit.
     let models_audit = unresolvable_models(report, wf);
-    let clean = report.is_clean() && models_audit.findings.is_empty() && skills.findings.is_empty();
+    // #1066 · `# SLOT:` comments die with the YAML parse, so the AST
+    // cannot refuse a scaffold. Scan the source after a successful
+    // parse: a Hint is the wrong well (hints never fail).
+    let slots = nika_check::scan_unfilled_slots(source);
+    let clean = report.is_clean()
+        && models_audit.findings.is_empty()
+        && skills.findings.is_empty()
+        && slots.is_empty();
     // The risk grade (P0-6): a pure projection of the report — uncapped
     // spend or wildcard grants never turn the verdict green by silence.
     // Advisory by default; the operational profile folds grade ≥ High
@@ -444,6 +451,7 @@ fn render_checked_with_profile(
             &models_audit,
             skills,
             &drift_hints,
+            &slots,
             clean,
             strict_clean,
             native_strict,
@@ -468,6 +476,7 @@ fn render_checked_with_profile(
         // painted `✔ audited` under a `✖ MODELS` rung at exit 2).
         clean,
     );
+    stamp_unfilled_slots(&mut text, &slots, theme);
     strict_footers(
         &mut text,
         theme,
@@ -590,6 +599,44 @@ fn model_finding_rows(findings: &[ModelFinding]) -> serde_json::Value {
     )
 }
 
+/// Fold unfilled SLOT comments into `--json` `findings[]` so a consumer
+/// looping that list sees the same refusal the human card prints.
+fn stamp_slot_findings(
+    obj: &mut serde_json::Map<String, serde_json::Value>,
+    slots: &[nika_check::SlotMarker],
+) {
+    if slots.is_empty() {
+        return;
+    }
+    let mut row = serde_json::Map::new();
+    row.insert("kind".into(), serde_json::Value::String("slot".into()));
+    row.insert("gate".into(), serde_json::Value::String("SLOT".into()));
+    row.insert("severity".into(), serde_json::Value::String("error".into()));
+    row.insert(
+        "message".into(),
+        serde_json::Value::String(nika_check::slot_refusal_message(slots)),
+    );
+    if let Some(first) = slots.first() {
+        row.insert(
+            "span".into(),
+            serde_json::json!({ "start": first.span.start, "end": first.span.end }),
+        );
+    }
+    if let Some(findings) = obj
+        .get_mut("findings")
+        .and_then(serde_json::Value::as_array_mut)
+    {
+        findings.insert(0, serde_json::Value::Object(row));
+    }
+}
+
+fn stamp_engine_identity(obj: &mut serde_json::Map<String, serde_json::Value>) {
+    let identity = nika_runtime::engine_identity();
+    obj.insert("engine_version".into(), identity.engine_version().into());
+    obj.insert("build_sha".into(), identity.build_sha().into());
+    obj.insert("spec_sha".into(), identity.spec_sha().into());
+}
+
 /// `--json` verdict object. Drift and one-obvious-way rows append to
 /// `hints[]` plus their `code`. Both families are warnings — `clean`
 /// never reads them.
@@ -600,6 +647,7 @@ fn json_verdict(
     models_audit: &ModelsAudit,
     skills: &nika_schema::ResolvedSkills,
     drift_hints: &[String],
+    slots: &[nika_check::SlotMarker],
     clean: bool,
     strict_clean: bool,
     native_strict: bool,
@@ -618,6 +666,7 @@ fn json_verdict(
         {
             push_advisory_json_hints(hints, drift_hints, wf);
         }
+        stamp_slot_findings(obj, slots);
         obj.insert("clean".to_owned(), serde_json::Value::Bool(clean));
         obj.insert(
             "models_resolve".to_owned(),
@@ -668,10 +717,6 @@ fn json_verdict(
             "risk_grade".to_owned(),
             serde_json::Value::String(grade.as_str().to_owned()),
         );
-        let identity = nika_runtime::engine_identity();
-        obj.insert("engine_version".into(), identity.engine_version().into());
-        obj.insert("build_sha".into(), identity.build_sha().into());
-        obj.insert("spec_sha".into(), identity.spec_sha().into());
         if profile == Profile::Operational {
             obj.insert(
                 "operational_clean".to_owned(),
@@ -684,6 +729,7 @@ fn json_verdict(
                 serde_json::Value::Bool(strict_clean),
             );
         }
+        stamp_engine_identity(obj);
         nika_check::stamp_paid_ready(obj, &report.hints);
     }
     let text = format!("{payload:#}");

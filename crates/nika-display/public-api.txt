@@ -168,6 +168,7 @@ pub fn nika_display::check_render::mark(theme: nika_display::theme::Theme, ok: b
 pub fn nika_display::check_render::permits(out: &mut alloc::string::String, report: &nika_check::CheckReport, wf: &nika_schema::raw::workflow::RawWorkflow, t: nika_display::theme::Theme)
 pub fn nika_display::check_render::render(report: &nika_check::CheckReport, wf: &nika_schema::raw::workflow::RawWorkflow, source: &str, path: &str, repair_target: nika_display::check_render::RepairTarget, t: nika_display::theme::Theme, models_audit: &nika_display::check_render::ModelsAudit, skills: &nika_schema::skill::ResolvedSkills, drift_hints: &[alloc::string::String], verdict: bool) -> alloc::string::String
 pub fn nika_display::check_render::required_inputs(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<&str>
+pub fn nika_display::check_render::stamp_unfilled_slots(text: &mut alloc::string::String, slots: &[nika_check::slots::SlotMarker], t: nika_display::theme::Theme)
 pub mod nika_display::chrome
 pub const nika_display::chrome::PULSE: [char; 3]
 pub fn nika_display::chrome::banner(theme: nika_display::theme::Theme, title: &str, tagline: &str, version: &str) -> alloc::vec::Vec<alloc::string::String>
