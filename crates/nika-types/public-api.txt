@@ -290,6 +290,57 @@ pub unsafe fn nika_types::access::AccessRejection::clone_to_uninit(&self, dest: 
 impl<T> core::convert::From<T> for nika_types::access::AccessRejection
 pub fn nika_types::access::AccessRejection::from(t: T) -> T
 impl<T> serde_core::de::DeserializeOwned for nika_types::access::AccessRejection where T: for<'de> serde_core::de::Deserialize<'de>
+#[non_exhaustive] pub struct nika_types::access::HarnessRuntime
+pub nika_types::access::HarnessRuntime::acp_bin: &'static str
+pub nika_types::access::HarnessRuntime::detect_bin: &'static str
+pub nika_types::access::HarnessRuntime::display: &'static str
+pub nika_types::access::HarnessRuntime::id: &'static str
+pub nika_types::access::HarnessRuntime::not_installed: &'static str
+impl nika_types::access::HarnessRuntime
+pub const nika_types::access::HarnessRuntime::ALL: [Self; 5]
+pub const nika_types::access::HarnessRuntime::CLAUDE_CODE: Self
+pub const nika_types::access::HarnessRuntime::CODEX: Self
+pub const nika_types::access::HarnessRuntime::GEMINI_CLI: Self
+pub const nika_types::access::HarnessRuntime::KIMI_CODE: Self
+pub const nika_types::access::HarnessRuntime::QWEN_CODE: Self
+pub fn nika_types::access::HarnessRuntime::acp_missing(&self) -> alloc::string::String
+pub fn nika_types::access::HarnessRuntime::lookup(id: &str) -> core::option::Option<Self>
+pub fn nika_types::access::HarnessRuntime::not_signed_in(&self) -> alloc::string::String
+pub fn nika_types::access::HarnessRuntime::retired_alias(id: &str) -> core::option::Option<Self>
+pub const fn nika_types::access::HarnessRuntime::vocabulary() -> &'static str
+impl core::clone::Clone for nika_types::access::HarnessRuntime
+pub fn nika_types::access::HarnessRuntime::clone(&self) -> nika_types::access::HarnessRuntime
+impl core::cmp::Eq for nika_types::access::HarnessRuntime
+impl core::cmp::PartialEq for nika_types::access::HarnessRuntime
+pub fn nika_types::access::HarnessRuntime::eq(&self, other: &nika_types::access::HarnessRuntime) -> bool
+impl core::fmt::Debug for nika_types::access::HarnessRuntime
+pub fn nika_types::access::HarnessRuntime::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::hash::Hash for nika_types::access::HarnessRuntime
+pub fn nika_types::access::HarnessRuntime::hash<__H: core::hash::Hasher>(&self, state: &mut __H)
+impl core::marker::Copy for nika_types::access::HarnessRuntime
+impl core::marker::StructuralPartialEq for nika_types::access::HarnessRuntime
+impl<T, U> core::convert::Into<U> for nika_types::access::HarnessRuntime where U: core::convert::From<T>
+pub fn nika_types::access::HarnessRuntime::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_types::access::HarnessRuntime where U: core::convert::Into<T>
+pub type nika_types::access::HarnessRuntime::Error = core::convert::Infallible
+pub fn nika_types::access::HarnessRuntime::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_types::access::HarnessRuntime where U: core::convert::TryFrom<T>
+pub type nika_types::access::HarnessRuntime::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_types::access::HarnessRuntime::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_types::access::HarnessRuntime where T: core::clone::Clone
+pub type nika_types::access::HarnessRuntime::Owned = T
+pub fn nika_types::access::HarnessRuntime::clone_into(&self, target: &mut T)
+pub fn nika_types::access::HarnessRuntime::to_owned(&self) -> T
+impl<T> core::any::Any for nika_types::access::HarnessRuntime where T: 'static + ?core::marker::Sized
+pub fn nika_types::access::HarnessRuntime::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_types::access::HarnessRuntime where T: ?core::marker::Sized
+pub fn nika_types::access::HarnessRuntime::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_types::access::HarnessRuntime where T: ?core::marker::Sized
+pub fn nika_types::access::HarnessRuntime::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_types::access::HarnessRuntime where T: core::clone::Clone
+pub unsafe fn nika_types::access::HarnessRuntime::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_types::access::HarnessRuntime
+pub fn nika_types::access::HarnessRuntime::from(t: T) -> T
 pub mod nika_types::baggage
 #[non_exhaustive] pub struct nika_types::baggage::Baggage
 pub nika_types::baggage::Baggage::entries: alloc::vec::Vec<nika_types::baggage::BaggageEntry>

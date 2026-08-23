@@ -283,6 +283,7 @@ pub fn access_pin_refusal(
         PinRefusal::UnknownToken { message } => RuntimeError::AccessUnknownToken { message },
         PinRefusal::PinUnsatisfied { message } => RuntimeError::AccessPinUnsatisfied { message },
         PinRefusal::NoPath { message } => RuntimeError::AccessNoPath { message },
+        PinRefusal::Unavailable { message } => RuntimeError::AccessUnavailable { message },
         // A future refusal class maps to the total-refusal code
         // until this arm learns it (conservative, never silent).
         other => RuntimeError::AccessNoPath {
@@ -722,7 +723,7 @@ mod tests {
     fn a_class_pin_no_candidate_matches_refuses_1801() {
         let (wf, report) = mistral_wf();
         let (pin, probes) = (
-            Some("harness"),
+            Some("local"),
             &[access_probe(
                 "mistral",
                 true,
@@ -736,6 +737,40 @@ mod tests {
             "{err:?}"
         );
         assert!(err.to_string().contains("never a substitute"), "{err}");
+    }
+
+    #[test]
+    fn a_known_cli_token_without_the_binary_is_1803_not_1802() {
+        let (wf, report) = mistral_wf();
+        let err = access_pin_refusal(&wf, &report, &[], Some("claude-code"), None)
+            .expect("known token refused");
+        assert!(
+            matches!(err, RuntimeError::AccessUnavailable { .. }),
+            "{err:?}"
+        );
+        assert!(err.to_string().contains("NIKA-1803"), "{err}");
+        assert!(!err.to_string().contains("NIKA-1802"), "{err}");
+    }
+
+    #[test]
+    fn access_harness_with_only_api_probes_is_1803_not_api_keys() {
+        let (wf, report) = mistral_wf();
+        let (pin, probes) = (
+            Some("harness"),
+            &[access_probe(
+                "mistral",
+                true,
+                true,
+                nika_types::access::AccessClass::Api,
+            )],
+        );
+        let err = access_pin_refusal(&wf, &report, probes, pin, None).expect("no runtime");
+        assert!(
+            matches!(err, RuntimeError::AccessUnavailable { .. }),
+            "{err:?}"
+        );
+        assert!(err.to_string().contains("NIKA-1803"), "{err}");
+        assert!(!err.to_string().contains("API_KEY"), "{err}");
     }
 
     #[test]

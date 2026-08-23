@@ -114,6 +114,16 @@ pub enum RuntimeError {
         message: String,
     },
 
+    /// NIKA-1803 · a known agentic CLI token cannot run here — binary
+    /// absent, ACP speaker missing, or this nika was built without
+    /// adapters. Never an unknown-token 1802.
+    #[error("NIKA-1803 · {message}")]
+    #[diagnostic(code(nika::runtime::access_unavailable))]
+    AccessUnavailable {
+        /// Dummy-readable install / rebuild line.
+        message: String,
+    },
+
     /// A `${{ }}` reference did not resolve (unknown task id / var key ·
     /// out-of-range index · missing map key · the silent-literal guard).
     /// Wire code `NIKA-VAR-001` (`variable_error`, the unresolved-reference
@@ -339,6 +349,7 @@ impl NikaErrorCode for RuntimeError {
             Self::AccessNoPath { .. } => codes::NIKA_1800,
             Self::AccessPinUnsatisfied { .. } => codes::NIKA_1801,
             Self::AccessUnknownToken { .. } => codes::NIKA_1802,
+            Self::AccessUnavailable { .. } => codes::NIKA_1803,
             Self::UnresolvedTemplate { .. } => codes::NIKA_1702,
             // CelEval + OutputBinding are spec-plane evaluation classes ·
             // at the engine-internal layer they share the "expression

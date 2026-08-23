@@ -30,6 +30,8 @@ use crate::errors::RuntimeError;
 
 pub(crate) mod commit;
 mod exec_io;
+#[cfg(feature = "access-harness")]
+mod harness_infer;
 mod permits;
 mod regate;
 use crate::expr::{self, Scope};
@@ -718,6 +720,10 @@ where
         input.temperature = temp_f32(action.temperature.as_ref());
         input.max_tokens = action.max_tokens.as_ref().map(|t| t.value);
         input.schema = task_schema(action.schema.as_ref(), contract);
+        #[cfg(feature = "access-harness")]
+        if self.agent.harness_seat().is_some() {
+            return self.infer_on_seated_harness(input).await;
+        }
         match self.infer.run(input).await {
             Ok(out) => {
                 let note = format!("infer · {}", out.model_resolved);

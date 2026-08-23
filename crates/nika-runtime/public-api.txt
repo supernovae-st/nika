@@ -1146,6 +1146,8 @@ pub nika_runtime::RuntimeError::AccessNoPath
 pub nika_runtime::RuntimeError::AccessNoPath::message: alloc::string::String
 pub nika_runtime::RuntimeError::AccessPinUnsatisfied
 pub nika_runtime::RuntimeError::AccessPinUnsatisfied::message: alloc::string::String
+pub nika_runtime::RuntimeError::AccessUnavailable
+pub nika_runtime::RuntimeError::AccessUnavailable::message: alloc::string::String
 pub nika_runtime::RuntimeError::AccessUnknownToken
 pub nika_runtime::RuntimeError::AccessUnknownToken::message: alloc::string::String
 pub nika_runtime::RuntimeError::BudgetFloor
@@ -1500,6 +1502,8 @@ pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_var_overrides(self, overrid
 impl<S, T, H, P, D, C> nika_runtime::Runtime<S, T, H, P, D, C>
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_child_runner(self, runner: alloc::sync::Arc<dyn nika_runtime::child::ChildRunner>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_run_depth(self, depth: u32) -> Self
+impl<S, T, H, P, D, C> nika_runtime::Runtime<S, T, H, P, D, C>
+pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_harness_from_pin(self, pin: core::option::Option<&str>) -> core::result::Result<Self, nika_kernel_core::io::http::HttpError>
 impl<D> owo_colors::OwoColorize for nika_runtime::Runtime<S, T, H, P, D, C>
 impl<T, U> core::convert::Into<U> for nika_runtime::Runtime<S, T, H, P, D, C> where U: core::convert::From<T>
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::into(self) -> U
