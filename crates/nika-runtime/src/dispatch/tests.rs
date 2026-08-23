@@ -143,3 +143,36 @@ fn invoke_meters_a_top_level_cost_usd_from_structured_output() {
         "non-finite refused"
     );
 }
+
+/// #1025 — the exec jail derives `permits.fs` through `spec_of`: a
+/// portable `~/` grant must land as this operator's absolute path, not
+/// as the literal `~` the launcher refuses, and not as another tree.
+#[test]
+fn a_tilde_fs_grant_expands_to_the_operator_home_on_the_jail() {
+    use nika_schema::types::{FsPermits, Permits};
+
+    let home = "/tmp/nika-op-home";
+    let mut permits = Permits::new();
+    permits.fs = Some(FsPermits::new(
+        vec!["~/.gitconfig".into(), "$HOME/.config/git/**".into()],
+        vec![],
+    ));
+    let spec = nika_exec_runner::sandbox_spec::spec_of_with_home(
+        &permits,
+        std::path::Path::new("/repo"),
+        Some(home),
+    )
+    .expect("home grants expand to absolute paths");
+    assert_eq!(
+        spec.fs_read,
+        vec![
+            format!("{home}/.gitconfig"),
+            format!("{home}/.config/git/**"),
+        ]
+    );
+    let mut jail = Permits::new();
+    jail.fs = Some(FsPermits::new(spec.fs_read, vec![]));
+    assert!(jail.jail_admits_read(&format!("{home}/.gitconfig")));
+    assert!(!jail.jail_admits_read("/tmp/evil/.gitconfig"));
+    assert!(!jail.jail_admits_read("/etc/passwd"));
+}

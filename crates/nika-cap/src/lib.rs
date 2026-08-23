@@ -59,7 +59,7 @@ pub use expr::{
     WITHHELD_JQ_NATIVES, WithheldNative, is_withheld_jq_native, withheld_jq_native,
     withheld_jq_reason,
 };
-pub use fit::{glob_admits, lexically_normalize};
+pub use fit::{expand_home_grant, glob_admits, lexically_normalize};
 // P3 B5 · the harness permission-bridge judge (the pure half — the
 // wire facts' translation into the declared boundary's verdict).
 pub use harness_gate::{HarnessAskFacts, HarnessGate, judge_harness_ask};

@@ -26,6 +26,10 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Changed
 
+- **`permits.fs` `~/` and `$HOME/` grants expand at run.** A confined
+  `exec` can name `~/.gitconfig` instead of one laptop's `/Users/…`
+  path. Expansion uses the operator `HOME`; `~user` and another tree
+  stay out. `permits.exec: ["git"]` still does not grant the homedir.
 - **OpenAPI lists the live POST statuses.** `GET /v1/openapi.json` names
   400, 408, 409, 413, 415, 503, and 507 on `POST /v1/jobs` next to
   200/202/401/422. `info.description` names that `POST /v1/run` is

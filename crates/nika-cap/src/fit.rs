@@ -11,6 +11,10 @@
 //! glob's literal prefix no longer string-matches it. Symlink escapes still
 //! need the runtime canonicalize-then-confine check (`NIKA-SEC-004`) — a
 //! static pass cannot resolve a link.
+//!
+//! Home-anchored grants (`~/` · `$HOME/` · `${HOME}/`) stay authored as-is
+//! so a tracked workflow is portable. [`expand_home_grant`] rewrites them
+//! against the operator home at match time; `~user` is left intact.
 
 use crate::Permits;
 
@@ -30,11 +34,25 @@ impl Permits {
     /// Whether `path` matches the declared `permits.fs` allowlist for the
     /// direction (`write` selects `fs.write`, else `fs.read`). Default-deny:
     /// an omitted `fs` block forbids all paths. Traversal-safe (see module doc).
+    ///
+    /// Home-anchored grants stay literal here — the check has no operator
+    /// `HOME`. The run-time twin is [`Self::allows_path_in`].
     #[must_use]
     pub fn allows_path(&self, path: &str, write: bool) -> bool {
+        self.allows_path_in(path, write, None)
+    }
+
+    /// [`Self::allows_path`], expanding `~/` and `$HOME/` grants against
+    /// `home` first (the operator home at run). A missing or non-absolute
+    /// home leaves those grants inert — they do not become `/**`.
+    #[must_use]
+    pub fn allows_path_in(&self, path: &str, write: bool, home: Option<&str>) -> bool {
         self.fs.as_ref().is_some_and(|fs| {
             let globs = if write { &fs.write } else { &fs.read };
-            globs.iter().any(|g| path_glob_matches(g, path))
+            globs.iter().any(|g| match home {
+                Some(h) => path_glob_matches(&expand_home_grant(g, h), path),
+                None => path_glob_matches(g, path),
+            })
         })
     }
 
@@ -73,9 +91,55 @@ impl Permits {
     /// this predicate exists to catch.
     #[must_use]
     pub fn jail_admits_read(&self, path: &str) -> bool {
-        self.fs
-            .as_ref()
-            .is_some_and(|fs| fs.read.iter().any(|g| bound_subtree_admits(g, path)))
+        self.jail_admits_read_in(path, None)
+    }
+
+    /// [`Self::jail_admits_read`], expanding `~/` and `$HOME/` grants
+    /// against `home` first — the same rewrite the exec jail applies
+    /// before it binds a subpath.
+    #[must_use]
+    pub fn jail_admits_read_in(&self, path: &str, home: Option<&str>) -> bool {
+        self.fs.as_ref().is_some_and(|fs| {
+            fs.read.iter().any(|g| match home {
+                Some(h) => bound_subtree_admits(&expand_home_grant(g, h), path),
+                None => bound_subtree_admits(g, path),
+            })
+        })
+    }
+}
+
+/// Expand a `~/` or `$HOME/` fs grant against the operator `home`.
+///
+/// The authored spelling stays portable (`~/.gitconfig`); this rewrite
+/// is what makes it match the live absolute path. `~user` and `$HOMEfoo`
+/// are left intact — they are not this operator's home. An empty or
+/// non-absolute `home` is a no-op (the grant stays inert rather than
+/// becoming `/…` or `/**`).
+#[must_use]
+pub fn expand_home_grant(glob: &str, home: &str) -> String {
+    let home = home.trim_end_matches('/');
+    if home.is_empty() || !home.starts_with('/') {
+        return glob.to_owned();
+    }
+    let rest = if let Some(rest) = glob.strip_prefix("~/") {
+        Some(rest)
+    } else if glob == "~" {
+        Some("")
+    } else if let Some(rest) = glob.strip_prefix("$HOME/") {
+        Some(rest)
+    } else if glob == "$HOME" {
+        Some("")
+    } else if let Some(rest) = glob.strip_prefix("${HOME}/") {
+        Some(rest)
+    } else if glob == "${HOME}" {
+        Some("")
+    } else {
+        None
+    };
+    match rest {
+        None => glob.to_owned(),
+        Some("") => home.to_owned(),
+        Some(rest) => format!("{home}/{rest}"),
     }
 }
 
@@ -473,5 +537,118 @@ mod tests {
                 );
             }
         }
+    }
+
+    fn home_grant(read: &str) -> Permits {
+        let mut p = Permits::new();
+        p.fs = Some(FsPermits {
+            read: vec![read.into()],
+            write: vec![],
+        });
+        p
+    }
+
+    /// #1025 — a portable `~/` grant matches this operator's home after
+    /// expansion, not another tree, and never becomes `/**`.
+    #[test]
+    fn a_tilde_grant_matches_the_operator_home_after_expansion() {
+        let home = "/tmp/nika-op-home";
+        let p = home_grant("~/.gitconfig");
+        assert!(
+            !p.allows_path(&format!("{home}/.gitconfig"), false),
+            "without a home, ~ is a literal spelling — the bug this closes"
+        );
+        assert!(
+            p.allows_path_in(&format!("{home}/.gitconfig"), false, Some(home)),
+            "the operator home after expansion"
+        );
+        assert!(
+            p.jail_admits_read_in(&format!("{home}/.gitconfig"), Some(home)),
+            "the jail binds the expanded exact file"
+        );
+        assert!(
+            !p.allows_path_in("/tmp/evil/.gitconfig", false, Some(home)),
+            "another tree"
+        );
+        assert!(!p.allows_path_in("/Users/other/.gitconfig", false, Some(home)));
+        assert!(
+            !p.allows_path_in("/etc/passwd", false, Some(home)),
+            "~ is not /**"
+        );
+        assert!(!p.jail_admits_read_in("/etc/passwd", Some(home)));
+        assert!(
+            !p.allows_path_in(&format!("{home}/.ssh/id_rsa"), false, Some(home)),
+            "a sibling under home is not granted"
+        );
+    }
+
+    #[test]
+    fn a_dollar_home_grant_expands_the_same_way() {
+        let home = "/tmp/nika-op-home";
+        for grant in ["$HOME/.gitconfig", "${HOME}/.gitconfig"] {
+            let p = home_grant(grant);
+            assert!(p.allows_path_in(&format!("{home}/.gitconfig"), false, Some(home)));
+            assert!(!p.allows_path_in("/tmp/evil/.gitconfig", false, Some(home)));
+        }
+    }
+
+    #[test]
+    fn literal_etc_passwd_still_requires_an_absolute_grant() {
+        let home = "/tmp/nika-op-home";
+        assert!(!home_grant("~/.gitconfig").allows_path_in("/etc/passwd", false, Some(home)));
+        assert!(home_grant("/etc/passwd").allows_path("/etc/passwd", false));
+        assert!(
+            !home_grant("/etc/passwd").allows_path_in(
+                &format!("{home}/.gitconfig"),
+                false,
+                Some(home)
+            ),
+            "an absolute grant is not a home grant"
+        );
+    }
+
+    #[test]
+    fn exec_git_does_not_auto_grant_the_homedir() {
+        let mut p = Permits::new();
+        p.exec = Some(crate::ExecPermit::Programs(vec!["git".into()]));
+        assert!(p.allows_program("git"));
+        assert!(
+            !p.allows_path_in(
+                "/tmp/nika-op-home/.gitconfig",
+                false,
+                Some("/tmp/nika-op-home")
+            ),
+            "permits.exec: [git] is not a home grant — the author still names ~/.gitconfig"
+        );
+    }
+
+    #[test]
+    fn expand_home_grant_is_prefix_only() {
+        let home = "/tmp/nika-op-home";
+        assert_eq!(
+            expand_home_grant("~/.config/git/**", home),
+            "/tmp/nika-op-home/.config/git/**"
+        );
+        assert_eq!(expand_home_grant("~", home), home);
+        assert_eq!(
+            expand_home_grant("~other/.gitconfig", home),
+            "~other/.gitconfig",
+            "~user is not this operator"
+        );
+        assert_eq!(
+            expand_home_grant("$HOMEfoo/.gitconfig", home),
+            "$HOMEfoo/.gitconfig"
+        );
+        assert_eq!(
+            expand_home_grant("~/.gitconfig", "relative"),
+            "~/.gitconfig",
+            "a non-absolute home is a no-op"
+        );
+        assert_eq!(expand_home_grant("~/.gitconfig", ""), "~/.gitconfig");
+        assert_eq!(
+            expand_home_grant("./data/**", home),
+            "./data/**",
+            "in-tree grants are untouched"
+        );
     }
 }
