@@ -241,14 +241,33 @@ fn provider_findings(probe: &Probe, out: &mut Vec<Finding>) {
     }
 }
 
+/// Operator-visible mint. Same recipe `nika serve --bind` prints.
+const SERVE_TOKEN_MINT: &str =
+    "umask 077 && openssl rand -hex 24 > .nika/serve.token && chmod 600 .nika/serve.token";
+
 /// HTTP door readiness. Silent when the cwd has no token file — the
 /// door is opt-in. Never claims TLS: this process does not terminate it.
+/// Policy matches `nika-serve` `BearerToken::from_file` (symlink, mode,
+/// 32–512 graphic ASCII) so doctor cannot green a file serve would refuse.
 pub(crate) fn serve_http_door(root: &std::path::Path) -> Vec<Finding> {
     let token = root.join(".nika/serve.token");
-    if !token.is_file() {
+    let Ok(meta) = std::fs::symlink_metadata(&token) else {
         return Vec::new();
+    };
+    if meta.file_type().is_symlink() {
+        return vec![serve_token_refused(
+            "token file is a symlink — `nika serve` will refuse it",
+        )];
+    }
+    if !meta.is_file() {
+        return vec![serve_token_refused(
+            "token path is not a regular file — `nika serve` will refuse it",
+        )];
     }
     if let Some(finding) = serve_token_group_readable(&token) {
+        return vec![finding];
+    }
+    if let Some(finding) = serve_token_bytes_refused(&token) {
         return vec![finding];
     }
     vec![Finding {
@@ -259,6 +278,30 @@ pub(crate) fn serve_http_door(root: &std::path::Path) -> Vec<Finding> {
             .to_owned(),
         fix: None,
     }]
+}
+
+fn serve_token_refused(detail: &str) -> Finding {
+    Finding {
+        level: Level::Fail,
+        label: "serve".to_owned(),
+        detail: detail.to_owned(),
+        fix: Some(SERVE_TOKEN_MINT.to_owned()),
+    }
+}
+
+fn serve_token_bytes_refused(path: &std::path::Path) -> Option<Finding> {
+    let mut bytes = std::fs::read(path).ok()?;
+    if bytes.ends_with(b"\r\n") {
+        bytes.truncate(bytes.len() - 2);
+    } else if matches!(bytes.last(), Some(b'\n' | b'\r')) {
+        bytes.pop();
+    }
+    if (32..=512).contains(&bytes.len()) && bytes.iter().all(u8::is_ascii_graphic) {
+        return None;
+    }
+    Some(serve_token_refused(
+        "token file is not 32–512 visible ASCII bytes — `nika serve` will refuse it",
+    ))
 }
 
 #[cfg(unix)]

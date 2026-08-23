@@ -12,6 +12,11 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Changed
 
+- **`nika doctor` uses the same token-file policy as `nika serve`.** A
+  short, non-graphic, or symlink `.nika/serve.token` is a fail with the
+  openssl mint, not an owner-only green. Group/world-readable still
+  names `chmod 600`. The row stays silent when the file is absent.
+
 - **`nika serve --bind` prints the token mint instead of an opaque
   credential refusal.** Missing `--token-file`, a short secret, or a
   group/world-readable file all teach
