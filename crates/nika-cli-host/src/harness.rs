@@ -9,15 +9,13 @@
 //! `probe::…` unchanged.
 
 use nika_providers::ProviderRegistry;
-use nika_providers::probe::ProviderProbe;
+use nika_providers::probe::{ProviderProbe, harness_access_probe};
 
-/// P3 B6 · the harness adapters as RESOLVER probe rows (feature
-/// `access-harness`): the registry rows that probed detected become
-/// harness-class [`ProviderProbe`] rows (`serves` set · the auth
-/// surface's verdict in `configured`), riding the SAME vec as the
-/// provider rows so the admission gate, `check --json` and `explain`
-/// all read one channel (R-5c). An undetected adapter yields no row —
-/// its place is the doctor section, never the resolver's input.
+/// P3 B6 · every shipped adapter as a RESOLVER probe row (feature
+/// `access-harness`). Undetected rows stay on the vec so `--access
+/// claude-code` is a known token (NIKA-1803, never 1802). `key_present`
+/// is the ACP speaker; `configured` is the harness's own sign-in;
+/// `fix_var` carries the dummy-readable install / sign-in line.
 #[cfg(feature = "access-harness")]
 #[must_use]
 pub fn harness_provider_rows() -> Vec<ProviderProbe> {
@@ -35,22 +33,14 @@ pub fn harness_provider_rows() -> Vec<ProviderProbe> {
         .collect();
     nika_harness::probe_adapters_sync(rows)
         .into_iter()
-        // An undetected adapter yields no row (its place is the doctor
-        // section, never the resolver's input).
-        .filter(|row| row.version.is_some())
         .map(|row| {
-            let configured = row.authenticated == Some(true);
-            let readiness = nika_providers::probe::ProviderReadiness::new(
-                true,
-                configured,
-                None,
-                None,
-                false,
-                nika_providers::probe::ExecutionLocus::Loopback,
-                nika_types::access::AccessClass::Harness,
-            );
-            ProviderProbe::new(row.id.clone(), false, configured, "", false, readiness, "")
-                .with_serves(serves_of.get(&row.id).cloned().unwrap_or_default())
+            harness_access_probe(
+                row.id.clone(),
+                serves_of.get(&row.id).cloned().unwrap_or_default(),
+                row.version.is_some(),
+                row.authenticated == Some(true),
+                row.product_present,
+            )
         })
         .collect()
 }

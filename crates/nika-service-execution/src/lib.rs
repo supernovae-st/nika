@@ -560,6 +560,19 @@ impl AuthorizedRuntime {
         self
     }
 
+    /// Seat an agentic CLI from `--access` (pin wins over env).
+    ///
+    /// # Errors
+    ///
+    /// The registry row cannot be built.
+    pub fn with_harness_from_pin(
+        mut self,
+        pin: Option<&str>,
+    ) -> Result<Self, nika_runtime::compose::ComposeError> {
+        self.runtime = self.runtime.with_harness_from_pin(pin)?;
+        Ok(self)
+    }
+
     /// Attach the verified resume plan.
     #[must_use]
     pub fn with_resume_plan(mut self, plan: nika_runtime::resume::ResumePlan) -> Self {

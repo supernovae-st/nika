@@ -74,8 +74,9 @@ layer         = "L3"
 err_prefix    = "NIKA-170x"
 
 [features]
-# Forwarded to the verb: `agent:` may delegate to the user's own
-# harness (D-2026-08-04-N1 · P3 B4.5 wires the composer).
+default = ["access-harness"]
+# Forwarded to the verb: `infer:`/`agent:` may delegate to the user's
+# own harness (D-2026-08-04-N1 · P3 B4.5 wires the composer).
 access-harness = ["dep:nika-harness", "nika-verb-agent/access-harness"]
 
 [lints]

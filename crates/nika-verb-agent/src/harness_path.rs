@@ -705,6 +705,45 @@ mod tests {
         assert_eq!(out.total_tokens, 140);
         assert_eq!(out.usage.input_tokens, 100);
     }
+
+    #[tokio::test]
+    async fn infer_on_harness_is_tool_less_run_on_harness() {
+        use nika_kernel_mock::{MockProvider, MockToolDefinitionProvider, MockToolExecutor};
+        use nika_verb_invoke::InvokeVerb;
+
+        let seat = seat_with(vec![completed("hello from the CLI")]);
+        let verb = crate::AgentVerb::new(
+            Arc::new(MockProvider::new("mock")),
+            Arc::new(InvokeVerb::new(Arc::new(MockToolExecutor::new()))),
+            Arc::new(MockToolDefinitionProvider::new()),
+            "mock/echo",
+        )
+        .with_harness_seat(seat);
+        let out = verb
+            .run_infer_on_harness(
+                "say hi",
+                None,
+                Some("anthropic/claude-sonnet-4-5".to_owned()),
+                None,
+                &crate::NoopObserver,
+            )
+            .await
+            .expect("infer-on-harness completes");
+        let crate::AgentValue::Text(text) = &out.output else {
+            panic!("P3 harness infer is text");
+        };
+        assert_eq!(text, "hello from the CLI");
+    }
+
+    /// Live Claude spawn is not run in CI. The product token stays
+    /// known so absence is NIKA-1803, never NIKA-1802.
+    #[test]
+    fn claude_code_stays_a_known_token_without_a_live_spawn() {
+        assert!(
+            nika_types::access::HarnessRuntime::lookup("claude-code").is_some(),
+            "the token stays known even when the speaker is absent"
+        );
+    }
 }
 
 #[cfg(test)]

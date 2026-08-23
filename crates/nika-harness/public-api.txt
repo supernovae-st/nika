@@ -7,6 +7,7 @@ pub fn nika_harness::client::drive_with_idle<R, W>(reader: R, writer: W, request
 pub mod nika_harness::declaration
 pub fn nika_harness::declaration::declared_adapter_id() -> core::option::Option<alloc::string::String>
 pub fn nika_harness::declaration::seat_from_env() -> core::result::Result<core::option::Option<nika_harness::spawn::SpawnedHarness>, alloc::string::String>
+pub fn nika_harness::declaration::seat_from_id(id: &str) -> core::result::Result<core::option::Option<nika_harness::spawn::SpawnedHarness>, alloc::string::String>
 pub fn nika_harness::declaration::seat_from_lookup(lookup: &dyn core::ops::function::Fn(&str) -> core::option::Option<alloc::string::String>) -> core::result::Result<core::option::Option<nika_harness::spawn::SpawnedHarness>, alloc::string::String>
 pub mod nika_harness::probe
 #[non_exhaustive] pub struct nika_harness::probe::AdapterProbeRow
@@ -14,6 +15,7 @@ pub nika_harness::probe::AdapterProbeRow::authenticated: core::option::Option<bo
 pub nika_harness::probe::AdapterProbeRow::id: alloc::string::String
 pub nika_harness::probe::AdapterProbeRow::note: alloc::string::String
 pub nika_harness::probe::AdapterProbeRow::package: alloc::string::String
+pub nika_harness::probe::AdapterProbeRow::product_present: bool
 pub nika_harness::probe::AdapterProbeRow::version: core::option::Option<(u32, u32)>
 impl nika_harness::probe::AdapterProbeRow
 pub fn nika_harness::probe::AdapterProbeRow::usable(&self) -> bool
@@ -722,6 +724,7 @@ pub nika_harness::AdapterProbeRow::authenticated: core::option::Option<bool>
 pub nika_harness::AdapterProbeRow::id: alloc::string::String
 pub nika_harness::AdapterProbeRow::note: alloc::string::String
 pub nika_harness::AdapterProbeRow::package: alloc::string::String
+pub nika_harness::AdapterProbeRow::product_present: bool
 pub nika_harness::AdapterProbeRow::version: core::option::Option<(u32, u32)>
 impl nika_harness::probe::AdapterProbeRow
 pub fn nika_harness::probe::AdapterProbeRow::usable(&self) -> bool
@@ -933,4 +936,5 @@ pub fn nika_harness::probe_adapters_sync(rows: alloc::vec::Vec<nika_harness::reg
 pub fn nika_harness::registry() -> core::result::Result<alloc::vec::Vec<nika_harness::registry::AdapterRow>, nika_kernel_ai::harness::HarnessError>
 pub fn nika_harness::registry_with(env: &dyn core::ops::function::Fn(&str) -> core::option::Option<alloc::string::String>) -> core::result::Result<alloc::vec::Vec<nika_harness::registry::AdapterRow>, nika_kernel_ai::harness::HarnessError>
 pub fn nika_harness::seat_from_env() -> core::result::Result<core::option::Option<nika_harness::spawn::SpawnedHarness>, alloc::string::String>
+pub fn nika_harness::seat_from_id(id: &str) -> core::result::Result<core::option::Option<nika_harness::spawn::SpawnedHarness>, alloc::string::String>
 pub fn nika_harness::seat_from_lookup(lookup: &dyn core::ops::function::Fn(&str) -> core::option::Option<alloc::string::String>) -> core::result::Result<core::option::Option<nika_harness::spawn::SpawnedHarness>, alloc::string::String>

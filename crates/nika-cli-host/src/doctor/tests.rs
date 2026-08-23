@@ -664,14 +664,14 @@ fn doctor_names_each_host_capability_level() {
     };
     let text = render(&diagnose(&probe), true, PLAIN);
     assert!(
-        text.contains("hermes wired · oracle-only (mcp · no hooks)"),
+        text.contains("hermes · Nika MCP oracle wired · oracle-only (mcp · no hooks)"),
         "{text}"
     );
     // UX107-04: a table-declared guard never borrows the proven word —
     // the line says `guard-declared … unproven`, and the bare `guarded`
     // token is reserved for a live allow+deny canary (none exists yet).
     assert!(
-        text.contains("cursor wired · guard-declared (kit ships hooks · unproven in session)"),
+        text.contains("cursor · Nika MCP oracle wired · guard-declared (kit ships hooks · unproven in session)"),
         "{text}"
     );
     assert!(
@@ -1488,5 +1488,34 @@ fn serve_row_fails_when_the_token_is_a_symlink() {
             .fix
             .as_deref()
             .is_some_and(|f| f.contains("openssl rand -hex 24"))
+    );
+}
+
+#[cfg(feature = "access-harness")]
+#[test]
+fn doctor_lists_every_agentic_cli_runtime() {
+    let findings = super::harness_findings();
+    assert_eq!(findings.len(), 5, "{findings:?}");
+    let text: String = findings
+        .iter()
+        .map(|f| format!("{} {}", f.label, f.detail))
+        .collect::<Vec<_>>()
+        .join("\n");
+    for token in [
+        "claude-code",
+        "codex",
+        "gemini-cli",
+        "kimi-code",
+        "qwen-code",
+    ] {
+        assert!(text.contains(token), "missing {token} in:\n{text}");
+    }
+    assert!(
+        findings.iter().all(|f| f.label == "runtime"),
+        "ACP runtimes must not reuse the MCP-wire `agent` label: {text}"
+    );
+    assert!(
+        !text.contains("Nika MCP oracle"),
+        "runtime rows must not market MCP wire: {text}"
     );
 }

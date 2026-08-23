@@ -43,6 +43,10 @@ pub struct AdapterProbeRow {
     /// What the probe saw when detection failed (the adapter's own
     /// words) — empty on a clean detection.
     pub note: String,
+    /// Whether the product CLI (`claude` · `codex` · `gemini`) is on PATH.
+    /// Distinct from [`Self::version`]: Claude Code can be installed
+    /// while the ACP speaker `claude-agent-acp` is not.
+    pub product_present: bool,
 }
 
 impl AdapterProbeRow {
@@ -93,6 +97,7 @@ pub fn probe_adapters_sync(rows: Vec<AdapterRow>) -> Vec<AdapterProbeRow> {
                 authenticated: None,
                 package: row.package.to_owned(),
                 note: "could not start the probe runtime".to_owned(),
+                product_present: false,
             })
             .collect();
     };
@@ -106,13 +111,22 @@ async fn probe_one(row: AdapterRow) -> AdapterProbeRow {
         Err(e) => (None, e.to_string()),
     };
     let authenticated = probe_auth(&row.auth, row.directory_auth).await;
+    let detect = nika_types::access::HarnessRuntime::lookup(&row.adapter.id)
+        .map_or(row.adapter.command.as_str(), |rt| rt.detect_bin);
     AdapterProbeRow {
         id: row.adapter.id.clone(),
         version,
         authenticated,
         package: row.package.to_owned(),
         note,
+        product_present: binary_on_path(detect),
     }
+}
+
+fn binary_on_path(name: &str) -> bool {
+    #[allow(clippy::disallowed_methods)] // PATH walk · presence only
+    std::env::var_os("PATH")
+        .is_some_and(|path| std::env::split_paths(&path).any(|dir| dir.join(name).is_file()))
 }
 
 /// The auth surface probe — an exit code or a presence bit, bounded
@@ -482,6 +496,7 @@ mod tests {
             authenticated: None,
             package: "p".to_owned(),
             note: String::new(),
+            product_present: false,
         };
         assert!(row(Some((1, 0))).usable());
         assert!(

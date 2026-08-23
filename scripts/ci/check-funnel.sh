@@ -9,14 +9,14 @@
 # died the same way on 2026-07-27). Hygiene vector 50 now greps both gate
 # scripts for the dead envelope forms — the SPELLING; this leg is the
 # BEHAVIOR: it builds the same binary the release builds (`--features
-# local-infer` · the sovereign lane the funnel §8 asserts) in the dev
-# profile and plays the whole funnel on every push — wording needles, exit
-# codes, the sovereign lane, the mcp wire — so the gate the release trusts
-# is a gate that has already run, whatever moved. The funnel's consent leg
-# RUNS a `permits:` + `exec:` workflow, which the 0.109 sandbox policy
-# refuses unconfined (NIKA-1710 · what killed v0.109.1's Linux builders):
-# the CI job installs bubblewrap before this script, exactly as the
-# release builders now do.
+# local-infer,access-harness` · the sovereign lane the funnel §8 asserts)
+# in the dev profile and plays the whole funnel on every push — wording
+# needles, exit codes, the sovereign lane, the mcp wire — so the gate the
+# release trusts is a gate that has already run, whatever moved. The
+# funnel's consent leg RUNS a `permits:` + `exec:` workflow, which the
+# 0.109 sandbox policy refuses unconfined (NIKA-1710 · what killed
+# v0.109.1's Linux builders): the CI job installs bubblewrap before this
+# script, exactly as the release builders now do.
 set -euo pipefail
 
 if grep -qE '^\s*members\s*=\s*\[\s*\]\s*$' Cargo.toml; then
@@ -24,7 +24,7 @@ if grep -qE '^\s*members\s*=\s*\[\s*\]\s*$' Cargo.toml; then
   exit 0
 fi
 
-cargo build -p nika-cli --bin nika-cli --features local-infer
+cargo build -p nika-cli --bin nika-cli --features local-infer,access-harness
 bin="${CARGO_TARGET_DIR:-target}/debug/nika-cli"
 # Both tag-time gates, in the order release.yml plays them: the stranger's
 # first path, then the operator's trust path (resume · reproduce · chain

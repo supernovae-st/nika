@@ -17,7 +17,7 @@
 //! The env shape (provisional · the B6 registry replaces it with rows):
 //!
 //! ```text
-//! NIKA_HARNESS_ADAPTER=codex-acp            # the id (never a class token)
+//! NIKA_HARNESS_ADAPTER=codex                # the id (never a class token)
 //! NIKA_HARNESS_COMMAND=codex-acp            # argv[0], never a shell line
 //! NIKA_HARNESS_ARGS=--experimental-acp      # space-separated session argv
 //! NIKA_HARNESS_VERSION_ARGS=--version       # optional · wrapper commands
@@ -136,6 +136,21 @@ fn registry_seat(
     Ok(Some(SpawnedHarness::new(row.adapter.clone())))
 }
 
+/// Seat a shipped registry row by product token (`claude-code` · `codex`).
+/// Retired aliases resolve to the live row so an old env still composes.
+///
+/// # Errors
+///
+/// The id is unknown, kill-switched, or the row cannot be built.
+pub fn seat_from_id(id: &str) -> Result<Option<SpawnedHarness>, String> {
+    let canonical = nika_types::access::HarnessRuntime::lookup(id)
+        .or_else(|| nika_types::access::HarnessRuntime::retired_alias(id))
+        .map_or(id, |rt| rt.id);
+    #[allow(clippy::disallowed_methods)] // the sanctioned env boundary (kill-switch)
+    let lookup = |name: &str| std::env::var(name).ok();
+    registry_seat(canonical, &lookup)
+}
+
 fn split_ws(s: &str) -> Vec<String> {
     s.split_whitespace().map(str::to_owned).collect()
 }
@@ -183,11 +198,11 @@ mod tests {
     #[test]
     fn a_kill_switched_id_refuses_naming_the_live_rows() {
         let env = |name: &str| match name {
-            "NIKA_HARNESS_ADAPTER" | "NIKA_HARNESS_DISABLE" => Some("codex-acp".to_owned()),
+            "NIKA_HARNESS_ADAPTER" | "NIKA_HARNESS_DISABLE" => Some("codex".to_owned()),
             _ => None,
         };
         let err = seat_from_lookup(&env).expect_err("a disabled row is no row");
-        assert!(err.contains("codex-acp"), "{err}");
+        assert!(err.contains("codex"), "{err}");
         assert!(err.contains("gemini-cli"), "the live rows are named: {err}");
     }
 
@@ -198,5 +213,17 @@ mod tests {
         let err = seat_from_lookup(&env).expect_err("unknown ids refuse");
         assert!(err.contains("my-own-harness"), "{err}");
         assert!(err.contains("NIKA_HARNESS_COMMAND"), "{err}");
+    }
+
+    #[test]
+    fn seat_from_id_seats_the_product_token() {
+        let seat = seat_from_id("claude-code")
+            .expect("known token composes")
+            .expect("and yields a seat");
+        let dbg = format!("{seat:?}");
+        assert!(
+            dbg.contains("claude-agent-acp") || dbg.contains("claude-code"),
+            "{dbg}"
+        );
     }
 }

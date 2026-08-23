@@ -913,17 +913,20 @@ pub const NIKA_1801: NikaCode = NikaCode {
     slug: "access-pin-unsatisfied",
 };
 /// NIKA-1802: The `--access` token names neither an access class
-/// (`local` · `api` · `harness` · `oauth` · `mock`) nor an access id
-/// this machine offers — refused before any resolution runs, so a
-/// typo can never read as an empty-candidate refusal.
+/// (`local` · `api` · `harness` · `oauth` · `mock`) nor a known
+/// agentic CLI (`claude-code` · `codex` · `gemini-cli` · `kimi-code`
+/// · `qwen-code`) — refused before any resolution runs, so a typo
+/// can never read as an empty-candidate refusal.
 pub const NIKA_1802: NikaCode = NikaCode {
     num: 1802,
     category: Category::Access,
     severity: Severity::Error,
     slug: "access-unknown-token",
 };
-/// NIKA-1803: The harness adapter is unavailable — binary absent or its
-/// version sits outside the pin range (P3 · the probe's word).
+/// NIKA-1803: A known agentic CLI token cannot run here — binary
+/// absent, ACP speaker missing, or this nika was built without
+/// adapters. Dummy-readable: install the CLI or pick Nika local /
+/// Nika Cloud.
 pub const NIKA_1803: NikaCode = NikaCode {
     num: 1803,
     category: Category::Access,

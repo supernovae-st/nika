@@ -438,9 +438,10 @@ struct RunArgs {
     model: Option<String>,
     /// Pin the ACCESS path (`model:` picks the intelligence; access
     /// picks the path) — an access class (`local` · `api` · `harness` ·
-    /// `oauth` · `mock`) or an access id `nika doctor` lists. A pin is
-    /// a pin: unsatisfied refuses before the prologue with a witness,
-    /// never substitutes another path or model (D-2026-08-04-N1).
+    /// `oauth` · `mock`) or an agentic CLI (`claude-code` · `codex` ·
+    /// `gemini-cli` · `kimi-code` · `qwen-code`). Uses that runtime's
+    /// subscription (no vendor API key). A pin is a pin: unsatisfied
+    /// refuses before the prologue, never substitutes (D-2026-08-04-N1).
     #[arg(long, value_name = "PATH")]
     access: Option<String>,
     /// Set a workflow `inputs:` value (repeatable). Overrides a declared

@@ -45,11 +45,11 @@ workspace = true
 optional = true
 
 [features]
-# The harness access class (D-2026-08-04-N1 · P3 B4): agent tasks may
-# delegate to the user's own authenticated harness through the kernel
-# DynAgentBackend seam. DEFAULT OFF (feature-defaults law) — the native
-# loop is byte-unchanged without it; the runtime composer injects the
-# backend only when the feature is on AND an adapter is configured.
+default = ["access-harness"]
+# The harness access class (D-2026-08-04-N1 · P3 B4): infer/agent tasks
+# may delegate to the user's own authenticated harness through the
+# kernel DynAgentBackend seam. On by default so the official binary
+# can pin `--access claude-code` without a rebuild.
 access-harness = ["dep:futures-core"]
 
 [lints]

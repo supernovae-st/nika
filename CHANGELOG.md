@@ -10,6 +10,18 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
+### Added
+
+- **`--access claude-code` (and `codex` · `gemini-cli` · `kimi-code` ·
+  `qwen-code`) is a known token** that seats that agentic CLI for
+  `infer:` and `agent:` — the subscription you already pay, no vendor
+  API key, no Ollama. Missing CLI is NIKA-1803 ("Claude Code is not
+  installed. Install it or pick Nika local / Nika Cloud."), never
+  NIKA-1802. `nika doctor` lists each runtime honestly (label
+  `runtime`, not the MCP-wire `agent` column). Default and release
+  builds include the adapters. `nika wire claude` remains the other
+  direction (Nika as a read-only MCP oracle).
+
 ### Changed
 
 - **`nika doctor` uses the same token-file policy as `nika serve`.** A

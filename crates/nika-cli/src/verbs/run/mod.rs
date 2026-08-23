@@ -650,6 +650,15 @@ fn composed_runtime(
                 .with_access_pin(access_pin.map(ToOwned::to_owned))
                 .with_boot_access_fields(boot_access)
                 .with_access_probes(nika_cli_host::probe::access_probes_with_harness());
+            let rt = match rt.with_harness_from_pin(access_pin) {
+                Ok(rt) => rt,
+                Err(e) => {
+                    return Err(epilogue::env_refusal(
+                        &format!("environment: {e}"),
+                        output_json,
+                    ));
+                }
+            };
             Ok(match resume_plan {
                 Some(plan) => rt.with_resume_plan(plan),
                 None => rt,
@@ -1254,6 +1263,7 @@ fn map_run_result(result: Result<RunOutcome, RuntimeError>) -> (u8, RunOutcome) 
                     | RuntimeError::AccessNoPath { .. }
                     | RuntimeError::AccessPinUnsatisfied { .. }
                     | RuntimeError::AccessUnknownToken { .. }
+                    | RuntimeError::AccessUnavailable { .. }
             ) {
                 let _ = writeln!(stderr, "nika run: {err}");
             } else if let RuntimeError::ReportMismatch { .. } = err {

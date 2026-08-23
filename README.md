@@ -45,10 +45,16 @@ Yes.
 brew install supernovae-st/tap/nika    # or: curl -LsSf https://nika.sh/install.sh | sh
 nika try 01-hello                                # zero setup: no key, no model server
 nika try 01-hello --model ollama/llama3.2:3b     # got Ollama? the same run, real + local
+nika run 01-hello --access claude-code           # Claude Code (or codex · gemini-cli · kimi-code · qwen-code) — subscription, no vendor API key
 nika list                                        # workflows below this directory
 nika                                             # on a terminal: open one continuous thread
 # (first run loads the model into memory; later runs are much faster)
 ```
+
+`--access claude-code` (or `codex` · `gemini-cli` · `kimi-code` ·
+`qwen-code`) runs the workflow through that CLI's own inference — the
+subscription you already pay. `nika wire claude` is the other
+direction: Nika as a read-only MCP oracle, not Claude's brain.
 
 Inside the thread, normal text streams through the existing `agent:` runtime.
 `/workflow <path>` posts a workflow card, `/run <path>` runs it in the same
