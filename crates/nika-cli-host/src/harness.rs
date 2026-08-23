@@ -8,8 +8,9 @@
 //! 1,500-LOC file law; re-exported there so every call site reads
 //! `probe::…` unchanged.
 
-use nika_providers::ProviderRegistry;
-use nika_providers::probe::{ProviderProbe, harness_access_probe};
+use nika_providers::probe::ProviderProbe;
+#[cfg(feature = "access-harness")]
+use nika_providers::probe::harness_access_probe;
 
 /// P3 B6 · every shipped adapter as a RESOLVER probe row (feature
 /// `access-harness`). Undetected rows stay on the vec so `--access
@@ -41,23 +42,7 @@ pub fn harness_provider_rows() -> Vec<ProviderProbe> {
 /// fn, so the run's gate and `check`/`explain` can never drift (the
 /// composer's `production_runtime` internal collection is the
 /// non-CLI default; this is the CLI surfaces' superset).
-#[cfg(feature = "access-harness")]
 #[must_use]
 pub fn access_probes_with_harness() -> Vec<ProviderProbe> {
-    let mut probes = nika_providers::probe::collect_provider_probes(
-        &ProviderRegistry::without_http(nika_runtime::compose::config_from_env()),
-    );
-    probes.extend(harness_provider_rows());
-    probes
-}
-
-/// Feature-off twin of [`access_probes_with_harness`] — the same call
-/// reads identically in both builds (the seat's zero-sized-witness
-/// precedent): the provider rows alone.
-#[cfg(not(feature = "access-harness"))]
-#[must_use]
-pub fn access_probes_with_harness() -> Vec<ProviderProbe> {
-    nika_providers::probe::collect_provider_probes(&ProviderRegistry::without_http(
-        nika_runtime::compose::config_from_env(),
-    ))
+    nika_providers::probe::collect_access_probes_env(nika_runtime::compose::config_from_env())
 }

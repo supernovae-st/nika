@@ -305,6 +305,38 @@ pub fn harness_access_probe(
     ProviderProbe::new(id, false, acp_present, fix, false, readiness, "").with_serves(serves)
 }
 
+/// HTTP provider rows plus PATH-only harness rows when `access-harness` is on.
+/// Compose and CLI admission share this so `--access claude-code` cannot 1802.
+#[must_use]
+pub fn collect_access_probes(registry: &ProviderRegistry) -> Vec<ProviderProbe> {
+    #[cfg(not(feature = "access-harness"))]
+    {
+        collect_provider_probes(registry)
+    }
+    #[cfg(feature = "access-harness")]
+    {
+        let mut probes = collect_provider_probes(registry);
+        if let Ok(rows) = nika_harness::registry() {
+            probes.extend(nika_harness::presence_facts(rows).into_iter().map(|f| {
+                harness_access_probe(
+                    f.id,
+                    f.serves,
+                    f.acp_present,
+                    f.configured,
+                    f.product_present,
+                )
+            }));
+        }
+        probes
+    }
+}
+
+/// [`collect_access_probes`] over a no-http registry view of `config`.
+#[must_use]
+pub fn collect_access_probes_env(config: crate::ProvidersConfig) -> Vec<ProviderProbe> {
+    collect_access_probes(&crate::ProviderRegistry::without_http(config))
+}
+
 /// Probe every operator-facing provider in `registry` (the `mock` test
 /// backend excluded) — presence booleans and names only.
 #[must_use]

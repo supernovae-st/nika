@@ -206,6 +206,8 @@ impl<T> core::convert::From<T> for nika_providers::probe::ProviderReadiness
 pub fn nika_providers::probe::ProviderReadiness::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::probe::ProviderReadiness where T: 'static
 pub fn nika_providers::probe::ProviderReadiness::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub fn nika_providers::probe::collect_access_probes(registry: &nika_providers::registry::ProviderRegistry) -> alloc::vec::Vec<nika_providers::probe::ProviderProbe>
+pub fn nika_providers::probe::collect_access_probes_env(config: nika_providers::registry::ProvidersConfig) -> alloc::vec::Vec<nika_providers::probe::ProviderProbe>
 pub fn nika_providers::probe::collect_local_pings(registry: &nika_providers::registry::ProviderRegistry, image_url: core::option::Option<&str>, tts_url: core::option::Option<&str>) -> alloc::vec::Vec<(alloc::string::String, alloc::string::String, nika_providers::probe::PingState)>
 pub fn nika_providers::probe::collect_provider_probes(registry: &nika_providers::registry::ProviderRegistry) -> alloc::vec::Vec<nika_providers::probe::ProviderProbe>
 pub fn nika_providers::probe::env_present(name: &str) -> bool
@@ -619,6 +621,10 @@ pub fn nika_providers::resolve_access::first_ready_harness(probes: &[nika_provid
 pub fn nika_providers::resolve_access::provider_of(model: &str) -> &str
 pub fn nika_providers::resolve_access::refuse_pin<'m>(models: impl core::iter::traits::collect::IntoIterator<Item = &'m str>, probes: &[nika_providers::probe::ProviderProbe], pin: &str) -> core::option::Option<nika_providers::resolve_access::PinRefusal>
 pub fn nika_providers::resolve_access::resolve_access(model: &str, candidates: &[nika_providers::resolve_access::AccessCandidate], allow_providers: core::option::Option<&[alloc::string::String]>, pin: core::option::Option<&str>) -> core::result::Result<nika_types::access::AccessPlan, nika_providers::resolve_access::AccessRefusal>
+pub mod nika_providers::spend
+pub fn nika_providers::spend::spend_for_model(model: &str, usage: &nika_types::token_usage::TokenUsage) -> (core::option::Option<f64>, core::option::Option<nika_types::cost::UnpricedReason>)
+pub fn nika_providers::spend::unpriced_reason_for(model: &str) -> nika_types::cost::UnpricedReason
+pub fn nika_providers::spend::usage_has_signal(usage: &nika_types::token_usage::TokenUsage) -> bool
 pub mod nika_providers::wire
 #[non_exhaustive] pub enum nika_providers::PinRefusal
 pub nika_providers::PinRefusal::NoPath
@@ -1021,3 +1027,6 @@ pub fn nika_providers::resolve_access(model: &str, candidates: &[nika_providers:
 pub fn nika_providers::resolve_refusal(model: &str) -> core::option::Option<nika_providers::profile::ResolveRefusal>
 pub fn nika_providers::seed() -> alloc::vec::Vec<nika_providers::profile::Profile>
 pub fn nika_providers::server_backed_local(provider: &str) -> bool
+pub fn nika_providers::spend_for_model(model: &str, usage: &nika_types::token_usage::TokenUsage) -> (core::option::Option<f64>, core::option::Option<nika_types::cost::UnpricedReason>)
+pub fn nika_providers::unpriced_reason_for(model: &str) -> nika_types::cost::UnpricedReason
+pub fn nika_providers::usage_has_signal(usage: &nika_types::token_usage::TokenUsage) -> bool

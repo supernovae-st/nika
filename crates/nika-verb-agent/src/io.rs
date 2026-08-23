@@ -59,6 +59,21 @@ impl AgentInput {
             gate_answer: None,
         }
     }
+
+    /// Tool-less `infer:` fields (the seated-harness path).
+    #[must_use]
+    pub fn for_infer(
+        prompt: impl Into<String>,
+        system: Option<String>,
+        model: Option<String>,
+        schema: Option<serde_json::Value>,
+    ) -> Self {
+        let mut input = Self::new(prompt);
+        input.system = system;
+        input.model = model;
+        input.schema = schema;
+        input
+    }
 }
 
 /// The resolved turn budget with its F-P22 (NEP-0017) blame polarity —

@@ -811,6 +811,7 @@ fn production_runtime_with_emitter(
     // (SSRF enforced · workflow-controlled URLs).
     let provider_http = Arc::new(provider_http()?);
     let config = config_from_env();
+    let access_probes = nika_providers::probe::collect_access_probes_env(config.clone());
 
     // Builtin plane over real effects · InvokeVerb + agent tools.
     // File builtins enforce permits.fs (NIKA-SEC-004). Same Arc as runtime.
@@ -840,13 +841,7 @@ fn production_runtime_with_emitter(
     // and the agent via the per-call RegistryProvider bridge.
     let registry = Arc::new(ProviderRegistry::new(provider_http, config));
     let agent_provider = Arc::new(RegistryProvider::new(Arc::clone(&registry), default_model));
-    // The access-probe rows (D-2026-08-04-N1) the `--access` admission
-    // gate judges — a no-http registry view of the SAME env ladder
-    // (the doctor gesture: probing never needs a socket).
-    let access_probes = crate::harness_seat::access_probes();
-    // Read BEFORE the runtime is built (a broken adapter refuses at
-    // composition · A-4). The SIMULATED plane never seats one: `nika
-    // test` is offline by contract.
+    // A broken adapter refuses at composition (A-4). `nika test` never seats.
     let harness_seat = crate::harness_seat::seat_from_env()?;
 
     Ok(Runtime::new(

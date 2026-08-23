@@ -77,7 +77,11 @@ err_prefix    = "NIKA-170x"
 default = ["access-harness"]
 # Forwarded to the verb: `infer:`/`agent:` may delegate to the user's
 # own harness (D-2026-08-04-N1 · P3 B4.5 wires the composer).
-access-harness = ["dep:nika-harness", "nika-verb-agent/access-harness"]
+access-harness = [
+    "dep:nika-harness",
+    "nika-verb-agent/access-harness",
+    "nika-providers/access-harness",
+]
 
 [lints]
 workspace = true

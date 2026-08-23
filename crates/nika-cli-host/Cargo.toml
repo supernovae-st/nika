@@ -51,7 +51,11 @@ default = ["access-harness"]
 local-infer = ["nika-models/local-infer"]
 # The harness access class (P3 B6): the adapter registry + probes join
 # the doctor/probe surfaces. On by default with the CLI binary.
-access-harness = ["dep:nika-harness", "nika-runtime/access-harness"]
+access-harness = [
+    "dep:nika-harness",
+    "nika-runtime/access-harness",
+    "nika-providers/access-harness",
+]
 
 # `hw.memsize` — nix's `SysconfVar::_PHYS_PAGES` is Linux-only; Apple
 # still answers the same number through sysctl (measured 18 GiB M3 Pro).

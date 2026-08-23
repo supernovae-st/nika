@@ -4801,6 +4801,7 @@ dependencies = [
  "futures-core",
  "jsonschema",
  "nika-catalog",
+ "nika-harness",
  "nika-kernel",
  "nika-types",
  "proptest",

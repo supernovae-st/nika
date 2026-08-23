@@ -28,7 +28,10 @@ pub mod spawn;
 pub mod wire;
 
 pub use client::{IDLE_TIMEOUT_SECS, MAX_LINE_BYTES, drive, drive_with_idle};
-pub use declaration::{declared_adapter_id, seat_from_env, seat_from_id, seat_from_lookup};
+pub use declaration::{
+    declared_adapter_id, seat_from_env, seat_from_id, seat_from_lookup, seat_from_pin,
+    seat_http_err,
+};
 pub use probe::{
     AdapterProbeRow, PresenceFact, VersionPin, judge_version, parse_version, presence_facts,
     probe_adapters, probe_adapters_sync,
