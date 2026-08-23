@@ -143,6 +143,66 @@ fn launchd_per_beat_with_env_file() {
     snap("launchd_per_beat_env", &joined(&units));
 }
 
+/// #1069 — a wrapped unit names its env file; a short-argv unit does
+/// not. Replacing the first with the second is the strip the L4 edge
+/// must refuse.
+#[test]
+fn a_wrapped_unit_names_its_env_file_and_a_bare_unit_does_not() {
+    let reg = registry(TWO_BEATS);
+    let wrapped =
+        emit::render(&reg, &ctx_with_env(), Target::Launchd, Mode::PerBeat).expect("wrap");
+    assert_eq!(
+        emit::env_file_named_in_unit(&wrapped[0].body).as_deref(),
+        Some("/projet/.env")
+    );
+    assert!(
+        wrapped[0].body.contains("&amp;&amp; exec") || wrapped[0].body.contains(" && exec "),
+        "le wrap `. env && exec` est le contrat: {}",
+        wrapped[0].body
+    );
+    let bare = emit::render(&reg, &ctx(), Target::Launchd, Mode::PerBeat).expect("bare");
+    assert_eq!(
+        emit::env_file_named_in_unit(&bare[0].body),
+        None,
+        "le short argv ne source rien: {}",
+        bare[0].body
+    );
+    assert!(
+        !bare[0].body.contains("/bin/sh"),
+        "sans env file, pas de wrap: {}",
+        bare[0].body
+    );
+
+    let systemd =
+        emit::render(&reg, &ctx_with_env(), Target::SystemdUser, Mode::PerBeat).expect("systemd");
+    assert_eq!(
+        emit::env_file_named_in_unit(&systemd[1].body).as_deref(),
+        Some("/projet/.env"),
+        "EnvironmentFile= sur le service: {}",
+        systemd[1].body
+    );
+}
+
+#[test]
+fn env_file_named_in_unit_survives_an_apostrophe_in_the_path() {
+    let reg = registry(TWO_BEATS);
+    let ctx = EmitCtx::new(
+        PathBuf::from("/usr/local/bin/nika"),
+        PathBuf::from("/projet"),
+        PathBuf::from("/projet/nika.yaml"),
+        Some(PathBuf::from("/projet/o's.env")),
+        PathBuf::from("/projet/.nika/arm/logs"),
+        "Europe/Paris".to_owned(),
+    );
+    let units = emit::render(&reg, &ctx, Target::Launchd, Mode::PerBeat).expect("rendu");
+    assert_eq!(
+        emit::env_file_named_in_unit(&units[0].body).as_deref(),
+        Some("/projet/o's.env"),
+        "{}",
+        units[0].body
+    );
+}
+
 #[test]
 fn launchd_serve() {
     let reg = registry(TWO_BEATS);
