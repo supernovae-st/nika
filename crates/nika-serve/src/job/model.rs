@@ -288,6 +288,13 @@ pub struct JobRecord {
     /// rescheduled after a crash.
     #[serde(default)]
     pub(crate) workflow: String,
+    /// Engine execution identity minted when the captured world is readmitted.
+    /// Empty until the worker readmits the POST-time snapshot.
+    #[serde(default)]
+    pub(crate) execution_id: String,
+    /// Trace identity derived from [`Self::execution_id`]. Empty until readmit.
+    #[serde(default)]
+    pub(crate) trace_id: String,
 }
 
 impl JobRecord {
@@ -319,6 +326,18 @@ impl JobRecord {
     #[must_use]
     pub fn workflow(&self) -> &str {
         &self.workflow
+    }
+
+    /// Return the engine execution identity after snapshot readmission.
+    #[must_use]
+    pub fn execution_id(&self) -> Option<&str> {
+        (!self.execution_id.is_empty()).then_some(self.execution_id.as_str())
+    }
+
+    /// Return the engine trace identity after snapshot readmission.
+    #[must_use]
+    pub fn trace_id(&self) -> Option<&str> {
+        (!self.trace_id.is_empty()).then_some(self.trace_id.as_str())
     }
 }
 

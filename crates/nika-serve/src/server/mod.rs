@@ -13,7 +13,7 @@ mod store;
 
 use std::future::Future;
 use std::net::SocketAddr;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::pin::Pin;
 use std::sync::Arc;
 
@@ -76,15 +76,11 @@ struct AppState {
 #[derive(Debug)]
 struct ExecutionTask {
     id: JobId,
-    workflow: PathBuf,
 }
 
 impl ExecutionTask {
-    fn new(id: JobId, workflow: String) -> Self {
-        Self {
-            id,
-            workflow: PathBuf::from(workflow),
-        }
+    fn new(id: JobId) -> Self {
+        Self { id }
     }
 }
 
@@ -126,8 +122,8 @@ impl BoundServer {
                 .saturating_add(4),
         )?;
         let (jobs, receiver) = mpsc::channel(config.limits().queue_capacity());
-        for (id, workflow) in store_actor.handle().queued_jobs().await? {
-            if jobs.try_send(ExecutionTask::new(id, workflow)).is_err() {
+        for (id, _workflow) in store_actor.handle().queued_jobs().await? {
+            if jobs.try_send(ExecutionTask::new(id)).is_err() {
                 break;
             }
         }
@@ -367,11 +363,11 @@ async fn serve_connection(stream: TcpStream, state: Arc<AppState>) {
 }
 
 async fn run_job(state: Arc<AppState>, task: ExecutionTask) -> Result<(), ServerError> {
-    let mut guard = RunningGuard::new(state.store.clone(), task.id);
+    let mut guard = RunningGuard::new(state.store.clone(), task.id.clone());
     if !start_running(&mut guard).await? {
         return Ok(());
     }
-    let admitted = admit_workflow(&state, &task.workflow).await;
+    let admitted = admit_workflow(&state, &task).await;
     let Ok(admitted) = admitted else {
         guard
             .settle(
@@ -405,16 +401,31 @@ async fn start_running(guard: &mut RunningGuard) -> Result<bool, ServerError> {
 
 async fn admit_workflow(
     state: &AppState,
-    workflow: &Path,
+    task: &ExecutionTask,
 ) -> Result<nika_execution::AdmittedExecution, ()> {
+    let encoded = state
+        .store
+        .load_world(task.id.clone())
+        .await
+        .map_err(|_| ())?;
     let service = state.service;
-    let project = Arc::clone(&state.project);
-    let workflow = workflow.to_owned();
-    let admission = tokio::task::spawn_blocking(move || service.admit(&project, &workflow)).await;
-    match admission {
-        Ok(Ok(admitted)) => Ok(admitted),
-        _ => Err(()),
-    }
+    let store = state.store.clone();
+    let id = task.id.clone();
+    let admission = tokio::task::spawn_blocking(move || {
+        let snapshot = nika_execution::ExecutionSnapshot::decode(&encoded)?;
+        service.readmit_snapshot(snapshot)
+    })
+    .await;
+    let Ok(Ok(admitted)) = admission else {
+        return Err(());
+    };
+    let execution_id = admitted.execution_id().to_string();
+    let trace_id = admitted.trace_id().to_string();
+    store
+        .stamp_identity(id, execution_id, trace_id)
+        .await
+        .map_err(|_| ())?;
+    Ok(admitted)
 }
 
 async fn settle_disposition(

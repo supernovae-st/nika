@@ -189,6 +189,36 @@ impl JobStore {
         max_jobs: usize,
         workflow: String,
     ) -> Result<Admission, JobStoreError> {
+        self.create_or_replay_inner(key, digest, max_jobs, workflow, None)
+    }
+
+    /// Create or replay while persisting the POST-time execution world.
+    ///
+    /// The sidecar is written under the same exclusive lease as the durable
+    /// row so a queued job can be readmitted after restart without recapturing
+    /// live files.
+    ///
+    /// # Errors
+    /// Returns the same typed failures as [`Self::create_or_replay_named`].
+    pub fn create_or_replay_captured(
+        &self,
+        key: IdempotencyKey,
+        digest: RequestDigest,
+        max_jobs: usize,
+        workflow: String,
+        world: &str,
+    ) -> Result<Admission, JobStoreError> {
+        self.create_or_replay_inner(key, digest, max_jobs, workflow, Some(world))
+    }
+
+    fn create_or_replay_inner(
+        &self,
+        key: IdempotencyKey,
+        digest: RequestDigest,
+        max_jobs: usize,
+        workflow: String,
+        world: Option<&str>,
+    ) -> Result<Admission, JobStoreError> {
         key.validate()?;
         digest.validate()?;
         let _local = self.local_guard()?;
@@ -217,7 +247,12 @@ impl JobStore {
             request_digest: digest,
             status: JobStatus::Queued,
             workflow,
+            execution_id: String::new(),
+            trace_id: String::new(),
         };
+        if let Some(world) = world {
+            self.dir.write_atomic(&world_file(&record.id), world)?;
+        }
         state.jobs.push(StoredJob {
             record: record.clone(),
             events: Vec::new(),
@@ -226,6 +261,49 @@ impl JobStore {
         });
         self.persist(&state)?;
         Ok(Admission::Created(record))
+    }
+
+    /// Load the POST-time execution world for one job.
+    ///
+    /// # Errors
+    /// Returns [`JobStoreError::Corrupt`] when the sidecar is absent or not
+    /// UTF-8, or an I/O failure from the held directory.
+    pub fn load_world(&self, id: &JobId) -> Result<String, JobStoreError> {
+        let _local = self.local_guard()?;
+        let _lease = self.kernel_lease()?;
+        self.dir
+            .read_optional(&world_file(id))?
+            .ok_or_else(|| JobStoreError::Corrupt("execution world is missing".to_owned()))
+    }
+
+    /// Persist engine identities minted by snapshot readmission.
+    ///
+    /// The first stamp wins so a replay cannot rewrite a settled identity.
+    ///
+    /// # Errors
+    /// Returns [`JobStoreError::JobNotFound`] or a storage failure.
+    pub fn stamp_identity(
+        &self,
+        id: &JobId,
+        execution_id: String,
+        trace_id: String,
+    ) -> Result<JobRecord, JobStoreError> {
+        let _local = self.local_guard()?;
+        let _lease = self.kernel_lease()?;
+        let mut state = self.load_state()?;
+        let job = state
+            .jobs
+            .iter_mut()
+            .find(|job| job.record.id == *id)
+            .ok_or_else(|| JobStoreError::JobNotFound(id.clone()))?;
+        if job.record.execution_id.is_empty() {
+            job.record.execution_id = execution_id;
+            job.record.trace_id = trace_id;
+            let record = job.record.clone();
+            self.persist(&state)?;
+            return Ok(record);
+        }
+        Ok(job.record.clone())
     }
 
     /// Read a job record by opaque id.
@@ -767,6 +845,10 @@ impl StoredJob {
         }
         Ok(appended)
     }
+}
+
+fn world_file(id: &JobId) -> String {
+    format!("{}.world", id.as_str())
 }
 
 fn unique_job_id(state: &PersistedState) -> JobId {

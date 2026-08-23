@@ -1,17 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The production composition root — wires the runtime over REAL effects
-//! (fs · http · clock · subprocess · provider registry with env-resolved
-//! keys), plus the SIMULATED sibling ([`simulated_runtime`] · the `nika
-//! test` plane — same shape, effects refused · see `simulated.rs`). Descended from `nika-cli`'s run verb 2026-07-22 (the 15k wall ·
-//! compute descends, render stays): the composer is compute with zero
-//! render coupling, and its home beside the generic [`Runtime`] lets every
-//! embedder (cli today · daemon/serve/sdk tomorrow) compose the production
-//! seams instead of hand-wiring thirteen crates. The executor stays the
-//! embedder's (the L4 shim owns the production executor — this module is
-//! synchronous construction); the crate's own code keeps ZERO tokio edge,
-//! the effect crates wrap their own.
+//! Production composition root over real effects, plus [`simulated_runtime`].
+//! Descended from `nika-cli`'s run verb (15k wall). Zero tokio in this module.
 //!
 //! Two bridges the composition owns (the registry's own doc: "the
 //! composition root resolves secrets · injects via `with_key`"):
@@ -760,32 +751,34 @@ pub fn production_runtime(
     caps: RuntimeCapabilities,
     run: Option<&RunDecl>,
 ) -> Result<ProdRuntime, ComposeError> {
-    production_runtime_with_emitter(default_model, caps, run, StderrEmitter::default())
+    production_runtime_with_emitter(
+        default_model,
+        caps,
+        run,
+        StderrEmitter::default(),
+        std::env::current_dir().unwrap_or_default(),
+    )
 }
 
-/// Service-safe sibling of [`production_runtime`]. Every production effect,
-/// provider, sandbox, clock, and policy seam is identical; only the local
-/// stderr projection of caller-controlled `nika:log`/`nika:emit` payloads is
-/// absent. The service event stream is projected separately by the shared
-/// driver.
-///
-/// `pub` for exactly one consumer: the same-layer `nika-service-execution`
-/// crate, which owns the driver this composer feeds. It is the ONE seam the
-/// runtime publishes for that descent (the driver's own types stay in the
-/// driver's crate).
+/// Service-safe sibling of [`production_runtime`]. Same production seams;
+/// `nika:log`/`nika:emit` stay off stderr. `sandbox_root` is the admitted
+/// workflow project — not the process cwd.
 ///
 /// # Errors
-/// The same three as [`production_runtime`], which this delegates to:
-/// [`ComposeError::Http`] when the fetch/provider plane cannot build ·
-/// [`ComposeError::Sandbox`] when the policy requires confinement the
-/// host cannot provide (#889 · NIKA-1710) · [`ComposeError::Policy`]
-/// when `NIKA_SANDBOX` holds an unknown word.
+/// The same three as [`production_runtime`].
 pub fn service_runtime(
     default_model: &str,
     caps: RuntimeCapabilities,
     run: Option<&RunDecl>,
+    sandbox_root: std::path::PathBuf,
 ) -> Result<ProdRuntime, ComposeError> {
-    production_runtime_with_emitter(default_model, caps, run, StderrEmitter::metadata_only())
+    production_runtime_with_emitter(
+        default_model,
+        caps,
+        run,
+        StderrEmitter::metadata_only(),
+        sandbox_root,
+    )
 }
 
 fn production_runtime_with_emitter(
@@ -793,6 +786,7 @@ fn production_runtime_with_emitter(
     caps: RuntimeCapabilities,
     run: Option<&RunDecl>,
     emitter: StderrEmitter,
+    sandbox_root: std::path::PathBuf,
 ) -> Result<ProdRuntime, ComposeError> {
     // F-P3 · the run: declaration picks the run's seams (clock · jitter
     // stream) ONCE; every injection below reads the same resolution.
@@ -874,7 +868,7 @@ fn production_runtime_with_emitter(
         ),
         seams.clock,
         RuntimeConfig::new(None, seams.jitter_seed)
-            .with_sandbox_root(std::env::current_dir().unwrap_or_default())
+            .with_sandbox_root(sandbox_root)
             .with_sandbox_backend(sandbox_backend)
             .with_sandbox_policy(policy.as_str())
             .with_sandbox_waived(verdict == crate::sandbox_select::SandboxVerdict::Waived),

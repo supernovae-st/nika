@@ -55,7 +55,9 @@ fn components() -> Value {
                 "required": ["id", "status"],
                 "properties": {
                     "id": {"type": "string", "format": "uuid"},
-                    "status": {"$ref": "#/components/schemas/JobStatus"}
+                    "status": {"$ref": "#/components/schemas/JobStatus"},
+                    "execution_id": {"type": "string"},
+                    "trace_id": {"type": "string"}
                 }
             },
             "JobStatusOnly": {
