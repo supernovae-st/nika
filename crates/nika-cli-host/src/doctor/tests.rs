@@ -1490,32 +1490,3 @@ fn serve_row_fails_when_the_token_is_a_symlink() {
             .is_some_and(|f| f.contains("openssl rand -hex 24"))
     );
 }
-
-#[cfg(feature = "access-harness")]
-#[test]
-fn doctor_lists_every_agentic_cli_runtime() {
-    let findings = super::harness_findings();
-    assert_eq!(findings.len(), 5, "{findings:?}");
-    let text: String = findings
-        .iter()
-        .map(|f| format!("{} {}", f.label, f.detail))
-        .collect::<Vec<_>>()
-        .join("\n");
-    for token in [
-        "claude-code",
-        "codex",
-        "gemini-cli",
-        "kimi-code",
-        "qwen-code",
-    ] {
-        assert!(text.contains(token), "missing {token} in:\n{text}");
-    }
-    assert!(
-        findings.iter().all(|f| f.label == "runtime"),
-        "ACP runtimes must not reuse the MCP-wire `agent` label: {text}"
-    );
-    assert!(
-        !text.contains("Nika MCP oracle"),
-        "runtime rows must not market MCP wire: {text}"
-    );
-}

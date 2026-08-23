@@ -151,6 +151,34 @@ pub fn seat_from_id(id: &str) -> Result<Option<SpawnedHarness>, String> {
     registry_seat(canonical, &lookup)
 }
 
+/// Map a seat-construction failure onto the composer's HTTP error.
+#[must_use]
+pub fn seat_http_err(why: impl std::fmt::Display) -> nika_kernel::HttpError {
+    nika_kernel::HttpError::Connection {
+        reason: format!("harness seat: {why}"),
+    }
+}
+
+/// Seat `--access` (product token or class `harness` + first ready id).
+///
+/// # Errors
+///
+/// The registry row cannot be built.
+pub fn seat_from_pin(
+    pin: Option<&str>,
+    first_ready: Option<&str>,
+) -> Result<Option<(SpawnedHarness, String)>, String> {
+    let id = match pin {
+        Some(p) if nika_types::access::HarnessRuntime::lookup(p).is_some() => p.to_owned(),
+        Some("harness") => match first_ready {
+            Some(id) => id.to_owned(),
+            None => return Ok(None),
+        },
+        _ => return Ok(None),
+    };
+    Ok(seat_from_id(&id)?.map(|backend| (backend, id)))
+}
+
 fn split_ws(s: &str) -> Vec<String> {
     s.split_whitespace().map(str::to_owned).collect()
 }

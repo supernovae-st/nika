@@ -79,6 +79,48 @@ impl HarnessSeat {
     }
 }
 
+/// Metered view of a tool-less harness `infer:` (the runtime dispatch note).
+#[derive(Debug)]
+#[non_exhaustive]
+pub struct HarnessInfer {
+    /// `infer · <seat id>`.
+    pub note: String,
+    /// Text or structured JSON.
+    pub value: serde_json::Value,
+    /// Cumulative tokens.
+    pub tokens: i64,
+    /// Pricing key when the harness named a model.
+    pub model_resolved: Option<String>,
+    /// Usage split the cost layer prices.
+    pub usage: nika_kernel::ai::provider::TokenUsage,
+}
+
+/// Tool-less `infer:` on a seated ACP CLI.
+///
+/// # Errors
+///
+/// Same refusals as the harness `agent:` path (schema · tools · session).
+pub async fn infer_metered(
+    seat: &HarnessSeat,
+    mut input: AgentInput,
+    observer: &dyn AgentObserver,
+    seat_id: Option<&str>,
+) -> Result<HarnessInfer, VerbAgentError> {
+    input.tools.clear();
+    let out = run_on_harness(seat, input, observer).await?;
+    let value = match out.output {
+        AgentValue::Text(text) => serde_json::Value::String(text),
+        AgentValue::Structured(value) => value,
+    };
+    Ok(HarnessInfer {
+        note: format!("infer · {}", seat_id.unwrap_or("harness")),
+        value,
+        tokens: i64::try_from(out.total_tokens).unwrap_or(i64::MAX),
+        model_resolved: out.model_resolved,
+        usage: out.usage,
+    })
+}
+
 /// Run the task on the harness seat — the external half of
 /// `run_observed`.
 pub(crate) async fn run_on_harness(

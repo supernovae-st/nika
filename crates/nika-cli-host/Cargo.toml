@@ -51,7 +51,11 @@ default = ["access-harness"]
 local-infer = ["nika-models/local-infer"]
 # The harness access class (P3 B6): the adapter registry + probes join
 # the doctor/probe surfaces. On by default with the CLI binary.
-access-harness = ["dep:nika-harness", "nika-runtime/access-harness"]
+access-harness = [
+    "dep:nika-harness",
+    "nika-runtime/access-harness",
+    "nika-providers/access-harness",
+]
 
 [dev-dependencies]
 tempfile = { workspace = true }  # scratch dirs for the metrics + welcome test fixtures

@@ -1044,6 +1044,8 @@ pub fn run(ping: bool, json: bool, verbose: bool, theme: Theme) -> VerbOutput {
 }
 
 #[cfg(test)]
+mod runtime_tests;
+#[cfg(test)]
 mod tests;
 
 /// P3 B6 · every shipped agentic CLI runtime, always listed (label

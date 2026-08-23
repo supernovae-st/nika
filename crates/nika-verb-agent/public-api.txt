@@ -198,6 +198,33 @@ pub fn nika_verb_agent::errors::VerbAgentError::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_verb_agent::errors::VerbAgentError where T: 'static
 pub fn nika_verb_agent::errors::VerbAgentError::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub mod nika_verb_agent::harness_path
+#[non_exhaustive] pub struct nika_verb_agent::harness_path::HarnessInfer
+pub nika_verb_agent::harness_path::HarnessInfer::model_resolved: core::option::Option<alloc::string::String>
+pub nika_verb_agent::harness_path::HarnessInfer::note: alloc::string::String
+pub nika_verb_agent::harness_path::HarnessInfer::tokens: i64
+pub nika_verb_agent::harness_path::HarnessInfer::usage: nika_types::token_usage::TokenUsage
+pub nika_verb_agent::harness_path::HarnessInfer::value: serde_json::value::Value
+impl core::fmt::Debug for nika_verb_agent::harness_path::HarnessInfer
+pub fn nika_verb_agent::harness_path::HarnessInfer::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_verb_agent::harness_path::HarnessInfer
+impl<T, U> core::convert::Into<U> for nika_verb_agent::harness_path::HarnessInfer where U: core::convert::From<T>
+pub fn nika_verb_agent::harness_path::HarnessInfer::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_verb_agent::harness_path::HarnessInfer where U: core::convert::Into<T>
+pub type nika_verb_agent::harness_path::HarnessInfer::Error = core::convert::Infallible
+pub fn nika_verb_agent::harness_path::HarnessInfer::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_verb_agent::harness_path::HarnessInfer where U: core::convert::TryFrom<T>
+pub type nika_verb_agent::harness_path::HarnessInfer::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_verb_agent::harness_path::HarnessInfer::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> core::any::Any for nika_verb_agent::harness_path::HarnessInfer where T: 'static + ?core::marker::Sized
+pub fn nika_verb_agent::harness_path::HarnessInfer::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_verb_agent::harness_path::HarnessInfer where T: ?core::marker::Sized
+pub fn nika_verb_agent::harness_path::HarnessInfer::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_verb_agent::harness_path::HarnessInfer where T: ?core::marker::Sized
+pub fn nika_verb_agent::harness_path::HarnessInfer::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_verb_agent::harness_path::HarnessInfer
+pub fn nika_verb_agent::harness_path::HarnessInfer::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_verb_agent::harness_path::HarnessInfer where T: 'static
+pub fn nika_verb_agent::harness_path::HarnessInfer::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub struct nika_verb_agent::harness_path::HarnessSeat
 pub nika_verb_agent::harness_path::HarnessSeat::backend: alloc::sync::Arc<dyn nika_kernel_ai::harness::DynAgentBackend>
 pub nika_verb_agent::harness_path::HarnessSeat::cwd: std::path::PathBuf
@@ -235,6 +262,7 @@ impl<T> dyn_clone::DynClone for nika_verb_agent::harness_path::HarnessSeat where
 pub fn nika_verb_agent::harness_path::HarnessSeat::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_verb_agent::harness_path::HarnessSeat where T: 'static
 pub fn nika_verb_agent::harness_path::HarnessSeat::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub async fn nika_verb_agent::harness_path::infer_metered(seat: &nika_verb_agent::harness_path::HarnessSeat, input: nika_verb_agent::AgentInput, observer: &dyn nika_verb_agent::observe::AgentObserver, seat_id: core::option::Option<&str>) -> core::result::Result<nika_verb_agent::harness_path::HarnessInfer, nika_verb_agent::errors::VerbAgentError>
 pub mod nika_verb_agent::observe
 #[non_exhaustive] pub enum nika_verb_agent::observe::AgentEvent
 pub nika_verb_agent::observe::AgentEvent::BudgetCheckpoint
@@ -870,6 +898,7 @@ pub nika_verb_agent::AgentInput::system: core::option::Option<alloc::string::Str
 pub nika_verb_agent::AgentInput::temperature: core::option::Option<f32>
 pub nika_verb_agent::AgentInput::tools: alloc::vec::Vec<alloc::string::String>
 impl nika_verb_agent::AgentInput
+pub fn nika_verb_agent::AgentInput::for_infer(prompt: impl core::convert::Into<alloc::string::String>, system: core::option::Option<alloc::string::String>, model: core::option::Option<alloc::string::String>, schema: core::option::Option<serde_json::value::Value>) -> Self
 pub fn nika_verb_agent::AgentInput::new(prompt: impl core::convert::Into<alloc::string::String>) -> Self
 impl core::clone::Clone for nika_verb_agent::AgentInput
 pub fn nika_verb_agent::AgentInput::clone(&self) -> nika_verb_agent::AgentInput

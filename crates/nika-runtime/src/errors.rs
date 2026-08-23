@@ -114,15 +114,10 @@ pub enum RuntimeError {
         message: String,
     },
 
-    /// NIKA-1803 · a known agentic CLI token cannot run here — binary
-    /// absent, ACP speaker missing, or this nika was built without
-    /// adapters. Never an unknown-token 1802.
+    /// NIKA-1803 · known CLI token cannot run here (never 1802).
     #[error("NIKA-1803 · {message}")]
     #[diagnostic(code(nika::runtime::access_unavailable))]
-    AccessUnavailable {
-        /// Dummy-readable install / rebuild line.
-        message: String,
-    },
+    AccessUnavailable { message: String },
 
     /// A `${{ }}` reference did not resolve (unknown task id / var key ·
     /// out-of-range index · missing map key · the silent-literal guard).
