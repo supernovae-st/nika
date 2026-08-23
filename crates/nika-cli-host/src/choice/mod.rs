@@ -74,7 +74,7 @@ struct TierRow {
     download_gb: f64,
     pull: String,
     #[serde(default)]
-    #[allow(dead_code)]
+    #[allow(dead_code, reason = "models.yaml bit, not a runtime gate yet")]
     verified: bool,
 }
 
@@ -104,7 +104,7 @@ fn table() -> Table {
 
 /// The Hub id the current machine would pull for Gear One.
 #[must_use]
-#[allow(dead_code)] // doctor.rs · `local-infer` feature
+#[cfg(feature = "local-infer")]
 pub(crate) fn featured_pull() -> String {
     let ram = ram_gb();
     resolve_tier(&table(), ram).map_or_else(|| ALIAS.to_owned(), |t| t.pull.clone())
@@ -778,7 +778,7 @@ pub(crate) fn first_wow_yaml(choice: &InferenceChoice) -> String {
 
 /// Pack skeletons — the cascade stamps them at `nika new`.
 #[must_use]
-#[allow(dead_code)] // tests
+#[cfg(test)]
 pub(crate) fn pack_template_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../nika-pack/pack/templates")
 }
