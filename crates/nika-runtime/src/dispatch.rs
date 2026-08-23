@@ -718,22 +718,14 @@ where
         input.temperature = temp_f32(action.temperature.as_ref());
         input.max_tokens = action.max_tokens.as_ref().map(|t| t.value);
         input.schema = task_schema(action.schema.as_ref(), contract);
-        // #1135 sibling: `thinking.budget_tokens` parsed and priced then
-        // vanished before InferInput. Copy only when thinking is enabled.
-        if let Some(thinking) = action.thinking.as_ref()
-            && thinking.value.enabled
-        {
-            input.thinking_budget = thinking.value.budget_tokens;
+        if action.thinking.as_ref().is_some_and(|t| t.value.enabled) {
+            input.thinking_budget = action.thinking.as_ref().and_then(|t| t.value.budget_tokens);
         }
-        input.vision = match collect_vision(&action.vision, scope) {
-            Ok(v) => v,
-            Err(CollectVisionErr::Template(err)) => {
-                return Dispatched::template_err("infer · ?", &err);
-            }
-            Err(CollectVisionErr::Unwired(detail)) => {
-                return Dispatched::unwired("infer · ?", detail);
-            }
-        };
+        match collect_vision(&action.vision, scope) {
+            Ok(v) => input.vision = v,
+            Err(VisionErr::Template(err)) => return Dispatched::template_err("infer · ?", &err),
+            Err(VisionErr::Unwired(detail)) => return Dispatched::unwired("infer · ?", detail),
+        }
         match self.infer.run(input).await {
             Ok(out) => {
                 let note = format!("infer · {}", out.model_resolved);
@@ -997,10 +989,7 @@ fn usage_has_signal(usage: &nika_kernel::provider::TokenUsage) -> bool {
         || usage.cache_creation_tokens.is_some_and(|n| n > 0)
 }
 
-/// Classify WHY a model string has no catalog price. The provider
-/// prefix is the discriminator: `mock` = the test backend · a keyless
-/// catalog provider = a local server (sovereign path — not priced,
-/// never « free ») · anything else = not in the vendored catalog.
+/// Why a model string has no catalog price (`mock` · local · missing).
 fn unpriced_reason_for(model: &str) -> UnpricedReason {
     match model.split_once('/').map(|(provider, _)| provider) {
         Some("mock") => UnpricedReason::MockProvider,
@@ -1012,36 +1001,30 @@ fn unpriced_reason_for(model: &str) -> UnpricedReason {
     }
 }
 
-/// Render every `infer.vision:` entry through the SAME `${{ }}` seam as
-/// prompt/system. Unknown source forms fail loud (never a silent drop).
 fn collect_vision(
     items: &[nika_schema::Spanned<VisionInput>],
     scope: &Scope<'_>,
-) -> Result<Vec<VisionPart>, CollectVisionErr> {
+) -> Result<Vec<VisionPart>, VisionErr> {
     let mut out = Vec::with_capacity(items.len());
     for item in items {
-        match &item.value {
-            VisionInput::File { path } => match expr::render(&path.value, scope) {
-                Ok(path) => out.push(VisionPart::file(path)),
-                Err(err) => return Err(CollectVisionErr::Template(err)),
-            },
-            VisionInput::Url { url } => match expr::render(&url.value, scope) {
-                Ok(url) => out.push(VisionPart::url(url)),
-                Err(err) => return Err(CollectVisionErr::Template(err)),
-            },
+        out.push(match &item.value {
+            VisionInput::File { path } => {
+                VisionPart::file(expr::render(&path.value, scope).map_err(VisionErr::Template)?)
+            }
+            VisionInput::Url { url } => {
+                VisionPart::url(expr::render(&url.value, scope).map_err(VisionErr::Template)?)
+            }
             other => {
-                return Err(CollectVisionErr::Unwired(format!(
+                return Err(VisionErr::Unwired(format!(
                     "vision source form not wired yet: {other:?}"
                 )));
             }
-        }
+        });
     }
     Ok(out)
 }
 
-/// Template vs future-variant split — kept small so `collect_vision` does
-/// not return [`Dispatched`] (clippy `result_large_err`).
-enum CollectVisionErr {
+enum VisionErr {
     Template(RuntimeError),
     Unwired(String),
 }
@@ -1054,9 +1037,7 @@ fn render_opt(
     field.map(|f| expr::render(&f.value, scope)).transpose()
 }
 
-/// `returns:` compiles `lower(returns)` as the structured-output contract —
-/// EXACTLY the `schema:` lane (spec 09 §returns · violations NIKA-INFER-002).
-/// One home for infer/agent, zero drift.
+/// `returns:` is the `schema:` lane (spec 09 · NIKA-INFER-002).
 fn task_schema(
     schema: Option<&nika_schema::Spanned<Value>>,
     contract: Option<&crate::contract::TaskContract<'_>>,
@@ -1066,12 +1047,7 @@ fn task_schema(
         .or_else(|| contract.map(crate::contract::TaskContract::lowered))
 }
 
-/// The effective system prompt of a `skills:`-carrying agent (spec 02
-/// §agent skills · normative injection shape): the authored `system:`
-/// (already rendered · absent = the section stands alone), then ONE
-/// `## Skills` section — per skill, in `skills:` source order,
-/// `### <name>` + the description + the body (trimmed). Deterministic
-/// bytes: same inputs, same prompt, provider-cache-friendly.
+/// Authored `system:` plus one `## Skills` section (spec 02 · source order).
 pub(crate) fn system_with_skills(system: Option<String>, docs: &[nika_schema::SkillDoc]) -> String {
     let mut out = match system {
         Some(s) if !s.is_empty() => {

@@ -69,7 +69,7 @@ fn vision_block(part: &VisionPart) -> Result<ContentBlock, VerbInferError> {
             if path.trim().is_empty() {
                 return Err(invalid("vision file path is empty"));
             }
-            let bytes = std::fs::read(path)
+            let bytes = std::fs::read(path) // seam-bypass-ok: v0.1 vision file load · nika-media CAS staging still deferred · missing path must refuse before any provider call
                 .map_err(|err| invalid(format!("cannot read image `{path}`: {err}")))?;
             if bytes.is_empty() {
                 return Err(invalid(format!("image `{path}` is empty")));
