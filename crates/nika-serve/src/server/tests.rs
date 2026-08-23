@@ -167,6 +167,7 @@ impl ExecutionBackend for TestBackend {
         context: nika_execution::ExecutionContext<'a>,
     ) -> Pin<Box<dyn Future<Output = ExecutionDisposition> + Send + 'a>> {
         Box::pin(async move {
+            self.calls.fetch_add(1, Ordering::SeqCst);
             assert_eq!(
                 context
                     .snapshot()
@@ -174,7 +175,6 @@ impl ExecutionBackend for TestBackend {
                     .expect("captured root"),
                 WORKFLOW
             );
-            self.calls.fetch_add(1, Ordering::SeqCst);
             if self.hang {
                 pending::<ExecutionDisposition>().await
             } else {
@@ -761,6 +761,9 @@ async fn restart_settles_running_job_and_replay_never_reexecutes() {
     wait_for_status(&first, &id, "running")
         .await
         .expect("running status");
+    wait_for_calls(hanging.as_ref(), 1)
+        .await
+        .expect("hanging backend entered execute");
     assert!(matches!(
         first.stop().await,
         Err(ServerError::ShutdownTimeout)
@@ -1006,6 +1009,16 @@ async fn missing_idempotency_key_and_deep_json_refuse_without_execution() {
     assert_eq!(deep.json()["error"]["code"], "invalid_json");
     assert_eq!(backend.calls(), 0);
     server.stop().await.expect("clean stop");
+}
+
+async fn wait_for_calls(backend: &TestBackend, expected: usize) -> Result<(), String> {
+    for _ in 0..200 {
+        if backend.calls() >= expected {
+            return Ok(());
+        }
+        tokio::time::sleep(Duration::from_millis(5)).await;
+    }
+    Err(format!("backend never reached {expected} calls"))
 }
 
 async fn wait_for_status(server: &TestServer, id: &str, expected: &str) -> Result<(), String> {
