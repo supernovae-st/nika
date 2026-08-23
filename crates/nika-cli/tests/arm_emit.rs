@@ -353,6 +353,67 @@ fn reemit_does_not_strip_an_existing_env_wrap() {
     );
 }
 
+/// #1069 refuter — a dest wrap without the GENERATED header is still
+/// a wrap. Sidecar gone, env file gone: `--write` must refuse and
+/// leave `. env && exec` intact.
+#[test]
+fn reemit_refuses_a_wrap_without_generated_mark() {
+    let zone = machine_zone();
+    let dir = project("nogenerated", &registry_in(&zone));
+    let home = home(&dir);
+    let env_file = dir.join("providers.env");
+    std::fs::write(&env_file, "MISTRAL_API_KEY=hunter2-live-zz\n").expect("env file");
+    let env_arg = env_file.to_str().expect("utf8").to_owned();
+    let dest = dir.join("units");
+    let out = arm(
+        &dir,
+        &home,
+        &[
+            "arm",
+            "--emit",
+            "launchd",
+            "--write",
+            "--out",
+            dest.to_str().expect("utf8"),
+            "--env-file",
+            &env_arg,
+        ],
+    );
+    assert_eq!(out.status.code(), Some(0));
+    let plist = dest.join("nika.arm.doctor.plist");
+    let body = std::fs::read_to_string(&plist).expect("plist");
+    std::fs::write(&plist, body.replace("GENERATED from", "hand-kept from")).expect("strip mark");
+    std::fs::remove_file(dir.join(".nika/arm/env-file")).expect("drop sidecar");
+    std::fs::remove_file(&env_file).expect("drop env");
+
+    let before = std::fs::read_to_string(&plist).expect("before");
+    let out = arm(
+        &dir,
+        &home,
+        &[
+            "arm",
+            "--emit",
+            "launchd",
+            "--write",
+            "--out",
+            dest.to_str().expect("utf8"),
+        ],
+    );
+    assert_eq!(out.status.code(), Some(3), "le refus: {out:?}");
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        stderr.contains("--env-file"),
+        "le remède nomme le drapeau: {stderr}"
+    );
+    let after = std::fs::read_to_string(&plist).expect("after");
+    assert_eq!(after, before, "l'unité n'est pas écrasée");
+    assert!(
+        after.contains("/bin/sh")
+            && (after.contains("&amp;&amp; exec") || after.contains(" && exec ")),
+        "`. env && exec` demeure: {after}"
+    );
+}
+
 /// A sidecar that names a gone file refuses — never a weaker unit.
 #[test]
 fn stale_env_sidecar_refuses_instead_of_stripping() {

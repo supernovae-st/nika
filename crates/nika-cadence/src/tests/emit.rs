@@ -184,6 +184,22 @@ fn a_wrapped_unit_names_its_env_file_and_a_bare_unit_does_not() {
 }
 
 #[test]
+fn env_file_named_in_unit_does_not_need_the_generated_mark() {
+    let reg = registry(TWO_BEATS);
+    let units = emit::render(&reg, &ctx_with_env(), Target::Launchd, Mode::PerBeat).expect("wrap");
+    let stripped = units[0].body.replace(emit::GENERATED_MARK, "hand-kept");
+    assert!(
+        !stripped.contains(emit::GENERATED_MARK),
+        "la marque est partie"
+    );
+    assert_eq!(
+        emit::env_file_named_in_unit(&stripped).as_deref(),
+        Some("/projet/.env"),
+        "le wrap se lit sans GENERATED: {stripped}"
+    );
+}
+
+#[test]
 fn env_file_named_in_unit_survives_an_apostrophe_in_the_path() {
     let reg = registry(TWO_BEATS);
     let ctx = EmitCtx::new(

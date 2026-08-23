@@ -167,7 +167,7 @@ fn absolute(file: &Path, cwd: &Path) -> PathBuf {
 fn prove_readable(file: PathBuf) -> Result<PathBuf, VerbOutput> {
     match std::fs::metadata(&file) {
         Ok(meta) if meta.is_file() => Ok(file),
-        _ => Err(weaker_refusal(&file)),
+        _ => Err(weaker_refusal(Some(&file))),
     }
 }
 
@@ -210,9 +210,11 @@ fn persist_env_file(root: &Path, file: &Path) -> Result<(), VerbOutput> {
 }
 
 /// Read a dest that already carries the wrap — recovering the path is
-/// what makes `--write` over field units non-destructive. Two named
-/// paths refuse rather than pick. A named path that is gone refuses
-/// rather than emit the short argv over the wrap.
+/// what makes `--write` over field units non-destructive. The wrap is
+/// the env-exec pattern itself (GENERATED header optional — stripping
+/// the comment must not reopen a weaker overwrite). Two named paths
+/// refuse rather than pick. A named path that is gone refuses rather
+/// than emit the short argv over the wrap.
 fn env_file_from_existing_units(dir: &Path) -> Result<Option<PathBuf>, VerbOutput> {
     let entries = match std::fs::read_dir(dir) {
         Ok(entries) => entries,
@@ -235,26 +237,28 @@ fn env_file_from_existing_units(dir: &Path) -> Result<Option<PathBuf>, VerbOutpu
                 )));
             }
         };
-        let Ok(body) = std::fs::read_to_string(&path) else {
+        let Some(body) = unit_text(&path) else {
             continue;
         };
-        if !body.contains(emit::GENERATED_MARK) {
-            continue;
-        }
-        let Some(raw) = emit::env_file_named_in_unit(&body) else {
-            continue;
-        };
-        let candidate = PathBuf::from(raw);
-        match &named {
-            None => named = Some(candidate),
-            Some(existing) if existing == &candidate => {}
-            Some(existing) => {
-                return Err(VerbOutput::file(format!(
-                    "arm --emit · unités existantes nomment des --env-file différents ({} vs {}) — refuse d'en choisir un · remède: `nika arm --emit launchd --env-file <fichier>`",
-                    existing.display(),
-                    candidate.display()
-                )));
+        match emit::env_file_named_in_unit(&body) {
+            Some(raw) => {
+                let candidate = PathBuf::from(raw);
+                match &named {
+                    None => named = Some(candidate),
+                    Some(existing) if existing == &candidate => {}
+                    Some(existing) => {
+                        return Err(VerbOutput::file(format!(
+                            "arm --emit · unités existantes nomment des --env-file différents ({} vs {}) — refuse d'en choisir un · remède: `nika arm --emit launchd --env-file <fichier>`",
+                            existing.display(),
+                            candidate.display()
+                        )));
+                    }
+                }
             }
+            None if body.contains(" && exec ") || body.contains("&amp;&amp; exec") => {
+                return Err(weaker_refusal(None));
+            }
+            None => {}
         }
     }
     match named {
@@ -263,13 +267,26 @@ fn env_file_from_existing_units(dir: &Path) -> Result<Option<PathBuf>, VerbOutpu
     }
 }
 
+/// Bytes, then lossy UTF-8 — a binary plist still carries the wrap as
+/// ASCII; `read_to_string` would skip it and reopen the strip.
+fn unit_text(path: &Path) -> Option<String> {
+    let bytes = std::fs::read(path).ok()?;
+    Some(String::from_utf8_lossy(&bytes).into_owned())
+}
+
 /// Fail closed: never emit a short argv over a unit that sources keys.
-fn weaker_refusal(file: &Path) -> VerbOutput {
-    VerbOutput::env(format!(
-        "arm --emit · --env-file {} · illisible — un emit sans le drapeau enlèverait le wrap `. env && exec` (plus de clés) · remède: `nika arm --emit launchd --env-file {}`",
-        file.display(),
-        file.display()
-    ))
+fn weaker_refusal(file: Option<&Path>) -> VerbOutput {
+    match file {
+        Some(file) => VerbOutput::env(format!(
+            "arm --emit · --env-file {} · illisible — un emit sans le drapeau enlèverait le wrap `. env && exec` (plus de clés) · remède: `nika arm --emit launchd --env-file {}`",
+            file.display(),
+            file.display()
+        )),
+        None => VerbOutput::env(
+            "arm --emit · une unité source déjà un env file (`. env && exec`) · un emit sans --env-file l'enlèverait (plus de clés) · remède: `nika arm --emit launchd --env-file <fichier>`"
+                .to_owned(),
+        ),
+    }
 }
 
 /// Print mode — the default. Units to stdout, the load commands with
