@@ -30,31 +30,22 @@ pub(crate) fn access_probes() -> Vec<nika_providers::probe::ProviderProbe> {
     probes
 }
 
-/// Same projection the CLI host uses — one derivation
-/// ([`nika_providers::probe::harness_access_probe`]).
+/// Same projection the CLI host uses — PATH/auth-file only
+/// ([`nika_providers::probe::harness_access_probe`]). Never handshake-spawns.
 #[cfg(feature = "access-harness")]
 fn harness_provider_rows() -> Vec<nika_providers::probe::ProviderProbe> {
     let Ok(rows) = nika_harness::registry() else {
         return Vec::new();
     };
-    let serves_of: std::collections::BTreeMap<String, Vec<String>> = rows
-        .iter()
-        .map(|r| {
-            (
-                r.adapter.id.clone(),
-                r.serves.iter().map(|s| (*s).to_owned()).collect(),
-            )
-        })
-        .collect();
-    nika_harness::probe_adapters_sync(rows)
+    nika_harness::presence_facts(rows)
         .into_iter()
-        .map(|row| {
+        .map(|fact| {
             nika_providers::probe::harness_access_probe(
-                row.id.clone(),
-                serves_of.get(&row.id).cloned().unwrap_or_default(),
-                row.version.is_some(),
-                row.authenticated == Some(true),
-                row.product_present,
+                fact.id,
+                fact.serves,
+                fact.acp_present,
+                fact.configured,
+                fact.product_present,
             )
         })
         .collect()

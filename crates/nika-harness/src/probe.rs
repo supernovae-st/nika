@@ -81,6 +81,82 @@ pub async fn probe_adapters(rows: Vec<AdapterRow>) -> Vec<AdapterProbeRow> {
     out.into_iter().map(|(_, row)| row).collect()
 }
 
+/// Cheap admission facts for `--access` (PATH + [`AuthProbe::HomeFile`]).
+/// Never handshake-spawns — compose and `nika check` must not start
+/// five ACP speakers. Doctor still uses [`probe_adapters_sync`].
+/// Command-auth rows treat ACP-on-PATH as configured; the session
+/// is the sign-in witness (NIKA-1805 if the harness refuses).
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct PresenceFact {
+    /// Product token (`claude-code`).
+    pub id: String,
+    /// Provider ids this row serves.
+    pub serves: Vec<String>,
+    /// Product CLI on PATH (`claude`).
+    pub product_present: bool,
+    /// ACP speaker on PATH (`claude-agent-acp`).
+    pub acp_present: bool,
+    /// [`AuthProbe::HomeFile`] witness, or ACP-on-PATH for Command auth.
+    pub configured: bool,
+}
+
+/// Presence-only probe for every registry row — no tokio, no spawn.
+#[must_use]
+pub fn presence_facts(rows: Vec<AdapterRow>) -> Vec<PresenceFact> {
+    rows.into_iter()
+        .map(|row| {
+            let rt = nika_types::access::HarnessRuntime::lookup(&row.adapter.id);
+            let detect = rt.map_or(row.adapter.command.as_str(), |r| r.detect_bin);
+            let acp = rt.map_or(row.adapter.command.as_str(), |r| r.acp_bin);
+            let product_present = binary_on_path(detect);
+            let acp_present = binary_on_path(acp);
+            let configured = match row.auth {
+                AuthProbe::HomeFile(_) => {
+                    probe_auth_home_sync(&row.auth, row.directory_auth).unwrap_or(false)
+                }
+                AuthProbe::Command { .. } => acp_present,
+            };
+            PresenceFact {
+                id: row.adapter.id.clone(),
+                serves: row.serves.iter().map(|s| (*s).to_owned()).collect(),
+                product_present,
+                acp_present,
+                configured,
+            }
+        })
+        .collect()
+}
+
+fn probe_auth_home_sync(
+    surface: &AuthProbe,
+    directory_auth: Option<DirectoryAuthProbe>,
+) -> Option<bool> {
+    #[allow(clippy::disallowed_methods)] // sanctioned env boundary ($HOME presence)
+    let home = std::env::var_os("HOME");
+    #[allow(clippy::disallowed_methods)] // sanctioned adapter-home boundary
+    let override_home = directory_auth.and_then(|probe| std::env::var_os(probe.override_env));
+    match surface {
+        AuthProbe::Command { .. } => None,
+        AuthProbe::HomeFile(rel) => {
+            if let Some(probe) = directory_auth {
+                let path = match override_home.as_deref() {
+                    Some(root) => std::path::Path::new(root).join(probe.override_relative),
+                    None => match home.as_deref() {
+                        Some(root) => std::path::Path::new(root).join(rel),
+                        None => return Some(false),
+                    },
+                };
+                return Some(provider_credential_directory_ready(
+                    &path,
+                    probe.credential_files,
+                ));
+            }
+            Some(std::path::Path::new(home.as_deref()?).join(rel).exists())
+        }
+    }
+}
+
 /// The sync façade (the doctor surface is sync by design) — the
 /// probes' async lives inside nika-harness, behind a one-shot runtime.
 #[must_use]
@@ -529,6 +605,30 @@ mod tests {
         let out = probe_adapters_sync(vec![mk("sync-a"), mk("sync-b")]);
         assert_eq!(out.len(), 2, "the façade probes, never an empty vec");
         assert!(out.iter().all(|r| r.version.is_none()));
+    }
+
+    #[test]
+    fn presence_facts_emit_every_shipped_row_without_a_runtime() {
+        let rows = crate::registry_with(&|_| None).expect("static table");
+        let facts = presence_facts(rows);
+        let ids: Vec<&str> = facts.iter().map(|f| f.id.as_str()).collect();
+        assert_eq!(
+            ids,
+            [
+                "gemini-cli",
+                "qwen-code",
+                "kimi-code",
+                "codex",
+                "claude-code"
+            ]
+        );
+        for fact in &facts {
+            assert!(
+                nika_types::access::HarnessRuntime::lookup(&fact.id).is_some(),
+                "{}",
+                fact.id
+            );
+        }
     }
 
     #[test]
