@@ -248,7 +248,7 @@ fn env_file_from_existing_units(dir: &Path) -> Result<Option<PathBuf>, VerbOutpu
                     Some(existing) if existing == &candidate => {}
                     Some(existing) => {
                         return Err(VerbOutput::file(format!(
-                            "arm --emit · unités existantes nomment des --env-file différents ({} vs {}) — refuse d'en choisir un · remède: `nika arm --emit launchd --env-file <fichier>`",
+                            "arm --emit · dest units name two different --env-file paths ({} vs {}) — refuse to pick · pass `nika arm --emit launchd --env-file <file>`",
                             existing.display(),
                             candidate.display()
                         )));
