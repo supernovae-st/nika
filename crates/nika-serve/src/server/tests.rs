@@ -21,10 +21,10 @@ pub(super) const TOKEN: &str = "remote-test-token-012345678901234567890123456789
 const WORKFLOW: &str = "nika: root\npermits:\n  tools: [\"nika:jq\"]\ntasks:\n  value:\n    invoke:\n      tool: nika:jq\n      args: { input: 1, expression: \".\" }\n";
 
 pub(super) struct TestWorld {
-    root: tempfile::TempDir,
+    pub(super) root: tempfile::TempDir,
     pub(super) workflows: PathBuf,
-    state: PathBuf,
-    token: PathBuf,
+    pub(super) state: PathBuf,
+    pub(super) token: PathBuf,
 }
 
 impl TestWorld {
@@ -809,54 +809,6 @@ async fn non_loopback_bind_requires_explicit_acknowledgement_before_io() {
         BoundServer::bind(config, backend).await,
         Err(ServerError::InvalidConfig(_))
     ));
-}
-
-#[cfg(unix)]
-#[tokio::test(flavor = "multi_thread")]
-async fn credential_symlink_refuses_before_listener_bind() {
-    use std::os::unix::fs::symlink;
-
-    let world = TestWorld::new();
-    let linked = world.root.path().join("linked.token");
-    symlink(&world.token, &linked).expect("token symlink");
-    let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
-    let config = ServerConfig::new(
-        SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0),
-        &world.workflows,
-        &world.state,
-        linked,
-    );
-
-    assert!(matches!(
-        BoundServer::bind(config, backend).await,
-        Err(ServerError::Credential)
-    ));
-}
-
-#[cfg(unix)]
-#[tokio::test(flavor = "multi_thread")]
-async fn credential_fifo_refuses_without_waiting_for_a_writer() {
-    use nix::sys::stat::Mode;
-    use nix::unistd::mkfifo;
-
-    let world = TestWorld::new();
-    let fifo = world.root.path().join("fifo.token");
-    mkfifo(&fifo, Mode::from_bits_truncate(0o600)).expect("token fifo");
-    let backend = Arc::new(TestBackend::completes(ExecutionDisposition::Succeeded));
-    let config = ServerConfig::new(
-        SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 0),
-        &world.workflows,
-        &world.state,
-        fifo,
-    );
-
-    let result = tokio::time::timeout(
-        Duration::from_millis(100),
-        BoundServer::bind(config, backend),
-    )
-    .await
-    .expect("FIFO acquisition must not block");
-    assert!(matches!(result, Err(ServerError::Credential)));
 }
 
 #[cfg(unix)]

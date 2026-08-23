@@ -32,8 +32,8 @@ use crate::{EventPageLimit, JobId, JobStatus, JobStore, MAX_EVENT_PAGE_LEN};
 
 use auth::BearerToken;
 pub use config::{ServerConfig, ServerLimits};
-pub use error::ServerError;
 use error::diagnose_capture;
+pub use error::{CredentialRefuse, ServerError};
 use listen::listen_line;
 use store::{StoreActor, StoreHandle};
 
@@ -598,6 +598,8 @@ fn execution_result(
     }
 }
 
+#[cfg(test)]
+mod credential_tests;
 #[cfg(test)]
 mod failure_tests;
 #[cfg(test)]
