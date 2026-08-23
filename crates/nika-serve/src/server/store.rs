@@ -26,11 +26,15 @@ enum RequestCommand {
         key: IdempotencyKey,
         digest: RequestDigest,
         max_jobs: usize,
+        workflow: String,
         reply: Reply<Admission>,
     },
     Get {
         id: JobId,
         reply: Reply<Option<JobRecord>>,
+    },
+    Queued {
+        reply: Reply<Vec<(JobId, String)>>,
     },
     EventsAfter {
         id: JobId,
@@ -73,14 +77,22 @@ impl StoreHandle {
         key: IdempotencyKey,
         digest: RequestDigest,
         max_jobs: usize,
+        workflow: String,
     ) -> Result<Admission, ServerError> {
         let (reply, answer) = oneshot::channel();
         self.send_request(RequestCommand::Create {
             key,
             digest,
             max_jobs,
+            workflow,
             reply,
         })?;
+        receive(answer).await
+    }
+
+    pub(super) async fn queued_jobs(&self) -> Result<Vec<(JobId, String)>, ServerError> {
+        let (reply, answer) = oneshot::channel();
+        self.send_request(RequestCommand::Queued { reply })?;
         receive(answer).await
     }
 
@@ -264,13 +276,17 @@ fn dispatch_request(command: RequestCommand, store: &JobStore) {
             key,
             digest,
             max_jobs,
+            workflow,
             reply,
         } => {
-            let result = store.create_or_replay_bounded(key, digest, max_jobs);
+            let result = store.create_or_replay_named(key, digest, max_jobs, workflow);
             let _result = reply.send(result);
         }
         RequestCommand::Get { id, reply } => {
             let _result = reply.send(store.get(&id));
+        }
+        RequestCommand::Queued { reply } => {
+            let _result = reply.send(store.queued_jobs());
         }
         RequestCommand::EventsAfter {
             id,

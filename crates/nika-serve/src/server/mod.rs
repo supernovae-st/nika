@@ -126,6 +126,11 @@ impl BoundServer {
                 .saturating_add(4),
         )?;
         let (jobs, receiver) = mpsc::channel(config.limits().queue_capacity());
+        for (id, workflow) in store_actor.handle().queued_jobs().await? {
+            if jobs.try_send(ExecutionTask::new(id, workflow)).is_err() {
+                break;
+            }
+        }
         let state = Arc::new(AppState {
             token: prepared.token,
             store: store_actor.handle(),
@@ -218,6 +223,7 @@ async fn prepare_authority(config: &ServerConfig) -> Result<PreparedAuthority, S
             OwnedDir::open(&workflow_root)
                 .map_err(|error| ServerError::WorkflowRoot(error.kind()))?,
         );
+        ensure_state_root(&state_root)?;
         let store = Arc::new(JobStore::open_fail_fast(&state_root)?);
         let incarnation = store.claim_server_incarnation()?;
         store.settle_interrupted_jobs(&incarnation)?;
@@ -244,6 +250,24 @@ fn validate_config(config: &ServerConfig) -> Result<(), ServerError> {
         ));
     }
     Ok(())
+}
+
+fn ensure_state_root(path: &Path) -> Result<(), ServerError> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::DirBuilderExt as _;
+        let mut builder = std::fs::DirBuilder::new();
+        builder.recursive(true).mode(0o700);
+        match builder.create(path) {
+            Ok(()) => Ok(()),
+            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => Ok(()),
+            Err(error) => Err(crate::JobStoreError::Io(error.kind()).into()),
+        }
+    }
+    #[cfg(not(unix))]
+    {
+        std::fs::create_dir_all(path).map_err(|error| crate::JobStoreError::Io(error.kind()).into())
+    }
 }
 
 async fn run_until<F>(mut server: BoundServer, shutdown: F) -> Result<(), ServerError>

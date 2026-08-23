@@ -183,6 +183,17 @@ impl nika_serve::ExecutionBackend for HttpBackend {
     }
 }
 
+/// Dropping the HTTP execute future must stop the blocking worker.
+struct CancelOnDrop(Option<tokio::sync::oneshot::Sender<()>>);
+
+impl Drop for CancelOnDrop {
+    fn drop(&mut self) {
+        if let Some(sender) = self.0.take() {
+            let _ = sender.send(());
+        }
+    }
+}
+
 async fn drive_http_execution(
     display_root: PathBuf,
     context: nika_execution::ExecutionContext<'_>,
@@ -192,26 +203,20 @@ async fn drive_http_execution(
     let Some(driver) = ServiceExecutionDriver::new(context, display_root) else {
         return nika_serve::ExecutionDisposition::Failed;
     };
-    match tokio::task::spawn_blocking(move || run_admitted_http_job(&driver)).await {
+    let (cancel_tx, cancel_rx) = tokio::sync::oneshot::channel();
+    let _cancel = CancelOnDrop(Some(cancel_tx));
+    match tokio::task::spawn_blocking(move || run_admitted_http_job(driver, cancel_rx)).await {
         Ok(disposition) => disposition,
         Err(_) => nika_serve::ExecutionDisposition::Failed,
     }
 }
 
 fn run_admitted_http_job(
-    driver: &nika_service_execution::ServiceExecutionDriver,
+    driver: nika_service_execution::ServiceExecutionDriver,
+    cancel: tokio::sync::oneshot::Receiver<()>,
 ) -> nika_serve::ExecutionDisposition {
-    use nika_runtime::{SystemStamper, VecSink};
+    use nika_service_execution::{ServiceExecutionOptions, ServiceExecutionStatus};
 
-    let default_model = driver
-        .workflow()
-        .model
-        .as_ref()
-        .map_or("", |model| model.value.as_str());
-    let Ok(runtime) = driver.compose(default_model) else {
-        return nika_serve::ExecutionDisposition::Failed;
-    };
-    let runtime = runtime.with_prompt_pause(true);
     let Ok(rt) = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -219,14 +224,18 @@ fn run_admitted_http_job(
         return nika_serve::ExecutionDisposition::Failed;
     };
     rt.block_on(async move {
-        let mut stamper = SystemStamper::new();
-        let mut sink = VecSink::new();
-        match runtime.run(&mut stamper, &mut sink).await {
-            Ok(outcome) if outcome.paused.is_some() => nika_serve::ExecutionDisposition::Paused,
-            Ok(outcome) if outcome.ok && !outcome.budget_exceeded => {
-                nika_serve::ExecutionDisposition::Succeeded
-            }
-            _ => nika_serve::ExecutionDisposition::Failed,
+        tokio::select! {
+            result = driver.execute(ServiceExecutionOptions::new()) => match result {
+                Ok(outcome) => match outcome.status() {
+                    ServiceExecutionStatus::Succeeded => {
+                        nika_serve::ExecutionDisposition::Succeeded
+                    }
+                    ServiceExecutionStatus::Paused => nika_serve::ExecutionDisposition::Paused,
+                    _ => nika_serve::ExecutionDisposition::Failed,
+                },
+                Err(_) => nika_serve::ExecutionDisposition::Failed,
+            },
+            _ = cancel => nika_serve::ExecutionDisposition::Failed,
         }
     })
 }
@@ -851,6 +860,10 @@ mod tests {
         assert!(
             prod.contains("nika_serve::serve_http"),
             "HTTP is an explicit second door"
+        );
+        assert!(
+            prod.contains("CancelOnDrop") && prod.contains("driver.execute"),
+            "HTTP must cancel the blocking worker when the execute future is dropped"
         );
         for banned in [
             "reqwest",
