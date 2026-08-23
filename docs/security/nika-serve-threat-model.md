@@ -54,9 +54,16 @@ The design assumes an attacker can:
 - cause process restart between admission, execution, and response.
 
 The design does not claim protection from an attacker who can read the server's
-credential source or replace the running binary. Resource exhaustion by an
-already authenticated workflow remains bounded by workflow/runtime policy, not
-by authentication alone.
+credential source or replace the running binary. It equally does not claim
+protection from one who can write the durable job root: the event chain is
+unkeyed and every preimage input lives in the snapshot, so such an actor can
+delete, reorder, graft, or edit journal payloads — including flipping an
+approval decision from deny to allow — and recompute a chain that validates.
+Only the separately anchored `ApprovalHistory` survives that actor, and only to
+refuse reuse of an already burned digest; it authenticates neither the decision
+payload nor the journal. Resource exhaustion by an already authenticated
+workflow remains bounded by workflow/runtime policy, not by authentication
+alone.
 
 ## Route policy
 
@@ -150,7 +157,7 @@ HTTP surface that has not landed.
 | sandbox/permit refusal under structured capture | P0 | closed: the production runner retains the Seatbelt/landlock classifier through drain and attaches its typed receipt before structured interpretation; status 126 and launcher diagnostics refuse, while an unmarked business nonzero remains data | exec/runtime / W02 |
 | remote terminal classification | P0 | no remote process adapter exists; the kernel receipt table maps authority to blocked, transport to error, and missing/unsupported remote terminal receipts to fail-closed transport error | Serve worker adapter / W06 must attach a receipt on every terminal envelope |
 | approval replay across processes | P0 | closed against concurrent/repeated use: ticket-digest marker is atomically create-once in local `~/.nika/approval-claims`; process clones share an atomic claim | runtime + CLI / W02 |
-| approval marker rollback/deletion | P1 | the local marker assumes its owned state directory is not rolled back or deleted by the same OS principal; create-once does not make deletion evident | durable job ledger / W05 must bind claim state into its tamper-evident chain before W06 |
+| approval marker rollback/deletion | P1 | W05 fail-closed boundary present: `approval_decided` requires its canonical digest plus an injected monotonic `ApprovalHistory` outside the job snapshot's rollback domain. The unkeyed chain is an internal-consistency check: it rejects non-coherent modification, interior deletion, permutation, and graft, but an actor who can rewrite `state.json` recomputes every link and can delete, reorder, graft, or edit payloads, including deny to allow. The retained history anchors one-shot digest retention and reuse refusal only — not the decision payload or the journal — so a coherent tail rewrite can reopen while a burned digest still cannot be spent twice. A same-authority sidecar is insufficient. | Serve worker / W06 must supply the real history adapter and anchor before listener bind; the anchor's retention boundary is a deployment responsibility with no wave assigned here |
 | network composition | P1 | runtime maps absent/empty net grants to deny and refuses an unavailable declared sandbox; listener auth, bind acknowledgement, proxy and egress composition are still absent | Serve / W06 and VPS / W10 |
 | public health metadata | P1 | no route exists; the allowed future projection is `EngineIdentity` only | Serve / W06 |
 
@@ -192,6 +199,13 @@ transcript is claimed where no such test existed on that SHA.
 - [ ] identical idempotent replay returns one job across restart;
 - [ ] conflicting key reuse and simultaneous duplicates refuse without a second
   effect;
+- [x] durable event-chain modification, interior deletion, permutation, and
+  cross-job graft refuse **when the mutation does not recompute the chain**;
+  `approval_decided` cannot persist without its claim digest and injected
+  history, and coordinated tail rollback cannot release that digest while the
+  external authority survives. No box here claims detection of a coherent
+  rewrite: the chain is unkeyed, so authenticating the journal or an approval
+  payload would need a key or signature that W05 does not introduce;
 - [ ] opaque job guessing and unknown ids disclose no registry membership;
 - [ ] `paused` round-trips through Rust, OpenAPI, fixtures, and TypeScript;
 - [ ] SSE auth, resume, stale/future cursors, lag overflow, disconnect, and

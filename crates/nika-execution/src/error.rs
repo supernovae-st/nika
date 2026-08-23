@@ -7,6 +7,24 @@ use std::fmt;
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum ExecutionError {
+    /// A captured snapshot uses a format this engine cannot readmit.
+    #[non_exhaustive]
+    UnsupportedSnapshotFormat {
+        /// Format version carried by the snapshot.
+        found: u32,
+        /// Format version this engine accepts.
+        expected: u32,
+    },
+    /// A captured unit's stored identity no longer matches its owned bytes.
+    #[non_exhaustive]
+    UnitDigestMismatch {
+        /// Contained logical path of the changed unit.
+        logical_path: String,
+    },
+    /// The snapshot's stored aggregate identity no longer matches its world.
+    SnapshotDigestMismatch,
+    /// The captured unit map no longer describes the closure rooted at `root`.
+    SnapshotStructureMismatch,
     /// A logical path was absolute, escaped its root, was empty, or was not UTF-8.
     #[non_exhaustive]
     InvalidLogicalPath {
@@ -118,6 +136,21 @@ pub enum ExecutionError {
 impl fmt::Display for ExecutionError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::UnsupportedSnapshotFormat { found, expected } => write!(
+                f,
+                "unsupported execution snapshot format {found} (expected {expected})"
+            ),
+            Self::UnitDigestMismatch { logical_path } => write!(
+                f,
+                "captured unit `{logical_path}` does not match its digest"
+            ),
+            Self::SnapshotDigestMismatch => {
+                write!(f, "captured world does not match its snapshot digest")
+            }
+            Self::SnapshotStructureMismatch => write!(
+                f,
+                "captured world does not match its rooted dependency closure"
+            ),
             Self::InvalidLogicalPath { path } => write!(f, "invalid logical path `{path}`"),
             Self::Io {
                 logical_path,

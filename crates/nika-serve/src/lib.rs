@@ -9,6 +9,8 @@
 pub mod job;
 
 pub use job::{
-    Admission, IdempotencyKey, JobEvent, JobId, JobRecord, JobStatus, JobStore, JobStoreError,
-    RequestDigest, ServerIncarnation,
+    Admission, ApprovalHistory, ApprovalHistoryError, EventPageLimit, IdempotencyKey, JobEvent,
+    JobId, JobMutation, JobRecord, JobStatus, JobStore, JobStoreError, MAX_EVENT_BATCH_LEN,
+    MAX_EVENT_PAGE_LEN, MAX_EVENT_PAYLOAD_BYTES, MAX_JOB_SNAPSHOT_BYTES, RequestDigest,
+    ServerIncarnation,
 };

@@ -246,7 +246,9 @@ fn skill_registry_reload_interleaved_after_read_cannot_change_admission() {
     )
     .expect("capture owns the already-read skill");
     attacker.join().expect("attacker");
-    let admitted = ExecutionService::admit_snapshot(snapshot).expect("snapshot admits");
+    let admitted = ExecutionService::default()
+        .readmit_snapshot(snapshot)
+        .expect("snapshot admits");
     assert_eq!(
         admitted.snapshot().text("skills/review/SKILL.md"),
         Some(SKILL)

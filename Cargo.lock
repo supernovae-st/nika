@@ -4312,6 +4312,7 @@ dependencies = [
  "nika-registry-client",
  "nika-runtime",
  "nika-schema",
+ "nika-service-execution",
  "nika-store",
  "nika-trace",
  "nika-types",
@@ -4944,9 +4945,27 @@ dependencies = [
  "nix 0.31.3",
  "serde",
  "serde_json",
+ "sha2 0.10.9",
  "tempfile",
  "thiserror 2.0.20",
  "uuid",
+]
+
+[[package]]
+name = "nika-service-execution"
+version = "0.113.0"
+dependencies = [
+ "nika-check",
+ "nika-event",
+ "nika-execution",
+ "nika-fs",
+ "nika-providers",
+ "nika-runtime",
+ "nika-schema",
+ "nika-types",
+ "serde_json",
+ "tempfile",
+ "tokio",
 ]
 
 [[package]]
