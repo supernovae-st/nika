@@ -26,6 +26,12 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Changed
 
+- **The default sandbox arm stays fail-closed (#822).** `NIKA_SANDBOX`
+  unset (`auto`) plus a `permits:` workflow plus no OS jail is NIKA-1710,
+  not a composed Noop run. The composition gate is tested with a Noop
+  decision so deleting the refuse arm cannot hide behind a host that
+  ships Seatbelt. Doctor display of the row stays S3.
+
 - **Failed HTTP jobs name a NIKA code.** `GET /v1/jobs/{id}` grows an
   optional `{error:{code,message}}` on `failed`. SSE settled/refused
   frames may carry the same redacted pair. Paths and secret-shaped

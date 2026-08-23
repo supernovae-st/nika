@@ -205,6 +205,33 @@ mod tests {
         );
     }
 
+    fn noop_decision() -> SandboxDecision {
+        let sandbox: Arc<dyn CommandSandbox> = Arc::new(nika_kernel::command_sandbox::NoopSandbox);
+        let backend = sandbox.backend();
+        SandboxDecision { sandbox, backend }
+    }
+
+    /// #822 at the composition gate: Auto (default) + permits + Noop must
+    /// be NIKA-1710, not a composed unconfined run. Deleting the Refused
+    /// arm of `apply_sandbox_policy_with` dies here.
+    #[test]
+    fn default_auto_refuses_to_compose_permits_on_noop() {
+        let decision = noop_decision();
+        assert!(!decision.is_confined());
+        let refused = apply_sandbox_policy_with(SandboxPolicy::Auto, &decision, true);
+        assert!(
+            matches!(
+                &refused,
+                Err(e) if e.nika_code().to_string() == "NIKA-1710"
+            ),
+            "#822: the default arm must fail closed: {refused:?}"
+        );
+        assert!(
+            apply_sandbox_policy_with(SandboxPolicy::Off, &decision, true).is_ok(),
+            "only the explicit waiver composes Noop under permits"
+        );
+    }
+
     /// The refusal names the code, the reason, and BOTH exits (#889 ·
     /// NIKA-1710).
     #[test]
@@ -279,6 +306,16 @@ pub fn apply_sandbox_policy(
     permits_declared: bool,
 ) -> Result<(SandboxPolicy, SandboxVerdict), ComposeError> {
     let policy = sandbox_policy_from_env()?;
+    apply_sandbox_policy_with(policy, decision, permits_declared)
+}
+
+/// The composition refuse path with the policy already in hand — tests
+/// pin #822 here so a deleted `Refused → Err` cannot hide behind env.
+fn apply_sandbox_policy_with(
+    policy: SandboxPolicy,
+    decision: &SandboxDecision,
+    permits_declared: bool,
+) -> Result<(SandboxPolicy, SandboxVerdict), ComposeError> {
     let verdict = policy.judge(decision.is_confined(), permits_declared);
     if verdict == SandboxVerdict::Refused {
         return Err(SandboxRefusal::for_policy(policy, permits_declared).into());
