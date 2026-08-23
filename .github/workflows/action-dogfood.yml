@@ -2,10 +2,17 @@
 # Proves the whole chain end-to-end — install the released binary, check,
 # run cost-capped, name the trace — through the SAME door a user gets
 # (the binary boundary · nika.sh/install.sh · no local build).
+#
+# clock: released · install.sh pulls GitHub Latest, never this tree.
+# Tags are excluded: a tag of a language-clock change (nika.yaml rename)
+# then dogfoods the previous binary against this checkout and fails
+# closed for the wrong reason. Smoke lives in $RUNNER_TEMP so project
+# discovery does not walk into this engine's nika.yaml.
 name: action-dogfood
 
 on:
   push:
+    branches: [main]
     paths:
       - "action/**"
       - ".github/workflows/action-dogfood.yml"
@@ -23,11 +30,11 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
-      - name: Write a $0 mock workflow
+      - name: Write a $0 mock workflow outside this checkout
         shell: bash
         run: |
-          mkdir -p wf
-          cat > wf/smoke.nika.yaml <<'YAML'
+          mkdir -p "$RUNNER_TEMP/nika-dogfood"
+          cat > "$RUNNER_TEMP/nika-dogfood/smoke.nika.yaml" <<'YAML'
           # A zero-cost mock run proving the action end-to-end.
           nika: action-dogfood
 
@@ -42,7 +49,8 @@ jobs:
         id: nika
         uses: ./action
         with:
-          file: wf/smoke.nika.yaml
+          file: smoke.nika.yaml
+          working-directory: ${{ runner.temp }}/nika-dogfood
           max-cost-usd: "0.01"
 
       - name: Assert the trace exists and verifies

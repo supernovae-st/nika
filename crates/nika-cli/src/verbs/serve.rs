@@ -40,7 +40,8 @@ pub struct ServeArgs {
     /// Acknowledge a non-loopback `--bind`. Authentication is unchanged.
     #[arg(long)]
     pub allow_remote: bool,
-    /// Owner-only file holding the Bearer secret. Bytes never enter argv.
+    /// Owner-only Bearer file (32–512 visible ASCII bytes, mode 0600). Never argv.
+    /// Mint: umask 077 && openssl rand -hex 24 > .nika/serve.token && chmod 600 .nika/serve.token
     #[arg(long, value_name = "FILE")]
     pub token_file: Option<PathBuf>,
     /// Durable job-state root. Defaults to `<cwd>/.nika/serve`.
@@ -105,6 +106,15 @@ fn http_requested(args: &ServeArgs) -> bool {
         || args.allow_remote
 }
 
+/// Operator-visible mint. `openssl rand -hex 24` is 48 graphic ASCII bytes.
+const TOKEN_FILE_MINT: &str =
+    "umask 077 && openssl rand -hex 24 > .nika/serve.token && chmod 600 .nika/serve.token";
+const TOKEN_FILE_RULE: &str = "32–512 visible ASCII bytes, mode 0600, never argv";
+
+fn token_file_refused(prefix: &str) -> String {
+    format!("serve · {prefix} ({TOKEN_FILE_RULE})\n  {TOKEN_FILE_MINT}")
+}
+
 fn serve_http_mode(args: &ServeArgs) -> Result<VerbOutput, String> {
     let bind = args
         .bind
@@ -114,9 +124,10 @@ fn serve_http_mode(args: &ServeArgs) -> Result<VerbOutput, String> {
         .workflows
         .as_deref()
         .ok_or_else(|| "serve · --bind and --workflows are an inseparable pair".to_owned())?;
-    let token_file = args.token_file.as_deref().ok_or_else(|| {
-        "serve · --bind requires --token-file (credential bytes never enter argv)".to_owned()
-    })?;
+    let token_file = args
+        .token_file
+        .as_deref()
+        .ok_or_else(|| token_file_refused("--bind requires --token-file"))?;
     if args.once || args.dry {
         return Err("serve · --once/--dry cannot bind a listener".to_owned());
     }
@@ -141,7 +152,10 @@ fn serve_http_mode(args: &ServeArgs) -> Result<VerbOutput, String> {
         backend,
         http_shutdown(),
     ))
-    .map_err(|error| format!("serve · {error}"))?;
+    .map_err(|error| match error {
+        nika_serve::ServerError::Credential => token_file_refused("token file refused"),
+        other => format!("serve · {other}"),
+    })?;
     Ok(VerbOutput::ok(String::new()))
 }
 
@@ -897,6 +911,13 @@ mod tests {
         assert_eq!(out.code, exit::WORKFLOW, "{}", out.text);
         assert!(out.text.contains("--once"), "{}", out.text);
 
+        let mut mint = serve_args();
+        mint.bind = Some("127.0.0.1:0".to_owned());
+        mint.workflows = Some(PathBuf::from("workflows"));
+        let out = run(&mint);
+        assert_eq!(out.code, exit::WORKFLOW, "{}", out.text);
+        assert!(out.text.contains("openssl rand -hex 24"), "{}", out.text);
+
         args.once = false;
         args.dry = true;
         let out = run(&args);
@@ -908,5 +929,48 @@ mod tests {
         let out = run(&args);
         assert_eq!(out.code, exit::WORKFLOW, "{}", out.text);
         assert!(out.text.contains("bind address is invalid"), "{}", out.text);
+    }
+
+    #[test]
+    fn a_short_token_file_teaches_the_mint_and_does_not_echo_the_secret() {
+        let tmp = tempfile::tempdir().expect("tmp");
+        let workflows = tmp.path().join("wf");
+        std::fs::create_dir(&workflows).expect("wf");
+        let token = tmp.path().join("short.token");
+        std::fs::write(&token, "too-short\n").expect("token");
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt as _;
+            std::fs::set_permissions(&token, std::fs::Permissions::from_mode(0o600)).expect("mode");
+        }
+        let mut args = serve_args();
+        args.bind = Some("127.0.0.1:0".to_owned());
+        args.workflows = Some(workflows);
+        args.token_file = Some(token);
+        let out = run(&args);
+        assert_eq!(out.code, exit::WORKFLOW, "{}", out.text);
+        assert!(out.text.contains("openssl rand -hex 24"), "{}", out.text);
+        assert!(!out.text.contains("too-short"), "{}", out.text);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn a_world_readable_token_file_teaches_the_mint_and_does_not_echo_the_secret() {
+        use std::os::unix::fs::PermissionsExt as _;
+        let tmp = tempfile::tempdir().expect("tmp");
+        let workflows = tmp.path().join("wf");
+        std::fs::create_dir(&workflows).expect("wf");
+        let token = tmp.path().join("open.token");
+        let secret = "a".repeat(32);
+        std::fs::write(&token, &secret).expect("token");
+        std::fs::set_permissions(&token, std::fs::Permissions::from_mode(0o644)).expect("mode");
+        let mut args = serve_args();
+        args.bind = Some("127.0.0.1:0".to_owned());
+        args.workflows = Some(workflows);
+        args.token_file = Some(token);
+        let out = run(&args);
+        assert_eq!(out.code, exit::WORKFLOW, "{}", out.text);
+        assert!(out.text.contains("openssl rand -hex 24"), "{}", out.text);
+        assert!(!out.text.contains(&secret), "{}", out.text);
     }
 }
