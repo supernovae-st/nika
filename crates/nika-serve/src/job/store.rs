@@ -1,33 +1,79 @@
 use std::collections::BTreeSet;
+use std::fmt;
+use std::io::{Read as _, Write as _};
 use std::path::Path;
-use std::sync::{Mutex, MutexGuard};
+#[cfg(test)]
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex, MutexGuard};
 
 use nika_fs::OwnedDir;
 use nix::fcntl::{Flock, FlockArg};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use sha2::{Digest as _, Sha256};
 
+use super::model::{EventHash, IncarnationGeneration};
 use super::{
-    Admission, IdempotencyKey, JobEvent, JobId, JobRecord, JobStatus, JobStoreError, RequestDigest,
-    ServerIncarnation,
+    Admission, ApprovalHistoryError, EventPageLimit, IdempotencyKey, JobEvent, JobId, JobMutation,
+    JobRecord, JobStatus, JobStoreError, MAX_EVENT_BATCH_LEN, MAX_EVENT_PAYLOAD_BYTES,
+    MAX_JOB_SNAPSHOT_BYTES, RequestDigest, ServerIncarnation,
 };
 
 const JOBS_DIR: &str = "jobs";
 const INITIALIZED_FILE: &str = "initialized.json";
 const INITIALIZED_BODY: &str = "{\"schema\":\"nika/job-store-init@1\"}\n";
 const LOCK_FILE: &str = "store.lock";
+const SERVER_LOCK_FILE: &str = "server.lock";
 const STATE_FILE: &str = "state.json";
-const STATE_VERSION: u32 = 1;
+const STATE_VERSION: u32 = 2;
+const EVENT_HASH_DOMAIN: &[u8] = b"nika.job-event.chain\0v1\0";
+
+/// Monotonic authority for one-shot approval-decision history.
+///
+/// An implementation belongs to a durability domain that an actor able to
+/// rewrite the job snapshot cannot coherently roll back. A successful
+/// [`record_once`](Self::record_once) durably records the complete batch before
+/// returning. If any supplied digest was recorded earlier, the implementation
+/// returns [`ApprovalHistoryError::AlreadyRecorded`] and records none of them.
+///
+/// The history may contain records absent from the job snapshot after a failed
+/// snapshot write or a rollback. [`verify_recorded`](Self::verify_recorded)
+/// therefore proves containment, not equality.
+pub trait ApprovalHistory: Send + Sync + 'static {
+    /// Verify that every supplied digest is already in authoritative history.
+    ///
+    /// # Errors
+    /// Returns [`ApprovalHistoryError::MissingRecord`] when any digest is
+    /// absent, or [`ApprovalHistoryError::Unavailable`] when no durable verdict
+    /// can be made.
+    fn verify_recorded(&self, digests: &[RequestDigest]) -> Result<(), ApprovalHistoryError>;
+
+    /// Atomically record a batch only if every digest is globally unused.
+    ///
+    /// # Errors
+    /// Returns [`ApprovalHistoryError::AlreadyRecorded`] without mutation when
+    /// any digest was already recorded, or [`ApprovalHistoryError::Unavailable`]
+    /// when the durable decision cannot be completed.
+    fn record_once(&self, digests: &[RequestDigest]) -> Result<(), ApprovalHistoryError>;
+}
 
 /// Descriptor-rooted durable job state.
 ///
 /// Every operation takes both an in-process mutex and a kernel advisory lock,
 /// then reloads and validates the snapshot before reading or mutating it. A
 /// visible path replacement after [`JobStore::open`] cannot redirect I/O.
-#[derive(Debug)]
 pub struct JobStore {
     dir: OwnedDir,
+    approval_history: Option<Arc<dyn ApprovalHistory>>,
     local: Mutex<()>,
+    #[cfg(test)]
+    fail_next_persist: AtomicBool,
+}
+
+impl fmt::Debug for JobStore {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str("JobStore { durable_root: <redacted> }")
+    }
 }
 
 impl JobStore {
@@ -39,11 +85,39 @@ impl JobStore {
     ///
     /// # Errors
     /// Returns an error when the root cannot be held safely or existing state
-    /// is unreadable, truncated, or violates a persisted invariant.
+    /// is unreadable, truncated, violates a persisted invariant, or already
+    /// contains approvals that require an external history authority.
     pub fn open(root: &Path) -> Result<Self, JobStoreError> {
+        Self::open_inner(root, None)
+    }
+
+    /// Open a durable job store with an external monotonic approval history.
+    ///
+    /// Approval events fail closed under [`Self::open`]. This constructor is
+    /// required to append or reopen them. The authority must live outside the
+    /// job snapshot's rollback domain and atomically enforce the
+    /// [`ApprovalHistory`] contract.
+    ///
+    /// # Errors
+    /// Returns an error when the root cannot be held safely, existing state is
+    /// invalid, or its approval digests are absent from authoritative history.
+    pub fn open_with_approval_history(
+        root: &Path,
+        approval_history: Arc<dyn ApprovalHistory>,
+    ) -> Result<Self, JobStoreError> {
+        Self::open_inner(root, Some(approval_history))
+    }
+
+    fn open_inner(
+        root: &Path,
+        approval_history: Option<Arc<dyn ApprovalHistory>>,
+    ) -> Result<Self, JobStoreError> {
         let store = Self {
             dir: OwnedDir::create(root, &[JOBS_DIR])?,
+            approval_history,
             local: Mutex::new(()),
+            #[cfg(test)]
+            fail_next_persist: AtomicBool::new(false),
         };
         {
             let _local = store.local_guard()?;
@@ -93,6 +167,8 @@ impl JobStore {
         state.jobs.push(StoredJob {
             record: record.clone(),
             events: Vec::new(),
+            event_count: 0,
+            event_head: None,
         });
         self.persist(&state)?;
         Ok(Admission::Created(record))
@@ -113,16 +189,23 @@ impl JobStore {
             .map(|job| job.record.clone()))
     }
 
-    /// Apply one legal lifecycle transition and durably return the new record.
+    /// Apply one legal lifecycle transition and its events in one replacement.
     ///
     /// # Errors
     /// Returns [`JobStoreError::JobNotFound`] for an unknown id,
     /// [`JobStoreError::IllegalTransition`] for a forbidden edge, or a storage
     /// error. Forbidden edges do not mutate the snapshot.
-    pub fn transition(&self, id: &JobId, next: JobStatus) -> Result<JobRecord, JobStoreError> {
+    pub fn transition_with_events(
+        &self,
+        id: &JobId,
+        next: JobStatus,
+        payloads: &[Value],
+    ) -> Result<JobMutation, JobStoreError> {
+        let batch = ValidatedEventBatch::for_transition(payloads)?;
         let _local = self.local_guard()?;
         let _lease = self.kernel_lease()?;
         let mut state = self.load_state()?;
+        ensure_approval_claims_unused(&state, &batch)?;
         let job = state
             .jobs
             .iter_mut()
@@ -135,10 +218,11 @@ impl JobStore {
                 to: next,
             });
         }
+        let events = job.append_payloads(&batch)?;
         job.record.status = next;
         let record = job.record.clone();
-        self.persist(&state)?;
-        Ok(record)
+        self.persist_event_mutation(&state, &batch)?;
+        Ok(JobMutation { record, events })
     }
 
     /// Append payloads with strictly increasing per-job sequence numbers.
@@ -151,33 +235,19 @@ impl JobStore {
         id: &JobId,
         payloads: &[Value],
     ) -> Result<Vec<JobEvent>, JobStoreError> {
+        let batch = ValidatedEventBatch::new(payloads)?;
         let _local = self.local_guard()?;
         let _lease = self.kernel_lease()?;
         let mut state = self.load_state()?;
+        ensure_approval_claims_unused(&state, &batch)?;
         let job = state
             .jobs
             .iter_mut()
             .find(|job| job.record.id == *id)
             .ok_or_else(|| JobStoreError::JobNotFound(id.clone()))?;
-        let mut next = job
-            .events
-            .last()
-            .map_or(Ok(1), |event| event.sequence.checked_add(1).ok_or(()))
-            .map_err(|()| JobStoreError::SequenceExhausted(id.clone()))?;
-        let mut appended = Vec::with_capacity(payloads.len());
-        for payload in payloads {
-            let event = JobEvent {
-                sequence: next,
-                payload: payload.clone(),
-            };
-            next = next
-                .checked_add(1)
-                .ok_or_else(|| JobStoreError::SequenceExhausted(id.clone()))?;
-            job.events.push(event.clone());
-            appended.push(event);
-        }
+        let appended = job.append_payloads(&batch)?;
         if !appended.is_empty() {
-            self.persist(&state)?;
+            self.persist_event_mutation(&state, &batch)?;
         }
         Ok(appended)
     }
@@ -187,7 +257,12 @@ impl JobStore {
     /// # Errors
     /// Returns an error for an unknown job, a cursor beyond the latest durable
     /// sequence, or a store that cannot be locked and validated.
-    pub fn events_after(&self, id: &JobId, after: u64) -> Result<Vec<JobEvent>, JobStoreError> {
+    pub fn events_after(
+        &self,
+        id: &JobId,
+        after: u64,
+        limit: EventPageLimit,
+    ) -> Result<Vec<JobEvent>, JobStoreError> {
         let _local = self.local_guard()?;
         let _lease = self.kernel_lease()?;
         let state = self.load_state()?;
@@ -208,6 +283,7 @@ impl JobStore {
             .events
             .iter()
             .filter(|event| event.sequence > after)
+            .take(limit.get())
             .cloned()
             .collect())
     }
@@ -237,7 +313,7 @@ impl JobStore {
 
     fn initialize_or_load(&self) -> Result<(), JobStoreError> {
         let marker = self.dir.read_optional(INITIALIZED_FILE)?;
-        let state = self.dir.read_optional(STATE_FILE)?;
+        let state = self.read_state_optional()?;
         match (marker.as_deref(), state.as_deref()) {
             (None, None) => {
                 self.persist(&PersistedState::new())?;
@@ -246,7 +322,8 @@ impl JobStore {
             }
             (Some(marker), Some(state)) => {
                 validate_initialization_marker(marker)?;
-                decode_state(state).map(|_| ())
+                let state = decode_state(state)?;
+                self.verify_approval_history(&state)
             }
             (Some(marker), None) => {
                 validate_initialization_marker(marker)?;
@@ -258,7 +335,28 @@ impl JobStore {
         }
     }
 
-    /// Settle ownerless running jobs for a new exclusive server incarnation.
+    /// Claim a server-wide lease and durably bind a new incarnation generation.
+    ///
+    /// The returned capability owns `server.lock` until drop. This is
+    /// crate-private because only W06's bootstrap may claim it before binding.
+    ///
+    /// # Errors
+    /// Returns an error when another live server owns the lease, or when
+    /// locking, loading, generation allocation, or durable writing fails.
+    pub(crate) fn claim_server_incarnation(&self) -> Result<ServerIncarnation, JobStoreError> {
+        let server_lease = self.server_lease()?;
+        let _local = self.local_guard()?;
+        let _lease = self.kernel_lease()?;
+        let mut state = self.load_state()?;
+        let generation = state.incarnation.claim()?;
+        self.persist(&state)?;
+        Ok(ServerIncarnation {
+            generation,
+            _lease: server_lease,
+        })
+    }
+
+    /// Settle ownerless running jobs once for a leased server incarnation.
     ///
     /// The capability argument cannot be constructed outside `nika-serve`.
     /// W06's server bootstrap owns it after proving exclusivity and must call
@@ -269,22 +367,48 @@ impl JobStore {
     /// fails.
     pub fn settle_interrupted_jobs(
         &self,
-        _incarnation: &ServerIncarnation,
+        incarnation: &ServerIncarnation,
     ) -> Result<usize, JobStoreError> {
         let _local = self.local_guard()?;
         let _lease = self.kernel_lease()?;
         let mut state = self.load_state()?;
+        if state.incarnation.current != incarnation.generation {
+            return Err(JobStoreError::StaleServerIncarnation);
+        }
+        if state.incarnation.settled == Some(incarnation.generation) {
+            return Ok(0);
+        }
+        let prior_generation = state.incarnation.settled.map(IncarnationGeneration::get);
+        let current_generation = incarnation.generation.get();
         let mut settled = 0;
         for job in &mut state.jobs {
             if job.record.status == JobStatus::Running {
+                let payload = serde_json::json!({
+                    "incarnation_generation": current_generation,
+                    "kind": "interrupted",
+                    "previous_incarnation_generation": prior_generation,
+                    "status": "interrupted",
+                });
+                let batch = ValidatedEventBatch::for_transition(std::slice::from_ref(&payload))?;
+                job.append_payloads(&batch)?;
                 job.record.status = JobStatus::Interrupted;
                 settled += 1;
             }
         }
-        if settled != 0 {
-            self.persist(&state)?;
-        }
+        state.incarnation.settled = Some(incarnation.generation);
+        self.persist(&state)?;
         Ok(settled)
+    }
+
+    fn server_lease(&self) -> Result<Flock<std::fs::File>, JobStoreError> {
+        let file = self.dir.open_lock(SERVER_LOCK_FILE)?;
+        match Flock::lock(file, FlockArg::LockExclusiveNonblock) {
+            Ok(lease) => Ok(lease),
+            Err((_file, nix::errno::Errno::EAGAIN)) => Err(JobStoreError::ServerLeaseHeld),
+            Err((_file, errno)) => Err(JobStoreError::from(std::io::Error::from_raw_os_error(
+                errno as i32,
+            ))),
+        }
     }
 
     pub(super) fn load_state(&self) -> Result<PersistedState, JobStoreError> {
@@ -294,26 +418,97 @@ impl JobStore {
             .ok_or_else(|| JobStoreError::Corrupt("initialization marker is missing".to_owned()))?;
         validate_initialization_marker(&marker)?;
         let text = self
-            .dir
-            .read_optional(STATE_FILE)?
+            .read_state_optional()?
             .ok_or_else(missing_state_error)?;
-        decode_state(&text)
+        let state = decode_state(&text)?;
+        self.verify_approval_history(&state)?;
+        Ok(state)
     }
 
     fn persist(&self, state: &PersistedState) -> Result<(), JobStoreError> {
-        state.validate()?;
-        let mut body = serde_json::to_string(state)
-            .map_err(|_| JobStoreError::Corrupt("state cannot be encoded".to_owned()))?;
-        body.push('\n');
-        self.dir.write_atomic(STATE_FILE, &body)?;
+        let body = prepare_snapshot(state)?;
+        self.write_snapshot(&body)
+    }
+
+    fn persist_event_mutation(
+        &self,
+        state: &PersistedState,
+        batch: &ValidatedEventBatch<'_>,
+    ) -> Result<(), JobStoreError> {
+        let body = prepare_snapshot(state)?;
+        let claims = batch.approval_digests()?;
+        if !claims.is_empty() {
+            let history = self
+                .approval_history
+                .as_ref()
+                .ok_or(JobStoreError::ApprovalHistoryRequired)?;
+            history.record_once(&claims)?;
+        }
+        self.write_snapshot(&body)
+    }
+
+    fn write_snapshot(&self, body: &EncodedSnapshot) -> Result<(), JobStoreError> {
+        #[cfg(test)]
+        if self.fail_next_persist.swap(false, Ordering::AcqRel) {
+            return Err(std::io::Error::other("injected durable write failure").into());
+        }
+        self.dir.write_atomic(STATE_FILE, body.as_str())?;
         Ok(())
     }
+
+    fn verify_approval_history(&self, state: &PersistedState) -> Result<(), JobStoreError> {
+        let claims = state.approval_claims()?;
+        if claims.is_empty() {
+            return Ok(());
+        }
+        let history = self
+            .approval_history
+            .as_ref()
+            .ok_or(JobStoreError::ApprovalHistoryRequired)?;
+        history.verify_recorded(&claims)?;
+        Ok(())
+    }
+
+    #[cfg(test)]
+    pub(super) fn fail_next_persist(&self) {
+        self.fail_next_persist.store(true, Ordering::Release);
+    }
+
+    fn read_state_optional(&self) -> Result<Option<String>, JobStoreError> {
+        let mut file = match self.dir.open_relative(Path::new(STATE_FILE)) {
+            Ok(file) => file,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => return Ok(None),
+            Err(error) => return Err(error.into()),
+        };
+        let bytes = file.metadata()?.len();
+        if bytes > MAX_JOB_SNAPSHOT_BYTES as u64 {
+            return Err(snapshot_too_large(bytes));
+        }
+        let mut body = Vec::new();
+        std::io::Read::by_ref(&mut file)
+            .take(MAX_JOB_SNAPSHOT_BYTES as u64 + 1)
+            .read_to_end(&mut body)?;
+        if body.len() > MAX_JOB_SNAPSHOT_BYTES {
+            return Err(snapshot_too_large(body.len() as u64));
+        }
+        String::from_utf8(body)
+            .map(Some)
+            .map_err(|_| JobStoreError::Corrupt("state is not valid UTF-8".to_owned()))
+    }
 }
+
+// Compile-time pin for the crate-private W06 bootstrap seam. Keeping the
+// authority non-public is more important than making it externally callable
+// before the listener module lands.
+#[cfg(not(test))]
+const _: fn(&JobStore) -> Result<ServerIncarnation, JobStoreError> =
+    JobStore::claim_server_incarnation;
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub(super) struct PersistedState {
     version: u32,
+    incarnation: IncarnationLedger,
     pub(super) jobs: Vec<StoredJob>,
 }
 
@@ -321,6 +516,7 @@ impl PersistedState {
     fn new() -> Self {
         Self {
             version: STATE_VERSION,
+            incarnation: IncarnationLedger::new(),
             jobs: Vec::new(),
         }
     }
@@ -331,8 +527,10 @@ impl PersistedState {
                 "state version is unsupported".to_owned(),
             ));
         }
+        self.incarnation.validate()?;
         let mut ids = BTreeSet::new();
         let mut keys = BTreeSet::new();
+        let mut approval_claims = BTreeSet::new();
         for job in &self.jobs {
             job.record.id.validate()?;
             job.record.idempotency_key.validate()?;
@@ -345,7 +543,62 @@ impl PersistedState {
                     "duplicate idempotency key".to_owned(),
                 ));
             }
-            validate_events(&job.events)?;
+            validate_events(job)?;
+            for event in &job.events {
+                if let Some(digest) = approval_digest(&event.payload)
+                    && !approval_claims.insert(digest)
+                {
+                    return Err(JobStoreError::Corrupt(
+                        "approval claim digest is duplicated".to_owned(),
+                    ));
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn approval_claims(&self) -> Result<Vec<RequestDigest>, JobStoreError> {
+        self.jobs
+            .iter()
+            .flat_map(|job| &job.events)
+            .filter_map(|event| approval_digest(&event.payload))
+            .map(RequestDigest::new)
+            .collect()
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+struct IncarnationLedger {
+    current: IncarnationGeneration,
+    settled: Option<IncarnationGeneration>,
+}
+
+impl IncarnationLedger {
+    const fn new() -> Self {
+        Self {
+            current: IncarnationGeneration::INITIAL,
+            settled: None,
+        }
+    }
+
+    fn claim(&mut self) -> Result<IncarnationGeneration, JobStoreError> {
+        let generation = self
+            .current
+            .next()
+            .ok_or(JobStoreError::IncarnationGenerationExhausted)?;
+        self.current = generation;
+        Ok(generation)
+    }
+
+    fn validate(&self) -> Result<(), JobStoreError> {
+        if self
+            .settled
+            .is_some_and(|settled| settled.get() == 0 || settled > self.current)
+        {
+            return Err(JobStoreError::Corrupt(
+                "incarnation settlement generation is invalid".to_owned(),
+            ));
         }
         Ok(())
     }
@@ -356,6 +609,43 @@ impl PersistedState {
 pub(super) struct StoredJob {
     record: JobRecord,
     events: Vec<JobEvent>,
+    event_count: u64,
+    event_head: Option<EventHash>,
+}
+
+impl StoredJob {
+    fn append_payloads(
+        &mut self,
+        batch: &ValidatedEventBatch<'_>,
+    ) -> Result<Vec<JobEvent>, JobStoreError> {
+        let mut next = self
+            .events
+            .last()
+            .map_or(Ok(1), |event| event.sequence.checked_add(1).ok_or(()))
+            .map_err(|()| JobStoreError::SequenceExhausted(self.record.id.clone()))?;
+        let mut appended = Vec::with_capacity(batch.len());
+        for payload in batch.payloads() {
+            let previous_hash = self.event_head.clone();
+            let hash = hash_event(&self.record, next, previous_hash.as_ref(), payload)?;
+            let event = JobEvent {
+                sequence: next,
+                payload: payload.clone(),
+                previous_hash,
+                hash,
+            };
+            next = next
+                .checked_add(1)
+                .ok_or_else(|| JobStoreError::SequenceExhausted(self.record.id.clone()))?;
+            self.events.push(event.clone());
+            self.event_count = self
+                .event_count
+                .checked_add(1)
+                .ok_or_else(|| JobStoreError::SequenceExhausted(self.record.id.clone()))?;
+            self.event_head = Some(event.hash.clone());
+            appended.push(event);
+        }
+        Ok(appended)
+    }
 }
 
 fn unique_job_id(state: &PersistedState) -> JobId {
@@ -367,8 +657,16 @@ fn unique_job_id(state: &PersistedState) -> JobId {
     }
 }
 
-fn validate_events(events: &[JobEvent]) -> Result<(), JobStoreError> {
-    for (index, event) in events.iter().enumerate() {
+fn validate_events(job: &StoredJob) -> Result<(), JobStoreError> {
+    if usize::try_from(job.event_count).ok() != Some(job.events.len())
+        || job.event_head.as_ref() != job.events.last().map(|event| &event.hash)
+    {
+        return Err(JobStoreError::Corrupt(
+            "event chain head or count does not match its journal".to_owned(),
+        ));
+    }
+    let mut previous: Option<&EventHash> = None;
+    for (index, event) in job.events.iter().enumerate() {
         let expected = u64::try_from(index)
             .ok()
             .and_then(|value| value.checked_add(1))
@@ -378,8 +676,49 @@ fn validate_events(events: &[JobEvent]) -> Result<(), JobStoreError> {
                 "event sequence is not contiguous".to_owned(),
             ));
         }
+        event.hash.validate()?;
+        if event.previous_hash.as_ref() != previous {
+            return Err(JobStoreError::Corrupt(
+                "event chain predecessor does not match".to_owned(),
+            ));
+        }
+        validate_approval_event(&event.payload)
+            .map_err(|_| JobStoreError::Corrupt("approval event digest is invalid".to_owned()))?;
+        let expected_hash = hash_event(
+            &job.record,
+            event.sequence,
+            event.previous_hash.as_ref(),
+            &event.payload,
+        )?;
+        if event.hash != expected_hash {
+            return Err(JobStoreError::Corrupt(
+                "event chain hash does not match its canonical preimage".to_owned(),
+            ));
+        }
+        previous = Some(&event.hash);
     }
     Ok(())
+}
+
+fn hash_event(
+    record: &JobRecord,
+    sequence: u64,
+    previous_hash: Option<&EventHash>,
+    payload: &Value,
+) -> Result<EventHash, JobStoreError> {
+    let preimage = serde_json::json!({
+        "job_id": record.id.as_str(),
+        "payload": payload,
+        "previous_hash": previous_hash.map(EventHash::as_str),
+        "request_digest": record.request_digest.as_str(),
+        "sequence": sequence,
+    });
+    let canonical = serde_json::to_vec(&preimage)
+        .map_err(|_| JobStoreError::Corrupt("event preimage cannot be encoded".to_owned()))?;
+    let mut hasher = Sha256::new();
+    hasher.update(EVENT_HASH_DOMAIN);
+    hasher.update(canonical);
+    Ok(EventHash::from_bytes(hasher.finalize().into()))
 }
 
 fn validate_initialization_marker(marker: &str) -> Result<(), JobStoreError> {
@@ -400,4 +739,145 @@ fn decode_state(text: &str) -> Result<PersistedState, JobStoreError> {
 
 fn missing_state_error() -> JobStoreError {
     JobStoreError::Corrupt("state file is missing after initialization".to_owned())
+}
+
+struct ValidatedEventBatch<'a> {
+    payloads: &'a [Value],
+}
+
+impl<'a> ValidatedEventBatch<'a> {
+    fn new(payloads: &'a [Value]) -> Result<Self, JobStoreError> {
+        if payloads.len() > MAX_EVENT_BATCH_LEN {
+            return Err(JobStoreError::EventBatchTooLarge {
+                count: payloads.len(),
+                maximum: MAX_EVENT_BATCH_LEN,
+            });
+        }
+        for (index, payload) in payloads.iter().enumerate() {
+            let bytes = encoded_payload_len(payload)?;
+            if bytes > MAX_EVENT_PAYLOAD_BYTES {
+                return Err(JobStoreError::EventPayloadTooLarge {
+                    index,
+                    bytes,
+                    maximum: MAX_EVENT_PAYLOAD_BYTES,
+                });
+            }
+            validate_approval_event(payload)?;
+        }
+        Ok(Self { payloads })
+    }
+
+    fn for_transition(payloads: &'a [Value]) -> Result<Self, JobStoreError> {
+        if payloads.is_empty() {
+            return Err(JobStoreError::TransitionEventRequired);
+        }
+        Self::new(payloads)
+    }
+
+    fn payloads(&self) -> &'a [Value] {
+        self.payloads
+    }
+
+    fn len(&self) -> usize {
+        self.payloads.len()
+    }
+
+    fn approval_digests(&self) -> Result<Vec<RequestDigest>, JobStoreError> {
+        self.payloads
+            .iter()
+            .filter_map(approval_digest)
+            .map(RequestDigest::new)
+            .collect()
+    }
+}
+
+fn validate_approval_event(payload: &Value) -> Result<(), JobStoreError> {
+    if payload.get("kind").and_then(Value::as_str) != Some("approval_decided") {
+        return Ok(());
+    }
+    let valid = approval_digest(payload).is_some_and(|digest| RequestDigest::new(digest).is_ok());
+    if !valid {
+        return Err(JobStoreError::InvalidApprovalEvent);
+    }
+    Ok(())
+}
+
+fn approval_digest(payload: &Value) -> Option<&str> {
+    if payload.get("kind").and_then(Value::as_str) != Some("approval_decided") {
+        return None;
+    }
+    payload.get("digest").and_then(Value::as_str)
+}
+
+fn ensure_approval_claims_unused(
+    state: &PersistedState,
+    batch: &ValidatedEventBatch<'_>,
+) -> Result<(), JobStoreError> {
+    let mut claims = state
+        .jobs
+        .iter()
+        .flat_map(|job| &job.events)
+        .filter_map(|event| approval_digest(&event.payload))
+        .collect::<BTreeSet<_>>();
+    for digest in batch.payloads().iter().filter_map(approval_digest) {
+        if !claims.insert(digest) {
+            return Err(JobStoreError::ApprovalClaimAlreadyRecorded);
+        }
+    }
+    Ok(())
+}
+
+#[derive(Default)]
+struct EncodedByteCounter(usize);
+
+impl std::io::Write for EncodedByteCounter {
+    fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+        self.0 = self
+            .0
+            .checked_add(bytes.len())
+            .ok_or_else(|| std::io::Error::other("encoded event length overflow"))?;
+        Ok(bytes.len())
+    }
+
+    fn flush(&mut self) -> std::io::Result<()> {
+        Ok(())
+    }
+}
+
+fn encoded_payload_len(payload: &Value) -> Result<usize, JobStoreError> {
+    let mut counter = EncodedByteCounter::default();
+    serde_json::to_writer(&mut counter, payload)
+        .map_err(|_| JobStoreError::Corrupt("event payload cannot be encoded".to_owned()))?;
+    counter.flush()?;
+    Ok(counter.0)
+}
+
+struct EncodedSnapshot(String);
+
+fn prepare_snapshot(state: &PersistedState) -> Result<EncodedSnapshot, JobStoreError> {
+    state.validate()?;
+    EncodedSnapshot::new(state)
+}
+
+impl EncodedSnapshot {
+    fn new(state: &PersistedState) -> Result<Self, JobStoreError> {
+        let mut body = serde_json::to_string(state)
+            .map_err(|_| JobStoreError::Corrupt("state cannot be encoded".to_owned()))?;
+        body.push('\n');
+        if body.len() > MAX_JOB_SNAPSHOT_BYTES {
+            return Err(snapshot_too_large(body.len() as u64));
+        }
+        Ok(Self(body))
+    }
+
+    fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+fn snapshot_too_large(bytes: u64) -> JobStoreError {
+    JobStoreError::SnapshotTooLarge {
+        bytes,
+        maximum: MAX_JOB_SNAPSHOT_BYTES,
+    }
 }

@@ -15,6 +15,7 @@ nika-fs   = { path = "../nika-fs", version = "0.113.0" }
 nix       = { workspace = true, features = ["fs"] }
 serde     = { workspace = true }
 serde_json = { workspace = true }
+sha2      = { workspace = true }
 thiserror = { workspace = true }
 uuid      = { workspace = true }
 
