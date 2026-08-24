@@ -45,6 +45,8 @@ use nika_schema::types::OnErrorAction;
 use nika_tmpl::expression::{NamespaceRef, expr_refs, scan_templates};
 use serde_json::Value;
 
+use crate::errors::RuntimeError;
+
 use crate::expr::{self, Scope};
 use crate::record::{TaskErrorRecord, TaskRecord, TaskStatus};
 use crate::resume::ResumeContext;
@@ -481,7 +483,7 @@ fn resolve_parked(
             match expr::render_json(template, &render_scope) {
                 Ok(value) => RunResult::recovered(value, record, cost_usd, cost_unpriced),
                 Err(err) => RunResult::Failed {
-                    error: runtime_error_record(&err),
+                    error: runtime_error_record(&RuntimeError::from(err)),
                     cost_usd,
                     cost_unpriced,
                 },

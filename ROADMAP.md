@@ -103,21 +103,21 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| branch           | `main`                                      |
-| HEAD             | `46e7ae550` (`46e7ae5509e971913a765f7043c307f8076a7de1`)             |
+| branch           | `refactor/w5-1203-dataflow-descent`                                      |
+| HEAD             | `b379dd6f1` (`b379dd6f157f8e24bf09c16d2a8c01ee5772a00e`)             |
 | workspace        | v0.114.0                                  |
-| crates (workspace)| 70                                              |
-| crates (admitted)| 62                                             |
+| crates (workspace)| 71                                              |
+| crates (admitted)| 63                                             |
 | crates (WIP)     | 8 — nika-chart nika-fx nika-proof nika-store nika-harness nika-execution nika-service-execution nika-serve                                  |
 | L0               | 21                                              |
 | L0.5             | 6                                              |
-| L1               | 17                                              |
+| L1               | 18                                              |
 | L1.5             | 4                                              |
 | L2               | 5                                              |
 | L3               | 3                                              |
 | L4               | 14                                              |
-| lib tests        | 6440 passed, 0 failed                              |
-| clippy           | 0 warnings                              |
+| lib tests        | 6527 passed, 0 failed                              |
+| clippy           | WARNINGS PRESENT — run cargo clippy                              |
 
 Diamond foundation — orphan branch from scratch. Live counts (admitted ·
 WIP · per-layer) are in the AUTO-GENERATED status block above (the

@@ -16,6 +16,7 @@ nika-error       = { path = "../nika-error", version = "0.114.0" }        # NIKA
 nika-event       = { path = "../nika-event", version = "0.114.0" }        # Event · EventKind (the stream this crate emits)
 nika-schema      = { path = "../nika-schema", version = "0.114.0" }       # RawWorkflow · RawAction (the run input)
 nika-secret      = { path = "../nika-secret", version = "0.114.0" }       # the secret resolution half (descended at the 15k wall)
+nika-dataflow    = { path = "../nika-dataflow", version = "0.114.0" }     # TaskRecord + the ${{ }}/CEL/jq evaluation half (descended at the 15k wall)
 nika-check       = { path = "../nika-check", version = "0.114.0" }        # CheckReport · the audit-before-run gate (the admit/trust planes)
 nika-proof       = { path = "../nika-proof", version = "0.114.0" }        # the proof layer's hash primitives + the one receipt (spec 15 · the crate-size split)
 nika-tmpl        = { path = "../nika-tmpl", version = "0.114.0" }         # the ONE ${{ }} island lexer · shared with the checker (check⇄run parity)
@@ -44,9 +45,6 @@ nika-exec-runner = { path = "../nika-exec-runner", version = "0.114.0" }  # Toki
 nika-sandbox-seatbelt = { path = "../nika-sandbox-seatbelt", version = "0.114.0" }  # the macOS exec jail (ADR-095 · L1)
 nika-sandbox-landlock = { path = "../nika-sandbox-landlock", version = "0.114.0" }  # the Linux exec jail (ADR-095 · L1 · bwrap)
 futures-util     = { workspace = true }   # buffered(k) intra-wave concurrency + select (no executor · async rides the injected seams)
-jaq-core         = { workspace = true }   # output: named bindings — THE data language (the same jaq nika:jq runs · spec 04 §binding)
-jaq-std          = { workspace = true }   # jq stdlib filters (map · select · add …) over a binding's raw output
-jaq-json         = { workspace = true }   # jq Val ↔ serde_json bridge for output: bindings
 serde            = { workspace = true }   # TerminalCause wire form (snake_case · spec 13) — FCI-003-pinned against as_str()
 serde_json       = { workspace = true }
 blake3           = { workspace = true }   # ADR-099 resume keys — hash of the JCS key payloads (content, never mtimes)
@@ -57,6 +55,10 @@ miette           = { workspace = true }
 uuid             = { workspace = true }
 
 [dev-dependencies]
+# `testing` unlocks the two empty-namespace Scope constructors the dispatch
+# tests build fixtures with — they descended with the module and stay out of
+# every production build (see nika-dataflow's [features]).
+nika-dataflow = { path = "../nika-dataflow", version = "0.114.0", features = ["testing"] }
 nika-harness = { path = "../nika-harness", version = "0.114.0" }
 nika-kernel-mock = { path = "../nika-kernel-mock", version = "0.114.0" }  # MockClock · MockShell · MockToolExecutor · MockToolDefinitionProvider
 nika-pack        = { path = "../nika-pack", version = "0.114.0" }          # error_codes() — the spec-plane codes the runtime emits pin to the embedded canon

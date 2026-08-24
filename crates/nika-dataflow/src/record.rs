@@ -128,6 +128,21 @@ pub const fn legal(class: TaskStatus, cause: TerminalCause) -> bool {
     )
 }
 
+/// The wire code a task's ONE `timeout:` budget emits when it elapses
+/// (spec 03 §timeout).
+///
+/// SPEC-PLANE code (the canon is the spec 05 table · resolvable via
+/// `nika_pack::error_codes()` · NOT a `nika_error::codes` registry
+/// entry — that registry carries the engine-internal NIKA-1700 range).
+/// Pinned against the embedded canon by
+/// `emitted_spec_codes_resolve_in_the_embedded_canon` (nika-runtime).
+///
+/// It lives HERE, beside [`failure_cause`] — the triage that reads it is
+/// the record's own business — and `nika-runtime`'s dispatch re-exports it
+/// at the historical `crate::task::TIMEOUT_CODE` path so the producer and
+/// the classifier keep naming ONE constant.
+pub const TIMEOUT_CODE: &str = "NIKA-TIMEOUT-001";
+
 /// The failure-cause triage (spec 13 · the three failure rows):
 /// the task's ONE `timeout:` budget elapsed → `Timeout` (the
 /// `NIKA-TIMEOUT-001` wire code has exactly one producer — the budget
@@ -137,8 +152,8 @@ pub const fn legal(class: TaskStatus, cause: TerminalCause) -> bool {
 /// (attempts = 1 · no retry was scheduled, whether no `retry:` was
 /// declared or the policy refused the error).
 #[must_use]
-pub(crate) fn failure_cause(error: &TaskErrorRecord, attempts: u32) -> TerminalCause {
-    if error.code == crate::task::TIMEOUT_CODE {
+pub fn failure_cause(error: &TaskErrorRecord, attempts: u32) -> TerminalCause {
+    if error.code == TIMEOUT_CODE {
         TerminalCause::Timeout
     } else if attempts > 1 {
         TerminalCause::RetryExhausted
@@ -291,7 +306,8 @@ fn stamp_value(ts: Option<Timestamp>) -> Value {
 /// payload per the normative table (`canon.yaml`
 /// `outcome_transitions.payload`). Keys are sorted (`serde_json` object
 /// = `BTreeMap`) — deterministic bytes, the event-stream contract.
-pub(crate) fn outcome_json(record: &TaskRecord) -> String {
+#[must_use]
+pub fn outcome_json(record: &TaskRecord) -> String {
     debug_assert!(
         legal(record.status, record.cause),
         "({}, {}) is outside the spec-13 transition table — an engine bug, never a state",
@@ -356,7 +372,7 @@ fn attempts_value(record: &TaskRecord) -> Value {
 /// scalars natural (`null` → `null`) · objects/arrays compact JSON
 /// with **sorted keys** (deterministic · no insignificant whitespace).
 #[must_use]
-pub(crate) fn render_value(value: &Value) -> String {
+pub fn render_value(value: &Value) -> String {
     match value {
         Value::String(s) => s.clone(),
         Value::Null => "null".to_owned(),
@@ -491,7 +507,7 @@ mod tests {
             transient: false,
         };
         // The budget's wire code wins — even when retries had fired.
-        let timeout = err(crate::task::TIMEOUT_CODE);
+        let timeout = err(TIMEOUT_CODE);
         assert_eq!(failure_cause(&timeout, 1), TerminalCause::Timeout);
         assert_eq!(failure_cause(&timeout, 3), TerminalCause::Timeout);
         // Attempts > 1 = the policy admitted retries and they exhausted.
