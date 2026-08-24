@@ -90,6 +90,49 @@ impl<T> core::convert::From<T> for nika_verb_infer::VerbInferError
 pub fn nika_verb_infer::VerbInferError::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_verb_infer::VerbInferError where T: 'static
 pub fn nika_verb_infer::VerbInferError::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub enum nika_verb_infer::VisionPart
+pub nika_verb_infer::VisionPart::File
+pub nika_verb_infer::VisionPart::File::path: alloc::string::String
+pub nika_verb_infer::VisionPart::Url
+pub nika_verb_infer::VisionPart::Url::url: alloc::string::String
+impl nika_verb_infer::VisionPart
+pub fn nika_verb_infer::VisionPart::file(path: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_verb_infer::VisionPart::url(url: impl core::convert::Into<alloc::string::String>) -> Self
+impl core::clone::Clone for nika_verb_infer::VisionPart
+pub fn nika_verb_infer::VisionPart::clone(&self) -> nika_verb_infer::VisionPart
+impl core::cmp::Eq for nika_verb_infer::VisionPart
+impl core::cmp::PartialEq for nika_verb_infer::VisionPart
+pub fn nika_verb_infer::VisionPart::eq(&self, other: &nika_verb_infer::VisionPart) -> bool
+impl core::fmt::Debug for nika_verb_infer::VisionPart
+pub fn nika_verb_infer::VisionPart::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_verb_infer::VisionPart
+impl<D> owo_colors::OwoColorize for nika_verb_infer::VisionPart
+impl<Q, K> equivalent::Equivalent<K> for nika_verb_infer::VisionPart where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_verb_infer::VisionPart::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_verb_infer::VisionPart where U: core::convert::From<T>
+pub fn nika_verb_infer::VisionPart::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_verb_infer::VisionPart where U: core::convert::Into<T>
+pub type nika_verb_infer::VisionPart::Error = core::convert::Infallible
+pub fn nika_verb_infer::VisionPart::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_verb_infer::VisionPart where U: core::convert::TryFrom<T>
+pub type nika_verb_infer::VisionPart::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_verb_infer::VisionPart::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_verb_infer::VisionPart where T: core::clone::Clone
+pub type nika_verb_infer::VisionPart::Owned = T
+pub fn nika_verb_infer::VisionPart::clone_into(&self, target: &mut T)
+pub fn nika_verb_infer::VisionPart::to_owned(&self) -> T
+impl<T> core::any::Any for nika_verb_infer::VisionPart where T: 'static + ?core::marker::Sized
+pub fn nika_verb_infer::VisionPart::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_verb_infer::VisionPart where T: ?core::marker::Sized
+pub fn nika_verb_infer::VisionPart::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_verb_infer::VisionPart where T: ?core::marker::Sized
+pub fn nika_verb_infer::VisionPart::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_verb_infer::VisionPart where T: core::clone::Clone
+pub unsafe fn nika_verb_infer::VisionPart::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_verb_infer::VisionPart
+pub fn nika_verb_infer::VisionPart::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_verb_infer::VisionPart where T: 'static
+pub fn nika_verb_infer::VisionPart::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_verb_infer::InferInput
 pub nika_verb_infer::InferInput::max_tokens: core::option::Option<u32>
 pub nika_verb_infer::InferInput::model: core::option::Option<alloc::string::String>
@@ -99,6 +142,7 @@ pub nika_verb_infer::InferInput::system: core::option::Option<alloc::string::Str
 pub nika_verb_infer::InferInput::temperature: core::option::Option<f32>
 pub nika_verb_infer::InferInput::thinking_budget: core::option::Option<u32>
 pub nika_verb_infer::InferInput::timeout: core::option::Option<core::time::Duration>
+pub nika_verb_infer::InferInput::vision: alloc::vec::Vec<nika_verb_infer::VisionPart>
 impl nika_verb_infer::InferInput
 pub fn nika_verb_infer::InferInput::new(prompt: impl core::convert::Into<alloc::string::String>) -> Self
 impl core::clone::Clone for nika_verb_infer::InferInput
