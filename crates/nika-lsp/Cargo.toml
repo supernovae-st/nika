@@ -23,6 +23,9 @@ serde       = { workspace = true }                             # DeserializeOwne
 serde_json  = { workspace = true }                             # request/notification param (de)serialization
 thiserror   = { workspace = true }                             # LspError (transport/protocol) enum
 
+[target.'cfg(unix)'.dependencies]
+nix = { workspace = true }   # kill(pid, 0) — the safe parent-existence probe behind the `initialize` §processId watchdog (encapsulates the signal FFI → crate stays unsafe_code = forbid)
+
 [dev-dependencies]
 proptest = { workspace = true }   # Gate 6 — position round-trip + apply_change ≡ full replace
 tempfile = { workspace = true }   # skills lane — workspace-walk fixtures on a real tempdir
