@@ -5,7 +5,7 @@
 
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
-use std::sync::{Mutex, MutexGuard};
+use std::sync::MutexGuard;
 
 use jiff::{Timestamp, Zoned};
 use nika_vocab::project;
@@ -128,8 +128,6 @@ pub(crate) fn prod_run(
     )
 }
 
-static RUN_ROOM: Mutex<()> = Mutex::new(());
-
 struct RoomGuard {
     previous: PathBuf,
     _lease: MutexGuard<'static, ()>,
@@ -141,10 +139,14 @@ impl Drop for RoomGuard {
     }
 }
 
+/// This used to take a module-private `RUN_ROOM` mutex. It was one of THREE
+/// private guards over one process-global resource (#1192), so it excluded
+/// only other `arm fire` calls — never a `run --example` (which took nothing)
+/// nor a budget test (which took its own). The lease is now the crate's, and
+/// the chdir still rides `fchdir` on unix: an already-open directory fd cannot
+/// be swapped by a rename between the check and the move.
 fn enter_room(project: &nika_fs::OwnedDir, _root: &Path) -> std::io::Result<RoomGuard> {
-    let lease = RUN_ROOM
-        .lock()
-        .map_err(|_| std::io::Error::other("arm fire: run room lock poisoned"))?;
+    let lease = crate::cwd::hold();
     let previous = std::env::current_dir()?;
     #[cfg(unix)]
     nix::unistd::fchdir(project.as_file())?;
