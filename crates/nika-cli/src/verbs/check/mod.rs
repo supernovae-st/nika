@@ -567,17 +567,23 @@ fn parse_fatal_json(out: &VerbOutput) -> VerbOutput {
     }
 }
 
-/// Shared `--json` MODELS row shape.
+/// Shared `--json` MODELS row shape. `code` rides only when the refusal
+/// is a spec claim (`NIKA-PROVIDER` for a missing/unknown prefix); the
+/// azure class stays engine-local (#761).
 fn model_finding_rows(findings: &[ModelFinding]) -> serde_json::Value {
     serde_json::Value::Array(
         findings
             .iter()
             .map(|f| {
-                serde_json::json!({
+                let mut row = serde_json::json!({
                     "model": f.model,
                     "tasks": f.tasks,
                     "why": f.why,
-                })
+                });
+                if let Some(code) = &f.code {
+                    row["code"] = serde_json::json!(code);
+                }
+                row
             })
             .collect(),
     )
