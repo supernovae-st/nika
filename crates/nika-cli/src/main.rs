@@ -694,6 +694,20 @@ fn front_door(argv: &[std::ffi::OsString]) -> Option<std::process::ExitCode> {
     }
 }
 
+/// A workflow file typed bare IS a request to run it. A colleague sends
+/// `notes.nika.yaml`; the person types its name the way one opens a file,
+/// and clap answered `unrecognized subcommand` (gauntlet P5 · 2026-08-25).
+///
+/// Deliberately narrow: the name must END in the workflow suffix AND be a
+/// file on disk. A typo'd verb keeps clap's own did-you-mean, which is the
+/// better answer for a typo'd verb; a suffix that names nothing keeps
+/// clap's error, which is the better answer for a name that does not exist.
+fn is_runnable_workflow(arg: &std::ffi::OsStr) -> bool {
+    arg.to_str().is_some_and(|s| {
+        (s.ends_with(".nika.yaml") || s.ends_with(".nika.yml")) && std::path::Path::new(s).is_file()
+    })
+}
+
 fn main() -> std::process::ExitCode {
     pipe_hygiene::guard(real_main)
 }
@@ -733,7 +747,17 @@ fn real_main() -> std::process::ExitCode {
     if let Some(code) = front_door(&argv) {
         return code;
     }
-    let cli = Cli::parse();
+    // `nika notes.nika.yaml` means `nika run notes.nika.yaml`. Spliced
+    // before clap sees it, so the verb, its flags and its help stay
+    // untouched — the file just gains the verb the person left implicit.
+    let argv: Vec<std::ffi::OsString> = if argv.first().is_some_and(|a| is_runnable_workflow(a)) {
+        std::iter::once(std::ffi::OsString::from("run"))
+            .chain(argv.iter().cloned())
+            .collect()
+    } else {
+        argv
+    };
+    let cli = Cli::parse_from(std::iter::once(std::ffi::OsString::from("nika")).chain(argv));
     let (color, link_when) = cli.presentation();
     let plain_theme = term_theme(
         color.with_no_color(false),
@@ -1054,6 +1078,46 @@ mod tests {
     /// silently disarms every comparison) refuses at parse time on
     /// BOTH — the drift where one door validated and the other let
     /// the disarmed value through is pinned shut.
+    /// Gauntlet P5 · 2026-08-25. A colleague sends a `.nika.yaml`; the
+    /// person types its name the way one opens a file, and clap answered
+    /// `unrecognized subcommand 'notes.nika.yaml'` — a wall where a run
+    /// was meant.
+    ///
+    /// The routing is deliberately narrow, and this test pins BOTH ends:
+    /// a typo'd verb keeps clap's did-you-mean (the better answer for a
+    /// typo), and a suffix naming nothing keeps clap's error (the better
+    /// answer for a name that does not exist). Only a real file routes.
+    #[test]
+    fn a_workflow_file_typed_bare_is_a_run_and_nothing_else_is() {
+        let dir = tempfile::tempdir().expect("tmp");
+        let here = dir.path().join("notes.nika.yaml");
+        std::fs::write(&here, "nika: notes\n").expect("write");
+
+        assert!(
+            is_runnable_workflow(here.as_os_str()),
+            "a real .nika.yaml routes to run"
+        );
+        assert!(
+            !is_runnable_workflow(std::ffi::OsStr::new("chek")),
+            "a typo'd verb keeps clap's suggestion"
+        );
+        assert!(
+            !is_runnable_workflow(dir.path().join("absent.nika.yaml").as_os_str()),
+            "a suffix that names nothing keeps clap's error"
+        );
+        assert!(
+            !is_runnable_workflow(dir.path().as_os_str()),
+            "a directory is not a workflow"
+        );
+        // The suffix alone is not enough, and neither is existence alone.
+        let other = dir.path().join("notes.yaml");
+        std::fs::write(&other, "nika: notes\n").expect("write");
+        assert!(
+            !is_runnable_workflow(other.as_os_str()),
+            "a bare .yaml is not the workflow suffix"
+        );
+    }
+
     #[test]
     fn the_budget_guard_holds_on_both_doors() {
         for argv in [

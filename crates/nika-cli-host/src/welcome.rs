@@ -708,14 +708,18 @@ fn local_provider_lines(s: &mut String, probe: &Probe, theme: Theme) {
     if locals.is_empty() {
         let _ = writeln!(s, "  local      no local providers in this build");
     } else {
-        // The five ids alone take 47 columns — the dim tail must stay
-        // ≤15 for the row to live inside 80 (doctor --ping teaches the
-        // port probe; this row only says « keyless exists »).
+        // This row lives under « this machine », and it used to read as
+        // an inventory: `ollama · lmstudio · llamacpp · localai · vllm`
+        // with nothing listening on any of them (gauntlet P2 · B15). The
+        // names are what the BINARY supports; the header promises what the
+        // MACHINE has. Say the count and the probe, and the row stops
+        // claiming a server that is not there — `nika catalog` still
+        // names them, where naming them is true.
         let _ = writeln!(
             s,
-            "  local      {} {}",
-            locals.join(" · "),
-            theme.paint(Role::Dim, "· no key needed"),
+            "  local      {} keyless engines supported {}",
+            locals.len(),
+            theme.paint(Role::Dim, "· none probed → nika doctor --ping"),
         );
     }
     for p in &probe.providers {

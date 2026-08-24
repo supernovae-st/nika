@@ -309,8 +309,14 @@ fn mirror_names_an_endpoint_override_and_stays_silent_on_loopback() {
         shown.contains("ollama → http://gpu.lan:11434 (lan)"),
         "the override is NAMED next to the local row:\n{shown}"
     );
+    // The keyless truth stays — only the topology claim is fixed. The
+    // row used to LIST the ids under a « this machine » header, which
+    // read as an inventory of servers that were not running (gauntlet
+    // P2 · B15); it now counts them and names the probe. This pins the
+    // promise, not the sentence, so the next wording change does not
+    // fail a test that still means what it meant.
     assert!(
-        shown.contains("· no key needed"),
+        shown.contains("keyless"),
         "the keyless truth stays — only the topology claim is fixed:\n{shown}"
     );
 }
