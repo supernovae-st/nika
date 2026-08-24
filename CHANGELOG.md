@@ -10,87 +10,11 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 ---
 ## [Unreleased]
 
-### Added
-
-- **`nika check --json` carries one-obvious-way lints.** `hints[]`
-  rows with `kind: "one-obvious-way"` and `code: "one-obvious-way/NNN"`
-  (advice starts with the rule id), the same door native-first already
-  had. Warnings, never errors — `clean` stays true.
-
-- **The next tagged binary includes the harness access class.**
-  `release.yml` builds `--features local-infer,access-harness`. The
-  160 KB `nika-harness` crate has been on main, API-frozen, since
-  2026-08-08, and was compiled out of every downloadable binary.
-  `agent:` tasks can sit on a detected harness via `--access <seat>`
-  once that tag ships. Infer-grade harness (P4 · `infer:` on a seat)
-  stays parked. `crates/nika-acp` stays a quarantined workspace (the
-  official SDK's `preserve_order` must never unify into the engine);
-  Diamond CI now runs its five batteries against `nika-harness` over
-  a process boundary. `metal` stays off (candle 0.10 kernel dies at
-  first token).
-
-### Security
-
-- **A decided human gate stays decided.** `--resume` of a trace that
-  already journaled a `nika:prompt` success now refuses `--answer` on
-  that same task (environment class). A recorded NO cannot be flipped
-  into a shipment. A paused gate (no `task_completed` yet) still
-  accepts `--answer`. Measured against `nika 0.114.0 (80d62b8f8)` on
-  `human-gated-ship`.
-
-### Changed
-
-- **`capture: structured` no longer turns a jail EPERM into a green run
-  (#1068).** A confinement denial (`cat: …: Operation not permitted` /
-  `Permission denied`, a `sandbox-exec:` / `bwrap:` line, status 126) is
-  `NIKA-SEC-001` in every capture mode. A program's own non-zero stays
-  data under `structured`. Seatbelt and bwrap share the same stderr table
-  so Linux cannot re-open the hole the macOS path already closed.
-
-- **A `for_each` failure names the item.** The parent note and the
-  error message carry the compact item identity (and which values
-  recovered when `on_error: skip` nulled a slot). The trace no longer
-  records only a count.
-
-- **OpenAPI lists the live POST statuses.** `GET /v1/openapi.json` names
-  400, 408, 409, 413, 415, 503, and 507 on `POST /v1/jobs` next to
-  200/202/401/422. `info.description` names that `POST /v1/run` is
-  absent. `GET /v1/jobs/{id}/status` stays `{status}` only; diagnosis
-  lives on `GET /v1/jobs/{id}` and SSE.
-- **Failed HTTP jobs name a NIKA code.** `GET /v1/jobs/{id}` grows an
-  optional `{error:{code,message}}` on `failed`. SSE settled/refused
-  frames may carry the same redacted pair. Paths and secret-shaped
-  fields stay dropped. Succeeded jobs omit `error`.
-- **POST `/v1/jobs` 422 names the capture diagnosis.** A parse-fatal or
-  check-fatal world returns `{error:{code,message}}` with the NIKA code
-  when the engine stamped one, including analysis codes (AUTH/SEC)
-  that live on `finding.code`. Symlink and other capture refuses stay
-  `admission_refused`. Paths stay dropped.
-- **Token-file refusal is typed.** `ServerError::Credential` now names
-  unreadable, not a regular file, insecure mode, or invalid material.
-  `nika serve --bind` still prints the openssl mint and never echoes
-  bytes. Missing `--token-file` is unchanged. Paths stay dropped.
-- **`nika doctor` uses the same token-file policy as `nika serve`.** A
-  short, non-graphic, or symlink `.nika/serve.token` is a fail with the
-  openssl mint, not an owner-only green. Group/world-readable still
-  names `chmod 600`. The row stays silent when the file is absent.
-
-- **`nika serve --bind` prints the token mint instead of an opaque
-  credential refusal.** Missing `--token-file`, a short secret, or a
-  group/world-readable file all teach
-  `umask 077 && openssl rand -hex 24 > .nika/serve.token && chmod 600
-  .nika/serve.token` and never echo the bytes. The HTTP door still
-  refuses to mint a secret on its own.
-- **The listen line names the next hop.** After bind it prints
-  `GET /health`, authenticated `GET /v1/openapi.json`, and
-  `POST /v1/jobs` with Bearer plus Idempotency-Key. A non-loopback
-  bind adds that the blast radius is every workflow in `--workflows`.
-  `GET /health` JSON stays the ADR-117 identity allowlist.
-- **Action dogfood no longer runs on tags.** `install.sh` resolves the
-  latest published binary, which lags the tagged tree until release.yml
-  finishes. The smoke workflow now lives outside the checkout so project
-  discovery cannot walk into this engine's `nika.yaml`. An additive
-  `working-directory` input on the composite action is the seam.
+One file per change under [`changelog.d/`](changelog.d/), assembled into the
+section below at tag time (`bash scripts/release/changelog-assemble.sh --fold
+<version>`). Do not write bullets here: this file is where four concurrent
+pull requests collided on 2026-08-24 with no source overlap between them, and
+`--check` refuses a hand-written bullet in this section.
 
 ## [0.114.0](https://github.com/supernovae-st/nika/compare/v0.113.0..v0.114.0) - 2026-08-23
 

@@ -78,6 +78,11 @@ jobs:
           # One workspace, one version: every member + path-dep pin + both
           # locks spell the root version (the 0.109.0-dev opening · 2026-08-18).
           - version-uniform
+          # A change describes itself in its own file under changelog.d/.
+          # Listed HERE and not only at pre-push for the reason written beside
+          # credential-headers: a contributor without the hook, and every PR
+          # from a fork, would meet no check at all.
+          - changelog-fragments
     env:
       CHECK: ${{ matrix.check }}
     steps:
