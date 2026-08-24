@@ -464,6 +464,7 @@ fn every_embedded_template_audits_clean_or_is_a_documented_gap() {
     // a genuine flow-model design gap is documented here.
     const KNOWN_GAP: &[&str] = &[];
     let mut clean = 0_usize;
+    let mut invitations = 0_usize;
     for name in nika_pack::template_names() {
         let body = nika_pack::template(&name).expect("template embedded");
         let parsed = nika_schema::parse(
@@ -474,12 +475,23 @@ fn every_embedded_template_audits_clean_or_is_a_documented_gap() {
         assert!(parsed.is_ok(), "{name}: template must parse: {parsed:?}");
         let wf = parsed.expect("asserted ok above");
         let is_gap = KNOWN_GAP.contains(&name.as_str());
-        if nika_check::check(&wf).is_clean() {
+        let report = nika_check::check(&wf);
+        // #1066 amended the own-corpus law rather than retiring it. A
+        // fresh skeleton may refuse for its OWN unfilled slots — that
+        // refusal is the invitation to fill them, and it is why a
+        // scaffold can no longer run and leave a file that reads like a
+        // result. It may refuse for nothing else: a permits escape or a
+        // dangling reference in a shipped template still fails here.
+        let invitation =
+            !report.slot_findings.is_empty() && report.findings.iter().all(|f| f.kind == "slot");
+        if report.is_clean() {
             assert!(
                 !is_gap,
                 "{name}: now audits CLEAN — remove it from KNOWN_GAP, the design gap is resolved"
             );
             clean += 1;
+        } else if invitation {
+            invitations += 1;
         } else {
             assert!(
                 is_gap,
@@ -488,7 +500,19 @@ fn every_embedded_template_audits_clean_or_is_a_documented_gap() {
             );
         }
     }
-    assert!(clean >= 8, "expected >= 8 clean templates, got {clean}");
+    // Every shipped skeleton is one of the two healthy states, and both
+    // states are populated — a floor on `clean` alone would go quietly
+    // green on a pack where every template had become a form.
+    assert_eq!(
+        clean + invitations,
+        nika_pack::template_names().len() - KNOWN_GAP.len(),
+        "clean {clean} · invitations {invitations}"
+    );
+    assert!(clean >= 5, "expected >= 5 clean templates, got {clean}");
+    assert!(
+        invitations >= 1,
+        "no skeleton invites its author to fill it"
+    );
 }
 
 #[test]

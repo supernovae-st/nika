@@ -75,6 +75,26 @@ printf '%s' "$OUT" | grep -q "sk-CANARY-9911" && fail "[welcome] key VALUE leake
 # 2 · scaffold → audit (the inputs trap is TAUGHT) → provision → run → story → verify
 run new-from 0 -- "$BIN" new chain first.nika.yaml
 [ -f first.nika.yaml ] || fail "[new] no file created"
+# #1066 · a scaffold whose slots are untouched is not a workflow yet, and
+# `check` refuses it BEFORE the spend. Played first, because a 0 here
+# would mean the refusal is gone — and the marker has to be a VALUE for
+# it to fire at all (a comment dies with the parse, which is how this
+# file used to run green and leave an `output.md` holding its own prompt).
+run check-unfilled 2 -- "$BIN" check first.nika.yaml
+need check-unfilled "SLOTS"
+need check-unfilled "ready to be filled"
+# It reads as a step, not a fault: the person typed `nika new` and did
+# nothing wrong.
+if printf '%s' "$OUT" | grep -qF "findings above"; then
+  fail "[check-unfilled] a scaffold is not a fault"
+fi
+# Answer the slot the way its author would, then the SAME file audits —
+# the other end of the ratchet: a refusal nobody can clear is a wall.
+sed 's|<SLOT:[^>]*>|Summarise the gathered text in one short paragraph.|' \
+  first.nika.yaml >first.filled && mv first.filled first.nika.yaml
+if grep -q '<SLOT:' first.nika.yaml; then
+  fail "[fill] a marker survived the fill"
+fi
 run check 0 -- "$BIN" check first.nika.yaml
 need check "audited"
 need check "[inputs]" # the scaffold's input trap is taught BEFORE the run

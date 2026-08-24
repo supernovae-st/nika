@@ -14,7 +14,13 @@ nika: document-to-fields
 model: mock/echo                     # SLOT: replace with a local or hosted seat
 
 const:
-  document: |                        # SLOT: replace with content from nika:read or nika:fetch
+  # NOT a slot, deliberately. This literal is the REHEARSAL FIXTURE the
+  # skeleton's own `nika:assert` step reads — hole it and the template
+  # stops rehearsing green, without closing anything: this workflow
+  # persists nothing, so it leaves behind no file that reads like a
+  # result (#1066's actual failure mode). Replace it with your document,
+  # or bind this const to a `nika:read` / `nika:fetch` task's output.
+  document: |
     Invoice INV-204
     Supplier: Northwind Tools
     Total: EUR 84.50

@@ -27,7 +27,7 @@ nika: media-asset-pack-template       # SLOT: kebab-case workflow id
 model: ollama/qwen2.5:14b
 
 const:
-  subject: "a calm cosmic landing hero"   # SLOT: what the asset is about
+  subject: "<SLOT: what the asset is about>"
   out_dir: "./out/assets"           # SLOT: where assets land
 
 permits:                            # the blast radius · default-deny once present

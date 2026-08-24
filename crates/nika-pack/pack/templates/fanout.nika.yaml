@@ -103,8 +103,14 @@ tasks:
       recover: null                 # a failed item yields null at its index · the batch lives
     infer:                          # SLOT: the per-item job (any verb)
       max_tokens: 500               # SLOT: the per-ITEM ceiling · multiply by the fan width
+      # The marker below is a VALUE, not a comment. The parser drops
+      # comments, so a `# SLOT:` line could never make `check` refuse —
+      # which is how an unfilled scaffold ran green and left a file that
+      # read like a result (#1066). Replace the line, keep the binding.
       prompt: |
-        Process this item · ${{ item }}
+        <SLOT: what to do with each item>
+
+        ${{ item }}
 
   survivors:
     with:

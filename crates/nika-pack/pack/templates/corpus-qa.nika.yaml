@@ -14,7 +14,7 @@ nika: corpus-qa
 model: mock/echo                     # SLOT: replace with a local or hosted seat
 
 const:
-  query: "What is the holiday carry-over policy?"   # SLOT: the question
+  query: "<SLOT: the question to answer from the corpus>"
   documents:                         # SLOT: replace with retrieved source chunks
     - { id: handbook, text: "Support hours are 09:00 to 17:00 UTC." }
     - { id: security, text: "Security incidents are reported within one hour." }
