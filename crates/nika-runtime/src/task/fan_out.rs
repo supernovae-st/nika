@@ -164,10 +164,11 @@ fn resolve_collection(
     let resolved = match collection {
         ForEachValue::List(value) => expr::render_json(value, scope),
         ForEachValue::Expression(text) => expr::render_json(&Value::String(text.clone()), scope),
-        other => Err(RuntimeError::WhenUnsupported {
+        other => Err(nika_dataflow::DataflowError::WhenUnsupported {
             expr: format!("for_each form not wired in the runtime yet: {other:?}"),
         }),
-    };
+    }
+    .map_err(RuntimeError::from);
     match resolved {
         Ok(Value::Array(items)) => Ok(items),
         Ok(other) => Err(Box::new(SettleAs::FailedBeforeStart {

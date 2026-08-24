@@ -145,3 +145,9 @@ nika-cadence
 # CLI and Serve share one firer and one replay authority. ---
 nika-arm
 nika-tui-core
+# --- 2026-08-25: the run's dataflow (TaskRecord + the ${{ }}/CEL/jq evaluation
+# over it) descends out of nika-runtime at the 15k wall — 14994/15000, with a
+# written PR unable to land because the MERGE crossed at 15020 (#1203). The
+# nika-secret/nika-proof/nika-dap/nika-cap precedent: the module the wall-crate
+# merely HOSTS rather than owns. ---
+nika-dataflow
