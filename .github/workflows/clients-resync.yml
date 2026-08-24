@@ -43,10 +43,10 @@ jobs:
       - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # master
         with:
           toolchain: "1.91"
-      - uses: Swatinem/rust-cache@258712b0b7b1ddf8bddc9fc3b0faca682b2736c3 # v2
+      - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
         with:
           shared-key: diamond
-      - uses: taiki-e/install-action@b20dedce73af6905cdc30d6611090c9b67557c8d # v2
+      - uses: taiki-e/install-action@a2a5f6e99e1a31540baa0468acfa302cff0f359f # v2
         with:
           tool: cargo-nextest
       - name: The vendored matrix AND plugin tree follow the agents SSOT
