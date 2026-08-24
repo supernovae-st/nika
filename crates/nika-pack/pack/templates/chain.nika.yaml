@@ -23,9 +23,10 @@
 # Run · nika run <file> --model mock/echo    # offline rehearsal · zero keys
 nika: chain-template       # SLOT: kebab-case workflow id
 
-# SLOT: filled by `nika new` from this machine's inference cascade.
-# `--model mock/echo` rehearses offline.
-model: mock/echo   # SLOT · `nika new` stamps this machine's cascade choice
+# SLOT: provider/model · local · zero key. Measured seat — `ollama/llama3.2:3b`
+# answers this prompt in ~50s. `--model mock/echo` needs no seat at all and is
+# the path this file guarantees.
+model: ollama/llama3.2:3b
 
 const:
   source: "./README.md"             # SLOT: your input · README.md exists in most repos
