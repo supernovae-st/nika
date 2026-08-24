@@ -95,15 +95,70 @@ pub(super) fn hints_and_verdict(
             t.paint(Role::Bad, "findings above")
         );
     }
-    if hint_sites > 0 {
-        let next = next_repair_action(path, repair_target);
-        let _ = writeln!(
-            out,
-            " {} {}     {next} · see `nika explain` for coded findings",
-            t.paint(Role::Accent, "↳"),
-            t.paint(Role::Strong, "NEXT"),
-        );
+    render_next(out, report, path, repair_target, hint_sites, t);
+}
+
+/// The ONE next command, when the report left anything to say.
+///
+/// Advises `--fix` on a workspace file only when `--fix` has something to
+/// apply. The trigger used to be `hint_sites > 0` alone, which is a
+/// DIFFERENT set: a file whose only findings are hints (`native-first` ·
+/// `NIKA-DRIFT-001`) has nothing in the ladder, so `--fix` printed « no
+/// machine-applicable repairs » at the top and this line told the reader
+/// to run `--fix` at the bottom — of the same output. Obeying it is a
+/// fixed point: not one byte changes, and the exit it offers is the
+/// command that produced it.
+///
+/// The other three targets are exempt because they CANNOT loop: their
+/// guidance is PROVENANCE (« this cache is read-only · copy it first »),
+/// which holds whether or not a rename exists, and obeying it changes the
+/// state — there is a new file to check. Suppressing them would hide
+/// where a reader may write at all.
+fn render_next(
+    out: &mut String,
+    report: &CheckReport,
+    path: &str,
+    repair_target: RepairTarget,
+    hint_sites: usize,
+    t: Theme,
+) {
+    if hint_sites == 0 {
+        return;
     }
+    let loops_on_itself = repair_target == RepairTarget::WorkspaceFile;
+    let next = if !loops_on_itself || has_machine_applicable_repair(report) {
+        format!(
+            "{} · see `nika explain` for coded findings",
+            next_repair_action(path, repair_target)
+        )
+    } else {
+        "see `nika explain` for coded findings — nothing here is a typed rename, \
+         so these are yours to place"
+            .to_owned()
+    };
+    let _ = writeln!(
+        out,
+        " {} {}     {next}",
+        t.paint(Role::Accent, "↳"),
+        t.paint(Role::Strong, "NEXT"),
+    );
+}
+
+/// Whether `check --fix` would change a byte of THIS file.
+///
+/// The ladder (`nika_cli_host::fix_ladder`) has exactly two sources. The
+/// dead-form arms fire on a `SchemaError` — a file that did not parse, and
+/// so never reaches this render at all. The typed renames read
+/// `unknown_tools` · `unknown_args` · `conformance` for a `suggestion`. On
+/// a file that PARSED, the second set is therefore the whole of it, and
+/// this predicate mirrors `collect_typed_renames` field for field.
+fn has_machine_applicable_repair(report: &CheckReport) -> bool {
+    report.unknown_tools.iter().any(|t| t.suggestion.is_some())
+        || report.unknown_args.iter().any(|a| a.suggestion.is_some())
+        || report
+            .conformance
+            .iter()
+            .any(|v| v.offending.is_some() && v.suggestion.is_some())
 }
 
 fn next_repair_action(path: &str, repair_target: RepairTarget) -> String {

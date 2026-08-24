@@ -248,9 +248,51 @@ tasks:
         );
         assert!(out.contains("2 sites across 2 tasks"), "{out}");
         assert!(out.contains("1 distinct hint across 2 sites"), "{out}");
+        // The footer gives the next REAL command. `native-first` is not in
+        // the fix ladder, so for this file that command is `nika explain`
+        // and never `--fix` — which would change nothing and print this
+        // same line again (#1182).
+        assert!(out.contains("nika explain"), "{out}");
         assert!(
-            out.contains("nika check --fix repeated.nika.yaml"),
-            "the footer gives the next real command:\n{out}"
+            !out.contains("--fix"),
+            "no repair is machine-applicable here, so none is advised:\n{out}"
+        );
+    }
+
+    /// #1182 · `--fix` used to be advised on any file carrying a hint,
+    /// which is a different set from the files `--fix` can repair. A file
+    /// whose findings are all hints got « no machine-applicable repairs »
+    /// at the top of a `--fix` run and « run `--fix` » at the bottom of the
+    /// same output — a fixed point advertising itself as the exit.
+    #[test]
+    fn a_file_with_no_typed_rename_is_never_sent_to_fix() {
+        let hints_only = "nika: drifty
+permits: { exec: [curl], net: { http: [example.com] } }
+tasks:
+  t:
+    exec: { command: [curl, https://example.com/a] }
+";
+        let out = rendered(hints_only, "drifty.nika.yaml");
+        assert!(out.contains("NEXT"), "the footer still speaks:\n{out}");
+        assert!(
+            !out.contains("--fix"),
+            "a hint the ladder cannot touch must not route to `--fix`:\n{out}"
+        );
+
+        // The other end, so this cannot pass by never advising anything: a
+        // typed rename IS machine-applicable, and keeps its advice.
+        let renameable = "nika: fixable
+permits: { tools: [nika:read], exec: [curl], net: { http: [example.com] } }
+tasks:
+  t:
+    exec: { command: [curl, https://example.com/a] }
+  u:
+    invoke: { tool: nika:raed, args: { path: ./x } }
+";
+        let out = rendered(renameable, "fixable.nika.yaml");
+        assert!(
+            out.contains("nika check --fix fixable.nika.yaml"),
+            "a typed rename still earns the advice:\n{out}"
         );
     }
 
@@ -277,8 +319,19 @@ tasks:
 
     #[test]
     fn next_command_quotes_paths_and_never_offers_fix_for_stdin() {
-        let yaml =
-            "nika: q\npermits: { exec: [date] }\ntasks:\n  t:\n    exec: { command: [date] }\n";
+        // The fixture needs BOTH halves the NEXT line is gated on: a hint
+        // (so the line renders at all) and a typed rename (so advising
+        // `--fix` is true). `nika:raed` carries the suggestion; `date`
+        // carries the native-first hint. This test is about the QUOTING of
+        // the path in that advice — it needs the advice to be honest first.
+        let yaml = "nika: q
+permits: { exec: [date], tools: [nika:read] }
+tasks:
+  t:
+    exec: { command: [date] }
+  u:
+    invoke: { tool: nika:raed, args: { path: ./x } }
+";
         let spaced = rendered(yaml, "my workflow.nika.yaml");
         assert!(
             spaced.contains("nika check --fix 'my workflow.nika.yaml'"),
