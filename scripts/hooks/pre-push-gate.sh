@@ -39,6 +39,22 @@ if [ "${NIKA_GATE_DRYRUN:-}" = "1" ]; then
   exit 0
 fi
 
+# ONE gate at a time on this machine (#1064). Three concurrent gates over one
+# 30G target/ turned three unrelated ratchets red — two timeouts and, worse, a
+# credential-leak finding that did not exist. The legs below are not safe to
+# race, so they do not: a second push WAITS, and the wall-clock cost becomes
+# visible instead of being paid in false verdicts.
+#
+# Taken AFTER the deletion-only skip and the dry-run door, so neither ever
+# waits on a lease it does not need.
+if [ "${NIKA_GATE_NO_LOCK:-}" != "1" ]; then
+  # shellcheck source-path=SCRIPTDIR
+  # shellcheck source=./_gate-lock.sh
+  . "$(cd "$(dirname "$0")" && pwd)/_gate-lock.sh"
+  trap gate_lock_release EXIT INT TERM
+  gate_lock_acquire "${NIKA_GATE_LOCK_WAIT:-2700}" || exit 1
+fi
+
 set -e
 # stdin closed on purpose. This script is a pre-push hook, so its stdin is
 # git's refspec pipe, and cargo hands whatever it inherits down to every
