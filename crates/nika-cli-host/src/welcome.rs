@@ -309,9 +309,17 @@ pub fn run(json: bool, theme: Theme) -> VerbOutput {
             ..crate::metrics::Facts::none()
         },
     );
+    // The seat cascade is the screen's HEAD — which model this machine can
+    // reach, and the one next command. The mirror body still follows it: a
+    // stranger has to SEE what a workflow looks like, and the sample block
+    // is the only place that shows it. Rendering the cascade alone made
+    // `render_with_context` unreachable and silently dropped that block
+    // (#1195) — the envelope was resolved and the metrics recorded, then
+    // the body was thrown away.
+    let body = run_in(false, theme, candidate.as_deref());
     VerbOutput::ok(crate::display::vocab::sober(
         theme,
-        &choice.render_human(theme),
+        &format!("{}\n{}", choice.render_human(theme), body.text),
     ))
 }
 

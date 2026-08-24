@@ -136,6 +136,63 @@ tasks:
             "no legs, no trifecta, no reason to withhold:\n{out}"
         );
     }
+
+    /// The complete trifecta plus a live `lift: taint` on the egress —
+    /// AUTH-011 is satisfied (the binding reaches the task), SEC-009 still
+    /// refuses. The hatch the author reached for is the other law.
+    const LIFT_BESIDE_TRIFECTA: &str = "\
+nika: t
+permits:
+  fs: { read: [\"./inbox/**\"], write: [\"./out/**\"] }
+  net: { http: [\"api.example.com\"] }
+  tools: [\"nika:fetch\", \"nika:write\", \"nika:prompt\"]
+tasks:
+  fetch_page:
+    invoke:
+      tool: \"nika:fetch\"
+      args: { url: \"https://api.example.com/data\" }
+  leak:
+    after: { fetch_page: success }
+    with: { body: \"${{ tasks.fetch_page.output }}\" }
+    lift:
+      - law: taint
+        from: with.body
+        because: \"first-party queryset, reviewed at authoring\"
+    invoke:
+      tool: \"nika:write\"
+      args: { path: \"./out/leak.txt\", content: \"${{ with.body }}\" }
+";
+
+    /// MEASURED on #1065 · a valid `lift: taint` door ticks green beside
+    /// the lethal trifecta it looks like it should open. The taint door
+    /// is AUTH-011 (permit-parameterization); SEC-009's only door is a
+    /// blocking `nika:prompt`. Two readers independently concluded the
+    /// hatch was inert because neither line named the other law.
+    ///
+    /// The LIFT line stays green — AUTH-011 is satisfied — and now names
+    /// that this door does not open SEC-009. Deleting the connecting
+    /// clause fails this test.
+    #[test]
+    fn a_valid_lift_door_names_that_it_does_not_open_the_trifecta() {
+        let out = console(LIFT_BESIDE_TRIFECTA);
+        assert!(
+            out.contains("✖ TRIFECTA") && out.contains("NIKA-SEC-009"),
+            "the trifecta must still refuse:\n{out}"
+        );
+        let lift = out
+            .lines()
+            .find(|l| l.contains("LIFT"))
+            .unwrap_or("<LIFT row absent from the report>");
+        assert!(
+            lift.contains('✔') && !lift.contains("NIKA-AUTH-011"),
+            "AUTH-011 is satisfied — the door stays green:\n{lift}\nin:\n{out}"
+        );
+        assert!(
+            lift.contains("SEC-009") || lift.contains("does not open") || lift.contains("prompt"),
+            "the connecting clause must sit on the LIFT line so a green \
+             tick beside SEC-009 cannot read as an inert hatch:\n{lift}\nin:\n{out}"
+        );
+    }
 }
 
 mod hint_dedup_tests {
