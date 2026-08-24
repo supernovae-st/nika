@@ -19,12 +19,27 @@ fn machine(
     }
 }
 
+/// Claude Code, signed in, WITH its ACP adapter on PATH — a seat a
+/// session can actually start on.
 fn claude() -> Seat {
     Seat {
         id: "claude-agent-acp".to_owned(),
         name: "Claude Code".to_owned(),
         detected: true,
         authenticated: true,
+        adapter_present: true,
+    }
+}
+
+/// What the gauntlet actually met (P1/P4 · 2026-08-25): the person has
+/// `claude` and is signed into it, and `claude-agent-acp` — a different
+/// npm package, the binary a session spawns — is not installed. The
+/// overlay in `detect_seats` names the seat from the app, so this shape
+/// is what a real first-wow machine produces.
+fn claude_without_its_adapter() -> Seat {
+    Seat {
+        adapter_present: false,
+        ..claude()
     }
 }
 
@@ -109,6 +124,73 @@ fn authenticated_harness_takes_the_arrow_with_zero_key_zero_download() {
     assert!(human.contains("Claude Code"), "{human}");
     assert!(human.contains("nika new hello"), "{human}");
     assert!(!human.contains("xai/grok-4"), "{human}");
+}
+
+/// The gauntlet's sharpest finding (P1/P4 · 2026-08-25). The screen said
+/// `▸ Claude Code · runs on the plan you already pay for · no API key`
+/// and `doctor --json` said `ready: true`, `chosen_access:
+/// claude-agent-acp` — on a machine where `command -v claude-agent-acp`
+/// found nothing. Doctor's own HUMAN harness rows listed only the three
+/// adapters that WERE installed, so two instruments in one binary
+/// disagreed and the honest one was the quiet one.
+///
+/// An agent reading that JSON picks the seat and the run cannot start.
+/// Detected means "you have the app"; ready means "a session can start",
+/// and only the adapter proves the second.
+#[test]
+fn a_signed_in_app_without_its_acp_adapter_is_not_ready() {
+    let choice = collect_from(&machine(
+        Some(18),
+        vec![claude_without_its_adapter()],
+        false,
+        &[],
+        true,
+    ));
+    let harness = choice
+        .rungs
+        .iter()
+        .find(|r| r.id == "harness")
+        .expect("the harness rung is always rendered");
+
+    assert!(
+        !harness.ready,
+        "a seat whose adapter is absent cannot start a session: {choice:?}"
+    );
+    assert_ne!(
+        choice.arrow, "harness",
+        "the arrow must not point at a path that cannot run: {choice:?}"
+    );
+    assert!(
+        choice.chosen_access.is_none(),
+        "no access is chosen when none can serve: {choice:?}"
+    );
+
+    // Still SHOWN, and still useful — hiding Claude Code from someone who
+    // has it would trade one lie for another.
+    assert!(harness.available, "the app is here: {choice:?}");
+    let human = choice.render_human_at(Theme::new(false, false, false), None);
+    assert!(human.contains("Claude Code"), "{human}");
+    assert!(
+        human.contains("@zed-industries/claude-agent-acp"),
+        "the row names the one command that closes the gap: {human}"
+    );
+    assert!(
+        !human.contains("no API key"),
+        "the promise belongs to a seat that can run: {human}"
+    );
+}
+
+/// The other direction, so the refusal cannot be a blanket one: the same
+/// seat WITH its adapter is ready and takes the arrow.
+#[test]
+fn the_same_seat_with_its_adapter_is_ready_again() {
+    let choice = collect_from(&machine(Some(18), vec![claude()], false, &[], true));
+    assert_eq!(choice.arrow, "harness", "{choice:?}");
+    assert_eq!(
+        choice.chosen_access.as_deref(),
+        Some("claude-agent-acp"),
+        "{choice:?}"
+    );
 }
 
 #[test]
