@@ -90,8 +90,13 @@ TRACE=$(find .nika/traces -name '*.ndjson' 2>/dev/null | sort | tail -1)
 [ -n "$TRACE" ] || fail "[run] no trace recorded"
 if has_cmd explain; then
   run explain-file 0 -- "$BIN" explain first.nika.yaml
-  need explain-file "bounded portion"
-  need explain-file "unpriced"
+  # The ceiling must be stated BEFORE a token is spent — that is the
+  # promise, and it holds whatever the scaffold costs. The old pins
+  # (`bounded portion` · `unpriced`) render only for an UNBOUNDED plan;
+  # the chain scaffold is bounded and priced now, so pinning them made a
+  # product improvement look like a regression.
+  need explain-file "cost before a token is spent"
+  need explain-file "worst case"
   need explain-file "flight recorder"
   need explain-file "$(basename "$TRACE")"
 fi
