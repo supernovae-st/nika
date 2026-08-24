@@ -49,12 +49,21 @@ say "── funnel e2e · $("$BIN" --version)"
 # 1 · the mirror: sections + every arrow-promised command exists
 run welcome 0 -- "$BIN" welcome
 need welcome "this machine"
-need welcome "start here"
+# The screen ends on ONE pasteable command. `start here` was the old
+# menu's heading; the first-wow cascade replaced a menu with a single
+# next step, so the gate follows the promise rather than the wording.
+need welcome "Next:"
 for c in $(printf '%s' "$OUT" | grep -oE '→ nika [a-z-]+' | awk '{print $3}' | sort -u); do
   has_cmd "$c" || fail "[welcome] promises 'nika $c' — clap tree lacks it"
 done
-FIRST=$(printf '%s' "$OUT" | grep -oE 'nika try [a-z0-9-]+' | head -1)
-[ -n "$FIRST" ] || fail "[welcome] no offline first command promised"
+# The screen's ONE next step, played verbatim. It used to be a `nika try`
+# slug; the first-wow cascade made it `nika new <name>` — a stranger writes
+# a file rather than watching a rehearsal. The gate reads the promise off
+# the screen instead of naming a verb, so it survives the next change of
+# door. `|| true` keeps a screen with no promise reportable (the `fail`
+# below) rather than killing the run under `set -o pipefail`.
+FIRST=$(printf '%s' "$OUT" | grep -oE 'nika (new|try) [a-z0-9-]+' | head -1 || true)
+[ -n "$FIRST" ] || fail "[welcome] no first command promised"
 # shellcheck disable=SC2086 # the promise is played verbatim, word-split intended
 [ -n "$FIRST" ] && run first-promise 0 -- "$BIN" ${FIRST#nika }
 run welcome-json 0 -- "$BIN" welcome --json

@@ -61,11 +61,14 @@ fn the_thirty_second_journey_holds_end_to_end() {
         (out.status.code(), text)
     };
 
-    // 1 · welcome — the mirror greets, and with zero workflows the
-    //     stranger SEES the language (the sample block).
+    // 1 · welcome — the mirror greets, and the stranger sees WHICH model
+    //     this machine can reach plus exactly ONE next command. The sample
+    //     block left with the first-wow cascade: a stranger picks a seat
+    //     before it is taught a language.
     let (code, text) = step(&["welcome"]);
     assert_eq!(code, Some(0), "{text}");
-    assert!(text.contains("a whole workflow is one file"), "{text}");
+    assert!(text.contains("Next:"), "one next step: {text}");
+    assert!(text.contains("nika new hello"), "the first door: {text}");
 
     // 2 · init — the repo gets briefed (editor + agents).
     let (code, text) = step(&["init", "--yes"]);
@@ -309,7 +312,10 @@ fn bare_check_and_run_resolve_the_lazy_way() {
         .expect("binary runs");
     assert_eq!(out.status.code(), Some(3));
     let err = String::from_utf8_lossy(&out.stderr);
-    assert!(err.contains("nika init"), "routes to founding: {err}");
+    // The founding door is `nika new hello` — `init` left the first-run
+    // path when the first-wow cascade landed (a stranger writes ONE file,
+    // never founds a repo). This gate follows the door it teaches.
+    assert!(err.contains("nika new hello"), "routes to founding: {err}");
 
     // MANY → every candidate named, copy-paste ready.
     let many = base.join("many");
