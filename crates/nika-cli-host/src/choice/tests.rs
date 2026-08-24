@@ -259,9 +259,51 @@ fn tty_and_pipe_project_the_same_product() {
     assert!(a.contains("Local first"));
     assert!(b.contains("Local first"));
     assert!(a.contains("Next:"));
+    // This layer is PRE-fold: `render_human_at` legitimately carries the
+    // unicode glyph under both themes, because `welcome.rs` hands its
+    // finished text to `vocab::sober` at the verb boundary. So this
+    // equality says "the same rung is marked", and the ASCII contract is
+    // the next test's job — on the surface that actually ships.
     assert_eq!(
         a.lines().filter(|l| l.contains("▸")).count(),
         b.lines().filter(|l| l.contains("▸")).count()
+    );
+}
+
+#[test]
+fn the_ascii_render_is_ascii_and_still_says_which_rung_is_selected() {
+    // The unit-level twin of `nika-cli/tests/ascii_contract.rs`. That
+    // integration test is the right judge and it caught this — but only
+    // after the spec-pin failure stopped hiding it, and only after
+    // nextest had already fail-fasted past 4731 other tests. A local
+    // twin fails in one crate and one second instead.
+    //
+    // An ARMED machine: the arrow must land on a rendered rung, else the
+    // second assertion below has nothing to find and passes on an empty
+    // screen.
+    //
+    // Measured through `vocab::sober`, because that is what `welcome.rs`
+    // emits — the raw render still carries `·` separators that the fold
+    // is DESIGNED to absorb (vocab.rs: the Theme seam is primary, this
+    // net catches the literals). A first cut asserted on the raw render
+    // and failed on a `·` the shipped output never shows: the mirror is
+    // not the world.
+    let choice = collect_from(&machine(Some(18), vec![claude()], false, &[], true));
+    let dir = tempfile::tempdir().expect("tmp");
+    let theme = Theme::new(false, true, false);
+    let ascii = nika_display::vocab::sober(theme, &choice.render_human_at(theme, Some(dir.path())));
+
+    let leak = ascii.bytes().enumerate().find(|(_, b)| !b.is_ascii());
+    assert!(
+        leak.is_none(),
+        "non-ascii under --ascii: byte {:#04x} at offset {} — the row: {}",
+        leak.map_or(0, |(_, b)| b),
+        leak.map_or(0, |(i, _)| i),
+        ascii.lines().find(|l| !l.is_ascii()).unwrap_or("<no line>")
+    );
+    assert!(
+        ascii.lines().any(|l| l.starts_with("> ")),
+        "the selected rung is still identifiable without unicode:\n{ascii}"
     );
 }
 

@@ -111,7 +111,12 @@ pub fn sober(theme: Theme, text: &str) -> String {
             '⚠' => "!".chars().collect(),
             '🦋' => "[nika]".chars().collect(),
             '○' => ".".chars().collect(),
-            '◐' => ">".chars().collect(),
+            // The pointer pair (the running-state glyph · the welcome
+            // cascade's selected rung — one twin, so one arm: clippy's
+            // same-arms law). `▸` rode no `Theme` seam AND was in no
+            // arm, so it leaked through both layers at once and `main`
+            // went red on it (#1193).
+            '◐' | '▸' => ">".chars().collect(),
             '↻' => "r".chars().collect(),
             '↷' => "~>".chars().collect(),
             '⊘' => "x".chars().collect(),
