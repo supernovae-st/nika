@@ -840,4 +840,6 @@ mod lints_surface;
 #[cfg(test)]
 mod repair_tests;
 #[cfg(test)]
+mod slot_tests;
+#[cfg(test)]
 mod tests;

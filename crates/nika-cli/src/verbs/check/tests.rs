@@ -389,7 +389,7 @@ fn idle_door_renders_its_row_in_the_human_lane_and_a_doorless_file_has_no_row() 
 
 /// Same fixture plumbing, full `VerbOutput` (exit-code assertions) —
 /// the `--native-strict` posture tests read `.code`.
-fn checked_output(name: &str, yaml: &str, native_strict: bool) -> VerbOutput {
+pub(super) fn checked_output(name: &str, yaml: &str, native_strict: bool) -> VerbOutput {
     checked_output_profile(name, yaml, native_strict, Profile::Advisory)
 }
 
@@ -1494,35 +1494,4 @@ fn the_naming_note_fires_on_a_copy_and_not_on_an_ordering_prefix() {
     let mut other = String::new();
     naming_note(&mut other, theme, "-", &wf);
     assert!(other.is_empty(), "stdin has no stem: {other}");
-}
-
-/// #1066 · an unfilled SLOT scaffold is not a workflow. Comments die
-/// with the YAML parse, so check must scan the source after it parses
-/// and refuse (exit 2 · `clean: false`). Deleting the comments greens.
-#[test]
-fn unfilled_slot_comments_fail_check_and_clear_when_deleted() {
-    const BODY: &str = "nika: slot-scaffold\nmodel: mock/echo\ntasks:\n  think:\n    infer: { prompt: hi, max_tokens: 10 }\n";
-    const SLOTS: &str = "nika: slot-scaffold       # SLOT: kebab-case\nmodel: mock/echo\n# SLOT: the one model job\ntasks:\n  think:\n    infer: { prompt: hi, max_tokens: 10 }\n";
-    let red = checked_output("slot-red.nika.yaml", SLOTS, false);
-    assert_eq!(red.code, 2, "{}", red.text);
-    assert!(
-        red.text.contains("SLOT") && red.text.contains("scaffold"),
-        "{}",
-        red.text
-    );
-    let dir = std::env::temp_dir().join(format!("nika-cli-killtests-{}", std::process::id()));
-    let json = run(
-        dir.join("slot-red.nika.yaml").to_str().expect("utf8"),
-        true,
-        false,
-        None,
-        Theme::new(false, true, false),
-    );
-    assert_eq!(json.code, 2, "{}", json.text);
-    let payload: serde_json::Value = serde_json::from_str(&json.text).expect("json");
-    assert_eq!(payload["clean"], false, "{payload:#}");
-    assert!(payload.to_string().contains("SLOT"), "{payload:#}");
-    let green = checked_output("slot-green.nika.yaml", BODY, false);
-    assert_eq!(green.code, 0, "{}", green.text);
-    assert!(!green.text.contains("SLOT"), "{}", green.text);
 }
