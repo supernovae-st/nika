@@ -54,6 +54,7 @@ use crate::analysis::{
 };
 use crate::capabilities::server_capabilities;
 use crate::error::LspError;
+use crate::watchdog;
 
 /// The open-document map: URI string → its buffer + line index.
 type Docs = BTreeMap<String, Document>;
@@ -173,12 +174,34 @@ fn await_exit(connection: &Connection, mut batch: VecDeque<Message>) -> Result<(
 }
 
 /// Run the full stdio lifecycle: connect, initialize, serve, join threads.
-pub(crate) fn run_stdio() -> Result<(), LspError> {
+///
+/// `client_process_id` is the host's `--clientProcessId` argv value, when
+/// it passed one. The `initialize` params carry the same fact for hosts
+/// that use only the protocol channel, so both are offered to
+/// [`watchdog::declared_parent`] and the winner is watched for the rest of
+/// the session (#1181 — before this, the flag was accepted and dropped and
+/// the `initialize` `processId` was never read at all).
+pub(crate) fn run_stdio(client_process_id: Option<u32>) -> Result<(), LspError> {
     let (connection, io_threads) = Connection::stdio();
+    // argv names the parent BEFORE the handshake, so watch it from here:
+    // `initialize` blocks until the client speaks, and a host that dies
+    // during that window would otherwise strand the server exactly as
+    // #1181 describes — with the watchdog it was given never started.
+    let argv_parent = client_process_id.filter(|pid| *pid != 0);
+    if let Some(pid) = argv_parent {
+        watchdog::spawn(pid, watchdog::POLL_INTERVAL);
+    }
     let caps = serde_json::to_value(server_capabilities()).map_err(LspError::Serde)?;
-    connection
+    let init_params = connection
         .initialize(caps)
         .map_err(|e| LspError::Protocol(e.to_string()))?;
+    // The payload channel only becomes readable here. It covers the hosts
+    // that send `processId` and no flag; argv already won if it was given.
+    if argv_parent.is_none()
+        && let Some(pid) = watchdog::declared_parent(None, &init_params)
+    {
+        watchdog::spawn(pid, watchdog::POLL_INTERVAL);
+    }
     let result = serve(&connection);
     // Drop the connection BEFORE joining: it owns the sender whose channel
     // feeds the writer IO thread. While the connection lives the writer

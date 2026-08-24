@@ -87,9 +87,9 @@ silent_drops:
     runtime_file: crates/nika-runtime/src/dispatch.rs
     runtime_needle: "action.thinking"
     issue: 1180
-  - id: lsp.client-process-id
-    parsed_file: crates/nika-cli/src/main.rs
-    parsed_needle: "client_process_id: Option"
-    runtime_file: crates/nika-cli/src/main.rs
-    runtime_needle: "client_process_id)"
-    issue: 1181
+  # lsp.client-process-id — REMOVED 2026-08-24. The flag is read at
+  # main.rs and drives the `initialize` §processId watchdog; the field is
+  # no longer silent, so the watch would now be the lie in the other
+  # direction. Proven by `parent_death_ends_the_server`
+  # (crates/nika-cli/tests/lsp_parent_watchdog.rs), which runs under the
+  # named `rust (tests)` CI job.

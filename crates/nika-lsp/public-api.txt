@@ -220,3 +220,4 @@ pub fn nika_lsp::error::LspError::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_lsp::error::LspError where T: 'static
 pub fn nika_lsp::error::LspError::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub fn nika_lsp::run_stdio() -> core::result::Result<(), nika_lsp::error::LspError>
+pub fn nika_lsp::run_stdio_watching(client_process_id: core::option::Option<u32>) -> core::result::Result<(), nika_lsp::error::LspError>

@@ -323,7 +323,10 @@ enum Command {
         #[arg(long, hide = true)]
         stdio: bool,
         /// Same convention family: hosts pass their own PID so a server
-        /// can watchdog its parent. Accepted, currently unread.
+        /// can watchdog its parent — and this one does. A host that
+        /// closes the pipe ends the session by EOF; a host that CRASHES
+        /// does not, and the server would outlive it forever (#1181).
+        /// Hidden: no human types it, the editor does.
         #[arg(long = "clientProcessId", hide = true)]
         client_process_id: Option<u32>,
     },
@@ -883,7 +886,9 @@ fn dispatch_verb(
         // `exit` without a prior `shutdown`) — the server-process
         // convention, NOT the verb FILE/WORKFLOW/ENV taxonomy.
         Command::Dap => nika_dap::run_stdio(),
-        Command::Lsp { .. } => match nika_lsp::run_stdio() {
+        Command::Lsp {
+            client_process_id, ..
+        } => match nika_lsp::run_stdio_watching(client_process_id) {
             Ok(()) => verbs::exit::OK,
             Err(err) => {
                 eprintln!("nika lsp: {err}");
