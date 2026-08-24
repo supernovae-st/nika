@@ -91,6 +91,15 @@ struct Seat {
     name: String,
     detected: bool,
     authenticated: bool,
+    /// Whether the ACP ADAPTER — the binary a session actually spawns —
+    /// is on PATH. The overlay below sees `claude` and names the seat
+    /// `claude-agent-acp`, which is a DIFFERENT npm package; a person can
+    /// have the first and not the second. Without this field the screen
+    /// read a signed-in Claude Code as a runnable seat and said
+    /// `ready · no API key` for a path that cannot spawn (gauntlet P1/P4,
+    /// 2026-08-25). Detected means "you have the app"; ready means "a run
+    /// can start", and only the adapter proves the second.
+    adapter_present: bool,
 }
 
 fn table() -> Table {
@@ -176,7 +185,11 @@ fn collect_from(machine: &Machine) -> InferenceChoice {
         next: String::new(),
     };
 
-    let ready_seat = seats.iter().find(|s| s.detected && s.authenticated);
+    // A seat is READY only if a session can actually start on it: the app
+    // is here, it is signed in, AND the ACP adapter it spawns is on PATH.
+    let ready_seat = seats
+        .iter()
+        .find(|s| s.detected && s.authenticated && s.adapter_present);
     let harness = harness_rung(seats, ready_seat, machine.harness_in_binary);
     let keys_present = machine.keys.clone();
     let key_row = table
@@ -224,7 +237,15 @@ fn collect_from(machine: &Machine) -> InferenceChoice {
 
 fn harness_rung(seats: &[Seat], ready_seat: Option<&Seat>, in_binary: bool) -> Rung {
     let any_detected = seats.iter().any(|s| s.detected);
-    let seat = ready_seat.or_else(|| seats.iter().find(|s| s.detected));
+    // When no seat is ready, name the one the person is CLOSEST to using:
+    // the app they are signed into beats one they merely have installed.
+    // Registry order otherwise decides, and registry order has nothing to
+    // do with this machine — the first fix here showed `Gemini CLI · sign
+    // in to the app` to someone signed into Claude Code, which is a true
+    // sentence about the wrong seat.
+    let seat = ready_seat
+        .or_else(|| seats.iter().find(|s| s.detected && s.authenticated))
+        .or_else(|| seats.iter().find(|s| s.detected));
     Rung {
         id: "harness".to_owned(),
         name: seat.map_or_else(|| "Claude Code · Codex".to_owned(), |s| s.name.clone()),
@@ -238,12 +259,42 @@ fn harness_rung(seats: &[Seat], ready_seat: Option<&Seat>, in_binary: bool) -> R
                 "here · we'd run on the plan you already pay for · this build cannot sit yet"
                     .to_owned()
             }
-            (None, _) if any_detected => {
-                "here · we'd run on the plan you already pay for · sign in to the app".to_owned()
-            }
+            // Detected but not runnable. Two different walls, and a
+            // person can only act on the one that is actually theirs:
+            // the app is here but unsigned, or it is here and signed in
+            // and the ACP adapter it spawns is simply not installed.
+            (None, _) if any_detected => seat.map_or_else(
+                || {
+                    "here · we'd run on the plan you already pay for · sign in to the app"
+                        .to_owned()
+                },
+                |s| {
+                    if s.authenticated && !s.adapter_present {
+                        format!(
+                            "here · signed in · needs its ACP adapter · npm i -g {}",
+                            adapter_package(&s.id)
+                        )
+                    } else {
+                        "here · we'd run on the plan you already pay for · sign in to the app"
+                            .to_owned()
+                    }
+                },
+            ),
             _ => "Claude Code · Codex · Kimi · Gemini · already on this computer".to_owned(),
         },
         next: "nika new hello".to_owned(),
+    }
+}
+
+/// The npm package that installs a seat's ACP adapter — the binary a
+/// session spawns, distinct from the app the person already has. The
+/// registry carries the same strings in its `package:` field; this is the
+/// install half of that row, said where a person can act on it.
+fn adapter_package(seat_id: &str) -> &'static str {
+    match seat_id {
+        "claude-agent-acp" => "@zed-industries/claude-agent-acp",
+        "codex-acp" => "@zed-industries/codex-acp",
+        _ => "the adapter for this seat",
     }
 }
 
@@ -430,6 +481,9 @@ fn detect_seats(table: &Table) -> Vec<Seat> {
                     .unwrap_or_else(|| row.id.clone());
                 seats.push(Seat {
                     id: row.id,
+                    // The registry probed the adapter itself: a version
+                    // means the adapter binary answered.
+                    adapter_present: detected,
                     name,
                     detected,
                     authenticated,
@@ -461,6 +515,9 @@ fn detect_seats(table: &Table) -> Vec<Seat> {
             .or_else(|| table.harness_names.get(id))
             .cloned()
             .unwrap_or_else(|| bin.to_owned());
+        // The overlay saw `bin`, never `id`. It may only ADD the app's
+        // presence and its sign-in; it must never claim the adapter,
+        // because it did not look for one.
         if let Some(existing) = seats.iter_mut().find(|s| s.id == id) {
             existing.detected = true;
             existing.authenticated = existing.authenticated || authenticated;
@@ -471,6 +528,7 @@ fn detect_seats(table: &Table) -> Vec<Seat> {
                 name,
                 detected: true,
                 authenticated,
+                adapter_present: false,
             });
         }
     }
