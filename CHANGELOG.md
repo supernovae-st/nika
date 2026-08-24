@@ -40,6 +40,13 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Changed
 
+- **`capture: structured` no longer turns a jail EPERM into a green run
+  (#1068).** A confinement denial (`cat: …: Operation not permitted` /
+  `Permission denied`, a `sandbox-exec:` / `bwrap:` line, status 126) is
+  `NIKA-SEC-001` in every capture mode. A program's own non-zero stays
+  data under `structured`. Seatbelt and bwrap share the same stderr table
+  so Linux cannot re-open the hole the macOS path already closed.
+
 - **A `for_each` failure names the item.** The parent note and the
   error message carry the compact item identity (and which values
   recovered when `on_error: skip` nulled a slot). The trace no longer
