@@ -143,3 +143,34 @@ fn invoke_meters_a_top_level_cost_usd_from_structured_output() {
         "non-finite refused"
     );
 }
+
+#[cfg(feature = "access-harness")]
+#[test]
+fn seated_infer_records_quota_without_any_numeric_meter_or_responder_claim() {
+    let dispatched = super::dispatched_harness_infer(
+        "codex",
+        nika_verb_infer::HarnessInferOutput::new(
+            nika_verb_infer::InferValue::Text("answer".to_owned()),
+            "anthropic/claude-sonnet-4-6",
+        ),
+    );
+    assert!(dispatched.note.contains("seat codex"));
+    assert!(
+        dispatched
+            .note
+            .contains("requested anthropic/claude-sonnet-4-6")
+    );
+    let Ok(ok) = dispatched.result else {
+        panic!("the synthetic seated inference must succeed");
+    };
+    assert_eq!(ok.tokens, None, "subscription quota is never token-counted");
+    assert_eq!(ok.cost_usd, None, "subscription quota has no numeric price");
+    assert_eq!(
+        ok.cost_source, None,
+        "the receipt never claims which model responded"
+    );
+    assert_eq!(
+        ok.cost_unpriced,
+        Some(nika_types::cost::UnpricedReason::SubscriptionQuota)
+    );
+}

@@ -650,6 +650,7 @@ fn composed_runtime(
                 .with_access_pin(access_pin.map(ToOwned::to_owned))
                 .with_boot_access_fields(boot_access)
                 .with_access_probes(nika_cli_host::probe::access_probes_with_harness());
+            #[cfg(feature = "access-harness")]
             let rt = match rt.with_harness_from_pin(access_pin) {
                 Ok(rt) => rt,
                 Err(e) => {
@@ -659,6 +660,8 @@ fn composed_runtime(
                     ));
                 }
             };
+            #[cfg(not(feature = "access-harness"))]
+            let rt = rt;
             Ok(match resume_plan {
                 Some(plan) => rt.with_resume_plan(plan),
                 None => rt,

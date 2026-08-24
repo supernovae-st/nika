@@ -439,6 +439,39 @@ pub fn first_ready_harness(probes: &[ProviderProbe]) -> Option<&str> {
     None
 }
 
+/// First ready seat whose adapter has a proved infer-grade row. The
+/// ordinary harness order remains the agent-loop order; this projection is
+/// deliberately capability-specific so a ready ACP-only seat cannot shadow
+/// Codex for a one-shot `infer:`.
+#[cfg(feature = "access-harness")]
+#[must_use]
+pub fn first_ready_infer_harness(probes: &[ProviderProbe]) -> Option<&str> {
+    HarnessRuntime::ALL.into_iter().find_map(|rt| {
+        let ready = probes
+            .iter()
+            .any(|p| p.id == rt.id && p.readiness.configured);
+        (ready
+            && nika_harness::meet_infer_grade(rt.id, nika_harness::StructuredOutputGrade::Text)
+                .is_ok())
+        .then_some(rt.id)
+    })
+}
+
+#[cfg(feature = "access-harness")]
+fn named_infer_grade_ready(rt: HarnessRuntime, probes: &[ProviderProbe]) -> bool {
+    probes.iter().any(|probe| {
+        probe.id == rt.id
+            && probe.readiness.configured
+            && nika_harness::meet_infer_grade(rt.id, nika_harness::StructuredOutputGrade::Text)
+                .is_ok()
+    })
+}
+
+#[cfg(not(feature = "access-harness"))]
+const fn named_infer_grade_ready(_rt: HarnessRuntime, _probes: &[ProviderProbe]) -> bool {
+    false
+}
+
 /// All-`pin_unsatisfied` (or empty) = the pin names nothing usable ·
 /// any other dimension = the pinned path itself failed. Witnesses ride
 /// the message either way (a refusal is never a shrug · A-8).
@@ -559,13 +592,18 @@ pub fn access_plan_map(
     // static model (the envelope `model:` is a hint, not a serves-filter).
     if let Some(pin) = pin {
         if let Some(rt) = HarnessRuntime::lookup(pin) {
-            if refuse_named_runtime(rt, probes).is_none() {
+            let infer_grade_ready = named_infer_grade_ready(rt, probes);
+            if infer_grade_ready || refuse_named_runtime(rt, probes).is_none() {
                 return stamp_harness_plans(models, rt.id);
             }
             return std::collections::BTreeMap::new();
         }
         if pin == AccessClass::Harness.as_str() {
-            if let Some(id) = first_ready_harness(probes) {
+            #[cfg(feature = "access-harness")]
+            let ready = first_ready_infer_harness(probes);
+            #[cfg(not(feature = "access-harness"))]
+            let ready = first_ready_harness(probes);
+            if let Some(id) = ready {
                 return stamp_harness_plans(models, id);
             }
             return std::collections::BTreeMap::new();
@@ -599,7 +637,7 @@ fn stamp_harness_plans(
                     provider_of(model),
                     access,
                     AccessClass::Harness,
-                    AccessClass::Harness.default_billing(),
+                    BillingClass::IncludedQuota,
                     true,
                     Vec::new(),
                 ),
@@ -1025,9 +1063,27 @@ mod tests {
         for plan in map.values() {
             assert_eq!(plan.access, "claude-code");
             assert_eq!(plan.chosen, AccessClass::Harness);
+            assert_eq!(plan.billing, BillingClass::IncludedQuota);
             assert!(plan.pinned);
         }
         assert_eq!(first_ready_harness(&probes), Some("claude-code"));
+    }
+
+    #[test]
+    fn a_codex_pin_stamps_requested_model_and_subscription_quota_without_a_price() {
+        let probes = vec![harness_probe("codex", &["anthropic"], true)];
+        let map = access_plan_map(
+            &["anthropic/claude-sonnet-4-6".to_owned()],
+            &probes,
+            Some("codex"),
+        );
+        let plan = map
+            .get("anthropic/claude-sonnet-4-6")
+            .expect("the requested model is receipt evidence");
+        assert_eq!(plan.model, "anthropic/claude-sonnet-4-6");
+        assert_eq!(plan.access, "codex");
+        assert_eq!(plan.billing, BillingClass::IncludedQuota);
+        assert!(!plan.billing.is_usd_metered());
     }
 
     #[test]

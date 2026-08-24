@@ -18,6 +18,16 @@ use nika_types::cost::SpendOnFailure;
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
 #[non_exhaustive]
 pub enum VerbInferError {
+    /// A subscription seat could not prove or execute the infer-grade
+    /// one-shot contract. No provider spend is attached: the seat consumes
+    /// subscription quota, never an invented token or price meter.
+    #[error("harness access failed during `infer`: {detail}")]
+    #[diagnostic(code(nika::verb::infer_provider_call))]
+    HarnessAccess {
+        /// Attestation refusal or adapter execution witness.
+        detail: String,
+    },
+
     /// The provider call failed (HTTP error, refusal, rate limit, …).
     #[error("provider call failed during `infer`: {source}")]
     #[diagnostic(code(nika::verb::infer_provider_call))]
@@ -119,7 +129,9 @@ impl VerbInferError {
             | Self::UsageUnmetered { spend, .. }
             | Self::EmptyAnswer { spend, .. }
             | Self::SchemaValidation { spend, .. } => spend.has_signal().then_some(spend),
-            Self::InvalidParam { .. } | Self::ModelResolution { .. } => None,
+            Self::HarnessAccess { .. }
+            | Self::InvalidParam { .. }
+            | Self::ModelResolution { .. } => None,
         }
     }
 }
@@ -127,7 +139,7 @@ impl VerbInferError {
 impl NikaErrorCode for VerbInferError {
     fn nika_code(&self) -> NikaCode {
         match self {
-            Self::ProviderCall { .. } => codes::NIKA_430,
+            Self::ProviderCall { .. } | Self::HarnessAccess { .. } => codes::NIKA_430,
             Self::UsageUnmetered { .. } => codes::NIKA_434,
             Self::EmptyAnswer { .. } => codes::NIKA_435,
             Self::SchemaValidation { .. } => codes::NIKA_431,
@@ -146,7 +158,9 @@ impl NikaErrorCode for VerbInferError {
     /// wire form via the trait default.
     fn spec_code(&self) -> String {
         match self {
-            Self::ProviderCall { .. } | Self::ModelResolution { .. } => "NIKA-INFER-001".to_owned(),
+            Self::ProviderCall { .. }
+            | Self::HarnessAccess { .. }
+            | Self::ModelResolution { .. } => "NIKA-INFER-001".to_owned(),
             Self::UsageUnmetered { .. } => "NIKA-INFER-003".to_owned(),
             Self::EmptyAnswer { .. } => "NIKA-INFER-004".to_owned(),
             Self::SchemaValidation { .. } => "NIKA-INFER-002".to_owned(),
@@ -161,7 +175,8 @@ impl NikaErrorCode for VerbInferError {
             Self::ProviderCall { source, .. } => source.is_transient(),
             // An empty answer at the SAME budget re-asks for the identical
             // failure — the remedy is `max_tokens`, never a retry (#651).
-            Self::EmptyAnswer { .. }
+            Self::HarnessAccess { .. }
+            | Self::EmptyAnswer { .. }
             | Self::SchemaValidation { .. }
             | Self::UsageUnmetered { .. }
             | Self::InvalidParam { .. }
@@ -188,6 +203,12 @@ mod tests {
                 VerbInferError::ProviderCall {
                     source: provider_err(),
                     spend: Box::default(),
+                },
+                codes::NIKA_430,
+            ),
+            (
+                VerbInferError::HarnessAccess {
+                    detail: "unattested seat".to_owned(),
                 },
                 codes::NIKA_430,
             ),
@@ -239,6 +260,11 @@ mod tests {
             spend: Box::default(),
         };
         assert_eq!(provider.spec_code(), "NIKA-INFER-001");
+        let harness = VerbInferError::HarnessAccess {
+            detail: "unattested seat".to_owned(),
+        };
+        assert_eq!(harness.spec_code(), "NIKA-INFER-001");
+        assert!(!harness.is_transient());
         let resolution = VerbInferError::ModelResolution {
             model: "ghost/model".to_owned(),
             source: provider_err(),

@@ -39,6 +39,8 @@ pub nika_verb_infer::VerbInferError::EmptyAnswer
 pub nika_verb_infer::VerbInferError::EmptyAnswer::detail: alloc::string::String
 pub nika_verb_infer::VerbInferError::EmptyAnswer::model: alloc::string::String
 pub nika_verb_infer::VerbInferError::EmptyAnswer::spend: alloc::boxed::Box<nika_types::cost::SpendOnFailure>
+pub nika_verb_infer::VerbInferError::HarnessAccess
+pub nika_verb_infer::VerbInferError::HarnessAccess::detail: alloc::string::String
 pub nika_verb_infer::VerbInferError::InvalidParam
 pub nika_verb_infer::VerbInferError::InvalidParam::detail: alloc::string::String
 pub nika_verb_infer::VerbInferError::InvalidParam::param: &'static str

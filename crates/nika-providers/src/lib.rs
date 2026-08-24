@@ -45,7 +45,6 @@ pub mod probe;
 pub mod profile;
 pub mod registry;
 pub mod resolve_access;
-pub mod spend;
 mod sse;
 #[cfg(test)]
 mod test_support;
@@ -56,8 +55,9 @@ pub use profile::{
     resolve_refusal, seed, server_backed_local,
 };
 pub use registry::{NoHttp, ProviderRegistry, ProvidersConfig, ResolvedProvider};
+#[cfg(feature = "access-harness")]
+pub use resolve_access::first_ready_infer_harness;
 pub use resolve_access::{
     AccessCandidate, AccessRefusal, PinRefusal, access_plan_map, candidates_for,
     first_ready_harness, provider_of, refuse_pin, resolve_access,
 };
-pub use spend::{spend_for_model, unpriced_reason_for, usage_has_signal};

@@ -19,8 +19,6 @@ use nika_kernel::process::ShellRunDyn;
 use nika_kernel::tool_executor::ToolExecuteDyn;
 use nika_schema::raw::{RawAction, RawCommand};
 use nika_types::cost::UnpricedReason;
-#[cfg(feature = "access-harness")]
-use nika_verb_agent::NoopObserver;
 use nika_verb_agent::{AgentInput, AgentValue};
 use nika_verb_exec::{CaptureMode, ExecCommand, ExecValue};
 use nika_verb_infer::{InferInput, InferValue};
@@ -721,16 +719,15 @@ where
         input.max_tokens = action.max_tokens.as_ref().map(|t| t.value);
         input.schema = task_schema(action.schema.as_ref(), contract);
         #[cfg(feature = "access-harness")]
-        if let Some(seat) = self.agent.harness_seat() {
-            return self.meter_harness_infer(
-                nika_verb_agent::harness_path::infer_metered(
-                    seat,
-                    AgentInput::for_infer(input.prompt, input.system, input.model, input.schema),
-                    &NoopObserver,
-                    self.harness_seat_id.as_deref(),
-                )
-                .await,
-            );
+        if let Some(seat_id) = self.harness_seat_id.as_deref() {
+            return match self.infer.run_on_harness(seat_id, input).await {
+                Ok(out) => dispatched_harness_infer(seat_id, out),
+                Err(err) => Dispatched::verb_err_spent(
+                    format!("infer · seat {seat_id}"),
+                    &err,
+                    (None, None, None),
+                ),
+            };
         }
         match self.infer.run(input).await {
             Ok(out) => {
@@ -761,8 +758,7 @@ where
                 // on which row prices a model) · unpriced models emit
                 // nothing PLUS the honest WHY (local · mock · uncataloged ·
                 // provider silent).
-                let (cost_usd, cost_unpriced) =
-                    nika_providers::spend_for_model(&out.model_resolved, &out.usage);
+                let (cost_usd, cost_unpriced) = spend_for_model(&out.model_resolved, &out.usage);
                 let cost_source = Some(out.model_resolved.clone());
                 Dispatched::ok_metered(
                     note,
@@ -853,7 +849,7 @@ where
                 // an unpriced LLM leg names its reason next to whatever
                 // tool spend DID meter.
                 let (llm_cost, llm_unpriced) = match out.model_resolved.as_deref() {
-                    Some(model) => nika_providers::spend_for_model(model, &out.usage),
+                    Some(model) => spend_for_model(model, &out.usage),
                     // Harness-built (B7): the subscription absorbs it —
                     // named, NEVER a fabricated $0 (the ledger law).
                     None => (None, Some(UnpricedReason::SubscriptionQuota)),
@@ -928,43 +924,6 @@ where
         }
         Ok(docs)
     }
-
-    #[cfg(feature = "access-harness")]
-    fn meter_harness_infer(
-        &self,
-        result: Result<
-            nika_verb_agent::harness_path::HarnessInfer,
-            nika_verb_agent::VerbAgentError,
-        >,
-    ) -> Dispatched {
-        match result {
-            Ok(o) => {
-                let (c, u) = o
-                    .model_resolved
-                    .as_deref()
-                    .map_or((None, Some(UnpricedReason::SubscriptionQuota)), |m| {
-                        nika_providers::spend_for_model(m, &o.usage)
-                    });
-                Dispatched::ok_metered(
-                    o.note,
-                    o.value,
-                    Some(o.tokens),
-                    None,
-                    c,
-                    o.model_resolved,
-                    u,
-                )
-            }
-            Err(e) => Dispatched::verb_err_spent(
-                format!(
-                    "infer · {}",
-                    self.harness_seat_id.as_deref().unwrap_or("harness")
-                ),
-                &e,
-                price_failed_spend(e.spend()),
-            ),
-        }
-    }
 }
 
 /// Price the spend a FAILED verb had already incurred (decorated on
@@ -978,9 +937,7 @@ fn price_failed_spend(
         return (None, None, None);
     };
     let (llm, unpriced) = match incurred.model_resolved.as_deref() {
-        Some(model) if nika_providers::usage_has_signal(&incurred.usage) => {
-            nika_providers::spend_for_model(model, &incurred.usage)
-        }
+        Some(model) if usage_has_signal(&incurred.usage) => spend_for_model(model, &incurred.usage),
         _ => (None, None),
     };
     let cost_usd = match (llm, incurred.tools_cost_usd) {
@@ -988,6 +945,66 @@ fn price_failed_spend(
         (a, b) => Some(a.unwrap_or(0.0) + b.unwrap_or(0.0)),
     };
     (cost_usd, incurred.model_resolved.clone(), unpriced)
+}
+
+/// The ONE model-spend computation — catalog price × the FULL usage
+/// split, with the honest WHY when no number can exist.
+///
+/// Order matters: an unpriced model class (mock · local · uncataloged)
+/// outranks a silent provider — « local compute · not priced » is the
+/// actionable truth for a local model even when it also reported no
+/// usage. A PRICED model with a degenerate split (all meters zero —
+/// e.g. a stream that never carried usage) must NOT price to $0.00:
+/// the spend is real but unknowable, so it stays absent + named
+/// (`provider_did_not_report_usage`) — the fake-zero gate.
+fn spend_for_model(
+    model: &str,
+    usage: &nika_kernel::provider::TokenUsage,
+) -> (Option<f64>, Option<UnpricedReason>) {
+    if nika_catalog::find_pricing_for(model).is_none() {
+        return (None, Some(unpriced_reason_for(model)));
+    }
+    if !usage_has_signal(usage) {
+        return (None, Some(UnpricedReason::ProviderDidNotReportUsage));
+    }
+    let cache_write = usage
+        .cache_write_tokens
+        .unwrap_or(0)
+        .saturating_add(usage.cache_creation_tokens.unwrap_or(0));
+    let cost = nika_catalog::estimate_cost_usage_for(
+        model,
+        usage.input_tokens,
+        usage.output_tokens,
+        usage.cache_read_tokens.unwrap_or(0),
+        cache_write,
+    )
+    .map(|e| e.usd);
+    (cost, None)
+}
+
+/// Whether the provider reported ANY billable meter — zero-everything is
+/// « did not report », never a $0.00.
+fn usage_has_signal(usage: &nika_kernel::provider::TokenUsage) -> bool {
+    usage.input_tokens > 0
+        || usage.output_tokens > 0
+        || usage.cache_read_tokens.is_some_and(|n| n > 0)
+        || usage.cache_write_tokens.is_some_and(|n| n > 0)
+        || usage.cache_creation_tokens.is_some_and(|n| n > 0)
+}
+
+/// Classify WHY a model string has no catalog price. The provider
+/// prefix is the discriminator: `mock` = the test backend · a keyless
+/// catalog provider = a local server (sovereign path — not priced,
+/// never « free ») · anything else = not in the vendored catalog.
+fn unpriced_reason_for(model: &str) -> UnpricedReason {
+    match model.split_once('/').map(|(provider, _)| provider) {
+        Some("mock") => UnpricedReason::MockProvider,
+        Some(prefix) => match nika_catalog::find_provider(prefix) {
+            Some(row) if !row.requires_key => UnpricedReason::LocalModel,
+            _ => UnpricedReason::MissingCatalogPrice,
+        },
+        None => UnpricedReason::MissingCatalogPrice,
+    }
 }
 
 /// Render an optional spanned string field.
@@ -1197,6 +1214,30 @@ mod infer_deadline_tests {
             "a local provider defaults to minutes, never the 30s cloud default"
         );
     }
+}
+
+#[cfg(feature = "access-harness")]
+fn dispatched_harness_infer(seat_id: &str, out: nika_verb_infer::HarnessInferOutput) -> Dispatched {
+    let note = format!("infer · seat {seat_id} · requested {}", out.requested_model);
+    let value = match out.output {
+        InferValue::Text(text) => Value::String(text),
+        InferValue::Structured(value) => value,
+        other => {
+            return Dispatched::unwired(
+                &note,
+                format!("infer value form not wired yet: {other:?}"),
+            );
+        }
+    };
+    Dispatched::ok_metered(
+        note,
+        value,
+        None,
+        None,
+        None,
+        None,
+        Some(UnpricedReason::SubscriptionQuota),
+    )
 }
 
 // The #824 model-template parity proofs (the house `tests.rs`

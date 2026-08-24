@@ -79,6 +79,7 @@ default = ["access-harness"]
 # own harness (D-2026-08-04-N1 · P3 B4.5 wires the composer).
 access-harness = [
     "dep:nika-harness",
+    "nika-verb-infer/access-harness",
     "nika-verb-agent/access-harness",
     "nika-providers/access-harness",
 ]

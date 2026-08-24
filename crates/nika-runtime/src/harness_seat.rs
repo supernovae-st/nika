@@ -46,7 +46,8 @@ impl<S, T, H, P, D, C> crate::Runtime<S, T, H, P, D, C> {
         mut self,
         pin: Option<&str>,
     ) -> Result<Self, nika_kernel::HttpError> {
-        let ready = nika_providers::first_ready_harness(&self.access_probes);
+        let ready = nika_providers::first_ready_infer_harness(&self.access_probes)
+            .or_else(|| nika_providers::first_ready_harness(&self.access_probes));
         let Some((b, id)) =
             nika_harness::seat_from_pin(pin, ready).map_err(nika_harness::seat_http_err)?
         else {

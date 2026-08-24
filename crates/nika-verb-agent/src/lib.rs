@@ -235,43 +235,6 @@ impl<P, T, D> AgentVerb<P, T, D> {
         }
     }
 
-    /// The seated harness, when `--access` / env declared one.
-    #[cfg(feature = "access-harness")]
-    #[must_use]
-    pub fn harness_seat(&self) -> Option<&harness_path::HarnessSeat> {
-        self.harness.as_ref()
-    }
-
-    /// Run a tool-less `infer:` on the seated harness (empty tools;
-    /// a task `schema:` still refuses — same P3 honesty as `agent:`).
-    ///
-    /// # Errors
-    ///
-    /// Same as [`harness_path::run_on_harness`].
-    #[cfg(feature = "access-harness")]
-    pub async fn run_infer_on_harness(
-        &self,
-        prompt: impl Into<String>,
-        system: Option<String>,
-        model: Option<String>,
-        schema: Option<serde_json::Value>,
-        observer: &dyn AgentObserver,
-    ) -> Result<AgentOutput, VerbAgentError> {
-        let Some(seat) = &self.harness else {
-            return Err(VerbAgentError::InvalidParam {
-                param: "access",
-                detail: "no harness seat — pin `--access claude-code` (or another \
-                         runtime `nika doctor` lists)"
-                    .to_owned(),
-            });
-        };
-        let mut input = AgentInput::new(prompt);
-        input.system = system;
-        input.model = model;
-        input.schema = schema;
-        harness_path::run_on_harness(seat, input, observer).await
-    }
-
     /// Override the intelligence-layer tuning (ADR-096).
     #[must_use]
     pub fn with_config(mut self, config: AgentConfig) -> Self {

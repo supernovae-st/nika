@@ -259,6 +259,14 @@ pub fn access_pin_refusal(
     model_override: Option<&str>,
 ) -> Option<RuntimeError> {
     let pin = access_pin?;
+    let has_infer = wf
+        .tasks
+        .iter()
+        .any(|task| matches!(&task.value.action, nika_schema::raw::RawAction::Infer(_)));
+    let has_agent = wf
+        .tasks
+        .iter()
+        .any(|task| matches!(&task.value.action, nika_schema::raw::RawAction::Agent(_)));
     let models: Vec<String> = match model_override {
         Some(m) => nika_check::check(&nika_check::with_model_override(wf, m))
             .requirements
@@ -279,7 +287,50 @@ pub fn access_pin_refusal(
         .iter()
         .map(String::as_str)
         .filter(|m| !m.contains("${{"));
-    Some(match nika_providers::refuse_pin(judged, probes, pin)? {
+    let is_infer_only_codex = has_infer
+        && !has_agent
+        && pin == "codex"
+        && probes
+            .iter()
+            .any(|probe| probe.id == "codex" && probe.readiness.configured);
+    #[cfg(feature = "access-harness")]
+    let is_infer_only_harness = has_infer
+        && !has_agent
+        && pin == nika_types::access::AccessClass::Harness.as_str()
+        && nika_providers::first_ready_infer_harness(probes).is_some();
+    #[cfg(not(feature = "access-harness"))]
+    let is_infer_only_harness = false;
+    let provider_refusal = (!(is_infer_only_codex || is_infer_only_harness))
+        .then(|| nika_providers::refuse_pin(judged, probes, pin))
+        .flatten();
+    if let Some(refusal) = provider_refusal {
+        return Some(map_pin_refusal(refusal));
+    }
+
+    #[cfg(feature = "access-harness")]
+    if has_infer {
+        let seat = nika_types::access::HarnessRuntime::lookup(pin)
+            .map(|runtime| runtime.id)
+            .or_else(|| {
+                (pin == nika_types::access::AccessClass::Harness.as_str())
+                    .then(|| nika_providers::first_ready_infer_harness(probes).unwrap_or("harness"))
+            });
+        if let Some(seat) = seat
+            && let Err(err) = nika_harness::meet_infer_grade(
+                seat,
+                nika_harness::StructuredOutputGrade::JsonSchema,
+            )
+        {
+            return Some(RuntimeError::AccessNoPath {
+                message: err.to_string(),
+            });
+        }
+    }
+    None
+}
+
+fn map_pin_refusal(refusal: PinRefusal) -> RuntimeError {
+    match refusal {
         PinRefusal::UnknownToken { message } => RuntimeError::AccessUnknownToken { message },
         PinRefusal::PinUnsatisfied { message } => RuntimeError::AccessPinUnsatisfied { message },
         PinRefusal::NoPath { message } => RuntimeError::AccessNoPath { message },
@@ -289,7 +340,7 @@ pub fn access_pin_refusal(
         other => RuntimeError::AccessNoPath {
             message: format!("{other:?}"),
         },
-    })
+    }
 }
 
 #[cfg(test)]
@@ -750,6 +801,49 @@ mod tests {
         );
         assert!(err.to_string().contains("NIKA-1803"), "{err}");
         assert!(!err.to_string().contains("NIKA-1802"), "{err}");
+    }
+
+    #[cfg(feature = "access-harness")]
+    #[test]
+    fn a_ready_claude_agent_seat_refuses_infer_with_the_attestation_witness() {
+        let wf = parse(
+            "nika: t\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  s:\n    infer: { prompt: \"x\" }\n",
+        );
+        let report = nika_check::check(&wf);
+        let probe = access_probe(
+            "claude-code",
+            false,
+            true,
+            nika_types::access::AccessClass::Harness,
+        )
+        .with_serves(vec!["anthropic".to_owned()]);
+        let err = access_pin_refusal(&wf, &report, &[probe], Some("claude-code"), None)
+            .expect("ACP alone is not an infer-grade proof");
+        assert!(matches!(err, RuntimeError::AccessNoPath { .. }), "{err:?}");
+        let witness = err.to_string();
+        for term in [
+            "claude-code",
+            "single_turn",
+            "no_implicit_tools",
+            "structured_output",
+            "model_identity",
+        ] {
+            assert!(witness.contains(term), "missing {term}: {witness}");
+        }
+    }
+
+    #[cfg(feature = "access-harness")]
+    #[test]
+    fn codex_infer_grade_pin_admits_an_infer_only_workflow() {
+        let (wf, report) = mistral_wf();
+        let probe = access_probe(
+            "codex",
+            false,
+            true,
+            nika_types::access::AccessClass::Harness,
+        )
+        .with_serves(vec!["mistral".to_owned()]);
+        assert!(access_pin_refusal(&wf, &report, &[probe], Some("codex"), None).is_none());
     }
 
     #[test]

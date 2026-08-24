@@ -115,7 +115,9 @@ pub fn presence_facts(rows: Vec<AdapterRow>) -> Vec<PresenceFact> {
                 AuthProbe::HomeFile(_) => {
                     probe_auth_home_sync(&row.auth, row.directory_auth).unwrap_or(false)
                 }
-                AuthProbe::Command { .. } => acp_present,
+                AuthProbe::Command { .. } => {
+                    command_access_present(&row.adapter.id, product_present, acp_present)
+                }
             };
             PresenceFact {
                 id: row.adapter.id.clone(),
@@ -126,6 +128,10 @@ pub fn presence_facts(rows: Vec<AdapterRow>) -> Vec<PresenceFact> {
             }
         })
         .collect()
+}
+
+fn command_access_present(id: &str, product_present: bool, acp_present: bool) -> bool {
+    acp_present || (id == "codex" && product_present)
 }
 
 fn probe_auth_home_sync(
@@ -519,6 +525,14 @@ pub fn judge_version(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn direct_codex_counts_for_infer_without_claiming_other_acp_seats() {
+        assert!(command_access_present("codex", true, false));
+        assert!(!command_access_present("codex", false, false));
+        assert!(!command_access_present("claude-code", true, false));
+        assert!(command_access_present("claude-code", true, true));
+    }
 
     #[test]
     fn the_parse_finds_the_triple_inside_real_cli_prose() {

@@ -22,6 +22,7 @@
 
 pub mod client;
 pub mod declaration;
+pub mod infer;
 pub mod probe;
 pub mod registry;
 pub mod spawn;
@@ -31,6 +32,10 @@ pub use client::{IDLE_TIMEOUT_SECS, MAX_LINE_BYTES, drive, drive_with_idle};
 pub use declaration::{
     declared_adapter_id, seat_from_env, seat_from_id, seat_from_lookup, seat_from_pin,
     seat_http_err,
+};
+pub use infer::{
+    HarnessInferOutcome, HarnessInferRequest, InferGradeAttestation, InferGradeError,
+    InferGradeSeat, StructuredOutputGrade, meet_infer_grade,
 };
 pub use probe::{
     AdapterProbeRow, PresenceFact, VersionPin, judge_version, parse_version, presence_facts,

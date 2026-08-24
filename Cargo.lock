@@ -4529,6 +4529,7 @@ dependencies = [
  "nika-types",
  "serde",
  "serde_json",
+ "tempfile",
  "thiserror 2.0.20",
  "tokio",
 ]
@@ -5096,6 +5097,7 @@ dependencies = [
  "miette",
  "nika-catalog",
  "nika-error",
+ "nika-harness",
  "nika-kernel",
  "nika-providers",
  "nika-types",

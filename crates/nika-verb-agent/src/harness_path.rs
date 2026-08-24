@@ -79,48 +79,6 @@ impl HarnessSeat {
     }
 }
 
-/// Metered view of a tool-less harness `infer:` (the runtime dispatch note).
-#[derive(Debug)]
-#[non_exhaustive]
-pub struct HarnessInfer {
-    /// `infer · <seat id>`.
-    pub note: String,
-    /// Text or structured JSON.
-    pub value: serde_json::Value,
-    /// Cumulative tokens.
-    pub tokens: i64,
-    /// Pricing key when the harness named a model.
-    pub model_resolved: Option<String>,
-    /// Usage split the cost layer prices.
-    pub usage: nika_kernel::ai::provider::TokenUsage,
-}
-
-/// Tool-less `infer:` on a seated ACP CLI.
-///
-/// # Errors
-///
-/// Same refusals as the harness `agent:` path (schema · tools · session).
-pub async fn infer_metered(
-    seat: &HarnessSeat,
-    mut input: AgentInput,
-    observer: &dyn AgentObserver,
-    seat_id: Option<&str>,
-) -> Result<HarnessInfer, VerbAgentError> {
-    input.tools.clear();
-    let out = run_on_harness(seat, input, observer).await?;
-    let value = match out.output {
-        AgentValue::Text(text) => serde_json::Value::String(text),
-        AgentValue::Structured(value) => value,
-    };
-    Ok(HarnessInfer {
-        note: format!("infer · {}", seat_id.unwrap_or("harness")),
-        value,
-        tokens: i64::try_from(out.total_tokens).unwrap_or(i64::MAX),
-        model_resolved: out.model_resolved,
-        usage: out.usage,
-    })
-}
-
 /// Run the task on the harness seat — the external half of
 /// `run_observed`.
 pub(crate) async fn run_on_harness(
@@ -746,45 +704,6 @@ mod tests {
             .expect("completes");
         assert_eq!(out.total_tokens, 140);
         assert_eq!(out.usage.input_tokens, 100);
-    }
-
-    #[tokio::test]
-    async fn infer_on_harness_is_tool_less_run_on_harness() {
-        use nika_kernel_mock::{MockProvider, MockToolDefinitionProvider, MockToolExecutor};
-        use nika_verb_invoke::InvokeVerb;
-
-        let seat = seat_with(vec![completed("hello from the CLI")]);
-        let verb = crate::AgentVerb::new(
-            Arc::new(MockProvider::new("mock")),
-            Arc::new(InvokeVerb::new(Arc::new(MockToolExecutor::new()))),
-            Arc::new(MockToolDefinitionProvider::new()),
-            "mock/echo",
-        )
-        .with_harness_seat(seat);
-        let out = verb
-            .run_infer_on_harness(
-                "say hi",
-                None,
-                Some("anthropic/claude-sonnet-4-5".to_owned()),
-                None,
-                &crate::NoopObserver,
-            )
-            .await
-            .expect("infer-on-harness completes");
-        let crate::AgentValue::Text(text) = &out.output else {
-            panic!("P3 harness infer is text");
-        };
-        assert_eq!(text, "hello from the CLI");
-    }
-
-    /// Live Claude spawn is not run in CI. The product token stays
-    /// known so absence is NIKA-1803, never NIKA-1802.
-    #[test]
-    fn claude_code_stays_a_known_token_without_a_live_spawn() {
-        assert!(
-            nika_types::access::HarnessRuntime::lookup("claude-code").is_some(),
-            "the token stays known even when the speaker is absent"
-        );
     }
 }
 
