@@ -12,6 +12,11 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Added
 
+- **`nika check --json` carries one-obvious-way lints.** `hints[]`
+  rows with `kind: "one-obvious-way"` and `code: "one-obvious-way/NNN"`
+  (advice starts with the rule id), the same door native-first already
+  had. Warnings, never errors — `clean` stays true.
+
 - **The next tagged binary includes the harness access class.**
   `release.yml` builds `--features local-infer,access-harness`. The
   160 KB `nika-harness` crate has been on main, API-frozen, since

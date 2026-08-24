@@ -440,6 +440,7 @@ fn render_checked_with_profile(
     if json {
         return json_verdict(
             report,
+            wf,
             &models_audit,
             skills,
             &drift_hints,
@@ -589,11 +590,13 @@ fn model_finding_rows(findings: &[ModelFinding]) -> serde_json::Value {
     )
 }
 
-/// `--json` verdict object. Drift rows append to `hints[]` plus
-/// their `code`.
+/// `--json` verdict object. Drift and one-obvious-way rows append to
+/// `hints[]` plus their `code`. Both families are warnings — `clean`
+/// never reads them.
 #[allow(clippy::too_many_arguments)] // the verdict's seams, one each — the render.rs:427 precedent
 fn json_verdict(
     report: &CheckReport,
+    wf: &nika_schema::raw::RawWorkflow,
     models_audit: &ModelsAudit,
     skills: &nika_schema::ResolvedSkills,
     drift_hints: &[String],
@@ -613,9 +616,7 @@ fn json_verdict(
             .get_mut("hints")
             .and_then(serde_json::Value::as_array_mut)
         {
-            for advice in drift_hints {
-                hints.push(serde_json::json!({"kind": "drift", "task": "-", "advice": advice, "code": drift::DRIFT_CODE}));
-            }
+            push_advisory_json_hints(hints, drift_hints, wf);
         }
         obj.insert("clean".to_owned(), serde_json::Value::Bool(clean));
         obj.insert(
@@ -693,6 +694,35 @@ fn json_verdict(
     }
 }
 
+/// Drift + one-obvious-way rows on the machine `hints[]`.
+///
+/// Native-first already rides `CheckReport.hints` (kind + numbered
+/// `code` + task + advice that starts with the rule id). One-obvious-way
+/// lives in `nika-lints` and cannot join that report without a
+/// nika-check → nika-lints cycle, so this edge is the public door (#763).
+fn push_advisory_json_hints(
+    hints: &mut Vec<serde_json::Value>,
+    drift_hints: &[String],
+    wf: &nika_schema::raw::RawWorkflow,
+) {
+    for advice in drift_hints {
+        hints.push(serde_json::json!({
+            "kind": "drift",
+            "task": "-",
+            "advice": advice,
+            "code": drift::DRIFT_CODE,
+        }));
+    }
+    for lint in nika_lints::one_obvious_way(wf) {
+        hints.push(serde_json::json!({
+            "kind": "one-obvious-way",
+            "code": lint.rule,
+            "task": lint.task_id,
+            "advice": format!("{} · {}", lint.rule, lint.message),
+        }));
+    }
+}
+
 /// Several files through the same per-file ladder — the pre-commit / CI
 /// shape (`nika check a.nika.yaml b.nika.yaml`). Each file gets the FULL
 /// [`run`] report (its header names the file), every file still audits
@@ -759,6 +789,8 @@ pub fn run_infer_permits(path: &str, json: bool) -> VerbOutput {
     VerbOutput::ok(text)
 }
 
+#[cfg(test)]
+mod lints_surface;
 #[cfg(test)]
 mod repair_tests;
 #[cfg(test)]
