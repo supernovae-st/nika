@@ -626,6 +626,45 @@ mod tests {
         ));
     }
 
+    /// The filed #1068 shape: allowlisted `cat` reads outside `permits.fs.read`,
+    /// the jail returns EPERM, `cat` exits 1, `capture: structured` used to
+    /// render ✔ with `exit_code: 1`. The existing 126-wrapper test above
+    /// cannot catch that — 126 was already fail-closed. This one would have.
+    #[cfg(target_os = "macos")]
+    #[tokio::test]
+    async fn inner_cat_eperm_cannot_become_structured_success() {
+        use nika_error::traits::NikaErrorCode as _;
+        use nika_exec_runner::TokioShell;
+        use nika_sandbox_seatbelt::SeatbeltSandbox;
+
+        assert!(SeatbeltSandbox::available(), "macOS must ship sandbox-exec");
+        let dir = tempfile::tempdir().expect("fixture dir");
+        let allowed = dir.path().join("allowed.txt");
+        let denied = dir.path().join("secret-key.txt");
+        std::fs::write(&allowed, b"in the grant").expect("allowed fixture");
+        std::fs::write(&denied, b"must not leak").expect("denied fixture");
+
+        let shell = Arc::new(TokioShell::with_sandbox(Arc::new(SeatbeltSandbox::new())));
+        let mut input =
+            ExecInput::argv(["/bin/cat".to_owned(), denied.to_string_lossy().into_owned()]);
+        input.capture = CaptureMode::Structured;
+        let mut spec = nika_kernel::process::SandboxSpec::new();
+        spec.fs_read.push(allowed.to_string_lossy().into_owned());
+        input.sandbox = Some(spec);
+        let error = ExecVerb::new(shell)
+            .run(input)
+            .await
+            .expect_err("#1068: cat EPERM under structured capture is a red run");
+
+        assert_eq!(error.spec_code(), "NIKA-SEC-001");
+        assert!(matches!(
+            error,
+            VerbExecError::Shell {
+                source: nika_kernel::process::ShellError::Blocked { .. }
+            }
+        ));
+    }
+
     #[tokio::test]
     async fn structured_mode_cannot_declassify_a_transport_failure() {
         use nika_error::traits::NikaErrorCode as _;

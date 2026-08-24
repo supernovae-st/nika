@@ -1004,6 +1004,7 @@ pub fn nika_kernel_core::io::command_sandbox::NoopSandbox::classify_outcome(&sel
 pub fn nika_kernel_core::io::command_sandbox::NoopSandbox::confine(&self, _spec: &nika_kernel_core::io::process::SandboxSpec, command: nika_kernel_core::io::process::ShellCommand) -> core::result::Result<nika_kernel_core::io::process::ShellCommand, nika_kernel_core::io::command_sandbox::CommandSandboxError>
 pub fn nika_kernel_core::io::command_sandbox::fold_sandbox_prefix(prefix: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_kernel_core::io::command_sandbox::names_system_root(folded: &str, roots: &[&str]) -> bool
+pub fn nika_kernel_core::io::command_sandbox::stderr_signals_confinement_denial(stderr: &str) -> bool
 pub mod nika_kernel_core::io::fs
 #[non_exhaustive] pub enum nika_kernel_core::io::fs::FsError
 pub nika_kernel_core::io::fs::FsError::AlreadyExists

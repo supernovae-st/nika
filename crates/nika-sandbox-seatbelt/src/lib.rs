@@ -72,6 +72,7 @@ use std::path::{Path, PathBuf};
 
 use nika_kernel::command_sandbox::{
     CommandSandbox, CommandSandboxError, fold_sandbox_prefix, names_system_root,
+    stderr_signals_confinement_denial,
 };
 use nika_kernel::process::{NetPolicy, SandboxSpec, ShellAdapterOutcome, ShellCommand};
 
@@ -122,17 +123,21 @@ impl CommandSandbox for SeatbeltSandbox {
     }
 }
 
-/// Seatbelt's wrapper-status table. Status 126 is reserved fail-closed at
-/// this boundary because it is the launcher/exec refusal class and cannot be
-/// distinguished safely from an inner program deliberately choosing 126.
-/// A launcher diagnostic is likewise authority, regardless of its numeric
-/// status. Other non-zero statuses remain authored process outcomes.
+/// Seatbelt's wrapper-status table. Status 0 is always the inner process.
+/// Status 126 is reserved fail-closed (launcher/exec refusal, indistinguishable
+/// from an inner 126). A `sandbox-exec:` line or an inner kernel EPERM/EACCES
+/// (#1068 · `cat` denied by the jail) is authority at any other non-zero.
+/// Remaining non-zero statuses stay authored process outcomes so
+/// `capture: structured` can still branch on a program's own failure.
 fn classify_terminal_outcome(status: i32, stderr: &str) -> ShellAdapterOutcome {
+    if status == 0 {
+        return ShellAdapterOutcome::process();
+    }
     let launcher_diagnostic = stderr
         .lines()
         .map(str::trim_start)
-        .any(|line| line.starts_with("sandbox-exec:") || line.contains("Operation not permitted"));
-    if status == 126 || launcher_diagnostic {
+        .any(|line| line.starts_with("sandbox-exec:"));
+    if status == 126 || launcher_diagnostic || stderr_signals_confinement_denial(stderr) {
         ShellAdapterOutcome::authority_refusal(format!(
             "seatbelt refused the confined process (status {status})"
         ))
@@ -507,8 +512,22 @@ mod tests {
             Err(nika_kernel::ShellError::Blocked { .. })
         ));
         assert!(
+            matches!(
+                apply(classify_terminal_outcome(
+                    1,
+                    "cat: secret/key.txt: Operation not permitted\n"
+                )),
+                Err(nika_kernel::ShellError::Blocked { .. })
+            ),
+            "#1068: inner cat EPERM at status 1 is confinement, not structured data"
+        );
+        assert!(
             apply(classify_terminal_outcome(7, "business validation failed")).is_ok(),
             "an ordinary non-zero remains business data"
+        );
+        assert!(
+            apply(classify_terminal_outcome(0, "Operation not permitted")).is_ok(),
+            "status 0 is the inner process even if stderr mentions EPERM"
         );
     }
 

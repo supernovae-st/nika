@@ -73,6 +73,24 @@ pub trait CommandSandbox: Send + Sync {
     }
 }
 
+/// True when drained stderr is a kernel/sandbox denial, not authored output.
+///
+/// `capture: structured` turns a business non-zero into data. A confinement
+/// EPERM/EACCES is not a business non-zero (#1068): `cat` denied by the jail
+/// prints `Operation not permitted` / `Permission denied` and exits 1, which
+/// the structured path used to render as ✔. Conservative on purpose — a
+/// program that prints these phrases under a jail is treated as authority.
+/// Status 0 never uses this helper; backends keep a zero as process.
+#[must_use]
+pub fn stderr_signals_confinement_denial(stderr: &str) -> bool {
+    stderr.lines().map(str::trim_start).any(|line| {
+        line.contains("Operation not permitted")
+            || line.contains("Permission denied")
+            || line.contains("file system sandbox blocked")
+            || line.contains("Read-only file system")
+    })
+}
+
 /// Errors from confining a command.
 #[derive(Debug, thiserror::Error, miette::Diagnostic)]
 #[non_exhaustive]
@@ -284,6 +302,33 @@ mod tests {
             reason: "bad path".into(),
         };
         assert!(e.to_string().contains("profile"));
+    }
+
+    /// The #1068 discriminant: inner `cat` EPERM is confinement; an authored
+    /// non-zero is not. A mutant that matches every stderr, or none of it,
+    /// dies here — this is the table `capture: structured` must consult.
+    #[test]
+    fn inner_eperm_stderr_is_confinement_and_business_stderr_is_not() {
+        assert!(stderr_signals_confinement_denial(
+            "cat: secret/key.txt: Operation not permitted\n"
+        ));
+        assert!(stderr_signals_confinement_denial(
+            "cat: secret/key.txt: Permission denied\n"
+        ));
+        assert!(stderr_signals_confinement_denial(
+            "touch: out.txt: Read-only file system\n"
+        ));
+        assert!(stderr_signals_confinement_denial(
+            "dyld[1]: Library not loaded: /opt/homebrew/lib/x.dylib\n  Reason: file system sandbox blocked open()\n"
+        ));
+        assert!(
+            !stderr_signals_confinement_denial("tests failed"),
+            "an authored non-zero must stay data under capture: structured"
+        );
+        assert!(
+            !stderr_signals_confinement_denial(""),
+            "empty stderr is not a denial diagnostic"
+        );
     }
 }
 

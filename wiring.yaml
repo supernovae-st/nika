@@ -86,10 +86,10 @@ silent_drops:
     parsed_needle: "action.thinking"
     runtime_file: crates/nika-runtime/src/dispatch.rs
     runtime_needle: "action.thinking"
-    issue: 1135
+    issue: 1180
   - id: lsp.client-process-id
     parsed_file: crates/nika-cli/src/main.rs
     parsed_needle: "client_process_id: Option"
     runtime_file: crates/nika-cli/src/main.rs
     runtime_needle: "client_process_id)"
-    issue: null
+    issue: 1181
