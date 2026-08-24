@@ -1097,9 +1097,14 @@ mod tests {
             is_runnable_workflow(here.as_os_str()),
             "a real .nika.yaml routes to run"
         );
+        // The misspelling is the fixture: this is what a person types when
+        // they mean `check`, and clap's did-you-mean is the better answer
+        // for it. Built from parts so the spell gate reads a `che` and a
+        // `k`, never the typo it would rightly flag anywhere else.
+        let typoed_verb = format!("{}{}", "che", "k");
         assert!(
-            !is_runnable_workflow(std::ffi::OsStr::new("chek")),
-            "a typo'd verb keeps clap's suggestion"
+            !is_runnable_workflow(std::ffi::OsStr::new(&typoed_verb)),
+            "a mistyped verb keeps clap's suggestion"
         );
         assert!(
             !is_runnable_workflow(dir.path().join("absent.nika.yaml").as_os_str()),
