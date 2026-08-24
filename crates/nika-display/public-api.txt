@@ -55,11 +55,13 @@ impl<T> tracing::instrument::WithSubscriber for nika_display::check_render::Repa
 impl<T> typenum::type_operators::Same for nika_display::check_render::RepairTarget
 pub type nika_display::check_render::RepairTarget::Output = T
 #[non_exhaustive] pub struct nika_display::check_render::ModelFinding
+pub nika_display::check_render::ModelFinding::code: core::option::Option<alloc::string::String>
 pub nika_display::check_render::ModelFinding::model: alloc::string::String
 pub nika_display::check_render::ModelFinding::tasks: alloc::vec::Vec<alloc::string::String>
 pub nika_display::check_render::ModelFinding::why: alloc::string::String
 impl nika_display::check_render::ModelFinding
 pub fn nika_display::check_render::ModelFinding::new(model: alloc::string::String, tasks: alloc::vec::Vec<alloc::string::String>, why: alloc::string::String) -> Self
+pub fn nika_display::check_render::ModelFinding::with_code(self, code: impl core::convert::Into<alloc::string::String>) -> Self
 impl core::clone::Clone for nika_display::check_render::ModelFinding
 pub fn nika_display::check_render::ModelFinding::clone(&self) -> nika_display::check_render::ModelFinding
 impl core::cmp::Eq for nika_display::check_render::ModelFinding

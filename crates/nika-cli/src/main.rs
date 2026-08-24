@@ -39,7 +39,7 @@ use lazy::{check_lazy, resolve_lazy_target, run_lazy};
     version,
     // The L3 identity is shared by every adapter; gitless builds keep the bare version.
     long_version = nika_runtime::engine_identity().version_long(),
-    about = "nika · pick a model, then what to do next",
+    about = "nika · a plan from a file",
     after_help = "nika --help --all  the rest of the surface"
 )]
 struct Cli {
@@ -434,10 +434,11 @@ struct RunArgs {
     #[arg(long, value_name = "PROVIDER/NAME")]
     model: Option<String>,
     /// Pin the ACCESS path (`model:` picks the intelligence; access
-    /// picks the path) — an access class (`local` · `api` · `harness` ·
-    /// `oauth` · `mock`) or an access id `nika doctor` lists. A pin is
-    /// a pin: unsatisfied refuses before the prologue with a witness,
-    /// never substitutes another path or model (D-2026-08-04-N1).
+    /// picks the path) — a class: `local` · `mock` · `harness` ·
+    /// `oauth` · `api`. A harness seat id (`claude-agent-acp`) is not a
+    /// class (NIKA-1802). A pin is a pin: unsatisfied refuses before
+    /// the prologue with a witness, never substitutes another path or
+    /// model (D-2026-08-04-N1).
     #[arg(long, value_name = "PATH")]
     access: Option<String>,
     /// Set a workflow `inputs:` value (repeatable). Overrides a declared
@@ -632,11 +633,11 @@ fn concierge_json(plain_theme: Theme) -> std::process::ExitCode {
 
 /// Human default help · B67 · ≤ 6 lines. The rest lives on `--help --all`.
 fn human_help() -> &'static str {
-    "nika          pick a model, then what to do next\n\
-     nika new      write one workflow file\n\
-     nika run      run a file\n\
-     nika check    audit a file before it runs\n\
-     nika doctor   PATH, model, sandbox\n"
+    "nika             a plan from a file\n\
+     nika new hello   one file that runs on this machine\n\
+     nika run         run a file\n\
+     nika check       audit a file before it runs\n\
+     nika doctor      PATH, model, sandbox\n"
 }
 
 /// Bare `nika`, `nika --json`, `nika version`, `nika thread` — decided
@@ -1236,6 +1237,11 @@ mod tests {
             "human default help is ≤ 6 lines, got {lines}:\n{}",
             human_help()
         );
+        assert!(
+            human_help().contains("nika new hello"),
+            "day-one help names the first-wow file:\n{}",
+            human_help()
+        );
         let cmd = <Cli as clap::CommandFactory>::command();
         let total = cmd
             .get_subcommands()
@@ -1249,6 +1255,24 @@ mod tests {
         let expected: std::collections::BTreeSet<&str> =
             ["new", "run", "check", "doctor"].into_iter().collect();
         assert_eq!(visible, expected, "day-one verbs: new run check doctor");
+        let run = cmd.find_subcommand("run").expect("run");
+        let access = run
+            .get_arguments()
+            .find(|a| a.get_long() == Some("access"))
+            .expect("--access");
+        let help = access
+            .get_help()
+            .map(std::string::ToString::to_string)
+            .unwrap_or_default();
+        assert!(help.contains("harness") && help.contains("local"), "{help}");
+        assert!(
+            !help.contains("nika doctor lists"),
+            "doctor listing seat ids as pins caused NIKA-1802: {help}"
+        );
+        assert!(
+            help.contains("claude-agent-acp") && help.contains("not a class"),
+            "the help must name the trap: {help}"
+        );
         let hidden = cmd
             .get_subcommands()
             .filter(|c| c.is_hide_set() && c.get_name() != "help")

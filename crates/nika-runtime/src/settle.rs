@@ -553,6 +553,9 @@ fn settle_success_terminal(
         TerminalCause::Normal
     };
     record.attempts = Some(attempts);
+    if record.error.is_none() {
+        record.error.clone_from(&recovered_from);
+    }
     record.recovered_from = recovered_from;
     record.output = value;
     let ended = emit_task::emit_completed(

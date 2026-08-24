@@ -4286,6 +4286,7 @@ dependencies = [
  "nika-http",
  "nika-kernel",
  "nika-kernel-mock",
+ "nika-lints",
  "nika-lsp",
  "nika-mcp",
  "nika-migrate",

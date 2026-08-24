@@ -318,6 +318,30 @@ pub fn parse_answers(
     Ok(answers)
 }
 
+/// A `--answer` that names a task already journaled as success in the
+/// resume plan would re-open a settled gate (#1067). Fresh runs (`plan`
+/// empty) and paused gates (the prompt never completed, so it is not in
+/// the plan) still accept answers. A decided gate stays decided.
+///
+/// # Errors
+///
+/// A human-readable refusal (environment class).
+pub fn refuse_reopened_settled_gates(
+    plan: &ResumePlan,
+    answers: &BTreeMap<String, serde_json::Value>,
+) -> Result<(), String> {
+    for id in answers.keys() {
+        if plan.contains_key(id) {
+            return Err(format!(
+                "--answer {id}: this gate already settled in the resumed trace · \
+                 a decided gate stays decided. Start a new run (no --resume) to \
+                 ask again"
+            ));
+        }
+    }
+    Ok(())
+}
+
 /// The resume's chain-trust verdict (ADR-099 trust amendment ·
 /// 2026-08-08) — a resume TRUSTS the trace's recorded successes: it
 /// serves them as cache hits and runs live tasks on their values. The
@@ -949,5 +973,41 @@ mod tests {
             panic!("a version token never covers a versionless trace");
         };
         assert!(message.contains("records none"), "{message}");
+    }
+
+    #[test]
+    fn a_settled_prompt_refuses_a_fresh_answer() {
+        let mut plan = ResumePlan::new();
+        plan.insert(
+            "human".to_owned(),
+            PriorSuccess::new("d".repeat(64), "i".repeat(64), serde_json::json!(false)),
+        );
+        let mut answers = BTreeMap::new();
+        answers.insert("human".to_owned(), serde_json::json!(true));
+        let err = refuse_reopened_settled_gates(&plan, &answers).expect_err("settled re-open");
+        assert!(err.contains("human"), "{err}");
+        assert!(err.contains("stays decided"), "{err}");
+    }
+
+    #[test]
+    fn a_paused_or_fresh_gate_still_accepts_an_answer() {
+        let plan = ResumePlan::new();
+        let mut answers = BTreeMap::new();
+        answers.insert("human".to_owned(), serde_json::json!(true));
+        refuse_reopened_settled_gates(&plan, &answers)
+            .expect("an unanswered gate is the legitimate --answer path");
+    }
+
+    #[test]
+    fn answering_a_different_task_than_the_settled_ones_is_fine() {
+        let mut plan = ResumePlan::new();
+        plan.insert(
+            "check_a".to_owned(),
+            PriorSuccess::new("d".repeat(64), "i".repeat(64), serde_json::json!("ok")),
+        );
+        let mut answers = BTreeMap::new();
+        answers.insert("human".to_owned(), serde_json::json!(true));
+        refuse_reopened_settled_gates(&plan, &answers)
+            .expect("the human gate is not in the plan, so it has not settled");
     }
 }

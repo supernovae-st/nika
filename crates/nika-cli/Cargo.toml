@@ -24,6 +24,7 @@ nika-service-execution = { path = "../nika-service-execution", version = "0.114.
 nika-serve   = { path = "../nika-serve", version = "0.114.0" }      # loopback HTTP mode of `nika serve` (W06)
 jiff        = { workspace = true }  # the CLOCK — nika-cadence is pure and takes a Zoned; reading one is an L4 act  # the project file (ceiling — the --max-cost-usd flag's default rung · D-2026-08-11-N5)
 nika-check  = { path = "../nika-check", version = "0.114.0" }  # the ADR-092 check ladder (the check verb · run gates · fix loop)
+nika-lints  = { path = "../nika-lints", version = "0.114.0" }  # one-obvious-way preference lints on `check --json` hints (#763)
 nika-graph = { path = "../nika-graph", version = "0.114.0" }   # the canonical projection (inspect --format json renders it)
 nika-error  = { path = "../nika-error", version = "0.114.0" }  # the code registry (`nika explain`)
 nika-pack   = { path = "../nika-pack", version = "0.114.0" }   # the embedded language pack (`nika spec|schema|examples|new`)

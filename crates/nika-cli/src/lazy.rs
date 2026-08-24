@@ -47,9 +47,7 @@ pub(crate) fn resolve_lazy_target(given: Option<String>, verb: &str) -> Result<S
             Ok(one)
         }
         0 => {
-            eprintln!(
-                "nika {verb}: no workflow here yet\n  nika new hello # one file, the model this machine already has\n  nika init      # found this repo (wizard on a terminal)\n  nika try 01-hello                              # offline proof"
-            );
+            eprintln!("nika {verb}: no workflow here yet\n  nika new hello");
             Err(verbs::exit::ENV)
         }
         n => {

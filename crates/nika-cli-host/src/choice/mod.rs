@@ -161,11 +161,10 @@ fn collect_from(machine: &Machine) -> InferenceChoice {
         available: true,
         ready: local_ready,
         reason: local_reason(local_ready, ram, &download),
-        next: if local_ready {
-            "nika new hello".to_owned()
-        } else {
-            format!("nika model pull {pull}")
-        },
+        // First door is always the file that runs. Pull is on the rung
+        // reason — putting it in Next made an empty machine download 7 GB
+        // before seeing anything work (gulf of execution).
+        next: "nika new hello".to_owned(),
     };
 
     let cloud = Rung {
@@ -511,6 +510,13 @@ impl InferenceChoice {
     /// Human projection — TTY and pipe render this same product.
     #[must_use]
     pub(crate) fn render_human(&self, theme: Theme) -> String {
+        self.render_human_at(theme, std::env::current_dir().ok().as_deref())
+    }
+
+    /// Test seam — `Next:` keys on the files in `cwd`, never the crate
+    /// that compiled the binary (gauntlet P15).
+    #[must_use]
+    pub(crate) fn render_human_at(&self, theme: Theme, cwd: Option<&Path>) -> String {
         let mut s = String::new();
         let _ = writeln!(s, "{}", theme.paint(Role::Strong, &self.slogan));
         let _ = writeln!(s);
@@ -545,13 +551,9 @@ impl InferenceChoice {
             let _ = writeln!(s, "{arrow}{name:<22} {}", rung.reason);
         }
         let _ = writeln!(s);
-        let next = self
-            .rungs
-            .iter()
-            .find(|r| r.id == self.arrow)
-            .map_or("nika new", |r| r.next.as_str());
+        let next = front_door_next(cwd);
         let _ = writeln!(s, "Next:");
-        let _ = writeln!(s, "  {}", theme.paint(Role::Strong, next));
+        let _ = writeln!(s, "  {}", theme.paint(Role::Strong, &next));
         let _ = writeln!(s);
         let _ = writeln!(
             s,
@@ -695,8 +697,8 @@ pub(crate) fn first_wow_dest(dest: Option<&str>) -> &str {
     }
 }
 
-/// Write the cascade's first workflow. Harness → `agent:` (the seat can
-/// sit). Key/local → `infer:` with the chosen model.
+/// Write the cascade's first workflow. Key → `infer:` with that model.
+/// Anything else → `infer:` on `mock/echo` so the printed Next runs.
 #[must_use]
 pub(crate) fn write_first_wow(dest: &Path, force: bool) -> crate::output::VerbOutput {
     write_first_wow_from(dest, force, &collect())
@@ -719,21 +721,58 @@ pub(crate) fn write_first_wow_from(
         Ok(()) => crate::output::VerbOutput::ok(format!(
             "wrote {} · {}",
             dest.display(),
-            first_wow_next(choice, dest)
+            first_wow_next(dest)
         )),
         Err(e) => crate::output::VerbOutput::env(format!("cannot write {}: {e}", dest.display())),
     }
 }
 
-fn first_wow_next(choice: &InferenceChoice, dest: &Path) -> String {
-    match choice.chosen_access.as_deref() {
-        Some(id) => format!("nika run {} --access {id}", dest.display()),
-        None => format!("nika run {}", dest.display()),
+fn first_wow_next(dest: &Path) -> String {
+    // Gauntlet W2 (P01 P02 P04 P05 P07 P12 P15): `--access harness` on
+    // an `agent:` file with no `model:` is NIKA-INFER-001. The Next
+    // line is a copy-paste that must exit 0 on a keyless machine.
+    format!("nika run {}", dest.display())
+}
+
+/// `Next:` after the user already has a file. Teaching `nika new hello`
+/// again is a dead end (`exists — pass --force`) — gulf of execution,
+/// and the tool's own advice caused it (gauntlet P15).
+fn front_door_next(cwd: Option<&Path>) -> String {
+    let Some(dir) = cwd else {
+        return "nika new hello".to_owned();
+    };
+    let files = cwd_workflows(dir);
+    match files.as_slice() {
+        [] => "nika new hello".to_owned(),
+        [one] => first_wow_next(Path::new(one)),
+        many if many.iter().any(|n| n == FIRST_WOW_DEST) => {
+            first_wow_next(Path::new(FIRST_WOW_DEST))
+        }
+        _ => "nika run".to_owned(),
     }
 }
 
-fn harness_ready(choice: &InferenceChoice) -> bool {
-    choice.arrow == "harness" && choice.rungs.iter().any(|r| r.id == "harness" && r.ready)
+/// Workflow files sitting in THIS directory. Greeting stays instant —
+/// no walk into `node_modules` / a monorepo.
+fn cwd_workflows(cwd: &Path) -> Vec<String> {
+    let Ok(entries) = std::fs::read_dir(cwd) else {
+        return Vec::new();
+    };
+    let mut names: Vec<String> = entries
+        .filter_map(Result::ok)
+        .filter(|e| e.path().is_file())
+        .filter_map(|e| {
+            let name = e.file_name();
+            let name = name.to_string_lossy();
+            if name.ends_with(".nika.yaml") || name.ends_with(".nika.yml") {
+                Some(name.into_owned())
+            } else {
+                None
+            }
+        })
+        .collect();
+    names.sort();
+    names
 }
 
 fn local_ready(choice: &InferenceChoice) -> bool {
@@ -763,17 +802,14 @@ pub(crate) fn first_wow_yaml(choice: &InferenceChoice) -> String {
     // Spaces after `\n` must live on the SAME string fragment. A `\`
     // line-continuation eats the next line's indent and the YAML collapses
     // (`tasks.reply` and `outputs.reply` then collide at the top level).
-    if harness_ready(choice) {
-        format!(
-            "{FIRST_WOW_MODELINE}nika: hello\npermits: {{}}\ntasks:\n  reply:\n    agent:\n      prompt: \"{FIRST_WOW_PROMPT}\"\n      max_turns: 2\n      max_tokens_total: 512\noutputs:\n  reply: ${{{{ tasks.reply.output }}}}\n"
-        )
-    } else {
-        let (model, note) = first_wow_infer_model(choice);
-        let model = yaml_scalar(&model);
-        format!(
-            "{FIRST_WOW_MODELINE}{note}nika: hello\nmodel: {model}\npermits: {{}}\ntasks:\n  reply:\n    infer:\n      prompt: \"{FIRST_WOW_PROMPT}\"\n      max_tokens: 64\noutputs:\n  reply: ${{{{ tasks.reply.output }}}}\n"
-        )
-    }
+    // Harness-ready used to stamp `agent:` with no `model:` and print
+    // `--access harness` — that Next is NIKA-INFER-001 (gauntlet W2).
+    // The file a new user pastes must run on a keyless machine.
+    let (model, note) = first_wow_infer_model(choice);
+    let model = yaml_scalar(&model);
+    format!(
+        "{FIRST_WOW_MODELINE}{note}nika: hello\nmodel: {model}\npermits: {{}}\ntasks:\n  reply:\n    infer:\n      prompt: \"{FIRST_WOW_PROMPT}\"\n      max_tokens: 64\noutputs:\n  reply: ${{{{ tasks.reply.output }}}}\n"
+    )
 }
 
 /// Pack skeletons — the cascade stamps them at `nika new`.

@@ -28,6 +28,11 @@ pub struct ModelFinding {
     pub tasks: Vec<String>,
     /// The resolver's own refusal reason.
     pub why: String,
+    /// Spec code when the refusal is a spec claim (`NIKA-PROVIDER` for a
+    /// missing or unknown canonical prefix). `None` for engine-local
+    /// refusals (cataloged vendor this binary cannot drive) and for
+    /// catalog-warning rows.
+    pub code: Option<String>,
 }
 
 impl ModelFinding {
@@ -35,7 +40,20 @@ impl ModelFinding {
     /// struct).
     #[must_use]
     pub fn new(model: String, tasks: Vec<String>, why: String) -> Self {
-        Self { model, tasks, why }
+        Self {
+            model,
+            tasks,
+            why,
+            code: None,
+        }
+    }
+
+    /// Attach a spec code (consuming builder — `new()` stays frozen,
+    /// INV-019).
+    #[must_use]
+    pub fn with_code(mut self, code: impl Into<String>) -> Self {
+        self.code = Some(code.into());
+        self
     }
 }
 
@@ -116,15 +134,18 @@ pub(crate) fn models(out: &mut String, report: &CheckReport, audit: &ModelsAudit
     }
     if !audit.findings.is_empty() {
         for f in &audit.findings {
+            let detail = match f.code.as_deref() {
+                Some(code) => format!("[{code}] {}", f.why),
+                None => f.why.clone(),
+            };
             let _ = writeln!(
                 out,
-                " {} {}   `{}` (task{} {}) — {}",
+                " {} {}   `{}` (task{} {}) — {detail}",
                 mark(t, false),
                 t.paint(Role::Strong, "MODELS"),
                 f.model,
                 if f.tasks.len() == 1 { "" } else { "s" },
                 f.tasks.join(", "),
-                f.why
             );
         }
         return;
