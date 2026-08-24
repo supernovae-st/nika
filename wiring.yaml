@@ -29,6 +29,13 @@ quarantine:
     proven_by: acp-quarantine
 
 capabilities:
+  - id: lsp.parent-watchdog
+    kind: cli-flag
+    declared_at: crates/nika-cli/src/main.rs:331
+    shipped_when: "default"
+    reachable_by: "nika lsp --stdio --clientProcessId=<pid>"
+    proven_by: rust
+    issue: 1181
   - id: access.harness
     kind: cargo-feature
     declared_at: crates/nika-cli/Cargo.toml:72
