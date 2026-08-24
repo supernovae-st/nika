@@ -559,7 +559,41 @@ fn next_for_a_ready_harness_is_new_hello() {
     let dir = tempfile::tempdir().expect("tmp");
     let human = choice.render_human_at(Theme::new(false, false, false), Some(dir.path()));
     assert!(human.contains("nika new hello"), "{human}");
-    assert!(human.contains("this machine · 18 GB"), "{human}");
+    // « this hardware », not « this machine »: the mirror body's
+    // `this machine` section is the environment one, and the same two
+    // words named three things on one screen (#1196).
+    assert!(human.contains("this hardware · 18 GB"), "{human}");
+    assert!(!human.contains("this machine"), "{human}");
+}
+
+/// [`DOOR_SHAPES`] is a hand-written mirror of [`front_door_next`], and
+/// a hand-written mirror is a lie waiting to happen — the concierge's
+/// parse ratchet replays it against the live clap tree, so it has to be
+/// the function's exact image. Run the real thing on real directories.
+#[test]
+fn door_shapes_mirror_the_real_door() {
+    let placeholder = |door: String| door.replace("hello.nika.yaml", "<file>");
+    let dir = tempfile::tempdir().expect("tmp");
+    let empty = placeholder(front_door_next(Some(dir.path())));
+    std::fs::write(dir.path().join("hello.nika.yaml"), "nika: hello\n").expect("hello");
+    let one = placeholder(front_door_next(Some(dir.path())));
+    std::fs::write(dir.path().join("a.nika.yaml"), "nika: a\n").expect("a");
+    std::fs::remove_file(dir.path().join("hello.nika.yaml")).expect("drop hello");
+    std::fs::write(dir.path().join("b.nika.yaml"), "nika: b\n").expect("b");
+    let many = placeholder(front_door_next(Some(dir.path())));
+    let measured = [empty, one, many];
+    for shape in DOOR_SHAPES {
+        assert!(
+            measured.iter().any(|m| m == shape),
+            "DOOR_SHAPES claims `{shape}`, the door never says it: {measured:?}"
+        );
+    }
+    for m in &measured {
+        assert!(
+            DOOR_SHAPES.contains(&m.as_str()),
+            "the door says `{m}`, DOOR_SHAPES never lists it"
+        );
+    }
 }
 
 #[test]
