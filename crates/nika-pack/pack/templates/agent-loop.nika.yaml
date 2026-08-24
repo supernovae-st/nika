@@ -39,7 +39,7 @@ inputs:
     # A `required:` input still carries a `default:` here so the skeleton
     # RUNS the moment it is scaffolded. Replace the default with your job;
     # `--var goal=…` overrides it at any time.
-    default: "list the risks of running an agent without a turn budget"   # SLOT
+    default: "<SLOT: what the agent must accomplish>"
     description: "What the agent must accomplish"   # SLOT
 
 permits:                            # the blast radius · default-deny once present

@@ -326,9 +326,16 @@ mod tests {
                     nika_schema::ParseMode::Strict,
                 )
                 .expect("recipe scaffold parses");
+                // The own-corpus law as #1066 amended it: a fresh
+                // scaffold may refuse for its OWN unfilled slots (the
+                // invitation to fill them) and for nothing else.
+                let report = nika_check::check(&wf);
                 assert!(
-                    nika_check::check(&wf).is_clean(),
-                    "{path}: a fresh recipe scaffold FAILS its own audit (own-corpus law)"
+                    report.is_clean()
+                        || report.findings.iter().all(|f| f.kind == "slot")
+                            && !report.slot_findings.is_empty(),
+                    "{path}: a fresh recipe scaffold FAILS its own audit for something \
+                     other than its unfilled slots (own-corpus law)"
                 );
             }
             std::fs::remove_dir_all(&dir).ok();
