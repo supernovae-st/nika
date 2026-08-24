@@ -70,7 +70,10 @@ capabilities:
   # different sizes: 38 vendor rows, 16 of which this build can seat. What
   # was missing is not the adapters — it is that no surface MARKED which,
   # including the MCP tool whose whole job is telling an agent what to
-  # pick. Each row below is DECLARED at a file:line, states whether it
+  # pick. The per-row word is `resolves` (the MODELS rung's own verb),
+  # never « wired » — that one already names the run registry, a set of
+  # a different size, one line above on the same screen.
+  # Each row below is DECLARED at a file:line, states whether it
   # ships, states how (or whether) a user reaches it, and names ONE job as
   # its judge: `rust` runs `scripts/ci/check-tests.sh`, whose
   # `catalog_family.rs` traversal walks all 38 in a single pass and, per

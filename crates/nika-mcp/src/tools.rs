@@ -202,8 +202,8 @@ fn learn_tools() -> Value {
                             windows, and API-key env-var NAMES (values never read). \
                             Versioned wire `catalog_version: 1`. Pick REAL model ids \
                             from here instead of guessing — and pick them ONLY from \
-                            rows where `wired` is true. A cataloged vendor is not a \
-                            runnable one: `wired: false` means this binary has no \
+                            rows where `resolves` is true. A cataloged vendor is not a \
+                            runnable one: `resolves: false` means this binary has no \
                             adapter for it and `nika check` refuses the model at the \
                             MODELS rung.",
             "inputSchema": { "type": "object", "properties": {} }
@@ -690,15 +690,16 @@ fn inspect(args: &Value) -> Result<String, String> {
 }
 
 /// `nika_catalog` — the versioned provider/model projection, with the
-/// wiring fact ON every row (#1184).
+/// resolvability fact ON every row (#1184).
 ///
 /// This tool's whole purpose is to stop an agent guessing model ids, so
 /// it is the surface where an unmarked unreachable vendor costs the
 /// most: the reader is a machine that acts, not a human who shrugs. The
-/// chain over `CANONICAL_IDS` is what makes `wired` true anywhere — drop
-/// it and every row reads `false`.
+/// chain over `CANONICAL_IDS` is what makes `resolves` true anywhere —
+/// drop it and every row reads `false`.
 fn catalog_payload() -> Result<String, String> {
-    let export = nika_catalog::export::catalog_export().with_wiring(&nika_providers::CANONICAL_IDS);
+    let export =
+        nika_catalog::export::catalog_export().with_resolvable(&nika_providers::CANONICAL_IDS);
     serde_json::to_string_pretty(&export).map_err(|e| format!("catalog projection failed: {e}"))
 }
 
@@ -899,7 +900,7 @@ mod tests {
     /// from here » over a list where a fifth of the rows cannot be
     /// reached is an instruction to author a workflow that will not run.
     #[test]
-    fn the_catalog_tool_tells_an_agent_to_filter_on_wired() {
+    fn the_catalog_tool_tells_an_agent_to_filter_on_resolves() {
         let c = catalog();
         let entry = c
             .as_array()
@@ -909,11 +910,11 @@ mod tests {
             .expect("nika_catalog is advertised");
         let text = entry["description"].as_str().expect("a description");
         assert!(
-            text.contains("`wired`"),
+            text.contains("`resolves`"),
             "the description must name the field it wants filtered: {text}",
         );
         assert!(
-            text.contains("wired` is true"),
+            text.contains("resolves` is true"),
             "the description must state the DIRECTION of the filter: {text}",
         );
     }
@@ -922,33 +923,33 @@ mod tests {
     /// they come from nowhere — a projection where every row reads
     /// `false` is `catalog_export()` with the chain dropped.
     #[test]
-    fn the_catalog_payload_marks_what_this_binary_can_seat() {
+    fn the_catalog_payload_marks_what_this_binary_can_resolve() {
         let out = execute("nika_catalog", &json!({})).expect("nika_catalog runs");
         let value: Value = serde_json::from_str(&out).expect("nika_catalog emits JSON");
         let providers = value["providers"].as_array().expect("providers");
-        let wired: Vec<&str> = providers
+        let resolving: Vec<&str> = providers
             .iter()
-            .filter(|p| p["wired"] == Value::Bool(true))
+            .filter(|p| p["resolves"] == Value::Bool(true))
             .filter_map(|p| p["id"].as_str())
             .collect();
         assert!(
-            !wired.is_empty(),
-            "zero wired rows means the wiring chain was dropped",
+            !resolving.is_empty(),
+            "zero resolving rows means the chain was dropped",
         );
         assert!(
-            wired.len() < providers.len(),
+            resolving.len() < providers.len(),
             "this build seats fewer vendors than the catalog carries — \
              a payload marking every row runnable is not measuring",
         );
-        for id in &wired {
+        for id in &resolving {
             assert!(
                 nika_providers::CANONICAL_IDS.contains(id),
-                "`{id}` is marked wired but no adapter seats it",
+                "`{id}` is marked resolving but no adapter carries it",
             );
         }
         for id in nika_providers::CANONICAL_IDS {
             if providers.iter().any(|p| p["id"] == id) {
-                assert!(wired.contains(&id), "`{id}` is seated but unmarked");
+                assert!(resolving.contains(&id), "`{id}` resolves but is unmarked");
             }
         }
     }

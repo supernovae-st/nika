@@ -68,23 +68,31 @@ pub struct ProviderExport {
     /// Wire-protocol dialect family (`"openai-chat"` · `"anthropic"` · …),
     /// `None` for bespoke protocols.
     pub api_dialect: Option<&'static str>,
-    /// Whether THIS build's wire layer can seat the provider — `false`
-    /// means the catalog knows the vendor and the engine cannot reach
-    /// it (`nika check` refuses the model at the MODELS rung).
+    /// Whether a model of this provider RESOLVES in this build — `false`
+    /// means the catalog knows the vendor and the engine carries no
+    /// adapter, so `nika check` refuses at the MODELS rung with the same
+    /// verb: *"provider `x` does not resolve in THIS binary"*.
+    ///
+    /// The word is the refusal rung's, on purpose. « wired » already
+    /// names a DIFFERENT set one screen away — the run registry behind
+    /// `nika_cli_host::machine_truth::MachineTruth::wired`, which
+    /// excludes the `mock` test lane. Two sets, two words; a synonym
+    /// here would re-create the very A-06 confusion that module exists
+    /// to cure.
     ///
     /// Never typed and never readable here: the catalog is L0 data, the
-    /// wire layer is L1.5 code, and `nika_catalog::export` is gated off
+    /// adapters are L1.5 code, and `nika_catalog::export` is gated off
     /// inside `nika-providers` — so the fact can only be STATED by the
-    /// L4 surface that holds both. [`CatalogExport::with_wiring`] is the
-    /// ONLY path to `true`, and its one honest argument is
+    /// L4 surface that holds both. [`CatalogExport::with_resolvable`] is
+    /// the ONLY path to `true`, and its one honest argument is
     /// `nika_providers::CANONICAL_IDS`.
     ///
-    /// A projection built by [`catalog_export`] alone claims no wiring —
+    /// A projection built by [`catalog_export`] alone claims nothing —
     /// every row reads `false`. The two surfaces that emit this
     /// projection to a human or an agent (`nika catalog` · the MCP
-    /// `nika_catalog` tool) are pinned to the wire layer by
+    /// `nika_catalog` tool) are pinned to the adapter set by
     /// `nika-cli/tests/catalog_family.rs`.
-    pub wired: bool,
+    pub resolves: bool,
     /// Typed capability/deployment/economics tags, kebab-case.
     pub tags: Vec<&'static str>,
     /// Known models (nickname → wire id) with resolved capabilities.
@@ -127,21 +135,21 @@ pub struct CapabilitiesExport {
 }
 
 impl CatalogExport {
-    /// State which provider ids THIS build's wire layer can seat.
+    /// State which provider ids resolve in THIS build.
     ///
-    /// The ONE setter of [`ProviderExport::wired`] — there is no other
-    /// path to `true`. The wiring arrives as a parameter because the
+    /// The ONE setter of [`ProviderExport::resolves`] — there is no
+    /// other path to `true`. The set arrives as a parameter because the
     /// fact lives one layer up (`nika_providers::CANONICAL_IDS`) and an
     /// L0 catalog cannot read it; a hand-maintained mirror of that list
     /// inside the catalog data would be the next drift.
     ///
-    /// Ids absent from the catalog are ignored: the runtime seats
-    /// engines the catalog data does not carry, and this projection
-    /// speaks only about rows it has.
+    /// Ids absent from the catalog are ignored: the runtime carries
+    /// engines the catalog data does not, and this projection speaks
+    /// only about rows it has.
     #[must_use]
-    pub fn with_wiring(mut self, wired_ids: &[&str]) -> Self {
+    pub fn with_resolvable(mut self, resolvable_ids: &[&str]) -> Self {
         for provider in &mut self.providers {
-            provider.wired = wired_ids.contains(&provider.id);
+            provider.resolves = resolvable_ids.contains(&provider.id);
         }
         self
     }
@@ -154,10 +162,10 @@ impl CatalogExport {
 /// [`crate::model_capabilities`] using the provider id + WIRE model id
 /// (the rule table matches wire names, not nicknames).
 ///
-/// Every row leaves here `wired: false` — this function makes no claim
-/// about what the engine can reach. A surface a human or an agent reads
-/// chains [`CatalogExport::with_wiring`] over the wire layer's own id
-/// list (`nika_providers::CANONICAL_IDS`) before serializing.
+/// Every row leaves here `resolves: false` — this function makes no
+/// claim about what the engine can reach. A surface a human or an agent
+/// reads chains [`CatalogExport::with_resolvable`] over the adapter
+/// layer's own id list (`nika_providers::CANONICAL_IDS`) first.
 #[must_use]
 pub fn catalog_export() -> CatalogExport {
     CatalogExport {
@@ -179,8 +187,8 @@ fn provider_export(p: &Provider) -> ProviderExport {
         cheap_model: p.cheap_model,
         description: p.description,
         api_dialect: p.api_dialect,
-        // No claim here — `with_wiring` is the only thing that knows.
-        wired: false,
+        // No claim here — `with_resolvable` is the only setter.
+        resolves: false,
         tags: p.tags.iter().map(|t| t.as_str()).collect(),
         models: p.models.iter().map(|m| model_export(p.id, m)).collect(),
     }
@@ -298,7 +306,7 @@ mod tests {
             "cheap_model",
             "description",
             "api_dialect",
-            "wired",
+            "resolves",
             "tags",
             "models",
         ] {
@@ -307,59 +315,59 @@ mod tests {
     }
 
     #[test]
-    fn the_bare_projection_claims_no_wiring() {
+    fn the_bare_projection_claims_nothing() {
         let export = catalog_export();
         assert!(
-            export.providers.iter().all(|p| !p.wired),
-            "catalog_export() alone knows nothing about the wire layer",
+            export.providers.iter().all(|p| !p.resolves),
+            "catalog_export() alone knows nothing about the adapter set",
         );
     }
 
     #[test]
-    fn with_wiring_marks_exactly_the_named_ids() {
+    fn with_resolvable_marks_exactly_the_named_ids() {
         let all: Vec<&str> = catalog_export().providers.iter().map(|p| p.id).collect();
         let named = ["anthropic", "mock"];
-        let export = catalog_export().with_wiring(&named);
+        let export = catalog_export().with_resolvable(&named);
         for p in &export.providers {
             assert_eq!(
-                p.wired,
+                p.resolves,
                 named.contains(&p.id),
-                "provider `{}`: wired must mirror the named set",
+                "provider `{}`: resolves must mirror the named set",
                 p.id,
             );
         }
         assert_eq!(
-            export.providers.iter().filter(|p| p.wired).count(),
+            export.providers.iter().filter(|p| p.resolves).count(),
             named.len(),
-            "the wired rows are exactly the named ones, in a catalog of {}",
+            "the resolving rows are exactly the named ones, in a catalog of {}",
             all.len(),
         );
     }
 
     #[test]
     fn an_id_the_catalog_does_not_carry_marks_nothing() {
-        let export = catalog_export().with_wiring(&["a-provider-no-catalog-row-names"]);
+        let export = catalog_export().with_resolvable(&["a-provider-no-catalog-row-names"]);
         assert!(
-            export.providers.iter().all(|p| !p.wired),
+            export.providers.iter().all(|p| !p.resolves),
             "the projection speaks only about rows it has",
         );
     }
 
     #[test]
-    fn wiring_replaces_a_previous_claim_rather_than_accumulating() {
+    fn a_second_call_replaces_the_claim_rather_than_accumulating() {
         // Chaining must not leave a stale `true` behind: the last call
         // IS the build's answer, or a re-annotation would silently keep
         // a provider marked runnable after it left the wire layer.
         let export = catalog_export()
-            .with_wiring(&["anthropic", "mock"])
-            .with_wiring(&["mock"]);
-        let wired: Vec<&str> = export
+            .with_resolvable(&["anthropic", "mock"])
+            .with_resolvable(&["mock"]);
+        let resolving: Vec<&str> = export
             .providers
             .iter()
-            .filter(|p| p.wired)
+            .filter(|p| p.resolves)
             .map(|p| p.id)
             .collect();
-        assert_eq!(wired, vec!["mock"]);
+        assert_eq!(resolving, vec!["mock"]);
     }
 
     #[test]
