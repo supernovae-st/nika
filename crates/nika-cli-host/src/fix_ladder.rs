@@ -552,8 +552,8 @@ mod tests {
     /// (`simple key expect ':'`). The round judge must refuse that write.
     #[test]
     fn judge_round_refuses_the_underindented_block_scalar() {
-        let before = "workflow: demo\ndescription: |\n  une premiere ligne\n  une seconde ligne\ntasks:\n  - id: t\n    run: echo hi\n";
-        let after = "workflow:\n  id: demo\n  description: |\n  une premiere ligne\n  une seconde ligne\ntasks:\n  t:\n    run: echo hi\n";
+        let before = "workflow: demo\ndescription: |\n  the first line\n  the second line\ntasks:\n  - id: t\n    run: echo hi\n";
+        let after = "workflow:\n  id: demo\n  description: |\n  the first line\n  the second line\ntasks:\n  t:\n    run: echo hi\n";
         let refusal = judge_round(before, after, vec!["w1-map `envelope` → `map`".to_owned()])
             .expect("the under-indented block scalar is broken YAML");
         assert!(

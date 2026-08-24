@@ -562,7 +562,7 @@ mod tests {
         let dir = std::env::temp_dir().join(format!("nika-fix-905-{}", std::process::id()));
         std::fs::create_dir_all(&dir).expect("tmpdir");
         let path = dir.join("m.nika.yaml");
-        let body = "workflow: demo\ndescription: |\n  une premiere ligne\n  une seconde ligne\ntasks:\n  - id: t\n    run: echo hi\n";
+        let body = "workflow: demo\ndescription: |\n  the first line\n  the second line\ntasks:\n  - id: t\n    run: echo hi\n";
         std::fs::write(&path, body).expect("write fixture");
         let out = run(
             path.to_str().expect("utf8 path"),
