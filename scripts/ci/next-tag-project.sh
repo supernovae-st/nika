@@ -107,7 +107,14 @@ if [ -f "$LEDGER" ]; then
   )"
 fi
 
-# ── CHANGELOG [Unreleased]
+# ── CHANGELOG [Unreleased] · the SECTION *and* the fragments
+#
+# The claims moved out of `## [Unreleased]` into `changelog.d/` (one file per
+# change · the four-PR collision of 2026-08-24). Reading only the section
+# would leave this projection counting ZERO claims forever — an instrument
+# that stopped looking, reporting a clean board. It reads BOTH, so it is
+# strictly wider than before: the fragments are where claims live now, and
+# the section still catches a bullet someone hand-writes back into it.
 UNRELEASED=""
 if [ -f "$ENGINE/CHANGELOG.md" ]; then
   UNRELEASED="$(
@@ -117,6 +124,15 @@ if [ -f "$ENGINE/CHANGELOG.md" ]; then
       grab && /^- \*\*/ { print }
     ' "$ENGINE/CHANGELOG.md"
   )"
+fi
+if [ -d "$ENGINE/changelog.d" ]; then
+  FRAGMENT_CLAIMS="$(
+    find "$ENGINE/changelog.d" -maxdepth 1 -type f -name '*.md' ! -name 'README.md' \
+      -exec grep -h '^- \*\*' {} + 2>/dev/null || true
+  )"
+  if [ -n "$FRAGMENT_CLAIMS" ]; then
+    UNRELEASED="${UNRELEASED:+$UNRELEASED$'\n'}$FRAGMENT_CLAIMS"
+  fi
 fi
 
 has_line() { printf '%s\n' "$2" | grep -qxF "$1"; }
