@@ -20,6 +20,7 @@
 pub use display::theme::Theme;
 pub use nika_display as display;
 
+pub(crate) mod choice;
 pub mod clients_registry;
 pub(crate) mod context_envelope;
 pub(crate) mod detect;

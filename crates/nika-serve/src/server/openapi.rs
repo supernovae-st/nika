@@ -5,14 +5,15 @@ use serde_json::{Value, json};
 
 /// [`OpenAPI`](https://spec.openapis.org/oas/v3.1.0) document of the live HTTP surface.
 ///
-/// Cancel and artifact paths are omitted until those authorities exist.
+/// Cancel, artifact, and `POST /v1/run` paths are omitted until those
+/// authorities exist.
 pub(crate) fn document() -> Value {
     json!({
         "openapi": "3.1.0",
         "info": {
             "title": "nika serve",
             "version": env!("CARGO_PKG_VERSION"),
-            "description": "Authenticated loopback remote execution. Cancel and artifacts are absent."
+            "description": "Authenticated loopback remote execution. Cancel, artifacts, and POST /v1/run are absent."
         },
         "servers": [{"url": "http://127.0.0.1"}],
         "security": [{"bearerAuth": []}],
@@ -72,6 +73,7 @@ fn components() -> Value {
             "JobStatusOnly": {
                 "type": "object",
                 "additionalProperties": false,
+                "description": "Status only. Redacted diagnosis lives on GET /v1/jobs/{id} and SSE, never here.",
                 "required": ["status"],
                 "properties": {
                     "status": {"$ref": "#/components/schemas/JobStatus"}
@@ -147,8 +149,15 @@ fn paths() -> Value {
                 "responses": {
                     "202": {"description": "Created", "content": json_job()},
                     "200": {"description": "Idempotent replay", "content": json_job()},
+                    "400": error_named("Invalid JSON or idempotency key"),
                     "401": error_ref(),
-                    "422": error_ref()
+                    "408": error_named("Request deadline"),
+                    "409": error_named("Idempotency key already bound to another request"),
+                    "413": error_named("Request body exceeds the configured limit"),
+                    "415": error_named("Content-Type or Content-Encoding refused"),
+                    "422": error_named("Admission or contained workflow name refused"),
+                    "503": error_named("Execution queue or durable store unavailable"),
+                    "507": error_named("Durable job capacity exhausted")
                 }
             }
         },
@@ -165,7 +174,7 @@ fn paths() -> Value {
         },
         "/v1/jobs/{id}/status": {
             "get": {
-                "summary": "Status only",
+                "summary": "Status only; diagnosis lives on GET /v1/jobs/{id} and SSE",
                 "parameters": [job_id_param()],
                 "responses": {
                     "200": {"description": "Status", "content": json_status()},
@@ -205,7 +214,11 @@ fn json_status() -> Value {
 }
 
 fn error_ref() -> Value {
-    json!({"description": "Error envelope", "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}})
+    error_named("Error envelope")
+}
+
+fn error_named(description: &'static str) -> Value {
+    json!({"description": description, "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Error"}}}})
 }
 
 #[cfg(test)]
@@ -239,12 +252,25 @@ mod tests {
         let rendered = spec.to_string();
         assert!(!rendered.contains("s3cret"));
         assert!(!rendered.contains("Bearer token-value"));
-        assert!(!rendered.contains("/v1/run"));
+        let description = spec["info"]["description"].as_str().expect("description");
         assert!(
-            spec["paths"]["/v1/jobs"]["post"]["responses"]
-                .as_object()
-                .expect("post responses")
-                .contains_key("422")
+            description.contains("POST /v1/run"),
+            "description must name the absent run door"
+        );
+        let post = spec["paths"]["/v1/jobs"]["post"]["responses"]
+            .as_object()
+            .expect("post responses");
+        for status in [
+            "200", "202", "400", "401", "408", "409", "413", "415", "422", "503", "507",
+        ] {
+            assert!(post.contains_key(status), "missing POST {status}");
+        }
+        let status_summary = spec["paths"]["/v1/jobs/{id}/status"]["get"]["summary"]
+            .as_str()
+            .expect("status summary");
+        assert!(
+            status_summary.contains("diagnosis"),
+            "status route must say diagnosis lives elsewhere"
         );
     }
 }

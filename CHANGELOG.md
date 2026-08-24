@@ -12,6 +12,11 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Added
 
+- **`nika check --json` carries one-obvious-way lints.** `hints[]`
+  rows with `kind: "one-obvious-way"` and `code: "one-obvious-way/NNN"`
+  (advice starts with the rule id), the same door native-first already
+  had. Warnings, never errors — `clean` stays true.
+
 - **The next tagged binary includes the harness access class.**
   `release.yml` builds `--features local-infer,access-harness`. The
   160 KB `nika-harness` crate has been on main, API-frozen, since
@@ -24,6 +29,15 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   a process boundary. `metal` stays off (candle 0.10 kernel dies at
   first token).
 
+### Security
+
+- **A decided human gate stays decided.** `--resume` of a trace that
+  already journaled a `nika:prompt` success now refuses `--answer` on
+  that same task (environment class). A recorded NO cannot be flipped
+  into a shipment. A paused gate (no `task_completed` yet) still
+  accepts `--answer`. Measured against `nika 0.114.0 (80d62b8f8)` on
+  `human-gated-ship`.
+
 ### Changed
 
 - **A sanctioned secret into `agent:` is still a named flow (#1041).**
@@ -32,6 +46,16 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
   reaches an effect » after the author applied the tool's own `egress:`
   advice. A sanction authorizes a flow; it does not deny the flow exists.
 
+- **A `for_each` failure names the item.** The parent note and the
+  error message carry the compact item identity (and which values
+  recovered when `on_error: skip` nulled a slot). The trace no longer
+  records only a count.
+
+- **OpenAPI lists the live POST statuses.** `GET /v1/openapi.json` names
+  400, 408, 409, 413, 415, 503, and 507 on `POST /v1/jobs` next to
+  200/202/401/422. `info.description` names that `POST /v1/run` is
+  absent. `GET /v1/jobs/{id}/status` stays `{status}` only; diagnosis
+  lives on `GET /v1/jobs/{id}` and SSE.
 - **Failed HTTP jobs name a NIKA code.** `GET /v1/jobs/{id}` grows an
   optional `{error:{code,message}}` on `failed`. SSE settled/refused
   frames may carry the same redacted pair. Paths and secret-shaped
