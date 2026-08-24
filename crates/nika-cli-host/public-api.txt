@@ -2390,8 +2390,12 @@ pub fn nika_cli_host::text::count(n: usize, noun: &str) -> alloc::string::String
 pub fn nika_cli_host::text::usd(amount: f64) -> alloc::string::String
 pub mod nika_cli_host::welcome
 pub const nika_cli_host::welcome::SAMPLE: &str
+pub fn nika_cli_host::welcome::first_wow_dest(dest: core::option::Option<&str>) -> &str
+pub fn nika_cli_host::welcome::is_first_wow(from: core::option::Option<&str>, dest: core::option::Option<&str>) -> bool
 pub fn nika_cli_host::welcome::run(json: bool, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
+pub fn nika_cli_host::welcome::stamp_cascade_model(path: &std::path::Path) -> core::io::error::Result<()>
 pub fn nika_cli_host::welcome::taught_start_commands() -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_cli_host::welcome::write_first_wow(dest: &std::path::Path, force: bool) -> nika_cli_host::output::VerbOutput
 pub mod nika_cli_host::wire
 pub enum nika_cli_host::wire::WireTarget
 pub nika_cli_host::wire::WireTarget::All

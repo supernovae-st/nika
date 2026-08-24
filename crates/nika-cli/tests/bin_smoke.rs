@@ -1099,7 +1099,7 @@ fn welcome_greets_offline_and_leaks_no_secret() {
         String::from_utf8_lossy(&out.stdout),
         String::from_utf8_lossy(&out.stderr)
     );
-    for needle in ["Intent as Code", "this machine", "start here", "mock/echo"] {
+    for needle in ["Local first", "Next:", "Nika Gear One"] {
         assert!(text.contains(needle), "welcome carries `{needle}`: {text}");
     }
     assert!(
@@ -1119,6 +1119,10 @@ fn welcome_greets_offline_and_leaks_no_secret() {
     let raw = String::from_utf8_lossy(&json_out.stdout);
     let v: serde_json::Value = serde_json::from_str(raw.trim()).expect("welcome --json parses");
     assert_eq!(v["welcome_version"], 1);
+    assert!(
+        v.get("inference_choice").is_some(),
+        "cascade rides welcome --json"
+    );
     assert!(!raw.contains(canary), "no value in the JSON mirror: {raw}");
 }
 
@@ -1379,7 +1383,105 @@ fn bare_nika_greets_and_exits_zero_in_a_pipe() {
     assert_eq!(out.status.code(), Some(0), "a greeting, not a finding");
     let stdout = String::from_utf8_lossy(&out.stdout);
     assert!(
-        stdout.contains("nika") && stdout.contains("start here"),
-        "the mirror names the product and the start-here door:\n{stdout}"
+        stdout.contains("Local first") && stdout.contains("Next:"),
+        "the cascade names the product and the next door:\n{stdout}"
     );
+}
+
+#[test]
+fn nika_json_on_the_front_door_is_the_cascade_not_a_clap_fail() {
+    let out = bin().arg("--json").output().expect("binary runs");
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "nika --json greets: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
+    let raw = String::from_utf8_lossy(&out.stdout);
+    let v: serde_json::Value = serde_json::from_str(raw.trim()).expect("front door --json parses");
+    assert_eq!(v["welcome_version"], 1);
+    assert!(v.get("inference_choice").is_some(), "{raw}");
+}
+
+#[test]
+fn nika_version_equals_dash_dash_version() {
+    let a = bin().arg("version").output().expect("version");
+    let b = bin().arg("--version").output().expect("--version");
+    assert_eq!(a.status.code(), Some(0));
+    assert_eq!(b.status.code(), Some(0));
+    let ta = String::from_utf8_lossy(&a.stdout);
+    let tb = String::from_utf8_lossy(&b.stdout);
+    assert!(!ta.trim().is_empty());
+    assert_eq!(ta.trim(), tb.trim(), "nika version == nika --version");
+}
+
+#[test]
+fn default_help_is_at_most_six_lines() {
+    let out = bin().arg("--help").output().expect("help");
+    assert_eq!(out.status.code(), Some(0));
+    let text = String::from_utf8_lossy(&out.stdout);
+    let n = text.lines().filter(|l| !l.is_empty()).count();
+    assert!(n <= 6, "human help ≤ 6 lines, got {n}:\n{text}");
+}
+
+/// A clean machine (`HOME` empty · no vendor keys) still gets a file
+/// that parses, names no dead vendor, and points at `nika model pull`.
+#[test]
+fn new_hello_writes_the_first_wow_file() {
+    let dir = workspace_tmp_dir("nika-new-hello");
+    let mut cmd = bin();
+    cmd.args(["new", "hello"])
+        .current_dir(&dir)
+        .env("HOME", &dir)
+        .env_remove("ANTHROPIC_API_KEY")
+        .env_remove("OPENAI_API_KEY")
+        .env_remove("XAI_API_KEY")
+        .env_remove("MISTRAL_API_KEY")
+        .env_remove("HF_TOKEN")
+        .env_remove("GEMINI_API_KEY")
+        .stdin(std::process::Stdio::null());
+    let out = cmd.output().expect("binary runs");
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert_eq!(
+        out.status.code(),
+        Some(0),
+        "nika new hello must write: {stdout}{stderr}"
+    );
+    let dest = dir.join("hello.nika.yaml");
+    assert!(
+        dest.is_file(),
+        "hello.nika.yaml landed in {}",
+        dir.display()
+    );
+    let body = std::fs::read_to_string(&dest).expect("body");
+    assert!(body.contains("nika: hello"), "{body}");
+    assert!(!body.contains("nika: v1"), "{body}");
+    assert!(!body.contains("ollama/"), "{body}");
+    assert!(!body.contains("xai/grok-4"), "{body}");
+    assert!(body.contains("infer:") || body.contains("agent:"), "{body}");
+    assert!(
+        stdout.contains("wrote"),
+        "receipt names the write: {stdout}"
+    );
+    assert!(
+        stdout.contains("nika run") || stdout.contains("nika model pull"),
+        "receipt names the next door: {stdout}"
+    );
+
+    let check = bin()
+        .args(["check", "hello.nika.yaml"])
+        .current_dir(&dir)
+        .env("HOME", &dir)
+        .stdin(std::process::Stdio::null())
+        .output()
+        .expect("check runs");
+    assert_eq!(
+        check.status.code(),
+        Some(0),
+        "first-wow must check clean: {}{}",
+        String::from_utf8_lossy(&check.stdout),
+        String::from_utf8_lossy(&check.stderr)
+    );
+    let _ = std::fs::remove_dir_all(&dir);
 }

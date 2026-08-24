@@ -88,8 +88,8 @@ fn no_journal_without_the_opt_in() {
         .expect("binary runs");
     assert_eq!(out.status.code(), Some(0));
     assert!(
-        !home.join(".nika").exists(),
-        "zero telemetry by default — no journal, not even the directory"
+        !home.join(".nika/metrics.ndjson").exists(),
+        "zero telemetry by default — no metrics journal"
     );
     let _ = std::fs::remove_dir_all(&home);
 }
@@ -135,8 +135,8 @@ fn check_and_welcome_journal_their_events() {
         "the envelope resolution journaled: {names:?}"
     );
     assert!(
-        names.iter().filter(|n| **n == "cta_impression").count() >= 3,
-        "one impression per shown move: {names:?}"
+        names.iter().filter(|n| **n == "cta_impression").count() >= 1,
+        "the cascade next-step is journaled: {names:?}"
     );
     // One clean unpriced workflow + no AGENTS.md: the lead move is
     // `nika init` (founding), so the run hand-off does NOT fire here.

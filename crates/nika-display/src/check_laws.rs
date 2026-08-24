@@ -49,15 +49,32 @@ pub(crate) fn order_rung(out: &mut String, report: &CheckReport, t: Theme) {
 /// guards a law that fires, one code-first row per idle door. Same
 /// 2026-08-19 gap as ORDER: the wire stamped `NIKA-AUTH-011`, the human
 /// lane had no row to print it in.
+///
+/// The green tick is AUTH-011, not the Rule of Two. `lift: taint` opens
+/// permit-parameterization taint; SEC-009's only door is a blocking
+/// `nika:prompt`. Measured on #1065: a valid taint door next to a
+/// complete trifecta read as `✔ LIFT` beside `✖ TRIFECTA [NIKA-SEC-009]`,
+/// and two readers independently concluded the hatch was inert. When the
+/// trifecta lane has findings, the green line names the other law so the
+/// tick cannot stand as a contradiction. The lane stays green: AUTH-011
+/// is satisfied.
 pub(crate) fn lift_rung(out: &mut String, report: &CheckReport, wf: &RawWorkflow, t: Theme) {
     if !wf.tasks.iter().any(|task| !task.value.lift.is_empty()) {
         return;
     }
+    // Two statics, not a format, so the connecting clause is a second
+    // sentence the catching test can grep — not a row that would redden
+    // a door AUTH-011 already cleared.
+    let ok_msg = if report.trifecta_findings.is_empty() {
+        "every authored door guards a law that fires · a taint entry's binding reaches the task · a data-as-code entry meets a code-bearing fetch"
+    } else {
+        "every authored door guards a law that fires · a taint entry's binding reaches the task · a data-as-code entry meets a code-bearing fetch. This door does not open SEC-009; the Rule of Two wants a blocking nika:prompt"
+    };
     section_list(
         out,
         t,
         "LIFT",
-        "every authored door guards a law that fires · a taint entry's binding reaches the task · a data-as-code entry meets a code-bearing fetch",
+        ok_msg,
         report
             .lift_findings
             .iter()

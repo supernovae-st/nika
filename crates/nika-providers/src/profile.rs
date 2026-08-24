@@ -211,21 +211,62 @@ pub fn access_class_for(provider: &str) -> nika_types::access::AccessClass {
     }
 }
 
+/// Spec namespace for a `model:` that lacks a canonical provider prefix
+/// (the FORM law · stdlib/providers-v0.1.md · #761). Numbered
+/// `NIKA-PROVIDER-NNN` codes stay per-adapter runtime errors (spec 05).
+pub const PREFIX_REFUSAL_CODE: &str = "NIKA-PROVIDER";
+
+/// Why a `model:` cannot resolve in THIS binary (#320 / #761).
+///
+/// `code` is `Some(PREFIX_REFUSAL_CODE)` when the claim is a spec claim
+/// (bare id · unknown prefix). `None` when the claim is engine-local
+/// (a cataloged vendor this binary does not drive — the azure class).
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct ResolveRefusal {
+    /// The resolver's own refusal reason.
+    pub why: String,
+    /// Spec code when the refusal is a spec claim.
+    pub code: Option<&'static str>,
+}
+
+impl ResolveRefusal {
+    /// Construct (INV-019 · `new()` on every `#[non_exhaustive]` struct).
+    #[must_use]
+    pub fn new(why: String) -> Self {
+        Self { why, code: None }
+    }
+
+    /// Stamp a spec code (consuming builder — `new()` stays frozen).
+    #[must_use]
+    pub fn with_code(mut self, code: &'static str) -> Self {
+        self.code = Some(code);
+        self
+    }
+}
+
 /// The MODELS-rung law (#320): why a `<provider>/<model>` string cannot
 /// resolve in THIS binary — `None` when it can. Lives beside the resolver
 /// (the set it interrogates is [`CANONICAL_IDS`]) and is shared by every
 /// audit surface (CLI check · MCP `nika_check`): a hallucinated model
 /// must red the audit on EVERY lane, never only one — the vendor catalog
 /// advertising a provider does not make it runnable (the azure class).
+///
+/// The spec half (#761): a missing or unknown canonical prefix is the
+/// FORM law and carries [`PREFIX_REFUSAL_CODE`]. A cataloged vendor this
+/// binary cannot drive stays engine-local (`code` is `None`).
 #[must_use]
-pub fn resolve_refusal(model: &str) -> Option<String> {
+pub fn resolve_refusal(model: &str) -> Option<ResolveRefusal> {
     match model.split_once('/') {
-        None => Some(format!(
-            "`{model}` is a bare model id — the contract is `<provider>/<model>` \
-             (pick the provider that serves it; `nika doctor` names the \
-             {} runnable providers)",
-            CANONICAL_IDS.len()
-        )),
+        None => Some(
+            ResolveRefusal::new(format!(
+                "`{model}` is a bare model id — the contract is `<provider>/<model>` \
+                 (pick the provider that serves it; `nika doctor` names the \
+                 {} runnable providers)",
+                CANONICAL_IDS.len()
+            ))
+            .with_code(PREFIX_REFUSAL_CODE),
+        ),
         Some((provider, _)) if !CANONICAL_IDS.contains(&provider) => {
             // The shared did-you-mean metric (nika-types::suggest — the
             // same threshold the parser/checker suggest with): `antropic`
@@ -234,12 +275,20 @@ pub fn resolve_refusal(model: &str) -> Option<String> {
             let guess = nika_types::suggest::did_you_mean(provider, CANONICAL_IDS)
                 .map(|p| format!(" — did you mean `{p}`?"))
                 .unwrap_or_default();
-            Some(format!(
+            let why = format!(
                 "provider `{provider}` does not resolve in THIS binary \
                  ({} runnable — `nika doctor` names them); a cataloged \
                  vendor is not a runnable one{guess}",
                 CANONICAL_IDS.len()
-            ))
+            );
+            let mut refusal = ResolveRefusal::new(why);
+            // Spec claim: the prefix is not a known vendor at all.
+            // Engine-local: the vendor is cataloged but this binary
+            // cannot drive it (azure · moonshot-until-wired · aliases).
+            if nika_catalog::find_provider(provider).is_none() {
+                refusal = refusal.with_code(PREFIX_REFUSAL_CODE);
+            }
+            Some(refusal)
         }
         Some(_) => None,
     }
@@ -436,15 +485,30 @@ mod tests {
     fn resolve_refusal_names_the_two_classes_and_clears_the_runnable() {
         // bare id — teaches the contract
         let bare = resolve_refusal("gpt-5-turbo").expect("bare id refused");
-        assert!(bare.contains("bare model id") && bare.contains("16 runnable"));
+        assert!(bare.why.contains("bare model id") && bare.why.contains("16 runnable"));
         // cataloged-but-unresolvable provider — the azure class
         let azure = resolve_refusal("azure/gpt-4o").expect("azure refused");
-        assert!(azure.contains("`azure`") && azure.contains("not a runnable one"));
+        assert!(azure.why.contains("`azure`") && azure.why.contains("not a runnable one"));
         // azure is far from every canonical id — no guess appended
-        assert!(!azure.contains("did you mean"), "{azure}");
+        assert!(!azure.why.contains("did you mean"), "{}", azure.why);
         // every canonical provider clears, inner slashes included
         assert!(resolve_refusal("mock/echo").is_none());
         assert!(resolve_refusal("huggingface/Qwen/Qwen3.5-9B:groq").is_none());
+    }
+
+    /// #761: the prefix half is a spec claim; a cataloged vendor this
+    /// binary cannot drive stays engine-local.
+    #[test]
+    fn resolve_refusal_stamps_the_prefix_code_and_spares_the_azure_class() {
+        let bare = resolve_refusal("gpt-5-turbo").expect("bare id refused");
+        assert_eq!(bare.code, Some(PREFIX_REFUSAL_CODE));
+        let unknown = resolve_refusal("not-a-provider/gpt-4").expect("unknown prefix refused");
+        assert_eq!(unknown.code, Some(PREFIX_REFUSAL_CODE));
+        let azure = resolve_refusal("azure/gpt-4o").expect("azure refused");
+        assert_eq!(azure.code, None, "cataloged-but-unresolvable stays local");
+        let typo = resolve_refusal("antropic/claude-sonnet-4-6").expect("typo refused");
+        assert_eq!(typo.code, Some(PREFIX_REFUSAL_CODE));
+        assert!(resolve_refusal("mock/echo").is_none());
     }
 
     #[test]
@@ -453,9 +517,17 @@ mod tests {
         // from the most-used provider id — the refusal now carries the
         // rename, through the SAME shared metric as the parser/checker.
         let typo = resolve_refusal("antropic/claude-sonnet-4-6").expect("typo refused");
-        assert!(typo.contains("did you mean `anthropic`?"), "{typo}");
+        assert!(
+            typo.why.contains("did you mean `anthropic`?"),
+            "{}",
+            typo.why
+        );
         let gemni = resolve_refusal("gemni/gemini-2.5-flash").expect("typo refused");
-        assert!(gemni.contains("did you mean `gemini`?"), "{gemni}");
+        assert!(
+            gemni.why.contains("did you mean `gemini`?"),
+            "{}",
+            gemni.why
+        );
     }
 
     /// The two-strike class (audit UX 2026-07-31): a ghost model on a

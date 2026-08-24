@@ -91,6 +91,17 @@ pub(super) fn resume_setup(
                 epilogue::emit_error_envelope(&message, output_json);
                 exit::ENV
             })?;
+    // #1067 · a journaled success is a decision. `--answer` on resume
+    // used to force the prompt to re-run (ADR-099 F4 "operator intent");
+    // that turned a recorded NO into a shipment. Paused gates are not in
+    // the plan (they never completed), so they still accept answers.
+    if let Some(ref l) = loaded {
+        nika_dap::resume::refuse_reopened_settled_gates(&l.plan, &answers).map_err(|message| {
+            eprintln!("nika run: {message}");
+            epilogue::emit_error_envelope(&message, output_json);
+            exit::ENV
+        })?;
+    }
     Ok(match loaded {
         Some(l) => ResumeSetup {
             plan: Some(l.plan),

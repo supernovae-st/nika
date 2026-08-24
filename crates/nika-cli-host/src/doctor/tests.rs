@@ -1273,6 +1273,13 @@ fn diagnose_emits_one_registry_coverage_row() {
     assert!(rows[0].detail.contains("31 declared"), "{}", rows[0].detail);
 }
 
+#[test]
+fn access_roster_names_classes_not_seats() {
+    let d = super::access_class_finding().detail;
+    assert!(d.contains("local · mock · harness · oauth · api"), "{d}");
+    assert!(!d.contains("claude-agent-acp"), "{d}");
+}
+
 /// B-8b (the 2026-07-31 gauntlet): a healthy keyless machine printed
 /// 13+ ⚠ rows and the alarm glyph taught the user to ignore it. The
 /// calm default folds the three advisory classes into ONE line that
