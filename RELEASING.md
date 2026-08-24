@@ -18,11 +18,16 @@ without an explicit operator decision.
    ```
 
    That splices the assembled body in as `## [<NEXT>]` with its compare
-   link, restores the `[Unreleased]` stub, and deletes the fragments it
-   consumed. Hand-curated narrative (a BREAKING window, an era note) may
-   still be edited into the section afterwards: the section, not the release
-   page, is where curation lives. `CHANGELOG.md` stays the single source the
-   release body renders from.
+   link, restores the `[Unreleased]` stub, and **`git rm`s** the fragments it
+   consumed — the deletions land STAGED, so `git add CHANGELOG.md` beside
+   them and the fold is one commit. (Plain `rm` left them unstaged, and since
+   this file stages by explicit path and never `git add -A`, the release
+   would have shipped the assembled section *and* the fragments it was made
+   from; the next fold would then emit each one twice.) Hand-curated
+   narrative (a BREAKING window, an era note) may still be edited into the
+   section afterwards: the section, not the release page, is where curation
+   lives. `CHANGELOG.md` stays the single source the release body renders
+   from.
 
    **Why fragments.** `CHANGELOG.md` was a shared append target, so two
    branches that shared no source file still collided there — measured

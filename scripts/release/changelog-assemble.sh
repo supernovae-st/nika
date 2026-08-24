@@ -220,9 +220,24 @@ fold_release() {
   } >"$tmp"
   mv "$tmp" "$CHANGELOG"
 
+  # `git rm`, not `rm`. The fold is ONE act: the section appears and the
+  # fragments that made it go away together, in the same index. A plain
+  # `rm` leaves the deletions unstaged, and the house forbids `git add -A`
+  # (RELEASING.md stages by explicit path), so a releaser commits
+  # CHANGELOG.md and the fragments stay TRACKED -- the release ships the
+  # assembled section AND its own inputs, and the next fold emits every
+  # one of them a second time. Measured 2026-08-24 on a scratch clone of
+  # this tree: 13 deletions, 0 staged.
+  #
+  # A fragment written but never committed is not `git rm`-able; it is
+  # still ours to remove, so the untracked case falls back to `rm`.
   while IFS= read -r frag; do
     [ -n "$frag" ] || continue
-    rm -f "$frag"
+    if git -C "$ROOT" ls-files --error-unmatch -- "$frag" >/dev/null 2>&1; then
+      git -C "$ROOT" rm -q -- "$frag"
+    else
+      rm -f -- "$frag"
+    fi
   done < <(all_fragments)
 
   printf 'changelog-assemble: folded %s fragment(s) into ## [%s] · changelog.d/ is empty\n' \
