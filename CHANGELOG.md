@@ -40,6 +40,11 @@ Legacy `main` is frozen at v0.79.3. Diamond starts at v0.80.0.
 
 ### Changed
 
+- **A `for_each` failure names the item.** The parent note and the
+  error message carry the compact item identity (and which values
+  recovered when `on_error: skip` nulled a slot). The trace no longer
+  records only a count.
+
 - **OpenAPI lists the live POST statuses.** `GET /v1/openapi.json` names
   400, 408, 409, 413, 415, 503, and 507 on `POST /v1/jobs` next to
   200/202/401/422. `info.description` names that `POST /v1/run` is

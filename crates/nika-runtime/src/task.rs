@@ -604,8 +604,6 @@ where
         ledger: &crate::ledger::RunLedger,
         integrity: &nika_cap::Integrity,
     ) -> SettleAs {
-        // The collection resolves on the PRE-fan-out surface (the
-        // item-free boundary bindings) · empty settles `skipped`.
         let items = match fan_out::resolve_fan_out_items(
             collection,
             boundary_with,
@@ -624,13 +622,6 @@ where
             .as_ref()
             .map_or(items.len(), |m| (m.value as usize).max(1));
         let total = items.len();
-
-        // Iterations dispatch concurrently (cap = `max_parallel`) ·
-        // settle in INPUT order (the same ordered-settlement law as
-        // waves · positions stay aligned · spec 03 §null-at-index).
-        // Budget gate at ADMISSION (`take_while` runs at `buffered` PULL):
-        // in-flight complete and count · unpulled never start · with
-        // `max_parallel` ≥ items, only a capped fan-out starves mid-run.
         let mut stream = futures_util::stream::iter(
             items
                 .iter()
@@ -653,10 +644,6 @@ where
 
         let mut acc = fan_out::collect_fan_out(&mut stream, total, fail_fast).await;
         drop(stream);
-
-        // Budget starvation: iterations that were never admitted leave
-        // the accumulation short — the task fails with the budget code
-        // (same class as `fail_fast`'s early stop · partial array).
         if acc.outputs.len() < total && ledger.tripped() && acc.first_error.is_none() {
             acc.first_error = Some(fan_out::budget_stop_record(total - acc.outputs.len()));
         }
@@ -670,17 +657,19 @@ where
         let retries = acc.retries;
         let agent_events = acc.agent_events;
         let mut ran = RanTask {
-            note: fan_out::fan_note(total, acc.recovered),
+            note: fan_out::fan_note(
+                total,
+                acc.recovered,
+                &acc.failed_items,
+                &acc.recovered_items,
+            ),
             retries,
             agent_events,
             decisions: acc.decisions,
-            // F-P6 · no pair aggregates N iterations (the `child: None` precedent).
             evidence: None,
             duration_ms: 0,
             result,
         };
-        // `on_finally:` runs ONCE after all iterations (spec 03 ·
-        // `item`/`index` are NOT in scope there).
         let finally_scope =
             Self::fan_out_finally_scope(records, (inputs, consts, secrets), permits);
         let finally_witness = std::sync::Arc::new(PermitWitness::new());
@@ -738,8 +727,8 @@ where
         ) {
             Ok(ns) => ns,
             Err(err) => {
-                return RanTask {
-                    note: format!("for_each[{}]", locals.index),
+                let mut ran = RanTask {
+                    note: String::new(),
                     retries: Vec::new(),
                     agent_events: Vec::new(),
                     decisions: Vec::new(),
@@ -751,6 +740,8 @@ where
                         cost_unpriced: None,
                     },
                 };
+                fan_out::stamp_iteration(&mut ran, locals.index, locals.item);
+                return ran;
             }
         };
         let scope = Scope {
@@ -772,6 +763,7 @@ where
         for stamped in &mut ran.agent_events {
             stamped.iteration = Some(locals.index as u32);
         }
+        fan_out::stamp_iteration(&mut ran, locals.index, locals.item);
         ran
     }
 
