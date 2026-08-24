@@ -421,6 +421,16 @@ fn checked_output_profile(
     )
 }
 
+/// `--json` twin of a fixture already written by [`checked_output`].
+fn checked_json(name: &str) -> (VerbOutput, serde_json::Value) {
+    let dir = std::env::temp_dir().join(format!("nika-cli-killtests-{}", std::process::id()));
+    let path = dir.join(name);
+    let theme = Theme::new(false, true, false);
+    let out = run(path.to_str().expect("utf8 path"), true, false, None, theme);
+    let payload = serde_json::from_str(&out.text).expect("json");
+    (out, payload)
+}
+
 /// #320 repro 1: a CATALOGED-but-unresolvable provider (`azure/…` —
 /// the vendor listing knows it, the resolver does not) must be a
 /// finding, exit 2 — never a green audit that dies at run.
@@ -440,6 +450,14 @@ fn models_rung_reds_a_cataloged_but_unresolvable_provider() {
         out.text.contains("MODELS") && out.text.contains("`azure`"),
         "the rung names the provider: {}",
         out.text
+    );
+    // #761: cataloged-but-unresolvable is engine-local — no spec code.
+    let (json_out, payload) = checked_json("models-azure.nika.yaml");
+    assert_eq!(json_out.code, 2, "{}", json_out.text);
+    assert_eq!(payload["model_findings"][0]["model"], "azure/gpt-4o");
+    assert!(
+        payload["model_findings"][0].get("code").is_none(),
+        "azure class stays engine-local: {payload:#}"
     );
 }
 
@@ -607,10 +625,38 @@ fn models_rung_reds_a_bare_model_id_and_never_conjures_a_price() {
         payload["model_findings"][0]["model"], "gpt-5-turbo",
         "{payload:#}"
     );
+    let code = payload["model_findings"][0]["code"].as_str().unwrap_or("");
+    assert!(
+        code.contains("NIKA-PROVIDER"),
+        "bare id is the FORM law: {payload:#}"
+    );
     let row = &payload["pricing"]["models"][0];
     assert!(
         row["input_per_million"].is_null() && row["output_per_million"].is_null(),
         "an unresolvable model is never priced: {row:#}"
+    );
+}
+
+/// #761: an unknown provider prefix is the same FORM law as a bare id
+/// — `check --json` stamps `NIKA-PROVIDER` so the spec harness can match.
+#[test]
+fn models_rung_stamps_nika_provider_on_an_unknown_prefix() {
+    let out = checked_output(
+        "models-unknown-prefix.nika.yaml",
+        "nika: m\ntasks:\n  think:\n    infer: { prompt: hi, max_tokens: 10, model: \"not-a-provider/gpt-4\" }\n",
+        false,
+    );
+    assert_eq!(out.code, 2, "unknown prefix is a finding: {}", out.text);
+    let (json_out, payload) = checked_json("models-unknown-prefix.nika.yaml");
+    assert_eq!(json_out.code, 2, "{}", json_out.text);
+    assert_eq!(
+        payload["model_findings"][0]["model"], "not-a-provider/gpt-4",
+        "{payload:#}"
+    );
+    let code = payload["model_findings"][0]["code"].as_str().unwrap_or("");
+    assert!(
+        code.contains("NIKA-PROVIDER"),
+        "unknown prefix is the FORM law: {payload:#}"
     );
 }
 

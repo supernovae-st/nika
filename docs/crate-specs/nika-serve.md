@@ -87,9 +87,9 @@ No public job mutation accepts a filesystem path. Startup paths live only in
 | `GET` | `/health` | public | status, service, four `EngineIdentity` fields |
 | `GET` | `/v1/workflows` | exactly one Bearer | contained `.nika.yaml` relative names |
 | `GET` | `/v1/workflows/{name}` | exactly one Bearer | `{ "workflow": "<contained name>" }` |
-| `POST` | `/v1/jobs` | exactly one Bearer + `Idempotency-Key` | opaque id + status · 422 `{error:{code,message}}` names the capture NIKA code when stamped |
+| `POST` | `/v1/jobs` | exactly one Bearer + `Idempotency-Key` | opaque id + status · 422 `{error:{code,message}}` names the capture NIKA code when stamped · also 400/408/409/413/415/503/507 |
 | `GET` | `/v1/jobs/{id}` | exactly one Bearer | opaque id + status · optional `{error:{code,message}}` on `failed` |
-| `GET` | `/v1/jobs/{id}/status` | exactly one Bearer | status only |
+| `GET` | `/v1/jobs/{id}/status` | exactly one Bearer | status only · diagnosis lives on GET job and SSE |
 | `GET` | `/v1/jobs/{id}/events` | exactly one Bearer | SSE `text/event-stream`; `id:` sequence; `data:` `{sequence,kind,status}` plus optional redacted `{code,message}` |
 | `GET` | `/v1/openapi.json` | exactly one Bearer | OpenAPI 3.1 document of the live routes |
 
@@ -258,8 +258,10 @@ admission wave closes the gates whose authority does not exist in W05.
 No TLS · no workflow upload · no cancellation route · no artifact
 authority · no `POST /v1/run` · no automatic retry of interrupted
 execution. OpenAPI 3.1 is the live authenticated route table
-(`GET /v1/openapi.json`) and omits cancel, artifacts, and `/v1/run`. The store records the lost ownership but cannot prove whether an
-effect committed before the crash. W05 also provides no concrete durable
+(`GET /v1/openapi.json`): it names the live POST statuses and omits
+cancel, artifacts, and `POST /v1/run`. The store records the lost
+ownership but cannot prove whether an effect committed before the
+crash. W05 also provides no concrete durable
 `ApprovalHistory`; an in-process or same-filesystem sidecar that the state
 writer can roll back does not meet the contract. W06's HTTP adapter
 establishes the exclusive server incarnation and calls crate-internal

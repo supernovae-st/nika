@@ -117,6 +117,7 @@ pub fn diagnose(probe: &Probe) -> Vec<Finding> {
             .to_owned(),
         fix: None,
     });
+    out.push(access_class_finding());
     // #891 — the sandbox row rides the ONE selection's decision (#888),
     // observed once here (the sidecar precedent · diagnose stays pure).
     out.push(sandbox_finding(&crate::probe::sandbox_probe()));
@@ -141,6 +142,20 @@ pub fn diagnose(probe: &Probe) -> Vec<Finding> {
     provider_findings(probe, &mut out);
 
     out
+}
+
+/// `--access` vocabulary (NIKA-1802). Classes, never a harness seat id.
+/// Gauntlet P01/P05: copying `claude-agent-acp` from a doctor row dies.
+fn access_class_finding() -> Finding {
+    let vocabulary = nika_types::access::AccessClass::ALL
+        .map(nika_types::access::AccessClass::as_str)
+        .join(" · ");
+    Finding {
+        level: Level::Ok,
+        label: "access".to_owned(),
+        detail: format!("--access classes: {vocabulary} (not a seat id)"),
+        fix: None,
+    }
 }
 
 /// The sandbox row (#891 · #822 P1) — the ONE selection's decision,
@@ -375,7 +390,10 @@ fn models_finding(models: &ModelsProbe) -> Vec<Finding> {
             level: Level::Warn,
             label: "models".to_owned(),
             detail: "none pulled yet — the sidecar has nothing to serve".to_owned(),
-            fix: Some("nika model pull Qwen/Qwen3-4B-Instruct-2507-GGUF".to_owned()),
+            fix: Some(format!(
+                "nika model pull {}",
+                crate::choice::featured_pull()
+            )),
         }]
     }
     #[cfg(not(feature = "local-infer"))]
@@ -759,6 +777,14 @@ pub fn render_json(
     format!("{payload:#}")
 }
 
+fn with_cascade(raw: String) -> String {
+    let Ok(mut v) = serde_json::from_str::<serde_json::Value>(&raw) else {
+        return raw;
+    };
+    v["cascade"] = crate::choice::collect().doctor_cascade_json();
+    format!("{v:#}")
+}
+
 /// The fixed label column (nextest school: one grid, computed on RAW text).
 /// Every label `diagnose` can emit fits STRICTLY inside it (pinned by
 /// `every_label_fits_the_fixed_column`) so the detail column never shears.
@@ -1027,11 +1053,11 @@ pub fn run(ping: bool, json: bool, verbose: bool, theme: Theme) -> VerbOutput {
     let code = exit_code(&findings);
     VerbOutput {
         text: if json {
-            render_json(
+            with_cascade(render_json(
                 &findings,
                 crate::probe::adoption_state(&probe),
                 &crate::probe::capability_receipts(&probe),
-            )
+            ))
         } else {
             // The same sobriety seam the concierge rides: `--plain`
             // promises ASCII glyph twins, and doctor's ✔/⚠/· column

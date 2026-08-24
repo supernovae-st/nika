@@ -46,6 +46,7 @@ fn preview_record(ran: &RanTask) -> TaskRecord {
             let mut rec = TaskRecord::unran(TaskStatus::Success, cause);
             rec.attempts = Some(attempts);
             rec.recovered_from.clone_from(recovered_from);
+            rec.error.clone_from(recovered_from);
             rec
         }
         RunResult::SkippedWithError { .. } => {
