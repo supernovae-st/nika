@@ -65,3 +65,31 @@ capabilities:
     shipped_when: "--features access-harness"
     reachable_by: "nika run F --access claude-agent-acp"
     proven_by: acp-quarantine
+
+# A field the parser accepts and the runtime never reads. G6 fires while
+# the runtime needle is absent. Tombstone with a reason and a date to
+# park a known drop; remove the watch when the field actually ships.
+# Empirical seed · #1135 infer.vision (parsed · planned · billed · dropped).
+# Two more of the same class found the same day · infer.thinking (parsed,
+# hashed into the resume key, never copied onto InferInput) ·
+# lsp --clientProcessId (clap accepts, comment says "currently unread").
+
+silent_drops:
+  - id: infer.vision
+    parsed_file: crates/nika-schema/src/parser/verbs.rs
+    parsed_needle: "action.vision"
+    runtime_file: crates/nika-runtime/src/dispatch.rs
+    runtime_needle: "action.vision"
+    issue: 1135
+  - id: infer.thinking
+    parsed_file: crates/nika-schema/src/parser/verbs.rs
+    parsed_needle: "action.thinking"
+    runtime_file: crates/nika-runtime/src/dispatch.rs
+    runtime_needle: "action.thinking"
+    issue: 1135
+  - id: lsp.client-process-id
+    parsed_file: crates/nika-cli/src/main.rs
+    parsed_needle: "client_process_id: Option"
+    runtime_file: crates/nika-cli/src/main.rs
+    runtime_needle: "client_process_id)"
+    issue: null

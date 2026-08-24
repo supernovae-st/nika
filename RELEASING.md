@@ -66,7 +66,22 @@ without an explicit operator decision.
    the same shape as the version-match guard above, and for the same
    reason.
 
-4. **Tag and push.**
+4. **Project the next tag (the anti-08-08 question).** Before the tag
+   exists, ask what it would actually contain and what it would claim
+   without proof. The command reads `release.yml`, `wiring.yaml`, the
+   CHANGELOG `[Unreleased]` section and the CI job keys. If it had
+   existed on 2026-08-08 it would have said: the CHANGELOG promises the
+   harness · `release.yml` does not build it.
+
+   ```sh
+   bash scripts/ci/next-tag-project.sh --check
+   ```
+
+   `--check` exits 1 on UNPROVEN claims. Do not tag while it is red.
+   A `✅` in `[Unreleased]` without a release build line and a named CI
+   job is a `🟡`.
+
+5. **Tag and push.**
 
    ```sh
    git tag v<NEXT> && git push origin v<NEXT>

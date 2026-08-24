@@ -3,9 +3,8 @@
 #![cfg(unix)]
 #![allow(clippy::disallowed_types, clippy::expect_used, clippy::panic)]
 
-//! PTY e2e — bare `nika` opens one local thread over the released workflow
-//! surfaces. This test deliberately avoids a model turn: `/list`, `/workflow`,
-//! and `/quit` prove the terminal skin without network or provider authority.
+//! PTY e2e — the first-wow cliquet: TTY and pipe are the SAME product
+//! (the cascade screen). The thread lives at `nika thread`, hidden.
 
 use std::process::Command;
 use std::time::Duration;
@@ -17,7 +16,9 @@ use expectrl::{Eof, Expect};
 
 type LoggedSession = Session<UnixProcess, LogStream<PtyStream, std::io::Stderr>>;
 
-const WORKFLOW: &str = "nika: alpha\npermits: { exec: [\"echo\"] }\ntasks:\n  hello:\n    exec: { command: [\"echo\", \"hello\"] }\n";
+fn bin() -> &'static str {
+    env!("CARGO_BIN_EXE_nika-cli")
+}
 
 fn exit_code(session: &mut LoggedSession) -> i32 {
     match session.get_process_mut().wait().expect("wait") {
@@ -26,37 +27,89 @@ fn exit_code(session: &mut LoggedSession) -> i32 {
     }
 }
 
+fn output_text(out: &std::process::Output) -> String {
+    format!(
+        "{}{}",
+        String::from_utf8_lossy(&out.stdout),
+        String::from_utf8_lossy(&out.stderr)
+    )
+}
+
 #[test]
-fn bare_tty_lists_and_posts_a_workflow_in_one_thread() {
+fn tty_and_pipe_render_the_same_cascade() {
     let dir = tempfile::Builder::new()
-        .prefix("nika-thread-pty-")
+        .prefix("nika-front-door-pty-")
         .tempdir()
         .expect("tmp dir");
-    std::fs::write(dir.path().join("alpha.nika.yaml"), WORKFLOW).expect("workflow");
 
-    let mut cmd = Command::new(env!("CARGO_BIN_EXE_nika-cli"));
+    let piped = Command::new(bin())
+        .current_dir(dir.path())
+        .env("NO_COLOR", "1")
+        .env("TERM", "dumb")
+        .stdin(std::process::Stdio::null())
+        .output()
+        .expect("piped nika");
+    assert_eq!(
+        piped.status.code(),
+        Some(0),
+        "pipe is a greeting, not usage"
+    );
+    let pipe_text = output_text(&piped);
+    assert!(
+        pipe_text.contains("Local first"),
+        "pipe shows the cascade: {pipe_text}"
+    );
+    assert!(
+        !pipe_text.contains("nika · thread"),
+        "pipe is not a thread: {pipe_text}"
+    );
+    assert!(
+        !pipe_text.contains("xai/grok-4"),
+        "grok-4 is dead as the default: {pipe_text}"
+    );
+
+    let mut cmd = Command::new(bin());
     cmd.current_dir(dir.path())
         .env("NO_COLOR", "1")
         .env("TERM", "xterm-256color");
     let session = OsSession::spawn(cmd).expect("pty spawn");
     let mut session = expectrl::session::log(session, std::io::stderr()).expect("log tee");
     session.set_expect_timeout(Some(Duration::from_secs(30)));
-
-    session.expect("nika · thread").expect("thread opens");
     session
-        .expect("model xai/grok-4 · /help")
-        .expect("model shown");
+        .expect("Local first")
+        .expect("TTY shows the cascade slogan");
+    session
+        .expect("Next:")
+        .expect("TTY shows the same next as the pipe");
+    session.expect(Eof).expect("TTY greeting exits");
+    assert_eq!(exit_code(&mut session), 0);
+}
+
+#[test]
+fn nika_thread_opens_the_hidden_thread() {
+    let dir = tempfile::Builder::new()
+        .prefix("nika-thread-verb-pty-")
+        .tempdir()
+        .expect("tmp dir");
+    std::fs::write(
+        dir.path().join("alpha.nika.yaml"),
+        "nika: alpha\npermits: { exec: [\"echo\"] }\ntasks:\n  hello:\n    exec: { command: [\"echo\", \"hello\"] }\n",
+    )
+    .expect("workflow");
+
+    let mut cmd = Command::new(bin());
+    cmd.arg("thread")
+        .current_dir(dir.path())
+        .env("NO_COLOR", "1")
+        .env("TERM", "xterm-256color");
+    let session = OsSession::spawn(cmd).expect("pty spawn");
+    let mut session = expectrl::session::log(session, std::io::stderr()).expect("log tee");
+    session.set_expect_timeout(Some(Duration::from_secs(30)));
+    session.expect("nika · thread").expect("thread opens");
     session.expect("nika ›").expect("prompt");
     session.send_line("/list").expect("list");
     session.expect("alpha.nika.yaml").expect("workflow listed");
-    session.expect("nika ›").expect("same thread");
-    session
-        .send_line("/workflow alpha.nika.yaml")
-        .expect("post workflow");
-    session.expect("alpha · 1 task").expect("workflow card");
-    session.expect("nika ›").expect("thread remains open");
     session.send_line("/quit").expect("quit");
     session.expect(Eof).expect("thread closes");
-
     assert_eq!(exit_code(&mut session), 0);
 }

@@ -21,7 +21,7 @@ nika-pack      = { path = "../nika-pack", version = "0.114.0" }      # embedded 
 nika-providers = { path = "../nika-providers", version = "0.114.0" } # ProviderRegistry + ExecutionLocus (the probe ladders)
 nika-runtime   = { path = "../nika-runtime", version = "0.114.0" }   # trace-store shapes retention walks + WorkflowPause/Stamper (notify · ADR-111)
 nika-registry-client = { path = "../nika-registry-client", version = "0.114.0" } # canonical registry cache root for --fix provenance
-nix            = { workspace = true, features = ["fs"] }              # FIFO fixtures in repair-target tests
+nix            = { workspace = true, features = ["fs", "feature"] }   # FIFO fixtures · sysconf RAM probe (first-wow cascade)
 nika-schema    = { path = "../nika-schema", version = "0.114.0" }    # RawWorkflow (context envelope · glance)
 nika-http      = { path = "../nika-http", version = "0.114.0" }      # ReqwestHttp — the notify webhook client (ADR-111 · SSRF floor)
 nika-event     = { path = "../nika-event", version = "0.114.0" }     # Event + notify_delivered/notify_failed kinds (ADR-111)
@@ -51,6 +51,11 @@ local-infer = ["nika-models/local-infer"]
 # The harness access class (P3 B6): the adapter registry + probes join
 # the doctor/probe surfaces. Off by default.
 access-harness = ["dep:nika-harness"]
+
+# `hw.memsize` — nix's `SysconfVar::_PHYS_PAGES` is Linux-only; Apple
+# still answers the same number through sysctl (measured 18 GiB M3 Pro).
+[target.'cfg(any(target_os = "macos", target_os = "ios", target_os = "freebsd"))'.dependencies]
+sysctl = "0.6"
 
 [dev-dependencies]
 tempfile = { workspace = true }  # scratch dirs for the metrics + welcome test fixtures

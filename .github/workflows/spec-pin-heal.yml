@@ -19,6 +19,8 @@ permissions:
 jobs:
   heal:
     runs-on: ubuntu-latest
+    outputs:
+      mutated: ${{ steps.heal.outputs.mutated }}
     permissions:
       contents: write # push the heal branch
       pull-requests: write # open the heal PR
@@ -37,6 +39,7 @@ jobs:
         with:
           tool: cargo-nextest
       - name: The pin follows the spec
+        id: heal
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -44,7 +47,12 @@ jobs:
           git clone --filter=blob:none https://github.com/supernovae-st/nika-spec ../spec
           head="$(git -C ../spec rev-parse HEAD)"
           pin="$(grep -v '^#' SPEC_PIN | head -1 | tr -d '[:space:]')"
-          if [ "$head" = "$pin" ]; then echo "pin current ($pin) — nothing to heal"; exit 0; fi
+          if [ "$head" = "$pin" ]; then
+            echo "pin current ($pin) — nothing to heal"
+            echo "mutated=false" >> "$GITHUB_OUTPUT"
+            echo "MUTATED: none because pin current ($pin)" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
           python3 - "$head" <<'PYEOF'
           import io, re, sys
           s = io.open('SPEC_PIN', encoding='utf-8').read()
@@ -75,6 +83,8 @@ jobs:
           if ! NIKA_SPEC_DIR="$PWD/../spec" CI=1 ./scripts/ci/check-tests.sh; then
             echo "::endgroup::"
             echo "::error::the engine does not implement spec $head — pin NOT advanced, no PR opened"
+            echo "mutated=false" >> "$GITHUB_OUTPUT"
+            echo "MUTATED: none because the engine does not implement spec $head" >> "$GITHUB_STEP_SUMMARY"
             exit 1   # loud, not silent: a red cron run is the signal a human sees
           fi
           echo "::endgroup::"
@@ -85,9 +95,13 @@ jobs:
             open="$(gh pr list --head "$branch" --state open --json number --jq 'length')"
             if [ "$open" = "1" ]; then
               echo "candidate PR already open on $branch — nothing to rewrite"
+              echo "mutated=false" >> "$GITHUB_OUTPUT"
+              echo "MUTATED: none because PR already open on $branch" >> "$GITHUB_STEP_SUMMARY"
               exit 0
             fi
             echo "::error::candidate branch $branch exists without one open PR — refusing an ambiguous rewrite"
+            echo "mutated=false" >> "$GITHUB_OUTPUT"
+            echo "MUTATED: none because ambiguous rewrite refused" >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
           git checkout -b "$branch"
@@ -97,3 +111,5 @@ jobs:
             --title "chore(spec-pin): the pin and the pack follow the spec" \
             --body "Automated pin advance (spec-pin-heal). SPEC_PIN and the vendored pack move to the same nika-spec commit; the job judged the full tests-leg battery before opening this." \
             2>/dev/null || echo "PR already open — refreshed"
+          echo "mutated=true" >> "$GITHUB_OUTPUT"
+          echo "MUTATED: yes · pushed $branch and opened/refreshed the pin PR" >> "$GITHUB_STEP_SUMMARY"

@@ -343,8 +343,17 @@ fn model_crosscheck(report: &nika_check::CheckReport) -> (Vec<Value>, Vec<Value>
         .models
         .iter()
         .filter_map(|m| {
-            nika_providers::resolve_refusal(&m.model)
-                .map(|why| serde_json::json!({ "model": m.model, "tasks": m.tasks, "why": why }))
+            nika_providers::resolve_refusal(&m.model).map(|refusal| {
+                let mut row = serde_json::json!({
+                    "model": m.model,
+                    "tasks": m.tasks,
+                    "why": refusal.why,
+                });
+                if let Some(code) = refusal.code {
+                    row["code"] = serde_json::json!(code);
+                }
+                row
+            })
         })
         .collect();
     let warnings = report
@@ -817,6 +826,10 @@ mod tests {
             err.contains("gpt-5-turbo") && err.contains("bare model id"),
             "{err}"
         );
+        assert!(
+            err.contains("\"code\": \"NIKA-PROVIDER\""),
+            "the prefix half stamps the FORM law: {err}"
+        );
     }
 
     #[test]
@@ -826,6 +839,10 @@ mod tests {
         assert!(
             err.contains("`azure` does not resolve") || err.contains("provider `azure`"),
             "{err}"
+        );
+        assert!(
+            !err.contains("NIKA-PROVIDER"),
+            "azure class stays engine-local: {err}"
         );
     }
 

@@ -1,0 +1,42 @@
+name: issue-proof
+
+# GitHub closes an issue when a PR merges. That is the lying checkmark
+# at the issue layer. A capability-claiming issue may close only when
+# wiring.yaml (or the body) names a proven_by CI job that exists.
+# Otherwise this lane reopens it.
+#
+# SECURITY: the issue body is untrusted. It is passed through env: and
+# quoted inside the script. No github.event expression reaches run:.
+
+on:
+  issues:
+    types: [closed]
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: 'Issue number to judge'
+        required: true
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  proof:
+    name: proven_by exists
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      contains(github.event.issue.body, 'proven_by:') ||
+      contains(join(github.event.issue.labels.*.name, ','), 'capability')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: The closed issue names a proof that exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          ISSUE_BODY: ${{ github.event.issue.body || '' }}
+          ISSUE_NUM: ${{ github.event.issue.number || github.event.inputs.issue }}
+        run: |
+          set -euo pipefail
+          bash scripts/ci/issue-proof.sh --issue "$ISSUE_NUM"

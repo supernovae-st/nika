@@ -445,3 +445,192 @@ tasks:
     );
     assert_eq!(outcome.records["source"].status, TaskStatus::Success);
 }
+
+/// Concatenate every string field in the journal — the cheap stand-in
+/// for `grep` over the NDJSON. Item identity must appear HERE, not
+/// only in an in-memory struct the trace never saw (#1077).
+fn journal_text(events: &[Event]) -> String {
+    let mut out = String::new();
+    for event in events {
+        for field in &event.fields {
+            if let FieldValue::String(s) = &field.value {
+                out.push_str(s);
+                out.push('\n');
+            }
+        }
+    }
+    out
+}
+
+/// #1077 · three items, all fail: the parent error names an item (not
+/// a count), and the fan note / the journal name the values. Deleting
+/// the item from the error message fails this test.
+#[tokio::test]
+async fn for_each_failure_names_an_item() {
+    let yaml = r#"
+nika: for-each-probe
+permits: { exec: true }
+const:
+  items: ["alpha", "beta", "gamma"]
+tasks:
+  each:
+    for_each: { items: "${{ const.items }}", fail_fast: false }
+    exec: { command: ["false"] }
+"#;
+    let shell = MockShell::new()
+        .enqueue_fail(1, "exploded")
+        .enqueue_fail(1, "exploded")
+        .enqueue_fail(1, "exploded");
+    let (outcome, events) = run_yaml(yaml, shell, Some(1)).await;
+
+    assert!(!outcome.ok);
+    let err = outcome.records["each"]
+        .error
+        .as_ref()
+        .expect("a failed fan carries the first iteration error");
+    assert_eq!(err.code, "NIKA-EXEC-001", "the original wire code stays");
+    assert!(
+        err.message.contains("alpha")
+            || err.message.contains("beta")
+            || err.message.contains("gamma"),
+        "the Failed message names an item, not a count: {}",
+        err.message
+    );
+    assert!(
+        err.message.contains("for_each item ["),
+        "index + item, so a count-only rewrite fails: {}",
+        err.message
+    );
+
+    let started = events
+        .iter()
+        .find(|e| {
+            e.kind == EventKind::TaskStarted
+                && e.fields.iter().any(|f| {
+                    f.key == "task" && matches!(&f.value, FieldValue::String(s) if s == "each")
+                })
+        })
+        .expect("each started");
+    let note = started
+        .fields
+        .iter()
+        .find_map(|f| match (&f.key[..], &f.value) {
+            ("note", FieldValue::String(s)) => Some(s.as_str()),
+            _ => None,
+        })
+        .expect("TaskStarted carries the fan note");
+    assert!(
+        note.contains("alpha") && note.contains("beta") && note.contains("gamma"),
+        "the fan note names every failed item: {note}"
+    );
+    assert!(
+        note.contains("3 of 3 items failed"),
+        "the tally is of named items: {note}"
+    );
+
+    let journal = journal_text(&events);
+    assert!(
+        journal.contains("alpha") && journal.contains("gamma"),
+        "the trace records item identity, not only a cardinality:\n{journal}"
+    );
+}
+
+/// #1077 · `fail_fast: false` with one death: the named item is the
+/// failing one, not a count-only string.
+#[tokio::test]
+async fn for_each_fail_fast_false_names_the_failing_item() {
+    let yaml = r#"
+nika: fan-one-death
+permits: { exec: true }
+const:
+  items: ["alpha", "beta", "gamma"]
+tasks:
+  each:
+    for_each: { items: "${{ const.items }}", fail_fast: false }
+    exec: { command: ["do", "${{ item }}"] }
+"#;
+    let shell = MockShell::new()
+        .enqueue_ok("ok-alpha\n")
+        .enqueue_fail(1, "exploded")
+        .enqueue_ok("ok-gamma\n");
+    let (outcome, events) = run_yaml(yaml, shell, Some(1)).await;
+
+    assert!(!outcome.ok);
+    let err = outcome.records["each"]
+        .error
+        .as_ref()
+        .expect("the parent reports the failed iteration");
+    assert_eq!(err.code, "NIKA-EXEC-001");
+    assert!(
+        err.message.contains("beta"),
+        "the named item is the failing one: {}",
+        err.message
+    );
+    assert!(
+        !err.message.contains("alpha") && !err.message.contains("gamma"),
+        "survivors must not be blamed: {}",
+        err.message
+    );
+
+    let journal = journal_text(&events);
+    assert!(
+        journal.contains("beta"),
+        "the trace names the failing item:\n{journal}"
+    );
+    assert!(
+        journal.contains("1 of 3 items failed: beta"),
+        "the fan note is not a count-only string:\n{journal}"
+    );
+}
+
+/// #1042 · `on_error: skip` used to leave a positional null and drop
+/// the item. The parent note names the recovered value, and the
+/// original error (with the item) is readable at `tasks.X.error`.
+#[tokio::test]
+async fn for_each_skip_preserves_the_named_item() {
+    let yaml = r#"
+nika: fe-error-identity
+permits: { exec: true }
+const:
+  items: ["alpha", "beta", "gamma"]
+tasks:
+  process:
+    for_each: { items: "${{ const.items }}", fail_fast: false }
+    on_error: { skip: true }
+    exec: { command: ["do", "${{ item }}"] }
+"#;
+    let shell = MockShell::new()
+        .enqueue_ok("ok-alpha\n")
+        .enqueue_ok("ok-beta\n")
+        .enqueue_fail(1, "exploded");
+    let (outcome, events) = run_yaml(yaml, shell, Some(1)).await;
+
+    assert!(outcome.ok, "per-iteration skip keeps the parent successful");
+    assert_eq!(outcome.records["process"].status, TaskStatus::Success);
+    assert_eq!(
+        outcome.records["process"].output,
+        serde_json::json!(["ok-alpha", "ok-beta", null])
+    );
+
+    let original = outcome.records["process"]
+        .error
+        .as_ref()
+        .or(outcome.records["process"].recovered_from.as_ref())
+        .expect("skip preserves the original error (spec 05 · tasks.X.error)");
+    assert_eq!(original.code, "NIKA-EXEC-001");
+    assert!(
+        original.message.contains("gamma"),
+        "the preserved error names the skipped item: {}",
+        original.message
+    );
+
+    let journal = journal_text(&events);
+    assert!(
+        journal.contains("gamma"),
+        "the trace records the skipped item, not only a positional null:\n{journal}"
+    );
+    assert!(
+        journal.contains("1 recovered: gamma"),
+        "the parent note names which item recovered:\n{journal}"
+    );
+}
