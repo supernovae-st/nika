@@ -8,17 +8,38 @@ without an explicit operator decision.
 
 ## The ceremony (human side)
 
-1. **Fill the changelog.** The `[Unreleased]` section becomes the version
-   section: generate it, don't hand-type it:
+1. **Fold the changelog.** Each change already described itself in its own
+   file under `changelog.d/` (`changelog.d/README.md` is the contract). The
+   fold assembles them into the version section and consumes them:
+
+   ```sh
+   bash scripts/release/changelog-assemble.sh            # read it first
+   bash scripts/release/changelog-assemble.sh --fold <NEXT>
+   ```
+
+   That splices the assembled body in as `## [<NEXT>]` with its compare
+   link, restores the `[Unreleased]` stub, and deletes the fragments it
+   consumed. Hand-curated narrative (a BREAKING window, an era note) may
+   still be edited into the section afterwards: the section, not the release
+   page, is where curation lives. `CHANGELOG.md` stays the single source the
+   release body renders from.
+
+   **Why fragments.** `CHANGELOG.md` was a shared append target, so two
+   branches that shared no source file still collided there — measured
+   2026-08-24 on four security pull requests (#1162 #1163 #1164 #1165):
+   `git merge-tree` reported one conflict each, always this file, and zero
+   overlap across the nine crate files they touched. Same shape as the
+   `estate.yaml` collision of 2026-08-20, same fix: stop sharing the target.
+   `scripts/ci/check-changelog-fragments.sh` refuses a bullet written back
+   into `[Unreleased]` (pre-push and in CI).
+
+   `git-cliff` stays the fallback for a tag nobody curated —
+   `changelog-cliff.yml` still runs on tag push and its idempotence guard
+   skips whenever the fold already landed a `## [<NEXT>]` section:
 
    ```sh
    git-cliff --config cliff.toml v<PREV>..HEAD --tag v<NEXT> --strip all
    ```
-
-   Splice the output under `## [Unreleased]` as `## [<NEXT>]`, newest first.
-   Hand-curated narrative (a BREAKING window, an era note) may replace the
-   generated body: the section, not the release page, is where curation
-   lives. `CHANGELOG.md` is the single source the release body renders from.
 
 2. **Bump every surface that spells the version.** The workspace manifest
    is the authority and the release workflow refuses a tag that disagrees

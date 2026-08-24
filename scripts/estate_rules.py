@@ -235,6 +235,12 @@ PATTERNS = [
         "evidence": "examples/README.md — a pointer README (the runnable examples live in the vendored pack + the spec repo)",
     },
     {
+        "glob": "changelog.d/**",
+        "class": "authored",
+        "evidence": "changelog.d/README.md — one hand-written bullet per change, authored by whoever makes the change; scripts/release/changelog-assemble.sh only CONSUMES them (--fold splices and deletes) and never writes one",
+        "note": "the README is permanent by design: a rule matching nothing is a coverage hole, and every fragment is deleted at fold time",
+    },
+    {
         "glob": "*",
         "class": "authored",
         "evidence": "root prose + config surface (README · DIAMOND · LICENSE · llms.txt · Cargo.toml · deny/clippy/cliff/typos toml · lefthook.yml · flake.nix · Dockerfile) — no generation markers at file heads; CHANGELOG.md · Cargo.lock · SPEC_PIN · ROADMAP.md excepted in files:",
