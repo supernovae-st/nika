@@ -59,10 +59,21 @@ fn local_loci(registry: &ProviderRegistry) -> Vec<LocalLocus> {
         .collect()
 }
 
+/// The catalog projection with the wiring fact ON every row (#1184).
+///
+/// `catalog_export()` alone claims nothing about what this build can
+/// reach; both surfaces below serialize to a reader who then CHOOSES a
+/// provider, so both chain the wire layer's own id list. The pin lives
+/// in `tests/catalog_family.rs` — a surface that drops the chain fails
+/// there rather than teaching an unreachable vendor.
+fn wired_export() -> CatalogExport {
+    catalog_export().with_wiring(&nika_providers::CANONICAL_IDS)
+}
+
 /// `nika catalog` — human listing, or the `--json` machine projection.
 #[must_use]
 pub fn run(json: bool, theme: Theme) -> VerbOutput {
-    let export = catalog_export();
+    let export = wired_export();
     if json {
         return match serde_json::to_string_pretty(&export) {
             Ok(payload) => VerbOutput::ok(payload),
@@ -74,6 +85,43 @@ pub fn run(json: bool, theme: Theme) -> VerbOutput {
     let registry = ProviderRegistry::without_http(nika_runtime::compose::config_from_env());
     let truth = MachineTruth::from_registry(&registry);
     VerbOutput::ok(human_listing(&export, theme, &local_loci(&registry), truth))
+}
+
+/// The two header lines — the counts, each NAMING its facet.
+///
+/// Every number names what it counts (RAMS-12 · A-06): « catalog
+/// entries » here, « wired in this build » for what welcome counts,
+/// « take a key » for the doctor's cloud rows — three facets of one
+/// machine, never three contradictions. One derivation serves all three
+/// (`MachineTruth`), and `machine_truth_surfaces.rs` pins the renders.
+fn listing_header(
+    export: &CatalogExport,
+    theme: Theme,
+    truth: MachineTruth,
+    models: usize,
+) -> String {
+    // `truth.wired` counts the registry a RUN executes through, which
+    // excludes the `mock` test lane — while the rows below mark mock
+    // runnable (`check` resolves `mock/echo`, and says « 16 runnable »).
+    // Two true numbers one apart read as a contradiction unless the
+    // exception is NAMED. Derived from the rows, never typed.
+    let mock_lane = if export.providers.iter().any(|p| p.id == "mock" && p.wired) {
+        " (+ mock, the test lane)"
+    } else {
+        ""
+    };
+    let facets = theme.paint(
+        Role::Dim,
+        &format!(
+            "  {wired} wired in this build{mock_lane} · {slots} take a key — nika doctor shows their state",
+            wired = truth.wired,
+            slots = truth.cloud_key_slots,
+        ),
+    );
+    format!(
+        "nika catalog — {n} catalog entries · {models} models (embedded · offline)\n{facets}\n",
+        n = truth.catalog_entries,
+    )
 }
 
 /// The human teaching listing — sections LOCAL then CLOUD, doctrine order.
@@ -90,30 +138,7 @@ fn human_listing(
     let mut cloud: Vec<&ProviderExport> = export.providers.iter().filter(|p| !p.local).collect();
     cloud.sort_by(|a, b| cloud_rank(a.id).cmp(&cloud_rank(b.id)));
 
-    // Every number NAMES its facet (RAMS-12 · A-06): « catalog entries »
-    // here, « wired in this build » for what welcome counts, « take a
-    // key » for the doctor's cloud rows — three facets of one machine,
-    // never three contradictions. One derivation serves all three
-    // (`MachineTruth`), and machine_truth_surfaces.rs pins the renders.
-    let mut out = format!(
-        "nika catalog — {n} catalog entries · {models} models (embedded · offline)\n",
-        n = truth.catalog_entries,
-    );
-    {
-        use std::fmt::Write as _;
-        let _ = writeln!(
-            out,
-            "{}",
-            theme.paint(
-                Role::Dim,
-                &format!(
-                    "  {wired} wired in this build · {slots} take a key — nika doctor shows their state",
-                    wired = truth.wired,
-                    slots = truth.cloud_key_slots,
-                ),
-            ),
-        );
-    }
+    let mut out = listing_header(export, theme, truth, models);
     out.push('\n');
     // « zero network » is EARNED: only when every local engine resolves
     // to loopback. One override off-loopback and the claim falls.
@@ -167,7 +192,7 @@ fn human_listing(
         out.push_str(&provider_line(p, theme, None));
     }
     out.push_str(
-        "\nnika catalog --json → the machine projection (models · capabilities · context windows)",
+        "\nnika catalog --json → the machine projection (models · capabilities · context windows · wired)",
     );
     out
 }
@@ -186,18 +211,30 @@ fn cloud_rank(id: &str) -> (u8, &str) {
 
 /// One provider line of the human listing. A local engine whose
 /// EFFECTIVE endpoint sits off-loopback (an operator override) is NAMED
-/// with endpoint + locus — the ink the honest header saved (P0-20).
+/// with endpoint + locus — the ink the honest header saved (P0-20). A
+/// row this build has no wire for says so ON THE ROW (#1184): an
+/// aggregate in the header does not survive the scan a user actually
+/// performs, which is down the column of names.
 fn provider_line(p: &ProviderExport, theme: Theme, locus: Option<&LocalLocus>) -> String {
     // B-6b (the gauntlet's Marta): `native` sits under the « zero key ·
     // zero network » banner, but in-process GGUF inference needs the
     // file ON DISK first — the row names the prerequisite and its door,
     // never a bare « no key » that dead-ends at run.
+    //
+    // The call to action is gated on `wired`: `native` has no wire in
+    // this build, so « nika model pull » invited a user through a door
+    // that refuses at check. An unreachable row never carries a verb.
     let key = if p.requires_key {
         p.env_var
-    } else if p.id == "native" {
+    } else if p.id == "native" && p.wired {
         "no key · needs a local .gguf (nika model pull)"
     } else {
         "no key"
+    };
+    let wire_note = if p.wired {
+        ""
+    } else {
+        " · catalog only — no wire in this build"
     };
     let locus_note = match locus {
         Some(l) if l.locus != ExecutionLocus::Loopback => format!(
@@ -214,7 +251,10 @@ fn provider_line(p: &ProviderExport, theme: Theme, locus: Option<&LocalLocus>) -
             &format!(
                 " {}{}{}",
                 theme.paint(Role::Strong, &format!("{:<14}", p.id)),
-                theme.paint(Role::Dim, &format!(" {:>2} models · {key}", p.models.len())),
+                theme.paint(
+                    Role::Dim,
+                    &format!(" {:>2} models · {key}{wire_note}", p.models.len()),
+                ),
                 theme.paint(Role::Dim, &locus_note),
             ),
         )
@@ -239,9 +279,94 @@ mod tests {
         let providers = value["providers"].as_array().expect("providers array");
         assert!(!providers.is_empty(), "the embedded catalog is never empty");
         let first = providers[0].as_object().expect("provider object");
-        for key in ["id", "env_var", "models", "local", "tags"] {
+        for key in ["id", "env_var", "models", "local", "tags", "wired"] {
             assert!(first.contains_key(key), "provider entry missing `{key}`");
         }
+    }
+
+    /// #1184 · the machine surface must let a consumer recover the
+    /// distinction the human header states. A payload where every row
+    /// reads `wired: false` is `catalog_export()` un-chained — the
+    /// exact drop this field exists to make impossible.
+    #[test]
+    fn json_marks_the_wire_layer_row_by_row() {
+        let out = run(true, PLAIN);
+        let value: serde_json::Value = serde_json::from_str(&out.text).expect("parseable JSON");
+        let providers = value["providers"].as_array().expect("providers array");
+        let wired: Vec<&str> = providers
+            .iter()
+            .filter(|p| p["wired"] == serde_json::Value::Bool(true))
+            .filter_map(|p| p["id"].as_str())
+            .collect();
+        assert!(
+            !wired.is_empty(),
+            "a payload with zero wired rows is the un-chained projection",
+        );
+        for id in &wired {
+            assert!(
+                nika_providers::CANONICAL_IDS.contains(id),
+                "`{id}` is marked wired but the wire layer does not seat it",
+            );
+        }
+        for id in nika_providers::CANONICAL_IDS {
+            if providers.iter().any(|p| p["id"] == id) {
+                assert!(
+                    wired.contains(&id),
+                    "`{id}` is seated by the wire layer but its row is unmarked",
+                );
+            }
+        }
+    }
+
+    /// The row a user scans carries the fact — and an unreachable row
+    /// never carries a call to action (`native` invited « nika model
+    /// pull » into a door that refuses at check).
+    #[test]
+    fn an_unwired_row_says_so_and_offers_no_verb() {
+        let text = run(false, PLAIN).text;
+        let export = wired_export();
+        for p in export.providers.iter().filter(|p| !p.wired) {
+            let row = text
+                .lines()
+                .find(|l| l.contains(&format!("\u{2502}  {:<14}", p.id)))
+                .unwrap_or_else(|| panic!("provider `{}` missing from the listing", p.id));
+            assert!(
+                row.contains("catalog only"),
+                "unwired provider `{}` reads as runnable: {row}",
+                p.id,
+            );
+            assert!(
+                !row.contains("nika model pull"),
+                "unwired provider `{}` still invites a verb: {row}",
+                p.id,
+            );
+        }
+        for p in export.providers.iter().filter(|p| p.wired) {
+            let row = text
+                .lines()
+                .find(|l| l.contains(&format!("\u{2502}  {:<14}", p.id)))
+                .unwrap_or_else(|| panic!("provider `{}` missing from the listing", p.id));
+            assert!(
+                !row.contains("catalog only"),
+                "wired provider `{}` reads as unreachable: {row}",
+                p.id,
+            );
+        }
+    }
+
+    /// The header's 15 and the rows' 16 differ by exactly the test lane
+    /// — so the header NAMES it. Without this clause a reader who
+    /// counts unmarked rows finds a contradiction on one screen.
+    #[test]
+    fn the_header_names_the_test_lane_when_mock_is_wired() {
+        let export = wired_export();
+        let text = human_listing(&export, PLAIN, &loopback_loci(), distinct_truth(&export));
+        let mock_wired = export.providers.iter().any(|p| p.id == "mock" && p.wired);
+        assert!(mock_wired, "the wire layer seats the mock echo lane");
+        assert!(
+            text.contains("(+ mock, the test lane)"),
+            "the wired facet names the lane the run registry excludes:\n{text}",
+        );
     }
 
     #[test]
@@ -289,7 +414,7 @@ mod tests {
 
     #[test]
     fn human_listing_counts_agree_with_the_projection() {
-        let export = catalog_export();
+        let export = wired_export();
         let truth = distinct_truth(&export);
         let text = human_listing(&export, PLAIN, &loopback_loci(), truth);
         let models: usize = export.providers.iter().map(|p| p.models.len()).sum();
@@ -326,7 +451,7 @@ mod tests {
 
     #[test]
     fn zero_network_is_earned_by_loopback_only() {
-        let export = catalog_export();
+        let export = wired_export();
         // All locals on loopback → the sovereign claim holds.
         let text = human_listing(&export, PLAIN, &loopback_loci(), distinct_truth(&export));
         assert!(

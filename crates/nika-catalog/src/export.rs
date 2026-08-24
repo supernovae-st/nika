@@ -68,6 +68,23 @@ pub struct ProviderExport {
     /// Wire-protocol dialect family (`"openai-chat"` · `"anthropic"` · …),
     /// `None` for bespoke protocols.
     pub api_dialect: Option<&'static str>,
+    /// Whether THIS build's wire layer can seat the provider — `false`
+    /// means the catalog knows the vendor and the engine cannot reach
+    /// it (`nika check` refuses the model at the MODELS rung).
+    ///
+    /// Never typed and never readable here: the catalog is L0 data, the
+    /// wire layer is L1.5 code, and `nika_catalog::export` is gated off
+    /// inside `nika-providers` — so the fact can only be STATED by the
+    /// L4 surface that holds both. [`CatalogExport::with_wiring`] is the
+    /// ONLY path to `true`, and its one honest argument is
+    /// `nika_providers::CANONICAL_IDS`.
+    ///
+    /// A projection built by [`catalog_export`] alone claims no wiring —
+    /// every row reads `false`. The two surfaces that emit this
+    /// projection to a human or an agent (`nika catalog` · the MCP
+    /// `nika_catalog` tool) are pinned to the wire layer by
+    /// `nika-cli/tests/catalog_family.rs`.
+    pub wired: bool,
     /// Typed capability/deployment/economics tags, kebab-case.
     pub tags: Vec<&'static str>,
     /// Known models (nickname → wire id) with resolved capabilities.
@@ -109,12 +126,38 @@ pub struct CapabilitiesExport {
     pub json_mode: Option<&'static str>,
 }
 
+impl CatalogExport {
+    /// State which provider ids THIS build's wire layer can seat.
+    ///
+    /// The ONE setter of [`ProviderExport::wired`] — there is no other
+    /// path to `true`. The wiring arrives as a parameter because the
+    /// fact lives one layer up (`nika_providers::CANONICAL_IDS`) and an
+    /// L0 catalog cannot read it; a hand-maintained mirror of that list
+    /// inside the catalog data would be the next drift.
+    ///
+    /// Ids absent from the catalog are ignored: the runtime seats
+    /// engines the catalog data does not carry, and this projection
+    /// speaks only about rows it has.
+    #[must_use]
+    pub fn with_wiring(mut self, wired_ids: &[&str]) -> Self {
+        for provider in &mut self.providers {
+            provider.wired = wired_ids.contains(&provider.id);
+        }
+        self
+    }
+}
+
 /// Build the full catalog projection from the embedded catalogs.
 ///
 /// Pure over compile-time data: zero I/O, zero network, deterministic
 /// for a given binary. Capabilities are resolved per model through
 /// [`crate::model_capabilities`] using the provider id + WIRE model id
 /// (the rule table matches wire names, not nicknames).
+///
+/// Every row leaves here `wired: false` — this function makes no claim
+/// about what the engine can reach. A surface a human or an agent reads
+/// chains [`CatalogExport::with_wiring`] over the wire layer's own id
+/// list (`nika_providers::CANONICAL_IDS`) before serializing.
 #[must_use]
 pub fn catalog_export() -> CatalogExport {
     CatalogExport {
@@ -136,6 +179,8 @@ fn provider_export(p: &Provider) -> ProviderExport {
         cheap_model: p.cheap_model,
         description: p.description,
         api_dialect: p.api_dialect,
+        // No claim here — `with_wiring` is the only thing that knows.
+        wired: false,
         tags: p.tags.iter().map(|t| t.as_str()).collect(),
         models: p.models.iter().map(|m| model_export(p.id, m)).collect(),
     }
@@ -253,11 +298,68 @@ mod tests {
             "cheap_model",
             "description",
             "api_dialect",
+            "wired",
             "tags",
             "models",
         ] {
             assert!(first.contains_key(key), "provider entry missing `{key}`");
         }
+    }
+
+    #[test]
+    fn the_bare_projection_claims_no_wiring() {
+        let export = catalog_export();
+        assert!(
+            export.providers.iter().all(|p| !p.wired),
+            "catalog_export() alone knows nothing about the wire layer",
+        );
+    }
+
+    #[test]
+    fn with_wiring_marks_exactly_the_named_ids() {
+        let all: Vec<&str> = catalog_export().providers.iter().map(|p| p.id).collect();
+        let named = ["anthropic", "mock"];
+        let export = catalog_export().with_wiring(&named);
+        for p in &export.providers {
+            assert_eq!(
+                p.wired,
+                named.contains(&p.id),
+                "provider `{}`: wired must mirror the named set",
+                p.id,
+            );
+        }
+        assert_eq!(
+            export.providers.iter().filter(|p| p.wired).count(),
+            named.len(),
+            "the wired rows are exactly the named ones, in a catalog of {}",
+            all.len(),
+        );
+    }
+
+    #[test]
+    fn an_id_the_catalog_does_not_carry_marks_nothing() {
+        let export = catalog_export().with_wiring(&["a-provider-no-catalog-row-names"]);
+        assert!(
+            export.providers.iter().all(|p| !p.wired),
+            "the projection speaks only about rows it has",
+        );
+    }
+
+    #[test]
+    fn wiring_replaces_a_previous_claim_rather_than_accumulating() {
+        // Chaining must not leave a stale `true` behind: the last call
+        // IS the build's answer, or a re-annotation would silently keep
+        // a provider marked runnable after it left the wire layer.
+        let export = catalog_export()
+            .with_wiring(&["anthropic", "mock"])
+            .with_wiring(&["mock"]);
+        let wired: Vec<&str> = export
+            .providers
+            .iter()
+            .filter(|p| p.wired)
+            .map(|p| p.id)
+            .collect();
+        assert_eq!(wired, vec!["mock"]);
     }
 
     #[test]

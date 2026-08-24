@@ -65,6 +65,248 @@ capabilities:
     shipped_when: "--features access-harness"
     reachable_by: "nika run F --access claude-agent-acp"
     proven_by: acp-quarantine
+  # ── The 38 cataloged providers (#1184) ────────────────────────────────
+  # The catalog is DATA and the wire is CODE, and they are deliberately
+  # different sizes: 38 vendor rows, 16 of which this build can seat. What
+  # was missing is not the adapters — it is that no surface MARKED which,
+  # including the MCP tool whose whole job is telling an agent what to
+  # pick. Each row below is DECLARED at a file:line, states whether it
+  # ships, states how (or whether) a user reaches it, and names ONE job as
+  # its judge: `rust` runs `scripts/ci/check-tests.sh`, whose
+  # `catalog_family.rs` traversal walks all 38 in a single pass and, per
+  # row, holds the `--json` mark, the human column and the MODELS verdict
+  # to the same answer. An `unreachable by design` row is not a gap — a
+  # cataloged vendor legitimately serves pricing and capability lookups.
+  # What is not legitimate is the set moving without anyone deciding, and
+  # the traversal's UNWIRED list is where that decision is recorded.
+  - id: provider.ai21
+    kind: provider
+    declared_at: crates/nika-catalog/data/llm-providers.toml:382
+    shipped_when: "never — catalog data only, no WireFormat seats it"
+    reachable_by: "unreachable by design · nika check refuses at the MODELS rung"
+    proven_by: rust
+  - id: provider.anthropic
+    kind: provider
+    declared_at: crates/nika-catalog/data/llm-providers.toml:23
+    shipped_when: "default build (nika-providers::profile seats it)"
+    reachable_by: "model: anthropic/<id> in a workflow · nika run"
+    proven_by: rust
+  - id: provider.azure
+    kind: provider
+    declared_at: crates/nika-catalog/data/llm-providers.toml:430
+    shipped_when: "never — catalog data only, no WireFormat seats it"
+    reachable_by: "unreachable by design · nika check refuses at the MODELS rung"
+    proven_by: rust
+  - id: provider.bedrock
+    kind: provider
+    declared_at: crates/nika-catalog/data/llm-providers.toml:406
+    shipped_when: "never — catalog data only, no WireFormat seats it"
+    reachable_by: "unreachable by design · nika check refuses at the MODELS rung"
+    proven_by: rust
+  - id: provider.cerebras
+    kind: provider
+    declared_at: crates/nika-catalog/data/llm-providers.toml:309
+    shipped_when: "never — catalog data only, no WireFormat seats it"
+    reachable_by: "unreachable by design · nika check refuses at the MODELS rung"
+    proven_by: rust
+  - id: provider.cloudflare
+    kind: provider
+    declared_at: crates/nika-catalog/data/llm-providers.toml:775
+    shipped_when: "never — catalog data only, no WireFormat seats it"
+    reachable_by: "unreachable by design · nika check refuses at the MODELS rung"
+    proven_by: rust
+  - id: provider.cohere
+    kind: provider
+    declared_at: crates/nika-catalog/data/llm-providers.toml:358
+    shipped_when: "never — catalog data only, no WireFormat seats it"
+    reachable_by: "unreachable by design · nika check refuses at the MODELS rung"
+    proven_by: rust
+  - id: provider.databricks
+    kind: provider
+    declared_at: crates/nika-catalog/data/llm-providers.toml:757
+    shipped_when: "never — catalog data only, no WireFormat seats it"
+    reachable_by: "unreachable by design · nika check refuses at the MODELS rung"
+    proven_by: rust
+  - id: provider.deepinfra
+    kind: provider
+    declared_at: crates/nika-catalog/data/llm-providers.toml:673
+    shipped_when: "never — catalog data only, no WireFormat seats it"
+    reachable_by: "unreachable by design · nika check refuses at the MODELS rung"
+    proven_by: rust
+  - id: provider.deepseek
+    kind: provider
+    declared_at: crates/nika-catalog/data/llm-providers.toml:133
+    shipped_when: "default build (nika-providers::profile seats it)"
+    reachable_by: "model: deepseek/<id> in a workflow · nika run"
+    proven_by: rust
+  - id: provider.fireworks
+    kind: provider
+    declared_at: crates/nika-catalog/data/llm-providers.toml:284
+    shipped_when: "never — catalog data only, no WireFormat seats it"
+    reachable_by: "unreachable by design · nika check refuses at the MODELS rung"
+    proven_by: rust
+  - id: provider.gemini
+    kind: provider
+    declared_at: crates/nika-catalog/data/llm-providers.toml:154
+    shipped_when: "default build (nika-providers::profile seats it)"
+    reachable_by: "model: gemini/<id> in a workflow · nika run"
+    proven_by: rust
+  - id: provider.groq
+    kind: provider
+    declared_at: crates/nika-catalog/data/llm-providers.toml:106
+    shipped_when: "default build (nika-providers::profile seats it)"
+    reachable_by: "model: groq/<id> in a workflow · nika run"
+    proven_by: rust
+  - id: provider.huggingface
+    kind: provider
+    declared_at: crates/nika-catalog/data/llm-providers.toml:206
+    shipped_when: "default build (nika-providers::profile seats it)"
+    reachable_by: "model: huggingface/<id> in a workflow · nika run"
+    proven_by: rust
+  - id: provider.hyperbolic
+    kind: provider
+    declared_at: crates/nika-catalog/data/llm-providers.toml:721
+    shipped_when: "never — catalog data only, no WireFormat seats it"
+    reachable_by: "unreachable by design · nika check refuses at the MODELS rung"
+    proven_by: rust
+  - id: provider.llamacpp
+    kind: provider
+    declared_at: crates/nika-catalog/data/llm-providers.toml:853
+    shipped_when: "default build (nika-providers::profile seats it)"
+    reachable_by: "model: llamacpp/<id> in a workflow · nika run"
+    proven_by: rust
+  - id: provider.lmstudio
+    kind: provider
+    declared_at: crates/nika-catalog/data/llm-providers.toml:833
+    shipped_when: "default build (nika-providers::profile seats it)"
+    reachable_by: "model: lmstudio/<id> in a workflow · nika run"
+    proven_by: rust
+  - id: provider.localai
+    kind: provider
+    declared_at: crates/nika-catalog/data/llm-providers.toml:873
+    shipped_when: "default build (nika-providers::profile seats it)"
+    reachable_by: "model: localai/<id> in a workflow · nika run"
+    proven_by: rust
+  - id: provider.minimax
+    kind: provider
+    declared_at: crates/nika-catalog/data/llm-providers.toml:590
+    shipped_when: "never — catalog data only, no WireFormat seats it"
+    reachable_by: "unreachable by design · nika check refuses at the MODELS rung"
+    proven_by: rust
+  - id: provider.mistral
+    kind: provider
+    declared_at: crates/nika-catalog/data/llm-providers.toml:80
+    shipped_when: "default build (nika-providers::profile seats it)"
+    reachable_by: "model: mistral/<id> in a workflow · nika run"
+    proven_by: rust
+  - id: provider.mock
+    kind: provider
+    declared_at: crates/nika-catalog/data/llm-providers.toml:933
+    shipped_when: "default build (nika-providers::profile seats it)"
+    reachable_by: "model: mock/<id> in a workflow · nika run"
+    proven_by: rust
+  - id: provider.moonshot
+    kind: provider
+    declared_at: crates/nika-catalog/data/llm-providers.toml:532
+    shipped_when: "never — catalog data only, no WireFormat seats it"
+    reachable_by: "unreachable by design · nika check refuses at the MODELS rung"
+    proven_by: rust
+  - id: provider.native
+    kind: provider
+    declared_at: crates/nika-catalog/data/llm-providers.toml:913
+    shipped_when: "never — catalog data only, no WireFormat seats it"
+    reachable_by: "unreachable by design · nika check refuses at the MODELS rung"
+    proven_by: rust
+  - id: provider.nvidia
+    kind: provider
+    declared_at: crates/nika-catalog/data/llm-providers.toml:640
+    shipped_when: "default build (nika-providers::profile seats it)"
+    reachable_by: "model: nvidia/<id> in a workflow · nika run"
+    proven_by: rust
+  - id: provider.ollama
+    kind: provider
+    declared_at: crates/nika-catalog/data/llm-providers.toml:807
+    shipped_when: "default build (nika-providers::profile seats it)"
+    reachable_by: "model: ollama/<id> in a workflow · nika run"
+    proven_by: rust
+  - id: provider.openai
+    kind: provider
+    declared_at: crates/nika-catalog/data/llm-providers.toml:50
+    shipped_when: "default build (nika-providers::profile seats it)"
+    reachable_by: "model: openai/<id> in a workflow · nika run"
+    proven_by: rust
+  - id: provider.openrouter
+    kind: provider
+    declared_at: crates/nika-catalog/data/llm-providers.toml:233
+    shipped_when: "default build (nika-providers::profile seats it)"
+    reachable_by: "model: openrouter/<id> in a workflow · nika run"
+    proven_by: rust
+  - id: provider.perplexity
+    kind: provider
+    declared_at: crates/nika-catalog/data/llm-providers.toml:478
+    shipped_when: "never — catalog data only, no WireFormat seats it"
+    reachable_by: "unreachable by design · nika check refuses at the MODELS rung"
+    proven_by: rust
+  - id: provider.qwen
+    kind: provider
+    declared_at: crates/nika-catalog/data/llm-providers.toml:559
+    shipped_when: "never — catalog data only, no WireFormat seats it"
+    reachable_by: "unreachable by design · nika check refuses at the MODELS rung"
+    proven_by: rust
+  - id: provider.replicate
+    kind: provider
+    declared_at: crates/nika-catalog/data/llm-providers.toml:697
+    shipped_when: "never — catalog data only, no WireFormat seats it"
+    reachable_by: "unreachable by design · nika check refuses at the MODELS rung"
+    proven_by: rust
+  - id: provider.sambanova
+    kind: provider
+    declared_at: crates/nika-catalog/data/llm-providers.toml:334
+    shipped_when: "never — catalog data only, no WireFormat seats it"
+    reachable_by: "unreachable by design · nika check refuses at the MODELS rung"
+    proven_by: rust
+  - id: provider.together
+    kind: provider
+    declared_at: crates/nika-catalog/data/llm-providers.toml:260
+    shipped_when: "never — catalog data only, no WireFormat seats it"
+    reachable_by: "unreachable by design · nika check refuses at the MODELS rung"
+    proven_by: rust
+  - id: provider.vertex
+    kind: provider
+    declared_at: crates/nika-catalog/data/llm-providers.toml:454
+    shipped_when: "never — catalog data only, no WireFormat seats it"
+    reachable_by: "unreachable by design · nika check refuses at the MODELS rung"
+    proven_by: rust
+  - id: provider.vllm
+    kind: provider
+    declared_at: crates/nika-catalog/data/llm-providers.toml:893
+    shipped_when: "default build (nika-providers::profile seats it)"
+    reachable_by: "model: vllm/<id> in a workflow · nika run"
+    proven_by: rust
+  - id: provider.voyage
+    kind: provider
+    declared_at: crates/nika-catalog/data/llm-providers.toml:503
+    shipped_when: "never — catalog data only, no WireFormat seats it"
+    reachable_by: "unreachable by design · nika check refuses at the MODELS rung"
+    proven_by: rust
+  - id: provider.writer
+    kind: provider
+    declared_at: crates/nika-catalog/data/llm-providers.toml:739
+    shipped_when: "never — catalog data only, no WireFormat seats it"
+    reachable_by: "unreachable by design · nika check refuses at the MODELS rung"
+    proven_by: rust
+  - id: provider.xai
+    kind: provider
+    declared_at: crates/nika-catalog/data/llm-providers.toml:180
+    shipped_when: "default build (nika-providers::profile seats it)"
+    reachable_by: "model: xai/<id> in a workflow · nika run"
+    proven_by: rust
+  - id: provider.zhipu
+    kind: provider
+    declared_at: crates/nika-catalog/data/llm-providers.toml:614
+    shipped_when: "never — catalog data only, no WireFormat seats it"
+    reachable_by: "unreachable by design · nika check refuses at the MODELS rung"
+    proven_by: rust
 
 # A field the parser accepts and the runtime never reads. G6 fires while
 # the runtime needle is absent. Tombstone with a reason and a date to
