@@ -35,6 +35,7 @@ pub(super) fn lane(
     skills: &nika_schema::ResolvedSkills,
     repair_target: nika_display::check_render::RepairTarget,
     model_override: Option<&str>,
+    access_pin: Option<&str>,
     json: bool,
     theme: Theme,
     output_json: bool,
@@ -42,6 +43,9 @@ pub(super) fn lane(
     if let Some(model) = model_override {
         match swap(wf, model) {
             Ok((wf, report)) => {
+                if let Some(verdict) = access_refusal(&wf, &report, access_pin, output_json) {
+                    return verdict;
+                }
                 return RunVerdict::bare(verdict(file, &wf, &report, json, theme));
             }
             Err(refused) => {
@@ -61,7 +65,25 @@ pub(super) fn lane(
             }
         }
     }
+    if let Some(verdict) = access_refusal(wf, report, access_pin, output_json) {
+        return verdict;
+    }
     RunVerdict::bare(verdict(file, wf, report, json, theme))
+}
+
+fn access_refusal(
+    wf: &RawWorkflow,
+    report: &CheckReport,
+    access_pin: Option<&str>,
+    output_json: bool,
+) -> Option<RunVerdict> {
+    let probes = nika_cli_host::probe::access_probes_with_harness();
+    nika_runtime::access_pin_refusal(wf, report, &probes, access_pin, None).map(|error| {
+        RunVerdict::bare(super::epilogue::env_refusal(
+            &error.to_string(),
+            output_json,
+        ))
+    })
 }
 
 fn verdict(file: &str, wf: &RawWorkflow, report: &CheckReport, json: bool, theme: Theme) -> u8 {

@@ -617,3 +617,62 @@ fn dry_run_without_the_flag_keeps_the_files_model() {
     let p = nika_check::plan::payload("hello-ai.nika.yaml", &wf, &report);
     assert_eq!(p["cost"]["tasks"][0]["model"], "ollama/llama3.2:3b");
 }
+
+#[test]
+fn dry_run_refuses_an_unknown_access_pin() {
+    let wf = stage(
+        "dry-run-unknown-access.nika.yaml",
+        "nika: dry-run-access\nmodel: mock/echo\npermits: {}\ntasks:\n  ask:\n    infer: { prompt: \"hello\" }\n",
+    );
+    let code = run(
+        &wf.to_string_lossy(),
+        false,
+        None,
+        plain_theme(),
+        RenderMode::Plain,
+        true,
+        None,
+        Some("nonsense-seat"),
+        &[],
+        None,
+        true,
+        None,
+        false,
+        None,
+        true,
+        false,
+    );
+    assert_eq!(code, exit::ENV, "dry-run must enforce the NIKA-1802 gate");
+}
+
+#[cfg(feature = "access-harness")]
+#[test]
+fn mock_model_with_harness_pin_refuses_before_a_live_seat() {
+    let wf = stage(
+        "mock-never-harness.nika.yaml",
+        "nika: mock-never-harness\nmodel: mock/echo\npermits: {}\ntasks:\n  ask:\n    infer: { prompt: \"hello\" }\n",
+    );
+    let code = run(
+        &wf.to_string_lossy(),
+        false,
+        None,
+        plain_theme(),
+        RenderMode::Plain,
+        false,
+        None,
+        Some("harness"),
+        &[],
+        None,
+        true,
+        None,
+        false,
+        None,
+        true,
+        false,
+    );
+    assert_eq!(
+        code,
+        exit::ENV,
+        "mock/echo must refuse before any harness backend can be seated"
+    );
+}
