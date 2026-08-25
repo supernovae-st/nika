@@ -69,17 +69,40 @@ export CARGO_TARGET_DIR="$REPO_ROOT/target/doc-check"
 # was green the moment it ran alone.
 #
 # Three outcomes now, named apart: cargo says clean · cargo says drift
-# · cargo could not answer.
+# · cargo could not answer. They discriminate on the FAILURE MODE, not on
+# the shape of the text: a tool abandoning says so with a verb of
+# incapacity, and those lines DO start with `error:` — so a line-prefix
+# test files a broken toolchain as doc drift, and the « could not answer »
+# branch never fires in exactly the situation it describes (measured
+# 2026-08-25 · a full disk under target/doc-check · six blocked pushes ·
+# the named crates untouched by anyone — issue 1232). A genuine finding,
+# by contrast, names a lint and a file:line (unresolved link · missing
+# documentation). The verb test must also cover EVERY diagnostic line:
+# cargo prints `could not document` for a crate whose rustdoc failed for
+# any reason at all, genuine lints included, so a single verb beside a
+# real finding must still read as drift.
 output=$(RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --document-private-items "${pkg_args[@]}" 2>&1)
 rc=$?
-if [ "$rc" -ne 0 ] && ! echo "$output" | grep -qE '^(error|warning):'; then
-  printf "RED: cargo doc could not answer (exit %s · no rustdoc diagnostic)\n" "$rc"
+
+tool_failed() {
+  printf "RED: cargo doc could not answer (exit %s · %s)\n" "$rc" "$1"
   echo "$output" | tail -10 | sed 's/^/    /'
   echo ""
   echo "This is NOT a documentation finding — the tool failed to run."
   echo "Common causes: a concurrent cargo holding the lock, an OOM kill,"
   echo "a full disk under target/doc-check. Re-run this vector alone."
   exit 2
+}
+
+# Verbs of incapacity: the tool naming its own failure, never a finding.
+incapacity='could not document|couldn.t generate documentation|No space left on device|Blocking waiting for file lock'
+if [ "$rc" -ne 0 ]; then
+  if ! echo "$output" | grep -qE '^(error|warning):'; then
+    tool_failed "no rustdoc diagnostic"
+  fi
+  if ! echo "$output" | grep -E '^(error|warning):' | grep -qvE "$incapacity"; then
+    tool_failed "the tool abandoned mid-run"
+  fi
 fi
 if echo "$output" | grep -qE '^(error|warning):'; then
   printf "RED: private-doc drift (cargo doc --document-private-items emitted warnings/errors):\n"
