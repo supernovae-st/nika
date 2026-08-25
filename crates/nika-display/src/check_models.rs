@@ -128,7 +128,50 @@ impl ModelsAudit {
 /// `✔ 1 model resolves in this binary` while the rung had skipped it
 /// wholesale. Nothing resolved; nobody looked. An all-unjudged list now
 /// renders `○` (no claim), and a mixed list names its unjudged rest.
+/// The row for infer/agent tasks NO `model:` reaches (#1178).
+///
+/// This is the rung's finding before any resolver runs: there is no
+/// string to resolve. It rendered nothing at all — `requirements.models`
+/// is empty in that case, which is the same shape as « this workflow has
+/// no inference tasks », and [`models`]'s early return reads it as
+/// exactly that.
+///
+/// So `check` went green on a file whose run cannot start, and the run
+/// died naming a PROVIDER error — the class `nika explain` teaches as an
+/// HTTP failure. Nothing dialed. The author was sent to look for a
+/// network problem that a missing line in their own file had caused. The
+/// rung that owns « can this run reach a model » has to answer when the
+/// answer is no.
+///
+/// ⚠, not ✖ — the same posture `inputs_required` earns, and for the same
+/// reason: `nika run --model <provider>/<name>` supplies one, so the file
+/// is INCOMPLETE, not refused. A ✖ would also have to move the verdict,
+/// and a red row over a green `audited` card is the
+/// three-surfaces-two-answers defect this render already carries a note
+/// about (P0-11).
+fn absent_model_row(out: &mut String, report: &CheckReport, t: Theme) {
+    let tasks = &report.requirements.models_absent;
+    if tasks.is_empty() {
+        return;
+    }
+    let named = tasks
+        .iter()
+        .map(|id| format!("`{id}`"))
+        .collect::<Vec<_>>()
+        .join(", ");
+    let _ = writeln!(
+        out,
+        " {} {}   no `model:` reaches {} {named} — declare one on the task, or as the \
+         envelope default `model: <provider>/<name>`, or pass `--model` at run \
+         (`--model mock/echo` previews offline)",
+        t.paint(Role::Warn, if t.ascii { "!" } else { "⚠" }),
+        t.paint(Role::Strong, "MODELS"),
+        if tasks.len() == 1 { "task" } else { "tasks" },
+    );
+}
+
 pub(crate) fn models(out: &mut String, report: &CheckReport, audit: &ModelsAudit, t: Theme) {
+    absent_model_row(out, report, t);
     if report.requirements.models.is_empty() {
         return; // no inference tasks — the ladder says so at COST already
     }

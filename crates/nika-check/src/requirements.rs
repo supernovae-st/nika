@@ -45,6 +45,21 @@ pub struct Requirements {
     pub inputs_read: Vec<String>,
     /// `inputs:` that are `required: true` with no `default:`.
     pub inputs_required: Vec<String>,
+    /// infer/agent task ids that NO `model:` reaches — neither a verb
+    /// override nor the envelope default. Additive: `report_version`
+    /// stays 1.
+    ///
+    /// These used to fall out of the collection entirely: [`Self::models`]
+    /// only records a task once a string resolves for it, so a task with
+    /// no model at all left the list EMPTY, and « empty » is the same
+    /// shape as « this workflow has no inference tasks ». The MODELS rung
+    /// reads that shape and stays silent, so `check` passed green on a
+    /// file whose run cannot start — and the run then failed as a
+    /// PROVIDER error, sending the author to look for a network problem
+    /// that a missing line in their file had caused (#1178).
+    ///
+    /// Absent is a fact of its own, and it is the one the rung needs.
+    pub models_absent: Vec<String>,
 }
 
 /// Collect the requirements (total — a half-broken workflow still
@@ -52,6 +67,7 @@ pub struct Requirements {
 pub(crate) fn collect(wf: &RawWorkflow) -> Requirements {
     let envelope_model = wf.model.as_ref().map(|m| m.value.clone());
     let mut models: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    let mut models_absent: Vec<String> = Vec::new();
     let mut inputs_read: BTreeSet<String> = BTreeSet::new();
 
     for task in &wf.tasks {
@@ -61,11 +77,19 @@ pub(crate) fn collect(wf: &RawWorkflow) -> Requirements {
             RawAction::Agent(a) => Some(a.model.as_ref().map(|m| m.value.clone())),
             _ => None,
         };
-        if let Some(model) = task_model.and_then(|m| m.or_else(|| envelope_model.clone())) {
-            models
-                .entry(model)
-                .or_default()
-                .push(task.value.id.value.clone());
+        // `Some(None)` is the load-bearing shape: an infer/agent task
+        // (the outer Some) with no model of its own (the inner None).
+        // Falling back to the envelope is the resolution; falling
+        // through BOTH is the fact `models_absent` records — the arm
+        // that used to be a silent `else`.
+        if let Some(declared) = task_model {
+            match declared.or_else(|| envelope_model.clone()) {
+                Some(model) => models
+                    .entry(model)
+                    .or_default()
+                    .push(task.value.id.value.clone()),
+                None => models_absent.push(task.value.id.value.clone()),
+            }
         }
 
         inputs_reads_of_task(task, &mut inputs_read);
@@ -114,6 +138,7 @@ pub(crate) fn collect(wf: &RawWorkflow) -> Requirements {
             })
             .map(|(name, _)| name.value.clone())
             .collect(),
+        models_absent,
     }
 }
 
@@ -293,5 +318,41 @@ outputs:
         let req = collect(&wf);
         assert!(req.models.is_empty());
         assert!(req.inputs_read.is_empty());
+        // The distinction #1178 turned on: an invoke-only workflow has
+        // no model because it needs none. Nothing is absent here.
+        assert!(req.models_absent.is_empty());
+    }
+
+    /// An infer/agent task NO model reaches is a FACT, and it used to
+    /// leave no trace: `models` stays empty, which is the same shape an
+    /// invoke-only workflow has, so the MODELS rung read « no inference
+    /// tasks » and said nothing. `check` went green on a file whose run
+    /// cannot start, and the run then failed as a provider error (#1178).
+    #[test]
+    fn an_infer_task_no_model_reaches_is_named_not_dropped() {
+        let wf = wf_of("nika: bare\ntasks:\n  bot:\n    agent: { prompt: \"say hi\" }\n");
+        let req = collect(&wf);
+        assert!(
+            req.models.is_empty(),
+            "there is no model string to require: {:?}",
+            req.models
+        );
+        assert_eq!(req.models_absent, vec!["bot".to_owned()]);
+
+        // The other end, so this cannot pass by naming every task: the
+        // envelope default REACHES the task, so nothing is absent.
+        let covered = wf_of(
+            "nika: covered\nmodel: mock/echo\ntasks:\n  bot:\n    agent: { prompt: \"say hi\" }\n",
+        );
+        let req = collect(&covered);
+        assert!(req.models_absent.is_empty());
+        assert_eq!(req.models.len(), 1);
+        assert_eq!(req.models[0].model, "mock/echo");
+
+        // …and a verb override reaches it just as well.
+        let overridden = wf_of(
+            "nika: overridden\ntasks:\n  bot:\n    agent: { prompt: \"hi\", model: mock/echo }\n",
+        );
+        assert!(collect(&overridden).models_absent.is_empty());
     }
 }
