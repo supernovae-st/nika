@@ -151,6 +151,7 @@ mod schema_lint;
 mod schema_typing;
 mod secrets;
 pub mod slots;
+mod thinking;
 mod tools;
 pub mod trifecta;
 mod walk;
@@ -190,6 +191,7 @@ pub use schema_lint::SchemaLintFinding;
 pub use schema_typing::{SchemaTypeFinding, UnverifiableOutputRef};
 pub use secrets::{SecretEgress, SecretLeak};
 pub use slots::{MARKER_OPEN, SlotFinding};
+pub use thinking::{ThinkingFinding, thinking_findings};
 pub use tools::{MissingArg, UnknownArg, UnknownTool};
 pub use walk::{static_literal_of, static_read_paths};
 
