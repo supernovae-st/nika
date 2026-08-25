@@ -1,0 +1,67 @@
+name: issue-proof
+
+# GitHub closes an issue when a PR merges. That is the lying checkmark
+# at the issue layer. A capability-claiming issue may close only when
+# wiring.yaml (or the body) names a proven_by CI job that exists.
+# Otherwise this lane reopens it.
+#
+# THE JOB CARRIES NO `if:` — DELIBERATELY (#1200).
+#
+# It used to. The guard read:
+#
+#   contains(github.event.issue.body, 'proven_by:') ||
+#   contains(join(github.event.issue.labels.*.name, ','), 'capability')
+#
+# which made proof OPT-IN BY THE FILER. An issue filed before this gate
+# existed could never opt in, and the merge that auto-closed it is exactly
+# the event the gate was built for. Measured 2026-08-24, one minute apart on
+# one issue: `skipped` when the body lacked the string, `success` once it was
+# added. And the case nobody re-closed — #1042, closed COMPLETED with one of
+# its three legs still open, walked past in silence because it predates the
+# gate.
+#
+# A ratchet the filer can decline to arm is a decoration. The condition is not
+# widened here, it is DELETED: a guard that cannot be false cannot drift, and
+# there is nothing left to keep in sync. Every close is judged; the honest
+# non-capability close opts OUT through the CLOSER's own act (GitHub's
+# `state_reason`, or an explicit label), judged in the script where it can be
+# tested with fixtures.
+#
+# SECURITY: the issue body, labels and state_reason are untrusted. They are
+# passed through env: and quoted inside the script. No github.event expression
+# reaches run:.
+
+on:
+  issues:
+    types: [closed]
+  workflow_dispatch:
+    inputs:
+      issue:
+        description: 'Issue number to judge'
+        required: true
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  proof:
+    name: proven_by exists
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: The closed issue names a proof that exists
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          ISSUE_BODY: ${{ github.event.issue.body || '' }}
+          ISSUE_NUM: ${{ github.event.issue.number || github.event.inputs.issue }}
+          # The CLOSER's act, not the filer's. `not_planned` / `duplicate` is
+          # GitHub's own vocabulary for "this delivered nothing", so an honest
+          # close needs no bespoke label — and a merge auto-close, the event
+          # this gate exists for, is always `completed`.
+          ISSUE_STATE_REASON: ${{ github.event.issue.state_reason || '' }}
+          ISSUE_LABELS: ${{ join(github.event.issue.labels.*.name, ',') }}
+        run: |
+          set -euo pipefail
+          bash scripts/ci/issue-proof.sh --issue "$ISSUE_NUM"

@@ -86,6 +86,132 @@ impl fmt::Display for AccessClass {
     }
 }
 
+/// One shipped agentic CLI runtime `--access` can name (product token).
+///
+/// The id is the pin token (`claude-code`). Spawn may use a different
+/// ACP speaker (`claude-agent-acp`) — that wrapper is never a pin.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[non_exhaustive]
+pub struct HarnessRuntime {
+    /// The `--access` token (`claude-code` · `codex` · `gemini-cli` ·
+    /// `kimi-code` · `qwen-code`).
+    pub id: &'static str,
+    /// Human name for doctor and refusal lines (`Claude Code`).
+    pub display: &'static str,
+    /// Product CLI on `PATH` (`claude` · `codex` · `gemini`).
+    pub detect_bin: &'static str,
+    /// ACP speaker `argv[0]` (may differ from [`Self::detect_bin`]).
+    pub acp_bin: &'static str,
+    /// Dummy-readable line when the product CLI is absent (NIKA-1803).
+    pub not_installed: &'static str,
+}
+
+impl HarnessRuntime {
+    /// Gemini CLI (native ACP).
+    pub const GEMINI_CLI: Self = Self {
+        id: "gemini-cli",
+        display: "Gemini CLI",
+        detect_bin: "gemini",
+        acp_bin: "gemini",
+        not_installed: "Gemini CLI is not installed. Install it or pick Nika local / Nika Cloud.",
+    };
+    /// Qwen Code (native ACP).
+    pub const QWEN_CODE: Self = Self {
+        id: "qwen-code",
+        display: "Qwen Code",
+        detect_bin: "qwen",
+        acp_bin: "qwen",
+        not_installed: "Qwen Code is not installed. Install it or pick Nika local / Nika Cloud.",
+    };
+    /// Kimi Code (native ACP).
+    pub const KIMI_CODE: Self = Self {
+        id: "kimi-code",
+        display: "Kimi Code",
+        detect_bin: "kimi",
+        acp_bin: "kimi",
+        not_installed: "Kimi Code is not installed. Install it or pick Nika local / Nika Cloud.",
+    };
+    /// Codex (ACP speaker is `codex-acp`).
+    pub const CODEX: Self = Self {
+        id: "codex",
+        display: "Codex",
+        detect_bin: "codex",
+        acp_bin: "codex-acp",
+        not_installed: "Codex is not installed. Install it or pick Nika local / Nika Cloud.",
+    };
+    /// Claude Code (ACP speaker is `claude-agent-acp`).
+    pub const CLAUDE_CODE: Self = Self {
+        id: "claude-code",
+        display: "Claude Code",
+        detect_bin: "claude",
+        acp_bin: "claude-agent-acp",
+        not_installed: "Claude Code is not installed. Install it or pick Nika local / Nika Cloud.",
+    };
+
+    /// Shipped runtimes in G-3 probe order (gemini first · Anthropic last).
+    pub const ALL: [Self; 5] = [
+        Self::GEMINI_CLI,
+        Self::QWEN_CODE,
+        Self::KIMI_CODE,
+        Self::CODEX,
+        Self::CLAUDE_CODE,
+    ];
+
+    /// Look up a live `--access` token. Retired aliases are not here.
+    #[must_use]
+    pub fn lookup(id: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|row| row.id == id)
+    }
+
+    /// Retired public tokens that must never resolve (NIKA-1802 + rename).
+    #[must_use]
+    pub fn retired_alias(id: &str) -> Option<Self> {
+        match id {
+            "claude-agent-acp" => Some(Self::CLAUDE_CODE),
+            "codex-acp" => Some(Self::CODEX),
+            _ => None,
+        }
+    }
+
+    /// The one help/docs vocabulary (` · ` separated, same day as `--help`).
+    #[must_use]
+    pub const fn vocabulary() -> &'static str {
+        "claude-code · codex · gemini-cli · kimi-code · qwen-code"
+    }
+
+    /// Dummy-readable line when the product CLI is present but the ACP
+    /// speaker is not (`claude` without `claude-agent-acp`).
+    #[must_use]
+    pub fn acp_missing(&self) -> alloc::string::String {
+        if self.detect_bin == self.acp_bin {
+            alloc::format!(
+                "{} is installed, but Nika could not start its ACP mode. \
+                 Upgrade it or pick Nika local / Nika Cloud.",
+                self.display
+            )
+        } else {
+            alloc::format!(
+                "{} is installed, but Nika talks to it through ACP. Install `{}` \
+                 (`npm i -g @zed-industries/{}`) or pick Nika local / Nika Cloud.",
+                self.display,
+                self.acp_bin,
+                self.acp_bin
+            )
+        }
+    }
+
+    /// Dummy-readable line when the CLI is present but not signed in.
+    #[must_use]
+    pub fn not_signed_in(&self) -> alloc::string::String {
+        alloc::format!(
+            "{} is installed but not signed in. Sign in to {} itself, or pick \
+             Nika local / Nika Cloud.",
+            self.display,
+            self.display
+        )
+    }
+}
+
 /// HOW an execution is paid for — declared before the run, recorded in
 /// the trace. Distinct from cost EVIDENCE (`Cost` · `UnpricedReason`):
 /// the class names the economic lane, the evidence names what was
@@ -510,5 +636,57 @@ mod tests {
     fn access_types_are_send_sync() {
         _assert_send_sync::<AccessClass>();
         _assert_send_sync::<BillingClass>();
+        _assert_send_sync::<HarnessRuntime>();
+    }
+
+    #[test]
+    fn harness_runtime_tokens_are_one_name_each_and_never_a_class() {
+        assert_eq!(HarnessRuntime::ALL.len(), 5);
+        for (i, a) in HarnessRuntime::ALL.iter().enumerate() {
+            for b in &HarnessRuntime::ALL[i + 1..] {
+                assert_ne!(a.id, b.id, "one name per runtime");
+            }
+            assert!(
+                AccessClass::ALL.iter().all(|c| c.as_str() != a.id),
+                "{} must never collide with an access class",
+                a.id
+            );
+            assert!(HarnessRuntime::lookup(a.id).is_some());
+        }
+        assert_eq!(
+            HarnessRuntime::lookup("claude-code"),
+            Some(HarnessRuntime::CLAUDE_CODE)
+        );
+        assert_eq!(HarnessRuntime::lookup("codex"), Some(HarnessRuntime::CODEX));
+        assert!(HarnessRuntime::lookup("claude-agent-acp").is_none());
+        assert!(HarnessRuntime::lookup("codex-acp").is_none());
+        assert_eq!(
+            HarnessRuntime::retired_alias("claude-agent-acp"),
+            Some(HarnessRuntime::CLAUDE_CODE)
+        );
+        assert_eq!(
+            HarnessRuntime::retired_alias("codex-acp"),
+            Some(HarnessRuntime::CODEX)
+        );
+        let vocab = HarnessRuntime::vocabulary();
+        for id in [
+            "claude-code",
+            "codex",
+            "gemini-cli",
+            "kimi-code",
+            "qwen-code",
+        ] {
+            assert!(vocab.contains(id), "{vocab} missing {id}");
+        }
+        assert!(
+            HarnessRuntime::CLAUDE_CODE
+                .not_installed
+                .contains("Claude Code is not installed")
+        );
+        assert!(
+            HarnessRuntime::CLAUDE_CODE
+                .acp_missing()
+                .contains("claude-agent-acp")
+        );
     }
 }

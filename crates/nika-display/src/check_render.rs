@@ -120,7 +120,7 @@ pub fn render(
     }
 
     plan(&mut out, report, wf, t);
-    crate::check_models::models(&mut out, report, models_audit, t);
+    crate::check_models::models(&mut out, report, wf, models_audit, t);
     // SKILLS (#473) · silent when nothing is referenced (rows self-teach).
     if let Some((ok_msg, rows)) = skills.rung() {
         section_list(&mut out, t, "SKILLS", &ok_msg, rows);
@@ -149,6 +149,10 @@ pub fn render(
             .map(|l| format!("task `{}` at {} — {}", l.task, l.path, l.detail))
             .collect(),
     );
+    // #1066 — an unfilled scaffold is not yet a workflow. Placed
+    // before the security rungs: what to do next outranks what a
+    // half-written file's boundary would have been.
+    slots::slots_rung(&mut out, report, source, path, t);
     section_or_skip(
         &mut out,
         report,
@@ -1462,6 +1466,7 @@ fn loopback_declassification_lines(out: &mut String, wf: &RawWorkflow, t: Theme)
 }
 mod footer;
 mod permits_glance;
+mod slots;
 use footer::hints_and_verdict;
 
 #[cfg(test)]

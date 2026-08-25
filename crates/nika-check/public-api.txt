@@ -60,6 +60,56 @@ pub fn nika_check::permits_fit::CapabilityEscape::as_any(&self) -> &(dyn core::a
 pub fn nika_check::permits_fit::scan_escapes(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<nika_check::permits_fit::CapabilityEscape>
 pub mod nika_check::plan
 pub fn nika_check::plan::payload(file: &str, wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport) -> serde_json::value::Value
+pub mod nika_check::slots
+#[non_exhaustive] pub struct nika_check::slots::SlotFinding
+pub nika_check::slots::SlotFinding::hint: alloc::string::String
+pub nika_check::slots::SlotFinding::path: alloc::string::String
+pub nika_check::slots::SlotFinding::span: nika_check::ByteSpan
+impl nika_check::slots::SlotFinding
+pub fn nika_check::slots::SlotFinding::new(path: alloc::string::String, hint: alloc::string::String, span: nika_check::ByteSpan) -> Self
+impl core::clone::Clone for nika_check::slots::SlotFinding
+pub fn nika_check::slots::SlotFinding::clone(&self) -> nika_check::slots::SlotFinding
+impl core::cmp::Eq for nika_check::slots::SlotFinding
+impl core::cmp::PartialEq for nika_check::slots::SlotFinding
+pub fn nika_check::slots::SlotFinding::eq(&self, other: &nika_check::slots::SlotFinding) -> bool
+impl core::fmt::Debug for nika_check::slots::SlotFinding
+pub fn nika_check::slots::SlotFinding::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_check::slots::SlotFinding
+impl serde_core::ser::Serialize for nika_check::slots::SlotFinding
+pub fn nika_check::slots::SlotFinding::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_check::slots::SlotFinding
+impl<Q, K> equivalent::Equivalent<K> for nika_check::slots::SlotFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::slots::SlotFinding::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::slots::SlotFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::slots::SlotFinding::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check::slots::SlotFinding where U: core::convert::From<T>
+pub fn nika_check::slots::SlotFinding::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::slots::SlotFinding where U: core::convert::Into<T>
+pub type nika_check::slots::SlotFinding::Error = core::convert::Infallible
+pub fn nika_check::slots::SlotFinding::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::slots::SlotFinding where U: core::convert::TryFrom<T>
+pub type nika_check::slots::SlotFinding::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::slots::SlotFinding::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::slots::SlotFinding where T: core::clone::Clone
+pub type nika_check::slots::SlotFinding::Owned = T
+pub fn nika_check::slots::SlotFinding::clone_into(&self, target: &mut T)
+pub fn nika_check::slots::SlotFinding::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::slots::SlotFinding where T: 'static + ?core::marker::Sized
+pub fn nika_check::slots::SlotFinding::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::slots::SlotFinding where T: ?core::marker::Sized
+pub fn nika_check::slots::SlotFinding::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::slots::SlotFinding where T: ?core::marker::Sized
+pub fn nika_check::slots::SlotFinding::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::slots::SlotFinding where T: core::clone::Clone
+pub unsafe fn nika_check::slots::SlotFinding::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::slots::SlotFinding
+pub fn nika_check::slots::SlotFinding::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::slots::SlotFinding where T: core::clone::Clone
+pub fn nika_check::slots::SlotFinding::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::slots::SlotFinding where T: 'static
+pub fn nika_check::slots::SlotFinding::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub const nika_check::slots::MARKER_OPEN: &str
+pub fn nika_check::slots::scan(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<nika_check::slots::SlotFinding>
 pub mod nika_check::trifecta
 pub fn nika_check::trifecta::scan_trifecta(wf: &nika_schema::raw::workflow::RawWorkflow, edges: &[nika_check_analyzer::edges::Edge], topo_waves: &[alloc::vec::Vec<usize>]) -> nika_cap::trifecta::TrifectaVerdict
 #[non_exhaustive] pub enum nika_check::DataClassification
@@ -730,6 +780,7 @@ pub nika_check::CheckReport::schema_lints: alloc::vec::Vec<nika_check::SchemaLin
 pub nika_check::CheckReport::secret_egresses: alloc::vec::Vec<nika_check::SecretEgress>
 pub nika_check::CheckReport::secret_leaks: alloc::vec::Vec<nika_check::SecretLeak>
 pub nika_check::CheckReport::sink_findings: alloc::vec::Vec<nika_check::SinkFinding>
+pub nika_check::CheckReport::slot_findings: alloc::vec::Vec<nika_check::slots::SlotFinding>
 pub nika_check::CheckReport::trifecta_findings: alloc::vec::Vec<nika_cap::trifecta::TrifectaViolation>
 pub nika_check::CheckReport::trifecta_mitigations: alloc::vec::Vec<nika_cap::trifecta::TrifectaMitigation>
 pub nika_check::CheckReport::unknown_args: alloc::vec::Vec<nika_check::UnknownArg>
@@ -2384,6 +2435,53 @@ impl<T> dyn_clone::DynClone for nika_check::SinkFinding where T: core::clone::Cl
 pub fn nika_check::SinkFinding::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_check::SinkFinding where T: 'static
 pub fn nika_check::SinkFinding::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_check::SlotFinding
+pub nika_check::SlotFinding::hint: alloc::string::String
+pub nika_check::SlotFinding::path: alloc::string::String
+pub nika_check::SlotFinding::span: nika_check::ByteSpan
+impl nika_check::slots::SlotFinding
+pub fn nika_check::slots::SlotFinding::new(path: alloc::string::String, hint: alloc::string::String, span: nika_check::ByteSpan) -> Self
+impl core::clone::Clone for nika_check::slots::SlotFinding
+pub fn nika_check::slots::SlotFinding::clone(&self) -> nika_check::slots::SlotFinding
+impl core::cmp::Eq for nika_check::slots::SlotFinding
+impl core::cmp::PartialEq for nika_check::slots::SlotFinding
+pub fn nika_check::slots::SlotFinding::eq(&self, other: &nika_check::slots::SlotFinding) -> bool
+impl core::fmt::Debug for nika_check::slots::SlotFinding
+pub fn nika_check::slots::SlotFinding::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_check::slots::SlotFinding
+impl serde_core::ser::Serialize for nika_check::slots::SlotFinding
+pub fn nika_check::slots::SlotFinding::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<D> owo_colors::OwoColorize for nika_check::slots::SlotFinding
+impl<Q, K> equivalent::Equivalent<K> for nika_check::slots::SlotFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::slots::SlotFinding::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check::slots::SlotFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check::slots::SlotFinding::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check::slots::SlotFinding where U: core::convert::From<T>
+pub fn nika_check::slots::SlotFinding::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check::slots::SlotFinding where U: core::convert::Into<T>
+pub type nika_check::slots::SlotFinding::Error = core::convert::Infallible
+pub fn nika_check::slots::SlotFinding::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check::slots::SlotFinding where U: core::convert::TryFrom<T>
+pub type nika_check::slots::SlotFinding::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check::slots::SlotFinding::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check::slots::SlotFinding where T: core::clone::Clone
+pub type nika_check::slots::SlotFinding::Owned = T
+pub fn nika_check::slots::SlotFinding::clone_into(&self, target: &mut T)
+pub fn nika_check::slots::SlotFinding::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check::slots::SlotFinding where T: 'static + ?core::marker::Sized
+pub fn nika_check::slots::SlotFinding::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check::slots::SlotFinding where T: ?core::marker::Sized
+pub fn nika_check::slots::SlotFinding::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check::slots::SlotFinding where T: ?core::marker::Sized
+pub fn nika_check::slots::SlotFinding::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check::slots::SlotFinding where T: core::clone::Clone
+pub unsafe fn nika_check::slots::SlotFinding::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check::slots::SlotFinding
+pub fn nika_check::slots::SlotFinding::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check::slots::SlotFinding where T: core::clone::Clone
+pub fn nika_check::slots::SlotFinding::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check::slots::SlotFinding where T: 'static
+pub fn nika_check::slots::SlotFinding::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_check::TaintTrace
 pub nika_check::TaintTrace::secret: alloc::string::String
 impl nika_check::TaintTrace
@@ -2736,6 +2834,7 @@ impl<T> dyn_clone::DynClone for nika_check::WriteConflict where T: core::clone::
 pub fn nika_check::WriteConflict::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_check::WriteConflict where T: 'static
 pub fn nika_check::WriteConflict::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub const nika_check::MARKER_OPEN: &str
 pub const nika_check::PAID_RUN_KINDS: &[&str]
 pub const nika_check::REPORT_VERSION: u32
 pub const nika_check::STATUS_VOCAB: [&str; 4]
@@ -2752,4 +2851,5 @@ pub fn nika_check::stamp_paid_ready(obj: &mut serde_json::map::Map<alloc::string
 pub fn nika_check::static_literal_of<'w>(wf: &'w nika_schema::raw::workflow::RawWorkflow, expr: &str) -> core::option::Option<&'w serde_json::value::Value>
 pub fn nika_check::static_read_paths(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
 pub fn nika_check::task_permits(task: &nika_schema::raw::task::RawTask) -> alloc::vec::Vec<alloc::string::String>
+pub fn nika_check::typed_renames(report: &nika_check::CheckReport) -> alloc::vec::Vec<(alloc::string::String, alloc::string::String, &'static str)>
 pub fn nika_check::with_model_override(wf: &nika_schema::raw::workflow::RawWorkflow, model: &str) -> nika_schema::raw::workflow::RawWorkflow

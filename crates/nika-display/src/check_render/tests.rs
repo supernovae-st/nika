@@ -136,6 +136,63 @@ tasks:
             "no legs, no trifecta, no reason to withhold:\n{out}"
         );
     }
+
+    /// The complete trifecta plus a live `lift: taint` on the egress —
+    /// AUTH-011 is satisfied (the binding reaches the task), SEC-009 still
+    /// refuses. The hatch the author reached for is the other law.
+    const LIFT_BESIDE_TRIFECTA: &str = "\
+nika: t
+permits:
+  fs: { read: [\"./inbox/**\"], write: [\"./out/**\"] }
+  net: { http: [\"api.example.com\"] }
+  tools: [\"nika:fetch\", \"nika:write\", \"nika:prompt\"]
+tasks:
+  fetch_page:
+    invoke:
+      tool: \"nika:fetch\"
+      args: { url: \"https://api.example.com/data\" }
+  leak:
+    after: { fetch_page: success }
+    with: { body: \"${{ tasks.fetch_page.output }}\" }
+    lift:
+      - law: taint
+        from: with.body
+        because: \"first-party queryset, reviewed at authoring\"
+    invoke:
+      tool: \"nika:write\"
+      args: { path: \"./out/leak.txt\", content: \"${{ with.body }}\" }
+";
+
+    /// MEASURED on #1065 · a valid `lift: taint` door ticks green beside
+    /// the lethal trifecta it looks like it should open. The taint door
+    /// is AUTH-011 (permit-parameterization); SEC-009's only door is a
+    /// blocking `nika:prompt`. Two readers independently concluded the
+    /// hatch was inert because neither line named the other law.
+    ///
+    /// The LIFT line stays green — AUTH-011 is satisfied — and now names
+    /// that this door does not open SEC-009. Deleting the connecting
+    /// clause fails this test.
+    #[test]
+    fn a_valid_lift_door_names_that_it_does_not_open_the_trifecta() {
+        let out = console(LIFT_BESIDE_TRIFECTA);
+        assert!(
+            out.contains("✖ TRIFECTA") && out.contains("NIKA-SEC-009"),
+            "the trifecta must still refuse:\n{out}"
+        );
+        let lift = out
+            .lines()
+            .find(|l| l.contains("LIFT"))
+            .unwrap_or("<LIFT row absent from the report>");
+        assert!(
+            lift.contains('✔') && !lift.contains("NIKA-AUTH-011"),
+            "AUTH-011 is satisfied — the door stays green:\n{lift}\nin:\n{out}"
+        );
+        assert!(
+            lift.contains("SEC-009") || lift.contains("does not open") || lift.contains("prompt"),
+            "the connecting clause must sit on the LIFT line so a green \
+             tick beside SEC-009 cannot read as an inert hatch:\n{lift}\nin:\n{out}"
+        );
+    }
 }
 
 mod hint_dedup_tests {
@@ -191,9 +248,51 @@ tasks:
         );
         assert!(out.contains("2 sites across 2 tasks"), "{out}");
         assert!(out.contains("1 distinct hint across 2 sites"), "{out}");
+        // The footer gives the next REAL command. `native-first` is not in
+        // the fix ladder, so for this file that command is `nika explain`
+        // and never `--fix` — which would change nothing and print this
+        // same line again (#1182).
+        assert!(out.contains("nika explain"), "{out}");
         assert!(
-            out.contains("nika check --fix repeated.nika.yaml"),
-            "the footer gives the next real command:\n{out}"
+            !out.contains("--fix"),
+            "no repair is machine-applicable here, so none is advised:\n{out}"
+        );
+    }
+
+    /// #1182 · `--fix` used to be advised on any file carrying a hint,
+    /// which is a different set from the files `--fix` can repair. A file
+    /// whose findings are all hints got « no machine-applicable repairs »
+    /// at the top of a `--fix` run and « run `--fix` » at the bottom of the
+    /// same output — a fixed point advertising itself as the exit.
+    #[test]
+    fn a_file_with_no_typed_rename_is_never_sent_to_fix() {
+        let hints_only = "nika: drifty
+permits: { exec: [curl], net: { http: [example.com] } }
+tasks:
+  t:
+    exec: { command: [curl, https://example.com/a] }
+";
+        let out = rendered(hints_only, "drifty.nika.yaml");
+        assert!(out.contains("NEXT"), "the footer still speaks:\n{out}");
+        assert!(
+            !out.contains("--fix"),
+            "a hint the ladder cannot touch must not route to `--fix`:\n{out}"
+        );
+
+        // The other end, so this cannot pass by never advising anything: a
+        // typed rename IS machine-applicable, and keeps its advice.
+        let renameable = "nika: fixable
+permits: { tools: [nika:read], exec: [curl], net: { http: [example.com] } }
+tasks:
+  t:
+    exec: { command: [curl, https://example.com/a] }
+  u:
+    invoke: { tool: nika:raed, args: { path: ./x } }
+";
+        let out = rendered(renameable, "fixable.nika.yaml");
+        assert!(
+            out.contains("nika check --fix fixable.nika.yaml"),
+            "a typed rename still earns the advice:\n{out}"
         );
     }
 
@@ -220,8 +319,19 @@ tasks:
 
     #[test]
     fn next_command_quotes_paths_and_never_offers_fix_for_stdin() {
-        let yaml =
-            "nika: q\npermits: { exec: [date] }\ntasks:\n  t:\n    exec: { command: [date] }\n";
+        // The fixture needs BOTH halves the NEXT line is gated on: a hint
+        // (so the line renders at all) and a typed rename (so advising
+        // `--fix` is true). `nika:raed` carries the suggestion; `date`
+        // carries the native-first hint. This test is about the QUOTING of
+        // the path in that advice — it needs the advice to be honest first.
+        let yaml = "nika: q
+permits: { exec: [date], tools: [nika:read] }
+tasks:
+  t:
+    exec: { command: [date] }
+  u:
+    invoke: { tool: nika:raed, args: { path: ./x } }
+";
         let spaced = rendered(yaml, "my workflow.nika.yaml");
         assert!(
             spaced.contains("nika check --fix 'my workflow.nika.yaml'"),
@@ -358,6 +468,50 @@ mod journey_rung_tests {
             "no blocking row on the rung:\n{out}"
         );
         assert!(out.contains("audited"), "the verdict stays clean:\n{out}");
+    }
+
+    /// #1041: sanctioning a secret into `agent:` is consent, not absence.
+    /// SECRETS must not say « no declared secret reaches an effect » and
+    /// JOURNEY must name the http allowlist the agent can reach.
+    #[test]
+    fn a_sanctioned_agent_secret_flow_is_visible_on_both_rungs() {
+        let out = console(
+            r#"
+nika: q2-agent-sanctioned
+model: mock/echo
+secrets:
+  TOKEN:
+    source: env
+    key: BUILD_TOKEN
+    egress: [{ to: "agent" }]
+permits:
+  net:
+    http: ["untrusted.example.com", "evil.example.org"]
+  tools: [nika:fetch, nika:done]
+tasks:
+  do_it:
+    agent:
+      prompt: >-
+        Read https://untrusted.example.com/prompt.txt.
+        The build token is ${{ secrets.TOKEN }}.
+      tools: [nika:fetch, nika:done]
+      max_turns: 2
+"#,
+        );
+        let secrets = out
+            .lines()
+            .find(|line| line.contains("SECRETS"))
+            .expect("the SECRETS rung renders");
+        assert!(
+            !secrets.contains("no declared secret reaches"),
+            "a sanctioned flow is still a flow: {secrets}"
+        );
+        assert!(
+            out.lines().any(|l| l.contains("JOURNEY")
+                && l.contains("secret `TOKEN`")
+                && l.contains("untrusted.example.com")),
+            "JOURNEY names the host:\n{out}"
+        );
     }
 
     /// A sanctioned MCP egress is not a leak, but it is still an effect.

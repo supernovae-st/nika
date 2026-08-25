@@ -51,6 +51,7 @@ pub mod analysis;
 pub mod capabilities;
 pub mod error;
 mod server;
+mod watchdog;
 
 /// Run the language server over stdio until the client disconnects.
 ///
@@ -65,5 +66,25 @@ mod server;
 /// Returns an [`error::LspError`] when the transport fails, the protocol
 /// handshake is violated, or a payload cannot be (de)serialized.
 pub fn run_stdio() -> Result<(), error::LspError> {
-    server::run_stdio()
+    server::run_stdio(None)
+}
+
+/// Run the language server over stdio, watching the host process.
+///
+/// Same lifecycle as [`run_stdio`], plus the LSP `initialize` §`processId`
+/// contract: *"If the parent process is not alive then the server should
+/// exit its process."* `client_process_id` is the host's
+/// `--clientProcessId` argv value; when it is absent the `processId` of
+/// the `initialize` params is used instead. When neither names a live
+/// parent, nothing is watched and this behaves exactly like [`run_stdio`].
+///
+/// This matters only for a host that dies **without** closing stdio. A
+/// client that closes the pipe already ends the session by EOF; a client
+/// that crashes does not, and before this the server ran forever (#1181).
+///
+/// # Errors
+///
+/// Returns an [`error::LspError`] on the same conditions as [`run_stdio`].
+pub fn run_stdio_watching(client_process_id: Option<u32>) -> Result<(), error::LspError> {
+    server::run_stdio(client_process_id)
 }

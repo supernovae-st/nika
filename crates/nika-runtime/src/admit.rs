@@ -1,35 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The run-ADMISSION preflight (issue #603) — the missing-required-input
-//! refusal — plus the launch-gate family that joined it 2026-07-22 (the
-//! run-verb descent): the `--task` ancestor-cone cut ([`scope_to_task`])
-//! and the `--max-cost-usd` budget floor ([`floor_refusal`] +
-//! [`unbounded_breakdown`]). Every gate refuses BEFORE the prologue, so
-//! a refused run emits zero events and spends zero tasks.
-//!
-//! A `required: true` input with no declared `default:` has exactly one
-//! other value source: the operator's `--var` override (F4). When neither
-//! exists, `envelope_values` builds the `inputs` map WITHOUT the key and
-//! the run used to learn about it mid-DAG — wave 1 already spent (infer
-//! tasks burned tokens · exec tasks mutated) and the first
-//! `${{ inputs.x }}` read died NIKA-VAR-001. The preflight moves the
-//! refusal to ADMISSION: it fires before the prologue, so a refused run
-//! emits zero events and spends zero tasks.
-//!
-//! ONE constructor, TWO surfaces (the trust-gate posture): the runtime
-//! gate inside `Runtime::run` is the fail-closed word for every embedder;
-//! the CLI's input gauntlet (the `--var` validation seam) surfaces the
-//! SAME constructor natively — same predicate, same text, no drift.
-//!
-//! What satisfies a `required: true` input (either is enough):
-//! - a declared `default:` (the author's value) ·
-//! - a `--var <name>=<value>` override (the operator's value).
-//!
-//! A NON-required input is never refused here: declared optional means an
-//! unbound read stays the read-time NIKA-VAR-001 (unchanged). `config:`,
-//! `const:`, `secrets:` are untouched — the preflight reads `inputs:`
-//! only.
+//! Run-admission gates. Every refusal precedes the prologue, so it emits no
+//! event and spends no task. Constructors serve runtime and CLI preflights.
 
 use std::collections::BTreeMap;
 
@@ -243,13 +216,8 @@ pub fn unbounded_breakdown(cost: &nika_check::CostCeiling) -> String {
     )
 }
 
-/// The `--access` pin admission gate (D-2026-08-04-N1 · P2) — fires
-/// ONLY under an explicit pin (no pin = today's behavior, exactly).
-/// Judges every STATICALLY-known model the run would resolve (`--model`
-/// replaces the envelope default per #342; a templated `model:` stays
-/// the dispatch layer's). Three pre-prologue refusals: unknown token
-/// NIKA-1802 · pin no candidate satisfies NIKA-1801 (never a
-/// substitute · A-4) · pinned path failing admission NIKA-1800 (A-8).
+/// Judge an explicit access pin against every statically known model.
+/// Templated models remain the dispatch layer's responsibility.
 #[must_use]
 pub fn access_pin_refusal(
     wf: &RawWorkflow,
@@ -259,6 +227,14 @@ pub fn access_pin_refusal(
     model_override: Option<&str>,
 ) -> Option<RuntimeError> {
     let pin = access_pin?;
+    let has_infer = wf
+        .tasks
+        .iter()
+        .any(|task| matches!(&task.value.action, nika_schema::raw::RawAction::Infer(_)));
+    let has_agent = wf
+        .tasks
+        .iter()
+        .any(|task| matches!(&task.value.action, nika_schema::raw::RawAction::Agent(_)));
     let models: Vec<String> = match model_override {
         Some(m) => nika_check::check(&nika_check::with_model_override(wf, m))
             .requirements
@@ -273,22 +249,26 @@ pub fn access_pin_refusal(
             .map(|r| r.model.clone())
             .collect(),
     };
-    // A templated `model:` is not a static fact — its value arrives at
-    // run time; the dispatch layer owns that refusal (unchanged).
+    // Templated models are not admission-time facts.
     let judged = models
         .iter()
         .map(String::as_str)
         .filter(|m| !m.contains("${{"));
-    Some(match nika_providers::refuse_pin(judged, probes, pin)? {
+    nika_providers::refuse_pin_for_verbs(judged, probes, pin, has_infer, has_agent)
+        .map(map_pin_refusal)
+}
+
+fn map_pin_refusal(refusal: PinRefusal) -> RuntimeError {
+    match refusal {
         PinRefusal::UnknownToken { message } => RuntimeError::AccessUnknownToken { message },
         PinRefusal::PinUnsatisfied { message } => RuntimeError::AccessPinUnsatisfied { message },
         PinRefusal::NoPath { message } => RuntimeError::AccessNoPath { message },
-        // A future refusal class maps to the total-refusal code
-        // until this arm learns it (conservative, never silent).
+        PinRefusal::Unavailable { message } => RuntimeError::AccessUnavailable { message },
+        // Future classes fail closed until mapped explicitly.
         other => RuntimeError::AccessNoPath {
             message: format!("{other:?}"),
         },
-    })
+    }
 }
 
 #[cfg(test)]
@@ -722,7 +702,7 @@ mod tests {
     fn a_class_pin_no_candidate_matches_refuses_1801() {
         let (wf, report) = mistral_wf();
         let (pin, probes) = (
-            Some("harness"),
+            Some("local"),
             &[access_probe(
                 "mistral",
                 true,
@@ -736,6 +716,83 @@ mod tests {
             "{err:?}"
         );
         assert!(err.to_string().contains("never a substitute"), "{err}");
+    }
+
+    #[test]
+    fn a_known_cli_token_without_the_binary_is_1803_not_1802() {
+        let (wf, report) = mistral_wf();
+        let err = access_pin_refusal(&wf, &report, &[], Some("claude-code"), None)
+            .expect("known token refused");
+        assert!(
+            matches!(err, RuntimeError::AccessUnavailable { .. }),
+            "{err:?}"
+        );
+        assert!(err.to_string().contains("NIKA-1803"), "{err}");
+        assert!(!err.to_string().contains("NIKA-1802"), "{err}");
+    }
+
+    #[cfg(feature = "access-harness")]
+    #[test]
+    fn a_ready_claude_agent_seat_refuses_infer_with_the_attestation_witness() {
+        let wf = parse(
+            "nika: t\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  s:\n    infer: { prompt: \"x\" }\n",
+        );
+        let report = nika_check::check(&wf);
+        let probe = access_probe(
+            "claude-code",
+            false,
+            true,
+            nika_types::access::AccessClass::Harness,
+        )
+        .with_serves(vec!["anthropic".to_owned()]);
+        let err = access_pin_refusal(&wf, &report, &[probe], Some("claude-code"), None)
+            .expect("ACP alone is not an infer-grade proof");
+        assert!(matches!(err, RuntimeError::AccessNoPath { .. }), "{err:?}");
+        let witness = err.to_string();
+        for term in [
+            "claude-code",
+            "single_turn",
+            "no_implicit_tools",
+            "structured_output",
+            "model_identity",
+        ] {
+            assert!(witness.contains(term), "missing {term}: {witness}");
+        }
+    }
+
+    #[cfg(feature = "access-harness")]
+    #[test]
+    fn codex_infer_grade_pin_admits_an_infer_only_workflow() {
+        let (wf, report) = mistral_wf();
+        let probe = access_probe(
+            "codex",
+            false,
+            true,
+            nika_types::access::AccessClass::Harness,
+        )
+        .with_serves(vec!["mistral".to_owned()]);
+        assert!(access_pin_refusal(&wf, &report, &[probe], Some("codex"), None).is_none());
+    }
+
+    #[test]
+    fn access_harness_with_only_api_probes_is_1803_not_api_keys() {
+        let (wf, report) = mistral_wf();
+        let (pin, probes) = (
+            Some("harness"),
+            &[access_probe(
+                "mistral",
+                true,
+                true,
+                nika_types::access::AccessClass::Api,
+            )],
+        );
+        let err = access_pin_refusal(&wf, &report, probes, pin, None).expect("no runtime");
+        assert!(
+            matches!(err, RuntimeError::AccessUnavailable { .. }),
+            "{err:?}"
+        );
+        assert!(err.to_string().contains("NIKA-1803"), "{err}");
+        assert!(!err.to_string().contains("API_KEY"), "{err}");
     }
 
     #[test]
@@ -782,6 +839,30 @@ mod tests {
         // synthesize its keyless candidate, or the rehearsal dies.
         let (pin, probes) = (Some("mock"), &[]);
         assert!(access_pin_refusal(&wf, &report, probes, pin, None).is_none());
+    }
+
+    #[cfg(feature = "access-harness")]
+    #[test]
+    fn a_mock_model_refuses_a_harness_pin_before_any_live_seat() {
+        let wf =
+            parse("nika: t\ntasks:\n  s:\n    infer: { prompt: \"x\", model: \"mock/echo\" }\n");
+        let report = nika_check::check(&wf);
+        let probe = access_probe(
+            "codex",
+            false,
+            true,
+            nika_types::access::AccessClass::Harness,
+        );
+        let err = access_pin_refusal(&wf, &report, &[probe], Some("harness"), None)
+            .expect("mock must never substitute a live harness");
+        assert!(
+            matches!(err, RuntimeError::AccessPinUnsatisfied { .. }),
+            "{err:?}"
+        );
+        let witness = err.to_string();
+        assert!(witness.contains("mock/echo"), "{witness}");
+        assert!(witness.contains("--access mock"), "{witness}");
+        assert!(witness.contains("never a live substitute"), "{witness}");
     }
 
     #[test]

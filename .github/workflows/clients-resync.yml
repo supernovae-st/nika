@@ -30,6 +30,8 @@ permissions:
 jobs:
   heal:
     runs-on: ubuntu-latest
+    outputs:
+      mutated: ${{ steps.heal.outputs.mutated }}
     permissions:
       contents: write # push the heal branch
       pull-requests: write # open the heal PR
@@ -41,13 +43,14 @@ jobs:
       - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # master
         with:
           toolchain: "1.91"
-      - uses: Swatinem/rust-cache@258712b0b7b1ddf8bddc9fc3b0faca682b2736c3 # v2
+      - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
         with:
           shared-key: diamond
-      - uses: taiki-e/install-action@b20dedce73af6905cdc30d6611090c9b67557c8d # v2
+      - uses: taiki-e/install-action@a2a5f6e99e1a31540baa0468acfa302cff0f359f # v2
         with:
           tool: cargo-nextest
       - name: The vendored matrix AND plugin tree follow the agents SSOT
+        id: heal
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -63,7 +66,12 @@ jobs:
           # shell (the header's rule).
           rsync -a --delete ../agents/.agents/ .agents/
           git add crates/nika-cli-host/data/clients.registry.yaml .agents
-          if git diff --cached --quiet; then echo "matrix current — nothing to resync"; exit 0; fi
+          if git diff --cached --quiet; then
+            echo "matrix current — nothing to resync"
+            echo "mutated=false" >> "$GITHUB_OUTPUT"
+            echo "MUTATED: none because matrix current" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
           python3 scripts/estate.py --write   # the manifest rides the heal (staged files first — estate.py reads the INDEX)
           git add estate.yaml
 
@@ -81,6 +89,8 @@ jobs:
           if ! cargo nextest run -p nika-cli-host --no-fail-fast; then
             echo "::endgroup::"
             echo "::error::the vendored matrix does not pass its own tests — NOT vendored, no PR opened"
+            echo "mutated=false" >> "$GITHUB_OUTPUT"
+            echo "MUTATED: none because vendored tests failed" >> "$GITHUB_STEP_SUMMARY"
             exit 1   # loud, not silent: a red cron run is the signal a human sees
           fi
           echo "::endgroup::"
@@ -93,3 +103,5 @@ jobs:
             --title "chore(matrix): the vendored snapshot follows the agents SSOT" \
             --body "Automated re-vendoring (clients-resync lane · the dedicated-heal precedent). The drift used to block unrelated pushes via a unit test reading the live sibling checkout — it now surfaces HERE, within 24h, judged by Diamond CI. Two snapshots ride this lane: the client matrix and the .agents/ plugin tree. Manual heal when it cannot wait: cp <agents>/repo/clients.yaml crates/nika-cli-host/data/clients.registry.yaml && rsync -a --delete <agents>/repo/.agents/ .agents/ && python3 scripts/estate.py --write. Merge on green." \
             2>/dev/null || echo "PR already open — refreshed"
+          echo "mutated=true" >> "$GITHUB_OUTPUT"
+          echo "MUTATED: yes · force-pushed bot/clients-resync and opened/refreshed the PR" >> "$GITHUB_STEP_SUMMARY"

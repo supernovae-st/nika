@@ -502,7 +502,7 @@ where
             None => Value::Object(serde_json::Map::new()),
             Some(a) => match expr::render_json(&a.value, scope) {
                 Ok(v) => v,
-                Err(err) => return Dispatched::template_err(&note, &err),
+                Err(err) => return Dispatched::template_err(&note, &RuntimeError::from(err)),
             },
         };
         // NEP-0006 law 3 · the data-as-code sink's run twin: the RESOLVED
@@ -540,16 +540,11 @@ where
         self.run_invoke_gated(note, input).await
     }
 
-    /// ADR-095 Layer 6 — the OS-confinement spec from the declared
-    /// boundary (the `dispatch/sandbox.rs` derivation). F-O8 « absent =
-    /// zero authority »: `None` maps to the EMPTY boundary's spec (fs
-    /// empty · net deny) — the double lock under `check_exec_permits`,
-    /// which already refuses the exec upstream. Fallible since NEP-0009
-    /// (LAW-AUTH-0330): a grant whose EFFECTIVE path identity escapes the
-    /// declared set refuses before spawn (`NIKA-SEC-004`) — witnessed on
-    /// the `fs` plane, granted and refused alike, the refusal attested as
-    /// `fs.path_mismatch` carrying the judged prefix and the resolved
-    /// target (never a silent rewrite: judged = mounted).
+    /// ADR-095 Layer 6 — derive the OS jail from the declared boundary. F-O8
+    /// maps absent permits to empty fs + denied net, under `check_exec_permits`.
+    /// Since NEP-0009 (LAW-AUTH-0330), an effective path escape refuses before
+    /// spawn as `NIKA-SEC-004`; its witness records `fs.path_mismatch`, the
+    /// judged prefix, and the resolved target. Judged = mounted, never rewritten.
     fn exec_sandbox_spec(
         &self,
         permits: Option<&nika_schema::types::Permits>,
@@ -564,7 +559,9 @@ where
             .clone()
             .or_else(|| std::env::current_dir().ok())
             .unwrap_or_default();
-        match nika_exec_runner::sandbox_spec::spec_of(permits, &root) {
+        #[allow(clippy::disallowed_methods)] // dispatch-owned absolute HOME for issue 1025
+        let home = std::env::var("HOME").ok().filter(|h| h.starts_with('/'));
+        match nika_exec_runner::sandbox_spec::spec_of_with_home(permits, &root, home.as_deref()) {
             Ok(spec) => {
                 for grant in spec.fs_read.iter().chain(spec.fs_write.iter()) {
                     witness.record(
@@ -699,7 +696,7 @@ where
     ) -> Dispatched {
         let prompt = match expr::render(&action.prompt.value, scope) {
             Ok(p) => p,
-            Err(err) => return Dispatched::template_err("infer · ?", &err),
+            Err(err) => return Dispatched::template_err("infer · ?", &RuntimeError::from(err)),
         };
         let mut input = InferInput::new(prompt);
         // The task `timeout:` flows to the provider transport deadline —
@@ -725,6 +722,17 @@ where
             Ok(v) => input.vision = v,
             Err(VisionErr::Template(err)) => return Dispatched::template_err("infer · ?", &err),
             Err(VisionErr::Unwired(detail)) => return Dispatched::unwired("infer · ?", detail),
+        }
+        #[cfg(feature = "access-harness")]
+        if let Some(seat_id) = self.harness_seat_id.as_deref() {
+            return match self.infer.run_on_harness(seat_id, input).await {
+                Ok(out) => dispatched_harness_infer(seat_id, out),
+                Err(err) => Dispatched::verb_err_spent(
+                    format!("infer · seat {seat_id}"),
+                    &err,
+                    (None, None, None),
+                ),
+            };
         }
         match self.infer.run(input).await {
             Ok(out) => {
@@ -792,7 +800,7 @@ where
         }
         let prompt = match expr::render(&action.prompt.value, scope) {
             Ok(p) => p,
-            Err(err) => return Dispatched::template_err("agent · ?", &err),
+            Err(err) => return Dispatched::template_err("agent · ?", &RuntimeError::from(err)),
         };
         let mut input = AgentInput::new(prompt);
         input.system = match render_opt(action.system.as_ref(), scope) {
@@ -1008,12 +1016,16 @@ fn collect_vision(
     let mut out = Vec::with_capacity(items.len());
     for item in items {
         out.push(match &item.value {
-            VisionInput::File { path } => {
-                VisionPart::file(expr::render(&path.value, scope).map_err(VisionErr::Template)?)
-            }
-            VisionInput::Url { url } => {
-                VisionPart::url(expr::render(&url.value, scope).map_err(VisionErr::Template)?)
-            }
+            VisionInput::File { path } => VisionPart::file(
+                expr::render(&path.value, scope)
+                    .map_err(RuntimeError::from)
+                    .map_err(VisionErr::Template)?,
+            ),
+            VisionInput::Url { url } => VisionPart::url(
+                expr::render(&url.value, scope)
+                    .map_err(RuntimeError::from)
+                    .map_err(VisionErr::Template)?,
+            ),
             other => {
                 return Err(VisionErr::Unwired(format!(
                     "vision source form not wired yet: {other:?}"
@@ -1034,7 +1046,10 @@ fn render_opt(
     field: Option<&nika_schema::Spanned<String>>,
     scope: &Scope<'_>,
 ) -> Result<Option<String>, RuntimeError> {
-    field.map(|f| expr::render(&f.value, scope)).transpose()
+    field
+        .map(|f| expr::render(&f.value, scope))
+        .transpose()
+        .map_err(RuntimeError::from)
 }
 
 /// `returns:` is the `schema:` lane (spec 09 · NIKA-INFER-002).
@@ -1248,6 +1263,19 @@ mod infer_deadline_tests {
             "a local provider defaults to minutes, never the 30s cloud default"
         );
     }
+}
+
+#[cfg(feature = "access-harness")]
+fn dispatched_harness_infer(seat_id: &str, out: nika_verb_infer::HarnessInferOutput) -> Dispatched {
+    Dispatched::ok_metered(
+        format!("infer · seat {seat_id} · requested {}", out.requested_model),
+        out.output,
+        None,
+        None,
+        None,
+        None,
+        Some(UnpricedReason::SubscriptionQuota),
+    )
 }
 
 // The #824 model-template parity proofs (the house `tests.rs`

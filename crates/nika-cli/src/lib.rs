@@ -34,6 +34,11 @@ pub use nika_display::demo;
 #[path = "agent_kit/tests.rs"]
 mod agent_kit_tests;
 pub mod anchor;
+// The process's ONE current-directory lease (#1192) — every site that chdirs
+// takes it, tests included. Documented in the module itself: an outer `///`
+// here MERGES with the module's `//!` and rustdoc then resolves the merged
+// text in THIS scope, where `hold` and `enter` do not exist.
+pub(crate) mod cwd;
 pub use nika_cli_host::metrics;
 pub mod registry;
 pub mod seal;

@@ -144,6 +144,25 @@ mod tests {
         assert_eq!(P::Off.judge(false, false), V::PermitlessBestEffort);
     }
 
+    /// #822 · the default arm. A mutant that turns Auto+permits+no-backend
+    /// into `PermitlessBestEffort` or `Waived` is the fail-open that shipped.
+    #[test]
+    fn default_arm_fails_closed_when_permits_meet_a_missing_backend() {
+        assert_eq!(SandboxPolicy::default(), SandboxPolicy::Auto);
+        assert_eq!(
+            SandboxPolicy::default().judge(false, true),
+            SandboxVerdict::Refused
+        );
+        assert_ne!(
+            SandboxPolicy::default().judge(false, true),
+            SandboxVerdict::PermitlessBestEffort
+        );
+        assert_ne!(
+            SandboxPolicy::default().judge(false, true),
+            SandboxVerdict::Waived
+        );
+    }
+
     #[test]
     fn the_knob_parses_exactly_three_words() {
         assert_eq!("auto".parse(), Ok(SandboxPolicy::Auto));

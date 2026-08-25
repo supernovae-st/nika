@@ -202,33 +202,15 @@ pub fn apply_dead_form_arm(
 }
 
 /// This round's typed renames (tools · args · conformance refs), deduped.
+///
+/// The derivation lives in `nika_check` so the `check` footer decides
+/// whether to OFFER `--fix` from the same answer this loop APPLIES
+/// (#1177) — a second copy here is how the offer drifted from the work.
 #[must_use]
 pub fn collect_typed_renames(
     report: &nika_check::CheckReport,
 ) -> Vec<(String, String, &'static str)> {
-    let mut renames: Vec<(String, String, &'static str)> = Vec::new();
-    for t in &report.unknown_tools {
-        if let Some(s) = &t.suggestion {
-            renames.push((t.tool.clone(), s.clone(), "tool"));
-        }
-    }
-    for a in &report.unknown_args {
-        if let Some(s) = &a.suggestion {
-            renames.push((a.arg.clone(), s.clone(), "arg"));
-        }
-    }
-    // Conformance renames (typed `offending`/`suggestion` —
-    // an unknown `after:`/`with:` edge target rides the BARE
-    // task name · an unresolved `${{ }}` ref rides fully
-    // qualified so a splice keeps the namespace).
-    for v in &report.conformance {
-        if let (Some(o), Some(s)) = (&v.offending, &v.suggestion) {
-            renames.push((o.clone(), s.clone(), "ref"));
-        }
-    }
-    renames.sort();
-    renames.dedup();
-    renames
+    nika_check::typed_renames(report)
 }
 
 /// Render the STOP diagnostic lines (verbatim W2/D1 notes · warn glyph).
@@ -541,4 +523,47 @@ pub fn splice(
         });
     }
     applied
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The filed #905 corruption: `--fix` nested `description: |` one level
+    /// deeper and left the block body at the old indent, so YAML died
+    /// (`simple key expect ':'`). The round judge must refuse that write.
+    #[test]
+    fn judge_round_refuses_the_underindented_block_scalar() {
+        let before = "workflow: demo\ndescription: |\n  the first line\n  the second line\ntasks:\n  - id: t\n    run: echo hi\n";
+        let after = "workflow:\n  id: demo\n  description: |\n  the first line\n  the second line\ntasks:\n  t:\n    run: echo hi\n";
+        let refusal = judge_round(before, after, vec!["w1-map `envelope` → `map`".to_owned()])
+            .expect("the under-indented block scalar is broken YAML");
+        assert!(
+            !refusal.reason.is_empty(),
+            "the YAML error rides the refusal"
+        );
+        assert_eq!(
+            refusal.attempted,
+            vec!["w1-map `envelope` → `map`".to_owned()]
+        );
+    }
+
+    #[test]
+    fn judge_round_commits_a_document_that_still_parses() {
+        let before = "nika: w\ntasks:\n  t:\n    exec: { command: [\"true\"] }\n";
+        let after = "nika: w\ntasks:\n  task:\n    exec: { command: [\"true\"] }\n";
+        assert!(
+            judge_round(before, after, vec!["field `t` → `task`".to_owned()]).is_none(),
+            "a still-YAML document is not a refusal"
+        );
+    }
+
+    #[test]
+    fn judge_round_does_not_judge_an_already_unparsable_source() {
+        let broken = "nika: [unclosed\n";
+        assert!(
+            judge_round(broken, "also: [broken\n", vec!["x → y".to_owned()]).is_none(),
+            "the loop cannot repair what it cannot read"
+        );
+    }
 }

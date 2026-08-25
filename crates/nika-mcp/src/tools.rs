@@ -201,7 +201,11 @@ fn learn_tools() -> Value {
                             capabilities (vision · reasoning · json_mode), context \
                             windows, and API-key env-var NAMES (values never read). \
                             Versioned wire `catalog_version: 1`. Pick REAL model ids \
-                            from here instead of guessing.",
+                            from here instead of guessing — and pick them ONLY from \
+                            rows where `resolves` is true. A cataloged vendor is not a \
+                            runnable one: `resolves: false` means this binary has no \
+                            adapter for it and `nika check` refuses the model at the \
+                            MODELS rung.",
             "inputSchema": { "type": "object", "properties": {} }
         },
         {
@@ -343,8 +347,17 @@ fn model_crosscheck(report: &nika_check::CheckReport) -> (Vec<Value>, Vec<Value>
         .models
         .iter()
         .filter_map(|m| {
-            nika_providers::resolve_refusal(&m.model)
-                .map(|why| serde_json::json!({ "model": m.model, "tasks": m.tasks, "why": why }))
+            nika_providers::resolve_refusal(&m.model).map(|refusal| {
+                let mut row = serde_json::json!({
+                    "model": m.model,
+                    "tasks": m.tasks,
+                    "why": refusal.why,
+                });
+                if let Some(code) = refusal.code {
+                    row["code"] = serde_json::json!(code);
+                }
+                row
+            })
         })
         .collect();
     let warnings = report
@@ -676,9 +689,18 @@ fn inspect(args: &Value) -> Result<String, String> {
     }
 }
 
+/// `nika_catalog` — the versioned provider/model projection, with the
+/// resolvability fact ON every row (#1184).
+///
+/// This tool's whole purpose is to stop an agent guessing model ids, so
+/// it is the surface where an unmarked unreachable vendor costs the
+/// most: the reader is a machine that acts, not a human who shrugs. The
+/// chain over `CANONICAL_IDS` is what makes `resolves` true anywhere —
+/// drop it and every row reads `false`.
 fn catalog_payload() -> Result<String, String> {
-    serde_json::to_string_pretty(&nika_catalog::export::catalog_export())
-        .map_err(|e| format!("catalog projection failed: {e}"))
+    let export =
+        nika_catalog::export::catalog_export().with_resolvable(&nika_providers::CANONICAL_IDS);
+    serde_json::to_string_pretty(&export).map_err(|e| format!("catalog projection failed: {e}"))
 }
 
 /// `nika_tools` — the versioned builtin-tool projection: the SAME payload
@@ -817,6 +839,10 @@ mod tests {
             err.contains("gpt-5-turbo") && err.contains("bare model id"),
             "{err}"
         );
+        assert!(
+            err.contains("\"code\": \"NIKA-PROVIDER\""),
+            "the prefix half stamps the FORM law: {err}"
+        );
     }
 
     #[test]
@@ -826,6 +852,10 @@ mod tests {
         assert!(
             err.contains("`azure` does not resolve") || err.contains("provider `azure`"),
             "{err}"
+        );
+        assert!(
+            !err.contains("NIKA-PROVIDER"),
+            "azure class stays engine-local: {err}"
         );
     }
 
@@ -862,6 +892,65 @@ mod tests {
         // Each tool carries a JSON-Schema inputSchema (the client validates args).
         for t in c.as_array().expect("array") {
             assert_eq!(t["inputSchema"]["type"], "object");
+        }
+    }
+
+    /// #1184 · the tool an agent OBEYS must teach the filter, not just
+    /// carry the field. A description that says « pick REAL model ids
+    /// from here » over a list where a fifth of the rows cannot be
+    /// reached is an instruction to author a workflow that will not run.
+    #[test]
+    fn the_catalog_tool_tells_an_agent_to_filter_on_resolves() {
+        let c = catalog();
+        let entry = c
+            .as_array()
+            .expect("array")
+            .iter()
+            .find(|t| t["name"] == "nika_catalog")
+            .expect("nika_catalog is advertised");
+        let text = entry["description"].as_str().expect("a description");
+        assert!(
+            text.contains("`resolves`"),
+            "the description must name the field it wants filtered: {text}",
+        );
+        assert!(
+            text.contains("resolves` is true"),
+            "the description must state the DIRECTION of the filter: {text}",
+        );
+    }
+
+    /// #1184 · the payload itself. Marks come from the wire layer or
+    /// they come from nowhere — a projection where every row reads
+    /// `false` is `catalog_export()` with the chain dropped.
+    #[test]
+    fn the_catalog_payload_marks_what_this_binary_can_resolve() {
+        let out = execute("nika_catalog", &json!({})).expect("nika_catalog runs");
+        let value: Value = serde_json::from_str(&out).expect("nika_catalog emits JSON");
+        let providers = value["providers"].as_array().expect("providers");
+        let resolving: Vec<&str> = providers
+            .iter()
+            .filter(|p| p["resolves"] == Value::Bool(true))
+            .filter_map(|p| p["id"].as_str())
+            .collect();
+        assert!(
+            !resolving.is_empty(),
+            "zero resolving rows means the chain was dropped",
+        );
+        assert!(
+            resolving.len() < providers.len(),
+            "this build seats fewer vendors than the catalog carries — \
+             a payload marking every row runnable is not measuring",
+        );
+        for id in &resolving {
+            assert!(
+                nika_providers::CANONICAL_IDS.contains(id),
+                "`{id}` is marked resolving but no adapter carries it",
+            );
+        }
+        for id in nika_providers::CANONICAL_IDS {
+            if providers.iter().any(|p| p["id"] == id) {
+                assert!(resolving.contains(&id), "`{id}` resolves but is unmarked");
+            }
         }
     }
 

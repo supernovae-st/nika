@@ -273,6 +273,7 @@ pub(super) fn collect(report: &CheckReport) -> Vec<UnifiedFinding> {
     fold_write_conflicts(report, &mut out);
     fold_composition(report, &mut out);
     fold_tools(report, &mut out);
+    fold_slots(report, &mut out);
     for l in &report.schema_lints {
         let mut f = UnifiedFinding::new(
             "schema_lint",
@@ -417,6 +418,23 @@ fn fold_run_decl(report: &CheckReport, out: &mut Vec<UnifiedFinding>) {
     }
 }
 
+/// The unfilled-scaffold class (#1066) — report-only by design: no spec
+/// code exists for « you have not written this yet », and a conjured one
+/// would 404. The message names the path, and the render names the line
+/// beside it; the WORDING is the whole point of the class, so it stays
+/// an instruction rather than an accusation.
+fn fold_slots(report: &CheckReport, out: &mut Vec<UnifiedFinding>) {
+    for s in &report.slot_findings {
+        let mut f = UnifiedFinding::new(
+            "slot",
+            "SLOTS",
+            format!("`{}` is still the scaffold's — {}", s.path, s.hint),
+        );
+        f.span = Some(s.span);
+        out.push(f);
+    }
+}
+
 /// The three tool-contract classes (all BUILTIN-coded, TOOLS/ARGS gates).
 fn fold_tools(report: &CheckReport, out: &mut Vec<UnifiedFinding>) {
     let builtin_code = || Some("NIKA-BUILTIN-001".to_owned());
@@ -477,6 +495,46 @@ fn fold_tools(report: &CheckReport, out: &mut Vec<UnifiedFinding>) {
         f.task = Some(m.task.clone());
         out.push(f);
     }
+}
+
+/// Every TYPED rename this report offers `--fix` — `(offending, target,
+/// kind)`, deduped and order-stable. The ONE derivation of « what would
+/// `--fix` actually apply »: the repair ladder splices exactly these,
+/// and the `check` footer decides whether to NAME `--fix` from the same
+/// answer.
+///
+/// One function, two readers, by construction. They were two: the
+/// ladder applied typed renames while the footer offered `--fix`
+/// whenever any hint existed — so a CLEAN file carrying one advisory
+/// hint was told to run a repair that had nothing to repair, and the
+/// re-check printed the identical advice (#1177). A hint is ADVISORY:
+/// `--fix` never applies one, and only a shared predicate keeps the
+/// offer honest when the ladder grows a new arm.
+#[must_use]
+pub fn typed_renames(report: &crate::CheckReport) -> Vec<(String, String, &'static str)> {
+    let mut renames: Vec<(String, String, &'static str)> = Vec::new();
+    for t in &report.unknown_tools {
+        if let Some(s) = &t.suggestion {
+            renames.push((t.tool.clone(), s.clone(), "tool"));
+        }
+    }
+    for a in &report.unknown_args {
+        if let Some(s) = &a.suggestion {
+            renames.push((a.arg.clone(), s.clone(), "arg"));
+        }
+    }
+    // Conformance renames (typed `offending`/`suggestion` — an unknown
+    // `after:`/`with:` edge target rides the BARE task name · an
+    // unresolved `${{ }}` ref rides fully qualified so a splice keeps
+    // the namespace).
+    for v in &report.conformance {
+        if let (Some(o), Some(s)) = (&v.offending, &v.suggestion) {
+            renames.push((o.clone(), s.clone(), "ref"));
+        }
+    }
+    renames.sort();
+    renames.dedup();
+    renames
 }
 
 #[cfg(test)]

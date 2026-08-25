@@ -18,6 +18,10 @@
 //!   absolute subpaths only (`grant_subpath` fail-closes on a relative
 //!   grant), so the derivation absolutizes HERE — a task-level `cwd:`
 //!   does not re-anchor the boundary, exactly like the builtin gate.
+//!   Home-anchored grants (`~/` · `$HOME/` · `${HOME}/`) expand against the operator
+//!   `HOME` at the same moment, so a tracked workflow can name
+//!   `~/.gitconfig` without baking one machine's `/Users/…` path. `~user`
+//!   is left intact and stays the launchers' fail-closed refusal.
 //! - **Network is a tri-state** ([`NetPolicy`](nika_kernel::process::NetPolicy)
 //!   · the Anthropic
 //!   sandbox-runtime model): `net.http` non-empty maps to `Allowlist`
@@ -42,6 +46,7 @@
 
 use std::path::{Component, Path, PathBuf};
 
+use nika_cap::expand_home_grant;
 use nika_kernel::process::{EgressAllowlist, NetPolicy, SandboxSpec};
 use nika_schema::types::Permits;
 
@@ -63,6 +68,8 @@ pub struct PathMismatch {
 /// NEP-0009: every fs grant's literal prefix must keep its judged identity
 /// on the live filesystem — an escape refuses the whole derivation (the
 /// task never spawns) and is never rewritten to the resolved form.
+/// Home-anchored grants need [`spec_of_with_home`]: this entry does not
+/// read `HOME`.
 ///
 /// # Errors
 ///
@@ -70,14 +77,31 @@ pub struct PathMismatch {
 /// declared set (NEP-0009 law 1+2) — the caller refuses the dispatch and
 /// attests the judged prefix + the resolved target.
 pub fn spec_of(permits: &Permits, root: &Path) -> Result<SandboxSpec, Box<PathMismatch>> {
+    spec_of_with_home(permits, root, None)
+}
+
+/// [`spec_of`] with an injected operator home so `~/` · `$HOME/` · `${HOME}/` fs
+/// grants become live absolute paths on the jail. Production dispatch
+/// reads `HOME` at the runtime seam and passes it here — this crate does
+/// not touch the environment. `None` leaves those grants unexpanded, and
+/// the launchers then fail-close on a non-absolute leftover.
+///
+/// # Errors
+///
+/// Same as [`spec_of`].
+pub fn spec_of_with_home(
+    permits: &Permits,
+    root: &Path,
+    home: Option<&str>,
+) -> Result<SandboxSpec, Box<PathMismatch>> {
     let (read, write) = permits
         .fs
         .as_ref()
         .map(|fs| (fs.read.as_slice(), fs.write.as_slice()))
         .unwrap_or_default();
     let mut spec = SandboxSpec::new();
-    spec.fs_read = read.iter().map(|g| absolutize(root, g)).collect();
-    spec.fs_write = write.iter().map(|g| absolutize(root, g)).collect();
+    spec.fs_read = read.iter().map(|g| absolutize(root, g, home)).collect();
+    spec.fs_write = write.iter().map(|g| absolutize(root, g, home)).collect();
     for (grant, access) in spec
         .fs_read
         .iter()
@@ -118,8 +142,10 @@ fn net_policy_of(permits: &Permits) -> NetPolicy {
 /// the judged path · REFUSE, never rewrite (NEP-0009 backwards-compat: the
 /// author declares the effective path). A not-yet-existing tail (the legal
 /// new-write · law 5) folds identically on both sides → admitted. Non-
-/// absolute shapes (`~` · a preserved escape) pass through untouched — the
-/// launchers' `grant_subpath` owns their fail-closed refusal, as before.
+/// absolute leftover (`~user` · a preserved escape) pass through untouched —
+/// the launchers' `grant_subpath` owns their fail-closed refusal, as before.
+/// `~/` · `$HOME/` · `${HOME}/` are expanded against the operator home before this
+/// gate sees them.
 fn judge_identity(grant: &str, access: &'static str) -> Result<(), Box<PathMismatch>> {
     if !grant.starts_with('/') {
         return Ok(());
@@ -218,12 +244,25 @@ fn fold_trailing<'a>(base: PathBuf, comps: impl Iterator<Item = &'a Component<'a
 /// `lexically_normalize` semantics the fit checker already pins, so a
 /// `data/../out/**` grant reads identically on both seams). An absolute
 /// glob passes through unchanged — including the shapes the launchers
-/// refuse (`~` · a preserved leading `..` · a bare system root): their
+/// refuse (`~user` · a preserved leading `..` · a bare system root): their
 /// fail-closed `Profile` refusal is the honest verdict, named to the
-/// operator, never a silent widening.
-fn absolutize(root: &Path, glob: &str) -> String {
-    if glob.starts_with('/') || glob.starts_with('~') {
-        return glob.to_owned();
+/// operator, never a silent widening. `~/` · `$HOME/` · `${HOME}/` expand first so
+/// the jail lists the live absolute path.
+fn absolutize(root: &Path, glob: &str, home: Option<&str>) -> String {
+    let glob = match home {
+        Some(h) => expand_home_grant(glob, h),
+        None => glob.to_owned(),
+    };
+    if glob.starts_with('/') {
+        return glob;
+    }
+    if glob.starts_with('~')
+        || glob == "$HOME"
+        || glob.starts_with("$HOME/")
+        || glob == "${HOME}"
+        || glob.starts_with("${HOME}/")
+    {
+        return glob;
     }
     lexically_normalize(&root.join(glob))
 }
@@ -353,7 +392,7 @@ mod tests {
             let spec = spec_of(&p, root).expect("no symlink on the judged prefixes");
             let mut jail = Permits::new();
             jail.fs = Some(nika_schema::types::FsPermits::new(spec.fs_read, vec![]));
-            let jail_admits = jail.jail_admits_read(&absolutize(root, script));
+            let jail_admits = jail.jail_admits_read(&absolutize(root, script, None));
             assert_eq!(
                 jail_admits, *admitted,
                 "the jail must admit exactly what the reference admits — \
@@ -542,13 +581,87 @@ mod tests {
         let _ = std::fs::remove_dir_all(&base);
     }
 
-    /// The launcher-refused shapes (`~` · relative escapes) pass through
-    /// unjudged — `grant_subpath`'s fail-closed refusal stays the honest
-    /// verdict for them, exactly as before NEP-0009.
+    /// A missing or non-absolute home leaves every portable spelling
+    /// non-absolute for the launchers' fail-closed refusal. `~user` is
+    /// likewise never expanded.
     #[test]
-    fn non_absolute_shapes_stay_the_launchers_refusal() {
-        let spec = spec_of(&permits(&["~/x/**"], &[], &[]), Path::new("/repo"))
-            .expect("the `~` shape is the launcher's refusal, not this gate's");
-        assert_eq!(spec.fs_read, vec!["~/x/**".to_owned()]);
+    fn unresolved_home_grants_stay_the_launchers_refusal() {
+        let spec = spec_of_with_home(
+            &permits(&["~other/.gitconfig"], &[], &[]),
+            Path::new("/repo"),
+            Some("/tmp/nika-op-home"),
+        )
+        .expect("`~user` is the launcher's refusal, not this gate's");
+        assert_eq!(spec.fs_read, vec!["~other/.gitconfig".to_owned()]);
+
+        let grants = [
+            "~",
+            "~/x/**",
+            "$HOME",
+            "$HOME/.gitconfig",
+            "${HOME}",
+            "${HOME}/.config/git/**",
+        ];
+        for home in [None, Some("relative/home")] {
+            let spec = spec_of_with_home(&permits(&grants, &[], &[]), Path::new("/repo"), home)
+                .expect("an unresolved home stays for the launcher's refusal");
+            assert_eq!(spec.fs_read, grants, "home = {home:?}");
+            assert!(
+                spec.fs_read.iter().all(|grant| !grant.starts_with('/')),
+                "no unresolved home grant may root-anchor: {:?}",
+                spec.fs_read
+            );
+        }
+    }
+
+    /// #1025 — a portable `~/` grant becomes this operator's absolute
+    /// path on the jail spec, not another tree, and never `/**`.
+    #[test]
+    fn a_tilde_grant_expands_to_the_operator_home_on_the_jail() {
+        let home = "/tmp/nika-op-home";
+        let spec = spec_of_with_home(
+            &permits(
+                &[
+                    "~",
+                    "~/.gitconfig",
+                    "$HOME",
+                    "$HOME/.config/git/**",
+                    "${HOME}",
+                    "${HOME}/.local/state/nika/**",
+                ],
+                &[],
+                &[],
+            ),
+            Path::new("/repo"),
+            Some(home),
+        )
+        .expect("home grants expand to absolute paths, then judge");
+        assert_eq!(
+            spec.fs_read,
+            vec![
+                home.to_owned(),
+                format!("{home}/.gitconfig"),
+                home.to_owned(),
+                format!("{home}/.config/git/**"),
+                home.to_owned(),
+                format!("{home}/.local/state/nika/**"),
+            ]
+        );
+        let mut jail = Permits::new();
+        jail.fs = Some(nika_schema::types::FsPermits::new(
+            spec.fs_read.clone(),
+            vec![],
+        ));
+        assert!(jail.jail_admits_read(&format!("{home}/.gitconfig")));
+        assert!(jail.jail_admits_read(&format!("{home}/.config/git/config")));
+        assert!(
+            !jail.jail_admits_read("/tmp/evil/.gitconfig"),
+            "another tree"
+        );
+        assert!(!jail.jail_admits_read("/Users/other/.gitconfig"));
+        assert!(
+            !jail.jail_admits_read("/etc/passwd"),
+            "~ is not /** · /etc/passwd still needs an absolute grant"
+        );
     }
 }

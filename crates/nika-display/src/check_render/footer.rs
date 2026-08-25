@@ -82,6 +82,12 @@ pub(super) fn hints_and_verdict(
             " {}",
             audited_line(report, wf, distinct_identities.len(), hint_sites, grade, t)
         );
+    } else if unfilled_scaffold(report) {
+        // No NEXT after it: the SLOTS rung already ended on the one
+        // command, and `nika explain` has nothing to say about a value
+        // nobody wrote (the class is report-only — a code would 404).
+        scaffold_verdict(out, report, t);
+        return;
     } else {
         // Through `mark()`, not a hardcoded glyph: this line shipped a
         // literal `✖` and was the one verdict in the report that leaked
@@ -95,15 +101,103 @@ pub(super) fn hints_and_verdict(
             t.paint(Role::Bad, "findings above")
         );
     }
-    if hint_sites > 0 {
-        let next = next_repair_action(path, repair_target);
-        let _ = writeln!(
-            out,
-            " {} {}     {next} · see `nika explain` for coded findings",
-            t.paint(Role::Accent, "↳"),
-            t.paint(Role::Strong, "NEXT"),
-        );
+    render_next(out, report, path, repair_target, hint_sites, t);
+}
+
+/// The verdict for a scaffold whose only finding is its own unfilled
+/// slots (#1066 constraint 4).
+///
+/// `✖ findings above` would tell someone who typed `nika new` thirty
+/// seconds ago that they broke a file they never wrote. The run still
+/// refuses — the exit code is untouched — only the wording matches what
+/// actually happened.
+fn scaffold_verdict(out: &mut String, report: &CheckReport, t: Theme) {
+    let n = report.slot_findings.len();
+    let slots = if n == 1 { "slot" } else { "slots" };
+    let _ = writeln!(
+        out,
+        " {} {}",
+        t.paint(Role::Warn, if t.ascii { ".." } else { "…" }),
+        t.paint(
+            Role::Warn,
+            &format!("not a workflow yet — {n} {slots} to fill, then it audits")
+        )
+    );
+}
+
+/// Whether the ONLY thing standing between this file and a green audit
+/// is its own unfilled slots.
+///
+/// Deliberately narrow: a scaffold that ALSO escapes its permits or
+/// leaks a secret gets the ordinary refusal, because those are real
+/// faults and softening them would be the lie in the other direction.
+fn unfilled_scaffold(report: &CheckReport) -> bool {
+    !report.slot_findings.is_empty() && report.findings.iter().all(|f| f.kind == "slot")
+}
+
+/// The ONE next command, when the report left anything to say.
+///
+/// Advises `--fix` on a workspace file only when `--fix` has something to
+/// apply. The trigger used to be `hint_sites > 0` alone, which is a
+/// DIFFERENT set: a file whose only findings are hints (`native-first` ·
+/// `NIKA-DRIFT-001`) has nothing in the ladder, so `--fix` printed « no
+/// machine-applicable repairs » at the top and this line told the reader
+/// to run `--fix` at the bottom — of the same output. Obeying it is a
+/// fixed point: not one byte changes, and the exit it offers is the
+/// command that produced it.
+///
+/// The other three targets are exempt because they CANNOT loop: their
+/// guidance is PROVENANCE (« this cache is read-only · copy it first »),
+/// which holds whether or not a rename exists, and obeying it changes the
+/// state — there is a new file to check. Suppressing them would hide
+/// where a reader may write at all.
+fn render_next(
+    out: &mut String,
+    report: &CheckReport,
+    path: &str,
+    repair_target: RepairTarget,
+    hint_sites: usize,
+    t: Theme,
+) {
+    if hint_sites == 0 {
+        return;
     }
+    let loops_on_itself = repair_target == RepairTarget::WorkspaceFile;
+    let next = if !loops_on_itself || has_machine_applicable_repair(report) {
+        format!(
+            "{} · see `nika explain` for coded findings",
+            next_repair_action(path, repair_target)
+        )
+    } else {
+        "see `nika explain` for coded findings — nothing here is a typed rename, \
+         so these are yours to place"
+            .to_owned()
+    };
+    let _ = writeln!(
+        out,
+        " {} {}     {next}",
+        t.paint(Role::Accent, "↳"),
+        t.paint(Role::Strong, "NEXT"),
+    );
+}
+
+/// Whether `check --fix` would change a byte of THIS file.
+///
+/// The ladder (`nika_cli_host::fix_ladder`) has exactly two sources. The
+/// dead-form arms fire on a `SchemaError` — a file that did not parse, and
+/// so never reaches this render at all. The typed renames are therefore
+/// the whole of it on a file that PARSED, and this asks
+/// [`nika_check::typed_renames`] — the SAME derivation the ladder
+/// splices from.
+///
+/// It used to MIRROR that derivation field for field, in its own words.
+/// A mirror is only as true as the day it was typed: the offer and the
+/// work were free to drift the moment the ladder grew an arm, and the
+/// drift would have been silent and in the honest direction — a file
+/// told « nothing here is a typed rename » while `--fix` had one to
+/// place. One function, two readers, no mirror to keep.
+fn has_machine_applicable_repair(report: &CheckReport) -> bool {
+    !nika_check::typed_renames(report).is_empty()
 }
 
 fn next_repair_action(path: &str, repair_target: RepairTarget) -> String {

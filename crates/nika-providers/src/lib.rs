@@ -51,10 +51,13 @@ mod test_support;
 pub mod wire;
 
 pub use profile::{
-    CANONICAL_IDS, Profile, WireFormat, catalog_warning, resolve_refusal, seed, server_backed_local,
+    CANONICAL_IDS, PREFIX_REFUSAL_CODE, Profile, ResolveRefusal, WireFormat, catalog_warning,
+    resolve_refusal, seed, server_backed_local,
 };
 pub use registry::{NoHttp, ProviderRegistry, ProvidersConfig, ResolvedProvider};
+#[cfg(feature = "access-harness")]
+pub use resolve_access::first_ready_infer_harness;
 pub use resolve_access::{
-    AccessCandidate, AccessRefusal, PinRefusal, access_plan_map, candidates_for, provider_of,
-    refuse_pin, resolve_access,
+    AccessCandidate, AccessRefusal, PinRefusal, access_plan_map, candidates_for,
+    first_ready_harness, provider_of, refuse_pin, refuse_pin_for_verbs, resolve_access,
 };

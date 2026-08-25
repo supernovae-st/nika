@@ -49,12 +49,21 @@ say "── funnel e2e · $("$BIN" --version)"
 # 1 · the mirror: sections + every arrow-promised command exists
 run welcome 0 -- "$BIN" welcome
 need welcome "this machine"
-need welcome "start here"
+# The screen ends on ONE pasteable command. `start here` was the old
+# menu's heading; the first-wow cascade replaced a menu with a single
+# next step, so the gate follows the promise rather than the wording.
+need welcome "Next:"
 for c in $(printf '%s' "$OUT" | grep -oE '→ nika [a-z-]+' | awk '{print $3}' | sort -u); do
   has_cmd "$c" || fail "[welcome] promises 'nika $c' — clap tree lacks it"
 done
-FIRST=$(printf '%s' "$OUT" | grep -oE 'nika try [a-z0-9-]+' | head -1)
-[ -n "$FIRST" ] || fail "[welcome] no offline first command promised"
+# The screen's ONE next step, played verbatim. It used to be a `nika try`
+# slug; the first-wow cascade made it `nika new <name>` — a stranger writes
+# a file rather than watching a rehearsal. The gate reads the promise off
+# the screen instead of naming a verb, so it survives the next change of
+# door. `|| true` keeps a screen with no promise reportable (the `fail`
+# below) rather than killing the run under `set -o pipefail`.
+FIRST=$(printf '%s' "$OUT" | grep -oE 'nika (new|try) [a-z0-9-]+' | head -1 || true)
+[ -n "$FIRST" ] || fail "[welcome] no first command promised"
 # shellcheck disable=SC2086 # the promise is played verbatim, word-split intended
 [ -n "$FIRST" ] && run first-promise 0 -- "$BIN" ${FIRST#nika }
 run welcome-json 0 -- "$BIN" welcome --json
@@ -66,6 +75,26 @@ printf '%s' "$OUT" | grep -q "sk-CANARY-9911" && fail "[welcome] key VALUE leake
 # 2 · scaffold → audit (the inputs trap is TAUGHT) → provision → run → story → verify
 run new-from 0 -- "$BIN" new chain first.nika.yaml
 [ -f first.nika.yaml ] || fail "[new] no file created"
+# #1066 · a scaffold whose slots are untouched is not a workflow yet, and
+# `check` refuses it BEFORE the spend. Played first, because a 0 here
+# would mean the refusal is gone — and the marker has to be a VALUE for
+# it to fire at all (a comment dies with the parse, which is how this
+# file used to run green and leave an `output.md` holding its own prompt).
+run check-unfilled 2 -- "$BIN" check first.nika.yaml
+need check-unfilled "SLOTS"
+need check-unfilled "ready to be filled"
+# It reads as a step, not a fault: the person typed `nika new` and did
+# nothing wrong.
+if printf '%s' "$OUT" | grep -qF "findings above"; then
+  fail "[check-unfilled] a scaffold is not a fault"
+fi
+# Answer the slot the way its author would, then the SAME file audits —
+# the other end of the ratchet: a refusal nobody can clear is a wall.
+sed 's|<SLOT:[^>]*>|Summarise the gathered text in one short paragraph.|' \
+  first.nika.yaml >first.filled && mv first.filled first.nika.yaml
+if grep -q '<SLOT:' first.nika.yaml; then
+  fail "[fill] a marker survived the fill"
+fi
 run check 0 -- "$BIN" check first.nika.yaml
 need check "audited"
 need check "[inputs]" # the scaffold's input trap is taught BEFORE the run
@@ -81,8 +110,13 @@ TRACE=$(find .nika/traces -name '*.ndjson' 2>/dev/null | sort | tail -1)
 [ -n "$TRACE" ] || fail "[run] no trace recorded"
 if has_cmd explain; then
   run explain-file 0 -- "$BIN" explain first.nika.yaml
-  need explain-file "bounded portion"
-  need explain-file "unpriced"
+  # The ceiling must be stated BEFORE a token is spent — that is the
+  # promise, and it holds whatever the scaffold costs. The old pins
+  # (`bounded portion` · `unpriced`) render only for an UNBOUNDED plan;
+  # the chain scaffold is bounded and priced now, so pinning them made a
+  # product improvement look like a regression.
+  need explain-file "cost before a token is spent"
+  need explain-file "worst case"
   need explain-file "flight recorder"
   need explain-file "$(basename "$TRACE")"
 fi

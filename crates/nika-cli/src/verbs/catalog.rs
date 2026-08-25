@@ -59,10 +59,22 @@ fn local_loci(registry: &ProviderRegistry) -> Vec<LocalLocus> {
         .collect()
 }
 
+/// The catalog projection with the resolvability fact ON every row
+/// (#1184).
+///
+/// `catalog_export()` alone claims nothing about what this build can
+/// reach; both surfaces below serialize to a reader who then CHOOSES a
+/// provider, so both chain the adapter layer's own id list. The pin
+/// lives in `tests/catalog_family.rs` — a surface that drops the chain
+/// fails there rather than teaching an unreachable vendor.
+fn resolvable_export() -> CatalogExport {
+    catalog_export().with_resolvable(&nika_providers::CANONICAL_IDS)
+}
+
 /// `nika catalog` — human listing, or the `--json` machine projection.
 #[must_use]
 pub fn run(json: bool, theme: Theme) -> VerbOutput {
-    let export = catalog_export();
+    let export = resolvable_export();
     if json {
         return match serde_json::to_string_pretty(&export) {
             Ok(payload) => VerbOutput::ok(payload),
@@ -76,6 +88,28 @@ pub fn run(json: bool, theme: Theme) -> VerbOutput {
     VerbOutput::ok(human_listing(&export, theme, &local_loci(&registry), truth))
 }
 
+/// The two header lines — the counts, each NAMING its facet.
+///
+/// Every number names what it counts (RAMS-12 · A-06): « catalog
+/// entries » here, « wired in this build » for what welcome counts,
+/// « take a key » for the doctor's cloud rows — three facets of one
+/// machine, never three contradictions. One derivation serves all three
+/// (`MachineTruth`), and `machine_truth_surfaces.rs` pins the renders.
+fn listing_header(theme: Theme, truth: MachineTruth, models: usize) -> String {
+    let facets = theme.paint(
+        Role::Dim,
+        &format!(
+            "  {wired} wired in this build · {slots} take a key — nika doctor shows their state",
+            wired = truth.wired,
+            slots = truth.cloud_key_slots,
+        ),
+    );
+    format!(
+        "nika catalog — {n} catalog entries · {models} models (embedded · offline)\n{facets}\n",
+        n = truth.catalog_entries,
+    )
+}
+
 /// The human teaching listing — sections LOCAL then CLOUD, doctrine order.
 fn human_listing(
     export: &CatalogExport,
@@ -85,35 +119,30 @@ fn human_listing(
 ) -> String {
     let models: usize = export.providers.iter().map(|p| p.models.len()).sum();
 
-    let mut local: Vec<&ProviderExport> = export.providers.iter().filter(|p| p.local).collect();
+    // Three sections, because the GROUP is the marker. A per-row
+    // « catalog only » suffix was correct and unreadable: 22 of 38 rows
+    // repeated the same 30 characters, so the fact a reader needed had
+    // to be found by scanning for its ABSENCE. LOCAL and CLOUD now hold
+    // only what this build resolves, in the doctrine order; everything
+    // the engine has no adapter for sits under its own head, where one
+    // sentence covers all of them.
+    let mut local: Vec<&ProviderExport> = export
+        .providers
+        .iter()
+        .filter(|p| p.local && p.resolves)
+        .collect();
     local.sort_by_key(|p| p.id);
-    let mut cloud: Vec<&ProviderExport> = export.providers.iter().filter(|p| !p.local).collect();
+    let mut cloud: Vec<&ProviderExport> = export
+        .providers
+        .iter()
+        .filter(|p| !p.local && p.resolves)
+        .collect();
     cloud.sort_by(|a, b| cloud_rank(a.id).cmp(&cloud_rank(b.id)));
+    let mut catalog_only: Vec<&ProviderExport> =
+        export.providers.iter().filter(|p| !p.resolves).collect();
+    catalog_only.sort_by_key(|p| p.id);
 
-    // Every number NAMES its facet (RAMS-12 · A-06): « catalog entries »
-    // here, « wired in this build » for what welcome counts, « take a
-    // key » for the doctor's cloud rows — three facets of one machine,
-    // never three contradictions. One derivation serves all three
-    // (`MachineTruth`), and machine_truth_surfaces.rs pins the renders.
-    let mut out = format!(
-        "nika catalog — {n} catalog entries · {models} models (embedded · offline)\n",
-        n = truth.catalog_entries,
-    );
-    {
-        use std::fmt::Write as _;
-        let _ = writeln!(
-            out,
-            "{}",
-            theme.paint(
-                Role::Dim,
-                &format!(
-                    "  {wired} wired in this build · {slots} take a key — nika doctor shows their state",
-                    wired = truth.wired,
-                    slots = truth.cloud_key_slots,
-                ),
-            ),
-        );
-    }
+    let mut out = listing_header(theme, truth, models);
     out.push('\n');
     // « zero network » is EARNED: only when every local engine resolves
     // to loopback. One override off-loopback and the claim falls.
@@ -166,8 +195,19 @@ fn human_listing(
     for p in cloud {
         out.push_str(&provider_line(p, theme, None));
     }
+    if !catalog_only.is_empty() {
+        out.push('\n');
+        out.push_str(&chrome::rail_head(
+            theme,
+            "CATALOG ONLY (no adapter in this build · nika check refuses these)",
+        ));
+        out.push('\n');
+        for p in catalog_only {
+            out.push_str(&provider_line(p, theme, None));
+        }
+    }
     out.push_str(
-        "\nnika catalog --json → the machine projection (models · capabilities · context windows)",
+        "\nnika catalog --json → the machine projection (models · capabilities · context windows · resolves)",
     );
     out
 }
@@ -187,14 +227,24 @@ fn cloud_rank(id: &str) -> (u8, &str) {
 /// One provider line of the human listing. A local engine whose
 /// EFFECTIVE endpoint sits off-loopback (an operator override) is NAMED
 /// with endpoint + locus — the ink the honest header saved (P0-20).
+///
+/// The row carries no resolvability marker: its SECTION does (#1184).
+/// An aggregate in the header does not survive the scan a user actually
+/// performs — but neither does the same suffix repeated on 22 of 38
+/// rows, which is what marking each one produced.
 fn provider_line(p: &ProviderExport, theme: Theme, locus: Option<&LocalLocus>) -> String {
     // B-6b (the gauntlet's Marta): `native` sits under the « zero key ·
     // zero network » banner, but in-process GGUF inference needs the
     // file ON DISK first — the row names the prerequisite and its door,
     // never a bare « no key » that dead-ends at run.
+    //
+    // The call to action is gated on `resolves`: `native` does not
+    // resolve in this build, so « nika model pull » invited a user
+    // through a door that refuses at check. An unreachable row never
+    // carries a verb.
     let key = if p.requires_key {
         p.env_var
-    } else if p.id == "native" {
+    } else if p.id == "native" && p.resolves {
         "no key · needs a local .gguf (nika model pull)"
     } else {
         "no key"
@@ -214,7 +264,7 @@ fn provider_line(p: &ProviderExport, theme: Theme, locus: Option<&LocalLocus>) -
             &format!(
                 " {}{}{}",
                 theme.paint(Role::Strong, &format!("{:<14}", p.id)),
-                theme.paint(Role::Dim, &format!(" {:>2} models · {key}", p.models.len())),
+                theme.paint(Role::Dim, &format!(" {:>2} models · {key}", p.models.len()),),
                 theme.paint(Role::Dim, &locus_note),
             ),
         )
@@ -239,9 +289,74 @@ mod tests {
         let providers = value["providers"].as_array().expect("providers array");
         assert!(!providers.is_empty(), "the embedded catalog is never empty");
         let first = providers[0].as_object().expect("provider object");
-        for key in ["id", "env_var", "models", "local", "tags"] {
+        for key in ["id", "env_var", "models", "local", "tags", "resolves"] {
             assert!(first.contains_key(key), "provider entry missing `{key}`");
         }
+    }
+
+    /// #1184 · the machine surface must let a consumer recover the
+    /// distinction the human header states. A payload where every row
+    /// reads `resolves: false` is `catalog_export()` un-chained — the
+    /// exact drop this field exists to make impossible.
+    #[test]
+    fn json_marks_the_adapter_set_row_by_row() {
+        let out = run(true, PLAIN);
+        let value: serde_json::Value = serde_json::from_str(&out.text).expect("parseable JSON");
+        let providers = value["providers"].as_array().expect("providers array");
+        let resolving: Vec<&str> = providers
+            .iter()
+            .filter(|p| p["resolves"] == serde_json::Value::Bool(true))
+            .filter_map(|p| p["id"].as_str())
+            .collect();
+        assert!(
+            !resolving.is_empty(),
+            "a payload with zero resolving rows is the un-chained projection",
+        );
+        for id in &resolving {
+            assert!(
+                nika_providers::CANONICAL_IDS.contains(id),
+                "`{id}` is marked resolving but no adapter carries it",
+            );
+        }
+        for id in nika_providers::CANONICAL_IDS {
+            if providers.iter().any(|p| p["id"] == id) {
+                assert!(
+                    resolving.contains(&id),
+                    "`{id}` has an adapter but its row is unmarked",
+                );
+            }
+        }
+    }
+
+    /// The row a user scans carries the fact — and an unreachable row
+    /// never carries a call to action (`native` invited « nika model
+    /// pull » into a door that refuses at check).
+    #[test]
+    fn a_non_resolving_row_sits_below_the_head_and_offers_no_verb() {
+        let text = run(false, PLAIN).text;
+        let export = resolvable_export();
+        let head = text
+            .find("CATALOG ONLY")
+            .expect("the listing separates what runs from what it merely knows");
+        for p in &export.providers {
+            let at = text
+                .find(&format!("\u{2502}  {:<14}", p.id))
+                .unwrap_or_else(|| panic!("provider `{}` missing from the listing", p.id));
+            assert_eq!(
+                at < head,
+                p.resolves,
+                "provider `{}` sits in the wrong block (resolves={})",
+                p.id,
+                p.resolves,
+            );
+        }
+        // An unreachable row carries no call to action: `native` invited
+        // « nika model pull » into a door that refuses at check.
+        let below = &text[head..];
+        assert!(
+            !below.contains("nika model pull"),
+            "a CATALOG ONLY row still invites a verb:\n{below}",
+        );
     }
 
     #[test]
@@ -289,7 +404,7 @@ mod tests {
 
     #[test]
     fn human_listing_counts_agree_with_the_projection() {
-        let export = catalog_export();
+        let export = resolvable_export();
         let truth = distinct_truth(&export);
         let text = human_listing(&export, PLAIN, &loopback_loci(), truth);
         let models: usize = export.providers.iter().map(|p| p.models.len()).sum();
@@ -326,7 +441,7 @@ mod tests {
 
     #[test]
     fn zero_network_is_earned_by_loopback_only() {
-        let export = catalog_export();
+        let export = resolvable_export();
         // All locals on loopback → the sovereign claim holds.
         let text = human_listing(&export, PLAIN, &loopback_loci(), distinct_truth(&export));
         assert!(

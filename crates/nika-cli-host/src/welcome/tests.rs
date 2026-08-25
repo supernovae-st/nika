@@ -102,32 +102,161 @@ fn plain() -> Theme {
     Theme::new(false, false, false)
 }
 
-/// The concierge hands over ONE key per state — the four states each
-/// lead with their own move. The 1-workflow-founded state is keyed on
-/// the file's VERDICT too (P0-3): the clean gate below is what keeps
-/// `run` eligible at all.
+/// The concierge hands over ONE key — and a VERDICT outranks the
+/// directory listing that produced the door. The four arms of
+/// [`next_command`], each keyed on the fact that earns it.
 #[test]
-fn start_moves_key_on_the_workspace_state() {
-    let g = |workflows, agents_md| Glance {
+fn the_one_next_lets_a_verdict_overrule_the_listing() {
+    let complete = Glance {
         git: true,
-        workflows,
-        agents_md,
+        workflows: 1,
+        agents_md: true,
         complete: true,
     };
-    let clean = RunGate {
-        path: "a.nika.yaml".to_owned(),
-        proposable: true,
-        priced: false,
+    let partial = Glance {
+        complete: false,
+        ..complete
     };
-    assert!(start_moves(g(0, false), None)[0].0.contains("try 01-hello"));
-    assert_eq!(start_moves(g(2, false), None)[0].0, "nika init");
-    // FLIP (P0-3 · audit UX 2026-07-30): this line pinned « 1 workflow
-    // + AGENTS.md → nika run head » with NO verdict — the finding's
-    // exact reproduction. `run` now leads ONLY behind a clean gate;
-    // the red and priced arms are pinned by the scratch-dir tests
-    // (one_red_workflow_gets_check_never_run · the LOI-3 twins).
-    assert_eq!(start_moves(g(1, true), Some(&clean))[0].0, "nika run");
-    assert_eq!(start_moves(g(5, true), None)[0].0, "nika welcome --deep");
+    let gate = |proposable, priced| RunGate {
+        path: "a.nika.yaml".to_owned(),
+        proposable,
+        priced,
+    };
+    let ws = ContextMode::Workspace;
+    // No verdict to overrule it: the door stands as the listing wrote it.
+    assert_eq!(
+        next_command(ws, complete, None, "nika run a.nika.yaml"),
+        "nika run a.nika.yaml"
+    );
+    // P0-3 — red outranks everything, and names the exact file.
+    assert_eq!(
+        next_command(
+            ws,
+            complete,
+            Some(&gate(false, false)),
+            "nika run a.nika.yaml"
+        ),
+        "nika check a.nika.yaml"
+    );
+    // LOI-3 — a clean PRICED file still runs, capped.
+    assert_eq!(
+        next_command(
+            ws,
+            complete,
+            Some(&gate(true, true)),
+            "nika run a.nika.yaml"
+        ),
+        "nika run a.nika.yaml --max-cost-usd <usd>"
+    );
+    // …and an unpriced one carries no placeholder to fill.
+    assert_eq!(
+        next_command(
+            ws,
+            complete,
+            Some(&gate(true, false)),
+            "nika run a.nika.yaml"
+        ),
+        "nika run a.nika.yaml"
+    );
+    // P0-4 — a walk that died may not hand out a founding CTA.
+    assert_eq!(
+        next_command(ws, partial, None, "nika new hello"),
+        "nika welcome --deep"
+    );
+    // …but it may still point at a file it can SEE in this directory.
+    assert_eq!(
+        next_command(ws, partial, None, "nika run a.nika.yaml"),
+        "nika run a.nika.yaml"
+    );
+    // Chat-only claims no folder at all: the isolated example is the
+    // one real answer reachable without one.
+    assert_eq!(
+        next_command(
+            ContextMode::ChatOnly,
+            complete,
+            None,
+            "nika run a.nika.yaml"
+        ),
+        "nika try 01-hello"
+    );
+}
+
+/// The law the whole screen exists to obey (#1196): a stranger is
+/// offered ONE first command, never a fork. Dim routes that repair a
+/// NAMED gap (`… → nika init`) sit inside their own fact and are not
+/// first commands; the sample's `nika: hello` is a workflow id.
+#[test]
+fn the_first_contact_screen_promises_exactly_one_first_command() {
+    let dir = tempfile::tempdir().expect("scratch");
+    let text = screen(Some(dir.path()), plain());
+    let offers: Vec<&str> = text.lines().filter(|l| offers_a_command(l)).collect();
+    assert_eq!(
+        offers.len(),
+        1,
+        "the screen promises exactly one first command, got {offers:?}:\n{text}"
+    );
+    assert_eq!(offers[0].trim(), "nika new hello", "{text}");
+    assert!(
+        !text.contains("start here"),
+        "the menu the cascade replaced is gone:\n{text}"
+    );
+    // The same two words named three things on this screen — the
+    // hardware row, a rung's reason, and a section heading.
+    assert_eq!(
+        text.matches("this machine").count(),
+        1,
+        "one name, one referent:\n{text}"
+    );
+    // The hardware row only renders where the RAM could be measured;
+    // where it does, it names its own facet instead of borrowing the
+    // section's two words.
+    if let Some(row) = text.lines().find(|l| l.contains("Gear One ")) {
+        assert!(row.contains("this hardware ·"), "{row}");
+    }
+}
+
+/// An indented line whose FIRST token is the command — the shape of an
+/// offer. `→ nika wire cursor` hangs off a fact; `nika: hello` is YAML.
+fn offers_a_command(line: &str) -> bool {
+    let trimmed = line.trim_start();
+    trimmed.len() < line.len() && trimmed.starts_with("nika ")
+}
+
+/// #1187 — the two renderers of one screen. An agent reads `--json`, a
+/// human reads the block; they must be told the same thing, in an
+/// empty directory AND in one that already holds the file.
+#[test]
+fn the_json_front_door_answers_the_same_next_as_the_screen() {
+    let dir = tempfile::tempdir().expect("scratch");
+    let read_next = |raw: &str| -> serde_json::Value {
+        serde_json::from_str::<serde_json::Value>(raw).expect("json")
+    };
+    for expected in ["nika new hello", "nika run hello.nika.yaml"] {
+        let text = screen(Some(dir.path()), plain());
+        let block = text.split("Next:").nth(1).expect("a Next: block");
+        assert!(
+            block.lines().any(|l| l.trim() == expected),
+            "the human block says `{expected}`:\n{text}"
+        );
+        let v = read_next(&front_door_json(Some(dir.path())));
+        assert_eq!(v["next"], expected, "{v}");
+        assert_eq!(v["start"][0], expected, "{v}");
+        assert_eq!(v["start"].as_array().map(Vec::len), Some(1), "{v}");
+        for rung in v["inference_choice"]["rungs"]
+            .as_array()
+            .expect("rungs")
+            .iter()
+            .filter(|r| r["id"] != "cloud")
+        {
+            assert_eq!(
+                rung["next"], expected,
+                "a rung must not teach a door the screen retired: {rung}"
+            );
+        }
+        // …now write the file the first door told us to, and go round
+        // again: a second `nika new hello` dies on `--force` (P15).
+        std::fs::write(dir.path().join("hello.nika.yaml"), CLEAN_WORKFLOW).expect("seed");
+    }
 }
 
 /// A scratch workspace on disk (auto-cleaned) — the run-CTA tests
@@ -144,11 +273,15 @@ fn scratch(files: &[(&str, &str)]) -> tempfile::TempDir {
 /// conformance finding — the file parses, the ladder refuses it.
 const RED_WORKFLOW: &str = "nika: bad\ntasks:\n  a:\n    exec: { command: [\"echo\", \"x\"] }\n  b:\n    after:\n      a: success\n    when: maybe\n    exec: { command: [\"echo\", \"y\"] }\n";
 
-/// P0-3 (audit UX 2026-07-30) — one RED workflow, agents briefed:
-/// the concierge must NEVER carry a `nika run` CTA (head or dim)
-/// for a file the ladder has not seen clean; the head is
-/// `nika check <the exact file>`. Human and JSON both eat from
-/// `start_moves`, and the JSON projection is asserted too.
+/// A file the ladder sees clean, on a model that costs nothing.
+const CLEAN_WORKFLOW: &str =
+    "nika: hello\nmodel: mock/echo\ntasks:\n  a:\n    infer: { prompt: \"x\", max_tokens: 10 }\n";
+
+/// P0-3 (audit UX 2026-07-30) — one RED workflow, agents briefed: the
+/// concierge must NEVER carry a `nika run` CTA for a file the ladder
+/// has not seen clean; the ONE next step is `nika check <the exact
+/// file>`. The screen and the machine mirror are asserted together —
+/// that they could disagree at all was #1187.
 #[test]
 fn one_red_workflow_gets_check_never_run() {
     let dir = scratch(&[("AGENTS.md", "x"), ("bad.nika.yaml", RED_WORKFLOW)]);
@@ -160,25 +293,18 @@ fn one_red_workflow_gets_check_never_run() {
         !gate.as_ref().expect("a gate for the sole file").proposable,
         "the `when: maybe` fixture is RED for real"
     );
-    let moves = start_moves(g, gate.as_ref());
-    assert_eq!(
-        moves[0].0, "nika check bad.nika.yaml",
-        "a red file is audited, never run: {moves:?}"
+    let text = screen(Some(dir.path()), plain());
+    assert!(
+        text.contains("nika check bad.nika.yaml"),
+        "a red file is audited, never run:\n{text}"
     );
-    for (cmd, _) in &moves {
-        assert!(
-            !cmd.starts_with("nika run"),
-            "no run CTA while the exact file is red: {moves:?}"
-        );
-    }
-    let raw = render_json(
-        &synthetic_probe(),
-        g,
-        gate.as_ref(),
-        counts(),
-        serde_json::Value::Null,
+    assert!(
+        !text.contains("nika run"),
+        "no run CTA while the exact file is red:\n{text}"
     );
+    let raw = front_door_json(Some(dir.path()));
     let v: serde_json::Value = serde_json::from_str(&raw).expect("json");
+    assert_eq!(v["next"], "nika check bad.nika.yaml", "{raw}");
     assert_eq!(v["start"][0], "nika check bad.nika.yaml", "{raw}");
     assert!(
         !raw.contains("nika run"),
@@ -187,18 +313,12 @@ fn one_red_workflow_gets_check_never_run() {
 }
 
 /// The twin that must NOT regress: one CLEAN unpriced workflow
-/// (mock/echo) keeps the bare `nika run` head — and the wording
-/// never calls an unpriced model « free » (LOI-3: unknown stays
-/// unknown, it is merely uncapped by law's absence of a price).
+/// (mock/echo) keeps the `nika run` next step — and the wording never
+/// calls an unpriced model « free » (LOI-3: unknown stays unknown, it
+/// is merely uncapped by the absence of a price).
 #[test]
 fn one_clean_mock_workflow_keeps_the_run_cta_uncapped() {
-    let dir = scratch(&[
-        ("AGENTS.md", "x"),
-        (
-            "good.nika.yaml",
-            "nika: good\nmodel: mock/echo\ntasks:\n  a:\n    infer: { prompt: \"x\", max_tokens: 10 }\n",
-        ),
-    ]);
+    let dir = scratch(&[("AGENTS.md", "x"), ("good.nika.yaml", CLEAN_WORKFLOW)]);
     let (g, sole) = glance(dir.path(), 4000);
     assert_eq!(g.workflows, 1);
     let gate = sole.as_deref().map(|rel| run_gate(dir.path(), rel));
@@ -207,21 +327,19 @@ fn one_clean_mock_workflow_keeps_the_run_cta_uncapped() {
         gate.proposable && !gate.priced,
         "mock/echo: clean, unpriced"
     );
-    let moves = start_moves(g, Some(&gate));
-    assert_eq!(
-        moves[0].0, "nika run",
-        "clean + unpriced → run leads: {moves:?}"
-    );
-    for (cmd, _) in &moves {
-        assert!(
-            !cmd.contains("--max-cost-usd"),
-            "an unpriced model carries no cap placeholder: {moves:?}"
-        );
-    }
-    let text = render_human(&synthetic_probe(), g, Some(&gate), counts(), plain());
+    let text = screen(Some(dir.path()), plain());
     assert!(
-        !text.contains("free"),
-        "unpriced is never « free »:\n{text}"
+        text.contains("nika run good.nika.yaml"),
+        "clean + unpriced → the file runs:\n{text}"
+    );
+    assert!(
+        !text.contains("--max-cost-usd"),
+        "an unpriced model carries no cap placeholder:\n{text}"
+    );
+    let body = render_human(&synthetic_probe(), g, counts(), plain());
+    assert!(
+        !body.contains("free"),
+        "unpriced is never « free »:\n{body}"
     );
 }
 
@@ -242,14 +360,16 @@ fn one_clean_priced_workflow_carries_the_loi3_cap() {
     let gate = sole.as_deref().map(|rel| run_gate(dir.path(), rel));
     let gate = gate.expect("a gate for the sole file");
     assert!(gate.proposable && gate.priced, "openai/*: clean, priced");
-    let moves = start_moves(g, Some(&gate));
+    let raw = front_door_json(Some(dir.path()));
+    let v: serde_json::Value = serde_json::from_str(&raw).expect("json");
+    let next = v["next"].as_str().unwrap_or_default();
     assert!(
-        moves[0].0.starts_with("nika run"),
-        "a clean priced file still runs head-first: {moves:?}"
+        next.starts_with("nika run"),
+        "a clean priced file still runs: {raw}"
     );
     assert!(
-        moves[0].0.contains("--max-cost-usd"),
-        "LOI-3: a priced run CTA carries the cap: {moves:?}"
+        next.contains("--max-cost-usd"),
+        "LOI-3: a priced run CTA carries the cap: {raw}"
     );
 }
 
@@ -265,7 +385,7 @@ fn mirror_shows_pulled_models_and_stays_silent_at_zero() {
         agents_md: false,
         complete: true,
     };
-    let silent = render_human(&synthetic_probe(), glance, None, counts(), plain());
+    let silent = render_human(&synthetic_probe(), glance, counts(), plain());
     assert!(
         !silent.contains("  models"),
         "zero models = zero line:\n{silent}"
@@ -274,7 +394,7 @@ fn mirror_shows_pulled_models_and_stays_silent_at_zero() {
     let mut probe = synthetic_probe();
     probe.models.count = 2;
     probe.models.bytes = 211 * 1024 * 1024;
-    let shown = render_human(&probe, glance, None, counts(), plain());
+    let shown = render_human(&probe, glance, counts(), plain());
     assert!(
         shown.contains("models     2 pulled · 211.0 MiB on disk"),
         "the sovereign lane is in the mirror:\n{shown}"
@@ -295,7 +415,7 @@ fn mirror_names_an_endpoint_override_and_stays_silent_on_loopback() {
         agents_md: false,
         complete: true,
     };
-    let silent = render_human(&synthetic_probe(), glance, None, counts(), plain());
+    let silent = render_human(&synthetic_probe(), glance, counts(), plain());
     assert!(
         !silent.contains("  endpoint"),
         "loopback = no endpoint line:\n{silent}"
@@ -304,13 +424,19 @@ fn mirror_names_an_endpoint_override_and_stays_silent_on_loopback() {
     let mut probe = synthetic_probe();
     probe.providers[0].endpoint = "http://gpu.lan:11434".to_owned();
     probe.providers[0].readiness.execution_locus = ExecutionLocus::Lan;
-    let shown = render_human(&probe, glance, None, counts(), plain());
+    let shown = render_human(&probe, glance, counts(), plain());
     assert!(
         shown.contains("ollama → http://gpu.lan:11434 (lan)"),
         "the override is NAMED next to the local row:\n{shown}"
     );
+    // The keyless truth stays — only the topology claim is fixed. The
+    // row used to LIST the ids under a « this machine » header, which
+    // read as an inventory of servers that were not running (gauntlet
+    // P2 · B15); it now counts them and names the probe. This pins the
+    // promise, not the sentence, so the next wording change does not
+    // fail a test that still means what it meant.
     assert!(
-        shown.contains("· no key needed"),
+        shown.contains("keyless"),
         "the keyless truth stays — only the topology claim is fixed:\n{shown}"
     );
 }
@@ -326,7 +452,7 @@ fn mirror_names_kit_drift_and_stays_silent_when_aligned() {
         agents_md: false,
         complete: true,
     };
-    let silent = render_human(&synthetic_probe(), glance, None, counts(), plain());
+    let silent = render_human(&synthetic_probe(), glance, counts(), plain());
     assert!(!silent.contains("  kits"), "no kits = no line:\n{silent}");
 
     let mut probe = synthetic_probe();
@@ -340,7 +466,7 @@ fn mirror_names_kit_drift_and_stays_silent_when_aligned() {
             version: "0.105.0".to_owned(), // another train — drift
         },
     ];
-    let shown = render_human(&probe, glance, None, counts(), plain());
+    let shown = render_human(&probe, glance, counts(), plain());
     // The verdict moved to the hanging line when the drifted list grew
     // past the right edge (three kits + the version + the handle
     // measured 100 columns), so the two halves are asserted apart.
@@ -368,7 +494,7 @@ fn the_mirror_greets_each_adoption_rung_with_its_own_cta() {
         complete: true,
     };
     // KeyPresent — the stock synthetic machine (anthropic keyed).
-    let keyed = render_human(&synthetic_probe(), glance, None, counts(), plain());
+    let keyed = render_human(&synthetic_probe(), glance, counts(), plain());
     assert!(
         keyed.contains("state      key present · 1 of 2 clouds configured — ready for a real run"),
         "KeyPresent renders its own line:\n{keyed}"
@@ -380,7 +506,7 @@ fn the_mirror_greets_each_adoption_rung_with_its_own_cta() {
     let mut bare = synthetic_probe();
     bare.providers[2].key_present = false;
     bare.providers[2].readiness.configured = false;
-    let installed = render_human(&bare, glance, None, counts(), plain());
+    let installed = render_human(&bare, glance, counts(), plain());
     assert!(
         installed.contains("state      installed · no inference path — proof → nika try 01-hello"),
         "Installed routes to the offline proof:\n{installed}"
@@ -390,7 +516,7 @@ fn the_mirror_greets_each_adoption_rung_with_its_own_cta() {
     let mut lan = bare.clone();
     lan.providers[0].endpoint = "http://gpu.lan:11434".to_owned();
     lan.providers[0].readiness.execution_locus = ExecutionLocus::Lan;
-    let detected = render_human(&lan, glance, None, counts(), plain());
+    let detected = render_human(&lan, glance, counts(), plain());
     assert!(
         detected
             .contains("state      ollama detected · unproven — start it, then nika doctor --ping"),
@@ -404,7 +530,7 @@ fn the_mirror_greets_each_adoption_rung_with_its_own_cta() {
         "127.0.0.1:11434".to_owned(),
         PingState::Reachable(3),
     )];
-    let reachable = render_human(&pinged, glance, None, counts(), plain());
+    let reachable = render_human(&pinged, glance, counts(), plain());
     assert!(
         reachable.contains("state      local reachable · ollama (3ms) — point a run at it"),
         "LocalReachable carries the measured round-trip:\n{reachable}"
@@ -414,7 +540,7 @@ fn the_mirror_greets_each_adoption_rung_with_its_own_cta() {
     // « path configured »: the journal proves runs, never the model.
     let mut real = synthetic_probe();
     real.recorded_runs = 2;
-    let ready = render_human(&real, glance, None, counts(), plain());
+    let ready = render_human(&real, glance, counts(), plain());
     assert!(
         ready.contains("state      real-ready · 2 runs on record · path configured — nika run"),
         "RealReady claims the record, never « a real model answered »:\n{ready}"
@@ -442,7 +568,6 @@ fn human_mirror_carries_the_four_sections_and_no_key_names() {
             agents_md: false,
             complete: true,
         },
-        None,
         counts(),
         plain(),
     );
@@ -450,7 +575,6 @@ fn human_mirror_carries_the_four_sections_and_no_key_names() {
         "Intent as Code",
         "this machine",
         "this binary",
-        "start here",
         "hash-chained",
         "cursor ✓",
         "vscode ✗",
@@ -461,10 +585,6 @@ fn human_mirror_carries_the_four_sections_and_no_key_names() {
         "state      key present · 1 of 2 clouds configured",
         "ready for a real run",
         "not briefed → nika init",
-        // 2 workflows + unbriefed → the ONE key is the founding wizard
-        // (adds only); the stranger's mock/echo line belongs to the
-        // 0-workflow state (pinned in start_moves' own test below).
-        "brief agents · adds only",
         "learn: nika.sh",
         "github.com/supernovae-st/nika",
     ] {
@@ -589,7 +709,6 @@ fn the_stranger_sees_the_language_and_it_fits_eighty_columns() {
             agents_md: false,
             complete: true,
         },
-        None,
         EngineCounts {
             builtins: 25,
             locals: 5,
@@ -629,7 +748,6 @@ fn ascii_theme_swaps_every_glyph() {
             agents_md: true,
             complete: true,
         },
-        None,
         counts(),
         Theme::new(false, true, false),
     );
@@ -726,7 +844,7 @@ fn the_experience_block_routes_from_the_concierge_facts() {
 
 #[test]
 fn json_mirror_is_versioned_additive_and_value_free() {
-    let raw = render_json(
+    let v = render_json(
         &synthetic_probe(),
         Glance {
             git: false,
@@ -734,11 +852,11 @@ fn json_mirror_is_versioned_additive_and_value_free() {
             agents_md: true,
             complete: true,
         },
-        None,
         counts(),
         serde_json::Value::Null,
+        "nika new hello",
     );
-    let v: serde_json::Value = serde_json::from_str(&raw).expect("welcome --json parses");
+    let raw = v.to_string();
     assert_eq!(v["welcome_version"], 1);
     assert_eq!(v["machine"]["cloud_keys_present"], 1);
     assert_eq!(v["machine"]["cloud_keys_total"], 2);
@@ -746,7 +864,10 @@ fn json_mirror_is_versioned_additive_and_value_free() {
     assert_eq!(v["workspace"]["workflows"], 0);
     assert_eq!(v["workspace"]["inventory_complete"], true);
     assert_eq!(v["engine"]["verbs"], 4);
-    assert_eq!(v["start"].as_array().map(Vec::len), Some(3));
+    // ONE next step, and `start` is its one-element projection — the
+    // three-command array was the pre-cascade menu (#1187).
+    assert_eq!(v["next"], "nika new hello");
+    assert_eq!(v["start"].as_array().map(Vec::len), Some(1));
     assert!(
         !raw.contains("API_KEY") && !raw.contains("key_present"),
         "the JSON mirror carries counts, never per-key facts: {raw}"
@@ -765,7 +886,7 @@ fn a_partial_scan_never_renders_the_strangers_zero() {
         agents_md: false,
         complete: false,
     };
-    let text = render_human(&synthetic_probe(), g, None, counts(), plain());
+    let text = render_human(&synthetic_probe(), g, counts(), plain());
     assert!(
         !text.contains("no workflows yet"),
         "a partial scan is unknown, never « zero »:\n{text}"
@@ -778,17 +899,16 @@ fn a_partial_scan_never_renders_the_strangers_zero() {
         !text.contains("a whole workflow is one file"),
         "the sample is the COMPLETE stranger's moment only:\n{text}"
     );
-    let raw = render_json(
+    let v = render_json(
         &synthetic_probe(),
         g,
-        None,
         counts(),
         serde_json::Value::Null,
+        "nika welcome --deep",
     );
-    let v: serde_json::Value = serde_json::from_str(&raw).expect("json");
     assert_eq!(
         v["workspace"]["inventory_complete"], false,
-        "the machine mirror carries the scan's completeness: {raw}"
+        "the machine mirror carries the scan's completeness: {v}"
     );
 }
 
@@ -835,44 +955,35 @@ fn glance_counts_workflows_skips_heavy_dirs_and_sees_git() {
 
 /// P0-14 binary-side (W2): candidate `None` → chat-only. The mirror
 /// SAYS it and makes zero workspace claim — no workspace row, no
-/// inventory count, no agents line — and routes to the two doors the
-/// spec allows (an isolated example · choosing a project).
+/// inventory count, no agents line — and its one next step is the door
+/// that needs no folder (the isolated example).
 #[test]
 fn chat_only_says_so_and_claims_no_workspace() {
-    let out = run_in(false, plain(), None);
-    assert_eq!(out.code, exit::OK, "{}", out.text);
+    let mirror = Mirror::collect(None);
+    let body = mirror.render_body(plain());
     assert!(
-        out.text
-            .contains("chat only — no reliable project detected"),
-        "chat-only says so:\n{}",
-        out.text
+        body.contains("chat only — no reliable project detected"),
+        "chat-only says so:\n{body}"
     );
     assert!(
-        !out.text.contains("  workspace"),
-        "no workspace row in chat-only:\n{}",
-        out.text
+        !body.contains("  workspace"),
+        "no workspace row in chat-only:\n{body}"
     );
     assert!(
-        !out.text.contains("workflows") && !out.text.contains("agents"),
-        "no workspace inventory claim in chat-only:\n{}",
-        out.text
+        !body.contains("workflows") && !body.contains("agents"),
+        "no workspace inventory claim in chat-only:\n{body}"
     );
-    assert!(
-        out.text.contains("isolated") && out.text.contains("choose a project"),
-        "the two chat-only doors are named:\n{}",
-        out.text
+    let next = mirror.next(None);
+    assert_eq!(
+        next, "nika try 01-hello",
+        "the one door that needs no folder"
     );
-    let json = run_in(true, plain(), None);
-    assert_eq!(json.code, exit::OK, "{}", json.text);
+    let json = mirror.render_json(&next);
+    assert_eq!(json["context"]["mode"], "chat_only", "{json}");
+    assert_eq!(json["next"], next, "{json}");
     assert!(
-        json.text.contains("\"chat_only\""),
-        "the machine mirror carries the mode: {}",
-        json.text
-    );
-    assert!(
-        !json.text.contains("\"workspace\""),
-        "no workspace projection in chat-only: {}",
-        json.text
+        !json.to_string().contains("\"workspace\""),
+        "no workspace projection in chat-only: {json}"
     );
 }
 
@@ -885,12 +996,10 @@ fn workspace_names_the_root_and_traces_the_subdir_expansion() {
     std::fs::create_dir(dir.path().join(".git")).expect("mkdir .git");
     let deep = dir.path().join("crates").join("nika-cli");
     std::fs::create_dir_all(&deep).expect("mkdir deep");
-    let out = run_in(false, plain(), Some(&deep));
-    assert_eq!(out.code, exit::OK, "{}", out.text);
+    let body = Mirror::collect(Some(&deep)).render_body(plain());
     let root = dir.path().canonicalize().expect("canon root");
     let deep_canon = deep.canonicalize().expect("canon deep");
-    let row = out
-        .text
+    let row = body
         .lines()
         .skip_while(|l| !l.contains("  workspace"))
         .take(3)
@@ -926,10 +1035,12 @@ fn welcome_is_always_a_success() {
     // routes (doctor owns the gate semantics, welcome never gates).
     let out = run(false, plain());
     assert_eq!(out.code, exit::OK, "{}", out.text);
-    assert!(out.text.contains("start here"), "{}", out.text);
+    assert!(out.text.contains("Next:"), "{}", out.text);
+    assert!(out.text.contains("Local first"), "{}", out.text);
     let json = run(true, plain());
     assert_eq!(json.code, exit::OK);
     assert!(json.text.contains("\"welcome_version\":1"), "{}", json.text);
+    assert!(json.text.contains("inference_choice"), "{}", json.text);
 }
 
 #[test]
@@ -946,7 +1057,6 @@ fn the_editor_roster_wraps_instead_of_running_off_the_terminal() {
             agents_md: false,
             complete: true,
         },
-        None,
         EngineCounts {
             builtins: 25,
             locals: 5,

@@ -17,10 +17,14 @@ use crate::Theme;
 /// example that reads `examples/fixtures/x` must find it beside
 /// itself, and its writes must land here, not in the operator's
 /// folder). Split under the 100-line fn law.
-fn stage_room(
-    slug: &str,
-    yaml: &str,
-) -> Result<(std::path::PathBuf, Option<std::path::PathBuf>), u8> {
+///
+/// The move is made through the crate's ONE cwd lease (#1192). This site had
+/// NO guard at all — it was the third of three chdir sites and the only one
+/// that took nothing, so it could move the ground under a budget test that was
+/// dutifully holding its own (different) lock. The returned [`crate::cwd::Lease`]
+/// IS the restore: dropping it puts the operator's session back, on every path
+/// including a panic unwind.
+fn stage_room(slug: &str, yaml: &str) -> Result<(std::path::PathBuf, crate::cwd::Lease), u8> {
     let stem = slug.replace('/', "-");
     let room = std::env::temp_dir().join(format!("nika-try-{stem}"));
     let path = room.join(format!("{stem}.nika.yaml"));
@@ -32,12 +36,11 @@ fn stage_room(
         eprintln!("nika run: environment: cannot stage the ingredients of `{slug}`: {e}");
         return Err(exit::ENV);
     }
-    let previous = std::env::current_dir().ok();
-    if let Err(e) = std::env::set_current_dir(&room) {
+    let lease = crate::cwd::enter(&room).map_err(|e| {
         eprintln!("nika run: environment: cannot enter the rehearsal room: {e}");
-        return Err(exit::ENV);
-    }
-    Ok((path, previous))
+        exit::ENV
+    })?;
+    Ok((path, lease))
 }
 
 /// `nika try <slug>` — execute one EMBEDDED example through the
@@ -69,7 +72,7 @@ pub fn example(
         eprintln!("unknown example `{slug}` — bare `nika try` names the embedded set");
         return exit::FILE;
     };
-    let (path, previous_dir) = match stage_room(slug, yaml) {
+    let (path, room_lease) = match stage_room(slug, yaml) {
         Ok(pair) => pair,
         Err(code) => return code,
     };
@@ -142,10 +145,11 @@ pub fn example(
         );
     }
     // Leave the room as we found it — the rehearsal is isolated, not
-    // a relocation of the operator's session.
-    if let Some(dir) = previous_dir {
-        let _ = std::env::set_current_dir(dir);
-    }
+    // a relocation of the operator's session. Dropping the lease restores
+    // the directory AND releases it for the next chdir site; the explicit
+    // drop is here so the release is a readable step rather than an
+    // end-of-scope accident.
+    drop(room_lease);
     verdict.code
 }
 

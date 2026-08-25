@@ -43,6 +43,10 @@ pub struct AdapterProbeRow {
     /// What the probe saw when detection failed (the adapter's own
     /// words) — empty on a clean detection.
     pub note: String,
+    /// Whether the product CLI (`claude` · `codex` · `gemini`) is on PATH.
+    /// Distinct from [`Self::version`]: Claude Code can be installed
+    /// while the ACP speaker `claude-agent-acp` is not.
+    pub product_present: bool,
 }
 
 impl AdapterProbeRow {
@@ -77,6 +81,88 @@ pub async fn probe_adapters(rows: Vec<AdapterRow>) -> Vec<AdapterProbeRow> {
     out.into_iter().map(|(_, row)| row).collect()
 }
 
+/// Cheap admission facts for `--access` (PATH + [`AuthProbe::HomeFile`]).
+/// Never handshake-spawns — compose and `nika check` must not start
+/// five ACP speakers. Doctor still uses [`probe_adapters_sync`].
+/// Command-auth rows treat ACP-on-PATH as configured; the session
+/// is the sign-in witness (NIKA-1805 if the harness refuses).
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct PresenceFact {
+    /// Product token (`claude-code`).
+    pub id: String,
+    /// Provider ids this row serves.
+    pub serves: Vec<String>,
+    /// Product CLI on PATH (`claude`).
+    pub product_present: bool,
+    /// ACP speaker on PATH (`claude-agent-acp`).
+    pub acp_present: bool,
+    /// [`AuthProbe::HomeFile`] witness, or ACP-on-PATH for Command auth.
+    pub configured: bool,
+}
+
+/// Presence-only probe for every registry row — no tokio, no spawn.
+#[must_use]
+pub fn presence_facts(rows: Vec<AdapterRow>) -> Vec<PresenceFact> {
+    rows.into_iter()
+        .map(|row| {
+            let rt = nika_types::access::HarnessRuntime::lookup(&row.adapter.id);
+            let detect = rt.map_or(row.adapter.command.as_str(), |r| r.detect_bin);
+            let acp = rt.map_or(row.adapter.command.as_str(), |r| r.acp_bin);
+            let product_present = binary_on_path(detect);
+            let acp_present = binary_on_path(acp);
+            let configured = match row.auth {
+                AuthProbe::HomeFile(_) => {
+                    probe_auth_home_sync(&row.auth, row.directory_auth).unwrap_or(false)
+                }
+                AuthProbe::Command { .. } => {
+                    command_access_present(&row.adapter.id, product_present, acp_present)
+                }
+            };
+            PresenceFact {
+                id: row.adapter.id.clone(),
+                serves: row.serves.iter().map(|s| (*s).to_owned()).collect(),
+                product_present,
+                acp_present,
+                configured,
+            }
+        })
+        .collect()
+}
+
+fn command_access_present(id: &str, product_present: bool, acp_present: bool) -> bool {
+    acp_present || (id == "codex" && product_present)
+}
+
+fn probe_auth_home_sync(
+    surface: &AuthProbe,
+    directory_auth: Option<DirectoryAuthProbe>,
+) -> Option<bool> {
+    #[allow(clippy::disallowed_methods)] // sanctioned env boundary ($HOME presence)
+    let home = std::env::var_os("HOME");
+    #[allow(clippy::disallowed_methods)] // sanctioned adapter-home boundary
+    let override_home = directory_auth.and_then(|probe| std::env::var_os(probe.override_env));
+    match surface {
+        AuthProbe::Command { .. } => None,
+        AuthProbe::HomeFile(rel) => {
+            if let Some(probe) = directory_auth {
+                let path = match override_home.as_deref() {
+                    Some(root) => std::path::Path::new(root).join(probe.override_relative),
+                    None => match home.as_deref() {
+                        Some(root) => std::path::Path::new(root).join(rel),
+                        None => return Some(false),
+                    },
+                };
+                return Some(provider_credential_directory_ready(
+                    &path,
+                    probe.credential_files,
+                ));
+            }
+            Some(std::path::Path::new(home.as_deref()?).join(rel).exists())
+        }
+    }
+}
+
 /// The sync façade (the doctor surface is sync by design) — the
 /// probes' async lives inside nika-harness, behind a one-shot runtime.
 #[must_use]
@@ -93,6 +179,7 @@ pub fn probe_adapters_sync(rows: Vec<AdapterRow>) -> Vec<AdapterProbeRow> {
                 authenticated: None,
                 package: row.package.to_owned(),
                 note: "could not start the probe runtime".to_owned(),
+                product_present: false,
             })
             .collect();
     };
@@ -106,13 +193,22 @@ async fn probe_one(row: AdapterRow) -> AdapterProbeRow {
         Err(e) => (None, e.to_string()),
     };
     let authenticated = probe_auth(&row.auth, row.directory_auth).await;
+    let detect = nika_types::access::HarnessRuntime::lookup(&row.adapter.id)
+        .map_or(row.adapter.command.as_str(), |rt| rt.detect_bin);
     AdapterProbeRow {
         id: row.adapter.id.clone(),
         version,
         authenticated,
         package: row.package.to_owned(),
         note,
+        product_present: binary_on_path(detect),
     }
+}
+
+fn binary_on_path(name: &str) -> bool {
+    #[allow(clippy::disallowed_methods)] // PATH walk · presence only
+    std::env::var_os("PATH")
+        .is_some_and(|path| std::env::split_paths(&path).any(|dir| dir.join(name).is_file()))
 }
 
 /// The auth surface probe — an exit code or a presence bit, bounded
@@ -431,6 +527,14 @@ mod tests {
     use super::*;
 
     #[test]
+    fn direct_codex_counts_for_infer_without_claiming_other_acp_seats() {
+        assert!(command_access_present("codex", true, false));
+        assert!(!command_access_present("codex", false, false));
+        assert!(!command_access_present("claude-code", true, false));
+        assert!(command_access_present("claude-code", true, true));
+    }
+
+    #[test]
     fn the_parse_finds_the_triple_inside_real_cli_prose() {
         assert_eq!(
             parse_version("codex-acp 1.4.0 (build 2026-07)"),
@@ -482,6 +586,7 @@ mod tests {
             authenticated: None,
             package: "p".to_owned(),
             note: String::new(),
+            product_present: false,
         };
         assert!(row(Some((1, 0))).usable());
         assert!(
@@ -514,6 +619,30 @@ mod tests {
         let out = probe_adapters_sync(vec![mk("sync-a"), mk("sync-b")]);
         assert_eq!(out.len(), 2, "the façade probes, never an empty vec");
         assert!(out.iter().all(|r| r.version.is_none()));
+    }
+
+    #[test]
+    fn presence_facts_emit_every_shipped_row_without_a_runtime() {
+        let rows = crate::registry_with(&|_| None).expect("static table");
+        let facts = presence_facts(rows);
+        let ids: Vec<&str> = facts.iter().map(|f| f.id.as_str()).collect();
+        assert_eq!(
+            ids,
+            [
+                "gemini-cli",
+                "qwen-code",
+                "kimi-code",
+                "codex",
+                "claude-code"
+            ]
+        );
+        for fact in &facts {
+            assert!(
+                nika_types::access::HarnessRuntime::lookup(&fact.id).is_some(),
+                "{}",
+                fact.id
+            );
+        }
     }
 
     #[test]

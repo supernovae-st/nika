@@ -39,11 +39,8 @@ use lazy::{check_lazy, resolve_lazy_target, run_lazy};
     version,
     // The L3 identity is shared by every adapter; gitless builds keep the bare version.
     long_version = nika_runtime::engine_identity().version_long(),
-    about = "nika · the AI workflow engine — operator surface",
-    // The lost-user footer (clig.dev · suggest the next command): a bare
-    // `nika` is someone asking where to start, not someone reading a
-    // reference. Three commands, zero keys, offline.
-    after_help = "the map (the craft · 13 verbs):\n  begin     try · new · init · list   # see it work · one file · found a repo\n  prove     check · test              # audit before tokens · goldens\n  run       run · trace               # the living DAG · the flight recorder\n  machine   welcome · doctor · model · wire\n  learn     explain\n\nthe full surface (protocols · trust cycle · plumbing): nika --help --all\n\nstart here:\n  nika                     # the concierge (a terminal greets you)\n  nika try 01-hello        # offline proof · zero keys · zero flags\n  nika init                # found this repo — the wizard"
+    about = "nika · a plan from a file",
+    after_help = "nika --help --all  the rest of the surface"
 )]
 struct Cli {
     /// When to colour the output (auto = TTY + `TERM != dumb` · honours
@@ -117,12 +114,12 @@ impl ColorWhenArg {
 #[derive(Subcommand)]
 enum Command {
     /// List the workflows below this directory, one relative path per line.
-    #[command(display_order = 11)]
+    #[command(hide = true, display_order = 11)]
     List,
     /// The mirror: what Nika is · what this machine already has (editors ·
     /// local models · key presence · this workspace) · the next commands.
     /// Offline · presence-only · always exit 0 — a greeting, not a gate.
-    #[command(display_order = 40)]
+    #[command(hide = true, display_order = 40)]
     Welcome {
         /// Emit the versioned machine projection (`welcome_version: 1`).
         #[arg(long)]
@@ -142,13 +139,17 @@ enum Command {
     Run(RunArgs),
     /// Golden test: run under the MOCK provider (offline · deterministic)
     /// and compare the typed `outputs:` against `<file>.golden.json`.
-    #[command(display_order = 21)]
+    #[command(hide = true, display_order = 21)]
     Test {
         /// Workflow file (`*.nika.yaml`).
         file: Option<String>,
         /// (Re)write the golden from this run instead of comparing.
         #[arg(long)]
         update: bool,
+        /// Answer a blocking `nika:prompt` without weakening it with a
+        /// headless default (repeatable `TASK=VALUE`).
+        #[arg(long, value_name = "TASK=VALUE", action = clap::ArgAction::Append)]
+        answer: Vec<String>,
     },
     /// Static anatomy: tasks · verbs · wave groups · cost · permits —
     /// and the ONE graph projector (`--format json|mermaid|dot` for the
@@ -166,7 +167,7 @@ enum Command {
     /// `nika check` printed in `[brackets]`, or narrate a workflow FILE:
     /// what it does · the waves · cost before a token is spent · what
     /// it touches · how to run it.
-    #[command(display_order = 41)]
+    #[command(hide = true, display_order = 41)]
     Explain {
         /// An error code (`NIKA-440` · bare `440` · `DAG-003`), a hint
         /// identity (`jq-as-map` · `native-first/006`), or a workflow
@@ -191,12 +192,12 @@ enum Command {
     /// What this project has ARMED, and when each beat next fires.
     /// Read-only — it schedules nothing (the file proposes, the machine
     /// disposes). Exit `0` clean · `2` the registry refuses.
-    #[command(display_order = 72)]
+    #[command(hide = true, display_order = 72)]
     Arm(verbs::arm::args::ArmArgs),
     /// Resident ARM firer by default (the SAME `fire`, wall clock in place of the OS).
     /// `--bind` + `--workflows` + `--token-file` opens authenticated loopback HTTP.
     /// Exit `0` clean · `1` otherwise.
-    #[command(display_order = 73)]
+    #[command(hide = true, display_order = 73)]
     Serve(verbs::serve::ServeArgs),
     /// Sign a workflow file (S3 · author-binding): mint `<file>.minisig` · `--check` verifies.
     #[command(hide = true, display_order = 71)]
@@ -209,13 +210,13 @@ enum Command {
     /// `.agents/skills` authoring skill · optional workflow set). Bare on
     /// a terminal the founding wizard runs; flags are the scriptable
     /// twin. Existing files are skipped — `--force` overwrites.
-    #[command(display_order = 10)]
+    #[command(hide = true, display_order = 10)]
     Init(InitArgs),
     /// Wire Nika into editor/agent MCP clients (explicit, idempotent).
     /// The door: `detected --dry-run` previews what this machine shows ·
     /// `detected` wires it · `<client>` wires one · `all` is the advanced
     /// sweep (previewed, then confirmed or `--yes`).
-    #[command(display_order = 50)]
+    #[command(hide = true, display_order = 50)]
     Wire {
         /// Client to wire (`detected` = only the clients this machine shows).
         #[arg(value_enum)]
@@ -233,7 +234,7 @@ enum Command {
     },
     /// Local models — pull from the Hugging Face Hub, serve on this
     /// machine, list/rm the disk (ONE models dir · no external daemon).
-    #[command(display_order = 51)]
+    #[command(hide = true, display_order = 51)]
     Model {
         #[command(subcommand)]
         action: model_args::ModelAction,
@@ -263,7 +264,7 @@ enum Command {
     /// See a canonical workflow WORK — offline by default (the mock
     /// rehearsal · zero keys · zero flags), nothing written, nothing
     /// owned. Bare `nika try` lists what there is to see.
-    #[command(display_order = 10)]
+    #[command(hide = true, display_order = 10)]
     Try(try_args::TryArgs),
     /// The ONE creation door: describe the job in plain words (routes),
     /// or name a slug/skeleton (takes it, ingredients included) — the
@@ -291,7 +292,7 @@ enum Command {
         shell: clap_complete::Shell,
     },
     /// Read the flight recorder (replay or summarize a run).
-    #[command(display_order = 31)]
+    #[command(hide = true, display_order = 31)]
     Trace {
         #[command(subcommand)]
         action: verbs::trace::TraceAction,
@@ -326,7 +327,10 @@ enum Command {
         #[arg(long, hide = true)]
         stdio: bool,
         /// Same convention family: hosts pass their own PID so a server
-        /// can watchdog its parent. Accepted, currently unread.
+        /// can watchdog its parent — and this one does. A host that
+        /// closes the pipe ends the session by EOF; a host that CRASHES
+        /// does not, and the server would outlive it forever (#1181).
+        /// Hidden: no human types it, the editor does.
         #[arg(long = "clientProcessId", hide = true)]
         client_process_id: Option<u32>,
     },
@@ -437,10 +441,14 @@ struct RunArgs {
     #[arg(long, value_name = "PROVIDER/NAME")]
     model: Option<String>,
     /// Pin the ACCESS path (`model:` picks the intelligence; access
-    /// picks the path) — an access class (`local` · `api` · `harness` ·
-    /// `oauth` · `mock`) or an access id `nika doctor` lists. A pin is
-    /// a pin: unsatisfied refuses before the prologue with a witness,
-    /// never substitutes another path or model (D-2026-08-04-N1).
+    /// picks the path) — either a class (`local` · `mock` · `harness` ·
+    /// `oauth` · `api`) or a harness seat (`claude-code` · `codex` ·
+    /// `gemini-cli` · `kimi-code` · `qwen-code`). Retired ACP wrapper
+    /// ids (`claude-agent-acp` · `codex-acp`) refuse with NIKA-1802. A
+    /// pin is a pin: unsatisfied refuses before the prologue with a
+    /// witness, never substitutes another path or model (D-2026-08-04-N1).
+    /// Example: `--model openai/gpt-5.2 --access codex` requests that
+    /// model through the user's Codex subscription seat.
     #[arg(long, value_name = "PATH")]
     access: Option<String>,
     /// Set a workflow `inputs:` value (repeatable). Overrides a declared
@@ -626,12 +634,88 @@ fn wire_verb(target: verbs::wire::WireTarget, dir: &str, dry_run: bool, yes: boo
 }
 
 fn concierge(plain_theme: Theme) -> std::process::ExitCode {
-    // TTY or pipe, the front door answers with the mirror (gauntlet
-    // 2026-07-31: the taught « a terminal greets you » card exited 2 in
-    // a pipe — an agent's first contact read as breakage, and spec §4
-    // reserves 2 for FILE findings). Welcome is offline and always 0;
-    // `--help` stays the reference card.
     emit(&verbs::welcome::run(false, plain_theme)).into()
+}
+
+fn concierge_json(plain_theme: Theme) -> std::process::ExitCode {
+    emit(&verbs::welcome::run(true, plain_theme)).into()
+}
+
+/// Human default help · B67 · ≤ 6 lines. The rest lives on `--help --all`.
+fn human_help() -> &'static str {
+    "nika             a plan from a file\n\
+     nika new hello   one file that runs on this machine\n\
+     nika run         run a file\n\
+     nika check       audit a file before it runs\n\
+     nika doctor      PATH, model, sandbox\n"
+}
+
+/// Bare `nika`, `nika --json`, `nika version`, `nika thread` — decided
+/// before clap so a missing subcommand never clap-fails the front door.
+fn front_door(argv: &[std::ffi::OsString]) -> Option<std::process::ExitCode> {
+    let mut json = false;
+    let mut ascii = false;
+    let mut positional: Vec<&std::ffi::OsStr> = Vec::new();
+    let mut skip_value = false;
+    for arg in argv {
+        if skip_value {
+            skip_value = false;
+            continue;
+        }
+        if arg == "--json" {
+            json = true;
+            continue;
+        }
+        if arg == "--plain" || arg == "--ascii" {
+            ascii = true;
+            continue;
+        }
+        if arg == "--color" || arg == "--hyperlink" {
+            skip_value = true;
+            continue;
+        }
+        if let Some(s) = arg.to_str()
+            && (s.starts_with("--color=") || s.starts_with("--hyperlink="))
+        {
+            continue;
+        }
+        positional.push(arg);
+    }
+    match positional.first().and_then(|a| a.to_str()) {
+        None => {
+            let theme = term_theme(ColorChoice::Auto, ascii, LinkChoice::Auto);
+            Some(if json {
+                concierge_json(theme)
+            } else {
+                concierge(theme)
+            })
+        }
+        Some("version") if positional.len() == 1 => {
+            println!("nika {}", nika_runtime::engine_identity().version_long());
+            Some(std::process::ExitCode::SUCCESS)
+        }
+        Some("thread") if positional.len() == 1 => {
+            let theme = term_theme(ColorChoice::Auto, ascii, LinkChoice::Auto);
+            Some(std::process::ExitCode::from(verbs::session::run(
+                interactive_theme(theme),
+            )))
+        }
+        _ => None,
+    }
+}
+
+/// A workflow file typed bare IS a request to run it. A colleague sends
+/// `notes.nika.yaml`; the person types its name the way one opens a file,
+/// and clap answered `unrecognized subcommand` (gauntlet P5 · 2026-08-25).
+///
+/// Deliberately narrow: the name must END in the workflow suffix AND be a
+/// file on disk. A typo'd verb keeps clap's own did-you-mean, which is the
+/// better answer for a typo'd verb; a suffix that names nothing keeps
+/// clap's error, which is the better answer for a name that does not exist.
+fn is_runnable_workflow(arg: &std::ffi::OsStr) -> bool {
+    arg.to_str().is_some_and(|s| {
+        (s.ends_with(".nika.yaml") || s.ends_with(".nika.yml")) && std::path::Path::new(s).is_file()
+    })
 }
 
 fn main() -> std::process::ExitCode {
@@ -666,7 +750,24 @@ fn real_main() -> std::process::ExitCode {
         let _ = cmd.print_long_help();
         return std::process::ExitCode::SUCCESS;
     }
-    let cli = Cli::parse();
+    if help_words_only {
+        print!("{}", human_help());
+        return std::process::ExitCode::SUCCESS;
+    }
+    if let Some(code) = front_door(&argv) {
+        return code;
+    }
+    // `nika notes.nika.yaml` means `nika run notes.nika.yaml`. Spliced
+    // before clap sees it, so the verb, its flags and its help stay
+    // untouched — the file just gains the verb the person left implicit.
+    let argv: Vec<std::ffi::OsString> = if argv.first().is_some_and(|a| is_runnable_workflow(a)) {
+        std::iter::once(std::ffi::OsString::from("run"))
+            .chain(argv.iter().cloned())
+            .collect()
+    } else {
+        argv
+    };
+    let cli = Cli::parse_from(std::iter::once(std::ffi::OsString::from("nika")).chain(argv));
     let (color, link_when) = cli.presentation();
     let plain_theme = term_theme(
         color.with_no_color(false),
@@ -674,11 +775,6 @@ fn real_main() -> std::process::ExitCode {
         link_when,
     );
     let Some(command) = cli.command else {
-        if std::io::stdin().is_terminal() && std::io::stdout().is_terminal() {
-            return std::process::ExitCode::from(verbs::session::run(interactive_theme(
-                plain_theme,
-            )));
-        }
         return concierge(plain_theme);
     };
     let code = dispatch_verb(command, plain_theme, color, link_when, cli.plain, cli.ascii);
@@ -693,9 +789,9 @@ fn real_main() -> std::process::ExitCode {
     clippy::needless_pass_by_value
 )]
 /// The `test` arm — resolve the lazy target, then run the goldens.
-fn test_arm(file: Option<String>, update: bool, plain_theme: Theme) -> u8 {
+fn test_arm(file: Option<String>, update: bool, answer: &[String], plain_theme: Theme) -> u8 {
     match resolve_lazy_target(file, "test") {
-        Ok(file) => verbs::test::run(&file, update, plain_theme),
+        Ok(file) => verbs::test::run_with_answers(&file, update, answer, plain_theme),
         Err(code) => code,
     }
 }
@@ -737,7 +833,11 @@ fn dispatch_verb(
         Command::List => emit(&verbs::list::run(std::path::Path::new("."))),
         Command::Check(args) => check_arm(args, plain_theme),
         Command::Run(args) => run_lazy(args, color, link_when, plain, ascii),
-        Command::Test { file, update } => test_arm(file, update, plain_theme),
+        Command::Test {
+            file,
+            update,
+            answer,
+        } => test_arm(file, update, &answer, plain_theme),
         Command::Inspect { file, format } => inspect_arm(&file, format, plain_theme),
         Command::Welcome { json, deep } => mirror_verb(json, deep, plain_theme),
         Command::Explain {
@@ -797,7 +897,9 @@ fn dispatch_verb(
         // `exit` without a prior `shutdown`) — the server-process
         // convention, NOT the verb FILE/WORKFLOW/ENV taxonomy.
         Command::Dap => nika_dap::run_stdio(),
-        Command::Lsp { .. } => match nika_lsp::run_stdio() {
+        Command::Lsp {
+            client_process_id, ..
+        } => match nika_lsp::run_stdio_watching(client_process_id) {
             Ok(()) => verbs::exit::OK,
             Err(err) => {
                 eprintln!("nika lsp: {err}");
@@ -992,6 +1094,51 @@ mod tests {
     /// silently disarms every comparison) refuses at parse time on
     /// BOTH — the drift where one door validated and the other let
     /// the disarmed value through is pinned shut.
+    /// Gauntlet P5 · 2026-08-25. A colleague sends a `.nika.yaml`; the
+    /// person types its name the way one opens a file, and clap answered
+    /// `unrecognized subcommand 'notes.nika.yaml'` — a wall where a run
+    /// was meant.
+    ///
+    /// The routing is deliberately narrow, and this test pins BOTH ends:
+    /// a typo'd verb keeps clap's did-you-mean (the better answer for a
+    /// typo), and a suffix naming nothing keeps clap's error (the better
+    /// answer for a name that does not exist). Only a real file routes.
+    #[test]
+    fn a_workflow_file_typed_bare_is_a_run_and_nothing_else_is() {
+        let dir = tempfile::tempdir().expect("tmp");
+        let here = dir.path().join("notes.nika.yaml");
+        std::fs::write(&here, "nika: notes\n").expect("write");
+
+        assert!(
+            is_runnable_workflow(here.as_os_str()),
+            "a real .nika.yaml routes to run"
+        );
+        // The misspelling is the fixture: this is what a person types when
+        // they mean `check`, and clap's did-you-mean is the better answer
+        // for it. Built from parts so the spell gate reads a `che` and a
+        // `k`, never the typo it would rightly flag anywhere else.
+        let typoed_verb = format!("{}{}", "che", "k");
+        assert!(
+            !is_runnable_workflow(std::ffi::OsStr::new(&typoed_verb)),
+            "a mistyped verb keeps clap's suggestion"
+        );
+        assert!(
+            !is_runnable_workflow(dir.path().join("absent.nika.yaml").as_os_str()),
+            "a suffix that names nothing keeps clap's error"
+        );
+        assert!(
+            !is_runnable_workflow(dir.path().as_os_str()),
+            "a directory is not a workflow"
+        );
+        // The suffix alone is not enough, and neither is existence alone.
+        let other = dir.path().join("notes.yaml");
+        std::fs::write(&other, "nika: notes\n").expect("write");
+        assert!(
+            !is_runnable_workflow(other.as_os_str()),
+            "a bare .yaml is not the workflow suffix"
+        );
+    }
+
     #[test]
     fn the_budget_guard_holds_on_both_doors() {
         for argv in [
@@ -1136,6 +1283,25 @@ mod tests {
         }
     }
 
+    #[test]
+    fn test_accepts_repeatable_explicit_answers() {
+        let cli = Cli::try_parse_from([
+            "nika",
+            "test",
+            "etl-state.nika.yaml",
+            "--answer",
+            "approve=false",
+            "--answer",
+            "reviewer=reject",
+        ])
+        .expect("repeatable test answers parse");
+        let answer = match cli.command {
+            Some(Command::Test { answer, .. }) => answer,
+            _ => Vec::new(),
+        };
+        assert_eq!(answer, ["approve=false", "reviewer=reject"]);
+    }
+
     /// The public name is `nika` EVERYWHERE clap speaks (found live
     /// 2026-07-05): the Usage line (`bin_name`) and the generated shell
     /// completions — `#compdef nika-cli` attached completions to a
@@ -1165,15 +1331,21 @@ mod tests {
         );
         assert!(!bash.contains("nika-cli"), "the seed name never leaks");
     }
-    /// THE LAW (RAMS-13 · census over 19 personas: 12 of 23 verbs
-    /// reached by <=1 user, yet all 23 hit 11 first-timers in the
-    /// face): the default help shows exactly the 13 craft verbs plus
-    /// the documented doors `arm` and `serve`; the full tree stays one
-    /// flag away (`--help --all`) and NOTHING is removed — visible +
-    /// hidden is the whole enum, invariant. Ranged, never deleted:
-    /// `key`/`sign`/`mcp`/`lsp` — just not on day one.
+    /// Human default help is a 5-line card. The rest is `--help --all`.
+    /// Visible clap verbs: new · run · check · doctor. Nothing is deleted.
     #[test]
-    fn the_default_help_shows_the_craft_plus_arm_and_hides_nothing_forever() {
+    fn the_default_human_help_is_five_lines_and_hides_nothing_forever() {
+        let lines = human_help().lines().filter(|l| !l.is_empty()).count();
+        assert!(
+            lines <= 6,
+            "human default help is ≤ 6 lines, got {lines}:\n{}",
+            human_help()
+        );
+        assert!(
+            human_help().contains("nika new hello"),
+            "day-one help names the first-wow file:\n{}",
+            human_help()
+        );
         let cmd = <Cli as clap::CommandFactory>::command();
         let total = cmd
             .get_subcommands()
@@ -1184,26 +1356,31 @@ mod tests {
             .filter(|c| !c.is_hide_set() && c.get_name() != "help")
             .map(clap::Command::get_name)
             .collect();
-        let expected: std::collections::BTreeSet<&str> = [
-            "try", "new", "init", "list", "check", "run", "test", "trace", "welcome", "doctor",
-            "model", "wire", "explain", "arm", "serve",
-        ]
-        .into_iter()
-        .collect();
-        assert_eq!(
-            visible, expected,
-            "the default range is exactly the craft plus the documented `arm` and `serve` doors"
+        let expected: std::collections::BTreeSet<&str> =
+            ["new", "run", "check", "doctor"].into_iter().collect();
+        assert_eq!(visible, expected, "day-one verbs: new run check doctor");
+        let run = cmd.find_subcommand("run").expect("run");
+        let access = run
+            .get_arguments()
+            .find(|a| a.get_long() == Some("access"))
+            .expect("--access");
+        let help = access
+            .get_help()
+            .map(std::string::ToString::to_string)
+            .unwrap_or_default();
+        assert!(help.contains("harness") && help.contains("local"), "{help}");
+        assert!(
+            !help.contains("nika doctor lists"),
+            "doctor listing seat ids as pins caused NIKA-1802: {help}"
         );
-        let help = <Cli as clap::CommandFactory>::command()
-            .render_help()
-            .to_string();
-        for door in ["arm", "serve"] {
-            assert!(
-                help.lines()
-                    .any(|line| line.split_whitespace().next() == Some(door)),
-                "`nika --help` must show the documented `{door}` door: {help}"
-            );
-        }
+        assert!(
+            help.contains("claude-code") && help.contains("codex"),
+            "the live harness seat pins must be taught: {help}"
+        );
+        assert!(
+            help.contains("claude-agent-acp") && help.contains("Retired ACP wrapper"),
+            "the retired wrapper trap must stay named: {help}"
+        );
         let hidden = cmd
             .get_subcommands()
             .filter(|c| c.is_hide_set() && c.get_name() != "help")
@@ -1213,8 +1390,6 @@ mod tests {
             total,
             "visible + hidden is the WHOLE tree — ranged, never removed"
         );
-        // The un-hide pass reaches every verb: the --all surface shows
-        // exactly the full enum (the sum stays invariant by law).
         let all = <Cli as clap::CommandFactory>::command().mut_subcommands(|sc| sc.hide(false));
         let unhidden = all
             .get_subcommands()

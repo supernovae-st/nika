@@ -111,7 +111,13 @@ pub fn sober(theme: Theme, text: &str) -> String {
             '⚠' => "!".chars().collect(),
             '🦋' => "[nika]".chars().collect(),
             '○' => ".".chars().collect(),
-            '◐' => ">".chars().collect(),
+            // The half-circle state glyph and the ladder cursor (the row
+            // `welcome` points at) — two meanings, one twin, so one arm:
+            // clippy's same-arms law. Both are ONE column, and the cursor
+            // has to be: it alternates with two spaces in that ladder, so
+            // a wider twin would fold the pointed row out of line with
+            // every other one.
+            '◐' | '▸' => ">".chars().collect(),
             '↻' => "r".chars().collect(),
             '↷' => "~>".chars().collect(),
             '⊘' => "x".chars().collect(),
@@ -212,8 +218,23 @@ mod tests {
             " X CONFORM - findings -- read -> fix -> [NIKA-1] - est <=$0.01 - * [nika] ! ..."
         );
         // The state/verb/box glyphs fold to the SAME twins Theme picks.
-        let glyphs = sober(ascii, "○ ◐ ↻ ↷ ⊘ ◇ ▷ ◆ ✦ ─ │ ╭ ╯");
-        assert_eq!(glyphs, ". > r ~> x i $ @ * - | + +");
+        let glyphs = sober(ascii, "○ ◐ ↻ ↷ ⊘ ◇ ▷ ◆ ✦ ─ │ ╭ ╯ ▸");
+        assert_eq!(glyphs, ". > r ~> x i $ @ * - | + + >");
+    }
+
+    /// The cursor keeps its COLUMN. `welcome`'s ladder alternates
+    /// `"▸ "` with two spaces to align the names beside it, so a twin
+    /// wider than one column would fold the pointed row out of line
+    /// with every other one — the fold would repair the bytes and break
+    /// the layout.
+    #[test]
+    fn the_cursor_twin_is_one_column_like_the_gap_it_replaces() {
+        let ascii = Theme::new(false, true, false);
+        assert_eq!(
+            sober(ascii, "▸ Nika Gear One").len(),
+            "  Nika Gear One".len(),
+            "the folded cursor row aligns with an unpointed row"
+        );
     }
 
     /// The unicode register keeps its exact bytes — `sober` is a no-op

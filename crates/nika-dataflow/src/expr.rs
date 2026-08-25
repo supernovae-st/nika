@@ -43,7 +43,7 @@ use nika_schema::types::Permits;
 use nika_tmpl::{scan_islands, single_island};
 use serde_json::Value;
 
-use crate::errors::RuntimeError;
+use crate::errors::DataflowError;
 use crate::record::{TaskRecord, render_value};
 
 /// An empty secrets namespace — the no-secrets binding used by the
@@ -51,17 +51,17 @@ use crate::record::{TaskRecord, render_value};
 /// run-resolved map via [`Scope::workflow_with_secrets`]). When the composer
 /// injected no resolver the run's map is simply empty, so a `secrets.X`
 /// reference resolves to `None` → NIKA-1702 (the loud unresolved class).
-#[cfg(test)]
+#[cfg(any(test, feature = "testing"))]
 static EMPTY_SECRETS: std::sync::LazyLock<BTreeMap<String, Value>> =
     std::sync::LazyLock::new(BTreeMap::new);
 
-#[cfg(test)]
+#[cfg(any(test, feature = "testing"))]
 static EMPTY_ENV: std::sync::LazyLock<BTreeMap<String, Value>> =
     std::sync::LazyLock::new(BTreeMap::new);
 
 /// The dataflow scope one render sees (spec 04 namespaces).
 #[derive(Clone, Copy)]
-pub(crate) struct Scope<'a> {
+pub struct Scope<'a> {
     /// `tasks.<id>.<field>` — the result records of settled tasks.
     pub records: &'a BTreeMap<String, TaskRecord>,
     /// `inputs.<key>` — typed input defaults + the operator's `--var`
@@ -95,8 +95,9 @@ impl<'a> Scope<'a> {
     /// A workflow-level scope with NO secrets — the unit-test constructor
     /// (production always threads the run-resolved secrets map via
     /// [`Self::workflow_with_secrets`]).
-    #[cfg(test)]
-    pub(crate) fn workflow(
+    #[cfg(any(test, feature = "testing"))]
+    #[must_use]
+    pub fn workflow(
         records: &'a BTreeMap<String, TaskRecord>,
         inputs: &'a BTreeMap<String, Value>,
     ) -> Self {
@@ -105,8 +106,9 @@ impl<'a> Scope<'a> {
 
     /// A workflow-level scope carrying the resolved `secrets:` namespace
     /// (the production gate / `outputs:` / cleanup path · MINOR-B).
-    #[cfg(test)]
-    pub(crate) fn workflow_with_secrets(
+    #[cfg(any(test, feature = "testing"))]
+    #[must_use]
+    pub fn workflow_with_secrets(
         records: &'a BTreeMap<String, TaskRecord>,
         inputs: &'a BTreeMap<String, Value>,
         secrets: &'a BTreeMap<String, Value>,
@@ -117,7 +119,8 @@ impl<'a> Scope<'a> {
     /// A workflow-level scope carrying the three-authority value
     /// environment + resolved `secrets:` values. This is the production
     /// constructor.
-    pub(crate) fn workflow_with_value_authorities(
+    #[must_use]
+    pub fn workflow_with_value_authorities(
         records: &'a BTreeMap<String, TaskRecord>,
         inputs: &'a BTreeMap<String, Value>,
         consts: &'a BTreeMap<String, Value>,
@@ -140,21 +143,23 @@ impl<'a> Scope<'a> {
     ///
     /// `reference` is the AUTHOR's text — parsed exactly once by
     /// [`parse`]; the runtime values are bound as DATA by
-    /// [`ScopeResolver`], never re-parsed (the injection-safe boundary ·
-    /// see module docs). `pub(crate)`: the recover-await classifier
+    /// `ScopeResolver` (private · named, not linked, so this public doc
+    /// does not depend on `--document-private-items`), never re-parsed
+    /// (the injection-safe boundary ·
+    /// see module docs). `pub`: the runtime's recover-await classifier
     /// probes islands through THIS seam, so park-vs-fail agrees with the
     /// render by construction (spec 05 §recover · zero drift).
     ///
     /// # Errors
     ///
-    /// [`RuntimeError::UnresolvedTemplate`] (NIKA-1702) for an unknown
-    /// reference (`NIKA-VAR-001`) · [`RuntimeError::WhenUnsupported`]
+    /// [`DataflowError::UnresolvedTemplate`] (NIKA-1702) for an unknown
+    /// reference (`NIKA-VAR-001`) · [`DataflowError::WhenUnsupported`]
     /// (NIKA-1703) for a static-grammar violation (`NIKA-VAR-005`) ·
-    /// [`RuntimeError::CelEval`] (`NIKA-VAR-006`) for an evaluation type
+    /// [`DataflowError::CelEval`] (`NIKA-VAR-006`) for an evaluation type
     /// error (cross-type compare · `size()` of a scalar · …).
-    pub(crate) fn resolve_expr(&self, reference: &str) -> Result<Value, RuntimeError> {
-        let expr = parse(reference).map_err(|e| RuntimeError::from_cel(&e, reference))?;
-        compute(&expr, &ScopeResolver(self)).map_err(|e| RuntimeError::from_cel(&e, reference))
+    pub fn resolve_expr(&self, reference: &str) -> Result<Value, DataflowError> {
+        let expr = parse(reference).map_err(|e| DataflowError::from_cel(&e, reference))?;
+        compute(&expr, &ScopeResolver(self)).map_err(|e| DataflowError::from_cel(&e, reference))
     }
 }
 
@@ -266,19 +271,19 @@ fn push_unescaped(out: &mut String, s: &str) {
 ///
 /// # Errors
 ///
-/// [`RuntimeError::UnresolvedTemplate`] when an island's reference is
+/// [`DataflowError::UnresolvedTemplate`] when an island's reference is
 /// unknown (NIKA-1702 · the silent-literal guard) — and for a dangling
 /// `${{` with no closing `}}` (same class · a template typo must not
-/// ship as literal output). [`RuntimeError::WhenUnsupported`] when the
+/// ship as literal output). [`DataflowError::WhenUnsupported`] when the
 /// reference form is outside the v0 subset (NIKA-1703).
-pub(crate) fn render(text: &str, scope: &Scope<'_>) -> Result<String, RuntimeError> {
+pub fn render(text: &str, scope: &Scope<'_>) -> Result<String, DataflowError> {
     // Island finding (open + `\${{` escape + quote-aware close) is delegated to
     // `nika_tmpl::scan_islands` — the SAME lexer the checker uses, so `check` ⇄
     // `run` agree on island bounds by construction (the 2026-06-18 escape-drift
     // bug is structurally impossible now). Scanning runs over the AUTHOR's text
     // ENTIRELY before any resolution, so resolved values are never re-scanned
     // (injection-safe · sister invariant to render_never_rescans_injected_values).
-    let islands = scan_islands(text).map_err(|e| RuntimeError::UnresolvedTemplate {
+    let islands = scan_islands(text).map_err(|e| DataflowError::UnresolvedTemplate {
         reference: text[e.offset() + 3..].trim().to_owned(),
     })?;
     let mut out = String::with_capacity(text.len());
@@ -298,7 +303,15 @@ pub(crate) fn render(text: &str, scope: &Scope<'_>) -> Result<String, RuntimeErr
 /// to the referenced VALUE (type-preserving — an array stays an array ·
 /// the `for_each` collection + `with:` object passing rely on this) ·
 /// any other string renders textually.
-pub(crate) fn render_json(value: &Value, scope: &Scope<'_>) -> Result<Value, RuntimeError> {
+///
+/// # Errors
+///
+/// Whatever [`Scope::resolve_expr`] raises for the first leaf that fails —
+/// [`DataflowError::UnresolvedTemplate`] (`NIKA-VAR-001`) ·
+/// [`DataflowError::WhenUnsupported`] (`NIKA-VAR-005`) ·
+/// [`DataflowError::CelEval`] (`NIKA-VAR-006`). Leaves are walked in
+/// document order, so the error names the FIRST offending reference.
+pub fn render_json(value: &Value, scope: &Scope<'_>) -> Result<Value, DataflowError> {
     Ok(match value {
         Value::String(text) => match single_island(text) {
             Some(reference) => scope.resolve_expr(reference)?,
@@ -323,19 +336,21 @@ pub(crate) fn render_json(value: &Value, scope: &Scope<'_>) -> Result<Value, Run
 /// `cel-subset/0.1` gate).
 ///
 /// The body is the AUTHOR's text — parsed once, then [`compute_bool`]
-/// runs it over the [`ScopeResolver`]. A `when:` MUST evaluate to a
+/// runs it over the private `ScopeResolver` (named, not linked — a public
+/// doc must not depend on `--document-private-items`). A `when:` MUST
+/// evaluate to a
 /// boolean (spec 03 §when shape): a non-boolean result is `NIKA-VAR-006`
-/// (carried as [`RuntimeError::CelEval`]). Static-shape rejection of a
+/// (carried as [`DataflowError::CelEval`]). Static-shape rejection of a
 /// non-boolean ROOT (`NIKA-VAR-005`) is the checker's job; the runtime
 /// is the defensive backstop and accepts any spec-valid expression.
 ///
 /// # Errors
 ///
-/// [`RuntimeError::UnresolvedTemplate`] (NIKA-1702) on an unknown
-/// reference · [`RuntimeError::WhenUnsupported`] (NIKA-1703) on a
-/// static-grammar violation · [`RuntimeError::CelEval`] (NIKA-VAR-006)
+/// [`DataflowError::UnresolvedTemplate`] (NIKA-1702) on an unknown
+/// reference · [`DataflowError::WhenUnsupported`] (NIKA-1703) on a
+/// static-grammar violation · [`DataflowError::CelEval`] (NIKA-VAR-006)
 /// on an evaluation type error (incl. a non-boolean result).
-pub(crate) fn eval_when(expr: &str, scope: &Scope<'_>) -> Result<bool, RuntimeError> {
+pub fn eval_when(expr: &str, scope: &Scope<'_>) -> Result<bool, DataflowError> {
     // Accept both the wrapped (`${{ … }}`) and bare body forms — the
     // analyzer enforces the single-island shape upstream; strip the
     // wrapper defensively so a bare body (the checker's normalized form
@@ -346,8 +361,8 @@ pub(crate) fn eval_when(expr: &str, scope: &Scope<'_>) -> Result<bool, RuntimeEr
         .and_then(|s| s.strip_suffix("}}"))
         .unwrap_or(expr)
         .trim();
-    let parsed = parse(body).map_err(|e| RuntimeError::from_cel(&e, body))?;
-    compute_bool(&parsed, &ScopeResolver(scope)).map_err(|e| RuntimeError::from_cel(&e, body))
+    let parsed = parse(body).map_err(|e| DataflowError::from_cel(&e, body))?;
+    compute_bool(&parsed, &ScopeResolver(scope)).map_err(|e| DataflowError::from_cel(&e, body))
 }
 
 #[cfg(test)]
@@ -445,28 +460,28 @@ mod tests {
         let scope = Scope::workflow(&records, &vars);
         assert!(matches!(
             render("${{ tasks.ghost.output }}", &scope).expect_err("unknown task"),
-            RuntimeError::UnresolvedTemplate { ref reference } if reference == "tasks.ghost.output"
+            DataflowError::UnresolvedTemplate { ref reference } if reference == "tasks.ghost.output"
         ));
         assert!(matches!(
             render("${{ inputs.nope }}", &scope).expect_err("unknown var"),
-            RuntimeError::UnresolvedTemplate { .. }
+            DataflowError::UnresolvedTemplate { .. }
         ));
         // A deep path INTO an unknown task is still 1702 (the root id
         // doesn't resolve · CEL's `.field` then raises VAR-001).
         assert!(matches!(
             render("${{ tasks.ghost.output.x }}", &scope).expect_err("unknown deep"),
-            RuntimeError::UnresolvedTemplate { .. }
+            DataflowError::UnresolvedTemplate { .. }
         ));
         // `env` is a valid CEL root but UNBOUND → unresolved (1702 · loud).
         // `secrets` with no resolver injected is unbound too (the fixture
         // scope carries an empty secrets map · fail-closed).
         assert!(matches!(
             render("${{ env.HOME }}", &scope).expect_err("env unbound"),
-            RuntimeError::UnresolvedTemplate { .. }
+            DataflowError::UnresolvedTemplate { .. }
         ));
         assert!(matches!(
             render("${{ secrets.api_key }}", &scope).expect_err("secrets unbound"),
-            RuntimeError::UnresolvedTemplate { .. }
+            DataflowError::UnresolvedTemplate { .. }
         ));
     }
 
@@ -489,7 +504,7 @@ mod tests {
         // An UNDECLARED secret is still unresolved (1702 · fail-closed).
         assert!(matches!(
             render("${{ secrets.absent }}", &scope).expect_err("absent secret"),
-            RuntimeError::UnresolvedTemplate { .. }
+            DataflowError::UnresolvedTemplate { .. }
         ));
         // A secret value that LOOKS like an expression is DATA, never
         // re-evaluated (injection-safe · the load-bearing invariant).
@@ -547,16 +562,16 @@ mod tests {
         // `tasks.gather.output` is {"a":1}; `.weird` is absent → 1702.
         assert!(matches!(
             render("${{ tasks.gather.output.weird }}", &scope).expect_err("missing field"),
-            RuntimeError::UnresolvedTemplate { .. }
+            DataflowError::UnresolvedTemplate { .. }
         ));
         // A genuinely malformed expression → 1703 (out of grammar).
         assert!(matches!(
             render("${{ inputs.a && }}", &scope).expect_err("malformed"),
-            RuntimeError::WhenUnsupported { .. }
+            DataflowError::WhenUnsupported { .. }
         ));
         assert!(matches!(
             render("${{ inputs.a @ vars.b }}", &scope).expect_err("bad token"),
-            RuntimeError::WhenUnsupported { .. }
+            DataflowError::WhenUnsupported { .. }
         ));
     }
 
@@ -662,7 +677,7 @@ mod tests {
             matches!(
                 render("${{ inputs.nope }} ${{ dangling", &scope)
                     .expect_err("doubly-malformed template must error"),
-                RuntimeError::UnresolvedTemplate { ref reference } if reference == "dangling"
+                DataflowError::UnresolvedTemplate { ref reference } if reference == "dangling"
             ),
             "the structural (unterminated) fault must win over the earlier semantic one"
         );
@@ -881,7 +896,7 @@ mod tests {
         let bare = Scope::workflow(&records, &vars);
         assert!(matches!(
             render("${{ item }}", &bare).expect_err("no item outside for_each"),
-            RuntimeError::UnresolvedTemplate { .. }
+            DataflowError::UnresolvedTemplate { .. }
         ));
     }
 
@@ -961,7 +976,7 @@ mod tests {
         ] {
             let err = eval_when(non_bool, &scope).expect_err(non_bool);
             assert!(
-                matches!(&err, RuntimeError::CelEval { code, .. } if *code == "NIKA-VAR-006"),
+                matches!(&err, DataflowError::CelEval { code, .. } if *code == "NIKA-VAR-006"),
                 "{non_bool} → {err}"
             );
         }
@@ -969,7 +984,7 @@ mod tests {
         let err = eval_when("${{ inputs.count == 'three' }}", &scope).expect_err("cross-type");
         assert!(matches!(
             &err,
-            RuntimeError::CelEval { code, .. } if *code == "NIKA-VAR-006"
+            DataflowError::CelEval { code, .. } if *code == "NIKA-VAR-006"
         ));
     }
 
@@ -988,7 +1003,7 @@ mod tests {
         ] {
             let err = eval_when(malformed, &scope).expect_err(malformed);
             assert!(
-                matches!(err, RuntimeError::WhenUnsupported { .. }),
+                matches!(err, DataflowError::WhenUnsupported { .. }),
                 "{malformed} → {err}"
             );
         }
@@ -997,7 +1012,7 @@ mod tests {
         // reserved words in cel-subset/0.1 (only true/false/null/in are).
         assert!(matches!(
             eval_when("${{ inputs.publish == yes }}", &scope).expect_err("unbound rhs ident"),
-            RuntimeError::UnresolvedTemplate { .. }
+            DataflowError::UnresolvedTemplate { .. }
         ));
     }
 

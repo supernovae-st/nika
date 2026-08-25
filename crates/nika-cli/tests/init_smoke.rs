@@ -66,6 +66,9 @@ fn the_thirty_second_journey_holds_end_to_end() {
     let (code, text) = step(&["welcome"]);
     assert_eq!(code, Some(0), "{text}");
     assert!(text.contains("a whole workflow is one file"), "{text}");
+    // The seat cascade landed above it; both must hold. The screen names
+    // a reachable model AND shows what a workflow looks like.
+    assert!(text.contains("Next:"), "one next step: {text}");
 
     // 2 · init — the repo gets briefed (editor + agents).
     let (code, text) = step(&["init", "--yes"]);
@@ -76,11 +79,24 @@ fn the_thirty_second_journey_holds_end_to_end() {
     let (code, text) = step(&["new", "chain", "first.nika.yaml"]);
     assert_eq!(code, Some(0), "{text}");
 
-    // 4 · check — the audit passes before any token.
+    // 4 · author — a skeleton is deliberately incomplete. Fill its one
+    //     value before asking the audit to admit it.
+    let path = dir.join("first.nika.yaml");
+    let draft = std::fs::read_to_string(&path).expect("draft");
+    std::fs::write(
+        &path,
+        draft.replace(
+            "<SLOT: what should the model do with the gathered text?>",
+            "Summarize the gathered text in one sentence.",
+        ),
+    )
+    .expect("fill slot");
+
+    // 5 · check — the filled workflow passes before any token.
     let (code, text) = step(&["check", "first.nika.yaml"]);
     assert_eq!(code, Some(0), "audit before run: {text}");
 
-    // 5 · run offline — the chain skeleton reads ./README.md (the file
+    // 6 · run offline — the chain skeleton reads ./README.md (the file
     //     any real repo has · spec #68); this journey's temp repo writes
     //     its own, then runs under mock (zero keys, zero network — the
     //     canary env proves the run needed neither).
@@ -89,7 +105,7 @@ fn the_thirty_second_journey_holds_end_to_end() {
     assert_eq!(code, Some(0), "first offline run is green: {text}");
     assert!(text.contains("done"), "{text}");
 
-    // 6 · prove — the run left a hash-chained journal; verify it.
+    // 7 · prove — the run left a hash-chained journal; verify it.
     let traces: Vec<_> = std::fs::read_dir(dir.join(".nika/traces"))
         .expect("trace dir exists")
         .flatten()
@@ -101,7 +117,7 @@ fn the_thirty_second_journey_holds_end_to_end() {
     let (code, text) = step(&["trace", "verify", &trace]);
     assert_eq!(code, Some(0), "the chain verifies: {text}");
 
-    // 7 · explain — the human story, now with the recorder section live.
+    // 8 · explain — the human story, now with the recorder section live.
     let (code, text) = step(&["explain", "first.nika.yaml"]);
     assert_eq!(code, Some(0), "{text}");
     for needle in [
@@ -220,11 +236,16 @@ fn init_recipe_scaffolds_the_curriculum_and_audits_it() {
     ] {
         assert!(dir.join(rel).is_file(), "{rel} written: {stdout}");
     }
-    // …each one audited on the spot (audit-before-run in the first
-    // minute — the receipts say so, one per workflow)…
+    // …each one audited on the spot. Complete members are admitted;
+    // slot-only members are named as honest drafts (and remain a refusal
+    // at the check/run doors)…
     assert!(
-        stdout.matches("audited").count() >= 4,
-        "every workflow audited: {stdout}"
+        stdout.matches("audited").count() + stdout.matches("not a workflow yet").count() >= 4,
+        "every workflow or draft was audited: {stdout}"
+    );
+    assert!(
+        stdout.contains("not a workflow yet"),
+        "drafts stay named: {stdout}"
     );
     // …the canvas theme is a REAL stamp in the settings JSON…
     let settings =
@@ -237,8 +258,10 @@ fn init_recipe_scaffolds_the_curriculum_and_audits_it() {
     );
     // …and the hand-off names the FIRST scaffolded workflow.
     assert!(
-        stdout.contains("nika run workflows/01-hello-chain.nika.yaml --model mock/echo"),
-        "the next block is tailored: {stdout}"
+        stdout.contains("$EDITOR workflows/01-hello-chain.nika.yaml")
+            && stdout.contains("nika check workflows/01-hello-chain.nika.yaml")
+            && stdout.contains("nika run workflows/01-hello-chain.nika.yaml --model mock/echo"),
+        "the next block teaches edit → check → run: {stdout}"
     );
     let _ = std::fs::remove_dir_all(&dir);
 }
@@ -309,7 +332,10 @@ fn bare_check_and_run_resolve_the_lazy_way() {
         .expect("binary runs");
     assert_eq!(out.status.code(), Some(3));
     let err = String::from_utf8_lossy(&out.stderr);
-    assert!(err.contains("nika init"), "routes to founding: {err}");
+    // The founding door is `nika new hello` — `init` left the first-run
+    // path when the first-wow cascade landed (a stranger writes ONE file,
+    // never founds a repo). This gate follows the door it teaches.
+    assert!(err.contains("nika new hello"), "routes to founding: {err}");
 
     // MANY → every candidate named, copy-paste ready.
     let many = base.join("many");

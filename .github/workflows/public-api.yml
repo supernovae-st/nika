@@ -47,14 +47,18 @@ jobs:
       - uses: dtolnay/rust-toolchain@4cda84d5c5c54efe2404f9d843567869ab1699d4 # stable
         with:
           toolchain: stable
-      - name: install nightly rustdoc (required by cargo-public-api)
-        # cargo-public-api shells out to `cargo +nightly rustdoc` for JSON
-        # output — with only stable installed every run died in ~1m40s on
+      - name: install pinned nightly rustdoc (required by cargo-public-api)
+        # cargo-public-api requires a nightly rustdoc JSON renderer. With only
+        # stable installed every run died in ~1m40s on
         # `toolchain 'nightly' is not installed` BEFORE diffing anything,
         # leaving the API-freeze gate silently blind (observed on every run
-        # through 2026-07-01). Same pattern as fuzz-nightly.yml.
-        run: rustup toolchain install nightly --profile minimal
-      - uses: Swatinem/rust-cache@258712b0b7b1ddf8bddc9fc3b0faca682b2736c3 # v2
+        # through 2026-07-01). The date pin is part of the snapshot format:
+        # nightly-2026-08-25 changed Infallible to `never` in rustdoc JSON and
+        # false-RED every covered crate while 2026-08-24 rendered the committed
+        # Ubuntu baselines. Bump this pin + all snapshots in one deliberate PR.
+        # Same pattern as fuzz-nightly.yml.
+        run: rustup toolchain install nightly-2026-08-24 --profile minimal
+      - uses: Swatinem/rust-cache@f0d9c3887740aee45f6153b24b3a6b815192ec16 # v2
       - name: install cargo-public-api
         # Pinned to the version the committed public-api.txt baselines were
         # generated with (scripts/hygiene/check-public-api-coverage.sh uses
@@ -88,7 +92,7 @@ jobs:
             # (observed: nika-infer-local's metal on ubuntu). The gate locks the
             # default-feature surface every consumer gets; feature-gated
             # platform surfaces are intentionally not baseline-locked.
-            actual=$(cargo public-api -p "$crate" --omit auto-trait-impls)
+            actual=$(cargo +nightly-2026-08-24 public-api -p "$crate" --omit auto-trait-impls)
             printf '%s\n' "$actual" > "/tmp/public-api-actual/$crate.txt"
             expected=$(cat "crates/$crate/public-api.txt")
             if [ "$actual" != "$expected" ]; then

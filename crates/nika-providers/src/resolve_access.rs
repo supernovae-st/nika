@@ -14,7 +14,8 @@
 //! only; it never re-plans (B-5).
 
 use nika_types::access::{
-    AccessClass, AccessPlan, AccessRejection, BillingClass, RejectionDimension, RejectionLayer,
+    AccessClass, AccessPlan, AccessRejection, BillingClass, HarnessRuntime, RejectionDimension,
+    RejectionLayer,
 };
 
 use crate::probe::ProviderProbe;
@@ -125,7 +126,8 @@ pub fn provider_of(model: &str) -> &str {
 
 /// A pin names a path by its ID or by its CLASS wire string —
 /// `--access ollama` and `--access local` both read naturally, and the
-/// P3 adapter ids (`codex-acp`) ride the same grammar unchanged.
+/// shipped agentic CLI tokens (`claude-code` · `codex` · …) ride the
+/// same grammar.
 fn pin_matches(pin: &str, candidate: &AccessCandidate) -> bool {
     pin == candidate.access || pin == candidate.class.as_str()
 }
@@ -259,13 +261,14 @@ pub fn resolve_access(
 }
 
 /// A refused `--access` pin, classified for its teaching code — the
-/// engine maps the variants 1:1 onto NIKA-1802/1801/1800; the message
-/// rides here so every consumer speaks one voice (A-8).
+/// engine maps the variants 1:1 onto NIKA-1802/1801/1800/1803; the
+/// message rides here so every consumer speaks one voice (A-8).
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum PinRefusal {
-    /// The token is neither an access class nor an id this machine
-    /// offers (NIKA-1802) — taught before any resolution runs.
+    /// The token is neither an access class nor a known agentic CLI
+    /// nor an id this machine offers (NIKA-1802) — taught before any
+    /// resolution runs.
     UnknownToken {
         /// The teaching line (vocabulary included).
         message: String,
@@ -280,14 +283,21 @@ pub enum PinRefusal {
         /// The witness lines (`<access> · <dimension> (<layer>) · <fix>`).
         message: String,
     },
+    /// A known agentic CLI token (or the `harness` class) cannot run
+    /// here (NIKA-1803) — binary absent, ACP speaker missing, or this
+    /// nika was built without adapters. Never an unknown-token 1802.
+    Unavailable {
+        /// Dummy-readable install / rebuild line.
+        message: String,
+    },
 }
 
 /// Judge an explicit `--access` pin over statically-known models — the
 /// admission gate's core (D-2026-08-04-N1 · pure · zero I/O). A pin
-/// token is an access CLASS wire string or an id this machine offers —
-/// provider ids AND the detected harness adapters' ids, whose rows ride
-/// the SAME probe vec (R-5c: an adapter absent from the vec was never
-/// detected, and is no pin target). `None` = the pin is satisfied
+/// token is an access CLASS wire string, a shipped agentic CLI id
+/// ([`HarnessRuntime`]), or a provider id this machine offers.
+/// Known CLI tokens are NEVER NIKA-1802 — a missing binary is 1803
+/// with a dummy-readable install line. `None` = the pin is satisfied
 /// everywhere (or nothing static to judge).
 #[must_use]
 pub fn refuse_pin<'m>(
@@ -295,14 +305,30 @@ pub fn refuse_pin<'m>(
     probes: &[ProviderProbe],
     pin: &str,
 ) -> Option<PinRefusal> {
-    let class_token = AccessClass::ALL.iter().any(|c| c.as_str() == pin);
-    if !class_token && !probes.iter().any(|p| p.id == pin) {
-        let vocabulary = AccessClass::ALL.map(AccessClass::as_str).join(" \u{b7} ");
+    if let Some(retired) = HarnessRuntime::retired_alias(pin) {
         return Some(PinRefusal::UnknownToken {
             message: format!(
-                "`--access {pin}` names neither an access class ({vocabulary}) \
-                 nor an access id this machine offers — `nika doctor` lists \
-                 every path"
+                "`--access {pin}` is retired — use `--access {}` for {} \
+                 (known: {})",
+                retired.id,
+                retired.display,
+                pin_vocabulary()
+            ),
+        });
+    }
+    if let Some(rt) = HarnessRuntime::lookup(pin) {
+        return refuse_named_runtime(rt, probes);
+    }
+    if pin == AccessClass::Harness.as_str() {
+        return refuse_harness_class(probes);
+    }
+    let class_token = AccessClass::ALL.iter().any(|c| c.as_str() == pin);
+    if !class_token && !probes.iter().any(|p| p.id == pin) {
+        return Some(PinRefusal::UnknownToken {
+            message: format!(
+                "`--access {pin}` names neither an access class nor a known \
+                 agentic CLI ({}) — `nika doctor` lists every path",
+                pin_vocabulary()
             ),
         });
     }
@@ -313,6 +339,201 @@ pub fn refuse_pin<'m>(
         }
     }
     None
+}
+
+/// Judge a pin with the verb capability boundary applied. An infer-only
+/// workflow may bypass provider serving only through a proved one-shot seat;
+/// agentic readiness alone never satisfies that meet.
+#[must_use]
+#[cfg(feature = "access-harness")]
+pub fn refuse_pin_for_verbs<'m>(
+    models: impl IntoIterator<Item = &'m str>,
+    probes: &[ProviderProbe],
+    pin: &str,
+    has_infer: bool,
+    has_agent: bool,
+) -> Option<PinRefusal> {
+    let models: Vec<&str> = models.into_iter().collect();
+    let infer_only = has_infer && !has_agent;
+    let named = HarnessRuntime::lookup(pin);
+    if (named.is_some() || pin == AccessClass::Harness.as_str())
+        && models.iter().any(|model| provider_of(model) == "mock")
+    {
+        return Some(PinRefusal::PinUnsatisfied {
+            message: String::from(
+                "model `mock/echo` is the isolated rehearsal backend and cannot run through a \
+                 harness seat — use `--access mock` (refusal, never a live substitute)",
+            ),
+        });
+    }
+    let direct = named.is_some_and(|rt| infer_only && named_infer_grade_ready(rt, probes));
+    let generic = pin == AccessClass::Harness.as_str()
+        && infer_only
+        && first_ready_infer_harness(probes).is_some();
+    if !direct
+        && !generic
+        && let Some(refusal) = refuse_pin(models.iter().copied(), probes, pin)
+    {
+        return Some(refusal);
+    }
+    let seat = named.map(|rt| rt.id).or_else(|| {
+        (pin == AccessClass::Harness.as_str())
+            .then(|| first_ready_infer_harness(probes).unwrap_or(AccessClass::Harness.as_str()))
+    });
+    if has_infer
+        && let Some(seat) = seat
+        && let Err(error) =
+            nika_harness::meet_infer_grade(seat, nika_harness::StructuredOutputGrade::JsonSchema)
+    {
+        return Some(PinRefusal::NoPath {
+            message: error.to_string(),
+        });
+    }
+    None
+}
+
+/// Feature-off twin: no harness capability can satisfy the pin.
+#[must_use]
+#[cfg(not(feature = "access-harness"))]
+pub fn refuse_pin_for_verbs<'m>(
+    models: impl IntoIterator<Item = &'m str>,
+    probes: &[ProviderProbe],
+    pin: &str,
+    _has_infer: bool,
+    _has_agent: bool,
+) -> Option<PinRefusal> {
+    refuse_pin(models, probes, pin)
+}
+
+fn pin_vocabulary() -> String {
+    format!(
+        "{} · {}",
+        AccessClass::ALL.map(AccessClass::as_str).join(" \u{b7} "),
+        HarnessRuntime::vocabulary()
+    )
+}
+
+fn any_harness_row(probes: &[ProviderProbe]) -> bool {
+    probes
+        .iter()
+        .any(|p| p.readiness.access == AccessClass::Harness)
+}
+
+fn adapters_not_compiled_in() -> PinRefusal {
+    PinRefusal::Unavailable {
+        message: String::from(
+            "This nika binary was built without agentic CLI adapters. \
+             Rebuild with --features access-harness, or pick Nika local / Nika Cloud.",
+        ),
+    }
+}
+
+const NO_RUNTIME_INSTALLED: &str = "No agentic CLI runtime is installed. Install \
+     Claude Code, Codex, Gemini CLI, Kimi Code or Qwen Code, or pick Nika local / Nika Cloud.";
+
+fn refuse_named_runtime(rt: HarnessRuntime, probes: &[ProviderProbe]) -> Option<PinRefusal> {
+    if !any_harness_row(probes) {
+        return Some(adapters_not_compiled_in());
+    }
+    let Some(row) = probes.iter().find(|p| p.id == rt.id) else {
+        return Some(PinRefusal::Unavailable {
+            message: rt.not_installed.to_owned(),
+        });
+    };
+    if !row.key_present {
+        let message = if row.fix_var.is_empty() {
+            rt.not_installed.to_owned()
+        } else {
+            row.fix_var.clone()
+        };
+        return Some(PinRefusal::Unavailable { message });
+    }
+    if !row.readiness.configured {
+        return Some(PinRefusal::NoPath {
+            message: if row.fix_var.is_empty() {
+                rt.not_signed_in()
+            } else {
+                row.fix_var.clone()
+            },
+        });
+    }
+    None
+}
+
+fn refuse_harness_class(probes: &[ProviderProbe]) -> Option<PinRefusal> {
+    if !any_harness_row(probes) {
+        return Some(PinRefusal::Unavailable {
+            message: NO_RUNTIME_INSTALLED.to_owned(),
+        });
+    }
+    let harness: Vec<&ProviderProbe> = probes
+        .iter()
+        .filter(|p| p.readiness.access == AccessClass::Harness)
+        .collect();
+    if harness
+        .iter()
+        .any(|p| p.key_present && p.readiness.configured)
+    {
+        return None;
+    }
+    if harness.iter().any(|p| p.key_present) {
+        return Some(PinRefusal::NoPath {
+            message: String::from(
+                "An agentic CLI is installed but not signed in. Sign in to that \
+                 CLI, or pick Nika local / Nika Cloud.",
+            ),
+        });
+    }
+    Some(PinRefusal::Unavailable {
+        message: NO_RUNTIME_INSTALLED.to_owned(),
+    })
+}
+
+/// First ready harness id in G-3 order (detected + signed in).
+#[must_use]
+pub fn first_ready_harness(probes: &[ProviderProbe]) -> Option<&str> {
+    for rt in HarnessRuntime::ALL {
+        if probes
+            .iter()
+            .any(|p| p.id == rt.id && p.key_present && p.readiness.configured)
+        {
+            return Some(rt.id);
+        }
+    }
+    None
+}
+
+/// First ready seat whose adapter has a proved infer-grade row. The
+/// ordinary harness order remains the agent-loop order; this projection is
+/// deliberately capability-specific so a ready ACP-only seat cannot shadow
+/// Codex for a one-shot `infer:`.
+#[cfg(feature = "access-harness")]
+#[must_use]
+pub fn first_ready_infer_harness(probes: &[ProviderProbe]) -> Option<&str> {
+    HarnessRuntime::ALL.into_iter().find_map(|rt| {
+        let ready = probes
+            .iter()
+            .any(|p| p.id == rt.id && p.readiness.configured);
+        (ready
+            && nika_harness::meet_infer_grade(rt.id, nika_harness::StructuredOutputGrade::Text)
+                .is_ok())
+        .then_some(rt.id)
+    })
+}
+
+#[cfg(feature = "access-harness")]
+fn named_infer_grade_ready(rt: HarnessRuntime, probes: &[ProviderProbe]) -> bool {
+    probes.iter().any(|probe| {
+        probe.id == rt.id
+            && probe.readiness.configured
+            && nika_harness::meet_infer_grade(rt.id, nika_harness::StructuredOutputGrade::Text)
+                .is_ok()
+    })
+}
+
+#[cfg(not(feature = "access-harness"))]
+const fn named_infer_grade_ready(_rt: HarnessRuntime, _probes: &[ProviderProbe]) -> bool {
+    false
 }
 
 /// All-`pin_unsatisfied` (or empty) = the pin names nothing usable ·
@@ -431,6 +652,35 @@ pub fn access_plan_map(
     probes: &[ProviderProbe],
     pin: Option<&str>,
 ) -> std::collections::BTreeMap<String, AccessPlan> {
+    // An explicit ready harness pin is the infer/agent path for EVERY
+    // static model (the envelope `model:` is a hint, not a serves-filter).
+    if let Some(pin) = pin {
+        let requests_mock = models
+            .iter()
+            .any(|model| !model.contains("${{") && provider_of(model) == "mock");
+        if requests_mock
+            && (HarnessRuntime::lookup(pin).is_some() || pin == AccessClass::Harness.as_str())
+        {
+            return std::collections::BTreeMap::new();
+        }
+        if let Some(rt) = HarnessRuntime::lookup(pin) {
+            let infer_grade_ready = named_infer_grade_ready(rt, probes);
+            if infer_grade_ready || refuse_named_runtime(rt, probes).is_none() {
+                return stamp_harness_plans(models, rt.id);
+            }
+            return std::collections::BTreeMap::new();
+        }
+        if pin == AccessClass::Harness.as_str() {
+            #[cfg(feature = "access-harness")]
+            let ready = first_ready_infer_harness(probes);
+            #[cfg(not(feature = "access-harness"))]
+            let ready = first_ready_harness(probes);
+            if let Some(id) = ready {
+                return stamp_harness_plans(models, id);
+            }
+            return std::collections::BTreeMap::new();
+        }
+    }
     models
         .iter()
         .map(String::as_str)
@@ -440,6 +690,30 @@ pub fn access_plan_map(
             resolve_access(model, &candidates, None, pin)
                 .ok()
                 .map(|plan| (model.to_owned(), plan))
+        })
+        .collect()
+}
+
+fn stamp_harness_plans(
+    models: &[String],
+    access: &str,
+) -> std::collections::BTreeMap<String, AccessPlan> {
+    models
+        .iter()
+        .filter(|m| !m.contains("${{"))
+        .map(|model| {
+            (
+                model.clone(),
+                AccessPlan::new(
+                    model,
+                    provider_of(model),
+                    access,
+                    AccessClass::Harness,
+                    BillingClass::IncludedQuota,
+                    true,
+                    Vec::new(),
+                ),
+            )
         })
         .collect()
 }
@@ -483,7 +757,7 @@ mod tests {
         ProviderProbe::new(
             id,
             false,
-            false,
+            true,
             "",
             false,
             crate::probe::ProviderReadiness::new(
@@ -502,23 +776,23 @@ mod tests {
 
     #[test]
     fn a_detected_authenticated_adapter_row_becomes_a_harness_candidate() {
-        let probes = vec![harness_probe("codex-acp", &["openai"], true)];
+        let probes = vec![harness_probe("codex", &["openai"], true)];
         let candidates = candidates_for(&probes, "openai");
         assert_eq!(candidates.len(), 1);
-        assert_eq!(candidates[0].access, "codex-acp");
+        assert_eq!(candidates[0].access, "codex");
         assert_eq!(candidates[0].class, AccessClass::Harness);
         assert!(candidates[0].configured);
     }
 
     #[test]
     fn a_harness_row_offers_nothing_to_a_provider_it_does_not_serve() {
-        let probes = vec![harness_probe("codex-acp", &["openai"], true)];
+        let probes = vec![harness_probe("codex", &["openai"], true)];
         assert!(candidates_for(&probes, "anthropic").is_empty());
     }
 
     #[test]
     fn an_unauthenticated_adapter_row_is_a_candidate_marked_unconfigured() {
-        let probes = vec![harness_probe("codex-acp", &["openai"], false)];
+        let probes = vec![harness_probe("codex", &["openai"], false)];
         let candidates = candidates_for(&probes, "openai");
         assert_eq!(
             candidates.len(),
@@ -530,7 +804,7 @@ mod tests {
             .expect_err("unauthenticated never resolves");
         let witness = &refusal.rejected[0].witness;
         assert!(
-            witness.contains("sign in to `codex-acp` itself"),
+            witness.contains("sign in to `codex` itself"),
             "the harness fix line rides verbatim, never `unset`: {witness}"
         );
         assert!(!witness.contains("unset"), "{witness}");
@@ -558,7 +832,7 @@ mod tests {
             ),
             "https://api.anthropic.com",
         );
-        let harness_row = harness_probe("claude-agent-acp", &["anthropic"], true);
+        let harness_row = harness_probe("claude-code", &["anthropic"], true);
         let plan = resolve_access(
             "anthropic/claude-sonnet-4-5",
             &candidates_for(&[api_row, harness_row], "anthropic"),
@@ -566,7 +840,7 @@ mod tests {
             None,
         )
         .expect("both paths configured → a plan");
-        assert_eq!(plan.access, "claude-agent-acp");
+        assert_eq!(plan.access, "claude-code");
         assert_eq!(plan.chosen, AccessClass::Harness);
         assert_eq!(
             plan.rejected.len(),
@@ -578,18 +852,124 @@ mod tests {
 
     #[test]
     fn a_pin_names_an_adapter_id_once_its_row_rides_the_probes() {
-        let probes = vec![harness_probe("codex-acp", &["openai"], true)];
+        let probes = vec![harness_probe("codex", &["openai"], true)];
         assert!(
-            refuse_pin(["openai/gpt-5"], &probes, "codex-acp").is_none(),
+            refuse_pin(["openai/gpt-5"], &probes, "codex").is_none(),
             "a detected adapter id is a legal pin"
         );
         assert!(
             matches!(
-                refuse_pin(["openai/gpt-5"], &[], "codex-acp"),
-                Some(PinRefusal::UnknownToken { .. })
+                refuse_pin(["openai/gpt-5"], &[], "codex"),
+                Some(PinRefusal::Unavailable { .. })
             ),
-            "no row on this machine → no pin target (1802)"
+            "known token + no harness rows → 1803, never 1802"
         );
+    }
+
+    #[test]
+    fn a_known_cli_token_is_never_1802() {
+        for id in [
+            "claude-code",
+            "codex",
+            "gemini-cli",
+            "kimi-code",
+            "qwen-code",
+        ] {
+            match refuse_pin(["ollama/qwen3.5:4b"], &[], id) {
+                Some(PinRefusal::Unavailable { message }) => {
+                    assert!(
+                        !message.contains("NIKA-1802") && !message.contains("neither"),
+                        "{id}: {message}"
+                    );
+                }
+                other => panic!("{id} must be a known token, got {other:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn a_missing_cli_teaches_the_dummy_install_line() {
+        let rt = nika_types::access::HarnessRuntime::CLAUDE_CODE;
+        let probes = vec![harness_probe_absent(rt.id, rt.not_installed)];
+        match refuse_pin(["ollama/qwen3.5:4b"], &probes, "claude-code") {
+            Some(PinRefusal::Unavailable { message }) => {
+                assert!(
+                    message.contains("Claude Code is not installed"),
+                    "{message}"
+                );
+                assert!(message.contains("Nika local / Nika Cloud"), "{message}");
+            }
+            other => panic!("expected 1803 Unavailable, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn a_retired_alias_teaches_the_live_token() {
+        match refuse_pin(["openai/gpt-5"], &[], "claude-agent-acp") {
+            Some(PinRefusal::UnknownToken { message }) => {
+                assert!(message.contains("retired"), "{message}");
+                assert!(message.contains("--access claude-code"), "{message}");
+            }
+            other => panic!("retired alias must be 1802, got {other:?}"),
+        }
+        match refuse_pin(["openai/gpt-5"], &[], "codex-acp") {
+            Some(PinRefusal::UnknownToken { message }) => {
+                assert!(message.contains("--access codex"), "{message}");
+            }
+            other => panic!("retired alias must be 1802, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn access_harness_class_with_no_runtime_is_1803_not_api_keys() {
+        let api_row = ProviderProbe::new(
+            "anthropic",
+            true,
+            false,
+            "ANTHROPIC_API_KEY",
+            true,
+            crate::probe::ProviderReadiness::new(
+                true,
+                false,
+                None,
+                None,
+                true,
+                crate::probe::ExecutionLocus::Cloud,
+                AccessClass::Api,
+            ),
+            "https://api.anthropic.com",
+        );
+        match refuse_pin(["anthropic/claude-sonnet-4-5"], &[api_row], "harness") {
+            Some(PinRefusal::Unavailable { message }) => {
+                assert!(
+                    message.contains("No agentic CLI runtime is installed"),
+                    "{message}"
+                );
+                assert!(!message.contains("ANTHROPIC_API_KEY"), "{message}");
+                assert!(!message.contains("GEMINI_API_KEY"), "{message}");
+            }
+            other => panic!("--access harness must not walk API keys, got {other:?}"),
+        }
+    }
+
+    fn harness_probe_absent(id: &str, message: &str) -> ProviderProbe {
+        ProviderProbe::new(
+            id,
+            false,
+            false,
+            message,
+            false,
+            crate::probe::ProviderReadiness::new(
+                true,
+                false,
+                None,
+                None,
+                false,
+                crate::probe::ExecutionLocus::Cloud,
+                AccessClass::Harness,
+            ),
+            "",
+        )
     }
 
     #[test]
@@ -702,7 +1082,7 @@ mod tests {
             "openai/gpt-5",
             &[
                 api("openai", true, "OPENAI_API_KEY"),
-                AccessCandidate::new("codex-acp", AccessClass::Harness, true),
+                AccessCandidate::new("codex", AccessClass::Harness, true),
             ],
             None,
             Some("local"),
@@ -718,11 +1098,11 @@ mod tests {
             "openai/gpt-5",
             &[api("openai", false, "OPENAI_API_KEY")],
             None,
-            Some("codex-acp"),
+            Some("codex"),
         )
         .expect_err("unconfigured fails before the pin");
         assert!(matches!(
-            classify_pin_refusal("openai/gpt-5", "codex-acp", &access_refusal),
+            classify_pin_refusal("openai/gpt-5", "codex", &access_refusal),
             PinRefusal::NoPath { .. }
         ));
     }
@@ -738,6 +1118,44 @@ mod tests {
         );
         assert!(map.contains_key("mock/echo"));
         assert_eq!(map.len(), 1, "the templated row is absent, never guessed");
+    }
+
+    #[test]
+    fn a_ready_harness_pin_stamps_every_static_model() {
+        let probes = vec![harness_probe("claude-code", &["anthropic"], true)];
+        let map = access_plan_map(
+            &[
+                "ollama/qwen3.5:4b".to_owned(),
+                "anthropic/claude-sonnet-4-5".to_owned(),
+            ],
+            &probes,
+            Some("claude-code"),
+        );
+        assert_eq!(map.len(), 2);
+        for plan in map.values() {
+            assert_eq!(plan.access, "claude-code");
+            assert_eq!(plan.chosen, AccessClass::Harness);
+            assert_eq!(plan.billing, BillingClass::IncludedQuota);
+            assert!(plan.pinned);
+        }
+        assert_eq!(first_ready_harness(&probes), Some("claude-code"));
+    }
+
+    #[test]
+    fn a_codex_pin_stamps_requested_model_and_subscription_quota_without_a_price() {
+        let probes = vec![harness_probe("codex", &["anthropic"], true)];
+        let map = access_plan_map(
+            &["anthropic/claude-sonnet-4-6".to_owned()],
+            &probes,
+            Some("codex"),
+        );
+        let plan = map
+            .get("anthropic/claude-sonnet-4-6")
+            .expect("the requested model is receipt evidence");
+        assert_eq!(plan.model, "anthropic/claude-sonnet-4-6");
+        assert_eq!(plan.access, "codex");
+        assert_eq!(plan.billing, BillingClass::IncludedQuota);
+        assert!(!plan.billing.is_usd_metered());
     }
 
     #[test]

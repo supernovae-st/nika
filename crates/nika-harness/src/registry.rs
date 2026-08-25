@@ -3,8 +3,8 @@
 
 //! The harness access REGISTRY (P3 B6 · R-5d) — the shipped adapter
 //! rows, in the vendor order the operator ratified (G-3: gemini-cli
-//! native → qwen-code native → kimi-code native → codex-acp →
-//! claude-agent-acp; Anthropic is never the default example).
+//! native → qwen-code native → kimi-code native → codex →
+//! claude-code; Anthropic is never the default example).
 //!
 //! A row is the adapter's pinned IDENTITY: the binary to spawn (never
 //! a shell line), the session argv, the version pin + the argv that
@@ -14,7 +14,7 @@
 //! the provider ids it can serve, and the AUTH SURFACE — how `doctor`
 //! reads the auth state, which is never a credential read.
 //!
-//! The kill-switch is the operator's: `NIKA_HARNESS_DISABLE=codex-acp,…`
+//! The kill-switch is the operator's: `NIKA_HARNESS_DISABLE=codex,…`
 //! removes rows at load (the vendor-flip law: a flipped adapter is a
 //! refusal in plain words, never a silent substitute). Row ids are
 //! unique and never equal an access-class token (R-5d) — the second
@@ -175,7 +175,7 @@ fn rows() -> Result<Vec<AdapterRow>, HarnessError> {
             package: "kimi-code (kimi upgrade · https://moonshotai.github.io/kimi-code/)",
         },
         AdapterRow {
-            adapter: HarnessAdapter::new("codex-acp", "codex-acp")?
+            adapter: HarnessAdapter::new("codex", "codex-acp")?
                 // The npm class, honestly: `npm i -g` puts the bin on
                 // PATH (the npx-on-the-spec form does NOT link these
                 // packages' bins — measured 2026-08-07). No working
@@ -197,7 +197,7 @@ fn rows() -> Result<Vec<AdapterRow>, HarnessError> {
             package: "@zed-industries/codex-acp@0.16.0 (npm i -g · wraps the codex CLI's own auth)",
         },
         AdapterRow {
-            adapter: HarnessAdapter::new("claude-agent-acp", "claude-agent-acp")?
+            adapter: HarnessAdapter::new("claude-code", "claude-agent-acp")?
                 .with_handshake_probe()
                 .with_version_pin(VersionPin::new((0, 23), 0)),
             serves: &["anthropic"],
@@ -231,11 +231,16 @@ mod tests {
                 "gemini-cli",
                 "qwen-code",
                 "kimi-code",
-                "codex-acp",
-                "claude-agent-acp"
+                "codex",
+                "claude-code"
             ],
             "G-3 · native first · Anthropic is never the default example"
         );
+        let vocab: Vec<&str> = nika_types::access::HarnessRuntime::ALL
+            .iter()
+            .map(|r| r.id)
+            .collect();
+        assert_eq!(ids, vocab, "registry ids are the product tokens");
     }
 
     #[test]
@@ -311,17 +316,20 @@ mod tests {
     #[test]
     fn the_wrapper_rows_probe_by_handshake_never_a_wrapper_flag() {
         let rows = registry_with(&no_env).expect("loads");
-        for id in ["codex-acp", "claude-agent-acp"] {
+        for (id, command) in [("codex", "codex-acp"), ("claude-code", "claude-agent-acp")] {
             let row = rows.iter().find(|r| r.adapter.id == id).expect("row");
             // The bin on PATH (npm i -g) — the npx-on-the-spec form does
             // NOT link these packages' bins (measured 2026-08-07).
-            assert_eq!(row.adapter.command, id, "{id}: spawned directly");
+            assert_eq!(
+                row.adapter.command, command,
+                "{id}: spawned via ACP speaker"
+            );
             assert!(
                 row.adapter.probe_via_handshake,
                 "{id}: no working version flag exists — the probe is the initialize self-report"
             );
             assert!(
-                row.package.contains(id),
+                row.package.contains(command),
                 "{id}: the install pointer names the pinned package"
             );
         }
@@ -329,12 +337,12 @@ mod tests {
 
     #[test]
     fn the_kill_switch_removes_rows_at_load() {
-        let env = |name: &str| (name == DISABLE_ENV).then(|| "codex-acp, qwen-code ".to_owned());
+        let env = |name: &str| (name == DISABLE_ENV).then(|| "codex, qwen-code ".to_owned());
         let rows = registry_with(&env).expect("loads");
         let ids: Vec<&str> = rows.iter().map(|r| r.adapter.id.as_str()).collect();
         assert_eq!(
             ids,
-            ["gemini-cli", "kimi-code", "claude-agent-acp"],
+            ["gemini-cli", "kimi-code", "claude-code"],
             "whitespace-tolerant removal"
         );
     }

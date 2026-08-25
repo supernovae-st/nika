@@ -329,6 +329,43 @@ fn run_target_with_profile(
     model_override: Option<&str>,
     theme: Theme,
 ) -> VerbOutput {
+    run_target_with_profile_and_slots(
+        target,
+        json,
+        native_strict,
+        profile,
+        model_override,
+        theme,
+        false,
+    )
+}
+
+/// Audit a freshly scaffolded recipe. An unfilled scaffold is expected at
+/// this boundary, so a report containing only SLOT findings is a successful
+/// founding receipt. Every other finding keeps the normal exit-2 refusal.
+#[must_use]
+pub(crate) fn run_scaffold(path: &str, theme: Theme) -> VerbOutput {
+    run_target_with_profile_and_slots(
+        &CheckTarget::workspace(path),
+        false,
+        false,
+        Profile::Advisory,
+        None,
+        theme,
+        true,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn run_target_with_profile_and_slots(
+    target: &CheckTarget,
+    json: bool,
+    native_strict: bool,
+    profile: Profile,
+    model_override: Option<&str>,
+    theme: Theme,
+    allow_slot_only: bool,
+) -> VerbOutput {
     if let Some(out) = project_route(&target.path, json) {
         return out;
     }
@@ -337,7 +374,15 @@ fn run_target_with_profile(
         Err(out) if json => return parse_fatal_json(&out),
         Err(out) => return out,
     };
-    run_source_with_profile(&source, json, native_strict, profile, model_override, theme)
+    run_source_with_profile_and_slots(
+        &source,
+        json,
+        native_strict,
+        profile,
+        model_override,
+        theme,
+        allow_slot_only,
+    )
 }
 
 pub(crate) fn run_source_with_profile(
@@ -348,6 +393,27 @@ pub(crate) fn run_source_with_profile(
     model_override: Option<&str>,
     theme: Theme,
 ) -> VerbOutput {
+    run_source_with_profile_and_slots(
+        source,
+        json,
+        native_strict,
+        profile,
+        model_override,
+        theme,
+        false,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn run_source_with_profile_and_slots(
+    source: &RunSource,
+    json: bool,
+    native_strict: bool,
+    profile: Profile,
+    model_override: Option<&str>,
+    theme: Theme,
+    allow_slot_only: bool,
+) -> VerbOutput {
     let (wf, report) = match load_checked_run_source(source) {
         Ok(pair) => pair,
         Err(out) if json => return parse_fatal_json(&out),
@@ -356,7 +422,12 @@ pub(crate) fn run_source_with_profile(
     let path = source.logical_path();
     let (wf, report) = overridden(wf, report, model_override);
     let skills = super::resolve_workflow_skills(&wf, super::workflow_base(path));
-    render_checked_with_profile(
+    let slot_only = allow_slot_only
+        && !report.slot_findings.is_empty()
+        && report.findings.iter().all(|finding| finding.kind == "slot")
+        && unresolvable_models(&report, &wf).findings.is_empty()
+        && skills.findings.is_empty();
+    let out = render_checked_with_profile(
         source.source(),
         path,
         source.repair_target(),
@@ -367,7 +438,12 @@ pub(crate) fn run_source_with_profile(
         native_strict,
         profile,
         theme,
-    )
+    );
+    if slot_only {
+        VerbOutput::ok(out.text)
+    } else {
+        out
+    }
 }
 
 /// Render a check verdict from bytes and semantic products already admitted by
@@ -440,6 +516,7 @@ fn render_checked_with_profile(
     if json {
         return json_verdict(
             report,
+            wf,
             &models_audit,
             skills,
             &drift_hints,
@@ -567,27 +644,35 @@ fn parse_fatal_json(out: &VerbOutput) -> VerbOutput {
     }
 }
 
-/// Shared `--json` MODELS row shape.
+/// Shared `--json` MODELS row shape. `code` rides only when the refusal
+/// is a spec claim (`NIKA-PROVIDER` for a missing/unknown prefix); the
+/// azure class stays engine-local (#761).
 fn model_finding_rows(findings: &[ModelFinding]) -> serde_json::Value {
     serde_json::Value::Array(
         findings
             .iter()
             .map(|f| {
-                serde_json::json!({
+                let mut row = serde_json::json!({
                     "model": f.model,
                     "tasks": f.tasks,
                     "why": f.why,
-                })
+                });
+                if let Some(code) = &f.code {
+                    row["code"] = serde_json::json!(code);
+                }
+                row
             })
             .collect(),
     )
 }
 
-/// `--json` verdict object. Drift rows append to `hints[]` plus
-/// their `code`.
+/// `--json` verdict object. Drift and one-obvious-way rows append to
+/// `hints[]` plus their `code`. Both families are warnings — `clean`
+/// never reads them.
 #[allow(clippy::too_many_arguments)] // the verdict's seams, one each — the render.rs:427 precedent
 fn json_verdict(
     report: &CheckReport,
+    wf: &nika_schema::raw::RawWorkflow,
     models_audit: &ModelsAudit,
     skills: &nika_schema::ResolvedSkills,
     drift_hints: &[String],
@@ -607,9 +692,7 @@ fn json_verdict(
             .get_mut("hints")
             .and_then(serde_json::Value::as_array_mut)
         {
-            for advice in drift_hints {
-                hints.push(serde_json::json!({"kind": "drift", "task": "-", "advice": advice, "code": drift::DRIFT_CODE}));
-            }
+            push_advisory_json_hints(hints, drift_hints, wf);
         }
         obj.insert("clean".to_owned(), serde_json::Value::Bool(clean));
         obj.insert(
@@ -687,6 +770,35 @@ fn json_verdict(
     }
 }
 
+/// Drift + one-obvious-way rows on the machine `hints[]`.
+///
+/// Native-first already rides `CheckReport.hints` (kind + numbered
+/// `code` + task + advice that starts with the rule id). One-obvious-way
+/// lives in `nika-lints` and cannot join that report without a
+/// nika-check → nika-lints cycle, so this edge is the public door (#763).
+fn push_advisory_json_hints(
+    hints: &mut Vec<serde_json::Value>,
+    drift_hints: &[String],
+    wf: &nika_schema::raw::RawWorkflow,
+) {
+    for advice in drift_hints {
+        hints.push(serde_json::json!({
+            "kind": "drift",
+            "task": "-",
+            "advice": advice,
+            "code": drift::DRIFT_CODE,
+        }));
+    }
+    for lint in nika_lints::one_obvious_way(wf) {
+        hints.push(serde_json::json!({
+            "kind": "one-obvious-way",
+            "code": lint.rule,
+            "task": lint.task_id,
+            "advice": format!("{} · {}", lint.rule, lint.message),
+        }));
+    }
+}
+
 /// Several files through the same per-file ladder — the pre-commit / CI
 /// shape (`nika check a.nika.yaml b.nika.yaml`). Each file gets the FULL
 /// [`run`] report (its header names the file), every file still audits
@@ -753,6 +865,8 @@ pub fn run_infer_permits(path: &str, json: bool) -> VerbOutput {
     VerbOutput::ok(text)
 }
 
+#[cfg(test)]
+mod lints_surface;
 #[cfg(test)]
 mod repair_tests;
 #[cfg(test)]

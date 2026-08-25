@@ -1,12 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The `for_each:` fan-out machinery (spec 03 · closed at v1) — the
-//! PURE side of the lane: collection resolution over the item-free
-//! boundary bindings · INPUT-order accumulation of the buffered
-//! iteration stream · the terminal fold. The dispatching methods
-//! (`run_fan_out` · `run_iteration`) stay on the runtime in the parent
-//! module — this module never touches the seams.
+//! `for_each:` fan-out (spec 03) — collection resolve, ordered fold.
+//! Dispatch (`run_fan_out` · `run_iteration`) stays in the parent.
 
 use std::collections::BTreeMap;
 
@@ -19,10 +15,7 @@ use crate::errors::RuntimeError;
 use crate::expr::{self, Scope};
 use crate::record::TaskErrorRecord;
 
-/// The pre-fan-out surface (spec 03 §`for_each`): the collection reads
-/// local names — the item-free boundary bindings, never the global tasks
-/// namespace (empty records = defense-in-depth; the checker already
-/// refused any tasks.* here). An empty collection settles `skipped`.
+/// Collection over item-free boundary bindings. Empty → `skipped`.
 pub(super) fn resolve_fan_out_items(
     collection: &ForEachValue,
     boundary_with: &BTreeMap<String, Value>,
@@ -42,7 +35,6 @@ pub(super) fn resolve_fan_out_items(
         permits: None,
     };
     let items = resolve_collection(collection, &scope)?;
-    // Empty collection → the task is `skipped` (spec 03).
     if items.is_empty() {
         return Err(Box::new(SettleAs::SkippedGate {
             note: "for_each · empty collection",
@@ -52,52 +44,22 @@ pub(super) fn resolve_fan_out_items(
     Ok(items)
 }
 
-/// The settled accumulation of a `for_each` fan-out — the per-iteration
-/// results reduced in INPUT order (positions stay aligned · spec 03
-/// §null-at-index).
+/// Per-iteration results reduced in INPUT order (spec 03 §null-at-index).
 pub(super) struct FanOutAccum {
-    /// One value per iteration (null at a skipped/failed index).
     pub(super) outputs: Vec<Value>,
-    /// Every retry scheduled across all iterations (`TaskRetrying`).
     pub(super) retries: Vec<RetryStamp>,
-    /// The agent decisions across all iterations, in order.
     pub(super) agent_events: Vec<crate::agent_events::StampedAgentEvent>,
-    /// NEP-0007 · the per-lane permit decisions, folded in lane order.
     pub(super) decisions: Vec<crate::witness::PermitDecision>,
-    /// The FIRST iteration error (the one the task reports on failure).
     pub(super) first_error: Option<TaskErrorRecord>,
-    /// Per-iteration token spend SUMMED onto the parent (a 50-infer fan-out
-    /// must never report zero to the cost meter) · None until any reports.
     pub(super) tokens_sum: Option<i64>,
-    /// Per-iteration USD spend SUMMED the same way (same-model iterations ·
-    /// per-turn pricing sums exactly) · None until any priced call reports.
     pub(super) cost_sum: Option<f64>,
-    /// The FIRST unpriced reason across iterations (they share one model,
-    /// so the first is the class) — rides the parent's terminal frame.
     pub(super) unpriced: Option<nika_types::cost::UnpricedReason>,
-    /// Iterations that did NOT truly succeed — a `recover:` fallback stood
-    /// in, an `on_error: skip` nulled the index, or a swallowed failure
-    /// held its slot (`fail_fast: false`). The fan's own note carries the
-    /// count (V7-1 · wave-3 Marta: 2 of 3 items died at their timeout
-    /// under `recover: null` and the card said `✔ 3 items · 5/5 done` —
-    /// she found out by counting the trace).
     pub(super) recovered: usize,
-    /// The FIRST error an iteration was repaired from — the fan's
-    /// `recovered_from` (spec 13 §payload). Mirrors `first_error`: one
-    /// witness, kept, rather than N discarded.
-    ///
-    /// It used to be counted and dropped. `recovered_from` was
-    /// destructured, tested with `is_some()`, and thrown away for the
-    /// counter below, so the tally survived as prose in the note while
-    /// the machine-readable `cause` reported `normal` on a fan whose
-    /// iterations had died.
+    pub(super) failed_items: Vec<String>,
+    pub(super) recovered_items: Vec<String>,
     pub(super) first_recovered_from: Option<TaskErrorRecord>,
 }
 
-/// Drain the buffered iteration stream, reducing it to a [`FanOutAccum`] in
-/// INPUT order. On `fail_fast`, the FIRST failure stops the drain: dropping
-/// the stream cancels in-flight iterations at their await points and unspawned
-/// ones never start (spec 03 · `fail_fast: true` default).
 pub(super) async fn collect_fan_out<S>(stream: &mut S, total: usize, fail_fast: bool) -> FanOutAccum
 where
     S: futures_util::Stream<Item = RanTask> + Unpin,
@@ -112,85 +74,89 @@ where
         cost_sum: None,
         unpriced: None,
         recovered: 0,
+        failed_items: Vec::new(),
+        recovered_items: Vec::new(),
         first_recovered_from: None,
     };
 
     while let Some(iter_ran) = stream.next().await {
-        acc.retries.extend(iter_ran.retries);
-        acc.agent_events.extend(iter_ran.agent_events);
-        acc.decisions.extend(iter_ran.decisions);
-        match iter_ran.result {
-            // OBS-E `warning` is per-call · a fan-out element's diagnostic
-            // is not aggregated up (only `value` + `tokens` fold).
-            RunResult::Success {
-                value,
-                tokens,
-                cost_usd,
-                cost_unpriced,
-                ref recovered_from,
-                ..
-            } => {
-                // A repaired iteration is a Success whose value is the
-                // fallback — the ONE fact distinguishing it from a task
-                // that legitimately produced its value (a bare null
-                // count would misread honest nulls as deaths).
-                if let Some(original) = recovered_from {
-                    acc.recovered += 1;
-                    // The witness the fan owes its record. `first_error`
-                    // beside it keeps the first FAILURE the same way; a
-                    // fan has N originals and the payload law names one.
-                    if acc.first_recovered_from.is_none() {
-                        acc.first_recovered_from = Some(original.clone());
-                    }
-                }
-                acc.outputs.push(value);
-                if let Some(n) = tokens {
-                    acc.tokens_sum = Some(acc.tokens_sum.unwrap_or(0).saturating_add(n));
-                }
-                if let Some(c) = cost_usd {
-                    acc.cost_sum = Some(acc.cost_sum.unwrap_or(0.0) + c);
-                }
-                if acc.unpriced.is_none() {
-                    acc.unpriced = cost_unpriced;
-                }
-            }
-            // Per-iteration `on_error: skip` contributes null at its
-            // index — positional alignment survives (spec 03). Silent by
-            // declaration, counted all the same: the fan's note owes the
-            // reader the tally either way.
-            RunResult::SkippedWithError { .. } => {
-                acc.recovered += 1;
-                acc.outputs.push(Value::Null);
-            }
-            RunResult::Failed { error, .. } => {
-                acc.outputs.push(Value::Null);
-                if acc.first_error.is_none() {
-                    acc.first_error = Some(error);
-                }
-                if fail_fast {
-                    break;
-                }
-            }
-            // An ITERATION never parks — the fan-out settles as ONE task,
-            // so a pending recovery downgrades to its immediate render
-            // failure (the recover-await boundary · pinned by tests).
-            RunResult::PendingRecovery(pending) => {
-                acc.outputs.push(Value::Null);
-                if acc.first_error.is_none() {
-                    acc.first_error = Some(pending.render_error);
-                }
-                if fail_fast {
-                    break;
-                }
-            }
+        if consume_iteration(&mut acc, iter_ran, fail_fast) {
+            break;
         }
     }
     acc
 }
 
-/// Resolve the `for_each:` collection (the ONLY once-evaluated body
-/// expression · spec 03) — an array of items, or the settle verdict
-/// for the failure lanes (boxed: the error lane stays pointer-thin).
+fn consume_iteration(acc: &mut FanOutAccum, iter_ran: RanTask, fail_fast: bool) -> bool {
+    acc.retries.extend(iter_ran.retries);
+    acc.agent_events.extend(iter_ran.agent_events);
+    acc.decisions.extend(iter_ran.decisions);
+    let identity = identity_from_note(&iter_ran.note);
+    match iter_ran.result {
+        RunResult::Success {
+            value,
+            tokens,
+            cost_usd,
+            cost_unpriced,
+            recovered_from,
+            ..
+        } => {
+            if let Some(original) = recovered_from {
+                acc.recovered += 1;
+                acc.recovered_items.push(identity);
+                if acc.first_recovered_from.is_none() {
+                    acc.first_recovered_from = Some(original);
+                }
+            }
+            acc.outputs.push(value);
+            fold_spend(acc, tokens, cost_usd, cost_unpriced);
+            false
+        }
+        RunResult::SkippedWithError { error, .. } => {
+            acc.recovered += 1;
+            acc.recovered_items.push(identity);
+            acc.outputs.push(Value::Null);
+            if acc.first_recovered_from.is_none() {
+                acc.first_recovered_from = Some(error);
+            }
+            false
+        }
+        RunResult::Failed { error, .. } => {
+            acc.outputs.push(Value::Null);
+            acc.failed_items.push(identity);
+            if acc.first_error.is_none() {
+                acc.first_error = Some(error);
+            }
+            fail_fast
+        }
+        RunResult::PendingRecovery(pending) => {
+            acc.outputs.push(Value::Null);
+            acc.failed_items.push(identity);
+            if acc.first_error.is_none() {
+                acc.first_error = Some(pending.render_error);
+            }
+            fail_fast
+        }
+    }
+}
+
+fn fold_spend(
+    acc: &mut FanOutAccum,
+    tokens: Option<i64>,
+    cost_usd: Option<f64>,
+    cost_unpriced: Option<nika_types::cost::UnpricedReason>,
+) {
+    if let Some(n) = tokens {
+        acc.tokens_sum = Some(acc.tokens_sum.unwrap_or(0).saturating_add(n));
+    }
+    if let Some(c) = cost_usd {
+        acc.cost_sum = Some(acc.cost_sum.unwrap_or(0.0) + c);
+    }
+    if acc.unpriced.is_none() {
+        acc.unpriced = cost_unpriced;
+    }
+}
+
 fn resolve_collection(
     collection: &ForEachValue,
     scope: &Scope<'_>,
@@ -198,15 +164,13 @@ fn resolve_collection(
     let resolved = match collection {
         ForEachValue::List(value) => expr::render_json(value, scope),
         ForEachValue::Expression(text) => expr::render_json(&Value::String(text.clone()), scope),
-        // #[non_exhaustive] · a future collection form fails loudly.
-        other => Err(RuntimeError::WhenUnsupported {
+        other => Err(nika_dataflow::DataflowError::WhenUnsupported {
             expr: format!("for_each form not wired in the runtime yet: {other:?}"),
         }),
-    };
+    }
+    .map_err(RuntimeError::from);
     match resolved {
         Ok(Value::Array(items)) => Ok(items),
-        // Non-array collection = evaluation error (spec 03 · the
-        // NIKA-VAR-006 class).
         Ok(other) => Err(Box::new(SettleAs::FailedBeforeStart {
             stage: "for_each",
             error: TaskErrorRecord {
@@ -225,10 +189,6 @@ fn resolve_collection(
     }
 }
 
-/// Reduce a drained fan-out to its terminal [`RunResult`]. The leaf
-/// iterations already debited the ledger — the aggregate spend here is
-/// presentation-only (never re-debited). OBS-E warnings stay per-call
-/// (no single aggregate warning channel).
 pub(super) fn fan_out_result(
     outputs: Vec<Value>,
     tokens_sum: Option<i64>,
@@ -240,18 +200,11 @@ pub(super) fn fan_out_result(
         None => RunResult::Success {
             value: Value::Array(outputs),
             tokens: tokens_sum,
-            // `settle` reads THIS to choose the cause: `Some` gives
-            // `success/recovered` + the payload's original error, `None`
-            // gives `success/normal`. Hardcoding `None` here is what made
-            // a fan of dead iterations report `normal`.
             recovered_from: first_recovered_from,
             warning: None,
-            // per-iteration child rows stay per-call — no aggregate row
             child: None,
             cost_usd,
             cost_unpriced,
-            // the aggregate is N calls · per-iteration models stay
-            // per-call — no single model names the fold
             model: None,
         },
         Some(error) => RunResult::Failed {
@@ -262,26 +215,88 @@ pub(super) fn fan_out_result(
     }
 }
 
-/// The fan's terminal note — the honest tally (V7-1): a fan whose K
-/// iterations were repaired (`recover:` fallback · `on_error: skip`)
-/// SAYS so on its own row. A green `✔ N items` over silently-nulled
-/// work taught wave-3 Marta to distrust the card (she counted the
-/// trace by hand); a healthy fan keeps its historical row byte-stable
-/// (no zero-count tail — calm stays calm).
-pub(super) fn fan_note(total: usize, recovered: usize) -> String {
+pub(super) fn fan_note(
+    total: usize,
+    recovered: usize,
+    failed_items: &[String],
+    recovered_items: &[String],
+) -> String {
+    if !failed_items.is_empty() {
+        return format!(
+            "{} of {total} items failed: {}",
+            failed_items.len(),
+            failed_items.join(", "),
+        );
+    }
     if recovered > 0 {
-        format!(
-            "for_each · {ok}/{total} ok · {recovered} recovered",
-            ok = total.saturating_sub(recovered),
-        )
+        let ok = total.saturating_sub(recovered);
+        if recovered_items.is_empty() {
+            format!("for_each · {ok}/{total} ok · {recovered} recovered")
+        } else {
+            format!(
+                "for_each · {ok}/{total} ok · {recovered} recovered: {}",
+                recovered_items.join(", "),
+            )
+        }
     } else {
         format!("for_each · {total} items")
     }
 }
 
-/// The fan-out budget-starvation error — iterations the ledger refused
-/// to admit (NIKA-1704 · the workflow-level abort follows at the wave
-/// boundary).
+const ITEM_IDENTITY_MAX: usize = 80;
+
+pub(super) fn item_identity(item: &Value) -> String {
+    truncate_identity(&crate::record::render_value(item))
+}
+
+fn truncate_identity(raw: &str) -> String {
+    if raw.chars().count() <= ITEM_IDENTITY_MAX {
+        return raw.to_owned();
+    }
+    let mut truncated: String = raw.chars().take(ITEM_IDENTITY_MAX - 1).collect();
+    truncated.push('…');
+    truncated
+}
+
+pub(super) fn iteration_note(index: usize, identity: &str) -> String {
+    format!("for_each[{index}]={identity}")
+}
+
+pub(super) fn stamp_iteration(ran: &mut RanTask, index: usize, item: &Value) {
+    let identity = item_identity(item);
+    ran.note = iteration_note(index, &identity);
+    match &mut ran.result {
+        RunResult::Failed { error, .. } | RunResult::SkippedWithError { error, .. } => {
+            annotate_error_in_place(error, index, &identity);
+        }
+        RunResult::Success { recovered_from, .. } => {
+            if let Some(error) = recovered_from {
+                annotate_error_in_place(error, index, &identity);
+            }
+        }
+        RunResult::PendingRecovery(pending) => {
+            annotate_error_in_place(&mut pending.render_error, index, &identity);
+            annotate_error_in_place(&mut pending.failed.record, index, &identity);
+        }
+    }
+}
+
+const ITEM_ERROR_PREFIX: &str = "for_each item [";
+
+fn annotate_error_in_place(error: &mut TaskErrorRecord, index: usize, identity: &str) {
+    if error.message.starts_with(ITEM_ERROR_PREFIX) {
+        return;
+    }
+    error.message = format!("for_each item [{index}] {identity}: {}", error.message);
+}
+
+fn identity_from_note(note: &str) -> String {
+    note.split_once('=')
+        .map(|(_, id)| id.to_owned())
+        .filter(|id| !id.is_empty())
+        .unwrap_or_else(|| note.to_owned())
+}
+
 pub(super) fn budget_stop_record(denied: usize) -> TaskErrorRecord {
     TaskErrorRecord {
         code: nika_error::codes::NIKA_1704.to_string(),
@@ -289,11 +304,10 @@ pub(super) fn budget_stop_record(denied: usize) -> TaskErrorRecord {
             "run budget (--max-cost-usd) reached — {denied} iteration(s) were not started \
              (in-flight work completed and was counted)"
         ),
-        transient: false, // spending more will not help
+        transient: false,
     }
 }
 
-/// JSON value kind word (error messages).
 fn json_kind(v: &Value) -> &'static str {
     match v {
         Value::Null => "null",
@@ -302,5 +316,206 @@ fn json_kind(v: &Value) -> &'static str {
         Value::String(_) => "string",
         Value::Array(_) => "array",
         Value::Object(_) => "object",
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
+mod tests {
+    use super::*;
+    use crate::task::RunResult;
+
+    fn boom(message: &str) -> TaskErrorRecord {
+        TaskErrorRecord {
+            code: "NIKA-EXEC-001".to_owned(),
+            message: message.to_owned(),
+            transient: false,
+        }
+    }
+
+    fn ran(note: &str, result: RunResult) -> RanTask {
+        RanTask {
+            note: note.to_owned(),
+            retries: Vec::new(),
+            agent_events: Vec::new(),
+            decisions: Vec::new(),
+            evidence: None,
+            duration_ms: 0,
+            result,
+        }
+    }
+
+    fn failed_iter(index: usize, item: &str) -> RanTask {
+        let identity = item.to_owned();
+        ran(
+            &iteration_note(index, &identity),
+            RunResult::Failed {
+                error: TaskErrorRecord {
+                    code: "NIKA-EXEC-001".to_owned(),
+                    message: format!("for_each item [{index}] {identity}: boom"),
+                    transient: false,
+                },
+                cost_usd: None,
+                cost_unpriced: None,
+            },
+        )
+    }
+
+    #[test]
+    fn item_identity_strings_are_bare() {
+        assert_eq!(item_identity(&Value::String("gamma".into())), "gamma");
+        assert_eq!(item_identity(&serde_json::json!({"k": 1})), r#"{"k":1}"#);
+    }
+
+    #[test]
+    fn item_identity_truncates_huge_values() {
+        let huge = "x".repeat(200);
+        let id = item_identity(&Value::String(huge));
+        assert_eq!(id.chars().count(), ITEM_IDENTITY_MAX);
+        assert!(
+            id.ends_with('…'),
+            "truncated identity ends with an ellipsis: {id}"
+        );
+    }
+
+    #[test]
+    fn fan_note_healthy_stays_count_only() {
+        assert_eq!(fan_note(3, 0, &[], &[]), "for_each · 3 items");
+    }
+
+    #[test]
+    fn fan_note_names_failed_items() {
+        let failed = ["beta".to_owned(), "gamma".to_owned()];
+        assert_eq!(
+            fan_note(3, 0, &failed, &[]),
+            "2 of 3 items failed: beta, gamma"
+        );
+    }
+
+    #[test]
+    fn fan_note_names_recovered_items() {
+        let recovered = ["gamma".to_owned()];
+        assert_eq!(
+            fan_note(3, 1, &[], &recovered),
+            "for_each · 2/3 ok · 1 recovered: gamma"
+        );
+    }
+
+    #[test]
+    fn annotate_keeps_the_original_code() {
+        let mut error = boom("command exited with status 1:");
+        annotate_error_in_place(&mut error, 2, "gamma");
+        assert_eq!(error.code, "NIKA-EXEC-001");
+        assert!(
+            error.message.contains("gamma"),
+            "the item name is in the message: {}",
+            error.message
+        );
+        assert!(
+            error.message.contains("for_each item [2]"),
+            "index + item, not a count: {}",
+            error.message
+        );
+        annotate_error_in_place(&mut error, 9, "other");
+        assert!(
+            !error.message.contains("other"),
+            "a second stamp must not double-prefix: {}",
+            error.message
+        );
+    }
+
+    #[tokio::test]
+    async fn collect_fan_out_keeps_every_failed_identity() {
+        let mut stream = futures_util::stream::iter([
+            failed_iter(0, "alpha"),
+            failed_iter(1, "beta"),
+            failed_iter(2, "gamma"),
+        ]);
+        let acc = collect_fan_out(&mut stream, 3, false).await;
+        assert_eq!(
+            acc.failed_items,
+            vec!["alpha", "beta", "gamma"],
+            "fail_fast:false collects every named item, not only first_error"
+        );
+        let first = acc.first_error.expect("first failure is the parent error");
+        assert_eq!(first.code, "NIKA-EXEC-001");
+        assert!(
+            first.message.contains("alpha"),
+            "the first error names its item: {}",
+            first.message
+        );
+        assert_eq!(
+            fan_note(3, acc.recovered, &acc.failed_items, &acc.recovered_items),
+            "3 of 3 items failed: alpha, beta, gamma"
+        );
+    }
+
+    #[tokio::test]
+    async fn collect_fan_out_skip_keeps_the_item() {
+        let skip = ran(
+            "for_each[1]=beta",
+            RunResult::SkippedWithError {
+                error: boom("for_each item [1] beta: boom"),
+                cost_usd: None,
+                cost_unpriced: None,
+            },
+        );
+        let ok = ran(
+            "for_each[0]=alpha",
+            RunResult::Success {
+                value: Value::String("ok".into()),
+                tokens: None,
+                recovered_from: None,
+                warning: None,
+                child: None,
+                cost_usd: None,
+                cost_unpriced: None,
+                model: None,
+            },
+        );
+        let mut stream = futures_util::stream::iter([ok, skip]);
+        let acc = collect_fan_out(&mut stream, 2, false).await;
+        assert!(acc.first_error.is_none(), "skip does not fail the parent");
+        assert_eq!(acc.recovered_items, vec!["beta"]);
+        let kept = acc
+            .first_recovered_from
+            .expect("skip preserves the original error");
+        assert!(
+            kept.message.contains("beta"),
+            "the recovered witness names the skipped item: {}",
+            kept.message
+        );
+        assert_eq!(
+            fan_note(2, acc.recovered, &acc.failed_items, &acc.recovered_items),
+            "for_each · 1/2 ok · 1 recovered: beta"
+        );
+    }
+
+    #[test]
+    fn stamp_iteration_puts_item_on_note_and_error() {
+        let mut ran = ran(
+            "exec · false",
+            RunResult::Failed {
+                error: boom("command exited with status 1:"),
+                cost_usd: None,
+                cost_unpriced: None,
+            },
+        );
+        stamp_iteration(&mut ran, 2, &Value::String("gamma".into()));
+        assert_eq!(ran.note, "for_each[2]=gamma");
+        match ran.result {
+            RunResult::Failed { error, .. } => {
+                assert_eq!(error.code, "NIKA-EXEC-001");
+                assert_eq!(
+                    error.message,
+                    "for_each item [2] gamma: command exited with status 1:"
+                );
+            }
+            RunResult::Success { .. }
+            | RunResult::SkippedWithError { .. }
+            | RunResult::PendingRecovery(_) => {
+                panic!("expected Failed after stamping a failed iteration")
+            }
+        }
     }
 }

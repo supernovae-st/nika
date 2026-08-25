@@ -2443,6 +2443,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "nika-dataflow"
+version = "0.114.0"
+dependencies = [
+ "jaq-core",
+ "jaq-json",
+ "jaq-std",
+ "miette",
+ "nika-cap",
+ "nika-cel",
+ "nika-error",
+ "nika-schema",
+ "nika-tmpl",
+ "nika-types",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "nika-error"
 version = "0.114.0"
 dependencies = [
@@ -2471,6 +2490,7 @@ dependencies = [
 name = "nika-exec-runner"
 version = "0.114.0"
 dependencies = [
+ "nika-cap",
  "nika-kernel",
  "nika-schema",
  "nika-types",
@@ -2508,6 +2528,22 @@ dependencies = [
 [[package]]
 name = "nika-fx"
 version = "0.114.0"
+
+[[package]]
+name = "nika-harness"
+version = "0.114.0"
+dependencies = [
+ "futures-core",
+ "miette",
+ "nika-error",
+ "nika-kernel",
+ "nika-types",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+ "tokio",
+]
 
 [[package]]
 name = "nika-http"
@@ -2604,6 +2640,7 @@ dependencies = [
  "bytes",
  "futures-core",
  "nika-catalog",
+ "nika-harness",
  "nika-kernel",
  "nika-types",
  "serde_json",
@@ -2615,9 +2652,6 @@ version = "0.114.0"
 dependencies = [
  "blake3",
  "futures-util",
- "jaq-core",
- "jaq-json",
- "jaq-std",
  "miette",
  "nika-builtin",
  "nika-cap",
@@ -2625,10 +2659,12 @@ dependencies = [
  "nika-cel",
  "nika-check",
  "nika-clock",
+ "nika-dataflow",
  "nika-error",
  "nika-event",
  "nika-exec-runner",
  "nika-fs",
+ "nika-harness",
  "nika-http",
  "nika-kernel",
  "nika-proof",
@@ -2742,6 +2778,7 @@ name = "nika-verb-agent"
 version = "0.114.0"
 dependencies = [
  "bytes",
+ "futures-core",
  "futures-util",
  "jsonschema",
  "miette",
@@ -2777,6 +2814,7 @@ dependencies = [
  "miette",
  "nika-catalog",
  "nika-error",
+ "nika-harness",
  "nika-kernel",
  "nika-providers",
  "nika-types",

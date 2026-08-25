@@ -35,6 +35,10 @@ readonly RATCHETS=(
   'adr-coverage'
   'credential-headers'
   'version-uniform'
+  # One file per change under changelog.d/, never a bullet hand-written into
+  # `## [Unreleased]` — the shared append target that collided four PRs on
+  # 2026-08-24 with zero source overlap between them.
+  'changelog-fragments'
 )
 
 # Four of the ratchets above (unwrap · expect · dead-code, plus hygiene's

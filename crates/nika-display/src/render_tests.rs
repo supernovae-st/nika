@@ -302,6 +302,89 @@ fn skip_reasons_render_their_three_classes() {
     );
 }
 
+/// A GATE cancellation names the producer and what it settled as
+/// (#1198).
+///
+/// The runtime has always emitted `blocked_by` on `task_cancelled`; the
+/// fold dropped it, so the row could only repeat the runtime's own
+/// words — `gate: an edge did not admit` — which name no edge, no
+/// upstream and no outcome.
+///
+/// The outcome is what makes the sentence teach. A `tasks.X.error`
+/// binding admits `{failure, skipped}`, so a producer that SUCCEEDED
+/// closes the gate: the consumer is a dead path and the gate is right.
+/// A reader told only « an edge did not admit », looking at a green
+/// upstream one row above, has no way to reach that.
+#[test]
+fn a_gated_row_names_the_producer_and_its_outcome() {
+    use nika_event::EventKind;
+    use nika_types::resource::{KeyValue, Value};
+    let field = |k: &'static str, v: &str| KeyValue::new(k, Value::String(v.to_owned()));
+
+    let mut view = RunView::new();
+    // `process` ran and SUCCEEDED (the for_each whose failed item was
+    // recovered by `on_error: skip` settles here).
+    view.apply(&demo::bare_event(EventKind::TaskCompleted, 5).with_field(field("task", "process")));
+    view.apply(
+        &demo::bare_event(EventKind::TaskCancelled, 10)
+            .with_field(field("task", "reads_error"))
+            .with_field(field("note", "gate: an edge did not admit"))
+            .with_field(field("blocked_by", "process")),
+    );
+
+    let lines = frame(&view, &UNICODE, 0);
+    let row = lines
+        .iter()
+        .find(|l| l.contains("reads_error"))
+        .expect("the gated row renders");
+    assert!(
+        row.contains("process") && row.contains("settled ok"),
+        "the gated row names the producer AND its outcome: {row}"
+    );
+    assert!(
+        !row.contains("an edge did not admit"),
+        "the un-teaching note is replaced, not appended to: {row}"
+    );
+
+    // A producer that FAILED reads its own outcome — so this cannot pass
+    // by printing `ok` for everything.
+    let mut view = RunView::new();
+    view.apply(&demo::bare_event(EventKind::TaskFailed, 5).with_field(field("task", "fetch")));
+    view.apply(
+        &demo::bare_event(EventKind::TaskCancelled, 10)
+            .with_field(field("task", "consume"))
+            .with_field(field("note", "gate: an edge did not admit"))
+            .with_field(field("blocked_by", "fetch")),
+    );
+    let lines = frame(&view, &UNICODE, 0);
+    let row = lines
+        .iter()
+        .find(|l| l.contains("consume"))
+        .expect("the gated row renders");
+    assert!(
+        row.contains("fetch") && row.contains("settled failed"),
+        "a failed producer reads as failed: {row}"
+    );
+
+    // An engine that emitted no `blocked_by` still gets a sentence, never
+    // a half-formatted one naming nobody.
+    let mut view = RunView::new();
+    view.apply(
+        &demo::bare_event(EventKind::TaskCancelled, 10)
+            .with_field(field("task", "orphan"))
+            .with_field(field("note", "gate: an edge did not admit")),
+    );
+    let lines = frame(&view, &UNICODE, 0);
+    let row = lines
+        .iter()
+        .find(|l| l.contains("orphan"))
+        .expect("the gated row renders");
+    assert!(
+        row.contains("bindings admit"),
+        "no producer named, still a sentence: {row}"
+    );
+}
+
 /// A mid-retry run RENDERS the `↻` row (§3.1 — the attempt failed ·
 /// the TASK has not · the row holds until a terminal frame).
 #[test]

@@ -24,6 +24,7 @@ nika-service-execution = { path = "../nika-service-execution", version = "0.114.
 nika-serve   = { path = "../nika-serve", version = "0.114.0" }      # loopback HTTP mode of `nika serve` (W06)
 jiff        = { workspace = true }  # the CLOCK — nika-cadence is pure and takes a Zoned; reading one is an L4 act  # the project file (ceiling — the --max-cost-usd flag's default rung · D-2026-08-11-N5)
 nika-check  = { path = "../nika-check", version = "0.114.0" }  # the ADR-092 check ladder (the check verb · run gates · fix loop)
+nika-lints  = { path = "../nika-lints", version = "0.114.0" }  # one-obvious-way preference lints on `check --json` hints (#763)
 nika-graph = { path = "../nika-graph", version = "0.114.0" }   # the canonical projection (inspect --format json renders it)
 nika-error  = { path = "../nika-error", version = "0.114.0" }  # the code registry (`nika explain`)
 nika-pack   = { path = "../nika-pack", version = "0.114.0" }   # the embedded language pack (`nika spec|schema|examples|new`)
@@ -58,6 +59,10 @@ nika-migrate     = { path = "../nika-migrate", version = "0.114.0" }       # the
 tokio            = { workspace = true }                                   # the bin's async entry (block the run on the executor)
 
 [features]
+# Agentic CLI adapters (Claude Code · Codex · Gemini CLI · Kimi Code ·
+# Qwen Code) ship in the default binary so `--access claude-code` is a
+# known token without `--features access-harness`.
+default = ["access-harness"]
 # Build `nika model serve` for real: the candle backend + the loopback
 # OpenAI-compat server (ADR-091 · ADR-093) — forwarded to the descended
 # local-models member. Off by default (the lean-core contract).
@@ -65,10 +70,9 @@ local-infer = ["nika-models/local-infer", "nika-cli-host/local-infer"]
 # Apple-GPU kernels for the local backend (macOS only — CI's Linux
 # feature-matrix excludes this name, keep them aligned).
 metal       = ["local-infer", "nika-models/metal"]
-# The harness access class (D-2026-08-04-N1 · P3 · experimental): `agent:`
-# tasks may delegate to the user's own harness, and the machine surfaces
-# (doctor · check · run admission) read the adapter registry. Off by
-# default (the feature-defaults law).
+# The harness access class (D-2026-08-04-N1 · P3): `infer:`/`agent:`
+# may delegate to the user's own agentic CLI. On by default so the
+# official install.sh binary can pin `--access claude-code`.
 access-harness = ["nika-runtime/access-harness", "nika-cli-host/access-harness"]
 
 [[bin]]

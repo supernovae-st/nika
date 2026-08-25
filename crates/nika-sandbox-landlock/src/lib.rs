@@ -63,6 +63,7 @@ use std::path::Path;
 
 use nika_kernel::command_sandbox::{
     CommandSandbox, CommandSandboxError, fold_sandbox_prefix, names_system_root,
+    stderr_signals_confinement_denial,
 };
 use nika_kernel::process::{NetPolicy, SandboxSpec, ShellAdapterOutcome, ShellCommand};
 
@@ -129,12 +130,20 @@ impl CommandSandbox for LandlockSandbox {
 
 /// Bubblewrap's wrapper-status table, kept pure so every host can verify the
 /// Linux decision without pretending to execute a Linux jail locally.
+/// Status 0 is always the inner process. Status 126 and a `bwrap:` line are
+/// launcher refusals. An inner kernel EPERM/EACCES (#1068) is authority at
+/// any other non-zero so `capture: structured` cannot swallow a jail deny.
+/// A missing bind still surfaces as ENOENT (`No such file`); that class is
+/// not distinguishable from an authored miss and stays process.
 fn classify_terminal_outcome(status: i32, stderr: &str) -> ShellAdapterOutcome {
+    if status == 0 {
+        return ShellAdapterOutcome::process();
+    }
     let launcher_diagnostic = stderr
         .lines()
         .map(str::trim_start)
         .any(|line| line.starts_with("bwrap:"));
-    if status == 126 || launcher_diagnostic {
+    if status == 126 || launcher_diagnostic || stderr_signals_confinement_denial(stderr) {
         ShellAdapterOutcome::authority_refusal(format!(
             "landlock/bwrap refused the confined process (status {status})"
         ))
@@ -362,6 +371,28 @@ mod tests {
             Err(nika_kernel::ShellError::Blocked { .. })
         ));
         assert!(apply(classify_terminal_outcome(7, "business validation failed")).is_ok());
+        assert!(
+            matches!(
+                apply(classify_terminal_outcome(
+                    1,
+                    "cat: secret/key.txt: Permission denied\n"
+                )),
+                Err(nika_kernel::ShellError::Blocked { .. })
+            ),
+            "#1068: inner cat EACCES at status 1 is confinement, not structured data"
+        );
+        assert!(
+            apply(classify_terminal_outcome(
+                1,
+                "cat: secret/key.txt: No such file or directory\n"
+            ))
+            .is_ok(),
+            "bwrap-absent-bind ENOENT is not classifiable as confinement from stderr"
+        );
+        assert!(
+            apply(classify_terminal_outcome(0, "Permission denied")).is_ok(),
+            "status 0 is the inner process even if stderr mentions EACCES"
+        );
     }
 
     /// The availability truth table — all four rows, platform-free.

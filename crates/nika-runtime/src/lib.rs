@@ -59,11 +59,9 @@ mod contract;
 mod dispatch;
 mod emit_task;
 mod errors;
-mod expr;
 pub(crate) mod harness_seat;
 pub mod identity;
 mod integrity;
-mod jq;
 mod ledger;
 mod origins;
 mod pause;
@@ -78,7 +76,6 @@ pub mod proof {
     };
     pub mod ir;
 }
-mod record;
 mod recover;
 pub mod resume;
 mod retry;
@@ -132,7 +129,13 @@ pub use errors::RuntimeError;
 pub use identity::{EngineIdentity, engine_identity};
 pub use origins::{InputOrigin, input_origins};
 pub use pause::WorkflowPause;
-pub use record::{TaskErrorRecord, TaskRecord, TaskStatus, TerminalCause, legal};
+// Descended to `nika-dataflow` at the 15k wall — paths preserved. The three
+// modules keep their historical `crate::{expr,jq,record}` names so every
+// call site inside this crate reads exactly as it did before the move; the
+// public types keep their `nika_runtime::…` paths below.
+pub use nika_dataflow::DataflowError;
+pub use nika_dataflow::record::{TaskErrorRecord, TaskRecord, TaskStatus, TerminalCause, legal};
+pub(crate) use nika_dataflow::{expr, jq, record};
 // The shared execution driver (`ServiceExecutionDriver` + `AuthorizedRuntime`
 // + the `ChildTrace*`/`Service*` family) descended to `nika-service-execution`
 // at the 15k wall; `compose::service_runtime` is the one seam it reads back.
@@ -457,6 +460,12 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
     pub fn with_access_probes(mut self, probes: Vec<nika_providers::probe::ProviderProbe>) -> Self {
         self.access_probes = probes;
         self
+    }
+
+    /// Access probes already attached by the composition layer.
+    #[must_use]
+    pub fn access_probes(&self) -> &[nika_providers::probe::ProviderProbe] {
+        &self.access_probes
     }
 
     /// Inject the composer-COMPUTED access stamps (R-2 · B5) — journaled

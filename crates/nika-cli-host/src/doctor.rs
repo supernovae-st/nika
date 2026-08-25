@@ -117,6 +117,7 @@ pub fn diagnose(probe: &Probe) -> Vec<Finding> {
             .to_owned(),
         fix: None,
     });
+    out.push(access_class_finding());
     // #891 — the sandbox row rides the ONE selection's decision (#888),
     // observed once here (the sidecar precedent · diagnose stays pure).
     out.push(sandbox_finding(&crate::probe::sandbox_probe()));
@@ -141,6 +142,24 @@ pub fn diagnose(probe: &Probe) -> Vec<Finding> {
     provider_findings(probe, &mut out);
 
     out
+}
+
+/// `--access` vocabulary (NIKA-1802). Both classes and live harness seat
+/// ids are pins; ACP wrapper executable names remain implementation detail.
+fn access_class_finding() -> Finding {
+    let vocabulary = nika_types::access::AccessClass::ALL
+        .map(nika_types::access::AccessClass::as_str)
+        .join(" · ");
+    Finding {
+        level: Level::Ok,
+        label: "access".to_owned(),
+        detail: format!(
+            "--access classes: {vocabulary} · harness seats: {} \
+             (ACP wrapper ids are not pins)",
+            nika_types::access::HarnessRuntime::vocabulary()
+        ),
+        fix: None,
+    }
 }
 
 /// The sandbox row (#891 · #822 P1) — the ONE selection's decision,
@@ -375,7 +394,10 @@ fn models_finding(models: &ModelsProbe) -> Vec<Finding> {
             level: Level::Warn,
             label: "models".to_owned(),
             detail: "none pulled yet — the sidecar has nothing to serve".to_owned(),
-            fix: Some("nika model pull Qwen/Qwen3-4B-Instruct-2507-GGUF".to_owned()),
+            fix: Some(format!(
+                "nika model pull {}",
+                crate::choice::featured_pull()
+            )),
         }]
     }
     #[cfg(not(feature = "local-infer"))]
@@ -434,8 +456,16 @@ fn pricing_finding(p: &PricingProbe) -> Finding {
     // LIST RATES said here on purpose: private/proxy/negotiated pricing
     // is not reflected (the override file is the roadmapped answer) —
     // silent wrong-cost is the honesty law's blind spot otherwise.
+    //
+    // #1179 · `p.rules` counts PRICE ROWS, not models. Calling them
+    // « models » put « 633 models » one command away from `nika
+    // catalog`'s « 69 models » — two inventories under one word, an
+    // order of magnitude apart, both on a first session. Every number
+    // NAMES its facet (RAMS-12 · A-06), and the facet here is the
+    // snapshot's rate table: several patterns can price one model, and
+    // a pattern can price models this catalog never lists.
     let identity = format!(
-        "{} models · {} providers · snapshot {} · {} · list rates (public catalog)",
+        "{} price rules · {} providers priced · snapshot {} · {} · list rates (public catalog)",
         p.rules, p.providers, p.as_of, p.sha
     );
     match p.age_days {
@@ -626,7 +656,7 @@ fn client_finding(client: &ClientProbe, kits: &[KitProbe]) -> Finding {
             level: Level::Ok,
             label: "agent".to_owned(),
             detail: format!(
-                "{} wired · {} ({}) at {}",
+                "{} · Nika MCP oracle wired · {} ({}) at {}",
                 client.id, word, surfaces, client.path
             ),
             fix: None,
@@ -757,6 +787,14 @@ pub fn render_json(
         "receipts": receipts,
     });
     format!("{payload:#}")
+}
+
+fn with_cascade(raw: String) -> String {
+    let Ok(mut v) = serde_json::from_str::<serde_json::Value>(&raw) else {
+        return raw;
+    };
+    v["cascade"] = crate::choice::collect().doctor_cascade_json();
+    format!("{v:#}")
 }
 
 /// The fixed label column (nextest school: one grid, computed on RAW text).
@@ -1015,9 +1053,8 @@ pub fn redact_userinfo(url: &str) -> String {
 pub fn run(ping: bool, json: bool, verbose: bool, theme: Theme) -> VerbOutput {
     let probe = crate::probe::collect(ping);
     let findings = diagnose(&probe);
-    // P3 B6 · the harness adapter rows (feature-gated): the registry's
-    // probes render detected/authenticated honestly — an absent adapter
-    // stays silent (the exception gets the ink).
+    // P3 B6 · every shipped agentic CLI runtime (always listed · label
+    // `runtime`, never the MCP-wire `agent` column).
     #[cfg(feature = "access-harness")]
     let findings = {
         let mut findings = findings;
@@ -1027,11 +1064,11 @@ pub fn run(ping: bool, json: bool, verbose: bool, theme: Theme) -> VerbOutput {
     let code = exit_code(&findings);
     VerbOutput {
         text: if json {
-            render_json(
+            with_cascade(render_json(
                 &findings,
                 crate::probe::adoption_state(&probe),
                 &crate::probe::capability_receipts(&probe),
-            )
+            ))
         } else {
             // The same sobriety seam the concierge rides: `--plain`
             // promises ASCII glyph twins, and doctor's ✔/⚠/· column
@@ -1045,80 +1082,92 @@ pub fn run(ping: bool, json: bool, verbose: bool, theme: Theme) -> VerbOutput {
 }
 
 #[cfg(test)]
+mod pricing_tests;
+#[cfg(test)]
+mod runtime_tests;
+#[cfg(test)]
 mod tests;
 
-/// P3 B6 · the harness adapter section (feature `access-harness`).
-/// Every row renders what the probe SAW: the version inside its pin,
-/// the auth surface's verdict, the install pointer. An absent adapter
-/// earns no row (the exception gets the ink); a DECLARED-but-absent
-/// one does (the operator asked for it).
+/// P3 B6 · every shipped agentic CLI runtime, always listed (label
+/// `runtime` — never `agent`, which is the MCP-wire column).
 #[cfg(feature = "access-harness")]
-fn harness_findings() -> Vec<Finding> {
+pub(crate) fn harness_findings() -> Vec<Finding> {
     let rows = match nika_harness::registry() {
         Ok(rows) => rows,
         Err(e) => {
             return vec![Finding {
                 level: Level::Warn,
-                label: "harness".to_owned(),
+                label: "runtime".to_owned(),
                 detail: format!("the adapter registry refused to load: {e}"),
                 fix: None,
             }];
         }
     };
-    let declared = declared_adapter_id();
     nika_harness::probe_adapters_sync(rows)
-        .into_iter()
-        .filter_map(|row| {
-            let finding = match (row.version, row.authenticated) {
-                (Some((major, minor)), Some(true)) => Finding {
-                    level: Level::Ok,
-                    label: "harness".to_owned(),
-                    detail: format!(
-                        "{} — detected (v{major}.{minor}) · authenticated (its own login)",
-                        row.id
-                    ),
-                    fix: None,
-                },
-                (Some((major, minor)), _) => Finding {
-                    level: Level::Warn,
-                    label: "harness".to_owned(),
-                    detail: format!(
-                        "{} — detected (v{major}.{minor}) · no auth observed (its own status surface)",
-                        row.id
-                    ),
-                    fix: Some(format!("sign in to `{}` itself", row.id)),
-                },
-                (None, _) if declared.as_deref() == Some(row.id.as_str()) => Finding {
-                    level: Level::Warn,
-                    label: "harness".to_owned(),
-                    detail: format!(
-                        "{} — DECLARED but not detected ({})",
-                        row.id,
-                        if row.note.is_empty() {
-                            "no version read".to_owned()
-                        } else {
-                            row.note.clone()
-                        }
-                    ),
-                    fix: Some(format!("install: {}", row.package)),
-                },
-                // An absent, undeclared adapter is silence (optional rows
-                // never clutter the diagnosis).
-                (None, _) => return None,
-            };
-            Some(finding)
-        })
+        .iter()
+        .map(harness_finding)
         .collect()
 }
 
-/// The operator's declared adapter id (`NIKA_HARNESS_ADAPTER`), when set
-/// — a declaration with no detected binary is the one absence that
-/// earns a row.
 #[cfg(feature = "access-harness")]
-fn declared_adapter_id() -> Option<String> {
-    #[allow(clippy::disallowed_methods)]
-    // presence of the operator's declaration (compose's own boundary)
-    std::env::var("NIKA_HARNESS_ADAPTER")
-        .ok()
-        .filter(|v| !v.is_empty())
+fn harness_finding(row: &nika_harness::AdapterProbeRow) -> Finding {
+    harness_finding_from_parts(
+        &row.id,
+        row.version,
+        row.authenticated,
+        &row.package,
+        row.product_present,
+    )
+}
+
+#[cfg(feature = "access-harness")]
+fn harness_finding_from_parts(
+    id: &str,
+    version: Option<(u32, u32)>,
+    authenticated: Option<bool>,
+    package: &str,
+    product_present: bool,
+) -> Finding {
+    let display = nika_types::access::HarnessRuntime::lookup(id).map_or(id, |rt| rt.display);
+    if id == "codex" && product_present && version.is_none() {
+        return Finding {
+            level: Level::Warn,
+            label: "runtime".to_owned(),
+            detail: format!(
+                "{id} — {display} · infer-grade direct path detected (login judged at run) · \
+                 agent ACP speaker missing · `--access {id}`"
+            ),
+            fix: Some(format!("install: {package} (only required for agent:)")),
+        };
+    }
+    match (product_present, version, authenticated) {
+        (_, Some((major, minor)), Some(true)) => Finding {
+            level: Level::Ok,
+            label: "runtime".to_owned(),
+            detail: format!(
+                "{id} — {display} · detected (v{major}.{minor}) · authenticated (its own login) · `--access {id}`"
+            ),
+            fix: None,
+        },
+        (_, Some((major, minor)), _) => Finding {
+            level: Level::Warn,
+            label: "runtime".to_owned(),
+            detail: format!(
+                "{id} — {display} · detected (v{major}.{minor}) · not signed in · `--access {id}`"
+            ),
+            fix: Some(format!("sign in to {display} itself")),
+        },
+        (true, None, _) => Finding {
+            level: Level::Warn,
+            label: "runtime".to_owned(),
+            detail: format!("{id} — {display} · installed, ACP speaker missing · `--access {id}`"),
+            fix: Some(format!("install: {package}")),
+        },
+        (false, None, _) => Finding {
+            level: Level::Warn,
+            label: "runtime".to_owned(),
+            detail: format!("{id} — {display} · not installed · `--access {id}`"),
+            fix: Some(format!("install: {package}")),
+        },
+    }
 }

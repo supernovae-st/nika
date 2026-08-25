@@ -236,3 +236,117 @@ async fn thinking_budget_reaches_the_anthropic_wire() {
         "thinking.budget_tokens reaches the anthropic wire: {body}"
     );
 }
+
+#[cfg(feature = "access-harness")]
+#[test]
+fn seated_infer_records_quota_without_any_numeric_meter_or_responder_claim() {
+    let dispatched = super::dispatched_harness_infer(
+        "codex",
+        nika_verb_infer::HarnessInferOutput::new(
+            serde_json::Value::String("answer".to_owned()),
+            "anthropic/claude-sonnet-4-6",
+        ),
+    );
+    assert!(dispatched.note.contains("seat codex"));
+    assert!(
+        dispatched
+            .note
+            .contains("requested anthropic/claude-sonnet-4-6")
+    );
+    let Ok(ok) = dispatched.result else {
+        panic!("the synthetic seated inference must succeed");
+    };
+    assert_eq!(ok.tokens, None, "subscription quota is never token-counted");
+    assert_eq!(ok.cost_usd, None, "subscription quota has no numeric price");
+    assert_eq!(
+        ok.cost_source, None,
+        "the receipt never claims which model responded"
+    );
+    assert_eq!(
+        ok.cost_unpriced,
+        Some(nika_types::cost::UnpricedReason::SubscriptionQuota)
+    );
+}
+
+/// #1025 — the exec jail derives `permits.fs` through `spec_of`: a
+/// portable `~/` grant must land as this operator's absolute path, not
+/// as the literal `~` the launcher refuses, and not as another tree.
+#[test]
+fn a_tilde_fs_grant_expands_to_the_operator_home_on_the_jail() {
+    use nika_schema::types::{FsPermits, Permits};
+
+    let home = "/tmp/nika-op-home";
+    let mut permits = Permits::new();
+    permits.fs = Some(FsPermits::new(
+        vec!["~/.gitconfig".into(), "$HOME/.config/git/**".into()],
+        vec![],
+    ));
+    let spec = nika_exec_runner::sandbox_spec::spec_of_with_home(
+        &permits,
+        std::path::Path::new("/repo"),
+        Some(home),
+    )
+    .expect("home grants expand to absolute paths");
+    assert_eq!(
+        spec.fs_read,
+        vec![
+            format!("{home}/.gitconfig"),
+            format!("{home}/.config/git/**"),
+        ]
+    );
+    let mut jail = Permits::new();
+    jail.fs = Some(FsPermits::new(spec.fs_read, vec![]));
+    assert!(jail.jail_admits_read(&format!("{home}/.gitconfig")));
+    assert!(!jail.jail_admits_read("/tmp/evil/.gitconfig"));
+    assert!(!jail.jail_admits_read("/etc/passwd"));
+}
+
+/// #1025 — the production launcher receives unresolved portable home
+/// grants as non-absolute paths and refuses before spawn. Both missing
+/// and non-absolute homes cover the three spellings and their exact tokens.
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+#[test]
+fn unresolved_home_grants_fail_closed_at_the_production_launcher() {
+    use nika_kernel::command_sandbox::{CommandSandbox, CommandSandboxError};
+    use nika_kernel::process::ShellCommand;
+    use nika_schema::types::{FsPermits, Permits};
+
+    #[cfg(target_os = "linux")]
+    let sandbox = nika_sandbox_landlock::LandlockSandbox::new();
+    #[cfg(target_os = "macos")]
+    let sandbox = nika_sandbox_seatbelt::SeatbeltSandbox::new();
+
+    let grants = [
+        "~",
+        "~/.gitconfig",
+        "$HOME",
+        "$HOME/.gitconfig",
+        "${HOME}",
+        "${HOME}/.config/git/**",
+    ];
+    for home in [None, Some("relative/home")] {
+        for grant in grants {
+            let mut permits = Permits::new();
+            permits.fs = Some(FsPermits::new(vec![grant.to_owned()], vec![]));
+            let spec = nika_exec_runner::sandbox_spec::spec_of_with_home(
+                &permits,
+                std::path::Path::new("/repo"),
+                home,
+            )
+            .expect("an unresolved home reaches the launcher's refusal");
+            assert_eq!(spec.fs_read, vec![grant], "home = {home:?}");
+            assert!(!spec.fs_read[0].starts_with('/'));
+
+            let refusal = sandbox
+                .confine(&spec, ShellCommand::new("/usr/bin/true"))
+                .expect_err("an unresolved home grant must refuse before spawn");
+            assert!(
+                matches!(
+                    refusal,
+                    CommandSandboxError::Profile { .. } | CommandSandboxError::Unavailable { .. }
+                ),
+                "home = {home:?}, grant = {grant:?}: {refusal:?}"
+            );
+        }
+    }
+}

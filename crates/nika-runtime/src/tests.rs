@@ -10,6 +10,8 @@
 
 use super::*;
 
+mod seated_receipt;
+
 /// The F-O1 integrity label for the pre-existing frame tests below —
 /// they exercise the frame surface, not the label: a trusted settle
 /// emits NO `integrity` field (the additive law: absent = trusted).

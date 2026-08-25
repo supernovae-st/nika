@@ -1,0 +1,548 @@
+pub mod nika_dataflow
+pub mod nika_dataflow::expr
+pub struct nika_dataflow::expr::Scope<'a>
+pub nika_dataflow::expr::Scope::consts: &'a alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>
+pub nika_dataflow::expr::Scope::index: core::option::Option<usize>
+pub nika_dataflow::expr::Scope::inputs: &'a alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>
+pub nika_dataflow::expr::Scope::item: core::option::Option<&'a serde_json::value::Value>
+pub nika_dataflow::expr::Scope::permits: core::option::Option<&'a nika_cap::permits::Permits>
+pub nika_dataflow::expr::Scope::records: &'a alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_dataflow::record::TaskRecord>
+pub nika_dataflow::expr::Scope::secrets: &'a alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>
+pub nika_dataflow::expr::Scope::with_ns: core::option::Option<&'a alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>>
+impl<'a> nika_dataflow::expr::Scope<'a>
+pub fn nika_dataflow::expr::Scope<'a>::resolve_expr(&self, reference: &str) -> core::result::Result<serde_json::value::Value, nika_dataflow::DataflowError>
+pub fn nika_dataflow::expr::Scope<'a>::workflow_with_value_authorities(records: &'a alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_dataflow::record::TaskRecord>, inputs: &'a alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>, consts: &'a alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>, secrets: &'a alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>) -> Self
+impl<'a> core::clone::Clone for nika_dataflow::expr::Scope<'a>
+pub fn nika_dataflow::expr::Scope<'a>::clone(&self) -> nika_dataflow::expr::Scope<'a>
+impl<'a> core::marker::Copy for nika_dataflow::expr::Scope<'a>
+impl<D> owo_colors::OwoColorize for nika_dataflow::expr::Scope<'a>
+impl<T, U> core::convert::Into<U> for nika_dataflow::expr::Scope<'a> where U: core::convert::From<T>
+pub fn nika_dataflow::expr::Scope<'a>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dataflow::expr::Scope<'a> where U: core::convert::Into<T>
+pub type nika_dataflow::expr::Scope<'a>::Error = core::convert::Infallible
+pub fn nika_dataflow::expr::Scope<'a>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dataflow::expr::Scope<'a> where U: core::convert::TryFrom<T>
+pub type nika_dataflow::expr::Scope<'a>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dataflow::expr::Scope<'a>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dataflow::expr::Scope<'a> where T: core::clone::Clone
+pub type nika_dataflow::expr::Scope<'a>::Owned = T
+pub fn nika_dataflow::expr::Scope<'a>::clone_into(&self, target: &mut T)
+pub fn nika_dataflow::expr::Scope<'a>::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dataflow::expr::Scope<'a> where T: 'static + ?core::marker::Sized
+pub fn nika_dataflow::expr::Scope<'a>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dataflow::expr::Scope<'a> where T: ?core::marker::Sized
+pub fn nika_dataflow::expr::Scope<'a>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dataflow::expr::Scope<'a> where T: ?core::marker::Sized
+pub fn nika_dataflow::expr::Scope<'a>::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dataflow::expr::Scope<'a> where T: core::clone::Clone
+pub unsafe fn nika_dataflow::expr::Scope<'a>::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dataflow::expr::Scope<'a>
+pub fn nika_dataflow::expr::Scope<'a>::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dataflow::expr::Scope<'a> where T: core::clone::Clone
+pub fn nika_dataflow::expr::Scope<'a>::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dataflow::expr::Scope<'a> where T: 'static
+pub fn nika_dataflow::expr::Scope<'a>::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub fn nika_dataflow::expr::eval_when(expr: &str, scope: &nika_dataflow::expr::Scope<'_>) -> core::result::Result<bool, nika_dataflow::DataflowError>
+pub fn nika_dataflow::expr::render(text: &str, scope: &nika_dataflow::expr::Scope<'_>) -> core::result::Result<alloc::string::String, nika_dataflow::DataflowError>
+pub fn nika_dataflow::expr::render_json(value: &serde_json::value::Value, scope: &nika_dataflow::expr::Scope<'_>) -> core::result::Result<serde_json::value::Value, nika_dataflow::DataflowError>
+pub mod nika_dataflow::jq
+pub fn nika_dataflow::jq::eval_binding(name: &str, program: &str, input: &serde_json::value::Value) -> core::result::Result<serde_json::value::Value, nika_dataflow::DataflowError>
+pub mod nika_dataflow::record
+pub enum nika_dataflow::record::TaskStatus
+pub nika_dataflow::record::TaskStatus::Cancelled
+pub nika_dataflow::record::TaskStatus::Failure
+pub nika_dataflow::record::TaskStatus::Skipped
+pub nika_dataflow::record::TaskStatus::Success
+impl nika_dataflow::record::TaskStatus
+pub const fn nika_dataflow::record::TaskStatus::as_str(self) -> &'static str
+impl core::clone::Clone for nika_dataflow::record::TaskStatus
+pub fn nika_dataflow::record::TaskStatus::clone(&self) -> nika_dataflow::record::TaskStatus
+impl core::cmp::Eq for nika_dataflow::record::TaskStatus
+impl core::cmp::PartialEq for nika_dataflow::record::TaskStatus
+pub fn nika_dataflow::record::TaskStatus::eq(&self, other: &nika_dataflow::record::TaskStatus) -> bool
+impl core::fmt::Debug for nika_dataflow::record::TaskStatus
+pub fn nika_dataflow::record::TaskStatus::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_dataflow::record::TaskStatus
+impl core::marker::StructuralPartialEq for nika_dataflow::record::TaskStatus
+impl<D> owo_colors::OwoColorize for nika_dataflow::record::TaskStatus
+impl<Q, K> equivalent::Equivalent<K> for nika_dataflow::record::TaskStatus where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dataflow::record::TaskStatus::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dataflow::record::TaskStatus where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_dataflow::record::TaskStatus where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dataflow::record::TaskStatus::equivalent(&self, key: &K) -> bool
+pub fn nika_dataflow::record::TaskStatus::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dataflow::record::TaskStatus where U: core::convert::From<T>
+pub fn nika_dataflow::record::TaskStatus::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dataflow::record::TaskStatus where U: core::convert::Into<T>
+pub type nika_dataflow::record::TaskStatus::Error = core::convert::Infallible
+pub fn nika_dataflow::record::TaskStatus::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dataflow::record::TaskStatus where U: core::convert::TryFrom<T>
+pub type nika_dataflow::record::TaskStatus::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dataflow::record::TaskStatus::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dataflow::record::TaskStatus where T: core::clone::Clone
+pub type nika_dataflow::record::TaskStatus::Owned = T
+pub fn nika_dataflow::record::TaskStatus::clone_into(&self, target: &mut T)
+pub fn nika_dataflow::record::TaskStatus::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dataflow::record::TaskStatus where T: 'static + ?core::marker::Sized
+pub fn nika_dataflow::record::TaskStatus::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dataflow::record::TaskStatus where T: ?core::marker::Sized
+pub fn nika_dataflow::record::TaskStatus::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dataflow::record::TaskStatus where T: ?core::marker::Sized
+pub fn nika_dataflow::record::TaskStatus::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dataflow::record::TaskStatus where T: core::clone::Clone
+pub unsafe fn nika_dataflow::record::TaskStatus::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dataflow::record::TaskStatus
+pub fn nika_dataflow::record::TaskStatus::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dataflow::record::TaskStatus where T: core::clone::Clone
+pub fn nika_dataflow::record::TaskStatus::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dataflow::record::TaskStatus where T: 'static
+pub fn nika_dataflow::record::TaskStatus::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub enum nika_dataflow::record::TerminalCause
+pub nika_dataflow::record::TerminalCause::Budget
+pub nika_dataflow::record::TerminalCause::ErrorSkip
+pub nika_dataflow::record::TerminalCause::Gate
+pub nika_dataflow::record::TerminalCause::Normal
+pub nika_dataflow::record::TerminalCause::Operator
+pub nika_dataflow::record::TerminalCause::Recovered
+pub nika_dataflow::record::TerminalCause::RetryExhausted
+pub nika_dataflow::record::TerminalCause::Timeout
+pub nika_dataflow::record::TerminalCause::Upstream
+pub nika_dataflow::record::TerminalCause::VerbError
+impl nika_dataflow::record::TerminalCause
+pub const fn nika_dataflow::record::TerminalCause::as_str(self) -> &'static str
+impl core::clone::Clone for nika_dataflow::record::TerminalCause
+pub fn nika_dataflow::record::TerminalCause::clone(&self) -> nika_dataflow::record::TerminalCause
+impl core::cmp::Eq for nika_dataflow::record::TerminalCause
+impl core::cmp::PartialEq for nika_dataflow::record::TerminalCause
+pub fn nika_dataflow::record::TerminalCause::eq(&self, other: &nika_dataflow::record::TerminalCause) -> bool
+impl core::fmt::Debug for nika_dataflow::record::TerminalCause
+pub fn nika_dataflow::record::TerminalCause::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_dataflow::record::TerminalCause
+impl core::marker::StructuralPartialEq for nika_dataflow::record::TerminalCause
+impl serde_core::ser::Serialize for nika_dataflow::record::TerminalCause
+pub fn nika_dataflow::record::TerminalCause::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_dataflow::record::TerminalCause
+pub fn nika_dataflow::record::TerminalCause::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_dataflow::record::TerminalCause
+impl<Q, K> equivalent::Equivalent<K> for nika_dataflow::record::TerminalCause where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dataflow::record::TerminalCause::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dataflow::record::TerminalCause where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_dataflow::record::TerminalCause where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dataflow::record::TerminalCause::equivalent(&self, key: &K) -> bool
+pub fn nika_dataflow::record::TerminalCause::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dataflow::record::TerminalCause where U: core::convert::From<T>
+pub fn nika_dataflow::record::TerminalCause::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dataflow::record::TerminalCause where U: core::convert::Into<T>
+pub type nika_dataflow::record::TerminalCause::Error = core::convert::Infallible
+pub fn nika_dataflow::record::TerminalCause::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dataflow::record::TerminalCause where U: core::convert::TryFrom<T>
+pub type nika_dataflow::record::TerminalCause::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dataflow::record::TerminalCause::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dataflow::record::TerminalCause where T: core::clone::Clone
+pub type nika_dataflow::record::TerminalCause::Owned = T
+pub fn nika_dataflow::record::TerminalCause::clone_into(&self, target: &mut T)
+pub fn nika_dataflow::record::TerminalCause::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dataflow::record::TerminalCause where T: 'static + ?core::marker::Sized
+pub fn nika_dataflow::record::TerminalCause::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dataflow::record::TerminalCause where T: ?core::marker::Sized
+pub fn nika_dataflow::record::TerminalCause::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dataflow::record::TerminalCause where T: ?core::marker::Sized
+pub fn nika_dataflow::record::TerminalCause::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dataflow::record::TerminalCause where T: core::clone::Clone
+pub unsafe fn nika_dataflow::record::TerminalCause::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dataflow::record::TerminalCause
+pub fn nika_dataflow::record::TerminalCause::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dataflow::record::TerminalCause where T: core::clone::Clone
+pub fn nika_dataflow::record::TerminalCause::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dataflow::record::TerminalCause where T: 'static
+pub fn nika_dataflow::record::TerminalCause::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_dataflow::record::TerminalCause where T: for<'de> serde_core::de::Deserialize<'de>
+pub struct nika_dataflow::record::TaskErrorRecord
+pub nika_dataflow::record::TaskErrorRecord::code: alloc::string::String
+pub nika_dataflow::record::TaskErrorRecord::message: alloc::string::String
+pub nika_dataflow::record::TaskErrorRecord::transient: bool
+impl nika_dataflow::record::TaskErrorRecord
+pub fn nika_dataflow::record::TaskErrorRecord::to_value(&self) -> serde_json::value::Value
+impl core::clone::Clone for nika_dataflow::record::TaskErrorRecord
+pub fn nika_dataflow::record::TaskErrorRecord::clone(&self) -> nika_dataflow::record::TaskErrorRecord
+impl core::cmp::Eq for nika_dataflow::record::TaskErrorRecord
+impl core::cmp::PartialEq for nika_dataflow::record::TaskErrorRecord
+pub fn nika_dataflow::record::TaskErrorRecord::eq(&self, other: &nika_dataflow::record::TaskErrorRecord) -> bool
+impl core::fmt::Debug for nika_dataflow::record::TaskErrorRecord
+pub fn nika_dataflow::record::TaskErrorRecord::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_dataflow::record::TaskErrorRecord
+impl<D> owo_colors::OwoColorize for nika_dataflow::record::TaskErrorRecord
+impl<Q, K> equivalent::Equivalent<K> for nika_dataflow::record::TaskErrorRecord where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dataflow::record::TaskErrorRecord::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dataflow::record::TaskErrorRecord where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_dataflow::record::TaskErrorRecord where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dataflow::record::TaskErrorRecord::equivalent(&self, key: &K) -> bool
+pub fn nika_dataflow::record::TaskErrorRecord::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dataflow::record::TaskErrorRecord where U: core::convert::From<T>
+pub fn nika_dataflow::record::TaskErrorRecord::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dataflow::record::TaskErrorRecord where U: core::convert::Into<T>
+pub type nika_dataflow::record::TaskErrorRecord::Error = core::convert::Infallible
+pub fn nika_dataflow::record::TaskErrorRecord::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dataflow::record::TaskErrorRecord where U: core::convert::TryFrom<T>
+pub type nika_dataflow::record::TaskErrorRecord::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dataflow::record::TaskErrorRecord::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dataflow::record::TaskErrorRecord where T: core::clone::Clone
+pub type nika_dataflow::record::TaskErrorRecord::Owned = T
+pub fn nika_dataflow::record::TaskErrorRecord::clone_into(&self, target: &mut T)
+pub fn nika_dataflow::record::TaskErrorRecord::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dataflow::record::TaskErrorRecord where T: 'static + ?core::marker::Sized
+pub fn nika_dataflow::record::TaskErrorRecord::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dataflow::record::TaskErrorRecord where T: ?core::marker::Sized
+pub fn nika_dataflow::record::TaskErrorRecord::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dataflow::record::TaskErrorRecord where T: ?core::marker::Sized
+pub fn nika_dataflow::record::TaskErrorRecord::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dataflow::record::TaskErrorRecord where T: core::clone::Clone
+pub unsafe fn nika_dataflow::record::TaskErrorRecord::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dataflow::record::TaskErrorRecord
+pub fn nika_dataflow::record::TaskErrorRecord::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dataflow::record::TaskErrorRecord where T: core::clone::Clone
+pub fn nika_dataflow::record::TaskErrorRecord::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dataflow::record::TaskErrorRecord where T: 'static
+pub fn nika_dataflow::record::TaskErrorRecord::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_dataflow::record::TaskRecord
+pub nika_dataflow::record::TaskRecord::attempts: core::option::Option<u32>
+pub nika_dataflow::record::TaskRecord::cause: nika_dataflow::record::TerminalCause
+pub nika_dataflow::record::TaskRecord::duration_ms: core::option::Option<u64>
+pub nika_dataflow::record::TaskRecord::ended_at: core::option::Option<nika_types::timestamp::Timestamp>
+pub nika_dataflow::record::TaskRecord::error: core::option::Option<nika_dataflow::record::TaskErrorRecord>
+pub nika_dataflow::record::TaskRecord::integrity: nika_cap::integrity::Integrity
+pub nika_dataflow::record::TaskRecord::named: alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>
+pub nika_dataflow::record::TaskRecord::output: serde_json::value::Value
+pub nika_dataflow::record::TaskRecord::recovered_from: core::option::Option<nika_dataflow::record::TaskErrorRecord>
+pub nika_dataflow::record::TaskRecord::started_at: core::option::Option<nika_types::timestamp::Timestamp>
+pub nika_dataflow::record::TaskRecord::status: nika_dataflow::record::TaskStatus
+impl nika_dataflow::record::TaskRecord
+pub fn nika_dataflow::record::TaskRecord::field(&self, name: &str) -> core::option::Option<serde_json::value::Value>
+pub fn nika_dataflow::record::TaskRecord::unran(status: nika_dataflow::record::TaskStatus, cause: nika_dataflow::record::TerminalCause) -> Self
+impl core::clone::Clone for nika_dataflow::record::TaskRecord
+pub fn nika_dataflow::record::TaskRecord::clone(&self) -> nika_dataflow::record::TaskRecord
+impl core::fmt::Debug for nika_dataflow::record::TaskRecord
+pub fn nika_dataflow::record::TaskRecord::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_dataflow::record::TaskRecord
+impl<T, U> core::convert::Into<U> for nika_dataflow::record::TaskRecord where U: core::convert::From<T>
+pub fn nika_dataflow::record::TaskRecord::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dataflow::record::TaskRecord where U: core::convert::Into<T>
+pub type nika_dataflow::record::TaskRecord::Error = core::convert::Infallible
+pub fn nika_dataflow::record::TaskRecord::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dataflow::record::TaskRecord where U: core::convert::TryFrom<T>
+pub type nika_dataflow::record::TaskRecord::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dataflow::record::TaskRecord::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dataflow::record::TaskRecord where T: core::clone::Clone
+pub type nika_dataflow::record::TaskRecord::Owned = T
+pub fn nika_dataflow::record::TaskRecord::clone_into(&self, target: &mut T)
+pub fn nika_dataflow::record::TaskRecord::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dataflow::record::TaskRecord where T: 'static + ?core::marker::Sized
+pub fn nika_dataflow::record::TaskRecord::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dataflow::record::TaskRecord where T: ?core::marker::Sized
+pub fn nika_dataflow::record::TaskRecord::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dataflow::record::TaskRecord where T: ?core::marker::Sized
+pub fn nika_dataflow::record::TaskRecord::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dataflow::record::TaskRecord where T: core::clone::Clone
+pub unsafe fn nika_dataflow::record::TaskRecord::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dataflow::record::TaskRecord
+pub fn nika_dataflow::record::TaskRecord::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dataflow::record::TaskRecord where T: core::clone::Clone
+pub fn nika_dataflow::record::TaskRecord::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dataflow::record::TaskRecord where T: 'static
+pub fn nika_dataflow::record::TaskRecord::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub const nika_dataflow::record::TIMEOUT_CODE: &str
+pub fn nika_dataflow::record::failure_cause(error: &nika_dataflow::record::TaskErrorRecord, attempts: u32) -> nika_dataflow::record::TerminalCause
+pub const fn nika_dataflow::record::legal(class: nika_dataflow::record::TaskStatus, cause: nika_dataflow::record::TerminalCause) -> bool
+pub fn nika_dataflow::record::outcome_json(record: &nika_dataflow::record::TaskRecord) -> alloc::string::String
+pub fn nika_dataflow::record::render_value(value: &serde_json::value::Value) -> alloc::string::String
+#[non_exhaustive] pub enum nika_dataflow::DataflowError
+pub nika_dataflow::DataflowError::CelEval
+pub nika_dataflow::DataflowError::CelEval::code: &'static str
+pub nika_dataflow::DataflowError::CelEval::message: alloc::string::String
+pub nika_dataflow::DataflowError::OutputBinding
+pub nika_dataflow::DataflowError::OutputBinding::code: &'static str
+pub nika_dataflow::DataflowError::OutputBinding::message: alloc::string::String
+pub nika_dataflow::DataflowError::UnresolvedTemplate
+pub nika_dataflow::DataflowError::UnresolvedTemplate::reference: alloc::string::String
+pub nika_dataflow::DataflowError::WhenUnsupported
+pub nika_dataflow::DataflowError::WhenUnsupported::expr: alloc::string::String
+impl nika_dataflow::DataflowError
+pub fn nika_dataflow::DataflowError::from_cel(err: &nika_cel::error::CelError, reference: &str) -> Self
+pub fn nika_dataflow::DataflowError::spec_code(&self) -> alloc::string::String
+pub fn nika_dataflow::DataflowError::wire_message(&self) -> alloc::string::String
+impl core::error::Error for nika_dataflow::DataflowError
+impl core::fmt::Debug for nika_dataflow::DataflowError
+pub fn nika_dataflow::DataflowError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_dataflow::DataflowError
+pub fn nika_dataflow::DataflowError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl miette::protocol::Diagnostic for nika_dataflow::DataflowError
+pub fn nika_dataflow::DataflowError::code(&self) -> core::option::Option<alloc::boxed::Box<(dyn core::fmt::Display + '_)>>
+impl nika_error::traits::NikaErrorCode for nika_dataflow::DataflowError
+pub fn nika_dataflow::DataflowError::is_transient(&self) -> bool
+pub fn nika_dataflow::DataflowError::nika_code(&self) -> nika_error::codes::NikaCode
+impl<D> owo_colors::OwoColorize for nika_dataflow::DataflowError
+impl<T, U> core::convert::Into<U> for nika_dataflow::DataflowError where U: core::convert::From<T>
+pub fn nika_dataflow::DataflowError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dataflow::DataflowError where U: core::convert::Into<T>
+pub type nika_dataflow::DataflowError::Error = core::convert::Infallible
+pub fn nika_dataflow::DataflowError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dataflow::DataflowError where U: core::convert::TryFrom<T>
+pub type nika_dataflow::DataflowError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dataflow::DataflowError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_dataflow::DataflowError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_dataflow::DataflowError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_dataflow::DataflowError where T: 'static + ?core::marker::Sized
+pub fn nika_dataflow::DataflowError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dataflow::DataflowError where T: ?core::marker::Sized
+pub fn nika_dataflow::DataflowError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dataflow::DataflowError where T: ?core::marker::Sized
+pub fn nika_dataflow::DataflowError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_dataflow::DataflowError
+pub fn nika_dataflow::DataflowError::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_dataflow::DataflowError where T: 'static
+pub fn nika_dataflow::DataflowError::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub enum nika_dataflow::TaskStatus
+pub nika_dataflow::TaskStatus::Cancelled
+pub nika_dataflow::TaskStatus::Failure
+pub nika_dataflow::TaskStatus::Skipped
+pub nika_dataflow::TaskStatus::Success
+impl nika_dataflow::record::TaskStatus
+pub const fn nika_dataflow::record::TaskStatus::as_str(self) -> &'static str
+impl core::clone::Clone for nika_dataflow::record::TaskStatus
+pub fn nika_dataflow::record::TaskStatus::clone(&self) -> nika_dataflow::record::TaskStatus
+impl core::cmp::Eq for nika_dataflow::record::TaskStatus
+impl core::cmp::PartialEq for nika_dataflow::record::TaskStatus
+pub fn nika_dataflow::record::TaskStatus::eq(&self, other: &nika_dataflow::record::TaskStatus) -> bool
+impl core::fmt::Debug for nika_dataflow::record::TaskStatus
+pub fn nika_dataflow::record::TaskStatus::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_dataflow::record::TaskStatus
+impl core::marker::StructuralPartialEq for nika_dataflow::record::TaskStatus
+impl<D> owo_colors::OwoColorize for nika_dataflow::record::TaskStatus
+impl<Q, K> equivalent::Equivalent<K> for nika_dataflow::record::TaskStatus where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dataflow::record::TaskStatus::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dataflow::record::TaskStatus where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_dataflow::record::TaskStatus where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dataflow::record::TaskStatus::equivalent(&self, key: &K) -> bool
+pub fn nika_dataflow::record::TaskStatus::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dataflow::record::TaskStatus where U: core::convert::From<T>
+pub fn nika_dataflow::record::TaskStatus::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dataflow::record::TaskStatus where U: core::convert::Into<T>
+pub type nika_dataflow::record::TaskStatus::Error = core::convert::Infallible
+pub fn nika_dataflow::record::TaskStatus::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dataflow::record::TaskStatus where U: core::convert::TryFrom<T>
+pub type nika_dataflow::record::TaskStatus::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dataflow::record::TaskStatus::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dataflow::record::TaskStatus where T: core::clone::Clone
+pub type nika_dataflow::record::TaskStatus::Owned = T
+pub fn nika_dataflow::record::TaskStatus::clone_into(&self, target: &mut T)
+pub fn nika_dataflow::record::TaskStatus::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dataflow::record::TaskStatus where T: 'static + ?core::marker::Sized
+pub fn nika_dataflow::record::TaskStatus::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dataflow::record::TaskStatus where T: ?core::marker::Sized
+pub fn nika_dataflow::record::TaskStatus::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dataflow::record::TaskStatus where T: ?core::marker::Sized
+pub fn nika_dataflow::record::TaskStatus::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dataflow::record::TaskStatus where T: core::clone::Clone
+pub unsafe fn nika_dataflow::record::TaskStatus::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dataflow::record::TaskStatus
+pub fn nika_dataflow::record::TaskStatus::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dataflow::record::TaskStatus where T: core::clone::Clone
+pub fn nika_dataflow::record::TaskStatus::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dataflow::record::TaskStatus where T: 'static
+pub fn nika_dataflow::record::TaskStatus::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub enum nika_dataflow::TerminalCause
+pub nika_dataflow::TerminalCause::Budget
+pub nika_dataflow::TerminalCause::ErrorSkip
+pub nika_dataflow::TerminalCause::Gate
+pub nika_dataflow::TerminalCause::Normal
+pub nika_dataflow::TerminalCause::Operator
+pub nika_dataflow::TerminalCause::Recovered
+pub nika_dataflow::TerminalCause::RetryExhausted
+pub nika_dataflow::TerminalCause::Timeout
+pub nika_dataflow::TerminalCause::Upstream
+pub nika_dataflow::TerminalCause::VerbError
+impl nika_dataflow::record::TerminalCause
+pub const fn nika_dataflow::record::TerminalCause::as_str(self) -> &'static str
+impl core::clone::Clone for nika_dataflow::record::TerminalCause
+pub fn nika_dataflow::record::TerminalCause::clone(&self) -> nika_dataflow::record::TerminalCause
+impl core::cmp::Eq for nika_dataflow::record::TerminalCause
+impl core::cmp::PartialEq for nika_dataflow::record::TerminalCause
+pub fn nika_dataflow::record::TerminalCause::eq(&self, other: &nika_dataflow::record::TerminalCause) -> bool
+impl core::fmt::Debug for nika_dataflow::record::TerminalCause
+pub fn nika_dataflow::record::TerminalCause::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_dataflow::record::TerminalCause
+impl core::marker::StructuralPartialEq for nika_dataflow::record::TerminalCause
+impl serde_core::ser::Serialize for nika_dataflow::record::TerminalCause
+pub fn nika_dataflow::record::TerminalCause::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_dataflow::record::TerminalCause
+pub fn nika_dataflow::record::TerminalCause::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_dataflow::record::TerminalCause
+impl<Q, K> equivalent::Equivalent<K> for nika_dataflow::record::TerminalCause where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dataflow::record::TerminalCause::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dataflow::record::TerminalCause where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_dataflow::record::TerminalCause where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dataflow::record::TerminalCause::equivalent(&self, key: &K) -> bool
+pub fn nika_dataflow::record::TerminalCause::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dataflow::record::TerminalCause where U: core::convert::From<T>
+pub fn nika_dataflow::record::TerminalCause::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dataflow::record::TerminalCause where U: core::convert::Into<T>
+pub type nika_dataflow::record::TerminalCause::Error = core::convert::Infallible
+pub fn nika_dataflow::record::TerminalCause::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dataflow::record::TerminalCause where U: core::convert::TryFrom<T>
+pub type nika_dataflow::record::TerminalCause::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dataflow::record::TerminalCause::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dataflow::record::TerminalCause where T: core::clone::Clone
+pub type nika_dataflow::record::TerminalCause::Owned = T
+pub fn nika_dataflow::record::TerminalCause::clone_into(&self, target: &mut T)
+pub fn nika_dataflow::record::TerminalCause::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dataflow::record::TerminalCause where T: 'static + ?core::marker::Sized
+pub fn nika_dataflow::record::TerminalCause::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dataflow::record::TerminalCause where T: ?core::marker::Sized
+pub fn nika_dataflow::record::TerminalCause::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dataflow::record::TerminalCause where T: ?core::marker::Sized
+pub fn nika_dataflow::record::TerminalCause::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dataflow::record::TerminalCause where T: core::clone::Clone
+pub unsafe fn nika_dataflow::record::TerminalCause::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dataflow::record::TerminalCause
+pub fn nika_dataflow::record::TerminalCause::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dataflow::record::TerminalCause where T: core::clone::Clone
+pub fn nika_dataflow::record::TerminalCause::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dataflow::record::TerminalCause where T: 'static
+pub fn nika_dataflow::record::TerminalCause::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> serde_core::de::DeserializeOwned for nika_dataflow::record::TerminalCause where T: for<'de> serde_core::de::Deserialize<'de>
+pub struct nika_dataflow::Scope<'a>
+pub nika_dataflow::Scope::consts: &'a alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>
+pub nika_dataflow::Scope::index: core::option::Option<usize>
+pub nika_dataflow::Scope::inputs: &'a alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>
+pub nika_dataflow::Scope::item: core::option::Option<&'a serde_json::value::Value>
+pub nika_dataflow::Scope::permits: core::option::Option<&'a nika_cap::permits::Permits>
+pub nika_dataflow::Scope::records: &'a alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_dataflow::record::TaskRecord>
+pub nika_dataflow::Scope::secrets: &'a alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>
+pub nika_dataflow::Scope::with_ns: core::option::Option<&'a alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>>
+impl<'a> nika_dataflow::expr::Scope<'a>
+pub fn nika_dataflow::expr::Scope<'a>::resolve_expr(&self, reference: &str) -> core::result::Result<serde_json::value::Value, nika_dataflow::DataflowError>
+pub fn nika_dataflow::expr::Scope<'a>::workflow_with_value_authorities(records: &'a alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_dataflow::record::TaskRecord>, inputs: &'a alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>, consts: &'a alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>, secrets: &'a alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>) -> Self
+impl<'a> core::clone::Clone for nika_dataflow::expr::Scope<'a>
+pub fn nika_dataflow::expr::Scope<'a>::clone(&self) -> nika_dataflow::expr::Scope<'a>
+impl<'a> core::marker::Copy for nika_dataflow::expr::Scope<'a>
+impl<D> owo_colors::OwoColorize for nika_dataflow::expr::Scope<'a>
+impl<T, U> core::convert::Into<U> for nika_dataflow::expr::Scope<'a> where U: core::convert::From<T>
+pub fn nika_dataflow::expr::Scope<'a>::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dataflow::expr::Scope<'a> where U: core::convert::Into<T>
+pub type nika_dataflow::expr::Scope<'a>::Error = core::convert::Infallible
+pub fn nika_dataflow::expr::Scope<'a>::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dataflow::expr::Scope<'a> where U: core::convert::TryFrom<T>
+pub type nika_dataflow::expr::Scope<'a>::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dataflow::expr::Scope<'a>::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dataflow::expr::Scope<'a> where T: core::clone::Clone
+pub type nika_dataflow::expr::Scope<'a>::Owned = T
+pub fn nika_dataflow::expr::Scope<'a>::clone_into(&self, target: &mut T)
+pub fn nika_dataflow::expr::Scope<'a>::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dataflow::expr::Scope<'a> where T: 'static + ?core::marker::Sized
+pub fn nika_dataflow::expr::Scope<'a>::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dataflow::expr::Scope<'a> where T: ?core::marker::Sized
+pub fn nika_dataflow::expr::Scope<'a>::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dataflow::expr::Scope<'a> where T: ?core::marker::Sized
+pub fn nika_dataflow::expr::Scope<'a>::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dataflow::expr::Scope<'a> where T: core::clone::Clone
+pub unsafe fn nika_dataflow::expr::Scope<'a>::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dataflow::expr::Scope<'a>
+pub fn nika_dataflow::expr::Scope<'a>::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dataflow::expr::Scope<'a> where T: core::clone::Clone
+pub fn nika_dataflow::expr::Scope<'a>::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dataflow::expr::Scope<'a> where T: 'static
+pub fn nika_dataflow::expr::Scope<'a>::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub struct nika_dataflow::TaskErrorRecord
+pub nika_dataflow::TaskErrorRecord::code: alloc::string::String
+pub nika_dataflow::TaskErrorRecord::message: alloc::string::String
+pub nika_dataflow::TaskErrorRecord::transient: bool
+impl nika_dataflow::record::TaskErrorRecord
+pub fn nika_dataflow::record::TaskErrorRecord::to_value(&self) -> serde_json::value::Value
+impl core::clone::Clone for nika_dataflow::record::TaskErrorRecord
+pub fn nika_dataflow::record::TaskErrorRecord::clone(&self) -> nika_dataflow::record::TaskErrorRecord
+impl core::cmp::Eq for nika_dataflow::record::TaskErrorRecord
+impl core::cmp::PartialEq for nika_dataflow::record::TaskErrorRecord
+pub fn nika_dataflow::record::TaskErrorRecord::eq(&self, other: &nika_dataflow::record::TaskErrorRecord) -> bool
+impl core::fmt::Debug for nika_dataflow::record::TaskErrorRecord
+pub fn nika_dataflow::record::TaskErrorRecord::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_dataflow::record::TaskErrorRecord
+impl<D> owo_colors::OwoColorize for nika_dataflow::record::TaskErrorRecord
+impl<Q, K> equivalent::Equivalent<K> for nika_dataflow::record::TaskErrorRecord where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dataflow::record::TaskErrorRecord::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_dataflow::record::TaskErrorRecord where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+impl<Q, K> hashbrown::Equivalent<K> for nika_dataflow::record::TaskErrorRecord where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_dataflow::record::TaskErrorRecord::equivalent(&self, key: &K) -> bool
+pub fn nika_dataflow::record::TaskErrorRecord::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_dataflow::record::TaskErrorRecord where U: core::convert::From<T>
+pub fn nika_dataflow::record::TaskErrorRecord::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dataflow::record::TaskErrorRecord where U: core::convert::Into<T>
+pub type nika_dataflow::record::TaskErrorRecord::Error = core::convert::Infallible
+pub fn nika_dataflow::record::TaskErrorRecord::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dataflow::record::TaskErrorRecord where U: core::convert::TryFrom<T>
+pub type nika_dataflow::record::TaskErrorRecord::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dataflow::record::TaskErrorRecord::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dataflow::record::TaskErrorRecord where T: core::clone::Clone
+pub type nika_dataflow::record::TaskErrorRecord::Owned = T
+pub fn nika_dataflow::record::TaskErrorRecord::clone_into(&self, target: &mut T)
+pub fn nika_dataflow::record::TaskErrorRecord::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dataflow::record::TaskErrorRecord where T: 'static + ?core::marker::Sized
+pub fn nika_dataflow::record::TaskErrorRecord::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dataflow::record::TaskErrorRecord where T: ?core::marker::Sized
+pub fn nika_dataflow::record::TaskErrorRecord::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dataflow::record::TaskErrorRecord where T: ?core::marker::Sized
+pub fn nika_dataflow::record::TaskErrorRecord::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dataflow::record::TaskErrorRecord where T: core::clone::Clone
+pub unsafe fn nika_dataflow::record::TaskErrorRecord::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dataflow::record::TaskErrorRecord
+pub fn nika_dataflow::record::TaskErrorRecord::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dataflow::record::TaskErrorRecord where T: core::clone::Clone
+pub fn nika_dataflow::record::TaskErrorRecord::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dataflow::record::TaskErrorRecord where T: 'static
+pub fn nika_dataflow::record::TaskErrorRecord::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_dataflow::TaskRecord
+pub nika_dataflow::TaskRecord::attempts: core::option::Option<u32>
+pub nika_dataflow::TaskRecord::cause: nika_dataflow::record::TerminalCause
+pub nika_dataflow::TaskRecord::duration_ms: core::option::Option<u64>
+pub nika_dataflow::TaskRecord::ended_at: core::option::Option<nika_types::timestamp::Timestamp>
+pub nika_dataflow::TaskRecord::error: core::option::Option<nika_dataflow::record::TaskErrorRecord>
+pub nika_dataflow::TaskRecord::integrity: nika_cap::integrity::Integrity
+pub nika_dataflow::TaskRecord::named: alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>
+pub nika_dataflow::TaskRecord::output: serde_json::value::Value
+pub nika_dataflow::TaskRecord::recovered_from: core::option::Option<nika_dataflow::record::TaskErrorRecord>
+pub nika_dataflow::TaskRecord::started_at: core::option::Option<nika_types::timestamp::Timestamp>
+pub nika_dataflow::TaskRecord::status: nika_dataflow::record::TaskStatus
+impl nika_dataflow::record::TaskRecord
+pub fn nika_dataflow::record::TaskRecord::field(&self, name: &str) -> core::option::Option<serde_json::value::Value>
+pub fn nika_dataflow::record::TaskRecord::unran(status: nika_dataflow::record::TaskStatus, cause: nika_dataflow::record::TerminalCause) -> Self
+impl core::clone::Clone for nika_dataflow::record::TaskRecord
+pub fn nika_dataflow::record::TaskRecord::clone(&self) -> nika_dataflow::record::TaskRecord
+impl core::fmt::Debug for nika_dataflow::record::TaskRecord
+pub fn nika_dataflow::record::TaskRecord::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_dataflow::record::TaskRecord
+impl<T, U> core::convert::Into<U> for nika_dataflow::record::TaskRecord where U: core::convert::From<T>
+pub fn nika_dataflow::record::TaskRecord::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_dataflow::record::TaskRecord where U: core::convert::Into<T>
+pub type nika_dataflow::record::TaskRecord::Error = core::convert::Infallible
+pub fn nika_dataflow::record::TaskRecord::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_dataflow::record::TaskRecord where U: core::convert::TryFrom<T>
+pub type nika_dataflow::record::TaskRecord::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_dataflow::record::TaskRecord::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_dataflow::record::TaskRecord where T: core::clone::Clone
+pub type nika_dataflow::record::TaskRecord::Owned = T
+pub fn nika_dataflow::record::TaskRecord::clone_into(&self, target: &mut T)
+pub fn nika_dataflow::record::TaskRecord::to_owned(&self) -> T
+impl<T> core::any::Any for nika_dataflow::record::TaskRecord where T: 'static + ?core::marker::Sized
+pub fn nika_dataflow::record::TaskRecord::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_dataflow::record::TaskRecord where T: ?core::marker::Sized
+pub fn nika_dataflow::record::TaskRecord::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_dataflow::record::TaskRecord where T: ?core::marker::Sized
+pub fn nika_dataflow::record::TaskRecord::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_dataflow::record::TaskRecord where T: core::clone::Clone
+pub unsafe fn nika_dataflow::record::TaskRecord::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_dataflow::record::TaskRecord
+pub fn nika_dataflow::record::TaskRecord::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_dataflow::record::TaskRecord where T: core::clone::Clone
+pub fn nika_dataflow::record::TaskRecord::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_dataflow::record::TaskRecord where T: 'static
+pub fn nika_dataflow::record::TaskRecord::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub const fn nika_dataflow::legal(class: nika_dataflow::record::TaskStatus, cause: nika_dataflow::record::TerminalCause) -> bool
