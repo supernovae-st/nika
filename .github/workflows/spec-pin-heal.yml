@@ -38,6 +38,27 @@ jobs:
       - uses: taiki-e/install-action@a2a5f6e99e1a31540baa0468acfa302cff0f359f # v2
         with:
           tool: cargo-nextest
+      # This job runs the SAME suite diamond-ci's tests leg runs, so it needs
+      # the same host. Without a sandbox backend a workflow that declares
+      # `permits:` refuses with NIKA-1710 and the run verb's gate tests read
+      # rc=3 where they pin rc=0 — a green sibling and a red here on ONE sha
+      # (805640259), which is the signature of a runner gap, not a code
+      # defect. The block below is diamond-ci.yml's, minus its matrix guard.
+      # Static shell only: no github.event.* value is read here.
+      - name: Install bubblewrap (the run verb's gate tests execute a permits workflow)
+        run: |
+          # apt has no deadline of its own: a mirror stall once held every job
+          # to the 6-hour ceiling. A 30 s socket timeout + 3 retries cover the
+          # transient half; the 5-minute hard deadline turns the rest into a
+          # clean red the operator can re-run.
+          sudo timeout 300 apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 update
+          sudo timeout 300 apt-get -o Acquire::Retries=3 -o Acquire::http::Timeout=30 install -y --no-install-recommends bubblewrap
+          # ubuntu-24.04's AppArmor bwrap profile grants userns creation but
+          # denies CAP_NET_ADMIN inside it, so bwrap dies bringing up loopback
+          # in the unshared netns. Detach the profile and keep unprivileged
+          # userns open so bwrap behaves as on a developer machine.
+          sudo apparmor_parser -R /etc/apparmor.d/bwrap-userns-restrict 2>/dev/null || true
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
       - name: The pin follows the spec
         id: heal
         env:
