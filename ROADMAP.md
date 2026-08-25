@@ -103,21 +103,21 @@ See `docs/architecture/ai-velocity.md` for the full argument.
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| branch           | `main`                                      |
-| HEAD             | `46e7ae550` (`46e7ae5509e971913a765f7043c307f8076a7de1`)             |
+| branch           | `refactor/w5-dataflow-dco`                                      |
+| HEAD             | `74a768ab1` (`74a768ab142caf1b9942208943e1f46989bb45b0`)             |
 | workspace        | v0.114.0                                  |
-| crates (workspace)| 70                                              |
-| crates (admitted)| 62                                             |
+| crates (workspace)| 71                                              |
+| crates (admitted)| 63                                             |
 | crates (WIP)     | 8 — nika-chart nika-fx nika-proof nika-store nika-harness nika-execution nika-service-execution nika-serve                                  |
-| L0               | 21                                              |
+| L0               | 22                                              |
 | L0.5             | 6                                              |
 | L1               | 17                                              |
 | L1.5             | 4                                              |
 | L2               | 5                                              |
 | L3               | 3                                              |
 | L4               | 14                                              |
-| lib tests        | 6440 passed, 0 failed                              |
-| clippy           | 0 warnings                              |
+| lib tests        | (skipped — pass --no-quick to compute)                              |
+| clippy           | (skipped)                              |
 
 Diamond foundation — orphan branch from scratch. Live counts (admitted ·
 WIP · per-layer) are in the AUTO-GENERATED status block above (the

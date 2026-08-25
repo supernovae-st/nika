@@ -44,6 +44,10 @@ jobs:
           - nika-catalog-codegen
           - nika-tmpl
           - nika-schema
+          # The v0.114 dataflow descent is pure evaluation logic (CEL, jq,
+          # record projection and error classification). Its admission floor
+          # is measured here so the crate's Gate-5 attestation stays current.
+          - nika-dataflow
           # NOT added, and the reason is the point. nika-a11y · nika-screen ·
           # nika-input · nika-browser are platform-sensitive, and the floor
           # script's own header documents that `-- --lib` on ubuntu mutates the

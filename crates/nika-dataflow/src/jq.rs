@@ -23,7 +23,7 @@ use jaq_core::{Compiler, Ctx, Vars, data as jaq_data, unwrap_valr};
 use jaq_json::{Val, read};
 use serde_json::Value;
 
-use crate::errors::RuntimeError;
+use crate::errors::DataflowError;
 
 /// The spec-plane binding cardinality code (zero / multiple outputs).
 const VAR_CARDINALITY: &str = "NIKA-VAR-002";
@@ -36,6 +36,10 @@ const VAR_RUNTIME: &str = "NIKA-VAR-004";
 /// the engine's task-supervision concern (same delegation as the builtin).
 const MAX_BINDING_OUTPUT_BYTES: usize = 16 * 1024 * 1024;
 
+fn exceeds_binding_output_limit(len: usize) -> bool {
+    len > MAX_BINDING_OUTPUT_BYTES
+}
+
 /// Evaluate one `output:` binding — run `program` over `input` (the
 /// task's raw output) and return the binding's SINGLE value.
 ///
@@ -43,14 +47,10 @@ const MAX_BINDING_OUTPUT_BYTES: usize = 16 * 1024 * 1024;
 ///
 /// # Errors
 ///
-/// [`RuntimeError::OutputBinding`] · `NIKA-VAR-004` when the program does
+/// [`DataflowError::OutputBinding`] · `NIKA-VAR-004` when the program does
 /// not compile or errors at runtime · `NIKA-VAR-002` when it emits zero or
 /// more than one value (the single-value law · spec 04 §binding rules).
-pub(crate) fn eval_binding(
-    name: &str,
-    program: &str,
-    input: &Value,
-) -> Result<Value, RuntimeError> {
+pub fn eval_binding(name: &str, program: &str, input: &Value) -> Result<Value, DataflowError> {
     let bytes = serde_json::to_vec(input).map_err(|e| runtime_err(name, &e.to_string()))?;
     let val = read::parse_single(&bytes)
         .map_err(|e| runtime_err(name, &format!("input not JSON: {e:?}")))?;
@@ -95,7 +95,7 @@ pub(crate) fn eval_binding(
             ));
         }
         let text = value.to_string();
-        if text.len() > MAX_BINDING_OUTPUT_BYTES {
+        if exceeds_binding_output_limit(text.len()) {
             return Err(runtime_err(
                 name,
                 &format!(
@@ -136,16 +136,16 @@ fn render_compile<U>(errs: &[(File<&str, ()>, Vec<(&str, U)>)]) -> String {
 }
 
 /// A `NIKA-VAR-004` binding runtime error (named for the failing binding).
-fn runtime_err(name: &str, detail: &str) -> RuntimeError {
-    RuntimeError::OutputBinding {
+fn runtime_err(name: &str, detail: &str) -> DataflowError {
+    DataflowError::OutputBinding {
         code: VAR_RUNTIME,
         message: format!("output binding `{name}` · {detail}"),
     }
 }
 
 /// A `NIKA-VAR-002` binding cardinality error (named for the binding).
-fn cardinality_err(name: &str, detail: &str) -> RuntimeError {
-    RuntimeError::OutputBinding {
+fn cardinality_err(name: &str, detail: &str) -> DataflowError {
+    DataflowError::OutputBinding {
         code: VAR_CARDINALITY,
         message: format!("output binding `{name}` · {detail}"),
     }
@@ -155,6 +155,14 @@ fn cardinality_err(name: &str, detail: &str) -> RuntimeError {
 #[allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn binding_output_ceiling_is_exactly_sixteen_mib_and_inclusive() {
+        assert_eq!(MAX_BINDING_OUTPUT_BYTES, 16_777_216);
+        assert!(!exceeds_binding_output_limit(16_777_215));
+        assert!(!exceeds_binding_output_limit(16_777_216));
+        assert!(exceeds_binding_output_limit(16_777_217));
+    }
 
     #[test]
     fn extracts_a_single_path_value() {
@@ -194,7 +202,7 @@ mod tests {
         let err = eval_binding("nothing", "empty", &input).expect_err("zero");
         assert!(matches!(
             &err,
-            RuntimeError::OutputBinding { code, .. } if *code == "NIKA-VAR-002"
+            DataflowError::OutputBinding { code, .. } if *code == "NIKA-VAR-002"
         ));
         assert_eq!(err.spec_code(), "NIKA-VAR-002");
     }
@@ -206,7 +214,7 @@ mod tests {
         let err = eval_binding("each", ".users[]", &input).expect_err("multi");
         assert!(matches!(
             &err,
-            RuntimeError::OutputBinding { code, message } if *code == "NIKA-VAR-002" && message.contains("each")
+            DataflowError::OutputBinding { code, message } if *code == "NIKA-VAR-002" && message.contains("each")
         ));
     }
 
@@ -217,7 +225,7 @@ mod tests {
         let err = eval_binding("bad", ".n.deep", &input).expect_err("runtime");
         assert!(matches!(
             &err,
-            RuntimeError::OutputBinding { code, .. } if *code == "NIKA-VAR-004"
+            DataflowError::OutputBinding { code, .. } if *code == "NIKA-VAR-004"
         ));
     }
 
@@ -290,7 +298,7 @@ mod tests {
         let err = eval_binding("nope", "this is not jq", &input).expect_err("compile");
         assert!(matches!(
             &err,
-            RuntimeError::OutputBinding { code, .. } if *code == "NIKA-VAR-004"
+            DataflowError::OutputBinding { code, .. } if *code == "NIKA-VAR-004"
         ));
     }
 }

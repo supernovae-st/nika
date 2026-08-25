@@ -1297,5 +1297,21 @@
       "requires": [],
       "enables": []
     }
+    ,
+    {
+      "id": "ADR-121",
+      "title": "nika-runtime size-cap member split: the run's dataflow descends to nika-dataflow",
+      "status": "accepted",
+      "date": "2026-08-25",
+      "filename": "adr-121-nika-dataflow-member-split.md",
+      "tags": ["architecture","crates","split","size-cap","dataflow","expressions"],
+      "affects_crates": ["nika-runtime","nika-dataflow"],
+      "affects_layers": ["L0","L3"],
+      "supersedes": [],
+      "superseded_by": [],
+      "related": ["ADR-115","ADR-110","ADR-108","ADR-003","ADR-027"],
+      "requires": [],
+      "enables": []
+    }
   ]
 }
