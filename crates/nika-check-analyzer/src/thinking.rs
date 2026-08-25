@@ -31,15 +31,18 @@
 //! the same [`crate::static_literal_of`] law the MODELS rung applies;
 //! one with no literal default defers to the run, making no claim.
 //!
-//! The lane descends from `nika-cli`'s models rung (2026-08-25 · the
-//! 15k crate wall): the judge is pure, the CLI folds the rows into its
-//! `ModelsAudit` beside the resolver's findings.
+//! The lane's home, two descents in one day (2026-08-25): written beside
+//! `nika-cli`'s models rung, which the 15k crate wall pushed to
+//! `nika-check` — already at the wall itself — and on to this substrate
+//! (the ADR-115 direction), which also owns the [`static_literal_of`](crate::static_literal_of)
+//! resolver the via-default arm reads. The judge stays pure; the CLI
+//! folds the rows into its `ModelsAudit` beside the resolver's findings.
 
 use nika_schema::raw::{RawAction, RawInferAction, RawWorkflow};
 
 /// One thinking-law refusal: the task carrying the dead or
 /// self-defeating declaration, the seat it names, and why.
-#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct ThinkingFinding {
     /// The task carrying the `thinking:` block.

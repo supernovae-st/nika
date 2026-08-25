@@ -11,16 +11,20 @@ homepage.workspace     = true
 publish                = false  # Foundation crate — never on crates.io. See ADR-017.
 
 [dependencies]
-# L0-DEP-FANOUT-EXEMPT: the analysis substrate reads the same four L0 leaf
+# L0-DEP-FANOUT-EXEMPT: the analysis substrate reads the same five L0 leaf
 # vocabularies its parent ladder does — it was carved OUT of that parent at
 # the 15k wall and carries the fan-in it already had (ADR-027 · marker-based
 # exemption). nika-schema the AST it analyzes · nika-types the suggest/type
 # relations its findings render · nika-cap the withheld-jq-native list the
-# compile-check refuses on · nika-vocab the dead-form teaching texts.
+# compile-check refuses on · nika-vocab the dead-form teaching texts ·
+# nika-catalog the provider/pricing/capability rows the thinking-seat law
+# judges against (the edge arrived with that law, 2026-08-25 — the same
+# catalog the parent's hints lane reads for the reasoning fact).
 nika-schema = { path = "../nika-schema", version = "0.114.0" } # the AST + parser + error voice this analyzes
 nika-types  = { path = "../nika-types", version = "0.114.0" }  # suggest (did-you-mean) · TypeExpr relations
 nika-cap    = { path = "../nika-cap", version = "0.114.0" }    # the withheld jq natives (`env` since 2026-08-15) the compile-check refuses on
 nika-vocab  = { path = "../nika-vocab", version = "0.114.0" }  # the dead-form teaching texts the scan surfaces
+nika-catalog = { path = "../nika-catalog", version = "0.114.0" } # the seat law's reasoning + known-model facts (thinking.rs)
 
 serde_json = { workspace = true }
 # JSON Schema META-check (static · L0-legal: pure/sync · default-features=false
