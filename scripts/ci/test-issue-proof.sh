@@ -90,5 +90,64 @@ expect judged completed 'invalidated' 'invalidated does NOT waive'
 # A state_reason that merely CONTAINS a waiving word is not that reason.
 expect judged 'not_planned_yet' '' 'not_planned_yet does NOT waive'
 
+# --- and HOW the proof is read (#1218) ---------------------------------------
+#
+# The cases above pin WHO may decline a proof. Nothing pinned how one is
+# found, and the reader matched `proven_by:` anywhere on a line and took the
+# first hit. Live consequence, 2026-08-25 on main: #1200's body quotes the
+# workflow guard `contains(github.event.issue.body, 'proven_by:')`, and the
+# gate refused the close naming the job `)`.
+eval "$(sed -n '/^body_proof_jobs() {$/,/^}$/p' "$HERE/issue-proof.sh")"
+if ! declare -F body_proof_jobs >/dev/null; then
+  printf 'FAIL  body_proof_jobs() not found in issue-proof.sh — the reader is untested\n' >&2
+  exit 2
+fi
+
+jobs_are() { # <want> <label> <body>
+  cases=$((cases + 1))
+  local got
+  got="$(body_proof_jobs "$3" | tr '\n' ' ')"
+  got="${got% }"
+  if [ "$got" = "$1" ]; then
+    printf 'ok    %s\n' "$2"
+  else
+    printf 'FAIL  %s — expected [%s], read [%s]\n' "$2" "$1" "$got" >&2
+    fails=$((fails + 1))
+  fi
+}
+
+jobs_are 'rust' 'a line-initial marker is the declaration' \
+  'Some prose about the fix.
+
+proven_by: rust'
+
+# The false-RED half. The mention must carry a PLAUSIBLE word after it: a
+# mention ending in punctuation collapses to the empty string under the old
+# reader too and gets filtered, so it would pass against the very bug this
+# pins — a fixture that proves the predicate without proving it is wired.
+jobs_are 'rust' 'a mid-sentence mention is NOT a declaration' \
+  'the guard needs proven_by: someJob written somewhere in the body
+
+proven_by: rust'
+
+# The false-GREEN half, and the one that matters: a sentence must not hand
+# the gate a proof nobody attached.
+jobs_are '' 'a mention alone supplies NO proof' \
+  'a closer should write proven_by: rust somewhere in the body'
+
+# Anchoring is not enough on its own. Markdown wrapping a code span can start
+# a line with the marker, so a body may carry several line-initial hits that
+# disagree. The reader reports all of them and the gate refuses rather than
+# guess — being right by luck is not being right.
+jobs_are 'proof proof)' 'disagreeing line-initial markers are all reported' \
+  'proven_by: proof` to the body
+
+proven_by: proof`) it returned success
+
+proven_by: proof'
+
+jobs_are 'rust' 'an indented marker still counts' \
+  '  proven_by: rust'
+
 printf '\n%d case(s) · %d failure(s)\n' "$cases" "$fails"
 [ "$fails" -eq 0 ] || exit 1

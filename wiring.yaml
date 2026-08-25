@@ -43,6 +43,19 @@ capabilities:
     reachable_by: "a task blocked by a settled upstream binding"
     proven_by: rust
     issue: 1198
+  - id: gate.issue-proof.judges-every-close
+    kind: ci-gate
+    declared_at: .github/workflows/issue-proof.yml:48
+    shipped_when: "default"
+    reachable_by: "closing any issue as completed"
+    # The ledger, not the body. #1200's body is ABOUT this marker, so it
+    # carries three line-initial `proven_by:` occurrences — one real, two
+    # left by markdown wrapping a code span. The reader cannot tell which is
+    # the declaration and refuses rather than guess, which is the right
+    # refusal and an unclosable issue. An authored ledger row is what the
+    # refusal itself asks for.
+    proven_by: proof
+    issue: 1200
   - id: access.harness
     kind: cargo-feature
     declared_at: crates/nika-cli/Cargo.toml:72
