@@ -540,16 +540,11 @@ where
         self.run_invoke_gated(note, input).await
     }
 
-    /// ADR-095 Layer 6 — the OS-confinement spec from the declared
-    /// boundary (the `dispatch/sandbox.rs` derivation). F-O8 « absent =
-    /// zero authority »: `None` maps to the EMPTY boundary's spec (fs
-    /// empty · net deny) — the double lock under `check_exec_permits`,
-    /// which already refuses the exec upstream. Fallible since NEP-0009
-    /// (LAW-AUTH-0330): a grant whose EFFECTIVE path identity escapes the
-    /// declared set refuses before spawn (`NIKA-SEC-004`) — witnessed on
-    /// the `fs` plane, granted and refused alike, the refusal attested as
-    /// `fs.path_mismatch` carrying the judged prefix and the resolved
-    /// target (never a silent rewrite: judged = mounted).
+    /// ADR-095 Layer 6 — derive the OS jail from the declared boundary. F-O8
+    /// maps absent permits to empty fs + denied net, under `check_exec_permits`.
+    /// Since NEP-0009 (LAW-AUTH-0330), an effective path escape refuses before
+    /// spawn as `NIKA-SEC-004`; its witness records `fs.path_mismatch`, the
+    /// judged prefix, and the resolved target. Judged = mounted, never rewritten.
     fn exec_sandbox_spec(
         &self,
         permits: Option<&nika_schema::types::Permits>,
@@ -564,7 +559,9 @@ where
             .clone()
             .or_else(|| std::env::current_dir().ok())
             .unwrap_or_default();
-        match nika_exec_runner::sandbox_spec::spec_of(permits, &root) {
+        #[allow(clippy::disallowed_methods)] // dispatch-owned absolute HOME for issue 1025
+        let home = std::env::var("HOME").ok().filter(|h| h.starts_with('/'));
+        match nika_exec_runner::sandbox_spec::spec_of_with_home(permits, &root, home.as_deref()) {
             Ok(spec) => {
                 for grant in spec.fs_read.iter().chain(spec.fs_write.iter()) {
                     witness.record(
