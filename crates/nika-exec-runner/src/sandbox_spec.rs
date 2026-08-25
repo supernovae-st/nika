@@ -18,7 +18,7 @@
 //!   absolute subpaths only (`grant_subpath` fail-closes on a relative
 //!   grant), so the derivation absolutizes HERE — a task-level `cwd:`
 //!   does not re-anchor the boundary, exactly like the builtin gate.
-//!   Home-anchored grants (`~/` · `$HOME/`) expand against the operator
+//!   Home-anchored grants (`~/` · `$HOME/` · `${HOME}/`) expand against the operator
 //!   `HOME` at the same moment, so a tracked workflow can name
 //!   `~/.gitconfig` without baking one machine's `/Users/…` path. `~user`
 //!   is left intact and stays the launchers' fail-closed refusal.
@@ -80,7 +80,7 @@ pub fn spec_of(permits: &Permits, root: &Path) -> Result<SandboxSpec, Box<PathMi
     spec_of_with_home(permits, root, None)
 }
 
-/// [`spec_of`] with an injected operator home so `~/` and `$HOME/` fs
+/// [`spec_of`] with an injected operator home so `~/` · `$HOME/` · `${HOME}/` fs
 /// grants become live absolute paths on the jail. Production dispatch
 /// reads `HOME` at the runtime seam and passes it here — this crate does
 /// not touch the environment. `None` leaves those grants unexpanded, and
@@ -144,7 +144,7 @@ fn net_policy_of(permits: &Permits) -> NetPolicy {
 /// new-write · law 5) folds identically on both sides → admitted. Non-
 /// absolute leftover (`~user` · a preserved escape) pass through untouched —
 /// the launchers' `grant_subpath` owns their fail-closed refusal, as before.
-/// `~/` and `$HOME/` are expanded against the operator home before this
+/// `~/` · `$HOME/` · `${HOME}/` are expanded against the operator home before this
 /// gate sees them.
 fn judge_identity(grant: &str, access: &'static str) -> Result<(), Box<PathMismatch>> {
     if !grant.starts_with('/') {
@@ -246,7 +246,7 @@ fn fold_trailing<'a>(base: PathBuf, comps: impl Iterator<Item = &'a Component<'a
 /// glob passes through unchanged — including the shapes the launchers
 /// refuse (`~user` · a preserved leading `..` · a bare system root): their
 /// fail-closed `Profile` refusal is the honest verdict, named to the
-/// operator, never a silent widening. `~/` and `$HOME/` expand first so
+/// operator, never a silent widening. `~/` · `$HOME/` · `${HOME}/` expand first so
 /// the jail lists the live absolute path.
 fn absolutize(root: &Path, glob: &str, home: Option<&str>) -> String {
     let glob = match home {
@@ -256,7 +256,12 @@ fn absolutize(root: &Path, glob: &str, home: Option<&str>) -> String {
     if glob.starts_with('/') {
         return glob;
     }
-    if glob.starts_with('~') {
+    if glob.starts_with('~')
+        || glob == "$HOME"
+        || glob.starts_with("$HOME/")
+        || glob == "${HOME}"
+        || glob.starts_with("${HOME}/")
+    {
         return glob;
     }
     lexically_normalize(&root.join(glob))
@@ -576,11 +581,11 @@ mod tests {
         let _ = std::fs::remove_dir_all(&base);
     }
 
-    /// Leftover `~user` (not this operator) and a missing home stay the
-    /// launchers' fail-closed refusal — `~/` with an injected home is
-    /// expanded, not refused.
+    /// A missing or non-absolute home leaves every portable spelling
+    /// non-absolute for the launchers' fail-closed refusal. `~user` is
+    /// likewise never expanded.
     #[test]
-    fn leftover_tilde_user_stays_the_launchers_refusal() {
+    fn unresolved_home_grants_stay_the_launchers_refusal() {
         let spec = spec_of_with_home(
             &permits(&["~other/.gitconfig"], &[], &[]),
             Path::new("/repo"),
@@ -588,9 +593,25 @@ mod tests {
         )
         .expect("`~user` is the launcher's refusal, not this gate's");
         assert_eq!(spec.fs_read, vec!["~other/.gitconfig".to_owned()]);
-        let spec = spec_of_with_home(&permits(&["~/x/**"], &[], &[]), Path::new("/repo"), None)
-            .expect("no home · the `~/` leftover is the launcher's");
-        assert_eq!(spec.fs_read, vec!["~/x/**".to_owned()]);
+
+        let grants = [
+            "~",
+            "~/x/**",
+            "$HOME",
+            "$HOME/.gitconfig",
+            "${HOME}",
+            "${HOME}/.config/git/**",
+        ];
+        for home in [None, Some("relative/home")] {
+            let spec = spec_of_with_home(&permits(&grants, &[], &[]), Path::new("/repo"), home)
+                .expect("an unresolved home stays for the launcher's refusal");
+            assert_eq!(spec.fs_read, grants, "home = {home:?}");
+            assert!(
+                spec.fs_read.iter().all(|grant| !grant.starts_with('/')),
+                "no unresolved home grant may root-anchor: {:?}",
+                spec.fs_read
+            );
+        }
     }
 
     /// #1025 — a portable `~/` grant becomes this operator's absolute
@@ -599,7 +620,18 @@ mod tests {
     fn a_tilde_grant_expands_to_the_operator_home_on_the_jail() {
         let home = "/tmp/nika-op-home";
         let spec = spec_of_with_home(
-            &permits(&["~/.gitconfig", "$HOME/.config/git/**"], &[], &[]),
+            &permits(
+                &[
+                    "~",
+                    "~/.gitconfig",
+                    "$HOME",
+                    "$HOME/.config/git/**",
+                    "${HOME}",
+                    "${HOME}/.local/state/nika/**",
+                ],
+                &[],
+                &[],
+            ),
             Path::new("/repo"),
             Some(home),
         )
@@ -607,8 +639,12 @@ mod tests {
         assert_eq!(
             spec.fs_read,
             vec![
+                home.to_owned(),
                 format!("{home}/.gitconfig"),
+                home.to_owned(),
                 format!("{home}/.config/git/**"),
+                home.to_owned(),
+                format!("{home}/.local/state/nika/**"),
             ]
         );
         let mut jail = Permits::new();

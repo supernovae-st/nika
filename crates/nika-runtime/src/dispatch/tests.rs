@@ -176,3 +176,53 @@ fn a_tilde_fs_grant_expands_to_the_operator_home_on_the_jail() {
     assert!(!jail.jail_admits_read("/tmp/evil/.gitconfig"));
     assert!(!jail.jail_admits_read("/etc/passwd"));
 }
+
+/// #1025 — the production launcher receives unresolved portable home
+/// grants as non-absolute paths and refuses before spawn. Both missing
+/// and non-absolute homes cover the three spellings and their exact tokens.
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+#[test]
+fn unresolved_home_grants_fail_closed_at_the_production_launcher() {
+    use nika_kernel::command_sandbox::{CommandSandbox, CommandSandboxError};
+    use nika_kernel::process::ShellCommand;
+    use nika_schema::types::{FsPermits, Permits};
+
+    #[cfg(target_os = "linux")]
+    let sandbox = nika_sandbox_landlock::LandlockSandbox::new();
+    #[cfg(target_os = "macos")]
+    let sandbox = nika_sandbox_seatbelt::SeatbeltSandbox::new();
+
+    let grants = [
+        "~",
+        "~/.gitconfig",
+        "$HOME",
+        "$HOME/.gitconfig",
+        "${HOME}",
+        "${HOME}/.config/git/**",
+    ];
+    for home in [None, Some("relative/home")] {
+        for grant in grants {
+            let mut permits = Permits::new();
+            permits.fs = Some(FsPermits::new(vec![grant.to_owned()], vec![]));
+            let spec = nika_exec_runner::sandbox_spec::spec_of_with_home(
+                &permits,
+                std::path::Path::new("/repo"),
+                home,
+            )
+            .expect("an unresolved home reaches the launcher's refusal");
+            assert_eq!(spec.fs_read, vec![grant], "home = {home:?}");
+            assert!(!spec.fs_read[0].starts_with('/'));
+
+            let refusal = sandbox
+                .confine(&spec, ShellCommand::new("/usr/bin/true"))
+                .expect_err("an unresolved home grant must refuse before spawn");
+            assert!(
+                matches!(
+                    refusal,
+                    CommandSandboxError::Profile { .. } | CommandSandboxError::Unavailable { .. }
+                ),
+                "home = {home:?}, grant = {grant:?}: {refusal:?}"
+            );
+        }
+    }
+}
