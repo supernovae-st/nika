@@ -452,8 +452,16 @@ fn pricing_finding(p: &PricingProbe) -> Finding {
     // LIST RATES said here on purpose: private/proxy/negotiated pricing
     // is not reflected (the override file is the roadmapped answer) —
     // silent wrong-cost is the honesty law's blind spot otherwise.
+    //
+    // #1179 · `p.rules` counts PRICE ROWS, not models. Calling them
+    // « models » put « 633 models » one command away from `nika
+    // catalog`'s « 69 models » — two inventories under one word, an
+    // order of magnitude apart, both on a first session. Every number
+    // NAMES its facet (RAMS-12 · A-06), and the facet here is the
+    // snapshot's rate table: several patterns can price one model, and
+    // a pattern can price models this catalog never lists.
     let identity = format!(
-        "{} models · {} providers · snapshot {} · {} · list rates (public catalog)",
+        "{} price rules · {} providers priced · snapshot {} · {} · list rates (public catalog)",
         p.rules, p.providers, p.as_of, p.sha
     );
     match p.age_days {
@@ -1069,6 +1077,8 @@ pub fn run(ping: bool, json: bool, verbose: bool, theme: Theme) -> VerbOutput {
     }
 }
 
+#[cfg(test)]
+mod pricing_tests;
 #[cfg(test)]
 mod runtime_tests;
 #[cfg(test)]
