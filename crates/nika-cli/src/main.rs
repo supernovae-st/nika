@@ -441,11 +441,14 @@ struct RunArgs {
     #[arg(long, value_name = "PROVIDER/NAME")]
     model: Option<String>,
     /// Pin the ACCESS path (`model:` picks the intelligence; access
-    /// picks the path) — a class: `local` · `mock` · `harness` ·
-    /// `oauth` · `api`. A harness seat id (`claude-agent-acp`) is not a
-    /// class (NIKA-1802). A pin is a pin: unsatisfied refuses before
-    /// the prologue with a witness, never substitutes another path or
-    /// model (D-2026-08-04-N1).
+    /// picks the path) — either a class (`local` · `mock` · `harness` ·
+    /// `oauth` · `api`) or a harness seat (`claude-code` · `codex` ·
+    /// `gemini-cli` · `kimi-code` · `qwen-code`). Retired ACP wrapper
+    /// ids (`claude-agent-acp` · `codex-acp`) refuse with NIKA-1802. A
+    /// pin is a pin: unsatisfied refuses before the prologue with a
+    /// witness, never substitutes another path or model (D-2026-08-04-N1).
+    /// Example: `--model openai/gpt-5.2 --access codex` requests that
+    /// model through the user's Codex subscription seat.
     #[arg(long, value_name = "PATH")]
     access: Option<String>,
     /// Set a workflow `inputs:` value (repeatable). Overrides a declared
@@ -1371,8 +1374,12 @@ mod tests {
             "doctor listing seat ids as pins caused NIKA-1802: {help}"
         );
         assert!(
-            help.contains("claude-agent-acp") && help.contains("not a class"),
-            "the help must name the trap: {help}"
+            help.contains("claude-code") && help.contains("codex"),
+            "the live harness seat pins must be taught: {help}"
+        );
+        assert!(
+            help.contains("claude-agent-acp") && help.contains("Retired ACP wrapper"),
+            "the retired wrapper trap must stay named: {help}"
         );
         let hidden = cmd
             .get_subcommands()

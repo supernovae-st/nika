@@ -353,15 +353,26 @@ pub fn refuse_pin_for_verbs<'m>(
     has_infer: bool,
     has_agent: bool,
 ) -> Option<PinRefusal> {
+    let models: Vec<&str> = models.into_iter().collect();
     let infer_only = has_infer && !has_agent;
     let named = HarnessRuntime::lookup(pin);
+    if (named.is_some() || pin == AccessClass::Harness.as_str())
+        && models.iter().any(|model| provider_of(model) == "mock")
+    {
+        return Some(PinRefusal::PinUnsatisfied {
+            message: String::from(
+                "model `mock/echo` is the isolated rehearsal backend and cannot run through a \
+                 harness seat — use `--access mock` (refusal, never a live substitute)",
+            ),
+        });
+    }
     let direct = named.is_some_and(|rt| infer_only && named_infer_grade_ready(rt, probes));
     let generic = pin == AccessClass::Harness.as_str()
         && infer_only
         && first_ready_infer_harness(probes).is_some();
     if !direct
         && !generic
-        && let Some(refusal) = refuse_pin(models, probes, pin)
+        && let Some(refusal) = refuse_pin(models.iter().copied(), probes, pin)
     {
         return Some(refusal);
     }
@@ -644,6 +655,14 @@ pub fn access_plan_map(
     // An explicit ready harness pin is the infer/agent path for EVERY
     // static model (the envelope `model:` is a hint, not a serves-filter).
     if let Some(pin) = pin {
+        let requests_mock = models
+            .iter()
+            .any(|model| !model.contains("${{") && provider_of(model) == "mock");
+        if requests_mock
+            && (HarnessRuntime::lookup(pin).is_some() || pin == AccessClass::Harness.as_str())
+        {
+            return std::collections::BTreeMap::new();
+        }
         if let Some(rt) = HarnessRuntime::lookup(pin) {
             let infer_grade_ready = named_infer_grade_ready(rt, probes);
             if infer_grade_ready || refuse_named_runtime(rt, probes).is_none() {

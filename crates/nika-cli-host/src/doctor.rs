@@ -144,8 +144,8 @@ pub fn diagnose(probe: &Probe) -> Vec<Finding> {
     out
 }
 
-/// `--access` vocabulary (NIKA-1802). Classes, never a harness seat id.
-/// Gauntlet P01/P05: copying `claude-agent-acp` from a doctor row dies.
+/// `--access` vocabulary (NIKA-1802). Both classes and live harness seat
+/// ids are pins; ACP wrapper executable names remain implementation detail.
 fn access_class_finding() -> Finding {
     let vocabulary = nika_types::access::AccessClass::ALL
         .map(nika_types::access::AccessClass::as_str)
@@ -153,7 +153,11 @@ fn access_class_finding() -> Finding {
     Finding {
         level: Level::Ok,
         label: "access".to_owned(),
-        detail: format!("--access classes: {vocabulary} (not a seat id)"),
+        detail: format!(
+            "--access classes: {vocabulary} · harness seats: {} \
+             (ACP wrapper ids are not pins)",
+            nika_types::access::HarnessRuntime::vocabulary()
+        ),
         fix: None,
     }
 }
@@ -1100,48 +1104,70 @@ pub(crate) fn harness_findings() -> Vec<Finding> {
         }
     };
     nika_harness::probe_adapters_sync(rows)
-        .into_iter()
-        .map(|row| {
-            let display = nika_types::access::HarnessRuntime::lookup(&row.id)
-                .map_or(row.id.as_str(), |rt| rt.display);
-            match (row.product_present, row.version, row.authenticated) {
-                (_, Some((major, minor)), Some(true)) => Finding {
-                    level: Level::Ok,
-                    label: "runtime".to_owned(),
-                    detail: format!(
-                        "{} — {display} · detected (v{major}.{minor}) · authenticated (its own login) · `--access {}`",
-                        row.id, row.id
-                    ),
-                    fix: None,
-                },
-                (_, Some((major, minor)), _) => Finding {
-                    level: Level::Warn,
-                    label: "runtime".to_owned(),
-                    detail: format!(
-                        "{} — {display} · detected (v{major}.{minor}) · not signed in · `--access {}`",
-                        row.id, row.id
-                    ),
-                    fix: Some(format!("sign in to {display} itself")),
-                },
-                (true, None, _) => Finding {
-                    level: Level::Warn,
-                    label: "runtime".to_owned(),
-                    detail: format!(
-                        "{} — {display} · installed, ACP speaker missing · `--access {}`",
-                        row.id, row.id
-                    ),
-                    fix: Some(format!("install: {}", row.package)),
-                },
-                (false, None, _) => Finding {
-                    level: Level::Warn,
-                    label: "runtime".to_owned(),
-                    detail: format!(
-                        "{} — {display} · not installed · `--access {}`",
-                        row.id, row.id
-                    ),
-                    fix: Some(format!("install: {}", row.package)),
-                },
-            }
-        })
+        .iter()
+        .map(harness_finding)
         .collect()
+}
+
+#[cfg(feature = "access-harness")]
+fn harness_finding(row: &nika_harness::AdapterProbeRow) -> Finding {
+    harness_finding_from_parts(
+        &row.id,
+        row.version,
+        row.authenticated,
+        &row.package,
+        row.product_present,
+    )
+}
+
+#[cfg(feature = "access-harness")]
+fn harness_finding_from_parts(
+    id: &str,
+    version: Option<(u32, u32)>,
+    authenticated: Option<bool>,
+    package: &str,
+    product_present: bool,
+) -> Finding {
+    let display = nika_types::access::HarnessRuntime::lookup(id).map_or(id, |rt| rt.display);
+    if id == "codex" && product_present && version.is_none() {
+        return Finding {
+            level: Level::Warn,
+            label: "runtime".to_owned(),
+            detail: format!(
+                "{id} — {display} · infer-grade direct path detected (login judged at run) · \
+                 agent ACP speaker missing · `--access {id}`"
+            ),
+            fix: Some(format!("install: {package} (only required for agent:)")),
+        };
+    }
+    match (product_present, version, authenticated) {
+        (_, Some((major, minor)), Some(true)) => Finding {
+            level: Level::Ok,
+            label: "runtime".to_owned(),
+            detail: format!(
+                "{id} — {display} · detected (v{major}.{minor}) · authenticated (its own login) · `--access {id}`"
+            ),
+            fix: None,
+        },
+        (_, Some((major, minor)), _) => Finding {
+            level: Level::Warn,
+            label: "runtime".to_owned(),
+            detail: format!(
+                "{id} — {display} · detected (v{major}.{minor}) · not signed in · `--access {id}`"
+            ),
+            fix: Some(format!("sign in to {display} itself")),
+        },
+        (true, None, _) => Finding {
+            level: Level::Warn,
+            label: "runtime".to_owned(),
+            detail: format!("{id} — {display} · installed, ACP speaker missing · `--access {id}`"),
+            fix: Some(format!("install: {package}")),
+        },
+        (false, None, _) => Finding {
+            level: Level::Warn,
+            label: "runtime".to_owned(),
+            detail: format!("{id} — {display} · not installed · `--access {id}`"),
+            fix: Some(format!("install: {package}")),
+        },
+    }
 }
