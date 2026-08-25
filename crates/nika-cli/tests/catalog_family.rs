@@ -145,6 +145,9 @@ fn every_cataloged_provider_either_seats_or_is_refused_by_name() {
     // The two SHIPPED projections, rendered once and read per row below.
     let json = shipped_json();
     let human = catalog::run(false, PLAIN).text;
+    let catalog_only_at = human
+        .find("CATALOG ONLY")
+        .expect("the listing separates what runs from what the catalog merely knows");
 
     let mut seats = 0usize;
     let mut refused: Vec<&str> = Vec::new();
@@ -176,18 +179,25 @@ fn every_cataloged_provider_either_seats_or_is_refused_by_name() {
             row["resolves"],
         );
 
-        // #1184 · and the human column a user actually scans.
-        let line = human
-            .lines()
-            .find(|l| l.contains(&format!("\u{2502}  {:<14}", p.id)))
+        // #1184 · and the human listing, where the SECTION is the marker.
+        // A per-row suffix said this once per row; on 22 of 38 rows that
+        // is the same 30 characters repeated, and the fact a reader wants
+        // has to be found by scanning for its absence. The group carries
+        // it now, so membership is what gets judged.
+        let row_at = human
+            .find(&format!("\u{2502}  {:<14}", p.id))
             .unwrap_or_else(|| panic!("`{}` is missing from the human listing", p.id));
+        let runs_here = row_at < catalog_only_at;
         assert_eq!(
-            !line.contains("catalog only"),
+            runs_here,
             resolves,
-            "`{}` reads runnable={} down the column while check says resolves={resolves}. \
-             Row: {line}",
+            "`{}` sits in the {} block while check says resolves={resolves}",
             p.id,
-            !line.contains("catalog only"),
+            if runs_here {
+                "runnable"
+            } else {
+                "CATALOG ONLY"
+            },
         );
 
         if resolves {
@@ -224,6 +234,15 @@ fn the_refusal_names_the_runnable_count_and_where_to_get_the_list() {
     // The MODELS rung tells a refused user how many seats exist and who
     // names them. Both halves are load-bearing: the count is what makes the
     // refusal actionable, and the pointer is the only route to the list.
+    //
+    // The pointer used to be `nika doctor`, and it was not true. Measured
+    // on a virgin machine (env_clear · no keys): plain `doctor` names FIVE
+    // providers — the local line — and folds the ten cloud rows into « 10
+    // providers unconfigured »; `mock` gets no row at all. A refusal that
+    // says « 16 runnable, doctor names them » sent a stuck user to a
+    // surface that named five of them. `nika catalog` groups all sixteen
+    // under LOCAL and CLOUD, which is what
+    // `the_named_surface_actually_names_them` below re-proves per run.
     let unwired = UNWIRED
         .first()
         .expect("the unwired set is never empty here");
@@ -249,10 +268,70 @@ fn the_refusal_names_the_runnable_count_and_where_to_get_the_list() {
         out.text
     );
     assert!(
-        out.text.contains("nika doctor"),
+        out.text.contains("nika catalog"),
         "and points at the surface that NAMES them: {}",
         out.text
     );
+}
+
+/// A pointer is a CLAIM, and this is its proof.
+///
+/// The refusal says « N runnable — `nika catalog` names them under LOCAL
+/// and CLOUD ». That sentence is only true if the shipped listing really
+/// carries N rows outside its CATALOG ONLY block. Nothing else in the
+/// suite ties the number in the message to the surface it sends a user
+/// to; without this, the count could stay honest while the pointer
+/// rotted — which is exactly how the `nika doctor` pointer died.
+#[test]
+fn the_named_surface_actually_names_them() {
+    let human = catalog::run(false, PLAIN).text;
+    let (before, after) = human
+        .split_once("CATALOG ONLY")
+        .expect("the listing separates what runs from what the catalog merely knows");
+
+    let rows = |section: &str| {
+        section
+            .lines()
+            .filter(|l| l.trim_start().starts_with('\u{2502}'))
+            .count()
+    };
+    let named = rows(before);
+    let catalog_only = rows(after);
+
+    assert_eq!(
+        named,
+        nika_providers::CANONICAL_IDS.len(),
+        "the refusal promises {} runnable and the listing names {named} before \
+         CATALOG ONLY — the pointer is a lie the moment these differ",
+        nika_providers::CANONICAL_IDS.len(),
+    );
+    assert!(
+        catalog_only > 0,
+        "a CATALOG ONLY head with no rows under it is a section that stopped \
+         carrying its class",
+    );
+    assert_eq!(
+        named + catalog_only,
+        shipped_json()["providers"]
+            .as_array()
+            .expect("providers array")
+            .len(),
+        "every catalog row lands in exactly one section — a row in neither is \
+         a vendor the listing silently dropped",
+    );
+
+    // The sovereign path still leads, and the doctrine head order holds
+    // INSIDE the section that now excludes the unreachable vendors.
+    let local = before.find("LOCAL").expect("a LOCAL section");
+    let cloud = before.find("CLOUD").expect("a CLOUD section");
+    assert!(local < cloud, "local leads the teaching surface");
+    let pos = |id: &str| {
+        before
+            .find(&format!("\n\u{2502}  {id}"))
+            .unwrap_or_else(|| panic!("`{id}` must sit in a runnable section"))
+    };
+    assert!(pos("mistral") < pos("anthropic"), "mistral leads anthropic");
+    assert!(pos("anthropic") < pos("openai"), "anthropic leads openai");
 }
 
 /// One JSON-RPC round trip against the REAL `nika mcp` stdio server.

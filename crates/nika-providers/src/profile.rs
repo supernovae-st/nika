@@ -261,8 +261,8 @@ pub fn resolve_refusal(model: &str) -> Option<ResolveRefusal> {
         None => Some(
             ResolveRefusal::new(format!(
                 "`{model}` is a bare model id — the contract is `<provider>/<model>` \
-                 (pick the provider that serves it; `nika doctor` names the \
-                 {} runnable providers)",
+                 (pick the provider that serves it; `nika catalog` names the \
+                 {} runnable providers under LOCAL and CLOUD)",
                 CANONICAL_IDS.len()
             ))
             .with_code(PREFIX_REFUSAL_CODE),
@@ -277,8 +277,9 @@ pub fn resolve_refusal(model: &str) -> Option<ResolveRefusal> {
                 .unwrap_or_default();
             let why = format!(
                 "provider `{provider}` does not resolve in THIS binary \
-                 ({} runnable — `nika doctor` names them); a cataloged \
-                 vendor is not a runnable one{guess}",
+                 ({} runnable — `nika catalog` names them under LOCAL and \
+                 CLOUD, this one under CATALOG ONLY); a cataloged vendor \
+                 is not a runnable one{guess}",
                 CANONICAL_IDS.len()
             );
             let mut refusal = ResolveRefusal::new(why);
