@@ -1,0 +1,203 @@
+# pack_examples_family manifest — the run contract for every shipped example.
+#
+# One row per `pack/examples/**.nika.yaml` slug (53 today). The harness
+# (`pack_examples_family.rs`) refuses a corpus/example drift: a slug with no
+# row, or a row naming no slug, fails the completeness test.
+#
+# Row law:
+#   - `expect` is REQUIRED and explicit — `{rc: 0}` for a green run,
+#     `{finding: CODE}` for an expected typed refusal (rc asserted non-zero).
+#   - `door: try` (default) drives `nika try <slug>` — the shipped showroom
+#     door, offline mock seat by default, fixtures materialized by the door
+#     itself. `door: run` stages a scratch cwd (`kit:`), plants the example,
+#     and drives `nika run` — required when the row needs `--answer`
+#     (a human gate) since `try` carries no answer flag.
+#   - `kit:` — what the harness stages into the scratch cwd for `door: run`:
+#     `fixtures` (the pack ingredients the body reads) · `git-repo`
+#     (git init + one commit + a src/ file) · `cargo-project` (a minimal
+#     bin crate) · `spec-repo` (VERSION + CHANGELOG.md + schemas/).
+#   - `model: mock/echo` — the ONLY model this gate may name (hermetic law:
+#     zero keys · zero network · zero keychain). Passed to `run` as
+#     `--model`; `try` rows never carry the flag (the mock rehearsal seat is
+#     the default there).
+#   - `answers:` — pre-seeded gate answers (`--answer approve=true`).
+#   - `vars:` — workflow inputs (`--var k=v`).
+#   - `timeout` — per-entry seconds, ceiling 120 (worst measured: 31 s).
+#   - `known_fail` — an XFAIL, not a skip: on the listed OSes the row RUNS
+#     and must stay RED (green = healed = the gate fails and asks for the
+#     promotion). Every known_fail names its class and an issue token.
+#   - `needs:` — the honest skip: the row is never launched by this gate,
+#     is printed and COUNTED as skipped, never silently absent.
+#     `ollama-model` = the example benches/serves real local models the
+#     hermetic plane cannot impersonate · `manual` = the example drives a
+#     repo shape this harness does not stage.
+#
+# Issue tokens below are PLACEHOLDERS the stabilization-arc parent replaces
+# with real tracker ids. The completeness test refuses a known_fail row
+# whose issue token is not listed here.
+issues:
+  GIT-SEATBELT: R1-PACK-EXAMPLES-GIT-SEATBELT       # placeholder token
+  CARGO-SEATBELT: R1-PACK-EXAMPLES-CARGO-SEATBELT   # placeholder token
+  MOCK-ARTIFACT: R1-PACK-EXAMPLES-MOCK-ARTIFACT     # placeholder token
+
+entries:
+  # ── The numbered path + jobs, green through the showroom door ──────────
+  - { slug: 01-hello, expect: { rc: 0 } }
+  - { slug: 02-parallel-fanout, expect: { rc: 0 } }
+  - { slug: 04-schema-retry, expect: { rc: 0 } }
+  - { slug: 05-fetch-chain, expect: { rc: 0 } }
+  - { slug: 06-code-review, expect: { rc: 0 } }
+  - { slug: 07-for-each-locales, expect: { rc: 0 } }
+  - { slug: 08-config-values, expect: { rc: 0 } }
+  - { slug: 09-returns-typed-door, expect: { rc: 0 } }
+  - { slug: 10-compose-child, expect: { rc: 0 } }
+  - { slug: 10-compose-pipeline, expect: { rc: 0 } }
+  - { slug: 12-failure-routing, expect: { rc: 0 } }
+  - { slug: 13-extract-then-law, expect: { rc: 0 } }
+  - { slug: 14-decide-publish, expect: { rc: 0 } }
+  - { slug: 15-compose-self-check, expect: { rc: 0 } }
+  - { slug: 16-inspect-self, expect: { rc: 0 } }
+  - { slug: 17-tts-self, expect: { rc: 0 } }
+  - { slug: bookmark-triage, expect: { rc: 0 } }
+  - { slug: competitor-radar, expect: { rc: 0 } }
+  - { slug: corpus-digest, expect: { rc: 0 } }
+  - { slug: deep-research-brief, expect: { rc: 0 } }
+  - { slug: localization-factory, expect: { rc: 0 } }
+  - { slug: og-images, expect: { rc: 0 } }
+  - { slug: price-watch, expect: { rc: 0 } }
+  - { slug: seo-content-brief, expect: { rc: 0 } }
+  - { slug: snippets/hello, expect: { rc: 0 } }
+  - { slug: snippets/hello-ai, expect: { rc: 0 } }
+  - { slug: snippets/not-found, expect: { rc: 0 } }
+  - { slug: snippets/think, expect: { rc: 0 } }
+  - { slug: snippets/use-a-tool, expect: { rc: 0 } }
+
+  # ── The fixture class — `try` materializes the ingredients (the #815
+  #    door); a bare `run` without the kit dies on NIKA-BUILTIN-READ-001 ──
+  - { slug: 11-lift-the-door, expect: { rc: 0 } }
+  - { slug: config-drift-sentinel, expect: { rc: 0 } }
+  - { slug: contract-guard, expect: { rc: 0 } }
+  - { slug: csv-chart-report, expect: { rc: 0 } }
+  - { slug: etl-quarantine, expect: { rc: 0 } }
+  - { slug: image-fx-batch, expect: { rc: 0 } }
+  - { slug: invoice-chaser, expect: { rc: 0 } }
+  - { slug: meeting-actions, expect: { rc: 0 } }
+  - { slug: resume-screener, expect: { rc: 0 } }
+  - { slug: social-repurpose, expect: { rc: 0 } }
+  - { slug: support-triage, expect: { rc: 0 } }
+  - { slug: transcript-shownotes, expect: { rc: 0 } }
+
+  # ── Human gates — the prompt carries no `default:` ON PURPOSE (a default
+  #    completes NIKA-SEC-009's lethal trifecta), so the run door answers
+  #    explicitly. `try` has no answer flag: these rows take `door: run` ──
+  - slug: ceo-monday-brief
+    door: run
+    kit: [fixtures]
+    model: mock/echo
+    answers: { approve: "true" }
+    expect: { rc: 0 }
+  - slug: incident-war-room
+    door: run
+    kit: [fixtures]
+    model: mock/echo
+    answers: { approve: "true" }
+    expect: { rc: 0 }
+  - slug: release-notes
+    door: run
+    kit: [fixtures]
+    model: mock/echo
+    answers: { approve: "true" }
+    expect: { rc: 0 }
+  - slug: release-radar
+    door: run
+    model: mock/echo
+    answers: { approve: "true" }
+    expect: { rc: 0 }
+
+  # ── GIT-SEATBELT (3) — an `exec git` under the OS sandbox cannot read an
+  #    undeclared `.git`, and declaring it completes NIKA-SEC-009's lethal
+  #    trifecta: the example is locked red under confinement both ways
+  #    (measured on darwin 0.114.0 — through `nika try` too). On Linux the
+  #    bwrap jail binds no undeclared path either; whether the inherited
+  #    cwd dentry admits git's relative reads there is UNMEASURED, so these
+  #    rows assert green outside darwin and the first Linux run adjudicates.
+  - slug: standup-digest
+    door: run
+    kit: [git-repo]
+    model: mock/echo
+    expect: { rc: 0 }
+    known_fail:
+      on: [darwin]
+      class: GIT-SEATBELT
+      finding: NIKA-EXEC-001
+      issue: R1-PACK-EXAMPLES-GIT-SEATBELT
+  - slug: snippets/weekly-radar
+    door: run
+    kit: [fixtures, git-repo]
+    model: mock/echo
+    answers: { approve: "true" }
+    expect: { rc: 0 }
+    known_fail:
+      on: [darwin]
+      class: GIT-SEATBELT
+      finding: NIKA-EXEC-001
+      issue: R1-PACK-EXAMPLES-GIT-SEATBELT
+  - slug: pr-review-fanout
+    door: run
+    kit: [git-repo]
+    model: mock/echo
+    answers: { approve: "true" }
+    expect: { rc: 0 }
+    known_fail:
+      on: [darwin]
+      class: GIT-SEATBELT
+      finding: NIKA-EXEC-001
+      issue: R1-PACK-EXAMPLES-GIT-SEATBELT
+
+  # ── CARGO-SEATBELT (2) — the cargo/rustc the examples exec lives under
+  #    `$HOME` (rustup), and BOTH OS jails bind no `$HOME` path
+  #    (nika-sandbox-landlock module doc, stated loudly; the macOS sibling
+  #    likewise): the confinement refusal is platform-independent, so the
+  #    XFAIL holds on darwin AND linux (the CI battery's only two homes).
+  - slug: 03-exec-pipeline
+    door: run
+    kit: [cargo-project]
+    expect: { rc: 0 }
+    known_fail:
+      on: [darwin, linux]
+      class: CARGO-SEATBELT
+      finding: NIKA-SEC-001
+      issue: R1-PACK-EXAMPLES-CARGO-SEATBELT
+  - slug: snippets/run
+    door: run
+    kit: [cargo-project]
+    expect: { rc: 0 }
+    known_fail:
+      on: [darwin, linux]
+      class: CARGO-SEATBELT
+      finding: NIKA-SEC-001
+      issue: R1-PACK-EXAMPLES-CARGO-SEATBELT
+
+  # ── The honest skips — launched by no hermetic gate, named and counted ──
+  # model-bench: per-task `model:` seats escape the envelope override (the
+  # bench IS the seats) — it needs the real ollama models it names.
+  - slug: model-bench
+    expect: { rc: 0 }
+    needs: ollama-model
+  # delegate: red ONLY under the mock plane — the canned agent plan reads
+  # the literal path `mock`, which the declared `fs.read` set refuses
+  # (NIKA-SEC-004). The healthy seat is a real local model.
+  - slug: snippets/delegate
+    expect: { rc: 0 }
+    needs: ollama-model
+  # release-train: drives a spec-repo-shaped cwd (VERSION + CHANGELOG +
+  # schemas + the conductor answer) and its measured terminal is an HONEST
+  # gate-red (NIKA-BUILTIN-ASSERT-001 on a façade changelog) — an operator
+  # rehearsal, not a green-or-die corpus row.
+  - slug: release-train
+    door: run
+    kit: [spec-repo]
+    vars: { version: "0.114.0" }
+    answers: { conductor: "true" }
+    expect: { finding: NIKA-BUILTIN-ASSERT-001 }
+    needs: manual
