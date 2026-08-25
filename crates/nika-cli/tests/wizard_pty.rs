@@ -365,7 +365,8 @@ fn init_starter_recipe_hands_over_to_the_guided_flow() {
     p.expect("a number, or any provider/model")
         .expect("model menu");
     p.send_line("").expect("enter");
-    p.expect("audited").expect("its ladder ran");
+    p.expect("nika check · my-first.nika.yaml")
+        .expect("its ladder ran");
     p.expect(Eof).expect("ends");
     assert_eq!(exit_code(&mut p), 2, "the handed-off template is a draft");
 
