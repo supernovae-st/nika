@@ -262,11 +262,7 @@ mod tests {
     fn failed(code: &str, message: &str) -> RunVerdict {
         RunVerdict {
             code: exit::WORKFLOW,
-            failure: Some(nika_runtime::TaskErrorRecord {
-                code: code.to_owned(),
-                message: message.to_owned(),
-                transient: false,
-            }),
+            failure: Some(nika_runtime::TaskErrorRecord::new(code, message, false)),
             paused: None,
             outputs: std::collections::BTreeMap::new(),
             interrupted: false,

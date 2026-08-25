@@ -120,18 +120,58 @@ pub enum RuntimeError {
     #[diagnostic(code(nika::runtime::access_unavailable))]
     AccessUnavailable { message: String },
 
-    /// An EVALUATION failure — a `${{ }}` island, a `cel-subset/0.1`
-    /// expression or an `output:` jq binding that did not resolve. The four
-    /// classes descended to `nika-dataflow` at the 15k wall WITH the code
-    /// that raises them (`NIKA-VAR-001` · `-002` · `-004` · `-005` ·
-    /// `-006`); this variant is transparent in every direction —
-    /// [`Display`](std::fmt::Display), [`miette::Diagnostic`],
-    /// [`Self::spec_code`] and [`NikaErrorCode::nika_code`] all delegate —
-    /// so the wire form a consumer sees is byte-identical to when the
-    /// variants lived here.
+    /// A `${{ }}` reference did not resolve (unknown task id / var key ·
+    /// out-of-range index · missing map key · the silent-literal guard).
+    /// Compatibility facade for the dataflow-owned class: the historical
+    /// constructor and pattern-match arm remain public at this exact path.
+    #[error(
+        "NIKA-VAR-001 · unresolved template reference `{reference}`{}",
+        var_cli_hint(.reference)
+    )]
+    #[diagnostic(code(nika::runtime::unresolved_template))]
+    UnresolvedTemplate {
+        /// The reference inside the island (e.g. `tasks.ghost.output`).
+        reference: String,
+    },
+
+    /// A `when:` (or island) expression reached the runtime outside the v0
+    /// gate subset. Compatibility facade for
+    /// [`DataflowError::WhenUnsupported`].
+    #[error("NIKA-VAR-005 · `when:` expression outside the v0 subset · `{expr}`")]
+    #[diagnostic(code(nika::runtime::when_unsupported))]
+    WhenUnsupported {
+        /// The raw expression body.
+        expr: String,
+    },
+
+    /// A `cel-subset/0.1` evaluation-time type failure. Compatibility facade
+    /// for [`DataflowError::CelEval`].
+    #[error("{code} · {message}")]
+    #[diagnostic(code(nika::runtime::cel_eval))]
+    CelEval {
+        /// The spec wire code (`NIKA-VAR-006`).
+        code: &'static str,
+        /// The expression-relative message from `nika-cel`.
+        message: String,
+    },
+
+    /// An `output:` named-binding evaluation failure. Compatibility facade
+    /// for [`DataflowError::OutputBinding`].
+    #[error("{code} · {message}")]
+    #[diagnostic(code(nika::runtime::output_binding))]
+    OutputBinding {
+        /// The spec wire code (`NIKA-VAR-002` · `NIKA-VAR-004`).
+        code: &'static str,
+        /// The binding-relative message (which name · the jq cause).
+        message: String,
+    },
+
+    /// A future dataflow error class with no historical runtime constructor.
+    /// The four classes that existed before the split always convert to their
+    /// named compatibility variants above.
     #[error(transparent)]
     #[diagnostic(transparent)]
-    Dataflow(#[from] DataflowError),
+    Dataflow(DataflowError),
 
     /// The exec `decode:` pipeline failed to turn the captured bytes
     /// into a value (spec 09 §decode) — strict-UTF-8 text violation ·
@@ -157,6 +197,17 @@ pub enum RuntimeError {
         /// Which contract the value broke (task + type + value class).
         message: String,
     },
+}
+
+/// The actionable suffix for an unresolved `inputs.*` reference — retained
+/// here because the public [`RuntimeError::UnresolvedTemplate`] constructor's
+/// `Display` contract predates the dataflow split.
+fn var_cli_hint(reference: &str) -> &'static str {
+    if reference.trim_start().starts_with("inputs.") {
+        " — supply it with `nika run <file> --var <key>=<value>` or declare a `default:`"
+    } else {
+        ""
+    }
 }
 
 /// The teaching text of [`RuntimeError::MissingRequiredInputs`] — names
@@ -187,15 +238,15 @@ fn missing_required_message(missing: &[String], declared: &[String]) -> String {
 impl RuntimeError {
     /// The WIRE code a consumer filters on (`on_codes:` · the user-
     /// visible code). Defaults to the engine-internal `nika_code()` for
-    /// the NIKA-170x family · delegates to [`DataflowError::spec_code`] for
-    /// the evaluation family (`NIKA-VAR-00x`, which are not `nika_error`
-    /// registry constants · their canon is the spec table).
+    /// the NIKA-170x family · returns the spec-plane code for the evaluation
+    /// compatibility variants.
     #[must_use]
     pub fn spec_code(&self) -> String {
         match self {
-            // The evaluation family owns its own spec-plane codes since the
-            // descent (NIKA-VAR-001 · -002 · -004 · -005 · -006) — one
-            // answer, one home, no second copy to drift.
+            Self::CelEval { code, .. } | Self::OutputBinding { code, .. } => (*code).to_owned(),
+            Self::UnresolvedTemplate { .. } => "NIKA-VAR-001".to_owned(),
+            Self::WhenUnsupported { .. } => "NIKA-VAR-005".to_owned(),
+            // Future dataflow classes retain their dataflow-owned answer.
             Self::Dataflow(err) => err.spec_code(),
             // A contract violation is the SPEC-PLANE NIKA-TYPE-101 (spec
             // 09 §errors · registered in the canon table) — the 1706 is
@@ -224,13 +275,25 @@ impl RuntimeError {
 
     /// Map a [`nika_cel::CelError`] onto the runtime's error plane.
     ///
-    /// The mapping itself descended with the evaluation family — see
-    /// [`DataflowError::from_cel`] for the three conformance classes and
-    /// the injection-safety argument for `reference`. This stays as the
-    /// runtime-plane spelling so existing call sites keep one name.
+    /// The mapping itself is dataflow-owned; conversion restores the
+    /// historical runtime constructor for each existing class.
     #[must_use]
     pub fn from_cel(err: &nika_cel::CelError, reference: &str) -> Self {
-        Self::Dataflow(DataflowError::from_cel(err, reference))
+        DataflowError::from_cel(err, reference).into()
+    }
+}
+
+impl From<DataflowError> for RuntimeError {
+    fn from(err: DataflowError) -> Self {
+        match err {
+            DataflowError::UnresolvedTemplate { reference } => {
+                Self::UnresolvedTemplate { reference }
+            }
+            DataflowError::WhenUnsupported { expr } => Self::WhenUnsupported { expr },
+            DataflowError::CelEval { code, message } => Self::CelEval { code, message },
+            DataflowError::OutputBinding { code, message } => Self::OutputBinding { code, message },
+            other => Self::Dataflow(other),
+        }
     }
 }
 
@@ -246,9 +309,10 @@ impl NikaErrorCode for RuntimeError {
             Self::AccessPinUnsatisfied { .. } => codes::NIKA_1801,
             Self::AccessUnknownToken { .. } => codes::NIKA_1802,
             Self::AccessUnavailable { .. } => codes::NIKA_1803,
-            // The evaluation family keeps its engine-internal identities
-            // (NIKA_1702 · NIKA_1703) — the descent moved the code, not the
-            // range: the range names the CLASS, not the crate.
+            Self::UnresolvedTemplate { .. } => codes::NIKA_1702,
+            Self::WhenUnsupported { .. } | Self::CelEval { .. } | Self::OutputBinding { .. } => {
+                codes::NIKA_1703
+            }
             Self::Dataflow(err) => err.nika_code(),
             Self::Decode { .. } => codes::NIKA_1705,
             Self::ContractViolation { .. } => codes::NIKA_1706,
@@ -475,23 +539,20 @@ mod tests {
         let unresolved = nika_cel::CelError::unresolved("unresolved reference `vars`", (0, 4));
         assert!(matches!(
             RuntimeError::from_cel(&unresolved, "vars.nope"),
-            RuntimeError::Dataflow(DataflowError::UnresolvedTemplate { ref reference })
-                if reference == "vars.nope"
+            RuntimeError::UnresolvedTemplate { ref reference } if reference == "vars.nope"
         ));
 
         let static_err = nika_cel::CelError::static_err("chained relation", (0, 3));
         assert!(matches!(
             RuntimeError::from_cel(&static_err, "a < b < c"),
-            RuntimeError::Dataflow(DataflowError::WhenUnsupported { ref expr })
-                if expr == "a < b < c"
+            RuntimeError::WhenUnsupported { ref expr } if expr == "a < b < c"
         ));
 
         let type_err = nika_cel::CelError::type_err("cross-type compare", (0, 3));
         let mapped = RuntimeError::from_cel(&type_err, "vars.n == 'x'");
         assert!(matches!(
             mapped,
-            RuntimeError::Dataflow(DataflowError::CelEval { code, .. })
-                if code == "NIKA-VAR-006"
+            RuntimeError::CelEval { code, .. } if code == "NIKA-VAR-006"
         ));
         assert_eq!(mapped.spec_code(), "NIKA-VAR-006");
     }
@@ -519,5 +580,42 @@ mod tests {
                 .any(|row| row.code == err.spec_code()),
             "NIKA-VAR-006 must resolve in the embedded spec table"
         );
+    }
+
+    #[test]
+    fn historical_eval_variants_remain_constructible_and_matchable() {
+        let variants = [
+            RuntimeError::UnresolvedTemplate {
+                reference: "tasks.old.output".into(),
+            },
+            RuntimeError::WhenUnsupported {
+                expr: "a ~= b".into(),
+            },
+            RuntimeError::CelEval {
+                code: "NIKA-VAR-006",
+                message: "type mismatch".into(),
+            },
+            RuntimeError::OutputBinding {
+                code: "NIKA-VAR-004",
+                message: "jq failed".into(),
+            },
+        ];
+
+        assert!(matches!(
+            &variants[0],
+            RuntimeError::UnresolvedTemplate { reference } if reference == "tasks.old.output"
+        ));
+        assert!(matches!(
+            &variants[1],
+            RuntimeError::WhenUnsupported { expr } if expr == "a ~= b"
+        ));
+        assert!(matches!(
+            &variants[2],
+            RuntimeError::CelEval { code: "NIKA-VAR-006", message } if message == "type mismatch"
+        ));
+        assert!(matches!(
+            &variants[3],
+            RuntimeError::OutputBinding { code: "NIKA-VAR-004", message } if message == "jq failed"
+        ));
     }
 }

@@ -17,11 +17,11 @@ use nika_kernel::ai::tool_defs::ToolDefinitionProviderDyn;
 use nika_kernel::http::HttpPostDyn;
 use nika_kernel::process::ShellRunDyn;
 use nika_kernel::tool_executor::ToolExecuteDyn;
-use nika_schema::raw::{RawAction, RawCommand};
+use nika_schema::raw::{RawAction, RawCommand, VisionInput};
 use nika_types::cost::UnpricedReason;
 use nika_verb_agent::{AgentInput, AgentValue};
 use nika_verb_exec::{CaptureMode, ExecCommand, ExecValue};
-use nika_verb_infer::{InferInput, InferValue};
+use nika_verb_infer::{InferInput, InferValue, VisionPart};
 use nika_verb_invoke::InvokeInput;
 use serde_json::Value;
 
@@ -196,16 +196,16 @@ impl Dispatched {
     fn verb_err(note: String, err: &dyn NikaErrorCode) -> Self {
         Self {
             note,
-            result: Err(FailedDispatch::unspent(TaskErrorRecord {
+            result: Err(FailedDispatch::unspent(TaskErrorRecord::new(
                 // The USER-FACING spec code (`NIKA-EXEC-001` · not the engine
                 // `NIKA-440`) — the identifier the author is forced (by `nika
                 // check`) to write in `on_codes:`, and the one `tasks.X.error
                 // .code` exposes (spec 05 §error structure). Selective
                 // recovery/retry compares against THIS (BUG-C).
-                code: err.spec_code(),
-                message: err.to_string(),
-                transient: err.is_transient(),
-            })),
+                err.spec_code(),
+                err.to_string(),
+                err.is_transient(),
+            ))),
         }
     }
 
@@ -221,11 +221,7 @@ impl Dispatched {
         Self {
             note,
             result: Err(FailedDispatch {
-                record: TaskErrorRecord {
-                    code: err.spec_code(),
-                    message: err.to_string(),
-                    transient: err.is_transient(),
-                },
+                record: TaskErrorRecord::new(err.spec_code(), err.to_string(), err.is_transient()),
                 cost_usd,
                 cost_source,
                 cost_unpriced,
@@ -237,27 +233,27 @@ impl Dispatched {
     pub(crate) fn template_err(note: &str, err: &RuntimeError) -> Self {
         Self {
             note: note.to_owned(),
-            result: Err(FailedDispatch::unspent(TaskErrorRecord {
+            result: Err(FailedDispatch::unspent(TaskErrorRecord::new(
                 // The SPEC-PLANE wire code (`NIKA-VAR-001` unresolved ·
                 // `NIKA-VAR-005` out-of-subset) the author filters on — never
                 // the engine-internal `nika_code()` (spec 05 §142 · the
                 // `tasks.X.error.code` leak this closed). The message is
                 // code-less (`wire_message`) · the code rides its own field.
-                code: err.spec_code(),
-                message: err.wire_message(),
-                transient: false, // static expression class · retry never helps
-            })),
+                err.spec_code(),
+                err.wire_message(),
+                false, // static expression class · retry never helps
+            ))),
         }
     }
 
     fn unwired(note: &str, detail: String) -> Self {
         Self {
             note: note.to_owned(),
-            result: Err(FailedDispatch::unspent(TaskErrorRecord {
-                code: nika_error::codes::NIKA_1703.to_string(),
-                message: detail,
-                transient: false,
-            })),
+            result: Err(FailedDispatch::unspent(TaskErrorRecord::new(
+                nika_error::codes::NIKA_1703.to_string(),
+                detail,
+                false,
+            ))),
         }
     }
 
@@ -267,11 +263,11 @@ impl Dispatched {
     fn security_err(note: &str, reason: impl Into<String>) -> Self {
         Self {
             note: note.to_owned(),
-            result: Err(FailedDispatch::unspent(TaskErrorRecord {
-                code: "NIKA-SEC-004".to_owned(),
-                message: reason.into(),
-                transient: false,
-            })),
+            result: Err(FailedDispatch::unspent(TaskErrorRecord::new(
+                "NIKA-SEC-004",
+                reason.into(),
+                false,
+            ))),
         }
     }
 
@@ -285,11 +281,9 @@ impl Dispatched {
     pub(crate) fn comp_refusal(note: &str, code: &str, reason: String) -> Self {
         Self {
             note: note.to_owned(),
-            result: Err(FailedDispatch::unspent(TaskErrorRecord {
-                code: code.to_owned(),
-                message: reason,
-                transient: false,
-            })),
+            result: Err(FailedDispatch::unspent(TaskErrorRecord::new(
+                code, reason, false,
+            ))),
         }
     }
 
@@ -303,11 +297,9 @@ impl Dispatched {
     fn skill_err(note: &str, code: &str, reason: String) -> Self {
         Self {
             note: note.to_owned(),
-            result: Err(FailedDispatch::unspent(TaskErrorRecord {
-                code: code.to_owned(),
-                message: reason,
-                transient: false, // a static composition defect · retry never helps
-            })),
+            result: Err(FailedDispatch::unspent(TaskErrorRecord::new(
+                code, reason, false, // a static composition defect · retry never helps
+            ))),
         }
     }
 }
@@ -384,6 +376,8 @@ pub(crate) struct DispatchCtx<'a> {
     /// P3 B5 · the operator's bound `--answer` for THIS task (the
     /// harness gate's human verdict on a resumed run).
     pub gate_answer: Option<serde_json::Value>,
+    /// The run's immutable opening instant, shared by every retry/fan-out.
+    pub run_start: nika_kernel::tool_executor::ToolRunStart,
 }
 
 impl<'a> DispatchCtx<'a> {
@@ -403,6 +397,7 @@ impl<'a> DispatchCtx<'a> {
             inert: task.data_as_code_because().map(|s| s.value.as_str()),
             witness,
             gate_answer: None,
+            run_start: nika_kernel::tool_executor::ToolRunStart::new(0),
         }
     }
 }
@@ -494,7 +489,7 @@ where
         // so an out-of-boundary invoke is refused without touching the scope.
         let raw_args = action.args.as_ref().map(|s| &s.value);
         if let Some(denial) =
-            permits::check_tool_permits(scope.permits, &note, &tool, raw_args, witness)
+            permits::check_tool_permits(scope.permits(), &note, &tool, raw_args, witness)
         {
             return denial;
         }
@@ -519,7 +514,7 @@ where
         // are already re-gated at their own boundary (`boundary.enforce` ·
         // the one-hop net enforce) — never duplicated here.
         if tool.starts_with("mcp:")
-            && let (Some(boundary), Some(raw)) = (scope.permits, &action.args)
+            && let (Some(boundary), Some(raw)) = (scope.permits(), &action.args)
             && let Some(denial) = regate::regate_mcp_args(
                 boundary,
                 &note,
@@ -527,7 +522,7 @@ where
                 &raw.value,
                 &args,
                 taint,
-                scope.records,
+                scope.records(),
                 witness,
             )
         {
@@ -537,7 +532,7 @@ where
         input.args = args;
         // F-P6 · the gated firing lane (PREVIEW → tamper seam → COMMIT
         // gate → run · `dispatch/commit.rs` owns the binding).
-        self.run_invoke_gated(note, input).await
+        self.run_invoke_gated(note, input, ctx.run_start).await
     }
 
     /// ADR-095 Layer 6 — derive the OS jail from the declared boundary. F-O8
@@ -638,7 +633,7 @@ where
         }
 
         if let Some(denial) =
-            permits::check_exec_permits(scope.permits, &note, &program, is_argv, ctx.witness)
+            permits::check_exec_permits(scope.permits(), &note, &program, is_argv, ctx.witness)
         {
             return denial;
         }
@@ -650,7 +645,7 @@ where
         // the program, already matched on its resolved value above; the
         // shell form has no per-token canonical form (the OS jail owns
         // its fs — `dispatch/regate.rs` module docs).
-        if let Some(boundary) = scope.permits {
+        if let Some(boundary) = scope.permits() {
             if let (RawCommand::Argv(elements), ExecCommand::Argv(argv)) =
                 (&action.command, &input.command)
                 && let Some(denial) = regate::regate_exec_argv(
@@ -659,7 +654,7 @@ where
                     elements,
                     argv,
                     taint,
-                    scope.records,
+                    scope.records(),
                     ctx.witness,
                 )
             {
@@ -672,7 +667,7 @@ where
                     &template.value,
                     &cwd.to_string_lossy(),
                     taint,
-                    scope.records,
+                    scope.records(),
                     ctx.witness,
                 )
             {
@@ -683,7 +678,7 @@ where
         // F-P6 · the gated firing lane (PREVIEW → jail/passthrough
         // derivation → tamper seam → COMMIT gate → run ·
         // `dispatch/commit.rs` owns the binding).
-        self.run_exec_gated(note, input, scope.permits, ctx.witness, decode, contract)
+        self.run_exec_gated(note, input, scope.permits(), ctx.witness, decode, contract)
             .await
     }
 
@@ -715,6 +710,14 @@ where
         input.temperature = temp_f32(action.temperature.as_ref());
         input.max_tokens = action.max_tokens.as_ref().map(|t| t.value);
         input.schema = task_schema(action.schema.as_ref(), contract);
+        if action.thinking.as_ref().is_some_and(|t| t.value.enabled) {
+            input.thinking_budget = action.thinking.as_ref().and_then(|t| t.value.budget_tokens);
+        }
+        match collect_vision(&action.vision, scope) {
+            Ok(v) => input.vision = v,
+            Err(VisionErr::Template(err)) => return Dispatched::template_err("infer · ?", &err),
+            Err(VisionErr::Unwired(detail)) => return Dispatched::unwired("infer · ?", detail),
+        }
         #[cfg(feature = "access-harness")]
         if let Some(seat_id) = self.harness_seat_id.as_deref() {
             return match self.infer.run_on_harness(seat_id, input).await {
@@ -786,7 +789,7 @@ where
         // `permits.tools` — refused before any render or provider call,
         // one refusal for the whole task.
         if let Some(denial) =
-            permits::check_agent_tools_permits(scope.permits, &action.tools, ctx.witness)
+            permits::check_agent_tools_permits(scope.permits(), &action.tools, ctx.witness)
         {
             return denial;
         }
@@ -822,7 +825,10 @@ where
         // per-dispatch-isolated since a wave's tasks each own one):
         // owning it here would put it inside the timeout-cancellable
         // region and lose a timed-out attempt's telemetry (review F1).
-        let ran = self.agent.run_observed(input, agent_buffer).await;
+        let ran = self
+            .agent
+            .run_observed_at(input, agent_buffer, ctx.run_start)
+            .await;
         match ran {
             Ok(out) => {
                 let note = format!("agent · {} turns", out.turns);
@@ -875,7 +881,7 @@ where
     /// P3 B5 · the bridge's inputs: the workflow's declared boundary
     /// (judged in-verb for a harness) + the operator's bound `--answer`.
     fn bridge_inputs(input: &mut AgentInput, scope: &Scope<'_>, ctx: &DispatchCtx<'_>) {
-        input.permits = scope.permits.cloned();
+        input.permits = scope.permits().cloned();
         input.gate_answer.clone_from(&ctx.gate_answer);
     }
 
@@ -989,10 +995,7 @@ fn usage_has_signal(usage: &nika_kernel::provider::TokenUsage) -> bool {
         || usage.cache_creation_tokens.is_some_and(|n| n > 0)
 }
 
-/// Classify WHY a model string has no catalog price. The provider
-/// prefix is the discriminator: `mock` = the test backend · a keyless
-/// catalog provider = a local server (sovereign path — not priced,
-/// never « free ») · anything else = not in the vendored catalog.
+/// Why a model string has no catalog price (`mock` · local · missing).
 fn unpriced_reason_for(model: &str) -> UnpricedReason {
     match model.split_once('/').map(|(provider, _)| provider) {
         Some("mock") => UnpricedReason::MockProvider,
@@ -1002,6 +1005,38 @@ fn unpriced_reason_for(model: &str) -> UnpricedReason {
         },
         None => UnpricedReason::MissingCatalogPrice,
     }
+}
+
+fn collect_vision(
+    items: &[nika_schema::Spanned<VisionInput>],
+    scope: &Scope<'_>,
+) -> Result<Vec<VisionPart>, VisionErr> {
+    let mut out = Vec::with_capacity(items.len());
+    for item in items {
+        out.push(match &item.value {
+            VisionInput::File { path } => VisionPart::file(
+                expr::render(&path.value, scope)
+                    .map_err(RuntimeError::from)
+                    .map_err(VisionErr::Template)?,
+            ),
+            VisionInput::Url { url } => VisionPart::url(
+                expr::render(&url.value, scope)
+                    .map_err(RuntimeError::from)
+                    .map_err(VisionErr::Template)?,
+            ),
+            other => {
+                return Err(VisionErr::Unwired(format!(
+                    "vision source form not wired yet: {other:?}"
+                )));
+            }
+        });
+    }
+    Ok(out)
+}
+
+enum VisionErr {
+    Template(RuntimeError),
+    Unwired(String),
 }
 
 /// Render an optional spanned string field.
@@ -1015,9 +1050,7 @@ fn render_opt(
         .map_err(RuntimeError::from)
 }
 
-/// `returns:` compiles `lower(returns)` as the structured-output contract —
-/// EXACTLY the `schema:` lane (spec 09 §returns · violations NIKA-INFER-002).
-/// One home for infer/agent, zero drift.
+/// `returns:` is the `schema:` lane (spec 09 · NIKA-INFER-002).
 fn task_schema(
     schema: Option<&nika_schema::Spanned<Value>>,
     contract: Option<&crate::contract::TaskContract<'_>>,
@@ -1027,12 +1060,7 @@ fn task_schema(
         .or_else(|| contract.map(crate::contract::TaskContract::lowered))
 }
 
-/// The effective system prompt of a `skills:`-carrying agent (spec 02
-/// §agent skills · normative injection shape): the authored `system:`
-/// (already rendered · absent = the section stands alone), then ONE
-/// `## Skills` section — per skill, in `skills:` source order,
-/// `### <name>` + the description + the body (trimmed). Deterministic
-/// bytes: same inputs, same prompt, provider-cache-friendly.
+/// Authored `system:` plus one `## Skills` section (spec 02 · source order).
 pub(crate) fn system_with_skills(system: Option<String>, docs: &[nika_schema::SkillDoc]) -> String {
     let mut out = match system {
         Some(s) if !s.is_empty() => {
@@ -1073,6 +1101,7 @@ mod infer_deadline_tests {
     use nika_kernel::http::{
         HttpError, HttpPostDyn, HttpRequest, HttpResponse, HttpStreamResponse,
     };
+    use nika_kernel::secret::Secret;
     use nika_kernel_mock::{
         MockClock, MockProvider, MockShell, MockToolDefinitionProvider, MockToolExecutor,
     };
@@ -1100,16 +1129,25 @@ mod infer_deadline_tests {
         "choices":[{"message":{"content":"ok"},"finish_reason":"stop"}],
         "usage":{"prompt_tokens":1,"completion_tokens":1}}"#;
 
+    const ANTHROPIC_OK: &str = r#"{"id":"msg_1","model":"claude-x","stop_reason":"end_turn",
+        "content":[{"type":"text","text":"ok"}],
+        "usage":{"input_tokens":1,"output_tokens":1}}"#;
+
     impl HttpPostDyn for CapturingHttp {
         async fn post(&self, request: HttpRequest) -> Result<HttpResponse, HttpError> {
             self.captured
                 .lock()
                 .expect("test mutex")
                 .push(request.clone());
+            let body = if request.url.contains("anthropic") {
+                ANTHROPIC_OK
+            } else {
+                OPENAI_OK
+            };
             Ok(HttpResponse::new(
                 200,
                 BTreeMap::new(),
-                Bytes::from_static(OPENAI_OK.as_bytes()),
+                Bytes::from_static(body.as_bytes()),
                 request.url,
             ))
         }
@@ -1126,6 +1164,14 @@ mod infer_deadline_tests {
 
     /// `pub(super)`: the `model_template_tests` sibling runs the same rig.
     pub(super) async fn run_and_capture(yaml: &str) -> Vec<HttpRequest> {
+        let (outcome, captured) = run_capture(yaml).await;
+        assert!(outcome.ok, "the canned success settles green");
+        captured
+    }
+
+    /// Same rig as [`run_and_capture`], but a failed task is data (the
+    /// #1135 missing-file catching test).
+    pub(super) async fn run_capture(yaml: &str) -> (crate::RunOutcome, Vec<HttpRequest>) {
         let wf = nika_schema::parse(
             yaml,
             nika_schema::FileId::new(0),
@@ -1133,7 +1179,7 @@ mod infer_deadline_tests {
         )
         .expect("fixture parses");
         let report = nika_check::check(&wf);
-        assert!(report.is_clean(), "fixture passes the ladder");
+        assert!(report.is_clean(), "fixture passes the ladder: {report:?}");
 
         let http = Arc::new(CapturingHttp::default());
         // The B-5 liveness gate dials the local endpoint with a REAL
@@ -1158,7 +1204,9 @@ mod infer_deadline_tests {
         };
         let registry = Arc::new(ProviderRegistry::new(
             Arc::clone(&http),
-            ProvidersConfig::new().with_base_url("ollama", format!("http://127.0.0.1:{stub}")),
+            ProvidersConfig::new()
+                .with_base_url("ollama", format!("http://127.0.0.1:{stub}"))
+                .with_key("anthropic", Secret::new("sk-ant-test")),
         ));
         let invoke = Arc::new(InvokeVerb::new(Arc::new(MockToolExecutor::new())));
         let runtime = Runtime::new(
@@ -1179,9 +1227,8 @@ mod infer_deadline_tests {
         let outcome = runtime
             .run(&wf, &report, &mut stamper, &mut sink)
             .await
-            .expect("clean run");
-        assert!(outcome.ok, "the canned success settles green");
-        http.captured()
+            .expect("the run completes (a workflow failure is data)");
+        (outcome, http.captured())
     }
 
     #[tokio::test]

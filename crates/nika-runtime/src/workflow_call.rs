@@ -104,7 +104,7 @@ where
             depth: child_depth,
             remaining_budget_usd: child_budget,
             deadline,
-            parent_permits: scope.permits.cloned(),
+            parent_permits: scope.permits().cloned(),
         };
         match runner.run_child(call).await {
             Ok(out) => Self::settle_child_outcome(&note, &target.value, out, contract),
@@ -181,11 +181,11 @@ where
         Dispatched {
             note: note.to_owned(),
             result: Err(FailedDispatch {
-                record: TaskErrorRecord {
+                record: TaskErrorRecord::new(
                     code,
-                    message: format!("child workflow `{target}` failed: {message}{trace_note}"),
-                    transient: false,
-                },
+                    format!("child workflow `{target}` failed: {message}{trace_note}"),
+                    false,
+                ),
                 cost_usd: out.cost_usd,
                 cost_source,
                 cost_unpriced: None,

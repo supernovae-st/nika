@@ -42,27 +42,13 @@ fn jq_cannot_read_the_ambient_environment() {
     assert!(bare.message.contains("ambient process environment"));
 }
 
-/// THE CLOCK IS STILL OPEN — pinned, not forgotten.
-///
-/// `now` reads the wall clock here today. D-2026-08-11-N27 (active) owns it
-/// and prescribes a REBINDING (resolve to the run's start instant, already
-/// in the trace, so a replay yields the same value forever), not the
-/// subtraction N26 applies to the environment. Measured 2026-08-15: zero
-/// call sites in a 184-program corpus — the cost of either remedy is nil;
-/// the CHOICE of remedy belongs to N27.
-///
-/// When N27 ships, this test goes red. That is its whole job.
 #[test]
-fn the_clock_is_a_named_open_debt_owned_by_n27() {
+fn the_clock_is_the_caller_bound_run_start() {
     let out = jq(&args(
         serde_json::json!({ "expression": "now", "input": {} }),
     ))
-    .expect("the clock still reads today");
-    assert!(
-        out.as_f64().is_some_and(|t| t > 1_700_000_000.0),
-        "`now` returned {out} — if this stopped being a wall-clock read, \
-         D-2026-08-11-N27 shipped: rebind the test to the run's start instant"
-    );
+    .expect("the accepted clock form is rebound");
+    assert_eq!(out, serde_json::json!(1_700_000_000.125));
 }
 
 #[test]
@@ -1005,8 +991,8 @@ mod expression_boundary {
             added.is_empty() && gone.is_empty(),
             "the jaq native set MOVED · new: {added:?} · gone: {gone:?}\n\
              Triage every newcomer: does it read the process, the clock, the disk \
-             or the environment? If so it belongs in nika_cap::WITHHELD_JQ_NATIVES \
-             (D-2026-08-11-N26 · an expression sees only its input). Otherwise add \
+             or the environment? If so it belongs in nika_cap::JQ_CAPABILITY_POLICY \
+             (D-2026-08-11-N26/N27). Otherwise add \
              it to PINNED_NATIVES with that judgment recorded in the commit."
         );
     }
@@ -1016,7 +1002,10 @@ mod expression_boundary {
         // A withheld name that jaq does not define would be a dead entry
         // pretending to guard something — the list must bite.
         let live = exposed();
-        for w in nika_cap::WITHHELD_JQ_NATIVES {
+        for w in nika_cap::JQ_CAPABILITY_POLICY
+            .iter()
+            .filter(|rule| rule.kind == nika_cap::JqSymbolKind::Native)
+        {
             assert!(
                 live.contains(w.name),
                 "`{}` is withheld but jaq no longer defines it — the row guards nothing",
@@ -1028,14 +1017,15 @@ mod expression_boundary {
     #[test]
     fn the_compiled_function_set_is_the_inventory_minus_the_withheld() {
         let live = exposed();
-        let withheld: std::collections::BTreeSet<&str> = nika_cap::WITHHELD_JQ_NATIVES
+        let withheld: std::collections::BTreeSet<&str> = nika_cap::JQ_CAPABILITY_POLICY
             .iter()
+            .filter(|rule| rule.kind == nika_cap::JqSymbolKind::Native)
             .map(|w| w.name)
             .collect();
         let compiled: std::collections::BTreeSet<&str> = jaq_core::funs::<JustLut<Val>>()
             .chain(jaq_std::funs())
             .chain(jaq_json::funs())
-            .filter(|f| !nika_cap::is_withheld_jq_native(f.0))
+            .filter(|f| nika_cap::install_jq_native(f.0))
             .map(|f| f.0)
             .collect();
         let expected: std::collections::BTreeSet<&str> =

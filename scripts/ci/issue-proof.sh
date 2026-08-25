@@ -90,42 +90,21 @@ waived_reason() {
   return 1
 }
 
-# The `proven_by:` TRAILER carried by the issue body, or empty.
+# Every DISTINCT job named by a line-initial `proven_by:` in a body, one per
+# line, sorted. A function and not an inline pipe so the self-test can source
+# it by name the way it sources waived_reason above — a reader nobody can
+# exercise is a reader nobody can trust, and this one decides verdicts.
 #
-# A trailer is a line that is ONLY the trailer — `^proven_by: <job>$`, nothing
-# before it, nothing after the job name — and the LAST such line wins, because
-# a trailer goes at the end.
-#
-# Both halves of that rule are paid for. This used to take the FIRST line
-# CONTAINING `proven_by:` anywhere, and #1200 — the issue ABOUT this gate —
-# could therefore never be closed: its body quotes the old guard,
-#
-#     contains(github.event.issue.body, 'proven_by:') ||
-#
-# inside a code fence, so the parser extracted `)` as the job name, found no
-# such job, and reopened the issue. Measured, not reasoned: `JOB=[)]`.
-#
-# An issue that DISCUSSES the proof mechanism is exactly the issue most likely
-# to be about a defect in it, so the parser must be able to read its own
-# subject matter. Anchoring at column 0 rejects the indented fence; requiring
-# the line to END after the job name rejects a prose line that happens to wrap
-# onto `proven_by: proof\` to the body`; taking the LAST match steps past the
-# earlier mentions to the real trailer.
-#
-# ISSUE_BODY arrives via env and is only ever read as data here — no
-# github.event expression reaches the script source.
-body_job() {
-  [ -n "${ISSUE_BODY:-}" ] || return 0
-  printf '%s\n' "$ISSUE_BODY" \
-    | awk '
-        /^proven_by:[[:space:]]*[A-Za-z0-9_.-]+[[:space:]]*$/ {
-          job = $0
-          sub(/^proven_by:[[:space:]]*/, "", job)
-          sub(/[[:space:]]*$/, "", job)
-          last = job
-        }
-        END { if (last != "") print last }
-      '
+# Reads $1, never the environment: the body is untrusted text and must not
+# reach the shell.
+body_proof_jobs() {
+  printf '%s\n' "$1" \
+    | awk '/^[[:space:]]*proven_by:[[:space:]]*/ {
+        sub(/^[[:space:]]*proven_by:[[:space:]]*/, "")
+        gsub(/["\047`]/, "")
+        gsub(/[[:space:]].*/, "")
+        if ($0 != "") { print }
+      }' | sort -u
 }
 
 while [ $# -gt 0 ]; do
@@ -176,17 +155,52 @@ LEDGER_JOB="$(
   awk -v want="$ISSUE" '
     /^capabilities:/{grab=1; next}
     grab && /^[a-z_]+:/ && $0 !~ /^[[:space:]]/{grab=0}
-    grab && $0 ~ /proven_by:[[:space:]]*/ {
-      sub(/.*proven_by:[[:space:]]*/, ""); gsub(/["\047]/, ""); job=$0
+    # Same anchor as the body reader below (#1218). A YAML value starts its
+    # line; a comment that names the key does not. The ledger is authored and
+    # less exposed to prose than an issue body, but two readers of one rule
+    # drift the moment one learns something — that is the lesson #1207 just
+    # paid for one file over.
+    grab && $0 ~ /^[[:space:]]*proven_by:[[:space:]]*/ {
+      sub(/^[[:space:]]*proven_by:[[:space:]]*/, ""); gsub(/["\047]/, ""); job=$0
     }
-    grab && $0 ~ /issue:[[:space:]]*/ {
-      sub(/.*issue:[[:space:]]*/, ""); gsub(/["\047]/, "")
+    grab && $0 ~ /^[[:space:]]*issue:[[:space:]]*/ {
+      sub(/^[[:space:]]*issue:[[:space:]]*/, ""); gsub(/["\047]/, "")
       if ($0 == want) { print job; exit }
     }
   ' "$LEDGER"
 )"
 
-BODY_JOB="$(body_job)"
+# 2. body proven_by: <job> (env, never interpolated into the script source)
+#
+# A DECLARATION starts a line. A MENTION sits inside a sentence, and until
+# 2026-08-25 this read both (#1218). The pattern matched `proven_by:`
+# anywhere and exited on the first line that carried it, so the issue whose
+# whole subject is this marker refused itself: #1200's body quotes the
+# workflow guard —
+#
+#     contains(github.event.issue.body, 'proven_by:') ||
+#
+# — and the reader stripped up to the marker, dropped the quote, cut at the
+# space, and rendered the job name `)`. On the other side, a sentence that
+# happens to carry a plausible word HANDS the gate a proof nobody attached:
+# that is the false-green half, and it is the one that matters.
+#
+# Anchoring is necessary and not sufficient. #1200 also carries a wrapped
+# markdown span that begins a line, so first-match-wins would still have
+# guessed — correctly there, by coincidence, because the prose and the real
+# declaration name the same job. A gate must not be right by luck. So: read
+# only line-initial markers, collect the DISTINCT values, and refuse when
+# they disagree rather than pick one. Fail closed, like every other judge
+# here.
+BODY_JOB=""
+BODY_AMBIGUOUS=""
+if [ -n "${ISSUE_BODY:-}" ]; then
+  _body_jobs="$(body_proof_jobs "$ISSUE_BODY")"
+  BODY_JOB="$(printf '%s\n' "$_body_jobs" | head -1)"
+  if [ "$(printf '%s\n' "$_body_jobs" | grep -c .)" -gt 1 ]; then
+    BODY_AMBIGUOUS="$(printf '%s' "$_body_jobs" | tr '\n' ' ')"
+  fi
+fi
 
 JOB="${LEDGER_JOB:-$BODY_JOB}"
 
@@ -216,6 +230,12 @@ What this gate no longer accepts is silence. Until 2026-08-25 it only judged clo
 
 if [ -z "$JOB" ] || [ "$JOB" = "null" ]; then
   refuse "no proven_by (not in wiring.yaml, not in the issue body) · a capability close needs a named CI job"
+fi
+
+# The ledger is authored and wins; only an unaided body can be ambiguous.
+# Detecting this and then picking one anyway would be a field nobody reads.
+if [ -z "$LEDGER_JOB" ] && [ -n "$BODY_AMBIGUOUS" ]; then
+  refuse "the body names more than one proven_by job (${BODY_AMBIGUOUS%% }) · say which, or put it in wiring.yaml"
 fi
 
 if printf '%s\n' "$JOBS" | grep -qxF "$JOB"; then

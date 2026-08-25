@@ -110,6 +110,7 @@ use nika_kernel::ai::provider::{
 use nika_kernel::ai::tool_defs::ToolDefinitionProviderDyn;
 use nika_kernel::blob::BlobStoreDyn;
 use nika_kernel::runtime::agent::AgentStopReason;
+use nika_kernel::runtime::tool_executor::ToolRunStart;
 use nika_types::blame::BlamePolarity;
 use nika_types::cost::SpendOnFailure;
 use nika_verb_invoke::{InvokeInput, InvokeVerb, VerbInvokeError};
@@ -325,6 +326,30 @@ where
         input: AgentInput,
         observer: &dyn AgentObserver,
     ) -> Result<AgentOutput, VerbAgentError> {
+        self.run_observed_with_context(input, observer, None).await
+    }
+
+    /// Execute under one immutable execution-bound opening instant.
+    ///
+    /// # Errors
+    ///
+    /// Exactly [`Self::run`]'s errors.
+    pub async fn run_observed_at(
+        &self,
+        input: AgentInput,
+        observer: &dyn AgentObserver,
+        run_start: ToolRunStart,
+    ) -> Result<AgentOutput, VerbAgentError> {
+        self.run_observed_with_context(input, observer, Some(run_start))
+            .await
+    }
+
+    async fn run_observed_with_context(
+        &self,
+        input: AgentInput,
+        observer: &dyn AgentObserver,
+        run_start: Option<ToolRunStart>,
+    ) -> Result<AgentOutput, VerbAgentError> {
         // The harness seat wins when configured (P3 B4) — the native
         // loop's arm/whitelist/budget machinery governs the native
         // path only; the harness boundary is the permission bridge.
@@ -345,6 +370,7 @@ where
                 input,
                 observer,
                 (&whitelist, &defs, &model, budget),
+                run_start,
                 &mut usage_total,
                 &mut tools_cost_usd,
             )
@@ -366,6 +392,7 @@ where
         input: AgentInput,
         observer: &dyn AgentObserver,
         armed: (&Whitelist, &[ToolDef], &str, TurnBudget),
+        run_start: Option<ToolRunStart>,
         usage_total: &mut TokenUsage,
         tools_cost_usd: &mut f64,
     ) -> Result<AgentOutput, VerbAgentError> {
@@ -377,7 +404,6 @@ where
         let mut total_tokens: u64 = 0;
         let mut last_text = String::new();
         let mut last_observations = String::new();
-
         // `loop`, not `while turns < max_turns`: the Dispatch arm is the
         // SOLE max_turns authority (fires BEFORE spending the final batch)
         // — a trailing `while` exit would be dead code (J2 review fold).
@@ -445,6 +471,7 @@ where
                             &mut guard,
                             &mut messages,
                             &last_text,
+                            run_start,
                         )
                         .await?;
                     *tools_cost_usd += batch_cost;
@@ -482,6 +509,7 @@ where
         guard: &mut Guard,
         messages: &mut Vec<Message>,
         last_text: &str,
+        run_start: Option<ToolRunStart>,
     ) -> Result<(String, f64), VerbAgentError> {
         if turns >= budget.max_turns {
             return Err(VerbAgentError::MaxTurns {
@@ -495,7 +523,7 @@ where
         // All-whitelisted, non-sentinel tools · feed results back.
         messages.push(Message::new(Role::Assistant, response.content));
         self.dispatch_turn(
-            observer, turns, tool_uses, router, guard, messages, last_text,
+            observer, turns, tool_uses, router, guard, messages, last_text, run_start,
         )
         .await
     }
@@ -708,6 +736,7 @@ where
     /// query. A security-boundary refusal in the batch propagates
     /// UNFED-BACK (NIKA-468 — nothing reaches the transcript); a stall
     /// verdict maps to NIKA-467 with the partial output attached.
+    #[allow(clippy::too_many_arguments)] // one loop turn threads its owned transcript state
     async fn dispatch_turn(
         &self,
         observer: &dyn AgentObserver,
@@ -717,8 +746,11 @@ where
         guard: &mut Guard,
         messages: &mut Vec<Message>,
         last_text: &str,
+        run_start: Option<ToolRunStart>,
     ) -> Result<(String, f64), VerbAgentError> {
-        let batch = self.run_batch(observer, turn, tool_uses, router).await?;
+        let batch = self
+            .run_batch(observer, turn, tool_uses, router, run_start)
+            .await?;
         // Consult the guard BEFORE pushing, so a nudge rides INSIDE the
         // same user message as the tool results — never a second adjacent
         // `Role::User` message (which some provider wires reject as
@@ -795,14 +827,18 @@ where
         turn: u32,
         tool_uses: Vec<ToolUse>,
         router: &mut ToolRouter,
+        run_start: Option<ToolRunStart>,
     ) -> Result<BatchOutcome, VerbAgentError> {
         use futures_util::{StreamExt, TryStreamExt};
         let cap = self.config.max_parallel_tools.max(1);
-        let resolved: Vec<Resolved> =
-            futures_util::stream::iter(tool_uses.into_iter().map(|u| self.resolve_tool(u)))
-                .buffered(cap)
-                .try_collect()
-                .await?;
+        let resolved: Vec<Resolved> = futures_util::stream::iter(
+            tool_uses
+                .into_iter()
+                .map(|u| self.resolve_tool(u, run_start)),
+        )
+        .buffered(cap)
+        .try_collect()
+        .await?;
 
         let mut results: Vec<ContentBlock> = Vec::with_capacity(resolved.len());
         let mut sig_calls: Vec<(String, serde_json::Value)> = Vec::with_capacity(resolved.len());
@@ -873,7 +909,11 @@ where
     /// with respect to loop state: no observer, no router). The ONE
     /// fallible resolve: a security-boundary refusal (NIKA-468), which
     /// must never materialize as a feedback block.
-    async fn resolve_tool(&self, u: ToolUse) -> Result<Resolved, VerbAgentError> {
+    async fn resolve_tool(
+        &self,
+        u: ToolUse,
+        run_start: Option<ToolRunStart>,
+    ) -> Result<Resolved, VerbAgentError> {
         if let Some(intrinsic) = intrinsic::Intrinsic::parse(&u.name) {
             let (content, is_error, outcome) = self.run_intrinsic(intrinsic, u.args.clone()).await;
             Ok(Resolved {
@@ -888,7 +928,9 @@ where
                 compose: Some(outcome),
             })
         } else {
-            let (block, cost_usd) = self.dispatch(&u.id, &u.name, u.args.clone()).await?;
+            let (block, cost_usd) = self
+                .dispatch(&u.id, &u.name, u.args.clone(), run_start)
+                .await?;
             Ok(Resolved {
                 block,
                 name: u.name,
@@ -975,11 +1017,16 @@ where
         id: &str,
         name: &str,
         args: serde_json::Value,
+        run_start: Option<ToolRunStart>,
     ) -> Result<(ContentBlock, Option<f64>), VerbAgentError> {
         let mut call = InvokeInput::new(name);
         call.args = args;
         call.call_id = Some(id.to_owned());
-        match self.invoke.run(call).await {
+        let invoked = match run_start {
+            Some(run_start) => self.invoke.run_at(call, run_start).await,
+            None => self.invoke.run(call).await,
+        };
+        match invoked {
             Ok(output) => {
                 // The honest-spend channel (the same filter the runtime's
                 // invoke path applies): a top-level finite non-negative

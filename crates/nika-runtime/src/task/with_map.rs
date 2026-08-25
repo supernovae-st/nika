@@ -26,16 +26,9 @@ pub(super) fn render_boundary_with(
     consts: &BTreeMap<String, Value>,
     secrets: &BTreeMap<String, Value>,
 ) -> Result<BTreeMap<String, Value>, RuntimeError> {
-    let scope = Scope {
-        records,
-        inputs,
-        consts,
-        secrets, // `with: { tok: "${{ secrets.X }}" }` resolves here (MINOR-B)
-        with_ns: None,
-        item: None,
-        index: None,
-        permits: None, // `with:` rendering performs no effect (no exec sink)
-    };
+    // `with: { tok: "${{ secrets.X }}" }` resolves here (MINOR-B); rendering
+    // performs no effect, so the task context carries no permits.
+    let scope = Scope::workflow_with_value_authorities(records, inputs, consts, secrets);
     let fan_out = task.for_each.is_some();
     task.with
         .iter()
@@ -76,16 +69,10 @@ pub(super) fn render_with(
     item: Option<&Value>,
     index: Option<usize>,
 ) -> Result<BTreeMap<String, Value>, RuntimeError> {
-    let scope = Scope {
-        records,
-        inputs,
-        consts,
-        secrets, // `with: { tok: "${{ secrets.X }}" }` resolves here (MINOR-B)
-        with_ns: None,
-        item,
-        index,
-        permits: None, // `with:` rendering performs no effect (no exec sink)
-    };
+    // `with: { tok: "${{ secrets.X }}" }` resolves here (MINOR-B); rendering
+    // performs no effect, so the task context carries no permits.
+    let scope = Scope::workflow_with_value_authorities(records, inputs, consts, secrets)
+        .with_task_context(None, item, index, None);
     task.with
         .iter()
         .map(|(key, value)| Ok((key.value.clone(), expr::render_json(&value.value, &scope)?)))

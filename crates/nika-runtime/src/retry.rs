@@ -117,7 +117,7 @@ pub(crate) fn rand_unit(seed: u64, task_id: &str, attempt: u32) -> f64 {
 /// appear in a real id — iteration `t[0]` can't collide with a task
 /// NAMED `t[0]`.
 pub(crate) fn jitter_key(task: &RawTask, scope: &Scope<'_>) -> String {
-    match scope.index {
+    match scope.index() {
         Some(i) => format!("{}[{i}]", task.id.value),
         None => task.id.value.clone(),
     }

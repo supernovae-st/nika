@@ -52,6 +52,7 @@ fn started_fields_full(
     let mut stamper = DeterministicStamper::new();
     let mut sink = VecSink::new();
     let book = crate::approval::ApprovalBook::new();
+    let opening_stamp = stamper.next();
     emit_prologue(
         &wf,
         "pay",
@@ -68,6 +69,7 @@ fn started_fields_full(
         Vec::new(),
         None,
         &book,
+        opening_stamp,
         &mut stamper,
         &mut sink,
     );

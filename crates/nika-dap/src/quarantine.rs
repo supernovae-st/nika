@@ -370,11 +370,11 @@ tasks:
         let wf = parsed(WF);
         let mut recovered = TaskRecord::unran(TaskStatus::Success, TerminalCause::Recovered);
         recovered.output = serde_json::json!("author-named.txt");
-        recovered.recovered_from = Some(nika_runtime::TaskErrorRecord {
-            code: "NIKA-BUILTIN-WRITE-001".to_owned(),
-            message: "the write failed".to_owned(),
-            transient: false,
-        });
+        recovered.recovered_from = Some(nika_runtime::TaskErrorRecord::new(
+            "NIKA-BUILTIN-WRITE-001",
+            "the write failed",
+            false,
+        ));
         let outcome = outcome_with(&[("a", recovered)]);
         assert!(
             written_paths(&wf, &outcome).is_empty(),

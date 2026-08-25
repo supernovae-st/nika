@@ -15,9 +15,10 @@ use std::fmt::Write as _;
 use nika_types::timestamp::Timestamp;
 use serde_json::Value;
 
-/// A task's terminal status (spec 03 §task states · closed enum at v1 —
-/// only the four terminal states are observable from expressions).
+/// A task's terminal status (spec 03 §task states · the v1 wire set has
+/// four states; the Rust enum stays forward-compatible under FCI-002).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum TaskStatus {
     /// The task completed successfully (incl. `on_error: recover`).
     Success,
@@ -50,6 +51,7 @@ impl TaskStatus {
 /// CLASS alone (the W2 pass-sets are untouched).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "snake_case")]
+#[non_exhaustive]
 pub enum TerminalCause {
     /// success — the verb completed.
     Normal,
@@ -165,6 +167,7 @@ pub fn failure_cause(error: &TaskErrorRecord, attempts: u32) -> TerminalCause {
 /// The typed error payload readable at `tasks.X.error` (spec 05
 /// §error structure · v0 carries the load-bearing trio).
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
 pub struct TaskErrorRecord {
     /// The canonical wire code (`NIKA-…` · verb-owned or spec class).
     pub code: String,
@@ -175,6 +178,17 @@ pub struct TaskErrorRecord {
 }
 
 impl TaskErrorRecord {
+    /// Construct the public error payload without relying on its evolvable
+    /// field layout (FCI-002).
+    #[must_use]
+    pub fn new(code: impl Into<String>, message: impl Into<String>, transient: bool) -> Self {
+        Self {
+            code: code.into(),
+            message: message.into(),
+            transient,
+        }
+    }
+
     /// The record as a JSON value (the `${{ tasks.X.error }}` shape).
     #[must_use]
     pub fn to_value(&self) -> Value {
@@ -501,11 +515,7 @@ mod tests {
 
     #[test]
     fn failure_cause_triage_matches_spec_13() {
-        let err = |code: &str| TaskErrorRecord {
-            code: code.to_owned(),
-            message: "x".to_owned(),
-            transient: false,
-        };
+        let err = |code: &str| TaskErrorRecord::new(code, "x", false);
         // The budget's wire code wins — even when retries had fired.
         let timeout = err(TIMEOUT_CODE);
         assert_eq!(failure_cause(&timeout, 1), TerminalCause::Timeout);
@@ -545,6 +555,26 @@ mod tests {
             Value::String("gate".to_owned())
         );
         assert!(rec.field("nope").is_none(), "unknown field = out of subset");
+    }
+
+    #[test]
+    fn record_projection_preserves_non_null_timestamps_and_named_values() {
+        let mut rec = TaskRecord::unran(TaskStatus::Success, TerminalCause::Normal);
+        rec.started_at = Some(Timestamp::from_unix_ms(1_700_000_000_123));
+        rec.ended_at = Some(Timestamp::from_unix_ms(1_700_000_000_456));
+        rec.duration_ms = Some(333);
+        rec.named.insert("answer".to_owned(), serde_json::json!(42));
+
+        assert_eq!(
+            rec.field("started_at").expect("reserved field"),
+            Value::String("2023-11-14T22:13:20.123Z".to_owned())
+        );
+        assert_eq!(
+            rec.field("ended_at").expect("reserved field"),
+            Value::String("2023-11-14T22:13:20.456Z".to_owned())
+        );
+        assert_eq!(rec.field("duration_ms"), Some(serde_json::json!(333)));
+        assert_eq!(rec.field("answer"), Some(serde_json::json!(42)));
     }
 
     #[test]

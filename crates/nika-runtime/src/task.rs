@@ -84,6 +84,7 @@ fn assemble_ran_finish(
     records: &BTreeMap<String, TaskRecord>,
     integrity: nika_cap::Integrity,
     approval: Option<crate::approval::ApprovalAttestation>,
+    jq_clock: nika_cap::JqClock,
 ) -> Finish {
     // `output:` named bindings (spec 04 §Output binding) — evaluated
     // over the task's FINAL raw output, BEFORE settle emits the
@@ -92,7 +93,7 @@ fn assemble_ran_finish(
     // a `TaskCompleted`. The map carries one entry per declared
     // binding (the value on success · `Null` on a non-success ·
     // defined-null reads).
-    let named = bind_outputs(task, &mut settle);
+    let named = bind_outputs(task, &mut settle, jq_clock);
     let resume = filter_leaky_resume(resume, &settle, resume_ctx);
     // F-O1 PR-3 · the task RAN — the door was used: the receipt
     // carries one `declassify` event per declared entry (the settle
@@ -335,6 +336,8 @@ where
         types: &BTreeMap<String, nika_types::types::NikaType>,
         resume_ctx: &crate::resume::ResumeContext,
         ledger: &crate::ledger::RunLedger,
+        jq_clock: nika_cap::JqClock,
+        run_start: nika_kernel::tool_executor::ToolRunStart,
     ) -> Finish {
         let id = task.id.value.clone();
         // ── GATE-v2 (spec 03 §gate algebra) — structural per-edge
@@ -364,8 +367,9 @@ where
 
         // ── ADR-099 resume identity + the skip verdict — extracted
         //    (the 100-line fn ratchet · semantics unchanged) ──
-        let (resume, skip) =
-            self.resume_skip_finish(task, &id, records, inputs, consts, resume_ctx, &integrity);
+        let (resume, skip) = self.resume_skip_finish(
+            task, &id, records, inputs, consts, resume_ctx, &integrity, jq_clock,
+        );
         if let Some(finish) = skip {
             return finish;
         }
@@ -391,6 +395,7 @@ where
                 types,
                 ledger,
                 &integrity,
+                run_start,
             )
             .await;
         // F-P4 · the ask RESOLVED (or not) — the attestation assembles
@@ -399,7 +404,7 @@ where
             .approvals
             .attest_outcome(&id, &mut settle, self.now_unix_ms());
         assemble_ran_finish(
-            task, id, settle, resume, resume_ctx, inputs, records, integrity, approval,
+            task, id, settle, resume, resume_ctx, inputs, records, integrity, approval, jq_clock,
         )
     }
 
@@ -422,12 +427,13 @@ where
         consts: &BTreeMap<String, Value>,
         resume_ctx: &crate::resume::ResumeContext,
         integrity: &nika_cap::Integrity,
+        jq_clock: nika_cap::JqClock,
     ) -> (Option<crate::resume::ResumeStamp>, Option<Finish>) {
         let resume = crate::resume::stamp(task, records, inputs, consts, resume_ctx);
         let skip = if self.prompt_answers.contains_key(id) {
             None
         } else {
-            self.cache_hit_finish(task, id, resume.as_ref())
+            self.cache_hit_finish(task, id, resume.as_ref(), jq_clock)
         }
         .map(|mut finish| {
             finish.integrity = integrity.clone();
@@ -477,6 +483,7 @@ where
         types: &BTreeMap<String, nika_types::types::NikaType>,
         ledger: &crate::ledger::RunLedger,
         integrity: &nika_cap::Integrity,
+        run_start: nika_kernel::tool_executor::ToolRunStart,
     ) -> SettleAs {
         match task.for_each.as_ref() {
             None => {
@@ -490,6 +497,7 @@ where
                     types,
                     ledger,
                     integrity,
+                    run_start,
                 )
                 .await
             }
@@ -505,6 +513,7 @@ where
                     types,
                     ledger,
                     integrity,
+                    run_start,
                 )
                 .await
             }
@@ -522,6 +531,7 @@ where
         task: &RawTask,
         id: &str,
         resume: Option<&crate::resume::ResumeStamp>,
+        jq_clock: nika_cap::JqClock,
     ) -> Option<Finish> {
         let stamp = resume?;
         let prior = self.resume_plan.get(id)?;
@@ -531,7 +541,7 @@ where
         let mut settle = SettleAs::CacheHit {
             output: prior.output.clone(),
         };
-        let named = bind_outputs(task, &mut settle);
+        let named = bind_outputs(task, &mut settle, jq_clock);
         Some(Finish {
             id: id.to_owned(),
             settle,
@@ -564,29 +574,30 @@ where
         types: &BTreeMap<String, nika_types::types::NikaType>,
         ledger: &crate::ledger::RunLedger,
         integrity: &nika_cap::Integrity,
+        run_start: nika_kernel::tool_executor::ToolRunStart,
     ) -> SettleAs {
         // `with:` materialized at the boundary (spec 03 §dispatch
         // pipeline) — the single lane consumes it as rendered.
-        let scope = Scope {
-            records,
-            inputs,
-            consts,
-            secrets,
-            with_ns: Some(&with_ns),
-            item: None,
-            index: None,
-            permits,
-        };
+        let scope = Scope::workflow_with_value_authorities(records, inputs, consts, secrets)
+            .with_task_context(Some(&with_ns), None, None, permits);
         let started = self.clock.now();
         let witness = std::sync::Arc::new(PermitWitness::new());
-        let attempt = self.attempt_loop(task, &scope, types, ledger, &witness);
+        let attempt = self.attempt_loop(task, &scope, types, ledger, &witness, run_start);
         let mut ran = nika_builtin::witness::scope_attempt_witness(witness.clone(), attempt).await;
         // `on_finally:` — the task STARTED (spec 03 · success AND
         // failure · before the failure propagates in the DAG). The
         // cleanup lane's decisions ride a dedicated witness (the
         // parent's is already drained by attempt_loop) merged right after.
         let finally_witness = std::sync::Arc::new(PermitWitness::new());
-        let finally = self.run_finally(task, wf, &scope, &ran, integrity, &finally_witness);
+        let finally = self.run_finally(
+            task,
+            wf,
+            &scope,
+            &ran,
+            integrity,
+            &finally_witness,
+            run_start,
+        );
         nika_builtin::witness::scope_attempt_witness(finally_witness.clone(), finally).await;
         ran.decisions.extend(finally_witness.take());
         ran.duration_ms = self.since_ms(started);
@@ -608,6 +619,7 @@ where
         types: &BTreeMap<String, nika_types::types::NikaType>,
         ledger: &crate::ledger::RunLedger,
         integrity: &nika_cap::Integrity,
+        run_start: nika_kernel::tool_executor::ToolRunStart,
     ) -> SettleAs {
         let items = match fan_out::resolve_fan_out_items(
             collection,
@@ -642,6 +654,7 @@ where
                         permits,
                         types,
                         ledger,
+                        run_start,
                     )
                 }),
         )
@@ -678,7 +691,15 @@ where
         let finally_scope =
             Self::fan_out_finally_scope(records, (inputs, consts, secrets), permits);
         let finally_witness = std::sync::Arc::new(PermitWitness::new());
-        let finally = self.run_finally(task, wf, &finally_scope, &ran, integrity, &finally_witness);
+        let finally = self.run_finally(
+            task,
+            wf,
+            &finally_scope,
+            &ran,
+            integrity,
+            &finally_witness,
+            run_start,
+        );
         nika_builtin::witness::scope_attempt_witness(finally_witness.clone(), finally).await;
         ran.decisions.extend(finally_witness.take());
         ran.duration_ms = self.since_ms(started);
@@ -694,16 +715,8 @@ where
         (inputs, consts, secrets): ValueBags<'a>,
         permits: Option<&'a Permits>,
     ) -> Scope<'a> {
-        Scope {
-            records,
-            inputs,
-            consts,
-            secrets,
-            with_ns: None,
-            item: None,
-            index: None,
-            permits,
-        }
+        Scope::workflow_with_value_authorities(records, inputs, consts, secrets)
+            .with_task_context(None, None, None, permits)
     }
 
     /// One `for_each` iteration · per-iteration `with:` + locals +
@@ -720,6 +733,7 @@ where
         permits: Option<&Permits>,
         types: &BTreeMap<String, nika_types::types::NikaType>,
         ledger: &crate::ledger::RunLedger,
+        run_start: nika_kernel::tool_executor::ToolRunStart,
     ) -> RanTask {
         let with_ns = match render_with(
             task,
@@ -749,18 +763,15 @@ where
                 return ran;
             }
         };
-        let scope = Scope {
-            records,
-            inputs,
-            consts,
-            secrets,
-            with_ns: Some(&with_ns),
-            item: Some(locals.item),
-            index: Some(locals.index),
-            permits,
-        };
+        let scope = Scope::workflow_with_value_authorities(records, inputs, consts, secrets)
+            .with_task_context(
+                Some(&with_ns),
+                Some(locals.item),
+                Some(locals.index),
+                permits,
+            );
         let witness = std::sync::Arc::new(PermitWitness::new());
-        let attempt = self.attempt_loop(task, &scope, types, ledger, &witness);
+        let attempt = self.attempt_loop(task, &scope, types, ledger, &witness, run_start);
         let mut ran = nika_builtin::witness::scope_attempt_witness(witness.clone(), attempt).await;
         // Stamp the lane: without it a 2-iteration fan-out and a retried
         // single lane produce indistinguishable flat streams (review F3).
@@ -780,9 +791,11 @@ where
         deadline: Option<std::time::Duration>,
         child_budget: Option<f64>,
         witness: &'a PermitWitness,
+        run_start: nika_kernel::tool_executor::ToolRunStart,
     ) -> DispatchCtx<'a> {
         let mut ctx = DispatchCtx::of_task(task, deadline, child_budget, witness);
         ctx.gate_answer = self.prompt_answers.get(&task.id.value).cloned();
+        ctx.run_start = run_start;
         ctx
     }
 
@@ -793,6 +806,7 @@ where
         types: &BTreeMap<String, nika_types::types::NikaType>,
         ledger: &crate::ledger::RunLedger,
         witness: &PermitWitness,
+        run_start: nika_kernel::tool_executor::ToolRunStart,
     ) -> RanTask {
         let started = self.clock.now();
         let max_attempts = task
@@ -811,9 +825,9 @@ where
             // The `returns:` contract, resolved ONCE (spec 09 · W3) — `None` = gradual.
             let contract = crate::contract::TaskContract::of(task, types);
             // F-O1 PR-2 · the re-gate's per-template oracle — computed ONCE, used per attempt.
-            let value_taint = crate::integrity::ValueTaint::of_task(task, scope.records);
+            let value_taint = crate::integrity::ValueTaint::of_task(task, scope.records());
             // law 6 · the child budget reads the ledger AT CALL TIME (per attempt).
-            let ctx = || self.task_ctx(task, budget, ledger.remaining_usd(), witness);
+            let ctx = || self.task_ctx(task, budget, ledger.remaining_usd(), witness, run_start);
             let attempts = async {
                 let mut attempt = 1_u32;
                 // Spend of FAILED attempts — folded onto the terminal frame.
@@ -909,14 +923,11 @@ where
                         // subprocesses die via the runner's
                         // kill-on-drop contract.
                         Err(FailedOutcome {
-                            record: TaskErrorRecord {
-                                code: TIMEOUT_CODE.to_owned(),
-                                message: format!(
-                                    "task exceeded its timeout of {} ms",
-                                    limit.as_millis()
-                                ),
-                                transient: false, // never retryable (spec 03)
-                            },
+                            record: TaskErrorRecord::new(
+                                TIMEOUT_CODE,
+                                format!("task exceeded its timeout of {} ms", limit.as_millis()),
+                                false, // never retryable (spec 03)
+                            ),
                             // The cancelled in-flight attempt may have
                             // billed server-side; nothing was reported, so
                             // nothing can honestly ride (the documented
@@ -964,7 +975,11 @@ where
 /// lane pays nothing). `pub(crate)`: the recover-await resolution binds
 /// over the deferred value through THIS one site (spec 05 · the recovery
 /// substitutes the raw output BEFORE binding extraction).
-pub(crate) fn bind_outputs(task: &RawTask, settle: &mut SettleAs) -> BTreeMap<String, Value> {
+pub(crate) fn bind_outputs(
+    task: &RawTask,
+    settle: &mut SettleAs,
+    jq_clock: nika_cap::JqClock,
+) -> BTreeMap<String, Value> {
     if task.extract.is_empty() {
         return BTreeMap::new();
     }
@@ -972,7 +987,7 @@ pub(crate) fn bind_outputs(task: &RawTask, settle: &mut SettleAs) -> BTreeMap<St
     // from it. Borrow it read-only first; the failure-replacement below
     // only runs on the error path (no borrow conflict).
     if let Some(output) = success_output(settle) {
-        match eval_all_bindings(task, output) {
+        match eval_all_bindings(task, output, jq_clock) {
             Ok(named) => return named,
             // A binding failed → the task fails (NIKA-VAR-002/004). The
             // terminal frame becomes TaskFailed · bindings read null.
@@ -1031,11 +1046,7 @@ fn approval_refusal_finish(
         id,
         settle: SettleAs::FailedBeforeStart {
             stage: "approval",
-            error: TaskErrorRecord {
-                code: crate::approval::APPROVAL_CODE.to_owned(),
-                message: refusal.detail,
-                transient: false,
-            },
+            error: TaskErrorRecord::new(crate::approval::APPROVAL_CODE, refusal.detail, false),
         },
         named: null_bindings(task),
         resume: None,
@@ -1094,20 +1105,21 @@ fn filter_leaky_resume(
 fn eval_all_bindings(
     task: &RawTask,
     output: &Value,
+    jq_clock: nika_cap::JqClock,
 ) -> Result<BTreeMap<String, Value>, TaskErrorRecord> {
     let mut named = BTreeMap::new();
     for (name, program) in &task.extract {
-        let value =
-            crate::jq::eval_binding(&name.value, &program.value, output).map_err(|err| {
-                TaskErrorRecord {
-                    code: err.spec_code(),
+        let value = crate::jq::eval_binding(&name.value, &program.value, output, jq_clock)
+            .map_err(|err| {
+                TaskErrorRecord::new(
+                    err.spec_code(),
                     // wire_message (not to_string) — OutputBinding's Display is
                     // code-first (`{code} · {msg}`); the code rides its own
                     // field, so the record message stays code-less (no double
                     // render in tasks.X.error.message / the TaskFailed detail).
-                    message: err.wire_message(),
-                    transient: err.is_transient(),
-                }
+                    err.wire_message(),
+                    err.is_transient(),
+                )
             })?;
         named.insert(name.value.clone(), value);
     }
@@ -1171,11 +1183,21 @@ fn gate_finish(
         // Missing record: the checker law makes it unreachable (every
         // target resolves · waves order producers first) — defensively
         // treated as not-admitting, loudly NOT silently-open.
-        let settled = records.get(&producer).map(|r| match r.status {
-            TaskStatus::Success => SettledState::Success,
-            TaskStatus::Failure => SettledState::Failure,
-            TaskStatus::Skipped => SettledState::Skipped,
-            TaskStatus::Cancelled => SettledState::Cancelled,
+        let settled = records.get(&producer).map(|r| {
+            // The alternative considered was deleting the explicit
+            // `Cancelled` arm because the FCI-002 wildcard currently has the
+            // same fail-closed result. That would hide the present spec row
+            // inside future-version handling; keeping both makes the current
+            // mapping reviewable while ensuring an unknown class inherits no
+            // existing edge pass-set.
+            #[allow(clippy::match_same_arms)]
+            match r.status {
+                TaskStatus::Success => SettledState::Success,
+                TaskStatus::Failure => SettledState::Failure,
+                TaskStatus::Skipped => SettledState::Skipped,
+                TaskStatus::Cancelled => SettledState::Cancelled,
+                _ => SettledState::Cancelled,
+            }
         });
         if !settled.is_some_and(|s| kind.admits(s)) {
             return Some(Finish {
@@ -1212,16 +1234,8 @@ fn when_finish(
 ) -> Option<Finish> {
     let gate = task.when.as_ref()?;
     let empty_records = BTreeMap::new();
-    let scope = Scope {
-        records: &empty_records,
-        inputs,
-        consts,
-        secrets,
-        with_ns: Some(boundary_with),
-        item: None,
-        index: None,
-        permits: None,
-    };
+    let scope = Scope::workflow_with_value_authorities(&empty_records, inputs, consts, secrets)
+        .with_task_context(Some(boundary_with), None, None, None);
     let settle = match eval_gate(&gate.value, &scope) {
         Ok(true) => return None,
         Ok(false) => SettleAs::SkippedGate {
@@ -1348,7 +1362,7 @@ fn apply_on_error(task: &RawTask, scope: &Scope<'_>, failed: FailedOutcome) -> R
                             failed: FailedOutcome::new(error, cost_usd, cost_unpriced, evidence),
                             render_error,
                             awaiting,
-                            with_ns: scope.with_ns.cloned().unwrap_or_default(),
+                            with_ns: scope.with_namespace().cloned().unwrap_or_default(),
                         }))
                     }
                     None => RunResult::Failed {
@@ -1366,11 +1380,11 @@ fn apply_on_error(task: &RawTask, scope: &Scope<'_>, failed: FailedOutcome) -> R
         },
         // #[non_exhaustive] · refuse loudly.
         other => RunResult::Failed {
-            error: TaskErrorRecord {
-                code: nika_error::codes::NIKA_1703.to_string(),
-                message: format!("on_error action not wired in the runtime yet: {other:?}"),
-                transient: false,
-            },
+            error: TaskErrorRecord::new(
+                nika_error::codes::NIKA_1703.to_string(),
+                format!("on_error action not wired in the runtime yet: {other:?}"),
+                false,
+            ),
             cost_usd,
             cost_unpriced,
         },
@@ -1385,11 +1399,7 @@ fn apply_on_error(task: &RawTask, scope: &Scope<'_>, failed: FailedOutcome) -> R
 /// `pub(crate)`: the recover-await resolution maps its deferred render
 /// failure through the SAME site.
 pub(crate) fn runtime_error_record(err: &RuntimeError) -> TaskErrorRecord {
-    TaskErrorRecord {
-        code: err.spec_code(),
-        message: err.wire_message(),
-        transient: err.is_transient(),
-    }
+    TaskErrorRecord::new(err.spec_code(), err.wire_message(), err.is_transient())
 }
 
 /// The verb's note prefix when the dispatch never produced one.

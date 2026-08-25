@@ -593,41 +593,37 @@ internal corpora, the functions actually used are `map · sort · last ·
 fromjson · join · length`, plus paths, the pipe, object/array construction and
 arithmetic. Everything above is that set plus its obvious companions.
 
-> ### 🔴 This table is the TARGET gate, and it does not fire yet
+> ### 🔴 The bounded-subset table is still a TARGET gate
 >
-> **Measured on 0.108.0, 2026-08-11.** The engine embeds a full jaq and
-> the subset below is **not enforced**. A workflow whose only task is ·
+> **Current in v0.115.** The engine embeds a full jaq and the bounded syntax
+> subset below is **not yet enforced**. A workflow whose only task is ·
 >
 > ```yaml
 > invoke: { tool: "nika:jq", args: { input: "a LOC=120 b LOC=45",
 >   expression: '[ match("LOC=([0-9]+)";"g").captures[0].string | tonumber ] | add' } }
 > ```
 >
-> …passes `check` with **rc=0**. So do `sub` · `gsub` · `scan` · `now` ·
-> `strftime`. The single production actually refused is `$ENV`, and it is
-> refused by **jaq's own compiler**, not by any gate of ours.
+> …passes `check` with **rc=0**. So do `sub` · `gsub` and `scan`: the regex
+> ceiling remains owed by `jq-subset/0.1`.
 >
-> **Amended 2026-08-15 · ONE row of that list moved.** `env` — the FUNCTION,
-> not the `$ENV` variable — is now refused by a gate of ours (D-2026-08-11-N26
-> · withheld from the function set the compiler receives, at all three jq
-> seams, with a diagnostic naming the class it reached for). The rest of the
-> paragraph stands unchanged: `sub` · `gsub` · `scan` · `now` · `strftime`
-> still pass, this table still does not fire, and « the grammar is written,
-> the gate is owed » is still the honest sentence for `jq-subset/0.1`. `now`
-> in particular is NOT closed by that gesture — D-2026-08-11-N27 owns the
-> clock and prescribes a rebinding to the run's start instant, which is a
-> different remedy from a subtraction.
+> The expression **effect** boundary is independently enforced. `env` ·
+> `debug` · `stderr` · `halt` and `halt_error` are withheld by one typed
+> policy at all three jq seams. `now` is intentionally accepted, but its upstream host
+> native is removed and the spelling is rebound to the exact
+> `WorkflowStarted` timestamp. `localtime` and `strflocaltime` use the same
+> value with a deterministic UTC projection. Pure conversions such as
+> `gmtime` · `mktime` and `strftime` remain ordinary available functions:
+> they transform their argument and observe neither host clock nor timezone.
 >
 > Saying so here is not a footnote: **a spec that asserts a refusal the
 > engine does not make teaches a boundary that is not there.** Two rows
-> of this table are security-adjacent (`now` is the ambient clock that
-> N27 forbids; the regex family is the data-dependent blowup the ceiling
-> exists to bound) — and a reader who trusts the table would believe both
-> are already closed.
+> of this table are security-adjacent (effectful upstream symbols and the
+> regex family's data-dependent blowup), so a reader must be able to tell the
+> enforced effect policy from the still-owed bounded grammar.
 >
 > The table stands as the **specification of the gate**, unchanged. What
 > changes is its status: it describes what `jq-subset/0.1` MUST refuse
-> when the gate ships, not what 0.108.0 refuses today. Until then the
+> when the gate ships, not what v0.115 refuses today. Until then the
 > honest sentence is « the grammar is written, the gate is owed ».
 
 **What the grammar refuses BY CONSTRUCTION, and why ·**
@@ -638,10 +634,14 @@ arithmetic. Everything above is that set plus its obvious companions.
 | `def` | user-defined recursion re-introduces the same |
 | `env` · `$ENV` · `input` · `inputs` · `input_filename` | ambient reads · the law above |
 | `debug` · `stderr` | writes outside the value |
-| `now` · `localtime` · `gmtime` · `mktime` · `strftime` | the clock · an input, never an ambient (N27) |
 | `halt` · `halt_error` | process control · a data expression does not end a run |
 | `test` · `match` · `sub` · `gsub` · `splits` · `scan` | regex · data-dependent blowup · deferred to a minor that pairs them with a bounded engine, not banned on principle |
 | slices `.[a:b]` | omitted for 0.1 only · a minor may add |
+
+Clock names are deliberately absent from that refusal table. `now` ·
+`localtime` · `strflocaltime` are **accepted and rebound** to the run-start
+value/UTC projection; `gmtime` · `mktime` · `strftime` are pure conversions
+over supplied data. None reads the host clock or timezone.
 
 ⚠️ **A grammar bounds the SHAPE, never the MAGNITUDE.** `[range(1e9)]`
 parses clean and still materialises a billion elements. That is the runtime
@@ -652,7 +652,8 @@ interchangeable: the static one buys **termination**, the runtime one buys
 #### An expression sees only its input (normative · D-2026-08-11-N26)
 
 > **The world of a data expression is the value it is given, and nothing
-> else.** Not the process, not the clock, not the disk, not the environment.
+> else.** Not the process, not an ambient clock, not the disk, not the
+> environment. The immutable run-start value is an explicit engine input.
 > The control expressions of [03 §CEL](./03-dag.md) obey the same law: their
 > world is the bindings they are given.
 
@@ -686,16 +687,17 @@ Two consequences, both normative:
   and the three seams (the `nika:jq` builtin · `extract:` bindings · the static
   compile-check) read ONE list. `$ENV` was already refused by jaq's own
   compiler and still is.
-  ⏳ **The clock half of this bullet is still owed** — see the next bullet:
-  `now` reads the wall clock today, and D-2026-08-11-N27 prescribes a
-  REBINDING rather than this subtraction.
+  ✅ **The remaining effect classes are enforced in v0.115.** Host diagnostic
+  and process-control symbols are withheld by that same policy; clock forms
+  follow the rebinding rule in the next bullet rather than subtraction.
 - **The clock is an input, never an ambient** (D-2026-08-11-N27). `now` and
-  its relatives MUST resolve to the run's start instant, which is already in
-  the trace, so that a replay yields the same value forever. Reading the wall
-  clock would make the same file pass on a fast machine and fail on a slow
-  one — the property a replay exists to deny. A long task therefore sees the
-  START instant, not its own; that is the price of determinism and it is the
-  correct one.
+  its relatives resolve to the exact run's start instant stamped on
+  `WorkflowStarted`, so that a replay yields the same value forever. Reading
+  the wall clock would make the same file pass on a fast machine and fail on
+  a slow one — the property a replay exists to deny. A long task therefore
+  sees the START instant, not its own; that is the price of determinism and it
+  is the correct one. The runtime mints this instant once at the execution
+  boundary; composition does not sample it independently.
 
 **Why the layer is not simply removed.** The need to reshape a value does not
 disappear with it: an author denied this layer reaches for `exec:` and a real

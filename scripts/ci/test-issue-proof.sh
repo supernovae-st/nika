@@ -55,13 +55,10 @@ expect() {
 # --issue, so it is read into a subshell-safe form: everything above the
 # argument parser is what we need, and `waived_reason` lives there.
 eval "$(sed -n '/^waived_reason() {$/,/^}$/p' "$HERE/issue-proof.sh")"
-eval "$(sed -n '/^body_job() {$/,/^}$/p' "$HERE/issue-proof.sh")"
-for _fn in waived_reason body_job; do
-  if ! declare -F "$_fn" >/dev/null; then
-    printf 'FAIL  %s() not found in issue-proof.sh — the self-test is testing nothing\n' "$_fn" >&2
-    exit 2
-  fi
-done
+if ! declare -F waived_reason >/dev/null; then
+  printf 'FAIL  waived_reason() not found in issue-proof.sh — the self-test is testing nothing\n' >&2
+  exit 2
+fi
 
 printf 'issue-proof · who may decline the proof\n'
 
@@ -93,65 +90,64 @@ expect judged completed 'invalidated' 'invalidated does NOT waive'
 # A state_reason that merely CONTAINS a waiving word is not that reason.
 expect judged 'not_planned_yet' '' 'not_planned_yet does NOT waive'
 
-# --- which `proven_by:` in a body is the TRAILER --------------------------
+# --- and HOW the proof is read (#1218) ---------------------------------------
 #
-# The parser must be able to read an issue that DISCUSSES the proof mechanism,
-# because that is exactly the issue most likely to report a defect in it. It
-# could not: #1200, the issue about this gate, quoted the old guard inside a
-# code fence and the parser extracted `)` as the job name and reopened it.
-expect_job() {
-  local want="$1" body="$2" label="$3"
+# The cases above pin WHO may decline a proof. Nothing pinned how one is
+# found, and the reader matched `proven_by:` anywhere on a line and took the
+# first hit. Live consequence, 2026-08-25 on main: #1200's body quotes the
+# workflow guard `contains(github.event.issue.body, 'proven_by:')`, and the
+# gate refused the close naming the job `)`.
+eval "$(sed -n '/^body_proof_jobs() {$/,/^}$/p' "$HERE/issue-proof.sh")"
+if ! declare -F body_proof_jobs >/dev/null; then
+  printf 'FAIL  body_proof_jobs() not found in issue-proof.sh — the reader is untested\n' >&2
+  exit 2
+fi
+
+jobs_are() { # <want> <label> <body>
   cases=$((cases + 1))
   local got
-  got="$(ISSUE_BODY="$body" body_job)"
-  if [ "$got" = "$want" ]; then
-    printf '  ok   %s (job=%s)\n' "$label" "${got:-<none>}"
+  got="$(body_proof_jobs "$3" | tr '\n' ' ')"
+  got="${got% }"
+  if [ "$got" = "$1" ]; then
+    printf 'ok    %s\n' "$2"
   else
+    printf 'FAIL  %s — expected [%s], read [%s]\n' "$2" "$1" "$got" >&2
     fails=$((fails + 1))
-    printf '  FAIL %s — wanted [%s], got [%s]\n' "$label" "$want" "$got" >&2
   fi
 }
 
-printf '\nissue-proof · which proven_by is the trailer\n'
+jobs_are 'rust' 'a line-initial marker is the declaration' \
+  'Some prose about the fix.
 
-expect_job "rust" "a body
-proven_by: rust" "a plain trailer is read"
-expect_job "" "nothing to see here" "a body with no trailer yields none"
+proven_by: rust'
 
-# THE #1200 SHAPE, verbatim in structure. The fenced guard line came first and
-# the old parser stopped there.
-expect_job "proof" "Its \`if:\` guard is:
+# The false-RED half. The mention must carry a PLAUSIBLE word after it: a
+# mention ending in punctuation collapses to the empty string under the old
+# reader too and gets filtered, so it would pass against the very bug this
+# pins — a fixture that proves the predicate without proving it is wired.
+jobs_are 'rust' 'a mid-sentence mention is NOT a declaration' \
+  'the guard needs proven_by: someJob written somewhere in the body
 
-\`\`\`yaml
-  contains(github.event.issue.body, 'proven_by:') ||
-\`\`\`
+proven_by: rust'
 
-So the gate judges a close only when the filer wrote \`proven_by:\` in the body.
+# The false-GREEN half, and the one that matters: a sentence must not hand
+# the gate a proof nobody attached.
+jobs_are '' 'a mention alone supplies NO proof' \
+  'a closer should write proven_by: rust somewhere in the body'
 
-proven_by: proof" "a fenced mention does not beat the real trailer"
+# Anchoring is not enough on its own. Markdown wrapping a code span can start
+# a line with the marker, so a body may carry several line-initial hits that
+# disagree. The reader reports all of them and the gate refuses rather than
+# guess — being right by luck is not being right.
+jobs_are 'proof proof)' 'disagreeing line-initial markers are all reported' \
+  'proven_by: proof` to the body
 
-expect_job "proof" "The filer wrote \`proven_by: rust\`. That is a live job but it does
-not prove this one.
+proven_by: proof`) it returned success
 
-proven_by: proof" "an INLINE backticked mention is not a trailer"
+proven_by: proof'
 
-# A prose line that wraps onto column 0 and keeps going is not a trailer.
-expect_job "proof" "…or put
-proven_by: rust\` in the body, and close again.
-
-proven_by: proof" "a wrapped prose line starting with proven_by is not a trailer"
-
-# The LAST trailer wins — a body edited to correct its proof must take the
-# correction, not the superseded line.
-expect_job "proof" "proven_by: rust
-
-superseded — the job above does not prove this issue.
-
-proven_by: proof" "the LAST trailer wins"
-
-# A trailer naming nothing is no trailer (and must not become the empty job,
-# which `refuse()` would report as a missing proven_by rather than a bad one).
-expect_job "" "proven_by:" "a trailer with no job name yields none"
+jobs_are 'rust' 'an indented marker still counts' \
+  '  proven_by: rust'
 
 printf '\n%d case(s) · %d failure(s)\n' "$cases" "$fails"
 [ "$fails" -eq 0 ] || exit 1
