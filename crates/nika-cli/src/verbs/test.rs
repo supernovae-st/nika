@@ -55,6 +55,25 @@ pub fn run(file: &str, update: bool, theme: Theme) -> u8 {
     run_with_answers(file, update, &[], theme)
 }
 
+fn capture_answered_outputs(
+    wf: &nika_schema::raw::RawWorkflow,
+    report: &nika_check::CheckReport,
+    skills: std::collections::BTreeMap<String, String>,
+    answer: &[String],
+    theme: Theme,
+) -> Result<(u8, std::collections::BTreeMap<String, Value>), u8> {
+    let answers = nika_dap::resume::parse_answers(answer, wf).map_err(|message| {
+        eprintln!("nika test: environment: {message}");
+        exit::ENV
+    })?;
+    super::run::capture_mock_outputs_with_answers(wf, report, skills, answers, theme).map_err(
+        |message| {
+            eprintln!("nika test: environment: {message}");
+            exit::ENV
+        },
+    )
+}
+
 /// The golden test with explicit answers for blocking `nika:prompt` tasks.
 ///
 /// An answer is an operator decision for this invocation. It never edits the
@@ -82,28 +101,12 @@ pub fn run_with_answers(file: &str, update: bool, answer: &[String], theme: Them
         return out.code;
     }
 
-    let answers = match nika_dap::resume::parse_answers(answer, &wf) {
-        Ok(answers) => answers,
-        Err(message) => {
-            eprintln!("nika test: environment: {message}");
-            return exit::ENV;
-        }
-    };
-
     // ── The mock run (simulated plane · offline · deterministic) ──────
-    let (code, outputs) = match super::run::capture_mock_outputs_with_answers(
-        &wf,
-        &report,
-        resolved.texts,
-        answers,
-        theme,
-    ) {
-        Ok(pair) => pair,
-        Err(message) => {
-            eprintln!("nika test: environment: {message}");
-            return exit::ENV;
-        }
-    };
+    let (code, outputs) =
+        match capture_answered_outputs(&wf, &report, resolved.texts, answer, theme) {
+            Ok(pair) => pair,
+            Err(code) => return code,
+        };
     if code != exit::OK {
         eprintln!(
             "nika test: the mock run failed (exit {code}) — a golden pins a \
