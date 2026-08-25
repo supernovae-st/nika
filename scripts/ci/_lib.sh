@@ -312,7 +312,27 @@ strip_test_items() {
         print ""
         next
       }
-      if ($0 ~ /^[[:space:]]*#\[cfg\(test\)\][[:space:]]*$/) {
+      # `#[cfg(test)]` and the `all`/`any` composites (#1207). The private
+      # python copies this filter replaced already knew the composite form —
+      # `#[cfg(all(test, unix))]` guards the hermetic adapter fixtures in
+      # nika-harness — while this one only knew the bare attribute. Reading
+      # through here without teaching it that would have traded one blindness
+      # for another, and reddened ten lines of real test code on main.
+      #
+      # `not` is excluded BY CONSTRUCTION rather than by a negative lookahead
+      # POSIX awk does not have: the composite arm admits the literals `all`
+      # and `any` and nothing else, so `#[cfg(not(test))]` — production code
+      # that must stay visible — matches neither arm.
+      #
+      # The trailing class admits `)` as well as space and comma. Leaving it
+      # out looked safe (it was what kept `not(test)` out) and silently
+      # dropped `#[cfg(all(test))]`, valid Rust with no second predicate —
+      # test code read as production. Two guards for one job is how the weak
+      # one goes unnoticed: the literal list is the guard, and it is the only
+      # one. Mutation-pinned in test-strip-test-items.sh from both sides.
+      if ($0 ~ /^[[:space:]]*#\[cfg\(test\)\][[:space:]]*$/ ||
+          ($0 ~ /^[[:space:]]*#\[cfg\([[:space:]]*(all|any)[[:space:]]*\([[:space:]]*test[[:space:],)]/ &&
+           $0 ~ /\][[:space:]]*$/)) {
         pending = 1; print ""; next
       }
       if ($0 ~ /^[[:space:]]*#\[test\][[:space:]]*$/) {

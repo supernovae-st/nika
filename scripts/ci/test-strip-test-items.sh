@@ -56,6 +56,96 @@ fn x() {
 }
 '
 
+# --- a #[cfg(test)] DECLARATION must not swallow the next block (#1207) ---
+#
+# The bug this pins never lived here — it lived in three private copies of
+# this rule, one of which CI ran as the `expect` ratchet. Each read
+# `#[cfg(test)]` as an attribute waiting for a brace, so `mod tests;` left
+# the flag pending and the NEXT block became the "test" region. Measured on
+# two fixtures differing only in the module's shape: the shipped reader saw
+# 0 where this filter saw 1.
+#
+# The copies are gone and both ratchets read through here now, which makes
+# this the only place the behaviour can regress. It was correct and untested
+# for as long as it has existed; correct-and-untested is one edit from wrong.
+case_is 'a #[cfg(test)] mod DECLARATION does not hide the code after it' 1 'unwrap()' \
+  '#[cfg(test)]
+mod tests;
+
+pub fn production() -> String {
+    std::env::var("HOME").unwrap()
+}
+'
+
+case_is 'a #[cfg(test)] mod DECLARATION does not hide a later .expect(' 1 'expect(' \
+  '#[cfg(test)]
+mod tests;
+
+pub fn production() -> String {
+    std::env::var("HOME").expect("HOME must be set")
+}
+'
+
+# The same shape with a pub modifier and a doc comment between the attribute
+# and the declaration — the pending flag must still end at the `;`.
+case_is 'a documented pub mod DECLARATION does not hide the code after it' 1 'unwrap()' \
+  '#[cfg(test)]
+pub mod tests;
+
+/// Production, and it stays visible.
+pub fn production() -> String {
+    std::env::var("HOME").unwrap()
+}
+'
+
+# --- the cfg composites, and the one that must NOT hide (#1207) -----------
+#
+# The python copies this filter replaced accepted `all`/`any` around `test`
+# and rejected `not`. Teaching that here was not optional: nika-harness
+# guards its hermetic adapter fixtures with `#[cfg(all(test, unix))]`, so a
+# filter that only knew the bare attribute reported ten lines of real test
+# code as production the moment the ratchets started reading through it.
+# NO `#[test]` inside these two. A bare `#[test]` hides its own fn body, so a
+# fixture carrying one passes whether or not the composite attribute is
+# understood — it proves the predicate without proving it is wired. The
+# helper below is reachable ONLY through the `cfg` line above it.
+case_is 'a #[cfg(all(test, unix))] mod is hidden' 0 'expect(' \
+  '#[cfg(all(test, unix))]
+mod t {
+    fn helper() { let _ = std::env::var("HOME").expect("HOME"); }
+}
+'
+
+case_is 'a #[cfg(any(test, feature = "x"))] mod is hidden' 0 'unwrap()' \
+  '#[cfg(any(test, feature = "x"))]
+mod t {
+    fn helper() { let v: Option<u8> = None; let _ = v.unwrap(); }
+}
+'
+
+# `all(test)` with no second predicate. Valid Rust, and the first draft of
+# this fix dropped it: the trailing class admitted space and comma but not
+# `)`, so test code read as production. It went unnoticed because the same
+# class was ALSO what kept `not(test)` out — two guards for one job, and the
+# weak one hides behind the strong one until a fixture separates them.
+case_is 'a #[cfg(all(test))] mod is hidden' 0 'unwrap()' \
+  '#[cfg(all(test))]
+mod t {
+    fn helper() { let v: Option<u8> = None; let _ = v.unwrap(); }
+}
+'
+
+# The dangerous direction. `not(test)` guards code that ships; hiding it
+# would silence the ratchet exactly where it is most load-bearing. POSIX awk
+# has no negative lookahead, so the composite arm admits `all` and `any` and
+# nothing else — this case is what proves that construction holds.
+case_is 'a #[cfg(not(test))] mod is PRODUCTION and stays visible' 1 'unwrap()' \
+  '#[cfg(not(test))]
+mod shipped {
+    pub fn f() { let v: Option<u8> = None; let _ = v.unwrap(); }
+}
+'
+
 # --- the filter must SHOW production code ---------------------------------
 case_is 'plain production code survives' 1 'unwrap()' \
   'fn prod() { let x: Option<u8> = None; let _ = x.unwrap(); }
