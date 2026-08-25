@@ -7,13 +7,250 @@ pub fn nika_harness::client::drive_with_idle<R, W>(reader: R, writer: W, request
 pub mod nika_harness::declaration
 pub fn nika_harness::declaration::declared_adapter_id() -> core::option::Option<alloc::string::String>
 pub fn nika_harness::declaration::seat_from_env() -> core::result::Result<core::option::Option<nika_harness::spawn::SpawnedHarness>, alloc::string::String>
+pub fn nika_harness::declaration::seat_from_id(id: &str) -> core::result::Result<core::option::Option<nika_harness::spawn::SpawnedHarness>, alloc::string::String>
 pub fn nika_harness::declaration::seat_from_lookup(lookup: &dyn core::ops::function::Fn(&str) -> core::option::Option<alloc::string::String>) -> core::result::Result<core::option::Option<nika_harness::spawn::SpawnedHarness>, alloc::string::String>
+pub fn nika_harness::declaration::seat_from_pin(pin: core::option::Option<&str>, first_ready: core::option::Option<&str>) -> core::result::Result<core::option::Option<(nika_harness::spawn::SpawnedHarness, alloc::string::String)>, alloc::string::String>
+pub fn nika_harness::declaration::seat_http_err(why: impl core::fmt::Display) -> nika_kernel_core::io::http::HttpError
+pub mod nika_harness::infer
+#[non_exhaustive] pub enum nika_harness::infer::InferGradeError
+pub nika_harness::infer::InferGradeError::Execution
+pub nika_harness::infer::InferGradeError::Execution::detail: alloc::string::String
+pub nika_harness::infer::InferGradeError::Execution::seat: &'static str
+pub nika_harness::infer::InferGradeError::Refused
+pub nika_harness::infer::InferGradeError::Refused::witness: alloc::string::String
+impl nika_harness::infer::InferGradeError
+pub fn nika_harness::infer::InferGradeError::witness(&self) -> &str
+impl core::error::Error for nika_harness::infer::InferGradeError
+impl core::fmt::Debug for nika_harness::infer::InferGradeError
+pub fn nika_harness::infer::InferGradeError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_harness::infer::InferGradeError
+pub fn nika_harness::infer::InferGradeError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl miette::protocol::Diagnostic for nika_harness::infer::InferGradeError
+impl nika_error::traits::NikaErrorCode for nika_harness::infer::InferGradeError
+pub fn nika_harness::infer::InferGradeError::nika_code(&self) -> nika_error::codes::NikaCode
+impl<D> owo_colors::OwoColorize for nika_harness::infer::InferGradeError
+impl<T, U> core::convert::Into<U> for nika_harness::infer::InferGradeError where U: core::convert::From<T>
+pub fn nika_harness::infer::InferGradeError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::infer::InferGradeError where U: core::convert::Into<T>
+pub type nika_harness::infer::InferGradeError::Error = core::convert::Infallible
+pub fn nika_harness::infer::InferGradeError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::infer::InferGradeError where U: core::convert::TryFrom<T>
+pub type nika_harness::infer::InferGradeError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::infer::InferGradeError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_harness::infer::InferGradeError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_harness::infer::InferGradeError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_harness::infer::InferGradeError where T: 'static + ?core::marker::Sized
+pub fn nika_harness::infer::InferGradeError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::infer::InferGradeError where T: ?core::marker::Sized
+pub fn nika_harness::infer::InferGradeError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::infer::InferGradeError where T: ?core::marker::Sized
+pub fn nika_harness::infer::InferGradeError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_harness::infer::InferGradeError
+pub fn nika_harness::infer::InferGradeError::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::infer::InferGradeError where T: 'static
+pub fn nika_harness::infer::InferGradeError::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub enum nika_harness::infer::StructuredOutputGrade
+pub nika_harness::infer::StructuredOutputGrade::Json
+pub nika_harness::infer::StructuredOutputGrade::JsonSchema
+pub nika_harness::infer::StructuredOutputGrade::Text
+impl nika_harness::infer::StructuredOutputGrade
+pub const fn nika_harness::infer::StructuredOutputGrade::as_str(self) -> &'static str
+impl core::clone::Clone for nika_harness::infer::StructuredOutputGrade
+pub fn nika_harness::infer::StructuredOutputGrade::clone(&self) -> nika_harness::infer::StructuredOutputGrade
+impl core::cmp::Eq for nika_harness::infer::StructuredOutputGrade
+impl core::cmp::Ord for nika_harness::infer::StructuredOutputGrade
+pub fn nika_harness::infer::StructuredOutputGrade::cmp(&self, other: &nika_harness::infer::StructuredOutputGrade) -> core::cmp::Ordering
+impl core::cmp::PartialEq for nika_harness::infer::StructuredOutputGrade
+pub fn nika_harness::infer::StructuredOutputGrade::eq(&self, other: &nika_harness::infer::StructuredOutputGrade) -> bool
+impl core::cmp::PartialOrd for nika_harness::infer::StructuredOutputGrade
+pub fn nika_harness::infer::StructuredOutputGrade::partial_cmp(&self, other: &nika_harness::infer::StructuredOutputGrade) -> core::option::Option<core::cmp::Ordering>
+impl core::fmt::Debug for nika_harness::infer::StructuredOutputGrade
+pub fn nika_harness::infer::StructuredOutputGrade::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_harness::infer::StructuredOutputGrade
+impl core::marker::StructuralPartialEq for nika_harness::infer::StructuredOutputGrade
+impl<D> owo_colors::OwoColorize for nika_harness::infer::StructuredOutputGrade
+impl<T, U> core::convert::Into<U> for nika_harness::infer::StructuredOutputGrade where U: core::convert::From<T>
+pub fn nika_harness::infer::StructuredOutputGrade::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::infer::StructuredOutputGrade where U: core::convert::Into<T>
+pub type nika_harness::infer::StructuredOutputGrade::Error = core::convert::Infallible
+pub fn nika_harness::infer::StructuredOutputGrade::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::infer::StructuredOutputGrade where U: core::convert::TryFrom<T>
+pub type nika_harness::infer::StructuredOutputGrade::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::infer::StructuredOutputGrade::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::infer::StructuredOutputGrade where T: core::clone::Clone
+pub type nika_harness::infer::StructuredOutputGrade::Owned = T
+pub fn nika_harness::infer::StructuredOutputGrade::clone_into(&self, target: &mut T)
+pub fn nika_harness::infer::StructuredOutputGrade::to_owned(&self) -> T
+impl<T> core::any::Any for nika_harness::infer::StructuredOutputGrade where T: 'static + ?core::marker::Sized
+pub fn nika_harness::infer::StructuredOutputGrade::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::infer::StructuredOutputGrade where T: ?core::marker::Sized
+pub fn nika_harness::infer::StructuredOutputGrade::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::infer::StructuredOutputGrade where T: ?core::marker::Sized
+pub fn nika_harness::infer::StructuredOutputGrade::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::infer::StructuredOutputGrade where T: core::clone::Clone
+pub unsafe fn nika_harness::infer::StructuredOutputGrade::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::infer::StructuredOutputGrade
+pub fn nika_harness::infer::StructuredOutputGrade::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::infer::StructuredOutputGrade where T: 'static
+pub fn nika_harness::infer::StructuredOutputGrade::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_harness::infer::HarnessInferOutcome
+pub nika_harness::infer::HarnessInferOutcome::output: alloc::string::String
+pub nika_harness::infer::HarnessInferOutcome::requested_model: alloc::string::String
+pub nika_harness::infer::HarnessInferOutcome::usage_observed: bool
+impl core::clone::Clone for nika_harness::infer::HarnessInferOutcome
+pub fn nika_harness::infer::HarnessInferOutcome::clone(&self) -> nika_harness::infer::HarnessInferOutcome
+impl core::cmp::Eq for nika_harness::infer::HarnessInferOutcome
+impl core::cmp::PartialEq for nika_harness::infer::HarnessInferOutcome
+pub fn nika_harness::infer::HarnessInferOutcome::eq(&self, other: &nika_harness::infer::HarnessInferOutcome) -> bool
+impl core::fmt::Debug for nika_harness::infer::HarnessInferOutcome
+pub fn nika_harness::infer::HarnessInferOutcome::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_harness::infer::HarnessInferOutcome
+impl<D> owo_colors::OwoColorize for nika_harness::infer::HarnessInferOutcome
+impl<T, U> core::convert::Into<U> for nika_harness::infer::HarnessInferOutcome where U: core::convert::From<T>
+pub fn nika_harness::infer::HarnessInferOutcome::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::infer::HarnessInferOutcome where U: core::convert::Into<T>
+pub type nika_harness::infer::HarnessInferOutcome::Error = core::convert::Infallible
+pub fn nika_harness::infer::HarnessInferOutcome::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::infer::HarnessInferOutcome where U: core::convert::TryFrom<T>
+pub type nika_harness::infer::HarnessInferOutcome::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::infer::HarnessInferOutcome::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::infer::HarnessInferOutcome where T: core::clone::Clone
+pub type nika_harness::infer::HarnessInferOutcome::Owned = T
+pub fn nika_harness::infer::HarnessInferOutcome::clone_into(&self, target: &mut T)
+pub fn nika_harness::infer::HarnessInferOutcome::to_owned(&self) -> T
+impl<T> core::any::Any for nika_harness::infer::HarnessInferOutcome where T: 'static + ?core::marker::Sized
+pub fn nika_harness::infer::HarnessInferOutcome::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::infer::HarnessInferOutcome where T: ?core::marker::Sized
+pub fn nika_harness::infer::HarnessInferOutcome::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::infer::HarnessInferOutcome where T: ?core::marker::Sized
+pub fn nika_harness::infer::HarnessInferOutcome::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::infer::HarnessInferOutcome where T: core::clone::Clone
+pub unsafe fn nika_harness::infer::HarnessInferOutcome::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::infer::HarnessInferOutcome
+pub fn nika_harness::infer::HarnessInferOutcome::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::infer::HarnessInferOutcome where T: 'static
+pub fn nika_harness::infer::HarnessInferOutcome::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_harness::infer::HarnessInferRequest
+pub nika_harness::infer::HarnessInferRequest::prompt: alloc::string::String
+pub nika_harness::infer::HarnessInferRequest::requested_model: alloc::string::String
+pub nika_harness::infer::HarnessInferRequest::schema: core::option::Option<serde_json::value::Value>
+pub nika_harness::infer::HarnessInferRequest::system: core::option::Option<alloc::string::String>
+pub nika_harness::infer::HarnessInferRequest::timeout: core::option::Option<core::time::Duration>
+impl nika_harness::infer::HarnessInferRequest
+pub fn nika_harness::infer::HarnessInferRequest::new(prompt: impl core::convert::Into<alloc::string::String>, requested_model: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_harness::infer::HarnessInferRequest::with_schema(self, schema: core::option::Option<serde_json::value::Value>) -> Self
+pub fn nika_harness::infer::HarnessInferRequest::with_system(self, system: core::option::Option<alloc::string::String>) -> Self
+pub fn nika_harness::infer::HarnessInferRequest::with_timeout(self, timeout: core::option::Option<core::time::Duration>) -> Self
+impl core::clone::Clone for nika_harness::infer::HarnessInferRequest
+pub fn nika_harness::infer::HarnessInferRequest::clone(&self) -> nika_harness::infer::HarnessInferRequest
+impl core::fmt::Debug for nika_harness::infer::HarnessInferRequest
+pub fn nika_harness::infer::HarnessInferRequest::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_harness::infer::HarnessInferRequest
+impl<T, U> core::convert::Into<U> for nika_harness::infer::HarnessInferRequest where U: core::convert::From<T>
+pub fn nika_harness::infer::HarnessInferRequest::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::infer::HarnessInferRequest where U: core::convert::Into<T>
+pub type nika_harness::infer::HarnessInferRequest::Error = core::convert::Infallible
+pub fn nika_harness::infer::HarnessInferRequest::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::infer::HarnessInferRequest where U: core::convert::TryFrom<T>
+pub type nika_harness::infer::HarnessInferRequest::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::infer::HarnessInferRequest::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::infer::HarnessInferRequest where T: core::clone::Clone
+pub type nika_harness::infer::HarnessInferRequest::Owned = T
+pub fn nika_harness::infer::HarnessInferRequest::clone_into(&self, target: &mut T)
+pub fn nika_harness::infer::HarnessInferRequest::to_owned(&self) -> T
+impl<T> core::any::Any for nika_harness::infer::HarnessInferRequest where T: 'static + ?core::marker::Sized
+pub fn nika_harness::infer::HarnessInferRequest::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::infer::HarnessInferRequest where T: ?core::marker::Sized
+pub fn nika_harness::infer::HarnessInferRequest::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::infer::HarnessInferRequest where T: ?core::marker::Sized
+pub fn nika_harness::infer::HarnessInferRequest::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::infer::HarnessInferRequest where T: core::clone::Clone
+pub unsafe fn nika_harness::infer::HarnessInferRequest::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::infer::HarnessInferRequest
+pub fn nika_harness::infer::HarnessInferRequest::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::infer::HarnessInferRequest where T: 'static
+pub fn nika_harness::infer::HarnessInferRequest::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_harness::infer::InferGradeAttestation
+pub nika_harness::infer::InferGradeAttestation::model_identity_observable: bool
+pub nika_harness::infer::InferGradeAttestation::no_implicit_tools: bool
+pub nika_harness::infer::InferGradeAttestation::proof: &'static str
+pub nika_harness::infer::InferGradeAttestation::single_turn: bool
+pub nika_harness::infer::InferGradeAttestation::structured_output: nika_harness::infer::StructuredOutputGrade
+impl core::clone::Clone for nika_harness::infer::InferGradeAttestation
+pub fn nika_harness::infer::InferGradeAttestation::clone(&self) -> nika_harness::infer::InferGradeAttestation
+impl core::cmp::Eq for nika_harness::infer::InferGradeAttestation
+impl core::cmp::PartialEq for nika_harness::infer::InferGradeAttestation
+pub fn nika_harness::infer::InferGradeAttestation::eq(&self, other: &nika_harness::infer::InferGradeAttestation) -> bool
+impl core::fmt::Debug for nika_harness::infer::InferGradeAttestation
+pub fn nika_harness::infer::InferGradeAttestation::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_harness::infer::InferGradeAttestation
+impl core::marker::StructuralPartialEq for nika_harness::infer::InferGradeAttestation
+impl<D> owo_colors::OwoColorize for nika_harness::infer::InferGradeAttestation
+impl<T, U> core::convert::Into<U> for nika_harness::infer::InferGradeAttestation where U: core::convert::From<T>
+pub fn nika_harness::infer::InferGradeAttestation::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::infer::InferGradeAttestation where U: core::convert::Into<T>
+pub type nika_harness::infer::InferGradeAttestation::Error = core::convert::Infallible
+pub fn nika_harness::infer::InferGradeAttestation::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::infer::InferGradeAttestation where U: core::convert::TryFrom<T>
+pub type nika_harness::infer::InferGradeAttestation::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::infer::InferGradeAttestation::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::infer::InferGradeAttestation where T: core::clone::Clone
+pub type nika_harness::infer::InferGradeAttestation::Owned = T
+pub fn nika_harness::infer::InferGradeAttestation::clone_into(&self, target: &mut T)
+pub fn nika_harness::infer::InferGradeAttestation::to_owned(&self) -> T
+impl<T> core::any::Any for nika_harness::infer::InferGradeAttestation where T: 'static + ?core::marker::Sized
+pub fn nika_harness::infer::InferGradeAttestation::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::infer::InferGradeAttestation where T: ?core::marker::Sized
+pub fn nika_harness::infer::InferGradeAttestation::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::infer::InferGradeAttestation where T: ?core::marker::Sized
+pub fn nika_harness::infer::InferGradeAttestation::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::infer::InferGradeAttestation where T: core::clone::Clone
+pub unsafe fn nika_harness::infer::InferGradeAttestation::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::infer::InferGradeAttestation
+pub fn nika_harness::infer::InferGradeAttestation::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::infer::InferGradeAttestation where T: 'static
+pub fn nika_harness::infer::InferGradeAttestation::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub struct nika_harness::infer::InferGradeSeat
+impl nika_harness::infer::InferGradeSeat
+pub const fn nika_harness::infer::InferGradeSeat::attestation(&self) -> nika_harness::infer::InferGradeAttestation
+pub async fn nika_harness::infer::InferGradeSeat::run(&self, request: nika_harness::infer::HarnessInferRequest) -> core::result::Result<nika_harness::infer::HarnessInferOutcome, nika_harness::infer::InferGradeError>
+impl core::clone::Clone for nika_harness::infer::InferGradeSeat
+pub fn nika_harness::infer::InferGradeSeat::clone(&self) -> nika_harness::infer::InferGradeSeat
+impl core::fmt::Debug for nika_harness::infer::InferGradeSeat
+pub fn nika_harness::infer::InferGradeSeat::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_harness::infer::InferGradeSeat
+impl<T, U> core::convert::Into<U> for nika_harness::infer::InferGradeSeat where U: core::convert::From<T>
+pub fn nika_harness::infer::InferGradeSeat::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::infer::InferGradeSeat where U: core::convert::Into<T>
+pub type nika_harness::infer::InferGradeSeat::Error = core::convert::Infallible
+pub fn nika_harness::infer::InferGradeSeat::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::infer::InferGradeSeat where U: core::convert::TryFrom<T>
+pub type nika_harness::infer::InferGradeSeat::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::infer::InferGradeSeat::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::infer::InferGradeSeat where T: core::clone::Clone
+pub type nika_harness::infer::InferGradeSeat::Owned = T
+pub fn nika_harness::infer::InferGradeSeat::clone_into(&self, target: &mut T)
+pub fn nika_harness::infer::InferGradeSeat::to_owned(&self) -> T
+impl<T> core::any::Any for nika_harness::infer::InferGradeSeat where T: 'static + ?core::marker::Sized
+pub fn nika_harness::infer::InferGradeSeat::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::infer::InferGradeSeat where T: ?core::marker::Sized
+pub fn nika_harness::infer::InferGradeSeat::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::infer::InferGradeSeat where T: ?core::marker::Sized
+pub fn nika_harness::infer::InferGradeSeat::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::infer::InferGradeSeat where T: core::clone::Clone
+pub unsafe fn nika_harness::infer::InferGradeSeat::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::infer::InferGradeSeat
+pub fn nika_harness::infer::InferGradeSeat::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::infer::InferGradeSeat where T: 'static
+pub fn nika_harness::infer::InferGradeSeat::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub fn nika_harness::infer::meet_infer_grade(seat: &str, need: nika_harness::infer::StructuredOutputGrade) -> core::result::Result<nika_harness::infer::InferGradeSeat, nika_harness::infer::InferGradeError>
 pub mod nika_harness::probe
 #[non_exhaustive] pub struct nika_harness::probe::AdapterProbeRow
 pub nika_harness::probe::AdapterProbeRow::authenticated: core::option::Option<bool>
 pub nika_harness::probe::AdapterProbeRow::id: alloc::string::String
 pub nika_harness::probe::AdapterProbeRow::note: alloc::string::String
 pub nika_harness::probe::AdapterProbeRow::package: alloc::string::String
+pub nika_harness::probe::AdapterProbeRow::product_present: bool
 pub nika_harness::probe::AdapterProbeRow::version: core::option::Option<(u32, u32)>
 impl nika_harness::probe::AdapterProbeRow
 pub fn nika_harness::probe::AdapterProbeRow::usable(&self) -> bool
@@ -50,6 +287,45 @@ impl<T> core::convert::From<T> for nika_harness::probe::AdapterProbeRow
 pub fn nika_harness::probe::AdapterProbeRow::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_harness::probe::AdapterProbeRow where T: 'static
 pub fn nika_harness::probe::AdapterProbeRow::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_harness::probe::PresenceFact
+pub nika_harness::probe::PresenceFact::acp_present: bool
+pub nika_harness::probe::PresenceFact::configured: bool
+pub nika_harness::probe::PresenceFact::id: alloc::string::String
+pub nika_harness::probe::PresenceFact::product_present: bool
+pub nika_harness::probe::PresenceFact::serves: alloc::vec::Vec<alloc::string::String>
+impl core::clone::Clone for nika_harness::probe::PresenceFact
+pub fn nika_harness::probe::PresenceFact::clone(&self) -> nika_harness::probe::PresenceFact
+impl core::cmp::Eq for nika_harness::probe::PresenceFact
+impl core::cmp::PartialEq for nika_harness::probe::PresenceFact
+pub fn nika_harness::probe::PresenceFact::eq(&self, other: &nika_harness::probe::PresenceFact) -> bool
+impl core::fmt::Debug for nika_harness::probe::PresenceFact
+pub fn nika_harness::probe::PresenceFact::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_harness::probe::PresenceFact
+impl<D> owo_colors::OwoColorize for nika_harness::probe::PresenceFact
+impl<T, U> core::convert::Into<U> for nika_harness::probe::PresenceFact where U: core::convert::From<T>
+pub fn nika_harness::probe::PresenceFact::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::probe::PresenceFact where U: core::convert::Into<T>
+pub type nika_harness::probe::PresenceFact::Error = core::convert::Infallible
+pub fn nika_harness::probe::PresenceFact::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::probe::PresenceFact where U: core::convert::TryFrom<T>
+pub type nika_harness::probe::PresenceFact::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::probe::PresenceFact::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::probe::PresenceFact where T: core::clone::Clone
+pub type nika_harness::probe::PresenceFact::Owned = T
+pub fn nika_harness::probe::PresenceFact::clone_into(&self, target: &mut T)
+pub fn nika_harness::probe::PresenceFact::to_owned(&self) -> T
+impl<T> core::any::Any for nika_harness::probe::PresenceFact where T: 'static + ?core::marker::Sized
+pub fn nika_harness::probe::PresenceFact::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::probe::PresenceFact where T: ?core::marker::Sized
+pub fn nika_harness::probe::PresenceFact::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::probe::PresenceFact where T: ?core::marker::Sized
+pub fn nika_harness::probe::PresenceFact::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::probe::PresenceFact where T: core::clone::Clone
+pub unsafe fn nika_harness::probe::PresenceFact::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::probe::PresenceFact
+pub fn nika_harness::probe::PresenceFact::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::probe::PresenceFact where T: 'static
+pub fn nika_harness::probe::PresenceFact::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_harness::probe::VersionPin
 pub nika_harness::probe::VersionPin::max_major: u32
 pub nika_harness::probe::VersionPin::min: (u32, u32)
@@ -91,6 +367,7 @@ impl<T> nika_error::traits::AsAny for nika_harness::probe::VersionPin where T: '
 pub fn nika_harness::probe::VersionPin::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub fn nika_harness::probe::judge_version(adapter_id: &str, output: &str, pin: &nika_harness::probe::VersionPin) -> core::result::Result<(u32, u32), nika_kernel_ai::harness::HarnessError>
 pub fn nika_harness::probe::parse_version(line: &str) -> core::option::Option<(u32, u32)>
+pub fn nika_harness::probe::presence_facts(rows: alloc::vec::Vec<nika_harness::registry::AdapterRow>) -> alloc::vec::Vec<nika_harness::probe::PresenceFact>
 pub async fn nika_harness::probe::probe_adapters(rows: alloc::vec::Vec<nika_harness::registry::AdapterRow>) -> alloc::vec::Vec<nika_harness::probe::AdapterProbeRow>
 pub fn nika_harness::probe::probe_adapters_sync(rows: alloc::vec::Vec<nika_harness::registry::AdapterRow>) -> alloc::vec::Vec<nika_harness::probe::AdapterProbeRow>
 pub mod nika_harness::registry
@@ -717,11 +994,93 @@ impl<T> core::convert::From<T> for nika_harness::registry::AuthProbe
 pub fn nika_harness::registry::AuthProbe::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_harness::registry::AuthProbe where T: 'static
 pub fn nika_harness::registry::AuthProbe::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub enum nika_harness::InferGradeError
+pub nika_harness::InferGradeError::Execution
+pub nika_harness::InferGradeError::Execution::detail: alloc::string::String
+pub nika_harness::InferGradeError::Execution::seat: &'static str
+pub nika_harness::InferGradeError::Refused
+pub nika_harness::InferGradeError::Refused::witness: alloc::string::String
+impl nika_harness::infer::InferGradeError
+pub fn nika_harness::infer::InferGradeError::witness(&self) -> &str
+impl core::error::Error for nika_harness::infer::InferGradeError
+impl core::fmt::Debug for nika_harness::infer::InferGradeError
+pub fn nika_harness::infer::InferGradeError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::fmt::Display for nika_harness::infer::InferGradeError
+pub fn nika_harness::infer::InferGradeError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl miette::protocol::Diagnostic for nika_harness::infer::InferGradeError
+impl nika_error::traits::NikaErrorCode for nika_harness::infer::InferGradeError
+pub fn nika_harness::infer::InferGradeError::nika_code(&self) -> nika_error::codes::NikaCode
+impl<D> owo_colors::OwoColorize for nika_harness::infer::InferGradeError
+impl<T, U> core::convert::Into<U> for nika_harness::infer::InferGradeError where U: core::convert::From<T>
+pub fn nika_harness::infer::InferGradeError::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::infer::InferGradeError where U: core::convert::Into<T>
+pub type nika_harness::infer::InferGradeError::Error = core::convert::Infallible
+pub fn nika_harness::infer::InferGradeError::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::infer::InferGradeError where U: core::convert::TryFrom<T>
+pub type nika_harness::infer::InferGradeError::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::infer::InferGradeError::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::string::ToString for nika_harness::infer::InferGradeError where T: core::fmt::Display + ?core::marker::Sized
+pub fn nika_harness::infer::InferGradeError::to_string(&self) -> alloc::string::String
+impl<T> core::any::Any for nika_harness::infer::InferGradeError where T: 'static + ?core::marker::Sized
+pub fn nika_harness::infer::InferGradeError::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::infer::InferGradeError where T: ?core::marker::Sized
+pub fn nika_harness::infer::InferGradeError::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::infer::InferGradeError where T: ?core::marker::Sized
+pub fn nika_harness::infer::InferGradeError::borrow_mut(&mut self) -> &mut T
+impl<T> core::convert::From<T> for nika_harness::infer::InferGradeError
+pub fn nika_harness::infer::InferGradeError::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::infer::InferGradeError where T: 'static
+pub fn nika_harness::infer::InferGradeError::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub enum nika_harness::StructuredOutputGrade
+pub nika_harness::StructuredOutputGrade::Json
+pub nika_harness::StructuredOutputGrade::JsonSchema
+pub nika_harness::StructuredOutputGrade::Text
+impl nika_harness::infer::StructuredOutputGrade
+pub const fn nika_harness::infer::StructuredOutputGrade::as_str(self) -> &'static str
+impl core::clone::Clone for nika_harness::infer::StructuredOutputGrade
+pub fn nika_harness::infer::StructuredOutputGrade::clone(&self) -> nika_harness::infer::StructuredOutputGrade
+impl core::cmp::Eq for nika_harness::infer::StructuredOutputGrade
+impl core::cmp::Ord for nika_harness::infer::StructuredOutputGrade
+pub fn nika_harness::infer::StructuredOutputGrade::cmp(&self, other: &nika_harness::infer::StructuredOutputGrade) -> core::cmp::Ordering
+impl core::cmp::PartialEq for nika_harness::infer::StructuredOutputGrade
+pub fn nika_harness::infer::StructuredOutputGrade::eq(&self, other: &nika_harness::infer::StructuredOutputGrade) -> bool
+impl core::cmp::PartialOrd for nika_harness::infer::StructuredOutputGrade
+pub fn nika_harness::infer::StructuredOutputGrade::partial_cmp(&self, other: &nika_harness::infer::StructuredOutputGrade) -> core::option::Option<core::cmp::Ordering>
+impl core::fmt::Debug for nika_harness::infer::StructuredOutputGrade
+pub fn nika_harness::infer::StructuredOutputGrade::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_harness::infer::StructuredOutputGrade
+impl core::marker::StructuralPartialEq for nika_harness::infer::StructuredOutputGrade
+impl<D> owo_colors::OwoColorize for nika_harness::infer::StructuredOutputGrade
+impl<T, U> core::convert::Into<U> for nika_harness::infer::StructuredOutputGrade where U: core::convert::From<T>
+pub fn nika_harness::infer::StructuredOutputGrade::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::infer::StructuredOutputGrade where U: core::convert::Into<T>
+pub type nika_harness::infer::StructuredOutputGrade::Error = core::convert::Infallible
+pub fn nika_harness::infer::StructuredOutputGrade::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::infer::StructuredOutputGrade where U: core::convert::TryFrom<T>
+pub type nika_harness::infer::StructuredOutputGrade::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::infer::StructuredOutputGrade::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::infer::StructuredOutputGrade where T: core::clone::Clone
+pub type nika_harness::infer::StructuredOutputGrade::Owned = T
+pub fn nika_harness::infer::StructuredOutputGrade::clone_into(&self, target: &mut T)
+pub fn nika_harness::infer::StructuredOutputGrade::to_owned(&self) -> T
+impl<T> core::any::Any for nika_harness::infer::StructuredOutputGrade where T: 'static + ?core::marker::Sized
+pub fn nika_harness::infer::StructuredOutputGrade::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::infer::StructuredOutputGrade where T: ?core::marker::Sized
+pub fn nika_harness::infer::StructuredOutputGrade::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::infer::StructuredOutputGrade where T: ?core::marker::Sized
+pub fn nika_harness::infer::StructuredOutputGrade::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::infer::StructuredOutputGrade where T: core::clone::Clone
+pub unsafe fn nika_harness::infer::StructuredOutputGrade::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::infer::StructuredOutputGrade
+pub fn nika_harness::infer::StructuredOutputGrade::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::infer::StructuredOutputGrade where T: 'static
+pub fn nika_harness::infer::StructuredOutputGrade::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_harness::AdapterProbeRow
 pub nika_harness::AdapterProbeRow::authenticated: core::option::Option<bool>
 pub nika_harness::AdapterProbeRow::id: alloc::string::String
 pub nika_harness::AdapterProbeRow::note: alloc::string::String
 pub nika_harness::AdapterProbeRow::package: alloc::string::String
+pub nika_harness::AdapterProbeRow::product_present: bool
 pub nika_harness::AdapterProbeRow::version: core::option::Option<(u32, u32)>
 impl nika_harness::probe::AdapterProbeRow
 pub fn nika_harness::probe::AdapterProbeRow::usable(&self) -> bool
@@ -840,6 +1199,195 @@ impl<T> core::convert::From<T> for nika_harness::spawn::HarnessAdapter
 pub fn nika_harness::spawn::HarnessAdapter::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_harness::spawn::HarnessAdapter where T: 'static
 pub fn nika_harness::spawn::HarnessAdapter::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_harness::HarnessInferOutcome
+pub nika_harness::HarnessInferOutcome::output: alloc::string::String
+pub nika_harness::HarnessInferOutcome::requested_model: alloc::string::String
+pub nika_harness::HarnessInferOutcome::usage_observed: bool
+impl core::clone::Clone for nika_harness::infer::HarnessInferOutcome
+pub fn nika_harness::infer::HarnessInferOutcome::clone(&self) -> nika_harness::infer::HarnessInferOutcome
+impl core::cmp::Eq for nika_harness::infer::HarnessInferOutcome
+impl core::cmp::PartialEq for nika_harness::infer::HarnessInferOutcome
+pub fn nika_harness::infer::HarnessInferOutcome::eq(&self, other: &nika_harness::infer::HarnessInferOutcome) -> bool
+impl core::fmt::Debug for nika_harness::infer::HarnessInferOutcome
+pub fn nika_harness::infer::HarnessInferOutcome::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_harness::infer::HarnessInferOutcome
+impl<D> owo_colors::OwoColorize for nika_harness::infer::HarnessInferOutcome
+impl<T, U> core::convert::Into<U> for nika_harness::infer::HarnessInferOutcome where U: core::convert::From<T>
+pub fn nika_harness::infer::HarnessInferOutcome::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::infer::HarnessInferOutcome where U: core::convert::Into<T>
+pub type nika_harness::infer::HarnessInferOutcome::Error = core::convert::Infallible
+pub fn nika_harness::infer::HarnessInferOutcome::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::infer::HarnessInferOutcome where U: core::convert::TryFrom<T>
+pub type nika_harness::infer::HarnessInferOutcome::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::infer::HarnessInferOutcome::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::infer::HarnessInferOutcome where T: core::clone::Clone
+pub type nika_harness::infer::HarnessInferOutcome::Owned = T
+pub fn nika_harness::infer::HarnessInferOutcome::clone_into(&self, target: &mut T)
+pub fn nika_harness::infer::HarnessInferOutcome::to_owned(&self) -> T
+impl<T> core::any::Any for nika_harness::infer::HarnessInferOutcome where T: 'static + ?core::marker::Sized
+pub fn nika_harness::infer::HarnessInferOutcome::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::infer::HarnessInferOutcome where T: ?core::marker::Sized
+pub fn nika_harness::infer::HarnessInferOutcome::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::infer::HarnessInferOutcome where T: ?core::marker::Sized
+pub fn nika_harness::infer::HarnessInferOutcome::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::infer::HarnessInferOutcome where T: core::clone::Clone
+pub unsafe fn nika_harness::infer::HarnessInferOutcome::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::infer::HarnessInferOutcome
+pub fn nika_harness::infer::HarnessInferOutcome::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::infer::HarnessInferOutcome where T: 'static
+pub fn nika_harness::infer::HarnessInferOutcome::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_harness::HarnessInferRequest
+pub nika_harness::HarnessInferRequest::prompt: alloc::string::String
+pub nika_harness::HarnessInferRequest::requested_model: alloc::string::String
+pub nika_harness::HarnessInferRequest::schema: core::option::Option<serde_json::value::Value>
+pub nika_harness::HarnessInferRequest::system: core::option::Option<alloc::string::String>
+pub nika_harness::HarnessInferRequest::timeout: core::option::Option<core::time::Duration>
+impl nika_harness::infer::HarnessInferRequest
+pub fn nika_harness::infer::HarnessInferRequest::new(prompt: impl core::convert::Into<alloc::string::String>, requested_model: impl core::convert::Into<alloc::string::String>) -> Self
+pub fn nika_harness::infer::HarnessInferRequest::with_schema(self, schema: core::option::Option<serde_json::value::Value>) -> Self
+pub fn nika_harness::infer::HarnessInferRequest::with_system(self, system: core::option::Option<alloc::string::String>) -> Self
+pub fn nika_harness::infer::HarnessInferRequest::with_timeout(self, timeout: core::option::Option<core::time::Duration>) -> Self
+impl core::clone::Clone for nika_harness::infer::HarnessInferRequest
+pub fn nika_harness::infer::HarnessInferRequest::clone(&self) -> nika_harness::infer::HarnessInferRequest
+impl core::fmt::Debug for nika_harness::infer::HarnessInferRequest
+pub fn nika_harness::infer::HarnessInferRequest::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_harness::infer::HarnessInferRequest
+impl<T, U> core::convert::Into<U> for nika_harness::infer::HarnessInferRequest where U: core::convert::From<T>
+pub fn nika_harness::infer::HarnessInferRequest::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::infer::HarnessInferRequest where U: core::convert::Into<T>
+pub type nika_harness::infer::HarnessInferRequest::Error = core::convert::Infallible
+pub fn nika_harness::infer::HarnessInferRequest::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::infer::HarnessInferRequest where U: core::convert::TryFrom<T>
+pub type nika_harness::infer::HarnessInferRequest::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::infer::HarnessInferRequest::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::infer::HarnessInferRequest where T: core::clone::Clone
+pub type nika_harness::infer::HarnessInferRequest::Owned = T
+pub fn nika_harness::infer::HarnessInferRequest::clone_into(&self, target: &mut T)
+pub fn nika_harness::infer::HarnessInferRequest::to_owned(&self) -> T
+impl<T> core::any::Any for nika_harness::infer::HarnessInferRequest where T: 'static + ?core::marker::Sized
+pub fn nika_harness::infer::HarnessInferRequest::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::infer::HarnessInferRequest where T: ?core::marker::Sized
+pub fn nika_harness::infer::HarnessInferRequest::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::infer::HarnessInferRequest where T: ?core::marker::Sized
+pub fn nika_harness::infer::HarnessInferRequest::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::infer::HarnessInferRequest where T: core::clone::Clone
+pub unsafe fn nika_harness::infer::HarnessInferRequest::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::infer::HarnessInferRequest
+pub fn nika_harness::infer::HarnessInferRequest::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::infer::HarnessInferRequest where T: 'static
+pub fn nika_harness::infer::HarnessInferRequest::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_harness::InferGradeAttestation
+pub nika_harness::InferGradeAttestation::model_identity_observable: bool
+pub nika_harness::InferGradeAttestation::no_implicit_tools: bool
+pub nika_harness::InferGradeAttestation::proof: &'static str
+pub nika_harness::InferGradeAttestation::single_turn: bool
+pub nika_harness::InferGradeAttestation::structured_output: nika_harness::infer::StructuredOutputGrade
+impl core::clone::Clone for nika_harness::infer::InferGradeAttestation
+pub fn nika_harness::infer::InferGradeAttestation::clone(&self) -> nika_harness::infer::InferGradeAttestation
+impl core::cmp::Eq for nika_harness::infer::InferGradeAttestation
+impl core::cmp::PartialEq for nika_harness::infer::InferGradeAttestation
+pub fn nika_harness::infer::InferGradeAttestation::eq(&self, other: &nika_harness::infer::InferGradeAttestation) -> bool
+impl core::fmt::Debug for nika_harness::infer::InferGradeAttestation
+pub fn nika_harness::infer::InferGradeAttestation::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_harness::infer::InferGradeAttestation
+impl core::marker::StructuralPartialEq for nika_harness::infer::InferGradeAttestation
+impl<D> owo_colors::OwoColorize for nika_harness::infer::InferGradeAttestation
+impl<T, U> core::convert::Into<U> for nika_harness::infer::InferGradeAttestation where U: core::convert::From<T>
+pub fn nika_harness::infer::InferGradeAttestation::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::infer::InferGradeAttestation where U: core::convert::Into<T>
+pub type nika_harness::infer::InferGradeAttestation::Error = core::convert::Infallible
+pub fn nika_harness::infer::InferGradeAttestation::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::infer::InferGradeAttestation where U: core::convert::TryFrom<T>
+pub type nika_harness::infer::InferGradeAttestation::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::infer::InferGradeAttestation::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::infer::InferGradeAttestation where T: core::clone::Clone
+pub type nika_harness::infer::InferGradeAttestation::Owned = T
+pub fn nika_harness::infer::InferGradeAttestation::clone_into(&self, target: &mut T)
+pub fn nika_harness::infer::InferGradeAttestation::to_owned(&self) -> T
+impl<T> core::any::Any for nika_harness::infer::InferGradeAttestation where T: 'static + ?core::marker::Sized
+pub fn nika_harness::infer::InferGradeAttestation::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::infer::InferGradeAttestation where T: ?core::marker::Sized
+pub fn nika_harness::infer::InferGradeAttestation::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::infer::InferGradeAttestation where T: ?core::marker::Sized
+pub fn nika_harness::infer::InferGradeAttestation::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::infer::InferGradeAttestation where T: core::clone::Clone
+pub unsafe fn nika_harness::infer::InferGradeAttestation::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::infer::InferGradeAttestation
+pub fn nika_harness::infer::InferGradeAttestation::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::infer::InferGradeAttestation where T: 'static
+pub fn nika_harness::infer::InferGradeAttestation::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub struct nika_harness::InferGradeSeat
+impl nika_harness::infer::InferGradeSeat
+pub const fn nika_harness::infer::InferGradeSeat::attestation(&self) -> nika_harness::infer::InferGradeAttestation
+pub async fn nika_harness::infer::InferGradeSeat::run(&self, request: nika_harness::infer::HarnessInferRequest) -> core::result::Result<nika_harness::infer::HarnessInferOutcome, nika_harness::infer::InferGradeError>
+impl core::clone::Clone for nika_harness::infer::InferGradeSeat
+pub fn nika_harness::infer::InferGradeSeat::clone(&self) -> nika_harness::infer::InferGradeSeat
+impl core::fmt::Debug for nika_harness::infer::InferGradeSeat
+pub fn nika_harness::infer::InferGradeSeat::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_harness::infer::InferGradeSeat
+impl<T, U> core::convert::Into<U> for nika_harness::infer::InferGradeSeat where U: core::convert::From<T>
+pub fn nika_harness::infer::InferGradeSeat::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::infer::InferGradeSeat where U: core::convert::Into<T>
+pub type nika_harness::infer::InferGradeSeat::Error = core::convert::Infallible
+pub fn nika_harness::infer::InferGradeSeat::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::infer::InferGradeSeat where U: core::convert::TryFrom<T>
+pub type nika_harness::infer::InferGradeSeat::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::infer::InferGradeSeat::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::infer::InferGradeSeat where T: core::clone::Clone
+pub type nika_harness::infer::InferGradeSeat::Owned = T
+pub fn nika_harness::infer::InferGradeSeat::clone_into(&self, target: &mut T)
+pub fn nika_harness::infer::InferGradeSeat::to_owned(&self) -> T
+impl<T> core::any::Any for nika_harness::infer::InferGradeSeat where T: 'static + ?core::marker::Sized
+pub fn nika_harness::infer::InferGradeSeat::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::infer::InferGradeSeat where T: ?core::marker::Sized
+pub fn nika_harness::infer::InferGradeSeat::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::infer::InferGradeSeat where T: ?core::marker::Sized
+pub fn nika_harness::infer::InferGradeSeat::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::infer::InferGradeSeat where T: core::clone::Clone
+pub unsafe fn nika_harness::infer::InferGradeSeat::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::infer::InferGradeSeat
+pub fn nika_harness::infer::InferGradeSeat::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::infer::InferGradeSeat where T: 'static
+pub fn nika_harness::infer::InferGradeSeat::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_harness::PresenceFact
+pub nika_harness::PresenceFact::acp_present: bool
+pub nika_harness::PresenceFact::configured: bool
+pub nika_harness::PresenceFact::id: alloc::string::String
+pub nika_harness::PresenceFact::product_present: bool
+pub nika_harness::PresenceFact::serves: alloc::vec::Vec<alloc::string::String>
+impl core::clone::Clone for nika_harness::probe::PresenceFact
+pub fn nika_harness::probe::PresenceFact::clone(&self) -> nika_harness::probe::PresenceFact
+impl core::cmp::Eq for nika_harness::probe::PresenceFact
+impl core::cmp::PartialEq for nika_harness::probe::PresenceFact
+pub fn nika_harness::probe::PresenceFact::eq(&self, other: &nika_harness::probe::PresenceFact) -> bool
+impl core::fmt::Debug for nika_harness::probe::PresenceFact
+pub fn nika_harness::probe::PresenceFact::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_harness::probe::PresenceFact
+impl<D> owo_colors::OwoColorize for nika_harness::probe::PresenceFact
+impl<T, U> core::convert::Into<U> for nika_harness::probe::PresenceFact where U: core::convert::From<T>
+pub fn nika_harness::probe::PresenceFact::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_harness::probe::PresenceFact where U: core::convert::Into<T>
+pub type nika_harness::probe::PresenceFact::Error = core::convert::Infallible
+pub fn nika_harness::probe::PresenceFact::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_harness::probe::PresenceFact where U: core::convert::TryFrom<T>
+pub type nika_harness::probe::PresenceFact::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_harness::probe::PresenceFact::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_harness::probe::PresenceFact where T: core::clone::Clone
+pub type nika_harness::probe::PresenceFact::Owned = T
+pub fn nika_harness::probe::PresenceFact::clone_into(&self, target: &mut T)
+pub fn nika_harness::probe::PresenceFact::to_owned(&self) -> T
+impl<T> core::any::Any for nika_harness::probe::PresenceFact where T: 'static + ?core::marker::Sized
+pub fn nika_harness::probe::PresenceFact::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_harness::probe::PresenceFact where T: ?core::marker::Sized
+pub fn nika_harness::probe::PresenceFact::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_harness::probe::PresenceFact where T: ?core::marker::Sized
+pub fn nika_harness::probe::PresenceFact::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_harness::probe::PresenceFact where T: core::clone::Clone
+pub unsafe fn nika_harness::probe::PresenceFact::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_harness::probe::PresenceFact
+pub fn nika_harness::probe::PresenceFact::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_harness::probe::PresenceFact where T: 'static
+pub fn nika_harness::probe::PresenceFact::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub struct nika_harness::SpawnedHarness
 impl nika_harness::spawn::SpawnedHarness
 pub fn nika_harness::spawn::SpawnedHarness::new(adapter: nika_harness::spawn::HarnessAdapter) -> Self
@@ -927,10 +1475,15 @@ pub fn nika_harness::declared_adapter_id() -> core::option::Option<alloc::string
 pub fn nika_harness::drive<R, W>(reader: R, writer: W, request: nika_kernel_ai::harness::HarnessRequest) -> nika_kernel_ai::harness::HarnessEventStream where R: tokio::io::async_read::AsyncRead + core::marker::Unpin + core::marker::Send + 'static, W: tokio::io::async_write::AsyncWrite + core::marker::Unpin + core::marker::Send + 'static
 pub fn nika_harness::drive_with_idle<R, W>(reader: R, writer: W, request: nika_kernel_ai::harness::HarnessRequest, idle: core::time::Duration) -> nika_kernel_ai::harness::HarnessEventStream where R: tokio::io::async_read::AsyncRead + core::marker::Unpin + core::marker::Send + 'static, W: tokio::io::async_write::AsyncWrite + core::marker::Unpin + core::marker::Send + 'static
 pub fn nika_harness::judge_version(adapter_id: &str, output: &str, pin: &nika_harness::probe::VersionPin) -> core::result::Result<(u32, u32), nika_kernel_ai::harness::HarnessError>
+pub fn nika_harness::meet_infer_grade(seat: &str, need: nika_harness::infer::StructuredOutputGrade) -> core::result::Result<nika_harness::infer::InferGradeSeat, nika_harness::infer::InferGradeError>
 pub fn nika_harness::parse_version(line: &str) -> core::option::Option<(u32, u32)>
+pub fn nika_harness::presence_facts(rows: alloc::vec::Vec<nika_harness::registry::AdapterRow>) -> alloc::vec::Vec<nika_harness::probe::PresenceFact>
 pub async fn nika_harness::probe_adapters(rows: alloc::vec::Vec<nika_harness::registry::AdapterRow>) -> alloc::vec::Vec<nika_harness::probe::AdapterProbeRow>
 pub fn nika_harness::probe_adapters_sync(rows: alloc::vec::Vec<nika_harness::registry::AdapterRow>) -> alloc::vec::Vec<nika_harness::probe::AdapterProbeRow>
 pub fn nika_harness::registry() -> core::result::Result<alloc::vec::Vec<nika_harness::registry::AdapterRow>, nika_kernel_ai::harness::HarnessError>
 pub fn nika_harness::registry_with(env: &dyn core::ops::function::Fn(&str) -> core::option::Option<alloc::string::String>) -> core::result::Result<alloc::vec::Vec<nika_harness::registry::AdapterRow>, nika_kernel_ai::harness::HarnessError>
 pub fn nika_harness::seat_from_env() -> core::result::Result<core::option::Option<nika_harness::spawn::SpawnedHarness>, alloc::string::String>
+pub fn nika_harness::seat_from_id(id: &str) -> core::result::Result<core::option::Option<nika_harness::spawn::SpawnedHarness>, alloc::string::String>
 pub fn nika_harness::seat_from_lookup(lookup: &dyn core::ops::function::Fn(&str) -> core::option::Option<alloc::string::String>) -> core::result::Result<core::option::Option<nika_harness::spawn::SpawnedHarness>, alloc::string::String>
+pub fn nika_harness::seat_from_pin(pin: core::option::Option<&str>, first_ready: core::option::Option<&str>) -> core::result::Result<core::option::Option<(nika_harness::spawn::SpawnedHarness, alloc::string::String)>, alloc::string::String>
+pub fn nika_harness::seat_http_err(why: impl core::fmt::Display) -> nika_kernel_core::io::http::HttpError

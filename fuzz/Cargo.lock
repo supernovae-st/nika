@@ -2510,6 +2510,22 @@ name = "nika-fx"
 version = "0.114.0"
 
 [[package]]
+name = "nika-harness"
+version = "0.114.0"
+dependencies = [
+ "futures-core",
+ "miette",
+ "nika-error",
+ "nika-kernel",
+ "nika-types",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+ "tokio",
+]
+
+[[package]]
 name = "nika-http"
 version = "0.114.0"
 dependencies = [
@@ -2604,6 +2620,7 @@ dependencies = [
  "bytes",
  "futures-core",
  "nika-catalog",
+ "nika-harness",
  "nika-kernel",
  "nika-types",
  "serde_json",
@@ -2629,6 +2646,7 @@ dependencies = [
  "nika-event",
  "nika-exec-runner",
  "nika-fs",
+ "nika-harness",
  "nika-http",
  "nika-kernel",
  "nika-proof",
@@ -2742,6 +2760,7 @@ name = "nika-verb-agent"
 version = "0.114.0"
 dependencies = [
  "bytes",
+ "futures-core",
  "futures-util",
  "jsonschema",
  "miette",
@@ -2777,6 +2796,7 @@ dependencies = [
  "miette",
  "nika-catalog",
  "nika-error",
+ "nika-harness",
  "nika-kernel",
  "nika-providers",
  "nika-types",

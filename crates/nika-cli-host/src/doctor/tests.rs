@@ -614,14 +614,14 @@ fn doctor_names_each_host_capability_level() {
     };
     let text = render(&diagnose(&probe), true, PLAIN);
     assert!(
-        text.contains("hermes wired · oracle-only (mcp · no hooks)"),
+        text.contains("hermes · Nika MCP oracle wired · oracle-only (mcp · no hooks)"),
         "{text}"
     );
     // UX107-04: a table-declared guard never borrows the proven word —
     // the line says `guard-declared … unproven`, and the bare `guarded`
     // token is reserved for a live allow+deny canary (none exists yet).
     assert!(
-        text.contains("cursor wired · guard-declared (kit ships hooks · unproven in session)"),
+        text.contains("cursor · Nika MCP oracle wired · guard-declared (kit ships hooks · unproven in session)"),
         "{text}"
     );
     assert!(

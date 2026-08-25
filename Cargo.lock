@@ -4525,10 +4525,13 @@ name = "nika-harness"
 version = "0.114.0"
 dependencies = [
  "futures-core",
+ "miette",
+ "nika-error",
  "nika-kernel",
  "nika-types",
  "serde",
  "serde_json",
+ "tempfile",
  "thiserror 2.0.20",
  "tokio",
 ]
@@ -4801,6 +4804,7 @@ dependencies = [
  "futures-core",
  "jsonschema",
  "nika-catalog",
+ "nika-harness",
  "nika-kernel",
  "nika-types",
  "proptest",
@@ -4958,6 +4962,7 @@ dependencies = [
  "nika-event",
  "nika-execution",
  "nika-fs",
+ "nika-harness",
  "nika-providers",
  "nika-runtime",
  "nika-schema",
@@ -5095,6 +5100,7 @@ dependencies = [
  "miette",
  "nika-catalog",
  "nika-error",
+ "nika-harness",
  "nika-kernel",
  "nika-providers",
  "nika-types",

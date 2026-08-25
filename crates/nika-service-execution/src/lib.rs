@@ -560,6 +560,26 @@ impl AuthorizedRuntime {
         self
     }
 
+    /// Seat an agentic CLI from `--access` (pin wins over env).
+    ///
+    /// # Errors
+    ///
+    /// The registry row cannot be built.
+    pub fn with_harness_from_pin(
+        mut self,
+        pin: Option<&str>,
+    ) -> Result<Self, nika_runtime::compose::ComposeError> {
+        let ready = nika_providers::first_ready_infer_harness(self.runtime.access_probes())
+            .or_else(|| nika_providers::first_ready_harness(self.runtime.access_probes()));
+        let Some((backend, id)) =
+            nika_harness::seat_from_pin(pin, ready).map_err(nika_harness::seat_http_err)?
+        else {
+            return Ok(self);
+        };
+        self.runtime = self.runtime.with_harness_backend(Arc::new(backend), id)?;
+        Ok(self)
+    }
+
     /// Attach the verified resume plan.
     #[must_use]
     pub fn with_resume_plan(mut self, plan: nika_runtime::resume::ResumePlan) -> Self {

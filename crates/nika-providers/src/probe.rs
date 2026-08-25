@@ -222,7 +222,7 @@ pub struct ProviderProbe {
     /// not a credential; renderers redact userinfo before printing.
     pub endpoint: String,
     /// The provider ids a HARNESS-class row serves (R-5c) — `["openai"]`
-    /// for `codex-acp`. EMPTY on a provider row: a profile serves
+    /// for `codex`. EMPTY on a provider row: a profile serves
     /// exactly its own id, and the resolver reads that from `id`.
     pub serves: Vec<String>,
 }
@@ -258,6 +258,83 @@ impl ProviderProbe {
         self.serves = serves;
         self
     }
+}
+
+/// One derivation for a shipped agentic CLI row (CLI doctor + compose).
+/// `key_present` is the ACP speaker; `configured` is the harness login;
+/// `fix_var` is the dummy-readable install / sign-in line.
+#[must_use]
+pub fn harness_access_probe(
+    id: impl Into<String>,
+    serves: Vec<String>,
+    acp_present: bool,
+    configured: bool,
+    product_present: bool,
+) -> ProviderProbe {
+    let id = id.into();
+    let rt = nika_types::access::HarnessRuntime::lookup(&id);
+    let fix = match (product_present, acp_present, configured) {
+        (false, false, _) => rt.map_or_else(
+            || format!("{id} is not installed. Install it or pick Nika local / Nika Cloud."),
+            |r| r.not_installed.to_owned(),
+        ),
+        (true, false, _) => rt.map_or_else(
+            || {
+                format!(
+                    "{id} is installed, but Nika talks to it through ACP. \
+                     Install the ACP speaker or pick Nika local / Nika Cloud."
+                )
+            },
+            |rt| rt.acp_missing(),
+        ),
+        (_, true, false) => rt.map_or_else(
+            || format!("sign in to `{id}` itself"),
+            |rt| rt.not_signed_in(),
+        ),
+        (_, true, true) => String::new(),
+    };
+    let readiness = ProviderReadiness::new(
+        true,
+        configured,
+        None,
+        None,
+        false,
+        ExecutionLocus::Loopback,
+        nika_types::access::AccessClass::Harness,
+    );
+    ProviderProbe::new(id, false, acp_present, fix, false, readiness, "").with_serves(serves)
+}
+
+/// HTTP provider rows plus PATH-only harness rows when `access-harness` is on.
+/// Compose and CLI admission share this so `--access claude-code` cannot 1802.
+#[must_use]
+pub fn collect_access_probes(registry: &ProviderRegistry) -> Vec<ProviderProbe> {
+    #[cfg(not(feature = "access-harness"))]
+    {
+        collect_provider_probes(registry)
+    }
+    #[cfg(feature = "access-harness")]
+    {
+        let mut probes = collect_provider_probes(registry);
+        if let Ok(rows) = nika_harness::registry() {
+            probes.extend(nika_harness::presence_facts(rows).into_iter().map(|f| {
+                harness_access_probe(
+                    f.id,
+                    f.serves,
+                    f.acp_present,
+                    f.configured,
+                    f.product_present,
+                )
+            }));
+        }
+        probes
+    }
+}
+
+/// [`collect_access_probes`] over a no-http registry view of `config`.
+#[must_use]
+pub fn collect_access_probes_env(config: crate::ProvidersConfig) -> Vec<ProviderProbe> {
+    collect_access_probes(&crate::ProviderRegistry::without_http(config))
 }
 
 /// Probe every operator-facing provider in `registry` (the `mock` test
@@ -773,5 +850,30 @@ mod tests {
             ),
             "a speaking server reads Live"
         );
+    }
+
+    #[test]
+    fn a_harness_access_probe_encodes_install_vs_acp_vs_signin() {
+        let missing =
+            harness_access_probe("claude-code", vec!["anthropic".into()], false, false, false);
+        assert_eq!(
+            missing.readiness.access,
+            nika_types::access::AccessClass::Harness
+        );
+        assert!(!missing.key_present);
+        assert!(missing.fix_var.contains("Claude Code is not installed"));
+
+        let no_acp =
+            harness_access_probe("claude-code", vec!["anthropic".into()], false, false, true);
+        assert!(
+            no_acp.fix_var.contains("claude-agent-acp"),
+            "{}",
+            no_acp.fix_var
+        );
+
+        let ready = harness_access_probe("claude-code", vec!["anthropic".into()], true, true, true);
+        assert!(ready.key_present);
+        assert!(ready.readiness.configured);
+        assert!(ready.fix_var.is_empty());
     }
 }

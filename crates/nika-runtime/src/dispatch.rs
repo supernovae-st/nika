@@ -718,6 +718,17 @@ where
         input.temperature = temp_f32(action.temperature.as_ref());
         input.max_tokens = action.max_tokens.as_ref().map(|t| t.value);
         input.schema = task_schema(action.schema.as_ref(), contract);
+        #[cfg(feature = "access-harness")]
+        if let Some(seat_id) = self.harness_seat_id.as_deref() {
+            return match self.infer.run_on_harness(seat_id, input).await {
+                Ok(out) => dispatched_harness_infer(seat_id, out),
+                Err(err) => Dispatched::verb_err_spent(
+                    format!("infer · seat {seat_id}"),
+                    &err,
+                    (None, None, None),
+                ),
+            };
+        }
         match self.infer.run(input).await {
             Ok(out) => {
                 let note = format!("infer · {}", out.model_resolved);
@@ -1203,6 +1214,19 @@ mod infer_deadline_tests {
             "a local provider defaults to minutes, never the 30s cloud default"
         );
     }
+}
+
+#[cfg(feature = "access-harness")]
+fn dispatched_harness_infer(seat_id: &str, out: nika_verb_infer::HarnessInferOutput) -> Dispatched {
+    Dispatched::ok_metered(
+        format!("infer · seat {seat_id} · requested {}", out.requested_model),
+        out.output,
+        None,
+        None,
+        None,
+        None,
+        Some(UnpricedReason::SubscriptionQuota),
+    )
 }
 
 // The #824 model-template parity proofs (the house `tests.rs`

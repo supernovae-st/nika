@@ -14,11 +14,14 @@ publish                = false  # Internal L1 effect crate.
 [dependencies]
 nika-kernel = { path = "../nika-kernel", version = "0.114.0" }
 nika-types  = { path = "../nika-types", version = "0.114.0" }
+nika-error  = { path = "../nika-error", version = "0.114.0" }
 serde       = { workspace = true }
 thiserror   = { workspace = true }
+miette      = { workspace = true }
 serde_json  = { workspace = true }
 tokio       = { workspace = true, features = ["io-util", "sync", "rt", "macros", "process", "time"] }
 futures-core = { workspace = true }
+tempfile     = { workspace = true }
 
 [dev-dependencies]
 futures-core = { workspace = true }

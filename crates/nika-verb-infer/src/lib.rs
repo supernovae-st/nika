@@ -144,6 +144,31 @@ pub struct InferOutput {
     pub response: InferResponse,
 }
 
+/// A subscription-seat result. It deliberately has no usage, price, or
+/// responding-model field: the terminal receipt records only the seat and
+/// the model the workflow requested.
+#[cfg(feature = "access-harness")]
+#[derive(Debug, Clone, PartialEq)]
+#[non_exhaustive]
+pub struct HarnessInferOutput {
+    /// Text or locally schema-validated JSON in the runtime value plane.
+    pub output: serde_json::Value,
+    /// The author-requested model identity, not a claim about the responder.
+    pub requested_model: String,
+}
+
+#[cfg(feature = "access-harness")]
+impl HarnessInferOutput {
+    /// Construct without any numeric meter or responder identity.
+    #[must_use]
+    pub fn new(output: serde_json::Value, requested_model: impl Into<String>) -> Self {
+        Self {
+            output,
+            requested_model: requested_model.into(),
+        }
+    }
+}
+
 impl InferOutput {
     /// Construct from the final round-trip + the task-total usage the run
     /// loop accumulated across every round-trip (single-shot tasks pass the
@@ -188,6 +213,75 @@ impl<H> InferVerb<H> {
     pub fn with_schema_retry_budget(mut self, budget: u8) -> Self {
         self.schema_retry_budget = budget;
         self
+    }
+
+    /// Execute one `infer:` through a proved subscription harness seat.
+    ///
+    /// This is a single-shot lane: schema failure never retries and no
+    /// numeric usage leaves the harness adapter.
+    ///
+    /// # Errors
+    ///
+    /// Invalid task parameters, an unattested seat, adapter execution
+    /// failure, or a final value that violates the task schema.
+    #[cfg(feature = "access-harness")]
+    pub async fn run_on_harness(
+        &self,
+        seat_id: &str,
+        input: InferInput,
+    ) -> Result<HarnessInferOutput, VerbInferError> {
+        validate_params(&input)?;
+        let validator = match input.schema.as_ref() {
+            Some(schema) => Some(structured::compile_schema(schema).map_err(|detail| {
+                VerbInferError::InvalidParam {
+                    param: "schema",
+                    detail,
+                }
+            })?),
+            None => None,
+        };
+        let need = if input.schema.is_some() {
+            nika_harness::StructuredOutputGrade::JsonSchema
+        } else {
+            nika_harness::StructuredOutputGrade::Text
+        };
+        let seat = nika_harness::meet_infer_grade(seat_id, need).map_err(|err| {
+            VerbInferError::HarnessAccess {
+                detail: err.to_string(),
+            }
+        })?;
+        let requested_model = input
+            .model
+            .clone()
+            .unwrap_or_else(|| self.default_model.clone());
+        let request = nika_harness::HarnessInferRequest::new(input.prompt, &requested_model)
+            .with_system(input.system)
+            .with_schema(input.schema.clone())
+            .with_timeout(input.timeout);
+        let outcome = seat
+            .run(request)
+            .await
+            .map_err(|err| VerbInferError::HarnessAccess {
+                detail: err.to_string(),
+            })?;
+        debug_assert_eq!(outcome.requested_model, requested_model);
+        debug_assert!(outcome.usage_observed);
+        let output = match (input.schema.as_ref(), validator.as_ref()) {
+            (Some(schema), Some(validator)) => {
+                match structured::extract_and_validate(&outcome.output, validator, schema) {
+                    structured::Validation::Valid(value) => value,
+                    structured::Validation::Invalid(errors) => {
+                        return Err(VerbInferError::SchemaValidation {
+                            attempts: 1,
+                            detail: errors.join("; "),
+                            spend: Box::default(),
+                        });
+                    }
+                }
+            }
+            _ => serde_json::Value::String(outcome.output),
+        };
+        Ok(HarnessInferOutput::new(output, requested_model))
     }
 }
 

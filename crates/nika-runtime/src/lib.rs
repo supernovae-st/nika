@@ -459,6 +459,12 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
         self
     }
 
+    /// Access probes already attached by the composition layer.
+    #[must_use]
+    pub fn access_probes(&self) -> &[nika_providers::probe::ProviderProbe] {
+        &self.access_probes
+    }
+
     /// Inject the composer-COMPUTED access stamps (R-2 · B5) — journaled
     /// verbatim (the composer derives, the runtime journals).
     #[must_use]
