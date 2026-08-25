@@ -368,7 +368,7 @@ fn init_starter_recipe_hands_over_to_the_guided_flow() {
     p.expect("nika check · my-first.nika.yaml")
         .expect("its ladder ran");
     p.expect(Eof).expect("ends");
-    assert_eq!(exit_code(&mut p), 2, "the handed-off template is a draft");
+    assert_eq!(exit_code(&mut p), 0, "init accepts its taught draft class");
 
     assert!(dir.join("AGENTS.md").is_file(), "scaffold written");
     assert!(dir.join("my-first.nika.yaml").is_file(), "workflow written");
