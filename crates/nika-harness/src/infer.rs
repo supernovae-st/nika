@@ -92,7 +92,7 @@ impl InferGradeAttestation {
 }
 
 /// An infer-grade meet refusal.
-#[derive(Debug, thiserror::Error)]
+#[derive(Debug, thiserror::Error, miette::Diagnostic)]
 #[non_exhaustive]
 pub enum InferGradeError {
     /// The row has no proof or misses a required conjunct.
@@ -118,6 +118,15 @@ impl InferGradeError {
         match self {
             Self::Refused { witness } => witness,
             Self::Execution { detail, .. } => detail,
+        }
+    }
+}
+
+impl nika_error::traits::NikaErrorCode for InferGradeError {
+    fn nika_code(&self) -> nika_error::codes::NikaCode {
+        match self {
+            Self::Refused { .. } => nika_error::codes::NIKA_1800,
+            Self::Execution { .. } => nika_error::codes::NIKA_430,
         }
     }
 }

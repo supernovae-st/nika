@@ -150,7 +150,7 @@ fn seated_infer_records_quota_without_any_numeric_meter_or_responder_claim() {
     let dispatched = super::dispatched_harness_infer(
         "codex",
         nika_verb_infer::HarnessInferOutput::new(
-            nika_verb_infer::InferValue::Text("answer".to_owned()),
+            serde_json::Value::String("answer".to_owned()),
             "anthropic/claude-sonnet-4-6",
         ),
     );

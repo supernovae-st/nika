@@ -341,6 +341,59 @@ pub fn refuse_pin<'m>(
     None
 }
 
+/// Judge a pin with the verb capability boundary applied. An infer-only
+/// workflow may bypass provider serving only through a proved one-shot seat;
+/// agentic readiness alone never satisfies that meet.
+#[must_use]
+#[cfg(feature = "access-harness")]
+pub fn refuse_pin_for_verbs<'m>(
+    models: impl IntoIterator<Item = &'m str>,
+    probes: &[ProviderProbe],
+    pin: &str,
+    has_infer: bool,
+    has_agent: bool,
+) -> Option<PinRefusal> {
+    let infer_only = has_infer && !has_agent;
+    let named = HarnessRuntime::lookup(pin);
+    let direct = named.is_some_and(|rt| infer_only && named_infer_grade_ready(rt, probes));
+    let generic = pin == AccessClass::Harness.as_str()
+        && infer_only
+        && first_ready_infer_harness(probes).is_some();
+    if !direct
+        && !generic
+        && let Some(refusal) = refuse_pin(models, probes, pin)
+    {
+        return Some(refusal);
+    }
+    let seat = named.map(|rt| rt.id).or_else(|| {
+        (pin == AccessClass::Harness.as_str())
+            .then(|| first_ready_infer_harness(probes).unwrap_or(AccessClass::Harness.as_str()))
+    });
+    if has_infer
+        && let Some(seat) = seat
+        && let Err(error) =
+            nika_harness::meet_infer_grade(seat, nika_harness::StructuredOutputGrade::JsonSchema)
+    {
+        return Some(PinRefusal::NoPath {
+            message: error.to_string(),
+        });
+    }
+    None
+}
+
+/// Feature-off twin: no harness capability can satisfy the pin.
+#[must_use]
+#[cfg(not(feature = "access-harness"))]
+pub fn refuse_pin_for_verbs<'m>(
+    models: impl IntoIterator<Item = &'m str>,
+    probes: &[ProviderProbe],
+    pin: &str,
+    _has_infer: bool,
+    _has_agent: bool,
+) -> Option<PinRefusal> {
+    refuse_pin(models, probes, pin)
+}
+
 fn pin_vocabulary() -> String {
     format!(
         "{} · {}",

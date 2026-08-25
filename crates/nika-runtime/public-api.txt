@@ -1478,6 +1478,7 @@ pub struct nika_runtime::Runtime<S, T, H, P, D, C>
 impl<S, T, H, P, D, C> nika_runtime::Runtime<S, T, H, P, D, C> where S: nika_kernel_core::io::process::ShellRunDyn + core::marker::Sync, T: nika_kernel_runtime::tool_executor::ToolExecuteDyn, H: nika_kernel_core::io::http::HttpPostDyn + core::marker::Send + core::marker::Sync + 'static, P: nika_kernel_ai::provider::ProviderInferDyn + nika_kernel_ai::provider::ProviderMeta, D: nika_kernel_ai::tool_defs::ToolDefinitionProviderDyn, C: nika_kernel_core::io::clock::ClockDyn + core::marker::Sync
 pub async fn nika_runtime::Runtime<S, T, H, P, D, C>::run(&self, wf: &nika_schema::raw::workflow::RawWorkflow, report: &nika_check::CheckReport, stamper: &mut dyn nika_event::stamp::Stamper, sink: &mut dyn nika_event::stamp::EventSink) -> core::result::Result<nika_runtime::RunOutcome, nika_runtime::RuntimeError>
 impl<S, T, H, P, D, C> nika_runtime::Runtime<S, T, H, P, D, C>
+pub fn nika_runtime::Runtime<S, T, H, P, D, C>::access_probes(&self) -> &[nika_providers::probe::ProviderProbe]
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::new(shell: nika_verb_exec::ExecVerb<S>, invoke: alloc::sync::Arc<nika_verb_invoke::InvokeVerb<T>>, infer: nika_verb_infer::InferVerb<H>, agent: nika_verb_agent::AgentVerb<P, T, D>, clock: C, config: nika_runtime::config::RuntimeConfig) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_access_pin(self, pin: core::option::Option<alloc::string::String>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_access_probes(self, probes: alloc::vec::Vec<nika_providers::probe::ProviderProbe>) -> Self
@@ -1503,7 +1504,7 @@ impl<S, T, H, P, D, C> nika_runtime::Runtime<S, T, H, P, D, C>
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_child_runner(self, runner: alloc::sync::Arc<dyn nika_runtime::child::ChildRunner>) -> Self
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_run_depth(self, depth: u32) -> Self
 impl<S, T, H, P, D, C> nika_runtime::Runtime<S, T, H, P, D, C>
-pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_harness_from_pin(self, pin: core::option::Option<&str>) -> core::result::Result<Self, nika_kernel_core::io::http::HttpError>
+pub fn nika_runtime::Runtime<S, T, H, P, D, C>::with_harness_backend(self, backend: alloc::sync::Arc<dyn nika_kernel_ai::harness::DynAgentBackend>, id: alloc::string::String) -> core::result::Result<Self, nika_kernel_core::io::http::HttpError>
 impl<D> owo_colors::OwoColorize for nika_runtime::Runtime<S, T, H, P, D, C>
 impl<T, U> core::convert::Into<U> for nika_runtime::Runtime<S, T, H, P, D, C> where U: core::convert::From<T>
 pub fn nika_runtime::Runtime<S, T, H, P, D, C>::into(self) -> U

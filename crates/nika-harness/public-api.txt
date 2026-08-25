@@ -25,6 +25,9 @@ impl core::fmt::Debug for nika_harness::infer::InferGradeError
 pub fn nika_harness::infer::InferGradeError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::fmt::Display for nika_harness::infer::InferGradeError
 pub fn nika_harness::infer::InferGradeError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl miette::protocol::Diagnostic for nika_harness::infer::InferGradeError
+impl nika_error::traits::NikaErrorCode for nika_harness::infer::InferGradeError
+pub fn nika_harness::infer::InferGradeError::nika_code(&self) -> nika_error::codes::NikaCode
 impl<D> owo_colors::OwoColorize for nika_harness::infer::InferGradeError
 impl<T, U> core::convert::Into<U> for nika_harness::infer::InferGradeError where U: core::convert::From<T>
 pub fn nika_harness::infer::InferGradeError::into(self) -> U
@@ -1004,6 +1007,9 @@ impl core::fmt::Debug for nika_harness::infer::InferGradeError
 pub fn nika_harness::infer::InferGradeError::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl core::fmt::Display for nika_harness::infer::InferGradeError
 pub fn nika_harness::infer::InferGradeError::fmt(&self, __formatter: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl miette::protocol::Diagnostic for nika_harness::infer::InferGradeError
+impl nika_error::traits::NikaErrorCode for nika_harness::infer::InferGradeError
+pub fn nika_harness::infer::InferGradeError::nika_code(&self) -> nika_error::codes::NikaCode
 impl<D> owo_colors::OwoColorize for nika_harness::infer::InferGradeError
 impl<T, U> core::convert::Into<U> for nika_harness::infer::InferGradeError where U: core::convert::From<T>
 pub fn nika_harness::infer::InferGradeError::into(self) -> U

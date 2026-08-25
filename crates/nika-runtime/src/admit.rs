@@ -1,35 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The run-ADMISSION preflight (issue #603) — the missing-required-input
-//! refusal — plus the launch-gate family that joined it 2026-07-22 (the
-//! run-verb descent): the `--task` ancestor-cone cut ([`scope_to_task`])
-//! and the `--max-cost-usd` budget floor ([`floor_refusal`] +
-//! [`unbounded_breakdown`]). Every gate refuses BEFORE the prologue, so
-//! a refused run emits zero events and spends zero tasks.
-//!
-//! A `required: true` input with no declared `default:` has exactly one
-//! other value source: the operator's `--var` override (F4). When neither
-//! exists, `envelope_values` builds the `inputs` map WITHOUT the key and
-//! the run used to learn about it mid-DAG — wave 1 already spent (infer
-//! tasks burned tokens · exec tasks mutated) and the first
-//! `${{ inputs.x }}` read died NIKA-VAR-001. The preflight moves the
-//! refusal to ADMISSION: it fires before the prologue, so a refused run
-//! emits zero events and spends zero tasks.
-//!
-//! ONE constructor, TWO surfaces (the trust-gate posture): the runtime
-//! gate inside `Runtime::run` is the fail-closed word for every embedder;
-//! the CLI's input gauntlet (the `--var` validation seam) surfaces the
-//! SAME constructor natively — same predicate, same text, no drift.
-//!
-//! What satisfies a `required: true` input (either is enough):
-//! - a declared `default:` (the author's value) ·
-//! - a `--var <name>=<value>` override (the operator's value).
-//!
-//! A NON-required input is never refused here: declared optional means an
-//! unbound read stays the read-time NIKA-VAR-001 (unchanged). `config:`,
-//! `const:`, `secrets:` are untouched — the preflight reads `inputs:`
-//! only.
+//! Run-admission gates. Every refusal precedes the prologue, so it emits no
+//! event and spends no task. Constructors serve runtime and CLI preflights.
 
 use std::collections::BTreeMap;
 
@@ -243,13 +216,8 @@ pub fn unbounded_breakdown(cost: &nika_check::CostCeiling) -> String {
     )
 }
 
-/// The `--access` pin admission gate (D-2026-08-04-N1 · P2) — fires
-/// ONLY under an explicit pin (no pin = today's behavior, exactly).
-/// Judges every STATICALLY-known model the run would resolve (`--model`
-/// replaces the envelope default per #342; a templated `model:` stays
-/// the dispatch layer's). Three pre-prologue refusals: unknown token
-/// NIKA-1802 · pin no candidate satisfies NIKA-1801 (never a
-/// substitute · A-4) · pinned path failing admission NIKA-1800 (A-8).
+/// Judge an explicit access pin against every statically known model.
+/// Templated models remain the dispatch layer's responsibility.
 #[must_use]
 pub fn access_pin_refusal(
     wf: &RawWorkflow,
@@ -281,52 +249,13 @@ pub fn access_pin_refusal(
             .map(|r| r.model.clone())
             .collect(),
     };
-    // A templated `model:` is not a static fact — its value arrives at
-    // run time; the dispatch layer owns that refusal (unchanged).
+    // Templated models are not admission-time facts.
     let judged = models
         .iter()
         .map(String::as_str)
         .filter(|m| !m.contains("${{"));
-    let is_infer_only_codex = has_infer
-        && !has_agent
-        && pin == "codex"
-        && probes
-            .iter()
-            .any(|probe| probe.id == "codex" && probe.readiness.configured);
-    #[cfg(feature = "access-harness")]
-    let is_infer_only_harness = has_infer
-        && !has_agent
-        && pin == nika_types::access::AccessClass::Harness.as_str()
-        && nika_providers::first_ready_infer_harness(probes).is_some();
-    #[cfg(not(feature = "access-harness"))]
-    let is_infer_only_harness = false;
-    let provider_refusal = (!(is_infer_only_codex || is_infer_only_harness))
-        .then(|| nika_providers::refuse_pin(judged, probes, pin))
-        .flatten();
-    if let Some(refusal) = provider_refusal {
-        return Some(map_pin_refusal(refusal));
-    }
-
-    #[cfg(feature = "access-harness")]
-    if has_infer {
-        let seat = nika_types::access::HarnessRuntime::lookup(pin)
-            .map(|runtime| runtime.id)
-            .or_else(|| {
-                (pin == nika_types::access::AccessClass::Harness.as_str())
-                    .then(|| nika_providers::first_ready_infer_harness(probes).unwrap_or("harness"))
-            });
-        if let Some(seat) = seat
-            && let Err(err) = nika_harness::meet_infer_grade(
-                seat,
-                nika_harness::StructuredOutputGrade::JsonSchema,
-            )
-        {
-            return Some(RuntimeError::AccessNoPath {
-                message: err.to_string(),
-            });
-        }
-    }
-    None
+    nika_providers::refuse_pin_for_verbs(judged, probes, pin, has_infer, has_agent)
+        .map(map_pin_refusal)
 }
 
 fn map_pin_refusal(refusal: PinRefusal) -> RuntimeError {
@@ -335,8 +264,7 @@ fn map_pin_refusal(refusal: PinRefusal) -> RuntimeError {
         PinRefusal::PinUnsatisfied { message } => RuntimeError::AccessPinUnsatisfied { message },
         PinRefusal::NoPath { message } => RuntimeError::AccessNoPath { message },
         PinRefusal::Unavailable { message } => RuntimeError::AccessUnavailable { message },
-        // A future refusal class maps to the total-refusal code
-        // until this arm learns it (conservative, never silent).
+        // Future classes fail closed until mapped explicitly.
         other => RuntimeError::AccessNoPath {
             message: format!("{other:?}"),
         },

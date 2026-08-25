@@ -4525,6 +4525,8 @@ name = "nika-harness"
 version = "0.114.0"
 dependencies = [
  "futures-core",
+ "miette",
+ "nika-error",
  "nika-kernel",
  "nika-types",
  "serde",
@@ -4960,6 +4962,7 @@ dependencies = [
  "nika-event",
  "nika-execution",
  "nika-fs",
+ "nika-harness",
  "nika-providers",
  "nika-runtime",
  "nika-schema",

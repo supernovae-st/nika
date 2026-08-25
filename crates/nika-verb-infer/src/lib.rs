@@ -151,8 +151,8 @@ pub struct InferOutput {
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub struct HarnessInferOutput {
-    /// Text or locally schema-validated JSON.
-    pub output: InferValue,
+    /// Text or locally schema-validated JSON in the runtime value plane.
+    pub output: serde_json::Value,
     /// The author-requested model identity, not a claim about the responder.
     pub requested_model: String,
 }
@@ -161,7 +161,7 @@ pub struct HarnessInferOutput {
 impl HarnessInferOutput {
     /// Construct without any numeric meter or responder identity.
     #[must_use]
-    pub fn new(output: InferValue, requested_model: impl Into<String>) -> Self {
+    pub fn new(output: serde_json::Value, requested_model: impl Into<String>) -> Self {
         Self {
             output,
             requested_model: requested_model.into(),
@@ -269,7 +269,7 @@ impl<H> InferVerb<H> {
         let output = match (input.schema.as_ref(), validator.as_ref()) {
             (Some(schema), Some(validator)) => {
                 match structured::extract_and_validate(&outcome.output, validator, schema) {
-                    structured::Validation::Valid(value) => InferValue::Structured(value),
+                    structured::Validation::Valid(value) => value,
                     structured::Validation::Invalid(errors) => {
                         return Err(VerbInferError::SchemaValidation {
                             attempts: 1,
@@ -279,7 +279,7 @@ impl<H> InferVerb<H> {
                     }
                 }
             }
-            _ => InferValue::Text(outcome.output),
+            _ => serde_json::Value::String(outcome.output),
         };
         Ok(HarnessInferOutput::new(output, requested_model))
     }

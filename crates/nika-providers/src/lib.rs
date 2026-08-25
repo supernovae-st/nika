@@ -59,5 +59,5 @@ pub use registry::{NoHttp, ProviderRegistry, ProvidersConfig, ResolvedProvider};
 pub use resolve_access::first_ready_infer_harness;
 pub use resolve_access::{
     AccessCandidate, AccessRefusal, PinRefusal, access_plan_map, candidates_for,
-    first_ready_harness, provider_of, refuse_pin, resolve_access,
+    first_ready_harness, provider_of, refuse_pin, refuse_pin_for_verbs, resolve_access,
 };

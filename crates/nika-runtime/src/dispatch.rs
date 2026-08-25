@@ -1218,20 +1218,9 @@ mod infer_deadline_tests {
 
 #[cfg(feature = "access-harness")]
 fn dispatched_harness_infer(seat_id: &str, out: nika_verb_infer::HarnessInferOutput) -> Dispatched {
-    let note = format!("infer · seat {seat_id} · requested {}", out.requested_model);
-    let value = match out.output {
-        InferValue::Text(text) => Value::String(text),
-        InferValue::Structured(value) => value,
-        other => {
-            return Dispatched::unwired(
-                &note,
-                format!("infer value form not wired yet: {other:?}"),
-            );
-        }
-    };
     Dispatched::ok_metered(
-        note,
-        value,
+        format!("infer · seat {seat_id} · requested {}", out.requested_model),
+        out.output,
         None,
         None,
         None,
