@@ -66,7 +66,10 @@ pub(super) fn task(key: &str) -> Option<&'static str> {
         "on_finally" => Some(
             "cleanup is a TASK now, joined by an unwind edge (2026-08-11) — write \
              it as its own task with `after: { <parent>: unwind }` (a `finally` \
-             node in `graph_format: 3`); the second grammar for a task body died",
+             node in `graph_format: 3`); the second grammar for a task body died. \
+             A cleanup runs under the SAME `permits:` boundary as any task — an \
+             undeclared effect refuses, and the refusal is journaled on the trace \
+             (`permit_checked` · plane `on_finally`), never propagated",
         ),
         "output" => Some(
             "renamed `extract:` (2026-08-11) — same shape, the truthful word for \

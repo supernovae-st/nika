@@ -190,8 +190,10 @@ tasks:
     assert_eq!(str_field(exec_frame, "gate"), Some("echo"));
 }
 
-/// A cleanup error is swallowed — the parent's status reflects ONLY
-/// the main verb (spec 03 · best-effort semantics).
+/// A cleanup error never propagates — the parent's status reflects ONLY
+/// the main verb (spec 03 · best-effort semantics) — but it IS journaled
+/// (guarantee 3 · « its errors are logged »): the outcome rides the
+/// parent's witness as a `permit_checked` frame on plane `on_finally`.
 #[tokio::test]
 async fn unwind_errors_are_swallowed() {
     let yaml = r#"
@@ -223,5 +225,122 @@ tasks:
             .filter(|e| e.kind == EventKind::TaskFailed)
             .count(),
         0
+    );
+    // …but the failure is NOT invisible: one journaled outcome frame
+    // names the cleanup's error code (a dead trigger carries none).
+    let outcome_frame = events
+        .iter()
+        .find(|e| {
+            e.kind == EventKind::PermitChecked
+                && str_field(e, "plane") == Some("on_finally")
+                && str_field(e, "decision") == Some("failure")
+        })
+        .expect("a failed cleanup is journaled, not swallowed");
+    let why = str_field(outcome_frame, "why").expect("the frame carries its why");
+    assert!(
+        why.contains("NIKA-"),
+        "the outcome frame names the cleanup's error code: {why}"
+    );
+}
+
+/// A cleanup refused at the permit boundary is VISIBLE (the adjudicated
+/// defect of #1252): the boundary's own `deny` decision was already
+/// witnessed (NEP-0007), but the cleanup's terminal outcome was
+/// swallowed — pixel-identical to a dead trigger. The outcome frame now
+/// names the refusal code.
+#[tokio::test]
+async fn unwind_refused_cleanup_leaves_a_visible_outcome_frame() {
+    // argv[0] computed from the parent's RUNTIME output: the static
+    // ladder cannot resolve it (« a templated argv is the RUN's
+    // verdict »), so the file is check-clean and the refusal exists
+    // only at run time — the rendered `rm` is outside `permits.exec`.
+    let yaml = r#"
+nika: cleanup-refused
+permits:
+  exec: ["work"]
+tasks:
+  main:
+    exec: { command: ["work"] }
+  main_sweep:
+    after: { main: unwind }
+    exec: { command: ["${{ tasks.main.output }}", "-f", "scratch"] }
+"#;
+    let (outcome, events) = run_to_events(
+        yaml,
+        MockShell::new().enqueue_ok("rm\n"), // the refused cleanup spawns nothing
+        MockToolExecutor::new(),
+        MockProvider::new("mock"),
+        RuntimeConfig::default(),
+    )
+    .await;
+    assert!(outcome.ok, "the refusal never propagates");
+    assert_eq!(
+        events
+            .iter()
+            .filter(|e| e.kind == EventKind::TaskFailed)
+            .count(),
+        0
+    );
+    // The boundary's own deny decision…
+    assert!(
+        events.iter().any(|e| {
+            e.kind == EventKind::PermitChecked
+                && str_field(e, "plane") == Some("exec")
+                && str_field(e, "decision") == Some("deny")
+        }),
+        "the permit boundary witnesses its refusal"
+    );
+    // …and the cleanup's OUTCOME frame, naming the refusal code.
+    let outcome_frame = events
+        .iter()
+        .find(|e| {
+            e.kind == EventKind::PermitChecked
+                && str_field(e, "plane") == Some("on_finally")
+                && str_field(e, "decision") == Some("failure")
+        })
+        .expect("a refused cleanup is journaled, not invisible");
+    let why = str_field(outcome_frame, "why").expect("the frame carries its why");
+    assert!(
+        why.contains("NIKA-SEC-004"),
+        "the outcome frame names the refusal code: {why}"
+    );
+}
+
+/// A gate-closed cleanup is VISIBLE too: without the skip frame it was
+/// pixel-identical to a dead trigger on the trace.
+#[tokio::test]
+async fn unwind_gate_closed_cleanup_leaves_a_visible_frame() {
+    let yaml = r#"
+nika: cleanup-gated
+permits: { exec: true }
+tasks:
+  main:
+    exec: { command: ["work"] }
+  main_alert:
+    after: { main: unwind }
+    when: ${{ tasks.main.status == 'failure' }}
+    exec: { command: ["alert", "on-call"] }
+"#;
+    let (outcome, events) = run_to_events(
+        yaml,
+        MockShell::new().enqueue_ok("worked\n"), // the closed gate dequeues nothing
+        MockToolExecutor::new(),
+        MockProvider::new("mock"),
+        RuntimeConfig::default(),
+    )
+    .await;
+    assert!(outcome.ok);
+    assert_eq!(outcome.records["main"].status, TaskStatus::Success);
+    let frame = events
+        .iter()
+        .find(|e| {
+            e.kind == EventKind::PermitChecked
+                && str_field(e, "plane") == Some("on_finally")
+                && str_field(e, "decision") == Some("skipped")
+        })
+        .expect("a gate-closed cleanup leaves a skip frame");
+    assert!(
+        str_field(frame, "why").is_some_and(|w| w.contains("gate")),
+        "the skip frame says why"
     );
 }

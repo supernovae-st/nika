@@ -2,8 +2,8 @@
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
 //! The `on_finally` cleanup lane (spec 03 · sequential · best-effort ·
-//! errors swallowed · per-cleanup timeout 30s) — split out of `task.rs`
-//! under the ADR-023 1,500-LOC ceiling.
+//! errors journaled, never propagated · per-cleanup timeout 30s) —
+//! split out of `task.rs` under the ADR-023 1,500-LOC ceiling.
 
 use std::time::Duration;
 
@@ -107,7 +107,8 @@ where
     C: ClockDyn + Sync,
 {
     /// Run the cleanup mini-tasks (spec 03 §`on_finally` · sequential ·
-    /// best-effort · errors swallowed · per-cleanup timeout 30s).
+    /// best-effort · a failure/timeout/skip is journaled on the
+    /// witness, never propagated · per-cleanup timeout 30s).
     pub(crate) async fn run_finally(
         &self,
         task: &RawTask,
@@ -156,8 +157,11 @@ where
     }
 
     /// One cleanup TASK · its own `when:` + `timeout:` · outcome
-    /// swallowed (best-effort by construction · its failure never
-    /// propagates to the producer · spec 03 §unwind guarantee 3).
+    /// journaled, never propagated (best-effort by construction · its
+    /// failure never reaches the producer · spec 03 §unwind guarantee
+    /// 3: « its errors are logged » — a skip/failure/timeout rides the
+    /// witness as a `permit_checked` frame on plane `on_finally`, so a
+    /// refused cleanup is distinguishable from a dead trigger).
     async fn run_one_cleanup(
         &self,
         cleanup: &RawTask,
@@ -167,11 +171,19 @@ where
         run_start: nika_kernel::tool_executor::ToolRunStart,
     ) {
         if let Some(gate) = cleanup.when.as_ref() {
-            match eval_gate(&gate.value, scope) {
-                Ok(true) => {}
-                // Closed gate OR eval error → the cleanup is skipped
-                // (a cleanup error never propagates).
-                _ => return,
+            // Closed gate OR eval error → the cleanup is skipped
+            // (a cleanup error never propagates) — and the skip is
+            // journaled: without this frame a gate-closed cleanup
+            // is pixel-identical to a dead trigger on the trace.
+            if !matches!(eval_gate(&gate.value, scope), Ok(true)) {
+                witness.record(
+                    "on_finally",
+                    format!("cleanup #{index}"),
+                    "skipped",
+                    "when: gate closed or errored — the cleanup did not run \
+                     (best-effort lane · spec 03 §unwind)",
+                );
+                return;
             }
         }
         let limit = cleanup
@@ -221,8 +233,60 @@ where
             None,
         ));
         let timer = std::pin::pin!(self.clock.sleep(limit));
-        // Either way the outcome is dropped — cleanup observability is
-        // the cleanup's own effects (e.g. `nika:emit` · spec 03).
-        let _ = futures_util::future::select(attempt, timer).await;
+        match futures_util::future::select(attempt, timer).await {
+            futures_util::future::Either::Left((dispatched, _)) => {
+                if let Err(failed) = dispatched.result {
+                    Self::journal_cleanup_failure(witness, index, &failed.record);
+                }
+            }
+            futures_util::future::Either::Right(((), _)) => {
+                Self::journal_cleanup_timeout(witness, index, limit);
+            }
+        }
+    }
+
+    /// The outcome never PROPAGATES (best-effort lane) but it is
+    /// JOURNALED (spec 03 §unwind guarantee 3 · « its errors are
+    /// logged »): a failure rides the parent's witness as one more
+    /// `permit_checked` frame on plane `on_finally`. A cleanup refused
+    /// at the permit/sandbox boundary (NIKA-SEC-004) lands here with
+    /// its code — no longer pixel-identical to a dead trigger. A clean
+    /// finish stays silent: the cleanup's own effects are its
+    /// observability (e.g. `nika:emit` · spec 03).
+    fn journal_cleanup_failure(
+        witness: &crate::witness::PermitWitness,
+        index: usize,
+        record: &nika_dataflow::TaskErrorRecord,
+    ) {
+        witness.record(
+            "on_finally",
+            format!("cleanup #{index}"),
+            "failure",
+            format!(
+                "cleanup failed — the error does not propagate but is journaled \
+                 (spec 03 §unwind guarantee 3) · {}: {}",
+                record.code, record.message
+            ),
+        );
+    }
+
+    /// The cleanup's own timer won: abandoned, never propagated — and
+    /// the abandon is journaled, so a timed-out cleanup is
+    /// distinguishable from a dead trigger (spec 03 §unwind).
+    fn journal_cleanup_timeout(
+        witness: &crate::witness::PermitWitness,
+        index: usize,
+        limit: std::time::Duration,
+    ) {
+        witness.record(
+            "on_finally",
+            format!("cleanup #{index}"),
+            "timeout",
+            format!(
+                "cleanup exceeded its {}s budget — abandoned, not propagated \
+                 (spec 03 §unwind)",
+                limit.as_secs()
+            ),
+        );
     }
 }
