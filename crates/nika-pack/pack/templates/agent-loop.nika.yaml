@@ -30,7 +30,7 @@ nika: agent-loop-template       # SLOT: kebab-case workflow id
 # ceiling below. A reasoning seat (`ollama/qwen3.5:4b`) spends its whole
 # budget thinking and never emits JSON here — the guaranteed offline path is
 # `--model mock/echo`, which needs no seat at all.
-model: ollama/qwen2.5:14b
+model: mock/echo   # `nika new` replaces this with the machine's ready model seat
 
 inputs:
   goal:

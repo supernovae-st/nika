@@ -32,7 +32,7 @@ nika: fanout-template       # SLOT: kebab-case workflow id
 
 # SLOT: provider/model · local · zero key. Measured seat — `ollama/llama3.2:3b`.
 # `--model mock/echo` needs no seat and is the path this file guarantees.
-model: ollama/llama3.2:3b
+model: mock/echo   # `nika new` replaces this with the machine's ready model seat
 
 run:
   # A `timeout:` is a deadline, and a deadline needs a clock. Declaring it says
