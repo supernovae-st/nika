@@ -14,9 +14,10 @@
 #          client-sdk repo version · engine pack VERSION == spec VERSION.
 #          A release younger than 24h demotes its tag-pins to WARN (the
 #          cascade window).
-#   WARN · operator-gated or by-design lag — OpenVSX published vs vscode
-#          repo (publish = tag, operator) · docs status snapshot vs main
-#          workspace version (docs describe main, which moves).
+#   WARN · operator-gated or by-design lag — nika-vscode's latest release,
+#          VS Marketplace package and OpenVSX package vs its repo version
+#          (publish = tag, operator) · docs status snapshot vs main workspace
+#          version (docs describe main, which moves).
 #
 # Lockstep-at-convergence (operator lock 2026-07-06): from engine 0.97.0
 # the satellites (vscode · client-sdk · agents plugin) adopt the engine's
@@ -32,17 +33,21 @@ import sys
 import urllib.request
 
 RAW = "https://raw.githubusercontent.com"
+VSCODE_RELEASE_API = "https://api.github.com/repos/supernovae-st/nika-vscode/releases/latest"
+VSCODE_MARKETPLACE_API = "https://marketplace.visualstudio.com/_apis/public/gallery/extensionquery"
 FINDINGS = []  # (severity, surface, detail)
 
 
-def fetch(url, timeout=20):
+def fetch(url, timeout=20, *, data=None, extra_headers=None):
     headers = {"User-Agent": "nika-coherence-bot"}
+    if extra_headers:
+        headers.update(extra_headers)
     # Actions provides GITHUB_TOKEN — authenticated api.github.com calls
-    # dodge the anonymous rate limit (the bot's only GitHub API call).
+    # dodge the anonymous rate limit for the release lookups.
     token = os.environ.get("GITHUB_TOKEN")
     if token and url.startswith("https://api.github.com/"):
         headers["Authorization"] = f"Bearer {token}"
-    req = urllib.request.Request(url, headers=headers)
+    req = urllib.request.Request(url, data=data, headers=headers)
     with urllib.request.urlopen(req, timeout=timeout) as r:
         return r.read().decode()
 
@@ -63,6 +68,36 @@ def semver_key(v):
     """`0.97.0` / `0.97.0-rc1` → (0, 97, 0) — a pre-release suffix must
     never crash the nightly (int("0-rc1") did, latently)."""
     return tuple(int(part.split("-")[0].split("+")[0]) for part in v.lstrip("v").split(".")[:3])
+
+
+def vscode_marketplace_version():
+    """Return the version users receive from VS Marketplace.
+
+    The Gallery API is POST-only. Request only the latest version of the
+    exact publisher-qualified extension; the response shape is the public
+    contract consumed by Marketplace clients.
+    """
+    query = {
+        "filters": [{
+            "criteria": [{"filterType": 7, "value": "supernovae.nika-lang"}],
+            "pageNumber": 1,
+            "pageSize": 1,
+            "sortBy": 0,
+            "sortOrder": 0,
+        }],
+        "assetTypes": [],
+        "flags": 513,
+    }
+    raw = fetch(
+        VSCODE_MARKETPLACE_API,
+        data=json.dumps(query).encode(),
+        extra_headers={
+            "Accept": "application/json;api-version=7.1-preview.1",
+            "Content-Type": "application/json",
+        },
+    )
+    payload = json.loads(raw)
+    return payload["results"][0]["extensions"][0]["versions"][0]["version"]
 
 
 def main():
@@ -134,10 +169,25 @@ def main():
 
     vscode_repo = grab(f"{RAW}/supernovae-st/nika-vscode/main/package.json",
                        lambda t: json.loads(t)["version"], "vscode repo")
+    vscode_release = grab(VSCODE_RELEASE_API,
+                          lambda t: json.loads(t)["tag_name"].lstrip("v"), "vscode release")
+    try:
+        vscode_marketplace = vscode_marketplace_version()
+    except Exception as e:  # noqa: BLE001 — a fetch miss is a finding, not a crash
+        FINDINGS.append(("WARN", "vscode marketplace",
+                         f"unreadable ({e.__class__.__name__}) · {VSCODE_MARKETPLACE_API}"))
+        vscode_marketplace = None
     ovsx = grab("https://open-vsx.org/api/supernovae/nika-lang",
                 lambda t: json.loads(t)["version"], "openvsx")
-    if vscode_repo and ovsx and vscode_repo != ovsx:
-        FINDINGS.append(("WARN", "vscode publish", f"OpenVSX {ovsx} lags repo {vscode_repo} (publish = tag · operator)"))
+    if vscode_repo and vscode_release and vscode_repo != vscode_release:
+        FINDINGS.append(("WARN", "vscode release",
+                         f"latest release {vscode_release} differs from repo {vscode_repo} (publish = tag · operator)"))
+    if vscode_release and vscode_marketplace and vscode_release != vscode_marketplace:
+        FINDINGS.append(("WARN", "vscode marketplace",
+                         f"Marketplace {vscode_marketplace} differs from latest release {vscode_release} (publish = tag · operator)"))
+    if vscode_release and ovsx and vscode_release != ovsx:
+        FINDINGS.append(("WARN", "vscode openvsx",
+                         f"OpenVSX {ovsx} differs from latest release {vscode_release} (publish = tag · operator)"))
 
     engine_main = grab(f"{RAW}/supernovae-st/nika/main/Cargo.toml",
                        lambda t: next(l.split('"')[1] for l in t.splitlines() if l.replace(" ", "").startswith('version=')),

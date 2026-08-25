@@ -21,14 +21,17 @@
 # Each carrier below is matched by ROLE — whatever number it holds today
 # becomes the wave number.
 #
-# Carriers: root+crate manifests · both locks (cargo update -w) · the
+# Carriers: root+crate manifests · all three lock families (workspace · fuzz
+# · every excluded crate lock) · the
 # Dockerfile teaching comment · live status rows (ROADMAP + .claude/CLAUDE.md)
 # · the kit trio + native kit CHANGELOG heading insert · the engine
 # CHANGELOG Unreleased fold. Frozen surfaces (crate-spec admission facts ·
 # doctor/banner test fixtures · .pre-commit-hooks marker · docs/) are never
 # touched.
 set -euo pipefail
-cd "$(dirname "$0")/../.."
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
+ROOT="${SPN_WAVE_REPO:-$(cd -- "$SCRIPT_DIR/../.." && pwd -P)}"
+cd "$ROOT"
 
 VER="${1:?usage: wave-sweep.sh <new-version> [--dry|--dev]}"
 MODE="${2:-}"
@@ -108,35 +111,46 @@ run perl -pi -e "s/(\"version\": )\"$V\"/\${1}\"$VER\"/" \
   .agents/plugins/nika/plugin.json \
   .agents/plugins/nika/.*-plugin/plugin.json
 
-# 5 · changelog folds — engine Unreleased + kit heading, both ABOVE the
-#     NEWEST existing heading (never anchored to a specific old version).
-#     Skipped on --dev: the next train has no heading until its rc.
+# 5 · changelog folds — the fragment assembler owns the engine section;
+#     this sweep delegates to it, then inserts the kit heading above the
+#     NEWEST existing kit heading. Skipped on --dev: the next train has no
+#     heading until its rc.
 if [ -n "$DEV" ]; then
   echo "dev · no changelog fold (the heading lands on the rc/final sweep)"
 elif [ "$DRY" != "--dry" ]; then
+  if awk -v heading="## [$VER]" '
+      $0 == heading || index($0, heading "(") == 1 || index($0, heading " ") == 1 {
+        found=1
+      }
+      END { exit(found ? 0 : 1) }
+    ' CHANGELOG.md; then
+    if find changelog.d -maxdepth 1 -type f -name '*.md' ! -name README.md \
+      | grep -q .; then
+      echo "wave-sweep: ## [$VER] already exists but changelog fragments remain — refusing an ambiguous retry" >&2
+      exit 1
+    fi
+    echo "wave-sweep: engine changelog already folded at $VER · retry continues"
+  else
+    SPN_CHANGELOG_REPO="$ROOT" bash "$SCRIPT_DIR/changelog-assemble.sh" \
+      --fold "$VER" --date "$TODAY"
+  fi
   python3 - "$VER" "$TODAY" <<'PY'
 import io, re, sys
 ver, today = sys.argv[1], sys.argv[2]
 
-p = 'CHANGELOG.md'
-s = io.open(p, encoding='utf-8').read()
-prev = re.search(r'^## \[(\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?)\]', s, re.M)
-assert prev, 'no previous release heading'
-old = '## [Unreleased]\n'
-new = (f'## [Unreleased]\n\n## [{ver}](https://github.com/supernovae-st/nika/'
-       f'compare/v{prev.group(1)}..v{ver}) - {today}\n')
-assert s.count(old) == 1
-io.open(p, 'w', encoding='utf-8').write(s.replace(old, new, 1))
-
 k = '.agents/plugins/nika/CHANGELOG.md'
 s = io.open(k, encoding='utf-8').read()
+targets = re.findall(rf'^## {re.escape(ver)} — \d{{4}}-\d{{2}}-\d{{2}}$', s, re.M)
+assert len(targets) <= 1, f'duplicate kit heading for {ver}'
+if targets:
+    raise SystemExit(0)
 m = re.search(r'^## \d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)? — \d{4}-\d{2}-\d{2}$', s, re.M)
 assert m, 'no kit heading'
 entry = (f'## {ver} — {today}\n\nLockstep on the engine wave.\n\n')
 io.open(k, 'w', encoding='utf-8').write(s[:m.start()] + entry + s[m.start():])
 PY
 else
-  echo "DRY · fold CHANGELOG.md + kit CHANGELOG heading ($VER · $TODAY)"
+  echo "DRY · delegate CHANGELOG.md fragment fold + insert kit CHANGELOG heading ($VER · $TODAY)"
 fi
 
 # 6 · uniformity guard — the workspace must read ONE version or the sweep fails

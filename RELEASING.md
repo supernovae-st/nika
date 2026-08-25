@@ -8,22 +8,27 @@ without an explicit operator decision.
 
 ## The ceremony (human side)
 
-1. **Fold the changelog.** Each change already described itself in its own
-   file under `changelog.d/` (`changelog.d/README.md` is the contract). The
-   fold assembles them into the version section and consumes them:
+1. **Preview the changelog, then run the one release sweep.** Each change
+   already described itself in its own file under `changelog.d/`
+   (`changelog.d/README.md` is the contract). Read the assembled body first;
+   then let the sweep own the fold and every version carrier as one act:
 
    ```sh
-   bash scripts/release/changelog-assemble.sh            # read it first
-   bash scripts/release/changelog-assemble.sh --fold <NEXT>
+   bash scripts/release/changelog-assemble.sh --check
+   bash scripts/release/changelog-assemble.sh             # preview it
+   bash scripts/release/wave-sweep.sh <NEXT>
    ```
 
-   That splices the assembled body in as `## [<NEXT>]` with its compare
-   link, restores the `[Unreleased]` stub, and **`git rm`s** the fragments it
-   consumed — the deletions land STAGED, so `git add CHANGELOG.md` beside
-   them and the fold is one commit. (Plain `rm` left them unstaged, and since
-   this file stages by explicit path and never `git add -A`, the release
-   would have shipped the assembled section *and* the fragments it was made
-   from; the next fold would then emit each one twice.) Hand-curated
+   `wave-sweep.sh` delegates the engine section to
+   `changelog-assemble.sh --fold`, so the two mechanisms cannot create two
+   headings. The assembler splices the body in as `## [<NEXT>]` with its
+   compare link, restores the `[Unreleased]` stub, and **`git rm`s** the
+   fragments it consumed — the deletions land STAGED, so `git add
+   CHANGELOG.md` beside them and the fold is one commit. (Plain `rm` left them
+   unstaged, and since this file stages by explicit path and never `git add
+   -A`, the release would have shipped the assembled section *and* the
+   fragments it was made from; the next fold would then emit each one twice.)
+   Hand-curated
    narrative (a BREAKING window, an era note) may still be edited into the
    section afterwards: the section, not the release page, is where curation
    lives. `CHANGELOG.md` stays the single source the release body renders
@@ -46,22 +51,23 @@ without an explicit operator decision.
    git-cliff --config cliff.toml v<PREV>..HEAD --tag v<NEXT> --strip all
    ```
 
-2. **Bump every surface that spells the version.** The workspace manifest
-   is the authority and the release workflow refuses a tag that disagrees
-   with it (first gate), but four other places carry the number and two
-   releases in a row forgot them (2026-08-02):
+2. **Review every surface the sweep moved.** The workspace manifest is the
+   authority and the release workflow refuses a tag that disagrees with it
+   (first gate), but the complete carrier set is larger:
 
    ```sh
    # the authority
    Cargo.toml                     version = "<NEXT>"
-   # the internal pins · 212 of them across 50 manifests
+   # the internal pins
    crates/*/Cargo.toml            { path = "../nika-x", version = "<NEXT>" }
    # what an editor SHOWS the user
-   .agents/plugins/nika/.{claude,codex,cursor}-plugin/plugin.json
+   .agents/plugins/nika/{plugin.json,.*-plugin/plugin.json}
    # the install example in the image header
    Dockerfile                     v=<NEXT>
-   # follows the workspace, and is easy to mistake for noise
+   # all three lock families follow the workspace
+   Cargo.lock
    fuzz/Cargo.lock
+   crates/nika-acp/Cargo.lock
    ```
 
    Then `bash scripts/refresh-status.sh --write` · it regenerates the block
@@ -115,6 +121,12 @@ without an explicit operator decision.
 
    Nothing else. `workflow_dispatch` can rebuild an existing tag; know that
    re-dispatching an old tag re-points `latest` (docker + release ordering).
+
+6. **Close the release record.** Add the engine release entry to the pinned
+   `nika-spec/timeline/timeline.yaml`, let its timeline CI re-prove the tag and
+   publication claims, and verify it renders at [nika.sh/timeline](https://nika.sh/timeline)
+   before declaring the release complete. The binary train may finish before
+   this cross-repository record update, but the release contract does not.
 
 ## What the machine publishes (per tag)
 

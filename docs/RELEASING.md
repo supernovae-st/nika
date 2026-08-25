@@ -63,7 +63,7 @@ That tag fires **`.github/workflows/release.yml`**, which:
 3. packages each as `nika-<platform>-<version>.tar.gz` (+ a `.sha256` sidecar),
 4. creates the GitHub release with those tarballs + a `SHA256SUMS` file,
 5. **bumps the Homebrew tap** formula (version + the 4 sha256s) — *if* the
-   `HOMEBREW_TAP_TOKEN` secret is set (see §3); otherwise it logs a notice and you
+   `TAP_DEPLOY_KEY` secret is set (see §3); otherwise it logs a notice and you
    bump the formula by hand (§2).
 
 Re-run a tag's build without re-tagging via the **workflow_dispatch** input.
@@ -90,13 +90,14 @@ change. `brew install supernovae-st/tap/nika` then pulls the new version.
 
 ---
 
-## 3. One-time secret for the auto-formula-bump
+## 3. One-time deploy key for the auto-formula-bump
 
-Create a fine-grained PAT with **contents:write** on `supernovae-st/homebrew-tap`,
-then add it to the engine repo:
+Create an SSH deploy key, add its public key to
+`supernovae-st/homebrew-tap` with write access, then add the private key to
+the engine repo:
 
 ```bash
-gh secret set HOMEBREW_TAP_TOKEN --repo supernovae-st/nika --body "<pat>"
+gh secret set TAP_DEPLOY_KEY --repo supernovae-st/nika < /path/to/private-key
 ```
 
 With it set, step §1 closes the loop end-to-end (no manual formula edit).
@@ -121,8 +122,11 @@ npm i -g ovsx
 ovsx publish nika-lang-<version>.vsix -p "$OVSX_PAT"
 ```
 
-The vsix is independent of the binary release (it shells out to `nika lsp` from
-the user's PATH), so it can ship on its own cadence.
+The VSIX publishes through its own operator-gated train (it shells out to
+`nika lsp` from the user's PATH), but its package version stays on the engine's
+major.minor wave. `scripts/ci/ecosystem-coherence.py` checks the repo package,
+latest GitHub release, VS Marketplace, and OpenVSX independently so one stale
+publication surface cannot hide behind another.
 
 ---
 

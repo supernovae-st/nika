@@ -1,0 +1,1 @@
+- **Release preparation has one transactional changelog owner and three lock families.** The wave sweep delegates a retry-safe engine fold to the fragment assembler, the uniformity gate covers the standalone ACP lock, and ecosystem coherence attributes editor drift from repo to release to each registry.
