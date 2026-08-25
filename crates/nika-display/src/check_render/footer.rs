@@ -148,17 +148,19 @@ fn render_next(
 ///
 /// The ladder (`nika_cli_host::fix_ladder`) has exactly two sources. The
 /// dead-form arms fire on a `SchemaError` — a file that did not parse, and
-/// so never reaches this render at all. The typed renames read
-/// `unknown_tools` · `unknown_args` · `conformance` for a `suggestion`. On
-/// a file that PARSED, the second set is therefore the whole of it, and
-/// this predicate mirrors `collect_typed_renames` field for field.
+/// so never reaches this render at all. The typed renames are therefore
+/// the whole of it on a file that PARSED, and this asks
+/// [`nika_check::typed_renames`] — the SAME derivation the ladder
+/// splices from.
+///
+/// It used to MIRROR that derivation field for field, in its own words.
+/// A mirror is only as true as the day it was typed: the offer and the
+/// work were free to drift the moment the ladder grew an arm, and the
+/// drift would have been silent and in the honest direction — a file
+/// told « nothing here is a typed rename » while `--fix` had one to
+/// place. One function, two readers, no mirror to keep.
 fn has_machine_applicable_repair(report: &CheckReport) -> bool {
-    report.unknown_tools.iter().any(|t| t.suggestion.is_some())
-        || report.unknown_args.iter().any(|a| a.suggestion.is_some())
-        || report
-            .conformance
-            .iter()
-            .any(|v| v.offending.is_some() && v.suggestion.is_some())
+    !nika_check::typed_renames(report).is_empty()
 }
 
 fn next_repair_action(path: &str, repair_target: RepairTarget) -> String {
