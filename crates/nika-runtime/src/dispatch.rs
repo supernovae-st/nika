@@ -502,7 +502,7 @@ where
             None => Value::Object(serde_json::Map::new()),
             Some(a) => match expr::render_json(&a.value, scope) {
                 Ok(v) => v,
-                Err(err) => return Dispatched::template_err(&note, &err),
+                Err(err) => return Dispatched::template_err(&note, &RuntimeError::from(err)),
             },
         };
         // NEP-0006 law 3 · the data-as-code sink's run twin: the RESOLVED
@@ -696,7 +696,7 @@ where
     ) -> Dispatched {
         let prompt = match expr::render(&action.prompt.value, scope) {
             Ok(p) => p,
-            Err(err) => return Dispatched::template_err("infer · ?", &err),
+            Err(err) => return Dispatched::template_err("infer · ?", &RuntimeError::from(err)),
         };
         let mut input = InferInput::new(prompt);
         // The task `timeout:` flows to the provider transport deadline —
@@ -792,7 +792,7 @@ where
         }
         let prompt = match expr::render(&action.prompt.value, scope) {
             Ok(p) => p,
-            Err(err) => return Dispatched::template_err("agent · ?", &err),
+            Err(err) => return Dispatched::template_err("agent · ?", &RuntimeError::from(err)),
         };
         let mut input = AgentInput::new(prompt);
         input.system = match render_opt(action.system.as_ref(), scope) {
@@ -1009,7 +1009,10 @@ fn render_opt(
     field: Option<&nika_schema::Spanned<String>>,
     scope: &Scope<'_>,
 ) -> Result<Option<String>, RuntimeError> {
-    field.map(|f| expr::render(&f.value, scope)).transpose()
+    field
+        .map(|f| expr::render(&f.value, scope))
+        .transpose()
+        .map_err(RuntimeError::from)
 }
 
 /// `returns:` compiles `lower(returns)` as the structured-output contract —

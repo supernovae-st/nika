@@ -22,6 +22,18 @@ HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MAX="${CRATE_SIZE_MAX:-15000}"
 violations=0
 
+# The counter proves itself before it guards the wall — fail CLOSED, the same
+# discipline `_lib.sh` applies to the two shared filters. A budget nobody can
+# demonstrate is a number people argue with, and here the argument gets settled
+# by deleting doc comments (#1203): a comment is the cheapest line to remove,
+# so it is the first one removed, and the budget is satisfied by discarding
+# exactly the thing it exists to protect.
+if ! python3 "$HERE/test-prod-loc.py" >/dev/null 2>&1; then
+  printf 'FAIL  the prod-LOC counter is not honest — this ratchet cannot be trusted:\n' >&2
+  python3 "$HERE/test-prod-loc.py" >&2 || true
+  exit 2
+fi
+
 # The prod-file set is the SHARED one, computed ONCE for the whole workspace.
 #
 # It used to be re-implemented inline here — `git ls-files … | grep -v
@@ -42,39 +54,15 @@ while IFS= read -r manifest; do
   # rs_prod_files (basename `tests.rs` + `#[cfg(test)] mod` declarations).
   # `|| true` keeps an src-less crate from killing the loop under pipefail
   # (grep exits 1 on zero matches); python prints 0 on empty stdin then.
+  # The counter lives in ONE proven file (prod-loc.py), not inline here.
+  # It used to be inline, and it was blind twice over — braces inside string
+  # literals ended a test module early (412 lines of `mod tests` charged to
+  # production in nika-runtime/src/expr.rs alone), and `#[cfg(test)] mod foo;`
+  # swallowed whichever block came next. One rule, one reader, one self-test.
   total=$(
     { printf '%s\n' "$PROD_FILES" | grep -- "^$crate_dir/src/" || true; } \
-      | python3 -c '
-import re, sys
-total = 0
-for path in sys.stdin.read().split():
-    try:
-        lines = open(path, encoding="utf-8", errors="replace").read().split("\n")
-    except OSError:
-        continue
-    depth = 0
-    test_entry = None   # brace depth at which a #[cfg(test)] item opened
-    saw_cfg_test = False
-    for line in lines:
-        stripped = line.strip()
-        if re.match(r"#\[cfg\(\s*(?:(?:all|any)\s*\(\s*)?test\b", stripped):
-            saw_cfg_test = True
-        in_test = test_entry is not None or saw_cfg_test
-        if not in_test:
-            total += 1
-        row = re.sub(r"b?\x27(\\.|[^\x27\\])\x27", "", line)  # strip char literals
-        for c in row:
-            if c == "{":
-                depth += 1
-                if saw_cfg_test:
-                    test_entry = depth
-                    saw_cfg_test = False
-            elif c == "}":
-                depth -= 1
-                if test_entry is not None and depth < test_entry:
-                    test_entry = None
-print(total)
-'
+      | python3 "$HERE/prod-loc.py" \
+      | awk -F'\t' '{ sum += $1 } END { print sum + 0 }'
   )
   if [ "$total" -gt "$MAX" ]; then
     printf 'FAIL  %s  %d LOC (max %d)\n' "$crate_dir" "$total" "$MAX"

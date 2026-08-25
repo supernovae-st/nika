@@ -46,7 +46,12 @@ mod with_map;
 /// `nika_pack::error_codes()` · NOT a `nika_error::codes` registry
 /// entry — that registry carries the engine-internal NIKA-1700 range).
 /// Pinned against the embedded canon by `emitted_spec_codes_resolve_in_the_embedded_canon`.
-pub(crate) const TIMEOUT_CODE: &str = "NIKA-TIMEOUT-001";
+///
+/// It descended to `nika-dataflow` beside `failure_cause` — the triage that
+/// READS it — and is re-exported here at its historical path so the
+/// producer (this crate's timeout race) and the classifier keep naming ONE
+/// constant. Two copies of a wire code is how the two ends stop agreeing.
+pub(crate) use crate::record::TIMEOUT_CODE;
 
 /// The spec wire code for an expression type error at evaluation —
 /// the runtime's emission site is the non-array `for_each` collection
@@ -1252,7 +1257,7 @@ fn eval_gate(gate: &WhenGate, scope: &Scope<'_>) -> Result<bool, RuntimeError> {
         // CLOSED vocabulary (nika-vocab) — a future gate form is a spec
         // change that must land HERE explicitly, never silently closed.
         WhenGate::Literal(b) => Ok(*b),
-        WhenGate::Expr(body) => expr::eval_when(body, scope),
+        WhenGate::Expr(body) => expr::eval_when(body, scope).map_err(RuntimeError::from),
     }
 }
 
@@ -1334,7 +1339,7 @@ fn apply_on_error(task: &RawTask, scope: &Scope<'_>, failed: FailedOutcome) -> R
             // once they settle. Any other unresolved root → the task
             // fails as if `on_error:` were absent (§recover step 4).
             Err(err) => {
-                let render_error = runtime_error_record(&err);
+                let render_error = runtime_error_record(&RuntimeError::from(err));
                 match crate::recover::classify_await(&value.value, scope) {
                     Some(awaiting) => {
                         RunResult::PendingRecovery(Box::new(crate::recover::PendingRecovery {

@@ -2123,6 +2123,25 @@ dependencies = [
 ]
 
 [[package]]
+name = "nika-dataflow"
+version = "0.114.0"
+dependencies = [
+ "jaq-core",
+ "jaq-json",
+ "jaq-std",
+ "miette",
+ "nika-cap",
+ "nika-cel",
+ "nika-error",
+ "nika-schema",
+ "nika-tmpl",
+ "nika-types",
+ "serde",
+ "serde_json",
+ "thiserror",
+]
+
+[[package]]
 name = "nika-error"
 version = "0.114.0"
 dependencies = [
@@ -2326,9 +2345,6 @@ version = "0.114.0"
 dependencies = [
  "blake3",
  "futures-util",
- "jaq-core",
- "jaq-json",
- "jaq-std",
  "miette",
  "nika-builtin",
  "nika-cap",
@@ -2336,6 +2352,7 @@ dependencies = [
  "nika-cel",
  "nika-check",
  "nika-clock",
+ "nika-dataflow",
  "nika-error",
  "nika-event",
  "nika-exec-runner",

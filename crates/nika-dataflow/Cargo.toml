@@ -1,0 +1,52 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+[package]
+name          = "nika-dataflow"
+description   = "The run's dataflow — what a task record IS (spec 04 §task reference) and how a value referencing those records resolves (${{ }} islands · cel-subset/0.1 · jq output bindings). Descended from nika-runtime at the 15k prod-LOC wall; pure (zero I/O, zero async), so the executor keeps the effects and this keeps the evaluation."
+version.workspace      = true
+edition.workspace      = true
+license.workspace      = true
+authors.workspace      = true
+rust-version.workspace = true
+repository.workspace   = true
+homepage.workspace     = true
+publish                = false
+
+[dependencies]
+nika-cap    = { path = "../nika-cap", version = "0.114.0" }     # Integrity — the record's taint face · the withheld-jq-native list
+nika-cel    = { path = "../nika-cel", version = "0.114.0" }     # cel-subset/0.1 · the gate + island evaluator
+nika-error  = { path = "../nika-error", version = "0.114.0" }   # NikaErrorCode + the NIKA-170x registry constants
+nika-schema = { path = "../nika-schema", version = "0.114.0" }  # Permits — the value-authority scope reads
+nika-tmpl   = { path = "../nika-tmpl", version = "0.114.0" }    # the ONE ${{ }} island lexer (check⇄run parity)
+nika-types  = { path = "../nika-types", version = "0.114.0" }   # Timestamp — the record's clock face
+jaq-core    = { workspace = true }   # output: named bindings — THE data language (the same jaq nika:jq runs · spec 04 §binding)
+jaq-json    = { workspace = true }   # jq Val ↔ serde_json bridge for output: bindings
+jaq-std     = { workspace = true }   # jq stdlib filters (map · select · add …) over a binding's raw output
+miette      = { workspace = true }
+serde       = { workspace = true }   # TerminalCause wire form (snake_case · spec 13) — FCI-003-pinned against as_str()
+serde_json  = { workspace = true }
+thiserror   = { workspace = true }
+
+[features]
+# The two empty-namespace `Scope` constructors (`workflow` ·
+# `workflow_with_secrets`). They are TEST scaffolding: production always
+# threads the run-resolved secrets + const maps through
+# `workflow_with_value_authorities`, and a scope silently built with empty
+# maps turns a real `secrets.X` into NIKA-1702. Feature-gated rather than
+# plain `pub` so that footgun cannot be reached from a production build,
+# and rather than `#[cfg(test)]` so a SIBLING crate's tests still can.
+testing = []
+
+[dev-dependencies]
+proptest    = { workspace = true }
+serde_json  = { workspace = true }
+
+[package.metadata.lore]
+daemon        = "passeur"
+archetype     = "kodama-passeur"
+spirit_role   = "porte la valeur d une tache a la suivante · ne juge rien, ne garde rien"
+voice_pattern = "silent"
+layer         = "L1"
+err_prefix    = "NIKA-VAR"
+
+[lints]
+workspace = true

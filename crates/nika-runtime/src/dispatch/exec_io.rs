@@ -33,7 +33,10 @@ pub(super) fn build_exec_input(
                 let program = shell_leading_program(&line);
                 Ok((ExecInput::shell(line), program, false))
             }
-            Err(err) => Err(Box::new(Dispatched::template_err("exec · ?", &err))),
+            Err(err) => Err(Box::new(Dispatched::template_err(
+                "exec · ?",
+                &RuntimeError::from(err),
+            ))),
         },
         RawCommand::Argv(parts) => {
             let rendered: Result<Vec<_>, _> = parts
@@ -45,7 +48,10 @@ pub(super) fn build_exec_input(
                     let program = argv.first().cloned().unwrap_or_else(|| "?".to_owned());
                     Ok((ExecInput::argv(argv), program, true))
                 }
-                Err(err) => Err(Box::new(Dispatched::template_err("exec · ?", &err))),
+                Err(err) => Err(Box::new(Dispatched::template_err(
+                    "exec · ?",
+                    &RuntimeError::from(err),
+                ))),
             }
         }
         // #[non_exhaustive] · refuse loudly · never guess a shape.

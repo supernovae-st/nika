@@ -7,6 +7,7 @@
 //! router lives in [`crate::Runtime::dispatch`]; the laws judged here
 //! are the module doc of [`crate::child`].
 
+use crate::errors::RuntimeError;
 use nika_kernel::ai::provider::{ProviderInferDyn, ProviderMeta};
 use nika_kernel::ai::tool_defs::ToolDefinitionProviderDyn;
 use nika_kernel::http::HttpPostDyn;
@@ -94,7 +95,7 @@ where
                             .to_owned(),
                     );
                 }
-                Err(err) => return Dispatched::template_err(&note, &err),
+                Err(err) => return Dispatched::template_err(&note, &RuntimeError::from(err)),
             },
         };
         let call = crate::child::ChildCall {

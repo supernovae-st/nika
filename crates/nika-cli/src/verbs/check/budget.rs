@@ -99,9 +99,12 @@ fn ceiling_line(path: &Path) -> Option<usize> {
 mod tests {
     use super::*;
 
-    /// `set_current_dir` is process-global — one lock for every test
-    /// in this module that chdirs.
-    static CWD_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    // `set_current_dir` is process-global — so the lease is the CRATE's, not
+    // this module's (#1192). The private `CWD_LOCK` that stood here excluded
+    // only the tests below: `arm fire` took a different mutex and
+    // `run --example` took none, so a test could hold this lock for its whole
+    // body and still have the ground moved under it. Measured: these three
+    // tests failed one CI run in four.
 
     fn fresh(tag: &str) -> PathBuf {
         let dir =
@@ -161,7 +164,7 @@ mod tests {
 
     #[test]
     fn footnote_names_the_file_and_the_dollars() {
-        let _lock = CWD_LOCK.lock().expect("cwd lock");
+        let _lock = crate::cwd::hold();
         let dir = fresh("footnote");
         std::fs::write(dir.join("nika.yaml"), "nika: proj\nceiling: 0.01\n").expect("seed");
         let prev = std::env::current_dir().expect("cwd");
@@ -178,7 +181,7 @@ mod tests {
 
     #[test]
     fn check_run_names_the_ancestor_ceiling() {
-        let _lock = CWD_LOCK.lock().expect("cwd lock");
+        let _lock = crate::cwd::hold();
         let dir = fresh("run");
         std::fs::write(dir.join("nika.yaml"), "nika: proj\nceiling: 0.01\n").expect("seed");
         std::fs::write(
@@ -218,7 +221,7 @@ mod tests {
 
     #[test]
     fn json_is_presence_gated_and_carries_provenance() {
-        let _lock = CWD_LOCK.lock().expect("cwd lock");
+        let _lock = crate::cwd::hold();
         let dir = fresh("json");
         std::fs::write(dir.join("nika.yaml"), "nika: proj\nceiling: 0.01\n").expect("seed");
         let prev = std::env::current_dir().expect("cwd");
