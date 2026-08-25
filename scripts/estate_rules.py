@@ -200,8 +200,13 @@ PATTERNS = [
     },
     {
         "glob": ".agents/**",
-        "class": "authored",
-        "evidence": "the agent-plugin pack SOURCE (marketplace.json · plugin manifests · skills · rules · hooks) — authored here, mirrored downstream into supernovae-st/nika-plugins (its plugins/ is a byte-pinned copy healed on releases)",
+        "class": "pinned-copy",
+        "evidence": "vendored from supernovae-st/nika-plugins by the clients-resync lane (rsync -a --delete of the sibling's .agents/ tree) — a byte-copy of the agents SSOT, never edited here; the inverse claim stood here until the lane proposed reverting two merged PRs and a 0.114.0 manifest back to 0.111.0 (issue 1204)",
+        "derivation": {
+            "tool": "clients-resync.yml (daily + dispatch) clones nika-plugins@main and re-vendors .agents/ with --delete — a file that exists only here is drift, never content",
+            "gate": "the lane runs cargo nextest -p nika-cli-host before opening its PR (a bot PR carries no Rust job — GITHUB_TOKEN anti-recursion)",
+            "inputs": ["supernovae-st/nika-plugins@main: .agents/** (marketplace.json · plugin manifests · skills · rules · hooks)"],
+        },
     },
     {
         "glob": ".claude/**",
