@@ -490,8 +490,27 @@ tasks:
 
 (No model handy? The built-in `mock/echo` previews any workflow offline.)
 
-For real inference, run a local model (Ollama / LM Studio) or set a provider
-key, then see what's wired:
+Already paying for a coding agent? Run on that seat instead of buying a third
+subscription. If `qwen-code`, `gemini-cli`, `kimi-code` or `codex` is installed
+and signed in, nika drives it over ACP and the work rides the plan you already
+have:
+
+```sh
+nika doctor                              # which seats this machine can actually reach
+nika run pr-review.nika.yaml --access codex-acp
+```
+
+Two honest limits, because a seat is not a provider:
+
+- `agent:` sits on any attested seat. `infer:` sits on **one** admitted adapter
+  today (`codex exec --json`, single turn, schema-checked). A seat that cannot
+  meet that contract refuses at check time rather than guessing.
+- A seated run reports **no price and no token count**. It spends your
+  subscription's quota, and the receipt says exactly that. It names the seat and
+  the model you *asked* for, never a claim about which model answered.
+
+For real inference without a seat, run a local model (Ollama / LM Studio) or set
+a provider key, then see what's wired:
 
 ```sh
 nika doctor                  # provider keys + local servers, with the exact fix
