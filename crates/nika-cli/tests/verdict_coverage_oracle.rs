@@ -407,6 +407,9 @@ fn compare_run_contract(
 /// `runtime/agent` are referenced by NO engine test at all, and
 /// `runtime/gates` has its RUN half checked by
 /// `gate_matrix_conformance.rs` while its CHECK half is unasserted.
+/// Specialized contracts without `workflow_state` + `tasks` (for example
+/// `runtime/access-harness`) belong to their own exogenous runner and are
+/// deliberately outside this binary-equivalence leg.
 ///
 /// This walks the tiers generically — a new tier is covered the day it
 /// is added, with no edit here.
@@ -438,6 +441,14 @@ fn every_runtime_tier_honors_the_equivalence_law() {
             let contract = dir.join("expected-run.json");
             if !input.is_file() || !contract.is_file() {
                 continue; // a tier without a run contract (runtime/trace) owes nothing here
+            }
+            let expected: serde_json::Value =
+                serde_json::from_str(&std::fs::read_to_string(&contract).expect("contract"))
+                    .expect("contract parses");
+            if expected["workflow_state"].as_str().is_none()
+                || expected["tasks"].as_object().is_none()
+            {
+                continue;
             }
             let entry = census.entry(tier_name.clone()).or_insert((0, 0));
             entry.0 += 1;
@@ -491,9 +502,6 @@ fn every_runtime_tier_honors_the_equivalence_law() {
                 continue;
             }
 
-            let expected: serde_json::Value =
-                serde_json::from_str(&std::fs::read_to_string(&contract).expect("contract"))
-                    .expect("contract parses");
             compare_run_contract(&name, &observed, &expected, &mut failures);
             entry.1 += 1;
         }

@@ -32,10 +32,12 @@
 //!
 //! `nika-runtime` re-exports [`record::TaskRecord`], [`record::TaskStatus`],
 //! [`record::TerminalCause`], [`record::TaskErrorRecord`] and
-//! [`record::legal`] at their historical paths, and wraps [`DataflowError`]
-//! in its own `RuntimeError::Dataflow`. Both code accessors delegate, so the
-//! wire form (`NIKA-VAR-001` · `-002` · `-004` · `-005` · `-006`) a consumer
-//! sees is byte-identical to before the descent.
+//! [`record::legal`] at their historical paths. Today's four
+//! [`DataflowError`] classes convert back into their four historical
+//! `RuntimeError` constructors; `RuntimeError::Dataflow` is the
+//! forward-compatible fallback for future classes. The wire form
+//! (`NIKA-VAR-001` · `-002` · `-004` · `-005` · `-006`) a consumer sees is
+//! byte-identical to before the descent.
 
 mod errors;
 

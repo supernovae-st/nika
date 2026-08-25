@@ -59,6 +59,7 @@ pub mod witness;
 
 use std::sync::Arc;
 
+use nika_cap::JqClock;
 use nika_kernel::ai::tool_defs::ToolDefinitionProviderDyn;
 use nika_kernel::io::clock::ClockDyn;
 use nika_kernel::io::fs::{FsListDyn, FsMetaDyn, FsReadDyn, FsWriteDyn};
@@ -260,6 +261,8 @@ pub struct BuiltinDispatcher<F, H, C, Em, P, W> {
     fs: Arc<F>,
     http: Arc<H>,
     clock: Arc<C>,
+    /// Immutable compatibility value for direct calls without runtime context.
+    jq_clock: JqClock,
     emitter: Arc<Em>,
     prompter: Arc<P>,
     workflow: Arc<W>,
@@ -301,6 +304,7 @@ impl<F, H, C, Em, P, W> BuiltinDispatcher<F, H, C, Em, P, W> {
             fs,
             http,
             clock,
+            jq_clock: JqClock::at(nika_types::timestamp::Timestamp::EPOCH),
             emitter,
             prompter,
             workflow,
@@ -310,6 +314,15 @@ impl<F, H, C, Em, P, W> BuiltinDispatcher<F, H, C, Em, P, W> {
             image_keys: image::ImageKeys::new(),
             tts_keys: tts::TtsKeys::new(),
         }
+    }
+
+    /// Bind jq's accepted clock forms to an initial compatibility value.
+    ///
+    /// Runtime calls carry their actual opening event stamp on each call.
+    #[must_use]
+    pub fn with_jq_clock(mut self, clock: JqClock) -> Self {
+        self.jq_clock = clock;
+        self
     }
 
     /// Set the `permits.fs` boundary the file builtins enforce (spec
@@ -368,6 +381,7 @@ where
         &self,
         name: &str,
         args: &serde_json::Value,
+        jq_clock: JqClock,
     ) -> Result<BuiltinOutcome, ToolExecError> {
         let args = args
             .as_object()
@@ -405,7 +419,7 @@ where
             // to the cwd subtree by construction — gate on `.` being readable.
             "glob" => Ok(self.guarded_glob(args).await),
             // data 9
-            "jq" => Self::route_jq(name, args).await,
+            "jq" => self.route_jq(name, args, jq_clock).await,
             "json_diff" => Ok(data::json_diff(args)),
             "validate" => Ok(data::validate(args)),
             "json_merge_patch" => Ok(data::json_merge_patch(args)),
@@ -420,9 +434,14 @@ where
             // network 2 — fetch's `multipart:` file parts ride the SAME
             // permits.fs READ boundary as the file builtins (gated inside
             // resolve_multipart · the judged fs pins each file read).
-            "fetch" => {
-                Ok(net::fetch(self.http.as_ref(), &self.judged(), &self.fs_boundary, args).await)
-            }
+            "fetch" => Ok(net::fetch_with_clock(
+                self.http.as_ref(),
+                &self.judged(),
+                &self.fs_boundary,
+                args,
+                jq_clock,
+            )
+            .await),
             "notify" => Ok(net::notify(self.http.as_ref(), args).await),
             // media 3 — provider calls ride dedicated planes (const endpoints);
             // saves gate each final path on the permits.fs boundary before I/O.
@@ -453,9 +472,14 @@ where
     /// model-controlled cost — it runs on the blocking pool so a heavy
     /// expression can't starve the async executor (the nika-ocr/a11y
     /// precedent).
-    async fn route_jq(name: &str, args: &Args) -> Result<BuiltinOutcome, ToolExecError> {
+    async fn route_jq(
+        &self,
+        name: &str,
+        args: &Args,
+        clock: JqClock,
+    ) -> Result<BuiltinOutcome, ToolExecError> {
         let owned = args.clone();
-        tokio::task::spawn_blocking(move || data::jq(&owned))
+        tokio::task::spawn_blocking(move || data::jq_with_clock(&owned, clock))
             .await
             .map_err(|e| ToolExecError::ExecutionFailed {
                 name: name.to_owned(),
@@ -672,7 +696,12 @@ where
     W: WorkflowIntrospect,
 {
     async fn execute(&self, call: ToolCall) -> Result<ToolResult, ToolExecError> {
-        let outcome = self.route(&call.name, &call.input).await?;
+        let jq_clock = call.run_start().map_or(self.jq_clock, |run_start| {
+            JqClock::at(nika_types::timestamp::Timestamp::from_unix_ns(
+                run_start.unix_ns(),
+            ))
+        });
+        let outcome = self.route(&call.name, &call.input, jq_clock).await?;
         Ok(render(call.id.as_str(), outcome))
     }
 }
@@ -863,6 +892,21 @@ mod tests {
             .await
             .expect_err("bad arg shape");
         assert!(matches!(err, ToolExecError::ExecutionFailed { .. }));
+    }
+
+    #[tokio::test]
+    async fn direct_call_uses_the_immutable_compatibility_clock() {
+        let dispatcher = rig().with_jq_clock(JqClock::at(
+            nika_types::timestamp::Timestamp::from_unix_ns(30_000_000),
+        ));
+        let result = dispatcher
+            .execute(call(
+                "nika:jq",
+                serde_json::json!({"input": null, "expression": "now"}),
+            ))
+            .await
+            .expect("dispatches");
+        assert_eq!(result.content, "0.03");
     }
 
     #[tokio::test]

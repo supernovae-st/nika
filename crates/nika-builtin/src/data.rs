@@ -9,8 +9,9 @@
 //! stdlib/builtins-v0.1.md`, never restated.
 
 use jaq_core::load::{Arena, Error as JqLoadError, File, Loader};
-use jaq_core::{Compiler, Ctx, Vars, data as jaq_data, unwrap_valr};
+use jaq_core::{Compiler, Ctx, Vars, data as jaq_data};
 use jaq_json::{Val, read};
+use nika_cap::JqClock;
 use sha2::Digest;
 
 use crate::{Args, BuiltinFailure, BuiltinOutcome, opt_str, req_str, strict_bool};
@@ -28,7 +29,7 @@ const MAX_JQ_OUTPUT_BYTES: usize = 16 * 1024 * 1024;
 /// Run a jq `expression:` over `input:` — and emit EXACTLY ONE output
 /// value (the 04-variables.md:347 binding law applied to the tool: a
 /// stream that isn't a single value is a `[ … ]`-collect authoring bug).
-pub(crate) fn jq(args: &Args) -> BuiltinOutcome {
+pub(crate) fn jq_with_clock(args: &Args, clock: JqClock) -> BuiltinOutcome {
     const C: &str = "NIKA-BUILTIN-JQ-001";
     let program = req_str(args, "expression", C)?;
     let input = args
@@ -41,18 +42,19 @@ pub(crate) fn jq(args: &Args) -> BuiltinOutcome {
         .map_err(|e| BuiltinFailure::new(C, format!("input is not valid JSON: {e}")))?;
 
     let defs = jaq_core::defs()
-        .chain(jaq_std::defs())
+        .chain(
+            jaq_std::defs().filter(|definition| nika_cap::install_jq_definition(definition.name)),
+        )
         .chain(jaq_json::defs())
-        .chain(jq_std_corrections()?);
-    // D-2026-08-11-N26 · the withheld natives never enter the function set, so
-    // a program that reaches for the environment or the clock does not compile.
-    // The SAME filter runs at the `extract:` binding seam (`nika-runtime::jq`)
-    // and at the static compile-check (`nika-check::analyzer::jq_lint`) — one
-    // list in `nika_cap`, three seams, no room for a silent divergence.
+        .chain(jq_std_corrections()?)
+        .chain(jq_clock_defs()?);
+    // The same typed policy as check/dataflow removes all host-reaching
+    // symbols. Accepted clock forms are pure defs over the caller's run-start
+    // value, never a read performed in this evaluator.
     let funs = jaq_core::funs()
         .chain(jaq_std::funs())
         .chain(jaq_json::funs())
-        .filter(|f| !nika_cap::is_withheld_jq_native(f.0));
+        .filter(|f| nika_cap::install_jq_native(f.0));
     let arena = Arena::default();
     let modules = Loader::new(defs)
         .load(
@@ -67,6 +69,7 @@ pub(crate) fn jq(args: &Args) -> BuiltinOutcome {
         })?;
     let filter = Compiler::default()
         .with_funs(funs)
+        .with_global_vars([nika_cap::JQ_RUN_START_VAR])
         .compile(modules)
         .map_err(|errs| {
             BuiltinFailure::new(
@@ -75,10 +78,13 @@ pub(crate) fn jq(args: &Args) -> BuiltinOutcome {
             )
         })?;
 
-    let ctx = Ctx::<jaq_data::JustLut<Val>>::new(&filter.lut, Vars::new([]));
+    let ctx = Ctx::<jaq_data::JustLut<Val>>::new(
+        &filter.lut,
+        Vars::new([Val::from(clock.unix_seconds())]),
+    );
     let mut single: Option<serde_json::Value> = None;
-    for result in filter.id.run((ctx, val)).map(unwrap_valr) {
-        let value = result.map_err(|e| BuiltinFailure::new(C, format!("jq runtime error: {e}")))?;
+    for result in filter.id.run((ctx, val)) {
+        let value = unwrap_without_exit(result)?;
         // The exactly-one law fires BEFORE serializing a second value —
         // a long stream never pays per-element render cost past the law.
         if single.is_some() {
@@ -107,6 +113,36 @@ pub(crate) fn jq(args: &Args) -> BuiltinOutcome {
     })
 }
 
+#[cfg(test)]
+pub(crate) fn jq(args: &Args) -> BuiltinOutcome {
+    jq_with_clock(
+        args,
+        JqClock::at(nika_types::timestamp::Timestamp::from_unix_ns(
+            1_700_000_000_125_000_000,
+        )),
+    )
+}
+
+fn unwrap_without_exit(result: jaq_core::ValX<'_, Val>) -> Result<Val, BuiltinFailure> {
+    const C: &str = "NIKA-BUILTIN-JQ-001";
+    match result {
+        Ok(value) => Ok(value),
+        Err(exception) => match exception.get_err() {
+            Ok(error) => Err(BuiltinFailure::new(C, format!("jq runtime error: {error}"))),
+            Err(exception) => match exception.get_halt() {
+                Ok(exit_code) => Err(BuiltinFailure::new(
+                    C,
+                    format!("jq process control is withheld (halt code {exit_code})"),
+                )),
+                Err(exception) => Err(BuiltinFailure::new(
+                    C,
+                    format!("jq internal control-flow exception: {exception:?}"),
+                )),
+            },
+        },
+    }
+}
+
 /// jq-std defs we SHADOW with the jq-correct semantics (loaded last, so the
 /// compiler's name resolution picks them over the upstream defs).
 ///
@@ -130,6 +166,15 @@ fn jq_std_corrections() -> Result<Vec<jaq_core::load::parse::Def<&'static str>>,
         BuiltinFailure::new(
             "NIKA-BUILTIN-JQ-001",
             "internal: the jq std correction defs failed to parse (static string)",
+        )
+    })
+}
+
+fn jq_clock_defs() -> Result<Vec<jaq_core::load::parse::Def<&'static str>>, BuiltinFailure> {
+    jaq_core::load::parse(nika_cap::JQ_CLOCK_DEFS, |parser| parser.defs()).ok_or_else(|| {
+        BuiltinFailure::new(
+            "NIKA-BUILTIN-JQ-001",
+            "internal: the canonical jq clock definitions failed to parse",
         )
     })
 }
@@ -165,7 +210,7 @@ fn render_jq_compile<U>(errs: &[(File<&str, ()>, Vec<(&str, U)>)]) -> String {
     errs.first().and_then(|(_, v)| v.first()).map_or_else(
         || "compile error".to_owned(),
         |(name, _)| {
-            nika_cap::withheld_jq_reason(name)
+            nika_cap::withheld_jq_policy_reason(name)
                 .unwrap_or_else(|| format!("undefined filter or variable `{name}`"))
         },
     )

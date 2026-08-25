@@ -140,3 +140,5 @@ verbs	NIKA-AGENT-003	check-reject	conformance/tests/core/verbs-shape/026-agent-s
 verbs	NIKA-SEC-004	check-reject	conformance/tests/deep/029-skill-outside-fs-read-boundary-refused
 verbs	NIKA-AGENT-004	check-reject	conformance/tests/core/verbs-shape/024-agent-skill-invalid-refused
 verbs	(positive)	positive-check	conformance/tests/core/verbs-shape/025-agent-skill-valid-passes
+verbs	NIKA-1800	admission-refuse	conformance/tests/runtime/access-harness/001-unattested-agent-seat-refuses-infer
+verbs	(positive)	admission-accept	conformance/tests/runtime/access-harness/002-infer-grade-seat-admits-infer

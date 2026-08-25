@@ -788,8 +788,7 @@ fn production_runtime_with_emitter(
     emitter: StderrEmitter,
     sandbox_root: std::path::PathBuf,
 ) -> Result<ProdRuntime, ComposeError> {
-    // F-P3 · the run: declaration picks the run's seams (clock · jitter
-    // stream) ONCE; every injection below reads the same resolution.
+    // Resolve seams once; `run` binds jq from the opening event stamp.
     let seams = RunSeams::of(run);
     // The OS sandbox for exec children (ADR-095 Layer 6) — decided once, at
     // the ONE selection every composition root rides (#888), then judged by
@@ -944,8 +943,6 @@ pub fn simulated_runtime(
     caps: RuntimeCapabilities,
     run: Option<&RunDecl>,
 ) -> Result<SimRuntime, nika_kernel::HttpError> {
-    // F-P3 · the run: declaration resolves the same seams as production
-    // (clock · jitter stream) — determinism is the golden's whole point.
     let seams = RunSeams::of(run);
     // Wired for SHAPE parity with production (the delegated reads share the
     // fetch-plane client type · the declared net boundary still derives) —

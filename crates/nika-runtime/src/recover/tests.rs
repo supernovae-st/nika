@@ -342,12 +342,11 @@ fn undeclared_awaited_root_fails_fast_at_the_park_site() {
         consts: &BTreeMap::new(),
         secrets: &secrets,
         resume_ctx: &resume_ctx,
+        jq_clock: nika_cap::JqClock::at(nika_types::timestamp::Timestamp::EPOCH),
+        run_start: nika_kernel::tool_executor::ToolRunStart::new(0),
     };
-    let error = |code: &str, message: &str| TaskErrorRecord {
-        code: code.to_owned(),
-        message: message.to_owned(),
-        transient: false,
-    };
+    let error =
+        |code: &str, message: &str| crate::record::TaskErrorRecord::new(code, message, false);
     let pending = crate::recover::PendingRecovery {
         failed: task::FailedOutcome {
             record: error("NIKA-EXEC-001", "exit 1"),
@@ -398,7 +397,7 @@ fn undeclared_awaited_root_fails_fast_at_the_park_site() {
     );
 
     assert!(!ok, "the recovery failed — nothing parked");
-    assert_eq!(records["risky"].status, TaskStatus::Failure);
+    assert_eq!(records["risky"].status, crate::record::TaskStatus::Failure);
     assert_eq!(
         records["risky"]
             .error

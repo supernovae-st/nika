@@ -56,8 +56,10 @@ pub use env::{
 // function set the compiler receives rather than a sentence in a document.
 // NOT a permit route: `env` above governs a CHILD PROCESS, never an expression.
 pub use expr::{
-    WITHHELD_JQ_NATIVES, WithheldNative, is_withheld_jq_native, withheld_jq_native,
-    withheld_jq_reason,
+    JQ_CAPABILITY_POLICY, JQ_CLOCK_DEFS, JQ_RUN_START_VAR, JqCapability, JqCapabilityRule, JqClock,
+    JqDisposition, JqSymbolKind, WITHHELD_JQ_NATIVES, WithheldNative, install_jq_definition,
+    install_jq_native, is_withheld_jq_native, jq_capability_rule, withheld_jq_native,
+    withheld_jq_policy_reason, withheld_jq_reason,
 };
 pub use fit::{expand_home_grant, glob_admits, lexically_normalize};
 // P3 B5 · the harness permission-bridge judge (the pure half — the

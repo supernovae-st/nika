@@ -123,6 +123,7 @@ pub fn nika_verb_invoke::InvokeOutput::as_any(&self) -> &(dyn core::any::Any + '
 pub struct nika_verb_invoke::InvokeVerb<T>
 impl<T> nika_verb_invoke::InvokeVerb<T> where T: nika_kernel_runtime::tool_executor::ToolExecuteDyn
 pub async fn nika_verb_invoke::InvokeVerb<T>::run(&self, input: nika_verb_invoke::InvokeInput) -> core::result::Result<nika_verb_invoke::InvokeOutput, nika_verb_invoke::VerbInvokeError>
+pub async fn nika_verb_invoke::InvokeVerb<T>::run_at(&self, input: nika_verb_invoke::InvokeInput, run_start: nika_kernel_runtime::tool_executor::ToolRunStart) -> core::result::Result<nika_verb_invoke::InvokeOutput, nika_verb_invoke::VerbInvokeError>
 impl<T> nika_verb_invoke::InvokeVerb<T>
 pub fn nika_verb_invoke::InvokeVerb<T>::new(executor: alloc::sync::Arc<T>) -> Self
 impl<T: core::fmt::Debug> core::fmt::Debug for nika_verb_invoke::InvokeVerb<T>

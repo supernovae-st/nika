@@ -11,11 +11,11 @@ repository.workspace   = true
 homepage.workspace     = true
 publish                = false
 
+# L0-DEP-FANOUT-EXEMPT: cohesive dataflow needs record values/timestamps, the CEL engine, the island lexer, capability-owned integrity/permits, and canonical error identity
 [dependencies]
 nika-cap    = { path = "../nika-cap", version = "0.114.0" }     # Integrity — the record's taint face · the withheld-jq-native list
 nika-cel    = { path = "../nika-cel", version = "0.114.0" }     # cel-subset/0.1 · the gate + island evaluator
 nika-error  = { path = "../nika-error", version = "0.114.0" }   # NikaErrorCode + the NIKA-170x registry constants
-nika-schema = { path = "../nika-schema", version = "0.114.0" }  # Permits — the value-authority scope reads
 nika-tmpl   = { path = "../nika-tmpl", version = "0.114.0" }    # the ONE ${{ }} island lexer (check⇄run parity)
 nika-types  = { path = "../nika-types", version = "0.114.0" }   # Timestamp — the record's clock face
 jaq-core    = { workspace = true }   # output: named bindings — THE data language (the same jaq nika:jq runs · spec 04 §binding)
@@ -45,7 +45,7 @@ daemon        = "passeur"
 archetype     = "kodama-passeur"
 spirit_role   = "porte la valeur d une tache a la suivante · ne juge rien, ne garde rien"
 voice_pattern = "silent"
-layer         = "L1"
+layer         = "L0"
 err_prefix    = "NIKA-VAR"
 
 [lints]

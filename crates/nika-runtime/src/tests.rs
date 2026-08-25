@@ -777,11 +777,11 @@ fn recovered_success_emits_task_recovered_before_completed() {
         result: task::RunResult::Success {
             value: Value::Number(99.into()),
             tokens: None,
-            recovered_from: Some(crate::record::TaskErrorRecord {
-                code: "NIKA-EXEC-001".to_owned(),
-                message: "exit 9".to_owned(),
-                transient: false,
-            }),
+            recovered_from: Some(crate::record::TaskErrorRecord::new(
+                "NIKA-EXEC-001",
+                "exit 9",
+                false,
+            )),
             warning: None,
             child: None,
             cost_usd: None,

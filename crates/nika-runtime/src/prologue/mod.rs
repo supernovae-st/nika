@@ -214,6 +214,7 @@ pub(crate) fn emit_prologue(
     access: Vec<(&'static str, FieldValue)>,
     harness_seat: Option<&str>,
     approvals: &approval::ApprovalBook,
+    opening_stamp: (nika_types::id::EventId, nika_types::timestamp::Timestamp),
     stamper: &mut dyn Stamper,
     sink: &mut dyn EventSink,
 ) {
@@ -276,7 +277,7 @@ pub(crate) fn emit_prologue(
     opening.extend(harness_seat.map(|seat| ("harness_seat", s(seat))));
     // Stamped by hand (not via `emit`) so the opening frame's id comes
     // back as the run nonce — the F-P4 approval scope.
-    let (nonce, ts) = stamper.next();
+    let (nonce, ts) = opening_stamp;
     let mut event = Event::new(nonce, ts, EventKind::WorkflowStarted);
     for (key, value) in opening {
         event = event.with_field(KeyValue::new(key, value));

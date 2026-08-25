@@ -84,6 +84,8 @@ pub(crate) struct ResolveScope<'a> {
     pub consts: &'a BTreeMap<String, Value>,
     pub secrets: &'a BTreeMap<String, Value>,
     pub resume_ctx: &'a ResumeContext,
+    pub jq_clock: nika_cap::JqClock,
+    pub run_start: nika_kernel::tool_executor::ToolRunStart,
 }
 
 /// The settle spine's park table — task-id ordered (`BTreeMap`), so
@@ -145,7 +147,9 @@ pub(crate) fn classify_await(template: &Value, scope: &Scope<'_>) -> Option<BTre
             let pending: Vec<String> = expr_refs(&island.expr)
                 .into_iter()
                 .filter_map(|r| match r {
-                    NamespaceRef::Tasks { id, .. } if !scope.records.contains_key(&id) => Some(id),
+                    NamespaceRef::Tasks { id, .. } if !scope.records().contains_key(&id) => {
+                        Some(id)
+                    }
                     _ => None,
                 })
                 .collect();
@@ -470,16 +474,15 @@ fn resolve_parked(
     } = failed;
     let result = match recover_template(scope.wf, task_index) {
         Some(template) => {
-            let render_scope = Scope {
-                records: view,
-                inputs: scope.inputs,
-                consts: scope.consts,
-                secrets: scope.secrets,
-                with_ns: Some(&with_ns),
-                item: None, // iterations never park (fan-out boundary)
-                index: None,
-                permits: None, // rendering performs no effect (no exec sink)
-            };
+            let render_scope = Scope::workflow_with_value_authorities(
+                view,
+                scope.inputs,
+                scope.consts,
+                scope.secrets,
+            )
+            // Iterations never park (fan-out boundary), and rendering performs
+            // no effect, so neither loop locals nor permits ride this scope.
+            .with_task_context(Some(&with_ns), None, None, None);
             match expr::render_json(template, &render_scope) {
                 Ok(value) => RunResult::recovered(value, record, cost_usd, cost_unpriced),
                 Err(err) => RunResult::Failed {
@@ -508,7 +511,7 @@ fn resolve_parked(
         result,
     }));
     let named = match scope.wf.tasks.get(task_index) {
-        Some(task) => bind_outputs(&task.value, &mut settled_as),
+        Some(task) => bind_outputs(&task.value, &mut settled_as, scope.jq_clock),
         None => BTreeMap::new(),
     };
     let resume = resume.filter(|_| {

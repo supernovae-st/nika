@@ -217,6 +217,114 @@ impl<T> core::clone::CloneToUninit for nika_cap::Integrity where T: core::clone:
 pub unsafe fn nika_cap::Integrity::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cap::Integrity
 pub fn nika_cap::Integrity::from(t: T) -> T
+#[non_exhaustive] pub enum nika_cap::JqCapability
+pub nika_cap::JqCapability::HostDiagnostics
+pub nika_cap::JqCapability::HostEnvironment
+pub nika_cap::JqCapability::ProcessControl
+pub nika_cap::JqCapability::RunStartClock
+impl core::clone::Clone for nika_cap::JqCapability
+pub fn nika_cap::JqCapability::clone(&self) -> nika_cap::JqCapability
+impl core::cmp::Eq for nika_cap::JqCapability
+impl core::cmp::PartialEq for nika_cap::JqCapability
+pub fn nika_cap::JqCapability::eq(&self, other: &nika_cap::JqCapability) -> bool
+impl core::fmt::Debug for nika_cap::JqCapability
+pub fn nika_cap::JqCapability::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cap::JqCapability
+impl core::marker::StructuralPartialEq for nika_cap::JqCapability
+impl<T, U> core::convert::Into<U> for nika_cap::JqCapability where U: core::convert::From<T>
+pub fn nika_cap::JqCapability::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cap::JqCapability where U: core::convert::Into<T>
+pub type nika_cap::JqCapability::Error = core::convert::Infallible
+pub fn nika_cap::JqCapability::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cap::JqCapability where U: core::convert::TryFrom<T>
+pub type nika_cap::JqCapability::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cap::JqCapability::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cap::JqCapability where T: core::clone::Clone
+pub type nika_cap::JqCapability::Owned = T
+pub fn nika_cap::JqCapability::clone_into(&self, target: &mut T)
+pub fn nika_cap::JqCapability::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cap::JqCapability where T: 'static + ?core::marker::Sized
+pub fn nika_cap::JqCapability::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cap::JqCapability where T: ?core::marker::Sized
+pub fn nika_cap::JqCapability::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cap::JqCapability where T: ?core::marker::Sized
+pub fn nika_cap::JqCapability::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cap::JqCapability where T: core::clone::Clone
+pub unsafe fn nika_cap::JqCapability::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cap::JqCapability
+pub fn nika_cap::JqCapability::from(t: T) -> T
+#[non_exhaustive] pub enum nika_cap::JqDisposition
+pub nika_cap::JqDisposition::Rebind
+pub nika_cap::JqDisposition::Withhold
+impl core::clone::Clone for nika_cap::JqDisposition
+pub fn nika_cap::JqDisposition::clone(&self) -> nika_cap::JqDisposition
+impl core::cmp::Eq for nika_cap::JqDisposition
+impl core::cmp::PartialEq for nika_cap::JqDisposition
+pub fn nika_cap::JqDisposition::eq(&self, other: &nika_cap::JqDisposition) -> bool
+impl core::fmt::Debug for nika_cap::JqDisposition
+pub fn nika_cap::JqDisposition::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cap::JqDisposition
+impl core::marker::StructuralPartialEq for nika_cap::JqDisposition
+impl<T, U> core::convert::Into<U> for nika_cap::JqDisposition where U: core::convert::From<T>
+pub fn nika_cap::JqDisposition::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cap::JqDisposition where U: core::convert::Into<T>
+pub type nika_cap::JqDisposition::Error = core::convert::Infallible
+pub fn nika_cap::JqDisposition::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cap::JqDisposition where U: core::convert::TryFrom<T>
+pub type nika_cap::JqDisposition::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cap::JqDisposition::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cap::JqDisposition where T: core::clone::Clone
+pub type nika_cap::JqDisposition::Owned = T
+pub fn nika_cap::JqDisposition::clone_into(&self, target: &mut T)
+pub fn nika_cap::JqDisposition::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cap::JqDisposition where T: 'static + ?core::marker::Sized
+pub fn nika_cap::JqDisposition::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cap::JqDisposition where T: ?core::marker::Sized
+pub fn nika_cap::JqDisposition::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cap::JqDisposition where T: ?core::marker::Sized
+pub fn nika_cap::JqDisposition::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cap::JqDisposition where T: core::clone::Clone
+pub unsafe fn nika_cap::JqDisposition::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cap::JqDisposition
+pub fn nika_cap::JqDisposition::from(t: T) -> T
+#[non_exhaustive] pub enum nika_cap::JqSymbolKind
+pub nika_cap::JqSymbolKind::Definition
+pub nika_cap::JqSymbolKind::Native
+impl core::clone::Clone for nika_cap::JqSymbolKind
+pub fn nika_cap::JqSymbolKind::clone(&self) -> nika_cap::JqSymbolKind
+impl core::cmp::Eq for nika_cap::JqSymbolKind
+impl core::cmp::Ord for nika_cap::JqSymbolKind
+pub fn nika_cap::JqSymbolKind::cmp(&self, other: &nika_cap::JqSymbolKind) -> core::cmp::Ordering
+impl core::cmp::PartialEq for nika_cap::JqSymbolKind
+pub fn nika_cap::JqSymbolKind::eq(&self, other: &nika_cap::JqSymbolKind) -> bool
+impl core::cmp::PartialOrd for nika_cap::JqSymbolKind
+pub fn nika_cap::JqSymbolKind::partial_cmp(&self, other: &nika_cap::JqSymbolKind) -> core::option::Option<core::cmp::Ordering>
+impl core::fmt::Debug for nika_cap::JqSymbolKind
+pub fn nika_cap::JqSymbolKind::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cap::JqSymbolKind
+impl core::marker::StructuralPartialEq for nika_cap::JqSymbolKind
+impl<T, U> core::convert::Into<U> for nika_cap::JqSymbolKind where U: core::convert::From<T>
+pub fn nika_cap::JqSymbolKind::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cap::JqSymbolKind where U: core::convert::Into<T>
+pub type nika_cap::JqSymbolKind::Error = core::convert::Infallible
+pub fn nika_cap::JqSymbolKind::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cap::JqSymbolKind where U: core::convert::TryFrom<T>
+pub type nika_cap::JqSymbolKind::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cap::JqSymbolKind::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cap::JqSymbolKind where T: core::clone::Clone
+pub type nika_cap::JqSymbolKind::Owned = T
+pub fn nika_cap::JqSymbolKind::clone_into(&self, target: &mut T)
+pub fn nika_cap::JqSymbolKind::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cap::JqSymbolKind where T: 'static + ?core::marker::Sized
+pub fn nika_cap::JqSymbolKind::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cap::JqSymbolKind where T: ?core::marker::Sized
+pub fn nika_cap::JqSymbolKind::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cap::JqSymbolKind where T: ?core::marker::Sized
+pub fn nika_cap::JqSymbolKind::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cap::JqSymbolKind where T: core::clone::Clone
+pub unsafe fn nika_cap::JqSymbolKind::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cap::JqSymbolKind
+pub fn nika_cap::JqSymbolKind::from(t: T) -> T
 #[non_exhaustive] pub struct nika_cap::CertEffects
 pub nika_cap::CertEffects::boundary_declared: bool
 pub nika_cap::CertEffects::escapes: usize
@@ -342,6 +450,82 @@ impl<T> core::clone::CloneToUninit for nika_cap::HarnessAskFacts where T: core::
 pub unsafe fn nika_cap::HarnessAskFacts::clone_to_uninit(&self, dest: *mut u8)
 impl<T> core::convert::From<T> for nika_cap::HarnessAskFacts
 pub fn nika_cap::HarnessAskFacts::from(t: T) -> T
+#[non_exhaustive] pub struct nika_cap::JqCapabilityRule
+pub nika_cap::JqCapabilityRule::capability: nika_cap::JqCapability
+pub nika_cap::JqCapabilityRule::disposition: nika_cap::JqDisposition
+pub nika_cap::JqCapabilityRule::effect: &'static str
+pub nika_cap::JqCapabilityRule::instead: &'static str
+pub nika_cap::JqCapabilityRule::kind: nika_cap::JqSymbolKind
+pub nika_cap::JqCapabilityRule::name: &'static str
+impl nika_cap::JqCapabilityRule
+pub const fn nika_cap::JqCapabilityRule::new(name: &'static str, kind: nika_cap::JqSymbolKind, capability: nika_cap::JqCapability, disposition: nika_cap::JqDisposition, effect: &'static str, instead: &'static str) -> Self
+impl core::clone::Clone for nika_cap::JqCapabilityRule
+pub fn nika_cap::JqCapabilityRule::clone(&self) -> nika_cap::JqCapabilityRule
+impl core::cmp::Eq for nika_cap::JqCapabilityRule
+impl core::cmp::PartialEq for nika_cap::JqCapabilityRule
+pub fn nika_cap::JqCapabilityRule::eq(&self, other: &nika_cap::JqCapabilityRule) -> bool
+impl core::fmt::Debug for nika_cap::JqCapabilityRule
+pub fn nika_cap::JqCapabilityRule::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cap::JqCapabilityRule
+impl core::marker::StructuralPartialEq for nika_cap::JqCapabilityRule
+impl<T, U> core::convert::Into<U> for nika_cap::JqCapabilityRule where U: core::convert::From<T>
+pub fn nika_cap::JqCapabilityRule::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cap::JqCapabilityRule where U: core::convert::Into<T>
+pub type nika_cap::JqCapabilityRule::Error = core::convert::Infallible
+pub fn nika_cap::JqCapabilityRule::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cap::JqCapabilityRule where U: core::convert::TryFrom<T>
+pub type nika_cap::JqCapabilityRule::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cap::JqCapabilityRule::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cap::JqCapabilityRule where T: core::clone::Clone
+pub type nika_cap::JqCapabilityRule::Owned = T
+pub fn nika_cap::JqCapabilityRule::clone_into(&self, target: &mut T)
+pub fn nika_cap::JqCapabilityRule::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cap::JqCapabilityRule where T: 'static + ?core::marker::Sized
+pub fn nika_cap::JqCapabilityRule::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cap::JqCapabilityRule where T: ?core::marker::Sized
+pub fn nika_cap::JqCapabilityRule::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cap::JqCapabilityRule where T: ?core::marker::Sized
+pub fn nika_cap::JqCapabilityRule::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cap::JqCapabilityRule where T: core::clone::Clone
+pub unsafe fn nika_cap::JqCapabilityRule::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cap::JqCapabilityRule
+pub fn nika_cap::JqCapabilityRule::from(t: T) -> T
+#[non_exhaustive] pub struct nika_cap::JqClock
+impl nika_cap::JqClock
+pub const fn nika_cap::JqClock::at(run_started_at: nika_types::timestamp::Timestamp) -> Self
+pub fn nika_cap::JqClock::from_system_time(time: std::time::SystemTime) -> Self
+pub fn nika_cap::JqClock::unix_seconds(self) -> f64
+impl core::clone::Clone for nika_cap::JqClock
+pub fn nika_cap::JqClock::clone(&self) -> nika_cap::JqClock
+impl core::cmp::Eq for nika_cap::JqClock
+impl core::cmp::PartialEq for nika_cap::JqClock
+pub fn nika_cap::JqClock::eq(&self, other: &nika_cap::JqClock) -> bool
+impl core::fmt::Debug for nika_cap::JqClock
+pub fn nika_cap::JqClock::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_cap::JqClock
+impl core::marker::StructuralPartialEq for nika_cap::JqClock
+impl<T, U> core::convert::Into<U> for nika_cap::JqClock where U: core::convert::From<T>
+pub fn nika_cap::JqClock::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_cap::JqClock where U: core::convert::Into<T>
+pub type nika_cap::JqClock::Error = core::convert::Infallible
+pub fn nika_cap::JqClock::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_cap::JqClock where U: core::convert::TryFrom<T>
+pub type nika_cap::JqClock::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_cap::JqClock::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_cap::JqClock where T: core::clone::Clone
+pub type nika_cap::JqClock::Owned = T
+pub fn nika_cap::JqClock::clone_into(&self, target: &mut T)
+pub fn nika_cap::JqClock::to_owned(&self) -> T
+impl<T> core::any::Any for nika_cap::JqClock where T: 'static + ?core::marker::Sized
+pub fn nika_cap::JqClock::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_cap::JqClock where T: ?core::marker::Sized
+pub fn nika_cap::JqClock::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_cap::JqClock where T: ?core::marker::Sized
+pub fn nika_cap::JqClock::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_cap::JqClock where T: core::clone::Clone
+pub unsafe fn nika_cap::JqClock::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_cap::JqClock
+pub fn nika_cap::JqClock::from(t: T) -> T
 #[non_exhaustive] pub struct nika_cap::NetPermits
 pub nika_cap::NetPermits::http: alloc::vec::Vec<alloc::string::String>
 impl nika_cap::NetPermits
@@ -728,6 +912,9 @@ impl<T> core::convert::From<T> for nika_cap::WithheldNative
 pub fn nika_cap::WithheldNative::from(t: T) -> T
 pub const nika_cap::DANGEROUS_ENV_VARS: &[&str]
 pub const nika_cap::HUMAN_GATE_TOOL: &str
+pub const nika_cap::JQ_CAPABILITY_POLICY: &[nika_cap::JqCapabilityRule]
+pub const nika_cap::JQ_CLOCK_DEFS: &str
+pub const nika_cap::JQ_RUN_START_VAR: &str
 pub const nika_cap::PURE_INTERNAL_TOOLS: &[&str]
 pub const nika_cap::RUNNER_FLOOR_ENV_VARS: &[&str]
 pub const nika_cap::WITHHELD_JQ_NATIVES: &[nika_cap::WithheldNative]
@@ -741,14 +928,18 @@ pub fn nika_cap::expand_home_grant(glob: &str, home: &str) -> alloc::string::Str
 pub fn nika_cap::glob_admits(glob: &str, path: &str) -> bool
 pub fn nika_cap::glob_matches(glob: &str, value: &str) -> bool
 pub fn nika_cap::glob_walk_root(pattern: &str) -> alloc::string::String
+pub fn nika_cap::install_jq_definition(name: &str) -> bool
+pub fn nika_cap::install_jq_native(name: &str) -> bool
 pub fn nika_cap::invoke_tool_is_ingress(tool_id: &str, mcp_content_trusted: bool) -> bool
 pub fn nika_cap::is_dangerous_env_name(name: &str) -> bool
 pub fn nika_cap::is_pure_internal(tool: &str) -> bool
 pub fn nika_cap::is_pure_internal_call(tool: &str, args: core::option::Option<&serde_json::value::Value>) -> bool
 pub fn nika_cap::is_withheld_jq_native(name: &str) -> bool
+pub fn nika_cap::jq_capability_rule(name: &str, kind: nika_cap::JqSymbolKind) -> core::option::Option<&'static nika_cap::JqCapabilityRule>
 pub fn nika_cap::judge_harness_ask(facts: &nika_cap::HarnessAskFacts, permits: core::option::Option<&nika_cap::Permits>) -> nika_cap::HarnessGate
 pub fn nika_cap::lexically_normalize(path: &str) -> alloc::string::String
 pub fn nika_cap::tool_grant_admits_ingress(grant: &str) -> bool
 pub fn nika_cap::trifecta_verdict(permits: &nika_cap::Permits, subjects: &[nika_cap::TrifectaSubject], witnesses: &[nika_cap::TaintWitness], topo_order: &[usize]) -> nika_cap::TrifectaVerdict
 pub fn nika_cap::withheld_jq_native(name: &str) -> core::option::Option<&'static nika_cap::WithheldNative>
+pub fn nika_cap::withheld_jq_policy_reason(name: &str) -> core::option::Option<alloc::string::String>
 pub fn nika_cap::withheld_jq_reason(name: &str) -> core::option::Option<alloc::string::String>

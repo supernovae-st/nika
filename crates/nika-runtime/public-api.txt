@@ -7,13 +7,8 @@ pub use nika_runtime::NoSecrets
 pub use nika_runtime::SecretResolveError
 pub use nika_runtime::Stamper
 pub use nika_runtime::SystemStamper
-pub use nika_runtime::TaskErrorRecord
-pub use nika_runtime::TaskRecord
-pub use nika_runtime::TaskStatus
-pub use nika_runtime::TerminalCause
 pub use nika_runtime::VecSink
 pub use nika_runtime::WorkflowSecretResolver
-pub use nika_runtime::legal
 pub use nika_runtime::source_is_runtime_resolvable
 pub mod nika_runtime::approval
 #[non_exhaustive] pub enum nika_runtime::approval::ApprovalDecision
@@ -1158,6 +1153,9 @@ pub nika_runtime::RuntimeError::AccessUnknownToken
 pub nika_runtime::RuntimeError::AccessUnknownToken::message: alloc::string::String
 pub nika_runtime::RuntimeError::BudgetFloor
 pub nika_runtime::RuntimeError::BudgetFloor::message: alloc::string::String
+pub nika_runtime::RuntimeError::CelEval
+pub nika_runtime::RuntimeError::CelEval::code: &'static str
+pub nika_runtime::RuntimeError::CelEval::message: alloc::string::String
 pub nika_runtime::RuntimeError::ContractViolation
 pub nika_runtime::RuntimeError::ContractViolation::message: alloc::string::String
 pub nika_runtime::RuntimeError::Dataflow(nika_dataflow::errors::DataflowError)
@@ -1167,17 +1165,24 @@ pub nika_runtime::RuntimeError::DirtyReport
 pub nika_runtime::RuntimeError::MissingRequiredInputs
 pub nika_runtime::RuntimeError::MissingRequiredInputs::declared: alloc::vec::Vec<alloc::string::String>
 pub nika_runtime::RuntimeError::MissingRequiredInputs::missing: alloc::vec::Vec<alloc::string::String>
+pub nika_runtime::RuntimeError::OutputBinding
+pub nika_runtime::RuntimeError::OutputBinding::code: &'static str
+pub nika_runtime::RuntimeError::OutputBinding::message: alloc::string::String
 pub nika_runtime::RuntimeError::ReportMismatch
 pub nika_runtime::RuntimeError::ReportMismatch::detail: alloc::string::String
+pub nika_runtime::RuntimeError::UnresolvedTemplate
+pub nika_runtime::RuntimeError::UnresolvedTemplate::reference: alloc::string::String
 pub nika_runtime::RuntimeError::WaveOutOfBounds
 pub nika_runtime::RuntimeError::WaveOutOfBounds::index: usize
 pub nika_runtime::RuntimeError::WaveOutOfBounds::task_count: usize
+pub nika_runtime::RuntimeError::WhenUnsupported
+pub nika_runtime::RuntimeError::WhenUnsupported::expr: alloc::string::String
 impl nika_runtime::RuntimeError
 pub fn nika_runtime::RuntimeError::from_cel(err: &nika_cel::error::CelError, reference: &str) -> Self
 pub fn nika_runtime::RuntimeError::spec_code(&self) -> alloc::string::String
 pub fn nika_runtime::RuntimeError::wire_message(&self) -> alloc::string::String
 impl core::convert::From<nika_dataflow::errors::DataflowError> for nika_runtime::RuntimeError
-pub fn nika_runtime::RuntimeError::from(source: nika_dataflow::errors::DataflowError) -> Self
+pub fn nika_runtime::RuntimeError::from(err: nika_dataflow::errors::DataflowError) -> Self
 impl core::error::Error for nika_runtime::RuntimeError
 pub fn nika_runtime::RuntimeError::source(&self) -> core::option::Option<&(dyn core::error::Error + 'static)>
 impl core::fmt::Debug for nika_runtime::RuntimeError
@@ -1226,6 +1231,133 @@ impl<T> tracing::instrument::Instrument for nika_runtime::RuntimeError
 impl<T> tracing::instrument::WithSubscriber for nika_runtime::RuntimeError
 impl<T> typenum::type_operators::Same for nika_runtime::RuntimeError
 pub type nika_runtime::RuntimeError::Output = T
+pub enum nika_runtime::TaskStatus
+pub nika_runtime::TaskStatus::Cancelled
+pub nika_runtime::TaskStatus::Failure
+pub nika_runtime::TaskStatus::Skipped
+pub nika_runtime::TaskStatus::Success
+impl nika_runtime::TaskStatus
+pub const fn nika_runtime::TaskStatus::as_str(self) -> &'static str
+impl core::clone::Clone for nika_runtime::TaskStatus
+pub fn nika_runtime::TaskStatus::clone(&self) -> nika_runtime::TaskStatus
+impl core::cmp::Eq for nika_runtime::TaskStatus
+impl core::cmp::PartialEq for nika_runtime::TaskStatus
+pub fn nika_runtime::TaskStatus::eq(&self, other: &nika_runtime::TaskStatus) -> bool
+impl core::convert::From<nika_dataflow::record::TaskStatus> for nika_runtime::TaskStatus
+pub fn nika_runtime::TaskStatus::from(value: nika_dataflow::record::TaskStatus) -> Self
+impl core::fmt::Debug for nika_runtime::TaskStatus
+pub fn nika_runtime::TaskStatus::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_runtime::TaskStatus
+impl core::marker::StructuralPartialEq for nika_runtime::TaskStatus
+impl<D> owo_colors::OwoColorize for nika_runtime::TaskStatus
+impl<Q, K> equivalent::Equivalent<K> for nika_runtime::TaskStatus where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_runtime::TaskStatus::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_runtime::TaskStatus where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_runtime::TaskStatus::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_runtime::TaskStatus where U: core::convert::From<T>
+pub fn nika_runtime::TaskStatus::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_runtime::TaskStatus where U: core::convert::Into<T>
+pub type nika_runtime::TaskStatus::Error = core::convert::Infallible
+pub fn nika_runtime::TaskStatus::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_runtime::TaskStatus where U: core::convert::TryFrom<T>
+pub type nika_runtime::TaskStatus::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_runtime::TaskStatus::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_runtime::TaskStatus where T: core::clone::Clone
+pub type nika_runtime::TaskStatus::Owned = T
+pub fn nika_runtime::TaskStatus::clone_into(&self, target: &mut T)
+pub fn nika_runtime::TaskStatus::to_owned(&self) -> T
+impl<T> core::any::Any for nika_runtime::TaskStatus where T: 'static + ?core::marker::Sized
+pub fn nika_runtime::TaskStatus::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_runtime::TaskStatus where T: ?core::marker::Sized
+pub fn nika_runtime::TaskStatus::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_runtime::TaskStatus where T: ?core::marker::Sized
+pub fn nika_runtime::TaskStatus::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_runtime::TaskStatus where T: core::clone::Clone
+pub unsafe fn nika_runtime::TaskStatus::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_runtime::TaskStatus
+pub fn nika_runtime::TaskStatus::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_runtime::TaskStatus where T: core::clone::Clone
+pub fn nika_runtime::TaskStatus::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_runtime::TaskStatus where T: 'static
+pub fn nika_runtime::TaskStatus::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_runtime::TaskStatus where T: core::marker::Copy
+pub fn nika_runtime::TaskStatus::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::TaskStatus where T: ?core::marker::Sized
+pub fn nika_runtime::TaskStatus::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_runtime::TaskStatus::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_runtime::TaskStatus
+impl<T> tracing::instrument::WithSubscriber for nika_runtime::TaskStatus
+impl<T> typenum::type_operators::Same for nika_runtime::TaskStatus
+pub type nika_runtime::TaskStatus::Output = T
+pub enum nika_runtime::TerminalCause
+pub nika_runtime::TerminalCause::Budget
+pub nika_runtime::TerminalCause::ErrorSkip
+pub nika_runtime::TerminalCause::Gate
+pub nika_runtime::TerminalCause::Normal
+pub nika_runtime::TerminalCause::Operator
+pub nika_runtime::TerminalCause::Recovered
+pub nika_runtime::TerminalCause::RetryExhausted
+pub nika_runtime::TerminalCause::Timeout
+pub nika_runtime::TerminalCause::Upstream
+pub nika_runtime::TerminalCause::VerbError
+impl nika_runtime::TerminalCause
+pub const fn nika_runtime::TerminalCause::as_str(self) -> &'static str
+impl core::clone::Clone for nika_runtime::TerminalCause
+pub fn nika_runtime::TerminalCause::clone(&self) -> nika_runtime::TerminalCause
+impl core::cmp::Eq for nika_runtime::TerminalCause
+impl core::cmp::PartialEq for nika_runtime::TerminalCause
+pub fn nika_runtime::TerminalCause::eq(&self, other: &nika_runtime::TerminalCause) -> bool
+impl core::convert::From<nika_dataflow::record::TerminalCause> for nika_runtime::TerminalCause
+pub fn nika_runtime::TerminalCause::from(value: nika_dataflow::record::TerminalCause) -> Self
+impl core::fmt::Debug for nika_runtime::TerminalCause
+pub fn nika_runtime::TerminalCause::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_runtime::TerminalCause
+impl core::marker::StructuralPartialEq for nika_runtime::TerminalCause
+impl serde_core::ser::Serialize for nika_runtime::TerminalCause
+pub fn nika_runtime::TerminalCause::serialize<__S>(&self, __serializer: __S) -> core::result::Result<<__S as serde_core::ser::Serializer>::Ok, <__S as serde_core::ser::Serializer>::Error> where __S: serde_core::ser::Serializer
+impl<'de> serde_core::de::Deserialize<'de> for nika_runtime::TerminalCause
+pub fn nika_runtime::TerminalCause::deserialize<__D>(__deserializer: __D) -> core::result::Result<Self, <__D as serde_core::de::Deserializer>::Error> where __D: serde_core::de::Deserializer<'de>
+impl<D> owo_colors::OwoColorize for nika_runtime::TerminalCause
+impl<Q, K> equivalent::Equivalent<K> for nika_runtime::TerminalCause where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_runtime::TerminalCause::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_runtime::TerminalCause where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_runtime::TerminalCause::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_runtime::TerminalCause where U: core::convert::From<T>
+pub fn nika_runtime::TerminalCause::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_runtime::TerminalCause where U: core::convert::Into<T>
+pub type nika_runtime::TerminalCause::Error = core::convert::Infallible
+pub fn nika_runtime::TerminalCause::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_runtime::TerminalCause where U: core::convert::TryFrom<T>
+pub type nika_runtime::TerminalCause::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_runtime::TerminalCause::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_runtime::TerminalCause where T: core::clone::Clone
+pub type nika_runtime::TerminalCause::Owned = T
+pub fn nika_runtime::TerminalCause::clone_into(&self, target: &mut T)
+pub fn nika_runtime::TerminalCause::to_owned(&self) -> T
+impl<T> core::any::Any for nika_runtime::TerminalCause where T: 'static + ?core::marker::Sized
+pub fn nika_runtime::TerminalCause::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_runtime::TerminalCause where T: ?core::marker::Sized
+pub fn nika_runtime::TerminalCause::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_runtime::TerminalCause where T: ?core::marker::Sized
+pub fn nika_runtime::TerminalCause::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_runtime::TerminalCause where T: core::clone::Clone
+pub unsafe fn nika_runtime::TerminalCause::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_runtime::TerminalCause
+pub fn nika_runtime::TerminalCause::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_runtime::TerminalCause where T: core::clone::Clone
+pub fn nika_runtime::TerminalCause::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_runtime::TerminalCause where T: 'static
+pub fn nika_runtime::TerminalCause::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> outref::AsOut<T> for nika_runtime::TerminalCause where T: core::marker::Copy
+pub fn nika_runtime::TerminalCause::as_out(&mut self) -> outref::Out<'_, T>
+impl<T> serde_core::de::DeserializeOwned for nika_runtime::TerminalCause where T: for<'de> serde_core::de::Deserialize<'de>
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::TerminalCause where T: ?core::marker::Sized
+pub fn nika_runtime::TerminalCause::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_runtime::TerminalCause::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_runtime::TerminalCause
+impl<T> tracing::instrument::WithSubscriber for nika_runtime::TerminalCause
+impl<T> typenum::type_operators::Same for nika_runtime::TerminalCause
+pub type nika_runtime::TerminalCause::Output = T
 #[non_exhaustive] pub struct nika_runtime::EngineIdentity
 impl nika_runtime::identity::EngineIdentity
 pub const fn nika_runtime::identity::EngineIdentity::api_version(&self) -> &'static str
@@ -1293,11 +1425,11 @@ pub nika_runtime::RunOutcome::ok: bool
 pub nika_runtime::RunOutcome::outputs: alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>
 pub nika_runtime::RunOutcome::paused: core::option::Option<nika_runtime::WorkflowPause>
 pub nika_runtime::RunOutcome::priced_calls: u32
-pub nika_runtime::RunOutcome::records: alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_dataflow::record::TaskRecord>
+pub nika_runtime::RunOutcome::records: alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_runtime::TaskRecord>
 pub nika_runtime::RunOutcome::total_cost_usd: core::option::Option<f64>
 pub nika_runtime::RunOutcome::unpriced_calls: u32
 impl nika_runtime::RunOutcome
-pub fn nika_runtime::RunOutcome::new(ok: bool, records: alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_dataflow::record::TaskRecord>, outputs: alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>) -> Self
+pub fn nika_runtime::RunOutcome::new(ok: bool, records: alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_runtime::TaskRecord>, outputs: alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>) -> Self
 impl core::fmt::Debug for nika_runtime::RunOutcome
 pub fn nika_runtime::RunOutcome::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
 impl<D> owo_colors::OwoColorize for nika_runtime::RunOutcome
@@ -1501,6 +1633,116 @@ impl<T> tracing::instrument::Instrument for nika_runtime::config::RuntimeConfig
 impl<T> tracing::instrument::WithSubscriber for nika_runtime::config::RuntimeConfig
 impl<T> typenum::type_operators::Same for nika_runtime::config::RuntimeConfig
 pub type nika_runtime::config::RuntimeConfig::Output = T
+pub struct nika_runtime::TaskErrorRecord
+pub nika_runtime::TaskErrorRecord::code: alloc::string::String
+pub nika_runtime::TaskErrorRecord::message: alloc::string::String
+pub nika_runtime::TaskErrorRecord::transient: bool
+impl nika_runtime::TaskErrorRecord
+pub fn nika_runtime::TaskErrorRecord::new(code: impl core::convert::Into<alloc::string::String>, message: impl core::convert::Into<alloc::string::String>, transient: bool) -> Self
+pub fn nika_runtime::TaskErrorRecord::to_value(&self) -> serde_json::value::Value
+impl core::clone::Clone for nika_runtime::TaskErrorRecord
+pub fn nika_runtime::TaskErrorRecord::clone(&self) -> nika_runtime::TaskErrorRecord
+impl core::cmp::Eq for nika_runtime::TaskErrorRecord
+impl core::cmp::PartialEq for nika_runtime::TaskErrorRecord
+pub fn nika_runtime::TaskErrorRecord::eq(&self, other: &nika_runtime::TaskErrorRecord) -> bool
+impl core::convert::From<nika_dataflow::record::TaskErrorRecord> for nika_runtime::TaskErrorRecord
+pub fn nika_runtime::TaskErrorRecord::from(value: nika_dataflow::record::TaskErrorRecord) -> Self
+impl core::fmt::Debug for nika_runtime::TaskErrorRecord
+pub fn nika_runtime::TaskErrorRecord::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_runtime::TaskErrorRecord
+impl<D> owo_colors::OwoColorize for nika_runtime::TaskErrorRecord
+impl<Q, K> equivalent::Equivalent<K> for nika_runtime::TaskErrorRecord where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_runtime::TaskErrorRecord::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_runtime::TaskErrorRecord where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_runtime::TaskErrorRecord::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_runtime::TaskErrorRecord where U: core::convert::From<T>
+pub fn nika_runtime::TaskErrorRecord::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_runtime::TaskErrorRecord where U: core::convert::Into<T>
+pub type nika_runtime::TaskErrorRecord::Error = core::convert::Infallible
+pub fn nika_runtime::TaskErrorRecord::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_runtime::TaskErrorRecord where U: core::convert::TryFrom<T>
+pub type nika_runtime::TaskErrorRecord::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_runtime::TaskErrorRecord::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_runtime::TaskErrorRecord where T: core::clone::Clone
+pub type nika_runtime::TaskErrorRecord::Owned = T
+pub fn nika_runtime::TaskErrorRecord::clone_into(&self, target: &mut T)
+pub fn nika_runtime::TaskErrorRecord::to_owned(&self) -> T
+impl<T> core::any::Any for nika_runtime::TaskErrorRecord where T: 'static + ?core::marker::Sized
+pub fn nika_runtime::TaskErrorRecord::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_runtime::TaskErrorRecord where T: ?core::marker::Sized
+pub fn nika_runtime::TaskErrorRecord::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_runtime::TaskErrorRecord where T: ?core::marker::Sized
+pub fn nika_runtime::TaskErrorRecord::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_runtime::TaskErrorRecord where T: core::clone::Clone
+pub unsafe fn nika_runtime::TaskErrorRecord::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_runtime::TaskErrorRecord
+pub fn nika_runtime::TaskErrorRecord::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_runtime::TaskErrorRecord where T: core::clone::Clone
+pub fn nika_runtime::TaskErrorRecord::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_runtime::TaskErrorRecord where T: 'static
+pub fn nika_runtime::TaskErrorRecord::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::TaskErrorRecord where T: ?core::marker::Sized
+pub fn nika_runtime::TaskErrorRecord::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_runtime::TaskErrorRecord::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_runtime::TaskErrorRecord
+impl<T> tracing::instrument::WithSubscriber for nika_runtime::TaskErrorRecord
+impl<T> typenum::type_operators::Same for nika_runtime::TaskErrorRecord
+pub type nika_runtime::TaskErrorRecord::Output = T
+#[non_exhaustive] pub struct nika_runtime::TaskRecord
+pub nika_runtime::TaskRecord::attempts: core::option::Option<u32>
+pub nika_runtime::TaskRecord::cause: nika_runtime::TerminalCause
+pub nika_runtime::TaskRecord::duration_ms: core::option::Option<u64>
+pub nika_runtime::TaskRecord::ended_at: core::option::Option<nika_types::timestamp::Timestamp>
+pub nika_runtime::TaskRecord::error: core::option::Option<nika_runtime::TaskErrorRecord>
+pub nika_runtime::TaskRecord::integrity: nika_cap::integrity::Integrity
+pub nika_runtime::TaskRecord::named: alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>
+pub nika_runtime::TaskRecord::output: serde_json::value::Value
+pub nika_runtime::TaskRecord::recovered_from: core::option::Option<nika_runtime::TaskErrorRecord>
+pub nika_runtime::TaskRecord::started_at: core::option::Option<nika_types::timestamp::Timestamp>
+pub nika_runtime::TaskRecord::status: nika_runtime::TaskStatus
+impl nika_runtime::TaskRecord
+pub fn nika_runtime::TaskRecord::field(&self, name: &str) -> core::option::Option<serde_json::value::Value>
+pub fn nika_runtime::TaskRecord::unran(status: nika_runtime::TaskStatus, cause: nika_runtime::TerminalCause) -> Self
+impl core::clone::Clone for nika_runtime::TaskRecord
+pub fn nika_runtime::TaskRecord::clone(&self) -> nika_runtime::TaskRecord
+impl core::convert::From<nika_dataflow::record::TaskRecord> for nika_runtime::TaskRecord
+pub fn nika_runtime::TaskRecord::from(value: nika_dataflow::record::TaskRecord) -> Self
+impl core::fmt::Debug for nika_runtime::TaskRecord
+pub fn nika_runtime::TaskRecord::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl<D> owo_colors::OwoColorize for nika_runtime::TaskRecord
+impl<T, U> core::convert::Into<U> for nika_runtime::TaskRecord where U: core::convert::From<T>
+pub fn nika_runtime::TaskRecord::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_runtime::TaskRecord where U: core::convert::Into<T>
+pub type nika_runtime::TaskRecord::Error = core::convert::Infallible
+pub fn nika_runtime::TaskRecord::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_runtime::TaskRecord where U: core::convert::TryFrom<T>
+pub type nika_runtime::TaskRecord::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_runtime::TaskRecord::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_runtime::TaskRecord where T: core::clone::Clone
+pub type nika_runtime::TaskRecord::Owned = T
+pub fn nika_runtime::TaskRecord::clone_into(&self, target: &mut T)
+pub fn nika_runtime::TaskRecord::to_owned(&self) -> T
+impl<T> core::any::Any for nika_runtime::TaskRecord where T: 'static + ?core::marker::Sized
+pub fn nika_runtime::TaskRecord::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_runtime::TaskRecord where T: ?core::marker::Sized
+pub fn nika_runtime::TaskRecord::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_runtime::TaskRecord where T: ?core::marker::Sized
+pub fn nika_runtime::TaskRecord::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_runtime::TaskRecord where T: core::clone::Clone
+pub unsafe fn nika_runtime::TaskRecord::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_runtime::TaskRecord
+pub fn nika_runtime::TaskRecord::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_runtime::TaskRecord where T: core::clone::Clone
+pub fn nika_runtime::TaskRecord::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_runtime::TaskRecord where T: 'static
+pub fn nika_runtime::TaskRecord::as_any(&self) -> &(dyn core::any::Any + 'static)
+impl<T> tower_http::follow_redirect::policy::PolicyExt for nika_runtime::TaskRecord where T: ?core::marker::Sized
+pub fn nika_runtime::TaskRecord::and<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::and::And<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+pub fn nika_runtime::TaskRecord::or<P, B, E>(self, other: P) -> tower_http::follow_redirect::policy::or::Or<T, P> where T: core::marker::Sized + tower_http::follow_redirect::policy::Policy<B, E>, P: tower_http::follow_redirect::policy::Policy<B, E>
+impl<T> tracing::instrument::Instrument for nika_runtime::TaskRecord
+impl<T> tracing::instrument::WithSubscriber for nika_runtime::TaskRecord
+impl<T> typenum::type_operators::Same for nika_runtime::TaskRecord
+pub type nika_runtime::TaskRecord::Output = T
 #[non_exhaustive] pub struct nika_runtime::WorkflowPause
 pub nika_runtime::WorkflowPause::approval: core::option::Option<nika_runtime::approval::ApprovalTicket>
 pub nika_runtime::WorkflowPause::choices: alloc::vec::Vec<alloc::string::String>
@@ -1554,6 +1796,7 @@ pub fn nika_runtime::capabilities_of(wf: &nika_schema::raw::workflow::RawWorkflo
 pub const fn nika_runtime::engine_identity() -> &'static nika_runtime::identity::EngineIdentity
 pub fn nika_runtime::floor_refusal(floor: f64, budget: f64) -> core::option::Option<alloc::string::String>
 pub fn nika_runtime::input_origins(wf: &nika_schema::raw::workflow::RawWorkflow, overrides: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>, env_sourced: &alloc::collections::btree::set::BTreeSet<alloc::string::String>, ci: bool) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_types::origins::InputOrigin>
+pub const fn nika_runtime::legal(class: nika_runtime::TaskStatus, cause: nika_runtime::TerminalCause) -> bool
 pub fn nika_runtime::production_runtime(default_model: &str, caps: nika_runtime::compose::RuntimeCapabilities, run: core::option::Option<&nika_vocab::run::RunDecl>) -> core::result::Result<nika_runtime::compose::ProdRuntime, nika_runtime::sandbox_select::ComposeError>
 pub fn nika_runtime::required_inputs_refusal(wf: &nika_schema::raw::workflow::RawWorkflow, overrides: &alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>) -> core::option::Option<nika_runtime::RuntimeError>
 pub fn nika_runtime::scope_to_task(wf: nika_schema::raw::workflow::RawWorkflow, target: &str) -> core::result::Result<nika_schema::raw::workflow::RawWorkflow, alloc::string::String>
