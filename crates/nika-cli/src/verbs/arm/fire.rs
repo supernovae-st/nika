@@ -213,14 +213,12 @@ mod tests {
     #[test]
     #[allow(clippy::disallowed_methods)] // process-global cwd needs real OS threads
     fn concurrent_run_rooms_are_serialized_and_restore_the_caller() {
-        // Both reads of the cwd — the baseline here and the restoration at
-        // the end — ride the lease that governs it. Without them this test
-        // measured whichever sibling happened to own the process: it went
-        // red on main with `left` = `cwd::tests`'s chdir-storm room while
-        // this test's own restore had already put the process back. The
-        // production path was never at fault; the assertion was simply not
-        // well-defined outside the lease. Reproduced 2/20 by running this
-        // test WITH the storm (the full suite hides it — 12/12 green).
+        // Both of this test's bare cwd READS take the lease (#1192). They did
+        // not, and that is the same defect one level up: the cwd is
+        // process-global, so ASSERTING on it while another test legitimately
+        // holds it reads whatever that test is doing. The lease's own
+        // chdir-storm test in `crate::cwd` found this within a day of landing
+        // — an unguarded read is exactly what it exists to make impossible.
         let caller = {
             let _lease = crate::cwd::hold();
             std::env::current_dir().expect("caller cwd")
@@ -258,9 +256,9 @@ mod tests {
             std::fs::canonicalize(second.path()).expect("canonical second")
         );
         second_thread.join().expect("second joins");
-        // Both rooms are closed, so taking the lease here cannot deadlock —
-        // it only excludes the siblings that are allowed to hold the
-        // process elsewhere while this claim is being read.
+        // Taken briefly, not across the whole test: the threads above acquire
+        // the same lease through `enter_room`, so holding it here for the
+        // duration would deadlock them.
         let restored = {
             let _lease = crate::cwd::hold();
             std::env::current_dir().expect("restored cwd")

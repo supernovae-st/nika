@@ -83,6 +83,13 @@ jobs:
           # credential-headers: a contributor without the hook, and every PR
           # from a fork, would meet no check at all.
           - changelog-fragments
+          # The pre-push lease that stops three concurrent gates manufacturing
+          # verdicts (#1064). Same reason as the two above, one degree worse:
+          # its self-test ran NOWHERE — not even pre-push, because a hook
+          # helper has no runner. issue-proof reopened #1064 on the merge for
+          # precisely that, a close whose proof does not exist. This is the
+          # proof it was asking for.
+          - gate-lock
     env:
       CHECK: ${{ matrix.check }}
     steps:
