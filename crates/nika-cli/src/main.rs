@@ -447,6 +447,8 @@ struct RunArgs {
     /// ids (`claude-agent-acp` · `codex-acp`) refuse with NIKA-1802. A
     /// pin is a pin: unsatisfied refuses before the prologue with a
     /// witness, never substitutes another path or model (D-2026-08-04-N1).
+    /// Example: `--model openai/gpt-5.2 --access codex` requests that
+    /// model through the user's Codex subscription seat.
     #[arg(long, value_name = "PATH")]
     access: Option<String>,
     /// Set a workflow `inputs:` value (repeatable). Overrides a declared
