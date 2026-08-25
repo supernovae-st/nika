@@ -608,7 +608,6 @@ impl<T> zvariant::optional::NoneValue for nika_display::state::RunView where T: 
 pub type nika_display::state::RunView::NoneType = T
 pub fn nika_display::state::RunView::null_value() -> T
 pub struct nika_display::state::TaskRow
-pub nika_display::state::TaskRow::blocked_by: core::option::Option<alloc::string::String>
 pub nika_display::state::TaskRow::cached: bool
 pub nika_display::state::TaskRow::cost_usd: core::option::Option<f64>
 pub nika_display::state::TaskRow::def_hash: core::option::Option<alloc::string::String>

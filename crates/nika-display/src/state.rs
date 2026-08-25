@@ -99,15 +99,6 @@ pub struct TaskRow {
     /// the task succeeded, but the console must say what the trace
     /// knows, or a green run silently feeds "" downstream.
     pub warning: Option<String>,
-    /// The upstream that kept this row's gate closed — the `blocked_by`
-    /// field of `task_cancelled`, which the runtime has always emitted
-    /// and this fold used to drop on the floor.
-    ///
-    /// Without it a gated row can only say `gate: an edge did not
-    /// admit`: no edge, no producer, no outcome. The reader is told a
-    /// gate exists and nothing else, on the one row that never ran
-    /// (#1198). The trace carried the answer the whole time.
-    pub blocked_by: Option<String>,
 }
 
 impl TaskRow {
@@ -165,6 +156,7 @@ pub struct RunView {
     plan_waves: Option<Vec<Vec<String>>>,
     rows: Vec<TaskRow>,
     index: BTreeMap<String, usize>,
+    blocked_by: BTreeMap<String, String>,
 }
 
 impl RunView {
@@ -178,6 +170,11 @@ impl RunView {
     #[must_use]
     pub fn rows(&self) -> &[TaskRow] {
         &self.rows
+    }
+
+    /// The upstream whose settle kept `task_id`'s gate closed.
+    pub(crate) fn blocked_by(&self, task_id: &str) -> Option<&str> {
+        self.blocked_by.get(task_id).map(String::as_str)
     }
 
     /// The latest event stamp folded so far (unix ms) — "now" as the
@@ -443,7 +440,12 @@ impl RunView {
         let culprit = str_field(event, "blocked_by").map(str::to_owned);
         if let Some(i) = self.touch(event, TaskState::Cancelled) {
             self.rows[i].ended_ms = Some(ts);
-            self.rows[i].blocked_by = culprit;
+            let task_id = self.rows[i].id.clone();
+            if let Some(culprit) = culprit {
+                self.blocked_by.insert(task_id, culprit);
+            } else {
+                self.blocked_by.remove(&task_id);
+            }
         }
     }
 
@@ -474,7 +476,6 @@ impl RunView {
                 cached: false,
                 recovered: false,
                 warning: None,
-                blocked_by: None,
             });
             let i = self.rows.len() - 1;
             self.index.insert(task_id.to_owned(), i);

@@ -1920,7 +1920,6 @@ pub struct nika_check::Requirements
 pub nika_check::Requirements::inputs_read: alloc::vec::Vec<alloc::string::String>
 pub nika_check::Requirements::inputs_required: alloc::vec::Vec<alloc::string::String>
 pub nika_check::Requirements::models: alloc::vec::Vec<nika_check::ModelRequirement>
-pub nika_check::Requirements::models_absent: alloc::vec::Vec<alloc::string::String>
 pub nika_check::Requirements::secrets: alloc::vec::Vec<nika_check::SecretRequirement>
 impl core::clone::Clone for nika_check::Requirements
 pub fn nika_check::Requirements::clone(&self) -> nika_check::Requirements

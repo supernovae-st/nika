@@ -445,9 +445,9 @@ fn display_note(row: &TaskRow, view: &RunView) -> String {
         // consumer is a dead path. That is the gate working. Naming the
         // outcome is what turns it from a wall into a sentence.
         (TaskState::Cancelled, "gate: an edge did not admit") => {
-            match &row.blocked_by {
+            match view.blocked_by(&row.id) {
                 Some(producer) => {
-                    let settled = view.rows().iter().find(|r| r.id == *producer).map_or(
+                    let settled = view.rows().iter().find(|r| r.id == producer).map_or(
                         "never settled",
                         |r| match r.state {
                             TaskState::Ok => "ok",

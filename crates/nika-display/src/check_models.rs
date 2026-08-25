@@ -11,6 +11,7 @@
 use std::fmt::Write as _;
 
 use nika_check::CheckReport;
+use nika_schema::raw::{RawAction, RawWorkflow};
 
 use crate::check_render::mark;
 use crate::theme::{Role, Theme};
@@ -149,8 +150,28 @@ impl ModelsAudit {
 /// and a red row over a green `audited` card is the
 /// three-surfaces-two-answers defect this render already carries a note
 /// about (P0-11).
-fn absent_model_row(out: &mut String, report: &CheckReport, t: Theme) {
-    let tasks = &report.requirements.models_absent;
+fn absent_model_tasks(wf: &RawWorkflow) -> Vec<&str> {
+    let envelope_model = wf.model.as_ref();
+    wf.tasks
+        .iter()
+        .filter_map(|task| {
+            let task_model = match &task.value.action {
+                RawAction::Infer(action) => action.model.as_ref(),
+                RawAction::Agent(action) => action.model.as_ref(),
+                RawAction::Exec(_) | RawAction::Invoke(_) => return None,
+                #[allow(
+                    clippy::unreachable,
+                    reason = "non_exhaustive future variant — schema and renderer ship together; fail loud beats silently-wrong output"
+                )]
+                other => unreachable!("unknown action: {other:?}"),
+            };
+            (task_model.is_none() && envelope_model.is_none()).then_some(task.value.id.value.as_str())
+        })
+        .collect()
+}
+
+fn absent_model_row(out: &mut String, wf: &RawWorkflow, t: Theme) {
+    let tasks = absent_model_tasks(wf);
     if tasks.is_empty() {
         return;
     }
@@ -170,8 +191,14 @@ fn absent_model_row(out: &mut String, report: &CheckReport, t: Theme) {
     );
 }
 
-pub(crate) fn models(out: &mut String, report: &CheckReport, audit: &ModelsAudit, t: Theme) {
-    absent_model_row(out, report, t);
+pub(crate) fn models(
+    out: &mut String,
+    report: &CheckReport,
+    wf: &RawWorkflow,
+    audit: &ModelsAudit,
+    t: Theme,
+) {
+    absent_model_row(out, wf, t);
     if report.requirements.models.is_empty() {
         return; // no inference tasks — the ladder says so at COST already
     }
@@ -259,5 +286,42 @@ pub(crate) fn models(out: &mut String, report: &CheckReport, audit: &ModelsAudit
             t.paint(Role::Strong, "MODELS"),
             w.why
         );
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use nika_schema::parser::{ParseMode, parse};
+    use nika_schema::source::FileId;
+
+    fn workflow(yaml: &str) -> RawWorkflow {
+        parse(yaml, FileId::new(0), ParseMode::Strict).expect("fixture parses")
+    }
+
+    #[test]
+    fn absent_model_tasks_are_named_only_when_no_model_reaches_them() {
+        let bare = workflow("nika: bare\ntasks:\n  bot:\n    agent: { prompt: \"say hi\" }\n");
+        assert_eq!(absent_model_tasks(&bare), vec!["bot"]);
+
+        let invoke = workflow("nika: invoke\ntasks:\n  call:\n    invoke: { tool: nika:uuid }\n");
+        assert!(absent_model_tasks(&invoke).is_empty());
+
+        let covered = workflow(
+            "nika: covered\nmodel: mock/echo\ntasks:\n  bot:\n    agent: { prompt: \"say hi\" }\n",
+        );
+        assert!(absent_model_tasks(&covered).is_empty());
+
+        let overridden = workflow(
+            "nika: overridden\ntasks:\n  bot:\n    agent: { prompt: \"hi\", model: mock/echo }\n",
+        );
+        assert!(absent_model_tasks(&overridden).is_empty());
+
+        let mut rendered = String::new();
+        absent_model_row(&mut rendered, &bare, Theme::new(false, false, false));
+        assert!(rendered.contains("no `model:` reaches task `bot`"));
+        assert!(rendered.contains("declare one on the task"));
+        assert!(rendered.contains("envelope default"));
+        assert!(rendered.contains("pass `--model` at run"));
     }
 }
