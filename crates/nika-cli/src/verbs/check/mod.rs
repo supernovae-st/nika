@@ -180,7 +180,9 @@ mod drift;
 pub(crate) mod energy;
 pub(crate) mod models_rung;
 mod project;
-use models_rung::{ModelFinding, ModelsAudit, pricing_section, unresolvable_models};
+use models_rung::{
+    ModelFinding, ModelsAudit, pricing_section, thinking_findings, unresolvable_models,
+};
 
 use nika_display::check_render::{RepairTarget, render};
 #[cfg(test)]
@@ -426,6 +428,7 @@ fn run_source_with_profile_and_slots(
         && !report.slot_findings.is_empty()
         && report.findings.iter().all(|finding| finding.kind == "slot")
         && unresolvable_models(&report, &wf).findings.is_empty()
+        && thinking_findings(&wf).is_empty()
         && skills.findings.is_empty();
     let out = render_checked_with_profile(
         source.source(),
@@ -494,7 +497,11 @@ fn render_checked_with_profile(
     // The MODELS rung (#320): the ladder validated TOOLS but not MODELS —
     // the exact asymmetry a hallucinating agent hits. A `model:` this
     // binary cannot resolve is a FINDING (exit 2), never a green audit.
-    let models_audit = unresolvable_models(report, wf);
+    // The thinking judgments ride the same rung: cross-field (budget vs
+    // cap) and cross-fact (the seat's reasoning capability) laws the
+    // per-field parse cannot hold.
+    let mut models_audit = unresolvable_models(report, wf);
+    models_audit.findings.extend(thinking_findings(wf));
     let clean = report.is_clean() && models_audit.findings.is_empty() && skills.findings.is_empty();
     // The risk grade (P0-6): a pure projection of the report — uncapped
     // spend or wildcard grants never turn the verdict green by silence.

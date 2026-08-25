@@ -19,7 +19,8 @@ pub(super) fn swap(
     let mut report = nika_check::check(&swapped);
     crate::verbs::stamp_judged_semantic(&swapped, &mut report);
     let models = crate::verbs::check::models_rung::unresolvable_models(&report, &swapped);
-    if report.is_clean() && models.findings.is_empty() {
+    let thinking = crate::verbs::check::models_rung::thinking_findings(&swapped);
+    if report.is_clean() && models.findings.is_empty() && thinking.is_empty() {
         Ok((swapped, report))
     } else {
         Err(Box::new((swapped, report)))
