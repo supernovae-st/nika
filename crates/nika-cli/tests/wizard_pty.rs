@@ -187,7 +187,11 @@ fn no_model_skeleton_completes_in_two_answers() {
     );
     assert!(transcript.contains("models per-task"), "honest summary");
     assert!(transcript.contains("audited"), "ladder still runs");
-    assert_eq!(exit_code(&mut p), 2, "the template is a draft");
+    assert_eq!(
+        exit_code(&mut p),
+        0,
+        "a slot-free template is already runnable"
+    );
 }
 
 #[test]
