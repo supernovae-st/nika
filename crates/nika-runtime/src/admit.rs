@@ -841,6 +841,30 @@ mod tests {
         assert!(access_pin_refusal(&wf, &report, probes, pin, None).is_none());
     }
 
+    #[cfg(feature = "access-harness")]
+    #[test]
+    fn a_mock_model_refuses_a_harness_pin_before_any_live_seat() {
+        let wf =
+            parse("nika: t\ntasks:\n  s:\n    infer: { prompt: \"x\", model: \"mock/echo\" }\n");
+        let report = nika_check::check(&wf);
+        let probe = access_probe(
+            "codex",
+            false,
+            true,
+            nika_types::access::AccessClass::Harness,
+        );
+        let err = access_pin_refusal(&wf, &report, &[probe], Some("harness"), None)
+            .expect("mock must never substitute a live harness");
+        assert!(
+            matches!(err, RuntimeError::AccessPinUnsatisfied { .. }),
+            "{err:?}"
+        );
+        let witness = err.to_string();
+        assert!(witness.contains("mock/echo"), "{witness}");
+        assert!(witness.contains("--access mock"), "{witness}");
+        assert!(witness.contains("never a live substitute"), "{witness}");
+    }
+
     #[test]
     fn the_model_override_is_what_the_pin_judges() {
         // The ENVELOPE model is mistral (api) — the override sends the

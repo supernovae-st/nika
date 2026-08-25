@@ -189,6 +189,7 @@ fn run_admitted_context(
             world.driver.skills(),
             request.repair_target,
             request.model_override,
+            request.access_pin,
             request.json,
             request.theme,
             request.output_json,
