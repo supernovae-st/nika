@@ -9,9 +9,11 @@
 //! failing to resolve. The engine-internal identities stay
 //! [`codes::NIKA_1702`]/[`codes::NIKA_1703`] (the `NIKA-170x` runtime range) —
 //! moving the code did NOT move the range, because the range names the
-//! *class*, not the crate. `nika-runtime` wraps this enum in its own
-//! `RuntimeError::Dataflow` and delegates both code accessors, so the wire
-//! form a consumer sees is byte-identical to before the descent.
+//! *class*, not the crate. `nika-runtime` converts today's four variants back
+//! into their historical `RuntimeError` constructors; its
+//! `RuntimeError::Dataflow` arm is reserved as the forward-compatible fallback
+//! for a future class. The wire form a consumer sees is byte-identical to
+//! before the descent.
 
 use nika_error::codes;
 use nika_error::traits::NikaErrorCode;
@@ -190,5 +192,88 @@ impl NikaErrorCode for DataflowError {
     fn is_transient(&self) -> bool {
         // Static expression classes · retry never helps.
         false
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::unwrap_used, clippy::panic)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn unresolved_input_display_keeps_the_actionable_cli_hint() {
+        let input = DataflowError::UnresolvedTemplate {
+            reference: "  inputs.api_base".to_owned(),
+        };
+        assert_eq!(
+            input.to_string(),
+            "NIKA-VAR-001 · unresolved template reference `  inputs.api_base` — supply it with `nika run <file> --var <key>=<value>` or declare a `default:`"
+        );
+
+        let task = DataflowError::UnresolvedTemplate {
+            reference: "tasks.fetch.output".to_owned(),
+        };
+        assert_eq!(
+            task.to_string(),
+            "NIKA-VAR-001 · unresolved template reference `tasks.fetch.output`"
+        );
+    }
+
+    #[test]
+    fn wire_message_strips_exactly_one_code_prefix() {
+        let cases = [
+            (
+                DataflowError::UnresolvedTemplate {
+                    reference: "tasks.missing.output".to_owned(),
+                },
+                "unresolved template reference `tasks.missing.output`",
+            ),
+            (
+                DataflowError::WhenUnsupported {
+                    expr: "inputs.a &&".to_owned(),
+                },
+                "`when:` expression outside the v0 subset · `inputs.a &&`",
+            ),
+            (
+                DataflowError::CelEval {
+                    code: "NIKA-VAR-006",
+                    message: "expected bool".to_owned(),
+                },
+                "expected bool",
+            ),
+            (
+                DataflowError::OutputBinding {
+                    code: "NIKA-VAR-004",
+                    message: "output binding `answer` · boom".to_owned(),
+                },
+                "output binding `answer` · boom",
+            ),
+        ];
+        for (error, expected) in cases {
+            assert_eq!(error.wire_message(), expected);
+        }
+    }
+
+    #[test]
+    fn evaluation_errors_are_never_transient() {
+        let cases = [
+            DataflowError::UnresolvedTemplate {
+                reference: "x".to_owned(),
+            },
+            DataflowError::WhenUnsupported {
+                expr: "x".to_owned(),
+            },
+            DataflowError::CelEval {
+                code: "NIKA-VAR-006",
+                message: "x".to_owned(),
+            },
+            DataflowError::OutputBinding {
+                code: "NIKA-VAR-004",
+                message: "x".to_owned(),
+            },
+        ];
+        for error in cases {
+            assert!(!error.is_transient(), "{error:?}");
+        }
     }
 }

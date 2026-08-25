@@ -1,47 +1,148 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // Copyright (C) 2024-2026 SuperNovae Studio <contact@supernovae.studio>
 
-//! The EXPRESSION boundary — what a jq program is allowed to SEE.
+//! The EXPRESSION boundary — what a jq program may observe or affect.
 //!
-//! D-2026-08-11-N26 · « **une expression ne voit que son ENTRÉE** · le monde de
-//! jq est la réponse du verbe, celui de CEL ses bindings · ni le processus, ni
-//! l'horloge, ni le disque, ni l'environnement. C'est une **SOUSTRACTION**. »
-//!
-//! **This is not a permit route.** `permits.env` grants a spawned CHILD PROCESS
-//! its environment ([`crate::env`]); it has never governed an in-process
-//! expression, and no grant here turns a withheld native back on — a
-//! subtraction has no dial. That asymmetry is the point: the boundary an author
-//! declares is about what the workflow *reaches out to*, and an expression
-//! reaches nothing.
-//!
-//! The list is pure data with zero `jaq` dependency, because THREE seams build
-//! a jaq function set independently and must withhold the same names — the
-//! runtime's `extract:` bindings (`nika-runtime`), the `nika:jq` builtin
-//! (`nika-builtin`), and the static compile-check (`nika-check`). A divergence
-//! between them is exactly the defect class this closes: before 2026-08-15 the
-//! three agreed on `env` by agreeing to expose it, and the check certificate
-//! printed « pure compute · nothing escapes » over a body that read the
-//! operator's environment under an ABSENT `permits:` block (measured on the
-//! shipped 0.108.0 binary, canary in the trace, run green).
+//! D-2026-08-11-N26 makes expressions input-only; N27 preserves jq's clock
+//! spellings by rebinding them to the run-start value supplied by an
+//! effect-owning caller. This module is the typed policy shared by the jq
+//! builtin, output bindings, and static checker. It deliberately has no jaq
+//! dependency: consumers install upstream symbols according to this table.
 
-/// One native WITHHELD from every expression seam.
+use nika_types::timestamp::{NS_PER_SEC, Timestamp};
+
+/// The pure value an effect-owning caller binds to jq's accepted `now` form.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct JqClock {
+    run_started_at: Timestamp,
+}
+
+impl JqClock {
+    /// Bind a run-start timestamp supplied by the runtime/composition layer.
+    #[must_use]
+    pub const fn at(run_started_at: Timestamp) -> Self {
+        Self { run_started_at }
+    }
+
+    /// Convert a caller-supplied system instant without reading the host here.
+    #[must_use]
+    pub fn from_system_time(time: std::time::SystemTime) -> Self {
+        let unix_ns = match time.duration_since(std::time::UNIX_EPOCH) {
+            Ok(duration) => i64::try_from(duration.as_nanos()).unwrap_or(i64::MAX),
+            Err(before) => -i64::try_from(before.duration().as_nanos()).unwrap_or(i64::MAX),
+        };
+        Self::at(Timestamp::from_unix_ns(unix_ns))
+    }
+
+    /// Seconds since the Unix epoch in jq's numeric clock representation.
+    #[must_use]
+    #[allow(clippy::cast_precision_loss)] // jq's `now` contract is an f64
+    pub fn unix_seconds(self) -> f64 {
+        self.run_started_at.unix_ns as f64 / NS_PER_SEC as f64
+    }
+}
+
+/// Where a jq symbol is defined upstream.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[non_exhaustive]
+pub enum JqSymbolKind {
+    /// A Rust native returned by `funs()`.
+    Native,
+    /// A jq definition returned by `defs()`.
+    Definition,
+}
+
+/// The capability class a jq symbol belongs to.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum JqCapability {
+    /// Deterministic run-start time supplied as a value by the caller.
+    RunStartClock,
+    /// Ambient process environment.
+    HostEnvironment,
+    /// Diagnostic output to the host.
+    HostDiagnostics,
+    /// Halt/process-exit control.
+    ProcessControl,
+}
+
+/// How an effect-bearing upstream jq symbol is admitted.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum JqDisposition {
+    /// Remove the upstream native and replace its spelling with a pure def.
+    Rebind,
+    /// Do not install the symbol in an expression evaluator.
+    Withhold,
+}
+
+/// One effect-bearing jq symbol and its canonical admission decision.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct JqCapabilityRule {
+    /// The exact upstream symbol name.
+    pub name: &'static str,
+    /// Whether the upstream surface is a native or a definition.
+    pub kind: JqSymbolKind,
+    /// The effect class controlled by this row.
+    pub capability: JqCapability,
+    /// Whether callers rebind or withhold it.
+    pub disposition: JqDisposition,
+    /// What the upstream implementation would observe or affect.
+    pub effect: &'static str,
+    /// The safe alternative named in an author-facing refusal.
+    pub instead: &'static str,
+}
+
+impl JqCapabilityRule {
+    /// Construct a policy row (FCI-002 constructor for this evolvable DTO).
+    #[must_use]
+    pub const fn new(
+        name: &'static str,
+        kind: JqSymbolKind,
+        capability: JqCapability,
+        disposition: JqDisposition,
+        effect: &'static str,
+        instead: &'static str,
+    ) -> Self {
+        Self {
+            name,
+            kind,
+            capability,
+            disposition,
+            effect,
+            instead,
+        }
+    }
+}
+
+const ENV_NATIVE_NAME: &str = "env";
+const ENV_NATIVE_EFFECT: &str = "the ambient process environment";
+const ENV_NATIVE_POLICY_INSTEAD: &str =
+    "pass the value through `inputs:`, `const:`, or a governed `secrets:` reference";
+const ENV_NATIVE_LEGACY_INSTEAD: &str = "pass the value in — `inputs:` (the caller), \
+`const:` (the author) or `secrets:` (a governed store reference); a CHILD process \
+receives its environment through `permits.env` on an `exec:` task";
+
+/// Compatibility view of a withheld jq native.
 ///
-/// Construct through [`WITHHELD_JQ_NATIVES`] — the set is closed and lives in
-/// this crate so no seam can grow its own.
+/// New policy consumers should use [`JqCapabilityRule`]. This historical DTO
+/// remains public so v0.114 embedders keep their source paths while its one
+/// row is projected from the same constants as [`JQ_CAPABILITY_POLICY`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct WithheldNative {
-    /// The jaq native's name, exactly as the compiler reports it undefined.
+    /// The exact upstream native name.
     pub name: &'static str,
-    /// What it would let the expression see, in the diagnostic's voice.
+    /// What the upstream implementation would read.
     pub reads: &'static str,
-    /// The governed way to obtain the same value — the half that makes the
-    /// refusal teach instead of merely refuse.
+    /// The safe alternative named in an author-facing refusal.
     pub instead: &'static str,
 }
 
 impl WithheldNative {
-    /// Assemble one row (invariant #19 — constructor on `#[non_exhaustive]`).
+    /// Construct a compatibility row.
     #[must_use]
     pub const fn new(name: &'static str, reads: &'static str, instead: &'static str) -> Self {
         Self {
@@ -52,64 +153,186 @@ impl WithheldNative {
     }
 }
 
-/// The natives an expression never receives.
+/// The global variable installed beside [`JQ_CLOCK_DEFS`].
+pub const JQ_RUN_START_VAR: &str = "$nika_run_start";
+
+/// Pure replacements for jq's accepted clock/timezone spellings.
 ///
-/// Every row is a native that reads state OTHER than the value piped into it.
-/// The set was derived, not guessed: `funs()` over the workspace-pinned stack
-/// (jaq-core 3.1 · jaq-std 3.0 · jaq-json 2.0) exposes 114 natives, and these
-/// four are the ones whose result depends on the host rather than the input.
+/// `now` reads the injected run-start value. `localtime` and
+/// `strflocaltime` are deterministic UTC projections because the workflow
+/// language declares a clock but no host-timezone authority. The upstream
+/// natives are removed first, so these definitions cannot reach the host.
+pub const JQ_CLOCK_DEFS: &str = r"
+def now: $nika_run_start;
+def localtime: gmtime;
+def strflocaltime($format): strftime($format);
+";
+
+/// Canonical policy for every upstream jq symbol that is not input-only.
 ///
-/// Its cost was measured before removal (2026-08-15 · 410 `.nika.yaml` files
-/// across the engine, spec, plugins, docs, audit-workflow, control-tower and
-/// the atelier's own workflows · 184 jq programs extracted): **zero** call
-/// sites.
+/// Symbols absent from this table are ordinary input-dependent compute and
+/// remain installed. A new effectful upstream symbol must add one typed row;
+/// the three consumers test their installed surfaces against this policy.
+pub const JQ_CAPABILITY_POLICY: &[JqCapabilityRule] = &[
+    JqCapabilityRule::new(
+        ENV_NATIVE_NAME,
+        JqSymbolKind::Native,
+        JqCapability::HostEnvironment,
+        JqDisposition::Withhold,
+        ENV_NATIVE_EFFECT,
+        ENV_NATIVE_POLICY_INSTEAD,
+    ),
+    JqCapabilityRule::new(
+        "now",
+        JqSymbolKind::Native,
+        JqCapability::RunStartClock,
+        JqDisposition::Rebind,
+        "the ambient host clock",
+        "use the run-start value bound by the engine",
+    ),
+    JqCapabilityRule::new(
+        "localtime",
+        JqSymbolKind::Native,
+        JqCapability::RunStartClock,
+        JqDisposition::Rebind,
+        "the ambient host timezone",
+        "use the deterministic UTC projection bound by the engine",
+    ),
+    JqCapabilityRule::new(
+        "strflocaltime",
+        JqSymbolKind::Native,
+        JqCapability::RunStartClock,
+        JqDisposition::Rebind,
+        "the ambient host timezone",
+        "use the deterministic UTC projection bound by the engine",
+    ),
+    JqCapabilityRule::new(
+        "debug_empty",
+        JqSymbolKind::Native,
+        JqCapability::HostDiagnostics,
+        JqDisposition::Withhold,
+        "host diagnostic output",
+        "return the diagnostic as data",
+    ),
+    JqCapabilityRule::new(
+        "stderr_empty",
+        JqSymbolKind::Native,
+        JqCapability::HostDiagnostics,
+        JqDisposition::Withhold,
+        "host diagnostic output",
+        "return the diagnostic as data",
+    ),
+    JqCapabilityRule::new(
+        "halt",
+        JqSymbolKind::Native,
+        JqCapability::ProcessControl,
+        JqDisposition::Withhold,
+        "host process control",
+        "return an error value through the evaluator's typed result",
+    ),
+    JqCapabilityRule::new(
+        "debug",
+        JqSymbolKind::Definition,
+        JqCapability::HostDiagnostics,
+        JqDisposition::Withhold,
+        "host diagnostic output",
+        "return the diagnostic as data",
+    ),
+    JqCapabilityRule::new(
+        "stderr",
+        JqSymbolKind::Definition,
+        JqCapability::HostDiagnostics,
+        JqDisposition::Withhold,
+        "host diagnostic output",
+        "return the diagnostic as data",
+    ),
+    JqCapabilityRule::new(
+        "halt",
+        JqSymbolKind::Definition,
+        JqCapability::ProcessControl,
+        JqDisposition::Withhold,
+        "host process control",
+        "return an error value through the evaluator's typed result",
+    ),
+    JqCapabilityRule::new(
+        "halt_error",
+        JqSymbolKind::Definition,
+        JqCapability::ProcessControl,
+        JqDisposition::Withhold,
+        "host process control",
+        "return an error value through the evaluator's typed result",
+    ),
+];
+
+/// The v0.114 native-withholding view retained for source compatibility.
 ///
-/// # What is deliberately ABSENT, and who owns it
-///
-/// - **The clock family** (`now` · `localtime` · `strflocaltime`) reads the
-///   host too, and measures zero uses as well — but **D-2026-08-11-N27 (active)
-///   prescribes a different remedy**: `now` MUST RESOLVE TO THE RUN'S START
-///   INSTANT, the one already in the trace, so a replay yields the same value
-///   forever. That is a rebinding, not a subtraction, and shipping a removal
-///   here would pre-empt a locked decision with a mechanism it did not choose.
-///   The debt is pinned by a test in `nika-builtin`.
-/// - **`debug` · `stderr` · `halt`** EMIT to the host or act on the process
-///   rather than SEE beyond the input — a different class from N26, and
-///   `jaq-std`'s own `defs.jq` builds on their natives.
+/// This view intentionally retains its historical `env`-only shape. The
+/// typed [`JQ_CAPABILITY_POLICY`] is authoritative for the expanded v0.115
+/// classes, including diagnostics, process control, and rebound clocks.
 pub const WITHHELD_JQ_NATIVES: &[WithheldNative] = &[WithheldNative::new(
-    "env",
-    "the ambient process environment",
-    "pass the value in — `inputs:` (the caller), `const:` (the author) or \
-     `secrets:` (a governed store reference); a CHILD process receives its \
-     environment through `permits.env` on an `exec:` task",
+    ENV_NATIVE_NAME,
+    ENV_NATIVE_EFFECT,
+    ENV_NATIVE_LEGACY_INSTEAD,
 )];
 
-/// The withheld row for `name`, when there is one.
+/// Return the historical compatibility row for a withheld native.
 #[must_use]
 pub fn withheld_jq_native(name: &str) -> Option<&'static WithheldNative> {
-    WITHHELD_JQ_NATIVES.iter().find(|w| w.name == name)
+    WITHHELD_JQ_NATIVES.iter().find(|rule| rule.name == name)
 }
 
-/// Whether `name` is withheld — the predicate the three seams filter with.
+/// The policy row for one upstream symbol, if it is effect-bearing.
+#[must_use]
+pub fn jq_capability_rule(name: &str, kind: JqSymbolKind) -> Option<&'static JqCapabilityRule> {
+    JQ_CAPABILITY_POLICY
+        .iter()
+        .find(|rule| rule.name == name && rule.kind == kind)
+}
+
+/// Whether an upstream native may be installed unchanged.
+#[must_use]
+pub fn install_jq_native(name: &str) -> bool {
+    jq_capability_rule(name, JqSymbolKind::Native).is_none()
+}
+
+/// Whether an upstream definition may be installed unchanged.
+#[must_use]
+pub fn install_jq_definition(name: &str) -> bool {
+    jq_capability_rule(name, JqSymbolKind::Definition).is_none()
+}
+
+/// The v0.114 author-facing refusal for a historically withheld native.
+#[must_use]
+pub fn withheld_jq_reason(name: &str) -> Option<String> {
+    withheld_jq_native(name).map(|rule| {
+        format!(
+            "`{}` is withheld — it reads {}, and an expression sees only its input; {}",
+            rule.name, rule.reads, rule.instead
+        )
+    })
+}
+
+/// The author-facing refusal for any symbol withheld by the expanded policy.
+///
+/// Rebound clock symbols return `None`: their accepted spelling compiles to
+/// [`JQ_CLOCK_DEFS`], so presenting them as refused would contradict runtime.
+#[must_use]
+pub fn withheld_jq_policy_reason(name: &str) -> Option<String> {
+    JQ_CAPABILITY_POLICY
+        .iter()
+        .find(|rule| rule.name == name && rule.disposition == JqDisposition::Withhold)
+        .map(|rule| {
+            format!(
+                "`{}` is withheld — it reaches {}, and an expression sees only its input; {}",
+                rule.name, rule.effect, rule.instead
+            )
+        })
+}
+
+/// Compatibility predicate for callers that only ask about native symbols.
 #[must_use]
 pub fn is_withheld_jq_native(name: &str) -> bool {
     withheld_jq_native(name).is_some()
-}
-
-/// The one-line refusal for a withheld native, NAMING the class it would have
-/// read — the sentence that turns jaq's bare « undefined filter » into the
-/// reason the author needs.
-///
-/// `None` when `name` is simply undefined (a typo), so a caller keeps jaq's own
-/// wording for that case and never claims a boundary it did not enforce.
-#[must_use]
-pub fn withheld_jq_reason(name: &str) -> Option<String> {
-    withheld_jq_native(name).map(|w| {
-        format!(
-            "`{}` is withheld — it reads {}, and an expression sees only its input; {}",
-            w.name, w.reads, w.instead
-        )
-    })
 }
 
 #[cfg(test)]
@@ -118,57 +341,74 @@ mod tests {
     use super::*;
 
     #[test]
-    fn env_is_withheld_and_the_reason_names_the_class() {
-        assert!(is_withheld_jq_native("env"));
-        let reason = withheld_jq_reason("env").expect("env is withheld");
-        assert!(reason.contains("ambient process environment"), "{reason}");
-        assert!(reason.contains("sees only its input"), "{reason}");
-        // It teaches the governed route rather than only refusing.
-        assert!(reason.contains("inputs:"), "{reason}");
+    fn policy_is_unique_by_surface_and_complete() {
+        let mut seen = std::collections::BTreeSet::new();
+        for rule in JQ_CAPABILITY_POLICY {
+            assert!(!rule.name.is_empty());
+            assert!(!rule.effect.is_empty());
+            assert!(!rule.instead.is_empty());
+            assert!(seen.insert((rule.name, rule.kind)), "duplicate {rule:?}");
+        }
+        assert_eq!(seen.len(), 11);
     }
 
-    /// The clock family is NOT here, and that is a decision with an owner.
-    ///
-    /// D-2026-08-11-N27 (active) rebinds `now` to the run's start instant
-    /// rather than removing it. When that ships, this test is the reminder
-    /// that the list was left alone on purpose — flip it only WITH N27, never
-    /// as a drive-by.
     #[test]
-    fn the_clock_family_belongs_to_n27_not_to_this_list() {
+    fn one_policy_drives_installation_and_refusals() {
+        for name in ["env", "debug_empty", "stderr_empty", "halt"] {
+            assert!(!install_jq_native(name), "{name}");
+        }
+        for name in ["debug", "stderr", "halt", "halt_error"] {
+            assert!(!install_jq_definition(name), "{name}");
+            assert!(withheld_jq_policy_reason(name).is_some(), "{name}");
+        }
         for name in ["now", "localtime", "strflocaltime"] {
+            assert!(!install_jq_native(name), "upstream {name} must be replaced");
             assert!(
-                !is_withheld_jq_native(name),
-                "{name} · N27 prescribes a REBINDING (the run's start instant), \
-                 not a subtraction — removing it here pre-empts a locked decision"
+                withheld_jq_policy_reason(name).is_none(),
+                "{name} stays accepted"
             );
         }
-    }
-
-    #[test]
-    fn an_ordinary_native_is_not_withheld() {
-        // The pure date family STAYS — it computes from its argument.
-        for name in ["strftime", "gmtime", "mktime", "map", "select", "length"] {
-            assert!(!is_withheld_jq_native(name), "{name} must stay");
-            assert!(withheld_jq_reason(name).is_none(), "{name} must stay");
+        for name in ["strftime", "gmtime", "mktime", "map", "length"] {
+            assert!(install_jq_native(name));
+            assert!(install_jq_definition(name));
         }
     }
 
     #[test]
-    fn a_typo_keeps_jaqs_own_wording() {
-        // No reason means the caller renders « undefined filter » — we never
-        // dress a typo as a boundary refusal.
+    fn environment_reason_names_the_governed_route() {
+        let reason = withheld_jq_reason("env").expect("env is withheld");
+        assert_eq!(
+            reason,
+            "`env` is withheld — it reads the ambient process environment, and an expression \
+sees only its input; pass the value in — `inputs:` (the caller), `const:` (the author) or \
+`secrets:` (a governed store reference); a CHILD process receives its environment through \
+`permits.env` on an `exec:` task"
+        );
         assert!(withheld_jq_reason("envv").is_none());
-        assert!(withheld_jq_reason("").is_none());
     }
 
     #[test]
-    fn every_row_is_complete_and_unique() {
-        let mut seen = std::collections::BTreeSet::new();
-        for w in WITHHELD_JQ_NATIVES {
-            assert!(!w.name.is_empty());
-            assert!(!w.reads.is_empty(), "{} has no class", w.name);
-            assert!(!w.instead.is_empty(), "{} teaches nothing", w.name);
-            assert!(seen.insert(w.name), "{} listed twice", w.name);
+    fn legacy_native_view_preserves_the_v0114_public_contract() {
+        let row = withheld_jq_native("env").expect("legacy env row remains public");
+        assert_eq!(row.name, ENV_NATIVE_NAME);
+        assert_eq!(row.reads, ENV_NATIVE_EFFECT);
+        assert_eq!(row.instead, ENV_NATIVE_LEGACY_INSTEAD);
+        assert_eq!(WITHHELD_JQ_NATIVES, &[row.to_owned()]);
+        for name in [
+            "debug_empty",
+            "stderr_empty",
+            "halt",
+            "now",
+            "localtime",
+            "strflocaltime",
+            "debug",
+            "stderr",
+            "halt_error",
+        ] {
+            assert!(withheld_jq_native(name).is_none(), "{name}");
+            assert!(!is_withheld_jq_native(name), "{name}");
+            assert!(withheld_jq_reason(name).is_none(), "{name}");
         }
+        assert!(is_withheld_jq_native("env"));
     }
 }

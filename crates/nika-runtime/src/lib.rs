@@ -53,6 +53,7 @@ pub mod approval;
 #[path = "../build_support.rs"]
 mod build_support;
 pub mod child;
+mod compat_record;
 pub mod compose;
 pub mod config;
 mod contract;
@@ -79,6 +80,8 @@ pub mod proof {
 mod recover;
 pub mod resume;
 mod retry;
+#[cfg(test)]
+mod run_clock_tests;
 /// The ONE OS-sandbox selection (ADR-095 Layer 6 · #888) — `pub` because
 /// `nika-mcp`'s spawn confinement rides the same decision (L4→L3).
 pub mod sandbox_select;
@@ -133,8 +136,9 @@ pub use pause::WorkflowPause;
 // modules keep their historical `crate::{expr,jq,record}` names so every
 // call site inside this crate reads exactly as it did before the move; the
 // public types keep their `nika_runtime::…` paths below.
+pub use compat_record::{TaskErrorRecord, TaskRecord, TaskStatus, TerminalCause, legal};
 pub use nika_dataflow::DataflowError;
-pub use nika_dataflow::record::{TaskErrorRecord, TaskRecord, TaskStatus, TerminalCause, legal};
+use nika_dataflow::TaskRecord as DataflowTaskRecord;
 pub(crate) use nika_dataflow::{expr, jq, record};
 // The shared execution driver (`ServiceExecutionDriver` + `AuthorizedRuntime`
 // + the `ChildTrace*`/`Service*` family) descended to `nika-service-execution`
@@ -199,6 +203,21 @@ impl RunOutcome {
             unpriced_calls: 0,
             budget_exceeded: false,
         }
+    }
+
+    fn from_dataflow(
+        ok: bool,
+        records: BTreeMap<String, DataflowTaskRecord>,
+        outputs: BTreeMap<String, Value>,
+    ) -> Self {
+        Self::new(
+            ok,
+            records
+                .into_iter()
+                .map(|(id, record)| (id, record.into()))
+                .collect(),
+            outputs,
+        )
     }
 
     /// Fold the run ledger's terminal snapshot onto the outcome (one
@@ -421,7 +440,11 @@ impl<S, T, H, P, D, C> Runtime<S, T, H, P, D, C> {
     }
 
     /// Mirror settled records + spend after each wave merge.
-    fn publish_inspect(&self, records: &BTreeMap<String, TaskRecord>, ledger: &ledger::RunLedger) {
+    fn publish_inspect(
+        &self,
+        records: &BTreeMap<String, DataflowTaskRecord>,
+        ledger: &ledger::RunLedger,
+    ) {
         let Some(cell) = &self.inspect else {
             return;
         };
@@ -693,6 +716,8 @@ fn parked_scope<'a>(
     consts: &'a BTreeMap<String, Value>,
     secrets: &'a BTreeMap<String, Value>,
     resume_ctx: &'a resume::ResumeContext,
+    jq_clock: nika_cap::JqClock,
+    run_start: nika_kernel::tool_executor::ToolRunStart,
 ) -> (recover::ParkedRecoveries, recover::ResolveScope<'a>) {
     let parked = recover::ParkedRecoveries::new();
     let resolve_scope = recover::ResolveScope {
@@ -701,6 +726,8 @@ fn parked_scope<'a>(
         consts,
         secrets,
         resume_ctx,
+        jq_clock,
+        run_start,
     };
     (parked, resolve_scope)
 }
@@ -771,6 +798,7 @@ where
         &self,
         wf: &RawWorkflow,
         workflow_name: &str,
+        opening_stamp: (nika_types::id::EventId, nika_types::timestamp::Timestamp),
         stamper: &mut dyn Stamper,
         sink: &mut dyn EventSink,
     ) {
@@ -790,6 +818,7 @@ where
             self.boot_access_fields.clone(),
             self.harness_seat_id.as_deref(),
             &self.approvals,
+            opening_stamp,
             stamper,
             sink,
         );
@@ -821,9 +850,7 @@ where
         stamper: &mut dyn Stamper,
         sink: &mut dyn EventSink,
     ) -> Result<RunOutcome, RuntimeError> {
-        // The launch gates (audit-before-run · the #603 preflight · the
-        // budget floor) — a refusal here precedes the prologue: zero
-        // events, zero spend.
+        // A launch refusal precedes the prologue: zero events, zero spend.
         admit::gates(
             wf,
             report,
@@ -838,32 +865,37 @@ where
             consts,
             workflow_name,
         } = envelope_values(wf, &self.var_overrides);
-        // Secrets resolve ONCE at run start (MINOR-B · a miss stays
-        // unbound → NIKA-1702, fail-closed); the sink gets the redaction
-        // scrub (secret.rs · S1) for every emitted event.
+        // Secrets resolve once; misses stay unbound and fail closed.
         let secrets = secret::resolve_secrets(self.secrets.as_ref(), &wf.secrets);
         let mut scrub = secret::RedactingSink::new(sink, &secrets);
         let sink: &mut dyn EventSink = &mut scrub;
-        // ADR-099 resume identities — secret markers + the leak-guard set,
-        // derived once per run (keys are stamped on every success so any
-        // `--json` trace is later resumable).
+        // Resume identities and leak guards are derived once per run.
         let resume_ctx = self.resume_context(wf, &secrets);
-        // The declared capability boundary (spec 01 §permits) flows to every
-        // task's dispatch scope so the exec sink can enforce it (NIKA-SEC-004).
+        // The declared capability boundary flows to every dispatch scope.
         let permits = wf.permits.as_ref().map(|spanned| &spanned.value);
-        // The name environment (spec 09) — EMPTY, permanently: a type
-        // expression is self-contained, so there is nothing to resolve
-        // once per run and nothing a task's `returns:` can look up.
+        // Type expressions are self-contained; the name environment is empty.
         let types = std::collections::BTreeMap::new();
-        self.emit_run_prologue(wf, &workflow_name, stamper, sink);
+        // Mint one execution-bound stamp for evidence and every jq evaluator.
+        let opening_stamp = stamper.next();
+        let jq_clock = nika_cap::JqClock::at(opening_stamp.1);
+        let run_start = nika_kernel::tool_executor::ToolRunStart::new(opening_stamp.1.unix_ns);
+        self.emit_run_prologue(wf, &workflow_name, opening_stamp, stamper, sink);
         self.seed_inspect(wf, report);
 
-        let mut records: BTreeMap<String, TaskRecord> = BTreeMap::new();
+        let mut records: BTreeMap<String, DataflowTaskRecord> = BTreeMap::new();
         let mut ok = true;
         let mut cache_hits: Vec<String> = Vec::new();
-        // The spend ledger (leaf debits) + the `--max-cost-usd` gate.
+        // The spend ledger carries leaf debits and the run cost gate.
         let run_ledger = ledger::RunLedger::new(self.config.max_cost_usd);
-        let (mut parked, resolve_scope) = parked_scope(wf, &inputs, &consts, &secrets, &resume_ctx);
+        let (mut parked, resolve_scope) = parked_scope(
+            wf,
+            &inputs,
+            &consts,
+            &secrets,
+            &resume_ctx,
+            jq_clock,
+            run_start,
+        );
 
         for wave in &report.waves {
             let early = self
@@ -883,10 +915,7 @@ where
             }
         }
 
-        // Recoveries whose referents never settled on the spine (mutual
-        // recovery cycles) resolve against the FINAL records — each
-        // still-parked task reads as its PRE-recovery failed record
-        // (spec 05 · recovery never rewrites the referent's history).
+        // Mutual recovery cycles resolve against the final records.
         recover::resolve_at_end(
             &resolve_scope,
             &mut parked,
@@ -897,19 +926,14 @@ where
             sink,
         );
 
-        // Resolve the `outputs:` BEFORE the terminal frame so a typed output
-        // that breaks its declared `type:` can fail the run — the output half
-        // of the callable contract (spec 01 §engine-MUST rule 6 · NIKA-VAR-009 ·
-        // symmetric with the typed-`vars:` input validation).
+        // Resolve outputs before the terminal frame so type failures fail the run.
         let mut outputs = resolve_outputs(wf, &records, &inputs, &consts, &secrets);
-        // The outputs map is NOT an event, so the redacting sink never
-        // saw it: the same bytes were `***` in the trace and in the
-        // clear on `--output json` stdout. Scrub before it leaves.
+        // The output map bypasses the event sink, so scrub it explicitly.
         crate::secret::scrub_outputs(&mut outputs, &secrets);
         let snapshot = run_ledger.snapshot();
         let ok = finalize_outputs(wf, &outputs, &workflow_name, ok, &snapshot, stamper, sink);
 
-        let mut outcome = RunOutcome::new(ok, records, outputs).with_ledger(&snapshot);
+        let mut outcome = RunOutcome::from_dataflow(ok, records, outputs).with_ledger(&snapshot);
         outcome.cache_hits = cache_hits;
         Ok(outcome)
     }
@@ -937,7 +961,7 @@ where
         run_ledger: &ledger::RunLedger,
         parked: &mut recover::ParkedRecoveries,
         (records, ok, cache_hits): (
-            &mut BTreeMap<String, TaskRecord>,
+            &mut BTreeMap<String, DataflowTaskRecord>,
             &mut bool,
             &mut Vec<String>,
         ),
@@ -958,6 +982,7 @@ where
                 &frozen,
                 (inputs, consts, secrets, permits, types),
                 resolve_scope.resume_ctx,
+                (resolve_scope.jq_clock, resolve_scope.run_start),
                 run_ledger,
                 (ok, cache_hits),
                 parked,
@@ -972,7 +997,8 @@ where
 
         if let Some(p) = paused {
             emit_paused(workflow_name, &p, stamper, sink);
-            let mut outcome = RunOutcome::new(true, std::mem::take(records), BTreeMap::new());
+            let mut outcome =
+                RunOutcome::from_dataflow(true, std::mem::take(records), BTreeMap::new());
             outcome.cache_hits = std::mem::take(cache_hits);
             outcome.paused = Some(p);
             return Ok(Some(outcome.with_ledger(&run_ledger.snapshot())));
@@ -1040,22 +1066,26 @@ where
         &self,
         wave: &[usize],
         wf: &RawWorkflow,
-        frozen: &BTreeMap<String, TaskRecord>,
+        frozen: &BTreeMap<String, DataflowTaskRecord>,
         scope: WaveScope<'_>,
         resume_ctx: &resume::ResumeContext,
+        execution: (nika_cap::JqClock, nika_kernel::tool_executor::ToolRunStart),
         ledger: &ledger::RunLedger,
         (ok, cache_hits): (&mut bool, &mut Vec<String>),
         parked: &mut recover::ParkedRecoveries,
         stamper: &mut dyn Stamper,
         sink: &mut dyn EventSink,
-    ) -> Result<(BTreeMap<String, TaskRecord>, Option<WorkflowPause>), RuntimeError> {
+    ) -> Result<(BTreeMap<String, DataflowTaskRecord>, Option<WorkflowPause>), RuntimeError> {
         let (inputs, consts, secrets, permits, types) = scope;
+        let (jq_clock, run_start) = execution;
         let resolve_scope = recover::ResolveScope {
             wf,
             inputs,
             consts,
             secrets,
             resume_ctx,
+            jq_clock,
+            run_start,
         };
         // Resolve indices up front — a bad index is a schedule breach
         // (NIKA-1701 · run abort · the one system error).
@@ -1071,14 +1101,14 @@ where
             .config
             .wave_parallelism
             .map_or_else(|| members.len().max(1), NonZeroUsize::get);
-        let mut wave_records: BTreeMap<String, TaskRecord> = BTreeMap::new();
+        let mut wave_records: BTreeMap<String, DataflowTaskRecord> = BTreeMap::new();
         let mut paused: Option<WorkflowPause> = None;
         let mut finishes = std::pin::pin!(
             futures_util::stream::iter(members.iter().take_while(|_| !ledger.tripped()).map(
                 |&task| {
                     self.run_task_pipeline(
                         task, wf, frozen, inputs, consts, secrets, permits, types, resume_ctx,
-                        ledger,
+                        ledger, jq_clock, run_start,
                     )
                 },
             ))
@@ -1170,7 +1200,7 @@ fn emit_paused(
 /// templates preserve the referenced value's type.
 fn resolve_outputs(
     wf: &RawWorkflow,
-    records: &BTreeMap<String, TaskRecord>,
+    records: &BTreeMap<String, DataflowTaskRecord>,
     inputs: &BTreeMap<String, Value>,
     consts: &BTreeMap<String, Value>,
     secrets: &BTreeMap<String, Value>,
@@ -1275,7 +1305,7 @@ fn terminal_cost_fields(snap: &ledger::LedgerSnapshot) -> Vec<(&'static str, Fie
 fn abort_on_budget(
     wf: &RawWorkflow,
     workflow_name: &str,
-    mut records: BTreeMap<String, TaskRecord>,
+    mut records: BTreeMap<String, DataflowTaskRecord>,
     cache_hits: Vec<String>,
     snapshot: &ledger::LedgerSnapshot,
     stamper: &mut dyn Stamper,
@@ -1286,7 +1316,10 @@ fn abort_on_budget(
         if !records.contains_key(id) {
             // Spec 13 · cancelled/budget: this task was UNSTARTED when
             // the cap hit (in-flight work completed and was counted).
-            let record = TaskRecord::unran(TaskStatus::Cancelled, TerminalCause::Budget);
+            let record = DataflowTaskRecord::unran(
+                nika_dataflow::TaskStatus::Cancelled,
+                nika_dataflow::TerminalCause::Budget,
+            );
             emit(
                 stamper,
                 sink,
@@ -1310,7 +1343,8 @@ fn abort_on_budget(
     fields.extend(terminal_cost_fields(snapshot));
     emit(stamper, sink, EventKind::WorkflowFailed, &fields);
 
-    let mut outcome = RunOutcome::new(false, records, BTreeMap::new()).with_ledger(snapshot);
+    let mut outcome =
+        RunOutcome::from_dataflow(false, records, BTreeMap::new()).with_ledger(snapshot);
     outcome.cache_hits = cache_hits;
     outcome
 }

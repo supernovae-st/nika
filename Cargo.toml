@@ -138,11 +138,12 @@ layers.nika-harness = "L1"
 # nika-secret · workflow secret RESOLUTION (descended from nika-runtime
 # 2026-08-06 at the 15k wall · pure · the scrub half stays behind).
 layers.nika-secret = "L1"
-# nika-dataflow · the run's dataflow — TaskRecord + the ${{ }}/CEL/jq
-# evaluation over it (descended from nika-runtime 2026-08-25 at the 15k wall ·
-# the nika-secret/nika-proof precedent · pure: zero I/O, zero async, zero
-# clock · the executor keeps the effects, this keeps the evaluation).
-layers.nika-dataflow = "L1"
+# nika-dataflow · the run's pure dataflow — TaskRecord + the ${{ }}/CEL/jq
+# evaluation over it (descended from nika-runtime in the v0.115 development
+# line · zero I/O, zero async, zero clock). Mechanical sort makes pure logic
+# L0; ADR-027's explicit fanout policy records why the five sibling inputs are
+# one cohesive evaluation unit rather than disguising the crate as an effect.
+layers.nika-dataflow = "L0"
 # nika-providers · Phase-B slice step 8.5 (announce ladder · D-2026-06-10-N6) ·
 # implements kernel ai::provider {ProviderInferDyn,ProviderStreamDyn,ProviderMeta} ·
 # 14 canonical profiles over 3 wire formats · transport via kernel http (no reqwest here).

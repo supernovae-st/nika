@@ -122,15 +122,15 @@ impl super::Dispatched {
         Self {
             note: note.to_owned(),
             result: Err(super::FailedDispatch {
-                record: crate::record::TaskErrorRecord {
-                    code: DIVERGENCE_CODE.to_owned(),
-                    message: format!(
+                record: crate::record::TaskErrorRecord::new(
+                    DIVERGENCE_CODE,
+                    format!(
                         "preview/commit divergence on `{note}` — the fired request is not \
                          the judged request (the digest recomputed at the firing point \
                          disagrees with the judged form · zero byte reached the sink)"
                     ),
-                    transient: false,
-                },
+                    false,
+                ),
                 cost_usd: None,
                 cost_source: None,
                 cost_unpriced: None,
@@ -157,6 +157,7 @@ where
         &self,
         note: String,
         mut input: InvokeInput,
+        run_start: nika_kernel::tool_executor::ToolRunStart,
     ) -> super::Dispatched {
         let Some(preview) = digest(&invoke_request(&input)) else {
             return super::Dispatched::unwired(
@@ -167,7 +168,8 @@ where
         #[cfg(test)]
         test_tamper::invoke(&mut input);
         match gate(&preview, &invoke_request(&input)) {
-            Some(CommitGate::Fire(attestation)) => match self.invoke.run(input).await {
+            Some(CommitGate::Fire(attestation)) => match self.invoke.run_at(input, run_start).await
+            {
                 // A tool's typed value (builtins · MCP `structuredContent`)
                 // flows to tasks.X.output AS ITSELF (spec 04 §tasks.X.output);
                 // a text-only tool stays a String — never JSON-coerced.

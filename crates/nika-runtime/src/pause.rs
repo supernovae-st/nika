@@ -132,16 +132,7 @@ pub(crate) fn prompt_block(
     }
     // Secret values NEVER reach the journal payload — markers only.
     // (`env:` is non-sensitive by construction — real values render.)
-    let scope = Scope {
-        records,
-        inputs,
-        consts,
-        secrets: markers,
-        with_ns: None,
-        item: None,
-        index: None,
-        permits: None,
-    };
+    let scope = Scope::workflow_with_value_authorities(records, inputs, consts, markers);
     let mut pause = payload_of(task, invoke.args.as_ref().map(|a| &a.value), &scope);
     // F-P4 — the ticket minted at the gate rides the pause: the resumed
     // run validates the `--answer` against THIS shown hash · nonce · TTL.
@@ -267,11 +258,7 @@ mod tests {
                 evidence: None,
                 duration_ms: 0,
                 result: RunResult::Failed {
-                    error: TaskErrorRecord {
-                        code: code.to_owned(),
-                        message: message.to_owned(),
-                        transient: false,
-                    },
+                    error: TaskErrorRecord::new(code, message, false),
                     cost_usd: None,
                     cost_unpriced: None,
                 },

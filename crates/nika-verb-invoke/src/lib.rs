@@ -52,7 +52,7 @@ mod errors;
 use std::sync::Arc;
 use std::sync::atomic::{AtomicU64, Ordering};
 
-use nika_kernel::tool_executor::{ToolCall, ToolExecuteDyn};
+use nika_kernel::tool_executor::{ToolCall, ToolExecuteDyn, ToolRunStart};
 
 pub use errors::VerbInvokeError;
 
@@ -159,10 +159,37 @@ where
     /// `is_error: true` · [`VerbInvokeError::Dispatch`] on a dispatcher
     /// timeout/execution/availability failure.
     pub async fn run(&self, input: InvokeInput) -> Result<InvokeOutput, VerbInvokeError> {
+        self.run_with_context(input, None).await
+    }
+
+    /// Execute an `invoke` task under one immutable execution-bound instant.
+    ///
+    /// Every retry constructs a fresh call carrying the same value; shared
+    /// executors therefore need no mutable run binding.
+    ///
+    /// # Errors
+    ///
+    /// Exactly [`Self::run`]'s errors.
+    pub async fn run_at(
+        &self,
+        input: InvokeInput,
+        run_start: ToolRunStart,
+    ) -> Result<InvokeOutput, VerbInvokeError> {
+        self.run_with_context(input, Some(run_start)).await
+    }
+
+    async fn run_with_context(
+        &self,
+        input: InvokeInput,
+        run_start: Option<ToolRunStart>,
+    ) -> Result<InvokeOutput, VerbInvokeError> {
         validate_tool_ref(&input.tool)?;
 
         let call_id = input.call_id.unwrap_or_else(|| derive_call_id(&input.tool));
-        let call = ToolCall::new(call_id, input.tool.clone(), input.args);
+        let mut call = ToolCall::new(call_id, input.tool.clone(), input.args);
+        if let Some(run_start) = run_start {
+            call = call.with_run_start(run_start);
+        }
 
         let result = self
             .executor

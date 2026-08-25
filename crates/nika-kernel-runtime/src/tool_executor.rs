@@ -12,6 +12,32 @@
 
 use serde::{Deserialize, Serialize};
 
+/// The immutable execution-bound instant supplied to tool evaluators.
+///
+/// The runtime mints this once, beside its opening trace frame. Tool
+/// executors that expose pure projections of run-start time receive the same
+/// nanosecond value on each [`ToolCall`]. The value is call-owned so shared
+/// dispatchers never carry mutable ambient execution state.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct ToolRunStart {
+    unix_ns: i64,
+}
+
+impl ToolRunStart {
+    /// Construct the context from the opening frame's Unix nanoseconds.
+    #[must_use]
+    pub const fn new(unix_ns: i64) -> Self {
+        Self { unix_ns }
+    }
+
+    /// Return the exact Unix nanoseconds carried by the opening frame.
+    #[must_use]
+    pub const fn unix_ns(self) -> i64 {
+        self.unix_ns
+    }
+}
+
 /// Opaque tool call identifier.
 ///
 /// Inner field is private (Audit-1 P0-2, 2026-04-16) so future validation
@@ -53,6 +79,9 @@ pub struct ToolCall {
     pub name: String,
     /// Tool input parameters as JSON.
     pub input: serde_json::Value,
+    /// Immutable execution context. Private so callers cannot construct a
+    /// partially-initialized context; use [`Self::with_run_start`].
+    run_start: Option<ToolRunStart>,
 }
 
 impl ToolCall {
@@ -63,7 +92,21 @@ impl ToolCall {
             id: ToolCallId::new(id),
             name: name.into(),
             input,
+            run_start: None,
         }
+    }
+
+    /// Attach the execution-bound opening instant to this call.
+    #[must_use]
+    pub fn with_run_start(mut self, run_start: ToolRunStart) -> Self {
+        self.run_start = Some(run_start);
+        self
+    }
+
+    /// Return the execution-bound opening instant, when a runtime supplied it.
+    #[must_use]
+    pub const fn run_start(&self) -> Option<ToolRunStart> {
+        self.run_start
     }
 }
 
@@ -269,6 +312,14 @@ mod tests {
         let call = ToolCall::new("tc_1", "nika:read", serde_json::json!({"path": "/tmp"}));
         assert_eq!(call.id.as_str(), "tc_1");
         assert_eq!(call.name, "nika:read");
+        assert_eq!(call.run_start(), None);
+    }
+
+    #[test]
+    fn tool_call_carries_immutable_run_start() {
+        let start = ToolRunStart::new(42);
+        let call = ToolCall::new("tc_1", "nika:jq", serde_json::json!({})).with_run_start(start);
+        assert_eq!(call.run_start(), Some(start));
     }
 
     #[test]

@@ -38,8 +38,8 @@
 
 use std::collections::BTreeMap;
 
+use nika_cap::Permits;
 use nika_cel::{Resolver, compute, compute_bool, parse};
-use nika_schema::types::Permits;
 use nika_tmpl::{scan_islands, single_island};
 use serde_json::Value;
 
@@ -60,35 +60,50 @@ static EMPTY_ENV: std::sync::LazyLock<BTreeMap<String, Value>> =
     std::sync::LazyLock::new(BTreeMap::new);
 
 /// The dataflow scope one render sees (spec 04 namespaces).
+///
+/// Authority maps are private and every production scope starts at
+/// [`Self::workflow_with_value_authorities`]. Task-local context can only be
+/// layered onto that authority-bearing value through
+/// [`Self::with_task_context`]; an external crate cannot forge a scope with a
+/// struct literal or replace an authority map after construction.
+///
+/// ```compile_fail
+/// use nika_dataflow::Scope;
+///
+/// fn forge<'a>(valid: Scope<'a>) -> Scope<'a> {
+///     Scope { ..valid }
+/// }
+/// ```
 #[derive(Clone, Copy)]
+#[non_exhaustive]
 pub struct Scope<'a> {
     /// `tasks.<id>.<field>` — the result records of settled tasks.
-    pub records: &'a BTreeMap<String, TaskRecord>,
+    records: &'a BTreeMap<String, TaskRecord>,
     /// `inputs.<key>` — typed input defaults + the operator's `--var`
     /// overrides (JSON values).
-    pub inputs: &'a BTreeMap<String, Value>,
+    inputs: &'a BTreeMap<String, Value>,
     /// `const.<key>` — named constants (bare literals + typed `{type,
     /// value}` values · always bound, never overridable).
-    pub consts: &'a BTreeMap<String, Value>,
+    consts: &'a BTreeMap<String, Value>,
     /// `secrets.<name>` — RESOLVED secret values (spec 01 §secrets ·
     /// MINOR-B). Empty when the composer injected no resolver — then a
     /// `secrets.X` reference is unresolved (NIKA-1702), never a silent
     /// empty. A resolved value flows ONLY where the IFC sanctions it (the
     /// `nika check` secret-flow analysis · ADR-092) and is NEVER emitted to
     /// the event stream (notes carry the program/model, not field values).
-    pub secrets: &'a BTreeMap<String, Value>,
+    secrets: &'a BTreeMap<String, Value>,
     /// `with.<key>` — task-local injection (None outside a task body).
-    pub with_ns: Option<&'a BTreeMap<String, Value>>,
+    with_ns: Option<&'a BTreeMap<String, Value>>,
     /// `item` / `index` — `for_each` locals (None outside an iteration).
-    pub item: Option<&'a Value>,
+    item: Option<&'a Value>,
     /// Zero-based position of `item` (spec 03 §`for_each`).
-    pub index: Option<usize>,
+    index: Option<usize>,
     /// `permits:` — the workflow's declared capability boundary (spec 01
     /// §permits). `None` = no boundary declared (F-O8 « absent = zero
     /// authority » · every effect refused at the gates · the always-on
     /// floors stay on top). Set on the task-dispatch scopes so the exec
     /// sink can enforce `permits.exec` (NIKA-SEC-004); `None` elsewhere.
-    pub permits: Option<&'a Permits>,
+    permits: Option<&'a Permits>,
 }
 
 impl<'a> Scope<'a> {
@@ -136,6 +151,74 @@ impl<'a> Scope<'a> {
             index: None,
             permits: None,
         }
+    }
+
+    /// Add the task-local namespace, loop locals, and effect boundary to an
+    /// authority-bearing workflow scope.
+    ///
+    /// This consumes `self`, so these contextual values can never be used to
+    /// bypass the required records/inputs/constants/secrets constructor.
+    #[must_use]
+    pub fn with_task_context(
+        mut self,
+        with_ns: Option<&'a BTreeMap<String, Value>>,
+        item: Option<&'a Value>,
+        index: Option<usize>,
+        permits: Option<&'a Permits>,
+    ) -> Self {
+        self.with_ns = with_ns;
+        self.item = item;
+        self.index = index;
+        self.permits = permits;
+        self
+    }
+
+    /// The settled task records bound at construction.
+    #[must_use]
+    pub const fn records(&self) -> &'a BTreeMap<String, TaskRecord> {
+        self.records
+    }
+
+    /// The input values bound at construction.
+    #[must_use]
+    pub const fn inputs(&self) -> &'a BTreeMap<String, Value> {
+        self.inputs
+    }
+
+    /// The constant values bound at construction.
+    #[must_use]
+    pub const fn consts(&self) -> &'a BTreeMap<String, Value> {
+        self.consts
+    }
+
+    /// The resolved secret values bound at construction.
+    #[must_use]
+    pub const fn secrets(&self) -> &'a BTreeMap<String, Value> {
+        self.secrets
+    }
+
+    /// The optional task-local `with:` namespace.
+    #[must_use]
+    pub const fn with_namespace(&self) -> Option<&'a BTreeMap<String, Value>> {
+        self.with_ns
+    }
+
+    /// The optional `for_each` item.
+    #[must_use]
+    pub const fn item(&self) -> Option<&'a Value> {
+        self.item
+    }
+
+    /// The optional `for_each` index.
+    #[must_use]
+    pub const fn index(&self) -> Option<usize> {
+        self.index
+    }
+
+    /// The optional workflow capability boundary.
+    #[must_use]
+    pub const fn permits(&self) -> Option<&'a Permits> {
+        self.permits
     }
 
     /// Evaluate one `${{ … }}` body (an island reference OR a richer
@@ -434,6 +517,19 @@ mod tests {
     }
 
     #[test]
+    fn const_namespace_resolves_from_its_own_authority() {
+        let records = BTreeMap::new();
+        let inputs = BTreeMap::from([("region".to_owned(), Value::String("input".to_owned()))]);
+        let consts = BTreeMap::from([("region".to_owned(), Value::String("eu-west".to_owned()))]);
+        let scope =
+            Scope::workflow_with_value_authorities(&records, &inputs, &consts, &EMPTY_SECRETS);
+        assert_eq!(
+            render("${{ const.region }}", &scope).expect("constant resolves"),
+            "eu-west"
+        );
+    }
+
+    #[test]
     fn render_record_fields_status_and_defined_null() {
         let (records, vars) = fixture();
         let scope = Scope::workflow(&records, &vars);
@@ -481,6 +577,10 @@ mod tests {
         ));
         assert!(matches!(
             render("${{ secrets.api_key }}", &scope).expect_err("secrets unbound"),
+            DataflowError::UnresolvedTemplate { .. }
+        ));
+        assert!(matches!(
+            render("${{ secrets }}", &scope).expect_err("empty secrets root unbound"),
             DataflowError::UnresolvedTemplate { .. }
         ));
     }
@@ -809,16 +909,9 @@ mod tests {
         // — for_each locals are objects too · field access works.
         let (records, vars) = fixture();
         let item = serde_json::json!({"path": "docs/intro.md", "text": "Hello"});
-        let scope = Scope {
-            records: &records,
-            inputs: &vars,
-            consts: &EMPTY_ENV,
-            secrets: &EMPTY_SECRETS,
-            with_ns: None,
-            item: Some(&item),
-            index: Some(0),
-            permits: None,
-        };
+        let scope =
+            Scope::workflow_with_value_authorities(&records, &vars, &EMPTY_ENV, &EMPTY_SECRETS)
+                .with_task_context(None, Some(&item), Some(0), None);
         assert_eq!(
             render("${{ item.path }}", &scope).expect("item.path"),
             "docs/intro.md"
@@ -878,16 +971,9 @@ mod tests {
         let (records, vars) = fixture();
         let with_ns = BTreeMap::from([("page".to_owned(), Value::String("p1".into()))]);
         let item = Value::String("element".to_owned());
-        let scope = Scope {
-            records: &records,
-            inputs: &vars,
-            consts: &EMPTY_ENV,
-            secrets: &EMPTY_SECRETS,
-            with_ns: Some(&with_ns),
-            item: Some(&item),
-            index: Some(3),
-            permits: None,
-        };
+        let scope =
+            Scope::workflow_with_value_authorities(&records, &vars, &EMPTY_ENV, &EMPTY_SECRETS)
+                .with_task_context(Some(&with_ns), Some(&item), Some(3), None);
         assert_eq!(
             render("${{ with.page }}/${{ item }}@${{ index }}", &scope).expect("renders"),
             "p1/element@3"
@@ -898,6 +984,28 @@ mod tests {
             render("${{ item }}", &bare).expect_err("no item outside for_each"),
             DataflowError::UnresolvedTemplate { .. }
         ));
+    }
+
+    #[test]
+    fn scope_accessors_preserve_all_bound_authorities_and_context() {
+        let (records, inputs) = fixture();
+        let consts = BTreeMap::from([("region".to_owned(), serde_json::json!("eu"))]);
+        let secrets = BTreeMap::from([("token".to_owned(), serde_json::json!("resolved"))]);
+        let with_ns = BTreeMap::from([("page".to_owned(), serde_json::json!(2))]);
+        let item = serde_json::json!({"id": 7});
+        let permits = Permits::new();
+        let scope = Scope::workflow_with_value_authorities(&records, &inputs, &consts, &secrets)
+            .with_task_context(Some(&with_ns), Some(&item), Some(4), Some(&permits));
+
+        assert_eq!(scope.records().len(), records.len());
+        assert!(scope.records().contains_key("gather"));
+        assert_eq!(scope.inputs(), &inputs);
+        assert_eq!(scope.consts(), &consts);
+        assert_eq!(scope.secrets(), &secrets);
+        assert_eq!(scope.with_namespace(), Some(&with_ns));
+        assert_eq!(scope.item(), Some(&item));
+        assert_eq!(scope.index(), Some(4));
+        assert_eq!(scope.permits(), Some(&permits));
     }
 
     #[test]

@@ -33,19 +33,21 @@ use nika_schema::raw::{RawAction, RawWorkflow};
 /// Compile-check a jq program with the runtime's exact jaq stack. `Ok(())`
 /// when it compiles; `Err(reason)` with a clean one-line message otherwise.
 pub(super) fn jq_compiles(program: &str) -> Result<(), String> {
+    let clock_defs = jaq_core::load::parse(nika_cap::JQ_CLOCK_DEFS, |parser| parser.defs())
+        .ok_or_else(|| "internal: canonical jq clock definitions do not parse".to_owned())?;
     let defs = jaq_core::defs()
-        .chain(jaq_std::defs())
-        .chain(jaq_json::defs());
-    // D-2026-08-11-N26 · the withheld natives never enter the function set —
-    // the SAME subtraction the two runtime seams apply (`nika-runtime::jq` for
-    // `extract:` bindings · `nika-builtin::data` for `nika:jq`), from the SAME
-    // list in `nika_cap`. This is what keeps the parity above STRUCTURAL: a
-    // program the runtime refuses is refused here, at the same names, because
-    // both read one list rather than two copies of a judgment.
+        .chain(
+            jaq_std::defs().filter(|definition| nika_cap::install_jq_definition(definition.name)),
+        )
+        .chain(jaq_json::defs())
+        .chain(clock_defs);
+    // One typed policy decides every effect-bearing native/definition. Clock
+    // forms compile against the run-start variable; execution supplies its
+    // value, while the checker needs only its declared name.
     let funs = jaq_core::funs::<JustLut<Val>>()
         .chain(jaq_std::funs())
         .chain(jaq_json::funs())
-        .filter(|f| !nika_cap::is_withheld_jq_native(f.0));
+        .filter(|f| nika_cap::install_jq_native(f.0));
     let arena = Arena::default();
     let modules = Loader::new(defs)
         .load(
@@ -58,6 +60,7 @@ pub(super) fn jq_compiles(program: &str) -> Result<(), String> {
         .map_err(|errs| render_load(&errs))?;
     Compiler::default()
         .with_funs(funs)
+        .with_global_vars([nika_cap::JQ_RUN_START_VAR])
         .compile(modules)
         .map(|_| ())
         .map_err(|errs| render_compile(&errs))
@@ -92,7 +95,7 @@ fn render_compile<U>(errs: &[(File<&str, ()>, Vec<(&str, U)>)]) -> String {
     errs.first().and_then(|(_, v)| v.first()).map_or_else(
         || "compile error".to_owned(),
         |(name, _)| {
-            nika_cap::withheld_jq_reason(name)
+            nika_cap::withheld_jq_policy_reason(name)
                 .unwrap_or_else(|| format!("undefined filter or variable `{name}`"))
         },
     )
@@ -246,19 +249,13 @@ mod tests {
         }
     }
 
-    /// THE CLOCK IS STILL OPEN — pinned here too.
-    ///
-    /// D-2026-08-11-N27 (active) owns `now` and prescribes a REBINDING to the
-    /// run's start instant, not the subtraction N26 applies to the environment.
-    /// The static lane therefore still accepts it. When N27 ships, this goes
-    /// red — that is its whole job.
+    /// The accepted clock spellings compile against the canonical rebinding.
     #[test]
-    fn the_clock_still_compiles_and_belongs_to_n27() {
-        for still_open in ["now", "0 | localtime", "0 | strflocaltime(\"%Y\")"] {
+    fn the_clock_forms_compile_against_the_n27_rebinding() {
+        for rebound in ["now", "0 | localtime", "0 | strflocaltime(\"%Y\")"] {
             assert!(
-                jq_compiles(still_open).is_ok(),
-                "{still_open} · if this now refuses, D-2026-08-11-N27 shipped — \
-                 update this test WITH it, never as a drive-by"
+                jq_compiles(rebound).is_ok(),
+                "{rebound} · check and run must accept the same N27 forms"
             );
         }
     }

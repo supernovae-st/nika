@@ -104,6 +104,42 @@ A v0.1-compliant engine MUST ·
 - Validate the response against `schema` if present · MAY auto-retry validation failures internally before surfacing `NIKA-INFER-002` (engine-configurable · the same rule as [05 §structured output](./05-errors.md#structured-output-validation))
 - **Reject** any unknown field with a clear error (`NIKA-PARSE-005`) — the choice this line used to leave open is closed by [07 §unknown key](./07-conformance.md#an-unknown-key-is-an-error-at-every-level-normative--d-2026-08-11-n20): a key can REMOVE authority, so accept-and-warn fails open
 
+### Subscription harness access (normative)
+
+An engine MAY execute `infer:` through a user's authenticated CLI seat
+instead of a provider API key, but only after an **infer-grade meet** proves
+all four properties for that adapter and this task:
+
+1. `single_turn` — one request produces one terminal answer;
+2. `no_implicit_tools` — an accepted answer contains no tool, command, file,
+   network, or permission event;
+3. `structured_output` — the adapter's level is at least the task's need
+   (plain text, JSON, or JSON Schema);
+4. `model_identity` — the requested model identity is observable at command
+   construction and is recorded without being relabelled as the model that
+   answered.
+
+The meet is evidence, not a product-name allowlist. A seat with no attestation,
+or one failing any conjunct, MUST be refused before inference with a witness
+that names the failed property. It MUST NOT fall back to a native provider or
+to the seat's agentic loop. In particular, an ACP-capable agent seat is not
+thereby infer-grade.
+
+For an accepted seat run, the receipt MUST record the seat id and the
+**requested** model. It MUST leave the responding model absent unless the
+adapter reports that fact explicitly; request identity is never promoted into
+response identity. Subscription inference has no numeric token count and no
+numeric price in the Nika receipt or budget. Its budget lane is
+`subscription quota`, never `0 USD`. An adapter may read a terminal usage
+object as protocol-completeness evidence, but MUST NOT project its numeric
+meters into the Nika receipt.
+
+A non-executing preview that accepts an access pin MUST apply the same access
+admission meet as a live run and record the requested pin plus each requested
+model. The same invalid or unattested pin MUST refuse with the same access
+code. For an admitted subscription seat, the preview MUST name
+`subscription quota` and MUST NOT display a numeric USD or token meter.
+
 ---
 
 ## `exec:` · shell command

@@ -96,6 +96,16 @@ fn everything_written(dir: &Path) -> String {
     acc
 }
 
+/// Parse every NDJSON event left below the run directory. Non-event files
+/// (including the workflow itself) simply contribute no rows.
+fn json_events_written(dir: &Path) -> Vec<serde_json::Value> {
+    everything_written(dir)
+        .lines()
+        .filter_map(|line| serde_json::from_str(line).ok())
+        .filter(|value: &serde_json::Value| value.get("kind").is_some())
+        .collect()
+}
+
 fn workflow_with(permits: &str, program: &str) -> String {
     format!(
         "nika: ambient-canary\n\
@@ -163,27 +173,54 @@ fn no_authority_shape_lets_an_expression_read_the_environment() {
     }
 }
 
-/// THE CLOCK IS STILL OPEN, and it has an owner — pinned at the binary.
+/// The clock spelling is accepted but its host effect is gone.
 ///
-/// `now` reads the host clock today. D-2026-08-11-N27 (active) prescribes a
-/// REBINDING — `now` resolves to the run's start instant, already in the trace,
-/// so a replay yields the same value forever — not the subtraction N26 applies
-/// to the environment. Measured 2026-08-15: zero call sites in a 184-program
-/// corpus, so the cost of either remedy is nil; the CHOICE is N27's.
-///
-/// When N27 ships, this test goes red. That is its whole job: the debt is
-/// named, dated and owned rather than quietly widened into someone else's
-/// decision.
+/// N27 preserves `now` as user language and rebinds it to the exact run-start
+/// timestamp already carried by `WorkflowStarted`. This binary-level test pins
+/// both halves: the checker accepts the spelling and the running evaluator
+/// returns the evidence timestamp rather than independently sampling the host.
 #[test]
-fn the_clock_is_a_named_open_debt_owned_by_n27() {
+#[allow(clippy::cast_precision_loss, clippy::float_cmp)] // jq's clock wire is exact f64
+fn the_clock_is_accepted_and_rebound_to_workflow_started() {
     let dir = tempfile::tempdir().expect("tempdir");
     let wf = write(dir.path(), "probe.nika.yaml", &workflow_with("", "now"));
     let checked = invoke("check", &wf);
     assert!(
         checked.status.success(),
-        "`now` was refused — if D-2026-08-11-N27 shipped, update this test WITH \
-         it (rebound to the run's start instant), never as a drive-by\n{}",
+        "`now` must remain accepted user language\n{}",
         text(&checked)
+    );
+    let ran = invoke("run", &wf);
+    assert!(
+        ran.status.success(),
+        "accepted `now` must run\n{}",
+        text(&ran)
+    );
+
+    let events = json_events_written(dir.path());
+    let started = events
+        .iter()
+        .find(|event| event["kind"] == "workflow_started")
+        .expect("trace carries WorkflowStarted");
+    let started_ns = started["timestamp"]
+        .as_i64()
+        .expect("opening timestamp is signed nanoseconds");
+    let completed = events
+        .iter()
+        .find(|event| event["kind"] == "task_completed")
+        .expect("trace carries the jq result");
+    let output = completed["fields"]
+        .as_array()
+        .expect("task fields")
+        .iter()
+        .find(|field| field["key"] == "output")
+        .and_then(|field| field["value"].as_str())
+        .and_then(|json| serde_json::from_str::<f64>(json).ok())
+        .expect("task output is jq's numeric clock value");
+    assert_eq!(
+        output,
+        started_ns as f64 / 1_000_000_000.0,
+        "jq and WorkflowStarted must carry the same minted instant"
     );
 }
 
