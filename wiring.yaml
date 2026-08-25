@@ -36,6 +36,13 @@ capabilities:
     reachable_by: "nika lsp --stdio --clientProcessId=<pid>"
     proven_by: rust
     issue: 1181
+  - id: display.gate-provenance
+    kind: operator-teaching
+    declared_at: crates/nika-display/src/render.rs:416
+    shipped_when: "default"
+    reachable_by: "a task blocked by a settled upstream binding"
+    proven_by: rust
+    issue: 1198
   - id: access.harness
     kind: cargo-feature
     declared_at: crates/nika-cli/Cargo.toml:72
