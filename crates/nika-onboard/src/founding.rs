@@ -159,7 +159,7 @@ pub fn scripted_run(
         return Outcome::env(text);
     }
 
-    let (first_workflow, worst) =
+    let (first_workflow, worst, has_drafts) =
         match found_from_source(dir, force, recipe, example, audit, &mut text) {
             Ok(pair) => pair,
             Err(out) => return out,
@@ -187,9 +187,15 @@ pub fn scripted_run(
     let next = first_workflow.map_or_else(
         || NEXT_BLOCK.to_owned(),
         |first| {
-            format!(
+            if has_drafts {
+                format!(
+                    "next ·\n  $EDITOR {first}                   # fill the remaining `<SLOT: …>` values\n  nika check {first}                    # audit before a single token\n  nika run {first} --model mock/echo   # offline proof · zero keys\n  nika explain <NIKA-XXXX>              # every finding teaches"
+                )
+            } else {
+                format!(
                 "next ·\n  nika run {first} --model mock/echo   # offline proof · zero keys\n  nika check {first}                    # audit before a single token\n  nika explain <NIKA-XXXX>              # every finding teaches"
-            )
+                )
+            }
         },
     );
     Outcome {
@@ -215,7 +221,7 @@ fn found_from_source(
     example: Option<&str>,
     audit: &Audit<'_>,
     text: &mut String,
-) -> Result<(Option<String>, u8), Outcome> {
+) -> Result<(Option<String>, u8, bool), Outcome> {
     let scaffolded = match (example, recipe) {
         (Some(slug), _) => recipes::scaffold_example(dir, slug, force),
         (None, Some(name)) => {
@@ -230,7 +236,7 @@ fn found_from_source(
             };
             recipes::scaffold(dir, r, None, force)
         }
-        (None, None) => return Ok((None, codes::OK)),
+        (None, None) => return Ok((None, codes::OK, false)),
     };
     scaffold_report(dir, &scaffolded, audit, text)
 }
@@ -243,7 +249,7 @@ fn scaffold_report(
     scaffolded: &[(String, ScaffoldStatus)],
     audit: &Audit<'_>,
     text: &mut String,
-) -> Result<(Option<String>, u8), Outcome> {
+) -> Result<(Option<String>, u8, bool), Outcome> {
     let mut created: Vec<String> = Vec::new();
     for (path, status) in scaffolded {
         let rel = rel_to(dir, path);
@@ -266,11 +272,13 @@ fn scaffold_report(
     }
     let first = created.first().map(|p| rel_to(dir, p));
     let mut worst = codes::OK;
-    for (line, code) in proof_receipts(dir, &created, audit) {
-        worst = worst.max(code);
-        let _ = writeln!(text, "{line}");
+    let mut has_drafts = false;
+    for receipt in proof_receipts(dir, &created, audit) {
+        worst = worst.max(receipt.code);
+        has_drafts |= receipt.draft;
+        let _ = writeln!(text, "{}", receipt.line);
     }
-    Ok((first, worst))
+    Ok((first, worst, has_drafts))
 }
 
 /// What one brief write came to — the registers compose their own
@@ -335,11 +343,17 @@ fn themed_settings(canvas: CanvasTheme) -> String {
 /// minute is the product's argument. Clean collapses to one receipt
 /// line; findings expand to the full report (the vitest law: collapse
 /// success, expand failure).
+pub(crate) struct ProofReceipt {
+    pub(crate) line: String,
+    pub(crate) code: u8,
+    pub(crate) draft: bool,
+}
+
 pub(crate) fn proof_receipts(
     dir: &str,
     created: &[impl AsRef<str>],
     audit: &Audit<'_>,
-) -> Vec<(String, u8)> {
+) -> Vec<ProofReceipt> {
     created
         .iter()
         .map(|path| {
@@ -351,14 +365,19 @@ pub(crate) fn proof_receipts(
                     .text
                     .lines()
                     .rev()
-                    .find(|l| l.contains("audited"))
+                    .find(|l| l.contains("audited") || l.contains("not a workflow yet"))
                     .map_or_else(|| "audited clean".to_owned(), |l| l.trim().to_owned());
-                (format!("  {tail} ← {rel}"), codes::OK)
+                ProofReceipt {
+                    draft: tail.contains("not a workflow yet"),
+                    line: format!("  {tail} ← {rel}"),
+                    code: codes::OK,
+                }
             } else {
-                (
-                    format!("{}\n✖ {rel} — findings above", audit.text.trim_end()),
-                    audit.code,
-                )
+                ProofReceipt {
+                    line: format!("{}\n✖ {rel} — findings above", audit.text.trim_end()),
+                    code: audit.code,
+                    draft: false,
+                }
             }
         })
         .collect()

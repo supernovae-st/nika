@@ -13,7 +13,7 @@ nika: classify-and-route
 model: mock/echo                     # SLOT: replace with a local or hosted seat
 
 const:
-  request: "Production checkout is unavailable for every customer."   # SLOT
+  request: "<SLOT: the request to classify and route>"
   bundle:
     decision_bundle_format: 1
     manifest:

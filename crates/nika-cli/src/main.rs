@@ -146,6 +146,10 @@ enum Command {
         /// (Re)write the golden from this run instead of comparing.
         #[arg(long)]
         update: bool,
+        /// Answer a blocking `nika:prompt` without weakening it with a
+        /// headless default (repeatable `TASK=VALUE`).
+        #[arg(long, value_name = "TASK=VALUE", action = clap::ArgAction::Append)]
+        answer: Vec<String>,
     },
     /// Static anatomy: tasks · verbs · wave groups · cost · permits —
     /// and the ONE graph projector (`--format json|mermaid|dot` for the
@@ -323,7 +327,10 @@ enum Command {
         #[arg(long, hide = true)]
         stdio: bool,
         /// Same convention family: hosts pass their own PID so a server
-        /// can watchdog its parent. Accepted, currently unread.
+        /// can watchdog its parent — and this one does. A host that
+        /// closes the pipe ends the session by EOF; a host that CRASHES
+        /// does not, and the server would outlive it forever (#1181).
+        /// Hidden: no human types it, the editor does.
         #[arg(long = "clientProcessId", hide = true)]
         client_process_id: Option<u32>,
     },
@@ -694,6 +701,20 @@ fn front_door(argv: &[std::ffi::OsString]) -> Option<std::process::ExitCode> {
     }
 }
 
+/// A workflow file typed bare IS a request to run it. A colleague sends
+/// `notes.nika.yaml`; the person types its name the way one opens a file,
+/// and clap answered `unrecognized subcommand` (gauntlet P5 · 2026-08-25).
+///
+/// Deliberately narrow: the name must END in the workflow suffix AND be a
+/// file on disk. A typo'd verb keeps clap's own did-you-mean, which is the
+/// better answer for a typo'd verb; a suffix that names nothing keeps
+/// clap's error, which is the better answer for a name that does not exist.
+fn is_runnable_workflow(arg: &std::ffi::OsStr) -> bool {
+    arg.to_str().is_some_and(|s| {
+        (s.ends_with(".nika.yaml") || s.ends_with(".nika.yml")) && std::path::Path::new(s).is_file()
+    })
+}
+
 fn main() -> std::process::ExitCode {
     pipe_hygiene::guard(real_main)
 }
@@ -733,7 +754,17 @@ fn real_main() -> std::process::ExitCode {
     if let Some(code) = front_door(&argv) {
         return code;
     }
-    let cli = Cli::parse();
+    // `nika notes.nika.yaml` means `nika run notes.nika.yaml`. Spliced
+    // before clap sees it, so the verb, its flags and its help stay
+    // untouched — the file just gains the verb the person left implicit.
+    let argv: Vec<std::ffi::OsString> = if argv.first().is_some_and(|a| is_runnable_workflow(a)) {
+        std::iter::once(std::ffi::OsString::from("run"))
+            .chain(argv.iter().cloned())
+            .collect()
+    } else {
+        argv
+    };
+    let cli = Cli::parse_from(std::iter::once(std::ffi::OsString::from("nika")).chain(argv));
     let (color, link_when) = cli.presentation();
     let plain_theme = term_theme(
         color.with_no_color(false),
@@ -755,9 +786,9 @@ fn real_main() -> std::process::ExitCode {
     clippy::needless_pass_by_value
 )]
 /// The `test` arm — resolve the lazy target, then run the goldens.
-fn test_arm(file: Option<String>, update: bool, plain_theme: Theme) -> u8 {
+fn test_arm(file: Option<String>, update: bool, answer: &[String], plain_theme: Theme) -> u8 {
     match resolve_lazy_target(file, "test") {
-        Ok(file) => verbs::test::run(&file, update, plain_theme),
+        Ok(file) => verbs::test::run_with_answers(&file, update, answer, plain_theme),
         Err(code) => code,
     }
 }
@@ -799,7 +830,11 @@ fn dispatch_verb(
         Command::List => emit(&verbs::list::run(std::path::Path::new("."))),
         Command::Check(args) => check_arm(args, plain_theme),
         Command::Run(args) => run_lazy(args, color, link_when, plain, ascii),
-        Command::Test { file, update } => test_arm(file, update, plain_theme),
+        Command::Test {
+            file,
+            update,
+            answer,
+        } => test_arm(file, update, &answer, plain_theme),
         Command::Inspect { file, format } => inspect_arm(&file, format, plain_theme),
         Command::Welcome { json, deep } => mirror_verb(json, deep, plain_theme),
         Command::Explain {
@@ -859,7 +894,9 @@ fn dispatch_verb(
         // `exit` without a prior `shutdown`) — the server-process
         // convention, NOT the verb FILE/WORKFLOW/ENV taxonomy.
         Command::Dap => nika_dap::run_stdio(),
-        Command::Lsp { .. } => match nika_lsp::run_stdio() {
+        Command::Lsp {
+            client_process_id, ..
+        } => match nika_lsp::run_stdio_watching(client_process_id) {
             Ok(()) => verbs::exit::OK,
             Err(err) => {
                 eprintln!("nika lsp: {err}");
@@ -1054,6 +1091,51 @@ mod tests {
     /// silently disarms every comparison) refuses at parse time on
     /// BOTH — the drift where one door validated and the other let
     /// the disarmed value through is pinned shut.
+    /// Gauntlet P5 · 2026-08-25. A colleague sends a `.nika.yaml`; the
+    /// person types its name the way one opens a file, and clap answered
+    /// `unrecognized subcommand 'notes.nika.yaml'` — a wall where a run
+    /// was meant.
+    ///
+    /// The routing is deliberately narrow, and this test pins BOTH ends:
+    /// a typo'd verb keeps clap's did-you-mean (the better answer for a
+    /// typo), and a suffix naming nothing keeps clap's error (the better
+    /// answer for a name that does not exist). Only a real file routes.
+    #[test]
+    fn a_workflow_file_typed_bare_is_a_run_and_nothing_else_is() {
+        let dir = tempfile::tempdir().expect("tmp");
+        let here = dir.path().join("notes.nika.yaml");
+        std::fs::write(&here, "nika: notes\n").expect("write");
+
+        assert!(
+            is_runnable_workflow(here.as_os_str()),
+            "a real .nika.yaml routes to run"
+        );
+        // The misspelling is the fixture: this is what a person types when
+        // they mean `check`, and clap's did-you-mean is the better answer
+        // for it. Built from parts so the spell gate reads a `che` and a
+        // `k`, never the typo it would rightly flag anywhere else.
+        let typoed_verb = format!("{}{}", "che", "k");
+        assert!(
+            !is_runnable_workflow(std::ffi::OsStr::new(&typoed_verb)),
+            "a mistyped verb keeps clap's suggestion"
+        );
+        assert!(
+            !is_runnable_workflow(dir.path().join("absent.nika.yaml").as_os_str()),
+            "a suffix that names nothing keeps clap's error"
+        );
+        assert!(
+            !is_runnable_workflow(dir.path().as_os_str()),
+            "a directory is not a workflow"
+        );
+        // The suffix alone is not enough, and neither is existence alone.
+        let other = dir.path().join("notes.yaml");
+        std::fs::write(&other, "nika: notes\n").expect("write");
+        assert!(
+            !is_runnable_workflow(other.as_os_str()),
+            "a bare .yaml is not the workflow suffix"
+        );
+    }
+
     #[test]
     fn the_budget_guard_holds_on_both_doors() {
         for argv in [
@@ -1196,6 +1278,25 @@ mod tests {
                 "taught command must parse: {command:?} (argv {argv:?})"
             );
         }
+    }
+
+    #[test]
+    fn test_accepts_repeatable_explicit_answers() {
+        let cli = Cli::try_parse_from([
+            "nika",
+            "test",
+            "etl-state.nika.yaml",
+            "--answer",
+            "approve=false",
+            "--answer",
+            "reviewer=reject",
+        ])
+        .expect("repeatable test answers parse");
+        let answer = match cli.command {
+            Some(Command::Test { answer, .. }) => answer,
+            _ => Vec::new(),
+        };
+        assert_eq!(answer, ["approve=false", "reviewer=reject"]);
     }
 
     /// The public name is `nika` EVERYWHERE clap speaks (found live

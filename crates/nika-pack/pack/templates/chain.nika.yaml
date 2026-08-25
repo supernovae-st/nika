@@ -23,10 +23,9 @@
 # Run · nika run <file> --model mock/echo    # offline rehearsal · zero keys
 nika: chain-template       # SLOT: kebab-case workflow id
 
-# SLOT: provider/model · local · zero key. Measured seat — `ollama/llama3.2:3b`
-# answers this prompt in ~50s. `--model mock/echo` needs no seat at all and is
-# the path this file guarantees.
-model: ollama/llama3.2:3b
+# `nika new` replaces this with the machine's ready model seat.
+# `--model mock/echo` keeps the offline rehearsal available.
+model: mock/echo
 
 const:
   source: "./README.md"             # SLOT: your input · README.md exists in most repos
@@ -63,12 +62,12 @@ tasks:
       gather: ${{ tasks.gather.output }}
     infer:
       max_tokens: 800               # SLOT: the spend ceiling · sized for the SEAT, not the answer
-      # SLOT: the one model job. Keep slot markers OUT of the block below —
-      # everything indented under `prompt: |` is prompt TEXT, so a stray
-      # `# SLOT:` line is sent to the model verbatim (visible in the mock
-      # echo). Comments belong out here, where YAML eats them.
+      # The marker below is a VALUE, not a comment. The parser drops
+      # comments, so a `# SLOT:` line could never make `check` refuse —
+      # which is how an unfilled scaffold ran green and left a file that
+      # read like a result (#1066). Replace the line, keep the binding.
       prompt: |
-        Summarize the following in a short paragraph.
+        <SLOT: what should the model do with the gathered text?>
 
         ${{ with.gather }}
 

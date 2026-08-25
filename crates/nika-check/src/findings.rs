@@ -273,6 +273,7 @@ pub(super) fn collect(report: &CheckReport) -> Vec<UnifiedFinding> {
     fold_write_conflicts(report, &mut out);
     fold_composition(report, &mut out);
     fold_tools(report, &mut out);
+    fold_slots(report, &mut out);
     for l in &report.schema_lints {
         let mut f = UnifiedFinding::new(
             "schema_lint",
@@ -413,6 +414,23 @@ fn fold_run_decl(report: &CheckReport, out: &mut Vec<UnifiedFinding>) {
         f.code = Some(code.to_owned());
         f.docs_url = Some(format!("{}/{code}", super::ERROR_DOCS_BASE));
         f.task = Some(r.task.clone());
+        out.push(f);
+    }
+}
+
+/// The unfilled-scaffold class (#1066) — report-only by design: no spec
+/// code exists for « you have not written this yet », and a conjured one
+/// would 404. The message names the path, and the render names the line
+/// beside it; the WORDING is the whole point of the class, so it stays
+/// an instruction rather than an accusation.
+fn fold_slots(report: &CheckReport, out: &mut Vec<UnifiedFinding>) {
+    for s in &report.slot_findings {
+        let mut f = UnifiedFinding::new(
+            "slot",
+            "SLOTS",
+            format!("`{}` is still the scaffold's — {}", s.path, s.hint),
+        );
+        f.span = Some(s.span);
         out.push(f);
     }
 }

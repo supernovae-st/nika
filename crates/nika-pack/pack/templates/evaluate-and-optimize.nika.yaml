@@ -14,7 +14,7 @@ nika: evaluate-and-optimize
 model: mock/echo                     # SLOT: replace with a local or hosted seat
 
 const:
-  brief: "Explain why idempotent retries matter in two sentences."   # SLOT
+  brief: "<SLOT: the deliverable to draft, critique and revise>"
 
 permits: {}
 

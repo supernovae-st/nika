@@ -19,12 +19,27 @@ fn machine(
     }
 }
 
+/// Claude Code, signed in, WITH its ACP adapter on PATH — a seat a
+/// session can actually start on.
 fn claude() -> Seat {
     Seat {
         id: "claude-agent-acp".to_owned(),
         name: "Claude Code".to_owned(),
         detected: true,
         authenticated: true,
+        adapter_present: true,
+    }
+}
+
+/// What the gauntlet actually met (P1/P4 · 2026-08-25): the person has
+/// `claude` and is signed into it, and `claude-agent-acp` — a different
+/// npm package, the binary a session spawns — is not installed. The
+/// overlay in `detect_seats` names the seat from the app, so this shape
+/// is what a real first-wow machine produces.
+fn claude_without_its_adapter() -> Seat {
+    Seat {
+        adapter_present: false,
+        ..claude()
     }
 }
 
@@ -109,6 +124,73 @@ fn authenticated_harness_takes_the_arrow_with_zero_key_zero_download() {
     assert!(human.contains("Claude Code"), "{human}");
     assert!(human.contains("nika new hello"), "{human}");
     assert!(!human.contains("xai/grok-4"), "{human}");
+}
+
+/// The gauntlet's sharpest finding (P1/P4 · 2026-08-25). The screen said
+/// `▸ Claude Code · runs on the plan you already pay for · no API key`
+/// and `doctor --json` said `ready: true`, `chosen_access:
+/// claude-agent-acp` — on a machine where `command -v claude-agent-acp`
+/// found nothing. Doctor's own HUMAN harness rows listed only the three
+/// adapters that WERE installed, so two instruments in one binary
+/// disagreed and the honest one was the quiet one.
+///
+/// An agent reading that JSON picks the seat and the run cannot start.
+/// Detected means "you have the app"; ready means "a session can start",
+/// and only the adapter proves the second.
+#[test]
+fn a_signed_in_app_without_its_acp_adapter_is_not_ready() {
+    let choice = collect_from(&machine(
+        Some(18),
+        vec![claude_without_its_adapter()],
+        false,
+        &[],
+        true,
+    ));
+    let harness = choice
+        .rungs
+        .iter()
+        .find(|r| r.id == "harness")
+        .expect("the harness rung is always rendered");
+
+    assert!(
+        !harness.ready,
+        "a seat whose adapter is absent cannot start a session: {choice:?}"
+    );
+    assert_ne!(
+        choice.arrow, "harness",
+        "the arrow must not point at a path that cannot run: {choice:?}"
+    );
+    assert!(
+        choice.chosen_access.is_none(),
+        "no access is chosen when none can serve: {choice:?}"
+    );
+
+    // Still SHOWN, and still useful — hiding Claude Code from someone who
+    // has it would trade one lie for another.
+    assert!(harness.available, "the app is here: {choice:?}");
+    let human = choice.render_human_at(Theme::new(false, false, false), None);
+    assert!(human.contains("Claude Code"), "{human}");
+    assert!(
+        human.contains("@zed-industries/claude-agent-acp"),
+        "the row names the one command that closes the gap: {human}"
+    );
+    assert!(
+        !human.contains("no API key"),
+        "the promise belongs to a seat that can run: {human}"
+    );
+}
+
+/// The other direction, so the refusal cannot be a blanket one: the same
+/// seat WITH its adapter is ready and takes the arrow.
+#[test]
+fn the_same_seat_with_its_adapter_is_ready_again() {
+    let choice = collect_from(&machine(Some(18), vec![claude()], false, &[], true));
+    assert_eq!(choice.arrow, "harness", "{choice:?}");
+    assert_eq!(
+        choice.chosen_access.as_deref(),
+        Some("claude-agent-acp"),
+        "{choice:?}"
+    );
 }
 
 #[test]
@@ -477,7 +559,41 @@ fn next_for_a_ready_harness_is_new_hello() {
     let dir = tempfile::tempdir().expect("tmp");
     let human = choice.render_human_at(Theme::new(false, false, false), Some(dir.path()));
     assert!(human.contains("nika new hello"), "{human}");
-    assert!(human.contains("this machine · 18 GB"), "{human}");
+    // « this hardware », not « this machine »: the mirror body's
+    // `this machine` section is the environment one, and the same two
+    // words named three things on one screen (#1196).
+    assert!(human.contains("this hardware · 18 GB"), "{human}");
+    assert!(!human.contains("this machine"), "{human}");
+}
+
+/// [`DOOR_SHAPES`] is a hand-written mirror of [`front_door_next`], and
+/// a hand-written mirror is a lie waiting to happen — the concierge's
+/// parse ratchet replays it against the live clap tree, so it has to be
+/// the function's exact image. Run the real thing on real directories.
+#[test]
+fn door_shapes_mirror_the_real_door() {
+    let placeholder = |door: String| door.replace("hello.nika.yaml", "<file>");
+    let dir = tempfile::tempdir().expect("tmp");
+    let empty = placeholder(front_door_next(Some(dir.path())));
+    std::fs::write(dir.path().join("hello.nika.yaml"), "nika: hello\n").expect("hello");
+    let one = placeholder(front_door_next(Some(dir.path())));
+    std::fs::write(dir.path().join("a.nika.yaml"), "nika: a\n").expect("a");
+    std::fs::remove_file(dir.path().join("hello.nika.yaml")).expect("drop hello");
+    std::fs::write(dir.path().join("b.nika.yaml"), "nika: b\n").expect("b");
+    let many = placeholder(front_door_next(Some(dir.path())));
+    let measured = [empty, one, many];
+    for shape in DOOR_SHAPES {
+        assert!(
+            measured.iter().any(|m| m == shape),
+            "DOOR_SHAPES claims `{shape}`, the door never says it: {measured:?}"
+        );
+    }
+    for m in &measured {
+        assert!(
+            DOOR_SHAPES.contains(&m.as_str()),
+            "the door says `{m}`, DOOR_SHAPES never lists it"
+        );
+    }
 }
 
 #[test]

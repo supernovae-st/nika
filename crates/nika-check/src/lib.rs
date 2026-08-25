@@ -150,6 +150,7 @@ mod run_decl;
 mod schema_lint;
 mod schema_typing;
 mod secrets;
+pub mod slots;
 mod tools;
 pub mod trifecta;
 mod walk;
@@ -188,6 +189,7 @@ pub use run_decl::RunDeclFinding;
 pub use schema_lint::SchemaLintFinding;
 pub use schema_typing::{SchemaTypeFinding, UnverifiableOutputRef};
 pub use secrets::{SecretEgress, SecretLeak};
+pub use slots::{MARKER_OPEN, SlotFinding};
 pub use tools::{MissingArg, UnknownArg, UnknownTool};
 pub use walk::{static_literal_of, static_read_paths};
 
@@ -467,6 +469,13 @@ pub struct CheckReport {
     /// conditional contracts (`nika:wait`, `nika:fetch`) stay in
     /// `conformance` (the `builtin_shape` ladder) — no double report.
     pub missing_args: Vec<MissingArg>,
+    /// Every value a `nika new` scaffold still expects its author to
+    /// fill (#1066). The marker is a VALUE (`<SLOT: … >`), never a
+    /// comment — the parser drops comments, which is exactly how a
+    /// scaffold used to run green and leave an `output.md` holding its
+    /// own prompt echoed back. A run-blocker, but never worded as a
+    /// fault: the person typed `nika new` and did nothing wrong.
+    pub slot_findings: Vec<SlotFinding>,
     /// Every authored `schema:` defect that makes structured output
     /// unsatisfiable or un-compilable (required∉properties · bad `type`
     /// name · empty `enum`) — the static half of « structured output
@@ -533,6 +542,7 @@ impl CheckReport {
             && self.unknown_args.is_empty()
             && self.missing_args.is_empty()
             && self.schema_lints.is_empty()
+            && self.slot_findings.is_empty()
             && self.gate_findings.is_empty()
             && self.run_decl_findings.is_empty()
             && self.write_conflicts.is_empty()
@@ -779,6 +789,8 @@ pub fn check(wf: &RawWorkflow) -> CheckReport {
         unknown_args: tools::scan_unknown_args(wf),
         missing_args: tools::scan_missing_args(wf),
         schema_lints: schema_lint::scan_schemas(wf),
+        // #1066 — an unfilled scaffold is not yet a workflow.
+        slot_findings: slots::scan(wf),
         // gate reachability shares the IFC gating: a valid wave order or
         // nothing (skipped, never wrong)
         gate_findings: reach::scan_gates(wf, &topo_waves, &edges),

@@ -84,7 +84,7 @@ fn exit_code(session: &mut LoggedSession) -> i32 {
 }
 
 #[test]
-fn golden_path_lands_a_checked_workflow() {
+fn golden_path_lands_an_audited_draft() {
     let dir = fresh_dir("golden");
     let dir = dir.path();
     let mut p = spawn_pty(dir, &["new"], true);
@@ -102,17 +102,19 @@ fn golden_path_lands_a_checked_workflow() {
         .expect("offline default echoed");
     p.expect("stamped workflow `my-first`").expect("summary");
     // The wow contract: the audit ladder runs INSIDE the wizard.
-    p.expect("audited").expect("embedded ladder");
+    p.expect("nika check · my-first.nika.yaml")
+        .expect("embedded ladder");
+    p.expect("not a workflow yet").expect("names the draft");
     p.expect("scriptable form").expect("teaches its flags form");
     let m = p.expect(Eof).expect("conversation ends");
     assert!(
         !String::from_utf8_lossy(m.as_bytes()).contains("error"),
         "clean TAIL after the last anchor (the tee holds the full transcript)"
     );
-    assert_eq!(exit_code(&mut p), 0, "spec §4 · success");
+    assert_eq!(exit_code(&mut p), 2, "spec §4 · file finding");
 
-    // DEEP: the artifact stands on its own — a second binary run
-    // re-audits the stamped file clean (own-corpus law end to end).
+    // DEEP: the artifact stands on its own — a second binary run names
+    // the same unfinished slots instead of pretending the draft is ready.
     let check = Command::new(bin())
         .args(["check", "my-first.nika.yaml"])
         .current_dir(dir)
@@ -120,9 +122,13 @@ fn golden_path_lands_a_checked_workflow() {
         .expect("check runs");
     assert_eq!(
         check.status.code(),
-        Some(0),
-        "the wizard's file re-checks clean: {}",
+        Some(2),
+        "the wizard's draft re-checks as unfinished: {}",
         String::from_utf8_lossy(&check.stdout)
+    );
+    assert!(
+        String::from_utf8_lossy(&check.stdout).contains("SLOTS"),
+        "the re-check names the unfinished section"
     );
 }
 
@@ -143,7 +149,7 @@ fn intent_routes_and_the_file_is_stamped() {
     p.expect("routed intent → template `fanout`")
         .expect("summary says the routing");
     p.expect(Eof).expect("ends");
-    assert_eq!(exit_code(&mut p), 0);
+    assert_eq!(exit_code(&mut p), 2, "the routed template is a draft");
 
     // DEEP: the three stamps landed in the file itself.
     let written =
@@ -181,7 +187,11 @@ fn no_model_skeleton_completes_in_two_answers() {
     );
     assert!(transcript.contains("models per-task"), "honest summary");
     assert!(transcript.contains("audited"), "ladder still runs");
-    assert_eq!(exit_code(&mut p), 0);
+    assert_eq!(
+        exit_code(&mut p),
+        0,
+        "a slot-free template is already runnable"
+    );
 }
 
 #[test]
@@ -203,7 +213,7 @@ fn dest_hint_door_honors_the_given_name() {
     p.expect("stamped workflow `team-standup`")
         .expect("id from the hint");
     p.expect(Eof).expect("ends");
-    assert_eq!(exit_code(&mut p), 0);
+    assert_eq!(exit_code(&mut p), 2, "the template is a draft");
     assert!(dir.join("team-standup.nika.yaml").is_file());
 }
 
@@ -223,7 +233,7 @@ fn collision_walk_defaults_to_my_second() {
     p.expect("a number, or any provider/model").expect("q3");
     p.send_line("").expect("enter");
     p.expect(Eof).expect("ends");
-    assert_eq!(exit_code(&mut p), 0);
+    assert_eq!(exit_code(&mut p), 2, "the template is a draft");
 
     assert!(
         dir.join("my-second.nika.yaml").is_file(),
@@ -263,7 +273,7 @@ fn init_founding_wizard_golden_path_lands_the_curriculum() {
     p.expect("audited").expect("the ladder ran");
     p.expect("ready").expect("the panel hands over");
     p.expect(Eof).expect("ends");
-    assert_eq!(exit_code(&mut p), 0);
+    assert_eq!(exit_code(&mut p), 0, "init accepts its taught draft class");
 
     // DEEP: the briefs AND the 4-pattern curriculum landed.
     assert!(dir.join("AGENTS.md").is_file(), "scaffold written");
@@ -313,7 +323,7 @@ fn init_example_lane_founds_around_one_lesson() {
     p.expect("audited").expect("the ladder ran");
     p.expect("ready").expect("the panel hands over");
     p.expect(Eof).expect("ends");
-    assert_eq!(exit_code(&mut p), 0);
+    assert_eq!(exit_code(&mut p), 0, "init accepts its taught draft class");
 
     let body =
         std::fs::read_to_string(dir.join("workflows/01-hello.nika.yaml")).expect("lesson written");
@@ -359,9 +369,10 @@ fn init_starter_recipe_hands_over_to_the_guided_flow() {
     p.expect("a number, or any provider/model")
         .expect("model menu");
     p.send_line("").expect("enter");
-    p.expect("audited").expect("its ladder ran");
+    p.expect("nika check · my-first.nika.yaml")
+        .expect("its ladder ran");
     p.expect(Eof).expect("ends");
-    assert_eq!(exit_code(&mut p), 0);
+    assert_eq!(exit_code(&mut p), 0, "init accepts its taught draft class");
 
     assert!(dir.join("AGENTS.md").is_file(), "scaffold written");
     assert!(dir.join("my-first.nika.yaml").is_file(), "workflow written");
@@ -426,7 +437,7 @@ fn colour_lives_on_a_terminal_and_no_color_kills_every_escape() {
         "the single accent paints on a TTY"
     );
     assert!(coloured.contains("\u{1b}[2m"), "dim metadata paints");
-    assert_eq!(exit_code(&mut p), 0);
+    assert_eq!(exit_code(&mut p), 2, "the coloured template is a draft");
 
     // Half 2 · NO_COLOR on the SAME terminal: zero escapes — the sober
     // register is a promise even where colour is possible.
@@ -443,5 +454,5 @@ fn colour_lives_on_a_terminal_and_no_color_kills_every_escape() {
         !plain.contains('\u{1b}'),
         "NO_COLOR strips every escape, even on a terminal"
     );
-    assert_eq!(exit_code(&mut q), 0);
+    assert_eq!(exit_code(&mut q), 2, "the plain template is a draft");
 }

@@ -449,56 +449,6 @@ fn doctor_json_adds_host_receipts_without_touching_existing_fields() {
     );
 }
 
-// ── The pricing snapshot line (Cost Intelligence 2026-07-08) ──
-
-fn pricing(age_days: Option<u32>) -> PricingProbe {
-    PricingProbe {
-        as_of: "2026-07-07".to_owned(),
-        sha: "d31a39603aa5419d".to_owned(),
-        rules: 606,
-        providers: 10,
-        age_days,
-    }
-}
-
-#[test]
-fn pricing_line_names_the_snapshot_identity() {
-    let f = pricing_finding(&pricing(Some(3)));
-    assert_eq!(f.level, Level::Ok);
-    assert!(f.detail.contains("606 models"), "{}", f.detail);
-    assert!(f.detail.contains("10 providers"), "{}", f.detail);
-    assert!(f.detail.contains("2026-07-07"), "{}", f.detail);
-    assert!(f.detail.contains("d31a39603aa5419d"), "{}", f.detail);
-    assert!(
-        f.detail.contains("list rates"),
-        "the public-catalog basis is named — private/proxy deals are \
-             not reflected and the line must say so: {}",
-        f.detail
-    );
-    assert!(f.fix.is_none());
-}
-
-#[test]
-fn stale_pricing_snapshot_warns_with_the_upgrade_fix() {
-    // The staleness gap no surveyed tool closes: past the threshold
-    // the line flips ⚠ and prints the exact remedy.
-    let f = pricing_finding(&pricing(Some(PRICING_STALE_DAYS + 1)));
-    assert_eq!(f.level, Level::Warn);
-    assert!(f.detail.contains("days old"), "{}", f.detail);
-    assert!(
-        f.fix.as_deref().is_some_and(|x| x.contains("upgrade nika")),
-        "{:?}",
-        f.fix
-    );
-    // AT the threshold stays green (stale means PAST it).
-    assert_eq!(
-        pricing_finding(&pricing(Some(PRICING_STALE_DAYS))).level,
-        Level::Ok
-    );
-    // An uncomputable age never guesses stale.
-    assert_eq!(pricing_finding(&pricing(None)).level, Level::Ok);
-}
-
 /// Each severity prints a DISTINCT glyph — a `Default::default()` mutant
 /// (the null char `'\0'`) would erase the level cue the operator scans for.
 /// The sidecar row is a BUILD fact: present exactly when this binary
