@@ -635,12 +635,8 @@ mod tests {
             "~other/.gitconfig",
             "~user is not this operator"
         );
-        // A name that merely STARTS with HOME is not `$HOME`. Spelled
-        // in caps on purpose: the spell-check gate splits `$HOMEfoo` at
-        // the caps→lower seam into `HOM` + `Efoo` and reports `HOM` as
-        // a misspelling of `HOME` — a real refusal, of a token the
-        // fixture chose freely. The judge is not widened for a value
-        // this test can simply spell another way.
+        // A longer variable name that begins with the same four letters
+        // is not the operator home variable and must stay literal.
         assert_eq!(
             expand_home_grant("$HOMEDIR/.gitconfig", home),
             "$HOMEDIR/.gitconfig"
