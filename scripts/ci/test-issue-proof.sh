@@ -55,10 +55,13 @@ expect() {
 # --issue, so it is read into a subshell-safe form: everything above the
 # argument parser is what we need, and `waived_reason` lives there.
 eval "$(sed -n '/^waived_reason() {$/,/^}$/p' "$HERE/issue-proof.sh")"
-if ! declare -F waived_reason >/dev/null; then
-  printf 'FAIL  waived_reason() not found in issue-proof.sh — the self-test is testing nothing\n' >&2
-  exit 2
-fi
+eval "$(sed -n '/^body_job() {$/,/^}$/p' "$HERE/issue-proof.sh")"
+for _fn in waived_reason body_job; do
+  if ! declare -F "$_fn" >/dev/null; then
+    printf 'FAIL  %s() not found in issue-proof.sh — the self-test is testing nothing\n' "$_fn" >&2
+    exit 2
+  fi
+done
 
 printf 'issue-proof · who may decline the proof\n'
 
@@ -89,6 +92,66 @@ expect judged completed 'invalidated' 'invalidated does NOT waive'
 
 # A state_reason that merely CONTAINS a waiving word is not that reason.
 expect judged 'not_planned_yet' '' 'not_planned_yet does NOT waive'
+
+# --- which `proven_by:` in a body is the TRAILER --------------------------
+#
+# The parser must be able to read an issue that DISCUSSES the proof mechanism,
+# because that is exactly the issue most likely to report a defect in it. It
+# could not: #1200, the issue about this gate, quoted the old guard inside a
+# code fence and the parser extracted `)` as the job name and reopened it.
+expect_job() {
+  local want="$1" body="$2" label="$3"
+  cases=$((cases + 1))
+  local got
+  got="$(ISSUE_BODY="$body" body_job)"
+  if [ "$got" = "$want" ]; then
+    printf '  ok   %s (job=%s)\n' "$label" "${got:-<none>}"
+  else
+    fails=$((fails + 1))
+    printf '  FAIL %s — wanted [%s], got [%s]\n' "$label" "$want" "$got" >&2
+  fi
+}
+
+printf '\nissue-proof · which proven_by is the trailer\n'
+
+expect_job "rust" "a body
+proven_by: rust" "a plain trailer is read"
+expect_job "" "nothing to see here" "a body with no trailer yields none"
+
+# THE #1200 SHAPE, verbatim in structure. The fenced guard line came first and
+# the old parser stopped there.
+expect_job "proof" "Its \`if:\` guard is:
+
+\`\`\`yaml
+  contains(github.event.issue.body, 'proven_by:') ||
+\`\`\`
+
+So the gate judges a close only when the filer wrote \`proven_by:\` in the body.
+
+proven_by: proof" "a fenced mention does not beat the real trailer"
+
+expect_job "proof" "The filer wrote \`proven_by: rust\`. That is a live job but it does
+not prove this one.
+
+proven_by: proof" "an INLINE backticked mention is not a trailer"
+
+# A prose line that wraps onto column 0 and keeps going is not a trailer.
+expect_job "proof" "…or put
+proven_by: rust\` in the body, and close again.
+
+proven_by: proof" "a wrapped prose line starting with proven_by is not a trailer"
+
+# The LAST trailer wins — a body edited to correct its proof must take the
+# correction, not the superseded line.
+expect_job "proof" "proven_by: rust
+
+superseded — the job above does not prove this issue.
+
+proven_by: proof" "the LAST trailer wins"
+
+# A trailer naming nothing is no trailer (and must not become the empty job,
+# which `refuse()` would report as a missing proven_by rather than a bad one).
+expect_job "" "proven_by:" "a trailer with no job name yields none"
 
 printf '\n%d case(s) · %d failure(s)\n' "$cases" "$fails"
 [ "$fails" -eq 0 ] || exit 1

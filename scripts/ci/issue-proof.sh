@@ -90,6 +90,44 @@ waived_reason() {
   return 1
 }
 
+# The `proven_by:` TRAILER carried by the issue body, or empty.
+#
+# A trailer is a line that is ONLY the trailer — `^proven_by: <job>$`, nothing
+# before it, nothing after the job name — and the LAST such line wins, because
+# a trailer goes at the end.
+#
+# Both halves of that rule are paid for. This used to take the FIRST line
+# CONTAINING `proven_by:` anywhere, and #1200 — the issue ABOUT this gate —
+# could therefore never be closed: its body quotes the old guard,
+#
+#     contains(github.event.issue.body, 'proven_by:') ||
+#
+# inside a code fence, so the parser extracted `)` as the job name, found no
+# such job, and reopened the issue. Measured, not reasoned: `JOB=[)]`.
+#
+# An issue that DISCUSSES the proof mechanism is exactly the issue most likely
+# to be about a defect in it, so the parser must be able to read its own
+# subject matter. Anchoring at column 0 rejects the indented fence; requiring
+# the line to END after the job name rejects a prose line that happens to wrap
+# onto `proven_by: proof\` to the body`; taking the LAST match steps past the
+# earlier mentions to the real trailer.
+#
+# ISSUE_BODY arrives via env and is only ever read as data here — no
+# github.event expression reaches the script source.
+body_job() {
+  [ -n "${ISSUE_BODY:-}" ] || return 0
+  printf '%s\n' "$ISSUE_BODY" \
+    | awk '
+        /^proven_by:[[:space:]]*[A-Za-z0-9_.-]+[[:space:]]*$/ {
+          job = $0
+          sub(/^proven_by:[[:space:]]*/, "", job)
+          sub(/[[:space:]]*$/, "", job)
+          last = job
+        }
+        END { if (last != "") print last }
+      '
+}
+
 while [ $# -gt 0 ]; do
   case "$1" in
     --issue)
@@ -148,20 +186,7 @@ LEDGER_JOB="$(
   ' "$LEDGER"
 )"
 
-# 2. body proven_by: <job> (env, never interpolated into the script source)
-BODY_JOB=""
-if [ -n "${ISSUE_BODY:-}" ]; then
-  BODY_JOB="$(
-    printf '%s\n' "$ISSUE_BODY" \
-      | awk '/proven_by:[[:space:]]*/ {
-          sub(/.*proven_by:[[:space:]]*/, "")
-          gsub(/["\047`]/, "")
-          gsub(/[[:space:]].*/, "")
-          print
-          exit
-        }'
-  )"
-fi
+BODY_JOB="$(body_job)"
 
 JOB="${LEDGER_JOB:-$BODY_JOB}"
 
