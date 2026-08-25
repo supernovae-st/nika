@@ -18,6 +18,7 @@ use nika_cli::Theme;
 use nika_cli::verbs::{check, exit};
 
 const PLAIN: Theme = Theme::new(false, false, false);
+const SLOT_ANSWER: &str = "answered by the committed corpus golden";
 
 /// Templates whose committed golden still requires an explicit human answer.
 ///
@@ -102,7 +103,7 @@ fn fill_slots(body: &str) -> String {
         let Some(rel) = out[open..].find('>') else {
             break;
         };
-        out.replace_range(open..=open + rel, "answered by the family traversal");
+        out.replace_range(open..=open + rel, SLOT_ANSWER);
     }
     out
 }

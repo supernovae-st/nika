@@ -66,6 +66,22 @@ fn capture_answered_outputs(
         eprintln!("nika test: environment: {message}");
         exit::ENV
     })?;
+    for task_id in answers.keys() {
+        let is_prompt = wf.tasks.iter().any(|task| {
+            task.value.id.value == *task_id
+                && matches!(
+                    &task.value.action,
+                    nika_schema::raw::RawAction::Invoke(invoke)
+                        if invoke.tool().map(|tool| tool.value.as_str()) == Some("nika:prompt")
+                )
+        });
+        if !is_prompt {
+            eprintln!(
+                "nika test: environment: --answer {task_id}: only a direct `nika:prompt` task is answerable under the mock plane"
+            );
+            return Err(exit::ENV);
+        }
+    }
     super::run::capture_mock_outputs_with_answers(wf, report, skills, answers, theme).map_err(
         |message| {
             eprintln!("nika test: environment: {message}");
@@ -431,6 +447,53 @@ mod tests {
         assert_eq!(
             run_with_answers(&file, true, &["gen=yes".to_owned()], plain_theme()),
             exit::ENV
+        );
+    }
+
+    #[test]
+    fn answer_for_an_agent_task_refuses_under_the_mock_plane() {
+        let dir = std::env::temp_dir().join("nika-cli-test-verb");
+        std::fs::create_dir_all(&dir).expect("tmp dir");
+        let path = dir.join("agent-answer.nika.yaml");
+        std::fs::write(
+            &path,
+            "nika: agent-answer\nmodel: mock/echo\ntasks:\n  decide:\n    agent: { prompt: \"continue?\", tools: [] }\n",
+        )
+        .expect("fixture written");
+        assert_eq!(
+            run_with_answers(
+                &path.to_string_lossy(),
+                true,
+                &["decide=false".to_owned()],
+                plain_theme(),
+            ),
+            exit::ENV,
+            "the harness answer namespace is not imported into nika test"
+        );
+    }
+
+    #[test]
+    fn answered_branch_with_a_cloud_pin_still_uses_mock_echo() {
+        let dir = std::env::temp_dir().join("nika-cli-test-verb");
+        std::fs::create_dir_all(&dir).expect("tmp dir");
+        let path = dir.join("answered-cloud-pin.nika.yaml");
+        std::fs::write(
+            &path,
+            "nika: answered-cloud-pin\nmodel: mock/echo\npermits: { tools: [\"nika:prompt\"] }\ntasks:\n  approve:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"continue?\" }\n  paid:\n    with: { go: \"${{ tasks.approve.output }}\" }\n    when: \"${{ with.go == true }}\"\n    infer:\n      model: openai/gpt-4o\n      prompt: hello\noutputs: { reply: \"${{ tasks.paid.output }}\" }\n",
+        )
+        .expect("fixture written");
+        let file = path.to_string_lossy();
+        std::fs::remove_file(golden_path_of(&file)).ok();
+
+        assert_eq!(
+            run_with_answers(&file, true, &["approve=true".to_owned()], plain_theme(),),
+            exit::OK,
+            "the answered branch stays offline even with a task-local cloud pin"
+        );
+        let golden = std::fs::read_to_string(golden_path_of(&file)).expect("golden written");
+        assert!(
+            golden.contains("mock(echo) · hello"),
+            "the task-local provider was replaced by the mock plane: {golden}"
         );
     }
 
