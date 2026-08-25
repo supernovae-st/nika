@@ -17,11 +17,11 @@ use nika_kernel::ai::tool_defs::ToolDefinitionProviderDyn;
 use nika_kernel::http::HttpPostDyn;
 use nika_kernel::process::ShellRunDyn;
 use nika_kernel::tool_executor::ToolExecuteDyn;
-use nika_schema::raw::{RawAction, RawCommand};
+use nika_schema::raw::{RawAction, RawCommand, VisionInput};
 use nika_types::cost::UnpricedReason;
 use nika_verb_agent::{AgentInput, AgentValue};
 use nika_verb_exec::{CaptureMode, ExecCommand, ExecValue};
-use nika_verb_infer::{InferInput, InferValue};
+use nika_verb_infer::{InferInput, InferValue, VisionPart};
 use nika_verb_invoke::InvokeInput;
 use serde_json::Value;
 
@@ -715,6 +715,14 @@ where
         input.temperature = temp_f32(action.temperature.as_ref());
         input.max_tokens = action.max_tokens.as_ref().map(|t| t.value);
         input.schema = task_schema(action.schema.as_ref(), contract);
+        if action.thinking.as_ref().is_some_and(|t| t.value.enabled) {
+            input.thinking_budget = action.thinking.as_ref().and_then(|t| t.value.budget_tokens);
+        }
+        match collect_vision(&action.vision, scope) {
+            Ok(v) => input.vision = v,
+            Err(VisionErr::Template(err)) => return Dispatched::template_err("infer · ?", &err),
+            Err(VisionErr::Unwired(detail)) => return Dispatched::unwired("infer · ?", detail),
+        }
         #[cfg(feature = "access-harness")]
         if let Some(seat_id) = self.harness_seat_id.as_deref() {
             return match self.infer.run_on_harness(seat_id, input).await {
@@ -989,10 +997,7 @@ fn usage_has_signal(usage: &nika_kernel::provider::TokenUsage) -> bool {
         || usage.cache_creation_tokens.is_some_and(|n| n > 0)
 }
 
-/// Classify WHY a model string has no catalog price. The provider
-/// prefix is the discriminator: `mock` = the test backend · a keyless
-/// catalog provider = a local server (sovereign path — not priced,
-/// never « free ») · anything else = not in the vendored catalog.
+/// Why a model string has no catalog price (`mock` · local · missing).
 fn unpriced_reason_for(model: &str) -> UnpricedReason {
     match model.split_once('/').map(|(provider, _)| provider) {
         Some("mock") => UnpricedReason::MockProvider,
@@ -1002,6 +1007,38 @@ fn unpriced_reason_for(model: &str) -> UnpricedReason {
         },
         None => UnpricedReason::MissingCatalogPrice,
     }
+}
+
+fn collect_vision(
+    items: &[nika_schema::Spanned<VisionInput>],
+    scope: &Scope<'_>,
+) -> Result<Vec<VisionPart>, VisionErr> {
+    let mut out = Vec::with_capacity(items.len());
+    for item in items {
+        out.push(match &item.value {
+            VisionInput::File { path } => VisionPart::file(
+                expr::render(&path.value, scope)
+                    .map_err(RuntimeError::from)
+                    .map_err(VisionErr::Template)?,
+            ),
+            VisionInput::Url { url } => VisionPart::url(
+                expr::render(&url.value, scope)
+                    .map_err(RuntimeError::from)
+                    .map_err(VisionErr::Template)?,
+            ),
+            other => {
+                return Err(VisionErr::Unwired(format!(
+                    "vision source form not wired yet: {other:?}"
+                )));
+            }
+        });
+    }
+    Ok(out)
+}
+
+enum VisionErr {
+    Template(RuntimeError),
+    Unwired(String),
 }
 
 /// Render an optional spanned string field.
@@ -1015,9 +1052,7 @@ fn render_opt(
         .map_err(RuntimeError::from)
 }
 
-/// `returns:` compiles `lower(returns)` as the structured-output contract —
-/// EXACTLY the `schema:` lane (spec 09 §returns · violations NIKA-INFER-002).
-/// One home for infer/agent, zero drift.
+/// `returns:` is the `schema:` lane (spec 09 · NIKA-INFER-002).
 fn task_schema(
     schema: Option<&nika_schema::Spanned<Value>>,
     contract: Option<&crate::contract::TaskContract<'_>>,
@@ -1027,12 +1062,7 @@ fn task_schema(
         .or_else(|| contract.map(crate::contract::TaskContract::lowered))
 }
 
-/// The effective system prompt of a `skills:`-carrying agent (spec 02
-/// §agent skills · normative injection shape): the authored `system:`
-/// (already rendered · absent = the section stands alone), then ONE
-/// `## Skills` section — per skill, in `skills:` source order,
-/// `### <name>` + the description + the body (trimmed). Deterministic
-/// bytes: same inputs, same prompt, provider-cache-friendly.
+/// Authored `system:` plus one `## Skills` section (spec 02 · source order).
 pub(crate) fn system_with_skills(system: Option<String>, docs: &[nika_schema::SkillDoc]) -> String {
     let mut out = match system {
         Some(s) if !s.is_empty() => {
@@ -1073,6 +1103,7 @@ mod infer_deadline_tests {
     use nika_kernel::http::{
         HttpError, HttpPostDyn, HttpRequest, HttpResponse, HttpStreamResponse,
     };
+    use nika_kernel::secret::Secret;
     use nika_kernel_mock::{
         MockClock, MockProvider, MockShell, MockToolDefinitionProvider, MockToolExecutor,
     };
@@ -1100,16 +1131,25 @@ mod infer_deadline_tests {
         "choices":[{"message":{"content":"ok"},"finish_reason":"stop"}],
         "usage":{"prompt_tokens":1,"completion_tokens":1}}"#;
 
+    const ANTHROPIC_OK: &str = r#"{"id":"msg_1","model":"claude-x","stop_reason":"end_turn",
+        "content":[{"type":"text","text":"ok"}],
+        "usage":{"input_tokens":1,"output_tokens":1}}"#;
+
     impl HttpPostDyn for CapturingHttp {
         async fn post(&self, request: HttpRequest) -> Result<HttpResponse, HttpError> {
             self.captured
                 .lock()
                 .expect("test mutex")
                 .push(request.clone());
+            let body = if request.url.contains("anthropic") {
+                ANTHROPIC_OK
+            } else {
+                OPENAI_OK
+            };
             Ok(HttpResponse::new(
                 200,
                 BTreeMap::new(),
-                Bytes::from_static(OPENAI_OK.as_bytes()),
+                Bytes::from_static(body.as_bytes()),
                 request.url,
             ))
         }
@@ -1126,6 +1166,14 @@ mod infer_deadline_tests {
 
     /// `pub(super)`: the `model_template_tests` sibling runs the same rig.
     pub(super) async fn run_and_capture(yaml: &str) -> Vec<HttpRequest> {
+        let (outcome, captured) = run_capture(yaml).await;
+        assert!(outcome.ok, "the canned success settles green");
+        captured
+    }
+
+    /// Same rig as [`run_and_capture`], but a failed task is data (the
+    /// #1135 missing-file catching test).
+    pub(super) async fn run_capture(yaml: &str) -> (crate::RunOutcome, Vec<HttpRequest>) {
         let wf = nika_schema::parse(
             yaml,
             nika_schema::FileId::new(0),
@@ -1133,7 +1181,7 @@ mod infer_deadline_tests {
         )
         .expect("fixture parses");
         let report = nika_check::check(&wf);
-        assert!(report.is_clean(), "fixture passes the ladder");
+        assert!(report.is_clean(), "fixture passes the ladder: {report:?}");
 
         let http = Arc::new(CapturingHttp::default());
         // The B-5 liveness gate dials the local endpoint with a REAL
@@ -1158,7 +1206,9 @@ mod infer_deadline_tests {
         };
         let registry = Arc::new(ProviderRegistry::new(
             Arc::clone(&http),
-            ProvidersConfig::new().with_base_url("ollama", format!("http://127.0.0.1:{stub}")),
+            ProvidersConfig::new()
+                .with_base_url("ollama", format!("http://127.0.0.1:{stub}"))
+                .with_key("anthropic", Secret::new("sk-ant-test")),
         ));
         let invoke = Arc::new(InvokeVerb::new(Arc::new(MockToolExecutor::new())));
         let runtime = Runtime::new(
@@ -1179,9 +1229,8 @@ mod infer_deadline_tests {
         let outcome = runtime
             .run(&wf, &report, &mut stamper, &mut sink)
             .await
-            .expect("clean run");
-        assert!(outcome.ok, "the canned success settles green");
-        http.captured()
+            .expect("the run completes (a workflow failure is data)");
+        (outcome, http.captured())
     }
 
     #[tokio::test]

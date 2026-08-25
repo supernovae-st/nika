@@ -670,7 +670,7 @@ fn output_json(
     let mut output = serde_json::json!({
         "provider": args.provider.id(),
         "model": args.model,
-        "mode": "generate",
+        "mode": args.mode.name(),
         "prompt": args.prompt,
         "revised_prompt": revised_prompt,
         "provider_text": provider_text,
@@ -689,4 +689,81 @@ fn output_json(
         map.insert("raw_provider_response".to_owned(), raw);
     }
     output
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parsed(patch: serde_json::Value) -> ImageArgs {
+        let serde_json::Value::Object(mut map) = serde_json::json!({
+            "provider": "openai", "prompt": "star", "output_dir": "./out"
+        }) else {
+            unreachable!()
+        };
+        if let serde_json::Value::Object(p) = patch {
+            for (k, v) in p {
+                map.insert(k, v);
+            }
+        }
+        args::parse(&map).expect("valid")
+    }
+
+    fn saved() -> SavedImage {
+        SavedImage {
+            index: 0,
+            path: "out/x.png".into(),
+            filename: "x.png".into(),
+            mime_type: "image/png",
+            format: "png",
+            width: 1,
+            height: 1,
+            size_bytes: 8,
+            sha256: "ab".repeat(32),
+            variant_id: "v".into(),
+            seed: None,
+            revised_prompt: None,
+            warnings: Vec::new(),
+        }
+    }
+
+    #[test]
+    fn output_json_mode_is_edit_when_the_args_are_edit() {
+        // #1136 · the output object hard-coded `"mode": "generate"` even
+        // on an edit run. Downstream `outputs:` could never observe edit.
+        let args = parsed(serde_json::json!({
+            "mode": "edit", "image": "src.png", "model": "gpt-image-1.5",
+        }));
+        let out = output_json(
+            &args,
+            &[saved()],
+            types::Usage::default(),
+            None,
+            None,
+            &[],
+            "2026-01-01T00:00:00Z",
+            None,
+            None,
+            None,
+            None,
+            None,
+        );
+        assert_eq!(out["mode"], "edit");
+        let generate_args = parsed(serde_json::json!({ "model": "gpt-image-1.5" }));
+        let out = output_json(
+            &generate_args,
+            &[saved()],
+            types::Usage::default(),
+            None,
+            None,
+            &[],
+            "2026-01-01T00:00:00Z",
+            None,
+            None,
+            None,
+            None,
+            None,
+        );
+        assert_eq!(out["mode"], "generate");
+    }
 }

@@ -329,6 +329,21 @@ fn request_carries_the_task_timeout() {
     assert_eq!(req.timeout, None, "no budget → adapter default governs");
 }
 
+#[test]
+fn thinking_budget_reaches_the_infer_request() {
+    // #1135 sibling: `thinking.budget_tokens` used to die at dispatch and
+    // never reach InferRequest even when InferInput already had the field.
+    let mut input = InferInput::new("q");
+    input.thinking_budget = Some(2048);
+    let req = build_request(
+        &input,
+        "m",
+        base_messages(&input, SchemaWire::None),
+        SchemaWire::None,
+    );
+    assert_eq!(req.thinking_budget, Some(2048));
+}
+
 // ── F2 · the adapter-path proof (the http seam mocked) ───────────
 
 use nika_kernel::http::{HttpError, HttpRequest, HttpResponse, HttpStreamResponse};
@@ -1006,4 +1021,114 @@ fn request_carries_params_and_the_schema_wire() {
         req_no_native.response_format,
         ResponseFormat::Text
     ));
+}
+
+const OPENAI_OK: &str = r#"{"id":"cc","model":"m",
+        "choices":[{"message":{"content":"ok"},"finish_reason":"stop"}],
+        "usage":{"prompt_tokens":1,"completion_tokens":1}}"#;
+
+/// #1135 · the filed 0.111.0 body was text-only
+/// `{"messages":[{"content":"MARKER...","role":"user"}]}`. A URL vision
+/// part MUST appear as `image_url` on the openai-compat wire.
+#[tokio::test]
+async fn url_vision_appears_as_an_image_url_part_on_the_wire() {
+    let seam = SeamHttp::with_json(&[OPENAI_OK]);
+    let verb = openai_verb(&seam);
+    let mut input = InferInput::new("MARKER-PROMPT-XYZ");
+    input.max_tokens = Some(16);
+    input
+        .vision
+        .push(VisionPart::url("http://127.0.0.1:8731/x.png"));
+    verb.run(input).await.expect("infer succeeds");
+    let captured = seam.captured();
+    assert_eq!(captured.len(), 1, "one provider round-trip");
+    let body: serde_json::Value =
+        serde_json::from_slice(captured[0].body.as_ref().expect("body")).expect("json");
+    let content = &body["messages"][0]["content"];
+    assert!(
+        content.is_array(),
+        "multimodal content is an array, not a text string: {content}"
+    );
+    let parts = content.as_array().expect("parts");
+    assert!(
+        parts.iter().any(|p| {
+            p["type"] == "image_url" && p["image_url"]["url"] == "http://127.0.0.1:8731/x.png"
+        }),
+        "the URL vision part rides as image_url: {content}"
+    );
+    assert!(
+        parts
+            .iter()
+            .any(|p| p["type"] == "text" && p["text"] == "MARKER-PROMPT-XYZ"),
+        "the prompt still rides: {content}"
+    );
+}
+
+/// #1135 · a missing local file used to run green. It must fail closed
+/// (`InvalidParam` param:"vision") with zero provider calls.
+#[tokio::test]
+async fn missing_local_vision_file_fails_before_any_provider_call() {
+    let seam = SeamHttp::with_json(&[]);
+    let verb = openai_verb(&seam);
+    let mut input = InferInput::new("MARKER-FILE-PROBE");
+    input
+        .vision
+        .push(VisionPart::file("./this-file-does-not-exist.png"));
+    let err = verb
+        .run(input)
+        .await
+        .expect_err("missing vision file refuses");
+    assert!(
+        matches!(
+            err,
+            VerbInferError::InvalidParam {
+                param: "vision",
+                ..
+            }
+        ),
+        "typed vision param: {err}"
+    );
+    assert!(
+        err.to_string().contains("cannot read image"),
+        "the missing path is named: {err}"
+    );
+    assert!(
+        seam.captured().is_empty(),
+        "zero wire calls — the file gate fires first"
+    );
+}
+
+/// A present local file inlines as a `data:image/...;base64,...` URL so
+/// openai-compat (and anthropic, after the same fence lift) can carry it.
+#[tokio::test]
+async fn local_vision_file_becomes_a_data_url_part() {
+    let dir = std::env::temp_dir();
+    let path = dir.join("nika-s2-1135-vision.png");
+    // 1×1 PNG (67 bytes) — magic is what names the mime.
+    let png: &[u8] = &[
+        0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44,
+        0x52, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x02, 0x00, 0x00, 0x00, 0x90,
+        0x77, 0x53, 0xDE, 0x00, 0x00, 0x00, 0x0C, 0x49, 0x44, 0x41, 0x54, 0x08, 0xD7, 0x63, 0xF8,
+        0xCF, 0xC0, 0x00, 0x00, 0x00, 0x03, 0x00, 0x01, 0x18, 0xDD, 0x8D, 0xB4, 0x00, 0x00, 0x00,
+        0x00, 0x49, 0x45, 0x4E, 0x44, 0xAE, 0x42, 0x60, 0x82,
+    ];
+    std::fs::write(&path, png).expect("write fixture");
+    let seam = SeamHttp::with_json(&[OPENAI_OK]);
+    let verb = openai_verb(&seam);
+    let mut input = InferInput::new("look");
+    input.vision.push(VisionPart::file(path.to_string_lossy()));
+    verb.run(input).await.expect("infer succeeds");
+    let body: serde_json::Value =
+        serde_json::from_slice(seam.captured()[0].body.as_ref().expect("body")).expect("json");
+    let parts = body["messages"][0]["content"].as_array().expect("parts");
+    let url = parts
+        .iter()
+        .find(|p| p["type"] == "image_url")
+        .and_then(|p| p["image_url"]["url"].as_str())
+        .expect("image_url part");
+    assert!(
+        url.starts_with("data:image/png;base64,"),
+        "file inlines as a data URL: {url}"
+    );
+    let _ = std::fs::remove_file(&path);
 }

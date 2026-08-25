@@ -28,10 +28,11 @@
 //!
 //! ## Fences (what this crate is NOT)
 //!
-//! Streaming passthrough (`verb-agent`/engine surface) · vision staging
-//! (`nika-media-*` · deferred) · `${{ }}` resolution (upstream binding) ·
-//! transport retry/backoff (engine scheduler policy — only the
-//! schema-validation retry lives here).
+//! Streaming passthrough (`verb-agent`/engine surface) · CAS vision
+//! staging (`nika-media-*` · deferred; file/url refs ARE wired) ·
+//! `${{ }}` resolution (upstream binding) · transport retry/backoff
+//! (engine scheduler policy — only the schema-validation retry lives
+//! here).
 //!
 //! ## Example (mock · zero key · zero network)
 //!
@@ -53,6 +54,7 @@
 mod coerce;
 mod errors;
 mod structured;
+mod vision;
 
 use nika_types::cost::SpendOnFailure;
 use std::sync::Arc;
@@ -65,6 +67,7 @@ use nika_kernel::http::HttpPostDyn;
 use nika_providers::ProviderRegistry;
 
 pub use errors::VerbInferError;
+pub use vision::VisionPart;
 
 /// Default schema-validation retry budget (provider re-calls AFTER the
 /// initial one — 2 retries = up to 3 round-trips on a structured task).
@@ -94,6 +97,9 @@ pub struct InferInput {
     /// routinely needs minutes). `None` → the adapter's per-provider
     /// default governs.
     pub timeout: Option<std::time::Duration>,
+    /// `infer.vision:` — local files are inlined as `data:` URLs; remote
+    /// URLs stay URLs. Empty means text-only (the historical path).
+    pub vision: Vec<VisionPart>,
 }
 
 impl InferInput {
@@ -109,6 +115,7 @@ impl InferInput {
             schema: None,
             thinking_budget: None,
             timeout: None,
+            vision: Vec::new(),
         }
     }
 }
@@ -297,9 +304,10 @@ where
     ///
     /// # Errors
     ///
-    /// [`VerbInferError::InvalidParam`] on an empty prompt or out-of-range
-    /// temperature · [`VerbInferError::ModelResolution`] when the model
-    /// string resolves to no profile · [`VerbInferError::ProviderCall`]
+    /// [`VerbInferError::InvalidParam`] on an empty prompt, out-of-range
+    /// temperature, or a missing `vision:` file ·
+    /// [`VerbInferError::ModelResolution`] when the model string resolves
+    /// to no profile · [`VerbInferError::ProviderCall`]
     /// when the provider round-trip fails ·
     /// [`VerbInferError::SchemaValidation`] when a `schema:` task exhausts
     /// the retry budget without a conforming reply ·
@@ -339,6 +347,7 @@ where
         );
 
         let mut messages = base_messages(&input, wire);
+        attach_vision(&mut messages, &input.vision)?;
         // u32 counter: a u8 would saturate at budget = u8::MAX and loop
         // forever on paid calls (review lens 1 · P1).
         let mut attempts: u32 = 0;
@@ -614,6 +623,23 @@ fn base_messages(input: &InferInput, wire: SchemaWire) -> Vec<Message> {
     };
     messages.push(Message::text(Role::User, prompt));
     messages
+}
+
+/// Append loaded image blocks onto the user turn. A missing local file
+/// fails here — before the provider loop spends anything.
+fn attach_vision(messages: &mut [Message], parts: &[VisionPart]) -> Result<(), VerbInferError> {
+    if parts.is_empty() {
+        return Ok(());
+    }
+    let images = vision::vision_blocks(parts)?;
+    let Some(user) = messages.last_mut() else {
+        return Err(VerbInferError::InvalidParam {
+            param: "vision",
+            detail: "internal: user message missing before vision attach".to_owned(),
+        });
+    };
+    user.content.extend(images);
+    Ok(())
 }
 
 /// Shape the kernel request for one round-trip.

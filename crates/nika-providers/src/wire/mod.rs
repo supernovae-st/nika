@@ -39,6 +39,43 @@ pub(crate) const CLOUD_DEFAULT_TIMEOUT: std::time::Duration = std::time::Duratio
 /// serious local-first workflow with a 408 (F1 field report 2026-07-04).
 pub(crate) const LOCAL_DEFAULT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(300);
 
+/// A parsed `data:image/...;base64,...` URL (the inline form file vision
+/// becomes after the verb loads bytes).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct DataImage<'a> {
+    /// `image/png` · `image/jpeg` · …
+    pub media_type: &'a str,
+    /// Raw base64 payload (no `data:` prefix).
+    pub data: &'a str,
+}
+
+/// Split a `data:image/<type>;base64,<payload>` URL. Anything else
+/// (http(s), CAS hashes, `data:text/…`) is `None`.
+pub(crate) fn parse_data_image(source: &str) -> Option<DataImage<'_>> {
+    let rest = source.strip_prefix("data:")?;
+    let (meta, data) = rest.split_once(',')?;
+    if data.is_empty() {
+        return None;
+    }
+    let mut tokens = meta.split(';');
+    let media_type = tokens.next()?.trim();
+    if !media_type.starts_with("image/") {
+        return None;
+    }
+    if !tokens.any(|t| t.eq_ignore_ascii_case("base64")) {
+        return None;
+    }
+    Some(DataImage { media_type, data })
+}
+
+/// True when the image source is a fetchable URL or an inline data URL
+/// (the v0.1 allowed set — CAS hashes still wait for nika-media).
+pub(crate) fn image_source_is_url(source: &str) -> bool {
+    source.starts_with("http://")
+        || source.starts_with("https://")
+        || parse_data_image(source).is_some()
+}
+
 /// The per-request transport deadline for one provider round-trip.
 ///
 /// BUFFERED calls always get a total deadline: the task-level `timeout:`
@@ -382,6 +419,20 @@ mod tests {
             ProviderError::Api { message, .. } => assert_eq!(message, "bad gateway"),
             other => panic!("expected Api, got {other:?}"),
         }
+    }
+
+    #[test]
+    fn parse_data_image_accepts_png_and_rejects_the_rest() {
+        let ok = parse_data_image("data:image/png;base64,QUJD").expect("png");
+        assert_eq!(ok.media_type, "image/png");
+        assert_eq!(ok.data, "QUJD");
+        assert!(parse_data_image("data:text/plain;base64,QUJD").is_none());
+        assert!(parse_data_image("http://example.com/i.png").is_none());
+        assert!(parse_data_image("blake3:abc").is_none());
+        assert!(parse_data_image("data:image/png;base64,").is_none());
+        assert!(image_source_is_url("https://example.com/i.png"));
+        assert!(image_source_is_url("data:image/jpeg;base64,xx"));
+        assert!(!image_source_is_url("blake3:abc"));
     }
 
     #[test]

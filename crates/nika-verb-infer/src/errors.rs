@@ -95,7 +95,8 @@ pub enum VerbInferError {
         spend: Box<SpendOnFailure>,
     },
 
-    /// An `infer` parameter is invalid (empty prompt · temperature out of 0-2).
+    /// An `infer` parameter is invalid (empty prompt · temperature out of
+    /// 0-2 · missing `vision:` file).
     #[error("invalid `infer` parameter `{param}`: {detail}")]
     #[diagnostic(code(nika::verb::infer_invalid_param))]
     InvalidParam {

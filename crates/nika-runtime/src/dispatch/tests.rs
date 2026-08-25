@@ -144,6 +144,99 @@ fn invoke_meters_a_top_level_cost_usd_from_structured_output() {
     );
 }
 
+/// #1135 · the filed 0.111.0 capture was text-only
+/// `{"messages":[{"content":"MARKER-PROMPT-XYZ","role":"user"}]}`.
+/// A URL vision part MUST appear as `image_url` through parse → check → run.
+#[tokio::test]
+async fn url_vision_reaches_the_openai_compat_image_url_part() {
+    let captured = super::infer_deadline_tests::run_and_capture(
+        "nika: vision-wire-probe\n\
+         model: ollama/llama3.2\n\
+         tasks:\n  \
+         look:\n    \
+         infer:\n      \
+         prompt: \"MARKER-PROMPT-XYZ\"\n      \
+         max_tokens: 16\n      \
+         vision:\n        \
+         - source: url\n          \
+         url: \"http://127.0.0.1:8731/x.png\"\n",
+    )
+    .await;
+    assert_eq!(captured.len(), 1, "one provider round-trip");
+    let body: serde_json::Value =
+        serde_json::from_slice(captured[0].body.as_ref().expect("body")).expect("json");
+    let content = &body["messages"][0]["content"];
+    assert!(
+        content.is_array(),
+        "multimodal content is an array, never a text string — the 0.111.0 drop: {content}"
+    );
+    let parts = content.as_array().expect("parts");
+    assert!(
+        parts.iter().any(|p| {
+            p["type"] == "image_url" && p["image_url"]["url"] == "http://127.0.0.1:8731/x.png"
+        }),
+        "URL vision rides as image_url: {content}"
+    );
+}
+
+/// #1135 · pointing at a file that does not exist used to run green.
+#[tokio::test]
+async fn missing_vision_file_fails_the_run() {
+    let (outcome, captured) = super::infer_deadline_tests::run_capture(
+        "nika: vision-file-probe\n\
+         model: ollama/llama3.2\n\
+         tasks:\n  \
+         look:\n    \
+         infer:\n      \
+         prompt: \"MARKER-FILE-PROBE\"\n      \
+         max_tokens: 16\n      \
+         vision:\n        \
+         - source: file\n          \
+         path: \"./this-file-does-not-exist.png\"\n",
+    )
+    .await;
+    assert!(!outcome.ok, "a missing image file is no longer a green run");
+    let rec = &outcome.records["look"];
+    let err = rec.error.as_ref().expect("the failure carries its record");
+    assert_eq!(err.code, "NIKA-432", "InvalidParam wire form");
+    assert!(
+        err.message.contains("vision"),
+        "the vision param is named: {}",
+        err.message
+    );
+    assert!(
+        captured.is_empty(),
+        "zero provider calls — the file gate fires first"
+    );
+}
+
+/// #1135 sibling · `thinking.budget_tokens` parsed then vanished before
+/// `InferRequest`. The anthropic wire is the observation point (openai-compat
+/// has no thinking field).
+#[tokio::test]
+async fn thinking_budget_reaches_the_anthropic_wire() {
+    let captured = super::infer_deadline_tests::run_and_capture(
+        "nika: thinking-budget-probe\n\
+         model: ollama/llama3.2\n\
+         tasks:\n  \
+         ask:\n    \
+         infer:\n      \
+         model: anthropic/claude-sonnet-4-20250514\n      \
+         prompt: \"hello\"\n      \
+         thinking:\n        \
+         enabled: true\n        \
+         budget_tokens: 2048\n",
+    )
+    .await;
+    assert_eq!(captured.len(), 1, "one provider round-trip");
+    let body: serde_json::Value =
+        serde_json::from_slice(captured[0].body.as_ref().expect("body")).expect("json");
+    assert_eq!(
+        body["thinking"]["budget_tokens"], 2048,
+        "thinking.budget_tokens reaches the anthropic wire: {body}"
+    );
+}
+
 #[cfg(feature = "access-harness")]
 #[test]
 fn seated_infer_records_quota_without_any_numeric_meter_or_responder_claim() {
