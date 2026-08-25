@@ -102,7 +102,8 @@ fn golden_path_lands_an_audited_draft() {
         .expect("offline default echoed");
     p.expect("stamped workflow `my-first`").expect("summary");
     // The wow contract: the audit ladder runs INSIDE the wizard.
-    p.expect("audited").expect("embedded ladder");
+    p.expect("nika check · my-first.nika.yaml")
+        .expect("embedded ladder");
     p.expect("not a workflow yet").expect("names the draft");
     p.expect("scriptable form").expect("teaches its flags form");
     let m = p.expect(Eof).expect("conversation ends");
