@@ -44,33 +44,33 @@ foundation:
     sha256_16: 37d15028add0d76f
 templates:
   - file: templates/agent-loop.nika.yaml
-    sha256_16: 97cca73d639c1537
+    sha256_16: 8ec0c916aa3bf554
   - file: templates/api-upload-and-create.nika.yaml
     sha256_16: 9bf0d6eaca6d18f3
   - file: templates/chain.nika.yaml
-    sha256_16: 3872ed6ba11aaef0
+    sha256_16: 0f46a07153778ed3
   - file: templates/classify-and-route.nika.yaml
-    sha256_16: ba70b5693762b3ba
+    sha256_16: 7a4489c31a0a555f
   - file: templates/corpus-qa.nika.yaml
-    sha256_16: 960bffdc710a6cca
+    sha256_16: b587e9b9adedd33a
   - file: templates/docker-report.nika.yaml
-    sha256_16: 72c55f04627c584d
+    sha256_16: 322f8ee6a2104be0
   - file: templates/document-to-fields.nika.yaml
-    sha256_16: 2cd45edb761e9a4f
+    sha256_16: 53735c79595cd682
   - file: templates/etl-state.nika.yaml
     sha256_16: d7f6795d4124c091
   - file: templates/evaluate-and-optimize.nika.yaml
-    sha256_16: 6a63cca7a99b7396
+    sha256_16: ad21ca992b576f25
   - file: templates/fanout.nika.yaml
-    sha256_16: 4faf5c91cb9bc689
+    sha256_16: 4d0f469b3a56c9c7
   - file: templates/gate-and-act.nika.yaml
     sha256_16: 7e5da4d28a5d9cb0
   - file: templates/human-gated-ship.nika.yaml
     sha256_16: e6e88773342f90f3
   - file: templates/media-asset-pack.nika.yaml
-    sha256_16: 32c902cbfd1094ac
+    sha256_16: c2736fe7fbd51d87
   - file: templates/website-brief.nika.yaml
-    sha256_16: 05df36b56556aa24
+    sha256_16: 0fae73514108d3d8
 showcase:
   - file: examples/bookmark-triage.nika.yaml
     name: bookmark-triage

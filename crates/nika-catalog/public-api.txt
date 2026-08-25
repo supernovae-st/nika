@@ -993,6 +993,8 @@ pub fn nika_catalog::export::CapabilitiesExport::as_any(&self) -> &(dyn core::an
 #[non_exhaustive] pub struct nika_catalog::export::CatalogExport
 pub nika_catalog::export::CatalogExport::catalog_version: u32
 pub nika_catalog::export::CatalogExport::providers: alloc::vec::Vec<nika_catalog::export::ProviderExport>
+impl nika_catalog::export::CatalogExport
+pub fn nika_catalog::export::CatalogExport::with_resolvable(self, resolvable_ids: &[&str]) -> Self
 impl core::clone::Clone for nika_catalog::export::CatalogExport
 pub fn nika_catalog::export::CatalogExport::clone(&self) -> nika_catalog::export::CatalogExport
 impl core::fmt::Debug for nika_catalog::export::CatalogExport
@@ -1073,6 +1075,7 @@ pub nika_catalog::export::ProviderExport::local: bool
 pub nika_catalog::export::ProviderExport::models: alloc::vec::Vec<nika_catalog::export::ModelExport>
 pub nika_catalog::export::ProviderExport::name: &'static str
 pub nika_catalog::export::ProviderExport::requires_key: bool
+pub nika_catalog::export::ProviderExport::resolves: bool
 pub nika_catalog::export::ProviderExport::tags: alloc::vec::Vec<&'static str>
 impl core::clone::Clone for nika_catalog::export::ProviderExport
 pub fn nika_catalog::export::ProviderExport::clone(&self) -> nika_catalog::export::ProviderExport

@@ -456,7 +456,7 @@ fn pack_surface_round_trips_the_embedded_pack() {
 // ─── new · template instantiation (the own-corpus law) ──────────────────
 
 #[test]
-fn new_writes_a_template_that_passes_its_own_check() {
+fn new_writes_a_template_draft_that_its_own_check_teaches() {
     let dir = std::env::temp_dir().join("nika-cli-verbs-static");
     std::fs::create_dir_all(&dir).expect("temp dir");
     let dest = dir.join("from-template.nika.yaml");
@@ -478,12 +478,19 @@ fn new_writes_a_template_that_passes_its_own_check() {
         out.text
     );
 
-    // The own-corpus law: what we scaffold must pass our own ladder.
+    // A skeleton is deliberately unfinished: its own ladder must refuse
+    // execution for the authored slots and teach the edit → check handoff.
     let checked = check::run(&dest_str, false, false, None, PLAIN);
     assert_eq!(
         checked.code,
-        exit::OK,
-        "the shipped template must be check-clean: {}",
+        exit::FILE,
+        "the shipped template stays a draft until its slots are filled: {}",
+        checked.text
+    );
+    assert!(checked.text.contains("SLOTS"), "{}", checked.text);
+    assert!(
+        checked.text.contains("not a workflow yet"),
+        "{}",
         checked.text
     );
 

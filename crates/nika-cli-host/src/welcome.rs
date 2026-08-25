@@ -35,98 +35,39 @@ use crate::door::DoorId;
 use crate::probe::Probe;
 use crate::{output::VerbOutput, probe};
 
-/// The next moves, keyed on where this workspace actually IS — the
-/// concierge hands over ONE key, not the keyring (row 0 carries the
-/// weight; the others stay dim context). Presence-only inputs — EXCEPT
-/// the 1-workflow case, where `gate` carries the exact file's audit
-/// verdict (P0-3): a `run` line is only ever printed for a file the
-/// ladder just saw clean, and a priced model always carries LOI-3's
-/// cap. The multi-workflow case stays generic BY DESIGN — no N-file
-/// audit on a greeting (`welcome --deep` owns the full truth).
-/// Comments stay ≤26 chars: the widest command pads to 45 and the
-/// whole row must live inside 80 columns.
-fn start_moves(glance: Glance, gate: Option<&RunGate>) -> [(String, &'static str); 3] {
-    match (glance.workflows, glance.agents_md) {
-        // P0-4: a TRUNCATED scan that saw zero is unknown, never the
-        // stranger's zero — the concierge leads with the full truth, not
-        // with founding CTAs that presume an empty workspace.
-        (0, _) if !glance.complete => [
-            ("nika welcome --deep".to_owned(), "scan partial · the truth"),
-            ("nika init".to_owned(), "found this repo (wizard)"),
-            DoorId::Discover.row(),
-        ],
-        // The stranger's moment: nothing here yet — see one run, then found.
-        // Only ever reached behind a COMPLETE scan (the arm above).
-        (0, _) => [
-            ("nika try 01-hello".to_owned(), "offline proof · zero keys"),
-            ("nika init".to_owned(), "found this repo (wizard)"),
-            ("nika new".to_owned(), "guided first workflow"),
-        ],
-        // Workflows live here but the agents were never briefed — the
-        // founding wizard skips existing files, so it only ADDS. With
-        // exactly ONE file the dim run line obeys the same P0-3 gate as
-        // the head (the audit is already paid for); with several it
-        // stays generic (no N-file audit on a greeting).
-        (_, false) => [
-            ("nika init".to_owned(), "brief agents · adds only"),
-            // A comment is a promise: `nika run` bare resolves the ONE
-            // workflow, so « your workflow, found » is only true when
-            // there IS one. With several, the bare form exits 3 asking
-            // which — the row says so up front (gauntlet 08-01).
-            gate.map_or_else(
-                || {
-                    if glance.workflows > 1 {
-                        ("nika run <file>".to_owned(), "pick one · check twin")
-                    } else {
-                        ("nika run".to_owned(), "your workflow, found")
-                    }
-                },
-                run_line,
-            ),
-            DoorId::Discover.row(),
-        ],
-        // One workflow, fully founded AND clean: run it (bare — the
-        // lazy door resolves the only workflow and says so).
-        (1, true) => match gate {
-            Some(g) if g.proposable => [
-                run_line(g),
-                ("nika check".to_owned(), "audit before running"),
-                DoorId::Discover.row(),
-            ],
-            // Red — or no verdict at all: the exact file is audited
-            // FIRST (a run CTA here is precisely what P0-3 forbids).
-            _ => [
-                gate.map_or_else(
-                    || ("nika check".to_owned(), "audit before running"),
-                    run_line,
-                ),
-                DoorId::Discover.row(),
-                ("nika welcome --deep".to_owned(), "the workspace truth"),
-            ],
-        },
-        // Several workflows, founded: the whole-workspace lens first.
-        (_, true) => [
-            ("nika welcome --deep".to_owned(), "the workspace truth"),
-            ("nika run <file>".to_owned(), "pick one · check twin"),
-            DoorId::Discover.row(),
-        ],
+/// The ONE next command the first-contact screen promises.
+///
+/// Derived HERE and nowhere else. The screen used to answer twice —
+/// the cascade's `Next:` block keyed on the directory listing, a
+/// `start here` menu eleven lines below keyed on the audited state —
+/// so a stranger was handed two different first steps (#1196), and
+/// `--json` served a third that had never met either fix (#1187).
+///
+/// `door` is the directory's own answer ([`crate::choice::front_door_next`] ·
+/// the cwd key that stopped `nika new hello` being taught into
+/// `--force`, gauntlet P15). Everything below it is a VERDICT
+/// overruling a listing, in the order the old menu ranked them:
+/// P0-3 (a file the ladder has not seen clean is audited, never run),
+/// LOI-3 (a priced run always bears its cap), P0-4 (a truncated walk
+/// may not presume an empty workspace).
+fn next_command(mode: ContextMode, glance: Glance, gate: Option<&RunGate>, door: &str) -> String {
+    if mode == ContextMode::ChatOnly {
+        // No folder to stand in, so no file claim is honest. The
+        // isolated example is the one real answer reachable from here
+        // — and it runs exactly what the sample block just showed.
+        return format!("{} 01-hello", DoorId::Discover.command());
     }
-}
-
-/// The exact-file run line (P0-3 + LOI-3): a red file gets
-/// `check <path>`; a clean priced file gets the cap placeholder on the
-/// command, always; a clean unpriced file gets the bare lazy-door run
-/// (unpriced is UNKNOWN, never worded « free »).
-fn run_line(g: &RunGate) -> (String, &'static str) {
-    if !g.proposable {
-        (format!("nika check {}", g.path), "red · audit before run")
-    } else if g.priced {
-        (
-            "nika run --max-cost-usd <usd>".to_owned(),
-            "priced model · cap it",
-        )
-    } else {
-        ("nika run".to_owned(), "your workflow, found")
+    match gate {
+        // P0-3 — the sole file is red: audit it, never run it.
+        Some(g) if !g.proposable => format!("nika check {}", g.path),
+        // LOI-3 — a priced run suggestion carries the cap, always.
+        Some(g) if g.priced && door.starts_with("nika run") => {
+            format!("{door} --max-cost-usd <usd>")
+        }
+        // P0-4 — a walk that died before it finished cannot hand out a
+        // founding CTA that presumes an empty workspace.
+        _ if !glance.complete && door.starts_with("nika new") => "nika welcome --deep".to_owned(),
+        _ => door.to_owned(),
     }
 }
 
@@ -279,151 +220,143 @@ pub fn first_wow_dest(dest: Option<&str>) -> &str {
 
 #[must_use]
 pub fn run(json: bool, theme: Theme) -> VerbOutput {
-    let choice = crate::choice::collect();
     let candidate = std::env::current_dir().ok();
     if json {
-        let out = run_in(true, theme, candidate.as_deref());
-        return merge_choice_json(out, &choice);
+        return VerbOutput::ok(front_door_json(candidate.as_deref()));
     }
-    let facts = EnvFacts {
-        evidence: candidate
-            .as_deref()
-            .map_or(EvidenceSource::None, |_| EvidenceSource::ExplicitCwd),
-        ..EnvFacts::detect()
-    };
-    let envelope = context_envelope::resolve(candidate.as_deref(), &facts);
-    crate::metrics::record_if_enabled(
-        crate::metrics::EventKind::ContextResolved,
-        crate::metrics::Facts {
-            session: Some(match envelope.mode {
-                ContextMode::ChatOnly => crate::metrics::Session::ChatOnly,
-                ContextMode::Workspace => crate::metrics::Session::Workspace,
-            }),
-            ..crate::metrics::Facts::none()
-        },
-    );
-    crate::metrics::record_if_enabled(
-        crate::metrics::EventKind::CtaImpression,
-        crate::metrics::Facts {
-            cta: Some(crate::metrics::Cta::Create),
-            ..crate::metrics::Facts::none()
-        },
-    );
-    // The seat cascade is the screen's HEAD — which model this machine can
-    // reach, and the one next command. The mirror body still follows it: a
-    // stranger has to SEE what a workflow looks like, and the sample block
-    // is the only place that shows it. Rendering the cascade alone made
-    // `render_with_context` unreachable and silently dropped that block
-    // (#1195) — the envelope was resolved and the metrics recorded, then
-    // the body was thrown away.
-    let body = run_in(false, theme, candidate.as_deref());
     VerbOutput::ok(crate::display::vocab::sober(
         theme,
-        &format!("{}\n{}", choice.render_human(theme), body.text),
+        &screen(candidate.as_deref(), theme),
     ))
 }
 
-fn merge_choice_json(mut out: VerbOutput, choice: &crate::choice::InferenceChoice) -> VerbOutput {
-    if let Ok(mut v) = serde_json::from_str::<serde_json::Value>(&out.text) {
-        v["inference_choice"] = choice.welcome_json();
-        out.text = v.to_string();
-    }
-    out
+/// The composed first-contact screen — the seat cascade (identity ·
+/// the rungs · the ONE `Next:`), then the mirror body (this machine ·
+/// this binary · the sample). Rendering the cascade alone made
+/// `render_with_context` unreachable and silently dropped the sample
+/// block (#1195); rendering the body's old `start here` menu after it
+/// put the fork back (#1196). The head promises; the body informs.
+fn screen(candidate: Option<&Path>, theme: Theme) -> String {
+    let choice = crate::choice::collect();
+    let mirror = Mirror::collect(candidate);
+    let next = mirror.next(candidate);
+    mirror.record_session();
+    record_impression(&next);
+    format!(
+        "{}\n{}",
+        choice.render_human_next(theme, &next),
+        mirror.render_body(theme)
+    )
 }
 
-/// The envelope-first verb body (P0-14 binary-side): resolve the session
-/// context from the candidate the surface named, then branch — chat-only
-/// renders the truth and the spec's two doors, workspace renders the
-/// mirror rooted at the RESOLVED folder. The process cwd is never
-/// consulted here: `None` in, chat-only out.
-fn run_in(json: bool, theme: Theme, candidate: Option<&Path>) -> VerbOutput {
-    let facts = EnvFacts {
-        evidence: candidate.map_or(EvidenceSource::None, |_| EvidenceSource::ExplicitCwd),
-        ..EnvFacts::detect()
-    };
-    let envelope = context_envelope::resolve(candidate, &facts);
-    let probe = probe::collect(false);
-    let counts = EngineCounts {
-        builtins: nika_builtin::tool_defs().len(),
-        locals: probe.providers.iter().filter(|p| !p.requires_key).count(),
-        clouds: probe.providers.iter().filter(|p| p.requires_key).count(),
-        examples: nika_pack::example_slugs().len(),
-        templates: nika_pack::template_names().len(),
-    };
-    if envelope.mode == ContextMode::ChatOnly {
-        // No reliable folder evidence: NO walk, NO gate, NO workspace
-        // claim — the mirror says « chat only » and routes to the two
-        // doors the spec allows (an isolated example · a chosen project).
-        let ctx = ContextView {
-            mode: ContextMode::ChatOnly,
-            ..ContextView::legacy()
+/// The machine front door — the same screen, the same ONE next step.
+fn front_door_json(candidate: Option<&Path>) -> String {
+    let choice = crate::choice::collect();
+    let mirror = Mirror::collect(candidate);
+    let next = mirror.next(candidate);
+    let mut v = mirror.render_json(&next);
+    v["inference_choice"] = choice.welcome_json(&next);
+    v.to_string()
+}
+
+/// Everything the mirror knows about this session, collected ONCE.
+///
+/// The envelope-first order (P0-14 binary-side): resolve the session
+/// context from the candidate the surface named, then walk and audit
+/// the RESOLVED folder. The process cwd is never consulted here:
+/// `None` in, chat-only out — no walk, no gate, no workspace claim.
+struct Mirror {
+    probe: Probe,
+    envelope: ContextEnvelope,
+    counts: EngineCounts,
+    glance: Glance,
+    /// P0-3: the ONE file's verdict, audited before any run line may
+    /// name it. Only ever `Some` behind a complete walk that saw
+    /// exactly one workflow.
+    gate: Option<RunGate>,
+    ctx: ContextView,
+}
+
+impl Mirror {
+    fn collect(candidate: Option<&Path>) -> Self {
+        let facts = EnvFacts {
+            evidence: candidate.map_or(EvidenceSource::None, |_| EvidenceSource::ExplicitCwd),
+            ..EnvFacts::detect()
         };
-        if json {
-            let experience = experience_block(&probe, &envelope, CHAT_ONLY_GLANCE, None);
-            return VerbOutput::ok(render_chat_only_json(&probe, counts, experience));
+        let envelope = context_envelope::resolve(candidate, &facts);
+        let probe = probe::collect(false);
+        let counts = EngineCounts {
+            builtins: nika_builtin::tool_defs().len(),
+            locals: probe.providers.iter().filter(|p| !p.requires_key).count(),
+            clouds: probe.providers.iter().filter(|p| p.requires_key).count(),
+            examples: nika_pack::example_slugs().len(),
+            templates: nika_pack::template_names().len(),
+        };
+        if envelope.mode == ContextMode::ChatOnly {
+            return Self {
+                probe,
+                envelope,
+                counts,
+                glance: CHAT_ONLY_GLANCE,
+                gate: None,
+                ctx: ContextView {
+                    mode: ContextMode::ChatOnly,
+                    ..ContextView::legacy()
+                },
+            };
         }
+        let root = envelope.project_root.clone();
+        let (glance, sole) = glance(&root, 4000);
+        let gate = sole.as_deref().map(|rel| run_gate(&root, rel));
+        let ctx = ContextView {
+            mode: ContextMode::Workspace,
+            root: root_label(&envelope),
+            expanded_from: envelope.evidence.expanded_from.clone(),
+        };
+        Self {
+            probe,
+            envelope,
+            counts,
+            glance,
+            gate,
+            ctx,
+        }
+    }
+
+    /// The screen's ONE next step — the directory's own door, overruled
+    /// by whatever verdict this mirror already paid for.
+    fn next(&self, candidate: Option<&Path>) -> String {
+        let door = crate::choice::front_door_next(candidate);
+        next_command(self.ctx.mode, self.glance, self.gate.as_ref(), &door)
+    }
+
+    fn render_body(&self, theme: Theme) -> String {
+        render_with_context(&self.probe, self.glance, self.counts, &self.ctx, theme)
+    }
+
+    fn render_json(&self, next: &str) -> serde_json::Value {
+        let experience =
+            experience_block(&self.probe, &self.envelope, self.glance, self.gate.as_ref());
+        if self.ctx.mode == ContextMode::ChatOnly {
+            return render_chat_only_json(&self.probe, self.counts, experience, next);
+        }
+        render_json(&self.probe, self.glance, self.counts, experience, next)
+    }
+
+    fn record_session(&self) {
         crate::metrics::record_if_enabled(
             crate::metrics::EventKind::ContextResolved,
             crate::metrics::Facts {
-                session: Some(crate::metrics::Session::ChatOnly),
-                ..crate::metrics::Facts::none()
-            },
-        );
-        let cmds: [String; 3] = chat_only_moves().map(|(cmd, _)| cmd);
-        record_impressions(&cmds);
-        return VerbOutput::ok(crate::display::vocab::sober(
-            theme,
-            &render_with_context(&probe, CHAT_ONLY_GLANCE, None, counts, &ctx, theme),
-        ));
-    }
-    // Workspace: the walk + the gate run on the VALIDATED candidate (the
-    // envelope's project root), never on a process-cwd guess.
-    let root = envelope.project_root.clone();
-    let (glance, sole) = glance(&root, 4000);
-    // P0-3: the ONE file is audited before any run line may name it.
-    let gate = sole.as_deref().map(|rel| run_gate(&root, rel));
-    let ctx = ContextView {
-        mode: ContextMode::Workspace,
-        root: root_label(&envelope),
-        expanded_from: envelope.evidence.expanded_from.clone(),
-    };
-    if json {
-        let experience = experience_block(&probe, &envelope, glance, gate.as_ref());
-        return VerbOutput::ok(render_json(
-            &probe,
-            glance,
-            gate.as_ref(),
-            counts,
-            experience,
-        ));
-    }
-    crate::metrics::record_if_enabled(
-        crate::metrics::EventKind::ContextResolved,
-        crate::metrics::Facts {
-            session: Some(crate::metrics::Session::Workspace),
-            flag: Some(envelope.evidence.expanded_from.is_some()),
-            ..crate::metrics::Facts::none()
-        },
-    );
-    let moves = start_moves(glance, gate.as_ref());
-    let cmds: [String; 3] = [0, 1, 2].map(|i| moves[i].0.clone());
-    record_impressions(&cmds);
-    // The hand-off the audit measures: the concierge LEADS with a run
-    // line (only ever on an audited-clean file — P0-3) → the run is
-    // back in human hands.
-    if cmds.first().is_some_and(|cmd| cmd.starts_with("nika run")) {
-        crate::metrics::record_if_enabled(
-            crate::metrics::EventKind::HumanRunHandoff,
-            crate::metrics::Facts {
-                handoff: Some(crate::metrics::Handoff::WelcomeCta),
+                session: Some(match self.ctx.mode {
+                    ContextMode::ChatOnly => crate::metrics::Session::ChatOnly,
+                    ContextMode::Workspace => crate::metrics::Session::Workspace,
+                }),
+                flag: (self.ctx.mode == ContextMode::Workspace)
+                    .then(|| self.envelope.evidence.expanded_from.is_some()),
                 ..crate::metrics::Facts::none()
             },
         );
     }
-    VerbOutput::ok(crate::display::vocab::sober(
-        theme,
-        &render_with_context(&probe, glance, gate.as_ref(), counts, &ctx, theme),
-    ))
 }
 
 /// The concierge's CTA classes (W8 metrics): found (`init` · `new`) ·
@@ -438,14 +371,27 @@ fn cta_class(cmd: &str) -> crate::metrics::Cta {
     }
 }
 
-/// One `cta_impression` per move the mirror shows — the content-free
-/// half of the click-through the W8 audit wants measured.
-fn record_impressions<S: AsRef<str>>(moves: &[S]) {
-    for cmd in moves {
+/// The `cta_impression` for the ONE move the mirror shows — the
+/// content-free half of the click-through the W8 audit wants measured.
+/// It used to fire three times because the screen offered three
+/// commands; a metric that counts more CTAs than the screen carries is
+/// a metric about a screen nobody sees.
+fn record_impression(next: &str) {
+    crate::metrics::record_if_enabled(
+        crate::metrics::EventKind::CtaImpression,
+        crate::metrics::Facts {
+            cta: Some(cta_class(next)),
+            ..crate::metrics::Facts::none()
+        },
+    );
+    // The hand-off the audit measures: the concierge points at a run
+    // (only ever on an audited-clean file — P0-3) → the run is back in
+    // human hands.
+    if next.starts_with("nika run") {
         crate::metrics::record_if_enabled(
-            crate::metrics::EventKind::CtaImpression,
+            crate::metrics::EventKind::HumanRunHandoff,
             crate::metrics::Facts {
-                cta: Some(cta_class(cmd.as_ref())),
+                handoff: Some(crate::metrics::Handoff::WelcomeCta),
                 ..crate::metrics::Facts::none()
             },
         );
@@ -543,26 +489,19 @@ tasks:
     infer: { prompt: "say hello to the operator", max_tokens: 50 }"#;
 
 /// The human mirror — sections: identity · this machine · this binary ·
-/// (the language, first time only) · start here · learn. This legacy
-/// entry is the TEST seam: it carries NO envelope view (an empty root),
-/// so the pre-envelope render tests stay byte-identical; `run_in`
+/// (the language, first time only) · learn. This legacy entry is the
+/// TEST seam: it carries NO envelope view (an empty root), so the
+/// pre-envelope render tests stay byte-identical; [`Mirror::render_body`]
 /// renders through [`render_with_context`] with the resolved envelope.
 #[cfg(test)]
-fn render_human(
-    probe: &Probe,
-    glance: Glance,
-    gate: Option<&RunGate>,
-    counts: EngineCounts,
-    theme: Theme,
-) -> String {
-    render_with_context(probe, glance, gate, counts, &ContextView::legacy(), theme)
+fn render_human(probe: &Probe, glance: Glance, counts: EngineCounts, theme: Theme) -> String {
+    render_with_context(probe, glance, counts, &ContextView::legacy(), theme)
 }
 
 /// The envelope-aware mirror — the one `run_in` renders with.
 fn render_with_context(
     probe: &Probe,
     glance: Glance,
-    gate: Option<&RunGate>,
     counts: EngineCounts,
     ctx: &ContextView,
     theme: Theme,
@@ -571,7 +510,7 @@ fn render_with_context(
     identity_section(&mut s, probe, theme);
     machine_section(&mut s, probe, glance, ctx, theme);
     binary_section(&mut s, counts, glance, ctx, theme);
-    start_section(&mut s, theme, glance, gate, ctx);
+    learn_line(&mut s, theme);
     s
 }
 
@@ -803,8 +742,10 @@ fn sovereign_and_keys_lines(
             ),
         );
     }
+    // `session_row` closes the section with its own blank line — a
+    // second one here rendered two, and the screen is meant to be the
+    // short one (#1196).
     session_row(s, glance, ctx, theme);
-    let _ = writeln!(s);
 }
 
 /// The P0-14 row closing the machine section: chat-only SAYS « chat
@@ -920,127 +861,77 @@ fn binary_section(
     }
 }
 
-/// The chat-only doors (the spec's two: an isolated example · choosing a
-/// project) plus the corpus — ONE source: the render and the W8
-/// impression journal read the same moves (a drift between what is shown
-/// and what is measured would make the metric a lie).
-fn chat_only_moves() -> [(String, &'static str); 3] {
-    [
-        ("nika try 01-hello".to_owned(), "isolated · zero keys"),
-        (
-            "cd <project> && nika welcome".to_owned(),
-            "choose a project first",
-        ),
-        DoorId::Discover.row(),
-    ]
-}
-
-/// Every command the concierge can ever teach, across every workspace
-/// state — the parse-ratchet surface. The `nika-cli` unit replays each
-/// one against the live clap tree, so a door rename (the 0.107
-/// `examples` → `try` move that welcome kept teaching) breaks a test
-/// before it can break a paste. Placeholders (`<file>` · `<usd>` ·
-/// `<project>`) are the operator's slots; the ratchet fills them.
+/// Every command the concierge can ever teach — the parse-ratchet
+/// surface. The `nika-cli` unit replays each one against the live clap
+/// tree, so a door rename (the 0.107 `examples` → `try` move that
+/// welcome kept teaching) breaks a test before it can break a paste.
+/// Placeholders (`<file>` · `<usd>`) are the operator's slots; the
+/// ratchet fills them.
+///
+/// Two families, and both are DERIVED, never listed: the ONE next step
+/// over every state that can produce a different one, and the dim
+/// routes the mirror body hangs off its own facts.
 #[must_use]
 pub fn taught_start_commands() -> Vec<String> {
     let gates = [
         None,
         Some(RunGate {
-            path: "wf.nika.yaml".to_owned(),
+            path: "<file>".to_owned(),
             proposable: false,
             priced: false,
         }),
         Some(RunGate {
-            path: "wf.nika.yaml".to_owned(),
+            path: "<file>".to_owned(),
             proposable: true,
             priced: false,
         }),
         Some(RunGate {
-            path: "wf.nika.yaml".to_owned(),
+            path: "<file>".to_owned(),
             proposable: true,
             priced: true,
         }),
     ];
     let mut commands: Vec<String> = Vec::new();
-    for workflows in [0usize, 1, 3] {
-        for agents_md in [false, true] {
-            for complete in [false, true] {
-                let glance = Glance {
-                    git: true,
-                    workflows,
-                    agents_md,
-                    complete,
-                };
-                for gate in &gates {
-                    for (command, _) in start_moves(glance, gate.as_ref()) {
-                        if !commands.contains(&command) {
-                            commands.push(command);
-                        }
-                    }
+    let mut push = |command: String| {
+        if !commands.contains(&command) {
+            commands.push(command);
+        }
+    };
+    for mode in [ContextMode::ChatOnly, ContextMode::Workspace] {
+        for complete in [false, true] {
+            let glance = Glance {
+                complete,
+                ..CHAT_ONLY_GLANCE
+            };
+            for gate in &gates {
+                for door in crate::choice::DOOR_SHAPES {
+                    push(next_command(mode, glance, gate.as_ref(), door));
                 }
             }
         }
     }
-    for (command, _) in chat_only_moves() {
-        if !commands.contains(&command) {
-            commands.push(command);
-        }
-    }
-    for command in [
-        "nika new",
-        "nika new hello",
-        "nika run",
-        "nika check",
+    // The routes that hang off a named gap in the body — each one
+    // repairs the fact it sits beside, and each one is a paste.
+    for route in [
+        "nika init",
+        "nika wire cursor",
+        "nika model list",
         "nika doctor",
+        "nika doctor --ping",
+        "nika try 01-hello",
     ] {
-        if !commands.iter().any(|c| c == command) {
-            commands.push((*command).to_owned());
-        }
+        push(route.to_owned());
     }
     commands
 }
 
-/// The hand-off — the state's own three moves, then where to learn more.
-/// Chat-only keys on no workspace at all: the two doors the spec allows
-/// (an isolated example · choosing a project) plus the corpus.
-fn start_section(
-    s: &mut String,
-    theme: Theme,
-    glance: Glance,
-    gate: Option<&RunGate>,
-    ctx: &ContextView,
-) {
-    let _ = writeln!(
-        s,
-        "{}",
-        theme.paint(Role::Strong, "start here (offline · zero keys)")
-    );
-    let moves = if ctx.mode == ContextMode::ChatOnly {
-        chat_only_moves()
-    } else {
-        start_moves(glance, gate)
-    };
-    let width = moves
-        .iter()
-        .map(|(cmd, _)| cmd.chars().count())
-        .max()
-        .unwrap_or(0);
-    // The gh/bun law (2026 survey): exactly ONE next command carries the
-    // maximum visual weight — the first row is the thing to run NOW, the
-    // other two stay plain (a journey, not a menu of equals).
-    for (i, (cmd, why)) in moves.iter().enumerate() {
-        let painted = if i == 0 {
-            theme.paint(Role::Strong, &format!("{cmd:<width$}"))
-        } else {
-            format!("{cmd:<width$}")
-        };
-        let _ = writeln!(
-            s,
-            "  {painted}   {}",
-            theme.paint(Role::Dim, &format!("# {why}"))
-        );
-    }
-    let _ = writeln!(s);
+/// Where to learn more — the tail of the body.
+///
+/// This used to sit under a `start here` menu of three commands. The
+/// cascade above already carries the ONE next step, and that menu was
+/// precisely what the first-wow cascade replaced: keeping both put the
+/// fork back in front of a stranger (#1196).
+fn learn_line(s: &mut String, theme: Theme) {
     let _ = writeln!(
         s,
         "{}",
@@ -1174,12 +1065,10 @@ fn experience_block(
 fn render_json(
     probe: &Probe,
     glance: Glance,
-    gate: Option<&RunGate>,
     counts: EngineCounts,
     experience: serde_json::Value,
-) -> String {
-    let moves = start_moves(glance, gate);
-    let start: Vec<&str> = moves.iter().map(|(cmd, _)| cmd.as_str()).collect();
+    next: &str,
+) -> serde_json::Value {
     let mut machine = probe::environment_json(probe);
     machine["config"] = serde_json::json!(probe.config_path);
     let mut v = serde_json::json!({
@@ -1200,10 +1089,16 @@ fn render_json(
             "examples": counts.examples,
             "templates": counts.templates,
         },
-        "start": start,
+        // ONE next step, the same string the `Next:` block prints. It
+        // was a three-command array that had met neither the cascade
+        // nor the cwd key — an agent reading `start[0]` on 0.115 was
+        // handed the retired door (#1187). `start` stays an array so a
+        // consumer indexing it still works; it just tells the truth now.
+        "next": next,
+        "start": [next],
     });
     v["experience"] = experience;
-    v.to_string()
+    v
 }
 
 /// The chat-only machine mirror — the SAME versioned envelope, minus
@@ -1214,7 +1109,8 @@ fn render_chat_only_json(
     probe: &Probe,
     counts: EngineCounts,
     experience: serde_json::Value,
-) -> String {
+    next: &str,
+) -> serde_json::Value {
     let mut machine = probe::environment_json(probe);
     machine["config"] = serde_json::json!(probe.config_path);
     let mut v = serde_json::json!({
@@ -1230,16 +1126,14 @@ fn render_chat_only_json(
             "examples": counts.examples,
             "templates": counts.templates,
         },
-        // ONE source with the rendered text (the W8 law): the JSON
-        // mirror derives from `chat_only_moves()`, never a hand-kept
-        // twin array — two lists of the same moves drift.
-        "start": chat_only_moves()
-            .iter()
-            .map(|(cmd, _)| cmd.clone())
-            .collect::<Vec<String>>(),
+        // ONE source with the rendered text (the W8 law): the machine
+        // mirror is handed the same string the `Next:` block prints,
+        // never a hand-kept twin — two lists of the same moves drift.
+        "next": next,
+        "start": [next],
     });
     v["experience"] = experience;
-    v.to_string()
+    v
 }
 
 #[cfg(test)]

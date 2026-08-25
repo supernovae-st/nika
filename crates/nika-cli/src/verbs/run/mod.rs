@@ -663,9 +663,9 @@ fn composed_runtime(
 }
 
 /// Execute a CHECKED workflow with the MOCK provider and capture the typed
-/// `outputs:` — the `nika test` seam (F7). The envelope model is replaced
-/// by `mock/echo` through the SAME composition path as `--model` (offline ·
-/// zero key · deterministic + schema-conformant since F3) — and since P0-16
+/// `outputs:` — the `nika test` seam (F7). Every envelope and task-local
+/// model is replaced by the runtime's `mock/echo` default (offline · zero
+/// key · deterministic + schema-conformant since F3) — and since P0-16
 /// the composition is the SIMULATED plane ([`simulated_runtime`]): the
 /// model swap never left the tool/exec seams real again — net, exec, and
 /// write effects REFUSE with « effects disabled under `nika test` », so a
@@ -675,16 +675,32 @@ fn composed_runtime(
 /// only), so the caller owns stdout for its own verdict/diff surface.
 /// `skills` = the composer-resolved SKILL.md texts (#473 · the caller
 /// gates their findings first, same as `run`).
+#[cfg(test)]
 pub(crate) fn capture_mock_outputs(
     wf: &RawWorkflow,
     report: &CheckReport,
     skills: BTreeMap<String, String>,
     theme: Theme,
 ) -> Result<(u8, BTreeMap<String, Value>), String> {
-    let caps = capabilities_of(wf);
-    let runtime = simulated_runtime("mock/echo", caps, wf.run.as_ref().map(|s| &s.value))
+    capture_mock_outputs_with_answers(wf, report, skills, BTreeMap::new(), theme)
+}
+
+/// `capture_mock_outputs` with operator-bound prompt decisions for
+/// `nika test --answer TASK=VALUE`.
+pub(crate) fn capture_mock_outputs_with_answers(
+    wf: &RawWorkflow,
+    _report: &CheckReport,
+    skills: BTreeMap<String, String>,
+    answers: BTreeMap<String, Value>,
+    theme: Theme,
+) -> Result<(u8, BTreeMap<String, Value>), String> {
+    let mock_wf = force_mock_models(wf);
+    let mut mock_report = nika_check::check(&mock_wf);
+    crate::verbs::stamp_judged_semantic(&mock_wf, &mut mock_report);
+    let caps = capabilities_of(&mock_wf);
+    let runtime = simulated_runtime("mock/echo", caps, mock_wf.run.as_ref().map(|s| &s.value))
         .map_err(|e| e.to_string())?;
-    let runtime = runtime.with_skills(skills);
+    let runtime = runtime.with_skills(skills).with_prompt_answers(answers);
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()
@@ -692,9 +708,17 @@ pub(crate) fn capture_mock_outputs(
     Ok(rt.block_on(async {
         // F-P3 · the declaration picks the stamper too (seeded/none →
         // deterministic stamps — the test goldens stop drifting).
-        let mut stamper = nika_runtime::RunSeams::of(wf.run.as_ref().map(|s| &s.value)).stamper();
+        let mut stamper =
+            nika_runtime::RunSeams::of(mock_wf.run.as_ref().map(|s| &s.value)).stamper();
         let mut sink = FoldSink::new(std::io::stderr().lock(), theme, RenderMode::Quiet);
-        let (code, outcome) = drive_raw(&runtime, wf, report, stamper.as_mut(), &mut sink).await;
+        let (code, outcome) = drive_raw(
+            &runtime,
+            &mock_wf,
+            &mock_report,
+            stamper.as_mut(),
+            &mut sink,
+        )
+        .await;
         // Success is silent (the caller prints the test verdict); a failed
         // mock run surfaces its compact verdict card so the operator sees
         // WHY before the caller's exit.
@@ -703,6 +727,22 @@ pub(crate) fn capture_mock_outputs(
         }
         (code, outcome.outputs)
     }))
+}
+
+/// Remove every authored model choice before a golden run. The simulated
+/// runtime owns one model, `mock/echo`; a task-local provider pin must not
+/// escape that plane merely because it has higher normal-run precedence.
+fn force_mock_models(wf: &RawWorkflow) -> RawWorkflow {
+    let mut mock = wf.clone();
+    mock.model = None;
+    for task in &mut mock.tasks {
+        match &mut task.value.action {
+            nika_schema::raw::RawAction::Infer(action) => action.model = None,
+            nika_schema::raw::RawAction::Agent(action) => action.model = None,
+            _ => {}
+        }
+    }
+    mock
 }
 
 /// The `--task` scope + the clean gate, fused (both run before any

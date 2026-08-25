@@ -146,6 +146,10 @@ enum Command {
         /// (Re)write the golden from this run instead of comparing.
         #[arg(long)]
         update: bool,
+        /// Answer a blocking `nika:prompt` without weakening it with a
+        /// headless default (repeatable `TASK=VALUE`).
+        #[arg(long, value_name = "TASK=VALUE", action = clap::ArgAction::Append)]
+        answer: Vec<String>,
     },
     /// Static anatomy: tasks · verbs · wave groups · cost · permits —
     /// and the ONE graph projector (`--format json|mermaid|dot` for the
@@ -782,9 +786,9 @@ fn real_main() -> std::process::ExitCode {
     clippy::needless_pass_by_value
 )]
 /// The `test` arm — resolve the lazy target, then run the goldens.
-fn test_arm(file: Option<String>, update: bool, plain_theme: Theme) -> u8 {
+fn test_arm(file: Option<String>, update: bool, answer: &[String], plain_theme: Theme) -> u8 {
     match resolve_lazy_target(file, "test") {
-        Ok(file) => verbs::test::run(&file, update, plain_theme),
+        Ok(file) => verbs::test::run_with_answers(&file, update, answer, plain_theme),
         Err(code) => code,
     }
 }
@@ -826,7 +830,11 @@ fn dispatch_verb(
         Command::List => emit(&verbs::list::run(std::path::Path::new("."))),
         Command::Check(args) => check_arm(args, plain_theme),
         Command::Run(args) => run_lazy(args, color, link_when, plain, ascii),
-        Command::Test { file, update } => test_arm(file, update, plain_theme),
+        Command::Test {
+            file,
+            update,
+            answer,
+        } => test_arm(file, update, &answer, plain_theme),
         Command::Inspect { file, format } => inspect_arm(&file, format, plain_theme),
         Command::Welcome { json, deep } => mirror_verb(json, deep, plain_theme),
         Command::Explain {
@@ -1270,6 +1278,25 @@ mod tests {
                 "taught command must parse: {command:?} (argv {argv:?})"
             );
         }
+    }
+
+    #[test]
+    fn test_accepts_repeatable_explicit_answers() {
+        let cli = Cli::try_parse_from([
+            "nika",
+            "test",
+            "etl-state.nika.yaml",
+            "--answer",
+            "approve=false",
+            "--answer",
+            "reviewer=reject",
+        ])
+        .expect("repeatable test answers parse");
+        let answer = match cli.command {
+            Some(Command::Test { answer, .. }) => answer,
+            _ => Vec::new(),
+        };
+        assert_eq!(answer, ["approve=false", "reviewer=reject"]);
     }
 
     /// The public name is `nika` EVERYWHERE clap speaks (found live
