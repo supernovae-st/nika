@@ -459,7 +459,9 @@ pub fn nika_cap::Permits::new() -> Self
 impl nika_cap::Permits
 pub fn nika_cap::Permits::allows_host(&self, host: &str) -> bool
 pub fn nika_cap::Permits::allows_path(&self, path: &str, write: bool) -> bool
+pub fn nika_cap::Permits::allows_path_in(&self, path: &str, write: bool, home: core::option::Option<&str>) -> bool
 pub fn nika_cap::Permits::jail_admits_read(&self, path: &str) -> bool
+pub fn nika_cap::Permits::jail_admits_read_in(&self, path: &str, home: core::option::Option<&str>) -> bool
 impl nika_cap::Permits
 pub fn nika_cap::Permits::intersect(&self, other: &Self) -> Self
 pub fn nika_cap::Permits::union(&self, other: &Self) -> Self
@@ -735,6 +737,7 @@ pub fn nika_cap::builtin_shape_findings(tool: &str, args: core::option::Option<&
 pub fn nika_cap::chart_vl_sibling(tool: &str, args: core::option::Option<&serde_json::value::Value>) -> core::option::Option<alloc::string::String>
 pub fn nika_cap::code_bearing_path_class(path: &str) -> core::option::Option<(&'static str, &'static str)>
 pub fn nika_cap::compose_child_env(lookup: impl core::ops::function::Fn(&str) -> core::option::Option<alloc::string::String>, passthrough: &[alloc::string::String], authored: &alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, alloc::string::String>
+pub fn nika_cap::expand_home_grant(glob: &str, home: &str) -> alloc::string::String
 pub fn nika_cap::glob_admits(glob: &str, path: &str) -> bool
 pub fn nika_cap::glob_matches(glob: &str, value: &str) -> bool
 pub fn nika_cap::glob_walk_root(pattern: &str) -> alloc::string::String

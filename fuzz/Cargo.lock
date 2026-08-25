@@ -2471,6 +2471,7 @@ dependencies = [
 name = "nika-exec-runner"
 version = "0.114.0"
 dependencies = [
+ "nika-cap",
  "nika-kernel",
  "nika-schema",
  "nika-types",

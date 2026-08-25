@@ -26,6 +26,7 @@ pub fn nika_exec_runner::sandbox_spec::PathMismatch::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_exec_runner::sandbox_spec::PathMismatch where T: 'static
 pub fn nika_exec_runner::sandbox_spec::PathMismatch::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub fn nika_exec_runner::sandbox_spec::spec_of(permits: &nika_cap::permits::Permits, root: &std::path::Path) -> core::result::Result<nika_kernel_core::io::process::SandboxSpec, alloc::boxed::Box<nika_exec_runner::sandbox_spec::PathMismatch>>
+pub fn nika_exec_runner::sandbox_spec::spec_of_with_home(permits: &nika_cap::permits::Permits, root: &std::path::Path, home: core::option::Option<&str>) -> core::result::Result<nika_kernel_core::io::process::SandboxSpec, alloc::boxed::Box<nika_exec_runner::sandbox_spec::PathMismatch>>
 #[non_exhaustive] pub enum nika_exec_runner::EgressEvent
 pub nika_exec_runner::EgressEvent::Closed
 pub nika_exec_runner::EgressEvent::Closed::bytes_down: u64

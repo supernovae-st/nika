@@ -190,7 +190,13 @@ pub struct TrifectaVerdict {
 /// fit.rs doctrine: dropping it would collapse an out-of-boundary glob into
 /// an in-boundary one).
 fn write_glob_escapes(glob: &str) -> bool {
-    if glob.starts_with('/') || glob.starts_with('~') {
+    if glob.starts_with('/')
+        || glob.starts_with('~')
+        || glob == "$HOME"
+        || glob.starts_with("$HOME/")
+        || glob == "${HOME}"
+        || glob.starts_with("${HOME}/")
+    {
         return true;
     }
     lexically_normalize(glob).starts_with("..")
@@ -593,6 +599,11 @@ mod tests {
     fn write_glob_escape_variants() {
         assert!(write_glob_escapes("/etc/passwd"), "absolute escapes");
         assert!(write_glob_escapes("~/loot.txt"), "home escapes");
+        assert!(write_glob_escapes("$HOME/loot.txt"), "$HOME escapes");
+        assert!(
+            write_glob_escapes("${HOME}/loot.txt"),
+            "dollar-brace HOME escapes"
+        );
         assert!(write_glob_escapes("../outside.txt"), "climb escapes");
         assert!(write_glob_escapes("./out/../../etc/x"), "normalized climb");
         assert!(!write_glob_escapes("./out/**"), "workspace write stays");
