@@ -685,7 +685,7 @@ pub(crate) fn capture_mock_outputs(
     capture_mock_outputs_with_answers(wf, report, skills, BTreeMap::new(), theme)
 }
 
-/// [`capture_mock_outputs`] with operator-bound prompt decisions for
+/// `capture_mock_outputs` with operator-bound prompt decisions for
 /// `nika test --answer TASK=VALUE`.
 pub(crate) fn capture_mock_outputs_with_answers(
     wf: &RawWorkflow,
