@@ -90,6 +90,23 @@ waived_reason() {
   return 1
 }
 
+# Every DISTINCT job named by a line-initial `proven_by:` in a body, one per
+# line, sorted. A function and not an inline pipe so the self-test can source
+# it by name the way it sources waived_reason above — a reader nobody can
+# exercise is a reader nobody can trust, and this one decides verdicts.
+#
+# Reads $1, never the environment: the body is untrusted text and must not
+# reach the shell.
+body_proof_jobs() {
+  printf '%s\n' "$1" \
+    | awk '/^[[:space:]]*proven_by:[[:space:]]*/ {
+        sub(/^[[:space:]]*proven_by:[[:space:]]*/, "")
+        gsub(/["\047`]/, "")
+        gsub(/[[:space:]].*/, "")
+        if ($0 != "") { print }
+      }' | sort -u
+}
+
 while [ $# -gt 0 ]; do
   case "$1" in
     --issue)
@@ -138,29 +155,51 @@ LEDGER_JOB="$(
   awk -v want="$ISSUE" '
     /^capabilities:/{grab=1; next}
     grab && /^[a-z_]+:/ && $0 !~ /^[[:space:]]/{grab=0}
-    grab && $0 ~ /proven_by:[[:space:]]*/ {
-      sub(/.*proven_by:[[:space:]]*/, ""); gsub(/["\047]/, ""); job=$0
+    # Same anchor as the body reader below (#1218). A YAML value starts its
+    # line; a comment that names the key does not. The ledger is authored and
+    # less exposed to prose than an issue body, but two readers of one rule
+    # drift the moment one learns something — that is the lesson #1207 just
+    # paid for one file over.
+    grab && $0 ~ /^[[:space:]]*proven_by:[[:space:]]*/ {
+      sub(/^[[:space:]]*proven_by:[[:space:]]*/, ""); gsub(/["\047]/, ""); job=$0
     }
-    grab && $0 ~ /issue:[[:space:]]*/ {
-      sub(/.*issue:[[:space:]]*/, ""); gsub(/["\047]/, "")
+    grab && $0 ~ /^[[:space:]]*issue:[[:space:]]*/ {
+      sub(/^[[:space:]]*issue:[[:space:]]*/, ""); gsub(/["\047]/, "")
       if ($0 == want) { print job; exit }
     }
   ' "$LEDGER"
 )"
 
 # 2. body proven_by: <job> (env, never interpolated into the script source)
+#
+# A DECLARATION starts a line. A MENTION sits inside a sentence, and until
+# 2026-08-25 this read both (#1218). The pattern matched `proven_by:`
+# anywhere and exited on the first line that carried it, so the issue whose
+# whole subject is this marker refused itself: #1200's body quotes the
+# workflow guard —
+#
+#     contains(github.event.issue.body, 'proven_by:') ||
+#
+# — and the reader stripped up to the marker, dropped the quote, cut at the
+# space, and rendered the job name `)`. On the other side, a sentence that
+# happens to carry a plausible word HANDS the gate a proof nobody attached:
+# that is the false-green half, and it is the one that matters.
+#
+# Anchoring is necessary and not sufficient. #1200 also carries a wrapped
+# markdown span that begins a line, so first-match-wins would still have
+# guessed — correctly there, by coincidence, because the prose and the real
+# declaration name the same job. A gate must not be right by luck. So: read
+# only line-initial markers, collect the DISTINCT values, and refuse when
+# they disagree rather than pick one. Fail closed, like every other judge
+# here.
 BODY_JOB=""
+BODY_AMBIGUOUS=""
 if [ -n "${ISSUE_BODY:-}" ]; then
-  BODY_JOB="$(
-    printf '%s\n' "$ISSUE_BODY" \
-      | awk '/proven_by:[[:space:]]*/ {
-          sub(/.*proven_by:[[:space:]]*/, "")
-          gsub(/["\047`]/, "")
-          gsub(/[[:space:]].*/, "")
-          print
-          exit
-        }'
-  )"
+  _body_jobs="$(body_proof_jobs "$ISSUE_BODY")"
+  BODY_JOB="$(printf '%s\n' "$_body_jobs" | head -1)"
+  if [ "$(printf '%s\n' "$_body_jobs" | grep -c .)" -gt 1 ]; then
+    BODY_AMBIGUOUS="$(printf '%s' "$_body_jobs" | tr '\n' ' ')"
+  fi
 fi
 
 JOB="${LEDGER_JOB:-$BODY_JOB}"
@@ -191,6 +230,12 @@ What this gate no longer accepts is silence. Until 2026-08-25 it only judged clo
 
 if [ -z "$JOB" ] || [ "$JOB" = "null" ]; then
   refuse "no proven_by (not in wiring.yaml, not in the issue body) · a capability close needs a named CI job"
+fi
+
+# The ledger is authored and wins; only an unaided body can be ambiguous.
+# Detecting this and then picking one anyway would be a field nobody reads.
+if [ -z "$LEDGER_JOB" ] && [ -n "$BODY_AMBIGUOUS" ]; then
+  refuse "the body names more than one proven_by job (${BODY_AMBIGUOUS%% }) · say which, or put it in wiring.yaml"
 fi
 
 if printf '%s\n' "$JOBS" | grep -qxF "$JOB"; then
