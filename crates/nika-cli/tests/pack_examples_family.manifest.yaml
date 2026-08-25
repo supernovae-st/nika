@@ -36,9 +36,9 @@
 # with real tracker ids. The completeness test refuses a known_fail row
 # whose issue token is not listed here.
 issues:
-  GIT-SEATBELT: R1-PACK-EXAMPLES-GIT-SEATBELT       # placeholder token
-  CARGO-SEATBELT: R1-PACK-EXAMPLES-CARGO-SEATBELT   # placeholder token
-  MOCK-ARTIFACT: R1-PACK-EXAMPLES-MOCK-ARTIFACT     # placeholder token
+  GIT-SEATBELT: nika#1254
+  CARGO-SEATBELT: nika#1255
+  MOCK-ARTIFACT: nika#1256
 
 entries:
   # ── The numbered path + jobs, green through the showroom door ──────────
@@ -130,7 +130,7 @@ entries:
       on: [darwin]
       class: GIT-SEATBELT
       finding: NIKA-EXEC-001
-      issue: R1-PACK-EXAMPLES-GIT-SEATBELT
+      issue: nika#1254
   - slug: snippets/weekly-radar
     door: run
     kit: [fixtures, git-repo]
@@ -141,7 +141,7 @@ entries:
       on: [darwin]
       class: GIT-SEATBELT
       finding: NIKA-EXEC-001
-      issue: R1-PACK-EXAMPLES-GIT-SEATBELT
+      issue: nika#1254
   - slug: pr-review-fanout
     door: run
     kit: [git-repo]
@@ -152,7 +152,7 @@ entries:
       on: [darwin]
       class: GIT-SEATBELT
       finding: NIKA-EXEC-001
-      issue: R1-PACK-EXAMPLES-GIT-SEATBELT
+      issue: nika#1254
 
   # ── CARGO-SEATBELT (2) — the cargo/rustc the examples exec lives under
   #    `$HOME` (rustup), and BOTH OS jails bind no `$HOME` path
@@ -167,7 +167,7 @@ entries:
       on: [darwin, linux]
       class: CARGO-SEATBELT
       finding: NIKA-SEC-001
-      issue: R1-PACK-EXAMPLES-CARGO-SEATBELT
+      issue: nika#1255
   - slug: snippets/run
     door: run
     kit: [cargo-project]
@@ -176,7 +176,7 @@ entries:
       on: [darwin, linux]
       class: CARGO-SEATBELT
       finding: NIKA-SEC-001
-      issue: R1-PACK-EXAMPLES-CARGO-SEATBELT
+      issue: nika#1255
 
   # ── The honest skips — launched by no hermetic gate, named and counted ──
   # model-bench: per-task `model:` seats escape the envelope override (the

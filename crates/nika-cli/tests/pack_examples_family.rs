@@ -62,7 +62,7 @@ const HERMETIC_MODEL: &str = "mock/echo";
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Manifest {
-    /// class → issue token (placeholders until the tracker rows exist).
+    /// class → issue token (the tracker row the known-fail is bound to).
     issues: BTreeMap<String, String>,
     entries: Vec<Entry>,
 }
