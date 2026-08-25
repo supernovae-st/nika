@@ -292,6 +292,11 @@ pub(super) fn parse_string_list(
                 span: cx.span(item.span()),
             });
         };
+        super::refuse_ambiguous_plain_scalar(
+            scalar,
+            &format!("{key} entry"),
+            cx.span_or_zero(scalar.span()),
+        )?;
         out.push(Spanned::new(
             scalar.as_str().to_owned(),
             cx.span_or_zero(scalar.span()),

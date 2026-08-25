@@ -20,7 +20,7 @@ use crate::types::{CaptureMode, DecodeMode};
 
 use super::envelope::parse_string_map;
 use super::value::json_value;
-use super::{Cx, tasks::parse_string_list};
+use super::{Cx, refuse_ambiguous_plain_scalar, tasks::parse_string_list};
 
 /// The 4 canonical verb keys — CLOSED set (D-2026-05-22-N18 · « 4 verbs
 /// absolute » · `fetch` is the `nika:fetch` builtin under `invoke`).
@@ -195,6 +195,11 @@ fn parse_command(cx: &Cx<'_>, body: &MarkedMappingNode) -> Result<RawCommand, Sc
             message: "each `exec.command` array element must be a string".to_owned(),
             span: cx.span(item.span()),
         })?;
+        refuse_ambiguous_plain_scalar(
+            scalar,
+            "exec.command element",
+            cx.span_or_zero(scalar.span()),
+        )?;
         parts.push(Spanned::new(
             scalar.as_str().to_owned(),
             cx.span_or_zero(scalar.span()),

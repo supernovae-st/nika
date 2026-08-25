@@ -9,8 +9,10 @@
 //! `03-dag.md` with the 4 verbs of `02-verbs.md`.
 //!
 //! The parser is **shape-only** · it validates field forms (scalar vs
-//! mapping · closed enums · the Go-duration grammar · exactly-one-verb)
-//! and rejects unknown fields in [`ParseMode::Strict`]. Cross-reference
+//! mapping · closed enums · the Go-duration grammar · exactly-one-verb ·
+//! the plain-scalar coercion refusal for string-typed fields —
+//! `refuse_ambiguous_plain_scalar`) and rejects unknown fields in
+//! [`ParseMode::Strict`]. Cross-reference
 //! semantics (cycles · edge-target resolution · `${{ }}` namespace
 //! resolution · the `when:` boolean-shape rule) are the analyzer's job.
 //!
@@ -24,6 +26,8 @@ pub(crate) mod for_each;
 mod lift;
 mod retired;
 pub(crate) mod tasks;
+#[cfg(test)]
+mod type_sweep;
 mod value;
 pub(crate) mod verbs;
 
@@ -106,6 +110,16 @@ pub fn parse(yaml: &str, file_id: FileId, mode: ParseMode) -> Result<RawWorkflow
     // vars/env/secrets/outputs/with/output duplicate-key detection).
     // `prevent_coercion` makes QUOTED scalars non-coercing (only plain
     // scalars type-coerce) — the YAML 1.2 contract `"42"` is a string.
+    //
+    // The dialect note for STRING-typed fields (spec 03 §timeout's law,
+    // generalized): a PLAIN scalar that resolves as an int · float ·
+    // bool (`prompt: 123` · `stdin: true`) is ambiguous and REFUSED at
+    // the string seams (`refuse_ambiguous_plain_scalar`) — `as_str()`
+    // would otherwise restringify it silently and a wrong-typed field
+    // would audit green. Quote it (`"123"`) to mean the string. The
+    // YAML 1.1 aliases `yes`/`no` are NOT booleans in this dialect and
+    // stay legal strings; `${{ }}` templates never parse as number/bool
+    // and are untouched.
     let options = LoaderOptions::default()
         .error_on_duplicate_keys(true)
         .prevent_coercion(true);
@@ -588,7 +602,10 @@ impl CharToByte {
 ///
 /// Returns `Ok(None)` if the key is absent. Returns a
 /// [`SchemaError::Validation`] if the key exists but the value is a
-/// mapping or a sequence.
+/// mapping or a sequence — or a PLAIN scalar that resolves as a
+/// number/boolean ([`refuse_ambiguous_plain_scalar`]: the silent
+/// `as_str()` restringification is the false-green class the guard
+/// closes; the QUOTED form stays the legal way to say the string).
 pub(super) fn extract_scalar(
     mapping: &marked_yaml::types::MarkedMappingNode,
     key: &str,
@@ -606,7 +623,55 @@ pub(super) fn extract_scalar(
     };
     let span = yaml_span_to_span(file_id, scalar.span(), char_to_byte)
         .unwrap_or_else(|| Span::point(file_id, ByteOffset::new(0)));
+    refuse_ambiguous_plain_scalar(scalar, key, span)?;
     Ok(Some(Spanned::new(scalar.as_str().to_owned(), span)))
+}
+
+/// The plain-scalar coercion guard for STRING-typed fields — spec 03
+/// §timeout's dialect law (« a bare YAML number is ambiguous and
+/// rejected », the [`SchemaError::BadTimeout`] note) generalized to every
+/// string the parser reads.
+///
+/// Under the YAML 1.2 core dialect a PLAIN `123`, `0.5` or `true` is an
+/// int · float · bool; reading it through `as_str()` silently
+/// restringifies the source text, so `prompt: 123` audited green on a
+/// value whose TYPE the author never checked. The numeric/bool-typed
+/// fields never had this seam (`as_u32`/`as_bool` return `None` on a
+/// mismatch → a refusal); the string-typed ones rode it. Refuse at the
+/// parse seam and teach the quoted form (`"123"`).
+///
+/// Scope, pinned by `parser::type_sweep`:
+///
+/// - `may_coerce()` is true EXACTLY for plain scalars (the loader sets
+///   `prevent_coercion(true)` — a quoted `"123"` is coercion-proof and
+///   stays legal).
+/// - `as_bool` accepts only `true`/`false` (YAML 1.2 core) — `yes`/`no`
+///   stay strings and are NOT refused.
+/// - `${{ }}` templates are plain scalars that never parse as a
+///   number/bool — the template seam is untouched.
+pub(super) fn refuse_ambiguous_plain_scalar(
+    scalar: &marked_yaml::types::MarkedScalarNode,
+    label: &str,
+    span: Span,
+) -> Result<(), SchemaError> {
+    if !scalar.may_coerce() {
+        return Ok(());
+    }
+    let text = scalar.as_str();
+    let kind = if text.parse::<i64>().is_ok() || text.parse::<f64>().is_ok() {
+        "number"
+    } else if scalar.as_bool().is_some() {
+        "boolean"
+    } else {
+        return Ok(());
+    };
+    Err(SchemaError::Validation {
+        message: format!(
+            "`{label}` must be a string — the plain scalar `{text}` reads as a YAML {kind}; \
+             quote it (\"{text}\") to mean the string"
+        ),
+        span: Some(span),
+    })
 }
 
 /// `^[a-z][a-z0-9-]*$` — the kebab-case resource-name shape (spec
