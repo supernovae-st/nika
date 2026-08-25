@@ -116,59 +116,64 @@ pub(crate) fn enter(dir: &Path) -> std::io::Result<Lease> {
 mod tests {
     use super::*;
 
-    /// The property the three private mutexes could not give: a reader that
-    /// holds the lease sees a STABLE cwd even while another thread is doing
-    /// nothing but chdir, as fast as it can.
+    /// The property the three private mutexes could not give: while one holder
+    /// owns the lease, a second cannot move the process — it BLOCKS, and the
+    /// first keeps the directory it entered.
     ///
-    /// This is the deliberate race #1192 asks for, run in-process the way
-    /// `cargo test --lib` runs everything. Against the old shape — a private
-    /// lock on one side and a bare `set_current_dir` on the other — the
-    /// reader's assertion fails; the churner here stands in for
-    /// `run --example`, which took no guard at all.
+    /// This is the deliberate race #1192 asks for, in the shape `arm fire`
+    /// already uses for the same question
+    /// (`concurrent_run_rooms_are_serialized_and_restore_the_caller`): let the
+    /// contender attempt the move and assert it does not complete.
+    ///
+    /// It was first written as a chdir STORM — a thread doing nothing but
+    /// enter/leave for the length of the test — and that was wrong, in a way
+    /// worth leaving written down. The storm proved the same property, but it
+    /// held the process cwd somewhere unexpected for seconds at a time, so
+    /// EVERY concurrent test whose behaviour depends on the working directory
+    /// became flaky. It broke two within a day, one of them only indirectly
+    /// (a workspace walk that starts at the cwd). A test for a process-global
+    /// must borrow that global for as little time as it can: the hazard it
+    /// studies is the hazard it inflicts.
     #[test]
     #[allow(
         clippy::disallowed_methods,
         reason = "the cwd is a PROCESS global, so only a real OS thread can race it — \
                   a tokio task on the same worker proves nothing about this hazard"
     )]
-    fn a_reader_holding_the_lease_sees_a_stable_cwd_under_a_chdir_storm() {
-        let room = std::env::temp_dir().join(format!("nika-cwd-lease-{}", std::process::id()));
-        let elsewhere = std::env::temp_dir().join(format!("nika-cwd-storm-{}", std::process::id()));
-        std::fs::create_dir_all(&room).expect("mkdir room");
-        std::fs::create_dir_all(&elsewhere).expect("mkdir elsewhere");
+    fn a_second_holder_cannot_move_the_process_while_the_first_owns_the_lease() {
+        use std::sync::mpsc;
+        use std::time::Duration;
 
-        let stop = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
-        let churn_stop = std::sync::Arc::clone(&stop);
-        let churn_target = elsewhere.clone();
-        let churner = std::thread::spawn(move || {
-            while !churn_stop.load(std::sync::atomic::Ordering::Relaxed) {
-                // Takes the lease, exactly as every chdir site now must.
-                if let Ok(lease) = enter(&churn_target) {
-                    drop(lease);
-                }
-            }
+        let room = tempfile::tempdir().expect("room");
+        let elsewhere = tempfile::tempdir().expect("elsewhere");
+        let contender_target = elsewhere.path().to_path_buf();
+        // canonicalize: macOS hands back /private/var for /var, and the
+        // comparison is about the DIRECTORY, not its spelling.
+        let want = room.path().canonicalize().expect("canonical room");
+
+        let held = enter(room.path()).expect("first enters");
+
+        let (tx, rx) = mpsc::channel();
+        let contender = std::thread::spawn(move || {
+            let lease = enter(&contender_target).expect("second enters");
+            tx.send(()).expect("second signalled");
+            drop(lease);
         });
 
-        // canonicalize: macOS hands back /private/var for /var, and the
-        // comparison must be about the DIRECTORY, not its spelling.
-        let want = room.canonicalize().expect("canonicalize room");
-        for _ in 0..200 {
-            let lease = enter(&room).expect("enter room");
-            let seen = std::env::current_dir()
-                .expect("cwd")
-                .canonicalize()
-                .expect("canonicalize cwd");
-            assert_eq!(
-                seen, want,
-                "the cwd moved under a holder of the lease — the lease is not exclusive"
-            );
-            drop(lease);
-        }
+        assert!(
+            rx.recv_timeout(Duration::from_millis(50)).is_err(),
+            "a second holder moved the process while the first owned the lease"
+        );
+        let seen = std::env::current_dir()
+            .expect("cwd")
+            .canonicalize()
+            .expect("canonical cwd");
+        assert_eq!(seen, want, "the cwd moved under the holder of the lease");
 
-        stop.store(true, std::sync::atomic::Ordering::Relaxed);
-        churner.join().expect("churner");
-        let _ = std::fs::remove_dir_all(&room);
-        let _ = std::fs::remove_dir_all(&elsewhere);
+        drop(held);
+        rx.recv()
+            .expect("the contender proceeds once the lease is free");
+        contender.join().expect("contender joins");
     }
 
     /// The lease returns the process to where it found it, so a test that

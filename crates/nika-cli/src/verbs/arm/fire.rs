@@ -213,7 +213,16 @@ mod tests {
     #[test]
     #[allow(clippy::disallowed_methods)] // process-global cwd needs real OS threads
     fn concurrent_run_rooms_are_serialized_and_restore_the_caller() {
-        let caller = std::env::current_dir().expect("caller cwd");
+        // Both of this test's bare cwd READS take the lease (#1192). They did
+        // not, and that is the same defect one level up: the cwd is
+        // process-global, so ASSERTING on it while another test legitimately
+        // holds it reads whatever that test is doing. The lease's own
+        // chdir-storm test in `crate::cwd` found this within a day of landing
+        // — an unguarded read is exactly what it exists to make impossible.
+        let caller = {
+            let _lease = crate::cwd::hold();
+            std::env::current_dir().expect("caller cwd")
+        };
         let first = tempfile::tempdir().expect("first room");
         let second = tempfile::tempdir().expect("second room");
         let first_path = first.path().to_path_buf();
@@ -247,6 +256,13 @@ mod tests {
             std::fs::canonicalize(second.path()).expect("canonical second")
         );
         second_thread.join().expect("second joins");
-        assert_eq!(std::env::current_dir().expect("restored cwd"), caller);
+        // Taken briefly, not across the whole test: the threads above acquire
+        // the same lease through `enter_room`, so holding it here for the
+        // duration would deadlock them.
+        let restored = {
+            let _lease = crate::cwd::hold();
+            std::env::current_dir().expect("restored cwd")
+        };
+        assert_eq!(restored, caller);
     }
 }
