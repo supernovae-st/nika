@@ -202,33 +202,15 @@ pub fn apply_dead_form_arm(
 }
 
 /// This round's typed renames (tools · args · conformance refs), deduped.
+///
+/// The derivation lives in `nika_check` so the `check` footer decides
+/// whether to OFFER `--fix` from the same answer this loop APPLIES
+/// (#1177) — a second copy here is how the offer drifted from the work.
 #[must_use]
 pub fn collect_typed_renames(
     report: &nika_check::CheckReport,
 ) -> Vec<(String, String, &'static str)> {
-    let mut renames: Vec<(String, String, &'static str)> = Vec::new();
-    for t in &report.unknown_tools {
-        if let Some(s) = &t.suggestion {
-            renames.push((t.tool.clone(), s.clone(), "tool"));
-        }
-    }
-    for a in &report.unknown_args {
-        if let Some(s) = &a.suggestion {
-            renames.push((a.arg.clone(), s.clone(), "arg"));
-        }
-    }
-    // Conformance renames (typed `offending`/`suggestion` —
-    // an unknown `after:`/`with:` edge target rides the BARE
-    // task name · an unresolved `${{ }}` ref rides fully
-    // qualified so a splice keeps the namespace).
-    for v in &report.conformance {
-        if let (Some(o), Some(s)) = (&v.offending, &v.suggestion) {
-            renames.push((o.clone(), s.clone(), "ref"));
-        }
-    }
-    renames.sort();
-    renames.dedup();
-    renames
+    nika_check::typed_renames(report)
 }
 
 /// Render the STOP diagnostic lines (verbatim W2/D1 notes · warn glyph).

@@ -156,6 +156,7 @@ pub struct RunView {
     plan_waves: Option<Vec<Vec<String>>>,
     rows: Vec<TaskRow>,
     index: BTreeMap<String, usize>,
+    blocked_by: BTreeMap<String, String>,
 }
 
 impl RunView {
@@ -169,6 +170,11 @@ impl RunView {
     #[must_use]
     pub fn rows(&self) -> &[TaskRow] {
         &self.rows
+    }
+
+    /// The upstream whose settle kept `task_id`'s gate closed.
+    pub(crate) fn blocked_by(&self, task_id: &str) -> Option<&str> {
+        self.blocked_by.get(task_id).map(String::as_str)
     }
 
     /// The latest event stamp folded so far (unix ms) — "now" as the
@@ -305,11 +311,7 @@ impl RunView {
                 }
             }
             // §3.1 blocked `⊘` — a decision, not a defect (dim · never red).
-            EventKind::TaskCancelled => {
-                if let Some(i) = self.touch(event, TaskState::Cancelled) {
-                    self.rows[i].ended_ms = Some(ts);
-                }
-            }
+            EventKind::TaskCancelled => self.cancel_row(event, ts),
             EventKind::WorkflowCompleted => {
                 self.verdict = Some(true);
                 self.absorb_terminal_cost(event);
@@ -423,6 +425,27 @@ impl RunView {
         }
         if let Some(hash) = str_field(event, "input_hash") {
             row.input_hash = Some(hash.to_owned());
+        }
+    }
+
+    /// Settle a gate/cascade cancellation, keeping the gate's WHY.
+    ///
+    /// `blocked_by` names the upstream whose settle closed the edge. The
+    /// runtime has always emitted it and this fold used to drop it, so
+    /// the row could only echo the runtime's own note — which names no
+    /// edge, no upstream and no outcome (#1198). Kept as the FACT here;
+    /// the render reads the producer's outcome off the producer's own
+    /// row.
+    fn cancel_row(&mut self, event: &Event, ts: i64) {
+        let culprit = str_field(event, "blocked_by").map(str::to_owned);
+        if let Some(i) = self.touch(event, TaskState::Cancelled) {
+            self.rows[i].ended_ms = Some(ts);
+            let task_id = self.rows[i].id.clone();
+            if let Some(culprit) = culprit {
+                self.blocked_by.insert(task_id, culprit);
+            } else {
+                self.blocked_by.remove(&task_id);
+            }
         }
     }
 

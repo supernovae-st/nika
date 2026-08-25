@@ -120,7 +120,7 @@ pub fn render(
     }
 
     plan(&mut out, report, wf, t);
-    crate::check_models::models(&mut out, report, models_audit, t);
+    crate::check_models::models(&mut out, report, wf, models_audit, t);
     // SKILLS (#473) · silent when nothing is referenced (rows self-teach).
     if let Some((ok_msg, rows)) = skills.rung() {
         section_list(&mut out, t, "SKILLS", &ok_msg, rows);

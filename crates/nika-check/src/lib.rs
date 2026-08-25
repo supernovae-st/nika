@@ -172,7 +172,7 @@ pub use declass::LeakReason;
 pub use effective::{EffectivePermits, PermitsSource};
 pub use energy::{EnergyCounts, EnergyReading, EnergyTask};
 pub use exec_floor::ExecFloorFinding;
-pub use findings::UnifiedFinding;
+pub use findings::{UnifiedFinding, typed_renames};
 pub use flow::{FlowFacts, TaintTrace, action_effect_fields};
 pub use hints::{
     Hint, PAID_RUN_KINDS, compiled, hint_help, paid_blockers, paid_ready, stamp_paid_ready,
