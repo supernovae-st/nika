@@ -329,6 +329,43 @@ fn run_target_with_profile(
     model_override: Option<&str>,
     theme: Theme,
 ) -> VerbOutput {
+    run_target_with_profile_and_slots(
+        target,
+        json,
+        native_strict,
+        profile,
+        model_override,
+        theme,
+        false,
+    )
+}
+
+/// Audit a freshly scaffolded recipe. An unfilled scaffold is expected at
+/// this boundary, so a report containing only SLOT findings is a successful
+/// founding receipt. Every other finding keeps the normal exit-2 refusal.
+#[must_use]
+pub(crate) fn run_scaffold(path: &str, theme: Theme) -> VerbOutput {
+    run_target_with_profile_and_slots(
+        &CheckTarget::workspace(path),
+        false,
+        false,
+        Profile::Advisory,
+        None,
+        theme,
+        true,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn run_target_with_profile_and_slots(
+    target: &CheckTarget,
+    json: bool,
+    native_strict: bool,
+    profile: Profile,
+    model_override: Option<&str>,
+    theme: Theme,
+    allow_slot_only: bool,
+) -> VerbOutput {
     if let Some(out) = project_route(&target.path, json) {
         return out;
     }
@@ -337,7 +374,15 @@ fn run_target_with_profile(
         Err(out) if json => return parse_fatal_json(&out),
         Err(out) => return out,
     };
-    run_source_with_profile(&source, json, native_strict, profile, model_override, theme)
+    run_source_with_profile_and_slots(
+        &source,
+        json,
+        native_strict,
+        profile,
+        model_override,
+        theme,
+        allow_slot_only,
+    )
 }
 
 pub(crate) fn run_source_with_profile(
@@ -348,6 +393,27 @@ pub(crate) fn run_source_with_profile(
     model_override: Option<&str>,
     theme: Theme,
 ) -> VerbOutput {
+    run_source_with_profile_and_slots(
+        source,
+        json,
+        native_strict,
+        profile,
+        model_override,
+        theme,
+        false,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn run_source_with_profile_and_slots(
+    source: &RunSource,
+    json: bool,
+    native_strict: bool,
+    profile: Profile,
+    model_override: Option<&str>,
+    theme: Theme,
+    allow_slot_only: bool,
+) -> VerbOutput {
     let (wf, report) = match load_checked_run_source(source) {
         Ok(pair) => pair,
         Err(out) if json => return parse_fatal_json(&out),
@@ -356,7 +422,12 @@ pub(crate) fn run_source_with_profile(
     let path = source.logical_path();
     let (wf, report) = overridden(wf, report, model_override);
     let skills = super::resolve_workflow_skills(&wf, super::workflow_base(path));
-    render_checked_with_profile(
+    let slot_only = allow_slot_only
+        && !report.slot_findings.is_empty()
+        && report.findings.iter().all(|finding| finding.kind == "slot")
+        && unresolvable_models(&report, &wf).findings.is_empty()
+        && skills.findings.is_empty();
+    let out = render_checked_with_profile(
         source.source(),
         path,
         source.repair_target(),
@@ -367,7 +438,12 @@ pub(crate) fn run_source_with_profile(
         native_strict,
         profile,
         theme,
-    )
+    );
+    if slot_only {
+        VerbOutput::ok(out.text)
+    } else {
+        out
+    }
 }
 
 /// Render a check verdict from bytes and semantic products already admitted by
