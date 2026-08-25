@@ -1,0 +1,12 @@
+schema=nika.mutation-attestation.v1
+crate=nika-dataflow
+date=2026-08-25
+command=bash scripts/ci/check-mutation-floor.sh nika-dataflow
+input_sha256=fb4dd29cb346a2f10b45d071849c916300a7e3a5cffedf69bd1f35b26afd33a7
+total=117
+caught=82
+missed=0
+timeout=1
+unviable=34
+viable=83
+kill_percent=98

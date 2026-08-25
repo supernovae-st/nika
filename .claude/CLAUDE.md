@@ -129,21 +129,21 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 
 | field            | value                                          |
 |------------------|------------------------------------------------|
-| branch           | `refactor/w5-1203-dataflow-descent`                                      |
-| HEAD             | `b379dd6f1` (`b379dd6f157f8e24bf09c16d2a8c01ee5772a00e`)             |
+| branch           | `fix/w5-immutable-dataflow-final`                                      |
+| HEAD             | `4b2189219` (`4b2189219a11d8f354c31df38a5022e4945e1efb`)             |
 | workspace        | v0.114.0                                  |
 | crates (workspace)| 71                                              |
 | crates (admitted)| 63                                             |
 | crates (WIP)     | 8 — nika-chart nika-fx nika-proof nika-store nika-harness nika-execution nika-service-execution nika-serve                                  |
-| L0               | 21                                              |
+| L0               | 22                                              |
 | L0.5             | 6                                              |
-| L1               | 18                                              |
+| L1               | 17                                              |
 | L1.5             | 4                                              |
 | L2               | 5                                              |
 | L3               | 3                                              |
 | L4               | 14                                              |
-| lib tests        | 6527 passed, 0 failed                              |
-| clippy           | WARNINGS PRESENT — run cargo clippy                              |
+| lib tests        | 6627 passed, 0 failed                              |
+| clippy           | 0 warnings                              |
 
 Narrative context (manually maintained):
 

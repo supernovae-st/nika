@@ -11,6 +11,7 @@
 //! composes THIS crate's one jq engine (`data::jq`), never a second one.
 
 use bytes::Bytes;
+use nika_cap::JqClock;
 use nika_extract::{ExtractMode, ExtractOptions};
 use nika_kernel::io::fs::{FsMetaDyn, FsReadDyn};
 use nika_kernel::io::http::{HttpError, HttpGetDyn, HttpMethod, HttpPostDyn, HttpRequest};
@@ -55,26 +56,22 @@ pub(crate) fn net_security_failure(e: &HttpError) -> Option<BuiltinFailure> {
 /// mode is otherwise linear in the (capped) body. A panic inside the
 /// closure unwinds (workspace `panic = "unwind"`) to a `JoinError`
 /// handled at the call site — it is never a process-wide abort.
-pub(crate) async fn fetch<H: HttpGetDyn + HttpPostDyn, F: FsReadDyn + FsMetaDyn>(
+pub(crate) async fn fetch_with_clock<H: HttpGetDyn + HttpPostDyn, F: FsReadDyn + FsMetaDyn>(
     http: &H,
     fs: &F,
     boundary: &FsBoundary,
     args: &Args,
+    jq_clock: JqClock,
 ) -> BuiltinOutcome {
     const C: &str = "NIKA-BUILTIN-FETCH-001";
     let url = req_str(args, "url", C)?;
-    // `traverse:` is the bounded-crawl family — it owns its whole arg
-    // surface (exclusivity · GET-only · closed spec) and its own output
-    // shape, so it branches before any single-fetch vetting.
+    // The bounded-crawl family owns its arg surface and output shape.
     if args.contains_key("traverse") {
         return crate::net_traverse::traverse(http, url, args).await;
     }
     let method = opt_str(args, "method", C)?.unwrap_or("GET").to_uppercase();
-    // Vet the mode + arg pairings BEFORE the network call — a bad
-    // `mode:` or a silently-droppable `selector:`/`jq:` should fail
-    // without spending a request (the static checker catches literals;
-    // this is the runtime defense for hand-built ToolCalls and
-    // TEMPLATED modes the static ladder can't see · review lens 3 P2).
+    // Vet extraction pairings before spending a request. This runtime
+    // defense covers hand-built ToolCalls and templated modes.
     let mode = parse_mode(args, C)?;
     let selector = opt_str(args, "selector", C)?.map(str::to_owned);
     if selector.is_some() && mode != ExtractMode::Selector {
@@ -149,6 +146,7 @@ pub(crate) async fn fetch<H: HttpGetDyn + HttpPostDyn, F: FsReadDyn + FsMetaDyn>
         } else {
             None
         },
+        jq_clock,
     };
     tokio::task::spawn_blocking(move || plan.run(C))
         .await
@@ -179,6 +177,7 @@ struct ExtractPlan {
     base_url: String,
     selector: Option<String>,
     jq: Option<String>,
+    jq_clock: JqClock,
 }
 
 impl ExtractPlan {
@@ -210,7 +209,7 @@ impl ExtractPlan {
                     serde_json::Value::String(expression),
                 );
                 jq_args.insert("input".to_owned(), input);
-                crate::data::jq(&jq_args)
+                crate::data::jq_with_clock(&jq_args, self.jq_clock)
             }
             // feed gets RAW BYTES: feed-rs owns charset detection (XML
             // prolog + BOM) — pre-transcoding would leave a stale prolog
@@ -247,6 +246,23 @@ impl ExtractPlan {
             }
         }
     }
+}
+
+#[cfg(test)]
+pub(crate) async fn fetch<H: HttpGetDyn + HttpPostDyn, F: FsReadDyn + FsMetaDyn>(
+    http: &H,
+    fs: &F,
+    boundary: &FsBoundary,
+    args: &Args,
+) -> BuiltinOutcome {
+    fetch_with_clock(
+        http,
+        fs,
+        boundary,
+        args,
+        JqClock::at(nika_types::timestamp::Timestamp::EPOCH),
+    )
+    .await
 }
 
 /// Strict UTF-8 decode (`raw`/`jq`): a non-UTF-8 body is

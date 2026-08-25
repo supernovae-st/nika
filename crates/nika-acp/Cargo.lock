@@ -2133,7 +2133,6 @@ dependencies = [
  "nika-cap",
  "nika-cel",
  "nika-error",
- "nika-schema",
  "nika-tmpl",
  "nika-types",
  "serde",

@@ -707,16 +707,7 @@ fn input_value(
     consts: &BTreeMap<String, Value>,
     markers: &BTreeMap<String, Value>,
 ) -> Option<Value> {
-    let workflow_scope = Scope {
-        records,
-        inputs,
-        consts,
-        secrets: markers,
-        with_ns: None,
-        item: None,
-        index: None,
-        permits: None,
-    };
+    let workflow_scope = Scope::workflow_with_value_authorities(records, inputs, consts, markers);
     // The collection is the ONE once-evaluated body expression (spec 03)
     // — it carries every per-item value into the hash.
     let items = match task.for_each.as_ref().map(|f| &f.value) {
@@ -736,16 +727,8 @@ fn input_value(
     } else {
         (None, None)
     };
-    let base = Scope {
-        records,
-        inputs,
-        consts,
-        secrets: markers,
-        with_ns: None,
-        item,
-        index,
-        permits: None,
-    };
+    let base = Scope::workflow_with_value_authorities(records, inputs, consts, markers)
+        .with_task_context(None, item, index, None);
     let mut with_ns: BTreeMap<String, Value> = BTreeMap::new();
     for (key, value) in &task.with {
         with_ns.insert(
@@ -753,10 +736,7 @@ fn input_value(
             expr::render_json(&value.value, &base).ok()?,
         );
     }
-    let action_scope = Scope {
-        with_ns: Some(&with_ns),
-        ..base
-    };
+    let action_scope = base.with_task_context(Some(&with_ns), item, index, None);
     Some(json!({
         "action": action_value(&task.action, Some(&action_scope))?,
         "with": with_ns,

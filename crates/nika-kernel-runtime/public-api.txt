@@ -302,6 +302,8 @@ pub nika_kernel_runtime::tool_executor::ToolCall::input: serde_json::value::Valu
 pub nika_kernel_runtime::tool_executor::ToolCall::name: alloc::string::String
 impl nika_kernel_runtime::tool_executor::ToolCall
 pub fn nika_kernel_runtime::tool_executor::ToolCall::new(id: impl core::convert::Into<alloc::string::String>, name: impl core::convert::Into<alloc::string::String>, input: serde_json::value::Value) -> Self
+pub const fn nika_kernel_runtime::tool_executor::ToolCall::run_start(&self) -> core::option::Option<nika_kernel_runtime::tool_executor::ToolRunStart>
+pub fn nika_kernel_runtime::tool_executor::ToolCall::with_run_start(self, run_start: nika_kernel_runtime::tool_executor::ToolRunStart) -> Self
 impl core::clone::Clone for nika_kernel_runtime::tool_executor::ToolCall
 pub fn nika_kernel_runtime::tool_executor::ToolCall::clone(&self) -> nika_kernel_runtime::tool_executor::ToolCall
 impl core::fmt::Debug for nika_kernel_runtime::tool_executor::ToolCall
@@ -457,6 +459,44 @@ impl<T> core::convert::From<T> for nika_kernel_runtime::tool_executor::ToolResul
 pub fn nika_kernel_runtime::tool_executor::ToolResult::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_kernel_runtime::tool_executor::ToolResult where T: 'static
 pub fn nika_kernel_runtime::tool_executor::ToolResult::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_kernel_runtime::tool_executor::ToolRunStart
+impl nika_kernel_runtime::tool_executor::ToolRunStart
+pub const fn nika_kernel_runtime::tool_executor::ToolRunStart::new(unix_ns: i64) -> Self
+pub const fn nika_kernel_runtime::tool_executor::ToolRunStart::unix_ns(self) -> i64
+impl core::clone::Clone for nika_kernel_runtime::tool_executor::ToolRunStart
+pub fn nika_kernel_runtime::tool_executor::ToolRunStart::clone(&self) -> nika_kernel_runtime::tool_executor::ToolRunStart
+impl core::cmp::Eq for nika_kernel_runtime::tool_executor::ToolRunStart
+impl core::cmp::PartialEq for nika_kernel_runtime::tool_executor::ToolRunStart
+pub fn nika_kernel_runtime::tool_executor::ToolRunStart::eq(&self, other: &nika_kernel_runtime::tool_executor::ToolRunStart) -> bool
+impl core::fmt::Debug for nika_kernel_runtime::tool_executor::ToolRunStart
+pub fn nika_kernel_runtime::tool_executor::ToolRunStart::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::Copy for nika_kernel_runtime::tool_executor::ToolRunStart
+impl core::marker::StructuralPartialEq for nika_kernel_runtime::tool_executor::ToolRunStart
+impl<D> owo_colors::OwoColorize for nika_kernel_runtime::tool_executor::ToolRunStart
+impl<T, U> core::convert::Into<U> for nika_kernel_runtime::tool_executor::ToolRunStart where U: core::convert::From<T>
+pub fn nika_kernel_runtime::tool_executor::ToolRunStart::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_kernel_runtime::tool_executor::ToolRunStart where U: core::convert::Into<T>
+pub type nika_kernel_runtime::tool_executor::ToolRunStart::Error = core::convert::Infallible
+pub fn nika_kernel_runtime::tool_executor::ToolRunStart::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_kernel_runtime::tool_executor::ToolRunStart where U: core::convert::TryFrom<T>
+pub type nika_kernel_runtime::tool_executor::ToolRunStart::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_kernel_runtime::tool_executor::ToolRunStart::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_kernel_runtime::tool_executor::ToolRunStart where T: core::clone::Clone
+pub type nika_kernel_runtime::tool_executor::ToolRunStart::Owned = T
+pub fn nika_kernel_runtime::tool_executor::ToolRunStart::clone_into(&self, target: &mut T)
+pub fn nika_kernel_runtime::tool_executor::ToolRunStart::to_owned(&self) -> T
+impl<T> core::any::Any for nika_kernel_runtime::tool_executor::ToolRunStart where T: 'static + ?core::marker::Sized
+pub fn nika_kernel_runtime::tool_executor::ToolRunStart::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_kernel_runtime::tool_executor::ToolRunStart where T: ?core::marker::Sized
+pub fn nika_kernel_runtime::tool_executor::ToolRunStart::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_kernel_runtime::tool_executor::ToolRunStart where T: ?core::marker::Sized
+pub fn nika_kernel_runtime::tool_executor::ToolRunStart::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_kernel_runtime::tool_executor::ToolRunStart where T: core::clone::Clone
+pub unsafe fn nika_kernel_runtime::tool_executor::ToolRunStart::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_kernel_runtime::tool_executor::ToolRunStart
+pub fn nika_kernel_runtime::tool_executor::ToolRunStart::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_kernel_runtime::tool_executor::ToolRunStart where T: 'static
+pub fn nika_kernel_runtime::tool_executor::ToolRunStart::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub trait nika_kernel_runtime::tool_executor::ToolBatch: core::marker::Send + core::marker::Sync
 pub async fn nika_kernel_runtime::tool_executor::ToolBatch::execute_batch(&self, calls: alloc::vec::Vec<nika_kernel_runtime::tool_executor::ToolCall>) -> alloc::vec::Vec<core::result::Result<nika_kernel_runtime::tool_executor::ToolResult, nika_kernel_runtime::tool_executor::ToolExecError>>
 impl<TraitVariantBlanketType: nika_kernel_runtime::tool_executor::ToolBatchDyn> nika_kernel_runtime::tool_executor::ToolBatch for TraitVariantBlanketType

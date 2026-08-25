@@ -629,32 +629,25 @@ maps, nothing else). That property is checkable BEFORE the run.
 > whose thesis is « the file IS the blast radius » cannot have a blast
 > radius that changes when you write the zero down.
 
-> ⚠️ **The word `provably` was here and it was measured FALSE on 2026-08-11.**
-> The passthrough claim above holds — it is about what a CHILD PROCESS
-> inherits. What did not hold is the stronger reading a reader takes away:
-> under `permits: {}` a `nika:jq` binding reads the engine's *own* ambient
-> environment (measured: a canary variable reaching a downstream prompt, under
-> an absent block and again under an explicit empty `permits.env`), while the
-> static check reports the body as pure compute from which nothing escapes.
-> **A computation that reads the ambient environment is not pure.** The repair
-> is D-2026-08-11-N26 (*an expression sees only its input*); until it ships,
-> this paragraph says `limited to compute`, not `provably limited to pure
-> compute`. The reach is bounded: such an expression is a literal in the
-> reviewed file and cannot be interpolated from a model's output
-> (`NIKA-VAR-005`), so this is authority an author takes, not authority an
-> injection steals.
+> ⚠️ **The word `provably` was measured FALSE on 2026-08-11.** Under
+> `permits: {}`, a `nika:jq` binding could read the engine's own ambient
+> environment while the static check called the body pure compute.
+> **A computation that reads the ambient environment is not pure.**
 >
-> ✅ **The environment half shipped 2026-08-15.** Re-measured that day on the
-> three authority shapes (absent block · explicit empty `permits.env` ·
-> granted `permits.env`): a `nika:jq` expression or an `extract:` binding that
-> reaches for `env` is REFUSED at `nika check` with `NIKA-VAR-005`, naming the
-> class. `env` is withheld from the function set every jq seam compiles with,
-> so the program never becomes runnable. **The word `provably` is deliberately
-> NOT restored above** — N26 names four ambient classes and only the
-> environment is closed. The clock is still read (`now`), and its remedy is
-> D-2026-08-11-N27's rebinding to the run's start instant, not this
-> subtraction. When N27 ships, `provably limited to pure compute` becomes
-> earnable; today `limited to compute` remains the accurate phrase.
+> ✅ **The expression boundary is closed in v0.115 (N26 + N27).** Every jq
+> seam reads one typed capability policy. Effectful upstream symbols that
+> reach the process environment (`env`) · host diagnostics (`debug` ·
+> `stderr`) · or process control (`halt` · `halt_error`) are **withheld**,
+> under every authority shape; a `permits.env` grant still governs a child
+> process, never an in-process expression. The accepted clock spellings
+> (`now` · `localtime` · `strflocaltime`) are not host effects: the engine
+> **rebinds** them to the exact run-start instant stamped on
+> `WorkflowStarted`, with local projections fixed to UTC. Pure time
+> conversions (`gmtime` · `mktime` · `strftime`) remain available because
+> they transform supplied values and observe no host clock or timezone.
+> Composition never samples this value independently. A replay therefore
+> reconstructs the same expression input from the trace, so an absent block
+> and `{}` are truthfully limited to pure compute.
 
 **The engine MUST enforce `permits:` on BOTH surfaces** ·
 1. **Statically** (`nika check`) · a `nika:write ./etc/x` outside `fs.write`,
@@ -972,4 +965,3 @@ prompt: |
   You are a helpful assistant.
   Answer the user's question in 3 sentences.
 ```
-

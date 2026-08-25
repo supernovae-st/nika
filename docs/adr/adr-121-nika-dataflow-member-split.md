@@ -7,7 +7,7 @@ phase: "pre-1.0 · post-P2-submission hardening"
 deciders: ["@ThibautMelen"]
 tags: ["architecture", "crates", "split", "size-cap", "dataflow", "expressions"]
 affects_crates: ["nika-runtime", "nika-dataflow"]
-affects_layers: ["L1", "L3"]
+affects_layers: ["L0", "L3"]
 supersedes: []
 superseded_by: []
 related: ["ADR-115", "ADR-110", "ADR-108", "ADR-003", "ADR-027"]
@@ -18,7 +18,7 @@ fci: []
 inv: []
 shadow_zones: []
 nika_codes: []
-timeline: "v0.114"
+timeline: "v0.115"
 follow_ups: []
 ---
 
@@ -26,8 +26,8 @@ follow_ups: []
 
 ## Context
 
-`nika-runtime` measured **14,787 prod LOC against the 15,000 Diamond
-invariant** — 213 lines of headroom on the crate every feature lands in.
+`nika-runtime` measured **14,994 prod LOC against the 15,000 Diamond
+invariant** — six lines of headroom on the crate every feature lands in.
 The wall surfaced through #1171, a written pull request that could not
 land: branch and `main` were each under the cap while their **merge**
 crossed it. Only the merge commit can see that, and no local gate runs on
@@ -47,26 +47,14 @@ production composition descended here from `nika-cli` at the same wall on
 2026-08-06. The cap is a locked maintainability budget
 (`nika-invariants.md`), not advisory.
 
-### The measurement that qualified the wall
-
-Qualifying the number first found the **counter** wrong — in both
-directions at once (fixed in the same arc · `scripts/ci/prod-loc.py`):
-braces inside string literals ended a `#[cfg(test)]` module early (412
-lines of test body charged to production in `expr.rs`), `#[cfg(test)] mod
-foo;` swallowed whichever block came next and *hid* production lines, and
-a phantom trailing line was charged per file. It was wrong for 69 of 71
-crates.
-
-So the honest headroom was 213, not the 6 first reported, and #1171 would
-have merged at ~14,813 and fit. **That specific PR was blocked by an
-instrument defect.** The wall itself was not fiction: 14,787 is 98.6% of
-the cap, and the next feature pays the same tax in comments. The split
-stands on the wall, not on the blocked PR.
+These figures are the verdict of the production-LOC gate shipped on current
+`main`. This replacement is bounded to the dataflow admission and does not
+claim or carry a separate counter rewrite.
 
 ## Decision
 
 Per **D-2026-07-09-N1** (a size-cap split is ONE architectural unit in TWO
-workspace members), the **run's dataflow** descends to a new L1 member
+workspace members), the **run's dataflow** descends to a new L0 member
 crate `nika-dataflow`. Two questions live there, and they are one question:
 
 - **What a task record IS** — `TaskStatus` · `TerminalCause` ·
@@ -94,41 +82,47 @@ move, the trio had exactly **three** intra-crate edges —
 plausible cluster (approval / pause / resume / recover, woven through
 `task`, `settle`, `integrity`, `agent_events`, `proof`, `witness` and
 `stamp`). It also needs nothing the runtime owns: no `EventSink`, no
-clock, no compose ladder, no session state. It is pure — zero I/O, zero
-async — which is why the executor keeps the effects and this keeps the
-evaluation.
+clock, no compose ladder, no session state. One typed `nika-cap` policy removes
+host environment, diagnostics, and process control; accepted clock spellings
+are pure definitions over the one run-start value minted by the runtime at the
+execution boundary and forwarded through the executor seam. Halt exceptions
+become typed binding errors rather than process exits. The crate is pure — zero
+I/O, zero async, zero clock reads — which is why the executor keeps the effects
+and this keeps the evaluation.
 
 ### The seam does not move
 
-`nika-runtime` re-exports `TaskRecord`, `TaskStatus`, `TerminalCause`,
-`TaskErrorRecord` and `legal` at their historical `nika_runtime::…` paths,
-and keeps `crate::{expr,jq,record}` as module aliases so all fifteen
-calling files read exactly as before. `RuntimeError` keeps its four
-evaluation classes through a transparent
-`Dataflow(#[from] DataflowError)` — `Display`, `Diagnostic`, `spec_code()`
-and `nika_code()` all delegate — so the wire form a consumer sees
+`nika-runtime` keeps source-compatible `TaskRecord`, `TaskStatus`,
+`TerminalCause`, `TaskErrorRecord` and `legal` wrappers at their historical
+`nika_runtime::…` paths. Those deliberately preserve the pre-split exhaustive
+enum matches and `TaskErrorRecord` field literals; conversion happens once at
+the public `RunOutcome` boundary. Internally `crate::{expr,jq,record}` remain
+aliases of the canonical dataflow implementation. `RuntimeError` keeps its four historical
+evaluation variants and converts the dataflow-owned errors back into those
+exact constructors — public pattern matching and fields remain valid, and
+`Display`, `Diagnostic`, `spec_code()` and `nika_code()` remain byte-identical —
+so the wire form a consumer sees
 (`NIKA-VAR-001` · `-002` · `-004` · `-005` · `-006`) is byte-identical.
 `RuntimeError::from_cel` still exists and delegates.
 
-The delegation tests stay in `nika-runtime`, rewritten to construct
-through the wrapper, because the delegation IS the risk the descent
-introduces. Moving them to the new crate would have tested the enum and
-left the seam unproven.
+The conversion tests stay in `nika-runtime`, because the compatibility facade
+is precisely the risk the descent introduces. Moving them to the new crate
+would have tested the dataflow enum and left the public runtime seam unproven.
 
 ### Layer
 
-**L1**, mirroring `nika-secret` (the previous descent from this crate).
-L0 caps a crate at three sibling `nika-*` dependencies (ADR-027) and this
-one needs five — `nika-cel` · `nika-tmpl` · `nika-schema` · `nika-types` ·
-`nika-cap` (+ `nika-error` for the code registry). Taking an exemption to
-sit at L0 would buy nothing: `nika-runtime` is L3 and depends downward on
-L1 without ceremony.
+**L0**, by the registry's mechanical sort: it is pure, synchronous logic with
+zero I/O, async, or clock. It has five cohesive sibling inputs — `nika-cel` ·
+`nika-tmpl` · `nika-types` · `nika-cap` · `nika-error` — so
+it uses ADR-027's explicit `L0-DEP-FANOUT-EXEMPT` policy record. Calling it L1
+only to avoid that fanout verdict would confuse an effect layer with pure
+evaluation and make the layer declaration less truthful than the code.
 
 ## Consequences
 
-- `nika-runtime` **14,787 → 13,699** prod LOC. The doc comments #1171
-  compressed can be restored; they were paying rent for a wall that is
-  not theirs.
+- `nika-runtime` **14,787 → 14,053** prod LOC under the corrected in-tree gate. The doc
+  comments #1171 compressed can be restored; they were paying rent for a wall
+  that is not theirs.
 - One more workspace member, under the ADR-037 horizon (50-90 · cap 100 ·
   projected, never a gate · D-2026-07-21-N1).
 - `Scope::workflow` and `Scope::workflow_with_secrets` — the
@@ -138,8 +132,13 @@ L1 without ceremony.
   have blessed a constructor that silently turns a real `secrets.X` into a
   `NIKA-1702`; `#[cfg(test)]` would have hidden it from the sibling tests
   that need it.
-- The next crate at the wall is **`nika-check` at 14,697** (corrected
-  counter). It descended once already, on 2026-07-21. This ADR does not
+- FCI-002 remains true at the new `nika-dataflow` public seam: `Scope`,
+  `TaskStatus`, `TerminalCause`, and `TaskErrorRecord` are non-exhaustive.
+  `Scope` keeps its authority fields private and begins only at the explicit
+  value-authority constructor. The historical `nika-runtime` facade remains
+  source-compatible through closed wrappers; it does not leak the new DTOs.
+- The next crate at the wall is **`nika-check` at 14,930** under the same
+  in-tree gate. It descended once already, on 2026-07-21. This ADR does not
   decide that move; it names it so the next reader does not rediscover it
   at merge time.
 

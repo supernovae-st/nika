@@ -116,6 +116,7 @@ where
         ran: &RanTask,
         integrity: &nika_cap::Integrity,
         witness: &crate::witness::PermitWitness,
+        run_start: nika_kernel::tool_executor::ToolRunStart,
     ) {
         // The cleanup bodies are TASKS now, joined by an `unwind` edge
         // (spec 03 §unwind). They run in DECLARATION order — the source
@@ -131,7 +132,7 @@ where
         // free) · workflow size is certificate-bounded (degree-1) — a
         // copy-on-read overlay Scope would save it at the cost of a
         // two-level resolve on EVERY lookup.
-        let mut records = scope.records.clone();
+        let mut records = scope.records().clone();
         let mut preview = preview_record(ran);
         // F-O1 · the overlay carries the parent's integrity label: a
         // cleanup argv/arg reading `${{ tasks.<parent>.output }}` re-gates
@@ -139,18 +140,17 @@ where
         // settle spine has not stamped.
         preview.integrity = integrity.clone();
         records.insert(task.id.value.clone(), preview);
-        let cleanup_scope = Scope {
-            records: &records,
-            inputs: scope.inputs,
-            consts: scope.consts,
-            secrets: scope.secrets, // a cleanup may reference secrets.X too
-            with_ns: scope.with_ns,
-            item: None, // locals out of scope after the fan-out (spec 03)
-            index: None,
-            permits: scope.permits, // on_finally exec stays within the boundary
-        };
+        let cleanup_scope = Scope::workflow_with_value_authorities(
+            &records,
+            scope.inputs(),
+            scope.consts(),
+            scope.secrets(), // a cleanup may reference secrets.X too
+        )
+        // Locals are out of scope after fan-out; `on_finally` exec retains the
+        // workflow capability boundary.
+        .with_task_context(scope.with_namespace(), None, None, scope.permits());
         for (index, cleanup) in cleanups.iter().enumerate() {
-            self.run_one_cleanup(cleanup, &cleanup_scope, witness, index)
+            self.run_one_cleanup(cleanup, &cleanup_scope, witness, index, run_start)
                 .await;
         }
     }
@@ -164,6 +164,7 @@ where
         scope: &Scope<'_>,
         witness: &crate::witness::PermitWitness,
         index: usize,
+        run_start: nika_kernel::tool_executor::ToolRunStart,
     ) {
         if let Some(gate) = cleanup.when.as_ref() {
             match eval_gate(&gate.value, scope) {
@@ -215,6 +216,7 @@ where
                 witness,
                 // a cleanup mini-task never carries a gate answer (B5).
                 gate_answer: None,
+                run_start,
             },
             None,
         ));

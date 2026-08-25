@@ -817,16 +817,8 @@ where
         }
         let step = task.id.value.as_str();
         // Hash the resolved question, but keep secrets as markers.
-        let base = Scope {
-            records,
-            inputs,
-            consts,
-            secrets: resume_ctx.markers(),
-            with_ns: None,
-            item: None,
-            index: None,
-            permits: None,
-        };
+        let base =
+            Scope::workflow_with_value_authorities(records, inputs, consts, resume_ctx.markers());
         let mut with_ns = BTreeMap::new();
         let with_rendered = task.with.iter().all(|(key, value)| {
             match expr::render_json(&value.value, &base) {
@@ -838,10 +830,12 @@ where
                 Err(_) => false,
             }
         });
-        let scope = Scope {
-            with_ns: if with_rendered { Some(&with_ns) } else { None },
-            ..base
-        };
+        let scope = base.with_task_context(
+            if with_rendered { Some(&with_ns) } else { None },
+            None,
+            None,
+            None,
+        );
         let gated = self.approvals.gated_for(step);
         let (mode, content) = canonical_content(task, &gated, &scope);
         let Some(shown_hash) = crate::resume::jcs_blake3_hex(&content) else {

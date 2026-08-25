@@ -24,16 +24,8 @@ pub(super) fn resolve_fan_out_items(
     secrets: &BTreeMap<String, Value>,
 ) -> Result<Vec<Value>, Box<SettleAs>> {
     let empty_records = BTreeMap::new();
-    let scope = Scope {
-        records: &empty_records,
-        inputs,
-        consts,
-        secrets,
-        with_ns: Some(boundary_with),
-        item: None,
-        index: None,
-        permits: None,
-    };
+    let scope = Scope::workflow_with_value_authorities(&empty_records, inputs, consts, secrets)
+        .with_task_context(Some(boundary_with), None, None, None);
     let items = resolve_collection(collection, &scope)?;
     if items.is_empty() {
         return Err(Box::new(SettleAs::SkippedGate {
@@ -173,14 +165,14 @@ fn resolve_collection(
         Ok(Value::Array(items)) => Ok(items),
         Ok(other) => Err(Box::new(SettleAs::FailedBeforeStart {
             stage: "for_each",
-            error: TaskErrorRecord {
-                code: VAR_TYPE_CODE.to_owned(),
-                message: format!(
+            error: TaskErrorRecord::new(
+                VAR_TYPE_CODE,
+                format!(
                     "for_each collection must be an array · got {}",
                     json_kind(&other)
                 ),
-                transient: false,
-            },
+                false,
+            ),
         })),
         Err(err) => Err(Box::new(SettleAs::FailedBeforeStart {
             stage: "for_each",
@@ -298,14 +290,14 @@ fn identity_from_note(note: &str) -> String {
 }
 
 pub(super) fn budget_stop_record(denied: usize) -> TaskErrorRecord {
-    TaskErrorRecord {
-        code: nika_error::codes::NIKA_1704.to_string(),
-        message: format!(
+    TaskErrorRecord::new(
+        nika_error::codes::NIKA_1704.to_string(),
+        format!(
             "run budget (--max-cost-usd) reached — {denied} iteration(s) were not started \
              (in-flight work completed and was counted)"
         ),
-        transient: false,
-    }
+        false,
+    )
 }
 
 fn json_kind(v: &Value) -> &'static str {
@@ -326,11 +318,7 @@ mod tests {
     use crate::task::RunResult;
 
     fn boom(message: &str) -> TaskErrorRecord {
-        TaskErrorRecord {
-            code: "NIKA-EXEC-001".to_owned(),
-            message: message.to_owned(),
-            transient: false,
-        }
+        TaskErrorRecord::new("NIKA-EXEC-001", message, false)
     }
 
     fn ran(note: &str, result: RunResult) -> RanTask {
@@ -350,11 +338,11 @@ mod tests {
         ran(
             &iteration_note(index, &identity),
             RunResult::Failed {
-                error: TaskErrorRecord {
-                    code: "NIKA-EXEC-001".to_owned(),
-                    message: format!("for_each item [{index}] {identity}: boom"),
-                    transient: false,
-                },
+                error: TaskErrorRecord::new(
+                    "NIKA-EXEC-001",
+                    format!("for_each item [{index}] {identity}: boom"),
+                    false,
+                ),
                 cost_usd: None,
                 cost_unpriced: None,
             },
