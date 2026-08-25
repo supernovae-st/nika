@@ -747,6 +747,99 @@ tasks:
     );
 }
 
+// ─── 7c · a skipped task's error has a CONSUMER (edge admission) ─────────
+
+/// `EdgeKind::FailureObservation` admits {failure, skipped}, and `skipped`
+/// is in that set solely so this hatch has a reader. The assertions above
+/// pin the RECORD; nothing pinned that anything downstream can READ it —
+/// narrow the pass-set to {failure}, a plausible-looking tightening, and
+/// every documented `on_error: skip` router goes dead with a fully green
+/// suite (issue 1233, split out of 1198). Three assertions, not one: the
+/// consumer is ADMITTED (success, never cancelled) · the value it bound
+/// is the typed record with its code intact (not null, not the string
+/// "null") · and the SAME consumer against a SUCCEEDED producer settles
+/// cancelled, so the test cannot pass on a pass-set widened to everything
+/// either, which is the opposite failure.
+#[tokio::test]
+async fn on_error_skip_error_record_reaches_a_downstream_consumer() {
+    let yaml = r#"
+nika: skip-error-consumer
+permits: { exec: true }
+tasks:
+  boom:
+    exec: { shell: "exit 7" }
+    on_error: { skip: true }
+  reads_error:
+    with: { e: "${{ tasks.boom.error }}" }
+    exec: { shell: "printf 'ERROR_SEEN=[%s]' '${{ with.e }}'" }
+"#;
+    let shell = MockShell::new()
+        .enqueue_fail(7, "boom")
+        .enqueue_ok("ERROR_SEEN");
+    let (outcome, _events) = run_to_events(
+        yaml,
+        shell.clone(),
+        MockToolExecutor::new(),
+        MockProvider::new("mock"),
+        RuntimeConfig::new(NonZeroUsize::new(1), 0), // FIFO mock queues stay aligned
+    )
+    .await;
+
+    // 1 · ADMITTED: the observation edge lets the consumer run to success.
+    assert_eq!(
+        outcome.records["reads_error"].status,
+        TaskStatus::Success,
+        "the consumer of tasks.boom.error is admitted, not cancelled"
+    );
+
+    // 2 · the bound value is the TYPED record, code intact — observed at
+    //     the seam, in the exact bytes the consumer's command carried (the
+    //     shell form holds the whole line in `program`, argv in `args`).
+    let rendered = shell
+        .executed_commands()
+        .iter()
+        .map(|c| format!("{} {}", c.program, c.args.join(" ")))
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(
+        rendered.contains("\"code\":\"NIKA-EXEC-001\""),
+        "the consumer received the typed record with its code intact · got: {rendered}"
+    );
+    assert!(
+        !rendered.contains("null"),
+        "the record never degenerates to null · got: {rendered}"
+    );
+
+    // 3 · negative control: `.error` must NOT admit a success — the SAME
+    //     consumer under a SUCCEEDED producer settles cancelled. Without
+    //     this leg the test still passes on a pass-set widened to admit
+    //     everything, which is the opposite failure.
+    let yaml_live = r#"
+nika: skip-error-consumer-control
+permits: { exec: true }
+tasks:
+  fine:
+    exec: { shell: "printf ok" }
+  reads_error:
+    with: { e: "${{ tasks.fine.error }}" }
+    exec: { shell: "printf unreachable" }
+"#;
+    let (outcome, _events) = run_to_events(
+        yaml_live,
+        MockShell::new().enqueue_ok("ok"),
+        MockToolExecutor::new(),
+        MockProvider::new("mock"),
+        RuntimeConfig::default(),
+    )
+    .await;
+    assert_eq!(outcome.records["fine"].status, TaskStatus::Success);
+    assert_eq!(
+        outcome.records["reads_error"].status,
+        TaskStatus::Cancelled,
+        ".error admits no success — the consumer settles cancelled"
+    );
+}
+
 // ─── 8 · for_each (spec 03 · the fan-out construct) ─────────────────────
 
 #[tokio::test]
