@@ -82,6 +82,12 @@ pub(super) fn hints_and_verdict(
             " {}",
             audited_line(report, wf, distinct_identities.len(), hint_sites, grade, t)
         );
+    } else if unfilled_scaffold(report) {
+        // No NEXT after it: the SLOTS rung already ended on the one
+        // command, and `nika explain` has nothing to say about a value
+        // nobody wrote (the class is report-only — a code would 404).
+        scaffold_verdict(out, report, t);
+        return;
     } else {
         // Through `mark()`, not a hardcoded glyph: this line shipped a
         // literal `✖` and was the one verdict in the report that leaked
@@ -96,6 +102,37 @@ pub(super) fn hints_and_verdict(
         );
     }
     render_next(out, report, path, repair_target, hint_sites, t);
+}
+
+/// The verdict for a scaffold whose only finding is its own unfilled
+/// slots (#1066 constraint 4).
+///
+/// `✖ findings above` would tell someone who typed `nika new` thirty
+/// seconds ago that they broke a file they never wrote. The run still
+/// refuses — the exit code is untouched — only the wording matches what
+/// actually happened.
+fn scaffold_verdict(out: &mut String, report: &CheckReport, t: Theme) {
+    let n = report.slot_findings.len();
+    let slots = if n == 1 { "slot" } else { "slots" };
+    let _ = writeln!(
+        out,
+        " {} {}",
+        t.paint(Role::Warn, if t.ascii { ".." } else { "…" }),
+        t.paint(
+            Role::Warn,
+            &format!("not a workflow yet — {n} {slots} to fill, then it audits")
+        )
+    );
+}
+
+/// Whether the ONLY thing standing between this file and a green audit
+/// is its own unfilled slots.
+///
+/// Deliberately narrow: a scaffold that ALSO escapes its permits or
+/// leaks a secret gets the ordinary refusal, because those are real
+/// faults and softening them would be the lie in the other direction.
+fn unfilled_scaffold(report: &CheckReport) -> bool {
+    !report.slot_findings.is_empty() && report.findings.iter().all(|f| f.kind == "slot")
 }
 
 /// The ONE next command, when the report left anything to say.

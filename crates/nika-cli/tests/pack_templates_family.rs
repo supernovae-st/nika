@@ -38,12 +38,109 @@ fn scratch_dir(tag: &str) -> std::path::PathBuf {
     dir
 }
 
-/// Lay one template down on disk, alone, the way `nika new` hands it over.
+/// Lay one template down on disk, alone, the way `nika new` hands it
+/// over — with its `<SLOT: …>` markers still in place.
+fn plant_as_shipped(dir: &std::path::Path, name: &str) -> String {
+    let body = nika_pack::template(name).unwrap_or_else(|| panic!("pack carries `{name}`"));
+    write_at(dir, name, body)
+}
+
+/// The same skeleton with its slots answered — what an author holds a
+/// minute later, and the state every claim below about auditing and
+/// running is about.
 fn plant(dir: &std::path::Path, name: &str) -> String {
     let body = nika_pack::template(name).unwrap_or_else(|| panic!("pack carries `{name}`"));
+    write_at(dir, name, &fill_slots(body))
+}
+
+fn write_at(dir: &std::path::Path, name: &str, body: &str) -> String {
     let path = dir.join(format!("{name}.nika.yaml"));
     std::fs::write(&path, body).expect("write template");
     path.to_str().expect("utf8 path").to_owned()
+}
+
+/// Answer every slot with one plain sentence.
+///
+/// Works on the SOURCE, so it has to close on the first `>` after the
+/// opener rather than on a trimmed line ending — a quoted marker
+/// (`query: "<SLOT: …>"`) closes before the quote.
+fn fill_slots(body: &str) -> String {
+    let mut out = body.to_owned();
+    while let Some(open) = out.find(nika_check::MARKER_OPEN) {
+        let Some(rel) = out[open..].find('>') else {
+            break;
+        };
+        out.replace_range(open..=open + rel, "answered by the family traversal");
+    }
+    out
+}
+
+/// Every `<SLOT:` a template carries in VALUE position — a marker
+/// inside a comment is prose about the convention, not a hole.
+fn markers_in(body: &str) -> usize {
+    body.lines()
+        .filter(
+            |line| match (line.find(nika_check::MARKER_OPEN), line.find('#')) {
+                (Some(slot), Some(hash)) => slot < hash,
+                (Some(_), None) => true,
+                (None, _) => false,
+            },
+        )
+        .count()
+}
+
+/// #1066 — an unfilled scaffold is not yet a workflow, so it refuses
+/// BEFORE the spend, and it refuses for every marker it carries.
+///
+/// The second half is the one that keeps the judge honest. `nika-check`
+/// reads a NAMED set of value surfaces (`model:`, the `const:`/`inputs:`
+/// literals, the `infer:`/`agent:` prompts) — a narrow probe returns a
+/// clean result, so nothing but a count taken from the skeletons
+/// themselves can prove the judge stayed as wide as the pack.
+#[test]
+fn an_unfilled_template_refuses_and_the_judge_sees_every_marker() {
+    let dir = scratch_dir("slots");
+    let mut marked: Vec<String> = Vec::new();
+    for name in &nika_pack::template_names() {
+        let body = nika_pack::template(name).unwrap_or_else(|| panic!("pack carries `{name}`"));
+        let laid = markers_in(body);
+        let path = plant_as_shipped(&dir, name);
+        let parsed = nika_schema::parse(
+            body,
+            nika_schema::FileId::new(0),
+            nika_schema::ParseMode::Strict,
+        )
+        .unwrap_or_else(|e| panic!("`{name}` parses as shipped: {e}"));
+        let report = nika_check::check(&parsed);
+        assert_eq!(
+            report.slot_findings.len(),
+            laid,
+            "`{name}` lays {laid} marker(s) and the judge sees {} — a marker the judge \
+             cannot reach is a hole that ships silently",
+            report.slot_findings.len()
+        );
+        if laid == 0 {
+            continue;
+        }
+        marked.push(name.clone());
+        let out = check::run(&path, false, false, None, PLAIN);
+        assert_ne!(
+            out.code,
+            exit::OK,
+            "`{name}` carries {laid} unfilled slot(s) — it must refuse before the spend:\n{}",
+            out.text
+        );
+        assert!(
+            out.text.contains("ready to be filled"),
+            "the refusal is an invitation, not an accusation (`{name}`):\n{}",
+            out.text
+        );
+    }
+    assert!(
+        !marked.is_empty(),
+        "no skeleton carries a slot — a traversal that proves nothing about \
+         the class it exists for"
+    );
 }
 
 #[test]
@@ -58,7 +155,8 @@ fn every_shipped_template_audits() {
         assert_eq!(
             out.code,
             exit::OK,
-            "`{name}` is a skeleton a stranger is handed — it audits or it does not ship:\n{}",
+            "`{name}` is a skeleton a stranger is handed — once its slots are \
+             answered it audits, or it does not ship:\n{}",
             out.text
         );
     }
