@@ -20,10 +20,12 @@ fn machine(
 }
 
 /// Claude Code, signed in, WITH its ACP adapter on PATH — a seat a
-/// session can actually start on.
+/// session can actually start on. The id is the LIVE pin token
+/// (`claude-code` · R4) — the retired wrapper id was NIKA-1802 as a
+/// pin, and `chosen_access` used to teach it.
 fn claude() -> Seat {
     Seat {
-        id: "claude-agent-acp".to_owned(),
+        id: "claude-code".to_owned(),
         name: "Claude Code".to_owned(),
         detected: true,
         authenticated: true,
@@ -34,8 +36,8 @@ fn claude() -> Seat {
 /// What the gauntlet actually met (P1/P4 · 2026-08-25): the person has
 /// `claude` and is signed into it, and `claude-agent-acp` — a different
 /// npm package, the binary a session spawns — is not installed. The
-/// overlay in `detect_seats` names the seat from the app, so this shape
-/// is what a real first-wow machine produces.
+/// census names the seat by its pin token, so this shape is what a real
+/// first-wow machine produces.
 fn claude_without_its_adapter() -> Seat {
     Seat {
         adapter_present: false,
@@ -170,9 +172,16 @@ fn a_signed_in_app_without_its_acp_adapter_is_not_ready() {
     assert!(harness.available, "the app is here: {choice:?}");
     let human = choice.render_human_at(Theme::new(false, false, false), None);
     assert!(human.contains("Claude Code"), "{human}");
+    // R4 — the row names the wall (the ACP adapter) and the door
+    // (`nika doctor` carries the install line); it no longer teaches
+    // the wrapper's npm id, which `run --access` refuses as retired.
     assert!(
-        human.contains("@zed-industries/claude-agent-acp"),
-        "the row names the one command that closes the gap: {human}"
+        human.contains("needs its ACP adapter") && human.contains("nika doctor"),
+        "the row names the gap and the door: {human}"
+    );
+    assert!(
+        !human.contains("claude-agent-acp"),
+        "the wrapper id is never taught as the fix: {human}"
     );
     assert!(
         !human.contains("no API key"),
@@ -188,8 +197,8 @@ fn the_same_seat_with_its_adapter_is_ready_again() {
     assert_eq!(choice.arrow, "harness", "{choice:?}");
     assert_eq!(
         choice.chosen_access.as_deref(),
-        Some("claude-agent-acp"),
-        "{choice:?}"
+        Some("claude-code"),
+        "the chosen access is the LIVE pin token (R4): {choice:?}"
     );
 }
 
@@ -548,9 +557,9 @@ fn first_wow_slug_is_not_the_lesson_pack() {
 #[test]
 fn chosen_access_is_the_seat_when_harness_has_the_arrow() {
     let choice = collect_from(&machine(Some(18), vec![claude()], false, &[], true));
-    assert_eq!(choice.chosen_access.as_deref(), Some("claude-agent-acp"));
+    assert_eq!(choice.chosen_access.as_deref(), Some("claude-code"));
     let json = choice.doctor_cascade_json();
-    assert_eq!(json["chosen_access"], "claude-agent-acp");
+    assert_eq!(json["chosen_access"], "claude-code");
 }
 
 #[test]

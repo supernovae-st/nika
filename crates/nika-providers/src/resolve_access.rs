@@ -178,9 +178,13 @@ fn judge(
                     str::to_owned,
                 )
         } else {
+            // Custody is NAMED (R4 · « key present » used to render
+            // without ever saying WHERE the key lives): keys are
+            // env-only, so the witness says the var is unset IN THE
+            // PROCESS ENV — derivable, never a value probe.
             candidate.fix_var.as_ref().map_or_else(
                 || String::from("no credential configured"),
-                |var| format!("{var} unset"),
+                |var| format!("{var} unset in process env"),
             )
         };
         return Some(AccessRejection::new(

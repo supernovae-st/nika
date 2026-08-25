@@ -39,6 +39,7 @@
 
 #![cfg_attr(test, allow(clippy::unwrap_used, clippy::expect_used, clippy::panic))]
 
+pub mod census;
 #[cfg(test)]
 mod parity_tests;
 pub mod probe;
@@ -50,6 +51,7 @@ mod sse;
 mod test_support;
 pub mod wire;
 
+pub use census::{AccessCensus, AccessPath, SeatFact};
 pub use profile::{
     CANONICAL_IDS, PREFIX_REFUSAL_CODE, Profile, ResolveRefusal, WireFormat, catalog_warning,
     resolve_refusal, seed, server_backed_local,

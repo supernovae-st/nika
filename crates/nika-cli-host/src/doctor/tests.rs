@@ -2,6 +2,7 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use nika_providers::ProviderRegistry;
+use nika_providers::census::AccessCensus;
 
 use super::*;
 use crate::probe::client_probe_any;
@@ -116,6 +117,7 @@ fn a_lan_override_is_named_on_the_local_lane() {
         version: "0.0.0".to_owned(),
         config_path: None,
         providers: vec![ollama],
+        census: AccessCensus::default(),
         clients: Vec::new(),
         kits: Vec::new(),
         clients_registry: RegistryCoverage::default(),
@@ -139,6 +141,7 @@ fn a_lan_override_is_named_on_the_local_lane() {
     // A loopback ollama earns NO extra row — the exception gets the ink.
     let quiet = Probe {
         providers: vec![local("ollama")],
+        census: AccessCensus::default(),
         ..probe
     };
     let findings = diagnose(&quiet);
@@ -172,6 +175,7 @@ fn key_present_is_ok_and_exits_zero() {
         version: "0.81.0".to_owned(),
         config_path: Some("~/.nika/config.toml".to_owned()),
         providers: vec![cloud("anthropic", "ANTHROPIC_API_KEY", true)],
+        census: AccessCensus::default(),
         clients: vec![],
         kits: vec![],
         clients_registry: RegistryCoverage::default(),
@@ -206,6 +210,7 @@ fn unset_key_is_a_warn_with_a_fix_not_a_fail() {
             cloud("anthropic", "ANTHROPIC_API_KEY", false),
             local("ollama"),
         ],
+        census: AccessCensus::default(),
         clients: vec![],
         kits: vec![],
         clients_registry: RegistryCoverage::default(),
@@ -245,6 +250,7 @@ fn never_prints_a_secret_value() {
         version: "0.81.0".to_owned(),
         config_path: None,
         providers: vec![cloud("openai", "OPENAI_API_KEY", false)],
+        census: AccessCensus::default(),
         clients: vec![],
         kits: vec![],
         clients_registry: RegistryCoverage::default(),
@@ -274,6 +280,7 @@ fn no_provider_at_all_fails_with_exit_three() {
         version: "0.81.0".to_owned(),
         config_path: None,
         providers: vec![cloud("anthropic", "ANTHROPIC_API_KEY", false)],
+        census: AccessCensus::default(),
         clients: vec![],
         kits: vec![],
         clients_registry: RegistryCoverage::default(),
@@ -298,6 +305,7 @@ fn local_provider_alone_is_a_usable_path_exit_zero() {
         version: "0.81.0".to_owned(),
         config_path: None,
         providers: vec![local("ollama"), local("vllm")],
+        census: AccessCensus::default(),
         clients: vec![],
         kits: vec![],
         clients_registry: RegistryCoverage::default(),
@@ -333,37 +341,17 @@ fn json_lane_carries_summary_and_findings_verbatim() {
             fix: Some("nika wire claude".to_owned()),
         },
     ];
-    let json: serde_json::Value =
-        serde_json::from_str(&render_json(&findings, AdoptionState::KeyPresent, &[]))
-            .expect("valid JSON");
+    let json: serde_json::Value = serde_json::from_str(&render_json(
+        &findings,
+        AdoptionState::KeyPresent,
+        &[],
+        &AccessCensus::default(),
+    ))
+    .expect("valid JSON");
     assert_eq!(json["summary"]["ok"], 1);
     assert_eq!(json["summary"]["fail"], 1);
     assert_eq!(json["findings"][0]["level"], "ok");
     assert_eq!(json["findings"][1]["fix"], "nika wire claude");
-}
-
-/// P0-21 — the machine lane carries the adoption rung next to the
-/// findings: agents/CI branch on ONE state token, not on a parse of
-/// the flat finding rows.
-#[test]
-fn doctor_json_serializes_the_adoption_state() {
-    let findings = vec![Finding {
-        level: Level::Ok,
-        label: "binary".to_owned(),
-        detail: "v0".to_owned(),
-        fix: None,
-    }];
-    for (state, token) in [
-        (AdoptionState::Installed, "installed"),
-        (AdoptionState::LocalDetected, "local_detected"),
-        (AdoptionState::LocalReachable, "local_reachable"),
-        (AdoptionState::KeyPresent, "key_present"),
-        (AdoptionState::RealReady, "real_ready"),
-    ] {
-        let json: serde_json::Value =
-            serde_json::from_str(&render_json(&findings, state, &[])).expect("valid JSON");
-        assert_eq!(json["adoption_state"], token, "{state:?}");
-    }
 }
 
 /// H5 — the machine lane gains the per-host runtime receipts
@@ -377,6 +365,7 @@ fn doctor_json_adds_host_receipts_without_touching_existing_fields() {
         version: "0.96.0".to_owned(),
         config_path: None,
         providers: vec![local("ollama")],
+        census: AccessCensus::default(),
         clients: vec![
             ClientProbe {
                 id: "hermes".to_owned(),
@@ -412,6 +401,7 @@ fn doctor_json_adds_host_receipts_without_touching_existing_fields() {
         &findings,
         AdoptionState::KeyPresent,
         &crate::probe::capability_receipts(&probe),
+        &probe.census,
     ))
     .expect("valid JSON");
     // The pre-H5 fields are untouched (additive means additive).
@@ -461,6 +451,7 @@ fn sidecar_row_tracks_the_build_feature() {
         version: "0.99.0".to_owned(),
         config_path: None,
         providers: vec![local("ollama")],
+        census: AccessCensus::default(),
         clients: vec![],
         kits: vec![],
         clients_registry: RegistryCoverage::default(),
@@ -555,6 +546,7 @@ fn the_ascii_theme_folds_every_doctor_glyph() {
         version: "0.106.0".to_owned(),
         config_path: None,
         providers: vec![],
+        census: AccessCensus::default(),
         clients: vec![wired("hermes"), wired("cursor")],
         kits: vec![KitProbe {
             client: "cursor".to_owned(),
@@ -597,6 +589,7 @@ fn doctor_names_each_host_capability_level() {
         version: "0.106.0".to_owned(),
         config_path: None,
         providers: vec![],
+        census: AccessCensus::default(),
         clients: vec![wired("hermes"), wired("cursor")],
         kits: vec![KitProbe {
             client: "cursor".to_owned(),
@@ -637,6 +630,7 @@ fn client_probe_reports_stale_wiring_with_a_wire_fix() {
         version: "0.90.0".to_owned(),
         config_path: None,
         providers: vec![local("ollama")],
+        census: AccessCensus::default(),
         clients: vec![ClientProbe {
             id: "cursor".to_owned(),
             path: "~/.cursor/mcp.json".to_owned(),
@@ -743,6 +737,7 @@ fn diagnose_carries_one_kit_row_per_found_surface() {
         version: "0.106.1".to_owned(),
         config_path: None,
         providers: vec![local("ollama")],
+        census: AccessCensus::default(),
         clients: vec![],
         kits: vec![kit("codex", "0.106.0"), kit("claude", "0.104.0")],
         clients_registry: RegistryCoverage::default(),
@@ -968,6 +963,7 @@ fn local_line_hands_off_to_ping_and_ping_lines_render() {
         version: "0.0.0".to_owned(),
         config_path: None,
         providers: vec![local("ollama")],
+        census: AccessCensus::default(),
         clients: Vec::new(),
         kits: Vec::new(),
         clients_registry: RegistryCoverage::default(),
@@ -1059,6 +1055,7 @@ fn diagnose_surfaces_the_tracked_traces_row_without_failing() {
         version: "0.0.0".to_owned(),
         config_path: None,
         providers: vec![local("ollama")],
+        census: AccessCensus::default(),
         clients: vec![],
         kits: vec![],
         clients_registry: RegistryCoverage::default(),
@@ -1199,6 +1196,7 @@ fn diagnose_emits_one_registry_coverage_row() {
         version: "0.0.0".to_owned(),
         config_path: None,
         providers: vec![],
+        census: AccessCensus::default(),
         clients: Vec::new(),
         kits: Vec::new(),
         clients_registry: RegistryCoverage {

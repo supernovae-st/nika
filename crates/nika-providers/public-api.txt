@@ -1,4 +1,132 @@
 pub mod nika_providers
+pub mod nika_providers::census
+pub struct nika_providers::census::AccessCensus
+pub nika_providers::census::AccessCensus::best: core::option::Option<nika_providers::census::AccessPath>
+pub nika_providers::census::AccessCensus::paths: alloc::vec::Vec<nika_providers::census::AccessPath>
+pub nika_providers::census::AccessCensus::seats: alloc::vec::Vec<nika_providers::census::SeatFact>
+pub nika_providers::census::AccessCensus::seats_ready: alloc::vec::Vec<alloc::string::String>
+impl nika_providers::census::AccessCensus
+pub fn nika_providers::census::AccessCensus::collect(config: nika_providers::registry::ProvidersConfig) -> Self
+pub fn nika_providers::census::AccessCensus::from_parts(probes: &[nika_providers::probe::ProviderProbe], seats: alloc::vec::Vec<nika_providers::census::SeatFact>) -> Self
+pub fn nika_providers::census::AccessCensus::seat_escape(&self) -> core::option::Option<alloc::string::String>
+impl core::clone::Clone for nika_providers::census::AccessCensus
+pub fn nika_providers::census::AccessCensus::clone(&self) -> nika_providers::census::AccessCensus
+impl core::cmp::Eq for nika_providers::census::AccessCensus
+impl core::cmp::PartialEq for nika_providers::census::AccessCensus
+pub fn nika_providers::census::AccessCensus::eq(&self, other: &nika_providers::census::AccessCensus) -> bool
+impl core::default::Default for nika_providers::census::AccessCensus
+pub fn nika_providers::census::AccessCensus::default() -> nika_providers::census::AccessCensus
+impl core::fmt::Debug for nika_providers::census::AccessCensus
+pub fn nika_providers::census::AccessCensus::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_providers::census::AccessCensus
+impl<D> owo_colors::OwoColorize for nika_providers::census::AccessCensus
+impl<T, U> core::convert::Into<U> for nika_providers::census::AccessCensus where U: core::convert::From<T>
+pub fn nika_providers::census::AccessCensus::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::census::AccessCensus where U: core::convert::Into<T>
+pub type nika_providers::census::AccessCensus::Error = core::convert::Infallible
+pub fn nika_providers::census::AccessCensus::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::census::AccessCensus where U: core::convert::TryFrom<T>
+pub type nika_providers::census::AccessCensus::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::census::AccessCensus::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers::census::AccessCensus where T: core::clone::Clone
+pub type nika_providers::census::AccessCensus::Owned = T
+pub fn nika_providers::census::AccessCensus::clone_into(&self, target: &mut T)
+pub fn nika_providers::census::AccessCensus::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers::census::AccessCensus where T: 'static + ?core::marker::Sized
+pub fn nika_providers::census::AccessCensus::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::census::AccessCensus where T: ?core::marker::Sized
+pub fn nika_providers::census::AccessCensus::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::census::AccessCensus where T: ?core::marker::Sized
+pub fn nika_providers::census::AccessCensus::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers::census::AccessCensus where T: core::clone::Clone
+pub unsafe fn nika_providers::census::AccessCensus::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers::census::AccessCensus
+pub fn nika_providers::census::AccessCensus::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::census::AccessCensus where T: 'static
+pub fn nika_providers::census::AccessCensus::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_providers::census::AccessPath
+pub nika_providers::census::AccessPath::class: nika_types::access::AccessClass
+pub nika_providers::census::AccessPath::configured: bool
+pub nika_providers::census::AccessPath::custody: core::option::Option<alloc::string::String>
+pub nika_providers::census::AccessPath::fix_line: core::option::Option<alloc::string::String>
+pub nika_providers::census::AccessPath::id: alloc::string::String
+impl core::clone::Clone for nika_providers::census::AccessPath
+pub fn nika_providers::census::AccessPath::clone(&self) -> nika_providers::census::AccessPath
+impl core::cmp::Eq for nika_providers::census::AccessPath
+impl core::cmp::PartialEq for nika_providers::census::AccessPath
+pub fn nika_providers::census::AccessPath::eq(&self, other: &nika_providers::census::AccessPath) -> bool
+impl core::fmt::Debug for nika_providers::census::AccessPath
+pub fn nika_providers::census::AccessPath::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_providers::census::AccessPath
+impl<D> owo_colors::OwoColorize for nika_providers::census::AccessPath
+impl<T, U> core::convert::Into<U> for nika_providers::census::AccessPath where U: core::convert::From<T>
+pub fn nika_providers::census::AccessPath::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::census::AccessPath where U: core::convert::Into<T>
+pub type nika_providers::census::AccessPath::Error = core::convert::Infallible
+pub fn nika_providers::census::AccessPath::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::census::AccessPath where U: core::convert::TryFrom<T>
+pub type nika_providers::census::AccessPath::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::census::AccessPath::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers::census::AccessPath where T: core::clone::Clone
+pub type nika_providers::census::AccessPath::Owned = T
+pub fn nika_providers::census::AccessPath::clone_into(&self, target: &mut T)
+pub fn nika_providers::census::AccessPath::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers::census::AccessPath where T: 'static + ?core::marker::Sized
+pub fn nika_providers::census::AccessPath::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::census::AccessPath where T: ?core::marker::Sized
+pub fn nika_providers::census::AccessPath::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::census::AccessPath where T: ?core::marker::Sized
+pub fn nika_providers::census::AccessPath::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers::census::AccessPath where T: core::clone::Clone
+pub unsafe fn nika_providers::census::AccessPath::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers::census::AccessPath
+pub fn nika_providers::census::AccessPath::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::census::AccessPath where T: 'static
+pub fn nika_providers::census::AccessPath::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_providers::census::SeatFact
+pub nika_providers::census::SeatFact::adapter_present: bool
+pub nika_providers::census::SeatFact::id: alloc::string::String
+pub nika_providers::census::SeatFact::product_present: bool
+pub nika_providers::census::SeatFact::serves: alloc::vec::Vec<alloc::string::String>
+pub nika_providers::census::SeatFact::signed_in: bool
+impl nika_providers::census::SeatFact
+pub fn nika_providers::census::SeatFact::as_path(&self) -> nika_providers::census::AccessPath
+pub fn nika_providers::census::SeatFact::new(id: impl core::convert::Into<alloc::string::String>, serves: alloc::vec::Vec<alloc::string::String>, product_present: bool, adapter_present: bool, signed_in: bool) -> Self
+pub const fn nika_providers::census::SeatFact::ready(&self) -> bool
+impl core::clone::Clone for nika_providers::census::SeatFact
+pub fn nika_providers::census::SeatFact::clone(&self) -> nika_providers::census::SeatFact
+impl core::cmp::Eq for nika_providers::census::SeatFact
+impl core::cmp::PartialEq for nika_providers::census::SeatFact
+pub fn nika_providers::census::SeatFact::eq(&self, other: &nika_providers::census::SeatFact) -> bool
+impl core::fmt::Debug for nika_providers::census::SeatFact
+pub fn nika_providers::census::SeatFact::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_providers::census::SeatFact
+impl<D> owo_colors::OwoColorize for nika_providers::census::SeatFact
+impl<T, U> core::convert::Into<U> for nika_providers::census::SeatFact where U: core::convert::From<T>
+pub fn nika_providers::census::SeatFact::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::census::SeatFact where U: core::convert::Into<T>
+pub type nika_providers::census::SeatFact::Error = core::convert::Infallible
+pub fn nika_providers::census::SeatFact::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::census::SeatFact where U: core::convert::TryFrom<T>
+pub type nika_providers::census::SeatFact::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::census::SeatFact::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers::census::SeatFact where T: core::clone::Clone
+pub type nika_providers::census::SeatFact::Owned = T
+pub fn nika_providers::census::SeatFact::clone_into(&self, target: &mut T)
+pub fn nika_providers::census::SeatFact::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers::census::SeatFact where T: 'static + ?core::marker::Sized
+pub fn nika_providers::census::SeatFact::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::census::SeatFact where T: ?core::marker::Sized
+pub fn nika_providers::census::SeatFact::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::census::SeatFact where T: ?core::marker::Sized
+pub fn nika_providers::census::SeatFact::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers::census::SeatFact where T: core::clone::Clone
+pub unsafe fn nika_providers::census::SeatFact::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers::census::SeatFact
+pub fn nika_providers::census::SeatFact::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::census::SeatFact where T: 'static
+pub fn nika_providers::census::SeatFact::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub fn nika_providers::census::collect_seats() -> alloc::vec::Vec<nika_providers::census::SeatFact>
 pub mod nika_providers::probe
 pub use nika_providers::probe::AccessClass
 pub enum nika_providers::probe::ExecutionLocus
@@ -750,6 +878,89 @@ impl<T> core::convert::From<T> for nika_providers::resolve_access::AccessCandida
 pub fn nika_providers::resolve_access::AccessCandidate::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_providers::resolve_access::AccessCandidate where T: 'static
 pub fn nika_providers::resolve_access::AccessCandidate::as_any(&self) -> &(dyn core::any::Any + 'static)
+pub struct nika_providers::AccessCensus
+pub nika_providers::AccessCensus::best: core::option::Option<nika_providers::census::AccessPath>
+pub nika_providers::AccessCensus::paths: alloc::vec::Vec<nika_providers::census::AccessPath>
+pub nika_providers::AccessCensus::seats: alloc::vec::Vec<nika_providers::census::SeatFact>
+pub nika_providers::AccessCensus::seats_ready: alloc::vec::Vec<alloc::string::String>
+impl nika_providers::census::AccessCensus
+pub fn nika_providers::census::AccessCensus::collect(config: nika_providers::registry::ProvidersConfig) -> Self
+pub fn nika_providers::census::AccessCensus::from_parts(probes: &[nika_providers::probe::ProviderProbe], seats: alloc::vec::Vec<nika_providers::census::SeatFact>) -> Self
+pub fn nika_providers::census::AccessCensus::seat_escape(&self) -> core::option::Option<alloc::string::String>
+impl core::clone::Clone for nika_providers::census::AccessCensus
+pub fn nika_providers::census::AccessCensus::clone(&self) -> nika_providers::census::AccessCensus
+impl core::cmp::Eq for nika_providers::census::AccessCensus
+impl core::cmp::PartialEq for nika_providers::census::AccessCensus
+pub fn nika_providers::census::AccessCensus::eq(&self, other: &nika_providers::census::AccessCensus) -> bool
+impl core::default::Default for nika_providers::census::AccessCensus
+pub fn nika_providers::census::AccessCensus::default() -> nika_providers::census::AccessCensus
+impl core::fmt::Debug for nika_providers::census::AccessCensus
+pub fn nika_providers::census::AccessCensus::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_providers::census::AccessCensus
+impl<D> owo_colors::OwoColorize for nika_providers::census::AccessCensus
+impl<T, U> core::convert::Into<U> for nika_providers::census::AccessCensus where U: core::convert::From<T>
+pub fn nika_providers::census::AccessCensus::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::census::AccessCensus where U: core::convert::Into<T>
+pub type nika_providers::census::AccessCensus::Error = core::convert::Infallible
+pub fn nika_providers::census::AccessCensus::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::census::AccessCensus where U: core::convert::TryFrom<T>
+pub type nika_providers::census::AccessCensus::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::census::AccessCensus::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers::census::AccessCensus where T: core::clone::Clone
+pub type nika_providers::census::AccessCensus::Owned = T
+pub fn nika_providers::census::AccessCensus::clone_into(&self, target: &mut T)
+pub fn nika_providers::census::AccessCensus::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers::census::AccessCensus where T: 'static + ?core::marker::Sized
+pub fn nika_providers::census::AccessCensus::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::census::AccessCensus where T: ?core::marker::Sized
+pub fn nika_providers::census::AccessCensus::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::census::AccessCensus where T: ?core::marker::Sized
+pub fn nika_providers::census::AccessCensus::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers::census::AccessCensus where T: core::clone::Clone
+pub unsafe fn nika_providers::census::AccessCensus::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers::census::AccessCensus
+pub fn nika_providers::census::AccessCensus::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::census::AccessCensus where T: 'static
+pub fn nika_providers::census::AccessCensus::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_providers::AccessPath
+pub nika_providers::AccessPath::class: nika_types::access::AccessClass
+pub nika_providers::AccessPath::configured: bool
+pub nika_providers::AccessPath::custody: core::option::Option<alloc::string::String>
+pub nika_providers::AccessPath::fix_line: core::option::Option<alloc::string::String>
+pub nika_providers::AccessPath::id: alloc::string::String
+impl core::clone::Clone for nika_providers::census::AccessPath
+pub fn nika_providers::census::AccessPath::clone(&self) -> nika_providers::census::AccessPath
+impl core::cmp::Eq for nika_providers::census::AccessPath
+impl core::cmp::PartialEq for nika_providers::census::AccessPath
+pub fn nika_providers::census::AccessPath::eq(&self, other: &nika_providers::census::AccessPath) -> bool
+impl core::fmt::Debug for nika_providers::census::AccessPath
+pub fn nika_providers::census::AccessPath::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_providers::census::AccessPath
+impl<D> owo_colors::OwoColorize for nika_providers::census::AccessPath
+impl<T, U> core::convert::Into<U> for nika_providers::census::AccessPath where U: core::convert::From<T>
+pub fn nika_providers::census::AccessPath::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::census::AccessPath where U: core::convert::Into<T>
+pub type nika_providers::census::AccessPath::Error = core::convert::Infallible
+pub fn nika_providers::census::AccessPath::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::census::AccessPath where U: core::convert::TryFrom<T>
+pub type nika_providers::census::AccessPath::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::census::AccessPath::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers::census::AccessPath where T: core::clone::Clone
+pub type nika_providers::census::AccessPath::Owned = T
+pub fn nika_providers::census::AccessPath::clone_into(&self, target: &mut T)
+pub fn nika_providers::census::AccessPath::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers::census::AccessPath where T: 'static + ?core::marker::Sized
+pub fn nika_providers::census::AccessPath::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::census::AccessPath where T: ?core::marker::Sized
+pub fn nika_providers::census::AccessPath::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::census::AccessPath where T: ?core::marker::Sized
+pub fn nika_providers::census::AccessPath::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers::census::AccessPath where T: core::clone::Clone
+pub unsafe fn nika_providers::census::AccessPath::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers::census::AccessPath
+pub fn nika_providers::census::AccessPath::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::census::AccessPath where T: 'static
+pub fn nika_providers::census::AccessPath::as_any(&self) -> &(dyn core::any::Any + 'static)
 #[non_exhaustive] pub struct nika_providers::AccessRefusal
 pub nika_providers::AccessRefusal::model: alloc::string::String
 pub nika_providers::AccessRefusal::provider: alloc::string::String
@@ -1012,6 +1223,49 @@ impl<TraitVariantBlanketType> nika_kernel_ai::provider::ProviderInfer for nika_p
 pub async fn nika_providers::registry::ResolvedProvider<H>::infer(&self, request: nika_kernel_ai::provider::InferRequest) -> core::result::Result<nika_kernel_ai::provider::InferResponse, nika_kernel_ai::provider::ProviderError>
 impl<TraitVariantBlanketType> nika_kernel_ai::provider::ProviderStream for nika_providers::registry::ResolvedProvider<H> where TraitVariantBlanketType: nika_kernel_ai::provider::ProviderStreamDyn
 pub async fn nika_providers::registry::ResolvedProvider<H>::infer_stream(&self, request: nika_kernel_ai::provider::InferRequest) -> core::result::Result<core::pin::Pin<alloc::boxed::Box<(dyn futures_core::stream::Stream<Item = core::result::Result<nika_kernel_ai::provider::InferEvent, nika_kernel_ai::provider::ProviderError>> + core::marker::Send)>>, nika_kernel_ai::provider::ProviderError>
+#[non_exhaustive] pub struct nika_providers::SeatFact
+pub nika_providers::SeatFact::adapter_present: bool
+pub nika_providers::SeatFact::id: alloc::string::String
+pub nika_providers::SeatFact::product_present: bool
+pub nika_providers::SeatFact::serves: alloc::vec::Vec<alloc::string::String>
+pub nika_providers::SeatFact::signed_in: bool
+impl nika_providers::census::SeatFact
+pub fn nika_providers::census::SeatFact::as_path(&self) -> nika_providers::census::AccessPath
+pub fn nika_providers::census::SeatFact::new(id: impl core::convert::Into<alloc::string::String>, serves: alloc::vec::Vec<alloc::string::String>, product_present: bool, adapter_present: bool, signed_in: bool) -> Self
+pub const fn nika_providers::census::SeatFact::ready(&self) -> bool
+impl core::clone::Clone for nika_providers::census::SeatFact
+pub fn nika_providers::census::SeatFact::clone(&self) -> nika_providers::census::SeatFact
+impl core::cmp::Eq for nika_providers::census::SeatFact
+impl core::cmp::PartialEq for nika_providers::census::SeatFact
+pub fn nika_providers::census::SeatFact::eq(&self, other: &nika_providers::census::SeatFact) -> bool
+impl core::fmt::Debug for nika_providers::census::SeatFact
+pub fn nika_providers::census::SeatFact::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_providers::census::SeatFact
+impl<D> owo_colors::OwoColorize for nika_providers::census::SeatFact
+impl<T, U> core::convert::Into<U> for nika_providers::census::SeatFact where U: core::convert::From<T>
+pub fn nika_providers::census::SeatFact::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_providers::census::SeatFact where U: core::convert::Into<T>
+pub type nika_providers::census::SeatFact::Error = core::convert::Infallible
+pub fn nika_providers::census::SeatFact::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_providers::census::SeatFact where U: core::convert::TryFrom<T>
+pub type nika_providers::census::SeatFact::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_providers::census::SeatFact::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_providers::census::SeatFact where T: core::clone::Clone
+pub type nika_providers::census::SeatFact::Owned = T
+pub fn nika_providers::census::SeatFact::clone_into(&self, target: &mut T)
+pub fn nika_providers::census::SeatFact::to_owned(&self) -> T
+impl<T> core::any::Any for nika_providers::census::SeatFact where T: 'static + ?core::marker::Sized
+pub fn nika_providers::census::SeatFact::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_providers::census::SeatFact where T: ?core::marker::Sized
+pub fn nika_providers::census::SeatFact::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_providers::census::SeatFact where T: ?core::marker::Sized
+pub fn nika_providers::census::SeatFact::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_providers::census::SeatFact where T: core::clone::Clone
+pub unsafe fn nika_providers::census::SeatFact::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_providers::census::SeatFact
+pub fn nika_providers::census::SeatFact::from(t: T) -> T
+impl<T> nika_error::traits::AsAny for nika_providers::census::SeatFact where T: 'static
+pub fn nika_providers::census::SeatFact::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub const nika_providers::CANONICAL_IDS: [&str; 16]
 pub const nika_providers::PREFIX_REFUSAL_CODE: &str
 pub fn nika_providers::access_plan_map(models: &[alloc::string::String], probes: &[nika_providers::probe::ProviderProbe], pin: core::option::Option<&str>) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, nika_types::access::AccessPlan>

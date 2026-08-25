@@ -286,7 +286,7 @@ pub fn nika_cli_host::doctor::diagnose(probe: &nika_cli_host::probe::Probe) -> a
 pub fn nika_cli_host::doctor::exit_code(findings: &[nika_cli_host::doctor::Finding]) -> u8
 pub fn nika_cli_host::doctor::redact_userinfo(url: &str) -> alloc::string::String
 pub fn nika_cli_host::doctor::render(findings: &[nika_cli_host::doctor::Finding], verbose: bool, theme: nika_display::theme::Theme) -> alloc::string::String
-pub fn nika_cli_host::doctor::render_json(findings: &[nika_cli_host::doctor::Finding], state: nika_cli_host::probe::AdoptionState, receipts: &[nika_cli_host::probe::HostCapabilityReceipt]) -> alloc::string::String
+pub fn nika_cli_host::doctor::render_json(findings: &[nika_cli_host::doctor::Finding], state: nika_cli_host::probe::AdoptionState, receipts: &[nika_cli_host::probe::HostCapabilityReceipt], census: &nika_providers::census::AccessCensus) -> alloc::string::String
 pub fn nika_cli_host::doctor::run(ping: bool, json: bool, verbose: bool, theme: nika_display::theme::Theme) -> nika_cli_host::output::VerbOutput
 pub mod nika_cli_host::door
 pub enum nika_cli_host::door::DoorId
@@ -1766,6 +1766,7 @@ pub nika_cli_host::probe::AdoptionState::KeyPresent
 pub nika_cli_host::probe::AdoptionState::LocalDetected
 pub nika_cli_host::probe::AdoptionState::LocalReachable
 pub nika_cli_host::probe::AdoptionState::RealReady
+pub nika_cli_host::probe::AdoptionState::SeatReady
 impl nika_cli_host::probe::AdoptionState
 pub const fn nika_cli_host::probe::AdoptionState::as_str(self) -> &'static str
 pub const fn nika_cli_host::probe::AdoptionState::cta(self) -> &'static str
@@ -2154,6 +2155,7 @@ impl<T> zvariant::optional::NoneValue for nika_cli_host::probe::PricingProbe whe
 pub type nika_cli_host::probe::PricingProbe::NoneType = T
 pub fn nika_cli_host::probe::PricingProbe::null_value() -> T
 pub struct nika_cli_host::probe::Probe
+pub nika_cli_host::probe::Probe::census: nika_providers::census::AccessCensus
 pub nika_cli_host::probe::Probe::clients: alloc::vec::Vec<nika_cli_host::probe::ClientProbe>
 pub nika_cli_host::probe::Probe::clients_registry: nika_cli_host::clients_registry::RegistryCoverage
 pub nika_cli_host::probe::Probe::config_path: core::option::Option<alloc::string::String>
@@ -2324,11 +2326,15 @@ pub type nika_cli_host::probe::TtsProbe::NoneType = T
 pub fn nika_cli_host::probe::TtsProbe::null_value() -> T
 pub fn nika_cli_host::probe::access_probes_with_harness() -> alloc::vec::Vec<nika_providers::probe::ProviderProbe>
 pub fn nika_cli_host::probe::adoption_state(probe: &nika_cli_host::probe::Probe) -> nika_cli_host::probe::AdoptionState
+pub fn nika_cli_host::probe::auth_class_witness(detail: &str) -> bool
 pub fn nika_cli_host::probe::capability_receipts(probe: &nika_cli_host::probe::Probe) -> alloc::vec::Vec<nika_cli_host::probe::HostCapabilityReceipt>
 pub fn nika_cli_host::probe::collect(ping: bool) -> nika_cli_host::probe::Probe
 pub fn nika_cli_host::probe::environment_json(probe: &nika_cli_host::probe::Probe) -> serde_json::value::Value
+pub fn nika_cli_host::probe::print_seat_escape<'a, W: core::io::write::Write>(witnesses: impl core::iter::traits::collect::IntoIterator<Item = &'a str>, prefix: &str, out: &mut W)
 pub fn nika_cli_host::probe::sandbox_probe() -> nika_cli_host::probe::SandboxProbe
+pub fn nika_cli_host::probe::seat_escape_tail() -> core::option::Option<alloc::string::String>
 pub fn nika_cli_host::probe::train_differs(a: &str, b: &str) -> bool
+pub fn nika_cli_host::probe::with_seat_tail(code: &str, tail: core::option::Option<&str>, text: alloc::string::String) -> alloc::string::String
 pub mod nika_cli_host::repair
 pub fn nika_cli_host::repair::repair_target_for_path(path: &str) -> nika_display::check_render::RepairTarget
 pub fn nika_cli_host::repair::repair_target_for_path_under(path: &str, registry_root: core::option::Option<&std::path::Path>) -> nika_display::check_render::RepairTarget
