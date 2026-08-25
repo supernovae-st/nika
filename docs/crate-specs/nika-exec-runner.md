@@ -6,7 +6,7 @@
 | Layer | L1 — effect crate · the only production site spawning PLAIN subprocesses (`tokio::process`) — one deliberate second site: `nika-mcp`’s stdio MCP client (a persistent pipe session the one-shot shell seam cannot express) |
 | Design | `TokioShell` impl of the L0.5 `nika_kernel::process` traits (`ShellRun` + `ShellCancel`) via the `*Dyn` (`Send`) companions · SECURITY-SENSITIVE (command blocklist + injection defense) |
 | LOC budget | well under the ≤1500/file + ≤15k/crate caps (enforced live by vectors 12+24) · live count · `scripts/crate-metrics.sh nika-exec-runner` |
-| LOC (live) | ~3137 LOC src (live · `scripts/crate-metrics.sh nika-exec-runner`) |
+| LOC (live) | ~3755 LOC src (live · `scripts/crate-metrics.sh nika-exec-runner`) |
 | Function cap | ≤100 lines each |
 | Crate version | tracks workspace |
 | License | `AGPL-3.0-or-later` |
@@ -150,7 +150,7 @@ AND stderr) is therefore capped at **64 MiB** (`MAX_OUTPUT_BYTES`):
 |---|---|---|
 | 1 SPEC | ✅ | this file |
 | 2 TDD | ✅ | `tests/exec_contract.rs` (14 subprocess contract) + blocklist/lib unit (25) authored first · RED → GREEN |
-| 3 IMPL | ✅ | ~1412 LOC src (live · `scripts/crate-metrics.sh`) · zero unwrap/expect in src |
+| 3 IMPL | ✅ | ~3755 LOC src (live · `scripts/crate-metrics.sh nika-exec-runner`) · zero unwrap/expect in src |
 | 4 CLIPPY 0 | ✅ | `cargo clippy --workspace --all-targets -- -D warnings` GREEN |
 | 5 MUTATION ≥90% | ✅ | `cargo mutants -p nika-exec-runner` · 28 mutants · **23 caught / 25 viable = 92%** (3 unviable). 2 documented survivors, both non-security: (a) the `basename_normalized` OR-branch — an EQUIVALENT mutant (for the current patterns `basename(s).contains(p) ⇒ lower.contains(p)`, so it never uniquely matches · pure defense-in-depth redundancy that would only bite a future mid-path pattern); (b) the `-1` exit sentinel for signal-death (`status.code()==None`) — cosmetic, no control-flow/security impact. The killers added: dequoted-sole-matcher (`/d'e'v/tcp/`) + quote-bypass-via-dequoting + basename helper + shell-expansion regression set. |
 | 6 PROPERTY | ✅ | security unit-battery: each normalization layer (NFKC/zero-width/quote/basename) blocked · shell-expansion bypasses ($IFS/$VAR/$()/backtick/fullwidth-$) refused · safe commands + plain pipes allowed |
