@@ -20,7 +20,8 @@
 #   2. every `path = "../…"` dependency that carries a `version = "…"` pin
 #      pins THAT same string (an unpinned path dep is fine — Cargo resolves
 #      it — but a pin that names another version is a lie)
-#   3. both lockfiles agree for every nika-* package
+#   3. all three lock families agree for every nika-* package: workspace,
+#      fuzz, and every excluded crate lock (currently nika-acp)
 #   4. the version is a semver, optionally with a prerelease (`-dev` · `-rc.1`)
 #   5. every kit manifest an editor SHOWS the user (the portable Agent
 #      Plugins manifest at the kit root + each `.<client>-plugin/plugin.json`)
@@ -33,7 +34,7 @@
 set -uo pipefail
 
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ROOT="$(cd "$HERE/../.." && pwd)"
+ROOT="${SPN_VERSION_REPO:-$(cd "$HERE/../.." && pwd)}"
 cd "$ROOT" || exit 1
 
 fail=0
@@ -81,13 +82,20 @@ if [ "$members" -eq 0 ]; then
   red "no crates/*/Cargo.toml found — nothing checked"
 fi
 
-# 3 · both lockfiles record every workspace MEMBER at the workspace version
-#     (member = a crates/<name> dir · the fuzz harness's own 0.0.0 crate and
-#     any external `nika-*` are not the workspace's to version).
+# 3 · all lock families record every workspace MEMBER they carry at the
+#     workspace version (member = a crates/<name> dir · the fuzz harness's
+#     own 0.0.0 crate and any external `nika-*` are not the workspace's to
+#     version). nika-acp is required explicitly because its standalone lock
+#     is a release carrier even though the root workspace excludes the crate.
 locks_ok=0
 locks=0
 member_names="$(printf "%s\n" crates/*/ | sed "s|crates/||; s|/$||" | tr "\n" " ")"
-for lock in Cargo.lock fuzz/Cargo.lock; do
+lock_paths=(Cargo.lock fuzz/Cargo.lock crates/nika-acp/Cargo.lock)
+for excluded_lock in crates/*/Cargo.lock; do
+  [ -f "$excluded_lock" ] || continue
+  [ "$excluded_lock" = "crates/nika-acp/Cargo.lock" ] || lock_paths+=("$excluded_lock")
+done
+for lock in "${lock_paths[@]}"; do
   locks=$((locks + 1))
   if [ ! -f "$lock" ]; then
     red "$lock missing"

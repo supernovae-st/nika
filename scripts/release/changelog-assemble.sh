@@ -72,6 +72,29 @@ all_fragments() {
   find "$FRAGDIR" -maxdepth 1 -type f -name '*.md' ! -name 'README.md' 2>/dev/null | sort -V
 }
 
+release_heading_exists() {
+  local ver="$1"
+  awk -v heading="## [$ver]" '
+    $0 == heading || index($0, heading "(") == 1 || index($0, heading " ") == 1 {
+      found=1
+    }
+    END { exit(found ? 0 : 1) }
+  ' "$CHANGELOG"
+}
+
+rollback_fold() {
+  local backup="$1" index_path="$2" frag rc=0
+  shift 2
+
+  cp -p "$backup/CHANGELOG.md" "$CHANGELOG" || rc=1
+  for frag in "$@"; do
+    cp -p "$backup/fragments/$(basename "$frag")" "$frag" || rc=1
+  done
+  cp -p "$backup/index" "$index_path" || rc=1
+  rm -rf -- "$backup"
+  return "$rc"
+}
+
 # ── assemble: the [Unreleased] body, byte-for-byte what the section held ────
 assemble() {
   local sec title frag any=0
@@ -191,8 +214,12 @@ check() {
 
 # ── fold: the tag ceremony ──────────────────────────────────────────────────
 fold_release() {
-  local ver="$1" date="$2" body prev repo tmp
+  local ver="$1" date="$2" body prev repo tmp backup index_path frag mode
+  local fragments=()
   [ -f "$CHANGELOG" ] || die "no CHANGELOG.md at $ROOT" 2
+  if release_heading_exists "$ver"; then
+    die "## [$ver] already exists — refusing a duplicate release heading"
+  fi
   check >/dev/null || die "fragments do not pass --check — refusing to fold"
 
   body="$(assemble)"
@@ -209,7 +236,22 @@ fold_release() {
   [ -n "$prev" ] || die "no previous ## [x.y.z] section under [Unreleased] — cannot build the compare link"
   repo="${GITHUB_REPOSITORY:-supernovae-st/nika}"
 
-  tmp="$(mktemp)"
+  while IFS= read -r frag; do
+    [ -n "$frag" ] || continue
+    fragments+=("$frag")
+  done < <(all_fragments)
+
+  index_path="$(git -C "$ROOT" rev-parse --git-path index)" \
+    || die "cannot resolve the git index — refusing a non-transactional fold"
+  case "$index_path" in
+    /*) ;;
+    *) index_path="$ROOT/$index_path" ;;
+  esac
+  [ -f "$index_path" ] || die "git index missing at $index_path"
+  [ ! -e "$index_path.lock" ] \
+    || die "git index is locked — refusing a concurrent fold"
+
+  tmp="$(mktemp "$ROOT/.changelog-fold.XXXXXX")"
   {
     awk '/^## \[Unreleased\]/{exit} {print}' "$CHANGELOG"
     unreleased_stub
@@ -218,7 +260,34 @@ fold_release() {
     printf '%s\n' "$body"
     awk '/^## \[Unreleased\]/{g=1;next} g && /^## \[/{p=1} p{print}' "$CHANGELOG"
   } >"$tmp"
-  mv "$tmp" "$CHANGELOG"
+
+  # Snapshot every path the fold mutates, including the exact index bytes.
+  # A refusal after the changelog rewrite must restore both working tree and
+  # staging area so a retry sees the same release subject, not its own heading.
+  backup="$(mktemp -d)"
+  mkdir -p "$backup/fragments"
+  cp -p "$CHANGELOG" "$backup/CHANGELOG.md"
+  cp -p "$index_path" "$backup/index"
+  for frag in "${fragments[@]}"; do
+    cp -p "$frag" "$backup/fragments/$(basename "$frag")"
+  done
+
+  mode="$(stat -f '%Lp' "$CHANGELOG" 2>/dev/null || stat -c '%a' "$CHANGELOG")"
+  chmod "$mode" "$tmp"
+  if ! mv "$tmp" "$CHANGELOG"; then
+    rm -f -- "$tmp"
+    rm -rf -- "$backup"
+    die "could not install the assembled changelog"
+  fi
+
+  # Test seam for the exact dangerous boundary: the changelog is installed,
+  # but no fragment has been removed yet. Production callers never set it.
+  if [ "${SPN_CHANGELOG_FAIL_AFTER_WRITE:-}" = "1" ]; then
+    rollback_fold "$backup" "$index_path" "${fragments[@]}" \
+      || die "injected post-write failure; rollback was incomplete"
+    printf 'changelog-assemble: injected post-write failure; transaction rolled back\n' >&2
+    return 1
+  fi
 
   # `git rm`, not `rm`. The fold is ONE act: the section appears and the
   # fragments that made it go away together, in the same index. A plain
@@ -229,16 +298,28 @@ fold_release() {
   # one of them a second time. Measured 2026-08-24 on a scratch clone of
   # this tree: 13 deletions, 0 staged.
   #
-  # A fragment written but never committed is not `git rm`-able; it is
-  # still ours to remove, so the untracked case falls back to `rm`.
-  while IFS= read -r frag; do
-    [ -n "$frag" ] || continue
+  # `-f` is deliberate: a valid local refinement is the exact byte content
+  # assembled above, so refusing its deletion after writing the heading is
+  # less safe than staging that now-consumed input. Any later removal error
+  # restores the changelog, fragments, and index from the snapshot.
+  for frag in "${fragments[@]}"; do
     if git -C "$ROOT" ls-files --error-unmatch -- "$frag" >/dev/null 2>&1; then
-      git -C "$ROOT" rm -q -- "$frag"
+      if ! git -C "$ROOT" rm -f -q -- "$frag"; then
+        rollback_fold "$backup" "$index_path" "${fragments[@]}" \
+          || die "fragment removal failed; rollback was incomplete"
+        printf 'changelog-assemble: fragment removal failed; transaction rolled back\n' >&2
+        return 1
+      fi
     else
-      rm -f -- "$frag"
+      if ! rm -f -- "$frag"; then
+        rollback_fold "$backup" "$index_path" "${fragments[@]}" \
+          || die "untracked fragment removal failed; rollback was incomplete"
+        printf 'changelog-assemble: fragment removal failed; transaction rolled back\n' >&2
+        return 1
+      fi
     fi
-  done < <(all_fragments)
+  done
+  rm -rf -- "$backup"
 
   printf 'changelog-assemble: folded %s fragment(s) into ## [%s] · changelog.d/ is empty\n' \
     "$(printf '%s\n' "$body" | grep -c '^- \*\*' || true)" "$ver"

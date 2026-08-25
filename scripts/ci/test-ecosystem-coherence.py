@@ -12,6 +12,8 @@
 #   T3  lockstep is WARN below engine 0.97, FAIL from 0.97
 #   T4  a pre-release engine version (0.97.0-rc1) must not crash
 #   T5  every surface unreadable → WARNs only, never a crash, exit 0
+#   T8  editor drift is attributed along repo -> release -> registries,
+#       including reverse drift on every edge
 # Zero network: every URL resolves from the FIXTURES table.
 
 import datetime
@@ -35,7 +37,8 @@ def fixtures(*, tag="0.95.0", age_h=48.0, tap="0.95.0", site="0.95.0",
              sdk="0.90.0", npm="0.90.0", pack="0.1.0-draft", spec_v="0.1.0-draft",
              engine="0.95.0", vscode="0.96.0", docs="0.95.0", reg_n=21,
              action="0.95.0", starter="0.95.0", certeng="0.95.0",
-             pack_sha="b" * 40, engine_pin=None):
+             pack_sha="b" * 40, engine_pin=None, vscode_release=None,
+             marketplace=None, openvsx=None):
     R = bot.RAW
     return {
         "https://api.github.com/repos/supernovae-st/nika/releases/latest":
@@ -51,7 +54,12 @@ def fixtures(*, tag="0.95.0", age_h=48.0, tap="0.95.0", site="0.95.0",
         f"{R}/supernovae-st/nika-spec/{pack_sha}/canon.yaml": "providers: {}\n",
         f"{R}/supernovae-st/nika/main/crates/nika-pack/pack/canon.yaml": "providers: {}\n",
         f"{R}/supernovae-st/nika-vscode/main/package.json": json.dumps({"version": vscode}),
-        "https://open-vsx.org/api/supernovae/nika-lang": json.dumps({"version": vscode}),
+        bot.VSCODE_RELEASE_API: json.dumps({"tag_name": f"v{vscode_release or vscode}"}),
+        bot.VSCODE_MARKETPLACE_API: json.dumps({"results": [{"extensions": [{
+            "versions": [{"version": marketplace or vscode}]
+        }]}]}),
+        "https://open-vsx.org/api/supernovae/nika-lang":
+            json.dumps({"version": openvsx or vscode}),
         f"{R}/supernovae-st/nika/main/Cargo.toml": f'version      = "{engine}"\n',
         f"{R}/supernovae-st/nika-docs/main/snippets/_status-snapshot.mdx": f'  version: "{docs}",\n',
         f"{R}/supernovae-st/nika-registry/main/SPEC_PIN": "# pin\n" + "a" * 40 + "\n",
@@ -75,7 +83,7 @@ def fixtures(*, tag="0.95.0", age_h=48.0, tap="0.95.0", site="0.95.0",
 def run(table):
     bot.FINDINGS.clear()
     # fetch RAISES on a missing fixture the way urllib raises on a miss.
-    def fetch(url, timeout=20):
+    def fetch(url, timeout=20, **kwargs):
         if url in table:
             return table[url]
         raise OSError(f"no fixture for {url}")
@@ -85,9 +93,12 @@ def run(table):
 
 
 fails = []
+checks = 0
 
 
 def check(name, cond, detail=""):
+    global checks
+    checks += 1
     print(f"{'✓' if cond else '✗'} {name}" + (f"  {detail}" if detail and not cond else ""))
     if not cond:
         fails.append(name)
@@ -153,5 +164,51 @@ check("T7 immune legs watched (missing=WARN · trigger-less named)",
       and any(x[1] == "immune nika-plugins" and "no trigger" in x[2] for x in f)
       and all(x[0] == "WARN" for x in f if x[1].startswith("immune")), f)
 
-print(f"\nself-test: {'PASS (10/10)' if not fails else 'FAIL ' + str(fails)}")
+# T8a · package.json ahead of its GitHub release is internal/tag drift only.
+# Registries equal to that release are healthy downstream and must not inherit
+# blame merely because the repo has not been tagged yet.
+code, f = run(fixtures(vscode="0.115.0", vscode_release="0.114.0",
+                       marketplace="0.114.0", openvsx="0.114.0"))
+editor_surfaces = {x[1] for x in f if x[1].startswith("vscode ")}
+check("T8a editor repo drift does not blame matching registries",
+      "vscode release" in editor_surfaces
+      and "vscode marketplace" not in editor_surfaces
+      and "vscode openvsx" not in editor_surfaces, f)
+
+# T8b · each registry is compared with the latest GitHub release, so genuine
+# downstream publication lag remains independently visible.
+code, f = run(fixtures(vscode="0.115.0", vscode_release="0.114.0",
+                       marketplace="0.113.0", openvsx="0.112.0"))
+editor_surfaces = {x[1] for x in f if x[1].startswith("vscode ")}
+check("T8b editor release and both registries are causally watched",
+      {"vscode release", "vscode marketplace", "vscode openvsx"} <= editor_surfaces, f)
+
+# T8c · reverse repo drift is still the repo-to-release edge, but a newer
+# release must never be described as lagging an older package.json.
+code, f = run(fixtures(vscode="0.114.0", vscode_release="0.115.0",
+                       marketplace="0.115.0", openvsx="0.115.0"))
+release_detail = next(x[2] for x in f if x[1] == "vscode release")
+check("T8c newer editor release is neutral reverse repo drift",
+      "differs from repo 0.114.0" in release_detail
+      and "lags" not in release_detail, f)
+
+# T8d · Marketplace may be newer than the latest GitHub release if the
+# publication legs settle out of order; name the edge without reversing it.
+code, f = run(fixtures(vscode="0.114.0", vscode_release="0.114.0",
+                       marketplace="0.115.0", openvsx="0.114.0"))
+marketplace_detail = next(x[2] for x in f if x[1] == "vscode marketplace")
+check("T8d newer Marketplace is neutral reverse publication drift",
+      "differs from latest release 0.114.0" in marketplace_detail
+      and "lags" not in marketplace_detail, f)
+
+# T8e · OpenVSX is the other independent publication edge and gets the same
+# reverse-direction proof rather than borrowing Marketplace's verdict.
+code, f = run(fixtures(vscode="0.114.0", vscode_release="0.114.0",
+                       marketplace="0.114.0", openvsx="0.115.0"))
+openvsx_detail = next(x[2] for x in f if x[1] == "vscode openvsx")
+check("T8e newer OpenVSX is neutral reverse publication drift",
+      "differs from latest release 0.114.0" in openvsx_detail
+      and "lags" not in openvsx_detail, f)
+
+print(f"\nself-test: {'PASS (' + str(checks) + '/' + str(checks) + ')' if not fails else 'FAIL ' + str(fails)}")
 sys.exit(1 if fails else 0)
