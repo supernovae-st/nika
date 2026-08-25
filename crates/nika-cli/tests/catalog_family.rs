@@ -16,9 +16,27 @@
 //!
 //! Every seat is judged the way a user meets it — through `check`'s MODELS
 //! rung, on a real workflow, before a token is spent.
+//!
+//! #1184 widened the traversal from « the wire agrees with the catalog » to
+//! « and every surface a chooser reads SAYS SO ». The refusal rung was
+//! already honest; what was missing is that the three projections rendered a
+//! reachable and an unreachable vendor identically, so the fact only arrived
+//! after the choice was made. The loop below now judges, per row and in one
+//! pass · the shipped `--json` mark · the shipped human row · the MODELS
+//! verdict. A row can no longer be marked runnable and refused, or refused
+//! and rendered inviting.
+//!
+//! The per-row field is `resolves`, deliberately NOT « wired »: that word
+//! already names the run registry (15, `mock` excluded) in the header one
+//! line above, while this set is the 16 the MODELS rung calls runnable. One
+//! word for two sets is the A-06 confusion `machine_truth.rs` exists to
+//! cure, and `the_two_provider_words_name_two_different_sets` below is the
+//! guard that keeps them apart.
+
+use std::io::{BufRead as _, Write as _};
 
 use nika_cli::Theme;
-use nika_cli::verbs::{check, exit};
+use nika_cli::verbs::{catalog, check, exit};
 
 const PLAIN: Theme = Theme::new(false, false, false);
 
@@ -108,11 +126,25 @@ fn seat_resolves(seat: &str, slug: &str) -> bool {
         .unwrap_or_else(|| panic!("models_resolve is a bool for {seat}: {payload:#}"))
 }
 
+/// The catalog projection as the binary EMITS it (`nika catalog --json`),
+/// not as a builder would rebuild it. A test that re-derives the payload
+/// cannot see a surface that dropped the wiring chain — which is the whole
+/// defect class here.
+fn shipped_json() -> serde_json::Value {
+    let out = catalog::run(true, PLAIN);
+    assert_eq!(out.code, exit::OK, "`nika catalog --json` runs");
+    serde_json::from_str(&out.text).expect("the shipped payload is JSON")
+}
+
 #[test]
 fn every_cataloged_provider_either_seats_or_is_refused_by_name() {
     let export = nika_catalog::export::catalog_export();
     let wired: std::collections::BTreeSet<&str> =
         nika_providers::CANONICAL_IDS.into_iter().collect();
+
+    // The two SHIPPED projections, rendered once and read per row below.
+    let json = shipped_json();
+    let human = catalog::run(false, PLAIN).text;
 
     let mut seats = 0usize;
     let mut refused: Vec<&str> = Vec::new();
@@ -126,6 +158,38 @@ fn every_cataloged_provider_either_seats_or_is_refused_by_name() {
              and the adapter disagree — one of them is the lie.",
             wired.contains(p.id)
         );
+
+        // #1184 · the machine projection carries the verdict, per row.
+        let row = json["providers"]
+            .as_array()
+            .expect("providers array")
+            .iter()
+            .find(|r| r["id"] == p.id)
+            .unwrap_or_else(|| panic!("`{}` is missing from the shipped payload", p.id));
+        assert_eq!(
+            row["resolves"],
+            serde_json::Value::Bool(resolves),
+            "`{}` renders resolves={} on --json while check says resolves={resolves}. \
+             A machine consumer told to pick from this list would pick a seat that \
+             cannot run.",
+            p.id,
+            row["resolves"],
+        );
+
+        // #1184 · and the human column a user actually scans.
+        let line = human
+            .lines()
+            .find(|l| l.contains(&format!("\u{2502}  {:<14}", p.id)))
+            .unwrap_or_else(|| panic!("`{}` is missing from the human listing", p.id));
+        assert_eq!(
+            !line.contains("catalog only"),
+            resolves,
+            "`{}` reads runnable={} down the column while check says resolves={resolves}. \
+             Row: {line}",
+            p.id,
+            !line.contains("catalog only"),
+        );
+
         if resolves {
             seats += 1;
         } else {
@@ -188,6 +252,151 @@ fn the_refusal_names_the_runnable_count_and_where_to_get_the_list() {
         out.text.contains("nika doctor"),
         "and points at the surface that NAMES them: {}",
         out.text
+    );
+}
+
+/// One JSON-RPC round trip against the REAL `nika mcp` stdio server.
+///
+/// The third projection is the one an AGENT reads, and the only honest way
+/// to judge it is to call the tool the way a client does — reading the code
+/// that serves it proves the code, not the wire.
+fn mcp_roundtrip(request: &serde_json::Value) -> serde_json::Value {
+    // Same carve-out as lsp_transport.rs: driving the shipped binary IS the
+    // contract under test.
+    #[allow(clippy::disallowed_types)]
+    let mut child = std::process::Command::new(env!("CARGO_BIN_EXE_nika-cli"))
+        .arg("mcp")
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+        .expect("spawn nika mcp");
+    {
+        let mut stdin = child.stdin.take().expect("stdin");
+        writeln!(stdin, "{request}").expect("write request");
+    }
+    let stdout = child.stdout.take().expect("stdout");
+    let line = std::io::BufReader::new(stdout)
+        .lines()
+        .next()
+        .expect("the server answers")
+        .expect("a utf8 reply");
+    let _ = child.wait();
+    serde_json::from_str(&line).expect("the reply is JSON-RPC")
+}
+
+#[test]
+fn the_mcp_catalog_tool_marks_every_row_and_teaches_the_filter() {
+    // The tool description is the instruction an agent OBEYS. « Pick REAL
+    // model ids from here » over an unmarked list is an instruction to
+    // author a workflow that cannot run — 22 of 38 rows, at the time this
+    // was measured.
+    let listed = mcp_roundtrip(&serde_json::json!({
+        "jsonrpc": "2.0", "id": 1, "method": "tools/list"
+    }));
+    let entry = listed["result"]["tools"]
+        .as_array()
+        .expect("tools array")
+        .iter()
+        .find(|t| t["name"] == "nika_catalog")
+        .expect("nika_catalog is advertised over the wire");
+    let description = entry["description"].as_str().expect("a description");
+    assert!(
+        description.contains("`resolves`") && description.contains("resolves` is true"),
+        "the advertised description must tell an agent WHICH way to filter: {description}",
+    );
+
+    let called = mcp_roundtrip(&serde_json::json!({
+        "jsonrpc": "2.0", "id": 2, "method": "tools/call",
+        "params": { "name": "nika_catalog", "arguments": {} }
+    }));
+    let payload = called["result"]["content"][0]["text"]
+        .as_str()
+        .expect("the tool returns text content");
+    let value: serde_json::Value =
+        serde_json::from_str(payload).expect("the tool's payload is the catalog JSON");
+    let rows = value["providers"].as_array().expect("providers array");
+
+    let wire: std::collections::BTreeSet<&str> =
+        nika_providers::CANONICAL_IDS.into_iter().collect();
+    let mut marked = 0usize;
+    for row in rows {
+        let id = row["id"].as_str().expect("every row has an id");
+        let mark = row["resolves"]
+            .as_bool()
+            .unwrap_or_else(|| panic!("`{id}` carries no `resolves` field over MCP: {row}"));
+        assert_eq!(
+            mark,
+            wire.contains(id),
+            "`{id}` is advertised to agents as resolves={mark} while the adapter set says {}",
+            wire.contains(id),
+        );
+        if mark {
+            marked += 1;
+        }
+    }
+    assert!(
+        marked > 0 && marked < rows.len(),
+        "both sides of the split reach the agent ({marked} of {} marked) — a payload \
+         where every row lands on one side is not measuring",
+        rows.len(),
+    );
+}
+
+/// The two provider words on one screen must name two different sets,
+/// and must not be the same word (#1184 · the A-06 recurrence guard).
+///
+/// The header's « wired » is the run registry — 15, `mock` excluded.
+/// The rows' `resolves` is what the MODELS rung will accept — 16. Both
+/// are true; a single word for both is the confusion
+/// `nika-cli-host/src/machine_truth.rs` was written to cure, and a
+/// previous attempt at this field was backed out for exactly that.
+///
+/// This is the guard that makes the mistake mechanical rather than a
+/// matter of remembering: rename either concept onto the other's word
+/// and this goes red.
+#[test]
+fn the_two_provider_words_name_two_different_sets() {
+    let json = shipped_json();
+    let human = catalog::run(false, PLAIN).text;
+
+    let resolving = json["providers"]
+        .as_array()
+        .expect("providers array")
+        .iter()
+        .filter(|r| r["resolves"] == serde_json::Value::Bool(true))
+        .count();
+    assert_eq!(
+        resolving,
+        nika_providers::CANONICAL_IDS.len(),
+        "the row word counts the adapter set",
+    );
+
+    let header = human
+        .lines()
+        .find(|l| l.contains("wired in this build"))
+        .expect("the header names its own facet");
+    let header_count: usize = header
+        .chars()
+        .skip_while(|c| !c.is_ascii_digit())
+        .take_while(char::is_ascii_digit)
+        .collect::<String>()
+        .parse()
+        .expect("the header carries a count");
+
+    assert_ne!(
+        header_count, resolving,
+        "the two facets happen to be equal — this test can no longer tell \
+         a real separation from a collapsed one. Re-derive it against \
+         machine_truth.rs before touching either word. Header: {header}",
+    );
+    assert!(
+        !json["providers"][0]
+            .as_object()
+            .expect("provider object")
+            .contains_key("wired"),
+        "the row field must not be spelled `wired` — that word is taken, \
+         one line above, by a set of a different size",
     );
 }
 

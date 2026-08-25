@@ -379,6 +379,7 @@ fn found(
         .map(|(p, _)| p.as_str())
         .collect();
     let mut worst = codes::OK;
+    let mut has_drafts = false;
     if !created.is_empty() {
         writeln!(
             out,
@@ -386,14 +387,15 @@ fn found(
             chrome::rail_head(theme, "proof — audit before a single token")
         )
         .ok();
-        for (line, code) in proof_receipts(dir, &created, audit) {
-            worst = worst.max(code);
-            writeln!(out, "{line}").ok();
+        for receipt in proof_receipts(dir, &created, audit) {
+            worst = worst.max(receipt.code);
+            has_drafts |= receipt.draft;
+            writeln!(out, "{}", receipt.line).ok();
         }
     }
 
     Outcome {
-        text: ready_panel(dir, theme, choices, &created),
+        text: ready_panel(dir, theme, choices, &created, has_drafts),
         code: worst,
     }
 }
@@ -433,7 +435,13 @@ fn brief_line(theme: Theme, mark: char, text: &str) -> String {
 }
 
 /// The ready panel — created set · next moves · the docs pointer.
-fn ready_panel(dir: &str, theme: Theme, choices: &Choices, created: &[&str]) -> String {
+fn ready_panel(
+    dir: &str,
+    theme: Theme,
+    choices: &Choices,
+    created: &[&str],
+    has_drafts: bool,
+) -> String {
     let first = created
         .first()
         .map_or_else(|| "my-first.nika.yaml".to_owned(), |p| relative(dir, p));
@@ -441,6 +449,21 @@ fn ready_panel(dir: &str, theme: Theme, choices: &Choices, created: &[&str]) -> 
         || format!("nika run {first} --model mock/echo"),
         |m| format!("nika run {first} --model {m}"),
     );
+    let mut next = if has_drafts {
+        vec![
+            (
+                format!("$EDITOR {first}   # fill the remaining `<SLOT: …>` values"),
+                Role::Strong,
+            ),
+            (format!("nika check {first}"), Role::Strong),
+            (run_hint, Role::Strong),
+        ]
+    } else {
+        vec![
+            (run_hint, Role::Strong),
+            (format!("nika check {first}"), Role::Strong),
+        ]
+    };
     let mut lines: Vec<(String, Role)> = vec![
         (
             format!(
@@ -453,8 +476,9 @@ fn ready_panel(dir: &str, theme: Theme, choices: &Choices, created: &[&str]) -> 
             Role::Dim,
         ),
         (String::new(), Role::Dim),
-        (run_hint, Role::Strong),
-        (format!("nika check {first}"), Role::Strong),
+    ];
+    lines.append(&mut next);
+    lines.extend([
         (
             "nika explain <NIKA-XXXX>   # every finding teaches".to_owned(),
             Role::Dim,
@@ -467,7 +491,7 @@ fn ready_panel(dir: &str, theme: Theme, choices: &Choices, created: &[&str]) -> 
             ),
             Role::Dim,
         ),
-    ];
+    ]);
     if !choices.wires.is_empty() {
         lines.insert(
             1,

@@ -7,7 +7,7 @@
 //!
 //! This file owns exactly what a root owns: the door (bare-TTY → the
 //! founding wizard · anything scripted → receipts), the two injected
-//! effects (the REAL audit ladder = `check::run` · the REAL MCP wiring
+//! effects (the REAL audit ladder = `check::run_scaffold` · the REAL MCP wiring
 //! = `wire::run`), and the `VerbOutput` re-wrap. The conversation, the
 //! recipes, the briefs and the report shapes all live in the member.
 
@@ -72,7 +72,7 @@ pub fn run(
     // The REAL effects, injected (the member never learns what proving
     // or wiring mean — the root does).
     let audit = move |path: &str| {
-        let v = crate::verbs::check::run(path, false, false, None, theme);
+        let v = crate::verbs::check::run_scaffold(path, theme);
         nika_onboard::Outcome {
             text: v.text,
             code: v.code,
@@ -234,6 +234,38 @@ mod tests {
         assert!(
             !tmp.join("nika.yaml").exists(),
             "no flag, no project file — never laid silently"
+        );
+        std::fs::remove_dir_all(&tmp).ok();
+    }
+
+    /// A recipe may deliberately contain author slots. Init accepts that
+    /// one expected draft class, keeps the receipt honest, and hands over
+    /// to editing before check/run. The public check door still refuses it.
+    #[test]
+    fn scripted_drafts_hand_over_to_edit_before_run() {
+        let tmp = std::env::temp_dir().join(format!("nika-init-draft-{}", std::process::id()));
+        std::fs::remove_dir_all(&tmp).ok();
+        std::fs::create_dir_all(&tmp).expect("mkdir");
+        let out = run(
+            tmp.to_str().expect("utf8"),
+            false,
+            true,
+            Some("agentic"),
+            None,
+            None,
+            &[],
+            false,
+            PLAIN,
+        );
+        assert_eq!(out.code, exit::OK, "{}", out.text);
+        assert!(out.text.contains("not a workflow yet"), "{}", out.text);
+        let editor = out.text.find("$EDITOR").expect("editor handoff");
+        let check = out.text.find("nika check").expect("check handoff");
+        let run = out.text.find("nika run").expect("run handoff");
+        assert!(
+            editor < check && check < run,
+            "edit → check → run: {}",
+            out.text
         );
         std::fs::remove_dir_all(&tmp).ok();
     }
