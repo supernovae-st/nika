@@ -2,13 +2,47 @@
 # Regression proof for the release-wave composition and carrier contract.
 set -euo pipefail
 
+# A test that runs git must not let the CALLER'S git environment redirect it.
+# `git -C` scopes the directory, never the index: an inherited GIT_INDEX_FILE
+# (or GIT_DIR / GIT_WORK_TREE) points this test's own fixture commits at the
+# repository it was invoked from — measured as a `fixture` commit riding a
+# real branch while the test printed PASS (issue 1237). Hooks export these.
+unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_PREFIX GIT_COMMON_DIR \
+  GIT_OBJECT_DIRECTORY GIT_ALTERNATE_OBJECT_DIRECTORIES GIT_NAMESPACE \
+  GIT_QUARANTINE_PATH
+
+# Snapshot the repository the test was invoked from, if any, so the exit trap
+# can prove the run never touched it. The tree may legitimately be dirty
+# before the run; the contract is equality, not emptiness.
+CALLER_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+CALLER_HEAD=""
+CALLER_STATUS=""
+if [ -n "$CALLER_ROOT" ]; then
+  CALLER_HEAD="$(git -C "$CALLER_ROOT" rev-parse HEAD)"
+  CALLER_STATUS="$(git -C "$CALLER_ROOT" status --porcelain)"
+fi
+
+verify_caller_untouched() {
+  [ -n "$CALLER_ROOT" ] || return 0
+  if [ "$(git -C "$CALLER_ROOT" rev-parse HEAD)" != "$CALLER_HEAD" ]; then
+    printf 'release-tooling.test: FAIL · the test moved HEAD in %s\n' \
+      "$CALLER_ROOT" >&2
+    exit 1
+  fi
+  if [ "$(git -C "$CALLER_ROOT" status --porcelain)" != "$CALLER_STATUS" ]; then
+    printf 'release-tooling.test: FAIL · the test wrote into %s\n' \
+      "$CALLER_ROOT" >&2
+    exit 1
+  fi
+}
+
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$HERE/../../.." && pwd)"
 TEST_ROOT="$(mktemp -d)"
 FIXTURE="$TEST_ROOT/clean"
 DIRTY_FIXTURE="$TEST_ROOT/dirty"
 ROLLBACK_FIXTURE="$TEST_ROOT/rollback"
-trap 'rm -rf "$TEST_ROOT"' EXIT
+trap 'rm -rf "$TEST_ROOT"; verify_caller_untouched' EXIT
 
 fail() {
   printf 'release-tooling.test: %s\n' "$1" >&2
