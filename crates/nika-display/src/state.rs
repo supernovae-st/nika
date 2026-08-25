@@ -99,6 +99,15 @@ pub struct TaskRow {
     /// the task succeeded, but the console must say what the trace
     /// knows, or a green run silently feeds "" downstream.
     pub warning: Option<String>,
+    /// The upstream that kept this row's gate closed — the `blocked_by`
+    /// field of `task_cancelled`, which the runtime has always emitted
+    /// and this fold used to drop on the floor.
+    ///
+    /// Without it a gated row can only say `gate: an edge did not
+    /// admit`: no edge, no producer, no outcome. The reader is told a
+    /// gate exists and nothing else, on the one row that never ran
+    /// (#1198). The trace carried the answer the whole time.
+    pub blocked_by: Option<String>,
 }
 
 impl TaskRow {
@@ -305,11 +314,7 @@ impl RunView {
                 }
             }
             // §3.1 blocked `⊘` — a decision, not a defect (dim · never red).
-            EventKind::TaskCancelled => {
-                if let Some(i) = self.touch(event, TaskState::Cancelled) {
-                    self.rows[i].ended_ms = Some(ts);
-                }
-            }
+            EventKind::TaskCancelled => self.cancel_row(event, ts),
             EventKind::WorkflowCompleted => {
                 self.verdict = Some(true);
                 self.absorb_terminal_cost(event);
@@ -426,6 +431,22 @@ impl RunView {
         }
     }
 
+    /// Settle a gate/cascade cancellation, keeping the gate's WHY.
+    ///
+    /// `blocked_by` names the upstream whose settle closed the edge. The
+    /// runtime has always emitted it and this fold used to drop it, so
+    /// the row could only echo the runtime's own note — which names no
+    /// edge, no upstream and no outcome (#1198). Kept as the FACT here;
+    /// the render reads the producer's outcome off the producer's own
+    /// row.
+    fn cancel_row(&mut self, event: &Event, ts: i64) {
+        let culprit = str_field(event, "blocked_by").map(str::to_owned);
+        if let Some(i) = self.touch(event, TaskState::Cancelled) {
+            self.rows[i].ended_ms = Some(ts);
+            self.rows[i].blocked_by = culprit;
+        }
+    }
+
     /// Upsert the row a task event addresses, updating state + notes.
     /// Returns the row index so the caller can stamp kind-specific facts.
     fn touch(&mut self, event: &Event, state: TaskState) -> Option<usize> {
@@ -453,6 +474,7 @@ impl RunView {
                 cached: false,
                 recovered: false,
                 warning: None,
+                blocked_by: None,
             });
             let i = self.rows.len() - 1;
             self.index.insert(task_id.to_owned(), i);

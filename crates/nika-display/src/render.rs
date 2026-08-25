@@ -431,6 +431,38 @@ fn display_note(row: &TaskRow, view: &RunView) -> String {
                 _ => "blocked · upstream failed".to_owned(),
             }
         }
+        // The GATE cancellation (#1198) — the runtime names the producer
+        // whose settle closed the edge, and the producer's own row says
+        // what it settled AS. Both were already on screen; the note
+        // spoke neither, so `gate: an edge did not admit` was the whole
+        // of what a reader got: no edge, no upstream, no outcome.
+        //
+        // The outcome is the load-bearing half. A gate closes when the
+        // producer settled OUTSIDE the pass-set the binding admits, and
+        // the case that reads as a contradiction is exactly the one that
+        // says `ok`: a `tasks.X.error` binding admits {failure, skipped}
+        // and a task that SUCCEEDED has no error to read, so the
+        // consumer is a dead path. That is the gate working. Naming the
+        // outcome is what turns it from a wall into a sentence.
+        (TaskState::Cancelled, "gate: an edge did not admit") => {
+            match &row.blocked_by {
+                Some(producer) => {
+                    let settled = view.rows().iter().find(|r| r.id == *producer).map_or(
+                        "never settled",
+                        |r| match r.state {
+                            TaskState::Ok => "ok",
+                            TaskState::Failed => "failed",
+                            TaskState::Skipped => "skipped",
+                            TaskState::Cancelled => "blocked",
+                            _ => "never settled",
+                        },
+                    );
+                    format!("blocked · {producer} settled {settled} · no binding here admits that")
+                }
+                None => "blocked · an upstream settled outside what this task's bindings admit"
+                    .to_owned(),
+            }
+        }
         _ => row.note.clone(),
     }
 }
