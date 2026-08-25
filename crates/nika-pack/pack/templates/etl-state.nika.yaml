@@ -30,10 +30,10 @@
 #     `on_error:` below handles exactly that, but `check` does not model
 #     recovery. First run creates it.
 #
-# GOLDEN LANE · `nika test` pauses at the gate BY DESIGN (the blocking
-#   prompt has no headless answer seam yet) — the pin lane waits on a
-#   `nika test --answer <task>=<value>` passthrough. The pause is the
-#   trifecta lesson working, not a broken scaffold.
+# GOLDEN LANE · the gate stays blocking and default-free. Pin the declined
+#   branch with `nika test <file> --answer approve=false --update`: the answer
+#   belongs to this invocation, never to the workflow. Adding `default:` here
+#   still completes the lethal trifecta and opens NIKA-SEC-009.
 #
 # Needs · nothing to rehearse. For REAL use: a reachable source in
 #   `const.source_url` — then delete the `on_error:` on `fresh`.

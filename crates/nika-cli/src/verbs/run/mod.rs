@@ -675,16 +675,29 @@ fn composed_runtime(
 /// only), so the caller owns stdout for its own verdict/diff surface.
 /// `skills` = the composer-resolved SKILL.md texts (#473 · the caller
 /// gates their findings first, same as `run`).
+#[cfg(test)]
 pub(crate) fn capture_mock_outputs(
     wf: &RawWorkflow,
     report: &CheckReport,
     skills: BTreeMap<String, String>,
     theme: Theme,
 ) -> Result<(u8, BTreeMap<String, Value>), String> {
+    capture_mock_outputs_with_answers(wf, report, skills, BTreeMap::new(), theme)
+}
+
+/// [`capture_mock_outputs`] with operator-bound prompt decisions for
+/// `nika test --answer TASK=VALUE`.
+pub(crate) fn capture_mock_outputs_with_answers(
+    wf: &RawWorkflow,
+    report: &CheckReport,
+    skills: BTreeMap<String, String>,
+    answers: BTreeMap<String, Value>,
+    theme: Theme,
+) -> Result<(u8, BTreeMap<String, Value>), String> {
     let caps = capabilities_of(wf);
     let runtime = simulated_runtime("mock/echo", caps, wf.run.as_ref().map(|s| &s.value))
         .map_err(|e| e.to_string())?;
-    let runtime = runtime.with_skills(skills);
+    let runtime = runtime.with_skills(skills).with_prompt_answers(answers);
     let rt = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()

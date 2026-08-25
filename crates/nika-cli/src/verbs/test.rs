@@ -52,6 +52,15 @@ fn refuse_stdin() -> u8 {
 /// The `nika test <file> [--update]` verb (spec §4 exit contract).
 #[must_use]
 pub fn run(file: &str, update: bool, theme: Theme) -> u8 {
+    run_with_answers(file, update, &[], theme)
+}
+
+/// The golden test with explicit answers for blocking `nika:prompt` tasks.
+///
+/// An answer is an operator decision for this invocation. It never edits the
+/// workflow and therefore never turns a security gate into a headless default.
+#[must_use]
+pub fn run_with_answers(file: &str, update: bool, answer: &[String], theme: Theme) -> u8 {
     if file == "-" {
         return refuse_stdin();
     }
@@ -73,19 +82,34 @@ pub fn run(file: &str, update: bool, theme: Theme) -> u8 {
         return out.code;
     }
 
+    let answers = match nika_dap::resume::parse_answers(answer, &wf) {
+        Ok(answers) => answers,
+        Err(message) => {
+            eprintln!("nika test: environment: {message}");
+            return exit::ENV;
+        }
+    };
+
     // ── The mock run (simulated plane · offline · deterministic) ──────
-    let (code, outputs) =
-        match super::run::capture_mock_outputs(&wf, &report, resolved.texts, theme) {
-            Ok(pair) => pair,
-            Err(message) => {
-                eprintln!("nika test: environment: {message}");
-                return exit::ENV;
-            }
-        };
+    let (code, outputs) = match super::run::capture_mock_outputs_with_answers(
+        &wf,
+        &report,
+        resolved.texts,
+        answers,
+        theme,
+    ) {
+        Ok(pair) => pair,
+        Err(message) => {
+            eprintln!("nika test: environment: {message}");
+            return exit::ENV;
+        }
+    };
     if code != exit::OK {
         eprintln!(
             "nika test: the mock run failed (exit {code}) — a golden pins a \
-             GREEN run · fix the workflow (or its var defaults) first"
+             GREEN run · fix the workflow first. If a blocking `nika:prompt` \
+             needs a decision, rerun with `--answer TASK=VALUE`; never add a \
+             headless default to a security gate"
         );
         return code;
     }
@@ -359,6 +383,52 @@ mod tests {
         let hint = missing_golden_hint(&file, &golden_path_of(&file));
         assert!(hint.contains("--update"), "says HOW: {hint}");
         assert!(hint.contains(".golden.json"), "names the pin: {hint}");
+    }
+
+    #[test]
+    fn explicit_answer_runs_a_blocking_prompt_without_a_default() {
+        let dir = std::env::temp_dir().join("nika-cli-test-verb");
+        std::fs::create_dir_all(&dir).expect("tmp dir");
+        let path = dir.join("answered-gate.nika.yaml");
+        std::fs::write(
+            &path,
+            "nika: answered-gate\nmodel: mock/echo\npermits: { tools: [\"nika:prompt\"] }\ntasks:\n  approve:\n    invoke:\n      tool: \"nika:prompt\"\n      args: { message: \"continue?\" }\noutputs:\n  answer: ${{ tasks.approve.output }}\n",
+        )
+        .expect("fixture written");
+        let file = path.to_string_lossy();
+        std::fs::remove_file(golden_path_of(&file)).ok();
+
+        assert_ne!(
+            run(&file, true, plain_theme()),
+            exit::OK,
+            "the default-free gate stays blocking without an operator answer"
+        );
+        assert_eq!(
+            run_with_answers(&file, true, &["approve=false".to_owned()], plain_theme(),),
+            exit::OK,
+            "the invocation-bound decline executes safely"
+        );
+        let golden = std::fs::read_to_string(golden_path_of(&file)).expect("golden written");
+        assert!(
+            golden.contains("false"),
+            "the explicit decision is pinned: {golden}"
+        );
+        assert!(
+            !std::fs::read_to_string(&path)
+                .expect("workflow kept")
+                .contains("default:"),
+            "nika test never edits the security gate"
+        );
+    }
+
+    #[test]
+    fn answer_for_a_non_prompt_task_refuses_instead_of_disappearing() {
+        let wf = stage("non-prompt-answer.nika.yaml");
+        let file = wf.to_string_lossy();
+        assert_eq!(
+            run_with_answers(&file, true, &["gen=yes".to_owned()], plain_theme()),
+            exit::ENV
+        );
     }
 
     /// A dirty file never judges a golden — the check findings render
