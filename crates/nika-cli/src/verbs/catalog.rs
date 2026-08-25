@@ -119,10 +119,28 @@ fn human_listing(
 ) -> String {
     let models: usize = export.providers.iter().map(|p| p.models.len()).sum();
 
-    let mut local: Vec<&ProviderExport> = export.providers.iter().filter(|p| p.local).collect();
+    // Three sections, because the GROUP is the marker. A per-row
+    // « catalog only » suffix was correct and unreadable: 22 of 38 rows
+    // repeated the same 30 characters, so the fact a reader needed had
+    // to be found by scanning for its ABSENCE. LOCAL and CLOUD now hold
+    // only what this build resolves, in the doctrine order; everything
+    // the engine has no adapter for sits under its own head, where one
+    // sentence covers all of them.
+    let mut local: Vec<&ProviderExport> = export
+        .providers
+        .iter()
+        .filter(|p| p.local && p.resolves)
+        .collect();
     local.sort_by_key(|p| p.id);
-    let mut cloud: Vec<&ProviderExport> = export.providers.iter().filter(|p| !p.local).collect();
+    let mut cloud: Vec<&ProviderExport> = export
+        .providers
+        .iter()
+        .filter(|p| !p.local && p.resolves)
+        .collect();
     cloud.sort_by(|a, b| cloud_rank(a.id).cmp(&cloud_rank(b.id)));
+    let mut catalog_only: Vec<&ProviderExport> =
+        export.providers.iter().filter(|p| !p.resolves).collect();
+    catalog_only.sort_by_key(|p| p.id);
 
     let mut out = listing_header(theme, truth, models);
     out.push('\n');
@@ -177,6 +195,17 @@ fn human_listing(
     for p in cloud {
         out.push_str(&provider_line(p, theme, None));
     }
+    if !catalog_only.is_empty() {
+        out.push('\n');
+        out.push_str(&chrome::rail_head(
+            theme,
+            "CATALOG ONLY (no adapter in this build · nika check refuses these)",
+        ));
+        out.push('\n');
+        for p in catalog_only {
+            out.push_str(&provider_line(p, theme, None));
+        }
+    }
     out.push_str(
         "\nnika catalog --json → the machine projection (models · capabilities · context windows · resolves)",
     );
@@ -197,10 +226,12 @@ fn cloud_rank(id: &str) -> (u8, &str) {
 
 /// One provider line of the human listing. A local engine whose
 /// EFFECTIVE endpoint sits off-loopback (an operator override) is NAMED
-/// with endpoint + locus — the ink the honest header saved (P0-20). A
-/// row this build has no wire for says so ON THE ROW (#1184): an
-/// aggregate in the header does not survive the scan a user actually
-/// performs, which is down the column of names.
+/// with endpoint + locus — the ink the honest header saved (P0-20).
+///
+/// The row carries no resolvability marker: its SECTION does (#1184).
+/// An aggregate in the header does not survive the scan a user actually
+/// performs — but neither does the same suffix repeated on 22 of 38
+/// rows, which is what marking each one produced.
 fn provider_line(p: &ProviderExport, theme: Theme, locus: Option<&LocalLocus>) -> String {
     // B-6b (the gauntlet's Marta): `native` sits under the « zero key ·
     // zero network » banner, but in-process GGUF inference needs the
@@ -218,11 +249,6 @@ fn provider_line(p: &ProviderExport, theme: Theme, locus: Option<&LocalLocus>) -
     } else {
         "no key"
     };
-    let resolve_note = if p.resolves {
-        ""
-    } else {
-        " · catalog only — does not resolve in this build"
-    };
     let locus_note = match locus {
         Some(l) if l.locus != ExecutionLocus::Loopback => format!(
             " → {} ({})",
@@ -238,10 +264,7 @@ fn provider_line(p: &ProviderExport, theme: Theme, locus: Option<&LocalLocus>) -
             &format!(
                 " {}{}{}",
                 theme.paint(Role::Strong, &format!("{:<14}", p.id)),
-                theme.paint(
-                    Role::Dim,
-                    &format!(" {:>2} models · {key}{resolve_note}", p.models.len()),
-                ),
+                theme.paint(Role::Dim, &format!(" {:>2} models · {key}", p.models.len()),),
                 theme.paint(Role::Dim, &locus_note),
             ),
         )
@@ -309,36 +332,31 @@ mod tests {
     /// never carries a call to action (`native` invited « nika model
     /// pull » into a door that refuses at check).
     #[test]
-    fn a_non_resolving_row_says_so_and_offers_no_verb() {
+    fn a_non_resolving_row_sits_below_the_head_and_offers_no_verb() {
         let text = run(false, PLAIN).text;
         let export = resolvable_export();
-        for p in export.providers.iter().filter(|p| !p.resolves) {
-            let row = text
-                .lines()
-                .find(|l| l.contains(&format!("\u{2502}  {:<14}", p.id)))
+        let head = text
+            .find("CATALOG ONLY")
+            .expect("the listing separates what runs from what it merely knows");
+        for p in &export.providers {
+            let at = text
+                .find(&format!("\u{2502}  {:<14}", p.id))
                 .unwrap_or_else(|| panic!("provider `{}` missing from the listing", p.id));
-            assert!(
-                row.contains("catalog only"),
-                "non-resolving provider `{}` reads as runnable: {row}",
+            assert_eq!(
+                at < head,
+                p.resolves,
+                "provider `{}` sits in the wrong block (resolves={})",
                 p.id,
-            );
-            assert!(
-                !row.contains("nika model pull"),
-                "non-resolving provider `{}` still invites a verb: {row}",
-                p.id,
+                p.resolves,
             );
         }
-        for p in export.providers.iter().filter(|p| p.resolves) {
-            let row = text
-                .lines()
-                .find(|l| l.contains(&format!("\u{2502}  {:<14}", p.id)))
-                .unwrap_or_else(|| panic!("provider `{}` missing from the listing", p.id));
-            assert!(
-                !row.contains("catalog only"),
-                "resolving provider `{}` reads as unreachable: {row}",
-                p.id,
-            );
-        }
+        // An unreachable row carries no call to action: `native` invited
+        // « nika model pull » into a door that refuses at check.
+        let below = &text[head..];
+        assert!(
+            !below.contains("nika model pull"),
+            "a CATALOG ONLY row still invites a verb:\n{below}",
+        );
     }
 
     #[test]
