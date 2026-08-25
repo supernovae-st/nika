@@ -213,7 +213,18 @@ mod tests {
     #[test]
     #[allow(clippy::disallowed_methods)] // process-global cwd needs real OS threads
     fn concurrent_run_rooms_are_serialized_and_restore_the_caller() {
-        let caller = std::env::current_dir().expect("caller cwd");
+        // Both reads of the cwd — the baseline here and the restoration at
+        // the end — ride the lease that governs it. Without them this test
+        // measured whichever sibling happened to own the process: it went
+        // red on main with `left` = `cwd::tests`'s chdir-storm room while
+        // this test's own restore had already put the process back. The
+        // production path was never at fault; the assertion was simply not
+        // well-defined outside the lease. Reproduced 2/20 by running this
+        // test WITH the storm (the full suite hides it — 12/12 green).
+        let caller = {
+            let _lease = crate::cwd::hold();
+            std::env::current_dir().expect("caller cwd")
+        };
         let first = tempfile::tempdir().expect("first room");
         let second = tempfile::tempdir().expect("second room");
         let first_path = first.path().to_path_buf();
@@ -247,6 +258,13 @@ mod tests {
             std::fs::canonicalize(second.path()).expect("canonical second")
         );
         second_thread.join().expect("second joins");
-        assert_eq!(std::env::current_dir().expect("restored cwd"), caller);
+        // Both rooms are closed, so taking the lease here cannot deadlock —
+        // it only excludes the siblings that are allowed to hold the
+        // process elsewhere while this claim is being read.
+        let restored = {
+            let _lease = crate::cwd::hold();
+            std::env::current_dir().expect("restored cwd")
+        };
+        assert_eq!(restored, caller);
     }
 }
