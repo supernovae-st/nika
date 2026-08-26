@@ -94,16 +94,16 @@ showcase:
     sha256_16: 12511bfc77f3f05e
   - file: examples/corpus-digest.nika.yaml
     name: corpus-digest
-    constructs: [fail_fast, for_each, local_model, max_parallel, on_error, outputs, schema, thinking, timeout, typed_inputs, when, with]
-    sha256_16: 67dca681be847374
+    constructs: [fail_fast, for_each, local_model, max_parallel, on_error, outputs, schema, timeout, typed_inputs, when, with]
+    sha256_16: 3660c624881ecf12
   - file: examples/csv-chart-report.nika.yaml
     name: csv-chart-report
     constructs: [outputs, with]
     sha256_16: bef2fcf4d65c86b1
   - file: examples/deep-research-brief.nika.yaml
     name: deep-research-brief
-    constructs: [agent_tools, local_model, outputs, schema, thinking, typed_inputs, with]
-    sha256_16: 280b7214aed44d5b
+    constructs: [agent_tools, local_model, outputs, schema, typed_inputs, with]
+    sha256_16: 3eec94752242fc49
   - file: examples/etl-quarantine.nika.yaml
     name: etl-quarantine
     constructs: [on_error, outputs, when, with]
