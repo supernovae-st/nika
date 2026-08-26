@@ -490,7 +490,17 @@ fn check(args: &Value) -> Result<String, String> {
     // audited a hallucinated model green — cross every requirement against
     // the RESOLVER law shared with the CLI rung (nika-providers), plus its
     // sister catalog law (advisory — `clean` is untouched).
-    let (model_findings, catalog_warnings) = model_crosscheck(&report);
+    let (mut model_findings, catalog_warnings) = model_crosscheck(&report);
+    // The `infer.thinking` laws ride the SAME findings rail as the resolver
+    // refusals (the CLI twin's fold at `check/mod.rs` — one verdict, both
+    // machine lanes): without it a self-defeating thinking budget read "clean".
+    model_findings.extend(nika_check::thinking_findings(&wf).into_iter().map(|f| {
+        serde_json::json!({
+            "model": f.model,
+            "tasks": [f.task],
+            "why": f.why,
+        })
+    }));
     // The is_clean mirror law, applied to the native-first lane. `hints`
     // are NOT part of `is_clean()`, so a workflow whose real work sits in
     // `exec python3 helper.py` used to come back here as a bare "✔ clean"
@@ -1200,7 +1210,18 @@ mod tests {
         );
     }
 
-    /// P0-6's second answer rides the MCP verdict too: the CLI card shows
+    /// The thinking laws ride the same `model_findings` rail as the resolver
+    /// refusals (the CLI twin's fold at `check/mod.rs` — pinned negative).
+    #[test]
+    fn check_surfaces_the_thinking_laws_like_the_cli_twin() {
+        let wf = "nika: t\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  a:\n    infer:\n      prompt: x\n      max_tokens: 10\n      thinking: { enabled: true, budget_tokens: 10 }\n";
+        let out = execute("nika_check", &json!({ "workflow": wf }))
+            .expect_err("a thinking-law violation is dirty");
+        assert!(
+            out.contains("model_findings") && out.contains("budget_tokens"),
+            "the thinking finding rides model_findings, CLI-shaped: {out}"
+        );
+    }
     /// the risk grade on EVERY audited card — a bare « ✔ clean » that
     /// never names the rope is the false-green shape this oracle exists to
     /// kill (a declared effect is Supervised, and the agent reading this
