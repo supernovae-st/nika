@@ -11,7 +11,7 @@ homepage.workspace     = true
 publish                = false  # Foundation crate — never on crates.io. See feedback_publish_false_foundation_strategy.md + ADR-017.
 
 [dependencies]
-nika-error = { path = "../nika-error", version = "0.114.0" }
+nika-error = { path = "../nika-error", version = "0.115.0" }
 phf        = { workspace = true }
 unicase    = { workspace = true }
 thiserror  = { workspace = true }
@@ -52,7 +52,7 @@ builtins-transforms  = []
 
 [build-dependencies]
 # The TOML→Rust generator (unit-tested library · D-2026-06-10-N4 WIRE).
-nika-catalog-codegen = { path = "../nika-catalog-codegen", version = "0.114.0" }
+nika-catalog-codegen = { path = "../nika-catalog-codegen", version = "0.115.0" }
 
 [dev-dependencies]
 criterion  = { workspace = true }

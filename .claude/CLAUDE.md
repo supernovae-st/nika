@@ -131,7 +131,7 @@ dylint + nika-lints — custom architectural lints (Phase 4+)
 |------------------|------------------------------------------------|
 | branch           | `fix/w5-dataflow-admission-spec-pinned`                                      |
 | HEAD             | `d74a438b1` (`d74a438b1d46c532cd6624fd3b5a5063b9fb2e81`)             |
-| workspace        | v0.114.0                                  |
+| workspace        | v0.115.0                                  |
 | crates (workspace)| 71                                              |
 | crates (admitted)| 63                                             |
 | crates (WIP)     | 8 — nika-chart nika-fx nika-proof nika-store nika-harness nika-execution nika-service-execution nika-serve                                  |

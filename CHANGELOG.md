@@ -16,6 +16,415 @@ section below at tag time (`bash scripts/release/changelog-assemble.sh --fold
 pull requests collided on 2026-08-24 with no source overlap between them, and
 `--check` refuses a hand-written bullet in this section.
 
+## [0.115.0](https://github.com/supernovae-st/nika/compare/v0.114.0..v0.115.0) - 2026-08-26
+
+### Added
+
+- **`nika check --json` carries one-obvious-way lints.** `hints[]`
+  rows with `kind: "one-obvious-way"` and `code: "one-obvious-way/NNN"`
+  (advice starts with the rule id), the same door native-first already
+  had. Warnings, never errors — `clean` stays true.
+- **The next tagged binary includes the harness access class.**
+  `release.yml` builds `--features local-infer,access-harness`. The
+  160 KB `nika-harness` crate has been on main, API-frozen, since
+  2026-08-08, and was compiled out of every downloadable binary.
+  `agent:` tasks can sit on a detected harness via `--access <seat>`
+  once that tag ships. Infer-grade harness (P4 · `infer:` on a seat)
+  stays parked. `crates/nika-acp` stays a quarantined workspace (the
+  official SDK's `preserve_order` must never unify into the engine);
+  Diamond CI now runs its five batteries against `nika-harness` over
+  a process boundary. `metal` stays off (candle 0.10 kernel dies at
+  first token).
+- **One-shot `infer:` tasks can use a proved Codex subscription seat.** The
+  adapter runs `codex exec --json` with schema enforcement, rejects extra
+  turns or implicit tools, and records subscription quota without inventing
+  a token count, USD price, or responding-model claim.
+- **Every shipped example now runs in CI, not just audits.** The 53-example
+  pack gained a manifest-driven family gate (`pack_examples_family`): each
+  example is launched through `nika try` (or a staged `nika run` for the
+  human-gated ones) under the offline mock seat, hermetically. Skips are
+  explicit and counted — the seatbelt-confined git/cargo examples run as
+  known-fail legs that fail the gate the day they heal.
+
+### Changed
+
+- **`capture: structured` no longer turns a jail EPERM into a green run
+  (#1068).** A confinement denial (`cat: …: Operation not permitted` /
+  `Permission denied`, a `sandbox-exec:` / `bwrap:` line, status 126) is
+  `NIKA-SEC-001` in every capture mode. A program's own non-zero stays
+  data under `structured`. Seatbelt and bwrap share the same stderr table
+  so Linux cannot re-open the hole the macOS path already closed.
+- **A `for_each` failure names the item.** The parent note and the
+  error message carry the compact item identity (and which values
+  recovered when `on_error: skip` nulled a slot). The trace no longer
+  records only a count.
+- **OpenAPI lists the live POST statuses.** `GET /v1/openapi.json` names
+  400, 408, 409, 413, 415, 503, and 507 on `POST /v1/jobs` next to
+  200/202/401/422. `info.description` names that `POST /v1/run` is
+  absent. `GET /v1/jobs/{id}/status` stays `{status}` only; diagnosis
+  lives on `GET /v1/jobs/{id}` and SSE.
+- **Failed HTTP jobs name a NIKA code.** `GET /v1/jobs/{id}` grows an
+  optional `{error:{code,message}}` on `failed`. SSE settled/refused
+  frames may carry the same redacted pair. Paths and secret-shaped
+  fields stay dropped. Succeeded jobs omit `error`.
+- **POST `/v1/jobs` 422 names the capture diagnosis.** A parse-fatal or
+  check-fatal world returns `{error:{code,message}}` with the NIKA code
+  when the engine stamped one, including analysis codes (AUTH/SEC)
+  that live on `finding.code`. Symlink and other capture refuses stay
+  `admission_refused`. Paths stay dropped.
+- **Token-file refusal is typed.** `ServerError::Credential` now names
+  unreadable, not a regular file, insecure mode, or invalid material.
+  `nika serve --bind` still prints the openssl mint and never echoes
+  bytes. Missing `--token-file` is unchanged. Paths stay dropped.
+- **`nika doctor` uses the same token-file policy as `nika serve`.** A
+  short, non-graphic, or symlink `.nika/serve.token` is a fail with the
+  openssl mint, not an owner-only green. Group/world-readable still
+  names `chmod 600`. The row stays silent when the file is absent.
+- **`nika serve --bind` prints the token mint instead of an opaque
+  credential refusal.** Missing `--token-file`, a short secret, or a
+  group/world-readable file all teach
+  `umask 077 && openssl rand -hex 24 > .nika/serve.token && chmod 600
+  .nika/serve.token` and never echo the bytes. The HTTP door still
+  refuses to mint a secret on its own.
+- **The listen line names the next hop.** After bind it prints
+  `GET /health`, authenticated `GET /v1/openapi.json`, and
+  `POST /v1/jobs` with Bearer plus Idempotency-Key. A non-loopback
+  bind adds that the blast radius is every workflow in `--workflows`.
+  `GET /health` JSON stays the ADR-117 identity allowlist.
+- **Action dogfood no longer runs on tags.** `install.sh` resolves the
+  latest published binary, which lags the tagged tree until release.yml
+  finishes. The smoke workflow now lives outside the checkout so project
+  discovery cannot walk into this engine's `nika.yaml`. An additive
+  `working-directory` input on the composite action is the seam.
+- **The `local` row counts what is supported, not what is here.** Under a
+  « this machine » header it listed `ollama · lmstudio · llamacpp ·
+  localai · vllm` with nothing listening on any of them — the names are
+  what the BINARY supports, the header promises what the MACHINE has. The
+  row now says how many keyless engines exist and names the probe
+  (`nika doctor --ping`). `nika catalog` still names them, where naming
+  them is true.
+- **`check --fix` keeps the filed #905 fixture YAML-parseable.** The
+  round judge already rolled back a broken write; the under-indented
+  `description: |` body (29 of 37 files in the original wave) is now a
+  unit of that judge, and `nika check --fix` on the 7-line repro cannot
+  announce a repair and leave PARSE-001. A repair that cannot re-parse
+  still refuses; the file on disk stays YAML.
+- **`permits.fs` `~/` and `$HOME/` grants expand at run.** A confined
+  `exec` can name `~/.gitconfig` instead of one laptop's `/Users/…`
+  path, so the grant that makes `git` (or `python3`, or any tool that
+  reads its own installed state) work is one a shared workflow can
+  commit. Expansion uses the operator `HOME`; `~user` and another
+  tree stay out, and `permits.exec: ["git"]` still does not grant the
+  homedir — the author names `~/.gitconfig`.
+- **An unfilled scaffold refuses at `check`, before the spend.** `nika
+  new chain` laid its `SLOT` markers as YAML **comments**, which the
+  parser drops by construction — so `check` mentioned none of them, the
+  run exited 0, and `output.md` was left holding the scaffold's own
+  prompt echoed back by a mock: a file that outlives the terminal line
+  explaining it. A comment cannot refuse, so the marker descends into
+  the VALUE (`<SLOT: what should the model do with the gathered text?>`)
+  where the parser sees it. Seven shipped skeletons now carry one, and
+  `check` names each unfilled slot with its line and closes on one
+  pasteable command. The refusal is worded as a step, not a fault —
+  `not a workflow yet — 1 slot to fill, then it audits` — because
+  someone who just typed `nika new` did nothing wrong. Fill it and the
+  same file audits clean and runs; that second half is pinned too, so
+  the refusal can never widen into a wall.
+- **`check` names an `infer:`/`agent:` task no `model:` reaches.** The
+  MODELS rung answered for a model it could not resolve and said nothing
+  at all for a model that was never declared — an empty requirement list
+  is the same shape as a workflow with no inference tasks. The rung now
+  names the task, and the author reads it before the run instead of
+  meeting the omission as a provider error.
+- **`nika doctor` stops calling price rows models (#1179).** The pricing
+  line formatted the vendored snapshot's rule count as « 633 models »,
+  one command away from `nika catalog`'s « 69 models » — two inventories
+  under one word, an order of magnitude apart, both on a first session.
+  It now reads `633 price rules · 10 providers priced`. Same numbers,
+  each naming the facet it counts: several patterns can price one model,
+  and a pattern can price models this catalog never lists.
+- **The catalog marks what this build can actually run (#1184).** `nika
+  catalog` ships 38 vendors and this binary carries adapters for 16;
+  until now the human list, the `catalog_version: 1` JSON and the MCP
+  `nika_catalog` tool rendered a reachable and an unreachable vendor
+  identically, so the fact only arrived after the choice, at the MODELS
+  rung. Every provider row now carries `resolves`, derived from
+  `nika_providers::CANONICAL_IDS` and never typed: the JSON emits the
+  field (additive within v1 — no envelope bump), the human column reads
+  `catalog only — does not resolve in this build`, and the MCP tool
+  description tells an agent to pick only from rows where it is true.
+  The word is the refusal rung's own — « wired » already names a
+  different set (the run registry, `mock` excluded) one line above, and
+  a synonym there would re-create the confusion `machine_truth.rs`
+  exists to cure. `native` no longer invites `nika model pull` into a
+  door that refuses at `check`. One traversal (`catalog_family.rs`, the
+  `rust` CI job) holds all 38 rows to the same answer across both
+  projections and the MODELS rung, and is the `proven_by` for their 38
+  ledger rows.
+- **`nika --json` answers the same next step as the terminal.** The
+  screen's one next step is now computed once and rendered by every
+  projection: the `Next:` block, the new top-level `next` field,
+  `start` (a one-element array where it used to carry the pre-cascade
+  triple `nika try 01-hello` · `nika init` · `nika new`), and every
+  `inference_choice.rungs[].next`. Those rungs hardcoded `nika new
+  hello`, so a harness reading them in a directory that already held
+  the file was told to run a command that refuses on `--force`. The one
+  derivation carries the audited laws too — a red sole file yields
+  `nika check <file>`, a priced one yields the `--max-cost-usd` cap.
+- **The first-contact screen promises one first command.** `nika` and
+  `nika welcome` used to print the cascade's single `Next:` step and,
+  eleven lines below it, the `start here` menu that step had replaced —
+  two different doors for a stranger to choose between, and `nika init`
+  offered twice. The menu is gone; the body keeps `this machine`, `this
+  binary`, the sample block and the `learn:` line. The cascade's
+  hardware row now reads `this hardware · N GB` and the local rung no
+  longer repeats the RAM, so the words `this machine` name one thing on
+  the screen instead of three. 43 lines down to 38.
+- **A gate-blocked task names the upstream that closed the gate.** The
+  row said `gate: an edge did not admit` — no edge, no upstream, no
+  outcome — while the trace already carried `blocked_by`. It now reads
+  `blocked · <task> settled <outcome> · no binding here admits that`, so
+  the common case is legible: a `tasks.X.error` binding admits a failure
+  or a skip, and a task that SUCCEEDED has no error to read.
+- **In the v0.115 development line, the run's dataflow descends to the pure
+  L0 `nika-dataflow` crate, so `nika-runtime` is
+  not paying its 15k wall in doc comments.** `nika-runtime` sat at 98.6% of
+  the production-LOC cap, and a written pull request could not land because
+  branch and `main` were each under it while their *merge* crossed. That PR
+  had already compressed three explanatory doc blocks to one-liners and
+  still did not fit: a comment is the cheapest line to delete, so it is the
+  first line deleted, and the budget gets satisfied by removing exactly the
+  thing that makes a crate maintainable. `TaskRecord` and the `${{ }}` /
+  `cel-subset/0.1` / jq evaluation over it are one concept and are now one
+  crate — **14,787 → 14,053** production LOC under the corrected gate on
+  current `main`. Every historical
+  `nika_runtime::` path still resolves, and the four evaluation error
+  classes keep their historical public constructors and match arms, plus
+  their wire codes (`NIKA-VAR-001` · `-002` · `-004` · `-005` · `-006`),
+  byte for byte.
+  The L0 jq seam refuses ambient clock/timezone, host diagnostics, and
+  process-control natives, including a typed-error fallback that prevents a
+  jq halt exception from exiting the engine. Its newly public scope and
+  record DTOs also follow FCI-002: authority fields are private behind safe
+  constructors and the public dataflow types are non-exhaustive.
+- **`nika catalog` groups what runs, instead of tagging what does not.**
+  Marking each unreachable vendor was correct and unreadable: 22 of 38
+  rows repeated the same suffix, so the fact a reader wanted had to be
+  found by scanning for its ABSENCE. LOCAL and CLOUD now hold only the
+  16 providers this build resolves, in the same doctrine order; the rest
+  sit under one new head, `CATALOG ONLY (no adapter in this build · nika
+  check refuses these)`. The group is the marker, said once. `native`
+  leaves the « zero key · zero network » banner it could never honour.
+  The `--json` and MCP projections are unchanged — a machine filters on
+  `resolves`, it does not read headings.
+- **The `✔ MODELS` green line no longer reads as « the run will reach
+  the model ».** The rung judges resolution in this binary — never key
+  presence on this machine — and the line now says so: « key presence on
+  this machine not judged (advisory: check --json access_plan · the run
+  gate refuses NIKA-INFER-001) ». The access truth existed but was
+  advisory-only (`check --json`, `explain`); the sentence now names that
+  deferral instead of letting a green claim cover it. What the gate
+  covers is unchanged.
+- **Release preparation has one transactional changelog owner and three lock families.** The wave sweep delegates a retry-safe engine fold to the fragment assembler, the uniformity gate covers the standalone ACP lock, and ecosystem coherence attributes editor drift from repo to release to each registry.
+
+### Fixed
+
+- **A workflow file typed bare is a run.** `nika notes.nika.yaml` used to
+  answer `unrecognized subcommand` — a wall where a run was meant. A
+  colleague sends a `.nika.yaml` and the person types its name the way one
+  opens a file. The routing is narrow on purpose: the name must end in the
+  workflow suffix AND be a file on disk, so a typo'd verb keeps clap's
+  did-you-mean and a suffix naming nothing keeps clap's error.
+- **One pre-push gate at a time per machine — a second push waits instead
+  of racing.** Three concurrent `lefthook run pre-push` processes over one
+  30G `target/` turned three unrelated ratchets red, none of which
+  reproduces on an idle machine. Two were timeouts; the third,
+  `credential-headers`, reported a credential leak **that does not exist**
+  (the header it named is listed, and the gate reads that file directly —
+  6/6 green idle). A security vector that cries wolf trains the next reader
+  to wave it through. Measured the same evening: one gate takes 210-620s,
+  three in parallel took 1958s and all three failed. The gate now takes an
+  exclusive lease (`mkdir`, the one atomic primitive macOS and the Ubuntu
+  runners agree on) whose holder records its pid so a dead owner's lease is
+  reclaimed rather than wedging every later push. `NIKA_GATE_NO_LOCK=1` opts
+  out, and says what that re-enables.
+- **The pre-push lease now has a judge that runs.** #1064 shipped a lease
+  that serialises the pre-push gate, with a self-test proving mutual
+  exclusion, stale reclaim, and that a live owner is never robbed — and
+  nothing ran it. Not CI, not even pre-push, because a hook helper has no
+  runner. It was a green that had never been asked a question. The
+  `issue-proof` gate, shipped in the same merge, reopened #1064 within
+  minutes for exactly that: a close whose proof does not exist. The first
+  thing it caught was its own author. `gate-lock` joins the ratchet matrix
+  beside `credential-headers` and `changelog-fragments`, which are there for
+  the same reason one degree less severe, and it fails closed when the
+  self-test is missing rather than reading an absent file as a pass.
+- **`nika lsp` watches the host it was told to watch.** `--clientProcessId`
+  was accepted by clap and discarded at the call site, and the `initialize`
+  request's own `processId` was never read either, so a client that died
+  **without** closing the pipe left the language server running forever — the
+  ordinary path hid it, because a clean shutdown closes stdin and the server
+  exits on EOF. Both channels now feed one watchdog (argv wins, the payload
+  covers hosts that send only that), and the server exits when its declared
+  parent goes, per LSP `initialize` §processId.
+- **One cwd lease for the whole CLI, so the budget tests stop failing one
+  run in four.** `set_current_dir` is process-global and `cargo test --lib`
+  runs a crate's tests as parallel threads in one process. `nika-cli` had
+  three independent guards — one private to the budget tests, one private to
+  `arm fire` — and a third chdir site, `run --example`, with no guard at
+  all. Three private mutexes over one global resource do not compose: a test
+  could hold its own lock for its whole body and still have the ground moved
+  under it. Measured across four CI runs of effectively identical trees (two
+  byte-identical), `access-harness tests` failed once, always on the same
+  three `verbs::check::budget::tests` — the ones whose assertions derive
+  from the current directory. Every site now takes `crate::cwd`, and the
+  race is pinned by a test that runs a chdir storm against a lease holder.
+  An intermittent red teaches everyone to press the button again, and that
+  habit is how a real red gets waved through.
+- **`issue-proof` judges every close, instead of only the ones the filer
+  armed it for.** The gate exists to refuse the lying checkmark GitHub
+  prints when a merge auto-closes an issue — but its trigger required the
+  *filer* to have written `proven_by:` in the body, or someone to have
+  remembered a label. So an issue filed before the gate existed could never
+  opt in, and the merge that closed it is precisely the event the gate was
+  built for. Measured one minute apart on one issue: `skipped`, then
+  `success` once the string was added. The condition is not widened, it is
+  deleted — a guard that cannot be false cannot drift. The honest
+  non-capability close now opts *out* through the closer's own act (GitHub's
+  `not_planned` / `duplicate`, or a `no-capability` / `question` / `invalid`
+  label), which is fixture-pinned in `scripts/ci/test-issue-proof.sh`.
+  `wontfix` deliberately does **not** waive: it is added at filing time, and
+  honouring it would hand the opt-out straight back to the filer.
+- **`issue-proof` can now read an issue that talks about `issue-proof`.** The
+  body parser took the first line *containing* `proven_by:` anywhere, so #1200
+  — the issue about this very gate — could never be closed: its body quotes
+  the old guard, `contains(github.event.issue.body, 'proven_by:')`, inside a
+  code fence, and the parser extracted `)` as the job name and reopened the
+  issue. Measured, not reasoned: `JOB=[)]`. An issue that discusses the proof
+  mechanism is exactly the issue most likely to report a defect in it, so the
+  parser has to be able to read its own subject matter. A trailer is now a
+  line that is *only* the trailer, and the last one wins — which steps past a
+  fenced quote, an inline backticked mention, and a prose line that happens to
+  wrap onto column 0.
+- **`.agents/**` is classified as the vendored copy it is.** The estate called it the authored source « mirrored downstream into nika-plugins » — the exact inverse of the clients-resync lane, which re-vendors `.agents/` from the plugins SSOT with `--delete`. The misclassification is what let two merged pull requests live only here, until the lane proposed reverting them and rolling four manifests back from 0.114.0 to 0.111.0. The rule now names the lane, the SSOT, and the gate that judges the heal.
+- **`check-doc-private-items` no longer files a broken toolchain as documentation drift.** The « cargo could not answer » branch tested the line prefix, but a tool abandoning prints `error: could not document …` — a prefix match — so the branch could never fire in exactly the situation it described (measured: a full disk under `target/doc-check` named crates nobody had touched, on a clean tree). The verdict now discriminates on the failure mode: incapacity verbs route to « the tool failed to run », and only when no genuine lint diagnostic stands beside them.
+- **A skipped task's `error` now has a proven reader.** `EdgeKind::FailureObservation` admits `{failure, skipped}`, and `skipped` is in that set solely so a downstream `tasks.X.error` binding has a consumer — but only the record was pinned, never the admission. The new runtime test drives a real consumer across the seam and asserts all three legs: the consumer is admitted (success, never cancelled), the bound value is the typed record with its code intact in the exact command bytes, and the same consumer against a succeeded producer settles cancelled, so the pass-set cannot silently narrow OR widen again.
+- **The release tooling test can no longer write into the repository that invokes it.** `git -C` scopes the directory, never the index: an inherited `GIT_INDEX_FILE` (or `GIT_DIR` / `GIT_WORK_TREE`) pointed its fixture commits at the caller's branch while the test printed PASS. The test now sanitizes the git environment at entry and proves on exit, from its trap, that the caller's HEAD and worktree are byte-identical to what they were.
+- **`nika check` now refuses a `thinking:` block the run would reject or
+  ignore.** The parser validated each field's type and stopped: a
+  `budget_tokens` at or over `max_tokens` audited green, then the provider
+  refused the call (the reasoning share lives inside the cap), and
+  `thinking: { enabled: true }` on a seat the catalog knows cannot reason
+  was a dead declaration the wire dropped or 400'd. Both are MODELS-rung
+  findings now — the seat check fires only when the catalog positively
+  knows the exact model (a provider row or an exact pricing pattern), so a
+  newly shipped model the dated snapshot has not met keeps its benefit of
+  the doubt, and a templated `model:` is judged through its declared
+  default or left to the run.
+- **`nika check` no longer greens a plain YAML number or boolean where the
+  spec says string.** `prompt: 123` rode through the parser because a plain
+  scalar's source text restringifies silently — the field audited clean on a
+  value whose type the author never checked. Every string-typed verb field
+  (infer/agent `prompt`·`system`·`model`, exec `shell`·`cwd`·`stdin`,
+  `command` elements, `env` values, agent `tools`/`skills` entries, invoke
+  `tool`/`workflow`) now refuses a plain scalar that resolves as an
+  int/float/bool and teaches the quoted form (`"123"`). The YAML 1.1 aliases
+  `yes`/`no` stay strings (only `true`/`false` are booleans in this
+  dialect), and `${{ }}` templates are untouched. A sweep test walks the
+  closed verb key sets against a checked-in field→type table, so a new verb
+  field without a refusing fixture fails the suite.
+- **A refused cleanup is no longer invisible.** An `after: { x: unwind }`
+  cleanup that failed — a permit refusal, a non-zero exit, a timeout, even
+  a closed `when:` gate — used to vanish without a frame: the trace read
+  pixel-identical to a cleanup that never fired. The lane still never
+  propagates (best-effort by spec), but its outcome is journaled now: one
+  `permit_checked` frame on plane `on_finally` per skipped, failed, or
+  timed-out cleanup, naming the error code (`NIKA-SEC-004` and friends) —
+  spec 03's « its errors are logged » guarantee, kept.
+- **One access census, one truth — the seat in the first screen, the doctor
+  fix, and the refusal tail.** Three surfaces each read a different source of
+  access truth. `welcome` and `doctor --json` classified a machine with a
+  signed-in harness seat as `installed · no inference path` (the probe filled
+  from provider rows only, the seat rows one call away and never joined in);
+  the doctor per-seat fix taught `install: @zed-industries/claude-agent-acp@…`
+  — the wrapper id `run --access` refuses as retired (NIKA-1802) — and the
+  NIKA-1800/INFER-001 witnesses never named the seat escape hatch nor the
+  credential's custody. The census (`nika_providers::census::AccessCensus`)
+  joins provider rows and harness seats in ONE read; the adoption ladder gains
+  the `seat_ready` rung between `key_present` and `real_ready`; the cascade
+  names seats by their live pin token (`claude-code`, not the wrapper id);
+  doctor's seat fixes name `--access <seat>` plus the gesture; the admission
+  witness says `<VAR> unset in process env`; and the L4 refusal render plus
+  `nika explain` append « or use a signed-in seat: `--access …` » — printed
+  only when this machine actually has one.
+- **The arm-room test reads the cwd under the lease that governs it.**
+  `concurrent_run_rooms_are_serialized_and_restore_the_caller` observed
+  the process-global cwd twice — the baseline and the restoration —
+  without holding `cwd::hold()`, so it measured whichever sibling
+  happened to own the process. It went red on three consecutive `main`
+  commits with `left` = `cwd::tests`'s chdir-storm room, while this
+  test's own restore had already put the process back. The production
+  path was never at fault: `enter_room` takes the crate lease and rides
+  `fchdir` exactly as `cwd.rs` documents. Both reads now ride the lease,
+  which is what makes the claim well-defined. Reproduced 2/20 by running
+  the test WITH the storm; 40/40 after (the full suite hides it — 12/12
+  green either way, which is why the red only ever surfaced in CI).
+- **The MODELS refusal points at a surface that actually names them.**
+  It said *"16 runnable — `nika doctor` names them"*. Measured on a
+  virgin machine: plain `nika doctor` names five — the local line — and
+  folds the ten cloud rows into « 10 providers unconfigured »; `mock`
+  gets no row at all. A stuck user was sent to a surface that named five
+  of the sixteen, and only `--verbose` improved on it. Both refusals now
+  point at `nika catalog`, which groups all sixteen under LOCAL and
+  CLOUD, and the unknown-provider one adds where the id they typed sits
+  (`CATALOG ONLY`). The claim is pinned per run:
+  `the_named_surface_actually_names_them` counts the rows the listing
+  renders before that head and refuses any drift from
+  `CANONICAL_IDS.len()`.
+- **The 15k crate-size counter was wrong for 69 of 71 crates, in both
+  directions at once.** It guards a *maintainability* budget, so every line
+  it mis-charges gets paid for in deleted doc comments — which is how #1203
+  surfaced it. Three defects: braces inside **string literals** ended a
+  `#[cfg(test)]` module early (412 lines of test body charged to production
+  in one file), `#[cfg(test)] mod foo;` — an attribute on a declaration —
+  swallowed whichever block came next and **hid** production lines, and a
+  phantom trailing line was charged once per file. `nika-display` was
+  over-charged 846 lines, `nika-cap` 733; `nika-cli` had 31 production lines
+  hidden, `nika-runtime` 65. The awk filter in `_lib.sh` had already learned
+  the string-literal rule in August; three python copies never did. The
+  counter now lives in one proven file (`scripts/ci/prod-loc.py`) that
+  refuses to render a verdict unless its own fixtures pass, and the gate
+  fails closed if they are missing. Corrected, the crate nearest the wall is
+  `nika-check` at 14,697.
+
+### Security
+
+- **A decided human gate stays decided.** `--resume` of a trace that
+  already journaled a `nika:prompt` success now refuses `--answer` on
+  that same task (environment class). A recorded NO cannot be flipped
+  into a shipment. A paused gate (no `task_completed` yet) still
+  accepts `--answer`. Measured against `nika 0.114.0 (80d62b8f8)` on
+  `human-gated-ship`.
+- **The default sandbox arm stays fail-closed (#822).** `NIKA_SANDBOX`
+  unset (`auto`) plus a `permits:` workflow plus no OS jail is NIKA-1710,
+  not a composed Noop run. The composition gate is tested with a Noop
+  decision so deleting the refuse arm cannot hide behind a host that
+  ships Seatbelt. Doctor display of the row stays S3.
+- **A sanctioned secret into `agent:` is still a named flow (#1041).**
+  JOURNEY takes the agent's `tools:` intersected with `permits.net.http`
+  as the destination set. SECRETS stops saying « no declared secret
+  reaches an effect » after the author applied the tool's own `egress:`
+  advice. A sanction authorizes a flow; it does not deny the flow exists.
+- **The first screen cannot promise a seat whose adapter is absent.** A
+  signed-in Claude Code no longer reads as a runnable harness seat when
+  `claude-agent-acp` — a different npm package, the binary a session
+  spawns — is not on PATH. `ready` now needs three things, not two: the
+  app is here, it is signed in, and its ACP adapter answers. The row
+  stays visible and names the one command that closes the gap
+  (`npm i -g @zed-industries/claude-agent-acp`); hiding an app the person
+  has would trade one lie for another. `doctor --json` stops reporting
+  `ready: true` and `chosen_access: claude-agent-acp` on a machine where
+  no such binary exists — an agent reads that field and acts on it.
 ## [0.114.0](https://github.com/supernovae-st/nika/compare/v0.113.0..v0.114.0) - 2026-08-23
 
 **Remote execution as a loopback door.** Default `nika serve` stays the

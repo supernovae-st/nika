@@ -15,9 +15,9 @@ bytes      = { workspace = true }
 http-body-util = { workspace = true }
 hyper      = { workspace = true }
 hyper-util = { workspace = true }
-nika-execution = { path = "../nika-execution", version = "0.114.0" }
-nika-fs    = { path = "../nika-fs", version = "0.114.0" }
-nika-runtime = { path = "../nika-runtime", version = "0.114.0" }
+nika-execution = { path = "../nika-execution", version = "0.115.0" }
+nika-fs    = { path = "../nika-fs", version = "0.115.0" }
+nika-runtime = { path = "../nika-runtime", version = "0.115.0" }
 nix        = { workspace = true, features = ["fs"] }
 serde      = { workspace = true }
 serde_json = { workspace = true }

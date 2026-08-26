@@ -14,7 +14,7 @@ description  = "Runtime sibling of the split kernel — tool execution + agent l
 workspace = true
 
 [dependencies]
-nika-error    = { path = "../nika-error", version = "0.114.0" }
+nika-error    = { path = "../nika-error", version = "0.115.0" }
 trait-variant = { workspace = true }
 thiserror     = { workspace = true }
 miette        = { workspace = true }
