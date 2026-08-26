@@ -193,10 +193,8 @@ pub use slots::{MARKER_OPEN, SlotFinding};
 pub use tools::{MissingArg, UnknownArg, UnknownTool};
 pub use walk::static_read_paths;
 
-// The analyzer's surface at the crate root — the same shape `nika-schema`
-// re-exported before the split. `static_literal_of` and the thinking-seat
-// law descended to the substrate 2026-08-25 (the 15k wall · ADR-115's
-// direction); every lane's call path is unchanged.
+// The analyzer's surface at the crate root — the shape `nika-schema`
+// re-exported pre-split (substrate descent 2026-08-25 · ADR-115's direction).
 pub use analyzer::{AnalyzedWorkflow, analyze, lowered_returns, returns_type, static_literal_of};
 pub use analyzer::{ThinkingFinding, thinking_findings};
 
