@@ -104,6 +104,8 @@ insta    = { workspace = true }   # the arm report's snapshot (PROUVÉ · DÉCLA
 uuid     = { workspace = true }   # test fixtures mint EventIds (the last prod use descended with the journal writer)
 expectrl = { workspace = true }   # PTY e2e · the wizard conversation is TTY-gated — unreachable
                                   # from piped harnesses by construction (tests/wizard_pty.rs · unix)
+serde         = { workspace = true } # the pack_examples_family manifest rows (derive)
+serde_yaml_bw = { workspace = true } # parsing that manifest — the panic-free fork already in the tree (nika-builtin)
 
 [package.metadata.lore]
 daemon        = "messager"
