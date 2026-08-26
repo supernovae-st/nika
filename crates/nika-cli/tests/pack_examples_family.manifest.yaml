@@ -32,9 +32,9 @@
 #     hermetic plane cannot impersonate · `manual` = the example drives a
 #     repo shape this harness does not stage.
 #
-# Issue tokens below are PLACEHOLDERS the stabilization-arc parent replaces
-# with real tracker ids. The completeness test refuses a known_fail row
-# whose issue token is not listed here.
+# Issue tokens bind every known_fail class to its tracker row. The
+# completeness test refuses a known_fail row whose issue token is not
+# listed here.
 issues:
   GIT-SEATBELT: nika#1254
   CARGO-SEATBELT: nika#1255

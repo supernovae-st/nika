@@ -30,8 +30,9 @@
 //! - `door: run` stages a scratch cwd per the row's `kit:` and goes through
 //!   `nika run --no-progress --max-cost-usd 0.01` — required for the human
 //!   gates (`try` carries no `--answer`).
-//! - `HOME`/`TMPDIR` are isolated per entry, `NIKA_*` inherited vars are
-//!   scrubbed, the only model the gate may name is `mock/echo`.
+//! - `HOME`/`TMPDIR` are isolated per entry; inherited `NIKA_*`, provider
+//!   keys and workflow-referenced secret vars are scrubbed, and the only
+//!   model the gate may name is `mock/echo`.
 //! - A `known_fail` row is an XFAIL: on the listed OSes the example RUNS
 //!   and must stay red — a green there means the wound healed and the gate
 //!   refuses to keep lying about it. A `needs:` row is the honest skip:
@@ -53,8 +54,10 @@ const MANIFEST_YAML: &str = include_str!("pack_examples_family.manifest.yaml");
 /// Per-entry run ceiling, seconds (worst measured in the sweep: 31 s).
 const MAX_TIMEOUT_SECS: u64 = 120;
 
-/// The one model this gate may name — zero keys, zero network, zero
-/// keychain. A row naming anything else is a hermeticity breach.
+/// The one model this gate may name — zero keys, zero keychain. A row
+/// naming anything else is a hermeticity breach. Network is NOT claimed
+/// hermetic: a `door: run` row exercises the workflow's own declared
+/// `permits.net` hosts (the sandbox bounds them to exactly those).
 const HERMETIC_MODEL: &str = "mock/echo";
 
 // ── The manifest schema ───────────────────────────────────────────────────
@@ -234,12 +237,20 @@ impl Room {
     }
 }
 
-/// The child environment law: the operator's `NIKA_*` exports never leak
-/// into a corpus run; HOME and TMPDIR are the entry's own; PATH survives
-/// (an `exec` example must find the same programs the operator does).
+/// The child environment law: the operator's exports never leak into a
+/// corpus run — `NIKA_*`, provider keys, and the secret vars the corpus
+/// references are all scrubbed; HOME and TMPDIR are the entry's own;
+/// PATH survives (an `exec` example must find the same programs the
+/// operator does).
 fn hermetic(cmd: &mut Command, room: &Room) {
+    /// The secret vars corpus workflows reference — a child that
+    /// inherited a live one could make real egress behind a per-task
+    /// `model:` pin the envelope override cannot reach. Provider keys
+    /// ride the `*_API_KEY` sweep below.
+    const SCRUB_EXACT: [&str; 2] = ["ALERTS_WEBHOOK_URL", "ONCALL_WEBHOOK"];
     for (key, _) in std::env::vars_os() {
-        if key.to_string_lossy().starts_with("NIKA_") {
+        let k = key.to_string_lossy();
+        if k.starts_with("NIKA_") || k.ends_with("_API_KEY") || SCRUB_EXACT.contains(&k.as_ref()) {
             cmd.env_remove(&key);
         }
     }
@@ -347,14 +358,20 @@ fn stage_run_room(room: &Room, entry: &Entry, body: &str) -> PathBuf {
 
 fn stage_git_repo(dir: &Path) {
     let git = |args: &[&str]| {
-        let status = Command::new("git")
-            .args(args)
+        let mut cmd = Command::new("git");
+        cmd.args(args)
             .current_dir(dir)
             .env("HOME", dir.join("home"))
             .stdout(Stdio::null())
-            .stderr(Stdio::null())
-            .status()
-            .expect("git is on PATH (CI runners ship it)");
+            .stderr(Stdio::null());
+        // An inherited GIT_DIR/GIT_WORK_TREE would aim the kit's commits
+        // at the CALLER's checkout — scrub every GIT_* the runner exports.
+        for (key, _) in std::env::vars_os() {
+            if key.to_string_lossy().starts_with("GIT_") {
+                cmd.env_remove(&key);
+            }
+        }
+        let status = cmd.status().expect("git is on PATH (CI runners ship it)");
         assert!(status.success(), "the git-repo kit stages: git {args:?}");
     };
     std::fs::create_dir_all(dir.join("src")).expect("kit src dir");
