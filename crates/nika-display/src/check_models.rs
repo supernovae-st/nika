@@ -191,6 +191,26 @@ fn absent_model_row(out: &mut String, wf: &RawWorkflow, t: Theme) {
     );
 }
 
+/// The refusal rows, out of `models` under the 100-line fn cap: one row
+/// per finding, the error code prefixed when the refusal carries one.
+fn findings_rows(out: &mut String, findings: &[ModelFinding], t: Theme) {
+    for f in findings {
+        let detail = match f.code.as_deref() {
+            Some(code) => format!("[{code}] {}", f.why),
+            None => f.why.clone(),
+        };
+        let _ = writeln!(
+            out,
+            " {} {}   `{}` (task{} {}) — {detail}",
+            mark(t, false),
+            t.paint(Role::Strong, "MODELS"),
+            f.model,
+            if f.tasks.len() == 1 { "" } else { "s" },
+            f.tasks.join(", "),
+        );
+    }
+}
+
 pub(crate) fn models(
     out: &mut String,
     report: &CheckReport,
@@ -203,21 +223,7 @@ pub(crate) fn models(
         return; // no inference tasks — the ladder says so at COST already
     }
     if !audit.findings.is_empty() {
-        for f in &audit.findings {
-            let detail = match f.code.as_deref() {
-                Some(code) => format!("[{code}] {}", f.why),
-                None => f.why.clone(),
-            };
-            let _ = writeln!(
-                out,
-                " {} {}   `{}` (task{} {}) — {detail}",
-                mark(t, false),
-                t.paint(Role::Strong, "MODELS"),
-                f.model,
-                if f.tasks.len() == 1 { "" } else { "s" },
-                f.tasks.join(", "),
-            );
-        }
+        findings_rows(out, &audit.findings, t);
         return;
     }
     let n = report.requirements.models.len();
