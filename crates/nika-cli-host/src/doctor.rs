@@ -245,15 +245,19 @@ fn provider_findings(probe: &Probe, out: &mut Vec<Finding>) {
     out.push(pricing_finding(&probe.pricing));
 
     // The ONE Fail that drives exit 3 · no inference path AT ALL (a broken or
-    // empty catalog). A merely-unset cloud key is a ⚠ above, never fatal.
-    if cloud_keys == 0 && local_ids.is_empty() {
+    // empty catalog). A merely-unset cloud key is a ⚠ above, never fatal —
+    // and a signed-in harness seat IS an inference path (R4 · the census
+    // joins what the provider rows alone never saw; the ladder's SeatReady
+    // rung reads the same `seats_ready`).
+    if cloud_keys == 0 && local_ids.is_empty() && probe.census.seats_ready.is_empty() {
         out.push(Finding {
             level: Level::Fail,
             label: "providers".to_owned(),
-            detail: "no inference provider available — neither a cloud key nor a local server"
+            detail: "no inference path — no cloud key, no local server, no signed-in harness seat"
                 .to_owned(),
             fix: Some(
-                "export <PROVIDER>_API_KEY=…  · or run a local server (ollama · llama.cpp · vLLM)"
+                "export <PROVIDER>_API_KEY=… · run a local server (ollama · llama.cpp · vLLM) · \
+                 or sign in to a harness seat (`--access claude-code`)"
                     .to_owned(),
             ),
         });
@@ -768,14 +772,30 @@ pub fn exit_code(findings: &[Finding]) -> u8 {
 /// the adoption rung rides alongside (additive) — ONE state token the
 /// flat findings could never express. H5: the per-host runtime receipts
 /// ride alongside too (additive) — what each host earned, what was
-/// verified versus assumed, and the repair, per host.
+/// verified versus assumed, and the repair, per host. R4: the access
+/// census rides alongside (additive) — every path with its custody and
+/// fix, the ready seats, the best path; one read, never recomputed.
 #[must_use]
 pub fn render_json(
     findings: &[Finding],
     state: AdoptionState,
     receipts: &[HostCapabilityReceipt],
+    census: &nika_providers::census::AccessCensus,
 ) -> String {
     let count = |lvl: Level| findings.iter().filter(|f| f.level == lvl).count();
+    let paths: Vec<serde_json::Value> = census
+        .paths
+        .iter()
+        .map(|p| {
+            serde_json::json!({
+                "id": p.id,
+                "class": p.class.as_str(),
+                "configured": p.configured,
+                "custody": p.custody,
+                "fix": p.fix_line,
+            })
+        })
+        .collect();
     let payload = serde_json::json!({
         "summary": {
             "ok": count(Level::Ok),
@@ -785,6 +805,11 @@ pub fn render_json(
         "adoption_state": state.as_str(),
         "findings": findings,
         "receipts": receipts,
+        "access": {
+            "paths": paths,
+            "seats_ready": census.seats_ready,
+            "best": census.best.as_ref().map(|p| p.id.clone()),
+        },
     });
     format!("{payload:#}")
 }
@@ -1068,6 +1093,7 @@ pub fn run(ping: bool, json: bool, verbose: bool, theme: Theme) -> VerbOutput {
                 &findings,
                 crate::probe::adoption_state(&probe),
                 &crate::probe::capability_receipts(&probe),
+                &probe.census,
             ))
         } else {
             // The same sobriety seam the concierge rides: `--plain`
@@ -1081,6 +1107,8 @@ pub fn run(ping: bool, json: bool, verbose: bool, theme: Theme) -> VerbOutput {
     }
 }
 
+#[cfg(test)]
+mod json_tests;
 #[cfg(test)]
 mod pricing_tests;
 #[cfg(test)]
@@ -1155,19 +1183,26 @@ fn harness_finding_from_parts(
             detail: format!(
                 "{id} — {display} · detected (v{major}.{minor}) · not signed in · `--access {id}`"
             ),
-            fix: Some(format!("sign in to {display} itself")),
+            fix: Some(format!(
+                "sign in to {display} itself · then `--access {id}`"
+            )),
         },
         (true, None, _) => Finding {
             level: Level::Warn,
             label: "runtime".to_owned(),
             detail: format!("{id} — {display} · installed, ACP speaker missing · `--access {id}`"),
-            fix: Some(format!("install: {package}")),
+            fix: Some(format!(
+                "install the ACP speaker: {package} · the wrapper is never the pin — `--access {id}`"
+            )),
         },
         (false, None, _) => Finding {
             level: Level::Warn,
             label: "runtime".to_owned(),
             detail: format!("{id} — {display} · not installed · `--access {id}`"),
-            fix: Some(format!("install: {package}")),
+            // The app first — teaching the ACP wrapper package here was
+            // the R4 lie: the operator installed the wrapper (never the
+            // app), then ate NIKA-1802 trying it as a pin.
+            fix: Some(format!("install {display} itself · then `--access {id}`")),
         },
     }
 }

@@ -341,6 +341,18 @@ pub(super) fn error_envelope_line(message: &str) -> String {
     .to_string()
 }
 
+/// R4 — the witness texts a failure card speaks (workflow detail +
+/// row details), the input of the census-derived seat-escape gate
+/// (`nika_cli_host::probe::print_seat_escape` — printed only when THIS
+/// machine has a signed-in seat).
+pub(super) fn failure_witnesses(view: &crate::RunView) -> Vec<&str> {
+    view.workflow_detail
+        .iter()
+        .map(String::as_str)
+        .chain(view.rows().iter().map(|row| row.detail.as_str()))
+        .collect()
+}
+
 /// Best-effort wire-code extraction: the first `NIKA-…` token in a
 /// diagnostic (findings render `[NIKA-PARSE-009]` · run details lead with
 /// `NIKA-431 · …`). Never invents — no token, no code.
@@ -466,6 +478,45 @@ mod tests {
     fn outputs_json_line_empty_is_braces() {
         // No `outputs:` declared → still a JSON object on stdout.
         assert_eq!(outputs_json_line(&BTreeMap::new()), "{}");
+    }
+
+    // ── R4 · the auth-class tail gate ──
+
+    /// Mutation pins for the witness gate: the tail is earned by an
+    /// auth-class witness (NIKA-INFER-001 · NIKA-1800) on a failed row
+    /// or the workflow detail — never by another class, never on a
+    /// healthy view. The view→witnesses fold feeds the host predicate
+    /// (`nika_cli_host::probe::auth_class_witness`); inverting either
+    /// reddens this.
+    #[test]
+    fn the_seat_escape_gate_reads_the_auth_class_witness() {
+        use nika_types::resource::{KeyValue, Value as RValue};
+
+        let gate = |view: &crate::RunView| {
+            super::failure_witnesses(view)
+                .into_iter()
+                .any(nika_cli_host::probe::auth_class_witness)
+        };
+        let mut view = crate::RunView::new();
+        assert!(!gate(&view), "an empty view earns none");
+        let failed = nika_cli_display_demo_bare(nika_event::EventKind::TaskFailed, 1)
+            .with_field(KeyValue::new("task", RValue::String("reply".to_owned())))
+            .with_field(KeyValue::new(
+                "detail",
+                RValue::String(
+                    "NIKA-INFER-001 · no API key for 'anthropic' · set one of […]".to_owned(),
+                ),
+            ));
+        view.apply(&failed);
+        assert!(gate(&view), "the missing-credential witness earns the tail");
+        // The admission refusal class rides the same gate.
+        let mut view1800 = crate::RunView::new();
+        view1800.workflow_detail = Some("NIKA-1800 · no access path survives admission".to_owned());
+        assert!(gate(&view1800));
+        // Another class earns nothing.
+        let mut other = crate::RunView::new();
+        other.workflow_detail = Some("NIKA-VAR-001 · unresolved reference".to_owned());
+        assert!(!gate(&other));
     }
 
     // ── F6 · the `--output json` machine failure envelope ────────────

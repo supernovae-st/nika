@@ -97,13 +97,13 @@ struct Seat {
     detected: bool,
     authenticated: bool,
     /// Whether the ACP ADAPTER — the binary a session actually spawns —
-    /// is on PATH. The overlay below sees `claude` and names the seat
-    /// `claude-agent-acp`, which is a DIFFERENT npm package; a person can
-    /// have the first and not the second. Without this field the screen
-    /// read a signed-in Claude Code as a runnable seat and said
-    /// `ready · no API key` for a path that cannot spawn (gauntlet P1/P4,
-    /// 2026-08-25). Detected means "you have the app"; ready means "a run
-    /// can start", and only the adapter proves the second.
+    /// is on PATH. A person can have `claude` the app and not
+    /// `claude-agent-acp` the speaker, and the census keeps the two
+    /// halves distinct. Without this field the screen read a signed-in
+    /// Claude Code as a runnable seat and said `ready · no API key` for
+    /// a path that cannot spawn (gauntlet P1/P4, 2026-08-25). Detected
+    /// means "you have the app"; ready means "a run can start", and
+    /// only the adapter proves the second.
     adapter_present: bool,
 }
 
@@ -138,7 +138,7 @@ pub(crate) fn collect() -> InferenceChoice {
     let pull = resolve_tier(&table, ram).map_or_else(|| ALIAS.to_owned(), |t| t.pull.clone());
     let choice = collect_from(&Machine {
         ram,
-        seats: detect_seats(&table),
+        seats: census_seats(&table),
         pulled: featured_is_installed(&pull),
         keys,
         harness_in_binary: cfg!(feature = "access-harness"),
@@ -261,19 +261,20 @@ fn harness_rung(seats: &[Seat], ready_seat: Option<&Seat>, in_binary: bool) -> R
             }
             // Detected but not runnable. Two different walls, and a
             // person can only act on the one that is actually theirs:
-            // the app is here but unsigned, or it is here and signed in
-            // and the ACP adapter it spawns is simply not installed.
+            // the app is here but unsigned, or (the wrapper class) the
+            // ACP adapter a session spawns is simply not installed. The
+            // adapter gap is keyed on the CLASS, not the sign-in
+            // witness: a command-auth seat reads signed-in only with
+            // its adapter, so `authenticated && !adapter` cannot see
+            // the wrapper wall (R4).
             (None, _) if any_detected => seat.map_or_else(
                 || {
                     "here · we'd run on the plan you already pay for · sign in to the app"
                         .to_owned()
                 },
                 |s| {
-                    if s.authenticated && !s.adapter_present {
-                        format!(
-                            "here · signed in · needs its ACP adapter · npm i -g {}",
-                            adapter_package(&s.id)
-                        )
+                    if !s.adapter_present && wrapper_class(&s.id) {
+                        "here · needs its ACP adapter · the install line: nika doctor".to_owned()
                     } else {
                         "here · we'd run on the plan you already pay for · sign in to the app"
                             .to_owned()
@@ -282,18 +283,6 @@ fn harness_rung(seats: &[Seat], ready_seat: Option<&Seat>, in_binary: bool) -> R
             ),
             _ => "Claude Code · Codex · Kimi · Gemini · already on this computer".to_owned(),
         },
-    }
-}
-
-/// The npm package that installs a seat's ACP adapter — the binary a
-/// session spawns, distinct from the app the person already has. The
-/// registry carries the same strings in its `package:` field; this is the
-/// install half of that row, said where a person can act on it.
-fn adapter_package(seat_id: &str) -> &'static str {
-    match seat_id {
-        "claude-agent-acp" => "@zed-industries/claude-agent-acp",
-        "codex-acp" => "@zed-industries/codex-acp",
-        _ => "the adapter for this seat",
     }
 }
 
@@ -467,103 +456,41 @@ fn ram_gb_hw_memsize() -> Option<u32> {
     }
 }
 
-fn detect_seats(table: &Table) -> Vec<Seat> {
-    let mut seats: Vec<Seat> = Vec::new();
-    #[cfg(feature = "access-harness")]
-    {
-        if let Ok(rows) = nika_harness::registry() {
-            let probed = nika_harness::probe_adapters_sync(rows);
-            for row in probed {
-                let detected = row.version.is_some();
-                let authenticated = row.authenticated == Some(true);
-                let name = table
-                    .harness_names
-                    .get(&row.id)
-                    .cloned()
-                    .unwrap_or_else(|| row.id.clone());
-                seats.push(Seat {
-                    id: row.id,
-                    // The registry probed the adapter itself: a version
-                    // means the adapter binary answered.
-                    adapter_present: detected,
-                    name,
-                    detected,
-                    authenticated,
-                });
-            }
-        }
-    }
-    // First-wow overlays: the person has `claude` / `codex`, not the ACP wrapper.
-    for (bin, id) in [
-        ("claude", "claude-agent-acp"),
-        ("codex", "codex-acp"),
-        ("gemini", "gemini-cli"),
-        ("kimi", "kimi-code"),
-    ] {
-        if seats.iter().any(|s| s.id == id && s.detected) {
-            continue;
-        }
-        let detected = on_path(bin);
-        if !detected && !seats.iter().any(|s| s.id == id) {
-            continue;
-        }
-        if !detected {
-            continue;
-        }
-        let authenticated = overlay_authenticated(bin);
-        let name = table
-            .harness_names
-            .get(bin)
-            .or_else(|| table.harness_names.get(id))
-            .cloned()
-            .unwrap_or_else(|| bin.to_owned());
-        // The overlay saw `bin`, never `id`. It may only ADD the app's
-        // presence and its sign-in; it must never claim the adapter,
-        // because it did not look for one.
-        if let Some(existing) = seats.iter_mut().find(|s| s.id == id) {
-            existing.detected = true;
-            existing.authenticated = existing.authenticated || authenticated;
-            existing.name = name;
-        } else {
-            seats.push(Seat {
-                id: id.to_owned(),
+/// The seats the census measured (R4 · one census, one truth). The
+/// cascade used to walk PATH on its own — and name the seat by the
+/// retired ACP wrapper id (`claude-agent-acp`, NIKA-1802 as a pin),
+/// which `chosen_access` then taught to `doctor --json`. The seat id is
+/// now the LIVE pin token (`claude-code`) straight from the registry's
+/// presence pass (PATH + auth surface, never a spawn, never a
+/// credential read).
+fn census_seats(table: &Table) -> Vec<Seat> {
+    nika_providers::census::collect_seats()
+        .into_iter()
+        .map(|fact| {
+            let name = table
+                .harness_names
+                .get(&fact.id)
+                .cloned()
+                .unwrap_or_else(|| fact.id.clone());
+            Seat {
+                detected: fact.product_present || fact.adapter_present || fact.signed_in,
+                authenticated: fact.signed_in,
+                adapter_present: fact.adapter_present,
+                id: fact.id,
                 name,
-                detected: true,
-                authenticated,
-                adapter_present: false,
-            });
-        }
-    }
-    seats
+            }
+        })
+        .collect()
 }
 
-fn overlay_authenticated(bin: &str) -> bool {
-    let Some(home) = probe::home_dir() else {
-        return false;
-    };
-    let files: &[&str] = match bin {
-        "claude" => &[
-            ".claude.json",
-            ".claude/.credentials.json",
-            ".config/claude",
-        ],
-        "codex" => &[".codex", ".codex/auth.json"],
-        "gemini" => &[".gemini/google_accounts.json"],
-        "kimi" => &[".kimi-code/credentials"],
-        _ => &[],
-    };
-    files.iter().any(|rel| home.join(rel).exists())
-}
-
-#[allow(clippy::disallowed_methods)]
-fn on_path(name: &str) -> bool {
-    let Some(path) = std::env::var_os("PATH") else {
-        return false;
-    };
-    std::env::split_paths(&path).any(|dir| {
-        let candidate = dir.join(name);
-        candidate.is_file()
-    })
+/// The wrapper class: the ACP speaker is a DIFFERENT binary from the
+/// product CLI (`claude-agent-acp` ≠ `claude`). For those seats the
+/// adapter gap is the actionable one — and the install line lives in
+/// `nika doctor`, never teaching the wrapper id as if it were the pin
+/// (R4 · it is NIKA-1802 « retired »).
+fn wrapper_class(seat_id: &str) -> bool {
+    nika_types::access::HarnessRuntime::lookup(seat_id)
+        .is_some_and(|rt| rt.detect_bin != rt.acp_bin)
 }
 
 impl InferenceChoice {

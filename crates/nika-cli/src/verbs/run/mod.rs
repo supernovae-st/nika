@@ -954,6 +954,16 @@ async fn execute_output_json_lane(
     let (code, outcome) = drive(runtime, stamper, &mut events).await;
     let (mut sink, mut trace) = events.into_inner().into_parts();
     sink.print_final();
+    // R4 — the auth-class tail rides stderr (stdout stays the clean
+    // JSON object · the export contract).
+    if code == exit::WORKFLOW {
+        let mut err = std::io::stderr().lock();
+        nika_cli_host::probe::print_seat_escape(
+            epilogue::failure_witnesses(sink.view()),
+            "nika run: ",
+            &mut err,
+        );
+    }
     // Pause delivery is journaled before the seal (ADR-111).
     if let (Some(p), Some(pause)) = (
         trace.path().map(std::path::Path::to_path_buf),
@@ -1168,6 +1178,17 @@ fn fold_lane_verdict(
         .iter()
         .find(|r| r.state == crate::TaskState::Failed)
         .map(|r| r.id.clone());
+    // R4 — an auth-class failure (a missing credential · a refused
+    // admission) names the seat escape hatch beside its card, when this
+    // machine has a signed-in seat.
+    if code == exit::WORKFLOW {
+        let mut out = std::io::stdout().lock();
+        nika_cli_host::probe::print_seat_escape(
+            epilogue::failure_witnesses(sink.view()),
+            "  ",
+            &mut out,
+        );
+    }
     // F-P14 · the failure lane's quarantine runs BEFORE the seal.
     let teardown = attended_facts(wf, report, outcome, trace.path());
     let trace_path = match surfaced_trace(surface_trace(
@@ -1309,6 +1330,15 @@ fn map_run_result(result: Result<RunOutcome, RuntimeError>) -> (u8, RunOutcome) 
                     | RuntimeError::AccessUnavailable { .. }
             ) {
                 let _ = writeln!(stderr, "nika run: {err}");
+                // R4 — the 1800 witness names the missing credential's
+                // custody; the L4 renderer (which knows seats, unlike
+                // the provider layer) appends the seat escape hatch —
+                // census-derived, so it prints only when TRUE.
+                if matches!(err, RuntimeError::AccessNoPath { .. })
+                    && let Some(tail) = nika_cli_host::probe::seat_escape_tail()
+                {
+                    let _ = writeln!(stderr, "nika run: {tail}");
+                }
             } else if let RuntimeError::ReportMismatch { .. } = err {
                 // Audit-before-run (spec §4): the report does not describe
                 // THESE bytes — the file-findings class (the F-P2

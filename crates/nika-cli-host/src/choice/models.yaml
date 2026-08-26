@@ -41,12 +41,11 @@ keys:
     name: Your Anthropic key
     model: anthropic/claude-sonnet-4-6
 harness_names:
+  # The seat keys are the LIVE pin tokens (R4 — the wrapper ids were
+  # NIKA-1802 as pins). The census looks a seat up by its pin ONLY, so
+  # a bare product bin here would be a dead row (measured: no caller).
   gemini-cli: Gemini CLI
   qwen-code: Qwen Code
   kimi-code: Kimi
-  codex-acp: Codex
-  claude-agent-acp: Claude Code
-  claude: Claude Code
+  claude-code: Claude Code
   codex: Codex
-  gemini: Gemini CLI
-  kimi: Kimi

@@ -2,6 +2,7 @@ use super::*;
 use crate::clients_registry::RegistryCoverage;
 use crate::output::exit;
 use crate::probe::{ClientProbe, ImageProbe, PingState, PricingProbe, ProviderProbe, TtsProbe};
+use nika_providers::census::AccessCensus;
 use nika_providers::probe::{ExecutionLocus, ProviderReadiness};
 
 /// The default synthetic readiness — recognized · loopback · the
@@ -59,6 +60,7 @@ fn synthetic_probe() -> Probe {
                 "https://api.anthropic.com/v1/messages",
             ),
         ],
+        census: AccessCensus::default(),
         clients: vec![
             ClientProbe {
                 id: "cursor".to_owned(),
@@ -545,17 +547,38 @@ fn the_mirror_greets_each_adoption_rung_with_its_own_cta() {
         ready.contains("state      real-ready · 2 runs on record · path configured — nika run"),
         "RealReady claims the record, never « a real model answered »:\n{ready}"
     );
-    // Every rung's line is its own — the five renders differ.
-    let lines: std::collections::BTreeSet<String> = [keyed, installed, detected, reachable, ready]
-        .iter()
-        .map(|t| {
-            t.lines()
-                .find(|l| l.contains("  state"))
-                .expect("a state line")
-                .to_owned()
-        })
-        .collect();
-    assert_eq!(lines.len(), 5, "five rungs, five distinct lines");
+    // SeatReady (R4) — a signed-in harness seat is an inference path:
+    // the census seats lane earns the rung, the line names the seat.
+    let mut seated = bare.clone();
+    seated.census = AccessCensus::from_parts(
+        &[],
+        vec![nika_providers::census::SeatFact::new(
+            "claude-code",
+            vec!["anthropic".to_owned()],
+            true,
+            true,
+            true,
+        )],
+    );
+    let seat = render_human(&seated, glance, counts(), plain());
+    assert!(
+        seat.contains(
+            "state      seat ready · claude-code signed in — runs on the plan you pay for"
+        ),
+        "SeatReady names the seat and the plan:\n{seat}"
+    );
+    // Every rung's line is its own — the six renders differ.
+    let lines: std::collections::BTreeSet<String> =
+        [keyed, installed, detected, reachable, ready, seat]
+            .iter()
+            .map(|t| {
+                t.lines()
+                    .find(|l| l.contains("  state"))
+                    .expect("a state line")
+                    .to_owned()
+            })
+            .collect();
+    assert_eq!(lines.len(), 6, "six rungs, six distinct lines");
 }
 
 #[test]
@@ -670,6 +693,7 @@ fn shipped_shape_probe() -> Probe {
                 .map(cloud),
             )
             .collect(),
+        census: AccessCensus::default(),
         // DERIVED from the registry, never listed by hand. The hand-
         // written four here were two short of what the binary probes,
         // so the 80-column ratchet was measuring a machine that does

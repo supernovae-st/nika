@@ -71,3 +71,43 @@ fn codex_without_acp_still_names_the_direct_infer_path() {
         finding.fix
     );
 }
+
+/// R4 — the per-seat fix used to teach `install: @zed-industries/
+/// claude-agent-acp@0.23.1` on a machine WITHOUT Claude Code: the
+/// operator installed the ACP WRAPPER (never the app), tried it as
+/// `--access claude-agent-acp`, and ate NIKA-1802 « retired ». Every
+/// seat fix now names the LIVE pin and the gesture; the wrapper id is
+/// disambiguated where the package itself must be named (the adapter
+/// install), and absent where it was the whole lie (app not installed).
+#[cfg(feature = "access-harness")]
+#[test]
+fn the_seat_fix_names_the_live_pin_never_teaches_the_wrapper_as_a_pin() {
+    let package =
+        "@zed-industries/claude-agent-acp@0.23.1 (npm i -g · wraps the claude CLI's own auth)";
+    // Not installed: the fix teaches installing the APP, and names the
+    // pin — the wrapper string does not appear at all.
+    let absent = super::harness_finding_from_parts("claude-code", None, None, package, false);
+    let fix = absent.fix.as_deref().expect("a fix");
+    assert!(fix.contains("--access claude-code"), "{fix}");
+    assert!(
+        !fix.contains("claude-agent-acp"),
+        "a machine without the app was told to install the wrapper: {fix}"
+    );
+    // App installed, adapter missing: the package IS the adapter, so it
+    // is named — beside the explicit « never the pin » clause and the
+    // live token.
+    let no_adapter = super::harness_finding_from_parts("claude-code", None, None, package, true);
+    let fix = no_adapter.fix.as_deref().expect("a fix");
+    assert!(fix.contains("--access claude-code"), "{fix}");
+    assert!(fix.contains("never the pin"), "{fix}");
+    // Not signed in: the gesture, then the pin.
+    let unsigned =
+        super::harness_finding_from_parts("claude-code", Some((0, 23)), Some(false), package, true);
+    let fix = unsigned.fix.as_deref().expect("a fix");
+    assert!(fix.contains("sign in to Claude Code itself"), "{fix}");
+    assert!(fix.contains("--access claude-code"), "{fix}");
+    // The authenticated seat teaches nothing.
+    let ready =
+        super::harness_finding_from_parts("claude-code", Some((0, 23)), Some(true), package, true);
+    assert_eq!(ready.fix, None);
+}

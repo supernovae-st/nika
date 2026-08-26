@@ -49,7 +49,11 @@ pub fn run(wire: &str, theme: Theme) -> VerbOutput {
         // (NIKA-DAG-002 …) live in the embedded canon's error_codes
         // table. Same binary, same single source of truth.
         if let Some(text) = canon_row(&normalized) {
-            return VerbOutput::ok(text);
+            return VerbOutput::ok(nika_cli_host::probe::with_seat_tail(
+                &normalized,
+                nika_cli_host::probe::seat_escape_tail().as_deref(),
+                text,
+            ));
         }
         // Retired conformance codes are ANSWERED, not 404'd: the hole in
         // the registry is deliberate (spec 05 · never reuse) and the
@@ -82,7 +86,11 @@ pub fn run(wire: &str, theme: Theme) -> VerbOutput {
         slug = code.slug,
         help = code_help(code),
     );
-    VerbOutput::ok(text)
+    VerbOutput::ok(nika_cli_host::probe::with_seat_tail(
+        &normalized,
+        nika_cli_host::probe::seat_escape_tail().as_deref(),
+        text,
+    ))
 }
 
 /// Teach a spec conformance code from the embedded canon's registry —
@@ -187,6 +195,14 @@ fn retired_row(code: &str) -> Option<String> {
 /// live here, never in the SSOT).
 fn cli_fix_hint(code: &str) -> Option<&'static str> {
     match code {
+        // R4: the credential refusal names the seat escape hatch (the env
+        // ladder alone sent seated operators to a vendor signup).
+        "NIKA-INFER-001" => Some(
+            "set the key the witness names (custody is the process env: \
+             `export <VAR>=…`), or run through a signed-in seat: \
+             `nika run <file> --access claude-code` — any agentic CLI you're \
+             signed into serves (`nika doctor` lists them)",
+        ),
         // F4: the unresolved-vars class is fixable from the CLI.
         "NIKA-VAR-001" => Some(
             "an unbound `inputs:` entry is supplied on the CLI — `nika run <file> \
@@ -195,10 +211,9 @@ fn cli_fix_hint(code: &str) -> Option<&'static str> {
              `const:` resolve only from their own declared block, and `item` / \
              `index` exist only inside a `for_each` task",
         ),
-        // The high-traffic conformance codes whose fix is one obvious
-        // YAML edit teach it concretely (#145 P1 — the failure states
-        // WHAT, this states the edit; the canon row never carries
-        // per-CLI affordances, so the fix-form lives here).
+        // The high-traffic conformance codes teach the one obvious YAML
+        // edit concretely (#145 P1 — the fix-form lives here, never in
+        // the canon row).
         "NIKA-DAG-001" => Some(
             "break the loop — one task in the cycle must drop the `with:` \
              binding or `after:` entry that closes it (a task can never \
@@ -266,6 +281,13 @@ fn cli_fix_hint(code: &str) -> Option<&'static str> {
              task typed `{ array: … }`, or a literal list), and comparisons \
              need both sides the same type",
         ),
+        _ => decide_fix_hint(code).or_else(|| run_decl_fix_hint(code)),
+    }
+}
+
+/// The `decide` bundle hints — split at the fn-length wall.
+fn decide_fix_hint(code: &str) -> Option<&'static str> {
+    match code {
         "NIKA-DECIDE-001" => Some(
             "the bundle breaks its own laws — weights/thresholds are INTEGER \
              basis-points (8735 = 87.35% · never a float), rules read only \
@@ -281,7 +303,7 @@ fn cli_fix_hint(code: &str) -> Option<&'static str> {
              above the declared floor; a MISSING required key is not an \
              error (the evaluation defers — abstention is a safety property)",
         ),
-        _ => run_decl_fix_hint(code),
+        _ => None,
     }
 }
 
@@ -318,6 +340,56 @@ mod tests {
     /// machine surface reads.
     fn run(wire: &str) -> VerbOutput {
         super::run(wire, Theme::new(false, false, false))
+    }
+
+    /// R4 — the credential refusal teaches the seat escape hatch: the
+    /// static fix names `--access claude-code` (the census-derived tail
+    /// is gated in the host's `with_seat_tail`, pinned separately).
+    #[test]
+    fn infer_001_teaches_the_seat_escape() {
+        let out = run("NIKA-INFER-001");
+        assert_eq!(out.code, exit::OK, "{}", out.text);
+        assert!(
+            out.text.contains("--access claude-code"),
+            "the seat door is taught:\n{}",
+            out.text
+        );
+        assert!(
+            out.text.contains("custody is the process env"),
+            "custody is named:\n{}",
+            out.text
+        );
+    }
+
+    /// Mutation pins for the tail gate: only the auth-class codes earn
+    /// the tail, and only when the census found a seat (inverting the
+    /// match or dropping the `None` arm must redden this).
+    #[test]
+    fn the_seat_tail_is_gated_on_code_class_and_census_truth() {
+        let text = "body".to_owned();
+        let with = nika_cli_host::probe::with_seat_tail(
+            "NIKA-INFER-001",
+            Some("or use a signed-in seat: `--access claude-code`"),
+            text.clone(),
+        );
+        assert!(with.contains("--access claude-code"), "{with}");
+        assert!(with.starts_with("body"), "{with}");
+        // NIKA-1800 rides the same gate.
+        assert!(
+            nika_cli_host::probe::with_seat_tail("NIKA-1800", Some("tail"), text.clone())
+                .contains("tail"),
+            "the admission refusal earns the tail too"
+        );
+        // Another class never does, even with a seat present.
+        assert_eq!(
+            nika_cli_host::probe::with_seat_tail("NIKA-DAG-002", Some("tail"), text.clone()),
+            "body"
+        );
+        // No seat, no tail — the teaching never promises a phantom path.
+        assert_eq!(
+            nika_cli_host::probe::with_seat_tail("NIKA-INFER-001", None, text.clone()),
+            "body"
+        );
     }
 
     #[test]
