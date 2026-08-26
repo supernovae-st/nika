@@ -220,7 +220,7 @@ This gate refuses a close whose proof does not exist. GitHub closing the issue o
 
 Two honest ways to close:
 
-- **It delivered a capability** — name a live CI job in \`wiring.yaml\` (\`proven_by:\` + \`issue: $ISSUE\`), or put \`proven_by: <job>\` in the body, and close again.
+- **It delivered a capability** — name a live CI job in \`wiring.yaml\` (\`proven_by:\` + \`issue: $ISSUE\`), or write \`proven_by: <job>\` in the body LINE-INITIAL (the marker starts its own line — a mention inside a sentence is prose, not a declaration · one job only, two distinct values refuse as ambiguous), and close again.
 - **It delivered nothing** — close it as **not planned** (or as a duplicate), or add a \`no-capability\` / \`question\` / \`invalid\` label. That is an explicit act by whoever closes, and it is recorded.
 
 What this gate no longer accepts is silence. Until 2026-08-25 it only judged closes whose author had happened to write \`proven_by:\` in the body, which meant the closes most likely to lie were the ones it skipped." >/dev/null 2>&1 || true
