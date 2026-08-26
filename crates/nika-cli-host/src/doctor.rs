@@ -245,15 +245,19 @@ fn provider_findings(probe: &Probe, out: &mut Vec<Finding>) {
     out.push(pricing_finding(&probe.pricing));
 
     // The ONE Fail that drives exit 3 · no inference path AT ALL (a broken or
-    // empty catalog). A merely-unset cloud key is a ⚠ above, never fatal.
-    if cloud_keys == 0 && local_ids.is_empty() {
+    // empty catalog). A merely-unset cloud key is a ⚠ above, never fatal —
+    // and a signed-in harness seat IS an inference path (R4 · the census
+    // joins what the provider rows alone never saw; the ladder's SeatReady
+    // rung reads the same `seats_ready`).
+    if cloud_keys == 0 && local_ids.is_empty() && probe.census.seats_ready.is_empty() {
         out.push(Finding {
             level: Level::Fail,
             label: "providers".to_owned(),
-            detail: "no inference provider available — neither a cloud key nor a local server"
+            detail: "no inference path — no cloud key, no local server, no signed-in harness seat"
                 .to_owned(),
             fix: Some(
-                "export <PROVIDER>_API_KEY=…  · or run a local server (ollama · llama.cpp · vLLM)"
+                "export <PROVIDER>_API_KEY=… · run a local server (ollama · llama.cpp · vLLM) · \
+                 or sign in to a harness seat (`--access claude-code`)"
                     .to_owned(),
             ),
         });
