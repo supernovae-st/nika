@@ -1,4 +1,3 @@
----
 - **One access census, one truth — the seat in the first screen, the doctor
   fix, and the refusal tail.** Three surfaces each read a different source of
   access truth. `welcome` and `doctor --json` classified a machine with a
