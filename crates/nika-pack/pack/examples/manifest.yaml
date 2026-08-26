@@ -78,8 +78,8 @@ showcase:
     sha256_16: 8dd0a12b1fad12ba
   - file: examples/ceo-monday-brief.nika.yaml
     name: ceo-monday-brief
-    constructs: [extract, local_model, on_error, outputs, secrets, thinking, typed_inputs, when, with]
-    sha256_16: b63ceb7fe702cbb4
+    constructs: [extract, local_model, on_error, outputs, secrets, typed_inputs, when, with]
+    sha256_16: 1fb36e489bb5321a
   - file: examples/competitor-radar.nika.yaml
     name: competitor-radar
     constructs: [fail_fast, for_each, local_model, max_parallel, on_error, outputs, retry, timeout, typed_inputs, when, with]
@@ -114,8 +114,8 @@ showcase:
     sha256_16: 26b9cd07185a5278
   - file: examples/incident-war-room.nika.yaml
     name: incident-war-room
-    constructs: [local_model, on_error, outputs, retry, schema, secrets, thinking, typed_inputs, when, with]
-    sha256_16: 9f1566cc6f495a36
+    constructs: [local_model, on_error, outputs, retry, schema, secrets, typed_inputs, when, with]
+    sha256_16: 9d10252e615e651b
   - file: examples/invoice-chaser.nika.yaml
     name: invoice-chaser
     constructs: [local_model, outputs, when, with]

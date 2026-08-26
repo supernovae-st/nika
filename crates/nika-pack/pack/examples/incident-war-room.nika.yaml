@@ -244,11 +244,13 @@ tasks:
         Timeline · ${{ with.events }}
         Write the postmortem draft · summary · impact · root-cause
         hypotheses · 3 follow-up actions with owners left blank.
-      thinking:
-        # A reasoning budget, honoured by seats that support extended thinking
-        # and ignored by the ones that do not — declaring it never fails a run.
-        enabled: true
-        budget_tokens: 4000
+      # No `thinking:` block on purpose: the seat law REFUSES a thinking
+      # declaration on a model the catalog knows cannot reason (a dead
+      # declaration — the wire drops the budget), and a budget ≥ the cap
+      # is refused on ANY seat (the reasoning share lives inside
+      # `max_tokens`). Seat `postmortem` on a reasoning-capable model via
+      # its own `model:` and keep the budget under the cap — THAT is what
+      # licenses `thinking: { enabled: true, budget_tokens: … }`.
 
   save:
     with:
