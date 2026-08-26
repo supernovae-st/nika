@@ -2398,6 +2398,7 @@ dependencies = [
  "jaq-std",
  "jsonschema",
  "nika-cap",
+ "nika-catalog",
  "nika-schema",
  "nika-types",
  "nika-vocab",

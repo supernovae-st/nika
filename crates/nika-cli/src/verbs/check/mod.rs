@@ -180,7 +180,9 @@ mod drift;
 pub(crate) mod energy;
 pub(crate) mod models_rung;
 mod project;
-use models_rung::{ModelFinding, ModelsAudit, pricing_section, unresolvable_models};
+use models_rung::{
+    ModelFinding, ModelsAudit, pricing_section, thinking_findings, unresolvable_models,
+};
 
 use nika_display::check_render::{RepairTarget, render};
 #[cfg(test)]
@@ -426,6 +428,7 @@ fn run_source_with_profile_and_slots(
         && !report.slot_findings.is_empty()
         && report.findings.iter().all(|finding| finding.kind == "slot")
         && unresolvable_models(&report, &wf).findings.is_empty()
+        && thinking_findings(&wf).is_empty()
         && skills.findings.is_empty();
     let out = render_checked_with_profile(
         source.source(),
@@ -487,25 +490,22 @@ fn render_checked_with_profile(
     profile: Profile,
     theme: Theme,
 ) -> VerbOutput {
-    // The declared-vs-used drift family (NIKA-DRIFT-001 · drift.rs) —
-    // advisory in both projections, never an exit-code input.
+    // Declared-vs-used drift (NIKA-DRIFT-001) — advisory, never an exit input.
     let drift_hints = drift::scan(wf);
     let native_hints = native_hint_count(report);
-    // The MODELS rung (#320): the ladder validated TOOLS but not MODELS —
-    // the exact asymmetry a hallucinating agent hits. A `model:` this
-    // binary cannot resolve is a FINDING (exit 2), never a green audit.
-    let models_audit = unresolvable_models(report, wf);
+    // The MODELS rung (#320): a `model:` this binary cannot resolve is
+    // a FINDING (exit 2), never a green audit — the thinking judgments
+    // ride the same rung.
+    let mut models_audit = unresolvable_models(report, wf);
+    models_audit.findings.extend(thinking_findings(wf));
     let clean = report.is_clean() && models_audit.findings.is_empty() && skills.findings.is_empty();
-    // The risk grade (P0-6): a pure projection of the report — uncapped
-    // spend or wildcard grants never turn the verdict green by silence.
-    // Advisory by default; the operational profile folds grade ≥ High
-    // into the exit-2 verdict (the readiness gate).
+    // The risk grade (P0-6): a pure projection — advisory by default;
+    // the operational profile folds grade ≥ High into the exit-2 verdict.
     let grade = nika_check::risk_grade(report);
     let profile_clean = profile != Profile::Operational || grade < nika_check::RiskGrade::High;
     let strict_clean = clean && profile_clean && (!native_strict || native_hints == 0);
 
-    // W8 metrics (audit UX 2026-07-30): a green audit is the check_passed
-    // event — content-free by construction, off unless NIKA_METRICS=1.
+    // W8 metrics: a green audit is the content-free check_passed event.
     if strict_clean {
         crate::metrics::record_if_enabled(
             crate::metrics::EventKind::CheckPassed,
@@ -539,9 +539,7 @@ fn render_checked_with_profile(
         skills,
         &drift_hints,
         // THE verdict, computed once above — the footer shows it, the
-        // exit code rides it, `--json` serializes it (P0-11: the human
-        // surface used to re-decide on `report.is_clean()` alone and
-        // painted `✔ audited` under a `✖ MODELS` rung at exit 2).
+        // exit code rides it (P0-11).
         clean,
     );
     strict_footers(
@@ -554,10 +552,8 @@ fn render_checked_with_profile(
     );
     naming_note(&mut text, theme, path, wf);
     budget::footnote(&mut text, theme);
-    // The `--ascii` byte contract (P1 · audit UX 2026-07-30): the finished
-    // report folds through the ONE enforcement seam — the glyph twins stay
-    // the primary mechanism, this fold is what makes the emitted bytes
-    // ASCII by construction (a no-op on the unicode register).
+    // The `--ascii` byte contract (P1): the report folds through the
+    // ONE enforcement seam — ASCII by construction.
     if strict_clean {
         VerbOutput::ok(nika_display::vocab::sober(theme, &text))
     } else {

@@ -428,7 +428,55 @@ impl<T> dyn_clone::DynClone for nika_check_analyzer::edges::RecoveryRead where T
 pub fn nika_check_analyzer::edges::RecoveryRead::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
 impl<T> nika_error::traits::AsAny for nika_check_analyzer::edges::RecoveryRead where T: 'static
 pub fn nika_check_analyzer::edges::RecoveryRead::as_any(&self) -> &(dyn core::any::Any + 'static)
+#[non_exhaustive] pub struct nika_check_analyzer::ThinkingFinding
+pub nika_check_analyzer::ThinkingFinding::model: alloc::string::String
+pub nika_check_analyzer::ThinkingFinding::task: alloc::string::String
+pub nika_check_analyzer::ThinkingFinding::why: alloc::string::String
+impl nika_check_analyzer::ThinkingFinding
+pub fn nika_check_analyzer::ThinkingFinding::new(task: alloc::string::String, model: alloc::string::String, why: alloc::string::String) -> Self
+impl core::clone::Clone for nika_check_analyzer::ThinkingFinding
+pub fn nika_check_analyzer::ThinkingFinding::clone(&self) -> nika_check_analyzer::ThinkingFinding
+impl core::cmp::Eq for nika_check_analyzer::ThinkingFinding
+impl core::cmp::PartialEq for nika_check_analyzer::ThinkingFinding
+pub fn nika_check_analyzer::ThinkingFinding::eq(&self, other: &nika_check_analyzer::ThinkingFinding) -> bool
+impl core::fmt::Debug for nika_check_analyzer::ThinkingFinding
+pub fn nika_check_analyzer::ThinkingFinding::fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result
+impl core::marker::StructuralPartialEq for nika_check_analyzer::ThinkingFinding
+impl<D> owo_colors::OwoColorize for nika_check_analyzer::ThinkingFinding
+impl<Q, K> equivalent::Equivalent<K> for nika_check_analyzer::ThinkingFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check_analyzer::ThinkingFinding::equivalent(&self, key: &K) -> bool
+impl<Q, K> hashbrown::Equivalent<K> for nika_check_analyzer::ThinkingFinding where Q: core::cmp::Eq + ?core::marker::Sized, K: core::borrow::Borrow<Q> + ?core::marker::Sized
+pub fn nika_check_analyzer::ThinkingFinding::equivalent(&self, key: &K) -> bool
+impl<T, U> core::convert::Into<U> for nika_check_analyzer::ThinkingFinding where U: core::convert::From<T>
+pub fn nika_check_analyzer::ThinkingFinding::into(self) -> U
+impl<T, U> core::convert::TryFrom<U> for nika_check_analyzer::ThinkingFinding where U: core::convert::Into<T>
+pub type nika_check_analyzer::ThinkingFinding::Error = core::convert::Infallible
+pub fn nika_check_analyzer::ThinkingFinding::try_from(value: U) -> core::result::Result<T, <T as core::convert::TryFrom<U>>::Error>
+impl<T, U> core::convert::TryInto<U> for nika_check_analyzer::ThinkingFinding where U: core::convert::TryFrom<T>
+pub type nika_check_analyzer::ThinkingFinding::Error = <U as core::convert::TryFrom<T>>::Error
+pub fn nika_check_analyzer::ThinkingFinding::try_into(self) -> core::result::Result<U, <U as core::convert::TryFrom<T>>::Error>
+impl<T> alloc::borrow::ToOwned for nika_check_analyzer::ThinkingFinding where T: core::clone::Clone
+pub type nika_check_analyzer::ThinkingFinding::Owned = T
+pub fn nika_check_analyzer::ThinkingFinding::clone_into(&self, target: &mut T)
+pub fn nika_check_analyzer::ThinkingFinding::to_owned(&self) -> T
+impl<T> core::any::Any for nika_check_analyzer::ThinkingFinding where T: 'static + ?core::marker::Sized
+pub fn nika_check_analyzer::ThinkingFinding::type_id(&self) -> core::any::TypeId
+impl<T> core::borrow::Borrow<T> for nika_check_analyzer::ThinkingFinding where T: ?core::marker::Sized
+pub fn nika_check_analyzer::ThinkingFinding::borrow(&self) -> &T
+impl<T> core::borrow::BorrowMut<T> for nika_check_analyzer::ThinkingFinding where T: ?core::marker::Sized
+pub fn nika_check_analyzer::ThinkingFinding::borrow_mut(&mut self) -> &mut T
+impl<T> core::clone::CloneToUninit for nika_check_analyzer::ThinkingFinding where T: core::clone::Clone
+pub unsafe fn nika_check_analyzer::ThinkingFinding::clone_to_uninit(&self, dest: *mut u8)
+impl<T> core::convert::From<T> for nika_check_analyzer::ThinkingFinding
+pub fn nika_check_analyzer::ThinkingFinding::from(t: T) -> T
+impl<T> dyn_clone::DynClone for nika_check_analyzer::ThinkingFinding where T: core::clone::Clone
+pub fn nika_check_analyzer::ThinkingFinding::__clone_box(&self, _: dyn_clone::sealed::Private) -> *mut ()
+impl<T> nika_error::traits::AsAny for nika_check_analyzer::ThinkingFinding where T: 'static
+pub fn nika_check_analyzer::ThinkingFinding::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub fn nika_check_analyzer::analyze(wf: &nika_schema::raw::workflow::RawWorkflow) -> core::result::Result<nika_check_analyzer::AnalyzedWorkflow, alloc::vec::Vec<nika_schema::error::SchemaError>>
+pub fn nika_check_analyzer::bare_static_ref(expr: &str) -> core::option::Option<(&'static str, &str)>
 pub fn nika_check_analyzer::lowered_returns(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>
 pub fn nika_check_analyzer::returns_type(task: &nika_schema::raw::task::RawTask, wf: &nika_schema::raw::workflow::RawWorkflow) -> core::option::Option<nika_types::types::NikaType>
 pub fn nika_check_analyzer::role_of_field(field: core::option::Option<&str>) -> nika_check_analyzer::edges::EdgeKind
+pub fn nika_check_analyzer::static_literal_of<'w>(wf: &'w nika_schema::raw::workflow::RawWorkflow, expr: &str) -> core::option::Option<&'w serde_json::value::Value>
+pub fn nika_check_analyzer::thinking_findings(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<nika_check_analyzer::ThinkingFinding>

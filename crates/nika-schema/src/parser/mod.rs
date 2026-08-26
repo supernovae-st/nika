@@ -9,8 +9,10 @@
 //! `03-dag.md` with the 4 verbs of `02-verbs.md`.
 //!
 //! The parser is **shape-only** · it validates field forms (scalar vs
-//! mapping · closed enums · the Go-duration grammar · exactly-one-verb)
-//! and rejects unknown fields in [`ParseMode::Strict`]. Cross-reference
+//! mapping · closed enums · the Go-duration grammar · exactly-one-verb ·
+//! the plain-scalar coercion refusal for string-typed fields —
+//! `refuse_ambiguous_plain_scalar`) and rejects unknown fields in
+//! [`ParseMode::Strict`]. Cross-reference
 //! semantics (cycles · edge-target resolution · `${{ }}` namespace
 //! resolution · the `when:` boolean-shape rule) are the analyzer's job.
 //!
@@ -24,6 +26,8 @@ pub(crate) mod for_each;
 mod lift;
 mod retired;
 pub(crate) mod tasks;
+#[cfg(test)]
+mod type_sweep;
 mod value;
 pub(crate) mod verbs;
 
@@ -106,43 +110,18 @@ pub fn parse(yaml: &str, file_id: FileId, mode: ParseMode) -> Result<RawWorkflow
     // vars/env/secrets/outputs/with/output duplicate-key detection).
     // `prevent_coercion` makes QUOTED scalars non-coercing (only plain
     // scalars type-coerce) — the YAML 1.2 contract `"42"` is a string.
+    //
+    // The dialect note for STRING-typed fields (spec 03 §timeout's law,
+    // generalized): a PLAIN scalar resolving as int · float · bool is
+    // REFUSED at the string seams (`refuse_ambiguous_plain_scalar`) —
+    // `as_str()` would restringify it and a wrong-typed field would
+    // audit green. Quote it (`"123"`); `yes`/`no` stay strings (YAML
+    // 1.2 core); `${{ }}` templates never parse as number/bool.
     let options = LoaderOptions::default()
         .error_on_duplicate_keys(true)
         .prevent_coercion(true);
-    let node =
-        parse_yaml_with_options(file_id.0 as usize, yaml, options).map_err(|err| match err {
-            LoadError::DuplicateKey(inner) => SchemaError::DuplicateKey {
-                message: format!(
-                    "\"{}\" appears twice in the same mapping",
-                    inner.key.as_str()
-                ),
-                // The colliding key (not the first, which was legal
-                // until this one arrived) — grepping the name returns
-                // both sites; the span names the one to delete.
-                span: yaml_span_to_span(file_id, inner.key.span(), &char_to_byte),
-            },
-            // Pre-parse cause lint (the copy-fidelity class · #323): a weak
-            // copier de-comments the editor modeline and YAML reads the bare
-            // `$schema=…` line as a document scalar — the raw error then
-            // points at the SYMPTOM (the first mapping line, e.g. `nika: v1`
-            // at line 14) while the fault is line 1-2, and the repair loop
-            // chases the wrong line forever (0/13 measured on a 14B grid).
-            // Name the CAUSE, span on the offending line.
-            other => match broken_modeline(yaml, file_id) {
-                Some((span, line_no)) => SchemaError::YamlSyntax {
-                    message: format!(
-                        "a bare `$schema=` line (line {line_no}) is a broken editor \
-                         modeline — restore the `# yaml-language-server: $schema=…` \
-                         comment prefix (or delete the line; it is editor-only)"
-                    ),
-                    span: Some(span),
-                },
-                None => SchemaError::YamlSyntax {
-                    message: other.to_string(),
-                    span: None,
-                },
-            },
-        })?;
+    let node = parse_yaml_with_options(file_id.0 as usize, yaml, options)
+        .map_err(|err| load_error_to_schema(err, yaml, file_id, &char_to_byte))?;
 
     let mapping = node.as_mapping().ok_or_else(|| SchemaError::Validation {
         message: "workflow root must be a YAML mapping".to_owned(),
@@ -180,6 +159,49 @@ pub fn parse(yaml: &str, file_id: FileId, mode: ParseMode) -> Result<RawWorkflow
     workflow.tasks = tasks::parse_tasks(&cx, mapping)?;
 
     Ok(workflow)
+}
+
+/// The [`LoadError`] → [`SchemaError`] fold, out of `parse` under the
+/// 100-line fn cap (the plain-scalar guard's dialect note grew it over).
+fn load_error_to_schema(
+    err: LoadError,
+    yaml: &str,
+    file_id: FileId,
+    char_to_byte: &CharToByte,
+) -> SchemaError {
+    match err {
+        LoadError::DuplicateKey(inner) => SchemaError::DuplicateKey {
+            message: format!(
+                "\"{}\" appears twice in the same mapping",
+                inner.key.as_str()
+            ),
+            // The colliding key (not the first, which was legal
+            // until this one arrived) — grepping the name returns
+            // both sites; the span names the one to delete.
+            span: yaml_span_to_span(file_id, inner.key.span(), char_to_byte),
+        },
+        // Pre-parse cause lint (the copy-fidelity class · #323): a weak
+        // copier de-comments the editor modeline and YAML reads the bare
+        // `$schema=…` line as a document scalar — the raw error then
+        // points at the SYMPTOM (the first mapping line, e.g. `nika: v1`
+        // at line 14) while the fault is line 1-2, and the repair loop
+        // chases the wrong line forever (0/13 measured on a 14B grid).
+        // Name the CAUSE, span on the offending line.
+        other => match broken_modeline(yaml, file_id) {
+            Some((span, line_no)) => SchemaError::YamlSyntax {
+                message: format!(
+                    "a bare `$schema=` line (line {line_no}) is a broken editor \
+                     modeline — restore the `# yaml-language-server: $schema=…` \
+                     comment prefix (or delete the line; it is editor-only)"
+                ),
+                span: Some(span),
+            },
+            None => SchemaError::YamlSyntax {
+                message: other.to_string(),
+                span: None,
+            },
+        },
+    }
 }
 
 // ── Shared parse context ────────────────────────────────────────────
@@ -588,7 +610,10 @@ impl CharToByte {
 ///
 /// Returns `Ok(None)` if the key is absent. Returns a
 /// [`SchemaError::Validation`] if the key exists but the value is a
-/// mapping or a sequence.
+/// mapping or a sequence — or a PLAIN scalar that resolves as a
+/// number/boolean ([`refuse_ambiguous_plain_scalar`]: the silent
+/// `as_str()` restringification is the false-green class the guard
+/// closes; the QUOTED form stays the legal way to say the string).
 pub(super) fn extract_scalar(
     mapping: &marked_yaml::types::MarkedMappingNode,
     key: &str,
@@ -606,7 +631,55 @@ pub(super) fn extract_scalar(
     };
     let span = yaml_span_to_span(file_id, scalar.span(), char_to_byte)
         .unwrap_or_else(|| Span::point(file_id, ByteOffset::new(0)));
+    refuse_ambiguous_plain_scalar(scalar, key, span)?;
     Ok(Some(Spanned::new(scalar.as_str().to_owned(), span)))
+}
+
+/// The plain-scalar coercion guard for STRING-typed fields — spec 03
+/// §timeout's dialect law (« a bare YAML number is ambiguous and
+/// rejected », the [`SchemaError::BadTimeout`] note) generalized to every
+/// string the parser reads.
+///
+/// Under the YAML 1.2 core dialect a PLAIN `123`, `0.5` or `true` is an
+/// int · float · bool; reading it through `as_str()` silently
+/// restringifies the source text, so `prompt: 123` audited green on a
+/// value whose TYPE the author never checked. The numeric/bool-typed
+/// fields never had this seam (`as_u32`/`as_bool` return `None` on a
+/// mismatch → a refusal); the string-typed ones rode it. Refuse at the
+/// parse seam and teach the quoted form (`"123"`).
+///
+/// Scope, pinned by `parser::type_sweep`:
+///
+/// - `may_coerce()` is true EXACTLY for plain scalars (the loader sets
+///   `prevent_coercion(true)` — a quoted `"123"` is coercion-proof and
+///   stays legal).
+/// - `as_bool` accepts only `true`/`false` (YAML 1.2 core) — `yes`/`no`
+///   stay strings and are NOT refused.
+/// - `${{ }}` templates are plain scalars that never parse as a
+///   number/bool — the template seam is untouched.
+pub(super) fn refuse_ambiguous_plain_scalar(
+    scalar: &marked_yaml::types::MarkedScalarNode,
+    label: &str,
+    span: Span,
+) -> Result<(), SchemaError> {
+    if !scalar.may_coerce() {
+        return Ok(());
+    }
+    let text = scalar.as_str();
+    let kind = if text.parse::<i64>().is_ok() || text.parse::<f64>().is_ok() {
+        "number"
+    } else if scalar.as_bool().is_some() {
+        "boolean"
+    } else {
+        return Ok(());
+    };
+    Err(SchemaError::Validation {
+        message: format!(
+            "`{label}` must be a string — the plain scalar `{text}` reads as a YAML {kind}; \
+             quote it (\"{text}\") to mean the string"
+        ),
+        span: Some(span),
+    })
 }
 
 /// `^[a-z][a-z0-9-]*$` — the kebab-case resource-name shape (spec

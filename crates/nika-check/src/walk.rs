@@ -15,7 +15,12 @@ use std::collections::BTreeSet;
 
 use nika_schema::expression::{bare_task_refs, scan_templates, task_output_paths};
 use nika_schema::raw::{RawAction, RawWorkflow};
-use nika_schema::types::VarDecl;
+
+// The static-value resolver descended to the analysis substrate
+// (`static_ref.rs`) with the thinking-seat law (2026-08-25 · the 15k
+// wall). Re-exported here so the in-crate lanes keep their historical
+// `walk::` / `crate::` call sites — one resolver, every lane, no drift.
+pub(crate) use nika_check_analyzer::{bare_static_ref, static_literal_of};
 
 /// Task ids whose output is referenced ANYWHERE (any `tasks.X.output…`
 /// chain in any island, or an envelope `outputs:` entry).
@@ -148,57 +153,6 @@ pub(crate) fn visit_json(value: &serde_json::Value, visit: &mut dyn FnMut(&str))
         }
         serde_json::Value::Null | serde_json::Value::Bool(_) | serde_json::Value::Number(_) => {}
     }
-}
-
-/// THE shared static-value resolver: a whole-string bare
-/// `${{ <authority>.<name> }}` over the three value authorities whose
-/// declared value is static (`const.` · `inputs.` · `config.`), resolved
-/// to the LITERAL it declares — an untyped value, or a typed
-/// declaration's literal `default:`. One resolver, every lane: the cost
-/// ceiling counts `for_each` fan-outs through it, the read-path lint
-/// resolves `nika:read` args through it, and the CLI's MODELS rung
-/// judges a templated `model:`'s declared default through it. A private
-/// per-lane copy is how lanes drift (measured 2026-07-29: the cost lane
-/// resolved `${{ const.model }}`-class refs while MODELS skipped them
-/// wholesale — same expression, two verdicts).
-///
-/// `None` for everything else — navigation (`.field` · `[0]`),
-/// operators, concatenations, task refs, a name outside the expression
-/// identifier grammar (`[A-Za-z0-9_]`), or a typed declaration with no
-/// `default:` — which stays statically unknown: analysis never guesses.
-#[must_use]
-pub fn static_literal_of<'w>(wf: &'w RawWorkflow, expr: &str) -> Option<&'w serde_json::Value> {
-    let (authority, name) = bare_static_ref(expr)?;
-    let block = match authority {
-        "const." => &wf.consts,
-        _ => &wf.inputs,
-    };
-    let (_, decl) = block.iter().find(|(k, _)| k.value == name)?;
-    match decl {
-        VarDecl::Untyped(v)
-        | VarDecl::Typed {
-            default: Some(v), ..
-        } => Some(v),
-        VarDecl::Typed { default: None, .. } => None,
-    }
-}
-
-/// The parse half of [`static_literal_of`]: a whole-string bare
-/// `${{ <authority>.<ident> }}` over the three IMMUTABLE value
-/// authorities → `(authority-with-dot, name)`. Two identical such refs
-/// denote the same runtime value even when no literal is declared —
-/// inputs bind once per run, const/config never change — which is what
-/// the write-conflict scan keys on. Further navigation (`.field` ·
-/// `[0]`), operators, or a name outside the identifier grammar → `None`.
-pub(crate) fn bare_static_ref(expr: &str) -> Option<(&'static str, &str)> {
-    let inner = expr.trim().strip_prefix("${{")?.strip_suffix("}}")?.trim();
-    let (authority, name) = ["const.", "inputs.", "inputs."]
-        .into_iter()
-        .find_map(|ns| inner.strip_prefix(ns).map(|n| (ns, n)))?;
-    if name.is_empty() || !name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_') {
-        return None;
-    }
-    Some((authority, name))
 }
 
 /// Resolve an invoke arg to a STATIC string when it is a plain literal

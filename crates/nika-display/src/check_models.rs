@@ -191,6 +191,26 @@ fn absent_model_row(out: &mut String, wf: &RawWorkflow, t: Theme) {
     );
 }
 
+/// The refusal rows, out of `models` under the 100-line fn cap: one row
+/// per finding, the error code prefixed when the refusal carries one.
+fn findings_rows(out: &mut String, findings: &[ModelFinding], t: Theme) {
+    for f in findings {
+        let detail = match f.code.as_deref() {
+            Some(code) => format!("[{code}] {}", f.why),
+            None => f.why.clone(),
+        };
+        let _ = writeln!(
+            out,
+            " {} {}   `{}` (task{} {}) — {detail}",
+            mark(t, false),
+            t.paint(Role::Strong, "MODELS"),
+            f.model,
+            if f.tasks.len() == 1 { "" } else { "s" },
+            f.tasks.join(", "),
+        );
+    }
+}
+
 pub(crate) fn models(
     out: &mut String,
     report: &CheckReport,
@@ -203,21 +223,7 @@ pub(crate) fn models(
         return; // no inference tasks — the ladder says so at COST already
     }
     if !audit.findings.is_empty() {
-        for f in &audit.findings {
-            let detail = match f.code.as_deref() {
-                Some(code) => format!("[{code}] {}", f.why),
-                None => f.why.clone(),
-            };
-            let _ = writeln!(
-                out,
-                " {} {}   `{}` (task{} {}) — {detail}",
-                mark(t, false),
-                t.paint(Role::Strong, "MODELS"),
-                f.model,
-                if f.tasks.len() == 1 { "" } else { "s" },
-                f.tasks.join(", "),
-            );
-        }
+        findings_rows(out, &audit.findings, t);
         return;
     }
     let n = report.requirements.models.len();
@@ -255,9 +261,18 @@ pub(crate) fn models(
     } else {
         ""
     };
+    // P02's narrowing (the same gauntlet shape, one layer down): the
+    // green line read as « this run will reach the model », then the run
+    // refused for a missing key. This rung judges RESOLUTION in the
+    // binary — never key presence on this machine, which stays the
+    // advisory surface's truth (`access_plan`), with the refusal
+    // authority at the run gate. A ✔ that claims exactly what it
+    // covered, and names what defers.
+    let key_presence = " · key presence on this machine not judged (advisory: check --json access_plan · \
+         the run gate refuses NIKA-INFER-001)";
     let line = if audit.unjudged > 0 {
         format!(
-            "{judged} of {n} models resolve in this binary{via} · {} run-time · unjudged{liveness}",
+            "{judged} of {n} models resolve in this binary{via} · {} run-time · unjudged{liveness}{key_presence}",
             audit.unjudged
         )
     } else {
@@ -266,7 +281,7 @@ pub(crate) fn models(
         } else {
             "models resolve"
         };
-        format!("{n} {noun} in this binary{via}{liveness}")
+        format!("{n} {noun} in this binary{via}{liveness}{key_presence}")
     };
     let _ = writeln!(
         out,
@@ -297,6 +312,63 @@ mod tests {
 
     fn workflow(yaml: &str) -> RawWorkflow {
         parse(yaml, FileId::new(0), ParseMode::Strict).expect("fixture parses")
+    }
+
+    /// The claim-narrowing pin (the gauntlet read `✔ MODELS 1 model
+    /// resolves in this binary` as « the run will reach it », then the
+    /// run refused for a missing key): the green line names what it did
+    /// NOT judge — key presence on this machine — and where that truth
+    /// lives (the advisory `access_plan` · the run gate's NIKA-INFER-001).
+    /// Dropping the clause turns this red; the clause is unconditional
+    /// because the rung never judges key presence, on any workflow.
+    #[test]
+    fn the_green_line_names_the_key_presence_deferral() {
+        let mut out = String::new();
+        let full = workflow(
+            "nika: m\ntasks:\n  t:\n    infer: { prompt: hi, max_tokens: 10, model: \"mock/echo\" }\n",
+        );
+        let report = nika_check::check(&full);
+        models(
+            &mut out,
+            &report,
+            &full,
+            &ModelsAudit::new(Vec::new(), 0, 0),
+            Theme::new(false, true, false),
+        );
+        assert!(out.contains("1 model resolves in this binary"), "{out}");
+        for clause in [
+            "key presence on this machine not judged",
+            "check --json access_plan",
+            "NIKA-INFER-001",
+        ] {
+            assert!(out.contains(clause), "the deferral names `{clause}`: {out}");
+        }
+
+        // The mixed list (one judged, one run-time) carries the same
+        // narrowing — the deferral is a property of the RUNG, not of the
+        // all-static happy path.
+        let mixed = workflow(
+            "nika: m\ninputs:\n  seat: { type: string, required: true }\ntasks:\n  a:\n    \
+             infer: { prompt: hi, max_tokens: 10, model: \"mock/echo\" }\n  b:\n    \
+             infer: { prompt: hi, max_tokens: 10, model: \"${{ inputs.seat }}\" }\n",
+        );
+        let report = nika_check::check(&mixed);
+        let mut out = String::new();
+        models(
+            &mut out,
+            &report,
+            &mixed,
+            &ModelsAudit::new(Vec::new(), 1, 0),
+            Theme::new(false, true, false),
+        );
+        assert!(
+            out.contains("1 of 2 models resolve in this binary"),
+            "{out}"
+        );
+        assert!(
+            out.contains("key presence on this machine not judged"),
+            "the mixed line narrows too: {out}"
+        );
     }
 
     #[test]

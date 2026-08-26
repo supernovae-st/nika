@@ -69,7 +69,7 @@ $ nika check brief.nika.yaml
  ✔ PLAN     2 waves · 2 tasks · max parallelism 1
       wave 1 fetch_notes (invoke · nika:read)
       wave 2 brief (infer · ollama/llama3.2:3b)
- ✔ MODELS   1 model resolves in this binary
+ ✔ MODELS   1 model resolves in this binary · local servers not probed (nika doctor --ping) · key presence on this machine not judged (advisory: check --json access_plan · the run gate refuses NIKA-INFER-001)
  ⚠  COST     bounded portion $0.0000 no total ceiling · 1 uncapped task · prompts, exec + mcp unpriced · prices 2026-07-28
    brief  ollama/llama3.2:3b  UNBOUNDED — no catalog price (local/unknown model)
  ⚠  ENERGY   no total energy ceiling · 0 of 1 tasks measured · 1 uncapped · never 0 Wh (NEP-0018)

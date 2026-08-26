@@ -6,7 +6,7 @@
 # A pile of documents becomes one sourced brief — and no model window ever
 # holds two documents. A fast pass assigns each file a focus FROM ITS PATH
 # alone, every document is then read and carded in its own fresh window,
-# jq assembles and ranks the deck deterministically, and a thinking pass
+# jq assembles and ranks the deck deterministically, and a synthesis pass
 # answers the question from the cards. Context folding: the corpus lives
 # in the dataflow, each model call sees one slice, the synthesis sees only
 # projections. Window size stops scaling with corpus size.
@@ -47,7 +47,9 @@ run:
 # resident seat also spares the model-swap thrash of per-task overrides
 # on a single GPU (measured: alternating two seats sent every stage cold
 # and timed the synthesis out). Upgrade path: point `brief` at a
-# thinking seat via its own `model:` when your machine holds both.
+# thinking seat via its own `model:` when your machine holds both — the
+# seat is what licenses a `thinking:` declaration (check REFUSES it on a
+# model the catalog knows cannot reason · a dead declaration).
 model: ollama/llama3.2:3b   # local · zero key · `--model mock/echo` rehearses the whole file
 
 inputs:
@@ -225,12 +227,12 @@ tasks:
         Answer the question from the cards alone. Cite the `path` of every
         card you lean on. Where cards disagree, say so — do not resolve a
         conflict the sources did not resolve.
-      thinking:
-        # A reasoning budget, honoured by seats that support extended
-        # thinking and ignored by the ones that do not — declaring it
-        # never fails a run.
-        enabled: true
-        budget_tokens: 4000
+      # No `thinking:` block on purpose: the seat law REFUSES a thinking
+      # declaration on a model the catalog knows cannot reason (a dead
+      # declaration — the wire drops the budget), and the local seat this
+      # file runs on is exactly that. Seat `brief` on a reasoning-capable
+      # model via its own `model:` — THAT is what licenses
+      # `thinking: { enabled: true, budget_tokens: … }`.
 
 # Both the brief and the deck, so the fold is inspectable: the deck is
 # everything the synthesis was allowed to see. Read with `--output json`.

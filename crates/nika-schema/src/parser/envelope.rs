@@ -116,6 +116,11 @@ pub(super) fn parse_string_map(
                 span: cx.span(v.span()),
             });
         };
+        super::refuse_ambiguous_plain_scalar(
+            scalar,
+            &format!("{key}.{}", k.as_str()),
+            cx.span_or_zero(scalar.span()),
+        )?;
         out.push((
             Spanned::new(k.as_str().to_owned(), cx.span_or_zero(k.span())),
             Spanned::new(scalar.as_str().to_owned(), cx.span_or_zero(scalar.span())),

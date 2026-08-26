@@ -1,10 +1,13 @@
 pub mod nika_check
 pub use nika_check::AnalyzedWorkflow
 pub use nika_check::ERROR_DOCS_BASE
+pub use nika_check::ThinkingFinding
 pub use nika_check::analyze
 pub use nika_check::analyzer
 pub use nika_check::lowered_returns
 pub use nika_check::returns_type
+pub use nika_check::static_literal_of
+pub use nika_check::thinking_findings
 pub mod nika_check::native_first
 pub fn nika_check::native_first::classify(command: &nika_schema::raw::action::RawCommand) -> core::option::Option<(&'static str, alloc::string::String)>
 pub fn nika_check::native_first::classify_all(command: &nika_schema::raw::action::RawCommand) -> alloc::vec::Vec<(&'static str, alloc::string::String)>
@@ -2848,7 +2851,6 @@ pub fn nika_check::paid_blockers(hints: &[nika_check::Hint]) -> alloc::vec::Vec<
 pub fn nika_check::paid_ready(hints: &[nika_check::Hint]) -> bool
 pub fn nika_check::risk_grade(report: &nika_check::CheckReport) -> nika_check::RiskGrade
 pub fn nika_check::stamp_paid_ready(obj: &mut serde_json::map::Map<alloc::string::String, serde_json::value::Value>, hints: &[nika_check::Hint])
-pub fn nika_check::static_literal_of<'w>(wf: &'w nika_schema::raw::workflow::RawWorkflow, expr: &str) -> core::option::Option<&'w serde_json::value::Value>
 pub fn nika_check::static_read_paths(wf: &nika_schema::raw::workflow::RawWorkflow) -> alloc::vec::Vec<(alloc::string::String, alloc::string::String)>
 pub fn nika_check::task_permits(task: &nika_schema::raw::task::RawTask) -> alloc::vec::Vec<alloc::string::String>
 pub fn nika_check::typed_renames(report: &nika_check::CheckReport) -> alloc::vec::Vec<(alloc::string::String, alloc::string::String, &'static str)>

@@ -47,6 +47,8 @@ mod jq_lint;
 mod scan;
 mod schema_lint;
 mod schema_paths;
+mod static_ref;
+mod thinking;
 pub mod types_contract;
 
 use std::collections::BTreeMap;
@@ -57,6 +59,8 @@ use nika_schema::source::Spanned;
 use nika_schema::types::AfterPredicate;
 
 pub use edges::{Edge, EdgeKind, RecoveryRead, SettledState, role_of_field};
+pub use static_ref::{bare_static_ref, static_literal_of};
+pub use thinking::{ThinkingFinding, thinking_findings};
 pub use types_contract::{lowered_returns, returns_type};
 
 /// The analyzer's output — the Graph IR plus its waves · lowering is

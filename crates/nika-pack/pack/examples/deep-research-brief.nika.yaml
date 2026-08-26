@@ -5,7 +5,7 @@
 #
 # Plan → investigate → synthesize. A fast pass turns a topic into four
 # non-overlapping queries, an AGENT works them under an explicit leash, and a
-# thinking pass writes the executive brief. The agent is the only part of this
+# synthesis pass writes the executive brief. The agent is the only part of this
 # file that decides what to do next — everything around it is a contract: what
 # it may call, how far it may go, what shape it must come back in, and which
 # hosts exist as far as it is concerned.
@@ -135,11 +135,12 @@ tasks:
         Write the executive brief · what's true · what's contested · what it
         means · what to do. Two pages max. Anything the sources do not support
         goes in « contested », never in « true ».
-      thinking:
-        # A reasoning budget, honoured by seats that support extended thinking
-        # and ignored by the ones that do not — declaring it never fails a run.
-        enabled: true
-        budget_tokens: 8000
+      # No `thinking:` block on purpose: the seat law REFUSES a thinking
+      # declaration on a model the catalog knows cannot reason (a dead
+      # declaration — the wire drops the budget), and the local seat this
+      # file runs on is exactly that. Seat `brief` on a reasoning-capable
+      # model via its own `model:` — THAT is what licenses
+      # `thinking: { enabled: true, budget_tokens: … }`.
 
   save:
     with:

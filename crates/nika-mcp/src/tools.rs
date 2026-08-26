@@ -490,19 +490,22 @@ fn check(args: &Value) -> Result<String, String> {
     // audited a hallucinated model green — cross every requirement against
     // the RESOLVER law shared with the CLI rung (nika-providers), plus its
     // sister catalog law (advisory — `clean` is untouched).
-    let (model_findings, catalog_warnings) = model_crosscheck(&report);
+    let (mut model_findings, catalog_warnings) = model_crosscheck(&report);
+    // The `infer.thinking` laws ride the SAME findings rail as the resolver
+    // refusals (the CLI twin's fold at `check/mod.rs` — one verdict, both
+    // machine lanes): without it a self-defeating thinking budget read "clean".
+    model_findings.extend(nika_check::thinking_findings(&wf).into_iter().map(|f| {
+        serde_json::json!({
+            "model": f.model,
+            "tasks": [f.task],
+            "why": f.why,
+        })
+    }));
     // The is_clean mirror law, applied to the native-first lane. `hints`
-    // are NOT part of `is_clean()`, so a workflow whose real work sits in
-    // `exec python3 helper.py` used to come back here as a bare "✔ clean"
-    // that named nothing at all — while the same file failed
-    // `nika check --native-strict` in the shell AND was refused by the
-    // hook in front of `nika run`. That is the false green the operator
-    // met in Cursor: the agent consults THIS oracle, reads clean, and
-    // hands over a file that cannot run.
-    //
-    // Strict is the DEFAULT here (unlike the CLI, where the bare verb is
-    // the human's advisory read). This tool is the agent-facing oracle,
-    // and an oracle laxer than the gate it feeds is worse than none.
+    // are NOT part of `is_clean()`: a workflow whose real work sits in
+    // `exec python3 helper.py` reads "✔ clean" here while `nika check
+    // --native-strict` refuses it — an oracle laxer than the gate it
+    // feeds is worse than none, so strict is the DEFAULT on this lane.
     let native_strict = args
         .get("native_strict")
         .and_then(Value::as_bool)
@@ -518,13 +521,28 @@ fn check(args: &Value) -> Result<String, String> {
         let verdict = clean_verdict(&native, &paid, native_strict, grade, &catalog_warnings)?;
         return Ok(format!("{verdict}\n{}", affirmative_contract(&report)));
     }
-    // `is_clean()` checks TEN finding surfaces (conformance · secret leaks +
-    // egresses · capability escapes · schema findings + lints · unknown/missing
-    // /unknown args · gate findings) — render the FULL structured report so the
-    // MCP client sees EVERY finding (the prior code listed only `conformance`,
-    // dropping 9 classes · a model can parse the JSON + repair from it).
-    let mut payload = serde_json::to_value(&report)
-        .map_err(|e| format!("check report serialization failed: {e}"))?;
+    Err(dirty_payload(
+        &report,
+        model_findings,
+        catalog_warnings,
+        grade,
+    ))
+}
+
+/// The DIRTY render, out of `check` under the 100-line fn cap: the FULL
+/// structured report (the prior code dropped 9 finding classes) as an
+/// `Err` text, so the dispatcher flags `isError: true` and the harness
+/// repairs — the CLI's exit-2-on-dirty, mirrored (the `is_clean` law).
+fn dirty_payload(
+    report: &nika_check::CheckReport,
+    model_findings: Vec<Value>,
+    catalog_warnings: Vec<Value>,
+    grade: nika_check::RiskGrade,
+) -> String {
+    let mut payload = match serde_json::to_value(report) {
+        Ok(p) => p,
+        Err(e) => return format!("check report serialization failed: {e}"),
+    };
     let next_actions = finding_next_actions(&payload);
     if let Some(obj) = payload.as_object_mut() {
         // The same keys the CLI --json lane carries — the two machine
@@ -553,19 +571,12 @@ fn check(args: &Value) -> Result<String, String> {
         nika_check::stamp_paid_ready(obj, &report.hints);
         obj.insert("next_actions".to_owned(), next_actions);
     }
-    let detail = serde_json::to_string_pretty(&payload)
-        .map_err(|e| format!("check report serialization failed: {e}"))?;
-    // A DIRTY workflow is an `Err` so the dispatcher flags `isError: true`:
-    // the model then SEES the findings AND the harness triggers its repair
-    // loop (the authoring protocol is template→fill→check→REPAIR). This
-    // mirrors the CLI's exit-2-on-dirty — the two machine lanes must not
-    // disagree (a `nika check` that fails the shell must not read as
-    // success over MCP). The full report rides the Err text unchanged, so
-    // the model repairs from the same JSON either way (the user-sim
-    // finding · the is_clean mirror law applied to the MCP lane).
-    Err(format!(
-        "✖ findings — the workflow is not clean · the full check report:\n{detail}"
-    ))
+    match serde_json::to_string_pretty(&payload) {
+        Ok(detail) => {
+            format!("✖ findings — the workflow is not clean · the full check report:\n{detail}")
+        }
+        Err(e) => format!("check report serialization failed: {e}"),
+    }
 }
 
 /// `nika_examples` — return the JSONL metadata index (`slug` · `form` ·
@@ -1200,7 +1211,18 @@ mod tests {
         );
     }
 
-    /// P0-6's second answer rides the MCP verdict too: the CLI card shows
+    /// The thinking laws ride the same `model_findings` rail as the resolver
+    /// refusals (the CLI twin's fold at `check/mod.rs` — pinned negative).
+    #[test]
+    fn check_surfaces_the_thinking_laws_like_the_cli_twin() {
+        let wf = "nika: t\nmodel: anthropic/claude-sonnet-4-6\ntasks:\n  a:\n    infer:\n      prompt: x\n      max_tokens: 10\n      thinking: { enabled: true, budget_tokens: 10 }\n";
+        let out = execute("nika_check", &json!({ "workflow": wf }))
+            .expect_err("a thinking-law violation is dirty");
+        assert!(
+            out.contains("model_findings") && out.contains("budget_tokens"),
+            "the thinking finding rides model_findings, CLI-shaped: {out}"
+        );
+    }
     /// the risk grade on EVERY audited card — a bare « ✔ clean » that
     /// never names the rope is the false-green shape this oracle exists to
     /// kill (a declared effect is Supervised, and the agent reading this
