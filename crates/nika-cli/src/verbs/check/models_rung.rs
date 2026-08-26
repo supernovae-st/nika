@@ -11,12 +11,8 @@ use nika_providers::resolve_access::{AccessRefusal, resolve_access};
 use nika_types::access::{AccessPlan, AccessRejection};
 
 /// The admission-time access decision per statically-known model
-/// (D-2026-08-04-N1 · P2.5) — resolved over THIS machine's probe truth
-/// (env key presence · no socket), the SAME derivation the run's
-/// admission gate judges. Advisory: `clean` and the exit codes never
-/// read it — the runtime gate holds the refusal authority, these rows
-/// narrate it. One derivation, two renders (`check --json` ·
-/// `explain`).
+/// (D-2026-08-04-N1 · P2.5) — the SAME derivation the run's admission
+/// gate judges. Advisory: `clean` and the exit codes never read it.
 pub(crate) fn access_decisions(
     report: &nika_check::CheckReport,
 ) -> Vec<(String, Result<AccessPlan, AccessRefusal>)> {
@@ -45,14 +41,10 @@ pub(crate) fn access_decisions(
         .collect()
 }
 
-/// The R-2 boot-manifest access stamps (P3 B5 · the composer-computed
-/// half): `access_pin` verbatim + `access_plan` — the per-model
-/// admission decision as ONE compact JSON text, derived by the ONE
-/// resolver ([`nika_providers::access_plan_map`]) over THIS machine's
-/// probe rows (the doctor gesture: presence only, no socket). The
-/// runtime journals the fields verbatim (`with_boot_access_fields` ·
-/// the F-P13 composer-derives-runtime-journals posture). A model the
-/// resolver refuses is absent from the plan — never a guessed row.
+/// The R-2 boot-manifest access stamps (P3 B5): `access_pin` verbatim
+/// plus `access_plan`, the per-model admission decision as ONE compact
+/// JSON text derived by the ONE resolver ([`nika_providers::access_plan_map`])
+/// over THIS machine's probe rows (presence only, no socket).
 pub(crate) fn boot_access_fields(
     report: &nika_check::CheckReport,
     access_pin: Option<&str>,
@@ -198,12 +190,9 @@ pub(crate) fn unresolvable_models(
                 audit.via_default += 1;
             }
         }
-        // The sister law, same home (audit UX 2026-07-31): a model that
-        // RESOLVES but matches nothing the snapshot prices for its
-        // provider warned nobody — the user bought the key, then met
-        // the typo. Advisory beside the green line, never a finding —
-        // and spoken ONCE (the block rode in twice until 2026-08-05,
-        // doubling every warning row).
+        // The sister law (audit UX 2026-07-31): a model that RESOLVES
+        // but matches nothing the snapshot prices warns — advisory,
+        // never a finding, spoken ONCE.
         if let Some(why) = nika_providers::catalog_warning(judged) {
             audit
                 .catalog_warnings
@@ -213,15 +202,8 @@ pub(crate) fn unresolvable_models(
     audit
 }
 
-/// The `infer.thinking` judgments, folded into this rung's findings.
-/// The judge is [`nika_check::thinking_findings`] (nika-check · the laws
-/// and their scope live with it): the parse validates each field's TYPE
-/// only, so the cross-field (budget vs cap) and cross-fact (the seat's
-/// reasoning capability) laws descend to the check crate — a judgment
-/// the MCP/machine surfaces can reach without re-deriving it here. The
-/// lane lived in this file until the 15k crate wall moved it
-/// (2026-08-25); the fold sites (`check` verdict · slot-only gate ·
-/// dry-run swap) are unchanged.
+/// The `infer.thinking` judgments in this rung's finding shape — the
+/// judge is [`nika_check::thinking_findings`]; the fold sites pin it.
 pub(crate) fn thinking_findings(wf: &nika_schema::raw::RawWorkflow) -> Vec<ModelFinding> {
     nika_check::thinking_findings(wf)
         .into_iter()
@@ -229,19 +211,11 @@ pub(crate) fn thinking_findings(wf: &nika_schema::raw::RawWorkflow) -> Vec<Model
         .collect()
 }
 
-/// The rates the preflight shows BEFORE the first run: each model the
-/// requirements collected (#213), priced from the vendored catalog.
-/// UNKNOWN is null, never 0.00 — a missing price must look missing.
-/// Rates only (USD per 1M tokens): token counts are unknowable
-/// statically; the estimate with honest bounds is the next arc.
-///
-/// A model the resolver cannot run is NEVER priced (#320): the pricing
-/// table fuzzy-matches by name, so a hallucinated id could wear a
-/// CONJURED price — unpriced beats conjured, always.
-///
-/// `snapshot` = the vendored catalog's provenance (source · `as_of` ·
-/// sha) + derived counts — the machine-readable answer to « priced
-/// against WHAT, from WHEN? » (no surveyed tool ships this · 2026-07).
+/// The rates the preflight shows BEFORE the first run (#213), priced
+/// from the vendored catalog — UNKNOWN is null, never 0.00 (a missing
+/// price must look missing), and a model the resolver cannot run is
+/// NEVER priced (the table fuzzy-matches: unpriced beats conjured).
+/// `snapshot` = the catalog's provenance + counts DERIVED at read time.
 pub(crate) fn pricing_section(
     report: &nika_check::CheckReport,
     model_findings: &[ModelFinding],
