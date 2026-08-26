@@ -97,8 +97,12 @@ if [ -f "$LEDGER" ]; then
       grab && $0 ~ /^[[:space:]]+-[[:space:]]*id:[[:space:]]*/ {
         sub(/.*id:[[:space:]]*/, ""); gsub(/["\047]/, ""); id=$0
       }
-      grab && $0 ~ /proven_by:[[:space:]]*/ {
-        sub(/.*proven_by:[[:space:]]*/, ""); gsub(/["\047]/, "")
+      # A YAML value starts its line; a comment that names the key does
+      # not (the #1218 class — the issue-proof ledger reader already
+      # anchors; this one read proven_by inside a comment and judged a
+      # markdown-wrapped code span as a job that is in no workflow).
+      grab && $0 ~ /^[[:space:]]*proven_by:[[:space:]]*/ {
+        sub(/^[[:space:]]*proven_by:[[:space:]]*/, ""); gsub(/["\047]/, "")
         job=$0
         if (job == "" || job == "null") print id "\t"
         else print id "\t" job
