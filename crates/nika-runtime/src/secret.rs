@@ -22,8 +22,10 @@ use crate::EventSink;
 const WIDE_SCRUB_MIN: usize = 8;
 
 /// The event fields whose payload may carry a resolved value (the
-/// terminal frame's outcome/output and the failure detail).
-const PAYLOAD_FIELDS: [&str; 3] = ["outcome", crate::resume::fields::OUTPUT, "detail"];
+/// terminal frame's outcome/output and the failure detail). `why` rides
+/// the unwind lane's outcome frames — a failed cleanup's error message
+/// can embed a stderr tail, the same class `detail` carries.
+const PAYLOAD_FIELDS: [&str; 4] = ["outcome", crate::resume::fields::OUTPUT, "detail", "why"];
 
 /// The dynamic-flow backstop (S1). The static IFC sanctions every
 /// DECLARED secret flow; it cannot see a value that reaches a task's
