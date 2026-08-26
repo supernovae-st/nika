@@ -112,51 +112,16 @@ pub fn parse(yaml: &str, file_id: FileId, mode: ParseMode) -> Result<RawWorkflow
     // scalars type-coerce) — the YAML 1.2 contract `"42"` is a string.
     //
     // The dialect note for STRING-typed fields (spec 03 §timeout's law,
-    // generalized): a PLAIN scalar that resolves as an int · float ·
-    // bool (`prompt: 123` · `stdin: true`) is ambiguous and REFUSED at
-    // the string seams (`refuse_ambiguous_plain_scalar`) — `as_str()`
-    // would otherwise restringify it silently and a wrong-typed field
-    // would audit green. Quote it (`"123"`) to mean the string. The
-    // YAML 1.1 aliases `yes`/`no` are NOT booleans in this dialect and
-    // stay legal strings; `${{ }}` templates never parse as number/bool
-    // and are untouched.
+    // generalized): a PLAIN scalar resolving as int · float · bool is
+    // REFUSED at the string seams (`refuse_ambiguous_plain_scalar`) —
+    // `as_str()` would restringify it and a wrong-typed field would
+    // audit green. Quote it (`"123"`); `yes`/`no` stay strings (YAML
+    // 1.2 core); `${{ }}` templates never parse as number/bool.
     let options = LoaderOptions::default()
         .error_on_duplicate_keys(true)
         .prevent_coercion(true);
-    let node =
-        parse_yaml_with_options(file_id.0 as usize, yaml, options).map_err(|err| match err {
-            LoadError::DuplicateKey(inner) => SchemaError::DuplicateKey {
-                message: format!(
-                    "\"{}\" appears twice in the same mapping",
-                    inner.key.as_str()
-                ),
-                // The colliding key (not the first, which was legal
-                // until this one arrived) — grepping the name returns
-                // both sites; the span names the one to delete.
-                span: yaml_span_to_span(file_id, inner.key.span(), &char_to_byte),
-            },
-            // Pre-parse cause lint (the copy-fidelity class · #323): a weak
-            // copier de-comments the editor modeline and YAML reads the bare
-            // `$schema=…` line as a document scalar — the raw error then
-            // points at the SYMPTOM (the first mapping line, e.g. `nika: v1`
-            // at line 14) while the fault is line 1-2, and the repair loop
-            // chases the wrong line forever (0/13 measured on a 14B grid).
-            // Name the CAUSE, span on the offending line.
-            other => match broken_modeline(yaml, file_id) {
-                Some((span, line_no)) => SchemaError::YamlSyntax {
-                    message: format!(
-                        "a bare `$schema=` line (line {line_no}) is a broken editor \
-                         modeline — restore the `# yaml-language-server: $schema=…` \
-                         comment prefix (or delete the line; it is editor-only)"
-                    ),
-                    span: Some(span),
-                },
-                None => SchemaError::YamlSyntax {
-                    message: other.to_string(),
-                    span: None,
-                },
-            },
-        })?;
+    let node = parse_yaml_with_options(file_id.0 as usize, yaml, options)
+        .map_err(|err| load_error_to_schema(err, yaml, file_id, &char_to_byte))?;
 
     let mapping = node.as_mapping().ok_or_else(|| SchemaError::Validation {
         message: "workflow root must be a YAML mapping".to_owned(),
@@ -194,6 +159,49 @@ pub fn parse(yaml: &str, file_id: FileId, mode: ParseMode) -> Result<RawWorkflow
     workflow.tasks = tasks::parse_tasks(&cx, mapping)?;
 
     Ok(workflow)
+}
+
+/// The [`LoadError`] → [`SchemaError`] fold, out of `parse` under the
+/// 100-line fn cap (the plain-scalar guard's dialect note grew it over).
+fn load_error_to_schema(
+    err: LoadError,
+    yaml: &str,
+    file_id: FileId,
+    char_to_byte: &CharToByte,
+) -> SchemaError {
+    match err {
+        LoadError::DuplicateKey(inner) => SchemaError::DuplicateKey {
+            message: format!(
+                "\"{}\" appears twice in the same mapping",
+                inner.key.as_str()
+            ),
+            // The colliding key (not the first, which was legal
+            // until this one arrived) — grepping the name returns
+            // both sites; the span names the one to delete.
+            span: yaml_span_to_span(file_id, inner.key.span(), char_to_byte),
+        },
+        // Pre-parse cause lint (the copy-fidelity class · #323): a weak
+        // copier de-comments the editor modeline and YAML reads the bare
+        // `$schema=…` line as a document scalar — the raw error then
+        // points at the SYMPTOM (the first mapping line, e.g. `nika: v1`
+        // at line 14) while the fault is line 1-2, and the repair loop
+        // chases the wrong line forever (0/13 measured on a 14B grid).
+        // Name the CAUSE, span on the offending line.
+        other => match broken_modeline(yaml, file_id) {
+            Some((span, line_no)) => SchemaError::YamlSyntax {
+                message: format!(
+                    "a bare `$schema=` line (line {line_no}) is a broken editor \
+                     modeline — restore the `# yaml-language-server: $schema=…` \
+                     comment prefix (or delete the line; it is editor-only)"
+                ),
+                span: Some(span),
+            },
+            None => SchemaError::YamlSyntax {
+                message: other.to_string(),
+                span: None,
+            },
+        },
+    }
 }
 
 // ── Shared parse context ────────────────────────────────────────────
