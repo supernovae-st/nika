@@ -116,18 +116,18 @@ entries:
 
   # ── GIT-SEATBELT (3) — an `exec git` under the OS sandbox cannot read an
   #    undeclared `.git`, and declaring it completes NIKA-SEC-009's lethal
-  #    trifecta: the example is locked red under confinement both ways
-  #    (measured on darwin 0.114.0 — through `nika try` too). On Linux the
-  #    bwrap jail binds no undeclared path either; whether the inherited
-  #    cwd dentry admits git's relative reads there is UNMEASURED, so these
-  #    rows assert green outside darwin and the first Linux run adjudicates.
+  #    trifecta: the example is locked red under confinement both ways.
+  #    Measured on BOTH battery homes 2026-08-26: red on darwin (seatbelt)
+  #    and red on linux (the bwrap jail binds no undeclared path, and the
+  #    inherited cwd dentry does not admit git's relative reads either —
+  #    the first Linux run adjudicated, NIKA-EXEC-001 exit 128).
   - slug: standup-digest
     door: run
     kit: [git-repo]
     model: mock/echo
     expect: { rc: 0 }
     known_fail:
-      on: [darwin]
+      on: [darwin, linux]
       class: GIT-SEATBELT
       finding: NIKA-EXEC-001
       issue: nika#1254
@@ -138,7 +138,7 @@ entries:
     answers: { approve: "true" }
     expect: { rc: 0 }
     known_fail:
-      on: [darwin]
+      on: [darwin, linux]
       class: GIT-SEATBELT
       finding: NIKA-EXEC-001
       issue: nika#1254
@@ -149,7 +149,7 @@ entries:
     answers: { approve: "true" }
     expect: { rc: 0 }
     known_fail:
-      on: [darwin]
+      on: [darwin, linux]
       class: GIT-SEATBELT
       finding: NIKA-EXEC-001
       issue: nika#1254
@@ -157,14 +157,17 @@ entries:
   # ── CARGO-SEATBELT (2) — the cargo/rustc the examples exec lives under
   #    `$HOME` (rustup), and BOTH OS jails bind no `$HOME` path
   #    (nika-sandbox-landlock module doc, stated loudly; the macOS sibling
-  #    likewise): the confinement refusal is platform-independent, so the
-  #    XFAIL holds on darwin AND linux (the CI battery's only two homes).
+  #    likewise). Measured per-row on the battery 2026-08-26: darwin holds
+  #    red on both; on linux `03-exec-pipeline` came back GREEN (the
+  #    runner's toolchain lands outside the jail's blind spot) while
+  #    `snippets/run` stays red — the XFAIL is per-row per-OS, never a
+  #    class-wide claim, and nika#1255 stays open on the red rows.
   - slug: 03-exec-pipeline
     door: run
     kit: [cargo-project]
     expect: { rc: 0 }
     known_fail:
-      on: [darwin, linux]
+      on: [darwin]
       class: CARGO-SEATBELT
       finding: NIKA-SEC-001
       issue: nika#1255
