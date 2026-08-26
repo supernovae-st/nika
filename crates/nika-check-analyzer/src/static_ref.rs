@@ -15,8 +15,8 @@ use nika_schema::raw::RawWorkflow;
 use nika_schema::types::VarDecl;
 
 /// THE shared static-value resolver: a whole-string bare
-/// `${{ <authority>.<name> }}` over the three value authorities whose
-/// declared value is static (`const.` · `inputs.` · `config.`), resolved
+/// `${{ <authority>.<name> }}` over the two value authorities whose
+/// declared value is static (`const.` · `inputs.`), resolved
 /// to the LITERAL it declares — an untyped value, or a typed
 /// declaration's literal `default:`. One resolver, every lane: the cost
 /// ceiling counts `for_each` fan-outs through it, the read-path lint
@@ -48,16 +48,16 @@ pub fn static_literal_of<'w>(wf: &'w RawWorkflow, expr: &str) -> Option<&'w serd
 }
 
 /// The parse half of [`static_literal_of`]: a whole-string bare
-/// `${{ <authority>.<ident> }}` over the three IMMUTABLE value
+/// `${{ <authority>.<ident> }}` over the two IMMUTABLE value
 /// authorities → `(authority-with-dot, name)`. Two identical such refs
 /// denote the same runtime value even when no literal is declared —
-/// inputs bind once per run, const/config never change — which is what
+/// inputs bind once per run, const never changes — which is what
 /// the write-conflict scan keys on. Further navigation (`.field` ·
 /// `[0]`), operators, or a name outside the identifier grammar → `None`.
 #[must_use]
 pub fn bare_static_ref(expr: &str) -> Option<(&'static str, &str)> {
     let inner = expr.trim().strip_prefix("${{")?.strip_suffix("}}")?.trim();
-    let (authority, name) = ["const.", "inputs.", "inputs."]
+    let (authority, name) = ["const.", "inputs."]
         .into_iter()
         .find_map(|ns| inner.strip_prefix(ns).map(|n| (ns, n)))?;
     if name.is_empty() || !name.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'_') {
