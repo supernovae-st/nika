@@ -195,9 +195,8 @@ fn retired_row(code: &str) -> Option<String> {
 /// live here, never in the SSOT).
 fn cli_fix_hint(code: &str) -> Option<&'static str> {
     match code {
-        // R4: the credential refusal names the seat escape hatch — the
-        // env ladder alone sent keyless-but-seated operators to a
-        // vendor signup they did not need.
+        // R4: the credential refusal names the seat escape hatch (the env
+        // ladder alone sent seated operators to a vendor signup).
         "NIKA-INFER-001" => Some(
             "set the key the witness names (custody is the process env: \
              `export <VAR>=…`), or run through a signed-in seat: \
@@ -212,10 +211,9 @@ fn cli_fix_hint(code: &str) -> Option<&'static str> {
              `const:` resolve only from their own declared block, and `item` / \
              `index` exist only inside a `for_each` task",
         ),
-        // The high-traffic conformance codes whose fix is one obvious
-        // YAML edit teach it concretely (#145 P1 — the failure states
-        // WHAT, this states the edit; the canon row never carries
-        // per-CLI affordances, so the fix-form lives here).
+        // The high-traffic conformance codes teach the one obvious YAML
+        // edit concretely (#145 P1 — the fix-form lives here, never in
+        // the canon row).
         "NIKA-DAG-001" => Some(
             "break the loop — one task in the cycle must drop the `with:` \
              binding or `after:` entry that closes it (a task can never \
@@ -283,6 +281,13 @@ fn cli_fix_hint(code: &str) -> Option<&'static str> {
              task typed `{ array: … }`, or a literal list), and comparisons \
              need both sides the same type",
         ),
+        _ => decide_fix_hint(code).or_else(|| run_decl_fix_hint(code)),
+    }
+}
+
+/// The `decide` bundle hints — split at the fn-length wall.
+fn decide_fix_hint(code: &str) -> Option<&'static str> {
+    match code {
         "NIKA-DECIDE-001" => Some(
             "the bundle breaks its own laws — weights/thresholds are INTEGER \
              basis-points (8735 = 87.35% · never a float), rules read only \
@@ -298,7 +303,7 @@ fn cli_fix_hint(code: &str) -> Option<&'static str> {
              above the declared floor; a MISSING required key is not an \
              error (the evaluation defers — abstention is a safety property)",
         ),
-        _ => run_decl_fix_hint(code),
+        _ => None,
     }
 }
 
