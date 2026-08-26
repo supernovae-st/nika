@@ -92,6 +92,12 @@ impl SeatFact {
 
     /// A run can START on this seat: signed in AND the adapter a
     /// session spawns is on PATH (the first screen's « ready »).
+    /// `product_present` is deliberately NOT a leg: the session spawns
+    /// the ADAPTER, never the product bin — for a native-ACP seat the
+    /// two are one binary (`adapter_present` covers it), and for the
+    /// wrapper class the adapter plus the sign-in witness (the home
+    /// file the product once wrote) is enough to start. The product's
+    /// absence only changes the FIX line (`as_path`), never readiness.
     #[must_use]
     pub const fn ready(&self) -> bool {
         self.signed_in && self.adapter_present
