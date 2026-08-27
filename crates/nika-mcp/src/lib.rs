@@ -19,7 +19,9 @@
 //!
 //! Running a workflow is NOT exposed (it needs the effect-permits boundary) —
 //! the server surface is read-only by construction. `nika run` stays the
-//! effectful path, gated and audited.
+//! effectful path, gated and audited. The ONE repair door, `nika_check`
+//! with `fix: true` (the `repair` module), walks the `check --fix` ladder in memory
+//! and hands the repaired text back — it never writes a file (#1270).
 //!
 //! The crate also owns the CLIENT side of the protocol: [`client`] is the
 //! `tools/list` seam over configured servers (`.nika/mcp_servers.json`) and
@@ -34,9 +36,11 @@
 
 pub mod client;
 mod http;
+mod learn;
 pub mod pin;
 mod prompts;
 mod protocol;
+mod repair;
 pub mod sandbox;
 mod tools;
 

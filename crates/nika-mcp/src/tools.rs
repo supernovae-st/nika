@@ -3,12 +3,14 @@
 
 //! The MCP tool catalog — Nika's STATIC, read-only surface exposed as Model
 //! Context Protocol tools. Every tool here is PURE over its arguments — static
-//! analysis (parse · check · code lookup) or embedded pack data (schema ·
-//! examples · templates · canon) — zero effects, zero network, no workflow
-//! ever RUNS through MCP (running needs the effect-permits boundary · out of
-//! scope for the read-only server surface). That purity is what makes a tool
-//! safe to expose to any connecting client (Cursor · Claude Desktop · …) and
-//! lets the whole server be unit-tested as a function.
+//! analysis (parse · check · code lookup · the in-memory repair ladder behind
+//! `nika_check(fix: true)`, which hands the repaired text BACK and writes
+//! nothing) or embedded pack data (schema · examples · templates · canon) —
+//! zero effects, zero network, no workflow ever RUNS through MCP (running
+//! needs the effect-permits boundary · out of scope for the read-only server
+//! surface). That purity is what makes a tool safe to expose to any
+//! connecting client (Cursor · Claude Desktop · …) and lets the whole server
+//! be unit-tested as a function.
 //!
 //! Two tool families:
 //! - **validate** (`nika_check` · `nika_explain`) — the repair oracle.
@@ -86,10 +88,24 @@ fn validate_tools() -> Value {
             "name": "nika_check",
             "description": "Statically audit a Nika workflow (schema · DAG · CEL · \
                             effects · permits · cost) BEFORE running it. Returns the \
-                            findings, or a clean verdict — auditable before a token is spent.",
+                            findings, or a clean verdict — auditable before a token is spent. \
+                            With `fix: true`: apply the machine-applicable repairs (the same \
+                            ladder as `nika check --fix`) in memory, re-audit, and return the \
+                            repaired source for you to write back.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
+                    "fix": {
+                        "type": "boolean",
+                        "default": false,
+                        "description": "Apply the typed renames and dead-form migrations \
+                                        `nika check --fix` applies — in memory, never to a \
+                                        file — then re-audit. The answer is JSON: `repairs`, \
+                                        `applied`, `changed`, the repaired `workflow` text \
+                                        (write it back verbatim) and the plain `verdict` of \
+                                        that text. Codes that prescribe `nika check --fix` \
+                                        (NIKA-VAR-021 · NIKA-PARSE-024) are repaired here."
+                    },
                     "native_strict": {
                         "type": "boolean",
                         "default": true,
@@ -161,13 +177,21 @@ fn learn_tools() -> Value {
             "description": "Browse the embedded runnable examples. Without `slug`: the \
                             JSONL metadata index (`slug` · `form` · `one_line` · `cost`). \
                             With `slug`: that example's full workflow source — read the \
-                            canonical example instead of guessing a construct.",
+                            canonical example instead of guessing a construct. With \
+                            `builtin`: the examples that call one `nika:*` tool.",
             "inputSchema": {
                 "type": "object",
                 "properties": {
                     "slug": {
                         "type": "string",
                         "description": "An example slug from the list (e.g. `pr-risk-review`)."
+                    },
+                    "builtin": {
+                        "type": "string",
+                        "description": "A builtin name (`nika:jq` or bare `jq`) — one JSONL \
+                                        row per example that calls it (`slug` · `builtin` · \
+                                        `one_line` · `sites`). Read a precedent for a tool's \
+                                        args instead of guessing them."
                     }
                 }
             }
@@ -227,8 +251,8 @@ pub(crate) fn execute(name: &str, args: &Value) -> Result<String, String> {
         "nika_inspect" => inspect(args),
         "nika_explain" => explain(args),
         "nika_schema" => Ok(nika_pack::schema_json().to_owned()),
-        "nika_examples" => examples(args),
-        "nika_template" => template(args),
+        "nika_examples" => crate::learn::examples(args),
+        "nika_template" => crate::learn::template(args),
         "nika_canon" => Ok(nika_pack::canon().to_owned()),
         "nika_catalog" => catalog_payload(),
         "nika_tools" => tools_payload(),
@@ -470,11 +494,31 @@ fn finding_next_actions(payload: &Value) -> Value {
     )
 }
 
+/// `nika_check` — the argument door. `fix: true` walks the in-memory
+/// repair ladder first ([`crate::repair`]) and audits what it produced;
+/// otherwise the plain audit. Strict is the DEFAULT here (unlike the CLI,
+/// where the bare verb is the human's advisory read): this tool is the
+/// agent-facing oracle, and an oracle laxer than the gate it feeds is
+/// worse than none.
 fn check(args: &Value) -> Result<String, String> {
     let yaml = args
         .get("workflow")
         .and_then(Value::as_str)
         .ok_or("missing `workflow` (the *.nika.yaml source)")?;
+    let native_strict = args
+        .get("native_strict")
+        .and_then(Value::as_bool)
+        .unwrap_or(true);
+    if args.get("fix").and_then(Value::as_bool).unwrap_or(false) {
+        return crate::repair::check_fix(yaml, native_strict);
+    }
+    audit(yaml, native_strict)
+}
+
+/// The plain audit: parse + the static check ladder over the supplied
+/// YAML, the SAME answer whether the text came from the caller or from
+/// the repair ladder (`--fix` is check plus a pen, never a different audit).
+pub(crate) fn audit(yaml: &str, native_strict: bool) -> Result<String, String> {
     let wf = nika_schema::parse(
         yaml,
         nika_schema::FileId::new(0),
@@ -505,11 +549,8 @@ fn check(args: &Value) -> Result<String, String> {
     // are NOT part of `is_clean()`: a workflow whose real work sits in
     // `exec python3 helper.py` reads "✔ clean" here while `nika check
     // --native-strict` refuses it — an oracle laxer than the gate it
-    // feeds is worse than none, so strict is the DEFAULT on this lane.
-    let native_strict = args
-        .get("native_strict")
-        .and_then(Value::as_bool)
-        .unwrap_or(true);
+    // feeds is worse than none, so strict is the DEFAULT on this lane
+    // (`native_strict` arrives resolved from the `check` dispatcher).
     let native: Vec<&str> = report
         .hints
         .iter()
@@ -576,99 +617,6 @@ fn dirty_payload(
             format!("✖ findings — the workflow is not clean · the full check report:\n{detail}")
         }
         Err(e) => format!("check report serialization failed: {e}"),
-    }
-}
-
-/// `nika_examples` — return the JSONL metadata index (`slug` · `form` ·
-/// `one_line` · `cost`), or one example's full workflow source (the LEARNING
-/// surface: read the canonical example for a construct instead of guessing).
-fn examples(args: &Value) -> Result<String, String> {
-    match args.get("slug").and_then(Value::as_str) {
-        None => example_index(),
-        Some(slug) => match nika_pack::example(slug) {
-            Some(body) => Ok(body.to_owned()),
-            // RAMS-11: a PLAIN-WORDS miss routes through the SAME door
-            // the CLI walks (`nika new <words>` · whole catalog) — one
-            // router, one calibration. Only multi-word queries route:
-            // a single token is a slug (typo'd or adversarial) and the
-            // unknown-key contract holds — the router never sees the
-            // traversal-shaped garbage the adversarial pin feeds.
-            None if !slug.trim().contains(' ') => Err(format!(
-                "unknown example `{slug}` — call nika_examples without arguments \
-                 for the list"
-            )),
-            None => match nika_onboard::routing::route_query(slug) {
-                nika_onboard::routing::RoutedEntry::Example(name) => {
-                    let body = nika_pack::example(&name).unwrap_or_default();
-                    Ok(format!("# routed: `{slug}` → example `{name}`\n{body}"))
-                }
-                nika_onboard::routing::RoutedEntry::Skeleton(name) => {
-                    let body = nika_pack::template(&name).unwrap_or_default();
-                    Ok(format!("# routed: `{slug}` → template `{name}`\n{body}"))
-                }
-                nika_onboard::routing::RoutedEntry::Clarify(candidates) => Err(format!(
-                    "`{slug}` doesn't route confidently — closest: {} · call \
-                     nika_examples without arguments for the list",
-                    candidates.join(" · ")
-                )),
-            },
-        },
-    }
-}
-
-/// The retrieval-friendly example index: one JSON object per embedded file.
-/// Every field derives from the same source the CLI showroom reads — no second
-/// catalog to drift. Task count is the honest static cost available in-pack.
-fn example_index() -> Result<String, String> {
-    nika_pack::example_slugs()
-        .into_iter()
-        .map(|slug| {
-            let body = nika_pack::example(&slug).ok_or_else(|| {
-                format!("embedded example `{slug}` is listed but cannot be resolved")
-            })?;
-            let meta = nika_pack::meta(&slug, body);
-            Ok(json!({
-                "slug": slug,
-                "form": meta.verbs,
-                "one_line": meta.title,
-                "cost": { "tasks": meta.tasks },
-            })
-            .to_string())
-        })
-        .collect::<Result<Vec<_>, String>>()
-        .map(|rows| rows.join("\n"))
-}
-
-/// `nika_template` — list the canonical skeleton names, or return one
-/// skeleton's source (copy · fill the `# SLOT:` lines · never invent shape).
-fn template(args: &Value) -> Result<String, String> {
-    match args.get("name").and_then(Value::as_str) {
-        None => Ok(nika_pack::template_names().join("\n")),
-        Some(name) => match nika_pack::template(name) {
-            Some(body) => Ok(body.to_owned()),
-            // RAMS-11: a PLAIN-WORDS miss routes within the SKELETON set
-            // — the CLI wizard's door (SLOTs to fill). Single tokens keep
-            // the unknown-key contract (see nika_examples).
-            None if !name.trim().contains(' ') => Err(format!(
-                "unknown template `{name}` — call nika_template without arguments \
-                 for the list"
-            )),
-            None => match nika_onboard::routing::route_skeleton_query(name) {
-                nika_onboard::routing::RoutedEntry::Skeleton(routed) => {
-                    let body = nika_pack::template(&routed).unwrap_or_default();
-                    Ok(format!("# routed: `{name}` → template `{routed}`\n{body}"))
-                }
-                nika_onboard::routing::RoutedEntry::Example(routed) => {
-                    let body = nika_pack::example(&routed).unwrap_or_default();
-                    Ok(format!("# routed: `{name}` → example `{routed}`\n{body}"))
-                }
-                nika_onboard::routing::RoutedEntry::Clarify(candidates) => Err(format!(
-                    "`{name}` doesn't route confidently — closest: {} · call \
-                     nika_template without arguments for the list",
-                    candidates.join(" · ")
-                )),
-            },
-        },
     }
 }
 
