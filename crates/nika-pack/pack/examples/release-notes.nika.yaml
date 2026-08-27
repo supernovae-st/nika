@@ -23,7 +23,7 @@
 #   to gate (templates/etl-state measures what that flips).
 #
 # Run · nika run examples/release-notes.nika.yaml
-#   Runs green anywhere ollama serves llama3.2:3b (or with `--model
+#   Runs green anywhere ollama serves qwen3.5:4b (or with `--model
 #   mock/echo` · zero key): outside a repo carrying that tag the `recover:`
 #   sample log takes over, and the changelog it edits is the copy it made
 #   under out/ from the sample that ships with the repo.
@@ -34,10 +34,10 @@
 
 nika: release-notes
 
-# A NON-thinking local model, deliberately: a thinking model can spend the
-# whole `max_tokens` budget in its think block and return before the JSON
-# (engine#428). Schema showcases pick a model that answers directly.
-model: ollama/llama3.2:3b
+# The house seat — a THINKING model: the think block and the JSON both count
+# against `max_tokens` (engine#428), so the notes ceiling below covers the
+# reasoning AND the notes, not the notes alone.
+model: ollama/qwen3.5:4b
 
 inputs:
   announce:
@@ -115,7 +115,7 @@ tasks:
       history: ${{ tasks.history.output }}
     when: ${{ with.history != null && size(with.history) > 0 }}  # a refused gate skips history (null) · an empty log has nothing to draft either
     infer:
-      max_tokens: 1000
+      max_tokens: 3000                 # think block + the notes JSON
       prompt: |
         Write release notes from these commits ·
         ${{ with.history }}

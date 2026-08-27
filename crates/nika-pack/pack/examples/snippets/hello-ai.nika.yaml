@@ -13,18 +13,18 @@
 #   - `permits: {}` · the declared zero · not the same as leaving it out
 #   - one `infer:` task, bounded by `max_tokens:`
 #
-# Needs · ollama with the model pulled · `ollama pull llama3.2:3b`.
+# Needs · ollama with the model pulled · `ollama pull qwen3.5:4b`.
 #   No ollama? `--model mock/echo` rehearses the same file keyless.
 #
 # Run · nika run examples/snippets/hello-ai.nika.yaml
 nika: hello-ai
-model: ollama/llama3.2:3b   # local · zero key · swap for any provider in the catalog
+model: ollama/qwen3.5:4b   # local · zero key · swap for any provider in the catalog
 permits: {}
 tasks:
   greet:
     infer:
       prompt: "Say hello in one sentence."
-      max_tokens: 64
+      max_tokens: 1024   # the house seat THINKS first — think block + answer both count (measured on this prompt shape: 64 returns EMPTY)
 
 outputs:
   greeting: ${{ tasks.greet.output }}

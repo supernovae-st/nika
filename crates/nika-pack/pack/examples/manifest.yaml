@@ -7,7 +7,7 @@ pack_version: 0.1.0-draft
 workflow_count: 53
 foundation:
   - file: examples/01-hello.nika.yaml
-    sha256_16: ca6fd74b9c22772a
+    sha256_16: 40dc8858de35be5d
   - file: examples/02-parallel-fanout.nika.yaml
     sha256_16: ac5a690f683bacec
   - file: examples/03-exec-pipeline.nika.yaml
@@ -17,7 +17,7 @@ foundation:
   - file: examples/05-fetch-chain.nika.yaml
     sha256_16: 505902fd44232584
   - file: examples/06-code-review.nika.yaml
-    sha256_16: 6dea6e697eddff15
+    sha256_16: 189a49e8c8abb05d
   - file: examples/07-for-each-locales.nika.yaml
     sha256_16: 734f275201ce6320
   - file: examples/08-config-values.nika.yaml
@@ -44,7 +44,7 @@ foundation:
     sha256_16: 37d15028add0d76f
 templates:
   - file: templates/agent-loop.nika.yaml
-    sha256_16: 8ec0c916aa3bf554
+    sha256_16: bb8db15a9e8306e6
   - file: templates/api-upload-and-create.nika.yaml
     sha256_16: 9bf0d6eaca6d18f3
   - file: templates/chain.nika.yaml
@@ -54,7 +54,7 @@ templates:
   - file: templates/corpus-qa.nika.yaml
     sha256_16: b587e9b9adedd33a
   - file: templates/docker-report.nika.yaml
-    sha256_16: 322f8ee6a2104be0
+    sha256_16: 0b03f22b388238b0
   - file: templates/document-to-fields.nika.yaml
     sha256_16: 53735c79595cd682
   - file: templates/etl-state.nika.yaml
@@ -62,7 +62,7 @@ templates:
   - file: templates/evaluate-and-optimize.nika.yaml
     sha256_16: ad21ca992b576f25
   - file: templates/fanout.nika.yaml
-    sha256_16: 4d0f469b3a56c9c7
+    sha256_16: 9adebe31fef3942f
   - file: templates/gate-and-act.nika.yaml
     sha256_16: 7e5da4d28a5d9cb0
   - file: templates/human-gated-ship.nika.yaml
@@ -87,15 +87,15 @@ showcase:
   - file: examples/config-drift-sentinel.nika.yaml
     name: config-drift-sentinel
     constructs: [local_model, on_error, outputs, retry, secrets, typed_inputs, when, with]
-    sha256_16: d2fb87f81941bd90
+    sha256_16: 57ff10657edd6c90
   - file: examples/contract-guard.nika.yaml
     name: contract-guard
     constructs: [local_model, outputs, schema, typed_inputs, with]
-    sha256_16: 12511bfc77f3f05e
+    sha256_16: c48168dfc6470ee1
   - file: examples/corpus-digest.nika.yaml
     name: corpus-digest
-    constructs: [fail_fast, for_each, local_model, max_parallel, on_error, outputs, schema, timeout, typed_inputs, when, with]
-    sha256_16: 3660c624881ecf12
+    constructs: [fail_fast, for_each, local_model, max_parallel, on_error, outputs, schema, thinking, timeout, typed_inputs, when, with]
+    sha256_16: deb6969b9b25f161
   - file: examples/csv-chart-report.nika.yaml
     name: csv-chart-report
     constructs: [outputs, with]
@@ -127,7 +127,7 @@ showcase:
   - file: examples/meeting-actions.nika.yaml
     name: meeting-actions
     constructs: [local_model, outputs, schema, typed_inputs, with]
-    sha256_16: 2845951310eb73b0
+    sha256_16: faf2632973595843
   - file: examples/model-bench.nika.yaml
     name: model-bench
     constructs: [local_model, outputs, with]
@@ -147,7 +147,7 @@ showcase:
   - file: examples/release-notes.nika.yaml
     name: release-notes
     constructs: [local_model, on_error, outputs, schema, secrets, typed_inputs, when, with]
-    sha256_16: ddf483b2a30f2df0
+    sha256_16: c4f03a111eeafa93
   - file: examples/release-radar.nika.yaml
     name: release-radar
     constructs: [extract, local_model, on_error, outputs, when, with]
@@ -163,7 +163,7 @@ showcase:
   - file: examples/seo-content-brief.nika.yaml
     name: seo-content-brief
     constructs: [extract, local_model, on_error, outputs, schema, typed_inputs, with]
-    sha256_16: ce48adbca8489680
+    sha256_16: c27a566eb27d5c86
   - file: examples/social-repurpose.nika.yaml
     name: social-repurpose
     constructs: [local_model, outputs, with]
@@ -175,16 +175,16 @@ showcase:
   - file: examples/support-triage.nika.yaml
     name: support-triage
     constructs: [local_model, outputs, schema, secrets, when, with]
-    sha256_16: 8e5e8666ccf83cfa
+    sha256_16: 7eee3f5a5eda78ff
   - file: examples/transcript-shownotes.nika.yaml
     name: transcript-shownotes
     constructs: [local_model, outputs, schema, with]
-    sha256_16: 4e7accb6094c1e20
+    sha256_16: 67293ac300408c1a
 snippets:
   - file: examples/snippets/delegate.nika.yaml
-    sha256_16: b2ebee015298dea0
+    sha256_16: 9c24f8e7c8fc88db
   - file: examples/snippets/hello-ai.nika.yaml
-    sha256_16: 109037a3b6acb135
+    sha256_16: f194702c5c1b64e3
   - file: examples/snippets/hello.nika.yaml
     sha256_16: 5a3a52ef2dcdd9b3
   - file: examples/snippets/not-found.nika.yaml
@@ -192,8 +192,8 @@ snippets:
   - file: examples/snippets/run.nika.yaml
     sha256_16: 6f0fdc486d77f3f4
   - file: examples/snippets/think.nika.yaml
-    sha256_16: e3502ab81153e887
+    sha256_16: 1bc9b9ba09e202fe
   - file: examples/snippets/use-a-tool.nika.yaml
     sha256_16: 1c3ba3787698b765
   - file: examples/snippets/weekly-radar.nika.yaml
-    sha256_16: 335953bc2f0afc78
+    sha256_16: f9f5a9ffdf1c31d8

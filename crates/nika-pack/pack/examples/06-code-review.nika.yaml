@@ -36,9 +36,12 @@ const:
 permits:
   tools: ["nika:done", "nika:read"]
   fs:
-    # The agent may call `nika:read`, and it may read THIS file. Those are two
-    # different permissions and both are required — a tool grant with no
-    # `fs.read` behind it fails mid-loop with
+    # The grant has THREE halves, judged at two different times. The agent's
+    # `tools:` whitelist vs `permits.tools` is judged STATICALLY at check
+    # (since 0.115 · a mismatch refuses with the exact fix, zero turns paid).
+    # The `fs.read` half is the run's verdict by nature — the agent picks
+    # paths at run, and a tool grant with no `fs.read` behind the file it
+    # picks fails mid-loop with
     # « NIKA-SEC-004 · agent tool `nika:read` refused by the security boundary »,
     # after the model has already spent a turn deciding to read.
     #

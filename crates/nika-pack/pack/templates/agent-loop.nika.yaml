@@ -86,8 +86,10 @@ tasks:
       tools:                        # SLOT: the MINIMUM grant for the job
         # Pure compute — this pair needs no filesystem, so the skeleton runs
         # anywhere. Granting the agent a tool here is only HALF a grant: every
-        # call still crosses the workflow boundary above. Adding `nika:read`
-        # to this list WITHOUT adding `permits.fs.read` fails at run with
+        # call still crosses the workflow boundary above. Two halves, two
+        # clocks — `tools:` vs `permits.tools` is judged STATICALLY at check
+        # (since 0.115); adding `nika:read` to this list WITHOUT adding
+        # `permits.fs.read` stays the run's verdict and fails at run with
         # `NIKA-SEC-004 · agent tool "nika:read" refused by the security
         # boundary` — measured, mid-loop, after the turns are paid for.
         - "nika:jq"
