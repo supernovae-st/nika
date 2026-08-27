@@ -23,6 +23,13 @@ nika-pack   = { path = "../nika-pack", version = "0.115.0" }    # embedded canon
 nika-catalog = { path = "../nika-catalog", version = "0.115.0", default-features = false, features = ["serde", "capabilities"] }
 nika-onboard = { path = "../nika-onboard", version = "0.115.0" }  # the ONE routing door (RAMS-11 · MCP follows the CLI's router)
 nika-builtin = { path = "../nika-builtin", version = "0.115.0" }
+# The `check --fix` repair LADDER (the typed-rename splices · the dead-form
+# migrations · the W2 hoist) — `nika_check(fix: true)` walks the SAME arms the
+# CLI verb walks, in memory (#1270 · one ladder, two doors · never a second
+# fixer to drift). L4→L4 lateral, the nika-onboard precedent; the host crate
+# never depends on this one.
+nika-cli-host = { path = "../nika-cli-host", version = "0.115.0", default-features = false }
+nika-migrate = { path = "../nika-migrate", version = "0.115.0" }  # `repair::word_sites` — the ONE whole-token scan (the `nika_examples` builtin route)
 # The exec verb's OS sandbox (ADR-095 Layer 6) — a spawned MCP server rides
 # the SAME confinement (never a bespoke second sandbox). The selection itself
 # lives at the L3 composition root (#888 · the ONE `select_command_sandbox`);

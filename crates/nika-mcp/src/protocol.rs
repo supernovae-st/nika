@@ -46,8 +46,11 @@ pub(crate) const SERVER_NAME: &str = "nika";
 /// Portable authoring guidance delivered by the server to every MCP client.
 ///
 /// Tool descriptions answer what each call does. This answers orchestration:
-/// order, selection, and the actions the read-only server never takes.
-const SERVER_INSTRUCTIONS: &str = "Author in this order: nika_template → fill every SLOT → nika_check → repair every finding → check again. Use nika_schema for field shape, nika_examples for a precedent, nika_inspect for the derived DAG, and nika_explain for every diagnostic code. Read names from nika_canon, nika_catalog, and nika_tools instead of memory. Never invent a field, provider, model, tool, or permission; never run a workflow through this read-only server — running is an explicit CLI act after a clean check.";
+/// order, selection, the ONE repair door (`nika_check` with `fix: true`,
+/// which hands the repaired text back and writes nothing), and the actions
+/// the read-only server never takes. The parity pin below keeps this prose
+/// ⊆ the catalog: the teaching surface may not lie about the binary (#1270).
+const SERVER_INSTRUCTIONS: &str = "Author in this order: nika_template → fill every SLOT → nika_check → repair every finding → check again. nika_check with fix: true applies the machine-applicable repairs in memory — the same ladder as `nika check --fix` — and returns the repaired source: the caller writes it back verbatim, then checks again; nothing on this read-only server writes a file. Use nika_schema for field shape, nika_examples for a precedent (with builtin: for the examples that call one nika:* tool), nika_inspect for the derived DAG, and nika_explain for every diagnostic code. Read names from nika_canon, nika_catalog, and nika_tools instead of memory. Never invent a field, provider, model, tool, or permission; never run a workflow through this server — running is an explicit CLI act after a clean check.";
 
 /// Dispatch one INCOMING stdio message — a single request/notification (a JSON
 /// object) OR a JSON-RPC 2.0 BATCH (an array · the 2024-11-05 / 2025-03-26
@@ -207,7 +210,7 @@ mod tests {
         assert!(resp["result"]["capabilities"]["tools"].is_object());
         assert_eq!(
             resp["result"]["instructions"],
-            "Author in this order: nika_template → fill every SLOT → nika_check → repair every finding → check again. Use nika_schema for field shape, nika_examples for a precedent, nika_inspect for the derived DAG, and nika_explain for every diagnostic code. Read names from nika_canon, nika_catalog, and nika_tools instead of memory. Never invent a field, provider, model, tool, or permission; never run a workflow through this read-only server — running is an explicit CLI act after a clean check."
+            "Author in this order: nika_template → fill every SLOT → nika_check → repair every finding → check again. nika_check with fix: true applies the machine-applicable repairs in memory — the same ladder as `nika check --fix` — and returns the repaired source: the caller writes it back verbatim, then checks again; nothing on this read-only server writes a file. Use nika_schema for field shape, nika_examples for a precedent (with builtin: for the examples that call one nika:* tool), nika_inspect for the derived DAG, and nika_explain for every diagnostic code. Read names from nika_canon, nika_catalog, and nika_tools instead of memory. Never invent a field, provider, model, tool, or permission; never run a workflow through this server — running is an explicit CLI act after a clean check."
         );
 
         let instructions = resp["result"]["instructions"]
@@ -219,6 +222,70 @@ mod tests {
                 !instructions.contains(description),
                 "initialize instructions must not duplicate `{}`'s description",
                 tool["name"]
+            );
+        }
+    }
+
+    /// The teaching surface may not lie about the binary (#1270). Every
+    /// tool the instructions name is served, every served tool is named,
+    /// a repair door the catalog declares is taught, and a claim of
+    /// read-only / never-run is only made while every tool is read-only
+    /// and no run verb exists. Instructions ⊆ capabilities, both ways.
+    #[test]
+    fn initialize_instructions_never_claim_more_than_the_catalog_serves() {
+        let resp =
+            handle(&json!({ "jsonrpc": "2.0", "id": 1, "method": "initialize" })).expect("reply");
+        let text = resp["result"]["instructions"]
+            .as_str()
+            .expect("instructions are text");
+        let catalog = tools::catalog();
+        let served: Vec<&Value> = catalog.as_array().expect("tool array").iter().collect();
+        let names: Vec<&str> = served.iter().filter_map(|t| t["name"].as_str()).collect();
+        // Every `nika_*` token in the prose is a served tool …
+        let mentioned: std::collections::BTreeSet<&str> = text
+            .split(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+            .filter(|w| w.starts_with("nika_"))
+            .collect();
+        for word in &mentioned {
+            assert!(
+                names.contains(word),
+                "instructions name `{word}`, which is not served"
+            );
+        }
+        // … and every served tool is taught by name.
+        for name in &names {
+            assert!(
+                mentioned.contains(name),
+                "`{name}` is served but never taught"
+            );
+        }
+        // A declared repair door is taught as such; an undeclared one is
+        // never promised.
+        let check_tool = served
+            .iter()
+            .find(|t| t["name"] == "nika_check")
+            .expect("nika_check is served");
+        let declares_fix = check_tool["inputSchema"]["properties"].get("fix").is_some();
+        assert_eq!(
+            text.contains("fix: true"),
+            declares_fix,
+            "the instructions and the nika_check schema disagree about `fix`"
+        );
+        // « read-only » and « never run » are claims about EVERY tool.
+        if text.contains("read-only") {
+            for t in &served {
+                assert_eq!(
+                    t["annotations"]["readOnlyHint"],
+                    json!(true),
+                    "{} is not read-only, so the instructions lie",
+                    t["name"]
+                );
+            }
+        }
+        if text.contains("never run") {
+            assert!(
+                !names.iter().any(|n| n.ends_with("_run")),
+                "a run verb is served while the instructions promise none: {names:?}"
             );
         }
     }
