@@ -7,6 +7,8 @@
 //! "is this known?", the caller decides if "unknown" is an error.
 
 #[cfg(feature = "builtins-transforms")]
+pub use crate::data::builtin_prices::builtin_provider_floor_usd;
+#[cfg(feature = "builtins-transforms")]
 pub use crate::data::builtins::{find_builtin, is_known_builtin};
 #[cfg(feature = "embeddings")]
 pub use crate::data::generated::find_embedding;

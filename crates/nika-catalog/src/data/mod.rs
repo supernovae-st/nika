@@ -16,6 +16,8 @@
 //! - 2-pass matching (exact + contains) for pricing
 
 #[cfg(feature = "builtins-transforms")]
+pub mod builtin_prices;
+#[cfg(feature = "builtins-transforms")]
 pub mod builtins;
 
 pub mod generated;

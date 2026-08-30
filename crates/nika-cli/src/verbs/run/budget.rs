@@ -44,8 +44,9 @@ pub(super) fn preflight(
             &effective
         }
     };
-    if let Some(refusal) = nika_runtime::floor_refusal(cost.min_path_total_usd, budget) {
-        super::epilogue::emit_diagnostic(&refusal, output_json);
+    if let Some(err) = nika_runtime::budget_floor_refusal(wf, report, Some(budget), model_override)
+    {
+        super::epilogue::emit_diagnostic(&err.to_string(), output_json);
         return Err(exit::FILE);
     }
     if cost.has_unbounded {
@@ -149,6 +150,53 @@ mod tests {
         assert_eq!(
             cost.min_path_total_usd, 0.0,
             "the task pinned mock explicitly — the override must not reprice it"
+        );
+    }
+
+    fn image_generate_yaml(provider: &str) -> String {
+        format!(
+            "nika: b24\npermits: {{ tools: [\"nika:image_generate\"], fs: {{ write: [\"./out/**\"] }} }}\ntasks:\n  og:\n    invoke: {{ tool: \"nika:image_generate\", args: {{ provider: {provider}, prompt: \"a monarch butterfly\", output_dir: \"./out\" }} }}\n"
+        )
+    }
+
+    /// B24 / issue 1296: a priced builtin whose catalog floor already
+    /// exceeds `--max-cost-usd` must refuse at the CLI preflight — the
+    /// same constructor the runtime admission gate speaks.
+    #[test]
+    fn priced_image_builtin_refuses_a_tiny_cap_and_passes_a_generous_one() {
+        let wf = parse(
+            &image_generate_yaml("xai"),
+            FileId::new(0),
+            ParseMode::Strict,
+        )
+        .expect("fixture parses");
+        let report = nika_check::check(&wf);
+        assert!(report.is_clean(), "fixture checks clean: {report:?}");
+        assert_eq!(
+            preflight(&wf, &report, None, Some(0.001), false),
+            Err(crate::verbs::exit::FILE),
+            "xAI image floor $0.02 refuses cap $0.001 before any HTTP"
+        );
+        assert_eq!(
+            preflight(&wf, &report, None, Some(1.00), false),
+            Ok(()),
+            "cap 1.00 admits the $0.02 floor"
+        );
+    }
+
+    #[test]
+    fn mock_image_builtin_passes_a_tiny_cap() {
+        let wf = parse(
+            &image_generate_yaml("mock"),
+            FileId::new(0),
+            ParseMode::Strict,
+        )
+        .expect("fixture parses");
+        let report = nika_check::check(&wf);
+        assert_eq!(
+            preflight(&wf, &report, None, Some(0.001), false),
+            Ok(()),
+            "mock image is unpriced — rehearsal under a tight cap stays legal"
         );
     }
 }

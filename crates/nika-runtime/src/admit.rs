@@ -9,7 +9,7 @@ use std::collections::BTreeMap;
 use nika_check::CheckReport;
 use nika_providers::probe::ProviderProbe;
 use nika_providers::resolve_access::PinRefusal;
-use nika_schema::raw::RawWorkflow;
+use nika_schema::raw::{ForEachValue, RawAction, RawTask, RawWorkflow};
 use nika_schema::types::VarDecl;
 use serde_json::Value;
 
@@ -44,8 +44,8 @@ pub(crate) fn gates(
 /// The budget-floor admission gate — `Some` run-abort error (NIKA-1709)
 /// when the workflow's unavoidable cost floor already exceeds the budget
 /// the run was launched under. The ONE constructor both admission
-/// surfaces speak: the CLI's standalone preflight prints this same
-/// [`floor_refusal`] text and never reaches `run`, so the gate here is
+/// surfaces speak: the CLI's standalone preflight calls this same
+/// function and never reaches `run`, so the gate here is
 /// the fail-closed word for every OTHER embedder — the composed child
 /// above all, whose budget is the parent's remaining at call time (spec
 /// 14 law 6) and which used to RUN where the standalone form refused
@@ -56,6 +56,11 @@ pub(crate) fn gates(
 /// The floor prices the EFFECTIVE model (#342): a `--model` override
 /// replaces the envelope default (a per-task `model:` keeps winning), so
 /// the gate never fires on the file's model while the run uses another.
+///
+/// Priced builtins (B24 / issue 1296) fold in on top of the infer
+/// envelope: `nika check` still skips `invoke:` (no token bound), but a
+/// catalog floor already over the cap must refuse before HTTP — the
+/// mid-run NIKA-1704 abort is the spend-then-apologise this gate closes.
 #[must_use]
 pub fn budget_floor_refusal(
     wf: &RawWorkflow,
@@ -63,7 +68,7 @@ pub fn budget_floor_refusal(
     budget: Option<f64>,
     model_override: Option<&str>,
 ) -> Option<RuntimeError> {
-    let floor = match model_override {
+    let infer_floor = match model_override {
         Some(m) => {
             nika_check::check(&nika_check::with_model_override(wf, m))
                 .cost
@@ -71,8 +76,78 @@ pub fn budget_floor_refusal(
         }
         None => report.cost.min_path_total_usd,
     };
+    let floor = infer_floor + priced_builtin_floor(wf);
     let message = floor_refusal(floor, budget?)?;
     Some(RuntimeError::BudgetFloor { message })
+}
+
+/// Unavoidable catalog spend of priced `invoke:` tasks (cheapest path:
+/// `when:` closed → $0 · first-try · known `n:` · known `for_each`
+/// length). Templated provider/`n` and expression `for_each` stay off
+/// this floor — the mid-run ledger still owns what statics cannot see.
+fn priced_builtin_floor(wf: &RawWorkflow) -> f64 {
+    wf.tasks.iter().map(|t| invoke_static_floor(&t.value)).sum()
+}
+
+fn invoke_static_floor(task: &RawTask) -> f64 {
+    if task.when.is_some() {
+        return 0.0;
+    }
+    let RawAction::Invoke(inv) = &task.action else {
+        return 0.0;
+    };
+    let Some(tool) = inv.tool() else {
+        return 0.0;
+    };
+    let Some(args) = inv.args.as_ref() else {
+        return 0.0;
+    };
+    let Some(provider) = static_provider(&args.value) else {
+        return 0.0;
+    };
+    let Some(per) = nika_catalog::builtin_provider_floor_usd(&tool.value, provider) else {
+        return 0.0;
+    };
+    per * static_n(&args.value) * static_iterations(task)
+}
+
+fn static_provider(args: &Value) -> Option<&str> {
+    if let Some(provider) = args.get("provider").and_then(Value::as_str) {
+        return static_literal(provider);
+    }
+    let model = args.get("model").and_then(Value::as_str)?;
+    let model = static_literal(model)?;
+    model.contains("grok-imagine").then_some("xai")
+}
+
+fn static_literal(s: &str) -> Option<&str> {
+    (!s.contains("${{")).then_some(s)
+}
+
+fn static_n(args: &Value) -> f64 {
+    #[allow(clippy::cast_precision_loss)] // image `n:` is capped at 10
+    args.get("n")
+        .and_then(Value::as_u64)
+        .map_or(1.0, |n| n.max(1) as f64)
+}
+
+fn static_iterations(task: &RawTask) -> f64 {
+    match task.for_each.as_ref().map(|f| &f.value) {
+        None => 1.0,
+        Some(ForEachValue::List(arr)) => {
+            #[allow(clippy::cast_precision_loss)] // literal list length is a task count
+            {
+                arr.as_array().map_or(1, Vec::len) as f64
+            }
+        }
+        // Unknown count: cheapest path cannot claim a floor (NIKA-1704).
+        Some(ForEachValue::Expression(_)) => 0.0,
+        #[allow(
+            clippy::unreachable,
+            reason = "non_exhaustive future variant — enum and runtime ship together"
+        )]
+        other => unreachable!("unknown for_each form: {other:?}"),
+    }
 }
 
 /// The missing-required-input refusal — `Some` run-abort error when a
@@ -281,6 +356,7 @@ fn map_pin_refusal(refusal: PinRefusal) -> RuntimeError {
 mod tests {
     use std::sync::Arc;
 
+    use nika_kernel::tool_executor::ToolResult;
     use nika_kernel_mock::{
         MockClock, MockProvider, MockShell, MockToolDefinitionProvider, MockToolExecutor,
     };
@@ -303,10 +379,17 @@ mod tests {
     >;
 
     fn runtime_with(shell: MockShell) -> MockRuntime {
-        let executor = MockToolExecutor::new();
+        runtime_with_tools(shell, MockToolExecutor::new()).0
+    }
+
+    fn runtime_with_tools(
+        shell: MockShell,
+        executor: MockToolExecutor,
+    ) -> (MockRuntime, MockToolExecutor) {
+        let probe = executor.clone();
         let provider = MockProvider::new("mock");
         let invoke = Arc::new(InvokeVerb::new(Arc::new(executor)));
-        Runtime::new(
+        let runtime = Runtime::new(
             ExecVerb::new(Arc::new(shell)),
             Arc::clone(&invoke),
             InferVerb::new(
@@ -323,6 +406,15 @@ mod tests {
             ),
             MockClock::new(),
             RuntimeConfig::default(),
+        );
+        (runtime, probe)
+    }
+
+    /// One `nika:image_generate` task. Check's infer envelope is $0
+    /// (invoke is skipped); the catalog floor is the admission number.
+    fn image_generate_wf(provider: &str) -> String {
+        format!(
+            "nika: b24\npermits: {{ tools: [\"nika:image_generate\"], fs: {{ write: [\"./out/**\"] }} }}\ntasks:\n  og:\n    invoke: {{ tool: \"nika:image_generate\", args: {{ provider: {provider}, prompt: \"a monarch butterfly\", output_dir: \"./out\" }} }}\n"
         )
     }
 
@@ -596,6 +688,89 @@ mod tests {
             budget_floor_refusal(&wf, &report, Some(0.000_001), Some("mock/echo")).is_none(),
             "the effective mock floor is zero — the file's priced floor never fires"
         );
+    }
+
+    /// B24 / issue 1296: check's envelope skips `invoke:`, so a priced
+    /// `nika:image_generate` (xAI workhorse $0.02) used to launch, hit
+    /// HTTP, then abort NIKA-1704. The admission floor must refuse
+    /// BEFORE the executor is called (NIKA-1709 · zero events · zero spend).
+    #[test]
+    fn priced_image_builtin_floor_exceeds_a_tiny_cap() {
+        let wf = parse(&image_generate_wf("xai"));
+        let report = nika_check::check(&wf);
+        assert!(
+            report.is_clean(),
+            "the fixture must check clean: {report:?}"
+        );
+        assert_eq!(
+            report.cost.min_path_total_usd, 0.0,
+            "check still skips invoke — the hole this gate closes"
+        );
+        let err = budget_floor_refusal(&wf, &report, Some(0.001), None)
+            .expect("a $0.02 builtin floor refuses a $0.001 cap");
+        assert_eq!(err.spec_code(), "NIKA-1709");
+        let msg = err.to_string();
+        assert!(msg.contains("refusing to start"), "{msg}");
+        assert!(msg.contains("$0.020000"), "catalog floor rides: {msg}");
+        assert!(msg.contains("$0.001000"), "cap rides: {msg}");
+        assert!(
+            !msg.contains("spent $"),
+            "preflight, not the NIKA-1704 spend-then-apologise: {msg}"
+        );
+        assert!(budget_floor_refusal(&wf, &report, Some(1.00), None).is_none());
+        assert!(budget_floor_refusal(&wf, &report, None, None).is_none());
+    }
+
+    #[test]
+    fn mock_image_builtin_has_no_static_floor() {
+        let wf = parse(&image_generate_wf("mock"));
+        let report = nika_check::check(&wf);
+        assert!(
+            report.is_clean(),
+            "mock image fixture checks clean: {report:?}"
+        );
+        assert!(
+            budget_floor_refusal(&wf, &report, Some(0.001), None).is_none(),
+            "mock/local image is unpriced — a tight cap must not refuse the rehearsal"
+        );
+    }
+
+    /// Mutation pair with `priced_image_builtin_floor_exceeds_a_tiny_cap`:
+    /// cap 0.001 refuses before any tool call; cap 1.00 lets the stub through.
+    #[tokio::test]
+    async fn priced_image_builtin_under_tiny_cap_refuses_before_the_executor() {
+        let wf = parse(&image_generate_wf("xai"));
+        let executor = MockToolExecutor::new();
+        let (runtime, probe) = runtime_with_tools(MockShell::new(), executor);
+        let runtime = runtime.with_max_cost_usd(Some(0.001));
+        let err = run_refused(&runtime, &wf).await;
+        assert_eq!(err.spec_code(), "NIKA-1709");
+        assert!(
+            probe.captured_calls().is_empty(),
+            "no executor call recorded: {:?}",
+            probe.captured_calls()
+        );
+        let msg = err.to_string();
+        assert!(!msg.contains("cost_usd"), "{msg}");
+        assert!(!msg.contains("spent $0.02"), "{msg}");
+    }
+
+    #[tokio::test]
+    async fn priced_image_builtin_under_generous_cap_reaches_the_stub() {
+        let wf = parse(&image_generate_wf("xai"));
+        let executor =
+            MockToolExecutor::new().enqueue_ok(ToolResult::success("og", r#"{"ok":true}"#));
+        let (runtime, probe) = runtime_with_tools(MockShell::new(), executor);
+        let runtime = runtime.with_max_cost_usd(Some(1.00));
+        let outcome = run(&runtime, &wf).await;
+        assert!(outcome.ok, "cap 1.00 admits a $0.02 floor");
+        assert_eq!(
+            probe.captured_calls().len(),
+            1,
+            "the stub ran: {:?}",
+            probe.captured_calls()
+        );
+        assert_eq!(probe.captured_calls()[0].name, "nika:image_generate");
     }
 
     /// The gates' order: trust → required inputs → budget floor (a run

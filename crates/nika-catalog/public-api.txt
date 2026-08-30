@@ -1212,6 +1212,7 @@ pub fn nika_catalog::json_mode::ParseJsonModeError::from(t: T) -> T
 impl<T> nika_error::traits::AsAny for nika_catalog::json_mode::ParseJsonModeError where T: 'static
 pub fn nika_catalog::json_mode::ParseJsonModeError::as_any(&self) -> &(dyn core::any::Any + 'static)
 pub mod nika_catalog::lookup
+pub fn nika_catalog::lookup::builtin_provider_floor_usd(tool: &str, provider: &str) -> core::option::Option<f64>
 pub fn nika_catalog::lookup::estimate_cost(model: &str, input_tokens: u64, output_tokens: u64) -> core::option::Option<nika_catalog::model::CostEstimate>
 pub fn nika_catalog::lookup::estimate_cost_for(model: &str, input_tokens: u64, output_tokens: u64) -> core::option::Option<nika_catalog::model::CostEstimate>
 pub fn nika_catalog::lookup::estimate_cost_usage_for(model: &str, input_tokens: u64, output_tokens: u64, cache_read_tokens: u64, cache_write_tokens: u64) -> core::option::Option<nika_catalog::model::CostEstimate>
@@ -9318,6 +9319,7 @@ pub fn nika_catalog::all_mcp_servers() -> &'static [nika_catalog::mcp_server::Mc
 pub fn nika_catalog::all_pricing() -> &'static [nika_catalog::model::ModelPricing]
 pub fn nika_catalog::all_providers() -> &'static [nika_catalog::provider::Provider]
 pub fn nika_catalog::all_transforms() -> &'static [nika_catalog::transform::TransformDef]
+pub fn nika_catalog::builtin_provider_floor_usd(tool: &str, provider: &str) -> core::option::Option<f64>
 pub fn nika_catalog::estimate_cost(model: &str, input_tokens: u64, output_tokens: u64) -> core::option::Option<nika_catalog::model::CostEstimate>
 pub fn nika_catalog::estimate_cost_for(model: &str, input_tokens: u64, output_tokens: u64) -> core::option::Option<nika_catalog::model::CostEstimate>
 pub fn nika_catalog::estimate_cost_usage_for(model: &str, input_tokens: u64, output_tokens: u64, cache_read_tokens: u64, cache_write_tokens: u64) -> core::option::Option<nika_catalog::model::CostEstimate>

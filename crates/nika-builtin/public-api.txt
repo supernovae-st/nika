@@ -92,6 +92,7 @@ impl<T> nika_error::traits::AsAny for nika_builtin::image::ImageKeys where T: 's
 pub fn nika_builtin::image::ImageKeys::as_any(&self) -> &(dyn core::any::Any + 'static)
 impl<T> typenum::type_operators::Same for nika_builtin::image::ImageKeys
 pub type nika_builtin::image::ImageKeys::Output = T
+pub fn nika_builtin::image::static_floor_usd(provider: &str, n: u32) -> core::option::Option<f64>
 pub mod nika_builtin::image_fx
 pub mod nika_builtin::inspect
 pub mod nika_builtin::live
