@@ -746,6 +746,31 @@ tasks:
         );
     }
 
+    /// B20 / issue 1297: Gemini Flash is a CLOUD seat with a snapshot
+    /// price. `priced: false` here is how check printed `est unbounded`
+    /// and `--max-cost-usd` failed to bound a real PONG.
+    #[test]
+    fn gemini_flash_endpoint_is_priced_cloud() {
+        let j = journey_of(
+            "nika: gemini-b20\nmodel: gemini/gemini-2.5-flash\npermits: {}\ntasks:\n  ping:\n    infer: { prompt: \"PONG\", max_tokens: 256 }\n",
+        );
+        let ep = j
+            .model_endpoints
+            .iter()
+            .find(|e| e.task == "ping")
+            .expect("flash endpoint");
+        assert_eq!(ep.provider, "gemini");
+        assert_eq!(ep.model, "gemini/gemini-2.5-flash");
+        assert!(ep.recognized, "gemini is a catalog provider");
+        assert!(ep.priced, "flash must carry a snapshot row, got {ep:?}");
+        assert_eq!(ep.locus, EndpointLocus::Cloud);
+        assert!(
+            !j.trace_retention.is_empty(),
+            "a cloud endpoint carries sourced retention: {:?}",
+            j.trace_retention
+        );
+    }
+
     /// The envelope `model:` names the model a MODEL task would use · it
     /// does not turn every task into one. A body of builtin invokes has
     /// ZERO model endpoints, and the JOURNEY rung must say so: the COST

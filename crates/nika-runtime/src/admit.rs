@@ -68,17 +68,47 @@ pub fn budget_floor_refusal(
     budget: Option<f64>,
     model_override: Option<&str>,
 ) -> Option<RuntimeError> {
-    let infer_floor = match model_override {
+    let budget = budget?;
+    let owned;
+    let effective = match model_override {
         Some(m) => {
-            nika_check::check(&nika_check::with_model_override(wf, m))
-                .cost
-                .min_path_total_usd
+            owned = nika_check::check(&nika_check::with_model_override(wf, m));
+            &owned
         }
-        None => report.cost.min_path_total_usd,
+        None => report,
     };
-    let floor = infer_floor + priced_builtin_floor(wf);
-    let message = floor_refusal(floor, budget?)?;
+    if let Some(err) = unpriced_cloud_cap_refusal(effective, budget) {
+        return Some(err);
+    }
+    let floor = effective.cost.min_path_total_usd + priced_builtin_floor(wf);
+    let message = floor_refusal(floor, budget)?;
     Some(RuntimeError::BudgetFloor { message })
+}
+
+/// B20 / issue 1297: `--max-cost-usd` cannot bound a cloud seat the
+/// catalog does not price. Refuse before the prologue (zero events,
+/// zero spend). Mock and local unpriced seats are the sparing arms —
+/// they never trip this gate.
+fn unpriced_cloud_cap_refusal(report: &CheckReport, budget: f64) -> Option<RuntimeError> {
+    let unpriced: Vec<&str> = report
+        .data_journey
+        .model_endpoints
+        .iter()
+        .filter(|endpoint| endpoint.locus == nika_check::EndpointLocus::Cloud && !endpoint.priced)
+        .map(|endpoint| endpoint.model.as_str())
+        .collect();
+    if unpriced.is_empty() {
+        return None;
+    }
+    let models = unpriced.join(", ");
+    Some(RuntimeError::BudgetFloor {
+        message: format!(
+            "refusing to start: cloud model {models} is unpriced — \
+             --max-cost-usd ${budget:.6} cannot bound unknown spend \
+             (`nika check` reports priced: false). Pick a priced catalog \
+             seat, or drop the cap for a local/mock rehearsal.\n"
+        ),
+    })
 }
 
 /// Unavoidable catalog spend of priced `invoke:` tasks (cheapest path:
@@ -719,6 +749,113 @@ mod tests {
         );
         assert!(budget_floor_refusal(&wf, &report, Some(1.00), None).is_none());
         assert!(budget_floor_refusal(&wf, &report, None, None).is_none());
+    }
+
+    /// B20 / issue 1297: an unpriced CLOUD seat under `--max-cost-usd`
+    /// must refuse before the prologue. The canary is a gemini id the
+    /// snapshot does not price — mock/local stay the sparing arms.
+    fn unpriced_cloud_wf() -> String {
+        "nika: b20\nmodel: gemini/nika-b20-unpriced-canary\npermits: {}\ntasks:\n  ping:\n    infer: { prompt: \"PONG\", max_tokens: 16 }\n"
+            .to_owned()
+    }
+
+    #[test]
+    fn unpriced_cloud_plus_cap_refuses_to_start() {
+        let wf = parse(&unpriced_cloud_wf());
+        let report = nika_check::check(&wf);
+        assert!(
+            report.is_clean(),
+            "the canary must check clean so admission owns the refuse: {report:?}"
+        );
+        let ep = report
+            .data_journey
+            .model_endpoints
+            .iter()
+            .find(|e| e.task == "ping")
+            .expect("canary endpoint");
+        assert!(!ep.priced, "canary stays unpriced: {ep:?}");
+        assert_eq!(ep.locus, nika_check::EndpointLocus::Cloud);
+        let err = budget_floor_refusal(&wf, &report, Some(0.01), None)
+            .expect("unpriced cloud + cap 0.01 must refuse");
+        assert_eq!(err.spec_code(), "NIKA-1709");
+        let msg = err.to_string();
+        assert!(msg.contains("refusing to start"), "{msg}");
+        assert!(msg.contains("unpriced"), "{msg}");
+        assert!(msg.contains("nika-b20-unpriced-canary"), "{msg}");
+        assert!(msg.contains("0.010000"), "cap rides: {msg}");
+        assert!(
+            budget_floor_refusal(&wf, &report, None, None).is_none(),
+            "no cap → unpriced cloud may still start"
+        );
+    }
+
+    #[test]
+    fn mock_plus_cap_still_admits() {
+        let wf = parse(
+            "nika: b20-mock\nmodel: mock/echo\npermits: {}\ntasks:\n  ping:\n    infer: { prompt: \"PONG\", max_tokens: 16 }\n",
+        );
+        let report = nika_check::check(&wf);
+        assert!(report.is_clean(), "mock rehearsal checks clean: {report:?}");
+        assert!(
+            budget_floor_refusal(&wf, &report, Some(0.01), None).is_none(),
+            "mock is a proven zero — a cap must not refuse the rehearsal"
+        );
+        assert!(budget_floor_refusal(&wf, &report, None, None).is_none());
+    }
+
+    #[test]
+    fn local_unpriced_without_cap_still_admits() {
+        let wf = parse(
+            "nika: b20-local\nmodel: ollama/llama3\npermits: {}\ntasks:\n  ping:\n    infer: { prompt: \"PONG\", max_tokens: 16 }\n",
+        );
+        let report = nika_check::check(&wf);
+        let ep = report
+            .data_journey
+            .model_endpoints
+            .iter()
+            .find(|e| e.task == "ping")
+            .expect("local endpoint");
+        assert!(!ep.priced, "local stays unpriced-not-free: {ep:?}");
+        assert_eq!(ep.locus, nika_check::EndpointLocus::Local);
+        assert!(
+            budget_floor_refusal(&wf, &report, None, None).is_none(),
+            "local unpriced without a cap still runs"
+        );
+        assert!(
+            budget_floor_refusal(&wf, &report, Some(0.01), None).is_none(),
+            "a cap on local watts is not a cloud-price bound"
+        );
+    }
+
+    #[test]
+    fn priced_gemini_flash_under_a_generous_cap_admits() {
+        let wf = parse(
+            "nika: b20-flash\nmodel: gemini/gemini-2.5-flash\npermits: {}\ntasks:\n  ping:\n    infer: { prompt: \"PONG\", max_tokens: 256 }\n",
+        );
+        let report = nika_check::check(&wf);
+        let ep = report
+            .data_journey
+            .model_endpoints
+            .iter()
+            .find(|e| e.task == "ping")
+            .expect("flash endpoint");
+        assert!(ep.priced, "flash is the snapshot row: {ep:?}");
+        assert!(
+            budget_floor_refusal(&wf, &report, Some(0.20), None).is_none(),
+            "priced flash under $0.20 must start: floor {}",
+            report.cost.min_path_total_usd
+        );
+    }
+
+    #[tokio::test]
+    async fn unpriced_cloud_under_cap_refuses_before_any_infer() {
+        let wf = parse(&unpriced_cloud_wf());
+        let runtime = runtime_with(MockShell::new()).with_max_cost_usd(Some(0.01));
+        let err = run_refused(&runtime, &wf).await;
+        assert_eq!(err.spec_code(), "NIKA-1709");
+        let msg = err.to_string();
+        assert!(msg.contains("refusing to start"), "{msg}");
+        assert!(msg.contains("unpriced"), "{msg}");
     }
 
     #[test]

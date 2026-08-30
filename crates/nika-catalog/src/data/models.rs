@@ -119,8 +119,9 @@ pub fn find_pricing(model: &str) -> Option<&'static ModelPricing> {
 /// provider boundaries.
 ///
 /// Provider matching is case-insensitive and accepts the provider id
-/// (e.g. `"openai"`) or the capitalised display form used in the
-/// pricing table (e.g. `"OpenAI"`).
+/// (e.g. `"openai"`), a catalog alias (e.g. `"gemini"` ↔ snapshot
+/// `"google"`), or the capitalised display form used in the pricing
+/// table (e.g. `"OpenAI"`).
 #[cfg(feature = "pricing")]
 #[must_use]
 pub fn find_pricing_scoped(provider: &str, model: &str) -> Option<&'static ModelPricing> {
@@ -128,14 +129,33 @@ pub fn find_pricing_scoped(provider: &str, model: &str) -> Option<&'static Model
     // Pass 1: exact model match within provider scope.
     if let Some(p) = ALL_PRICING
         .iter()
-        .find(|p| p.provider.eq_ignore_ascii_case(provider) && model == p.model_pattern)
+        .find(|p| pricing_provider_matches(p.provider, provider) && model == p.model_pattern)
     {
         return Some(p);
     }
     // Pass 2: contains() fallback within provider scope.
     ALL_PRICING
         .iter()
-        .find(|p| p.provider.eq_ignore_ascii_case(provider) && model.contains(p.model_pattern))
+        .find(|p| pricing_provider_matches(p.provider, provider) && model.contains(p.model_pattern))
+}
+
+/// A snapshot row and a query name the same catalog seat.
+///
+/// models.dev ships Gemini under `google`; the engine id is `gemini`
+/// with alias `google`. Byte-equal ids still match without a catalog
+/// hit so unknown overlay providers keep working.
+#[cfg(feature = "pricing")]
+fn pricing_provider_matches(row_provider: &str, query: &str) -> bool {
+    if row_provider.eq_ignore_ascii_case(query) {
+        return true;
+    }
+    match (
+        crate::data::find_provider(row_provider),
+        crate::data::find_provider(query),
+    ) {
+        (Some(row), Some(asked)) => row.id.eq_ignore_ascii_case(asked.id),
+        _ => false,
+    }
 }
 
 /// Find pricing for a model string that MAY carry a `provider/` prefix —
@@ -543,6 +563,28 @@ mod tests {
         // None — the runtime emits NO cost fields for these.
         assert!(find_pricing_for("mock/mock-echo").is_none());
         assert!(find_pricing_for("ollama/qwen3.5:4b").is_none());
+    }
+
+    /// B20 / issue 1297: the snapshot prices Gemini Flash under models.dev's
+    /// `google` id; the engine seat is `gemini` (alias `google`). Lookup
+    /// must resolve the runnable form to that real row — `priced: false`
+    /// on `gemini/gemini-2.5-flash` is how `--max-cost-usd` failed to bound
+    /// a live cloud call.
+    #[test]
+    fn find_pricing_for_gemini_flash_uses_the_google_snapshot_row() {
+        let p = find_pricing_for("gemini/gemini-2.5-flash")
+            .expect("gemini flash must resolve to a snapshot row");
+        assert_eq!(p.model_pattern, "gemini-2.5-flash");
+        assert!(
+            p.output_per_million > 0.0 && p.input_per_million > 0.0,
+            "a real snapshot row, not a zero placeholder: {p:?}"
+        );
+        let via_alias = find_pricing_scoped("google", "gemini-2.5-flash").expect("google alias");
+        let via_id = find_pricing_scoped("gemini", "gemini-2.5-flash").expect("gemini id");
+        assert!(
+            std::ptr::eq(via_alias, via_id) && std::ptr::eq(p, via_id),
+            "google and gemini must price the same row"
+        );
     }
 
     #[test]

@@ -315,6 +315,51 @@ tasks:
         assert_eq!(c.tasks[0].max_tokens, Some(1000));
     }
 
+    /// B20 / issue 1297: `gemini/gemini-2.5-flash` with a token bound is a
+    /// priced cloud ceiling, never `NoPrice` / `est unbounded`. Check JSON
+    /// serializes that honesty (`priced: true`, no `NoPrice` reason).
+    #[test]
+    fn gemini_flash_with_max_tokens_is_priced_not_unbounded() {
+        let yaml = "\
+nika: gemini-b20
+model: gemini/gemini-2.5-flash
+permits: {}
+tasks:
+  ping:
+    infer: { prompt: \"PONG\", max_tokens: 256 }
+";
+        let c = ceiling_of(yaml);
+        assert_eq!(c.tasks.len(), 1, "{c:?}");
+        assert!(
+            !c.has_unbounded,
+            "priced flash + max_tokens is a ceiling, not unbounded: {c:?}"
+        );
+        assert_eq!(c.tasks[0].unbounded_reason, None);
+        assert!(
+            c.tasks[0].usd.is_some_and(|usd| usd > 0.0),
+            "output-token ceiling is a real snapshot rate: {c:?}"
+        );
+        let wf = parse(yaml, FileId::new(0), ParseMode::Strict).expect("parse");
+        let report = crate::check(&wf);
+        let ep = report
+            .data_journey
+            .model_endpoints
+            .iter()
+            .find(|e| e.task == "ping")
+            .expect("flash endpoint");
+        assert!(ep.priced, "check JSON priced: true, got {ep:?}");
+        assert_eq!(ep.locus, crate::EndpointLocus::Cloud);
+        let json = serde_json::to_string(&report).expect("report json");
+        assert!(
+            !json.contains("NoPrice"),
+            "check JSON must not carry NoPrice for a priced cloud seat: {json}"
+        );
+        assert!(
+            !json.contains("est unbounded"),
+            "check JSON must not print est unbounded for priced flash: {json}"
+        );
+    }
+
     #[test]
     fn for_each_over_a_literal_vars_array_is_bounded() {
         // NEW-5: a static `${{ const.items }}` over a literal array has a known

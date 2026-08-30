@@ -334,7 +334,7 @@ pub fn catalog_warning(model: &str) -> Option<String> {
     // at `find_pricing`, deliberately not re-judged here).
     let priced: Vec<&'static str> = nika_catalog::all_pricing()
         .iter()
-        .filter(|p| p.provider.eq_ignore_ascii_case(provider))
+        .filter(|p| pricing_provider_matches(p.provider, provider))
         .map(|p| p.model_pattern)
         .collect();
     if priced.is_empty() {
@@ -367,6 +367,20 @@ pub fn catalog_warning(model: &str) -> Option<String> {
          binary's snapshot ({}); a run would fail at the provider{guess}",
         snapshot.as_of,
     ))
+}
+
+/// Snapshot row id and query name the same catalog seat (`gemini` ↔ `google`).
+fn pricing_provider_matches(row_provider: &str, query: &str) -> bool {
+    if row_provider.eq_ignore_ascii_case(query) {
+        return true;
+    }
+    match (
+        nika_catalog::find_provider(row_provider),
+        nika_catalog::find_provider(query),
+    ) {
+        (Some(row), Some(asked)) => row.id.eq_ignore_ascii_case(asked.id),
+        _ => false,
+    }
 }
 
 /// The 10 cloud rows (catalog-backed) + the in-process mock.
@@ -571,6 +585,21 @@ mod tests {
         assert!(catalog_warning("mock/echo").is_none());
         assert!(catalog_warning("gpt-4o-mini").is_none());
         assert!(catalog_warning("azure/gpt-4o").is_none());
+        // B20 / issue 1297: gemini is a priced cloud seat (models.dev
+        // snapshot rows ship as `google`; the engine id is `gemini`).
+        // Flash is a living model; a canary name is a ghost, not the
+        // local/mock "whatever was pulled" class.
+        assert!(
+            catalog_warning("gemini/gemini-2.5-flash").is_none(),
+            "flash is in the snapshot"
+        );
+        let gemini_ghost =
+            catalog_warning("gemini/nika-b20-unpriced-canary").expect("gemini is priced-cloud");
+        assert!(
+            gemini_ghost.contains("matches none of `gemini`'s")
+                && gemini_ghost.contains("newer than this binary's snapshot"),
+            "{gemini_ghost}"
+        );
     }
 
     use super::*;
