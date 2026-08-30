@@ -5,7 +5,7 @@
 | Status | **MEMBER** (size-cap split of the admitted `nika-cli` unit · ADR-110 · D-2026-07-09-N1 · 2026-07-31) |
 | Layer | L4 — interface member (one unit, two members; the bin + dispatch stay in `nika-cli`) |
 | Design | the host-integration plane: probes · wire writers · doctor receipts · vendored client matrix · context envelope · retention · metrics · the output contract |
-| IMPL | ~12345 LOC src (2026-08-21 live · `scripts/crate-metrics.sh nika-cli-host`) |
+| IMPL | ~14871 LOC src (2026-08-30 live · `scripts/crate-metrics.sh nika-cli-host`) |
 | LOC budget | ≤15k crate · ≤1500/file · ≤100/fn (Diamond caps) |
 | Crate version | tracks workspace |
 | License | `AGPL-3.0-or-later` |
